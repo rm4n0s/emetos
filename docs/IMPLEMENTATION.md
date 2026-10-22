@@ -28,7 +28,7 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
 4. **Do exactly the step's Tasks.** Don't do work that belongs to a later step, even if it looks easy. If a later step will need a hook, leave only a comment: `// TODO(step 5.2): ...`.
 5. **Follow CLAUDE.md.** In particular: `rm4n0s/errors` for every error, no cgo, no Glutter import under `internal/core`, no network.
 6. **Match VS Code.** When VS Code has the behavior, match its defaults, edge cases and command ids. Read its implementation under `reference/vscode` and port the algorithm when it is the right one (VS Code is MIT; a ported file gets a `// Ported from VS Code: <path>` line in its package doc or above the ported code, and `NOTICE` already covers it). Port the relevant cases of the VS Code tests listed under **Tests** as table-driven Go tests, and say how many in `docs/IMPLEMENTED.md`.
-7. **Glutter gaps.** When Glutter is missing something or has a bug, work around it in Emetos, mark the code with `// Glutter: <what and why>`, add an entry to `docs/GLUTTER-ISSUES.md`, and mention it in the report (CLAUDE.md "Glutter").
+7. **Glutter gaps.** When Glutter is missing something or has a bug, work around it in Emetos, mark the code with `// Glutter: <what and why>`, add an entry to `docs/GLUTTER-ISSUES.md` (create it if it doesn't exist), and mention it in the report (CLAUDE.md "Glutter").
 8. **Stop and ask the user** when any of these happens:
    - the step is ambiguous
    - the spec looks wrong or contradicts VS Code

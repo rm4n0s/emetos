@@ -98,7 +98,7 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | D5 | Language intelligence comes only from LSP and debugging only from DAP (areas 3 and 6) | One mechanism for every language |
 | D6 | Text is UTF-8 in memory; positions are byte offsets and (line, byte column) pairs; visual columns are computed for display (§6.2) | Matches Glutter's text API; LSP 3.17 can negotiate UTF-8 positions, and UTF-16 is converted when a server can't |
 | D7 | VS Code's file formats for themes, grammars, language configurations, snippets, settings and keybindings (G4) | Reuse of existing material |
-| D8 | When Glutter lacks something, Emetos works around it, marks the code with `// Glutter:`, and lists it in `docs/GLUTTER-ISSUES.md` | The user's rule (CLAUDE.md) |
+| D8 | When Glutter lacks something, Emetos works around it, marks the code with `// Glutter:`, and lists it in `docs/GLUTTER-ISSUES.md` (which exists only while there are open issues) | The user's rule (CLAUDE.md) |
 | D9 | Hand-made widgets on Glutter's `widgets` layer for the workbench, themed by VS Code workbench colors; Material widgets only for menus where they can be restyled | A dense IDE look, not a phone look |
 | D10 | Glutter v1.4.0 or newer: fonts loaded at run time (`RunAppOpts.Fonts`, `PlatformDispatcher.LoadFontFromList`), fonts in `gluttertest` (`Opts.Fonts`), family fallback in order, font queries and the desktop's font settings, `TreeSliver`, tab stops (`ParagraphStyleOpts.TabSize`), the cache of shaped runs | What the editor needs (was Q1) |
 | D11 | Regular expressions with `github.com/dlclark/regexp2` (§8.2) | TextMate grammars need lookbehind and backreferences (was Q2) |

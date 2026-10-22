@@ -55,7 +55,7 @@ Before reporting a task as finished, run `gofmt`, `go vet ./...`, `golangci-lint
 ## Glutter
 - Follow Glutter's API conventions: `NewX(required..., opts ...XOpts) *X` constructors, options structs, `foundation.Opt[T]` for nullable options. Emetos's own widgets follow the same conventions
 - When Glutter is missing something or has a bug, work around it in Emetos without stopping, and mark the workaround with a `// Glutter:` comment that says what it works around and what Glutter should provide instead
-- Keep a list of these workarounds in `docs/GLUTTER-ISSUES.md` (what is missing or broken, where the workaround is, and what the fix in Glutter would be), and mention new entries in the report at the end of the task, so they can be fixed in Glutter later
+- Keep a list of these workarounds in `docs/GLUTTER-ISSUES.md` (what is missing or broken, where the workaround is, and what the fix in Glutter would be), and mention new entries in the report at the end of the task, so they can be fixed in Glutter later. Create the file with the first entry; remove an entry when the fix is in the Glutter version Emetos uses, and delete the file when no entry is left
 - Read Glutter's source in the Go module cache when its behavior is unclear; its `docs/SPEC.md` describes its design
 
 ## Error handling
