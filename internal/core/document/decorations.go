@@ -145,3 +145,18 @@ func (d *Document) clearDecorations() {
 	d.deco.store = intervalStore{}
 	d.deco.byID = nil
 }
+
+// TrackOffset is where the offset p ends up when the bytes [editStart, editEnd)
+// are replaced by textLen bytes: the rule decorations follow, for a single point.
+// A point at the edit's start or end stays before the inserted text when
+// sticksToPrevious, and moves after it otherwise; a point inside the replaced
+// bytes keeps its offset while that is inside the new text, and else goes to the
+// end of the new text.
+func TrackOffset(p int, sticksToPrevious bool, editStart, editEnd, textLen int) int {
+	st := GrowsOnlyWhenTypingAfter
+	if sticksToPrevious {
+		st = GrowsOnlyWhenTypingBefore
+	}
+	got, _ := acceptEdit(p, p, st, false, editStart, editEnd, textLen, false)
+	return got
+}

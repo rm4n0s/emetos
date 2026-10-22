@@ -326,3 +326,57 @@ func TestUndoRestoresOnlyWhatTheGroupChanged(t *testing.T) {
 		t.Errorf("text = %q", got)
 	}
 }
+
+// Ported from VS Code: cursor.test.ts ('there is a single undo stop for
+// consecutive whitespaces', 'there is no undo stop after a single whitespace',
+// 'inserts undo stop when typing space'): undo stops before the first space typed
+// after other characters, spaces typed one after the other stay together, and the
+// characters after a single space join it.
+func TestTypingSpaceUndoStops(t *testing.T) {
+	tests := []struct {
+		name   string
+		typed  string
+		undone []string // the text after each Undo
+	}{
+		{"consecutive spaces", "ab  cd", []string{"ab  ", "ab", ""}},
+		{"single space", "ab cd", []string{"ab", ""}},
+		{"words", "first and interesting", []string{"first and", "first", ""}},
+		{"leading space", " ab", []string{""}},
+		{"space at the end", "ab ", []string{"ab", ""}},
+		{"three spaces", "a   b", []string{"a   ", "a", ""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := newDoc("")
+			for i := 0; i < len(tt.typed); i++ {
+				typeAt(t, d, i, tt.typed[i:i+1])
+			}
+			if d.Text() != tt.typed {
+				t.Fatalf("text = %q", d.Text())
+			}
+			for i, want := range tt.undone {
+				undo(t, d)
+				if d.Text() != want {
+					t.Fatalf("after Undo %d: %q, want %q", i+1, d.Text(), want)
+				}
+			}
+		})
+	}
+}
+
+func TestTypingSpaceForSeveralCursors(t *testing.T) {
+	// A batch where every edit inserts a single space is a space typed.
+	d := newDoc("ab\nab")
+	two := func(col int, s string) {
+		edit(t, d, []Edit{ins(0, col, s), ins(1, col, s)}, EditOptions{Kind: KindTyping})
+	}
+	two(2, "c")
+	two(3, " ")
+	two(4, "d")
+	for _, want := range []string{"abc\nabc", "ab\nab"} {
+		undo(t, d)
+		if d.Text() != want {
+			t.Fatalf("Undo gave %q, want %q", d.Text(), want)
+		}
+	}
+}

@@ -310,3 +310,30 @@ func BenchmarkDecorationsTyping(b *testing.B) {
 		}
 	}
 }
+
+func TestTrackOffset(t *testing.T) {
+	tests := []struct {
+		name                        string
+		p                           int
+		sticksToPrevious            bool
+		editStart, editEnd, textLen int
+		want                        int
+	}{
+		{"before the edit", 2, false, 5, 5, 3, 2},
+		{"after the edit", 9, false, 5, 7, 1, 8},
+		{"insert at it, sticks to the previous", 5, true, 5, 5, 3, 5},
+		{"insert at it, sticks to the next", 5, false, 5, 5, 3, 8},
+		{"inside a replaced range, previous", 6, true, 5, 8, 2, 6},
+		{"inside a replaced range, next", 6, false, 5, 8, 2, 6},
+		{"inside a replaced range, past the new text", 7, false, 5, 8, 1, 6},
+		{"at the end of a replaced range", 8, false, 5, 8, 2, 7},
+		{"deleted range before it", 10, false, 2, 6, 0, 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := TrackOffset(tt.p, tt.sticksToPrevious, tt.editStart, tt.editEnd, tt.textLen); got != tt.want {
+				t.Errorf("TrackOffset = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}

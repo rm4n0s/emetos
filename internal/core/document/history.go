@@ -21,7 +21,36 @@ type group struct {
 	altBefore, altAfter int
 	selBefore, selAfter []buffer.Selection
 	kind                EditKind
+	typing              typingState
 	closed              bool
+}
+
+// typingState tells what the last typing edit of a group was, for VS Code's rule
+// that undo stops before the first space typed after other characters.
+type typingState int
+
+const (
+	typedOther typingState = iota
+	typedFirstSpace
+	typedConsecutiveSpace
+)
+
+// typingStateOf classifies a typing edit that follows an edit of state prev
+// (typedOther when there is none): a batch that only inserts single spaces is a
+// first space, or a consecutive one after another space.
+func typingStateOf(changes []textChange, prev typingState) typingState {
+	if len(changes) == 0 {
+		return typedOther
+	}
+	for _, c := range changes {
+		if c.newText != " " {
+			return typedOther
+		}
+	}
+	if prev == typedFirstSpace || prev == typedConsecutiveSpace {
+		return typedConsecutiveSpace
+	}
+	return typedFirstSpace
 }
 
 // history is the undo and redo stacks of a document.
@@ -46,14 +75,26 @@ func (h *history) clear() {
 func (h *history) record(changes []textChange, altBefore, altAfter int, eolBefore, eolAfter fileio.LineEnding, opts EditOptions, after []buffer.Selection) {
 	h.redo = nil
 	s := step{changes: changes, eolBefore: eolBefore, eolAfter: eolAfter}
+	typing := typedOther
+	if opts.Kind == KindTyping {
+		typing = typingStateOf(changes, typedOther)
+	}
 	if g := h.top(); g != nil && g.canJoin(opts) {
-		g.appendStep(s)
-		g.altAfter, g.selAfter = altAfter, after
-		return
+		if opts.Kind == KindTyping {
+			if next := typingStateOf(changes, g.typing); g.joinsTyping(next) {
+				g.appendStep(s)
+				g.altAfter, g.selAfter, g.typing = altAfter, after, next
+				return
+			}
+		} else {
+			g.appendStep(s)
+			g.altAfter, g.selAfter = altAfter, after
+			return
+		}
 	}
 	h.undo = append(h.undo, &group{
 		steps: []step{s}, altBefore: altBefore, altAfter: altAfter,
-		selBefore: opts.Before, selAfter: after, kind: opts.Kind,
+		selBefore: opts.Before, selAfter: after, kind: opts.Kind, typing: typing,
 	})
 }
 
@@ -77,6 +118,17 @@ func (g *group) canJoin(opts EditOptions) bool {
 		return true
 	}
 	return buffer.SelectionsEqual(g.selAfter, opts.Before)
+}
+
+// joinsTyping reports whether typing of state next continues the group's typing:
+// text typed after a single space continues it, so does a space after a space, but
+// a space after other characters, and other characters after spaces, start a new
+// group (VS Code's shouldPushStackElementBetween).
+func (g *group) joinsTyping(next typingState) bool {
+	if g.typing == typedFirstSpace {
+		return true
+	}
+	return (g.typing == typedOther) == (next == typedOther)
 }
 
 // appendStep adds a step, folding it into the last one when it continues it: text
