@@ -9,7 +9,8 @@ import (
 // used by one goroutine at a time; Snapshot gives other goroutines a view that
 // edits never change.
 type Buffer struct {
-	root *node
+	// view is the current text; its methods are the Buffer's reading methods.
+	view
 	// add is the chunk new text is appended to, and addUsed and addFeeds count
 	// its bytes and line feeds written so far. They belong to the editing
 	// goroutine alone, so readers of a chunk never touch them.
@@ -18,9 +19,14 @@ type Buffer struct {
 	addFeeds int
 }
 
+// view is a Snapshot as the Buffer holds it. It is an alias so that the Buffer
+// gets the reading methods of Snapshot without a field of the same name as its
+// Snapshot method.
+type view = Snapshot
+
 // New makes a Buffer that holds text.
 func New(text string) *Buffer {
-	return &Buffer{root: fromPieces(originalPieces(text))}
+	return &Buffer{view: Snapshot{root: fromPieces(originalPieces(text))}}
 }
 
 // Snapshot is an immutable view of the text at one moment. It is a value that
@@ -32,7 +38,7 @@ type Snapshot struct {
 
 // Snapshot returns the text as it is now, in O(1).
 func (b *Buffer) Snapshot() Snapshot {
-	return Snapshot{root: b.root}
+	return b.view
 }
 
 // Len is the length of the text in bytes.
@@ -41,9 +47,9 @@ func (s Snapshot) Len() int { return size(s.root) }
 // LineFeeds is the number of line feeds in the text.
 func (s Snapshot) LineFeeds() int { return lineFeeds(s.root) }
 
-// Text returns the bytes [start, end) as a string. It fails with the tag
+// Slice returns the bytes [start, end) as a string. It fails with the tag
 // OffsetRangeInvalid unless 0 <= start <= end <= Len().
-func (s Snapshot) Text(start, end int) (string, error) {
+func (s Snapshot) Slice(start, end int) (string, error) {
 	if start < 0 || end < start || end > s.Len() {
 		return "", errors.New("OffsetRangeInvalid", "the offsets are not a range of the text",
 			"start", start, "end", end, "len", s.Len())
@@ -55,18 +61,6 @@ func (s Snapshot) Text(start, end int) (string, error) {
 func (s Snapshot) String() string {
 	return string(s.root.appendRange(make([]byte, 0, s.Len()), 0, s.Len()))
 }
-
-// Len is the length of the text in bytes.
-func (b *Buffer) Len() int { return size(b.root) }
-
-// LineFeeds is the number of line feeds in the text.
-func (b *Buffer) LineFeeds() int { return lineFeeds(b.root) }
-
-// Text returns the bytes [start, end) as a string; see Snapshot.Text.
-func (b *Buffer) Text(start, end int) (string, error) { return b.Snapshot().Text(start, end) }
-
-// String is the whole text.
-func (b *Buffer) String() string { return b.Snapshot().String() }
 
 // Insert puts text at the byte offset. It fails with the tag OffsetOutOfRange
 // unless 0 <= offset <= Len().

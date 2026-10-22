@@ -65,7 +65,7 @@ func TestNewAndText(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			b := New(tt.text)
 			checkTree(t, b, tt.text)
-			got, err := b.Text(len(tt.text)/3, len(tt.text)*2/3)
+			got, err := b.Slice(len(tt.text)/3, len(tt.text)*2/3)
 			if err != nil {
 				t.Fatalf("Text: %v", err)
 			}
@@ -156,8 +156,8 @@ func TestEditErrors(t *testing.T) {
 		{"delete reversed", "Delete", "OffsetRangeInvalid", func(b *Buffer) error { return b.Delete(2, 1) }},
 		{"delete past the end", "Delete", "OffsetRangeInvalid", func(b *Buffer) error { return b.Delete(0, 4) }},
 		{"replace from before the start", "Replace", "OffsetRangeInvalid", func(b *Buffer) error { return b.Replace(-1, 1, "x") }},
-		{"text reversed", "Text", "OffsetRangeInvalid", func(b *Buffer) error { _, err := b.Text(2, 1); return err }},
-		{"text past the end", "Text", "OffsetRangeInvalid", func(b *Buffer) error { _, err := b.Text(0, 4); return err }},
+		{"text reversed", "Slice", "OffsetRangeInvalid", func(b *Buffer) error { _, err := b.Slice(2, 1); return err }},
+		{"text past the end", "Slice", "OffsetRangeInvalid", func(b *Buffer) error { _, err := b.Slice(0, 4); return err }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -231,7 +231,7 @@ func TestRandomEditsAgainstAString(t *testing.T) {
 			var snaps []taken
 			for i := 0; i < 250; i++ {
 				model = randomEdit(rng, b, model)
-				checkTree(t, b, model)
+				checkAll(t, b, model)
 				if rng.Intn(10) == 0 {
 					snaps = append(snaps, taken{b.Snapshot(), model})
 				}
@@ -249,7 +249,7 @@ func TestRandomEditsAgainstAString(t *testing.T) {
 	}
 }
 
-func TestTextOfEveryRange(t *testing.T) {
+func TestSliceOfEveryRange(t *testing.T) {
 	text := "ab\ncde\n\nfghij"
 	b := New(text)
 	// Pieces from several edits, so ranges cross piece borders.
@@ -259,9 +259,9 @@ func TestTextOfEveryRange(t *testing.T) {
 	want := b.String()
 	for start := 0; start <= len(want); start++ {
 		for end := start; end <= len(want); end++ {
-			got, err := b.Text(start, end)
+			got, err := b.Slice(start, end)
 			if err != nil || got != want[start:end] {
-				t.Fatalf("Text(%d, %d) = %q, %v, want %q", start, end, got, err, want[start:end])
+				t.Fatalf("Slice(%d, %d) = %q, %v, want %q", start, end, got, err, want[start:end])
 			}
 		}
 	}
@@ -339,8 +339,8 @@ func TestReadingSnapshotsWhileEditing(t *testing.T) {
 			if snap.String() != want {
 				t.Error("a snapshot read while the buffer changed differs from the text it was taken at")
 			}
-			if got, err := snap.Text(2, snap.Len()-1); err != nil || got != want[2:len(want)-1] {
-				t.Errorf("Text of a snapshot: %v", err)
+			if got, err := snap.Slice(2, snap.Len()-1); err != nil || got != want[2:len(want)-1] {
+				t.Errorf("Slice of a snapshot: %v", err)
 			}
 		}()
 	}
@@ -372,7 +372,7 @@ func FuzzEdits(f *testing.F) {
 				must(b.Replace(start, end, text))
 				model = model[:start] + text + model[end:]
 			}
-			checkTree(t, b, model)
+			checkAll(t, b, model)
 			if i%2 == 0 {
 				snap, snapText = b.Snapshot(), model
 			}

@@ -28,15 +28,20 @@ type chunk struct {
 	feeds []int32
 }
 
-// newOriginalChunk copies text into a chunk and finds its line feeds.
-func newOriginalChunk(text string) *chunk {
-	c := &chunk{data: []byte(text)}
-	for i := 0; i < len(text); i++ {
-		if text[i] == '\n' {
+// newOriginalChunk makes a chunk that owns data and finds its line feeds.
+func newOriginalChunk(data []byte) *chunk {
+	c := &chunk{data: data}
+	for i, b := range data {
+		if b == '\n' {
 			c.feeds = append(c.feeds, int32(i))
 		}
 	}
 	return c
+}
+
+// originalPiece is the piece that covers a whole original chunk.
+func originalPiece(c *chunk) piece {
+	return piece{c, 0, len(c.data), 0, len(c.feeds)}
 }
 
 // newAddChunk makes an empty chunk with room for size bytes.
@@ -71,7 +76,7 @@ func (p piece) splitAt(off int) (piece, piece) {
 
 // cutPoint is the largest n <= limit such that text[:n] doesn't end inside a
 // UTF-8 sequence, or limit when no such n is within three bytes.
-func cutPoint(text string, limit int) int {
+func cutPoint[T ~string | ~[]byte](text T, limit int) int {
 	if limit >= len(text) {
 		return len(text)
 	}
@@ -89,8 +94,7 @@ func originalPieces(text string) []piece {
 	var out []piece
 	for len(text) > 0 {
 		n := cutPoint(text, maxChunk)
-		c := newOriginalChunk(text[:n])
-		out = append(out, piece{c, 0, len(c.data), 0, len(c.feeds)})
+		out = append(out, originalPiece(newOriginalChunk([]byte(text[:n]))))
 		text = text[n:]
 	}
 	return out

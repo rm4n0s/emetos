@@ -1,5 +1,7 @@
 package buffer
 
+import "sort"
+
 // node is a node of the piece tree, an AVL tree ordered by position in the text.
 // A node is never changed after it is made: an edit builds new nodes along the
 // path it touches and shares the rest, so a root is an immutable snapshot of the
@@ -196,4 +198,89 @@ func (n *node) appendRange(dst []byte, start, end int) []byte {
 		dst = n.right.appendRange(dst, max(start-rs, 0), end-rs)
 	}
 	return dst
+}
+
+// afterLineFeed is the offset just after the k-th line feed of the subtree,
+// 1 <= k <= lineFeeds(n). It takes O(log n) steps: the counts in the nodes pick
+// the way down, and the chunk's list of line feeds gives the place in a piece.
+func (n *node) afterLineFeed(k int) int {
+	off := 0
+	for n != nil {
+		ll := lineFeeds(n.left)
+		switch {
+		case k <= ll:
+			n = n.left
+		case k <= ll+n.p.lf():
+			feed := int(n.p.c.feeds[n.p.fStart+k-ll-1])
+			return off + size(n.left) + feed - n.p.start + 1
+		default:
+			k -= ll + n.p.lf()
+			off += size(n.left) + n.p.len()
+			n = n.right
+		}
+	}
+	return off
+}
+
+// lineFeedsBefore is the number of line feeds in the first off bytes of the
+// subtree, in O(log n).
+func (n *node) lineFeedsBefore(off int) int {
+	count := 0
+	for n != nil && off > 0 {
+		ls := size(n.left)
+		if off <= ls {
+			n = n.left
+			continue
+		}
+		count += lineFeeds(n.left)
+		off -= ls
+		if pl := n.p.len(); off < pl {
+			at := n.p.start + off
+			return count + sort.Search(n.p.lf(), func(i int) bool {
+				return int(n.p.c.feeds[n.p.fStart+i]) >= at
+			})
+		}
+		count += n.p.lf()
+		off -= n.p.len()
+		n = n.right
+	}
+	return count
+}
+
+// byteAt is the byte at off, 0 <= off < size(n).
+func (n *node) byteAt(off int) byte {
+	for {
+		ls := size(n.left)
+		switch {
+		case off < ls:
+			n = n.left
+		case off < ls+n.p.len():
+			return n.p.c.data[n.p.start+off-ls]
+		default:
+			off -= ls + n.p.len()
+			n = n.right
+		}
+	}
+}
+
+// walk calls yield with the text of each piece, cut to the bytes [start, end)
+// of the subtree, in order, until yield returns false. It reports whether it
+// went through all of them. The slices belong to the buffer and must not be
+// changed or kept.
+func (n *node) walk(start, end int, yield func([]byte) bool) bool {
+	if n == nil || start >= end {
+		return true
+	}
+	ls := size(n.left)
+	if start < ls && !n.left.walk(start, min(end, ls), yield) {
+		return false
+	}
+	pl := n.p.len()
+	if lo, hi := max(start-ls, 0), min(end-ls, pl); lo < hi && !yield(n.p.c.data[n.p.start+lo:n.p.start+hi]) {
+		return false
+	}
+	if rs := ls + pl; end > rs {
+		return n.right.walk(max(start-rs, 0), end-rs, yield)
+	}
+	return true
 }
