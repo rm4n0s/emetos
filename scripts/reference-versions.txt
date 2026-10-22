@@ -1,0 +1,9 @@
+# Pinned reference sources (SPEC §17). scripts/fetch-reference.sh reads this file.
+# Change a pin only on the user's request, in a step of its own.
+#
+# kind  name                          version     commit or tarball
+git     microsoft/vscode              1.143.0     2d0b7506a36c1d6db9a466440131a8e01eab2289
+git     microsoft/vscode-textmate     v9.3.2      25b68dad91920b1ed79d357534b8c4582f62d80d
+git     emmetio/emmet                 v2.4.11     a96c77a84dc4519de695f3a1625011d908dbe9c0
+git     golang/vscode-go              v0.59.0     ae78b8a0103719522867cf8a2582bc5b04cce01b
+npm     @vscode/codicons              0.0.46-24   https://registry.npmjs.org/@vscode/codicons/-/codicons-0.0.46-24.tgz

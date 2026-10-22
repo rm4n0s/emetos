@@ -4,16 +4,18 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go on th
 
 The work is split into the eleven areas of VS Code listed in §3. **This version of the spec covers areas 1 (the editor) and 2 (the workbench).** The other areas are listed so that the architecture leaves room for them, and get their own sections when they are planned.
 
+"VS Code" below means VS Code 1.143.0, the version pinned in `scripts/reference-versions.txt` (§17). Where this spec says "as VS Code", VS Code's source at that version is the definition, and this spec's description is a summary.
+
 ---
 
 ## 1. Goals
 
 | # | Goal |
 |---|---|
-| G1 | **What VS Code has.** Areas 1 and 2 (§3) match VS Code's behavior, defaults and keyboard shortcuts closely enough that a VS Code user feels at home. When in doubt, do what VS Code does |
+| G1 | **What VS Code has.** Areas 1 and 2 (§3) match VS Code's behavior, defaults, command ids and Linux keyboard shortcuts closely enough that a VS Code user feels at home. When in doubt, do what VS Code does |
 | G2 | **Private.** No telemetry, no crash reporting, no update checks, no network access of its own (§12) |
 | G3 | **Native and light.** One Go binary, no Electron, no Node.js, no cgo. Starts fast, stays responsive on large files, uses no CPU when idle (§14) |
-| G4 | **Compatible file formats.** VS Code's color themes, TextMate grammars, language configurations, snippet files, `settings.json` and `keybindings.json` formats work, so existing material can be reused |
+| G4 | **Compatible file formats.** VS Code's color themes, file icon themes, TextMate grammars, language configurations, snippet files, `settings.json` and `keybindings.json` formats work, so existing material can be reused |
 | G5 | **Core and UI apart.** The editor core never imports Glutter. It is tested without a display, and the UI only shows and edits its state (§5) |
 | G6 | **Testable.** Every feature has tests; UI features have widget tests and golden images that run without a display (§15) |
 
@@ -21,11 +23,12 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 
 - Running VS Code extensions or a Node.js extension host.
 - Windows, macOS, the web. Linux desktop only (Wayland and X11 through Glutter).
-- Areas 3–11 of §3, until they are planned. Their hooks are listed where they matter (for example, Problems panel exists but has no producers until area 3).
+- Areas 3–11 of §3, until they are planned. Their hooks are listed where they matter (for example, the Problems panel exists but has no producers until area 3).
 - Microsoft's proprietary features: Marketplace, Settings Sync with a Microsoft/GitHub account, Live Share, Copilot.
 - Workspace trust (it guards extensions and tasks, which don't exist yet).
 - Multi-root workspaces (`.code-workspace` with several folders). One window opens one folder or loose files.
 - Vim/Emacs emulation (in VS Code they are extensions).
+- Moved-code detection in the diff editor, and the accessible diff viewer.
 
 ## 3. Areas
 
@@ -49,23 +52,23 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 |---|---|
 | Editing | Typing, overtype mode, delete/backspace by character and word (and word part), new line with auto-indent, indent/outdent, tab size and spaces/tabs per file, detect indentation from content |
 | Line commands | Move line up/down, copy line up/down, delete line, insert line above/below, join lines, transpose, sort lines ascending/descending, trim trailing whitespace, change case (upper, lower, title), toggle line comment, toggle block comment |
-| Cursors and selections | Multiple cursors (Alt+Click, Ctrl+Alt+Up/Down), add next occurrence (Ctrl+D), select all occurrences (Ctrl+Shift+L), column selection (Shift+Alt+drag and keyboard), expand/shrink selection (by word, brackets, line), cursor undo (Ctrl+U), primary selection on X11 and Wayland |
+| Cursors and selections | Multiple cursors (Alt+Click, Ctrl+Alt+Up/Down... as VS Code's Linux keymap), add next occurrence (Ctrl+D), select all occurrences (Ctrl+Shift+L), column selection (Shift+Alt+drag and keyboard), expand/shrink selection (by word, string, brackets, line), cursor undo (Ctrl+U), primary selection on X11 and Wayland |
 | Find and replace | Find widget with regex, match case, whole word, find in selection, preserve case, replace one/all, match count, highlight all matches, seed the search from the selection |
 | Highlighting | TextMate grammars (§8.3), VS Code color themes (§8.4), current line highlight, selection and word highlights |
-| Brackets | Matching bracket highlight, jump to bracket, bracket pair colorization, bracket pair guides, auto-closing and auto-surrounding pairs, auto-closing quotes, over-typing a closing character |
-| Indentation | Indent guides (active guide highlighted), indentation rules and on-enter rules from language configurations |
-| Folding | Fold by indentation, by `#region` markers, and by brackets; fold/unfold one, recursively, all, by level; folding gutter controls |
-| Display | Line numbers (absolute, relative, off), rulers, word wrap (off, on, at column, bounded), render whitespace (none, boundary, selection, trailing, all), render control characters, cursor styles (line, block, underline) and blinking modes, smooth scrolling, font size and zoom, font ligatures on/off, letter spacing, line height |
-| Minimap | Rendered blocks of the text with token colors, viewport slider, click and drag to scroll, show on the right or left, scale 1–3, hide setting |
+| Brackets | Matching bracket highlight, jump to bracket, bracket pair colorization, bracket pair guides, auto-closing and auto-surrounding pairs, auto-closing quotes, over-typing an auto-inserted closing character |
+| Indentation | Indent guides (active guide highlighted), indentation rules and on-enter rules from language configurations, convert/reindent commands |
+| Folding | Fold by indentation and by `#region` markers (§8.7); fold/unfold one, recursively, all, by level; folding gutter controls |
+| Display | Line numbers (absolute, relative, off), rulers, word wrap (off, on, at column, bounded), render whitespace (none, boundary, selection, trailing, all), render control characters, cursor styles and blinking modes, smooth scrolling, font size and zoom, font ligatures on/off, letter spacing, line height |
+| Minimap | Rendered blocks of the text with token colors, viewport slider, click and drag to scroll, show on the right or left, scale 1–3, hide setting (§9.5) |
 | Sticky scroll | The headers of the folding ranges that contain the top line stay at the top of the editor (up to 5 lines); click jumps to the header |
 | Breadcrumbs | The file path above the editor, each segment a picker of its siblings. Symbols come with area 3 |
-| Undo/redo | Per document, grouped by typing pauses and by command, with cursor state restored. Survives save, not restart |
+| Undo/redo | Per document, grouped as VS Code groups edits, with cursor state restored. Survives save, not restart |
 | Saving | Save, Save As, Save All, Revert; auto-save modes `off`, `afterDelay`, `onFocusChange`, `onWindowChange`; trim trailing whitespace, insert final newline and trim final newlines on save |
 | Hot exit | Unsaved changes of every editor, including untitled ones, are backed up and restored on the next start (§10.10) |
 | Snippets | VS Code snippet syntax (tab stops, placeholders, choices, variables, transforms, nested); user snippet files (global and per language); insert snippet command; tab-completion of snippet prefixes (`editor.tabCompletion`) |
-| Emmet | HTML and CSS abbreviation expansion with Tab and the "Emmet: Expand Abbreviation" command, in HTML, CSS and their relatives |
-| Diff editor | Side-by-side and inline views, character-level changes, ignore trim whitespace, next/previous change, compare two files, compare with saved, read-only original |
-| Merge editor | Three-way merge of a file with conflict markers: incoming, current and result panes, accept incoming/current/both per conflict, complete merge |
+| Emmet | HTML and CSS abbreviation expansion with the "Emmet: Expand Abbreviation" command, and with Tab when `emmet.triggerExpansionOnTab` is on |
+| Diff editor | Side-by-side and inline views, character-level changes, ignore trim whitespace, next/previous change (Alt+F5, Shift+Alt+F5), compare two files, compare with saved, read-only original (§9.11) |
+| Merge editor | Three-way merge (incoming, current, result panes) of a file with conflict markers or of `--merge` inputs, accept incoming/current/both per conflict, complete merge (§9.11) |
 | Files | Encodings (§6.3), line endings LF and CRLF (detect, convert), BOM, read-only files, files changed on disk (reload or compare when dirty), large files (§6.4), binary files (refused with a notice) |
 
 ### 3.2 Area 2 in detail
@@ -75,17 +78,17 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | Layout | Menu bar, activity bar, primary side bar, editor area, panel (bottom, or left/right), status bar; each part can be hidden, and sizes are remembered (§10.1) |
 | Editor groups | Split editors right/down, any number of groups in a grid, move/copy editors between groups, focus groups by number, close, maximize a group, join groups |
 | Tabs | Preview editors (italic, replaced by the next preview), pinned tabs, dirty indicator, close button, close others/to the right/saved/all, reorder and move by drag, scroll when they overflow, reveal in explorer, copy path |
-| Navigation | Back/forward history across editors (Alt+Left/Right), go to line (Ctrl+G), switch editors (Ctrl+Tab), quick open (Ctrl+P) with recent files and fuzzy file search, command palette (Ctrl+Shift+P) |
+| Navigation | Back/forward history across editors (Ctrl+Alt+- / Ctrl+Shift+-, VS Code's Linux keys), go to line (Ctrl+G), switch editors (Ctrl+Tab), quick open (Ctrl+P) with recent files and fuzzy file search, command palette (Ctrl+Shift+P) |
 | Explorer | Folder tree with file watching, `files.exclude`, new file/folder, rename (F2), delete to trash, cut/copy/paste, drag to move, drop files from the file manager, compact folders, reveal active file, Open Editors section, collapse all |
 | Status bar | Line/column and selection count, indentation, encoding, line endings, language mode (each one opens its picker), notifications bell, problem counts |
 | Notifications | Info, warning and error toasts with actions, notification center, do-not-disturb |
 | Panels | Output (channels: the Emetos log, and more later), Problems (empty until area 3; the model exists) |
 | Zen mode and full screen | Zen mode hides everything but the editor; full screen; centered layout |
 | Windows | New window, open folder or files in a new or the same window, single instance per user (`emetos <path>` reaches the running instance), window state and editors restored on restart |
-| Themes | Color theme picker with preview, follow the system's dark/light mode, file icon theme (§10.8), product icons |
+| Themes | Color theme picker with preview, follow the system's dark/light mode, file icon theme (§10.8) |
 | Settings | Default/user/workspace/language-specific layers; `settings.json` (JSON with comments); settings UI with search and categories that edits the JSON and keeps comments |
-| Keybindings | Default Linux keymap of VS Code (§11.3); `keybindings.json`; keybindings UI with search by name or by key, record a key, change/remove/reset |
-| Profiles | Named sets of settings, keybindings, snippets and UI state; create, switch, delete, export/import as a file |
+| Keybindings | VS Code's Linux keymap (§11.3); `keybindings.json`; keybindings UI with search by name or by key, record a key, change/remove/reset |
+| Profiles | Named sets of settings, keybindings, snippets and UI state; create, rename, switch, delete, export/import as a file (§10.12) |
 
 ## 4. Decisions log
 
@@ -96,52 +99,62 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | D3 | The core (`internal/core/...`) never imports Glutter; the UI (`internal/gui/...`) imports the core (§5.2) | Testable core, a UI that can change |
 | D4 | No telemetry and no network access of Emetos's own (§12) | G2 |
 | D5 | Language intelligence comes only from LSP and debugging only from DAP (areas 3 and 6) | One mechanism for every language |
-| D6 | Text is UTF-8 in memory; positions are byte offsets and (line, byte column) pairs; visual columns are computed for display (§6.2) | Matches Glutter's text API; LSP 3.17 can negotiate UTF-8 positions, and UTF-16 is converted when a server can't |
-| D7 | VS Code's file formats for themes, grammars, language configurations, snippets, settings and keybindings (G4) | Reuse of existing material |
+| D6 | Text is UTF-8 in memory; positions are zero-based lines and byte columns; visual columns are computed for display (§6.2) | Matches Glutter's text API; LSP 3.17 can negotiate UTF-8 positions, and UTF-16 is converted when a server can't |
+| D7 | VS Code's file formats for themes, icon themes, grammars, language configurations, snippets, settings and keybindings (G4) | Reuse of existing material |
 | D8 | When Glutter lacks something, Emetos works around it, marks the code with `// Glutter:`, and lists it in `docs/GLUTTER-ISSUES.md` (which exists only while there are open issues) | The user's rule (CLAUDE.md) |
-| D9 | Hand-made widgets on Glutter's `widgets` layer for the workbench, themed by VS Code workbench colors; Material widgets only for menus where they can be restyled | A dense IDE look, not a phone look |
-| D10 | Glutter v1.4.0 or newer: fonts loaded at run time (`RunAppOpts.Fonts`, `PlatformDispatcher.LoadFontFromList`), fonts in `gluttertest` (`Opts.Fonts`), family fallback in order, font queries and the desktop's font settings, `TreeSliver`, tab stops (`ParagraphStyleOpts.TabSize`), the cache of shaped runs | What the editor needs (was Q1) |
-| D11 | Regular expressions with `github.com/dlclark/regexp2` (§8.2) | TextMate grammars need lookbehind and backreferences (was Q2) |
-| D12 | Workspace settings only in `<folder>/.emetos/settings.json`; `.vscode/` is not read | The user's choice (was Q3) |
-| D13 | Bundled languages: the list in §8.1. Go, Markdown, JSON, YAML, Python, JavaScript and TypeScript come first and get the deepest tests | The user's priorities (was Q4) |
+| D9 | Every workbench widget, including the menu bar and menus, is Emetos's own (`gui/kit`) on Glutter's `widgets` layer, themed by VS Code workbench colors. No Material widgets | A dense IDE look, one look for every menu |
+| D10 | Glutter v1.4.0 or newer: fonts loaded at run time (`RunAppOpts.Fonts`, `PlatformDispatcher.LoadFontFromList`), fonts in `gluttertest` (`Opts.Fonts`), family fallback in order, font queries and the desktop's font settings, `TreeSliver`, tab stops (`ParagraphStyleOpts.TabSize`), the cache of shaped runs | What the editor needs |
+| D11 | Regular expressions with `github.com/dlclark/regexp2` (§8.2) | TextMate grammars need lookbehind and backreferences |
+| D12 | Workspace settings only in `<folder>/.emetos/settings.json`; `.vscode/` is not read | The user's choice |
+| D13 | Bundled languages: the list in §8.1. Go, Markdown, JSON, YAML, Python, JavaScript and TypeScript come first and get the deepest tests | The user's priorities |
 | D14 | Fonts: the editor uses the desktop's monospace font (`MonospaceFont()`), then `monospace`; the workbench uses the desktop's UI font (`UIFont()`), then `sans-serif`. Codicons and the Seti icon font are bundled and loaded through `RunAppOpts.Fonts`. Tests use Go Mono (from `golang.org/x/image/font/gofont`) through `gluttertest.Opts.Fonts` | Looks like the desktop; deterministic tests with no extra dependency |
+| D15 | Debug-only **dev commands** (`EMETOS_DEV_COMMANDS`, §15.2) run commands after the first frame, to reach states for proof screenshots and performance runs. They exist in debug builds and in builds with the `emetos_dev` tag, never in release builds | Proofs and measurements without a mouse |
+| D16 | Users install release builds: `go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@latest` | Glutter's debug builds are 8–10 times slower in the framework |
 
 ## 5. Architecture
 
-### 5.1 Processes and threads
+### 5.1 Processes, windows and threads
 
-Emetos is one process. Glutter's UI goroutine owns every widget and render object. The core is safe for use from the UI goroutine and from background goroutines as described per package:
+Emetos is one process with one or more windows. Glutter's UI goroutine owns every widget and render object.
 
+**Per process**: settings registry and default/user layers, command registry, default keymap, theme service, language and grammar registries, the notification and log sinks, `core/ipc`, the profile in use by default.
+
+**Per window** (a `Window` value created by `gui/app` for each Glutter window): the folder (workspace) or none, the workspace settings layer, the root context key scope, the documents (the same file open in two windows is two documents, as in VS Code's separate windows), editor groups, the file watcher, UI state, backups, the profile in use by that window.
+
+Threads:
 - **Documents** are changed only on the UI goroutine. Every change produces a new immutable **snapshot** of the buffer (§6.1) that background goroutines read freely.
-- **Background work** (tokenizing, folding ranges, file watching, fuzzy file search, diffing, backups) runs on goroutines with a `ctx`, reads snapshots, and posts results to the UI goroutine through `WidgetsBinding.Post` or `State.SetState`. A result for an older document version is dropped.
+- **Background work** (tokenizing, folding ranges, wrapping, file watching, fuzzy file search, diffing, backups) runs on goroutines with a `ctx`, reads snapshots, and posts results to the UI goroutine through `WidgetsBinding.Post` or `State.SetState`. A result for an older document version is dropped.
 - **Child processes** (language servers, debug adapters, terminals) come with later areas and follow the same rule.
 
 ### 5.2 Package layout
 
 ```
-cmd/emetos/                    main: command line, single instance, RunApp
+cmd/emetos/                    main: command line, single instance, app start
 internal/core/                 no Glutter import anywhere below (checked by internal/archtest)
-  buffer/                      piece tree, snapshots, line index (§6.1)
+  buffer/                      positions, piece tree, snapshots, line index (§6.1, §6.2)
   fileio/                      read/write, encodings, line endings, atomic save, trash (§6.3)
   document/                    document = buffer + metadata + undo + decorations (§7.1)
-  edit/                        selections, cursor movement, editing commands (§7.2)
-  language/                    language registry, language configurations, bundled assets (§8.1)
-  regex/                       Oniguruma-style regular expressions for grammars and find (§8.2)
+  edit/                        columns, boundaries, selections, cursor movement, editing commands (§6.2, §7.2)
+  vstest/                      test helpers: VS Code positions (1-based, UTF-16) to Emetos positions (§15.1)
+  glob/                        VS Code glob patterns, and .gitignore matching (§10.5, §10.6)
+  language/                    language registry, language configurations, bundled grammar assets (§8.1)
+  regex/                       Oniguruma-style regular expressions for grammars, ECMAScript mode for find (§8.2)
   textmate/                    grammar loading and line tokenizer (§8.3)
   tokens/                      per-document tokenization state, background tokenizer (§8.3)
   theme/                       color themes, token colors, workbench color registry (§8.4)
   brackets/                    bracket pairs, matching, colorization (§8.5)
-  indent/                      indentation rules, detection, on-enter rules (§8.6)
-  folding/                     folding range providers (§8.7)
+  indent/                      indentation rules, detection, on-enter rules, guides (§8.6)
+  folding/                     folding range providers and model (§8.7)
   find/                        find/replace model (§9.8)
-  snippet/                     snippet parser and session (§9.9)
+  snippet/                     snippet parser, variables and session (§9.9)
   emmet/                       Emmet abbreviations (§9.10)
   diff/                        line and character diff, three-way merge model (§9.11)
   jsonc/                       JSON with comments: parse, and edit keeping comments (§11.1)
   settings/                    settings registry, layers, change events (§11.1)
   contextkey/                  context keys and when-clause expressions (§11.2)
   command/                     command registry (§11.2)
-  keybinding/                  keymap, chords, default Linux keymap (§11.3)
+  keybinding/                  keys, keymap, chords, resolver, default Linux keymap (§11.3)
+  editorgroup/                 editor inputs, editor groups and their grid, as data (§10.3)
   workspace/                   folder, file tree model, watcher, file operations (§10.5)
   fuzzy/                       fuzzy matching and scoring (§10.6)
   storage/                     paths, UI state, backups (hot exit), profiles (§10.10, §10.12)
@@ -149,253 +162,286 @@ internal/core/                 no Glutter import anywhere below (checked by inte
   logs/                        log channels shown in the Output panel (§13)
   notify/                      notification model (§10.7)
 internal/gui/                  imports Glutter and the core
-  app/                         RunApp, windows, wiring of the services
-  kit/                         the IDE widget kit: theme, icons, split view, tree, list, tabs, inputs, buttons, menus, hovers (§10.2)
+  app/                         app start, windows, wiring of the services, dev commands (§5.1, §15.2)
+  kit/                         the IDE widget kit: theme, icons, split view, tree, list, tabs, inputs, buttons, menus, hovers, dialogs (§10.2)
+  kit/fonts/                   bundled icon fonts and their family names
   editor/                      the editor widget (§9)
   diffeditor/, mergeeditor/    §9.11
-  workbench/                   layout parts, editor groups, title/menu bar, activity bar, status bar (§10)
+  workbench/                   layout parts, editor group views, title/menu bar, activity bar, status bar (§10)
   quickinput/                  command palette, quick open, pickers (§10.6)
   views/explorer/, views/output/, views/problems/
   settingsui/, keybindingsui/  §11
+  testutil/                    widget-test helpers: fonts, isolated paths, proof images (§15)
 internal/archtest/             tests of package boundaries and forbidden imports (§5.3, §12)
 third_party/                   licenses of bundled assets (§17)
-scripts/                       helper scripts (fetching bundled assets, performance runs)
+scripts/                       fetching references, copying assets, proofs, headless runs, performance
 ```
+
+Directories hold a `doc.go` only when they hold Go code.
 
 ### 5.3 Boundary rules (checked by `internal/archtest`)
 
 - No package under `internal/core/` imports `github.com/rm4n0s/glutter/...` or `internal/gui/...`.
-- No package imports `net/http`, `net/rpc` or `crypto/tls`. `net` is allowed only in `internal/core/ipc` (Unix sockets) and, later, in the packages that talk to language servers and debug adapters.
+- No package imports `net/http`, `net/rpc` or `crypto/tls`. `net` is allowed only in `internal/core/ipc` and, later, in the packages that talk to language servers and debug adapters.
 - No `import "C"`.
+- `github.com/dlclark/regexp2` only in `internal/core/regex`.
+- No import of the standard library `errors`, and no call of `fmt.Errorf` (CLAUDE.md "Error handling").
+
+### 5.4 Key handling
+
+One **key dispatcher** per window, a `Focus` node at the root of the window's widget tree, resolves every key event through `core/keybinding` against the context key scope of the focused widget (§11.2), so a shortcut works wherever focus is (editor, explorer, quick input). Widgets below it handle a key themselves only for text entry. A key with no binding is left unhandled, and Glutter types its character into the focused text input client. Modifier-only key events never cancel a pending chord.
 
 ## 6. Text core
 
 ### 6.1 Buffer (`core/buffer`)
 
-- A **piece tree**: a red-black tree of pieces pointing into read-only original chunks and an append-only add buffer, as in VS Code's `PieceTreeTextBuffer`. Each node keeps the byte length and the number of line feeds of its subtree.
-- Operations: insert, delete, replace at byte offsets; `LineCount`, `LineContent(n)`, `LineLength(n)`, `OffsetAt(line, col)`, `PositionAt(offset)`, `Text(range)`, iteration over chunks and lines. All are O(log n) in the number of pieces plus the size of the result.
-- **Snapshots**: `Snapshot()` returns an immutable view in O(1) (the tree is persistent: edits copy the path they change). Snapshots are safe to read from any goroutine.
-- Line endings: the buffer stores the text with the file's line endings normalized to `\n`; the document remembers the original (`\n` or `\r\n`) and writes it back on save. A file with mixed endings is normalized to the most common one, and the user is told once.
+- A **piece tree**: a balanced tree of pieces pointing into read-only original chunks and an append-only add buffer, using VS Code's `PieceTreeTextBuffer` algorithms. Each node keeps the byte length and the number of line feeds of its subtree.
+- **Persistent**: nodes are never changed after they are shared; an edit copies the path from the root to the changed nodes (no parent pointers). `Snapshot()` returns an immutable view in O(1), safe to read from any goroutine.
+- Operations: insert, delete, replace at byte offsets; `LineCount`, `LineContent(n)`, `LineLength(n)`, `OffsetAt(Position)`, `PositionAt(offset)`, `Text(Range)`, iteration over chunks and lines. All are O(log n) in the number of pieces plus the size of the result.
+- The buffer holds only `\n` line endings: `fileio` converts `\r\n` and lone `\r` when it reads (§6.3), and the document remembers the file's line ending for saving.
 
-### 6.2 Positions
+### 6.2 Positions and columns
 
 - `Position{Line, Col int}`: zero-based line and **byte** column. `Range{Start, End Position}`. `Selection{Anchor, Active Position}`.
-- **Visual columns** (for column selection, rulers, `editor.tabSize`, vertical cursor movement): tabs advance to the next tab stop; wide East Asian characters and emoji count 2; combining marks count 0. Computed by `core/edit` with `golang.org/x/text` width tables.
+- **Visual columns** (column selection, rulers, `editor.tabSize`, vertical cursor movement, the status bar's "Col") follow VS Code's `CursorColumns`: walk the grapheme clusters of the line; for each cluster, take its first code point: a tab advances to the next tab stop, a full-width character or an emoji counts 2, anything else 1. The status bar shows the visual column plus one.
 - Grapheme clusters (go-text's segmenter, through Glutter's dependencies) bound cursor movement and deletion.
 
 ### 6.3 Files (`core/fileio`)
 
-- Encodings: UTF-8, UTF-8 with BOM, UTF-16 LE/BE (BOM), and the single-byte and CJK encodings of `golang.org/x/text/encoding` that VS Code lists in `files.encoding`. Guessing (`files.autoGuessEncoding`) is off by default, as in VS Code; when on, it tries UTF-8, then the BOMs, then the configured fallback.
-- Saving is atomic: write to a temporary file in the same folder, `fsync`, rename over the original, keep the original mode. When the folder isn't writable, write in place. A read-only file needs "Save As" or a confirmation to overwrite (`sudo` saving is out of scope).
+- Reading returns the text (line endings converted to `\n`), the encoding, the BOM flag, the line ending (`\n` or `\r\n`; mixed endings become the most common one and are reported), and a `FileStat` (modification time, size, mode). Writing returns the new `FileStat`, so the watcher can ignore Emetos's own writes (§10.5).
+- Encodings: UTF-8, UTF-8 with BOM, UTF-16 LE/BE (BOM), and the encodings of VS Code's `files.encoding` list that `golang.org/x/text/encoding` has; the others are left out of the list. `files.autoGuessEncoding` (off by default, as in VS Code) tries, in order, a BOM, valid UTF-8, then `files.encoding`; VS Code's statistical guessing (jschardet) is not done.
+- Saving is atomic: write to a temporary file in the same folder, `fsync`, rename over the original, keep the original mode. When the folder isn't writable, write in place. A read-only file fails with a tagged error; "Overwrite" adds the owner's write permission (`chmod u+w`) and saves, as VS Code does.
 - Binary detection: a NUL byte in the first 8 KiB means binary. Binary files open as a notice with "Open anyway".
-- Delete moves to the freedesktop.org trash (`$XDG_DATA_HOME/Trash`), with permanent delete as a fallback after confirmation.
+- Delete moves to the freedesktop.org home trash (`$XDG_DATA_HOME/Trash`, with `.trashinfo` files); a file on another filesystem than the home trash can't be trashed, and the caller asks to delete permanently. A trashed item can be restored (used by undo in the explorer).
 
-### 6.4 Large files
+### 6.4 Large files and long lines
 
 | File size | Behavior |
 |---|---|
-| < 20 MB | Everything on |
-| 20 MB – 256 MB, or more than 300,000 lines | "Large file mode": no tokenization (plain text), no bracket colorization, no folding, no minimap, no word wrap, and a notice saying so |
+| < 20 MB and < 300,000 lines | Everything on |
+| 20 MB – 256 MB, or ≥ 300,000 lines | "Large file mode" (`editor.largeFileOptimizations`): no tokenization (plain text), no bracket colorization, no folding, no minimap, no word wrap, and a notice saying so. The decision is made when the document opens and stored on the document; every feature checks it |
 | > 256 MB | Refused with an error notice (VS Code's default limit) |
 
-Lines longer than 10,000 bytes are drawn in pieces, and tokenization of one line stops after 20,000 bytes (`editor.maxTokenizationLineLength`), as in VS Code.
+Long lines, as VS Code: a line is drawn up to `editor.stopRenderingLineAfter` (10,000 characters) and the rest is not drawn (cursor positions beyond it are computed with the monospace advance); tokenization of a line stops after `editor.maxTokenizationLineLength` (20,000 bytes). Word wrap does not wrap a line longer than `editor.stopRenderingLineAfter`.
 
 ## 7. Documents and editing
 
 ### 7.1 Document (`core/document`)
 
-- A document has: a URI (a file path, or `untitled:<n>`), the buffer, a version number (incremented by each change), language id, encoding, line ending, BOM flag, indentation options (`tabSize`, `insertSpaces`, detected or from settings), dirty flag (compares the version with the saved version, so undoing back to the saved state clears it), and read-only flag.
+- A document has: a URI, the buffer, a version id (incremented by every change), an **alternative version id** (as VS Code's: incremented by a change, and restored by undo/redo to the value it had at that point), the saved alternative version id, language id, encoding, line ending, BOM flag, indentation options (`tabSize`, `insertSpaces`, detected or from settings), large-file flag, read-only flag, and the `FileStat` of the last read or write.
+- **Dirty** means the alternative version id differs from the saved one, so undoing back to the saved state clears it.
+- URI schemes: `file:` (a path), `untitled:<n>` (the lowest free number; title "Untitled-n"), and `emetos-virtual:` (read-only generated content, such as the default settings JSON or the saved version of a file for "Compare with Saved").
 - **Edits** are applied as a batch of non-overlapping replacements; the document returns the inverse batch.
-- **Undo/redo** stack of edit groups. A group stores the edits, their inverses, and the selections before and after. Typing is merged into one group until a pause of 500 ms (from the clock given to the document, so tests are deterministic), a cursor move, or a different kind of edit. Undo and redo restore the selections.
-- **Decorations**: ranges that move with edits (with stickiness: grows/doesn't grow at either edge), used for find matches, bracket highlights, snippet tab stops, diff changes, folded regions and, later, diagnostics.
+- **Undo/redo** stack of edit groups, as VS Code's `EditStack`: a group stores the edits, their inverses, and the selections before and after; consecutive edits of the same kind (typing, deleting left, deleting right, other) from the same cursors merge into one group, and a cursor move by other means, a different kind, or an explicit `PushStackElement` closes the group. Undo and redo restore the selections.
+- **Decorations**: ranges that move with edits, with VS Code's four stickiness modes, kept in an interval tree; used for find matches, bracket highlights, snippet tab stops, auto-closed characters, diff changes, folded regions and, later, diagnostics.
 - Change events carry the version, the edits and the new snapshot.
 
 ### 7.2 Editing commands (`core/edit`)
 
-Pure functions from (snapshot, selections, options) to (edits, new selections), so they are tested without a document or a UI. They cover every row of §3.1 under "Editing", "Line commands" and "Cursors and selections". Word boundaries follow `editor.wordSeparators` (VS Code's default ``~!@#$%^&*()-=+[{]}\|;:'",.<>/?``) and word parts split camelCase and snake_case.
+Pure functions from (snapshot, cursors, options) to (edit batch, new cursors), so they are tested without a document or a UI. They cover every row of §3.1 under "Editing", "Line commands" and "Cursors and selections". One options struct carries everything they read (tab size, insert spaces, word separators, auto-closing, indentation rules...), so later features add fields, not parameters. Word boundaries follow `editor.wordSeparators` (VS Code's default) and word parts split camelCase and snake_case.
 
-Cursor movement keeps a **desired visual column** for vertical moves. With word wrap on, vertical movement goes by visual (wrapped) line; this needs the view's line layout, so the editor widget supplies a `LineLayout` interface to `core/edit`.
+Cursor movement keeps a **desired visual column** for vertical moves. Movements that depend on the view (page up/down, vertical moves over wrapped or folded lines, Home/End on a wrapped line) ask a `LineLayout` interface, which the editor's view model implements; its default implementation treats every model line as one row.
 
 ## 8. Language support without a language server
 
 ### 8.1 Languages (`core/language`)
 
-- A **registry** of languages: id, aliases, file extensions, file names, file name globs, first-line regex, MIME types, configuration and grammar. Language of a file: by `files.associations` first, then file name, then extension, then first line; otherwise `plaintext`.
-- **Language configuration** in VS Code's `language-configuration.json` format: comments, brackets, colorized bracket pairs, auto-closing pairs (with `notIn`), auto-close-before characters, surrounding pairs, folding markers and `offSide`, word pattern, indentation rules, on-enter rules.
-- **Bundled languages** (assets embedded with `embed`, taken from VS Code's repository at a pinned commit by `scripts/fetch-assets.sh`, with their licenses in `third_party/`):
-  - First (D13): Go, Markdown, JSON and JSON with Comments, YAML, Python, JavaScript, JavaScript React, TypeScript, TypeScript React.
-  - Then: Go module files (`go.mod`, `go.sum`, `go.work`; grammar from `golang/vscode-go`, MIT), Shell, Makefile, Dockerfile, HTML, CSS, SCSS, Less, C, C++, Rust, SQL, XML, INI, Diff, Git commit, Git rebase, Ignore files (`.gitignore` and others), plain text.
+- A **registry** of languages: id, aliases, file extensions, file names, file name globs, first-line regex, MIME types, configuration, grammar, embedded languages and token types. Language of a file: `files.associations` first, then file name, then extension, then first line; otherwise `plaintext`.
+- **Language configuration** in VS Code's `language-configuration.json` format: comments, brackets, colorized bracket pairs, auto-closing pairs (with `notIn`), auto-close-before characters, surrounding pairs, folding markers and `offSide`, word pattern, indentation rules, on-enter rules. Its regular expressions are JavaScript syntax and compile with `core/regex`'s ECMAScript mode.
+- **Bundled languages** (assets embedded with `embed`, copied from the pinned references by `scripts/update-assets.sh`, with their licenses in `third_party/`):
+  - First (D13): Go, Markdown (with embedded code blocks for the bundled languages), JSON, JSON with Comments, YAML, Python, JavaScript, JavaScript React, TypeScript, TypeScript React.
+  - Then: Go module files (`go.mod`, `go.sum`; `go.work` uses the `go.mod` grammar; from `golang/vscode-go`), Shell, Makefile, Dockerfile, HTML, CSS, SCSS, Less, C, C++, Rust, SQL, XML, INI, Diff, Git commit, Git rebase, Ignore files (`.gitignore` and others), plain text.
   - VS Code has no TOML grammar of its own; TOML is left for later.
 
 ### 8.2 Regular expressions (`core/regex`)
 
-TextMate grammars use Oniguruma regular expressions (lookbehind, backreferences, possessive quantifiers, `\G`, `\h`, named groups); Go's `regexp` (RE2) has none of the first three. `core/regex` wraps `github.com/dlclark/regexp2` (D11) and translates Oniguruma-only syntax (`\h`, `\H`, `\A`, `\Z`, `\G`, POSIX bracket classes) to it. Find (§9.8) uses the same engine in ECMAScript mode, so find patterns behave like VS Code's (JavaScript syntax).
+TextMate grammars use Oniguruma regular expressions; Go's `regexp` (RE2) lacks lookbehind and backreferences. `core/regex` wraps `github.com/dlclark/regexp2` (D11):
 
-Every match runs with a time limit, so a catastrophic pattern can't freeze a line's tokenization; a line that times out is shown as plain text from that point.
+- Translation of Oniguruma-only syntax to regexp2: `\h`, `\H`, `\A`, `\z`, `\Z`, `\G` (an anchor position given by the tokenizer), `\K`, possessive quantifiers (as atomic groups), POSIX bracket classes, `\p{Alpha}`-style property names, class intersection `&&`, `(?x)` comments, and `(?m)` (Oniguruma's dot-matches-newline). A pattern that can't be translated is reported with a tag, and the rule using it never matches.
+- A **scanner** over several patterns, as vscode-textmate's `OnigScanner`: `Find(line, pos, anchorPos, isFirstLine)` returns the earliest match, ties broken by the lowest pattern index, with captures as byte offsets. A line is converted to runes once per scan; invalid UTF-8 bytes are treated as U+FFFD with the byte mapping kept.
+- Every match runs with a time limit (100 ms, tag `RegexTimeout`); a line whose tokenization times out is plain text from that point.
+- An **ECMAScript mode** (`regexp2.ECMAScript`) for find (§9.8) and for language configurations (§8.1).
 
 ### 8.3 Tokenization (`core/textmate`, `core/tokens`)
 
-- TextMate grammar loading: JSON grammars with `patterns`, `repository`, `include` (`#name`, `$self`, `$base`, `source.other#name`), `match`, `begin`/`end`, `begin`/`while`, `captures`/`beginCaptures`/`endCaptures`/`whileCaptures` (including captures with patterns), `contentName`, `name` with `$1`-style back-references, `injections` and `injectionSelector`, embedded languages.
-- A line tokenizer: (line text, start state) → (tokens with scope stacks, end state). States are compared for equality so re-tokenization stops when the end state of a line is unchanged.
-- Per document: line states cached; edits invalidate from the first edited line; a background goroutine tokenizes the rest in slices of at most 5 ms between checks for a newer version; the visible lines are tokenized first, synchronously, before they are painted.
-- Tokens are stored compactly per line: (end offset, theme style index) pairs after theme resolution, plus the scope stacks only when needed (bracket and comment detection use a token-type bit: comment, string, regex, other).
+- Grammar loading (JSON) with `patterns`, `repository`, `include` (`#name`, `$self`, `$base`, `source.other#name`), `match`, `begin`/`end`, `begin`/`while`, all captures (including captures with patterns), `contentName`, `name` with `$1`-style back-references, `injections` and `injectionSelector`, embedded grammars through a grammar registry (scope name → grammar).
+- A line tokenizer: (line, start state) → (tokens with scope stacks, end state). States compare for equality so re-tokenization stops when a line's end state is unchanged.
+- Each token also gets, as vscode-textmate does: a **standard token type** (comment, string, regex, other) from its scopes (the `\b(comment|string|regex|meta\.embedded)\b` rule plus the grammar's `tokenTypes`), and the **language id** of its embedded language (from the grammar's `embeddedLanguages`). Brackets, auto-closing and comments use them.
+- Per document: line states cached; edits invalidate from the first edited line; a background goroutine tokenizes the rest in slices of at most 5 ms, checking for a newer version between slices; the visible lines are tokenized first, synchronously, before they are painted. Changing a document's language re-tokenizes it.
+- Tokens are stored compactly per line: (end offset, style index, token type, language index).
 
 ### 8.4 Themes (`core/theme`)
 
-- VS Code color theme JSON: `type` (dark, light, hc-dark, hc-light), `colors` (workbench colors), `tokenColors` (TextMate scope rules: scope selectors with descendant selectors, comma lists, and exclusions), `include` of a parent theme, `semanticHighlighting`/`semanticTokenColors` (stored for area 3).
-- Token style resolution follows VS Code's rules (most specific selector wins, parent matching) and produces foreground, background-free font style (bold, italic, underline, strikethrough).
-- A **workbench color registry**: every color id Emetos uses (e.g. `editor.background`, `editorCursor.foreground`, `tab.activeBackground`), with VS Code's default for dark, light and high-contrast themes, so incomplete themes still look right.
-- Bundled themes: Dark Modern, Light Modern, Dark+, Light+, Dark High Contrast, Light High Contrast (MIT, from VS Code). Default: Dark Modern, or Light Modern when `window.autoDetectColorScheme` is on and the system is light.
+- VS Code color theme JSON (JSON with comments): `type` (dark, light, hc-dark, hc-light), `colors` (workbench colors), `tokenColors` (inline or a file), `include` of a parent theme, `semanticHighlighting`/`semanticTokenColors` (stored for area 3).
+- Token style resolution follows vscode-textmate's `theme.ts` (scope selectors with descendant parts and comma lists, most specific wins, parent matching) and produces a foreground color and a font style (bold, italic, underline, strikethrough).
+- A **workbench color registry**: every color id Emetos uses, registered by the step that first uses it, with VS Code's defaults for dark, light, hc-dark and hc-light (from `editorColorRegistry.ts`, `workbench/common/theme.ts` and the platform color files), including derived defaults (`transparent`, `lighten`, `darken`, `oneOf`).
+- Bundled themes: Dark Modern, Light Modern, Dark+, Light+, Dark High Contrast, Light High Contrast (MIT, from VS Code). Default: Dark Modern, or the preferred light theme when `window.autoDetectColorScheme` is on and the system is light.
 - User themes: JSON files in `~/.config/emetos/themes/`.
 
 ### 8.5 Brackets (`core/brackets`)
 
-Bracket pairs come from the language configuration; brackets inside comments and strings (by token type) are ignored. A bracket pair tree is maintained incrementally after edits (as VS Code's bracket pair colorizer 2 does) and answers: matching bracket of a position, enclosing pairs of a position (for guides and expand selection), and the nesting level of each bracket (for colors `editorBracketHighlight.foreground1..6`).
+Bracket pairs come from the language configuration; brackets inside comments and strings (by token type) are ignored. A bracket pair structure is kept up to date after edits (VS Code's bracket pair tree is the reference; a simpler incremental scheme is fine if it passes the ported tests and the "incremental equals full" fuzz test) and answers: matching bracket of a position, enclosing pairs of a position (guides, expand selection), and the nesting level of each bracket (colors `editorBracketHighlight.foreground1..6`).
 
 ### 8.6 Indentation (`core/indent`)
 
-Indentation detection (VS Code's algorithm on the first 10,000 lines), `increaseIndentPattern`/`decreaseIndentPattern`/`indentNextLinePattern`/`unIndentedLinePattern`, on-enter rules, auto-indent on paste (`editor.autoIndent`: none, keep, brackets, advanced, full).
+Indentation detection (VS Code's `indentationGuesser`), `increaseIndentPattern`/`decreaseIndentPattern`/`indentNextLinePattern`/`unIndentedLinePattern`, on-enter rules, type-time re-indentation (as VS Code's `getIndentActionForType`), `editor.autoIndent` levels (none, keep, brackets, advanced, full), `editor.autoIndentOnPaste` (VS Code's default: false), and the indent and bracket pair guides (VS Code's `guidesTextModelPart`).
 
 ### 8.7 Folding (`core/folding`)
 
-Providers: indentation (with `offSide` languages), markers (`folding.markers` of the language), and brackets as the fallback for languages without markers when `editor.foldingStrategy` is `auto`. Ranges are computed on a snapshot in the background and limited to 5,000 (`editor.foldingMaximumRegions`). Folded ranges are decorations, so they survive edits.
+As VS Code without language servers: the indentation provider (`indentRangeProvider`, which also handles the language's `folding.markers` and `offSide`) for every language; `editor.foldingStrategy: auto` will prefer a language server's ranges in area 3. Ranges are computed on a snapshot in the background and limited to `editor.foldingMaximumRegions` (5,000). Folded ranges are decorations, so they survive edits. Arrow keys move over a folded range; only commands that reveal a position inside it (go to line, find, undo) unfold it.
 
 ## 9. The editor widget (`gui/editor`)
 
 ### 9.1 Structure
 
-A widget tree around one custom render object:
-
-- **`RenderEditorText`**: a leaf `RenderBox` driven by a `Scrollable`'s `ViewportOffset` (vertical) and its own horizontal offset. It lays out and paints only the visible lines plus a margin of 10 lines. It is a repaint boundary, so Glutter's raster cache keeps the text when only the cursor changes.
-- Separate layers for the cursors (blink), the gutter (line numbers, folding controls, later breakpoints and diff markers), the minimap, sticky scroll, rulers and overlays (find widget, later hover and completion).
-- An editor has a **view model**: the document, the selections, folded regions, word-wrap line breaks, scroll position. Several editors (in several groups) can show one document, each with its own view model.
+- An editor has a **view model**: the document, the cursors, scroll positions, and the **line projection** from model lines to view rows: identity at first; folding hides rows (§8.7), word wrap splits a line into several rows (§9.2), and view zones insert rows of a given height between lines (used by the diff editor, §9.11, and later by area 3). Layout, scrolling, hit testing, vertical movement (`LineLayout`), the minimap and sticky scroll all go through the projection. Several editors (in several groups) can show one document, each with its own view model.
+- **`RenderEditorText`**: a leaf `RenderBox` driven by a `Scrollable`'s `ViewportOffset` (vertical) and its own horizontal offset. It lays out and paints only the visible rows plus a margin of 10 rows. It is a repaint boundary, so Glutter's raster cache keeps the text when only the cursor changes.
+- Separate layers for the cursors (blink), the gutter (line numbers, folding controls, later breakpoints and diff markers), the minimap, sticky scroll, rulers and overlays (find widget, later hover and completion). They share the view model's line layout cache.
+- Editor view state (selections, scroll position, folded ranges) can be read and restored, for history (§10.3) and restore (§10.10).
 
 ### 9.2 Text rendering
 
-- **One `ui.Paragraph` per visible line** (per wrapped line with word wrap), built from token spans, cached by (line content, tokens, theme, font settings, wrap width) and dropped by an LRU of 2,000 lines. Glutter caches shaped runs but not paragraphs: a cold code line costs about 41–58 µs, an unchanged one rebuilt 5–10 µs, and a line with one changed span 14–18 µs (Glutter's `docs/PERFORMANCE.md`, steps 22.6 and 22.10). Keeping the paragraphs of unchanged lines is what makes an edit cost about one line (Glutter's PERFORMANCE.md says only the caller can do that).
-- **Tabs**: Glutter's tab stops (`ParagraphStyleOpts.TabSize` = `editor.tabSize`, in space widths of the paragraph's font) place tabs, so paragraph offsets equal buffer byte columns. A tab draws nothing; whitespace rendering draws the arrows and dots itself.
-- **Fonts**: `editor.fontFamily` defaults to the desktop's monospace font (`PlatformDispatcher.MonospaceFont()`, followed live), then the generic `monospace` (D14). A comma-separated `editor.fontFamily` becomes `FontFamily` plus `FontFamilyFallback`, which Glutter tries in order. Proportional and wide characters are handled through the paragraph's queries (`GetBoxesForRange`, `GetPositionForOffset`), never by assuming a fixed advance, except for the fast path of pure-ASCII lines in a monospace font.
+- **One `ui.Paragraph` per visible row**, built with a new `ui.ParagraphBuilder` from token spans, cached by (line content, tokens, theme, font settings, wrap width) and dropped by an LRU of 2,000 lines. Glutter caches shaped runs but not paragraphs: a cold code line costs about 41–58 µs, an unchanged one rebuilt 5–10 µs (Glutter's `docs/PERFORMANCE.md`, steps 22.6 and 22.10). Keeping the paragraphs of unchanged lines is what makes an edit cost about one line.
+- **Tabs**: Glutter's tab stops (`ParagraphStyleOpts.TabSize` = `editor.tabSize`) place tabs, so paragraph offsets equal buffer byte columns. A tab draws nothing; whitespace rendering draws the arrows and dots itself. `editor.renderControlCharacters` draws control characters as a box over their (zero-width) position, so offsets stay equal.
+- **Fonts**: `editor.fontFamily` defaults to the desktop's monospace font (`PlatformDispatcher.MonospaceFont()`, followed live), then the generic `monospace` (D14). A comma-separated `editor.fontFamily` becomes `FontFamily` plus `FontFamilyFallback`, which Glutter tries in order. Positions come from the paragraph's queries (`GetBoxesForRange`, `GetPositionForOffset`), except for the fast path of pure-ASCII lines in a monospace font.
+- **Line height**, as VS Code's `fontInfo.ts`: `editor.lineHeight` 0 means `round(1.35 × fontSize)`; a value below 8 is a multiplier of the font size; otherwise pixels.
 - Ligatures follow `editor.fontLigatures` (`liga` and `calt` features on or off).
+- **Word wrap** breaks lines at the wrap width: lines that are pure ASCII in a monospace font are broken by counting columns (VS Code's `simple` wrapping strategy), others by paragraph layout; breaks for the whole document are computed in the background in slices, with an estimate (one row per line) until they're known, and the scroll position is anchored to the top visible line when a line's row count changes.
 
 ### 9.3 Input
 
-- **Keys**: a `Focus` node's key handler resolves key events through the keybinding service (§11.3). Unhandled printable characters reach the editor's `TextInputClient` as text.
-- **IME**: the editor implements `services.TextInputClient`. Glutter's input layer keeps a full copy of the text it is given, so Emetos gives it only the current line (with line-local offsets) and maps the results back. The caret rect and composing rect are updated after every frame, so the candidate window follows the cursor. Composition is shown underlined.
-- **Mouse**: click places the cursor, double-click selects a word, triple-click a line; drag extends by character/word/line according to the click count; Shift+click extends; Alt+click adds a cursor; Shift+Alt+drag selects a column; Ctrl+click is reserved for "go to definition" (area 3); middle click pastes the primary selection; drag and drop of selected text moves it (Ctrl copies).
-- **Scrolling**: mouse wheel with high-resolution deltas, touchpad panning, `editor.mouseWheelScrollSensitivity`, Alt for fast scroll, `editor.smoothScrolling`; scrolling beyond the last line (`editor.scrollBeyondLastLine`); horizontal scrolling with Shift+wheel and touchpad.
-- **Clipboard**: copy/cut/paste with multiple cursors (one line per cursor when the counts match, `editor.multiCursorPaste`); copy with no selection copies the line (`editor.emptySelectionClipboard`); the primary selection is set when the selection changes.
+- **Keys** go through the window's key dispatcher (§5.4). Key names are VS Code's (`ctrl+shift+k`, `ctrl+k ctrl+c`): letters and digits come from Glutter's logical key (Latin layout, so they work on any keyboard layout); punctuation and other keys come from the physical key, named by its US-layout key (VS Code's `keyboard.dispatch: code`).
+- **IME**: the editor implements `services.TextInputClient` with the delta model (`EnableDeltaModel`, `UpdateEditingValueWithDeltas`). Glutter's input layer keeps a full copy of the text it is given, so Emetos gives it only the current line (line-local offsets) and maps the deltas back. A committed text is typed at every cursor, as VS Code does. The preedit (composition) text is drawn as an underlined overlay at the primary cursor, not inserted into the document, so it never enters undo. The caret rect (`SetCaretRect`, which places the candidate window) is updated after every frame.
+- **Mouse**: click places the cursor, double-click selects a word, triple-click a line; drag extends by character/word/line according to the click count; Shift+click extends; Alt+click adds a cursor (`editor.multiCursorModifier`); Shift+Alt+drag selects a column; Ctrl+click is reserved for "go to definition" (area 3); middle click pastes the primary selection.
+- **Drag and drop of text** (`editor.dragAndDrop`): a press inside a selection that moves before release drags the selected text (a drop caret follows the pointer; Ctrl copies); a press inside a selection without movement places the cursor on release. It is handled by the editor's own gesture logic, not by `Draggable`.
+- **Scrolling**: the editor owns pointer signals (it registers with the `PointerSignalResolver`, so `Scrollable` doesn't scroll twice): mouse wheel with high-resolution deltas, touchpad panning, `editor.mouseWheelScrollSensitivity`, Alt with `editor.fastScrollSensitivity`, Shift+wheel horizontal, `editor.smoothScrolling`, scrolling beyond the last line (`editor.scrollBeyondLastLine`), auto-scroll while drag-selecting past the edges.
+- **Clipboard**: copy/cut/paste with multiple cursors (`editor.multiCursorPaste`); copy with no selection copies the line (`editor.emptySelectionClipboard`); the primary selection is set when the selection changes. Glutter's clipboard calls are asynchronous: a paste is applied on the UI thread in the callback.
 
 ### 9.4 Decorations shown
 
-Selections, current line, word highlights (other occurrences of the word under the cursor), find matches, matching brackets, bracket colors and guides, indent guides, rulers, whitespace, folded-region markers, snippet tab stops, IME composition, and, from later areas, diagnostics squiggles, inlay hints and code lenses (the render object reserves the drawing order for them).
+Selections, current line, word and selection highlights, find matches, matching brackets, bracket colors and guides, indent guides, rulers, whitespace, folded-region markers, snippet tab stops, IME composition, and, from later areas, diagnostics squiggles, inlay hints and code lenses (the render object reserves the drawing order for them).
 
 ### 9.5 Minimap
 
-Blocks (not characters) colored by token, one row per line at scale 1 (2 or 3 with `editor.minimap.scale`), drawn into a cached image that is updated by line ranges after edits and tokenization. The slider shows the viewport; click and drag scroll. Hidden by `editor.minimap.enabled: false` and in large file mode.
+Blocks colored by token, with VS Code's sizes (`minimap.ts`: row height per scale, `editor.minimap.maxColumn`, `size`), drawn into an image (`ui.NewImageFromRGBA`) from a CPU buffer that is patched by line ranges after edits and tokenization; for long files only the window of lines the minimap shows is drawn, scrolled proportionally as VS Code does. The slider shows the viewport; click and drag scroll; selections and find matches are marked. `editor.minimap.renderCharacters` is registered with VS Code's default (true) but Emetos always draws blocks (a deviation). Hidden by `editor.minimap.enabled: false` and in large file mode.
 
 ### 9.6 Sticky scroll
 
-Uses folding ranges: the header lines of the ranges that contain the first visible line, up to `editor.stickyScroll.maxLineCount` (5). They are drawn over the top of the text with a shadow; a click moves the cursor to that line.
+Uses folding ranges: the header lines of the ranges that contain the first visible line, up to `editor.stickyScroll.maxLineCount` (5). They are drawn over the top of the text with a shadow; a click moves the cursor to that line and scrolls so it isn't hidden under the sticky lines.
 
 ### 9.7 Breadcrumbs
 
-A bar above the editor with the path of the file relative to the folder; each segment opens a picker of its siblings. The symbol part is added in area 3.
+A bar above the editor with the path of the file (relative to the folder when there is one, else absolute); each segment opens a picker of its siblings. The symbol part is added in area 3.
 
 ### 9.8 Find widget (`core/find`, `gui/editor`)
 
-The model finds matches on a snapshot (incrementally for documents up to 20 MB, capped at 19,999 highlighted matches like VS Code), tracks the current match, and replaces (with regex groups `$1` and preserve case). The widget is an overlay at the top right of the editor: find input, toggles, match count, previous/next, the replace row, and "find in selection".
+The model finds matches on a snapshot line by line (a multiline regex searches a bounded window of lines), capped at 19,999 highlighted matches like VS Code; tracks the current match; replaces with VS Code's replace pattern (`$n`, `$&`, `\n`, `\t`, `\u \l \U \L`) and preserve case. The widget is an overlay at the top right of the editor: find input, toggles, match count, previous/next, the replace row, and "find in selection".
 
 ### 9.9 Snippets (`core/snippet`)
 
-Parser for VS Code's snippet grammar (`$1`, `${1:default}`, `${1|a,b|}`, `$TM_FILENAME` and the other variables, `${1/regex/format/flags}` transforms, `$0`). A snippet session tracks tab stops as decorations, mirrors edits to equal tab stops, and ends when the cursor leaves the snippet or reaches `$0`. Snippet files: `~/.config/emetos/snippets/<language>.json` and `*.code-snippets` (global, with `scope`).
+Parser for VS Code's snippet grammar (`$1`, `${1:default}`, `${1|a,b|}`, the variables, `${1/regex/format/flags}` transforms, `$0`). Variables are resolved synchronously from values the UI gathers first (the clipboard text is read before inserting). A snippet session tracks tab stops as decorations, mirrors edits to equal tab stops, and ends when the cursor leaves the snippet or reaches `$0`. Snippet files: `~/.config/emetos/snippets/<language>.json` and `*.code-snippets` (global, with `scope`). Tab priority follows VS Code's when-clauses (`inSnippetMode`, `hasNextTabstop`, `hasSnippetCompletions`, Emmet's).
 
 ### 9.10 Emmet (`core/emmet`)
 
-Abbreviation parser (child `>`, sibling `+`, climb-up `^`, multiplication `*`, grouping `()`, `#id`, `.class`, `[attr]`, `{text}`, `$` numbering, implicit tag names) and HTML output; CSS abbreviations from Emmet's snippet table (MIT). Expansion on Tab in HTML-like and CSS-like languages when `emmet.triggerExpansionOnTab` is on (off by default, as in VS Code) and with the command.
+Abbreviation parser and HTML output; CSS abbreviations from Emmet's snippets (MIT); abbreviation extraction before the cursor; `emmet.includeLanguages`, `emmet.syntaxProfiles`, `emmet.triggerExpansionOnTab` (off by default, as in VS Code).
 
 ### 9.11 Diff and merge
 
-- `core/diff`: line diff (Myers, O(ND), with VS Code's heuristics to shift diffs to line boundaries and blank lines), refined to character changes inside changed line blocks; ignore trim whitespace; a time limit (`diffEditor.maxComputationTime`, 5 s) after which a coarser diff is shown. Three-way: parse conflict markers (`<<<<<<<`, `|||||||`, `=======`, `>>>>>>>`) into conflicts with base, current and incoming.
-- `gui/diffeditor`: two editors side by side (or inline), scroll-synced, changed lines and characters colored, an overview ruler, next/previous change.
-- `gui/mergeeditor`: incoming and current editors on top, the result editor below, with accept buttons per conflict and a "Complete merge" button that saves the result.
+- `core/diff`: VS Code's default ("advanced") lines diff: dynamic programming for small inputs and Myers O(ND) for large ones, VS Code's heuristics (shifting to line and blank-line boundaries), refinement to character changes, ignore trim whitespace, and a time limit (`diffEditor.maxComputationTime`, 5 s) after which the unrefined line diff is shown. Moved-code detection is out of scope.
+- Three-way merge: (a) **conflict markers**: parse `<<<<<<<`, optional `|||||||` (diff3 base), `=======`, `>>>>>>>` into conflicts (VS Code's `merge-conflict` parser); the current and incoming inputs are the file with every conflict taken from one side, the base is the `|||||||` sections or, without them, empty conflict regions; (b) **`--merge` inputs**: base, input 1 (incoming) and input 2 (current) are diffed against the base, and overlapping changes become conflicts (VS Code's `ModifiedBaseRange`). The result starts as the base with every non-conflicting change applied and each conflict region holding the base text, marked unhandled.
+- `gui/diffeditor`: two editors side by side (or inline), aligned with view zones, scroll-synced, changed lines and characters colored, an overview ruler, next/previous change (Alt+F5, Shift+Alt+F5); the original side is read-only; save and dirty apply to the modified side; narrow widths switch to inline (`diffEditor.useInlineViewWhenSpaceIsLimited`).
+- `gui/mergeeditor`: incoming (left) and current (right) on top, the result below, with accept incoming/current/both (current then incoming) per conflict and for all, and "Complete Merge": for a marker file it saves the file; for `--merge` it writes the `result` path and exits 0 when `--wait` is on (1 if the window closes without completing).
 
 ## 10. The workbench (`gui/workbench` and others)
 
 ### 10.1 Layout
 
-Menu bar (File, Edit, Selection, View, Go, Help) at the top, activity bar on the left, primary side bar, editor area, panel, status bar. Part sizes, visibility and the panel position are saved per window (§10.10). Glutter draws the window decorations only where the compositor doesn't.
+Menu bar (File, Edit, Selection, View, Go, Help) at the top, activity bar on the left, primary side bar, editor area, panel, status bar. Part sizes, visibility and the panel position are saved per window (§10.10). The window's title bar is the compositor's, or Glutter's where the compositor draws none (`DecorationsAuto`); Emetos adds nothing to it except the title (`<file> - <folder> - Emetos`).
 
 ### 10.2 Widget kit (`gui/kit`)
 
-Glutter has no tree view, split view or IDE-styled controls, so Emetos builds them on Glutter's `widgets` layer:
+Glutter has no IDE-styled controls, so Emetos builds them on Glutter's `widgets` layer (D9):
 
 - `Theme`: an inherited widget carrying the resolved workbench colors and fonts.
-- `SplitView` (resizable sashes, min sizes, double-click to reset), `Tree` (on Glutter's `TreeSliver`; virtualized, keyboard navigation, type-to-filter, multi-select, drag and drop), `List`, `Tabs`, `Button`, `IconButton`, `InputBox` (on Glutter's `EditableText`), `Toggle`, `Checkbox`, `Dropdown`, `ScrollableElement` (VS Code-style overlay scrollbars), `Hover`, `ContextMenu`, `ProgressBar`, `Badge`.
-- Icons: VS Code's Codicons font, bundled and loaded through `RunAppOpts.Fonts` (D14), with the codepoints of its `codicon.csv` mapping generated into Go constants.
+- `SplitView` (resizable sashes, min/max sizes, VS Code's layout priorities so the editor area absorbs window resizes, double-click to reset), `ScrollableElement` (VS Code-style overlay scrollbars), `Tree` (on Glutter's `TreeSliver`), `List`, `Tabs`, `Button`, `IconButton`, `ActionBar`, `InputBox` (on Glutter's `EditableText`), `Toggle`, `Checkbox`, `Dropdown`, `Hover` (on `RawTooltip`), `Menu` and `MenuBar` and `ContextMenu` (on `RawMenuAnchor`/`MenuController`), `Dialog` (in-window, modal), `ProgressBar`, `Badge`, `ListOverlay` (a simple anchored list used before quick input exists).
+- Icons: VS Code's Codicons font, bundled and loaded through `RunAppOpts.Fonts` (D14), with code points generated from the font package's `codicon.csv`.
 - Fonts: the workbench uses the desktop's UI font (`UIFont()`), then `sans-serif` (D14).
 
-### 10.3 Editor groups and tabs
+### 10.3 Editor groups and tabs (`core/editorgroup`, `gui/workbench`)
 
-A grid of groups (nested split views). Each group has tabs (§3.2) and an active editor. Editors are documents (text editors), diff editors, merge editors, the settings UI, the keybindings UI and, later, others; all implement one `EditorInput` interface (id, title, dirty, save, revert, serialize for restore).
+A grid of groups (nested split views). Each group has its editors in order, a preview editor, pinned editors, an active editor and a most-recently-used order. Editors are text editors, diff editors, merge editors, the settings UI, the keybindings UI and, later, others; all implement one `EditorInput` interface (type id, resource, title, dirty, save, revert, serialize/deserialize for restore). `core/editorgroup` holds this as data; `gui/workbench` shows it.
+
+Navigation history records editor locations as VS Code's history service does; Back/Forward use VS Code's Linux keys (Ctrl+Alt+-, Ctrl+Shift+-).
 
 ### 10.4 Activity bar and side bar views
 
-Activity bar entries for Explorer (and, later, Search, Source Control, Run and Debug, Extensions), plus Accounts-free Manage menu (settings, keybindings, themes, profiles). Views are registered with an id, title, icon and container, so later areas add their own.
+Activity bar entries for Explorer (and, later, Search, Source Control, Run and Debug, Extensions), plus the Manage menu (settings, keybindings, themes, profiles). Views are registered with an id, title, icon and container, so later areas add their own.
 
 ### 10.5 Explorer (`core/workspace`, `gui/views/explorer`)
 
-- The tree model reads folders lazily, sorts like VS Code (`explorer.sortOrder`: folders first, case-insensitive natural order), hides `files.exclude` matches (glob patterns with VS Code's syntax), and watches opened folders with inotify (`golang.org/x/sys/unix`), coalescing events every 50 ms. Watching falls back to polling a folder when the inotify limit is reached, with a notice.
-- File operations (new, rename, move, copy, delete to trash, paste) are undoable from the explorer (Ctrl+Z when the explorer has focus), and open editors follow renames and moves.
+- The tree model reads folders lazily, sorts like VS Code (`explorer.sortOrder`: folders first, case-insensitive natural order), hides `files.exclude` matches (`core/glob`, VS Code's glob syntax), and watches with inotify (`golang.org/x/sys/unix`): the opened folder (recursively, as folders are read) and the parent folder of every open file outside it; events are coalesced every 50 ms; watching a directory (not inodes) sees files replaced by rename. Events for a file whose `FileStat` matches Emetos's own last write are ignored. Watching falls back to polling a folder when the inotify limit is reached, with a notice.
+- File operations (new, rename, move, copy, delete to trash, paste) are undoable from the explorer (Ctrl+Z when the explorer has focus; undoing a delete restores from the trash), and open editors follow renames and moves. Cut/copy/paste uses an internal clipboard and also puts the files' URIs on the system clipboard (`text/uri-list`), so a file manager can paste them.
 
 ### 10.6 Quick input (`core/fuzzy`, `gui/quickinput`)
 
-One quick input widget with modes by prefix, as in VS Code: no prefix (files), `>` (commands), `:` (go to line), `?` (help), `@` (symbols, area 3), `#` (workspace symbols, area 3), `view ` (views). File search lists the folder's files in the background (respecting `files.exclude` and `search.exclude`), scores with VS Code's fuzzy scorer (consecutive matches, word starts, path separators), and shows recently opened files first. Command palette lists commands with their keybindings and recently used commands first.
+One quick input widget with modes by prefix, as in VS Code: no prefix (files), `>` (commands), `:` (go to line, revealing the line while typing), `?` (help), `@` (symbols, area 3), `#` (workspace symbols, area 3), `view ` (views). It reports the active item while the user moves through the list (used for theme preview), and restores focus to the previous widget when it closes. File search lists the folder's files in the background, respecting `files.exclude`, `search.exclude` and, with `search.useIgnoreFiles` (default true), `.gitignore` and `.ignore` files; it scores with VS Code's fuzzy scorer and shows recently opened files first. The command palette lists commands with their keybindings and recently used commands first. Recent items are kept in memory until UI state persistence exists (§10.10).
 
 ### 10.7 Notifications and dialogs
 
-Notifications (`core/notify`) have a severity, message, actions, an optional progress, and a source. Toasts show at the bottom right, at most 3 at once; the notification center keeps them. Modal dialogs (unsaved changes, overwrite, delete) are in-window, keyboard operable.
+Notifications (`core/notify`) have a severity, message, actions, an optional progress, and a source. Any part of Emetos can post one from the start (before the UI shows them, they go to the log). Toasts show at the bottom right, at most 3 at once; the notification center keeps them; do-not-disturb hides non-error toasts. Modal dialogs (unsaved changes, overwrite, delete) are in-window (`kit.Dialog`), keyboard operable.
 
 ### 10.8 Icons for files
 
-VS Code's file icon themes are a font plus a JSON mapping (file extensions, file names, language ids and folder names to font characters and colors, with light-theme variants). Emetos bundles Seti, VS Code's default, loads its font through `RunAppOpts.Fonts`, and reads the mapping in VS Code's icon theme format, so the explorer, tabs, breadcrumbs and quick open show the same icons as VS Code. "None" (no file icons) is the other choice.
+VS Code's file icon themes are a font plus a JSON mapping (file extensions, file names, language ids and folder names to font characters and colors, with light-theme variants). Emetos bundles Seti, VS Code's default (`extensions/theme-seti/icons/seti.woff` and `vs-seti-icon-theme.json`), loads its font through `RunAppOpts.Fonts`, and reads the mapping in VS Code's icon theme format, so the explorer, tabs, breadcrumbs and quick open show the same icons as VS Code. "None" (no file icons) is the other choice.
 
 ### 10.9 Zen mode, full screen, zoom
 
-Zen mode (Ctrl+K Z) hides the activity bar, side bar, panel, status bar and tabs, centers the layout, and goes full screen (`zenMode.*` settings). Window zoom (Ctrl+= / Ctrl+-) scales the whole UI; editor font zoom (`editor.mouseWheelZoom`) changes only the editor.
+- Zen mode (Ctrl+K Z) hides the activity bar, side bar, panel, status bar and tabs, centers the layout, and goes full screen (`zenMode.*` settings); full screen (F11); centered layout (`workbench.editor.centeredLayout*`).
+- **Window zoom** (`window.zoomLevel`; Ctrl+=, Ctrl+-, Ctrl+Numpad0, as VS Code's Linux keys) scales the whole window by 1.2 per level: a `kit.Zoom` widget at the root lays out its child with the constraints divided by the factor and paints it scaled (Glutter has no zoom of its own; if this proves poor, it becomes a Glutter issue). Editor font zoom (`editor.mouseWheelZoom`, the font zoom commands) changes only the editor's font size.
 
 ### 10.10 State, backups and restore (`core/storage`)
 
-- Paths (XDG): settings and user files in `~/.config/emetos/` (or the profile's folder, §10.12); state in `~/.local/state/emetos/`; cache in `~/.cache/emetos/`.
-- UI state (per folder and global): open editors and their groups, view state per editor (selections, scroll, folds), layout, recently opened folders and files. Saved as JSON on change (debounced) and on exit.
-- **Hot exit** (`files.hotExit`: `onExit` by default): a dirty document is backed up to `~/.local/state/emetos/backups/<window>/` one second after its last change (content, encoding, version). On start, backups are restored into dirty editors. Backups are removed when the document is saved or reverted.
+- Paths (XDG): user configuration in `$XDG_CONFIG_HOME/emetos/` (default profile) or `$XDG_CONFIG_HOME/emetos/profiles/<name>/`; state in `$XDG_STATE_HOME/emetos/` (with `profiles/<name>/` for a profile's UI state); cache in `$XDG_CACHE_HOME/emetos/`; the socket in `$XDG_RUNTIME_DIR`. Every path is computed from these variables, so tests and proofs can redirect them (§15).
+- **Window identity**: a window with a folder is identified by the first 16 hex digits of the SHA-256 of the folder's absolute path; a window without a folder gets a random id stored in the global state.
+- UI state (global and per window id): open editors and their groups, view state per editor (selections, scroll, folds), layout, the explorer's expanded folders, window size, maximized and full-screen state, recently opened folders and files. Saved as JSON on change (debounced 1 s, atomic replace) and on exit.
+- **Hot exit** (`files.hotExit`):
+  - Backups: one second after a dirty document's last change, its content, encoding and the `FileStat` of the file it came from are written to `$XDG_STATE_HOME/emetos/backups/<window id>/<SHA-256 of the URI>.json` (atomically); a backup is removed after a successful save or a revert.
+  - `onExit` (default): when the application quits (the last window closes or "Quit"), dirty documents are not asked about; their backups are restored on the next start. Closing a window that isn't the last asks about its dirty documents.
+  - `onExitAndWindowClose`: closing any window doesn't ask either; its backups are restored when its folder (or the empty window) opens again.
+  - `off`: always ask; no backups are restored.
+  - A crash: each window writes a `running` marker in its state folder and removes it on a clean close; a marker found at start means the last run crashed, and that window's backups are restored whatever `files.hotExit` says.
+  - A backup whose file changed on disk since opens dirty with a notice.
 
 ### 10.11 Command line and windows (`cmd/emetos`, `core/ipc`)
 
-`emetos [options] [paths...]`: `-n`/`--new-window`, `-r`/`--reuse-window`, `-g`/`--goto file:line[:col]`, `-d`/`--diff a b`, `-m`/`--merge path1 path2 base result`, `-w`/`--wait` (exit when the files are closed, for `git commit`), `--profile <name>`, `--version`, `--help`. A running instance listens on a Unix socket in `$XDG_RUNTIME_DIR`; a second `emetos` hands its arguments over and exits (or waits with `--wait`). Multiple windows are Glutter windows of one process.
+- `emetos [options] [paths...]`: `-n`/`--new-window`, `-r`/`--reuse-window`, `-g`/`--goto file:line[:col]`, `-d`/`--diff <a> <b>`, `-m`/`--merge <path1> <path2> <base> <result>`, `-w`/`--wait` (exit when the files are closed, for `git commit`), `--profile <name>`, `--log <level>`, `--version`, `--help`. A folder path opens it; file paths open the files. The options are parsed by hand (short and long forms, and positional counts for `--diff` and `--merge`).
+- A running instance listens on `$XDG_RUNTIME_DIR/emetos-<uid>.sock` (versioned JSON messages); a second `emetos` hands its arguments and working directory over and exits, or waits with `--wait`. A stale socket (nobody listening) is removed. Two launches at once: the one that binds the socket wins; the other retries the hand-over.
+- Multiple windows are Glutter windows of one process (§5.1). "Open Folder" in a window that has no dirty documents (or after their prompts) replaces its workspace: the window's services are disposed and created again for the new folder. Closing a window asks about its dirty documents per `files.hotExit` (§10.10); closing the last window quits.
 
 ### 10.12 Profiles
 
-A profile is a folder with its own `settings.json`, `keybindings.json`, `snippets/` and UI state, under `~/.config/emetos/profiles/<name>/`; the default profile is `~/.config/emetos/` itself. A window uses one profile; switching reloads the window's settings. Export/import is a single JSON file.
+A profile is a name with its own `settings.json`, `keybindings.json`, `snippets/` (in its configuration folder) and UI state (in its state folder), §10.10. The default profile is the plain `emetos/` folders. Names are 1–64 characters of letters, digits, spaces, `-` and `_`. A window uses one profile: the one last used with its folder, else the default; `--profile` chooses it. Switching a window's profile reloads its settings, keybindings, snippets and theme in place (editors stay open). Backups belong to windows, not profiles. Export/import is one JSON file: `{"name", "settings", "keybindings", "snippets": {file name: text}}`, with the files' texts as strings.
 
 ## 11. Configuration
 
 ### 11.1 Settings (`core/jsonc`, `core/settings`)
 
-- `settings.json` files are JSON with comments and trailing commas. `core/jsonc` parses them with positions, and edits a value while keeping comments and formatting (as VS Code's `jsonc-parser` does).
+- `settings.json` files are JSON with comments and trailing commas. `core/jsonc` parses them with positions, and edits a value while keeping comments and formatting (as VS Code's `jsonc-parser` does), given formatting options (tab size, spaces, line ending).
 - Layers, lowest to highest: defaults, user (profile), workspace (`<folder>/.emetos/settings.json` only, D12), and language-specific blocks (`"[go]": {...}`) inside each layer.
-- Every setting is registered with key, type, default, description, enum values and range; unknown keys are kept and reported in the settings file (later through the Problems panel). Change events carry the affected keys.
+- Every setting is registered with key, type, default, description, enum values and descriptions, range, scope, and category, by the step that first uses it, with VS Code's values (`editorOptions.ts` for `editor.*`, the workbench's configuration contributions for the rest). Reading an unregistered key is a programmer error (a panic in debug builds). Unknown keys in a file are kept and reported. Change events carry the affected keys. Writing a value creates the file and its folder when needed.
 - The settings UI shows registered settings by category with search, edits user or workspace values, and links to the JSON.
 
 ### 11.2 Commands and context keys (`core/command`, `core/contextkey`)
 
-- Commands have an id (VS Code's ids where the command exists in VS Code, e.g. `editor.action.copyLinesDownAction`), a title, a category, a precondition, and a handler. Menus, keybindings and the palette all run commands by id.
-- Context keys (e.g. `editorTextFocus`, `editorHasSelection`, `findWidgetVisible`, `explorerViewletFocus`, `resourceExtname`) are scoped by focus, and when-clauses use VS Code's syntax: `!`, `&&`, `||`, `==`, `!=`, `=~` (regex), `<`, `>`, `in`, `not in`, parentheses.
+- Commands have an id (VS Code's ids where the command exists in VS Code), a title, a category, a precondition, and a handler. The registry holds metadata first; the handler is attached by the package that implements it (an editor command's handler lives in `gui/editor` and calls `core/edit`). Menus, keybindings, the palette and dev commands all run commands by id, with optional JSON-compatible arguments.
+- Context keys (e.g. `editorTextFocus`, `editorHasSelection`, `findWidgetVisible`, `explorerViewletFocus`, `resourceExtname`) live in scopes: a tree of scopes (window → part → widget); a widget gets a child scope from its parent's and sets its keys there; a lookup walks up the tree; the dispatcher (§5.4) evaluates against the scope of the focused widget. When-clauses use VS Code's syntax: `!`, `&&`, `||`, `==`, `!=`, `=~` (regex), `<`, `>`, `in`, `not in`, parentheses.
 
 ### 11.3 Keybindings (`core/keybinding`)
 
-- The default keymap is VS Code's Linux keymap for the commands Emetos has.
+- The default keymap is VS Code's Linux keymap for the commands Emetos has. VS Code registers its defaults in code (`registerKeybinding`/`KeybindingsRegistry` calls in `coreCommands.ts` and the contributions); each step that adds a command adds its default binding from there.
 - `keybindings.json` entries: `key` (with chords such as `ctrl+k ctrl+c`), `command` (a leading `-` removes a default), `when`, `args`.
-- Keys are matched by the logical key Glutter reports for the Latin layout, so shortcuts work on any keyboard layout. A chord's first key shows "(Ctrl+K) was pressed. Waiting for second key of chord..." in the status bar.
+- A chord's first key shows "(Ctrl+K) was pressed. Waiting for second key of chord..." in the status bar.
+- A **recording mode** (for the keybindings UI) hands every key event to a recorder before resolution.
 - The keybindings UI lists every command with its key, source (default/user) and when-clause; it searches by name and by recorded key, and edits `keybindings.json`.
 
 ## 12. Privacy
@@ -407,87 +453,93 @@ A profile is a folder with its own `settings.json`, `keybindings.json`, `snippet
 ## 13. Errors and logging
 
 - Every error uses `github.com/rm4n0s/errors` (CLAUDE.md). Errors shown to the user become notifications with a short message; the full error (`ToJson()`) goes to the log.
-- Logs: `log/slog` to `~/.local/state/emetos/logs/<date>/main.log` (kept 7 days), and to the "Emetos" channel of the Output panel. `emetos --log debug` raises the level.
-- A panic in a background goroutine is recovered, logged, and reported once as an error notification; the window stays open. A panic in the UI goroutine is handled by Glutter's error reporting, logged, and Emetos tries to save backups (§10.10) before exiting.
+- Logs: `log/slog` to `$XDG_STATE_HOME/emetos/logs/<date>/main.log` (kept 7 days), and to the "Emetos" channel of the Output panel. `emetos --log debug` raises the level.
+- A panic in a background goroutine is recovered, logged, and reported once as an error notification; the window stays open. A panic in the UI goroutine is handled by Glutter's error reporting, logged, and Emetos tries to write backups (§10.10) before exiting.
 
 ## 14. Performance targets
 
-Measured on release builds (`-tags glutter_release`) on the user's machine with its GPU; the numbers and the method go in `docs/PERFORMANCE.md`.
+Measured on release builds (`-tags glutter_release,emetos_dev`, so dev commands can drive the app) on the user's machine, in their desktop session with its GPU; headless numbers (software rendering) are recorded too but don't decide. The numbers and the method go in `docs/PERFORMANCE.md`.
 
-| Metric | Target |
-|---|---|
-| Typing a character in a 10,000-line Go file with highlighting: UI-thread time of the frame that shows it | < 4 ms |
-| Scrolling a 100,000-line file: frames | display refresh rate, no UI-thread frame over 8 ms |
-| Opening a 10 MB file: first frame with text | < 300 ms |
-| Opening a 200 MB file in large file mode: first frame with text | < 3 s |
-| Cold start with no folder, to the first frame | < 400 ms |
-| Idle, window focused, cursor blinking | < 1% of a core; no frames at all when the window has no focus |
-| Resident memory, one 10,000-line file open | < 200 MB (checked against Glutter's own baseline in step 3.6; the target is revisited there) |
-| Fuzzy file search over 100,000 paths, per keystroke | < 30 ms, off the UI thread |
+| Metric | Target | First measured |
+|---|---|---|
+| Typing a character in a 10,000-line Go file: UI-thread time of the frame that shows it | < 4 ms | step 3.11 (no highlighting), again with highlighting in step 4.9 |
+| Scrolling a 100,000-line file: frames | display refresh rate, no UI-thread frame over 8 ms | 3.11 |
+| Opening a 10 MB file: first frame with text | < 300 ms | 3.11 |
+| Opening a 200 MB file in large file mode: first frame with text | < 3 s | 5.12 |
+| Cold start with no folder, to the first frame | < 400 ms | 3.11, again with the workbench in 10.1 |
+| Idle, window focused, cursor blinking | < 1% of a core; no frames at all when the window has no focus | 3.11 |
+| Resident memory, one 10,000-line file open | < 200 MB (revisited in step 3.11 against Glutter's own baseline) | 3.11 |
+| Fuzzy file search over 100,000 paths, per keystroke | < 30 ms, off the UI thread | 6.18 |
 
 ## 15. Testing
 
+### 15.1 Tests
+
 - Core packages: table-driven unit tests, fuzz tests for the buffer (random edits checked against a plain string), the JSONC parser, the snippet parser, the when-clause parser, and the tokenizer (no panics, bounded time).
-- Tokenizer and themes: tests against expected tokens for each bundled grammar, from small fixture files per language (`testdata/tokenize/<lang>/`), compared as text.
+- **Ported VS Code tests** use 1-based lines and UTF-16 columns; `core/vstest` converts them to Emetos positions. A case with non-ASCII text has its expected positions worked out again for byte columns, with a comment saying so. A case that needs VS Code's TypeScript harness (a full editor, services) is skipped, and the count of skipped cases is recorded.
+- Tokenization: VS Code's own oracle, `extensions/vscode-colorize-tests/test/colorize-fixtures` and `colorize-results` (scopes per token), for every bundled language that has fixtures there; small fixtures of Emetos's own for the others.
 - UI: `gluttertest` widget tests with the fake platform (keys through `SendKeyEvent`, IME through `SendTextInputEvent`, clipboard, file choosers, window close), and golden images with `MatchesGolden`.
-- Golden images need deterministic fonts: UI tests load Go Mono (`golang.org/x/image/font/gofont/gomono`, also bold and italic), Codicons and Seti through `gluttertest.Opts.Fonts`, and set `editor.fontFamily` to Go Mono, so no system font is used (D14).
-- Display tests (`emetos_display` tag) start the real app under a headless Wayland compositor for proof screenshots (`GLUTTER_SCREENSHOT`, Glutter's self-capture).
-- Performance benchmarks (§14) are Go benchmarks plus scripts that run the app with `GLUTTER_FRAME_STATS=1`.
+- Golden images need deterministic fonts: UI tests load Go Mono (regular, bold, italic, bold italic), Codicons and Seti through `gluttertest.Opts.Fonts`, and set `editor.fontFamily` to Go Mono (D14). Glyphs Go Mono lacks (CJK, emoji) show as boxes, so their layout is checked through the paragraph queries, not by goldens.
+- **Isolation**: no test, proof or check reads or writes the user's real configuration, state, cache, trash or socket. Go tests call a helper that points every `XDG_*` variable at `t.TempDir()`; scripts run the app through `scripts/isolated.sh`, which does the same with a temporary folder (and can copy a fixture configuration in).
+- Display tests (`emetos_display` tag) start the real app under a headless Wayland compositor.
+- Performance benchmarks (§14) are Go benchmarks plus `scripts/perf.sh`, which runs the app with `GLUTTER_FRAME_STATS=1`.
+
+### 15.2 Dev commands
+
+`EMETOS_DEV_COMMANDS` holds a JSON array of steps run after the first frame, each `["<command id>", <args>]` or `["sleep", "<duration>"]`, for example `[["workbench.action.quickOpen", ">line"], ["sleep", "200ms"]]`. Any registered command can be used; commands whose id starts with `dev.` exist only for this (opening a file at a position in a group, posting a notification, typing text) and are registered only in debug and `emetos_dev` builds (D15).
 
 ## 16. Build and runtime requirements
 
-- Build: Go 1.27 only. `CGO_ENABLED=0 go build ./cmd/emetos` makes the binary.
+- Build: Go 1.27 only. `CGO_ENABLED=0 go build ./cmd/emetos` makes the binary; users build with `-tags glutter_release` (D16).
 - Run: what Glutter needs (Wayland or X11, Vulkan or OpenGL ES, fontconfig), a monospace font, and optionally xdg-desktop-portal for file dialogs and opening links.
 
 ## 17. Licensing and third-party assets
 
-Emetos is MIT-licensed (`LICENSE`). Bundled assets are listed in `NOTICE`, each with its license in `third_party/<name>/`:
+Emetos is MIT-licensed (`LICENSE`). The reference sources are pinned in `scripts/reference-versions.txt` (committed). Bundled assets are listed in `NOTICE`, each with its license in `third_party/<name>/`:
 
 | Asset | Source | License |
 |---|---|---|
-| TextMate grammars and language configurations | VS Code repository `extensions/*` (pinned commit); each grammar's upstream is listed in VS Code's `cgmanifest.json` | MIT, and the grammar's own license (checked per grammar when it is added) |
+| TextMate grammars and language configurations | VS Code `extensions/*`; each grammar's upstream is listed in VS Code's `cgmanifest.json` files | MIT, and the grammar's own license (checked per grammar when it is added; a grammar without a permissive license is left out and recorded) |
 | Color themes | VS Code `extensions/theme-defaults` | MIT |
-| Default keybindings and setting defaults | VS Code (data, not code) | MIT |
+| Ported code, default keybindings and setting defaults | VS Code `src/vs` | MIT |
+| TextMate tokenizer algorithms | `microsoft/vscode-textmate` | MIT |
 | Go module grammar | `golang/vscode-go` | MIT |
-| Emmet snippets | `@emmetio/snippets` | MIT |
+| Emmet parser algorithms and snippets | `emmetio/emmet` | MIT |
 | Seti file icons (font and mapping) | VS Code `extensions/theme-seti` | MIT |
-| Codicons (font and `codicon.csv`) | `microsoft/vscode-codicons` | CC BY 4.0 |
+| Codicons (font and `codicon.csv`) | npm package `@vscode/codicons` | CC BY 4.0 (icons), MIT (code) |
 | Go Mono (tests only, not bundled) | `golang.org/x/image/font/gofont` | BSD-3-Clause |
+| `scripts/headless-wayland.sh`, `scripts/screenshot-headless.sh` | Glutter | BSD-3-Clause |
 
 ## 18. Milestones
 
 | Milestone | Content |
 |---|---|
-| M0 | Skeleton: module, packages, lint, boundary tests, an empty window |
-| M1 | Text core: buffer, files, document, undo, editing commands |
-| M2 | Configuration: JSONC, settings, commands, context keys, keybindings |
-| M3 | Editor widget: rendering, input, IME, clipboard, scrolling, first performance check |
-| M4 | Languages: regex, TextMate, tokenization, themes, brackets, indentation, folding |
-| M5 | Editor features: find, word wrap, whitespace, guides, minimap, sticky scroll, snippets, Emmet, large files |
-| M6 | Workbench: widget kit, layout, groups and tabs, explorer, quick input, status bar, notifications, panels |
-| M7 | Files and sessions: save lifecycle, external changes, hot exit, restore, command line, single instance, windows |
-| M8 | UIs for settings, keybindings, themes, profiles; zen mode |
-| M9 | Diff and merge editors |
+| M0 | Skeleton: module, packages, lint, boundary tests, references, paths and logs, an empty window, proof scripts |
+| M1 | Text core: positions, buffer, files, documents, undo, decorations, editing commands |
+| M2 | Configuration: JSONC, settings, context keys, commands, keybindings, globs |
+| M3 | Editor widget: rendering, cursors, keys, IME, mouse, scrolling, clipboard, options, first performance check |
+| M4 | Languages: regex, TextMate, languages, themes, tokenization, brackets, indentation, guides, auto-closing, comments, folding |
+| M5 | Editor features: find, word wrap, whitespace, minimap, sticky scroll, breadcrumbs, snippets, Emmet, large files |
+| M6 | Workbench: widget kit, layout, menus, editor groups and tabs, notifications, panels, explorer, quick input, navigation, status bar |
+| M7 | Files and sessions: saving, closing, auto save, external changes, UI state, hot exit, command line, windows |
+| M8 | UIs for settings and keybindings, themes, zoom and zen mode, profiles |
+| M9 | Diff and merge |
 | M10 | Performance pass and release of areas 1–2 |
 
 The steps are in `docs/IMPLEMENTATION.md`.
 
 ## 19. Open decisions
 
-Each has a recommendation; the user decides, and the answer moves to §4.
-
-Q1–Q4 are decided (D10–D13).
-
 | # | Question | Recommendation |
 |---|---|---|
-| Q5 | **Emetos's own extension model** (area 11) | Decide later; the command, context-key, view and settings registries are built so extensions can add to them |
+| Q5 | **Emetos's own extension model** (area 11) | Decide later; the command, context-key, view, menu and settings registries are built so extensions can add to them |
 
 ## 20. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Text rendering through Glutter is too slow for an editor (shaping per paragraph, glyphs as paths) | Per-line paragraph cache, repaint boundary for the text, the performance check in step 3.6 before anything else is built on the editor; fixes go into Glutter (D8). Glutter's own numbers (41–58 µs per cold code line, 5–10 µs for an unchanged one with its shaped-run cache) fit the budget of §14 |
-| TextMate grammars written for Oniguruma behave differently with another engine | Translation layer in `core/regex`, tokenization tests per bundled grammar, timeouts |
+| Text rendering through Glutter is too slow for an editor | Per-line paragraph cache, repaint boundary for the text, the performance check in step 3.11 before anything else is built on the editor; fixes go into Glutter (D8). Glutter's own numbers (41–58 µs per cold code line, 5–10 µs for an unchanged one) fit the budget of §14 |
+| TextMate grammars written for Oniguruma behave differently with regexp2 | Translation layer in `core/regex`, a test that compiles every pattern of every bundled grammar, VS Code's colorize oracles, timeouts |
 | Glutter is young; Emetos is its first large app | Workarounds are marked and listed (D8); Glutter fixes are made in the Glutter repository |
+| Glutter's close requests for the first window are app-wide | Step 7.8 checks which hook reaches each window, and records a Glutter issue if the first window can't be told apart |
 | The scope of "what VS Code has" grows | Areas 3–11 are outside this spec until planned; every feature in §3 is a row with a defined behavior |
-| IME with a big document | Only the current line is sent to the input method (§9.3) |
