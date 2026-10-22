@@ -1,0 +1,65 @@
+Emetos
+Copyright (c) 2026 Manos Ragiadakos
+Licensed under the MIT License (see LICENSE).
+
+Emetos bundles or ports the third-party material listed below. Each entry names
+the step of docs/IMPLEMENTATION.md that adds it; the license text of each asset
+is kept in third_party/<name>/ by that step. An entry marked "not yet added" is
+planned and has no files in the repository yet.
+
+1. TextMate grammars and language configurations
+   Source:  Visual Studio Code, extensions/* (https://github.com/microsoft/vscode)
+   License: MIT (Microsoft Corporation) and the license of each grammar's
+            upstream project, listed in VS Code's cgmanifest.json files.
+   Added by steps 4.6, 4.6b, 4.10 and 4.11 (not yet added). A grammar without a
+   permissive license is left out and recorded here.
+
+2. Color themes
+   Source:  Visual Studio Code, extensions/theme-defaults
+   License: MIT (Microsoft Corporation)
+   Added by step 4.7 (not yet added).
+
+3. Ported code, default keybindings and setting defaults
+   Source:  Visual Studio Code, src/vs (https://github.com/microsoft/vscode)
+   License: MIT (Microsoft Corporation)
+   Code ported from VS Code says so in a "Ported from VS Code: <path>" comment.
+   First added by step 1.1 (not yet added).
+
+4. TextMate tokenizer and theme algorithms
+   Source:  vscode-textmate (https://github.com/microsoft/vscode-textmate)
+   License: MIT (Microsoft Corporation)
+   Added by steps 4.3 and 4.7 (not yet added).
+
+5. Go module grammar
+   Source:  vscode-go (https://github.com/golang/vscode-go)
+   License: MIT (The Go Authors)
+   Added by step 4.11 (not yet added).
+
+6. Emmet abbreviation parser and snippets
+   Source:  Emmet (https://github.com/emmetio/emmet)
+   License: MIT (Sergey Chikuyonok)
+   Added by step 5.10 (not yet added).
+
+7. Seti file icons (font and icon theme mapping)
+   Source:  Visual Studio Code, extensions/theme-seti
+   License: MIT (Microsoft Corporation; the Seti UI icon set by Jesse Weed)
+   Font added by step 0.4; mapping added by step 6.14 (not yet added).
+
+8. Codicons (font and codicon.csv)
+   Source:  npm package @vscode/codicons (https://github.com/microsoft/vscode-codicons)
+   License: CC BY 4.0 (icons), MIT (code). Attribution: "Codicons by Microsoft
+            Corporation, licensed under CC BY 4.0".
+   Added by step 0.4 (not yet added).
+
+9. scripts/headless-wayland.sh and scripts/screenshot-headless.sh
+   Source:  Glutter (https://github.com/rm4n0s/glutter)
+   License: BSD-3-Clause
+   Added by step 0.4 (not yet added).
+
+Used by tests only, not bundled:
+
+10. Go Mono font
+    Source:  golang.org/x/image/font/gofont
+    License: BSD-3-Clause (The Go Authors); the fonts are under the Bitstream
+             Vera / Go font license of the Go project.
+    Used from step 3.1.

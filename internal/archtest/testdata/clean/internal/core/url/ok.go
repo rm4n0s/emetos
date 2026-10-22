@@ -1,0 +1,5 @@
+package url
+
+import "net/url"
+
+var _ = url.Parse
