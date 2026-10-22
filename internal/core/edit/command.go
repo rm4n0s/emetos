@@ -30,6 +30,9 @@ type Result struct {
 type plan struct {
 	edits     []document.Edit
 	selection func(m *mapper, now []buffer.Range) buffer.Selection
+	// custom makes build use selection even when there are no edits, for a command
+	// that moves the cursor without changing the text.
+	custom bool
 }
 
 // replacePlan replaces r by text and leaves a cursor after it.
@@ -64,10 +67,18 @@ func advance(p buffer.Position, text string) buffer.Position {
 // old is where a position of the text before ends up. A position at an edit's end
 // (or at an insertion) goes after the inserted text; a position inside a replaced
 // range goes to the start of the new text.
-func (m *mapper) old(p buffer.Position) buffer.Position {
+func (m *mapper) old(p buffer.Position) buffer.Position { return m.at(p, true) }
+
+// at is old; with after false, text inserted exactly at p is left after it.
+func (m *mapper) at(p buffer.Position, after bool) buffer.Position {
 	i := sort.Search(len(m.edits), func(i int) bool { return m.edits[i].Range.End.Compare(p) > 0 })
 	if i < len(m.edits) && m.edits[i].Range.Start.Compare(p) < 0 {
 		return m.edits[i].now.Start
+	}
+	if !after {
+		for i > 0 && m.edits[i-1].Range.Start == p && m.edits[i-1].Range.End == p {
+			i--
+		}
 	}
 	if i == 0 {
 		return p
@@ -77,6 +88,21 @@ func (m *mapper) old(p buffer.Position) buffer.Position {
 		return buffer.Position{Line: prev.now.End.Line, Col: prev.now.End.Col + p.Col - prev.Range.End.Col}
 	}
 	return buffer.Position{Line: p.Line + prev.now.End.Line - prev.Range.End.Line, Col: p.Col}
+}
+
+// track moves a selection through the edits as a decoration moves: a selection
+// that is not empty does not grow at its ends (text inserted at its start goes
+// before it, text inserted at its end after it); a caret goes after text inserted
+// at it, unless it stays before it.
+func (m *mapper) track(s buffer.Selection, caretStaysBefore bool) buffer.Selection {
+	if s.IsEmpty() {
+		return buffer.NewCursor(m.at(s.Active, !caretStaysBefore))
+	}
+	start, end := m.at(s.Start(), true), m.at(s.End(), false)
+	if s.Anchor.Compare(s.Active) <= 0 {
+		return buffer.Selection{Anchor: start, Active: end}
+	}
+	return buffer.Selection{Anchor: end, Active: start}
 }
 
 // build turns the plans of the cursors (nil for a cursor that does nothing) into a
@@ -153,7 +179,7 @@ func build(sels []buffer.Selection, plans []plan, kind document.EditKind) Result
 	for i, s := range sels {
 		switch {
 		case dropped[i]:
-		case i >= len(plans) || len(plans[i].edits) == 0:
+		case i >= len(plans) || (len(plans[i].edits) == 0 && !plans[i].custom):
 			res.Selections = append(res.Selections, buffer.Selection{Anchor: m.old(s.Anchor), Active: m.old(s.Active)})
 		default:
 			res.Selections = append(res.Selections, plans[i].selection(m, now[i]))
@@ -184,6 +210,27 @@ type Commands struct {
 // NewCommands makes the commands of a text.
 func NewCommands(m Model, o Options) Commands {
 	return Commands{Model: m, Options: o, mv: NewMover(m, o, nil)}
+}
+
+// validSelection is a selection with both ends inside the text.
+func (c Commands) validSelection(s buffer.Selection) buffer.Selection {
+	return buffer.Selection{Anchor: c.Model.ValidatePosition(s.Anchor), Active: c.Model.ValidatePosition(s.Active)}
+}
+
+// textIn is the text of a range of the model, with "\n" line breaks.
+func (c Commands) textIn(r buffer.Range) string {
+	if r.Start.Line == r.End.Line {
+		return c.Model.LineContent(r.Start.Line)[r.Start.Col:r.End.Col]
+	}
+	var sb strings.Builder
+	sb.WriteString(c.Model.LineContent(r.Start.Line)[r.Start.Col:])
+	for line := r.Start.Line + 1; line < r.End.Line; line++ {
+		sb.WriteByte('\n')
+		sb.WriteString(c.Model.LineContent(line))
+	}
+	sb.WriteByte('\n')
+	sb.WriteString(c.Model.LineContent(r.End.Line)[:r.End.Col])
+	return sb.String()
 }
 
 // validRange is the range of a selection with both ends inside the text.

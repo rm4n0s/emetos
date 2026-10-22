@@ -172,3 +172,100 @@ func TestRandomMultiCursorDeleting(t *testing.T) {
 		checkRandom(t, seed, text, res, sb.String(), want)
 	}
 }
+
+// randomLines makes a few lines of letters, some with white space or empty.
+func randomLines(r *rand.Rand) []string {
+	words := []string{"", "a", "b", " c", "dd", "Ee", "é", "x y", "  ", "ß"}
+	lines := make([]string, 2+r.Intn(6))
+	for i := range lines {
+		lines[i] = words[r.Intn(len(words))]
+	}
+	return lines
+}
+
+func TestRandomMoveLinesRoundTrip(t *testing.T) {
+	for seed := 0; seed < 300; seed++ {
+		r := rand.New(rand.NewSource(int64(5000 + seed)))
+		lines := randomLines(r)
+		text := strings.Join(lines, "\n")
+		a := r.Intn(len(lines))
+		b := a + r.Intn(len(lines)-a)
+		// A selection of whole non-empty lines can be moved down and up again.
+		if b+1 >= len(lines) {
+			continue
+		}
+		allText := true
+		for _, l := range lines[a : b+1] {
+			if l == "" {
+				allText = false
+			}
+		}
+		if !allText || lines[b+1] == "" {
+			continue
+		}
+		e := newEd(t, DefaultOptions(), lines...)
+		e.at(sel4{a + 1, 1, b + 1, len(lines[b]) + 1})
+		before := append([]buffer.Selection(nil), e.sels...)
+		e.run(func(c Commands, s []buffer.Selection) Result { return c.MoveLines(s, true) })
+		if e.doc.Text() == text && len(lines[b+1]) > 0 && lines[b+1] != strings.Join(lines[a:b+1], "\n") {
+			t.Fatalf("seed %d: moving down changed nothing in %q", seed, text)
+		}
+		e.run(func(c Commands, s []buffer.Selection) Result { return c.MoveLines(s, false) })
+		if e.doc.Text() != text {
+			t.Fatalf("seed %d: down then up gave %q, want %q", seed, e.doc.Text(), text)
+		}
+		if !buffer.SelectionsEqual(e.sels, before) {
+			t.Fatalf("seed %d: selection %+v, want %+v", seed, e.sels, before)
+		}
+	}
+}
+
+func TestRandomCopyThenDeleteLines(t *testing.T) {
+	for seed := 0; seed < 300; seed++ {
+		r := rand.New(rand.NewSource(int64(7000 + seed)))
+		lines := randomLines(r)
+		text := strings.Join(lines, "\n")
+		n := r.Intn(len(lines))
+		e := newEd(t, DefaultOptions(), lines...).caret(n+1, 1)
+		e.run(func(c Commands, s []buffer.Selection) Result { return c.CopyLines(s, true) })
+		if got := len(strings.Split(e.doc.Text(), "\n")); got != len(lines)+1 {
+			t.Fatalf("seed %d: %d lines after a copy, want %d", seed, got, len(lines)+1)
+		}
+		// The cursor is on the copy: deleting that line gives the text back.
+		e.run(deleteLines)
+		if e.doc.Text() != text {
+			t.Fatalf("seed %d: copy then delete gave %q, want %q", seed, e.doc.Text(), text)
+		}
+	}
+}
+
+func TestRandomSortLinesIsIdempotent(t *testing.T) {
+	for seed := 0; seed < 300; seed++ {
+		r := rand.New(rand.NewSource(int64(9000 + seed)))
+		lines := randomLines(r)
+		e := newEd(t, DefaultOptions(), lines...)
+		all := func() *ed {
+			n := len(strings.Split(e.doc.Text(), "\n"))
+			return e.at(sel4{1, 1, n, len(e.line(n)) + 1})
+		}
+		all().run(sortCmd(false))
+		once := e.doc.Text()
+		if got := strings.Split(once, "\n"); len(got) != len(lines) {
+			t.Fatalf("seed %d: %d lines after sorting %d", seed, len(got), len(lines))
+		}
+		all().run(sortCmd(false))
+		if e.doc.Text() != once {
+			t.Fatalf("seed %d: sorting twice gave %q, once %q", seed, e.doc.Text(), once)
+		}
+		if strings.HasPrefix(once, "\n") || strings.Contains(once, "\n\n") {
+			// An empty line can end up last, and a selection that ends in an empty
+			// line leaves it out, so the check below does not apply.
+			continue
+		}
+		all().run(sortCmd(true))
+		all().run(sortCmd(false))
+		if e.doc.Text() != once {
+			t.Fatalf("seed %d: descending then ascending gave %q, want %q", seed, e.doc.Text(), once)
+		}
+	}
+}

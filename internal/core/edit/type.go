@@ -60,12 +60,16 @@ func (c Commands) overtypeRange(r buffer.Range, text string) buffer.Range {
 func (c Commands) NewLine(sels []buffer.Selection) Result {
 	plans := make([]plan, len(sels))
 	for i, s := range sels {
-		r := c.validRange(s)
-		indent := leadingWhitespace(c.Model.LineContent(r.Start.Line))
-		indent = indent[:min(len(indent), r.Start.Col)]
-		plans[i] = replacePlan(r, "\n"+NormalizeIndentation(indent, c.Options.indentSize(), c.Options.InsertSpaces))
+		plans[i] = c.newLinePlan(c.validRange(s))
 	}
 	return build(sels, plans, document.KindOther)
+}
+
+// newLinePlan replaces r by a line break and the indentation of the line before r.
+func (c Commands) newLinePlan(r buffer.Range) plan {
+	indent := leadingWhitespace(c.Model.LineContent(r.Start.Line))
+	indent = indent[:min(len(indent), r.Start.Col)]
+	return replacePlan(r, "\n"+NormalizeIndentation(indent, c.Options.indentSize(), c.Options.InsertSpaces))
 }
 
 // CompositionType is what an input method does while it composes: at each cursor

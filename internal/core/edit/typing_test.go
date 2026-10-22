@@ -1,6 +1,7 @@
 package edit
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -97,6 +98,14 @@ func (e *ed) typeText(text string) *ed {
 	}
 	return e
 }
+
+// vsFromPosition is the VS Code line and column of a position of text.
+func vsFromPosition(text string, p buffer.Position) (int, int) {
+	l, c, _ := vstest.FromPosition(text, p)
+	return l, c
+}
+
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func (e *ed) tab() *ed     { return e.run(Commands.Tab) }
 func (e *ed) indent() *ed  { return e.run(Commands.Indent) }
