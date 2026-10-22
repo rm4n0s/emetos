@@ -293,7 +293,7 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
 **Read:** SPEC §9.1, §9.2, §9.4; Glutter: `rendering/box.go` (`InitRenderBox`), `rendering/editable.go` (how `RenderEditable` uses `ViewportOffset`), `widgets/scrollable.go`, `ui/text.go`, `rendering/error_box.go`.
 **Tasks:**
 1. `gui/editor` view model: document, cursors, scroll positions, line height from font metrics and `editor.lineHeight`.
-2. `RenderEditorText`: a leaf `RenderBox` with a `ViewportOffset` (vertical, from `Scrollable`) and a horizontal offset; lays out the visible lines plus 10 lines of margin; one paragraph per line with tab expansion and an offset map; the LRU paragraph cache; repaint boundary.
+2. `RenderEditorText`: a leaf `RenderBox` with a `ViewportOffset` (vertical, from `Scrollable`) and a horizontal offset; lays out the visible lines plus 10 lines of margin; one paragraph per line with tabs placed by Glutter's tab stops (`ParagraphStyleOpts.TabSize` from `editor.tabSize`); the LRU paragraph cache; repaint boundary. A `ui.ParagraphBuilder` can't be used after `Build`; make a new one per line.
 3. Gutter with line numbers (`editor.lineNumbers`: on, relative, off), current line highlight (`editor.renderLineHighlight`), selections (rounded, multi-line, VS Code's colors), cursors (line style) in their own layer with blinking (`editor.cursorBlinking: blink`) through Glutter timers, stopped when the window has no focus.
 4. Vertical and horizontal scrollbars in VS Code's overlay style (a first version of `kit.ScrollableElement`), `editor.scrollBeyondLastLine`.
 5. Hit testing: position ↔ (line, byte column) through the paragraph queries, with the ASCII monospace fast path.

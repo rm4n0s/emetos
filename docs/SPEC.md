@@ -100,7 +100,7 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | D7 | VS Code's file formats for themes, grammars, language configurations, snippets, settings and keybindings (G4) | Reuse of existing material |
 | D8 | When Glutter lacks something, Emetos works around it, marks the code with `// Glutter:`, and lists it in `docs/GLUTTER-ISSUES.md` | The user's rule (CLAUDE.md) |
 | D9 | Hand-made widgets on Glutter's `widgets` layer for the workbench, themed by VS Code workbench colors; Material widgets only for menus where they can be restyled | A dense IDE look, not a phone look |
-| D10 | Glutter v1.3.0 or newer: fonts loaded at run time (`RunAppOpts.Fonts`, `PlatformDispatcher.LoadFontFromList`), fonts in `gluttertest` (`Opts.Fonts`), family fallback in order, font queries and the desktop's font settings, `TreeSliver` | What the editor needs (was Q1) |
+| D10 | Glutter v1.4.0 or newer: fonts loaded at run time (`RunAppOpts.Fonts`, `PlatformDispatcher.LoadFontFromList`), fonts in `gluttertest` (`Opts.Fonts`), family fallback in order, font queries and the desktop's font settings, `TreeSliver`, tab stops (`ParagraphStyleOpts.TabSize`), the cache of shaped runs | What the editor needs (was Q1) |
 | D11 | Regular expressions with `github.com/dlclark/regexp2` (§8.2) | TextMate grammars need lookbehind and backreferences (was Q2) |
 | D12 | Workspace settings only in `<folder>/.emetos/settings.json`; `.vscode/` is not read | The user's choice (was Q3) |
 | D13 | Bundled languages: the list in §8.1. Go, Markdown, JSON, YAML, Python, JavaScript and TypeScript come first and get the deepest tests | The user's priorities (was Q4) |
@@ -272,8 +272,8 @@ A widget tree around one custom render object:
 
 ### 9.2 Text rendering
 
-- **One `ui.Paragraph` per visible line** (per wrapped line with word wrap), built from token spans, cached by (line content, tokens, theme, font settings, wrap width) and dropped by an LRU of 2,000 lines. Glutter has no paragraph cache of its own; building a code line costs about 65–96 µs there (Glutter's `docs/PERFORMANCE.md`, step 22.6), so a page of 50 lines is about 3 ms and an edit rebuilds only the changed lines.
-- **Tabs**: Glutter's text layout has no tab stops, so tabs are expanded to spaces in the paragraph text, with an offset map between buffer columns and paragraph offsets. Whitespace rendering draws the arrows and dots itself.
+- **One `ui.Paragraph` per visible line** (per wrapped line with word wrap), built from token spans, cached by (line content, tokens, theme, font settings, wrap width) and dropped by an LRU of 2,000 lines. Glutter caches shaped runs but not paragraphs: a cold code line costs about 41–58 µs, an unchanged one rebuilt 5–10 µs, and a line with one changed span 14–18 µs (Glutter's `docs/PERFORMANCE.md`, steps 22.6 and 22.10). Keeping the paragraphs of unchanged lines is what makes an edit cost about one line (Glutter's PERFORMANCE.md says only the caller can do that).
+- **Tabs**: Glutter's tab stops (`ParagraphStyleOpts.TabSize` = `editor.tabSize`, in space widths of the paragraph's font) place tabs, so paragraph offsets equal buffer byte columns. A tab draws nothing; whitespace rendering draws the arrows and dots itself.
 - **Fonts**: `editor.fontFamily` defaults to the desktop's monospace font (`PlatformDispatcher.MonospaceFont()`, followed live), then the generic `monospace` (D14). A comma-separated `editor.fontFamily` becomes `FontFamily` plus `FontFamilyFallback`, which Glutter tries in order. Proportional and wide characters are handled through the paragraph's queries (`GetBoxesForRange`, `GetPositionForOffset`), never by assuming a fixed advance, except for the fast path of pure-ASCII lines in a monospace font.
 - Ligatures follow `editor.fontLigatures` (`liga` and `calt` features on or off).
 
@@ -486,7 +486,7 @@ Q1–Q4 are decided (D10–D13).
 
 | Risk | Mitigation |
 |---|---|
-| Text rendering through Glutter is too slow for an editor (shaping per paragraph, glyphs as paths) | Per-line paragraph cache, repaint boundary for the text, the performance check in step 3.6 before anything else is built on the editor; fixes go into Glutter (D8). Glutter's own numbers (65–96 µs per code line) fit the budget of §14; a cache of shaped runs is pending in Glutter if more is needed |
+| Text rendering through Glutter is too slow for an editor (shaping per paragraph, glyphs as paths) | Per-line paragraph cache, repaint boundary for the text, the performance check in step 3.6 before anything else is built on the editor; fixes go into Glutter (D8). Glutter's own numbers (41–58 µs per cold code line, 5–10 µs for an unchanged one with its shaped-run cache) fit the budget of §14 |
 | TextMate grammars written for Oniguruma behave differently with another engine | Translation layer in `core/regex`, tokenization tests per bundled grammar, timeouts |
 | Glutter is young; Emetos is its first large app | Workarounds are marked and listed (D8); Glutter fixes are made in the Glutter repository |
 | The scope of "what VS Code has" grows | Areas 3–11 are outside this spec until planned; every feature in §3 is a row with a defined behavior |
