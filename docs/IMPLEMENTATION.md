@@ -17,7 +17,7 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
    3. Every section of `docs/SPEC.md` listed under **Read**.
    4. The files listed under **Reference** and **Tests**. They're under `reference/` (step 0.2). If `reference/` is missing, run `scripts/fetch-reference.sh`. Paths are written from the repository root, e.g. `reference/vscode/src/vs/base/common/glob.ts`.
    5. For UI steps, the Glutter APIs the step names, in Glutter's source in the Go module cache (`go list -m -f '{{.Dir}}' github.com/rm4n0s/glutter`), and Glutter's `docs/GUIDE.md`.
-3. **Create the branch.**
+3. **Create the branch.** If `docs/IMPLEMENTATION.md` is not on `main` (the plan was written on `feat/spec`), stop and ask the user to merge it first.
    ```sh
    git switch main && git pull --ff-only
    git switch -c feat/step-<id>-<slug>     # e.g. feat/step-1.1-piece-tree
@@ -28,10 +28,10 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
 4. **Do exactly the step's Tasks.** Don't do work that belongs to a later step, even if it looks easy. If a later step will need a hook, leave only a comment: `// TODO(step 5.3): ...`.
 5. **Follow CLAUDE.md.** In particular: `rm4n0s/errors` for every error, no cgo, no Glutter import under `internal/core`, no network, isolated paths in every test and script.
 6. **Match VS Code.** When VS Code has the behavior, match its defaults, edge cases and command ids. Read its implementation under `reference/vscode` and port the algorithm when it is the right one (a ported file gets a `// Ported from VS Code: <path>` line in its package doc or above the ported code). Port the relevant cases of the tests listed under **Tests** as table-driven Go tests:
-   - Convert VS Code's 1-based lines and UTF-16 columns with `core/vstest` (step 1.3). Work out the expected positions of non-ASCII cases again for byte columns, with a comment saying so.
+   - Convert VS Code's 1-based lines and UTF-16 columns with `core/vstest` (step 1.1). Work out the expected positions of non-ASCII cases again for byte columns, with a comment saying so.
    - Skip a case that needs VS Code's TypeScript harness (a full editor or services), with a one-line reason in a comment.
    - In `docs/IMPLEMENTED.md`, say how many cases you ported and how many you skipped.
-7. **Register what you add.** Every command, setting, default keybinding, workbench color and (from step 6.7 on) menu item that your step adds or first uses is registered with VS Code's id, title, default, description and when-clause:
+7. **Register what you add.** From the step that creates each registry on (settings 2.3, commands and keybindings 2.5, colors 4.8, menus 6.7), every command, setting, default keybinding, workbench color and menu item that your step adds or first uses is registered (2.3, 2.5 and 4.8 register what earlier steps used) with VS Code's id, title, default, description and when-clause:
    - settings: `reference/vscode/src/vs/editor/common/config/editorOptions.ts` for `editor.*`, the `registerConfiguration` calls of the matching contribution for the rest;
    - keybindings: the `registerKeybinding`/`KeybindingsRegistry`/`keybinding:` entries of the command's VS Code source (Linux values);
    - colors: `reference/vscode/src/vs/editor/common/core/editorColorRegistry.ts`, `reference/vscode/src/vs/workbench/common/theme.ts`, `reference/vscode/src/vs/platform/theme/common/colors/`.
@@ -55,14 +55,14 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
 
 10. **The standard checks must all pass.** Run them from the repo root:
     ```sh
-    test -z "$(gofmt -l .)"
+    test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...))"
     go vet ./...
     golangci-lint run
     go test -race ./...
     CGO_ENABLED=0 go build ./...
     CGO_ENABLED=0 go test ./...
     ```
-    If the step lists **Display tests**, run them too: `scripts/headless-wayland.sh -- go test -race -tags emetos_display <packages>`.
+    If the step lists **Display tests**, run them too: `scripts/headless-wayland.sh -- go test -race -tags emetos_display <packages>`. Golden tests have `Golden` in their name, so `go test ./... -run Golden -update-goldens` finds them all.
 11. **Proof images.** Only when the step has a **Proof** item:
     - Produce exactly the images it lists, in `docs/implemented-proof-images/`, named `<id>-<name>.png` (e.g. `3.3-cursors.png`), with the command the step gives.
     - **Open every image with your image-viewing tool** (the Read tool shows images) and check that it shows what **Proof** describes. If it doesn't, fix the code. The step isn't done.
@@ -92,7 +92,7 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
 | Method | Use it for | How |
 |---|---|---|
 | **A. Widget render** | a widget on its own (kit widgets, the editor with a given document) | A widget test renders it with `internal/gui/testutil` (test fonts, isolated paths) and, when run with `-proof`, writes `Tester.Screenshot()` as a PNG to `docs/implemented-proof-images/<file>.png`. Run only that package: `go test ./internal/gui/<pkg> -run <TestName> -proof` |
-| **B. App self-capture** | anything inside one Emetos window | `scripts/proof.sh docs/implemented-proof-images/<file>.png [--config <dir>] [--after <duration>] [--commands '<json>'] -- <emetos args>`: builds a debug binary in a temporary folder, isolates the `XDG_*` folders (copying `<dir>` into the configuration folder), runs it in a headless compositor with `GLUTTER_SCREENSHOT`, and checks that the PNG was written. Fixtures (configuration, sample files) live in `testdata/proof/<step id>/`. `--commands` sets `EMETOS_DEV_COMMANDS` (SPEC §15.2). Glutter captures only the first window |
+| **B. App self-capture** | anything inside one Emetos window | `scripts/proof.sh docs/implemented-proof-images/<file>.png [--config <dir>] [--after <duration>] [--commands '<json>'] -- <emetos args>`: builds a debug binary in a temporary folder, isolates the `XDG_*` folders (copying `<dir>` into the configuration folder), runs it in a headless compositor with `GLUTTER_SCREENSHOT`, and checks that the PNG was written. With `--commands`, the capture waits 1 s after the commands by default (`GLUTTER_SCREENSHOT_AFTER`; `--after` changes it), because Glutter otherwise captures the first idle frame. Fixtures (configuration, sample files) live in `testdata/proof/<step id>/`. `--commands` sets `EMETOS_DEV_COMMANDS` (SPEC §15.2). Glutter captures only the first window |
 | **C. Output capture** | several windows, or things outside a window | `scripts/proof.sh <file> --output ...`: the same, but captures the whole headless output with `grim` (through `scripts/screenshot-headless.sh`) |
 | **D. User desktop** | things only a real desktop shows: an IME candidate window, a portal file dialog | A manual check: the user runs the given command and saves a screenshot at the given path. When it arrives, view and verify it, and record it |
 
@@ -125,7 +125,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Read:** SPEC §5.2, §5.3, §17; CLAUDE.md "Layout".
 **Tasks:**
 1. For every package of SPEC §5.2 that the plan fills, create the directory with a `doc.go` whose package comment states its purpose and SPEC section. `cmd/emetos/main.go` is an empty `main`. Directories that only group others (`internal/core`, `internal/gui`, `internal/gui/views`) get no `doc.go`.
-2. Add `.golangci.yml` (golangci-lint v2 format): the standard set plus `revive` with `exported` and `package-comments`, `gofmt` as formatter, `run.go: "1.27"`.
+2. Add `.golangci.yml` (golangci-lint v2 format): the standard set plus `revive` with `exported` and `package-comments`, `gofmt` as formatter, `run.go: "1.27"`, and `reference` excluded.
 3. Add `internal/archtest` with table tests that parse the imports and calls of every package with `go/parser` and enforce SPEC §5.3: no Glutter or `internal/gui` import under `internal/core`, no `net/http`/`net/rpc`/`crypto/tls`, `net` only in `internal/core/ipc`, no `import "C"`, `regexp2` only in `internal/core/regex`, no standard library `errors` import, no `fmt.Errorf` call. The checker is a function that takes a root folder, so each rule is tested on small fixture trees under `internal/archtest/testdata/` (gofmt-clean, never built).
 4. Add `NOTICE` (Emetos MIT; the rows of SPEC §17, each marked with the step that adds its asset) and `third_party/README.md`.
 5. Run `go mod tidy`: it removes the requirements nothing imports yet; the steps that first import them add them back (CLAUDE.md "Go conventions").
@@ -141,7 +141,8 @@ Every **Proof** item gives its exact command. A state no existing command reache
    - `git` lines: `git init reference/<repo name>`, `git remote add origin https://github.com/<name>.git`, `git sparse-checkout set <paths>`, `git fetch --depth 1 --filter=blob:none origin <commit>`, `git checkout FETCH_HEAD`. Sparse paths: `microsoft/vscode`: `src/vs`, `extensions`, `LICENSE.txt`, `ThirdPartyNotices.txt`, `cgmanifest.json`; `golang/vscode-go`: `extension/syntaxes`, `extension/languages`, `LICENSE`; the others: everything.
    - `npm` lines: download the tarball and unpack it into `reference/<package name without scope>/` (e.g. `reference/codicons/package/dist/codicon.ttf`).
    - It is idempotent: a repository already at its commit is left alone.
-3. `scripts/check-references.sh`: extracts every `reference/...` path from `docs/IMPLEMENTATION.md` and `docs/SPEC.md` (expanding `{a,b}` lists) and fails, listing them, when one doesn't exist.
+   - It writes `reference/go.mod` (`module reference`), so the nested module keeps VS Code's Go test files out of `./...`.
+3. `scripts/check-references.sh`: extracts from `docs/IMPLEMENTATION.md` and `docs/SPEC.md` every match of `reference/(vscode|vscode-textmate|emmet|vscode-go|codicons)/[^ `)<>;]*`, strips a trailing `,`, `.` or `:`, skips matches containing `<`, expands `{a,b}` lists and `*` with bash globbing, and fails, listing them, when a path doesn't exist.
 4. `scripts/update-assets.sh`: copies the assets a step names from `reference/` into the package that embeds them, and their licenses into `third_party/<name>/`. It starts with no assets; later steps add theirs.
 **Done when:** `scripts/fetch-reference.sh` runs twice in a row, `scripts/check-references.sh` passes (if a path is missing, **ask the user**: the plan names a wrong path), `git status` shows `reference/` ignored, and the standard checks pass.
 
@@ -159,8 +160,8 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Read:** SPEC §4 (D10, D14, D15), §10.2 (icons), §15; Glutter: `widgets/run_app.go` (`RunAppOpts`, `Fonts`, `FontSource`), `README.md` "What runs where"; Glutter's `scripts/headless-wayland.sh` and `scripts/screenshot-headless.sh`.
 **Reference:** `reference/codicons/package/dist/codicon.ttf`, `reference/codicons/package/dist/codicon.csv`, `reference/vscode/extensions/theme-seti/icons/seti.woff`.
 **Tasks:**
-1. Copy `scripts/headless-wayland.sh` and `scripts/screenshot-headless.sh` from Glutter's module directory (keep their header comments; change "Glutter" to "Emetos" where it names the project; `chmod +x`, as the module cache is read-only).
-2. `scripts/isolated.sh [--config <dir>] -- <command>`: runs the command with every `XDG_*` variable (except `XDG_RUNTIME_DIR` when already set by the headless script) pointing into a fresh temporary folder, copying `<dir>` into `$XDG_CONFIG_HOME/emetos/`, and removes the folder afterwards.
+1. `go get github.com/rm4n0s/glutter@v1.4.0` (0.1's `go mod tidy` removed it). Copy `scripts/headless-wayland.sh` and `scripts/screenshot-headless.sh` from Glutter's module directory (keep their header comments; change "Glutter" to "Emetos" where it names the project; `chmod +x`, as the module cache is read-only).
+2. `scripts/isolated.sh [--config <dir>] -- <command>`: first exports `GOCACHE`, `GOMODCACHE` and `GOPATH` from `go env` (so Go keeps its caches); then points `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME` and `XDG_DATA_HOME` into a fresh temporary folder, and `XDG_RUNTIME_DIR` to a private folder in it with a symlink to the current `$WAYLAND_DISPLAY` socket when one is set (so the app still reaches the compositor, but never the user's Emetos socket); copies `<dir>` into `$XDG_CONFIG_HOME/emetos/`; and removes the folder afterwards. fontconfig rebuilds its cache in the temporary folder, so the first run is slower.
 3. `scripts/proof.sh` as described in this file's "Proof methods" (B and C). It builds `go build -o <tmp>/emetos ./cmd/emetos` first (a debug build, so dev commands work), and runs the binary, never `go run`.
 4. `update-assets.sh` copies `codicon.ttf`, `codicon.csv` and `seti.woff` into `internal/gui/kit/fonts` (embedded; Glutter reads WOFF through go-text; if loading fails, stop and **ask the user**), with licenses in `third_party/`; `internal/gui/kit/fonts` exports the family names as constants (`Codicon`, `Seti`) and a `Sources()` list for `RunAppOpts.Fonts`; a `go generate` generator (`internal/gui/kit/fonts/internal/gen`) turns `codicon.csv` into constants (`fonts.CodiconCode` and the rest).
 5. `internal/gui/app.Run(ctx, opts)`: `widgets.RunApp` with `AppID: "dev.emetos.Emetos"`, title "Emetos", size 1280×800, the bundled fonts, and a `WidgetsApp` whose home is an empty surface in Dark Modern's `editor.background` (`#1F1F1F`) with the `code` codicon and the text "Emetos" centered. `cmd/emetos` parses `--version` (from `debug.ReadBuildInfo`), `--help` and `--log <level>` and calls it.
@@ -171,15 +172,24 @@ Every **Proof** item gives its exact command. A state no existing command reache
 
 ## M1: Text core
 
-### 1.1 Positions and the piece tree
-**Goal:** the position types and a persistent piece tree with snapshots (SPEC §6.1, §6.2).
-**Read:** SPEC §6.1, §6.2, §5.1.
-**Reference:** `reference/vscode/src/vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase.ts`, `reference/vscode/src/vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase.ts`, `reference/vscode/src/vs/editor/common/core/position.ts`, `reference/vscode/src/vs/editor/common/core/range.ts`, `reference/vscode/src/vs/editor/common/core/selection.ts`.
+### 1.1 Positions and the test helper
+**Goal:** the position types and `core/vstest` (SPEC §6.2, §15.1).
+**Read:** SPEC §6.2, §15.1.
+**Reference:** `reference/vscode/src/vs/editor/common/core/position.ts`, `reference/vscode/src/vs/editor/common/core/range.ts`, `reference/vscode/src/vs/editor/common/core/selection.ts`.
+**Tests (port):** `reference/vscode/src/vs/editor/test/common/core/range.test.ts`.
 **Tasks:**
 1. `buffer.Position`, `Range`, `Selection` with VS Code's comparisons, contains, intersect, union and empty-range rules (zero-based, byte columns).
-2. Pieces over read-only chunks and an append-only add buffer, in a balanced tree whose nodes keep subtree byte length and line-feed count. Port VS Code's piece algorithms (splitting, inserting, deleting pieces), not its node structure: nodes are immutable once shared; an edit copies the path from the root (no parent pointers).
-3. Insert, delete and replace at byte offsets; `Len`, `Text(start, end)` by offsets; `Snapshot()` in O(1), safe from any goroutine.
-**Tests:** a fuzz test of random edits against a plain string (content after every edit); snapshots unchanged by later edits; a race test reading a snapshot while editing.
+2. `core/vstest`: convert a VS Code (1-based line, UTF-16 column) to an Emetos position for a given text, and back; table tests over ASCII, Greek, CJK and astral-plane text.
+**Tests:** the ported cases; the conversion tables.
+
+### 1.1b The piece tree
+**Goal:** a persistent piece tree with snapshots (SPEC §6.1).
+**Read:** SPEC §6.1, §5.1.
+**Reference:** `reference/vscode/src/vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase.ts`, `reference/vscode/src/vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase.ts`.
+**Tasks:**
+1. Pieces over read-only chunks and an append-only add buffer, in an AVL tree with path copying: nodes are immutable once shared, an edit copies the path from the root, and there are no parent pointers. Each node keeps its subtree's byte length and line-feed count. Port only VS Code's piece logic (splitting a piece at an offset, inserting after a piece, deleting a range of pieces, appending to the last piece of the add buffer); the tree itself is Emetos's own.
+2. Insert, delete and replace at byte offsets; `Len`, `Text(start, end)` by offsets; `Snapshot()` in O(1), safe from any goroutine.
+**Tests:** a fuzz test of random edits against a plain string (content after every edit); AVL balance after every edit; snapshots unchanged by later edits; a race test reading a snapshot while editing.
 
 ### 1.2 Line index and builder
 **Goal:** line-based access and building a buffer from a reader.
@@ -190,17 +200,16 @@ Every **Proof** item gives its exact command. A state no existing command reache
 1. `LineCount`, `LineContent`, `LineLength`, `OffsetAt(Position)`, `PositionAt(offset)`, `Text(Range)`, chunk and line iterators; positions past a line's end clamp as VS Code's `validatePosition`.
 2. A builder from an `io.Reader` in 64 KiB chunks that never splits a UTF-8 sequence (the text is already `\n`-only; SPEC §6.1).
 3. Benchmarks on a 100,000-line buffer: `BenchmarkInsertTyping` (one byte at a time in the middle), `BenchmarkLineContent`, `BenchmarkPositionAt`.
-**Tests:** the ported cases; the fuzz test of 1.1 extended to every line and position conversion.
+**Tests:** the ported cases; the fuzz test of 1.1b extended to every line and position conversion.
 **Done when:** the standard checks pass and the benchmark numbers are recorded in `IMPLEMENTED.md`, with `BenchmarkInsertTyping` under 5 µs per insert and `BenchmarkLineContent` under 2 µs per line.
 
-### 1.3 Columns, boundaries and the test helper
-**Goal:** visual columns, grapheme, word and word-part boundaries, and `core/vstest`.
-**Read:** SPEC §6.2, §7.2, §15.1.
+### 1.3 Columns and boundaries
+**Goal:** visual columns, grapheme, word and word-part boundaries.
+**Read:** SPEC §6.2, §7.2.
 **Reference:** `reference/vscode/src/vs/editor/common/core/cursorColumns.ts`, `reference/vscode/src/vs/editor/common/core/wordCharacterClassifier.ts`, `reference/vscode/src/vs/editor/common/core/wordHelper.ts`, `reference/vscode/src/vs/base/common/strings.ts` (`isFullWidthCharacter`, `isEmojiImprecise`).
 **Tests (port):** the `CursorColumns` cases under `reference/vscode/src/vs/editor/test/common/` (search for `visibleColumnFromColumn`; there may be none, then write tables from `cursorColumns.ts`).
 **Tasks:**
 1. `core/edit` (imports `core/buffer`): visual column ↔ byte column exactly as SPEC §6.2; grapheme cluster boundaries (go-text's segmenter); word boundaries by `editor.wordSeparators`; word parts (camelCase, snake_case).
-2. `core/vstest`: convert a VS Code (1-based line, UTF-16 column) to an Emetos position for a given text, and back; table tests over ASCII, Greek, CJK and astral-plane text.
 **Tests:** the ported cases; tables for every boundary function over ASCII, CJK, emoji with modifiers and ZWJ, combining marks, tabs.
 
 ### 1.4 Reading files
@@ -401,7 +410,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 1. The dispatcher: a `Focus` node at the window root; converts Glutter key events to `core/keybinding` keys (letters and digits from the logical key, other keys from the physical key's US-layout name, SPEC §9.3); resolves against the focused widget's context key scope; returns "handled" for bound keys, "ignored" otherwise so Glutter types the character; consumes Tab, arrows and Escape when bound, before focus traversal.
 2. The editor's context key scope (`editorTextFocus`, `editorFocus`, `editorHasSelection`, `editorHasMultipleSelections`, `editorReadonly`, `editorLangId`) and the handlers of M1's commands (in `gui/editor`, calling `core/edit` and applying the result to the document).
 3. A chord status hook (shown by the status bar in 6.20; logged until then).
-**Tests:** every M1 command through `SendKeyEvent`; chords and modifier-only keys; a key on a non-Latin layout (a Greek character with the physical key of `/` still runs `ctrl+/`'s binding); unbound printable keys reach text input.
+**Tests:** every M1 command through `SendKeyEvent`; chords and modifier-only keys; a key on a non-Latin layout (a Greek character with the physical key of `]` still runs `ctrl+]`, `editor.action.indentLines`); unbound printable keys reach text input.
 
 ### 3.6 Text input and IME
 **Goal:** typing and input methods through the editor's `TextInputClient` (SPEC §9.3 "IME").
@@ -450,7 +459,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 2. `dev.type {"text"}` and `dev.scroll {"rows"}` commands; `scripts/perf.sh [--session]` builds with `-tags glutter_release,emetos_dev`, generates the files in a temporary folder, runs the app isolated with `GLUTTER_FRAME_STATS=1` (headless by default, in the user's session with `--session`), drives it with dev commands, and collects frame times, cold start, RSS and idle CPU.
 3. `docs/PERFORMANCE.md`: machine, method, numbers, and the targets of SPEC §14 marked "3.11" (typing without highlighting, scrolling, 10 MB open, cold start, idle, memory) as met or not. For a target not met: profile; fix it when the cause is Emetos's; otherwise add an entry to `docs/GLUTTER-ISSUES.md` with the profile and **ask the user** whether to go on.
 **Manual checks:** the user runs `scripts/perf.sh --session` on their desktop and pastes the summary; record it in `docs/PERFORMANCE.md`.
-**Done when:** every target marked 3.11 is measured headless and each one is met, or the user decided how to go on.
+**Done when:** every target marked 3.11 is measured headless, and its UI-thread, memory, idle and start numbers are met, or the user decided how to go on. The `--session` numbers (with the GPU) are a pending manual check and don't block the step.
 
 ---
 
@@ -498,14 +507,21 @@ Every **Proof** item gives its exact command. A state no existing command reache
 3. Register `files.associations` per rule 7.
 **Tests:** detection tables (by association, name, extension, first line); configuration loading for a sample of VS Code's configuration files.
 
-### 4.6 The first languages
-**Goal:** the languages of D13 bundled and tokenized as VS Code does.
+### 4.6 The first languages: Go, JSON, YAML, Markdown
+**Goal:** Go, JSON, JSON with Comments, YAML and Markdown bundled and tokenized as VS Code does (D13).
 **Read:** SPEC §8.1, §15.1, §17.
-**Reference:** `reference/vscode/extensions/{go,markdown-basics,json,yaml,python,javascript,typescript-basics}/` (`package.json`, `syntaxes/`, `language-configuration.json`, `cgmanifest.json`), `reference/vscode/extensions/vscode-colorize-tests/test/colorize-fixtures/`, `reference/vscode/extensions/vscode-colorize-tests/test/colorize-results/`.
+**Reference:** `reference/vscode/extensions/{go,json,yaml,markdown-basics}/` (`package.json`, `syntaxes/`, `language-configuration.json`, `cgmanifest.json`), `reference/vscode/extensions/vscode-colorize-tests/test/colorize-fixtures/`, `reference/vscode/extensions/vscode-colorize-tests/test/colorize-results/`.
 **Tasks:**
 1. `update-assets.sh` copies the contributions, grammars and configurations of those extensions into `internal/core/language/assets/` (embedded), with licenses and `NOTICE` rows.
-2. An oracle test: for each colorize fixture of these languages, tokenize and compare every token's text and scopes with `colorize-results/<fixture>.json`. A mismatch is fixed, or (for a documented regexp2 difference) listed in an expected-differences file with the reason.
+2. An oracle test: for each colorize fixture of these languages, tokenize and compare every token's text and scopes with `colorize-results/<fixture>.json`. A mismatch is fixed, or (for a documented regexp2 difference) listed in `internal/core/language/testdata/expected-differences.txt` with the reason. Markdown's embedded code blocks use only the languages bundled so far.
 **Tests:** the oracle test; every bundled grammar compiles.
+
+### 4.6b The first languages: Python, JavaScript, TypeScript
+**Goal:** Python, JavaScript, JavaScript React, TypeScript and TypeScript React bundled and tokenized as VS Code does (D13).
+**Read:** SPEC §8.1, §15.1, §17.
+**Reference:** `reference/vscode/extensions/{python,javascript,typescript-basics}/`, the colorize fixtures and results.
+**Tasks:** as 4.6 for these languages, with the same oracle test and expected-differences file; Markdown's code blocks gain them.
+**Tests:** the oracle test for each.
 
 ### 4.7 Theme loading and token colors
 **Goal:** `core/theme` themes and token styles (SPEC §8.4).
@@ -618,9 +634,9 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Goal:** folded regions in the editor (SPEC §3.1 "Folding", §9.1).
 **Read:** SPEC §8.7, §9.1.
 **Reference:** `reference/vscode/src/vs/editor/contrib/folding/browser/folding.ts`.
-**Tasks:** hidden rows in the line projection (layout, scrolling, vertical movement and hit testing follow); gutter controls (`editor.showFoldingControls`: always, mouseover, never); the `…` marker after a folded line, click to unfold; reveal rules of SPEC §8.7; folds in the editor view state; a `dev.openFile {"path","line","column","group"}` command.
+**Tasks:** hidden rows in the line projection (layout, scrolling, vertical movement and hit testing follow); gutter controls (`editor.showFoldingControls`: always, mouseover, never); the `…` marker after a folded line, click to unfold; reveal rules of SPEC §8.7; folds in the editor view state; a `dev.openFile {"path","line","column"}` command.
 **Tests:** projection tables with folds; movement over folds; goldens with folded regions and controls.
-**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/4.20-folding.png --commands '[["dev.openFile",{"path":"testdata/proof/4.20/sample.go"}],["editor.foldLevel1",null]]' --`: a Go file with its top-level functions folded and the controls visible.
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/4.20-folding.png --after 2s --commands '[["dev.openFile",{"path":"testdata/proof/4.20/sample.go"}],["editor.foldLevel1",null]]' --`: a Go file with its top-level functions folded and the controls visible.
 
 ---
 
@@ -746,16 +762,22 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Tasks:** menus with keyboard navigation, separators, submenus, keybinding labels, checked items, mnemonics; a context menu at the pointer; a menu bar of menus (Alt shows mnemonics, `window.menuBarVisibility` behaviors).
 **Tests:** keyboard tables; goldens.
 
-### 6.4 Kit: tree and list
-**Goal:** `Tree` and `List` (SPEC §10.2).
+### 6.4 Kit: tree
+**Goal:** `Tree` with single selection and the keyboard (SPEC §10.2).
 **Read:** SPEC §10.2; Glutter: `widgets/sliver_tree.go`.
-**Reference:** `reference/vscode/src/vs/base/browser/ui/tree/`, `reference/vscode/src/vs/base/browser/ui/list/`.
+**Reference:** `reference/vscode/src/vs/base/browser/ui/tree/`.
 **Tasks:**
 1. `Tree` on `TreeSliver`, knowing its limits: an unread folder needs a placeholder child to show a chevron; nodes can't be removed, so changes rebuild the node tree keeping the expansion state; set the row extent and `AnimationStyleNoAnimation`; node contents are small comparable values (lookups use `reflect.DeepEqual`); focus, selection and keyboard handling are Emetos's own; it lives in a `CustomScrollView`.
-2. Keyboard navigation (arrows, Home/End, PageUp/Down, Left/Right), type-to-filter/highlight, multi-select (Ctrl/Shift), drag and drop with drop feedback, indent guides.
-3. `List` with the same keyboard model.
-**Tests:** keyboard tables; drag and drop; rebuild keeps expansion.
+2. Keyboard navigation (arrows, Home/End, PageUp/Down, Left/Right), single selection, indent guides.
+**Tests:** keyboard tables; rebuild keeps expansion.
 **Proof:** method A, `go test ./internal/gui/kit -run TestProofTree -proof` → `6.4-tree.png`: an expanded tree with a selected row and indent guides.
+
+### 6.4b Kit: list, multi-select, filter, drag and drop
+**Goal:** `List` and the rest of the tree's behavior (SPEC §10.2).
+**Read:** SPEC §10.2.
+**Reference:** `reference/vscode/src/vs/base/browser/ui/list/`, `reference/vscode/src/vs/base/browser/ui/tree/`.
+**Tasks:** `List` (virtualized, the tree's keyboard model); for both: multi-select (Ctrl/Shift), type-to-filter/highlight, drag and drop with drop feedback.
+**Tests:** keyboard and selection tables; filtering; drag and drop.
 
 ### 6.5 Kit: inputs and dialogs
 **Goal:** the remaining kit widgets.
@@ -792,7 +814,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Goal:** several groups (SPEC §3.2 "Editor groups").
 **Read:** SPEC §3.2, §10.3.
 **Reference:** `reference/vscode/src/vs/workbench/browser/parts/editor/editorPart.ts`, `reference/vscode/src/vs/workbench/browser/parts/editor/editorCommands.ts`.
-**Tasks:** the grid in `core/editorgroup` (split right/down, move/copy editors, join, close, maximize, `workbench.editor.openSideBySideDirection`), focus by number (Ctrl+1..8), the grid view with `SplitView`s; grid state in/out.
+**Tasks:** the grid in `core/editorgroup` (split right/down, move/copy editors, join, close, maximize, `workbench.editor.openSideBySideDirection`), focus by number (Ctrl+1..8), the grid view with `SplitView`s; grid state in/out; `dev.openFile` gains a `group` argument (a 1-based index of an existing group).
 **Tests:** grid operation tables; focus.
 
 ### 6.10 Tab interactions
@@ -801,7 +823,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Reference:** `reference/vscode/src/vs/workbench/browser/parts/editor/multiEditorTabsControl.ts`, `reference/vscode/src/vs/workbench/browser/parts/editor/editorActions.ts`.
 **Tasks:** drag to reorder, between groups and to split by dropping on an edge; overflow scrolling; the tab context menu and close actions (others, to the right, saved, all); copy path, reveal in explorer (wired in 6.14).
 **Tests:** drag tables; close actions.
-**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/6.10-groups.png --commands '<JSON>' --`, where `<JSON>` opens files from `testdata/proof/6.10/` with `dev.openFile` into three groups (two side by side, one below), makes one dirty with `dev.type`, and leaves one as a preview; record the exact JSON in `IMPLEMENTED.md`. The image shows three groups with several tabs, one dirty and one preview.
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/6.10-groups.png --commands '<JSON>' --`, where `<JSON>` opens files from `testdata/proof/6.10/` with `dev.openFile`, creates the groups with `workbench.action.splitEditorRight` and `workbench.action.splitEditorDown` (two side by side, one below), opens more files into them with `dev.openFile`'s `group`, makes one dirty with `dev.type`, and leaves one as a preview; record the exact JSON in `IMPLEMENTED.md`. The image shows three groups with several tabs, one dirty and one preview.
 
 ### 6.11 Notifications
 **Goal:** notifications in the window (SPEC §10.7).
@@ -874,7 +896,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Goal:** the status bar items and their pickers (SPEC §3.2 "Status bar").
 **Read:** SPEC §3.2, §6.2.
 **Reference:** `reference/vscode/src/vs/workbench/browser/parts/statusbar/`, `reference/vscode/src/vs/workbench/browser/parts/editor/editorStatus.ts`.
-**Tasks:** the item registry (left/right, priority, tooltip, command); Ln/Col (the visual column plus one) and selection count; indentation, encoding, line endings and language mode with their pickers (Change Language Mode with Configure File Association; Reopen/Save with Encoding; Change End of Line Sequence; the indentation actions of 4.14 and 4.15); the notifications bell; problem counts; the chord message of 3.5.
+**Tasks:** the item registry (left/right, priority, tooltip, command); Ln/Col (the visual column plus one) and selection count; indentation, encoding, line endings and language mode with their pickers (Change Language Mode with Configure File Association; Reopen with Encoding; Change End of Line Sequence; the indentation actions of 4.14 and 4.15); the notifications bell; problem counts; the chord message of 3.5.
 **Tests:** widget tests for each item and picker.
 
 ---
@@ -885,7 +907,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Goal:** saving and reverting (SPEC §3.1 "Saving").
 **Read:** SPEC §3.1, §6.3, §7.1; Glutter: `desktop/file_chooser.go`.
 **Reference:** `reference/vscode/src/vs/workbench/services/textfile/common/textFileEditorModel.ts`, `reference/vscode/src/vs/workbench/contrib/codeEditor/browser/saveParticipants.ts`.
-**Tasks:** Save, Save As (portal dialog on a goroutine; when it fails with `FileChooserUnavailable`, a quick input path prompt), Save All, Revert; untitled documents (Ctrl+N; Save As changes the URI from `untitled:` to the path, detects the language again, and updates the editor inputs); save participants (`files.trimTrailingWhitespace`, `files.insertFinalNewline`, `files.trimFinalNewlines`); errors as notifications with Retry, Save As and Overwrite (SPEC §6.3).
+**Tasks:** Save, Save As (portal dialog on a goroutine; when it fails with `FileChooserUnavailable`, a quick input path prompt), Save All, Revert; untitled documents (Ctrl+N; Save As changes the URI from `untitled:` to the path, detects the language again, and updates the editor inputs); save participants (`files.trimTrailingWhitespace`, `files.insertFinalNewline`, `files.trimFinalNewlines`); "Save with Encoding" added to the encoding picker of 6.20; errors as notifications with Retry, Save As and Overwrite (SPEC §6.3).
 **Tests:** widget tests with `FakeDesktop().AnswerFileChooser`; participant tables; Save As identity; error routes.
 
 ### 7.2 Closing with unsaved changes
@@ -979,11 +1001,17 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Tests:** zoom levels (layout and hit testing scaled); zen mode toggles and restores the parts.
 
 ### 8.6 Profiles
-**Goal:** SPEC §10.12.
+**Goal:** profiles in the core and switching a window's profile (SPEC §10.12).
 **Read:** SPEC §10.10, §10.12.
 **Reference:** `reference/vscode/src/vs/platform/userDataProfile/common/userDataProfile.ts` (behavior only).
-**Tasks:** profiles in `core/storage` (create empty or from the current, rename, delete, switch per window, `--profile`, the last profile per folder, name rules); commands and pickers for each, in the Manage menu; the profile name in the status bar when it isn't the default; export/import in the format of SPEC §10.12 through the portal dialog.
-**Tests:** switching changes the settings and keybindings in effect without closing editors; export/import round trip; name validation.
+**Tasks:** profiles in `core/storage` (create empty or from the current, rename, delete, name rules, the last profile per folder); `--profile`; switching a window's profile reloads its settings, keybindings, snippets and theme in place.
+**Tests:** switching changes the settings and keybindings in effect without closing editors; name validation; the last profile per folder.
+
+### 8.6b Profiles UI
+**Goal:** the commands and pickers for profiles (SPEC §3.2 "Profiles").
+**Read:** SPEC §10.12.
+**Tasks:** commands and pickers for create, rename, delete and switch, in the Manage menu; the profile name in the status bar when it isn't the default; export/import in the format of SPEC §10.12 through the portal dialog.
+**Tests:** each command; export/import round trip with `FakeDesktop().AnswerFileChooser`.
 
 ---
 

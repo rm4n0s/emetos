@@ -16,7 +16,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 - Update golden images: `go test ./... -run Golden -update-goldens`, then review every changed PNG
 - Vet: `go vet ./...`
 - Lint: `golangci-lint run`
-- Format: `gofmt -w .` (or `goimports -w .`)
+- Format: `gofmt -w cmd internal` (not `.`: `reference/` holds VS Code's Go test files)
 - Generate: `go generate ./...`
 - Run the editor: `go run ./cmd/emetos` (debug build; it uses your real configuration)
 - Run the editor isolated from your configuration: `scripts/isolated.sh [--config <fixture dir>] -- go run ./cmd/emetos <args>`
@@ -26,7 +26,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 - After changing dependencies: `go mod tidy`
 
 ## Definition of done
-Before reporting a task as finished, run `gofmt`, `go vet ./...`, `golangci-lint run` and `go test -race ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
+Before reporting a task as finished, run `gofmt` (on `cmd` and `internal`), `go vet ./...`, `golangci-lint run` and `go test -race ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
 - `CGO_ENABLED=0 go build ./...` and `CGO_ENABLED=0 go test ./...` pass (proves the editor stays cgo-free)
 - Every new exported identifier has a doc comment
 - Every changed golden image has been looked at, not just regenerated
@@ -105,7 +105,7 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
 
 ## Working through the steps
 - Don't stop to ask for confirmation, and don't end a turn with a question such as "Should I start the next step?", until every step in `docs/IMPLEMENTATION.md` is finished (through the last one). After a step is published, report it briefly and start the next step in the same turn
-- The only reasons to stop are the ones `docs/IMPLEMENTATION.md` names: its rule 8 (an ambiguous step, a wrong spec, a missing tool, a new dependency, `sudo`, a check that keeps failing), a failed push (rule 13), and a step that says **ask the user**. Then stop, ask, and continue with the same step after the answer
+- The only reasons to stop are the ones `docs/IMPLEMENTATION.md` names: its rule 9 (an ambiguous step, a wrong spec, a missing tool, a new dependency, `sudo`, a check that keeps failing), a failed push (rule 14), and a step that says **ask the user**. Then stop, ask, and continue with the same step after the answer
 - **Manual checks** don't stop the work: add them to `docs/MANUAL-CHECKS.md` (create it if needed) with the step id and the exact command for the user, write "pending, see docs/MANUAL-CHECKS.md" in the step's `IMPLEMENTED.md` entry, and go on. When the user answers, record the answer in that entry and remove the item from the list (delete the file when it is empty)
 - A request such as "publish to main" that is already satisfied gets a one-line answer, then work continues with the next step
 
