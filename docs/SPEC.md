@@ -203,7 +203,7 @@ One **key dispatcher** per window, a `Focus` node at the root of the window's wi
 ### 6.2 Positions and columns
 
 - `Position{Line, Col int}`: zero-based line and **byte** column. `Range{Start, End Position}`. `Selection{Anchor, Active Position}`.
-- **Visual columns** (column selection, rulers, `editor.tabSize`, vertical cursor movement, the status bar's "Col") follow VS Code's `CursorColumns`: walk the grapheme clusters of the line; for each cluster, take its first code point: a tab advances to the next tab stop, a full-width character or an emoji counts 2, anything else 1. The status bar shows the visual column plus one.
+- **Visual columns** (column selection, rulers, `editor.tabSize`, vertical cursor movement, the status bar's "Col") follow VS Code's `CursorColumns`: walk the grapheme clusters of the line; for each cluster, take its first code point: a tab advances to the next tab stop, a full-width character or an emoji counts 2, anything else 1. The status bar's "Col" is not the visual column: as VS Code's `toStatusbarColumn`, it counts every code point as 1 (a tab goes to the next tab stop) and adds one, so a wide character or an emoji counts 1 there.
 - Grapheme clusters (go-text's segmenter, through Glutter's dependencies) bound cursor movement and deletion.
 
 ### 6.3 Files (`core/fileio`)
