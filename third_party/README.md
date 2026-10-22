@@ -10,3 +10,7 @@ asset by hand; change the script and run it again.
 
 A grammar, theme or font whose license is not permissive is not bundled. It is
 recorded in `NOTICE` instead.
+
+`third_party/glutter/LICENSE` is Glutter's license, for the two scripts adapted from
+it (`scripts/headless-wayland.sh` and `scripts/screenshot-headless.sh`); it is copied
+from Glutter's module, not from `reference/`.

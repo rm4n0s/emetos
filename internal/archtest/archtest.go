@@ -4,6 +4,8 @@
 //
 // Check parses every Go file under a root folder, so each rule is tested on small
 // fixture trees under testdata, and the real repository is checked by a test too.
+// Its tests also hold the repository's shell scripts to their rules (SPEC §15.1),
+// such as scripts/isolated.sh never letting a run reach the user's folders.
 package archtest
 
 import (

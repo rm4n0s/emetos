@@ -52,4 +52,11 @@ copy_license() {
 
 # ---- Assets, by the step that adds them -------------------------------------
 
-echo "update-assets: no assets yet"
+# Step 0.4: the icon fonts, with the Codicon name table the generator reads.
+copy_file codicons/package/dist/codicon.ttf internal/gui/kit/fonts/codicon.ttf
+copy_file codicons/package/dist/codicon.csv internal/gui/kit/fonts/codicon.csv
+copy_license codicons codicons/package/LICENSE codicons/package/LICENSE-CODE
+copy_file vscode/extensions/theme-seti/icons/seti.woff internal/gui/kit/fonts/seti.woff
+copy_license seti vscode/extensions/theme-seti/ThirdPartyNotices.txt vscode/LICENSE.txt
+
+echo "update-assets: done"

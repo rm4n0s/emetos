@@ -43,18 +43,19 @@ planned and has no files in the repository yet.
 7. Seti file icons (font and icon theme mapping)
    Source:  Visual Studio Code, extensions/theme-seti
    License: MIT (Microsoft Corporation; the Seti UI icon set by Jesse Weed)
-   Font added by step 0.4; mapping added by step 6.14 (not yet added).
+   Font added by step 0.4 (third_party/seti/); mapping added by step 6.14 (not
+   yet added).
 
 8. Codicons (font and codicon.csv)
    Source:  npm package @vscode/codicons (https://github.com/microsoft/vscode-codicons)
    License: CC BY 4.0 (icons), MIT (code). Attribution: "Codicons by Microsoft
             Corporation, licensed under CC BY 4.0".
-   Added by step 0.4 (not yet added).
+   Added by step 0.4 (third_party/codicons/).
 
 9. scripts/headless-wayland.sh and scripts/screenshot-headless.sh
    Source:  Glutter (https://github.com/rm4n0s/glutter)
-   License: BSD-3-Clause
-   Added by step 0.4 (not yet added).
+   License: BSD-3-Clause (third_party/glutter/LICENSE)
+   Added by step 0.4.
 
 Used by tests only, not bundled:
 
