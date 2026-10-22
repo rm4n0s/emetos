@@ -62,30 +62,73 @@ func (s Snapshot) LineStart(line int) (int, error) {
 	return start, nil
 }
 
+// clampPosition moves p into the text without looking at characters: a line
+// before the first gives the start of the text, a line after the last the end,
+// and a column outside its line the nearest end of it. It returns the bounds of
+// the line it ended on.
+func (s Snapshot) clampPosition(p Position) (pos Position, lineStart, lineEnd int) {
+	if p.Line < 0 {
+		return Position{}, 0, s.lineEndOf(0)
+	}
+	line := min(p.Line, s.LineCount()-1)
+	start, end := s.lineBounds(line)
+	if p.Line > line {
+		return Position{Line: line, Col: end - start}, start, end
+	}
+	return Position{Line: line, Col: min(max(p.Col, 0), end-start)}, start, end
+}
+
+func (s Snapshot) lineEndOf(line int) int {
+	_, end := s.lineBounds(line)
+	return end
+}
+
+// insideCharacter reports whether the column of a position in a line that starts
+// at lineStart is in the middle of a UTF-8 sequence.
+func (s Snapshot) insideCharacter(p Position, lineStart, lineEnd int) bool {
+	return p.Col > 0 && lineStart+p.Col < lineEnd && !utf8.RuneStart(s.root.byteAt(lineStart+p.Col))
+}
+
 // ValidatePosition moves p into the text, as VS Code's validatePosition does: a
 // line before the first becomes the start of the text, a line after the last
 // the end of the text, and a column outside its line the nearest end of it. A
 // column in the middle of a UTF-8 sequence moves back to the start of the
 // character, as VS Code moves out of the middle of a surrogate pair.
 func (s Snapshot) ValidatePosition(p Position) Position {
-	if p.Line < 0 {
-		return Position{}
+	pos, start, end := s.clampPosition(p)
+	for s.insideCharacter(pos, start, end) {
+		pos.Col--
 	}
-	if last := s.LineCount() - 1; p.Line > last {
-		start, end := s.lineBounds(last)
-		return Position{Line: last, Col: end - start}
-	}
-	start, end := s.lineBounds(p.Line)
-	col := min(max(p.Col, 0), end-start)
-	for col > 0 && start+col < end && !utf8.RuneStart(s.root.byteAt(start+col)) {
-		col--
-	}
-	return Position{Line: p.Line, Col: col}
+	return pos
 }
 
-// ValidateRange moves both ends of r into the text; see ValidatePosition.
+// ValidateRange moves both ends of r into the text, as VS Code's validateRange
+// does. An end that is inside a UTF-8 sequence moves out of it: a range that
+// covers text grows to take the whole character (the start moves back and the
+// end moves forward), and an empty range moves back, so it does not grow.
 func (s Snapshot) ValidateRange(r Range) Range {
-	return NewRange(s.ValidatePosition(r.Start), s.ValidatePosition(r.End))
+	start, startLine, startEnd := s.clampPosition(r.Start)
+	end, endLine, endEnd := s.clampPosition(r.End)
+	if end.IsBefore(start) { // the ends were swapped by clamping a line far away
+		start, end = end, start
+		startLine, endLine = endLine, startLine
+		startEnd, endEnd = endEnd, startEnd
+	}
+	startInside := s.insideCharacter(start, startLine, startEnd)
+	endInside := s.insideCharacter(end, endLine, endEnd)
+	collapsed := start == end
+	for startInside && s.insideCharacter(start, startLine, startEnd) {
+		start.Col--
+	}
+	switch {
+	case collapsed:
+		end = start
+	case endInside:
+		for s.insideCharacter(end, endLine, endEnd) {
+			end.Col++
+		}
+	}
+	return Range{Start: start, End: end}
 }
 
 // OffsetAt is the offset of a position, after ValidatePosition has moved it into

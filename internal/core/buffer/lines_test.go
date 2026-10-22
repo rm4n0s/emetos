@@ -226,3 +226,40 @@ func TestMultibytePositions(t *testing.T) {
 		}
 	}
 }
+
+// Ported from VS Code: reference/vscode/src/vs/editor/common/model/textModel.ts
+// (validateRange: a range inside a surrogate pair grows to take the whole
+// character, a collapsed one moves back), and the 'high-low surrogates' cases of
+// editableTextModel.test.ts, written for UTF-8 sequences.
+func TestValidateRangeExpandsToWholeCharacters(t *testing.T) {
+	// "aα日😀" has characters of 1, 2, 3 and 4 bytes starting at columns 0, 1, 3 and 6.
+	b := New("aα日😀\nx")
+	r := func(sl, sc, el, ec int) Range { return Range{Start: Position{sl, sc}, End: Position{el, ec}} }
+	tests := []struct {
+		name string
+		in   Range
+		want Range
+		text string
+	}{
+		{"both ends inside characters", r(0, 2, 0, 4), r(0, 1, 0, 6), "α日"},
+		{"start inside", r(0, 2, 0, 3), r(0, 1, 0, 3), "α"},
+		{"end inside", r(0, 1, 0, 4), r(0, 1, 0, 6), "α日"},
+		{"both inside the same character", r(0, 7, 0, 8), r(0, 6, 0, 10), "😀"},
+		{"collapsed inside moves back without growing", r(0, 2, 0, 2), r(0, 1, 0, 1), ""},
+		{"collapsed inside a long character", r(0, 8, 0, 8), r(0, 6, 0, 6), ""},
+		{"already valid", r(0, 1, 0, 6), r(0, 1, 0, 6), "α日"},
+		{"past the end of the line", r(0, 0, 0, 99), r(0, 0, 0, 10), "aα日😀"},
+		{"line past the end", r(0, 3, 9, 0), r(0, 3, 1, 1), "日😀\nx"},
+		{"line before the start", r(-2, 5, 0, 1), r(0, 0, 0, 1), "a"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := b.ValidateRange(tt.in); got != tt.want {
+				t.Errorf("ValidateRange(%+v) = %+v, want %+v", tt.in, got, tt.want)
+			}
+			if got := b.Text(tt.in); got != tt.text {
+				t.Errorf("Text(%+v) = %q, want %q", tt.in, got, tt.text)
+			}
+		})
+	}
+}
