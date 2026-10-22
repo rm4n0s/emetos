@@ -59,6 +59,7 @@ type Document struct {
 
 	history   history
 	listeners []*listener
+	deco      decorations
 }
 
 // New makes a document that holds text, which must use "\n" only. Its encoding

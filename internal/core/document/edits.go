@@ -214,6 +214,7 @@ func (d *Document) Edit(batch []Edit, opts EditOptions) (EditResult, error) {
 // applyChanges applies ascending, non-overlapping changes to the buffer, from the
 // last to the first so that the offsets of the rest stay right.
 func (d *Document) applyChanges(changes []textChange) {
+	d.moveDecorations(changes)
 	for i := len(changes) - 1; i >= 0; i-- {
 		c := changes[i]
 		// The offsets were validated against this text, so this cannot fail.
@@ -291,6 +292,7 @@ func (d *Document) SetText(text string) {
 	d.altVersion = d.version
 	d.savedVersion = d.altVersion
 	d.history.clear()
+	d.clearDecorations()
 	after := d.buf.Snapshot()
 	old := before.String()
 	d.emit(ChangeEvent{
