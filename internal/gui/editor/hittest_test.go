@@ -238,7 +238,7 @@ func TestHitTestingInTheWindow(t *testing.T) {
 	}
 	// 190 pixels down and 2 characters to the right: the point is in row 10 and column 2+2.
 	vm.SetScrollLeft(0)
-	ts.Scroll(gluttertest.ByType[*Editor](), ui.Offset{Dy: 190})
+	ts.Scroll(gluttertest.ByType[*Editor](), wheel(190))
 	ts.Pump(100 * time.Millisecond)
 	if vm.ScrollTop() != 190 {
 		t.Fatalf("scrolled to %v", vm.ScrollTop())

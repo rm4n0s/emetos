@@ -234,3 +234,8 @@ func (r *RenderEditorText) RectOf(p buffer.Position) ui.Rect {
 func (r *RenderEditorText) VisualColumnAt(local ui.Offset) int {
 	return newGeometry(r.vm, r.factory).visualColumnAt(local.Dx + r.vm.ScrollLeft())
 }
+
+// CharWidth is the width of a character of the font.
+func (r *RenderEditorText) CharWidth() float64 {
+	return newGeometry(r.vm, r.factory).charWidth
+}

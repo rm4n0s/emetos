@@ -62,6 +62,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		LineNumbers:  LineNumbersOn, LineNumbersMinChars: 5, GlyphMargin: true, LineDecorationsWidth: 10, Folding: true, ScrollBeyondLastLine: true,
 		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
 		MultiCursorModifier: "alt", MouseStyle: "text",
+		MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -91,6 +92,11 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.multiCursorModifier":              "ctrlCmd",
 		"editor.columnSelection":                  true,
 		"editor.mouseStyle":                       "copy",
+		"editor.mouseWheelScrollSensitivity":      2.5,
+		"editor.fastScrollSensitivity":            9.0,
+		"editor.smoothScrolling":                  true,
+		"editor.dragAndDrop":                      false,
+		"editor.selectionClipboard":               false,
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -105,6 +111,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	}
 	if got.MultiCursorModifier != "ctrlCmd" || !got.ColumnSelection || got.MouseStyle != "copy" {
 		t.Errorf("mouse options: %+v", got)
+	}
+	if got.MouseWheelScrollSensitivity != 2.5 || got.FastScrollSensitivity != 9 || !got.SmoothScrolling || got.DragAndDrop || got.SelectionClipboard {
+		t.Errorf("scroll and drag options: %+v", got)
 	}
 	if got.FontFeatures != nil {
 		t.Errorf("ligatures on leave the font's own features: %v", got.FontFeatures)

@@ -56,6 +56,18 @@ type Options struct {
 	ColumnSelection bool
 	// MouseStyle is the mouse pointer over the text: "text", "default" or "copy".
 	MouseStyle string
+	// MouseWheelScrollSensitivity multiplies the distance the mouse wheel and the touchpad
+	// scroll.
+	MouseWheelScrollSensitivity float64
+	// FastScrollSensitivity multiplies it again while Alt is held.
+	FastScrollSensitivity float64
+	// SmoothScrolling animates the scrolling of the mouse wheel.
+	SmoothScrolling bool
+	// DragAndDrop lets a selection be moved with the mouse.
+	DragAndDrop bool
+	// SelectionClipboard makes the selection the primary selection of the desktop, and the
+	// middle button paste it.
+	SelectionClipboard bool
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -115,9 +127,14 @@ type ViewModel struct {
 	sessionOwner int
 	columns      *edit.ColumnSelectData
 	// mouseRange is the word or line a mouse selection extends from while the button is down.
-	mouseRange  buffer.Range
-	occurrences *edit.OccurrenceSession
-	expansion   *edit.Expansion
+	mouseRange buffer.Range
+	// noReveal keeps a command from scrolling to the cursor, for what scrolls by itself.
+	noReveal bool
+	// dropCaret is where dropped text would go, while text is dragged.
+	dropCaret    buffer.Position
+	hasDropCaret bool
+	occurrences  *edit.OccurrenceSession
+	expansion    *edit.Expansion
 	// preedit is the text an input method is composing, or nil.
 	preedit *Preedit
 	// find are the options of the search that finds the occurrences of a selection.

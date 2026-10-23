@@ -163,6 +163,31 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.mouseWheelScrollSensitivity", Types: []Type{Number}, Default: 1,
+			Description: "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.fastScrollSensitivity", Types: []Type{Number}, Default: 5,
+			Description: "Scrolling speed multiplier when pressing `Alt`.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.smoothScrolling", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the editor will scroll using an animation.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.dragAndDrop", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should allow moving selections via drag and drop.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.selectionClipboard", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if the Linux primary clipboard should be supported.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.lineNumbersMinChars", Types: []Type{Integer}, Default: 5, Minimum: Float(1), Maximum: Float(300),
 			Description: "Controls the minimal number of characters the line numbers take; the gutter is wide enough for the number of the last line.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

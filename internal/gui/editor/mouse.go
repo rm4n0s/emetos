@@ -27,6 +27,11 @@ type MouseEvent struct {
 	OnLineNumbers bool
 	// Drag says the pointer moved with the button down, after the press the event came from.
 	Drag bool
+	// Middle says the middle button made the event.
+	Middle bool
+	// NoReveal keeps the editor from scrolling to the cursor: the event comes from the scrolling
+	// of a drag past the edge.
+	NoReveal bool
 }
 
 // hasMultiCursorModifier reports whether the key of editor.multiCursorModifier is held.
@@ -56,6 +61,8 @@ func (vm *ViewModel) hasOtherModifier(m MouseModifiers) bool {
 //
 // Ported from VS Code: src/vs/editor/browser/view/viewController.ts (ViewController.dispatchMouse)
 func (vm *ViewModel) DispatchMouse(ev MouseEvent) error {
+	vm.noReveal = ev.NoReveal
+	defer func() { vm.noReveal = false }()
 	return vm.Run(func(vm *ViewModel, _ any) error {
 		vm.dispatchMouse(ev)
 		return nil
@@ -76,6 +83,9 @@ func (vm *ViewModel) dispatchMouse(ev MouseEvent) {
 	mv := vm.mover()
 	pos := ev.Position
 	switch {
+	case ev.Middle && !vm.opts.SelectionClipboard:
+		// Without the primary selection the middle button selects columns.
+		vm.columnSelectFrom(mv, pos, ev.VisualColumn, inSelection)
 	case ev.OnLineNumbers:
 		switch {
 		case multi && inSelection:
@@ -208,12 +218,22 @@ func (vm *ViewModel) createCursor(mv edit.Mover, pos buffer.Position, wholeLine 
 //
 // Ported from VS Code: src/vs/editor/browser/coreCommands.ts (ColumnSelect)
 func (vm *ViewModel) columnSelect(mv edit.Mover, pos buffer.Position, visual int) {
+	vm.columnSelectFrom(mv, pos, visual, true)
+}
+
+// columnSelectFrom is columnSelect, which with extend false starts a new rectangle at the
+// position instead of going on from the one there is.
+func (vm *ViewModel) columnSelectFrom(mv edit.Mover, pos buffer.Position, visual int, extend bool) {
 	vm.sessionOwner = sessionColumns
 	if vm.columns == nil {
 		d := mv.ColumnSelectDataOf(vm.cursors.Primary())
 		vm.columns = &d
 	}
-	res := mv.ColumnSelect(vm.columns.FromLine, vm.columns.FromVisual, pos.Line, visual)
+	fromLine, fromVisual := vm.columns.FromLine, vm.columns.FromVisual
+	if !extend {
+		fromLine, fromVisual = pos.Line, visual
+	}
+	res := mv.ColumnSelect(fromLine, fromVisual, pos.Line, visual)
 	vm.cursors.Set(res.Cursors)
 	vm.columns = &res.Data
 }

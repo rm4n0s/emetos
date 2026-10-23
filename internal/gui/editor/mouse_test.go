@@ -5,11 +5,13 @@ import (
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // mouseRig is an editor on screen and the means to point at its text.
@@ -24,12 +26,19 @@ type mouseRig struct {
 
 func newMouseRig(t *testing.T, text string, tweak func(*Options)) *mouseRig {
 	t.Helper()
+	return newMouseRigWith(t, text, tweak, EditorOpts{Autofocus: true})
+}
+
+// newMouseRigWith is newMouseRig with the options of the editor widget.
+func newMouseRigWith(t *testing.T, text string, tweak func(*Options), editorOpts EditorOpts) *mouseRig {
+	t.Helper()
 	opts := goOptions()
 	if tweak != nil {
 		tweak(&opts)
 	}
 	vm := NewViewModel(newTestDoc(text), opts, nil)
-	ts := pumpEditor(t, vm, ui.Size{Width: 800, Height: 400})
+	ts := testutil.New(t, ui.Size{Width: 800, Height: 400})
+	pumpEditorWith(t, ts, vm, editorOpts)
 	g := newGeometry(vm, ts.Dispatcher().TextEngine())
 	return &mouseRig{t: t, ts: ts, vm: vm, gutter: vm.GutterWidths(ts.Dispatcher().TextEngine()).Total(), cw: g.charWidth, lineH: opts.LineHeight}
 }
@@ -91,6 +100,15 @@ func (r *mouseRig) drag(from ui.Offset, to ...ui.Offset) {
 	}
 	g.Up()
 	r.ts.Pump(time.Second)
+}
+
+// wheel is the scroll of a mouse wheel that moves the editor by px pixels, down for a positive
+// number: a notch is wheelNotch pixels of scroll and moves wheelStep.
+func wheel(px float64) ui.Offset {
+	if px < 0 {
+		return ui.Offset{Dy: (px + 0.5) / wheelStep * wheelNotch}
+	}
+	return ui.Offset{Dy: (px - 0.5) / wheelStep * wheelNotch}
 }
 
 func (r *mouseRig) selections() []buffer.Selection { return r.vm.Cursors().Selections() }
@@ -189,6 +207,7 @@ func TestDragSelectsCharacters(t *testing.T) {
 	r := newMouseRig(t, mouseText, nil)
 	r.drag(r.at(0, 2), r.at(0, 5), r.at(1, 4))
 	r.want(sel(0, 2, 1, 4))
+	r.click(r.at(4, 3)) // a press on the selection would drag its text
 	r.drag(r.at(1, 4), r.at(0, 1))
 	r.want(sel(1, 4, 0, 1))
 	// A drag past the end of the text goes to the end.
@@ -414,14 +433,15 @@ func TestClickInTheGutterGoesToTheStartOfTheLine(t *testing.T) {
 	r.want(sel(2, 0, 2, 0))
 }
 
-func TestOtherButtonsDoNotMoveTheCursor(t *testing.T) {
+func TestOnlyThePrimaryAndMiddleButtonsPlaceTheCursor(t *testing.T) {
 	r := newMouseRig(t, mouseText, nil)
 	r.click(r.at(0, 3))
-	for _, b := range []int{2, 4} { // secondary and middle buttons
-		r.ts.TapAt(r.at(2, 2), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(b)})
-		r.ts.Pump(time.Second)
-	}
+	r.ts.TapAt(r.at(2, 2), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.SecondaryButton)})
+	r.ts.Pump(time.Second)
 	r.want(sel(0, 3, 0, 3))
+	r.ts.TapAt(r.at(2, 2), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.TertiaryButton)})
+	r.ts.Pump(time.Second)
+	r.want(sel(2, 2, 2, 2))
 }
 
 func TestTouchTapPlacesTheCursorButDoesNotSelect(t *testing.T) {

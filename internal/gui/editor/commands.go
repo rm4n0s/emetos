@@ -81,7 +81,9 @@ func (vm *ViewModel) Run(act action, args any) error {
 	}
 	vm.sessionSelections = vm.cursors.Selections()
 	vm.SelectionsChanged()
-	vm.RevealPrimary()
+	if !vm.noReveal {
+		vm.RevealPrimary()
+	}
 	return err
 }
 

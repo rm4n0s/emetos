@@ -40,6 +40,9 @@ const lineHighlightBorderWidth = 2.0
 // cursorDefaultWidth is the width of the line cursor when editor.cursorWidth is 0.
 const cursorDefaultWidth = 2.0
 
+// dropCaretWidth is the width of the dotted line that shows where dragged text goes, and of its dots.
+const dropCaretWidth = 2.0
+
 // RenderEditorOverlay is a layer of the editor that draws decorations of the text without
 // touching it: the one below the text has the current line and the selections, the one above
 // has the cursors. Each is a repaint boundary, so that the blinking of the cursors repaints
@@ -312,8 +315,29 @@ func (v overlayView) paintPiece(row int, p selectionPiece, selection ui.Color) {
 // method's own cursor is.
 //
 // Ported from VS Code: src/vs/editor/browser/viewParts/viewCursors/viewCursor.ts (_prepareRender, line style)
+// paintDropCaret draws the dotted line where dragged text would be dropped.
+//
+// Ported from VS Code: src/vs/editor/contrib/dnd/browser/dnd.css (.dnd-target)
+func (v overlayView) paintDropCaret() {
+	vm := v.geo.vm
+	pos, ok := vm.DropCaret()
+	if !ok {
+		return
+	}
+	row := vm.RowOfPosition(pos)
+	if row < v.first || row > v.last {
+		return
+	}
+	rect := v.rowRect(row, v.geo.x(row, pos.Col), v.geo.x(row, pos.Col)+dropCaretWidth)
+	paint := fill(v.colors.Cursor)
+	for y := rect.Top; y < rect.Bottom; y += 2 * dropCaretWidth {
+		v.canvas.DrawRect(ui.NewRectFromLTRB(rect.Left, y, rect.Right, min(y+dropCaretWidth, rect.Bottom)), paint)
+	}
+}
+
 func (v overlayView) paintCursors() {
 	vm := v.geo.vm
+	v.paintDropCaret()
 	preedit, composing := vm.Preedit()
 	if composing {
 		v.paintPreedit(preedit)

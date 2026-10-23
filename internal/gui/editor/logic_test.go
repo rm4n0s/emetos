@@ -194,6 +194,7 @@ func testOptions() Options {
 		FontFamilies: []string{"Go Mono", "monospace"}, FontSize: 14, LineHeight: 19, TabSize: 4,
 		LineNumbers: LineNumbersOn, LineNumbersMinChars: 5, GlyphMargin: true, LineDecorationsWidth: 10, Folding: true, ScrollBeyondLastLine: true,
 		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
+		MultiCursorModifier: "alt", MouseStyle: "text", MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
 	}
 }
 

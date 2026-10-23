@@ -42,6 +42,11 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		MultiCursorModifier:              settings.Get[string](store, "editor.multiCursorModifier", languageID),
 		ColumnSelection:                  settings.Get[bool](store, "editor.columnSelection", languageID),
 		MouseStyle:                       settings.Get[string](store, "editor.mouseStyle", languageID),
+		MouseWheelScrollSensitivity:      settings.Get[float64](store, "editor.mouseWheelScrollSensitivity", languageID),
+		FastScrollSensitivity:            settings.Get[float64](store, "editor.fastScrollSensitivity", languageID),
+		SmoothScrolling:                  settings.Get[bool](store, "editor.smoothScrolling", languageID),
+		DragAndDrop:                      settings.Get[bool](store, "editor.dragAndDrop", languageID),
+		SelectionClipboard:               settings.Get[bool](store, "editor.selectionClipboard", languageID),
 	}
 }
 

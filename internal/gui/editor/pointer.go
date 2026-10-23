@@ -1,13 +1,18 @@
 package editor
 
 import (
+	"context"
 	"time"
+
+	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 )
 
 const (
@@ -37,6 +42,13 @@ type mouseState struct {
 	// last is the last event dispatched, so that a pointer that moves within a character is
 	// not dispatched again.
 	last MouseEvent
+	// middle says the held button is the middle one; moved that the pointer went somewhere
+	// since the press, which a middle click that pastes must not have done.
+	middle, moved bool
+	// dnd is the drag of selected text that the press started, if it did, and cancelKey the
+	// handler that ends it with Escape.
+	dnd       *textDrag
+	cancelKey services.KeyHandlerHandle
 }
 
 // modifiers reads the modifier keys held now.
@@ -83,50 +95,206 @@ func (s *editorState) eventAt(local ui.Offset, gutterWidth float64) MouseEvent {
 	return MouseEvent{Position: s.textRO.PositionAt(in), VisualColumn: s.textRO.VisualColumnAt(in)}
 }
 
-// pointerDown starts a selection with the primary button: it takes the focus and does what
-// the click, the double click or the triple click, with the modifiers held, asks for.
+// pointerDown starts a selection with the primary button, or pastes with the middle one: it
+// takes the focus and does what the click, the double click or the triple click, with the
+// modifiers held, asks for. A press inside the selection can start dragging its text instead.
 func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth float64) {
-	if e.Buttons()&gestures.PrimaryButton == 0 {
+	buttons := e.Buttons()
+	middle := buttons&gestures.TertiaryButton != 0 && buttons&gestures.PrimaryButton == 0
+	if buttons&gestures.PrimaryButton == 0 && !middle {
 		return
 	}
 	s.node.RequestFocus()
 	m := &s.mouse
+	vm := s.Widget().vm
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
 	ev.Mods = s.modifiers()
+	ev.Middle = middle
 	ev.Clicks = m.countClick(e.LocalPosition(), e.TimeStamp())
 	if ev.OnLineNumbers {
 		ev.Clicks = 1
 	}
-	m.pressed, m.pointer = true, e.Pointer()
+	wasPressed := m.pressed
+	m.pressed, m.pointer, m.middle, m.moved = true, e.Pointer(), middle, false
 	m.mods, m.onNumbers = ev.Mods, ev.OnLineNumbers
 	m.last = ev
+	s.stopAutoScroll()
+	if !middle && !wasPressed && s.startsTextDrag(e, ev, gutterWidth) {
+		return
+	}
 	if e.Kind() == ui.PointerDeviceKindTouch {
 		ev.Mods = MouseModifiers{}
 	}
-	s.reportInputError(s.Widget().vm.DispatchMouse(ev))
+	s.reportInputError(vm.DispatchMouse(ev))
+}
+
+// startsTextDrag begins dragging the selected text when the press is a single click on the
+// text of the primary selection, which has something selected: Alt (many cursors), the column
+// selection and a read-only document leave it to the usual selecting.
+//
+// Ported from VS Code: src/vs/editor/browser/controller/mouseHandler.ts (MouseDownOperation.start)
+func (s *editorState) startsTextDrag(e *gestures.PointerDownEvent, ev MouseEvent, gutterWidth float64) bool {
+	vm := s.Widget().vm
+	opts := vm.Options()
+	primary := vm.Cursors().Primary().Selection
+	if !opts.DragAndDrop || opts.ColumnSelection || ev.Mods.Alt || ev.Clicks >= 2 || ev.OnLineNumbers ||
+		vm.Document().ReadOnly() || primary.IsEmpty() || e.LocalPosition().Dx < gutterWidth ||
+		!primary.Range().ContainsPosition(ev.Position) || !s.overText(e.LocalPosition(), gutterWidth, ev.Position) {
+		return false
+	}
+	s.mouse.dnd = &textDrag{}
+	if found := vm.selectionsAt(ev.Position); len(found) == 1 {
+		s.mouse.dnd.pressed = &found[0]
+	}
+	s.mouse.cancelKey = s.binding.Keyboard().AddHandler(func(k services.KeyEvent) bool {
+		if _, down := k.(*services.KeyDownEvent); down && k.LogicalKey() == services.LogicalKeyboardKeyEscape {
+			s.endPress()
+			return true
+		}
+		return false
+	})
+	return true
+}
+
+// overText says whether a point is over the text of its line, not in the empty space after it.
+func (s *editorState) overText(local ui.Offset, gutterWidth float64, pos buffer.Position) bool {
+	vm := s.Widget().vm
+	return local.Dx-gutterWidth <= s.textRO.RectOf(vm.lineEndOf(pos)).Left
 }
 
 // pointerMove goes on selecting while the button is held: the pointer moves the end of the
-// selection by characters, words or lines, as the press asked for.
+// selection by characters, words or lines, as the press asked for. Beyond an edge of the editor
+// it scrolls with every frame (see autoScrollFrame); with selected text dragged it moves the
+// drop caret.
 func (s *editorState) pointerMove(e *gestures.PointerMoveEvent, gutterWidth float64) {
 	m := &s.mouse
 	if !m.pressed || e.Pointer() != m.pointer || e.Kind() == ui.PointerDeviceKindTouch {
 		return
 	}
+	m.moved = true
+	vm := s.Widget().vm
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
-	ev.Mods, ev.OnLineNumbers, ev.Clicks, ev.Drag = m.mods, m.onNumbers, m.last.Clicks, true
+	if m.dnd != nil {
+		s.dragText(ev.Position)
+		return
+	}
+	edge, distance := s.edgeOf(e.LocalPosition(), gutterWidth)
+	s.followEdge(edge, distance, e.LocalPosition(), ev.Position.Line)
+	if edge != edgeNone {
+		return
+	}
+	ev.Mods, ev.OnLineNumbers, ev.Clicks, ev.Drag, ev.Middle = m.mods, m.onNumbers, m.last.Clicks, true, m.middle
 	if ev.Position == m.last.Position && ev.VisualColumn == m.last.VisualColumn && m.last.Drag {
 		return
 	}
 	m.last = ev
-	s.reportInputError(s.Widget().vm.DispatchMouse(ev))
+	s.reportInputError(vm.DispatchMouse(ev))
 }
 
-// pointerUp ends the selection.
-func (s *editorState) pointerUp(pointer int) {
-	if s.mouse.pressed && s.mouse.pointer == pointer {
-		s.mouse.pressed = false
+// dragText follows the pointer of a drag of selected text: the pointer shows whether the drop
+// copies (Control) or moves, and the drop caret goes where the text would land.
+//
+// Ported from VS Code: src/vs/editor/contrib/dnd/browser/dnd.ts (DragAndDropController._onEditorMouseDrag)
+func (s *editorState) dragText(pos buffer.Position) {
+	drag := s.mouse.dnd
+	s.Widget().vm.dragOver(drag, pos)
+	if drag.selection == nil {
+		return
 	}
+	style := "default"
+	if s.modifiers().Ctrl {
+		style = "copy"
+	}
+	s.setDragStyle(style)
+}
+
+// setDragStyle changes the mouse pointer for the duration of a text drag ("" ends it).
+func (s *editorState) setDragStyle(style string) {
+	if s.dragStyle == style {
+		return
+	}
+	s.dragStyle = style
+	if s.Mounted() {
+		s.SetState(func() {})
+	}
+}
+
+// mouseStyle is the mouse pointer over the text: the one of the setting, or the one of the
+// drag of text that goes on.
+func (s *editorState) mouseStyle(vm *ViewModel) string {
+	if s.dragStyle != "" {
+		return s.dragStyle
+	}
+	return vm.Options().MouseStyle
+}
+
+// endPress ends the press without doing anything more: the text drag is dropped nowhere.
+func (s *editorState) endPress() {
+	m := &s.mouse
+	m.pressed = false
+	s.stopAutoScroll()
+	if m.dnd != nil {
+		m.dnd = nil
+		s.Widget().vm.endDrag()
+		s.binding.Keyboard().RemoveHandler(m.cancelKey)
+		s.setDragStyle("")
+	}
+}
+
+// pointerUp ends the selection. After a drag of text it drops the text; a middle click that
+// did not move pastes the primary selection.
+func (s *editorState) pointerUp(e *gestures.PointerUpEvent, gutterWidth float64) {
+	m := &s.mouse
+	if !m.pressed || m.pointer != e.Pointer() {
+		return
+	}
+	vm := s.Widget().vm
+	drag, middle, moved := m.dnd, m.middle, m.moved
+	local := e.LocalPosition()
+	mods := s.modifiers()
+	s.endPress()
+	switch {
+	case drag != nil:
+		if s.insideEditor(local, gutterWidth) {
+			ev := s.eventAt(local, gutterWidth)
+			s.reportInputError(vm.drop(drag, ev.Position, mods.Shift, mods.Ctrl))
+		}
+	case middle && !moved && vm.Options().SelectionClipboard:
+		s.pastePrimary()
+	}
+}
+
+// insideEditor says whether a point, in the coordinates of the row of gutter and text, is over
+// the editor.
+func (s *editorState) insideEditor(local ui.Offset, gutterWidth float64) bool {
+	w, h := s.Widget().vm.ViewportSize()
+	return local.Dx >= 0 && local.Dx <= gutterWidth+w && local.Dy >= 0 && local.Dy <= h
+}
+
+// pointerCancel ends the selection when the pointer's events stop reaching the editor.
+func (s *editorState) pointerCancel(pointer int) {
+	if s.mouse.pressed && s.mouse.pointer == pointer {
+		s.endPress()
+	}
+}
+
+// pastePrimary pastes the primary selection of the desktop at the cursors; the text arrives
+// in a callback on the UI thread.
+func (s *editorState) pastePrimary() {
+	ctx := s.Widget().opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.binding.Clipboard().GetPrimaryData(ctx, services.ClipboardKTextPlain, func(data *services.ClipboardData, err error) {
+		if err != nil {
+			s.reportInputError(errors.NewErr("PrimarySelectionReadFailed", err))
+			return
+		}
+		if data == nil || data.Text == "" || !s.Mounted() {
+			return
+		}
+		s.reportInputError(s.Widget().vm.PasteText(data.Text))
+	})
 }
 
 // mouseCursor is the shape of the mouse pointer over the text, from editor.mouseStyle.
@@ -147,7 +315,10 @@ func (s *editorState) pointerListener(child widgets.Widget, gutterWidth float64)
 		Behavior:        rendering.HitTestBehaviorOpaque,
 		OnPointerDown:   func(e *gestures.PointerDownEvent) { s.pointerDown(e, gutterWidth) },
 		OnPointerMove:   func(e *gestures.PointerMoveEvent) { s.pointerMove(e, gutterWidth) },
-		OnPointerUp:     func(e *gestures.PointerUpEvent) { s.pointerUp(e.Pointer()) },
-		OnPointerCancel: func(e *gestures.PointerCancelEvent) { s.pointerUp(e.Pointer()) },
+		OnPointerUp:     func(e *gestures.PointerUpEvent) { s.pointerUp(e, gutterWidth) },
+		OnPointerCancel: func(e *gestures.PointerCancelEvent) { s.pointerCancel(e.Pointer()) },
+
+		OnPointerSignal:        s.pointerSignal,
+		OnPointerPanZoomUpdate: s.panZoomUpdate,
 	})
 }

@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"context"
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
@@ -183,6 +184,9 @@ type EditorOpts struct {
 	// OnError is told about the errors of the keyboard input, such as typing into a
 	// read-only document. Without it they are dropped.
 	OnError func(error)
+	// Context is the context of what the editor asks of the desktop (the clipboard); without
+	// it that is context.Background().
+	Context context.Context
 }
 
 // NewEditor makes the editor of a view model.
@@ -211,6 +215,11 @@ type editorState struct {
 
 	input           *textInput
 	mouse           mouseState
+	auto            autoScroll
+	smoothTarget    *float64
+	smooth          smoothScroll
+	gutterWidth     float64
+	dragStyle       string
 	textRO          *RenderEditorText
 	geometryPending bool
 	node            *widgets.FocusNode
@@ -282,7 +291,7 @@ func (s *editorState) selectionChanged() {
 
 // reportInputError passes an error of the keyboard input on.
 func (s *editorState) reportInputError(err error) {
-	if report := s.Widget().opts.OnError; report != nil {
+	if report := s.Widget().opts.OnError; report != nil && err != nil {
 		report(err)
 	}
 }
@@ -314,6 +323,7 @@ func (s *editorState) scrollTo(top float64) {
 	if !s.controller.HasClients() {
 		return
 	}
+	s.smoothTarget = nil
 	pos := s.controller.Position()
 	s.controller.JumpTo(min(max(top, pos.MinScrollExtent()), pos.MaxScrollExtent()))
 }
@@ -405,6 +415,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 
 // Dispose lets go of the controller, the listeners, the focus node and the context keys.
 func (s *editorState) Dispose() {
+	s.endPress()
 	if s.unbindCommands != nil {
 		s.unbindCommands()
 	}
@@ -442,6 +453,7 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 // scrollbars.
 func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors) widgets.Widget {
 	gutterWidth := vm.GutterWidths(textFactory(bc)).Total()
+	s.gutterWidth = gutterWidth
 	gutterColors := GutterColors{
 		LineNumber: colors.EditorLineNumberForeground, ActiveLineNumber: colors.EditorLineNumberActiveForeground,
 		LineHighlight: colors.EditorLineHighlightBackground, LineHighlightBorder: colors.EditorLineHighlightBorder,
@@ -452,20 +464,26 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		LineHighlightBorder: colors.EditorLineHighlightBorder, Cursor: colors.EditorCursorForeground,
 		Foreground: colors.EditorForeground,
 	}
+	scrollable := widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
+		return s.pointerListener(widgets.NewRow([]widgets.Widget{
+			widgets.NewColoredBox(colors.EditorGutterBackground,
+				widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
+			widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
+				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
+				newTextLayer(vm, offset, colors.EditorForeground, func(r *RenderEditorText) { s.textRO = r }),
+				newOverlayLayer(overlayCursors, vm, offset, overlayColors),
+			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{Cursor: mouseCursor(s.mouseStyle(vm))})),
+		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)
+	}, widgets.ScrollableOpts{
+		AxisDirection: painting.AxisDirectionDown,
+		Controller:    s.controller,
+	})
+	// The editor scrolls with the wheel and with a touchpad itself (SPEC §9.3); only a finger
+	// or a pen on the screen drags the Scrollable.
+	behavior := widgets.NewScrollBehavior().CopyWith(widgets.ScrollBehaviorCopy{
+		DragDevices: []ui.PointerDeviceKind{ui.PointerDeviceKindTouch, ui.PointerDeviceKindStylus},
+	})
 	return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
-		widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
-			return s.pointerListener(widgets.NewRow([]widgets.Widget{
-				widgets.NewColoredBox(colors.EditorGutterBackground,
-					widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
-				widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
-					newOverlayLayer(overlayUnder, vm, offset, overlayColors),
-					newTextLayer(vm, offset, colors.EditorForeground, func(r *RenderEditorText) { s.textRO = r }),
-					newOverlayLayer(overlayCursors, vm, offset, overlayColors),
-				}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{Cursor: mouseCursor(vm.Options().MouseStyle)})),
-			}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)
-		}, widgets.ScrollableOpts{
-			AxisDirection: painting.AxisDirectionDown,
-			Controller:    s.controller,
-		}),
+		widgets.NewScrollConfiguration(behavior, scrollable),
 		s.scroll, kit.ScrollableElementOpts{InsetLeft: gutterWidth, UseShadows: true}))
 }

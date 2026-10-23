@@ -298,7 +298,7 @@ func TestCaretRectFollowsTheCursor(t *testing.T) {
 		t.Errorf("after cursorDown: %v", r)
 	}
 	// Scrolling moves it too (the rect is in the window's coordinates).
-	ts.Scroll(gluttertest.ByType[*Editor](), ui.Offset{Dy: 38})
+	ts.Scroll(gluttertest.ByType[*Editor](), wheel(38))
 	ts.Pump(100 * time.Millisecond)
 	ts.Pump(time.Millisecond)
 	if r := lastState(t, ts).CaretRect; !near(r.Top, 3*19-38) {
