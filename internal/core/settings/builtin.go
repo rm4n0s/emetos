@@ -134,6 +134,49 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.guides.bracketPairs", Types: []Type{Boolean, String}, Default: false,
+			Enum: []any{true, "active", false},
+			EnumDescriptions: []string{
+				"Enables bracket pair guides.",
+				"Enables bracket pair guides only for the active bracket pair.",
+				"Disables bracket pair guides.",
+			},
+			Description: "Controls whether bracket pair guides are enabled or not.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.guides.bracketPairsHorizontal", Types: []Type{Boolean, String}, Default: "active",
+			Enum: []any{true, "active", false},
+			EnumDescriptions: []string{
+				"Enables horizontal guides as addition to vertical bracket pair guides.",
+				"Enables horizontal guides only for the active bracket pair.",
+				"Disables horizontal bracket pair guides.",
+			},
+			Description: "Controls whether horizontal bracket pair guides are enabled or not.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.guides.highlightActiveBracketPair", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should highlight the active bracket pair.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.guides.indentation", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should render indent guides.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.guides.highlightActiveIndentation", Types: []Type{Boolean, String}, Default: true,
+			Enum: []any{true, "always", false},
+			EnumDescriptions: []string{
+				"Highlights the active indent guide.",
+				"Highlights the active indent guide even if bracket guides are highlighted.",
+				"Do not highlight the active indent guide.",
+			},
+			Description: "Controls whether the editor should highlight the active indent guide.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.autoIndent", Types: []Type{String}, Default: "full",
 			Enum: []any{"none", "keep", "brackets", "advanced", "full"},
 			EnumDescriptions: []string{

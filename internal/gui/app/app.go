@@ -16,6 +16,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
@@ -173,8 +174,10 @@ type shellState struct {
 	unsubscribe func()
 	// tokenizer keeps the tokens of the document the editor shows.
 	tokenizer *tokens.Tokenizer
-	// stopBrackets stops the bracket pairs of the document following it.
+	// stopBrackets stops the bracket pairs of the document following it, and stopGuides the
+	// indentation levels the guides are drawn from.
 	stopBrackets func()
+	stopGuides   func()
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -231,6 +234,7 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 	})
 	s.startTokenizer(win, doc)
 	s.startBrackets(win, doc)
+	s.startGuides(win, doc)
 	s.view.SetIndenter(win.Process.Indenter(), win.Process.Languages.Code(doc.LanguageID()))
 	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("editor", "") {
@@ -262,8 +266,25 @@ func (s *shellState) startBrackets(win *Window, doc *document.Document) {
 	s.view.SetBrackets(ix)
 }
 
+// startGuides makes the indentation levels of the document, which its indent guides and bracket
+// pair guides are drawn from, and gives them to the editor.
+func (s *shellState) startGuides(win *Window, doc *document.Document) {
+	tabSize, _ := doc.Indentation()
+	levels, stop := indent.AttachLevels(doc, tabSize)
+	s.stopGuides = stop
+	offSide := false
+	if c := win.Process.Languages.Configuration(doc.LanguageID()); c != nil && c.Folding != nil {
+		offSide = c.Folding.OffSide
+	}
+	s.view.SetGuides(levels, offSide)
+}
+
 // Dispose stops following the settings and the document.
 func (s *shellState) Dispose() {
+	if s.stopGuides != nil {
+		s.view.SetGuides(nil, false)
+		s.stopGuides()
+	}
 	if s.unsubscribe != nil {
 		s.unsubscribe()
 	}

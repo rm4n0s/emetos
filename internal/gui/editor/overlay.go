@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"reflect"
+
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/ui"
@@ -31,6 +33,8 @@ type OverlayColors struct {
 	// BracketMatch and BracketMatchBorder are the background and the border of the brackets
 	// that match.
 	BracketMatch, BracketMatchBorder ui.Color
+	// Guides are the colors of the indent guides and of the bracket pair guides.
+	Guides GuideColors
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -93,7 +97,7 @@ func (r *RenderEditorOverlay) Update(vm *ViewModel, offset rendering.ViewportOff
 		}
 	}
 	r.vm, r.offset, r.factory = vm, offset, factory
-	if colors != r.colors {
+	if !reflect.DeepEqual(colors, r.colors) {
 		r.colors = colors
 	}
 	r.MarkNeedsPaint()
@@ -184,6 +188,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 	if r.kind == overlayUnder {
 		view.paintLineHighlight()
 		view.paintSelections()
+		view.paintGuides()
 		view.paintMatchingBrackets()
 	} else {
 		view.paintCursors()
@@ -261,6 +266,51 @@ func paintLineHighlight(canvas *ui.Canvas, rect ui.Rect, background, border ui.C
 	}
 	if edges.Right {
 		canvas.DrawRect(ui.NewRectFromLTRB(rect.Right-w, rect.Top+w, rect.Right, rect.Bottom-w), paint)
+	}
+}
+
+// paintGuides draws the indent guides and the bracket pair guides of the visible rows: a line
+// of 1 pixel at a column, or a horizontal one at the top or the bottom of a row, below the text.
+//
+// Ported from VS Code: src/vs/editor/browser/viewParts/indentGuides/indentGuides.ts
+func (v overlayView) paintGuides() {
+	vm := v.geo.vm
+	rows := vm.rowGuides(v.first, v.last)
+	for i, guides := range rows {
+		row := v.first + i
+		for _, g := range guides {
+			list := v.colors.Guides.Indent
+			if g.Bracket {
+				list = v.colors.Guides.Bracket
+			}
+			c, ok := guideColor(list, g.Level)
+			if !ok {
+				continue
+			}
+			color := c.Color
+			if g.Active {
+				color = c.Active
+			}
+			rect := v.rowRect(row, 0, 0)
+			if g.Horizontal == nil {
+				x := v.origin.Dx + float64(g.VisibleColumn-1)*v.geo.charWidth
+				v.canvas.DrawRect(ui.NewRectFromLTRB(x, rect.Top, x+1, rect.Bottom), fill(color))
+				continue
+			}
+			left := float64(g.VisibleColumn-1) * v.geo.charWidth
+			if g.Column >= 0 {
+				left = v.geo.x(row, g.Column)
+			}
+			right := v.geo.x(row, g.Horizontal.EndColumn)
+			if right <= left {
+				continue
+			}
+			y := rect.Top
+			if !g.Horizontal.Top {
+				y = rect.Bottom - 1
+			}
+			v.canvas.DrawRect(ui.NewRectFromLTRB(v.origin.Dx+left, y, v.origin.Dx+right, y+1), fill(color))
+		}
 	}
 }
 

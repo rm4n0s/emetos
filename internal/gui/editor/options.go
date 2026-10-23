@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 )
 
@@ -56,6 +57,7 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		MatchBrackets:                    settings.Get[string](store, "editor.matchBrackets", languageID),
 		BracketPairColorization:          settings.Get[bool](store, "editor.bracketPairColorization.enabled", languageID),
 		IndependentColorPool:             settings.Get[bool](store, "editor.bracketPairColorization.independentColorPoolPerBracketType", languageID),
+		Guides:                           guideOptions(store, languageID),
 		AutoIndent:                       settings.Get[string](store, "editor.autoIndent", languageID),
 		AutoIndentOnPaste:                settings.Get[bool](store, "editor.autoIndentOnPaste", languageID),
 		AutoIndentOnPasteWithinString:    settings.Get[bool](store, "editor.autoIndentOnPasteWithinString", languageID),
@@ -152,4 +154,39 @@ func ParseFontFeatureSettings(s string) []FontFeature {
 		out = append(out, FontFeature{tag, value})
 	}
 	return out
+}
+
+// guideOptions reads editor.guides.*. A value that is not one of VS Code's is its default.
+//
+// Ported from VS Code: src/vs/editor/common/config/editorOptions.ts (GuideOptions.validate)
+func guideOptions(store *settings.Store, languageID string) indent.GuideOptions {
+	opts := indent.DefaultGuideOptions()
+	opts.Indentation = settings.Get[bool](store, "editor.guides.indentation", languageID)
+	opts.HighlightActiveBracketPair = settings.Get[bool](store, "editor.guides.highlightActiveBracketPair", languageID)
+	opts.IndependentColorPool = settings.Get[bool](store, "editor.bracketPairColorization.independentColorPoolPerBracketType", languageID)
+	switch v := settings.Get[any](store, "editor.guides.highlightActiveIndentation", languageID); v {
+	case true:
+		opts.HighlightActiveIndentation = indent.HighlightOn
+	case false:
+		opts.HighlightActiveIndentation = indent.HighlightOff
+	case "always":
+		opts.HighlightActiveIndentation = indent.HighlightAlways
+	}
+	switch v := settings.Get[any](store, "editor.guides.bracketPairs", languageID); v {
+	case true:
+		opts.BracketPairs = indent.PairsAll
+	case "active":
+		opts.BracketPairs = indent.PairsActive
+	case false:
+		opts.BracketPairs = indent.PairsOff
+	}
+	switch v := settings.Get[any](store, "editor.guides.bracketPairsHorizontal", languageID); v {
+	case true:
+		opts.BracketPairsHorizontal = indent.HorizontalAll
+	case "active":
+		opts.BracketPairsHorizontal = indent.HorizontalActive
+	case false:
+		opts.BracketPairsHorizontal = indent.HorizontalNone
+	}
+	return opts
 }

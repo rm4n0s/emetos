@@ -22,10 +22,17 @@ type Colors struct {
 	EditorGutterBackground            ui.Color
 	EditorWhitespaceForeground        ui.Color
 	EditorIndentGuideBackground1      ui.Color
-	EditorRulerForeground             ui.Color
-	EditorBracketMatchBackground      ui.Color
-	EditorBracketMatchBorder          ui.Color
-	EditorBracketMatchForeground      ui.Color
+	// EditorIndentGuideBackground are the colors of the indent guides by level, and
+	// EditorIndentGuideActiveBackground those of the active guide.
+	EditorIndentGuideBackground, EditorIndentGuideActiveBackground [6]ui.Color
+	// EditorBracketPairGuideBackground and EditorBracketPairGuideActiveBackground are the
+	// colors of the bracket pair guides by level; a transparent one is made of the color of the
+	// brackets of that level.
+	EditorBracketPairGuideBackground, EditorBracketPairGuideActiveBackground [6]ui.Color
+	EditorRulerForeground                                                    ui.Color
+	EditorBracketMatchBackground                                             ui.Color
+	EditorBracketMatchBorder                                                 ui.Color
+	EditorBracketMatchForeground                                             ui.Color
 	// EditorBracketHighlightForeground are the colors of the levels of brackets, from the
 	// first; a level past the sixth takes the color of the one that repeats it. A transparent
 	// color leaves the bracket in the color of its token.
@@ -54,22 +61,26 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		return ui.NewColor(c.ARGB())
 	}
 	return Colors{
-		EditorBackground:                  color("editor.background"),
-		EditorForeground:                  color("editor.foreground"),
-		EditorLineHighlightBackground:     color("editor.lineHighlightBackground"),
-		EditorLineHighlightBorder:         color("editor.lineHighlightBorder"),
-		EditorSelectionBackground:         color("editor.selectionBackground"),
-		EditorInactiveSelectionBackground: color("editor.inactiveSelectionBackground"),
-		EditorCursorForeground:            color("editorCursor.foreground"),
-		EditorLineNumberForeground:        color("editorLineNumber.foreground"),
-		EditorLineNumberActiveForeground:  color("editorLineNumber.activeForeground"),
-		EditorGutterBackground:            color("editorGutter.background"),
-		EditorWhitespaceForeground:        color("editorWhitespace.foreground"),
-		EditorIndentGuideBackground1:      color("editorIndentGuide.background1"),
-		EditorRulerForeground:             color("editorRuler.foreground"),
-		EditorBracketMatchBackground:      color("editorBracketMatch.background"),
-		EditorBracketMatchBorder:          color("editorBracketMatch.border"),
-		EditorBracketMatchForeground:      color("editorBracketMatch.foreground"),
+		EditorBackground:                       color("editor.background"),
+		EditorForeground:                       color("editor.foreground"),
+		EditorLineHighlightBackground:          color("editor.lineHighlightBackground"),
+		EditorLineHighlightBorder:              color("editor.lineHighlightBorder"),
+		EditorSelectionBackground:              color("editor.selectionBackground"),
+		EditorInactiveSelectionBackground:      color("editor.inactiveSelectionBackground"),
+		EditorCursorForeground:                 color("editorCursor.foreground"),
+		EditorLineNumberForeground:             color("editorLineNumber.foreground"),
+		EditorLineNumberActiveForeground:       color("editorLineNumber.activeForeground"),
+		EditorGutterBackground:                 color("editorGutter.background"),
+		EditorWhitespaceForeground:             color("editorWhitespace.foreground"),
+		EditorIndentGuideBackground1:           color("editorIndentGuide.background1"),
+		EditorIndentGuideBackground:            guideColors(color, "editorIndentGuide.background"),
+		EditorIndentGuideActiveBackground:      guideColors(color, "editorIndentGuide.activeBackground"),
+		EditorBracketPairGuideBackground:       guideColors(color, "editorBracketPairGuide.background"),
+		EditorBracketPairGuideActiveBackground: guideColors(color, "editorBracketPairGuide.activeBackground"),
+		EditorRulerForeground:                  color("editorRuler.foreground"),
+		EditorBracketMatchBackground:           color("editorBracketMatch.background"),
+		EditorBracketMatchBorder:               color("editorBracketMatch.border"),
+		EditorBracketMatchForeground:           color("editorBracketMatch.foreground"),
 		EditorBracketHighlightForeground: [6]ui.Color{
 			color("editorBracketHighlight.foreground1"), color("editorBracketHighlight.foreground2"),
 			color("editorBracketHighlight.foreground3"), color("editorBracketHighlight.foreground4"),
@@ -147,4 +158,13 @@ func TokenThemeOf(bc widgets.BuildContext) *theme.TokenTheme {
 		return t.tokens
 	}
 	return nil
+}
+
+// guideColors reads the six colors of a family of guide colors (id1 to id6).
+func guideColors(color func(string) ui.Color, prefix string) [6]ui.Color {
+	var out [6]ui.Color
+	for i := range out {
+		out[i] = color(prefix + string(rune('1'+i)))
+	}
+	return out
 }

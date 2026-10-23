@@ -364,6 +364,21 @@ func TestShellHighlightsTheFile(t *testing.T) {
 	if pairs := ix.Pairs(buffer.Range{End: buffer.Position{Line: 1000}}); len(pairs) == 0 {
 		t.Error("the sample has bracket pairs")
 	}
+	// And the indentation: the rules of the languages, and the levels that the guides are drawn from.
+	if vm.Indenter() == nil || vm.GuideLevels() == nil {
+		t.Fatal("the editor has the indentation rules and the levels of the guides")
+	}
+	if !vm.Options().Guides.Indentation || vm.Options().AutoIndent != "full" {
+		t.Errorf("the settings of the indentation: %+v", vm.Options())
+	}
+	last := doc.Snapshot().LineCount() - 1
+	nested := false
+	for line := 0; line <= last && !nested; line++ {
+		nested = vm.GuideLevels().Level(line) > 0
+	}
+	if !nested {
+		t.Error("the sample has indented lines")
+	}
 	if errs := ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("the framework reported errors: %v", errs)
 	}

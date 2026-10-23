@@ -595,6 +595,8 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		LineHighlightBorder: colors.EditorLineHighlightBorder, Cursor: colors.EditorCursorForeground,
 		CursorText: oppositeColor(colors.EditorCursorForeground), Foreground: colors.EditorForeground,
 		BracketMatch: colors.EditorBracketMatchBackground, BracketMatchBorder: colors.EditorBracketMatchBorder,
+		Guides: NewGuideColors(colors.EditorIndentGuideBackground, colors.EditorIndentGuideActiveBackground,
+			colors.EditorBracketPairGuideBackground, colors.EditorBracketPairGuideActiveBackground, colors.EditorBracketHighlightForeground),
 	}
 	bracketColors := BracketColors{Levels: colors.EditorBracketHighlightForeground, Unexpected: colors.EditorBracketUnexpectedForeground}
 	scrollable := widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {

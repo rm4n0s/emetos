@@ -94,6 +94,8 @@ type Options struct {
 	// IndependentColorPool counts the levels for each type of bracket on its own
 	// (editor.bracketPairColorization.independentColorPoolPerBracketType).
 	IndependentColorPool bool
+	// Guides are the options editor.guides.*.
+	Guides indent.GuideOptions
 	// AutoIndent is editor.autoIndent: "none", "keep", "brackets", "advanced" or "full".
 	AutoIndent string
 	// AutoIndentOnPaste is editor.autoIndentOnPaste.
@@ -196,6 +198,10 @@ type ViewModel struct {
 	// languageCode is the code of the language of the document.
 	indenter     *indent.Indenter
 	languageCode int
+	// levels is the indentation of the lines, for the guides, or nil; offSide tells that the
+	// language is indented to nest.
+	levels  *indent.Levels
+	offSide bool
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
 	indentDefaults func() (tabSize int, insertSpaces bool)
 

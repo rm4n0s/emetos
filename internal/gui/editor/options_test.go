@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -66,7 +67,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		MultiCursorPaste: "spread", EmptySelectionClipboard: true,
 		FontWeight: 400, CursorStyle: "line",
 		MatchBrackets: "always", BracketPairColorization: true,
-		AutoIndent: "full", AutoIndentOnPasteWithinString: true,
+		AutoIndent: "full", AutoIndentOnPasteWithinString: true, Guides: indent.DefaultGuideOptions(),
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -112,9 +113,14 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.bracketPairColorization.enabled":                            false,
 		"editor.bracketPairColorization.independentColorPoolPerBracketType": true,
 
-		"editor.autoIndent":                    "brackets",
-		"editor.autoIndentOnPaste":             true,
-		"editor.autoIndentOnPasteWithinString": false,
+		"editor.guides.indentation":                false,
+		"editor.guides.highlightActiveIndentation": "always",
+		"editor.guides.bracketPairs":               "active",
+		"editor.guides.bracketPairsHorizontal":     false,
+		"editor.guides.highlightActiveBracketPair": false,
+		"editor.autoIndent":                        "brackets",
+		"editor.autoIndentOnPaste":                 true,
+		"editor.autoIndentOnPasteWithinString":     false,
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -132,6 +138,13 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	}
 	if got.MatchBrackets != "near" || got.BracketPairColorization || !got.IndependentColorPool {
 		t.Errorf("bracket options: %+v", got)
+	}
+	wantGuides := indent.GuideOptions{
+		Indentation: false, HighlightActiveIndentation: indent.HighlightAlways, BracketPairs: indent.PairsActive,
+		BracketPairsHorizontal: indent.HorizontalNone, HighlightActiveBracketPair: false, IndependentColorPool: true,
+	}
+	if got.Guides != wantGuides {
+		t.Errorf("guide options: %+v, want %+v", got.Guides, wantGuides)
 	}
 	if got.AutoIndent != "brackets" || !got.AutoIndentOnPaste || got.AutoIndentOnPasteWithinString {
 		t.Errorf("auto-indent options: %+v", got)
