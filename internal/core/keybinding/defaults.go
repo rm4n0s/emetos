@@ -56,6 +56,7 @@ func DefaultRegistry() *Registry {
 	registerLineKeys(r)
 	registerFoldingKeys(r)
 	registerFindKeys(r)
+	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
 	return r
 }
@@ -246,4 +247,11 @@ func registerFindKeys(r *Registry) {
 		widget("editor.action.replaceAll", "ctrl+enter", "findWidgetVisible", "replaceInputFocussed"),
 		widget("editor.action.selectAllMatches", "alt+enter", "findWidgetVisible"),
 	)
+}
+
+// registerWordWrapKeys registers the key of the command that toggles word wrap: Alt+Z.
+//
+// Ported from VS Code: src/vs/workbench/contrib/codeEditor/browser/toggleWordWrap.ts
+func registerWordWrapKeys(r *Registry) {
+	r.MustRegister(Rule{Command: "editor.action.toggleWordWrap", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "alt+z"})
 }

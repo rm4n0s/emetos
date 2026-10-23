@@ -21,6 +21,7 @@ func DefaultRegistry() *Registry {
 	registerCommentCommands(r)
 	registerFoldingCommands(r)
 	registerFindCommands(r)
+	registerWordWrapCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
 	return r
@@ -290,4 +291,11 @@ func registerFindCommands(r *Registry) {
 		Meta{ID: "editor.action.replaceAll", Title: "Replace All", Precondition: visible},
 		Meta{ID: "editor.action.selectAllMatches", Title: "Select All Occurrences of Find Match", Precondition: visible},
 	)
+}
+
+// registerWordWrapCommands registers the command that toggles word wrap.
+//
+// Ported from VS Code: src/vs/workbench/contrib/codeEditor/browser/toggleWordWrap.ts
+func registerWordWrapCommands(r *Registry) {
+	r.MustRegister(Meta{ID: "editor.action.toggleWordWrap", Title: "Toggle Word Wrap", Category: "View"})
 }

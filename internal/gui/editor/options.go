@@ -74,6 +74,11 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		CommentsInsertSpace:              settings.Get[bool](store, "editor.comments.insertSpace", languageID),
 		CommentsIgnoreEmptyLines:         settings.Get[bool](store, "editor.comments.ignoreEmptyLines", languageID),
 		WordSeparators:                   settings.Get[string](store, "editor.wordSeparators", languageID),
+		WordWrap:                         settings.Get[string](store, "editor.wordWrap", languageID),
+		WordWrapColumn:                   int(settings.Get[float64](store, "editor.wordWrapColumn", languageID)),
+		WrappingIndent:                   settings.Get[string](store, "editor.wrappingIndent", languageID),
+		WrappingStrategy:                 settings.Get[string](store, "editor.wrappingStrategy", languageID),
+		StopRenderingLineAfter:           int(settings.Get[float64](store, "editor.stopRenderingLineAfter", languageID)),
 
 		FindSeedSearchStringFromSelection: settings.Get[string](store, "editor.find.seedSearchStringFromSelection", languageID),
 		FindAutoInSelection:               settings.Get[string](store, "editor.find.autoFindInSelection", languageID),

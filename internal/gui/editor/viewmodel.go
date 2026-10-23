@@ -132,6 +132,14 @@ type Options struct {
 	// editor.find.cursorMoveOnType and FindLoop editor.find.loop.
 	FindSeedSearchStringFromSelection, FindAutoInSelection string
 	FindCloseOnResult, FindCursorMoveOnType, FindLoop      bool
+	// WordWrap is editor.wordWrap ("off", "on", "wordWrapColumn" or "bounded"), WordWrapColumn
+	// editor.wordWrapColumn, WrappingIndent editor.wrappingIndent ("none", "same", "indent" or
+	// "deepIndent"), WrappingStrategy editor.wrappingStrategy ("simple" or "advanced") and
+	// StopRenderingLineAfter editor.stopRenderingLineAfter (negative: no limit).
+	WordWrap                         string
+	WordWrapColumn                   int
+	WrappingIndent, WrappingStrategy string
+	StopRenderingLineAfter           int
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -246,6 +254,8 @@ type ViewModel struct {
 	fold foldLink
 	// find is the find model of the editor and what it is bound to (find.go).
 	findw findLink
+	// wrap is the word wrap of the editor (wordwrap.go).
+	wrap wrapLink
 	// afterTimer is the source of timers the editor widget gave.
 	afterTimer TimerFunc
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
@@ -341,17 +351,26 @@ func (vm *ViewModel) Projection() Projection {
 // Sync makes the projection match the document; it reports whether it changed.
 func (vm *ViewModel) Sync() bool {
 	version := vm.doc.Version()
-	if version == vm.syncedAt && vm.fold.epoch == vm.fold.syncedEpoch && vm.proj != nil {
+	key := vm.wrapKeyNow()
+	if version == vm.syncedAt && vm.fold.epoch == vm.fold.syncedEpoch && vm.proj != nil && !vm.wrapStale(key) {
 		return false
 	}
 	vm.syncedAt, vm.fold.syncedEpoch = version, vm.fold.epoch
+	vm.syncWrap(key)
 	lines := vm.doc.Snapshot().LineCount()
+	var folded *foldedProjection
 	if hidden := vm.hiddenLines(); len(hidden) > 0 {
-		folded := newFoldedProjection(lines, vm.opts.LineHeight, hidden)
-		vm.proj, vm.fold.hidden = folded, folded
-		return true
+		folded = newFoldedProjection(lines, vm.opts.LineHeight, hidden)
 	}
-	vm.proj, vm.fold.hidden = newIdentityProjection(lines, vm.opts.LineHeight), nil
+	vm.fold.hidden = folded
+	switch {
+	case vm.wrap.key.on:
+		vm.proj = newWrappedProjection(lines, vm.opts.LineHeight, folded, vm.wrap.breaks)
+	case folded != nil:
+		vm.proj = folded
+	default:
+		vm.proj = newIdentityProjection(lines, vm.opts.LineHeight)
+	}
 	return true
 }
 
@@ -424,6 +443,9 @@ func (vm *ViewModel) Layout() edit.LineLayout {
 	vm.Sync()
 	if vm.fold.hidden != nil {
 		l.Hidden = vm.fold.hidden.hiddenSpan
+	}
+	if wp, ok := vm.proj.(*wrappedProjection); ok {
+		l.Rows = wp
 	}
 	return l
 }
@@ -520,8 +542,13 @@ func (vm *ViewModel) SetTextMetrics(viewportW, viewportH, scrollExtent, widestRo
 		widest == vm.maxLineWidth && charWidth == vm.charWidth {
 		return
 	}
+	wrapChanged := vm.wrapMode() != "off" && (viewportW != vm.viewportW || charWidth != vm.charWidth)
 	vm.viewportW, vm.viewport, vm.scrollExtent, vm.maxLineWidth, vm.charWidth = viewportW, viewportH, scrollExtent, widest, charWidth
 	vm.metrics.NotifyListeners()
+	if wrapChanged {
+		// the rows depend on the width: the layer is laid out again after this layout
+		vm.post(vm.NotifyListeners)
+	}
 }
 
 // ViewportSize is the size of the text area as the last layout measured it.

@@ -476,6 +476,7 @@ func buildActions() map[string]action {
 	}
 	foldingActions(a)
 	findActions(a)
+	wrapActions(a)
 	devActions(a)
 	return a
 }

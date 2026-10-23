@@ -295,6 +295,50 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.wordWrap", Types: []Type{String}, Default: "off",
+			Enum: []any{"off", "on", "wordWrapColumn", "bounded"},
+			EnumDescriptions: []string{
+				"Lines will never wrap.",
+				"Lines will wrap at the viewport width.",
+				"Lines will wrap at `#editor.wordWrapColumn#`.",
+				"Lines will wrap at the minimum of the viewport and `#editor.wordWrapColumn#`.",
+			},
+			Description: "Controls how lines should wrap.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.wordWrapColumn", Types: []Type{Integer}, Default: 80, Minimum: Float(1),
+			Description: "Controls the wrapping column of the editor when `#editor.wordWrap#` is `wordWrapColumn` or `bounded`.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.wrappingIndent", Types: []Type{String}, Default: "same",
+			Enum: []any{"none", "same", "indent", "deepIndent"},
+			EnumDescriptions: []string{
+				"No indentation. Wrapped lines begin at column 1.",
+				"Wrapped lines get the same indentation as the parent.",
+				"Wrapped lines get +1 indentation toward the parent.",
+				"Wrapped lines get +2 indentation toward the parent.",
+			},
+			Description: "Controls the indentation of wrapped lines.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.wrappingStrategy", Types: []Type{String}, Default: "simple",
+			Enum: []any{"simple", "advanced"},
+			EnumDescriptions: []string{
+				"Assumes that all characters are of the same width. This is a fast algorithm that works correctly for monospace fonts and certain scripts (like Latin characters) where glyphs are of equal width.",
+				"Delegates wrapping points computation to the text engine. This is a slow algorithm, that might cause freezes for large files, but it works correctly in all cases.",
+			},
+			Description: "Controls the algorithm that computes wrapping points. Note that when in accessibility mode, advanced will be used for the best experience.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.stopRenderingLineAfter", Types: []Type{Integer}, Default: 10000, Minimum: Float(-1),
+			Description: "Lines longer than this many characters are not wrapped, and a negative value never stops.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.find.seedSearchStringFromSelection", Types: []Type{String}, Default: "always",
 			Enum: []any{"never", "always", "selection"},
 			EnumDescriptions: []string{

@@ -172,6 +172,10 @@ func scrollExtent(contentHeight, viewport, lineHeight float64, beyond bool) floa
 // the paragraphs of the visible rows and the margin around them.
 func (r *RenderEditorText) PerformLayout() {
 	size := r.Size()
+	// the text engine breaks the lines that word wrap cannot break by counting columns
+	if r.vm.wrapMode() != "off" {
+		r.vm.SetTextEngine(r.factory, newGeometry(r.vm, r.factory).isMonospace())
+	}
 	proj := r.vm.Projection()
 	opts := r.vm.Options()
 	extent := scrollExtent(proj.Height(), size.Height, opts.LineHeight, opts.ScrollBeyondLastLine)
@@ -187,6 +191,9 @@ func (r *RenderEditorText) PerformLayout() {
 	for row := max(first-rowMargin, 0); row <= min(last+rowMargin, proj.RowCount()-1); row++ {
 		if p := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
 			widest = max(widest, p.LongestLine())
+			if ri, ok := proj.(rowIndenter); ok {
+				widest += float64(ri.RowIndentColumns(row)) * r.vm.charWidth
+			}
 		}
 	}
 	charWidth := style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
@@ -262,9 +269,18 @@ func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.O
 	canvas.Save()
 	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
 	left := r.vm.ScrollLeft()
+	indenter, _ := proj.(rowIndenter)
+	charWidth := 0.0
+	if indenter != nil {
+		charWidth = style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
+	}
 	for row := first; row <= last; row++ {
 		if p := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
-			canvas.DrawParagraph(p, ui.Offset{Dx: offset.Dx - left, Dy: offset.Dy + proj.RowTop(row) - top})
+			x := offset.Dx - left
+			if indenter != nil {
+				x += float64(indenter.RowIndentColumns(row)) * charWidth // a row that continues a wrapped line
+			}
+			canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: offset.Dy + proj.RowTop(row) - top})
 		}
 	}
 	canvas.Restore()

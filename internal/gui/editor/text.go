@@ -50,6 +50,13 @@ func (s textStyle) key(text string) paragraphKey {
 // by the paragraph; wrapping splits the text into rows before). Tab stops come from the
 // tab size, so that offsets in the paragraph are byte columns of the text.
 func (s textStyle) build(text string, spans []span) *ui.Paragraph {
+	p := s.make(text, spans)
+	p.Layout(ui.NewParagraphConstraints(math.Inf(1)))
+	return p
+}
+
+// make builds the paragraph of a text that is not laid out yet.
+func (s textStyle) make(text string, spans []span) *ui.Paragraph {
 	size := s.opts.FontSize
 	family, fallback := "", []string(nil)
 	if len(s.opts.FontFamilies) > 0 {
@@ -113,9 +120,7 @@ func (s textStyle) build(text string, spans []span) *ui.Paragraph {
 			builder.AddText(text[at:])
 		}
 	}
-	p := builder.Build()
-	p.Layout(ui.NewParagraphConstraints(math.Inf(1)))
-	return p
+	return builder.Build()
 }
 
 // paragraph returns the paragraph of a text, from the cache when it is there.

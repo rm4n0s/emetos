@@ -50,13 +50,23 @@ func (g geometry) rowText(row int) (text string, start int) {
 	return text[start:end], start
 }
 
+// indentPx is how far a row is indented from the left edge of the text: the rows that word
+// wrap makes after the first of a line start further right (editor.wrappingIndent).
+func (g geometry) indentPx(row int) float64 {
+	if ri, ok := g.proj.(rowIndenter); ok {
+		return float64(ri.RowIndentColumns(row)) * g.charWidth
+	}
+	return 0
+}
+
 // x is the distance from the left edge of the text to a byte column of the line shown on a
 // row; a column before the row is its start and one after is its end.
 func (g geometry) x(row, col int) float64 {
+	indent := g.indentPx(row)
 	text, start := g.rowText(row)
 	rel := min(max(col-start, 0), len(text))
 	if rel == 0 {
-		return 0
+		return indent
 	}
 	p := g.style.paragraph(g.vm.Paragraphs(), text)
 	right := 0.0
@@ -66,7 +76,7 @@ func (g geometry) x(row, col int) float64 {
 	if right == 0 && rel == len(text) {
 		right = p.LongestLine()
 	}
-	return right
+	return indent + right
 }
 
 // rowEnd is the x of the end of a row's text.
@@ -93,7 +103,7 @@ func (g geometry) selectionRows(sel buffer.Selection, first, last int, rounded b
 	startRow, endRow := g.vm.RowOfPosition(start), g.vm.RowOfPosition(end)
 	var rows []selectionRow
 	for row := max(startRow, first-1); row <= min(endRow, last+1); row++ {
-		left := 0.0
+		left := g.indentPx(row)
 		if row == startRow {
 			left = g.x(row, start.Col)
 		}
@@ -117,11 +127,23 @@ func (g geometry) selectionRows(sel buffer.Selection, first, last int, rounded b
 	return rows
 }
 
-// cursorRows are the rows that have a cursor, each once, in order.
+// cursorRows are the rows that have a cursor, each once, in order; with word wrap all the rows of
+// the line of a cursor.
+//
+// Ported from VS Code: src/vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight.ts (the lines of a wrapped line)
 func cursorRows(vm *ViewModel) []int {
 	var rows []int
+	proj := vm.Projection()
 	for _, sel := range vm.Cursors().Selections() {
-		rows = append(rows, vm.RowOfPosition(sel.Active))
+		row := vm.RowOfPosition(sel.Active)
+		if !vm.wrap.key.on {
+			rows = append(rows, row)
+			continue
+		}
+		first, count := proj.LineRows(sel.Active.Line)
+		for r := first; r < first+max(count, 1); r++ {
+			rows = append(rows, r)
+		}
 	}
 	slices.Sort(rows)
 	return slices.Compact(rows)
@@ -229,7 +251,7 @@ func (g geometry) positionAt(x, y float64) buffer.Position {
 	row := g.proj.RowAt(y)
 	text, start := g.rowText(row)
 	line, _, _ := g.proj.RowSpan(row)
-	return buffer.Position{Line: line, Col: start + g.columnAt(text, x)}
+	return buffer.Position{Line: line, Col: start + g.columnAt(text, x-g.indentPx(row))}
 }
 
 // rectOf is the rectangle of the character at a position, in document coordinates: from the x

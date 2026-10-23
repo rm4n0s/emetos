@@ -341,7 +341,11 @@ func (s *editorState) foldTarget(local ui.Offset, pos buffer.Position, gutterWid
 		return 0, false, false
 	}
 	g := newGeometry(vm, textFactory(s.Context()))
-	rect := g.foldPlaceholder(vm.RowOfPosition(pos))
+	row := vm.RowOfPosition(pos)
+	if first, count := g.proj.LineRows(pos.Line); row != first+count-1 {
+		return 0, false, false // the placeholder is on the last row of a wrapped line
+	}
+	rect := g.foldPlaceholder(row)
 	x := local.Dx - gutterWidth + vm.ScrollLeft()
 	if x >= rect.Left && (x < rect.Right || opts.UnfoldOnClickAfterEndOfLine) {
 		return pos.Line, false, true

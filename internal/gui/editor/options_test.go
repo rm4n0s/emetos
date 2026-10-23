@@ -76,6 +76,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		WordSeparators:                    edit.DefaultWordSeparators,
 		FindSeedSearchStringFromSelection: "always", FindAutoInSelection: "never",
 		FindCursorMoveOnType: true, FindLoop: true,
+		WordWrap: "off", WordWrapColumn: 80, WrappingIndent: "same", WrappingStrategy: "simple", StopRenderingLineAfter: 10000,
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)

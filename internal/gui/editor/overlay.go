@@ -619,12 +619,15 @@ func (v overlayView) paintFolded() {
 	proj := v.geo.proj
 	style := newTextStyle(v.factory, vm.Options(), v.colors.FoldPlaceholder)
 	for row := v.first; row <= v.last; row++ {
-		line, start, _ := proj.RowSpan(row)
-		if start != 0 || !vm.FoldedLine(line) {
+		line, _, _ := proj.RowSpan(row)
+		if !vm.FoldedLine(line) {
 			continue
 		}
 		if vm.Options().FoldingHighlight && v.colors.FoldBackground.Alpha() > 0 {
 			v.canvas.DrawRect(v.rowRect(row, vm.ScrollLeft(), vm.ScrollLeft()+v.width), fill(v.colors.FoldBackground))
+		}
+		if first, count := proj.LineRows(line); row != first+count-1 {
+			continue // the placeholder is after the last row of a wrapped line
 		}
 		rect := v.geo.foldPlaceholder(row)
 		margin := foldPlaceholderMargin * vm.Options().FontSize
