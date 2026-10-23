@@ -43,6 +43,11 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.maxTokenizationLineLength", Types: []Type{Number}, Default: 20000,
+			Description: "Lines above this length will not be tokenized for performance reasons",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.detectIndentation", Types: []Type{Boolean}, Default: true,
 			Description: "Controls whether `editor.tabSize` and `editor.insertSpaces` will be automatically detected when a file is opened based on the file contents.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

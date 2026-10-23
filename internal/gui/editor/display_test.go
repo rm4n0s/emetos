@@ -221,10 +221,10 @@ func TestFontWeightAndLetterSpacingMakeOtherParagraphs(t *testing.T) {
 	if newTextStyle(factory, zero, white).fingerprint == a.fingerprint {
 		t.Log("weight 0 is its own key, and means normal")
 	}
-	if w1, w2 := a.build("hello").LongestLine(), c.build("hello").LongestLine(); w2 <= w1 {
+	if w1, w2 := a.build("hello", nil).LongestLine(), c.build("hello", nil).LongestLine(); w2 <= w1 {
 		t.Errorf("letter spacing makes the text wider: %v then %v", w1, w2)
 	}
-	if got := zero; newTextStyle(factory, got, white).build("x").LongestLine() != a.build("x").LongestLine() {
+	if got := zero; newTextStyle(factory, got, white).build("x", nil).LongestLine() != a.build("x", nil).LongestLine() {
 		t.Error("weight 0 draws as normal")
 	}
 }

@@ -171,6 +171,9 @@ type ViewModel struct {
 	// scroller scrolls the editor to a vertical position (the widget sets it).
 	scroller func(top float64)
 
+	// tok is the tokenization of the document the text layer draws.
+	tok tokenLink
+
 	// metrics tells the scrollbars that the sizes of the text area or of the content changed.
 	metrics *foundation.ChangeNotifier
 	// The layout of the text layer fills these in (see SetTextMetrics).

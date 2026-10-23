@@ -18,6 +18,9 @@ type paragraphKey struct {
 	style string
 	// tabSize is the distance between tab stops.
 	tabSize int
+	// spans are the colors and font styles of the parts of the text that the tokens and the
+	// theme give it; empty for text in one style.
+	spans string
 }
 
 // ParagraphCache keeps the laid-out paragraphs of rows, so that a row whose text and look

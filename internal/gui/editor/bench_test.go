@@ -14,6 +14,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
@@ -54,6 +55,67 @@ func benchEditor(b *testing.B, text string) (*ViewModel, *gluttertest.Tester) {
 	pumpEditorWith(b, ts, vm, EditorOpts{Autofocus: true})
 	ts.Pump(time.Millisecond)
 	return vm, ts
+}
+
+// benchHighlighted is benchEditor with the tokens and the colors of Dark Modern, as the app has
+// them: the visible lines are tokenized before they are drawn.
+func benchHighlighted(b *testing.B, text string) (*ViewModel, *gluttertest.Tester) {
+	b.Helper()
+	vm, _ := highlighted(b, text)
+	ts := testutil.New(b, ui.Size{Width: 1280, Height: 800})
+	pumpHighlighted(b, ts, vm, kit.DarkModern(), darkModernTokens(b))
+	ts.Pump(time.Millisecond)
+	return vm, ts
+}
+
+// BenchmarkTypeCharacter10kLinesHighlighted is BenchmarkTypeCharacter10kLines with syntax
+// highlighting: the typed character changes the tokens of its line, which is tokenized again
+// and drawn in colors (SPEC §14: under 4 ms).
+func BenchmarkTypeCharacter10kLinesHighlighted(b *testing.B) {
+	vm, ts := benchHighlighted(b, goLines(10_000))
+	for range 51 {
+		if err := vm.RunCommand("cursorDown", nil); err != nil {
+			b.Fatal(err)
+		}
+	}
+	ts.Pump(time.Millisecond)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := vm.RunCommand("type", "x"); err != nil {
+			b.Fatal(err)
+		}
+		ts.Pump(time.Millisecond)
+		if i%64 == 63 { // keep the line from growing without end
+			b.StopTimer()
+			_ = vm.RunCommand("deleteLeft", nil)
+			for range 63 {
+				_ = vm.RunCommand("deleteLeft", nil)
+			}
+			ts.Pump(time.Millisecond)
+			b.StartTimer()
+		}
+	}
+}
+
+// BenchmarkScrollPage100kLinesHighlighted is BenchmarkScrollPage100kLines with highlighting: each
+// page is tokenized on the UI thread before it is drawn, from the first line that is not done.
+func BenchmarkScrollPage100kLinesHighlighted(b *testing.B) {
+	vm, ts := benchHighlighted(b, goLines(100_000))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := vm.RunCommand("cursorPageDown", nil); err != nil {
+			b.Fatal(err)
+		}
+		ts.Pump(time.Millisecond)
+		if i%1000 == 999 { // back to the top: the tokens are there
+			b.StopTimer()
+			_ = vm.RunCommand("cursorTop", nil)
+			ts.Pump(time.Millisecond)
+			b.StartTimer()
+		}
+	}
 }
 
 // BenchmarkTypeCharacter10kLines is the frame that shows a typed character in a file of 10,000

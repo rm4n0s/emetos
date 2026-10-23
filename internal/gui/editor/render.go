@@ -6,6 +6,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/theme"
 )
 
 // rowMargin is how many rows beyond the visible ones layout prepares paragraphs for, so that
@@ -22,6 +23,9 @@ type RenderEditorText struct {
 	offset  rendering.ViewportOffset
 	factory ui.ParagraphFactory
 	color   ui.Color
+	// tokenTheme colors the tokens of the document; nil draws all the text in color.
+	tokenTheme *theme.TokenTheme
+	styles     *styleTable
 
 	offsetHandle foundation.ListenerHandle
 	vmHandle     foundation.ListenerHandle
@@ -68,6 +72,16 @@ func (r *RenderEditorText) SetColor(color ui.Color) {
 		return
 	}
 	r.color = color
+	r.MarkNeedsPaint()
+}
+
+// SetTokenTheme changes the theme that colors the tokens; nil makes the text one color.
+func (r *RenderEditorText) SetTokenTheme(t *theme.TokenTheme) {
+	if t == r.tokenTheme {
+		return
+	}
+	r.tokenTheme = t
+	r.styles = nil
 	r.MarkNeedsPaint()
 }
 
@@ -157,6 +171,7 @@ func (r *RenderEditorText) PerformLayout() {
 	first, last := proj.RowAt(top), proj.RowAt(top+size.Height)
 	style := r.style()
 	snap := r.vm.Document().Snapshot()
+	r.prepareTokens(proj, first, last)
 	widest := 0.0
 	for row := max(first-rowMargin, 0); row <= min(last+rowMargin, proj.RowCount()-1); row++ {
 		if p := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
@@ -185,11 +200,40 @@ func (r *RenderEditorText) rowParagraph(style textStyle, proj Projection, lineCo
 	if end < 0 || end > len(text) {
 		end = len(text)
 	}
-	text = text[min(start, end):end]
+	start = min(start, end)
+	text = text[start:end]
 	if text == "" {
 		return nil
 	}
-	return style.paragraph(r.vm.Paragraphs(), text)
+	return style.styledParagraph(r.vm.Paragraphs(), text, r.rowSpans(line, start, end))
+}
+
+// prepareTokens tokenizes, as far as there is time, up to the last line on the screen, so that
+// the lines about to be drawn have their colors, and tells the view model which lines those are.
+func (r *RenderEditorText) prepareTokens(proj Projection, first, last int) {
+	if r.vm.Tokenizer() == nil {
+		return
+	}
+	firstLine, _, _ := proj.RowSpan(max(first, 0))
+	lastLine, _, _ := proj.RowSpan(min(max(last, 0), proj.RowCount()-1))
+	r.vm.ensureTokens(firstLine, lastLine)
+}
+
+// rowSpans are the colored parts of the bytes [start, end) of a line, or nil when the line has
+// no tokens yet or there is no token theme.
+func (r *RenderEditorText) rowSpans(line, start, end int) []span {
+	tok := r.vm.Tokenizer()
+	if tok == nil || r.tokenTheme == nil {
+		return nil
+	}
+	lineTokens := tok.Line(line)
+	if lineTokens == nil {
+		return nil
+	}
+	if r.styles == nil || r.styles.scopes != tok.Scopes() {
+		r.styles = newStyleTable(r.tokenTheme, tok.Scopes())
+	}
+	return r.styles.spans(lineTokens, start, end)
 }
 
 // Paint draws the visible rows.
@@ -200,6 +244,7 @@ func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.O
 	first, last := proj.RowAt(top), proj.RowAt(top+size.Height)
 	style := r.style()
 	snap := r.vm.Document().Snapshot()
+	r.prepareTokens(proj, first, last)
 
 	canvas := context.Canvas()
 	canvas.Save()

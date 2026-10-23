@@ -170,3 +170,10 @@ func TestThemeSettingsAreRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenizationLineLengthIsRegistered(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("editor.maxTokenizationLineLength")
+	if !ok || s.Default != float64(20000) || s.Scope != ScopeLanguageOverridable {
+		t.Errorf("editor.maxTokenizationLineLength: %+v, %v", s, ok)
+	}
+}

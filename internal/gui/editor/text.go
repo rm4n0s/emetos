@@ -49,7 +49,7 @@ func (s textStyle) key(text string) paragraphKey {
 // build makes a paragraph of the text, laid out on one line (an editor row is never wrapped
 // by the paragraph; wrapping splits the text into rows before). Tab stops come from the
 // tab size, so that offsets in the paragraph are byte columns of the text.
-func (s textStyle) build(text string) *ui.Paragraph {
+func (s textStyle) build(text string, spans []span) *ui.Paragraph {
 	size := s.opts.FontSize
 	family, fallback := "", []string(nil)
 	if len(s.opts.FontFamilies) > 0 {
@@ -91,7 +91,28 @@ func (s textStyle) build(text string) *ui.Paragraph {
 		LeadingDistribution: ui.TextLeadingDistributionEven,
 		FontFeatures:        features,
 	}))
-	builder.AddText(text)
+	if len(spans) == 0 {
+		builder.AddText(text)
+	} else {
+		// Each span is drawn in its color and font style; what no span covers (the tokens of a
+		// line cut short) is in the base style.
+		at := 0
+		for _, sp := range spans {
+			start, end := min(max(sp.start, at), len(text)), min(sp.end, len(text))
+			if start > at {
+				builder.AddText(text[at:start])
+			}
+			if end > start {
+				builder.PushStyle(sp.textStyle())
+				builder.AddText(text[start:end])
+				builder.Pop()
+				at = end
+			}
+		}
+		if at < len(text) {
+			builder.AddText(text[at:])
+		}
+	}
 	p := builder.Build()
 	p.Layout(ui.NewParagraphConstraints(math.Inf(1)))
 	return p
@@ -99,7 +120,18 @@ func (s textStyle) build(text string) *ui.Paragraph {
 
 // paragraph returns the paragraph of a text, from the cache when it is there.
 func (s textStyle) paragraph(cache *ParagraphCache, text string) *ui.Paragraph {
-	return cache.get(s.key(text), func() *ui.Paragraph { return s.build(text) })
+	return cache.get(s.key(text), func() *ui.Paragraph { return s.build(text, nil) })
+}
+
+// styledParagraph returns the paragraph of a text drawn in spans (the tokens of a row with the
+// colors of the theme); the cache key has the spans. With no spans it is paragraph.
+func (s textStyle) styledParagraph(cache *ParagraphCache, text string, spans []span) *ui.Paragraph {
+	if len(spans) == 0 {
+		return s.paragraph(cache, text)
+	}
+	key := s.key(text)
+	key.spans = spansKey(spans)
+	return cache.get(key, func() *ui.Paragraph { return s.build(text, spans) })
 }
 
 // digitWidth is the width of the widest digit in this style, for the width of the gutter.

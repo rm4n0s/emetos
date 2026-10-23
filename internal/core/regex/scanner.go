@@ -15,10 +15,39 @@ const ScanTimeout = 100 * time.Millisecond
 // Line is a line of text prepared for searching: it is converted to runes once, whatever the
 // number of searches, and keeps the byte offset of every rune. A byte that is not valid UTF-8 is
 // the rune U+FFFD, one for each such byte. Offsets in the API of Scanner are bytes of the text.
+// It also remembers what each Scanner found in it (see Scanner.Find). It is safe for concurrent
+// use.
 type Line struct {
 	text    string
 	runes   []rune
 	offsets []int // the byte offset of each rune, and len(text) at the end; nil for ASCII
+
+	mu    sync.Mutex
+	found map[*Scanner][]patternResult
+}
+
+// patternResult is what a search of one pattern of a scanner found: the pattern (as compiled for
+// the search), the rune the search started at and the leftmost match from there, if any.
+type patternResult struct {
+	re    *Regexp
+	from  int
+	found bool
+	m     Match
+}
+
+// results are the remembered results of a scanner, one for each of its patterns.
+func (l *Line) results(s *Scanner) []patternResult {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if r, ok := l.found[s]; ok {
+		return r
+	}
+	if l.found == nil {
+		l.found = map[*Scanner][]patternResult{}
+	}
+	r := make([]patternResult, len(s.patterns))
+	l.found[s] = r
+	return r
 }
 
 // NewLine prepares text for searching.
@@ -182,18 +211,37 @@ func (s *Scanner) Find(line *Line, pos, anchorPos int, isFirstLine bool) (ScanMa
 	if pos < 0 || pos > len(line.text) {
 		return ScanMatch{}, false, nil
 	}
-	regs := s.variant(isFirstLine, pos == anchorPos)
+	allowG := pos == anchorPos
+	regs := s.variant(isFirstLine, allowG)
 	from := line.runeIndex(pos)
 	started := time.Now()
 	var best Match
 	bestPattern, bestStart := -1, 0
+	remembered := line.results(s)
+	line.mu.Lock() // the remembered results are read and written below
+	defer line.mu.Unlock()
 	for i, re := range regs {
 		if re == nil {
 			continue
 		}
-		m, ok, err := re.Find(line.runes, from)
-		if err != nil {
-			return ScanMatch{}, false, err
+		// The leftmost match from a position is the leftmost match from any later position up to
+		// where it starts, and no match from a position is no match from a later one. So what an
+		// earlier search found is kept, unless the pattern depends on where the search starts
+		// (\G, which is live only where it is allowed).
+		var m Match
+		var ok bool
+		r := &remembered[i]
+		if r.re == re && r.from <= from && (!r.found || r.m.Groups[0].Start >= from) {
+			m, ok = r.m, r.found
+		} else {
+			var err error
+			m, ok, err = re.Find(line.runes, from)
+			if err != nil {
+				return ScanMatch{}, false, err
+			}
+			if !allowG || !re.UsesAnchorPosition() {
+				*r = patternResult{re: re, from: from, found: ok, m: m}
+			}
 		}
 		if !ok {
 			continue

@@ -78,24 +78,38 @@ func DarkModern() Colors {
 	return ColorsOf(theme.NewColorTheme(t, theme.DefaultColorRegistry()))
 }
 
-// Theme is the inherited widget that gives its subtree the workbench colors.
+// Theme is the inherited widget that gives its subtree the workbench colors and, for the editors,
+// the theme that colors tokens.
 type Theme struct {
 	widgets.InheritedWidget
 	colors Colors
+	tokens *theme.TokenTheme
+}
+
+// ThemeOpts are the options of NewTheme.
+type ThemeOpts struct {
+	// Tokens gives the colors and font styles of the tokens of a language (SPEC §8.4). Editors
+	// below a Theme without it show their text in the editor's foreground color.
+	Tokens *theme.TokenTheme
 }
 
 // NewTheme makes a Theme with the given colors for the child.
-func NewTheme(colors Colors, child widgets.Widget) *Theme {
-	return &Theme{InheritedWidget: widgets.NewInheritedWidgetBase(child), colors: colors}
+func NewTheme(colors Colors, child widgets.Widget, opts ...ThemeOpts) *Theme {
+	t := &Theme{InheritedWidget: widgets.NewInheritedWidgetBase(child), colors: colors}
+	if len(opts) > 0 {
+		t.tokens = opts[0].Tokens
+	}
+	return t
 }
 
 // Colors are the colors the Theme gives.
 func (t *Theme) Colors() Colors { return t.colors }
 
 // UpdateShouldNotify implements widgets.InheritedWidgetInterface: dependents are rebuilt
-// when a color changed.
+// when a color or the token theme changed.
 func (t *Theme) UpdateShouldNotify(old widgets.Widget) bool {
-	return t.colors != old.(*Theme).colors
+	o := old.(*Theme)
+	return t.colors != o.colors || t.tokens != o.tokens
 }
 
 // ThemeOf returns the colors of the nearest Theme above bc, and rebuilds the caller when
@@ -105,4 +119,13 @@ func ThemeOf(bc widgets.BuildContext) Colors {
 		return t.colors
 	}
 	return DarkModern()
+}
+
+// TokenThemeOf returns the token theme of the nearest Theme above bc, or nil when there is none
+// or it has none, and rebuilds the caller when it changes.
+func TokenThemeOf(bc widgets.BuildContext) *theme.TokenTheme {
+	if t, ok := widgets.DependOn[*Theme](bc); ok {
+		return t.tokens
+	}
+	return nil
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
@@ -169,6 +170,8 @@ type shellState struct {
 	view *editor.ViewModel
 	// unsubscribe stops following the settings.
 	unsubscribe func()
+	// tokenizer keeps the tokens of the document the editor shows.
+	tokenizer *tokens.Tokenizer
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -219,6 +222,7 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 		return editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
 	}
 	s.view = editor.NewViewModel(doc, options(), nil)
+	s.startTokenizer(win, doc)
 	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("editor", "") {
 			binding.Post(func() { s.view.SetOptions(options()) })
@@ -226,10 +230,29 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 	})
 }
 
-// Dispose stops following the settings.
+// startTokenizer makes the tokenizer of the document, with the grammar of its language, gives it
+// to the editor and starts its background loop, which ends with the state. A language with no
+// grammar has none; a grammar that cannot be made is reported and the text stays plain.
+func (s *shellState) startTokenizer(win *Window, doc *document.Document) {
+	languageID := doc.LanguageID()
+	maxLine := int(settings.Get[float64](win.Settings, "editor.maxTokenizationLineLength", languageID))
+	grammar, err := win.Process.Grammar(languageID, maxLine)
+	if err != nil {
+		win.Process.Notify.Warn("Emetos", "Cannot highlight the "+languageID+" file: "+describe(err))
+	}
+	s.tokenizer = tokens.New(doc, grammar, tokens.Options{})
+	s.view.SetTokenizer(s.tokenizer)
+	s.Go(s.tokenizer.Run)
+}
+
+// Dispose stops following the settings and the document.
 func (s *shellState) Dispose() {
 	if s.unsubscribe != nil {
 		s.unsubscribe()
+	}
+	if s.tokenizer != nil {
+		s.view.SetTokenizer(nil)
+		s.tokenizer.Close()
 	}
 }
 

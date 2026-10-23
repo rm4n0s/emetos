@@ -48,6 +48,14 @@ func (s *ScopeStack) Names() []string {
 	return names
 }
 
+// Parent is the stack without its innermost scope, or nil for a stack of one scope or none.
+func (s *ScopeStack) Parent() *ScopeStack {
+	if s == nil {
+		return nil
+	}
+	return s.parent
+}
+
 // Top is the innermost scope, or "" when there is none.
 func (s *ScopeStack) Top() string {
 	if s == nil {

@@ -57,6 +57,7 @@ type themeHostState struct {
 	binding     *widgets.WidgetsBinding
 	service     *theme.Service
 	colors      kit.Colors
+	tokens      *theme.TokenTheme
 	observer    *brightnessObserver
 	unsubscribe func()
 }
@@ -75,7 +76,7 @@ func (s *themeHostState) InitState() {
 	s.binding = widgets.WidgetsBindingOf(s.Context())
 	s.service = PeekWindow(s.Context()).Process.Themes
 	s.reportBrightness()
-	s.colors = kit.ColorsOf(s.service.Current())
+	s.setTheme(s.service.Current())
 	s.observer = &brightnessObserver{changed: s.reportBrightness}
 	s.binding.AddObserver(s.observer)
 	s.unsubscribe = s.service.OnChange(func(ct *theme.ColorTheme) {
@@ -83,9 +84,15 @@ func (s *themeHostState) InitState() {
 			if !s.Mounted() {
 				return
 			}
-			s.SetState(func() { s.colors = kit.ColorsOf(ct) })
+			s.SetState(func() { s.setTheme(ct) })
 		})
 	})
+}
+
+// setTheme takes the colors and the token theme of a theme.
+func (s *themeHostState) setTheme(ct *theme.ColorTheme) {
+	s.colors = kit.ColorsOf(ct)
+	s.tokens = ct.Theme().TokenTheme(nil)
 }
 
 // reportBrightness tells the service whether the system's color scheme is dark. A failure to
@@ -103,5 +110,24 @@ func (s *themeHostState) Dispose() {
 
 // Build implements widgets.State.
 func (s *themeHostState) Build(widgets.BuildContext) widgets.Widget {
-	return kit.NewTheme(s.colors, s.Widget().build(s.colors))
+	return kit.NewTheme(s.colors, s.Widget().build(s.colors), kit.ThemeOpts{Tokens: s.tokens})
+}
+
+// followLanguages gives the language registry the file associations of the window's settings,
+// now and whenever they change, and makes the documents of the window take their language from
+// it. An association that is not valid is logged.
+func (w *Window) followLanguages() {
+	apply := func() {
+		value := settings.Get[map[string]any](w.Settings, "files.associations", "")
+		for _, err := range w.Process.Languages.SetFileAssociations(value) {
+			w.Process.Logger.Warn("file association", "err", err)
+		}
+	}
+	apply()
+	w.Settings.OnChange(func(e settings.ChangeEvent) {
+		if e.Affects("files.associations", "") {
+			apply()
+		}
+	})
+	w.Documents.SetLanguageDetector(w.Process.Languages.Detect)
 }

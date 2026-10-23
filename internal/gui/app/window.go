@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -95,6 +96,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		ctx:         ctx,
 	}
 	w.followTheme()
+	w.followLanguages()
 	return w, nil
 }
 
@@ -103,8 +105,19 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 type Documents struct {
 	mu   sync.Mutex
 	open map[document.URI]*document.Document
+	// detect gives the language of a file from its path and first line; nil leaves the language
+	// the options say.
+	detect func(path, firstLine string) string
 	// order is the URIs in the order they were opened.
 	order []document.URI
+}
+
+// SetLanguageDetector makes OpenFile give a document the language that detect says for its path
+// and first line, unless the options of OpenFile name one.
+func (d *Documents) SetLanguageDetector(detect func(path, firstLine string) string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.detect = detect
 }
 
 // NewDocuments makes an empty set.
@@ -125,6 +138,13 @@ func (d *Documents) OpenFile(ctx context.Context, path string, opts document.Opt
 	res, err := fileio.Read(ctx, path, fileio.ReadOptions{})
 	if err != nil {
 		return nil, err
+	}
+	d.mu.Lock()
+	detect := d.detect
+	d.mu.Unlock()
+	if detect != nil && (opts.LanguageID == "" || opts.LanguageID == document.DefaultLanguage) {
+		firstLine, _, _ := strings.Cut(res.Text, "\n")
+		opts.LanguageID = detect(path, firstLine)
 	}
 	doc = document.FromRead(uri, res, opts)
 	d.mu.Lock()

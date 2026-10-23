@@ -335,3 +335,103 @@ func TestEditorFollowsTheDisplaySettingsAndTheZoom(t *testing.T) {
 		t.Errorf("the framework reported errors: %v", errs)
 	}
 }
+
+func TestShellHighlightsTheFile(t *testing.T) {
+	win := newTestWindow(t, "")
+	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.LanguageID() != "go" {
+		t.Fatalf("the language of sample.go is %q", doc.LanguageID())
+	}
+	ts := testutil.New(t, testWindowSize)
+	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
+	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
+	tok := vm.Tokenizer()
+	if tok == nil || !tok.Active() {
+		t.Fatal("the editor has a tokenizer with a grammar")
+	}
+	if tok.Line(0) == nil {
+		t.Error("the first line is tokenized before it is drawn")
+	}
+	if errs := ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("the framework reported errors: %v", errs)
+	}
+}
+
+func TestPlainTextIsNotTokenized(t *testing.T) {
+	win := newTestWindow(t, "")
+	path := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(path, []byte("just words\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := win.Documents.OpenFile(context.Background(), path, document.NewOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.LanguageID() != "plaintext" {
+		t.Fatalf("language %q", doc.LanguageID())
+	}
+	ts := testutil.New(t, testWindowSize)
+	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
+	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
+	if vm.Tokenizer().Active() || vm.Tokenizer().Line(0) != nil {
+		t.Error("a language with no grammar has no tokens")
+	}
+	if n := len(win.Process.Notify.Items()); n != 0 {
+		t.Errorf("plain text is no problem: %+v", win.Process.Notify.Items())
+	}
+}
+
+func TestFileAssociationsChooseTheLanguage(t *testing.T) {
+	paths := testutil.Isolate(t)
+	testutil.Settings(t, paths, map[string]any{"files.associations": map[string]any{"*.sample": "go", "*.json": "jsonc"}})
+	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	for name, want := range map[string]string{"a.sample": "go", "b.json": "jsonc", "c.py": "python", "#!": "plaintext"} {
+		path := filepath.Join(dir, strings.ReplaceAll(name, "#!", "script"))
+		if err := os.WriteFile(path, []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		doc, err := win.Documents.OpenFile(context.Background(), path, document.NewOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if doc.LanguageID() != want {
+			t.Errorf("%s: language %q, want %q", name, doc.LanguageID(), want)
+		}
+	}
+	// The first line decides when the name does not.
+	path := filepath.Join(dir, "run")
+	if err := os.WriteFile(path, []byte("#!/usr/bin/env python3\nprint(1)\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := win.Documents.OpenFile(context.Background(), path, document.NewOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.LanguageID() != "python" {
+		t.Errorf("a python shebang: %q", doc.LanguageID())
+	}
+}
+
+func TestProcessGrammars(t *testing.T) {
+	p := NewProcess(ProcessOptions{Paths: testutil.Isolate(t)})
+	g1, err := p.Grammar("go", 0)
+	if err != nil || g1 == nil {
+		t.Fatalf("go: %v %v", g1, err)
+	}
+	if g2, _ := p.Grammar("go", 0); g2 != g1 {
+		t.Error("a grammar is made once and shared")
+	}
+	if g3, _ := p.Grammar("go", 5000); g3 == g1 {
+		t.Error("a grammar with another line limit is another grammar")
+	}
+	if g, err := p.Grammar("plaintext", 0); g != nil || err != nil {
+		t.Errorf("plain text has no grammar and no error: %v %v", g, err)
+	}
+}

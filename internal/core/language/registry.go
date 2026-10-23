@@ -389,6 +389,29 @@ func (r *Registry) Injections(scopeName string) []string {
 // GrammarNotRegistered when no grammar is for the language and GrammarNotFound when the grammar
 // cannot be read.
 func (r *Registry) NewGrammar(languageID string, cache *regex.Cache) (*textmate.Grammar, error) {
+	return r.NewGrammarWith(languageID, GrammarSettings{Cache: cache})
+}
+
+// GrammarSettings are what NewGrammarWith adds to a grammar.
+type GrammarSettings struct {
+	// Cache compiles the patterns; nil compiles them without a shared cache.
+	Cache *regex.Cache
+	// MaxLineBytes is editor.maxTokenizationLineLength: a line of this many bytes or more is one
+	// token; zero is the default of the tokenizer (20,000).
+	MaxLineBytes int
+}
+
+// HasGrammar tells whether a grammar is registered for the language.
+func (r *Registry) HasGrammar(languageID string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	scope, ok := r.langScope[languageID]
+	return ok && r.grammars[scope] != nil
+}
+
+// NewGrammarWith is NewGrammar with settings.
+func (r *Registry) NewGrammarWith(languageID string, settings GrammarSettings) (*textmate.Grammar, error) {
+	cache := settings.Cache
 	r.mu.RLock()
 	scope, ok := r.langScope[languageID]
 	def := r.grammars[scope]
@@ -407,7 +430,7 @@ func (r *Registry) NewGrammar(languageID string, cache *regex.Cache) (*textmate.
 	if !ok || def == nil {
 		return nil, errors.New("GrammarNotRegistered", "no grammar is registered for this language", "language", languageID)
 	}
-	opts := textmate.GrammarOptions{Cache: cache, InitialLanguage: r.Code(languageID), EmbeddedLanguages: map[string]int{}, TokenTypes: map[string]textmate.TokenType{}}
+	opts := textmate.GrammarOptions{Cache: cache, MaxLineBytes: settings.MaxLineBytes, InitialLanguage: r.Code(languageID), EmbeddedLanguages: map[string]int{}, TokenTypes: map[string]textmate.TokenType{}}
 	for scope, lang := range embedded {
 		if r.IsRegistered(lang) {
 			opts.EmbeddedLanguages[scope] = r.Code(lang)

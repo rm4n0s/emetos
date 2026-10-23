@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -27,17 +28,20 @@ type textLayer struct {
 	vm     *ViewModel
 	offset rendering.ViewportOffset
 	color  ui.Color
+	// tokens colors the tokens of the document; nil draws the text in color.
+	tokens *theme.TokenTheme
 	// created is told of the render object when it is made.
 	created func(*RenderEditorText)
 }
 
-func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color, created func(*RenderEditorText)) *textLayer {
-	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color, created: created}
+func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color, tokens *theme.TokenTheme, created func(*RenderEditorText)) *textLayer {
+	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color, tokens: tokens, created: created}
 }
 
 // CreateRenderObject implements widgets.RenderObjectWidget.
 func (w *textLayer) CreateRenderObject(bc widgets.BuildContext) rendering.RenderObject {
 	r := NewRenderEditorText(w.vm, w.offset, textFactory(bc), w.color)
+	r.SetTokenTheme(w.tokens)
 	if w.created != nil {
 		w.created(r)
 	}
@@ -50,6 +54,7 @@ func (w *textLayer) UpdateRenderObject(bc widgets.BuildContext, ro rendering.Ren
 	r.SetViewModel(w.vm)
 	r.SetOffset(w.offset)
 	r.SetColor(w.color)
+	r.SetTokenTheme(w.tokens)
 	r.SetFactory(textFactory(bc))
 }
 
@@ -263,6 +268,7 @@ func (s *editorState) InitState() {
 	vm.SetScroller(s.scrollTo)
 
 	s.binding = widgets.WidgetsBindingOf(s.Context())
+	vm.SetPoster(s.binding.Post)
 	s.windowFocused = true
 	s.observer = &focusObserver{onFocus: func(focused bool) {
 		s.windowFocused = focused
@@ -574,6 +580,7 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors) widgets.Widget {
 	gutterWidth := vm.GutterWidths(textFactory(bc)).Total()
 	s.gutterWidth = gutterWidth
+	tokenTheme := kit.TokenThemeOf(bc)
 	gutterColors := GutterColors{
 		LineNumber: colors.EditorLineNumberForeground, ActiveLineNumber: colors.EditorLineNumberActiveForeground,
 		LineHighlight: colors.EditorLineHighlightBackground, LineHighlightBorder: colors.EditorLineHighlightBorder,
@@ -590,7 +597,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 				widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
 			widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
 				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
-				newTextLayer(vm, offset, colors.EditorForeground, func(r *RenderEditorText) { s.textRO = r }),
+				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, func(r *RenderEditorText) { s.textRO = r }),
 				newOverlayLayer(overlayCursors, vm, offset, overlayColors),
 			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{Cursor: mouseCursor(s.mouseStyle(vm))})),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)

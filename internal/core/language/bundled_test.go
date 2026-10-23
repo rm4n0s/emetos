@@ -56,6 +56,17 @@ func TestBundledRegistry(t *testing.T) {
 			}
 		})
 	}
+	if !r.HasGrammar("go") || r.HasGrammar("plaintext") || r.HasGrammar("nope") {
+		t.Error("HasGrammar tells the languages with a grammar")
+	}
+	// A line of a few bytes is one token when it is the limit.
+	g, err := r.NewGrammarWith("go", GrammarSettings{MaxLineBytes: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res := g.TokenizeLine("package main", nil, 0); len(res.Tokens) != 1 {
+		t.Errorf("a line over the limit is one token: %+v", res.Tokens)
+	}
 	// Every language with a grammar makes a tokenizer.
 	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact"} {
 		if _, err := r.NewGrammar(id, nil); err != nil {

@@ -90,7 +90,7 @@ func TestTheRegistryIsTheRegistryOfGrammars(t *testing.T) {
 	if _, err := r.NewGrammar("plaintext", nil); err == nil {
 		t.Error("plain text has no grammar")
 	} else {
-		wantTag(t, err, "Registry.NewGrammar.GrammarNotRegistered")
+		wantTag(t, err, "Registry.NewGrammarWith.GrammarNotRegistered")
 	}
 	if _, err := r.NewGrammar("unknown", nil); err == nil {
 		t.Error("an unknown language has no grammar")
@@ -98,7 +98,7 @@ func TestTheRegistryIsTheRegistryOfGrammars(t *testing.T) {
 	if _, err := r.NewGrammar("broken", nil); err == nil {
 		t.Error("a grammar that cannot be read")
 	} else {
-		wantTag(t, err, "Registry.NewGrammar->NewGrammar.GrammarNotFound")
+		wantTag(t, err, "Registry.NewGrammarWith->NewGrammar.GrammarNotFound")
 	}
 	if _, err := r.NewGrammar("missing", nil); err == nil {
 		t.Error("a grammar file that is not there")
