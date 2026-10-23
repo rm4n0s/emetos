@@ -4,6 +4,8 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/ui"
+
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 )
 
 // rowMargin is how many rows beyond the visible ones layout prepares paragraphs for, so that
@@ -145,19 +147,24 @@ func scrollExtent(contentHeight, viewport, lineHeight float64, beyond bool) floa
 // the paragraphs of the visible rows and the margin around them.
 func (r *RenderEditorText) PerformLayout() {
 	size := r.Size()
-	r.vm.SetViewportHeight(size.Height)
 	proj := r.vm.Projection()
 	opts := r.vm.Options()
+	extent := scrollExtent(proj.Height(), size.Height, opts.LineHeight, opts.ScrollBeyondLastLine)
 	r.offset.ApplyViewportDimension(size.Height)
-	r.offset.ApplyContentDimensions(0, scrollExtent(proj.Height(), size.Height, opts.LineHeight, opts.ScrollBeyondLastLine))
+	r.offset.ApplyContentDimensions(0, extent)
 
 	top := r.top()
 	first, last := proj.RowAt(top), proj.RowAt(top+size.Height)
 	style := r.style()
 	snap := r.vm.Document().Snapshot()
+	widest := 0.0
 	for row := max(first-rowMargin, 0); row <= min(last+rowMargin, proj.RowCount()-1); row++ {
-		r.rowParagraph(style, proj, snap.LineContent, row)
+		if p := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
+			widest = max(widest, p.LongestLine())
+		}
 	}
+	charWidth := style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
+	r.vm.SetTextMetrics(size.Width, size.Height, extent, widest, charWidth)
 }
 
 // top is the vertical scroll position.
@@ -204,4 +211,20 @@ func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.O
 		}
 	}
 	canvas.Restore()
+}
+
+// PositionAt is the position of the document nearest to a point of the text layer, given in
+// the layer's own coordinates: the row from the projection, then the column from the
+// paragraph of the row, or from the width of a character for plain ASCII in a monospace font.
+// A point above or below the rows is the first or last row, and one past the end of a line is
+// its end.
+func (r *RenderEditorText) PositionAt(local ui.Offset) buffer.Position {
+	return newGeometry(r.vm, r.factory).positionAt(local.Dx+r.vm.ScrollLeft(), local.Dy+r.top())
+}
+
+// RectOf is the rectangle of the character at a position, in the layer's own coordinates: as
+// high as the row and as wide as the character, or one character at the end of a line. It can
+// lie outside the layer when the position is scrolled out of view.
+func (r *RenderEditorText) RectOf(p buffer.Position) ui.Rect {
+	return newGeometry(r.vm, r.factory).rectOf(p).Shift(ui.Offset{Dx: -r.vm.ScrollLeft(), Dy: -r.top()})
 }

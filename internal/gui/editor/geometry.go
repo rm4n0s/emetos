@@ -1,11 +1,15 @@
 package editor
 
 import (
+	"math"
 	"slices"
+	"sort"
+	"unicode/utf8"
 
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/edit"
 )
 
 // geometry measures positions of the document in the rows of the editor, through the same
@@ -149,4 +153,97 @@ func highlightInContent(o Options, focused, selectionsEmpty bool) bool {
 func highlightInMargin(o Options, focused bool) bool {
 	return (o.RenderLineHighlight == "gutter" || o.RenderLineHighlight == "all") &&
 		(!o.RenderLineHighlightOnlyWhenFocus || focused)
+}
+
+// scrollBeyondLastColumn is how many characters of room the horizontal scroll leaves after the
+// longest line.
+const scrollBeyondLastColumn = 4
+
+// isMonospace tells whether the font has one width for every character, by measuring a narrow
+// and a wide one.
+func (g geometry) isMonospace() bool {
+	narrow := g.style.paragraph(g.vm.Paragraphs(), "i").LongestLine()
+	wide := g.style.paragraph(g.vm.Paragraphs(), "W").LongestLine()
+	return math.Abs(narrow-wide) < 0.001 && math.Abs(narrow-g.charWidth) < 0.001
+}
+
+// asciiWithoutTabs tells whether a text is made of single-column characters whose x is the
+// column times the width of a character.
+func asciiWithoutTabs(text string) bool {
+	for i := range len(text) {
+		if c := text[i]; c >= utf8.RuneSelf || c == '\t' || c < ' ' {
+			return false
+		}
+	}
+	return true
+}
+
+// columnAt is the byte column of a text nearest to x, at the start of a grapheme: the column
+// before a character when x is in its left half, after it otherwise. An x before the text is
+// column 0 and one past the end is the length of the text.
+func (g geometry) columnAt(text string, x float64) int {
+	if text == "" || x <= 0 {
+		return 0
+	}
+	if asciiWithoutTabs(text) && g.isMonospace() {
+		return min(int(math.Floor(x/g.charWidth+0.5)), len(text))
+	}
+	return g.slowColumnAt(text, x)
+}
+
+// slowColumnAt finds the column through the paragraph: a binary search over the grapheme
+// boundaries of the text with the x of each from the paragraph's boxes.
+func (g geometry) slowColumnAt(text string, x float64) int {
+	bounds := edit.GraphemeBoundaries(text)
+	p := g.style.paragraph(g.vm.Paragraphs(), text)
+	xAt := func(col int) float64 {
+		if col == 0 {
+			return 0
+		}
+		right := 0.0
+		for _, b := range p.GetBoxesForRange(0, col) {
+			right = max(right, b.Right)
+		}
+		if right == 0 && col == len(text) {
+			right = p.LongestLine()
+		}
+		return right
+	}
+	// the first boundary at or after x
+	i := sort.Search(len(bounds), func(i int) bool { return xAt(bounds[i]) >= x })
+	if i == len(bounds) {
+		return len(text)
+	}
+	if i > 0 && x-xAt(bounds[i-1]) < xAt(bounds[i])-x {
+		i--
+	}
+	return bounds[i]
+}
+
+// positionAt is the position of the document nearest to a point, in document coordinates (x
+// from the left edge of the text, y from the top of the first row).
+//
+// Ported from VS Code: src/vs/editor/browser/controller/mouseTarget.ts (the content position of a point, without the
+// special cases of decorations)
+func (g geometry) positionAt(x, y float64) buffer.Position {
+	row := g.proj.RowAt(y)
+	text, start := g.rowText(row)
+	line, _, _ := g.proj.RowSpan(row)
+	return buffer.Position{Line: line, Col: start + g.columnAt(text, x)}
+}
+
+// rectOf is the rectangle of the character at a position, in document coordinates: from the x
+// of the position to the x of the next grapheme, as high as the row. At the end of a line it is
+// as wide as one character.
+func (g geometry) rectOf(p buffer.Position) ui.Rect {
+	row := g.vm.RowOfPosition(p)
+	text, start := g.rowText(row)
+	col := min(max(p.Col-start, 0), len(text))
+	left := g.x(row, start+col)
+	right := left + g.charWidth
+	if col < len(text) {
+		right = g.x(row, start+edit.NextGrapheme(text, col))
+	}
+	top := g.proj.RowTop(row)
+	return ui.NewRectFromLTRB(left, top, max(right, left), top+g.proj.RowHeight(row))
 }

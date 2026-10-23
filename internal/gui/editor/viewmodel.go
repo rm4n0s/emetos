@@ -98,6 +98,11 @@ type ViewModel struct {
 	sel     *foundation.ChangeNotifier
 	blink   *cursorBlink
 	focused bool
+
+	// metrics tells the scrollbars that the sizes of the text area or of the content changed.
+	metrics *foundation.ChangeNotifier
+	// The layout of the text layer fills these in (see SetTextMetrics).
+	viewportW, scrollExtent, maxLineWidth, charWidth float64
 }
 
 // NewViewModel makes the view model of a document with the cursor at its start.
@@ -117,6 +122,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		sel:            foundation.NewChangeNotifier(),
 		blink:          newCursorBlink(),
 		focused:        true,
+		metrics:        foundation.NewChangeNotifier(),
 	}
 	vm.Sync()
 	vm.restartBlink()
@@ -140,6 +146,7 @@ func (vm *ViewModel) SetOptions(opts Options) {
 	}
 	vm.opts = opts
 	vm.syncedAt = -1
+	vm.maxLineWidth = 0 // the font may have changed: the rows measure it again
 	vm.Sync()
 	vm.restartBlink()
 	vm.NotifyListeners()
@@ -150,6 +157,7 @@ func sameOptions(a, b Options) bool { return reflect.DeepEqual(a, b) }
 // DocumentChanged tells the view model that the document changed: the projection is made
 // again and the layers are redrawn. The unchanged rows keep their paragraphs in the cache.
 func (vm *ViewModel) DocumentChanged() {
+	vm.maxLineWidth = 0 // the longest line may be gone: the rows measure it again
 	vm.Sync()
 	vm.restartBlink()
 	vm.NotifyListeners()
@@ -186,9 +194,13 @@ func (vm *ViewModel) ScrollLeft() float64 { return vm.scrollLeft }
 // scrollable's offset, and the view model records what it was told.
 func (vm *ViewModel) SetScrollTop(top float64) { vm.scrollTop = max(top, 0) }
 
-// SetScrollLeft sets the horizontal scroll position and repaints.
+// SetScrollLeft sets the horizontal scroll position, within the content once the text layer
+// has measured it, and repaints.
 func (vm *ViewModel) SetScrollLeft(left float64) {
 	left = max(left, 0)
+	if vm.viewportW > 0 {
+		left = min(left, vm.MaxScrollLeft())
+	}
 	if left == vm.scrollLeft {
 		return
 	}
@@ -296,3 +308,43 @@ func (vm *ViewModel) RowOfPosition(p buffer.Position) int {
 	}
 	return first
 }
+
+// SetTextMetrics records what the layout of the text layer measured: the size of the text
+// area, how far the content scrolls vertically, the width of the widest row it laid out and the
+// width of a character. The widest row only grows until the document or the font changes. The
+// listeners of the metrics (the scrollbars) are told when something changed.
+func (vm *ViewModel) SetTextMetrics(viewportW, viewportH, scrollExtent, widestRow, charWidth float64) {
+	widest := max(vm.maxLineWidth, widestRow)
+	if viewportW == vm.viewportW && viewportH == vm.viewport && scrollExtent == vm.scrollExtent &&
+		widest == vm.maxLineWidth && charWidth == vm.charWidth {
+		return
+	}
+	vm.viewportW, vm.viewport, vm.scrollExtent, vm.maxLineWidth, vm.charWidth = viewportW, viewportH, scrollExtent, widest, charWidth
+	vm.metrics.NotifyListeners()
+}
+
+// ViewportSize is the size of the text area as the last layout measured it.
+func (vm *ViewModel) ViewportSize() (width, height float64) { return vm.viewportW, vm.viewport }
+
+// ContentWidth is the width of the content: the widest row laid out so far and room for a few
+// more characters, or the text area when that is wider.
+//
+// Ported from VS Code: src/vs/editor/common/viewLayout/viewLayout.ts (scrollWidth, scrollBeyondLastColumn)
+func (vm *ViewModel) ContentWidth() float64 {
+	return max(vm.maxLineWidth+scrollBeyondLastColumn*vm.charWidth, vm.viewportW)
+}
+
+// ContentHeight is the height the content scrolls through: the text area plus how far it scrolls.
+func (vm *ViewModel) ContentHeight() float64 { return vm.scrollExtent + vm.viewport }
+
+// MaxScrollLeft is how far the content scrolls horizontally.
+func (vm *ViewModel) MaxScrollLeft() float64 { return max(vm.ContentWidth()-vm.viewportW, 0) }
+
+// AddMetricsListener calls fn when the sizes of the text area or of the content change. fn can
+// be called during layout.
+func (vm *ViewModel) AddMetricsListener(fn foundation.VoidCallback) foundation.ListenerHandle {
+	return vm.metrics.AddListener(fn)
+}
+
+// RemoveMetricsListener removes a listener of AddMetricsListener.
+func (vm *ViewModel) RemoveMetricsListener(h foundation.ListenerHandle) { vm.metrics.RemoveListener(h) }

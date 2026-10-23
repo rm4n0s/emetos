@@ -100,6 +100,55 @@ func (o *focusObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
 	o.vm().SetFocused(e.State == ui.ViewFocusStateFocused)
 }
 
+// editorScroll is the kit.ScrollModel of an editor: the vertical position is the scroll
+// controller's, the horizontal one the view model's, and the sizes are what the text layer
+// measured. It forwards the changes of all three to its own listeners.
+type editorScroll struct {
+	foundation.ChangeNotifier
+	vm         *ViewModel
+	controller *widgets.ScrollControllerBase
+	handles    [3]foundation.ListenerHandle
+}
+
+func newEditorScroll(vm *ViewModel, controller *widgets.ScrollControllerBase) *editorScroll {
+	m := &editorScroll{ChangeNotifier: *foundation.NewChangeNotifier(), vm: vm, controller: controller}
+	m.handles[0] = controller.AddListener(m.NotifyListeners)
+	m.handles[1] = vm.AddMetricsListener(m.NotifyListeners)
+	m.handles[2] = vm.AddListener(m.NotifyListeners) // the horizontal position
+	return m
+}
+
+// dispose stops following the controller and the view model.
+func (m *editorScroll) dispose() {
+	m.controller.RemoveListener(m.handles[0])
+	m.vm.RemoveMetricsListener(m.handles[1])
+	m.vm.RemoveListener(m.handles[2])
+}
+
+// Metrics implements kit.ScrollModel.
+func (m *editorScroll) Metrics() kit.ScrollMetrics {
+	width, height := m.vm.ViewportSize()
+	top := m.vm.ScrollTop()
+	if m.controller.HasClients() {
+		top = m.controller.Offset()
+	}
+	return kit.ScrollMetrics{
+		ViewportWidth: width, ViewportHeight: height,
+		ContentWidth: m.vm.ContentWidth(), ContentHeight: m.vm.ContentHeight(),
+		Left: m.vm.ScrollLeft(), Top: top,
+	}
+}
+
+// ScrollTo implements kit.ScrollModel.
+func (m *editorScroll) ScrollTo(left, top float64) {
+	m.vm.SetScrollLeft(left)
+	if !m.controller.HasClients() {
+		return
+	}
+	pos := m.controller.Position()
+	m.controller.JumpTo(min(max(top, pos.MinScrollExtent()), pos.MaxScrollExtent()))
+}
+
 // Editor is the editor widget: the text of a view model with its gutter, its selections, its
 // current line and its cursors, scrolled together by a Scrollable. Input comes with later
 // steps.
@@ -126,6 +175,7 @@ type editorState struct {
 	scrollHandle foundation.ListenerHandle
 	binding      *widgets.WidgetsBinding
 	observer     *focusObserver
+	scroll       *editorScroll
 }
 
 // InitState starts the scroll controller at the position the view model remembers, and
@@ -139,6 +189,7 @@ func (s *editorState) InitState() {
 	})
 	s.scrollHandle = s.controller.AddListener(func() { s.Widget().vm.SetScrollTop(s.controller.Offset()) })
 	s.vmHandle = vm.AddListener(func() { s.SetState(func() {}) })
+	s.scroll = newEditorScroll(vm, s.controller)
 
 	// The cursors blink with the timers of the window's binding, and stop with the focus.
 	s.binding = widgets.WidgetsBindingOf(s.Context())
@@ -159,12 +210,15 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.RemoveListener(s.vmHandle)
 		old.vm.SetTimer(nil)
 		s.vmHandle = s.Widget().vm.AddListener(func() { s.SetState(func() {}) })
+		s.scroll.dispose()
+		s.scroll = newEditorScroll(s.Widget().vm, s.controller)
 		s.useTimers(s.Widget().vm)
 	}
 }
 
 // Dispose lets go of the controller and the listener.
 func (s *editorState) Dispose() {
+	s.scroll.dispose()
 	s.binding.RemoveObserver(s.observer)
 	s.Widget().vm.SetTimer(nil)
 	s.Widget().vm.RemoveListener(s.vmHandle)
@@ -186,7 +240,7 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 		InactiveSelection: colors.EditorInactiveSelectionBackground, LineHighlight: colors.EditorLineHighlightBackground,
 		LineHighlightBorder: colors.EditorLineHighlightBorder, Cursor: colors.EditorCursorForeground,
 	}
-	return widgets.NewColoredBox(colors.EditorBackground,
+	return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
 		widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
 			return widgets.NewRow([]widgets.Widget{
 				widgets.NewColoredBox(colors.EditorGutterBackground,
@@ -200,5 +254,6 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 		}, widgets.ScrollableOpts{
 			AxisDirection: painting.AxisDirectionDown,
 			Controller:    s.controller,
-		}))
+		}),
+		s.scroll, kit.ScrollableElementOpts{InsetLeft: gutterWidth, UseShadows: true}))
 }
