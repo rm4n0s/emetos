@@ -86,7 +86,7 @@ func TestParseGrammarReadsEveryField(t *testing.T) {
 }
 
 func TestNewGrammarNeedsTheGrammar(t *testing.T) {
-	_, err := NewGrammar("source.none", firstMateRegistry{}, GrammarOptions{})
+	_, err := NewGrammar("source.none", newRegistry(), GrammarOptions{})
 	appErr, ok := errors.FromError(err)
 	if !ok || !appErr.HasRoute("NewGrammar.GrammarNotFound") {
 		t.Errorf("err = %v", err)
@@ -94,25 +94,26 @@ func TestNewGrammarNeedsTheGrammar(t *testing.T) {
 }
 
 func TestScopeStacks(t *testing.T) {
+	g := tokenizerOf(t, "test", grammarOf(t, "test", `"patterns": []`))
 	var s *ScopeStack
 	if s.Len() != 0 || len(s.Names()) != 0 || s.Top() != "" || !s.Equal(nil) {
 		t.Error("the nil stack has no scopes")
 	}
-	a := s.pushPath("a b", true).pushPath("c", true)
+	a := g.pushPath(g.pushPath(s, "a b", true), "c", true)
 	if got := strings.Join(a.Names(), ","); got != "a,b,c" || a.Len() != 3 || a.Top() != "c" {
 		t.Errorf("names %q, len %d, top %q", got, a.Len(), a.Top())
 	}
-	if a.pushPath("", false) != a {
+	if g.pushPath(a, "", false) != a {
 		t.Error("no name adds no scope")
 	}
-	if got := strings.Join(s.pushPath("", true).Names(), ","); got != "" || s.pushPath("", true).Len() != 1 {
+	if got := strings.Join(g.pushPath(s, "", true).Names(), ","); got != "" || g.pushPath(s, "", true).Len() != 1 {
 		t.Errorf("an empty name is a scope: %q", got)
 	}
-	if got := strings.Join(s.pushPath("a  b", true).Names(), ","); got != "a,,b" {
+	if got := strings.Join(g.pushPath(s, "a  b", true).Names(), ","); got != "a,,b" {
 		t.Errorf("two spaces: %q", got)
 	}
-	b := s.push("a").push("b").push("c")
-	if !a.Equal(b) || a.Equal(b.parent) || a.Equal(nil) || a.Equal(s.push("a").push("x").push("c")) {
+	b := g.push(g.push(g.push(s, "a"), "b"), "c")
+	if !a.Equal(b) || a.Equal(b.parent) || a.Equal(nil) || a.Equal(g.push(g.push(g.push(s, "a"), "x"), "c")) {
 		t.Error("stacks are equal when their scopes are")
 	}
 }
@@ -166,7 +167,7 @@ func TestStatesAreEqualWhenTheNextLineWouldBeTheSame(t *testing.T) {
 }
 
 func TestALongLineIsOneToken(t *testing.T) {
-	reg := firstMateRegistry{"test": grammarOf(t, "test", `"patterns": [{"match": "a", "name": "a"}]`)}
+	reg := &testRegistry{grammars: map[string]*RawGrammar{"test": grammarOf(t, "test", `"patterns": [{"match": "a", "name": "a"}]`)}}
 	g, err := NewGrammar("test", reg, GrammarOptions{MaxLineBytes: 10})
 	if err != nil {
 		t.Fatal(err)
@@ -227,11 +228,11 @@ func TestAPatternPastItsLimitMakesTheRestPlain(t *testing.T) {
 
 func TestProblemsAreReportedOnce(t *testing.T) {
 	g := tokenizerOf(t, "test", grammarOf(t, "test", `"patterns": [{"match": "(", "name": "a"}, {"match": "\\p{Nope}", "name": "b"},
-		{"begin": "w", "while": "v"}, {"match": "ok", "name": "ok"}]`))
+		{"match": "ok", "name": "ok"}]`))
 	for i := 0; i < 3; i++ {
 		g.TokenizeLine("ok (", nil, 0)
 	}
-	want := map[string]bool{"RegexUnbalancedParen": false, "RegexUnknownProperty": false, "RuleWhileUnsupported": false}
+	want := map[string]bool{"RegexUnbalancedParen": false, "RegexUnknownProperty": false}
 	for _, p := range g.Problems() {
 		appErr, ok := errors.FromError(p)
 		if !ok {

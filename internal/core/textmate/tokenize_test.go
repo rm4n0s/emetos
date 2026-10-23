@@ -19,9 +19,9 @@ func grammarOf(t *testing.T, scope, body string) *RawGrammar {
 // tokenizerOf makes the grammar with the scope from the grammars given.
 func tokenizerOf(t *testing.T, scope string, grammars ...*RawGrammar) *Grammar {
 	t.Helper()
-	reg := firstMateRegistry{}
+	reg := newRegistry()
 	for _, g := range grammars {
-		reg[g.ScopeName] = g
+		reg.grammars[g.ScopeName] = g
 	}
 	g, err := NewGrammar(scope, reg, GrammarOptions{})
 	if err != nil {

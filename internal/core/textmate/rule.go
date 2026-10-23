@@ -27,6 +27,7 @@ const (
 	ruleMatch
 	ruleIncludeOnly
 	ruleBeginEnd
+	ruleBeginWhile
 )
 
 // rule is a compiled rule of a grammar.
@@ -37,10 +38,11 @@ type rule struct {
 	name, contentName *template
 	// match is the pattern of a match rule, begin the one of a rule with an end.
 	match, begin *regexSource
-	// end is the end pattern of a begin/end rule.
-	end                 *regexSource
+	// end is the end pattern of a begin/end rule, while the one of a begin/while rule.
+	end, while          *regexSource
 	beginCaptures       []*rule
 	endCaptures         []*rule
+	whileCaptures       []*rule
 	captures            []*rule
 	applyEndPatternLast bool
 	hasMissingPatterns  bool
@@ -55,6 +57,10 @@ type rule struct {
 	// dynamic is the scanner for the last end pattern that had references to the captures.
 	dynamic       *compiledRule
 	dynamicSource string
+	// whileStatic and whileDynamic are the same for the while pattern.
+	whileStatic        *compiledRule
+	whileDynamic       *compiledRule
+	whileDynamicSource string
 }
 
 // compiledRule is a scanner over the patterns of a rule and the rules they belong to.

@@ -8,11 +8,22 @@ import (
 	"testing"
 )
 
-// firstMateRegistry is a registry over grammars read from files.
-type firstMateRegistry map[string]*RawGrammar
+// testRegistry is a registry over grammars read from files.
+type testRegistry struct {
+	grammars   map[string]*RawGrammar
+	injections map[string][]string
+}
+
+// newRegistry makes an empty registry.
+func newRegistry() *testRegistry {
+	return &testRegistry{grammars: map[string]*RawGrammar{}, injections: map[string][]string{}}
+}
 
 // Grammar implements Registry.
-func (r firstMateRegistry) Grammar(scopeName string) *RawGrammar { return r[scopeName] }
+func (r *testRegistry) Grammar(scopeName string) *RawGrammar { return r.grammars[scopeName] }
+
+// Injections implements Registry.
+func (r *testRegistry) Injections(scopeName string) []string { return r.injections[scopeName] }
 
 // referenceDir is the folder of the vscode-textmate references.
 func referenceDir(t *testing.T) string {
@@ -43,14 +54,8 @@ type testCase struct {
 	Lines             []testLine `json:"lines"`
 }
 
-// notYet are the test cases of vscode-textmate that need features of step 4.4, with the feature.
-var notYet = map[string]string{
-	"first-mate:TEST #42": "injections (the PHP grammar injects its embedded code)",
-	"first-mate:TEST #45": "injections (the PHP grammar injects its embedded code)",
-	"first-mate:TEST #47": "injections given by the registry (grammarInjections)",
-	"first-mate:TEST #49": "injections given by the registry (grammarInjections)",
-	"first-mate:TEST #64": "injections (the ERB grammar injects its tags into HTML)",
-}
+// notYet are the test cases of vscode-textmate that cannot be run yet, with the reason.
+var notYet = map[string]string{}
 
 // runSuite runs the test cases of a tests.json of vscode-textmate: grammars are loaded from the
 // files the test lists, and the lines are tokenized one after the other.
@@ -73,7 +78,7 @@ func runSuite(t *testing.T, file string) (ran, skipped int) {
 		}
 		ran++
 		t.Run(file+" "+tc.Desc, func(t *testing.T) {
-			reg := firstMateRegistry{}
+			reg := newRegistry()
 			scope := tc.GrammarScopeName
 			for _, path := range tc.Grammars {
 				content, err := os.ReadFile(filepath.Join(base, path))
@@ -84,10 +89,13 @@ func runSuite(t *testing.T, file string) (ran, skipped int) {
 				if err != nil {
 					t.Fatalf("%s: %v", path, err)
 				}
-				reg[raw.ScopeName] = raw
+				reg.grammars[raw.ScopeName] = raw
 				if scope == "" && path == tc.GrammarPath {
 					scope = raw.ScopeName
 				}
+			}
+			if len(tc.GrammarInjections) > 0 {
+				reg.injections[scope] = tc.GrammarInjections
 			}
 			g, err := NewGrammar(scope, reg, GrammarOptions{})
 			if err != nil {
@@ -128,7 +136,7 @@ func runSuite(t *testing.T, file string) (ran, skipped int) {
 func TestFirstMateSuite(t *testing.T) {
 	ran, skipped := runSuite(t, "first-mate")
 	t.Logf("first-mate: %d run, %d skipped", ran, skipped)
-	if ran+skipped != 64 {
+	if skipped != 0 || ran+skipped != 64 {
 		t.Errorf("the suite has %d cases, want 64", ran+skipped)
 	}
 }

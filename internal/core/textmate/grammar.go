@@ -16,6 +16,9 @@ import (
 type Registry interface {
 	// Grammar returns the grammar with the scope name, or nil when there is none.
 	Grammar(scopeName string) *RawGrammar
+	// Injections returns the scope names of the grammars that are injected into the grammar with
+	// the scope name (the grammars of extensions that name it in injectTo), or nil.
+	Injections(scopeName string) []string
 }
 
 // DefaultMaxLineBytes is the length from which a line is not tokenized (SPEC §8.3).
@@ -28,6 +31,14 @@ type GrammarOptions struct {
 	MaxLineBytes int
 	// Cache compiles the patterns; a cache of the grammar is made when there is none.
 	Cache *regex.Cache
+	// InitialLanguage is the language id of the tokens that no embedded language scope covers.
+	InitialLanguage int
+	// EmbeddedLanguages maps scope names, such as source.css, to the id of the language of the
+	// tokens in them (a scope matches its own name and the names that start with it and a dot).
+	EmbeddedLanguages map[string]int
+	// TokenTypes maps scope selectors to the standard type of the tokens they select, over what
+	// the scope names say.
+	TokenTypes map[string]TokenType
 }
 
 // instance is a raw grammar made ready to be compiled: its repository has the rules $self and
@@ -35,6 +46,8 @@ type GrammarOptions struct {
 type instance struct {
 	raw        *RawGrammar
 	repository map[string]*RawRule
+	// rule is the grammar as a rule, made when it is injected into another grammar.
+	rule *RawRule
 }
 
 // Grammar is a grammar ready to tokenize lines. It is safe for concurrent use: the rules are
@@ -45,6 +58,12 @@ type Grammar struct {
 	cache        *regex.Cache
 	maxLineBytes int
 	root         *instance
+
+	initialLanguage int
+	embedded        *embeddedMatcher
+	basic           sync.Map // scope name → basicAttributes
+	tokenTypes      []tokenTypeOverride
+	injections      []injection
 
 	once     sync.Once
 	rootID   int
@@ -74,6 +93,13 @@ func NewGrammar(scopeName string, registry Registry, opts GrammarOptions) (*Gram
 	}
 	if g.maxLineBytes <= 0 {
 		g.maxLineBytes = DefaultMaxLineBytes
+	}
+	g.initialLanguage = opts.InitialLanguage
+	g.embedded = newEmbeddedMatcher(opts.EmbeddedLanguages)
+	for _, selector := range sortedKeys(opts.TokenTypes) {
+		for _, m := range parseSelector(selector, nameMatcher) {
+			g.tokenTypes = append(g.tokenTypes, tokenTypeOverride{match: m.match, tokenType: opts.TokenTypes[selector]})
+		}
 	}
 	return g, nil
 }
@@ -122,6 +148,8 @@ func initGrammar(raw *RawGrammar, base *RawRule) *instance {
 // externalGrammar is the instance of the grammar with the scope name, made on first use. The
 // grammar it is included from gives it its $base.
 func (g *Grammar) externalGrammar(scopeName string, repository map[string]*RawRule) *instance {
+	// An included grammar has the $base of the grammar that includes it; one that is not
+	// included from a rule (an injection) has itself.
 	if in, ok := g.included[scopeName]; ok {
 		return in
 	}
@@ -129,7 +157,11 @@ func (g *Grammar) externalGrammar(scopeName string, repository map[string]*RawRu
 	if raw == nil {
 		return nil
 	}
-	in := initGrammar(raw, repository["$base"])
+	var base *RawRule
+	if repository != nil {
+		base = repository["$base"]
+	}
+	in := initGrammar(raw, base)
 	g.included[scopeName] = in
 	return in
 }
@@ -138,6 +170,8 @@ func (g *Grammar) externalGrammar(scopeName string, repository map[string]*RawRu
 func (g *Grammar) init() {
 	g.once.Do(func() {
 		g.rootID = g.compileRule(g.root.repository["$self"], g.root.repository)
+		// This makes the numbers of the rules the same every time.
+		g.injections = g.collectInjections()
 	})
 }
 
@@ -180,11 +214,12 @@ func (g *Grammar) compileRule(desc *RawRule, repository map[string]*RawRule) int
 		}
 		r.patterns, r.hasMissingPatterns = g.compilePatterns(patterns, repository)
 	case desc.While != "":
-		// TODO(step 4.4): begin/while rules. Until then the rule is one that has patterns missing,
-		// so that the rules that include it leave it out.
-		r.kind = ruleIncludeOnly
-		r.hasMissingPatterns = true
-		g.addProblem("while:"+desc.Begin, errors.New("RuleWhileUnsupported", "begin/while rules are not supported yet", "begin", desc.Begin))
+		r.kind = ruleBeginWhile
+		r.begin = newRegexSource(desc.Begin, r.id)
+		r.beginCaptures = g.compileCaptures(firstCaptures(desc.BeginCaptures, desc.Captures), repository)
+		r.while = newRegexSource(desc.While, whileRuleID)
+		r.whileCaptures = g.compileCaptures(firstCaptures(desc.WhileCaptures, desc.Captures), repository)
+		r.patterns, r.hasMissingPatterns = g.compilePatterns(desc.Patterns, repository)
 	default:
 		r.kind = ruleBeginEnd
 		r.begin = newRegexSource(desc.Begin, r.id)
@@ -253,7 +288,7 @@ func (g *Grammar) compilePatterns(patterns []*RawRule, repository map[string]*Ra
 		if id == -1 {
 			continue
 		}
-		if r := g.rules[id]; (r.kind == ruleIncludeOnly || r.kind == ruleBeginEnd) && r.hasMissingPatterns && len(r.patterns) == 0 {
+		if r := g.rules[id]; (r.kind == ruleIncludeOnly || r.kind == ruleBeginEnd || r.kind == ruleBeginWhile) && r.hasMissingPatterns && len(r.patterns) == 0 {
 			// A rule whose patterns are all missing has nothing to match.
 			continue
 		}
@@ -296,7 +331,7 @@ func (g *Grammar) collectPatterns(r *rule, out *[]*regexSource, seen map[int]boo
 	switch r.kind {
 	case ruleMatch:
 		*out = append(*out, r.match)
-	case ruleBeginEnd:
+	case ruleBeginEnd, ruleBeginWhile:
 		*out = append(*out, r.begin)
 	case ruleIncludeOnly:
 		if seen[r.id] {
@@ -323,7 +358,7 @@ func (g *Grammar) compiled(r *rule, endRule string, hasEnd bool) *compiledRule {
 		return r.static
 	}
 	var items []*regexSource
-	if r.kind == ruleIncludeOnly || r.kind == ruleBeginEnd {
+	if r.kind == ruleIncludeOnly || r.kind == ruleBeginEnd || r.kind == ruleBeginWhile {
 		seen := map[int]bool{}
 		for _, id := range r.patterns {
 			g.collectPatterns(g.rules[id], &items, seen)
@@ -349,6 +384,28 @@ func (g *Grammar) compiled(r *rule, endRule string, hasEnd bool) *compiledRule {
 		r.static = c
 	}
 	return c
+}
+
+// compiledWhile gives the scanner for the while pattern of a rule. whileRule is the pattern
+// completed with the text of the captures of the begin, when it has references to them.
+func (g *Grammar) compiledWhile(r *rule, whileRule string, hasWhile bool) *compiledRule {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.while.hasBackReferences {
+		if r.whileStatic == nil {
+			r.whileStatic = g.newCompiled([]*regexSource{r.while})
+		}
+		return r.whileStatic
+	}
+	source := "\uFFFF"
+	if hasWhile {
+		source = whileRule
+	}
+	if r.whileDynamic == nil || r.whileDynamicSource != source {
+		r.whileDynamic = g.newCompiled([]*regexSource{{source: source, ruleID: whileRuleID}})
+		r.whileDynamicSource = source
+	}
+	return r.whileDynamic
 }
 
 // newCompiled makes the scanner for patterns, and notes those that do not compile.

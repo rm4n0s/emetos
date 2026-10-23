@@ -1,38 +1,35 @@
 package textmate
 
-import "strings"
-
 // ScopeStack is the scopes a token is in, outermost first, as a list that shares its tail with
 // the scopes it was made from. It is immutable. The nil stack has no scopes.
 type ScopeStack struct {
 	parent *ScopeStack
 	name   string
 	depth  int
+	// language and tokenType are what the scopes up to this one say about the token: the
+	// language of the innermost embedded language scope, and the standard token type of the
+	// innermost scope that sets one.
+	language  int
+	tokenType TokenType
 }
 
-// push adds one scope.
-func (s *ScopeStack) push(name string) *ScopeStack {
-	depth := 1
-	if s != nil {
-		depth = s.depth + 1
-	}
-	return &ScopeStack{parent: s, name: name, depth: depth}
-}
+// TokenType is the standard type of a token, which brackets, auto-closing and comments use to
+// tell code from comments and strings.
+type TokenType int
 
-// pushPath adds the scopes of a name; several scopes may be written in one name, separated by
-// spaces. The empty path adds nothing, and the nil path (a rule without a name) as well.
-func (s *ScopeStack) pushPath(path string, present bool) *ScopeStack {
-	if !present {
-		return s
-	}
-	if !strings.Contains(path, " ") {
-		return s.push(path)
-	}
-	for _, name := range strings.Split(path, " ") {
-		s = s.push(name)
-	}
-	return s
-}
+// The standard token types, with the values of VS Code's StandardTokenType.
+const (
+	// TokenOther is a token that is none of the others.
+	TokenOther TokenType = 0
+	// TokenComment is a token in a comment.
+	TokenComment TokenType = 1
+	// TokenString is a token in a string.
+	TokenString TokenType = 2
+	// TokenRegEx is a token in a regular expression.
+	TokenRegEx TokenType = 3
+	// tokenNotSet is a scope that says nothing about the type: its parent's is kept.
+	tokenNotSet TokenType = 8
+)
 
 // Len is the number of scopes.
 func (s *ScopeStack) Len() int {

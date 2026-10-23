@@ -15,6 +15,11 @@ type Token struct {
 	Start, End int
 	// Scopes are the scopes of the token, outermost first.
 	Scopes *ScopeStack
+	// Type is the standard type of the token: comment, string, regular expression or other.
+	Type TokenType
+	// Language is the id of the language of the token, from the embedded languages of the
+	// grammar; the initial language of the grammar for a token outside them.
+	Language int
 }
 
 // LineResult is the result of tokenizing a line.
@@ -32,6 +37,7 @@ type LineResult struct {
 
 // lineTokens collects the tokens of a line.
 type lineTokens struct {
+	g       *Grammar
 	tokens  []Token
 	lastEnd int
 }
@@ -41,7 +47,19 @@ func (t *lineTokens) produce(scopes *ScopeStack, endIndex int) {
 	if t.lastEnd >= endIndex {
 		return
 	}
-	t.tokens = append(t.tokens, Token{Start: t.lastEnd, End: endIndex, Scopes: scopes})
+	tok := Token{Start: t.lastEnd, End: endIndex, Scopes: scopes, Language: t.g.initialLanguage}
+	if scopes != nil {
+		tok.Type, tok.Language = scopes.tokenType, scopes.language
+		if len(t.g.tokenTypes) > 0 {
+			names := scopes.Names()
+			for _, o := range t.g.tokenTypes {
+				if o.match(names) {
+					tok.Type = o.tokenType
+				}
+			}
+		}
+	}
+	t.tokens = append(t.tokens, tok)
 	t.lastEnd = endIndex
 }
 
@@ -69,7 +87,7 @@ func (t *lineTokens) result(st *State, lineLength int) []Token {
 func (g *Grammar) TokenizeLine(line string, prev *State, timeLimit time.Duration) LineResult {
 	g.init()
 	if len(line) >= g.maxLineBytes {
-		return LineResult{Tokens: []Token{{Start: 0, End: len(line)}}, State: prev}
+		return LineResult{Tokens: []Token{{Start: 0, End: len(line), Language: g.initialLanguage}}, State: prev}
 	}
 	mark := &lineMark{}
 	isFirstLine := prev == nil
@@ -77,7 +95,7 @@ func (g *Grammar) TokenizeLine(line string, prev *State, timeLimit time.Duration
 		prev = g.initialState(mark)
 	}
 	text := line + "\n"
-	t := &tokenizer{g: g, toks: &lineTokens{}, mark: mark}
+	t := &tokenizer{g: g, toks: &lineTokens{g: g}, mark: mark}
 	if timeLimit > 0 {
 		t.deadline = time.Now().Add(timeLimit)
 	}
@@ -89,9 +107,10 @@ func (g *Grammar) TokenizeLine(line string, prev *State, timeLimit time.Duration
 func (g *Grammar) initialState(mark *lineMark) *State {
 	var scopes *ScopeStack
 	if name := g.rules[g.rootID].name; name != nil {
-		scopes = scopes.pushPath(name.text, true)
+		scopes = g.push(nil, name.text)
 	} else {
-		scopes = scopes.push("unknown")
+		// A grammar without a name for its root rule has no scope to look up.
+		scopes = &ScopeStack{name: "unknown", depth: 1, language: g.initialLanguage}
 	}
 	return newState(nil, g.rootID, -1, -1, false, "", false, scopes, scopes, mark)
 }
@@ -102,11 +121,131 @@ type tokenizer struct {
 	toks     *lineTokens
 	mark     *lineMark
 	deadline time.Time
+	// names are the scope names of namesOf, kept for the selectors of the injections.
+	namesOf *ScopeStack
+	names   []string
 }
 
 // produce ends a token at the end index in the scopes inside the rule of the state.
 func (t *tokenizer) produce(st *State, endIndex int) {
 	t.toks.produce(st.contentScopes, endIndex)
+}
+
+// matchResult is what the scan found: the rule and the captures of its match.
+type matchResult struct {
+	ruleID int
+	caps   []regex.Capture
+	// priority is true for a match of an injection that goes before the rule of the scope.
+	priority bool
+}
+
+// scan looks for the rule that matches first from linePos: the rule of the state or an injection.
+func (t *tokenizer) scan(line *regex.Line, isFirstLine bool, linePos int, st *State, anchorPos int) (*matchResult, error) {
+	g := t.g
+	rule := g.rules[st.ruleID]
+	compiled := g.compiled(rule, st.endRule, st.hasEnd)
+	m, ok, err := compiled.scanner.Find(line, linePos, anchorPos, isFirstLine)
+	if err != nil {
+		return nil, err
+	}
+	var found *matchResult
+	if ok {
+		found = &matchResult{ruleID: compiled.ruleIDs[m.Pattern], caps: m.Captures}
+	}
+	if len(g.injections) == 0 {
+		return found, nil
+	}
+	injected, err := t.scanInjections(line, isFirstLine, linePos, st, anchorPos)
+	if err != nil || injected == nil {
+		return found, err
+	}
+	if found == nil {
+		return injected, nil
+	}
+	// The injection wins when it starts first, or when it starts together with the rule and goes
+	// before the rules of the scope.
+	if injected.caps[0].Start < found.caps[0].Start || (injected.priority && injected.caps[0].Start == found.caps[0].Start) {
+		return injected, nil
+	}
+	return found, nil
+}
+
+// scanInjections looks for the injection that matches first.
+func (t *tokenizer) scanInjections(line *regex.Line, isFirstLine bool, linePos int, st *State, anchorPos int) (*matchResult, error) {
+	g := t.g
+	bestStart := int(^uint(0) >> 1)
+	var best *matchResult
+	if t.namesOf != st.contentScopes || t.names == nil {
+		t.namesOf, t.names = st.contentScopes, st.contentScopes.Names()
+	}
+	scopes := t.names
+	for _, inj := range g.injections {
+		if !inj.match(scopes) {
+			continue
+		}
+		compiled := g.compiled(g.rules[inj.ruleID], "", false)
+		m, ok, err := compiled.scanner.Find(line, linePos, anchorPos, isFirstLine)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		if start := m.Captures[0].Start; start < bestStart {
+			bestStart = start
+			best = &matchResult{ruleID: compiled.ruleIDs[m.Pattern], caps: m.Captures, priority: inj.priority == -1}
+			if start == linePos {
+				break
+			}
+		}
+	}
+	return best, nil
+}
+
+// checkWhile checks, from the outermost rule in, the while patterns of the open begin/while
+// rules at the start of a line. A rule whose pattern does not match is closed, with the rules
+// inside it; one that matches takes its part of the line.
+func (t *tokenizer) checkWhile(line *regex.Line, text string, isFirstLine bool, linePos int, st *State) (*State, int, int, bool) {
+	g := t.g
+	anchorPos := -1
+	if st.captured {
+		anchorPos = 0
+	}
+	var whileStates []*State
+	for node := st; node != nil; node = node.parent {
+		if g.rules[node.ruleID].kind == ruleBeginWhile {
+			whileStates = append(whileStates, node)
+		}
+	}
+	for i := len(whileStates) - 1; i >= 0; i-- {
+		node := whileStates[i]
+		rule := g.rules[node.ruleID]
+		compiled := g.compiledWhile(rule, node.endRule, node.hasEnd)
+		m, ok, err := compiled.scanner.Find(line, linePos, anchorPos, isFirstLine)
+		if err != nil {
+			g.addProblem("timeout:"+rule.debugName(), err)
+			ok = false
+		}
+		if !ok {
+			st = node.parent
+			break
+		}
+		if compiled.ruleIDs[m.Pattern] != whileRuleID {
+			// This does not happen: the list has the while pattern only.
+			st = node.parent
+			break
+		}
+		caps := m.Captures
+		t.produce(node, caps[0].Start)
+		t.handleCaptures(text, isFirstLine, node, rule.whileCaptures, caps)
+		t.produce(node, caps[0].End)
+		anchorPos = caps[0].End
+		if caps[0].End > linePos {
+			linePos = caps[0].End
+			isFirstLine = false
+		}
+	}
+	return st, linePos, anchorPos, isFirstLine
 }
 
 // tokenize tokenizes text from linePos in the state, and returns the state at the end and
@@ -119,10 +258,7 @@ func (t *tokenizer) tokenize(line *regex.Line, text string, isFirstLine bool, li
 	if checkWhile {
 		// A rule whose begin matched the line break of the last line is anchored at the start of
 		// this one.
-		if st.captured {
-			anchorPos = 0
-		}
-		// TODO(step 4.4): check the while conditions of the open rules here.
+		st, linePos, anchorPos, isFirstLine = t.checkWhile(line, text, isFirstLine, linePos, st)
 	}
 	// A grammar that does not advance is stopped by the checks below; this is for one that does
 	// in a way the checks do not see.
@@ -131,28 +267,25 @@ func (t *tokenizer) tokenize(line *regex.Line, text string, isFirstLine bool, li
 			return st, true
 		}
 		rule := g.rules[st.ruleID]
-		compiled := g.compiled(rule, st.endRule, st.hasEnd)
-		m, ok, err := compiled.scanner.Find(line, linePos, anchorPos, isFirstLine)
+		r, err := t.scan(line, isFirstLine, linePos, st, anchorPos)
 		if err != nil {
 			// A pattern ran past its limit: the rest of the line is plain text.
 			g.addProblem("timeout:"+rule.debugName(), err)
 			t.produce(st, lineLength)
 			return st, true
 		}
-		if !ok {
+		if r == nil {
 			t.produce(st, lineLength)
 			return st, false
 		}
-		caps := m.Captures
-		matchedID := compiled.ruleIDs[m.Pattern]
+		caps := r.caps
 		hasAdvanced := caps[0].End > linePos
 
-		if matchedID == endRuleID {
+		if r.ruleID == endRuleID {
 			// The end of the rule: pop it.
-			popped := rule
 			t.produce(st, caps[0].Start)
 			st = st.withContentScopes(st.nameScopes)
-			t.handleCaptures(text, isFirstLine, st, popped.endCaptures, caps)
+			t.handleCaptures(text, isFirstLine, st, rule.endCaptures, caps)
 			t.produce(st, caps[0].End)
 
 			p := st
@@ -166,18 +299,18 @@ func (t *tokenizer) tokenize(line *regex.Line, text string, isFirstLine bool, li
 				return st, false
 			}
 		} else {
-			matched := g.rules[matchedID]
+			matched := g.rules[r.ruleID]
 			t.produce(st, caps[0].Start)
 			beforePush := st
 			name, hasName := "", matched.name != nil
 			if hasName {
 				name = matched.name.value(text, caps)
 			}
-			nameScopes := st.contentScopes.pushPath(name, hasName)
-			st = newState(st, matchedID, linePos, anchorPos, caps[0].End == lineLength, "", false, nameScopes, nameScopes, t.mark)
+			nameScopes := g.pushPath(st.contentScopes, name, hasName)
+			st = newState(st, r.ruleID, linePos, anchorPos, caps[0].End == lineLength, "", false, nameScopes, nameScopes, t.mark)
 
 			switch matched.kind {
-			case ruleBeginEnd:
+			case ruleBeginEnd, ruleBeginWhile:
 				t.handleCaptures(text, isFirstLine, st, matched.beginCaptures, caps)
 				t.produce(st, caps[0].End)
 				anchorPos = caps[0].End
@@ -185,9 +318,12 @@ func (t *tokenizer) tokenize(line *regex.Line, text string, isFirstLine bool, li
 				if hasContent {
 					content = matched.contentName.value(text, caps)
 				}
-				st = st.withContentScopes(nameScopes.pushPath(content, hasContent))
-				if matched.end.hasBackReferences {
+				st = st.withContentScopes(g.pushPath(nameScopes, content, hasContent))
+				switch {
+				case matched.kind == ruleBeginEnd && matched.end.hasBackReferences:
 					st = st.withEndRule(matched.end.resolveBackReferences(text, caps))
+				case matched.kind == ruleBeginWhile && matched.while.hasBackReferences:
+					st = st.withEndRule(matched.while.resolveBackReferences(text, caps))
 				}
 				if !hasAdvanced && beforePush.hasSameRuleAs(st, t.mark) {
 					// The grammar pushed the same rule without advancing.
@@ -230,6 +366,7 @@ func (t *tokenizer) handleCaptures(text string, isFirstLine bool, st *State, cap
 	if len(captures) == 0 {
 		return
 	}
+	g := t.g
 	n := min(len(captures), len(caps))
 	var local []localScope
 	maxEnd := caps[0].End
@@ -263,12 +400,12 @@ func (t *tokenizer) handleCaptures(text string, isFirstLine bool, st *State, cap
 			if hasName {
 				name = c.name.value(text, caps)
 			}
-			nameScopes := st.contentScopes.pushPath(name, hasName)
+			nameScopes := g.pushPath(st.contentScopes, name, hasName)
 			content, hasContent := "", c.contentName != nil
 			if hasContent {
 				content = c.contentName.value(text, caps)
 			}
-			contentScopes := nameScopes.pushPath(content, hasContent)
+			contentScopes := g.pushPath(nameScopes, content, hasContent)
 			clone := newState(st, c.retokenizeCapturedWithRuleID, cap.Start, -1, false, "", false, nameScopes, contentScopes, t.mark)
 			sub := text[:cap.End]
 			t.tokenize(regex.NewLine(sub), sub, isFirstLine && cap.Start == 0, cap.Start, clone, false)
@@ -280,7 +417,7 @@ func (t *tokenizer) handleCaptures(text string, isFirstLine bool, st *State, cap
 			if len(local) > 0 {
 				base = local[len(local)-1].scopes
 			}
-			local = append(local, localScope{scopes: base.pushPath(c.name.value(text, caps), true), endPos: cap.End})
+			local = append(local, localScope{scopes: g.pushPath(base, c.name.value(text, caps), true), endPos: cap.End})
 		}
 	}
 	for len(local) > 0 {
