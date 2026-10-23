@@ -50,6 +50,12 @@ type Options struct {
 	// CursorBlinking is the style of the cursor animation: "blink" and "solid" are drawn, the
 	// other VS Code styles blink like "blink".
 	CursorBlinking string
+	// MultiCursorModifier is the key that adds cursors with the mouse: "alt" or "ctrlCmd".
+	MultiCursorModifier string
+	// ColumnSelection makes a selection with the mouse a column selection.
+	ColumnSelection bool
+	// MouseStyle is the mouse pointer over the text: "text", "default" or "copy".
+	MouseStyle string
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -108,8 +114,10 @@ type ViewModel struct {
 	// sessionOwner is the kind of session the command that runs belongs to.
 	sessionOwner int
 	columns      *edit.ColumnSelectData
-	occurrences  *edit.OccurrenceSession
-	expansion    *edit.Expansion
+	// mouseRange is the word or line a mouse selection extends from while the button is down.
+	mouseRange  buffer.Range
+	occurrences *edit.OccurrenceSession
+	expansion   *edit.Expansion
 	// preedit is the text an input method is composing, or nil.
 	preedit *Preedit
 	// find are the options of the search that finds the occurrences of a selection.

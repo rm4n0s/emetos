@@ -228,3 +228,9 @@ func (r *RenderEditorText) PositionAt(local ui.Offset) buffer.Position {
 func (r *RenderEditorText) RectOf(p buffer.Position) ui.Rect {
 	return newGeometry(r.vm, r.factory).rectOf(p).Shift(ui.Offset{Dx: -r.vm.ScrollLeft(), Dy: -r.top()})
 }
+
+// VisualColumnAt is the visual column nearest to a point of the text layer, given in the
+// layer's own coordinates, counted in characters of the font and also past the end of a line.
+func (r *RenderEditorText) VisualColumnAt(local ui.Offset) int {
+	return newGeometry(r.vm, r.factory).visualColumnAt(local.Dx + r.vm.ScrollLeft())
+}

@@ -61,6 +61,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		FontFeatures: []FontFeature{{"liga", 0}, {"calt", 0}},
 		LineNumbers:  LineNumbersOn, LineNumbersMinChars: 5, GlyphMargin: true, LineDecorationsWidth: 10, Folding: true, ScrollBeyondLastLine: true,
 		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
+		MultiCursorModifier: "alt", MouseStyle: "text",
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -87,6 +88,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.roundedSelection":                 false,
 		"editor.cursorWidth":                      3.0,
 		"editor.cursorBlinking":                   "solid",
+		"editor.multiCursorModifier":              "ctrlCmd",
+		"editor.columnSelection":                  true,
+		"editor.mouseStyle":                       "copy",
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -98,6 +102,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	}
 	if got.RenderLineHighlight != "all" || !got.RenderLineHighlightOnlyWhenFocus || got.RoundedSelection || got.CursorWidth != 3 || got.CursorBlinking != "solid" {
 		t.Errorf("cursor and highlight options: %+v", got)
+	}
+	if got.MultiCursorModifier != "ctrlCmd" || !got.ColumnSelection || got.MouseStyle != "copy" {
+		t.Errorf("mouse options: %+v", got)
 	}
 	if got.FontFeatures != nil {
 		t.Errorf("ligatures on leave the font's own features: %v", got.FontFeatures)

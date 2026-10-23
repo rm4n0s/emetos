@@ -222,3 +222,26 @@ func TestExpandLine(t *testing.T) {
 	h.cur = h.mv.ExpandLine(h.cur)
 	h.assertSelection(1, 1, 3, 6)
 }
+
+func TestCursorsReplaceKeepsLastAdded(t *testing.T) {
+	cs := NewCursors(DefaultOptions())
+	cs.Add(NewCursor(posAt(2, 0)))
+	cs.Add(NewCursor(posAt(4, 0)))
+	if cs.LastAdded() != 2 {
+		t.Fatalf("LastAdded = %d, want 2", cs.LastAdded())
+	}
+	cs.Replace(2, CursorOf(buffer.Selection{Anchor: posAt(4, 0), Active: posAt(4, 3)}))
+	if cs.LastAdded() != 2 || cs.Len() != 3 || cs.All()[2].Selection.Active != posAt(4, 3) {
+		t.Errorf("after Replace: last %d, len %d, %v", cs.LastAdded(), cs.Len(), cs.Selections())
+	}
+	cs.Replace(7, NewCursor(posAt(9, 9)))
+	cs.Replace(-1, NewCursor(posAt(9, 9)))
+	if cs.Len() != 3 {
+		t.Errorf("an index out of range changes nothing: %v", cs.Selections())
+	}
+	// Dragging the last cursor over the one before merges them.
+	cs.Replace(2, CursorOf(buffer.Selection{Anchor: posAt(4, 0), Active: posAt(2, 0)}))
+	if cs.Len() != 2 {
+		t.Errorf("merged: %v", cs.Selections())
+	}
+}

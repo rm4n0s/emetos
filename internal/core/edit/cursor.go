@@ -96,6 +96,20 @@ func (cs *Cursors) Add(c Cursor) {
 	cs.Normalize()
 }
 
+// LastAdded is the index of the cursor added last, which the mouse keeps moving while a
+// cursor is dragged out with the multi-cursor modifier; 0 when none was added.
+func (cs *Cursors) LastAdded() int { return cs.lastAdded }
+
+// Replace sets the cursor at index i, keeping which one was added last, and merges the
+// cursors that meet. An index out of range changes nothing.
+func (cs *Cursors) Replace(i int, c Cursor) {
+	if i < 0 || i >= len(cs.list) {
+		return
+	}
+	cs.list[i] = c
+	cs.Normalize()
+}
+
 // Map moves every cursor with fn and merges the ones that meet.
 func (cs *Cursors) Map(fn func(Cursor) Cursor) {
 	for i, c := range cs.list {

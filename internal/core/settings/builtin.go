@@ -142,6 +142,27 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.multiCursorModifier", Types: []Type{String}, Default: "alt",
+			Enum: []any{"ctrlCmd", "alt"},
+			EnumDescriptions: []string{
+				"Maps to Control on Windows and Linux.",
+				"Maps to Alt on Windows and Linux.",
+			},
+			Description: "The modifier to be used to add multiple cursors with the mouse. Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.columnSelection", Types: []Type{Boolean}, Default: false,
+			Description: "Enable that the selection with the mouse and keys is doing column selection.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.mouseStyle", Types: []Type{String}, Default: "text",
+			Enum:        []any{"text", "default", "copy"},
+			Description: "Controls the mouse pointer style when over the editor content.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.lineNumbersMinChars", Types: []Type{Integer}, Default: 5, Minimum: Float(1), Maximum: Float(300),
 			Description: "Controls the minimal number of characters the line numbers take; the gutter is wide enough for the number of the last line.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

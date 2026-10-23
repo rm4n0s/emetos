@@ -247,3 +247,15 @@ func (g geometry) rectOf(p buffer.Position) ui.Rect {
 	top := g.proj.RowTop(row)
 	return ui.NewRectFromLTRB(left, top, max(right, left), top+g.proj.RowHeight(row))
 }
+
+// visualColumnAt is the visual column nearest to an x in document coordinates, counted in
+// characters of the font, also past the end of a line (a column selection reaches into the
+// empty space there).
+//
+// Ported from VS Code: src/vs/editor/browser/controller/mouseTarget.ts (MouseTargetFactory.getMouseColumn)
+func (g geometry) visualColumnAt(x float64) int {
+	if g.charWidth <= 0 {
+		return 0
+	}
+	return max(int(math.Floor(x/g.charWidth+0.5)), 0)
+}

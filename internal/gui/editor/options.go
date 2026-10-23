@@ -39,6 +39,9 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		RoundedSelection:                 settings.Get[bool](store, "editor.roundedSelection", languageID),
 		CursorWidth:                      settings.Get[float64](store, "editor.cursorWidth", languageID),
 		CursorBlinking:                   settings.Get[string](store, "editor.cursorBlinking", languageID),
+		MultiCursorModifier:              settings.Get[string](store, "editor.multiCursorModifier", languageID),
+		ColumnSelection:                  settings.Get[bool](store, "editor.columnSelection", languageID),
+		MouseStyle:                       settings.Get[string](store, "editor.mouseStyle", languageID),
 	}
 }
 

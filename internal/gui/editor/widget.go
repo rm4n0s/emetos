@@ -210,6 +210,7 @@ type editorState struct {
 	scroll       *editorScroll
 
 	input           *textInput
+	mouse           mouseState
 	textRO          *RenderEditorText
 	geometryPending bool
 	node            *widgets.FocusNode
@@ -453,15 +454,15 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	}
 	return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
 		widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
-			return widgets.NewRow([]widgets.Widget{
+			return s.pointerListener(widgets.NewRow([]widgets.Widget{
 				widgets.NewColoredBox(colors.EditorGutterBackground,
 					widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
-				widgets.NewExpanded(widgets.NewStack([]widgets.Widget{
+				widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
 					newOverlayLayer(overlayUnder, vm, offset, overlayColors),
 					newTextLayer(vm, offset, colors.EditorForeground, func(r *RenderEditorText) { s.textRO = r }),
 					newOverlayLayer(overlayCursors, vm, offset, overlayColors),
-				}, widgets.StackOpts{Fit: rendering.StackFitExpand})),
-			}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+				}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{Cursor: mouseCursor(vm.Options().MouseStyle)})),
+			}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)
 		}, widgets.ScrollableOpts{
 			AxisDirection: painting.AxisDirectionDown,
 			Controller:    s.controller,
