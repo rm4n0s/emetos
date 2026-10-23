@@ -285,6 +285,16 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.find.cursorMoveOnType", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the cursor should jump to find matches while typing.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.find.loop", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.showFoldingControls", Types: []Type{String}, Default: "mouseover",
 			Enum: []any{"always", "never", "mouseover"},
 			EnumDescriptions: []string{
