@@ -3,6 +3,7 @@ module github.com/rm4n0s/emetos
 go 1.27
 
 require (
+	github.com/dlclark/regexp2 v1.12.0
 	github.com/go-text/typesetting v0.3.4
 	github.com/rm4n0s/errors v0.0.0-20260824195921-8423e20ff67e
 	github.com/rm4n0s/glutter v1.4.0
