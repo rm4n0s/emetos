@@ -1,0 +1,203 @@
+package keybinding
+
+import (
+	"slices"
+	"testing"
+
+	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
+)
+
+func TestRegistryOrder(t *testing.T) {
+	r := NewRegistry()
+	r.MustRegister(
+		Rule{Command: "b.contrib", Weight: WeightEditorContrib, Primary: "ctrl+1"},
+		Rule{Command: "z.core", Weight: WeightEditorCore, Primary: "ctrl+2", Secondary: []string{"ctrl+3", "ctrl+4"}},
+		Rule{Command: "a.core", Weight: WeightEditorCore, Primary: "ctrl+5"},
+		Rule{Command: "a.core", Weight: WeightEditorCore, Primary: "ctrl+6"},
+		Rule{Command: "none", Weight: WeightEditorCore},
+	)
+	var got []string
+	for _, it := range r.Defaults() {
+		got = append(got, it.Command+" "+it.Chords[0])
+	}
+	// By weight, then command, then the second weight (the secondary keys come first so
+	// that the primary key is the last, and so the one shown); equal ones keep their order.
+	want := []string{"a.core ctrl+5", "a.core ctrl+6", "z.core ctrl+4", "z.core ctrl+3", "z.core ctrl+2", "b.contrib ctrl+1"}
+	if !slices.Equal(got, want) {
+		t.Errorf("order:\n got %q\nwant %q", got, want)
+	}
+	for _, it := range r.Defaults() {
+		if !it.IsDefault {
+			t.Errorf("%s must be a default", it.Command)
+		}
+	}
+}
+
+func TestRegisterErrors(t *testing.T) {
+	r := NewRegistry()
+	assertRoute(t, r.Register(Rule{Command: "x", Primary: "ctrl+nonsense"}), "Register->ParseKeybinding.KeybindingKeyUnknown")
+	assertRoute(t, r.Register(Rule{Command: "x", Primary: "a", Secondary: []string{"ctrl+"}}), "Register->ParseKeybinding.KeybindingKeyUnknown")
+	if got := r.Defaults(); len(got) != 1 {
+		t.Errorf("the valid primary key stays registered: %v", got)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("MustRegister must panic on an invalid rule")
+		}
+	}()
+	r.MustRegister(Rule{Command: "y", Primary: "[KeyA]"})
+}
+
+// defaultContext makes the context keys of a focused, writable editor with the given extra
+// keys.
+func defaultContext(extra map[string]any) contextkey.MapContext {
+	ctx := contextkey.MapContext{
+		"editorTextFocus": true, "textInputFocus": true, "editorFocus": true,
+	}
+	for k, v := range extra {
+		ctx[k] = v
+	}
+	return ctx
+}
+
+func TestDefaultKeymap(t *testing.T) {
+	resolver := NewResolver(DefaultRegistry().Defaults(), nil, nil)
+	cases := []struct {
+		name  string
+		extra map[string]any
+		press string
+		want  string
+	}{
+		{"left", nil, "left", "cursorLeft"},
+		{"shift+left", nil, "shift+left", "cursorLeftSelect"},
+		{"shift+up on Linux", nil, "shift+up", "cursorUpSelect"},
+		{"ctrl+shift+up inserts a cursor on Linux", nil, "ctrl+shift+up", "editor.action.insertCursorAbove"},
+		{"shift+alt+up", nil, "shift+alt+up", "editor.action.insertCursorAbove"},
+		{"shift+alt+down", nil, "shift+alt+down", "editor.action.insertCursorBelow"},
+		{"column selection", map[string]any{"editorColumnSelection": true}, "shift+left", "cursorColumnSelectLeft"},
+		{"no column selection", nil, "shift+left", "cursorLeftSelect"},
+		{"ctrl+left", nil, "ctrl+left", "cursorWordLeft"},
+		{"ctrl+right", nil, "ctrl+right", "cursorWordEndRight"},
+		{"ctrl+shift+right", nil, "ctrl+shift+right", "cursorWordEndRightSelect"},
+		{"home", nil, "home", "cursorHome"},
+		{"ctrl+end", nil, "ctrl+end", "cursorBottom"},
+		{"escape with a selection", map[string]any{"editorHasSelection": true}, "escape", "cancelSelection"},
+		{"escape with several selections", map[string]any{"editorHasMultipleSelections": true}, "escape", "removeSecondaryCursors"},
+		{"escape with both", map[string]any{"editorHasSelection": true, "editorHasMultipleSelections": true}, "escape", "removeSecondaryCursors"},
+		{"escape with nothing", nil, "escape", ""},
+		{"backspace", nil, "backspace", "deleteLeft"},
+		{"shift+backspace", nil, "shift+backspace", "deleteLeft"},
+		{"backspace read-only", map[string]any{"editorReadonly": true}, "backspace", ""},
+		{"delete", nil, "delete", "deleteRight"},
+		{"ctrl+backspace", nil, "ctrl+backspace", "deleteWordLeft"},
+		{"ctrl+delete", nil, "ctrl+delete", "deleteWordRight"},
+		{"tab", nil, "tab", "tab"},
+		{"tab moves focus", map[string]any{"editorTabMovesFocus": true}, "tab", ""},
+		{"shift+tab", nil, "shift+tab", "outdent"},
+		{"ctrl+z", nil, "ctrl+z", "undo"},
+		{"ctrl+y", nil, "ctrl+y", "redo"},
+		{"ctrl+shift+z", nil, "ctrl+shift+z", "redo"},
+		{"ctrl+a", nil, "ctrl+a", "editor.action.selectAll"},
+		{"ctrl+u", nil, "ctrl+u", "cursorUndo"},
+		{"ctrl+l", nil, "ctrl+l", "expandLineSelection"},
+		{"alt+up", nil, "alt+up", "editor.action.moveLinesUpAction"},
+		{"alt+up read-only", map[string]any{"editorReadonly": true}, "alt+up", ""},
+		{"ctrl+alt+shift+down", nil, "ctrl+alt+shift+down", "editor.action.copyLinesDownAction"},
+		{"ctrl+shift+k", nil, "ctrl+shift+k", "editor.action.deleteLines"},
+		{"ctrl+]", nil, "ctrl+]", "editor.action.indentLines"},
+		{"ctrl+[", nil, "ctrl+[", "editor.action.outdentLines"},
+		{"ctrl+enter", nil, "ctrl+enter", "editor.action.insertLineAfter"},
+		{"ctrl+shift+enter", nil, "ctrl+shift+enter", "editor.action.insertLineBefore"},
+		{"ctrl+d", nil, "ctrl+d", "editor.action.addSelectionToNextFindMatch"},
+		{"ctrl+shift+l", nil, "ctrl+shift+l", "editor.action.selectHighlights"},
+		{"shift+alt+i", nil, "shift+alt+i", "editor.action.insertCursorAtEndOfEachLineSelected"},
+		{"shift+alt+right", nil, "shift+alt+right", "editor.action.smartSelect.expand"},
+		{"shift+alt+left", nil, "shift+alt+left", "editor.action.smartSelect.shrink"},
+		{"unbound on Linux: join lines", nil, "ctrl+j", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := resolver.Resolve(defaultContext(tc.extra), nil, dispatchOf(t, tc.press))
+			got := ""
+			if res.Kind == KbFound {
+				got = res.Command
+			}
+			if got != tc.want {
+				t.Errorf("got %q, want %q (%+v)", got, tc.want, res)
+			}
+		})
+	}
+
+	// Chords.
+	for _, tc := range []struct{ chords, want string }{
+		{"ctrl+k ctrl+x", "editor.action.trimTrailingWhitespace"},
+		{"ctrl+k ctrl+d", "editor.action.moveSelectionToNextFindMatch"},
+	} {
+		kb := mustKB(t, tc.chords)
+		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())
+		if res.Kind != KbFound || res.Command != tc.want {
+			t.Errorf("%s: %+v", tc.chords, res)
+		}
+	}
+}
+
+// TestDefaultKeymapMatchesCommands checks the default keymap against the metadata of the
+// commands: every bound command exists, and a keybinding only applies where the command's
+// precondition holds, as VS Code builds its when-clause.
+func TestDefaultKeymapMatchesCommands(t *testing.T) {
+	commands := command.DefaultRegistry()
+	for _, it := range DefaultRegistry().Defaults() {
+		meta, ok := commands.Lookup(it.Command)
+		if !ok {
+			t.Errorf("%s has a key but no command", it.Command)
+			continue
+		}
+		if meta.Precondition != nil && !WhenIsEntirelyIncluded(it.When, meta.Precondition) {
+			t.Errorf("%s %v: when %v does not imply the precondition %v", it.Command, it.Chords, it.When, meta.Precondition.Serialize())
+		}
+	}
+}
+
+func TestDefaultKeymapHasNoDuplicates(t *testing.T) {
+	seen := map[string]bool{}
+	for _, it := range DefaultRegistry().Defaults() {
+		when := ""
+		if it.When != nil {
+			when = it.When.Serialize()
+		}
+		id := it.Command + "|" + it.Keybinding.UserSettingsLabel() + "|" + when
+		if seen[id] {
+			t.Errorf("registered twice: %s", id)
+		}
+		seen[id] = true
+	}
+}
+
+// TestUserOverridesDefaults checks the removal and override of default keys the way a
+// keybindings.json does it.
+func TestUserOverridesDefaults(t *testing.T) {
+	user, problems := ParseUserFile(`[
+		{ "key": "ctrl+shift+k", "command": "-editor.action.deleteLines" },
+		{ "key": "ctrl+shift+d", "command": "editor.action.deleteLines", "when": "editorTextFocus" },
+		{ "key": "ctrl+l", "command": "-expandLineSelection" },
+	]`)
+	if len(problems) != 0 {
+		t.Fatalf("problems: %v", problems)
+	}
+	resolver := NewResolver(DefaultRegistry().Defaults(), user, nil)
+	ctx := defaultContext(nil)
+	if res := resolver.Resolve(ctx, nil, dispatchOf(t, "ctrl+shift+k")); res.Kind == KbFound {
+		t.Errorf("the default key must be gone: %+v", res)
+	}
+	if res := resolver.Resolve(ctx, nil, dispatchOf(t, "ctrl+shift+d")); res.Command != "editor.action.deleteLines" {
+		t.Errorf("the user key: %+v", res)
+	}
+	if res := resolver.Resolve(ctx, nil, dispatchOf(t, "ctrl+l")); res.Kind == KbFound {
+		t.Errorf("ctrl+l must be unbound: %+v", res)
+	}
+	got := resolver.LookupKeybindings("editor.action.deleteLines")
+	if len(got) != 1 || got[0].IsDefault {
+		t.Errorf("lookup: %+v", got)
+	}
+}
