@@ -30,18 +30,21 @@ type textLayer struct {
 	color  ui.Color
 	// tokens colors the tokens of the document; nil draws the text in color.
 	tokens *theme.TokenTheme
+	// brackets are the colors of the brackets by level.
+	brackets BracketColors
 	// created is told of the render object when it is made.
 	created func(*RenderEditorText)
 }
 
-func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color, tokens *theme.TokenTheme, created func(*RenderEditorText)) *textLayer {
-	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color, tokens: tokens, created: created}
+func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color, tokens *theme.TokenTheme, brackets BracketColors, created func(*RenderEditorText)) *textLayer {
+	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color, tokens: tokens, brackets: brackets, created: created}
 }
 
 // CreateRenderObject implements widgets.RenderObjectWidget.
 func (w *textLayer) CreateRenderObject(bc widgets.BuildContext) rendering.RenderObject {
 	r := NewRenderEditorText(w.vm, w.offset, textFactory(bc), w.color)
 	r.SetTokenTheme(w.tokens)
+	r.SetBracketColors(w.brackets)
 	if w.created != nil {
 		w.created(r)
 	}
@@ -55,6 +58,7 @@ func (w *textLayer) UpdateRenderObject(bc widgets.BuildContext, ro rendering.Ren
 	r.SetOffset(w.offset)
 	r.SetColor(w.color)
 	r.SetTokenTheme(w.tokens)
+	r.SetBracketColors(w.brackets)
 	r.SetFactory(textFactory(bc))
 }
 
@@ -590,14 +594,16 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		InactiveSelection: colors.EditorInactiveSelectionBackground, LineHighlight: colors.EditorLineHighlightBackground,
 		LineHighlightBorder: colors.EditorLineHighlightBorder, Cursor: colors.EditorCursorForeground,
 		CursorText: oppositeColor(colors.EditorCursorForeground), Foreground: colors.EditorForeground,
+		BracketMatch: colors.EditorBracketMatchBackground, BracketMatchBorder: colors.EditorBracketMatchBorder,
 	}
+	bracketColors := BracketColors{Levels: colors.EditorBracketHighlightForeground, Unexpected: colors.EditorBracketUnexpectedForeground}
 	scrollable := widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
 		return s.pointerListener(widgets.NewRow([]widgets.Widget{
 			widgets.NewColoredBox(colors.EditorGutterBackground,
 				widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
 			widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
 				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
-				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, func(r *RenderEditorText) { s.textRO = r }),
+				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, bracketColors, func(r *RenderEditorText) { s.textRO = r }),
 				newOverlayLayer(overlayCursors, vm, offset, overlayColors),
 			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{Cursor: mouseCursor(s.mouseStyle(vm))})),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)

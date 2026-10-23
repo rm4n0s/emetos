@@ -23,6 +23,16 @@ type Colors struct {
 	EditorWhitespaceForeground        ui.Color
 	EditorIndentGuideBackground1      ui.Color
 	EditorRulerForeground             ui.Color
+	EditorBracketMatchBackground      ui.Color
+	EditorBracketMatchBorder          ui.Color
+	EditorBracketMatchForeground      ui.Color
+	// EditorBracketHighlightForeground are the colors of the levels of brackets, from the
+	// first; a level past the sixth takes the color of the one that repeats it. A transparent
+	// color leaves the bracket in the color of its token.
+	EditorBracketHighlightForeground [6]ui.Color
+	// EditorBracketUnexpectedForeground is the color of a closing bracket that closes
+	// nothing and of an opening bracket that is never closed.
+	EditorBracketUnexpectedForeground ui.Color
 	ScrollbarSliderBackground         ui.Color
 	ScrollbarSliderHoverBackground    ui.Color
 	ScrollbarSliderActiveBackground   ui.Color
@@ -57,6 +67,15 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorWhitespaceForeground:        color("editorWhitespace.foreground"),
 		EditorIndentGuideBackground1:      color("editorIndentGuide.background1"),
 		EditorRulerForeground:             color("editorRuler.foreground"),
+		EditorBracketMatchBackground:      color("editorBracketMatch.background"),
+		EditorBracketMatchBorder:          color("editorBracketMatch.border"),
+		EditorBracketMatchForeground:      color("editorBracketMatch.foreground"),
+		EditorBracketHighlightForeground: [6]ui.Color{
+			color("editorBracketHighlight.foreground1"), color("editorBracketHighlight.foreground2"),
+			color("editorBracketHighlight.foreground3"), color("editorBracketHighlight.foreground4"),
+			color("editorBracketHighlight.foreground5"), color("editorBracketHighlight.foreground6"),
+		},
+		EditorBracketUnexpectedForeground: color("editorBracketHighlight.unexpectedBracket.foreground"),
 		ScrollbarSliderBackground:         color("scrollbarSlider.background"),
 		ScrollbarSliderHoverBackground:    color("scrollbarSlider.hoverBackground"),
 		ScrollbarSliderActiveBackground:   color("scrollbarSlider.activeBackground"),

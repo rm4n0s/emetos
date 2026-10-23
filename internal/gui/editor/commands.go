@@ -382,7 +382,7 @@ func buildActions() map[string]action {
 	a["editor.action.smartSelect.expand"] = func(vm *ViewModel, _ any) error {
 		vm.sessionOwner = sessionExpansion
 		if vm.expansion == nil {
-			vm.expansion = vm.commands().NewExpansion(vm.cursors.Selections(), edit.DefaultSelectionRangesOptions())
+			vm.expansion = vm.commands().NewExpansion(vm.cursors.Selections(), edit.DefaultSelectionRangesOptions(), vm.selectionProviders()...)
 		}
 		if vm.expansion != nil {
 			vm.setSelections(vm.expansion.Expand())
@@ -395,6 +395,35 @@ func buildActions() map[string]action {
 			vm.setSelections(vm.expansion.Shrink())
 		}
 		return nil
+	}
+	a["editor.action.jumpToBracket"] = func(vm *ViewModel, _ any) error {
+		if ix := vm.bracketIndex; ix != nil && ix.Enabled() {
+			vm.setSelections(edit.JumpToBracket(ix, vm.cursors.Selections()))
+		}
+		return nil
+	}
+	a["editor.action.selectToBracket"] = func(vm *ViewModel, args any) error {
+		ix := vm.bracketIndex
+		if ix == nil || !ix.Enabled() {
+			return nil
+		}
+		selectBrackets := true
+		if m, ok := args.(map[string]any); ok {
+			if v, ok := m["selectBrackets"].(bool); ok && !v {
+				selectBrackets = false
+			}
+		}
+		if sels, ok := edit.SelectToBracket(ix, vm.cursors.Selections(), selectBrackets); ok {
+			vm.setSelections(sels)
+		}
+		return nil
+	}
+	a["editor.action.removeBrackets"] = func(vm *ViewModel, _ any) error {
+		ix := vm.bracketIndex
+		if ix == nil || !ix.Enabled() {
+			return nil
+		}
+		return vm.apply(vm.commands().RemoveBrackets(ix, vm.cursors.Selections()))
 	}
 	devActions(a)
 	return a

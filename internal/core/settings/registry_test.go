@@ -177,3 +177,24 @@ func TestTokenizationLineLengthIsRegistered(t *testing.T) {
 		t.Errorf("editor.maxTokenizationLineLength: %+v, %v", s, ok)
 	}
 }
+
+func TestBracketSettingsAreRegistered(t *testing.T) {
+	cases := []struct {
+		key  string
+		want any
+	}{
+		{"editor.matchBrackets", "always"},
+		{"editor.bracketPairColorization.enabled", true},
+		{"editor.bracketPairColorization.independentColorPoolPerBracketType", false},
+	}
+	for _, tc := range cases {
+		s, ok := DefaultRegistry().Lookup(tc.key)
+		if !ok || s.Default != tc.want || s.Scope != ScopeLanguageOverridable || s.Description == "" {
+			t.Errorf("%s: %+v, %v", tc.key, s, ok)
+		}
+	}
+	s, _ := DefaultRegistry().Lookup("editor.matchBrackets")
+	if len(s.Enum) != 3 || len(s.EnumDescriptions) != 3 {
+		t.Errorf("editor.matchBrackets has the values always, near and never: %v", s.Enum)
+	}
+}

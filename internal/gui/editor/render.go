@@ -26,6 +26,8 @@ type RenderEditorText struct {
 	// tokenTheme colors the tokens of the document; nil draws all the text in color.
 	tokenTheme *theme.TokenTheme
 	styles     *styleTable
+	// bracketColors color the brackets by nesting level (editor.bracketPairColorization).
+	bracketColors BracketColors
 
 	offsetHandle foundation.ListenerHandle
 	vmHandle     foundation.ListenerHandle
@@ -82,6 +84,15 @@ func (r *RenderEditorText) SetTokenTheme(t *theme.TokenTheme) {
 	}
 	r.tokenTheme = t
 	r.styles = nil
+	r.MarkNeedsPaint()
+}
+
+// SetBracketColors changes the colors of the brackets.
+func (r *RenderEditorText) SetBracketColors(c BracketColors) {
+	if c == r.bracketColors {
+		return
+	}
+	r.bracketColors = c
 	r.MarkNeedsPaint()
 }
 
@@ -205,7 +216,8 @@ func (r *RenderEditorText) rowParagraph(style textStyle, proj Projection, lineCo
 	if text == "" {
 		return nil
 	}
-	return style.styledParagraph(r.vm.Paragraphs(), text, r.rowSpans(line, start, end))
+	spans := overlaySpans(r.rowSpans(line, start, end), r.vm.bracketSpans(r.bracketColors, line, start, end))
+	return style.styledParagraph(r.vm.Paragraphs(), text, spans)
 }
 
 // prepareTokens tokenizes, as far as there is time, up to the last line on the screen, so that

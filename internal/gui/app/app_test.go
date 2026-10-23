@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -354,6 +355,14 @@ func TestShellHighlightsTheFile(t *testing.T) {
 	}
 	if tok.Line(0) == nil {
 		t.Error("the first line is tokenized before it is drawn")
+	}
+	// The editor has the bracket pairs of the file too: the sample is Go, which has braces.
+	ix := vm.Brackets()
+	if ix == nil || !ix.Enabled() {
+		t.Fatal("the editor has the bracket pairs of the document")
+	}
+	if pairs := ix.Pairs(buffer.Range{End: buffer.Position{Line: 1000}}); len(pairs) == 0 {
+		t.Error("the sample has bracket pairs")
 	}
 	if errs := ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("the framework reported errors: %v", errs)

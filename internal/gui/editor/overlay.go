@@ -28,6 +28,9 @@ type OverlayColors struct {
 	CursorText ui.Color
 	// Foreground is the color of the text, for the text an input method composes.
 	Foreground ui.Color
+	// BracketMatch and BracketMatchBorder are the background and the border of the brackets
+	// that match.
+	BracketMatch, BracketMatchBorder ui.Color
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -181,6 +184,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 	if r.kind == overlayUnder {
 		view.paintLineHighlight()
 		view.paintSelections()
+		view.paintMatchingBrackets()
 	} else {
 		view.paintCursors()
 	}
@@ -257,6 +261,30 @@ func paintLineHighlight(canvas *ui.Canvas, rect ui.Rect, background, border ui.C
 	}
 	if edges.Right {
 		canvas.DrawRect(ui.NewRectFromLTRB(rect.Right-w, rect.Top+w, rect.Right, rect.Bottom-w), paint)
+	}
+}
+
+// paintMatchingBrackets draws a box around each bracket that matches the one next to a cursor:
+// a background and a border of 1 pixel inside it, as VS Code's `.bracket-match`.
+func (v overlayView) paintMatchingBrackets() {
+	for _, r := range v.geo.vm.matchedBrackets() {
+		if r.Start.Line != r.End.Line {
+			continue
+		}
+		// rectOf is in document coordinates; the canvas is clipped to the layer.
+		a, b := v.geo.rectOf(r.Start), v.geo.rectOf(r.End)
+		rect := ui.NewRectFromLTRB(v.origin.Dx+a.Left, v.origin.Dy+a.Top, v.origin.Dx+b.Left, v.origin.Dy+a.Bottom)
+		if v.colors.BracketMatch.Alpha() > 0 {
+			v.canvas.DrawRect(rect, fill(v.colors.BracketMatch))
+		}
+		if v.colors.BracketMatchBorder.Alpha() > 0 {
+			const w = 1.0
+			paint := fill(v.colors.BracketMatchBorder)
+			v.canvas.DrawRect(ui.NewRectFromLTRB(rect.Left, rect.Top, rect.Right, rect.Top+w), paint)
+			v.canvas.DrawRect(ui.NewRectFromLTRB(rect.Left, rect.Bottom-w, rect.Right, rect.Bottom), paint)
+			v.canvas.DrawRect(ui.NewRectFromLTRB(rect.Left, rect.Top+w, rect.Left+w, rect.Bottom-w), paint)
+			v.canvas.DrawRect(ui.NewRectFromLTRB(rect.Right-w, rect.Top+w, rect.Right, rect.Bottom-w), paint)
+		}
 	}
 }
 

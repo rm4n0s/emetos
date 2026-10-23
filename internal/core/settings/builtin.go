@@ -134,6 +134,27 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.matchBrackets", Types: []Type{String}, Default: "always",
+			Enum: []any{"always", "near", "never"},
+			EnumDescriptions: []string{
+				"Highlight the brackets of the pair around the cursor, and the matching bracket of one next to it.",
+				"Highlight the matching bracket of the one next to the cursor only.",
+				"Do not highlight matching brackets.",
+			},
+			Description: "Highlight matching brackets.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.bracketPairColorization.enabled", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.bracketPairColorization.independentColorPoolPerBracketType", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether each bracket type has its own independent color pool.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.cursorWidth", Types: []Type{Integer}, Default: 0, Minimum: Float(0),
 			Description: "Controls the width of the cursor in pixels; 0 means 2 pixels.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

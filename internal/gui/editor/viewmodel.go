@@ -5,6 +5,7 @@ import (
 
 	"github.com/rm4n0s/glutter/foundation"
 
+	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
@@ -83,6 +84,15 @@ type Options struct {
 	MultiCursorPaste string
 	// EmptySelectionClipboard makes a copy or a cut without a selection take the line.
 	EmptySelectionClipboard bool
+	// MatchBrackets is editor.matchBrackets: "always" highlights the brackets of the pair
+	// around a cursor too, "near" only the match of a bracket next to it, "never" nothing.
+	MatchBrackets string
+	// BracketPairColorization colors the brackets by their nesting level
+	// (editor.bracketPairColorization.enabled).
+	BracketPairColorization bool
+	// IndependentColorPool counts the levels for each type of bracket on its own
+	// (editor.bracketPairColorization.independentColorPoolPerBracketType).
+	IndependentColorPool bool
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -173,6 +183,8 @@ type ViewModel struct {
 
 	// tok is the tokenization of the document the text layer draws.
 	tok tokenLink
+	// bracketIndex are the bracket pairs of the document, or nil.
+	bracketIndex *brackets.Index
 
 	// metrics tells the scrollbars that the sizes of the text area or of the content changed.
 	metrics *foundation.ChangeNotifier

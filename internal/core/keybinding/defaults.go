@@ -155,6 +155,8 @@ func registerMultiCursorKeys(r *Registry) {
 		Rule{Command: "editor.action.selectHighlights", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "ctrl+shift+l"},
 		Rule{Command: "editor.action.smartSelect.expand", Weight: WeightEditorContrib, When: mustWhen(whenEditorText), Primary: "shift+alt+right"},
 		Rule{Command: "editor.action.smartSelect.shrink", Weight: WeightEditorContrib, When: mustWhen(whenEditorText), Primary: "shift+alt+left"},
+		Rule{Command: "editor.action.jumpToBracket", Weight: WeightEditorContrib, When: mustWhen(whenEditorText), Primary: "ctrl+shift+\\"},
+		Rule{Command: "editor.action.removeBrackets", Weight: WeightEditorContrib, When: mustWhen(whenEditorText), Primary: "ctrl+alt+backspace"},
 	)
 }
 

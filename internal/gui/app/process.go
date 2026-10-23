@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/language"
@@ -45,7 +46,11 @@ type Process struct {
 	grammarMu sync.Mutex
 	grammars  map[grammarKey]*textmate.Grammar
 	regexes   *regex.Cache
+	brackets  *brackets.RegistryLanguages
 }
+
+// BracketLanguages gives the brackets of the languages (SPEC §8.5), made from their configurations.
+func (p *Process) BracketLanguages() *brackets.RegistryLanguages { return p.brackets }
 
 // grammarKey is a grammar of a language with a limit for the length of a line it tokenizes.
 type grammarKey struct {
@@ -94,6 +99,7 @@ func NewProcess(opts ProcessOptions) *Process {
 		Languages: languages,
 		grammars:  map[grammarKey]*textmate.Grammar{},
 		regexes:   regex.NewCache(1 << 14),
+		brackets:  brackets.NewRegistryLanguages(languages),
 	}
 	registerDevCommands(p.Commands)
 	p.loadUserThemes()

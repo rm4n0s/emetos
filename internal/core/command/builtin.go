@@ -12,6 +12,7 @@ func DefaultRegistry() *Registry {
 	registerEditCommands(r)
 	registerLineCommands(r)
 	registerMultiCursorCommands(r)
+	registerBracketCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
 	return r
@@ -156,6 +157,17 @@ func registerMultiCursorCommands(r *Registry) {
 		Meta{ID: "editor.action.selectHighlights", Title: "Select All Occurrences of Find Match"},
 		Meta{ID: "editor.action.smartSelect.expand", Title: "Expand Selection"},
 		Meta{ID: "editor.action.smartSelect.shrink", Title: "Shrink Selection"},
+	)
+}
+
+// registerBracketCommands registers the commands of the brackets.
+//
+// Ported from VS Code: src/vs/editor/contrib/bracketMatching/browser/bracketMatching.ts
+func registerBracketCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "editor.action.jumpToBracket", Title: "Go to Bracket"},
+		Meta{ID: "editor.action.selectToBracket", Title: "Select to Bracket"},
+		Meta{ID: "editor.action.removeBrackets", Title: "Remove Brackets"},
 	)
 }
 

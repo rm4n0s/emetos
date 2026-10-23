@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -172,6 +173,8 @@ type shellState struct {
 	unsubscribe func()
 	// tokenizer keeps the tokens of the document the editor shows.
 	tokenizer *tokens.Tokenizer
+	// stopBrackets stops the bracket pairs of the document following it.
+	stopBrackets func()
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -223,6 +226,7 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 	}
 	s.view = editor.NewViewModel(doc, options(), nil)
 	s.startTokenizer(win, doc)
+	s.startBrackets(win, doc)
 	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("editor", "") {
 			binding.Post(func() { s.view.SetOptions(options()) })
@@ -245,10 +249,22 @@ func (s *shellState) startTokenizer(win *Window, doc *document.Document) {
 	s.Go(s.tokenizer.Run)
 }
 
+// startBrackets makes the bracket pairs of the document and gives them to the editor.
+func (s *shellState) startBrackets(win *Window, doc *document.Document) {
+	code := win.Process.Languages.Code(doc.LanguageID())
+	ix, stop := brackets.Attach(doc, s.tokenizer, win.Process.BracketLanguages(), code)
+	s.stopBrackets = stop
+	s.view.SetBrackets(ix)
+}
+
 // Dispose stops following the settings and the document.
 func (s *shellState) Dispose() {
 	if s.unsubscribe != nil {
 		s.unsubscribe()
+	}
+	if s.stopBrackets != nil {
+		s.view.SetBrackets(nil)
+		s.stopBrackets()
 	}
 	if s.tokenizer != nil {
 		s.view.SetTokenizer(nil)
