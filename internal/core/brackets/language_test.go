@@ -164,3 +164,26 @@ func TestFromConfiguration(t *testing.T) {
 		t.Error("a defined list is the colorized pairs")
 	}
 }
+
+func TestLanguageStrip(t *testing.T) {
+	l := NewLanguage(1, []Pair{{Open: "(", Close: ")"}, {Open: "[", Close: "]"}, {Open: "begin", Close: "end"}}, nil, false)
+	tests := []struct{ in, want string }{
+		{"", ""},
+		{"no brackets", "no brackets"},
+		{"(a[b])", "ab"},
+		{"((()))x", "x"},
+		{"begin x end", " x "},
+		{"friend begins", "friend begins"},
+		{"end(", ""},
+		{"a ( b ) c", "a  b  c"},
+	}
+	for _, tt := range tests {
+		if got := l.Strip(tt.in); got != tt.want {
+			t.Errorf("Strip(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+	var none *Language
+	if got := none.Strip("(x)"); got != "(x)" {
+		t.Errorf("a nil language strips nothing: %q", got)
+	}
+}

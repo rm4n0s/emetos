@@ -3,8 +3,10 @@ package editor
 import (
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/indent"
+	"github.com/rm4n0s/emetos/internal/core/tokens"
 )
 
 // maxTabSize is the largest tab size the commands accept (editor.tabSize goes to 100).
@@ -101,4 +103,54 @@ func convertIndentation(toSpaces bool) action {
 		vm.setIndentation(tabSize, toSpaces)
 		return nil
 	}
+}
+
+// SetIndenter gives the view model the indentation rules of the languages (SPEC §8.6.2) and the
+// code of the language of its document; with nil a new line keeps the indentation of the line it
+// starts on and nothing is re-indented while typing.
+func (vm *ViewModel) SetIndenter(ix *indent.Indenter, languageCode int) {
+	vm.indenter, vm.languageCode = ix, languageCode
+}
+
+// indentTokens gives the indentation rules the tokens of the document: a line is tokenized on the
+// UI thread, within the budget of the text layer, before it is read.
+type indentTokens struct{ vm *ViewModel }
+
+func (s indentTokens) LineTokens(line int) []tokens.Token {
+	tok := s.vm.tok.tokenizer
+	if tok == nil || !tok.Active() {
+		return nil
+	}
+	tok.Ensure(line, tokenBudget)
+	return tok.Line(line)
+}
+
+func (s indentTokens) Language() int { return s.vm.languageCode }
+
+func (s indentTokens) CheapToTokenize(line int) bool {
+	tok := s.vm.tok.tokenizer
+	return tok == nil || !tok.Active() || tok.Ensure(line, tokenBudget)
+}
+
+// autoIndent is editor.autoIndent; a value that is not a level is "full".
+func (vm *ViewModel) autoIndent() indent.AutoIndent {
+	level, _ := indent.ParseAutoIndent(vm.opts.AutoIndent)
+	return level
+}
+
+// reindentLines is Reindent Lines: the lines of the document are indented as the rules of the
+// language say.
+func (vm *ViewModel) reindentLines() error {
+	last := vm.doc.Snapshot().LineCount() - 1
+	return vm.apply(vm.commands().Reindent(vm.cursors.Selections(), 0, last))
+}
+
+// autoIndentPasted fits the text just pasted over r to the indentation around it
+// (editor.autoIndentOnPaste), when there is one cursor.
+func (vm *ViewModel) autoIndentPasted(r buffer.Range) error {
+	sels := vm.cursors.Selections()
+	if !vm.opts.AutoIndentOnPaste || len(sels) != 1 {
+		return nil
+	}
+	return vm.apply(vm.commands().AutoIndentPaste(sels[0], r))
 }

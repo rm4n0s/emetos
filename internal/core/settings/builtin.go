@@ -134,6 +134,29 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.autoIndent", Types: []Type{String}, Default: "full",
+			Enum: []any{"none", "keep", "brackets", "advanced", "full"},
+			EnumDescriptions: []string{
+				"The editor will not insert indentation automatically.",
+				"The editor will keep the current line's indentation.",
+				"The editor will keep the current line's indentation and honor language defined brackets.",
+				"The editor will keep the current line's indentation, honor language defined brackets and invoke special onEnterRules defined by languages.",
+				"The editor will keep the current line's indentation, honor language defined brackets, invoke special onEnterRules defined by languages, and honor indentationRules defined by languages.",
+			},
+			Description: "Controls whether the editor should automatically adjust the indentation when users type, paste, move or indent lines.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.autoIndentOnPaste", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the editor should automatically auto-indent the pasted content.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.autoIndentOnPasteWithinString", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should automatically auto-indent the pasted content when pasted within a string. This takes effect when `editor.autoIndentOnPaste` is true.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.matchBrackets", Types: []Type{String}, Default: "always",
 			Enum: []any{"always", "near", "never"},
 			EnumDescriptions: []string{

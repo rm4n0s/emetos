@@ -66,6 +66,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		MultiCursorPaste: "spread", EmptySelectionClipboard: true,
 		FontWeight: 400, CursorStyle: "line",
 		MatchBrackets: "always", BracketPairColorization: true,
+		AutoIndent: "full", AutoIndentOnPasteWithinString: true,
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -110,6 +111,10 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.matchBrackets":                                              "near",
 		"editor.bracketPairColorization.enabled":                            false,
 		"editor.bracketPairColorization.independentColorPoolPerBracketType": true,
+
+		"editor.autoIndent":                    "brackets",
+		"editor.autoIndentOnPaste":             true,
+		"editor.autoIndentOnPasteWithinString": false,
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -127,6 +132,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	}
 	if got.MatchBrackets != "near" || got.BracketPairColorization || !got.IndependentColorPool {
 		t.Errorf("bracket options: %+v", got)
+	}
+	if got.AutoIndent != "brackets" || !got.AutoIndentOnPaste || got.AutoIndentOnPasteWithinString {
+		t.Errorf("auto-indent options: %+v", got)
 	}
 	if got.MouseWheelScrollSensitivity != 2.5 || got.FastScrollSensitivity != 9 || !got.SmoothScrolling || got.DragAndDrop || got.SelectionClipboard ||
 		got.MultiCursorPaste != "full" || got.EmptySelectionClipboard {

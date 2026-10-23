@@ -231,6 +231,7 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 	})
 	s.startTokenizer(win, doc)
 	s.startBrackets(win, doc)
+	s.view.SetIndenter(win.Process.Indenter(), win.Process.Languages.Code(doc.LanguageID()))
 	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("editor", "") {
 			binding.Post(func() { s.view.SetOptions(options()) })

@@ -56,6 +56,9 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		MatchBrackets:                    settings.Get[string](store, "editor.matchBrackets", languageID),
 		BracketPairColorization:          settings.Get[bool](store, "editor.bracketPairColorization.enabled", languageID),
 		IndependentColorPool:             settings.Get[bool](store, "editor.bracketPairColorization.independentColorPoolPerBracketType", languageID),
+		AutoIndent:                       settings.Get[string](store, "editor.autoIndent", languageID),
+		AutoIndentOnPaste:                settings.Get[bool](store, "editor.autoIndentOnPaste", languageID),
+		AutoIndentOnPasteWithinString:    settings.Get[bool](store, "editor.autoIndentOnPasteWithinString", languageID),
 	}
 }
 

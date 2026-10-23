@@ -4,7 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/indent"
+	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/regex"
+	"github.com/rm4n0s/emetos/internal/core/textmate"
+	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/errors"
 )
 
@@ -137,4 +144,158 @@ func TestTabSizeArgument(t *testing.T) {
 		}
 	}
 	_ = strings.TrimSpace
+}
+
+// ruled makes the view model of a document in a bundled language, with its tokens and the
+// indentation rules of the languages, the cursor at the end of the text.
+func ruled(t testing.TB, languageID, text string) *ViewModel {
+	t.Helper()
+	reg, err := language.Bundled()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var g *textmate.Grammar // plain text has none
+	if languageID != "plaintext" {
+		if g, err = reg.NewGrammar(languageID, regex.NewCache(1<<14)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	opts := document.NewOptions()
+	opts.LanguageID = languageID
+	doc := document.New(document.FileURI("/sample."+languageID), text, opts)
+	tok := tokens.New(doc, g, tokens.Options{})
+	t.Cleanup(tok.Close)
+	tok.Settle()
+	vm := NewViewModel(doc, testOptions(), nil)
+	vm.SetTokenizer(tok)
+	vm.SetIndenter(indent.New(indent.NewRegistryLanguages(reg, brackets.NewRegistryLanguages(reg))), reg.Code(languageID))
+	vm.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(doc.Snapshot().PositionAt(doc.Snapshot().Len()))})
+	return vm
+}
+
+func TestEnterUsesTheRulesOfTheLanguage(t *testing.T) {
+	tests := []struct {
+		name, language, text, want string
+	}{
+		{"Go indents after a brace", "go", "func main() {", "func main() {\n    "},
+		{"Go splits a pair of braces", "go", "func main() {}", "func main() {\n    \n}"},
+		{"TypeScript indents after an arrow", "typescript", "const f = (n) =>", "const f = (n) =>\n    "},
+		{"TypeScript continues a doc comment", "typescript", "/**", "/**\n * "},
+		{"plain text keeps the indentation", "plaintext", "  hello", "  hello\n  "},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := ruled(t, tc.language, tc.text)
+			if tc.name == "Go splits a pair of braces" {
+				vm.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(buffer.Position{Col: len("func main() {")})})
+			}
+			if err := vm.RunCommand("type", "\n"); err != nil {
+				t.Fatal(err)
+			}
+			if got := vm.Document().Text(); got != tc.want {
+				t.Errorf("text = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAutoIndentSettingChangesWhatEnterDoes(t *testing.T) {
+	for level, want := range map[string]string{
+		"none": "func main() {\n", "keep": "func main() {\n", "brackets": "func main() {\n    ", "advanced": "func main() {\n    ", "full": "func main() {\n    ",
+	} {
+		vm := ruled(t, "go", "func main() {")
+		opts := vm.Options()
+		opts.AutoIndent = level
+		vm.SetOptions(opts)
+		if err := vm.RunCommand("type", "\n"); err != nil {
+			t.Fatal(err)
+		}
+		if got := vm.Document().Text(); got != want {
+			t.Errorf("editor.autoIndent %q: text = %q, want %q", level, got, want)
+		}
+	}
+}
+
+func TestTypingACloserReindentsTheLine(t *testing.T) {
+	vm := ruled(t, "go", "func main() {\n    foo()\n    ")
+	if err := vm.RunCommand("type", "}"); err != nil {
+		t.Fatal(err)
+	}
+	if got := vm.Document().Text(); got != "func main() {\n    foo()\n}" {
+		t.Errorf("text = %q", got)
+	}
+}
+
+func TestReindentLinesCommand(t *testing.T) {
+	vm := ruled(t, "go", "func main() {\nif a {\nfoo()\n}\n}\n")
+	if err := vm.RunCommand("editor.action.reindentlines", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := vm.Document().Text(), "func main() {\n    if a {\n        foo()\n    }\n}\n"; got != want {
+		t.Errorf("text = %q, want %q", got, want)
+	}
+	if err := vm.RunCommand("undo", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := vm.Document().Text(); got != "func main() {\nif a {\nfoo()\n}\n}\n" {
+		t.Errorf("one undo takes the reindentation back: %q", got)
+	}
+
+	vm = ruled(t, "go", "func main() {\n    if a {\nfoo()\nbar()\n    }\n}\n")
+	vm.Cursors().SetSelections([]buffer.Selection{{Anchor: buffer.Position{Line: 2}, Active: buffer.Position{Line: 4}}})
+	if err := vm.RunCommand("editor.action.reindentselectedlines", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := vm.Document().Text(), "func main() {\n    if a {\n        foo()\n        bar()\n    }\n}\n"; got != want {
+		t.Errorf("selected lines: text = %q, want %q", got, want)
+	}
+}
+
+func TestAutoIndentOnPaste(t *testing.T) {
+	const text = "func main() {\n    if a {\n\n    }\n}\n"
+	pasted := "foo()\nbar()"
+	for _, tc := range []struct {
+		name string
+		on   bool
+		want string
+	}{
+		{"off by default", false, "func main() {\n    if a {\nfoo()\nbar()\n    }\n}\n"},
+		{"on", true, "func main() {\n    if a {\n        foo()\n        bar()\n    }\n}\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			vm := ruled(t, "go", text)
+			vm.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(buffer.Position{Line: 2})})
+			opts := vm.Options()
+			opts.AutoIndentOnPaste = tc.on
+			vm.SetOptions(opts)
+			if err := vm.PasteText(pasted); err != nil {
+				t.Fatal(err)
+			}
+			if got := vm.Document().Text(); got != tc.want {
+				t.Errorf("text = %q, want %q", got, tc.want)
+			}
+			if tc.on {
+				if err := vm.RunCommand("undo", nil); err != nil {
+					t.Fatal(err)
+				}
+				if got := vm.Document().Text(); got != "func main() {\n    if a {\nfoo()\nbar()\n    }\n}\n" {
+					t.Errorf("undo takes the indentation back, not the paste: %q", got)
+				}
+			}
+		})
+	}
+}
+
+func TestLineBreakInsertKeepsTheCursor(t *testing.T) {
+	vm := ruled(t, "go", "func main() {}")
+	vm.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(buffer.Position{Col: len("func main() {")})})
+	if err := vm.RunCommand("lineBreakInsert", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := vm.Document().Text(); got != "func main() {\n    \n}" {
+		t.Errorf("text = %q", got)
+	}
+	if got := vm.Cursors().Primary().Selection; got != buffer.NewCursor(buffer.Position{Col: len("func main() {")}) {
+		t.Errorf("cursor = %v", got)
+	}
 }

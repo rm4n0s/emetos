@@ -172,6 +172,8 @@ func registerIndentationCommands(r *Registry) {
 		Meta{ID: "editor.action.indentUsingTabs", Title: "Indent Using Tabs"},
 		Meta{ID: "editor.action.changeTabDisplaySize", Title: "Change Tab Display Size"},
 		Meta{ID: "editor.action.detectIndentation", Title: "Detect Indentation from Content"},
+		Meta{ID: "editor.action.reindentlines", Title: "Reindent Lines", Precondition: writable()},
+		Meta{ID: "editor.action.reindentselectedlines", Title: "Reindent Selected Lines", Precondition: writable()},
 	)
 }
 

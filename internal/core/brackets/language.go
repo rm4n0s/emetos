@@ -195,13 +195,42 @@ func (l *Language) Brackets() []*Bracket {
 	return l.all
 }
 
+// Strip returns text without the brackets of the language, found as in a token: the edges of the
+// text count as the edges of a word (VS Code's replace of the global bracket regular expression
+// by nothing).
+func (l *Language) Strip(text string) string {
+	if l.Empty() {
+		return text
+	}
+	var sb strings.Builder
+	last, from := 0, 0
+	for from < len(text) {
+		at, b := l.findFrom(text, from)
+		if b == nil {
+			break
+		}
+		sb.WriteString(text[last:at])
+		last = at + len(b.Text)
+		from = last
+	}
+	if last == 0 {
+		return text
+	}
+	sb.WriteString(text[last:])
+	return sb.String()
+}
+
 // find returns the first bracket in text and its offset, or nil. The edges of the text count as
 // the edges of a word, as in VS Code, which searches the text of one token.
-func (l *Language) find(text string) (int, *Bracket) {
+func (l *Language) find(text string) (int, *Bracket) { return l.findFrom(text, 0) }
+
+// findFrom is find, starting at the byte offset from; the text before it still decides where a
+// word begins.
+func (l *Language) findFrom(text string, from int) (int, *Bracket) {
 	if l == nil || len(l.all) == 0 {
 		return 0, nil
 	}
-	for i := 0; i < len(text); i++ {
+	for i := from; i < len(text); i++ {
 		for _, b := range l.first[text[i]] {
 			if !hasPrefixFold(text[i:], b.Text) {
 				continue

@@ -268,7 +268,7 @@ func (c Commands) InsertLineBefore(sels []buffer.Selection) Result {
 			continue
 		}
 		end := len(c.Model.LineContent(line - 1))
-		plans[i] = c.newLinePlan(rangeOf(line-1, end, line-1, end))
+		plans[i] = c.enterPlan(rangeOf(line-1, end, line-1, end), false)
 	}
 	return build(sels, plans, document.KindOther)
 }
@@ -280,7 +280,7 @@ func (c Commands) InsertLineAfter(sels []buffer.Selection) Result {
 	for i, s := range sels {
 		line := c.validSelection(s).Active.Line
 		end := len(c.Model.LineContent(line))
-		plans[i] = c.newLinePlan(rangeOf(line, end, line, end))
+		plans[i] = c.enterPlan(rangeOf(line, end, line, end), false)
 	}
 	return build(sels, plans, document.KindOther)
 }

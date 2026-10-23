@@ -20,6 +20,11 @@ func (c Commands) Type(sels []buffer.Selection, text string) Result {
 	if text == "\n" {
 		return c.NewLine(sels)
 	}
+	if isSingleChar(text) {
+		if res, ok := c.typeAutoIndent(sels, text); ok {
+			return res
+		}
+	}
 	plans := make([]plan, len(sels))
 	for i, s := range sels {
 		r := c.validRange(s)
@@ -52,24 +57,28 @@ func (c Commands) overtypeRange(r buffer.Range, text string) buffer.Range {
 	return r
 }
 
-// NewLine breaks the line at every cursor, replacing its selection, and starts the
-// new line with the indentation the line had before the cursor (the "keep"
-// auto-indent; the rules of languages come with the language steps).
+// NewLine breaks the line at every cursor, replacing its selection, and starts the new
+// line with the indentation that editor.autoIndent gives (Options.AutoIndent): none, that
+// of the line before the cursor, or what the brackets, the on-enter rules and the
+// indentation rules of the language say (SPEC §8.6.2).
 //
-// Ported from VS Code: cursorTypeEditOperations.ts (EnterOperation._enter)
+// Ported from VS Code: cursorTypeEditOperations.ts (EnterOperation)
 func (c Commands) NewLine(sels []buffer.Selection) Result {
 	plans := make([]plan, len(sels))
 	for i, s := range sels {
-		plans[i] = c.newLinePlan(c.validRange(s))
+		plans[i] = c.enterPlan(c.validRange(s), false)
 	}
 	return build(sels, plans, document.KindOther)
 }
 
-// newLinePlan replaces r by a line break and the indentation of the line before r.
-func (c Commands) newLinePlan(r buffer.Range) plan {
-	indent := leadingWhitespace(c.Model.LineContent(r.Start.Line))
-	indent = indent[:min(len(indent), r.Start.Col)]
-	return replacePlan(r, "\n"+NormalizeIndentation(indent, c.Options.indentSize(), c.Options.InsertSpaces))
+// LineBreakInsert is Insert Line Break (Ctrl+O): it breaks the line at every cursor as NewLine
+// does, but the cursor stays before the line break.
+func (c Commands) LineBreakInsert(sels []buffer.Selection) Result {
+	plans := make([]plan, len(sels))
+	for i, s := range sels {
+		plans[i] = c.enterPlan(c.validRange(s), true)
+	}
+	return build(sels, plans, document.KindOther)
 }
 
 // CompositionType is what an input method does while it composes: at each cursor
@@ -125,8 +134,8 @@ func (c Commands) CompositionType(sels []buffer.Selection, text string, replaceP
 // spaces up to the next indent stop (or one tab); a selection of whole lines, or of
 // several, indents those lines.
 //
-// Ported from VS Code: cursorTypeEditOperations.ts (TabOperation); the indentation
-// that language rules would suggest for a blank line comes with the language steps.
+// Ported from VS Code: cursorTypeEditOperations.ts (TabOperation). On a line of white
+// space only, the indentation is the one the rules of the language suggest, or one level.
 func (c Commands) Tab(sels []buffer.Selection) Result {
 	plans := make([]plan, len(sels))
 	for i, s := range sels {
@@ -134,8 +143,8 @@ func (c Commands) Tab(sels []buffer.Selection) Result {
 		line := c.Model.LineContent(r.Start.Line)
 		switch {
 		case s.IsEmpty():
-			if isBlank(line) {
-				want := NormalizeIndentation("\t", c.Options.indentSize(), c.Options.InsertSpaces)
+			if isBlank(line) && c.cheapToTokenize(r.Start.Line) {
+				want := c.blankLineIndent(r.Start.Line)
 				if !strings.HasPrefix(line, want) {
 					all := buffer.Range{Start: buffer.Position{Line: r.Start.Line}, End: buffer.Position{Line: r.Start.Line, Col: len(line)}}
 					plans[i] = replacePlan(all, want)

@@ -247,7 +247,16 @@ func (vm *ViewModel) PasteText(text string) error {
 		}
 	}
 	return vm.Run(func(vm *ViewModel, _ any) error {
-		return vm.apply(vm.commands().Paste(vm.cursors.Selections(), text, opts))
+		before := vm.cursors.Selections()
+		if err := vm.apply(vm.commands().Paste(before, text, opts)); err != nil {
+			return err
+		}
+		if len(before) != 1 {
+			return nil
+		}
+		// The pasted text goes from where the selection began to where the cursor is now.
+		after := vm.cursors.Selections()
+		return vm.autoIndentPasted(buffer.Range{Start: before[0].Start(), End: after[0].Start()})
 	}, nil)
 }
 

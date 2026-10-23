@@ -1,8 +1,6 @@
 package editor
 
 import (
-	"strings"
-
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
@@ -113,6 +111,12 @@ func (vm *ViewModel) editOptions() edit.Options {
 	o := edit.DefaultOptions()
 	o.TabSize = vm.opts.TabSize
 	_, o.InsertSpaces = vm.doc.Indentation()
+	o.AutoIndent = vm.autoIndent()
+	o.AutoIndentOnPaste = vm.opts.AutoIndentOnPaste
+	o.AutoIndentOnPasteWithinString = vm.opts.AutoIndentOnPasteWithinString
+	if vm.indenter != nil {
+		o.Indenter, o.Tokens = vm.indenter, indentTokens{vm}
+	}
 	return o
 }
 
@@ -430,6 +434,8 @@ func buildActions() map[string]action {
 	a["editor.action.indentUsingSpaces"] = indentUsing(true, false)
 	a["editor.action.indentUsingTabs"] = indentUsing(false, false)
 	a["editor.action.changeTabDisplaySize"] = indentUsing(true, true)
+	a["editor.action.reindentlines"] = func(vm *ViewModel, _ any) error { return vm.reindentLines() }
+	a["editor.action.reindentselectedlines"] = editing(func(c edit.Commands, s []buffer.Selection) edit.Result { return c.ReindentSelected(s) })
 	a["editor.action.detectIndentation"] = func(vm *ViewModel, _ any) error {
 		vm.detectIndentation()
 		return nil
@@ -481,17 +487,5 @@ func (vm *ViewModel) undoRedo(f func() (document.HistoryResult, error)) error {
 //
 // Ported from VS Code: src/vs/editor/browser/coreCommands.ts (LineBreakInsert)
 func (vm *ViewModel) lineBreakInsert() edit.Result {
-	sels := vm.cursors.Selections()
-	snap := vm.doc.Snapshot()
-	var edits []document.Edit
-	out := make([]buffer.Selection, 0, len(sels))
-	for _, s := range sels {
-		start := s.Start()
-		line, _ := snap.LineContent(start.Line)
-		indent := line[:min(start.Col, len(line))]
-		indent = indent[:len(indent)-len(strings.TrimLeft(indent, " \t"))]
-		edits = append(edits, document.Edit{Range: s.Range(), Text: "\n" + indent})
-		out = append(out, buffer.NewCursor(start))
-	}
-	return edit.Result{Edits: edits, Selections: out, Kind: document.KindOther}
+	return vm.commands().LineBreakInsert(vm.cursors.Selections())
 }

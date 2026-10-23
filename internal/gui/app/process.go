@@ -7,6 +7,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/language"
 	"github.com/rm4n0s/emetos/internal/core/logs"
@@ -47,10 +48,14 @@ type Process struct {
 	grammars  map[grammarKey]*textmate.Grammar
 	regexes   *regex.Cache
 	brackets  *brackets.RegistryLanguages
+	indenter  *indent.Indenter
 }
 
 // BracketLanguages gives the brackets of the languages (SPEC §8.5), made from their configurations.
 func (p *Process) BracketLanguages() *brackets.RegistryLanguages { return p.brackets }
+
+// Indenter applies the indentation rules and the on-enter rules of the languages (SPEC §8.6.2).
+func (p *Process) Indenter() *indent.Indenter { return p.indenter }
 
 // grammarKey is a grammar of a language with a limit for the length of a line it tokenizes.
 type grammarKey struct {
@@ -108,6 +113,7 @@ func NewProcess(opts ProcessOptions) *Process {
 		regexes:   regex.NewCache(1 << 14),
 		brackets:  brackets.NewRegistryLanguages(languages),
 	}
+	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
 	registerDevCommands(p.Commands)
 	p.loadUserThemes()
 	return p

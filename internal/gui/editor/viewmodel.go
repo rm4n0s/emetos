@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
+	"github.com/rm4n0s/emetos/internal/core/indent"
 )
 
 // Options are the settings an editor reads, resolved for one document. The widget makes
@@ -93,6 +94,12 @@ type Options struct {
 	// IndependentColorPool counts the levels for each type of bracket on its own
 	// (editor.bracketPairColorization.independentColorPoolPerBracketType).
 	IndependentColorPool bool
+	// AutoIndent is editor.autoIndent: "none", "keep", "brackets", "advanced" or "full".
+	AutoIndent string
+	// AutoIndentOnPaste is editor.autoIndentOnPaste.
+	AutoIndentOnPaste bool
+	// AutoIndentOnPasteWithinString is editor.autoIndentOnPasteWithinString.
+	AutoIndentOnPasteWithinString bool
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -185,6 +192,10 @@ type ViewModel struct {
 	tok tokenLink
 	// bracketIndex are the bracket pairs of the document, or nil.
 	bracketIndex *brackets.Index
+	// indenter applies the indentation rules of the languages, or is nil (SetIndenter), and
+	// languageCode is the code of the language of the document.
+	indenter     *indent.Indenter
+	languageCode int
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
 	indentDefaults func() (tabSize int, insertSpaces bool)
 

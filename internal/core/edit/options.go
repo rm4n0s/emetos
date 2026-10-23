@@ -1,6 +1,10 @@
 package edit
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/rm4n0s/emetos/internal/core/indent"
+)
 
 // Options is everything the cursor and editing functions read besides the text
 // (SPEC §7.2). Later steps add fields; none of the functions take the settings
@@ -26,16 +30,31 @@ type Options struct {
 	// Overtype is the overtype input mode: a typed character replaces the one after
 	// the cursor.
 	Overtype bool
+	// AutoIndent is editor.autoIndent: what a new line, typing and pasting do with the
+	// indentation (SPEC §8.6.2).
+	AutoIndent indent.AutoIndent
+	// AutoIndentOnPaste is editor.autoIndentOnPaste.
+	AutoIndentOnPaste bool
+	// AutoIndentOnPasteWithinString is editor.autoIndentOnPasteWithinString.
+	AutoIndentOnPasteWithinString bool
+	// Indenter applies the indentation rules and the on-enter rules of the languages, with
+	// Tokens. Without them a language has no rules and a new line keeps the indentation of the
+	// line it starts on.
+	Indenter *indent.Indenter
+	// Tokens gives the Indenter the tokens of the document.
+	Tokens TokenSource
 }
 
 // DefaultOptions are VS Code's defaults.
 func DefaultOptions() Options {
 	return Options{
-		TabSize:                     4,
-		InsertSpaces:                true,
-		WordSeparators:              NewWordClassifier(DefaultWordSeparators),
-		MultiCursorMergeOverlapping: true,
-		UseTabStops:                 true,
+		TabSize:                       4,
+		InsertSpaces:                  true,
+		WordSeparators:                NewWordClassifier(DefaultWordSeparators),
+		MultiCursorMergeOverlapping:   true,
+		UseTabStops:                   true,
+		AutoIndent:                    indent.AutoIndentFull,
+		AutoIndentOnPasteWithinString: true,
 	}
 }
 
