@@ -91,11 +91,3 @@ func (vm *ViewModel) drop(d *textDrag, target buffer.Position, shift, copy bool)
 		return vm.apply(vm.commands().DragAndDrop(*d.selection, target, copy))
 	}, nil)
 }
-
-// PasteText replaces the selections by a text, as a paste does (the middle button pastes the
-// primary selection this way).
-func (vm *ViewModel) PasteText(text string) error {
-	return vm.Run(func(vm *ViewModel, _ any) error {
-		return vm.apply(vm.commands().Paste(vm.cursors.Selections(), text))
-	}, nil)
-}

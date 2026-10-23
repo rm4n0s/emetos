@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -187,6 +188,9 @@ type EditorOpts struct {
 	// Context is the context of what the editor asks of the desktop (the clipboard); without
 	// it that is context.Background().
 	Context context.Context
+	// ClipboardMemory is what the editors of a window remember of their copies, so that a copy
+	// in one can be pasted in another as it was made; without it the editor has its own.
+	ClipboardMemory *ClipboardMemory
 }
 
 // NewEditor makes the editor of a view model.
@@ -219,6 +223,9 @@ type editorState struct {
 	smoothTarget    *float64
 	smooth          smoothScroll
 	gutterWidth     float64
+	primaryTimer    func()
+	primaryText     string
+	lastSelections  []buffer.Selection
 	dragStyle       string
 	textRO          *RenderEditorText
 	geometryPending bool
@@ -259,6 +266,7 @@ func (s *editorState) InitState() {
 	}}
 	s.binding.AddObserver(s.observer)
 	s.useTimers(vm)
+	s.useClipboard(vm)
 
 	// The focus: the editor's node, with the scope of its context keys.
 	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Editor"})
@@ -287,6 +295,53 @@ func (s *editorState) selectionChanged() {
 	s.updateKeys()
 	s.input.sync()
 	s.scheduleInputGeometry()
+	s.schedulePrimarySelection()
+}
+
+// useClipboard gives the view model the clipboard of the window.
+func (s *editorState) useClipboard(vm *ViewModel) {
+	ctx := s.Widget().opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	vm.SetClipboard(NewClipboard(ctx, s.binding.Clipboard()), s.Widget().opts.ClipboardMemory, s.reportInputError)
+}
+
+// primarySelectionDelay is how long after the last change of the selections the primary
+// selection of the desktop gets them.
+const primarySelectionDelay = 100 * time.Millisecond
+
+// schedulePrimarySelection makes the selected text the primary selection of the desktop soon
+// after the selections stop changing, when every cursor has a selection (editor.selectionClipboard
+// on Linux). Only the editor that has the focus does it, so that an editor in the background
+// does not take the selection away from the one the user works in.
+//
+// Ported from VS Code: the SelectionClipboard contribution (src/vs/editor/contrib/selectionClipboard, before it was removed)
+func (s *editorState) schedulePrimarySelection() {
+	vm := s.Widget().vm
+	sels := vm.Cursors().Selections()
+	changed := !buffer.SelectionsEqual(sels, s.lastSelections)
+	s.lastSelections = sels
+	if !changed {
+		return // the focus or the text moved the notification, not the selections
+	}
+	if s.primaryTimer != nil {
+		s.primaryTimer()
+		s.primaryTimer = nil
+	}
+	if !vm.Options().SelectionClipboard || !vm.Focused() {
+		return
+	}
+	s.primaryTimer = s.binding.Gestures().NewTimer(primarySelectionDelay, func() {
+		s.primaryTimer = nil
+		vm := s.Widget().vm
+		text, ok := vm.selectedText()
+		if !ok || text == s.primaryText || vm.clip == nil {
+			return
+		}
+		s.primaryText = text
+		vm.clip.clipboard.WritePrimary(text, vm.clip.failed)
+	}).Cancel
 }
 
 // reportInputError passes an error of the keyboard input on.
@@ -398,6 +453,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.SetPreedit(Preedit{})
 		old.vm.SetTimer(nil)
 		old.vm.SetScroller(nil)
+		old.vm.SetClipboard(nil, nil, nil)
 		vm := s.Widget().vm
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
@@ -406,6 +462,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		s.scroll = newEditorScroll(vm, s.controller)
 		vm.SetScroller(s.scrollTo)
 		s.useTimers(vm)
+		s.useClipboard(vm)
 		if cmds := s.Widget().opts.Commands; cmds != nil && s.editorFocused {
 			s.unbindCommands = BindCommands(cmds, vm)
 		}
@@ -435,6 +492,10 @@ func (s *editorState) Dispose() {
 	vm.SetPreedit(Preedit{})
 	vm.SetTimer(nil)
 	vm.SetScroller(nil)
+	vm.SetClipboard(nil, nil, nil)
+	if s.primaryTimer != nil {
+		s.primaryTimer()
+	}
 	vm.RemoveListener(s.vmHandle)
 	s.controller.RemoveListener(s.scrollHandle)
 	s.controller.Dispose()

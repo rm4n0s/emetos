@@ -47,6 +47,8 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		SmoothScrolling:                  settings.Get[bool](store, "editor.smoothScrolling", languageID),
 		DragAndDrop:                      settings.Get[bool](store, "editor.dragAndDrop", languageID),
 		SelectionClipboard:               settings.Get[bool](store, "editor.selectionClipboard", languageID),
+		MultiCursorPaste:                 settings.Get[string](store, "editor.multiCursorPaste", languageID),
+		EmptySelectionClipboard:          settings.Get[bool](store, "editor.emptySelectionClipboard", languageID),
 	}
 }
 

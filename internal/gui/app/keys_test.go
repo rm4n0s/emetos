@@ -574,3 +574,43 @@ func TestTypingThroughTheApp(t *testing.T) {
 		t.Errorf("errors: %v", errs)
 	}
 }
+
+func TestClipboardKeys(t *testing.T) {
+	a := newKeyApp(t, "alpha beta\ngamma\n")
+	press := func(chord string) {
+		t.Helper()
+		parsed, err := keybinding.ParseKeybinding(chord)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !sendChord(a.ts, parsed[0]) {
+			t.Errorf("%s was not handled", chord)
+		}
+		a.ts.Pump(time.Millisecond)
+	}
+	a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 0, 0, 5)})
+	a.vm.SelectionsChanged()
+	a.ts.Pump(time.Millisecond)
+
+	press("ctrl+c")
+	if got, ok := a.ts.ClipboardText(); !ok || got != "alpha" {
+		t.Fatalf("ctrl+c put %q on the clipboard", got)
+	}
+	a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 5)})
+	a.vm.SelectionsChanged()
+	press("ctrl+v")
+	if a.text() != "alpha beta\ngammaalpha\n" {
+		t.Errorf("ctrl+v: %q", a.text())
+	}
+	a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 5, 0, 10)})
+	a.vm.SelectionsChanged()
+	press("ctrl+x")
+	if got, _ := a.ts.ClipboardText(); got != " beta" || a.text() != "alpha\ngammaalpha\n" {
+		t.Errorf("ctrl+x: clipboard %q, text %q", got, a.text())
+	}
+	a.ts.SetClipboardText("Z")
+	press("shift+insert")
+	if a.text() != "alphaZ\ngammaalpha\n" {
+		t.Errorf("shift+insert: %q", a.text())
+	}
+}

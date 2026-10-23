@@ -48,6 +48,7 @@ func DefaultRegistry() *Registry {
 	r := NewRegistry()
 	registerCursorKeys(r)
 	registerEditKeys(r)
+	registerClipboardKeys(r)
 	registerLineKeys(r)
 	registerMultiCursorKeys(r)
 	return r
@@ -154,5 +155,16 @@ func registerMultiCursorKeys(r *Registry) {
 		Rule{Command: "editor.action.selectHighlights", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "ctrl+shift+l"},
 		Rule{Command: "editor.action.smartSelect.expand", Weight: WeightEditorContrib, When: mustWhen(whenEditorText), Primary: "shift+alt+right"},
 		Rule{Command: "editor.action.smartSelect.shrink", Weight: WeightEditorContrib, When: mustWhen(whenEditorText), Primary: "shift+alt+left"},
+	)
+}
+
+// registerClipboardKeys registers the keys of the clipboard commands (Linux).
+//
+// Ported from VS Code: src/vs/editor/contrib/clipboard/browser/clipboard.ts
+func registerClipboardKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "editor.action.clipboardCutAction", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus), Primary: "ctrl+x"},
+		Rule{Command: "editor.action.clipboardCopyAction", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus), Primary: "ctrl+c"},
+		Rule{Command: "editor.action.clipboardPasteAction", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus), Primary: "ctrl+v", Secondary: []string{"shift+insert"}},
 	)
 }

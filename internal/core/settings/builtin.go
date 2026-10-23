@@ -188,6 +188,21 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.multiCursorPaste", Types: []Type{String}, Default: "spread",
+			Enum: []any{"spread", "full"},
+			EnumDescriptions: []string{
+				"Each cursor pastes a single line of the text.",
+				"Each cursor pastes the full text.",
+			},
+			Description: "Controls pasting when the line count of the pasted text matches the cursor count.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.emptySelectionClipboard", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether copying without a selection copies the current line.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.lineNumbersMinChars", Types: []Type{Integer}, Default: 5, Minimum: Float(1), Maximum: Float(300),
 			Description: "Controls the minimal number of characters the line numbers take; the gutter is wide enough for the number of the last line.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

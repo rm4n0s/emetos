@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -42,6 +43,9 @@ type Window struct {
 	// Waiting for second key of chord...") and when it is cleared. The status bar shows it
 	// (step 6.20); until then it is logged. It is called on the UI thread.
 	OnChordStatus func(status string, cleared bool)
+	// Clipboard is what the editors of the window remember of what they copied, so that a copy
+	// in one editor pastes in another as it was made.
+	Clipboard *editor.ClipboardMemory
 
 	ctx context.Context
 }
@@ -84,6 +88,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Keybindings: resolver,
 		Dispatcher:  keybinding.NewDispatcher(resolver, time.Now),
 		Scopes:      kit.NewFocusScopes(),
+		Clipboard:   editor.NewClipboardMemory(),
 		ctx:         ctx,
 	}, nil
 }

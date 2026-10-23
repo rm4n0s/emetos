@@ -12,6 +12,7 @@ func DefaultRegistry() *Registry {
 	registerEditCommands(r)
 	registerLineCommands(r)
 	registerMultiCursorCommands(r)
+	registerClipboardCommands(r)
 	return r
 }
 
@@ -154,5 +155,16 @@ func registerMultiCursorCommands(r *Registry) {
 		Meta{ID: "editor.action.selectHighlights", Title: "Select All Occurrences of Find Match"},
 		Meta{ID: "editor.action.smartSelect.expand", Title: "Expand Selection"},
 		Meta{ID: "editor.action.smartSelect.shrink", Title: "Shrink Selection"},
+	)
+}
+
+// registerClipboardCommands registers the commands that copy, cut and paste.
+//
+// Ported from VS Code: src/vs/editor/contrib/clipboard/browser/clipboard.ts
+func registerClipboardCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "editor.action.clipboardCutAction", Title: "Cut"},
+		Meta{ID: "editor.action.clipboardCopyAction", Title: "Copy"},
+		Meta{ID: "editor.action.clipboardPasteAction", Title: "Paste"},
 	)
 }

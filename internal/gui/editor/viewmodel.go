@@ -68,6 +68,11 @@ type Options struct {
 	// SelectionClipboard makes the selection the primary selection of the desktop, and the
 	// middle button paste it.
 	SelectionClipboard bool
+	// MultiCursorPaste is "spread" (a text of as many lines as there are cursors goes line by
+	// line to the cursors) or "full" (every cursor pastes the whole text).
+	MultiCursorPaste string
+	// EmptySelectionClipboard makes a copy or a cut without a selection take the line.
+	EmptySelectionClipboard bool
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -130,6 +135,11 @@ type ViewModel struct {
 	mouseRange buffer.Range
 	// noReveal keeps a command from scrolling to the cursor, for what scrolls by itself.
 	noReveal bool
+	// keepSessions and skipReveal are set by a command that leaves the sessions of the column
+	// selection, the occurrences and the expansion alone, and does not scroll (a copy).
+	keepSessions, skipReveal bool
+	// clip is the clipboard of the editor, once the widget gives it one.
+	clip *clipboardLink
 	// dropCaret is where dropped text would go, while text is dragged.
 	dropCaret    buffer.Position
 	hasDropCaret bool

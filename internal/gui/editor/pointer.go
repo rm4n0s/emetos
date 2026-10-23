@@ -1,10 +1,7 @@
 package editor
 
 import (
-	"context"
 	"time"
-
-	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/rendering"
@@ -260,7 +257,7 @@ func (s *editorState) pointerUp(e *gestures.PointerUpEvent, gutterWidth float64)
 			s.reportInputError(vm.drop(drag, ev.Position, mods.Shift, mods.Ctrl))
 		}
 	case middle && !moved && vm.Options().SelectionClipboard:
-		s.pastePrimary()
+		s.reportInputError(vm.PastePrimary())
 	}
 }
 
@@ -276,25 +273,6 @@ func (s *editorState) pointerCancel(pointer int) {
 	if s.mouse.pressed && s.mouse.pointer == pointer {
 		s.endPress()
 	}
-}
-
-// pastePrimary pastes the primary selection of the desktop at the cursors; the text arrives
-// in a callback on the UI thread.
-func (s *editorState) pastePrimary() {
-	ctx := s.Widget().opts.Context
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	s.binding.Clipboard().GetPrimaryData(ctx, services.ClipboardKTextPlain, func(data *services.ClipboardData, err error) {
-		if err != nil {
-			s.reportInputError(errors.NewErr("PrimarySelectionReadFailed", err))
-			return
-		}
-		if data == nil || data.Text == "" || !s.Mounted() {
-			return
-		}
-		s.reportInputError(s.Widget().vm.PasteText(data.Text))
-	})
 }
 
 // mouseCursor is the shape of the mouse pointer over the text, from editor.mouseStyle.

@@ -68,20 +68,23 @@ func (vm *ViewModel) RunCommand(id string, args any) error {
 func (vm *ViewModel) Run(act action, args any) error {
 	vm.dropStaleSessions()
 	vm.sessionOwner = sessionNone
+	vm.keepSessions, vm.skipReveal = false, false
 	err := act(vm, args)
-	// A command that is not part of a session ends it.
-	if vm.sessionOwner != sessionColumns {
-		vm.columns = nil
-	}
-	if vm.sessionOwner != sessionOccurrences {
-		vm.occurrences = nil
-	}
-	if vm.sessionOwner != sessionExpansion {
-		vm.expansion = nil
+	// A command that is not part of a session ends it, unless it only reads (a copy).
+	if !vm.keepSessions {
+		if vm.sessionOwner != sessionColumns {
+			vm.columns = nil
+		}
+		if vm.sessionOwner != sessionOccurrences {
+			vm.occurrences = nil
+		}
+		if vm.sessionOwner != sessionExpansion {
+			vm.expansion = nil
+		}
 	}
 	vm.sessionSelections = vm.cursors.Selections()
 	vm.SelectionsChanged()
-	if !vm.noReveal {
+	if !vm.noReveal && !vm.skipReveal {
 		vm.RevealPrimary()
 	}
 	return err
@@ -261,6 +264,9 @@ func buildActions() map[string]action {
 		vm.moveCursors(func(mv edit.Mover, c edit.Cursor) edit.Cursor { return mv.ExpandLine(c) })
 		return nil
 	}
+	a["editor.action.clipboardCopyAction"] = func(vm *ViewModel, _ any) error { return vm.copySelection() }
+	a["editor.action.clipboardCutAction"] = func(vm *ViewModel, _ any) error { return vm.cutSelection() }
+	a["editor.action.clipboardPasteAction"] = func(vm *ViewModel, _ any) error { return vm.pasteClipboard() }
 	a["editor.action.selectAll"] = func(vm *ViewModel, _ any) error {
 		vm.history.Record(vm.cursors.Selections())
 		vm.cursors.Set([]edit.Cursor{vm.mover().SelectAll()})
