@@ -77,7 +77,8 @@ func readExpectedDifferences(t *testing.T) map[string][]*expectedDifference {
 }
 
 // oracleLanguages are the languages whose fixtures the oracle checks.
-var oracleLanguages = map[string]bool{"go": true, "python": true, "javascript": true, "javascriptreact": true, "typescript": true, "typescriptreact": true, "json": true, "jsonc": true, "jsonl": true, "snippets": true, "yaml": true, "markdown": true, "dockercompose": true}
+var oracleLanguages = map[string]bool{"go": true, "python": true, "javascript": true, "javascriptreact": true, "typescript": true, "typescriptreact": true, "json": true, "jsonc": true, "jsonl": true, "snippets": true, "yaml": true, "markdown": true, "dockercompose": true,
+	"html": true, "css": true, "scss": true, "less": true, "xml": true, "xsl": true, "sql": true, "shellscript": true, "makefile": true, "dockerfile": true, "ini": true}
 
 // assignToLines gives the expected tokens to the lines of the fixture they are on: the tokens of
 // a line are the ones that spell it, and an empty line has none.

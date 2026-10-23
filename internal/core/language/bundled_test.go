@@ -47,6 +47,35 @@ func TestBundledRegistry(t *testing.T) {
 		{"app.mts", "", "typescript"},
 		{"app.tsx", "", "typescriptreact"},
 		{"tsconfig.json", "", "jsonc"},
+		{"index.html", "", "html"},
+		{"page.htm", "", "html"},
+		{"page.xhtml", "", "html"},
+		{"site.css", "", "css"},
+		{"site.scss", "", "scss"},
+		{"site.less", "", "less"},
+		{"data.xml", "", "xml"},
+		{"icon.svg", "", "xml"},
+		{"pom.xsd", "", "xml"},
+		{"style.xsl", "", "xsl"},
+		{"query.sql", "", "sql"},
+		{"build.sh", "", "shellscript"},
+		{"build.bash", "", "shellscript"},
+		{"zshrc", "", "shellscript"},
+		{".bashrc", "", "shellscript"},
+		{".zshrc", "", "shellscript"},
+		{"PKGBUILD", "", "shellscript"},
+		{"run", "#!/bin/bash", "shellscript"},
+		{"run2", "#!/usr/bin/env bash", "shellscript"},
+		{"Makefile", "", "makefile"},
+		{"makefile", "", "makefile"},
+		{"GNUmakefile", "", "makefile"},
+		{"rules.mk", "", "makefile"},
+		{"Dockerfile", "", "dockerfile"},
+		{"Dockerfile.dev", "", "dockerfile"},
+		{"app.dockerfile", "", "dockerfile"},
+		{"Containerfile", "", "dockerfile"},
+		{"settings.ini", "", "ini"},
+		{"app.properties", "", "properties"},
 		{"notes.txt", "", "plaintext"},
 	}
 	for _, tc := range cases {
@@ -68,7 +97,7 @@ func TestBundledRegistry(t *testing.T) {
 		t.Errorf("a line over the limit is one token: %+v", res.Tokens)
 	}
 	// Every language with a grammar makes a tokenizer.
-	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact"} {
+	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact", "html", "css", "scss", "less", "xml", "xsl", "sql", "shellscript", "makefile", "dockerfile", "ini", "properties"} {
 		if _, err := r.NewGrammar(id, nil); err != nil {
 			t.Errorf("NewGrammar(%q): %v", id, err)
 		}

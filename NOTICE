@@ -21,7 +21,14 @@ planned and has no files in the repository yet.
    and JavaScript React (TypeScript-TmLanguage, MIT, and javascript.tmbundle
    under the TextMate bundle license) and TypeScript and TypeScript React
    (TypeScript-TmLanguage, MIT); their license texts are in the same
-   ThirdPartyNotices.txt. Steps 4.10 and 4.11 add more (not yet added).
+   ThirdPartyNotices.txt. Step 4.10 added HTML (html.tmbundle, TextMate bundle
+   license), CSS (vscode-css, MIT), SCSS (language-sass, MIT), Less
+   (Better-Less, MIT), XML and XSL (language-xml, MIT), SQL (vscode-mssql,
+   MIT), Shell Script (better-shell-syntax, MIT), Makefile (make.tmbundle,
+   TextMate bundle license), Dockerfile (moby, Apache-2.0) and INI and
+   Properties (ini.tmbundle, TextMate bundle license); the texts are in the
+   same ThirdPartyNotices.txt, and none was left out. Step 4.11 adds more
+   (not yet added).
    A grammar without a permissive license is left out and recorded here.
 
 2. Color themes

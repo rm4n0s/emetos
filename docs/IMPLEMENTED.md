@@ -596,3 +596,16 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** measuring and hit-testing use paragraphs without spans (the font is the same for every token, so the layout is identical). The first view of unseen lines in a very large file spends up to the 6 ms synchronous budget and exceeds the 8 ms scrolling target slightly (8.2 ms); the remaining lines are tokenized in the background and painted when ready. The remaining cost is regexp2's word-boundary and character-class lookups. An earlier run of the scroll benchmark with `-benchtime 2000x` ran out of memory (it tokenizes new lines each iteration); the notes in `PERFORMANCE.md` say to use a small count.
+
+## 4.10 More languages: web and scripts
+
+- **Date:** 2026-10-23
+- **Branch:** feat/step-4.10-web-languages
+- **Summary:** HTML, CSS, SCSS, Less, XML (and XSL), SQL, Shell Script, Makefile, Dockerfile and INI (and Properties) are bundled. `scripts/update-assets.sh` copies the extensions `html css scss less xml sql shellscript make docker ini`; `language.Bundled()` registers them. HTML embeds CSS and JavaScript through the grammars that were already bundled. All ten grammars have permissive licenses (cgmanifest.json: TextMate bundle license for html, make and ini; MIT for css, scss, less, xml, sql and shellscript; Apache-2.0 for the Dockerfile grammar from moby), so none was left out; `NOTICE` lists them and `third_party/vscode-extensions/ThirdPartyNotices.txt` holds the texts.
+- **Main files:** `scripts/update-assets.sh`, `internal/core/language/{bundled.go,bundled_test.go,oracle_test.go,assets/,testdata/expected-differences.txt}`, `NOTICE`, `docs/SPEC.md` §8.1.
+- **Tests:** the oracle now checks 22 more fixtures (`12750.html`, `13448.html`, `25920.html`, `test.html`, `test-embedding.html`, `test.css`, `test-variables.css`, `test.less`, `14119.less`, `test-cssvariables.less`, `test.scss`, `test-cssvariables.scss`, `test.xml`, `test-7115.xml`, `test.sql`, `test.sh`, `test-173216.sh`, `test-173224.sh`, `test-173336.sh`, `makefile`, `Dockerfile`, `test.ini`) and every line equals VS Code's, with no expected difference. The three entries for HTML in the Markdown fixtures (`test.md`, `test-33886.md`) were removed because those fenced blocks now highlight as in VS Code. Detection of 30 file names, extensions and first lines (`Makefile`, `GNUmakefile`, `*.mk`, `Dockerfile.dev`, `*.dockerfile`, `Containerfile`, `.bashrc`, `PKGBUILD`, `#!/bin/bash`, `.svg`, `.xsd`, `.properties`, …); every new language makes a tokenizer and has a language configuration; every pattern of the new grammar files compiles (the existing test).
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · display tests none
+- **Proof:** none (the step names none)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** none. The language ids are VS Code's (`shellscript`, `makefile`, `dockerfile`, `ini`, `properties`, `xsl`). The `dotenv` (`.env`) and `log` extensions are not part of this step.

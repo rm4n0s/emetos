@@ -107,6 +107,13 @@ for ext in python javascript typescript-basics; do
   copy_extension "$ext"
 done
 
+# Step 4.10: web and script languages: HTML (which embeds CSS and JavaScript), CSS, SCSS, Less, XML (and
+# XSL), SQL, Shell Script, Makefile, Dockerfile, INI (and Properties). Their grammars come from MIT
+# projects, the TextMate bundles (TextMate bundle license) and moby (Apache-2.0), named in each cgmanifest.json.
+for ext in html css scss less xml sql shellscript make docker ini; do
+  copy_extension "$ext"
+done
+
 # Step 4.7: the bundled color themes (SPEC §8.4): the six that VS Code ships as its defaults, and
 # the Visual Studio Dark and Light themes that Dark+ and Light+ include. The manifest and its
 # translations give the names; the 2026 themes are not bundled.
