@@ -3,6 +3,7 @@ package editor
 import (
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -114,10 +115,26 @@ func (vm *ViewModel) editOptions() edit.Options {
 	o.AutoIndent = vm.autoIndent()
 	o.AutoIndentOnPaste = vm.opts.AutoIndentOnPaste
 	o.AutoIndentOnPasteWithinString = vm.opts.AutoIndentOnPasteWithinString
-	if vm.indenter != nil {
-		o.Indenter, o.Tokens = vm.indenter, indentTokens{vm}
+	o.Indenter, o.Tokens = vm.indenter, indentTokens{vm}
+	o.AutoClosingBrackets = parseStrategy(vm.opts.AutoClosingBrackets)
+	o.AutoClosingComments = parseStrategy(vm.opts.AutoClosingComments)
+	o.AutoClosingQuotes = parseStrategy(vm.opts.AutoClosingQuotes)
+	o.AutoClosingDelete, _ = autoclose.ParseBehavior(vm.opts.AutoClosingDelete)
+	o.AutoClosingOvertype, _ = autoclose.ParseBehavior(vm.opts.AutoClosingOvertype)
+	o.AutoSurround, _ = autoclose.ParseSurround(vm.opts.AutoSurround)
+	o.AutoClosing = vm.autoClosing
+	o.AutoClosed = vm.autoClosed.Characters()
+	if ix := vm.bracketIndex; ix != nil && ix.Enabled() {
+		o.UnmatchedClosing = ix.HasUnmatchedClosingAfter
 	}
 	return o
+}
+
+// parseStrategy reads a value of editor.autoClosingBrackets, Comments or Quotes; a value that is
+// none of them is "languageDefined".
+func parseStrategy(s string) autoclose.Strategy {
+	strategy, _ := autoclose.ParseStrategy(s)
+	return strategy
 }
 
 func (vm *ViewModel) commands() edit.Commands {
@@ -149,8 +166,16 @@ func (vm *ViewModel) apply(res edit.Result) error {
 	if len(res.Selections) > 0 {
 		vm.cursors.SetSelections(res.Selections)
 	}
+	// The cursors were validated against the pairs tracked before: the pairs of the result are
+	// tracked from now on.
+	vm.autoClosed.Add(res.AutoClosed)
 	if len(res.Edits) > 0 {
 		vm.NotifyListeners()
+	}
+	if res.FollowUp != nil {
+		if next, ok := res.FollowUp(vm.commands(), vm.cursors.Selections()); ok {
+			return vm.apply(next)
+		}
 	}
 	return nil
 }

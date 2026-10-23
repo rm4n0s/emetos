@@ -3,9 +3,11 @@ package editor
 import (
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/indent"
+	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
 )
 
@@ -112,6 +114,15 @@ func (vm *ViewModel) SetIndenter(ix *indent.Indenter, languageCode int) {
 	vm.indenter, vm.languageCode = ix, languageCode
 }
 
+// SetAutoClosing gives the view model the auto-closing pairs and the surrounding pairs of the
+// language of its document (SPEC §8.6.4); with nil nothing is closed and nothing is surrounded.
+func (vm *ViewModel) SetAutoClosing(l *autoclose.Language) {
+	vm.autoClosing = l
+}
+
+// autoClosedOwner is the owner of the decorations that track the auto-closed characters.
+const autoClosedOwner = 1
+
 // indentTokens gives the indentation rules the tokens of the document: a line is tokenized on the
 // UI thread, within the budget of the text layer, before it is read.
 type indentTokens struct{ vm *ViewModel }
@@ -126,6 +137,16 @@ func (s indentTokens) LineTokens(line int) []tokens.Token {
 }
 
 func (s indentTokens) Language() int { return s.vm.languageCode }
+
+// TypeIfInserting tells the type of token that ch would be if it were typed at the byte column col
+// of the line (edit.InsertionTypes).
+func (s indentTokens) TypeIfInserting(line, col int, ch string) (textmate.TokenType, bool) {
+	tok := s.vm.tok.tokenizer
+	if tok == nil || !tok.Active() || !tok.Ensure(line, tokenBudget) {
+		return textmate.TokenOther, false
+	}
+	return tok.TypeIfInserting(line, col, ch)
+}
 
 func (s indentTokens) CheapToTokenize(line int) bool {
 	tok := s.vm.tok.tokenizer

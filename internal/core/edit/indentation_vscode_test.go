@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/indent/indenttest"
@@ -319,7 +320,9 @@ func TestVSCodeAutoIndentOnPaste(t *testing.T) {
 func TestVSCodeAutoIndentOnTypeTypeScript(t *testing.T) {
 	comment := textmate.TokenComment
 	ts := func(auto indent.AutoIndent, toks map[int][]indenttest.Tok, lines ...string) *ed {
-		return indentEd(t, indenttest.TypeScript, auto, toks, lines...)
+		e := indentEd(t, indenttest.TypeScript, auto, toks, lines...)
+		e.opts.AutoClosing = autoclose.NewLanguage(indenttest.TypeScriptConfiguration())
+		return e
 	}
 	t.Run("issue #208215: indent after arrow function", func(t *testing.T) {
 		e := ts(indent.AutoIndentFull, nil, "")
@@ -392,7 +395,17 @@ func TestVSCodeAutoIndentOnTypeTypeScript(t *testing.T) {
 		e := ts(indent.AutoIndentFull, nil, "if (/*condition*/)")
 		e.caret(1, 19).enter()
 		e.assertLines("if (/*condition*/)", "    ")
-		// The rest of VS Code's test types `{`, which needs auto-closing pairs (step 4.17).
+		e.typeText("{")
+		e.assertLines("if (/*condition*/)", "{}")
+		e.caret(2, 2).enter()
+		e.assertLines("if (/*condition*/)", "{", "    ", "}")
+	})
+	t.Run("issue #225916: surrounding with brackets works after an arrow function", func(t *testing.T) {
+		for _, pair := range [][2]string{{"{", "}"}, {"[", "]"}, {"(", ")"}} {
+			e := ts(indent.AutoIndentFull, nil, "const fn = () =>", "    doSomething()")
+			e.at(sel4{2, 5, 2, 18}).typeText(pair[0])
+			e.assertLines("const fn = () =>", "    "+pair[0]+"doSomething()"+pair[1])
+		}
 	})
 	t.Run("closing brace typed on its own line goes back to the indentation of the block", func(t *testing.T) {
 		e := ts(indent.AutoIndentFull, nil, "function f() {", "    a();", "    ")

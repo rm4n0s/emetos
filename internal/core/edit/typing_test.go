@@ -23,12 +23,14 @@ type ed struct {
 	doc  *document.Document
 	opts Options
 	sels []buffer.Selection
+	// closed tracks the closing characters that typing added, as the editor does.
+	closed *AutoClosedTracker
 }
 
 func newEd(t *testing.T, opts Options, lines ...string) *ed {
 	t.Helper()
 	d := document.New(document.UntitledURI(1), strings.Join(lines, "\n"), document.NewOptions())
-	return &ed{t: t, doc: d, opts: opts, sels: []buffer.Selection{buffer.NewCursor(buffer.Position{})}}
+	return &ed{t: t, doc: d, opts: opts, sels: []buffer.Selection{buffer.NewCursor(buffer.Position{})}, closed: NewAutoClosedTracker(d, 1)}
 }
 
 // pos converts a VS Code position into the current text; a column past the end of
@@ -57,6 +59,7 @@ func (e *ed) at(sels ...sel4) *ed {
 	for _, s := range sels {
 		e.sels = append(e.sels, e.sel(s))
 	}
+	e.closed.Validate(e.sels)
 	return e
 }
 
@@ -74,7 +77,12 @@ func editOptionsOf(res Result) document.EditOptions {
 // run runs a command and applies its result to the document.
 func (e *ed) run(f func(Commands, []buffer.Selection) Result) *ed {
 	e.t.Helper()
-	res := f(NewCommands(NewModel(e.doc.Snapshot()), e.opts), e.sels)
+	return e.apply(f(e.commands(), e.sels))
+}
+
+// apply applies a result to the document, tracks what it auto-closed and runs its follow-up.
+func (e *ed) apply(res Result) *ed {
+	e.t.Helper()
 	if len(res.Edits) > 0 {
 		_, err := e.doc.Edit(res.Edits, document.EditOptions{
 			Kind: res.Kind, Before: e.sels,
@@ -87,6 +95,13 @@ func (e *ed) run(f func(Commands, []buffer.Selection) Result) *ed {
 	cs := NewCursors(e.opts)
 	cs.SetSelections(res.Selections)
 	e.sels = cs.Selections()
+	e.closed.Validate(e.sels)
+	e.closed.Add(res.AutoClosed)
+	if res.FollowUp != nil {
+		if next, ok := res.FollowUp(e.commands(), e.sels); ok {
+			e.apply(next)
+		}
+	}
 	return e
 }
 

@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/indent"
@@ -49,6 +50,7 @@ type Process struct {
 	regexes   *regex.Cache
 	brackets  *brackets.RegistryLanguages
 	indenter  *indent.Indenter
+	closing   *autoclose.RegistryLanguages
 }
 
 // BracketLanguages gives the brackets of the languages (SPEC §8.5), made from their configurations.
@@ -56,6 +58,9 @@ func (p *Process) BracketLanguages() *brackets.RegistryLanguages { return p.brac
 
 // Indenter applies the indentation rules and the on-enter rules of the languages (SPEC §8.6.2).
 func (p *Process) Indenter() *indent.Indenter { return p.indenter }
+
+// AutoClosing gives the auto-closing pairs and the surrounding pairs of the languages (SPEC §8.6.4).
+func (p *Process) AutoClosing() *autoclose.RegistryLanguages { return p.closing }
 
 // grammarKey is a grammar of a language with a limit for the length of a line it tokenizes.
 type grammarKey struct {
@@ -114,6 +119,7 @@ func NewProcess(opts ProcessOptions) *Process {
 		brackets:  brackets.NewRegistryLanguages(languages),
 	}
 	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
+	p.closing = autoclose.NewRegistryLanguages(languages)
 	registerDevCommands(p.Commands)
 	p.loadUserThemes()
 	return p

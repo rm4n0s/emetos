@@ -68,6 +68,8 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		FontWeight: 400, CursorStyle: "line",
 		MatchBrackets: "always", BracketPairColorization: true,
 		AutoIndent: "full", AutoIndentOnPasteWithinString: true, Guides: indent.DefaultGuideOptions(),
+		AutoClosingBrackets: "languageDefined", AutoClosingComments: "languageDefined", AutoClosingQuotes: "languageDefined",
+		AutoClosingDelete: "auto", AutoClosingOvertype: "auto", AutoSurround: "languageDefined",
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -119,6 +121,12 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.guides.bracketPairsHorizontal":     false,
 		"editor.guides.highlightActiveBracketPair": false,
 		"editor.autoIndent":                        "brackets",
+		"editor.autoClosingBrackets":               "beforeWhitespace",
+		"editor.autoClosingComments":               "always",
+		"editor.autoClosingQuotes":                 "never",
+		"editor.autoClosingDelete":                 "always",
+		"editor.autoClosingOvertype":               "never",
+		"editor.autoSurround":                      "quotes",
 		"editor.autoIndentOnPaste":                 true,
 		"editor.autoIndentOnPasteWithinString":     false,
 	})
@@ -148,6 +156,10 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	}
 	if got.AutoIndent != "brackets" || !got.AutoIndentOnPaste || got.AutoIndentOnPasteWithinString {
 		t.Errorf("auto-indent options: %+v", got)
+	}
+	if got.AutoClosingBrackets != "beforeWhitespace" || got.AutoClosingComments != "always" || got.AutoClosingQuotes != "never" ||
+		got.AutoClosingDelete != "always" || got.AutoClosingOvertype != "never" || got.AutoSurround != "quotes" {
+		t.Errorf("auto-closing options: %+v", got)
 	}
 	if got.MouseWheelScrollSensitivity != 2.5 || got.FastScrollSensitivity != 9 || !got.SmoothScrolling || got.DragAndDrop || got.SelectionClipboard ||
 		got.MultiCursorPaste != "full" || got.EmptySelectionClipboard {

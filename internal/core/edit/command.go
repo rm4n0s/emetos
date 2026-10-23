@@ -22,6 +22,25 @@ type Result struct {
 	Selections []buffer.Selection
 	// Kind is the undo kind of the edits.
 	Kind document.EditKind
+	// AutoClosed are the closing characters the command inserted, in the text after the edits:
+	// the editor tracks them (SPEC §8.6.4).
+	AutoClosed []AutoClosed
+	// FollowUp, when it is not nil, is a second command to run once this one is applied, as its own
+	// undo step: it is given the commands over the text after this result and the selections now.
+	// It reports false when it has nothing to do, for instance when the text is not what it
+	// expected.
+	FollowUp func(c Commands, sels []buffer.Selection) (Result, bool)
+}
+
+// AutoClosed is a closing character that the editor typed for the user, such as the ")" after a
+// typed "(": typing the closing character over it, or Backspace after the opening one, takes it
+// away again (SPEC §8.6.4).
+type AutoClosed struct {
+	// Character is where the closing text is.
+	Character buffer.Range
+	// Enclosing is the typed opening character and the closing text; the cursor must stay inside
+	// it for the closing text to count as auto-closed.
+	Enclosing buffer.Range
 }
 
 // plan is what a command does for one cursor: its edits, in the text before, and
@@ -33,6 +52,8 @@ type plan struct {
 	// custom makes build use selection even when there are no edits, for a command
 	// that moves the cursor without changing the text.
 	custom bool
+	// closed, when it is not nil, tells the closing character the plan inserted.
+	closed func(now []buffer.Range) AutoClosed
 }
 
 // replacePlan replaces r by text and leaves a cursor after it.
@@ -183,6 +204,9 @@ func build(sels []buffer.Selection, plans []plan, kind document.EditKind) Result
 			res.Selections = append(res.Selections, buffer.Selection{Anchor: m.old(s.Anchor), Active: m.old(s.Active)})
 		default:
 			res.Selections = append(res.Selections, plans[i].selection(m, now[i]))
+			if plans[i].closed != nil {
+				res.AutoClosed = append(res.AutoClosed, plans[i].closed(now[i]))
+			}
 		}
 	}
 	return res

@@ -44,7 +44,11 @@ func (e *ed) addCursors(below bool, n int) *ed {
 func (e *ed) addCursorAbove() *ed { return e.addCursors(false, 1) }
 func (e *ed) addCursorBelow() *ed { return e.addCursors(true, 1) }
 
-func (e *ed) commands() Commands { return NewCommands(NewModel(e.doc.Snapshot()), e.opts) }
+func (e *ed) commands() Commands {
+	o := e.opts
+	o.AutoClosed = e.closed.Characters()
+	return NewCommands(NewModel(e.doc.Snapshot()), o)
+}
 
 // Ported from VS Code: reference/vscode/src/vs/editor/contrib/multicursor/test/browser/multicursor.test.ts
 // ('issue #1336'; the word wrap and paste cases need the view and the clipboard).

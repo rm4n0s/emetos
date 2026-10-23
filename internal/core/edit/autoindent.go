@@ -162,6 +162,15 @@ func (c Commands) typeAutoIndent(sels []buffer.Selection, ch string) (Result, bo
 			return Result{}, false
 		}
 	}
+	pair, closes := foundPair{}, false
+	if !o.AutoClosing.Empty() {
+		pair, closes = c.autoClosingPair(sels, ch)
+	}
+	closing := ""
+	if closes {
+		closing = pair.closing()
+	}
+	withUndoStop := closes && len(pair.Open) > len(ch)
 	plans := make([]plan, len(sels))
 	for i, r := range ranges {
 		actual, found := o.Indenter.IndentActionForType(o.AutoIndent, im, r, ch, c.converter())
@@ -179,9 +188,27 @@ func (c Commands) typeAutoIndent(sels []buffer.Selection, ch string) (Result, bo
 			// JavaScript's substring swaps its arguments when the first is the larger.
 			text += line[min(first, r.Start.Col):max(first, r.Start.Col)]
 		}
-		plans[i] = replacePlan(buffer.Range{Start: buffer.Position{Line: r.Start.Line}, End: r.End}, text+ch)
+		whole := buffer.Range{Start: buffer.Position{Line: r.Start.Line}, End: r.End}
+		if closes && !withUndoStop {
+			// The indentation and the closing text are two edits of one step.
+			plans[i] = plan{
+				edits: []document.Edit{{Range: whole, Text: text}, {Range: buffer.Range{Start: r.End, End: r.End}, Text: ch + closing}},
+				selection: func(_ *mapper, now []buffer.Range) buffer.Selection {
+					return buffer.NewCursor(now[1].End.Delta(0, -len(closing)))
+				},
+			}
+			if closing != "" {
+				plans[i].closed = func(now []buffer.Range) AutoClosed { return closedAt(now[1].End, ch, closing) }
+			}
+			continue
+		}
+		plans[i] = replacePlan(whole, text+ch)
 	}
-	return build(sels, plans, document.KindOther), true
+	res := build(sels, plans, document.KindOther)
+	if withUndoStop {
+		res.FollowUp = closingFollowUp(len(sels), ch, closing)
+	}
+	return res, true
 }
 
 // Reindent is Reindent Lines: the lines first to last (zero-based, both included) get the
@@ -277,11 +304,10 @@ func isSingleChar(text string) bool {
 	return n > 0 && n == len(text) && !strings.ContainsAny(text, "\r\n")
 }
 
-// cheapToTokenize reports whether the rules of the languages may read line: they cannot when
-// there are none, and then Tab uses one level.
+// cheapToTokenize reports whether the tokens of line are known or can be had at once: the rules
+// of the languages and the auto-closing of quotes may read it only then. Without tokens it is.
 func (c Commands) cheapToTokenize(line int) bool {
-	im, ok := c.indentModel()
-	return !ok || im.CheapToTokenize(line)
+	return c.Options.Tokens == nil || c.Options.Tokens.CheapToTokenize(line)
 }
 
 // blankLineIndent is the indentation Tab puts on the blank line (normalized): what the rules of the

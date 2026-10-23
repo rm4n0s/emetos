@@ -3,6 +3,8 @@ package edit
 import (
 	"regexp"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 )
 
@@ -43,6 +45,28 @@ type Options struct {
 	Indenter *indent.Indenter
 	// Tokens gives the Indenter the tokens of the document.
 	Tokens TokenSource
+	// AutoClosingBrackets is editor.autoClosingBrackets.
+	AutoClosingBrackets autoclose.Strategy
+	// AutoClosingQuotes is editor.autoClosingQuotes.
+	AutoClosingQuotes autoclose.Strategy
+	// AutoClosingComments is editor.autoClosingComments.
+	AutoClosingComments autoclose.Strategy
+	// AutoClosingDelete is editor.autoClosingDelete.
+	AutoClosingDelete autoclose.Behavior
+	// AutoClosingOvertype is editor.autoClosingOvertype.
+	AutoClosingOvertype autoclose.Behavior
+	// AutoSurround is editor.autoSurround.
+	AutoSurround autoclose.Surround
+	// AutoClosing is the auto-closing and surrounding configuration of the language of the
+	// document. Without it nothing is closed and nothing is surrounded.
+	AutoClosing *autoclose.Language
+	// AutoClosed are the closing characters the editor typed and that are still there (the
+	// Character of each AutoClosed that earlier results reported and that the text and the cursors
+	// have not made stale).
+	AutoClosed []buffer.Range
+	// UnmatchedClosing tells whether a closing bracket that closes nothing and that would close the
+	// opening bracket text starts at or after a position; without it there is none.
+	UnmatchedClosing func(pos buffer.Position, opening string) bool
 }
 
 // DefaultOptions are VS Code's defaults.

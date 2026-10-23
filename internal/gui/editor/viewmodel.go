@@ -5,6 +5,7 @@ import (
 
 	"github.com/rm4n0s/glutter/foundation"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -102,6 +103,15 @@ type Options struct {
 	AutoIndentOnPaste bool
 	// AutoIndentOnPasteWithinString is editor.autoIndentOnPasteWithinString.
 	AutoIndentOnPasteWithinString bool
+	// AutoClosingBrackets, AutoClosingComments and AutoClosingQuotes are editor.autoClosingBrackets,
+	// editor.autoClosingComments and editor.autoClosingQuotes: "languageDefined", "beforeWhitespace",
+	// "always" or "never" (SPEC §8.6.4).
+	AutoClosingBrackets, AutoClosingComments, AutoClosingQuotes string
+	// AutoClosingDelete and AutoClosingOvertype are editor.autoClosingDelete and
+	// editor.autoClosingOvertype: "auto", "always" or "never".
+	AutoClosingDelete, AutoClosingOvertype string
+	// AutoSurround is editor.autoSurround: "languageDefined", "quotes", "brackets" or "never".
+	AutoSurround string
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -194,6 +204,11 @@ type ViewModel struct {
 	tok tokenLink
 	// bracketIndex are the bracket pairs of the document, or nil.
 	bracketIndex *brackets.Index
+	// autoClosing is the auto-closing and surrounding configuration of the language of the
+	// document, or nil.
+	autoClosing *autoclose.Language
+	// autoClosed tracks the closing characters the editor typed.
+	autoClosed *edit.AutoClosedTracker
 	// indenter applies the indentation rules of the languages, or is nil (SetIndenter), and
 	// languageCode is the code of the language of the document.
 	indenter     *indent.Indenter
@@ -233,6 +248,8 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		metrics:        foundation.NewChangeNotifier(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
+	vm.autoClosed = edit.NewAutoClosedTracker(doc, autoClosedOwner)
+	vm.cursors.SetOnChange(func() { vm.autoClosed.Validate(vm.cursors.Selections()) })
 	vm.Sync()
 	vm.restartBlink()
 	return vm

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -169,6 +170,7 @@ func ruled(t testing.TB, languageID, text string) *ViewModel {
 	vm := NewViewModel(doc, testOptions(), nil)
 	vm.SetTokenizer(tok)
 	vm.SetIndenter(indent.New(indent.NewRegistryLanguages(reg, brackets.NewRegistryLanguages(reg))), reg.Code(languageID))
+	vm.SetAutoClosing(autoclose.NewRegistryLanguages(reg).Language(reg.Code(languageID)))
 	vm.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(doc.Snapshot().PositionAt(doc.Snapshot().Len()))})
 	return vm
 }

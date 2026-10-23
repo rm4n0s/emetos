@@ -61,6 +61,12 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		AutoIndent:                       settings.Get[string](store, "editor.autoIndent", languageID),
 		AutoIndentOnPaste:                settings.Get[bool](store, "editor.autoIndentOnPaste", languageID),
 		AutoIndentOnPasteWithinString:    settings.Get[bool](store, "editor.autoIndentOnPasteWithinString", languageID),
+		AutoClosingBrackets:              settings.Get[string](store, "editor.autoClosingBrackets", languageID),
+		AutoClosingComments:              settings.Get[string](store, "editor.autoClosingComments", languageID),
+		AutoClosingQuotes:                settings.Get[string](store, "editor.autoClosingQuotes", languageID),
+		AutoClosingDelete:                settings.Get[string](store, "editor.autoClosingDelete", languageID),
+		AutoClosingOvertype:              settings.Get[string](store, "editor.autoClosingOvertype", languageID),
+		AutoSurround:                     settings.Get[string](store, "editor.autoSurround", languageID),
 	}
 }
 

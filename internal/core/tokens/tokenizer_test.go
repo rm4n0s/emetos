@@ -453,3 +453,62 @@ func TestScopesAreInterned(t *testing.T) {
 		t.Error("an id is stable")
 	}
 }
+
+func TestTypeIfInserting(t *testing.T) {
+	text := "x := 1\ns := \"a b\"\nr := `raw\nstring`\n// c\n"
+	doc := newDoc(text)
+	tok := New(doc, grammarFor(t, "go"), Options{})
+	t.Cleanup(tok.Close)
+	tok.Settle()
+	tests := []struct {
+		name      string
+		line, col int
+		ch        string
+		want      textmate.TokenType
+		ok        bool
+	}{
+		{"code", 0, 5, "0", textmate.TokenOther, true},
+		{"inside a string", 1, 8, "0", textmate.TokenString, true},
+		{"the quote that ends a string", 1, 10, "0", textmate.TokenOther, true},
+		{"a quote typed in code begins a string", 1, 5, "\"", textmate.TokenString, true},
+		{"inside a raw string over lines", 3, 3, "0", textmate.TokenString, true},
+		{"inside a comment", 4, 3, "0", textmate.TokenComment, true},
+		{"at the end of the line", 0, 6, "0", textmate.TokenOther, true},
+		{"a column past the end is the end", 0, 100, "0", textmate.TokenOther, true},
+		{"a line that does not exist", 99, 0, "0", textmate.TokenOther, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := tok.TypeIfInserting(tc.line, tc.col, tc.ch)
+			if got != tc.want || ok != tc.ok {
+				t.Errorf("TypeIfInserting(%d, %d, %q) = %v, %v; want %v, %v", tc.line, tc.col, tc.ch, got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+	// Nothing is kept: the tokens of the line are those of its text.
+	before := describe(tok.Scopes(), "x := 1", tok.Line(0))
+	tok.TypeIfInserting(0, 5, "\"")
+	if after := describe(tok.Scopes(), "x := 1", tok.Line(0)); after != before {
+		t.Errorf("the tokens changed: %s, was %s", after, before)
+	}
+}
+
+func TestTypeIfInsertingNeedsTheLinesAbove(t *testing.T) {
+	doc := newDoc("a\nb\nc\n")
+	tok := New(doc, grammarFor(t, "go"), Options{})
+	t.Cleanup(tok.Close)
+	if _, ok := tok.TypeIfInserting(2, 0, "0"); ok {
+		t.Error("the line above is not tokenized yet")
+	}
+	if !tok.Ensure(2, time.Second) {
+		t.Fatal("Ensure did not tokenize")
+	}
+	if _, ok := tok.TypeIfInserting(2, 0, "0"); !ok {
+		t.Error("the lines above are tokenized now")
+	}
+	off := New(newDoc("a"), nil, Options{})
+	t.Cleanup(off.Close)
+	if _, ok := off.TypeIfInserting(0, 0, "0"); ok {
+		t.Error("a document with no grammar has no answer")
+	}
+}

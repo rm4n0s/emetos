@@ -43,6 +43,17 @@ type Cursors struct {
 	list      []Cursor
 	lastAdded int
 	merge     bool
+	onChange  func()
+}
+
+// SetOnChange sets the function that is called after the cursors were changed by Set,
+// SetSelections, Add, Replace, Map or CancelSecondary; nil removes it.
+func (cs *Cursors) SetOnChange(fn func()) { cs.onChange = fn }
+
+func (cs *Cursors) changed() {
+	if cs.onChange != nil {
+		cs.onChange()
+	}
 }
 
 // NewCursors makes the cursors of an editor: one at the start of the text.
@@ -77,6 +88,7 @@ func (cs *Cursors) Set(list []Cursor) {
 	cs.list = append([]Cursor(nil), list...)
 	cs.lastAdded = 0
 	cs.Normalize()
+	cs.changed()
 }
 
 // SetSelections replaces the cursors by selections.
@@ -94,6 +106,7 @@ func (cs *Cursors) Add(c Cursor) {
 	cs.list = append(cs.list, c)
 	cs.lastAdded = len(cs.list) - 1
 	cs.Normalize()
+	cs.changed()
 }
 
 // LastAdded is the index of the cursor added last, which the mouse keeps moving while a
@@ -108,6 +121,7 @@ func (cs *Cursors) Replace(i int, c Cursor) {
 	}
 	cs.list[i] = c
 	cs.Normalize()
+	cs.changed()
 }
 
 // Map moves every cursor with fn and merges the ones that meet.
@@ -116,12 +130,14 @@ func (cs *Cursors) Map(fn func(Cursor) Cursor) {
 		cs.list[i] = fn(c)
 	}
 	cs.Normalize()
+	cs.changed()
 }
 
 // CancelSecondary removes every cursor but the primary (Escape).
 func (cs *Cursors) CancelSecondary() {
 	cs.list = cs.list[:1]
 	cs.lastAdded = 0
+	cs.changed()
 }
 
 // Normalize merges cursors that overlap, or touch when one of them is empty; it

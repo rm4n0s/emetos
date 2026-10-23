@@ -415,3 +415,31 @@ func (t *Tokenizer) slice() bool {
 	defer t.mu.Unlock()
 	return t.invalidFrom < len(t.lines)
 }
+
+// TypeIfInserting is the standard type that the text ch would have if it were inserted at the
+// byte column col of a line: the line is tokenized again with ch in it, from the state the line
+// above ends in, and nothing is kept. It is how the editor tells whether a quote typed there
+// would end a string or begin one. It reports false when the tokenizer is off or the line above
+// is not tokenized yet (see Ensure).
+//
+// Ported from VS Code: src/vs/editor/common/model/tokens/tokenizationTextModelPart.ts
+// (getTokenTypeIfInsertingCharacter)
+func (t *Tokenizer) TypeIfInserting(line, col int, ch string) (textmate.TokenType, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.activeLocked() || line < 0 || line >= len(t.lines) || (line > 0 && !t.lines[line-1].done) {
+		return textmate.TokenOther, false
+	}
+	text, err := t.snap.LineContent(line)
+	if err != nil {
+		return textmate.TokenOther, false
+	}
+	col = min(max(col, 0), len(text))
+	res := t.grammar.TokenizeLine(text[:col]+ch+text[col:], t.stateBefore(line), t.opts.LineTimeLimit)
+	for _, tok := range res.Tokens {
+		if col < tok.End {
+			return tok.Type, true
+		}
+	}
+	return textmate.TokenOther, true
+}

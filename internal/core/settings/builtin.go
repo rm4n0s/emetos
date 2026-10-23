@@ -200,6 +200,76 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.autoClosingBrackets", Types: []Type{String}, Default: "languageDefined",
+			Enum: []any{"always", "languageDefined", "beforeWhitespace", "never"},
+			EnumDescriptions: []string{
+				"",
+				"Use language configurations to determine when to autoclose brackets.",
+				"Autoclose brackets only when the cursor is to the left of whitespace.",
+				"",
+			},
+			Description: "Controls whether the editor should automatically close brackets after the user adds an opening bracket.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.autoClosingComments", Types: []Type{String}, Default: "languageDefined",
+			Enum: []any{"always", "languageDefined", "beforeWhitespace", "never"},
+			EnumDescriptions: []string{
+				"",
+				"Use language configurations to determine when to autoclose comments.",
+				"Autoclose comments only when the cursor is to the left of whitespace.",
+				"",
+			},
+			Description: "Controls whether the editor should automatically close comments after the user adds an opening comment.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.autoClosingQuotes", Types: []Type{String}, Default: "languageDefined",
+			Enum: []any{"always", "languageDefined", "beforeWhitespace", "never"},
+			EnumDescriptions: []string{
+				"",
+				"Use language configurations to determine when to autoclose quotes.",
+				"Autoclose quotes only when the cursor is to the left of whitespace.",
+				"",
+			},
+			Description: "Controls whether the editor should automatically close quotes after the user adds an opening quote.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.autoClosingDelete", Types: []Type{String}, Default: "auto",
+			Enum: []any{"always", "auto", "never"},
+			EnumDescriptions: []string{
+				"",
+				"Remove adjacent closing quotes or brackets only if they were automatically inserted.",
+				"",
+			},
+			Description: "Controls whether the editor should remove adjacent closing quotes or brackets when deleting.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.autoClosingOvertype", Types: []Type{String}, Default: "auto",
+			Enum: []any{"always", "auto", "never"},
+			EnumDescriptions: []string{
+				"",
+				"Type over closing quotes or brackets only if they were automatically inserted.",
+				"",
+			},
+			Description: "Controls whether the editor should type over closing quotes or brackets.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.autoSurround", Types: []Type{String}, Default: "languageDefined",
+			Enum: []any{"languageDefined", "quotes", "brackets", "never"},
+			EnumDescriptions: []string{
+				"Use language configurations to determine when to automatically surround selections.",
+				"Surround with quotes but not brackets.",
+				"Surround with brackets but not quotes.",
+				"",
+			},
+			Description: "Controls whether the editor should automatically surround selections when typing quotes or brackets.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.matchBrackets", Types: []Type{String}, Default: "always",
 			Enum: []any{"always", "near", "never"},
 			EnumDescriptions: []string{

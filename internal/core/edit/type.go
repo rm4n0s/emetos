@@ -24,6 +24,9 @@ func (c Commands) Type(sels []buffer.Selection, text string) Result {
 		if res, ok := c.typeAutoIndent(sels, text); ok {
 			return res
 		}
+		if res, ok := c.typeAutoClosing(sels, text); ok {
+			return res
+		}
 	}
 	plans := make([]plan, len(sels))
 	for i, s := range sels {

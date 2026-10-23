@@ -106,7 +106,13 @@ func (c Commands) deleteRanges(sels []buffer.Selection, kind document.EditKind, 
 }
 
 // DeleteLeft is Backspace at every cursor.
+//
+// A cursor between an opening character and the closing one the editor typed for it, such as
+// "(|)", deletes both (editor.autoClosingDelete).
 func (c Commands) DeleteLeft(sels []buffer.Selection) Result {
+	if c.autoClosingPairDelete(sels) {
+		return c.deleteAutoClosingPair(sels)
+	}
 	return c.deleteRanges(sels, document.KindDeleteLeft, c.leftDeleteRange)
 }
 

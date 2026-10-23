@@ -138,7 +138,12 @@ func All() Languages {
 }
 
 func typeScript() *indent.Language {
-	c := &language.Configuration{
+	return make1(TypeScript, TypeScriptConfiguration())
+}
+
+// TypeScriptConfiguration is the language configuration of TypeScript in the tests.
+func TypeScriptConfiguration() *language.Configuration {
+	return &language.Configuration{
 		Brackets: pairs("${", "}", "{", "}", "[", "]", "(", ")"),
 		AutoClosingPairs: []language.AutoClosingPair{
 			{Pair: language.Pair{Open: "{", Close: "}"}}, {Pair: language.Pair{Open: "[", Close: "]"}},
@@ -199,7 +204,6 @@ func typeScript() *indent.Language {
 			},
 		},
 	}
-	return make1(TypeScript, c)
 }
 
 func ruby() *indent.Language {
