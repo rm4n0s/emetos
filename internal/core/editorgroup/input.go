@@ -75,6 +75,14 @@ type EditorInput interface {
 	Dispose()
 }
 
+// Copier is implemented by an input that can be shown in several groups at once: CopyInput gives
+// another input for the same thing, which the other group owns (VS Code's EditorInput.copy). An
+// input without it is shown in one group only, as a singleton editor is, and a split or a copy
+// leaves it out.
+type Copier interface {
+	CopyInput() EditorInput
+}
+
 // BaseInput is the part of an EditorInput that sends the events. An input embeds it and calls
 // Emit when its state changes; Dispose sends InputWillDispose and forgets the listeners.
 type BaseInput struct {

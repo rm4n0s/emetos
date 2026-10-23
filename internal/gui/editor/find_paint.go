@@ -20,7 +20,7 @@ func (vm *ViewModel) findDecorationsIn(firstRow, lastRow int) []document.Decorat
 	firstLine, _, _ := proj.RowSpan(firstRow)
 	lastLine, _, _ := proj.RowSpan(lastRow)
 	span := buffer.Range{Start: buffer.Position{Line: firstLine}, End: buffer.Position{Line: lastLine + 1}}
-	return vm.doc.DecorationsIn(span, findOwner)
+	return vm.doc.DecorationsIn(span, vm.owner(findOwner))
 }
 
 // paintFind draws the matches of the find widget: the lines of the current match and the search

@@ -369,3 +369,64 @@ func TestRowOfPosition(t *testing.T) {
 }
 
 func positionOf(line, col int) buffer.Position { return buffer.Position{Line: line, Col: col} }
+
+// Two view models over one document (two editor groups showing a file) mark it without meeting:
+// each owns its decorations, and what one removes or replaces is not the other's.
+func TestViewModelsOfOneDocumentHaveOwnersOfTheirOwn(t *testing.T) {
+	doc := newTestDoc("foo bar foo\nbaz foo\n")
+	a := NewViewModel(doc, testOptions(), nil)
+	b := NewViewModel(doc, testOptions(), nil)
+	seen := map[int]string{}
+	for _, vm := range []struct {
+		name string
+		vm   *ViewModel
+	}{{"a", a}, {"b", b}} {
+		for _, slot := range []int{autoClosedOwner, foldingOwner, findOwner, wordHighlightOwner, selectionHighlightOwner, snippetOwner} {
+			owner := vm.vm.owner(slot)
+			if other, ok := seen[owner]; ok {
+				t.Fatalf("owner %d of slot %d of %s is also %s's", owner, slot, vm.name, other)
+			}
+			seen[owner] = vm.name
+		}
+	}
+	// highlights: each view model marks its own word, and clearing one leaves the other's
+	a.cursors.SetSelections([]buffer.Selection{buffer.NewCursor(buffer.Position{Line: 0, Col: 1})})
+	b.cursors.SetSelections([]buffer.Selection{buffer.NewCursor(buffer.Position{Line: 1, Col: 1})})
+	a.setHighlights(wordHighlightOwner, &a.hl.wordIDs, []buffer.Range{rg(0, 0, 0, 3)})
+	b.setHighlights(wordHighlightOwner, &b.hl.wordIDs, []buffer.Range{rg(1, 0, 1, 3), rg(1, 4, 1, 7)})
+	if got := len(doc.DecorationsOf(a.owner(wordHighlightOwner))); got != 1 {
+		t.Errorf("a has %d marks, want 1", got)
+	}
+	if got := len(doc.DecorationsOf(b.owner(wordHighlightOwner))); got != 2 {
+		t.Errorf("b has %d marks, want 2", got)
+	}
+	a.setHighlights(wordHighlightOwner, &a.hl.wordIDs, nil)
+	if got := len(doc.DecorationsOf(b.owner(wordHighlightOwner))); got != 2 {
+		t.Errorf("clearing a's marks left b with %d", got)
+	}
+	// find: a search in one editor marks the document for it alone, and closing it leaves the other's
+	af, bf := &findUIFake{}, &findUIFake{}
+	a.SetFindUI(af.ui())
+	b.SetFindUI(bf.ui())
+	t.Cleanup(a.DisposeFind)
+	t.Cleanup(b.DisposeFind)
+	selectRange(a, 0, 0, 0, 3)
+	selectRange(b, 1, 0, 1, 3)
+	if err := a.RunCommand("actions.find", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.RunCommand("actions.find", nil); err != nil {
+		t.Fatal(err)
+	}
+	na, nb := len(doc.DecorationsOf(a.owner(findOwner))), len(doc.DecorationsOf(b.owner(findOwner)))
+	if na == 0 || nb == 0 {
+		t.Fatalf("marks of the searches: a %d, b %d", na, nb)
+	}
+	a.DisposeFind()
+	if got := len(doc.DecorationsOf(a.owner(findOwner))); got != 0 {
+		t.Errorf("a has %d marks after its search closed", got)
+	}
+	if got := len(doc.DecorationsOf(b.owner(findOwner))); got != nb {
+		t.Errorf("closing a's search left b with %d marks, want %d", got, nb)
+	}
+}

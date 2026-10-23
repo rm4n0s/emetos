@@ -138,6 +138,15 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+pageup opens the previous editor", nil, "ctrl+pageup", "workbench.action.previousEditor"},
 		{"ctrl+tab opens the next recently used editor", nil, "ctrl+tab", "workbench.action.openNextRecentlyUsedEditorInGroup"},
 		{"ctrl+shift+tab opens the previous recently used editor", nil, "ctrl+shift+tab", "workbench.action.openPreviousRecentlyUsedEditorInGroup"},
+		{"ctrl+w closes an empty group when there are several", map[string]any{"activeEditorGroupEmpty": true, "multipleEditorGroups": true}, "ctrl+w", "workbench.action.closeGroup"},
+		{"ctrl+w closes the editor of a group that is not empty", map[string]any{"multipleEditorGroups": true}, "ctrl+w", "workbench.action.closeActiveEditor"},
+		{"ctrl+w closes the editor when the only group is empty", map[string]any{"activeEditorGroupEmpty": true}, "ctrl+w", "workbench.action.closeActiveEditor"},
+		{"ctrl+backslash splits the editor", nil, "ctrl+\\", "workbench.action.splitEditor"},
+		{"ctrl+1 focuses the first group", nil, "ctrl+1", "workbench.action.focusFirstEditorGroup"},
+		{"ctrl+8 focuses the eighth group", nil, "ctrl+8", "workbench.action.focusEighthEditorGroup"},
+		{"ctrl+alt+right moves the editor to the next group", nil, "ctrl+alt+right", "workbench.action.moveEditorToNextGroup"},
+		{"ctrl+alt+left moves the editor to the previous group", nil, "ctrl+alt+left", "workbench.action.moveEditorToPreviousGroup"},
+		{"shift+alt+1 moves the editor to the first group", nil, "shift+alt+1", "workbench.action.moveEditorToFirstGroup"},
 		{"ctrl+b in the find input still toggles the side bar", map[string]any{"findInputFocussed": true}, "ctrl+b", "workbench.action.toggleSidebarVisibility"},
 	}
 	for _, tc := range cases {
@@ -169,6 +178,16 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+k u", "workbench.action.closeUnmodifiedEditors"},
 		{"ctrl+k enter", "workbench.action.keepEditor"},
 		{"ctrl+k shift+enter", "workbench.action.pinEditor"},
+		{"ctrl+k ctrl+\\", "workbench.action.splitEditorOrthogonal"},
+		{"ctrl+k ctrl+left", "workbench.action.focusLeftGroup"},
+		{"ctrl+k ctrl+right", "workbench.action.focusRightGroup"},
+		{"ctrl+k ctrl+up", "workbench.action.focusAboveGroup"},
+		{"ctrl+k ctrl+down", "workbench.action.focusBelowGroup"},
+		{"ctrl+k left", "workbench.action.moveActiveEditorGroupLeft"},
+		{"ctrl+k right", "workbench.action.moveActiveEditorGroupRight"},
+		{"ctrl+k up", "workbench.action.moveActiveEditorGroupUp"},
+		{"ctrl+k down", "workbench.action.moveActiveEditorGroupDown"},
+		{"ctrl+k ctrl+shift+w", "workbench.action.closeAllGroups"},
 	} {
 		kb := mustKB(t, tc.chords)
 		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())

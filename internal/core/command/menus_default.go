@@ -19,6 +19,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerSelectionMenu(r)
 	registerViewMenu(r)
 	registerGoMenu(r)
+	registerEditorGroupMenus(r)
 	registerEditorContext(r)
 	return r
 }
@@ -167,5 +168,45 @@ func registerEditorContext(r *MenuRegistry) {
 		MenuItem{Menu: EditorContext, Command: "editor.action.clipboardCopyAction", Group: "9_cutcopypaste", Order: 2},
 		MenuItem{Menu: EditorContext, Command: "editor.action.clipboardPasteAction", Group: "9_cutcopypaste", Order: 4, When: writable},
 		MenuItem{Menu: EditorContext, Command: "editor.action.selectAll", Group: "9_select", Order: 1},
+	)
+}
+
+// registerEditorGroupMenus adds the Editor Layout submenu of the View menu and the Switch Group
+// submenu of the Go menu. Not here: Split in Group and Join in Group (editors that split inside a
+// group), Move/Copy Editor into New Window, and the Switch Editor submenu (step 6.17).
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editor.contribution.ts
+func registerEditorGroupMenus(r *MenuRegistry) {
+	multiple := contextkey.Has("multipleEditorGroups")
+	r.MustAdd(
+		MenuItem{Menu: MenubarViewMenu, Submenu: MenubarLayoutMenu, Title: "Editor Layout", MnemonicTitle: "Editor &&Layout", Group: "2_appearance", Order: 2},
+
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.splitEditorUp", Title: "Split Up", MnemonicTitle: "Split &&Up", Group: "1_split", Order: 1},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.splitEditorDown", Title: "Split Down", MnemonicTitle: "Split &&Down", Group: "1_split", Order: 2},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.splitEditorLeft", Title: "Split Left", MnemonicTitle: "Split &&Left", Group: "1_split", Order: 3},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.splitEditorRight", Title: "Split Right", MnemonicTitle: "Split &&Right", Group: "1_split", Order: 4},
+
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutSingle", Title: "Single", MnemonicTitle: "&&Single", Group: "4_layouts", Order: 1},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutTwoColumns", Title: "Two Columns", MnemonicTitle: "&&Two Columns", Group: "4_layouts", Order: 3},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutThreeColumns", Title: "Three Columns", MnemonicTitle: "T&&hree Columns", Group: "4_layouts", Order: 4},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutTwoRows", Title: "Two Rows", MnemonicTitle: "T&&wo Rows", Group: "4_layouts", Order: 5},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutThreeRows", Title: "Three Rows", MnemonicTitle: "Three &&Rows", Group: "4_layouts", Order: 6},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutTwoByTwoGrid", Title: "Grid (2x2)", MnemonicTitle: "&&Grid (2x2)", Group: "4_layouts", Order: 7},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutTwoRowsRight", Title: "Two Rows Right", MnemonicTitle: "Two R&&ows Right", Group: "4_layouts", Order: 8},
+		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutTwoColumnsBottom", Title: "Two Columns Bottom", MnemonicTitle: "Two &&Columns Bottom", Group: "4_layouts", Order: 9},
+
+		MenuItem{Menu: MenubarGoMenu, Submenu: MenubarSwitchGroupMenu, Title: "Switch Group", MnemonicTitle: "Switch &&Group", Group: "2_editor_nav", Order: 2},
+
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusFirstEditorGroup", Title: "Group 1", MnemonicTitle: "Group &&1", Group: "1_focus_index", Order: 1},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusSecondEditorGroup", Title: "Group 2", MnemonicTitle: "Group &&2", Group: "1_focus_index", Order: 2},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusThirdEditorGroup", Title: "Group 3", MnemonicTitle: "Group &&3", Group: "1_focus_index", Order: 3, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusFourthEditorGroup", Title: "Group 4", MnemonicTitle: "Group &&4", Group: "1_focus_index", Order: 4, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusFifthEditorGroup", Title: "Group 5", MnemonicTitle: "Group &&5", Group: "1_focus_index", Order: 5, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusNextGroup", Title: "Next Group", MnemonicTitle: "&&Next Group", Group: "2_next_prev", Order: 1, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusPreviousGroup", Title: "Previous Group", MnemonicTitle: "&&Previous Group", Group: "2_next_prev", Order: 2, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusLeftGroup", Title: "Group Left", MnemonicTitle: "Group &&Left", Group: "3_directional", Order: 1, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusRightGroup", Title: "Group Right", MnemonicTitle: "Group &&Right", Group: "3_directional", Order: 2, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusAboveGroup", Title: "Group Above", MnemonicTitle: "Group &&Above", Group: "3_directional", Order: 3, Precondition: multiple},
+		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusBelowGroup", Title: "Group Below", MnemonicTitle: "Group &&Below", Group: "3_directional", Order: 4, Precondition: multiple},
 	)
 }

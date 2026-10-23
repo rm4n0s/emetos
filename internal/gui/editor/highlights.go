@@ -12,7 +12,8 @@ import (
 // Ported from VS Code: src/vs/editor/contrib/wordHighlighter/browser/wordHighlighter.ts and
 // src/vs/editor/contrib/multicursor/browser/multicursor.ts (SelectionHighlighter)
 
-// The owners of the decorations of the highlights (1 is auto-closing, 2 folding, 3 find).
+// The slots of the decorations of the highlights (1 is auto-closing, 2 folding, 3 find, 6 snippets;
+// see ViewModel.owner).
 const (
 	wordHighlightOwner      = 4
 	selectionHighlightOwner = 5
@@ -77,7 +78,7 @@ func (vm *ViewModel) setHighlights(owner int, ids *[]int, ranges []buffer.Range)
 			Stickiness: document.NeverGrowsWhenTypingAtEdges, ClassName: class,
 		}}
 	}
-	*ids = vm.doc.DeltaDecorations(owner, *ids, add)
+	*ids = vm.doc.DeltaDecorations(vm.owner(owner), *ids, add)
 	vm.sel.NotifyListeners()
 }
 
@@ -141,7 +142,7 @@ func (vm *ViewModel) updateWordHighlight(typed bool) {
 		vm.stopWordHighlight()
 		return
 	}
-	for _, d := range vm.doc.DecorationsOf(wordHighlightOwner) {
+	for _, d := range vm.doc.DecorationsOf(vm.owner(wordHighlightOwner)) {
 		if d.Range.ContainsPosition(primary.Active) && d.Range.ContainsPosition(primary.Anchor) {
 			return
 		}
@@ -233,7 +234,7 @@ func (vm *ViewModel) findSearchesFor(q edit.OccurrenceQuery) bool {
 		!q.MatchCase && !st.MatchCase() && strings.EqualFold(st.SearchString(), q.Text) && st.WholeWord() == q.WholeWord
 }
 
-// occurrencesIn are the decorations of an owner in the lines of the rows first to last.
+// occurrencesIn are the decorations of an owner slot in the lines of the rows first to last.
 func (vm *ViewModel) occurrencesIn(owner, firstRow, lastRow int) []document.Decoration {
 	var ids []int
 	switch owner {
@@ -249,5 +250,5 @@ func (vm *ViewModel) occurrencesIn(owner, firstRow, lastRow int) []document.Deco
 	firstLine, _, _ := proj.RowSpan(firstRow)
 	lastLine, _, _ := proj.RowSpan(lastRow)
 	span := buffer.Range{Start: buffer.Position{Line: firstLine}, End: buffer.Position{Line: lastLine + 1}}
-	return vm.doc.DecorationsIn(span, owner)
+	return vm.doc.DecorationsIn(span, vm.owner(owner))
 }

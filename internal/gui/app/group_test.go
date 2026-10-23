@@ -52,7 +52,13 @@ func longText(n int) string {
 // that order, as the command line does.
 func newGroupApp(t *testing.T, names []string, open ...string) *groupApp {
 	t.Helper()
-	win := newTestWindow(t, "")
+	return newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, names, nil, open...)
+}
+
+// newGroupAppWith is newGroupApp over a window, with the text of the files named in texts (a file with
+// none gets a short one).
+func newGroupAppWith(t *testing.T, win *Window, size ui.Size, names []string, texts map[string]string, open ...string) *groupApp {
+	t.Helper()
 	dir := t.TempDir()
 	a := &groupApp{t: t, win: win, files: map[string]string{}, docs: map[string]*document.Document{}}
 	for _, n := range names {
@@ -64,6 +70,9 @@ func newGroupApp(t *testing.T, names []string, open ...string) *groupApp {
 		if n == "long.go" {
 			text = longText(300)
 		}
+		if custom, ok := texts[n]; ok {
+			text = custom
+		}
 		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -73,7 +82,7 @@ func newGroupApp(t *testing.T, names []string, open ...string) *groupApp {
 	for _, n := range open {
 		docs = append(docs, a.doc(n))
 	}
-	a.ts = testutil.New(t, testWindowSize)
+	a.ts = testutil.New(t, size)
 	a.ts.PumpWidget(newAppDocs(context.Background(), win, docs, nil, ""))
 	a.pump()
 	return a
@@ -600,7 +609,7 @@ func TestTabSettings(t *testing.T) {
 			for k, v := range tc.settings {
 				a.setting(k, v)
 			}
-			if o := a.shell().tabsOptions(a.win); !tc.check(o) {
+			if o := a.shell().tabsOptions(a.win, a.shell().activeGroup()); !tc.check(o) {
 				t.Errorf("options %+v", o)
 			}
 		})

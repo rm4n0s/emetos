@@ -11,7 +11,7 @@ import (
 
 // Ported from VS Code: src/vs/editor/contrib/folding/browser/folding.ts (FoldingController)
 
-// foldingOwner is the owner of the decorations of the folding regions.
+// foldingOwner is the slot of the decorations of the folding regions (see ViewModel.owner).
 const foldingOwner = 2
 
 // foldLink is what a view model knows of the folding of its document.
@@ -60,7 +60,7 @@ func (vm *ViewModel) StartFolding(provider folding.Provider, delay time.Duration
 	if vm.fold.model != nil {
 		vm.stopFolding()
 	}
-	m := folding.NewModel(vm.doc, foldingOwner, foldDecoration)
+	m := folding.NewModel(vm.doc, vm.owner(foldingOwner), foldDecoration)
 	vm.fold.model = m
 	vm.fold.unsubscribe = m.OnChange(func(folding.ChangeEvent) { vm.foldingChanged() })
 	if provider != nil {

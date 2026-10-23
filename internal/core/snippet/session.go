@@ -14,8 +14,9 @@ import (
 
 // Ported from VS Code: src/vs/editor/contrib/snippet/browser/snippetSession.ts
 
-// DecorationOwner is the owner of the decorations that mark the tab stops of a snippet (the
-// owners 1 to 5 are the auto-closed characters, folding, find and the two highlights).
+// DecorationOwner is the owner of the decorations that mark the tab stops of a snippet, for an
+// Editor that names none (the owners 1 to 5 are the auto-closed characters, folding, find and the
+// two highlights of the first editor of a document).
 const DecorationOwner = 6
 
 // The class names of the decorations of the tab stops: the final tab stop looks different.
@@ -28,6 +29,17 @@ const (
 type Editor struct {
 	Doc     *document.Document
 	Cursors *edit.Cursors
+	// Owner is the owner of the decorations of the tab stops; DecorationOwner when 0. Editors
+	// that show the same document need different owners.
+	Owner int
+}
+
+// owner is the owner of the decorations of the tab stops.
+func (e Editor) owner() int {
+	if e.Owner > 0 {
+		return e.Owner
+	}
+	return DecorationOwner
 }
 
 // Env is what the variables of a snippet need besides the document, which the editor gathers
@@ -164,7 +176,7 @@ func (o *oneSnippet) initDecorations() {
 	for i, p := range placeholders {
 		adds[i] = document.NewDecoration{Range: rangeOf(snap, o.snippet, o.offset, p), Options: decoOptions(p.IsFinalTabstop(), false)}
 	}
-	for i, id := range o.ed.Doc.DeltaDecorations(DecorationOwner, nil, adds) {
+	for i, id := range o.ed.Doc.DeltaDecorations(o.ed.owner(), nil, adds) {
 		o.decos[placeholders[i]] = id
 	}
 }
@@ -400,7 +412,7 @@ func (o *oneSnippet) merge(others *[]*oneSnippet) {
 		}
 	}
 	doc.RemoveDecorations(remove...)
-	for i, id := range doc.DeltaDecorations(DecorationOwner, nil, adds) {
+	for i, id := range doc.DeltaDecorations(o.ed.owner(), nil, adds) {
 		o.decos[added[i]] = id
 	}
 

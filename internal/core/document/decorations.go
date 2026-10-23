@@ -28,6 +28,21 @@ type decorations struct {
 	store  intervalStore
 	byID   map[int]*node
 	nextID int
+	// nextOwner is the first owner that AllocOwners has not given out yet; 0 means 1.
+	nextOwner int
+}
+
+// AllocOwners reserves n consecutive owners for one user of the document's decorations and
+// returns the first of them (the owners are base to base+n-1). Features that put decorations
+// on a document take the owners from here, so that two editors that show one document (two
+// groups, SPEC §10.3) never share an owner. The first reservation of a document starts at 1.
+func (d *Document) AllocOwners(n int) int {
+	if d.deco.nextOwner < 1 {
+		d.deco.nextOwner = 1
+	}
+	base := d.deco.nextOwner
+	d.deco.nextOwner += max(n, 1)
+	return base
 }
 
 // AddDecoration adds a decoration for an owner (1 or more) and returns its id.

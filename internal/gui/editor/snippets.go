@@ -61,7 +61,7 @@ func (vm *ViewModel) SetSnippetWorkspace(w snippet.WorkspaceResolver) { vm.snip.
 // snippets is the controller of the editor's snippet session, made when first needed.
 func (vm *ViewModel) snippets() *snippet.Controller {
 	if vm.snip.ctrl == nil {
-		vm.snip.ctrl = snippet.NewController(snippet.Editor{Doc: vm.doc, Cursors: vm.cursors}, vm.snippetEnv, vm.snippetStateChanged)
+		vm.snip.ctrl = snippet.NewController(snippet.Editor{Doc: vm.doc, Cursors: vm.cursors, Owner: vm.owner(snippetOwner)}, vm.snippetEnv, vm.snippetStateChanged)
 		vm.snip.ctrl.OnChoice(vm.showChoices)
 	}
 	return vm.snip.ctrl
@@ -366,7 +366,7 @@ func (vm *ViewModel) snippetPlaceholders(firstRow, lastRow int) []document.Decor
 	proj := vm.Projection()
 	firstLine, _, _ := proj.RowSpan(firstRow)
 	lastLine, _, _ := proj.RowSpan(lastRow)
-	return vm.doc.DecorationsIn(buffer.Range{Start: buffer.Position{Line: firstLine}, End: buffer.Position{Line: lastLine + 1}}, snippet.DecorationOwner)
+	return vm.doc.DecorationsIn(buffer.Range{Start: buffer.Position{Line: firstLine}, End: buffer.Position{Line: lastLine + 1}}, vm.owner(snippetOwner))
 }
 
 // The snippet commands (SPEC §9.9).

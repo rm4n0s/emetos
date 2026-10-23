@@ -754,6 +754,13 @@ func registerTabColors(r *ColorRegistry) {
 			Defaults:    dflt(half("tab.inactiveModifiedBorder"), half("tab.inactiveModifiedBorder"), Lit(ColorWhite), Ref("contrastBorder")),
 			Description: "Border on the top of modified inactive tabs in an unfocused group." + tabs},
 
+		ColorContribution{ID: "editorGroup.emptyBackground", Defaults: AllThemes(nil),
+			Description: "Background color of an empty editor group. Editor groups are the containers of editors."},
+		ColorContribution{ID: "editorGroup.focusedEmptyBorder", Defaults: dflt(nil, nil, Ref("focusBorder"), Ref("focusBorder")),
+			Description: "Border color of an empty editor group that is focused. Editor groups are the containers of editors."},
+		ColorContribution{ID: "editorGroup.border", Defaults: dflt(Hex("#444444"), Hex("#E7E7E7"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."},
+
 		ColorContribution{ID: "editorGroupHeader.tabsBackground", Defaults: dflt(Hex("#252526"), Hex("#F3F3F3"), nil, nil),
 			Description: "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."},
 		ColorContribution{ID: "editorGroupHeader.tabsBorder", Defaults: AllThemes(nil),

@@ -11,9 +11,9 @@ import (
 // Tests ported from VS Code: src/vs/workbench/test/browser/parts/editor/editorGroupModel.test.ts
 //
 // The file has 49 tests. 32 are ported below, one of them without the parts that need diff and
-// side by side inputs (contains), and 17 are skipped because they test what the Go model does not
+// side by side inputs (contains), 1 more (Clone Group) is ported as TestModelClone in grid_test.go
+// (step 6.9) without the locking, and 16 are skipped because they test what the Go model does not
 // have:
-//   - Clone Group: the model cannot be cloned (step 6.9 will need it, and ports the test then)
 //   - isActive - untyped, contains() - untyped: untyped inputs (resource + options) belong to the
 //     editor service, which Emetos does not have
 //   - openEditor - prefers existing side by side editor if same, indexOf() - prefers direct matching

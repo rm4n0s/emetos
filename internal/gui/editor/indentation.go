@@ -127,7 +127,8 @@ func (vm *ViewModel) SetComments(l comment.Languages) {
 	vm.comments = l
 }
 
-// autoClosedOwner is the owner of the decorations that track the auto-closed characters.
+// autoClosedOwner is the slot of the decorations that track the auto-closed characters (see
+// ViewModel.owner).
 const autoClosedOwner = 1
 
 // indentTokens gives the indentation rules the tokens of the document: a line is tokenized on the

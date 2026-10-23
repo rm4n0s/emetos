@@ -204,6 +204,10 @@ type Colors struct {
 	// header that shows one title (workbench.editor.showTabs "single") and the line under it.
 	EditorGroupHeaderTabsBackground, EditorGroupHeaderTabsBorder ui.Color
 	EditorGroupHeaderNoTabsBackground, EditorGroupHeaderBorder   ui.Color
+	// The colors of the grid of editor groups: the line between two groups, the background of an
+	// empty group (transparent leaves the editor's) and the border of an empty group that has the
+	// focus.
+	EditorGroupBorder, EditorGroupEmptyBackground, EditorGroupFocusedEmptyBorder ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -358,6 +362,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		TabUnfocusedActiveModifiedBorder: color("tab.unfocusedActiveModifiedBorder"), TabUnfocusedInactiveModifiedBorder: color("tab.unfocusedInactiveModifiedBorder"),
 		EditorGroupHeaderTabsBackground: color("editorGroupHeader.tabsBackground"), EditorGroupHeaderTabsBorder: color("editorGroupHeader.tabsBorder"),
 		EditorGroupHeaderNoTabsBackground: color("editorGroupHeader.noTabsBackground"), EditorGroupHeaderBorder: color("editorGroupHeader.border"),
+		EditorGroupBorder: color("editorGroup.border"), EditorGroupEmptyBackground: color("editorGroup.emptyBackground"),
+		EditorGroupFocusedEmptyBorder: color("editorGroup.focusedEmptyBorder"),
 	}
 }
 

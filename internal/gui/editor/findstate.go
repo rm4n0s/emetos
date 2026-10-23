@@ -106,4 +106,18 @@ func (s *editorState) findFocusChanged() {
 		})
 	}
 	s.refreshCommands()
+	s.reportFocus()
+}
+
+// reportFocus tells OnFocus whether the editor or its find widget has the focus now, when that
+// changed.
+func (s *editorState) reportFocus() {
+	has := s.editorFocused || s.findFocused
+	if has == s.focusReported {
+		return
+	}
+	s.focusReported = has
+	if f := s.Widget().opts.OnFocus; f != nil {
+		f(has)
+	}
 }

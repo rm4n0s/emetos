@@ -430,7 +430,7 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
 		{"the Manage menu has no commands yet", GlobalActivity, contextkey.MapContext{}, nil},
-		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Go to Bracket"}},
+		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Switch Group", "-", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -499,4 +499,59 @@ func TestDefaultMenuContexts(t *testing.T) {
 			t.Errorf("Word Wrap with wrapping on: %+v", e)
 		}
 	}
+}
+
+func TestEditorGroupMenus(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	rows := func(menu string, ctx contextkey.MapContext) (titles []string, disabled map[string]bool) {
+		disabled = map[string]bool{}
+		for _, e := range menus.Items(menu, ctx) {
+			if e.Separator {
+				titles = append(titles, "-")
+				continue
+			}
+			titles = append(titles, e.Title)
+			disabled[e.Title] = e.Disabled
+		}
+		return titles, disabled
+	}
+	t.Run("the Editor Layout menu", func(t *testing.T) {
+		got, _ := rows(MenubarLayoutMenu, contextkey.MapContext{})
+		want := []string{"Split Up", "Split Down", "Split Left", "Split Right", "-",
+			"Single", "Two Columns", "Three Columns", "Two Rows", "Three Rows", "Grid (2x2)", "Two Rows Right", "Two Columns Bottom"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+	t.Run("the View menu has it after Appearance", func(t *testing.T) {
+		got, _ := rows(MenubarViewMenu, contextkey.MapContext{})
+		if len(got) < 2 || got[0] != "Appearance" || got[1] != "Editor Layout" {
+			t.Errorf("got %v", got)
+		}
+	})
+	t.Run("the Switch Group menu with one group", func(t *testing.T) {
+		got, disabled := rows(MenubarSwitchGroupMenu, contextkey.MapContext{})
+		want := []string{"Group 1", "Group 2", "Group 3", "Group 4", "Group 5", "-", "Next Group", "Previous Group", "-", "Group Left", "Group Right", "Group Above", "Group Below"}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+		for _, title := range []string{"Group 1", "Group 2"} {
+			if disabled[title] {
+				t.Errorf("%s is disabled", title)
+			}
+		}
+		for _, title := range []string{"Group 3", "Next Group", "Previous Group", "Group Left", "Group Below"} {
+			if !disabled[title] {
+				t.Errorf("%s is enabled with a single group", title)
+			}
+		}
+	})
+	t.Run("the Switch Group menu with several groups", func(t *testing.T) {
+		_, disabled := rows(MenubarSwitchGroupMenu, contextkey.MapContext{"multipleEditorGroups": true})
+		for title, off := range disabled {
+			if off {
+				t.Errorf("%s is disabled with several groups", title)
+			}
+		}
+	})
 }

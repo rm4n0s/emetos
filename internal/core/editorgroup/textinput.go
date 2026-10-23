@@ -136,6 +136,9 @@ func (t *TextInput) Serialize() (string, bool) {
 	return uri.String(), true
 }
 
+// CopyInput implements Copier: another input for the same document, with the same options.
+func (t *TextInput) CopyInput() EditorInput { return NewTextInput(t.doc, t.opts) }
+
 // Dispose implements EditorInput: it stops following the document.
 func (t *TextInput) Dispose() {
 	if t.stop != nil {

@@ -12,8 +12,8 @@ import (
 
 // Ported from VS Code: src/vs/editor/contrib/find/browser/findController.ts (CommonFindController)
 
-// findOwner is the owner of the document decorations of the find model (1 is the auto-closed
-// pairs' and 2 the folding regions').
+// findOwner is the slot of the document decorations of the find model (1 is the auto-closed
+// pairs' and 2 the folding regions'; see ViewModel.owner).
 const findOwner = 3
 
 // searchStringMaxLength is the longest selection that seeds the search string.
@@ -261,7 +261,7 @@ func (vm *ViewModel) startFind(o findStart, ns find.NewState) {
 	state.Change(ns, false, true)
 
 	if vm.findw.model == nil {
-		vm.findw.model = find.NewModel(findHost{vm}, vm.doc, state, findOwner)
+		vm.findw.model = find.NewModel(findHost{vm}, vm.doc, state, vm.owner(findOwner))
 	}
 	ui := vm.findw.ui
 	switch {

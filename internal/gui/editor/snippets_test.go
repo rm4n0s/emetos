@@ -46,7 +46,7 @@ func TestInsertSnippetCommandAndTabStops(t *testing.T) {
 		t.Fatalf("state %+v", st)
 	}
 	// the decorations of the tab stops are in the document
-	if n := len(vm.Document().DecorationsOf(snippet.DecorationOwner)); n != 3 {
+	if n := len(vm.Document().DecorationsOf(vm.owner(snippetOwner))); n != 3 {
 		t.Errorf("%d decorations", n)
 	}
 	if got := len(vm.snippetPlaceholders(0, 0)); got != 3 {
@@ -89,7 +89,7 @@ func TestInsertSnippetCommandAndTabStops(t *testing.T) {
 	if got := vm.Cursors().Selections(); got[0] != cur(0, 10) {
 		t.Errorf("the cursor is at the final tab stop: %v", got)
 	}
-	if len(vm.Document().DecorationsOf(snippet.DecorationOwner)) != 0 {
+	if len(vm.Document().DecorationsOf(vm.owner(snippetOwner))) != 0 {
 		t.Error("decorations remain")
 	}
 }

@@ -301,7 +301,7 @@ func (r *RenderEditorMinimap) paintDecorations(canvas *ui.Canvas, offset ui.Offs
 	}
 	var marks []minimapMark
 	if vm.FindRevealed() {
-		for _, d := range vm.doc.DecorationsIn(span, findOwner) {
+		for _, d := range vm.doc.DecorationsIn(span, vm.owner(findOwner)) {
 			if d.Options.ClassName == find.ClassFindMatch || d.Options.ClassName == find.ClassCurrentFindMatch {
 				marks = append(marks, minimapMark{rng: d.Range, color: r.colors.FindMatch})
 			}

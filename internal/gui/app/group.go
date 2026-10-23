@@ -5,71 +5,92 @@ import (
 	"os"
 	"time"
 
-	"github.com/rm4n0s/errors"
-	"github.com/rm4n0s/glutter/foundation"
-	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/widgets"
 
-	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
-	"github.com/rm4n0s/emetos/internal/gui/editor"
-	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
-// The editor group of the window (SPEC §10.3): the tab strip, the breadcrumbs and the editor of the
-// active tab. The group's data is an editorgroup.Model; this file keeps an editor (textEditor, with a
-// view model of its own) for each text input of it, and follows the model's events. Step 6.9 makes
-// several groups of it.
+// The editor groups of the window (SPEC §10.3): a grid of groups, each with its tab strip, its
+// breadcrumbs and the editor of its active tab. The data is an editorgroup.Grid whose groups hold
+// editorgroup.Models; this file keeps an editor (textEditor, with a view model of its own) for each
+// text input of every group and follows the events of the grid. The widgets are in gridview.go, the
+// commands in groupcommands.go.
 
-// groupState is what the shell keeps of its editor group.
+// groupState is what the shell keeps of its editor groups.
 type groupState struct {
-	model *editorgroup.Model
-	// editors are the editors of the inputs of the model.
+	grid *editorgroup.Grid
+	// editors are the editors of the inputs of all the groups. The input of an editor that moves to
+	// another group is the same one, and so is its editor.
 	editors map[editorgroup.EditorInput]*textEditor
-	// stop follows the model, and stopSettings the settings.
+	// views hold what the widgets of a group need to keep from build to build.
+	views map[*editorgroup.Group]*groupView
+	// focused tells which editors have the keyboard focus (the editor or its find widget).
+	focused map[*textEditor]bool
+	// stop follows the grid, and stopSettings the settings.
 	stop, stopSettings func()
 	// removeCommands take the handlers of the group commands off the registry.
 	removeCommands []func()
+	// focusAsked is whether a request to give the active group the keyboard focus waits for the next
+	// frame.
+	focusAsked bool
 }
 
-// openOptions say how a document is shown in the group.
+// openOptions say how a document is shown in a group.
 type openOptions struct {
 	// Preview opens the editor as the preview editor, which the next preview replaces, when
 	// workbench.editor.enablePreview is on; a navigation (the breadcrumbs, later the explorer) asks
 	// for it, the command line and the other commands do not.
 	Preview bool
+	// Group is the group to show the document in; the active group when nil. The group becomes the
+	// active group.
+	Group *editorgroup.Group
 	// Place, when set, runs once the editor exists (to put the cursor somewhere); the editor then
 	// scrolls to the cursor.
 	Place func(*textEditor)
 }
 
-// groupOptions are the settings the model follows.
-func (s *shellState) groupOptions() editorgroup.Options {
+// gridOptions are the settings the grid follows.
+func (s *shellState) gridOptions() editorgroup.GridOptions {
 	win := PeekWindow(s.Context())
-	return editorgroup.Options{
-		OpenPositioning:             editorgroup.OpenPositioning(settings.Get[string](win.Settings, "workbench.editor.openPositioning", "")),
-		FocusRecentEditorAfterClose: settings.Get[bool](win.Settings, "workbench.editor.focusRecentEditorAfterClose", ""),
+	return editorgroup.GridOptions{
+		Model: editorgroup.Options{
+			OpenPositioning:             editorgroup.OpenPositioning(settings.Get[string](win.Settings, "workbench.editor.openPositioning", "")),
+			FocusRecentEditorAfterClose: settings.Get[bool](win.Settings, "workbench.editor.focusRecentEditorAfterClose", ""),
+		},
+		CloseEmptyGroups: settings.Get[bool](win.Settings, "workbench.editor.closeEmptyGroups", ""),
+		SplitSizing:      editorgroup.SplitSizing(settings.Get[string](win.Settings, "workbench.editor.splitSizing", "")),
 	}
 }
 
-// initGroup makes the model of the group and the editors for the documents the window starts with:
-// the first is the active editor, and all are kept (not previews), as VS Code opens the files of the
-// command line.
+// sideBySideDirection is the side a split opens on (`workbench.editor.openSideBySideDirection`).
+func (s *shellState) sideBySideDirection() editorgroup.Direction {
+	win := PeekWindow(s.Context())
+	if settings.Get[string](win.Settings, "workbench.editor.openSideBySideDirection", "") == "down" {
+		return editorgroup.DirDown
+	}
+	return editorgroup.DirRight
+}
+
+// initGroup makes the grid, which starts with one group, and the editors for the documents the
+// window starts with: the first is the active editor, and all are kept (not previews), as VS Code
+// opens the files of the command line.
 func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document.Document) {
 	win := PeekWindow(s.Context())
 	g := &s.group
-	g.model = editorgroup.NewModel(1, s.groupOptions())
+	g.grid = editorgroup.NewGrid(s.gridOptions())
 	g.editors = map[editorgroup.EditorInput]*textEditor{}
-	g.stop = g.model.OnChange(func(e editorgroup.ChangeEvent) { s.groupChanged(binding, e) })
+	g.views = map[*editorgroup.Group]*groupView{}
+	g.focused = map[*textEditor]bool{}
+	g.stop = g.grid.OnChange(func(e editorgroup.GridEvent) { s.gridChanged(binding, e) })
 	g.stopSettings = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("workbench.editor", "") || e.Affects("breadcrumbs", "") {
 			binding.Post(func() {
 				if !s.Mounted() {
 					return
 				}
-				s.group.model.SetOptions(s.groupOptions())
+				s.group.grid.SetOptions(s.gridOptions())
 				s.SetState(func() {})
 			})
 		}
@@ -80,16 +101,28 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	}
 	// the first document is the one that is shown
 	if len(docs) > 1 {
-		if first := s.inputFor(docs[0]); first != nil {
-			g.model.SetActive(first)
+		if first := s.inputFor(s.activeGroup(), docs[0]); first != nil {
+			s.activeGroup().Model.SetActive(first)
 		}
 	}
 	s.refreshKeys()
 }
 
-// inputFor is the input of the group that shows a document, or nil.
-func (s *shellState) inputFor(doc *document.Document) editorgroup.EditorInput {
-	for _, e := range s.group.model.Editors(editorgroup.Sequential, false) {
+// activeGroup is the active group.
+func (s *shellState) activeGroup() *editorgroup.Group { return s.group.grid.Active() }
+
+// groupAt is the group at a place of the grid, counted from 1, or nil.
+func (s *shellState) groupAt(index int) *editorgroup.Group {
+	groups := s.group.grid.Groups(editorgroup.GridAppearance)
+	if index < 1 || index > len(groups) {
+		return nil
+	}
+	return groups[index-1]
+}
+
+// inputFor is the input of a group that shows a document, or nil.
+func (s *shellState) inputFor(group *editorgroup.Group, doc *document.Document) editorgroup.EditorInput {
+	for _, e := range group.Model.Editors(editorgroup.Sequential, false) {
 		if t, ok := e.(*editorgroup.TextInput); ok && t.Document() == doc {
 			return e
 		}
@@ -97,12 +130,21 @@ func (s *shellState) inputFor(doc *document.Document) editorgroup.EditorInput {
 	return nil
 }
 
-// activeEditor is the editor of the active tab, or nil when the group is empty.
+// activeEditor is the editor of the active tab of the active group, or nil when the group is empty.
 func (s *shellState) activeEditor() *textEditor {
-	if s.group.model == nil {
+	if s.group.grid == nil {
 		return nil
 	}
-	return s.group.editors[s.group.model.ActiveEditor()]
+	return s.group.editors[s.activeGroup().Model.ActiveEditor()]
+}
+
+// editorCount is the number of editors in all the groups.
+func (s *shellState) editorCount() int {
+	n := 0
+	for _, g := range s.group.grid.Groups(editorgroup.CreationTime) {
+		n += g.Model.Count()
+	}
+	return n
 }
 
 // inputOptions are what the inputs of the window need to describe their files.
@@ -115,21 +157,28 @@ func (s *shellState) inputOptions() editorgroup.TextInputOpts {
 	return opts
 }
 
-// showAcquired opens a document, which the caller has acquired (or retained) once, in the group and
-// makes it the active editor. A document that the group shows already is activated (and kept, when
-// it is not opened as a preview), and the caller's use of it is released. The new editor is a
-// preview editor only when asked for and workbench.editor.enablePreview is on; a document that has
-// unsaved changes is kept.
+// showAcquired opens a document, which the caller has acquired (or retained) once, in a group (the
+// active one by default) and makes it the active editor of the group, and the group the active
+// group. A document that the group shows already is activated (and kept, when it is not opened as a
+// preview). The use of the document that the caller counted is always given back: the editor that
+// shows it counts its own. The new editor is a preview editor only when asked for and
+// workbench.editor.enablePreview is on; a document that has unsaved changes is kept.
 func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document.Document, opts openOptions) {
 	win := PeekWindow(s.Context())
+	group := opts.Group
+	if group == nil {
+		group = s.activeGroup()
+	}
+	defer win.Documents.Release(doc)
 	preview := opts.Preview && settings.Get[bool](win.Settings, "workbench.editor.enablePreview", "") && !doc.Dirty()
 	input := editorgroup.NewTextInput(doc, s.inputOptions())
-	shown, isNew := s.group.model.OpenEditor(input, editorgroup.OpenOptions{Pinned: !preview, Active: true})
-	if isNew {
-		s.group.editors[input] = s.newTextEditor(binding, input)
-	} else {
+	shown, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: !preview, Active: true})
+	if !isNew {
 		input.Dispose()
-		win.Documents.Release(doc)
+	}
+	// opening an editor makes its group the active one
+	if err := s.group.grid.Activate(group); err != nil {
+		win.Process.Logger.Error("cannot activate the group", "err", err)
 	}
 	if opts.Place == nil {
 		return
@@ -154,18 +203,43 @@ func (s *shellState) show(binding *widgets.WidgetsBinding, doc *document.Documen
 	s.refreshKeys()
 }
 
-// groupChanged follows the model: a closed editor releases its document and its view, anything
-// else rebuilds the group and updates the context keys. Typing in a preview editor keeps it.
-func (s *shellState) groupChanged(binding *widgets.WidgetsBinding, e editorgroup.ChangeEvent) {
+// gridChanged follows the grid: an editor that opens gets its editor (a split or a copy opens
+// editors the shell did not ask for), one that closes lets go of its editor and its document, anything
+// else rebuilds the groups and updates the context keys. Typing in a preview editor keeps it. A new
+// active group gets the keyboard focus.
+func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.GridEvent) {
 	switch e.Kind {
-	case editorgroup.EditorClose:
-		s.releaseEditor(e.Editor)
-	case editorgroup.EditorDirty:
-		if e.Editor.Dirty() && !s.group.model.IsPinned(e.Editor) {
-			s.group.model.Pin(e.Editor)
+	case editorgroup.GroupEditorsChanged:
+		switch e.Change.Kind {
+		case editorgroup.EditorOpen:
+			s.ensureEditor(binding, e.Change.Editor)
+		case editorgroup.EditorClose:
+			// an editor that moved to another group stays; one that the target had already goes
+			if e.Change.Context != editorgroup.CloseMove || !s.heldByAGroup(e.Change.Editor) {
+				// the editor that had the focus takes it away: the group gets it back (an empty group
+				// takes it in its empty area)
+				if ed := s.group.editors[e.Change.Editor]; ed != nil && s.group.focused[ed] {
+					s.askFocus(binding)
+				}
+				s.releaseEditor(e.Change.Editor)
+			}
+		case editorgroup.EditorDirty:
+			if e.Change.Editor.Dirty() && !e.Group.Model.IsPinned(e.Change.Editor) {
+				e.Group.Model.Pin(e.Change.Editor)
+			}
+		case editorgroup.EditorActive, editorgroup.EditorPin, editorgroup.EditorSticky, editorgroup.EditorMove,
+			editorgroup.EditorLabel, editorgroup.EditorCapabilities, editorgroup.EditorWillDispose:
 		}
-	case editorgroup.EditorOpen, editorgroup.EditorActive, editorgroup.EditorPin, editorgroup.EditorSticky,
-		editorgroup.EditorMove, editorgroup.EditorLabel, editorgroup.EditorCapabilities, editorgroup.EditorWillDispose:
+	case editorgroup.GroupRemoved:
+		delete(s.group.views, e.Group)
+	case editorgroup.ActiveGroupChanged:
+		s.askFocus(binding)
+	case editorgroup.GroupAdded:
+		// a copy of a group arrives with its editors
+		for _, input := range e.Group.Model.Editors(editorgroup.Sequential, false) {
+			s.ensureEditor(binding, input)
+		}
+	case editorgroup.GroupMoved, editorgroup.LayoutChanged:
 	}
 	s.refreshKeys()
 	if s.Mounted() {
@@ -177,24 +251,55 @@ func (s *shellState) groupChanged(binding *widgets.WidgetsBinding, e editorgroup
 	}
 }
 
+// heldByAGroup tells whether the very same input is in a group.
+func (s *shellState) heldByAGroup(input editorgroup.EditorInput) bool {
+	for _, g := range s.group.grid.Groups(editorgroup.CreationTime) {
+		if g.Model.ContainsStrict(input) {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureEditor makes the editor of a text input that has none: it counts a use of the document of its
+// own.
+func (s *shellState) ensureEditor(binding *widgets.WidgetsBinding, input editorgroup.EditorInput) {
+	t, ok := input.(*editorgroup.TextInput)
+	if !ok || s.group.editors[input] != nil {
+		return
+	}
+	PeekWindow(s.Context()).Documents.Retain(t.Document())
+	s.group.editors[input] = s.newTextEditor(binding, t)
+}
+
 // releaseEditor ends the editor of a closed input: its view and background work stop, the input is
 // disposed and the document is released (it closes with its last user).
 func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 	e := s.group.editors[input]
 	delete(s.group.editors, input)
 	if e != nil {
+		delete(s.group.focused, e)
 		e.dispose()
 		PeekWindow(s.Context()).Documents.Release(e.doc)
 	}
 	input.Dispose()
 }
 
-// refreshKeys sets the context keys of the group in the window: activeEditor (the type of the active
-// editor), activeEditorIsPinned (it is sticky: the pinned tab with the pin) and activeEditorIsNotPreview.
+// refreshKeys sets the context keys of the groups in the window: activeEditor (the type of the
+// active editor), activeEditorIsPinned (it is sticky: the pinned tab with the pin),
+// activeEditorIsNotPreview, activeEditorGroupEmpty, multipleEditorGroups and the two keys of the
+// editor part that tell there are several groups and that one is maximized.
 func (s *shellState) refreshKeys() {
 	win := PeekWindow(s.Context())
-	active := s.group.model.ActiveEditor()
+	grid := s.group.grid
+	group := grid.Active()
+	m := group.Model
+	active := m.ActiveEditor()
 	win.Keys.Batch(func() {
+		win.Keys.Set("multipleEditorGroups", grid.Count() > 1)
+		win.Keys.Set("editorPartMultipleEditorGroups", grid.Count() > 1)
+		win.Keys.Set("editorPartMaximizedEditorGroup", grid.Maximized() != nil)
+		win.Keys.Set("activeEditorGroupEmpty", active == nil)
 		if active == nil {
 			win.Keys.Reset("activeEditor")
 			win.Keys.Set("activeEditorIsPinned", false)
@@ -202,16 +307,16 @@ func (s *shellState) refreshKeys() {
 			return
 		}
 		win.Keys.Set("activeEditor", active.TypeID())
-		win.Keys.Set("activeEditorIsPinned", s.group.model.IsSticky(active))
-		win.Keys.Set("activeEditorIsNotPreview", s.group.model.IsPinned(active))
+		win.Keys.Set("activeEditorIsPinned", m.IsSticky(active))
+		win.Keys.Set("activeEditorIsNotPreview", m.IsPinned(active))
 	})
 }
 
-// disposeGroup stops following the model and the settings, ends every editor and releases the
+// disposeGroup stops following the grid and the settings, ends every editor and releases the
 // documents.
 func (s *shellState) disposeGroup() {
 	g := &s.group
-	if g.model == nil {
+	if g.grid == nil {
 		return
 	}
 	if g.stop != nil {
@@ -231,10 +336,11 @@ func (s *shellState) disposeGroup() {
 		input.Dispose()
 	}
 	g.editors = nil
-	g.model.Dispose()
-	win.Keys.Reset("activeEditor")
-	win.Keys.Reset("activeEditorIsPinned")
-	win.Keys.Reset("activeEditorIsNotPreview")
+	g.grid.Dispose()
+	for _, key := range []string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
+		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup"} {
+		win.Keys.Reset(key)
+	}
 }
 
 // confirmClose says whether an editor may close.
@@ -243,12 +349,13 @@ func (s *shellState) disposeGroup() {
 // then a dirty editor closes without asking and its changes are lost.
 func (s *shellState) confirmClose(editorgroup.EditorInput) bool { return true }
 
-// closeEditors closes editors of the group (those that confirm). When the active editor is among them
-// and others stay, one of the others becomes active first, the most recently used (or the nearest, with
-// workbench.editor.focusRecentEditorAfterClose off), so that it does not pass through the editors that
-// close.
-func (s *shellState) closeEditors(editors []editorgroup.EditorInput) {
-	m := s.group.model
+// closeEditors closes editors of a group (those that confirm); a group left empty closes with
+// workbench.editor.closeEmptyGroups. When the active editor is among them and others stay, one of
+// the others becomes active first, the most recently used (or the nearest, with
+// workbench.editor.focusRecentEditorAfterClose off), so that it does not pass through the editors
+// that close.
+func (s *shellState) closeEditors(group *editorgroup.Group, editors []editorgroup.EditorInput) {
+	m := group.Model
 	var closing []editorgroup.EditorInput
 	for _, e := range editors {
 		if m.Contains(e) && s.confirmClose(e) {
@@ -256,7 +363,7 @@ func (s *shellState) closeEditors(editors []editorgroup.EditorInput) {
 		}
 	}
 	if active := m.ActiveEditor(); active != nil && containsInput(closing, active) {
-		for _, candidate := range s.survivors(closing) {
+		for _, candidate := range survivors(m, closing) {
 			m.SetActive(candidate)
 			break
 		}
@@ -267,8 +374,7 @@ func (s *shellState) closeEditors(editors []editorgroup.EditorInput) {
 }
 
 // survivors are the editors that stay when some close, the one to activate first.
-func (s *shellState) survivors(closing []editorgroup.EditorInput) []editorgroup.EditorInput {
-	m := s.group.model
+func survivors(m *editorgroup.Model, closing []editorgroup.EditorInput) []editorgroup.EditorInput {
 	var out []editorgroup.EditorInput
 	if m.Options().FocusRecentEditorAfterClose {
 		for _, e := range m.Editors(editorgroup.MostRecentlyActive, false) {
@@ -303,259 +409,74 @@ func containsInput(list []editorgroup.EditorInput, e editorgroup.EditorInput) bo
 	return false
 }
 
-// bindGroupCommands takes over the commands of the group in the registry while the shell is on screen.
-// The registry must have them (command.DefaultRegistry does): a missing one is a mistake of the
-// caller and panics with the tag EditorGroupCommandMissing.
-//
-// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts and
-// src/vs/workbench/browser/parts/editor/editorActions.ts
-func (s *shellState) bindGroupCommands() {
-	reg := PeekWindow(s.Context()).Process.Commands
-	m := s.group.model
-	active := func() editorgroup.EditorInput { return m.ActiveEditor() }
-	// notSticky filters the editors that the commands that close many leave alone when sticky.
-	notSticky := func(editors []editorgroup.EditorInput) []editorgroup.EditorInput {
-		var out []editorgroup.EditorInput
-		for _, e := range editors {
-			if !m.IsSticky(e) {
-				out = append(out, e)
-			}
-		}
-		return out
-	}
-	// move activates the editor at an offset in the order of the tabs, going round
-	move := func(by int) {
-		editors := m.Editors(editorgroup.Sequential, false)
-		if len(editors) < 2 {
-			return
-		}
-		at := m.IndexOf(m.ActiveEditor())
-		m.SetActive(editors[((at+by)%len(editors)+len(editors))%len(editors)])
-	}
-	// recent activates the previously used editor (the second in the most recently used order), or
-	// the one used longest ago
-	recent := func(oldest bool) {
-		editors := m.Editors(editorgroup.MostRecentlyActive, false)
-		if len(editors) < 2 {
-			return
-		}
-		if oldest {
-			m.SetActive(editors[len(editors)-1])
-		} else {
-			m.SetActive(editors[1])
-		}
-	}
-	handlers := map[string]command.Handler{
-		"workbench.action.closeActiveEditor": func(command.Context, any) error {
-			if e := active(); e != nil {
-				s.closeEditors([]editorgroup.EditorInput{e})
-			}
-			return nil
-		},
-		"workbench.action.closeEditorsInGroup": func(command.Context, any) error {
-			s.closeEditors(notSticky(m.Editors(editorgroup.Sequential, false)))
-			return nil
-		},
-		"workbench.action.closeAllEditors": func(command.Context, any) error {
-			s.closeEditors(notSticky(m.Editors(editorgroup.Sequential, false)))
-			return nil
-		},
-		"workbench.action.closeUnmodifiedEditors": func(command.Context, any) error {
-			var saved []editorgroup.EditorInput
-			for _, e := range notSticky(m.Editors(editorgroup.Sequential, false)) {
-				if !e.Dirty() {
-					saved = append(saved, e)
-				}
-			}
-			s.closeEditors(saved)
-			return nil
-		},
-		"workbench.action.closeOtherEditors": func(command.Context, any) error {
-			keep := active()
-			if keep == nil {
-				return nil
-			}
-			m.Pin(keep)
-			var others []editorgroup.EditorInput
-			for _, e := range notSticky(m.Editors(editorgroup.Sequential, false)) {
-				if e != keep {
-					others = append(others, e)
-				}
-			}
-			s.closeEditors(others)
-			return nil
-		},
-		"workbench.action.closeEditorsToTheRight": func(command.Context, any) error {
-			keep := active()
-			if keep == nil {
-				return nil
-			}
-			m.Pin(keep)
-			editors := m.Editors(editorgroup.Sequential, false)
-			s.closeEditors(notSticky(editors[m.IndexOf(keep)+1:]))
-			return nil
-		},
-		"workbench.action.keepEditor": func(command.Context, any) error {
-			if e := active(); e != nil {
-				m.Pin(e)
-			}
-			return nil
-		},
-		"workbench.action.pinEditor": func(command.Context, any) error {
-			if e := active(); e != nil {
-				m.Stick(e)
-			}
-			return nil
-		},
-		"workbench.action.unpinEditor": func(command.Context, any) error {
-			if e := active(); e != nil {
-				m.Unstick(e)
-			}
-			return nil
-		},
-		"workbench.action.nextEditor":     func(command.Context, any) error { move(1); return nil },
-		"workbench.action.previousEditor": func(command.Context, any) error { move(-1); return nil },
-		"workbench.action.openNextRecentlyUsedEditorInGroup": func(command.Context, any) error {
-			recent(false)
-			return nil
-		},
-		"workbench.action.openPreviousRecentlyUsedEditorInGroup": func(command.Context, any) error {
-			recent(true)
-			return nil
-		},
-	}
-	removes, err := setGroupHandlers(reg, handlers)
-	if err != nil {
-		// the commands are registered by the program itself: a missing one is a broken build
-		panic(err)
-	}
-	s.group.removeCommands = append(s.group.removeCommands, removes...)
-}
-
-// setGroupHandlers binds handlers to commands of a registry and returns the functions that take them
-// off again. It fails with the tag EditorGroupCommandMissing for a command the registry does not know
-// (the handlers bound so far are taken off).
-func setGroupHandlers(reg *command.Registry, handlers map[string]command.Handler) ([]func(), error) {
-	var removes []func()
-	for id, h := range handlers {
-		remove, err := reg.SetHandler(id, h)
-		if err != nil {
-			for _, r := range removes {
-				r()
-			}
-			return nil, errors.NewErr("EditorGroupCommandMissing", err).SetMetadata("command", id)
-		}
-		removes = append(removes, remove)
-	}
-	return removes, nil
-}
-
-// tabItems are the tabs of the group, in order: the label and the state of each editor. Editors that
-// share a name show their folders too.
-func (s *shellState) tabItems() []kit.TabItem {
-	m := s.group.model
-	editors := m.Editors(editorgroup.Sequential, false)
-	labels := editorgroup.TabLabels(editors)
-	items := make([]kit.TabItem, len(editors))
-	for i, e := range editors {
-		key := labels[i].Name
-		if uri, ok := e.Resource(); ok {
-			key = uri.String()
-		}
-		items[i] = kit.TabItem{
-			Key: key, Name: labels[i].Name, Description: labels[i].Description, Title: labels[i].Title,
-			Preview: !m.IsPinned(e), Sticky: m.IsSticky(e), Dirty: e.Dirty(),
-		}
-	}
-	return items
-}
-
-// tabsOptions are the options of the tab strip from the settings and the model.
-func (s *shellState) tabsOptions(win *Window) kit.TabsOpts {
-	m := s.group.model
-	opts := kit.TabsOpts{
-		Active:            m.IndexOf(m.ActiveEditor()),
-		HighlightModified: settings.Get[bool](win.Settings, "workbench.editor.highlightModifiedTabs", ""),
-		OnActivate:        func(i int) { s.activateAt(i) },
-		OnClose:           func(i int) { s.closeAt(i) },
-		OnPin:             func(i int) { m.Pin(m.EditorAt(i)) },
-		OnUnpin:           func(i int) { m.Unstick(m.EditorAt(i)) },
-	}
-	// the close button: the old setting tabCloseButton is honored with the two that replace it
-	button := settings.Get[string](win.Settings, "workbench.editor.tabCloseButton", "")
-	switch {
-	case button == "off" || !settings.Get[bool](win.Settings, "workbench.editor.tabActionCloseVisibility", ""):
-		opts.CloseButton = kit.TabCloseOff
-	case button == "left" || settings.Get[string](win.Settings, "workbench.editor.tabActionLocation", "") == "left":
-		opts.CloseButton = kit.TabCloseLeft
-	}
-	switch settings.Get[string](win.Settings, "workbench.editor.pinnedTabSizing", "") {
-	case "compact":
-		opts.PinnedSizing = kit.PinnedCompact
-	case "shrink":
-		opts.PinnedSizing = kit.PinnedShrink
-	}
-	if settings.Get[string](win.Settings, "workbench.editor.showTabs", "") == "single" {
-		opts.Mode = kit.TabsSingle
-	}
-	return opts
-}
-
-// activateAt makes the editor at an index of the tabs the active one.
-func (s *shellState) activateAt(index int) {
-	if e := s.group.model.EditorAt(index); e != nil {
-		s.group.model.SetActive(e)
-	}
-}
-
-// closeAt closes the editor at an index of the tabs.
-func (s *shellState) closeAt(index int) {
-	if e := s.group.model.EditorAt(index); e != nil {
-		s.closeEditors([]editorgroup.EditorInput{e})
-	}
-}
-
-// editorArea is what the editor area shows: the tab strip, the breadcrumbs and the editor of the
-// active tab, the notice of a file that cannot be shown, or the home page.
-func (s *shellState) editorArea(bc widgets.BuildContext) widgets.Widget {
-	win := PeekWindow(bc)
-	if active := s.activeEditor(); active != nil {
-		binding := widgets.WidgetsBindingOf(bc)
-		text := editor.NewEditor(active.view, editor.EditorOpts{
-			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true, Context: win.ctx, ClipboardMemory: win.Clipboard, FindMemory: win.Find, Zoom: win.Zoom,
-		})
-		// each editor has its own widget state (scroll, focus), which the key keeps apart
-		var area widgets.Widget = widgets.NewKeyedSubtree(
-			// a right click opens the context menu of the editor
-			kit.NewContextMenuRegion(text, s.editorMenuItems, kit.ContextMenuOpts{Controller: s.editorMenu, OnRun: s.menus.Run}),
-			widgets.WidgetOpts{Key: foundation.NewObjectKey(active)})
-		column := []widgets.Widget{}
-		if settings.Get[string](win.Settings, "workbench.editor.showTabs", "") != "none" {
-			column = append(column, kit.NewTabs(s.tabItems(), s.tabsOptions(win)))
-		}
-		if uri := active.doc.URI(); uri.Scheme == document.SchemeFile {
-			// the path of the file above the text
-			column = append(column, editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
-				OnOpen: func(path string) { s.openPath(binding, path) },
-			}))
-		}
-		column = append(column, widgets.NewExpanded(area))
-		return widgets.NewColumn(column, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
-	}
-	return s.emptyArea(bc)
-}
-
-// emptyArea is the editor area of a group with no editor: the notice of a file that looks binary, with
-// a button to open it anyway, or the home page.
-func (s *shellState) emptyArea(bc widgets.BuildContext) widgets.Widget {
-	if s.blocked != "" {
-		return editor.NewNotice(BinaryFileNotice, editor.NoticeOpts{Action: "Open Anyway", OnAction: func() { s.openAnyway(widgets.WidgetsBindingOf(bc), s.blocked) }})
-	}
-	return s.homePage(bc)
-}
-
-// openFile reads a file for an editor of the group (the document is acquired once; showAcquired takes
-// that use over, or releases it).
+// openFile reads a file for an editor of a group (the document is acquired once; showAcquired gives
+// that use back).
 func (s *shellState) openFile(ctx context.Context, path string) (*document.Document, error) {
 	return PeekWindow(s.Context()).Documents.Acquire(ctx, path, document.NewOptions())
+}
+
+// ---- focus ----
+
+// askFocus asks for the keyboard focus to go to the active group once its widgets are on screen: the
+// request is tried after each frame until it is taken (a new group is built a frame after the grid
+// changed) or it has been tried a few times. While it waits, the focus is not followed (focusMoved).
+func (s *shellState) askFocus(binding *widgets.WidgetsBinding) {
+	if s.group.focusAsked {
+		return
+	}
+	s.group.focusAsked = true
+	s.tryFocus(binding, 0)
+}
+
+// focusTries is how many frames a request for the focus of a group waits for its widgets.
+const focusTries = 6
+
+func (s *shellState) tryFocus(binding *widgets.WidgetsBinding, attempt int) {
+	scheduler := binding.Scheduler()
+	scheduler.ScheduleFrame()
+	scheduler.AddPostFrameCallback(func(time.Duration) {
+		if !s.Mounted() {
+			s.group.focusAsked = false
+			return
+		}
+		if s.focusGroup(s.activeGroup()) || attempt >= focusTries {
+			s.group.focusAsked = false
+			return
+		}
+		s.tryFocus(binding, attempt+1)
+	})
+}
+
+// focusGroup gives the keyboard focus to a group: its active editor, or its empty area. It tells whether
+// the group has it, or has been asked for it: false when its widgets are not on screen yet. The focus
+// stays where it is when the editor, or its find widget, has it.
+func (s *shellState) focusGroup(group *editorgroup.Group) bool {
+	if e := s.group.editors[group.Model.ActiveEditor()]; e != nil {
+		return s.group.focused[e] || e.focus.Request()
+	}
+	if v := s.group.views[group]; v != nil && v.empty != nil && v.empty.Context() != nil {
+		v.empty.RequestFocus()
+		return true
+	}
+	return false
+}
+
+// focusMoved follows the keyboard focus into a group: it becomes the active group. While a request
+// to focus the active group waits for the frame, the focus is not followed: it is on its way
+// (an editor that closed leaves it for any editor, which is not the choice of the user).
+func (s *shellState) focusMoved(group *editorgroup.Group) {
+	if !s.group.focusAsked {
+		s.groupFocused(group)
+	}
+}
+
+// groupFocused makes a group the active group: the user pressed in it, chose one of its tabs, or the
+// focus went into it.
+func (s *shellState) groupFocused(group *editorgroup.Group) {
+	if s.group.grid.Group(group.ID()) != group {
+		return
+	}
+	if err := s.group.grid.Activate(group); err != nil {
+		PeekWindow(s.Context()).Process.Logger.Error("cannot activate the group", "err", err)
+	}
 }

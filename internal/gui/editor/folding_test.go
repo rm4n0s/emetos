@@ -446,7 +446,7 @@ func TestFoldingStopUnfolds(t *testing.T) {
 	if vm.Projection().RowCount() != 10 {
 		t.Errorf("stopping the folding shows every line")
 	}
-	if got := len(vm.Document().DecorationsOf(foldingOwner)); got != 0 {
+	if got := len(vm.Document().DecorationsOf(vm.owner(foldingOwner))); got != 0 {
 		t.Errorf("%d decorations left", got)
 	}
 }

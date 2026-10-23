@@ -658,12 +658,36 @@ var groupCommands = map[string]bool{
 	"workbench.action.openPreviousRecentlyUsedEditorInGroup": true,
 }
 
+// gridCommand tells whether a command is one of the grid of editor groups, which the app binds too (step
+// 6.9): the splits, the moves of editors and groups, the joins, the closing of groups, the sizes, the
+// layouts and the focus of a group by its place or its neighbors.
+func gridCommand(id string) bool {
+	for _, prefix := range []string{
+		"workbench.action.splitEditor", "workbench.action.moveEditorTo", "workbench.action.newGroup",
+		"workbench.action.moveActiveEditorGroup", "workbench.action.duplicateActiveEditorGroup", "workbench.action.editorLayout",
+	} {
+		if strings.HasPrefix(id, prefix) {
+			return true
+		}
+	}
+	switch id {
+	case "workbench.action.joinTwoGroups", "workbench.action.joinAllGroups", "workbench.action.closeGroup",
+		"workbench.action.closeEditorsAndGroup", "workbench.action.closeAllGroups", "workbench.action.closeEditorsInOtherGroups",
+		"workbench.action.closeEditorInAllGroups", "workbench.action.evenEditorWidths", "workbench.action.toggleMaximizeEditorGroup",
+		"workbench.action.navigateEditorGroups":
+		return true
+	}
+	// focus first, second... last, next, previous, left, right, above and below; the workbench's own is the
+	// active group
+	return strings.HasPrefix(id, "workbench.action.focus") && strings.Contains(id, "Group") && id != "workbench.action.focusActiveEditorGroup"
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, nil)
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) {
 			continue
 		}
 		n++

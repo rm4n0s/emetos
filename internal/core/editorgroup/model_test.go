@@ -412,3 +412,33 @@ func TestTextInputDescriptions(t *testing.T) {
 		})
 	}
 }
+
+func TestTextInputCopy(t *testing.T) {
+	doc := document.New(document.FileURI("/w/a.go"), "package a\n", document.NewOptions())
+	in := NewTextInput(doc, TextInputOpts{Folder: "/w"})
+	var copier Copier = in
+	dup, ok := copier.CopyInput().(*TextInput)
+	if !ok || dup == in {
+		t.Fatalf("the copy is another text input, got %T", copier.CopyInput())
+	}
+	if dup.Document() != doc || !dup.Matches(in) || dup.Name() != in.Name() {
+		t.Error("the copy shows the same document and matches the input")
+	}
+	// the copy follows the document on its own, and goes when it is disposed
+	var events []InputEventKind
+	dup.Subscribe(func(e InputEvent) { events = append(events, e.Kind) })
+	if _, err := doc.Edit([]document.Edit{{Range: buffer.Range{}, Text: "x"}}, document.EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0] != InputDirty || !dup.Dirty() || !in.Dirty() {
+		t.Errorf("events %v, dirty %v %v", events, dup.Dirty(), in.Dirty())
+	}
+	dup.Dispose()
+	events = nil
+	if _, err := doc.Edit([]document.Edit{{Range: buffer.Range{}, Text: "y"}}, document.EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 0 {
+		t.Errorf("a disposed copy sent %v", events)
+	}
+}

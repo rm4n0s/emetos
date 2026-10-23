@@ -158,7 +158,7 @@ func TestMenuItemsShowLabelsAndKeys(t *testing.T) {
 
 	// the View menu has the Appearance submenu with the layout toggles and their keys
 	view := m.source.Items(command.MenubarViewMenu, nil)
-	if len(view) < 3 || !view[0].Submenu || view[0].Label != "&Appearance" || !view[1].Separator {
+	if len(view) < 4 || !view[0].Submenu || view[0].Label != "&Appearance" || !view[1].Submenu || view[1].Label != "Editor &Layout" || !view[2].Separator {
 		t.Fatalf("View: %v", labels(view))
 	}
 	if it, ok := find(view, "workbench.action.toggleSidebarVisibility"); !ok || it.Keybinding != "Ctrl+B" || it.Label != "&Primary Side Bar" {

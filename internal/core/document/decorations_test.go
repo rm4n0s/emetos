@@ -376,3 +376,16 @@ func TestChangeDecorationOptionsChangesTheStickiness(t *testing.T) {
 		t.Error("a decoration that does not exist was changed")
 	}
 }
+
+func TestAllocOwners(t *testing.T) {
+	d := newDoc(lines("a"))
+	for i, tc := range []struct{ n, want int }{{8, 1}, {8, 9}, {3, 17}, {0, 20}, {-5, 21}, {1, 22}} {
+		if got := d.AllocOwners(tc.n); got != tc.want {
+			t.Errorf("reservation %d: AllocOwners(%d) = %d, want %d", i, tc.n, got, tc.want)
+		}
+	}
+	// documents count their own owners
+	if got := newDoc(lines("b")).AllocOwners(4); got != 1 {
+		t.Errorf("a new document starts at %d", got)
+	}
+}

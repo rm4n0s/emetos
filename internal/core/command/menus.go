@@ -33,6 +33,10 @@ const (
 	MenubarAppearanceMenu = "MenubarAppearanceMenu"
 	// MenubarRecentMenu is the Open Recent submenu of the File menu; its items are dynamic.
 	MenubarRecentMenu = "MenubarRecentMenu"
+	// MenubarLayoutMenu is the Editor Layout submenu of the View menu.
+	MenubarLayoutMenu = "MenubarLayoutMenu"
+	// MenubarSwitchGroupMenu is the Switch Group submenu of the Go menu.
+	MenubarSwitchGroupMenu = "MenubarSwitchGroupMenu"
 	// PanelPositionMenu is the Panel Position submenu of the Appearance menu.
 	PanelPositionMenu = "PanelPositionMenu"
 	// EditorContext is the context menu of the editor.

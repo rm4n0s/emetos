@@ -215,7 +215,30 @@ type EditorOpts struct {
 	// FindMemory is what the editors of a window share of their searches (the switches of the
 	// find widget); without it the editor has its own.
 	FindMemory *FindMemory
+	// Focus lets the caller give the keyboard focus to the editor.
+	Focus *EditorFocus
+	// OnFocus is called when the editor, or an input of its find widget, gets or loses the keyboard
+	// focus; the editor groups of the window follow it to know which group is active.
+	OnFocus func(has bool)
 }
+
+// EditorFocus lets code outside an editor give it the keyboard focus. Give one to the options of an
+// Editor; it works while that editor is on screen.
+type EditorFocus struct {
+	node *widgets.FocusNode
+}
+
+// Request gives the focus to the editor. It reports false when the editor is not on screen (yet).
+func (f *EditorFocus) Request() bool {
+	if f == nil || f.node == nil || f.node.Context() == nil {
+		return false
+	}
+	f.node.RequestFocus()
+	return true
+}
+
+// HasFocus tells whether the editor has the focus.
+func (f *EditorFocus) HasFocus() bool { return f != nil && f.node != nil && f.node.HasFocus() }
 
 // NewEditor makes the editor of a view model.
 func NewEditor(vm *ViewModel, opts ...EditorOpts) *Editor {
@@ -267,6 +290,7 @@ type editorState struct {
 	findScope             *contextkey.Scope
 	unregisterFind        []func()
 	findFocused           bool
+	focusReported         bool
 	findHandle            foundation.ListenerHandle
 	// windowFocused and editorFocused make the focus of the view model: the editor has it
 	// when it has the focus of the window's tree and the window has the keyboard.
@@ -307,6 +331,9 @@ func (s *editorState) InitState() {
 
 	// The focus: the editor's node, with the scope of its context keys.
 	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Editor"})
+	if opts.Focus != nil {
+		opts.Focus.node = s.node
+	}
 	if opts.Keys != nil {
 		s.scope = opts.Keys.Child()
 		if opts.Scopes != nil {
@@ -470,6 +497,7 @@ func (s *editorState) scrollTo(top float64) {
 // over its commands while it has it.
 func (s *editorState) focusChanged(has bool) {
 	s.editorFocused = has
+	defer s.reportFocus()
 	if has {
 		s.input.attach(s.binding)
 		s.scheduleInputGeometry()
@@ -580,6 +608,9 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 
 // Dispose lets go of the controller, the listeners, the focus node and the context keys.
 func (s *editorState) Dispose() {
+	if f := s.Widget().opts.Focus; f != nil && f.node == s.node {
+		f.node = nil
+	}
 	s.endPress()
 	s.disposeFind()
 	if s.unbindCommands != nil {

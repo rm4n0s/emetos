@@ -156,7 +156,7 @@ func (vm *ViewModel) rulerMarks(height float64) []rulerMark {
 	scale := height / total
 	var marks []rulerMark
 	lastCenter := math.Inf(-1)
-	for _, d := range vm.doc.DecorationsOf(findOwner) {
+	for _, d := range vm.doc.DecorationsOf(vm.owner(findOwner)) {
 		var lane rulerLane
 		switch d.Options.ClassName {
 		case find.ClassFindMatch, find.ClassCurrentFindMatch:

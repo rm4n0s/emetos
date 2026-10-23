@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
+	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 )
 
@@ -21,10 +22,13 @@ type openFileArguments struct {
 	// Line and Column are the position to put the cursor at, counted from 1; 0 leaves the
 	// cursor at the start.
 	Line, Column int
+	// Group is the place of the group to open the file in, counted from 1 in the order the groups
+	// appear in the grid; 0 is the active group.
+	Group int
 }
 
-// parseOpenFile reads the arguments of dev.openFile: {"path": "...", "line": n, "column": n}, or
-// just the path as a string.
+// parseOpenFile reads the arguments of dev.openFile: {"path": "...", "line": n, "column": n,
+// "group": n}, or just the path as a string.
 func parseOpenFile(args any) (openFileArguments, error) {
 	var a openFileArguments
 	switch v := args.(type) {
@@ -37,6 +41,13 @@ func parseOpenFile(args any) (openFileArguments, error) {
 		}
 		if col, ok := v["column"].(float64); ok {
 			a.Column = int(col)
+		}
+		if raw, present := v["group"]; present {
+			group, ok := raw.(float64)
+			if !ok || group != float64(int(group)) || group < 1 {
+				return a, errors.New("DevOpenFileInvalid", "the group of dev.openFile is a whole number counted from 1", "group", raw)
+			}
+			a.Group = int(group)
 		}
 	}
 	if a.Path == "" {
@@ -65,12 +76,19 @@ func (s *shellState) bindDevOpenFile(binding *widgets.WidgetsBinding) {
 	s.removeOpenFile = remove
 }
 
-// devOpenFile opens a file in the editor group, kept (not as a preview), and shows it with the cursor at
-// the position.
+// devOpenFile opens a file in a editor group (the active group, or the one the group argument says),
+// kept (not as a preview), and shows it with the cursor at the position. The group becomes the active
+// group. A group that is not in the grid fails with the tag DevOpenFileGroupInvalid.
 func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Context, args any) error {
 	a, err := parseOpenFile(args)
 	if err != nil {
 		return err
+	}
+	var group *editorgroup.Group
+	if a.Group > 0 {
+		if group = s.groupAt(a.Group); group == nil {
+			return errors.New("DevOpenFileGroupInvalid", "dev.openFile names a group that does not exist", "group", a.Group, "groups", s.group.grid.Count())
+		}
 	}
 	path, absErr := filepath.Abs(a.Path)
 	if absErr != nil {
@@ -88,13 +106,15 @@ func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Co
 			e.view.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(at)})
 		}
 	}
-	s.show(binding, doc, openOptions{Place: place})
+	s.show(binding, doc, openOptions{Place: place, Group: group})
 	return nil
 }
 
-// openPath opens a file that the user chose (in a breadcrumbs picker) and shows it as a preview. The
-// file is read in the background; a file that cannot be opened is reported.
-func (s *shellState) openPath(binding *widgets.WidgetsBinding, path string) {
+// openPathIn opens a file that the user chose (in the breadcrumbs picker of a group) and shows it as a
+// preview in the group (the active group when nil; a group that is gone by the time the file is read is
+// replaced by the active group). The file is read in the background; a file that cannot be opened is
+// reported.
+func (s *shellState) openPathIn(binding *widgets.WidgetsBinding, group *editorgroup.Group, path string) {
 	win := PeekWindow(s.Context())
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, path, document.NewOptions())
@@ -113,7 +133,10 @@ func (s *shellState) openPath(binding *widgets.WidgetsBinding, path string) {
 				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 				return
 			}
-			s.show(binding, doc, openOptions{Preview: true})
+			if group != nil && s.group.grid.Group(group.ID()) != group {
+				group = nil
+			}
+			s.show(binding, doc, openOptions{Preview: true, Group: group})
 		})
 	})
 }
@@ -121,7 +144,7 @@ func (s *shellState) openPath(binding *widgets.WidgetsBinding, path string) {
 // blockFile tells that a file looks binary: with no editor open the window shows the notice, which has a
 // button to open the file anyway; otherwise the open editors stay and a notification says so.
 func (s *shellState) blockFile(path string) {
-	if s.group.model.Count() > 0 {
+	if s.editorCount() > 0 {
 		PeekWindow(s.Context()).Process.Notify.Warn("Emetos", path+": "+BinaryFileNotice)
 		return
 	}

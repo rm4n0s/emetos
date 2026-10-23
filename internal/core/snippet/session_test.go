@@ -849,3 +849,28 @@ func TestSessionErrors(t *testing.T) {
 		}
 	})
 }
+
+// Two editors of one document mark their tab stops with owners of their own.
+func TestSessionDecorationOwners(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		owner int
+		want  int
+	}{
+		{"the default owner", 0, DecorationOwner},
+		{"an owner of the editor", 17, 17},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRig(t, sessionText, sel(1, 1, 1, 1))
+			r.ed.Owner = tc.owner
+			s := r.insert("a${1:b}${2:c}$0")
+			defer s.Dispose()
+			if got := len(r.doc.DecorationsOf(tc.want)); got != 3 {
+				t.Errorf("%d tab stops marked for owner %d, want 3", got, tc.want)
+			}
+			if tc.owner != 0 && len(r.doc.DecorationsOf(DecorationOwner)) != 0 {
+				t.Error("the default owner is used as well")
+			}
+		})
+	}
+}

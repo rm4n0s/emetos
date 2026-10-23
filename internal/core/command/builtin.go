@@ -28,6 +28,7 @@ func DefaultRegistry() *Registry {
 	registerDisplayCommands(r)
 	registerLayoutCommands(r)
 	registerEditorGroupCommands(r)
+	registerEditorGridCommands(r)
 	return r
 }
 
@@ -69,7 +70,7 @@ func registerLayoutCommands(r *Registry) {
 }
 
 // registerEditorGroupCommands registers the commands that close, switch and keep the editors of a
-// group (SPEC §10.3). The group commands of step 6.9 (split, focus by number, move) and the
+// group (SPEC §10.3). The commands of the grid of groups are in registerEditorGridCommands; the
 // commands that need the quick input (the editor picker, step 6.17) are not here yet.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts,
@@ -392,5 +393,104 @@ func registerEmmetCommands(r *Registry) {
 	r.MustRegister(
 		Meta{ID: "editor.emmet.action.expandAbbreviation", Title: "Emmet: Expand Abbreviation", Precondition: writable(),
 			Description: "Expand the Emmet abbreviation before each cursor, or the selected text."},
+	)
+}
+
+// registerEditorGridCommands registers the commands of the grid of editor groups (SPEC §10.3): split,
+// focus, move and copy editors between groups, move, join, close, maximize and size groups, and the
+// layouts. A command that VS Code registers without a title (focus group 2 to 8, the commands that
+// take arguments) has none here, and the palette skips it.
+//
+// Not here: the commands that expand a group (workbench.action.minimizeOtherEditors,
+// minimizeOtherEditorsHideSidebar, toggleEditorWidths), which need the least size of a group in
+// pixels, and workbench.action.maximizeEditorHideSidebar.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts,
+// src/vs/workbench/browser/parts/editor/editorActions.ts and
+// src/vs/workbench/browser/parts/editor/editor.contribution.ts
+func registerEditorGridCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.splitEditor", Title: "Split Editor", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorOrthogonal", Title: "Split Editor Orthogonal", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorLeft", Title: "Split Editor Left", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorRight", Title: "Split Editor Right", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorUp", Title: "Split Editor Up", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorDown", Title: "Split Editor Down", Category: "View"},
+
+		Meta{ID: "workbench.action.focusFirstEditorGroup", Title: "Focus First Editor Group", Category: "View"},
+		Meta{ID: "workbench.action.focusSecondEditorGroup"},
+		Meta{ID: "workbench.action.focusThirdEditorGroup"},
+		Meta{ID: "workbench.action.focusFourthEditorGroup"},
+		Meta{ID: "workbench.action.focusFifthEditorGroup"},
+		Meta{ID: "workbench.action.focusSixthEditorGroup"},
+		Meta{ID: "workbench.action.focusSeventhEditorGroup"},
+		Meta{ID: "workbench.action.focusEighthEditorGroup"},
+		Meta{ID: "workbench.action.focusLastEditorGroup", Title: "Focus Last Editor Group", Category: "View"},
+		Meta{ID: "workbench.action.focusNextGroup", Title: "Focus Next Editor Group", Category: "View"},
+		Meta{ID: "workbench.action.focusPreviousGroup", Title: "Focus Previous Editor Group", Category: "View"},
+		Meta{ID: "workbench.action.focusLeftGroup", Title: "Focus Left Editor Group", Category: "View"},
+		Meta{ID: "workbench.action.focusRightGroup", Title: "Focus Right Editor Group", Category: "View"},
+		Meta{ID: "workbench.action.focusAboveGroup", Title: "Focus Editor Group Above", Category: "View"},
+		Meta{ID: "workbench.action.focusBelowGroup", Title: "Focus Editor Group Below", Category: "View"},
+		Meta{ID: "workbench.action.focusLeftGroupWithoutWrap"},
+		Meta{ID: "workbench.action.focusRightGroupWithoutWrap"},
+		Meta{ID: "workbench.action.focusAboveGroupWithoutWrap"},
+		Meta{ID: "workbench.action.focusBelowGroupWithoutWrap"},
+		Meta{ID: "workbench.action.navigateEditorGroups", Title: "Navigate Between Editor Groups", Category: "View"},
+
+		Meta{ID: "workbench.action.moveEditorToPreviousGroup", Title: "Move Editor into Previous Group", Category: "View"},
+		Meta{ID: "workbench.action.moveEditorToNextGroup", Title: "Move Editor into Next Group", Category: "View"},
+		Meta{ID: "workbench.action.moveEditorToAboveGroup", Title: "Move Editor into Group Above", Category: "View"},
+		Meta{ID: "workbench.action.moveEditorToBelowGroup", Title: "Move Editor into Group Below", Category: "View"},
+		Meta{ID: "workbench.action.moveEditorToLeftGroup", Title: "Move Editor into Left Group", Category: "View"},
+		Meta{ID: "workbench.action.moveEditorToRightGroup", Title: "Move Editor into Right Group", Category: "View"},
+		Meta{ID: "workbench.action.moveEditorToFirstGroup", Title: "Move Editor into First Group", Category: "View"},
+		Meta{ID: "workbench.action.moveEditorToLastGroup", Title: "Move Editor into Last Group", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToPreviousGroup", Title: "Split Editor into Previous Group", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToNextGroup", Title: "Split Editor into Next Group", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToAboveGroup", Title: "Split Editor into Group Above", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToBelowGroup", Title: "Split Editor into Group Below", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToLeftGroup", Title: "Split Editor into Left Group", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToRightGroup", Title: "Split Editor into Right Group", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToFirstGroup", Title: "Split Editor into First Group", Category: "View"},
+		Meta{ID: "workbench.action.splitEditorToLastGroup", Title: "Split Editor into Last Group", Category: "View"},
+		Meta{ID: "moveActiveEditor", Description: "Move the active editor by tabs or groups. The argument is {\"to\": \"left\"|\"right\"|\"up\"|\"down\"|\"first\"|\"last\"|\"previous\"|\"next\"|\"center\"|\"position\", \"by\": \"tab\"|\"group\", \"value\": number}."},
+		Meta{ID: "copyActiveEditor", Description: "Copy the active editor by groups. The argument is {\"to\": ..., \"value\": number}."},
+
+		Meta{ID: "workbench.action.newGroupLeft", Title: "New Editor Group to the Left", Category: "View"},
+		Meta{ID: "workbench.action.newGroupRight", Title: "New Editor Group to the Right", Category: "View"},
+		Meta{ID: "workbench.action.newGroupAbove", Title: "New Editor Group Above", Category: "View"},
+		Meta{ID: "workbench.action.newGroupBelow", Title: "New Editor Group Below", Category: "View"},
+
+		Meta{ID: "workbench.action.moveActiveEditorGroupLeft", Title: "Move Editor Group Left", Category: "View"},
+		Meta{ID: "workbench.action.moveActiveEditorGroupRight", Title: "Move Editor Group Right", Category: "View"},
+		Meta{ID: "workbench.action.moveActiveEditorGroupUp", Title: "Move Editor Group Up", Category: "View"},
+		Meta{ID: "workbench.action.moveActiveEditorGroupDown", Title: "Move Editor Group Down", Category: "View"},
+		Meta{ID: "workbench.action.duplicateActiveEditorGroupLeft", Title: "Duplicate Editor Group Left", Category: "View"},
+		Meta{ID: "workbench.action.duplicateActiveEditorGroupRight", Title: "Duplicate Editor Group Right", Category: "View"},
+		Meta{ID: "workbench.action.duplicateActiveEditorGroupUp", Title: "Duplicate Editor Group Up", Category: "View"},
+		Meta{ID: "workbench.action.duplicateActiveEditorGroupDown", Title: "Duplicate Editor Group Down", Category: "View"},
+		Meta{ID: "workbench.action.joinTwoGroups", Title: "Join Editor Group with Next Group", Category: "View"},
+		Meta{ID: "workbench.action.joinAllGroups", Title: "Join All Editor Groups", Category: "View"},
+
+		Meta{ID: "workbench.action.closeGroup"},
+		Meta{ID: "workbench.action.closeEditorsAndGroup"},
+		Meta{ID: "workbench.action.closeAllGroups", Title: "Close All Editor Groups", Category: "View"},
+		Meta{ID: "workbench.action.closeEditorsInOtherGroups", Title: "Close Editors in Other Groups", Category: "View"},
+		Meta{ID: "workbench.action.closeEditorInAllGroups", Title: "Close Editor in All Groups", Category: "View"},
+
+		Meta{ID: "workbench.action.evenEditorWidths", Title: "Reset Editor Group Sizes", Category: "View"},
+		Meta{ID: "workbench.action.toggleMaximizeEditorGroup", Title: "Toggle Maximize Editor Group", Category: "View",
+			Precondition: contextkey.Or(contextkey.Has("editorPartMultipleEditorGroups"), contextkey.Has("editorPartMaximizedEditorGroup"))},
+
+		Meta{ID: "workbench.action.editorLayoutSingle", Title: "Single Column Editor Layout", Category: "View"},
+		Meta{ID: "workbench.action.editorLayoutTwoColumns", Title: "Two Columns Editor Layout", Category: "View"},
+		Meta{ID: "workbench.action.editorLayoutThreeColumns", Title: "Three Columns Editor Layout", Category: "View"},
+		Meta{ID: "workbench.action.editorLayoutTwoRows", Title: "Two Rows Editor Layout", Category: "View"},
+		Meta{ID: "workbench.action.editorLayoutThreeRows", Title: "Three Rows Editor Layout", Category: "View"},
+		Meta{ID: "workbench.action.editorLayoutTwoByTwoGrid", Title: "Grid Editor Layout (2x2)", Category: "View"},
+		Meta{ID: "workbench.action.editorLayoutTwoColumnsBottom", Title: "Two Columns Bottom Editor Layout", Category: "View"},
+		Meta{ID: "workbench.action.editorLayoutTwoRowsRight", Title: "Two Rows Right Editor Layout", Category: "View"},
+		Meta{ID: "layoutEditorGroups", Description: "Set the layout of the editor groups. The argument is {\"orientation\": 0|1, \"groups\": [{\"size\": number, \"groups\": [...]}]}: a tree of groups in which the orientation of a node is the opposite of its parent's."},
 	)
 }

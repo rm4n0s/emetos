@@ -24,6 +24,8 @@ type textEditor struct {
 	input *editorgroup.TextInput
 	doc   *document.Document
 	view  *editor.ViewModel
+	// focus gives the editor the keyboard focus while its widget is on screen.
+	focus *editor.EditorFocus
 	// tokenizer keeps the tokens of the document the editor shows.
 	tokenizer *tokens.Tokenizer
 	// stopBrackets stops the bracket pairs of the document following it, stopGuides the indentation
@@ -40,7 +42,7 @@ type textEditor struct {
 func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *editorgroup.TextInput) *textEditor {
 	win := PeekWindow(s.Context())
 	doc := input.Document()
-	e := &textEditor{input: input, doc: doc, done: make(chan struct{})}
+	e := &textEditor{input: input, doc: doc, done: make(chan struct{}), focus: &editor.EditorFocus{}}
 	options := func() editor.Options {
 		desktop, _ := binding.PlatformDispatcher().MonospaceFont()
 		tabSize, _ := doc.Indentation()

@@ -34,7 +34,7 @@ func highlightVM(t *testing.T, text string, tweak func(*Options)) (*ViewModel, *
 
 func occurrences(vm *ViewModel, owner int) []buffer.Range {
 	var out []buffer.Range
-	for _, d := range vm.Document().DecorationsOf(owner) {
+	for _, d := range vm.Document().DecorationsOf(vm.owner(owner)) {
 		out = append(out, d.Range)
 	}
 	slices.SortFunc(out, func(a, b buffer.Range) int { return a.Start.Compare(b.Start) })
@@ -339,7 +339,7 @@ func TestDisposeHighlights(t *testing.T) {
 	}
 	selectText(vm, 0, 0, 0, 3)
 	vm.DisposeHighlights()
-	if len(vm.Document().DecorationsOf(selectionHighlightOwner))+len(vm.Document().DecorationsOf(wordHighlightOwner)) != 0 {
+	if len(vm.Document().DecorationsOf(vm.owner(selectionHighlightOwner)))+len(vm.Document().DecorationsOf(vm.owner(wordHighlightOwner))) != 0 {
 		t.Error("decorations after disposing")
 	}
 	// disposing twice is fine, and so is a document with no highlights

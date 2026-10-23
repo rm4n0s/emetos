@@ -274,6 +274,8 @@ type ViewModel struct {
 	autoClosing *autoclose.Language
 	// comments gives the comment tokens of the languages, or nil.
 	comments comment.Languages
+	// ownerBase is the first of the document owners of this view model (see owner).
+	ownerBase int
 	// autoClosed tracks the closing characters the editor typed.
 	autoClosed *edit.AutoClosedTracker
 	// indenter applies the indentation rules of the languages, or is nil (SetIndenter), and
@@ -309,6 +311,19 @@ type ViewModel struct {
 	viewportW, scrollExtent, maxLineWidth, charWidth float64
 }
 
+// The decorations a view model puts on its document each have an owner of their own, because
+// several view models can show one document (two editor groups, SPEC §10.3) and each must see
+// and replace only its own marks. A view model takes ownerSlots consecutive owners from
+// Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
+// features in that range, and ViewModel.owner turns a slot into the owner.
+const (
+	ownerSlots   = 8
+	snippetOwner = 6
+)
+
+// owner is the document owner of a slot of this view model.
+func (vm *ViewModel) owner(slot int) int { return vm.ownerBase + slot - 1 }
+
 // NewViewModel makes the view model of a document with the cursor at its start.
 func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *ViewModel {
 	if cache == nil {
@@ -331,7 +346,8 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		metrics:        foundation.NewChangeNotifier(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
-	vm.autoClosed = edit.NewAutoClosedTracker(doc, autoClosedOwner)
+	vm.ownerBase = doc.AllocOwners(ownerSlots)
+	vm.autoClosed = edit.NewAutoClosedTracker(doc, vm.owner(autoClosedOwner))
 	vm.cursors.SetOnChange(vm.cursorsChanged)
 	vm.hl.seenVersion = doc.Version()
 	vm.mm.changed = foundation.NewChangeNotifier()

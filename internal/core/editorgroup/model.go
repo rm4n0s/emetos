@@ -664,3 +664,42 @@ func (m *Model) Dispose() {
 	}
 	m.listeners = nil
 }
+
+// Clone makes a model with the same editors in the same state (order, preview, sticky, active and
+// most recently used order), under another id. dup gives the input the clone holds for an input
+// of this model: nil leaves the editor out of the clone; a nil dup shares all the inputs, as VS
+// Code shares the inputs of a cloned group. The clone follows the events of its inputs.
+//
+// Ported from VS Code: EditorGroupModel.clone
+func (m *Model) Clone(id int, dup func(EditorInput) EditorInput) *Model {
+	c := NewModel(id, m.opts)
+	mapped := map[EditorInput]EditorInput{}
+	for i, e := range m.editors {
+		d := e
+		if dup != nil {
+			d = dup(e)
+		}
+		if d == nil {
+			continue
+		}
+		mapped[e] = d
+		c.editors = append(c.editors, d)
+		if m.IsStickyAt(i) {
+			c.sticky++
+		}
+	}
+	for _, e := range m.mru {
+		if d, ok := mapped[e]; ok {
+			c.mru = append(c.mru, d)
+		}
+	}
+	c.active = mapped[m.active]
+	if c.active == nil && len(c.mru) > 0 {
+		c.active = c.mru[0]
+	}
+	c.preview = mapped[m.preview]
+	for _, e := range c.editors {
+		c.registerInput(e)
+	}
+	return c
+}

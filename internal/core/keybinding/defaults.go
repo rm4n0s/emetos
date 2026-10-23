@@ -62,6 +62,7 @@ func DefaultRegistry() *Registry {
 	registerMultiCursorKeys(r)
 	registerLayoutKeys(r)
 	registerEditorGroupKeys(r)
+	registerEditorGridKeys(r)
 	return r
 }
 
@@ -326,4 +327,46 @@ func registerEmmetKeys(r *Registry) {
 		Rule{Command: "editor.emmet.action.expandAbbreviation", Weight: WeightEditorContrib,
 			When: mustWhen(whenEditorText, whenWritable, "!editorTabMovesFocus", "!editorHasSelection", "!inSnippetMode", "config.emmet.triggerExpansionOnTab"), Primary: "tab"},
 	)
+}
+
+// registerEditorGridKeys registers the keys of the commands of the grid of editor groups. Ctrl+W
+// closes an empty group when there are several (VS Code's workbench.action.closeGroup), and the
+// editor otherwise; the rule of the group comes last, which wins when both apply. The chord
+// Ctrl+K Ctrl+M carries the precondition of its command as VS Code does. Ctrl+K Ctrl+\ is the orthogonal split only: VS Code's source gives it to the four directional
+// split actions as well, which cannot all have it.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorActions.ts,
+// src/vs/workbench/browser/parts/editor/editorCommands.ts
+func registerEditorGridKeys(r *Registry) {
+	rules := []Rule{
+		{Command: "workbench.action.splitEditor", Primary: "ctrl+\\"},
+		{Command: "workbench.action.splitEditorOrthogonal", Primary: "ctrl+k ctrl+\\"},
+		{Command: "workbench.action.focusFirstEditorGroup", Primary: "ctrl+1"},
+		{Command: "workbench.action.focusSecondEditorGroup", Primary: "ctrl+2"},
+		{Command: "workbench.action.focusThirdEditorGroup", Primary: "ctrl+3"},
+		{Command: "workbench.action.focusFourthEditorGroup", Primary: "ctrl+4"},
+		{Command: "workbench.action.focusFifthEditorGroup", Primary: "ctrl+5"},
+		{Command: "workbench.action.focusSixthEditorGroup", Primary: "ctrl+6"},
+		{Command: "workbench.action.focusSeventhEditorGroup", Primary: "ctrl+7"},
+		{Command: "workbench.action.focusEighthEditorGroup", Primary: "ctrl+8"},
+		{Command: "workbench.action.focusLeftGroup", Primary: "ctrl+k ctrl+left"},
+		{Command: "workbench.action.focusRightGroup", Primary: "ctrl+k ctrl+right"},
+		{Command: "workbench.action.focusAboveGroup", Primary: "ctrl+k ctrl+up"},
+		{Command: "workbench.action.focusBelowGroup", Primary: "ctrl+k ctrl+down"},
+		{Command: "workbench.action.moveActiveEditorGroupLeft", Primary: "ctrl+k left"},
+		{Command: "workbench.action.moveActiveEditorGroupRight", Primary: "ctrl+k right"},
+		{Command: "workbench.action.moveActiveEditorGroupUp", Primary: "ctrl+k up"},
+		{Command: "workbench.action.moveActiveEditorGroupDown", Primary: "ctrl+k down"},
+		{Command: "workbench.action.moveEditorToPreviousGroup", Primary: "ctrl+alt+left"},
+		{Command: "workbench.action.moveEditorToNextGroup", Primary: "ctrl+alt+right"},
+		{Command: "workbench.action.moveEditorToFirstGroup", Primary: "shift+alt+1"},
+		{Command: "workbench.action.moveEditorToLastGroup", Primary: "shift+alt+9"},
+		{Command: "workbench.action.toggleMaximizeEditorGroup", When: mustWhen("editorPartMultipleEditorGroups || editorPartMaximizedEditorGroup"), Primary: "ctrl+k ctrl+m"},
+		{Command: "workbench.action.closeAllGroups", Primary: "ctrl+k ctrl+shift+w"},
+		{Command: "workbench.action.closeGroup", When: mustWhen("activeEditorGroupEmpty", "multipleEditorGroups"), Primary: "ctrl+w"},
+	}
+	for _, rule := range rules {
+		rule.Weight = WeightWorkbenchContrib
+		r.MustRegister(rule)
+	}
 }

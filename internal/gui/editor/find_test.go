@@ -242,7 +242,7 @@ func TestClosingTheWidgetDropsTheMatchesAndTheScope(t *testing.T) {
 	if err := vm.RunCommand("editor.actions.findWithArgs", map[string]any{"searchString": "beta", "findInSelection": true}); err != nil {
 		t.Fatal(err)
 	}
-	if len(vm.Document().DecorationsOf(findOwner)) == 0 {
+	if len(vm.Document().DecorationsOf(vm.owner(findOwner))) == 0 {
 		t.Fatal("no decorations while the widget is open")
 	}
 	fake.calls = nil
@@ -252,7 +252,7 @@ func TestClosingTheWidgetDropsTheMatchesAndTheScope(t *testing.T) {
 	if vm.FindRevealed() || len(vm.FindState().SearchScope()) != 0 {
 		t.Errorf("revealed %v, scope %v", vm.FindRevealed(), vm.FindState().SearchScope())
 	}
-	if got := vm.Document().DecorationsOf(findOwner); len(got) != 0 {
+	if got := vm.Document().DecorationsOf(vm.owner(findOwner)); len(got) != 0 {
 		t.Errorf("%d decorations after closing", len(got))
 	}
 	if !slices.Equal(fake.calls, []string{"editor"}) {
@@ -267,7 +267,7 @@ func TestDisposingTheFindRemovesItsDecorations(t *testing.T) {
 		t.Fatal(err)
 	}
 	vm.DisposeFind()
-	if got := vm.Document().DecorationsOf(findOwner); len(got) != 0 {
+	if got := vm.Document().DecorationsOf(vm.owner(findOwner)); len(got) != 0 {
 		t.Errorf("%d decorations after disposing", len(got))
 	}
 	if vm.FindRevealed() {

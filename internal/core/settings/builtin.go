@@ -861,7 +861,8 @@ func registerLayout(r *Registry) {
 // workbench.editor.tabActionLocation (left, right) and workbench.editor.tabActionCloseVisibility
 // (off); Emetos registers the three and honors all of them. Not ported yet: tab sizing, wrapping
 // tabs, the tab index, the separate row of pinned tabs and the settings of the title area that
-// steps 6.9 and 6.10 add.
+// step 6.10 adds; the grid's own settings are here: openSideBySideDirection, closeEmptyGroups and
+// splitSizing.
 //
 // Ported from VS Code: src/vs/workbench/browser/workbench.contribution.ts
 func registerEditorGroups(r *Registry) {
@@ -919,6 +920,26 @@ func registerEditorGroups(r *Registry) {
 		Setting{
 			Key: "workbench.editor.highlightModifiedTabs", Types: []Type{Boolean}, Default: false,
 			Description: "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `workbench.editor.showTabs` is not set to `multiple`.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.openSideBySideDirection", Types: []Type{String}, Default: "right", Enum: []any{"right", "down"},
+			Description: "Controls the default direction of editors that are opened side by side (for example, from the Explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one. This also impacts the split editor action in the editor toolbar.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.closeEmptyGroups", Types: []Type{Boolean}, Default: true,
+			Description: "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.splitSizing", Types: []Type{String}, Default: "auto", Enum: []any{"auto", "distribute", "split"},
+			EnumDescriptions: []string{
+				"Splits the active editor group to equal parts, unless all editor groups are already in equal parts. In that case, splits all the editor groups to equal parts.",
+				"Splits all the editor groups to equal parts.",
+				"Splits the active editor group to equal parts.",
+			},
+			Description: "Controls the size of editor groups when splitting them.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 	)
