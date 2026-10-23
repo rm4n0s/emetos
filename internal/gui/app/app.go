@@ -225,6 +225,10 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 		return editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
 	}
 	s.view = editor.NewViewModel(doc, options(), nil)
+	s.view.SetIndentationDefaults(func() (int, bool) {
+		p := win.indentationFor(doc.LanguageID())
+		return p.TabSize, p.InsertSpaces
+	})
 	s.startTokenizer(win, doc)
 	s.startBrackets(win, doc)
 	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {

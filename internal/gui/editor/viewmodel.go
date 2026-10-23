@@ -185,6 +185,8 @@ type ViewModel struct {
 	tok tokenLink
 	// bracketIndex are the bracket pairs of the document, or nil.
 	bracketIndex *brackets.Index
+	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
+	indentDefaults func() (tabSize int, insertSpaces bool)
 
 	// metrics tells the scrollbars that the sizes of the text area or of the content changed.
 	metrics *foundation.ChangeNotifier

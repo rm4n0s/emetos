@@ -130,4 +130,14 @@ func (w *Window) followLanguages() {
 		}
 	})
 	w.Documents.SetLanguageDetector(w.Process.Languages.Detect)
+	w.Documents.SetIndentation(w.indentationFor)
+}
+
+// indentationFor is how a new document of a language is indented, from the settings.
+func (w *Window) indentationFor(languageID string) Indentation {
+	return Indentation{
+		TabSize:      max(1, int(settings.Get[float64](w.Settings, "editor.tabSize", languageID))),
+		InsertSpaces: settings.Get[bool](w.Settings, "editor.insertSpaces", languageID),
+		Detect:       settings.Get[bool](w.Settings, "editor.detectIndentation", languageID),
+	}
 }

@@ -276,3 +276,41 @@ func TestStringStepsOfExpandSelection(t *testing.T) {
 		t.Errorf("steps = %v\nwant %v", got[0], want)
 	}
 }
+
+func TestConvertIndentation(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     []string
+		tabSize  int
+		toSpaces bool
+		sel      sel4
+		want     string
+		wantSel  sel4
+	}{
+		{"tabs to spaces", []string{"\tfoo", "\t\tbar", "baz", "\t\tx\ty"}, 4, true, sel4{1, 1, 1, 1}, "    foo\n        bar\nbaz\n        x\ty", sel4{1, 1, 1, 1}},
+		{"tabs to spaces with another size", []string{"\tfoo", "  \tbar"}, 2, true, sel4{1, 1, 1, 1}, "  foo\n    bar", sel4{1, 1, 1, 1}},
+		{"spaces to tabs", []string{"    foo", "        bar", "  baz", "      qux"}, 4, false, sel4{1, 1, 1, 1}, "\tfoo\n\t\tbar\n  baz\n\t  qux", sel4{1, 1, 1, 1}},
+		{"a line of white space only is all indentation", []string{"\t\t", "x", "        "}, 4, false, sel4{1, 1, 1, 1}, "\t\t\nx\n\t\t", sel4{1, 1, 1, 1}},
+		{"a line of tabs only to spaces", []string{"\t", "x"}, 2, true, sel4{1, 1, 1, 1}, "  \nx", sel4{1, 1, 1, 1}},
+		{"the selection follows the text", []string{"\tfoo", "\tbar"}, 4, true, sel4{1, 3, 2, 3}, "    foo\n    bar", sel4{1, 6, 2, 6}},
+		{"nothing to convert", []string{"foo", "bar"}, 4, true, sel4{1, 2, 1, 2}, "foo\nbar", sel4{1, 2, 1, 2}},
+		{"an empty text", []string{""}, 4, false, sel4{1, 1, 1, 1}, "", sel4{1, 1, 1, 1}},
+		{"tabs after the text stay", []string{"a\t\tb"}, 4, true, sel4{1, 1, 1, 1}, "a\t\tb", sel4{1, 1, 1, 1}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := DefaultOptions()
+			opts.TabSize = tc.tabSize
+			e := newEd(t, opts, tc.text...).at(tc.sel)
+			e.run(func(c Commands, s []buffer.Selection) Result { return c.ConvertIndentation(s[0], tc.toSpaces) })
+			e.assertText(tc.want)
+			e.assertSels(tc.wantSel)
+		})
+	}
+	// Several cursors collapse to the one that was given.
+	e := newEd(t, DefaultOptions(), "\ta", "\tb").at(sel4{1, 1, 1, 1}, sel4{2, 2, 2, 2})
+	e.run(func(c Commands, s []buffer.Selection) Result { return c.ConvertIndentation(s[0], true) })
+	if len(e.sels) != 1 {
+		t.Errorf("%d selections after the command", len(e.sels))
+	}
+}

@@ -19,6 +19,10 @@ type Manifest struct {
 	Languages []LanguageContribution
 	// Grammars are the contributes.grammars that are valid.
 	Grammars []GrammarContribution
+	// ConfigurationDefaults are the settings that the extension gives to languages
+	// (contributes.configurationDefaults, whose "[go]" blocks name languages): by language id.
+	// The keys of the file that are not language blocks are not read.
+	ConfigurationDefaults map[string]map[string]any
 	// Problems are the contributions that were left out, and why.
 	Problems []error
 }
@@ -66,6 +70,8 @@ type rawManifest struct {
 	Contributes struct {
 		Languages []json.RawMessage `json:"languages"`
 		Grammars  []json.RawMessage `json:"grammars"`
+		// ConfigurationDefaults maps "[go]" or "[a][b]" to an object of settings.
+		ConfigurationDefaults map[string]json.RawMessage `json:"configurationDefaults"`
 	} `json:"contributes"`
 }
 
@@ -94,7 +100,47 @@ func ParseManifest(data []byte) (*Manifest, error) {
 		}
 		m.Grammars = append(m.Grammars, c)
 	}
+	for key, value := range raw.Contributes.ConfigurationDefaults {
+		ids, ok := languageBlock(key)
+		if !ok {
+			continue
+		}
+		var values map[string]any
+		if err := json.Unmarshal(value, &values); err != nil {
+			m.Problems = append(m.Problems, errors.NewErr("ConfigurationDefaultsInvalid", err).SetMetadata("extension", raw.Name, "key", key))
+			continue
+		}
+		if m.ConfigurationDefaults == nil {
+			m.ConfigurationDefaults = map[string]map[string]any{}
+		}
+		for _, id := range ids {
+			if m.ConfigurationDefaults[id] == nil {
+				m.ConfigurationDefaults[id] = map[string]any{}
+			}
+			for k, v := range values {
+				m.ConfigurationDefaults[id][k] = v
+			}
+		}
+	}
 	return m, nil
+}
+
+// languageBlock reads a key such as "[go]" or "[json][jsonc]" into the language ids it names.
+func languageBlock(key string) ([]string, bool) {
+	var ids []string
+	rest := strings.TrimSpace(key)
+	for rest != "" {
+		if rest[0] != '[' {
+			return nil, false
+		}
+		end := strings.IndexByte(rest, ']')
+		if end < 2 {
+			return nil, false
+		}
+		ids = append(ids, rest[1:end])
+		rest = rest[end+1:]
+	}
+	return ids, len(ids) > 0
 }
 
 // parseLanguageContribution reads and validates an entry of contributes.languages

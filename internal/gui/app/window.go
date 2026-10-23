@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
+	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -110,6 +111,34 @@ type Documents struct {
 	detect func(path, firstLine string) string
 	// order is the URIs in the order they were opened.
 	order []document.URI
+	// indentation gives what a file opens with; nil leaves the options of OpenFile.
+	indentation func(languageID string) Indentation
+}
+
+// Indentation is how a new document is indented: editor.tabSize and editor.insertSpaces for its
+// language, and whether the file's own indentation overrides them (editor.detectIndentation).
+type Indentation struct {
+	TabSize      int
+	InsertSpaces bool
+	Detect       bool
+}
+
+// SetIndentation makes OpenFile give a document the indentation that policy says for its
+// language, found from its text when that says so.
+func (d *Documents) SetIndentation(policy func(languageID string) Indentation) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.indentation = policy
+}
+
+// docLines reads the lines of a document for indent.Guess.
+type docLines struct{ doc *document.Document }
+
+func (l docLines) LineCount() int { return l.doc.Snapshot().LineCount() }
+
+func (l docLines) LineContent(line int) string {
+	s, _ := l.doc.Snapshot().LineContent(line)
+	return s
 }
 
 // SetLanguageDetector makes OpenFile give a document the language that detect says for its path
@@ -147,6 +176,17 @@ func (d *Documents) OpenFile(ctx context.Context, path string, opts document.Opt
 		opts.LanguageID = detect(path, firstLine)
 	}
 	doc = document.FromRead(uri, res, opts)
+	d.mu.Lock()
+	policy := d.indentation
+	d.mu.Unlock()
+	if policy != nil {
+		p := policy(doc.LanguageID())
+		doc.SetIndentation(p.TabSize, p.InsertSpaces)
+		if p.Detect {
+			g := indent.Guess(docLines{doc}, p.TabSize, p.InsertSpaces)
+			doc.SetIndentation(g.TabSize, g.InsertSpaces)
+		}
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if existing, ok := d.open[uri]; ok {

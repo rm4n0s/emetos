@@ -425,6 +425,15 @@ func buildActions() map[string]action {
 		}
 		return vm.apply(vm.commands().RemoveBrackets(ix, vm.cursors.Selections()))
 	}
+	a["editor.action.indentationToSpaces"] = convertIndentation(true)
+	a["editor.action.indentationToTabs"] = convertIndentation(false)
+	a["editor.action.indentUsingSpaces"] = indentUsing(true, false)
+	a["editor.action.indentUsingTabs"] = indentUsing(false, false)
+	a["editor.action.changeTabDisplaySize"] = indentUsing(true, true)
+	a["editor.action.detectIndentation"] = func(vm *ViewModel, _ any) error {
+		vm.detectIndentation()
+		return nil
+	}
 	devActions(a)
 	return a
 }

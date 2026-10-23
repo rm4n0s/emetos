@@ -86,11 +86,18 @@ func NewProcess(opts ProcessOptions) *Process {
 	for _, problem := range languages.Problems() {
 		logger.Warn("language problem", "err", problem)
 	}
+	defaults := settings.DefaultRegistry()
+	// What the languages ask of the settings (Go indents with tabs, YAML with two spaces).
+	for id, values := range languages.ConfigurationDefaults() {
+		if err := defaults.RegisterLanguageDefaults(id, values); err != nil {
+			logger.Warn("language settings", "language", id, "err", err)
+		}
+	}
 	p := &Process{
 		Paths:    opts.Paths,
 		Logger:   logger,
 		Logs:     opts.Logs,
-		Settings: settings.DefaultRegistry(),
+		Settings: defaults,
 		Commands: command.DefaultRegistry(),
 		Keymap:   keybinding.DefaultRegistry(),
 		Notify:   notify.NewService(logger, nil),

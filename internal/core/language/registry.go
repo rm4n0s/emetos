@@ -79,6 +79,8 @@ type Registry struct {
 	parsed   map[string]*textmate.RawGrammar
 	configs  map[string]*Configuration
 	problems []error
+	// configDefaults are the settings that extensions give to languages, by language id.
+	configDefaults map[string]map[string]any
 }
 
 // NewRegistry makes a registry that has the plain text language.
@@ -112,6 +114,17 @@ func (r *Registry) AddExtension(fsys fs.FS) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.problems = append(r.problems, m.Problems...)
+	for id, values := range m.ConfigurationDefaults {
+		if r.configDefaults == nil {
+			r.configDefaults = map[string]map[string]any{}
+		}
+		if r.configDefaults[id] == nil {
+			r.configDefaults[id] = map[string]any{}
+		}
+		for k, v := range values {
+			r.configDefaults[id][k] = v
+		}
+	}
 	for _, l := range m.Languages {
 		r.addLanguage(l, resource{fsys: fsys, path: cleanContributionPath(l.Configuration)})
 	}
@@ -119,6 +132,23 @@ func (r *Registry) AddExtension(fsys fs.FS) error {
 		r.addGrammar(g, resource{fsys: fsys, path: cleanContributionPath(g.Path)})
 	}
 	return nil
+}
+
+// ConfigurationDefaults gives the settings that the extensions contribute to languages
+// (contributes.configurationDefaults), by language id: "[go]": {"editor.insertSpaces": false}
+// is {"go": {"editor.insertSpaces": false}}. The maps are copies.
+func (r *Registry) ConfigurationDefaults() map[string]map[string]any {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make(map[string]map[string]any, len(r.configDefaults))
+	for id, values := range r.configDefaults {
+		cp := make(map[string]any, len(values))
+		for k, v := range values {
+			cp[k] = v
+		}
+		out[id] = cp
+	}
+	return out
 }
 
 // cleanContributionPath turns the relative path of a contribution, such as ./syntaxes/a.json,

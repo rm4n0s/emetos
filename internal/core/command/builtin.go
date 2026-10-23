@@ -13,6 +13,7 @@ func DefaultRegistry() *Registry {
 	registerLineCommands(r)
 	registerMultiCursorCommands(r)
 	registerBracketCommands(r)
+	registerIndentationCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
 	return r
@@ -157,6 +158,20 @@ func registerMultiCursorCommands(r *Registry) {
 		Meta{ID: "editor.action.selectHighlights", Title: "Select All Occurrences of Find Match"},
 		Meta{ID: "editor.action.smartSelect.expand", Title: "Expand Selection"},
 		Meta{ID: "editor.action.smartSelect.shrink", Title: "Shrink Selection"},
+	)
+}
+
+// registerIndentationCommands registers the commands that change the indentation of a document.
+//
+// Ported from VS Code: src/vs/editor/contrib/indentation/browser/indentation.ts
+func registerIndentationCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "editor.action.indentationToSpaces", Title: "Convert Indentation to Spaces"},
+		Meta{ID: "editor.action.indentationToTabs", Title: "Convert Indentation to Tabs"},
+		Meta{ID: "editor.action.indentUsingSpaces", Title: "Indent Using Spaces"},
+		Meta{ID: "editor.action.indentUsingTabs", Title: "Indent Using Tabs"},
+		Meta{ID: "editor.action.changeTabDisplaySize", Title: "Change Tab Display Size"},
+		Meta{ID: "editor.action.detectIndentation", Title: "Detect Indentation from Content"},
 	)
 }
 
