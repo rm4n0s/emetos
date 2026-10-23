@@ -11,8 +11,14 @@ planned and has no files in the repository yet.
    Source:  Visual Studio Code, extensions/* (https://github.com/microsoft/vscode)
    License: MIT (Microsoft Corporation) and the license of each grammar's
             upstream project, listed in VS Code's cgmanifest.json files.
-   Added by steps 4.6, 4.6b, 4.10 and 4.11 (not yet added). A grammar without a
-   permissive license is left out and recorded here.
+   Step 4.6 added Go, JSON (JSON, JSON with Comments, JSON Lines, Code Snippets),
+   YAML and Markdown (third_party/vscode-extensions/: VS Code's LICENSE.txt and
+   ThirdPartyNotices.txt, which holds the license text of each grammar's
+   upstream: go-syntax, vscode-JSON.tmLanguage, better-snippet-syntax,
+   YAML-Syntax-Highlighter, vscode-markdown-tm-grammar, all MIT, and the
+   TextMate bundle license of markdown.tmbundle, which permits copying, use,
+   modification and sale). Steps 4.6b, 4.10 and 4.11 add more (not yet added).
+   A grammar without a permissive license is left out and recorded here.
 
 2. Color themes
    Source:  Visual Studio Code, extensions/theme-defaults

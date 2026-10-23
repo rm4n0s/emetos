@@ -1,0 +1,17 @@
+# Lines where Emetos tokenizes a colorize fixture differently from VS Code (step 4.6, SPEC §8.1).
+# One range per line: <fixture> <first line>-<last line> <reason>. Lines count from 1.
+# A range whose lines no longer differ fails the test, so an entry goes when its cause is fixed.
+
+# Markdown embeds the grammar of the language of a fenced block, and a block whose grammar is not
+# bundled yet is not highlighted: the rule of the block is left out, as vscode-textmate does when an
+# included grammar is missing. The entries go when the language is bundled.
+issue-279576.md 1-11 C# is not one of the bundled languages
+issue-279576.md 14-21 TypeScript is bundled with step 4.6b
+issue-279576.md 24-31 TypeScript React is bundled with step 4.6b
+test-33886.md 3-11 HTML (text.html.derivative) is bundled with step 4.10
+test.md 14-26 HTML (text.html.derivative) is bundled with step 4.10
+test.md 106 HTML (text.html.derivative) is bundled with step 4.10
+
+# md-math.md needs the markdown-math extension, which injects the math grammar into Markdown; it
+# is not bundled, so the math is plain text. The extension is out of scope of D13.
+md-math.md 1-173 the markdown-math extension (LaTeX in Markdown) is not bundled
