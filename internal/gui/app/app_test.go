@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/rm4n0s/glutter/gluttertest"
-	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
-	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -69,36 +69,54 @@ func TestShellShowsTheFile(t *testing.T) {
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
 
-	for _, line := range []string{"package main", `import (`, "func main() {"} {
-		if err := gluttertest.FindsOneWidget(ts, gluttertest.ByText(line)); err != nil {
-			t.Error(err)
-		}
+	if err := gluttertest.FindsOneWidget(ts, gluttertest.ByType[*editor.Editor]()); err != nil {
+		t.Fatal(err)
 	}
-	// The line numbers are in the gutter.
-	if err := gluttertest.FindsOneWidget(ts, gluttertest.ByText(" 3")); err != nil {
-		t.Error(err)
+	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
+	if vm.Document() != doc {
+		t.Error("the editor shows the document that was opened")
+	}
+	if vm.Paragraphs().Builds() == 0 {
+		t.Error("the editor drew no text")
 	}
 	if err := gluttertest.FindsNothing(ts, gluttertest.ByText("Emetos")); err != nil {
 		t.Error("the file replaces the home page:", err)
 	}
+	if opts := vm.Options(); opts.FontFamilies[0] != testutil.MonoFamily || opts.FontSize != 14 {
+		t.Errorf("the editor reads its font from the settings: %+v", opts)
+	}
 	if errs := ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("the framework reported errors: %v", errs)
 	}
-	testutil.Proof(t, ts, "3.1-placeholder.png")
+	testutil.Proof(t, ts, "3.1-shell-editor.png")
 }
 
-func TestShellShowsAtMostTheFirstLines(t *testing.T) {
+func TestEditorFollowsTheSettings(t *testing.T) {
 	win := newTestWindow(t, "")
-	long := filepath.Join(t.TempDir(), "long.txt")
-	if err := os.WriteFile(long, []byte(strings.Repeat("x\n", placeholderMaxLines+500)), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	doc, err := win.Documents.OpenFile(context.Background(), long, document.NewOptions())
+	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)
 	}
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
+	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
+
+	if err := win.Settings.Update(context.Background(), "editor.fontSize", 20.0, settings.TargetUser); err != nil {
+		t.Fatal(err)
+	}
+	for range 200 {
+		ts.Pump(10 * time.Millisecond)
+		if vm.Options().FontSize == 20 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if got := vm.Options().FontSize; got != 20 {
+		t.Errorf("the editor did not follow editor.fontSize: %v", got)
+	}
+	if got := vm.Options().LineHeight; got != 27 {
+		t.Errorf("line height = %v, want round(1.35 * 20) = 27", got)
+	}
 	if errs := ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("the framework reported errors: %v", errs)
 	}
@@ -110,45 +128,6 @@ func pumpPage(t *testing.T, win *Window, build func(bc widgets.BuildContext) wid
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newAppWithPage(win, func() widgets.Widget { return widgets.NewBuilder(build) }))
 	return ts
-}
-
-func TestEditorUsesTheTestFont(t *testing.T) {
-	win := newTestWindow(t, "")
-	var style *painting.TextStyle
-	ts := pumpPage(t, win, func(bc widgets.BuildContext) widgets.Widget {
-		style = editorTextStyle(bc, win.Settings, kit.ThemeOf(bc).EditorForeground)
-		return widgets.NewSizedBox(nil)
-	})
-	if errs := ts.TakeErrors(); len(errs) != 0 {
-		t.Fatalf("the framework reported errors: %v", errs)
-	}
-	if style == nil || style.FontFamily != testutil.MonoFamily {
-		t.Fatalf("the editor font is %v, want %s from editor.fontFamily", style, testutil.MonoFamily)
-	}
-	if got := style.FontFamilyFallback(); len(got) != 1 || got[0] != "monospace" {
-		t.Errorf("fallback = %v, want monospace", got)
-	}
-	if size, ok := style.FontSize.Get(); !ok || size != 14 {
-		t.Errorf("font size = %v, want 14", size)
-	}
-}
-
-func TestEditorFontFamilies(t *testing.T) {
-	cases := []struct {
-		in   string
-		want []string
-	}{
-		{"", nil},
-		{"Go Mono", []string{"Go Mono"}},
-		{"'Droid Sans Mono', \"monospace\" , monospace", []string{"Droid Sans Mono", "monospace", "monospace"}},
-		{" , ,", nil},
-	}
-	for _, tc := range cases {
-		got := fontFamilies(tc.in)
-		if strings.Join(got, "|") != strings.Join(tc.want, "|") {
-			t.Errorf("fontFamilies(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
 }
 
 func TestWindowScope(t *testing.T) {
@@ -304,13 +283,7 @@ func TestWindowWithAFolderReadsItsSettings(t *testing.T) {
 	if win.Folder != folder {
 		t.Errorf("Folder = %q", win.Folder)
 	}
-	var size float64
-	ts := pumpPage(t, win, func(bc widgets.BuildContext) widgets.Widget {
-		style := editorTextStyle(bc, win.Settings, kit.DarkModern().EditorForeground)
-		size, _ = style.FontSize.Get()
-		return widgets.NewSizedBox(nil)
-	})
-	_ = ts
+	size := editor.OptionsFromSettings(win.Settings, "", "", 4).FontSize
 	if size != 20 {
 		t.Errorf("the workspace layer is not read: font size %v, want 20", size)
 	}

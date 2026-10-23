@@ -59,6 +59,53 @@ func registerEditor(r *Registry) {
 			Description: "Controls the font size in pixels.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
+		Setting{
+			Key: "editor.lineHeight", Types: []Type{Number}, Default: 0, Minimum: Float(0), Maximum: Float(150),
+			Description: "Controls the line height. Use 0 to automatically compute the line height from the font size. Values between 0 and 8 will be used as a multiplier with the font size. Values greater than or equal to 8 will be used as effective values.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.fontLigatures", Types: []Type{Boolean, String}, Default: false,
+			Description: "Configures font ligatures or font features. Can be either a boolean to enable/disable ligatures or a string for the value of the CSS 'font-feature-settings' property.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.lineNumbers", Types: []Type{String}, Default: "on",
+			Enum: []any{"off", "on", "relative", "interval"},
+			EnumDescriptions: []string{
+				"Line numbers are not rendered.",
+				"Line numbers are rendered as absolute number.",
+				"Line numbers are rendered as distance in lines to cursor position.",
+				"Line numbers are rendered every 10 lines.",
+			},
+			Description: "Controls the display of line numbers.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.glyphMargin", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.lineDecorationsWidth", Types: []Type{Number, String}, Default: 10,
+			Description: "Controls the width of line decorations in the gutter, in pixels.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.folding", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor has code folding enabled.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.scrollBeyondLastLine", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor will scroll beyond the last line.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.lineNumbersMinChars", Types: []Type{Integer}, Default: 5, Minimum: Float(1), Maximum: Float(300),
+			Description: "Controls the minimal number of characters the line numbers take; the gutter is wide enough for the number of the last line.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
 	)
 }
 

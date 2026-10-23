@@ -1,0 +1,114 @@
+package editor
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/rm4n0s/emetos/internal/core/settings"
+)
+
+// OptionsFromSettings reads the options of an editor from the settings for a language.
+// desktopMonospace is the desktop's monospace font (PlatformDispatcher.MonospaceFont), tried
+// when editor.fontFamily is empty; tabSize is the document's (its indentation settings are
+// applied to the document, not read here).
+//
+// The font families are those of editor.fontFamily in order, then the desktop's monospace
+// font when the setting is empty, then the generic monospace family (SPEC D14).
+func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace string, tabSize int) Options {
+	families := FontFamilies(settings.Get[string](store, "editor.fontFamily", languageID))
+	if len(families) == 0 && desktopMonospace != "" {
+		families = append(families, desktopMonospace)
+	}
+	families = append(families, "monospace")
+	fontSize := settings.Get[float64](store, "editor.fontSize", languageID)
+	return Options{
+		FontFamilies:         families,
+		FontSize:             fontSize,
+		LineHeight:           LineHeight(settings.Get[float64](store, "editor.lineHeight", languageID), fontSize),
+		TabSize:              max(tabSize, 1),
+		FontFeatures:         fontFeatures(store, languageID),
+		LineNumbers:          ParseLineNumbersMode(settings.Get[string](store, "editor.lineNumbers", languageID)),
+		LineNumbersMinChars:  int(settings.Get[float64](store, "editor.lineNumbersMinChars", languageID)),
+		GlyphMargin:          settings.Get[bool](store, "editor.glyphMargin", languageID),
+		LineDecorationsWidth: lineDecorationsWidth(store, languageID),
+		Folding:              settings.Get[bool](store, "editor.folding", languageID),
+		ScrollBeyondLastLine: settings.Get[bool](store, "editor.scrollBeyondLastLine", languageID),
+	}
+}
+
+// FontFamilies splits the value of editor.fontFamily: comma-separated names, each trimmed
+// and without the quotes around a name with spaces.
+func FontFamilies(value string) []string {
+	var out []string
+	for _, name := range strings.Split(value, ",") {
+		name = strings.Trim(strings.TrimSpace(name), `'"`)
+		if name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// lineDecorationsWidth reads editor.lineDecorationsWidth, a number or a string such as "10"
+// or "1ch" (only the number of pixels is understood).
+func lineDecorationsWidth(store *settings.Store, languageID string) float64 {
+	raw := settings.Get[any](store, "editor.lineDecorationsWidth", languageID)
+	switch v := raw.(type) {
+	case float64:
+		return max(v, 0)
+	case string:
+		if f, err := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(v), "px"), 64); err == nil {
+			return max(f, 0)
+		}
+	}
+	return 10
+}
+
+// fontFeatures reads editor.fontLigatures: false turns the ligature features off, true
+// leaves the font's own, and a string is the value of CSS font-feature-settings.
+func fontFeatures(store *settings.Store, languageID string) []FontFeature {
+	switch v := settings.Get[any](store, "editor.fontLigatures", languageID).(type) {
+	case bool:
+		if v {
+			return nil
+		}
+	case string:
+		if features := ParseFontFeatureSettings(v); features != nil {
+			return features
+		}
+	}
+	return []FontFeature{{"liga", 0}, {"calt", 0}}
+}
+
+// ParseFontFeatureSettings reads a CSS font-feature-settings value such as
+// `"liga" 0, 'ss01', "calt" off`: a quoted tag, then an optional integer, "on" or "off"
+// (on is the default). Entries that are not understood are skipped; nil means none were.
+func ParseFontFeatureSettings(s string) []FontFeature {
+	var out []FontFeature
+	for _, entry := range strings.Split(s, ",") {
+		fields := strings.Fields(entry)
+		if len(fields) == 0 || len(fields) > 2 {
+			continue
+		}
+		tag := strings.Trim(fields[0], `'"`)
+		if len(tag) != 4 {
+			continue
+		}
+		value := 1
+		if len(fields) == 2 {
+			switch fields[1] {
+			case "on":
+			case "off":
+				value = 0
+			default:
+				n, err := strconv.Atoi(fields[1])
+				if err != nil || n < 0 {
+					continue
+				}
+				value = n
+			}
+		}
+		out = append(out, FontFeature{tag, value})
+	}
+	return out
+}

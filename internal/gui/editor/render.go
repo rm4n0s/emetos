@@ -1,0 +1,207 @@
+package editor
+
+import (
+	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/rendering"
+	"github.com/rm4n0s/glutter/ui"
+)
+
+// rowMargin is how many rows beyond the visible ones layout prepares paragraphs for, so that
+// a scroll by a few rows finds them built.
+const rowMargin = 10
+
+// RenderEditorText is the text layer of the editor (SPEC §9.1): a leaf render box driven by
+// the vertical offset of a Scrollable and the horizontal offset of the view model. It lays
+// out and paints only the visible rows plus a margin, one cached paragraph per row, and is a
+// repaint boundary, so that Glutter's raster cache keeps the text when only a cursor moves.
+type RenderEditorText struct {
+	rendering.RenderBox
+	vm      *ViewModel
+	offset  rendering.ViewportOffset
+	factory ui.ParagraphFactory
+	color   ui.Color
+
+	offsetHandle foundation.ListenerHandle
+	vmHandle     foundation.ListenerHandle
+	attached     bool
+}
+
+// NewRenderEditorText makes the render object for a view model. The paragraphs are made by
+// factory (the platform's text engine) in color.
+func NewRenderEditorText(vm *ViewModel, offset rendering.ViewportOffset, factory ui.ParagraphFactory, color ui.Color) *RenderEditorText {
+	r := &RenderEditorText{vm: vm, offset: offset, factory: factory, color: color}
+	rendering.InitRenderBox(&r.RenderBox, r)
+	return r
+}
+
+// SetViewModel changes the view model.
+func (r *RenderEditorText) SetViewModel(vm *ViewModel) {
+	if vm == r.vm {
+		return
+	}
+	if r.attached {
+		r.vm.RemoveListener(r.vmHandle)
+		r.vmHandle = vm.AddListener(r.onViewModel)
+	}
+	r.vm = vm
+	r.MarkNeedsLayout()
+}
+
+// SetOffset changes the vertical offset.
+func (r *RenderEditorText) SetOffset(offset rendering.ViewportOffset) {
+	if offset == r.offset {
+		return
+	}
+	if r.attached {
+		r.offset.RemoveListener(r.offsetHandle)
+		r.offsetHandle = offset.AddListener(r.MarkNeedsPaint)
+	}
+	r.offset = offset
+	r.MarkNeedsLayout()
+}
+
+// SetColor changes the color of the text.
+func (r *RenderEditorText) SetColor(color ui.Color) {
+	if color == r.color {
+		return
+	}
+	r.color = color
+	r.MarkNeedsPaint()
+}
+
+// SetFactory changes the text engine.
+func (r *RenderEditorText) SetFactory(factory ui.ParagraphFactory) {
+	if factory == r.factory {
+		return
+	}
+	r.factory = factory
+	r.MarkNeedsLayout()
+}
+
+// onViewModel reacts to a change of the view model: the document or the options changed, so
+// the rows may be others, and so may the scroll extent.
+func (r *RenderEditorText) onViewModel() {
+	r.MarkNeedsLayout()
+	r.MarkNeedsPaint()
+}
+
+// Attach implements rendering.RenderObject.
+func (r *RenderEditorText) Attach(owner *rendering.PipelineOwner) {
+	r.RenderBox.Attach(owner)
+	r.offsetHandle = r.offset.AddListener(r.MarkNeedsPaint)
+	r.vmHandle = r.vm.AddListener(r.onViewModel)
+	r.attached = true
+}
+
+// Detach implements rendering.RenderObject.
+func (r *RenderEditorText) Detach() {
+	r.offset.RemoveListener(r.offsetHandle)
+	r.vm.RemoveListener(r.vmHandle)
+	r.attached = false
+	r.RenderBox.Detach()
+}
+
+// SizedByParent implements rendering.RenderObject: the editor fills the space it is given.
+func (r *RenderEditorText) SizedByParent() bool { return true }
+
+// IsRepaintBoundary implements rendering.RenderObject.
+func (r *RenderEditorText) IsRepaintBoundary() bool { return true }
+
+// HitTestSelf implements rendering.RenderBox: every point of the editor is the editor's.
+func (r *RenderEditorText) HitTestSelf(ui.Offset) bool { return true }
+
+// ComputeMinIntrinsicWidth implements rendering.RenderBox.
+func (r *RenderEditorText) ComputeMinIntrinsicWidth(float64) float64 { return 0 }
+
+// ComputeMaxIntrinsicWidth implements rendering.RenderBox.
+func (r *RenderEditorText) ComputeMaxIntrinsicWidth(float64) float64 { return 0 }
+
+// ComputeMinIntrinsicHeight implements rendering.RenderBox.
+func (r *RenderEditorText) ComputeMinIntrinsicHeight(float64) float64 { return 0 }
+
+// ComputeMaxIntrinsicHeight implements rendering.RenderBox.
+func (r *RenderEditorText) ComputeMaxIntrinsicHeight(float64) float64 { return 0 }
+
+// ComputeDryLayout implements rendering.RenderBox: the biggest size the constraints allow.
+func (r *RenderEditorText) ComputeDryLayout(c rendering.BoxConstraints) ui.Size {
+	return c.Constrain(c.Biggest())
+}
+
+// style is the look of the text now.
+func (r *RenderEditorText) style() textStyle {
+	return newTextStyle(r.factory, r.vm.Options(), r.color)
+}
+
+// scrollExtent is how far the content can scroll: with scrollBeyondLastLine the last line
+// can reach the top of the editor, otherwise the last line stays at the bottom.
+func scrollExtent(contentHeight, viewport, lineHeight float64, beyond bool) float64 {
+	if beyond {
+		return max(contentHeight-lineHeight, 0)
+	}
+	return max(contentHeight-viewport, 0)
+}
+
+// PerformLayout tells the offset the size of the viewport and of the content, and prepares
+// the paragraphs of the visible rows and the margin around them.
+func (r *RenderEditorText) PerformLayout() {
+	size := r.Size()
+	r.vm.SetViewportHeight(size.Height)
+	proj := r.vm.Projection()
+	opts := r.vm.Options()
+	r.offset.ApplyViewportDimension(size.Height)
+	r.offset.ApplyContentDimensions(0, scrollExtent(proj.Height(), size.Height, opts.LineHeight, opts.ScrollBeyondLastLine))
+
+	top := r.top()
+	first, last := proj.RowAt(top), proj.RowAt(top+size.Height)
+	style := r.style()
+	snap := r.vm.Document().Snapshot()
+	for row := max(first-rowMargin, 0); row <= min(last+rowMargin, proj.RowCount()-1); row++ {
+		r.rowParagraph(style, proj, snap.LineContent, row)
+	}
+}
+
+// top is the vertical scroll position.
+func (r *RenderEditorText) top() float64 {
+	if r.offset.HasPixels() {
+		return r.offset.Pixels()
+	}
+	return r.vm.ScrollTop()
+}
+
+// rowParagraph returns the paragraph of a row, or nil for a row with no text.
+func (r *RenderEditorText) rowParagraph(style textStyle, proj Projection, lineContent func(int) (string, error), row int) *ui.Paragraph {
+	line, start, end := proj.RowSpan(row)
+	text, err := lineContent(line)
+	if err != nil {
+		return nil
+	}
+	if end < 0 || end > len(text) {
+		end = len(text)
+	}
+	text = text[min(start, end):end]
+	if text == "" {
+		return nil
+	}
+	return style.paragraph(r.vm.Paragraphs(), text)
+}
+
+// Paint draws the visible rows.
+func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.Offset) {
+	size := r.Size()
+	proj := r.vm.Projection()
+	top := r.top()
+	first, last := proj.RowAt(top), proj.RowAt(top+size.Height)
+	style := r.style()
+	snap := r.vm.Document().Snapshot()
+
+	canvas := context.Canvas()
+	canvas.Save()
+	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
+	left := r.vm.ScrollLeft()
+	for row := first; row <= last; row++ {
+		if p := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
+			canvas.DrawParagraph(p, ui.Offset{Dx: offset.Dx - left, Dy: offset.Dy + proj.RowTop(row) - top})
+		}
+	}
+	canvas.Restore()
+}

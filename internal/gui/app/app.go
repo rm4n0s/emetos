@@ -15,7 +15,9 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
@@ -163,12 +165,19 @@ func (p *shell) CreateState() widgets.State { return &shellState{} }
 
 type shellState struct {
 	widgets.StateOf[*shell]
+	// view is the view model of the editor of the file, or nil without a file.
+	view *editor.ViewModel
+	// unsubscribe stops following the settings.
+	unsubscribe func()
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
 // the dev commands. Both end with the state, so a page that is gone stops waiting.
 func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
+	if doc := s.Widget().doc; doc != nil {
+		s.initEditor(binding, doc)
+	}
 	done := s.Widget().ctx.Done()
 	s.Go(func(life context.Context) {
 		select {
@@ -200,10 +209,34 @@ func (s *shellState) InitState() {
 	}
 }
 
+// initEditor makes the view model of the file, and keeps its options current as the settings
+// change (the change may come from any goroutine, so it is posted to the UI thread).
+func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.Document) {
+	win := PeekWindow(s.Context())
+	options := func() editor.Options {
+		desktop, _ := binding.PlatformDispatcher().MonospaceFont()
+		tabSize, _ := doc.Indentation()
+		return editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
+	}
+	s.view = editor.NewViewModel(doc, options(), nil)
+	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {
+		if e.Affects("editor", "") {
+			binding.Post(func() { s.view.SetOptions(options()) })
+		}
+	})
+}
+
+// Dispose stops following the settings.
+func (s *shellState) Dispose() {
+	if s.unsubscribe != nil {
+		s.unsubscribe()
+	}
+}
+
 // Build implements widgets.State.
 func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
-	if doc := s.Widget().doc; doc != nil {
-		return newEditorPlaceholder(doc)
+	if s.view != nil {
+		return editor.NewEditor(s.view)
 	}
 	colors := kit.ThemeOf(bc)
 	return widgets.NewDefaultTextStyle(uiTextStyle(bc, 14, colors.Foreground),
