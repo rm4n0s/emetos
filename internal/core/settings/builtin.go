@@ -102,6 +102,46 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.renderLineHighlight", Types: []Type{String}, Default: "line",
+			Enum: []any{"none", "gutter", "line", "all"},
+			EnumDescriptions: []string{
+				"The current line is not highlighted.",
+				"The current line is highlighted in the gutter.",
+				"The current line is highlighted in the text.",
+				"The current line is highlighted in the gutter and in the text.",
+			},
+			Description: "Controls how the editor highlights the current line.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.renderLineHighlightOnlyWhenFocus", Types: []Type{Boolean}, Default: false,
+			Description: "Controls if the editor highlights the current line only when the editor is focused.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.roundedSelection", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether selections have rounded corners.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.cursorWidth", Types: []Type{Integer}, Default: 0, Minimum: Float(0),
+			Description: "Controls the width of the cursor in pixels; 0 means 2 pixels.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.cursorBlinking", Types: []Type{String}, Default: "blink",
+			Enum: []any{"blink", "smooth", "phase", "expand", "solid"},
+			EnumDescriptions: []string{
+				"The cursor is shown and hidden every half second.",
+				"Emetos blinks like \"blink\" (the fading animation of VS Code is not implemented).",
+				"Emetos blinks like \"blink\" (the fading animation of VS Code is not implemented).",
+				"Emetos blinks like \"blink\" (the growing animation of VS Code is not implemented).",
+				"The cursor does not blink.",
+			},
+			Description: "Controls the cursor animation style.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.lineNumbersMinChars", Types: []Type{Integer}, Default: 5, Minimum: Float(1), Maximum: Float(300),
 			Description: "Controls the minimal number of characters the line numbers take; the gutter is wide enough for the number of the last line.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

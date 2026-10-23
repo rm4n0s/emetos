@@ -33,6 +33,12 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		LineDecorationsWidth: lineDecorationsWidth(store, languageID),
 		Folding:              settings.Get[bool](store, "editor.folding", languageID),
 		ScrollBeyondLastLine: settings.Get[bool](store, "editor.scrollBeyondLastLine", languageID),
+
+		RenderLineHighlight:              settings.Get[string](store, "editor.renderLineHighlight", languageID),
+		RenderLineHighlightOnlyWhenFocus: settings.Get[bool](store, "editor.renderLineHighlightOnlyWhenFocus", languageID),
+		RoundedSelection:                 settings.Get[bool](store, "editor.roundedSelection", languageID),
+		CursorWidth:                      settings.Get[float64](store, "editor.cursorWidth", languageID),
+		CursorBlinking:                   settings.Get[string](store, "editor.cursorBlinking", languageID),
 	}
 }
 

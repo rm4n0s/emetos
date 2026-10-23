@@ -60,6 +60,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		FontFamilies: got.FontFamilies, FontSize: 14, LineHeight: 19, TabSize: 8,
 		FontFeatures: []FontFeature{{"liga", 0}, {"calt", 0}},
 		LineNumbers:  LineNumbersOn, LineNumbersMinChars: 5, GlyphMargin: true, LineDecorationsWidth: 10, Folding: true, ScrollBeyondLastLine: true,
+		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -80,6 +81,12 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.folding":              false,
 		"editor.scrollBeyondLastLine": false,
 		"editor.fontLigatures":        true,
+
+		"editor.renderLineHighlight":              "all",
+		"editor.renderLineHighlightOnlyWhenFocus": true,
+		"editor.roundedSelection":                 false,
+		"editor.cursorWidth":                      3.0,
+		"editor.cursorBlinking":                   "solid",
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -88,6 +95,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	if got.FontSize != 18 || got.LineHeight != 27 || got.TabSize != 2 || got.LineNumbers != LineNumbersRelative ||
 		got.LineNumbersMinChars != 3 || got.GlyphMargin || got.LineDecorationsWidth != 12 || got.Folding || got.ScrollBeyondLastLine {
 		t.Errorf("got %+v", got)
+	}
+	if got.RenderLineHighlight != "all" || !got.RenderLineHighlightOnlyWhenFocus || got.RoundedSelection || got.CursorWidth != 3 || got.CursorBlinking != "solid" {
+		t.Errorf("cursor and highlight options: %+v", got)
 	}
 	if got.FontFeatures != nil {
 		t.Errorf("ligatures on leave the font's own features: %v", got.FontFeatures)

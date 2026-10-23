@@ -12,6 +12,9 @@ type GutterColors struct {
 	LineNumber ui.Color
 	// ActiveLineNumber is the color of the number of the cursor's line.
 	ActiveLineNumber ui.Color
+	// LineHighlight and LineHighlightBorder are the background and the border of the current
+	// line when the editor highlights it in the gutter.
+	LineHighlight, LineHighlightBorder ui.Color
 }
 
 // GutterWidths gives the widths of the gutter for the document of the view model, in the
@@ -35,6 +38,7 @@ type RenderEditorGutter struct {
 
 	offsetHandle foundation.ListenerHandle
 	vmHandle     foundation.ListenerHandle
+	selHandle    foundation.ListenerHandle
 	attached     bool
 }
 
@@ -49,7 +53,9 @@ func NewRenderEditorGutter(vm *ViewModel, offset rendering.ViewportOffset, facto
 func (r *RenderEditorGutter) Update(vm *ViewModel, offset rendering.ViewportOffset, factory ui.ParagraphFactory, colors GutterColors) {
 	if r.attached && vm != r.vm {
 		r.vm.RemoveListener(r.vmHandle)
+		r.vm.RemoveSelectionListener(r.selHandle)
 		r.vmHandle = vm.AddListener(r.MarkNeedsPaint)
+		r.selHandle = vm.AddSelectionListener(r.MarkNeedsPaint)
 	}
 	if r.attached && offset != r.offset {
 		r.offset.RemoveListener(r.offsetHandle)
@@ -64,6 +70,7 @@ func (r *RenderEditorGutter) Attach(owner *rendering.PipelineOwner) {
 	r.RenderBox.Attach(owner)
 	r.offsetHandle = r.offset.AddListener(r.MarkNeedsPaint)
 	r.vmHandle = r.vm.AddListener(r.MarkNeedsPaint)
+	r.selHandle = r.vm.AddSelectionListener(r.MarkNeedsPaint)
 	r.attached = true
 }
 
@@ -71,6 +78,7 @@ func (r *RenderEditorGutter) Attach(owner *rendering.PipelineOwner) {
 func (r *RenderEditorGutter) Detach() {
 	r.offset.RemoveListener(r.offsetHandle)
 	r.vm.RemoveListener(r.vmHandle)
+	r.vm.RemoveSelectionListener(r.selHandle)
 	r.attached = false
 	r.RenderBox.Detach()
 }
@@ -101,13 +109,10 @@ func (r *RenderEditorGutter) ComputeDryLayout(c rendering.BoxConstraints) ui.Siz
 // PerformLayout implements rendering.RenderBox; the gutter has nothing to lay out.
 func (r *RenderEditorGutter) PerformLayout() {}
 
-// Paint draws the numbers of the visible rows. A line that is cut into several rows has its
-// number on the first one only.
+// Paint draws the highlight of the current line and the numbers of the visible rows. A line
+// that is cut into several rows has its number on the first one only.
 func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui.Offset) {
 	opts := r.vm.Options()
-	if opts.LineNumbers == LineNumbersOff {
-		return
-	}
 	size := r.Size()
 	proj := r.vm.Projection()
 	top := 0.0
@@ -115,15 +120,20 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 		top = r.offset.Pixels()
 	}
 	first, last := proj.RowAt(top), proj.RowAt(top+size.Height)
+
+	canvas := context.Canvas()
+	canvas.Save()
+	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
+	defer canvas.Restore()
+	r.paintHighlight(canvas, offset, size, top, first, last)
+	if opts.LineNumbers == LineNumbersOff {
+		return
+	}
 	lineCount := r.vm.Document().Snapshot().LineCount()
 	cursorLine := r.vm.Cursors().Primary().Position().Line
 	normal := newTextStyle(r.factory, opts, r.colors.LineNumber)
 	active := newTextStyle(r.factory, opts, r.colors.ActiveLineNumber)
 	widths := r.vm.GutterWidths(r.factory)
-
-	canvas := context.Canvas()
-	canvas.Save()
-	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
 	for row := first; row <= last; row++ {
 		line, start, _ := proj.RowSpan(row)
 		if start != 0 {
@@ -144,5 +154,28 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 		}
 		canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: offset.Dy + proj.RowTop(row) - top})
 	}
-	canvas.Restore()
+}
+
+// paintHighlight draws the current line across the gutter when the editor highlights it
+// there. When the text has the highlight too the gutter has no border on the side of the
+// text, as in VS Code.
+//
+// Ported from VS Code: src/vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight.ts (CurrentLineMarginHighlightOverlay)
+func (r *RenderEditorGutter) paintHighlight(canvas *ui.Canvas, offset ui.Offset, size ui.Size, top float64, first, last int) {
+	opts := r.vm.Options()
+	focused := r.vm.Focused()
+	if !highlightInMargin(opts, focused) {
+		return
+	}
+	both := highlightInContent(opts, focused, allEmpty(r.vm.Cursors().Selections()))
+	proj := r.vm.Projection()
+	for _, row := range cursorRows(r.vm) {
+		if row < first || row > last {
+			continue
+		}
+		y := offset.Dy + proj.RowTop(row) - top
+		rect := ui.NewRectFromLTWH(offset.Dx, y, size.Width, proj.RowHeight(row))
+		paintLineHighlight(canvas, rect, r.colors.LineHighlight, r.colors.LineHighlightBorder,
+			lineHighlightEdges{Left: true, Top: true, Bottom: true, Right: !both})
+	}
 }

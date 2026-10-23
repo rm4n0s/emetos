@@ -37,6 +37,19 @@ type Options struct {
 	Folding bool
 	// ScrollBeyondLastLine lets the last line be scrolled up to the top of the editor.
 	ScrollBeyondLastLine bool
+	// RenderLineHighlight is where the current line is highlighted: "none", "gutter", "line"
+	// or "all".
+	RenderLineHighlight string
+	// RenderLineHighlightOnlyWhenFocus highlights the current line only while the editor has
+	// the focus.
+	RenderLineHighlightOnlyWhenFocus bool
+	// RoundedSelection gives selections rounded corners.
+	RoundedSelection bool
+	// CursorWidth is the width of the cursor in pixels; 0 means 2.
+	CursorWidth float64
+	// CursorBlinking is the style of the cursor animation: "blink" and "solid" are drawn, the
+	// other VS Code styles blink like "blink".
+	CursorBlinking string
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -79,6 +92,12 @@ type ViewModel struct {
 	scrollTop  float64
 	scrollLeft float64
 	viewport   float64 // the height of the viewport, set by the render object
+
+	// sel tells the layers that show the selections, the current line and the cursors that
+	// they changed, without making the text layer lay out again.
+	sel     *foundation.ChangeNotifier
+	blink   *cursorBlink
+	focused bool
 }
 
 // NewViewModel makes the view model of a document with the cursor at its start.
@@ -95,8 +114,12 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		opts:           opts,
 		cache:          cache,
 		syncedAt:       -1,
+		sel:            foundation.NewChangeNotifier(),
+		blink:          newCursorBlink(),
+		focused:        true,
 	}
 	vm.Sync()
+	vm.restartBlink()
 	return vm
 }
 
@@ -118,6 +141,7 @@ func (vm *ViewModel) SetOptions(opts Options) {
 	vm.opts = opts
 	vm.syncedAt = -1
 	vm.Sync()
+	vm.restartBlink()
 	vm.NotifyListeners()
 }
 
@@ -127,7 +151,9 @@ func sameOptions(a, b Options) bool { return reflect.DeepEqual(a, b) }
 // again and the layers are redrawn. The unchanged rows keep their paragraphs in the cache.
 func (vm *ViewModel) DocumentChanged() {
 	vm.Sync()
+	vm.restartBlink()
 	vm.NotifyListeners()
+	vm.sel.NotifyListeners()
 }
 
 // Paragraphs is the cache of paragraphs, shared by the layers of the editor.
@@ -205,4 +231,68 @@ func (vm *ViewModel) pageRows() int {
 // identity projection every line is one row.
 func (vm *ViewModel) Layout() edit.LineLayout {
 	return edit.ModelLineLayout{Model: edit.NewModel(vm.doc.Snapshot()), TabSize: vm.opts.TabSize, Page: vm.pageRows()}
+}
+
+// SelectionsChanged tells the view model that the cursors moved or the selections changed:
+// the layers of the selections, the current line and the cursors are drawn again, and the
+// cursors are shown and start blinking anew.
+func (vm *ViewModel) SelectionsChanged() {
+	vm.restartBlink()
+	vm.sel.NotifyListeners()
+}
+
+// AddSelectionListener calls fn whenever the selections, the focus or the document change.
+func (vm *ViewModel) AddSelectionListener(fn func()) foundation.ListenerHandle {
+	return vm.sel.AddListener(fn)
+}
+
+// RemoveSelectionListener removes a listener of AddSelectionListener.
+func (vm *ViewModel) RemoveSelectionListener(h foundation.ListenerHandle) { vm.sel.RemoveListener(h) }
+
+// AddBlinkListener calls fn whenever the cursors are shown or hidden by the blinking.
+func (vm *ViewModel) AddBlinkListener(fn func()) foundation.ListenerHandle {
+	return vm.blink.AddListener(fn)
+}
+
+// RemoveBlinkListener removes a listener of AddBlinkListener.
+func (vm *ViewModel) RemoveBlinkListener(h foundation.ListenerHandle) { vm.blink.RemoveListener(h) }
+
+// Focused tells whether the editor has the focus: only then it has cursors that are shown,
+// and its selections have the active color.
+func (vm *ViewModel) Focused() bool { return vm.focused }
+
+// SetFocused tells the view model that the editor got or lost the focus. Without the focus
+// the cursors are hidden and no timer runs.
+func (vm *ViewModel) SetFocused(focused bool) {
+	if focused == vm.focused {
+		return
+	}
+	vm.focused = focused
+	vm.restartBlink()
+	vm.sel.NotifyListeners()
+}
+
+// CursorsVisible tells whether the cursors are drawn now: the editor has the focus and the
+// blinking is in its shown half.
+func (vm *ViewModel) CursorsVisible() bool { return vm.blink.Visible() }
+
+// SetTimer gives the view model the source of timers for the blinking (the editor widget
+// passes the timers of the window's binding); nil stops the blinking.
+func (vm *ViewModel) SetTimer(after TimerFunc) { vm.blink.SetTimer(after) }
+
+func (vm *ViewModel) restartBlink() {
+	vm.blink.Restart(blinkStyleOf(vm.focused, vm.opts.CursorBlinking))
+}
+
+// RowOfPosition is the row that shows a position of the document.
+func (vm *ViewModel) RowOfPosition(p buffer.Position) int {
+	proj := vm.Projection()
+	first, count := proj.LineRows(p.Line)
+	for row := first; row < first+count; row++ {
+		_, start, end := proj.RowSpan(row)
+		if p.Col >= start && (end < 0 || p.Col < end || row == first+count-1) {
+			return row
+		}
+	}
+	return first
 }

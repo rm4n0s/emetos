@@ -2,6 +2,8 @@ package editor
 
 import (
 	"fmt"
+	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -270,4 +272,285 @@ func TestGoldenIntervalLineNumbers(t *testing.T) {
 	ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 440})
 	noErrors(t, ts)
 	ts.MatchesGolden("interval_line_numbers")
+}
+
+func selectionOf(l1, c1, l2, c2 int) buffer.Selection {
+	return buffer.Selection{Anchor: positionOf(l1, c1), Active: positionOf(l2, c2)}
+}
+
+// selectedEditor shows the sample Go file with the selections set.
+func selectedEditor(t *testing.T, opts Options, sels ...buffer.Selection) (*ViewModel, *gluttertest.Tester) {
+	t.Helper()
+	vm := NewViewModel(newTestDoc(goldenSample(t)), opts, nil)
+	vm.Cursors().SetSelections(sels)
+	vm.SelectionsChanged()
+	ts := pumpEditor(t, vm, ui.Size{Width: 640, Height: 440})
+	noErrors(t, ts)
+	return vm, ts
+}
+
+func TestGeometryMeasuresColumns(t *testing.T) {
+	doc := newTestDoc("hello\n\ta\tb\nab  \nné!\n\n")
+	vm := NewViewModel(doc, goOptions(), nil)
+	ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 200})
+	g := newGeometry(vm, ts.Dispatcher().TextEngine())
+	cw := g.charWidth
+	if cw < 5 || cw > 12 {
+		t.Fatalf("the width of a character of Go Mono at 14 pixels: %v", cw)
+	}
+	cases := []struct {
+		name     string
+		row, col int
+		want     float64
+	}{
+		{"start", 0, 0, 0},
+		{"after four characters", 0, 4, 4 * cw},
+		{"end of the line", 0, 5, 5 * cw},
+		{"past the end", 0, 50, 5 * cw},
+		{"after a tab", 1, 1, 4 * cw},
+		{"after a character and a tab", 1, 3, 8 * cw},
+		{"trailing spaces count", 2, 4, 4 * cw},
+		{"after a two byte character", 3, 3, 2 * cw},
+		{"empty row", 4, 0, 0},
+		{"empty row, past the start", 4, 3, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := g.x(tc.row, tc.col); math.Abs(got-tc.want) > 0.01 {
+				t.Errorf("x(%d, %d) = %v, want %v", tc.row, tc.col, got, tc.want)
+			}
+		})
+	}
+	if got := g.rowEnd(0); math.Abs(got-5*cw) > 0.01 {
+		t.Errorf("end of row 0: %v", got)
+	}
+	noErrors(t, ts)
+}
+
+func TestSelectionRowsOfAGeometry(t *testing.T) {
+	doc := newTestDoc("abcdef\n\nxyz\nlast")
+	vm := NewViewModel(doc, goOptions(), nil)
+	ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 200})
+	g := newGeometry(vm, ts.Dispatcher().TextEngine())
+	cw := g.charWidth
+	rows := g.selectionRows(selectionOf(0, 2, 2, 1), 0, 3, true)
+	if len(rows) != 3 {
+		t.Fatalf("%d rows: %+v", len(rows), rows)
+	}
+	want := []struct{ left, right float64 }{{2 * cw, 7 * cw}, {0, cw}, {0, cw}}
+	for i, w := range want {
+		if rows[i].Row != i || math.Abs(rows[i].Left-w.left) > 0.01 || math.Abs(rows[i].Right-w.right) > 0.01 {
+			t.Errorf("row %d: %+v, want %v..%v (the line break is one character wide)", i, rows[i], w.left, w.right)
+		}
+	}
+	rows = g.selectionRows(selectionOf(0, 5, 2, 3), 0, 3, true)
+	if len(rows) != 3 || rows[1].End.Bottom != cornerIntern || rows[0].End.Bottom != cornerExtern {
+		t.Errorf("a row that ends before the one below turns a corner: %+v", rows)
+	}
+	if rows := g.selectionRows(selectionOf(0, 2, 2, 0), 0, 3, true); len(rows) != 2 {
+		t.Errorf("a selection that ends at the start of a line leaves that row out: %+v", rows)
+	}
+	if rows := g.selectionRows(selectionOf(3, 1, 3, 3), 0, 3, false); len(rows) != 1 || rows[0].Start != (endStyle{}) {
+		t.Errorf("without rounded corners nothing is styled: %+v", rows)
+	}
+	// Only the rows near the visible ones are measured.
+	if rows := g.selectionRows(selectionOf(0, 0, 3, 2), 2, 2, true); len(rows) != 3 || rows[0].Row != 1 || rows[2].Row != 3 {
+		t.Errorf("rows 1 to 3 around the visible row 2: %+v", rows)
+	}
+	noErrors(t, ts)
+}
+
+// pixel is the color of a pixel of the screenshot.
+func pixel(ts *gluttertest.Tester, x, y int) color.NRGBA {
+	return color.NRGBAModel.Convert(ts.Screenshot().At(x, y)).(color.NRGBA)
+}
+
+func TestCursorBlinksInTheWindow(t *testing.T) {
+	vm := NewViewModel(linesDoc(5), goOptions(), nil)
+	ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 200})
+	gutter := int(vm.GutterWidths(ts.Dispatcher().TextEngine()).Total())
+	cursor := func() color.NRGBA { return pixel(ts, gutter, 9) }
+	shown := color.NRGBA{R: 0xAE, G: 0xAF, B: 0xAD, A: 0xFF}
+	// Where the cursor is not drawn there is the left border of the current line.
+	hidden := color.NRGBA{R: 0x28, G: 0x28, B: 0x28, A: 0xFF}
+
+	if got := cursor(); got != shown {
+		t.Fatalf("the cursor is shown at first: %v", got)
+	}
+	steps := []struct {
+		pump time.Duration
+		want color.NRGBA
+	}{
+		{BlinkInterval - 10*time.Millisecond, shown},
+		{10 * time.Millisecond, hidden},
+		{BlinkInterval, shown},
+		{BlinkInterval, hidden},
+	}
+	for i, s := range steps {
+		ts.Pump(s.pump)
+		if got := cursor(); got != s.want {
+			t.Errorf("step %d: %v, want %v", i, got, s.want)
+		}
+	}
+	// A move shows the cursor at once.
+	vm.Cursors().SetSelections([]buffer.Selection{selectionOf(2, 0, 2, 0)})
+	vm.SelectionsChanged()
+	ts.Pump(time.Millisecond)
+	if got := pixel(ts, gutter, 2*19+9); got != shown {
+		t.Errorf("the cursor is shown on its new line: %v", got)
+	}
+	noErrors(t, ts)
+}
+
+func TestNoBlinkingWithoutFocus(t *testing.T) {
+	vm := NewViewModel(linesDoc(5), goOptions(), nil)
+	ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 200})
+	gutter := int(vm.GutterWidths(ts.Dispatcher().TextEngine()).Total())
+	shown := color.NRGBA{R: 0xAE, G: 0xAF, B: 0xAD, A: 0xFF}
+	hidden := color.NRGBA{R: 0x28, G: 0x28, B: 0x28, A: 0xFF} // the border of the current line
+
+	ts.SetViewFocus(ui.ImplicitViewID, false)
+	ts.Pump(time.Millisecond)
+	if vm.Focused() || vm.CursorsVisible() {
+		t.Fatal("the window lost the focus, so the editor has no cursor")
+	}
+	// Nothing changes however long the window stays unfocused: no timer toggles the cursor.
+	for range 4 {
+		ts.Pump(BlinkInterval)
+		if got := pixel(ts, gutter, 9); got != hidden {
+			t.Fatalf("a cursor is drawn without focus: %v", got)
+		}
+	}
+	ts.SetViewFocus(ui.ImplicitViewID, true)
+	ts.Pump(time.Millisecond)
+	if got := pixel(ts, gutter, 9); got != shown {
+		t.Errorf("the cursor is back with the focus: %v", got)
+	}
+	ts.Pump(BlinkInterval)
+	if got := pixel(ts, gutter, 9); got != hidden {
+		t.Errorf("and blinks again: %v", got)
+	}
+	noErrors(t, ts)
+}
+
+func TestBlinkingStopsWhenTheEditorIsGone(t *testing.T) {
+	vm := NewViewModel(linesDoc(5), goOptions(), nil)
+	ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 200})
+	ts.PumpWidget(widgets.NewSizedBox(nil))
+	ts.Pump(time.Millisecond)
+	if vm.blink.Active() {
+		t.Error("a timer is left running after the editor was removed")
+	}
+	toggles := 0
+	vm.AddBlinkListener(func() { toggles++ })
+	ts.Pump(3 * BlinkInterval)
+	if toggles != 0 {
+		t.Errorf("the cursor blinked %d times without an editor", toggles)
+	}
+	noErrors(t, ts)
+}
+
+func TestGoldenMultiLineSelection(t *testing.T) {
+	_, ts := selectedEditor(t, goOptions(), selectionOf(12, 7, 17, 5))
+	ts.MatchesGolden("selection_multiline")
+}
+
+func TestGoldenSelectionStaircase(t *testing.T) {
+	// A selection that starts to the right of where it ends: the corners turn both ways.
+	_, ts := selectedEditor(t, goOptions(), selectionOf(13, 10, 17, 4))
+	ts.MatchesGolden("selection_staircase")
+}
+
+func TestGoldenSelectionNotRounded(t *testing.T) {
+	opts := goOptions()
+	opts.RoundedSelection = false
+	_, ts := selectedEditor(t, opts, selectionOf(12, 7, 17, 5))
+	ts.MatchesGolden("selection_square")
+}
+
+func TestGoldenInactiveSelection(t *testing.T) {
+	vm, ts := selectedEditor(t, goOptions(), selectionOf(12, 7, 17, 5))
+	ts.SetViewFocus(ui.ImplicitViewID, false)
+	ts.Pump(time.Millisecond)
+	if vm.Focused() {
+		t.Fatal("the editor lost the focus")
+	}
+	ts.MatchesGolden("selection_inactive")
+}
+
+func TestGoldenThreeCursors(t *testing.T) {
+	_, ts := selectedEditor(t, goOptions(), selectionOf(13, 4, 13, 4), selectionOf(15, 8, 15, 8), selectionOf(18, 6, 18, 6))
+	ts.MatchesGolden("three_cursors")
+}
+
+func TestGoldenSeveralSelections(t *testing.T) {
+	_, ts := selectedEditor(t, goOptions(), selectionOf(3, 0, 6, 8), selectionOf(12, 4, 12, 8), selectionOf(18, 4, 19, 9))
+	ts.MatchesGolden("selection_several")
+}
+
+func TestGoldenCurrentLine(t *testing.T) {
+	_, ts := selectedEditor(t, goOptions(), selectionOf(13, 9, 13, 9))
+	ts.MatchesGolden("current_line")
+}
+
+func TestGoldenCurrentLineInGutterAndText(t *testing.T) {
+	opts := goOptions()
+	opts.RenderLineHighlight = "all"
+	_, ts := selectedEditor(t, opts, selectionOf(13, 9, 13, 9))
+	ts.MatchesGolden("current_line_all")
+}
+
+func TestGoldenCurrentLineInGutter(t *testing.T) {
+	opts := goOptions()
+	opts.RenderLineHighlight = "gutter"
+	_, ts := selectedEditor(t, opts, selectionOf(13, 3, 15, 3))
+	ts.MatchesGolden("current_line_gutter")
+}
+
+func TestCurrentLineHighlightOffAndOnlyWhenFocused(t *testing.T) {
+	cases := []struct {
+		name        string
+		setting     string
+		onlyFocused bool
+		unfocus     bool
+		wantBorder  bool
+	}{
+		{"line", "line", false, false, true},
+		{"none", "none", false, false, false},
+		{"line without focus", "line", false, true, true},
+		{"only when focused, without focus", "line", true, true, false},
+		{"only when focused, with focus", "line", true, false, true},
+	}
+	border := color.NRGBA{R: 0x28, G: 0x28, B: 0x28, A: 0xFF}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := goOptions()
+			opts.RenderLineHighlight, opts.RenderLineHighlightOnlyWhenFocus = tc.setting, tc.onlyFocused
+			vm := NewViewModel(linesDoc(5), opts, nil)
+			ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 200})
+			if tc.unfocus {
+				ts.SetViewFocus(ui.ImplicitViewID, false)
+				ts.Pump(time.Millisecond)
+			}
+			// the first row's top border, to the right of the cursor
+			got := pixel(ts, 300, 0) == border
+			if got != tc.wantBorder {
+				t.Errorf("border drawn: %v, want %v", got, tc.wantBorder)
+			}
+			noErrors(t, ts)
+		})
+	}
+}
+
+// TestProofCursors makes the proof image of step 3.3 with -proof: a multi-line selection and
+// two more cursors, with the current line highlighted in the gutter (the text has no highlight
+// while a selection has text, as in VS Code).
+func TestProofCursors(t *testing.T) {
+	if !testutil.ProofEnabled() {
+		t.Skip("run with -proof to make the proof image")
+	}
+	opts := goOptions()
+	opts.RenderLineHighlight = "all"
+	_, ts := selectedEditor(t, opts, selectionOf(12, 7, 17, 5), selectionOf(3, 8, 3, 8), selectionOf(19, 12, 19, 12))
+	testutil.Proof(t, ts, "3.3-cursors.png")
 }
