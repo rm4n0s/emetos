@@ -70,6 +70,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		AutoIndent: "full", AutoIndentOnPasteWithinString: true, Guides: indent.DefaultGuideOptions(),
 		AutoClosingBrackets: "languageDefined", AutoClosingComments: "languageDefined", AutoClosingQuotes: "languageDefined",
 		AutoClosingDelete: "auto", AutoClosingOvertype: "auto", AutoSurround: "languageDefined",
+		CommentsInsertSpace: true, CommentsIgnoreEmptyLines: true,
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -127,6 +128,8 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.autoClosingDelete":                 "always",
 		"editor.autoClosingOvertype":               "never",
 		"editor.autoSurround":                      "quotes",
+		"editor.comments.insertSpace":              false,
+		"editor.comments.ignoreEmptyLines":         false,
 		"editor.autoIndentOnPaste":                 true,
 		"editor.autoIndentOnPasteWithinString":     false,
 	})
@@ -160,6 +163,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	if got.AutoClosingBrackets != "beforeWhitespace" || got.AutoClosingComments != "always" || got.AutoClosingQuotes != "never" ||
 		got.AutoClosingDelete != "always" || got.AutoClosingOvertype != "never" || got.AutoSurround != "quotes" {
 		t.Errorf("auto-closing options: %+v", got)
+	}
+	if got.CommentsInsertSpace || got.CommentsIgnoreEmptyLines {
+		t.Errorf("comment options: %+v", got)
 	}
 	if got.MouseWheelScrollSensitivity != 2.5 || got.FastScrollSensitivity != 9 || !got.SmoothScrolling || got.DragAndDrop || got.SelectionClipboard ||
 		got.MultiCursorPaste != "full" || got.EmptySelectionClipboard {

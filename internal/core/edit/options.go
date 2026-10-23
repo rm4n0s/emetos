@@ -5,6 +5,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/comment"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 )
 
@@ -64,6 +65,15 @@ type Options struct {
 	// Character of each AutoClosed that earlier results reported and that the text and the cursors
 	// have not made stale).
 	AutoClosed []buffer.Range
+	// Comments gives the comment tokens of the languages (SPEC §8.6.5); without it nothing can be
+	// commented.
+	Comments comment.Languages
+	// CommentInsertSpace is editor.comments.insertSpace: a space goes between a comment token and
+	// the text.
+	CommentInsertSpace bool
+	// CommentIgnoreEmptyLines is editor.comments.ignoreEmptyLines: lines with nothing on them get
+	// no line comment.
+	CommentIgnoreEmptyLines bool
 	// UnmatchedClosing tells whether a closing bracket that closes nothing and that would close the
 	// opening bracket text starts at or after a position; without it there is none.
 	UnmatchedClosing func(pos buffer.Position, opening string) bool
@@ -79,6 +89,8 @@ func DefaultOptions() Options {
 		UseTabStops:                   true,
 		AutoIndent:                    indent.AutoIndentFull,
 		AutoIndentOnPasteWithinString: true,
+		CommentInsertSpace:            true,
+		CommentIgnoreEmptyLines:       true,
 	}
 }
 

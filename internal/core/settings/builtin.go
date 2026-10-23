@@ -270,6 +270,16 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.comments.insertSpace", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether a space character is inserted when commenting.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.comments.ignoreEmptyLines", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if empty lines should be ignored with toggle, add or remove actions for line comments.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.matchBrackets", Types: []Type{String}, Default: "always",
 			Enum: []any{"always", "near", "never"},
 			EnumDescriptions: []string{

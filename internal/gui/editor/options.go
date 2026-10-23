@@ -67,6 +67,8 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		AutoClosingDelete:                settings.Get[string](store, "editor.autoClosingDelete", languageID),
 		AutoClosingOvertype:              settings.Get[string](store, "editor.autoClosingOvertype", languageID),
 		AutoSurround:                     settings.Get[string](store, "editor.autoSurround", languageID),
+		CommentsInsertSpace:              settings.Get[bool](store, "editor.comments.insertSpace", languageID),
+		CommentsIgnoreEmptyLines:         settings.Get[bool](store, "editor.comments.ignoreEmptyLines", languageID),
 	}
 }
 

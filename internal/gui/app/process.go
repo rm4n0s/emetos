@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/comment"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/language"
@@ -51,6 +52,7 @@ type Process struct {
 	brackets  *brackets.RegistryLanguages
 	indenter  *indent.Indenter
 	closing   *autoclose.RegistryLanguages
+	comments  *comment.RegistryLanguages
 }
 
 // BracketLanguages gives the brackets of the languages (SPEC §8.5), made from their configurations.
@@ -61,6 +63,9 @@ func (p *Process) Indenter() *indent.Indenter { return p.indenter }
 
 // AutoClosing gives the auto-closing pairs and the surrounding pairs of the languages (SPEC §8.6.4).
 func (p *Process) AutoClosing() *autoclose.RegistryLanguages { return p.closing }
+
+// Comments gives the comment tokens of the languages (SPEC §8.6.5).
+func (p *Process) Comments() *comment.RegistryLanguages { return p.comments }
 
 // grammarKey is a grammar of a language with a limit for the length of a line it tokenizes.
 type grammarKey struct {
@@ -120,6 +125,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	}
 	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
 	p.closing = autoclose.NewRegistryLanguages(languages)
+	p.comments = comment.NewRegistryLanguages(languages)
 	registerDevCommands(p.Commands)
 	p.loadUserThemes()
 	return p

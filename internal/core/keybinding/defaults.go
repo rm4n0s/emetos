@@ -140,6 +140,10 @@ func registerLineKeys(r *Registry) {
 		text("editor.action.outdentLines", "ctrl+["),
 		text("editor.action.insertLineBefore", "ctrl+shift+enter"),
 		text("editor.action.insertLineAfter", "ctrl+enter"),
+		text("editor.action.commentLine", "ctrl+/"),
+		text("editor.action.addCommentLine", "ctrl+k ctrl+c"),
+		text("editor.action.removeCommentLine", "ctrl+k ctrl+u"),
+		text("editor.action.blockComment", "ctrl+shift+a"),
 		Rule{Command: "editor.action.deleteLines", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus, whenWritable), Primary: "ctrl+shift+k"},
 	)
 }

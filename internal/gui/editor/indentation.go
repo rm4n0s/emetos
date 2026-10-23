@@ -5,6 +5,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/comment"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
@@ -118,6 +119,12 @@ func (vm *ViewModel) SetIndenter(ix *indent.Indenter, languageCode int) {
 // language of its document (SPEC §8.6.4); with nil nothing is closed and nothing is surrounded.
 func (vm *ViewModel) SetAutoClosing(l *autoclose.Language) {
 	vm.autoClosing = l
+}
+
+// SetComments gives the view model the comment tokens of the languages (SPEC §8.6.5); without
+// them the comment commands do nothing.
+func (vm *ViewModel) SetComments(l comment.Languages) {
+	vm.comments = l
 }
 
 // autoClosedOwner is the owner of the decorations that track the auto-closed characters.

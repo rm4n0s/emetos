@@ -14,6 +14,7 @@ func DefaultRegistry() *Registry {
 	registerMultiCursorCommands(r)
 	registerBracketCommands(r)
 	registerIndentationCommands(r)
+	registerCommentCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
 	return r
@@ -174,6 +175,18 @@ func registerIndentationCommands(r *Registry) {
 		Meta{ID: "editor.action.detectIndentation", Title: "Detect Indentation from Content"},
 		Meta{ID: "editor.action.reindentlines", Title: "Reindent Lines", Precondition: writable()},
 		Meta{ID: "editor.action.reindentselectedlines", Title: "Reindent Selected Lines", Precondition: writable()},
+	)
+}
+
+// registerCommentCommands registers the commands that comment and uncomment code.
+//
+// Ported from VS Code: src/vs/editor/contrib/comment/browser/comment.ts
+func registerCommentCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "editor.action.commentLine", Title: "Toggle Line Comment", Precondition: writable()},
+		Meta{ID: "editor.action.addCommentLine", Title: "Add Line Comment", Precondition: writable()},
+		Meta{ID: "editor.action.removeCommentLine", Title: "Remove Line Comment", Precondition: writable()},
+		Meta{ID: "editor.action.blockComment", Title: "Toggle Block Comment", Precondition: writable()},
 	)
 }
 

@@ -122,6 +122,8 @@ func (vm *ViewModel) editOptions() edit.Options {
 	o.AutoClosingDelete, _ = autoclose.ParseBehavior(vm.opts.AutoClosingDelete)
 	o.AutoClosingOvertype, _ = autoclose.ParseBehavior(vm.opts.AutoClosingOvertype)
 	o.AutoSurround, _ = autoclose.ParseSurround(vm.opts.AutoSurround)
+	o.Comments = vm.comments
+	o.CommentInsertSpace, o.CommentIgnoreEmptyLines = vm.opts.CommentsInsertSpace, vm.opts.CommentsIgnoreEmptyLines
 	o.AutoClosing = vm.autoClosing
 	o.AutoClosed = vm.autoClosed.Characters()
 	if ix := vm.bracketIndex; ix != nil && ix.Enabled() {
@@ -459,6 +461,10 @@ func buildActions() map[string]action {
 	a["editor.action.indentUsingSpaces"] = indentUsing(true, false)
 	a["editor.action.indentUsingTabs"] = indentUsing(false, false)
 	a["editor.action.changeTabDisplaySize"] = indentUsing(true, true)
+	a["editor.action.commentLine"] = editing(func(c edit.Commands, s []buffer.Selection) edit.Result { return c.ToggleLineComment(s) })
+	a["editor.action.addCommentLine"] = editing(func(c edit.Commands, s []buffer.Selection) edit.Result { return c.AddLineComment(s) })
+	a["editor.action.removeCommentLine"] = editing(func(c edit.Commands, s []buffer.Selection) edit.Result { return c.RemoveLineComment(s) })
+	a["editor.action.blockComment"] = editing(func(c edit.Commands, s []buffer.Selection) edit.Result { return c.ToggleBlockComment(s) })
 	a["editor.action.reindentlines"] = func(vm *ViewModel, _ any) error { return vm.reindentLines() }
 	a["editor.action.reindentselectedlines"] = editing(func(c edit.Commands, s []buffer.Selection) edit.Result { return c.ReindentSelected(s) })
 	a["editor.action.detectIndentation"] = func(vm *ViewModel, _ any) error {

@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/comment"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/indent"
@@ -112,6 +113,9 @@ type Options struct {
 	AutoClosingDelete, AutoClosingOvertype string
 	// AutoSurround is editor.autoSurround: "languageDefined", "quotes", "brackets" or "never".
 	AutoSurround string
+	// CommentsInsertSpace and CommentsIgnoreEmptyLines are editor.comments.insertSpace and
+	// editor.comments.ignoreEmptyLines.
+	CommentsInsertSpace, CommentsIgnoreEmptyLines bool
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -207,6 +211,8 @@ type ViewModel struct {
 	// autoClosing is the auto-closing and surrounding configuration of the language of the
 	// document, or nil.
 	autoClosing *autoclose.Language
+	// comments gives the comment tokens of the languages, or nil.
+	comments comment.Languages
 	// autoClosed tracks the closing characters the editor typed.
 	autoClosed *edit.AutoClosedTracker
 	// indenter applies the indentation rules of the languages, or is nil (SetIndenter), and
