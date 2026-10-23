@@ -130,7 +130,10 @@ func TestDefaultKeymap(t *testing.T) {
 		{"shift+alt+i", nil, "shift+alt+i", "editor.action.insertCursorAtEndOfEachLineSelected"},
 		{"shift+alt+right", nil, "shift+alt+right", "editor.action.smartSelect.expand"},
 		{"shift+alt+left", nil, "shift+alt+left", "editor.action.smartSelect.shrink"},
-		{"unbound on Linux: join lines", nil, "ctrl+j", ""},
+		{"ctrl+j toggles the panel (join lines has no key on Linux)", nil, "ctrl+j", "workbench.action.togglePanel"},
+		{"ctrl+b toggles the side bar", nil, "ctrl+b", "workbench.action.toggleSidebarVisibility"},
+		{"ctrl+0 focuses the side bar", nil, "ctrl+0", "workbench.action.focusSideBar"},
+		{"ctrl+b in the find input still toggles the side bar", map[string]any{"findInputFocussed": true}, "ctrl+b", "workbench.action.toggleSidebarVisibility"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

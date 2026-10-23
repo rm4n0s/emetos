@@ -26,7 +26,45 @@ func DefaultRegistry() *Registry {
 	registerWordWrapCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
+	registerLayoutCommands(r)
 	return r
+}
+
+// registerLayoutCommands registers the commands that show, hide, move and focus the parts of the
+// workbench (SPEC §10.1). Maximizing the panel needs the panel at a side or a panel that is
+// centered (the alignment is always centered in Emetos).
+//
+// Ported from VS Code: src/vs/workbench/browser/actions/layoutActions.ts,
+// src/vs/workbench/browser/parts/panel/panelActions.ts,
+// src/vs/workbench/browser/parts/sidebar/sidebarActions.ts,
+// src/vs/workbench/browser/parts/statusbar/statusbarActions.ts,
+// src/vs/workbench/browser/parts/editor/editorActions.ts,
+// src/vs/workbench/browser/parts/activitybar/activitybarPart.ts and
+// src/vs/workbench/browser/parts/titlebar/menubarControl.ts
+func registerLayoutCommands(r *Registry) {
+	maximizable := contextkey.Or(
+		contextkey.Equals("panelAlignment", "center"),
+		contextkey.And(contextkey.NotEquals("panelPosition", "bottom"), contextkey.NotEquals("panelPosition", "top")))
+	r.MustRegister(
+		Meta{ID: "workbench.action.toggleSidebarVisibility", Title: "Toggle Primary Side Bar Visibility", Category: "View",
+			Description: "Open/Show and Close/Hide Sidebar"},
+		Meta{ID: "workbench.action.toggleActivityBarVisibility", Title: "Toggle Activity Bar Visibility"},
+		Meta{ID: "workbench.action.toggleStatusbarVisibility", Title: "Toggle Status Bar Visibility", Category: "View"},
+		Meta{ID: "workbench.action.toggleMenuBar", Title: "Toggle Menu Bar", Category: "View"},
+		Meta{ID: "workbench.action.togglePanel", Title: "Toggle Panel Visibility", Category: "View",
+			Description: "Open/Show and Close/Hide Panel"},
+		Meta{ID: "workbench.action.toggleMaximizedPanel", Title: "Toggle Maximized Panel", Category: "View", Precondition: maximizable},
+		Meta{ID: "workbench.action.positionPanelLeft", Title: "Move Panel Left", Category: "View"},
+		Meta{ID: "workbench.action.positionPanelRight", Title: "Move Panel Right", Category: "View"},
+		Meta{ID: "workbench.action.positionPanelBottom", Title: "Move Panel To Bottom", Category: "View"},
+		Meta{ID: "workbench.action.positionPanelTop", Title: "Move Panel To Top", Category: "View"},
+		Meta{ID: "workbench.action.focusSideBar", Title: "Focus into Primary Side Bar", Category: "View"},
+		Meta{ID: "workbench.action.focusActiveEditorGroup", Title: "Focus Active Editor Group", Category: "View"},
+		Meta{ID: "workbench.action.focusPanel", Title: "Focus into Panel", Category: "View"},
+		Meta{ID: "workbench.action.focusStatusBar", Title: "Focus Status Bar", Category: "View"},
+		Meta{ID: "workbench.action.focusActivityBar", Title: "Focus Activity Bar", Category: "View"},
+		Meta{ID: "workbench.actions.menubar.focus", Title: "Focus Application Menu"},
+	)
 }
 
 // writable is VS Code's EditorContextKeys.writable, the precondition of every command that

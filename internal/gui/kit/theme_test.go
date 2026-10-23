@@ -211,3 +211,40 @@ func TestListInteractionColorsOfTheBundledThemes(t *testing.T) {
 		}
 	}
 }
+
+func TestPartColorsOfTheModernThemes(t *testing.T) {
+	cases := []struct {
+		name  string
+		got   func(Colors) ui.Color
+		dark  uint32
+		light uint32
+	}{
+		{"statusBar.background", func(c Colors) ui.Color { return c.StatusBarBackground }, 0xFF181818, 0xFFF8F8F8},
+		{"statusBar.foreground", func(c Colors) ui.Color { return c.StatusBarForeground }, 0xFFCCCCCC, 0xFF3B3B3B},
+		{"statusBar.border", func(c Colors) ui.Color { return c.StatusBarBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+		{"statusBar.noFolderBackground", func(c Colors) ui.Color { return c.StatusBarNoFolderBackground }, 0xFF1F1F1F, 0xFFF8F8F8},
+		{"statusBar.noFolderForeground", func(c Colors) ui.Color { return c.StatusBarNoFolderForeground }, 0xFFCCCCCC, 0xFF3B3B3B},
+		{"statusBar.noFolderBorder", func(c Colors) ui.Color { return c.StatusBarNoFolderBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+		{"activityBar.background", func(c Colors) ui.Color { return c.ActivityBarBackground }, 0xFF181818, 0xFFF8F8F8},
+		{"activityBar.border", func(c Colors) ui.Color { return c.ActivityBarBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+		{"sideBar.background", func(c Colors) ui.Color { return c.SideBarBackground }, 0xFF181818, 0xFFF8F8F8},
+		{"sideBar.foreground", func(c Colors) ui.Color { return c.SideBarForeground }, 0xFFCCCCCC, 0xFF3B3B3B},
+		{"sideBar.border", func(c Colors) ui.Color { return c.SideBarBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+		{"sideBarTitle.foreground", func(c Colors) ui.Color { return c.SideBarTitleForeground }, 0xFFCCCCCC, 0xFF3B3B3B},
+		{"panel.background", func(c Colors) ui.Color { return c.PanelBackground }, 0xFF181818, 0xFFF8F8F8},
+		{"panel.border", func(c Colors) ui.Color { return c.PanelBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+		{"panelTitle.activeForeground", func(c Colors) ui.Color { return c.PanelTitleActiveForeground }, 0xFFCCCCCC, 0xFF3B3B3B},
+		{"panelTitle.inactiveForeground", func(c Colors) ui.Color { return c.PanelTitleInactiveForeground }, 0xFF9D9D9D, 0xFF3B3B3B},
+		{"panelTitle.activeBorder", func(c Colors) ui.Color { return c.PanelTitleActiveBorder }, 0xFF0078D4, 0xFF005FB8},
+		{"titleBar.activeBackground", func(c Colors) ui.Color { return c.TitleBarActiveBackground }, 0xFF181818, 0xFFF8F8F8},
+		{"titleBar.border", func(c Colors) ui.Color { return c.TitleBarBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+	}
+	for _, tc := range cases {
+		if got := tc.got(DarkModern()); got != ui.NewColor(tc.dark) {
+			t.Errorf("Dark Modern %s = %v, want %#x", tc.name, got, tc.dark)
+		}
+		if got := tc.got(LightModern()); got != ui.NewColor(tc.light) {
+			t.Errorf("Light Modern %s = %v, want %#x", tc.name, got, tc.light)
+		}
+	}
+}

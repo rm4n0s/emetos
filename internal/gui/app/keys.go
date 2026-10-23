@@ -179,8 +179,13 @@ func (s *keyDispatcherState) Build(widgets.BuildContext) widgets.Widget {
 }
 
 // DispatchKey resolves a key press in the context of the widget that has the focus, runs the
-// command it is bound to, and reports whether the key was used. focus may be nil.
+// command it is bound to, and reports whether the key was used. focus may be nil. While a dialog is
+// showing no key runs a command (the window is modal; the dialog takes its own keys) and none is
+// used.
 func (w *Window) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode) bool {
+	if w.Dialogs != nil && w.Dialogs.IsShowing() {
+		return false
+	}
 	keys := w.Scopes.ScopeOf(focus, w.Keys)
 	out := w.Dispatcher.Dispatch(keys, chord)
 	if out.Status != "" || out.ClearStatus {

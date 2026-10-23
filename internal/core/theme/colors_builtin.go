@@ -21,6 +21,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerKitColors(r)
 	registerMenuColors(r)
 	registerInputKitColors(r)
+	registerLayoutColors(r)
 	return r
 }
 
@@ -606,5 +607,64 @@ func registerInputKitColors(r *ColorRegistry) {
 			Description: "The color used for the problems warning icon."},
 		ColorContribution{ID: "problemsInfoIcon.foreground", Defaults: AllThemes(Ref("editorInfo.foreground")),
 			Description: "The color used for the problems info icon."},
+	)
+}
+
+// registerLayoutColors registers the colors of the parts of the workbench (gui/workbench): the
+// status bar, the activity bar, the side bar and its title, the panel and its title, and the title
+// bar, whose background and border the menu bar area has.
+//
+// Ported from VS Code: src/vs/workbench/common/theme.ts
+func registerLayoutColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "statusBar.foreground", Defaults: dflt(Hex("#FFFFFF"), Hex("#FFFFFF"), Hex("#FFFFFF"), Ref("editor.foreground")),
+			Description: "Status bar foreground color when a workspace or folder is opened. The status bar is shown in the bottom of the window."},
+		ColorContribution{ID: "statusBar.noFolderForeground", Defaults: AllThemes(Ref("statusBar.foreground")),
+			Description: "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."},
+		ColorContribution{ID: "statusBar.background", Defaults: dflt(Hex("#007ACC"), Hex("#007ACC"), nil, nil),
+			Description: "Status bar background color when a workspace or folder is opened. The status bar is shown in the bottom of the window."},
+		ColorContribution{ID: "statusBar.noFolderBackground", Defaults: dflt(Hex("#68217A"), Hex("#68217A"), nil, nil),
+			Description: "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."},
+		ColorContribution{ID: "statusBar.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."},
+		ColorContribution{ID: "statusBar.noFolderBorder", Defaults: AllThemes(Ref("statusBar.border")),
+			Description: "Status bar border color separating to the sidebar and editor when no folder is opened. The status bar is shown in the bottom of the window."},
+
+		ColorContribution{ID: "activityBar.background", Defaults: dflt(Hex("#333333"), Hex("#2C2C2C"), Hex("#000000"), Hex("#FFFFFF")),
+			Description: "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."},
+		ColorContribution{ID: "activityBar.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."},
+
+		ColorContribution{ID: "sideBar.background", Defaults: dflt(Hex("#252526"), Hex("#F3F3F3"), Hex("#000000"), Hex("#FFFFFF")),
+			Description: "Side bar background color. The side bar is the container for views like explorer and search."},
+		ColorContribution{ID: "sideBar.foreground", Defaults: AllThemes(nil),
+			Description: "Side bar foreground color. The side bar is the container for views like explorer and search."},
+		ColorContribution{ID: "sideBar.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Side bar border color on the side separating to the editor. The side bar is the container for views like explorer and search."},
+		ColorContribution{ID: "sideBarTitle.background", Defaults: AllThemes(Ref("sideBar.background")),
+			Description: "Side bar title background color. The side bar is the container for views like explorer and search."},
+		ColorContribution{ID: "sideBarTitle.foreground", Defaults: AllThemes(Ref("sideBar.foreground")),
+			Description: "Side bar title foreground color. The side bar is the container for views like explorer and search."},
+		ColorContribution{ID: "sideBarTitle.border", Defaults: dflt(nil, nil, Ref("sideBar.border"), Ref("sideBar.border")),
+			Description: "Side bar title border color on the bottom, separating the title from the views. The side bar is the container for views like explorer and search."},
+
+		ColorContribution{ID: "panel.background", Defaults: AllThemes(Ref("editor.background")),
+			Description: "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."},
+		ColorContribution{ID: "panel.border", Defaults: dflt(Transparent(Hex("#808080"), 0.35), Transparent(Hex("#808080"), 0.35), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Panel border color to separate the panel from the editor. Panels are shown below the editor area and contain views like output and integrated terminal."},
+		ColorContribution{ID: "panelTitle.border", Defaults: dflt(nil, nil, Ref("panel.border"), Ref("panel.border")),
+			Description: "Panel title border color on the bottom, separating the title from the views. Panels are shown below the editor area and contain views like output and integrated terminal."},
+		ColorContribution{ID: "panelTitle.activeForeground", Defaults: dflt(Hex("#E7E7E7"), Hex("#424242"), Hex("#FFFFFF"), Ref("editor.foreground")),
+			Description: "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."},
+		ColorContribution{ID: "panelTitle.inactiveForeground",
+			Defaults:    dflt(Transparent(Ref("panelTitle.activeForeground"), 0.6), Transparent(Ref("panelTitle.activeForeground"), 0.75), Hex("#FFFFFF"), Ref("editor.foreground")),
+			Description: "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."},
+		ColorContribution{ID: "panelTitle.activeBorder", Defaults: dflt(Ref("panelTitle.activeForeground"), Ref("panelTitle.activeForeground"), Ref("contrastBorder"), Hex("#B5200D")),
+			Description: "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."},
+
+		ColorContribution{ID: "titleBar.activeBackground", Defaults: dflt(Hex("#3C3C3C"), Hex("#DDDDDD"), Hex("#000000"), Hex("#FFFFFF")),
+			Description: "Title bar background when the window is active."},
+		ColorContribution{ID: "titleBar.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Title bar border color."},
 	)
 }

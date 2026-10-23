@@ -60,7 +60,22 @@ func DefaultRegistry() *Registry {
 	registerSnippetKeys(r)
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
+	registerLayoutKeys(r)
 	return r
+}
+
+// registerLayoutKeys registers the keys of the commands that show and focus the parts of the
+// workbench: Ctrl+B and Ctrl+J toggle the side bar and the panel, Ctrl+0 focuses the side bar.
+//
+// Ported from VS Code: src/vs/workbench/browser/actions/layoutActions.ts,
+// src/vs/workbench/browser/parts/panel/panelActions.ts and
+// src/vs/workbench/browser/parts/sidebar/sidebarActions.ts
+func registerLayoutKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.toggleSidebarVisibility", Weight: WeightWorkbenchContrib, Primary: "ctrl+b"},
+		Rule{Command: "workbench.action.togglePanel", Weight: WeightWorkbenchContrib, Primary: "ctrl+j"},
+		Rule{Command: "workbench.action.focusSideBar", Weight: WeightWorkbenchContrib, Primary: "ctrl+0"},
+	)
 }
 
 // registerCursorKeys registers the keys that move and select.

@@ -659,3 +659,54 @@ func TestSplitViewKeepsTheCursorWhileDragging(t *testing.T) {
 		t.Errorf("the cursor is the ordinary one after the drag: %q", got)
 	}
 }
+
+// A split view that has no room yet (a window before its first size, one that is minimized) lays
+// nothing out, and the first real size gives the panes the sizes they were given.
+func TestSplitViewWithNoRoomKeepsTheSizesOfItsPanes(t *testing.T) {
+	ts := gluttertest.New(t, gluttertest.Opts{Size: ui.Size{Width: 500, Height: 100}})
+	ctrl := NewSplitViewController()
+	build := func(width float64) widgets.Widget {
+		panes := sideEditorPanel()
+		for i := range panes {
+			panes[i] = pane(i, panes[i])
+		}
+		split := NewSplitView(panes, SplitViewOpts{Orientation: SplitHorizontal, Controller: ctrl})
+		return widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(DarkModern(),
+			widgets.NewAlign(widgets.NewSizedBox(split, widgets.SizedBoxOpts{Width: foundation.Some(width), Height: foundation.Some(100.0)}))))
+	}
+	w := &splitWindow{ts: ts}
+	ts.PumpWidget(build(0))
+	ts.Pump(time.Millisecond)
+	if got := ctrl.Sizes(); !slices.Equal(got, []float64{100, 200, 100}) {
+		t.Errorf("with no room the sizes are %v, want the ones the panes were given", got)
+	}
+	ts.PumpWidget(build(500))
+	ts.Pump(time.Millisecond)
+	w.check(t, true, 100, 300, 100)
+
+	// a pane that was given no size has its least, not nothing
+	ts = gluttertest.New(t, gluttertest.Opts{Size: ui.Size{Width: 500, Height: 100}})
+	w = &splitWindow{ts: ts}
+	panes := []SplitPane{{Size: 100, MinSize: 50}, {MinSize: 80, Priority: LayoutHigh}, {Size: 100, MinSize: 50, Priority: LayoutLow}}
+	for i := range panes {
+		panes[i] = pane(i, panes[i])
+	}
+	ctrl2 := NewSplitViewController()
+	show := func(width float64) {
+		split := NewSplitView(panes, SplitViewOpts{Orientation: SplitHorizontal, Controller: ctrl2})
+		ts.PumpWidget(widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(DarkModern(),
+			widgets.NewAlign(widgets.NewSizedBox(split, widgets.SizedBoxOpts{Width: foundation.Some(width), Height: foundation.Some(100.0)})))))
+		ts.Pump(time.Millisecond)
+	}
+	show(0)
+	if got := ctrl2.Sizes(); !slices.Equal(got, []float64{100, 80, 100}) {
+		t.Errorf("with no room and no size the sizes are %v, want [100 80 100]", got)
+	}
+	show(500)
+	w.check(t, true, 100, 300, 100)
+
+	// and the same for a window that goes to nothing and comes back
+	show(0)
+	show(500)
+	w.check(t, true, 100, 300, 100)
+}

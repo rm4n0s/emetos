@@ -212,3 +212,60 @@ func TestDefaultRegistry(t *testing.T) {
 		}
 	}
 }
+
+func TestLayoutCommands(t *testing.T) {
+	r := DefaultRegistry()
+	maximizable := "panelAlignment == 'center' || panelPosition != 'bottom' && panelPosition != 'top'"
+	cases := []struct {
+		id, title, category, pre string
+	}{
+		{"workbench.action.toggleSidebarVisibility", "Toggle Primary Side Bar Visibility", "View", ""},
+		{"workbench.action.toggleActivityBarVisibility", "Toggle Activity Bar Visibility", "", ""},
+		{"workbench.action.toggleStatusbarVisibility", "Toggle Status Bar Visibility", "View", ""},
+		{"workbench.action.toggleMenuBar", "Toggle Menu Bar", "View", ""},
+		{"workbench.action.togglePanel", "Toggle Panel Visibility", "View", ""},
+		{"workbench.action.toggleMaximizedPanel", "Toggle Maximized Panel", "View", maximizable},
+		{"workbench.action.positionPanelLeft", "Move Panel Left", "View", ""},
+		{"workbench.action.positionPanelRight", "Move Panel Right", "View", ""},
+		{"workbench.action.positionPanelBottom", "Move Panel To Bottom", "View", ""},
+		{"workbench.action.positionPanelTop", "Move Panel To Top", "View", ""},
+		{"workbench.action.focusSideBar", "Focus into Primary Side Bar", "View", ""},
+		{"workbench.action.focusActiveEditorGroup", "Focus Active Editor Group", "View", ""},
+		{"workbench.action.focusPanel", "Focus into Panel", "View", ""},
+		{"workbench.action.focusStatusBar", "Focus Status Bar", "View", ""},
+		{"workbench.action.focusActivityBar", "Focus Activity Bar", "View", ""},
+		{"workbench.actions.menubar.focus", "Focus Application Menu", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.id, func(t *testing.T) {
+			m, ok := r.Lookup(tc.id)
+			if !ok {
+				t.Fatal("not registered")
+			}
+			if m.Title != tc.title || m.Category != tc.category {
+				t.Errorf("title %q category %q, want %q %q", m.Title, m.Category, tc.title, tc.category)
+			}
+			pre := ""
+			if m.Precondition != nil {
+				pre = m.Precondition.Serialize()
+			}
+			if pre != tc.pre {
+				t.Errorf("precondition %q, want %q", pre, tc.pre)
+			}
+		})
+	}
+	// the panel can be maximized at the bottom, since its alignment is centered, and not when the alignment is something else
+	keys := func(alignment, position string) contextkey.Context {
+		return contextkey.MapContext{"panelAlignment": alignment, "panelPosition": position}
+	}
+	for _, tc := range []struct {
+		alignment, position string
+		want                bool
+	}{
+		{"center", "bottom", true}, {"center", "right", true}, {"left", "bottom", false}, {"justify", "top", false}, {"left", "left", true},
+	} {
+		if got := r.Enabled("workbench.action.toggleMaximizedPanel", keys(tc.alignment, tc.position)); got != tc.want {
+			t.Errorf("toggleMaximizedPanel with alignment %s, position %s: enabled = %v, want %v", tc.alignment, tc.position, got, tc.want)
+		}
+	}
+}

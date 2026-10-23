@@ -27,6 +27,7 @@ func DefaultRegistry() *Registry {
 	registerEditor(r)
 	registerFiles(r)
 	registerWorkbench(r)
+	registerLayout(r)
 	registerEmmet(r)
 	return r
 }
@@ -760,6 +761,96 @@ func registerWorkbench(r *Registry) {
 			},
 			Description: "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar.",
 			Scope:       ScopeApplication, Category: categoryWindow,
+		},
+	)
+}
+
+// DefaultWindowTitle is the default of window.title on Linux: VS Code's template, which the title
+// of the window is made from (SPEC §10.1).
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/titlebar/windowTitle.ts (defaultWindowTitle)
+const DefaultWindowTitle = "${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}"
+
+// DefaultWindowTitleSeparator is the default of window.titleSeparator on Linux.
+const DefaultWindowTitleSeparator = " - "
+
+// windowTitleDescription is the description of window.title: the list of its variables.
+const windowTitleDescription = "Controls the window title based on the current context such as the opened workspace or active editor. Variables are substituted based on the context:\n" +
+	"- `${activeEditorShort}`: the file name (e.g. myFile.txt).\n" +
+	"- `${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt).\n" +
+	"- `${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt).\n" +
+	"- `${activeEditorLanguageId}`: the language identifier of the active editor (e.g. typescript).\n" +
+	"- `${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder).\n" +
+	"- `${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder).\n" +
+	"- `${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder).\n" +
+	"- `${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder).\n" +
+	"- `${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder).\n" +
+	"- `${rootName}`: name of the workspace with optional remote name and workspace indicator if applicable (e.g. myFolder, myRemoteFolder [SSH] or myWorkspace (Workspace)).\n" +
+	"- `${rootNameShort}`: shortened name of the workspace without suffixes (e.g. myFolder, myRemoteFolder or myWorkspace).\n" +
+	"- `${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace).\n" +
+	"- `${profileName}`: name of the profile in which the workspace is opened (e.g. Data Science (Profile)). Ignored if default profile is used.\n" +
+	"- `${appName}`: e.g. VS Code.\n" +
+	"- `${remoteName}`: e.g. SSH\n" +
+	"- `${dirty}`: an indicator for when the active editor has unsaved changes.\n" +
+	"- `${focusedView}`: the name of the view that is currently focused.\n" +
+	"- `${activeRepositoryName}`: the name of the active repository (e.g. vscode).\n" +
+	"- `${activeRepositoryBranchName}`: the name of the active branch in the active repository (e.g. main).\n" +
+	"- `${activeEditorState}`: provides information about the state of the active editor (e.g. modified). This will be appended by default when in screen reader mode with `accessibility.windowTitleOptimized` enabled.\n" +
+	"- `${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."
+
+// registerLayout registers the settings of the layout of the workbench and of the title of the
+// window (SPEC §10.1). Not ported: the values top and bottom of workbench.activityBar.location
+// are registered, but the activity bar then stays at its side (the layout has no activity bar on
+// top or at the bottom).
+//
+// Ported from VS Code: src/vs/workbench/browser/workbench.contribution.ts
+func registerLayout(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "workbench.sideBar.location", Types: []Type{String}, Default: "left", Enum: []any{"left", "right"},
+			Description: "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.activityBar.location", Types: []Type{String}, Default: "default", Enum: []any{"default", "top", "bottom", "hidden"},
+			EnumDescriptions: []string{
+				"Show the Activity Bar on the side of the Primary Side Bar and on top of the Secondary Side Bar.",
+				"Show the Activity Bar on top of the Primary and Secondary Side Bars.",
+				"Show the Activity Bar at the bottom of the Primary and Secondary Side Bars.",
+				"Hide the Activity Bar in the Primary and Secondary Side Bars.",
+			},
+			Description: "Controls the location of the Activity Bar relative to the Primary and Secondary Side Bars.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.statusBar.visible", Types: []Type{Boolean}, Default: true,
+			Description: "Controls the visibility of the status bar at the bottom of the workbench.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.panel.defaultLocation", Types: []Type{String}, Default: "bottom", Enum: []any{"left", "bottom", "top", "right"},
+			Description: "Controls the default location of the panel (Terminal, Debug Console, Output, Problems) in a new workspace. It can either show at the bottom, top, right, or left of the editor area.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.panel.opensMaximized", Types: []Type{String}, Default: "preserve", Enum: []any{"always", "never", "preserve"},
+			EnumDescriptions: []string{
+				"Always maximize the panel when opening it.",
+				"Never maximize the panel when opening it.",
+				"Open the panel to the state that it was in, before it was closed.",
+			},
+			Description: "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "window.title", Types: []Type{String}, Default: DefaultWindowTitle,
+			Description: windowTitleDescription,
+			Scope:       ScopeWindow, Category: categoryWindow,
+		},
+		Setting{
+			Key: "window.titleSeparator", Types: []Type{String}, Default: DefaultWindowTitleSeparator,
+			Description: "Separator used by `window.title`.",
+			Scope:       ScopeWindow, Category: categoryWindow,
 		},
 	)
 }

@@ -296,7 +296,7 @@ func (s *splitViewState) DidUpdateWidget(old *SplitView) {
 		}
 	}
 	for i, p := range n.panes {
-		if c := s.model.Constraints(i); c != p.item().constraints() {
+		if c := s.model.Constraints(i).constraints(); c != p.item().constraints() {
 			s.model.UpdateView(i, p.item(), math.NaN())
 		}
 	}
@@ -351,17 +351,29 @@ func (s *splitViewState) notify() {
 	})
 }
 
-// layout makes the model if there is none, and lays it out for a size.
+// layout makes the model if there is none, and lays it out for a size. A size that is not positive (a
+// window that has none yet, or one that is minimized) squeezes nothing: squeezing the panes into no
+// room would leave them at their least sizes when the room comes. The first model then has the
+// panes at the sizes they were given (but not below their least) and lays out for their sum, which
+// the first real size grows or shrinks by priority; a model that has been laid out is left as it is.
 func (s *splitViewState) layout(size float64) {
 	w := s.Widget()
 	if s.model == nil {
 		items := make([]SplitItem, len(w.panes))
+		var sum float64
 		for i, p := range w.panes {
 			items[i] = p.item()
+			if size <= 0 && !p.Hidden {
+				items[i].Size = clampSize(p.Size, p.MinSize, maxOrInf(p.MaxSize))
+				sum += items[i].Size
+			}
+		}
+		if size <= 0 {
+			size = sum
 		}
 		s.model = NewSplitModel(items, size, SplitModelOpts{ProportionalLayout: w.opts.ProportionalLayout, InverseAltBehavior: w.opts.InverseAltBehavior})
 		s.model.Layout(size)
-	} else if size != s.model.Size() {
+	} else if size != s.model.Size() && size > 0 {
 		s.model.Layout(size)
 	}
 	s.scroll = min(max(s.scroll, 0), max(s.model.ContentSize()-s.model.Size(), 0))
@@ -437,6 +449,14 @@ func (s *splitViewState) Build(widgets.BuildContext) widgets.Widget {
 		s.layout(total)
 		return s.content()
 	})
+}
+
+// maxOrInf is a limit of a pane, where 0 is none.
+func maxOrInf(max float64) float64 {
+	if max <= 0 {
+		return math.Inf(1)
+	}
+	return max
 }
 
 func sumSizes(sizes []float64) float64 {

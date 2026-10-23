@@ -431,3 +431,53 @@ func TestDefaultCheckboxDisabledColors(t *testing.T) {
 		}
 	}
 }
+
+// The colors that step 6.6 added for the parts of the workbench, as VS Code's registry (theme.ts) writes their defaults.
+func TestDefaultLayoutColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"statusBar.foreground", "#ffffff", "#ffffff", "#ffffff", "#292929"},
+		{"statusBar.noFolderForeground", "#ffffff", "#ffffff", "#ffffff", "#292929"},
+		{"statusBar.background", "#007acc", "#007acc", none, none},
+		{"statusBar.noFolderBackground", "#68217a", "#68217a", none, none},
+		{"statusBar.border", none, none, "#6fc3df", "#0f4a85"},
+		{"statusBar.noFolderBorder", none, none, "#6fc3df", "#0f4a85"},
+		{"activityBar.background", "#333333", "#2c2c2c", "#000000", "#ffffff"},
+		{"activityBar.border", none, none, "#6fc3df", "#0f4a85"},
+		{"sideBar.background", "#252526", "#f3f3f3", "#000000", "#ffffff"},
+		{"sideBar.foreground", none, none, none, none},
+		{"sideBar.border", none, none, "#6fc3df", "#0f4a85"},
+		{"sideBarTitle.background", "#252526", "#f3f3f3", "#000000", "#ffffff"},
+		{"sideBarTitle.foreground", none, none, none, none},
+		{"sideBarTitle.border", none, none, "#6fc3df", "#0f4a85"},
+		{"panel.background", "#1e1e1e", "#ffffff", "#000000", "#ffffff"},
+		{"panel.border", "rgba(128, 128, 128, 0.35)", "rgba(128, 128, 128, 0.35)", "#6fc3df", "#0f4a85"},
+		{"panelTitle.border", none, none, "#6fc3df", "#0f4a85"},
+		{"panelTitle.activeForeground", "#e7e7e7", "#424242", "#ffffff", "#292929"},
+		{"panelTitle.inactiveForeground", "rgba(231, 231, 231, 0.6)", "rgba(66, 66, 66, 0.75)", "#ffffff", "#292929"},
+		{"panelTitle.activeBorder", "#e7e7e7", "#424242", "#6fc3df", "#b5200d"},
+		{"titleBar.activeBackground", "#3c3c3c", "#dddddd", "#000000", "#ffffff"},
+		{"titleBar.border", none, none, "#6fc3df", "#0f4a85"},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+}

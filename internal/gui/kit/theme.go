@@ -165,6 +165,21 @@ type Colors struct {
 	BadgeBackground, BadgeForeground, ProgressBarBackground ui.Color
 	// The colors of the icon of a dialog by type (error, warning, information).
 	ProblemsErrorIconForeground, ProblemsWarningIconForeground, ProblemsInfoIconForeground ui.Color
+	// The colors of the parts of the workbench (gui/workbench). The status bar: text, background
+	// and border with a folder open, and the same three with none (the NoFolder colors). The
+	// activity bar: background and border. The side bar: background, text (transparent where the
+	// theme sets none: the text then keeps the workbench's foreground) and border, and the same
+	// for its title. The panel: background and border, and for its title the border under it, the
+	// text of the active and of the other tabs and the line under the active tab. The title bar:
+	// background and border, which the menu bar area has.
+	StatusBarForeground, StatusBarBackground, StatusBarBorder                         ui.Color
+	StatusBarNoFolderForeground, StatusBarNoFolderBackground, StatusBarNoFolderBorder ui.Color
+	ActivityBarBackground, ActivityBarBorder                                          ui.Color
+	SideBarBackground, SideBarForeground, SideBarBorder                               ui.Color
+	SideBarTitleBackground, SideBarTitleForeground, SideBarTitleBorder                ui.Color
+	PanelBackground, PanelBorder, PanelTitleBorder                                    ui.Color
+	PanelTitleActiveForeground, PanelTitleInactiveForeground, PanelTitleActiveBorder  ui.Color
+	TitleBarActiveBackground, TitleBarBorder                                          ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -288,6 +303,18 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		BadgeBackground: color("badge.background"), BadgeForeground: color("badge.foreground"), ProgressBarBackground: color("progressBar.background"),
 		ProblemsErrorIconForeground: color("problemsErrorIcon.foreground"), ProblemsWarningIconForeground: color("problemsWarningIcon.foreground"),
 		ProblemsInfoIconForeground: color("problemsInfoIcon.foreground"),
+
+		StatusBarForeground: color("statusBar.foreground"), StatusBarBackground: color("statusBar.background"), StatusBarBorder: color("statusBar.border"),
+		StatusBarNoFolderForeground: color("statusBar.noFolderForeground"), StatusBarNoFolderBackground: color("statusBar.noFolderBackground"),
+		StatusBarNoFolderBorder: color("statusBar.noFolderBorder"),
+		ActivityBarBackground:   color("activityBar.background"), ActivityBarBorder: color("activityBar.border"),
+		SideBarBackground: color("sideBar.background"), SideBarForeground: color("sideBar.foreground"), SideBarBorder: color("sideBar.border"),
+		SideBarTitleBackground: color("sideBarTitle.background"), SideBarTitleForeground: color("sideBarTitle.foreground"),
+		SideBarTitleBorder: color("sideBarTitle.border"),
+		PanelBackground:    color("panel.background"), PanelBorder: color("panel.border"), PanelTitleBorder: color("panelTitle.border"),
+		PanelTitleActiveForeground: color("panelTitle.activeForeground"), PanelTitleInactiveForeground: color("panelTitle.inactiveForeground"),
+		PanelTitleActiveBorder:   color("panelTitle.activeBorder"),
+		TitleBarActiveBackground: color("titleBar.activeBackground"), TitleBarBorder: color("titleBar.border"),
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
 const (
@@ -222,6 +223,13 @@ type shellState struct {
 	blocked string
 	// removeOpenFile takes the handler of dev.openFile off the registry.
 	removeOpenFile func()
+	// unsubscribeDoc stops following the changes of the document (its dirty mark is in the title),
+	// and unsubscribeTitle those of the settings of the title.
+	unsubscribeDoc, unsubscribeTitle func()
+	// lastDirty is the dirty mark the title was last made with.
+	lastDirty bool
+	// window is the controller of the window, which gets the title; nil where there is none.
+	window interface{ SetTitle(string) }
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -233,6 +241,16 @@ func (s *shellState) InitState() {
 		s.initEditor(binding, doc)
 	}
 	s.bindDevOpenFile(binding)
+	// the title of the window follows its template
+	s.unsubscribeTitle = PeekWindow(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
+		if e.Affects("window.title", "") || e.Affects("window.titleSeparator", "") {
+			binding.Post(func() {
+				if s.Mounted() {
+					s.SetState(func() {})
+				}
+			})
+		}
+	})
 	done := s.Widget().ctx.Done()
 	s.Go(func(life context.Context) {
 		select {
@@ -286,6 +304,15 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 		return editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
 	}
 	s.view = editor.NewViewModel(doc, options(), nil)
+	// the dirty mark of the document is in the title of the window
+	s.lastDirty = doc.Dirty()
+	s.unsubscribeDoc = doc.Subscribe(func(document.ChangeEvent) {
+		binding.Post(func() {
+			if s.Mounted() && s.doc == doc && doc.Dirty() != s.lastDirty {
+				s.SetState(func() {})
+			}
+		})
+	})
 	if win.Documents.AnnounceLarge(doc) {
 		win.Process.Notify.Warn("Emetos", LargeFileNotice)
 	}
@@ -376,6 +403,10 @@ func (s *shellState) disposeEditor() {
 	if s.view == nil {
 		return
 	}
+	if s.unsubscribeDoc != nil {
+		s.unsubscribeDoc()
+		s.unsubscribeDoc = nil
+	}
 	s.view.DisposeFind()
 	s.view.DisposeWrap()
 	s.view.DisposeHighlights()
@@ -409,11 +440,69 @@ func (s *shellState) Dispose() {
 	if s.removeOpenFile != nil {
 		s.removeOpenFile()
 	}
+	if s.unsubscribeTitle != nil {
+		s.unsubscribeTitle()
+	}
 	s.disposeEditor()
 }
 
-// Build implements widgets.State.
+// Build implements widgets.State: the workbench of the window, with what the shell has in the editor
+// area.
 func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
+	win := PeekWindow(bc)
+	s.syncTitle(bc, win)
+	return workbench.New(workbench.Options{
+		Layout: win.Layout, Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes,
+		Settings: win.Settings, Dialogs: win.Dialogs, Context: win.ctx,
+		Editor:   s.editorArea(bc),
+		NoFolder: win.Folder == "",
+	})
+}
+
+// syncTitle makes the title of the window from the template and the active editor, and passes it on
+// to the window when it changed.
+func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
+	if s.window == nil {
+		// Glutter: the controller of the window that WindowScope gives is a BaseWindowController, which
+		// has no SetTitle (RegularWindowController has it, promoted from an unexported base), so the
+		// title is set through an interface assertion. Glutter should put SetTitle in the interface.
+		if scope, ok := widgets.GetInherited[*widgets.WindowScope](bc); ok {
+			s.window, _ = scope.Controller().(interface{ SetTitle(string) })
+		}
+	}
+	in := workbench.TitleInput{
+		Template:  settings.Get[string](win.Settings, "window.title", ""),
+		Separator: settings.Get[string](win.Settings, "window.titleSeparator", ""),
+		AppName:   Title,
+		Folder:    win.Folder,
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		in.Home = home
+	}
+	if s.doc != nil {
+		in.LanguageID = s.doc.LanguageID()
+		in.Dirty = s.doc.Dirty()
+		if uri := s.doc.URI(); uri.Scheme == document.SchemeFile {
+			in.ActiveFile = uri.Path
+		} else {
+			in.ActiveName = uri.Path
+		}
+	}
+	s.lastDirty = in.Dirty
+	title := in.Title()
+	if title == win.title {
+		return
+	}
+	win.title = title
+	if s.window != nil {
+		controller := s.window
+		widgets.WidgetsBindingOf(bc).Post(func() { controller.SetTitle(title) })
+	}
+}
+
+// editorArea is what the editor area shows: the editor of the file with its breadcrumbs, the notice
+// of a file that cannot be shown, or the home page.
+func (s *shellState) editorArea(bc widgets.BuildContext) widgets.Widget {
 	if s.view != nil {
 		win := PeekWindow(bc)
 		binding := widgets.WidgetsBindingOf(bc)
@@ -424,7 +513,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		if uri.Scheme != document.SchemeFile {
 			return text
 		}
-		// the path of the file above the text, until the workbench (6.x) owns the layout
+		// the path of the file above the text
 		bar := editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
 			OnOpen: func(path string) { s.openPath(binding, path) },
 		})

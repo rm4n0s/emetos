@@ -17,6 +17,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
 // Window holds what one window owns (SPEC §5.1): the folder, the settings with the
@@ -53,9 +54,21 @@ type Window struct {
 	Find *editor.FindMemory
 	// Zoom is the zoom level of the font of the editors of the window.
 	Zoom *editor.Zoom
+	// Layout is the layout of the workbench of the window: which parts are shown, their sizes and
+	// where they are (SPEC §10.1). It follows the settings of the layout.
+	Layout *workbench.Layout
+	// Dialogs queues the dialogs of the window. The workbench shows them over everything, and the key
+	// dispatcher runs no command while one is showing.
+	Dialogs *kit.DialogController
 
 	ctx context.Context
+	// title is the title of the window as the shell last made it.
+	title string
 }
+
+// Title is the title of the window: window.title filled in for the active editor and the folder
+// (SPEC §10.1). It is empty until the window has been shown.
+func (w *Window) Title() string { return w.title }
 
 // chordStatus passes the status of a chord on, to OnChordStatus or the log.
 func (w *Window) chordStatus(status string, cleared bool) {
@@ -98,6 +111,8 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Clipboard:   editor.NewClipboardMemory(),
 		Find:        &editor.FindMemory{},
 		Zoom:        editor.NewZoom(),
+		Layout:      workbench.NewLayout(workbench.LayoutStateFromSettings(store)),
+		Dialogs:     kit.NewDialogController(),
 		ctx:         ctx,
 	}
 	w.followTheme()

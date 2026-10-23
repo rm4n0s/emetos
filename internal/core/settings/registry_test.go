@@ -301,3 +301,50 @@ func TestMenuBarVisibilityIsRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestLayoutSettingsAreRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	cases := []struct {
+		key     string
+		def     any
+		enum    []any
+		valid   []any
+		invalid []any
+	}{
+		{"workbench.sideBar.location", "left", []any{"left", "right"}, []any{"left", "right"}, []any{"top", "", 1}},
+		{"workbench.activityBar.location", "default", []any{"default", "top", "bottom", "hidden"}, []any{"default", "top", "bottom", "hidden"}, []any{"left", false}},
+		{"workbench.statusBar.visible", true, nil, []any{true, false}, []any{"yes", 1}},
+		{"workbench.panel.defaultLocation", "bottom", []any{"left", "bottom", "top", "right"}, []any{"left", "bottom", "top", "right"}, []any{"middle"}},
+		{"workbench.panel.opensMaximized", "preserve", []any{"always", "never", "preserve"}, []any{"always", "never", "preserve"}, []any{"sometimes", true}},
+		{"window.title", DefaultWindowTitle, nil, []any{"${activeEditorShort}", ""}, []any{1, true}},
+		{"window.titleSeparator", " - ", nil, []any{" | ", ""}, []any{1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			s, ok := r.Lookup(tc.key)
+			if !ok {
+				t.Fatal("not registered")
+			}
+			if s.Default != tc.def || s.Description == "" || s.Scope != ScopeWindow {
+				t.Errorf("default %v scope %v description %q", s.Default, s.Scope, s.Description)
+			}
+			if len(s.Enum) != len(tc.enum) {
+				t.Errorf("enum %v, want %v", s.Enum, tc.enum)
+			}
+			for _, v := range tc.valid {
+				if msg := r.Validate(tc.key, v); msg != "" {
+					t.Errorf("%v is refused: %s", v, msg)
+				}
+			}
+			for _, v := range tc.invalid {
+				if r.Validate(tc.key, v) == "" {
+					t.Errorf("%v is accepted", v)
+				}
+			}
+		})
+	}
+	// the default title is VS Code's template for Linux
+	if DefaultWindowTitle != "${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}" {
+		t.Errorf("DefaultWindowTitle = %q", DefaultWindowTitle)
+	}
+}
