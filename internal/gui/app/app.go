@@ -265,6 +265,13 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 		if e.Affects("editor", "") {
 			binding.Post(func() { s.view.SetOptions(options()) })
 		}
+		if e.Affects("breadcrumbs", "") {
+			binding.Post(func() {
+				if s.Mounted() {
+					s.SetState(func() {})
+				}
+			})
+		}
 	})
 }
 
@@ -366,9 +373,20 @@ func (s *shellState) Dispose() {
 func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	if s.view != nil {
 		win := PeekWindow(bc)
-		return editor.NewEditor(s.view, editor.EditorOpts{
+		binding := widgets.WidgetsBindingOf(bc)
+		text := editor.NewEditor(s.view, editor.EditorOpts{
 			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true, Context: win.ctx, ClipboardMemory: win.Clipboard, FindMemory: win.Find, Zoom: win.Zoom,
 		})
+		uri := s.doc.URI()
+		if uri.Scheme != document.SchemeFile {
+			return text
+		}
+		// the path of the file above the text, until the workbench (6.x) owns the layout
+		bar := editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
+			OnOpen: func(path string) { s.openPath(binding, path) },
+		})
+		return widgets.NewColumn([]widgets.Widget{bar, widgets.NewExpanded(text)},
+			widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 	}
 	colors := kit.ThemeOf(bc)
 	return widgets.NewDefaultTextStyle(uiTextStyle(bc, 14, colors.Foreground),

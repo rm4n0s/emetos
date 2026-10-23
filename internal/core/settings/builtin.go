@@ -14,6 +14,8 @@ const (
 	// the "Workbench" group of VS Code's settings editor.
 	categoryWorkbench = "Workbench"
 	categoryWindow    = "Window"
+	// categoryBreadcrumbs is the group of the breadcrumbs settings.
+	categoryBreadcrumbs = "Breadcrumbs"
 )
 
 // DefaultRegistry makes a registry with the settings Emetos has. Each step that reads a
@@ -700,6 +702,26 @@ func registerWorkbench(r *Registry) {
 			Key: "workbench.preferredLightColorTheme", Types: []Type{String}, Default: "Light Modern",
 			Description: "Specifies the color theme when system color mode is light and `window.autoDetectColorScheme` is enabled.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "breadcrumbs.enabled", Types: []Type{Boolean}, Default: true,
+			Description: "Enable/disable navigation breadcrumbs.",
+			Scope:       ScopeWindow, Category: categoryBreadcrumbs,
+		},
+		Setting{
+			Key: "breadcrumbs.filePath", Types: []Type{String}, Default: "on", Enum: []any{"on", "off", "last"},
+			EnumDescriptions: []string{
+				"Show the file path in the breadcrumbs view.",
+				"Do not show the file path in the breadcrumbs view.",
+				"Only show the last element of the file path in the breadcrumbs view.",
+			},
+			Description: "Controls whether and how file paths are shown in the breadcrumbs view.",
+			Scope:       ScopeWindow, Category: categoryBreadcrumbs,
+		},
+		Setting{
+			Key: "breadcrumbs.icons", Types: []Type{Boolean}, Default: true,
+			Description: "Render breadcrumb items with icons.",
+			Scope:       ScopeWindow, Category: categoryBreadcrumbs,
 		},
 		Setting{
 			Key: "window.autoDetectColorScheme", Types: []Type{Boolean}, Default: false,

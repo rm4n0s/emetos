@@ -80,15 +80,47 @@ func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Co
 	if err != nil {
 		return err
 	}
-	s.SetState(func() {
-		s.disposeEditor()
-		s.initEditor(binding, doc)
-		if a.Line > 0 {
+	var place func()
+	if a.Line > 0 {
+		place = func() {
 			model := edit.NewModel(doc.Snapshot())
 			at := model.ValidatePosition(buffer.Position{Line: a.Line - 1, Col: max(a.Column-1, 0)})
 			s.view.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(at)})
 		}
+	}
+	s.showDocument(binding, doc, place)
+	return nil
+}
+
+// showDocument replaces the editor of the window by one for a document; place, when not nil,
+// runs after the new editor exists (to put the cursor somewhere), and the editor then scrolls to
+// the cursor.
+func (s *shellState) showDocument(binding *widgets.WidgetsBinding, doc *document.Document, place func()) {
+	s.SetState(func() {
+		s.disposeEditor()
+		s.initEditor(binding, doc)
+		if place != nil {
+			place()
+		}
 	})
 	binding.Scheduler().AddPostFrameCallback(func(_ time.Duration) { s.view.RevealPrimary() })
-	return nil
+}
+
+// openPath opens a file that the user chose (in a breadcrumbs picker) and shows it. The file is
+// read in the background; a file that cannot be opened is reported.
+func (s *shellState) openPath(binding *widgets.WidgetsBinding, path string) {
+	win := PeekWindow(s.Context())
+	s.Go(func(life context.Context) {
+		doc, err := win.Documents.OpenFile(life, path, document.NewOptions())
+		binding.Post(func() {
+			if !s.Mounted() {
+				return
+			}
+			if err != nil {
+				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
+				return
+			}
+			s.showDocument(binding, doc, nil)
+		})
+	})
 }

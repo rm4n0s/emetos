@@ -12,6 +12,8 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerHighlightColors(r)
 	registerMinimapColors(r)
 	registerStickyColors(r)
+	registerListColors(r)
+	registerBreadcrumbColors(r)
 	return r
 }
 
@@ -308,5 +310,42 @@ func registerStickyColors(r *ColorRegistry) {
 			Description: "Border color of sticky scroll in the editor"},
 		ColorContribution{ID: "editorStickyScroll.shadow", Defaults: AllThemes(Ref("scrollbar.shadow")),
 			Description: " Shadow color of sticky scroll in the editor"},
+	)
+}
+
+// registerListColors registers the colors of lists (the list overlay and the pickers).
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/listColors.ts
+func registerListColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "list.focusOutline", Defaults: dflt(Ref("focusBorder"), Ref("focusBorder"), Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "List/Tree outline color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.activeSelectionBackground", NeedsTransparency: true,
+			Defaults:    dflt(Hex("#04395E"), Hex("#0060C0"), nil, Transparent(Hex("#0F4A85"), 0.1)),
+			Description: "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.activeSelectionForeground", Defaults: dflt(Lit(ColorWhite), Lit(ColorWhite), nil, nil),
+			Description: "List/Tree foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.hoverBackground", NeedsTransparency: true,
+			Defaults:    dflt(Hex("#2A2D2E"), Hex("#F0F0F0"), Transparent(Lit(ColorWhite), 0.1), Transparent(Hex("#0F4A85"), 0.1)),
+			Description: "List/Tree background when hovering over items using the mouse."},
+	)
+}
+
+// registerBreadcrumbColors registers the colors of the breadcrumbs bar and its picker.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts
+func registerBreadcrumbColors(r *ColorRegistry) {
+	focus := dflt(Lighten(Ref("foreground"), 0.1), Darken(Ref("foreground"), 0.2), Lighten(Ref("foreground"), 0.1), Lighten(Ref("foreground"), 0.1))
+	r.MustRegister(
+		ColorContribution{ID: "breadcrumb.foreground", Defaults: AllThemes(Transparent(Ref("foreground"), 0.8)),
+			Description: "Color of focused breadcrumb items."},
+		ColorContribution{ID: "breadcrumb.background", Defaults: AllThemes(Ref("editor.background")),
+			Description: "Background color of breadcrumb items."},
+		ColorContribution{ID: "breadcrumb.focusForeground", Defaults: focus,
+			Description: "Color of focused breadcrumb items."},
+		ColorContribution{ID: "breadcrumb.activeSelectionForeground", Defaults: focus,
+			Description: "Color of selected breadcrumb items."},
+		ColorContribution{ID: "breadcrumbPicker.background", Defaults: AllThemes(Ref("editorWidget.background")),
+			Description: "Background color of breadcrumb item picker."},
 	)
 }

@@ -91,6 +91,13 @@ type Colors struct {
 	InputOptionActiveBorder, InputOptionActiveBackground, InputOptionActiveForeground ui.Color
 	InputOptionHoverBackground                                                        ui.Color
 	InputValidationErrorBorder                                                        ui.Color
+	// The colors of lists: the focused row (ListActiveSelectionBackground and Foreground), a row
+	// under the pointer and the outline of the focused row.
+	ListActiveSelectionBackground, ListActiveSelectionForeground, ListHoverBackground, ListFocusOutline ui.Color
+	// The colors of the breadcrumbs bar: its items, the item that is hovered or has its picker open
+	// (Focus and ActiveSelection), the background of the bar and the one of the picker.
+	BreadcrumbForeground, BreadcrumbBackground, BreadcrumbFocusForeground ui.Color
+	BreadcrumbActiveSelectionForeground, BreadcrumbPickerBackground       ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -162,7 +169,13 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		InputPlaceholderForeground: color("input.placeholderForeground"),
 		InputOptionActiveBorder:    color("inputOption.activeBorder"), InputOptionActiveBackground: color("inputOption.activeBackground"),
 		InputOptionActiveForeground: color("inputOption.activeForeground"), InputOptionHoverBackground: color("inputOption.hoverBackground"),
-		InputValidationErrorBorder: color("inputValidation.errorBorder"),
+		InputValidationErrorBorder:    color("inputValidation.errorBorder"),
+		ListActiveSelectionBackground: color("list.activeSelectionBackground"), ListActiveSelectionForeground: color("list.activeSelectionForeground"),
+		ListHoverBackground: color("list.hoverBackground"), ListFocusOutline: color("list.focusOutline"),
+		BreadcrumbForeground: color("breadcrumb.foreground"), BreadcrumbBackground: color("breadcrumb.background"),
+		BreadcrumbFocusForeground:           color("breadcrumb.focusForeground"),
+		BreadcrumbActiveSelectionForeground: color("breadcrumb.activeSelectionForeground"),
+		BreadcrumbPickerBackground:          color("breadcrumbPicker.background"),
 	}
 }
 
