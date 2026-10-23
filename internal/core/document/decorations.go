@@ -63,6 +63,19 @@ func (d *Document) DeltaDecorations(owner int, remove []int, add []NewDecoration
 	return ids
 }
 
+// SetDecorationOptions changes the options of a decoration, which keeps its place. The stickiness
+// does not change (it is read when the decoration is added). It reports whether there is a
+// decoration with the id.
+func (d *Document) SetDecorationOptions(id int, opts DecorationOptions) bool {
+	n, ok := d.deco.byID[id]
+	if !ok {
+		return false
+	}
+	opts.Stickiness = n.opts.Stickiness
+	n.opts = opts
+	return true
+}
+
 // RemoveDecorations removes decorations by id, whoever owns them.
 func (d *Document) RemoveDecorations(ids ...int) {
 	for _, id := range ids {

@@ -337,3 +337,21 @@ func TestTrackOffset(t *testing.T) {
 		})
 	}
 }
+
+func TestSetDecorationOptionsKeepsThePlaceAndTheStickiness(t *testing.T) {
+	d := New(UntitledURI(1), "abc\ndef", NewOptions())
+	id := d.AddDecoration(3, buffer.Range{Start: buffer.Position{Col: 1}, End: buffer.Position{Col: 2}}, DecorationOptions{Stickiness: NeverGrowsWhenTypingAtEdges, ClassName: "a"})
+	if !d.SetDecorationOptions(id, DecorationOptions{Stickiness: AlwaysGrowsWhenTypingAtEdges, ClassName: "b"}) {
+		t.Fatal("the decoration is there")
+	}
+	got, _ := d.Decoration(id)
+	if got.Options.ClassName != "b" || got.Options.Stickiness != NeverGrowsWhenTypingAtEdges {
+		t.Errorf("options = %+v, want class b and the stickiness it had", got.Options)
+	}
+	if got.Range.Start.Col != 1 || got.Range.End.Col != 2 {
+		t.Errorf("range = %v", got.Range)
+	}
+	if d.SetDecorationOptions(id+100, DecorationOptions{}) {
+		t.Error("a decoration that is not there was changed")
+	}
+}

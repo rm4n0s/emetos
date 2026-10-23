@@ -280,6 +280,11 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.foldingMaximumRegions", Types: []Type{Integer}, Default: 5000, Minimum: Float(10), Maximum: Float(65000),
+			Description: "The maximum number of foldable regions. Increasing this value may result in the editor becoming less responsive when the current source has a large number of foldable regions.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.matchBrackets", Types: []Type{String}, Default: "always",
 			Enum: []any{"always", "near", "never"},
 			EnumDescriptions: []string{

@@ -155,6 +155,10 @@ func (l *Levels) levelLocked(line int) int {
 	return v
 }
 
+// Level is the indentation of a line in columns (a tab goes to the next multiple of the tab size),
+// or -1 for a line of white space only.
+func Level(line string, tabSize int) int { return computeLevel(line, tabSize) }
+
 // computeLevel is the indentation of a line, or -1 for a line of white space only.
 //
 // Ported from VS Code: src/vs/editor/common/model/utils.ts (computeIndentLevel)
