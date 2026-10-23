@@ -46,6 +46,8 @@ type Window struct {
 	// Clipboard is what the editors of the window remember of what they copied, so that a copy
 	// in one editor pastes in another as it was made.
 	Clipboard *editor.ClipboardMemory
+	// Zoom is the zoom level of the font of the editors of the window.
+	Zoom *editor.Zoom
 
 	ctx context.Context
 }
@@ -89,6 +91,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Dispatcher:  keybinding.NewDispatcher(resolver, time.Now),
 		Scopes:      kit.NewFocusScopes(),
 		Clipboard:   editor.NewClipboardMemory(),
+		Zoom:        editor.NewZoom(),
 		ctx:         ctx,
 	}, nil
 }

@@ -4,6 +4,9 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/ui"
+
+	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/edit"
 )
 
 // OverlayColors are the colors of the layers drawn above and below the text.
@@ -20,6 +23,9 @@ type OverlayColors struct {
 	LineHighlightBorder ui.Color
 	// Cursor is the color of the cursors.
 	Cursor ui.Color
+	// CursorText is the color of the character a block cursor, or a wide line cursor, covers:
+	// the opposite of the cursor's color.
+	CursorText ui.Color
 	// Foreground is the color of the text, for the text an input method composes.
 	Foreground ui.Color
 }
@@ -345,25 +351,122 @@ func (v overlayView) paintCursors() {
 	if !vm.CursorsVisible() {
 		return
 	}
-	width := cursorDefaultWidth
-	if w := min(vm.Options().CursorWidth, v.geo.charWidth); w > 0 {
-		width = w
+	opacity, scale := vm.CursorFrame()
+	if opacity <= 0 || scale <= 0 {
+		return
 	}
-	paint := fill(v.colors.Cursor)
 	for i, sel := range vm.Cursors().Selections() {
 		row := vm.RowOfPosition(sel.Active)
 		if row < v.first || row > v.last {
 			continue
 		}
-		left := v.geo.x(row, sel.Active.Col)
+		shift := 0.0
 		if i == 0 && composing {
-			left += v.preeditOffset(preedit, preedit.End)
+			shift = v.preeditOffset(preedit, preedit.End)
 		}
+		v.paintCursor(sel.Active, row, shift, opacity, scale)
+	}
+}
+
+// cursorShape is the part of a cell that a cursor fills, and how it is drawn.
+type cursorShape int
+
+const (
+	shapeLine cursorShape = iota
+	shapeBlock
+	shapeUnderline
+	shapeOutline
+)
+
+// cursorStyleOf is the shape of a style of editor.cursorStyle, how thick its line is (zero for
+// the width of the setting, 2 pixels by default) and whether it is the thin variant.
+func cursorStyleOf(style string) (shape cursorShape, thickness float64) {
+	switch style {
+	case "block":
+		return shapeBlock, 0
+	case "underline":
+		return shapeUnderline, 2
+	case "underline-thin":
+		return shapeUnderline, 1
+	case "block-outline":
+		return shapeOutline, 1
+	case "line-thin":
+		return shapeLine, 1
+	}
+	return shapeLine, 0
+}
+
+// paintCursor draws one cursor at a position in the style of the setting. In the line styles it
+// is a bar between the characters; in the others it covers the character it is before (the
+// width of a character at the end of a line and for a tab). Opacity and scale are the frame
+// of the animated blinking: the cursor fades, or shrinks towards the middle of its height.
+//
+// Ported from VS Code: src/vs/editor/browser/viewParts/viewCursors/viewCursor.ts (_prepareRender) and viewCursors.css
+func (v overlayView) paintCursor(pos buffer.Position, row int, shift, opacity, scale float64) {
+	vm := v.geo.vm
+	opts := vm.Options()
+	shape, thickness := cursorStyleOf(opts.CursorStyle)
+	if shift != 0 {
+		shape, thickness = shapeLine, 0 // an input method composes: the cursor is its caret
+	}
+	cell := v.geo.rectOf(pos)
+	line, _ := vm.Document().Snapshot().LineContent(pos.Line)
+	grapheme := ""
+	if pos.Col < len(line) {
+		grapheme = line[pos.Col:edit.NextGrapheme(line, pos.Col)]
+	}
+	var rect ui.Rect
+	switch shape {
+	case shapeLine:
+		width := thickness
+		if width == 0 {
+			width = cursorDefaultWidth
+			if w := min(opts.CursorWidth, v.geo.charWidth); w > 0 {
+				width = w
+			}
+		}
+		left := cell.Left + shift
 		if width >= 2 && left >= 1 {
 			left-- // between the characters, not over the next one
 		}
-		v.canvas.DrawRect(v.rowRect(row, left, left+width), paint)
+		rect = v.rowRect(row, left, left+width)
+	default:
+		width := cell.Right - cell.Left
+		if grapheme == "\t" || width < 1 {
+			width = v.geo.charWidth
+		}
+		rect = v.rowRect(row, cell.Left, cell.Left+width)
+		if shape == shapeUnderline {
+			rect.Top = rect.Bottom - thickness
+		}
 	}
+	if scale < 1 {
+		mid, half := (rect.Top+rect.Bottom)/2, (rect.Bottom-rect.Top)/2*scale
+		rect.Top, rect.Bottom = mid-half, mid+half
+	}
+	color := v.colors.Cursor.WithOpacity(v.colors.Cursor.Opacity() * opacity)
+	switch shape {
+	case shapeOutline:
+		v.paintOutline(rect, color)
+	default:
+		v.canvas.DrawRect(rect, fill(color))
+	}
+	// A wide bar and a block show the character they cover in the color that stands out.
+	covers := shape == shapeBlock || (shape == shapeLine && thickness == 0 && rect.Right-rect.Left > 2)
+	if covers && grapheme != "" && grapheme != "\t" && scale >= 1 {
+		textColor := v.colors.CursorText.WithOpacity(v.colors.CursorText.Opacity() * opacity)
+		p := newTextStyle(v.factory, opts, textColor).paragraph(vm.Paragraphs(), grapheme)
+		v.canvas.DrawParagraph(p, ui.Offset{Dx: v.origin.Dx + cell.Left, Dy: v.origin.Dy + v.geo.proj.RowTop(row)})
+	}
+}
+
+// paintOutline draws a one pixel border inside a rectangle.
+func (v overlayView) paintOutline(r ui.Rect, color ui.Color) {
+	paint := fill(color)
+	v.canvas.DrawRect(ui.NewRectFromLTRB(r.Left, r.Top, r.Right, r.Top+1), paint)
+	v.canvas.DrawRect(ui.NewRectFromLTRB(r.Left, r.Bottom-1, r.Right, r.Bottom), paint)
+	v.canvas.DrawRect(ui.NewRectFromLTRB(r.Left, r.Top+1, r.Left+1, r.Bottom-1), paint)
+	v.canvas.DrawRect(ui.NewRectFromLTRB(r.Right-1, r.Top+1, r.Right, r.Bottom-1), paint)
 }
 
 // preeditOffset is the width of the first n bytes of the preedit.

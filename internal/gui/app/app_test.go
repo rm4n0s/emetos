@@ -288,3 +288,50 @@ func TestWindowWithAFolderReadsItsSettings(t *testing.T) {
 		t.Errorf("the workspace layer is not read: font size %v, want 20", size)
 	}
 }
+
+func TestEditorFollowsTheDisplaySettingsAndTheZoom(t *testing.T) {
+	win := newTestWindow(t, "")
+	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := testutil.New(t, testWindowSize)
+	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
+	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
+
+	for key, value := range map[string]any{
+		"editor.fontWeight": "bold", "editor.letterSpacing": 1.5, "editor.cursorStyle": "block",
+		"editor.cursorBlinking": "smooth", "editor.mouseWheelZoom": true, "editor.fontSize": 20.0,
+	} {
+		if err := win.Settings.Update(context.Background(), key, value, settings.TargetUser); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 200 {
+		ts.Pump(10 * time.Millisecond)
+		if vm.Options().CursorStyle == "block" && vm.Options().FontSize == 20 && vm.Options().MouseWheelZoom {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	o := vm.Options()
+	if o.FontWeight != 700 || o.LetterSpacing != 1.5 || o.CursorStyle != "block" || o.CursorBlinking != "smooth" || !o.MouseWheelZoom || o.FontSize != 20 {
+		t.Fatalf("the editor did not follow the settings: %+v", o)
+	}
+
+	// The zoom of the window is on top of the settings, and a command of the window's registry
+	// zooms through the editor that has the focus.
+	win.Zoom.Set(2)
+	if got := vm.Options(); got.FontSize != 24 || got.LineHeight != 27*1.2 {
+		t.Errorf("zoom 2 on a font of 20: font %v line %v", got.FontSize, got.LineHeight)
+	}
+	if err := win.Process.Commands.Run(command.Context{}, "editor.action.fontZoomReset", nil); err != nil {
+		t.Fatal(err)
+	}
+	if win.Zoom.Level() != 0 || vm.Options().FontSize != 20 {
+		t.Errorf("reset: level %v font %v", win.Zoom.Level(), vm.Options().FontSize)
+	}
+	if errs := ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("the framework reported errors: %v", errs)
+	}
+}

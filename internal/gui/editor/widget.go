@@ -188,6 +188,9 @@ type EditorOpts struct {
 	// Context is the context of what the editor asks of the desktop (the clipboard); without
 	// it that is context.Background().
 	Context context.Context
+	// Zoom is the zoom of the font that the editors of a window share; without it the editor has
+	// its own.
+	Zoom *Zoom
 	// ClipboardMemory is what the editors of a window remember of their copies, so that a copy
 	// in one can be pasted in another as it was made; without it the editor has its own.
 	ClipboardMemory *ClipboardMemory
@@ -226,6 +229,7 @@ type editorState struct {
 	primaryTimer    func()
 	primaryText     string
 	lastSelections  []buffer.Selection
+	cursorAnim      cursorAnimation
 	dragStyle       string
 	textRO          *RenderEditorText
 	geometryPending bool
@@ -267,6 +271,8 @@ func (s *editorState) InitState() {
 	s.binding.AddObserver(s.observer)
 	s.useTimers(vm)
 	s.useClipboard(vm)
+	vm.SetAnimator(s.startCursorAnimation)
+	vm.SetZoom(opts.Zoom)
 
 	// The focus: the editor's node, with the scope of its context keys.
 	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Editor"})
@@ -305,6 +311,51 @@ func (s *editorState) useClipboard(vm *ViewModel) {
 		ctx = context.Background()
 	}
 	vm.SetClipboard(NewClipboard(ctx, s.binding.Clipboard()), s.Widget().opts.ClipboardMemory, s.reportInputError)
+}
+
+// cursorAnimation is the frame loop of the animated cursor styles.
+type cursorAnimation struct {
+	// running is whether a frame callback is waiting; started and begin are the time of the
+	// first frame since the cursors were last shown.
+	running, started bool
+	begin            time.Duration
+}
+
+// startCursorAnimation begins the animation of the cursors again from their first frame, and
+// starts the frame loop when it is not running.
+func (s *editorState) startCursorAnimation() {
+	a := &s.cursorAnim
+	a.started = false
+	if a.running {
+		return
+	}
+	a.running = true
+	s.scheduleCursorFrame()
+}
+
+// scheduleCursorFrame asks for the next frame of the animation.
+func (s *editorState) scheduleCursorFrame() {
+	scheduler := s.binding.Scheduler()
+	scheduler.ScheduleFrame()
+	scheduler.AddPostFrameCallback(s.cursorFrame)
+}
+
+// cursorFrame moves the animation to the time of a frame, and goes on while it has more.
+func (s *editorState) cursorFrame(stamp time.Duration) {
+	a := &s.cursorAnim
+	vm := s.Widget().vm
+	if !s.Mounted() {
+		a.running = false
+		return
+	}
+	if !a.started {
+		a.begin, a.started = stamp, true
+	}
+	if !vm.blink.advance(stamp - a.begin) {
+		a.running = false
+		return
+	}
+	s.scheduleCursorFrame()
 }
 
 // primarySelectionDelay is how long after the last change of the selections the primary
@@ -454,6 +505,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.SetTimer(nil)
 		old.vm.SetScroller(nil)
 		old.vm.SetClipboard(nil, nil, nil)
+		old.vm.SetAnimator(nil)
 		vm := s.Widget().vm
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
@@ -463,6 +515,8 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		vm.SetScroller(s.scrollTo)
 		s.useTimers(vm)
 		s.useClipboard(vm)
+		vm.SetAnimator(s.startCursorAnimation)
+		vm.SetZoom(s.Widget().opts.Zoom)
 		if cmds := s.Widget().opts.Commands; cmds != nil && s.editorFocused {
 			s.unbindCommands = BindCommands(cmds, vm)
 		}
@@ -493,6 +547,7 @@ func (s *editorState) Dispose() {
 	vm.SetTimer(nil)
 	vm.SetScroller(nil)
 	vm.SetClipboard(nil, nil, nil)
+	vm.SetAnimator(nil)
 	if s.primaryTimer != nil {
 		s.primaryTimer()
 	}
@@ -523,7 +578,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		Background: colors.EditorBackground, Selection: colors.EditorSelectionBackground,
 		InactiveSelection: colors.EditorInactiveSelectionBackground, LineHighlight: colors.EditorLineHighlightBackground,
 		LineHighlightBorder: colors.EditorLineHighlightBorder, Cursor: colors.EditorCursorForeground,
-		Foreground: colors.EditorForeground,
+		CursorText: oppositeColor(colors.EditorCursorForeground), Foreground: colors.EditorForeground,
 	}
 	scrollable := widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
 		return s.pointerListener(widgets.NewRow([]widgets.Widget{
@@ -547,4 +602,12 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
 		widgets.NewScrollConfiguration(behavior, scrollable),
 		s.scroll, kit.ScrollableElementOpts{InsetLeft: gutterWidth, UseShadows: true}))
+}
+
+// oppositeColor is the color with every channel inverted, which VS Code gives the text under a
+// block cursor when the theme does not (editorCursor.background).
+//
+// Ported from VS Code: src/vs/editor/browser/viewParts/viewCursors/viewCursors.ts (registerThemingParticipant)
+func oppositeColor(c ui.Color) ui.Color {
+	return ui.NewColorFromARGB(c.Alpha(), 255-c.Red(), 255-c.Green(), 255-c.Blue())
 }

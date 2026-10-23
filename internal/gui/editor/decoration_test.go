@@ -296,7 +296,8 @@ func TestCursorBlinkStyles(t *testing.T) {
 		blinking    string
 		wantPending int
 	}{
-		{"blink", 1}, {"smooth", 1}, {"phase", 1}, {"expand", 1}, {"solid", 0}, {"", 1},
+		// The smooth, phase and expand styles animate every frame instead of toggling on a timer.
+		{"blink", 1}, {"smooth", 0}, {"phase", 0}, {"expand", 0}, {"solid", 0}, {"", 1},
 	}
 	for _, tc := range cases {
 		t.Run(tc.blinking, func(t *testing.T) {
@@ -305,8 +306,8 @@ func TestCursorBlinkStyles(t *testing.T) {
 			if clock.pending() != tc.wantPending {
 				t.Errorf("%d timers wait, want %d", clock.pending(), tc.wantPending)
 			}
-			if tc.blinking == "solid" && !vm.CursorsVisible() {
-				t.Error("a solid cursor stays shown")
+			if (tc.blinking == "solid" || tc.blinking == "smooth" || tc.blinking == "phase" || tc.blinking == "expand") && !vm.CursorsVisible() {
+				t.Error("a solid or animated cursor stays shown")
 			}
 			if tc.wantPending == 1 && vm.CursorsVisible() {
 				t.Error("a blinking cursor is hidden after half a second")

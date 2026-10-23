@@ -3,6 +3,7 @@ package editor
 import (
 	"time"
 
+	"github.com/rm4n0s/glutter/animation"
 	"github.com/rm4n0s/glutter/foundation"
 )
 
@@ -26,20 +27,95 @@ const (
 	blinkSolid
 	// blinkFlat shows and hides the cursor every BlinkInterval.
 	blinkFlat
+	// blinkSmooth fades the cursor out and in (editor.cursorBlinking "smooth").
+	blinkSmooth
+	// blinkPhase fades it more slowly, staying dark longer ("phase").
+	blinkPhase
+	// blinkExpand shrinks it to nothing and grows it back, vertically ("expand").
+	blinkExpand
 )
 
+// animated tells whether a style is drawn by an animation that runs on every frame, not by a
+// timer that shows and hides.
+func (s blinkStyle) animated() bool { return s == blinkSmooth || s == blinkPhase || s == blinkExpand }
+
 // blinkStyleOf is the style of an editor: hidden when it has no focus, otherwise as the
-// editor.cursorBlinking setting says. Only "solid" and "blink" are drawn: smooth, phase and
-// expand blink like "blink".
+// editor.cursorBlinking setting says.
 func blinkStyleOf(focused bool, setting string) blinkStyle {
 	switch {
 	case !focused:
 		return blinkHidden
 	case setting == "solid":
 		return blinkSolid
+	case setting == "smooth":
+		return blinkSmooth
+	case setting == "phase":
+		return blinkPhase
+	case setting == "expand":
+		return blinkExpand
 	default:
 		return blinkFlat
 	}
+}
+
+// The animated styles repeat a keyframe animation that VS Code writes in CSS: after
+// BlinkInterval of showing the cursor, 20 iterations of BlinkInterval each, every other one
+// played backwards, ending with the cursor shown again.
+const (
+	animationIterations = 20
+	// The keyframes: the cursor is whole up to the first fraction of an iteration, goes away
+	// by the second (ease-in-out in between), and stays away until the iteration ends.
+	animationHold   = 0.2
+	smoothGone      = 0.6
+	phaseGone       = 0.9
+	expandGone      = 0.8
+	animationLength = BlinkInterval * animationIterations
+)
+
+// cursorFrame is how the cursors look at a moment of an animation: how opaque they are and how
+// much of their height is left.
+type cursorFrame struct {
+	Opacity, ScaleY float64
+}
+
+// animationFrame is the look of an animated style a time after the cursors were shown, and
+// whether the animation is over (the cursors are whole again from then on).
+//
+// Ported from VS Code: src/vs/editor/browser/viewParts/viewCursors/viewCursors.css (monaco-cursor-smooth,
+// monaco-cursor-phase, monaco-cursor-expand)
+func animationFrame(style blinkStyle, elapsed time.Duration) (cursorFrame, bool) {
+	whole := cursorFrame{Opacity: 1, ScaleY: 1}
+	elapsed -= BlinkInterval
+	if elapsed < 0 {
+		return whole, false
+	}
+	if elapsed >= animationLength {
+		return whole, true
+	}
+	iteration := int(elapsed / BlinkInterval)
+	p := float64(elapsed%BlinkInterval) / float64(BlinkInterval)
+	if iteration%2 == 1 { // alternate: the odd iterations run backwards
+		p = 1 - p
+	}
+	gone := smoothGone
+	switch style {
+	case blinkPhase:
+		gone = phaseGone
+	case blinkExpand:
+		gone = expandGone
+	}
+	v := 1.0 // how much of the cursor is left
+	switch {
+	case p <= animationHold:
+	case p >= gone:
+		v = 0
+	default:
+		v = 1 - animation.Curves.EaseInOut.Transform((p-animationHold)/(gone-animationHold))
+	}
+	if style == blinkExpand {
+		return cursorFrame{Opacity: 1, ScaleY: v}, false
+	}
+	return cursorFrame{Opacity: v, ScaleY: 1}, false
 }
 
 // cursorBlink is the visibility of the cursors over time. Every restart shows the cursors and
@@ -53,10 +129,14 @@ type cursorBlink struct {
 	cancel  func()
 	visible bool
 	style   blinkStyle
+	// frame is the look of an animated style now; restarts counts the restarts, for what
+	// animates to know when to begin again.
+	frame    cursorFrame
+	restarts int
 }
 
 func newCursorBlink() *cursorBlink {
-	return &cursorBlink{ChangeNotifier: *foundation.NewChangeNotifier(), style: blinkHidden}
+	return &cursorBlink{ChangeNotifier: *foundation.NewChangeNotifier(), style: blinkHidden, frame: cursorFrame{Opacity: 1, ScaleY: 1}}
 }
 
 // SetTimer changes the source of timers and restarts the blinking with it. A nil source
@@ -75,6 +155,8 @@ func (b *cursorBlink) Visible() bool { return b.visible }
 func (b *cursorBlink) Restart(style blinkStyle) {
 	b.stop()
 	b.style = style
+	b.restarts++
+	b.setFrame(cursorFrame{Opacity: 1, ScaleY: 1})
 	b.setVisible(style != blinkHidden)
 	if style == blinkFlat && b.after != nil {
 		b.arm()
@@ -110,5 +192,27 @@ func (b *cursorBlink) setVisible(v bool) {
 		return
 	}
 	b.visible = v
+	b.NotifyListeners()
+}
+
+// Frame is the look of the cursors in an animated style; whole in every other.
+func (b *cursorBlink) Frame() cursorFrame { return b.frame }
+
+// advance moves an animated style to the time since the last restart, and tells whether it has
+// more to do.
+func (b *cursorBlink) advance(elapsed time.Duration) bool {
+	if !b.style.animated() {
+		return false
+	}
+	frame, done := animationFrame(b.style, elapsed)
+	b.setFrame(frame)
+	return !done
+}
+
+func (b *cursorBlink) setFrame(f cursorFrame) {
+	if f == b.frame {
+		return
+	}
+	b.frame = f
 	b.NotifyListeners()
 }

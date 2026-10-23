@@ -264,6 +264,9 @@ func buildActions() map[string]action {
 		vm.moveCursors(func(mv edit.Mover, c edit.Cursor) edit.Cursor { return mv.ExpandLine(c) })
 		return nil
 	}
+	a["editor.action.fontZoomIn"] = func(vm *ViewModel, _ any) error { vm.zoom.Set(vm.zoom.Level() + 1); return nil }
+	a["editor.action.fontZoomOut"] = func(vm *ViewModel, _ any) error { vm.zoom.Set(vm.zoom.Level() - 1); return nil }
+	a["editor.action.fontZoomReset"] = func(vm *ViewModel, _ any) error { vm.zoom.Set(0); return nil }
 	a["editor.action.clipboardCopyAction"] = func(vm *ViewModel, _ any) error { return vm.copySelection() }
 	a["editor.action.clipboardCutAction"] = func(vm *ViewModel, _ any) error { return vm.cutSelection() }
 	a["editor.action.clipboardPasteAction"] = func(vm *ViewModel, _ any) error { return vm.pasteClipboard() }

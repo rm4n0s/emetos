@@ -238,7 +238,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	if s.view != nil {
 		win := PeekWindow(bc)
 		return editor.NewEditor(s.view, editor.EditorOpts{
-			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true, Context: win.ctx, ClipboardMemory: win.Clipboard,
+			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true, Context: win.ctx, ClipboardMemory: win.Clipboard, Zoom: win.Zoom,
 		})
 	}
 	colors := kit.ThemeOf(bc)

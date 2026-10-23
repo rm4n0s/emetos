@@ -26,6 +26,14 @@ const (
 	maxAutoScrollStep = 100 * time.Millisecond
 )
 
+// panZoomLevel is how many pixels of a touchpad pan zoom by one level.
+const panZoomLevel = 200.0
+
+// zoomModifiers says whether the modifiers held make the wheel zoom: Control and nothing else.
+//
+// Ported from VS Code: src/vs/editor/browser/controller/mouseHandler.ts (hasMouseWheelZoomModifiers)
+func zoomModifiers(m MouseModifiers) bool { return m.Ctrl && !m.Shift && !m.Alt && !m.Meta }
+
 // wheelDelta turns the scroll of a wheel into how far to scroll, in pixels, positive towards
 // the end: the sensitivity of the setting multiplies it, Shift scrolls sideways, and Alt
 // scrolls faster. A step is rounded away from zero, as VS Code rounds it.
@@ -85,8 +93,17 @@ func (s *editorState) pointerSignal(e gestures.PointerSignalEvent) {
 	if !ok {
 		return
 	}
-	dx, dy := s.wheelDelta(scroll.ScrollDelta(), s.modifiers())
 	vm := s.Widget().vm
+	mods := s.modifiers()
+	if vm.Options().MouseWheelZoom && zoomModifiers(mods) {
+		// The wheel zooms: a notch up is a level in, a notch down a level out.
+		delta := -scroll.ScrollDelta().Dy / wheelNotch
+		s.binding.Gestures().PointerSignalResolver.Register(e, func(gestures.PointerSignalEvent) {
+			vm.zoom.Set(vm.zoom.Level() + delta)
+		})
+		return
+	}
+	dx, dy := s.wheelDelta(scroll.ScrollDelta(), mods)
 	moves := (dy != 0 && s.clampTop(s.futureTop()+dy) != s.futureTop()) ||
 		(dx != 0 && min(max(vm.ScrollLeft()+dx, 0), vm.MaxScrollLeft()) != vm.ScrollLeft())
 	if !moves {
@@ -100,6 +117,11 @@ func (s *editorState) pointerSignal(e gestures.PointerSignalEvent) {
 // pan is the opposite of the scroll.
 func (s *editorState) panZoomUpdate(e *gestures.PointerPanZoomUpdateEvent) {
 	d := e.PanDelta()
+	vm := s.Widget().vm
+	if opts := vm.Options(); opts.MouseWheelZoom && zoomModifiers(s.modifiers()) {
+		vm.zoom.Set(vm.zoom.Level() + d.Dy/panZoomLevel)
+		return
+	}
 	opts := s.Widget().vm.Options()
 	k := opts.MouseWheelScrollSensitivity
 	if s.modifiers().Alt {

@@ -19,6 +19,11 @@ type Options struct {
 	FontFamilies []string
 	// FontSize is the font size in pixels.
 	FontSize float64
+	// FontWeight is the weight of the font, from 1 to 1000 (400 is normal, 700 bold); 0 is
+	// normal.
+	FontWeight int
+	// LetterSpacing is the space between letters, in pixels.
+	LetterSpacing float64
 	// LineHeight is the height of a row in pixels (see LineHeight).
 	LineHeight float64
 	// TabSize is the distance between tab stops in characters.
@@ -47,9 +52,14 @@ type Options struct {
 	RoundedSelection bool
 	// CursorWidth is the width of the cursor in pixels; 0 means 2.
 	CursorWidth float64
-	// CursorBlinking is the style of the cursor animation: "blink" and "solid" are drawn, the
-	// other VS Code styles blink like "blink".
+	// CursorBlinking is the style of the cursor animation: "blink", "smooth", "phase",
+	// "expand" or "solid".
 	CursorBlinking string
+	// CursorStyle is the shape of the cursor: "line", "block", "underline", "line-thin",
+	// "block-outline" or "underline-thin".
+	CursorStyle string
+	// MouseWheelZoom zooms the font with Control and the mouse wheel.
+	MouseWheelZoom bool
 	// MultiCursorModifier is the key that adds cursors with the mouse: "alt" or "ctrlCmd".
 	MultiCursorModifier string
 	// ColumnSelection makes a selection with the mouse a column selection.
@@ -138,6 +148,13 @@ type ViewModel struct {
 	// keepSessions and skipReveal are set by a command that leaves the sessions of the column
 	// selection, the occurrences and the expansion alone, and does not scroll (a copy).
 	keepSessions, skipReveal bool
+	// base are the options of the settings; opts, which the editor works with, are those at the
+	// zoom level.
+	base       Options
+	zoom       *Zoom
+	zoomHandle foundation.ListenerHandle
+	// animate starts the animation of the cursors (the widget sets it).
+	animate func()
 	// clip is the clipboard of the editor, once the widget gives it one.
 	clip *clipboardLink
 	// dropCaret is where dropped text would go, while text is dragged.
@@ -170,6 +187,8 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		doc:            doc,
 		cursors:        edit.NewCursors(eo),
 		opts:           opts,
+		base:           opts,
+		zoom:           NewZoom(),
 		cache:          cache,
 		syncedAt:       -1,
 		sel:            foundation.NewChangeNotifier(),
@@ -177,6 +196,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		focused:        true,
 		metrics:        foundation.NewChangeNotifier(),
 	}
+	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.Sync()
 	vm.restartBlink()
 	return vm
@@ -194,6 +214,14 @@ func (vm *ViewModel) Options() Options { return vm.opts }
 // SetOptions changes the settings. A change of the line height makes a new projection; the
 // paragraph cache needs no clearing, since its keys hold everything that changes a paragraph.
 func (vm *ViewModel) SetOptions(opts Options) {
+	vm.base = opts
+	vm.applyOptions()
+}
+
+// applyOptions makes the options the editor works with, from the settings and the zoom, and
+// lays the text out again when they changed.
+func (vm *ViewModel) applyOptions() {
+	opts := zoomed(vm.base, vm.zoom.Level())
 	if sameOptions(vm.opts, opts) {
 		return
 	}
@@ -346,8 +374,23 @@ func (vm *ViewModel) CursorsVisible() bool { return vm.blink.Visible() }
 func (vm *ViewModel) SetTimer(after TimerFunc) { vm.blink.SetTimer(after) }
 
 func (vm *ViewModel) restartBlink() {
-	vm.blink.Restart(blinkStyleOf(vm.focused, vm.opts.CursorBlinking))
+	style := blinkStyleOf(vm.focused, vm.opts.CursorBlinking)
+	vm.blink.Restart(style)
+	if style.animated() && vm.animate != nil {
+		vm.animate()
+	}
 }
+
+// CursorFrame is how opaque the cursors are and how much of their height is left, in the
+// animated styles of editor.cursorBlinking.
+func (vm *ViewModel) CursorFrame() (opacity, scaleY float64) {
+	f := vm.blink.Frame()
+	return f.Opacity, f.ScaleY
+}
+
+// SetAnimator gives the view model the function that runs the animation of the cursors every
+// frame; it is called whenever the animation begins again. The editor widget sets it.
+func (vm *ViewModel) SetAnimator(start func()) { vm.animate = start }
 
 // RowOfPosition is the row that shows a position of the document.
 func (vm *ViewModel) RowOfPosition(p buffer.Position) int {

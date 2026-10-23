@@ -13,6 +13,7 @@ func DefaultRegistry() *Registry {
 	registerLineCommands(r)
 	registerMultiCursorCommands(r)
 	registerClipboardCommands(r)
+	registerDisplayCommands(r)
 	return r
 }
 
@@ -166,5 +167,16 @@ func registerClipboardCommands(r *Registry) {
 		Meta{ID: "editor.action.clipboardCutAction", Title: "Cut"},
 		Meta{ID: "editor.action.clipboardCopyAction", Title: "Copy"},
 		Meta{ID: "editor.action.clipboardPasteAction", Title: "Paste"},
+	)
+}
+
+// registerDisplayCommands registers the commands that zoom the font of the editor.
+//
+// Ported from VS Code: src/vs/editor/contrib/fontZoom/browser/fontZoom.ts
+func registerDisplayCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "editor.action.fontZoomIn", Title: "Increase Editor Font Size"},
+		Meta{ID: "editor.action.fontZoomOut", Title: "Decrease Editor Font Size"},
+		Meta{ID: "editor.action.fontZoomReset", Title: "Reset Editor Font Size"},
 	)
 }

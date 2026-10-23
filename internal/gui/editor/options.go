@@ -24,6 +24,8 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 	return Options{
 		FontFamilies:         families,
 		FontSize:             fontSize,
+		FontWeight:           ParseFontWeight(settings.Get[string](store, "editor.fontWeight", languageID)),
+		LetterSpacing:        settings.Get[float64](store, "editor.letterSpacing", languageID),
 		LineHeight:           LineHeight(settings.Get[float64](store, "editor.lineHeight", languageID), fontSize),
 		TabSize:              max(tabSize, 1),
 		FontFeatures:         fontFeatures(store, languageID),
@@ -39,6 +41,8 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		RoundedSelection:                 settings.Get[bool](store, "editor.roundedSelection", languageID),
 		CursorWidth:                      settings.Get[float64](store, "editor.cursorWidth", languageID),
 		CursorBlinking:                   settings.Get[string](store, "editor.cursorBlinking", languageID),
+		CursorStyle:                      settings.Get[string](store, "editor.cursorStyle", languageID),
+		MouseWheelZoom:                   settings.Get[bool](store, "editor.mouseWheelZoom", languageID),
 		MultiCursorModifier:              settings.Get[string](store, "editor.multiCursorModifier", languageID),
 		ColumnSelection:                  settings.Get[bool](store, "editor.columnSelection", languageID),
 		MouseStyle:                       settings.Get[string](store, "editor.mouseStyle", languageID),
@@ -50,6 +54,21 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		MultiCursorPaste:                 settings.Get[string](store, "editor.multiCursorPaste", languageID),
 		EmptySelectionClipboard:          settings.Get[bool](store, "editor.emptySelectionClipboard", languageID),
 	}
+}
+
+// ParseFontWeight reads editor.fontWeight: "normal" and "bold" are 400 and 700, a number from 1
+// to 1000 is itself, and anything else is normal.
+func ParseFontWeight(value string) int {
+	switch value = strings.TrimSpace(value); value {
+	case "", "normal":
+		return 400
+	case "bold":
+		return 700
+	}
+	if n, err := strconv.Atoi(value); err == nil && n >= 1 && n <= 1000 {
+		return n
+	}
+	return 400
 }
 
 // FontFamilies splits the value of editor.fontFamily: comma-separated names, each trimmed

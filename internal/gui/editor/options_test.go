@@ -64,6 +64,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		MultiCursorModifier: "alt", MouseStyle: "text",
 		MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
 		MultiCursorPaste: "spread", EmptySelectionClipboard: true,
+		FontWeight: 400, CursorStyle: "line",
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -100,6 +101,10 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.selectionClipboard":               false,
 		"editor.multiCursorPaste":                 "full",
 		"editor.emptySelectionClipboard":          false,
+		"editor.fontWeight":                       "bold",
+		"editor.letterSpacing":                    1.5,
+		"editor.cursorStyle":                      "block-outline",
+		"editor.mouseWheelZoom":                   true,
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -118,6 +123,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	if got.MouseWheelScrollSensitivity != 2.5 || got.FastScrollSensitivity != 9 || !got.SmoothScrolling || got.DragAndDrop || got.SelectionClipboard ||
 		got.MultiCursorPaste != "full" || got.EmptySelectionClipboard {
 		t.Errorf("scroll and drag options: %+v", got)
+	}
+	if got.FontWeight != 700 || got.LetterSpacing != 1.5 || got.CursorStyle != "block-outline" || !got.MouseWheelZoom {
+		t.Errorf("font and cursor options: %+v", got)
 	}
 	if got.FontFeatures != nil {
 		t.Errorf("ligatures on leave the font's own features: %v", got.FontFeatures)
@@ -173,5 +181,20 @@ func TestOptionsFollowALanguageBlock(t *testing.T) {
 	}
 	if got := OptionsFromSettings(store, "go", "", 4).FontSize; got != 14 {
 		t.Errorf("go: %v", got)
+	}
+}
+
+func TestParseFontWeight(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{"normal", 400}, {"", 400}, {"bold", 700}, {" bold ", 700}, {"300", 300}, {"1000", 1000}, {"1", 1},
+		{"0", 400}, {"1001", 400}, {"heavy", 400}, {"-5", 400},
+	}
+	for _, tc := range cases {
+		if got := ParseFontWeight(tc.in); got != tc.want {
+			t.Errorf("ParseFontWeight(%q) = %d, want %d", tc.in, got, tc.want)
+		}
 	}
 }

@@ -133,9 +133,9 @@ func registerEditor(r *Registry) {
 			Enum: []any{"blink", "smooth", "phase", "expand", "solid"},
 			EnumDescriptions: []string{
 				"The cursor is shown and hidden every half second.",
-				"Emetos blinks like \"blink\" (the fading animation of VS Code is not implemented).",
-				"Emetos blinks like \"blink\" (the fading animation of VS Code is not implemented).",
-				"Emetos blinks like \"blink\" (the growing animation of VS Code is not implemented).",
+				"The cursor fades out and in.",
+				"The cursor fades out and in, staying dark longer.",
+				"The cursor shrinks to nothing and grows back.",
 				"The cursor does not blink.",
 			},
 			Description: "Controls the cursor animation style.",
@@ -200,6 +200,28 @@ func registerEditor(r *Registry) {
 		Setting{
 			Key: "editor.emptySelectionClipboard", Types: []Type{Boolean}, Default: true,
 			Description: "Controls whether copying without a selection copies the current line.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.fontWeight", Types: []Type{String}, Default: "normal",
+			Enum:        []any{"normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"},
+			Description: "Controls the font weight. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.letterSpacing", Types: []Type{Number}, Default: 0,
+			Description: "Controls the letter spacing in pixels.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.cursorStyle", Types: []Type{String}, Default: "line",
+			Enum:        []any{"line", "block", "underline", "line-thin", "block-outline", "underline-thin"},
+			Description: "Controls the cursor style in insert input mode.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.mouseWheelZoom", Types: []Type{Boolean}, Default: false,
+			Description: "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{

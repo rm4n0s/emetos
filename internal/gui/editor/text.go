@@ -27,6 +27,10 @@ func newTextStyle(factory ui.ParagraphFactory, opts Options, color ui.Color) tex
 	b.WriteByte('|')
 	b.WriteString(strconv.FormatFloat(opts.LineHeight, 'g', -1, 64))
 	b.WriteByte('|')
+	b.WriteString(strconv.Itoa(opts.FontWeight))
+	b.WriteByte('|')
+	b.WriteString(strconv.FormatFloat(opts.LetterSpacing, 'g', -1, 64))
+	b.WriteByte('|')
 	b.WriteString(strconv.FormatUint(uint64(color.ToARGB32()), 16))
 	for _, f := range opts.FontFeatures {
 		b.WriteByte('|')
@@ -67,12 +71,22 @@ func (s textStyle) build(text string) *ui.Paragraph {
 		features = append(features, ui.NewFontFeature(f.Tag, f.Value))
 	}
 	color := s.color
+	var spacing *float64
+	if s.opts.LetterSpacing != 0 {
+		spacing = &s.opts.LetterSpacing
+	}
+	weight := ui.FontWeight(s.opts.FontWeight)
+	if s.opts.FontWeight == 0 {
+		weight = ui.FontWeightW400
+	}
 	builder := ui.NewParagraphBuilder(s.factory, pstyle)
 	builder.PushStyle(ui.NewTextStyle(ui.TextStyleOpts{
 		Color:               &color,
 		FontFamily:          family,
 		FontFamilyFallback:  fallback,
 		FontSize:            &size,
+		FontWeight:          weight,
+		LetterSpacing:       spacing,
 		Height:              height,
 		LeadingDistribution: ui.TextLeadingDistributionEven,
 		FontFeatures:        features,

@@ -196,6 +196,7 @@ func testOptions() Options {
 		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
 		MultiCursorModifier: "alt", MouseStyle: "text", MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
 		MultiCursorPaste: "spread", EmptySelectionClipboard: true,
+		FontWeight: 400, CursorStyle: "line",
 	}
 }
 
