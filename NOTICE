@@ -17,7 +17,11 @@ planned and has no files in the repository yet.
    upstream: go-syntax, vscode-JSON.tmLanguage, better-snippet-syntax,
    YAML-Syntax-Highlighter, vscode-markdown-tm-grammar, all MIT, and the
    TextMate bundle license of markdown.tmbundle, which permits copying, use,
-   modification and sale). Steps 4.6b, 4.10 and 4.11 add more (not yet added).
+   modification and sale). Step 4.6b added Python (MagicPython, MIT), JavaScript
+   and JavaScript React (TypeScript-TmLanguage, MIT, and javascript.tmbundle
+   under the TextMate bundle license) and TypeScript and TypeScript React
+   (TypeScript-TmLanguage, MIT); their license texts are in the same
+   ThirdPartyNotices.txt. Steps 4.10 and 4.11 add more (not yet added).
    A grammar without a permissive license is left out and recorded here.
 
 2. Color themes

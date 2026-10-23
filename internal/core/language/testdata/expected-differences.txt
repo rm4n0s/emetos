@@ -6,8 +6,6 @@
 # bundled yet is not highlighted: the rule of the block is left out, as vscode-textmate does when an
 # included grammar is missing. The entries go when the language is bundled.
 issue-279576.md 1-11 C# is not one of the bundled languages
-issue-279576.md 14-21 TypeScript is bundled with step 4.6b
-issue-279576.md 24-31 TypeScript React is bundled with step 4.6b
 test-33886.md 3-11 HTML (text.html.derivative) is bundled with step 4.10
 test.md 14-26 HTML (text.html.derivative) is bundled with step 4.10
 test.md 106 HTML (text.html.derivative) is bundled with step 4.10

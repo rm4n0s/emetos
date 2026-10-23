@@ -54,7 +54,9 @@ copy_license() {
 # Copies what the language registry reads of a VS Code extension (SPEC §8.1) into
 # internal/core/language/assets/<name>/: package.json, the language configurations,
 # the grammars (syntaxes/) and cgmanifest.json, which names the upstream of each
-# grammar. The build scripts, snippets and translations stay behind.
+# grammar. The build scripts, snippets and translations stay behind. A grammar in the
+# plist format is converted to JSON (internal/core/language/internal/plist2json) and
+# package.json is changed to name the .json file, as the loader reads JSON only.
 copy_extension() {
   local name=$1 src="$ref/vscode/extensions/$1" dst="$root/internal/core/language/assets/$1"
   [[ -d "$src" ]] || { echo "error: reference/vscode/extensions/$name is not a folder" >&2; exit 1; }
@@ -62,8 +64,22 @@ copy_extension() {
   mkdir -p "$dst"
   cp -a "$src/package.json" "$src/cgmanifest.json" "$src/syntaxes" "$dst/"
   local f
-  for f in "$src"/language-configuration*.json; do
+  for f in "$src"/*language-configuration.json; do
     [[ -f "$f" ]] && cp -a "$f" "$dst/"
+  done
+  rm -f "$dst"/syntaxes/Readme.md
+  local base manifest
+  for f in "$dst"/syntaxes/*; do
+    case "$f" in
+      *.json) ;;
+      *)
+        base="$(basename "$f")"
+        (cd "$root" && go run ./internal/core/language/internal/plist2json "$f" "$f.json")
+        rm -f "$f"
+        manifest="$(<"$dst/package.json")"
+        printf '%s\n' "${manifest//"$base\""/"$base.json\""}" >"$dst/package.json"
+        ;;
+    esac
   done
   chmod -R u+rw,go+r "$dst"
 }
@@ -84,5 +100,11 @@ for ext in go json yaml markdown-basics; do
   copy_extension "$ext"
 done
 copy_license vscode-extensions vscode/LICENSE.txt vscode/ThirdPartyNotices.txt
+
+# Step 4.6b: Python, JavaScript (and JavaScript React) and TypeScript (and TypeScript React). The
+# regular expression grammar of JavaScript, source.js.regexp, is a plist and is converted.
+for ext in python javascript typescript-basics; do
+  copy_extension "$ext"
+done
 
 echo "update-assets: done"

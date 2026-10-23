@@ -36,6 +36,17 @@ func TestBundledRegistry(t *testing.T) {
 		{"user-data", "#cloud-config", "yaml"},
 		{"README.md", "", "markdown"},
 		{"compose.yaml", "", "dockercompose"},
+		{"app.py", "", "python"},
+		{"deploy", "#!/usr/bin/env python3", "python"},
+		{"SConstruct", "", "python"},
+		{"app.js", "", "javascript"},
+		{"app.mjs", "", "javascript"},
+		{"run", "#!/usr/bin/env node", "javascript"},
+		{"app.jsx", "", "javascriptreact"},
+		{"app.ts", "", "typescript"},
+		{"app.mts", "", "typescript"},
+		{"app.tsx", "", "typescriptreact"},
+		{"tsconfig.json", "", "jsonc"},
 		{"notes.txt", "", "plaintext"},
 	}
 	for _, tc := range cases {
@@ -46,7 +57,7 @@ func TestBundledRegistry(t *testing.T) {
 		})
 	}
 	// Every language with a grammar makes a tokenizer.
-	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown"} {
+	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact"} {
 		if _, err := r.NewGrammar(id, nil); err != nil {
 			t.Errorf("NewGrammar(%q): %v", id, err)
 		}
@@ -130,7 +141,7 @@ func TestEveryBundledGrammarCompiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if files < 9 || patterns < 500 {
+	if files < 15 || patterns < 2000 {
 		t.Errorf("only %d grammar files and %d patterns were found", files, patterns)
 	}
 }

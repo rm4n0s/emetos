@@ -544,3 +544,16 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** `testdata/expected-differences.txt` lists the Markdown lines that differ, all because a language embedded in Markdown is not bundled (C# is not planned; TypeScript and TypeScript React come with 4.6b; HTML with 4.10), and the whole of `md-math.md`, which needs the `markdown-math` extension (not bundled). These are not regexp2 differences: a rule whose included grammar is missing is left out, as in vscode-textmate. The oracle reads `reference/` and is skipped when it is missing. The unused YAML 1.0–1.3 grammars and the compose language come with the `yaml` extension, as VS Code has them.
+
+## 4.6b The first languages: Python, JavaScript, TypeScript
+
+- **Date:** 2026-10-23
+- **Branch:** feat/step-4.6b-python-js-ts
+- **Summary:** Python, JavaScript, JavaScript React, TypeScript and TypeScript React are bundled (D13). `scripts/update-assets.sh` copies the `python`, `javascript` and `typescript-basics` extensions (`copy_extension` now takes every `*language-configuration.json`, as JavaScript has two, and drops the `Readme.md` of the grammars). The grammar `source.js.regexp` of JavaScript is a plist: the new `internal/core/language/internal/plist2json` converts it (XML property list to JSON, stdlib only) and the script changes its path in the copied `package.json`, so the registry reads JSON only; the `GrammarFileInvalid` problem that 4.5 noted is gone. `language.Bundled()` adds the three extensions; the jsdoc injection grammars of TypeScript (`injectTo`) and the `jsx-tags` language come with them.
+- **Main files:** `scripts/update-assets.sh`, `internal/core/language/{bundled.go,bundled_test.go,oracle_test.go,assets/,internal/plist2json/}`, `testdata/expected-differences.txt`, `NOTICE`, `docs/SPEC.md` §8.1.
+- **Tests:** the oracle now runs 36 fixtures, the 13 of 4.6 and 23 more (`test.py`, `test-freeze-56377.py`, `test.js`, `test6916.js`, `test.jsx`, and 18 TypeScript and TSX ones), and every line equals VS Code's, so no entry was added to `expected-differences.txt` and the two TypeScript entries of Markdown's fenced blocks were removed (the blocks now highlight as VS Code does); detection of the new languages (extension, file name, first line, `tsconfig.json` as JSON with Comments); every pattern of the 15 bundled grammar files compiles; `plist2json` (5 value kinds, 11 error routes, the file round trip).
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · display tests none
+- **Proof:** none (the step names none)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** none. The grammar licenses (MagicPython and TypeScript-TmLanguage are MIT, `javascript.tmbundle` has the TextMate bundle license) are all permissive, so nothing was left out.

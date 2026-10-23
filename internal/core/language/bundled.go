@@ -14,10 +14,11 @@ import (
 var assets embed.FS
 
 // bundledExtensions are the folders of assets that Bundled adds, in the order of registration.
-var bundledExtensions = []string{"go", "json", "yaml", "markdown-basics"}
+var bundledExtensions = []string{"go", "json", "yaml", "markdown-basics", "python", "javascript", "typescript-basics"}
 
 // Bundled makes a registry of the languages that Emetos carries: Go, JSON, JSON with Comments,
-// JSON Lines, Code Snippets, YAML and Markdown. Every call makes a registry of its own. The
+// JSON Lines, Code Snippets, YAML, Markdown, Python, JavaScript, JavaScript React, TypeScript and
+// TypeScript React. Every call makes a registry of its own. The
 // error has the tag BundledExtensionUnreadable when an extension of the assets cannot be read.
 func Bundled() (*Registry, error) {
 	r := NewRegistry()
