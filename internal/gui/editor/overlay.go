@@ -20,6 +20,8 @@ type OverlayColors struct {
 	LineHighlightBorder ui.Color
 	// Cursor is the color of the cursors.
 	Cursor ui.Color
+	// Foreground is the color of the text, for the text an input method composes.
+	Foreground ui.Color
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -163,7 +165,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 	canvas.Save()
 	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
 	view := overlayView{
-		canvas: canvas, geo: newGeometry(r.vm, r.factory), colors: r.colors,
+		canvas: canvas, geo: newGeometry(r.vm, r.factory), colors: r.colors, factory: r.factory,
 		origin: ui.Offset{Dx: offset.Dx - r.vm.ScrollLeft(), Dy: offset.Dy - top}, width: size.Width,
 		first: first, last: last,
 	}
@@ -178,9 +180,10 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 
 // overlayView is what a layer draws a frame with.
 type overlayView struct {
-	canvas *ui.Canvas
-	geo    geometry
-	colors OverlayColors
+	canvas  *ui.Canvas
+	geo     geometry
+	colors  OverlayColors
+	factory ui.ParagraphFactory
 	// origin is where the top left of the document is on the canvas.
 	origin ui.Offset
 	// width is the width of the layer.
@@ -304,11 +307,17 @@ func (v overlayView) paintPiece(row int, p selectionPiece, selection ui.Color) {
 	}), fill(color))
 }
 
-// paintCursors draws the line cursors of the visible rows, while they are shown.
+// paintCursors draws the text an input method composes and the line cursors of the visible
+// rows, while they are shown. While there is a preedit the primary cursor is in it, where the
+// method's own cursor is.
 //
 // Ported from VS Code: src/vs/editor/browser/viewParts/viewCursors/viewCursor.ts (_prepareRender, line style)
 func (v overlayView) paintCursors() {
 	vm := v.geo.vm
+	preedit, composing := vm.Preedit()
+	if composing {
+		v.paintPreedit(preedit)
+	}
 	if !vm.CursorsVisible() {
 		return
 	}
@@ -317,15 +326,52 @@ func (v overlayView) paintCursors() {
 		width = w
 	}
 	paint := fill(v.colors.Cursor)
-	for _, sel := range vm.Cursors().Selections() {
+	for i, sel := range vm.Cursors().Selections() {
 		row := vm.RowOfPosition(sel.Active)
 		if row < v.first || row > v.last {
 			continue
 		}
 		left := v.geo.x(row, sel.Active.Col)
+		if i == 0 && composing {
+			left += v.preeditOffset(preedit, preedit.End)
+		}
 		if width >= 2 && left >= 1 {
 			left-- // between the characters, not over the next one
 		}
 		v.canvas.DrawRect(v.rowRect(row, left, left+width), paint)
+	}
+}
+
+// preeditOffset is the width of the first n bytes of the preedit.
+func (v overlayView) preeditOffset(p Preedit, n int) float64 {
+	style := newTextStyle(v.factory, v.geo.vm.Options(), v.colors.Foreground)
+	right := 0.0
+	for _, b := range style.paragraph(v.geo.vm.Paragraphs(), p.Text).GetBoxesForRange(0, n) {
+		right = max(right, b.Right)
+	}
+	return right
+}
+
+// paintPreedit draws the composed text over the text at the primary cursor, on the color of
+// the editor so that what is under it does not show, with a line below it and a thicker one
+// below the part the method highlights.
+func (v overlayView) paintPreedit(p Preedit) {
+	vm := v.geo.vm
+	primary := vm.Cursors().Primary().Position()
+	row := vm.RowOfPosition(primary)
+	if row < v.first || row > v.last {
+		return
+	}
+	left := v.geo.x(row, primary.Col)
+	style := newTextStyle(v.factory, vm.Options(), v.colors.Foreground)
+	para := style.paragraph(vm.Paragraphs(), p.Text)
+	rect := v.rowRect(row, left, left+para.LongestLine())
+	v.canvas.DrawRect(rect, fill(v.colors.Background))
+	v.canvas.DrawParagraph(para, ui.Offset{Dx: rect.Left, Dy: rect.Top})
+	line := fill(v.colors.Foreground)
+	v.canvas.DrawRect(ui.NewRectFromLTRB(rect.Left, rect.Bottom-2, rect.Right, rect.Bottom-1), line)
+	if p.End > p.Begin {
+		from, to := rect.Left+v.preeditOffset(p, p.Begin), rect.Left+v.preeditOffset(p, p.End)
+		v.canvas.DrawRect(ui.NewRectFromLTRB(from, rect.Bottom-3, to, rect.Bottom-1), line)
 	}
 }

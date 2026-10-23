@@ -25,15 +25,21 @@ type textLayer struct {
 	vm     *ViewModel
 	offset rendering.ViewportOffset
 	color  ui.Color
+	// created is told of the render object when it is made.
+	created func(*RenderEditorText)
 }
 
-func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color) *textLayer {
-	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color}
+func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color, created func(*RenderEditorText)) *textLayer {
+	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color, created: created}
 }
 
 // CreateRenderObject implements widgets.RenderObjectWidget.
 func (w *textLayer) CreateRenderObject(bc widgets.BuildContext) rendering.RenderObject {
-	return NewRenderEditorText(w.vm, w.offset, textFactory(bc), w.color)
+	r := NewRenderEditorText(w.vm, w.offset, textFactory(bc), w.color)
+	if w.created != nil {
+		w.created(r)
+	}
+	return r
 }
 
 // UpdateRenderObject implements widgets.RenderObjectWidget.
@@ -174,6 +180,9 @@ type EditorOpts struct {
 	Scopes *kit.FocusScopes
 	// Autofocus asks for the focus when the editor is first shown.
 	Autofocus bool
+	// OnError is told about the errors of the keyboard input, such as typing into a
+	// read-only document. Without it they are dropped.
+	OnError func(error)
 }
 
 // NewEditor makes the editor of a view model.
@@ -200,11 +209,15 @@ type editorState struct {
 	observer     *focusObserver
 	scroll       *editorScroll
 
+	input           *textInput
+	textRO          *RenderEditorText
+	geometryPending bool
 	node            *widgets.FocusNode
 	scope           *contextkey.Scope
 	unregisterScope func()
 	unbindCommands  func()
 	selHandle       foundation.ListenerHandle
+	metricsHandle   foundation.ListenerHandle
 	// windowFocused and editorFocused make the focus of the view model: the editor has it
 	// when it has the focus of the window's tree and the window has the keyboard.
 	windowFocused, editorFocused bool
@@ -220,8 +233,11 @@ func (s *editorState) InitState() {
 		InitialScrollOffset: vm.ScrollTop(),
 		KeepScrollOffset:    foundation.Some(false),
 	})
-	s.scrollHandle = s.controller.AddListener(func() { s.Widget().vm.SetScrollTop(s.controller.Offset()) })
-	s.vmHandle = vm.AddListener(func() { s.SetState(func() {}) })
+	s.scrollHandle = s.controller.AddListener(func() {
+		s.Widget().vm.SetScrollTop(s.controller.Offset())
+		s.scheduleInputGeometry()
+	})
+	s.vmHandle = vm.AddListener(s.viewModelChanged)
 	s.scroll = newEditorScroll(vm, s.controller)
 	vm.SetScroller(s.scrollTo)
 
@@ -242,8 +258,54 @@ func (s *editorState) InitState() {
 			s.unregisterScope = opts.Scopes.Register(s.node, s.scope)
 		}
 	}
-	s.selHandle = vm.AddSelectionListener(s.updateKeys)
+	s.input = &textInput{state: s}
+	s.selHandle = vm.AddSelectionListener(s.selectionChanged)
+	s.metricsHandle = vm.AddMetricsListener(s.scheduleInputGeometry)
 	s.applyFocus()
+}
+
+// viewModelChanged rebuilds the editor, since the width of the gutter depends on the number of
+// lines, and tells the input method where its caret went.
+func (s *editorState) viewModelChanged() {
+	s.SetState(func() {})
+	s.scheduleInputGeometry()
+}
+
+// selectionChanged follows the selections: the context keys, the line the input method has
+// and where it puts its window.
+func (s *editorState) selectionChanged() {
+	s.updateKeys()
+	s.input.sync()
+	s.scheduleInputGeometry()
+}
+
+// reportInputError passes an error of the keyboard input on.
+func (s *editorState) reportInputError(err error) {
+	if report := s.Widget().opts.OnError; report != nil {
+		report(err)
+	}
+}
+
+// scheduleInputGeometry tells the input method, after the frame, where the editor is and where
+// its caret is (Glutter's SetComposingRect does not reach the platform, so the caret rect is
+// the input method's anchor, including while it composes). Several changes in a frame make
+// one call.
+func (s *editorState) scheduleInputGeometry() {
+	if s.geometryPending || s.input == nil || s.input.conn == nil {
+		return
+	}
+	s.geometryPending = true
+	scheduler := s.binding.Scheduler()
+	scheduler.ScheduleFrame()
+	scheduler.AddPostFrameCallback(func(time.Duration) {
+		s.geometryPending = false
+		conn := s.input.conn
+		if conn == nil || !conn.Attached() || s.textRO == nil || !s.textRO.Attached() {
+			return
+		}
+		conn.SetEditableSizeAndTransform(s.textRO.Size(), s.textRO.GetTransformTo(nil))
+		conn.SetCaretRect(s.textRO.caretRect())
+	})
 }
 
 // scrollTo moves the editor vertically to a position, within the content.
@@ -259,6 +321,13 @@ func (s *editorState) scrollTo(top float64) {
 // over its commands while it has it.
 func (s *editorState) focusChanged(has bool) {
 	s.editorFocused = has
+	if has {
+		s.input.attach(s.binding)
+		s.scheduleInputGeometry()
+	} else {
+		s.input.detach()
+		s.Widget().vm.SetPreedit(Preedit{})
+	}
 	if cmds := s.Widget().opts.Commands; cmds != nil {
 		if has && s.unbindCommands == nil {
 			s.unbindCommands = BindCommands(cmds, s.Widget().vm)
@@ -314,11 +383,14 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		}
 		old.vm.RemoveListener(s.vmHandle)
 		old.vm.RemoveSelectionListener(s.selHandle)
+		old.vm.RemoveMetricsListener(s.metricsHandle)
+		old.vm.SetPreedit(Preedit{})
 		old.vm.SetTimer(nil)
 		old.vm.SetScroller(nil)
 		vm := s.Widget().vm
-		s.vmHandle = vm.AddListener(func() { s.SetState(func() {}) })
-		s.selHandle = vm.AddSelectionListener(s.updateKeys)
+		s.vmHandle = vm.AddListener(s.viewModelChanged)
+		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
+		s.metricsHandle = vm.AddMetricsListener(s.scheduleInputGeometry)
 		s.scroll.dispose()
 		s.scroll = newEditorScroll(vm, s.controller)
 		vm.SetScroller(s.scrollTo)
@@ -344,8 +416,11 @@ func (s *editorState) Dispose() {
 	s.node.Dispose()
 	s.scroll.dispose()
 	s.binding.RemoveObserver(s.observer)
+	s.input.detach()
 	vm := s.Widget().vm
 	vm.RemoveSelectionListener(s.selHandle)
+	vm.RemoveMetricsListener(s.metricsHandle)
+	vm.SetPreedit(Preedit{})
 	vm.SetTimer(nil)
 	vm.SetScroller(nil)
 	vm.RemoveListener(s.vmHandle)
@@ -374,6 +449,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		Background: colors.EditorBackground, Selection: colors.EditorSelectionBackground,
 		InactiveSelection: colors.EditorInactiveSelectionBackground, LineHighlight: colors.EditorLineHighlightBackground,
 		LineHighlightBorder: colors.EditorLineHighlightBorder, Cursor: colors.EditorCursorForeground,
+		Foreground: colors.EditorForeground,
 	}
 	return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
 		widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
@@ -382,7 +458,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 					widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
 				widgets.NewExpanded(widgets.NewStack([]widgets.Widget{
 					newOverlayLayer(overlayUnder, vm, offset, overlayColors),
-					newTextLayer(vm, offset, colors.EditorForeground),
+					newTextLayer(vm, offset, colors.EditorForeground, func(r *RenderEditorText) { s.textRO = r }),
 					newOverlayLayer(overlayCursors, vm, offset, overlayColors),
 				}, widgets.StackOpts{Fit: rendering.StackFitExpand})),
 			}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})

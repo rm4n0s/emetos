@@ -110,6 +110,8 @@ type ViewModel struct {
 	columns      *edit.ColumnSelectData
 	occurrences  *edit.OccurrenceSession
 	expansion    *edit.Expansion
+	// preedit is the text an input method is composing, or nil.
+	preedit *Preedit
 	// find are the options of the search that finds the occurrences of a selection.
 	find edit.SearchOptions
 	// scroller scrolls the editor to a vertical position (the widget sets it).

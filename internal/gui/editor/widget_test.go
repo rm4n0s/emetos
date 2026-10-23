@@ -34,18 +34,30 @@ func goOptions() Options {
 func pumpEditor(t *testing.T, vm *ViewModel, size ui.Size) *gluttertest.Tester {
 	t.Helper()
 	ts := testutil.New(t, size)
+	pumpEditorWith(t, ts, vm, EditorOpts{Autofocus: true})
+	return ts
+}
+
+// testutilNew makes a tester of the size the editor tests use.
+func testutilNew(t *testing.T) *gluttertest.Tester {
+	t.Helper()
+	return testutil.New(t, ui.Size{Width: 640, Height: 400})
+}
+
+// pumpEditorWith shows the editor of a view model, with options, in a tester.
+func pumpEditorWith(t *testing.T, ts *gluttertest.Tester, vm *ViewModel, opts EditorOpts) {
+	t.Helper()
 	colors := kit.DarkModern()
 	ts.PumpWidget(kit.NewTheme(colors, widgets.NewWidgetsApp(colors.EditorBackground, widgets.WidgetsAppOpts{
 		DebugShowCheckedModeBanner: foundation.Some(false),
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(
 				func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
-					return NewEditor(vm, EditorOpts{Autofocus: true})
+					return NewEditor(vm, opts)
 				},
 				widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 		},
 	})))
-	return ts
 }
 
 func linesDoc(n int) *document.Document {
@@ -192,8 +204,9 @@ func TestLineNumbersOff(t *testing.T) {
 	opts.LineNumbers = LineNumbersOff
 	vm := NewViewModel(linesDoc(10), opts, nil)
 	pumpEditor(t, vm, ui.Size{Width: 400, Height: 200})
-	// Ten rows of text and no numbers and no digit measures.
-	if got := vm.Paragraphs().Builds(); got > 12 {
+	// Eleven rows of text, the width of a character for the layout and one for the cursors, and
+	// none of the ten digits that the line numbers are measured with.
+	if got := vm.Paragraphs().Builds(); got > 14 {
 		t.Errorf("%d paragraphs without line numbers", got)
 	}
 }

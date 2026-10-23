@@ -371,6 +371,8 @@ func TestKeysOnAnotherLayout(t *testing.T) {
 
 func TestUnboundKeysAreLeftForTheTextInput(t *testing.T) {
 	a := newKeyApp(t, "abc")
+	ran, restore := a.spyOnCommands(t)
+	defer restore()
 	for _, tc := range []struct {
 		name    string
 		logical services.LogicalKeyboardKey
@@ -384,13 +386,19 @@ func TestUnboundKeysAreLeftForTheTextInput(t *testing.T) {
 		{"space", services.LogicalKeyboardKeySpace, services.PhysicalKeyboardKeySpace, " "},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if a.ts.SendKeyEvent(tc.logical, gluttertest.KeyOpts{Physical: tc.phys, Character: tc.char}) {
-				t.Error("an unbound printable key was handled: Glutter would not type it")
+			// (SendKeyEvent says whether anything used the key: the text input does, by typing it.)
+			a.ts.SendKeyEvent(tc.logical, gluttertest.KeyOpts{Physical: tc.phys, Character: tc.char})
+			if len(*ran) != 0 {
+				t.Errorf("the dispatcher ran %v for an unbound key", *ran)
+			}
+			if got := a.win.Dispatcher.InChordMode(); got {
+				t.Error("an unbound key started a chord")
 			}
 		})
 	}
-	if a.text() != "abc" {
-		t.Errorf("the dispatcher changed the text: %q", a.text())
+	// The editor's text input typed them, in order, at the cursor.
+	if a.text() != "x5$β abc" {
+		t.Errorf("the keys were not typed: %q", a.text())
 	}
 	// A key with a binding is not left for the text input.
 	if !a.ts.SendKeyEvent(services.LogicalKeyboardKeyArrowRight, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyArrowRight}) {
@@ -520,4 +528,49 @@ func TestEditorsHandOverTheirCommandsWithTheFocus(t *testing.T) {
 		t.Errorf("%d commands", len(ids))
 	}
 	_ = ui.Size{}
+}
+
+func TestTypingThroughTheApp(t *testing.T) {
+	a := newKeyApp(t, "")
+	typeKey := func(logical services.LogicalKeyboardKey, physical services.PhysicalKeyboardKey, char string) bool {
+		return a.ts.SendKeyEvent(logical, gluttertest.KeyOpts{Physical: physical, Character: char})
+	}
+	for _, k := range []struct {
+		logical  services.LogicalKeyboardKey
+		physical services.PhysicalKeyboardKey
+		char     string
+	}{
+		{'f', services.PhysicalKeyboardKeyKeyF, "f"},
+		{'o', services.PhysicalKeyboardKeyKeyO, "o"},
+		{'o', services.PhysicalKeyboardKeyKeyO, "o"},
+	} {
+		typeKey(k.logical, k.physical, k.char)
+	}
+	if a.text() != "foo" {
+		t.Fatalf("text %q", a.text())
+	}
+	// Enter is typed as a new line.
+	typeKey(services.LogicalKeyboardKeyEnter, services.PhysicalKeyboardKeyEnter, "")
+	typeKey('b', services.PhysicalKeyboardKeyKeyB, "b")
+	if a.text() != "foo\nb" {
+		t.Errorf("after Enter: %q", a.text())
+	}
+	// Tab is a command of the editor, and a Control key is not typed.
+	if !typeKey(services.LogicalKeyboardKeyTab, services.PhysicalKeyboardKeyTab, "\t") {
+		t.Error("tab was not used")
+	}
+	if a.text() != "foo\nb   " {
+		t.Errorf("after Tab: %q", a.text())
+	}
+	a.ts.SendKeyDownEvent(services.LogicalKeyboardKeyControl)
+	typeKey('z', services.PhysicalKeyboardKeyKeyZ, "z") // undo
+	a.ts.SendKeyUpEvent(services.LogicalKeyboardKeyControl)
+	if strings.Contains(a.text(), "z") {
+		t.Errorf("ctrl+z typed a z: %q", a.text())
+	}
+	// Backspace is a command too.
+	typeKey(services.LogicalKeyboardKeyBackspace, services.PhysicalKeyboardKeyBackspace, "")
+	if errs := a.ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
 }
