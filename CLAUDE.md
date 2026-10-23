@@ -118,6 +118,14 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
 - Never look for, list, open or read files outside this project folder (no home-directory databases, configs, logs or other projects). If something outside it is needed, ask the user to provide it. Exceptions: dependency source in the Go module cache (including Glutter's), and temporary folders your own tests and scripts create
 - Never let a test, proof or check use the user's real Emetos configuration, state, cache, trash or socket: Go tests isolate the `XDG_*` folders (the helper of `internal/core/storage`), and scripts run the app through `scripts/isolated.sh` or `scripts/proof.sh` (SPEC §15.1)
 
+## Memory (OOM)
+A run that uses too much memory is killed by the OS (exit 137) and takes the session with it. Be careful:
+- Run the race tests with `GOMEMLIMIT=3GiB go test -race ./...`, and never run several heavy test or build commands at the same time
+- Never run Go fuzzing (`-fuzz`) without `-parallel=1`, a short `-fuzztime` (30s at most) and a memory limit (`GOMEMLIMIT=2GiB`, `ulimit -v`); each fuzz worker grows its own memory. Prefer the seed corpus and seeded random tests
+- Run the tests of one package (`go test ./internal/core/snippet`) while working; run `./...` only for the final checks
+- Tests, proofs and scripts that start compositors, editors or language servers run under `timeout -k`, and a test that builds big inputs (large files, millions of lines) keeps them bounded
+- If a command is killed (137), find out why before running it again: it may be a real memory bug (unbounded growth, a pathological regex) that needs a fix and a regression test
+
 ## Testing notes
 - The editor core is tested with plain Go tests; no UI needed
 - Widget tests use `gluttertest` (`PumpWidget`, `Pump`, `Tap`, finders) with a fake clock and the fake platform; no display needed
