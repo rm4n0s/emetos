@@ -17,6 +17,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerBreadcrumbColors(r)
 	registerButtonColors(r)
 	registerKitColors(r)
+	registerMenuColors(r)
 	return r
 }
 
@@ -431,5 +432,46 @@ func registerKitColors(r *ColorRegistry) {
 			Description: "Foreground color of the editor hover."},
 		ColorContribution{ID: "editorHoverWidget.border", Defaults: AllThemes(Ref("editorWidget.border")),
 			Description: "Border color of the editor hover."},
+	)
+}
+
+// registerMenuColors registers the colors of menus and of the menu bar (gui/kit's Menu,
+// ContextMenu and MenuBar), with the dropdown colors that the menu colors default to and the title
+// bar foreground the menu bar paints its titles in.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/menuColors.ts,
+// src/vs/platform/theme/common/colors/inputColors.ts (dropdown.*) and
+// src/vs/workbench/common/theme.ts (titleBar.activeForeground, menubar.*)
+func registerMenuColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "dropdown.background", Defaults: dflt(Hex("#3C3C3C"), Lit(ColorWhite), Lit(ColorBlack), Lit(ColorWhite)),
+			Description: "Dropdown background."},
+		ColorContribution{ID: "dropdown.foreground", Defaults: dflt(Hex("#F0F0F0"), Ref("foreground"), Lit(ColorWhite), Ref("foreground")),
+			Description: "Dropdown foreground."},
+		ColorContribution{ID: "titleBar.activeForeground", Defaults: dflt(Hex("#CCCCCC"), Hex("#333333"), Hex("#FFFFFF"), Hex("#292929")),
+			Description: "Title bar foreground when the window is active."},
+
+		ColorContribution{ID: "menu.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border color of menus."},
+		ColorContribution{ID: "menu.foreground", Defaults: AllThemes(Ref("dropdown.foreground")),
+			Description: "Foreground color of menu items."},
+		ColorContribution{ID: "menu.background", Defaults: AllThemes(Ref("dropdown.background")),
+			Description: "Background color of menu items."},
+		ColorContribution{ID: "menu.selectionForeground", Defaults: AllThemes(Ref("list.activeSelectionForeground")),
+			Description: "Foreground color of the selected menu item in menus."},
+		ColorContribution{ID: "menu.selectionBackground", Defaults: AllThemes(Ref("list.activeSelectionBackground")),
+			Description: "Background color of the selected menu item in menus."},
+		ColorContribution{ID: "menu.selectionBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color of the selected menu item in menus."},
+		ColorContribution{ID: "menu.separatorBackground",
+			Defaults:    dflt(Transparent(Ref("foreground"), 0.2), Transparent(Ref("foreground"), 0.2), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Color of a separator menu item in menus."},
+
+		ColorContribution{ID: "menubar.selectionForeground", Defaults: AllThemes(Ref("titleBar.activeForeground")),
+			Description: "Foreground color of the selected menu item in the menubar."},
+		ColorContribution{ID: "menubar.selectionBackground", Defaults: dflt(Ref("toolbar.hoverBackground"), Ref("toolbar.hoverBackground"), nil, nil),
+			Description: "Background color of the selected menu item in the menubar."},
+		ColorContribution{ID: "menubar.selectionBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color of the selected menu item in the menubar."},
 	)
 }

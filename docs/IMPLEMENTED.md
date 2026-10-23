@@ -947,3 +947,17 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Glutter issues:** one: a pressed pointer does not keep the cursor of the region it was pressed on; `splitview.go` holds the resize cursor during a drag with a `MouseRegion` over the whole view (a pane with its own cursor, such as an I-beam, is not covered) (`docs/GLUTTER-ISSUES.md`).
 - **Deviations and follow-ups:** the default scrollbar size is 10 px as VS Code's (the editor sets its own); the sash resets after the second press is released; Alt is read on each pointer move; a `SplitView` given a different number of panes starts again from the sizes of the new panes.
 
+## 6.3 Kit: menus
+
+- **Date:** 2026-10-23
+- **Branch:** feat/step-6.3-menus
+- **Summary:** `Menu` (items with mnemonic labels `&File`, right-aligned keybinding labels, checked and disabled items, separators, submenus that open on hover after 250 ms and with Right/Enter and close with Left/Escape after 750 ms, keyboard navigation with wrap, mnemonics, hover focus, run on click; `MenuHandle` for tests and callers), `ContextMenu` (`ContextMenuController` `Show/Hide`, `ContextMenuRegion` that opens on the right button, the menu key and Shift+F10, placement kept inside the window by `PlaceContextMenu`, `PlaceMenuAt` and `PlaceSubmenu`, ports of VS Code's `layout.ts`) and `MenuBar` (top-level menus, click to open, hover to switch, Left/Right, Alt tap shows mnemonics, Alt+letter opens, `MenuBarVisibility` classic/visible/toggle/hidden, `MenuBarController`), on Glutter's `RawMenuAnchor`. Colors `menu.*`, `menubar.*`, `titleBar.activeForeground`, `dropdown.background/foreground` in the registry and `kit.Colors`; the setting `window.menuBarVisibility`.
+- **Main files:** `internal/gui/kit/{menumodel,menu,contextmenu,menubar,theme}.go`, `internal/core/theme/colors_builtin.go`, `internal/core/settings/builtin.go`, `docs/SPEC.md` §10.2.
+- **Tests:** 71 test functions in the kit (about 280 cases with subtests): keyboard tables, pointer cases with the fake clock, placement tables (16 and 7 cases), the mnemonic parser (Cyrillic, CJK, accents), the bar's states and visibility modes; ported `layout.test.ts`, the stationary-pointer cases of `menu.test.ts` and the three mnemonic cases of `menubar.test.ts`; colors of the four theme types (13 ids); the setting; 10 goldens in Dark and Light Modern (`menu`, `menu_submenu`, `menubar_mnemonics`, `menubar_open`, `context_menu`; all looked at).
+- **Not ported:** the menu bar's overflow and compact modes, deferred updates, macOS tab navigation, Alt/Shift alternative actions, touch.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · display tests none.
+- **Proof:** none
+- **Manual checks:** none
+- **Glutter issues:** none (an `Autofocus` yields to a focused widget, a `RawMenuAnchor`'s child counts as inside the tap group, and a `HardwareKeyboard` handler returning true does not stop the focus tree from getting the key: all as in Flutter; the menus work around them).
+- **Deviations and follow-ups:** `window.menuBarVisibility` has the four values without `compact` (VS Code's description still mentions it); the setting is not wired to the bar yet, nor are `window.enableMenuBarMnemonics` and `window.customMenuBarAltFocus` (not registered); the hover outline of a bar menu is solid, not dashed; Alt+letter also reaches the focused widget, which matters if the editor ever binds Alt+letter; items run on pointer up.
+

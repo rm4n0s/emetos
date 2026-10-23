@@ -747,6 +747,20 @@ func registerWorkbench(r *Registry) {
 			Description: "If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, `workbench.preferredDarkColorTheme` is used, else `workbench.preferredLightColorTheme`.",
 			Scope:       ScopeWindow, Category: categoryWindow,
 		},
+		// Not ported: VS Code's "compact" value (the menu as a button in the side bar), which
+		// Emetos's menu bar does not have.
+		Setting{
+			Key: "window.menuBarVisibility", Types: []Type{String}, Default: "classic",
+			Enum: []any{"classic", "visible", "toggle", "hidden"},
+			EnumDescriptions: []string{
+				"Menu is displayed at the top of the window and only hidden in full screen mode.",
+				"Menu is always visible at the top of the window even in full screen mode.",
+				"Menu is hidden but can be displayed at the top of the window via the Alt key.",
+				"Menu is always hidden.",
+			},
+			Description: "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar.",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
 	)
 }
 

@@ -134,3 +134,31 @@ func TestModernThemesColorsOfKitWidgets(t *testing.T) {
 		}
 	}
 }
+
+// The colors of menus and of the menu bar in the two bundled themes: what the themes set (Dark
+// Modern sets the menu background and the selection; the border and the separator come from the
+// theme it includes) and, where they set nothing, the defaults of the color registry.
+func TestModernThemesColorsOfMenus(t *testing.T) {
+	names := [11]string{"menu.foreground", "menu.background", "menu.border", "menu.selectionForeground", "menu.selectionBackground",
+		"menu.selectionBorder", "menu.separatorBackground", "titleBar.activeForeground", "menubar.selectionForeground",
+		"menubar.selectionBackground", "menubar.selectionBorder"}
+	for _, tc := range []struct {
+		theme  string
+		colors Colors
+		want   [11]uint32
+	}{
+		{"Dark Modern", DarkModern(), [11]uint32{0xFFCCCCCC, 0xFF1F1F1F, 0xFF454545, 0xFFFFFFFF, 0xFF0078D4, 0x00000000, 0xFF454545, 0xFFCCCCCC, 0xFFCCCCCC, 0x505A5D5E, 0x00000000}},
+		{"Light Modern", LightModern(), [11]uint32{0xFF3B3B3B, 0xFFFFFFFF, 0xFFCECECE, 0xFFFFFFFF, 0xFF005FB8, 0x00000000, 0x333B3B3B, 0xFF1E1E1E, 0xFF1E1E1E, 0x50B8B8B8, 0x00000000}},
+	} {
+		c := tc.colors
+		got := [11]ui.Color{
+			c.MenuForeground, c.MenuBackground, c.MenuBorder, c.MenuSelectionForeground, c.MenuSelectionBackground, c.MenuSelectionBorder,
+			c.MenuSeparatorBackground, c.TitleBarActiveForeground, c.MenubarSelectionForeground, c.MenubarSelectionBackground, c.MenubarSelectionBorder,
+		}
+		for i := range got {
+			if got[i] != ui.NewColor(tc.want[i]) {
+				t.Errorf("%s %s = %#08x, want %#08x", tc.theme, names[i], got[i].ToARGB32(), tc.want[i])
+			}
+		}
+	}
+}

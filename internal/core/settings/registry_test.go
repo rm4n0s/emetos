@@ -278,3 +278,26 @@ func TestEmmetExpansionSettingsAreRegistered(t *testing.T) {
 		t.Error("emmet.showExpandedAbbreviation must not be registered")
 	}
 }
+
+func TestMenuBarVisibilityIsRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	s, ok := r.Lookup("window.menuBarVisibility")
+	if !ok || s.Default != "classic" || s.Scope != ScopeApplication || s.Category != categoryWindow || s.Description == "" {
+		t.Fatalf("window.menuBarVisibility: %+v, %v", s, ok)
+	}
+	if len(s.Enum) != 4 || len(s.EnumDescriptions) != 4 {
+		t.Errorf("the values are classic, visible, toggle and hidden: %v", s.Enum)
+	}
+	cases := []struct {
+		value   any
+		invalid bool
+	}{
+		{"classic", false}, {"visible", false}, {"toggle", false}, {"hidden", false},
+		{"compact", true}, {"", true}, {true, true}, {nil, true},
+	}
+	for _, tc := range cases {
+		if got := r.Validate("window.menuBarVisibility", tc.value) != ""; got != tc.invalid {
+			t.Errorf("Validate(%v): invalid = %v, want %v", tc.value, got, tc.invalid)
+		}
+	}
+}

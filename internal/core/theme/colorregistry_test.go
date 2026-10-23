@@ -158,6 +158,48 @@ func TestDefaultKitColors(t *testing.T) {
 	}
 }
 
+// The colors that step 6.3 added for menus and the menu bar, as VS Code's registry (menuColors.ts,
+// inputColors.ts, theme.ts) writes their defaults.
+func TestDefaultMenuColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"dropdown.background", "#3c3c3c", "#ffffff", "#000000", "#ffffff"},
+		{"dropdown.foreground", "#f0f0f0", "#616161", "#ffffff", "#292929"},
+		{"titleBar.activeForeground", "#cccccc", "#333333", "#ffffff", "#292929"},
+		{"menu.border", none, none, "#6fc3df", "#0f4a85"},
+		{"menu.foreground", "#f0f0f0", "#616161", "#ffffff", "#292929"},
+		{"menu.background", "#3c3c3c", "#ffffff", "#000000", "#ffffff"},
+		{"menu.selectionForeground", "#ffffff", "#ffffff", none, none},
+		{"menu.selectionBackground", "#04395e", "#0060c0", none, "rgba(15, 74, 133, 0.1)"},
+		{"menu.selectionBorder", none, none, "#f38518", "#006bbd"},
+		{"menu.separatorBackground", "rgba(204, 204, 204, 0.2)", "rgba(97, 97, 97, 0.2)", "#6fc3df", "#0f4a85"},
+		{"menubar.selectionForeground", "#cccccc", "#333333", "#ffffff", "#292929"},
+		{"menubar.selectionBackground", "rgba(90, 93, 94, 0.31)", "rgba(184, 184, 184, 0.31)", none, none},
+		{"menubar.selectionBorder", none, none, "#f38518", "#006bbd"},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+}
+
 func TestEveryDefaultColorHasADescription(t *testing.T) {
 	for _, c := range DefaultColorRegistry().Colors() {
 		if c.Description == "" {

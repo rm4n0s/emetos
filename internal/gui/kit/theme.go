@@ -117,6 +117,15 @@ type Colors struct {
 	DisabledForeground, ToolbarActiveBackground, ActionBarToggledBackground ui.Color
 	// The colors of hovers (tooltips): background, text and border.
 	EditorHoverWidgetBackground, EditorHoverWidgetForeground, EditorHoverWidgetBorder ui.Color
+	// The colors of menus: text, background and border, the focused item (text, background and
+	// border) and the separator.
+	MenuForeground, MenuBackground, MenuBorder                            ui.Color
+	MenuSelectionForeground, MenuSelectionBackground, MenuSelectionBorder ui.Color
+	MenuSeparatorBackground                                               ui.Color
+	// The colors of the menu bar: the titles are in TitleBarActiveForeground, and the title that is
+	// open, focused or under the pointer has the Selection colors.
+	TitleBarActiveForeground                                                       ui.Color
+	MenubarSelectionForeground, MenubarSelectionBackground, MenubarSelectionBorder ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -209,6 +218,13 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		ActionBarToggledBackground:  color("actionBar.toggledBackground"),
 		EditorHoverWidgetBackground: color("editorHoverWidget.background"), EditorHoverWidgetForeground: color("editorHoverWidget.foreground"),
 		EditorHoverWidgetBorder: color("editorHoverWidget.border"),
+
+		MenuForeground: color("menu.foreground"), MenuBackground: color("menu.background"), MenuBorder: color("menu.border"),
+		MenuSelectionForeground: color("menu.selectionForeground"), MenuSelectionBackground: color("menu.selectionBackground"),
+		MenuSelectionBorder: color("menu.selectionBorder"), MenuSeparatorBackground: color("menu.separatorBackground"),
+		TitleBarActiveForeground:   color("titleBar.activeForeground"),
+		MenubarSelectionForeground: color("menubar.selectionForeground"), MenubarSelectionBackground: color("menubar.selectionBackground"),
+		MenubarSelectionBorder: color("menubar.selectionBorder"),
 	}
 }
 
