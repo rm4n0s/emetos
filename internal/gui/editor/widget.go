@@ -2,6 +2,7 @@ package editor
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
@@ -674,9 +675,77 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	ruler := widgets.NewPositioned(widgets.NewIgnorePointer(newRulerLayer(vm, RulerColors{
 		FindMatch: colors.EditorOverviewRulerFindMatch, RangeHighlight: colors.EditorOverviewRulerRangeHighlight,
 	})), widgets.PositionedOpts{Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Right: foundation.Some(0.0), Width: foundation.Some(kit.DefaultVerticalScrollbarSize)})
-	return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
-		widgets.NewStack([]widgets.Widget{widgets.NewScrollConfiguration(behavior, scrollable), ruler}, widgets.StackOpts{Fit: rendering.StackFitExpand}),
-		s.scroll, kit.ScrollableElementOpts{InsetLeft: gutterWidth, UseShadows: true}))
+	pixelRatio, _ := widgets.MediaQueryMaybeDevicePixelRatioOf(bc)
+	fontMetrics := newGeometry(vm, textFactory(bc))
+	minimapColors := MinimapColors{
+		Background: colors.MinimapBackground, EditorBackground: colors.EditorBackground, Foreground: colors.EditorForeground,
+		ForegroundOpacity: colors.MinimapForegroundOpacity,
+		Selection:         colors.MinimapSelection, FindMatch: colors.MinimapFindMatch, SelectionOccurrence: colors.MinimapSelectionOccurrence,
+		Slider: colors.MinimapSliderBackground, SliderHover: colors.MinimapSliderHoverBackground, SliderActive: colors.MinimapSliderActive,
+	}
+	return widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+		info := s.layoutMinimap(vm, c.MaxWidth, c.MaxHeight, gutterWidth, fontMetrics.charWidth, pixelRatio)
+		text := widgets.NewScrollConfiguration(behavior, scrollable)
+		var body widgets.Widget = text
+		inset := gutterWidth
+		stack := []widgets.Widget{ruler}
+		if info.Show {
+			edge := painting.NewEdgeInsetsFromLTRB(0, 0, info.Width, 0)
+			minimapLeft := info.Left
+			if vm.Options().Minimap.Side == "left" {
+				edge = painting.NewEdgeInsetsFromLTRB(info.Width, 0, 0, 0)
+				inset += info.Width
+			}
+			body = widgets.NewPadding(edge, text)
+			stack = append(stack, widgets.NewPositioned(s.minimapWidget(vm, minimapColors, tokenTheme),
+				widgets.PositionedOpts{Left: foundation.Some(minimapLeft), Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Width: foundation.Some(info.Width)}))
+		}
+		return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
+			widgets.NewStack(append([]widgets.Widget{body}, stack...), widgets.StackOpts{Fit: rendering.StackFitExpand}),
+			s.scroll, kit.ScrollableElementOpts{InsetLeft: inset, UseShadows: true}))
+	})
+}
+
+// layoutMinimap works out where the minimap goes in an editor of a size, and tells the view model.
+// A large file has none.
+func (s *editorState) layoutMinimap(vm *ViewModel, width, height, gutterWidth, charWidth, pixelRatio float64) minimapLayoutInfo {
+	opts := vm.Options()
+	in := minimapInput{
+		MinimapOptions: opts.Minimap, OuterWidth: width, OuterHeight: height, RemainingWidth: width - gutterWidth,
+		LineHeight: opts.LineHeight, CharWidth: charWidth, PixelRatio: pixelRatio, ScrollBeyondLastLine: opts.ScrollBeyondLastLine,
+		VerticalScrollbarWidth: kit.DefaultVerticalScrollbarSize, ViewLineCount: vm.Projection().RowCount(),
+	}
+	if vm.Document().LargeFile() || charWidth <= 0 || math.IsInf(width, 0) || math.IsInf(height, 0) {
+		in.Enabled = false
+	}
+	info := computeMinimapLayout(in)
+	vm.SetMinimap(info, in)
+	return info
+}
+
+// minimapWidget is the minimap with the pointer handling around it.
+func (s *editorState) minimapWidget(vm *ViewModel, colors MinimapColors, tokens *theme.TokenTheme) widgets.Widget {
+	return widgets.NewMouseRegion(widgets.NewListener(
+		newMinimapLayer(vm, s.controller, colors, tokens),
+		widgets.ListenerOpts{
+			Behavior:        rendering.HitTestBehaviorOpaque,
+			OnPointerDown:   func(e *gestures.PointerDownEvent) { s.minimapDown(e) },
+			OnPointerMove:   func(e *gestures.PointerMoveEvent) { vm.MinimapPointerMove(e.LocalPosition().Dy) },
+			OnPointerUp:     func(*gestures.PointerUpEvent) { vm.MinimapPointerUp() },
+			OnPointerCancel: func(*gestures.PointerCancelEvent) { vm.MinimapPointerUp() },
+			OnPointerSignal: s.pointerSignal,
+		}), widgets.MouseRegionOpts{
+		OnEnter: func(*gestures.PointerEnterEvent) { vm.MinimapHover(true) },
+		OnExit:  func(*gestures.PointerExitEvent) { vm.MinimapHover(false) },
+	})
+}
+
+// minimapDown handles a press on the minimap: the primary button scrolls or drags the slider.
+func (s *editorState) minimapDown(e *gestures.PointerDownEvent) {
+	if e.Buttons()&gestures.PrimaryButton == 0 {
+		return
+	}
+	s.Widget().vm.MinimapPointerDown(e.LocalPosition().Dy)
 }
 
 // oppositeColor is the color with every channel inverted, which VS Code gives the text under a

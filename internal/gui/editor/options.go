@@ -91,6 +91,11 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		SelectionHighlight:               settings.Get[bool](store, "editor.selectionHighlight", languageID),
 		SelectionHighlightMaxLength:      int(settings.Get[float64](store, "editor.selectionHighlightMaxLength", languageID)),
 		SelectionHighlightMultiline:      settings.Get[bool](store, "editor.selectionHighlightMultiline", languageID),
+		Minimap: MinimapOptions{
+			Enabled: settings.Get[bool](store, "editor.minimap.enabled", languageID), Side: settings.Get[string](store, "editor.minimap.side", languageID),
+			Size: settings.Get[string](store, "editor.minimap.size", languageID), ShowSlider: settings.Get[string](store, "editor.minimap.showSlider", languageID),
+			Scale: int(settings.Get[float64](store, "editor.minimap.scale", languageID)), MaxColumn: int(settings.Get[float64](store, "editor.minimap.maxColumn", languageID)),
+		},
 
 		FindSeedSearchStringFromSelection: settings.Get[string](store, "editor.find.seedSearchStringFromSelection", languageID),
 		FindAutoInSelection:               settings.Get[string](store, "editor.find.autoFindInSelection", languageID),

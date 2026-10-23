@@ -28,6 +28,9 @@ type tokenLink struct {
 	// first and last are the lines on the screen, as the text layer last saw them.
 	first, last int
 	visible     bool
+	// mmFirst and mmLast are the lines the minimap draws.
+	mmFirst, mmLast int
+	mmVisible       bool
 }
 
 // SetTokenizer gives the view model the tokenizer of its document, whose tokens the text layer
@@ -84,6 +87,21 @@ func (vm *ViewModel) ensureTokens(first, last int) {
 	}
 }
 
+// minimapTokenBudget is how long the minimap may tokenize, on the UI thread, the lines it is about
+// to draw.
+const minimapTokenBudget = 2 * time.Millisecond
+
+// ensureMinimapTokens tokenizes, as far as the budget allows, up to the last line the minimap is
+// about to draw, and records which lines those are.
+func (vm *ViewModel) ensureMinimapTokens(first, last int) {
+	vm.tok.mu.Lock()
+	vm.tok.mmFirst, vm.tok.mmLast, vm.tok.mmVisible = first, last, true
+	vm.tok.mu.Unlock()
+	if vm.tok.tokenizer != nil {
+		vm.tok.tokenizer.Ensure(last, minimapTokenBudget)
+	}
+}
+
 // tokensChanged is told by the tokenizer, on its goroutine, that lines [from, to] were
 // tokenized. The repaint is posted to the UI thread once for the lines that changed meanwhile.
 func (vm *ViewModel) tokensChanged(from, to int) {
@@ -110,9 +128,11 @@ func (vm *ViewModel) flushTokens() {
 	l := &vm.tok
 	l.mu.Lock()
 	from, to, first, last, visible := l.from, l.to, l.first, l.last, l.visible
+	mmFirst, mmLast, mmVisible := l.mmFirst, l.mmLast, l.mmVisible
 	l.pending = false
 	l.mu.Unlock()
-	if visible && (to < first || from > last) {
+	outside := func(a, b int) bool { return to < a || from > b }
+	if visible && outside(first, last) && (!mmVisible || outside(mmFirst, mmLast)) {
 		return
 	}
 	vm.NotifyListeners()

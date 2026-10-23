@@ -64,6 +64,13 @@ type Colors struct {
 	// cursor.
 	EditorSelectionHighlightBackground, EditorSelectionHighlightBorder ui.Color
 	EditorWordHighlightTextBackground, EditorWordHighlightTextBorder   ui.Color
+	// MinimapBackground (transparent: the editor's), MinimapForegroundOpacity (the alpha is the
+	// opacity of the blocks), MinimapSelection, MinimapFindMatch and MinimapSelectionOccurrence
+	// (the marks of the selection, the find matches and the text equal to the selection) and the
+	// three colors of the minimap's slider.
+	MinimapBackground, MinimapForegroundOpacity                                ui.Color
+	MinimapSelection, MinimapFindMatch, MinimapSelectionOccurrence             ui.Color
+	MinimapSliderBackground, MinimapSliderHoverBackground, MinimapSliderActive ui.Color
 	// EditorOverviewRulerFindMatch and EditorOverviewRulerRangeHighlight are the marks of the
 	// matches and of the range highlight on the vertical scrollbar.
 	EditorOverviewRulerFindMatch, EditorOverviewRulerRangeHighlight ui.Color
@@ -134,6 +141,11 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorFindRangeHighlightBackground: color("editor.findRangeHighlightBackground"), EditorFindRangeHighlightBorder: color("editor.findRangeHighlightBorder"),
 		EditorSelectionHighlightBackground: color("editor.selectionHighlightBackground"), EditorSelectionHighlightBorder: color("editor.selectionHighlightBorder"),
 		EditorWordHighlightTextBackground: color("editor.wordHighlightTextBackground"), EditorWordHighlightTextBorder: color("editor.wordHighlightTextBorder"),
+		MinimapBackground: color("minimap.background"), MinimapForegroundOpacity: color("minimap.foregroundOpacity"),
+		MinimapSelection: color("minimap.selectionHighlight"), MinimapFindMatch: color("minimap.findMatchHighlight"),
+		MinimapSelectionOccurrence: color("minimap.selectionOccurrenceHighlight"),
+		MinimapSliderBackground:    color("minimapSlider.background"), MinimapSliderHoverBackground: color("minimapSlider.hoverBackground"),
+		MinimapSliderActive:          color("minimapSlider.activeBackground"),
 		EditorOverviewRulerFindMatch: color("editorOverviewRuler.findMatchForeground"), EditorOverviewRulerRangeHighlight: color("editorOverviewRuler.rangeHighlightForeground"),
 		EditorWidgetBackground: color("editorWidget.background"), EditorWidgetForeground: color("editorWidget.foreground"), WidgetBorder: color("widget.border"),
 		IconForeground: color("icon.foreground"), ToolbarHoverBackground: color("toolbar.hoverBackground"),

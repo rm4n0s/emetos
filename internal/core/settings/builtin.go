@@ -388,6 +388,49 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.minimap.enabled", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the minimap is shown.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.minimap.side", Types: []Type{String}, Default: "right",
+			Enum:        []any{"right", "left"},
+			Description: "Controls the side where to render the minimap.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.minimap.size", Types: []Type{String}, Default: "proportional",
+			Enum: []any{"proportional", "fill", "fit"},
+			EnumDescriptions: []string{
+				"The minimap has the same size as the editor contents (and might scroll).",
+				"The minimap will stretch or shrink as necessary to fill the height of the editor (no scrolling).",
+				"The minimap will shrink as necessary to never be larger than the editor (no scrolling).",
+			},
+			Description: "Controls the size of the minimap.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.minimap.showSlider", Types: []Type{String}, Default: "mouseover",
+			Enum:        []any{"always", "mouseover"},
+			Description: "Controls when the minimap slider is shown.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.minimap.scale", Types: []Type{Integer}, Default: 1, Enum: []any{1, 2, 3},
+			Description: "Scale of content drawn in the minimap: 1, 2 or 3.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.minimap.renderCharacters", Types: []Type{Boolean}, Default: true,
+			Description: "Render the actual characters on a line as opposed to color blocks. Emetos always renders color blocks.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.minimap.maxColumn", Types: []Type{Integer}, Default: 120,
+			Description: "Limit the width of the minimap to render at most a certain number of columns.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.stopRenderingLineAfter", Types: []Type{Integer}, Default: 10000, Minimum: Float(-1),
 			Description: "Lines longer than this many characters are not wrapped, and a negative value never stops.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

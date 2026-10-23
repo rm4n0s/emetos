@@ -80,6 +80,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		WordWrap: "off", WordWrapColumn: 80, WrappingIndent: "same", WrappingStrategy: "simple", StopRenderingLineAfter: 10000,
 		RenderWhitespace: "selection", RenderControlCharacters: true,
 		OccurrencesHighlight: "singleFile", OccurrencesHighlightDelay: 250, SelectionHighlight: true, SelectionHighlightMaxLength: 200,
+		Minimap: MinimapOptions{Enabled: true, Side: "right", Size: "proportional", ShowSlider: "mouseover", Scale: 1, MaxColumn: 120},
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -153,6 +154,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.selectionHighlight":          false,
 		"editor.selectionHighlightMaxLength": 20.0,
 		"editor.selectionHighlightMultiline": true,
+
+		"editor.minimap.enabled": false, "editor.minimap.side": "left", "editor.minimap.size": "fit",
+		"editor.minimap.showSlider": "always", "editor.minimap.scale": 2.0, "editor.minimap.maxColumn": 80.0,
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -202,6 +206,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	if got.OccurrencesHighlight != "off" || got.OccurrencesHighlightDelay != 500 || got.SelectionHighlight ||
 		got.SelectionHighlightMaxLength != 20 || !got.SelectionHighlightMultiline {
 		t.Errorf("highlight options: %+v", got)
+	}
+	if want := (MinimapOptions{Side: "left", Size: "fit", ShowSlider: "always", Scale: 2, MaxColumn: 80}); got.Minimap != want {
+		t.Errorf("minimap options: %+v, want %+v", got.Minimap, want)
 	}
 	if got.FontFeatures != nil {
 		t.Errorf("ligatures on leave the font's own features: %v", got.FontFeatures)

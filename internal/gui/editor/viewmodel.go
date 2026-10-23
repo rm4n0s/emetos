@@ -156,6 +156,8 @@ type Options struct {
 	SelectionHighlight          bool
 	SelectionHighlightMaxLength int
 	SelectionHighlightMultiline bool
+	// Minimap are the settings of the minimap (editor.minimap.*).
+	Minimap MinimapOptions
 }
 
 // ColumnRuler is a vertical line drawn after a number of characters (editor.rulers).
@@ -283,6 +285,8 @@ type ViewModel struct {
 	wrap wrapLink
 	// hl holds the highlights of the occurrences of the word at the cursor and of the selection.
 	hl highlightLink
+	// mm is the minimap.
+	mm minimapState
 	// afterTimer is the source of timers the editor widget gave.
 	afterTimer TimerFunc
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
@@ -319,6 +323,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 	vm.autoClosed = edit.NewAutoClosedTracker(doc, autoClosedOwner)
 	vm.cursors.SetOnChange(vm.cursorsChanged)
 	vm.hl.seenVersion = doc.Version()
+	vm.mm.changed = foundation.NewChangeNotifier()
 	vm.Sync()
 	vm.restartBlink()
 	return vm

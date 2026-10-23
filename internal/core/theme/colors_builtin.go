@@ -10,6 +10,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerScrollbarColors(r)
 	registerFindColors(r)
 	registerHighlightColors(r)
+	registerMinimapColors(r)
 	return r
 }
 
@@ -263,5 +264,29 @@ func registerHighlightColors(r *ColorRegistry) {
 			Description: "Border color of a symbol during write-access, like writing to a variable."},
 		ColorContribution{ID: "editor.wordHighlightTextBorder", Defaults: AllThemes(Ref("editor.wordHighlightBorder")),
 			Description: "Border color of a textual occurrence for a symbol."},
+	)
+}
+
+// registerMinimapColors registers the colors of the minimap and of its slider.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/minimapColors.ts
+func registerMinimapColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "minimap.findMatchHighlight", NeedsTransparency: true, Defaults: AllThemes(Ref("editor.findMatchHighlightBackground")),
+			Description: "Minimap marker color for find matches."},
+		ColorContribution{ID: "minimap.selectionOccurrenceHighlight", NeedsTransparency: true, Defaults: AllThemes(Ref("editor.selectionHighlightBackground")),
+			Description: "Minimap marker color for repeating editor selections."},
+		ColorContribution{ID: "minimap.selectionHighlight", NeedsTransparency: true, Defaults: AllThemes(Ref("editor.selectionBackground")),
+			Description: "Minimap marker color for the editor selection."},
+		ColorContribution{ID: "minimap.background", Defaults: AllThemes(nil),
+			Description: "Minimap background color."},
+		ColorContribution{ID: "minimap.foregroundOpacity", Defaults: AllThemes(Hex("#000f")),
+			Description: "Opacity of foreground elements rendered in the minimap. For example, \"#000000c0\" will render the elements with 75% opacity."},
+		ColorContribution{ID: "minimapSlider.background", Defaults: AllThemes(Transparent(Ref("scrollbarSlider.background"), 0.5)),
+			Description: "Minimap slider background color."},
+		ColorContribution{ID: "minimapSlider.hoverBackground", Defaults: AllThemes(Transparent(Ref("scrollbarSlider.hoverBackground"), 0.5)),
+			Description: "Minimap slider background color when hovering."},
+		ColorContribution{ID: "minimapSlider.activeBackground", Defaults: AllThemes(Transparent(Ref("scrollbarSlider.activeBackground"), 0.5)),
+			Description: "Minimap slider background color when clicked on."},
 	)
 }
