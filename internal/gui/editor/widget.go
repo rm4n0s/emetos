@@ -9,6 +9,8 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -88,16 +90,15 @@ func (w *overlayLayer) UpdateRenderObject(bc widgets.BuildContext, ro rendering.
 	ro.(*RenderEditorOverlay).Update(w.vm, w.offset, textFactory(bc), w.colors)
 }
 
-// focusObserver tells a view model when the window gets or loses the keyboard focus. Until
-// the editor has a focus of its own, the editor has the focus when its window has.
+// focusObserver tells the editor when the window gets or loses the keyboard focus.
 type focusObserver struct {
 	widgets.WidgetsBindingObserverBase
-	vm func() *ViewModel
+	onFocus func(focused bool)
 }
 
 // DidChangeViewFocus implements widgets.WidgetsBindingObserver.
 func (o *focusObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
-	o.vm().SetFocused(e.State == ui.ViewFocusStateFocused)
+	o.onFocus(e.State == ui.ViewFocusStateFocused)
 }
 
 // editorScroll is the kit.ScrollModel of an editor: the vertical position is the scroll
@@ -154,12 +155,34 @@ func (m *editorScroll) ScrollTo(left, top float64) {
 // steps.
 type Editor struct {
 	widgets.StatefulWidget
-	vm *ViewModel
+	vm   *ViewModel
+	opts EditorOpts
+}
+
+// EditorOpts configure an Editor; every field is optional.
+type EditorOpts struct {
+	// Commands is the registry whose editor commands the editor takes over while it has the
+	// focus (see BindCommands).
+	Commands *command.Registry
+	// Keys is the scope of the context keys the editor makes its own scope in: it sets
+	// editorTextFocus, editorFocus, textInputFocus, editorHasSelection,
+	// editorHasMultipleSelections, editorColumnSelection, editorReadonly, editorTabMovesFocus
+	// and editorLangId there. Without it the editor sets no context keys.
+	Keys *contextkey.Scope
+	// Scopes registers the editor's focus node with its scope, so that the key dispatcher
+	// of the window resolves keys in it while the editor has the focus.
+	Scopes *kit.FocusScopes
+	// Autofocus asks for the focus when the editor is first shown.
+	Autofocus bool
 }
 
 // NewEditor makes the editor of a view model.
-func NewEditor(vm *ViewModel) *Editor {
-	return &Editor{StatefulWidget: widgets.NewStatefulWidgetBase(), vm: vm}
+func NewEditor(vm *ViewModel, opts ...EditorOpts) *Editor {
+	e := &Editor{StatefulWidget: widgets.NewStatefulWidgetBase(), vm: vm}
+	if len(opts) > 0 {
+		e.opts = opts[0]
+	}
+	return e
 }
 
 // ViewModel is the view model the editor shows.
@@ -176,13 +199,23 @@ type editorState struct {
 	binding      *widgets.WidgetsBinding
 	observer     *focusObserver
 	scroll       *editorScroll
+
+	node            *widgets.FocusNode
+	scope           *contextkey.Scope
+	unregisterScope func()
+	unbindCommands  func()
+	selHandle       foundation.ListenerHandle
+	// windowFocused and editorFocused make the focus of the view model: the editor has it
+	// when it has the focus of the window's tree and the window has the keyboard.
+	windowFocused, editorFocused bool
 }
 
-// InitState starts the scroll controller at the position the view model remembers, and
-// follows the view model: its changes rebuild the editor, since the width of the gutter
-// depends on the number of lines.
+// InitState starts the scroll controller at the position the view model remembers, follows
+// the view model (its changes rebuild the editor, since the width of the gutter depends on the
+// number of lines), and makes the editor's focus node, its context keys and its timers.
 func (s *editorState) InitState() {
 	vm := s.Widget().vm
+	opts := s.Widget().opts
 	s.controller = widgets.NewScrollController(widgets.ScrollControllerOpts{
 		InitialScrollOffset: vm.ScrollTop(),
 		KeepScrollOffset:    foundation.Some(false),
@@ -190,12 +223,80 @@ func (s *editorState) InitState() {
 	s.scrollHandle = s.controller.AddListener(func() { s.Widget().vm.SetScrollTop(s.controller.Offset()) })
 	s.vmHandle = vm.AddListener(func() { s.SetState(func() {}) })
 	s.scroll = newEditorScroll(vm, s.controller)
+	vm.SetScroller(s.scrollTo)
 
-	// The cursors blink with the timers of the window's binding, and stop with the focus.
 	s.binding = widgets.WidgetsBindingOf(s.Context())
-	s.observer = &focusObserver{vm: func() *ViewModel { return s.Widget().vm }}
+	s.windowFocused = true
+	s.observer = &focusObserver{onFocus: func(focused bool) {
+		s.windowFocused = focused
+		s.applyFocus()
+	}}
 	s.binding.AddObserver(s.observer)
 	s.useTimers(vm)
+
+	// The focus: the editor's node, with the scope of its context keys.
+	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Editor"})
+	if opts.Keys != nil {
+		s.scope = opts.Keys.Child()
+		if opts.Scopes != nil {
+			s.unregisterScope = opts.Scopes.Register(s.node, s.scope)
+		}
+	}
+	s.selHandle = vm.AddSelectionListener(s.updateKeys)
+	s.applyFocus()
+}
+
+// scrollTo moves the editor vertically to a position, within the content.
+func (s *editorState) scrollTo(top float64) {
+	if !s.controller.HasClients() {
+		return
+	}
+	pos := s.controller.Position()
+	s.controller.JumpTo(min(max(top, pos.MinScrollExtent()), pos.MaxScrollExtent()))
+}
+
+// focusChanged is called when the editor's node gains or loses the focus: the editor takes
+// over its commands while it has it.
+func (s *editorState) focusChanged(has bool) {
+	s.editorFocused = has
+	if cmds := s.Widget().opts.Commands; cmds != nil {
+		if has && s.unbindCommands == nil {
+			s.unbindCommands = BindCommands(cmds, s.Widget().vm)
+		} else if !has && s.unbindCommands != nil {
+			s.unbindCommands()
+			s.unbindCommands = nil
+		}
+	}
+	s.applyFocus()
+}
+
+// applyFocus gives the view model its focus (the editor's and the window's) and brings the
+// context keys up to date.
+func (s *editorState) applyFocus() {
+	s.Widget().vm.SetFocused(s.editorFocused && s.windowFocused)
+	s.updateKeys()
+}
+
+// updateKeys sets the context keys of the editor from its focus, selections and document.
+//
+// Ported from VS Code: src/vs/editor/common/editorContextKeys.ts
+func (s *editorState) updateKeys() {
+	if s.scope == nil {
+		return
+	}
+	vm := s.Widget().vm
+	sels := vm.Cursors().Selections()
+	s.scope.Batch(func() {
+		s.scope.Set("editorTextFocus", s.editorFocused)
+		s.scope.Set("editorFocus", s.editorFocused)
+		s.scope.Set("textInputFocus", s.editorFocused)
+		s.scope.Set("editorHasSelection", !allEmpty(sels))
+		s.scope.Set("editorHasMultipleSelections", len(sels) > 1)
+		s.scope.Set("editorColumnSelection", vm.columns != nil)
+		s.scope.Set("editorReadonly", vm.Document().ReadOnly())
+		s.scope.Set("editorTabMovesFocus", false)
+		s.scope.Set("editorLangId", vm.Document().LanguageID())
+	})
 }
 
 // useTimers gives the view model the timers of the binding.
@@ -207,21 +308,47 @@ func (s *editorState) useTimers(vm *ViewModel) {
 // DidUpdateWidget follows a new view model.
 func (s *editorState) DidUpdateWidget(old *Editor) {
 	if old.vm != s.Widget().vm {
+		if s.unbindCommands != nil {
+			s.unbindCommands()
+			s.unbindCommands = nil
+		}
 		old.vm.RemoveListener(s.vmHandle)
+		old.vm.RemoveSelectionListener(s.selHandle)
 		old.vm.SetTimer(nil)
-		s.vmHandle = s.Widget().vm.AddListener(func() { s.SetState(func() {}) })
+		old.vm.SetScroller(nil)
+		vm := s.Widget().vm
+		s.vmHandle = vm.AddListener(func() { s.SetState(func() {}) })
+		s.selHandle = vm.AddSelectionListener(s.updateKeys)
 		s.scroll.dispose()
-		s.scroll = newEditorScroll(s.Widget().vm, s.controller)
-		s.useTimers(s.Widget().vm)
+		s.scroll = newEditorScroll(vm, s.controller)
+		vm.SetScroller(s.scrollTo)
+		s.useTimers(vm)
+		if cmds := s.Widget().opts.Commands; cmds != nil && s.editorFocused {
+			s.unbindCommands = BindCommands(cmds, vm)
+		}
+		s.applyFocus()
 	}
 }
 
-// Dispose lets go of the controller and the listener.
+// Dispose lets go of the controller, the listeners, the focus node and the context keys.
 func (s *editorState) Dispose() {
+	if s.unbindCommands != nil {
+		s.unbindCommands()
+	}
+	if s.unregisterScope != nil {
+		s.unregisterScope()
+	}
+	if s.scope != nil {
+		s.scope.Dispose()
+	}
+	s.node.Dispose()
 	s.scroll.dispose()
 	s.binding.RemoveObserver(s.observer)
-	s.Widget().vm.SetTimer(nil)
-	s.Widget().vm.RemoveListener(s.vmHandle)
+	vm := s.Widget().vm
+	vm.RemoveSelectionListener(s.selHandle)
+	vm.SetTimer(nil)
+	vm.SetScroller(nil)
+	vm.RemoveListener(s.vmHandle)
 	s.controller.RemoveListener(s.scrollHandle)
 	s.controller.Dispose()
 }
@@ -230,6 +357,14 @@ func (s *editorState) Dispose() {
 func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	vm := s.Widget().vm
 	colors := kit.ThemeOf(bc)
+	return widgets.NewFocus(s.body(bc, vm, colors), widgets.FocusOpts{
+		FocusNode: s.node, Autofocus: s.Widget().opts.Autofocus, OnFocusChange: s.focusChanged,
+	})
+}
+
+// body is the editor's content: the scrollable text with its gutter, the decorations and the
+// scrollbars.
+func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors) widgets.Widget {
 	gutterWidth := vm.GutterWidths(textFactory(bc)).Total()
 	gutterColors := GutterColors{
 		LineNumber: colors.EditorLineNumberForeground, ActiveLineNumber: colors.EditorLineNumberActiveForeground,

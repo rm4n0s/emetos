@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
 // Window holds what one window owns (SPEC §5.1): the folder, the settings with the
@@ -31,6 +33,26 @@ type Window struct {
 	Documents *Documents
 	// Keybindings resolve key presses in the window.
 	Keybindings *keybinding.Resolver
+	// Dispatcher turns key presses into commands: it keeps the chords of a sequence that
+	// are pending (SPEC §5.4).
+	Dispatcher *keybinding.Dispatcher
+	// Scopes tells the context key scope of each focus node.
+	Scopes *kit.FocusScopes
+	// OnChordStatus is told the status message of a pending chord ("(Ctrl+K) was pressed.
+	// Waiting for second key of chord...") and when it is cleared. The status bar shows it
+	// (step 6.20); until then it is logged. It is called on the UI thread.
+	OnChordStatus func(status string, cleared bool)
+
+	ctx context.Context
+}
+
+// chordStatus passes the status of a chord on, to OnChordStatus or the log.
+func (w *Window) chordStatus(status string, cleared bool) {
+	if w.OnChordStatus != nil {
+		w.OnChordStatus(status, cleared)
+		return
+	}
+	w.Process.Logger.Debug("chord status", "status", status, "cleared", cleared)
 }
 
 // NewWindow makes a window over a process, for a folder or for none. It reads the settings
@@ -52,13 +74,17 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 	for _, problem := range store.Problems() {
 		p.Logger.Warn("settings problem", "target", problem.Target, "key", problem.Key, "message", problem.Message)
 	}
+	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
 	return &Window{
 		Process:     p,
 		Folder:      folder,
 		Settings:    store,
 		Keys:        contextkey.NewRoot(),
 		Documents:   NewDocuments(),
-		Keybindings: keybinding.NewResolver(p.Keymap.Defaults(), nil, nil),
+		Keybindings: resolver,
+		Dispatcher:  keybinding.NewDispatcher(resolver, time.Now),
+		Scopes:      kit.NewFocusScopes(),
+		ctx:         ctx,
 	}, nil
 }
 

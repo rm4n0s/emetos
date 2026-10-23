@@ -1,0 +1,523 @@
+package app
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/rm4n0s/glutter/gluttertest"
+	"github.com/rm4n0s/glutter/services"
+	"github.com/rm4n0s/glutter/ui"
+
+	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
+)
+
+// canonicalPhysical is the physical key of each key the dispatcher names: the lowest HID code
+// of the keys that map to it (Enter, not the numpad's; the left modifiers).
+var canonicalPhysical = func() map[keybinding.Key]services.PhysicalKeyboardKey {
+	out := map[keybinding.Key]services.PhysicalKeyboardKey{}
+	for p, k := range physicalKeys {
+		if cur, ok := out[k]; !ok || p < cur {
+			out[k] = p
+		}
+	}
+	return out
+}()
+
+// namedLogical are the logical keys of the keys that are not letters or digits.
+var namedLogical = map[keybinding.Key]services.LogicalKeyboardKey{
+	keybinding.Backspace: services.LogicalKeyboardKeyBackspace, keybinding.Tab: services.LogicalKeyboardKeyTab,
+	keybinding.Enter: services.LogicalKeyboardKeyEnter, keybinding.Escape: services.LogicalKeyboardKeyEscape,
+	keybinding.Space: services.LogicalKeyboardKeySpace, keybinding.PageUp: services.LogicalKeyboardKeyPageUp,
+	keybinding.PageDown: services.LogicalKeyboardKeyPageDown, keybinding.End: services.LogicalKeyboardKeyEnd,
+	keybinding.Home: services.LogicalKeyboardKeyHome, keybinding.LeftArrow: services.LogicalKeyboardKeyArrowLeft,
+	keybinding.UpArrow: services.LogicalKeyboardKeyArrowUp, keybinding.RightArrow: services.LogicalKeyboardKeyArrowRight,
+	keybinding.DownArrow: services.LogicalKeyboardKeyArrowDown, keybinding.Insert: services.LogicalKeyboardKeyInsert,
+	keybinding.Delete: services.LogicalKeyboardKeyDelete,
+	keybinding.F1:     services.LogicalKeyboardKeyF1, keybinding.F2: services.LogicalKeyboardKeyF2,
+	keybinding.F3: services.LogicalKeyboardKeyF3, keybinding.F4: services.LogicalKeyboardKeyF4,
+	keybinding.F5: services.LogicalKeyboardKeyF5, keybinding.F6: services.LogicalKeyboardKeyF6,
+	keybinding.F7: services.LogicalKeyboardKeyF7, keybinding.F8: services.LogicalKeyboardKeyF8,
+	keybinding.F9: services.LogicalKeyboardKeyF9, keybinding.F10: services.LogicalKeyboardKeyF10,
+	keybinding.F11: services.LogicalKeyboardKeyF11, keybinding.F12: services.LogicalKeyboardKeyF12,
+	keybinding.Semicolon: ';', keybinding.Equal: '=', keybinding.Comma: ',', keybinding.Minus: '-',
+	keybinding.Period: '.', keybinding.Slash: '/', keybinding.Backquote: '`', keybinding.BracketLeft: '[',
+	keybinding.Backslash: '\\', keybinding.BracketRight: ']', keybinding.Quote: '\'',
+}
+
+// logicalOf is the logical key a US layout gives a key.
+func logicalOf(k keybinding.Key) services.LogicalKeyboardKey {
+	switch {
+	case k >= keybinding.KeyA && k <= keybinding.KeyZ:
+		return services.LogicalKeyboardKey('a' + rune(k-keybinding.KeyA))
+	case k >= keybinding.Digit0 && k <= keybinding.Digit9:
+		return services.LogicalKeyboardKey('0' + rune(k-keybinding.Digit0))
+	}
+	return namedLogical[k]
+}
+
+// sendChord presses the modifiers of a chord, then its key, and lets go; it reports whether
+// the press of the key was handled.
+func sendChord(ts *gluttertest.Tester, c keybinding.Chord) bool {
+	mods := []struct {
+		on  bool
+		key services.LogicalKeyboardKey
+	}{
+		{c.Ctrl, services.LogicalKeyboardKeyControl}, {c.Shift, services.LogicalKeyboardKeyShift},
+		{c.Alt, services.LogicalKeyboardKeyAlt}, {c.Meta, services.LogicalKeyboardKeyMeta},
+	}
+	for _, m := range mods {
+		if m.on {
+			ts.SendKeyDownEvent(m.key)
+		}
+	}
+	handled := ts.SendKeyEvent(logicalOf(c.Key), gluttertest.KeyOpts{Physical: canonicalPhysical[c.Key]})
+	for i := len(mods) - 1; i >= 0; i-- {
+		if mods[i].on {
+			ts.SendKeyUpEvent(mods[i].key)
+		}
+	}
+	return handled
+}
+
+// keyApp is an app that shows a text in an editor that has the focus.
+type keyApp struct {
+	win *Window
+	vm  *editor.ViewModel
+	ts  *gluttertest.Tester
+}
+
+func newKeyApp(t *testing.T, text string) *keyApp {
+	t.Helper()
+	win := newTestWindow(t, "")
+	path := filepath.Join(t.TempDir(), "text.txt")
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := win.Documents.OpenFile(context.Background(), path, document.NewOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := testutil.New(t, testWindowSize)
+	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
+	ts.Pump(10 * time.Millisecond)
+	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
+	return &keyApp{win: win, vm: vm, ts: ts}
+}
+
+func (a *keyApp) text() string { return a.vm.Document().Text() }
+
+func (a *keyApp) selections() []buffer.Selection { return a.vm.Cursors().Selections() }
+
+// spyOnCommands replaces the handler of every command by one that records its id and returns
+// the list of ids that ran. The handlers of the editor stay below, for the test to restore.
+func (a *keyApp) spyOnCommands(t *testing.T) (ran *[]string, restore func()) {
+	t.Helper()
+	ran = new([]string)
+	var removes []func()
+	for _, meta := range a.win.Process.Commands.All() {
+		id := meta.ID
+		remove, err := a.win.Process.Commands.SetHandler(id, func(command.Context, any) error {
+			*ran = append(*ran, id)
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		removes = append(removes, remove)
+	}
+	return ran, func() {
+		for _, r := range removes {
+			r()
+		}
+	}
+}
+
+func cursorAt(line, col int) buffer.Selection {
+	return buffer.NewCursor(buffer.Position{Line: line, Col: col})
+}
+
+func sel(l1, c1, l2, c2 int) buffer.Selection {
+	return buffer.Selection{Anchor: buffer.Position{Line: l1, Col: c1}, Active: buffer.Position{Line: l2, Col: c2}}
+}
+
+func TestKeyOfUsesTheLogicalKeyForLettersAndTheNameOfThePhysicalKeyForTheRest(t *testing.T) {
+	cases := []struct {
+		name     string
+		logical  services.LogicalKeyboardKey
+		physical services.PhysicalKeyboardKey
+		want     keybinding.Key
+	}{
+		{"a", 'a', services.PhysicalKeyboardKeyKeyA, keybinding.KeyA},
+		{"an upper case letter", 'A', services.PhysicalKeyboardKeyKeyA, keybinding.KeyA},
+		{"dvorak: the key of a is q", 'a', services.PhysicalKeyboardKeyKeyQ, keybinding.KeyA},
+		{"azerty digit row gives a symbol: the physical digit", '&', services.PhysicalKeyboardKeyDigit1, keybinding.Digit1},
+		{"a digit", '7', services.PhysicalKeyboardKeyDigit7, keybinding.Digit7},
+		{"greek letter on the key of a", 0x3b1, services.PhysicalKeyboardKeyKeyA, keybinding.KeyA},
+		{"cyrillic letter on the key of z", 0x44f, services.PhysicalKeyboardKeyKeyZ, keybinding.KeyZ},
+		{"greek on the key of ]", 0x3c8, services.PhysicalKeyboardKeyBracketRight, keybinding.BracketRight},
+		{"punctuation is the physical key", ']', services.PhysicalKeyboardKeyBracketRight, keybinding.BracketRight},
+		{"punctuation on another layout", '*', services.PhysicalKeyboardKeyBracketRight, keybinding.BracketRight},
+		{"tab", services.LogicalKeyboardKeyTab, services.PhysicalKeyboardKeyTab, keybinding.Tab},
+		{"the numpad's enter is enter", services.LogicalKeyboardKeyEnter, services.PhysicalKeyboardKeyNumpadEnter, keybinding.Enter},
+		{"an arrow", services.LogicalKeyboardKeyArrowLeft, services.PhysicalKeyboardKeyArrowLeft, keybinding.LeftArrow},
+		{"the right control key", services.LogicalKeyboardKeyControlRight, services.PhysicalKeyboardKeyControlRight, keybinding.Ctrl},
+		{"a key without a name", 0x100000001, services.PhysicalKeyboardKeyLang1, keybinding.Unknown},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := services.NewKeyDownEvent(tc.physical, tc.logical, 0)
+			if got := KeyOf(e); got != tc.want {
+				t.Errorf("KeyOf = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestChordOfReadsTheModifiersAndIgnoresKeyUps(t *testing.T) {
+	kb := services.NewHardwareKeyboard()
+	press := func(logical services.LogicalKeyboardKey, physical services.PhysicalKeyboardKey) services.KeyEvent {
+		e := services.NewKeyDownEvent(physical, logical, 0)
+		kb.HandleKeyEvent(e)
+		return e
+	}
+	press(services.LogicalKeyboardKeyControlLeft, services.PhysicalKeyboardKeyControlLeft)
+	press(services.LogicalKeyboardKeyShiftLeft, services.PhysicalKeyboardKeyShiftLeft)
+	e := press('k', services.PhysicalKeyboardKeyKeyK)
+	got, ok := ChordOf(e, kb)
+	if !ok || got != (keybinding.Chord{Ctrl: true, Shift: true, Key: keybinding.KeyK}) {
+		t.Errorf("chord %+v, %v", got, ok)
+	}
+	repeat := services.NewKeyRepeatEvent(services.PhysicalKeyboardKeyKeyK, 'k', 0)
+	if _, ok := ChordOf(repeat, kb); !ok {
+		t.Error("a repeated key is pressed again")
+	}
+	up := services.NewKeyUpEvent(services.PhysicalKeyboardKeyKeyK, 'k', 0)
+	if _, ok := ChordOf(up, kb); ok {
+		t.Error("a key up dispatches nothing")
+	}
+}
+
+// states are the situations the default keybindings are tried in: each when-clause of the
+// keymap holds in one of them.
+func (a *keyApp) states() []func() {
+	return []func(){
+		func() { a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 3)}) },
+		func() { a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 2, 1, 2)}) },
+		func() { a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 2, 1, 2), cursorAt(2, 1)}) },
+		func() {
+			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(0, 2)})
+			if err := a.vm.RunCommand("cursorColumnSelectDown", nil); err != nil {
+				panic(err)
+			}
+		},
+	}
+}
+
+func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
+	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
+	ran, restore := a.spyOnCommands(t)
+	defer restore()
+	var tried int
+	for _, item := range a.win.Process.Keymap.Defaults() {
+		if item.Command == "" || strings.HasPrefix(item.Command, "-") || len(item.Keybinding) == 0 {
+			continue
+		}
+		tried++
+		t.Run(item.Command+" "+item.Keybinding.UserSettingsLabel(), func(t *testing.T) {
+			var reached []string
+			for _, state := range a.states() {
+				state()
+				a.vm.SelectionsChanged()
+				a.ts.Pump(time.Millisecond)
+				*ran = nil
+				for _, chord := range item.Keybinding {
+					sendChord(a.ts, chord)
+				}
+				reached = append(reached, *ran...)
+				if slices.Contains(*ran, item.Command) {
+					return
+				}
+			}
+			t.Errorf("the keys never ran the command; they ran %v", reached)
+		})
+	}
+	if tried < 60 {
+		t.Errorf("only %d default keybindings were tried", tried)
+	}
+}
+
+func TestEditorCommandsRunFromTheirKeys(t *testing.T) {
+	cases := []struct {
+		name  string
+		text  string
+		sels  []buffer.Selection
+		chord string
+		want  string
+		wantS []buffer.Selection
+	}{
+		{"typing a tab", "ab", []buffer.Selection{cursorAt(0, 1)}, "tab", "a   b", []buffer.Selection{cursorAt(0, 4)}},
+		{"backspace", "abc", []buffer.Selection{cursorAt(0, 2)}, "backspace", "ac", []buffer.Selection{cursorAt(0, 1)}},
+		{"delete", "abc", []buffer.Selection{cursorAt(0, 1)}, "delete", "ac", []buffer.Selection{cursorAt(0, 1)}},
+		{"ctrl+a selects all", "ab\ncd", []buffer.Selection{cursorAt(0, 0)}, "ctrl+a", "ab\ncd", []buffer.Selection{sel(0, 0, 1, 2)}},
+		{"left", "abc", []buffer.Selection{cursorAt(0, 2)}, "left", "abc", []buffer.Selection{cursorAt(0, 1)}},
+		{"shift+right selects", "abc", []buffer.Selection{cursorAt(0, 1)}, "shift+right", "abc", []buffer.Selection{sel(0, 1, 0, 2)}},
+		{"down", "ab\ncd", []buffer.Selection{cursorAt(0, 1)}, "down", "ab\ncd", []buffer.Selection{cursorAt(1, 1)}},
+		{"end", "abc\nd", []buffer.Selection{cursorAt(0, 1)}, "end", "abc\nd", []buffer.Selection{cursorAt(0, 3)}},
+		{"ctrl+end", "abc\nde", []buffer.Selection{cursorAt(0, 1)}, "ctrl+end", "abc\nde", []buffer.Selection{cursorAt(1, 2)}},
+		{"ctrl+shift+k deletes the line", "a\nb\nc", []buffer.Selection{cursorAt(1, 0)}, "ctrl+shift+k", "a\nc", []buffer.Selection{cursorAt(1, 0)}},
+		{"alt+down moves the line", "a\nb\nc", []buffer.Selection{cursorAt(0, 0)}, "alt+down", "b\na\nc", []buffer.Selection{cursorAt(1, 0)}},
+		{"ctrl+] indents", "a", []buffer.Selection{cursorAt(0, 0)}, "ctrl+]", "    a", []buffer.Selection{cursorAt(0, 4)}},
+		{"ctrl+enter inserts a line below", "a\nb", []buffer.Selection{cursorAt(0, 0)}, "ctrl+enter", "a\n\nb", []buffer.Selection{cursorAt(1, 0)}},
+		{"shift+alt+down adds a cursor", "ab\ncd", []buffer.Selection{cursorAt(0, 1)}, "shift+alt+down", "ab\ncd", []buffer.Selection{cursorAt(0, 1), cursorAt(1, 1)}},
+		{"escape with a selection", "abc", []buffer.Selection{sel(0, 0, 0, 2)}, "escape", "abc", []buffer.Selection{cursorAt(0, 2)}},
+		{"escape with several cursors", "abc", []buffer.Selection{cursorAt(0, 0), cursorAt(0, 2)}, "escape", "abc", []buffer.Selection{cursorAt(0, 0)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := newKeyApp(t, tc.text)
+			a.vm.Cursors().SetSelections(tc.sels)
+			a.vm.SelectionsChanged()
+			a.ts.Pump(time.Millisecond)
+			chord, err := keybinding.ParseKeybinding(tc.chord)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !sendChord(a.ts, chord[0]) {
+				t.Error("the key was not handled")
+			}
+			if a.text() != tc.want || !buffer.SelectionsEqual(a.selections(), tc.wantS) {
+				t.Errorf("text %q selections %v, want %q %v", a.text(), a.selections(), tc.want, tc.wantS)
+			}
+		})
+	}
+}
+
+func TestChordsAndModifierKeys(t *testing.T) {
+	a := newKeyApp(t, "alpha\nbeta\n")
+	a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 2)})
+	var statuses []string
+	a.win.OnChordStatus = func(status string, cleared bool) {
+		statuses = append(statuses, status+"|"+map[bool]string{true: "cleared", false: ""}[cleared])
+	}
+	ran, restore := a.spyOnCommands(t)
+	defer restore()
+
+	// ctrl+k ctrl+x is trim trailing whitespace: the first chord is held back.
+	if !sendChord(a.ts, keybinding.Chord{Ctrl: true, Key: keybinding.KeyK}) {
+		t.Error("the first key of a chord is held")
+	}
+	if !a.win.Dispatcher.InChordMode() || len(*ran) != 0 {
+		t.Fatalf("pending: %v, ran %v", a.win.Dispatcher.InChordMode(), *ran)
+	}
+	// A modifier alone does not cancel the chord: press and release Shift, then Alt.
+	a.ts.SendKeyEvent(services.LogicalKeyboardKeyShift)
+	a.ts.SendKeyEvent(services.LogicalKeyboardKeyAlt)
+	if !a.win.Dispatcher.InChordMode() {
+		t.Fatal("a modifier key alone cancelled the chord")
+	}
+	sendChord(a.ts, keybinding.Chord{Ctrl: true, Key: keybinding.KeyX})
+	if !slices.Equal(*ran, []string{"editor.action.trimTrailingWhitespace"}) {
+		t.Errorf("ran %v", *ran)
+	}
+	if a.win.Dispatcher.InChordMode() {
+		t.Error("the chord is done")
+	}
+	if len(statuses) != 2 || !strings.Contains(statuses[0], "Waiting for second key of chord") || !strings.HasSuffix(statuses[1], "|cleared") {
+		t.Errorf("statuses %q", statuses)
+	}
+	// A key that does not complete a chord is dropped with a message and not typed.
+	*ran = nil
+	sendChord(a.ts, keybinding.Chord{Ctrl: true, Key: keybinding.KeyK})
+	if !sendChord(a.ts, keybinding.Chord{Key: keybinding.KeyZ}) {
+		t.Error("the key that ends a failed chord is used up")
+	}
+	if len(*ran) != 0 || a.win.Dispatcher.InChordMode() {
+		t.Errorf("ran %v, pending %v", *ran, a.win.Dispatcher.InChordMode())
+	}
+	if last := statuses[len(statuses)-1]; !strings.Contains(last, "is not a command") {
+		t.Errorf("last status %q", last)
+	}
+}
+
+func TestKeysOnAnotherLayout(t *testing.T) {
+	a := newKeyApp(t, "x")
+	a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(0, 0)})
+	// ctrl+] indents: on a Greek layout the key of ] gives ψ, and the shortcut still works.
+	a.ts.SendKeyDownEvent(services.LogicalKeyboardKeyControl)
+	handled := a.ts.SendKeyEvent(services.LogicalKeyboardKey(0x3c8), gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyBracketRight, Character: "ψ"})
+	a.ts.SendKeyUpEvent(services.LogicalKeyboardKeyControl)
+	if !handled || a.text() != "    x" {
+		t.Errorf("handled %v, text %q", handled, a.text())
+	}
+	// ctrl+a on a layout without Latin letters: the key of a gives α.
+	a.ts.SendKeyDownEvent(services.LogicalKeyboardKeyControl)
+	handled = a.ts.SendKeyEvent(services.LogicalKeyboardKey(0x3b1), gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyKeyA, Character: "α"})
+	a.ts.SendKeyUpEvent(services.LogicalKeyboardKeyControl)
+	if !handled || !buffer.SelectionsEqual(a.selections(), []buffer.Selection{sel(0, 0, 0, 5)}) {
+		t.Errorf("handled %v, selections %v", handled, a.selections())
+	}
+}
+
+func TestUnboundKeysAreLeftForTheTextInput(t *testing.T) {
+	a := newKeyApp(t, "abc")
+	for _, tc := range []struct {
+		name    string
+		logical services.LogicalKeyboardKey
+		phys    services.PhysicalKeyboardKey
+		char    string
+	}{
+		{"a letter", 'x', services.PhysicalKeyboardKeyKeyX, "x"},
+		{"a digit", '5', services.PhysicalKeyboardKeyDigit5, "5"},
+		{"a symbol", '$', services.PhysicalKeyboardKeyDigit4, "$"},
+		{"a greek letter", 0x3b2, services.PhysicalKeyboardKeyKeyB, "β"},
+		{"space", services.LogicalKeyboardKeySpace, services.PhysicalKeyboardKeySpace, " "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if a.ts.SendKeyEvent(tc.logical, gluttertest.KeyOpts{Physical: tc.phys, Character: tc.char}) {
+				t.Error("an unbound printable key was handled: Glutter would not type it")
+			}
+		})
+	}
+	if a.text() != "abc" {
+		t.Errorf("the dispatcher changed the text: %q", a.text())
+	}
+	// A key with a binding is not left for the text input.
+	if !a.ts.SendKeyEvent(services.LogicalKeyboardKeyArrowRight, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyArrowRight}) {
+		t.Error("an arrow is bound")
+	}
+}
+
+func TestBoundKeysBeatFocusTraversal(t *testing.T) {
+	a := newKeyApp(t, "ab")
+	editorNode := a.ts.Binding.FocusManager().PrimaryFocus()
+	if editorNode == nil {
+		t.Fatal("the editor has the focus")
+	}
+	if !a.ts.SendKeyEvent(services.LogicalKeyboardKeyTab, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyTab}) {
+		t.Error("tab is bound in the editor")
+	}
+	if got := a.ts.Binding.FocusManager().PrimaryFocus(); got != editorNode {
+		t.Error("the focus moved: traversal saw the tab")
+	}
+	if a.text() != "    ab" {
+		t.Errorf("text %q", a.text())
+	}
+}
+
+func TestKeysAreResolvedInTheContextOfTheFocus(t *testing.T) {
+	a := newKeyApp(t, "ab")
+	manager := a.ts.Binding.FocusManager()
+	editorNode := manager.PrimaryFocus()
+	// Take the focus away from the editor: its keys are not its any more.
+	manager.PrimaryFocus().Unfocus()
+	a.ts.Pump(time.Millisecond)
+	if manager.PrimaryFocus() == editorNode {
+		t.Fatal("the editor still has the focus")
+	}
+	// (An arrow key would be handled by Glutter's own focus traversal: use Ctrl+Shift+K,
+	// which deletes the line in the editor and means nothing elsewhere.)
+	if sendChord(a.ts, keybinding.Chord{Ctrl: true, Shift: true, Key: keybinding.KeyK}) {
+		t.Error("an editor key was handled while the focus is elsewhere")
+	}
+	if a.text() != "ab" {
+		t.Errorf("the line was deleted: %q", a.text())
+	}
+	editorNode.RequestFocus()
+	a.ts.Pump(time.Millisecond)
+	a.ts.SendKeyEvent(services.LogicalKeyboardKeyArrowRight, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyArrowRight})
+	if !buffer.SelectionsEqual(a.selections(), []buffer.Selection{cursorAt(0, 1)}) {
+		t.Errorf("with the focus back: %v", a.selections())
+	}
+}
+
+func TestContextKeysOfTheEditor(t *testing.T) {
+	a := newKeyApp(t, "one\ntwo\nthree")
+	scope := a.win.Scopes
+	_ = scope
+	// The window's root scope has no editor keys; the editor's own scope has them.
+	if a.win.Keys.Get("editorTextFocus") != nil {
+		t.Error("the root scope has the editor's keys")
+	}
+	manager := a.ts.Binding.FocusManager()
+	keys := a.win.Scopes.ScopeOf(manager.PrimaryFocus(), a.win.Keys)
+	if keys == a.win.Keys {
+		t.Fatal("the focused editor has no scope of its own")
+	}
+	get := func(key string) any { return keys.Get(key) }
+	if get("editorTextFocus") != true || get("editorFocus") != true || get("textInputFocus") != true {
+		t.Errorf("focus keys: %v %v %v", get("editorTextFocus"), get("editorFocus"), get("textInputFocus"))
+	}
+	if get("editorHasSelection") != false || get("editorHasMultipleSelections") != false || get("editorReadonly") != false {
+		t.Errorf("selection keys: %v %v %v", get("editorHasSelection"), get("editorHasMultipleSelections"), get("editorReadonly"))
+	}
+	if get("editorLangId") != a.vm.Document().LanguageID() {
+		t.Errorf("language %v", get("editorLangId"))
+	}
+	a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 0, 0, 2), cursorAt(1, 1)})
+	a.vm.SelectionsChanged()
+	if get("editorHasSelection") != true || get("editorHasMultipleSelections") != true {
+		t.Errorf("after selecting: %v %v", get("editorHasSelection"), get("editorHasMultipleSelections"))
+	}
+	if err := a.vm.RunCommand("cursorColumnSelectDown", nil); err != nil {
+		t.Fatal(err)
+	}
+	if get("editorColumnSelection") != true {
+		t.Error("a column selection is on")
+	}
+	a.vm.Document().SetReadOnly(true)
+	a.vm.SelectionsChanged()
+	if get("editorReadonly") != true {
+		t.Error("the document is read only")
+	}
+	manager.PrimaryFocus().Unfocus()
+	a.ts.Pump(time.Millisecond)
+	if get("editorTextFocus") != false {
+		t.Error("the editor lost the focus")
+	}
+}
+
+func TestReadOnlyDocumentKeepsItsText(t *testing.T) {
+	a := newKeyApp(t, "abc")
+	a.vm.Document().SetReadOnly(true)
+	a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(0, 1)})
+	a.vm.SelectionsChanged()
+	a.ts.Pump(time.Millisecond)
+	a.ts.SendKeyEvent(services.LogicalKeyboardKeyBackspace, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyBackspace})
+	if a.text() != "abc" {
+		t.Errorf("a read-only document changed: %q", a.text())
+	}
+	if errs := a.ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
+}
+
+func TestEditorsHandOverTheirCommandsWithTheFocus(t *testing.T) {
+	a := newKeyApp(t, "ab")
+	reg := a.win.Process.Commands
+	if !reg.HasHandler("cursorLeft") {
+		t.Fatal("the focused editor handles the commands")
+	}
+	manager := a.ts.Binding.FocusManager()
+	manager.PrimaryFocus().Unfocus()
+	a.ts.Pump(time.Millisecond)
+	if reg.HasHandler("cursorLeft") {
+		t.Error("an editor without the focus keeps its handlers")
+	}
+	ids := editor.CommandIDs()
+	sort.Strings(ids)
+	if len(ids) < 100 {
+		t.Errorf("%d commands", len(ids))
+	}
+	_ = ui.Size{}
+}

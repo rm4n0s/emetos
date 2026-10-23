@@ -99,6 +99,22 @@ type ViewModel struct {
 	blink   *cursorBlink
 	focused bool
 
+	// history is where the cursors were, for cursor undo and redo.
+	history edit.CursorHistory
+	// sessionSelections are the selections the last command left; a command that goes on
+	// with a session (column selection, occurrences, the expansion of a selection) checks
+	// that nothing moved them since.
+	sessionSelections []buffer.Selection
+	// sessionOwner is the kind of session the command that runs belongs to.
+	sessionOwner int
+	columns      *edit.ColumnSelectData
+	occurrences  *edit.OccurrenceSession
+	expansion    *edit.Expansion
+	// find are the options of the search that finds the occurrences of a selection.
+	find edit.SearchOptions
+	// scroller scrolls the editor to a vertical position (the widget sets it).
+	scroller func(top float64)
+
 	// metrics tells the scrollbars that the sizes of the text area or of the content changed.
 	metrics *foundation.ChangeNotifier
 	// The layout of the text layer fills these in (see SetTextMetrics).
@@ -348,3 +364,24 @@ func (vm *ViewModel) AddMetricsListener(fn foundation.VoidCallback) foundation.L
 
 // RemoveMetricsListener removes a listener of AddMetricsListener.
 func (vm *ViewModel) RemoveMetricsListener(h foundation.ListenerHandle) { vm.metrics.RemoveListener(h) }
+
+// SetScroller gives the view model the function that scrolls the editor vertically; without
+// it commands do not scroll.
+func (vm *ViewModel) SetScroller(scroll func(top float64)) { vm.scroller = scroll }
+
+// RevealPrimary scrolls the editor, if it has to, so that the row of the primary cursor is in
+// view: the row goes to the nearest edge it left through.
+func (vm *ViewModel) RevealPrimary() {
+	if vm.scroller == nil || vm.viewport <= 0 {
+		return
+	}
+	proj := vm.Projection()
+	row := vm.RowOfPosition(vm.cursors.Primary().Position())
+	top, bottom := proj.RowTop(row), proj.RowTop(row)+proj.RowHeight(row)
+	switch scroll := vm.scrollTop; {
+	case top < scroll:
+		vm.scroller(top)
+	case bottom > scroll+vm.viewport:
+		vm.scroller(bottom - vm.viewport)
+	}
+}

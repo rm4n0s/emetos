@@ -40,7 +40,7 @@ func pumpEditor(t *testing.T, vm *ViewModel, size ui.Size) *gluttertest.Tester {
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(
 				func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
-					return NewEditor(vm)
+					return NewEditor(vm, EditorOpts{Autofocus: true})
 				},
 				widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 		},

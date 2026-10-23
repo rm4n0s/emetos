@@ -131,7 +131,7 @@ func newApp(ctx context.Context, win *Window, doc *document.Document, steps []De
 // app, so that everything in it can read them.
 func newAppWithPage(win *Window, page func() widgets.Widget) widgets.Widget {
 	colors := kit.DarkModern()
-	return NewWindowScope(win, kit.NewTheme(colors,
+	return NewWindowScope(win, NewKeyDispatcher(kit.NewTheme(colors,
 		widgets.NewWidgetsApp(colors.EditorBackground, widgets.WidgetsAppOpts{
 			Title: Title,
 			// The window is a proof image: it has no debug ribbon.
@@ -143,7 +143,7 @@ func newAppWithPage(win *Window, page func() widgets.Widget) widgets.Widget {
 					},
 					widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 			},
-		})))
+		}))))
 }
 
 // shell is the page of the window: the open file, or the Emetos icon and name when there is
@@ -236,7 +236,10 @@ func (s *shellState) Dispose() {
 // Build implements widgets.State.
 func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	if s.view != nil {
-		return editor.NewEditor(s.view)
+		win := PeekWindow(bc)
+		return editor.NewEditor(s.view, editor.EditorOpts{
+			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true,
+		})
 	}
 	colors := kit.ThemeOf(bc)
 	return widgets.NewDefaultTextStyle(uiTextStyle(bc, 14, colors.Foreground),
