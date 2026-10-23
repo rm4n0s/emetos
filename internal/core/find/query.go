@@ -653,3 +653,8 @@ func endOfLine(snap buffer.Snapshot, line int) buffer.Position {
 	text, _ := snap.LineContent(line)
 	return buffer.Position{Line: line, Col: len(text)}
 }
+
+// EscapeRegExp escapes the characters that mean something in a regular expression, so that a
+// regular expression made of the result finds the string itself (VS Code's
+// escapeRegExpCharacters).
+func EscapeRegExp(s string) string { return escapeRegExp(s) }

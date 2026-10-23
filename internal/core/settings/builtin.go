@@ -295,6 +295,33 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.find.seedSearchStringFromSelection", Types: []Type{String}, Default: "always",
+			Enum: []any{"never", "always", "selection"},
+			EnumDescriptions: []string{
+				"Never seed search string from the editor selection.",
+				"Always seed search string from the editor selection, including word at cursor position.",
+				"Only seed search string from the editor selection.",
+			},
+			Description: "Controls whether the search string in the Find Widget is seeded from the editor selection.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.find.autoFindInSelection", Types: []Type{String}, Default: "never",
+			Enum: []any{"never", "always", "multiline"},
+			EnumDescriptions: []string{
+				"Never turn on Find in Selection automatically (default).",
+				"Always turn on Find in Selection automatically.",
+				"Turn on Find in Selection automatically when multiple lines of content are selected.",
+			},
+			Description: "Controls the condition for turning on Find in Selection automatically.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.find.closeOnResult", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the Find Widget closes when a result is found by pressing Enter.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.showFoldingControls", Types: []Type{String}, Default: "mouseover",
 			Enum: []any{"always", "never", "mouseover"},
 			EnumDescriptions: []string{

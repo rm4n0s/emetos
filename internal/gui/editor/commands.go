@@ -123,6 +123,9 @@ func (vm *ViewModel) editOptions() edit.Options {
 	o.AutoClosingOvertype, _ = autoclose.ParseBehavior(vm.opts.AutoClosingOvertype)
 	o.AutoSurround, _ = autoclose.ParseSurround(vm.opts.AutoSurround)
 	o.Comments = vm.comments
+	if vm.opts.WordSeparators != "" {
+		o.WordSeparators = edit.NewWordClassifier(vm.opts.WordSeparators)
+	}
 	o.CommentInsertSpace, o.CommentIgnoreEmptyLines = vm.opts.CommentsInsertSpace, vm.opts.CommentsIgnoreEmptyLines
 	o.AutoClosing = vm.autoClosing
 	o.AutoClosed = vm.autoClosed.Characters()
@@ -472,6 +475,7 @@ func buildActions() map[string]action {
 		return nil
 	}
 	foldingActions(a)
+	findActions(a)
 	devActions(a)
 	return a
 }

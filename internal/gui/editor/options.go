@@ -73,6 +73,13 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		AutoSurround:                     settings.Get[string](store, "editor.autoSurround", languageID),
 		CommentsInsertSpace:              settings.Get[bool](store, "editor.comments.insertSpace", languageID),
 		CommentsIgnoreEmptyLines:         settings.Get[bool](store, "editor.comments.ignoreEmptyLines", languageID),
+		WordSeparators:                   settings.Get[string](store, "editor.wordSeparators", languageID),
+
+		FindSeedSearchStringFromSelection: settings.Get[string](store, "editor.find.seedSearchStringFromSelection", languageID),
+		FindAutoInSelection:               settings.Get[string](store, "editor.find.autoFindInSelection", languageID),
+		FindCloseOnResult:                 settings.Get[bool](store, "editor.find.closeOnResult", languageID),
+		FindCursorMoveOnType:              settings.Get[bool](store, "editor.find.cursorMoveOnType", languageID),
+		FindLoop:                          settings.Get[bool](store, "editor.find.loop", languageID),
 	}
 }
 

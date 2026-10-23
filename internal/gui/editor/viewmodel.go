@@ -124,6 +124,14 @@ type Options struct {
 	// CommentsInsertSpace and CommentsIgnoreEmptyLines are editor.comments.insertSpace and
 	// editor.comments.ignoreEmptyLines.
 	CommentsInsertSpace, CommentsIgnoreEmptyLines bool
+	// WordSeparators is editor.wordSeparators; empty means VS Code's default.
+	WordSeparators string
+	// FindSeedSearchStringFromSelection is editor.find.seedSearchStringFromSelection ("never",
+	// "always" or "selection"), FindAutoInSelection editor.find.autoFindInSelection ("never",
+	// "always" or "multiline"), FindCloseOnResult editor.find.closeOnResult, FindCursorMoveOnType
+	// editor.find.cursorMoveOnType and FindLoop editor.find.loop.
+	FindSeedSearchStringFromSelection, FindAutoInSelection string
+	FindCloseOnResult, FindCursorMoveOnType, FindLoop      bool
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -236,6 +244,10 @@ type ViewModel struct {
 	offSide bool
 	// fold is the folding of the document (SPEC §8.7).
 	fold foldLink
+	// find is the find model of the editor and what it is bound to (find.go).
+	findw findLink
+	// afterTimer is the source of timers the editor widget gave.
+	afterTimer TimerFunc
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
 	indentDefaults func() (tabSize int, insertSpaces bool)
 
@@ -461,7 +473,10 @@ func (vm *ViewModel) CursorsVisible() bool { return vm.blink.Visible() }
 
 // SetTimer gives the view model the source of timers for the blinking (the editor widget
 // passes the timers of the window's binding); nil stops the blinking.
-func (vm *ViewModel) SetTimer(after TimerFunc) { vm.blink.SetTimer(after) }
+func (vm *ViewModel) SetTimer(after TimerFunc) {
+	vm.afterTimer = after
+	vm.blink.SetTimer(after)
+}
 
 func (vm *ViewModel) restartBlink() {
 	style := blinkStyleOf(vm.focused, vm.opts.CursorBlinking)

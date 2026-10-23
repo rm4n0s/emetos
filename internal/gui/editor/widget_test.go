@@ -27,6 +27,8 @@ func goOptions() Options {
 	o := testOptions()
 	o.FontFamilies = []string{testutil.MonoFamily, "monospace"}
 	o.FontFeatures = []FontFeature{{"liga", 0}, {"calt", 0}}
+	o.FindSeedSearchStringFromSelection, o.FindAutoInSelection = "always", "never"
+	o.FindCursorMoveOnType, o.FindLoop = true, true
 	return o
 }
 
@@ -62,7 +64,7 @@ func pumpEditorColors(t testing.TB, ts *gluttertest.Tester, vm *ViewModel, opts 
 				},
 				widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 		},
-	})))
+	}), kit.ThemeOpts{UIFont: testutil.MonoFamily}))
 }
 
 func linesDoc(n int) *document.Document {

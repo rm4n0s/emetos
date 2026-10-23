@@ -18,6 +18,12 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
+// Where the find widget sits: below the top of the editor and left of the vertical scrollbar.
+const (
+	findWidgetTop   = 4.0
+	findWidgetRight = kit.DefaultVerticalScrollbarSize + 4
+)
+
 // textFactory is the text engine of the window.
 func textFactory(bc widgets.BuildContext) ui.ParagraphFactory {
 	return widgets.WidgetsBindingOf(bc).PlatformDispatcher().TextEngine()
@@ -204,6 +210,9 @@ type EditorOpts struct {
 	// ClipboardMemory is what the editors of a window remember of their copies, so that a copy
 	// in one can be pasted in another as it was made; without it the editor has its own.
 	ClipboardMemory *ClipboardMemory
+	// FindMemory is what the editors of a window share of their searches (the switches of the
+	// find widget); without it the editor has its own.
+	FindMemory *FindMemory
 }
 
 // NewEditor makes the editor of a view model.
@@ -249,6 +258,14 @@ type editorState struct {
 	unbindCommands  func()
 	selHandle       foundation.ListenerHandle
 	metricsHandle   foundation.ListenerHandle
+	// The find widget: the focus nodes and the text of its inputs, the scope its inputs have their
+	// keys in, and whether one of the inputs has the focus.
+	findNode, replaceNode *widgets.FocusNode
+	findText, replaceText *widgets.TextEditingController
+	findScope             *contextkey.Scope
+	unregisterFind        []func()
+	findFocused           bool
+	findHandle            foundation.ListenerHandle
 	// windowFocused and editorFocused make the focus of the view model: the editor has it
 	// when it has the focus of the window's tree and the window has the keyboard.
 	windowFocused, editorFocused bool
@@ -294,6 +311,7 @@ func (s *editorState) InitState() {
 			s.unregisterScope = opts.Scopes.Register(s.node, s.scope)
 		}
 	}
+	s.initFind(vm)
 	s.input = &textInput{state: s}
 	s.selHandle = vm.AddSelectionListener(s.selectionChanged)
 	s.metricsHandle = vm.AddMetricsListener(s.scheduleInputGeometry)
@@ -457,15 +475,25 @@ func (s *editorState) focusChanged(has bool) {
 		s.input.detach()
 		s.Widget().vm.SetPreedit(Preedit{})
 	}
-	if cmds := s.Widget().opts.Commands; cmds != nil {
-		if has && s.unbindCommands == nil {
-			s.unbindCommands = BindCommands(cmds, s.Widget().vm)
-		} else if !has && s.unbindCommands != nil {
-			s.unbindCommands()
-			s.unbindCommands = nil
-		}
-	}
+	s.refreshCommands()
 	s.applyFocus()
+}
+
+// refreshCommands makes the editor take over its commands while the editor or its find widget has
+// the focus, and give them back otherwise.
+func (s *editorState) refreshCommands() {
+	cmds := s.Widget().opts.Commands
+	if cmds == nil {
+		return
+	}
+	want := s.editorFocused || s.findFocused
+	switch {
+	case want && s.unbindCommands == nil:
+		s.unbindCommands = BindCommands(cmds, s.Widget().vm)
+	case !want && s.unbindCommands != nil:
+		s.unbindCommands()
+		s.unbindCommands = nil
+	}
 }
 
 // applyFocus gives the view model its focus (the editor's and the window's) and brings the
@@ -495,6 +523,7 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorTabMovesFocus", false)
 		s.scope.Set("editorLangId", vm.Document().LanguageID())
 		s.scope.Set("foldingEnabled", vm.foldingEnabled())
+		s.scope.Set("findWidgetVisible", vm.FindRevealed())
 	})
 }
 
@@ -511,6 +540,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 			s.unbindCommands()
 			s.unbindCommands = nil
 		}
+		s.releaseFind(old.vm)
 		old.vm.RemoveListener(s.vmHandle)
 		old.vm.RemoveSelectionListener(s.selHandle)
 		old.vm.RemoveMetricsListener(s.metricsHandle)
@@ -533,9 +563,8 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		vm.SetAnimator(s.startCursorAnimation)
 		vm.SetFramer(s.runPerFrame)
 		vm.SetZoom(s.Widget().opts.Zoom)
-		if cmds := s.Widget().opts.Commands; cmds != nil && s.editorFocused {
-			s.unbindCommands = BindCommands(cmds, vm)
-		}
+		s.refreshCommands()
+		s.useFind(vm)
 		s.applyFocus()
 	}
 }
@@ -543,6 +572,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 // Dispose lets go of the controller, the listeners, the focus node and the context keys.
 func (s *editorState) Dispose() {
 	s.endPress()
+	s.disposeFind()
 	if s.unbindCommands != nil {
 		s.unbindCommands()
 	}
@@ -573,13 +603,20 @@ func (s *editorState) Dispose() {
 	s.controller.Dispose()
 }
 
-// Build implements widgets.State.
+// Build implements widgets.State: the editor with the find widget over its top right corner. The
+// widget is not inside the editor's Focus, so the focus of its inputs is not the editor's.
 func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	vm := s.Widget().vm
 	colors := kit.ThemeOf(bc)
-	return widgets.NewFocus(s.body(bc, vm, colors), widgets.FocusOpts{
+	editor := widgets.NewFocus(s.body(bc, vm, colors), widgets.FocusOpts{
 		FocusNode: s.node, Autofocus: s.Widget().opts.Autofocus, OnFocusChange: s.focusChanged,
 	})
+	findWidget := newFindWidget(vm, s.findNode, s.replaceNode, s.findText, s.replaceText, s.findFocusChanged, s.reportInputError)
+	return widgets.NewStack([]widgets.Widget{
+		editor,
+		widgets.NewPositioned(widgets.NewAlign(findWidget, widgets.AlignOpts{Alignment: painting.AlignmentTopRight}),
+			widgets.PositionedOpts{Top: foundation.Some(findWidgetTop), Left: foundation.Some(0.0), Right: foundation.Some(findWidgetRight)}),
+	}, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
 
 // body is the editor's content: the scrollable text with its gutter, the decorations and the
@@ -600,6 +637,9 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		CursorText: oppositeColor(colors.EditorCursorForeground), Foreground: colors.EditorForeground,
 		BracketMatch: colors.EditorBracketMatchBackground, BracketMatchBorder: colors.EditorBracketMatchBorder,
 		FoldBackground: colors.EditorFoldBackground, FoldPlaceholder: colors.EditorFoldPlaceholderForeground,
+		FindMatch: colors.EditorFindMatchBackground, FindMatchBorder: colors.EditorFindMatchBorder,
+		FindMatchHighlight: colors.EditorFindMatchHighlightBackground, FindMatchHighlightBorder: colors.EditorFindMatchHighlightBorder,
+		FindRangeHighlight: colors.EditorFindRangeHighlightBackground, FindRangeHighlightBorder: colors.EditorFindRangeHighlightBorder,
 		Guides: NewGuideColors(colors.EditorIndentGuideBackground, colors.EditorIndentGuideActiveBackground,
 			colors.EditorBracketPairGuideBackground, colors.EditorBracketPairGuideActiveBackground, colors.EditorBracketHighlightForeground),
 	}
@@ -628,8 +668,11 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	behavior := widgets.NewScrollBehavior().CopyWith(widgets.ScrollBehaviorCopy{
 		DragDevices: []ui.PointerDeviceKind{ui.PointerDeviceKindTouch, ui.PointerDeviceKindStylus},
 	})
+	ruler := widgets.NewPositioned(widgets.NewIgnorePointer(newRulerLayer(vm, RulerColors{
+		FindMatch: colors.EditorOverviewRulerFindMatch, RangeHighlight: colors.EditorOverviewRulerRangeHighlight,
+	})), widgets.PositionedOpts{Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Right: foundation.Some(0.0), Width: foundation.Some(kit.DefaultVerticalScrollbarSize)})
 	return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
-		widgets.NewScrollConfiguration(behavior, scrollable),
+		widgets.NewStack([]widgets.Widget{widgets.NewScrollConfiguration(behavior, scrollable), ruler}, widgets.StackOpts{Fit: rendering.StackFitExpand}),
 		s.scroll, kit.ScrollableElementOpts{InsetLeft: gutterWidth, UseShadows: true}))
 }
 

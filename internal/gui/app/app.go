@@ -326,6 +326,7 @@ func (s *shellState) disposeEditor() {
 	if s.view == nil {
 		return
 	}
+	s.view.DisposeFind()
 	if s.stopFolding != nil {
 		s.stopFolding()
 		s.stopFolding = nil
@@ -364,7 +365,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	if s.view != nil {
 		win := PeekWindow(bc)
 		return editor.NewEditor(s.view, editor.EditorOpts{
-			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true, Context: win.ctx, ClipboardMemory: win.Clipboard, Zoom: win.Zoom,
+			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true, Context: win.ctx, ClipboardMemory: win.Clipboard, FindMemory: win.Find, Zoom: win.Zoom,
 		})
 	}
 	colors := kit.ThemeOf(bc)

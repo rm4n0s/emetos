@@ -55,6 +55,7 @@ func DefaultRegistry() *Registry {
 	registerClipboardKeys(r)
 	registerLineKeys(r)
 	registerFoldingKeys(r)
+	registerFindKeys(r)
 	registerMultiCursorKeys(r)
 	return r
 }
@@ -209,4 +210,40 @@ func registerFoldingKeys(r *Registry) {
 		rules = append(rules, text("editor.foldLevel"+digit, "ctrl+k ctrl+"+digit))
 	}
 	r.MustRegister(rules...)
+}
+
+// registerFindKeys registers the keys of the find widget, VS Code's on Linux. The keys of the
+// widget's own commands have the weight of an editor contribution plus 5, so that they win
+// over the editor's keys while the widget is open.
+//
+// Ported from VS Code: src/vs/editor/contrib/find/browser/findController.ts and findModel.ts
+func registerFindKeys(r *Registry) {
+	const widgetWeight = WeightEditorContrib + 5
+	focus := func(command, primary string, extra ...string) Rule {
+		return Rule{Command: command, Weight: WeightEditorContrib, When: mustWhen(append([]string{whenEditorFocus}, extra...)...), Primary: primary}
+	}
+	widget := func(command, primary string, extra ...string) Rule {
+		return Rule{Command: command, Weight: widgetWeight, When: mustWhen(append([]string{whenEditorFocus}, extra...)...), Primary: primary}
+	}
+	r.MustRegister(
+		Rule{Command: "actions.find", Weight: WeightEditorContrib, Primary: "ctrl+f"},
+		Rule{Command: "editor.action.startFindReplaceAction", Weight: WeightEditorContrib, Primary: "ctrl+h"},
+		focus("editor.action.nextMatchFindAction", "f3"),
+		focus("editor.action.nextMatchFindAction", "enter", "findInputFocussed"),
+		focus("editor.action.previousMatchFindAction", "shift+f3"),
+		focus("editor.action.previousMatchFindAction", "shift+enter", "findInputFocussed"),
+		focus("editor.action.nextSelectionMatchFindAction", "ctrl+f3"),
+		focus("editor.action.previousSelectionMatchFindAction", "ctrl+shift+f3"),
+		Rule{Command: "closeFindWidget", Weight: widgetWeight, When: mustWhen(whenEditorFocus, "findWidgetVisible"), Primary: "escape", Secondary: []string{"shift+escape"}},
+		widget("toggleFindCaseSensitive", "alt+c"),
+		widget("toggleFindWholeWord", "alt+w"),
+		widget("toggleFindRegex", "alt+r"),
+		widget("toggleFindInSelection", "alt+l"),
+		widget("togglePreserveCase", "alt+p"),
+		widget("editor.action.replaceOne", "ctrl+shift+1", "findWidgetVisible"),
+		widget("editor.action.replaceOne", "enter", "findWidgetVisible", "replaceInputFocussed"),
+		widget("editor.action.replaceAll", "ctrl+alt+enter", "findWidgetVisible"),
+		widget("editor.action.replaceAll", "ctrl+enter", "findWidgetVisible", "replaceInputFocussed"),
+		widget("editor.action.selectAllMatches", "alt+enter", "findWidgetVisible"),
+	)
 }

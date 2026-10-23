@@ -208,18 +208,57 @@ func TestChordOfReadsTheModifiersAndIgnoresKeyUps(t *testing.T) {
 	}
 }
 
+// leaveFind closes the find widget, which gives the focus back to the editor.
+func (a *keyApp) leaveFind() {
+	if a.vm.FindRevealed() {
+		if err := a.vm.RunCommand("closeFindWidget", nil); err != nil {
+			panic(err)
+		}
+	}
+	a.ts.Pump(time.Millisecond)
+}
+
+// openFind opens the find widget with a command of the editor (the registry's handlers are the
+// spy's) and waits for its input to have the focus.
+func (a *keyApp) openFind(id string) {
+	if err := a.vm.RunCommand(id, nil); err != nil {
+		panic(err)
+	}
+	a.ts.Pump(time.Millisecond)
+	a.ts.Pump(time.Millisecond)
+}
+
 // states are the situations the default keybindings are tried in: each when-clause of the
 // keymap holds in one of them.
 func (a *keyApp) states() []func() {
+	text := func(f func()) func() {
+		return func() {
+			a.leaveFind()
+			f()
+		}
+	}
 	return []func(){
-		func() { a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 3)}) },
-		func() { a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 2, 1, 2)}) },
-		func() { a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 2, 1, 2), cursorAt(2, 1)}) },
-		func() {
+		text(func() { a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 3)}) }),
+		text(func() { a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 2, 1, 2)}) }),
+		text(func() { a.vm.Cursors().SetSelections([]buffer.Selection{sel(0, 2, 1, 2), cursorAt(2, 1)}) }),
+		text(func() {
 			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(0, 2)})
 			if err := a.vm.RunCommand("cursorColumnSelectDown", nil); err != nil {
 				panic(err)
 			}
+		}),
+		// the find widget is open and its find input has the focus
+		func() {
+			a.leaveFind()
+			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 3)})
+			a.openFind("actions.find")
+		},
+		// ... and its replace input
+		func() {
+			a.leaveFind()
+			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 3)})
+			a.openFind("editor.action.startFindReplaceAction")
+			a.openFind("editor.action.startFindReplaceAction") // from the find input, it goes to the replace input
 		},
 	}
 }
@@ -227,7 +266,7 @@ func (a *keyApp) states() []func() {
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
-	defer restore()
+	defer func() { restore() }()
 	var tried int
 	for _, item := range a.win.Process.Keymap.Defaults() {
 		if item.Command == "" || strings.HasPrefix(item.Command, "-") || len(item.Keybinding) == 0 {
@@ -240,6 +279,10 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				state()
 				a.vm.SelectionsChanged()
 				a.ts.Pump(time.Millisecond)
+				// A state that moves the focus into the find widget makes the editor bind its commands
+				// again, above the spies: the spies go on top again.
+				restore()
+				ran, restore = a.spyOnCommands(t)
 				*ran = nil
 				for _, chord := range item.Keybinding {
 					sendChord(a.ts, chord)

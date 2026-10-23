@@ -20,6 +20,7 @@ func DefaultRegistry() *Registry {
 	registerIndentationCommands(r)
 	registerCommentCommands(r)
 	registerFoldingCommands(r)
+	registerFindCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
 	return r
@@ -261,4 +262,32 @@ func registerFoldingCommands(r *Registry) {
 		metas[i].Precondition = folding
 	}
 	r.MustRegister(metas...)
+}
+
+// registerFindCommands registers the commands of the find widget (SPEC §9.8). The ones that work
+// on the open widget need the context key findWidgetVisible.
+//
+// Ported from VS Code: src/vs/editor/contrib/find/browser/findController.ts
+func registerFindCommands(r *Registry) {
+	visible := contextkey.Has("findWidgetVisible")
+	r.MustRegister(
+		Meta{ID: "actions.find", Title: "Find", Category: "Edit"},
+		Meta{ID: "actions.findWithSelection", Title: "Find with Selection", Category: "Edit"},
+		Meta{ID: "editor.actions.findWithArgs", Title: "Find with Arguments", Category: "Edit",
+			Description: `Open the find widget. Arguments: {"searchString", "replaceString", "isRegex", "matchWholeWord", "isCaseSensitive", "preserveCase", "findInSelection"}, all optional.`},
+		Meta{ID: "editor.action.nextMatchFindAction", Title: "Find Next", Category: "Edit"},
+		Meta{ID: "editor.action.previousMatchFindAction", Title: "Find Previous", Category: "Edit"},
+		Meta{ID: "editor.action.nextSelectionMatchFindAction", Title: "Find Next Selection", Category: "Edit"},
+		Meta{ID: "editor.action.previousSelectionMatchFindAction", Title: "Find Previous Selection", Category: "Edit"},
+		Meta{ID: "editor.action.startFindReplaceAction", Title: "Replace", Category: "Edit"},
+		Meta{ID: "closeFindWidget", Title: "Close Find Widget", Precondition: visible},
+		Meta{ID: "toggleFindCaseSensitive", Title: "Toggle Find Case Sensitive"},
+		Meta{ID: "toggleFindWholeWord", Title: "Toggle Find Whole Word"},
+		Meta{ID: "toggleFindRegex", Title: "Toggle Find Regex"},
+		Meta{ID: "toggleFindInSelection", Title: "Toggle Find in Selection"},
+		Meta{ID: "togglePreserveCase", Title: "Toggle Preserve Case"},
+		Meta{ID: "editor.action.replaceOne", Title: "Replace One", Precondition: visible},
+		Meta{ID: "editor.action.replaceAll", Title: "Replace All", Precondition: visible},
+		Meta{ID: "editor.action.selectAllMatches", Title: "Select All Occurrences of Find Match", Precondition: visible},
+	)
 }

@@ -51,6 +51,28 @@ type Colors struct {
 	FocusBorder                       ui.Color
 	Foreground                        ui.Color
 	WidgetShadow                      ui.Color
+
+	// EditorFindMatchBackground and its border color the current match of the find widget,
+	// EditorFindMatchHighlightBackground and its border the other matches and
+	// EditorFindRangeHighlightBackground and its border the lines of the current match and the
+	// range a search is limited to.
+	EditorFindMatchBackground, EditorFindMatchBorder                   ui.Color
+	EditorFindMatchHighlightBackground, EditorFindMatchHighlightBorder ui.Color
+	EditorFindRangeHighlightBackground, EditorFindRangeHighlightBorder ui.Color
+	// EditorOverviewRulerFindMatch and EditorOverviewRulerRangeHighlight are the marks of the
+	// matches and of the range highlight on the vertical scrollbar.
+	EditorOverviewRulerFindMatch, EditorOverviewRulerRangeHighlight ui.Color
+	// EditorWidgetBackground, EditorWidgetForeground and WidgetBorder are the colors of widgets
+	// over the editor (find).
+	EditorWidgetBackground, EditorWidgetForeground, WidgetBorder ui.Color
+	// IconForeground is the color of icons; ToolbarHoverBackground the background of an icon
+	// button under the pointer.
+	IconForeground, ToolbarHoverBackground ui.Color
+	// The colors of input boxes and of the toggles in them.
+	InputBackground, InputForeground, InputBorder, InputPlaceholderForeground         ui.Color
+	InputOptionActiveBorder, InputOptionActiveBackground, InputOptionActiveForeground ui.Color
+	InputOptionHoverBackground                                                        ui.Color
+	InputValidationErrorBorder                                                        ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -101,6 +123,18 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		FocusBorder:                       color("focusBorder"),
 		Foreground:                        color("foreground"),
 		WidgetShadow:                      color("widget.shadow"),
+
+		EditorFindMatchBackground: color("editor.findMatchBackground"), EditorFindMatchBorder: color("editor.findMatchBorder"),
+		EditorFindMatchHighlightBackground: color("editor.findMatchHighlightBackground"), EditorFindMatchHighlightBorder: color("editor.findMatchHighlightBorder"),
+		EditorFindRangeHighlightBackground: color("editor.findRangeHighlightBackground"), EditorFindRangeHighlightBorder: color("editor.findRangeHighlightBorder"),
+		EditorOverviewRulerFindMatch: color("editorOverviewRuler.findMatchForeground"), EditorOverviewRulerRangeHighlight: color("editorOverviewRuler.rangeHighlightForeground"),
+		EditorWidgetBackground: color("editorWidget.background"), EditorWidgetForeground: color("editorWidget.foreground"), WidgetBorder: color("widget.border"),
+		IconForeground: color("icon.foreground"), ToolbarHoverBackground: color("toolbar.hoverBackground"),
+		InputBackground: color("input.background"), InputForeground: color("input.foreground"), InputBorder: color("input.border"),
+		InputPlaceholderForeground: color("input.placeholderForeground"),
+		InputOptionActiveBorder:    color("inputOption.activeBorder"), InputOptionActiveBackground: color("inputOption.activeBackground"),
+		InputOptionActiveForeground: color("inputOption.activeForeground"), InputOptionHoverBackground: color("inputOption.hoverBackground"),
+		InputValidationErrorBorder: color("inputValidation.errorBorder"),
 	}
 }
 
@@ -121,6 +155,7 @@ type Theme struct {
 	widgets.InheritedWidget
 	colors Colors
 	tokens *theme.TokenTheme
+	uiFont string
 }
 
 // ThemeOpts are the options of NewTheme.
@@ -128,6 +163,9 @@ type ThemeOpts struct {
 	// Tokens gives the colors and font styles of the tokens of a language (SPEC §8.4). Editors
 	// below a Theme without it show their text in the editor's foreground color.
 	Tokens *theme.TokenTheme
+	// UIFont is the family of the workbench's text; without it the desktop's UI font is used
+	// (SPEC D14). A test gives the family of its test font.
+	UIFont string
 }
 
 // NewTheme makes a Theme with the given colors for the child.
@@ -135,6 +173,7 @@ func NewTheme(colors Colors, child widgets.Widget, opts ...ThemeOpts) *Theme {
 	t := &Theme{InheritedWidget: widgets.NewInheritedWidgetBase(child), colors: colors}
 	if len(opts) > 0 {
 		t.tokens = opts[0].Tokens
+		t.uiFont = opts[0].UIFont
 	}
 	return t
 }
@@ -146,7 +185,7 @@ func (t *Theme) Colors() Colors { return t.colors }
 // when a color or the token theme changed.
 func (t *Theme) UpdateShouldNotify(old widgets.Widget) bool {
 	o := old.(*Theme)
-	return t.colors != o.colors || t.tokens != o.tokens
+	return t.colors != o.colors || t.tokens != o.tokens || t.uiFont != o.uiFont
 }
 
 // ThemeOf returns the colors of the nearest Theme above bc, and rebuilds the caller when

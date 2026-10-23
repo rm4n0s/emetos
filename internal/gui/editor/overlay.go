@@ -38,6 +38,12 @@ type OverlayColors struct {
 	// FoldBackground is the background of a folded line and FoldPlaceholder the color of the
 	// "…" after it.
 	FoldBackground, FoldPlaceholder ui.Color
+	// FindMatch and FindMatchBorder color the current match of the find widget,
+	// FindMatchHighlight and its border the other matches, FindRangeHighlight and its border the
+	// lines of the current match and the range the search is limited to.
+	FindMatch, FindMatchBorder                   ui.Color
+	FindMatchHighlight, FindMatchHighlightBorder ui.Color
+	FindRangeHighlight, FindRangeHighlightBorder ui.Color
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -193,6 +199,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 		view.paintFolded()
 		view.paintSelections()
 		view.paintGuides()
+		view.paintFind()
 		view.paintMatchingBrackets()
 	} else {
 		view.paintCursors()

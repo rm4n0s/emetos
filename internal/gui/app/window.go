@@ -48,6 +48,9 @@ type Window struct {
 	// Clipboard is what the editors of the window remember of what they copied, so that a copy
 	// in one editor pastes in another as it was made.
 	Clipboard *editor.ClipboardMemory
+	// Find is what the editors of the window share of their searches: the switches of the find
+	// widget.
+	Find *editor.FindMemory
 	// Zoom is the zoom level of the font of the editors of the window.
 	Zoom *editor.Zoom
 
@@ -93,6 +96,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Dispatcher:  keybinding.NewDispatcher(resolver, time.Now),
 		Scopes:      kit.NewFocusScopes(),
 		Clipboard:   editor.NewClipboardMemory(),
+		Find:        &editor.FindMemory{},
 		Zoom:        editor.NewZoom(),
 		ctx:         ctx,
 	}

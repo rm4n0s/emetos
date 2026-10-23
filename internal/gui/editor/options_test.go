@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -72,6 +73,9 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		AutoClosingBrackets: "languageDefined", AutoClosingComments: "languageDefined", AutoClosingQuotes: "languageDefined",
 		AutoClosingDelete: "auto", AutoClosingOvertype: "auto", AutoSurround: "languageDefined",
 		CommentsInsertSpace: true, CommentsIgnoreEmptyLines: true,
+		WordSeparators:                    edit.DefaultWordSeparators,
+		FindSeedSearchStringFromSelection: "always", FindAutoInSelection: "never",
+		FindCursorMoveOnType: true, FindLoop: true,
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)

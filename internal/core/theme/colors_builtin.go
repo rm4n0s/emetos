@@ -8,6 +8,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerBaseColors(r)
 	registerEditorColors(r)
 	registerScrollbarColors(r)
+	registerFindColors(r)
 	return r
 }
 
@@ -173,5 +174,65 @@ func registerScrollbarColors(r *ColorRegistry) {
 		ColorContribution{ID: "scrollbarSlider.activeBackground",
 			Defaults:    dflt(grey("#BFBFBF", 0.4), grey("#000000", 0.6), Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Scrollbar slider background color when clicked on."},
+	)
+}
+
+// registerFindColors registers the colors of the find widget and of the matches it marks.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts,
+// src/vs/platform/theme/common/colors/inputColors.ts and src/vs/editor/common/core/editorColorRegistry.ts
+func registerFindColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editor.findMatchBackground", Defaults: dflt(Hex("#515C6A"), Hex("#A8AC94"), nil, nil),
+			Description: "Color of the current search match."},
+		ColorContribution{ID: "editor.findMatchHighlightBackground", NeedsTransparency: true, Defaults: dflt(Hex("#EA5C0055"), Hex("#EA5C0055"), nil, nil),
+			Description: "Color of the other search matches. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.findRangeHighlightBackground", NeedsTransparency: true, Defaults: dflt(Hex("#3a3d4166"), Hex("#b4b4b44d"), nil, nil),
+			Description: "Color of the range limiting the search. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.findMatchBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color of the current search match."},
+		ColorContribution{ID: "editor.findMatchHighlightBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color of the other search matches."},
+		ColorContribution{ID: "editor.findRangeHighlightBorder", NeedsTransparency: true,
+			Defaults:    dflt(nil, nil, Transparent(Ref("contrastActiveBorder"), 0.4), Transparent(Ref("contrastActiveBorder"), 0.4)),
+			Description: "Border color of the range limiting the search. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editorOverviewRuler.findMatchForeground", NeedsTransparency: true, Defaults: dflt(Hex("#d186167e"), Hex("#d186167e"), Hex("#AB5A00"), Hex("#AB5A00")),
+			Description: "Overview ruler marker color for find matches. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editorOverviewRuler.rangeHighlightForeground", NeedsTransparency: true, Defaults: AllThemes(Hex("#007acc99")),
+			Description: "Overview ruler marker color for range highlights. The color must not be opaque so as not to hide underlying decorations."},
+
+		ColorContribution{ID: "editorWidget.background", Defaults: dflt(Hex("#252526"), Hex("#F3F3F3"), Hex("#0C141F"), Lit(ColorWhite)),
+			Description: "Background color of editor widgets, such as find/replace."},
+		ColorContribution{ID: "editorWidget.foreground", Defaults: AllThemes(Ref("foreground")),
+			Description: "Foreground color of editor widgets, such as find/replace."},
+		ColorContribution{ID: "widget.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border color of widgets such as find/replace inside the editor."},
+		ColorContribution{ID: "toolbar.hoverBackground", Defaults: dflt(Hex("#5a5d5e50"), Hex("#b8b8b850"), nil, nil),
+			Description: "Toolbar background when hovering over actions using the mouse"},
+
+		ColorContribution{ID: "input.background", Defaults: dflt(Hex("#3C3C3C"), Lit(ColorWhite), Lit(ColorBlack), Lit(ColorWhite)),
+			Description: "Input box background."},
+		ColorContribution{ID: "input.foreground", Defaults: AllThemes(Ref("foreground")),
+			Description: "Input box foreground."},
+		ColorContribution{ID: "input.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Input box border."},
+		ColorContribution{ID: "input.placeholderForeground",
+			Defaults:    dflt(Transparent(Ref("foreground"), 0.5), Transparent(Ref("foreground"), 0.5), Transparent(Ref("foreground"), 0.7), Transparent(Ref("foreground"), 0.7)),
+			Description: "Input box foreground color for placeholder text."},
+		ColorContribution{ID: "inputOption.activeBorder", Defaults: dflt(Hex("#007ACC"), Hex("#007ACC"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border color of activated options in input fields."},
+		ColorContribution{ID: "inputOption.hoverBackground", Defaults: dflt(Hex("#5a5d5e80"), Hex("#b8b8b850"), nil, nil),
+			Description: "Background color of activated options in input fields."},
+		ColorContribution{ID: "inputOption.activeBackground",
+			Defaults:    dflt(Transparent(Ref("focusBorder"), 0.4), Transparent(Ref("focusBorder"), 0.2), Lit(ColorTransparent), Lit(ColorTransparent)),
+			Description: "Background hover color of options in input fields."},
+		ColorContribution{ID: "inputOption.activeForeground", Defaults: dflt(Lit(ColorWhite), Lit(ColorBlack), Ref("foreground"), Ref("foreground")),
+			Description: "Foreground color of activated options in input fields."},
+		ColorContribution{ID: "inputValidation.errorBackground", Defaults: dflt(Hex("#5A1D1D"), Hex("#F2DEDE"), Lit(ColorBlack), Lit(ColorWhite)),
+			Description: "Input validation background color for error severity."},
+		ColorContribution{ID: "inputValidation.errorForeground", Defaults: dflt(nil, nil, nil, Ref("foreground")),
+			Description: "Input validation foreground color for error severity."},
+		ColorContribution{ID: "inputValidation.errorBorder", Defaults: dflt(Hex("#BE1100"), Hex("#BE1100"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Input validation border color for error severity."},
 	)
 }
