@@ -147,3 +147,26 @@ func TestValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestThemeSettingsAreRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	cases := []struct {
+		key  string
+		want any
+	}{
+		{"workbench.colorTheme", "Dark Modern"},
+		{"workbench.preferredDarkColorTheme", "Dark Modern"},
+		{"workbench.preferredLightColorTheme", "Light Modern"},
+		{"window.autoDetectColorScheme", false},
+	}
+	for _, tc := range cases {
+		s, ok := r.Lookup(tc.key)
+		if !ok {
+			t.Errorf("%s is not registered", tc.key)
+			continue
+		}
+		if s.Default != tc.want || s.Description == "" {
+			t.Errorf("%s: default %v, want %v (description %q)", tc.key, s.Default, tc.want, s.Description)
+		}
+	}
+}

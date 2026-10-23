@@ -26,11 +26,16 @@ func TestRun(t *testing.T) {
 		t.Errorf("the output is not written: %v", err)
 	}
 
+	nan := filepath.Join(dir, "nan.tmLanguage")
+	if err := os.WriteFile(nan, []byte(plistHead+`<dict><key>x</key><real>NaN</real></dict></plist>`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		name, in, out, route string
 	}{
 		{"no input", filepath.Join(dir, "missing"), out, "run.PlistReadFailed"},
 		{"no folder for the output", in, filepath.Join(dir, "none", "a.json"), "run.PlistWriteFailed"},
+		{"a real that json cannot write", nan, out + "3", "run.PlistEncodeFailed"},
 		{"input that is not a plist", out, out + "2", "run->Parse.PlistInvalid"},
 	}
 	for _, tc := range cases {

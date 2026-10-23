@@ -47,7 +47,12 @@ func testutilNew(t *testing.T) *gluttertest.Tester {
 // pumpEditorWith shows the editor of a view model, with options, in a tester.
 func pumpEditorWith(t testing.TB, ts *gluttertest.Tester, vm *ViewModel, opts EditorOpts) {
 	t.Helper()
-	colors := kit.DarkModern()
+	pumpEditorColors(t, ts, vm, opts, kit.DarkModern())
+}
+
+// pumpEditorColors is pumpEditorWith in a theme with the given colors.
+func pumpEditorColors(t testing.TB, ts *gluttertest.Tester, vm *ViewModel, opts EditorOpts, colors kit.Colors) {
+	t.Helper()
 	ts.PumpWidget(kit.NewTheme(colors, widgets.NewWidgetsApp(colors.EditorBackground, widgets.WidgetsAppOpts{
 		DebugShowCheckedModeBanner: foundation.Some(false),
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {

@@ -81,7 +81,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		p.Logger.Warn("settings problem", "target", problem.Target, "key", problem.Key, "message", problem.Message)
 	}
 	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
-	return &Window{
+	w := &Window{
 		Process:     p,
 		Folder:      folder,
 		Settings:    store,
@@ -93,7 +93,9 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Clipboard:   editor.NewClipboardMemory(),
 		Zoom:        editor.NewZoom(),
 		ctx:         ctx,
-	}, nil
+	}
+	w.followTheme()
+	return w, nil
 }
 
 // Documents are the documents open in a window, by URI. It is safe for concurrent use,

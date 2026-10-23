@@ -130,9 +130,8 @@ func newApp(ctx context.Context, win *Window, doc *document.Document, steps []De
 // the page the Overlay and Navigator it will need. The window and the theme sit above the
 // app, so that everything in it can read them.
 func newAppWithPage(win *Window, page func() widgets.Widget) widgets.Widget {
-	colors := kit.DarkModern()
-	return NewWindowScope(win, NewKeyDispatcher(kit.NewTheme(colors,
-		widgets.NewWidgetsApp(colors.EditorBackground, widgets.WidgetsAppOpts{
+	return NewWindowScope(win, NewKeyDispatcher(newThemeHost(func(colors kit.Colors) widgets.Widget {
+		return widgets.NewWidgetsApp(colors.EditorBackground, widgets.WidgetsAppOpts{
 			Title: Title,
 			// The window is a proof image: it has no debug ribbon.
 			DebugShowCheckedModeBanner: foundation.Some(false),
@@ -143,7 +142,8 @@ func newAppWithPage(win *Window, page func() widgets.Widget) widgets.Widget {
 					},
 					widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 			},
-		}))))
+		})
+	})))
 }
 
 // shell is the page of the window: the open file, or the Emetos icon and name when there is

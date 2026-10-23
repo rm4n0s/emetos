@@ -10,6 +10,10 @@ const usualWordSeparators = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?"
 const (
 	categoryEditor = "Text Editor"
 	categoryFiles  = "Files"
+	// categoryWorkbench is the group of the workbench's settings; the settings of the theme are in
+	// the "Workbench" group of VS Code's settings editor.
+	categoryWorkbench = "Workbench"
+	categoryWindow    = "Window"
 )
 
 // DefaultRegistry makes a registry with the settings Emetos has. Each step that reads a
@@ -18,6 +22,7 @@ func DefaultRegistry() *Registry {
 	r := NewRegistry()
 	registerEditor(r)
 	registerFiles(r)
+	registerWorkbench(r)
 	return r
 }
 
@@ -263,6 +268,37 @@ func registerFiles(r *Registry) {
 			EnumDescriptions: []string{"LF", "CRLF", "Uses operating system specific end of line character."},
 			Description:      "The default end of line character.",
 			Scope:            ScopeLanguageOverridable, Category: categoryFiles,
+		},
+	)
+}
+
+// registerWorkbench registers the workbench.* settings that choose the color theme. The default
+// themes have the names of Emetos's bundled themes ("Dark Modern", where VS Code says "Default
+// Dark Modern"), and the value is the label or id of any theme, bundled or the user's, so the
+// settings have no fixed list of values.
+//
+// Ported from VS Code: src/vs/workbench/services/themes/common/themeConfiguration.ts
+func registerWorkbench(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "workbench.colorTheme", Types: []Type{String}, Default: "Dark Modern",
+			Description: "Specifies the color theme used in the workbench when `window.autoDetectColorScheme` is not enabled.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.preferredDarkColorTheme", Types: []Type{String}, Default: "Dark Modern",
+			Description: "Specifies the color theme when system color mode is dark and `window.autoDetectColorScheme` is enabled.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.preferredLightColorTheme", Types: []Type{String}, Default: "Light Modern",
+			Description: "Specifies the color theme when system color mode is light and `window.autoDetectColorScheme` is enabled.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "window.autoDetectColorScheme", Types: []Type{Boolean}, Default: false,
+			Description: "If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, `workbench.preferredDarkColorTheme` is used, else `workbench.preferredLightColorTheme`.",
+			Scope:       ScopeWindow, Category: categoryWindow,
 		},
 	)
 }

@@ -3,11 +3,12 @@ package kit
 import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/core/theme"
 )
 
 // Colors are the workbench colors the widgets read, named as VS Code names them in a color
-// theme's "colors". Step 4.8 fills them from the theme service; until then DarkModern
-// gives their values.
+// theme's "colors". ColorsOf takes them from a theme of the theme service.
 type Colors struct {
 	EditorBackground                  ui.Color
 	EditorForeground                  ui.Color
@@ -31,34 +32,50 @@ type Colors struct {
 	WidgetShadow                      ui.Color
 }
 
-// DarkModern are the values of VS Code's Dark Modern theme. The theme file
-// (extensions/theme-defaults/themes/dark_modern.json, with its includes dark_plus.json and
-// dark_vs.json) sets some of the colors; the others have the dark defaults of VS Code's
-// color registry (src/vs/editor/common/core/editorColorRegistry.ts and
-// src/vs/platform/theme/common/colors/).
-func DarkModern() Colors {
-	return Colors{
-		EditorBackground:                  ui.NewColor(0xFF1F1F1F), // dark_modern.json
-		EditorForeground:                  ui.NewColor(0xFFCCCCCC), // dark_modern.json
-		EditorLineHighlightBackground:     ui.NewColor(0x00000000), // registry: none
-		EditorLineHighlightBorder:         ui.NewColor(0xFF282828), // registry
-		EditorSelectionBackground:         ui.NewColor(0xFF264F78), // registry
-		EditorInactiveSelectionBackground: ui.NewColor(0xFF3A3D41), // dark_modern.json
-		EditorCursorForeground:            ui.NewColor(0xFFAEAFAD), // registry
-		EditorLineNumberForeground:        ui.NewColor(0xFF6E7681), // dark_modern.json
-		EditorLineNumberActiveForeground:  ui.NewColor(0xFFCCCCCC), // dark_modern.json
-		EditorGutterBackground:            ui.NewColor(0xFF1F1F1F), // registry: editor.background
-		EditorWhitespaceForeground:        ui.NewColor(0x29E3E4E2), // registry: #e3e4e229
-		EditorIndentGuideBackground1:      ui.NewColor(0xFF404040), // dark_modern.json
-		EditorRulerForeground:             ui.NewColor(0xFF5A5A5A), // registry
-		ScrollbarSliderBackground:         ui.NewColor(0x66797979), // registry: #797979 at 40%
-		ScrollbarSliderHoverBackground:    ui.NewColor(0xB3646464), // registry: #646464 at 70%
-		ScrollbarSliderActiveBackground:   ui.NewColor(0x66BFBFBF), // registry: #BFBFBF at 40%
-		ScrollbarShadow:                   ui.NewColor(0xFF000000), // registry
-		FocusBorder:                       ui.NewColor(0xFF0078D4), // dark_modern.json
-		Foreground:                        ui.NewColor(0xFFCCCCCC), // dark_modern.json
-		WidgetShadow:                      ui.NewColor(0x5C000000), // registry: black at 36%
+// ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
+// default of the color registry. A color that has neither (editor.lineHighlightBackground in
+// most themes) is transparent.
+func ColorsOf(ct *theme.ColorTheme) Colors {
+	color := func(id string) ui.Color {
+		c, ok := ct.Color(id)
+		if !ok {
+			return ui.NewColor(0)
+		}
+		return ui.NewColor(c.ARGB())
 	}
+	return Colors{
+		EditorBackground:                  color("editor.background"),
+		EditorForeground:                  color("editor.foreground"),
+		EditorLineHighlightBackground:     color("editor.lineHighlightBackground"),
+		EditorLineHighlightBorder:         color("editor.lineHighlightBorder"),
+		EditorSelectionBackground:         color("editor.selectionBackground"),
+		EditorInactiveSelectionBackground: color("editor.inactiveSelectionBackground"),
+		EditorCursorForeground:            color("editorCursor.foreground"),
+		EditorLineNumberForeground:        color("editorLineNumber.foreground"),
+		EditorLineNumberActiveForeground:  color("editorLineNumber.activeForeground"),
+		EditorGutterBackground:            color("editorGutter.background"),
+		EditorWhitespaceForeground:        color("editorWhitespace.foreground"),
+		EditorIndentGuideBackground1:      color("editorIndentGuide.background1"),
+		EditorRulerForeground:             color("editorRuler.foreground"),
+		ScrollbarSliderBackground:         color("scrollbarSlider.background"),
+		ScrollbarSliderHoverBackground:    color("scrollbarSlider.hoverBackground"),
+		ScrollbarSliderActiveBackground:   color("scrollbarSlider.activeBackground"),
+		ScrollbarShadow:                   color("scrollbar.shadow"),
+		FocusBorder:                       color("focusBorder"),
+		Foreground:                        color("foreground"),
+		WidgetShadow:                      color("widget.shadow"),
+	}
+}
+
+// DarkModern are the colors of the bundled Dark Modern theme, which a widget shown on its own
+// (with no Theme above it) uses.
+func DarkModern() Colors {
+	t, err := theme.LoadBundled(theme.DefaultDark)
+	if err != nil {
+		// The theme is embedded in the program, so this is a broken build.
+		panic(err)
+	}
+	return ColorsOf(theme.NewColorTheme(t, theme.DefaultColorRegistry()))
 }
 
 // Theme is the inherited widget that gives its subtree the workbench colors.
@@ -71,6 +88,9 @@ type Theme struct {
 func NewTheme(colors Colors, child widgets.Widget) *Theme {
 	return &Theme{InheritedWidget: widgets.NewInheritedWidgetBase(child), colors: colors}
 }
+
+// Colors are the colors the Theme gives.
+func (t *Theme) Colors() Colors { return t.colors }
 
 // UpdateShouldNotify implements widgets.InheritedWidgetInterface: dependents are rebuilt
 // when a color changed.

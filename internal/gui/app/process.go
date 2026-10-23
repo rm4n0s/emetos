@@ -2,6 +2,7 @@ package app
 
 import (
 	"log/slog"
+	"os"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
@@ -9,6 +10,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/core/theme"
 )
 
 // Process holds what the whole process shares (SPEC §5.1): the folders, the registries of
@@ -30,6 +32,9 @@ type Process struct {
 	Keymap *keybinding.Registry
 	// Notify is the model of notifications.
 	Notify *notify.Service
+	// Themes is the theme service: it picks the color theme from the settings and the system's
+	// brightness (SPEC §8.4).
+	Themes *theme.Service
 }
 
 // ProcessOptions say what a Process is made of.
@@ -60,7 +65,29 @@ func NewProcess(opts ProcessOptions) *Process {
 		Commands: command.DefaultRegistry(),
 		Keymap:   keybinding.DefaultRegistry(),
 		Notify:   notify.NewService(logger, nil),
+		Themes:   theme.NewService(theme.DefaultColorRegistry()),
 	}
 	registerDevCommands(p.Commands)
+	p.loadUserThemes()
 	return p
+}
+
+// loadUserThemes reads the themes in the user's folder of themes into the theme service. A
+// folder that is not there is no themes; a theme that cannot be read is logged.
+func (p *Process) loadUserThemes() {
+	dir := p.Paths.ThemesDir()
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return
+	}
+	themes, problems, err := theme.LoadUserThemes(os.DirFS(dir))
+	if err != nil {
+		p.Logger.Warn("user themes", "dir", dir, "err", err)
+		return
+	}
+	for _, problem := range problems {
+		p.Logger.Warn("user theme", "dir", dir, "err", problem)
+	}
+	if err := p.Themes.SetUserThemes(themes); err != nil {
+		p.Logger.Debug("theme from the settings is not among the user themes", "err", err)
+	}
 }

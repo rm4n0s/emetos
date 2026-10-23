@@ -271,3 +271,42 @@ func TestColorizeOracle(t *testing.T) {
 	}
 	t.Logf("%d token colors checked", checked)
 }
+
+func TestBundledFromErrors(t *testing.T) {
+	theme := `{"contributes": {"themes": [{"id": "Dark Modern", "label": "%x%", "uiTheme": "%s", "path": "./themes/a.json"}]}}`
+	with := func(manifest string, extra ...string) fstest.MapFS {
+		m := fstest.MapFS{"assets/themes/a.json": file(`{}`)}
+		if manifest != "" {
+			m["assets/package.json"] = file(manifest)
+		}
+		for i := 0; i+1 < len(extra); i += 2 {
+			m[extra[i]] = file(extra[i+1])
+		}
+		return m
+	}
+	cases := []struct {
+		name string
+		fsys fstest.MapFS
+	}{
+		{"no manifest", with("")},
+		{"a manifest that is not JSON", with(`{`)},
+		{"translations that are not JSON", with(strings.Replace(theme, "%s", "vs", 1), "assets/package.nls.json", `[`)},
+		{"a theme of an unknown type", with(strings.Replace(theme, "%s", "blue", 1))},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := bundledFrom(tc.fsys)
+			appErr, ok := errors.FromError(err)
+			if !ok {
+				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+			}
+			if !appErr.HasRoute("bundledFrom.BundledThemesInvalid") {
+				t.Errorf("unexpected failure path: %s", appErr.Route())
+			}
+		})
+	}
+	list, err := bundledFrom(with(strings.Replace(theme, "%s", "vs", 1), "assets/package.nls.json", `{"x": "Named"}`))
+	if err != nil || len(list) != 1 || list[0].Label != "Named" || list[0].Type != TypeLight {
+		t.Errorf("a label from the translations: %+v %v", list, err)
+	}
+}

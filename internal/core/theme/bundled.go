@@ -49,8 +49,11 @@ type Info struct {
 // Bundled lists the themes that come with Emetos: Dark Modern, Light Modern, Dark+, Light+, Dark
 // High Contrast and Light High Contrast, in the order of the manifest of VS Code's default
 // themes. The error has the tag BundledThemesInvalid when the manifest cannot be read.
-func Bundled() ([]Info, error) {
-	data, err := fs.ReadFile(assets, "assets/package.json")
+func Bundled() ([]Info, error) { return bundledFrom(assets) }
+
+// bundledFrom lists the offered themes of the extension in the "assets" folder of fsys.
+func bundledFrom(fsys fs.FS) ([]Info, error) {
+	data, err := fs.ReadFile(fsys, "assets/package.json")
 	if err != nil {
 		return nil, errors.NewErr("BundledThemesInvalid", err).SetMetadata("file", "package.json")
 	}
@@ -65,7 +68,7 @@ func Bundled() ([]Info, error) {
 		return nil, errors.NewErr("BundledThemesInvalid", err).SetMetadata("file", "package.json")
 	}
 	names := map[string]string{}
-	if nls, err := fs.ReadFile(assets, "assets/package.nls.json"); err == nil {
+	if nls, err := fs.ReadFile(fsys, "assets/package.nls.json"); err == nil {
 		if err := json.Unmarshal(nls, &names); err != nil {
 			return nil, errors.NewErr("BundledThemesInvalid", err).SetMetadata("file", "package.nls.json")
 		}
@@ -73,7 +76,7 @@ func Bundled() ([]Info, error) {
 	var out []Info
 	for _, t := range manifest.Contributes.Themes {
 		file := path.Join("assets", t.Path)
-		if _, err := fs.Stat(assets, file); err != nil || !offered[t.ID] {
+		if _, err := fs.Stat(fsys, file); err != nil || !offered[t.ID] {
 			continue // a theme that is not bundled or not offered
 		}
 		typ, ok := ParseType(t.UITheme)
