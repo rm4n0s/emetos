@@ -2,8 +2,6 @@ package editor
 
 import (
 	"github.com/rm4n0s/glutter/foundation"
-	"github.com/rm4n0s/glutter/gestures"
-	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
@@ -14,12 +12,9 @@ import (
 
 // Metrics of the notice, as VS Code's binary file editor shows its message.
 const (
-	noticeMaxWidth   = 480.0
-	noticeFontSize   = 13.0
-	noticeGap        = 16.0
-	noticeButtonPadV = 4.0
-	noticeButtonPadH = 14.0
-	noticeRadius     = 2.0
+	noticeMaxWidth = 480.0
+	noticeFontSize = 13.0
+	noticeGap      = 16.0
 )
 
 // NoticeOpts configure a Notice.
@@ -61,8 +56,7 @@ func (n *Notice) CreateState() widgets.State { return &noticeState{} }
 
 type noticeState struct {
 	widgets.StateOf[*Notice]
-	node  *widgets.FocusNode
-	hover bool
+	node *widgets.FocusNode
 }
 
 // InitState makes the focus node.
@@ -91,12 +85,6 @@ func (s *noticeState) handleKey(_ *widgets.FocusNode, e services.KeyEvent) widge
 	return widgets.KeyEventResultIgnored
 }
 
-func (s *noticeState) setHover(h bool) {
-	if s.hover != h && s.Mounted() {
-		s.SetState(func() { s.hover = h })
-	}
-}
-
 // Build implements widgets.State.
 func (s *noticeState) Build(bc widgets.BuildContext) widgets.Widget {
 	n := s.Widget()
@@ -108,25 +96,7 @@ func (s *noticeState) Build(bc widgets.BuildContext) widgets.Widget {
 		}),
 	}
 	if n.opts.Action != "" {
-		bg := colors.ButtonBackground
-		if s.hover {
-			bg = colors.ButtonHoverBackground
-		}
-		button := widgets.NewMouseRegion(
-			widgets.NewGestureDetector(
-				widgets.NewContainer(
-					widgets.NewPadding(painting.NewEdgeInsetsSymmetric(noticeButtonPadV, noticeButtonPadH),
-						widgets.NewText(n.opts.Action, widgets.TextOpts{Style: kit.TextStyleOf(bc, noticeFontSize, colors.ButtonForeground)})),
-					widgets.ContainerOpts{Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
-						Color:        foundation.Some(bg),
-						BorderRadius: painting.NewBorderRadiusCircular(noticeRadius),
-					})}),
-				widgets.GestureDetectorOpts{Behavior: rendering.HitTestBehaviorOpaque, OnTap: s.act}),
-			widgets.MouseRegionOpts{
-				Cursor:  services.SystemMouseCursors.Click,
-				OnEnter: func(*gestures.PointerEnterEvent) { s.setHover(true) },
-				OnExit:  func(*gestures.PointerExitEvent) { s.setHover(false) },
-			})
+		button := kit.NewButton(n.opts.Action, kit.ButtonOpts{OnPressed: s.act})
 		children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(noticeGap)}), button)
 	}
 	body := widgets.NewConstrainedBox(

@@ -16,6 +16,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerListColors(r)
 	registerBreadcrumbColors(r)
 	registerButtonColors(r)
+	registerKitColors(r)
 	return r
 }
 
@@ -38,6 +39,8 @@ func registerBaseColors(r *ColorRegistry) {
 			Description: "An extra border around elements to separate them from others for greater contrast."},
 		ColorContribution{ID: "contrastActiveBorder", Defaults: dflt(nil, nil, Ref("focusBorder"), Ref("focusBorder")),
 			Description: "An extra border around active elements to separate them from others for greater contrast."},
+		ColorContribution{ID: "disabledForeground", Defaults: dflt(Hex("#CCCCCC80"), Hex("#61616180"), Hex("#A5A5A5"), Hex("#7F7F7F")),
+			Description: "Overall foreground for disabled elements. This color is only used if not overridden by a component."},
 		ColorContribution{ID: "widget.shadow", Defaults: dflt(Transparent(Lit(ColorBlack), 0.36), Transparent(Lit(ColorBlack), 0.16), nil, nil),
 			Description: "Shadow color of widgets such as find/replace inside the editor."},
 	)
@@ -212,6 +215,8 @@ func registerFindColors(r *ColorRegistry) {
 			Description: "Background color of editor widgets, such as find/replace."},
 		ColorContribution{ID: "editorWidget.foreground", Defaults: AllThemes(Ref("foreground")),
 			Description: "Foreground color of editor widgets, such as find/replace."},
+		ColorContribution{ID: "editorWidget.border", Defaults: dflt(Transparent(Ref("editorWidget.foreground"), 0.2), Transparent(Ref("editorWidget.foreground"), 0.2), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget."},
 		ColorContribution{ID: "widget.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Border color of widgets such as find/replace inside the editor."},
 		ColorContribution{ID: "toolbar.hoverBackground", Defaults: dflt(Hex("#5a5d5e50"), Hex("#b8b8b850"), nil, nil),
@@ -389,5 +394,38 @@ func registerButtonColors(r *ColorRegistry) {
 			Description: "Button background color when hovering."},
 		ColorContribution{ID: "button.border", Defaults: AllThemes(Ref("contrastBorder")),
 			Description: "Button border color."},
+		ColorContribution{ID: "button.secondaryForeground",
+			Defaults:    dflt(Ref("foreground"), Ref("foreground"), Lit(ColorWhite), Ref("foreground")),
+			Description: "Secondary button foreground color."},
+		ColorContribution{ID: "button.secondaryBackground",
+			Defaults:    dflt(Ref("list.hoverBackground"), Ref("list.hoverBackground"), nil, Lit(ColorWhite)),
+			Description: "Secondary button background color."},
+		ColorContribution{ID: "button.secondaryBorder",
+			Defaults:    dflt(Transparent(Ref("foreground"), 0.15), Transparent(Ref("foreground"), 0.15), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Secondary button border color."},
+		ColorContribution{ID: "button.secondaryHoverBackground",
+			Defaults:    dflt(Lighten(Ref("list.hoverBackground"), 0.2), Lighten(Ref("list.hoverBackground"), 0.2), nil, nil),
+			Description: "Secondary button background color when hovering."},
+	)
+}
+
+// registerKitColors registers the colors that the widgets of gui/kit paint beyond the ones of
+// lists, inputs and buttons: the pressed and toggled states of toolbar actions and the hover.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts (toolbar.* and
+// editorHoverWidget.*) and src/vs/platform/actionWidget/browser/actionWidget.ts (actionBar.toggledBackground)
+func registerKitColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "toolbar.activeBackground",
+			Defaults:    dflt(Lighten(Ref("toolbar.hoverBackground"), 0.1), Darken(Ref("toolbar.hoverBackground"), 0.1), nil, nil),
+			Description: "Toolbar background when holding the mouse over actions"},
+		ColorContribution{ID: "actionBar.toggledBackground", Defaults: AllThemes(Ref("inputOption.activeBackground")),
+			Description: "Background color for toggled action items in action bar."},
+		ColorContribution{ID: "editorHoverWidget.background", Defaults: AllThemes(Ref("editorWidget.background")),
+			Description: "Background color of the editor hover."},
+		ColorContribution{ID: "editorHoverWidget.foreground", Defaults: AllThemes(Ref("editorWidget.foreground")),
+			Description: "Foreground color of the editor hover."},
+		ColorContribution{ID: "editorHoverWidget.border", Defaults: AllThemes(Ref("editorWidget.border")),
+			Description: "Border color of the editor hover."},
 	)
 }

@@ -116,6 +116,46 @@ func TestDefaultColors(t *testing.T) {
 	}
 }
 
+// The colors that step 6.1 added for buttons, toolbar actions and hovers, as VS Code's registry
+// (inputColors.ts, editorColors.ts, baseColors.ts, actionWidget.ts) writes their defaults.
+func TestDefaultKitColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"disabledForeground", "rgba(204, 204, 204, 0.5)", "rgba(97, 97, 97, 0.5)", "#a5a5a5", "#7f7f7f"},
+		{"button.secondaryForeground", "#cccccc", "#616161", "#ffffff", "#292929"},
+		{"button.secondaryBackground", "#2a2d2e", "#f0f0f0", none, "#ffffff"},
+		{"button.secondaryBorder", "rgba(204, 204, 204, 0.15)", "rgba(97, 97, 97, 0.15)", "#6fc3df", "#0f4a85"},
+		{"button.secondaryHoverBackground", "#333637", "#ffffff", none, none},
+		{"toolbar.activeBackground", "rgba(99, 102, 103, 0.31)", "rgba(166, 166, 166, 0.31)", none, none},
+		{"actionBar.toggledBackground", "rgba(0, 127, 212, 0.4)", "rgba(0, 144, 241, 0.2)", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"},
+		{"editorWidget.border", "rgba(204, 204, 204, 0.2)", "rgba(97, 97, 97, 0.2)", "#6fc3df", "#0f4a85"},
+		{"editorHoverWidget.background", "#252526", "#f3f3f3", "#0c141f", "#ffffff"},
+		{"editorHoverWidget.foreground", "#cccccc", "#616161", "#ffffff", "#292929"},
+		{"editorHoverWidget.border", "rgba(204, 204, 204, 0.2)", "rgba(97, 97, 97, 0.2)", "#6fc3df", "#0f4a85"},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+}
+
 func TestEveryDefaultColorHasADescription(t *testing.T) {
 	for _, c := range DefaultColorRegistry().Colors() {
 		if c.Description == "" {

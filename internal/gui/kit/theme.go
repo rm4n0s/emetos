@@ -106,6 +106,14 @@ type Colors struct {
 	ButtonForeground, ButtonBackground, ButtonHoverBackground, ButtonBorder ui.Color
 	BreadcrumbForeground, BreadcrumbBackground, BreadcrumbFocusForeground   ui.Color
 	BreadcrumbActiveSelectionForeground, BreadcrumbPickerBackground         ui.Color
+	// The colors of secondary buttons: text, background, background under the pointer and border.
+	ButtonSecondaryForeground, ButtonSecondaryBackground, ButtonSecondaryHoverBackground, ButtonSecondaryBorder ui.Color
+	// DisabledForeground is the color of the text of disabled elements, ToolbarActiveBackground the
+	// background of a toolbar action while the pointer is pressed on it and ActionBarToggledBackground
+	// the one of a toggled action.
+	DisabledForeground, ToolbarActiveBackground, ActionBarToggledBackground ui.Color
+	// The colors of hovers (tooltips): background, text and border.
+	EditorHoverWidgetBackground, EditorHoverWidgetForeground, EditorHoverWidgetBorder ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -189,13 +197,25 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		BreadcrumbFocusForeground:           color("breadcrumb.focusForeground"),
 		BreadcrumbActiveSelectionForeground: color("breadcrumb.activeSelectionForeground"),
 		BreadcrumbPickerBackground:          color("breadcrumbPicker.background"),
+
+		ButtonSecondaryForeground: color("button.secondaryForeground"), ButtonSecondaryBackground: color("button.secondaryBackground"),
+		ButtonSecondaryHoverBackground: color("button.secondaryHoverBackground"), ButtonSecondaryBorder: color("button.secondaryBorder"),
+		DisabledForeground: color("disabledForeground"), ToolbarActiveBackground: color("toolbar.activeBackground"),
+		ActionBarToggledBackground:  color("actionBar.toggledBackground"),
+		EditorHoverWidgetBackground: color("editorHoverWidget.background"), EditorHoverWidgetForeground: color("editorHoverWidget.foreground"),
+		EditorHoverWidgetBorder: color("editorHoverWidget.border"),
 	}
 }
 
 // DarkModern are the colors of the bundled Dark Modern theme, which a widget shown on its own
 // (with no Theme above it) uses.
-func DarkModern() Colors {
-	t, err := theme.LoadBundled(theme.DefaultDark)
+func DarkModern() Colors { return bundledColors(theme.DefaultDark) }
+
+// LightModern are the colors of the bundled Light Modern theme.
+func LightModern() Colors { return bundledColors(theme.DefaultLight) }
+
+func bundledColors(name string) Colors {
+	t, err := theme.LoadBundled(name)
 	if err != nil {
 		// The theme is embedded in the program, so this is a broken build.
 		panic(err)

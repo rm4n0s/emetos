@@ -104,3 +104,31 @@ func TestThemeNotifiesOnlyWhenColorsChange(t *testing.T) {
 		t.Errorf("changed colors: %d builds, foreground %v", builds, got.Foreground)
 	}
 }
+
+// The colors of buttons, toolbar actions and hovers in the two bundled themes: what the themes set
+// and, where they set nothing, the defaults of the color registry.
+func TestModernThemesColorsOfKitWidgets(t *testing.T) {
+	for _, tc := range []struct {
+		theme  string
+		colors Colors
+		want   [11]uint32
+	}{
+		{"Dark Modern", DarkModern(), [11]uint32{0xFFCCCCCC, 0x00000000, 0xFF2B2B2B, 0x26CCCCCC, 0x80CCCCCC, 0x50636667, 0xFF383A49, 0xFF202020, 0xFFCCCCCC, 0x33CCCCCC, 0xFF0078D4}},
+		{"Light Modern", LightModern(), [11]uint32{0xFF3B3B3B, 0xFFE5E5E5, 0xFFCCCCCC, 0x263B3B3B, 0x80616161, 0x50A6A6A6, 0xFFDDDDDD, 0xFFF8F8F8, 0xFF3B3B3B, 0x333B3B3B, 0xFF005FB8}},
+	} {
+		c := tc.colors
+		got := [11]ui.Color{
+			c.ButtonSecondaryForeground, c.ButtonSecondaryBackground, c.ButtonSecondaryHoverBackground, c.ButtonSecondaryBorder,
+			c.DisabledForeground, c.ToolbarActiveBackground, c.ActionBarToggledBackground,
+			c.EditorHoverWidgetBackground, c.EditorHoverWidgetForeground, c.EditorHoverWidgetBorder, c.FocusBorder,
+		}
+		names := [11]string{"button.secondaryForeground", "button.secondaryBackground", "button.secondaryHoverBackground", "button.secondaryBorder",
+			"disabledForeground", "toolbar.activeBackground", "actionBar.toggledBackground",
+			"editorHoverWidget.background", "editorHoverWidget.foreground", "editorHoverWidget.border", "focusBorder"}
+		for i := range got {
+			if got[i] != ui.NewColor(tc.want[i]) {
+				t.Errorf("%s %s = %#08x, want %#08x", tc.theme, names[i], got[i].ToARGB32(), tc.want[i])
+			}
+		}
+	}
+}
