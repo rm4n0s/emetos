@@ -110,6 +110,17 @@ type Colors struct {
 	ListInactiveSelectionForeground, ListInactiveSelectionBackground       ui.Color
 	ListInactiveFocusBackground, ListInactiveFocusOutline                  ui.Color
 	TreeIndentGuidesStroke, TreeInactiveIndentGuidesStroke                 ui.Color
+	// The colors of the drag and drop of lists and trees: the background of a row that something is
+	// dropped on and the line between two rows (ListDropBackground, ListDropBetweenBackground); of the
+	// find: the text of the matches in a label (ListHighlightForeground, and ListFocusHighlightForeground
+	// in a row that is focused in an active list), the background and border of the matches in the filter
+	// mode (ListFilterMatchBackground, ListFilterMatchBorder); and the find box (ListFilterWidgetBackground,
+	// its outline and the outline when nothing matches, and its shadow).
+	ListDropBackground, ListDropBetweenBackground            ui.Color
+	ListHighlightForeground, ListFocusHighlightForeground    ui.Color
+	ListFilterMatchBackground, ListFilterMatchBorder         ui.Color
+	ListFilterWidgetBackground, ListFilterWidgetOutline      ui.Color
+	ListFilterWidgetNoMatchesOutline, ListFilterWidgetShadow ui.Color
 	// The colors of the breadcrumbs bar: its items, the item that is hovered or has its picker open
 	// (Focus and ActiveSelection), the background of the bar and the one of the picker.
 	// DescriptionForeground is the color of descriptive text, and the Button colors are those of
@@ -218,6 +229,11 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		ListInactiveSelectionForeground: color("list.inactiveSelectionForeground"), ListInactiveSelectionBackground: color("list.inactiveSelectionBackground"),
 		ListInactiveFocusBackground: color("list.inactiveFocusBackground"), ListInactiveFocusOutline: color("list.inactiveFocusOutline"),
 		TreeIndentGuidesStroke: color("tree.indentGuidesStroke"), TreeInactiveIndentGuidesStroke: color("tree.inactiveIndentGuidesStroke"),
+		ListDropBackground: color("list.dropBackground"), ListDropBetweenBackground: color("list.dropBetweenBackground"),
+		ListHighlightForeground: color("list.highlightForeground"), ListFocusHighlightForeground: color("list.focusHighlightForeground"),
+		ListFilterMatchBackground: color("list.filterMatchBackground"), ListFilterMatchBorder: color("list.filterMatchBorder"),
+		ListFilterWidgetBackground: color("listFilterWidget.background"), ListFilterWidgetOutline: color("listFilterWidget.outline"),
+		ListFilterWidgetNoMatchesOutline: color("listFilterWidget.noMatchesOutline"), ListFilterWidgetShadow: color("listFilterWidget.shadow"),
 		DescriptionForeground: color("descriptionForeground"),
 		ButtonForeground:      color("button.foreground"), ButtonBackground: color("button.background"),
 		ButtonHoverBackground: color("button.hoverBackground"), ButtonBorder: color("button.border"),

@@ -44,6 +44,9 @@ type TreeItem struct {
 	// time it is expanded the model asks its loader for them (TreeModelOpts.LoadChildren) and shows a
 	// placeholder row below the node until SetChildren gives them. A node with Children is not lazy.
 	Lazy bool
+	// Label is the text of the node that a find matches against and highlights; it defaults to Data when
+	// that is a string.
+	Label string
 }
 
 // TreeNode is a row of a TreeModel: a node that is shown, or the placeholder under a node that is being
@@ -68,6 +71,8 @@ type TreeNode struct {
 	Placeholder bool
 	// Index is the position of the row among the rows.
 	Index int
+	// Label is the item's Label, or its Data when that is a string (empty for a placeholder).
+	Label string
 }
 
 // TreeModelOpts are the options of NewTreeModel.
@@ -81,6 +86,16 @@ type TreeModelOpts struct {
 	// RowHeight is the height of a row in pixels; the default is DefaultTreeRowHeight. It is what the
 	// keyboard's page commands and the scrolling to a row count with.
 	RowHeight foundation.Opt[float64]
+	// MultiSelect lets Ctrl and Shift select several nodes (Ctrl+click, Shift+click, Shift+Up and Down,
+	// Ctrl+A).
+	MultiSelect bool
+	// FindMode is what a pattern typed into the tree does to the rows, and FindMatchType how it is matched;
+	// the defaults are VS Code's, FindModeHighlight and FindMatchFuzzy.
+	FindMode      FindMode
+	FindMatchType FindMatchType
+	// SelectionNavigation says what Escape does with several nodes selected: it reduces the selection to the
+	// focused node (the default) or clears it.
+	SelectionNavigation foundation.Opt[bool]
 }
 
 // TreeAction is a key command of a tree, as VS Code runs it (`list.*` commands).
@@ -114,9 +129,20 @@ const (
 	TreeActionToggle
 	// TreeActionCollapseAll collapses every node (`list.collapseAll`, Ctrl+Left).
 	TreeActionCollapseAll
-	// TreeActionClear clears the selection, or the focus when nothing is selected (`list.clear`,
-	// Escape).
+	// TreeActionClear reduces several selected nodes to the focused one, or clears the selection, or the
+	// focus when nothing is selected (`list.clear`, Escape).
 	TreeActionClear
+	// TreeActionExpandSelectionDown moves the focus down and extends the selection (`list.expandSelectionDown`,
+	// Shift+Down). It needs MultiSelect.
+	TreeActionExpandSelectionDown
+	// TreeActionExpandSelectionUp moves the focus up and extends the selection (`list.expandSelectionUp`,
+	// Shift+Up).
+	TreeActionExpandSelectionUp
+	// TreeActionSelectAll selects every node that is shown (`list.selectAll`, Ctrl+A).
+	TreeActionSelectAll
+	// TreeActionToggleSelection adds the focused node to the selection or takes it out
+	// (`list.toggleSelection`, Ctrl+Space and Ctrl+Shift+Enter).
+	TreeActionToggleSelection
 )
 
 // TreeResult is what an action or a click did beyond changing the model.
@@ -130,6 +156,8 @@ type TreeResult struct {
 	Open bool
 	// Node is the node that Select and Open are about.
 	Node TreeNode
+	// SelectionChanged says that the selected nodes are not the ones they were.
+	SelectionChanged bool
 	// ScrollTo is the scroll position (the distance of the top of the content from the top of the view,
 	// in pixels) that shows the row that was focused, or the page that was asked for, when it is not
 	// where the view is now.
@@ -142,6 +170,7 @@ type treeEntry struct {
 	data        any
 	hasChildren bool
 	lazy        bool
+	label       string
 	parent      *treeEntry
 	children    []*treeEntry
 	depth       int
@@ -160,6 +189,7 @@ func (e *treeEntry) expandable() bool { return e.lazy || e.hasChildren || len(e.
 // they show a chevron, and expanding one asks the loader for the children.
 type TreeModel struct {
 	foundation.ChangeNotifier
+	rowNav
 	opts TreeModelOpts
 
 	roots   []*treeEntry
@@ -172,13 +202,11 @@ type TreeModel struct {
 	// it: where the focus goes if it does.
 	focusTrail []string
 	rows       []TreeNode
-	index      map[string]int
 
-	focus, selected string
-	toggleOnSelect  bool
-
-	// top and height are the scroll position and the height of the view, as the widget last told.
-	top, height float64
+	toggleOnSelect bool
+	// hit are the nodes that match the find or have a node below them that does, and below the ones that have
+	// a match below them, while the find filters.
+	hit, below map[string]bool
 
 	batch int
 	dirty bool
@@ -189,18 +217,27 @@ type TreeModel struct {
 func NewTreeModel(opts ...TreeModelOpts) *TreeModel {
 	m := &TreeModel{
 		entries: map[string]*treeEntry{}, expanded: map[string]bool{}, requested: map[string]bool{},
-		index: map[string]int{}, toggleOnSelect: true,
+		toggleOnSelect: true, hit: map[string]bool{}, below: map[string]bool{},
 	}
 	if len(opts) > 0 {
 		m.opts = opts[0]
 	}
+	m.rowNav = newRowNav(max(m.opts.RowHeight.OrElse(DefaultTreeRowHeight), 1))
+	m.has = func(key string) bool { return m.entries[key] != nil }
+	m.rowNav.notify = m.notify
+	m.rebuild = func() {
+		m.begin()
+		m.changed()
+		m.end()
+	}
+	m.sel.SetMulti(m.opts.MultiSelect)
+	m.find.mode, m.find.matchType = m.opts.FindMode, m.opts.FindMatchType
+	m.selectionNavigation = m.opts.SelectionNavigation.OrElse(true)
 	return m
 }
 
 // RowHeight is the height of a row in pixels.
-func (m *TreeModel) RowHeight() float64 {
-	return max(m.opts.RowHeight.OrElse(DefaultTreeRowHeight), 1)
-}
+func (m *TreeModel) RowHeight() float64 { return m.fixed }
 
 // SetToggleOnSelect sets whether Enter, and a click on a row, toggle an expandable node besides selecting
 // it (the default). Turned off, only a click on the twistie and Space toggle (VS Code's
@@ -252,44 +289,87 @@ func (m *TreeModel) settle() (changed bool) {
 // changed marks the rows as out of date.
 func (m *TreeModel) changed() { m.dirty = true }
 
-// flatten makes the rows from the nodes that are expanded.
+// flatten makes the rows from the nodes that are expanded; while the find filters, from the nodes that match
+// or have a match below them, the latter expanded.
 func (m *TreeModel) flatten() {
 	m.rows = m.rows[:0]
-	clear(m.index)
-	m.walk(m.roots)
+	m.find.reset()
+	clear(m.hit)
+	clear(m.below)
+	filtering := m.find.filtering()
+	if filtering {
+		m.matchEntries(m.roots)
+	}
+	m.walk(m.roots, filtering)
+	keys := make([]string, len(m.rows))
+	blocked := make([]bool, len(m.rows))
+	for i, r := range m.rows {
+		keys[i], blocked[i] = r.Key, r.Placeholder
+	}
+	m.setRows(keys, blocked, nil)
+	if m.find.active() && !filtering {
+		for _, r := range m.rows {
+			if !r.Placeholder {
+				m.find.consider(r.Key, r.Label)
+			}
+		}
+	}
 }
 
-func (m *TreeModel) walk(entries []*treeEntry) {
+// matchEntries matches the labels of the nodes the model has read against the pattern, and records which
+// nodes have a match in them or below them; it reports whether any node of the entries does.
+func (m *TreeModel) matchEntries(entries []*treeEntry) bool {
+	found := false
 	for _, e := range entries {
-		expanded := m.expanded[e.key] && e.expandable()
+		self := m.find.consider(e.key, e.label)
+		below := m.matchEntries(e.children)
+		if below {
+			m.below[e.key] = true
+		}
+		if self || below {
+			m.hit[e.key] = true
+			found = true
+		}
+	}
+	return found
+}
+
+// shownExpanded says that a node is shown expanded: it is expanded, or the find filters and a node below it
+// matches.
+func (m *TreeModel) shownExpanded(e *treeEntry, filtering bool) bool {
+	return (m.expanded[e.key] || filtering && m.below[e.key]) && e.expandable()
+}
+
+func (m *TreeModel) walk(entries []*treeEntry, filtering bool) {
+	for _, e := range entries {
+		if filtering && !m.hit[e.key] {
+			continue
+		}
+		expanded := m.shownExpanded(e, filtering)
 		row := TreeNode{
 			Key: e.key, Data: e.data, Depth: e.depth, Expandable: e.expandable(), Expanded: expanded,
-			Loading: expanded && e.lazy, Index: len(m.rows),
+			Loading: expanded && e.lazy, Index: len(m.rows), Label: e.label,
 		}
 		if e.parent != nil {
 			row.Parent = e.parent.key
 		}
-		m.index[e.key] = row.Index
 		m.rows = append(m.rows, row)
 		if !expanded {
 			continue
 		}
 		if e.lazy {
 			p := TreeNode{Key: PlaceholderKey(e.key), Depth: e.depth + 1, Parent: e.key, Placeholder: true, Index: len(m.rows)}
-			m.index[p.Key] = p.Index
 			m.rows = append(m.rows, p)
 			continue
 		}
-		m.walk(e.children)
+		m.walk(e.children, filtering)
 	}
 }
 
-// fixup repairs the focus and the selection after the rows changed: a selection of a node that is gone
+// fixup repairs the focus and the selection after the rows changed: the selection of a node that is gone
 // is dropped, and the focus of a row that is not shown goes to the nearest node above it that is shown.
 func (m *TreeModel) fixup() {
-	if m.selected != "" && m.entries[m.selected] == nil {
-		m.selected = ""
-	}
+	m.sel.Prune(func(key string) bool { return m.entries[key] != nil })
 	trail := m.focusTrail
 	m.focusTrail = nil
 	if m.focus == "" {
@@ -342,11 +422,22 @@ func checkItems(items []TreeItem, seen map[string]bool, taken func(string) bool)
 	return nil
 }
 
+// itemLabel is the text of an item that a find matches: its Label, or its Data when that is a string.
+func itemLabel(it TreeItem) string {
+	if it.Label != "" {
+		return it.Label
+	}
+	if s, ok := it.Data.(string); ok {
+		return s
+	}
+	return ""
+}
+
 // build makes the entries of items below a parent and records them in the entry map.
 func (m *TreeModel) build(items []TreeItem, parent *treeEntry, depth int) []*treeEntry {
 	out := make([]*treeEntry, len(items))
 	for i, it := range items {
-		e := &treeEntry{key: it.Key, data: it.Data, hasChildren: it.HasChildren, lazy: it.Lazy && len(it.Children) == 0, parent: parent, depth: depth}
+		e := &treeEntry{key: it.Key, data: it.Data, hasChildren: it.HasChildren, lazy: it.Lazy && len(it.Children) == 0, label: itemLabel(it), parent: parent, depth: depth}
 		m.entries[e.key] = e
 		e.children = m.build(it.Children, e, depth+1)
 		out[i] = e
@@ -542,7 +633,7 @@ func (m *TreeModel) Ancestors(key string) []string {
 // `tree.indentGuidesStroke`.
 func (m *TreeModel) ActiveGuides() map[string]bool {
 	out := map[string]bool{}
-	for _, key := range []string{m.focus, m.selected} {
+	for _, key := range []string{m.focus, m.sel.Primary()} {
 		e := m.entries[key]
 		if key == "" || e == nil {
 			continue
@@ -687,62 +778,6 @@ func (m *TreeModel) Reveal(key string) (int, bool) {
 	return i, true
 }
 
-// Focused is the key of the focused row, if there is one.
-func (m *TreeModel) Focused() (string, bool) { return m.focus, m.focus != "" }
-
-// FocusedIndex is the index of the focused row, or -1.
-func (m *TreeModel) FocusedIndex() int {
-	if i, ok := m.index[m.focus]; ok && m.focus != "" {
-		return i
-	}
-	return -1
-}
-
-// SetFocus focuses a row that is shown; it reports whether it could (a placeholder cannot be).
-func (m *TreeModel) SetFocus(key string) bool {
-	i, ok := m.index[key]
-	if !ok || m.rows[i].Placeholder {
-		return false
-	}
-	if m.focus != key {
-		m.focus = key
-		m.notify()
-	}
-	return true
-}
-
-// ClearFocus takes the focus off the rows.
-func (m *TreeModel) ClearFocus() {
-	if m.focus != "" {
-		m.focus = ""
-		m.notify()
-	}
-}
-
-// Selected is the key of the selected node, if there is one.
-func (m *TreeModel) Selected() (string, bool) { return m.selected, m.selected != "" }
-
-// SetSelected selects a node the model has (shown or not); it reports whether it could. It makes no
-// callback: the widget's OnSelect is for the user's choices.
-func (m *TreeModel) SetSelected(key string) bool {
-	if m.entries[key] == nil {
-		return false
-	}
-	if m.selected != key {
-		m.selected = key
-		m.notify()
-	}
-	return true
-}
-
-// ClearSelection selects nothing.
-func (m *TreeModel) ClearSelection() {
-	if m.selected != "" {
-		m.selected = ""
-		m.notify()
-	}
-}
-
 // notify tells the listeners of a change that needs no new rows (the focus, the selection).
 func (m *TreeModel) notify() {
 	if m.batch > 0 {
@@ -752,156 +787,11 @@ func (m *TreeModel) notify() {
 	m.NotifyListeners()
 }
 
-// EnsureFocus gives the focus to a row when none has it, as a tree that takes the keyboard focus does:
-// the selected row when it is shown, else the first row that can be focused.
-func (m *TreeModel) EnsureFocus() {
-	if m.FocusedIndex() >= 0 {
-		return
-	}
-	if _, ok := m.index[m.selected]; ok && m.selected != "" {
-		m.SetFocus(m.selected)
-		return
-	}
-	if i := m.nextFocusable(0); i >= 0 {
-		m.SetFocus(m.rows[i].Key)
-	}
-}
-
-// SetViewport tells the model where the view is: how far the content is scrolled and how high the view
-// is, in pixels. The keyboard's page commands and the scrolling to the focused row use it.
-func (m *TreeModel) SetViewport(top, height float64) { m.top, m.height = max(top, 0), max(height, 0) }
-
-// RowsInView is how many rows fit in the view completely (at least 1).
-func (m *TreeModel) RowsInView() int { return max(int(m.height/m.RowHeight()), 1) }
-
-// nextFocusable is the index of the first row from i on that can be focused, or -1.
-func (m *TreeModel) nextFocusable(i int) int {
-	for ; i < len(m.rows); i++ {
-		if !m.rows[i].Placeholder {
-			return i
-		}
-	}
-	return -1
-}
-
-// previousFocusable is the index of the last row from i down that can be focused, or -1.
-func (m *TreeModel) previousFocusable(i int) int {
-	for i = min(i, len(m.rows)-1); i >= 0; i-- {
-		if !m.rows[i].Placeholder {
-			return i
-		}
-	}
-	return -1
-}
-
-// maxTop is the farthest the content scrolls.
-func (m *TreeModel) maxTop() float64 {
-	return max(float64(len(m.rows))*m.RowHeight()-m.height, 0)
-}
-
-// revealOffset is the scroll position that shows a row with the least scrolling (`ListView.reveal`):
-// none when the row is in view. It records the new position as the view's.
-func (m *TreeModel) revealOffset(index int) foundation.Opt[float64] {
-	if index < 0 || m.height <= 0 {
-		return foundation.None[float64]()
-	}
-	h := m.RowHeight()
-	top, bottom := float64(index)*h, float64(index+1)*h
-	target := m.top
-	switch {
-	case top < m.top:
-		target = top
-	case bottom > m.top+m.height:
-		target = bottom - m.height
-	}
-	target = min(max(target, 0), m.maxTop())
-	if target == m.top {
-		return foundation.None[float64]()
-	}
-	m.top = target
-	return foundation.Some(target)
-}
-
-// focusIndex focuses the row at an index and reveals it.
-func (m *TreeModel) focusIndex(i int) TreeResult {
-	if i < 0 || i >= len(m.rows) {
-		return TreeResult{Handled: true}
-	}
-	m.SetFocus(m.rows[i].Key)
-	return TreeResult{Handled: true, ScrollTo: m.revealOffset(i)}
-}
-
-// indexAt is the index of the row at a position of the content; the number of rows past the end.
-func (m *TreeModel) indexAt(y float64) int {
-	if y < 0 {
-		return -1
-	}
-	return min(int(y/m.RowHeight()), len(m.rows))
-}
-
-// pageDown is `focusNextPage`: it focuses the last row that is completely in view, and when that is
-// focused already scrolls a page (the viewport's height) and does it again.
-func (m *TreeModel) pageDown() TreeResult {
-	var res TreeResult
-	res.Handled = true
-	focused := m.FocusedIndex()
-	for range len(m.rows) + 2 {
-		last := m.indexAt(m.top + m.height)
-		if last > 0 {
-			last--
-		}
-		last = min(last, len(m.rows)-1)
-		if last < 0 {
-			return res
-		}
-		if focused != last && (focused < 0 || last > focused) {
-			i := m.previousFocusable(last)
-			if i < 0 || focused == i {
-				i = last
-			}
-			m.SetFocus(m.rows[i].Key)
-			return res
-		}
-		next := min(m.top+m.height, m.maxTop())
-		if next == m.top {
-			return res
-		}
-		m.top = next
-		res.ScrollTo = foundation.Some(next)
-		focused = -1
-	}
-	return res
-}
-
-// pageUp is `focusPreviousPage`.
-func (m *TreeModel) pageUp() TreeResult {
-	var res TreeResult
-	res.Handled = true
-	focused := m.FocusedIndex()
-	for range len(m.rows) + 2 {
-		first := 0
-		if m.top != 0 {
-			first = min(m.indexAt(m.top-1)+1, len(m.rows))
-		}
-		first = min(first, len(m.rows)-1)
-		if first < 0 {
-			return res
-		}
-		if focused != first && (focused < 0 || focused >= first) {
-			i := m.nextFocusable(first)
-			if i < 0 || focused == i {
-				i = first
-			}
-			m.SetFocus(m.rows[i].Key)
-			return res
-		}
-		next := max(m.top-m.height, 0)
-		if next == m.top {
-			return res
-		}
-		m.top = next
-		res.ScrollTo = foundation.Some(next)
-		focused = -1
+// treeResult converts what the shared navigation did into a TreeResult; Node is the row the result is about.
+func (m *TreeModel) treeResult(r navResult) TreeResult {
+	res := TreeResult{Handled: r.handled, ScrollTo: r.scrollTo, SelectionChanged: r.selectionChanged}
+	if r.key != "" {
+		res.Node = m.nodeOf(r.key)
 	}
 	return res
 }
@@ -915,24 +805,25 @@ func (m *TreeModel) Perform(a TreeAction) TreeResult {
 	focused := m.FocusedIndex()
 	switch a {
 	case TreeActionDown:
-		start := 0
-		if focused >= 0 {
-			start = focused + 1
-		}
-		return m.focusIndex(m.nextFocusable(start))
+		return m.treeResult(m.down())
 	case TreeActionUp:
-		if focused < 0 {
-			return m.focusIndex(m.nextFocusable(0))
-		}
-		return m.focusIndex(m.previousFocusable(focused - 1))
+		return m.treeResult(m.up())
 	case TreeActionFirst:
-		return m.focusIndex(m.nextFocusable(0))
+		return m.treeResult(m.first())
 	case TreeActionLast:
-		return m.focusIndex(m.previousFocusable(len(m.rows) - 1))
+		return m.treeResult(m.last())
 	case TreeActionPageDown:
-		return m.pageDown()
+		return m.treeResult(m.pageDown())
 	case TreeActionPageUp:
-		return m.pageUp()
+		return m.treeResult(m.pageUp())
+	case TreeActionExpandSelectionDown:
+		return m.treeResult(m.expandSelection(1))
+	case TreeActionExpandSelectionUp:
+		return m.treeResult(m.expandSelection(-1))
+	case TreeActionSelectAll:
+		return m.treeResult(m.selectAll())
+	case TreeActionToggleSelection:
+		return m.treeResult(m.toggleSelection())
 	case TreeActionExpand:
 		return m.expandKey(focused)
 	case TreeActionCollapse:
@@ -945,8 +836,8 @@ func (m *TreeModel) Perform(a TreeAction) TreeResult {
 		if n.Expandable && m.toggleOnSelect {
 			m.Toggle(n.Key, false)
 		}
-		m.SetSelected(n.Key)
-		return TreeResult{Handled: true, Select: true, Open: true, Node: m.nodeOf(n.Key)}
+		key, changed, _ := m.selectFocused()
+		return TreeResult{Handled: true, Select: true, Open: true, Node: m.nodeOf(key), SelectionChanged: changed}
 	case TreeActionToggle:
 		if focused < 0 {
 			return TreeResult{}
@@ -956,8 +847,8 @@ func (m *TreeModel) Perform(a TreeAction) TreeResult {
 			m.Toggle(n.Key, false)
 			return TreeResult{Handled: true}
 		}
-		m.SetSelected(n.Key)
-		return TreeResult{Handled: true, Select: true, Node: n}
+		key, changed, _ := m.selectFocused()
+		return TreeResult{Handled: true, Select: true, Node: m.nodeOf(key), SelectionChanged: changed}
 	case TreeActionCollapseAll:
 		m.CollapseAll()
 		res := TreeResult{Handled: true}
@@ -966,15 +857,7 @@ func (m *TreeModel) Perform(a TreeAction) TreeResult {
 		}
 		return res
 	case TreeActionClear:
-		switch {
-		case m.selected != "":
-			m.ClearSelection()
-		case m.focus != "":
-			m.ClearFocus()
-		default:
-			return TreeResult{}
-		}
-		return TreeResult{Handled: true}
+		return m.treeResult(m.clear())
 	}
 	return TreeResult{}
 }
@@ -1005,7 +888,7 @@ func (m *TreeModel) expandKey(focused int) TreeResult {
 	}
 	// expanded: the first child, unless it is the placeholder of a node that is loading
 	if focused+1 < len(m.rows) && m.rows[focused+1].Parent == n.Key && !m.rows[focused+1].Placeholder {
-		return m.focusIndex(focused + 1)
+		return m.treeResult(m.focusIndex(focused + 1))
 	}
 	return TreeResult{Handled: true}
 }
@@ -1023,7 +906,7 @@ func (m *TreeModel) collapseKey(focused int) TreeResult {
 		return TreeResult{}
 	}
 	if i, ok := m.index[n.Parent]; ok {
-		return m.focusIndex(i)
+		return m.treeResult(m.focusIndex(i))
 	}
 	return TreeResult{Handled: true}
 }
@@ -1033,22 +916,41 @@ func (m *TreeModel) collapseKey(focused int) TreeResult {
 // all; elsewhere on an expandable node it is toggled too unless ToggleOnSelect is off, and the node is
 // selected. recursive (Alt) toggles the whole subtree.
 func (m *TreeModel) Click(key string, onTwistie, recursive bool) TreeResult {
+	return m.ClickWith(key, ClickModifiers{}, onTwistie, recursive)
+}
+
+// ClickWith is Click with the modifiers that were held. With MultiSelect, Ctrl toggles the node in the
+// selection and Shift selects the range from the anchor (both: the range joins the selection); such a
+// click changes the selection and the focus and nothing else, it does not toggle the node
+// (`isSelectionChangeEvent` comes before the twistie in `TreeNodeListMouseController`). Without MultiSelect the
+// modifiers are ignored.
+func (m *TreeModel) ClickWith(key string, mods ClickModifiers, onTwistie, recursive bool) TreeResult {
 	i, ok := m.index[key]
 	if !ok || m.rows[i].Placeholder {
 		return TreeResult{}
 	}
+	if !m.MultiSelect() {
+		mods = ClickModifiers{}
+	}
 	m.begin()
+	if mods.Ctrl || mods.Shift {
+		r := m.press(key, mods)
+		m.end()
+		return TreeResult{Handled: true, Select: m.IsSelected(key), Node: m.nodeOf(key), SelectionChanged: r.selectionChanged}
+	}
 	n := m.rows[i]
 	m.SetFocus(key)
 	if n.Expandable && (onTwistie || m.toggleOnSelect) {
 		m.Toggle(key, recursive)
 	}
 	selected := !onTwistie || !n.Expandable
+	changed := false
 	if selected {
-		m.SetSelected(key)
+		changed = m.sel.Select(key)
+		m.tell()
 	}
 	m.end()
-	return TreeResult{Handled: true, Select: selected, Node: m.nodeOf(key)}
+	return TreeResult{Handled: true, Select: selected, Node: m.nodeOf(key), SelectionChanged: changed}
 }
 
 // DoubleClick is the second press of a double click on a row: the node is opened, and an expandable node

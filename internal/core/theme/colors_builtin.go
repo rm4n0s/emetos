@@ -15,6 +15,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerStickyColors(r)
 	registerListColors(r)
 	registerTreeColors(r)
+	registerListInteractionColors(r)
 	registerBreadcrumbColors(r)
 	registerButtonColors(r)
 	registerKitColors(r)
@@ -388,6 +389,39 @@ func registerTreeColors(r *ColorRegistry) {
 			Description: "Tree stroke color for the indentation guides."},
 		ColorContribution{ID: "tree.inactiveIndentGuidesStroke", Defaults: AllThemes(Transparent(Ref("tree.indentGuidesStroke"), 0.4)),
 			Description: "Tree stroke color for the indentation guides that are not active."},
+	)
+}
+
+// registerListInteractionColors registers the colors of the multi-selection, find and drag and drop of gui/kit's List
+// and Tree (step 6.4b): the drop feedback, the highlighted matches and the type filter widget.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/listColors.ts
+func registerListInteractionColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "list.dropBackground", Defaults: dflt(Hex("#062F4A"), Hex("#D6EBFF"), nil, nil),
+			Description: "List/Tree drag and drop background when moving items over other items when using the mouse."},
+		ColorContribution{ID: "list.dropBetweenBackground", Defaults: dflt(Ref("icon.foreground"), Ref("icon.foreground"), nil, nil),
+			Description: "List/Tree drag and drop border color when moving items between items when using the mouse."},
+		ColorContribution{ID: "list.highlightForeground", Defaults: dflt(Hex("#2AAAFF"), Hex("#0066BF"), Ref("focusBorder"), Ref("focusBorder")),
+			Description: "List/Tree foreground color of the match highlights when searching inside the list/tree."},
+		ColorContribution{ID: "list.focusHighlightForeground",
+			Defaults: dflt(Ref("list.highlightForeground"), IfDefinedThenElse("list.activeSelectionBackground", Ref("list.highlightForeground"), Hex("#BBE7FF")),
+				Ref("list.highlightForeground"), Ref("list.highlightForeground")),
+			Description: "List/Tree foreground color of the match highlights on actively focused items when searching inside the list/tree."},
+		ColorContribution{ID: "list.filterMatchBackground", NeedsTransparency: true,
+			Defaults:    dflt(Ref("editor.findMatchHighlightBackground"), Ref("editor.findMatchHighlightBackground"), nil, nil),
+			Description: "Background color of the filtered match."},
+		ColorContribution{ID: "list.filterMatchBorder",
+			Defaults:    dflt(Ref("editor.findMatchHighlightBorder"), Ref("editor.findMatchHighlightBorder"), Ref("contrastBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color of the filtered match."},
+		ColorContribution{ID: "listFilterWidget.background", Defaults: dflt(Lighten(Ref("editorWidget.background"), 0), Darken(Ref("editorWidget.background"), 0), Ref("editorWidget.background"), Ref("editorWidget.background")),
+			Description: "Background color of the type filter widget in lists and trees."},
+		ColorContribution{ID: "listFilterWidget.outline", Defaults: dflt(Lit(ColorTransparent), Lit(ColorTransparent), Hex("#f38518"), Hex("#007ACC")),
+			Description: "Outline color of the type filter widget in lists and trees."},
+		ColorContribution{ID: "listFilterWidget.noMatchesOutline", Defaults: dflt(Hex("#BE1100"), Hex("#BE1100"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Outline color of the type filter widget in lists and trees, when there are no matches."},
+		ColorContribution{ID: "listFilterWidget.shadow", Defaults: AllThemes(Ref("widget.shadow")),
+			Description: "Shadow color of the type filter widget in lists and trees."},
 	)
 }
 

@@ -237,6 +237,45 @@ func TestDefaultTreeColors(t *testing.T) {
 	}
 }
 
+// The colors that step 6.4b added for the multi-selection, find and drag and drop of lists and trees, as VS
+// Code's registry (listColors.ts) writes their defaults.
+func TestDefaultListInteractionColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"list.dropBackground", "#062f4a", "#d6ebff", none, none},
+		{"list.dropBetweenBackground", "#c5c5c5", "#424242", none, none},
+		{"list.highlightForeground", "#2aaaff", "#0066bf", "#f38518", "#006bbd"},
+		{"list.focusHighlightForeground", "#2aaaff", "#bbe7ff", "#f38518", "#006bbd"}, // light: the theme does not set list.activeSelectionBackground here
+		{"list.filterMatchBackground", "rgba(234, 92, 0, 0.33)", "rgba(234, 92, 0, 0.33)", none, none},
+		{"list.filterMatchBorder", none, none, "#6fc3df", "#006bbd"},
+		{"listFilterWidget.background", "#252526", "#f3f3f3", "#0c141f", "#ffffff"},
+		{"listFilterWidget.outline", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)", "#f38518", "#007acc"},
+		{"listFilterWidget.noMatchesOutline", "#be1100", "#be1100", "#6fc3df", "#0f4a85"},
+		{"listFilterWidget.shadow", "rgba(0, 0, 0, 0.36)", "rgba(0, 0, 0, 0.16)", none, none},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+}
+
 func TestEveryDefaultColorHasADescription(t *testing.T) {
 	for _, c := range DefaultColorRegistry().Colors() {
 		if c.Description == "" {

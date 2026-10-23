@@ -188,3 +188,26 @@ func TestTreeColorsOfTheBundledThemes(t *testing.T) {
 		}
 	}
 }
+
+func TestListInteractionColorsOfTheBundledThemes(t *testing.T) {
+	dark, light := DarkModern(), LightModern()
+	cases := []struct {
+		name string
+		got  ui.Color
+		want uint32
+	}{
+		{"dark list.dropBackground (the theme sets it)", dark.ListDropBackground, 0xFF383B3D},
+		{"dark list.dropBetweenBackground (icon.foreground of the theme)", dark.ListDropBetweenBackground, 0xFFCCCCCC},
+		{"dark list.highlightForeground", dark.ListHighlightForeground, 0xFF2AAAFF},
+		{"dark list.filterMatchBackground", dark.ListFilterMatchBackground, 0x55EA5C00},
+		{"dark listFilterWidget.noMatchesOutline", dark.ListFilterWidgetNoMatchesOutline, 0xFFBE1100},
+		{"light list.dropBetweenBackground", light.ListDropBetweenBackground, 0xFF3B3B3B},
+		{"light list.highlightForeground", light.ListHighlightForeground, 0xFF0066BF},
+		{"light list.focusHighlightForeground", light.ListFocusHighlightForeground, 0xFF0066BF},
+	}
+	for _, tc := range cases {
+		if tc.got != ui.NewColor(tc.want) {
+			t.Errorf("%s = %v, want %#08x", tc.name, tc.got, tc.want)
+		}
+	}
+}

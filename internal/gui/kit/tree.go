@@ -3,8 +3,10 @@ package kit
 // Ported from VS Code: src/vs/base/browser/ui/tree/abstractTree.ts (TreeRenderer, TreeNodeListMouseController,
 // the indent guides), src/vs/base/browser/ui/tree/media/tree.css, src/vs/base/browser/ui/list/listWidget.ts
 // and list.css (the look of the rows, the mouse and the keys of a list) and src/vs/platform/theme/common/colors/listColors.ts.
-// Not ported: sticky scroll, the type-to-filter and find widget, drag and drop (step 6.4b), the horizontal
-// scrolling of wide rows, compressed folders, the spinning of the loading twistie, accessibility.
+// Step 6.4b added the multi-selection, the find (type to highlight or filter) and the drag and drop of the rows
+// (listselection.go, listnav.go, listfind.go, listwidget.go, listdnd.go).
+// Not ported: sticky scroll, the horizontal scrolling of wide rows, compressed folders, the spinning of the
+// loading twistie, accessibility.
 
 import (
 	"fmt"
@@ -54,19 +56,6 @@ const (
 	TreeGuidesNone
 )
 
-// TreeRowState is what a row renderer is told about the look of its row.
-type TreeRowState struct {
-	// Selected is whether the node is the selected one, and Focused whether the row is the focused one.
-	Selected, Focused bool
-	// Hovered is whether the pointer is over the row.
-	Hovered bool
-	// Active is whether the tree has the keyboard focus (a selected row is in the colors of
-	// `list.activeSelection*` then, in those of `list.inactiveSelection*` otherwise).
-	Active bool
-	// Foreground is the text color the row should use, from the colors of its state.
-	Foreground ui.Color
-}
-
 // TreeRenderer builds the contents of a row: the part after the twistie. The row is 22 px high (the
 // model's RowHeight) and as wide as the tree; the renderer is given the node and the state of the row, and
 // draws what it wants (an icon and a label) in the foreground the state names. It is called while the
@@ -93,9 +82,24 @@ type TreeOpts struct {
 	LoadingLabel string
 	// Autofocus gives the tree the keyboard focus when it is first shown.
 	Autofocus bool
+	// MultiSelect lets Ctrl+click toggle a node in the selection, Shift+click select the range from the anchor
+	// (both together add the range), Shift+Up and Shift+Down extend the selection, Ctrl+A select every node
+	// that is shown and Ctrl+Space (or Ctrl+Shift+Enter) toggle the focused node; Escape reduces several
+	// selected nodes to the focused one.
+	MultiSelect bool
+	// DragAndDrop makes the rows draggable and the tree a drop target; see DragAndDrop.
+	DragAndDrop *DragAndDrop
+	// TypeToFind makes a letter typed into the tree start the find box (the default is true). Its pattern
+	// matches the labels of the nodes (TreeItem.Label); the mode (highlight or filter) and the match type are
+	// the model's (TreeModelOpts) and can be changed with the toggles of the box.
+	TypeToFind foundation.Opt[bool]
 	// OnSelect is called when the user selects a node: a click on its row, Enter, or Space on a node
 	// that cannot be expanded. The node is selected in the model already.
 	OnSelect func(node TreeNode)
+	// OnSelectionChange is called when the user changed the selected nodes (a click, Ctrl+click, Shift+click,
+	// a key), with the keys of the selected nodes in the order of the rows. It is not called for changes the
+	// program makes.
+	OnSelectionChange func(keys []string)
 	// OnOpen is called when the user opens a node: Enter, or a double click.
 	OnOpen func(node TreeNode)
 }
@@ -109,7 +113,9 @@ type treeContent struct{ Key string }
 // Rows are 22 px high and indented by 8 px and 8 px per level; each has a twistie (a chevron, nothing for
 // a leaf, the loading icon for a node whose children are being read), the contents the Render function
 // builds, and the indent guides of its ancestors. The selected row, the focused row and the row under the
-// pointer are colored as VS Code colors them, differently while the tree has the keyboard focus.
+// pointer are colored as VS Code colors them, differently while the tree has the keyboard focus. With MultiSelect
+// several nodes can be selected (Ctrl, Shift); typing starts a find box that highlights or filters the nodes
+// (TreeItem.Label); with DragAndDrop nodes can be dragged and dropped on, before and after other nodes.
 //
 // Glutter's TreeSliver has limits that shape this widget. It draws no twistie of its own that we use, and
 // toggles only nodes that have children, so a node that is not read has a placeholder child; its nodes
@@ -202,6 +208,9 @@ type treeState struct {
 	node   *widgets.FocusNode
 
 	hasFocus bool
+	drag     dragController
+	find     *findBoxState
+	areaCtx  widgets.BuildContext
 	// hover is the key of the row under the pointer, and overTree whether the pointer is over the tree.
 	hover    string
 	overTree bool
@@ -226,11 +235,19 @@ type treeState struct {
 func (s *treeState) InitState() {
 	t := s.Widget()
 	s.model = t.model
+	s.find = newFindBoxState()
 	s.handle = s.model.AddListener(s.modelChanged)
 	s.nodesStale = true
 	s.scroll = widgets.NewScrollController()
 	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Tree"})
 	s.model.SetToggleOnSelect(t.opts.ToggleOnClick.OrElse(true))
+	if t.opts.MultiSelect {
+		s.model.SetMultiSelect(true)
+	}
+	s.drag = dragController{host: s, dnd: func() *DragAndDrop { return s.Widget().opts.DragAndDrop }, label: func(key string) string {
+		n, _ := s.model.Node(key)
+		return n.Label
+	}}
 	if t.opts.Controller != nil {
 		t.opts.Controller.state = s
 	}
@@ -246,6 +263,9 @@ func (s *treeState) DidUpdateWidget(old *Tree) {
 		s.nodesStale = true
 	}
 	s.model.SetToggleOnSelect(t.opts.ToggleOnClick.OrElse(true))
+	if t.opts.MultiSelect {
+		s.model.SetMultiSelect(true)
+	}
 	if old.opts.Controller != t.opts.Controller {
 		if old.opts.Controller != nil {
 			old.opts.Controller.state = nil
@@ -262,12 +282,15 @@ func (s *treeState) Dispose() {
 	if c := s.Widget().opts.Controller; c != nil && c.state == s {
 		c.state = nil
 	}
+	s.drag.dispose()
+	s.find.dispose()
 	s.scroll.Dispose()
 	s.node.Dispose()
 }
 
 func (s *treeState) modelChanged() {
 	s.nodesStale = true
+	s.find.sync(s.model.find.pattern)
 	if s.Mounted() {
 		s.SetState(func() {})
 	}
@@ -330,6 +353,9 @@ func (s *treeState) dispatch(res TreeResult) {
 		s.jump(to)
 	}
 	t := s.Widget()
+	if res.SelectionChanged && t.opts.OnSelectionChange != nil {
+		t.opts.OnSelectionChange(s.model.SelectedKeys())
+	}
 	if res.Select && t.opts.OnSelect != nil {
 		t.opts.OnSelect(res.Node)
 	}
@@ -338,7 +364,8 @@ func (s *treeState) dispatch(res TreeResult) {
 	}
 }
 
-// handleKey is the keyboard of the tree: VS Code's list and tree commands (the `list.*` keybindings).
+// handleKey is the keyboard of the tree: VS Code's list and tree commands (the `list.*` keybindings), and the
+// find that a letter starts.
 func (s *treeState) handleKey(_ *widgets.FocusNode, e services.KeyEvent) widgets.KeyEventResult {
 	switch e.(type) {
 	case *services.KeyDownEvent, *services.KeyRepeatEvent:
@@ -346,43 +373,46 @@ func (s *treeState) handleKey(_ *widgets.FocusNode, e services.KeyEvent) widgets
 		return widgets.KeyEventResultIgnored
 	}
 	kb := widgets.WidgetsBindingOf(s.Context()).Keyboard()
-	if kb.IsAltPressed() || kb.IsMetaPressed() || kb.IsShiftPressed() {
+	m := keyMods{ctrl: kb.IsControlPressed(), shift: kb.IsShiftPressed(), alt: kb.IsAltPressed(), meta: kb.IsMetaPressed()}
+	key := e.LogicalKey()
+	if s.drag.active() {
+		if key == services.LogicalKeyboardKeyEscape {
+			s.drag.cancel()
+			return widgets.KeyEventResultHandled
+		}
 		return widgets.KeyEventResultIgnored
 	}
-	var action TreeAction
-	key := e.LogicalKey()
-	switch {
-	case kb.IsControlPressed():
-		if key != services.LogicalKeyboardKeyArrowLeft {
-			return widgets.KeyEventResultIgnored
+	s.syncViewport()
+	if used, scroll := findKey(&s.model.rowNav, e, m, s.Widget().opts.TypeToFind.OrElse(true)); used {
+		s.find.sync(s.model.find.pattern)
+		if to, ok := scroll.Get(); ok {
+			s.jump(to)
 		}
+		return widgets.KeyEventResultHandled
+	}
+	var action TreeAction
+	switch nk := commonKey(key, m, s.model.MultiSelect()); {
+	case nk != navKeyNone:
+		action = map[navKey]TreeAction{
+			navKeyDown: TreeActionDown, navKeyUp: TreeActionUp, navKeyFirst: TreeActionFirst, navKeyLast: TreeActionLast,
+			navKeyPageDown: TreeActionPageDown, navKeyPageUp: TreeActionPageUp, navKeySelect: TreeActionSelect,
+			navKeyToggle: TreeActionToggle, navKeyClear: TreeActionClear, navKeyExpandDown: TreeActionExpandSelectionDown,
+			navKeyExpandUp: TreeActionExpandSelectionUp, navKeySelectAll: TreeActionSelectAll,
+			navKeyToggleSelection: TreeActionToggleSelection,
+		}[nk]
+	case m.alt || m.meta || m.shift:
+		return widgets.KeyEventResultIgnored
+	case m.ctrl && key == services.LogicalKeyboardKeyArrowLeft:
 		action = TreeActionCollapseAll
-	case key == services.LogicalKeyboardKeyArrowDown:
-		action = TreeActionDown
-	case key == services.LogicalKeyboardKeyArrowUp:
-		action = TreeActionUp
-	case key == services.LogicalKeyboardKeyHome:
-		action = TreeActionFirst
-	case key == services.LogicalKeyboardKeyEnd:
-		action = TreeActionLast
-	case key == services.LogicalKeyboardKeyPageDown:
-		action = TreeActionPageDown
-	case key == services.LogicalKeyboardKeyPageUp:
-		action = TreeActionPageUp
+	case m.ctrl:
+		return widgets.KeyEventResultIgnored
 	case key == services.LogicalKeyboardKeyArrowRight:
 		action = TreeActionExpand
 	case key == services.LogicalKeyboardKeyArrowLeft:
 		action = TreeActionCollapse
-	case key == services.LogicalKeyboardKeyEnter, key == services.LogicalKeyboardKeyNumpadEnter:
-		action = TreeActionSelect
-	case key == services.LogicalKeyboardKeySpace:
-		action = TreeActionToggle
-	case key == services.LogicalKeyboardKeyEscape:
-		action = TreeActionClear
 	default:
 		return widgets.KeyEventResultIgnored
 	}
-	s.syncViewport()
 	res := s.model.Perform(action)
 	if !res.Handled {
 		return widgets.KeyEventResultIgnored
@@ -416,7 +446,9 @@ func (s *treeState) focusChanged(has bool) {
 // a press of the primary button counts toward a double click.
 func (s *treeState) down(key string, e *gestures.PointerDownEvent) {
 	s.model.SetFocus(key)
+	s.model.SetFindTyping(false)
 	s.node.RequestFocus()
+	s.drag.press(e, key)
 	if e.Buttons()&gestures.PrimaryButton == 0 {
 		return
 	}
@@ -433,13 +465,59 @@ func (s *treeState) down(key string, e *gestures.PointerDownEvent) {
 // tap is the release of a press that did not move: a click on the twistie or on the row, or the second
 // click of a double click.
 func (s *treeState) tap(key string, onTwistie bool) {
-	if !onTwistie && s.clicks == 2 && s.lastKey == key {
+	if s.drag.consumeTap() {
+		return
+	}
+	kb := widgets.WidgetsBindingOf(s.Context()).Keyboard()
+	mods := ClickModifiers{Ctrl: kb.IsControlPressed(), Shift: kb.IsShiftPressed()}
+	if !onTwistie && s.clicks == 2 && s.lastKey == key && !mods.Ctrl && !mods.Shift {
 		s.dispatch(s.model.DoubleClick(key))
 		return
 	}
-	alt := widgets.WidgetsBindingOf(s.Context()).Keyboard().IsAltPressed()
-	s.dispatch(s.model.Click(key, onTwistie, alt))
+	s.dispatch(s.model.ClickWith(key, mods, onTwistie, kb.IsAltPressed()))
 }
+
+// closeFind is the close button of the find box.
+func (s *treeState) closeFind() {
+	s.model.CloseFind()
+	s.find.sync("")
+	s.node.RequestFocus()
+}
+
+// The tree as the host of a drag (dragHost).
+
+func (s *treeState) navigator() *rowNav { return &s.model.rowNav }
+
+func (s *treeState) bindingOf() *widgets.WidgetsBinding { return widgets.WidgetsBindingOf(s.Context()) }
+
+func (s *treeState) box() rendering.Box {
+	if s.areaCtx == nil {
+		return nil
+	}
+	b, _ := s.areaCtx.FindRenderObject().(rendering.Box)
+	return b
+}
+
+func (s *treeState) scrollOffset() float64 { top, _ := s.viewport(); return top }
+
+func (s *treeState) viewHeight() float64 { _, h := s.viewport(); return h }
+
+func (s *treeState) scrollTo(offset float64) { s.jump(offset) }
+
+func (s *treeState) expandable(key string) (can, expanded bool) {
+	n, _ := s.model.Node(key)
+	return n.Expandable, n.Expanded
+}
+
+func (s *treeState) expand(key string) { s.model.Expand(key) }
+
+func (s *treeState) refresh() {
+	if s.Mounted() {
+		s.SetState(func() {})
+	}
+}
+
+func (s *treeState) takeFocus() { s.node.RequestFocus() }
 
 func (s *treeState) setHover(key string) {
 	if s.hover != key && s.Mounted() {
@@ -461,9 +539,13 @@ func (s *treeState) setOverTree(over bool) {
 // node be expandable without children and let the app replace children (docs/GLUTTER-ISSUES.md, 6.4).
 func (s *treeState) glutterNodes(entries []*treeEntry) []*widgets.TreeSliverNode[treeContent] {
 	m := s.model
-	out := make([]*widgets.TreeSliverNode[treeContent], len(entries))
-	for i, e := range entries {
-		expanded := m.expanded[e.key] && e.expandable()
+	filtering := m.find.filtering()
+	out := make([]*widgets.TreeSliverNode[treeContent], 0, len(entries))
+	for _, e := range entries {
+		if filtering && !m.hit[e.key] {
+			continue
+		}
+		expanded := m.shownExpanded(e, filtering)
 		var children []*widgets.TreeSliverNode[treeContent]
 		switch {
 		case e.lazy:
@@ -471,13 +553,13 @@ func (s *treeState) glutterNodes(entries []*treeEntry) []*widgets.TreeSliverNode
 		case expanded:
 			children = s.glutterNodes(e.children)
 		}
-		out[i] = widgets.NewTreeSliverNode(treeContent{Key: e.key}, widgets.TreeSliverNodeOpts[treeContent]{Children: children, Expanded: expanded})
+		out = append(out, widgets.NewTreeSliverNode(treeContent{Key: e.key}, widgets.TreeSliverNodeOpts[treeContent]{Children: children, Expanded: expanded}))
 	}
 	return out
 }
 
 // Build implements widgets.State.
-func (s *treeState) Build(widgets.BuildContext) widgets.Widget {
+func (s *treeState) Build(bc widgets.BuildContext) widgets.Widget {
 	t := s.Widget()
 	if s.nodesStale {
 		s.nodes = s.glutterNodes(s.model.roots)
@@ -496,8 +578,18 @@ func (s *treeState) Build(widgets.BuildContext) widgets.Widget {
 	})
 	view := widgets.NewCustomScrollView([]widgets.Widget{sliver}, widgets.ScrollViewOpts{Controller: s.scroll})
 	element := NewScrollableElement(view, ScrollableElementOpts{Controller: s.scroll})
+	colors := ThemeOf(bc)
+	header := buildFindBox(bc, &s.model.rowNav, s.find, s.refresh, s.closeFind)
+	area := composeArea(bc, colors, &s.drag, header, element, func(c widgets.BuildContext) { s.areaCtx = c })
+	// Translucent: ScrollableElement's MouseRegion is not opaque, so the hit test of a press on a row reports "not
+	// hit" to what is above it and a defer-to-child Listener would be left out of the path, and would not see the
+	// moves of the drag. The path of the press is kept for the whole drag, even when the row scrolls away.
+	content := widgets.NewListener(area, widgets.ListenerOpts{
+		OnPointerMove: s.drag.move, OnPointerUp: s.drag.up, OnPointerCancel: s.drag.pointerCancel,
+		Behavior: rendering.HitTestBehaviorTranslucent,
+	})
 	return widgets.NewMouseRegion(
-		widgets.NewFocus(element, widgets.FocusOpts{
+		widgets.NewFocus(content, widgets.FocusOpts{
 			FocusNode: s.node, Autofocus: t.opts.Autofocus, OnKeyEvent: s.handleKey, OnFocusChange: s.focusChanged,
 		}),
 		widgets.MouseRegionOpts{
@@ -545,11 +637,14 @@ func rowLook(colors Colors, st TreeRowState) (background, foreground, outline ui
 
 // defaultTreeRender shows the data of the node as one line of text.
 func defaultTreeRender(bc widgets.BuildContext, n TreeNode, st TreeRowState) widgets.Widget {
-	label, ok := n.Data.(string)
-	if !ok {
-		label = fmt.Sprint(n.Data)
+	label := n.Label
+	if label == "" {
+		var ok bool
+		if label, ok = n.Data.(string); !ok {
+			label = fmt.Sprint(n.Data)
+		}
 	}
-	return widgets.NewText(label, widgets.TextOpts{Style: TextStyleOf(bc, listFontSize, st.Foreground), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})
+	return NewHighlightedLabel(bc, label, st)
 }
 
 // buildRow builds the row of a node of the TreeSliver.
@@ -562,10 +657,10 @@ func (s *treeState) buildRow(bc widgets.BuildContext, node *widgets.TreeSliverNo
 		return widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(height)})
 	}
 	colors := ThemeOf(bc)
-	focusKey, _ := m.Focused()
-	selectedKey, _ := m.Selected()
-	st := TreeRowState{Selected: n.Key == selectedKey, Focused: n.Key == focusKey, Hovered: n.Key == s.hover && !n.Placeholder, Active: s.hasFocus}
+	st := rowStateOf(colors, &m.rowNav, n.Key, s.hover, s.hasFocus)
+	st.Hovered = st.Hovered && !n.Placeholder
 	background, foreground, outline := rowLook(colors, st)
+	inside, before, after := s.drag.rowDrop(n.Key)
 	st.Foreground = foreground
 
 	var contents widgets.Widget
@@ -589,10 +684,13 @@ func (s *treeState) buildRow(bc widgets.BuildContext, node *widgets.TreeSliverNo
 		widgets.NewExpanded(widgets.NewAlign(contents, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})),
 	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 	layers := append(s.guides(m, n, colors, height), widgets.NewSizedBox(body, widgets.SizedBoxOpts{Height: foundation.Some(height)}))
-	row := widgets.NewDecoratedBox(painting.NewBoxDecoration(painting.BoxDecorationOpts{
-		Color:  foundation.Some(background),
-		Border: painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(outline), Width: foundation.Some(1.0)}),
-	}), widgets.NewStack(layers))
+	if before {
+		layers = append(layers, dropLine(colors.ListDropBetweenBackground, true))
+	}
+	if after {
+		layers = append(layers, dropLine(colors.ListDropBetweenBackground, false))
+	}
+	row := widgets.NewDecoratedBox(rowDecoration(colors, background, outline, inside), widgets.NewStack(layers))
 	if n.Placeholder {
 		return row
 	}
