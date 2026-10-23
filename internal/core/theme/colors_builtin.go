@@ -14,6 +14,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerMinimapColors(r)
 	registerStickyColors(r)
 	registerListColors(r)
+	registerTreeColors(r)
 	registerBreadcrumbColors(r)
 	registerButtonColors(r)
 	registerKitColors(r)
@@ -358,6 +359,35 @@ func registerListColors(r *ColorRegistry) {
 		ColorContribution{ID: "list.hoverBackground", NeedsTransparency: true,
 			Defaults:    dflt(Hex("#2A2D2E"), Hex("#F0F0F0"), Transparent(Lit(ColorWhite), 0.1), Transparent(Hex("#0F4A85"), 0.1)),
 			Description: "List/Tree background when hovering over items using the mouse."},
+	)
+}
+
+// registerTreeColors registers the colors of gui/kit's Tree beyond the ones of lists: the focused
+// and the selected row of a tree that does not have the focus, the outline of a row that is both
+// focused and selected, and the indent guides.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/listColors.ts
+func registerTreeColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "list.focusBackground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.focusForeground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "List/Tree foreground color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.focusAndSelectionOutline", Defaults: dflt(nil, nil, nil, nil),
+			Description: "List/Tree outline color for the focused item when the list/tree is active and selected. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.inactiveSelectionBackground", NeedsTransparency: true,
+			Defaults:    dflt(Hex("#37373D"), Hex("#E4E6F1"), nil, Transparent(Hex("#0F4A85"), 0.1)),
+			Description: "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.inactiveSelectionForeground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "List/Tree foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.inactiveFocusBackground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "List/Tree background color for the focused item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "list.inactiveFocusOutline", Defaults: dflt(nil, nil, nil, nil),
+			Description: "List/Tree outline color for the focused item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."},
+		ColorContribution{ID: "tree.indentGuidesStroke", Defaults: dflt(Hex("#585858"), Hex("#a9a9a9"), Hex("#a9a9a9"), Hex("#a5a5a5")),
+			Description: "Tree stroke color for the indentation guides."},
+		ColorContribution{ID: "tree.inactiveIndentGuidesStroke", Defaults: AllThemes(Transparent(Ref("tree.indentGuidesStroke"), 0.4)),
+			Description: "Tree stroke color for the indentation guides that are not active."},
 	)
 }
 

@@ -162,3 +162,29 @@ func TestModernThemesColorsOfMenus(t *testing.T) {
 		}
 	}
 }
+
+func TestTreeColorsOfTheBundledThemes(t *testing.T) {
+	dark, light := DarkModern(), LightModern()
+	cases := []struct {
+		name string
+		got  ui.Color
+		want uint32
+	}{
+		{"dark list.inactiveSelectionBackground", dark.ListInactiveSelectionBackground, 0xFF37373D},
+		{"dark list.activeSelectionBackground", dark.ListActiveSelectionBackground, 0xFF04395E},
+		{"dark tree.indentGuidesStroke", dark.TreeIndentGuidesStroke, 0xFF585858},
+		{"dark tree.inactiveIndentGuidesStroke", dark.TreeInactiveIndentGuidesStroke, 0x66585858},
+		{"dark list.focusBackground (unset)", dark.ListFocusBackground, 0},
+		{"dark list.inactiveFocusOutline (unset)", dark.ListInactiveFocusOutline, 0},
+		{"light list.inactiveSelectionBackground", light.ListInactiveSelectionBackground, 0xFFE4E6F1},
+		{"light list.activeSelectionBackground", light.ListActiveSelectionBackground, 0xFFE8E8E8},
+		{"light list.focusAndSelectionOutline", light.ListFocusAndSelectionOutline, 0xFF005FB8},
+		{"light tree.indentGuidesStroke", light.TreeIndentGuidesStroke, 0xFFA9A9A9},
+		{"light tree.inactiveIndentGuidesStroke", light.TreeInactiveIndentGuidesStroke, 0x66A9A9A9},
+	}
+	for _, tc := range cases {
+		if tc.got != ui.NewColor(tc.want) {
+			t.Errorf("%s = %v, want %#08x", tc.name, tc.got, tc.want)
+		}
+	}
+}

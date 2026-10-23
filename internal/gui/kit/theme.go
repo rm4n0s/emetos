@@ -101,6 +101,15 @@ type Colors struct {
 	// The colors of lists: the focused row (ListActiveSelectionBackground and Foreground), a row
 	// under the pointer and the outline of the focused row.
 	ListActiveSelectionBackground, ListActiveSelectionForeground, ListHoverBackground, ListFocusOutline ui.Color
+	// The colors of the rows of a list or tree beyond those: the focused row of an active one (text,
+	// background and, when it is selected too, its outline), the selected row of one that does not have
+	// the focus (text and background), and its focused row (background and outline); the strokes of a
+	// tree's indent guides, the active ones and the others. A transparent one (the usual default)
+	// leaves the row as it is.
+	ListFocusForeground, ListFocusBackground, ListFocusAndSelectionOutline ui.Color
+	ListInactiveSelectionForeground, ListInactiveSelectionBackground       ui.Color
+	ListInactiveFocusBackground, ListInactiveFocusOutline                  ui.Color
+	TreeIndentGuidesStroke, TreeInactiveIndentGuidesStroke                 ui.Color
 	// The colors of the breadcrumbs bar: its items, the item that is hovered or has its picker open
 	// (Focus and ActiveSelection), the background of the bar and the one of the picker.
 	// DescriptionForeground is the color of descriptive text, and the Button colors are those of
@@ -204,6 +213,11 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		InputValidationErrorBorder:    color("inputValidation.errorBorder"),
 		ListActiveSelectionBackground: color("list.activeSelectionBackground"), ListActiveSelectionForeground: color("list.activeSelectionForeground"),
 		ListHoverBackground: color("list.hoverBackground"), ListFocusOutline: color("list.focusOutline"),
+		ListFocusForeground: color("list.focusForeground"), ListFocusBackground: color("list.focusBackground"),
+		ListFocusAndSelectionOutline:    color("list.focusAndSelectionOutline"),
+		ListInactiveSelectionForeground: color("list.inactiveSelectionForeground"), ListInactiveSelectionBackground: color("list.inactiveSelectionBackground"),
+		ListInactiveFocusBackground: color("list.inactiveFocusBackground"), ListInactiveFocusOutline: color("list.inactiveFocusOutline"),
+		TreeIndentGuidesStroke: color("tree.indentGuidesStroke"), TreeInactiveIndentGuidesStroke: color("tree.inactiveIndentGuidesStroke"),
 		DescriptionForeground: color("descriptionForeground"),
 		ButtonForeground:      color("button.foreground"), ButtonBackground: color("button.background"),
 		ButtonHoverBackground: color("button.hoverBackground"), ButtonBorder: color("button.border"),

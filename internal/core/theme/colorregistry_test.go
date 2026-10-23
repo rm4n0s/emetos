@@ -200,6 +200,43 @@ func TestDefaultMenuColors(t *testing.T) {
 	}
 }
 
+// The colors that step 6.4 added for the tree, as VS Code's registry (listColors.ts) writes their defaults.
+func TestDefaultTreeColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"list.focusBackground", none, none, none, none},
+		{"list.focusForeground", none, none, none, none},
+		{"list.focusAndSelectionOutline", none, none, none, none},
+		{"list.inactiveSelectionBackground", "#37373d", "#e4e6f1", none, "rgba(15, 74, 133, 0.1)"},
+		{"list.inactiveSelectionForeground", none, none, none, none},
+		{"list.inactiveFocusBackground", none, none, none, none},
+		{"list.inactiveFocusOutline", none, none, none, none},
+		{"tree.indentGuidesStroke", "#585858", "#a9a9a9", "#a9a9a9", "#a5a5a5"},
+		{"tree.inactiveIndentGuidesStroke", "rgba(88, 88, 88, 0.4)", "rgba(169, 169, 169, 0.4)", "rgba(169, 169, 169, 0.4)", "rgba(165, 165, 165, 0.4)"},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+}
+
 func TestEveryDefaultColorHasADescription(t *testing.T) {
 	for _, c := range DefaultColorRegistry().Colors() {
 		if c.Description == "" {
