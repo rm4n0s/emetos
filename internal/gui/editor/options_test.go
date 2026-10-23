@@ -61,6 +61,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		FontFamilies: got.FontFamilies, FontSize: 14, LineHeight: 19, TabSize: 8,
 		FontFeatures: []FontFeature{{"liga", 0}, {"calt", 0}},
 		LineNumbers:  LineNumbersOn, LineNumbersMinChars: 5, GlyphMargin: true, LineDecorationsWidth: 10, Folding: true, ScrollBeyondLastLine: true,
+		ShowFoldingControls: "mouseover", FoldingHighlight: true,
 		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
 		MultiCursorModifier: "alt", MouseStyle: "text",
 		MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
@@ -82,15 +83,18 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 
 func TestOptionsFromSettingsValues(t *testing.T) {
 	store := newSettings(t, map[string]any{
-		"editor.fontSize":             18.0,
-		"editor.lineHeight":           1.5,
-		"editor.lineNumbers":          "relative",
-		"editor.lineNumbersMinChars":  3.0,
-		"editor.glyphMargin":          false,
-		"editor.lineDecorationsWidth": "12px",
-		"editor.folding":              false,
-		"editor.scrollBeyondLastLine": false,
-		"editor.fontLigatures":        true,
+		"editor.fontSize":                    18.0,
+		"editor.lineHeight":                  1.5,
+		"editor.lineNumbers":                 "relative",
+		"editor.lineNumbersMinChars":         3.0,
+		"editor.glyphMargin":                 false,
+		"editor.lineDecorationsWidth":        "12px",
+		"editor.folding":                     false,
+		"editor.showFoldingControls":         "never",
+		"editor.foldingHighlight":            false,
+		"editor.unfoldOnClickAfterEndOfLine": true,
+		"editor.scrollBeyondLastLine":        false,
+		"editor.fontLigatures":               true,
 
 		"editor.renderLineHighlight":              "all",
 		"editor.renderLineHighlightOnlyWhenFocus": true,
@@ -138,7 +142,8 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		t.Errorf("families: %v", got.FontFamilies)
 	}
 	if got.FontSize != 18 || got.LineHeight != 27 || got.TabSize != 2 || got.LineNumbers != LineNumbersRelative ||
-		got.LineNumbersMinChars != 3 || got.GlyphMargin || got.LineDecorationsWidth != 12 || got.Folding || got.ScrollBeyondLastLine {
+		got.LineNumbersMinChars != 3 || got.GlyphMargin || got.LineDecorationsWidth != 12 || got.Folding || got.ScrollBeyondLastLine ||
+		got.ShowFoldingControls != "never" || got.FoldingHighlight || !got.UnfoldOnClickAfterEndOfLine {
 		t.Errorf("got %+v", got)
 	}
 	if got.RenderLineHighlight != "all" || !got.RenderLineHighlightOnlyWhenFocus || got.RoundedSelection || got.CursorWidth != 3 || got.CursorBlinking != "solid" {

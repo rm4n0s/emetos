@@ -193,6 +193,7 @@ func testOptions() Options {
 	return Options{
 		FontFamilies: []string{"Go Mono", "monospace"}, FontSize: 14, LineHeight: 19, TabSize: 4,
 		LineNumbers: LineNumbersOn, LineNumbersMinChars: 5, GlyphMargin: true, LineDecorationsWidth: 10, Folding: true, ScrollBeyondLastLine: true,
+		ShowFoldingControls: "always", FoldingHighlight: true,
 		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
 		MultiCursorModifier: "alt", MouseStyle: "text", MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
 		MultiCursorPaste: "spread", EmptySelectionClipboard: true,
@@ -271,7 +272,9 @@ func TestViewState(t *testing.T) {
 	// Another editor of the same document, with a state that points past the end of a
 	// document that has since become shorter.
 	other := NewViewModel(newTestDoc("x"), testOptions(), nil)
-	other.RestoreViewState(state)
+	if err := other.RestoreViewState(state); err != nil {
+		t.Fatal(err)
+	}
 	got := other.ViewState()
 	if got.ScrollTop != 120 || got.ScrollLeft != 30 {
 		t.Errorf("scroll: %+v", got)
@@ -281,7 +284,11 @@ func TestViewState(t *testing.T) {
 		t.Errorf("selections are moved into the text: %+v, want %+v", got.Selections, want)
 	}
 
-	other.RestoreViewState(ViewState{ScrollTop: -4, ScrollLeft: -1})
+	if err := other.RestoreViewState(ViewState{ScrollTop: -4, ScrollLeft: -1}); err != nil {
+
+		t.Fatal(err)
+
+	}
 	if s := other.ViewState(); s.ScrollTop != 0 || s.ScrollLeft != 0 || len(s.Selections) != 1 {
 		t.Errorf("a negative scroll is 0 and no selections keeps the cursor: %+v", s)
 	}

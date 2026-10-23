@@ -37,6 +37,10 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		Folding:              settings.Get[bool](store, "editor.folding", languageID),
 		ScrollBeyondLastLine: settings.Get[bool](store, "editor.scrollBeyondLastLine", languageID),
 
+		ShowFoldingControls:         settings.Get[string](store, "editor.showFoldingControls", languageID),
+		FoldingHighlight:            settings.Get[bool](store, "editor.foldingHighlight", languageID),
+		UnfoldOnClickAfterEndOfLine: settings.Get[bool](store, "editor.unfoldOnClickAfterEndOfLine", languageID),
+
 		RenderLineHighlight:              settings.Get[string](store, "editor.renderLineHighlight", languageID),
 		RenderLineHighlightOnlyWhenFocus: settings.Get[bool](store, "editor.renderLineHighlightOnlyWhenFocus", languageID),
 		RoundedSelection:                 settings.Get[bool](store, "editor.roundedSelection", languageID),

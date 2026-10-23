@@ -46,6 +46,18 @@ type mouseState struct {
 	// handler that ends it with Escape.
 	dnd       *textDrag
 	cancelKey services.KeyHandlerHandle
+	// fold is the press on a folding control or on the placeholder of a folded line, which
+	// folds or unfolds on release.
+	fold *foldPress
+}
+
+// foldPress is a press that the folding gets: the line, whether it is on the control in the
+// gutter (else on the placeholder), which pointer and whether the middle button.
+type foldPress struct {
+	line    int
+	control bool
+	pointer int
+	middle  bool
 }
 
 // modifiers reads the modifier keys held now.
@@ -105,6 +117,9 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 	m := &s.mouse
 	vm := s.Widget().vm
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
+	if s.startsFoldPress(e, ev, middle, gutterWidth) {
+		return
+	}
 	ev.Mods = s.modifiers()
 	ev.Middle = middle
 	ev.Clicks = m.countClick(e.LocalPosition(), e.TimeStamp())
@@ -242,6 +257,7 @@ func (s *editorState) endPress() {
 // did not move pastes the primary selection.
 func (s *editorState) pointerUp(e *gestures.PointerUpEvent, gutterWidth float64) {
 	m := &s.mouse
+	s.endFoldPress(e, gutterWidth)
 	if !m.pressed || m.pointer != e.Pointer() {
 		return
 	}
@@ -299,4 +315,68 @@ func (s *editorState) pointerListener(child widgets.Widget, gutterWidth float64)
 		OnPointerSignal:        s.pointerSignal,
 		OnPointerPanZoomUpdate: s.panZoomUpdate,
 	})
+}
+
+// foldTarget tells what a point is for the folding: the line of the control in the gutter it is
+// on, or of the folded line whose placeholder (or, with editor.unfoldOnClickAfterEndOfLine, the
+// empty space after its text) it is on.
+//
+// Ported from VS Code: src/vs/editor/contrib/folding/browser/folding.ts (onEditorMouseDown)
+func (s *editorState) foldTarget(local ui.Offset, pos buffer.Position, gutterWidth float64) (line int, control, ok bool) {
+	vm := s.Widget().vm
+	opts := vm.Options()
+	if !vm.foldingEnabled() {
+		return 0, false, false
+	}
+	if local.Dx < gutterWidth {
+		w := vm.GutterWidths(textFactory(s.Context()))
+		left := w.GlyphMargin + w.LineNumbers
+		// The first 4 pixels of the decorations are the space before the control.
+		if opts.ShowFoldingControls == "never" || local.Dx < left+4 || vm.FoldingStateOf(pos.Line) == FoldingNone {
+			return 0, false, false
+		}
+		return pos.Line, true, true
+	}
+	if s.textRO == nil || !vm.FoldedLine(pos.Line) {
+		return 0, false, false
+	}
+	g := newGeometry(vm, textFactory(s.Context()))
+	rect := g.foldPlaceholder(vm.RowOfPosition(pos))
+	x := local.Dx - gutterWidth + vm.ScrollLeft()
+	if x >= rect.Left && (x < rect.Right || opts.UnfoldOnClickAfterEndOfLine) {
+		return pos.Line, false, true
+	}
+	return 0, false, false
+}
+
+// startsFoldPress notes a press on a folding control or a placeholder. A press on a control is
+// the folding's alone (the cursor stays); one on a placeholder also places the cursor.
+func (s *editorState) startsFoldPress(e *gestures.PointerDownEvent, ev MouseEvent, middle bool, gutterWidth float64) bool {
+	s.mouse.fold = nil
+	line, control, ok := s.foldTarget(e.LocalPosition(), ev.Position, gutterWidth)
+	if !ok {
+		return false
+	}
+	s.mouse.fold = &foldPress{line: line, control: control, pointer: e.Pointer(), middle: middle}
+	return control
+}
+
+// endFoldPress folds or unfolds when the pointer is released on the control or the placeholder
+// that was pressed. Alt works on the regions around, Shift or the middle button on the regions
+// inside too.
+func (s *editorState) endFoldPress(e *gestures.PointerUpEvent, gutterWidth float64) {
+	fp := s.mouse.fold
+	if fp == nil || fp.pointer != e.Pointer() {
+		return
+	}
+	s.mouse.fold = nil
+	ev := s.eventAt(e.LocalPosition(), gutterWidth)
+	line, control, ok := s.foldTarget(e.LocalPosition(), ev.Position, gutterWidth)
+	if !ok || line != fp.line || control != fp.control {
+		return
+	}
+	mods := s.modifiers()
+	vm := s.Widget().vm
+	vm.ToggleFoldAt(line, control, mods.Alt, mods.Shift || fp.middle)
+	vm.RevealPosition(buffer.Position{Line: line})
 }

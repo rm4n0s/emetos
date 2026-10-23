@@ -36,7 +36,11 @@ func (mv Mover) leftOf(p buffer.Position) buffer.Position {
 		return buffer.Position{Line: p.Line, Col: PrevGrapheme(mv.Model.LineContent(p.Line), p.Col)}
 	}
 	if p.Line > 0 {
-		return lineEnd(mv.Model, p.Line-1)
+		above := p.Line - 1
+		if first, _, hidden := hiddenSpan(mv.Layout, above); hidden {
+			above = first - 1 // a folded range is one step: the cursor goes to the line that folds it
+		}
+		return lineEnd(mv.Model, above)
 	}
 	return p
 }
@@ -47,8 +51,12 @@ func (mv Mover) rightOf(p buffer.Position) buffer.Position {
 	if p.Col < len(line) {
 		return buffer.Position{Line: p.Line, Col: NextGrapheme(line, p.Col)}
 	}
-	if p.Line < lastLine(mv.Model) {
-		return buffer.Position{Line: p.Line + 1}
+	next := p.Line + 1
+	if _, end, hidden := hiddenSpan(mv.Layout, next); hidden {
+		next = end + 1
+	}
+	if next <= lastLine(mv.Model) {
+		return buffer.Position{Line: next}
 	}
 	return p
 }

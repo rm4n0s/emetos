@@ -357,3 +357,36 @@ func (m *Model) RegionsInside(region Region, ok bool, filter func(r Region, leve
 	}
 	return out
 }
+
+// LineSpan is a span of lines, zero-based and inclusive at both ends.
+type LineSpan struct {
+	First, Last int
+}
+
+// HiddenLines are the lines the folded regions hide: the lines after the first line of each folded
+// region up to its last, as sorted spans that do not touch. They are read from the decorations of
+// the regions, so they follow the edits made since the regions were computed. A folded region whose
+// decoration has shrunk to one line hides nothing.
+func (m *Model) HiddenLines() []LineSpan {
+	var spans []LineSpan
+	for i := 0; i < m.regions.Len() && i < len(m.ids); i++ {
+		if !m.regions.Collapsed(i) {
+			continue
+		}
+		d, ok := m.doc.Decoration(m.ids[i])
+		if !ok || d.Range.End.Line <= d.Range.Start.Line {
+			continue
+		}
+		spans = append(spans, LineSpan{First: d.Range.Start.Line + 1, Last: d.Range.End.Line})
+	}
+	sort.Slice(spans, func(i, j int) bool { return spans[i].First < spans[j].First })
+	merged := spans[:0]
+	for _, s := range spans {
+		if n := len(merged); n > 0 && s.First <= merged[n-1].Last+1 {
+			merged[n-1].Last = max(merged[n-1].Last, s.Last)
+			continue
+		}
+		merged = append(merged, s)
+	}
+	return merged
+}

@@ -4,6 +4,8 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/ui"
+
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 // GutterColors are the colors of the line numbers.
@@ -15,6 +17,8 @@ type GutterColors struct {
 	// LineHighlight and LineHighlightBorder are the background and the border of the current
 	// line when the editor highlights it in the gutter.
 	LineHighlight, LineHighlightBorder ui.Color
+	// FoldingControl is the color of the folding controls.
+	FoldingControl ui.Color
 }
 
 // GutterWidths gives the widths of the gutter for the document of the view model, in the
@@ -126,14 +130,21 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
 	defer canvas.Restore()
 	r.paintHighlight(canvas, offset, size, top, first, last)
-	if opts.LineNumbers == LineNumbersOff {
-		return
+	widths := r.vm.GutterWidths(r.factory)
+	if opts.LineNumbers != LineNumbersOff {
+		r.paintNumbers(canvas, offset, top, first, last, widths)
 	}
+	r.paintFoldingControls(canvas, offset, top, first, last, widths)
+}
+
+// paintNumbers draws the line numbers of the visible rows.
+func (r *RenderEditorGutter) paintNumbers(canvas *ui.Canvas, offset ui.Offset, top float64, first, last int, widths GutterWidths) {
+	opts := r.vm.Options()
+	proj := r.vm.Projection()
 	lineCount := r.vm.Document().Snapshot().LineCount()
 	cursorLine := r.vm.Cursors().Primary().Position().Line
 	normal := newTextStyle(r.factory, opts, r.colors.LineNumber)
 	active := newTextStyle(r.factory, opts, r.colors.ActiveLineNumber)
-	widths := r.vm.GutterWidths(r.factory)
 	for row := first; row <= last; row++ {
 		line, start, _ := proj.RowSpan(row)
 		if start != 0 {
@@ -152,6 +163,48 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 		if current {
 			x = offset.Dx + widths.GlyphMargin // the cursor's line in relative mode is left-aligned
 		}
+		canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: offset.Dy + proj.RowTop(row) - top})
+	}
+}
+
+// foldingControlGlyphSize is the size of the folding control's icon.
+const foldingControlGlyphSize = 16
+
+// paintFoldingControls draws the chevron of each visible line that starts a region: down for an open
+// region, right for a folded one. With editor.showFoldingControls "mouseover" the open ones show
+// only while the pointer is over the gutter; the folded ones always show.
+//
+// Ported from VS Code: src/vs/editor/contrib/folding/browser/foldingDecorations.ts
+func (r *RenderEditorGutter) paintFoldingControls(canvas *ui.Canvas, offset ui.Offset, top float64, first, last int, widths GutterWidths) {
+	opts := r.vm.Options()
+	if !opts.Folding || opts.ShowFoldingControls == "never" || r.colors.FoldingControl.Alpha() == 0 {
+		return
+	}
+	showOpen := opts.ShowFoldingControls == "always" || r.vm.fold.hoverGutter
+	proj := r.vm.Projection()
+	icons := opts
+	icons.FontFamilies, icons.FontSize, icons.FontWeight, icons.LetterSpacing, icons.FontFeatures = []string{fonts.Codicon}, foldingControlGlyphSize, 0, 0, nil
+	style := newTextStyle(r.factory, icons, r.colors.FoldingControl)
+	left := offset.Dx + widths.GlyphMargin + widths.LineNumbers
+	for row := first; row <= last; row++ {
+		line, start, _ := proj.RowSpan(row)
+		if start != 0 {
+			continue
+		}
+		var glyph int
+		switch r.vm.FoldingStateOf(line) {
+		case FoldingCollapsed:
+			glyph = fonts.CodiconChevronRight
+		case FoldingExpanded:
+			if !showOpen {
+				continue
+			}
+			glyph = fonts.CodiconChevronDown
+		default:
+			continue
+		}
+		p := style.paragraph(r.vm.Paragraphs(), string(rune(glyph)))
+		x := left + (foldingControlsWidth-p.LongestLine())/2
 		canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: offset.Dy + proj.RowTop(row) - top})
 	}
 }

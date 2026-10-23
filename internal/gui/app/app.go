@@ -16,6 +16,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/folding"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -178,6 +179,12 @@ type shellState struct {
 	// indentation levels the guides are drawn from.
 	stopBrackets func()
 	stopGuides   func()
+	stopFolding  func()
+	// doc is the document the editor shows, or nil; it starts as the one the page was given and
+	// changes with dev.openFile.
+	doc *document.Document
+	// removeOpenFile takes the handler of dev.openFile off the registry.
+	removeOpenFile func()
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -187,6 +194,7 @@ func (s *shellState) InitState() {
 	if doc := s.Widget().doc; doc != nil {
 		s.initEditor(binding, doc)
 	}
+	s.bindDevOpenFile(binding)
 	done := s.Widget().ctx.Done()
 	s.Go(func(life context.Context) {
 		select {
@@ -202,8 +210,18 @@ func (s *shellState) InitState() {
 				Steps:    steps,
 				Commands: win.Process.Commands,
 				Post: func(f func()) {
+					// A step is done when the frames after it are: what a command changes (a new
+					// editor, a focus) is there for the next one.
 					finished := make(chan struct{})
-					binding.Post(func() { f(); close(finished) })
+					binding.Post(func() {
+						f()
+						scheduler := binding.Scheduler()
+						scheduler.ScheduleFrame()
+						scheduler.AddPostFrameCallback(func(time.Duration) {
+							scheduler.ScheduleFrame()
+							scheduler.AddPostFrameCallback(func(time.Duration) { close(finished) })
+						})
+					})
 					select {
 					case <-finished:
 					case <-s.Widget().ctx.Done():
@@ -221,6 +239,7 @@ func (s *shellState) InitState() {
 // initEditor makes the view model of the file, and keeps its options current as the settings
 // change (the change may come from any goroutine, so it is posted to the UI thread).
 func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.Document) {
+	s.doc = doc
 	win := PeekWindow(s.Context())
 	options := func() editor.Options {
 		desktop, _ := binding.PlatformDispatcher().MonospaceFont()
@@ -228,6 +247,9 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 		return editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
 	}
 	s.view = editor.NewViewModel(doc, options(), nil)
+	// The background work of the editor (the folding regions, the tokens) hands its results to the
+	// UI thread from the start, before the editor widget exists to say how.
+	s.view.SetPoster(binding.Post)
 	s.view.SetIndentationDefaults(func() (int, bool) {
 		p := win.indentationFor(doc.LanguageID())
 		return p.TabSize, p.InsertSpaces
@@ -235,6 +257,7 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 	s.startTokenizer(win, doc)
 	s.startBrackets(win, doc)
 	s.startGuides(win, doc)
+	s.startFolding(win, doc)
 	s.view.SetIndenter(win.Process.Indenter(), win.Process.Languages.Code(doc.LanguageID()))
 	s.view.SetComments(win.Process.Comments())
 	s.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(doc.LanguageID())))
@@ -281,23 +304,59 @@ func (s *shellState) startGuides(win *Window, doc *document.Document) {
 	s.view.SetGuides(levels, offSide)
 }
 
-// Dispose stops following the settings and the document.
-func (s *shellState) Dispose() {
+// startFolding makes the folding of the document: the regions come from the indentation of its
+// lines and the folding rules of its language, up to editor.foldingMaximumRegions, and are
+// computed in the background.
+func (s *shellState) startFolding(win *Window, doc *document.Document) {
+	provider := folding.IndentProvider{
+		Limit: folding.Limit{Max: int(settings.Get[float64](win.Settings, "editor.foldingMaximumRegions", doc.LanguageID()))},
+	}
+	if c := win.Process.Languages.Configuration(doc.LanguageID()); c != nil && c.Folding != nil {
+		provider.OffSide = c.Folding.OffSide
+		if c.Folding.MarkersStart != nil && c.Folding.MarkersEnd != nil {
+			provider.Markers = &folding.Markers{Start: c.Folding.MarkersStart, End: c.Folding.MarkersEnd}
+		}
+	}
+	s.view.SetFoldingMarkers(provider.Markers)
+	s.stopFolding = s.view.StartFolding(provider, 0)
+}
+
+// disposeEditor stops following the settings and the document, and drops the view model.
+func (s *shellState) disposeEditor() {
+	if s.view == nil {
+		return
+	}
+	if s.stopFolding != nil {
+		s.stopFolding()
+		s.stopFolding = nil
+	}
 	if s.stopGuides != nil {
 		s.view.SetGuides(nil, false)
 		s.stopGuides()
+		s.stopGuides = nil
 	}
 	if s.unsubscribe != nil {
 		s.unsubscribe()
+		s.unsubscribe = nil
 	}
 	if s.stopBrackets != nil {
 		s.view.SetBrackets(nil)
 		s.stopBrackets()
+		s.stopBrackets = nil
 	}
 	if s.tokenizer != nil {
 		s.view.SetTokenizer(nil)
 		s.tokenizer.Close()
+		s.tokenizer = nil
 	}
+}
+
+// Dispose stops following the settings and the document.
+func (s *shellState) Dispose() {
+	if s.removeOpenFile != nil {
+		s.removeOpenFile()
+	}
+	s.disposeEditor()
 }
 
 // Build implements widgets.State.

@@ -2,6 +2,7 @@ package folding
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -580,4 +581,56 @@ func TestRemoveManualRanges(t *testing.T) {
 		h.removeManual(span(2, 1, 3, 1))
 		h.assertRanges([]expected{r(1, 5), r(4, 5)})
 	})
+}
+
+// Ported from VS Code: src/vs/editor/contrib/folding/test/browser/hiddenRangeModel.test.ts (hasRanges).
+// The hidden ranges are Model.HiddenLines; the harness keeps VS Code's one-based lines.
+func TestHiddenRangeModelHasRanges(t *testing.T) {
+	h := newHarness(t,
+		/* 1*/ "/**",
+		/* 2*/ " * Comment",
+		/* 3*/ " */",
+		/* 4*/ "class A {",
+		/* 5*/ "  void foo() {",
+		/* 6*/ "    if (true) {",
+		/* 7*/ "      //hello",
+		/* 8*/ "    }",
+		/* 9*/ "  }",
+		/* 10*/ "}")
+	oneBased := func() []LineSpan {
+		spans := h.model.HiddenLines()
+		for i := range spans {
+			spans[i].First++
+			spans[i].Last++
+		}
+		return spans
+	}
+	hidden := func(line int) bool {
+		for _, s := range oneBased() {
+			if s.First <= line && line <= s.Last {
+				return true
+			}
+		}
+		return false
+	}
+	check := func(want []LineSpan, hiddenLines ...int) {
+		t.Helper()
+		if got := oneBased(); (len(got) != 0 || len(want) != 0) && !reflect.DeepEqual(got, want) {
+			t.Errorf("hidden ranges %v, want %v", got, want)
+		}
+		for line := 1; line <= 10; line++ {
+			if want := slices.Contains(hiddenLines, line); hidden(line) != want {
+				t.Errorf("isHidden(%d) = %v, want %v", line, hidden(line), want)
+			}
+		}
+	}
+	check(nil)
+	h.update(h.compute(false, nil), nil)
+
+	h.toggle(1, 6)
+	check([]LineSpan{{2, 3}, {7, 7}}, 2, 3, 7)
+	h.toggle(4)
+	check([]LineSpan{{2, 3}, {5, 9}}, 2, 3, 5, 6, 7, 8, 9)
+	h.toggle(1, 6, 4)
+	check(nil)
 }

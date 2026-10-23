@@ -1,6 +1,10 @@
 package keybinding
 
-import "github.com/rm4n0s/emetos/internal/core/contextkey"
+import (
+	"strconv"
+
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
+)
 
 // Context keys the default keybindings test. Their meaning is VS Code's EditorContextKeys.
 const (
@@ -50,6 +54,7 @@ func DefaultRegistry() *Registry {
 	registerEditKeys(r)
 	registerClipboardKeys(r)
 	registerLineKeys(r)
+	registerFoldingKeys(r)
 	registerMultiCursorKeys(r)
 	return r
 }
@@ -173,4 +178,35 @@ func registerClipboardKeys(r *Registry) {
 		Rule{Command: "editor.action.clipboardCopyAction", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus), Primary: "ctrl+c"},
 		Rule{Command: "editor.action.clipboardPasteAction", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus), Primary: "ctrl+v", Secondary: []string{"shift+insert"}},
 	)
+}
+
+// registerFoldingKeys registers the keys of the folding commands.
+//
+// Ported from VS Code: src/vs/editor/contrib/folding/browser/folding.ts
+func registerFoldingKeys(r *Registry) {
+	text := func(command, primary string) Rule {
+		return Rule{Command: command, Weight: WeightEditorContrib, When: mustWhen(whenEditorText, "foldingEnabled"), Primary: primary}
+	}
+	rules := []Rule{
+		text("editor.fold", "ctrl+shift+["),
+		text("editor.unfold", "ctrl+shift+]"),
+		text("editor.toggleFold", "ctrl+k ctrl+l"),
+		text("editor.foldRecursively", "ctrl+k ctrl+["),
+		text("editor.unfoldRecursively", "ctrl+k ctrl+]"),
+		text("editor.toggleFoldRecursively", "ctrl+k ctrl+shift+l"),
+		text("editor.foldAll", "ctrl+k ctrl+0"),
+		text("editor.unfoldAll", "ctrl+k ctrl+j"),
+		text("editor.foldAllBlockComments", "ctrl+k ctrl+/"),
+		text("editor.foldAllMarkerRegions", "ctrl+k ctrl+8"),
+		text("editor.unfoldAllMarkerRegions", "ctrl+k ctrl+9"),
+		text("editor.foldAllExcept", "ctrl+k ctrl+-"),
+		text("editor.unfoldAllExcept", "ctrl+k ctrl+="),
+		text("editor.createFoldingRangeFromSelection", "ctrl+k ctrl+,"),
+		text("editor.removeManualFoldingRanges", "ctrl+k ctrl+."),
+	}
+	for level := 1; level <= 7; level++ {
+		digit := strconv.Itoa(level)
+		rules = append(rules, text("editor.foldLevel"+digit, "ctrl+k ctrl+"+digit))
+	}
+	r.MustRegister(rules...)
 }

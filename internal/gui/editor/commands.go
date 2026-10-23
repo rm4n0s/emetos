@@ -471,6 +471,7 @@ func buildActions() map[string]action {
 		vm.detectIndentation()
 		return nil
 	}
+	foldingActions(a)
 	devActions(a)
 	return a
 }

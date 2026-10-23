@@ -2,6 +2,7 @@ package folding
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -253,5 +254,42 @@ func TestUpdaterStopsAndSkipsLargeFiles(t *testing.T) {
 	case <-results:
 		t.Error("a large file was folded")
 	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestHiddenLines(t *testing.T) {
+	doc := document.New(document.UntitledURI(1), "a\nb\nc\nd\ne\nf\ng\nh", document.NewOptions())
+	m := NewModel(doc, testOwner, testDecorations)
+	regions, err := FromRanges([]Range{{Start: 0, End: 4}, {Start: 1, End: 2}, {Start: 5, End: 7}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.UpdatePost(regions)
+	if got := m.HiddenLines(); len(got) != 0 {
+		t.Fatalf("nothing is folded: %v", got)
+	}
+	r := m.Regions()
+	m.ToggleCollapseState([]Region{r.Region(1), r.Region(2)})
+	if got, want := m.HiddenLines(), []LineSpan{{First: 2, Last: 2}, {First: 6, Last: 7}}; !slices.Equal(got, want) {
+		t.Errorf("hidden %v, want %v", got, want)
+	}
+	// the outer region swallows the inner one
+	m.ToggleCollapseState([]Region{r.Region(0)})
+	if got, want := m.HiddenLines(), []LineSpan{{First: 1, Last: 4}, {First: 6, Last: 7}}; !slices.Equal(got, want) {
+		t.Errorf("hidden %v, want %v", got, want)
+	}
+	// the spans follow the edits made before the regions are computed again
+	if _, err := doc.Edit([]document.Edit{{Range: buffer.Range{Start: buffer.Position{}, End: buffer.Position{}}, Text: "new\n"}}, document.EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := m.HiddenLines(), []LineSpan{{First: 2, Last: 5}, {First: 7, Last: 8}}; !slices.Equal(got, want) {
+		t.Errorf("hidden after an edit %v, want %v", got, want)
+	}
+	// a folded region that lost its lines hides nothing
+	if _, err := doc.Edit([]document.Edit{{Range: buffer.Range{Start: buffer.Position{Line: 5, Col: 1}, End: buffer.Position{Line: 7, Col: 1}}}}, document.EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.HiddenLines(); len(got) != 1 || got[0].First != 2 {
+		t.Errorf("hidden after deleting a fold's lines %v", got)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/comment"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
+	"github.com/rm4n0s/emetos/internal/core/folding"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 )
 
@@ -42,8 +43,15 @@ type Options struct {
 	GlyphMargin bool
 	// LineDecorationsWidth is the width of the line decorations.
 	LineDecorationsWidth float64
-	// Folding says whether the gutter has room for folding controls.
+	// Folding is editor.folding: whether lines can be folded.
 	Folding bool
+	// ShowFoldingControls is editor.showFoldingControls: "always", "mouseover" or "never"; with
+	// "never" the gutter has no room for the controls.
+	ShowFoldingControls string
+	// FoldingHighlight is editor.foldingHighlight: the folded lines have a background.
+	FoldingHighlight bool
+	// UnfoldOnClickAfterEndOfLine is editor.unfoldOnClickAfterEndOfLine.
+	UnfoldOnClickAfterEndOfLine bool
 	// ScrollBeyondLastLine lets the last line be scrolled up to the top of the editor.
 	ScrollBeyondLastLine bool
 	// RenderLineHighlight is where the current line is highlighted: "none", "gutter", "line"
@@ -128,12 +136,13 @@ type FontFeature struct {
 func (o Options) gutterOptions(digitWidth float64) GutterOptions {
 	return GutterOptions{
 		LineNumbers: o.LineNumbers, LineNumbersMinChars: o.LineNumbersMinChars, DigitWidth: digitWidth,
-		LineHeight: o.LineHeight, GlyphMargin: o.GlyphMargin, LineDecorationsWidth: o.LineDecorationsWidth, Folding: o.Folding,
+		LineHeight: o.LineHeight, GlyphMargin: o.GlyphMargin, LineDecorationsWidth: o.LineDecorationsWidth,
+		Folding: o.Folding && o.ShowFoldingControls != "never",
 	}
 }
 
 // ViewState is what the editor remembers about a document to come back to it: the
-// selections and the scroll position (SPEC §9.1). Folded ranges come with folding.
+// selections, the scroll position and the folded ranges (SPEC §9.1).
 type ViewState struct {
 	// Selections are the selections, the primary first.
 	Selections []buffer.Selection
@@ -141,6 +150,8 @@ type ViewState struct {
 	ScrollTop float64
 	// ScrollLeft is the horizontal scroll position in pixels.
 	ScrollLeft float64
+	// Folds are the folded and the user-made ranges, or nil.
+	Folds folding.Memento
 }
 
 // ViewModel is the state of one editor over one document: the cursors, the scroll
@@ -223,6 +234,8 @@ type ViewModel struct {
 	// language is indented to nest.
 	levels  *indent.Levels
 	offSide bool
+	// fold is the folding of the document (SPEC §8.7).
+	fold foldLink
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
 	indentDefaults func() (tabSize int, insertSpaces bool)
 
@@ -255,7 +268,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.autoClosed = edit.NewAutoClosedTracker(doc, autoClosedOwner)
-	vm.cursors.SetOnChange(func() { vm.autoClosed.Validate(vm.cursors.Selections()) })
+	vm.cursors.SetOnChange(vm.cursorsChanged)
 	vm.Sync()
 	vm.restartBlink()
 	return vm
@@ -316,11 +329,17 @@ func (vm *ViewModel) Projection() Projection {
 // Sync makes the projection match the document; it reports whether it changed.
 func (vm *ViewModel) Sync() bool {
 	version := vm.doc.Version()
-	if version == vm.syncedAt && vm.proj != nil {
+	if version == vm.syncedAt && vm.fold.epoch == vm.fold.syncedEpoch && vm.proj != nil {
 		return false
 	}
-	vm.syncedAt = version
-	vm.proj = newIdentityProjection(vm.doc.Snapshot().LineCount(), vm.opts.LineHeight)
+	vm.syncedAt, vm.fold.syncedEpoch = version, vm.fold.epoch
+	lines := vm.doc.Snapshot().LineCount()
+	if hidden := vm.hiddenLines(); len(hidden) > 0 {
+		folded := newFoldedProjection(lines, vm.opts.LineHeight, hidden)
+		vm.proj, vm.fold.hidden = folded, folded
+		return true
+	}
+	vm.proj, vm.fold.hidden = newIdentityProjection(lines, vm.opts.LineHeight), nil
 	return true
 }
 
@@ -353,12 +372,18 @@ func (vm *ViewModel) SetViewportHeight(h float64) { vm.viewport = h }
 
 // ViewState reads what to remember about the editor.
 func (vm *ViewModel) ViewState() ViewState {
-	return ViewState{Selections: vm.cursors.Selections(), ScrollTop: vm.scrollTop, ScrollLeft: vm.scrollLeft}
+	return ViewState{Selections: vm.cursors.Selections(), ScrollTop: vm.scrollTop, ScrollLeft: vm.scrollLeft, Folds: vm.foldingMemento()}
 }
 
-// RestoreViewState puts the editor back as the state says: the selections are moved into
-// the text, and the scroll position is used the next time the editor is laid out.
-func (vm *ViewModel) RestoreViewState(s ViewState) {
+// RestoreViewState puts the editor back as the state says: the folds are applied (when the
+// ranges of the document are not known yet, as soon as they are), the selections are moved into
+// the text, and the scroll position is used the next time the editor is laid out. A fold that
+// cannot be restored is dropped; the error says why.
+func (vm *ViewModel) RestoreViewState(s ViewState) error {
+	var err error
+	if len(s.Folds) > 0 {
+		err = vm.restoreFolding(s.Folds)
+	}
 	if len(s.Selections) > 0 {
 		model := edit.NewModel(vm.doc.Snapshot())
 		sels := make([]buffer.Selection, len(s.Selections))
@@ -369,6 +394,7 @@ func (vm *ViewModel) RestoreViewState(s ViewState) {
 	}
 	vm.scrollTop, vm.scrollLeft = max(s.ScrollTop, 0), max(s.ScrollLeft, 0)
 	vm.NotifyListeners()
+	return err
 }
 
 // PageRows is the number of rows in a page: the viewport's rows less one, at least 1.
@@ -379,10 +405,15 @@ func (vm *ViewModel) pageRows() int {
 	return max(int(vm.viewport/vm.opts.LineHeight)-1, 1)
 }
 
-// Layout is the edit.LineLayout of the editor: how cursor movement sees the rows. With the
-// identity projection every line is one row.
+// Layout is the edit.LineLayout of the editor: how cursor movement sees the rows. Every line is
+// one row, and the lines a fold hides have none.
 func (vm *ViewModel) Layout() edit.LineLayout {
-	return edit.ModelLineLayout{Model: edit.NewModel(vm.doc.Snapshot()), TabSize: vm.opts.TabSize, Page: vm.pageRows()}
+	l := edit.ModelLineLayout{Model: edit.NewModel(vm.doc.Snapshot()), TabSize: vm.opts.TabSize, Page: vm.pageRows()}
+	vm.Sync()
+	if vm.fold.hidden != nil {
+		l.Hidden = vm.fold.hidden.hiddenSpan
+	}
+	return l
 }
 
 // SelectionsChanged tells the view model that the cursors moved or the selections changed:
@@ -510,12 +541,15 @@ func (vm *ViewModel) SetScroller(scroll func(top float64)) { vm.scroller = scrol
 
 // RevealPrimary scrolls the editor, if it has to, so that the row of the primary cursor is in
 // view: the row goes to the nearest edge it left through.
-func (vm *ViewModel) RevealPrimary() {
+func (vm *ViewModel) RevealPrimary() { vm.RevealPosition(vm.cursors.Primary().Position()) }
+
+// RevealPosition scrolls the editor, if it has to, so that the row of a position is in view.
+func (vm *ViewModel) RevealPosition(p buffer.Position) {
 	if vm.scroller == nil || vm.viewport <= 0 {
 		return
 	}
 	proj := vm.Projection()
-	row := vm.RowOfPosition(vm.cursors.Primary().Position())
+	row := vm.RowOfPosition(p)
 	top, bottom := proj.RowTop(row), proj.RowTop(row)+proj.RowHeight(row)
 	switch scroll := vm.scrollTop; {
 	case top < scroll:

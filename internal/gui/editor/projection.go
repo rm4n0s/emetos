@@ -1,6 +1,11 @@
 package editor
 
-import "math"
+import (
+	"math"
+	"sort"
+
+	"github.com/rm4n0s/emetos/internal/core/folding"
+)
 
 // Projection maps the lines of the document to the rows of the screen (SPEC §9.1). Layout,
 // scrolling, hit testing and vertical movement go through it, so that folding, word wrap and
@@ -61,3 +66,86 @@ func (p *identityProjection) RowAt(y float64) int {
 }
 
 func (p *identityProjection) Height() float64 { return float64(p.lines) * p.rowHeight }
+
+// foldedProjection shows each line that is not hidden by a fold as one row of the same height
+// (SPEC §8.7, §9.1). A hidden line has no row; the row of the line that holds the fold stands for
+// it.
+type foldedProjection struct {
+	lines     int
+	rowHeight float64
+	// spans are the hidden lines, sorted and apart, and before[i] the number of hidden lines in
+	// spans[:i]; before has one more entry than spans.
+	spans  []folding.LineSpan
+	before []int
+}
+
+// newFoldedProjection makes the projection of a document of lines lines with some hidden. A span
+// is cut to the lines the document has, and the first line is never hidden.
+func newFoldedProjection(lines int, rowHeight float64, hidden []folding.LineSpan) *foldedProjection {
+	lines = max(lines, 1)
+	p := &foldedProjection{lines: lines, rowHeight: rowHeight, before: []int{0}}
+	for _, s := range hidden {
+		s.First, s.Last = max(s.First, 1), min(s.Last, lines-1)
+		if s.Last < s.First {
+			continue
+		}
+		p.spans = append(p.spans, s)
+		p.before = append(p.before, p.before[len(p.before)-1]+s.Last-s.First+1)
+	}
+	return p
+}
+
+// spanOf is the index of the span that holds a line, or -1.
+func (p *foldedProjection) spanOf(line int) int {
+	i := sort.Search(len(p.spans), func(i int) bool { return p.spans[i].Last >= line })
+	if i < len(p.spans) && p.spans[i].First <= line {
+		return i
+	}
+	return -1
+}
+
+// hiddenSpan is the span of hidden lines that holds a line.
+func (p *foldedProjection) hiddenSpan(line int) (first, last int, ok bool) {
+	if i := p.spanOf(line); i >= 0 {
+		return p.spans[i].First, p.spans[i].Last, true
+	}
+	return 0, 0, false
+}
+
+// hiddenBefore is the number of hidden lines before a line that is not hidden.
+func (p *foldedProjection) hiddenBefore(line int) int {
+	return p.before[sort.Search(len(p.spans), func(i int) bool { return p.spans[i].First > line })]
+}
+
+func (p *foldedProjection) RowCount() int { return p.lines - p.before[len(p.spans)] }
+
+func (p *foldedProjection) LineRows(line int) (first, count int) {
+	if line < 0 || line >= p.lines {
+		return 0, 0
+	}
+	if i := p.spanOf(line); i >= 0 {
+		owner := p.spans[i].First - 1
+		return owner - p.before[i], 0
+	}
+	return line - p.hiddenBefore(line), 1
+}
+
+func (p *foldedProjection) RowSpan(row int) (line, start, end int) {
+	row = min(max(row, 0), p.RowCount()-1)
+	// the spans that come before the row: those whose first hidden line would be at or before it
+	n := sort.Search(len(p.spans), func(i int) bool { return p.spans[i].First-p.before[i] > row })
+	return row + p.before[n], 0, -1
+}
+
+func (p *foldedProjection) RowTop(row int) float64 { return float64(row) * p.rowHeight }
+
+func (p *foldedProjection) RowHeight(int) float64 { return p.rowHeight }
+
+func (p *foldedProjection) RowAt(y float64) int {
+	if p.rowHeight <= 0 || math.IsNaN(y) {
+		return 0
+	}
+	return min(max(int(math.Floor(y/p.rowHeight)), 0), p.RowCount()-1)
+}
+
+func (p *foldedProjection) Height() float64 { return float64(p.RowCount()) * p.rowHeight }

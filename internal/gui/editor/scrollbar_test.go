@@ -157,7 +157,9 @@ func TestScrollLeftIsClamped(t *testing.T) {
 	}
 	// A view model that was never laid out accepts a remembered position.
 	fresh := NewViewModel(newTestDoc("x"), goOptions(), nil)
-	fresh.RestoreViewState(ViewState{ScrollLeft: 120})
+	if err := fresh.RestoreViewState(ViewState{ScrollLeft: 120}); err != nil {
+		t.Fatal(err)
+	}
 	if fresh.ScrollLeft() != 120 {
 		t.Errorf("restored left %v", fresh.ScrollLeft())
 	}

@@ -30,9 +30,13 @@ type Colors struct {
 	// brackets of that level.
 	EditorBracketPairGuideBackground, EditorBracketPairGuideActiveBackground [6]ui.Color
 	EditorRulerForeground                                                    ui.Color
-	EditorBracketMatchBackground                                             ui.Color
-	EditorBracketMatchBorder                                                 ui.Color
-	EditorBracketMatchForeground                                             ui.Color
+	// EditorFoldBackground is the background of a folded line, EditorFoldPlaceholderForeground the
+	// color of the "…" after it and EditorGutterFoldingControlForeground the color of the folding
+	// controls in the gutter.
+	EditorFoldBackground, EditorFoldPlaceholderForeground, EditorGutterFoldingControlForeground ui.Color
+	EditorBracketMatchBackground                                                                ui.Color
+	EditorBracketMatchBorder                                                                    ui.Color
+	EditorBracketMatchForeground                                                                ui.Color
 	// EditorBracketHighlightForeground are the colors of the levels of brackets, from the
 	// first; a level past the sixth takes the color of the one that repeats it. A transparent
 	// color leaves the bracket in the color of its token.
@@ -78,6 +82,9 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorBracketPairGuideBackground:       guideColors(color, "editorBracketPairGuide.background"),
 		EditorBracketPairGuideActiveBackground: guideColors(color, "editorBracketPairGuide.activeBackground"),
 		EditorRulerForeground:                  color("editorRuler.foreground"),
+		EditorFoldBackground:                   color("editor.foldBackground"),
+		EditorFoldPlaceholderForeground:        color("editor.foldPlaceholderForeground"),
+		EditorGutterFoldingControlForeground:   color("editorGutter.foldingControlForeground"),
 		EditorBracketMatchBackground:           color("editorBracketMatch.background"),
 		EditorBracketMatchBorder:               color("editorBracketMatch.border"),
 		EditorBracketMatchForeground:           color("editorBracketMatch.foreground"),

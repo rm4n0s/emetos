@@ -52,7 +52,18 @@ func (vm *ViewModel) Tokenizer() *tokens.Tokenizer { return vm.tok.tokenizer }
 // SetPoster gives the view model the means to run a function on the UI thread, which it needs
 // to repaint when the background tokenizer is done with lines. Without it the repaint happens on
 // the goroutine of the tokenizer, which only a test without a window wants.
-func (vm *ViewModel) SetPoster(post func(func())) { vm.tok.post = post }
+func (vm *ViewModel) SetPoster(post func(func())) {
+	vm.tok.mu.Lock()
+	vm.tok.post = post
+	vm.tok.mu.Unlock()
+}
+
+// poster is the function that runs a function on the UI thread, or nil; any goroutine can ask.
+func (vm *ViewModel) poster() func(func()) {
+	vm.tok.mu.Lock()
+	defer vm.tok.mu.Unlock()
+	return vm.tok.post
+}
 
 // lineTokens are the tokens of a line, or nil when there are none.
 func (vm *ViewModel) lineTokens(line int) []tokens.Token {

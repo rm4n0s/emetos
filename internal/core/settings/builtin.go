@@ -285,6 +285,42 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.showFoldingControls", Types: []Type{String}, Default: "mouseover",
+			Enum: []any{"always", "never", "mouseover"},
+			EnumDescriptions: []string{
+				"Always show the folding controls.",
+				"Never show the folding controls and reduce the gutter size.",
+				"Only show the folding controls when the mouse is over the gutter.",
+			},
+			Description: "Controls when the folding controls on the gutter are shown.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.foldingStrategy", Types: []Type{String}, Default: "auto",
+			Enum: []any{"auto", "indentation"},
+			EnumDescriptions: []string{
+				"Use a language-specific folding strategy if available, else the indentation-based one.",
+				"Use the indentation-based folding strategy.",
+			},
+			Description: "Controls the strategy for computing folding ranges.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.foldingHighlight", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should highlight folded ranges.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.foldingImportsByDefault", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the editor automatically collapses import ranges.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.unfoldOnClickAfterEndOfLine", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether clicking on the empty content after a folded line will unfold the line.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.matchBrackets", Types: []Type{String}, Default: "always",
 			Enum: []any{"always", "near", "never"},
 			EnumDescriptions: []string{

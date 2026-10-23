@@ -1,6 +1,10 @@
 package command
 
-import "github.com/rm4n0s/emetos/internal/core/contextkey"
+import (
+	"strconv"
+
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
+)
 
 // DefaultRegistry makes a registry with the metadata of the commands Emetos has. Each step
 // that adds a command adds it here (or to a function it calls) with VS Code's id and title; a
@@ -15,6 +19,7 @@ func DefaultRegistry() *Registry {
 	registerBracketCommands(r)
 	registerIndentationCommands(r)
 	registerCommentCommands(r)
+	registerFoldingCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
 	return r
@@ -221,4 +226,39 @@ func registerDisplayCommands(r *Registry) {
 		Meta{ID: "editor.action.fontZoomOut", Title: "Decrease Editor Font Size"},
 		Meta{ID: "editor.action.fontZoomReset", Title: "Reset Editor Font Size"},
 	)
+}
+
+// registerFoldingCommands registers the commands that fold and unfold code; they work when the
+// editor folds (the context key foldingEnabled).
+//
+// Ported from VS Code: src/vs/editor/contrib/folding/browser/folding.ts
+func registerFoldingCommands(r *Registry) {
+	folding := contextkey.Has("foldingEnabled")
+	metas := []Meta{
+		{ID: "editor.fold", Title: "Fold"},
+		{ID: "editor.unfold", Title: "Unfold"},
+		{ID: "editor.toggleFold", Title: "Toggle Fold"},
+		{ID: "editor.foldRecursively", Title: "Fold Recursively"},
+		{ID: "editor.unfoldRecursively", Title: "Unfold Recursively"},
+		{ID: "editor.toggleFoldRecursively", Title: "Toggle Fold Recursively"},
+		{ID: "editor.foldAll", Title: "Fold All"},
+		{ID: "editor.unfoldAll", Title: "Unfold All"},
+		{ID: "editor.foldAllBlockComments", Title: "Fold All Block Comments"},
+		{ID: "editor.foldAllMarkerRegions", Title: "Fold All Regions"},
+		{ID: "editor.unfoldAllMarkerRegions", Title: "Unfold All Regions"},
+		{ID: "editor.foldAllExcept", Title: "Fold All Regions Except Selected"},
+		{ID: "editor.unfoldAllExcept", Title: "Unfold All Regions Except Selected"},
+		{ID: "editor.gotoParentFold", Title: "Go to Parent Fold"},
+		{ID: "editor.gotoPreviousFold", Title: "Go to Previous Folding Range"},
+		{ID: "editor.gotoNextFold", Title: "Go to Next Folding Range"},
+		{ID: "editor.createFoldingRangeFromSelection", Title: "Create Manual Folding Ranges from Selection"},
+		{ID: "editor.removeManualFoldingRanges", Title: "Remove Manual Folding Ranges"},
+	}
+	for level := 1; level <= 7; level++ {
+		metas = append(metas, Meta{ID: "editor.foldLevel" + strconv.Itoa(level), Title: "Fold Level " + strconv.Itoa(level)})
+	}
+	for i := range metas {
+		metas[i].Precondition = folding
+	}
+	r.MustRegister(metas...)
 }

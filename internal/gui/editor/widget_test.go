@@ -175,7 +175,9 @@ func TestOneEditedLineBuildsOneParagraph(t *testing.T) {
 
 func TestScrollPositionIsRestored(t *testing.T) {
 	vm := NewViewModel(linesDoc(1000), goOptions(), nil)
-	vm.RestoreViewState(ViewState{ScrollTop: 950})
+	if err := vm.RestoreViewState(ViewState{ScrollTop: 950}); err != nil {
+		t.Fatal(err)
+	}
 	ts := pumpEditor(t, vm, ui.Size{Width: 800, Height: 400})
 	ts.Pump(50 * time.Millisecond)
 	if got := vm.ScrollTop(); got != 950 {

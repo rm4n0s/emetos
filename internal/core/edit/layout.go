@@ -20,6 +20,22 @@ type LineLayout interface {
 	RowEnd(pos buffer.Position) buffer.Position
 }
 
+// HiddenSpanner is implemented by a LineLayout that has lines hidden by folding: they have no
+// row, and a cursor moves over them (SPEC §8.7).
+type HiddenSpanner interface {
+	// HiddenSpan is the span of hidden lines, first to last, that has a line; ok is false for a
+	// line that is shown.
+	HiddenSpan(line int) (first, last int, ok bool)
+}
+
+// hiddenSpan asks a layout for the hidden span of a line.
+func hiddenSpan(l LineLayout, line int) (first, last int, ok bool) {
+	if h, is := l.(HiddenSpanner); is {
+		return h.HiddenSpan(line)
+	}
+	return 0, 0, false
+}
+
 // DefaultPageRows is the page size of a ModelLineLayout that has none.
 const DefaultPageRows = 20
 
@@ -29,6 +45,43 @@ type ModelLineLayout struct {
 	TabSize int
 	// Page is the number of rows of a page; zero means DefaultPageRows.
 	Page int
+	// Hidden tells the span of hidden lines that has a line (see HiddenSpanner); nil hides none.
+	Hidden func(line int) (first, last int, ok bool)
+}
+
+// HiddenSpan implements HiddenSpanner.
+func (l ModelLineLayout) HiddenSpan(line int) (first, last int, ok bool) {
+	if l.Hidden == nil {
+		return 0, 0, false
+	}
+	return l.Hidden(line)
+}
+
+// stepRows moves a line by a number of rows over the lines that are shown: it returns the line
+// and whether the rows went past the first or the last line.
+func (l ModelLineLayout) stepRows(line, rows int) (target int, past bool) {
+	last := lastLine(l.Model)
+	for ; rows > 0; rows-- {
+		next := line + 1
+		if _, end, hidden := l.HiddenSpan(next); hidden {
+			next = end + 1
+		}
+		if next > last {
+			return line, true
+		}
+		line = next
+	}
+	for ; rows < 0; rows++ {
+		next := line - 1
+		if start, _, hidden := l.HiddenSpan(next); hidden {
+			next = start - 1
+		}
+		if next < 0 {
+			return line, true
+		}
+		line = next
+	}
+	return line, false
 }
 
 // PageRows is the page size.
@@ -50,18 +103,21 @@ func (l ModelLineLayout) MoveVertically(pos buffer.Position, rows, desired int) 
 		cur = VisibleColumn(m.LineContent(line), col, l.TabSize)
 	}
 	last := lastLine(m)
-	target := line + rows
+	target, past := l.stepRows(line, rows)
 	wasOnFirst := line == 0 && col == 0
 	wasOnLast := line == last && col == len(m.LineContent(line))
 	wasAtEdge := wasOnLast
-	if target < line {
+	if rows < 0 {
 		wasAtEdge = wasOnFirst
 	}
 	switch {
-	case target < 0:
+	case past && rows < 0:
 		line, col = 0, 0
-	case target > last:
+	case past:
 		line = last
+		if first, _, hidden := l.HiddenSpan(line); hidden {
+			line = first - 1 // the text ends in a fold: the last row is the line that holds it
+		}
 		col = len(m.LineContent(line))
 	default:
 		line = target

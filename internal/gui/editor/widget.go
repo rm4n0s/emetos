@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/ui"
@@ -493,6 +494,7 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorReadonly", vm.Document().ReadOnly())
 		s.scope.Set("editorTabMovesFocus", false)
 		s.scope.Set("editorLangId", vm.Document().LanguageID())
+		s.scope.Set("foldingEnabled", vm.foldingEnabled())
 	})
 }
 
@@ -519,6 +521,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.SetAnimator(nil)
 		old.vm.SetFramer(nil)
 		vm := s.Widget().vm
+		vm.SetPoster(s.binding.Post)
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
 		s.metricsHandle = vm.AddMetricsListener(s.scheduleInputGeometry)
@@ -588,6 +591,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	gutterColors := GutterColors{
 		LineNumber: colors.EditorLineNumberForeground, ActiveLineNumber: colors.EditorLineNumberActiveForeground,
 		LineHighlight: colors.EditorLineHighlightBackground, LineHighlightBorder: colors.EditorLineHighlightBorder,
+		FoldingControl: colors.EditorGutterFoldingControlForeground,
 	}
 	overlayColors := OverlayColors{
 		Background: colors.EditorBackground, Selection: colors.EditorSelectionBackground,
@@ -595,14 +599,20 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		LineHighlightBorder: colors.EditorLineHighlightBorder, Cursor: colors.EditorCursorForeground,
 		CursorText: oppositeColor(colors.EditorCursorForeground), Foreground: colors.EditorForeground,
 		BracketMatch: colors.EditorBracketMatchBackground, BracketMatchBorder: colors.EditorBracketMatchBorder,
+		FoldBackground: colors.EditorFoldBackground, FoldPlaceholder: colors.EditorFoldPlaceholderForeground,
 		Guides: NewGuideColors(colors.EditorIndentGuideBackground, colors.EditorIndentGuideActiveBackground,
 			colors.EditorBracketPairGuideBackground, colors.EditorBracketPairGuideActiveBackground, colors.EditorBracketHighlightForeground),
 	}
 	bracketColors := BracketColors{Levels: colors.EditorBracketHighlightForeground, Unexpected: colors.EditorBracketUnexpectedForeground}
 	scrollable := widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
 		return s.pointerListener(widgets.NewRow([]widgets.Widget{
-			widgets.NewColoredBox(colors.EditorGutterBackground,
+			// The open folds show their controls while the pointer is over the gutter.
+			widgets.NewMouseRegion(widgets.NewColoredBox(colors.EditorGutterBackground,
 				widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
+				widgets.MouseRegionOpts{
+					OnEnter: func(*gestures.PointerEnterEvent) { vm.setGutterHover(true) },
+					OnExit:  func(*gestures.PointerExitEvent) { vm.setGutterHover(false) },
+				}),
 			widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
 				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
 				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, bracketColors, func(r *RenderEditorText) { s.textRO = r }),

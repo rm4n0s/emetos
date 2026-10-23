@@ -35,6 +35,9 @@ type OverlayColors struct {
 	BracketMatch, BracketMatchBorder ui.Color
 	// Guides are the colors of the indent guides and of the bracket pair guides.
 	Guides GuideColors
+	// FoldBackground is the background of a folded line and FoldPlaceholder the color of the
+	// "…" after it.
+	FoldBackground, FoldPlaceholder ui.Color
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -187,6 +190,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 	}
 	if r.kind == overlayUnder {
 		view.paintLineHighlight()
+		view.paintFolded()
 		view.paintSelections()
 		view.paintGuides()
 		view.paintMatchingBrackets()
@@ -578,5 +582,46 @@ func (v overlayView) paintPreedit(p Preedit) {
 	if p.End > p.Begin {
 		from, to := rect.Left+v.preeditOffset(p, p.Begin), rect.Left+v.preeditOffset(p, p.End)
 		v.canvas.DrawRect(ui.NewRectFromLTRB(from, rect.Bottom-3, to, rect.Bottom-1), line)
+	}
+}
+
+// foldPlaceholderText is what stands for the lines a fold hides, after the line that holds it.
+const foldPlaceholderText = "…"
+
+// foldPlaceholderMargin is the room on each side of the placeholder, in ems.
+const foldPlaceholderMargin = 0.2
+
+// foldPlaceholder is the rectangle of the placeholder after the folded line on a row, in document
+// coordinates.
+func (g geometry) foldPlaceholder(row int) ui.Rect {
+	p := g.style.paragraph(g.vm.Paragraphs(), foldPlaceholderText)
+	margin := foldPlaceholderMargin * g.vm.Options().FontSize
+	left := g.rowEnd(row)
+	top := g.proj.RowTop(row)
+	return ui.NewRectFromLTRB(left, top, left+p.LongestLine()+2*margin, top+g.proj.RowHeight(row))
+}
+
+// paintFolded gives the folded lines a background and draws the placeholder after their text.
+//
+// Ported from VS Code: src/vs/editor/contrib/folding/browser/folding.css
+func (v overlayView) paintFolded() {
+	vm := v.geo.vm
+	if !vm.foldingEnabled() {
+		return
+	}
+	proj := v.geo.proj
+	style := newTextStyle(v.factory, vm.Options(), v.colors.FoldPlaceholder)
+	for row := v.first; row <= v.last; row++ {
+		line, start, _ := proj.RowSpan(row)
+		if start != 0 || !vm.FoldedLine(line) {
+			continue
+		}
+		if vm.Options().FoldingHighlight && v.colors.FoldBackground.Alpha() > 0 {
+			v.canvas.DrawRect(v.rowRect(row, vm.ScrollLeft(), vm.ScrollLeft()+v.width), fill(v.colors.FoldBackground))
+		}
+		rect := v.geo.foldPlaceholder(row)
+		margin := foldPlaceholderMargin * vm.Options().FontSize
+		v.canvas.DrawParagraph(style.paragraph(vm.Paragraphs(), foldPlaceholderText),
+			ui.Offset{Dx: v.origin.Dx + rect.Left + margin, Dy: v.origin.Dy + rect.Top})
 	}
 }
