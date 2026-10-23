@@ -477,7 +477,7 @@ A profile is a name with its own `settings.json`, `keybindings.json`, `snippets/
 
 ## 13. Errors and logging
 
-- Every error uses `github.com/rm4n0s/errors` (CLAUDE.md). Errors shown to the user become notifications with a short message; the full error (`ToJson()`) goes to the log.
+- Every error uses `github.com/rm4n0s/errors` (CLAUDE.md). Errors shown to the user become notifications with a short message; the full error goes to the log as a `slog` attribute (`"err", err`).
 - Logs: `log/slog` to `$XDG_STATE_HOME/emetos/logs/<date>/main.log` (kept 7 days), and to the "Emetos" channel of the Output panel. `emetos --log debug` raises the level.
 - A panic in a background goroutine is recovered, logged, and reported once as an error notification; the window stays open. A panic in the UI goroutine is handled by Glutter's error reporting, logged, and Emetos tries to write backups (§10.10) before exiting.
 

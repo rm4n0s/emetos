@@ -6,9 +6,9 @@ package main
 import (
 	"bytes"
 	"encoding/csv"
-	"encoding/json"
 	"go/format"
 	"io"
+	"log/slog"
 	"os"
 	"regexp"
 	"sort"
@@ -35,18 +35,9 @@ func main() {
 	}
 }
 
-// report prints the error as JSON, so that it can be replayed in a test. When
-// stderr itself is broken there is nowhere left to say so: the exit status tells.
+// report logs the error as JSON on stderr, so that it can be replayed in a test.
 func report(err error) {
-	if appErr, ok := errors.FromError(err); ok {
-		if j, jerr := appErr.ToJson(); jerr == nil {
-			if b, merr := json.Marshal(j); merr == nil {
-				_, _ = os.Stderr.Write(append(b, '\n'))
-				return
-			}
-		}
-	}
-	_, _ = os.Stderr.WriteString(err.Error() + "\n")
+	slog.New(slog.NewJSONHandler(os.Stderr, nil)).Error("generate failed", "err", err)
 }
 
 // run reads the CSV in and writes the generated Go file out. The error tags are

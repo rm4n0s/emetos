@@ -164,16 +164,10 @@ func splitPaths(paths []string) (folder string, files []string, err error) {
 	return folder, files, nil
 }
 
-// logError writes an error to the log as JSON, so that it can be replayed in a
-// test (CLAUDE.md "Error handling").
+// logError writes an error to the log with its tag, route and metadata, so that it can be
+// replayed in a test (CLAUDE.md "Error handling").
 func logError(l *slog.Logger, err error) {
-	if appErr, ok := errors.FromError(err); ok {
-		if j, jerr := appErr.ToJson(); jerr == nil {
-			l.Error("failed", "error", j)
-			return
-		}
-	}
-	l.Error("failed", "error", err.Error())
+	l.Error("failed", "err", err)
 }
 
 // describe is the one-line text of an error for the user.

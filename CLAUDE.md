@@ -66,11 +66,11 @@ Before reporting a task as finished, run `gofmt` (on `cmd` and `internal`), `go 
 Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never import the standard library `errors` package: this package re-exports `errors.Is`, `errors.As` and `errors.Unwrap`, so a single import covers everything.
 
 **Creating errors**
-- New failure with a fixed message: `errors.New("Tag", "message", "key", value, ...)`
+- New failure with a fixed message: `errors.New("Tag", "message", "key", value, ...)` (all metadata in this one call, never `New(...).SetMetadata(...)`)
   - Tag: short PascalCase name of the failure, e.g. `FileOpenFailed`
   - Trailing arguments are key/value metadata pairs, e.g. `"path", path`
 - New failure with a formatted message: `errors.NewErrf("Tag", "format %s", arg)`
-- Wrapping an error that is NOT already an `*errors.Error` (stdlib, third-party, Glutter errors that are not from this package): `errors.NewErr("Tag", err)`. Add metadata with one `.SetMetadata("key", value, "key2", value2)` call (a second call replaces the metadata of the first)
+- Wrapping an error that is NOT already an `*errors.Error` (stdlib, third-party, Glutter errors that are not from this package): `errors.NewErr("Tag", err)`. Add metadata with one `.SetMetadata("key", value, "key2", value2)` call (a later call merges into the metadata, it does not replace it, but use one call unless the data only becomes available later)
 - Every `New`, `NewErr` and `NewErrf` call captures the stack at that point
 
 **Propagating errors**
@@ -94,7 +94,7 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
   }
   ```
 - A route lists the call chain from outermost to innermost (`Type.Method` or `Func`, joined by `->`) and ends with the Tag. `HasRoute` matches by substring
-- Log errors with `appErr.ToJson()` so they can be replayed in a test via `errors.FromJson`
+- Log errors with `slog`, passing the error as an attribute (`l.Error("failed", "err", err)`): `*errors.Error` is a `slog.LogValuer`, so the log gets the Tag, Route, Metadata and stack frames, and the logged object can be replayed in a test via `errors.ErrorJson` and `errors.FromJson`. Do not call `ToJson` or `json.Marshal` on an error yourself
 
 ## Git and GitHub
 - Never commit or push directly to `main`; work on a branch named `feat/...` or `fix/...`
