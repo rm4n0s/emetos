@@ -89,12 +89,7 @@ func (e *emitter) emit(n node) {
 			e.emit(it)
 		}
 	case *altNode:
-		for i, b := range n.branches {
-			if i > 0 {
-				e.write("|")
-			}
-			e.emit(b)
-		}
+		e.alternation(n)
 	case *keepNode:
 		if e.expanding == 0 {
 			e.write("(?<" + keepGroupName + ">)")
@@ -161,6 +156,101 @@ func (e *emitter) anchor(n *anchorNode) {
 	default:
 		e.write(`\` + string(n.kind))
 	}
+}
+
+// alternation writes the branches of n. A run of branches that match without consuming text or
+// capturing, such as (?<=\W)|(?=\W)|^, is written as an atomic group: when one of them matches, the
+// rest lead to the very same state, so trying them after a failure only repeats the work.
+// Oniguruma avoids that repetition by remembering where a search has failed; regexp2 does not,
+// and a loop around such a run (the whitespace of the C++ grammar) takes time exponential in
+// the length of the text it loops over.
+func (e *emitter) alternation(n *altNode) {
+	for i := 0; i < len(n.branches); {
+		if i > 0 {
+			e.write("|")
+		}
+		j := i
+		for j < len(n.branches) && zeroWidth(n.branches[j]) {
+			j++
+		}
+		if j-i < 2 {
+			e.emit(n.branches[i])
+			i++
+			continue
+		}
+		e.write("(?>")
+		for k := i; k < j; k++ {
+			if k > i {
+				e.write("|")
+			}
+			e.emit(n.branches[k])
+		}
+		e.write(")")
+		i = j
+	}
+}
+
+// zeroWidth reports whether n matches without consuming text and leaves no captures, so that all
+// the ways it can match are the same state for what follows. It is conservative.
+func zeroWidth(n node) bool {
+	switch n := n.(type) {
+	case *anchorNode:
+		return true
+	case *groupNode:
+		switch n.kind {
+		case negLookahead, negLookbehind:
+			return true
+		case lookahead, lookbehind:
+			return noCaptures(n.body)
+		case nonCapturing, atomic:
+			return zeroWidth(n.body)
+		}
+	case *seqNode:
+		for _, it := range n.items {
+			if !zeroWidth(it) {
+				return false
+			}
+		}
+		return len(n.items) > 0
+	case *altNode:
+		for _, b := range n.branches {
+			if !zeroWidth(b) {
+				return false
+			}
+		}
+		return len(n.branches) > 0
+	}
+	return false
+}
+
+// noCaptures reports whether n has no capturing group, no group call and nothing else that
+// changes what a later part of the pattern sees.
+func noCaptures(n node) bool {
+	switch n := n.(type) {
+	case *litNode, *dotNode, *anchorNode, *setNode, *rawNode, *backrefNode:
+		return true
+	case *seqNode:
+		for _, it := range n.items {
+			if !noCaptures(it) {
+				return false
+			}
+		}
+		return true
+	case *altNode:
+		for _, b := range n.branches {
+			if !noCaptures(b) {
+				return false
+			}
+		}
+		return true
+	case *quantNode:
+		return noCaptures(n.body)
+	case *flagNode:
+		return noCaptures(n.body)
+	case *groupNode:
+		return n.kind != capturing && noCaptures(n.body)
+	}
+	return false
 }
 
 // quant writes a repetition.

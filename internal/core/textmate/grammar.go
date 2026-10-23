@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/errors"
@@ -29,6 +30,9 @@ type GrammarOptions struct {
 	// MaxLineBytes is the length, in bytes, from which a line is one token and not tokenized; the
 	// default is DefaultMaxLineBytes.
 	MaxLineBytes int
+	// ScanTimeout is the longest a search of one scanner may take; the default is
+	// regex.ScanTimeout (SPEC §8.2). Tests that run slowly (under the race detector) lengthen it.
+	ScanTimeout time.Duration
 	// Cache compiles the patterns; a cache of the grammar is made when there is none.
 	Cache *regex.Cache
 	// InitialLanguage is the language id of the tokens that no embedded language scope covers.
@@ -57,6 +61,7 @@ type Grammar struct {
 	registry     Registry
 	cache        *regex.Cache
 	maxLineBytes int
+	scanTimeout  time.Duration
 	root         *instance
 
 	initialLanguage int
@@ -84,7 +89,7 @@ func NewGrammar(scopeName string, registry Registry, opts GrammarOptions) (*Gram
 		return nil, errors.New("GrammarNotFound", "no grammar has this scope name", "scope", scopeName)
 	}
 	g := &Grammar{
-		scopeName: scopeName, registry: registry, cache: opts.Cache, maxLineBytes: opts.MaxLineBytes,
+		scopeName: scopeName, registry: registry, cache: opts.Cache, maxLineBytes: opts.MaxLineBytes, scanTimeout: opts.ScanTimeout,
 		root: initGrammar(raw, nil), ids: map[*RawRule]int{}, included: map[string]*instance{},
 		rules: []*rule{nil}, seen: map[string]bool{},
 	}
@@ -415,7 +420,7 @@ func (g *Grammar) newCompiled(items []*regexSource) *compiledRule {
 	for i, it := range items {
 		sources[i], ids[i] = it.source, it.ruleID
 	}
-	sc := regex.NewScanner(sources, regex.ScannerOptions{Cache: g.cache})
+	sc := regex.NewScanner(sources, regex.ScannerOptions{Cache: g.cache, Timeout: g.scanTimeout})
 	for i := range sources {
 		if err := sc.Err(i); err != nil {
 			g.addProblem("pattern:"+sources[i], err)

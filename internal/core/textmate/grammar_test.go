@@ -322,3 +322,26 @@ func TestBackReferencesAreEscaped(t *testing.T) {
 		t.Errorf("escaped %q", got)
 	}
 }
+
+func TestTheScanTimeoutIsAnOption(t *testing.T) {
+	reg := &testRegistry{grammars: map[string]*RawGrammar{"test": grammarOf(t, "test", `"patterns": [{"match": "(a+)+$", "name": "bad"}]`)}}
+	for _, tc := range []struct {
+		name    string
+		timeout time.Duration
+		as      int // the length of the text: the search takes time exponential in it
+		want    bool
+	}{
+		{"a short limit stops the search", 5 * time.Millisecond, 26, true},
+		{"a long limit lets it finish", time.Minute, 18, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, err := NewGrammar("test", reg, GrammarOptions{ScanTimeout: tc.timeout})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := g.TokenizeLine(strings.Repeat("a", tc.as)+"!", nil, 0).StoppedEarly; got != tc.want {
+				t.Errorf("StoppedEarly = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

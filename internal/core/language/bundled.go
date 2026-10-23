@@ -15,7 +15,8 @@ var assets embed.FS
 
 // bundledExtensions are the folders of assets that Bundled adds, in the order of registration.
 var bundledExtensions = []string{"go", "json", "yaml", "markdown-basics", "python", "javascript", "typescript-basics",
-	"html", "css", "scss", "less", "xml", "sql", "shellscript", "make", "docker", "ini"}
+	"html", "css", "scss", "less", "xml", "sql", "shellscript", "make", "docker", "ini",
+	"cpp", "rust", "diff", "git-base", "go-mod"}
 
 // Bundled makes a registry of the languages that Emetos carries: Go, JSON, JSON with Comments,
 // JSON Lines, Code Snippets, YAML, Markdown, Python, JavaScript, JavaScript React, TypeScript and

@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
@@ -399,6 +400,8 @@ type GrammarSettings struct {
 	// MaxLineBytes is editor.maxTokenizationLineLength: a line of this many bytes or more is one
 	// token; zero is the default of the tokenizer (20,000).
 	MaxLineBytes int
+	// ScanTimeout is the longest a search of a pattern may take; zero is regex.ScanTimeout.
+	ScanTimeout time.Duration
 }
 
 // HasGrammar tells whether a grammar is registered for the language.
@@ -430,7 +433,7 @@ func (r *Registry) NewGrammarWith(languageID string, settings GrammarSettings) (
 	if !ok || def == nil {
 		return nil, errors.New("GrammarNotRegistered", "no grammar is registered for this language", "language", languageID)
 	}
-	opts := textmate.GrammarOptions{Cache: cache, MaxLineBytes: settings.MaxLineBytes, InitialLanguage: r.Code(languageID), EmbeddedLanguages: map[string]int{}, TokenTypes: map[string]textmate.TokenType{}}
+	opts := textmate.GrammarOptions{Cache: cache, MaxLineBytes: settings.MaxLineBytes, ScanTimeout: settings.ScanTimeout, InitialLanguage: r.Code(languageID), EmbeddedLanguages: map[string]int{}, TokenTypes: map[string]textmate.TokenType{}}
 	for scope, lang := range embedded {
 		if r.IsRegistered(lang) {
 			opts.EmbeddedLanguages[scope] = r.Code(lang)

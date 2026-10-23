@@ -257,7 +257,7 @@ Cursor movement keeps a **desired visual column** for vertical moves. Movements 
 - **Bundled languages** (assets embedded with `embed`, copied from the pinned references by `scripts/update-assets.sh`, with their licenses in `third_party/`):
   - First (D13): Go, Markdown (with embedded code blocks for the bundled languages), JSON, JSON with Comments, YAML, Python, JavaScript, JavaScript React, TypeScript, TypeScript React.
   - Added by step 4.10: HTML (it embeds CSS and JavaScript), CSS, SCSS, Less, XML, XSL, SQL, Shell Script, Makefile, Dockerfile, INI and Properties.
-  - Then: Go module files (`go.mod`, `go.sum`; `go.work` uses the `go.mod` grammar; from `golang/vscode-go`), Shell, Makefile, Dockerfile, HTML, CSS, SCSS, Less, C, C++, Rust, SQL, XML, INI, Diff, Git commit, Git rebase, Ignore files (`.gitignore` and others), plain text.
+  - Added by step 4.11: C, C++, CUDA C++, Rust, Diff, Git commit, Git rebase, Ignore files (`.gitignore` and others) and the Go module files (`go.mod`, `go.sum`; `go.work` uses the `go.mod` grammar; from `golang/vscode-go`, as the extension `go-mod` that `scripts/update-assets.sh` writes). `.h` is C++ as in VS Code. Plain text needs no grammar.
   - VS Code has no TOML grammar of its own; TOML is left for later.
 
 ### 8.2 Regular expressions (`core/regex`)
@@ -270,6 +270,7 @@ TextMate grammars use Oniguruma regular expressions; Go's `regexp` (RE2) lacks l
   - Classes: nested classes, `&&`, POSIX brackets (`[:alpha:]`, `[:^alpha:]`) and `\p{..}` (POSIX names, general categories long and short, Go's script tables) for Unicode text; `\x{85 2028}` (several code points) and `\x{...}`, `\h`, `\H`, `\R`, `\X`, `\N`, `\O`.
   - Calls of groups (`\g<name>`, `\g<1>`, `\g<-1>`, `\g<0>`) are replaced by a copy of the group that does not capture, with the ignore-case flag of the group; a group may be called inside itself 6 times, and the copy at the limit never matches, so recursive patterns (balanced parentheses) match up to that depth. When the pattern gets longer than 256 KB plus twice its source, the depth is lowered until it fits (`RegexTooLarge` when depth 1 does not).
   - `\K` is an empty group that marks the start of the match; the absence operator `(?~x)` is `(?:(?!x)[\s\S])*`; conditionals `(?(1)a|b)` and `(?(<name>)a|b)`.
+  - Alternatives that match without consuming text and without capturing (`(?<=\W)|(?=\W)|^`), when they are next to each other in an alternation, are written as one atomic group: after one of them has matched, the others lead to the same state, and regexp2, unlike Oniguruma 6.9.9+, does not remember failed searches, so a loop around them (the whitespace of the C++ grammar) would take time exponential in the text it runs over.
   - Not supported, with a tag: options `W D S P y`, `\C-x`, `\M-x`, `\y`, `\Y`, levels in references (`\k<name+1>`).
   - `regex.Compile(pattern, Options)` takes the syntax, ignore case, the timeout, and `DisableA`/`DisableG` (the scanner asks for `\A` and `\G` that never match when the position is not the start of the text or the anchor). `regex.Cache` compiles a pattern once, failures included.
   A pattern that can't be translated is reported with a tag, and the rule using it never matches. All 5,900 patterns of the grammars under `reference/` compile (the corpus test of step 4.1).

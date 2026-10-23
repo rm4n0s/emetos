@@ -387,3 +387,57 @@ func TestTheCacheCompilesOnce(t *testing.T) {
 		t.Error("the oldest entry should have been dropped")
 	}
 }
+
+func TestRunsOfZeroWidthAlternativesMatchAsBefore(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		text    string
+		want    []Span // nil for no match
+	}{
+		{"the first zero-width branch wins", `a(?:(?<=a)|(?=b)|^)b`, "ab", []Span{{0, 2}}},
+		{"a later branch of the run matches", `a(?:(?<=x)|(?=b)|^)b`, "ab", []Span{{0, 2}}},
+		{"no branch of the run matches", `a(?:(?<=x)|(?=c)|^)b`, "ab", nil},
+		{"a branch that consumes comes after the run", `a(?:(?=b)|(?<=a)|\n?$)b`, "ab", []Span{{0, 2}}},
+		{"a branch before the run keeps its priority", `(?:b|(?=a)|(?<=a))a`, "ba", []Span{{0, 2}}},
+		{"a branch that captures is outside the run", `a(?:(?<=a)|(?=(b)))b`, "ab", []Span{{0, 2}, {-1, -1}}},
+		{"a run in the middle of other branches", `x(?:y|(?=a)|(?<=x)|z)a`, "xa", []Span{{0, 2}}},
+		{"negative lookarounds in a run", `(?:(?!a)|(?<!x)|\b)b`, "ab", []Span{{1, 2}}},
+		{"a run in a loop", `(?:(?:\*)(?:(?<=\W)|(?=\W)|^))*(?:\*)x`, "***x", []Span{{0, 4}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m, ok := find(t, tc.pattern, Options{}, tc.text, 0)
+			if (tc.want != nil) != ok {
+				t.Fatalf("matched = %v, want %v", ok, tc.want != nil)
+			}
+			if ok {
+				for i, w := range tc.want {
+					if m.Groups[i] != w {
+						t.Errorf("group %d = %v, want %v", i, m.Groups[i], w)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestEmptyAlternativesInALoopAreNotExponential is the C++ grammar's pattern for the whitespace
+// after a type: in a loop over "*" or "&", each of them can be followed by an empty branch in
+// several ways, and a search that fails would try every combination.
+func TestEmptyAlternativesInALoopAreNotExponential(t *testing.T) {
+	const ws = `(?:(?:\s++)|(?<=\W)|(?=\W)|^|(?:\n?$)|\A|\Z)`
+	pattern := `(?:(?:&|\*)` + ws + `)*(?:&|\*)(?:%=|\+=)`
+	re, err := Compile(pattern, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := []rune(`puts("\n` + strings.Repeat("*", 60) + `");`)
+	start := time.Now()
+	if _, ok, err := re.Find(text, 0); err != nil || ok {
+		t.Fatalf("Find = %v, %v", ok, err)
+	}
+	if d := time.Since(start); d > 200*time.Millisecond {
+		t.Errorf("the search took %v", d)
+	}
+}

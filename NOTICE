@@ -27,8 +27,13 @@ planned and has no files in the repository yet.
    MIT), Shell Script (better-shell-syntax, MIT), Makefile (make.tmbundle,
    TextMate bundle license), Dockerfile (moby, Apache-2.0) and INI and
    Properties (ini.tmbundle, TextMate bundle license); the texts are in the
-   same ThirdPartyNotices.txt, and none was left out. Step 4.11 adds more
-   (not yet added).
+   same ThirdPartyNotices.txt, and none was left out. Step 4.11 added C, C++
+   and CUDA C++ (better-c-syntax and better-cpp-syntax, MIT; c.tmbundle, TextMate
+   bundle license; cuda-cpp-grammar, MIT), Rust (rust-syntax, MIT), Diff
+   (diff.tmbundle, TextMate bundle license), Git commit and rebase messages and
+   Ignore files (git.tmbundle and git-commit-message-plus, MIT), and the Go
+   module, workspace and checksum grammars of golang/vscode-go (MIT; its
+   LICENSE is third_party/vscode-go/LICENSE); none was left out.
    A grammar without a permissive license is left out and recorded here.
 
 2. Color themes
