@@ -3,7 +3,7 @@
 //
 // Usage:
 //
-//	emetos [--log level]
+//	emetos [--log level] [folder] [file...]
 //	emetos --version
 //	emetos --help
 package main
@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -28,7 +29,9 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/app"
 )
 
-const usage = `Usage: emetos [options]
+const usage = `Usage: emetos [options] [folder] [file...]
+
+A folder opens as the workspace of the window; files open in the window.
 
 Options:
   --log level   log level: debug, info, warn or error (default info)
@@ -45,6 +48,8 @@ type options struct {
 	version bool
 	help    bool
 	level   slog.Level
+	// paths are the folder and files named on the command line.
+	paths []string
 }
 
 // parseArgs parses the command line. The error tags are LogLevelInvalid and
@@ -65,7 +70,7 @@ func parseArgs(args []string) (options, error) {
 		return options{}, errors.NewErr("ArgsInvalid", err)
 	}
 	if fs.NArg() > 0 {
-		return options{}, errors.New("ArgsInvalid", "unexpected arguments", "args", fs.Args())
+		o.paths = fs.Args()
 	}
 	if err := o.level.UnmarshalText([]byte(strings.ToUpper(level))); err != nil {
 		return options{}, errors.New("LogLevelInvalid", "the log level is not debug, info, warn or error", "level", level)
@@ -127,12 +132,36 @@ func start(o options) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := app.Run(ctx, app.Options{Logger: l.Logger()}); err != nil {
+	folder, files, err := splitPaths(o.paths)
+	if err != nil {
+		return err
+	}
+	process := app.NewProcess(app.ProcessOptions{Paths: paths, Logs: l})
+	if err := app.Run(ctx, app.Options{Process: process, Logger: l.Logger(), Folder: folder, Files: files}); err != nil {
 		logError(l.Logger(), err)
 		return err
 	}
 	l.Logger().Info("exiting")
 	return nil
+}
+
+// splitPaths tells the folder from the files among the paths of the command line: the first
+// folder is the workspace and later folders are ignored; the paths are made absolute. A path that does not exist is a file: opening it reports the error in the window.
+func splitPaths(paths []string) (folder string, files []string, err error) {
+	for _, p := range paths {
+		abs, aerr := filepath.Abs(p)
+		if aerr != nil {
+			return "", nil, errors.NewErr("PathInvalid", aerr).SetMetadata("path", p)
+		}
+		if info, serr := os.Stat(abs); serr == nil && info.IsDir() {
+			if folder == "" {
+				folder = abs
+			}
+			continue
+		}
+		files = append(files, abs)
+	}
+	return folder, files, nil
 }
 
 // logError writes an error to the log as JSON, so that it can be replayed in a

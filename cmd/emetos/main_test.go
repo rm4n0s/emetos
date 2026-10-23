@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -24,6 +27,8 @@ func TestParseArgs(t *testing.T) {
 		{"log level", []string{"--log", "debug"}, options{level: slog.LevelDebug}},
 		{"log level with =", []string{"--log=warn"}, options{level: slog.LevelWarn}},
 		{"log level in capitals", []string{"--log", "ERROR"}, options{level: slog.LevelError}},
+		{"a file", []string{"main.go"}, options{level: slog.LevelInfo, paths: []string{"main.go"}}},
+		{"flags and paths", []string{"--log", "warn", "dir", "a.go", "b.go"}, options{level: slog.LevelWarn, paths: []string{"dir", "a.go", "b.go"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -31,7 +36,7 @@ func TestParseArgs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parseArgs: %v", err)
 			}
-			if got != tt.want {
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("options = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -48,7 +53,6 @@ func TestParseArgsErrors(t *testing.T) {
 		{"empty log level", []string{"--log", ""}, "LogLevelInvalid"},
 		{"log without its value", []string{"--log"}, "ArgsInvalid"},
 		{"unknown flag", []string{"--nope"}, "ArgsInvalid"},
-		{"a positional argument", []string{"file.go"}, "ArgsInvalid"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -122,5 +126,36 @@ func TestRunWithABrokenOutput(t *testing.T) {
 	// A broken stderr can't be reported to; the status is still the failure's.
 	if got := run([]string{"--nope"}, &bytes.Buffer{}, brokenWriter{}); got != 2 {
 		t.Errorf("run with a broken stderr = %d, want 2", got)
+	}
+}
+
+func TestSplitPaths(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "a.go")
+	if err := os.WriteFile(file, []byte("package a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	other := t.TempDir()
+	missing := filepath.Join(dir, "missing.go")
+
+	folder, files, err := splitPaths([]string{file, dir, other, missing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if folder != dir {
+		t.Errorf("folder = %q, want the first folder %q", folder, dir)
+	}
+	if len(files) != 2 || files[0] != file || files[1] != missing {
+		t.Errorf("files = %q, want the file and the missing path", files)
+	}
+
+	if folder, files, err = splitPaths(nil); err != nil || folder != "" || files != nil {
+		t.Errorf("no paths: %q %q %v", folder, files, err)
+	}
+
+	// A relative path is made absolute.
+	t.Chdir(dir)
+	if _, files, err = splitPaths([]string{"a.go"}); err != nil || len(files) != 1 || files[0] != file {
+		t.Errorf("relative path: %q %v", files, err)
 	}
 }

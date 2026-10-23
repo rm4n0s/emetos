@@ -47,6 +47,18 @@ func registerEditor(r *Registry) {
 			Description: "Characters that will be used as word separators when doing word related navigations or operations.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
+		// VS Code's default is the platform's list of fonts. Emetos defaults to the desktop's
+		// monospace font (SPEC D14), which an empty value stands for.
+		Setting{
+			Key: "editor.fontFamily", Types: []Type{String}, Default: "",
+			Description: "Controls the font family. A comma-separated list is tried in order; empty means the desktop's monospace font.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.fontSize", Types: []Type{Number}, Default: 14, Minimum: Float(6), Maximum: Float(100),
+			Description: "Controls the font size in pixels.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
 	)
 }
 
