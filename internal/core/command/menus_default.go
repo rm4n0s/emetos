@@ -14,6 +14,7 @@ import (
 func DefaultMenus(commands *Registry) *MenuRegistry {
 	r := NewMenuRegistry(commands)
 	registerMainMenu(r)
+	registerFileMenu(r)
 	registerEditMenu(r)
 	registerSelectionMenu(r)
 	registerViewMenu(r)
@@ -49,6 +50,18 @@ func registerMainMenu(r *MenuRegistry) {
 	} {
 		r.MustAdd(MenuItem{Menu: MenubarMainMenu, Submenu: m.submenu, Title: m.title, MnemonicTitle: m.mnemonic, Order: m.order})
 	}
+}
+
+// registerFileMenu adds the File menu. VS Code's other rows belong to the steps that add their
+// commands (open and save in 7.1), and its "Close Editor" row is enabled while an editor is open.
+// VS Code has no "Close All Editors" row in the File menu; its command is in the palette only.
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
+func registerFileMenu(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeActiveEditor", MnemonicTitle: "&&Close Editor", Group: "6_close", Order: 2,
+			Precondition: contextkey.Has("activeEditor")},
+	)
 }
 
 // registerEditMenu adds the Edit menu.

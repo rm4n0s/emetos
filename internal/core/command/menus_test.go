@@ -363,6 +363,22 @@ func equalWithoutMnemonic(mnemonic, title string) bool {
 	return string(out) == title
 }
 
+func TestDefaultFileMenu(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	items := menus.Items(MenubarFileMenu, contextkey.MapContext{})
+	if len(items) != 1 || items[0].Command != "workbench.action.closeActiveEditor" || items[0].MnemonicTitle != "&&Close Editor" {
+		t.Fatalf("file menu %+v", items)
+	}
+	// the item is there with no editor open, dimmed
+	if !items[0].Disabled {
+		t.Error("Close Editor is enabled with no editor open")
+	}
+	open := menus.Items(MenubarFileMenu, contextkey.MapContext{"activeEditor": "emetos.textEditor"})
+	if len(open) != 1 || open[0].Disabled {
+		t.Errorf("Close Editor with an editor open: %+v", open)
+	}
+}
+
 func TestDefaultMenuBar(t *testing.T) {
 	menus := DefaultMenus(DefaultRegistry())
 	ctx := contextkey.MapContext{}
@@ -370,8 +386,8 @@ func TestDefaultMenuBar(t *testing.T) {
 	for _, e := range menus.Items(MenubarMainMenu, ctx) {
 		bar = append(bar, e.MnemonicTitle)
 	}
-	// the menus with items so far; File, Terminal and Help come with their first command
-	if want := []string{"&&Edit", "&&Selection", "&&View", "&&Go"}; !reflect.DeepEqual(bar, want) {
+	// the menus with items so far; Terminal and Help come with their first command
+	if want := []string{"&&File", "&&Edit", "&&Selection", "&&View", "&&Go"}; !reflect.DeepEqual(bar, want) {
 		t.Errorf("menu bar %v, want %v", bar, want)
 	}
 

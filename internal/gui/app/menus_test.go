@@ -58,12 +58,12 @@ func (a *keyApp) devCommand(t *testing.T, id string, args any) error {
 
 func TestTheWindowHasTheMenuBarOfTheRegistry(t *testing.T) {
 	a := newKeyApp(t, "alpha\nbeta\n")
-	for _, title := range []string{"Edit", "Selection", "View", "Go"} {
+	for _, title := range []string{"File", "Edit", "Selection", "View", "Go"} {
 		if !a.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("no %s in the menu bar", title)
 		}
 	}
-	for _, title := range []string{"File", "Help"} {
+	for _, title := range []string{"Terminal", "Help"} {
 		if a.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("%s is in the menu bar before it has a command", title)
 		}
@@ -324,10 +324,10 @@ func TestDevOpenMenuOfAnUnknownMenu(t *testing.T) {
 	if !ok || !appErr.HasRoute("devOpenMenu.DevOpenMenuUnknown") {
 		t.Errorf("error %v", err)
 	}
-	// File has no command yet, so it is not in the bar either
-	err = a.devCommand(t, "dev.openMenu", map[string]any{"id": "MenubarFileMenu"})
+	// Terminal has no command yet, so it is not in the bar either
+	err = a.devCommand(t, "dev.openMenu", map[string]any{"id": "MenubarTerminalMenu"})
 	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("devOpenMenu.DevOpenMenuUnknown") {
-		t.Errorf("File: %v", err)
+		t.Errorf("Terminal: %v", err)
 	}
 }
 

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"path/filepath"
-	"time"
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
@@ -66,7 +65,8 @@ func (s *shellState) bindDevOpenFile(binding *widgets.WidgetsBinding) {
 	s.removeOpenFile = remove
 }
 
-// devOpenFile opens a file and shows it, replacing the editor of the window.
+// devOpenFile opens a file in the editor group, kept (not as a preview), and shows it with the cursor at
+// the position.
 func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Context, args any) error {
 	a, err := parseOpenFile(args)
 	if err != nil {
@@ -76,45 +76,33 @@ func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Co
 	if absErr != nil {
 		return errors.NewErr("DevOpenFileFailed", absErr).SetMetadata("path", a.Path)
 	}
-	win := PeekWindow(s.Context())
-	doc, err := win.Documents.OpenFile(ctx, path, document.NewOptions())
+	doc, err := s.openFile(ctx, path)
 	if err != nil {
 		return err
 	}
-	var place func()
+	var place func(*textEditor)
 	if a.Line > 0 {
-		place = func() {
+		place = func(e *textEditor) {
 			model := edit.NewModel(doc.Snapshot())
 			at := model.ValidatePosition(buffer.Position{Line: a.Line - 1, Col: max(a.Column-1, 0)})
-			s.view.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(at)})
+			e.view.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(at)})
 		}
 	}
-	s.showDocument(binding, doc, place)
+	s.show(binding, doc, openOptions{Place: place})
 	return nil
 }
 
-// showDocument replaces the editor of the window by one for a document; place, when not nil,
-// runs after the new editor exists (to put the cursor somewhere), and the editor then scrolls to
-// the cursor.
-func (s *shellState) showDocument(binding *widgets.WidgetsBinding, doc *document.Document, place func()) {
-	s.SetState(func() {
-		s.disposeEditor()
-		s.initEditor(binding, doc)
-		if place != nil {
-			place()
-		}
-	})
-	binding.Scheduler().AddPostFrameCallback(func(_ time.Duration) { s.view.RevealPrimary() })
-}
-
-// openPath opens a file that the user chose (in a breadcrumbs picker) and shows it. The file is
-// read in the background; a file that cannot be opened is reported.
+// openPath opens a file that the user chose (in a breadcrumbs picker) and shows it as a preview. The
+// file is read in the background; a file that cannot be opened is reported.
 func (s *shellState) openPath(binding *widgets.WidgetsBinding, path string) {
 	win := PeekWindow(s.Context())
 	s.Go(func(life context.Context) {
-		doc, err := win.Documents.OpenFile(life, path, document.NewOptions())
+		doc, err := win.Documents.Acquire(life, path, document.NewOptions())
 		binding.Post(func() {
 			if !s.Mounted() {
+				if err == nil {
+					win.Documents.Release(doc)
+				}
 				return
 			}
 			if err != nil {
@@ -125,35 +113,38 @@ func (s *shellState) openPath(binding *widgets.WidgetsBinding, path string) {
 				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 				return
 			}
-			s.showDocument(binding, doc, nil)
+			s.show(binding, doc, openOptions{Preview: true})
 		})
 	})
 }
 
-// blockFile shows the notice of a file that looks binary in place of the editor.
+// blockFile tells that a file looks binary: with no editor open the window shows the notice, which has a
+// button to open the file anyway; otherwise the open editors stay and a notification says so.
 func (s *shellState) blockFile(path string) {
-	s.SetState(func() {
-		s.disposeEditor()
-		s.view, s.doc = nil, nil
-		s.blocked = path
-	})
+	if s.group.model.Count() > 0 {
+		PeekWindow(s.Context()).Process.Notify.Warn("Emetos", path+": "+BinaryFileNotice)
+		return
+	}
+	s.SetState(func() { s.blocked = path })
 }
 
 // openAnyway opens a file that looks binary, as the button of its notice asks.
 func (s *shellState) openAnyway(binding *widgets.WidgetsBinding, path string) {
 	win := PeekWindow(s.Context())
 	s.Go(func(life context.Context) {
-		doc, err := win.Documents.OpenFileWith(life, path, document.NewOptions(), fileio.ReadOptions{AllowBinary: true})
+		doc, err := win.Documents.AcquireWith(life, path, document.NewOptions(), fileio.ReadOptions{AllowBinary: true})
 		binding.Post(func() {
 			if !s.Mounted() {
+				if err == nil {
+					win.Documents.Release(doc)
+				}
 				return
 			}
 			if err != nil {
 				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 				return
 			}
-			s.SetState(func() { s.blocked = "" })
-			s.showDocument(binding, doc, nil)
+			s.show(binding, doc, openOptions{})
 		})
 	})
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
@@ -102,7 +103,7 @@ func TestDevOpenFileShowsTheFileAtAPosition(t *testing.T) {
 	}
 }
 
-func TestDevOpenFileReplacesTheEditor(t *testing.T) {
+func TestDevOpenFileAddsATab(t *testing.T) {
 	win := newTestWindow(t, "")
 	first, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
@@ -127,8 +128,12 @@ func TestDevOpenFileReplacesTheEditor(t *testing.T) {
 	if vm.Tokenizer() == nil || vm.Brackets() == nil || vm.FoldingModel() == nil {
 		t.Errorf("the new editor has its tokens, its brackets and its folding")
 	}
-	if got := len(first.DecorationsOf(2)); got != 0 {
-		t.Errorf("the first document keeps %d folding decorations", got)
+	// the first file keeps its tab and its editor, which is not shown
+	if items := ts.Widget(gluttertest.ByType[*kit.Tabs]()).(*kit.Tabs).Items(); len(items) != 2 {
+		t.Errorf("%d tabs, want 2", len(items))
+	}
+	if len(first.DecorationsOf(2)) == 0 {
+		t.Error("the editor of the first file, which is not shown, keeps its folds")
 	}
 	if errs := ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("the framework reported errors: %v", errs)

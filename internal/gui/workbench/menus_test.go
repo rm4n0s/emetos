@@ -101,8 +101,8 @@ func TestBarMenusAreTheSubmenusOfTheMainMenu(t *testing.T) {
 			t.Errorf("%s: items %d, source %v", menu.Label, len(menu.Items), menu.Source != nil)
 		}
 	}
-	// File, Terminal and Help have no command yet and are not in the bar
-	if want := []string{"&Edit", "&Selection", "&View", "&Go"}; !reflect.DeepEqual(got, want) {
+	// Terminal and Help have no command yet and are not in the bar
+	if want := []string{"&File", "&Edit", "&Selection", "&View", "&Go"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("menus %v, want %v", got, want)
 	}
 }
@@ -345,12 +345,12 @@ func TestMenuBarShowsTheMenusAndRunsAnItem(t *testing.T) {
 	m := &menuServices{}
 	h := newMenuHarness(t, m, nil)
 	m.handle(t, "undo", "editor.action.clipboardCopyAction")
-	for _, title := range []string{"Edit", "Selection", "View", "Go"} {
+	for _, title := range []string{"File", "Edit", "Selection", "View", "Go"} {
 		if !h.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("no %s in the menu bar", title)
 		}
 	}
-	for _, title := range []string{"File", "Help", "Terminal"} {
+	for _, title := range []string{"Help", "Terminal"} {
 		if h.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("%s is in the menu bar with nothing in it", title)
 		}
@@ -388,7 +388,7 @@ func TestMenuBarMenuFollowsTheStateWhenItOpens(t *testing.T) {
 	m := &menuServices{}
 	h := newMenuHarness(t, m, nil)
 	wrap := func() kit.MenuItem {
-		h.openMenu(2) // View
+		h.openMenu(3) // View
 		it, ok := find(openItems(t, h), "editor.action.toggleWordWrap")
 		if !ok {
 			t.Fatal("no Word Wrap in the View menu")
@@ -412,11 +412,11 @@ func TestMenuBarMenuFollowsTheStateWhenItOpens(t *testing.T) {
 func TestMenuBarOpensAMenuFromOutside(t *testing.T) {
 	m := &menuServices{}
 	h := newMenuHarness(t, m, nil)
-	h.openMenu(1) // Selection
+	h.openMenu(2) // Selection
 	if !h.ts.Exists(gluttertest.ByText("Select All")) || h.ts.Exists(gluttertest.ByText("Undo")) {
 		t.Error("the Selection menu is not the one open")
 	}
-	h.openMenu(0)
+	h.openMenu(1) // Edit
 	if !h.ts.Exists(gluttertest.ByText("Undo")) || h.ts.Exists(gluttertest.ByText("Select All")) {
 		t.Error("the Edit menu is not the one open")
 	}

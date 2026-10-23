@@ -133,6 +133,11 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+j toggles the panel (join lines has no key on Linux)", nil, "ctrl+j", "workbench.action.togglePanel"},
 		{"ctrl+b toggles the side bar", nil, "ctrl+b", "workbench.action.toggleSidebarVisibility"},
 		{"ctrl+0 focuses the side bar", nil, "ctrl+0", "workbench.action.focusSideBar"},
+		{"ctrl+w closes the editor", nil, "ctrl+w", "workbench.action.closeActiveEditor"},
+		{"ctrl+pagedown opens the next editor", nil, "ctrl+pagedown", "workbench.action.nextEditor"},
+		{"ctrl+pageup opens the previous editor", nil, "ctrl+pageup", "workbench.action.previousEditor"},
+		{"ctrl+tab opens the next recently used editor", nil, "ctrl+tab", "workbench.action.openNextRecentlyUsedEditorInGroup"},
+		{"ctrl+shift+tab opens the previous recently used editor", nil, "ctrl+shift+tab", "workbench.action.openPreviousRecentlyUsedEditorInGroup"},
 		{"ctrl+b in the find input still toggles the side bar", map[string]any{"findInputFocussed": true}, "ctrl+b", "workbench.action.toggleSidebarVisibility"},
 	}
 	for _, tc := range cases {
@@ -148,10 +153,22 @@ func TestDefaultKeymap(t *testing.T) {
 		})
 	}
 
+	// pin and unpin share a chord and tell apart by whether the active editor is pinned
+	kb := mustKB(t, "ctrl+k shift+enter")
+	pinned := defaultContext(map[string]any{"activeEditorIsPinned": true})
+	if res := resolver.Resolve(pinned, []string{kb[0].Dispatch()}, kb[1].Dispatch()); res.Kind != KbFound || res.Command != "workbench.action.unpinEditor" {
+		t.Errorf("ctrl+k shift+enter with a pinned editor: %+v", res)
+	}
+
 	// Chords.
 	for _, tc := range []struct{ chords, want string }{
 		{"ctrl+k ctrl+x", "editor.action.trimTrailingWhitespace"},
 		{"ctrl+k ctrl+d", "editor.action.moveSelectionToNextFindMatch"},
+		{"ctrl+k ctrl+w", "workbench.action.closeAllEditors"},
+		{"ctrl+k w", "workbench.action.closeEditorsInGroup"},
+		{"ctrl+k u", "workbench.action.closeUnmodifiedEditors"},
+		{"ctrl+k enter", "workbench.action.keepEditor"},
+		{"ctrl+k shift+enter", "workbench.action.pinEditor"},
 	} {
 		kb := mustKB(t, tc.chords)
 		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())

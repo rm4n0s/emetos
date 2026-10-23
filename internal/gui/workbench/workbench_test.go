@@ -647,11 +647,23 @@ func TestTheCommandsAreGivenBack(t *testing.T) {
 	}
 }
 
+// groupCommands are the commands of the editor group, whose handlers the app binds.
+var groupCommands = map[string]bool{
+	"workbench.action.closeActiveEditor": true, "workbench.action.closeEditorsInGroup": true,
+	"workbench.action.closeUnmodifiedEditors": true, "workbench.action.closeOtherEditors": true,
+	"workbench.action.closeEditorsToTheRight": true, "workbench.action.closeAllEditors": true,
+	"workbench.action.keepEditor": true, "workbench.action.pinEditor": true, "workbench.action.unpinEditor": true,
+	"workbench.action.nextEditor": true, "workbench.action.previousEditor": true,
+	"workbench.action.openNextRecentlyUsedEditorInGroup":     true,
+	"workbench.action.openPreviousRecentlyUsedEditorInGroup": true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, nil)
 	var n int
 	for _, meta := range h.commands.All() {
-		if !strings.HasPrefix(meta.ID, "workbench.") {
+		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] {
 			continue
 		}
 		n++

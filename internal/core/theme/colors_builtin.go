@@ -22,6 +22,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerMenuColors(r)
 	registerInputKitColors(r)
 	registerLayoutColors(r)
+	registerTabColors(r)
 	return r
 }
 
@@ -682,5 +683,84 @@ func registerLayoutColors(r *ColorRegistry) {
 			Description: "Title bar background when the window is active."},
 		ColorContribution{ID: "titleBar.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Title bar border color."},
+	)
+}
+
+// registerTabColors registers the colors of the tabs of an editor group and of its header (SPEC
+// §10.3). "Unfocused" is a tab in a group that is not the active group.
+//
+// Ported from VS Code: src/vs/workbench/common/theme.ts
+func registerTabColors(r *ColorRegistry) {
+	half := func(id string) ColorValue { return Transparent(Ref(id), 0.5) }
+	const tabs = " Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."
+	r.MustRegister(
+		ColorContribution{ID: "tab.activeBackground", Defaults: AllThemes(Ref("editor.background")),
+			Description: "Active tab background color in an active group." + tabs},
+		ColorContribution{ID: "tab.unfocusedActiveBackground", Defaults: AllThemes(Ref("tab.activeBackground")),
+			Description: "Active tab background color in an unfocused group." + tabs},
+		ColorContribution{ID: "tab.inactiveBackground", Defaults: dflt(Hex("#2D2D2D"), Hex("#ECECEC"), nil, nil),
+			Description: "Inactive tab background color in an active group." + tabs},
+		ColorContribution{ID: "tab.unfocusedInactiveBackground", Defaults: AllThemes(Ref("tab.inactiveBackground")),
+			Description: "Inactive tab background color in an unfocused group." + tabs},
+
+		ColorContribution{ID: "tab.activeForeground", Defaults: dflt(Lit(ColorWhite), Hex("#333333"), Lit(ColorWhite), Hex("#292929")),
+			Description: "Active tab foreground color in an active group." + tabs},
+		ColorContribution{ID: "tab.inactiveForeground",
+			Defaults:    dflt(half("tab.activeForeground"), Transparent(Ref("tab.activeForeground"), 0.7), Lit(ColorWhite), Hex("#292929")),
+			Description: "Inactive tab foreground color in an active group." + tabs},
+		ColorContribution{ID: "tab.unfocusedActiveForeground",
+			Defaults:    dflt(half("tab.activeForeground"), Transparent(Ref("tab.activeForeground"), 0.7), Lit(ColorWhite), Hex("#292929")),
+			Description: "Active tab foreground color in an unfocused group." + tabs},
+		ColorContribution{ID: "tab.unfocusedInactiveForeground",
+			Defaults:    dflt(half("tab.inactiveForeground"), half("tab.inactiveForeground"), Lit(ColorWhite), Hex("#292929")),
+			Description: "Inactive tab foreground color in an unfocused group." + tabs},
+
+		ColorContribution{ID: "tab.hoverBackground", Defaults: AllThemes(nil),
+			Description: "Tab background color when hovering." + tabs},
+		ColorContribution{ID: "tab.unfocusedHoverBackground",
+			Defaults:    dflt(half("tab.hoverBackground"), Transparent(Ref("tab.hoverBackground"), 0.7), nil, nil),
+			Description: "Tab background color in an unfocused group when hovering." + tabs},
+		ColorContribution{ID: "tab.hoverForeground", Defaults: AllThemes(nil),
+			Description: "Tab foreground color when hovering." + tabs},
+		ColorContribution{ID: "tab.unfocusedHoverForeground",
+			Defaults:    dflt(half("tab.hoverForeground"), half("tab.hoverForeground"), nil, nil),
+			Description: "Tab foreground color in an unfocused group when hovering." + tabs},
+
+		ColorContribution{ID: "tab.border", Defaults: dflt(Hex("#252526"), Hex("#F3F3F3"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border around tabs." + tabs},
+		ColorContribution{ID: "tab.lastPinnedBorder",
+			Defaults:    dflt(Ref("tree.indentGuidesStroke"), Ref("tree.indentGuidesStroke"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border to separate pinned tabs from other tabs." + tabs},
+		ColorContribution{ID: "tab.activeBorder", Defaults: AllThemes(nil),
+			Description: "Border on the bottom of an active tab." + tabs},
+		ColorContribution{ID: "tab.unfocusedActiveBorder",
+			Defaults:    dflt(half("tab.activeBorder"), Transparent(Ref("tab.activeBorder"), 0.7), nil, nil),
+			Description: "Border on the bottom of an active tab in an unfocused group." + tabs},
+		ColorContribution{ID: "tab.activeBorderTop", Defaults: dflt(nil, nil, nil, Hex("#B5200D")),
+			Description: "Border to the top of an active tab." + tabs},
+		ColorContribution{ID: "tab.unfocusedActiveBorderTop",
+			Defaults:    dflt(half("tab.activeBorderTop"), Transparent(Ref("tab.activeBorderTop"), 0.7), nil, Hex("#B5200D")),
+			Description: "Border to the top of an active tab in an unfocused group." + tabs},
+
+		ColorContribution{ID: "tab.activeModifiedBorder", Defaults: dflt(Hex("#3399CC"), Hex("#33AAEE"), nil, Ref("contrastBorder")),
+			Description: "Border on the top of modified active tabs in an active group." + tabs},
+		ColorContribution{ID: "tab.inactiveModifiedBorder",
+			Defaults:    dflt(half("tab.activeModifiedBorder"), half("tab.activeModifiedBorder"), Lit(ColorWhite), Ref("contrastBorder")),
+			Description: "Border on the top of modified inactive tabs in an active group." + tabs},
+		ColorContribution{ID: "tab.unfocusedActiveModifiedBorder",
+			Defaults:    dflt(half("tab.activeModifiedBorder"), Transparent(Ref("tab.activeModifiedBorder"), 0.7), Lit(ColorWhite), Ref("contrastBorder")),
+			Description: "Border on the top of modified active tabs in an unfocused group." + tabs},
+		ColorContribution{ID: "tab.unfocusedInactiveModifiedBorder",
+			Defaults:    dflt(half("tab.inactiveModifiedBorder"), half("tab.inactiveModifiedBorder"), Lit(ColorWhite), Ref("contrastBorder")),
+			Description: "Border on the top of modified inactive tabs in an unfocused group." + tabs},
+
+		ColorContribution{ID: "editorGroupHeader.tabsBackground", Defaults: dflt(Hex("#252526"), Hex("#F3F3F3"), nil, nil),
+			Description: "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."},
+		ColorContribution{ID: "editorGroupHeader.tabsBorder", Defaults: AllThemes(nil),
+			Description: "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."},
+		ColorContribution{ID: "editorGroupHeader.noTabsBackground", Defaults: AllThemes(Ref("editor.background")),
+			Description: "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."},
+		ColorContribution{ID: "editorGroupHeader.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border color of the editor group title header. Editor groups are the containers of editors."},
 	)
 }

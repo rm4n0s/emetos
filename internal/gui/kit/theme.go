@@ -187,6 +187,23 @@ type Colors struct {
 	PanelBackground, PanelBorder, PanelTitleBorder                                   ui.Color
 	PanelTitleActiveForeground, PanelTitleInactiveForeground, PanelTitleActiveBorder ui.Color
 	TitleBarActiveBackground, TitleBarBorder                                         ui.Color
+	// The colors of tabs (kit.Tabs): the background and the text of a tab by whether it is the active
+	// tab and whether its group is the active group (the Unfocused colors are those of the tabs of
+	// another group), the tab under the pointer (a transparent hover color leaves the tab as it is),
+	// the line at the right of every tab, the line after the last pinned tab, the line along the
+	// bottom and along the top of the active tab, and the line along the top of a tab with unsaved
+	// changes.
+	TabActiveBackground, TabUnfocusedActiveBackground, TabInactiveBackground, TabUnfocusedInactiveBackground ui.Color
+	TabActiveForeground, TabInactiveForeground, TabUnfocusedActiveForeground, TabUnfocusedInactiveForeground ui.Color
+	TabHoverBackground, TabUnfocusedHoverBackground, TabHoverForeground, TabUnfocusedHoverForeground         ui.Color
+	TabBorder, TabLastPinnedBorder, TabActiveBorder, TabUnfocusedActiveBorder                                ui.Color
+	TabActiveBorderTop, TabUnfocusedActiveBorderTop                                                          ui.Color
+	TabActiveModifiedBorder, TabInactiveModifiedBorder                                                       ui.Color
+	TabUnfocusedActiveModifiedBorder, TabUnfocusedInactiveModifiedBorder                                     ui.Color
+	// The colors of the header of an editor group: the strip behind the tabs and the line under it, the
+	// header that shows one title (workbench.editor.showTabs "single") and the line under it.
+	EditorGroupHeaderTabsBackground, EditorGroupHeaderTabsBorder ui.Color
+	EditorGroupHeaderNoTabsBackground, EditorGroupHeaderBorder   ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -327,6 +344,20 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		PanelTitleActiveForeground: color("panelTitle.activeForeground"), PanelTitleInactiveForeground: color("panelTitle.inactiveForeground"),
 		PanelTitleActiveBorder:   color("panelTitle.activeBorder"),
 		TitleBarActiveBackground: color("titleBar.activeBackground"), TitleBarBorder: color("titleBar.border"),
+
+		TabActiveBackground: color("tab.activeBackground"), TabUnfocusedActiveBackground: color("tab.unfocusedActiveBackground"),
+		TabInactiveBackground: color("tab.inactiveBackground"), TabUnfocusedInactiveBackground: color("tab.unfocusedInactiveBackground"),
+		TabActiveForeground: color("tab.activeForeground"), TabInactiveForeground: color("tab.inactiveForeground"),
+		TabUnfocusedActiveForeground: color("tab.unfocusedActiveForeground"), TabUnfocusedInactiveForeground: color("tab.unfocusedInactiveForeground"),
+		TabHoverBackground: color("tab.hoverBackground"), TabUnfocusedHoverBackground: color("tab.unfocusedHoverBackground"),
+		TabHoverForeground: color("tab.hoverForeground"), TabUnfocusedHoverForeground: color("tab.unfocusedHoverForeground"),
+		TabBorder: color("tab.border"), TabLastPinnedBorder: color("tab.lastPinnedBorder"),
+		TabActiveBorder: color("tab.activeBorder"), TabUnfocusedActiveBorder: color("tab.unfocusedActiveBorder"),
+		TabActiveBorderTop: color("tab.activeBorderTop"), TabUnfocusedActiveBorderTop: color("tab.unfocusedActiveBorderTop"),
+		TabActiveModifiedBorder: color("tab.activeModifiedBorder"), TabInactiveModifiedBorder: color("tab.inactiveModifiedBorder"),
+		TabUnfocusedActiveModifiedBorder: color("tab.unfocusedActiveModifiedBorder"), TabUnfocusedInactiveModifiedBorder: color("tab.unfocusedInactiveModifiedBorder"),
+		EditorGroupHeaderTabsBackground: color("editorGroupHeader.tabsBackground"), EditorGroupHeaderTabsBorder: color("editorGroupHeader.tabsBorder"),
+		EditorGroupHeaderNoTabsBackground: color("editorGroupHeader.noTabsBackground"), EditorGroupHeaderBorder: color("editorGroupHeader.border"),
 	}
 }
 

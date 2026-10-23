@@ -84,8 +84,8 @@ func TestGoldenViewsAndMenus(t *testing.T) {
 	}{
 		{"views", func(h *harness, v *Views) { v.SetCollapsed("outline", false) }},
 		{"views_collapsed", func(h *harness, v *Views) { v.SetCollapsed("folders", true) }},
-		{"edit_menu", func(h *harness, v *Views) { h.openMenu(0) }},
-		{"view_menu", func(h *harness, v *Views) { h.keys.Set("sideBarVisible", true); h.openMenu(2) }},
+		{"edit_menu", func(h *harness, v *Views) { h.openMenu(1) }},
+		{"view_menu", func(h *harness, v *Views) { h.keys.Set("sideBarVisible", true); h.openMenu(3) }},
 		{"manage_menu", func(h *harness, v *Views) { h.ts.Tap(gluttertest.ByKey(ManageKey)); h.settle() }},
 	}
 	for _, th := range goldenThemes {

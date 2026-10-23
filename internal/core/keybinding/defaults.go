@@ -61,6 +61,7 @@ func DefaultRegistry() *Registry {
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
 	registerLayoutKeys(r)
+	registerEditorGroupKeys(r)
 	return r
 }
 
@@ -75,6 +76,30 @@ func registerLayoutKeys(r *Registry) {
 		Rule{Command: "workbench.action.toggleSidebarVisibility", Weight: WeightWorkbenchContrib, Primary: "ctrl+b"},
 		Rule{Command: "workbench.action.togglePanel", Weight: WeightWorkbenchContrib, Primary: "ctrl+j"},
 		Rule{Command: "workbench.action.focusSideBar", Weight: WeightWorkbenchContrib, Primary: "ctrl+0"},
+	)
+}
+
+// registerEditorGroupKeys registers the keys of the commands that close, switch and keep the editors
+// of a group. Ctrl+Tab and Ctrl+Shift+Tab are VS Code's keys of the editor picker
+// (workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup, step 6.17); until the picker exists
+// they run the recently used editor commands, which switch at once.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts,
+// src/vs/workbench/browser/parts/editor/editorActions.ts and
+// src/vs/workbench/browser/parts/editor/editor.contribution.ts
+func registerEditorGroupKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.closeActiveEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+w"},
+		Rule{Command: "workbench.action.closeEditorsInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+k w"},
+		Rule{Command: "workbench.action.closeUnmodifiedEditors", Weight: WeightWorkbenchContrib, Primary: "ctrl+k u"},
+		Rule{Command: "workbench.action.closeAllEditors", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+w"},
+		Rule{Command: "workbench.action.keepEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+k enter"},
+		Rule{Command: "workbench.action.pinEditor", Weight: WeightWorkbenchContrib, When: mustWhen("!activeEditorIsPinned"), Primary: "ctrl+k shift+enter"},
+		Rule{Command: "workbench.action.unpinEditor", Weight: WeightWorkbenchContrib, When: mustWhen("activeEditorIsPinned"), Primary: "ctrl+k shift+enter"},
+		Rule{Command: "workbench.action.nextEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+pagedown"},
+		Rule{Command: "workbench.action.previousEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+pageup"},
+		Rule{Command: "workbench.action.openNextRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+tab"},
+		Rule{Command: "workbench.action.openPreviousRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+tab"},
 	)
 }
 

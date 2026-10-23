@@ -27,6 +27,7 @@ func DefaultRegistry() *Registry {
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
 	registerLayoutCommands(r)
+	registerEditorGroupCommands(r)
 	return r
 }
 
@@ -64,6 +65,31 @@ func registerLayoutCommands(r *Registry) {
 		Meta{ID: "workbench.action.focusStatusBar", Title: "Focus Status Bar", Category: "View"},
 		Meta{ID: "workbench.action.focusActivityBar", Title: "Focus Activity Bar", Category: "View"},
 		Meta{ID: "workbench.actions.menubar.focus", Title: "Focus Application Menu"},
+	)
+}
+
+// registerEditorGroupCommands registers the commands that close, switch and keep the editors of a
+// group (SPEC §10.3). The group commands of step 6.9 (split, focus by number, move) and the
+// commands that need the quick input (the editor picker, step 6.17) are not here yet.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts,
+// src/vs/workbench/browser/parts/editor/editorActions.ts and
+// src/vs/workbench/browser/parts/editor/editor.contribution.ts
+func registerEditorGroupCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.closeActiveEditor", Title: "Close Editor", Category: "View"},
+		Meta{ID: "workbench.action.closeEditorsInGroup", Title: "Close All Editors in Group", Category: "View"},
+		Meta{ID: "workbench.action.closeUnmodifiedEditors", Title: "Close Saved Editors in Group", Category: "View"},
+		Meta{ID: "workbench.action.closeOtherEditors", Title: "Close Other Editors in Group", Category: "View"},
+		Meta{ID: "workbench.action.closeEditorsToTheRight", Title: "Close Editors to the Right in Group", Category: "View"},
+		Meta{ID: "workbench.action.closeAllEditors", Title: "Close All Editors", Category: "View"},
+		Meta{ID: "workbench.action.keepEditor", Title: "Keep Editor", Category: "View"},
+		Meta{ID: "workbench.action.pinEditor", Title: "Pin Editor", Category: "View"},
+		Meta{ID: "workbench.action.unpinEditor", Title: "Unpin Editor", Category: "View"},
+		Meta{ID: "workbench.action.nextEditor", Title: "Open Next Editor", Category: "View"},
+		Meta{ID: "workbench.action.previousEditor", Title: "Open Previous Editor", Category: "View"},
+		Meta{ID: "workbench.action.openNextRecentlyUsedEditorInGroup", Title: "Open Next Recently Used Editor In Group", Category: "View"},
+		Meta{ID: "workbench.action.openPreviousRecentlyUsedEditorInGroup", Title: "Open Previous Recently Used Editor In Group", Category: "View"},
 	)
 }
 

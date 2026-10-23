@@ -333,6 +333,14 @@ func (a *keyApp) states() []func() {
 	}
 }
 
+// pinnedState is the state of an editor whose tab is pinned, where the key of pin unpins.
+func pinnedState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Set("activeEditorIsPinned", true)
+	}
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -345,7 +353,8 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 		tried++
 		t.Run(item.Command+" "+item.Keybinding.UserSettingsLabel(), func(t *testing.T) {
 			var reached []string
-			for _, state := range a.states() {
+			for _, state := range append(a.states(), pinnedState(a)) {
+				a.win.Keys.Set("activeEditorIsPinned", false)
 				state()
 				a.vm.SelectionsChanged()
 				a.ts.Pump(time.Millisecond)

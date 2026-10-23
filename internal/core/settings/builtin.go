@@ -28,6 +28,7 @@ func DefaultRegistry() *Registry {
 	registerFiles(r)
 	registerWorkbench(r)
 	registerLayout(r)
+	registerEditorGroups(r)
 	registerEmmet(r)
 	return r
 }
@@ -851,6 +852,74 @@ func registerLayout(r *Registry) {
 			Key: "window.titleSeparator", Types: []Type{String}, Default: DefaultWindowTitleSeparator,
 			Description: "Separator used by `window.title`.",
 			Scope:       ScopeWindow, Category: categoryWindow,
+		},
+	)
+}
+
+// registerEditorGroups registers the settings of the editor groups and their tabs (SPEC §10.3).
+// workbench.editor.tabCloseButton is not registered by VS Code any more: it migrates it to
+// workbench.editor.tabActionLocation (left, right) and workbench.editor.tabActionCloseVisibility
+// (off); Emetos registers the three and honors all of them. Not ported yet: tab sizing, wrapping
+// tabs, the tab index, the separate row of pinned tabs and the settings of the title area that
+// steps 6.9 and 6.10 add.
+//
+// Ported from VS Code: src/vs/workbench/browser/workbench.contribution.ts
+func registerEditorGroups(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "workbench.editor.showTabs", Types: []Type{String}, Default: "multiple", Enum: []any{"multiple", "single", "none"},
+			EnumDescriptions: []string{
+				"Each editor is displayed as a tab in the editor title area.",
+				"The active editor is displayed as a single large tab in the editor title area.",
+				"The editor title area is not displayed.",
+			},
+			Description: "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.enablePreview", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether preview mode is used when editors open. There is a maximum of one preview mode editor per editor group. This editor displays its filename in italics on its tab or title label and in the Open Editors view. Its contents will be replaced by the next editor opened in preview mode. Making a change in a preview mode editor will persist it, as will a double-click on its label, or the 'Keep Open' option in its label context menu. Opening a file from Explorer with a double-click persists its editor immediately.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.focusRecentEditorAfterClose", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether editors are closed in most recently used order or from left to right.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.openPositioning", Types: []Type{String}, Default: "right", Enum: []any{"left", "right", "first", "last"},
+			Description: "Controls where editors open. Select `left` or `right` to open editors to the left or right of the currently active one. Select `first` or `last` to open editors independently from the currently active one.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.tabCloseButton", Types: []Type{String}, Default: "right", Enum: []any{"left", "right", "off"},
+			Description: "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `workbench.editor.showTabs` is not set to `multiple`. Deprecated in VS Code in favor of `workbench.editor.tabActionLocation` and `workbench.editor.tabActionCloseVisibility`; both are honored.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.tabActionLocation", Types: []Type{String}, Default: "right", Enum: []any{"left", "right"},
+			Description: "Controls the position of the editor's tabs action buttons (close, unpin). This value is ignored when `workbench.editor.showTabs` is not set to `multiple`.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.tabActionCloseVisibility", Types: []Type{Boolean}, Default: true,
+			Description: "Controls the visibility of the tab close action button.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.pinnedTabSizing", Types: []Type{String}, Default: "normal", Enum: []any{"normal", "compact", "shrink"},
+			EnumDescriptions: []string{
+				"A pinned tab inherits the look of non pinned tabs.",
+				"A pinned tab will show in a compact form with only icon or first letter of the editor name.",
+				"A pinned tab shrinks to a compact fixed size showing parts of the editor name.",
+			},
+			Description: "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `workbench.editor.showTabs` is not set to `multiple`.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.highlightModifiedTabs", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `workbench.editor.showTabs` is not set to `multiple`.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 	)
 }

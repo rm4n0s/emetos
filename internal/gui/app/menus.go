@@ -44,14 +44,15 @@ func (c menuContext) Value(key string) any {
 // editorKeys are the context keys of the editor the window shows, for the menus: an editor is open and
 // can wrap its text, whether it does, and whether it is read-only.
 func (s *shellState) editorKeys() map[string]any {
-	if s.view == nil {
+	active := s.activeEditor()
+	if active == nil {
 		return nil
 	}
 	return map[string]any{
 		"editorIsOpen":      true,
 		"canToggleWordWrap": true,
-		"editorWordWrap":    s.view.Wrapping(),
-		"editorReadonly":    s.doc != nil && s.doc.ReadOnly(),
+		"editorWordWrap":    active.view.Wrapping(),
+		"editorReadonly":    active.doc.ReadOnly(),
 	}
 }
 

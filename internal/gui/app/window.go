@@ -141,6 +141,8 @@ type Documents struct {
 	largeFiles func() bool
 	// announced are the large documents the user was told about.
 	announced map[*document.Document]bool
+	// refs counts the editors that show each document (Acquire, Retain, Release).
+	refs map[*document.Document]int
 }
 
 // SetLargeFileOptimizations makes OpenFile open large files in large file mode only while enabled
@@ -258,6 +260,60 @@ func (d *Documents) OpenFileWith(ctx context.Context, path string, opts document
 	d.open[uri] = doc
 	d.order = append(d.order, uri)
 	return doc, nil
+}
+
+// Acquire is OpenFile for a document that an editor is about to show: it counts the editor as a user
+// of the document, which stays open until every user has called Release. OpenFile counts nobody, so a
+// document opened with it is never closed by Release unless an editor retained it.
+func (d *Documents) Acquire(ctx context.Context, path string, opts document.Options) (*document.Document, error) {
+	return d.AcquireWith(ctx, path, opts, fileio.ReadOptions{})
+}
+
+// AcquireWith is Acquire with the options of the read (see OpenFileWith).
+func (d *Documents) AcquireWith(ctx context.Context, path string, opts document.Options, read fileio.ReadOptions) (*document.Document, error) {
+	doc, err := d.OpenFileWith(ctx, path, opts, read)
+	if err != nil {
+		return nil, err
+	}
+	d.Retain(doc)
+	return doc, nil
+}
+
+// Retain counts one more user of an open document.
+func (d *Documents) Retain(doc *document.Document) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.refs == nil {
+		d.refs = map[*document.Document]int{}
+	}
+	d.refs[doc]++
+}
+
+// Release ends one use of a document. The last release closes it (see Close) and reports true; a
+// document nobody retained is left as it is.
+func (d *Documents) Release(doc *document.Document) (closed bool) {
+	d.mu.Lock()
+	n := d.refs[doc]
+	if n == 0 {
+		d.mu.Unlock()
+		return false
+	}
+	if n > 1 {
+		d.refs[doc] = n - 1
+		d.mu.Unlock()
+		return false
+	}
+	delete(d.refs, doc)
+	delete(d.announced, doc)
+	d.mu.Unlock()
+	return d.Close(doc.URI())
+}
+
+// Refs is how many users a document has.
+func (d *Documents) Refs(doc *document.Document) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.refs[doc]
 }
 
 // Get returns an open document.

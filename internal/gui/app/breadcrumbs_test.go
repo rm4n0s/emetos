@@ -14,6 +14,11 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
+// inBar finds a text in the breadcrumbs bar (the name of the file is also on its tab).
+func inBar(text string) gluttertest.Finder {
+	return gluttertest.Descendant(gluttertest.ByType[*editor.Breadcrumbs](), gluttertest.ByText(text))
+}
+
 // twoFiles makes a folder with two small files and opens the first in a window.
 func twoFiles(t *testing.T) (win *Window, doc *document.Document, first, second string) {
 	t.Helper()
@@ -42,19 +47,21 @@ func TestShellShowsTheBreadcrumbsAndOpensASibling(t *testing.T) {
 	if h := ts.Size(gluttertest.ByType[*editor.Breadcrumbs]()).Height; h != editor.BreadcrumbsHeight {
 		t.Errorf("the bar is %v high", h)
 	}
-	if err := gluttertest.FindsOneWidget(ts, gluttertest.ByText("first.go")); err != nil {
+	if err := gluttertest.FindsOneWidget(ts, inBar("first.go")); err != nil {
 		t.Fatal("the name of the file is on the bar:", err)
 	}
 
-	ts.Tap(gluttertest.ByText("first.go"))
+	ts.Tap(inBar("first.go"))
 	waitFor(t, ts, "the picker", func() bool { return ts.Exists(gluttertest.ByText("second.txt")) })
 	ts.Tap(gluttertest.ByText("second.txt"))
 	waitFor(t, ts, "the second file", func() bool {
 		return ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel().Document().URI() == document.FileURI(second)
 	})
-	waitFor(t, ts, "the new bar", func() bool {
-		return ts.Exists(gluttertest.ByText("second.txt")) && !ts.Exists(gluttertest.ByText("first.go"))
-	})
+	waitFor(t, ts, "the new bar", func() bool { return ts.Exists(inBar("second.txt")) && !ts.Exists(inBar("first.go")) })
+	// the preview opened as a tab of its own, in italics, and the first file keeps its tab
+	if !ts.Exists(gluttertest.ByText("first.go")) || ts.Count(gluttertest.ByText("second.txt")) != 2 {
+		t.Error("the tabs are first.go and second.txt")
+	}
 	if doc.URI() != document.FileURI(first) {
 		t.Errorf("the first document changed: %v", doc.URI())
 	}
@@ -81,14 +88,14 @@ func TestBreadcrumbsFollowTheSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := filepath.Base(filepath.Dir(doc.URI().Path))
-	waitFor(t, ts, "only the file", func() bool { return !ts.Exists(gluttertest.ByText(dir)) && ts.Exists(gluttertest.ByText("first.go")) })
+	waitFor(t, ts, "only the file", func() bool { return !ts.Exists(inBar(dir)) && ts.Exists(inBar("first.go")) })
 }
 
 func TestAFileThatCannotBeOpenedIsReported(t *testing.T) {
 	win, doc, first, second := twoFiles(t)
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
-	ts.Tap(gluttertest.ByText("first.go"))
+	ts.Tap(inBar("first.go"))
 	waitFor(t, ts, "the picker", func() bool { return ts.Exists(gluttertest.ByText("second.txt")) })
 	// the file goes away between the listing and the click
 	if err := os.Remove(second); err != nil {
