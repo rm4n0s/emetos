@@ -9,6 +9,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerEditorColors(r)
 	registerScrollbarColors(r)
 	registerFindColors(r)
+	registerHighlightColors(r)
 	return r
 }
 
@@ -234,5 +235,33 @@ func registerFindColors(r *ColorRegistry) {
 			Description: "Input validation foreground color for error severity."},
 		ColorContribution{ID: "inputValidation.errorBorder", Defaults: dflt(Hex("#BE1100"), Hex("#BE1100"), Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Input validation border color for error severity."},
+	)
+}
+
+// registerHighlightColors registers the colors of the highlights of the occurrences of the word at
+// the cursor and of the selected text.
+//
+// Ported from VS Code: src/vs/editor/contrib/wordHighlighter/browser/highlightDecorations.ts and
+// src/vs/platform/theme/common/colors/editorColors.ts (editor.selectionHighlightBackground)
+func registerHighlightColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editor.selectionHighlightBackground", NeedsTransparency: true,
+			Defaults: dflt(LessProminent(Ref("editor.selectionBackground"), Ref("editor.background"), 0.3, 0.6),
+				LessProminent(Ref("editor.selectionBackground"), Ref("editor.background"), 0.3, 0.6), nil, nil),
+			Description: "Color for regions with the same content as the selection. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.selectionHighlightBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color for regions with the same content as the selection."},
+		ColorContribution{ID: "editor.wordHighlightBackground", NeedsTransparency: true, Defaults: dflt(Hex("#575757B8"), Hex("#57575740"), nil, nil),
+			Description: "Background color of a symbol during read-access, like reading a variable. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.wordHighlightStrongBackground", NeedsTransparency: true, Defaults: dflt(Hex("#004972B8"), Hex("#0e639c40"), nil, nil),
+			Description: "Background color of a symbol during write-access, like writing to a variable. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.wordHighlightTextBackground", NeedsTransparency: true, Defaults: AllThemes(Ref("editor.wordHighlightBackground")),
+			Description: "Background color of a textual occurrence for a symbol. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.wordHighlightBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color of a symbol during read-access, like reading a variable."},
+		ColorContribution{ID: "editor.wordHighlightStrongBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border color of a symbol during write-access, like writing to a variable."},
+		ColorContribution{ID: "editor.wordHighlightTextBorder", Defaults: AllThemes(Ref("editor.wordHighlightBorder")),
+			Description: "Border color of a textual occurrence for a symbol."},
 	)
 }

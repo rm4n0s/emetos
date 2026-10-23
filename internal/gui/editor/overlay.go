@@ -44,6 +44,13 @@ type OverlayColors struct {
 	FindMatch, FindMatchBorder                   ui.Color
 	FindMatchHighlight, FindMatchHighlightBorder ui.Color
 	FindRangeHighlight, FindRangeHighlightBorder ui.Color
+	// Whitespace is the color of the dots and arrows of editor.renderWhitespace and Ruler the
+	// color of the rulers that have none of their own.
+	Whitespace, Ruler ui.Color
+	// SelectionHighlight and its border color the text that equals the selection, WordHighlight
+	// and its border the other occurrences of the word at the cursor.
+	SelectionHighlight, SelectionHighlightBorder ui.Color
+	WordHighlight, WordHighlightBorder           ui.Color
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -52,7 +59,7 @@ type overlayKind int
 const (
 	// overlayUnder is drawn below the text: the current line and the selections.
 	overlayUnder overlayKind = iota
-	// overlayCursors is drawn above the text: the cursors.
+	// overlayCursors is drawn above the text: the boxes of control characters and the cursors.
 	overlayCursors
 )
 
@@ -192,16 +199,21 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 	view := overlayView{
 		canvas: canvas, geo: newGeometry(r.vm, r.factory), colors: r.colors, factory: r.factory,
 		origin: ui.Offset{Dx: offset.Dx - r.vm.ScrollLeft(), Dy: offset.Dy - top}, width: size.Width,
-		first: first, last: last,
+		first: first, last: last, bounds: ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height),
 	}
 	if r.kind == overlayUnder {
 		view.paintLineHighlight()
 		view.paintFolded()
 		view.paintSelections()
+		view.paintRulers()
 		view.paintGuides()
+		view.paintOccurrences()
 		view.paintFind()
+		view.paintWhitespace()
 		view.paintMatchingBrackets()
 	} else {
+		// the boxes of control characters cover what the font draws for them
+		view.paintControlCharacters()
 		view.paintCursors()
 	}
 	canvas.Restore()
@@ -218,6 +230,8 @@ type overlayView struct {
 	// width is the width of the layer.
 	width       float64
 	first, last int
+	// bounds is the layer on the canvas.
+	bounds ui.Rect
 }
 
 func fill(c ui.Color) *ui.Paint {

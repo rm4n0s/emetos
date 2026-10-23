@@ -334,6 +334,60 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.renderWhitespace", Types: []Type{String}, Default: "selection",
+			Enum: []any{"none", "boundary", "selection", "trailing", "all"},
+			EnumDescriptions: []string{
+				"",
+				"Render whitespace characters except for single spaces between words.",
+				"Render whitespace characters only on selected text.",
+				"Render only trailing whitespace characters.",
+				"",
+			},
+			Description: "Controls how the editor should render whitespace characters.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.renderControlCharacters", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should render control characters.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.rulers", Types: []Type{Array}, Default: []any{}, ItemTypes: []Type{Number, Object},
+			Description: "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if the array is empty.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.occurrencesHighlight", Types: []Type{String}, Default: "singleFile",
+			Enum: []any{"off", "singleFile", "multiFile"},
+			EnumDescriptions: []string{
+				"Does not highlight occurrences.",
+				"Highlights occurrences only in the current file.",
+				"Experimental: Highlights occurrences across all valid open files.",
+			},
+			Description: "Controls whether occurrences should be highlighted across open files.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.occurrencesHighlightDelay", Types: []Type{Integer}, Default: 250, Minimum: Float(0), Maximum: Float(2000),
+			Description: "Controls the delay in milliseconds after which occurrences are highlighted.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.selectionHighlight", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the editor should highlight matches similar to the selection.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.selectionHighlightMaxLength", Types: []Type{Integer}, Default: 200, Minimum: Float(0), Maximum: Float(1000),
+			Description: "Controls how many characters can be in the selection before similar matches are not highlighted. Set to zero for unlimited.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.selectionHighlightMultiline", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the editor should highlight selection matches that span multiple lines.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.stopRenderingLineAfter", Types: []Type{Integer}, Default: 10000, Minimum: Float(-1),
 			Description: "Lines longer than this many characters are not wrapped, and a negative value never stops.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

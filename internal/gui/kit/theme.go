@@ -59,6 +59,11 @@ type Colors struct {
 	EditorFindMatchBackground, EditorFindMatchBorder                   ui.Color
 	EditorFindMatchHighlightBackground, EditorFindMatchHighlightBorder ui.Color
 	EditorFindRangeHighlightBackground, EditorFindRangeHighlightBorder ui.Color
+	// EditorSelectionHighlightBackground and its border color the text that equals the selection;
+	// EditorWordHighlightTextBackground and its border the other occurrences of the word at the
+	// cursor.
+	EditorSelectionHighlightBackground, EditorSelectionHighlightBorder ui.Color
+	EditorWordHighlightTextBackground, EditorWordHighlightTextBorder   ui.Color
 	// EditorOverviewRulerFindMatch and EditorOverviewRulerRangeHighlight are the marks of the
 	// matches and of the range highlight on the vertical scrollbar.
 	EditorOverviewRulerFindMatch, EditorOverviewRulerRangeHighlight ui.Color
@@ -127,6 +132,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorFindMatchBackground: color("editor.findMatchBackground"), EditorFindMatchBorder: color("editor.findMatchBorder"),
 		EditorFindMatchHighlightBackground: color("editor.findMatchHighlightBackground"), EditorFindMatchHighlightBorder: color("editor.findMatchHighlightBorder"),
 		EditorFindRangeHighlightBackground: color("editor.findRangeHighlightBackground"), EditorFindRangeHighlightBorder: color("editor.findRangeHighlightBorder"),
+		EditorSelectionHighlightBackground: color("editor.selectionHighlightBackground"), EditorSelectionHighlightBorder: color("editor.selectionHighlightBorder"),
+		EditorWordHighlightTextBackground: color("editor.wordHighlightTextBackground"), EditorWordHighlightTextBorder: color("editor.wordHighlightTextBorder"),
 		EditorOverviewRulerFindMatch: color("editorOverviewRuler.findMatchForeground"), EditorOverviewRulerRangeHighlight: color("editorOverviewRuler.rangeHighlightForeground"),
 		EditorWidgetBackground: color("editorWidget.background"), EditorWidgetForeground: color("editorWidget.foreground"), WidgetBorder: color("widget.border"),
 		IconForeground: color("icon.foreground"), ToolbarHoverBackground: color("toolbar.hoverBackground"),

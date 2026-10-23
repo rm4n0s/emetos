@@ -1,11 +1,15 @@
 package editor
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/rm4n0s/glutter/ui"
+
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/theme"
 )
 
 // OptionsFromSettings reads the options of an editor from the settings for a language.
@@ -79,6 +83,14 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		WrappingIndent:                   settings.Get[string](store, "editor.wrappingIndent", languageID),
 		WrappingStrategy:                 settings.Get[string](store, "editor.wrappingStrategy", languageID),
 		StopRenderingLineAfter:           int(settings.Get[float64](store, "editor.stopRenderingLineAfter", languageID)),
+		RenderWhitespace:                 settings.Get[string](store, "editor.renderWhitespace", languageID),
+		RenderControlCharacters:          settings.Get[bool](store, "editor.renderControlCharacters", languageID),
+		Rulers:                           rulers(settings.Get[[]any](store, "editor.rulers", languageID)),
+		OccurrencesHighlight:             settings.Get[string](store, "editor.occurrencesHighlight", languageID),
+		OccurrencesHighlightDelay:        int(settings.Get[float64](store, "editor.occurrencesHighlightDelay", languageID)),
+		SelectionHighlight:               settings.Get[bool](store, "editor.selectionHighlight", languageID),
+		SelectionHighlightMaxLength:      int(settings.Get[float64](store, "editor.selectionHighlightMaxLength", languageID)),
+		SelectionHighlightMultiline:      settings.Get[bool](store, "editor.selectionHighlightMultiline", languageID),
 
 		FindSeedSearchStringFromSelection: settings.Get[string](store, "editor.find.seedSearchStringFromSelection", languageID),
 		FindAutoInSelection:               settings.Get[string](store, "editor.find.autoFindInSelection", languageID),
@@ -214,3 +226,33 @@ func guideOptions(store *settings.Store, languageID string) indent.GuideOptions 
 	}
 	return opts
 }
+
+// rulers reads editor.rulers: each element is a column, or an object with a column and a color.
+// An element that is neither is skipped, a column is a whole number from 0 to 10,000, and the
+// rulers are sorted by column.
+//
+// Ported from VS Code: src/vs/editor/common/config/editorOptions.ts (EditorRulers.validate)
+func rulers(raw []any) []ColumnRuler {
+	var out []ColumnRuler
+	for _, v := range raw {
+		switch e := v.(type) {
+		case float64:
+			out = append(out, ColumnRuler{Column: clampColumn(e)})
+		case map[string]any:
+			r := ColumnRuler{}
+			if col, ok := e["column"].(float64); ok {
+				r.Column = clampColumn(col)
+			}
+			if text, ok := e["color"].(string); ok {
+				if c, ok := theme.ParseColor(text); ok {
+					r.Color = ui.NewColor(c.ARGB())
+				}
+			}
+			out = append(out, r)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b ColumnRuler) int { return a.Column - b.Column })
+	return out
+}
+
+func clampColumn(f float64) int { return min(max(int(f), 0), 10000) }

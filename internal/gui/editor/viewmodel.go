@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
@@ -140,6 +141,30 @@ type Options struct {
 	WordWrapColumn                   int
 	WrappingIndent, WrappingStrategy string
 	StopRenderingLineAfter           int
+	// RenderWhitespace is editor.renderWhitespace ("none", "boundary", "selection", "trailing" or
+	// "all"; empty is "none"), RenderControlCharacters editor.renderControlCharacters and Rulers
+	// editor.rulers, sorted by column.
+	RenderWhitespace        string
+	RenderControlCharacters bool
+	Rulers                  []ColumnRuler
+	// OccurrencesHighlight is editor.occurrencesHighlight ("off", "singleFile" or "multiFile"),
+	// OccurrencesHighlightDelay editor.occurrencesHighlightDelay in milliseconds, SelectionHighlight
+	// editor.selectionHighlight, SelectionHighlightMaxLength editor.selectionHighlightMaxLength and
+	// SelectionHighlightMultiline editor.selectionHighlightMultiline.
+	OccurrencesHighlight        string
+	OccurrencesHighlightDelay   int
+	SelectionHighlight          bool
+	SelectionHighlightMaxLength int
+	SelectionHighlightMultiline bool
+}
+
+// ColumnRuler is a vertical line drawn after a number of characters (editor.rulers).
+type ColumnRuler struct {
+	// Column is the number of characters from the left edge of the text.
+	Column int
+	// Color is the color of the line, or the transparent color when the theme's
+	// editorRuler.foreground is used.
+	Color ui.Color
 }
 
 // FontFeature is an OpenType feature of a font: a tag and its value (0 is off).
@@ -256,6 +281,8 @@ type ViewModel struct {
 	findw findLink
 	// wrap is the word wrap of the editor (wordwrap.go).
 	wrap wrapLink
+	// hl holds the highlights of the occurrences of the word at the cursor and of the selection.
+	hl highlightLink
 	// afterTimer is the source of timers the editor widget gave.
 	afterTimer TimerFunc
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
@@ -291,6 +318,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.autoClosed = edit.NewAutoClosedTracker(doc, autoClosedOwner)
 	vm.cursors.SetOnChange(vm.cursorsChanged)
+	vm.hl.seenVersion = doc.Version()
 	vm.Sync()
 	vm.restartBlink()
 	return vm
@@ -324,6 +352,7 @@ func (vm *ViewModel) applyOptions() {
 	vm.maxLineWidth = 0 // the font may have changed: the rows measure it again
 	vm.Sync()
 	vm.restartBlink()
+	vm.highlightsOptionsChanged()
 	vm.NotifyListeners()
 }
 

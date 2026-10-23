@@ -328,6 +328,7 @@ func (s *shellState) disposeEditor() {
 	}
 	s.view.DisposeFind()
 	s.view.DisposeWrap()
+	s.view.DisposeHighlights()
 	if s.stopFolding != nil {
 		s.stopFolding()
 		s.stopFolding = nil

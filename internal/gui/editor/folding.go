@@ -233,6 +233,7 @@ func (vm *ViewModel) revealCursors() {
 func (vm *ViewModel) cursorsChanged() {
 	vm.autoClosed.Validate(vm.cursors.Selections())
 	vm.revealCursors()
+	vm.highlightsCursorsChanged()
 }
 
 // ToggleFoldAt folds or unfolds the region that starts on a line, as a click on its control

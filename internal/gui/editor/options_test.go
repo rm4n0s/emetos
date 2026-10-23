@@ -2,6 +2,7 @@ package editor
 
 import (
 	"context"
+	"github.com/rm4n0s/glutter/ui"
 	"slices"
 	"testing"
 
@@ -77,6 +78,8 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		FindSeedSearchStringFromSelection: "always", FindAutoInSelection: "never",
 		FindCursorMoveOnType: true, FindLoop: true,
 		WordWrap: "off", WordWrapColumn: 80, WrappingIndent: "same", WrappingStrategy: "simple", StopRenderingLineAfter: 10000,
+		RenderWhitespace: "selection", RenderControlCharacters: true,
+		OccurrencesHighlight: "singleFile", OccurrencesHighlightDelay: 250, SelectionHighlight: true, SelectionHighlightMaxLength: 200,
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -141,6 +144,15 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.comments.ignoreEmptyLines":         false,
 		"editor.autoIndentOnPaste":                 true,
 		"editor.autoIndentOnPasteWithinString":     false,
+
+		"editor.renderWhitespace":            "boundary",
+		"editor.renderControlCharacters":     false,
+		"editor.rulers":                      []any{80.0},
+		"editor.occurrencesHighlight":        "off",
+		"editor.occurrencesHighlightDelay":   500.0,
+		"editor.selectionHighlight":          false,
+		"editor.selectionHighlightMaxLength": 20.0,
+		"editor.selectionHighlightMultiline": true,
 	})
 	got := OptionsFromSettings(store, "", "ignored", 2)
 	if !slices.Equal(got.FontFamilies, []string{testutil.MonoFamily, "monospace"}) {
@@ -183,6 +195,13 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	}
 	if got.FontWeight != 700 || got.LetterSpacing != 1.5 || got.CursorStyle != "block-outline" || !got.MouseWheelZoom {
 		t.Errorf("font and cursor options: %+v", got)
+	}
+	if got.RenderWhitespace != "boundary" || got.RenderControlCharacters || !slices.Equal(got.Rulers, []ColumnRuler{{Column: 80}}) {
+		t.Errorf("whitespace and rulers: %+v", got)
+	}
+	if got.OccurrencesHighlight != "off" || got.OccurrencesHighlightDelay != 500 || got.SelectionHighlight ||
+		got.SelectionHighlightMaxLength != 20 || !got.SelectionHighlightMultiline {
+		t.Errorf("highlight options: %+v", got)
 	}
 	if got.FontFeatures != nil {
 		t.Errorf("ligatures on leave the font's own features: %v", got.FontFeatures)
@@ -253,5 +272,31 @@ func TestParseFontWeight(t *testing.T) {
 		if got := ParseFontWeight(tc.in); got != tc.want {
 			t.Errorf("ParseFontWeight(%q) = %d, want %d", tc.in, got, tc.want)
 		}
+	}
+}
+
+func TestRulers(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  []any
+		want []ColumnRuler
+	}{
+		{"none", nil, nil},
+		{"numbers", []any{100.0, 80.0}, []ColumnRuler{{Column: 80}, {Column: 100}}},
+		{"objects with colors", []any{map[string]any{"column": 120.0, "color": "#ff0000"}, map[string]any{"column": 40.0}},
+			[]ColumnRuler{{Column: 40}, {Column: 120, Color: ui.NewColor(0xFFFF0000)}}},
+		{"a color that is not one", []any{map[string]any{"column": 10.0, "color": "red-ish"}}, []ColumnRuler{{Column: 10}}},
+		{"an object with no column is column 0", []any{map[string]any{"color": "#00ff00"}}, []ColumnRuler{{Column: 0, Color: ui.NewColor(0xFF00FF00)}}},
+		{"columns are clamped", []any{-5.0, 20000.0}, []ColumnRuler{{Column: 0}, {Column: 10000}}},
+		{"other elements are skipped", []any{"80", true, nil, 90.0}, []ColumnRuler{{Column: 90}}},
+		{"equal columns keep their order", []any{map[string]any{"column": 5.0, "color": "#111111"}, map[string]any{"column": 5.0, "color": "#222222"}},
+			[]ColumnRuler{{Column: 5, Color: ui.NewColor(0xFF111111)}, {Column: 5, Color: ui.NewColor(0xFF222222)}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rulers(tc.raw); !slices.Equal(got, tc.want) {
+				t.Errorf("rulers(%v) = %v, want %v", tc.raw, got, tc.want)
+			}
+		})
 	}
 }
