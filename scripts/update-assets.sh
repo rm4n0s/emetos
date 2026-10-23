@@ -179,4 +179,15 @@ for f in dark_modern dark_plus dark_vs light_modern light_plus light_vs hc_black
 done
 copy_license vscode-extensions vscode/LICENSE.txt vscode/ThirdPartyNotices.txt
 
+# Step 5.10: Emmet (MIT). The markup snippets (html.json, and the xsl and pug ones for those syntaxes), the
+# default variables and the Lorem ipsum vocabularies that internal/core/emmet embeds. The stylesheet
+# snippets (css.json) are added by step 5.11.
+for f in html variables xsl pug; do
+  copy_file "emmet/src/snippets/$f.json" "internal/core/emmet/assets/$f.json"
+done
+for f in latin russian spanish; do
+  copy_file "emmet/src/markup/lorem/$f.json" "internal/core/emmet/assets/lorem/$f.json"
+done
+copy_license emmet emmet/LICENSE
+
 echo "update-assets: done"

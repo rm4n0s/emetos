@@ -198,3 +198,30 @@ func TestBracketSettingsAreRegistered(t *testing.T) {
 		t.Errorf("editor.matchBrackets has the values always, near and never: %v", s.Enum)
 	}
 }
+
+func TestEmmetSettingsAreRegistered(t *testing.T) {
+	cases := []struct {
+		key  string
+		want string
+	}{
+		{"emmet.variables", "Variables to be used in Emmet snippets."},
+		{"emmet.syntaxProfiles", "Define profile for specified syntax or use your own profile with specific rules."},
+	}
+	r := DefaultRegistry()
+	for _, tc := range cases {
+		s, ok := r.Lookup(tc.key)
+		if !ok || s.Description != tc.want || len(s.Types) != 1 || s.Types[0] != Object || s.Category != categoryEmmet {
+			t.Errorf("%s: %+v, %v", tc.key, s, ok)
+			continue
+		}
+		if m, isMap := s.Default.(map[string]any); !isMap || len(m) != 0 {
+			t.Errorf("%s: default %#v, want an empty object", tc.key, s.Default)
+		}
+		if msg := r.Validate(tc.key, map[string]any{"html": map[string]any{"tagCase": "upper"}}); msg != "" {
+			t.Errorf("%s: an object is refused: %s", tc.key, msg)
+		}
+		if msg := r.Validate(tc.key, "no"); msg == "" {
+			t.Errorf("%s: a string is accepted", tc.key)
+		}
+	}
+}

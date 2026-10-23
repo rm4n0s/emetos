@@ -16,6 +16,8 @@ const (
 	categoryWindow    = "Window"
 	// categoryBreadcrumbs is the group of the breadcrumbs settings.
 	categoryBreadcrumbs = "Breadcrumbs"
+	// categoryEmmet is the group of the Emmet settings.
+	categoryEmmet = "Emmet"
 )
 
 // DefaultRegistry makes a registry with the settings Emetos has. Each step that reads a
@@ -25,6 +27,7 @@ func DefaultRegistry() *Registry {
 	registerEditor(r)
 	registerFiles(r)
 	registerWorkbench(r)
+	registerEmmet(r)
 	return r
 }
 
@@ -738,6 +741,25 @@ func registerWorkbench(r *Registry) {
 			Key: "window.autoDetectColorScheme", Types: []Type{Boolean}, Default: false,
 			Description: "If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, `workbench.preferredDarkColorTheme` is used, else `workbench.preferredLightColorTheme`.",
 			Scope:       ScopeWindow, Category: categoryWindow,
+		},
+	)
+}
+
+// registerEmmet registers the emmet.* settings that the abbreviation expansion of core/emmet reads
+// (SPEC section 9.10.1). Step 5.11 adds the rest (emmet.includeLanguages, emmet.triggerExpansionOnTab, ...).
+//
+// Ported from VS Code: extensions/emmet/package.json and extensions/emmet/package.nls.json
+func registerEmmet(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "emmet.variables", Types: []Type{Object}, Default: map[string]any{},
+			Description: "Variables to be used in Emmet snippets.",
+			Scope:       ScopeWindow, Category: categoryEmmet,
+		},
+		Setting{
+			Key: "emmet.syntaxProfiles", Types: []Type{Object}, Default: map[string]any{},
+			Description: "Define profile for specified syntax or use your own profile with specific rules.",
+			Scope:       ScopeWindow, Category: categoryEmmet,
 		},
 	)
 }

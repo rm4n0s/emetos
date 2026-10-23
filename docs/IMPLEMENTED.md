@@ -876,3 +876,18 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** the text a cursor typed over (for `TM_SELECTED_TEXT` with an empty selection) is not tracked (`Overtyped` is nil); the language of the document is used for the snippets at the cursor, also inside an embedded language; a snippet that needs `CLIPBOARD` waits for the clipboard and is dropped when the editor changed meanwhile; the snippet list is a `kit.ListOverlay` until the quick input (6.17); `Service.Reload` is called once at startup until the workspace watcher (6.13) calls it; `WORKSPACE_NAME` and `WORKSPACE_FOLDER` stay empty until 6.13 calls `SetSnippetWorkspace`; the Tab completion looks at the snippets at every cursor move, which is cheap only because it returns early without a word before the cursor and without the option.
+
+## 5.10 Emmet markup
+
+- **Date:** 2026-10-23
+- **Branch:** feat/step-5.10-emmet-markup
+- **Summary:** `core/emmet` ports Emmet's abbreviation parser and markup output (SPEC §9.10.1): the scanner, tokenizer, parser, conversion to a node tree (child, sibling, climb-up, multiplication, groups, ids, classes, attributes, text, numbering, implicit tags, fields), snippets resolution (`html.json`, `xsl.json`, `pug.json`, variables), attribute merging, implicit tag names, the BEM and label add-ons, `lorem`, and the writers for HTML/XML/XSL, HAML, Pug and Slim with the comment and template options, using the editor's indent and newline (`Config.SetOutput`) and `emmet.syntaxProfiles` / `emmet.variables` (`Config.ApplyProfiles`, `VariablesFromSettings`). The settings `emmet.variables` and `emmet.syntaxProfiles` are registered. `scripts/update-assets.sh` copies the snippets and the license (`third_party/emmet/LICENSE`, `NOTICE`).
+- **Main files:** `internal/core/emmet/*.go` and `assets/`, `internal/core/settings/builtin.go`, `scripts/update-assets.sh`, `third_party/emmet/`, `docs/SPEC.md` §9.10.1.
+- **Tests:** ported all the markup test files of Emmet (69 `it` blocks, 447 assertions: tokenizer 7, parser 99, convert 55, markup 35, expand 79, format 114, output 34, snippets 4 (and every snippet of the three json files parses), lorem 20) as table-driven tests, plus Emmet-independent ones (more tokenizer cases, limits, profile mapping, config, templates, BEM, implicit tags, non-ASCII input, HAML/Pug/Slim details) and route tests for all 15 error tags; `FuzzParse` (ran twice for 20-25 s under `-parallel=1` and `GOMEMLIMIT=2GiB`, no finding) and a seeded random test.
+- **Not ported:** `test/stylesheet.ts` and `test/extract-abbreviation.ts` (step 5.11), the snippet cache, `emmet.preferences`, `emmet.extensionsPath`, the completion settings.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · display tests none.
+- **Proof:** none
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** offsets are bytes; repeat limit 1000 by default (never above 10000), nesting limit 1000, `$` width 64, `lorem` words 10000; the profile mapping of `emmet.syntaxProfiles` is a reconstruction from Emmet's option names (VS Code's `@vscode/emmet-helper` is not in `reference/`), so compare it with the helper if exact parity matters; two Emmet bugs were fixed (a group `)` in an attribute name, a field without a placeholder in a name); `update-assets.sh` was run only as a copy with the new block, not as a whole.
+
