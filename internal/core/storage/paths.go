@@ -81,6 +81,12 @@ func (p Paths) ConfigDir(profile string) (string, error) {
 	return profileDir(p.ConfigHome, profile)
 }
 
+// ThemesDir is the folder of the user's color themes, $XDG_CONFIG_HOME/emetos/themes (SPEC §8.4).
+// The themes are shared by the profiles.
+func (p Paths) ThemesDir() string {
+	return filepath.Join(p.ConfigHome, appDir, "themes")
+}
+
 // StateDir is the folder of a profile's UI state: $XDG_STATE_HOME/emetos for the
 // default profile, else $XDG_STATE_HOME/emetos/profiles/<profile>.
 func (p Paths) StateDir(profile string) (string, error) {

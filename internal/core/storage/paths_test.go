@@ -89,6 +89,7 @@ func TestPathMethods(t *testing.T) {
 		{"state default profile", func() (string, error) { return p.StateDir("") }, "/s/emetos"},
 		{"state named profile", func() (string, error) { return p.StateDir("my work_1") }, "/s/emetos/profiles/my work_1"},
 		{"cache", func() (string, error) { return p.CacheDir(), nil }, "/k/emetos"},
+		{"themes", func() (string, error) { return p.ThemesDir(), nil }, "/c/emetos/themes"},
 		{"logs", func() (string, error) { return p.LogsDir(), nil }, "/s/emetos/logs"},
 		{"backups", func() (string, error) { return p.BackupsDir(), nil }, "/s/emetos/backups"},
 		{"trash", func() (string, error) { return p.TrashDir(), nil }, "/d/Trash"},

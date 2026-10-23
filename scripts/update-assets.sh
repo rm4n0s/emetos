@@ -107,4 +107,18 @@ for ext in python javascript typescript-basics; do
   copy_extension "$ext"
 done
 
+# Step 4.7: the bundled color themes (SPEC §8.4): the six that VS Code ships as its defaults, and
+# the Visual Studio Dark and Light themes that Dark+ and Light+ include. The manifest and its
+# translations give the names; the 2026 themes are not bundled.
+themes_dst="$root/internal/core/theme/assets"
+rm -rf "$themes_dst"
+mkdir -p "$themes_dst/themes"
+for f in package.json package.nls.json; do
+  copy_file "vscode/extensions/theme-defaults/$f" "internal/core/theme/assets/$f"
+done
+for f in dark_modern dark_plus dark_vs light_modern light_plus light_vs hc_black hc_light; do
+  copy_file "vscode/extensions/theme-defaults/themes/$f.json" "internal/core/theme/assets/themes/$f.json"
+done
+copy_license vscode-extensions vscode/LICENSE.txt vscode/ThirdPartyNotices.txt
+
 echo "update-assets: done"

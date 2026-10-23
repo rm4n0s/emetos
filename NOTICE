@@ -27,7 +27,10 @@ planned and has no files in the repository yet.
 2. Color themes
    Source:  Visual Studio Code, extensions/theme-defaults
    License: MIT (Microsoft Corporation)
-   Added by step 4.7 (not yet added).
+   Added by step 4.7 (internal/core/theme/assets/; the license is in
+   third_party/vscode-extensions/). The Dark Modern, Light Modern, Dark+,
+   Light+, Dark High Contrast and Light High Contrast themes, and the Visual
+   Studio Dark and Light themes that Dark+ and Light+ include.
 
 3. Ported code, default keybindings and setting defaults
    Source:  Visual Studio Code, src/vs (https://github.com/microsoft/vscode)
@@ -38,7 +41,7 @@ planned and has no files in the repository yet.
 4. TextMate tokenizer and theme algorithms
    Source:  vscode-textmate (https://github.com/microsoft/vscode-textmate)
    License: MIT (Microsoft Corporation)
-   Added by steps 4.3 and 4.7 (not yet added).
+   Added by steps 4.3 and 4.7 (the resolution of token styles).
 
 5. Go module grammar
    Source:  vscode-go (https://github.com/golang/vscode-go)
