@@ -334,3 +334,32 @@ func TestGoldenDropCaret(t *testing.T) {
 	r.ts.MatchesGolden("drop_caret")
 	g.Up()
 }
+
+func TestSecondaryClickMovesTheCursorUnlessASelectionHoldsThePlace(t *testing.T) {
+	right := gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.SecondaryButton)}
+	cases := []struct {
+		name  string
+		start []buffer.Selection
+		at    [2]int
+		want  buffer.Selection
+	}{
+		{"outside a selection the cursor goes there", []buffer.Selection{sel(0, 0, 0, 3)}, [2]int{1, 4}, sel(1, 4, 1, 4)},
+		{"inside a selection it stays", []buffer.Selection{sel(1, 2, 1, 8)}, [2]int{1, 4}, sel(1, 2, 1, 8)},
+		{"at the edge of a selection it stays", []buffer.Selection{sel(1, 2, 1, 8)}, [2]int{1, 8}, sel(1, 2, 1, 8)},
+		{"with no selection the cursor goes there", []buffer.Selection{sel(0, 0, 0, 0)}, [2]int{2, 2}, sel(2, 2, 2, 2)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newMouseRig(t, dropText, nil)
+			r.vm.Cursors().SetSelections(tc.start)
+			r.vm.SelectionsChanged()
+			r.ts.TapAt(r.at(tc.at[0], tc.at[1]), right)
+			r.ts.Pump(time.Second)
+			r.want(tc.want)
+			if r.text() != dropText {
+				t.Errorf("the text changed: %q", r.text())
+			}
+			noErrors(t, r.ts)
+		})
+	}
+}

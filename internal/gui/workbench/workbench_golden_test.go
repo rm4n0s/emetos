@@ -3,8 +3,10 @@ package workbench
 import (
 	"testing"
 
+	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 
+	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -40,6 +42,64 @@ func TestGoldenWorkbench(t *testing.T) {
 				st := DefaultLayoutState()
 				tc.state(&st)
 				h := newHarness(t, ui.Size{Width: 960, Height: 600}, th.colors(), st, tc.extra, demo)
+				h.ts.MatchesGolden("workbench_" + tc.name + "_" + th.name)
+				noErrors(t, h)
+			})
+		}
+	}
+}
+
+// viewsDemo fills the activity bar, the side bar and the menus from the registries, the way the window
+// does.
+func viewsDemo(m *menuServices, views **Views, ctl *kit.MenuBarController) func(*Options) {
+	return func(o *Options) {
+		m.commands = o.Commands
+		m.menus = command.DefaultMenus(o.Commands)
+		m.keys = o.Keys
+		m.source = m.newSource(nil)
+		*views = NewViews(testViewRegistry(), o.Layout)
+		o.Views, o.ViewContext, o.MenuBar = *views, o.Keys, ctl
+		o.Menus = m.source.BarMenus()
+		o.OnRunMenu = m.source.Run
+		o.ManageItems = func() []kit.MenuItem {
+			return []kit.MenuItem{
+				{ID: "palette", Label: "Command &Palette...", Keybinding: "Ctrl+Shift+P"}, kit.SeparatorItem(),
+				{ID: "profiles", Label: "&Profiles"}, {ID: "settings", Label: "&Settings", Keybinding: "Ctrl+,"},
+				{ID: "keys", Label: "&Keyboard Shortcuts", Keybinding: "Ctrl+K Ctrl+S"}, {ID: "themes", Label: "&Themes", Submenu: true,
+					Items: []kit.MenuItem{{ID: "color", Label: "Color Theme"}}},
+			}
+		}
+		o.PanelTabs = []PanelTab{{"problems", "Problems"}, {"output", "Output"}}
+		o.ActivePanel = "problems"
+		o.StatusLeft = []Widget{statusText("main")}
+		o.StatusRight = []Widget{statusText("Ln 3, Col 14"), statusText("Go")}
+	}
+}
+
+func TestGoldenViewsAndMenus(t *testing.T) {
+	size := ui.Size{Width: 760, Height: 480}
+	cases := []struct {
+		name string
+		do   func(h *harness, v *Views)
+	}{
+		{"views", func(h *harness, v *Views) { v.SetCollapsed("outline", false) }},
+		{"views_collapsed", func(h *harness, v *Views) { v.SetCollapsed("folders", true) }},
+		{"edit_menu", func(h *harness, v *Views) { h.openMenu(0) }},
+		{"view_menu", func(h *harness, v *Views) { h.keys.Set("sideBarVisible", true); h.openMenu(2) }},
+		{"manage_menu", func(h *harness, v *Views) { h.ts.Tap(gluttertest.ByKey(ManageKey)); h.settle() }},
+	}
+	for _, th := range goldenThemes {
+		for _, tc := range cases {
+			t.Run(th.name+" "+tc.name, func(t *testing.T) {
+				var views *Views
+				m := &menuServices{}
+				ctl := kit.NewMenuBarController()
+				st := DefaultLayoutState()
+				st.PanelVisible = true
+				h := newHarness(t, size, th.colors(), st, nil, viewsDemo(m, &views, ctl))
+				h.menuBar = ctl
+				tc.do(h, views)
+				h.settle()
 				h.ts.MatchesGolden("workbench_" + tc.name + "_" + th.name)
 				noErrors(t, h)
 			})

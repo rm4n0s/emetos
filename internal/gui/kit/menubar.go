@@ -274,8 +274,15 @@ func (m *menuBarModel) altLetter(key string) bool {
 // MenuBarMenu is a menu of the menu bar: its label (with the mnemonic marked by an ampersand,
 // "&File") and its items.
 type MenuBarMenu struct {
+	// ID identifies the menu to the caller (the id of the menu in the registry of menus); the bar
+	// does not use it.
+	ID    string
 	Label string
 	Items []MenuItem
+	// Source, when set, gives the items of the menu at the moment it opens, in place of Items: a menu
+	// whose entries (checks, dimmed items, keys) depend on the state of the program is built when the
+	// user opens it, and stays as built while it is open.
+	Source func() []MenuItem
 }
 
 // MenuBarController moves the focus of a MenuBar from outside (the command that focuses the
@@ -295,6 +302,19 @@ func (c *MenuBarController) ToggleFocus() {
 		c.state.m.toggleFocus()
 		c.state.sync()
 	}
+}
+
+// Open opens the menu at an index as a click on its title does (no item is selected). It does
+// nothing for an index that is not a menu, and while the bar is hidden by its visibility.
+func (c *MenuBarController) Open(index int) {
+	if c.state == nil || index < 0 || index >= len(c.state.Widget().menus) || c.state.m.visibility == MenuBarHidden {
+		return
+	}
+	if m := c.state.m; m.isOpen() && m.focused == index {
+		return
+	}
+	c.state.m.trigger(index, true)
+	c.state.sync()
 }
 
 // Blur gives the focus up and closes the menu that is open.
@@ -433,6 +453,8 @@ type menuBarState struct {
 	wasVisible, wasFocused bool
 	// returnFocus is the node that had the focus when the bar took it.
 	returnFocus *widgets.FocusNode
+	// opened are the items of the menu that is open, as they were when it opened.
+	opened []MenuItem
 }
 
 // InitState starts watching the keyboard and the pointer.
@@ -526,6 +548,10 @@ func (s *menuBarState) sync() {
 			s.ctrls[old].Close()
 		}
 		if want >= 0 && want < len(s.ctrls) {
+			s.opened = s.Widget().menus[want].Items
+			if src := s.Widget().menus[want].Source; src != nil {
+				s.opened = src()
+			}
 			s.ctrls[want].Open()
 		}
 	}
@@ -793,7 +819,11 @@ func (s *menuBarState) button(bc widgets.BuildContext, colors Colors, i int, hei
 func (s *menuBarState) overlay(i int, info widgets.RawMenuOverlayInfo) widgets.Widget {
 	m := s.m
 	anchor := info.AnchorRect
-	menu := NewMenu(s.Widget().menus[i].Items, MenuOpts{
+	items := s.Widget().menus[i].Items
+	if s.shown == i && s.opened != nil {
+		items = s.opened
+	}
+	menu := NewMenu(items, MenuOpts{
 		EnableMnemonics: m.alwaysOnMnemonics || (m.mnemonicsInUse && m.enableMnemonics),
 		Autofocus:       true,
 		SelectFirst:     m.openedViaKeyboard,

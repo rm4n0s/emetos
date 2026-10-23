@@ -433,9 +433,11 @@ func TestChordsAndModifierKeys(t *testing.T) {
 	if !a.win.Dispatcher.InChordMode() || len(*ran) != 0 {
 		t.Fatalf("pending: %v, ran %v", a.win.Dispatcher.InChordMode(), *ran)
 	}
-	// A modifier alone does not cancel the chord: press and release Shift, then Alt.
+	// A modifier alone does not cancel the chord: press and release Shift, then Meta. (Alt is not
+	// used: a tap of Alt on its own gives the focus to the menu bar, as it does in VS Code, and the
+	// editor does not have its commands then.)
 	a.ts.SendKeyEvent(services.LogicalKeyboardKeyShift)
-	a.ts.SendKeyEvent(services.LogicalKeyboardKeyAlt)
+	a.ts.SendKeyEvent(services.LogicalKeyboardKeyMeta)
 	if !a.win.Dispatcher.InChordMode() {
 		t.Fatal("a modifier key alone cancelled the chord")
 	}

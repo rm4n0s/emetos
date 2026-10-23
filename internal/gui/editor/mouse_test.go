@@ -433,15 +433,17 @@ func TestClickInTheGutterGoesToTheStartOfTheLine(t *testing.T) {
 	r.want(sel(2, 0, 2, 0))
 }
 
-func TestOnlyThePrimaryAndMiddleButtonsPlaceTheCursor(t *testing.T) {
+// The secondary button puts the cursor under the pointer too, for the context menu (VS Code's
+// contextmenu.ts); the tests of secondaryDown are in drop_test.go.
+func TestThePrimarySecondaryAndMiddleButtonsPlaceTheCursor(t *testing.T) {
 	r := newMouseRig(t, mouseText, nil)
 	r.click(r.at(0, 3))
 	r.ts.TapAt(r.at(2, 2), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.SecondaryButton)})
 	r.ts.Pump(time.Second)
-	r.want(sel(0, 3, 0, 3))
-	r.ts.TapAt(r.at(2, 2), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.TertiaryButton)})
-	r.ts.Pump(time.Second)
 	r.want(sel(2, 2, 2, 2))
+	r.ts.TapAt(r.at(1, 1), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.TertiaryButton)})
+	r.ts.Pump(time.Second)
+	r.want(sel(1, 1, 1, 1))
 }
 
 func TestTouchTapPlacesTheCursorButDoesNotSelect(t *testing.T) {

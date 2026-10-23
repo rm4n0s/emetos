@@ -2,6 +2,7 @@ package kit
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -676,4 +677,92 @@ func TestMenuBarUnderlinesMnemonics(t *testing.T) {
 			t.Error("underlined")
 		}
 	})
+}
+
+func TestMenuBarControllerOpensAMenuFromOutside(t *testing.T) {
+	r := newMenuBarRig(t, MenuBarOpts{})
+	steps := []struct {
+		name string
+		do   func()
+		want int
+	}{
+		{"nothing is open", func() {}, -1},
+		{"Edit", func() { r.ctrl.Open(1); r.pump() }, 1},
+		{"the open one stays open", func() { r.ctrl.Open(1); r.pump() }, 1},
+		{"another menu replaces it", func() { r.ctrl.Open(3); r.pump() }, 3},
+		{"an index that is no menu does nothing", func() { r.ctrl.Open(9); r.ctrl.Open(-1); r.pump() }, 3},
+	}
+	for _, s := range steps {
+		s.do()
+		if got := r.openMenu(); got != s.want {
+			t.Errorf("%s: the open menu is %d, want %d (%s)", s.name, got, s.want, r.state())
+		}
+	}
+	// opened like a click: no item is selected
+	if got := r.ctrl.FocusedMenu(); got != 3 {
+		t.Errorf("focused menu %d", got)
+	}
+	r.ctrl.Blur()
+	r.pump()
+	if r.openMenu() != -1 {
+		t.Error("Blur did not close the menu")
+	}
+}
+
+func TestMenuBarControllerDoesNotOpenAMenuOfAHiddenBar(t *testing.T) {
+	r := newMenuBarRig(t, MenuBarOpts{Visibility: MenuBarHidden})
+	r.ctrl.Open(1)
+	r.pump()
+	if r.openMenu() != -1 {
+		t.Error("a menu opened in a bar that is hidden")
+	}
+}
+
+func TestMenuBarMenuSourceIsAskedWhenTheMenuOpens(t *testing.T) {
+	asked := 0
+	var ran []any
+	menus := []MenuBarMenu{
+		{ID: "static", Label: "&Static", Items: []MenuItem{{ID: "a", Label: "Static Item"}}},
+		{ID: "dynamic", Label: "&Dynamic", Items: []MenuItem{{ID: "old", Label: "Old Item"}}, Source: func() []MenuItem {
+			asked++
+			return []MenuItem{{ID: "fresh", Label: "Fresh Item", Data: "argument"}, {ID: "other", Label: "Other Item", Checked: true}}
+		}},
+	}
+	ctl := NewMenuBarController()
+	page := widgets.NewColumn([]widgets.Widget{
+		NewMenuBar(menus, MenuBarOpts{Controller: ctl, OnRun: func(it MenuItem) { ran = append(ran, it.ID, it.Data) }}),
+		widgets.NewExpanded(widgets.NewSizedBox(nil)),
+	}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart})
+	ts := pumpSized(t, ui.Size{Width: 400, Height: 300}, widgets.NewSizedBox(page, widgets.SizedBoxOpts{Width: foundation.Some(400.0), Height: foundation.Some(300.0)}))
+	ts.Pump(time.Millisecond)
+	if asked != 0 {
+		t.Fatalf("the source was asked %d times before a menu opened", asked)
+	}
+	ctl.Open(0)
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if asked != 0 || !ts.Exists(gluttertest.ByText("Static Item")) {
+		t.Fatalf("asked %d times, Static Item shown %v", asked, ts.Exists(gluttertest.ByText("Static Item")))
+	}
+	ctl.Open(1)
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if asked != 1 {
+		t.Errorf("the source was asked %d times, want once when the menu opened", asked)
+	}
+	if !ts.Exists(gluttertest.ByText("Fresh Item")) || ts.Exists(gluttertest.ByText("Old Item")) {
+		t.Error("the menu does not show what the source gave")
+	}
+	// the menu stays as it was built while it is open, however often it is built again
+	ts.Hover(ts.Center(gluttertest.ByText("Other Item")))
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if asked != 1 {
+		t.Errorf("the source was asked %d times while the menu stayed open", asked)
+	}
+	ts.Tap(gluttertest.ByText("Fresh Item"))
+	ts.Pump(time.Millisecond)
+	if !reflect.DeepEqual(ran, []any{"fresh", "argument"}) {
+		t.Errorf("ran %v: the data of the item comes back with it", ran)
+	}
 }

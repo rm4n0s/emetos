@@ -57,6 +57,9 @@ type Window struct {
 	// Layout is the layout of the workbench of the window: which parts are shown, their sizes and
 	// where they are (SPEC §10.1). It follows the settings of the layout.
 	Layout *workbench.Layout
+	// Views is which view container the side bar of the window shows and which views are collapsed
+	// (SPEC §10.4).
+	Views *workbench.Views
 	// Dialogs queues the dialogs of the window. The workbench shows them over everything, and the key
 	// dispatcher runs no command while one is showing.
 	Dialogs *kit.DialogController
@@ -99,6 +102,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		p.Logger.Warn("settings problem", "target", problem.Target, "key", problem.Key, "message", problem.Message)
 	}
 	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
+	layout := workbench.NewLayout(workbench.LayoutStateFromSettings(store))
 	w := &Window{
 		Process:     p,
 		Folder:      folder,
@@ -111,7 +115,8 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Clipboard:   editor.NewClipboardMemory(),
 		Find:        &editor.FindMemory{},
 		Zoom:        editor.NewZoom(),
-		Layout:      workbench.NewLayout(workbench.LayoutStateFromSettings(store)),
+		Layout:      layout,
+		Views:       workbench.NewViews(p.Views, layout),
 		Dialogs:     kit.NewDialogController(),
 		ctx:         ctx,
 	}

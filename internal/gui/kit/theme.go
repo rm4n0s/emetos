@@ -175,11 +175,18 @@ type Colors struct {
 	StatusBarForeground, StatusBarBackground, StatusBarBorder                         ui.Color
 	StatusBarNoFolderForeground, StatusBarNoFolderBackground, StatusBarNoFolderBorder ui.Color
 	ActivityBarBackground, ActivityBarBorder                                          ui.Color
-	SideBarBackground, SideBarForeground, SideBarBorder                               ui.Color
-	SideBarTitleBackground, SideBarTitleForeground, SideBarTitleBorder                ui.Color
-	PanelBackground, PanelBorder, PanelTitleBorder                                    ui.Color
-	PanelTitleActiveForeground, PanelTitleInactiveForeground, PanelTitleActiveBorder  ui.Color
-	TitleBarActiveBackground, TitleBarBorder                                          ui.Color
+	// The icons of the activity bar: the active one, the others, the line beside the active one (and
+	// its focus outline), and the background of the active one. The header of a view in the side
+	// bar: background, text and the line above it.
+	ActivityBarForeground, ActivityBarInactiveForeground, ActivityBarActiveBorder    ui.Color
+	ActivityBarActiveFocusBorder, ActivityBarActiveBackground                        ui.Color
+	SideBarSectionHeaderBackground, SideBarSectionHeaderForeground                   ui.Color
+	SideBarSectionHeaderBorder                                                       ui.Color
+	SideBarBackground, SideBarForeground, SideBarBorder                              ui.Color
+	SideBarTitleBackground, SideBarTitleForeground, SideBarTitleBorder               ui.Color
+	PanelBackground, PanelBorder, PanelTitleBorder                                   ui.Color
+	PanelTitleActiveForeground, PanelTitleInactiveForeground, PanelTitleActiveBorder ui.Color
+	TitleBarActiveBackground, TitleBarBorder                                         ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -308,7 +315,12 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		StatusBarNoFolderForeground: color("statusBar.noFolderForeground"), StatusBarNoFolderBackground: color("statusBar.noFolderBackground"),
 		StatusBarNoFolderBorder: color("statusBar.noFolderBorder"),
 		ActivityBarBackground:   color("activityBar.background"), ActivityBarBorder: color("activityBar.border"),
-		SideBarBackground: color("sideBar.background"), SideBarForeground: color("sideBar.foreground"), SideBarBorder: color("sideBar.border"),
+		ActivityBarForeground: color("activityBar.foreground"), ActivityBarInactiveForeground: color("activityBar.inactiveForeground"),
+		ActivityBarActiveBorder: color("activityBar.activeBorder"), ActivityBarActiveFocusBorder: color("activityBar.activeFocusBorder"),
+		ActivityBarActiveBackground:    color("activityBar.activeBackground"),
+		SideBarSectionHeaderBackground: color("sideBarSectionHeader.background"), SideBarSectionHeaderForeground: color("sideBarSectionHeader.foreground"),
+		SideBarSectionHeaderBorder: color("sideBarSectionHeader.border"),
+		SideBarBackground:          color("sideBar.background"), SideBarForeground: color("sideBar.foreground"), SideBarBorder: color("sideBar.border"),
 		SideBarTitleBackground: color("sideBarTitle.background"), SideBarTitleForeground: color("sideBarTitle.foreground"),
 		SideBarTitleBorder: color("sideBarTitle.border"),
 		PanelBackground:    color("panel.background"), PanelBorder: color("panel.border"), PanelTitleBorder: color("panelTitle.border"),

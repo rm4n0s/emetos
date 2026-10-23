@@ -39,6 +39,11 @@ type Process struct {
 	Settings *settings.Registry
 	// Commands is the registry of commands.
 	Commands *command.Registry
+	// Menus holds the items of the menus: the menu bar, the context menus and the Manage menu
+	// (SPEC §10.1, §11.2).
+	Menus *command.MenuRegistry
+	// Views holds the view containers of the activity bar and the views in them (SPEC §10.4).
+	Views *command.ViewRegistry
 	// Keymap is the default keymap.
 	Keymap *keybinding.Registry
 	// Notify is the model of notifications.
@@ -132,6 +137,8 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
 	p.closing = autoclose.NewRegistryLanguages(languages)
 	p.comments = comment.NewRegistryLanguages(languages)
+	p.Menus = command.DefaultMenus(p.Commands)
+	p.Views = command.DefaultViews()
 	registerDevCommands(p.Commands)
 	p.loadUserThemes()
 	p.loadSnippets()

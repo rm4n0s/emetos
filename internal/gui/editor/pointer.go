@@ -104,11 +104,35 @@ func (s *editorState) eventAt(local ui.Offset, gutterWidth float64) MouseEvent {
 	return MouseEvent{Position: s.textRO.PositionAt(in), VisualColumn: s.textRO.VisualColumnAt(in)}
 }
 
+// secondaryDown is a press of the secondary button, which opens the context menu (the window's): it takes
+// the focus, so that the menu's commands find the editor, and puts the cursor under the pointer unless
+// a selection holds that place, so that Cut and Copy act on what the user pointed at.
+//
+// Ported from VS Code: src/vs/editor/contrib/contextmenu/browser/contextmenu.ts (_onContextMenu)
+func (s *editorState) secondaryDown(e *gestures.PointerDownEvent, gutterWidth float64) {
+	s.node.RequestFocus()
+	ev := s.eventAt(e.LocalPosition(), gutterWidth)
+	if ev.OnLineNumbers {
+		return
+	}
+	vm := s.Widget().vm
+	for _, sel := range vm.Cursors().Selections() {
+		if sel.Range().ContainsPosition(ev.Position) {
+			return
+		}
+	}
+	s.reportInputError(vm.DispatchMouse(MouseEvent{Position: ev.Position, VisualColumn: ev.VisualColumn, Clicks: 1}))
+}
+
 // pointerDown starts a selection with the primary button, or pastes with the middle one: it
 // takes the focus and does what the click, the double click or the triple click, with the
 // modifiers held, asks for. A press inside the selection can start dragging its text instead.
 func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth float64) {
 	buttons := e.Buttons()
+	if buttons&gestures.SecondaryButton != 0 && buttons&gestures.PrimaryButton == 0 {
+		s.secondaryDown(e, gutterWidth)
+		return
+	}
 	middle := buttons&gestures.TertiaryButton != 0 && buttons&gestures.PrimaryButton == 0
 	if buttons&gestures.PrimaryButton == 0 && !middle {
 		return

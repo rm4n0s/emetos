@@ -29,6 +29,8 @@ type harness struct {
 	store    *settings.Store
 	dialogs  *kit.DialogController
 	editor   *widgets.FocusNode
+	// menuBar is the controller of the menu bar, when the test gave the workbench one.
+	menuBar *kit.MenuBarController
 }
 
 // editorStandIn is a focusable box with a text, standing for the editor.

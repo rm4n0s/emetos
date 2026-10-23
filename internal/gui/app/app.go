@@ -221,8 +221,15 @@ type shellState struct {
 	// blocked is the path of the file that looks binary and that a notice offers to open anyway,
 	// while there is no editor.
 	blocked string
-	// removeOpenFile takes the handler of dev.openFile off the registry.
-	removeOpenFile func()
+	// removeOpenFile and removeOpenMenu take the handlers of dev.openFile and dev.openMenu off the
+	// registry.
+	removeOpenFile, removeOpenMenu func()
+	// menus turns the menu registry into the menus of the window; menuBar, manage and editorMenu open
+	// the menu bar, the Manage menu and the context menu of the editor from outside.
+	menus      *workbench.MenuSource
+	menuBar    *kit.MenuBarController
+	manage     *workbench.ManageController
+	editorMenu *kit.ContextMenuController
 	// unsubscribeDoc stops following the changes of the document (its dirty mark is in the title),
 	// and unsubscribeTitle those of the settings of the title.
 	unsubscribeDoc, unsubscribeTitle func()
@@ -240,7 +247,9 @@ func (s *shellState) InitState() {
 	if doc := s.Widget().doc; doc != nil {
 		s.initEditor(binding, doc)
 	}
+	s.initMenus(binding)
 	s.bindDevOpenFile(binding)
+	s.bindDevOpenMenu()
 	// the title of the window follows its template
 	s.unsubscribeTitle = PeekWindow(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("window.title", "") || e.Affects("window.titleSeparator", "") {
@@ -440,6 +449,9 @@ func (s *shellState) Dispose() {
 	if s.removeOpenFile != nil {
 		s.removeOpenFile()
 	}
+	if s.removeOpenMenu != nil {
+		s.removeOpenMenu()
+	}
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
@@ -456,6 +468,8 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		Settings: win.Settings, Dialogs: win.Dialogs, Context: win.ctx,
 		Editor:   s.editorArea(bc),
 		NoFolder: win.Folder == "",
+		Menus:    s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
+		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 	})
 }
 
@@ -509,15 +523,17 @@ func (s *shellState) editorArea(bc widgets.BuildContext) widgets.Widget {
 		text := editor.NewEditor(s.view, editor.EditorOpts{
 			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: true, Context: win.ctx, ClipboardMemory: win.Clipboard, FindMemory: win.Find, Zoom: win.Zoom,
 		})
+		// a right click opens the context menu of the editor
+		var area widgets.Widget = kit.NewContextMenuRegion(text, s.editorMenuItems, kit.ContextMenuOpts{Controller: s.editorMenu, OnRun: s.menus.Run})
 		uri := s.doc.URI()
 		if uri.Scheme != document.SchemeFile {
-			return text
+			return area
 		}
 		// the path of the file above the text
 		bar := editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
 			OnOpen: func(path string) { s.openPath(binding, path) },
 		})
-		return widgets.NewColumn([]widgets.Widget{bar, widgets.NewExpanded(text)},
+		return widgets.NewColumn([]widgets.Widget{bar, widgets.NewExpanded(area)},
 			widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 	}
 	if s.blocked != "" {

@@ -34,6 +34,9 @@ type MenuItem struct {
 	Items []MenuItem
 	// OnRun is called when the item runs, before the OnRun of the menu.
 	OnRun func()
+	// Data is the caller's value for the item (the arguments of the command it runs), which comes
+	// back with the item to the OnRun of the menu.
+	Data any
 }
 
 // SeparatorItem is the separator for a list of menu items.

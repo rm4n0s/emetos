@@ -131,7 +131,7 @@ func (r *DevRunner) Run(ctx context.Context) {
 
 // registerDevCommands registers the dev commands that belong to the editor: dev.type and
 // dev.scroll, which the editor in front of the user implements while it has the focus, and
-// dev.openFile, which the window implements (they exist in debug and emetos_dev builds only;
+// dev.openFile and dev.openMenu, which the window implements (they exist in debug and emetos_dev builds only;
 // SPEC D15, §15.2).
 func registerDevCommands(r *command.Registry) {
 	noEditor := func(command.Context, any) error {
@@ -141,6 +141,7 @@ func registerDevCommands(r *command.Registry) {
 		{ID: "dev.type", Description: "Type a text into the focused editor, a character in every frame."},
 		{ID: "dev.scroll", Description: "Scroll the focused editor by rows in every frame."},
 		{ID: "dev.openFile", Description: "Open a file in the window, with the cursor at a line and a column."},
+		{ID: "dev.openMenu", Description: "Open a menu of the window: one of the menu bar, the Manage menu or the context menu of the editor."},
 	} {
 		// The ids are fixed, new and start with dev., so a failure is a mistake in this list.
 		if err := RegisterDev(r, meta, noEditor); err != nil {

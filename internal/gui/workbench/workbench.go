@@ -53,10 +53,27 @@ type Options struct {
 	// Menus are the menus of the menu bar, and OnRunMenu is told which item the user ran.
 	Menus     []kit.MenuBarMenu
 	OnRunMenu func(item kit.MenuItem)
+	// MenuBar, when set, is the controller of the menu bar, with which the caller opens a menu or
+	// reads the state of the bar; the workbench makes its own without it.
+	MenuBar *kit.MenuBarController
+	// Views, when set, fills the activity bar with an icon for each view container of the side bar,
+	// titles the side bar with the container that is active and shows the views of that container
+	// in it (SPEC §10.4), unless the slots below say otherwise.
+	Views *Views
+	// ViewContext is the context the `when` of the views is evaluated in; every view shows when nil.
+	ViewContext contextkey.Context
+	// ViewBody builds the body of a view; a view it gives nothing for has an empty body.
+	ViewBody func(bc widgets.BuildContext, viewID string) widgets.Widget
+	// ManageItems gives the items of the Manage menu when the user opens it, from the gear at the
+	// bottom of the activity bar (it has none without this); OnRunMenu is told which one ran.
+	ManageItems func() []kit.MenuItem
+	// Manage, when set, opens the Manage menu from outside.
+	Manage *ManageController
 	// ActivityTop and ActivityBottom are the icons at the top of the activity bar (the view containers)
-	// and at the bottom (the Manage entry).
+	// and at the bottom (the Manage entry); they replace what Views and ManageItems make.
 	ActivityTop, ActivityBottom widgets.Widget
-	// SideBarTitle is the title of the active view container, and SideBar its body.
+	// SideBarTitle is the title of the active view container, and SideBar its body; they replace what
+	// Views makes.
 	SideBarTitle string
 	SideBar      widgets.Widget
 	// PanelTabs are the views of the panel and ActivePanel the id of the one that shows; Panel is the
@@ -127,6 +144,7 @@ type workbenchState struct {
 	removeLayout               func()
 	stopFollow                 func()
 	removeSettings             func()
+	removeViews                func()
 	removeCommands             []func()
 	unregister                 []func()
 }
@@ -150,7 +168,10 @@ func (s *workbenchState) InitState() {
 	s.scopes = map[Part]*contextkey.Scope{}
 	s.global = map[Part]*widgets.GlobalKey[widgets.State]{}
 	s.mainCtl, s.centerCtl = kit.NewSplitViewController(), kit.NewSplitViewController()
-	s.menuCtl = kit.NewMenuBarController()
+	s.menuCtl = o.MenuBar
+	if s.menuCtl == nil {
+		s.menuCtl = kit.NewMenuBarController()
+	}
 	for _, p := range partOrder {
 		node := widgets.NewFocusScopeNode(widgets.FocusScopeNodeOpts{FocusNodeOpts: widgets.FocusNodeOpts{DebugLabel: p.String()}})
 		s.nodes[p] = node
@@ -177,6 +198,13 @@ func (s *workbenchState) InitState() {
 			}
 		})
 	}
+	if o.Views != nil {
+		s.removeViews = o.Views.OnChange(func() {
+			if s.Mounted() {
+				s.SetState(func() {})
+			}
+		})
+	}
 	s.syncKeys()
 	s.bindCommands()
 }
@@ -197,6 +225,9 @@ func (s *workbenchState) Dispose() {
 	}
 	if s.removeSettings != nil {
 		s.removeSettings()
+	}
+	if s.removeViews != nil {
+		s.removeViews()
 	}
 	for _, n := range s.nodes {
 		n.Dispose()
@@ -475,6 +506,12 @@ func (s *workbenchState) activityBar(colors kit.Colors) widgets.Widget {
 		at = sideLeft
 	}
 	top, bottom := o.ActivityTop, o.ActivityBottom
+	if top == nil && o.Views != nil {
+		top = NewActivityIcons(o.Views, s.layout)
+	}
+	if bottom == nil && o.ManageItems != nil {
+		bottom = NewManageButton(o.ManageItems, o.OnRunMenu, o.Manage)
+	}
 	if top == nil {
 		top = widgets.NewSizedBox(nil)
 	}
@@ -507,14 +544,22 @@ func (s *workbenchState) sideBar(colors kit.Colors) widgets.Widget {
 		at = sideLeft
 	}
 	fg := opaqueOr(colors.SideBarTitleForeground, opaqueOr(colors.SideBarForeground, colors.Foreground))
-	body := o.SideBar
+	body, name := o.SideBar, o.SideBarTitle
+	if o.Views != nil {
+		if body == nil {
+			body = NewSideBarViews(o.Views, SideBarViewsOpts{Context: o.ViewContext, Body: o.ViewBody})
+		}
+		if c, ok := o.Views.ActiveContainer(); ok && name == "" {
+			name = c.Title
+		}
+	}
 	if body == nil {
 		body = widgets.NewSizedBox(nil)
 	}
 	title := widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget {
 		return bordered(colors.SideBarTitleBackground, colors.SideBarTitleBorder, sideBottom,
 			widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(20, 0, 8, 0),
-				widgets.NewAlign(widgets.NewText(strings.ToUpper(o.SideBarTitle), widgets.TextOpts{
+				widgets.NewAlign(widgets.NewText(strings.ToUpper(name), widgets.TextOpts{
 					Style: kit.TextStyleOf(bc, 11, fg), Overflow: painting.TextOverflowEllipsis, MaxLines: foundation.Some(1)}),
 					widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})))
 	})
