@@ -89,6 +89,7 @@ func TestDefaultRegistry(t *testing.T) {
 		{"editor.insertSpaces", []Type{Boolean}, true, ScopeLanguageOverridable, "Text Editor"},
 		{"editor.detectIndentation", []Type{Boolean}, true, ScopeLanguageOverridable, "Text Editor"},
 		{"editor.wordSeparators", []Type{String}, "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?", ScopeLanguageOverridable, "Text Editor"},
+		{"files.associations", []Type{Object}, map[string]any{}, ScopeWindow, "Files"},
 		{"files.encoding", []Type{String}, "utf8", ScopeLanguageOverridable, "Files"},
 		{"files.eol", []Type{String}, "auto", ScopeLanguageOverridable, "Files"},
 		{"files.autoGuessEncoding", []Type{Boolean}, false, ScopeLanguageOverridable, "Files"},

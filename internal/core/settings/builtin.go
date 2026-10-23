@@ -244,6 +244,11 @@ func registerFiles(r *Registry) {
 	}
 	r.MustRegister(
 		Setting{
+			Key: "files.associations", Types: []Type{Object}, Default: map[string]any{},
+			Description: "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) of file associations to languages (for example `\"*.extension\": \"html\"`). Patterns will match on the absolute path of a file if they contain a path separator and will match on the name of the file otherwise. These have precedence over the default associations of the languages installed.",
+			Scope:       ScopeWindow, Category: categoryFiles,
+		},
+		Setting{
 			Key: "files.encoding", Types: []Type{String}, Default: "utf8", Enum: ids, EnumDescriptions: labels,
 			Description: "The default character set encoding to use when reading and writing files. This setting can also be configured per language.",
 			Scope:       ScopeLanguageOverridable, Category: categoryFiles,

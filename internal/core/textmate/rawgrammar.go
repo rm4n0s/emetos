@@ -159,6 +159,11 @@ func parseRuleMap(key string, raw json.RawMessage) (map[string]*RawRule, error) 
 	}
 	rules := make(map[string]*RawRule, len(items))
 	for name, item := range items {
+		// Grammars keep notes among their rules ("comment": "..."); what is not a rule is left
+		// out, as vscode-textmate never looks at it.
+		if !bytes.HasPrefix(bytes.TrimSpace(item), []byte("{")) {
+			continue
+		}
 		r, err := parseRule(key+"."+name, item)
 		if err != nil {
 			return nil, err

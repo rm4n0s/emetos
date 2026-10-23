@@ -241,6 +241,19 @@ func TestCompileErrorsHaveATag(t *testing.T) {
 			}
 		})
 	}
+	t.Run("ECMAScript properties", func(t *testing.T) {
+		for pattern, tag := range map[string]string{
+			`\p{Nope}`:    "RegexUnknownProperty",
+			`\p{L`:        "RegexInvalidEscape",
+			`[\P{Alpha}]`: "RegexUnsupportedFeature",
+		} {
+			_, err := Compile(pattern, Options{Syntax: ECMAScript, Unicode: true})
+			appErr, ok := errors.FromError(err)
+			if !ok || !appErr.HasRoute("unicodeProperty."+tag) {
+				t.Errorf("%s: err = %v", pattern, err)
+			}
+		}
+	})
 	t.Run("ECMAScript", func(t *testing.T) {
 		_, err := Compile(`(?<a`, Options{Syntax: ECMAScript})
 		appErr, ok := errors.FromError(err)
@@ -317,6 +330,13 @@ func TestECMAScriptPatterns(t *testing.T) {
 		{name: "word characters are ASCII", pattern: `\w+`, text: "éab", want: []span{{1, 3}}},
 		{name: "class with a bracket", pattern: `[\]a]+`, text: "x]a", want: []span{{1, 3}}},
 		{name: "escaped group", pattern: `\(a\)`, text: "(a)", want: []span{{0, 3}}},
+		{name: "unicode properties", pattern: `\p{Alphabetic}+\p{Number}`, opts: Options{Unicode: true}, text: "-héllo5", want: []span{{1, 7}}},
+		{name: "unicode property by script", pattern: `\p{Script=Greek}+`, opts: Options{Unicode: true}, text: "abγδ", want: []span{{2, 4}}},
+		{name: "unicode property negated", pattern: `\P{L}+`, opts: Options{Unicode: true}, text: "ab12", want: []span{{2, 4}}},
+		{name: "unicode properties in a class", pattern: `[\p{L}\p{Nd}]+`, opts: Options{Unicode: true}, text: "-a1é-", want: []span{{1, 4}}},
+		{name: "a negated single category in a class", pattern: `[\P{Lu}]+`, opts: Options{Unicode: true}, text: "ABcdE", want: []span{{2, 4}}},
+		{name: "dot all", pattern: `a.b`, opts: Options{Syntax: ECMAScript, DotAll: true}, text: "a\nb", want: []span{{0, 3}}},
+		{name: "dot without dot all", pattern: `a.b`, text: "a\nb"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

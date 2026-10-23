@@ -22,7 +22,6 @@ func TestParseGrammarErrors(t *testing.T) {
 		{"patterns is not an array", `{"scopeName": "a", "patterns": 3}`},
 		{"a pattern is not an object", `{"scopeName": "a", "patterns": [3]}`},
 		{"repository is not an object", `{"scopeName": "a", "repository": []}`},
-		{"a rule of the repository is not an object", `{"scopeName": "a", "repository": {"x": 1}}`},
 		{"fileTypes is not strings", `{"scopeName": "a", "fileTypes": [1]}`},
 		{"captures is not an object", `{"scopeName": "a", "patterns": [{"captures": 1}]}`},
 		{"injections is not an object", `{"scopeName": "a", "injections": []}`},
