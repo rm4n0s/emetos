@@ -200,3 +200,48 @@ func BenchmarkOpen10MB(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkOpen200MB is opening a file of 200 MB in large file mode: reading it, making the
+// document and the view model, and the first frame with its text laid out (SPEC §14: under 3 s).
+// It needs about 1 GB of memory, so run it alone, once:
+//
+//	GOMEMLIMIT=3GiB go test -tags glutter_release ./internal/gui/editor -run xxx -bench Open200MB -benchtime 1x -benchmem
+func BenchmarkOpen200MB(b *testing.B) {
+	chunk := goLines(100_000)
+	path := filepath.Join(b.TempDir(), "huge.go")
+	f, err := os.Create(path)
+	if err != nil {
+		b.Fatal(err)
+	}
+	var size int64
+	for size < 200<<20 {
+		n, err := f.WriteString(chunk)
+		if err != nil {
+			b.Fatal(err)
+		}
+		size += int64(n)
+	}
+	if err := f.Close(); err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(size)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		res, err := fileio.Read(context.Background(), path, fileio.ReadOptions{})
+		if err != nil {
+			b.Fatal(err)
+		}
+		if !res.LargeFile {
+			b.Fatal("the file is not in large file mode")
+		}
+		doc := document.FromRead(document.FileURI(path), res, document.NewOptions())
+		vm := NewViewModel(doc, goOptions(), nil)
+		ts := testutil.New(b, ui.Size{Width: 1280, Height: 800})
+		pumpEditorWith(b, ts, vm, EditorOpts{Autofocus: true})
+		ts.Pump(time.Millisecond)
+		if vm.Projection().RowCount() < 1_000_000 {
+			b.Fatalf("only %d rows", vm.Projection().RowCount())
+		}
+	}
+}

@@ -22,6 +22,7 @@ Go benchmarks (UI thread only, one frame of work):
 | Typing a character in a 10,000-line file (edit, layout of the changed line, paint) | 0.08 ms | 754 |
 | Scrolling a page in a 100,000-line file | 0.45 ms | 3,857 |
 | Opening a 10 MB file (read, buffer, first layout) | 23.8 ms (442 MB/s) | 149,862 |
+| Opening a 200 MB file in large file mode (read, buffer, first layout; step 5.12) | 361 ms (582 MB/s), 1.15 GB allocated | 202,552 |
 
 App, headless (software rendering), `scripts/perf.sh` with 5 starts and 10 s of idle:
 
@@ -30,6 +31,7 @@ App, headless (software rendering), `scripts/perf.sh` with 5 starts and 10 s of 
 | Typing in a 10,000-line file: UI-thread time of the frame | < 4 ms | build 0.28 ms on average, 0.90 ms worst of 165 frames | met |
 | Scrolling a 100,000-line file | no UI-thread frame over 8 ms | build 0.56 ms on average, 2.2 ms worst of 297 frames | met (UI thread) |
 | Opening a 10 MB file: first frame with text | < 300 ms | 890 ms from the start of the process, 30 ms more than the empty window (the first frame builds in 3.5 ms) | met in Emetos's share; the total is the start below |
+| Opening a 200 MB file in large file mode: first frame with text | < 3 s | 361 ms for the read, the document and the first layout on the UI thread (`BenchmarkOpen200MB`: 2.1 million lines, no tokenization, folding, minimap or wrapping); the process start comes on top as in the row above | met in Emetos's share |
 | Cold start, no folder | < 400 ms | 860 ms (median of 5); Glutter's counter, same run: 940 ms | **not met headless**: the first draw of the software renderer is 0.85 s (`docs/GLUTTER-ISSUES.md`) |
 | Idle, window focused, cursor blinking | < 1% of a core | 0.5% to 0.8% (3 runs, 2 frames a second) | met |
 | Idle, window without focus | no frames at all | not measurable headless (no keyboard focus events); the logic is tested with the fake platform | pending `--session` |
@@ -42,6 +44,8 @@ Notes:
 - The memory target was "< 200 MB", chosen before the Glutter baseline was known. An empty Glutter window with software GL is 287 MB, so the target now is the baseline plus 50 MB. The memory was not split further than this: the Go heap of Emetos with the 10,000-line file is 9 to 16 MB (`go_heap_mb` in Glutter's log), so the rest is outside it (graphics stack, fonts, buffers).
 - Step 4.9 (highlighting), Go benchmarks with `-tags glutter_release`: typing a character in a 10,000-line highlighted file takes 0.62 ms per frame (the tokenizer re-tokenizes from the edited line and stops when a line's end state is unchanged). Tokenizing Go costs about 160 µs per line (`BenchmarkTokenizeGoLines`) after the scanner result cache in `core/regex`. Scrolling a page of lines nobody has tokenized yet, in a 100,000-line file, takes 8.2 ms of UI-thread time, 6 ms of which is the synchronous tokenization budget (`tokenBudget`); lines it does not finish are tokenized by the background loop and painted plain until the next frame. That is above the 8 ms target for the first view of unseen lines only; lines already tokenized scroll as before. Do not run `BenchmarkScrollPage100kLinesHighlighted` with a large `-benchtime`: every iteration tokenizes new lines and the retained tokens grow with it (use `-benchtime 50x`).
 - Step 4.12 (bracket pairs), Go benchmarks with `-tags glutter_release`, on a synthetic file of 100,000 lines and 600,000 brackets: the first pairing takes 49 ms, the first question after an edit 18 ms (30 ns for each bracket: the lines the edit touched are read again and all the brackets are paired in one pass), and the brackets of a screen of 50 lines 5 µs once the pairs are made. A file of 10,000 lines with 60,000 brackets costs about 2 ms after an edit. The pairing is lazy, so it costs nothing while nobody asks (large file mode has no index). Pairing only from the first edited line, and stopping when the open pairs are the same as before, would make an edit cost the edit and not the file; it is left for when a measurement of the editor needs it.
+
+- Step 5.12 (large files): `BenchmarkOpen200MB` writes a file of 200 MB (about 2.1 million Go-like lines) and measures `fileio.Read`, `document.FromRead`, the view model and the first frame. It needs about 1.2 GB, so it runs alone and once: `GOMEMLIMIT=3GiB go test -tags glutter_release ./internal/gui/editor -run xxx -bench Open200MB -benchtime 1x -benchmem`. A line longer than `editor.stopRenderingLineAfter` is laid out up to that many bytes only; `TestAHugeSingleLineStaysResponsive` shows and moves in a single line of 5 MB (with word wrap on) in a fraction of a second.
 
 ## Pending
 

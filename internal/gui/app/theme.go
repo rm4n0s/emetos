@@ -131,6 +131,7 @@ func (w *Window) followLanguages() {
 	})
 	w.Documents.SetLanguageDetector(w.Process.Languages.Detect)
 	w.Documents.SetIndentation(w.indentationFor)
+	w.Documents.SetLargeFileOptimizations(func() bool { return settings.Get[bool](w.Settings, "editor.largeFileOptimizations", "") })
 }
 
 // indentationFor is how a new document of a language is indented, from the settings.

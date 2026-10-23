@@ -117,6 +117,36 @@ type Documents struct {
 	order []document.URI
 	// indentation gives what a file opens with; nil leaves the options of OpenFile.
 	indentation func(languageID string) Indentation
+	// largeFiles tells whether large file mode applies (editor.largeFileOptimizations); nil is yes.
+	largeFiles func() bool
+	// announced are the large documents the user was told about.
+	announced map[*document.Document]bool
+}
+
+// SetLargeFileOptimizations makes OpenFile open large files in large file mode only while enabled
+// returns true (editor.largeFileOptimizations).
+func (d *Documents) SetLargeFileOptimizations(enabled func() bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.largeFiles = enabled
+}
+
+// AnnounceLarge tells whether the user has still to be told that a document is in large file mode:
+// true the first time it is asked of a large document, false after it and for other documents.
+func (d *Documents) AnnounceLarge(doc *document.Document) bool {
+	if !doc.LargeFile() {
+		return false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.announced[doc] {
+		return false
+	}
+	if d.announced == nil {
+		d.announced = map[*document.Document]bool{}
+	}
+	d.announced[doc] = true
+	return true
 }
 
 // Indentation is how a new document is indented: editor.tabSize and editor.insertSpaces for its
@@ -161,6 +191,12 @@ func NewDocuments() *Documents {
 // OpenFile returns the document of a file, reading it if it is not open yet. The error
 // has the tags of fileio.Read.
 func (d *Documents) OpenFile(ctx context.Context, path string, opts document.Options) (*document.Document, error) {
+	return d.OpenFileWith(ctx, path, opts, fileio.ReadOptions{})
+}
+
+// OpenFileWith is OpenFile with the options of the read: AllowBinary opens a file that looks
+// binary ("Open Anyway"). A file that is open already is returned as it is.
+func (d *Documents) OpenFileWith(ctx context.Context, path string, opts document.Options, read fileio.ReadOptions) (*document.Document, error) {
 	uri := document.FileURI(path)
 	d.mu.Lock()
 	doc, ok := d.open[uri]
@@ -168,11 +204,14 @@ func (d *Documents) OpenFile(ctx context.Context, path string, opts document.Opt
 	if ok {
 		return doc, nil
 	}
-	res, err := fileio.Read(ctx, path, fileio.ReadOptions{})
+	res, err := fileio.Read(ctx, path, read)
 	if err != nil {
 		return nil, err
 	}
 	d.mu.Lock()
+	if d.largeFiles != nil && !d.largeFiles() {
+		res.LargeFile = false
+	}
 	detect := d.detect
 	d.mu.Unlock()
 	if detect != nil && (opts.LanguageID == "" || opts.LanguageID == document.DefaultLanguage) {

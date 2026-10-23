@@ -15,6 +15,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerStickyColors(r)
 	registerListColors(r)
 	registerBreadcrumbColors(r)
+	registerButtonColors(r)
 	return r
 }
 
@@ -366,5 +367,27 @@ func registerBreadcrumbColors(r *ColorRegistry) {
 			Description: "Color of selected breadcrumb items."},
 		ColorContribution{ID: "breadcrumbPicker.background", Defaults: AllThemes(Ref("editorWidget.background")),
 			Description: "Background color of breadcrumb item picker."},
+	)
+}
+
+// registerButtonColors registers the colors of buttons and of descriptive text.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/inputColors.ts (button.*) and
+// baseColors.ts (descriptionForeground)
+func registerButtonColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "descriptionForeground",
+			Defaults:    dflt(Transparent(Ref("foreground"), 0.7), Hex("#717171"), Transparent(Ref("foreground"), 0.7), Transparent(Ref("foreground"), 0.7)),
+			Description: "Foreground color for description text providing additional information, for example for a label."},
+		ColorContribution{ID: "button.foreground", Defaults: AllThemes(Lit(ColorWhite)),
+			Description: "Button foreground color."},
+		ColorContribution{ID: "button.background",
+			Defaults:    dflt(Hex("#0E639C"), Hex("#007ACC"), Lit(ColorBlack), Hex("#0F4A85")),
+			Description: "Button background color."},
+		ColorContribution{ID: "button.hoverBackground",
+			Defaults:    dflt(Lighten(Ref("button.background"), 0.2), Darken(Ref("button.background"), 0.2), Ref("button.background"), Ref("button.background")),
+			Description: "Button background color when hovering."},
+		ColorContribution{ID: "button.border", Defaults: AllThemes(Ref("contrastBorder")),
+			Description: "Button border color."},
 	)
 }

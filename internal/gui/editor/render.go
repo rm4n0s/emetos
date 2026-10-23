@@ -189,11 +189,12 @@ func (r *RenderEditorText) PerformLayout() {
 	r.prepareTokens(proj, first, last)
 	widest := 0.0
 	for row := max(first-rowMargin, 0); row <= min(last+rowMargin, proj.RowCount()-1); row++ {
-		if p := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
-			widest = max(widest, p.LongestLine())
+		if p, hidden := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
+			w := p.LongestLine() + float64(hidden)*style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
 			if ri, ok := proj.(rowIndenter); ok {
-				widest += float64(ri.RowIndentColumns(row)) * r.vm.charWidth
+				w += float64(ri.RowIndentColumns(row)) * r.vm.charWidth
 			}
+			widest = max(widest, w)
 		}
 	}
 	charWidth := style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
@@ -208,23 +209,28 @@ func (r *RenderEditorText) top() float64 {
 	return r.vm.ScrollTop()
 }
 
-// rowParagraph returns the paragraph of a row, or nil for a row with no text.
-func (r *RenderEditorText) rowParagraph(style textStyle, proj Projection, lineContent func(int) (string, error), row int) *ui.Paragraph {
+// rowParagraph returns the paragraph of a row, or nil for a row with no text, and the number of
+// bytes of the row that are not in it because the line is longer than editor.stopRenderingLineAfter.
+func (r *RenderEditorText) rowParagraph(style textStyle, proj Projection, lineContent func(int) (string, error), row int) (*ui.Paragraph, int) {
 	line, start, end := proj.RowSpan(row)
 	text, err := lineContent(line)
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 	if end < 0 || end > len(text) {
 		end = len(text)
 	}
 	start = min(start, end)
 	text = text[start:end]
+	shown := shownLength(text, r.vm.opts.StopRenderingLineAfter)
+	hidden := len(text) - shown
+	text = text[:shown]
+	end = start + shown
 	if text == "" {
-		return nil
+		return nil, hidden
 	}
 	spans := overlaySpans(r.rowSpans(line, start, end), r.vm.bracketSpans(r.bracketColors, line, start, end))
-	return style.styledParagraph(r.vm.Paragraphs(), text, spans)
+	return style.styledParagraph(r.vm.Paragraphs(), text, spans), hidden
 }
 
 // prepareTokens tokenizes, as far as there is time, up to the last line on the screen, so that
@@ -275,7 +281,7 @@ func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.O
 		charWidth = style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
 	}
 	for row := first; row <= last; row++ {
-		if p := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
+		if p, _ := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
 			x := offset.Dx - left
 			if indenter != nil {
 				x += float64(indenter.RowIndentColumns(row)) * charWidth // a row that continues a wrapped line

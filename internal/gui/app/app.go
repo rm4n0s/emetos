@@ -81,9 +81,17 @@ func Run(ctx context.Context, opts Options) error {
 		return err
 	}
 	var shown *document.Document
+	var blocked string
 	for _, path := range opts.Files {
 		doc, err := win.Documents.OpenFile(ctx, path, document.NewOptions())
 		if err != nil {
+			if isBinaryError(err) {
+				// the window shows a notice with a button to open the file anyway
+				if shown == nil && blocked == "" {
+					blocked = path
+				}
+				continue
+			}
 			process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 			continue
 		}
@@ -92,12 +100,26 @@ func Run(ctx context.Context, opts Options) error {
 		}
 	}
 	steps := devSteps(process, opts.DevCommands)
-	return widgets.RunApp(newApp(ctx, win, shown, steps), widgets.RunAppOpts{
+	return widgets.RunApp(newAppBlocked(ctx, win, shown, steps, blocked), widgets.RunAppOpts{
 		AppID:  AppID,
 		Window: widgets.WindowConfig{Title: Title, Size: ui.Size{Width: windowWidth, Height: windowHeight}},
 		Fonts:  fonts.Sources(),
 		Logger: opts.Logger,
 	})
+}
+
+// Texts of the notices about files that are not shown as usual.
+const (
+	// BinaryFileNotice is what the window says in place of a file that looks binary.
+	BinaryFileNotice = "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding."
+	// LargeFileNotice is the notification for a document in large file mode (SPEC §6.4).
+	LargeFileNotice = "This file is large: syntax highlighting, bracket colors, folding, sticky scroll, the minimap and word wrap are turned off to keep the editor responsive. Set editor.largeFileOptimizations to false to turn them back on."
+)
+
+// isBinaryError tells whether a file was not opened because it looks binary.
+func isBinaryError(err error) bool {
+	appErr, ok := errors.FromError(err)
+	return ok && appErr.Tag == "FileBinary"
 }
 
 // describe is the one-line text of an error for a notification.
@@ -127,7 +149,17 @@ func devSteps(p *Process, text string) []DevStep {
 
 // newApp is the whole app so far: the window's page is the shell.
 func newApp(ctx context.Context, win *Window, doc *document.Document, steps []DevStep) widgets.Widget {
-	return newAppWithPage(win, func() widgets.Widget { return newShell(ctx, doc, steps) })
+	return newAppBlocked(ctx, win, doc, steps, "")
+}
+
+// newAppBlocked is newApp for a window whose file looks binary: with no document it shows the
+// notice of the file at the path blocked, with a button that opens it anyway.
+func newAppBlocked(ctx context.Context, win *Window, doc *document.Document, steps []DevStep, blocked string) widgets.Widget {
+	return newAppWithPage(win, func() widgets.Widget {
+		sh := newShell(ctx, doc, steps)
+		sh.blocked = blocked
+		return sh
+	})
 }
 
 // newAppWithPage is a WidgetsApp with one route, whose page is made by page. The route gives
@@ -158,6 +190,8 @@ type shell struct {
 	ctx   context.Context
 	doc   *document.Document
 	steps []DevStep
+	// blocked is the path of a file that looks binary and is not shown, or "".
+	blocked string
 }
 
 func newShell(ctx context.Context, doc *document.Document, steps []DevStep) *shell {
@@ -183,6 +217,9 @@ type shellState struct {
 	// doc is the document the editor shows, or nil; it starts as the one the page was given and
 	// changes with dev.openFile.
 	doc *document.Document
+	// blocked is the path of the file that looks binary and that a notice offers to open anyway,
+	// while there is no editor.
+	blocked string
 	// removeOpenFile takes the handler of dev.openFile off the registry.
 	removeOpenFile func()
 }
@@ -191,6 +228,7 @@ type shellState struct {
 // the dev commands. Both end with the state, so a page that is gone stops waiting.
 func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
+	s.blocked = s.Widget().blocked
 	if doc := s.Widget().doc; doc != nil {
 		s.initEditor(binding, doc)
 	}
@@ -240,6 +278,7 @@ func (s *shellState) InitState() {
 // change (the change may come from any goroutine, so it is posted to the UI thread).
 func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.Document) {
 	s.doc = doc
+	s.blocked = ""
 	win := PeekWindow(s.Context())
 	options := func() editor.Options {
 		desktop, _ := binding.PlatformDispatcher().MonospaceFont()
@@ -247,6 +286,9 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 		return editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
 	}
 	s.view = editor.NewViewModel(doc, options(), nil)
+	if win.Documents.AnnounceLarge(doc) {
+		win.Process.Notify.Warn("Emetos", LargeFileNotice)
+	}
 	// The background work of the editor (the folding regions, the tokens) hands its results to the
 	// UI thread from the start, before the editor widget exists to say how.
 	s.view.SetPoster(binding.Post)
@@ -388,6 +430,9 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		})
 		return widgets.NewColumn([]widgets.Widget{bar, widgets.NewExpanded(text)},
 			widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+	}
+	if s.blocked != "" {
+		return editor.NewNotice(BinaryFileNotice, editor.NoticeOpts{Action: "Open Anyway", OnAction: func() { s.openAnyway(widgets.WidgetsBindingOf(bc), s.blocked) }})
 	}
 	colors := kit.ThemeOf(bc)
 	return widgets.NewDefaultTextStyle(uiTextStyle(bc, 14, colors.Foreground),

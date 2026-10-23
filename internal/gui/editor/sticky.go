@@ -142,7 +142,7 @@ func (vm *ViewModel) stickyTreeNow() *stickyTree {
 // Ported from VS Code: stickyScrollController.ts (_onDidResize, findScrollWidgetState)
 func (vm *ViewModel) maxStickyLines() int {
 	o := vm.opts
-	if !o.StickyScroll.Enabled || o.LineHeight <= 0 {
+	if !o.StickyScroll.Enabled || o.LineHeight <= 0 || vm.doc.LargeFile() {
 		return 0
 	}
 	byHeight := int(math.Round(vm.viewport / o.LineHeight * 0.25))

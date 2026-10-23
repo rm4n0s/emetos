@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
+	"github.com/rm4n0s/emetos/internal/core/fileio"
 )
 
 // openFileArguments are the arguments of dev.openFile.
@@ -117,9 +118,41 @@ func (s *shellState) openPath(binding *widgets.WidgetsBinding, path string) {
 				return
 			}
 			if err != nil {
+				if isBinaryError(err) {
+					s.blockFile(path)
+					return
+				}
 				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 				return
 			}
+			s.showDocument(binding, doc, nil)
+		})
+	})
+}
+
+// blockFile shows the notice of a file that looks binary in place of the editor.
+func (s *shellState) blockFile(path string) {
+	s.SetState(func() {
+		s.disposeEditor()
+		s.view, s.doc = nil, nil
+		s.blocked = path
+	})
+}
+
+// openAnyway opens a file that looks binary, as the button of its notice asks.
+func (s *shellState) openAnyway(binding *widgets.WidgetsBinding, path string) {
+	win := PeekWindow(s.Context())
+	s.Go(func(life context.Context) {
+		doc, err := win.Documents.OpenFileWith(life, path, document.NewOptions(), fileio.ReadOptions{AllowBinary: true})
+		binding.Post(func() {
+			if !s.Mounted() {
+				return
+			}
+			if err != nil {
+				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
+				return
+			}
+			s.SetState(func() { s.blocked = "" })
 			s.showDocument(binding, doc, nil)
 		})
 	})

@@ -36,8 +36,8 @@ func newGeometry(vm *ViewModel, factory ui.ParagraphFactory) geometry {
 	}
 }
 
-// rowText is the text a row shows and the byte column of the line it starts at.
-func (g geometry) rowText(row int) (text string, start int) {
+// rowFull is the whole text of a row and the byte column of the line it starts at.
+func (g geometry) rowFull(row int) (text string, start int) {
 	line, start, end := g.proj.RowSpan(row)
 	text, err := g.lineContent(line)
 	if err != nil {
@@ -48,6 +48,30 @@ func (g geometry) rowText(row int) (text string, start int) {
 	}
 	start = min(start, end)
 	return text[start:end], start
+}
+
+// rowText is the text a row shows and the byte column of the line it starts at: the text of the
+// row up to editor.stopRenderingLineAfter bytes (SPEC §6.4); what is beyond is not laid out or
+// drawn, and the positions in it are worked out with the width of a character.
+func (g geometry) rowText(row int) (text string, start int) {
+	text, start = g.rowFull(row)
+	return text[:shownLength(text, g.vm.opts.StopRenderingLineAfter)], start
+}
+
+// shownLength is how many bytes of a row's text are laid out and drawn: all of it, or up to
+// editor.stopRenderingLineAfter bytes, cut at the start of a character. A limit of zero or less
+// is no limit.
+//
+// Ported from VS Code: src/vs/editor/common/viewLayout/viewLineRenderer.ts (stopRenderingLineAfter)
+func shownLength(text string, stopAfter int) int {
+	if stopAfter <= 0 || len(text) <= stopAfter {
+		return len(text)
+	}
+	cut := stopAfter
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return cut
 }
 
 // indentPx is how far a row is indented from the left edge of the text: the rows that word
@@ -63,26 +87,38 @@ func (g geometry) indentPx(row int) float64 {
 // row; a column before the row is its start and one after is its end.
 func (g geometry) x(row, col int) float64 {
 	indent := g.indentPx(row)
-	text, start := g.rowText(row)
-	rel := min(max(col-start, 0), len(text))
+	full, start := g.rowFull(row)
+	shown := full[:shownLength(full, g.vm.opts.StopRenderingLineAfter)]
+	rel := min(max(col-start, 0), len(full))
 	if rel == 0 {
 		return indent
 	}
-	p := g.style.paragraph(g.vm.Paragraphs(), text)
+	if rel > len(shown) {
+		return indent + g.textWidth(shown) + float64(rel-len(shown))*g.charWidth
+	}
+	p := g.style.paragraph(g.vm.Paragraphs(), shown)
 	right := 0.0
 	for _, b := range p.GetBoxesForRange(0, rel) {
 		right = max(right, b.Right)
 	}
-	if right == 0 && rel == len(text) {
+	if right == 0 && rel == len(shown) {
 		right = p.LongestLine()
 	}
 	return indent + right
 }
 
-// rowEnd is the x of the end of a row's text.
+// textWidth is the width of a text laid out in the font of the editor.
+func (g geometry) textWidth(text string) float64 {
+	if text == "" {
+		return 0
+	}
+	return g.style.paragraph(g.vm.Paragraphs(), text).LongestLine()
+}
+
+// rowEnd is the x of the end of a row's text, also when part of it is not drawn.
 func (g geometry) rowEnd(row int) float64 {
-	text, start := g.rowText(row)
-	return g.x(row, start+len(text))
+	full, start := g.rowFull(row)
+	return g.x(row, start+len(full))
 }
 
 // lastRowOfLine tells whether a row is the last one of its line.
@@ -249,9 +285,18 @@ func (g geometry) slowColumnAt(text string, x float64) int {
 // special cases of decorations)
 func (g geometry) positionAt(x, y float64) buffer.Position {
 	row := g.proj.RowAt(y)
-	text, start := g.rowText(row)
+	full, start := g.rowFull(row)
+	text := full[:shownLength(full, g.vm.opts.StopRenderingLineAfter)]
 	line, _, _ := g.proj.RowSpan(row)
-	return buffer.Position{Line: line, Col: start + g.columnAt(text, x-g.indentPx(row))}
+	px := x - g.indentPx(row)
+	if len(text) < len(full) {
+		// past the part that is drawn the columns are as wide as a character
+		if w := g.textWidth(text); px > w && g.charWidth > 0 {
+			col := len(text) + int(math.Floor((px-w)/g.charWidth+0.5))
+			return buffer.Position{Line: line, Col: start + min(col, len(full))}
+		}
+	}
+	return buffer.Position{Line: line, Col: start + g.columnAt(text, px)}
 }
 
 // rectOf is the rectangle of the character at a position, in document coordinates: from the x
@@ -260,7 +305,8 @@ func (g geometry) positionAt(x, y float64) buffer.Position {
 func (g geometry) rectOf(p buffer.Position) ui.Rect {
 	row := g.vm.RowOfPosition(p)
 	text, start := g.rowText(row)
-	col := min(max(p.Col-start, 0), len(text))
+	full, _ := g.rowFull(row)
+	col := min(max(p.Col-start, 0), len(full))
 	left := g.x(row, start+col)
 	right := left + g.charWidth
 	if col < len(text) {

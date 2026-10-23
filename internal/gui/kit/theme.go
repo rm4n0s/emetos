@@ -100,8 +100,12 @@ type Colors struct {
 	ListActiveSelectionBackground, ListActiveSelectionForeground, ListHoverBackground, ListFocusOutline ui.Color
 	// The colors of the breadcrumbs bar: its items, the item that is hovered or has its picker open
 	// (Focus and ActiveSelection), the background of the bar and the one of the picker.
-	BreadcrumbForeground, BreadcrumbBackground, BreadcrumbFocusForeground ui.Color
-	BreadcrumbActiveSelectionForeground, BreadcrumbPickerBackground       ui.Color
+	// DescriptionForeground is the color of descriptive text, and the Button colors are those of
+	// buttons: text, background, background under the pointer and border.
+	DescriptionForeground                                                   ui.Color
+	ButtonForeground, ButtonBackground, ButtonHoverBackground, ButtonBorder ui.Color
+	BreadcrumbForeground, BreadcrumbBackground, BreadcrumbFocusForeground   ui.Color
+	BreadcrumbActiveSelectionForeground, BreadcrumbPickerBackground         ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -178,6 +182,9 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		InputValidationErrorBorder:    color("inputValidation.errorBorder"),
 		ListActiveSelectionBackground: color("list.activeSelectionBackground"), ListActiveSelectionForeground: color("list.activeSelectionForeground"),
 		ListHoverBackground: color("list.hoverBackground"), ListFocusOutline: color("list.focusOutline"),
+		DescriptionForeground: color("descriptionForeground"),
+		ButtonForeground:      color("button.foreground"), ButtonBackground: color("button.background"),
+		ButtonHoverBackground: color("button.hoverBackground"), ButtonBorder: color("button.border"),
 		BreadcrumbForeground: color("breadcrumb.foreground"), BreadcrumbBackground: color("breadcrumb.background"),
 		BreadcrumbFocusForeground:           color("breadcrumb.focusForeground"),
 		BreadcrumbActiveSelectionForeground: color("breadcrumb.activeSelectionForeground"),
