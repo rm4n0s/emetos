@@ -157,3 +157,37 @@ func (m *ListModel) reveal() {
 		m.top = m.focus - m.rows + 1
 	}
 }
+
+// FocusPrefix moves the focus to the next row after the focused one, going round, whose label
+// starts with the text (ignoring case) and that is not disabled: typing a letter in a list that
+// does not filter. It reports whether there was such a row; without one the focus stays.
+func (m *ListModel) FocusPrefix(text string) bool {
+	labels := make([]string, len(m.shown))
+	disabled := make([]bool, len(m.shown))
+	for row, i := range m.shown {
+		labels[row], disabled[row] = m.items[i].Label, m.items[i].Disabled
+	}
+	row := nextWithPrefix(labels, disabled, m.focus, text)
+	if row < 0 {
+		return false
+	}
+	m.focus = row
+	m.reveal()
+	return true
+}
+
+// nextWithPrefix is the position of the first label after position from, going round and ending
+// with from itself, that starts with the text ignoring case and is not disabled; -1 when none.
+func nextWithPrefix(labels []string, disabled []bool, from int, text string) int {
+	if text == "" {
+		return -1
+	}
+	needle := strings.ToLower(text)
+	for step := 1; step <= len(labels); step++ {
+		i := (from + step + len(labels)) % len(labels)
+		if !disabled[i] && strings.HasPrefix(strings.ToLower(labels[i]), needle) {
+			return i
+		}
+	}
+	return -1
+}

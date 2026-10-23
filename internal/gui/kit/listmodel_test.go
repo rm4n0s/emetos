@@ -139,3 +139,73 @@ func TestListModelAllDisabled(t *testing.T) {
 		t.Errorf("in view %v: a model of 0 rows shows 1 at least", got)
 	}
 }
+
+func TestListModelFocusPrefix(t *testing.T) {
+	cases := []struct {
+		name   string
+		filter string
+		typed  []string
+		want   int // the focused item at the end
+	}{
+		{"the next row that starts with the letter", "", []string{"d"}, 3},
+		{"ignoring case", "", []string{"E"}, 4},
+		{"a disabled row is skipped", "", []string{"b"}, 0},
+		{"no row starts with it", "", []string{"z"}, 0},
+		{"it goes round to the start", "", []string{"e", "a"}, 0},
+		{"it goes round and finds the focused row again", "", []string{"a", "a"}, 0},
+		{"the second row with the same letter", "", []string{"g", "g"}, 2},
+		{"a prefix of more letters", "", []string{"ep"}, 4},
+		{"in the rows a filter shows", "ta", []string{"d"}, 3},
+		{"nothing is shown", "zz", []string{"a"}, -1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m := NewListModel(listItems(), 3)
+			m.SetFilter(tc.filter)
+			for _, s := range tc.typed {
+				m.FocusPrefix(s)
+			}
+			if m.Focused() != tc.want {
+				t.Errorf("focused %d, want %d", m.Focused(), tc.want)
+			}
+		})
+	}
+	m := NewListModel(listItems(), 3)
+	if m.FocusPrefix("") {
+		t.Error("an empty prefix matched")
+	}
+	if !m.FocusPrefix("e") || m.Top() != 2 {
+		t.Errorf("the row is not scrolled into view: top %d", m.Top())
+	}
+}
+
+func TestNextWithPrefix(t *testing.T) {
+	labels := []string{"Apple", "Banana", "apricot", "Cherry"}
+	cases := []struct {
+		name     string
+		disabled []bool
+		from     int
+		text     string
+		want     int
+	}{
+		{"after the position", nil, 0, "a", 2},
+		{"going round", nil, 2, "a", 0},
+		{"the position itself last", nil, 3, "c", 3},
+		{"none", nil, 0, "z", -1},
+		{"empty", nil, 0, "", -1},
+		{"a disabled label is skipped", []bool{false, false, true, false}, 0, "a", 0},
+		{"from nowhere", nil, -1, "b", 1},
+	}
+	for _, tc := range cases {
+		disabled := tc.disabled
+		if disabled == nil {
+			disabled = make([]bool, len(labels))
+		}
+		if got := nextWithPrefix(labels, disabled, tc.from, tc.text); got != tc.want {
+			t.Errorf("%s: %d, want %d", tc.name, got, tc.want)
+		}
+	}
+	if got := nextWithPrefix(nil, nil, 0, "a"); got != -1 {
+		t.Errorf("no labels: %d", got)
+	}
+}

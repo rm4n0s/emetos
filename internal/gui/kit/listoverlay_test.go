@@ -228,3 +228,30 @@ func TestGoldenListOverlay(t *testing.T) {
 	r.key(services.LogicalKeyboardKeyKeyI, "i")
 	r.ts.MatchesGolden("list_overlay_filtered")
 }
+
+func TestListOverlayTypeAhead(t *testing.T) {
+	cases := []struct {
+		name  string
+		opts  ListOverlayOpts
+		typed []string
+		want  int // the item Enter chooses
+	}{
+		{"off: a letter does nothing", ListOverlayOpts{}, []string{"d"}, 0},
+		{"on: a letter moves the focus", ListOverlayOpts{TypeAhead: true}, []string{"d"}, 3},
+		{"on: the letter again goes round", ListOverlayOpts{TypeAhead: true}, []string{"e", "e"}, 4},
+		{"on: a letter that starts nothing", ListOverlayOpts{TypeAhead: true}, []string{"z"}, 0},
+		{"filtering wins over typing ahead: the first row that contains the text", ListOverlayOpts{TypeAhead: true, Filterable: true}, []string{"e"}, 3},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newListRig(t, listItems(), tc.opts)
+			for _, k := range tc.typed {
+				r.key(services.LogicalKeyboardKeyKeyA, k)
+			}
+			r.key(keyEnter, "")
+			if len(r.selected) != 1 || r.selected[0] != tc.want {
+				t.Errorf("selected %v, want [%d]", r.selected, tc.want)
+			}
+		})
+	}
+}

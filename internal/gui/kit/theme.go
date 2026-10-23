@@ -146,6 +146,25 @@ type Colors struct {
 	// open, focused or under the pointer has the Selection colors.
 	TitleBarActiveForeground                                                       ui.Color
 	MenubarSelectionForeground, MenubarSelectionBackground, MenubarSelectionBorder ui.Color
+	// The colors of the validation messages of an input box and of the border it takes with one, by
+	// severity: background, text (transparent where the theme sets none: the text then keeps the
+	// workbench's foreground) and border. InputValidationErrorBorder is above.
+	InputValidationInfoBackground, InputValidationInfoForeground, InputValidationInfoBorder          ui.Color
+	InputValidationWarningBackground, InputValidationWarningForeground, InputValidationWarningBorder ui.Color
+	InputValidationErrorBackground, InputValidationErrorForeground                                   ui.Color
+	// The colors of the dropdown: the field (DropdownBackground, DropdownForeground, DropdownBorder)
+	// and its list (DropdownListBackground, transparent where the theme sets none: the list then
+	// takes DropdownBackground).
+	DropdownBackground, DropdownForeground, DropdownBorder, DropdownListBackground ui.Color
+	// The colors of checkboxes: background, text (the check mark), border, the background and border
+	// in a row that is selected, and the background and text of a disabled one.
+	CheckboxBackground, CheckboxForeground, CheckboxBorder ui.Color
+	CheckboxSelectBackground, CheckboxSelectBorder         ui.Color
+	CheckboxDisabledBackground, CheckboxDisabledForeground ui.Color
+	// BadgeBackground and BadgeForeground color a count badge, ProgressBarBackground a progress bar.
+	BadgeBackground, BadgeForeground, ProgressBarBackground ui.Color
+	// The colors of the icon of a dialog by type (error, warning, information).
+	ProblemsErrorIconForeground, ProblemsWarningIconForeground, ProblemsInfoIconForeground ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -255,6 +274,20 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		TitleBarActiveForeground:   color("titleBar.activeForeground"),
 		MenubarSelectionForeground: color("menubar.selectionForeground"), MenubarSelectionBackground: color("menubar.selectionBackground"),
 		MenubarSelectionBorder: color("menubar.selectionBorder"),
+
+		InputValidationInfoBackground: color("inputValidation.infoBackground"), InputValidationInfoForeground: color("inputValidation.infoForeground"),
+		InputValidationInfoBorder:        color("inputValidation.infoBorder"),
+		InputValidationWarningBackground: color("inputValidation.warningBackground"), InputValidationWarningForeground: color("inputValidation.warningForeground"),
+		InputValidationWarningBorder:   color("inputValidation.warningBorder"),
+		InputValidationErrorBackground: color("inputValidation.errorBackground"), InputValidationErrorForeground: color("inputValidation.errorForeground"),
+		DropdownBackground: color("dropdown.background"), DropdownForeground: color("dropdown.foreground"),
+		DropdownBorder: color("dropdown.border"), DropdownListBackground: color("dropdown.listBackground"),
+		CheckboxBackground: color("checkbox.background"), CheckboxForeground: color("checkbox.foreground"), CheckboxBorder: color("checkbox.border"),
+		CheckboxSelectBackground: color("checkbox.selectBackground"), CheckboxSelectBorder: color("checkbox.selectBorder"),
+		CheckboxDisabledBackground: color("checkbox.disabled.background"), CheckboxDisabledForeground: color("checkbox.disabled.foreground"),
+		BadgeBackground: color("badge.background"), BadgeForeground: color("badge.foreground"), ProgressBarBackground: color("progressBar.background"),
+		ProblemsErrorIconForeground: color("problemsErrorIcon.foreground"), ProblemsWarningIconForeground: color("problemsWarningIcon.foreground"),
+		ProblemsInfoIconForeground: color("problemsInfoIcon.foreground"),
 	}
 }
 

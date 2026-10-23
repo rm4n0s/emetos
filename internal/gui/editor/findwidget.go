@@ -154,7 +154,7 @@ func (s *findWidgetState) Build(bc widgets.BuildContext) widgets.Widget {
 	noMatches := nonEmpty && st.MatchesCount() == 0 && !st.IsSearching()
 
 	findToggle := func(code int, checked bool, change func(bool) find.NewState) widgets.Widget {
-		return kit.NewToggle(code, kit.ToggleOpts{Checked: checked, OnChanged: func(v bool) { s.toggle(change(v)) }})
+		return kit.NewToggle(code, kit.ToggleOpts{NotFocusable: true, Checked: checked, OnChanged: func(v bool) { s.toggle(change(v)) }})
 	}
 	findInput := kit.NewInputBox(s.Widget().find, s.Widget().findNode, kit.InputBoxOpts{
 		Placeholder: "Find", Invalid: noMatches, OnChanged: s.findChanged, OnFocusChange: s.focusChanged,
@@ -178,7 +178,7 @@ func (s *findWidgetState) Build(bc widgets.BuildContext) widgets.Widget {
 		return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(findWidgetRowGap, 0, 0, 0), kit.NewIconButton(code, opts))
 	}
 	inSelection := widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(findWidgetRowGap+1, 0, 0, 0),
-		kit.NewToggle(fonts.CodiconListSelection, kit.ToggleOpts{Checked: len(st.SearchScope()) > 0, OnChanged: func(bool) { s.run("toggleFindInSelection") }}))
+		kit.NewToggle(fonts.CodiconListSelection, kit.ToggleOpts{NotFocusable: true, Checked: len(st.SearchScope()) > 0, OnChanged: func(bool) { s.run("toggleFindInSelection") }}))
 	findRow := widgets.NewRow([]widgets.Widget{
 		widgets.NewExpanded(findInput),
 		count,

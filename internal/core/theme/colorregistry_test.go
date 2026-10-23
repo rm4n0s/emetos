@@ -360,3 +360,74 @@ func TestColorTransforms(t *testing.T) {
 		})
 	}
 }
+
+// The colors that step 6.5 added for inputs, checkboxes, dropdowns, badges, progress bars and
+// dialogs, as VS Code's registry (inputColors.ts, miscColors.ts, editorColors.ts) writes their
+// defaults.
+func TestDefaultInputKitColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"inputValidation.infoBackground", "#063b49", "#d6ecf2", "#000000", "#ffffff"},
+		{"inputValidation.infoForeground", none, none, none, "#292929"},
+		{"inputValidation.infoBorder", "#007acc", "#007acc", "#6fc3df", "#0f4a85"},
+		{"inputValidation.warningBackground", "#352a05", "#f6f5d2", "#000000", "#ffffff"},
+		{"inputValidation.warningForeground", none, none, none, "#292929"},
+		{"inputValidation.warningBorder", "#b89500", "#b89500", "#6fc3df", "#0f4a85"},
+		{"dropdown.listBackground", none, none, "#000000", "#ffffff"},
+		{"dropdown.border", "#3c3c3c", "#cecece", "#6fc3df", "#0f4a85"},
+		{"checkbox.background", "#3c3c3c", "#ffffff", "#000000", "#ffffff"},
+		{"checkbox.selectBackground", "#252526", "#f3f3f3", "#0c141f", "#ffffff"},
+		{"checkbox.foreground", "#f0f0f0", "#616161", "#ffffff", "#292929"},
+		{"checkbox.border", "#3c3c3c", "#cecece", "#6fc3df", "#0f4a85"},
+		{"checkbox.selectBorder", "#c5c5c5", "#424242", "#ffffff", "#292929"},
+		{"badge.background", "#4d4d4d", "#c4c4c4", "#000000", "#0f4a85"},
+		{"badge.foreground", "#ffffff", "#333333", "#ffffff", "#ffffff"},
+		{"progressBar.background", "#0e70c0", "#0e70c0", "#6fc3df", "#0f4a85"},
+		{"editorError.foreground", "#f14c4c", "#e51400", "#f48771", "#b5200d"},
+		{"editorWarning.foreground", "#cca700", "#bf8803", "#ffd370", "#895503"},
+		{"editorInfo.foreground", "#59a4f9", "#0063d3", "#59a4f9", "#0063d3"},
+		{"problemsErrorIcon.foreground", "#f14c4c", "#e51400", "#f48771", "#b5200d"},
+		{"problemsWarningIcon.foreground", "#cca700", "#bf8803", "#ffd370", "#895503"},
+		{"problemsInfoIcon.foreground", "#59a4f9", "#0063d3", "#59a4f9", "#0063d3"},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+}
+
+// The disabled checkbox colors are mixes of the checkbox colors (33 % of the other color).
+func TestDefaultCheckboxDisabledColors(t *testing.T) {
+	registry := DefaultColorRegistry()
+	for _, typ := range []Type{TypeDark, TypeLight} {
+		ct := colorTheme(typ, nil, registry)
+		bg, _ := ct.Color("checkbox.background")
+		fg, _ := ct.Color("checkbox.foreground")
+		for _, tc := range []struct {
+			id   string
+			a, b Color
+		}{{"checkbox.disabled.background", bg, fg}, {"checkbox.disabled.foreground", fg, bg}} {
+			got, ok := ct.Color(tc.id)
+			if !ok || got != tc.a.Mix(tc.b, 0.33) {
+				t.Errorf("%s %s = %v, want %v", typ, tc.id, got, tc.a.Mix(tc.b, 0.33))
+			}
+		}
+	}
+}

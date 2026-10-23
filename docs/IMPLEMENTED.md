@@ -989,3 +989,19 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Glutter issues:** one: `widgets.Draggable` starts a drag after 1 px with no option, cannot be cancelled from the keyboard, and `DragTarget` gives no position while the pointer rests; the drag is built on `Listener` pointer events (`docs/GLUTTER-ISSUES.md`).
 - **Deviations and follow-ups:** the list keeps the keyboard focus and the find box only shows the pattern; Ctrl+Shift+click adds a range (VS Code's default controller treats it as Shift+click); in a tree, filter mode shows ancestors expanded without changing the stored expansion, so collapsing one does nothing until the find closes; `SelectionNavigation: false` makes Escape clear the selection, as the explorer does; the drag starts after 4 px.
 
+## 6.5 Kit: inputs and dialogs
+
+- **Date:** 2026-10-24
+- **Branch:** feat/step-6.5-inputs-dialogs
+- **Summary:** the remaining kit widgets of SPEC §10.2 and §10.7: `InputBox` finished (validation messages below the box in info/warning/error colors, `History` (a port of `HistoryNavigator`, 100 entries) with Up/Down, multi-line growing to `MaxHeight` (Enter is a new line, Ctrl+Enter submits), `OnSubmit`, `InputBoxController` for focus, selection and value), `Toggle` finished (disabled, tooltip, focus ring, Space/Enter), `Checkbox`, `Dropdown` (a select that opens a list below, keyboard and type-ahead, the caller owns `Selected`), `ProgressBar` (infinite, with VS Code's animation including the slowdown after 10 s, and discrete), `Badge`, and the in-window `Dialog` (message, detail, checkbox, buttons in VS Code's Linux order, type icon, close button; Enter on the default button, Escape cancels, Tab cycles; `DialogHost` places a scrim that blocks the widgets below and traps the focus, restores the previous focus on close; `DialogController.Show` with a queue answers through `OnAnswer(DialogResult)`). `ListOverlay` got `TypeAhead` and `Foreground`. New colors: `inputValidation.info*/warning*`, `checkbox.*`, `badge.*`, `progressBar.background`, `dropdown.listBackground/border`, `editorError/Warning/Info.foreground`, `problemsError/Warning/InfoIcon.foreground`.
+- **Main files:** `internal/gui/kit/{inputbox,history,toggle,checkbox,dropdown,progressbar,badge,dialog,listmodel,listoverlay,theme}.go`, `internal/gui/editor/findwidget.go` (the toggles pass `NotFocusable`), `internal/core/theme/colors_builtin.go`, `docs/SPEC.md` §10.2 and §10.7.
+- **Tests:** 68 new test functions (history navigation table, validation display, dropdown by keyboard and mouse, the infinite animation on the fake clock, dialog flow: Enter, Escape, Tab and arrows with the checkbox, the queue, clicks blocked below the scrim, focus trap and restore), 28 goldens in Dark and Light Modern (`inputbox_*`, `toggles_checkbox`, `toggle_focus`, `dropdown`, `progressbar`, `badge`, three dialogs; all looked at) and the proof `TestProofKit -proof`.
+- **Not ported:** the dialog's inputs, vertical alignment, custom body and footer, links, dropdown button and mnemonics; the validation message as a ContextView.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · display tests none.
+- **Proof:** `docs/implemented-proof-images/6.5-kit.png` (a gallery of the kit widgets with a Save/Don't Save/Cancel dialog on top)
+
+  ![6.5 kit](implemented-proof-images/6.5-kit.png)
+- **Manual checks:** none
+- **Glutter issues:** none (Glutter's `BorderStyle` has no dashed style, as Flutter's, so the toggle focus ring is solid).
+- **Deviations and follow-ups:** VS Code has no `dialog.*` colors: the dialog uses `editorWidget.*`, `widget.border`, `widget.shadow` and the problem icon colors; the validation message shows only while the box has the focus; the toggle's focus ring is solid; the window's key dispatcher must stop commands while `DialogController.IsShowing()` (to do when the workbench places the host, 6.6).
+

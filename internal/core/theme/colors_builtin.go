@@ -20,6 +20,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerButtonColors(r)
 	registerKitColors(r)
 	registerMenuColors(r)
+	registerInputKitColors(r)
 	return r
 }
 
@@ -537,5 +538,73 @@ func registerMenuColors(r *ColorRegistry) {
 			Description: "Background color of the selected menu item in the menubar."},
 		ColorContribution{ID: "menubar.selectionBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
 			Description: "Border color of the selected menu item in the menubar."},
+	)
+}
+
+// registerInputKitColors registers the colors that the inputs, toggles, dropdown, progress bar,
+// badge and dialog of gui/kit paint beyond the ones registered with the input box, the menus and the
+// editor widgets: the validation colors of the info and warning severities, the dropdown's list
+// background and border, the checkbox colors, the badge and progress bar colors, and the colors of
+// the icons of a dialog (the problems icons, which default to the editor's squiggle colors).
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/inputColors.ts,
+// src/vs/platform/theme/common/colors/miscColors.ts and
+// src/vs/platform/theme/common/colors/editorColors.ts (editorError.*, editorWarning.*, editorInfo.*,
+// problems*Icon.foreground)
+func registerInputKitColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "inputValidation.infoBackground", Defaults: dflt(Hex("#063B49"), Hex("#D6ECF2"), Lit(ColorBlack), Lit(ColorWhite)),
+			Description: "Input validation background color for information severity."},
+		ColorContribution{ID: "inputValidation.infoForeground", Defaults: dflt(nil, nil, nil, Ref("foreground")),
+			Description: "Input validation foreground color for information severity."},
+		ColorContribution{ID: "inputValidation.infoBorder", Defaults: dflt(Hex("#007acc"), Hex("#007acc"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Input validation border color for information severity."},
+		ColorContribution{ID: "inputValidation.warningBackground", Defaults: dflt(Hex("#352A05"), Hex("#F6F5D2"), Lit(ColorBlack), Lit(ColorWhite)),
+			Description: "Input validation background color for warning severity."},
+		ColorContribution{ID: "inputValidation.warningForeground", Defaults: dflt(nil, nil, nil, Ref("foreground")),
+			Description: "Input validation foreground color for warning severity."},
+		ColorContribution{ID: "inputValidation.warningBorder", Defaults: dflt(Hex("#B89500"), Hex("#B89500"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Input validation border color for warning severity."},
+
+		ColorContribution{ID: "dropdown.listBackground", Defaults: dflt(nil, nil, Lit(ColorBlack), Lit(ColorWhite)),
+			Description: "Dropdown list background."},
+		ColorContribution{ID: "dropdown.border", Defaults: dflt(Ref("dropdown.background"), Hex("#CECECE"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Dropdown border."},
+
+		ColorContribution{ID: "checkbox.background", Defaults: AllThemes(Ref("dropdown.background")),
+			Description: "Background color of checkbox widget."},
+		ColorContribution{ID: "checkbox.selectBackground", Defaults: AllThemes(Ref("editorWidget.background")),
+			Description: "Background color of checkbox widget when the element it's in is selected."},
+		ColorContribution{ID: "checkbox.foreground", Defaults: AllThemes(Ref("dropdown.foreground")),
+			Description: "Foreground color of checkbox widget."},
+		ColorContribution{ID: "checkbox.border", Defaults: AllThemes(Ref("dropdown.border")),
+			Description: "Border color of checkbox widget."},
+		ColorContribution{ID: "checkbox.selectBorder", Defaults: AllThemes(Ref("icon.foreground")),
+			Description: "Border color of checkbox widget when the element it's in is selected."},
+		ColorContribution{ID: "checkbox.disabled.background", Defaults: AllThemes(Mix(Ref("checkbox.background"), Ref("checkbox.foreground"), 0.33)),
+			Description: "Background of a disabled checkbox."},
+		ColorContribution{ID: "checkbox.disabled.foreground", Defaults: AllThemes(Mix(Ref("checkbox.foreground"), Ref("checkbox.background"), 0.33)),
+			Description: "Foreground of a disabled checkbox."},
+
+		ColorContribution{ID: "badge.background", Defaults: dflt(Hex("#4D4D4D"), Hex("#C4C4C4"), Lit(ColorBlack), Hex("#0F4A85")),
+			Description: "Badge background color. Badges are small information labels, e.g. for search results count."},
+		ColorContribution{ID: "badge.foreground", Defaults: dflt(Lit(ColorWhite), Hex("#333"), Lit(ColorWhite), Lit(ColorWhite)),
+			Description: "Badge foreground color. Badges are small information labels, e.g. for search results count."},
+
+		ColorContribution{ID: "progressBar.background", Defaults: dflt(Hex("#0E70C0"), Hex("#0E70C0"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Background color of the progress bar that can show for long running operations."},
+
+		ColorContribution{ID: "editorError.foreground", Defaults: dflt(Hex("#F14C4C"), Hex("#E51400"), Hex("#F48771"), Hex("#B5200D")),
+			Description: "Foreground color of error squigglies in the editor."},
+		ColorContribution{ID: "editorWarning.foreground", Defaults: dflt(Hex("#CCA700"), Hex("#BF8803"), Hex("#FFD370"), Hex("#895503")),
+			Description: "Foreground color of warning squigglies in the editor."},
+		ColorContribution{ID: "editorInfo.foreground", Defaults: dflt(Hex("#59a4f9"), Hex("#0063d3"), Hex("#59a4f9"), Hex("#0063d3")),
+			Description: "Foreground color of info squigglies in the editor."},
+		ColorContribution{ID: "problemsErrorIcon.foreground", Defaults: AllThemes(Ref("editorError.foreground")),
+			Description: "The color used for the problems error icon."},
+		ColorContribution{ID: "problemsWarningIcon.foreground", Defaults: AllThemes(Ref("editorWarning.foreground")),
+			Description: "The color used for the problems warning icon."},
+		ColorContribution{ID: "problemsInfoIcon.foreground", Defaults: AllThemes(Ref("editorInfo.foreground")),
+			Description: "The color used for the problems info icon."},
 	)
 }

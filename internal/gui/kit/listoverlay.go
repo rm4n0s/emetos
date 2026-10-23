@@ -46,6 +46,11 @@ type ListOverlayOpts struct {
 	Focused foundation.Opt[int]
 	// Background is the background of the list; the default is the color of editor widgets.
 	Background foundation.Opt[ui.Color]
+	// TypeAhead moves the focus, when the list does not filter, to the next row that starts with the
+	// letter the user types (the select box's typing).
+	TypeAhead bool
+	// Foreground is the color of the text of the rows; the default is the color of editor widgets.
+	Foreground foundation.Opt[ui.Color]
 	// StealFocus takes the focus when the list is shown even if another widget has it (the
 	// autofocus of a list gives way to the widget that has the focus), as the list of the choices
 	// of a snippet does, which opens over an editor that has it.
@@ -178,10 +183,17 @@ func (s *listOverlayState) handleKey(_ *widgets.FocusNode, e services.KeyEvent) 
 		m.SetFilter(string(runes[:len(runes)-1]))
 	default:
 		ch := e.Character()
-		if !s.Widget().opts.Filterable || ch == "" || kb.IsControlPressed() || kb.IsAltPressed() || kb.IsMetaPressed() || strings.ContainsAny(ch, "\r\n\t\x1b") {
+		if ch == "" || kb.IsControlPressed() || kb.IsAltPressed() || kb.IsMetaPressed() || strings.ContainsAny(ch, "\r\n\t\x1b") {
 			return widgets.KeyEventResultIgnored
 		}
-		m.SetFilter(m.Filter() + ch)
+		switch {
+		case s.Widget().opts.Filterable:
+			m.SetFilter(m.Filter() + ch)
+		case s.Widget().opts.TypeAhead:
+			m.FocusPrefix(ch)
+		default:
+			return widgets.KeyEventResultIgnored
+		}
 	}
 	s.SetState(func() {})
 	return widgets.KeyEventResultHandled
@@ -223,7 +235,7 @@ func (s *listOverlayState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	for pos, item := range m.InView() {
 		focused := m.Top()+pos == m.FocusedRow()
-		fg := colors.EditorWidgetForeground
+		fg := l.opts.Foreground.OrElse(colors.EditorWidgetForeground)
 		var bg ui.Color
 		switch {
 		case focused:
