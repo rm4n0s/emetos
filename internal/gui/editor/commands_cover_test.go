@@ -2,6 +2,7 @@ package editor
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -20,6 +21,9 @@ func TestEveryEditorCommandHasAHandler(t *testing.T) {
 		t.Errorf("commands without a handler: %v", missing)
 	}
 	for _, id := range have {
+		if strings.HasPrefix(id, "dev.") {
+			continue // registered only in debug and emetos_dev builds (SPEC D15)
+		}
 		if _, ok := reg.Lookup(id); !ok {
 			t.Errorf("%s is implemented but not registered", id)
 		}

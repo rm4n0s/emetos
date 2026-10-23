@@ -153,6 +153,8 @@ type ViewModel struct {
 	base       Options
 	zoom       *Zoom
 	zoomHandle foundation.ListenerHandle
+	// framer runs a function after every frame (the widget sets it).
+	framer framer
 	// animate starts the animation of the cursors (the widget sets it).
 	animate func()
 	// clip is the clipboard of the editor, once the widget gives it one.

@@ -396,6 +396,7 @@ func buildActions() map[string]action {
 		}
 		return nil
 	}
+	devActions(a)
 	return a
 }
 

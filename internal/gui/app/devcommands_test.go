@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 func TestParseDevCommands(t *testing.T) {
@@ -169,5 +170,23 @@ func TestDevStepsFromTextAndEnvironment(t *testing.T) {
 	items := p.Notify.Items()
 	if len(items) != 1 || items[0].Source != "Emetos" {
 		t.Errorf("the mistake is reported once: %+v", items)
+	}
+}
+
+func TestTheEditorDevCommandsAreInTheProcess(t *testing.T) {
+	p := NewProcess(ProcessOptions{Paths: testutil.Isolate(t)})
+	for _, id := range []string{"dev.type", "dev.scroll"} {
+		if _, ok := p.Commands.Lookup(id); ok != DevCommandsEnabled() {
+			t.Errorf("%s is registered = %v, want %v", id, ok, DevCommandsEnabled())
+		}
+		if !DevCommandsEnabled() {
+			continue
+		}
+		// With no editor in front, the command says so.
+		err := p.Commands.Run(command.Context{}, id, "x")
+		appErr, ok := errors.FromError(err)
+		if !ok || !appErr.HasRoute("DevNoEditor") {
+			t.Errorf("%s without an editor: %v", id, err)
+		}
 	}
 }

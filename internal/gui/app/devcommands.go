@@ -128,3 +128,21 @@ func (r *DevRunner) Run(ctx context.Context) {
 		}
 	}
 }
+
+// registerDevCommands registers the dev commands that belong to the editor: dev.type and
+// dev.scroll, which the editor in front of the user implements while it has the focus (they
+// exist in debug and emetos_dev builds only; SPEC D15, §15.2).
+func registerDevCommands(r *command.Registry) {
+	noEditor := func(command.Context, any) error {
+		return errors.New("DevNoEditor", "no editor has the focus")
+	}
+	for _, meta := range []command.Meta{
+		{ID: "dev.type", Description: "Type a text into the focused editor, a character in every frame."},
+		{ID: "dev.scroll", Description: "Scroll the focused editor by rows in every frame."},
+	} {
+		// The ids are fixed, new and start with dev., so a failure is a mistake in this list.
+		if err := RegisterDev(r, meta, noEditor); err != nil {
+			panic(err)
+		}
+	}
+}

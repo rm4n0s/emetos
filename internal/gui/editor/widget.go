@@ -272,6 +272,7 @@ func (s *editorState) InitState() {
 	s.useTimers(vm)
 	s.useClipboard(vm)
 	vm.SetAnimator(s.startCursorAnimation)
+	vm.SetFramer(s.runPerFrame)
 	vm.SetZoom(opts.Zoom)
 
 	// The focus: the editor's node, with the scope of its context keys.
@@ -506,6 +507,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.SetScroller(nil)
 		old.vm.SetClipboard(nil, nil, nil)
 		old.vm.SetAnimator(nil)
+		old.vm.SetFramer(nil)
 		vm := s.Widget().vm
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
@@ -516,6 +518,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		s.useTimers(vm)
 		s.useClipboard(vm)
 		vm.SetAnimator(s.startCursorAnimation)
+		vm.SetFramer(s.runPerFrame)
 		vm.SetZoom(s.Widget().opts.Zoom)
 		if cmds := s.Widget().opts.Commands; cmds != nil && s.editorFocused {
 			s.unbindCommands = BindCommands(cmds, vm)
@@ -548,6 +551,7 @@ func (s *editorState) Dispose() {
 	vm.SetScroller(nil)
 	vm.SetClipboard(nil, nil, nil)
 	vm.SetAnimator(nil)
+	vm.SetFramer(nil)
 	if s.primaryTimer != nil {
 		s.primaryTimer()
 	}

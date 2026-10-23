@@ -52,7 +52,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Process{
+	p := &Process{
 		Paths:    opts.Paths,
 		Logger:   logger,
 		Logs:     opts.Logs,
@@ -61,4 +61,6 @@ func NewProcess(opts ProcessOptions) *Process {
 		Keymap:   keybinding.DefaultRegistry(),
 		Notify:   notify.NewService(logger, nil),
 	}
+	registerDevCommands(p.Commands)
+	return p
 }

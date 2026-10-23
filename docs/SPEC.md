@@ -481,7 +481,7 @@ Measured on release builds (`-tags glutter_release,emetos_dev`, so dev commands 
 | Opening a 200 MB file in large file mode: first frame with text | < 3 s | 5.12 |
 | Cold start with no folder, to the first frame | < 400 ms | 3.11, again with the workbench in 10.1 |
 | Idle, window focused, cursor blinking | < 1% of a core; no frames at all when the window has no focus | 3.11 |
-| Resident memory, one 10,000-line file open | < 200 MB (revisited in step 3.11 against Glutter's own baseline) | 3.11 |
+| Resident memory, one 10,000-line file open | no more than an empty Glutter window (its `counter` example) plus 50 MB; measured 271 MB against the baseline's 287 MB headless, where Mesa's software GL dominates (revised in step 3.11 from "< 200 MB", which the graphics stack alone exceeds; the number to hold is the one with the GPU, `scripts/perf.sh --session`) | 3.11 |
 | Fuzzy file search over 100,000 paths, per keystroke | < 30 ms, off the UI thread | 6.18 |
 
 ## 15. Testing
