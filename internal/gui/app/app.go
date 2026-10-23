@@ -263,7 +263,7 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 	s.view.SetSnippets(win.Process.Snippets)
 	s.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(doc.LanguageID())))
 	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {
-		if e.Affects("editor", "") {
+		if e.Affects("editor", "") || e.Affects("emmet", "") {
 			binding.Post(func() { s.view.SetOptions(options()) })
 		}
 		if e.Affects("breadcrumbs", "") {

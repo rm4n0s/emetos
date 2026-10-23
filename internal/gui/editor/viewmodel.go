@@ -94,6 +94,8 @@ type Options struct {
 	// MultiCursorPaste is "spread" (a text of as many lines as there are cursors goes line by
 	// line to the cursors) or "full" (every cursor pastes the whole text).
 	MultiCursorPaste string
+	// Emmet are the settings emmet.* that abbreviation expansion reads (SPEC §9.10.2).
+	Emmet EmmetOptions
 	// TabCompletion is "off", "on" or "onlySnippets": with the last the Tab key inserts the snippet
 	// whose prefix is before the cursor. ("on" needs the suggestions of area 3 and does nothing.)
 	TabCompletion string
@@ -660,4 +662,14 @@ func (vm *ViewModel) RevealPosition(p buffer.Position) {
 	case bottom > scroll+vm.viewport-bottomMargin:
 		vm.scroller(bottom + bottomMargin - vm.viewport)
 	}
+}
+
+// EmmetOptions are the settings of Emmet that the editor reads: the values of emmet.includeLanguages,
+// emmet.excludeLanguages, emmet.variables and emmet.syntaxProfiles as the settings store holds them,
+// and emmet.triggerExpansionOnTab.
+type EmmetOptions struct {
+	// TriggerExpansionOnTab makes the Tab key expand the abbreviation before the cursor.
+	TriggerExpansionOnTab bool
+	// IncludeLanguages, ExcludeLanguages, Variables and SyntaxProfiles are read by core/emmet.
+	IncludeLanguages, ExcludeLanguages, Variables, SyntaxProfiles any
 }

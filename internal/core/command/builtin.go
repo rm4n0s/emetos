@@ -22,6 +22,7 @@ func DefaultRegistry() *Registry {
 	registerFoldingCommands(r)
 	registerFindCommands(r)
 	registerSnippetCommands(r)
+	registerEmmetCommands(r)
 	registerWordWrapCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
@@ -317,5 +318,15 @@ func registerSnippetCommands(r *Registry) {
 		Meta{ID: "insertSnippet", Precondition: contextkey.Has("hasSnippetCompletions")},
 		Meta{ID: "editor.action.insertSnippet", Title: "Insert Snippet", Precondition: writable(),
 			Description: "Insert a snippet. The argument is an object with snippet (the text), or name and langId (a snippet of a language); without them the user picks one."},
+	)
+}
+
+// registerEmmetCommands registers the command that expands an Emmet abbreviation.
+//
+// Ported from VS Code: extensions/emmet/package.json (editor.emmet.action.expandAbbreviation)
+func registerEmmetCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "editor.emmet.action.expandAbbreviation", Title: "Emmet: Expand Abbreviation", Precondition: writable(),
+			Description: "Expand the Emmet abbreviation before each cursor, or the selected text."},
 	)
 }

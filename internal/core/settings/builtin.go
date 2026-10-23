@@ -746,7 +746,7 @@ func registerWorkbench(r *Registry) {
 }
 
 // registerEmmet registers the emmet.* settings that the abbreviation expansion of core/emmet reads
-// (SPEC section 9.10.1). Step 5.11 adds the rest (emmet.includeLanguages, emmet.triggerExpansionOnTab, ...).
+// (SPEC sections 9.10.1 and 9.10.2).
 //
 // Ported from VS Code: extensions/emmet/package.json and extensions/emmet/package.nls.json
 func registerEmmet(r *Registry) {
@@ -760,6 +760,21 @@ func registerEmmet(r *Registry) {
 			Key: "emmet.syntaxProfiles", Types: []Type{Object}, Default: map[string]any{},
 			Description: "Define profile for specified syntax or use your own profile with specific rules.",
 			Scope:       ScopeWindow, Category: categoryEmmet,
+		},
+		Setting{
+			Key: "emmet.includeLanguages", Types: []Type{Object}, Default: map[string]any{},
+			Description: "Enable Emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and Emmet supported language.\n For example: `{\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}`",
+			Scope:       ScopeWindow, Category: categoryEmmet,
+		},
+		Setting{
+			Key: "emmet.excludeLanguages", Types: []Type{Array}, ItemTypes: []Type{String}, Default: []any{"markdown"},
+			Description: "An array of languages where Emmet abbreviations should not be expanded.",
+			Scope:       ScopeWindow, Category: categoryEmmet,
+		},
+		Setting{
+			Key: "emmet.triggerExpansionOnTab", Types: []Type{Boolean}, Default: false,
+			Description: "When enabled, Emmet abbreviations are expanded when pressing TAB, even when completions do not show up. When disabled, completions that show up can still be accepted by pressing TAB.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEmmet,
 		},
 	)
 }

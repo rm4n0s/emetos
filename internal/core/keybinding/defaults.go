@@ -56,6 +56,7 @@ func DefaultRegistry() *Registry {
 	registerLineKeys(r)
 	registerFoldingKeys(r)
 	registerFindKeys(r)
+	registerEmmetKeys(r)
 	registerSnippetKeys(r)
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
@@ -271,5 +272,18 @@ func registerSnippetKeys(r *Registry) {
 		Rule{Command: "jumpToPrevSnippetPlaceholder", Weight: weight, When: mustWhen(whenTextInputFocus, "inSnippetMode", "hasPrevTabstop"), Primary: "shift+tab"},
 		Rule{Command: "leaveSnippet", Weight: weight, When: mustWhen(whenTextInputFocus, "inSnippetMode"), Primary: "escape", Secondary: []string{"shift+escape"}},
 		Rule{Command: "insertSnippet", Weight: WeightEditorContrib, When: mustWhen(whenEditorText, "!editorTabMovesFocus", "!inSnippetMode", "hasSnippetCompletions"), Primary: "tab"},
+	)
+}
+
+// registerEmmetKeys registers Tab for Emmet: with emmet.triggerExpansionOnTab it expands the
+// abbreviation before the cursor, unless text is selected (then Tab indents), a snippet is being
+// filled in, or the Tab key moves the focus. It is registered before the keys of snippets, which
+// have the same weight and so win over it when a snippet's prefix is before the cursor.
+//
+// Ported from VS Code: extensions/emmet/package.json (keybindings)
+func registerEmmetKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "editor.emmet.action.expandAbbreviation", Weight: WeightEditorContrib,
+			When: mustWhen(whenEditorText, whenWritable, "!editorTabMovesFocus", "!editorHasSelection", "!inSnippetMode", "config.emmet.triggerExpansionOnTab"), Primary: "tab"},
 	)
 }

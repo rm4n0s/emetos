@@ -68,6 +68,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		MultiCursorModifier: "alt", MouseStyle: "text",
 		MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
 		MultiCursorPaste: "spread", EmptySelectionClipboard: true, TabCompletion: "off",
+		Emmet:      EmmetOptions{IncludeLanguages: map[string]any{}, ExcludeLanguages: []any{"markdown"}, Variables: map[string]any{}, SyntaxProfiles: map[string]any{}},
 		FontWeight: 400, CursorStyle: "line",
 		MatchBrackets: "always", BracketPairColorization: true,
 		AutoIndent: "full", AutoIndentOnPasteWithinString: true, Guides: indent.DefaultGuideOptions(),

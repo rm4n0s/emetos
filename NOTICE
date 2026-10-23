@@ -63,9 +63,9 @@ planned and has no files in the repository yet.
 6. Emmet abbreviation parser and snippets
    Source:  Emmet (https://github.com/emmetio/emmet)
    License: MIT (Sergey Chikuyonok)
-   Added by step 5.10 (internal/core/emmet/assets/: the markup snippets, the
-   variables and the Lorem ipsum vocabularies; the license is
-   third_party/emmet/LICENSE). The stylesheet snippets are added by step 5.11.
+   Added by steps 5.10 and 5.11 (internal/core/emmet/assets/: the markup
+   snippets, the variables and the Lorem ipsum vocabularies, and the
+   stylesheet snippets css.json; the license is third_party/emmet/LICENSE).
 
 7. Seti file icons (font and icon theme mapping)
    Source:  Visual Studio Code, extensions/theme-seti

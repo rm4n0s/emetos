@@ -237,6 +237,13 @@ func (a *keyApp) endSnippet() {
 		panic(err)
 	}
 	a.setTabCompletion("off")
+	a.setEmmetOnTab(false)
+}
+
+func (a *keyApp) setEmmetOnTab(on bool) {
+	o := a.vm.Options()
+	o.Emmet.TriggerExpansionOnTab = on
+	a.vm.SetOptions(o)
 }
 
 func (a *keyApp) setTabCompletion(value string) {
@@ -293,6 +300,13 @@ func (a *keyApp) states() []func() {
 		}),
 		snippetAt(0),
 		snippetAt(1),
+		// Emmet expands with Tab
+		func() {
+			a.leaveFind()
+			a.endSnippet()
+			a.setEmmetOnTab(true)
+			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 3)})
+		},
 		// the text before the cursor is the prefix of a snippet
 		func() {
 			a.leaveFind()
@@ -711,5 +725,42 @@ func TestClipboardKeys(t *testing.T) {
 	press("shift+insert")
 	if a.text() != "alphaZ\ngammaalpha\n" {
 		t.Errorf("shift+insert: %q", a.text())
+	}
+}
+
+func TestTabExpandsAnEmmetAbbreviationAndReportsAFailure(t *testing.T) {
+	a := newKeyApp(t, "ul>li\n")
+	a.vm.Document().SetLanguageID("html")
+	o := a.vm.Options()
+	o.Emmet.TriggerExpansionOnTab = true
+	o.Emmet.IncludeLanguages = map[string]any{}
+	o.Emmet.ExcludeLanguages = []any{}
+	o.Emmet.Variables = map[string]any{}
+	a.vm.SetOptions(o)
+	a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(0, 5)})
+	a.vm.SelectionsChanged()
+	a.ts.Pump(time.Millisecond)
+	tab := keybinding.Chord{Key: keybinding.Tab}
+	sendChord(a.ts, tab)
+	if got := a.text(); !strings.HasPrefix(got, "<ul>") {
+		t.Fatalf("Tab did not expand: %q", got)
+	}
+
+	// a failing expansion is reported and the key is a plain Tab
+	a.vm.Document().SetText("a")
+	o.Emmet.Variables = []any{1}
+	a.vm.SetOptions(o)
+	a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(0, 1)})
+	a.vm.SelectionsChanged()
+	a.ts.Pump(time.Millisecond)
+	sendChord(a.ts, tab)
+	var reported bool
+	for _, it := range a.win.Process.Notify.Items() {
+		if strings.Contains(it.Message, "Failed to expand abbreviation") {
+			reported = true
+		}
+	}
+	if !reported {
+		t.Error("the failure was not shown as a notification")
 	}
 }

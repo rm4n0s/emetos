@@ -532,6 +532,7 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("hasPrevTabstop", state.HasPrev)
 		s.scope.Set("inSnippetChoice", state.InChoice)
 		s.scope.Set("hasSnippetCompletions", vm.HasSnippetCompletions())
+		s.scope.Set("config.emmet.triggerExpansionOnTab", vm.Options().Emmet.TriggerExpansionOnTab)
 	})
 }
 

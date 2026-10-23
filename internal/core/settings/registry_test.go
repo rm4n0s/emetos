@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/errors"
@@ -223,5 +225,56 @@ func TestEmmetSettingsAreRegistered(t *testing.T) {
 		if msg := r.Validate(tc.key, "no"); msg == "" {
 			t.Errorf("%s: a string is accepted", tc.key)
 		}
+	}
+}
+
+// The settings that step 5.11 adds: their types, defaults, descriptions and scopes are VS Code's.
+func TestEmmetExpansionSettingsAreRegistered(t *testing.T) {
+	cases := []struct {
+		key        string
+		typ        Type
+		def        any
+		scope      Scope
+		descPrefix string
+		good, bad  any
+	}{
+		{"emmet.includeLanguages", Object, map[string]any{}, ScopeWindow, "Enable Emmet abbreviations in languages that are not supported by default.",
+			map[string]any{"vue-html": "html"}, "html"},
+		{"emmet.excludeLanguages", Array, []any{"markdown"}, ScopeWindow, "An array of languages where Emmet abbreviations should not be expanded.",
+			[]any{"markdown", "plaintext"}, "markdown"},
+		{"emmet.triggerExpansionOnTab", Boolean, false, ScopeLanguageOverridable, "When enabled, Emmet abbreviations are expanded when pressing TAB",
+			true, "yes"},
+	}
+	r := DefaultRegistry()
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			s, ok := r.Lookup(tc.key)
+			if !ok {
+				t.Fatal("not registered")
+			}
+			if len(s.Types) != 1 || s.Types[0] != tc.typ || s.Scope != tc.scope || s.Category != categoryEmmet {
+				t.Errorf("type, scope or category: %+v", s)
+			}
+			if !strings.HasPrefix(s.Description, tc.descPrefix) {
+				t.Errorf("description %q", s.Description)
+			}
+			if !reflect.DeepEqual(s.Default, tc.def) {
+				t.Errorf("default %#v, want %#v", s.Default, tc.def)
+			}
+			if msg := r.Validate(tc.key, tc.good); msg != "" {
+				t.Errorf("a valid value is refused: %s", msg)
+			}
+			if msg := r.Validate(tc.key, tc.bad); msg == "" {
+				t.Errorf("%#v is accepted", tc.bad)
+			}
+		})
+	}
+	// the items of the list of excluded languages are strings
+	if msg := r.Validate("emmet.excludeLanguages", []any{1}); msg == "" {
+		t.Error("a number in emmet.excludeLanguages is accepted")
+	}
+	// emmet.showExpandedAbbreviation is not registered (SPEC 9.10.2)
+	if _, ok := r.Lookup("emmet.showExpandedAbbreviation"); ok {
+		t.Error("emmet.showExpandedAbbreviation must not be registered")
 	}
 }

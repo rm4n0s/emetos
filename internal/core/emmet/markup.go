@@ -2,8 +2,13 @@ package emmet
 
 // Ported from Emmet: src/markup/index.ts and src/index.ts
 
-// Expand expands a markup abbreviation and writes it in the syntax and the style of the configuration.
+// Expand expands an abbreviation and writes it in the syntax and the style of the configuration:
+// a stylesheet abbreviation if the Type of the configuration is TypeStylesheet, a markup one
+// otherwise.
 func Expand(abbr string, cfg Config) (string, error) {
+	if cfg.Type == TypeStylesheet {
+		return ExpandStylesheet(abbr, cfg)
+	}
 	tree, err := Parse(abbr, cfg)
 	if err != nil {
 		return "", err

@@ -180,8 +180,7 @@ done
 copy_license vscode-extensions vscode/LICENSE.txt vscode/ThirdPartyNotices.txt
 
 # Step 5.10: Emmet (MIT). The markup snippets (html.json, and the xsl and pug ones for those syntaxes), the
-# default variables and the Lorem ipsum vocabularies that internal/core/emmet embeds. The stylesheet
-# snippets (css.json) are added by step 5.11.
+# default variables and the Lorem ipsum vocabularies that internal/core/emmet embeds.
 for f in html variables xsl pug; do
   copy_file "emmet/src/snippets/$f.json" "internal/core/emmet/assets/$f.json"
 done
@@ -189,5 +188,9 @@ for f in latin russian spanish; do
   copy_file "emmet/src/markup/lorem/$f.json" "internal/core/emmet/assets/lorem/$f.json"
 done
 copy_license emmet emmet/LICENSE
+
+# Step 5.11: Emmet (MIT). The stylesheet (CSS) snippets that internal/core/emmet embeds (the license is
+# copied by the Step 5.10 block above).
+copy_file "emmet/src/snippets/css.json" "internal/core/emmet/assets/css.json"
 
 echo "update-assets: done"

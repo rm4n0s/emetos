@@ -1,8 +1,36 @@
 package emmet
 
-import "github.com/rm4n0s/errors"
+import (
+	"strings"
 
-// Ported from Emmet: src/config.ts (the markup part; step 5.11 adds the stylesheet options)
+	"github.com/rm4n0s/errors"
+)
+
+// Ported from Emmet: src/config.ts
+
+// SyntaxType is the kind of abbreviation a configuration expands: markup (HTML and the like) or
+// stylesheet (CSS and the like).
+type SyntaxType string
+
+// The kinds of abbreviations.
+const (
+	// TypeMarkup is the abbreviation of HTML, XML, Pug and the like. It is the default.
+	TypeMarkup SyntaxType = "markup"
+	// TypeStylesheet is the abbreviation of CSS, Sass, Less and Stylus.
+	TypeStylesheet SyntaxType = "stylesheet"
+)
+
+// The scopes of the stylesheet abbreviations, as the names of Config.Context.
+const (
+	// ScopeGlobal includes all the snippets in the match.
+	ScopeGlobal = "@@global"
+	// ScopeSection includes the raw snippets only (no properties): the abbreviation is outside a rule.
+	ScopeSection = "@@section"
+	// ScopeProperty includes the properties only in the match.
+	ScopeProperty = "@@property"
+	// ScopeValue resolves the abbreviation as the value of a property.
+	ScopeValue = "@@value"
+)
 
 // StringCase is how a name is written: upper case, lower case, or as it is ("").
 type StringCase string
@@ -115,6 +143,33 @@ type Options struct {
 
 	// JSXEnabled turns on the JSX mode (components, expressions as attribute values).
 	JSXEnabled bool
+
+	// StylesheetKeywords are the keywords every property has (`m-a` is `margin: auto`).
+	StylesheetKeywords []string
+	// StylesheetUnitless are the properties whose numbers get no unit (`z10` is `z-index: 10`).
+	StylesheetUnitless []string
+	// StylesheetShortHex writes `#fff` and not `#ffffff` where possible.
+	StylesheetShortHex bool
+	// StylesheetBetween is what goes between the name of a property and its value (": ").
+	StylesheetBetween string
+	// StylesheetAfter is what goes after the value of a property (";").
+	StylesheetAfter string
+	// StylesheetIntUnit is the unit of a whole number with no unit ("px").
+	StylesheetIntUnit string
+	// StylesheetFloatUnit is the unit of a fraction with no unit ("em").
+	StylesheetFloatUnit string
+	// StylesheetUnitAliases are the units that stand for others (`10r` is `10rem`).
+	StylesheetUnitAliases map[string]string
+	// StylesheetJSON writes the properties as the members of a JSON object (CSS-in-JS).
+	StylesheetJSON bool
+	// StylesheetJSONDoubleQuotes writes the string values of StylesheetJSON in double quotes.
+	StylesheetJSONDoubleQuotes bool
+	// StylesheetFuzzySearchMinScore is the lowest score (0 to 1) a property must have to be
+	// picked for an abbreviation; a lower value picks more, and less exact, properties.
+	StylesheetFuzzySearchMinScore float64
+	// StylesheetStrictMatch leaves out an abbreviation that is no snippet and no property, and
+	// does not turn it into a property (`foo-bar` is `foo: bar` when it is off).
+	StylesheetStrictMatch bool
 }
 
 // Context is the element an abbreviation is expanded inside of.
@@ -128,8 +183,11 @@ type Context struct {
 // Config is everything an expansion depends on. NewConfig makes the configuration of a syntax;
 // the fields can be changed afterwards.
 type Config struct {
+	// Type is the kind of abbreviation: TypeMarkup (the default, also when empty) or
+	// TypeStylesheet.
+	Type SyntaxType
 	// Syntax of the document: html, xml, xsl, jsx, pug, slim, haml, vue, svelte or another (which is
-	// output as html).
+	// output as html); css, scss, sass, less, sss or stylus for a stylesheet.
 	Syntax string
 	// Variables are the values of the ${name} variables.
 	Variables map[string]string
@@ -137,7 +195,9 @@ type Config struct {
 	Snippets map[string]string
 	// Options of the output.
 	Options Options
-	// Context is the element the abbreviation is in, if known.
+	// Context is the element the abbreviation is in, if known. In a stylesheet its Name is the
+	// scope (ScopeSection, ScopeProperty, ScopeValue or ScopeGlobal) or the name of the property
+	// whose value the abbreviation is.
 	Context *Context
 	// Text is the text that the abbreviation wraps; nil is none.
 	Text *Text
@@ -180,6 +240,15 @@ func DefaultOptions() Options {
 		CommentAfter:     "\n<!-- /[#ID][.CLASS] -->",
 		BEMElement:       "__",
 		BEMModifier:      "_",
+
+		StylesheetKeywords:    []string{"auto", "inherit", "unset", "none"},
+		StylesheetUnitless:    []string{"z-index", "line-height", "opacity", "font-weight", "zoom", "flex", "flex-grow", "flex-shrink"},
+		StylesheetShortHex:    true,
+		StylesheetBetween:     ": ",
+		StylesheetAfter:       ";",
+		StylesheetIntUnit:     "px",
+		StylesheetFloatUnit:   "em",
+		StylesheetUnitAliases: map[string]string{"e": "em", "p": "%", "x": "ex", "r": "rem"},
 	}
 }
 
@@ -191,12 +260,36 @@ func SnippetField(index int, placeholder string, _, _, _ int) string {
 	return "${" + itoa(index) + "}"
 }
 
+// SnippetText writes text as a snippet of TextMate and VS Code needs it: a backslash and a dollar
+// sign get a backslash before them. Together with SnippetField it makes output that can be
+// inserted as a snippet.
+func SnippetText(text string, _, _, _ int) string {
+	if !strings.ContainsAny(text, `\$`) {
+		return text
+	}
+	var sb strings.Builder
+	for i := 0; i < len(text); i++ {
+		if c := text[i]; c == '\\' || c == '$' {
+			sb.WriteByte('\\')
+		}
+		sb.WriteByte(text[i])
+	}
+	return sb.String()
+}
+
 // NewConfig makes the configuration of a syntax: the default options, variables and snippets of
 // Emmet, and what the syntax changes (the snippets of XSL and Pug, the self-closing style of XML,
 // the class names of JSX and Vue).
+//
+// A stylesheet syntax (css, scss, sass, less, sss, stylus; see IsStylesheetSyntax) makes a
+// configuration of Type TypeStylesheet with the snippets of css.json; sass and stylus write
+// no `;` after a property, and stylus writes a space between the name and the value.
 func NewConfig(syntax string) (Config, error) {
 	if syntax == "" {
 		syntax = "html"
+	}
+	if IsStylesheetSyntax(syntax) {
+		return newStylesheetConfig(syntax)
 	}
 	variables, err := readStringMap("assets/variables.json")
 	if err != nil {
@@ -207,6 +300,7 @@ func NewConfig(syntax string) (Config, error) {
 		return Config{}, err
 	}
 	cfg := Config{
+		Type:      TypeMarkup,
 		Syntax:    syntax,
 		Variables: variables,
 		Snippets:  splitSnippetKeys(raw),
@@ -243,6 +337,43 @@ func NewConfig(syntax string) (Config, error) {
 		for k, v := range splitSnippetKeys(extra) {
 			cfg.Snippets[k] = v
 		}
+	}
+	return cfg, nil
+}
+
+// IsStylesheetSyntax tells if Emmet expands the syntax as a stylesheet: css, sass, scss, less,
+// sss and stylus (VS Code's isStyleSheet has the same list without sss).
+func IsStylesheetSyntax(syntax string) bool {
+	switch syntax {
+	case "css", "sass", "scss", "less", "sss", "stylus":
+		return true
+	}
+	return false
+}
+
+// newStylesheetConfig makes the configuration of a stylesheet syntax.
+func newStylesheetConfig(syntax string) (Config, error) {
+	variables, err := readStringMap("assets/variables.json")
+	if err != nil {
+		return Config{}, err
+	}
+	raw, err := readStringMap("assets/css.json")
+	if err != nil {
+		return Config{}, err
+	}
+	cfg := Config{
+		Type:      TypeStylesheet,
+		Syntax:    syntax,
+		Variables: variables,
+		Snippets:  splitSnippetKeys(raw),
+		Options:   DefaultOptions(),
+	}
+	switch syntax {
+	case "sass":
+		cfg.Options.StylesheetAfter = ""
+	case "stylus":
+		cfg.Options.StylesheetBetween = " "
+		cfg.Options.StylesheetAfter = ""
 	}
 	return cfg, nil
 }

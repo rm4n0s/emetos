@@ -477,6 +477,7 @@ func buildActions() map[string]action {
 	foldingActions(a)
 	findActions(a)
 	snippetActions(a)
+	emmetActions(a)
 	wrapActions(a)
 	devActions(a)
 	return a
