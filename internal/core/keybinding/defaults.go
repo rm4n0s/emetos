@@ -56,6 +56,7 @@ func DefaultRegistry() *Registry {
 	registerLineKeys(r)
 	registerFoldingKeys(r)
 	registerFindKeys(r)
+	registerSnippetKeys(r)
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
 	return r
@@ -254,4 +255,21 @@ func registerFindKeys(r *Registry) {
 // Ported from VS Code: src/vs/workbench/contrib/codeEditor/browser/toggleWordWrap.ts
 func registerWordWrapKeys(r *Registry) {
 	r.MustRegister(Rule{Command: "editor.action.toggleWordWrap", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "alt+z"})
+}
+
+// registerSnippetKeys registers the keys of snippets: Tab and Shift+Tab move between the tab stops
+// (above the other uses of Tab), Escape leaves the snippet, and Tab inserts the snippet whose
+// prefix is before the cursor (editor.tabCompletion "onlySnippets"). VS Code builds the when of
+// a key from the command's precondition; it is written out here.
+//
+// Ported from VS Code: src/vs/editor/contrib/snippet/browser/snippetController2.ts and
+// src/vs/workbench/contrib/snippets/browser/tabCompletion.ts
+func registerSnippetKeys(r *Registry) {
+	const weight = WeightEditorContrib + 30
+	r.MustRegister(
+		Rule{Command: "jumpToNextSnippetPlaceholder", Weight: weight, When: mustWhen(whenTextInputFocus, "inSnippetMode", "hasNextTabstop"), Primary: "tab"},
+		Rule{Command: "jumpToPrevSnippetPlaceholder", Weight: weight, When: mustWhen(whenTextInputFocus, "inSnippetMode", "hasPrevTabstop"), Primary: "shift+tab"},
+		Rule{Command: "leaveSnippet", Weight: weight, When: mustWhen(whenTextInputFocus, "inSnippetMode"), Primary: "escape", Secondary: []string{"shift+escape"}},
+		Rule{Command: "insertSnippet", Weight: WeightEditorContrib, When: mustWhen(whenEditorText, "!editorTabMovesFocus", "!inSnippetMode", "hasSnippetCompletions"), Primary: "tab"},
+	)
 }

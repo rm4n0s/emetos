@@ -76,6 +76,18 @@ func (d *Document) SetDecorationOptions(id int, opts DecorationOptions) bool {
 	return true
 }
 
+// ChangeDecorationOptions replaces the options of a decoration, the stickiness too (VS Code's
+// changeDecorationOptions): the decoration keeps its place, and the new stickiness decides how it
+// moves with the next edits. It reports whether there is a decoration with the id.
+func (d *Document) ChangeDecorationOptions(id int, opts DecorationOptions) bool {
+	n, ok := d.deco.byID[id]
+	if !ok {
+		return false
+	}
+	n.opts = opts
+	return true
+}
+
 // RemoveDecorations removes decorations by id, whoever owns them.
 func (d *Document) RemoveDecorations(ids ...int) {
 	for _, id := range ids {

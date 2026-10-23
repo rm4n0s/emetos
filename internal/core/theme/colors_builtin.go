@@ -10,6 +10,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerScrollbarColors(r)
 	registerFindColors(r)
 	registerHighlightColors(r)
+	registerSnippetColors(r)
 	registerMinimapColors(r)
 	registerStickyColors(r)
 	registerListColors(r)
@@ -267,6 +268,24 @@ func registerHighlightColors(r *ColorRegistry) {
 			Description: "Border color of a symbol during write-access, like writing to a variable."},
 		ColorContribution{ID: "editor.wordHighlightTextBorder", Defaults: AllThemes(Ref("editor.wordHighlightBorder")),
 			Description: "Border color of a textual occurrence for a symbol."},
+	)
+}
+
+// registerSnippetColors registers the colors of the tab stops of a snippet.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts (snippetTabstopHighlightBackground)
+func registerSnippetColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editor.snippetTabstopHighlightBackground", NeedsTransparency: true,
+			Defaults:    dflt(Hex("#7C7C7C4D"), Hex("#0A326433"), Hex("#7C7C7C4D"), Hex("#0A326433")),
+			Description: "Highlight background color of a snippet tabstop."},
+		ColorContribution{ID: "editor.snippetTabstopHighlightBorder",
+			Description: "Highlight border color of a snippet tabstop."},
+		ColorContribution{ID: "editor.snippetFinalTabstopHighlightBackground", NeedsTransparency: true,
+			Description: "Highlight background color of the final tabstop of a snippet."},
+		ColorContribution{ID: "editor.snippetFinalTabstopHighlightBorder",
+			Defaults:    dflt(Hex("#525252"), Hex("#0A326480"), Hex("#525252"), Hex("#292929")),
+			Description: "Highlight border color of the final tabstop of a snippet."},
 	)
 }
 

@@ -4,6 +4,8 @@ import (
 	"math"
 
 	"github.com/rm4n0s/glutter/ui"
+
+	"github.com/rm4n0s/emetos/internal/core/snippet"
 )
 
 // Ported from VS Code: src/vs/editor/browser/viewParts/rulers/rulers.ts,
@@ -44,6 +46,28 @@ func (v overlayView) paintOccurrences() {
 			if _, _, hidden := vm.HiddenSpan(d.Range.Start.Line); !hidden {
 				v.paintMatch(d.Range, c.background, c.border)
 			}
+		}
+	}
+}
+
+// paintSnippetPlaceholders draws the tab stops of the snippet that is being filled in: the final
+// one ($0) and the others in the colors of their own. A tab stop with no text is not drawn; the
+// cursor is there.
+//
+// Ported from VS Code: src/vs/editor/contrib/snippet/browser/snippetSession.ts (the decorations)
+func (v overlayView) paintSnippetPlaceholders() {
+	vm := v.geo.vm
+	for _, d := range vm.snippetPlaceholders(v.first, v.last) {
+		if d.Range.Start == d.Range.End {
+			continue
+		}
+		if _, _, hidden := vm.HiddenSpan(d.Range.Start.Line); hidden {
+			continue
+		}
+		if d.Options.ClassName == snippet.ClassFinalPlaceholder {
+			v.paintMatch(d.Range, v.colors.SnippetFinalTabstop, v.colors.SnippetFinalTabstopBorder)
+		} else {
+			v.paintMatch(d.Range, v.colors.SnippetTabstop, v.colors.SnippetTabstopBorder)
 		}
 	}
 }

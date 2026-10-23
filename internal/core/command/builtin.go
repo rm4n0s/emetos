@@ -21,6 +21,7 @@ func DefaultRegistry() *Registry {
 	registerCommentCommands(r)
 	registerFoldingCommands(r)
 	registerFindCommands(r)
+	registerSnippetCommands(r)
 	registerWordWrapCommands(r)
 	registerClipboardCommands(r)
 	registerDisplayCommands(r)
@@ -298,4 +299,23 @@ func registerFindCommands(r *Registry) {
 // Ported from VS Code: src/vs/workbench/contrib/codeEditor/browser/toggleWordWrap.ts
 func registerWordWrapCommands(r *Registry) {
 	r.MustRegister(Meta{ID: "editor.action.toggleWordWrap", Title: "Toggle Word Wrap", Category: "View"})
+}
+
+// registerSnippetCommands registers the commands of snippets: moving between the tab stops of a
+// snippet that is being filled in, leaving it, and inserting snippets.
+//
+// Ported from VS Code: src/vs/editor/contrib/snippet/browser/snippetController2.ts,
+// src/vs/workbench/contrib/snippets/browser/tabCompletion.ts and
+// src/vs/workbench/contrib/snippets/browser/commands/insertSnippet.ts
+func registerSnippetCommands(r *Registry) {
+	inSnippet := contextkey.Has("inSnippetMode")
+	r.MustRegister(
+		Meta{ID: "jumpToNextSnippetPlaceholder", Precondition: contextkey.And(inSnippet, contextkey.Has("hasNextTabstop"))},
+		Meta{ID: "jumpToPrevSnippetPlaceholder", Precondition: contextkey.And(inSnippet, contextkey.Has("hasPrevTabstop"))},
+		Meta{ID: "leaveSnippet", Precondition: inSnippet},
+		Meta{ID: "acceptSnippet", Precondition: inSnippet},
+		Meta{ID: "insertSnippet", Precondition: contextkey.Has("hasSnippetCompletions")},
+		Meta{ID: "editor.action.insertSnippet", Title: "Insert Snippet", Precondition: writable(),
+			Description: "Insert a snippet. The argument is an object with snippet (the text), or name and langId (a snippet of a language); without them the user picks one."},
+	)
 }

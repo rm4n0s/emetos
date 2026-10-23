@@ -64,6 +64,10 @@ type Colors struct {
 	// cursor.
 	EditorSelectionHighlightBackground, EditorSelectionHighlightBorder ui.Color
 	EditorWordHighlightTextBackground, EditorWordHighlightTextBorder   ui.Color
+	// EditorSnippetTabstopHighlightBackground and its border color the tab stops of a snippet that
+	// is being filled in; the Final ones color the final tab stop ($0).
+	EditorSnippetTabstopHighlightBackground, EditorSnippetTabstopHighlightBorder           ui.Color
+	EditorSnippetFinalTabstopHighlightBackground, EditorSnippetFinalTabstopHighlightBorder ui.Color
 	// MinimapBackground (transparent: the editor's), MinimapForegroundOpacity (the alpha is the
 	// opacity of the blocks), MinimapSelection, MinimapFindMatch and MinimapSelectionOccurrence
 	// (the marks of the selection, the find matches and the text equal to the selection) and the
@@ -154,6 +158,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorFindRangeHighlightBackground: color("editor.findRangeHighlightBackground"), EditorFindRangeHighlightBorder: color("editor.findRangeHighlightBorder"),
 		EditorSelectionHighlightBackground: color("editor.selectionHighlightBackground"), EditorSelectionHighlightBorder: color("editor.selectionHighlightBorder"),
 		EditorWordHighlightTextBackground: color("editor.wordHighlightTextBackground"), EditorWordHighlightTextBorder: color("editor.wordHighlightTextBorder"),
+		EditorSnippetTabstopHighlightBackground: color("editor.snippetTabstopHighlightBackground"), EditorSnippetTabstopHighlightBorder: color("editor.snippetTabstopHighlightBorder"),
+		EditorSnippetFinalTabstopHighlightBackground: color("editor.snippetFinalTabstopHighlightBackground"), EditorSnippetFinalTabstopHighlightBorder: color("editor.snippetFinalTabstopHighlightBorder"),
 		MinimapBackground: color("minimap.background"), MinimapForegroundOpacity: color("minimap.foregroundOpacity"),
 		MinimapSelection: color("minimap.selectionHighlight"), MinimapFindMatch: color("minimap.findMatchHighlight"),
 		MinimapSelectionOccurrence: color("minimap.selectionOccurrenceHighlight"),

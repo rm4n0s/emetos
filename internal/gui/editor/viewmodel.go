@@ -94,6 +94,9 @@ type Options struct {
 	// MultiCursorPaste is "spread" (a text of as many lines as there are cursors goes line by
 	// line to the cursors) or "full" (every cursor pastes the whole text).
 	MultiCursorPaste string
+	// TabCompletion is "off", "on" or "onlySnippets": with the last the Tab key inserts the snippet
+	// whose prefix is before the cursor. ("on" needs the suggestions of area 3 and does nothing.)
+	TabCompletion string
 	// EmptySelectionClipboard makes a copy or a cut without a selection take the line.
 	EmptySelectionClipboard bool
 	// MatchBrackets is editor.matchBrackets: "always" highlights the brackets of the pair
@@ -285,6 +288,8 @@ type ViewModel struct {
 	findw findLink
 	// wrap is the word wrap of the editor (wordwrap.go).
 	wrap wrapLink
+	// snip is the snippet session of the editor and what it offers (snippets.go).
+	snip snippetLink
 	// hl holds the highlights of the occurrences of the word at the cursor and of the selection.
 	hl highlightLink
 	// mm is the minimap.

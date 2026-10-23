@@ -1,8 +1,10 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
@@ -16,6 +18,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/theme"
@@ -45,6 +48,9 @@ type Process struct {
 	Themes *theme.Service
 	// Languages is the registry of the languages and their grammars (SPEC §8.1).
 	Languages *language.Registry
+	// Snippets are the user's snippet files, in the snippets folder of the configuration (SPEC
+	// §9.9). The workspace watcher of step 6.13 reloads them when they change.
+	Snippets *snippet.Service
 
 	grammarMu sync.Mutex
 	grammars  map[grammarKey]*textmate.Grammar
@@ -128,7 +134,23 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.comments = comment.NewRegistryLanguages(languages)
 	registerDevCommands(p.Commands)
 	p.loadUserThemes()
+	p.loadSnippets()
 	return p
+}
+
+// loadSnippets makes the snippet service for the folder of the user's snippets and reads the files.
+// A folder that is not there is no snippets; a file that cannot be read is logged.
+func (p *Process) loadSnippets() {
+	dir, err := p.Paths.ConfigDir(storage.DefaultProfile)
+	if err != nil {
+		p.Logger.Warn("snippets folder", "err", err)
+		p.Snippets = snippet.NewService("")
+		return
+	}
+	p.Snippets = snippet.NewService(filepath.Join(dir, "snippets"))
+	if err := p.Snippets.Reload(context.Background()); err != nil {
+		p.Logger.Warn("snippets", "err", err)
+	}
 }
 
 // loadUserThemes reads the themes in the user's folder of themes into the theme service. A

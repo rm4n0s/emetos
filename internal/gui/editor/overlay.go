@@ -51,6 +51,10 @@ type OverlayColors struct {
 	// and its border the other occurrences of the word at the cursor.
 	SelectionHighlight, SelectionHighlightBorder ui.Color
 	WordHighlight, WordHighlightBorder           ui.Color
+	// SnippetTabstop and its border color the tab stops of a snippet that is being filled in,
+	// SnippetFinalTabstop and its border the final one.
+	SnippetTabstop, SnippetTabstopBorder           ui.Color
+	SnippetFinalTabstop, SnippetFinalTabstopBorder ui.Color
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -208,6 +212,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 		view.paintRulers()
 		view.paintGuides()
 		view.paintOccurrences()
+		view.paintSnippetPlaceholders()
 		view.paintFind()
 		view.paintWhitespace()
 		view.paintMatchingBrackets()

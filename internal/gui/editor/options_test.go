@@ -67,7 +67,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		RenderLineHighlight: "line", RoundedSelection: true, CursorBlinking: "blink",
 		MultiCursorModifier: "alt", MouseStyle: "text",
 		MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
-		MultiCursorPaste: "spread", EmptySelectionClipboard: true,
+		MultiCursorPaste: "spread", EmptySelectionClipboard: true, TabCompletion: "off",
 		FontWeight: 400, CursorStyle: "line",
 		MatchBrackets: "always", BracketPairColorization: true,
 		AutoIndent: "full", AutoIndentOnPasteWithinString: true, Guides: indent.DefaultGuideOptions(),

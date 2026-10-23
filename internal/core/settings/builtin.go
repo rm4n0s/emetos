@@ -601,6 +601,17 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.tabCompletion", Types: []Type{String}, Default: "off",
+			Enum: []any{"on", "off", "onlySnippets"},
+			EnumDescriptions: []string{
+				"Tab complete will insert the best matching suggestion when pressing tab.",
+				"Disable tab completions.",
+				"Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled.",
+			},
+			Description: "Enables tab completions.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.multiCursorPaste", Types: []Type{String}, Default: "spread",
 			Enum: []any{"spread", "full"},
 			EnumDescriptions: []string{

@@ -355,3 +355,24 @@ func TestSetDecorationOptionsKeepsThePlaceAndTheStickiness(t *testing.T) {
 		t.Error("a decoration that is not there was changed")
 	}
 }
+
+func TestChangeDecorationOptionsChangesTheStickiness(t *testing.T) {
+	d := newDoc("0123456789")
+	id := d.AddDecoration(1, rg(0, 2, 0, 5), DecorationOptions{Stickiness: NeverGrowsWhenTypingAtEdges, ClassName: "a"})
+	if !d.ChangeDecorationOptions(id, DecorationOptions{Stickiness: AlwaysGrowsWhenTypingAtEdges, ClassName: "b"}) {
+		t.Fatal("not changed")
+	}
+	got, _ := d.Decoration(id)
+	if got.Options.Stickiness != AlwaysGrowsWhenTypingAtEdges || got.Options.ClassName != "b" || got.Range != rg(0, 2, 0, 5) {
+		t.Errorf("after the change: %+v", got)
+	}
+	// typing at both edges grows it now
+	edit(t, d, []Edit{ins(0, 2, "X")}, EditOptions{})
+	edit(t, d, []Edit{ins(0, 6, "Y")}, EditOptions{})
+	if got, _ := d.Decoration(id); got.Range != rg(0, 2, 0, 7) {
+		t.Errorf("after typing at the edges: %+v", got.Range)
+	}
+	if d.ChangeDecorationOptions(id+100, DecorationOptions{}) {
+		t.Error("a decoration that does not exist was changed")
+	}
+}

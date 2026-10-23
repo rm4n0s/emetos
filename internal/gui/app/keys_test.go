@@ -18,6 +18,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -95,6 +96,8 @@ type keyApp struct {
 	win *Window
 	vm  *editor.ViewModel
 	ts  *gluttertest.Tester
+	// snippets has one snippet, with the prefix "alp", for the state with snippets before the cursor.
+	snippets *snippet.Service
 }
 
 func newKeyApp(t *testing.T, text string) *keyApp {
@@ -112,7 +115,16 @@ func newKeyApp(t *testing.T, text string) *keyApp {
 	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
 	ts.Pump(10 * time.Millisecond)
 	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
-	return &keyApp{win: win, vm: vm, ts: ts}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "plaintext.json"), []byte(`{"a": {"prefix": "alp", "body": "ALP"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	snippets := snippet.NewService(dir)
+	if err := snippets.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	vm.SetSnippets(snippets)
+	return &keyApp{win: win, vm: vm, ts: ts, snippets: snippets}
 }
 
 func (a *keyApp) text() string { return a.vm.Document().Text() }
@@ -218,6 +230,21 @@ func (a *keyApp) leaveFind() {
 	a.ts.Pump(time.Millisecond)
 }
 
+// endSnippet leaves the snippet that is being filled in and turns the tab completion of
+// snippets off.
+func (a *keyApp) endSnippet() {
+	if err := a.vm.RunCommand("leaveSnippet", nil); err != nil {
+		panic(err)
+	}
+	a.setTabCompletion("off")
+}
+
+func (a *keyApp) setTabCompletion(value string) {
+	o := a.vm.Options()
+	o.TabCompletion = value
+	a.vm.SetOptions(o)
+}
+
 // openFind opens the find widget with a command of the editor (the registry's handlers are the
 // spy's) and waits for its input to have the focus.
 func (a *keyApp) openFind(id string) {
@@ -234,7 +261,24 @@ func (a *keyApp) states() []func() {
 	text := func(f func()) func() {
 		return func() {
 			a.leaveFind()
+			a.endSnippet()
 			f()
+		}
+	}
+	// a snippet is being filled in, at its first tab stop or at the second one
+	snippetAt := func(jumps int) func() {
+		return func() {
+			a.leaveFind()
+			a.endSnippet()
+			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 3)})
+			if err := a.vm.RunCommand("editor.action.insertSnippet", map[string]any{"snippet": "<${1:a}> ${2:b}$0"}); err != nil {
+				panic(err)
+			}
+			for range jumps {
+				if err := a.vm.RunCommand("jumpToNextSnippetPlaceholder", nil); err != nil {
+					panic(err)
+				}
+			}
 		}
 	}
 	return []func(){
@@ -247,6 +291,18 @@ func (a *keyApp) states() []func() {
 				panic(err)
 			}
 		}),
+		snippetAt(0),
+		snippetAt(1),
+		// the text before the cursor is the prefix of a snippet
+		func() {
+			a.leaveFind()
+			a.endSnippet()
+			a.setTabCompletion("onlySnippets")
+			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(2, 0)})
+			if err := a.vm.RunCommand("editor.action.insertSnippet", map[string]any{"snippet": "alp"}); err != nil {
+				panic(err)
+			}
+		},
 		// the find widget is open and its find input has the focus
 		func() {
 			a.leaveFind()

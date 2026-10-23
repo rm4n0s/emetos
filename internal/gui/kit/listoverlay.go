@@ -2,6 +2,7 @@ package kit
 
 import (
 	"strings"
+	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
@@ -45,6 +46,10 @@ type ListOverlayOpts struct {
 	Focused foundation.Opt[int]
 	// Background is the background of the list; the default is the color of editor widgets.
 	Background foundation.Opt[ui.Color]
+	// StealFocus takes the focus when the list is shown even if another widget has it (the
+	// autofocus of a list gives way to the widget that has the focus), as the list of the choices
+	// of a snippet does, which opens over an editor that has it.
+	StealFocus bool
 	// OnSelect is called with the index of the item the user chose (Enter or a click).
 	OnSelect func(item int)
 	// OnDismiss is called when the user presses Escape, clicks outside the list or moves the focus
@@ -101,6 +106,15 @@ func (s *listOverlayState) InitState() {
 	}
 	s.hover = -1
 	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "ListOverlay"})
+	if l.opts.StealFocus {
+		scheduler := widgets.WidgetsBindingOf(s.Context()).Scheduler()
+		scheduler.ScheduleFrame()
+		scheduler.AddPostFrameCallback(func(time.Duration) {
+			if s.Mounted() {
+				s.node.RequestFocus()
+			}
+		})
+	}
 }
 
 // Dispose releases the focus node.

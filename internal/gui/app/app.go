@@ -260,6 +260,7 @@ func (s *shellState) initEditor(binding *widgets.WidgetsBinding, doc *document.D
 	s.startFolding(win, doc)
 	s.view.SetIndenter(win.Process.Indenter(), win.Process.Languages.Code(doc.LanguageID()))
 	s.view.SetComments(win.Process.Comments())
+	s.view.SetSnippets(win.Process.Snippets)
 	s.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(doc.LanguageID())))
 	s.unsubscribe = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("editor", "") {

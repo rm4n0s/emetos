@@ -526,6 +526,12 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorLangId", vm.Document().LanguageID())
 		s.scope.Set("foldingEnabled", vm.foldingEnabled())
 		s.scope.Set("findWidgetVisible", vm.FindRevealed())
+		state := vm.SnippetState()
+		s.scope.Set("inSnippetMode", state.InSnippet)
+		s.scope.Set("hasNextTabstop", state.HasNext)
+		s.scope.Set("hasPrevTabstop", state.HasPrev)
+		s.scope.Set("inSnippetChoice", state.InChoice)
+		s.scope.Set("hasSnippetCompletions", vm.HasSnippetCompletions())
 	})
 }
 
@@ -614,11 +620,15 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 		FocusNode: s.node, Autofocus: s.Widget().opts.Autofocus, OnFocusChange: s.focusChanged,
 	})
 	findWidget := newFindWidget(vm, s.findNode, s.replaceNode, s.findText, s.replaceText, s.findFocusChanged, s.reportInputError)
-	return widgets.NewStack([]widgets.Widget{
+	layers := []widgets.Widget{
 		editor,
 		widgets.NewPositioned(widgets.NewAlign(findWidget, widgets.AlignOpts{Alignment: painting.AlignmentTopRight}),
 			widgets.PositionedOpts{Top: foundation.Some(findWidgetTop), Left: foundation.Some(0.0), Right: foundation.Some(findWidgetRight)}),
-	}, widgets.StackOpts{Fit: rendering.StackFitExpand})
+	}
+	if p := vm.SnippetPicker(); p != nil {
+		layers = append(layers, s.snippetPicker(vm, p))
+	}
+	return widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
 
 // body is the editor's content: the scrollable text with its gutter, the decorations and the
@@ -644,6 +654,8 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		FindRangeHighlight: colors.EditorFindRangeHighlightBackground, FindRangeHighlightBorder: colors.EditorFindRangeHighlightBorder,
 		Whitespace: colors.EditorWhitespaceForeground, Ruler: colors.EditorRulerForeground,
 		SelectionHighlight: colors.EditorSelectionHighlightBackground, SelectionHighlightBorder: colors.EditorSelectionHighlightBorder,
+		SnippetTabstop: colors.EditorSnippetTabstopHighlightBackground, SnippetTabstopBorder: colors.EditorSnippetTabstopHighlightBorder,
+		SnippetFinalTabstop: colors.EditorSnippetFinalTabstopHighlightBackground, SnippetFinalTabstopBorder: colors.EditorSnippetFinalTabstopHighlightBorder,
 		WordHighlight: colors.EditorWordHighlightTextBackground, WordHighlightBorder: colors.EditorWordHighlightTextBorder,
 		Guides: NewGuideColors(colors.EditorIndentGuideBackground, colors.EditorIndentGuideActiveBackground,
 			colors.EditorBracketPairGuideBackground, colors.EditorBracketPairGuideActiveBackground, colors.EditorBracketHighlightForeground),

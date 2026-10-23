@@ -61,6 +61,7 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		DragAndDrop:                      settings.Get[bool](store, "editor.dragAndDrop", languageID),
 		SelectionClipboard:               settings.Get[bool](store, "editor.selectionClipboard", languageID),
 		MultiCursorPaste:                 settings.Get[string](store, "editor.multiCursorPaste", languageID),
+		TabCompletion:                    settings.Get[string](store, "editor.tabCompletion", languageID),
 		EmptySelectionClipboard:          settings.Get[bool](store, "editor.emptySelectionClipboard", languageID),
 		MatchBrackets:                    settings.Get[string](store, "editor.matchBrackets", languageID),
 		BracketPairColorization:          settings.Get[bool](store, "editor.bracketPairColorization.enabled", languageID),
