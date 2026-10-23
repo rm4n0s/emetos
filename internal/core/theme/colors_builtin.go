@@ -11,6 +11,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerFindColors(r)
 	registerHighlightColors(r)
 	registerMinimapColors(r)
+	registerStickyColors(r)
 	return r
 }
 
@@ -288,5 +289,24 @@ func registerMinimapColors(r *ColorRegistry) {
 			Description: "Minimap slider background color when hovering."},
 		ColorContribution{ID: "minimapSlider.activeBackground", Defaults: AllThemes(Transparent(Ref("scrollbarSlider.activeBackground"), 0.5)),
 			Description: "Minimap slider background color when clicked on."},
+	)
+}
+
+// registerStickyColors registers the colors of sticky scroll.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts
+func registerStickyColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editorStickyScroll.background", Defaults: AllThemes(Ref("editor.background")),
+			Description: "Background color of sticky scroll in the editor"},
+		ColorContribution{ID: "editorStickyScrollGutter.background", Defaults: AllThemes(Ref("editor.background")),
+			Description: "Background color of the gutter part of sticky scroll in the editor"},
+		ColorContribution{ID: "editorStickyScrollHover.background", NeedsTransparency: true,
+			Defaults:    dflt(Hex("#2A2D2E"), Hex("#F0F0F0"), nil, Transparent(Hex("#0F4A85"), 0.1)),
+			Description: "Background color of sticky scroll on hover in the editor"},
+		ColorContribution{ID: "editorStickyScroll.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border color of sticky scroll in the editor"},
+		ColorContribution{ID: "editorStickyScroll.shadow", Defaults: AllThemes(Ref("scrollbar.shadow")),
+			Description: " Shadow color of sticky scroll in the editor"},
 	)
 }

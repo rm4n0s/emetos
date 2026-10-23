@@ -158,6 +158,8 @@ type Options struct {
 	SelectionHighlightMultiline bool
 	// Minimap are the settings of the minimap (editor.minimap.*).
 	Minimap MinimapOptions
+	// StickyScroll are the settings of sticky scroll (editor.stickyScroll.*).
+	StickyScroll StickyScrollOptions
 }
 
 // ColumnRuler is a vertical line drawn after a number of characters (editor.rulers).
@@ -287,6 +289,8 @@ type ViewModel struct {
 	hl highlightLink
 	// mm is the minimap.
 	mm minimapState
+	// sticky is sticky scroll.
+	sticky stickyState
 	// afterTimer is the source of timers the editor widget gave.
 	afterTimer TimerFunc
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
@@ -324,6 +328,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 	vm.cursors.SetOnChange(vm.cursorsChanged)
 	vm.hl.seenVersion = doc.Version()
 	vm.mm.changed = foundation.NewChangeNotifier()
+	vm.sticky.changed, vm.sticky.line = foundation.NewChangeNotifier(), -1
 	vm.Sync()
 	vm.restartBlink()
 	return vm
@@ -619,7 +624,22 @@ func (vm *ViewModel) SetScroller(scroll func(top float64)) { vm.scroller = scrol
 // view: the row goes to the nearest edge it left through.
 func (vm *ViewModel) RevealPrimary() { vm.RevealPosition(vm.cursors.Primary().Position()) }
 
-// RevealPosition scrolls the editor, if it has to, so that the row of a position is in view.
+// revealPadding is how many rows of room a revealed position keeps from the top of the editor and
+// how many from its bottom: with sticky scroll on, the lines that can stick at the top (a line less
+// at the bottom), at most half the rows on the screen.
+//
+// Ported from VS Code: src/vs/editor/common/viewModel/viewModelImpl.ts (getViewRangeWithCursorPadding)
+func (vm *ViewModel) revealPadding() (topRows, bottomRows int) {
+	if !vm.opts.StickyScroll.Enabled || vm.opts.LineHeight <= 0 {
+		return 0, 0
+	}
+	rows := int(vm.viewport / vm.opts.LineHeight)
+	pad := min(vm.opts.StickyScroll.MaxLineCount, rows/2)
+	return pad, max(pad-1, 0)
+}
+
+// RevealPosition scrolls the editor, if it has to, so that the row of a position is in view, and
+// clear of the sticky lines.
 func (vm *ViewModel) RevealPosition(p buffer.Position) {
 	if vm.scroller == nil || vm.viewport <= 0 {
 		return
@@ -627,10 +647,12 @@ func (vm *ViewModel) RevealPosition(p buffer.Position) {
 	proj := vm.Projection()
 	row := vm.RowOfPosition(p)
 	top, bottom := proj.RowTop(row), proj.RowTop(row)+proj.RowHeight(row)
+	topRows, bottomRows := vm.revealPadding()
+	topMargin, bottomMargin := float64(topRows)*vm.opts.LineHeight, float64(bottomRows)*vm.opts.LineHeight
 	switch scroll := vm.scrollTop; {
-	case top < scroll:
-		vm.scroller(top)
-	case bottom > scroll+vm.viewport:
-		vm.scroller(bottom - vm.viewport)
+	case top < scroll+topMargin:
+		vm.scroller(max(top-topMargin, 0))
+	case bottom > scroll+vm.viewport-bottomMargin:
+		vm.scroller(bottom + bottomMargin - vm.viewport)
 	}
 }

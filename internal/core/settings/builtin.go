@@ -431,6 +431,21 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.stickyScroll.enabled", Types: []Type{Boolean}, Default: true,
+			Description: "Shows the nested current scopes during the scroll at the top of the editor.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.stickyScroll.maxLineCount", Types: []Type{Number}, Default: 5, Minimum: Float(1), Maximum: Float(20),
+			Description: "Defines the maximum number of sticky lines to show.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.stickyScroll.scrollWithEditor", Types: []Type{Boolean}, Default: true,
+			Description: "Enable scrolling of Sticky Scroll with the editor's horizontal scrollbar.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.stopRenderingLineAfter", Types: []Type{Integer}, Default: 10000, Minimum: Float(-1),
 			Description: "Lines longer than this many characters are not wrapped, and a negative value never stops.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

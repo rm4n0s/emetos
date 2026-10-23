@@ -449,7 +449,14 @@ Blocks colored by token, with VS Code's sizes, drawn into an image (`ui.NewImage
 
 ### 9.6 Sticky scroll
 
-Uses folding ranges: the header lines of the ranges that contain the first visible line, up to `editor.stickyScroll.maxLineCount` (5). They are drawn over the top of the text with a shadow; a click moves the cursor to that line and scrolls so it isn't hidden under the sticky lines.
+Uses the folding ranges (§9.3): the header lines of the ranges that contain the first visible line stay over the top of the text (`sticky.go`, `sticky_paint.go`; a port of VS Code's `StickyLineCandidateProvider` and `StickyScrollWidgetState`, built on the folding tree instead of a language's outline).
+
+- **Settings**: `editor.stickyScroll.enabled` (true), `maxLineCount` (5, 1 to 20), `scrollWithEditor` (true: the sticky lines scroll sideways with the text).
+- **Candidates**: a region of at least two lines is a candidate for the lines of its start line to its end line. The sticky lines are chosen by the position of the top of the viewport: the region at depth *d* sticks when its slot (`d * lineHeight`) is below the natural y of its start line, and while the slot is not below the bottom of its end line; when the end of the region is about to leave, the last sticky line is pushed up by the distance that remains (`Offset`), so it slides away under the line above. The number is at most `maxLineCount` and at most a quarter of the rows of the viewport (rounded). Lines hidden by a fold are not candidates and the lines come from the rows of the projection (folds, wrapping).
+- **Drawing**: over the top of the text, in the colors `editorStickyScroll.background`, `editorGutter.background` over the gutter (`editorStickyScrollGutter.background`), `editorStickyScrollHover.background` for the line under the pointer, a border under the lines (`editorStickyScroll.border`) and a shadow of 4 pixels (`editorStickyScroll.shadow`, a gradient). The line numbers and folding controls of the gutter are drawn for each sticky line. The last line is drawn first so that it slides in under the others. The widget takes the pointer only over the lines, not over the shadow.
+- **Pointer**: moving over a line sets the hover; a click moves the cursor to the clicked column of that line (column 0 on the gutter) and scrolls so that the line is not under the sticky lines (`RevealStickyPosition`); a Shift click scrolls the end of the range to the middle of the editor when it is off the screen; a click on the folding control folds the range. The wheel goes to the editor.
+- **Reveal**: while sticky scroll is enabled, revealing a position (`RevealPosition`) keeps it clear of the sticky lines at the top (the rows that may be sticky are added to the top margin), so it is never hidden under them.
+- Not ported: the outline model of language servers (area 3 may replace the candidates), `editor.stickyScroll.defaultModel`, the keyboard commands (`editor.action.focusStickyScroll`, `selectNext`, ...), the context menu, and the sticky lines of the diff editor.
 
 ### 9.7 Breadcrumbs
 

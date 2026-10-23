@@ -71,6 +71,12 @@ type Colors struct {
 	MinimapBackground, MinimapForegroundOpacity                                ui.Color
 	MinimapSelection, MinimapFindMatch, MinimapSelectionOccurrence             ui.Color
 	MinimapSliderBackground, MinimapSliderHoverBackground, MinimapSliderActive ui.Color
+	// EditorStickyScrollBackground, EditorStickyScrollGutterBackground and
+	// EditorStickyScrollHoverBackground are the backgrounds of sticky scroll (its lines, its gutter
+	// and a line under the pointer), EditorStickyScrollBorder its bottom border and
+	// EditorStickyScrollShadow its shadow.
+	EditorStickyScrollBackground, EditorStickyScrollGutterBackground, EditorStickyScrollHoverBackground ui.Color
+	EditorStickyScrollBorder, EditorStickyScrollShadow                                                  ui.Color
 	// EditorOverviewRulerFindMatch and EditorOverviewRulerRangeHighlight are the marks of the
 	// matches and of the range highlight on the vertical scrollbar.
 	EditorOverviewRulerFindMatch, EditorOverviewRulerRangeHighlight ui.Color
@@ -146,6 +152,9 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		MinimapSelectionOccurrence: color("minimap.selectionOccurrenceHighlight"),
 		MinimapSliderBackground:    color("minimapSlider.background"), MinimapSliderHoverBackground: color("minimapSlider.hoverBackground"),
 		MinimapSliderActive:          color("minimapSlider.activeBackground"),
+		EditorStickyScrollBackground: color("editorStickyScroll.background"), EditorStickyScrollGutterBackground: color("editorStickyScrollGutter.background"),
+		EditorStickyScrollHoverBackground: color("editorStickyScrollHover.background"),
+		EditorStickyScrollBorder:          color("editorStickyScroll.border"), EditorStickyScrollShadow: color("editorStickyScroll.shadow"),
 		EditorOverviewRulerFindMatch: color("editorOverviewRuler.findMatchForeground"), EditorOverviewRulerRangeHighlight: color("editorOverviewRuler.rangeHighlightForeground"),
 		EditorWidgetBackground: color("editorWidget.background"), EditorWidgetForeground: color("editorWidget.foreground"), WidgetBorder: color("widget.border"),
 		IconForeground: color("icon.foreground"), ToolbarHoverBackground: color("toolbar.hoverBackground"),

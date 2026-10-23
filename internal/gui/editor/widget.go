@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
+	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -683,6 +684,11 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		Selection:         colors.MinimapSelection, FindMatch: colors.MinimapFindMatch, SelectionOccurrence: colors.MinimapSelectionOccurrence,
 		Slider: colors.MinimapSliderBackground, SliderHover: colors.MinimapSliderHoverBackground, SliderActive: colors.MinimapSliderActive,
 	}
+	stickyColors := StickyColors{
+		Background: colors.EditorStickyScrollBackground, GutterBackground: colors.EditorStickyScrollGutterBackground,
+		Hover: colors.EditorStickyScrollHoverBackground, Border: colors.EditorStickyScrollBorder, Shadow: colors.EditorStickyScrollShadow,
+		LineNumber: colors.EditorLineNumberForeground, FoldingControl: colors.EditorGutterFoldingControlForeground,
+	}
 	return widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
 		info := s.layoutMinimap(vm, c.MaxWidth, c.MaxHeight, gutterWidth, fontMetrics.charWidth, pixelRatio)
 		text := widgets.NewScrollConfiguration(behavior, scrollable)
@@ -699,6 +705,14 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 			body = widgets.NewPadding(edge, text)
 			stack = append(stack, widgets.NewPositioned(s.minimapWidget(vm, minimapColors, tokenTheme),
 				widgets.PositionedOpts{Left: foundation.Some(minimapLeft), Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Width: foundation.Some(info.Width)}))
+		}
+		if vm.Options().StickyScroll.Enabled {
+			leftMinimap := 0.0
+			if info.Show && vm.Options().Minimap.Side == "left" {
+				leftMinimap = info.Width
+			}
+			stack = append(stack, widgets.NewPositioned(s.stickyWidget(vm, stickyColors, tokenTheme, leftMinimap),
+				widgets.PositionedOpts{Left: foundation.Some(0.0), Top: foundation.Some(0.0), Right: foundation.Some(kit.DefaultVerticalScrollbarSize)}))
 		}
 		return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
 			widgets.NewStack(append([]widgets.Widget{body}, stack...), widgets.StackOpts{Fit: rendering.StackFitExpand}),
@@ -754,4 +768,67 @@ func (s *editorState) minimapDown(e *gestures.PointerDownEvent) {
 // Ported from VS Code: src/vs/editor/browser/viewParts/viewCursors/viewCursors.ts (registerThemingParticipant)
 func oppositeColor(c ui.Color) ui.Color {
 	return ui.NewColorFromARGB(c.Alpha(), 255-c.Red(), 255-c.Green(), 255-c.Blue())
+}
+
+// stickyWidget is the sticky lines with the pointer handling around them: a press reveals the
+// line or folds its scope, and a pointer over them highlights the line under it.
+func (s *editorState) stickyWidget(vm *ViewModel, colors StickyColors, tokens *theme.TokenTheme, inset float64) widgets.Widget {
+	return widgets.NewMouseRegion(widgets.NewListener(
+		newStickyLayer(vm, s.controller, colors, tokens, inset),
+		widgets.ListenerOpts{
+			Behavior:        rendering.HitTestBehaviorOpaque,
+			OnPointerDown:   func(e *gestures.PointerDownEvent) { s.stickyDown(e, inset) },
+			OnPointerSignal: s.pointerSignal,
+		}), widgets.MouseRegionOpts{
+		Cursor:  services.SystemMouseCursors.Click,
+		OnHover: func(e *gestures.PointerHoverEvent) { vm.StickyHover(vm.stickyLineAtHeight(e.LocalPosition().Dy)) },
+		OnExit:  func(*gestures.PointerExitEvent) { vm.StickyHover(-1) },
+	})
+}
+
+// stickyDown handles a press on the sticky lines: on the folding icon it folds or unfolds the scope;
+// elsewhere it moves the cursor to the line (to the character under the pointer in the text) and
+// scrolls the editor to it, clear of the sticky lines; with Shift it shows the end of the scope.
+//
+// Ported from VS Code: stickyScrollController.ts (_registerMouseListeners, the click handler)
+func (s *editorState) stickyDown(e *gestures.PointerDownEvent, inset float64) {
+	if e.Buttons()&gestures.PrimaryButton == 0 {
+		return
+	}
+	mods := s.modifiers()
+	if mods.Ctrl || mods.Alt || mods.Meta {
+		return
+	}
+	vm := s.Widget().vm
+	local := e.LocalPosition()
+	idx := vm.stickyLineAtHeight(local.Dy)
+	if idx < 0 {
+		return
+	}
+	lines := vm.stickyLinesAt(vm.ScrollTop())
+	if idx >= len(lines.Lines) {
+		return
+	}
+	line := lines.Lines[idx]
+	if mods.Shift {
+		vm.RevealLineInCenterIfOutsideViewport(lines.Ends[idx])
+		return
+	}
+	widths := vm.GutterWidths(textFactory(s.Context()))
+	icon := inset + widths.GlyphMargin + widths.LineNumbers
+	opts := vm.Options()
+	if opts.Folding && opts.ShowFoldingControls != "never" && local.Dx >= icon && local.Dx < icon+foldingControlsWidth {
+		vm.ToggleFoldAt(line, true, false, false)
+		return
+	}
+	pos := buffer.Position{Line: line}
+	if left := inset + widths.Total(); local.Dx >= left {
+		x := local.Dx - left
+		if opts.StickyScroll.ScrollWithEditor {
+			x += vm.ScrollLeft()
+		}
+		pos = vm.stickyPositionAt(line, newGeometry(vm, textFactory(s.Context())), x)
+	}
+	s.node.RequestFocus()
+	vm.RevealStickyPosition(pos)
 }
