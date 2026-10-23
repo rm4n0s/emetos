@@ -729,7 +729,12 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		}
 		return widgets.NewColoredBox(colors.EditorBackground, kit.NewScrollableElement(
 			widgets.NewStack(append([]widgets.Widget{body}, stack...), widgets.StackOpts{Fit: rendering.StackFitExpand}),
-			s.scroll, kit.ScrollableElementOpts{InsetLeft: inset, UseShadows: true}))
+			kit.ScrollableElementOpts{
+				Model: s.scroll, InsetLeft: inset, UseShadows: true,
+				VerticalSize:     foundation.Some(kit.DefaultVerticalScrollbarSize),
+				HorizontalSize:   foundation.Some(kit.DefaultHorizontalScrollbarSize),
+				HandleMouseWheel: foundation.Some(false), // the editor scrolls with the wheel itself
+			}))
 	})
 }
 

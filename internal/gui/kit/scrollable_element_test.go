@@ -8,6 +8,7 @@ import (
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
+	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 )
@@ -41,9 +42,22 @@ func pumpElement(t *testing.T, model ScrollModel, opts ScrollableElementOpts) *g
 	ts := gluttertest.New(t, gluttertest.Opts{Size: viewSize})
 	colors := DarkModern()
 	ts.PumpWidget(widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(colors,
-		NewScrollableElement(widgets.NewColoredBox(colors.EditorBackground, widgets.NewSizedBox(nil)), model, opts))))
+		NewScrollableElement(widgets.NewColoredBox(colors.EditorBackground, widgets.NewSizedBox(nil)), editorScrollbars(model, opts)))))
 	ts.Pump(time.Millisecond)
 	return ts
+}
+
+// editorScrollbars gives the options a model and the sizes of the scrollbars of an editor (14 by
+// 12), which the tests below are written for, unless they have sizes.
+func editorScrollbars(model ScrollModel, opts ScrollableElementOpts) ScrollableElementOpts {
+	opts.Model = model
+	if !opts.VerticalSize.IsSome() {
+		opts.VerticalSize = foundation.Some(DefaultVerticalScrollbarSize)
+	}
+	if !opts.HorizontalSize.IsSome() {
+		opts.HorizontalSize = foundation.Some(DefaultHorizontalScrollbarSize)
+	}
+	return opts
 }
 
 func pixelAt(ts *gluttertest.Tester, x, y int) color.NRGBA {
@@ -350,7 +364,7 @@ func TestScrollableElementFollowsANewModel(t *testing.T) {
 	colors := DarkModern()
 	pump := func(m ScrollModel) {
 		ts.PumpWidget(widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(colors,
-			NewScrollableElement(widgets.NewColoredBox(colors.EditorBackground, widgets.NewSizedBox(nil)), m, ScrollableElementOpts{Vertical: ScrollbarVisible}))))
+			NewScrollableElement(widgets.NewColoredBox(colors.EditorBackground, widgets.NewSizedBox(nil)), editorScrollbars(m, ScrollableElementOpts{Vertical: ScrollbarVisible})))))
 		ts.Pump(time.Millisecond)
 	}
 	pump(first)
@@ -369,5 +383,424 @@ func TestScrollableElementFollowsANewModel(t *testing.T) {
 	second.ScrollTo(0, 0) // nor to the second once the element is gone
 	if errs := ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
+	}
+}
+
+// tallKey and wideKey find the child that an element scrolls.
+var childKey = foundation.NewKey("scrolled")
+
+// scrolledChild is a child of a size, with a key to find where it is.
+func scrolledChild(width, height float64) widgets.Widget {
+	opts := widgets.SizedBoxOpts{Key: childKey}
+	if width > 0 {
+		opts.Width = foundation.Some(width)
+	}
+	if height > 0 {
+		opts.Height = foundation.Some(height)
+	}
+	return widgets.NewColoredBox(DarkModern().EditorBackground, widgets.NewSizedBox(nil, opts))
+}
+
+// pumpPlain shows an element that scrolls a child of its own.
+func pumpPlain(t *testing.T, child widgets.Widget, opts ScrollableElementOpts) *gluttertest.Tester {
+	t.Helper()
+	ts := gluttertest.New(t, gluttertest.Opts{Size: viewSize})
+	ts.PumpWidget(widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(DarkModern(), NewScrollableElement(child, opts))))
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond) // the scroll view's sizes are known after its first layout
+	ts.Pump(time.Millisecond)
+	return ts
+}
+
+// childAt is where the scrolled child is.
+func childAt(ts *gluttertest.Tester) ui.Offset { return ts.TopLeft(gluttertest.ByKey(childKey)) }
+
+// settle runs the frames of a smooth scroll and the one after it.
+func settle(ts *gluttertest.Tester) {
+	ts.Pump(time.Millisecond)
+	ts.Pump(scrollSmoothDuration + 50*time.Millisecond)
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+}
+
+func TestWheelDelta(t *testing.T) {
+	notch := func(dx, dy float64) ui.Offset { return ui.Offset{Dx: dx * wheelNotch, Dy: dy * wheelNotch} }
+	cases := []struct {
+		name   string
+		delta  ui.Offset
+		shift  bool
+		alt    bool
+		opts   ScrollableElementOpts
+		dx, dy float64
+	}{
+		{"one notch down is 50", notch(0, 1), false, false, ScrollableElementOpts{}, 0, 50},
+		{"up", notch(0, -2), false, false, ScrollableElementOpts{}, 0, -100},
+		{"sideways", notch(1, 0), false, false, ScrollableElementOpts{}, 50, 0},
+		{"the larger axis wins", notch(0.5, 1), false, false, ScrollableElementOpts{}, 0, 50},
+		{"both axes without the predominant one", notch(0.5, 1), false, false, ScrollableElementOpts{NoScrollPredominantAxis: true}, 25, 50},
+		{"shift makes it sideways", notch(0, 1), true, false, ScrollableElementOpts{}, 50, 0},
+		{"shift does not turn a wheel that is sideways", notch(1, 0), true, false, ScrollableElementOpts{}, 50, 0},
+		{"alt is five times faster", notch(0, 1), false, true, ScrollableElementOpts{}, 0, 250},
+		{"the sensitivity", notch(0, 1), false, false, ScrollableElementOpts{MouseWheelScrollSensitivity: foundation.Some(2.0)}, 0, 100},
+		{"the fast sensitivity", notch(0, 1), false, true, ScrollableElementOpts{FastScrollSensitivity: foundation.Some(2.0)}, 0, 100},
+		{"a small movement goes a whole pixel", ui.Offset{Dy: 0.5}, false, false, ScrollableElementOpts{}, 0, 1},
+		{"and the other way", ui.Offset{Dy: -0.5}, false, false, ScrollableElementOpts{}, 0, -1},
+		{"flip the axes", notch(0, 1), false, false, ScrollableElementOpts{FlipAxes: true}, 50, 0},
+		{"scroll y to x", notch(0, 1), false, false, ScrollableElementOpts{ScrollYToX: true}, 50, 0},
+		{"scroll y to x with opposite values does nothing", notch(1, -1), false, false, ScrollableElementOpts{ScrollYToX: true}, 0, 0},
+		{"nothing", ui.Offset{}, false, false, ScrollableElementOpts{}, 0, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dx, dy := WheelDelta(tc.delta, tc.shift, tc.alt, tc.opts)
+			if dx != tc.dx || dy != tc.dy {
+				t.Errorf("got %v, %v, want %v, %v", dx, dy, tc.dx, tc.dy)
+			}
+		})
+	}
+}
+
+func TestElementScrollsAChildWithTheWheel(t *testing.T) {
+	cases := []struct {
+		name  string
+		child widgets.Widget
+		opts  ScrollableElementOpts
+		at    ui.Offset
+		delta ui.Offset
+		want  ui.Offset
+	}{
+		{"a notch down", scrolledChild(0, 1200), ScrollableElementOpts{}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch}, ui.Offset{Dy: -50}},
+		{"three notches", scrolledChild(0, 1200), ScrollableElementOpts{}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: 3 * wheelNotch}, ui.Offset{Dy: -150}},
+		{"up from the top does nothing", scrolledChild(0, 1200), ScrollableElementOpts{}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: -wheelNotch}, ui.Offset{}},
+		{"stops at the end", scrolledChild(0, 1200), ScrollableElementOpts{}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: 40 * wheelNotch}, ui.Offset{Dy: -900}},
+		{"sensitivity", scrolledChild(0, 1200), ScrollableElementOpts{MouseWheelScrollSensitivity: foundation.Some(0.5)}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch}, ui.Offset{Dy: -25}},
+		{"a child that fits does not move", scrolledChild(0, 200), ScrollableElementOpts{}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch}, ui.Offset{}},
+		{"sideways when the element scrolls sideways", scrolledChild(1600, 0), ScrollableElementOpts{Axes: ScrollAxisHorizontal}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dx: wheelNotch}, ui.Offset{Dx: -50}},
+		{"a vertical wheel does not scroll sideways", scrolledChild(1600, 0), ScrollableElementOpts{Axes: ScrollAxisHorizontal}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch}, ui.Offset{}},
+		{"both axes", scrolledChild(1600, 1200), ScrollableElementOpts{Axes: ScrollAxisBoth}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch}, ui.Offset{Dy: -50}},
+		{"not handled when turned off", scrolledChild(0, 1200), ScrollableElementOpts{HandleMouseWheel: foundation.Some(false)}, ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch}, ui.Offset{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := pumpPlain(t, tc.child, tc.opts)
+			ts.ScrollAt(tc.at, tc.delta)
+			settle(ts)
+			if got := childAt(ts); got != tc.want {
+				t.Errorf("child at %v, want %v", got, tc.want)
+			}
+			if errs := ts.TakeErrors(); len(errs) != 0 {
+				t.Errorf("errors: %v", errs)
+			}
+		})
+	}
+}
+
+func TestElementWheelWithModifiers(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(1600, 1200), ScrollableElementOpts{Axes: ScrollAxisBoth})
+	at := ui.Offset{Dx: 200, Dy: 150}
+	ts.SendKeyDownEvent(services.LogicalKeyboardKeyShiftLeft, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyShiftLeft})
+	ts.ScrollAt(at, ui.Offset{Dy: wheelNotch})
+	settle(ts)
+	ts.SendKeyUpEvent(services.LogicalKeyboardKeyShiftLeft, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyShiftLeft})
+	if got := childAt(ts); got != (ui.Offset{Dx: -50}) {
+		t.Errorf("shift and a vertical wheel scroll sideways: %v", got)
+	}
+	ts.SendKeyDownEvent(services.LogicalKeyboardKeyAltLeft, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyAltLeft})
+	ts.ScrollAt(at, ui.Offset{Dy: wheelNotch})
+	settle(ts)
+	ts.SendKeyUpEvent(services.LogicalKeyboardKeyAltLeft, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyAltLeft})
+	if got := childAt(ts); got != (ui.Offset{Dx: -50, Dy: -250}) {
+		t.Errorf("alt scrolls five times as far: %v", got)
+	}
+}
+
+func TestElementWheelIsSmooth(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(0, 1200), ScrollableElementOpts{})
+	ts.ScrollAt(ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch})
+	ts.Pump(time.Millisecond) // the first frame of the animation
+	ts.Pump(scrollSmoothDuration / 2)
+	ts.Pump(time.Millisecond)
+	mid := childAt(ts).Dy
+	if mid >= 0 || mid <= -50 {
+		t.Errorf("half way through the scroll the child is half way: %v", mid)
+	}
+	ts.Pump(scrollSmoothDuration)
+	ts.Pump(time.Millisecond)
+	if got := childAt(ts).Dy; got != -50 {
+		t.Errorf("the scroll ends at 50: %v", got)
+	}
+	// A second notch during the animation goes on from where the first ends.
+	ts.ScrollAt(ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch})
+	ts.Pump(time.Millisecond)
+	ts.ScrollAt(ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch})
+	settle(ts)
+	if got := childAt(ts).Dy; got != -150 {
+		t.Errorf("two more notches: %v", got)
+	}
+}
+
+func TestElementWheelWithoutSmoothScrolling(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(0, 1200), ScrollableElementOpts{NoSmoothScroll: true})
+	ts.ScrollAt(ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch})
+	ts.Pump(time.Millisecond)
+	if got := childAt(ts).Dy; got != -50 {
+		t.Errorf("at once: %v", got)
+	}
+}
+
+func TestElementWheelRevealsTheScrollbar(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(0, 1200), ScrollableElementOpts{})
+	if got := sliderPixel(ts, 20); got != elementBackground {
+		t.Fatalf("hidden at first: %v", got)
+	}
+	ts.ScrollAt(ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch})
+	settle(ts)
+	if got := pixelAt(ts, 395, 40); got == elementBackground {
+		t.Error("a scroll shows the scrollbar, with the slider at 50/4")
+	}
+	ts.Hover(ui.Offset{Dx: -20, Dy: -20}) // the pointer leaves
+	ts.Pump(scrollbarHideDelay + 10*time.Millisecond)
+	ts.Pump(time.Millisecond)
+	ts.Pump(scrollbarFadeDuration + 50*time.Millisecond)
+	if got := pixelAt(ts, 395, 40); got != elementBackground {
+		t.Errorf("and hides it again: %v", got)
+	}
+}
+
+func TestElementConsumesTheWheel(t *testing.T) {
+	// An inner element of 100 high with a child of 150, in an outer element of a tall child.
+	inner := func(always bool) widgets.Widget {
+		return widgets.NewSizedBox(NewScrollableElement(widgets.NewColoredBox(DarkModern().EditorBackground, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(150.0)})),
+			ScrollableElementOpts{AlwaysConsumeMouseWheel: always, NoSmoothScroll: true}), widgets.SizedBoxOpts{Height: foundation.Some(100.0)})
+	}
+	outerChild := func(always bool) widgets.Widget {
+		return widgets.NewColumn([]widgets.Widget{
+			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Key: childKey, Height: foundation.Some(200.0)}),
+			inner(always),
+			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(1000.0)}),
+		})
+	}
+	cases := []struct {
+		name   string
+		always bool
+		want   float64 // where the outer child is after four notches over the inner element
+	}{
+		// The inner element scrolls its 50, then the next notches go to the outer one.
+		{"the wheel goes on to the outer element at the end", false, -150},
+		{"a wheel the inner element consumes stays there", true, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := pumpPlain(t, outerChild(tc.always), ScrollableElementOpts{NoSmoothScroll: true})
+			// scroll the outer element so that the inner one is in view, with the pointer over it
+			over := ui.Offset{Dx: 200, Dy: 250}
+			for range 4 {
+				ts.ScrollAt(over, ui.Offset{Dy: wheelNotch})
+				ts.Pump(time.Millisecond)
+			}
+			if got := childAt(ts).Dy; got != tc.want {
+				t.Errorf("the outer child is at %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestElementDragsAndClicksOnTheScrollbarsOfAChild(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(0, 1200), ScrollableElementOpts{Vertical: ScrollbarVisible})
+	// The slider is 75 long in a track of 300, in the 10 px at the right.
+	g := ts.StartGesture(ui.Offset{Dx: 395, Dy: 30})
+	ts.Pump(time.Millisecond)
+	g.MoveBy(ui.Offset{Dy: 50})
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if got := childAt(ts).Dy; got != -200 {
+		t.Errorf("a slider dragged by 50 moves the child by 200: %v", got)
+	}
+	g.Up()
+	ts.Pump(time.Millisecond)
+	// A click on the track puts the center of the slider there: (200 - 37.5) / 0.25.
+	ts.TapAt(ui.Offset{Dx: 395, Dy: 200})
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if got := childAt(ts).Dy; got != -650 {
+		t.Errorf("a click on the track: %v", got)
+	}
+}
+
+func TestElementScrollsBothWaysWithItsScrollbars(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(1600, 1200), ScrollableElementOpts{Axes: ScrollAxisBoth, Vertical: ScrollbarVisible, Horizontal: ScrollbarVisible})
+	// The horizontal track is 390 long (the vertical scrollbar's 10 are not available) and its
+	// slider 97: it moves 293 over 1200 of scroll.
+	g := ts.StartGesture(ui.Offset{Dx: 20, Dy: 295})
+	ts.Pump(time.Millisecond)
+	g.MoveBy(ui.Offset{Dx: 30})
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	want := math.Round(30 / (293.0 / 1200))
+	if got := childAt(ts); got.Dx != -want || got.Dy != 0 {
+		t.Errorf("child at %v, want %v", got, ui.Offset{Dx: -want})
+	}
+	g.Up()
+}
+
+func TestElementWithControllers(t *testing.T) {
+	ctrl := widgets.NewScrollController()
+	items := 40
+	build := func() widgets.Widget {
+		rows := make([]widgets.Widget, items)
+		for i := range rows {
+			rows[i] = widgets.NewSizedBox(widgets.NewColoredBox(DarkModern().EditorBackground, widgets.NewSizedBox(nil)), widgets.SizedBoxOpts{Height: foundation.Some(22.0)})
+		}
+		list := widgets.NewListView(rows, widgets.ListViewOpts{Controller: ctrl})
+		return widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(DarkModern(), NewScrollableElement(list, ScrollableElementOpts{Controller: ctrl})))
+	}
+	ts := gluttertest.New(t, gluttertest.Opts{Size: viewSize})
+	ts.PumpWidget(build())
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	// 40 rows of 22 are 880 in 300: the slider is 102 long (300 * 300 / 880) over a track of 300.
+	if got := pixelAt(ts, 395, 20); got != elementBackground {
+		t.Fatalf("the scrollbar waits for the pointer: %v", got)
+	}
+	ts.Hover(ui.Offset{Dx: 200, Dy: 100})
+	ts.Pump(time.Millisecond)
+	ts.Pump(scrollbarRevealDuration + 20*time.Millisecond)
+	if got := pixelAt(ts, 395, 20); got == elementBackground {
+		t.Fatal("the scrollbar of the list shows under the pointer")
+	}
+	// The list's own wheel scrolls it, and the slider follows.
+	ts.ScrollAt(ui.Offset{Dx: 200, Dy: 100}, ui.Offset{Dy: 100})
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if ctrl.Offset() == 0 {
+		t.Fatal("the list scrolls with the wheel")
+	}
+	pos := ctrl.Offset()
+	ts.Pump(time.Millisecond)
+	if got := pixelAt(ts, 395, 20); got != elementBackground {
+		t.Errorf("the slider moved down with the list: %v", got)
+	}
+	// Dragging the slider scrolls the list.
+	ctrl.JumpTo(0)
+	ts.Pump(time.Millisecond)
+	g := ts.StartGesture(ui.Offset{Dx: 395, Dy: 30})
+	ts.Pump(time.Millisecond)
+	g.MoveBy(ui.Offset{Dy: 30})
+	ts.Pump(time.Millisecond)
+	want := math.Round(30 / ((300 - 102.0) / (880 - 300)))
+	if got := ctrl.Offset(); math.Abs(got-want) > 1 {
+		t.Errorf("a slider dragged by 30 scrolls the list to %v, want about %v", got, want)
+	}
+	g.Up()
+	_ = pos
+
+	// A list that grows gets a scrollbar when it needs one.
+	items = 5
+	ts.PumpWidget(build())
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	ts.Hover(ui.Offset{Dx: 200, Dy: 101})
+	ts.Pump(time.Millisecond)
+	ts.Pump(200 * time.Millisecond)
+	if got := pixelAt(ts, 395, 20); got != elementBackground {
+		t.Errorf("a list that fits has no scrollbar: %v", got)
+	}
+	items = 100
+	ts.PumpWidget(build())
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	ts.Pump(200 * time.Millisecond)
+	if got := pixelAt(ts, 395, 20); got == elementBackground {
+		t.Error("a list that grew needs its scrollbar")
+	}
+	if errs := ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
+}
+
+func TestScrollControllerModel(t *testing.T) {
+	m := NewScrollControllerModel(nil, nil)
+	if got := m.Metrics(); got != (ScrollMetrics{}) {
+		t.Errorf("without controllers: %v", got)
+	}
+	m.ScrollTo(10, 10) // nothing to move
+	notified := 0
+	ctrl := widgets.NewScrollController()
+	model := NewScrollControllerModel(ctrl, nil)
+	model.AddListener(func() { notified++ })
+	ts := gluttertest.New(t, gluttertest.Opts{Size: viewSize})
+	ts.PumpWidget(widgets.NewDirectionality(ui.TextDirectionLTR, widgets.NewSingleChildScrollView(
+		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(900.0)}), widgets.SingleChildScrollViewOpts{Controller: ctrl})))
+	ts.Pump(time.Millisecond)
+	if got := model.Metrics(); got.ViewportHeight != 300 || got.ContentHeight != 900 || got.Top != 0 {
+		t.Errorf("metrics %+v", got)
+	}
+	model.ScrollTo(0, 5000)
+	ts.Pump(time.Millisecond)
+	if got := model.Metrics(); got.Top != 600 {
+		t.Errorf("the model keeps the position within the content: %+v", got)
+	}
+	if notified == 0 {
+		t.Error("the model tells its listeners about the controller")
+	}
+	model.ScrollTo(0, -10)
+	if got := model.Metrics().Top; got != 0 {
+		t.Errorf("not before the start: %v", got)
+	}
+	model.Dispose()
+	before := notified
+	ctrl.JumpTo(100)
+	if notified != before {
+		t.Error("a disposed model does not listen")
+	}
+}
+
+func TestElementDefaultSizes(t *testing.T) {
+	// Without sizes the scrollbars are 10 thick, as VS Code's; an editor asks for its own.
+	ts := pumpPlain(t, scrolledChild(0, 1200), ScrollableElementOpts{Vertical: ScrollbarVisible})
+	if got := pixelAt(ts, 390, 20); got == elementBackground {
+		t.Error("the slider starts 10 px from the edge")
+	}
+	if got := pixelAt(ts, 389, 20); got != elementBackground {
+		t.Errorf("and not before: %v", got)
+	}
+}
+
+func TestElementTrackBackground(t *testing.T) {
+	colors := DarkModern()
+	colors.ScrollbarBackground = ui.NewColor(0xFF336699)
+	ts := gluttertest.New(t, gluttertest.Opts{Size: viewSize})
+	ts.PumpWidget(widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(colors,
+		NewScrollableElement(scrolledChild(0, 1200), ScrollableElementOpts{Vertical: ScrollbarVisible}))))
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if got := pixelAt(ts, 395, 200); got != (color.NRGBA{R: 0x33, G: 0x66, B: 0x99, A: 0xFF}) {
+		t.Errorf("the track is painted in scrollbar.background: %v", got)
+	}
+}
+
+func TestElementShadowsOfAChild(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(0, 1200), ScrollableElementOpts{UseShadows: true, NoSmoothScroll: true})
+	if got := pixelAt(ts, 100, 1); got != elementBackground {
+		t.Errorf("no shadow at the top of content that is not scrolled: %v", got)
+	}
+	ts.ScrollAt(ui.Offset{Dx: 200, Dy: 150}, ui.Offset{Dy: wheelNotch})
+	ts.Pump(time.Millisecond)
+	ts.Pump(time.Millisecond)
+	if got := pixelAt(ts, 100, 1); got.R >= elementBackground.R {
+		t.Errorf("a shadow at the top of scrolled content: %v", got)
+	}
+}
+
+func TestElementPanZoomScrolls(t *testing.T) {
+	ts := pumpPlain(t, scrolledChild(0, 1200), ScrollableElementOpts{})
+	g := ts.StartTrackpadGesture(ui.Offset{Dx: 200, Dy: 150})
+	g.PanBy(ui.Offset{Dy: -40})
+	ts.Pump(time.Millisecond)
+	g.End()
+	ts.Pump(time.Millisecond)
+	if got := childAt(ts).Dy; got != -40 {
+		t.Errorf("fingers moving up scroll the content down by 40: %v", got)
 	}
 }

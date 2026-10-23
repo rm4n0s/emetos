@@ -167,7 +167,7 @@ func registerEditorColors(r *ColorRegistry) {
 	)
 }
 
-// registerScrollbarColors registers the colors of scrollbars.
+// registerScrollbarColors registers the colors of scrollbars and of sashes.
 //
 // Ported from VS Code: src/vs/platform/theme/common/colors/miscColors.ts
 func registerScrollbarColors(r *ColorRegistry) {
@@ -184,6 +184,10 @@ func registerScrollbarColors(r *ColorRegistry) {
 		ColorContribution{ID: "scrollbarSlider.activeBackground",
 			Defaults:    dflt(grey("#BFBFBF", 0.4), grey("#000000", 0.6), Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Scrollbar slider background color when clicked on."},
+		ColorContribution{ID: "scrollbar.background", Defaults: dflt(nil, nil, nil, nil),
+			Description: "Scrollbar track background color."},
+		ColorContribution{ID: "sash.hoverBorder", Defaults: AllThemes(Ref("focusBorder")),
+			Description: "Border color of active sashes."},
 	)
 }
 

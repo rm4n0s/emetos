@@ -48,9 +48,12 @@ type Colors struct {
 	ScrollbarSliderHoverBackground    ui.Color
 	ScrollbarSliderActiveBackground   ui.Color
 	ScrollbarShadow                   ui.Color
-	FocusBorder                       ui.Color
-	Foreground                        ui.Color
-	WidgetShadow                      ui.Color
+	// ScrollbarBackground is the color of the track of a scrollbar (transparent in the
+	// bundled themes) and SashHoverBorder the color of a sash under the pointer or dragged.
+	ScrollbarBackground, SashHoverBorder ui.Color
+	FocusBorder                          ui.Color
+	Foreground                           ui.Color
+	WidgetShadow                         ui.Color
 
 	// EditorFindMatchBackground and its border color the current match of the find widget,
 	// EditorFindMatchHighlightBackground and its border the other matches and
@@ -161,6 +164,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		ScrollbarSliderHoverBackground:    color("scrollbarSlider.hoverBackground"),
 		ScrollbarSliderActiveBackground:   color("scrollbarSlider.activeBackground"),
 		ScrollbarShadow:                   color("scrollbar.shadow"),
+		ScrollbarBackground:               color("scrollbar.background"),
+		SashHoverBorder:                   color("sash.hoverBorder"),
 		FocusBorder:                       color("focusBorder"),
 		Foreground:                        color("foreground"),
 		WidgetShadow:                      color("widget.shadow"),

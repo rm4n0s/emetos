@@ -94,6 +94,8 @@ func TestDefaultColors(t *testing.T) {
 		{"scrollbarSlider.background", "rgba(121, 121, 121, 0.4)", "rgba(100, 100, 100, 0.4)", "rgba(111, 195, 223, 0.6)", "rgba(15, 74, 133, 0.4)"},
 		{"scrollbarSlider.hoverBackground", "rgba(100, 100, 100, 0.7)", "rgba(100, 100, 100, 0.7)", "rgba(111, 195, 223, 0.8)", "rgba(15, 74, 133, 0.8)"},
 		{"scrollbarSlider.activeBackground", "rgba(191, 191, 191, 0.4)", "rgba(0, 0, 0, 0.6)", "#6fc3df", "#0f4a85"},
+		{"scrollbar.background", none, none, none, none},
+		{"sash.hoverBorder", "#007fd4", "#0090f1", "#f38518", "#006bbd"},
 		{"nothing.registered", none, none, none, none},
 	}
 	registry := DefaultColorRegistry()

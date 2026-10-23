@@ -36,6 +36,8 @@ func TestDarkModernValues(t *testing.T) {
 		{"scrollbarSlider.hoverBackground", c.ScrollbarSliderHoverBackground, 0xB3646464},
 		{"scrollbarSlider.activeBackground", c.ScrollbarSliderActiveBackground, 0x66BFBFBF},
 		{"scrollbar.shadow", c.ScrollbarShadow, 0xFF000000},
+		{"scrollbar.background", c.ScrollbarBackground, 0x00000000},
+		{"sash.hoverBorder", c.SashHoverBorder, 0xFF0078D4},
 		{"focusBorder", c.FocusBorder, 0xFF0078D4},
 		{"foreground", c.Foreground, 0xFFCCCCCC},
 		{"widget.shadow", c.WidgetShadow, 0x5C000000},
