@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/indent"
+	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -129,6 +131,10 @@ type Window struct {
 	// are set while the shell is on screen (closing.go).
 	closer func(CloseReason)
 	exit   func()
+	// launcher is the shell's answer to HandleLaunch, set while the shell is on screen (launch.go), and startup
+	// is the command line of the first instance until the shell takes it.
+	launcher func(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func())
+	startup  *ipc.OpenArgs
 	// icons is the file icon theme in use.
 	icons fileIcons
 	// files is the list of the files of the folder for the quick open; nil without a folder. It is made when
@@ -316,6 +322,22 @@ type Documents struct {
 	// onOpen and onDrop are told of every document that is added to the set and every one that is taken out
 	// of it (the backup tracker of the window follows them, SPEC §10.10).
 	onOpen, onDrop func(doc *document.Document)
+	// closeWatchers are told of every document that is closed (WatchClose).
+	closeWatchers []*func(doc *document.Document)
+}
+
+// WatchClose makes the set tell fn of every document that is closed from now on, in the goroutine that closed it,
+// and returns the function that stops it. The command line's --wait follows its files with it (SPEC §10.11).
+func (d *Documents) WatchClose(fn func(doc *document.Document)) (stop func()) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	h := &fn
+	d.closeWatchers = append(d.closeWatchers, h)
+	return func() {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		d.closeWatchers = slices.DeleteFunc(d.closeWatchers, func(x *func(*document.Document)) bool { return x == h })
+	}
 }
 
 // SetObservers makes the set tell open of every document that is added to it and drop of every document that is
@@ -651,12 +673,16 @@ func (d *Documents) Close(uri document.URI) bool {
 		}
 	}
 	onClose, onDrop := d.onClose, d.onDrop
+	watchers := slices.Clone(d.closeWatchers)
 	d.mu.Unlock()
 	if onClose != nil && uri.Scheme == document.SchemeFile {
 		onClose(uri.Path)
 	}
 	if onDrop != nil {
 		onDrop(doc)
+	}
+	for _, w := range watchers {
+		(*w)(doc)
 	}
 	return true
 }

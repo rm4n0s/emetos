@@ -127,7 +127,15 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	}
 	for _, doc := range docs {
 		win.Documents.Retain(doc)
-		s.showAcquired(binding, doc, openOptions{})
+		opts := openOptions{}
+		if st := win.startup; st != nil {
+			for _, t := range st.Files {
+				if t.Path == doc.URI().Path {
+					opts.Place = placeAt(doc, t.Line, t.Column)
+				}
+			}
+		}
+		s.showAcquired(binding, doc, opts)
 	}
 	// the first document is the one that is shown
 	if len(docs) > 1 {

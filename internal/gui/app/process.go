@@ -65,6 +65,9 @@ type Process struct {
 	State *storage.StateStore
 	// WatchFiles tells whether the windows start their file watcher (ProcessOptions.WatchFiles).
 	WatchFiles bool
+	// Launcher hands the launches that other Emetos processes send over the socket (SPEC §10.11) to the window;
+	// nil when the process has no socket.
+	Launcher *Launcher
 
 	scanTimeout time.Duration
 	// backupAfter, backupWrite and backupMax are ProcessOptions.BackupAfter, BackupWriteFile and BackupMaxSize.
@@ -113,6 +116,8 @@ type ProcessOptions struct {
 	// watcher that the shell starts with its lifetime would never stop; Glutter should unmount the
 	// tree (or cancel the lifetimes of the states) when the test ends (docs/GLUTTER-ISSUES.md).
 	WatchFiles bool
+	// Launcher, when set, receives the launches of other processes (Process.Launcher); the window attaches to it.
+	Launcher *Launcher
 	// ScanTimeout is the longest a search of one pattern of a grammar may take; zero is the default
 	// of SPEC §8.2 (100 ms). Tests that run slowly (the race detector on a loaded machine) lengthen
 	// it, because a search that times out leaves its line of text without colors.
@@ -184,6 +189,7 @@ func NewProcess(opts ProcessOptions) *Process {
 		Themes:   theme.NewService(theme.DefaultColorRegistry()),
 
 		WatchFiles:  opts.WatchFiles,
+		Launcher:    opts.Launcher,
 		scanTimeout: opts.ScanTimeout,
 		backupAfter: opts.BackupAfter,
 		backupWrite: opts.BackupWriteFile,

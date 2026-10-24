@@ -15,6 +15,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
@@ -49,6 +50,10 @@ type Options struct {
 	Folder string
 	// Files are the files to open, each in a tab of the editor group. The first one is shown.
 	Files []string
+	// Open is the command line of this process, when it has one: the folder and the files to open (they
+	// replace Folder and Files when those are empty, and a file gets the cursor at its line and column), and the
+	// parts that get a notice (--diff, --merge, --profile). Nil is none.
+	Open *ipc.OpenArgs
 	// DevCommands is the text of EMETOS_DEV_COMMANDS; Run reads the variable when it is
 	// empty. It is ignored in builds that do not run dev commands.
 	DevCommands string
@@ -72,6 +77,16 @@ func Run(ctx context.Context, opts Options) error {
 		}
 		process = NewProcess(ProcessOptions{Paths: paths, Logger: opts.Logger, WatchFiles: true})
 	}
+	if opts.Open != nil {
+		if opts.Folder == "" {
+			opts.Folder = opts.Open.Folder
+		}
+		if len(opts.Files) == 0 {
+			for _, f := range opts.Open.Files {
+				opts.Files = append(opts.Files, f.Path)
+			}
+		}
+	}
 	// with no folder and no file on the command line the folder of the last window opens again
 	folder := process.startupFolder(ctx, opts)
 	win, err := NewWindow(ctx, process, folder)
@@ -84,6 +99,7 @@ func Run(ctx context.Context, opts Options) error {
 			process.Logger.Warn("the UI state cannot be written", "err", err)
 		}
 	}()
+	win.startup = opts.Open
 	geometry := win.PrepareRestore(ctx)
 	var shown []*document.Document
 	var blocked string
@@ -269,6 +285,10 @@ type shellState struct {
 	ext externalState
 	// state is what the shell keeps of saving the UI state of the window (state.go).
 	state stateState
+	// launches is what the shell keeps of the launches of other processes (launch.go).
+	launches launchState
+	// activate brings the window to the front, nil where there is no controller.
+	activate interface{ Activate() }
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -293,6 +313,7 @@ func (s *shellState) InitState() {
 	s.showRestoredConflicts()
 	s.initClosing(binding)
 	s.initState(binding)
+	s.initLaunch(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
@@ -356,6 +377,7 @@ func (s *shellState) InitState() {
 
 // Dispose stops following the settings, the model of the group and the documents.
 func (s *shellState) Dispose() {
+	s.disposeLaunch() // before the documents close: a wait ends with the window
 	if s.removeOpenFile != nil {
 		s.removeOpenFile()
 	}
@@ -412,6 +434,8 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 		// title is set through an interface assertion. Glutter should put SetTitle in the interface.
 		if scope, ok := widgets.GetInherited[*widgets.WindowScope](bc); ok {
 			s.window, _ = scope.Controller().(interface{ SetTitle(string) })
+			// Glutter: Activate is in the same position (RegularWindowController has it, BaseWindowController does not)
+			s.activate, _ = scope.Controller().(interface{ Activate() })
 			if src, ok := scope.Controller().(geometrySource); ok {
 				s.trackWindow(src)
 			}

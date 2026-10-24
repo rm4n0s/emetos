@@ -550,24 +550,38 @@ func (s *shellState) folderChosen(path string, err error) {
 //
 // Ported from VS Code: src/vs/workbench/browser/actions/workspaceActions.ts (OpenFolderAction,
 // CloseWorkspaceAction) and SPEC §10.11
-func (s *shellState) openFolder(path string) {
+func (s *shellState) openFolder(path string) { s.openFolderThen(path, nil) }
+
+// openFolderThen is openFolder that tells done, on the UI thread, whether the window has the folder once the
+// question about unsaved changes is answered and the folder opened (true also for the folder the window has
+// already); false when the user cancelled or the folder could not be opened. done may be nil.
+func (s *shellState) openFolderThen(path string, done func(opened bool)) {
 	win := PeekWindow(s.Context())
 	if path != "" {
 		path = filepath.Clean(path)
 	}
 	if path == win.Folder {
+		if done != nil {
+			done(true)
+		}
 		return
 	}
 	// the state of the folder that is left stays as it is while its editors close
 	s.suspendState()
 	s.closeAllEditors(func(closed bool) {
+		opened := false
 		if closed {
 			if err := win.SetFolder(win.ctx, path); err != nil {
 				win.Process.Logger.Warn("cannot open the folder", "path", path, "err", err)
 				win.Process.Notify.Error("Emetos", "Cannot open the folder "+path+": "+describe(err))
+			} else {
+				opened = true
 			}
 		}
 		s.resumeState()
+		if done != nil {
+			done(opened)
+		}
 	})
 }
 

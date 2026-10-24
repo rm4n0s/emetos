@@ -34,3 +34,6 @@ go.work.sum
 
 # Pinned VS Code and related sources (scripts/fetch-reference.sh); never committed
 reference/
+
+# the binary of `go build ./cmd/emetos` in the repo root
+/emetos

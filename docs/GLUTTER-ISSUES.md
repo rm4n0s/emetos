@@ -40,11 +40,12 @@ Things Glutter is missing or gets wrong, found while building Emetos. Each entry
 - **Also in step 6.10:** the drag of a tab is built the same way: `tabState.move` in `internal/gui/kit/tabs.go` (the `// Glutter:` comment) starts it after 4 px on the pointer events of the tab's `Listener` and cancels it with a keyboard handler of the binding for Escape; the strips and the editor areas that a tab can be dropped on are found by their places on the screen (`kit.Bounds`, `kit.TabsController`), because a `DragTarget` would report no move while the pointer rests at the end of a strip that has to scroll (`shellState.scrollNearEdge` in `internal/gui/app/tabdrag.go`, a timer of the binding).
 - **What Glutter could provide:** `DraggableOpts.Slop` (or a gesture setting for the mouse slop), `DraggableOpts.CancelOnEscape` or a `DragController.Cancel()`, a per-frame callback or a repeating `OnMove` for a `DragTarget` while a drag is over it.
 
-## BaseWindowController has no SetTitle, and the fake platform does not record the title of the implicit view (6.6)
+## BaseWindowController has no SetTitle or Activate, and the fake platform does not record the title of the implicit view (6.6, 7.7)
 
 - **What:** `widgets.WindowScope.Controller()` of the first window is a `BaseWindowController`, whose interface has no `SetTitle` (nor `SetSize`...): they exist on `RegularWindowController`, promoted from an unexported base struct, so only an interface assertion reaches them. `gluttertest.Tester.Windows()` lists the windows the app asked for with controllers and leaves the implicit view out, so a test cannot see the title the app set on the first window.
 - **Where the workaround is:** `shellState.syncTitle` in `internal/gui/app/app.go` (the `// Glutter:` comment): it asserts `interface{ SetTitle(string) }` on the controller and calls it after the title of the window changed. The tests check the title the window computed (`Window.Title`), not the one the platform got.
-- **What Glutter could provide:** `SetTitle` (and `Title`) in `BaseWindowController` or in an exported `TitledWindowController` interface, and the implicit view in `Tester.Windows()` (or `Tester.ViewTitle(view)`), so that the title can be asserted.
+- **Also (7.7):** `Activate` (bring the window to the front when another `emetos` hands a launch over, SPEC §10.11) is in the same position, and the same interface assertion reaches it (`shellState.activate`, set in `syncTitle`); no test can see that it was called.
+- **What Glutter could provide:** `SetTitle` (and `Title`) and `Activate` in `BaseWindowController` or in an exported `TitledWindowController` interface, and the implicit view in `Tester.Windows()` (or `Tester.ViewTitle(view)`), so that the title can be asserted.
 
 ## gluttertest.Tester does not dispose the widget tree when a test ends (6.13)
 
