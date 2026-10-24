@@ -123,6 +123,8 @@ type Window struct {
 	restored        *restoredWindow
 	pendingExpanded []string
 	flushState      func()
+	// backups are the backups of the unsaved documents of the window (backup.go).
+	backups backupState
 	// closer is the shell's answer to RequestClose, and exit ends the application without asking again; both
 	// are set while the shell is on screen (closing.go).
 	closer func(CloseReason)
@@ -311,6 +313,17 @@ type Documents struct {
 	// onFile and onClose are told the path of a file that was opened and of one that was closed;
 	// the window follows the files that are outside its folder with them.
 	onFile, onClose func(path string)
+	// onOpen and onDrop are told of every document that is added to the set and every one that is taken out
+	// of it (the backup tracker of the window follows them, SPEC §10.10).
+	onOpen, onDrop func(doc *document.Document)
+}
+
+// SetObservers makes the set tell open of every document that is added to it and drop of every document that is
+// closed. Either may be nil. They are called in the goroutine that opened or closed the document.
+func (d *Documents) SetObservers(open, drop func(doc *document.Document)) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.onOpen, d.onDrop = open, drop
 }
 
 // SetLargeFileOptimizations makes OpenFile open large files in large file mode only while enabled
@@ -427,11 +440,14 @@ func (d *Documents) OpenFileWith(ctx context.Context, path string, opts document
 	}
 	d.open[uri] = doc
 	d.order = append(d.order, uri)
-	onFile := d.onFile
+	onFile, onOpen := d.onFile, d.onOpen
 	d.mu.Unlock()
 	d.track(doc)
 	if onFile != nil {
 		onFile(path)
+	}
+	if onOpen != nil {
+		onOpen(doc)
 	}
 	return doc, nil
 }
@@ -483,13 +499,47 @@ func (d *Documents) NewUntitled(opts document.Options, encoding string) *documen
 	}
 	d.open[uri] = doc
 	d.order = append(d.order, uri)
+	onOpen := d.onOpen
 	d.mu.Unlock()
 	if policy != nil {
 		p := policy(doc.LanguageID())
 		doc.SetIndentation(p.TabSize, p.InsertSpaces)
 	}
 	d.track(doc)
+	if onOpen != nil {
+		onOpen(doc)
+	}
 	return doc
+}
+
+// OpenBlank adds an empty document with the URI to the set, for the content of a backup to be put into
+// (hot exit, SPEC §10.10): an untitled document with its own number, or a file that is gone. It has the
+// indentation the window's policy gives its language. A document with that URI that is open already is
+// returned as it is, with false.
+func (d *Documents) OpenBlank(uri document.URI, opts document.Options) (doc *document.Document, added bool) {
+	d.mu.Lock()
+	if existing, ok := d.open[uri]; ok {
+		d.mu.Unlock()
+		return existing, false
+	}
+	doc = document.New(uri, "", opts)
+	policy := d.indentation
+	d.open[uri] = doc
+	d.order = append(d.order, uri)
+	onFile, onOpen := d.onFile, d.onOpen
+	d.mu.Unlock()
+	if policy != nil {
+		p := policy(doc.LanguageID())
+		doc.SetIndentation(p.TabSize, p.InsertSpaces)
+	}
+	d.track(doc)
+	if onFile != nil && uri.Scheme == document.SchemeFile {
+		onFile(uri.Path)
+	}
+	if onOpen != nil {
+		onOpen(doc)
+	}
+	return doc, true
 }
 
 // Acquire is OpenFile for a document that an editor is about to show: it counts the editor as a user
@@ -588,7 +638,8 @@ func (d *Documents) All() []*document.Document {
 // Close forgets a document and reports whether it was open.
 func (d *Documents) Close(uri document.URI) bool {
 	d.mu.Lock()
-	if _, ok := d.open[uri]; !ok {
+	doc, ok := d.open[uri]
+	if !ok {
 		d.mu.Unlock()
 		return false
 	}
@@ -599,10 +650,13 @@ func (d *Documents) Close(uri document.URI) bool {
 			break
 		}
 	}
-	onClose := d.onClose
+	onClose, onDrop := d.onClose, d.onDrop
 	d.mu.Unlock()
 	if onClose != nil && uri.Scheme == document.SchemeFile {
 		onClose(uri.Path)
+	}
+	if onDrop != nil {
+		onDrop(doc)
 	}
 	return true
 }

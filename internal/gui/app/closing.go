@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/rm4n0s/glutter/foundation"
@@ -10,7 +11,6 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
-	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -33,14 +33,42 @@ const (
 	CloseReasonQuit
 )
 
-// shouldAskBeforeClose tells whether closing a window with unsaved changes asks about them or leaves them to
-// hot exit, which backs them up (files.hotExit, SPEC §10.10).
+// closeAction is what closing a window with unsaved changes does about them.
+type closeAction int
+
+const (
+	// closeAsk asks about the unsaved changes with the dialog of §10.3 (Save, Don't Save, Cancel).
+	closeAsk closeAction = iota
+	// closeBackup backs the unsaved documents up, without asking, and closes: they come back at the next start.
+	closeBackup
+)
+
+// closeDecision tells what closing a window with unsaved changes does, from files.hotExit (SPEC §10.10):
 //
-// TODO(step 7.6): the backups exist then. "off" always asks; "onExit" does not ask when the application quits
-// or the last window closes (CloseReasonQuit, or the window is the last one), and asks when another window
-// closes; "onExitAndWindowClose" never asks for a window that has a folder. Until then the answer is "ask"
-// for every value, as "off" is.
-func shouldAskBeforeClose(_ string, _ CloseReason) bool { return true }
+//	off                    ask, always
+//	onExit                 back up when the application quits or the window is the last one; ask when another window
+//	                       closes while others stay
+//	onExitAndWindowClose   as onExit, and back up as well when a window that has a folder closes while others stay
+//
+// A value the setting does not have asks. hasFolder is whether the window has a folder open, otherWindows whether
+// other windows are open (always false until step 7.8: closing the window is closing the application).
+//
+// Ported from VS Code: src/vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupTracker.ts
+// (onWillShutdown, shouldBackup) and the description of the setting files.hotExit
+func closeDecision(hotExit string, reason CloseReason, hasFolder, otherWindows bool) closeAction {
+	lastOrQuit := reason == CloseReasonQuit || !otherWindows
+	switch hotExit {
+	case "onExit":
+		if lastOrQuit {
+			return closeBackup
+		}
+	case "onExitAndWindowClose":
+		if lastOrQuit || hasFolder {
+			return closeBackup
+		}
+	}
+	return closeAsk
+}
 
 // unsavedDetail is the detail of the dialog that asks whether to save.
 const unsavedDetail = "Your changes will be lost if you don't save them."
@@ -129,8 +157,8 @@ func (s *shellState) disposeClosing() {
 
 // RequestClose is the window being asked to close, by the platform, Close Window or Quit. It never closes
 // anything before the question is answered: the caller keeps the window open. When no document would lose
-// changes, or files.hotExit leaves them to the backups, the window closes at once; else a dialog asks whether to
-// save them. Save saves them (an untitled document through Save As) and closes; Don't Save closes; Cancel, or a
+// changes, or files.hotExit leaves them to the backups (they are written first), the window closes at once; else a
+// dialog asks whether to save them. The same dialog asks when the backups cannot be written. Save saves them (an untitled document through Save As) and closes; Don't Save closes; Cancel, or a
 // save that fails or is cancelled, keeps the window. The window then closes itself: Quit is called (the
 // application ends); a request that comes while the dialog is open is ignored.
 //
@@ -152,6 +180,8 @@ func (w *Window) quit() {
 	if w.flushState != nil {
 		w.flushState()
 	}
+	// the window ends as it should: the next start is not a restore after a crash
+	w.endBackups()
 	if w.Quit != nil {
 		w.Quit()
 		return
@@ -167,22 +197,78 @@ func (s *shellState) requestWindowClose(reason CloseReason) {
 	if s.closing.busy {
 		return // the dialog is open already
 	}
+	// with files.hotExit off nothing stays for the next start: whatever closes takes its backups with it
+	off := !hotExitEnabled(win.hotExitMode())
 	targets := editorgroup.AllTargets(s.group.grid)
 	losses := editorgroup.PlanClose(s.group.grid, targets)
 	if len(losses) == 0 {
-		win.quit()
+		s.finishClose(off)
 		return
 	}
-	// the documents that auto save saves go first; the others are asked about (or left to hot exit)
+	// the documents that auto save saves go first; the others are backed up (hot exit) or asked about
 	s.autoSaveBeforeClose(losses, true, func() {
 		losses := editorgroup.PlanClose(s.group.grid, editorgroup.AllTargets(s.group.grid))
-		if len(losses) == 0 || !shouldAskBeforeClose(settings.Get[string](win.Settings, "files.hotExit", ""), reason) {
-			win.quit()
+		if len(losses) == 0 {
+			s.finishClose(off)
 			return
 		}
-		s.askUnsaved(losses, func(proceed bool) {
-			if proceed {
-				win.quit()
+		ask := func() {
+			s.askUnsaved(losses, func(proceed bool) {
+				if proceed {
+					s.finishClose(true) // saved or given up: nothing is left to restore
+				}
+			})
+		}
+		if closeDecision(win.hotExitMode(), reason, win.Folder != "", win.otherWindows()) == closeAsk {
+			ask()
+			return
+		}
+		s.backupBeforeClose(func(ok bool) {
+			if !ok {
+				ask() // the unsaved changes could not be kept: the user decides
+				return
+			}
+			s.finishClose(false)
+		})
+	})
+}
+
+// finishClose ends the window once nothing is asked any more: with discard the backups are removed (the unsaved
+// documents were saved or given up, or hot exit is off); then the window closes, which removes its running marker.
+func (s *shellState) finishClose(discard bool) {
+	win := PeekWindow(s.Context())
+	if discard {
+		win.discardBackups()
+	} else if t := win.Backups(); t != nil {
+		t.Pause() // the editors close with the window: their backups stay
+	}
+	win.quit()
+}
+
+// backupBeforeClose backs up every document with unsaved changes (hot exit) and tells done whether all of them
+// were: the texts are read here, on the UI thread, and written on a goroutine, so the window does not wait for the
+// disk; done is called on the UI thread. While it goes on, a request to close is ignored. A failure is logged.
+func (s *shellState) backupBeforeClose(done func(ok bool)) {
+	win := PeekWindow(s.Context())
+	tracker := win.Backups()
+	if tracker == nil {
+		done(false) // the window keeps no backups
+		return
+	}
+	s.closing.busy = true
+	batch := tracker.Prepare(win.Documents.All())
+	binding := s.binding
+	s.Go(func(context.Context) {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(win.ctx), backupExitTimeout)
+		defer cancel()
+		err := batch.Write(ctx)
+		binding.Post(func() {
+			s.closing.busy = false
+			if err != nil {
+				win.Process.Logger.Warn("the unsaved documents cannot be backed up; the user is asked", "err", err)
+			}
+			if s.Mounted() {
+				done(err == nil)
 			}
 		})
 	})

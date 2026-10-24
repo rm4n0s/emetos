@@ -51,7 +51,8 @@ var stateFiles = []string{"main.go", "src/a.go", "src/deep/b.go", "docs/c.md", "
 func newStateEnv(t *testing.T, settingsJSON map[string]any) *stateEnv {
 	t.Helper()
 	paths := testutil.Isolate(t)
-	extra := map[string]any{"editor.fontSize": 14}
+	// closing asks about unsaved changes unless a test turns hot exit on
+	extra := map[string]any{"editor.fontSize": 14, "files.hotExit": "off"}
 	for k, v := range settingsJSON {
 		extra[k] = v
 	}
@@ -1513,12 +1514,12 @@ func TestASavedLayoutThatIsNotALayoutIsLeftOut(t *testing.T) {
 func TestASavedEditorThatIsNotAFileIsNotOpened(t *testing.T) {
 	win := newTestWindow(t, "")
 	for value, route := range map[string]string{
-		"untitled:1":               "Window.openSavedFile.SavedEditorNotAFile",
-		"emetos-virtual:/settings": "Window.openSavedFile.SavedEditorNotAFile",
-		"/relative":                "Window.openSavedFile->ParseURI.URIInvalid",
-		"file://relative/x":        "Window.openSavedFile->ParseURI.URIInvalid",
+		"untitled:1":               "Window.openSavedDocument.SavedUntitledWithoutBackup",
+		"emetos-virtual:/settings": "Window.openSavedDocument.SavedEditorNotAFile",
+		"/relative":                "Window.openSavedDocument->ParseURI.URIInvalid",
+		"file://relative/x":        "Window.openSavedDocument->ParseURI.URIInvalid",
 	} {
-		_, err := win.openSavedFile(context.Background(), value)
+		_, err := win.openSavedDocument(context.Background(), &restoredWindow{backups: map[string]storage.Backup{}}, value)
 		appErr, ok := errors.FromError(err)
 		if !ok {
 			t.Errorf("%s: expected *errors.Error, got %T (%v)", value, err, err)
@@ -1534,7 +1535,7 @@ func TestASavedEditorThatIsNotAFileIsNotOpened(t *testing.T) {
 	first.open(env.path("main.go"), 0)
 	first.close()
 	st, _ := env.savedWindow(env.root)
-	st.Grid.Root[0].Model.Editors = append(st.Grid.Root[0].Model.Editors, editorgroup.SerializedInput{TypeID: editorgroup.TextInputTypeID, Value: "untitled:1"})
+	st.Grid.Root[0].Model.Editors = append(st.Grid.Root[0].Model.Editors, editorgroup.SerializedInput{TypeID: editorgroup.TextInputTypeID, Value: "emetos-virtual:/settings"})
 	st.Grid.Root[0].Model.MRU = append(st.Grid.Root[0].Model.MRU, 1)
 	data, err := json.Marshal(st)
 	if err != nil {

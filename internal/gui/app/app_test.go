@@ -44,7 +44,8 @@ func newTestWindow(t *testing.T, folder string) *Window {
 	t.Helper()
 	paths := testutil.Isolate(t)
 	// The store of the window reads the settings.json that testutil.Settings writes.
-	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14})
+	// closing a window with unsaved changes asks unless a test turns hot exit on (the backups are step 7.6)
+	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off"})
 	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
 	if err != nil {
 		t.Fatalf("NewWindow: %v", err)

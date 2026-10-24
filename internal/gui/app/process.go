@@ -67,6 +67,10 @@ type Process struct {
 	WatchFiles bool
 
 	scanTimeout time.Duration
+	// backupAfter, backupWrite and backupMax are ProcessOptions.BackupAfter, BackupWriteFile and BackupMaxSize.
+	backupAfter storage.AfterFunc
+	backupWrite storage.WriteFileFunc
+	backupMax   int
 	grammarMu   sync.Mutex
 	grammars    map[grammarKey]*textmate.Grammar
 	regexes     *regex.Cache
@@ -120,6 +124,12 @@ type ProcessOptions struct {
 	// not pass one gets timers that never run.
 	StateAfter     storage.AfterFunc
 	StateWriteFile storage.WriteFileFunc
+	// BackupAfter sets the timers of the delay of the backups of unsaved documents (hot exit, SPEC §10.10); it is
+	// StateAfter when nil. BackupWriteFile replaces the function that writes a backup, and BackupMaxSize is the
+	// largest text that is backed up; the atomic write and storage.MaxBackupSize when zero. Tests set them.
+	BackupAfter     storage.AfterFunc
+	BackupWriteFile storage.WriteFileFunc
+	BackupMaxSize   int
 }
 
 // NewProcess makes the services of the process: the registries with every setting, command
@@ -151,6 +161,9 @@ func NewProcess(opts ProcessOptions) *Process {
 	if opts.Logs != nil {
 		channels = opts.Logs.Channels()
 	}
+	if opts.BackupAfter == nil {
+		opts.BackupAfter = opts.StateAfter
+	}
 	state, err := storage.NewStateStore(opts.Paths, storage.DefaultProfile, storage.StateStoreOptions{
 		Delay: opts.StateDelay, After: opts.StateAfter, WriteFile: opts.StateWriteFile, Logger: logger,
 	})
@@ -172,6 +185,9 @@ func NewProcess(opts ProcessOptions) *Process {
 
 		WatchFiles:  opts.WatchFiles,
 		scanTimeout: opts.ScanTimeout,
+		backupAfter: opts.BackupAfter,
+		backupWrite: opts.BackupWriteFile,
+		backupMax:   opts.BackupMaxSize,
 
 		Languages: languages,
 		grammars:  map[grammarKey]*textmate.Grammar{},

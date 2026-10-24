@@ -60,16 +60,45 @@ func TestSaveConfirmation(t *testing.T) {
 	}
 }
 
-func TestShouldAskBeforeClose(t *testing.T) {
-	// TODO(step 7.6): hot exit decides; until then every value asks, as "off" does
-	for _, hotExit := range []string{"off", "onExit", "onExitAndWindowClose", "", "unknown"} {
-		for _, reason := range []CloseReason{CloseReasonWindow, CloseReasonQuit} {
-			t.Run(fmt.Sprintf("%q/%d", hotExit, reason), func(t *testing.T) {
-				if !shouldAskBeforeClose(hotExit, reason) {
-					t.Error("does not ask")
-				}
-			})
-		}
+func TestCloseDecision(t *testing.T) {
+	const (
+		window = CloseReasonWindow
+		quit   = CloseReasonQuit
+	)
+	tests := []struct {
+		hotExit      string
+		reason       CloseReason
+		hasFolder    bool
+		otherWindows bool
+		want         closeAction
+	}{
+		// off always asks
+		{"off", quit, true, false, closeAsk},
+		{"off", window, true, false, closeAsk},
+		{"off", window, false, true, closeAsk},
+		{"off", quit, false, true, closeAsk},
+		// onExit: quitting, and the last window, are backed up; another window closing asks
+		{"onExit", quit, false, false, closeBackup},
+		{"onExit", quit, true, true, closeBackup},
+		{"onExit", window, true, false, closeBackup},
+		{"onExit", window, false, false, closeBackup},
+		{"onExit", window, true, true, closeAsk},
+		{"onExit", window, false, true, closeAsk},
+		// onExitAndWindowClose: as onExit, and a window with a folder is backed up when it closes too
+		{"onExitAndWindowClose", quit, false, true, closeBackup},
+		{"onExitAndWindowClose", window, false, false, closeBackup},
+		{"onExitAndWindowClose", window, true, true, closeBackup},
+		{"onExitAndWindowClose", window, false, true, closeAsk},
+		// a value the setting does not have asks
+		{"", quit, true, false, closeAsk},
+		{"unknown", window, true, false, closeAsk},
+	}
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%q/reason %d/folder %v/others %v", tc.hotExit, tc.reason, tc.hasFolder, tc.otherWindows), func(t *testing.T) {
+			if got := closeDecision(tc.hotExit, tc.reason, tc.hasFolder, tc.otherWindows); got != tc.want {
+				t.Errorf("closeDecision = %d, want %d", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -807,19 +836,26 @@ func TestWithoutAShellRequestCloseQuits(t *testing.T) {
 	}
 }
 
-func TestEveryValueOfHotExitAsksUntilBackupsExist(t *testing.T) {
-	// TODO(step 7.6): onExit and onExitAndWindowClose do not ask when the backups are written
-	for _, hotExit := range []string{"off", "onExit", "onExitAndWindowClose"} {
-		t.Run(hotExit, func(t *testing.T) {
-			win := settingsWindow(t, map[string]any{"files.hotExit": hotExit})
+func TestEveryModeOfHotExitThatBacksUpClosesWithoutAsking(t *testing.T) {
+	for _, tc := range []struct {
+		hotExit string
+		asks    bool
+	}{{"off", true}, {"onExit", false}, {"onExitAndWindowClose", false}} {
+		t.Run(tc.hotExit, func(t *testing.T) {
+			win := settingsWindow(t, map[string]any{"files.hotExit": tc.hotExit})
 			a := newSaveAppWith(t, win, []string{"a.txt"}, map[string]string{"a.txt": "one\n"}, "a.txt")
 			quits := a.quits()
 			a.edit("a.txt")
 			a.win.RequestClose(CloseReasonQuit)
-			a.wantAsked(askOf("a.txt"))
-			if *quits != 0 {
-				t.Error("the window quit without asking")
+			if tc.asks {
+				a.wantAsked(askOf("a.txt"))
+				if *quits != 0 {
+					t.Error("the window quit without asking")
+				}
+				return
 			}
+			a.waitFor("the quit", func() bool { return *quits == 1 })
+			a.wantNoDialog()
 		})
 	}
 }

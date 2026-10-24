@@ -152,11 +152,11 @@ func (t *TextInput) Capabilities() Capabilities {
 	return c
 }
 
-// Serialize implements EditorInput: the URI of a file. A document that is not a file is not
-// restored.
+// Serialize implements EditorInput: the URI of a file, or of an untitled document ("untitled:3"), which the
+// backup of the document (hot exit, SPEC §10.10) is named by. A virtual document is not restored.
 func (t *TextInput) Serialize() (string, bool) {
 	uri := t.doc.URI()
-	if uri.Scheme != document.SchemeFile {
+	if uri.Scheme != document.SchemeFile && uri.Scheme != document.SchemeUntitled {
 		return "", false
 	}
 	return uri.String(), true

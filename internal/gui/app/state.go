@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -49,6 +50,14 @@ type restoredWindow struct {
 	docs map[string]*document.Document
 	// dropped is the number of saved editors that could not be opened.
 	dropped int
+	// backups are the backups of the window by URI, and extra the documents restored from backups that no saved
+	// editor shows (they open in the active group, in the order of their URIs).
+	backups map[string]storage.Backup
+	extra   []*document.Document
+	// restored counts the documents that came back from backups, and gone lists the names of those whose file is
+	// gone.
+	restored int
+	gone     []string
 }
 
 // restoreMode is the value of window.restoreWindows.
@@ -60,6 +69,7 @@ func restoreMode(store *settings.Store) string {
 // is called when the window is made and when its folder changes. A window whose id is unknown (the system has no
 // randomness, the state folder is unusable) keeps no state.
 func (w *Window) initState(ctx context.Context) {
+	defer w.initBackups(ctx) // the backups are named by the id
 	w.stateID = ""
 	var err error
 	if w.Folder != "" {
@@ -126,16 +136,36 @@ func (w *Window) updateRecent(fn func(*storage.RecentlyOpened) bool) {
 // window.restoreWindows is none, when the window has no saved state, and when the saved state cannot be used
 // (that is logged). It returns the saved geometry of the window, or nil.
 func (w *Window) PrepareRestore(ctx context.Context) *storage.Geometry {
-	if w.stateID == "" || restoreMode(w.Settings) == "none" {
+	if w.stateID == "" {
 		return nil
+	}
+	r := &restoredWindow{docs: map[string]*document.Document{}, backups: map[string]storage.Backup{}}
+	w.beginBackups(ctx, r)
+	geometry, found := w.restoreUIState(ctx, r)
+	w.openUnshownBackups(ctx, r)
+	if found || len(r.extra) > 0 {
+		w.restored = r
+	}
+	if r.dropped > 0 {
+		w.Process.Notify.Info("Emetos", DroppedEditorsNotice(r.dropped))
+	}
+	w.noticeRestoredBackups(r)
+	return geometry
+}
+
+// restoreUIState reads the saved state of the window and applies it (PrepareRestore); found tells that there was a
+// state to restore.
+func (w *Window) restoreUIState(ctx context.Context, r *restoredWindow) (geometry *storage.Geometry, found bool) {
+	if restoreMode(w.Settings) == "none" {
+		return nil, false
 	}
 	st, found, err := w.Process.State.LoadWindow(ctx, w.stateID)
 	if err != nil {
 		w.Process.Logger.Warn("the saved UI state of the window cannot be used; it starts as new", "err", err)
-		return nil
+		return nil, false
 	}
 	if !found {
-		return nil
+		return nil, false
 	}
 	if len(st.Layout) > 0 {
 		if err := w.restoreLayout(st.Layout); err != nil {
@@ -153,15 +183,11 @@ func (w *Window) PrepareRestore(ctx context.Context) *storage.Geometry {
 		}
 	}
 	w.geometry = st.Geometry
-	r := &restoredWindow{state: st, docs: map[string]*document.Document{}}
+	r.state = st
 	if st.Grid != nil {
 		w.openSavedEditors(ctx, r)
 	}
-	w.restored = r
-	if r.dropped > 0 {
-		w.Process.Notify.Info("Emetos", DroppedEditorsNotice(r.dropped))
-	}
-	return st.Geometry
+	return st.Geometry, true
 }
 
 // restoreLayout puts the layout of the window back as the saved JSON says: it is read over the layout the settings make,
@@ -185,7 +211,8 @@ func DroppedEditorsNotice(n int) string {
 }
 
 // openSavedEditors opens the document of every saved text editor, once for a file that is in several groups,
-// and counts the saved editors whose file cannot be opened.
+// and counts the saved editors whose file cannot be opened. A document with a backup comes back from it
+// (restoreFromBackup), and so does an untitled one: without a backup it is dropped, without a word.
 func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 	var visit func(nodes []editorgroup.SerializedNode)
 	visit = func(nodes []editorgroup.SerializedNode) {
@@ -199,13 +226,13 @@ func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 					continue
 				}
 				if _, tried := r.docs[in.Value]; !tried {
-					doc, err := w.openSavedFile(ctx, in.Value)
+					doc, err := w.openSavedDocument(ctx, r, in.Value)
 					if err != nil {
 						w.Process.Logger.Info("a saved editor cannot be restored", "file", in.Value, "err", describe(err))
 					}
 					r.docs[in.Value] = doc // nil for a file that cannot be opened
 				}
-				if r.docs[in.Value] == nil {
+				if r.docs[in.Value] == nil && !strings.HasPrefix(in.Value, document.SchemeUntitled+":") {
 					r.dropped++
 				}
 			}
@@ -214,16 +241,25 @@ func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 	visit(r.state.Grid.Root)
 }
 
-// openSavedFile opens the document of a saved file input (the value of TextInput.Serialize, a file URI).
-func (w *Window) openSavedFile(ctx context.Context, value string) (*document.Document, error) {
+// openSavedDocument opens the document of a saved input (the value of TextInput.Serialize: a file URI or an
+// untitled one). A document that has a backup comes back from it.
+func (w *Window) openSavedDocument(ctx context.Context, r *restoredWindow, value string) (*document.Document, error) {
 	uri, err := document.ParseURI(value)
 	if err != nil {
 		return nil, err
 	}
-	if uri.Scheme != document.SchemeFile || uri.Path == "" {
-		return nil, errors.New("SavedEditorNotAFile", "a saved editor is not a file", "uri", value)
+	backup, hasBackup := r.backups[value]
+	switch {
+	case uri.Scheme == document.SchemeFile && uri.Path != "" && hasBackup:
+		return w.restoreFromBackup(ctx, r, uri, backup)
+	case uri.Scheme == document.SchemeFile && uri.Path != "":
+		return w.Documents.OpenFile(ctx, uri.Path, document.NewOptions())
+	case uri.Scheme == document.SchemeUntitled && hasBackup:
+		return w.restoreFromBackup(ctx, r, uri, backup)
+	case uri.Scheme == document.SchemeUntitled:
+		return nil, errors.New("SavedUntitledWithoutBackup", "a saved untitled editor has no backup", "uri", value)
 	}
-	return w.Documents.OpenFile(ctx, uri.Path, document.NewOptions())
+	return nil, errors.New("SavedEditorNotAFile", "a saved editor is not a file", "uri", value)
 }
 
 // takeRestored gives the shell what PrepareRestore found, once.
@@ -591,7 +627,9 @@ func (s *shellState) resumeState() {
 
 // restoreGrid makes the grid of the window from what PrepareRestore found, or reports that there is nothing
 // to restore (nil). The inputs are made over the documents it opened; the saved view states are kept, to give to
-// the editors once they exist.
+// the editors once they exist. A document that has unsaved changes (restored from a backup) and that no editor of
+// the grid shows is added to the documents that open in the active group (restoredWindow.extra); the others that
+// no editor shows are closed.
 func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 	win := s.win
 	if r == nil || r.state.Grid == nil {
@@ -613,17 +651,24 @@ func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 	})
 	if err != nil {
 		win.Process.Logger.Warn("the saved editors cannot be restored; the window starts with none", "err", err)
-		for _, doc := range r.docs {
-			if doc != nil {
-				win.Documents.Close(doc.URI())
-			}
-		}
-		return nil
+		used = map[string]bool{}
 	}
+	var unused []string
 	for value, doc := range r.docs {
-		if doc != nil && !used[value] {
+		if doc != nil && !used[value] && !slices.Contains(r.extra, doc) {
+			unused = append(unused, value)
+		}
+	}
+	slices.Sort(unused) // the order of the extra documents does not depend on the map
+	for _, value := range unused {
+		if doc := r.docs[value]; doc.Dirty() {
+			r.extra = append(r.extra, doc)
+		} else {
 			win.Documents.Close(doc.URI())
 		}
+	}
+	if err != nil {
+		return nil
 	}
 	s.state.viewStates = viewStates
 	return grid

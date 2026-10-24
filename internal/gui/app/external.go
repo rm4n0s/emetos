@@ -328,6 +328,10 @@ func (s *shellState) externalStateChanged(doc *document.Document, st document.Ex
 		s.showExternalNote(doc)
 	} else {
 		s.dismissExternalNote(doc)
+		win := PeekWindow(s.Context())
+		win.backups.mu.Lock()
+		delete(win.backups.changed, doc)
+		win.backups.mu.Unlock()
 	}
 	s.refreshKeys()
 	s.refreshStatus()
@@ -346,9 +350,13 @@ func (s *shellState) showExternalNote(doc *document.Document) {
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.dismissSaveNote(doc)
 	name := doc.URI().Title()
+	message := "The file '" + name + "' has changed on disk and you have unsaved changes."
+	if win.changedSinceBackup(doc) {
+		message = NoticeChangedOnDisk(name) // a restored document: its backup is older than the file
+	}
 	id := win.Process.Notify.Notify(notify.Notification{
 		Severity: notify.Warning, Source: "Emetos", Sticky: true,
-		Message: "The file '" + name + "' has changed on disk and you have unsaved changes.",
+		Message: message,
 		Actions: []notify.Action{
 			{Label: "Overwrite", Run: func() {
 				if s.Mounted() {

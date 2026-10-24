@@ -94,7 +94,8 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	g := &s.group
 	// the groups the window had are made again from the saved state; the documents of the command line open on
 	// top of them
-	restored := s.restoreGrid(win.takeRestored())
+	from := win.takeRestored()
+	restored := s.restoreGrid(from)
 	fromState := restored != nil
 	if restored == nil {
 		restored = editorgroup.NewGrid(s.gridOptions())
@@ -121,6 +122,9 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	if fromState {
 		s.restoreEditors(binding)
 	}
+	if from != nil {
+		s.showRestoredBackups(binding, from.extra)
+	}
 	for _, doc := range docs {
 		win.Documents.Retain(doc)
 		s.showAcquired(binding, doc, openOptions{})
@@ -132,6 +136,24 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 		}
 	}
 	s.refreshKeys()
+}
+
+// showRestoredBackups opens the documents that came back from backups and that no saved editor shows in the active
+// group, as editors that are kept; the active editor stays the one that was. The shell is not on screen yet.
+func (s *shellState) showRestoredBackups(binding *widgets.WidgetsBinding, docs []*document.Document) {
+	if len(docs) == 0 {
+		return
+	}
+	win := PeekWindow(s.Context())
+	group := s.activeGroup()
+	was := group.Model.ActiveEditor()
+	for _, doc := range docs {
+		win.Documents.Retain(doc)
+		s.showAcquired(binding, doc, openOptions{Group: group})
+	}
+	if was != nil && group.Model.Contains(was) {
+		group.Model.SetActive(was)
+	}
 }
 
 // activeGroup is the active group.

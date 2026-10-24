@@ -53,7 +53,8 @@ func newSaveAppWith(t *testing.T, win *Window, names []string, texts map[string]
 func settingsWindow(t *testing.T, extra map[string]any) *Window {
 	t.Helper()
 	paths := testutil.Isolate(t)
-	values := map[string]any{"editor.fontSize": 14, "editor.fontFamily": testutil.MonoFamily}
+	// closing a window with unsaved changes asks unless a test turns hot exit on (the backups are step 7.6)
+	values := map[string]any{"editor.fontSize": 14, "editor.fontFamily": testutil.MonoFamily, "files.hotExit": "off"}
 	for k, v := range extra {
 		values[k] = v
 	}

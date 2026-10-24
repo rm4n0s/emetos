@@ -377,7 +377,7 @@ func TestTextInputOfDocumentsThatAreNotFiles(t *testing.T) {
 		wantCaps  Capabilities
 		serialize bool
 	}{
-		{"untitled", NewTextInput(untitled, TextInputOpts{}), "Untitled-2", CapCanSplit | CapUntitled, false},
+		{"untitled", NewTextInput(untitled, TextInputOpts{}), "Untitled-2", CapCanSplit | CapUntitled, true}, // restored from its backup (step 7.6)
 		{"virtual and read-only", NewTextInput(virtual, TextInputOpts{}), "settings.json", CapCanSplit | CapReadonly, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -387,8 +387,12 @@ func TestTextInputOfDocumentsThatAreNotFiles(t *testing.T) {
 			if tc.in.Capabilities() != tc.wantCaps {
 				t.Errorf("capabilities %v", tc.in.Capabilities())
 			}
-			if _, ok := tc.in.Serialize(); ok != tc.serialize {
+			value, ok := tc.in.Serialize()
+			if ok != tc.serialize {
 				t.Errorf("serialize ok = %v", ok)
+			}
+			if ok && value != "untitled:2" {
+				t.Errorf("serialized %q, want the URI of the untitled document", value)
 			}
 			if !tc.in.Capabilities().Has(CapCanSplit) {
 				t.Error("a text editor can be split")

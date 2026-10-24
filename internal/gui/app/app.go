@@ -277,6 +277,7 @@ func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.binding, s.win = binding, PeekWindow(s.Context())
 	s.blocked = s.Widget().blocked
+	s.initBackups(binding)
 	s.initAutoSave(binding)
 	s.initExternal() // before the editors are made: they are followed as they appear
 	s.initGroup(binding, s.Widget().docs)
@@ -289,6 +290,7 @@ func (s *shellState) InitState() {
 	s.initQuickInput(binding)
 	s.initStatus(binding)
 	s.initSave(binding)
+	s.showRestoredConflicts()
 	s.initClosing(binding)
 	s.initState(binding)
 	s.bindDevOpenFile(binding)
@@ -311,6 +313,7 @@ func (s *shellState) InitState() {
 				// the signal that ends the program does not go through the question about unsaved changes, but
 				// the UI state is still written
 				if s.Mounted() {
+					s.backupOnSignal()
 					s.flushState()
 				}
 				binding.ExitApplication(ui.AppExitTypeRequired)
@@ -362,7 +365,8 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
-	s.disposeState() // before the groups go: it saves them
+	s.disposeBackups() // before the documents close: their backups stay
+	s.disposeState()   // before the groups go: it saves them
 	s.disposeClosing()
 	s.disposeAutoSave(s.binding)
 	s.disposeExternal()
