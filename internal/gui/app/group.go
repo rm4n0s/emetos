@@ -86,13 +86,20 @@ func (s *shellState) sideBySideDirection() editorgroup.Direction {
 	return editorgroup.DirRight
 }
 
-// initGroup makes the grid, which starts with one group, and the editors for the documents the
-// window starts with: the first is the active editor, and all are kept (not previews), as VS Code
-// opens the files of the command line.
+// initGroup makes the grid, which starts with one group or with the groups and editors the window had
+// (PrepareRestore, SPEC §10.10), and the editors for the documents the window starts with: the first is the
+// active editor, and all are kept (not previews), as VS Code opens the files of the command line.
 func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document.Document) {
 	win := PeekWindow(s.Context())
 	g := &s.group
-	g.grid = editorgroup.NewGrid(s.gridOptions())
+	// the groups the window had are made again from the saved state; the documents of the command line open on
+	// top of them
+	restored := s.restoreGrid(win.takeRestored())
+	fromState := restored != nil
+	if restored == nil {
+		restored = editorgroup.NewGrid(s.gridOptions())
+	}
+	g.grid = restored
 	g.editors = map[editorgroup.EditorInput]*textEditor{}
 	g.views = map[*editorgroup.Group]*groupView{}
 	g.focused = map[*textEditor]bool{}
@@ -111,6 +118,9 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 			})
 		}
 	})
+	if fromState {
+		s.restoreEditors(binding)
+	}
 	for _, doc := range docs {
 		win.Documents.Retain(doc)
 		s.showAcquired(binding, doc, openOptions{})
@@ -188,7 +198,7 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 	defer win.Documents.Release(doc)
 	preview := opts.Preview && settings.Get[bool](win.Settings, "workbench.editor.enablePreview", "") && !doc.Dirty()
 	if path, ok := filePath(doc.URI().Scheme, doc.URI().Path); ok {
-		win.Recent.Add(path) // the quick open shows the files that were opened first
+		win.AddRecentFile(path) // the quick open shows the files that were opened first
 	}
 	input := editorgroup.NewTextInput(doc, s.inputOptions())
 	// The history hears of the editor once it has its cursor: a view that comes back or a place to show.
@@ -267,7 +277,7 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 			}
 		case editorgroup.EditorActive:
 			if path, ok := fileResource(e.Change.Editor); ok {
-				PeekWindow(s.Context()).Recent.Add(path)
+				PeekWindow(s.Context()).AddRecentFile(path)
 			}
 			// the editor that had the focus is replaced by the new active editor of its group: the
 			// keyboard focus goes to the new one, and not to any editor of another group

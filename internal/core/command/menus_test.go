@@ -385,13 +385,13 @@ func TestDefaultFileMenu(t *testing.T) {
 		want []string
 	}{
 		// Save, Save As, Save All, Revert File and Close Editor are there with no editor open, dimmed
-		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "-", "Open &&Folder...", "Open &&Recent", "-",
 			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Window", "-", "E&&xit"}},
-		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "Open &&Recent", "-",
 			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
-		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "-", "Open &&Folder...", "Open &&Recent", "-",
 			"&&Save", "Save &&As...", "Save A&&ll", "-", "A&&uto Save", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
-		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "Open &&Recent", "-",
 			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Window", "-", "E&&xit"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -841,6 +841,50 @@ func TestQuickInputMenus(t *testing.T) {
 	for _, id := range []string{"workbench.action.showCommands", "workbench.action.quickOpen", "workbench.action.gotoLine", "workbench.action.gotoOffset", "workbench.action.openView", "workbench.action.quickOpenView", "workbench.action.clearCommandHistory", "workbench.action.closeQuickOpen"} {
 		if _, ok := reg.Lookup(id); !ok {
 			t.Errorf("command %s is not registered", id)
+		}
+	}
+}
+
+func TestDefaultOpenRecentMenu(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	rows := func(ctx contextkey.MapContext) (out []string) {
+		for _, it := range menus.Items(MenubarRecentMenu, ctx) {
+			switch {
+			case it.Separator:
+				out = append(out, "-")
+			case it.Disabled:
+				out = append(out, it.Title+"~")
+			default:
+				out = append(out, it.Title)
+			}
+		}
+		return out
+	}
+	// Reopen Closed Editor is dimmed until an editor was closed; the dynamic rows of the recent folders and
+	// files go between it and "More..." (see the provider of the process)
+	if got, want := rows(contextkey.MapContext{}), []string{"Reopen Closed Editor~", "-", "More...", "-", "Clear Recently Opened..."}; !reflect.DeepEqual(got, want) {
+		t.Errorf("open recent menu %v, want %v", got, want)
+	}
+	if got := rows(contextkey.MapContext{"canReopenClosedEditor": true}); got[0] != "Reopen Closed Editor" {
+		t.Errorf("open recent menu %v", got)
+	}
+	var found bool
+	for _, e := range menus.Items(MenubarFileMenu, contextkey.MapContext{}) {
+		if e.Submenu == MenubarRecentMenu {
+			found = e.Title == "Open Recent" && e.MnemonicTitle == "Open &&Recent"
+		}
+	}
+	if !found {
+		t.Error("the File menu has no Open Recent submenu")
+	}
+	cmds := DefaultRegistry()
+	for id, title := range map[string]string{
+		"workbench.action.openRecent": "Open Recent...", "workbench.action.clearRecentFiles": "Clear Recently Opened...",
+		"openRecentFolder": "", "openRecentFile": "",
+	} {
+		meta, ok := cmds.Lookup(id)
+		if !ok || meta.Title != title {
+			t.Errorf("%s: %+v, %v, want the title %q", id, meta, ok, title)
 		}
 	}
 }

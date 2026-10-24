@@ -427,20 +427,20 @@ func TestGridErrors(t *testing.T) {
 		{"a layout with another orientation", func() error {
 			return g.ApplyLayout(Layout{Orientation: 5, Groups: []LayoutNode{{}}})
 		}, "Grid.ApplyLayout.LayoutInvalid"},
-		{"a saved grid with no group", func() error { _, err := RestoreGrid(SerializedGrid{}, DefaultGridOptions(), nil); return err }, "RestoreGrid.GridStateInvalid"},
+		{"a saved grid with no group", func() error { _, err := RestoreGrid(SerializedGrid{}, DefaultGridOptions(), nil); return err }, "RestoreGridWith.GridStateInvalid"},
 		{"a saved node that is both", func() error {
 			_, err := RestoreGrid(SerializedGrid{Root: []SerializedNode{{Model: &SerializedModel{ID: 1}, Groups: []SerializedNode{{}, {}}}}}, DefaultGridOptions(), nil)
 			return err
-		}, "RestoreGrid.func1.GridStateInvalid"},
+		}, "RestoreGridWith.func1.GridStateInvalid"},
 		{"a saved group id used twice", func() error {
 			m := &SerializedModel{ID: 1}
 			_, err := RestoreGrid(SerializedGrid{Root: []SerializedNode{{Model: m}, {Model: m}}}, DefaultGridOptions(), nil)
 			return err
-		}, "RestoreGrid.func1.GridStateInvalid"},
+		}, "RestoreGridWith.func1.GridStateInvalid"},
 		{"a saved orientation that is not known", func() error {
 			_, err := RestoreGrid(SerializedGrid{Orientation: 3, Root: []SerializedNode{{Model: &SerializedModel{ID: 1}}}}, DefaultGridOptions(), nil)
 			return err
-		}, "RestoreGrid.GridStateInvalid"},
+		}, "RestoreGridWith.GridStateInvalid"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.do()

@@ -93,6 +93,30 @@ func (p Paths) StateDir(profile string) (string, error) {
 	return profileDir(p.StateHome, profile)
 }
 
+// GlobalStatePath is the file of the UI state that belongs to no window, state.json in the state folder of the
+// profile (SPEC §10.10).
+func (p Paths) GlobalStatePath(profile string) (string, error) {
+	dir, err := p.StateDir(profile)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "state.json"), nil
+}
+
+// WindowStatePath is the file of the UI state of the window with the id (see WindowID):
+// windows/<id>.json in the state folder of the profile (SPEC §10.10). An id that is not 16 hexadecimal
+// digits has the tag WindowIDInvalid.
+func (p Paths) WindowStatePath(profile, id string) (string, error) {
+	if !validWindowID(id) {
+		return "", errors.New("WindowIDInvalid", "a window id is 16 hexadecimal digits", "id", id)
+	}
+	dir, err := p.StateDir(profile)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "windows", id+".json"), nil
+}
+
 // CacheDir is $XDG_CACHE_HOME/emetos.
 func (p Paths) CacheDir() string {
 	return filepath.Join(p.CacheHome, appDir)

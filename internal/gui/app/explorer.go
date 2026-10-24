@@ -87,6 +87,8 @@ type explorerState struct {
 	// tree takes while it has the focus.
 	clip       fileClip
 	removeUndo []func()
+	// stopState stops following the expanded folders for the UI state of the window.
+	stopState func()
 }
 
 // initExplorer makes the Explorer's views, follows the folder and the settings, and binds the commands.
@@ -170,6 +172,9 @@ func (s *shellState) disposeExplorer() {
 	for _, remove := range ex.removeCommands {
 		remove()
 	}
+	if ex.stopState != nil {
+		ex.stopState()
+	}
 	if ex.view != nil {
 		ex.view.Dispose()
 	}
@@ -215,6 +220,11 @@ func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
 		OnImport:      func(paths []string, folder string) { s.importFiles(binding, paths, folder) },
 		OnContextMenu: s.openExplorerMenu,
 	})
+	// the folders the saved state expanded (once: a folder opened later starts with none)
+	if dirs := win.takeExpanded(); len(dirs) > 0 {
+		ex.view.Tree().SetExpandedKeys(dirs)
+	}
+	s.followExplorerState()
 	win.FileOps.ClearHistory()
 	ex.clip = fileClip{}
 	win.Keys.Set("fileCopied", false)
@@ -485,6 +495,7 @@ func (s *shellState) bindExplorerCommands(binding *widgets.WidgetsBinding) {
 		ex.removeCommands = append(ex.removeCommands, remove)
 	}
 	s.bindFileOpsCommands(binding)
+	s.bindRecentCommands(binding)
 }
 
 // chooseFolder shows the folder dialog of the desktop (a file chooser portal that picks folders) and waits for
@@ -547,14 +558,16 @@ func (s *shellState) openFolder(path string) {
 	if path == win.Folder {
 		return
 	}
+	// the state of the folder that is left stays as it is while its editors close
+	s.suspendState()
 	s.closeAllEditors(func(closed bool) {
-		if !closed {
-			return
+		if closed {
+			if err := win.SetFolder(win.ctx, path); err != nil {
+				win.Process.Logger.Warn("cannot open the folder", "path", path, "err", err)
+				win.Process.Notify.Error("Emetos", "Cannot open the folder "+path+": "+describe(err))
+			}
 		}
-		if err := win.SetFolder(win.ctx, path); err != nil {
-			win.Process.Logger.Warn("cannot open the folder", "path", path, "err", err)
-			win.Process.Notify.Error("Emetos", "Cannot open the folder "+path+": "+describe(err))
-		}
+		s.resumeState()
 	})
 }
 

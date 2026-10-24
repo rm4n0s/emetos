@@ -21,6 +21,8 @@ var appCommands = map[string]bool{
 	"changeEditorIndentation": true,
 	// Save All, whose id has no "workbench." (gui/app/save.go)
 	"saveAll": true,
+	// the rows of File > Open Recent (gui/app/recent.go)
+	"openRecentFolder": true, "openRecentFile": true,
 }
 
 func TestEveryEditorCommandHasAHandler(t *testing.T) {

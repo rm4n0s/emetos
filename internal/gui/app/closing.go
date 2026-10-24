@@ -148,6 +148,10 @@ func (w *Window) RequestClose(reason CloseReason) {
 // quit ends the application: the Quit function when it is set, else the application is asked to exit without
 // asking the observers again.
 func (w *Window) quit() {
+	// the UI state is written before the application ends (SPEC §10.10)
+	if w.flushState != nil {
+		w.flushState()
+	}
 	if w.Quit != nil {
 		w.Quit()
 		return

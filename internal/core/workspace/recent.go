@@ -11,14 +11,53 @@ import (
 const DefaultRecentLimit = 200
 
 // RecentFiles is the list of files the user opened, the most recent first, that the quick open
-// shows as "recently opened". It is kept in memory; step 7.5 (UI state persistence) saves it. It is
-// safe for concurrent use.
-//
-// TODO(step 7.5): save and restore the list with the UI state of the window.
+// shows as "recently opened". The window keeps it in its UI state (SPEC §10.10): OnChange tells when to
+// save it and Replace puts a saved list back. It is safe for concurrent use.
 type RecentFiles struct {
-	mu    sync.Mutex
-	limit int
-	paths []string
+	mu        sync.Mutex
+	limit     int
+	paths     []string
+	listeners []*func()
+}
+
+// OnChange calls fn after the list changed, on the goroutine that changed it, and returns the function that
+// stops it.
+func (r *RecentFiles) OnChange(fn func()) (unsubscribe func()) {
+	p := &fn
+	r.mu.Lock()
+	r.listeners = append(r.listeners, p)
+	r.mu.Unlock()
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if i := slices.Index(r.listeners, p); i >= 0 {
+			r.listeners = slices.Delete(r.listeners, i, i+1)
+		}
+	}
+}
+
+// notify tells the listeners; the caller has let go of the lock.
+func (r *RecentFiles) notify() {
+	r.mu.Lock()
+	listeners := slices.Clone(r.listeners)
+	r.mu.Unlock()
+	for _, f := range listeners {
+		(*f)()
+	}
+}
+
+// Replace makes the list the paths, the most recent first (the order List gives); the paths past the limit
+// and the ones that are empty or repeated are left out.
+func (r *RecentFiles) Replace(paths []string) {
+	r.mu.Lock()
+	r.paths = nil
+	for _, p := range paths {
+		if p != "" && !slices.Contains(r.paths, p) && len(r.paths) < r.limit {
+			r.paths = append(r.paths, p)
+		}
+	}
+	r.mu.Unlock()
+	r.notify()
 }
 
 // NewRecentFiles makes an empty list that keeps at most limit files (DefaultRecentLimit when limit
@@ -37,7 +76,10 @@ func (r *RecentFiles) Add(path string) {
 		return
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	if len(r.paths) > 0 && r.paths[0] == path {
+		r.mu.Unlock()
+		return
+	}
 	if i := slices.Index(r.paths, path); i >= 0 {
 		r.paths = slices.Delete(r.paths, i, i+1)
 	}
@@ -45,14 +87,20 @@ func (r *RecentFiles) Add(path string) {
 	if len(r.paths) > r.limit {
 		r.paths = r.paths[:r.limit]
 	}
+	r.mu.Unlock()
+	r.notify()
 }
 
 // Remove takes a path out of the list.
 func (r *RecentFiles) Remove(path string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if i := slices.Index(r.paths, path); i >= 0 {
+	i := slices.Index(r.paths, path)
+	if i >= 0 {
 		r.paths = slices.Delete(r.paths, i, i+1)
+	}
+	r.mu.Unlock()
+	if i >= 0 {
+		r.notify()
 	}
 }
 
@@ -60,14 +108,20 @@ func (r *RecentFiles) Remove(path string) {
 // follow it too.
 func (r *RecentFiles) Rename(oldPath, newPath string) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	changed := false
 	for i, p := range r.paths {
 		switch {
 		case p == oldPath:
 			r.paths[i] = newPath
+			changed = true
 		case len(p) > len(oldPath) && p[:len(oldPath)] == oldPath && p[len(oldPath)] == '/':
 			r.paths[i] = newPath + p[len(oldPath):]
+			changed = true
 		}
+	}
+	r.mu.Unlock()
+	if changed {
+		r.notify()
 	}
 }
 
@@ -88,6 +142,10 @@ func (r *RecentFiles) Len() int {
 // Clear empties the list.
 func (r *RecentFiles) Clear() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	had := len(r.paths) > 0
 	r.paths = nil
+	r.mu.Unlock()
+	if had {
+		r.notify()
+	}
 }

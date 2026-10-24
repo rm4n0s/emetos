@@ -67,6 +67,7 @@ func registerFileMenu(r *MenuRegistry) {
 	r.MustAdd(
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.newUntitledFile", Title: "New Text File", MnemonicTitle: "&&New Text File", Group: "1_new", Order: 1},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.openFolder", MnemonicTitle: "Open &&Folder...", Group: "2_open", Order: 2},
+		MenuItem{Menu: MenubarFileMenu, Submenu: MenubarRecentMenu, Title: "Open Recent", MnemonicTitle: "Open &&Recent", Group: "2_open", Order: 4},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.save", MnemonicTitle: "&&Save", Group: "4_save", Order: 1,
 			Precondition: contextkey.Has("activeEditor")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.saveAs", MnemonicTitle: "Save &&As...", Group: "4_save", Order: 2,
@@ -198,7 +199,8 @@ func registerEditorContext(r *MenuRegistry) {
 
 // registerEditorGroupMenus adds the Editor Layout submenu of the View menu, the Switch Editor and Switch
 // Group submenus of the Go menu, the history rows of the Go menu (Back, Forward, Last Edit Location) and
-// Reopen Closed Editor in the Open Recent submenu of the File menu. Not here: Split in Group and Join in
+// Reopen Closed Editor, More... and Clear Recently Opened in the Open Recent submenu of the File menu (the
+// Open Recent row itself is in the File menu). Not here: Split in Group and Join in
 // Group (editors that split inside a group), Move/Copy Editor into New Window, and the first and second
 // side of a side by side editor.
 //
@@ -235,6 +237,9 @@ func registerEditorGroupMenus(r *MenuRegistry) {
 			Precondition: contextkey.Has("canNavigateToLastEditLocation")},
 		MenuItem{Menu: MenubarRecentMenu, Command: "workbench.action.reopenClosedEditor", Title: "Reopen Closed Editor", MnemonicTitle: "&&Reopen Closed Editor", Group: "1_editor", Order: 1,
 			Precondition: contextkey.Has("canReopenClosedEditor")},
+		// the recent folders and files are put before "More..." by the window (workbench.MenuSource.Before)
+		MenuItem{Menu: MenubarRecentMenu, Command: "workbench.action.openRecent", Title: "More...", MnemonicTitle: "&&More...", Group: "y_more", Order: 1},
+		MenuItem{Menu: MenubarRecentMenu, Command: "workbench.action.clearRecentFiles", Title: "Clear Recently Opened...", MnemonicTitle: "&&Clear Recently Opened...", Group: "z_clear", Order: 1},
 
 		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.nextEditor", Title: "Next Editor", MnemonicTitle: "&&Next Editor", Group: "2_any", Order: 1},
 		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.previousEditor", Title: "Previous Editor", MnemonicTitle: "&&Previous Editor", Group: "2_any", Order: 2},

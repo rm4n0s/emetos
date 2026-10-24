@@ -1008,6 +1008,26 @@ func registerWorkbench(r *Registry) {
 			Description: "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar.",
 			Scope:       ScopeApplication, Category: categoryWindow,
 		},
+		// Step 7.5 restores the one window; the values that are about several windows act as "all" or "folders"
+		// until step 7.8.
+		Setting{
+			Key: "window.restoreWindows", Types: []Type{String}, Default: "all",
+			Enum: []any{"preserve", "all", "folders", "one", "none"},
+			EnumDescriptions: []string{
+				"Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows together with editors that were previously opened.",
+				"Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window.",
+				"Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window.",
+				"Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window.",
+				"Never reopen a window. Unless a folder or workspace is opened (e.g. from the command line), an empty window will appear.",
+			},
+			Description: "Controls how windows and editors within are being restored when opening.",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
+		Setting{
+			Key: "window.restoreFullscreen", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether a window should restore to full screen mode if it was exited in full screen mode.",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
 	)
 }
 

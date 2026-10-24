@@ -34,6 +34,7 @@ func DefaultRegistry() *Registry {
 	registerExplorerCommands(r)
 	registerSaveCommands(r)
 	registerWindowCommands(r)
+	registerRecentCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	return r
@@ -732,5 +733,23 @@ func registerWindowCommands(r *Registry) {
 	r.MustRegister(
 		Meta{ID: "workbench.action.closeWindow", Title: "Close Window"},
 		Meta{ID: "workbench.action.quit"},
+	)
+}
+
+// registerRecentCommands registers the commands of the recently opened folders and files (SPEC §10.10, step
+// 7.5): Open Recent (Ctrl+R), which picks one from a list, and Clear Recently Opened. "openRecentFolder" and
+// "openRecentFile" are what the rows of File > Open Recent run, with the path as the argument; they have no
+// title, so the palette does not list them (VS Code's menu rows use these ids without registering commands).
+// Not here: Quick Open Recent (workbench.action.quickOpenRecent, which is the picker as a quick navigation) and
+// the workspace rows of the list.
+//
+// Ported from VS Code: src/vs/workbench/browser/actions/windowActions.ts (OpenRecentAction) and
+// src/vs/workbench/browser/parts/editor/editorActions.ts (ClearRecentFilesAction)
+func registerRecentCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.openRecent", Title: "Open Recent...", Category: "File"},
+		Meta{ID: "workbench.action.clearRecentFiles", Title: "Clear Recently Opened...", Category: "File"},
+		Meta{ID: "openRecentFolder"},
+		Meta{ID: "openRecentFile"},
 	)
 }

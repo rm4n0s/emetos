@@ -201,12 +201,15 @@ type SerializedGrid struct {
 
 // Serialize gives the state of the grid to save: the tree, the sizes and the editors of each
 // group that can be serialized, the active group and the order of the groups.
-func (g *Grid) Serialize() SerializedGrid {
+func (g *Grid) Serialize() SerializedGrid { return g.SerializeWith(nil) }
+
+// SerializeWith is Serialize with the State of each input given by state.
+func (g *Grid) SerializeWith(state InputStateFunc) SerializedGrid {
 	var conv func(n *node) SerializedNode
 	conv = func(n *node) SerializedNode {
 		out := SerializedNode{Size: n.size}
 		if n.leaf() {
-			m := n.group.Model.Serialize()
+			m := n.group.Model.SerializeWith(state)
 			out.Model = &m
 			return out
 		}
@@ -232,6 +235,11 @@ func (g *Grid) Serialize() SerializedGrid {
 // editor, or reports false when it cannot (see RestoreModel). A state that is not a tree of
 // groups fails with the tag GridStateInvalid.
 func RestoreGrid(data SerializedGrid, opts GridOptions, create func(typeID, value string) (EditorInput, bool)) (*Grid, error) {
+	return RestoreGridWith(data, opts, func(in SerializedInput) (EditorInput, bool) { return create(in.TypeID, in.Value) })
+}
+
+// RestoreGridWith is RestoreGrid with a factory that is given the whole saved input, State included.
+func RestoreGridWith(data SerializedGrid, opts GridOptions, create func(SerializedInput) (EditorInput, bool)) (*Grid, error) {
 	if len(data.Root) == 0 {
 		return nil, errors.New("GridStateInvalid", "the saved grid has no group")
 	}
@@ -247,7 +255,7 @@ func RestoreGrid(data SerializedGrid, opts GridOptions, create func(typeID, valu
 			if id < 1 || g.groups[id] != nil {
 				return nil, errors.New("GridStateInvalid", "a saved group has an id that is not valid or is used twice", "group", id)
 			}
-			grp := g.adopt(&Group{Model: RestoreModel(*sn.Model, g.opts.Model, create)})
+			grp := g.adopt(&Group{Model: RestoreModelWith(*sn.Model, g.opts.Model, create)})
 			g.nextID = max(g.nextID, id+1)
 			leaf := &node{parent: parent, group: grp, size: sn.Size}
 			grp.node = leaf

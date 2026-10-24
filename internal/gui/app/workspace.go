@@ -134,6 +134,7 @@ func (w *Window) SetFolder(ctx context.Context, folder string) error {
 		w.Process.Logger.Warn("reading the settings of the folder failed", "err", err)
 	}
 	go w.watchFolder()
+	w.initState(ctx)
 	for _, f := range slices.Clone(w.folderListeners) {
 		(*f)()
 	}

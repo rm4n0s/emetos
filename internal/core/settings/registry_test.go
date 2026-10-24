@@ -150,6 +150,26 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestRestoreSettingsAreRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	s, ok := r.Lookup("window.restoreWindows")
+	if !ok || s.Default != "all" || s.Scope != ScopeApplication || s.Category != categoryWindow || s.Description == "" || len(s.Enum) != 5 {
+		t.Fatalf("window.restoreWindows: %+v, %v", s, ok)
+	}
+	for _, tc := range []struct {
+		value   any
+		invalid bool
+	}{{"preserve", false}, {"all", false}, {"folders", false}, {"one", false}, {"none", false}, {"some", true}, {true, true}} {
+		if got := r.Validate("window.restoreWindows", tc.value) != ""; got != tc.invalid {
+			t.Errorf("window.restoreWindows = %v: invalid = %v, want %v", tc.value, got, tc.invalid)
+		}
+	}
+	s, ok = r.Lookup("window.restoreFullscreen")
+	if !ok || s.Default != false || s.Scope != ScopeApplication || s.Description == "" {
+		t.Errorf("window.restoreFullscreen: %+v, %v", s, ok)
+	}
+}
+
 func TestThemeSettingsAreRegistered(t *testing.T) {
 	r := DefaultRegistry()
 	cases := []struct {

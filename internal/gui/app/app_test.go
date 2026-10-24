@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/storage/storagetest"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -30,6 +31,11 @@ var testWindowSize = ui.Size{Width: windowWidth, Height: windowHeight}
 func newTestProcess(opts ProcessOptions) *Process {
 	if opts.ScanTimeout == 0 {
 		opts.ScanTimeout = testutil.ScanTimeout
+	}
+	if opts.StateAfter == nil {
+		// the state files are written when a test says so (Flush, or a clock it moves), never by a timer that
+		// runs after the folders of the test are gone
+		opts.StateAfter = storagetest.NewClock().AfterFunc
 	}
 	return NewProcess(opts)
 }

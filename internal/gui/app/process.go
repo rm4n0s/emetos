@@ -60,6 +60,9 @@ type Process struct {
 	// Snippets are the user's snippet files, in the snippets folder of the configuration (SPEC
 	// §9.9). The workspace watcher of step 6.13 reloads them when they change.
 	Snippets *snippet.Service
+	// State reads and writes the UI state files: the recently opened folders and files and the state of each
+	// window (SPEC §10.10).
+	State *storage.StateStore
 	// WatchFiles tells whether the windows start their file watcher (ProcessOptions.WatchFiles).
 	WatchFiles bool
 
@@ -110,6 +113,13 @@ type ProcessOptions struct {
 	// of SPEC §8.2 (100 ms). Tests that run slowly (the race detector on a loaded machine) lengthen
 	// it, because a search that times out leaves its line of text without colors.
 	ScanTimeout time.Duration
+	// StateDelay is how long after a change a state file is written (SPEC §10.10); one second when zero.
+	StateDelay time.Duration
+	// StateAfter sets the timers of that delay, and StateWriteFile replaces the function that writes the
+	// files; the system clock and the atomic write when nil. Tests move the clock by hand: a test that does
+	// not pass one gets timers that never run.
+	StateAfter     storage.AfterFunc
+	StateWriteFile storage.WriteFileFunc
 }
 
 // NewProcess makes the services of the process: the registries with every setting, command
@@ -141,7 +151,15 @@ func NewProcess(opts ProcessOptions) *Process {
 	if opts.Logs != nil {
 		channels = opts.Logs.Channels()
 	}
+	state, err := storage.NewStateStore(opts.Paths, storage.DefaultProfile, storage.StateStoreOptions{
+		Delay: opts.StateDelay, After: opts.StateAfter, WriteFile: opts.StateWriteFile, Logger: logger,
+	})
+	if err != nil {
+		// the default profile has a safe folder: this is a broken build
+		panic(err)
+	}
 	p := &Process{
+		State:    state,
 		Paths:    opts.Paths,
 		Logger:   logger,
 		Logs:     opts.Logs,
@@ -164,6 +182,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.closing = autoclose.NewRegistryLanguages(languages)
 	p.comments = comment.NewRegistryLanguages(languages)
 	p.Menus = command.DefaultMenus(p.Commands)
+	p.Menus.SetProvider(command.MenubarRecentMenu, p.recentMenuItems)
 	p.Views = command.DefaultViews()
 	registerDevCommands(p.Commands)
 	registerDevNotify(p.Commands, p.Notify, logger)

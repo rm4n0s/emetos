@@ -23,6 +23,10 @@ func TestRecentFiles(t *testing.T) {
 			r.Add("/d")
 			r.Rename("/d", "/e")
 		}, []string{"/e", "/other", "/e/x"}},
+		{"replace keeps the order and drops repeats, empties and the paths past the limit", 3, func(r *RecentFiles) {
+			r.Add("/old")
+			r.Replace([]string{"/a", "", "/b", "/a", "/c", "/d"})
+		}, []string{"/a", "/b", "/c"}},
 		{"clear", 5, func(r *RecentFiles) { r.Add("/a"); r.Clear() }, nil},
 		{"the default limit", 0, func(r *RecentFiles) {
 			for i := range DefaultRecentLimit + 10 {
@@ -43,6 +47,40 @@ func TestRecentFiles(t *testing.T) {
 			}
 			if !slices.Equal(got, tc.want) {
 				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRecentFilesOnChange(t *testing.T) {
+	tests := []struct {
+		name string
+		do   func(r *RecentFiles)
+		want int
+	}{
+		{"add", func(r *RecentFiles) { r.Add("/a") }, 1},
+		{"the first again changes nothing", func(r *RecentFiles) { r.Add("/a"); r.Add("/a") }, 1},
+		{"remove of a path that is not there changes nothing", func(r *RecentFiles) { r.Add("/a"); r.Remove("/b") }, 1},
+		{"remove", func(r *RecentFiles) { r.Add("/a"); r.Remove("/a") }, 2},
+		{"rename of nothing changes nothing", func(r *RecentFiles) { r.Add("/a"); r.Rename("/b", "/c") }, 1},
+		{"rename", func(r *RecentFiles) { r.Add("/a"); r.Rename("/a", "/c") }, 2},
+		{"clear of an empty list changes nothing", func(r *RecentFiles) { r.Clear() }, 0},
+		{"clear", func(r *RecentFiles) { r.Add("/a"); r.Clear() }, 2},
+		{"replace", func(r *RecentFiles) { r.Replace([]string{"/a"}) }, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewRecentFiles(5)
+			n := 0
+			stop := r.OnChange(func() { n++ })
+			tc.do(r)
+			if n != tc.want {
+				t.Errorf("%d notifications, want %d", n, tc.want)
+			}
+			stop()
+			r.Add("/zzz")
+			if n != tc.want {
+				t.Error("notified after the listener was removed")
 			}
 		})
 	}

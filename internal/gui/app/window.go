@@ -94,7 +94,8 @@ type Window struct {
 	QuickAccess    *quickinput.Registry
 	CommandHistory *quickinput.CommandsHistory
 	// Recent are the files opened in the window, the most recent first: the quick open shows them first
-	// (SPEC §10.6). They are kept in memory until the UI state is saved (step 7.5).
+	// (SPEC §10.6). They are part of the UI state of the window (SPEC §10.10); AddRecentFile also notes the
+	// file in the list of File > Open Recent.
 	Recent *workspace.RecentFiles
 	// FileOps does the file operations of the Explorer and keeps their history for undo and redo
 	// (SPEC §10.5). Its trash is the user's, in $XDG_DATA_HOME/Trash.
@@ -114,6 +115,14 @@ type Window struct {
 	Quit func()
 
 	ctx context.Context
+	// stateID is the id of the window's UI state file (initState); restored is what PrepareRestore found, until
+	// the shell takes it, pendingExpanded the folders the Explorer expands when its tree exists, and flushState
+	// the function the shell sets to save the state when the window closes.
+	stateID         string
+	geometry        *storage.Geometry
+	restored        *restoredWindow
+	pendingExpanded []string
+	flushState      func()
 	// closer is the shell's answer to RequestClose, and exit ends the application without asking again; both
 	// are set while the shell is on screen (closing.go).
 	closer func(CloseReason)
@@ -272,6 +281,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 			return nil, err
 		}
 	}
+	w.initState(ctx)
 	w.syncWorkbenchState()
 	w.rememberSettingsPaths(userPath, p)
 	w.followWorkspaceSettings()

@@ -1,6 +1,7 @@
 package workbench
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
 
@@ -157,6 +158,43 @@ func TestStateRoundTrip(t *testing.T) {
 	other := NewLayout(l.State())
 	if other.State() != st {
 		t.Error("a layout made of a state has another one")
+	}
+}
+
+// The layout is saved as JSON in the state file of the window (SPEC §10.10): the window reads it over the layout
+// the settings make, so a key the file does not have keeps the value of the settings.
+func TestLayoutStateJSONRoundTrip(t *testing.T) {
+	st := LayoutState{
+		SideBarVisible: false, SideBarWidth: 333, SideBarPosition: SideBarRight, ActivityBarVisible: false, StatusBarVisible: false,
+		PanelVisible: true, PanelPosition: PanelLeft, PanelHeight: 123, PanelWidth: 456, PanelMaximized: true,
+	}
+	data, err := json.Marshal(st)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := DefaultLayoutState()
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got != st {
+		t.Errorf("JSON %s gave %+v, want %+v", data, got, st)
+	}
+	// a file that has only some of the keys keeps the rest as it was
+	base := DefaultLayoutState()
+	base.PanelPosition = PanelRight
+	if err := json.Unmarshal([]byte(`{"sideBarVisible": false, "panelHeight": 250}`), &base); err != nil {
+		t.Fatal(err)
+	}
+	want := DefaultLayoutState()
+	want.PanelPosition, want.SideBarVisible, want.PanelHeight = PanelRight, false, 250
+	if base != want {
+		t.Errorf("partial JSON gave %+v, want %+v", base, want)
+	}
+	// and the layout takes it from there
+	l := NewLayout(DefaultLayoutState())
+	l.Restore(base)
+	if l.State() != want {
+		t.Errorf("layout %+v", l.State())
 	}
 }
 

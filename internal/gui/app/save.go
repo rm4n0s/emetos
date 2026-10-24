@@ -337,7 +337,7 @@ func (s *shellState) saved(doc *document.Document, oldURI document.URI, oldLang 
 	uri := doc.URI()
 	if uri != oldURI {
 		if path, ok := filePath(uri.Scheme, uri.Path); ok {
-			win.Recent.Add(path)
+			win.AddRecentFile(path)
 		}
 		if h := s.nav.history; h != nil && oldURI.Scheme == document.SchemeUntitled {
 			h.Follow(func(u document.URI) (document.URI, bool) {

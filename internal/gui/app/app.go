@@ -72,10 +72,19 @@ func Run(ctx context.Context, opts Options) error {
 		}
 		process = NewProcess(ProcessOptions{Paths: paths, Logger: opts.Logger, WatchFiles: true})
 	}
-	win, err := NewWindow(ctx, process, opts.Folder)
+	// with no folder and no file on the command line the folder of the last window opens again
+	folder := process.startupFolder(ctx, opts)
+	win, err := NewWindow(ctx, process, folder)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		// what is left to write (the recently opened list changed after the window closed)
+		if err := process.State.Flush(context.WithoutCancel(ctx)); err != nil {
+			process.Logger.Warn("the UI state cannot be written", "err", err)
+		}
+	}()
+	geometry := win.PrepareRestore(ctx)
 	var shown []*document.Document
 	var blocked string
 	for _, path := range opts.Files {
@@ -96,7 +105,7 @@ func Run(ctx context.Context, opts Options) error {
 	steps := devSteps(process, opts.DevCommands)
 	return widgets.RunApp(newAppDocs(ctx, win, shown, steps, blocked), widgets.RunAppOpts{
 		AppID:  AppID,
-		Window: widgets.WindowConfig{Title: Title, Size: ui.Size{Width: windowWidth, Height: windowHeight}},
+		Window: startupWindowConfig(win, geometry),
 		Fonts:  fonts.Sources(),
 		Logger: opts.Logger,
 	})
@@ -258,6 +267,8 @@ type shellState struct {
 	autosave autoSaveState
 	// ext is what the shell keeps of the files changed on disk (external.go).
 	ext externalState
+	// state is what the shell keeps of saving the UI state of the window (state.go).
+	state stateState
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -279,6 +290,7 @@ func (s *shellState) InitState() {
 	s.initStatus(binding)
 	s.initSave(binding)
 	s.initClosing(binding)
+	s.initState(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
@@ -295,7 +307,14 @@ func (s *shellState) InitState() {
 	s.Go(func(life context.Context) {
 		select {
 		case <-done:
-			binding.Post(func() { binding.ExitApplication(ui.AppExitTypeRequired) })
+			binding.Post(func() {
+				// the signal that ends the program does not go through the question about unsaved changes, but
+				// the UI state is still written
+				if s.Mounted() {
+					s.flushState()
+				}
+				binding.ExitApplication(ui.AppExitTypeRequired)
+			})
 		case <-life.Done():
 		}
 	})
@@ -343,6 +362,7 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	s.disposeState() // before the groups go: it saves them
 	s.disposeClosing()
 	s.disposeAutoSave(s.binding)
 	s.disposeExternal()
@@ -388,6 +408,9 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 		// title is set through an interface assertion. Glutter should put SetTitle in the interface.
 		if scope, ok := widgets.GetInherited[*widgets.WindowScope](bc); ok {
 			s.window, _ = scope.Controller().(interface{ SetTitle(string) })
+			if src, ok := scope.Controller().(geometrySource); ok {
+				s.trackWindow(src)
+			}
 		}
 	}
 	in := workbench.TitleInput{

@@ -442,6 +442,8 @@ func registerExplorerKeys(r *Registry) {
 		Rule{Command: "workbench.files.action.focusOpenEditorsView", Weight: WeightWorkbenchContrib, Primary: "ctrl+k e"},
 		Rule{Command: "workbench.action.files.openFolder", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+o"},
 		Rule{Command: "workbench.action.closeFolder", Weight: WeightWorkbenchContrib, When: mustWhen("workbenchState != 'empty'"), Primary: "ctrl+k f"},
+		// Open Recent (Linux: Ctrl+R)
+		Rule{Command: "workbench.action.openRecent", Weight: WeightWorkbenchContrib, Primary: "ctrl+r"},
 	)
 	registerExplorerFileKeys(r)
 }

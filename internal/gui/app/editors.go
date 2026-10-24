@@ -38,6 +38,10 @@ type textEditor struct {
 	tokDone chan struct{}
 	// nav is what the history of locations remembers of the editor (navigation.go).
 	nav editorNav
+	// stopState stops following the view state for the UI state of the window, and stateSig is the view state
+	// as last noted (state.go).
+	stopState func()
+	stateSig  viewSig
 }
 
 // newTextEditor makes the editor of an input: its view model, kept current as the settings change
@@ -83,6 +87,7 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 		}
 	})
 	s.watchSelection(e)
+	s.followEditorState(e)
 	s.autoSaveTrack(doc)
 	s.externalTrack(doc)
 	return e
@@ -205,6 +210,10 @@ func (e *textEditor) dispose() {
 	e.disposed = true
 	close(e.done)
 	e.unwatchSelection()
+	if e.stopState != nil {
+		e.stopState()
+		e.stopState = nil
+	}
 	e.view.DisposeFind()
 	e.view.DisposeWrap()
 	e.view.DisposeHighlights()
