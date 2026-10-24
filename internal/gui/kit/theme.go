@@ -165,6 +165,8 @@ type Colors struct {
 	BadgeBackground, BadgeForeground, ProgressBarBackground ui.Color
 	// The colors of the icon of a dialog by type (error, warning, information).
 	ProblemsErrorIconForeground, ProblemsWarningIconForeground, ProblemsInfoIconForeground ui.Color
+	// TextLinkForeground is the color of a link in text.
+	TextLinkForeground ui.Color
 	// The colors of toasts and of the notification center: the text and background of a notification,
 	// its border as a toast and the border of the center, the header of the center (text and
 	// background), the line between notifications of the center, and the icons by severity.
@@ -192,7 +194,9 @@ type Colors struct {
 	SideBarTitleBackground, SideBarTitleForeground, SideBarTitleBorder               ui.Color
 	PanelBackground, PanelBorder, PanelTitleBorder                                   ui.Color
 	PanelTitleActiveForeground, PanelTitleInactiveForeground, PanelTitleActiveBorder ui.Color
-	TitleBarActiveBackground, TitleBarBorder                                         ui.Color
+	// The count on a tab of the panel (the Problems badge).
+	PanelTitleBadgeBackground, PanelTitleBadgeForeground ui.Color
+	TitleBarActiveBackground, TitleBarBorder             ui.Color
 	// The colors of tabs (kit.Tabs): the background and the text of a tab by whether it is the active
 	// tab and whether its group is the active group (the Unfocused colors are those of the tabs of
 	// another group), the tab under the pointer (a transparent hover color leaves the tab as it is),
@@ -341,6 +345,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		BadgeBackground: color("badge.background"), BadgeForeground: color("badge.foreground"), ProgressBarBackground: color("progressBar.background"),
 		ProblemsErrorIconForeground: color("problemsErrorIcon.foreground"), ProblemsWarningIconForeground: color("problemsWarningIcon.foreground"),
 		ProblemsInfoIconForeground: color("problemsInfoIcon.foreground"),
+		TextLinkForeground:         color("textLink.foreground"),
 		NotificationsForeground:    color("notifications.foreground"), NotificationsBackground: color("notifications.background"),
 		NotificationToastBorder: color("notificationToast.border"), NotificationCenterBorder: color("notificationCenter.border"),
 		NotificationCenterHeaderForeground: color("notificationCenterHeader.foreground"),
@@ -362,7 +367,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		SideBarTitleBorder: color("sideBarTitle.border"),
 		PanelBackground:    color("panel.background"), PanelBorder: color("panel.border"), PanelTitleBorder: color("panelTitle.border"),
 		PanelTitleActiveForeground: color("panelTitle.activeForeground"), PanelTitleInactiveForeground: color("panelTitle.inactiveForeground"),
-		PanelTitleActiveBorder:   color("panelTitle.activeBorder"),
+		PanelTitleActiveBorder:    color("panelTitle.activeBorder"),
+		PanelTitleBadgeBackground: color("panelTitleBadge.background"), PanelTitleBadgeForeground: color("panelTitleBadge.foreground"),
 		TitleBarActiveBackground: color("titleBar.activeBackground"), TitleBarBorder: color("titleBar.border"),
 
 		TabActiveBackground: color("tab.activeBackground"), TabUnfocusedActiveBackground: color("tab.unfocusedActiveBackground"),

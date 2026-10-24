@@ -35,6 +35,9 @@ type Process struct {
 	// Logs holds the log channels of the Output panel; nil when the process runs without a
 	// log file (tests).
 	Logs *logs.Logs
+	// Channels holds the lines of the log channels that the Output panel shows: the store of Logs, or a
+	// store of its own when the process runs without a log file.
+	Channels *logs.Store
 	// Settings is the registry of the settings Emetos has.
 	Settings *settings.Registry
 	// Commands is the registry of commands.
@@ -119,10 +122,15 @@ func NewProcess(opts ProcessOptions) *Process {
 			logger.Warn("language settings", "language", id, "err", err)
 		}
 	}
+	channels := logs.NewStore(0)
+	if opts.Logs != nil {
+		channels = opts.Logs.Channels()
+	}
 	p := &Process{
 		Paths:    opts.Paths,
 		Logger:   logger,
 		Logs:     opts.Logs,
+		Channels: channels,
 		Settings: defaults,
 		Commands: command.DefaultRegistry(),
 		Keymap:   keybinding.DefaultRegistry(),
@@ -141,6 +149,8 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.Views = command.DefaultViews()
 	registerDevCommands(p.Commands)
 	registerDevNotify(p.Commands, p.Notify, logger)
+	registerDevLog(p.Commands, p.Channels)
+	registerDevMarkers(p.Commands)
 	p.loadUserThemes()
 	p.loadSnippets()
 	return p

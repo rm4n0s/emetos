@@ -619,8 +619,13 @@ func (vm *ViewModel) ViewportSize() (width, height float64) { return vm.viewport
 // ContentWidth is the width of the content: the widest row laid out so far and room for a few
 // more characters, or the text area when that is wider.
 //
-// Ported from VS Code: src/vs/editor/common/viewLayout/viewLayout.ts (scrollWidth, scrollBeyondLastColumn)
+// Ported from VS Code: src/vs/editor/common/viewLayout/viewLayout.ts (scrollWidth, scrollBeyondLastColumn, isViewportWrapping)
 func (vm *ViewModel) ContentWidth() float64 {
+	if mode := vm.wrapMode(); (mode == "on" || mode == "bounded") && vm.wrap.key.on {
+		// text wrapped at the edge of the editor has nothing to scroll sideways: the widest row measured
+		// may be from before its lines were broken, when each was one row
+		return vm.viewportW
+	}
 	return max(vm.maxLineWidth+scrollBeyondLastColumn*vm.charWidth, vm.viewportW)
 }
 
@@ -646,6 +651,20 @@ func (vm *ViewModel) SetScroller(scroll func(top float64)) { vm.scroller = scrol
 // RevealPrimary scrolls the editor, if it has to, so that the row of the primary cursor is in
 // view: the row goes to the nearest edge it left through.
 func (vm *ViewModel) RevealPrimary() { vm.RevealPosition(vm.cursors.Primary().Position()) }
+
+// AtBottom tells whether the editor shows the end of its text: it is scrolled to the end, or has not
+// been laid out yet. A viewer that tails a text (the Output panel) follows it only while this holds.
+func (vm *ViewModel) AtBottom() bool {
+	return vm.viewport <= 0 || vm.scrollTop >= vm.scrollExtent-1
+}
+
+// RevealEnd scrolls the editor, if it has to, so that the end of the text is in view. The scroll goes
+// as far as the last layout allowed, so after text was added it is done once the editor has been
+// laid out again.
+func (vm *ViewModel) RevealEnd() {
+	snap := vm.doc.Snapshot()
+	vm.RevealPosition(snap.PositionAt(snap.Len()))
+}
 
 // revealPadding is how many rows of room a revealed position keeps from the top of the editor and
 // how many from its bottom: with sticky scroll on, the lines that can stick at the top (a line less

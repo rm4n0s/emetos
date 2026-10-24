@@ -333,3 +333,33 @@ func TestWithoutManageItemsThereIsNoGear(t *testing.T) {
 		t.Error("a Manage button without a Manage menu")
 	}
 }
+
+func TestViewsPanelModel(t *testing.T) {
+	st := DefaultLayoutState()
+	l := NewLayout(st)
+	v := NewViews(testViewRegistry(), l)
+	if v.ActivePanel() != "problems" {
+		t.Errorf("the panel starts on %q, want the first container of the panel", v.ActivePanel())
+	}
+	changes := 0
+	v.OnChange(func() { changes++ })
+	// the side bar is not the panel: a container of the other location does nothing
+	v.OpenPanel("search")
+	v.OpenPanel("nothing")
+	if v.ActivePanel() != "problems" || l.State().PanelVisible || changes != 0 {
+		t.Errorf("a container that is not of the panel changed it: %q visible %v changes %d", v.ActivePanel(), l.State().PanelVisible, changes)
+	}
+	// opening the active one shows the panel and tells nobody about a tab that did not change
+	v.OpenPanel("problems")
+	if !l.State().PanelVisible || changes != 0 {
+		t.Errorf("visible %v, changes %d", l.State().PanelVisible, changes)
+	}
+	if v.Active() != "explorer" {
+		t.Errorf("opening a tab of the panel changed the side bar to %q", v.Active())
+	}
+	empty := NewViews(command.NewViewRegistry(), nil)
+	if empty.ActivePanel() != "" {
+		t.Errorf("a registry with no panel container has %q", empty.ActivePanel())
+	}
+	empty.OpenPanel("problems") // no layout, no container: nothing to do
+}

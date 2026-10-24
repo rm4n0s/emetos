@@ -374,6 +374,18 @@ func notificationsState(a *keyApp, center, toasts, focus bool) func() {
 	}
 }
 
+// problemsState is the state of a window in which a view of the panel has the focus (the one the id
+// names, or none) and the filter box of the Problems has it or not, for the keys of the Problems.
+func problemsState(a *keyApp, view string, filter bool) func() {
+	return func() {
+		a.leaveFind()
+		if view != "" {
+			a.win.Keys.Set("focusedView", view)
+		}
+		a.win.Keys.Set("problemsFilterFocus", filter)
+	}
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -387,13 +399,16 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 		t.Run(item.Command+" "+item.Keybinding.UserSettingsLabel(), func(t *testing.T) {
 			var reached []string
 			states := append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a),
-				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true))
+				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
+				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				a.win.Keys.Set("activeEditorIsPinned", false)
 				a.win.Keys.Set("activeEditorGroupEmpty", false)
 				a.win.Keys.Set("multipleEditorGroups", false)
 				a.win.Keys.Set("editorPartMultipleEditorGroups", false)
+				a.win.Keys.Reset("focusedView")
+				a.win.Keys.Set("problemsFilterFocus", false)
 				state()
 				a.vm.SelectionsChanged()
 				a.ts.Pump(time.Millisecond)

@@ -658,3 +658,20 @@ func TestEditorTitleContextMenu(t *testing.T) {
 		}
 	})
 }
+
+func TestViewMenuHasThePanelViews(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	var titles []string
+	for _, e := range menus.Items(MenubarViewMenu, contextkey.MapContext{}) {
+		if e.Separator {
+			titles = append(titles, "-")
+			continue
+		}
+		titles = append(titles, e.Title)
+	}
+	// the panel views come in their own group, between Editor Layout's group and Word Wrap's
+	want := []string{"Appearance", "Editor Layout", "-", "Problems", "Output", "-", "Word Wrap"}
+	if !reflect.DeepEqual(titles, want) {
+		t.Errorf("got %v, want %v", titles, want)
+	}
+}

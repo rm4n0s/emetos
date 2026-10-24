@@ -17,6 +17,8 @@ const (
 	EventChannelAdded EventKind = iota + 1
 	// EventLine: a line was appended to a channel.
 	EventLine
+	// EventCleared: a channel was emptied (Store.Clear); the channel stays.
+	EventCleared
 )
 
 // Event is what subscribers of a Store are told.
@@ -78,6 +80,24 @@ func (s *Store) Append(channel, line string) {
 	}
 }
 
+// Clear empties a channel, which stays in the list of channels, and tells subscribers with an
+// EventCleared. An unknown channel, or one that is empty already, is left alone.
+func (s *Store) Clear(channel string) {
+	s.mu.Lock()
+	if len(s.lines[channel]) == 0 {
+		s.mu.Unlock()
+		return
+	}
+	s.lines[channel] = nil
+	subs := s.subscribers()
+	s.mu.Unlock()
+
+	ev := Event{Kind: EventCleared, Channel: channel}
+	for _, fn := range subs {
+		fn(ev)
+	}
+}
+
 // Lines returns a copy of the last lines of a channel, oldest first. An unknown
 // channel has none.
 func (s *Store) Lines(channel string) []string {
@@ -89,6 +109,9 @@ func (s *Store) Lines(channel string) []string {
 	}
 	return append([]string(nil), ls...)
 }
+
+// MaxLines is how many lines a channel keeps.
+func (s *Store) MaxLines() int { return s.maxLines }
 
 // Names returns the channel names in the order the channels were created.
 func (s *Store) Names() []string {
@@ -108,6 +131,28 @@ func (s *Store) Subscribe(fn func(Event)) (unsubscribe func()) {
 	s.subs[id] = fn
 	s.mu.Unlock()
 	return func() {
+		s.mu.Lock()
+		delete(s.subs, id)
+		s.mu.Unlock()
+	}
+}
+
+// Watch is Subscribe with the lines the channel has at that moment: both are taken under one lock, so
+// every line that is appended later reaches fn, and none that is in the result does. This is how
+// a view tails a channel: it shows the lines, then the events that follow. The channel need not exist
+// yet; its lines are then none.
+func (s *Store) Watch(channel string, fn func(Event)) (lines []string, unsubscribe func()) {
+	s.mu.Lock()
+	ls := s.lines[channel]
+	if len(ls) > s.maxLines {
+		ls = ls[len(ls)-s.maxLines:]
+	}
+	lines = append([]string(nil), ls...)
+	id := s.nextSub
+	s.nextSub++
+	s.subs[id] = fn
+	s.mu.Unlock()
+	return lines, func() {
 		s.mu.Lock()
 		delete(s.subs, id)
 		s.mu.Unlock()

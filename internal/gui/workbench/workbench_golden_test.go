@@ -14,7 +14,7 @@ import (
 func demo(o *Options) {
 	o.Menus = []kit.MenuBarMenu{{Label: "&File"}, {Label: "&Edit"}, {Label: "&Selection"}, {Label: "&View"}, {Label: "&Go"}, {Label: "&Help"}}
 	o.SideBarTitle = "Explorer"
-	o.PanelTabs = []PanelTab{{"problems", "Problems"}, {"output", "Output"}, {"debug", "Debug Console"}}
+	o.PanelTabs = []PanelTab{{ID: "problems", Title: "Problems"}, {ID: "output", Title: "Output"}, {ID: "debug", Title: "Debug Console"}}
 	o.ActivePanel = "output"
 	o.StatusLeft = []Widget{statusText("main")}
 	o.StatusRight = []Widget{statusText("Ln 3, Col 14"), statusText("Spaces: 4"), statusText("UTF-8"), statusText("Go")}
@@ -69,7 +69,7 @@ func viewsDemo(m *menuServices, views **Views, ctl *kit.MenuBarController) func(
 					Items: []kit.MenuItem{{ID: "color", Label: "Color Theme"}}},
 			}
 		}
-		o.PanelTabs = []PanelTab{{"problems", "Problems"}, {"output", "Output"}}
+		o.PanelTabs = []PanelTab{{ID: "problems", Title: "Problems"}, {ID: "output", Title: "Output"}}
 		o.ActivePanel = "problems"
 		o.StatusLeft = []Widget{statusText("main")}
 		o.StatusRight = []Widget{statusText("Ln 3, Col 14"), statusText("Go")}

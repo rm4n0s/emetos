@@ -18,6 +18,8 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/views/output"
+	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
@@ -65,6 +67,13 @@ type Window struct {
 	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
 	// thread.
 	Notifications *notify.Presenter
+	// Markers holds the problems that producers (language servers, tasks) report for the files of the
+	// window; the Problems panel shows them (SPEC §10.13).
+	Markers *problems.Service
+	// Problems and Output are the views of the Problems and Output panels. The shell makes them when
+	// the window is shown, and they are nil before.
+	Problems *problems.View
+	Output   *output.View
 	// Dialogs queues the dialogs of the window. The workbench shows them over everything, and the key
 	// dispatcher runs no command while one is showing.
 	Dialogs *kit.DialogController
@@ -123,6 +132,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Layout:        layout,
 		Views:         workbench.NewViews(p.Views, layout),
 		Dialogs:       kit.NewDialogController(),
+		Markers:       problems.NewService(),
 		Notifications: notify.NewPresenter(p.Notify),
 		ctx:           ctx,
 	}

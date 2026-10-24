@@ -148,6 +148,12 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+alt+left moves the editor to the previous group", nil, "ctrl+alt+left", "workbench.action.moveEditorToPreviousGroup"},
 		{"shift+alt+1 moves the editor to the first group", nil, "shift+alt+1", "workbench.action.moveEditorToFirstGroup"},
 		{"ctrl+b in the find input still toggles the side bar", map[string]any{"findInputFocussed": true}, "ctrl+b", "workbench.action.toggleSidebarVisibility"},
+		{"ctrl+shift+m toggles the Problems", nil, "ctrl+shift+m", "workbench.actions.view.problems"},
+		{"ctrl+f in the Problems view focuses its filter", map[string]any{"focusedView": "workbench.panel.markers.view"}, "ctrl+f", "problems.action.focusFilter"},
+		{"ctrl+f in another view finds", map[string]any{"focusedView": "workbench.explorer.fileView"}, "ctrl+f", "actions.find"},
+		{"ctrl+down in the filter focuses the problems", map[string]any{"problemsFilterFocus": true}, "ctrl+down", "problems.action.focusProblemsFromFilter"},
+		{"escape in the filter clears it", map[string]any{"problemsFilterFocus": true}, "escape", "problems.action.clearFilterText"},
+		{"escape with no filter focus", nil, "escape", ""},
 		{"escape with the notification center open", map[string]any{"notificationCenterVisible": true}, "escape", "notifications.hideList"},
 		{"escape with the center open and a selection", map[string]any{"notificationCenterVisible": true, "editorHasSelection": true}, "escape", "notifications.hideList"},
 		{"escape with a toast", map[string]any{"notificationToastsVisible": true}, "escape", "notifications.hideToasts"},
@@ -197,6 +203,7 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+k ctrl+shift+w", "workbench.action.closeAllGroups"},
 		{"ctrl+k p", "workbench.action.files.copyPathOfActiveFile"},
 		{"ctrl+k ctrl+shift+n", "notifications.showList"},
+		{"ctrl+k ctrl+h", "workbench.action.output.toggleOutput"},
 	} {
 		kb := mustKB(t, tc.chords)
 		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())

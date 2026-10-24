@@ -123,3 +123,156 @@ func TestStoreConcurrentAppend(t *testing.T) {
 		t.Errorf("subscriber saw %d lines, want 4000", seen)
 	}
 }
+
+func TestStoreClear(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(s *Store)
+		clear      string
+		wantLines  []string
+		wantNames  []string
+		wantEvents []Event
+	}{
+		{
+			name:       "a channel with lines is emptied and stays",
+			setup:      func(s *Store) { s.Append("a", "1"); s.Append("a", "2"); s.Append("b", "3") },
+			clear:      "a",
+			wantLines:  nil,
+			wantNames:  []string{"a", "b"},
+			wantEvents: []Event{{Kind: EventCleared, Channel: "a"}},
+		},
+		{
+			name:      "an unknown channel is left alone",
+			setup:     func(s *Store) { s.Append("a", "1") },
+			clear:     "none",
+			wantLines: nil,
+			wantNames: []string{"a"},
+		},
+		{
+			name:      "an empty channel tells nobody",
+			setup:     func(s *Store) { s.Append("a", "1"); s.Clear("a") },
+			clear:     "a",
+			wantLines: nil,
+			wantNames: []string{"a"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewStore(0)
+			tt.setup(s)
+			var events []Event
+			s.Subscribe(func(e Event) { events = append(events, e) })
+			s.Clear(tt.clear)
+			if got := s.Lines(tt.clear); len(got) != 0 {
+				t.Errorf("Lines = %v, want none", got)
+			}
+			if got := s.Names(); !reflect.DeepEqual(got, tt.wantNames) {
+				t.Errorf("Names = %v, want %v", got, tt.wantNames)
+			}
+			if !reflect.DeepEqual(events, tt.wantEvents) {
+				t.Errorf("events = %v, want %v", events, tt.wantEvents)
+			}
+		})
+	}
+}
+
+func TestStoreTailsAfterClear(t *testing.T) {
+	s := NewStore(3)
+	if s.MaxLines() != 3 {
+		t.Errorf("MaxLines = %d, want 3", s.MaxLines())
+	}
+	var seen []string
+	s.Subscribe(func(e Event) {
+		if e.Kind == EventLine {
+			seen = append(seen, e.Line)
+		}
+	})
+	s.Append("c", "1")
+	s.Clear("c")
+	s.Append("c", "2")
+	s.Append("c", "3")
+	if want := []string{"1", "2", "3"}; !reflect.DeepEqual(seen, want) {
+		t.Errorf("tailed %v, want %v", seen, want)
+	}
+	if got, want := s.Lines("c"), []string{"2", "3"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("Lines = %v, want %v", got, want)
+	}
+}
+
+func TestStoreWatch(t *testing.T) {
+	tests := []struct {
+		name      string
+		before    []string
+		after     []string
+		max       int
+		wantLines []string
+		wantTail  []string
+	}{
+		{"a channel with lines then more", []string{"1", "2"}, []string{"3", "4"}, 10, []string{"1", "2"}, []string{"3", "4"}},
+		{"a new channel", nil, []string{"a"}, 10, nil, []string{"a"}},
+		{"only the last lines of a long channel", []string{"1", "2", "3", "4"}, []string{"5"}, 2, []string{"3", "4"}, []string{"5"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewStore(tt.max)
+			for _, l := range tt.before {
+				s.Append("c", l)
+			}
+			var tail []string
+			lines, stop := s.Watch("c", func(e Event) {
+				if e.Kind == EventLine && e.Channel == "c" {
+					tail = append(tail, e.Line)
+				}
+			})
+			for _, l := range tt.after {
+				s.Append("c", l)
+			}
+			stop()
+			s.Append("c", "after stop")
+			if len(lines) != len(tt.wantLines) || (len(lines) > 0 && !reflect.DeepEqual(lines, tt.wantLines)) {
+				t.Errorf("lines = %v, want %v", lines, tt.wantLines)
+			}
+			if !reflect.DeepEqual(tail, tt.wantTail) {
+				t.Errorf("tail = %v, want %v (nothing after stopping)", tail, tt.wantTail)
+			}
+		})
+	}
+}
+
+func TestStoreWatchSeesEveryLineOnceUnderConcurrentAppends(t *testing.T) {
+	s := NewStore(100000)
+	var wg sync.WaitGroup
+	for g := range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := range 200 {
+				s.Append("c", fmt.Sprintf("%d-%d", g, i))
+			}
+		}()
+	}
+	var mu sync.Mutex
+	seen := map[string]int{}
+	lines, stop := s.Watch("c", func(e Event) {
+		if e.Kind == EventLine {
+			mu.Lock()
+			seen[e.Line]++
+			mu.Unlock()
+		}
+	})
+	wg.Wait()
+	stop()
+	mu.Lock()
+	defer mu.Unlock()
+	for _, l := range lines {
+		seen[l]++
+	}
+	if len(seen) != 800 {
+		t.Fatalf("saw %d distinct lines, want 800", len(seen))
+	}
+	for l, n := range seen {
+		if n != 1 {
+			t.Errorf("line %s seen %d times", l, n)
+		}
+	}
+}

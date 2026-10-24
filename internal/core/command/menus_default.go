@@ -124,6 +124,9 @@ func registerSelectionMenu(r *MenuRegistry) {
 func registerViewMenu(r *MenuRegistry) {
 	r.MustAdd(
 		MenuItem{Menu: MenubarViewMenu, Submenu: MenubarAppearanceMenu, Title: "Appearance", MnemonicTitle: "&&Appearance", Group: "2_appearance", Order: 1},
+		// the views of the panel, as viewsService.ts adds them to the View menu
+		MenuItem{Menu: MenubarViewMenu, Command: "workbench.actions.view.problems", Title: "Problems", MnemonicTitle: "&&Problems", Group: "5_panel", Order: 0},
+		MenuItem{Menu: MenubarViewMenu, Command: "workbench.action.output.toggleOutput", Title: "Output", MnemonicTitle: "&&Output", Group: "5_panel", Order: 1},
 		MenuItem{Menu: MenubarViewMenu, Command: "editor.action.toggleWordWrap", Title: "Word Wrap", MnemonicTitle: "&&Word Wrap", Group: "6_editor", Order: 1,
 			Precondition: contextkey.Has("canToggleWordWrap"), Toggled: contextkey.Has("editorWordWrap")},
 

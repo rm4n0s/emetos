@@ -18,6 +18,8 @@ const (
 	categoryBreadcrumbs = "Breadcrumbs"
 	// categoryEmmet is the group of the Emmet settings.
 	categoryEmmet = "Emmet"
+	// categoryOutput is the group of the settings of the Output panel.
+	categoryOutput = "Output"
 )
 
 // DefaultRegistry makes a registry with the settings Emetos has. Each step that reads a
@@ -30,6 +32,7 @@ func DefaultRegistry() *Registry {
 	registerLayout(r)
 	registerEditorGroups(r)
 	registerEmmet(r)
+	registerOutput(r)
 	return r
 }
 
@@ -980,6 +983,19 @@ func registerEmmet(r *Registry) {
 			Key: "emmet.triggerExpansionOnTab", Types: []Type{Boolean}, Default: false,
 			Description: "When enabled, Emmet abbreviations are expanded when pressing TAB, even when completions do not show up. When disabled, completions that show up can still be accepted by pressing TAB.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEmmet,
+		},
+	)
+}
+
+// registerOutput registers the settings of the Output panel (SPEC §10.13).
+//
+// Ported from VS Code: src/vs/workbench/contrib/output/browser/output.contribution.ts
+func registerOutput(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "output.smartScroll.enabled", Types: []Type{Boolean}, Default: true,
+			Description: "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line.",
+			Scope:       ScopeWindow, Category: categoryOutput,
 		},
 	)
 }

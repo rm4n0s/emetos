@@ -482,6 +482,36 @@ func TestDefaultLayoutColors(t *testing.T) {
 	}
 }
 
+// The colors that step 6.12 added for the count on a tab of the panel (theme.ts).
+func TestDefaultPanelBadgeColors(t *testing.T) {
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"activityBarBadge.background", "#007acc", "#007acc", "#000000", "#0f4a85"},
+		{"activityBarBadge.foreground", "#ffffff", "#ffffff", "#ffffff", "#ffffff"},
+		{"panelTitleBadge.background", "#007acc", "#007acc", "#000000", "#0f4a85"},
+		{"panelTitleBadge.foreground", "#ffffff", "#ffffff", "#ffffff", "#ffffff"},
+		{"problemsErrorIcon.foreground", "#f14c4c", "#e51400", "#f48771", "#b5200d"},
+		{"problemsWarningIcon.foreground", "#cca700", "#bf8803", "#ffd370", "#895503"},
+		{"problemsInfoIcon.foreground", "#59a4f9", "#0063d3", "#59a4f9", "#0063d3"},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				if !ok || c.String() != typ.want {
+					t.Errorf("got %v (%v), want %s", c.String(), ok, typ.want)
+				}
+			})
+		}
+	}
+}
+
 // The colors that step 6.11 added for the toasts and the notification center, as VS Code's registry
 // (theme.ts) writes their defaults.
 func TestDefaultNotificationColors(t *testing.T) {

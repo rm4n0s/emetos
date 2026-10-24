@@ -237,6 +237,41 @@ func TestNotificationCommands(t *testing.T) {
 	}
 }
 
+func TestPanelViewCommands(t *testing.T) {
+	r := DefaultRegistry()
+	cases := []struct{ id, title, category string }{
+		{"workbench.actions.view.problems", "Toggle Problems", "View"},
+		{"workbench.action.output.toggleOutput", "Toggle Output", "View"},
+		{"workbench.panel.markers.view.focus", "Focus on Problems View", "View"},
+		{"workbench.panel.output.focus", "Focus on Output View", "View"},
+		{"workbench.action.problems.focus", "Focus Problems (Errors, Warnings, Infos)", "View"},
+		{"workbench.actions.view.toggleProblems", "Toggle Problems (Errors, Warnings, Infos)", ""},
+		{"workbench.action.showErrorsWarnings", "", ""},
+		{"problems.action.focusFilter", "Focus problems filter", ""},
+		{"problems.action.focusProblemsFromFilter", "Focus problems view", ""},
+		{"problems.action.clearFilterText", "Clear filters text", "Problems"},
+		{"workbench.actions.treeView.workbench.panel.markers.view.collapseAll", "Collapse All", ""},
+		{"workbench.actions.workbench.panel.markers.view.toggleErrors", "Show Errors", "Problems"},
+		{"workbench.actions.workbench.panel.markers.view.toggleWarnings", "Show Warnings", "Problems"},
+		{"workbench.actions.workbench.panel.markers.view.toggleInfos", "Show Infos", "Problems"},
+		{"workbench.actions.workbench.panel.markers.view.toggleActiveFile", "Show Active File Only", "Problems"},
+		{"workbench.output.action.clearOutput", "Clear Output", "View"},
+		{"workbench.output.action.toggleAutoScroll", "Toggle Auto Scrolling", ""},
+		{"workbench.action.openActiveLogOutputFile", "Open Output in Editor", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.id, func(t *testing.T) {
+			m, ok := r.Lookup(tc.id)
+			if !ok {
+				t.Fatal("not registered")
+			}
+			if m.Title != tc.title || m.Category != tc.category {
+				t.Errorf("title %q category %q, want %q %q", m.Title, m.Category, tc.title, tc.category)
+			}
+		})
+	}
+}
+
 func TestLayoutCommands(t *testing.T) {
 	r := DefaultRegistry()
 	maximizable := "panelAlignment == 'center' || panelPosition != 'bottom' && panelPosition != 'top'"

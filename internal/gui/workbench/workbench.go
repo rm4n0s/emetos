@@ -3,6 +3,7 @@ package workbench
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,10 @@ import (
 type PanelTab struct {
 	ID    string
 	Title string
+	// Badge, when it is above 0, is the count shown after the title (the Problems of the panel), and
+	// BadgeTooltip its hover text.
+	Badge        int
+	BadgeTooltip string
 }
 
 // Options configure a Workbench. Layout is required; everything else may be left out.
@@ -83,6 +88,14 @@ type Options struct {
 	ActivePanel   string
 	Panel         widgets.Widget
 	OnSelectPanel func(id string)
+	// PanelActions are the actions of the active view of the panel (the filter of the Problems, the
+	// channel of the Output), shown in the title strip before the buttons that maximize and hide the
+	// panel.
+	PanelActions widgets.Widget
+	// FocusPanelView gives the keyboard focus to the content of a view container of the panel, once the
+	// commands that open a view with the focus have shown it (the tree of the Problems, the editor of
+	// the Output). Without it the focus goes to the panel itself.
+	FocusPanelView func(container string)
 	// Notifications, when set, shows the toasts and the notification center of the presenter over the
 	// workbench, below the dialogs, and binds the notifications.* commands (SPEC §10.7).
 	Notifications *notify.Presenter
@@ -206,6 +219,7 @@ func (s *workbenchState) InitState() {
 	if o.Views != nil {
 		s.removeViews = o.Views.OnChange(func() {
 			if s.Mounted() {
+				s.syncKeys()
 				s.SetState(func() {})
 			}
 		})
@@ -282,6 +296,12 @@ func (s *workbenchState) syncKeys() {
 		keys.Set("panelAlignment", "center")
 		keys.Set("panelMaximized", s.layout.PanelMaximized())
 		keys.Set("mainEditorAreaVisible", s.layout.Visible(PartEditor))
+		if views := s.Widget().opts.Views; views != nil {
+			// activePanel is the container the panel shows, and problemsVisibility says that it is the Problems
+			// and that the panel is shown
+			keys.Set("activePanel", views.ActivePanel())
+			keys.Set("problemsVisibility", st.PanelVisible && views.ActivePanel() == command.ViewContainerMarkers)
+		}
 	})
 }
 
@@ -603,7 +623,7 @@ func (s *workbenchState) panel(colors kit.Colors) widgets.Widget {
 		body = widgets.NewSizedBox(nil)
 	}
 	maximized := s.layout.PanelMaximized()
-	title := widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget {
+	title := widgets.NewLayoutBuilder(func(bc widgets.BuildContext, cons rendering.BoxConstraints) widgets.Widget {
 		tabs := make([]widgets.Widget, 0, len(o.PanelTabs))
 		for _, tab := range o.PanelTabs {
 			tabs = append(tabs, s.panelTab(bc, colors, tab, tab.ID == o.ActivePanel))
@@ -612,12 +632,21 @@ func (s *workbenchState) panel(colors kit.Colors) widgets.Widget {
 		if maximized {
 			maximizeIcon, maximizeTip = fonts.CodiconChevronDown, "Restore Panel"
 		}
-		actions := widgets.NewRow([]widgets.Widget{
+		var viewActions []widgets.Widget
+		// the actions of the view take what the tabs and the buttons leave, and are left out when that is
+		// too little to be of use
+		room := cons.MaxWidth - panelTitleReserved
+		if o.PanelActions != nil && room >= panelActionsMinWidth {
+			viewActions = append(viewActions,
+				widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(room)}), o.PanelActions),
+				widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(4.0)}))
+		}
+		actions := widgets.NewRow(append(viewActions, []widgets.Widget{
 			kit.NewIconButton(maximizeIcon, kit.IconButtonOpts{Tooltip: maximizeTip, OnPressed: s.toggleMaximizedPanel}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(2.0)}),
 			kit.NewIconButton(fonts.CodiconClose, kit.IconButtonOpts{Tooltip: "Hide Panel", OnPressed: func() { s.layout.SetPanelVisible(false) }}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(8.0)}),
-		}, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+		}...), widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 		// the tabs that do not fit are scrolled, not cut: a narrow panel at a side has little room
 		strip := widgets.NewSingleChildScrollView(
 			widgets.NewRow(tabs, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}),
@@ -633,6 +662,13 @@ func (s *workbenchState) panel(colors kit.Colors) widgets.Widget {
 	return s.frame(PartPanel, colors.PanelBackground, colors.PanelBorder, at, col)
 }
 
+// What the title strip of the panel keeps for the tabs (at least) and the buttons that maximize and hide
+// the panel, which the actions of the view are not given, and the least width the actions are shown in.
+const (
+	panelTitleReserved   = 8 + 60 + 150
+	panelActionsMinWidth = 130.0
+)
+
 // panelTab is the title of a view in the title strip of the panel: uppercase 11 px text, with a line
 // under the active one.
 func (s *workbenchState) panelTab(bc widgets.BuildContext, colors kit.Colors, tab PanelTab, active bool) widgets.Widget {
@@ -641,8 +677,13 @@ func (s *workbenchState) panelTab(bc widgets.BuildContext, colors kit.Colors, ta
 	if active {
 		fg, line = colors.PanelTitleActiveForeground, colors.PanelTitleActiveBorder
 	}
-	label := widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, 10),
-		widgets.NewCenter(widgets.NewText(strings.ToUpper(tab.Title), widgets.TextOpts{Style: kit.TextStyleOf(bc, 11, fg)})))
+	text := widgets.Widget(widgets.NewText(strings.ToUpper(tab.Title), widgets.TextOpts{Style: kit.TextStyleOf(bc, 11, fg)}))
+	if tab.Badge > 0 {
+		text = widgets.NewRow([]widgets.Widget{
+			text, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}), s.panelBadge(bc, colors, tab),
+		}, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+	}
+	label := widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, 10), widgets.NewCenter(text))
 	var child widgets.Widget = label
 	if line.Alpha() != 0 {
 		child = widgets.NewStack([]widgets.Widget{
@@ -657,6 +698,36 @@ func (s *workbenchState) panelTab(bc widgets.BuildContext, colors kit.Colors, ta
 	id := tab.ID
 	return widgets.NewGestureDetector(child, widgets.GestureDetectorOpts{
 		Behavior: rendering.HitTestBehaviorOpaque, OnTap: func() { s.Widget().opts.OnSelectPanel(id) }})
+}
+
+// panelBadge is the count after the title of a tab of the panel: VS Code's count badge in the colors of
+// the badge of a panel title.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/compositeBarActions.ts (CompositeBarActionViewItem.updateBadge)
+func (s *workbenchState) panelBadge(bc widgets.BuildContext, colors kit.Colors, tab PanelTab) widgets.Widget {
+	style := kit.TextStyleOf(bc, 9, colors.PanelTitleBadgeForeground).Merge(painting.NewTextStyle(painting.TextStyleOpts{FontWeight: ui.FontWeightW600}))
+	text := strconv.Itoa(tab.Badge)
+	if tab.Badge > 999 {
+		text = "999+"
+	}
+	var pill widgets.Widget = widgets.NewConstrainedBox(
+		rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MinWidth: foundation.Some(16.0), MinHeight: foundation.Some(16.0)}),
+		widgets.NewDecoratedBox(
+			painting.NewBoxDecoration(painting.BoxDecorationOpts{
+				Color:        foundation.Some(colors.PanelTitleBadgeBackground),
+				BorderRadius: painting.NewBorderRadiusCircular(8),
+			}),
+			widgets.NewPadding(painting.NewEdgeInsetsSymmetric(2, 5),
+				widgets.NewText(text, widgets.TextOpts{Style: style, TextAlign: ui.TextAlignCenter, MaxLines: foundation.Some(1)}))))
+	if tab.BadgeTooltip != "" {
+		pill = kit.NewHover(pill, kit.HoverOpts{Text: tab.BadgeTooltip, Compact: true})
+	}
+	return widgets.NewKeyedSubtree(pill, widgets.WidgetOpts{Key: PanelBadgeKey(tab.ID)})
+}
+
+// PanelBadgeKey is the key of the count after the title of a tab of the panel, which a test finds it by.
+func PanelBadgeKey(id string) foundation.Key {
+	return foundation.NewValueKey("workbench:panel-badge:" + id)
 }
 
 // statusBar is the strip at the bottom with the items at its two ends.

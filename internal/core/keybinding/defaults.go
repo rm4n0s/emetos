@@ -64,6 +64,7 @@ func DefaultRegistry() *Registry {
 	registerEditorGroupKeys(r)
 	registerEditorGridKeys(r)
 	registerNotificationKeys(r)
+	registerPanelViewKeys(r)
 	return r
 }
 
@@ -392,5 +393,20 @@ func registerNotificationKeys(r *Registry) {
 		Rule{Command: "notifications.hideList", Weight: WeightWorkbenchContrib + 50, When: mustWhen("notificationCenterVisible"), Primary: "escape"},
 		Rule{Command: "notifications.hideToasts", Weight: WeightWorkbenchContrib - 50, When: mustWhen("notificationToastsVisible"), Primary: "escape"},
 		Rule{Command: "notifications.hideToasts", Weight: WeightWorkbenchContrib + 100, When: mustWhen("notificationToastsVisible", "notificationFocus"), Primary: "escape"},
+	)
+}
+
+// registerPanelViewKeys registers the keys of the Problems and Output panels. VS Code binds the Output
+// view to Ctrl+Shift+U, and to Ctrl+K Ctrl+H on Linux, where Ctrl+Shift+U is taken by the desktop.
+//
+// Ported from VS Code: src/vs/workbench/contrib/markers/browser/markers.contribution.ts,
+// src/vs/workbench/contrib/output/browser/output.contribution.ts
+func registerPanelViewKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.actions.view.problems", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+m"},
+		Rule{Command: "workbench.action.output.toggleOutput", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+h"},
+		Rule{Command: "problems.action.focusProblemsFromFilter", Weight: WeightWorkbenchContrib, When: mustWhen("problemsFilterFocus"), Primary: "ctrl+down"},
+		Rule{Command: "problems.action.focusFilter", Weight: WeightWorkbenchContrib, When: mustWhen("focusedView == 'workbench.panel.markers.view'"), Primary: "ctrl+f"},
+		Rule{Command: "problems.action.clearFilterText", Weight: WeightWorkbenchContrib, When: mustWhen("problemsFilterFocus"), Primary: "escape"},
 	)
 }

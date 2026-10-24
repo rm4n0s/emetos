@@ -236,3 +236,29 @@ func differsInColumn(ts *gluttertest.Tester, x, y0, y1 int, c color.NRGBA) bool 
 	}
 	return false
 }
+
+func TestContentWidthOfWrappedTextHasNothingToScrollSideways(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+		wide bool // the content is wider than the text area
+	}{
+		{"off scrolls", "off", true},
+		{"on wraps", "on", false},
+		{"bounded wraps", "bounded", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := goOptions()
+			opts.WordWrap, opts.WordWrapColumn = tc.mode, 80
+			vm := NewViewModel(newTestDoc(wideDoc(30)), opts, nil)
+			ts := pumpEditor(t, vm, ui.Size{Width: 640, Height: 400})
+			ts.Pump(time.Second)
+			width, _ := vm.ViewportSize()
+			if got := vm.ContentWidth() > width+0.5; got != tc.wide {
+				t.Errorf("content width %v in a text area of %v: wider is %v, want %v", vm.ContentWidth(), width, got, tc.wide)
+			}
+			noErrors(t, ts)
+		})
+	}
+}

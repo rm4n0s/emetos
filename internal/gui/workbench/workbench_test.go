@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
+	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -538,7 +540,7 @@ func TestPanelTitleStrip(t *testing.T) {
 	st.PanelVisible = true
 	var selected string
 	h := newHarness(t, testSize, kit.DarkModern(), st, nil, func(o *Options) {
-		o.PanelTabs = []PanelTab{{"problems", "Problems"}, {"output", "Output"}}
+		o.PanelTabs = []PanelTab{{ID: "problems", Title: "Problems"}, {ID: "output", Title: "Output"}}
 		o.ActivePanel = "problems"
 		o.OnSelectPanel = func(id string) { selected = id }
 	})
@@ -684,12 +686,25 @@ func gridCommand(id string) bool {
 	return strings.HasPrefix(id, "workbench.action.focus") && strings.Contains(id, "Group") && id != "workbench.action.focusActiveEditorGroup"
 }
 
+// panelAppCommands are the commands of the panels that the app binds, since the views of the Problems and
+// the Output are the window's (step 6.12); the workbench binds the commands that open and focus them.
+var panelAppCommands = map[string]bool{
+	"workbench.action.openActiveLogOutputFile": true, "workbench.output.action.clearOutput": true,
+	"workbench.output.action.toggleAutoScroll":                            true,
+	"workbench.actions.treeView.workbench.panel.markers.view.collapseAll": true,
+	"workbench.actions.workbench.panel.markers.view.toggleErrors":         true,
+	"workbench.actions.workbench.panel.markers.view.toggleWarnings":       true,
+	"workbench.actions.workbench.panel.markers.view.toggleInfos":          true,
+	"workbench.actions.workbench.panel.markers.view.toggleActiveFile":     true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
-	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, nil)
+	// the commands that open the views of the panel are the workbench's when it has the views
+	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] {
 			continue
 		}
 		n++
@@ -697,8 +712,8 @@ func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 			t.Errorf("%s has no handler", meta.ID)
 		}
 	}
-	if n != 16 {
-		t.Errorf("%d workbench commands are registered, want 16", n)
+	if n != 23 {
+		t.Errorf("%d workbench commands are registered, want 23", n)
 	}
 }
 
@@ -722,4 +737,69 @@ func TestAWorkbenchWithoutTheCommandsReportsTheMistake(t *testing.T) {
 	if !found {
 		t.Errorf("no error has the tag LayoutCommandMissing: %v", errs)
 	}
+}
+
+func TestPanelTabBadgeAndViewActions(t *testing.T) {
+	st := DefaultLayoutState()
+	st.PanelVisible = true
+	actions := func(width float64) Widget {
+		return widgets.NewSizedBox(widgets.NewText("view actions"), widgets.SizedBoxOpts{Width: foundation.Some(width), Height: foundation.Some(22.0)})
+	}
+	cases := []struct {
+		name        string
+		size        ui.Size
+		badge       int
+		wantBadge   string
+		wantActions bool
+	}{
+		{"a count after the title", testSize, 7, "7", true},
+		{"a long count is cut", testSize, 1500, "999+", true},
+		{"no badge without a count", testSize, 0, "", true},
+		{"no room for the actions", ui.Size{Width: 300, Height: 400}, 7, "7", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t, tc.size, kit.DarkModern(), st, nil, func(o *Options) {
+				o.PanelTabs = []PanelTab{{ID: "problems", Title: "Problems", Badge: tc.badge, BadgeTooltip: "Total problems"}, {ID: "output", Title: "Output"}}
+				o.ActivePanel = "problems"
+				o.PanelActions = actions(200)
+			})
+			badge := h.ts.Exists(gluttertest.ByKey(PanelBadgeKey("problems")))
+			if badge != (tc.wantBadge != "") {
+				t.Errorf("badge shown = %v, want %v", badge, tc.wantBadge != "")
+			}
+			if tc.wantBadge != "" && !h.ts.Exists(gluttertest.ByText(tc.wantBadge)) {
+				t.Errorf("the badge does not say %s", tc.wantBadge)
+			}
+			if got := h.ts.Exists(gluttertest.ByText("view actions")); got != tc.wantActions {
+				t.Errorf("actions shown = %v, want %v", got, tc.wantActions)
+			}
+			// the buttons are there whatever the room
+			if !h.ts.Exists(button("Hide Panel")) {
+				t.Error("no Hide Panel button")
+			}
+			noErrors(t, h)
+		})
+	}
+}
+
+func TestPanelViewCommandsNeedViews(t *testing.T) {
+	// the commands that open the views of the panel are bound only when the workbench has the views
+	st := DefaultLayoutState()
+	views := NewViews(command.DefaultViews(), nil)
+	h := newHarness(t, testSize, kit.DarkModern(), st, nil, func(o *Options) { o.Views = views })
+	views.layout = h.layout
+	h.run("workbench.action.output.toggleOutput")
+	if !h.layout.State().PanelVisible || views.ActivePanel() != command.ViewContainerOutput || h.key("activePanel") != command.ViewContainerOutput {
+		t.Errorf("visible %v, active %q, key %v", h.layout.State().PanelVisible, views.ActivePanel(), h.key("activePanel"))
+	}
+	h.run("workbench.actions.view.problems")
+	if views.ActivePanel() != command.ViewContainerMarkers || h.key("problemsVisibility") != true {
+		t.Errorf("active %q, problemsVisibility %v", views.ActivePanel(), h.key("problemsVisibility"))
+	}
+	h.run("workbench.actions.view.toggleProblems")
+	if h.layout.State().PanelVisible || h.key("problemsVisibility") != false {
+		t.Errorf("toggleProblems left the panel visible=%v, problemsVisibility %v", h.layout.State().PanelVisible, h.key("problemsVisibility"))
+	}
+	noErrors(t, h)
 }

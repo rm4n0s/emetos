@@ -30,6 +30,7 @@ func DefaultRegistry() *Registry {
 	registerEditorGroupCommands(r)
 	registerEditorGridCommands(r)
 	registerNotificationCommands(r)
+	registerPanelViewCommands(r)
 	return r
 }
 
@@ -517,5 +518,48 @@ func registerNotificationCommands(r *Registry) {
 		Meta{ID: "notifications.focusToasts", Title: "Focus Notification Toast", Category: "Notifications"},
 		Meta{ID: "notifications.clearAll", Title: "Clear All Notifications", Category: "Notifications"},
 		Meta{ID: "notifications.toggleDoNotDisturbMode", Title: "Toggle Do Not Disturb Mode", Category: "Notifications"},
+	)
+}
+
+// registerPanelViewCommands registers the commands of the Problems and Output panels (SPEC §10.13).
+// Not registered yet: the commands that need the quick input (workbench.action.showOutputChannels,
+// workbench.output.action.switchBetweenOutputs, the compound, import, export and save log actions, the
+// log level actions), the table view of the Problems (the viewAsTable and viewAsTree actions),
+// the copy and quick fix actions of a problem, and the toggle of the excluded files (Emetos has no
+// files.exclude setting before step 6.13).
+//
+// Ported from VS Code: src/vs/workbench/contrib/markers/browser/markers.contribution.ts,
+// src/vs/workbench/contrib/markers/browser/markersViewActions.ts,
+// src/vs/workbench/contrib/output/browser/output.contribution.ts and
+// src/vs/workbench/services/views/browser/viewsService.ts (the commands of a view)
+func registerPanelViewCommands(r *Registry) {
+	r.MustRegister(
+		// open, toggle and focus the views
+		Meta{ID: "workbench.actions.view.problems", Title: "Toggle Problems", Category: "View"},
+		Meta{ID: "workbench.action.output.toggleOutput", Title: "Toggle Output", Category: "View"},
+		Meta{ID: "workbench.panel.markers.view.focus", Title: "Focus on Problems View", Category: "View"},
+		Meta{ID: "workbench.panel.output.focus", Title: "Focus on Output View", Category: "View"},
+		Meta{ID: "workbench.action.problems.focus", Title: "Focus Problems (Errors, Warnings, Infos)", Category: "View"},
+		Meta{ID: "workbench.actions.view.toggleProblems", Title: "Toggle Problems (Errors, Warnings, Infos)"},
+		Meta{ID: "workbench.action.showErrorsWarnings"},
+
+		// the Problems view
+		Meta{ID: "problems.action.focusFilter", Title: "Focus problems filter"},
+		Meta{ID: "problems.action.focusProblemsFromFilter", Title: "Focus problems view"},
+		Meta{ID: "problems.action.clearFilterText", Title: "Clear filters text", Category: "Problems"},
+		Meta{ID: "workbench.actions.treeView.workbench.panel.markers.view.collapseAll", Title: "Collapse All"},
+		Meta{ID: "workbench.actions.workbench.panel.markers.view.toggleErrors", Title: "Show Errors", Category: "Problems",
+			Description: "Show or hide errors in the problems view."},
+		Meta{ID: "workbench.actions.workbench.panel.markers.view.toggleWarnings", Title: "Show Warnings", Category: "Problems",
+			Description: "Show or hide warnings in the problems view."},
+		Meta{ID: "workbench.actions.workbench.panel.markers.view.toggleInfos", Title: "Show Infos", Category: "Problems",
+			Description: "Show or hide infos in the problems view."},
+		Meta{ID: "workbench.actions.workbench.panel.markers.view.toggleActiveFile", Title: "Show Active File Only", Category: "Problems",
+			Description: "Show or hide problems (errors, warnings, info) only from the active file in the problems view."},
+
+		// the Output view
+		Meta{ID: "workbench.output.action.clearOutput", Title: "Clear Output", Category: "View"},
+		Meta{ID: "workbench.output.action.toggleAutoScroll", Title: "Toggle Auto Scrolling"},
+		Meta{ID: "workbench.action.openActiveLogOutputFile", Title: "Open Output in Editor"},
 	)
 }

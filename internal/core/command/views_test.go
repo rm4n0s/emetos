@@ -135,3 +135,33 @@ func TestDefaultViews(t *testing.T) {
 		t.Errorf("views: %v", got)
 	}
 }
+
+func TestDefaultPanelViews(t *testing.T) {
+	r := DefaultViews()
+	containers := r.Containers(ViewLocationPanel)
+	if len(containers) != 2 {
+		t.Fatalf("containers: %+v", containers)
+	}
+	for i, want := range []struct {
+		id, title string
+		icon      int
+		view      string
+	}{
+		{"workbench.panel.markers", "Problems", 0xEA6C, "workbench.panel.markers.view"},
+		{"workbench.panel.output", "Output", 0xEB9D, "workbench.panel.output"},
+	} {
+		c := containers[i]
+		if c.ID != want.id || c.Title != want.title || c.Icon != want.icon {
+			t.Errorf("container %d: %+v, want %+v", i, c, want)
+		}
+		if got := viewIDs(r.Views(c.ID, contextkey.MapContext{})); !reflect.DeepEqual(got, []string{want.view}) {
+			t.Errorf("views of %s: %v, want %v", c.ID, got, want.view)
+		}
+	}
+	// the panel containers are not in the activity bar
+	for _, c := range r.Containers(ViewLocationSideBar) {
+		if c.Location != ViewLocationSideBar {
+			t.Errorf("a panel container in the side bar: %+v", c)
+		}
+	}
+}

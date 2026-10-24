@@ -89,6 +89,11 @@ func (s *workbenchState) bindCommands() {
 			return nil
 		},
 	}
+	if views := s.Widget().opts.Views; views != nil {
+		for id, h := range s.panelViewHandlers(views) {
+			handlers[id] = h
+		}
+	}
 	for id, h := range handlers {
 		remove, err := reg.SetHandler(id, h)
 		if err != nil {
@@ -142,4 +147,67 @@ func (s *workbenchState) toggleMaximizedPanel() {
 		}
 	}
 	s.layout.ToggleMaximizedPanel()
+}
+
+// panelViewHandlers are the handlers of the commands that open, toggle and focus the views of the panel
+// (the Problems and the Output).
+//
+// Ported from VS Code: src/vs/workbench/services/views/browser/viewsService.ts (the open and focus
+// actions of a view) and src/vs/workbench/contrib/markers/browser/markers.contribution.ts
+// (workbench.actions.view.toggleProblems, workbench.action.showErrorsWarnings)
+func (s *workbenchState) panelViewHandlers(views *Views) map[string]command.Handler {
+	l := s.layout
+	// shown tells whether the container is the tab the panel shows.
+	shown := func(container string) bool { return l.State().PanelVisible && views.ActivePanel() == container }
+	open := func(container string, focus bool) {
+		if !focus {
+			views.OpenPanel(container)
+			return
+		}
+		s.focusPart(PartPanel, func() { views.OpenPanel(container) })
+		scheduler := s.binding.Scheduler()
+		scheduler.ScheduleFrame()
+		scheduler.AddPostFrameCallback(func(time.Duration) {
+			if !s.Mounted() || !shown(container) {
+				return
+			}
+			if f := s.Widget().opts.FocusPanelView; f != nil {
+				f(container)
+			}
+		})
+	}
+	// the command of a view: it hides the panel when the view has the focus, else it shows the view and
+	// gives it the focus
+	toggle := func(container string) command.Handler {
+		return func(command.Context, any) error {
+			if shown(container) && s.nodes[PartPanel].HasFocus() {
+				l.SetPanelVisible(false)
+				return nil
+			}
+			open(container, true)
+			return nil
+		}
+	}
+	focus := func(container string) command.Handler {
+		return func(command.Context, any) error { open(container, true); return nil }
+	}
+	return map[string]command.Handler{
+		"workbench.actions.view.problems":      toggle(command.ViewContainerMarkers),
+		"workbench.action.output.toggleOutput": toggle(command.ViewContainerOutput),
+		"workbench.panel.markers.view.focus":   focus(command.ViewContainerMarkers),
+		"workbench.panel.output.focus":         focus(command.ViewContainerOutput),
+		"workbench.action.problems.focus":      focus(command.ViewContainerMarkers),
+		"workbench.action.showErrorsWarnings": func(command.Context, any) error {
+			open(command.ViewContainerMarkers, false)
+			return nil
+		},
+		"workbench.actions.view.toggleProblems": func(command.Context, any) error {
+			if shown(command.ViewContainerMarkers) {
+				l.SetPanelVisible(false)
+				return nil
+			}
+			open(command.ViewContainerMarkers, true)
+			return nil
+		},
+	}
 }

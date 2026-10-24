@@ -23,6 +23,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerInputKitColors(r)
 	registerLayoutColors(r)
 	registerNotificationColors(r)
+	registerPanelViewColors(r)
 	registerTabColors(r)
 	return r
 }
@@ -811,5 +812,22 @@ func registerNotificationColors(r *ColorRegistry) {
 			Description: "The color used for the icon of warning notifications. Notifications slide in from the bottom right of the window."},
 		ColorContribution{ID: "notificationsInfoIcon.foreground", Defaults: AllThemes(Ref("editorInfo.foreground")),
 			Description: "The color used for the icon of info notifications. Notifications slide in from the bottom right of the window."},
+	)
+}
+
+// registerPanelViewColors registers the colors the panels use for the count on a tab of the panel
+// (the Problems badge); the count badge of the side bar and the tabs shares their defaults.
+//
+// Ported from VS Code: src/vs/workbench/common/theme.ts
+func registerPanelViewColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "activityBarBadge.background", Defaults: dflt(Hex("#007ACC"), Hex("#007ACC"), Hex("#000000"), Hex("#0F4A85")),
+			Description: "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."},
+		ColorContribution{ID: "activityBarBadge.foreground", Defaults: AllThemes(Hex("#FFFFFF")),
+			Description: "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."},
+		ColorContribution{ID: "panelTitleBadge.background", Defaults: AllThemes(Ref("activityBarBadge.background")),
+			Description: "Panel title badge background color. Panels are shown below the editor area and contain views like output and integrated terminal."},
+		ColorContribution{ID: "panelTitleBadge.foreground", Defaults: AllThemes(Ref("activityBarBadge.foreground")),
+			Description: "Panel title badge foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."},
 	)
 }
