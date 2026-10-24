@@ -482,7 +482,7 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu", EditorContext, contextkey.MapContext{}, []string{"Cut", "Copy", "Paste", "-", "Select All"}},
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
-		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Settings", "Keyboard Shortcuts", "Themes"}},
+		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Profiles", "Settings", "Keyboard Shortcuts", "Themes"}},
 		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Back", "Forward", "Last Edit Location", "-", "Switch Editor", "Switch Group", "-", "Go to File...", "-", "Go to Line/Column...", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
@@ -914,7 +914,7 @@ func TestSettingsMenus(t *testing.T) {
 		}
 		return out
 	}
-	if got := rowsOf(MenubarPreferencesMenu); len(got) != 3 || got[0] != "&&Settings=workbench.action.openSettings" || got[1] != "Keyboard Shortcuts=workbench.action.openGlobalKeybindings" || got[2] != "&&Themes=" {
+	if got := rowsOf(MenubarPreferencesMenu); len(got) != 4 || got[0] != "&&Profiles=" || got[1] != "&&Settings=workbench.action.openSettings" || got[2] != "Keyboard Shortcuts=workbench.action.openGlobalKeybindings" || got[3] != "&&Themes=" {
 		t.Errorf("Preferences menu %v", got)
 	}
 	found := false
@@ -1056,5 +1056,82 @@ func TestThemeMenus(t *testing.T) {
 				t.Errorf("got %v, want it to end with %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestProfileMenus(t *testing.T) {
+	reg := DefaultRegistry()
+	menus := DefaultMenus(reg)
+	for id, title := range map[string]string{
+		"workbench.profiles.actions.createProfile": "Create Profile...", "workbench.profiles.actions.switchProfile": "Switch Profile...",
+		"workbench.profiles.actions.renameProfile": "Rename Profile...", "workbench.profiles.actions.deleteProfile": "Delete Profile...",
+		"workbench.profiles.actions.exportProfile": "Export Profile...", "workbench.profiles.actions.importProfile": "Import Profile...",
+	} {
+		meta, ok := reg.Lookup(id)
+		if !ok || meta.Title != title || meta.Category != "Profiles" {
+			t.Errorf("%s: %+v, registered %v", id, meta, ok)
+		}
+	}
+	// the rows are (title, command, submenu)
+	type row struct{ title, command, submenu string }
+	tests := []struct {
+		name string
+		menu string
+		want []row
+	}{
+		{"the Profiles submenu", ProfilesSubMenu, []row{
+			{"Create Profile...", "workbench.profiles.actions.createProfile", ""},
+			{"Switch Profile...", "workbench.profiles.actions.switchProfile", ""},
+			{"Rename Profile...", "workbench.profiles.actions.renameProfile", ""},
+			{"Delete Profile...", "workbench.profiles.actions.deleteProfile", ""},
+			{"", "", ""}, // the line between the groups
+			{"Export Profile...", "workbench.profiles.actions.exportProfile", ""},
+			{"Import Profile...", "workbench.profiles.actions.importProfile", ""},
+		}},
+		{"the Preferences menu starts with Profiles", MenubarPreferencesMenu, []row{{"&&Profiles", "", ProfilesSubMenu}}},
+		{"the Manage menu has Profiles", GlobalActivity, []row{{"Profiles", "", ProfilesSubMenu}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []row
+			for _, e := range menus.Items(tc.menu, contextkey.MapContext{}) {
+				title := e.Title
+				if e.MnemonicTitle != "" && e.Submenu != "" {
+					title = e.MnemonicTitle
+				}
+				got = append(got, row{title, e.Command, e.Submenu})
+			}
+			if tc.menu == ProfilesSubMenu {
+				if !reflect.DeepEqual(got, tc.want) {
+					t.Errorf("got %v, want %v", got, tc.want)
+				}
+				return
+			}
+			var found bool
+			for _, r := range got {
+				if r == tc.want[0] {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("got %v, want it to have %v", got, tc.want[0])
+			}
+		})
+	}
+	// Profiles comes before Settings in the group, as VS Code's order 1 does
+	for _, menu := range []string{MenubarPreferencesMenu, GlobalActivity} {
+		items := menus.Items(menu, contextkey.MapContext{})
+		var profiles, settings = -1, -1
+		for i, e := range items {
+			switch {
+			case e.Submenu == ProfilesSubMenu:
+				profiles = i
+			case e.Command == "workbench.action.openSettings":
+				settings = i
+			}
+		}
+		if profiles < 0 || settings < 0 || profiles > settings {
+			t.Errorf("%s: Profiles at %d, Settings at %d", menu, profiles, settings)
+		}
 	}
 }

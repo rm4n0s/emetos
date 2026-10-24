@@ -445,6 +445,9 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 		AppName:   Title,
 		Folder:    win.Folder,
 	}
+	if win.Profile() != storage.DefaultProfile {
+		in.ProfileName = win.ProfileName()
+	}
 	if home, err := os.UserHomeDir(); err == nil {
 		in.Home = home
 	}

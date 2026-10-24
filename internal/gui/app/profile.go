@@ -99,6 +99,22 @@ func (w *Window) SwitchProfile(ctx context.Context, name string) error {
 	if profile == w.Profile() {
 		return nil
 	}
+	return w.moveToProfile(ctx, profile, true)
+}
+
+// profileRenamed moves the window to the profile newName, which is its profile under another name: the folders
+// of the profile were renamed (storage.Profiles.Rename), so the files the window follows are at new paths. It is
+// SwitchProfile that does not write the state of the window first (the old state folder is gone; the caller wrote
+// it before the rename) and tells the observers of OnProfileChange. The error is that of SwitchProfile.
+func (w *Window) profileRenamed(ctx context.Context, newName string) error {
+	return w.moveToProfile(ctx, newName, false)
+}
+
+// moveToProfile is the switch of SwitchProfile to a profile that exists and that the window does not have under
+// that name; flush says that the state of the window is written to the folder of the old profile first.
+func (w *Window) moveToProfile(ctx context.Context, profile string, flush bool) error {
+	p := w.Process
+	name := profile
 	userPath, err := settings.UserSettingsPath(p.Paths, profile)
 	if err != nil {
 		return errors.NewErr("ProfileSwitchFailed", err).SetMetadata("profile", name)
@@ -117,7 +133,7 @@ func (w *Window) SwitchProfile(ctx context.Context, name string) error {
 	}
 
 	// the state file of the old profile is up to date before the window leaves it
-	if w.flushState != nil {
+	if flush && w.flushState != nil {
 		w.flushState()
 	}
 	w.profileMu.Lock()

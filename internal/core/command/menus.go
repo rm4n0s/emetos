@@ -31,6 +31,8 @@ const (
 	MenubarPreferencesMenu = "MenubarPreferencesMenu"
 	// ThemesSubMenu is the Themes submenu of the Preferences menu and of the Manage menu.
 	ThemesSubMenu = "ThemesSubMenu"
+	// ProfilesSubMenu is the Profiles submenu of the Preferences menu and of the Manage menu (step 8.6b).
+	ProfilesSubMenu = "ProfilesSubMenu"
 	// MenubarAppearanceMenu is the Appearance submenu of the View menu.
 	MenubarAppearanceMenu = "MenubarAppearanceMenu"
 	// MenubarRecentMenu is the Open Recent submenu of the File menu; its items are dynamic.

@@ -44,15 +44,25 @@ func ValidProfileName(name string) bool {
 		return false
 	}
 	for _, r := range name {
-		switch {
-		case r == ' ', r == '-', r == '_':
-		case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
-		case r > unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)):
-		default:
+		if !profileNameRune(r) {
 			return false
 		}
 	}
 	return true
+}
+
+// profileNameRune tells whether a profile name may hold the character: a letter or digit (Unicode ones too), a
+// space, '-' or '_'.
+func profileNameRune(r rune) bool {
+	switch {
+	case r == ' ', r == '-', r == '_':
+		return true
+	case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+		return true
+	case r > unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)):
+		return true
+	}
+	return false
 }
 
 // ValidateName is ValidProfileName as an error, with the tag ProfileNameInvalid.
@@ -105,6 +115,8 @@ type ProfilesOptions struct {
 	CopyFile func(src, dst string) error
 	// Rename moves a folder; os.Rename when nil. Tests give one that fails.
 	Rename func(oldPath, newPath string) error
+	// WriteFile writes a file of an imported profile; os.WriteFile when nil. Tests give one that fails.
+	WriteFile func(path string, data []byte, perm os.FileMode) error
 	// RemoveAll removes a folder with what is in it; os.RemoveAll when nil. Tests give one that fails.
 	RemoveAll func(path string) error
 }
@@ -136,6 +148,9 @@ func NewProfiles(paths Paths, opts ProfilesOptions) *Profiles {
 	}
 	if opts.RemoveAll == nil {
 		opts.RemoveAll = os.RemoveAll
+	}
+	if opts.WriteFile == nil {
+		opts.WriteFile = os.WriteFile
 	}
 	return &Profiles{paths: paths, opts: opts}
 }
@@ -241,6 +256,15 @@ func (p *Profiles) checkNewName(ctx context.Context, name, except string) error 
 	return nil
 }
 
+// CheckName checks a name for a profile that is made or renamed to, as Create and Rename do before they change
+// anything: the error has the tags ProfileNameInvalid, ProfileNameReserved and ProfileExists (a name that differs from
+// another profile's only in capitalization clashes with it) and those of List. except is a profile that may keep its
+// own name, in another capitalization (the profile that is renamed); "" for none. The commands use it to tell the
+// user what is wrong while they type a name.
+func (p *Profiles) CheckName(ctx context.Context, name, except string) error {
+	return p.checkNewName(ctx, name, except)
+}
+
 // Create makes a profile and gives its name. It is empty or a copy of the settings, the keybindings and the
 // snippets of another profile; nothing else is copied (not the themes, which are shared, and not the state or the
 // backups). The folder is made whole or not at all: it is built under a temporary name beside the others and
@@ -266,16 +290,28 @@ func (p *Profiles) create(ctx context.Context, name string, from CreateSource) (
 			return "", err
 		}
 	}
+	return p.build(name, "ProfileCreateFailed", func(tmp string) error {
+		if from.Copy {
+			return p.copyProfile(ctx, source, tmp)
+		}
+		return nil
+	})
+}
+
+// build makes the folder of a new profile: it is built under a temporary name beside the others by fill and
+// renamed into place, so a failure leaves nothing. failTag is the tag of the failures of the folders themselves
+// (the errors of fill are returned as they are). The name must be checked already; p.mu is held.
+func (p *Profiles) build(name, failTag string, fill func(tmp string) error) (string, error) {
 	dir, err := p.paths.ConfigDir(name)
 	if err != nil {
 		return "", err
 	}
 	if err := os.MkdirAll(p.root(), 0o755); err != nil {
-		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", p.root())
+		return "", errors.NewErr(failTag, err).SetMetadata("path", p.root())
 	}
 	tmp, err := os.MkdirTemp(p.root(), ".new-")
 	if err != nil {
-		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", p.root())
+		return "", errors.NewErr(failTag, err).SetMetadata("path", p.root())
 	}
 	done := false
 	defer func() {
@@ -286,15 +322,13 @@ func (p *Profiles) create(ctx context.Context, name string, from CreateSource) (
 		}
 	}()
 	if err := os.Chmod(tmp, 0o755); err != nil {
-		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", tmp)
+		return "", errors.NewErr(failTag, err).SetMetadata("path", tmp)
 	}
-	if from.Copy {
-		if err := p.copyProfile(ctx, source, tmp); err != nil {
-			return "", err
-		}
+	if err := fill(tmp); err != nil {
+		return "", err
 	}
 	if err := p.opts.Rename(tmp, dir); err != nil {
-		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", dir)
+		return "", errors.NewErr(failTag, err).SetMetadata("path", dir)
 	}
 	done = true
 	return name, nil

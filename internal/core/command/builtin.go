@@ -38,6 +38,7 @@ func DefaultRegistry() *Registry {
 	registerSettingsCommands(r)
 	registerKeybindingsEditorCommands(r)
 	registerThemeCommands(r)
+	registerProfileCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	return r
@@ -833,5 +834,23 @@ func registerThemeCommands(r *Registry) {
 	r.MustRegister(
 		Meta{ID: "workbench.action.selectTheme", Title: "Color Theme", Category: "Preferences"},
 		Meta{ID: "workbench.action.selectIconTheme", Title: "File Icon Theme", Category: "Preferences"},
+	)
+}
+
+// registerProfileCommands registers the commands of the profiles (step 8.6b, SPEC §10.12), all in the category
+// Profiles and in the palette, as VS Code's. VS Code's Create Profile opens the profiles editor (title "New Profile...");
+// here it is a pair of quick inputs (title "Create Profile..."). Rename Profile and Import Profile have no command of
+// their own in VS Code (they are buttons of its editor). Not registered: New Window with Profile, Save Current Profile
+// As, Open Profiles (UI), Show Profile Contents, Cleanup Profiles and Reset Workspaces.
+//
+// Ported from VS Code: src/vs/workbench/contrib/userDataProfile/browser/userDataProfile.ts
+func registerProfileCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.profiles.actions.createProfile", Title: "Create Profile...", Category: "Profiles"},
+		Meta{ID: "workbench.profiles.actions.switchProfile", Title: "Switch Profile...", Category: "Profiles"},
+		Meta{ID: "workbench.profiles.actions.renameProfile", Title: "Rename Profile...", Category: "Profiles"},
+		Meta{ID: "workbench.profiles.actions.deleteProfile", Title: "Delete Profile...", Category: "Profiles"},
+		Meta{ID: "workbench.profiles.actions.exportProfile", Title: "Export Profile...", Category: "Profiles"},
+		Meta{ID: "workbench.profiles.actions.importProfile", Title: "Import Profile...", Category: "Profiles"},
 	)
 }

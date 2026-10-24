@@ -27,6 +27,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerSettingsMenus(r)
 	registerKeybindingsEditorMenus(r)
 	registerThemeMenus(r)
+	registerProfileMenus(r)
 	return r
 }
 
@@ -432,5 +433,24 @@ func registerThemeMenus(r *MenuRegistry) {
 		MenuItem{Menu: MenubarPreferencesMenu, Submenu: ThemesSubMenu, Title: "Themes", MnemonicTitle: "&&Themes", Group: "2_configuration", Order: 7},
 		MenuItem{Menu: ThemesSubMenu, Command: "workbench.action.selectTheme", Title: "Color Theme", Order: 1},
 		MenuItem{Menu: ThemesSubMenu, Command: "workbench.action.selectIconTheme", Title: "File Icon Theme", Order: 2},
+	)
+}
+
+// registerProfileMenus adds the Profiles submenu (step 8.6b) to the Preferences submenu of the File menu and to the
+// Manage menu, in the group 2_configuration before Settings (VS Code's order 1). Its rows: Create, Switch, Rename and
+// Delete (the group 1_manage) and Export and Import (2_share). VS Code titles the submenu "Profile (<current>)" and
+// hides it while there are no profiles; here it is always "Profiles".
+//
+// Ported from VS Code: src/vs/workbench/contrib/userDataProfile/browser/userDataProfile.ts
+func registerProfileMenus(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: GlobalActivity, Submenu: ProfilesSubMenu, Title: "Profiles", Group: "2_configuration", Order: 1},
+		MenuItem{Menu: MenubarPreferencesMenu, Submenu: ProfilesSubMenu, Title: "Profiles", MnemonicTitle: "&&Profiles", Group: "2_configuration", Order: 1},
+		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.createProfile", Title: "Create Profile...", Group: "1_manage", Order: 1},
+		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.switchProfile", Title: "Switch Profile...", Group: "1_manage", Order: 2},
+		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.renameProfile", Title: "Rename Profile...", Group: "1_manage", Order: 3},
+		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.deleteProfile", Title: "Delete Profile...", Group: "1_manage", Order: 4},
+		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.exportProfile", Title: "Export Profile...", Group: "2_share", Order: 1},
+		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.importProfile", Title: "Import Profile...", Group: "2_share", Order: 2},
 	)
 }

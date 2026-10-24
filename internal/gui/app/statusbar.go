@@ -5,6 +5,7 @@ import (
 
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
@@ -25,6 +26,8 @@ const (
 	encodingPriority    = 100.3
 	eolPriority         = 100.2
 	languagePriority    = 100.1
+	// profilePriority puts the item of the profile at the right of the language, before the bell (step 8.6b).
+	profilePriority = 100
 )
 
 // statusState is what the shell keeps of the status bar: the accessors of the items it owns.
@@ -34,8 +37,10 @@ type statusState struct {
 	// selection, indentation, encoding, eol and language are the items of the active editor; they are
 	// hidden while no editor is active.
 	selection, indentation, encoding, eol, language *workbench.StatusAccessor
-	stops                                           []func()
-	removeCommands                                  []func()
+	// profile is the item of the profile of the window; it is hidden while the window has the default profile.
+	profile        *workbench.StatusAccessor
+	stops          []func()
+	removeCommands []func()
 }
 
 // editorItems lists the items of the active editor.
@@ -69,8 +74,41 @@ func (s *shellState) initStatus(binding *widgets.WidgetsBinding) {
 	for _, it := range st.editorItems() {
 		it.SetVisible(false)
 	}
+	st.profile = bar.Add("status.profile", workbench.StatusRight, profilePriority, workbench.StatusEntry{})
+	s.refreshProfileStatus()
+	st.stops = append(st.stops, win.OnProfileChange(func(string) {
+		if s.Mounted() {
+			s.refreshProfileStatus()
+			s.SetState(func() {}) // the title has the name of the profile
+		}
+	}))
 	s.bindStatusCommands(binding)
 	s.refreshStatus()
+}
+
+// profileEntry is the item of the profile: the name of the profile of the window, and a click opens the picker that
+// switches it.
+func profileEntry(name string) workbench.StatusEntry {
+	return workbench.StatusEntry{
+		Name: "Profile", Text: "$(account) " + name, AriaLabel: "Profile: " + name, Tooltip: "Profile: " + name,
+		Command: "workbench.profiles.actions.switchProfile",
+	}
+}
+
+// refreshProfileStatus shows the item of the profile for a window that has a profile other than the default one, and
+// hides it for the default profile.
+func (s *shellState) refreshProfileStatus() {
+	st := &s.status
+	if st.profile == nil {
+		return
+	}
+	win := PeekWindow(s.Context())
+	if win.Profile() == storage.DefaultProfile {
+		st.profile.SetVisible(false)
+		return
+	}
+	st.profile.Update(profileEntry(win.ProfileName()))
+	st.profile.SetVisible(true)
 }
 
 // disposeStatus takes the items of the shell out of the bar and stops following.
@@ -88,6 +126,7 @@ func (s *shellState) disposeStatus() {
 	}
 	st.bell.Dispose()
 	st.problems.Dispose()
+	st.profile.Dispose()
 	for _, it := range st.editorItems() {
 		it.Dispose()
 	}

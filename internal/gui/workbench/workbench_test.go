@@ -785,6 +785,14 @@ var settingsAppCommands = map[string]bool{
 // the window are its own (step 8.4).
 var themeAppCommands = map[string]bool{"workbench.action.selectTheme": true, "workbench.action.selectIconTheme": true}
 
+// profileAppCommands are the commands of the profiles, which the app binds since the quick input, the dialogs and the
+// profile of the window are its own (step 8.6b).
+var profileAppCommands = map[string]bool{
+	"workbench.profiles.actions.createProfile": true, "workbench.profiles.actions.switchProfile": true,
+	"workbench.profiles.actions.renameProfile": true, "workbench.profiles.actions.deleteProfile": true,
+	"workbench.profiles.actions.exportProfile": true, "workbench.profiles.actions.importProfile": true,
+}
+
 // modeAppCommands are the commands of full screen, zen mode, the centered layout and the zoom, which the app binds since
 // the window, its notifications and its controller are its own (step 8.5).
 var modeAppCommands = map[string]bool{
@@ -799,7 +807,7 @@ func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || modeAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] {
 			continue
 		}
 		n++

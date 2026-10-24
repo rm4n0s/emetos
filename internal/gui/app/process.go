@@ -253,6 +253,14 @@ func (p *Process) StateFor(profile string) (*storage.StateStore, error) {
 	return s, nil
 }
 
+// forgetState drops the state store of a profile that was renamed or deleted, so that a profile that gets the name
+// again gets a store over its own folder. Nothing is written: the caller wrote the state while the folder was there.
+func (p *Process) forgetState(profile string) {
+	p.stateMu.Lock()
+	defer p.stateMu.Unlock()
+	delete(p.states, profile)
+}
+
 // flushStates writes every state file that waits, in the stores of all the profiles that were used. It tries
 // them all and returns the first error.
 func (p *Process) flushStates(ctx context.Context) error {
