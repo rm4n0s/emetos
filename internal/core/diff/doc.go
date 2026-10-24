@@ -45,6 +45,20 @@
 // The time limit covers both stages with one clock; see Compute. ComputeLines
 // is the line stage alone, and leaves Inner empty.
 //
+// # Three-way merge (step 9.3)
+//
+// ParseConflictMarkers finds the conflicts of a file with conflict markers
+// (VS Code's merge-conflict extension), MergeInputsFromMarkers and
+// MergeInputsFromFiles make the three texts of a merge (base, input 1 =
+// incoming, input 2 = current), and MergeModel holds the merge: the
+// ModifiedBaseRange values (the places where the inputs differ from the base,
+// VS Code's diff3), the result, which starts as the base with every change that
+// is not a conflict applied, and the conflicts with their place in the result,
+// their state and whether they are handled. Accept, AcceptAll, Reset and
+// ApplyResultEdit change the result and return the edits to make to the
+// document of the editor. The model has no UI and no callbacks and is not safe
+// for concurrent use.
+//
 // Apply rebuilds the modified lines from the original lines and the changes,
 // and Validate checks that a list of changes is a consistent diff of two texts
 // of the given sizes.
@@ -58,4 +72,9 @@
 // Ported from VS Code: src/vs/editor/common/diff/defaultLinesDiffComputer/lineSequence.ts
 // Ported from VS Code: src/vs/editor/common/diff/rangeMapping.ts
 // Ported from VS Code: src/vs/editor/common/diff/linesDiffComputer.ts
+// Ported from VS Code: extensions/merge-conflict/src/mergeConflictParser.ts
+// Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange.ts
+// Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/model/mapping.ts
+// Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel.ts
+// Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/model/textModelDiffs.ts
 package diff
