@@ -38,6 +38,11 @@ type Position struct {
 	Column int
 }
 
+// isBefore reports whether p comes before o.
+func (p Position) isBefore(o Position) bool {
+	return p.Line < o.Line || (p.Line == o.Line && p.Column < o.Column)
+}
+
 // Range is a range of text between two positions; End is exclusive.
 type Range struct {
 	Start Position
@@ -59,8 +64,8 @@ type LineRangeMapping struct {
 	Original LineRange
 	// Modified is the block in the modified text.
 	Modified LineRange
-	// Inner holds the character changes inside the block. ComputeLines leaves
-	// it empty; the character diff of step 9.2 fills it.
+	// Inner holds the character changes inside the block, sorted and not
+	// overlapping. ComputeLines leaves it empty; Compute fills it.
 	Inner []RangeMapping
 }
 
@@ -71,7 +76,9 @@ type LinesDiff struct {
 	// Changes lists the changed blocks.
 	Changes []LineRangeMapping
 	// HitTimeout reports that the time limit was reached: the changes are then
-	// an approximation (one change that covers both texts).
+	// an approximation (one change that covers both texts when the line stage
+	// ran out of time; with Compute, the blocks that were not refined yet have
+	// one character change that covers the block).
 	HitTimeout bool
 }
 
@@ -86,6 +93,10 @@ type Options struct {
 	MaxComputationTime time.Duration
 	// Now is the clock the time limit is measured with; nil means time.Now.
 	Now func() time.Time
+	// ExtendToSubwords makes a character change that covers part of a
+	// sub-word (fooBar has the sub-words foo and bar) cover all of it when
+	// the sub-word is mostly changed. VS Code's diff editor does not set it.
+	ExtendToSubwords bool
 }
 
 // ctxCheckInterval is the number of steps of an algorithm between two looks at

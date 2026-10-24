@@ -155,6 +155,21 @@ func TestDefaultRegistryIsPlaced(t *testing.T) {
 	}
 }
 
+func TestDiffEditorSettingsAreInTheirGroup(t *testing.T) {
+	r := DefaultRegistry()
+	var found []string
+	for _, c := range BuildCategories(DefaultTOC(), r.All()) {
+		c.Walk(func(c *Category) {
+			if c.ID == "editor/diffEditor" {
+				found = append(found, c.Keys...)
+			}
+		})
+	}
+	if !slices.Equal(found, []string{"diffEditor.maxComputationTime"}) {
+		t.Errorf("the Diff Editor group holds %v", found)
+	}
+}
+
 func uiFixture(t *testing.T) (*fixture, *UIModel) {
 	t.Helper()
 	f := newFixture(t)

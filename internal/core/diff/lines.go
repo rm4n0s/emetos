@@ -31,6 +31,35 @@ func useDynamicProgramming(n1, n2 int) bool { return n1+n2 < dpThreshold }
 // opts.MaxComputationTime is reached the result is the one change that covers
 // both texts, with HitTimeout set.
 func ComputeLines(ctx context.Context, original, modified []string, opts Options) (LinesDiff, error) {
+	return computeDiff(ctx, original, modified, opts, false)
+}
+
+// Compute computes the diff of two texts given as lines (see ComputeLines)
+// with the character changes of every changed block in Inner: VS Code's
+// default lines diff computer, DefaultLinesDiffComputer.computeDiff, without
+// the detection of moved code (SPEC section 2). A text always has at least
+// one line, so no lines at all count as one empty line.
+//
+// opts.MaxComputationTime limits the whole work, the line stage and the
+// character stage together, with one clock. When it is reached in the line
+// stage the line diff is the one change that covers both texts; when it is
+// reached in the character stage the blocks that are not refined yet have
+// one character change that covers the whole block (as VS Code's algorithms
+// return the trivial diff when their time is over). HitTimeout is set in both
+// cases. The work stops with a DiffCancelled error when ctx is done.
+func Compute(ctx context.Context, original, modified []string, opts Options) (LinesDiff, error) {
+	if len(original) == 0 {
+		original = []string{""}
+	}
+	if len(modified) == 0 {
+		modified = []string{""}
+	}
+	return computeDiff(ctx, original, modified, opts, true)
+}
+
+// computeDiff is DefaultLinesDiffComputer.computeDiff; refine says whether the
+// blocks are refined to character changes.
+func computeDiff(ctx context.Context, original, modified []string, opts Options, refine bool) (LinesDiff, error) {
 	if err := ctx.Err(); err != nil {
 		return LinesDiff{}, errCancelled(err)
 	}
@@ -110,11 +139,19 @@ func ComputeLines(ctx context.Context, original, modified []string, opts Options
 	alignments = optimizeSequenceDiffs(seq1, seq2, alignments)
 	alignments = removeVeryShortMatchingLinesBetweenDiffs(seq1, alignments)
 
-	changes, err := buildChanges(original, modified, alignments, opts.IgnoreTrimWhitespace)
+	if !refine {
+		changes, err := buildChanges(original, modified, alignments, opts.IgnoreTrimWhitespace)
+		if err != nil {
+			return LinesDiff{}, err
+		}
+		return LinesDiff{Changes: changes, HitTimeout: hitTimeout}, nil
+	}
+
+	changes, refineTimeout, err := buildRefinedChanges(b, original, modified, alignments, opts)
 	if err != nil {
 		return LinesDiff{}, err
 	}
-	return LinesDiff{Changes: changes, HitTimeout: hitTimeout}, nil
+	return LinesDiff{Changes: changes, HitTimeout: hitTimeout || refineTimeout}, nil
 }
 
 // endOfText returns the position after the last character of the lines (the
@@ -156,7 +193,7 @@ func buildChanges(original, modified []string, alignments []sequenceDiff, ignore
 
 		last1, last2 = d.seq1.end, d.seq2.end
 
-		// 9.2: the block is refined to character changes here (refineDiff).
+		// ComputeLines leaves the block as it is; Compute refines it (buildRefinedChanges).
 		parts = append(parts, linePair{LineRange{d.seq1.start + 1, d.seq1.end + 1}, LineRange{d.seq2.start + 1, d.seq2.end + 1}})
 	}
 	scanForWhitespaceChanges(len(original) - last1)

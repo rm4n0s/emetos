@@ -325,7 +325,7 @@ func TestComputeLinesOptionsInvalid(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T", err)
 	}
-	if !appErr.HasRoute("ComputeLines.DiffTimeoutInvalid") {
+	if !appErr.HasRoute("ComputeLines->computeDiff.DiffTimeoutInvalid") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }

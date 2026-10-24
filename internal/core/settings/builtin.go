@@ -40,6 +40,7 @@ func DefaultRegistry() *Registry {
 	registerEmmet(r)
 	registerOutput(r)
 	registerSearch(r)
+	registerDiffEditor(r)
 	return r
 }
 
@@ -1477,6 +1478,22 @@ func registerSearch(r *Registry) {
 			},
 			Description: "Controls sorting order of editor history in quick open when filtering.",
 			Scope:       ScopeWindow, Category: categorySearch,
+		},
+	)
+}
+
+// registerDiffEditor registers the settings of the diff editor that a step has a consumer for. Step 9.2
+// registers the time limit of the diff of core/diff (SPEC section 9.11); diffEditor.ignoreTrimWhitespace and
+// the others come with the diff editor that reads them.
+//
+// Ported from VS Code: src/vs/editor/common/config/editorConfigurationSchema.ts and
+// src/vs/editor/common/config/diffEditor.ts
+func registerDiffEditor(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "diffEditor.maxComputationTime", Types: []Type{Number}, Default: 5000,
+			Description: "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 	)
 }

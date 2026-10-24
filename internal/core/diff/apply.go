@@ -44,6 +44,13 @@ func lines(text []string, start, end int) []string {
 // (there is at least one unchanged line between two changes); and the
 // unchanged lines before, between and after the changes are as many in the
 // original as in the modified text. VS Code asserts the same.
+//
+// The character changes (Inner) of a change are checked as far as the line
+// counts allow: their lines lie in the text (a text always has at least one
+// line) and in their block, or in the line before it or after it where the
+// change starts at the end of a line or ends at the start of one; a range is
+// not reversed; and the ranges are sorted and do not overlap. The columns
+// need the text and are not checked here.
 func Validate(changes []LineRangeMapping, originalLines, modifiedLines int) error {
 	prevOrig, prevMod := 1, 1 // the line after the previous change
 	for i, c := range changes {
@@ -61,10 +68,36 @@ func Validate(changes []LineRangeMapping, originalLines, modifiedLines int) erro
 		if o.StartLine-prevOrig != m.StartLine-prevMod {
 			return errInvalid("unchanged lines before the change differ in number", i, originalLines, modifiedLines)
 		}
+		if err := validateInner(c, i, originalLines, modifiedLines); err != nil {
+			return err
+		}
 		prevOrig, prevMod = o.EndLine, m.EndLine
 	}
 	if originalLines+1-prevOrig != modifiedLines+1-prevMod {
 		return errInvalid("unchanged lines after the last change differ in number", len(changes), originalLines, modifiedLines)
+	}
+	return nil
+}
+
+// validateInner checks the character changes of the change at index i (see
+// Validate).
+func validateInner(c LineRangeMapping, i, originalLines, modifiedLines int) error {
+	inside := func(r Range, block LineRange, lines int) bool {
+		lines = max(lines, 1)
+		return r.Start.Line >= max(block.StartLine-1, 1) && r.End.Line <= min(block.EndLine, lines) &&
+			r.Start.Column >= 1 && r.End.Column >= 1 &&
+			r.Start.Line <= lines && r.End.Line >= 1 && !r.End.isBefore(r.Start)
+	}
+	for j, in := range c.Inner {
+		if !inside(in.Original, c.Original, originalLines) || !inside(in.Modified, c.Modified, modifiedLines) {
+			return errInvalid("character change outside its change or reversed", i, originalLines, modifiedLines)
+		}
+		if j > 0 {
+			prev := c.Inner[j-1]
+			if in.Original.Start.isBefore(prev.Original.End) || in.Modified.Start.isBefore(prev.Modified.End) {
+				return errInvalid("character changes overlap or are not sorted", i, originalLines, modifiedLines)
+			}
+		}
 	}
 	return nil
 }

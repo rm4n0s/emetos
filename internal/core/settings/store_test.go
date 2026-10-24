@@ -106,6 +106,8 @@ func TestDefaultRegistry(t *testing.T) {
 		{"search.quickOpen.includeHistory", []Type{Boolean}, true, ScopeWindow, "Search"},
 		{"search.quickOpen.history.filterSortOrder", []Type{String}, "default", ScopeWindow, "Search"},
 		{"workbench.editor.enablePreviewFromQuickOpen", []Type{Boolean}, false, ScopeWindow, "Workbench"},
+		// the time limit of the diff (step 9.2)
+		{"diffEditor.maxComputationTime", []Type{Number}, 5000.0, ScopeLanguageOverridable, "Text Editor"},
 	} {
 		s, ok := r.Lookup(w.key)
 		if !ok {
@@ -119,6 +121,10 @@ func TestDefaultRegistry(t *testing.T) {
 	tab, _ := r.Lookup("editor.tabSize")
 	if *tab.Minimum != 1 || *tab.Maximum != 100 {
 		t.Errorf("tab size range %v %v", *tab.Minimum, *tab.Maximum)
+	}
+	diffTime, _ := r.Lookup("diffEditor.maxComputationTime")
+	if diffTime.Minimum != nil || diffTime.Maximum != nil || diffTime.Description != "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout." {
+		t.Errorf("diffEditor.maxComputationTime: %+v", diffTime)
 	}
 	eol, _ := r.Lookup("files.eol")
 	assertEqual(t, "eol enum", eol.Enum, []any{"\n", "\r\n", "auto"})
