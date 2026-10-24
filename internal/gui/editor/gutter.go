@@ -147,8 +147,8 @@ func (r *RenderEditorGutter) paintNumbers(canvas *ui.Canvas, offset ui.Offset, t
 	active := newTextStyle(r.factory, opts, r.colors.ActiveLineNumber)
 	for row := first; row <= last; row++ {
 		line, start, _ := proj.RowSpan(row)
-		if start != 0 {
-			continue
+		if _, _, zone := proj.RowZone(row); start != 0 || zone {
+			continue // a continuation of a wrapped line, or a row of a view zone: no number, no control
 		}
 		text, current := LineNumberText(opts.LineNumbers, line, cursorLine, lineCount)
 		if text == "" {
@@ -188,8 +188,8 @@ func (r *RenderEditorGutter) paintFoldingControls(canvas *ui.Canvas, offset ui.O
 	left := offset.Dx + widths.GlyphMargin + widths.LineNumbers
 	for row := first; row <= last; row++ {
 		line, start, _ := proj.RowSpan(row)
-		if start != 0 {
-			continue
+		if _, _, zone := proj.RowZone(row); start != 0 || zone {
+			continue // a continuation of a wrapped line, or a row of a view zone: no number, no control
 		}
 		var glyph int
 		switch r.vm.FoldingStateOf(line) {

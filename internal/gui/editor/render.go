@@ -308,6 +308,12 @@ func (r *RenderEditorText) RectOf(p buffer.Position) ui.Rect {
 	return newGeometry(r.vm, r.factory).rectOf(p).Shift(ui.Offset{Dx: -r.vm.ScrollLeft(), Dy: -r.top()})
 }
 
+// ZoneAt tells which view zone is at a point of the text layer, given in the layer's own
+// coordinates, if one is.
+func (r *RenderEditorText) ZoneAt(local ui.Offset) (ZoneHit, bool) {
+	return r.vm.ZoneAtY(local.Dy + r.top())
+}
+
 // VisualColumnAt is the visual column nearest to a point of the text layer, given in the
 // layer's own coordinates, counted in characters of the font and also past the end of a line.
 func (r *RenderEditorText) VisualColumnAt(local ui.Offset) int {

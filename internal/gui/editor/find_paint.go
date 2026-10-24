@@ -60,6 +60,9 @@ func (v overlayView) paintWholeLines(r buffer.Range, background, border ui.Color
 	}
 	first, last := vm.RowOfPosition(r.Start), vm.RowOfPosition(end)
 	for row := max(first, v.first); row <= min(last, v.last); row++ {
+		if v.geo.isZoneRow(row) {
+			continue
+		}
 		rect := v.rowRect(row, vm.ScrollLeft(), vm.ScrollLeft()+v.width)
 		if background.Alpha() > 0 {
 			v.canvas.DrawRect(rect, fill(background))

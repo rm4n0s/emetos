@@ -11,6 +11,7 @@ import (
 // all of the same height. The lines that a fold hides have no row. A row shows the bytes of its
 // line between two breaks.
 type wrappedProjection struct {
+	noZones
 	lines     int
 	rowHeight float64
 	// base holds the hidden lines; nil when none is hidden.

@@ -235,6 +235,7 @@ func (e *textEditor) dispose() {
 	}
 	e.view.DisposeFind()
 	e.view.DisposeWrap()
+	e.view.DisposeZones()
 	e.view.DisposeHighlights()
 	if e.stopFolding != nil {
 		e.stopFolding()

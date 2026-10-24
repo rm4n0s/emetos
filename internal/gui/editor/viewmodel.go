@@ -210,9 +210,11 @@ type ViewState struct {
 // tells its listeners (render objects) when something that is drawn changed.
 type ViewModel struct {
 	foundation.ChangeNotifier
-	doc        *document.Document
-	cursors    *edit.Cursors
-	proj       Projection
+	doc     *document.Document
+	cursors *edit.Cursors
+	proj    Projection
+	// baseProj is the projection without the view zones; proj is the same when there are none.
+	baseProj   Projection
 	opts       Options
 	cache      *ParagraphCache
 	syncedAt   int // the version of the document the projection was made for
@@ -294,6 +296,8 @@ type ViewModel struct {
 	findw findLink
 	// wrap is the word wrap of the editor (wordwrap.go).
 	wrap wrapLink
+	// zones are the view zones of the editor (zones.go).
+	zones zoneLink
 	// snip is the snippet session of the editor and what it offers (snippets.go).
 	snip snippetLink
 	// hl holds the highlights of the occurrences of the word at the cursor and of the selection.
@@ -416,10 +420,11 @@ func (vm *ViewModel) Projection() Projection {
 func (vm *ViewModel) Sync() bool {
 	version := vm.doc.Version()
 	key := vm.wrapKeyNow()
-	if version == vm.syncedAt && vm.fold.epoch == vm.fold.syncedEpoch && vm.proj != nil && !vm.wrapStale(key) {
+	if version == vm.syncedAt && vm.fold.epoch == vm.fold.syncedEpoch && vm.zones.epoch == vm.zones.syncedEpoch &&
+		vm.proj != nil && !vm.wrapStale(key) {
 		return false
 	}
-	vm.syncedAt, vm.fold.syncedEpoch = version, vm.fold.epoch
+	vm.syncedAt, vm.fold.syncedEpoch, vm.zones.syncedEpoch = version, vm.fold.epoch, vm.zones.epoch
 	vm.syncWrap(key)
 	lines := vm.doc.Snapshot().LineCount()
 	var folded *foldedProjection
@@ -434,6 +439,10 @@ func (vm *ViewModel) Sync() bool {
 		vm.proj = folded
 	default:
 		vm.proj = newIdentityProjection(lines, vm.opts.LineHeight)
+	}
+	vm.baseProj = vm.proj
+	if len(vm.zones.byID) > 0 {
+		vm.proj = newZonedProjection(vm.baseProj, lines, vm.zones.items())
 	}
 	return true
 }
@@ -493,11 +502,20 @@ func (vm *ViewModel) RestoreViewState(s ViewState) error {
 }
 
 // PageRows is the number of rows in a page: the viewport's rows less one, at least 1.
+//
+// The rows of view zones in the viewport are not rows the cursor moves over: a page is the rows of
+// text that the viewport shows, as in VS Code.
 func (vm *ViewModel) pageRows() int {
 	if vm.opts.LineHeight <= 0 || vm.viewport <= 0 {
 		return edit.DefaultPageRows
 	}
-	return max(int(vm.viewport/vm.opts.LineHeight)-1, 1)
+	rows := int(vm.viewport/vm.opts.LineHeight) - 1
+	if len(vm.zones.byID) > 0 {
+		proj := vm.Projection()
+		first := proj.RowAt(vm.scrollTop)
+		rows -= proj.ZoneRowsBefore(first+rows+1) - proj.ZoneRowsBefore(first)
+	}
+	return max(rows, 1)
 }
 
 // Layout is the edit.LineLayout of the editor: how cursor movement sees the rows. Every line is
@@ -508,7 +526,7 @@ func (vm *ViewModel) Layout() edit.LineLayout {
 	if vm.fold.hidden != nil {
 		l.Hidden = vm.fold.hidden.hiddenSpan
 	}
-	if wp, ok := vm.proj.(*wrappedProjection); ok {
+	if wp, ok := vm.baseProj.(*wrappedProjection); ok {
 		l.Rows = wp
 	}
 	return l

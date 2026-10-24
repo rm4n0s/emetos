@@ -110,8 +110,8 @@ func (vm *ViewModel) rowGuides(first, last int) [][]indent.Guide {
 	out := make([][]indent.Guide, last-first+1)
 	for row := first; row <= last; row++ {
 		line, start, _ := proj.RowSpan(row)
-		if start > 0 || line < firstLine || line-firstLine >= len(perLine) {
-			continue
+		if _, _, zone := proj.RowZone(row); zone || start > 0 || line < firstLine || line-firstLine >= len(perLine) {
+			continue // the guides stop at a view zone
 		}
 		out[row-first] = perLine[line-firstLine]
 	}

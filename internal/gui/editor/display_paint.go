@@ -87,6 +87,9 @@ func (v overlayView) paintWhitespace() {
 	paint := fill(v.colors.Whitespace)
 	space := v.geo.charWidth
 	for row := v.first; row <= v.last; row++ {
+		if v.geo.isZoneRow(row) {
+			continue
+		}
 		text, start := v.geo.rowText(row)
 		line, _, _ := v.geo.proj.RowSpan(row)
 		var spans []colSpan

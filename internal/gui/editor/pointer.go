@@ -111,6 +111,9 @@ func (s *editorState) eventAt(local ui.Offset, gutterWidth float64) MouseEvent {
 // Ported from VS Code: src/vs/editor/contrib/contextmenu/browser/contextmenu.ts (_onContextMenu)
 func (s *editorState) secondaryDown(e *gestures.PointerDownEvent, gutterWidth float64) {
 	s.node.RequestFocus()
+	if s.pressOnZone(e, false) {
+		return
+	}
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
 	if ev.OnLineNumbers {
 		return
@@ -140,6 +143,9 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 	s.node.RequestFocus()
 	m := &s.mouse
 	vm := s.Widget().vm
+	if s.pressOnZone(e, hasPrimary(buttons)) {
+		return
+	}
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
 	if s.startsFoldPress(e, ev, middle, gutterWidth) {
 		return
@@ -407,4 +413,26 @@ func (s *editorState) endFoldPress(e *gestures.PointerUpEvent, gutterWidth float
 	vm := s.Widget().vm
 	vm.ToggleFoldAt(line, control, mods.Alt, mods.Shift || fp.middle)
 	vm.RevealPosition(buffer.Position{Line: line})
+}
+
+// hasPrimary says whether the primary button is among the buttons of a press.
+func hasPrimary(buttons int) bool { return buttons&gestures.PrimaryButton != 0 }
+
+// pressOnZone handles a press on a row of a view zone: it moves no cursor and starts no selection,
+// and the zone's handler is told of a press of the primary button. It reports whether the press was
+// on a zone.
+//
+// Ported from VS Code: src/vs/editor/browser/controller/mouseTarget.ts (CONTENT_VIEW_ZONE)
+func (s *editorState) pressOnZone(e *gestures.PointerDownEvent, primary bool) bool {
+	if s.textRO == nil {
+		return false
+	}
+	hit, ok := s.textRO.ZoneAt(e.LocalPosition())
+	if !ok {
+		return false
+	}
+	if vm := s.Widget().vm; primary && vm.zones.press != nil {
+		vm.zones.press(hit)
+	}
+	return true
 }

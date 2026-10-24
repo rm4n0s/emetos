@@ -139,6 +139,9 @@ func (g geometry) selectionRows(sel buffer.Selection, first, last int, rounded b
 	startRow, endRow := g.vm.RowOfPosition(start), g.vm.RowOfPosition(end)
 	var rows []selectionRow
 	for row := max(startRow, first-1); row <= min(endRow, last+1); row++ {
+		if g.isZoneRow(row) {
+			continue // a selection is not drawn in the rows of a view zone
+		}
 		left := g.indentPx(row)
 		if row == startRow {
 			left = g.x(row, start.Col)
@@ -158,9 +161,53 @@ func (g geometry) selectionRows(sel buffer.Selection, first, last int, rounded b
 		rows = append(rows, selectionRow{Row: row, Left: left, Right: right})
 	}
 	if rounded {
-		styleSelectionRows(rows, g.charWidth)
+		// the rows on either side of a view zone are not next to each other: each run is styled alone
+		for from := 0; from < len(rows); {
+			to := from + 1
+			for to < len(rows) && rows[to].Row == rows[to-1].Row+1 {
+				to++
+			}
+			styleSelectionRows(rows[from:to], g.charWidth)
+			from = to
+		}
 	}
 	return rows
+}
+
+// nearestTextRow is the row of text nearest to a height in the rows of a view zone: the row above
+// the zone when the height is in its upper half, the row below when it is in the lower half; when the
+// zone is at the top or at the bottom of the document, the only side that has text. A view zone has
+// no position of its own (VS Code's mouse target is the zone), so a drag that goes over it selects up
+// to the text next to it.
+func (g geometry) nearestTextRow(row int, y float64) int {
+	id, _, _ := g.proj.RowZone(row)
+	first, count := g.proj.ZoneRows(id)
+	// a zone may be followed or preceded by the rows of other zones
+	above, below := first-1, first+count
+	for above >= 0 && g.isZoneRow(above) {
+		above--
+	}
+	for below < g.proj.RowCount() && g.isZoneRow(below) {
+		below++
+	}
+	upper := y < g.proj.RowTop(first)+float64(count)*g.proj.RowHeight(first)/2
+	switch {
+	case above < 0 && below >= g.proj.RowCount():
+		return row
+	case above < 0:
+		return below
+	case below >= g.proj.RowCount():
+		return above
+	case upper:
+		return above
+	}
+	return below
+}
+
+// isZoneRow tells whether a row belongs to a view zone, which shows no text.
+func (g geometry) isZoneRow(row int) bool {
+	_, _, ok := g.proj.RowZone(row)
+	return ok
 }
 
 // cursorRows are the rows that have a cursor, each once, in order; with word wrap all the rows of
@@ -285,6 +332,9 @@ func (g geometry) slowColumnAt(text string, x float64) int {
 // special cases of decorations)
 func (g geometry) positionAt(x, y float64) buffer.Position {
 	row := g.proj.RowAt(y)
+	if g.isZoneRow(row) {
+		row = g.nearestTextRow(row, y)
+	}
 	full, start := g.rowFull(row)
 	text := full[:shownLength(full, g.vm.opts.StopRenderingLineAfter)]
 	line, _, _ := g.proj.RowSpan(row)

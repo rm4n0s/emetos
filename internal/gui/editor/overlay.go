@@ -641,6 +641,9 @@ func (v overlayView) paintFolded() {
 	proj := v.geo.proj
 	style := newTextStyle(v.factory, vm.Options(), v.colors.FoldPlaceholder)
 	for row := v.first; row <= v.last; row++ {
+		if v.geo.isZoneRow(row) {
+			continue
+		}
 		line, _, _ := proj.RowSpan(row)
 		if !vm.FoldedLine(line) {
 			continue

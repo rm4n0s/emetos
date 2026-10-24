@@ -289,6 +289,9 @@ func (r *RenderEditorMinimap) paintDecorations(canvas *ui.Canvas, offset ui.Offs
 		for _, sel := range vm.Cursors().Selections() {
 			rng := sel.Range()
 			for row := vm.RowOfPosition(rng.Start); row <= vm.RowOfPosition(rng.End); row++ {
+				if _, _, zone := proj.RowZone(row); zone {
+					continue
+				}
 				line := vm.minimapLineOfRow(row)
 				if line < l.StartLine || line > l.EndLine || barred[line] {
 					continue
@@ -337,7 +340,7 @@ func (r *RenderEditorMinimap) paintMark(canvas *ui.Canvas, offset ui.Offset, l m
 	paint := fill(m.color)
 	for row := vm.RowOfPosition(m.rng.Start); row <= vm.RowOfPosition(m.rng.End) && row < proj.RowCount(); row++ {
 		mmLine := vm.minimapLineOfRow(row)
-		if mmLine < l.StartLine || mmLine > l.EndLine {
+		if _, _, zone := proj.RowZone(row); zone || mmLine < l.StartLine || mmLine > l.EndLine {
 			continue
 		}
 		line, start, end := proj.RowSpan(row)

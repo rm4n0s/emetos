@@ -716,6 +716,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
 				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, bracketColors, func(r *RenderEditorText) { s.textRO = r }),
 				newOverlayLayer(overlayCursors, vm, offset, overlayColors),
+				newZoneLayer(vm, offset),
 			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{Cursor: mouseCursor(s.mouseStyle(vm))})),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)
 	}, widgets.ScrollableOpts{

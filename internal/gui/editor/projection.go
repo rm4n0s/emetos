@@ -29,10 +29,26 @@ type Projection interface {
 	RowAt(y float64) int
 	// Height is the height of all the rows.
 	Height() float64
+
+	// RowZone tells whether a row belongs to a view zone (SPEC §9.1): the zone and the index of
+	// the row inside it. A row of a zone shows no text; RowSpan gives it the line it follows and
+	// an empty range.
+	RowZone(row int) (id ZoneID, index int, ok bool)
+	// LineZoneRows is the first row and the number of rows of the zones that follow a line, which
+	// come after the rows LineRows tells; none for a hidden line.
+	LineZoneRows(line int) (first, count int)
+	// ZoneRows is the first row and the number of rows of a zone; a zone that is not shown has
+	// none.
+	ZoneRows(id ZoneID) (first, count int)
+	// ZonesIn lists the zones that have a row among the rows first to last, in order.
+	ZonesIn(first, last int) []ZoneID
+	// ZoneRowsBefore is the number of rows of zones among the rows before a row.
+	ZoneRowsBefore(row int) int
 }
 
 // identityProjection shows each line as one row of the same height.
 type identityProjection struct {
+	noZones
 	lines     int
 	rowHeight float64
 }
@@ -71,6 +87,7 @@ func (p *identityProjection) Height() float64 { return float64(p.lines) * p.rowH
 // (SPEC §8.7, §9.1). A hidden line has no row; the row of the line that holds the fold stands for
 // it.
 type foldedProjection struct {
+	noZones
 	lines     int
 	rowHeight float64
 	// spans are the hidden lines, sorted and apart, and before[i] the number of hidden lines in
