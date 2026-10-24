@@ -398,3 +398,75 @@ func TestControllerInvokerContext(t *testing.T) {
 		t.Errorf("calls %d", calls)
 	}
 }
+
+func TestControllerPrompt(t *testing.T) {
+	validate := func(v string) string {
+		if v == "" {
+			return "A name is required."
+		}
+		if v == "bad" {
+			return "That name is not allowed."
+		}
+		return ""
+	}
+	type result struct {
+		accepted []string
+		cancels  int
+	}
+	start := func(r *result, c *Controller) {
+		c.Prompt(PromptOptions{
+			Placeholder: "Path", Value: "/a/b.txt", Validate: validate,
+			OnAccept: func(v string) { r.accepted = append(r.accepted, v) },
+			OnCancel: func() { r.cancels++ },
+		})
+	}
+	tests := []struct {
+		name         string
+		do           func(c *Controller)
+		wantAccepted []string
+		wantCancels  int
+		wantVisible  bool
+		wantMessage  string
+	}{
+		{"shows the value with the caret at its end", func(c *Controller) {}, nil, 0, true, ""},
+		{"enter accepts a valid text", func(c *Controller) { c.Accept(KeyMods{}) }, []string{"/a/b.txt"}, 0, false, ""},
+		{"an edited text is accepted", func(c *Controller) { c.SetValue("/c"); c.Accept(KeyMods{}) }, []string{"/c"}, 0, false, ""},
+		{"an invalid text shows its message while typing", func(c *Controller) { c.SetValue("bad") }, nil, 0, true, "That name is not allowed."},
+		{"an invalid text is not accepted", func(c *Controller) { c.SetValue("bad"); c.Accept(KeyMods{}) }, nil, 0, true, "That name is not allowed."},
+		{"the message goes when the text is valid again", func(c *Controller) { c.SetValue("bad"); c.SetValue("good") }, nil, 0, true, ""},
+		{"an empty text is invalid", func(c *Controller) { c.SetValue(""); c.Accept(KeyMods{}) }, nil, 0, true, "A name is required."},
+		{"escape cancels", func(c *Controller) { c.Hide() }, nil, 1, false, ""},
+		{"a text accepted does not cancel", func(c *Controller) { c.Accept(KeyMods{}); c.Hide() }, []string{"/a/b.txt"}, 0, false, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var r result
+			c := NewController(ControllerOptions{})
+			start(&r, c)
+			if !c.Prompting() || c.Picker().Placeholder() != "Path" || c.Picker().Value() != "/a/b.txt" {
+				t.Fatalf("prompting %v placeholder %q value %q", c.Prompting(), c.Picker().Placeholder(), c.Picker().Value())
+			}
+			if s, e, ok := c.Picker().ValueSelection(); !ok || s != 8 || e != 8 {
+				t.Errorf("selection %d-%d %v, want the caret at the end", s, e, ok)
+			}
+			tt.do(c)
+			if !reflect.DeepEqual(r.accepted, tt.wantAccepted) || r.cancels != tt.wantCancels || c.Visible() != tt.wantVisible ||
+				c.Picker().Message() != tt.wantMessage {
+				t.Errorf("accepted %v cancels %d visible %v message %q", r.accepted, r.cancels, c.Visible(), c.Picker().Message())
+			}
+		})
+	}
+	t.Run("a pick replaces the prompt", func(t *testing.T) {
+		var r result
+		c := NewController(ControllerOptions{})
+		start(&r, c)
+		c.Pick(PickOptions{Items: items("one")})
+		if c.Prompting() {
+			t.Error("still prompting")
+		}
+		c.SetValue("bad")
+		if c.Picker().Message() != "" {
+			t.Error("the validation of the prompt still runs")
+		}
+	})
+}

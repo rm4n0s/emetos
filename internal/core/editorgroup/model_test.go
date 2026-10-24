@@ -1,7 +1,9 @@
 package editorgroup
 
 import (
+	"context"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
@@ -470,5 +472,44 @@ func TestTextInputFollowsARenamedDocument(t *testing.T) {
 	doc.SetURI(document.FileURI("/w/c.go"))
 	if len(events) != 2 || events[1] != InputWillDispose {
 		t.Errorf("a disposed input still follows: %v", events)
+	}
+}
+
+// TestTextInputFollowsASave checks that the input follows the dirty mark across a save, which changes no text,
+// and that a Save As of an untitled document tells the label and the capabilities.
+func TestTextInputFollowsASave(t *testing.T) {
+	dir := t.TempDir()
+	doc := document.New(document.UntitledURI(1), "text", document.NewOptions())
+	in := NewTextInput(doc, TextInputOpts{})
+	var events []InputEventKind
+	in.Subscribe(func(e InputEvent) { events = append(events, e.Kind) })
+	if !in.Dirty() || !in.Capabilities().Has(CapUntitled) {
+		t.Fatalf("an untitled document with text: dirty %v, capabilities %v", in.Dirty(), in.Capabilities())
+	}
+	if _, err := doc.SaveAs(context.Background(), filepath.Join(dir, "a.txt"), document.SaveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if in.Dirty() || in.Name() != "a.txt" || in.Capabilities().Has(CapUntitled) {
+		t.Errorf("after Save As: dirty %v, name %q, capabilities %v", in.Dirty(), in.Name(), in.Capabilities())
+	}
+	want := []InputEventKind{InputLabel, InputCapabilities, InputDirty}
+	if len(events) != len(want) {
+		t.Fatalf("events = %v, want %v", events, want)
+	}
+	for i := range want {
+		if events[i] != want[i] {
+			t.Errorf("events = %v, want %v", events, want)
+		}
+	}
+	// an edit and a save in place
+	events = nil
+	if _, err := doc.Edit([]document.Edit{{Range: buffer.Range{}, Text: "x"}}, document.EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := doc.Save(context.Background(), document.SaveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if in.Dirty() || len(events) != 2 || events[0] != InputDirty || events[1] != InputDirty {
+		t.Errorf("dirty %v, events %v", in.Dirty(), events)
 	}
 }

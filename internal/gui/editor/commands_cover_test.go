@@ -19,6 +19,8 @@ var appCommands = map[string]bool{
 	"explorer.openToSide": true, "revealFileInOS": true,
 	// the indentation picker of the status bar (gui/app/statuspickers.go)
 	"changeEditorIndentation": true,
+	// Save All, whose id has no "workbench." (gui/app/save.go)
+	"saveAll": true,
 }
 
 func TestEveryEditorCommandHasAHandler(t *testing.T) {

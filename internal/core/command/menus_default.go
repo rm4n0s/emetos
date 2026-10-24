@@ -57,13 +57,24 @@ func registerMainMenu(r *MenuRegistry) {
 }
 
 // registerFileMenu adds the File menu. VS Code's other rows belong to the steps that add their
-// commands (open and save in 7.1), and its "Close Editor" row is enabled while an editor is open.
+// commands (opening files, 7.x), and its "Close Editor" row is enabled while an editor is open. Save and Save
+// As are enabled while an editor is open, Save All while a document has unsaved changes (dirtyWorkingCopies), and
+// Revert File while the active editor can revert (it is not an untitled one). Not here: Auto Save (step 7.3).
 // VS Code has no "Close All Editors" row in the File menu; its command is in the palette only.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
 func registerFileMenu(r *MenuRegistry) {
 	r.MustAdd(
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.newUntitledFile", Title: "New Text File", MnemonicTitle: "&&New Text File", Group: "1_new", Order: 1},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.openFolder", MnemonicTitle: "Open &&Folder...", Group: "2_open", Order: 2},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.save", MnemonicTitle: "&&Save", Group: "4_save", Order: 1,
+			Precondition: contextkey.Has("activeEditor")},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.saveAs", MnemonicTitle: "Save &&As...", Group: "4_save", Order: 2,
+			Precondition: contextkey.Has("activeEditor")},
+		MenuItem{Menu: MenubarFileMenu, Command: "saveAll", Title: "Save All", MnemonicTitle: "Save A&&ll", Group: "4_save", Order: 3,
+			Precondition: contextkey.Has("dirtyWorkingCopies")},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.revert", MnemonicTitle: "Re&&vert File", Group: "6_close", Order: 1,
+			Precondition: contextkey.Has("activeEditorCanRevert")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeFolder", Title: "Close Folder", MnemonicTitle: "Close &&Folder", Group: "6_close", Order: 3,
 			When: contextkey.Equals("workbenchState", "folder")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeActiveEditor", MnemonicTitle: "&&Close Editor", Group: "6_close", Order: 2,
@@ -247,7 +258,7 @@ func registerEditorGroupMenus(r *MenuRegistry) {
 // when-clauses and preconditions read the keys of the editor that was clicked (`activeEditorIsPinned`
 // and the rest of the keys of the active editor, set to those of the tab for the menu).
 //
-// Not here yet: Save and Save As (step 7.1), Reveal in File Manager (step 7.x), Reopen Editor With, Share, the moves into a new window and Split in Group.
+// Save and Save As are in the menu while the tab is dirty, as VS Code's. Not here yet: Reveal in File Manager (step 7.x), Reopen Editor With, Share, the moves into a new window and Split in Group.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editor.contribution.ts and
 // src/vs/workbench/contrib/files/browser/fileActions.contribution.ts (appendEditorTitleContextMenuItem)
@@ -260,6 +271,11 @@ func registerEditorTitleContext(r *MenuRegistry) {
 			Precondition: when("!activeEditorIsLastInGroup"), When: contextkey.Has("editorTabsVisible")},
 		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.closeUnmodifiedEditors", Title: "Close Saved", Group: "1_close", Order: 40},
 		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.closeEditorsInGroup", Title: "Close All", Group: "1_close", Order: 50},
+
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.files.save", Title: "Save", Group: "1_close_save", Order: 10,
+			When: contextkey.Has("activeEditorIsDirty")},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.files.saveAs", Title: "Save As...", Group: "1_close_save", Order: 20,
+			When: contextkey.Has("activeEditorIsDirty")},
 
 		MenuItem{Menu: EditorTitleContext, Command: "copyFilePath", Title: "Copy Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},
 		MenuItem{Menu: EditorTitleContext, Command: "copyRelativeFilePath", Title: "Copy Relative Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},

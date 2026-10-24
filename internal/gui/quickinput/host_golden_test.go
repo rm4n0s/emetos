@@ -29,6 +29,22 @@ func TestGoldenQuickInput(t *testing.T) {
 		{"goto_line", func(r *rig) { r.show(":2:3", ShowOptions{PreserveValue: true}) }},
 		{"help", func(r *rig) { r.show("?", ShowOptions{}) }},
 		{"views", func(r *rig) { r.show("view ", ShowOptions{}) }},
+		{"prompt_path", func(r *rig) {
+			r.ctl.Prompt(PromptOptions{Placeholder: "Enter the path of the file to save in", Value: "/home/me/project/Untitled-1.go",
+				Validate: func(string) string { return "" }})
+			r.settle()
+		}},
+		{"prompt_invalid", func(r *rig) {
+			r.ctl.Prompt(PromptOptions{Placeholder: "Enter the path of the file to save in", Value: "/home/me/project/Untitled-1.go",
+				Validate: func(v string) string {
+					if v == "/home/me/missing/Untitled-1.go" {
+						return "The folder '/home/me/missing' does not exist."
+					}
+					return ""
+				}})
+			r.ctl.SetValue("/home/me/missing/Untitled-1.go")
+			r.settle()
+		}},
 		{"pick_with_separators", func(r *rig) {
 			r.ctl.Pick(PickOptions{
 				Placeholder: "Select a snippet", MatchOnDetail: true,

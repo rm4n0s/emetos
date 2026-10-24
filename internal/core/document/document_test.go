@@ -11,7 +11,7 @@ import (
 	"github.com/rm4n0s/errors"
 )
 
-func newDoc(text string) *Document { return New(UntitledURI(1), text, NewOptions()) }
+func newDoc(text string) *Document { return New(FileURI("/test/doc.txt"), text, NewOptions()) }
 
 func pos(line, col int) buffer.Position { return buffer.Position{Line: line, Col: col} }
 
@@ -328,7 +328,7 @@ func TestLowestFreeUntitled(t *testing.T) {
 }
 
 func TestNewAndFromRead(t *testing.T) {
-	d := New(UntitledURI(1), "a\nb", Options{})
+	d := New(FileURI("/x"), "a\nb", Options{})
 	tab, spaces := d.Indentation()
 	if d.LanguageID() != DefaultLanguage || d.Encoding() != fileio.UTF8 || d.LineEnding() != fileio.LF || tab != 4 || spaces ||
 		d.ReadOnly() || d.LargeFile() || d.HasBOM() || d.Dirty() || d.Version() != 1 || d.AlternativeVersion() != 1 {

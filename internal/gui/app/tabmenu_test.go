@@ -82,7 +82,9 @@ func TestTheContextMenuOfATab(t *testing.T) {
 			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-", "Copy Path", "Copy Relative Path", "-", "Reveal in Explorer View", "-",
 			"Keep Open", "Pin", "-", "Split Right", "Split & Move>"}},
 		{"a pinned tab can be unpinned", func(a *groupApp) { a.group(1).Model.Stick(a.group(1).Model.EditorAt(1)) }, "b.go", append(slices.Clone(closeRows), "Keep Open~", "Unpin", "-", "Split Right", "Split & Move>")},
-		{"a modified tab", func(a *groupApp) { a.edit("b.go") }, "b.go", append(slices.Clone(closeRows), "Keep Open~", "Pin", "-", "Split Right", "Split & Move>")},
+		{"a modified tab", func(a *groupApp) { a.edit("b.go") }, "b.go", []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-", "Save", "Save As...", "-", "Copy Path", "Copy Relative Path", "-", "Reveal in Explorer View", "-",
+			"Keep Open~", "Pin", "-", "Split Right", "Split & Move>"}},
 		{"splitting down", func(a *groupApp) { a.setting("workbench.editor.openSideBySideDirection", "down") }, "a.go", append(slices.Clone(closeRows), "Keep Open~", "Pin", "-", "Split Down", "Split & Move>")},
 		{"no preview editors", func(a *groupApp) { a.setting("workbench.editor.enablePreview", false) }, "a.go", append(slices.Clone(closeRows), "Pin", "-", "Split Right", "Split & Move>")},
 	} {

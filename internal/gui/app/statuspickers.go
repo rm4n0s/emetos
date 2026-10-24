@@ -149,28 +149,37 @@ func (s *shellState) showEOLPicker(binding *widgets.WidgetsBinding) {
 
 // ---- encoding ----
 
-// showEncodingPicker is the action list of the encoding item. Its one action so far is "Reopen with Encoding";
-// "Save with Encoding" arrives with the saving of step 7.1. A read-only file goes straight to the encodings.
+// showEncodingPicker is the action list of the encoding item: "Reopen with Encoding" for a file, and "Save with
+// Encoding" for a document that can be saved (an untitled one has no file to reopen). A read-only file goes
+// straight to the encodings to reopen it with.
 func (s *shellState) showEncodingPicker(binding *widgets.WidgetsBinding) {
 	e := s.activeEditor()
 	if e == nil {
 		s.pickInfo(noEditorText)
 		return
 	}
-	if e.doc.URI().Scheme != document.SchemeFile {
+	scheme := e.doc.URI().Scheme
+	isFile := scheme == document.SchemeFile
+	if !isFile && scheme != document.SchemeUntitled {
 		s.pickInfo(noFileText)
 		return
 	}
 	reopen := func() { s.guessEncoding(binding, e) }
 	if e.doc.ReadOnly() {
-		reopen()
+		if isFile {
+			reopen()
+		} else {
+			s.pickInfo(readOnlyText)
+		}
 		return
 	}
-	// TODO(step 7.1): add "Save with Encoding" to this list, which opens the encodings to save the file in
-	PeekWindow(s.Context()).QuickInput.Pick(quickinput.PickOptions{
-		Placeholder: "Select Action", MatchOnDetail: true,
-		Items: []quickinput.Item{{ID: "reopen", Label: "Reopen with Encoding", Accept: func(quickinput.KeyMods) { reopen() }}},
-	})
+	var items []quickinput.Item
+	if isFile {
+		items = append(items, quickinput.Item{ID: "reopen", Label: "Reopen with Encoding", Accept: func(quickinput.KeyMods) { reopen() }})
+	}
+	items = append(items, quickinput.Item{ID: "save", Label: "Save with Encoding",
+		Accept: func(quickinput.KeyMods) { s.showSaveEncodingList(binding, e, "") }})
+	PeekWindow(s.Context()).QuickInput.Pick(quickinput.PickOptions{Placeholder: "Select Action", MatchOnDetail: true, Items: items})
 }
 
 // guessEncoding finds the encoding the file looks to be in (a byte order mark, or valid UTF-8) on a goroutine
@@ -275,19 +284,7 @@ func (s *shellState) readWithEncoding(binding *widgets.WidgetsBinding, e *textEd
 				return
 			}
 			e.doc.Reload(res)
-			for _, other := range s.group.editors {
-				if other.doc == e.doc {
-					snap := e.doc.Snapshot()
-					sels := other.view.Cursors().Selections()
-					for i := range sels {
-						sels[i].Anchor, sels[i].Active = snap.ValidatePosition(sels[i].Anchor), snap.ValidatePosition(sels[i].Active)
-					}
-					other.view.Cursors().SetSelections(sels)
-					other.view.DocumentChanged()
-				}
-			}
-			s.refreshStatus()
-			s.askFocus(binding)
+			s.documentReloaded(binding, e.doc)
 		})
 	})
 }

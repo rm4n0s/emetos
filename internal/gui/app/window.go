@@ -99,6 +99,14 @@ type Window struct {
 	// FileOps does the file operations of the Explorer and keeps their history for undo and redo
 	// (SPEC §10.5). Its trash is the user's, in $XDG_DATA_HOME/Trash.
 	FileOps *workspace.FileOps
+	// Glutter: gluttertest.FakeDesktop cannot make the file chooser portal unavailable, so tests replace the dialog
+	// to reach the prompt that takes its place; Glutter should provide a fake desktop without a file chooser.
+	//
+	// SaveDialog asks the user for the file to save a document in (Save As); it is the file chooser of the desktop
+	// when nil (chooseSavePath). It is called on a goroutine and gives "" for a dialog that was cancelled. A
+	// desktop with no file chooser gives an error whose cause has the tag FileChooserUnavailable, and the window
+	// asks for the path in the quick input instead. Tests replace it.
+	SaveDialog func(ctx context.Context, bc widgets.BuildContext, opts SaveDialogOptions) (string, error)
 	// OpenURI opens a URI with the desktop; it is desktop.OpenURI when nil. Tests replace it.
 	OpenURI func(ctx context.Context, bc widgets.BuildContext, uri string) error
 
@@ -404,10 +412,67 @@ func (d *Documents) OpenFileWith(ctx context.Context, path string, opts document
 	d.order = append(d.order, uri)
 	onFile := d.onFile
 	d.mu.Unlock()
+	d.track(doc)
 	if onFile != nil {
 		onFile(path)
 	}
 	return doc, nil
+}
+
+// track makes the set follow the URI of a document it holds: a Save As, or a move of its file, gives it another key.
+func (d *Documents) track(doc *document.Document) {
+	doc.OnURIChange(func(old, nu document.URI) { d.rekey(doc, old, nu) })
+}
+
+// rekey moves a document to its new URI in the set and tells the hooks that follow the files: the file it
+// had is not followed any more and the one it has now is.
+func (d *Documents) rekey(doc *document.Document, old, nu document.URI) {
+	d.mu.Lock()
+	if cur, ok := d.open[old]; ok && cur == doc {
+		delete(d.open, old)
+		d.open[nu] = doc
+		for i, u := range d.order {
+			if u == old {
+				d.order[i] = nu
+				break
+			}
+		}
+	}
+	onFile, onClose := d.onFile, d.onClose
+	d.mu.Unlock()
+	if old.Scheme == document.SchemeFile && onClose != nil {
+		onClose(old.Path)
+	}
+	if nu.Scheme == document.SchemeFile && onFile != nil {
+		onFile(nu.Path)
+	}
+}
+
+// NewUntitled makes a document that has no file: the lowest free number gives its URI (untitled:1 is shown as
+// Untitled-1; a number that was freed by a closed document is used again). It is empty, in the language and the
+// encoding the options and the window's settings say, and counts as saved while it has no text.
+func (d *Documents) NewUntitled(opts document.Options, encoding string) *document.Document {
+	d.mu.Lock()
+	uris := make([]document.URI, 0, len(d.open))
+	for u := range d.open {
+		uris = append(uris, u)
+	}
+	uri := document.LowestFreeUntitled(uris)
+	policy := d.indentation
+	doc := document.New(uri, "", opts)
+	if encoding != "" {
+		// an encoding that is not known keeps UTF-8: the setting is checked where it is read
+		_ = doc.SetSaveEncoding(encoding)
+	}
+	d.open[uri] = doc
+	d.order = append(d.order, uri)
+	d.mu.Unlock()
+	if policy != nil {
+		p := policy(doc.LanguageID())
+		doc.SetIndentation(p.TabSize, p.InsertSpaces)
+	}
+	d.track(doc)
+	return doc
 }
 
 // Acquire is OpenFile for a document that an editor is about to show: it counts the editor as a user
@@ -479,23 +544,8 @@ func (d *Documents) Rename(doc *document.Document, newPath string) bool {
 		d.mu.Unlock()
 		return false
 	}
-	delete(d.open, old)
-	d.open[uri] = doc
-	for i, u := range d.order {
-		if u == old {
-			d.order[i] = uri
-			break
-		}
-	}
-	onFile, onClose := d.onFile, d.onClose
 	d.mu.Unlock()
-	doc.SetURI(uri)
-	if old.Scheme == document.SchemeFile && onClose != nil {
-		onClose(old.Path)
-	}
-	if onFile != nil {
-		onFile(newPath)
-	}
+	doc.SetURI(uri) // the set follows it (track)
 	return true
 }
 

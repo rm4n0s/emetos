@@ -32,6 +32,7 @@ func DefaultRegistry() *Registry {
 	registerNotificationCommands(r)
 	registerPanelViewCommands(r)
 	registerExplorerCommands(r)
+	registerSaveCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	return r
@@ -629,6 +630,28 @@ func registerExplorerCommands(r *Registry) {
 			Precondition: contextkey.NotEquals("workbenchState", "empty")},
 	)
 	registerExplorerFileCommands(r)
+}
+
+// registerSaveCommands registers the commands that save, revert and make files (SPEC §3.1, §6.3): Save, Save As,
+// Save All, Save without Formatting (which skips the save participants, as there is no formatter), Revert File
+// and New Untitled Text File. "saveAll" is VS Code's id of the command the File menu and the keys run;
+// workbench.action.files.saveAll is the one of the palette, which runs it. Not here: Save All in Group
+// (workbench.files.action.saveAllInGroup) and Save All Files (workbench.action.files.saveFiles).
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/fileConstants.ts,
+// src/vs/workbench/contrib/files/browser/fileCommands.ts and
+// src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
+func registerSaveCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.files.save", Title: "Save", Category: "File"},
+		Meta{ID: "workbench.action.files.saveWithoutFormatting", Title: "Save without Formatting", Category: "File"},
+		Meta{ID: "workbench.action.files.saveAs", Title: "Save As...", Category: "File"},
+		Meta{ID: "saveAll"},
+		Meta{ID: "workbench.action.files.saveAll", Title: "Save All"},
+		Meta{ID: "workbench.action.files.revert", Title: "Revert File", Category: "File"},
+		Meta{ID: "workbench.action.files.newUntitledFile", Title: "New Untitled Text File", Category: "File",
+			Description: "New Untitled Text File"},
+	)
 }
 
 // registerExplorerFileCommands registers the commands of the file operations of the Explorer (SPEC §10.5):

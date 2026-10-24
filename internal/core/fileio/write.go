@@ -26,6 +26,15 @@ type WriteOptions struct {
 	// Overwrite lets a read-only file be saved: its owner write permission is
 	// added first ("Overwrite" of VS Code's save conflict prompt).
 	Overwrite bool
+	// IfUnchanged, when set, is the FileStat the file had when the text was read or last
+	// written: a file that exists and has another modification time or size was changed by
+	// another program since, and the write fails with FileModifiedSince (VS Code's save
+	// conflict). A file that does not exist is written. It is checked just before the file
+	// is replaced.
+	IfUnchanged *FileStat
+	// FailIfExists makes the write fail with FileExists when something is at the path,
+	// for a Save As that must not replace a file by accident.
+	FailIfExists bool
 
 	fs fileSystem // replaced by tests
 }
@@ -48,7 +57,9 @@ func (o WriteOptions) fsys() fileSystem {
 //
 // It fails with the tags EncodingUnknown, EncodingCannotRepresent, FileReadOnly,
 // FileIsDirectory, FileNotRegular, FileNotFound (the folder doesn't exist),
-// FilePermissionDenied, FileWriteFailed and WriteCancelled.
+// FilePermissionDenied, FileWriteFailed, WriteCancelled, FileModifiedSince
+// (IfUnchanged) and FileExists (FailIfExists). Besides the permissions, the owner and the
+// group of the original are given to the new file when that is allowed.
 func Write(ctx context.Context, path, text string, opts WriteOptions) (FileStat, error) {
 	data, err := encodeText(text, opts)
 	if err != nil {
@@ -59,11 +70,11 @@ func Write(ctx context.Context, path, text string, opts WriteOptions) (FileStat,
 	}
 	fsys := opts.fsys()
 
-	target, mode, exists, err := prepareTarget(fsys, path, opts.Overwrite)
+	target, mode, exists, orig, err := prepareTarget(fsys, path, opts)
 	if err != nil {
 		return FileStat{}, err
 	}
-	if err := writeAtomic(fsys, target, data, mode); err != nil {
+	if err := writeAtomic(fsys, target, data, mode, orig); err != nil {
 		if !isPermission(err) {
 			return FileStat{}, err
 		}
@@ -80,24 +91,30 @@ func Write(ctx context.Context, path, text string, opts WriteOptions) (FileStat,
 }
 
 // prepareTarget looks at what is at path: the file to replace (after links), the
-// permissions to give the result, and whether it exists. A read-only file fails
-// unless overwrite is set, which makes it writable.
-func prepareTarget(fsys fileSystem, path string, overwrite bool) (target string, mode os.FileMode, exists bool, err error) {
+// permissions to give the result, whether it exists, and its info (nil when it doesn't
+// exist). A read-only file fails unless opts.Overwrite is set, which makes it writable.
+func prepareTarget(fsys fileSystem, path string, opts WriteOptions) (target string, mode os.FileMode, exists bool, orig os.FileInfo, err error) {
+	overwrite := opts.Overwrite
 	info, err := fsys.Stat(path)
 	switch {
 	case err == nil:
 	case os.IsNotExist(err):
-		return path, newFileMode, false, nil
+		return path, newFileMode, false, nil, nil
 	case os.IsPermission(err):
-		return "", 0, false, errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
+		return "", 0, false, nil, errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
 	default:
-		return "", 0, false, errors.NewErr("FileWriteFailed", err).SetMetadata("path", path)
+		return "", 0, false, nil, errors.NewErr("FileWriteFailed", err).SetMetadata("path", path)
 	}
 	switch {
 	case info.IsDir():
-		return "", 0, false, errors.New("FileIsDirectory", "the path is a folder", "path", path)
+		return "", 0, false, nil, errors.New("FileIsDirectory", "the path is a folder", "path", path)
 	case !info.Mode().IsRegular():
-		return "", 0, false, errors.New("FileNotRegular", "the path is not a regular file", "path", path, "mode", info.Mode().String())
+		return "", 0, false, nil, errors.New("FileNotRegular", "the path is not a regular file", "path", path, "mode", info.Mode().String())
+	case opts.FailIfExists:
+		return "", 0, false, nil, errors.New("FileExists", "a file exists at the path", "path", path)
+	case opts.IfUnchanged != nil && (info.Size() != opts.IfUnchanged.Size || !info.ModTime().Equal(opts.IfUnchanged.ModTime)):
+		return "", 0, false, nil, errors.New("FileModifiedSince", "the file was changed by another program since it was read or saved",
+			"path", path, "size", info.Size(), "modTime", info.ModTime().String())
 	}
 	target = path
 	if resolved, err := fsys.EvalSymlinks(path); err == nil {
@@ -106,18 +123,20 @@ func prepareTarget(fsys fileSystem, path string, overwrite bool) (target string,
 	mode = info.Mode().Perm()
 	if mode&0o200 == 0 {
 		if !overwrite {
-			return "", 0, false, errors.New("FileReadOnly", "the file is read-only", "path", path)
+			return "", 0, false, nil, errors.New("FileReadOnly", "the file is read-only", "path", path)
 		}
 		mode |= 0o200
 		if err := fsys.Chmod(target, mode); err != nil {
-			return "", 0, false, errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
+			return "", 0, false, nil, errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
 		}
 	}
-	return target, mode, true, nil
+	return target, mode, true, info, nil
 }
 
-// writeAtomic writes data to a temporary file next to target and renames it over.
-func writeAtomic(fsys fileSystem, target string, data []byte, mode os.FileMode) (err error) {
+// writeAtomic writes data to a temporary file next to target and renames it over. The
+// owner and group of the original (orig, nil for a new file) are given to the new file when
+// the process may.
+func writeAtomic(fsys fileSystem, target string, data []byte, mode os.FileMode, orig os.FileInfo) (err error) {
 	dir, base := filepath.Split(target)
 	if dir == "" {
 		dir = "."
@@ -139,6 +158,7 @@ func writeAtomic(fsys fileSystem, target string, data []byte, mode os.FileMode) 
 	if err := tmp.Chmod(mode); err != nil {
 		return writeError(err, target)
 	}
+	keepOwner(tmp.Name(), orig)
 	if err := tmp.Sync(); err != nil {
 		return writeError(err, target)
 	}

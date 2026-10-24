@@ -383,10 +383,15 @@ func TestDefaultFileMenu(t *testing.T) {
 		ctx  contextkey.MapContext
 		want []string
 	}{
-		// Close Editor is there with no editor open, dimmed
-		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"Open &&Folder...", "-", "&&Close Editor~"}},
-		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor"}, []string{"Open &&Folder...", "-", "&&Close Editor"}},
-		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor"}, []string{"Open &&Folder...", "-", "&&Close Editor", "Close &&Folder"}},
+		// Save, Save As, Save All, Revert File and Close Editor are there with no editor open, dimmed
+		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "Re&&vert File~", "&&Close Editor~"}},
+		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor"}},
+		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+			"&&Save", "Save &&As...", "Save A&&ll", "-", "Re&&vert File~", "&&Close Editor"}},
+		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := titles(tc.ctx); !reflect.DeepEqual(got, tc.want) {
@@ -652,6 +657,13 @@ func TestEditorTitleContextMenu(t *testing.T) {
 			"Split Right", "Split & Move>"}},
 		{"a tab of something that is not a file", base(contextkey.MapContext{"isFileSystemResource": false}), []string{
 			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Keep Open~", "Pin", "-",
+			"Split Right", "Split & Move>"}},
+		{"a dirty tab can be saved", base(contextkey.MapContext{"activeEditorIsDirty": true}), []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Save", "Save As...", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open~", "Pin", "-",
 			"Split Right", "Split & Move>"}},
 		{"without tabs there is no Close to the Right", base(contextkey.MapContext{"editorTabsVisible": false}), []string{

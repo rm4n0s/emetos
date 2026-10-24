@@ -642,7 +642,7 @@ func TestReopenWithEncoding(t *testing.T) {
 	if !ctl.Visible() || ctl.Picker().Placeholder() != "Select Action" {
 		t.Fatalf("the action picker: visible %v", ctl.Visible())
 	}
-	if got := a.pickerLabels(); !slices.Equal(got, []string{"Reopen with Encoding"}) {
+	if got := a.pickerLabels(); !slices.Equal(got, []string{"Reopen with Encoding", "Save with Encoding"}) {
 		t.Errorf("actions %v", got)
 	}
 	a.pickRow("Reopen with Encoding")

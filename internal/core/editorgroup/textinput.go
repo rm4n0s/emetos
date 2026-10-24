@@ -27,17 +27,28 @@ type TextInput struct {
 	doc   *document.Document
 	opts  TextInputOpts
 	dirty bool
+	caps  Capabilities
 	stop  func()
-	// stopURI stops following the document's URI.
-	stopURI func()
+	// stopURI stops following the document's URI, stopSaved its saves.
+	stopURI, stopSaved func()
 }
 
 // NewTextInput makes the input of a document. It follows the document's dirty mark until Dispose.
 func NewTextInput(doc *document.Document, opts TextInputOpts) *TextInput {
 	t := &TextInput{doc: doc, opts: opts, dirty: doc.Dirty()}
+	t.caps = t.Capabilities()
 	t.stop = doc.Subscribe(func(document.ChangeEvent) { t.Refresh() })
-	// a renamed or moved file gives the tab another name, description and title
-	t.stopURI = doc.OnURIChange(func(_, _ document.URI) { t.Emit(InputLabel) })
+	// a renamed or moved file gives the tab another name, description and title; a Save As also makes an
+	// untitled document a file, which changes what the input can do
+	t.stopURI = doc.OnURIChange(func(_, _ document.URI) {
+		t.Emit(InputLabel)
+		if caps := t.Capabilities(); caps != t.caps {
+			t.caps = caps
+			t.Emit(InputCapabilities)
+		}
+	})
+	// a save changes no text, but it clears the dirty mark
+	t.stopSaved = doc.OnSaved(func(document.SavedEvent) { t.Refresh() })
 	return t
 }
 
@@ -45,8 +56,7 @@ func NewTextInput(doc *document.Document, opts TextInputOpts) *TextInput {
 func (t *TextInput) Document() *document.Document { return t.doc }
 
 // Refresh sends an event when the dirty mark of the document is not the one the input last had.
-// The input calls it after every change of the document; the code that saves a document calls it
-// too, since a save changes no text.
+// The input calls it after every change of the document and after every save, which changes no text.
 func (t *TextInput) Refresh() {
 	if d := t.doc.Dirty(); d != t.dirty {
 		t.dirty = d
@@ -152,6 +162,10 @@ func (t *TextInput) Dispose() {
 	if t.stopURI != nil {
 		t.stopURI()
 		t.stopURI = nil
+	}
+	if t.stopSaved != nil {
+		t.stopSaved()
+		t.stopSaved = nil
 	}
 	t.BaseInput.Dispose()
 }

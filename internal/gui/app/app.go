@@ -246,6 +246,8 @@ type shellState struct {
 	window interface{ SetTitle(string) }
 	// status is what the shell keeps of the status bar (statusbar.go).
 	status statusState
+	// saves is what the shell keeps of saving (save.go).
+	saves saveState
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -262,6 +264,7 @@ func (s *shellState) InitState() {
 	PeekWindow(s.Context()).StartWatching(s.Lifetime())
 	s.initQuickInput(binding)
 	s.initStatus(binding)
+	s.initSave(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
@@ -326,6 +329,7 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()
 	s.disposeExplorer()

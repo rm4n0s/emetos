@@ -66,6 +66,7 @@ func DefaultRegistry() *Registry {
 	registerNotificationKeys(r)
 	registerPanelViewKeys(r)
 	registerExplorerKeys(r)
+	registerSaveKeys(r)
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
 	return r
@@ -442,6 +443,20 @@ func registerExplorerKeys(r *Registry) {
 		Rule{Command: "workbench.action.closeFolder", Weight: WeightWorkbenchContrib, When: mustWhen("workbenchState != 'empty'"), Primary: "ctrl+k f"},
 	)
 	registerExplorerFileKeys(r)
+}
+
+// registerSaveKeys registers the keys of saving: Ctrl+S saves, Ctrl+Shift+S saves as, Ctrl+K S saves without
+// formatting and Ctrl+N makes an untitled file (Linux). Save All has no key on Linux: VS Code gives it Ctrl+K S
+// on Windows only.
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/fileCommands.ts
+func registerSaveKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.files.save", Weight: WeightWorkbenchContrib, Primary: "ctrl+s"},
+		Rule{Command: "workbench.action.files.saveWithoutFormatting", Weight: WeightWorkbenchContrib, Primary: "ctrl+k s"},
+		Rule{Command: "workbench.action.files.saveAs", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+s"},
+		Rule{Command: "workbench.action.files.newUntitledFile", Weight: WeightWorkbenchContrib, Primary: "ctrl+n"},
+	)
 }
 
 // whenFilesExplorerFocus is VS Code's FilesExplorerFocusCondition (the folder view is visible and has the

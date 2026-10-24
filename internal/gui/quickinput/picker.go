@@ -29,6 +29,7 @@ type Picker struct {
 	KeepScrollPosition bool
 
 	placeholder string
+	message     string
 	value       string
 	// prefixLen is how much of the value the filter leaves out (the prefix of the provider).
 	prefixLen int
@@ -102,6 +103,18 @@ func (p *Picker) RawFilter() string {
 func (p *Picker) SetPrefixLen(n int) {
 	p.prefixLen = max(n, 0)
 	p.applyFilter()
+}
+
+// Message is the validation message shown under the input of a prompt (Controller.Prompt), or "".
+func (p *Picker) Message() string { return p.message }
+
+// SetMessage sets the validation message under the input; "" takes it away.
+func (p *Picker) SetMessage(m string) {
+	if p.message == m {
+		return
+	}
+	p.message = m
+	p.fireChanged()
 }
 
 // SetValue changes the text of the input, filters the items and tells the listeners of the value.

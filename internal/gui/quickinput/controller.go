@@ -98,6 +98,24 @@ type PickOptions struct {
 	OnCancel func()
 }
 
+// PromptOptions describe an input box: a line of text that the user accepts with Enter or cancels with Escape (VS
+// Code's showInputBox). It is how the Save As dialog of the editor asks for a path when the desktop has no file
+// chooser.
+type PromptOptions struct {
+	// Placeholder is the hint of the input while it is empty.
+	Placeholder string
+	// Value is the text the input starts with; the caret is at its end.
+	Value string
+	// Validate, when set, checks the text on every change and when it is accepted: a message that is not empty is
+	// shown under the input (as an error) and the text is not accepted (VS Code's validateInput).
+	Validate func(value string) string
+	// OnAccept is called with the text, after the input hides and the focus is back, when the user accepted a
+	// text that is valid.
+	OnAccept func(value string)
+	// OnCancel is called when the input closes without an accepted text.
+	OnCancel func()
+}
+
 // Controller shows the quick input: one picker at a time, with the provider that the value selects
 // (SPEC §10.6). The widget (Host) follows it with OnChange. It is used on the UI thread only.
 type Controller struct {
@@ -111,6 +129,7 @@ type Controller struct {
 	fixed     bool
 	onCancel  func()
 	accepted  bool
+	prompt    *prompt
 	listeners []*func()
 	last      map[string]string
 
@@ -248,6 +267,7 @@ func (c *Controller) Show(value string, opts ShowOptions) {
 	}
 	wasVisible := c.visible
 	c.endSession(false)
+	c.endPrompt()
 	c.fixed, c.onCancel, c.accepted = false, nil, false
 	c.visible = true
 	c.picker = NewPicker()
@@ -351,6 +371,7 @@ func (c *Controller) Pick(opts PickOptions) {
 		c.context = c.invoker()
 	}
 	c.endSession(false)
+	c.endPrompt()
 	c.quickNav, c.quickMode = nil, false
 	c.visible, c.fixed, c.accepted = true, true, false
 	c.onCancel = opts.OnCancel
@@ -370,9 +391,69 @@ func (c *Controller) Pick(opts PickOptions) {
 	c.fire()
 }
 
+// prompt is the state of an input box that is shown.
+type prompt struct {
+	opts   PromptOptions
+	remove func()
+}
+
+// Prompt shows an input box (see PromptOptions) in the place of the picker.
+func (c *Controller) Prompt(opts PromptOptions) {
+	if !c.visible && c.invoker != nil {
+		c.context = c.invoker()
+	}
+	c.endSession(false)
+	c.endPrompt()
+	c.quickNav, c.quickMode = nil, false
+	c.visible, c.fixed, c.accepted = true, true, false
+	c.onCancel = opts.OnCancel
+	c.provider, c.handler, c.session = nil, nil, nil
+	c.picker = NewPicker()
+	c.picker.SetPlaceholder(opts.Placeholder)
+	c.picker.SetValue(opts.Value)
+	c.picker.SetValueSelection(len(opts.Value), len(opts.Value))
+	p := &prompt{opts: opts}
+	if opts.Validate != nil {
+		p.remove = c.picker.OnDidChangeValue(func(v string) { c.picker.SetMessage(opts.Validate(v)) })
+	}
+	c.prompt = p
+	c.fire()
+}
+
+// Prompting tells whether the quick input shows an input box.
+func (c *Controller) Prompting() bool { return c.visible && c.prompt != nil }
+
+// endPrompt forgets the input box.
+func (c *Controller) endPrompt() {
+	if c.prompt != nil && c.prompt.remove != nil {
+		c.prompt.remove()
+	}
+	c.prompt = nil
+}
+
+// acceptPrompt accepts the text of the input box when it is valid; the message of the validation shows otherwise.
+func (c *Controller) acceptPrompt() {
+	p := c.prompt
+	value := c.picker.Value()
+	if p.opts.Validate != nil {
+		if msg := p.opts.Validate(value); msg != "" {
+			c.picker.SetMessage(msg)
+			return
+		}
+	}
+	c.hide(true)
+	if accept := p.opts.OnAccept; accept != nil {
+		c.after(func() { accept(value) })
+	}
+}
+
 // Accept accepts the active row of the picker: the provider decides what happens (a list provider
 // hides the picker and runs the item). It does nothing when no row is active.
 func (c *Controller) Accept(mods KeyMods) {
+	if c.Prompting() {
+		c.acceptPrompt()
+		return
+	}
 	row, ok := c.picker.Active()
 	if !c.visible || !ok {
 		return
@@ -482,6 +563,7 @@ func (c *Controller) hide(accepted bool) {
 	c.accepted = accepted
 	c.visible = false
 	c.quickNav, c.quickMode = nil, false
+	c.endPrompt()
 	cancel := c.onCancel
 	c.onCancel = nil
 	c.endSession(accepted)

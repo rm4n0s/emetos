@@ -57,10 +57,11 @@ type Document struct {
 	readOnly     bool
 	stat         fileio.FileStat
 
-	history      history
-	listeners    []*listener
-	uriListeners []*uriListener
-	deco         decorations
+	history        history
+	listeners      []*listener
+	uriListeners   []*uriListener
+	savedListeners []*savedListener
+	deco           decorations
 }
 
 // New makes a document that holds text, which must use "\n" only. Its encoding
@@ -157,8 +158,14 @@ func (d *Document) AlternativeVersion() int { return d.altVersion }
 func (d *Document) SavedAlternativeVersion() int { return d.savedVersion }
 
 // Dirty reports whether the text differs from the one last saved or read; undoing
-// back to the saved text clears it.
-func (d *Document) Dirty() bool { return d.altVersion != d.savedVersion }
+// back to the saved text clears it. An untitled document has no saved text: it is dirty
+// while it has any text, as VS Code's.
+func (d *Document) Dirty() bool {
+	if d.uri.Scheme == SchemeUntitled {
+		return d.buf.Snapshot().Len() > 0
+	}
+	return d.altVersion != d.savedVersion
+}
 
 // MarkSaved records that the text now is the one on disk, with the FileStat the
 // write returned.

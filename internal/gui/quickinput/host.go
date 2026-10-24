@@ -291,7 +291,11 @@ func (s *hostState) syncKeys(visible bool) {
 		s.scope.Set("inQuickOpen", true)
 		s.scope.Set("inQuickInput", true)
 		s.scope.Set("inputFocus", true)
-		s.scope.Set("quickInputType", "quickPick")
+		if s.ctl.Prompting() {
+			s.scope.Set("quickInputType", "inputBox")
+		} else {
+			s.scope.Set("quickInputType", "quickPick")
+		}
 		if p := s.ctl.Provider(); p != nil {
 			if k := p.Info().ContextKey; k != "" {
 				s.scope.Set(k, true)
@@ -502,9 +506,14 @@ func (s *hostState) layout(bc widgets.BuildContext, c rendering.BoxConstraints) 
 func (s *hostState) widget(bc widgets.BuildContext, width float64) widgets.Widget {
 	colors := kit.ThemeOf(bc)
 	pk := s.picker
+	var message *kit.InputMessage
+	if m := pk.Message(); m != "" {
+		message = &kit.InputMessage{Content: m, Type: kit.ValidationError}
+	}
 	input := kit.NewInputBox(nil, nil, kit.InputBoxOpts{
 		Controller:       s.input,
 		Placeholder:      pk.Placeholder(),
+		Message:          message,
 		SelectAllOnFocus: foundation.Some(false),
 		OnChanged:        func(text string) { s.ctl.SetValue(text) },
 		OnSubmit:         func(string) { s.ctl.Accept(s.mods()) },

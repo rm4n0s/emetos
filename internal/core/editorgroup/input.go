@@ -46,7 +46,8 @@ type InputEvent struct {
 // same editor. An input is used on the UI thread only, and must be a pointer (the model also
 // compares inputs with ==).
 //
-// TODO(step 7.1): Save, SaveAs and Revert, when files are saved.
+// Saving and reverting are not part of the interface: the window saves the documents of its text inputs
+// (SPEC §6.3) and the inputs of other kinds, which have nothing to save yet, get it when they exist.
 type EditorInput interface {
 	// TypeID names the kind of the input, such as "emetos.textEditor"; it chooses the deserializer
 	// of a restored input.

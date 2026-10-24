@@ -7,6 +7,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func mustWrite(t *testing.T, path, text string, opts WriteOptions) FileStat {
@@ -328,5 +329,58 @@ func TestWriteInCurrentFolder(t *testing.T) {
 	mustWrite(t, "relative.txt", "hi", WriteOptions{})
 	if got := string(readBytes(t, filepath.Join(dir, "relative.txt"))); got != "hi" {
 		t.Errorf("content = %q", got)
+	}
+}
+
+func TestWriteIfUnchanged(t *testing.T) {
+	tests := []struct {
+		name   string
+		expect func(cur FileStat) *FileStat
+		tag    string
+	}{
+		{"same stat", func(cur FileStat) *FileStat { return &cur }, ""},
+		{"no expectation", func(FileStat) *FileStat { return nil }, ""},
+		{"another modification time", func(cur FileStat) *FileStat { cur.ModTime = cur.ModTime.Add(time.Second); return &cur }, "FileModifiedSince"},
+		{"another size", func(cur FileStat) *FileStat { cur.Size++; return &cur }, "FileModifiedSince"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "f")
+			cur := mustWrite(t, path, "first", WriteOptions{})
+			_, err := Write(context.Background(), path, "second", WriteOptions{IfUnchanged: tt.expect(cur)})
+			if tt.tag == "" {
+				if err != nil {
+					t.Fatalf("Write: %v", err)
+				}
+				if got := string(readBytes(t, path)); got != "second" {
+					t.Errorf("content = %q", got)
+				}
+				return
+			}
+			wantTag(t, err, "prepareTarget", tt.tag)
+			if got := string(readBytes(t, path)); got != "first" {
+				t.Errorf("a refused write changed the file to %q", got)
+			}
+		})
+	}
+}
+
+func TestWriteIfUnchangedLetsAMissingFileBeWritten(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "gone")
+	stat := FileStat{ModTime: time.Unix(1, 0), Size: 3}
+	mustWrite(t, path, "back", WriteOptions{IfUnchanged: &stat})
+	if got := string(readBytes(t, path)); got != "back" {
+		t.Errorf("content = %q", got)
+	}
+}
+
+func TestWriteFailIfExists(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f")
+	mustWrite(t, path, "new", WriteOptions{FailIfExists: true}) // nothing there: written
+	_, err := Write(context.Background(), path, "again", WriteOptions{FailIfExists: true})
+	wantTag(t, err, "prepareTarget", "FileExists")
+	if got := string(readBytes(t, path)); got != "new" {
+		t.Errorf("a refused write changed the file to %q", got)
 	}
 }

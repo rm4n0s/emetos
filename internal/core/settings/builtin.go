@@ -708,6 +708,35 @@ func registerFiles(r *Registry) {
 			Scope:            ScopeLanguageOverridable, Category: categoryFiles,
 		},
 		Setting{
+			Key: "files.trimTrailingWhitespace", Types: []Type{Boolean}, Default: false,
+			Description: "When enabled, will trim trailing whitespace when saving a file.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.insertFinalNewline", Types: []Type{Boolean}, Default: false,
+			Description: "When enabled, insert a final new line at the end of the file when saving it.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.trimFinalNewlines", Types: []Type{Boolean}, Default: false,
+			Description: "When enabled, will trim all new lines after the final new line at the end of the file when saving it.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.defaultLanguage", Types: []Type{String}, Default: "",
+			Description: "The default language identifier that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language identifier of the currently active text editor if any.",
+			Scope:       ScopeWindow, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.saveConflictResolution", Types: []Type{String}, Default: "askUser", Enum: []any{"askUser", "overwriteFileOnDisk"},
+			EnumDescriptions: []string{
+				"Will refuse to save and ask for resolving the save conflict manually.",
+				"Will resolve the save conflict by overwriting the file on disk with the changes in the editor.",
+			},
+			Description: "A save conflict can occur when a file is saved to disk that was changed by another program in the meantime. To prevent data loss, the user is asked to compare the changes in the editor with the version on disk. This setting should only be changed if you frequently encounter save conflict errors and may result in data loss if used without caution.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
 			Key: "files.enableTrash", Types: []Type{Boolean}, Default: true,
 			Description: "Moves files/folders to the OS trash (recycle bin on Windows) when deleting. Disabling this will delete files/folders permanently.",
 			Scope:       ScopeWindow, Category: categoryFiles,

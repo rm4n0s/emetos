@@ -751,13 +751,19 @@ var statusBarAppCommands = map[string]bool{
 	"workbench.action.editor.changeEncoding": true,
 }
 
+// saveAppCommands are the commands of saving, which the app binds since the documents are the window's (step 7.1).
+var saveAppCommands = map[string]bool{
+	"workbench.action.files.save": true, "workbench.action.files.saveWithoutFormatting": true, "workbench.action.files.saveAs": true,
+	"workbench.action.files.saveAll": true, "workbench.action.files.revert": true, "workbench.action.files.newUntitledFile": true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	// the commands that open the views of the panel are the workbench's when it has the views
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] {
 			continue
 		}
 		n++
