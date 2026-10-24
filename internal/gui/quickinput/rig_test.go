@@ -2,6 +2,7 @@ package quickinput
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,6 +43,33 @@ type rig struct {
 	goTo *fakeEditor
 	// scopes is where the host registers the scope of the input.
 	scopes *kit.FocusScopes
+	// posted is the work that goroutines handed to the UI thread (ControllerOptions.Post); the test
+	// thread runs it in drain.
+	postMu sync.Mutex
+	posted []func()
+}
+
+// post is the Post of the controller: it queues f for the test thread.
+func (r *rig) post(f func()) {
+	r.postMu.Lock()
+	r.posted = append(r.posted, f)
+	r.postMu.Unlock()
+}
+
+// drain runs the work that goroutines handed over.
+func (r *rig) drain() {
+	for {
+		r.postMu.Lock()
+		work := r.posted
+		r.posted = nil
+		r.postMu.Unlock()
+		if len(work) == 0 {
+			return
+		}
+		for _, f := range work {
+			f()
+		}
+	}
 }
 
 // newRig shows a quick input in a window of a size and a theme.
@@ -64,6 +92,7 @@ func newRig(t *testing.T, size ui.Size, colors kit.Colors) *rig {
 	}
 	r.ctl = NewController(ControllerOptions{
 		Registry: r.registry,
+		Post:     r.post,
 		Invoker:  func() contextkey.Context { return r.keys },
 		After: func(f func()) {
 			// the command runs after the frames that give the focus back
@@ -130,6 +159,7 @@ func (r *rig) settle() {
 	r.t.Helper()
 	for range 4 {
 		r.ts.Pump(20 * time.Millisecond)
+		r.drain()
 	}
 }
 

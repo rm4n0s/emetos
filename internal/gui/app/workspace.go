@@ -49,8 +49,26 @@ func (w *Window) openWorkspace(ctx context.Context, folder string) error {
 	}
 	w.folderMu.Lock()
 	w.Workspace, w.Folder = ws, ws.Path()
+	w.files = w.newFileIndex(ws.Path())
 	w.folderMu.Unlock()
 	return nil
+}
+
+// newFileIndex makes the list of the files of a folder for the quick open, with the settings of the file
+// search. The shell walks it (it is not started here), so a window that never shows has no walk to stop.
+func (w *Window) newFileIndex(folder string) *workspace.FileIndex {
+	cfg := workspace.IndexConfigFromSettings(w.Settings)
+	return workspace.NewFileIndex(folder, workspace.IndexOptions{Config: &cfg})
+}
+
+// FileIndex is the list of the files of the folder of the window that the quick open searches, or nil
+// when no folder is open. It is walked in the background once the shell is shown, kept up to date with
+// the events of the watcher and made again when the settings of the file search change. It is safe for
+// concurrent use.
+func (w *Window) FileIndex() *workspace.FileIndex {
+	w.folderMu.RLock()
+	defer w.folderMu.RUnlock()
+	return w.files
 }
 
 // currentWorkspace is the workspace of the window, for the goroutines that do not run on the UI thread.
@@ -97,9 +115,10 @@ func (w *Window) SetFolder(ctx context.Context, folder string) error {
 		}
 	}
 	w.folderMu.Lock()
-	w.Workspace, w.Folder = ws, ""
+	w.Workspace, w.Folder, w.files = ws, "", nil
 	if ws != nil {
 		w.Folder = ws.Path()
+		w.files = w.newFileIndex(ws.Path())
 	}
 	w.folderMu.Unlock()
 	w.syncWorkbenchState()
@@ -127,6 +146,11 @@ func (w *Window) SetFolder(ctx context.Context, folder string) error {
 func (w *Window) followWorkspaceSettings() {
 	w.Settings.OnChange(func(e settings.ChangeEvent) {
 		ws := w.currentWorkspace()
+		// the list of files for the quick open follows the settings of the file search (it starts a new
+		// walk in the background only when they changed)
+		if idx := w.FileIndex(); idx != nil && (e.Affects("search", "") || e.Affects("files.exclude", "")) {
+			idx.SetConfig(workspace.IndexConfigFromSettings(w.Settings))
+		}
 		tree := ws != nil && (e.Affects("explorer", "") || e.Affects("files.exclude", ""))
 		watch := ws != nil && (e.Affects("files.watcherExclude", "") || e.Affects("files.watcherInclude", ""))
 		if !tree && !watch {
@@ -361,6 +385,9 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 	}
 	if ws := w.currentWorkspace(); ws != nil {
 		ws.Apply(ctx, events)
+	}
+	if idx := w.FileIndex(); idx != nil {
+		idx.Apply(ctx, events)
 	}
 	w.eventMu.Lock()
 	listeners := slices.Clone(w.eventListeners)

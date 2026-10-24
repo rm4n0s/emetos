@@ -447,7 +447,7 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
 		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette..."}},
-		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Switch Group", "-", "Go to Line/Column...", "Go to Bracket"}},
+		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Switch Group", "-", "Go to File...", "-", "Go to Line/Column...", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -774,6 +774,16 @@ func TestQuickInputMenus(t *testing.T) {
 	}
 	if got := titles(MenubarGoMenu, contextkey.MapContext{"activeEditor": true}); !slices.Contains(got, "Go to Line/Column...") {
 		t.Errorf("Go: %v", got)
+	}
+	// Go to File... is in the group of the global navigation, before the rows of the file
+	goToFile := false
+	for _, it := range menus.All() {
+		if it.Menu == MenubarGoMenu && it.Command == "workbench.action.quickOpen" && it.Group == "3_global_nav" && it.Order == 1 && it.MnemonicTitle == "Go to &&File..." {
+			goToFile = true
+		}
+	}
+	if !goToFile {
+		t.Error("the Go menu has no Go to File row")
 	}
 	// the palette leaves out Quick Open View: its row has a When that never holds
 	hidden := false

@@ -307,14 +307,16 @@ func registerExplorerContext(r *MenuRegistry) {
 // registerQuickInputMenus adds the rows of the quick input: Command Palette and Open View in the View
 // menu, Go to Line/Column in the Go menu, Command Palette in the Manage menu, and the commands the
 // palette leaves out (the CommandPalette menu: a row whose When does not hold hides its command).
-// Go to File has no row in the Go menu until the quick open lists files (step 6.18).
+// Go to File... is in the Go menu (step 6.18).
 //
-// Ported from VS Code: src/vs/workbench/contrib/quickaccess/browser/quickAccess.contribution.ts and
+// Ported from VS Code: src/vs/workbench/contrib/quickaccess/browser/quickAccess.contribution.ts,
+// src/vs/workbench/contrib/files/browser/fileActions.contribution.ts (miGotoFile) and
 // src/vs/workbench/contrib/quickaccess/browser/viewQuickAccess.ts (f1: false)
 func registerQuickInputMenus(r *MenuRegistry) {
 	r.MustAdd(
 		MenuItem{Menu: MenubarViewMenu, Command: "workbench.action.showCommands", Title: "Command Palette...", MnemonicTitle: "&&Command Palette...", Group: "1_open", Order: 1},
 		MenuItem{Menu: MenubarViewMenu, Command: "workbench.action.openView", Title: "Open View...", MnemonicTitle: "&&Open View...", Group: "1_open", Order: 2},
+		MenuItem{Menu: MenubarGoMenu, Command: "workbench.action.quickOpen", MnemonicTitle: "Go to &&File...", Group: "3_global_nav", Order: 1},
 		MenuItem{Menu: MenubarGoMenu, Command: "workbench.action.gotoLine", MnemonicTitle: "Go to &&Line/Column...", Group: "5_infile_nav", Order: 1},
 		MenuItem{Menu: GlobalActivity, Command: "workbench.action.showCommands", Title: "Command Palette...", Group: "1_command", Order: 1},
 

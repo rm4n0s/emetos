@@ -17,6 +17,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
@@ -223,6 +224,12 @@ type shellState struct {
 	// removeQuickCommands give back the commands that open the quick input.
 	quickPrefixes       []string
 	removeQuickCommands []func()
+	// fileIndex is the list of files of the folder that the shell walks for the quick open, and
+	// stopFolderWatch stops following the folder of the window.
+	fileIndex       *workspace.FileIndex
+	stopFolderWatch func()
+	// quickWin is the window the quick input was connected to, for the disposal.
+	quickWin *Window
 	// menus turns the menu registry into the menus of the window; menuBar, manage and editorMenu open
 	// the menu bar, the Manage menu and the context menu of the editor from outside.
 	menus      *workbench.MenuSource

@@ -1,6 +1,9 @@
 package quickinput
 
-import "github.com/rm4n0s/emetos/internal/core/fuzzy"
+import (
+	"github.com/rm4n0s/emetos/internal/core/fuzzy"
+	"github.com/rm4n0s/emetos/internal/core/theme"
+)
 
 // Button is a button at the right edge of an item (VS Code's IQuickInputButton).
 type Button struct {
@@ -48,6 +51,10 @@ type Item struct {
 	Detail string
 	// Icon is the code point of a Codicon shown before the label; 0 shows none.
 	Icon int
+	// FileIcon, when set, is asked for the icon of a file icon theme (Seti) to draw before the label in place
+	// of Icon, for the type of the color theme; false draws none. It runs on the UI thread, when the row is
+	// built.
+	FileIcon func(typ theme.Type) (theme.FileIcon, bool)
 	// Separator makes the item the heading of the items after it: it cannot be chosen and its
 	// Label is drawn at the right of the next item shown, with a line above that item.
 	Separator bool

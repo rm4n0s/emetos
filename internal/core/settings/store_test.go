@@ -97,6 +97,15 @@ func TestDefaultRegistry(t *testing.T) {
 		{"explorer.openEditors.visible", []Type{Number}, 9.0, ScopeWindow, "Explorer"},
 		{"explorer.openEditors.sortOrder", []Type{String}, "editorOrder", ScopeWindow, "Explorer"},
 		{"workbench.iconTheme", []Type{String, Null}, "vs-seti", ScopeWindow, "Workbench"},
+		// the file search of the quick open (step 6.18)
+		{"search.exclude", []Type{Object}, map[string]any{"**/node_modules": true, "**/bower_components": true, "**/*.code-search": true}, ScopeResource, "Search"},
+		{"search.useIgnoreFiles", []Type{Boolean}, true, ScopeResource, "Search"},
+		{"search.useGlobalIgnoreFiles", []Type{Boolean}, false, ScopeResource, "Search"},
+		{"search.useParentIgnoreFiles", []Type{Boolean}, false, ScopeResource, "Search"},
+		{"search.followSymlinks", []Type{Boolean}, true, ScopeWindow, "Search"},
+		{"search.quickOpen.includeHistory", []Type{Boolean}, true, ScopeWindow, "Search"},
+		{"search.quickOpen.history.filterSortOrder", []Type{String}, "default", ScopeWindow, "Search"},
+		{"workbench.editor.enablePreviewFromQuickOpen", []Type{Boolean}, false, ScopeWindow, "Workbench"},
 	} {
 		s, ok := r.Lookup(w.key)
 		if !ok {

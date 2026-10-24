@@ -131,6 +131,13 @@ func (s *shellState) openPathIn(binding *widgets.WidgetsBinding, group *editorgr
 // openPath is openPathIn for a file shown as a preview editor or, with preview false, kept (a double click in
 // the explorer).
 func (s *shellState) openPath(binding *widgets.WidgetsBinding, group *editorgroup.Group, path string, preview bool) {
+	s.openPathAt(binding, path, 0, 0, openOptions{Preview: preview, Group: group})
+}
+
+// openPathAt reads a file in the background and shows it as opts say (Place is made here from a line and a
+// column, counted from 1; 0 leaves the cursor where it is). A group that is gone by the time the file is
+// read is replaced by the active group. A file that cannot be opened is reported.
+func (s *shellState) openPathAt(binding *widgets.WidgetsBinding, path string, line, column int, opts openOptions) {
 	win := PeekWindow(s.Context())
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, path, document.NewOptions())
@@ -149,10 +156,17 @@ func (s *shellState) openPath(binding *widgets.WidgetsBinding, group *editorgrou
 				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 				return
 			}
-			if group != nil && s.group.grid.Group(group.ID()) != group {
-				group = nil
+			if opts.Group != nil && s.group.grid.Group(opts.Group.ID()) != opts.Group {
+				opts.Group = nil
 			}
-			s.show(binding, doc, openOptions{Preview: preview, Group: group})
+			if line > 0 {
+				opts.Place = func(e *textEditor) {
+					model := edit.NewModel(doc.Snapshot())
+					at := model.ValidatePosition(buffer.Position{Line: line - 1, Col: max(column-1, 0)})
+					e.view.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(at)})
+				}
+			}
+			s.show(binding, doc, opts)
 		})
 	})
 }

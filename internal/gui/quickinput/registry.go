@@ -174,6 +174,10 @@ func (s *Session) Post(f func()) {
 	})
 }
 
+// After runs f once the picker is hidden and the focus is back where it was (see ControllerOptions.After); a
+// button of an item uses it to do its work after the picker closed.
+func (s *Session) After(f func()) { s.c.after(f) }
+
 // OnEnd registers a function to run when the session ends.
 func (s *Session) OnEnd(f func()) { s.cleanups = append(s.cleanups, f) }
 

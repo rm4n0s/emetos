@@ -22,6 +22,8 @@ const (
 	categoryEmmet = "Emmet"
 	// categoryOutput is the group of the settings of the Output panel.
 	categoryOutput = "Output"
+	// categorySearch is the group of the settings of the file search.
+	categorySearch = "Search"
 )
 
 // DefaultRegistry makes a registry with the settings Emetos has. Each step that reads a
@@ -36,6 +38,7 @@ func DefaultRegistry() *Registry {
 	registerEditorGroups(r)
 	registerEmmet(r)
 	registerOutput(r)
+	registerSearch(r)
 	return r
 }
 
@@ -1080,6 +1083,11 @@ func registerEditorGroups(r *Registry) {
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{
+			Key: "workbench.editor.enablePreviewFromQuickOpen", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether editors opened from Quick Open show as preview editors. Preview editors do not stay open, and are reused until explicitly set to be kept open (via double-click or editing). When enabled, hold Ctrl before selection to open an editor as a non-preview. This value is ignored when `workbench.editor.enablePreview` is off.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
 			Key: "workbench.editor.focusRecentEditorAfterClose", Types: []Type{Boolean}, Default: true,
 			Description: "Controls whether editors are closed in most recently used order or from left to right.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
@@ -1190,6 +1198,57 @@ func registerOutput(r *Registry) {
 			Key: "output.smartScroll.enabled", Types: []Type{Boolean}, Default: true,
 			Description: "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line.",
 			Scope:       ScopeWindow, Category: categoryOutput,
+		},
+	)
+}
+
+// registerSearch registers the settings of the file search of the quick open (SPEC §10.6). The settings
+// of the text search belong to the step that builds it.
+//
+// Ported from VS Code: src/vs/workbench/contrib/search/browser/search.common.contribution.ts and
+// src/vs/workbench/contrib/search/browser/search.contribution.ts
+func registerSearch(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "search.exclude", Types: []Type{Object}, Default: map[string]any{
+				"**/node_modules": true, "**/bower_components": true, "**/*.code-search": true,
+			},
+			Description: "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and file search in quick open. To exclude files from the recently opened list in quick open, patterns must be absolute (for example `**/node_modules/**`). Inherits all glob patterns from the `#files.exclude#` setting.",
+			Scope:       ScopeResource, Category: categorySearch,
+		},
+		Setting{
+			Key: "search.useIgnoreFiles", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether to use `.gitignore` and `.ignore` files when searching for files.",
+			Scope:       ScopeResource, Category: categorySearch,
+		},
+		Setting{
+			Key: "search.useGlobalIgnoreFiles", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled.",
+			Scope:       ScopeResource, Category: categorySearch,
+		},
+		Setting{
+			Key: "search.useParentIgnoreFiles", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires `#search.useIgnoreFiles#` to be enabled.",
+			Scope:       ScopeResource, Category: categorySearch,
+		},
+		Setting{
+			Key: "search.followSymlinks", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether to follow symlinks while searching.",
+			Scope:       ScopeWindow, Category: categorySearch,
+		},
+		Setting{
+			Key: "search.quickOpen.includeHistory", Types: []Type{Boolean}, Default: true,
+			Description: "Whether to include results from recently opened files in the file results for Quick Open.",
+			Scope:       ScopeWindow, Category: categorySearch,
+		},
+		Setting{
+			Key: "search.quickOpen.history.filterSortOrder", Types: []Type{String}, Default: "default", Enum: []any{"default", "recency"},
+			EnumDescriptions: []string{
+				"History entries are sorted by relevance based on the filter value used. More relevant entries appear first.",
+				"History entries are sorted by recency. More recently opened entries appear first.",
+			},
+			Description: "Controls sorting order of editor history in quick open when filtering.",
+			Scope:       ScopeWindow, Category: categorySearch,
 		},
 	)
 }

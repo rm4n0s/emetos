@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"os"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -10,12 +12,14 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 )
 
-// quickInputPlaceholder is the hint of the quick input while no mode takes the text: the file mode is
-// the default mode of VS Code and is not built yet (SPEC §10.6).
+// quickInputPlaceholder is the hint of the quick input while no mode takes the text (the file mode, which is
+// the default mode, takes every text that no prefix claims, so the hint shows only for a provider that is gone).
 const quickInputPlaceholder = "Type '?' to get help on the actions you can take from here."
 
 // initQuickInput connects the quick input of the window to the shell: it gives the controller the hooks
@@ -27,6 +31,7 @@ const quickInputPlaceholder = "Type '?' to get help on the actions you can take 
 // src/vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess.ts
 func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 	win := PeekWindow(s.Context())
+	s.quickWin = win
 	ctl := win.QuickInput
 	ctl.Configure(quickinput.ControllerOptions{
 		Post: binding.Post,
@@ -87,6 +92,7 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 				win.Process.Notify.Error("Emetos", "Command '"+title+"' resulted in an error: "+describe(err))
 			},
 		}),
+		quickinput.NewFilesProvider(s.filesOptions(binding)),
 		quickinput.NewGoToLineProvider(quickinput.GoToLinePrefix, s.goToLineEditor),
 		quickinput.NewGoToLineProvider(quickinput.GoToOffsetPrefix, s.goToLineEditor),
 		quickinput.NewViewsProvider(quickinput.ViewsOptions{
@@ -114,15 +120,98 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 		s.quickPrefixes = append(s.quickPrefixes, p.Info().Prefix)
 	}
 	s.bindQuickInputCommands()
+	// the list of files of the folder is walked in the background while the window shows
+	s.syncFileIndex()
+	s.stopFolderWatch = win.OnFolderChange(s.syncFileIndex)
+}
+
+// syncFileIndex starts the walk of the folder of the window when it has not started, and stops the walk of
+// the folder that was closed.
+func (s *shellState) syncFileIndex() {
+	win := PeekWindow(s.Context())
+	idx := win.FileIndex()
+	if idx == s.fileIndex {
+		return
+	}
+	if old := s.fileIndex; old != nil {
+		go old.Close() // stopping waits for a folder that is being read
+	}
+	s.fileIndex = idx
+	if idx != nil {
+		idx.Start(s.Lifetime())
+	}
+}
+
+// filesOptions connect the file mode of the quick input to the window.
+func (s *shellState) filesOptions(binding *widgets.WidgetsBinding) quickinput.FilesOptions {
+	win := PeekWindow(s.Context())
+	home, _ := os.UserHomeDir()
+	return quickinput.FilesOptions{
+		Search: func(ctx context.Context, filter string) (workspace.QuickOpenResult, error) {
+			return workspace.QuickOpen(ctx, win.FileIndex(), win.Recent.List(), filter, workspace.QuickOpenOptions{
+				IncludeHistory:   settings.Get[bool](win.Settings, "search.quickOpen.includeHistory", ""),
+				HistoryByRecency: settings.Get[string](win.Settings, "search.quickOpen.history.filterSortOrder", "") == "recency",
+				Home:             home,
+			})
+		},
+		OnChange: func(f func()) func() {
+			idx := win.FileIndex()
+			if idx == nil {
+				return func() {}
+			}
+			return idx.OnChange(func(workspace.IndexEvent) { f() })
+		},
+		Open: func(req quickinput.FileOpen) {
+			if !s.Mounted() {
+				return
+			}
+			opts := openOptions{Preview: !req.Pinned}
+			if req.Side {
+				opts.Group = s.sideGroup()
+			}
+			s.openPathAt(binding, req.Path, req.Line, req.Column, opts)
+		},
+		Icon: func(path, name string, typ theme.Type) (theme.FileIcon, bool) {
+			th := win.FileIcons()
+			if th == nil {
+				return theme.FileIcon{}, false
+			}
+			return th.IconFor(theme.FileIconQuery{Kind: theme.FileIconFile, Name: name, LanguageID: win.languageOf(path), Type: typ})
+		},
+		OpenPinned: func() bool {
+			return !settings.Get[bool](win.Settings, "workbench.editor.enablePreviewFromQuickOpen", "") ||
+				!settings.Get[bool](win.Settings, "workbench.editor.enablePreview", "")
+		},
+		SideDirection: func() string {
+			return settings.Get[string](win.Settings, "workbench.editor.openSideBySideDirection", "")
+		},
+		RemoveRecent: win.Recent.Remove,
+		OnError: func(err error) {
+			win.Process.Logger.Warn("the file search of the quick open failed", "err", err)
+		},
+	}
 }
 
 // disposeQuickInput takes the providers and the commands of the shell away.
 func (s *shellState) disposeQuickInput() {
-	win := PeekWindow(s.Context())
+	// the window is the one the providers were registered with: the element is not active any more
+	// while it is disposed, and Glutter does not allow looking up an ancestor then
+	win := s.quickWin
+	if win == nil {
+		return
+	}
 	for _, prefix := range s.quickPrefixes {
 		win.QuickAccess.Unregister(prefix)
 	}
 	s.quickPrefixes = nil
+	if s.stopFolderWatch != nil {
+		s.stopFolderWatch()
+		s.stopFolderWatch = nil
+	}
+	if s.fileIndex != nil {
+		s.fileIndex.Close()
+		s.fileIndex = nil
+	}
 	for _, f := range s.removeQuickCommands {
 		f()
 	}

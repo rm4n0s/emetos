@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/fuzzy"
+	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
@@ -21,6 +22,8 @@ const (
 	keyCapFontSize = 11.0
 	detailFontSize = 12.0
 	sepFontSize    = 12.0
+	// fileIconGap is the room between the icon of a file and its name.
+	fileIconGap = 6.0
 )
 
 // RowKey is the key of the widget of the row at an index, which a test finds it by.
@@ -136,7 +139,13 @@ func (s *hostState) row(bc widgets.BuildContext, colors kit.Colors, i int, r Row
 			iconCol = c
 		}
 	}
-	if it.Icon != 0 {
+	fileIcon, hasFileIcon := theme.FileIcon{}, false
+	if it.FileIcon != nil {
+		fileIcon, hasFileIcon = it.FileIcon(colors.Type)
+	}
+	if hasFileIcon {
+		cells = append(cells, kit.NewFileIcon(fileIcon, iconCol), widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(fileIconGap)}))
+	} else if it.Icon != 0 {
 		cells = append(cells, widgets.NewSizedBox(
 			widgets.NewIcon(fonts.CodiconIcon(it.Icon), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(iconCol)}),
 			widgets.SizedBoxOpts{Width: foundation.Some(16.0)}), widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(5.0)}))

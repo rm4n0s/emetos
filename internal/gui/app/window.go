@@ -89,6 +89,9 @@ type Window struct {
 	QuickInput     *quickinput.Controller
 	QuickAccess    *quickinput.Registry
 	CommandHistory *quickinput.CommandsHistory
+	// Recent are the files opened in the window, the most recent first: the quick open shows them first
+	// (SPEC §10.6). They are kept in memory until the UI state is saved (step 7.5).
+	Recent *workspace.RecentFiles
 	// FileOps does the file operations of the Explorer and keeps their history for undo and redo
 	// (SPEC §10.5). Its trash is the user's, in $XDG_DATA_HOME/Trash.
 	FileOps *workspace.FileOps
@@ -98,7 +101,10 @@ type Window struct {
 	ctx context.Context
 	// icons is the file icon theme in use.
 	icons fileIcons
-	// folderMu guards Folder and Workspace against the goroutines that read them (the watcher, the
+	// files is the list of the files of the folder for the quick open; nil without a folder. It is made when
+	// the folder opens and walked once the shell starts it (FileIndex).
+	files *workspace.FileIndex
+	// folderMu guards Folder, Workspace and files against the goroutines that read them (the watcher, the
 	// settings listeners); the UI thread, which changes them, reads the fields as they are.
 	folderMu sync.RWMutex
 	// folderListeners are told when SetFolder changed the folder.
@@ -165,6 +171,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Layout:         layout,
 		Views:          workbench.NewViews(p.Views, layout),
 		Dialogs:        kit.NewDialogController(),
+		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
 		Markers:        problems.NewService(),
 		Notifications:  notify.NewPresenter(p.Notify),

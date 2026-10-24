@@ -177,6 +177,9 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 	}
 	defer win.Documents.Release(doc)
 	preview := opts.Preview && settings.Get[bool](win.Settings, "workbench.editor.enablePreview", "") && !doc.Dirty()
+	if path, ok := filePath(doc.URI().Scheme, doc.URI().Path); ok {
+		win.Recent.Add(path) // the quick open shows the files that were opened first
+	}
 	input := editorgroup.NewTextInput(doc, s.inputOptions())
 	shown, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: !preview, Active: true})
 	if !isNew {
@@ -234,6 +237,9 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 				e.Group.Model.Pin(e.Change.Editor)
 			}
 		case editorgroup.EditorActive:
+			if path, ok := fileResource(e.Change.Editor); ok {
+				PeekWindow(s.Context()).Recent.Add(path)
+			}
 			// the editor that had the focus is replaced by the new active editor of its group: the
 			// keyboard focus goes to the new one, and not to any editor of another group
 			for _, input := range e.Group.Model.Editors(editorgroup.Sequential, false) {

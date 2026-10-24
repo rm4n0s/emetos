@@ -70,13 +70,44 @@ Machine of this run: `go1.27.3 linux/amd64`, `cpu: AMD RYZEN AI MAX+ 395 w/ Rade
 | | `view model` | 16.8 ms | 1.1 MB, 41,530 | 486 |
 | | `zqxjk` | 8.9 ms | 0, 0 | 0 |
 
-Result: **met**, 9 to 19 ms for the scoring and sorting of a keystroke (target 30 ms), 9 to 17 ms for the scoring alone; every case is also under 30 ms with the cache. The scoring is nearly allocation free after the first call (the allocations are the matches of the items that match). A `Scorer` is used by one goroutine; the search of step 6.18 runs on one goroutine per keystroke (and could split the paths over several scorers to be faster still). `TestScoring100kPathsWithinTarget` checks a bound of 600 ms (twenty times the target, so that a busy machine and the race detector, which is four times slower, do not make it flaky); it is skipped with `-short`.
+Result: **met**, 9 to 19 ms for the scoring and sorting of a keystroke (target 30 ms), 9 to 17 ms for the scoring alone; every case is also under 30 ms with the cache. The scoring is nearly allocation free after the first call (the allocations are the matches of the items that match). A `Scorer` is used by one goroutine; the search of step 6.18 splits the paths over several scorers (see "Quick open (step 6.18)"). `TestScoring100kPathsWithinTarget` checks a bound of 600 ms (twenty times the target, so that a busy machine and the race detector, which is four times slower, do not make it flaky); it is skipped with `-short`.
 
 What made it fast, and what to keep in mind:
 
 - A query that is not a subsequence of the label or of the path cannot score. VS Code fills the dynamic programming matrix first and gets 0; `fuzzy` checks the subsequence on the bytes of ASCII strings before it makes runes (`mayContain`), and on the runes before it fills the matrix (`isSubsequence`). The results are the same (`TestQuickRejectKeepsResults`); a search where most paths do not match costs about 90 ns a path.
 - The matrix, the tables and the rune slices belong to the `Scorer` and are reused. A matrix over 65,536 cells is not kept.
 - The cache (`fuzzy.Cache`) is for sorting: scoring all 100,000 items into a cache costs a map insert for each (5 ms to 14 ms for 100,000, 16 bytes for an item that does not match). The quick open scores without a cache and gives the sort a cache for the matches only (`Search100k`).
+
+## Quick open (step 6.18)
+
+Target (SPEC §14): fuzzy file search over 100,000 paths, per keystroke, under 30 ms, off the UI thread. The search is `workspace.QuickOpen` (`internal/core/workspace/search.go`, `quickopen.go`): it takes the list of the files from the `FileIndex`, scores every path with the scorer of step 6.16 on up to eight goroutines (a `fuzzy.Scorer` each, chunks of at least 8,192 paths, the context looked at every 256), keeps the paths whose score is at least the score of the 512th, sorts those with VS Code's comparison and makes the rows (the matches to highlight). The benchmarks are in `internal/core/workspace/index_bench_test.go`: `BenchmarkQuickOpen100k` is one keystroke over an index of 100,000 generated paths in memory (the generator of `core/fuzzy`'s benchmarks: seeded, 2 to 6 folders and a file name), end to end, with one goroutine (`Workers: 1`) and with all of them (`parallel`); `BenchmarkIndexWalk` lists a tree on disk (`t.TempDir()`, about 5,000 files in folders of 25, three levels deep, with a `.gitignore` that hides `*.log` and `build/` and an excluded `node_modules`: 4,401 files are listed). Run:
+
+`GOMEMLIMIT=2GiB go test ./internal/core/workspace -run '^$' -bench . -benchmem -benchtime=3x`
+
+Machine of this run: `go1.27.3 linux/amd64`, `cpu: AMD RYZEN AI MAX+ 395 w/ Radeon 8060S` (the benchmark's own line; 32 threads), no display involved. Times are per operation.
+
+| Benchmark | Query | One goroutine | All goroutines | Rows | Allocations (all goroutines) |
+|---|---|---|---|---|---|
+| `QuickOpen100k` | `edtvw` | 22.0 ms | 4.7 ms | 512 | 1.1 MB, 15,531 |
+| | `gui/exp/bo` | 18.7 ms | 2.7 ms | 56 | 191 KB, 1,138 |
+| | `view model` | 26.5 ms | 5.3 ms | 486 | 1.7 MB, 48,907 |
+| | `e` (matches most paths) | 24.1 ms | 7.6 ms | 512 | 8.2 MB, 225,293 |
+| | `zqxjk` (no match) | 9.4 ms | 1.9 ms | 0 | 2 KB, 26 |
+
+| Benchmark | Time | Files | Rate |
+|---|---|---|---|
+| `IndexWalk` (4,401 files, 200 folders, ignore files) | 4.4 ms to 5.5 ms | 4,401 | 800,000 to 1,000,000 files/s |
+
+Result: **met**. A keystroke takes 2 ms to 8 ms with the goroutines and 9 ms to 27 ms with one (target 30 ms), so the target holds even on a machine with one core, though the 27 ms of "view model" is close. The search runs on goroutines, never on the UI thread; the UI thread only takes the finished rows (`Picker.SetItems`, 512 rows at most). `TestQuickOpen100kWithinTarget` checks a bound of 600 ms (twenty times the target, so that a busy machine and the race detector do not make it flaky); it is skipped with `-short`.
+
+Listing: at this rate 100,000 files take about 0.1 s (an extrapolation, not a measurement: the benchmark does not write 100,000 files), so the first rows of a search are there at once (the search runs again while the walk goes, at most ten times a second) and the list is complete within a fraction of a second for a repository of that size on a warm file cache. A cold disk is the file system's cost, not the walk's.
+
+What made it fast, and what to keep in mind:
+
+- A score decides the order whenever two scores differ, so the sort only needs the paths whose score is at least the score of the last place (512 of up to 60,000 matches): `Search100k` of step 6.16 sorted every match with a cache for them. The matches of the paths that are kept are made once, at the end.
+- Every goroutine scores into its own slice of the matches (the place and the score), and the slices are joined in the order of the list, so the result does not depend on the number of goroutines (`TestSearchPathsIsDeterministicAndCapped`).
+- The `e` query allocates the most (225,000 allocations): every path that matches makes the slices of its matches during the scan. A scorer that only returns the score would halve it; not needed for the target.
+- The walk keeps one string for each file. The ignore rules are checked for every entry (`glob.Ignore.Check`: a few regular expressions of the files that apply); the benchmark has two patterns and one ignore file, so a tree with dozens of ignore files in the path of every file costs more.
 
 ## Pending
 

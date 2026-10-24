@@ -145,6 +145,15 @@ func (s *shellState) reportOpError(err error, retry func()) {
 // deleted close unless they have unsaved changes.
 func (s *shellState) followFileOp(binding *widgets.WidgetsBinding, res workspace.OpResult) {
 	win := PeekWindow(s.Context())
+	// the recently opened files of the quick open follow the moves and lose the files that were deleted
+	for _, p := range win.Recent.List() {
+		switch path, gone := res.Follow(p); {
+		case gone:
+			win.Recent.Remove(p)
+		case path != p:
+			win.Recent.Rename(p, path)
+		}
+	}
 	for _, doc := range win.Documents.All() {
 		uri := doc.URI()
 		if uri.Scheme != document.SchemeFile {
@@ -1119,6 +1128,18 @@ func (s *shellState) openToSide(binding *widgets.WidgetsBinding, args any) {
 	if len(paths) == 0 {
 		return
 	}
+	side := s.sideGroup()
+	if side == nil {
+		return
+	}
+	for _, p := range paths {
+		s.openPath(binding, side, p, false)
+	}
+}
+
+// sideGroup is the group on the side of the active group (the side workbench.editor.openSideBySideDirection
+// says), made when there is none; nil when it cannot be made.
+func (s *shellState) sideGroup() *editorgroup.Group {
 	dir := s.sideBySideDirection()
 	grid := s.group.grid
 	side := grid.FindByDirection(s.activeGroup(), dir, false)
@@ -1126,12 +1147,10 @@ func (s *shellState) openToSide(binding *widgets.WidgetsBinding, args any) {
 		var err error
 		if side, err = grid.AddGroup(s.activeGroup(), dir); err != nil {
 			PeekWindow(s.Context()).Process.Logger.Warn("cannot make the group for open to the side", "err", err)
-			return
+			return nil
 		}
 	}
-	for _, p := range paths {
-		s.openPath(binding, side, p, false)
-	}
+	return side
 }
 
 // revealInOS shows the folder of a file in the file manager of the desktop (an OpenURI portal or xdg-open, on a
