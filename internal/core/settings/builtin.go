@@ -861,8 +861,8 @@ func registerLayout(r *Registry) {
 // workbench.editor.tabActionLocation (left, right) and workbench.editor.tabActionCloseVisibility
 // (off); Emetos registers the three and honors all of them. Not ported yet: tab sizing, wrapping
 // tabs, the tab index, the separate row of pinned tabs and the settings of the title area that
-// step 6.10 adds; the grid's own settings are here: openSideBySideDirection, closeEmptyGroups and
-// splitSizing.
+// step 6.10 adds; the grid's own settings are here: openSideBySideDirection, closeEmptyGroups,
+// splitSizing and splitOnDragAndDrop (step 6.10). Not ported: dragToOpenWindow.
 //
 // Ported from VS Code: src/vs/workbench/browser/workbench.contribution.ts
 func registerEditorGroups(r *Registry) {
@@ -925,6 +925,11 @@ func registerEditorGroups(r *Registry) {
 		Setting{
 			Key: "workbench.editor.openSideBySideDirection", Types: []Type{String}, Default: "right", Enum: []any{"right", "down"},
 			Description: "Controls the default direction of editors that are opened side by side (for example, from the Explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one. This also impacts the split editor action in the editor toolbar.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.splitOnDragAndDrop", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{

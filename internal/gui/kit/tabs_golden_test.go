@@ -82,3 +82,29 @@ func TestGoldenTabs(t *testing.T) {
 }
 
 func namesItems(ns []string) []TabItem { return names(ns...) }
+
+// TestGoldenTabDrop looks at the line that shows where a dragged tab goes: between two tabs, and
+// after the last one.
+func TestGoldenTabDrop(t *testing.T) {
+	for _, th := range goldenThemes {
+		for _, tc := range []struct {
+			name  string
+			index int
+		}{{"between", 2}, {"after the last", 5}} {
+			t.Run(th.name+" "+tc.name, func(t *testing.T) {
+				items := goldenTabs()[:4]
+				items = append(items, TabItem{Key: "9", Name: "dragged.go", Title: "/w/dragged.go"})
+				fb := NewTabDropFeedback()
+				ts := pumpTabs(t, th.colors(), 640, items, TabsOpts{Active: 1, Feedback: fb})
+				fb.Set(tc.index)
+				ts.Pump(time.Millisecond)
+				ts.Pump(time.Millisecond)
+				name := "tabs_drop_between_"
+				if tc.index == 5 {
+					name = "tabs_drop_after_"
+				}
+				ts.MatchesGolden(name + th.name)
+			})
+		}
+	}
+}

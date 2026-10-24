@@ -1,6 +1,7 @@
 package kit
 
 import (
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -139,6 +140,23 @@ type TabsOpts struct {
 	OnPin func(index int)
 	// OnUnpin is called with the index of a sticky tab whose pin is clicked.
 	OnUnpin func(index int)
+	// OnContextMenu is called with the index of a tab that is pressed with the secondary button, and
+	// the place of the pointer in the window: the window shows the menu of the tab.
+	OnContextMenu func(index int, at ui.Offset)
+	// OnDragStart is called when the pointer, held down with the primary button on the tab at an
+	// index, has moved beyond the slop of 4 px; it says whether the tab is dragged (without it, or
+	// when it says no, the tab cannot be dragged). The tab has been activated by the press.
+	OnDragStart func(index int) bool
+	// OnDragMove is called with each move of the pointer while the tab is dragged, with its position
+	// in the window.
+	OnDragMove func(index int, at ui.Offset)
+	// OnDragEnd is called when the drag ends: dropped is true when the pointer was released, false
+	// when Escape or the system cancelled the drag. The position is where the pointer was.
+	OnDragEnd func(index int, at ui.Offset, dropped bool)
+	// Feedback shows where a dragged tab would go (a line between two tabs); nil shows none.
+	Feedback *TabDropFeedback
+	// Controller, when set, tells where the strip and its tabs are and scrolls the strip.
+	Controller *TabsController
 }
 
 // Tabs is the strip of tabs of an editor group: one tab for each editor, 35 px high, with the
@@ -147,8 +165,9 @@ type TabsOpts struct {
 // the pointer. A tab is pressed to activate it, double clicked to keep a preview tab, clicked with
 // the middle button or on its "x" to close it. The strip scrolls sideways (the wheel, a
 // scrollbar) when the tabs do not fit, and shows the active tab. With TabsSingle it shows the
-// title of the active editor alone. Not here yet: dragging tabs and the tab context menu (step
-// 6.10).
+// title of the active editor alone. A tab is dragged by the primary button (TabsOpts.OnDragStart, OnDragMove
+// and OnDragEnd; Escape cancels) and shows where a dragged tab goes (Feedback), and the secondary button
+// asks for the context menu (OnContextMenu); the window does what a drop means.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/multiEditorTabsControl.ts,
 // src/vs/workbench/browser/parts/editor/singleEditorTabsControl.ts and
@@ -189,20 +208,28 @@ func (t *Tabs) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	children := make([]widgets.Widget, len(t.items))
 	for i, it := range t.items {
+		var probe *Bounds
+		if t.opts.Controller != nil {
+			probe = t.opts.Controller.bounds(i)
+		}
 		children[i] = newTabWidget(tabSpec{
-			item: it, index: i, opts: t.opts,
+			item: it, index: i, count: len(t.items), opts: t.opts, bounds: probe,
 			active:        i == t.opts.Active,
 			lastSticky:    it.Sticky && i == stickyCount-1 && stickyCount != len(t.items),
 			stripBorder:   colors.EditorGroupHeaderTabsBorder,
 			compactLetter: compactLetter(it),
 		})
 	}
-	strip := NewScrollableElement(
+	scrollOpts := ScrollableElementOpts{
+		Axes: ScrollAxisHorizontal, HorizontalSize: foundation.Some(tabsScrollbarSize), ScrollYToX: true,
+		NoSmoothScroll: true,
+	}
+	if c := t.opts.Controller; c != nil {
+		scrollOpts.Handle = &c.scroll
+	}
+	var strip widgets.Widget = NewScrollableElement(
 		widgets.NewRow(children, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}),
-		ScrollableElementOpts{
-			Axes: ScrollAxisHorizontal, HorizontalSize: foundation.Some(tabsScrollbarSize), ScrollYToX: true,
-			NoSmoothScroll: true,
-		})
+		scrollOpts)
 	layers := []widgets.Widget{}
 	if colors.EditorGroupHeaderTabsBorder.Alpha() != 0 {
 		// along the bottom, where there are no tabs; every tab draws its own part of it
@@ -211,9 +238,13 @@ func (t *Tabs) Build(bc widgets.BuildContext) widgets.Widget {
 			widgets.PositionedOpts{Left: foundation.Some(0.0), Right: foundation.Some(0.0), Bottom: foundation.Some(0.0), Height: foundation.Some(tabBorderWidth)}))
 	}
 	layers = append(layers, widgets.NewPositionedFill(strip))
-	return widgets.NewSizedBox(
+	var box widgets.Widget = widgets.NewSizedBox(
 		widgets.NewColoredBox(colors.EditorGroupHeaderTabsBackground, widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand})),
 		widgets.SizedBoxOpts{Height: foundation.Some(TabHeight)})
+	if c := t.opts.Controller; c != nil {
+		box = NewBoundsProbe(box, &c.strip)
+	}
+	return box
 }
 
 // compactLetter is what a compact pinned tab without an icon shows: the first letter of the name.
@@ -299,9 +330,12 @@ func tabTextStyle(bc widgets.BuildContext, size float64, color ui.Color, italic 
 
 // tabSpec is everything one tab needs to draw.
 type tabSpec struct {
-	item   TabItem
-	index  int
-	opts   TabsOpts
+	item  TabItem
+	index int
+	count int
+	opts  TabsOpts
+	// bounds tells the controller where the tab is; nil without one.
+	bounds *Bounds
 	active bool
 	// lastSticky marks the last pinned tab when other tabs follow it: it has its own right border.
 	lastSticky bool
@@ -337,10 +371,27 @@ type tabState struct {
 	lastStamp time.Duration
 	lastAt    ui.Offset
 	hasLast   bool
+
+	// The drag: a press of the primary button waits for the pointer to move beyond the slop; once it
+	// has, the tab is dragged until the button is released or Escape or the system cancels it.
+	pressed   bool
+	pointer   int
+	start     ui.Offset
+	dragging  bool
+	cancelled bool
+	lastAtPos ui.Offset
+	escape    services.KeyHandlerHandle
+	hasEscape bool
+	feedback  *TabDropFeedback
+	feedbackH foundation.ListenerHandle
+	// binding is kept for Dispose, which runs when the context is gone.
+	binding *widgets.WidgetsBinding
 }
 
-// InitState reveals a tab that is active when it appears.
+// InitState reveals a tab that is active when it appears, and follows the feedback of the drop.
 func (s *tabState) InitState() {
+	s.binding = widgets.WidgetsBindingOf(s.Context())
+	s.follow()
 	if s.Widget().spec.active {
 		s.reveal()
 	}
@@ -348,8 +399,41 @@ func (s *tabState) InitState() {
 
 // DidUpdateWidget reveals a tab that has become the active one.
 func (s *tabState) DidUpdateWidget(old *tabWidget) {
+	s.follow()
 	if !old.spec.active && s.Widget().spec.active {
 		s.reveal()
+	}
+}
+
+// Dispose ends a drag that goes on and stops following the feedback.
+func (s *tabState) Dispose() {
+	if s.dragging {
+		// the tree is locked while a state is disposed: the window is told when it is not
+		spec, at := s.Widget().spec, s.lastAtPos
+		s.endDragQuietly()
+		if f := spec.opts.OnDragEnd; f != nil {
+			s.binding.Post(func() { f(spec.index, at, false) })
+		}
+	}
+	s.unfollow()
+}
+
+// follow listens to the feedback of the strip, to draw the line where a dragged tab would go.
+func (s *tabState) follow() {
+	f := s.Widget().spec.opts.Feedback
+	if f == s.feedback {
+		return
+	}
+	s.unfollow()
+	if f != nil {
+		s.feedback, s.feedbackH = f, f.AddListener(func() { s.set(func() {}) })
+	}
+}
+
+func (s *tabState) unfollow() {
+	if s.feedback != nil {
+		s.feedback.RemoveListener(s.feedbackH)
+		s.feedback = nil
 	}
 }
 
@@ -385,10 +469,15 @@ func (s *tabState) down(e *gestures.PointerDownEvent) {
 	switch {
 	case e.Buttons()&gestures.TertiaryButton != 0:
 		s.middleDown = true
+	case e.Buttons()&gestures.SecondaryButton != 0:
+		if f := spec.opts.OnContextMenu; f != nil {
+			f(spec.index, e.Position())
+		}
 	case e.Buttons()&gestures.PrimaryButton != 0:
 		if f := spec.opts.OnActivate; f != nil {
 			f(spec.index)
 		}
+		s.pressed, s.pointer, s.start, s.cancelled = true, e.Pointer(), e.Position(), false
 		at, stamp := e.Position(), e.TimeStamp()
 		second := s.hasLast && stamp-s.lastStamp <= tabDoubleClickInterval &&
 			abs64(at.Dx-s.lastAt.Dx) <= tabDoubleClickSlop && abs64(at.Dy-s.lastAt.Dy) <= tabDoubleClickSlop
@@ -399,8 +488,83 @@ func (s *tabState) down(e *gestures.PointerDownEvent) {
 	}
 }
 
-// up is the release of a button: the middle button closes the tab.
-func (s *tabState) up() {
+// move follows the pointer that is pressed on the tab: past the slop it starts a drag.
+//
+// Glutter: widgets.Draggable starts a mouse drag after 1 px (no option for the slop) and nothing cancels a
+// drag from the keyboard, so the drag of a tab is built on the pointer events of the tab's Listener, with
+// its own slop of 4 px and an Escape handler of the keyboard (docs/GLUTTER-ISSUES.md, 6.4b and 6.10).
+// Glutter should provide a drag slop and a way to cancel a drag.
+func (s *tabState) move(e *gestures.PointerMoveEvent) {
+	if !s.pressed || e.Pointer() != s.pointer || s.cancelled {
+		return
+	}
+	spec := s.Widget().spec
+	pos := e.Position()
+	s.lastAtPos = pos
+	if !s.dragging {
+		if math.Hypot(pos.Dx-s.start.Dx, pos.Dy-s.start.Dy) < dragSlop {
+			return
+		}
+		if spec.opts.OnDragStart == nil || !spec.opts.OnDragStart(spec.index) {
+			s.pressed = false
+			return
+		}
+		s.dragging = true
+		s.hasLast = false // a drag is not a click
+		s.escape = s.binding.Keyboard().AddHandler(func(k services.KeyEvent) bool {
+			if _, down := k.(*services.KeyDownEvent); down && k.LogicalKey() == services.LogicalKeyboardKeyEscape && s.dragging {
+				s.cancelled = true
+				s.endDrag(false)
+				return true
+			}
+			return false
+		})
+		s.hasEscape = true
+	}
+	if f := spec.opts.OnDragMove; f != nil {
+		f(spec.index, pos)
+	}
+}
+
+// endDragQuietly ends the drag that goes on without telling the window.
+func (s *tabState) endDragQuietly() {
+	if s.hasEscape {
+		s.binding.Keyboard().RemoveHandler(s.escape)
+		s.hasEscape = false
+	}
+	s.dragging = false
+}
+
+// endDrag ends the drag that goes on and tells the window.
+func (s *tabState) endDrag(dropped bool) {
+	s.endDragQuietly()
+	spec := s.Widget().spec
+	if f := spec.opts.OnDragEnd; f != nil {
+		f(spec.index, s.lastAtPos, dropped)
+	}
+}
+
+// cancelPress is the system taking the pointer away.
+func (s *tabState) cancelPress(e *gestures.PointerCancelEvent) {
+	if !s.pressed || e.Pointer() != s.pointer {
+		return
+	}
+	s.pressed = false
+	if s.dragging {
+		s.endDrag(false)
+	}
+}
+
+// up is the release of a button: the primary button drops a dragged tab, the middle button closes the
+// tab.
+func (s *tabState) up(e *gestures.PointerUpEvent) {
+	if s.pressed && e.Pointer() == s.pointer {
+		s.pressed = false
+		if s.dragging {
+			s.lastAtPos = e.Position()
+			s.endDrag(true)
+		}
+	}
 	if !s.middleDown {
 		return
 	}
@@ -562,17 +726,31 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 	if topColor.Alpha() != 0 {
 		layers = append(layers, line(topColor, widgets.PositionedOpts{Left: foundation.Some(0.0), Right: foundation.Some(0.0), Top: foundation.Some(0.0), Height: foundation.Some(topHeight)}))
 	}
+	// the line that shows where a dragged tab goes: before this tab, or after the last one
+	if f := o.Feedback; f != nil && colors.TabDragAndDropBorder.Alpha() != 0 {
+		switch at := f.Index(); {
+		case at == spec.index:
+			layers = append(layers, line(colors.TabDragAndDropBorder, widgets.PositionedOpts{Left: foundation.Some(0.0), Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Width: foundation.Some(tabDropBorder)}))
+		case at == spec.count && spec.index == spec.count-1:
+			layers = append(layers, line(colors.TabDragAndDropBorder, widgets.PositionedOpts{Right: foundation.Some(0.0), Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Width: foundation.Some(tabDropBorder)}))
+		}
+	}
 	var tab widgets.Widget = widgets.NewContainer(
 		widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitPassthrough}),
 		widgets.ContainerOpts{Color: foundation.Some(background)})
 	if it.Title != "" {
 		tab = NewHover(tab, HoverOpts{Text: it.Title, Compact: true})
 	}
+	if spec.bounds != nil {
+		tab = NewBoundsProbe(tab, spec.bounds)
+	}
 	return widgets.NewMouseRegion(
 		widgets.NewListener(tab, widgets.ListenerOpts{
-			Behavior:      rendering.HitTestBehaviorOpaque,
-			OnPointerDown: s.down,
-			OnPointerUp:   func(*gestures.PointerUpEvent) { s.up() },
+			Behavior:        rendering.HitTestBehaviorOpaque,
+			OnPointerDown:   s.down,
+			OnPointerMove:   s.move,
+			OnPointerUp:     s.up,
+			OnPointerCancel: s.cancelPress,
 		}),
 		widgets.MouseRegionOpts{
 			Cursor:  services.SystemMouseCursors.Basic,

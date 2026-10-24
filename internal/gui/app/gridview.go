@@ -7,6 +7,7 @@ import (
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -32,6 +33,12 @@ type groupView struct {
 	key widgets.GlobalObjectKey[widgets.State]
 	// empty is the focus node of the empty area of the group.
 	empty *widgets.FocusNode
+	// tabs tells where the tab strip and its tabs are, and feedback shows where a dragged tab would go
+	// in it; area is where the group is, and tabMenu shows the context menu of a tab (step 6.10).
+	tabs     *kit.TabsController
+	feedback *kit.TabDropFeedback
+	area     kit.Bounds
+	tabMenu  *kit.ContextMenuController
 }
 
 // view is the groupView of a group.
@@ -41,6 +48,7 @@ func (s *shellState) view(group *editorgroup.Group) *groupView {
 		v = &groupView{
 			key:   widgets.NewGlobalObjectKey[widgets.State](group),
 			empty: widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: fmt.Sprintf("Empty editor group %d", group.ID())}),
+			tabs:  kit.NewTabsController(), feedback: kit.NewTabDropFeedback(), tabMenu: kit.NewContextMenuController(),
 		}
 		s.group.views[group] = v
 	}
@@ -145,7 +153,7 @@ func (s *shellState) groupWidget(bc widgets.BuildContext, group *editorgroup.Gro
 	pressed := widgets.NewListener(content, widgets.ListenerOpts{
 		OnPointerDown: func(*gestures.PointerDownEvent) { s.groupFocused(group) },
 	})
-	return widgets.NewKeyedSubtree(pressed, widgets.WidgetOpts{Key: v.key})
+	return widgets.NewKeyedSubtree(kit.NewBoundsProbe(pressed, &v.area), widgets.WidgetOpts{Key: v.key})
 }
 
 // editorColumn is the tab strip over the breadcrumbs over the editor of a group.
@@ -164,7 +172,9 @@ func (s *shellState) editorColumn(bc widgets.BuildContext, win *Window, group *e
 		widgets.WidgetOpts{Key: widgets.NewGlobalObjectKey[widgets.State](ed)})
 	column := []widgets.Widget{}
 	if settings.Get[string](win.Settings, "workbench.editor.showTabs", "") != "none" {
-		column = append(column, kit.NewTabs(s.tabItems(group), s.tabsOptions(win, group)))
+		// a right click on a tab opens its context menu
+		column = append(column, kit.NewContextMenu(kit.NewTabs(s.tabItems(group), s.tabsOptions(win, group)),
+			kit.ContextMenuOpts{Controller: s.view(group).tabMenu, OnRun: s.menus.Run, OnHide: s.askFocusSoon}))
 	}
 	if uri := ed.doc.URI(); uri.Scheme == document.SchemeFile {
 		// the path of the file above the text
@@ -250,6 +260,12 @@ func (s *shellState) tabsOptions(win *Window, group *editorgroup.Group) kit.Tabs
 		OnClose:           func(i int) { s.closeAt(group, i) },
 		OnPin:             func(i int) { m.Pin(m.EditorAt(i)) },
 		OnUnpin:           func(i int) { m.Unstick(m.EditorAt(i)) },
+		OnContextMenu:     func(i int, at ui.Offset) { s.openTabMenu(group, i, at) },
+		OnDragStart:       func(i int) bool { return s.dragStart(group, i) },
+		OnDragMove:        func(_ int, at ui.Offset) { s.dragMove(at) },
+		OnDragEnd:         func(_ int, at ui.Offset, dropped bool) { s.dragEnd(at, dropped) },
+		Feedback:          s.view(group).feedback,
+		Controller:        s.view(group).tabs,
 	}
 	// the close button: the old setting tabCloseButton is honored with the two that replace it
 	button := settings.Get[string](win.Settings, "workbench.editor.tabCloseButton", "")

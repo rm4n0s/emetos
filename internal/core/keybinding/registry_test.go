@@ -188,6 +188,7 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+k up", "workbench.action.moveActiveEditorGroupUp"},
 		{"ctrl+k down", "workbench.action.moveActiveEditorGroupDown"},
 		{"ctrl+k ctrl+shift+w", "workbench.action.closeAllGroups"},
+		{"ctrl+k p", "workbench.action.files.copyPathOfActiveFile"},
 	} {
 		kb := mustKB(t, tc.chords)
 		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())

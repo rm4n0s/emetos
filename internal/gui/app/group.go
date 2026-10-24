@@ -35,6 +35,10 @@ type groupState struct {
 	// focusAsked is whether a request to give the active group the keyboard focus waits for the next
 	// frame.
 	focusAsked bool
+	// drag is the drag of a tab that goes on, or nil; dragFeed tells the layer that shows it to build
+	// again (tabdrag.go).
+	drag     *tabDrag
+	dragFeed *dragFeed
 }
 
 // openOptions say how a document is shown in a group.
@@ -83,6 +87,7 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	g.editors = map[editorgroup.EditorInput]*textEditor{}
 	g.views = map[*editorgroup.Group]*groupView{}
 	g.focused = map[*textEditor]bool{}
+	g.dragFeed = newDragFeed()
 	g.stop = g.grid.OnChange(func(e editorgroup.GridEvent) { s.gridChanged(binding, e) })
 	g.stopSettings = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("workbench.editor", "") || e.Affects("breadcrumbs", "") {
@@ -91,6 +96,7 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 					return
 				}
 				s.group.grid.SetOptions(s.gridOptions())
+				s.refreshKeys()
 				s.SetState(func() {})
 			})
 		}
@@ -227,7 +233,16 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 			if e.Change.Editor.Dirty() && !e.Group.Model.IsPinned(e.Change.Editor) {
 				e.Group.Model.Pin(e.Change.Editor)
 			}
-		case editorgroup.EditorActive, editorgroup.EditorPin, editorgroup.EditorSticky, editorgroup.EditorMove,
+		case editorgroup.EditorActive:
+			// the editor that had the focus is replaced by the new active editor of its group: the
+			// keyboard focus goes to the new one, and not to any editor of another group
+			for _, input := range e.Group.Model.Editors(editorgroup.Sequential, false) {
+				if ed := s.group.editors[input]; ed != nil && input != e.Change.Editor && s.group.focused[ed] {
+					s.askFocus(binding)
+					break
+				}
+			}
+		case editorgroup.EditorPin, editorgroup.EditorSticky, editorgroup.EditorMove,
 			editorgroup.EditorLabel, editorgroup.EditorCapabilities, editorgroup.EditorWillDispose:
 		}
 	case editorgroup.GroupRemoved:
@@ -287,8 +302,9 @@ func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 
 // refreshKeys sets the context keys of the groups in the window: activeEditor (the type of the
 // active editor), activeEditorIsPinned (it is sticky: the pinned tab with the pin),
-// activeEditorIsNotPreview, activeEditorGroupEmpty, multipleEditorGroups and the two keys of the
-// editor part that tell there are several groups and that one is maximized.
+// activeEditorIsNotPreview, activeEditorGroupEmpty, multipleEditorGroups, the two keys of the
+// editor part that tell there are several groups and that one is maximized, and
+// splitEditorsVertically (the side-by-side direction is down).
 func (s *shellState) refreshKeys() {
 	win := PeekWindow(s.Context())
 	grid := s.group.grid
@@ -299,6 +315,7 @@ func (s *shellState) refreshKeys() {
 		win.Keys.Set("multipleEditorGroups", grid.Count() > 1)
 		win.Keys.Set("editorPartMultipleEditorGroups", grid.Count() > 1)
 		win.Keys.Set("editorPartMaximizedEditorGroup", grid.Maximized() != nil)
+		win.Keys.Set("splitEditorsVertically", s.sideBySideDirection() == editorgroup.DirDown)
 		win.Keys.Set("activeEditorGroupEmpty", active == nil)
 		if active == nil {
 			win.Keys.Reset("activeEditor")
@@ -319,6 +336,7 @@ func (s *shellState) disposeGroup() {
 	if g.grid == nil {
 		return
 	}
+	s.stopDrag()
 	if g.stop != nil {
 		g.stop()
 	}
@@ -338,7 +356,7 @@ func (s *shellState) disposeGroup() {
 	g.editors = nil
 	g.grid.Dispose()
 	for _, key := range []string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
-		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup"} {
+		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically"} {
 		win.Keys.Reset(key)
 	}
 }
@@ -448,11 +466,18 @@ func (s *shellState) tryFocus(binding *widgets.WidgetsBinding, attempt int) {
 }
 
 // focusGroup gives the keyboard focus to a group: its active editor, or its empty area. It tells whether
-// the group has it, or has been asked for it: false when its widgets are not on screen yet. The focus
-// stays where it is when the editor, or its find widget, has it.
+// the group has it, or has been asked for it: false when its widgets are not on screen yet, or when the
+// editor was asked for the focus and does not have it yet (the focus moves when the frame is done, so
+// the request is tried again after it: a request that is taken for done too soon lets the focus fall
+// to an editor of another group when the editor that had it goes). The focus stays where it is when
+// the editor, or its find widget, has it.
 func (s *shellState) focusGroup(group *editorgroup.Group) bool {
 	if e := s.group.editors[group.Model.ActiveEditor()]; e != nil {
-		return s.group.focused[e] || e.focus.Request()
+		if s.group.focused[e] || e.focus.HasFocus() {
+			return true
+		}
+		e.focus.Request()
+		return false
 	}
 	if v := s.group.views[group]; v != nil && v.empty != nil && v.empty.Context() != nil {
 		v.empty.RequestFocus()

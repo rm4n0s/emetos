@@ -91,6 +91,11 @@ func registerEditorGroupCommands(r *Registry) {
 		Meta{ID: "workbench.action.previousEditor", Title: "Open Previous Editor", Category: "View"},
 		Meta{ID: "workbench.action.openNextRecentlyUsedEditorInGroup", Title: "Open Next Recently Used Editor In Group", Category: "View"},
 		Meta{ID: "workbench.action.openPreviousRecentlyUsedEditorInGroup", Title: "Open Previous Recently Used Editor In Group", Category: "View"},
+
+		// the paths of the file of an editor: the menu of a tab, the palette and the keys
+		Meta{ID: "copyFilePath", Title: "Copy Path of Active File", Category: "File"},
+		Meta{ID: "copyRelativeFilePath", Title: "Copy Relative Path of Active File", Category: "File"},
+		Meta{ID: "workbench.action.files.copyPathOfActiveFile"},
 	)
 }
 

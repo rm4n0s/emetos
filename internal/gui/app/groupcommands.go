@@ -19,8 +19,10 @@ import (
 func (s *shellState) bindGroupCommands() {
 	reg := PeekWindow(s.Context()).Process.Commands
 	handlers := s.editorCommands()
-	for id, h := range s.gridCommands() {
-		handlers[id] = h
+	for _, more := range []map[string]command.Handler{s.gridCommands(), s.pathCommands()} {
+		for id, h := range more {
+			handlers[id] = h
+		}
 	}
 	removes, err := setGroupHandlers(reg, handlers)
 	if err != nil {
@@ -30,7 +32,10 @@ func (s *shellState) bindGroupCommands() {
 	s.group.removeCommands = append(s.group.removeCommands, removes...)
 }
 
-// editorCommands are the commands of the editors of the active group: close, keep, pin and switch.
+// editorCommands are the commands of the editors of a group: close, keep, pin and switch. The commands
+// that act on an editor take it from their argument when it names one ({"groupId", "editorIndex"}, the
+// context that the menu of a tab passes, as in VS Code), else they act on the active editor of the
+// active group.
 func (s *shellState) editorCommands() map[string]command.Handler {
 	group := s.activeGroup
 	model := func() *editorgroup.Model { return group().Model }
@@ -76,17 +81,29 @@ func (s *shellState) editorCommands() map[string]command.Handler {
 		}
 		s.closeEditors(g, closing)
 	}
-	return map[string]command.Handler{
-		"workbench.action.closeActiveEditor": func(command.Context, any) error {
-			if e := model().ActiveEditor(); e != nil {
-				s.closeEditors(group(), []editorgroup.EditorInput{e})
+	// onEditor runs f for the group and the editor of the argument
+	onEditor := func(f func(g *editorgroup.Group, e editorgroup.EditorInput)) command.Handler {
+		return func(_ command.Context, args any) error {
+			if g, e := s.commandTarget(args); g != nil && e != nil {
+				f(g, e)
 			}
 			return nil
-		},
-		"workbench.action.closeEditorsInGroup": func(command.Context, any) error {
-			closeInGroup(group(), nil)
+		}
+	}
+	// onGroup runs f for the group of the argument
+	onGroup := func(f func(g *editorgroup.Group)) command.Handler {
+		return func(_ command.Context, args any) error {
+			if g, _ := s.commandTarget(args); g != nil {
+				f(g)
+			}
 			return nil
-		},
+		}
+	}
+	return map[string]command.Handler{
+		"workbench.action.closeActiveEditor": onEditor(func(g *editorgroup.Group, e editorgroup.EditorInput) {
+			s.closeEditors(g, []editorgroup.EditorInput{e})
+		}),
+		"workbench.action.closeEditorsInGroup": onGroup(func(g *editorgroup.Group) { closeInGroup(g, nil) }),
 		// all the editors of all the groups
 		"workbench.action.closeAllEditors": func(command.Context, any) error {
 			for _, g := range s.group.grid.Groups(editorgroup.MostRecentlyActiveGroups) {
@@ -96,48 +113,27 @@ func (s *shellState) editorCommands() map[string]command.Handler {
 			}
 			return nil
 		},
-		"workbench.action.closeUnmodifiedEditors": func(command.Context, any) error {
-			closeInGroup(group(), func(e editorgroup.EditorInput) bool { return !e.Dirty() })
-			return nil
-		},
-		"workbench.action.closeOtherEditors": func(command.Context, any) error {
-			keep := model().ActiveEditor()
-			if keep == nil {
-				return nil
+		"workbench.action.closeUnmodifiedEditors": onGroup(func(g *editorgroup.Group) {
+			closeInGroup(g, func(e editorgroup.EditorInput) bool { return !e.Dirty() })
+		}),
+		// the editor stays, kept (a preview that others replaced would be lost)
+		"workbench.action.closeOtherEditors": onEditor(func(g *editorgroup.Group, keep editorgroup.EditorInput) {
+			g.Model.Pin(keep)
+			closeInGroup(g, func(e editorgroup.EditorInput) bool { return e != keep })
+		}),
+		// the active editor is kept, while the editors on the right of the one named are closed
+		"workbench.action.closeEditorsToTheRight": onEditor(func(g *editorgroup.Group, from editorgroup.EditorInput) {
+			m := g.Model
+			if active := m.ActiveEditor(); active != nil {
+				m.Pin(active)
 			}
-			model().Pin(keep)
-			closeInGroup(group(), func(e editorgroup.EditorInput) bool { return e != keep })
-			return nil
-		},
-		"workbench.action.closeEditorsToTheRight": func(command.Context, any) error {
-			m := model()
-			keep := m.ActiveEditor()
-			if keep == nil {
-				return nil
-			}
-			m.Pin(keep)
 			editors := m.Editors(editorgroup.Sequential, false)
-			s.closeEditors(group(), notSticky(m, editors[m.IndexOf(keep)+1:]))
-			return nil
-		},
-		"workbench.action.keepEditor": func(command.Context, any) error {
-			if e := model().ActiveEditor(); e != nil {
-				model().Pin(e)
-			}
-			return nil
-		},
-		"workbench.action.pinEditor": func(command.Context, any) error {
-			if e := model().ActiveEditor(); e != nil {
-				model().Stick(e)
-			}
-			return nil
-		},
-		"workbench.action.unpinEditor": func(command.Context, any) error {
-			if e := model().ActiveEditor(); e != nil {
-				model().Unstick(e)
-			}
-			return nil
-		},
+			s.closeEditors(g, notSticky(m, editors[m.IndexOf(from)+1:]))
+		}),
+		"workbench.action.keepEditor":  onEditor(func(g *editorgroup.Group, e editorgroup.EditorInput) { g.Model.Pin(e) }),
+		"workbench.action.pinEditor":   onEditor(func(g *editorgroup.Group, e editorgroup.EditorInput) { g.Model.Stick(e) }),
+		"workbench.action.unpinEditor": onEditor(func(g *editorgroup.Group, e editorgroup.EditorInput) { g.Model.Unstick(e) }),
+
 		"workbench.action.nextEditor":     func(command.Context, any) error { move(1); return nil },
 		"workbench.action.previousEditor": func(command.Context, any) error { move(-1); return nil },
 		"workbench.action.openNextRecentlyUsedEditorInGroup": func(command.Context, any) error {
@@ -149,6 +145,41 @@ func (s *shellState) editorCommands() map[string]command.Handler {
 			return nil
 		},
 	}
+}
+
+// commandTarget is the group and the editor a command of the editors acts on: those that the argument
+// names ({"groupId": n, "editorIndex": n}; the menu of a tab passes it), or the active editor of the
+// active group (nil editor in an empty group). It gives nil, nil for an argument that names a group
+// or an editor that is not there any more, so that the command does nothing.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommandsContext.ts
+// (resolveCommandsContext)
+func (s *shellState) commandTarget(args any) (*editorgroup.Group, editorgroup.EditorInput) {
+	if m, ok := args.(map[string]any); ok {
+		if id, ok := m["groupId"].(float64); ok {
+			g := s.group.grid.Group(int(id))
+			if g == nil {
+				return nil, nil
+			}
+			index, ok := m["editorIndex"].(float64)
+			if !ok {
+				return g, g.Model.ActiveEditor()
+			}
+			e := g.Model.EditorAt(int(index))
+			if e == nil {
+				return nil, nil
+			}
+			return g, e
+		}
+	}
+	g := s.activeGroup()
+	return g, g.Model.ActiveEditor()
+}
+
+// tabContext is the argument that makes a command act on the tab of an editor of a group: the
+// context that VS Code's menu of a tab passes.
+func tabContext(group *editorgroup.Group, index int) map[string]any {
+	return map[string]any{"groupId": float64(group.ID()), "editorIndex": float64(index)}
 }
 
 // gridCommands are the commands of the grid of groups: split, focus, move and copy editors, move, join,
@@ -173,10 +204,15 @@ func (s *shellState) gridCommands() map[string]command.Handler {
 
 	// splits
 	split := func(dir func() editorgroup.Direction) command.Handler {
-		return run(func() error {
-			_, err := grid().SplitGroup(s.activeGroup(), dir())
+		return func(_ command.Context, args any) error {
+			g, e := s.commandTarget(args)
+			if g == nil {
+				return nil
+			}
+			_, err := grid().SplitEditor(g, e, dir())
+			s.askFocusSoon()
 			return err
-		})
+		}
 	}
 	fixed := func(d editorgroup.Direction) func() editorgroup.Direction {
 		return func() editorgroup.Direction { return d }
@@ -253,10 +289,9 @@ func (s *shellState) gridCommands() map[string]command.Handler {
 	}
 
 	// move or copy the active editor to a group
-	moveCopy := func(move bool, to editorgroup.Target, value int) error {
-		src := s.activeGroup()
-		editor := src.Model.ActiveEditor()
-		if editor == nil {
+	moveCopy := func(move bool, to editorgroup.Target, value int, args any) error {
+		src, editor := s.commandTarget(args)
+		if src == nil || editor == nil {
 			return nil
 		}
 		target, err := grid().MoveOrCopyTarget(src, to, value, s.sideBySideDirection())
@@ -279,8 +314,16 @@ func (s *shellState) gridCommands() map[string]command.Handler {
 		"Below": editorgroup.TargetDown, "Left": editorgroup.TargetLeft, "Right": editorgroup.TargetRight,
 		"First": editorgroup.TargetFirst, "Last": editorgroup.TargetLast,
 	} {
-		handlers["workbench.action.moveEditorTo"+suffix+"Group"] = run(func() error { return moveCopy(true, to, 0) })
-		handlers["workbench.action.splitEditorTo"+suffix+"Group"] = run(func() error { return moveCopy(false, to, 0) })
+		handlers["workbench.action.moveEditorTo"+suffix+"Group"] = func(_ command.Context, args any) error {
+			err := moveCopy(true, to, 0, args)
+			s.askFocusSoon()
+			return err
+		}
+		handlers["workbench.action.splitEditorTo"+suffix+"Group"] = func(_ command.Context, args any) error {
+			err := moveCopy(false, to, 0, args)
+			s.askFocusSoon()
+			return err
+		}
 	}
 	handlers["moveActiveEditor"] = func(_ command.Context, args any) error { return s.moveCopyActive(true, args) }
 	handlers["copyActiveEditor"] = func(_ command.Context, args any) error { return s.moveCopyActive(false, args) }

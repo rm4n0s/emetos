@@ -200,6 +200,10 @@ type Colors struct {
 	TabActiveBorderTop, TabUnfocusedActiveBorderTop                                                          ui.Color
 	TabActiveModifiedBorder, TabInactiveModifiedBorder                                                       ui.Color
 	TabUnfocusedActiveModifiedBorder, TabUnfocusedInactiveModifiedBorder                                     ui.Color
+	// The colors of dragging a tab: the line between two tabs where the tab would go
+	// (TabDragAndDropBorder) and the background of the part of an editor area it would go to
+	// (EditorGroupDropBackground).
+	TabDragAndDropBorder, EditorGroupDropBackground ui.Color
 	// The colors of the header of an editor group: the strip behind the tabs and the line under it, the
 	// header that shows one title (workbench.editor.showTabs "single") and the line under it.
 	EditorGroupHeaderTabsBackground, EditorGroupHeaderTabsBorder ui.Color
@@ -364,6 +368,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorGroupHeaderNoTabsBackground: color("editorGroupHeader.noTabsBackground"), EditorGroupHeaderBorder: color("editorGroupHeader.border"),
 		EditorGroupBorder: color("editorGroup.border"), EditorGroupEmptyBackground: color("editorGroup.emptyBackground"),
 		EditorGroupFocusedEmptyBorder: color("editorGroup.focusedEmptyBorder"),
+		TabDragAndDropBorder:          color("tab.dragAndDropBorder"), EditorGroupDropBackground: color("editorGroup.dropBackground"),
 	}
 }
 

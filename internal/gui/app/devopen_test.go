@@ -26,6 +26,8 @@ func TestParseOpenFile(t *testing.T) {
 		{"a path", "a.go", openFileArguments{Path: "a.go"}},
 		{"an object", map[string]any{"path": "a.go", "line": 3.0, "column": 5.0}, openFileArguments{Path: "a.go", Line: 3, Column: 5}},
 		{"a path only", map[string]any{"path": "a.go"}, openFileArguments{Path: "a.go"}},
+		{"a preview", map[string]any{"path": "a.go", "preview": true}, openFileArguments{Path: "a.go", Preview: true}},
+		{"not a preview", map[string]any{"path": "a.go", "preview": false}, openFileArguments{Path: "a.go"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseOpenFile(tc.args)
@@ -54,6 +56,19 @@ func TestParseOpenFile(t *testing.T) {
 				t.Errorf("unexpected failure path: %s", appErr.Route())
 			}
 		})
+	}
+}
+
+func TestParseOpenFilePreviewMustBeABoolean(t *testing.T) {
+	for _, preview := range []any{"yes", 1.0, nil} {
+		_, err := parseOpenFile(map[string]any{"path": "a.go", "preview": preview})
+		appErr, ok := errors.FromError(err)
+		if !ok {
+			t.Fatalf("preview %v: expected *errors.Error, got %T (%v)", preview, err, err)
+		}
+		if !appErr.HasRoute("parseOpenFile.DevOpenFilePreviewInvalid") {
+			t.Errorf("preview %v: unexpected failure path: %s", preview, appErr.Route())
+		}
 	}
 }
 

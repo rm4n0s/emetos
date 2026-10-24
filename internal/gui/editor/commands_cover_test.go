@@ -8,9 +8,12 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 )
 
-// appCommands are the commands of the grid of editor groups that have no "workbench." id: gui/app binds
-// them, and its tests check that it does.
-var appCommands = map[string]bool{"moveActiveEditor": true, "copyActiveEditor": true, "layoutEditorGroups": true}
+// appCommands are the commands of the grid of editor groups and of the paths of files that have no
+// "workbench." id: gui/app binds them, and its tests check that it does.
+var appCommands = map[string]bool{
+	"moveActiveEditor": true, "copyActiveEditor": true, "layoutEditorGroups": true,
+	"copyFilePath": true, "copyRelativeFilePath": true,
+}
 
 func TestEveryEditorCommandHasAHandler(t *testing.T) {
 	reg := command.DefaultRegistry()

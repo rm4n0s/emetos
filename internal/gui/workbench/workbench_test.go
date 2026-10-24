@@ -656,6 +656,8 @@ var groupCommands = map[string]bool{
 	"workbench.action.nextEditor": true, "workbench.action.previousEditor": true,
 	"workbench.action.openNextRecentlyUsedEditorInGroup":     true,
 	"workbench.action.openPreviousRecentlyUsedEditorInGroup": true,
+	// the path of the file of the active editor (step 6.10; copyFilePath and copyRelativeFilePath are the app's too)
+	"workbench.action.files.copyPathOfActiveFile": true,
 }
 
 // gridCommand tells whether a command is one of the grid of editor groups, which the app binds too (step

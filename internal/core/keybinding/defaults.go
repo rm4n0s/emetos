@@ -101,6 +101,14 @@ func registerEditorGroupKeys(r *Registry) {
 		Rule{Command: "workbench.action.previousEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+pageup"},
 		Rule{Command: "workbench.action.openNextRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+tab"},
 		Rule{Command: "workbench.action.openPreviousRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+tab"},
+
+		// the paths of the file: Ctrl+Alt+C outside the editor, the chord with Ctrl+K in it (VS Code's
+		// Linux keys; Ctrl+K P copies the path of the active file anywhere)
+		Rule{Command: "copyFilePath", Weight: WeightWorkbenchContrib, When: mustWhen("!" + whenEditorFocus), Primary: "ctrl+alt+c"},
+		Rule{Command: "copyFilePath", Weight: WeightWorkbenchContrib, When: mustWhen(whenEditorFocus), Primary: "ctrl+k ctrl+alt+c"},
+		Rule{Command: "copyRelativeFilePath", Weight: WeightWorkbenchContrib, When: mustWhen("!" + whenEditorFocus), Primary: "ctrl+shift+alt+c"},
+		Rule{Command: "copyRelativeFilePath", Weight: WeightWorkbenchContrib, When: mustWhen(whenEditorFocus), Primary: "ctrl+k ctrl+shift+alt+c"},
+		Rule{Command: "workbench.action.files.copyPathOfActiveFile", Weight: WeightWorkbenchContrib, Primary: "ctrl+k p"},
 	)
 }
 

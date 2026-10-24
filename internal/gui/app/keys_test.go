@@ -341,6 +341,17 @@ func pinnedState(a *keyApp) func() {
 	}
 }
 
+// unfocusedState is the state of a window in which no editor has the focus, for the keys that are not
+// for the editor (the paths of a file: Ctrl+Alt+C).
+func unfocusedState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		if focus := a.ts.Binding.FocusManager().PrimaryFocus(); focus != nil {
+			focus.Unfocus()
+		}
+	}
+}
+
 // groupsState is the state of a window with several groups, the active one empty, for the keys that act
 // on groups.
 func groupsState(a *keyApp) func() {
@@ -364,7 +375,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 		tried++
 		t.Run(item.Command+" "+item.Keybinding.UserSettingsLabel(), func(t *testing.T) {
 			var reached []string
-			for _, state := range append(a.states(), pinnedState(a), groupsState(a)) {
+			for _, state := range append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a)) {
 				a.win.Keys.Set("activeEditorIsPinned", false)
 				a.win.Keys.Set("activeEditorGroupEmpty", false)
 				a.win.Keys.Set("multipleEditorGroups", false)

@@ -21,6 +21,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerGoMenu(r)
 	registerEditorGroupMenus(r)
 	registerEditorContext(r)
+	registerEditorTitleContext(r)
 	return r
 }
 
@@ -208,5 +209,50 @@ func registerEditorGroupMenus(r *MenuRegistry) {
 		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusRightGroup", Title: "Group Right", MnemonicTitle: "Group &&Right", Group: "3_directional", Order: 2, Precondition: multiple},
 		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusAboveGroup", Title: "Group Above", MnemonicTitle: "Group &&Above", Group: "3_directional", Order: 3, Precondition: multiple},
 		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusBelowGroup", Title: "Group Below", MnemonicTitle: "Group &&Below", Group: "3_directional", Order: 4, Precondition: multiple},
+	)
+}
+
+// registerEditorTitleContext adds the context menu of a tab and its Split & Move submenu. The
+// when-clauses and preconditions read the keys of the editor that was clicked (`activeEditorIsPinned`
+// and the rest of the keys of the active editor, set to those of the tab for the menu).
+//
+// Not here yet: Save and Save As (step 7.1), Reveal in Explorer View and Reveal in File Manager (steps
+// 6.14 and 7.x), Reopen Editor With, Share, the moves into a new window and Split in Group.
+//
+// TODO(step 6.14): Reveal in Explorer View (group 2_files, order 1, when isFileSystemResource) once the
+// explorer has a command that reveals a file.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editor.contribution.ts and
+// src/vs/workbench/contrib/files/browser/fileActions.contribution.ts (appendEditorTitleContextMenuItem)
+func registerEditorTitleContext(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.closeActiveEditor", Title: "Close", Group: "1_close", Order: 10},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.closeOtherEditors", Title: "Close Others", Group: "1_close", Order: 20,
+			Precondition: when("groupEditorsCount != 1")},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.closeEditorsToTheRight", Title: "Close to the Right", Group: "1_close", Order: 30,
+			Precondition: when("!activeEditorIsLastInGroup"), When: contextkey.Has("editorTabsVisible")},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.closeUnmodifiedEditors", Title: "Close Saved", Group: "1_close", Order: 40},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.closeEditorsInGroup", Title: "Close All", Group: "1_close", Order: 50},
+
+		MenuItem{Menu: EditorTitleContext, Command: "copyFilePath", Title: "Copy Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},
+		MenuItem{Menu: EditorTitleContext, Command: "copyRelativeFilePath", Title: "Copy Relative Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},
+
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.keepEditor", Title: "Keep Open", Group: "3_preview", Order: 10,
+			Precondition: when("!activeEditorIsNotPreview"), When: contextkey.Has("config.workbench.editor.enablePreview")},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.pinEditor", Title: "Pin", Group: "3_preview", Order: 20, When: when("!activeEditorIsPinned")},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.unpinEditor", Title: "Unpin", Group: "3_preview", Order: 20, When: contextkey.Has("activeEditorIsPinned")},
+
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.splitEditor", Title: "Split Right", Group: "5_split", Order: 10, When: when("!splitEditorsVertically")},
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.splitEditor", Title: "Split Down", Group: "5_split", Order: 10, When: contextkey.Has("splitEditorsVertically")},
+		MenuItem{Menu: EditorTitleContext, Submenu: EditorSplitMoveSubmenu, Title: "Split & Move", Group: "5_split", Order: 15},
+
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.splitEditorUp", Title: "Split Up", Group: "1_split", Order: 10},
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.splitEditorDown", Title: "Split Down", Group: "1_split", Order: 20},
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.splitEditorLeft", Title: "Split Left", Group: "1_split", Order: 30},
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.splitEditorRight", Title: "Split Right", Group: "1_split", Order: 40},
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.moveEditorToAboveGroup", Title: "Move Above", Group: "2_move", Order: 10},
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.moveEditorToBelowGroup", Title: "Move Below", Group: "2_move", Order: 20},
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.moveEditorToLeftGroup", Title: "Move Left", Group: "2_move", Order: 30},
+		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.moveEditorToRightGroup", Title: "Move Right", Group: "2_move", Order: 40},
 	)
 }

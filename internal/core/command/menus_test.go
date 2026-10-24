@@ -555,3 +555,106 @@ func TestEditorGroupMenus(t *testing.T) {
 		}
 	})
 }
+
+func TestEditorTitleContextMenu(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	// rows writes the titles of a menu; a row that is dimmed ends with "~", a submenu with ">"
+	rows := func(menu string, ctx contextkey.MapContext) []string {
+		var out []string
+		for _, e := range menus.Items(menu, ctx) {
+			switch {
+			case e.Separator:
+				out = append(out, "-")
+			case e.Submenu != "":
+				out = append(out, e.Title+">")
+			case e.Disabled:
+				out = append(out, e.Title+"~")
+			default:
+				out = append(out, e.Title)
+			}
+		}
+		return out
+	}
+	base := func(extra contextkey.MapContext) contextkey.MapContext {
+		ctx := contextkey.MapContext{
+			"editorTabsVisible": true, "isFileSystemResource": true, "groupEditorsCount": 3.0,
+			"activeEditorIsNotPreview": true, "config.workbench.editor.enablePreview": true,
+		}
+		for k, v := range extra {
+			ctx[k] = v
+		}
+		return ctx
+	}
+	for _, tc := range []struct {
+		name string
+		ctx  contextkey.MapContext
+		want []string
+	}{
+		{"a kept tab", base(nil), []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Keep Open~", "Pin", "-",
+			"Split Right", "Split & Move>"}},
+		{"a preview tab can be kept", base(contextkey.MapContext{"activeEditorIsNotPreview": false}), []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Keep Open", "Pin", "-",
+			"Split Right", "Split & Move>"}},
+		{"a pinned tab can be unpinned", base(contextkey.MapContext{"activeEditorIsPinned": true}), []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Keep Open~", "Unpin", "-",
+			"Split Right", "Split & Move>"}},
+		{"the last tab has nothing to its right", base(contextkey.MapContext{"activeEditorIsLastInGroup": true}), []string{
+			"Close", "Close Others", "Close to the Right~", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Keep Open~", "Pin", "-",
+			"Split Right", "Split & Move>"}},
+		{"the only tab has no others", base(contextkey.MapContext{"groupEditorsCount": 1.0, "activeEditorIsLastInGroup": true}), []string{
+			"Close", "Close Others~", "Close to the Right~", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Keep Open~", "Pin", "-",
+			"Split Right", "Split & Move>"}},
+		{"splitting down", base(contextkey.MapContext{"splitEditorsVertically": true}), []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Keep Open~", "Pin", "-",
+			"Split Down", "Split & Move>"}},
+		{"no preview editors, no Keep Open", base(contextkey.MapContext{"config.workbench.editor.enablePreview": false}), []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Pin", "-",
+			"Split Right", "Split & Move>"}},
+		{"a tab of something that is not a file", base(contextkey.MapContext{"isFileSystemResource": false}), []string{
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
+			"Keep Open~", "Pin", "-",
+			"Split Right", "Split & Move>"}},
+		{"without tabs there is no Close to the Right", base(contextkey.MapContext{"editorTabsVisible": false}), []string{
+			"Close", "Close Others", "Close Saved", "Close All", "-",
+			"Copy Path", "Copy Relative Path", "-",
+			"Keep Open~", "Pin", "-",
+			"Split Right", "Split & Move>"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rows(EditorTitleContext, tc.ctx); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got  %v\nwant %v", got, tc.want)
+			}
+		})
+	}
+	t.Run("the Split & Move submenu", func(t *testing.T) {
+		want := []string{"Split Up", "Split Down", "Split Left", "Split Right", "-", "Move Above", "Move Below", "Move Left", "Move Right"}
+		if got := rows(EditorSplitMoveSubmenu, contextkey.MapContext{}); !reflect.DeepEqual(got, want) {
+			t.Errorf("got  %v\nwant %v", got, want)
+		}
+	})
+	t.Run("every row runs a command that exists", func(t *testing.T) {
+		commands := DefaultRegistry()
+		for _, it := range menus.All() {
+			if (it.Menu == EditorTitleContext || it.Menu == EditorSplitMoveSubmenu) && it.Command != "" {
+				if _, ok := commands.Lookup(it.Command); !ok {
+					t.Errorf("%s: no command %s", it.Menu, it.Command)
+				}
+			}
+		}
+	})
+}

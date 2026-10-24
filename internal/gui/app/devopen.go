@@ -25,10 +25,13 @@ type openFileArguments struct {
 	// Group is the place of the group to open the file in, counted from 1 in the order the groups
 	// appear in the grid; 0 is the active group.
 	Group int
+	// Preview opens the file as the preview editor (italic tab, replaced by the next preview), as a
+	// navigation does, when workbench.editor.enablePreview is on.
+	Preview bool
 }
 
 // parseOpenFile reads the arguments of dev.openFile: {"path": "...", "line": n, "column": n,
-// "group": n}, or just the path as a string.
+// "group": n, "preview": bool}, or just the path as a string.
 func parseOpenFile(args any) (openFileArguments, error) {
 	var a openFileArguments
 	switch v := args.(type) {
@@ -41,6 +44,13 @@ func parseOpenFile(args any) (openFileArguments, error) {
 		}
 		if col, ok := v["column"].(float64); ok {
 			a.Column = int(col)
+		}
+		if raw, present := v["preview"]; present {
+			preview, ok := raw.(bool)
+			if !ok {
+				return a, errors.New("DevOpenFilePreviewInvalid", "the preview of dev.openFile is true or false", "preview", raw)
+			}
+			a.Preview = preview
 		}
 		if raw, present := v["group"]; present {
 			group, ok := raw.(float64)
@@ -77,7 +87,7 @@ func (s *shellState) bindDevOpenFile(binding *widgets.WidgetsBinding) {
 }
 
 // devOpenFile opens a file in a editor group (the active group, or the one the group argument says),
-// kept (not as a preview), and shows it with the cursor at the position. The group becomes the active
+// kept (as a preview when the argument says so), and shows it with the cursor at the position. The group becomes the active
 // group. A group that is not in the grid fails with the tag DevOpenFileGroupInvalid.
 func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Context, args any) error {
 	a, err := parseOpenFile(args)
@@ -106,7 +116,7 @@ func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Co
 			e.view.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(at)})
 		}
 	}
-	s.show(binding, doc, openOptions{Place: place, Group: group})
+	s.show(binding, doc, openOptions{Place: place, Group: group, Preview: a.Preview})
 	return nil
 }
 

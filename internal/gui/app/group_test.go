@@ -36,6 +36,8 @@ type groupApp struct {
 	ts    *gluttertest.Tester
 	files map[string]string // name to path
 	docs  map[string]*document.Document
+	// base is how many texts show the name of the tab that was just pressed to drag it (dragTab).
+	base int
 }
 
 // longText is a file taller than the window, so that it can be scrolled.

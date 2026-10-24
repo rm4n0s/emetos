@@ -41,6 +41,10 @@ const (
 	PanelPositionMenu = "PanelPositionMenu"
 	// EditorContext is the context menu of the editor.
 	EditorContext = "EditorContext"
+	// EditorTitleContext is the context menu of a tab of the editor.
+	EditorTitleContext = "EditorTitleContext"
+	// EditorSplitMoveSubmenu is the Split & Move submenu of the context menu of a tab.
+	EditorSplitMoveSubmenu = "EditorSplitMoveSubmenu"
 	// ExplorerContext is the context menu of the Explorer.
 	ExplorerContext = "ExplorerContext"
 	// GlobalActivity is the Manage menu: the gear at the bottom of the activity bar.

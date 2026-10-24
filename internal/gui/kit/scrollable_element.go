@@ -168,6 +168,38 @@ type ScrollableElementOpts struct {
 	// NoSmoothScroll scrolls at once, instead of over 125 ms, with a mouse wheel
 	// (`mouseWheelSmoothScroll`).
 	NoSmoothScroll bool
+	// Handle, when set, lets code scroll the element from outside.
+	Handle *ScrollHandle
+}
+
+// ScrollHandle moves the content of a ScrollableElement from outside (a drag near the edge of a
+// tab strip scrolls it). Give it to ScrollableElementOpts; it does nothing while no element has it.
+type ScrollHandle struct {
+	state *scrollableElementState
+}
+
+// Position is how far the content is scrolled from the left and from the top.
+func (h *ScrollHandle) Position() (left, top float64) {
+	if h == nil || h.state == nil || !h.state.Mounted() {
+		return 0, 0
+	}
+	m := h.state.model.Metrics()
+	return m.Left, m.Top
+}
+
+// ScrollTo scrolls to a position at once, within the content.
+func (h *ScrollHandle) ScrollTo(left, top float64) {
+	if h == nil || h.state == nil || !h.state.Mounted() {
+		return
+	}
+	maxLeft, maxTop := maxScroll(h.state.model.Metrics())
+	h.state.scrollToPosition(min(max(left, 0), maxLeft), min(max(top, 0), maxTop), false)
+}
+
+// ScrollBy scrolls by a distance at once, within the content.
+func (h *ScrollHandle) ScrollBy(dx, dy float64) {
+	left, top := h.Position()
+	h.ScrollTo(left+dx, top+dy)
 }
 
 func (o ScrollableElementOpts) verticalSize() float64 {
@@ -266,6 +298,7 @@ type scrollableElementState struct {
 // InitState starts listening to the model.
 func (s *scrollableElementState) InitState() {
 	s.binding = widgets.WidgetsBindingOf(s.Context())
+	s.bindHandle()
 	s.fade = animation.NewAnimationController(&s.SingleTickerProvider, animation.AnimationControllerOpts{
 		Duration:        foundation.Some(scrollbarRevealDuration),
 		ReverseDuration: foundation.Some(scrollbarFadeDuration),
@@ -303,9 +336,22 @@ func (s *scrollableElementState) detach() {
 	s.smooth.running = false
 }
 
+// bindHandle gives the handle of the options this state.
+func (s *scrollableElementState) bindHandle() {
+	if h := s.Widget().opts.Handle; h != nil {
+		h.state = s
+	}
+}
+
 // DidUpdateWidget follows a new model or new controllers.
 func (s *scrollableElementState) DidUpdateWidget(old *ScrollableElement) {
 	o, n := old.opts, s.Widget().opts
+	if o.Handle != n.Handle {
+		if o.Handle != nil && o.Handle.state == s {
+			o.Handle.state = nil
+		}
+		s.bindHandle()
+	}
 	if o.Model != n.Model || o.Controller != n.Controller || o.HorizontalController != n.HorizontalController {
 		s.detach()
 		s.attach()
@@ -314,6 +360,9 @@ func (s *scrollableElementState) DidUpdateWidget(old *ScrollableElement) {
 
 // Dispose stops the timer and the listener.
 func (s *scrollableElementState) Dispose() {
+	if h := s.Widget().opts.Handle; h != nil && h.state == s {
+		h.state = nil
+	}
 	s.detach()
 	if s.verticalCtl != nil {
 		s.verticalCtl.Dispose()

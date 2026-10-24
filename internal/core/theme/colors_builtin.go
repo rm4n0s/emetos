@@ -754,6 +754,12 @@ func registerTabColors(r *ColorRegistry) {
 			Defaults:    dflt(half("tab.inactiveModifiedBorder"), half("tab.inactiveModifiedBorder"), Lit(ColorWhite), Ref("contrastBorder")),
 			Description: "Border on the top of modified inactive tabs in an unfocused group." + tabs},
 
+		ColorContribution{ID: "tab.dragAndDropBorder",
+			Defaults:    dflt(Ref("tab.activeForeground"), Ref("tab.activeForeground"), Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Border between tabs to indicate that a tab can be inserted between two tabs." + tabs},
+		ColorContribution{ID: "editorGroup.dropBackground",
+			Defaults:    dflt(Transparent(Hex("#53595D"), 0.5), Transparent(Hex("#2677CB"), 0.18), nil, Transparent(Hex("#0F4A85"), 0.5)),
+			Description: "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."},
 		ColorContribution{ID: "editorGroup.emptyBackground", Defaults: AllThemes(nil),
 			Description: "Background color of an empty editor group. Editor groups are the containers of editors."},
 		ColorContribution{ID: "editorGroup.focusedEmptyBorder", Defaults: dflt(nil, nil, Ref("focusBorder"), Ref("focusBorder")),

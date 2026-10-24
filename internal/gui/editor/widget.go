@@ -611,6 +611,10 @@ func (s *editorState) Dispose() {
 	if f := s.Widget().opts.Focus; f != nil && f.node == s.node {
 		f.node = nil
 	}
+	// an editor that goes while it has the focus has not got it any more: OnFocus is told, or the window
+	// would take a stale "focused" for the truth when the editor comes back
+	s.editorFocused, s.findFocused = false, false
+	s.reportFocus()
 	s.endPress()
 	s.disposeFind()
 	if s.unbindCommands != nil {

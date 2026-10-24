@@ -155,12 +155,24 @@ func (g *Grid) MergeAllGroups(target *Group) error {
 //
 // Ported from VS Code: editorCommands.ts (splitEditor)
 func (g *Grid) SplitGroup(grp *Group, dir Direction) (*Group, error) {
+	if !g.has(grp) {
+		return nil, errUnknownGroup(grp)
+	}
+	return g.SplitEditor(grp, grp.Model.ActiveEditor(), dir)
+}
+
+// SplitEditor is SplitGroup for an editor of the group that is not the active one (the Split Right
+// of the menu of a tab): the new group shows a copy of that editor. Without an editor (nil) the new
+// group stays empty.
+//
+// Ported from VS Code: editorCommands.ts (splitEditor)
+func (g *Grid) SplitEditor(grp *Group, editor EditorInput, dir Direction) (*Group, error) {
 	nu, err := g.AddGroup(grp, dir)
 	if err != nil {
 		return nil, err
 	}
-	if active := grp.Model.ActiveEditor(); active != nil {
-		if _, _, err := g.CopyEditor(grp, active, nu, MoveOptions{}); err != nil {
+	if editor != nil {
+		if _, _, err := g.CopyEditor(grp, editor, nu, MoveOptions{}); err != nil {
 			return nil, err
 		}
 	}

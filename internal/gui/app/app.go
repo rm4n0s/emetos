@@ -307,7 +307,7 @@ func (s *shellState) Dispose() {
 func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	win := PeekWindow(bc)
 	s.syncTitle(bc, win)
-	return workbench.New(workbench.Options{
+	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Context: win.ctx,
 		Editor:   s.editorArea(bc),
@@ -315,6 +315,8 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		Menus:    s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 	})
+	// the drag of a tab shows above everything
+	return widgets.NewStack([]widgets.Widget{bench, s.dragLayer()}, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
 
 // syncTitle makes the title of the window from the template and the active editor, and passes it on
