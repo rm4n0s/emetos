@@ -10,6 +10,8 @@ const usualWordSeparators = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?"
 const (
 	categoryEditor = "Text Editor"
 	categoryFiles  = "Files"
+	// categoryExplorer is the group of the settings of the Explorer.
+	categoryExplorer = "Explorer"
 	// categoryWorkbench is the group of the workbench's settings; the settings of the theme are in
 	// the "Workbench" group of VS Code's settings editor.
 	categoryWorkbench = "Workbench"
@@ -28,6 +30,7 @@ func DefaultRegistry() *Registry {
 	r := NewRegistry()
 	registerEditor(r)
 	registerFiles(r)
+	registerExplorer(r)
 	registerWorkbench(r)
 	registerLayout(r)
 	registerEditorGroups(r)
@@ -700,6 +703,72 @@ func registerFiles(r *Registry) {
 			EnumDescriptions: []string{"LF", "CRLF", "Uses operating system specific end of line character."},
 			Description:      "The default end of line character.",
 			Scope:            ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.exclude", Types: []Type{Object}, Default: map[string]any{
+				"**/.git": true, "**/.svn": true, "**/.hg": true, "**/.jj": true, "**/.DS_Store": true, "**/Thumbs.db": true,
+			},
+			Description: "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files and folders. For example, the File Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes. Refer to the `#explorer.excludeGitIgnore#` setting for ignoring files based on your `.gitignore`.",
+			Scope:       ScopeResource, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.watcherExclude", Types: []Type{Object}, Default: map[string]any{
+				// VS Code avoids a '**' pattern here: it makes a very complex regular expression
+				// that can slow things down in large workspaces.
+				".git/objects/**": true, ".git/subtree-cache/**": true, ".hg/store/**": true,
+				"*/.git/objects/**": true, "*/.git/subtree-cache/**": true, "*/.hg/store/**": true,
+			},
+			Description: "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude from file watching. Paths can either be relative to the watched folder or absolute. Glob patterns are matched relative from the watched folder. When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders).",
+			Scope:       ScopeResource, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.watcherInclude", Types: []Type{Array}, ItemTypes: []Type{String}, Default: []any{},
+			Description: "Configure extra paths to watch for changes inside the workspace. By default, all workspace folders will be watched recursively, except for folders that are symbolic links. You can explicitly add absolute or relative paths to support watching folders that are symbolic links. Relative paths will be resolved to an absolute path using the currently opened workspace.",
+			Scope:       ScopeResource, Category: categoryFiles,
+		},
+	)
+}
+
+// registerExplorer registers the explorer.* settings that the folder model reads.
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/files.contribution.ts
+func registerExplorer(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "explorer.sortOrder", Types: []Type{String}, Default: "default",
+			Enum: []any{"default", "mixed", "filesFirst", "type", "modified", "foldersNestsFiles"},
+			EnumDescriptions: []string{
+				"Files and folders are sorted by their names. Folders are displayed before files.",
+				"Files and folders are sorted by their names. Files are interwoven with folders.",
+				"Files and folders are sorted by their names. Files are displayed before folders.",
+				"Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.",
+				"Files and folders are sorted by last modified date in descending order. Folders are displayed before files.",
+				"Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.",
+			},
+			Description: "Controls the property-based sorting of files and folders in the Explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.sortOrderLexicographicOptions", Types: []Type{String}, Default: "default",
+			Enum: []any{"default", "upper", "lower", "unicode"},
+			EnumDescriptions: []string{
+				"Uppercase and lowercase names are mixed together.",
+				"Uppercase names are grouped together before lowercase names.",
+				"Lowercase names are grouped together before uppercase names.",
+				"Names are sorted in Unicode order.",
+			},
+			Description: "Controls the lexicographic sorting of file and folder names in the Explorer.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.sortOrderReverse", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the file and folder sort order, should be reversed.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.compactFolders", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
 		},
 	)
 }

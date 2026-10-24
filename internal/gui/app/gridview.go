@@ -179,6 +179,7 @@ func (s *shellState) editorColumn(bc widgets.BuildContext, win *Window, group *e
 	if uri := ed.doc.URI(); uri.Scheme == document.SchemeFile {
 		// the path of the file above the text
 		column = append(column, editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
+			Root:   win.Folder,
 			OnOpen: func(path string) { s.openPathIn(binding, group, path) },
 		}))
 	}

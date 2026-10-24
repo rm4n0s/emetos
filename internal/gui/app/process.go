@@ -59,6 +59,8 @@ type Process struct {
 	// Snippets are the user's snippet files, in the snippets folder of the configuration (SPEC
 	// §9.9). The workspace watcher of step 6.13 reloads them when they change.
 	Snippets *snippet.Service
+	// WatchFiles tells whether the windows start their file watcher (ProcessOptions.WatchFiles).
+	WatchFiles bool
 
 	grammarMu sync.Mutex
 	grammars  map[grammarKey]*textmate.Grammar
@@ -95,6 +97,13 @@ type ProcessOptions struct {
 	Logs *logs.Logs
 	// Logger is the process logger when Logs is nil; slog.Default() when both are nil.
 	Logger *slog.Logger
+	// WatchFiles lets the windows watch their folder, the configuration and the open files (SPEC
+	// §10.5). The editor sets it; tests leave it off so that no inotify instance is left behind.
+	//
+	// Glutter: gluttertest.Tester never disposes the widget tree at the end of a test, so the
+	// watcher that the shell starts with its lifetime would never stop; Glutter should unmount the
+	// tree (or cancel the lifetimes of the states) when the test ends (docs/GLUTTER-ISSUES.md).
+	WatchFiles bool
 }
 
 // NewProcess makes the services of the process: the registries with every setting, command
@@ -136,6 +145,8 @@ func NewProcess(opts ProcessOptions) *Process {
 		Keymap:   keybinding.DefaultRegistry(),
 		Notify:   notify.NewService(logger, nil),
 		Themes:   theme.NewService(theme.DefaultColorRegistry()),
+
+		WatchFiles: opts.WatchFiles,
 
 		Languages: languages,
 		grammars:  map[grammarKey]*textmate.Grammar{},

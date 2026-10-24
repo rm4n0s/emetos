@@ -66,6 +66,7 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 	e.view.SetIndenter(win.Process.Indenter(), win.Process.Languages.Code(doc.LanguageID()))
 	e.view.SetComments(win.Process.Comments())
 	e.view.SetSnippets(win.Process.Snippets)
+	e.view.SetSnippetWorkspace(win.SnippetWorkspace())
 	e.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(doc.LanguageID())))
 	e.unsubscribe = win.Settings.OnChange(func(ev settings.ChangeEvent) {
 		if ev.Affects("editor", "") || ev.Affects("emmet", "") {

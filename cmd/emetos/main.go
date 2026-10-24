@@ -136,7 +136,7 @@ func start(o options) error {
 	if err != nil {
 		return err
 	}
-	process := app.NewProcess(app.ProcessOptions{Paths: paths, Logs: l})
+	process := app.NewProcess(app.ProcessOptions{Paths: paths, Logs: l, WatchFiles: true})
 	if err := app.Run(ctx, app.Options{Process: process, Logger: l.Logger(), Folder: folder, Files: files}); err != nil {
 		logError(l.Logger(), err)
 		return err

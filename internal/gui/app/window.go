@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/views/output"
@@ -30,8 +31,11 @@ import (
 type Window struct {
 	// Process is the process the window belongs to.
 	Process *Process
-	// Folder is the folder open in the window, or empty.
+	// Folder is the absolute path of the folder open in the window, or empty.
 	Folder string
+	// Workspace is the model of the folder: its tree, read lazily and kept up to date by the watcher
+	// (SPEC §10.5). It is nil when no folder is open.
+	Workspace *workspace.Workspace
 	// Settings is the store of the user's and the workspace's settings.
 	Settings *settings.Store
 	// Keys is the root scope of the context keys of the window.
@@ -79,6 +83,8 @@ type Window struct {
 	Dialogs *kit.DialogController
 
 	ctx context.Context
+	// watch is the state of the file watcher (StartWatching).
+	watch watchState
 	// title is the title of the window as the shell last made it.
 	title string
 }
@@ -136,6 +142,15 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Notifications: notify.NewPresenter(p.Notify),
 		ctx:           ctx,
 	}
+	w.Documents.onFile = w.followFile
+	w.Documents.onClose = w.unfollowFile
+	if folder != "" {
+		if err := w.openWorkspace(ctx, folder); err != nil {
+			return nil, err
+		}
+	}
+	w.rememberSettingsPaths(userPath, p)
+	w.followWorkspaceSettings()
 	w.followTheme()
 	w.followLanguages()
 	return w, nil
@@ -159,6 +174,9 @@ type Documents struct {
 	announced map[*document.Document]bool
 	// refs counts the editors that show each document (Acquire, Retain, Release).
 	refs map[*document.Document]int
+	// onFile and onClose are told the path of a file that was opened and of one that was closed;
+	// the window follows the files that are outside its folder with them.
+	onFile, onClose func(path string)
 }
 
 // SetLargeFileOptimizations makes OpenFile open large files in large file mode only while enabled
@@ -269,12 +287,17 @@ func (d *Documents) OpenFileWith(ctx context.Context, path string, opts document
 		}
 	}
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if existing, ok := d.open[uri]; ok {
+		d.mu.Unlock()
 		return existing, nil // opened meanwhile
 	}
 	d.open[uri] = doc
 	d.order = append(d.order, uri)
+	onFile := d.onFile
+	d.mu.Unlock()
+	if onFile != nil {
+		onFile(path)
+	}
 	return doc, nil
 }
 
@@ -354,8 +377,8 @@ func (d *Documents) All() []*document.Document {
 // Close forgets a document and reports whether it was open.
 func (d *Documents) Close(uri document.URI) bool {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if _, ok := d.open[uri]; !ok {
+		d.mu.Unlock()
 		return false
 	}
 	delete(d.open, uri)
@@ -364,6 +387,11 @@ func (d *Documents) Close(uri document.URI) bool {
 			d.order = append(d.order[:i], d.order[i+1:]...)
 			break
 		}
+	}
+	onClose := d.onClose
+	d.mu.Unlock()
+	if onClose != nil && uri.Scheme == document.SchemeFile {
+		onClose(uri.Path)
 	}
 	return true
 }

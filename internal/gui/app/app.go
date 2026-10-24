@@ -69,7 +69,7 @@ func Run(ctx context.Context, opts Options) error {
 		if err != nil {
 			return err
 		}
-		process = NewProcess(ProcessOptions{Paths: paths, Logger: opts.Logger})
+		process = NewProcess(ProcessOptions{Paths: paths, Logger: opts.Logger, WatchFiles: true})
 	}
 	win, err := NewWindow(ctx, process, opts.Folder)
 	if err != nil {
@@ -238,6 +238,8 @@ func (s *shellState) InitState() {
 	s.initMenus(binding)
 	s.bindGroupCommands()
 	s.initPanels(binding)
+	// the watcher of the folder, of the configuration and of the open files outside the folder
+	PeekWindow(s.Context()).StartWatching(s.Lifetime())
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
