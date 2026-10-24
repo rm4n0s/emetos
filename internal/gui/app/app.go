@@ -252,6 +252,8 @@ type shellState struct {
 	closing closeState
 	// autosave is what the shell keeps of auto save (autosave.go).
 	autosave autoSaveState
+	// ext is what the shell keeps of the files changed on disk (external.go).
+	ext externalState
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -260,6 +262,7 @@ func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.blocked = s.Widget().blocked
 	s.initAutoSave(binding)
+	s.initExternal() // before the editors are made: they are followed as they appear
 	s.initGroup(binding, s.Widget().docs)
 	s.initMenus(binding)
 	s.bindGroupCommands()
@@ -337,6 +340,7 @@ func (s *shellState) Dispose() {
 	}
 	s.disposeClosing()
 	s.disposeAutoSave(widgets.WidgetsBindingOf(s.Context()))
+	s.disposeExternal()
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()

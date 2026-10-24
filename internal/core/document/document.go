@@ -57,11 +57,20 @@ type Document struct {
 	readOnly     bool
 	stat         fileio.FileStat
 
-	history        history
-	listeners      []*listener
-	uriListeners   []*uriListener
-	savedListeners []*savedListener
-	deco           decorations
+	// orphaned and conflict are the state of the file on disk (external.go); saveGen counts the saves that were
+	// finished and inflight holds the ones that were begun and are not (a document is read by a look at its file
+	// only when none is).
+	orphaned bool
+	conflict *fileio.FileStat
+	saveGen  int
+	inflight map[*SaveJob]struct{}
+
+	history           history
+	listeners         []*listener
+	uriListeners      []*uriListener
+	savedListeners    []*savedListener
+	externalListeners []*externalListener
+	deco              decorations
 }
 
 // New makes a document that holds text, which must use "\n" only. Its encoding

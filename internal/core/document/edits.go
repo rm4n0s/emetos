@@ -288,7 +288,9 @@ func (d *Document) SetLineEnding(le fileio.LineEnding) error {
 // fileio.Read is already in "\n" lines.
 func (d *Document) Reload(res fileio.ReadResult) {
 	d.encoding, d.hasBOM, d.lineEnding, d.stat = res.Encoding, res.HasBOM, res.LineEnding, res.Stat
+	d.saveGen++
 	d.SetText(res.Text)
+	d.setExternal(false, nil) // the file was read, so it is there, and nothing of it is unsaved
 }
 
 // SetText replaces the whole text, as when a file is reloaded after it changed on

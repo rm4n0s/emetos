@@ -76,6 +76,32 @@ type EditorInput interface {
 	Dispose()
 }
 
+// DeletedState is implemented by an input whose resource another program can delete: Deleted tells that it did
+// (the document is orphaned, SPEC §3.1 "Files"). The input keeps its content; the tab and the Open Editors list
+// show it struck through.
+type DeletedState interface {
+	Deleted() bool
+}
+
+// IsDeleted tells whether the resource of an input was deleted by another program.
+func IsDeleted(e EditorInput) bool {
+	d, ok := e.(DeletedState)
+	return ok && d.Deleted()
+}
+
+// DeletedTooltip is what the tooltip of a deleted editor adds to its title (VS Code's file decoration, from
+// src/vs/workbench/services/textfile/browser/textFileService.ts: strikethrough and the tooltip "Deleted").
+const DeletedTooltip = "Deleted"
+
+// DecoratedTitle is the tooltip of an editor: its title, and "Deleted" after a bullet while its file is gone (VS
+// Code's src/vs/workbench/browser/labels.ts adds the tooltip of the decoration like that).
+func DecoratedTitle(e EditorInput, title string) string {
+	if IsDeleted(e) {
+		return title + " \u2022 " + DeletedTooltip
+	}
+	return title
+}
+
 // Copier is implemented by an input that can be shown in several groups at once: CopyInput gives
 // another input for the same thing, which the other group owns (VS Code's EditorInput.copy). An
 // input without it is shown in one group only, as a singleton editor is, and a split or a copy

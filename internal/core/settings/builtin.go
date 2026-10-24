@@ -1188,6 +1188,11 @@ func registerEditorGroups(r *Registry) {
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{
+			Key: "workbench.editor.decorations.colors", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether editor file decorations should use colors.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
 			Key: "workbench.editor.highlightModifiedTabs", Types: []Type{Boolean}, Default: false,
 			Description: "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `workbench.editor.showTabs` is not set to `multiple`.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,

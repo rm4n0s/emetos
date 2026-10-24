@@ -102,7 +102,8 @@ func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
 		Visible: func() int {
 			return int(settings.Get[float64](win.Settings, "explorer.openEditors.visible", ""))
 		},
-		Icons: win.FileIcons, Language: win.languageOf, Keys: win.Keys,
+		DecorationColors: func() bool { return settings.Get[bool](win.Settings, "workbench.editor.decorations.colors", "") },
+		Icons:            win.FileIcons, Language: win.languageOf, Keys: win.Keys,
 		OnOpen: func(g *editorgroup.Group, input editorgroup.EditorInput, pinned bool) {
 			s.groupFocused(g)
 			g.Model.SetActive(input)
@@ -133,7 +134,7 @@ func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
 					}
 				})
 			}
-			if e.Affects("explorer.openEditors", "") || e.Affects("workbench.iconTheme", "") || e.Affects("explorer.autoReveal", "") {
+			if e.Affects("explorer.openEditors", "") || e.Affects("workbench.editor.decorations", "") || e.Affects("workbench.iconTheme", "") || e.Affects("explorer.autoReveal", "") {
 				binding.Post(func() {
 					if !s.Mounted() {
 						return

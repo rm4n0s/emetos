@@ -347,6 +347,7 @@ func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 		e.dispose()
 		if PeekWindow(s.Context()).Documents.Release(e.doc) {
 			s.autoSaveUntrack(e.doc)
+			s.externalUntrack(e.doc)
 		}
 	}
 	input.Dispose()

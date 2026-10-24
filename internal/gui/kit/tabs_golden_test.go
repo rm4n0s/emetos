@@ -81,6 +81,31 @@ func TestGoldenTabs(t *testing.T) {
 	}
 }
 
+// TestGoldenTabsDeleted looks at tabs whose file another program deleted: the name struck through and drawn in the
+// error color, with the colors off, with a description, and in the single-title header.
+func TestGoldenTabsDeleted(t *testing.T) {
+	for _, th := range goldenThemes {
+		t.Run(th.name, func(t *testing.T) {
+			items := []TabItem{
+				{Key: "1", Name: "main.go", Title: "/w/main.go"},
+				{Key: "2", Name: "gone.go", Title: "/w/gone.go \u2022 Deleted", Deleted: true},
+				{Key: "3", Name: "index.ts", Description: "src/a", Title: "/w/src/a/index.ts \u2022 Deleted", Deleted: true, Dirty: true},
+				{Key: "4", Name: "README.md", Title: "/w/README.md \u2022 Deleted", Deleted: true, Preview: true},
+			}
+			content := padded(themed(func(bc widgets.BuildContext) widgets.Widget {
+				return column(
+					labelled(bc, "deleted tabs", strip(600, items, TabsOpts{Active: 1, DecorationColors: true})), vgap(8),
+					labelled(bc, "colors off", strip(600, items, TabsOpts{Active: 1})), vgap(8),
+					labelled(bc, "single title", strip(600, items, TabsOpts{Active: 2, Mode: TabsSingle, DecorationColors: true})),
+				)
+			}))
+			ts := pumpThemed(t, th.colors(), ui.Size{Width: 740, Height: 220}, content)
+			ts.Pump(time.Millisecond)
+			ts.MatchesGolden("tabs_deleted_" + th.name)
+		})
+	}
+}
+
 func namesItems(ns []string) []TabItem { return names(ns...) }
 
 // TestGoldenTabDrop looks at the line that shows where a dragged tab goes: between two tabs, and

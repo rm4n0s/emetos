@@ -372,6 +372,9 @@ func registerListColors(r *ColorRegistry) {
 		ColorContribution{ID: "list.hoverBackground", NeedsTransparency: true,
 			Defaults:    dflt(Hex("#2A2D2E"), Hex("#F0F0F0"), Transparent(Lit(ColorWhite), 0.1), Transparent(Hex("#0F4A85"), 0.1)),
 			Description: "List/Tree background when hovering over items using the mouse."},
+		// the foreground of an editor whose file another program deleted (step 7.4)
+		ColorContribution{ID: "list.errorForeground", Defaults: dflt(Hex("#F88070"), Hex("#B01011"), nil, nil),
+			Description: "Foreground color of list items containing errors."},
 	)
 }
 

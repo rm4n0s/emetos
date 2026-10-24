@@ -191,7 +191,6 @@ func (w *Window) StartWatching(ctx context.Context) (ready <-chan struct{}) {
 		OnNotice: func(n workspace.Notice) { w.Process.Notify.Warn("Emetos", n.Message) },
 		Logger:   w.Process.Logger,
 	})
-	// TODO(step 7.1): call w.Watcher().Suppress(path, stat) with the FileStat that saving a document returns.
 	st.mu.Unlock()
 	done := make(chan struct{})
 	go func() {

@@ -84,6 +84,7 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 	})
 	s.watchSelection(e)
 	s.autoSaveTrack(doc)
+	s.externalTrack(doc)
 	return e
 }
 

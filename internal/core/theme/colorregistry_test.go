@@ -256,6 +256,7 @@ func TestDefaultListInteractionColors(t *testing.T) {
 		{"listFilterWidget.outline", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)", "#f38518", "#007acc"},
 		{"listFilterWidget.noMatchesOutline", "#be1100", "#be1100", "#6fc3df", "#0f4a85"},
 		{"listFilterWidget.shadow", "rgba(0, 0, 0, 0.36)", "rgba(0, 0, 0, 0.16)", none, none},
+		{"list.errorForeground", "#f88070", "#b01011", none, none}, // step 7.4: the label of an editor whose file was deleted
 	}
 	registry := DefaultColorRegistry()
 	for _, tc := range cases {

@@ -112,6 +112,9 @@ type TabItem struct {
 	Sticky bool
 	// Dirty shows the dot of unsaved changes in place of the close button.
 	Dirty bool
+	// Deleted marks an editor whose file another program deleted (VS Code's file decoration): the name and the
+	// description are struck through, and drawn in list.errorForeground when TabsOpts.DecorationColors is set.
+	Deleted bool
 }
 
 // TabsOpts are the options of NewTabs.
@@ -129,6 +132,8 @@ type TabsOpts struct {
 	// HighlightModified draws a line along the top of modified tabs
 	// (`workbench.editor.highlightModifiedTabs`).
 	HighlightModified bool
+	// DecorationColors draws the label of a deleted tab in the error color (`workbench.editor.decorations.colors`).
+	DecorationColors bool
 	// Mode chooses between the tabs and the title of the active editor alone.
 	Mode TabsMode
 	// OnActivate is called with the index of a tab that is pressed with the primary button.
@@ -268,7 +273,7 @@ func (t *Tabs) buildSingle(bc widgets.BuildContext, colors Colors) widgets.Widge
 			row = append(row, widgets.NewSizedBox(it.Icon, widgets.SizedBoxOpts{Width: foundation.Some(tabIconSize), Height: foundation.Some(tabIconSize)}),
 				widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(tabIconGap)}))
 		}
-		row = append(row, tabLabel(bc, it, fg, tabFontSize, false)...)
+		row = append(row, tabLabel(bc, it, decoratedForeground(bc, it, t.opts.DecorationColors, fg), tabFontSize, false)...)
 		if it.Dirty {
 			row = append(row, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(tabIconGap, 0, 0, 0),
 				widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconCircleFilled), widgets.IconOpts{Size: foundation.Some(tabIconSize), Color: foundation.Some(fg)})))
@@ -291,9 +296,20 @@ func (t *Tabs) buildSingle(bc widgets.BuildContext, colors Colors) widgets.Widge
 	return widgets.NewContainer(body, widgets.ContainerOpts{Height: foundation.Some(TabHeight), Decoration: deco})
 }
 
+// decoratedForeground is the color of the label of a tab: the error color for a deleted editor when the
+// decorations use colors, else the one the tab has.
+func decoratedForeground(bc widgets.BuildContext, it TabItem, colors bool, fg ui.Color) ui.Color {
+	if it.Deleted && colors {
+		if c := ThemeOf(bc).ListErrorForeground; c.Alpha() != 0 {
+			return c
+		}
+	}
+	return fg
+}
+
 // tabLabel is the name of a tab and, when it has one, its description.
 func tabLabel(bc widgets.BuildContext, it TabItem, fg ui.Color, size float64, clip bool) []widgets.Widget {
-	name := tabTextStyle(bc, size, fg, it.Preview)
+	name := tabTextStyle(bc, size, fg, it.Preview, it.Deleted)
 	overflow := painting.TextOverflowVisible
 	if clip {
 		overflow = painting.TextOverflowClip
@@ -307,15 +323,15 @@ func tabLabel(bc widgets.BuildContext, it TabItem, fg ui.Color, size float64, cl
 	}
 	out := []widgets.Widget{fit(widgets.NewText(it.Name, widgets.TextOpts{Style: name, Overflow: overflow, SoftWrap: foundation.Some(false), MaxLines: foundation.Some(1)}))}
 	if it.Description != "" {
-		desc := tabTextStyle(bc, tabDescriptionSize, fg.WithOpacity(fg.Opacity()*tabDescriptionA), it.Preview)
+		desc := tabTextStyle(bc, tabDescriptionSize, fg.WithOpacity(fg.Opacity()*tabDescriptionA), it.Preview, it.Deleted)
 		out = append(out, fit(widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(tabDescriptionGap, 0, 0, 0),
 			widgets.NewText(it.Description, widgets.TextOpts{Style: desc, Overflow: overflow, SoftWrap: foundation.Some(false), MaxLines: foundation.Some(1)}))))
 	}
 	return out
 }
 
-// tabTextStyle is the text style of a label, in italics for a preview editor.
-func tabTextStyle(bc widgets.BuildContext, size float64, color ui.Color, italic bool) *painting.TextStyle {
+// tabTextStyle is the text style of a label, in italics for a preview editor and struck through for a deleted one.
+func tabTextStyle(bc widgets.BuildContext, size float64, color ui.Color, italic, strikethrough bool) *painting.TextStyle {
 	opts := painting.TextStyleOpts{
 		FontFamily:         UIFontOf(bc),
 		FontFamilyFallback: []string{"sans-serif"},
@@ -324,6 +340,9 @@ func tabTextStyle(bc widgets.BuildContext, size float64, color ui.Color, italic 
 	}
 	if italic {
 		opts.FontStyle = ui.FontStyleItalic
+	}
+	if strikethrough {
+		opts.Decoration = foundation.Some(ui.TextDecorationLineThrough)
 	}
 	return painting.NewTextStyle(opts)
 }
@@ -659,11 +678,11 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 	var content []widgets.Widget
 	switch {
 	case compact && it.Icon == nil:
-		content = tabLabel(bc, TabItem{Name: spec.compactLetter, Preview: it.Preview}, foreground, tabFontSize, true)
+		content = tabLabel(bc, TabItem{Name: spec.compactLetter, Preview: it.Preview, Deleted: it.Deleted}, decoratedForeground(bc, it, o.DecorationColors, foreground), tabFontSize, true)
 	case compact:
 		content = nil
 	default:
-		content = tabLabel(bc, it, foreground, tabFontSize, shrink)
+		content = tabLabel(bc, it, decoratedForeground(bc, it, o.DecorationColors, foreground), tabFontSize, shrink)
 	}
 	label := []widgets.Widget{}
 	if it.Icon != nil {

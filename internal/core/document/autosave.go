@@ -19,7 +19,8 @@ import (
 //   - onWindowChange saves the dirty documents when the window loses the focus;
 //   - off saves nothing.
 //
-// An untitled or virtual document, a read-only one, one outside the workspace folder with
+// A document whose file was changed or deleted by another program (external.go) is not saved by itself either: it
+// waits for the user's answer. An untitled or virtual document, a read-only one, one outside the workspace folder with
 // files.autoSaveWorkspaceFilesOnly, and one with errors in its markers with files.autoSaveWhenNoErrors are not
 // saved (the last waits until the errors are gone). A document whose save failed is paused: VS Code's text
 // file model ignores every auto save while it is in a conflict or error state, until a save succeeds or the
@@ -144,6 +145,10 @@ const (
 	// AutoSaveBlockedPaused means a save of the document failed and has not been mended: no auto save until a save
 	// succeeds or the file is read again.
 	AutoSaveBlockedPaused
+	// AutoSaveBlockedExternal means the file of the document was changed or deleted by another program (the
+	// document is conflicted or orphaned, external.go): the user decides, with the buttons of the notification
+	// or with a save, until the file is as the document has it again or the document is read again.
+	AutoSaveBlockedExternal
 )
 
 // AutoSave is the controller of the auto save of the documents of one window.
@@ -183,6 +188,12 @@ func (a *AutoSave) Track(doc *Document) {
 	st.unsubs = []func(){
 		doc.Subscribe(func(ev ChangeEvent) { a.changed(doc, ev) }),
 		doc.OnSaved(func(ev SavedEvent) { a.saved(doc, ev) }),
+		// a file that is as the document has it again lets the document be saved by itself again
+		doc.OnExternalStateChange(func(ExternalState) {
+			if doc.Dirty() {
+				a.schedule(doc)
+			}
+		}),
 	}
 	if doc.Dirty() {
 		a.schedule(doc)
@@ -336,6 +347,9 @@ func (a *AutoSave) check(doc *Document, reason SaveReason, anyReason bool) AutoS
 	}
 	if st := a.docs[doc]; st != nil && st.paused {
 		return AutoSaveBlockedPaused
+	}
+	if doc.orphaned || doc.conflict != nil {
+		return AutoSaveBlockedExternal
 	}
 	if cfg.WorkspaceFilesOnly && !a.host.InWorkspace(doc) {
 		return AutoSaveBlockedOutOfWorkspace

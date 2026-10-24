@@ -20,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -398,6 +399,59 @@ func TestExplorerOpenEditors(t *testing.T) {
 	a.pump()
 	if a.ts.Exists(list) {
 		t.Error("the Open Editors stay when hidden")
+	}
+	if errs := a.ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
+}
+
+// TestExplorerOpenEditorsStrikesThroughADeletedFile checks that the row of an editor whose file another program
+// deleted is struck through (in the error color unless workbench.editor.decorations.colors is off), and that the tree
+// of the folder and the editors follow the same event (step 7.4).
+func TestExplorerOpenEditorsStrikesThroughADeletedFile(t *testing.T) {
+	a := newExplorerApp(t, ui.Size{Width: 900, Height: 600}, projectFiles, "main.go", "go.mod")
+	a.win.Views.SetHidden(command.ViewOpenEditors, false)
+	a.pump()
+	list := gluttertest.ByKey(explorer.OpenEditorsKey)
+	rowStyle := func(name string) (struck bool, errorColor bool) {
+		t.Helper()
+		style := a.ts.Widget(gluttertest.Descendant(list, gluttertest.ByText(name))).(*widgets.Text).Style()
+		deco, _ := style.Decoration.Get()
+		color, _ := style.Color.Get()
+		return deco.Contains(ui.TextDecorationLineThrough), color == kit.ThemeOf(a.ts.Element(list)).ListErrorForeground
+	}
+	if struck, _ := rowStyle("go.mod"); struck {
+		t.Fatal("a file that is there is struck through")
+	}
+	gone := filepath.Join(a.root, "go.mod")
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+	a.win.onFileEvents(context.Background(), []workspace.Event{{Kind: workspace.EventDeleted, Path: gone}})
+	a.waitFor("the row to be struck through", func() bool {
+		struck, _ := rowStyle("go.mod")
+		return struck
+	})
+	if struck, colored := rowStyle("go.mod"); !struck || !colored {
+		t.Errorf("go.mod: struck through %v, error color %v", struck, colored)
+	}
+	if struck, colored := rowStyle("main.go"); struck || colored {
+		t.Errorf("main.go: struck through %v, error color %v", struck, colored)
+	}
+	// the tree stopped showing the file at the same event, and the editor is still there
+	if slices.Contains(a.rows(), "go.mod") || slices.Contains(a.rows(), "*go.mod") {
+		t.Errorf("the tree still has go.mod: %v", a.rows())
+	}
+	// with the colors off the row is struck through only
+	if err := a.win.Settings.Update(context.Background(), "workbench.editor.decorations.colors", false, settings.TargetUser); err != nil {
+		t.Fatal(err)
+	}
+	a.waitFor("the colors to go", func() bool {
+		_, colored := rowStyle("go.mod")
+		return !colored
+	})
+	if struck, _ := rowStyle("go.mod"); !struck {
+		t.Error("the row is not struck through any more")
 	}
 	if errs := a.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)

@@ -27,15 +27,17 @@ type TextInput struct {
 	doc   *document.Document
 	opts  TextInputOpts
 	dirty bool
-	caps  Capabilities
-	stop  func()
-	// stopURI stops following the document's URI, stopSaved its saves.
-	stopURI, stopSaved func()
+	// deleted is whether the file was deleted when the input last looked.
+	deleted bool
+	caps    Capabilities
+	stop    func()
+	// stopURI stops following the document's URI, stopSaved its saves, stopExternal the deletion of its file.
+	stopURI, stopSaved, stopExternal func()
 }
 
 // NewTextInput makes the input of a document. It follows the document's dirty mark until Dispose.
 func NewTextInput(doc *document.Document, opts TextInputOpts) *TextInput {
-	t := &TextInput{doc: doc, opts: opts, dirty: doc.Dirty()}
+	t := &TextInput{doc: doc, opts: opts, dirty: doc.Dirty(), deleted: doc.Orphaned()}
 	t.caps = t.Capabilities()
 	t.stop = doc.Subscribe(func(document.ChangeEvent) { t.Refresh() })
 	// a renamed or moved file gives the tab another name, description and title; a Save As also makes an
@@ -49,8 +51,18 @@ func NewTextInput(doc *document.Document, opts TextInputOpts) *TextInput {
 	})
 	// a save changes no text, but it clears the dirty mark
 	t.stopSaved = doc.OnSaved(func(document.SavedEvent) { t.Refresh() })
+	// a file that another program deleted (or that is back) is shown in the tab: the label changes
+	t.stopExternal = doc.OnExternalStateChange(func(st document.ExternalState) {
+		if st.Orphaned != t.deleted {
+			t.deleted = st.Orphaned
+			t.Emit(InputLabel)
+		}
+	})
 	return t
 }
+
+// Deleted implements DeletedState: the file of the document was deleted by another program.
+func (t *TextInput) Deleted() bool { return t.doc.Orphaned() }
 
 // Document is the document the input shows.
 func (t *TextInput) Document() *document.Document { return t.doc }
@@ -166,6 +178,10 @@ func (t *TextInput) Dispose() {
 	if t.stopSaved != nil {
 		t.stopSaved()
 		t.stopSaved = nil
+	}
+	if t.stopExternal != nil {
+		t.stopExternal()
+		t.stopExternal = nil
 	}
 	t.BaseInput.Dispose()
 }

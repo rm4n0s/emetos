@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/rm4n0s/errors"
@@ -313,8 +314,14 @@ func (s *shellState) writeJob(job *document.SaveJob, done func(fileio.FileStat, 
 			}
 		}
 		binding.Post(func() {
+			if err != nil {
+				job.Abort() // the document is not being written any more, whether or not the shell is still there
+			}
 			if s.Mounted() {
 				done(stat, err)
+				// a look at the file that came while it was written is made now: the document has the stat of
+				// our write (or, after a failure, none of it)
+				s.saveSettled(job.Document())
 			}
 		})
 	})
@@ -676,19 +683,33 @@ func (s *shellState) revertDocument(binding *widgets.WidgetsBinding, doc *docume
 				finish(false)
 				return
 			}
+			views := s.captureViews(doc)
 			doc.FinishRevert(job, res)
 			s.dismissSaveNote(doc)
-			s.documentReloaded(binding, doc)
+			s.documentReloaded(binding, doc, views, true)
 			finish(true)
 		})
 	})
 }
 
-// documentReloaded makes the editors of a document, whose text was replaced as a whole, keep their cursors inside
-// it, draw it again, and the window show its state.
-func (s *shellState) documentReloaded(binding *widgets.WidgetsBinding, doc *document.Document) {
+// documentReloaded makes the editors of a document, whose text was replaced as a whole (a revert, a reopen with
+// another encoding, a file that changed on disk), draw it again and keep their view state: the cursors inside the
+// new text, the scroll position and the folds that still have their lines. views is what captureViews took before
+// the text was replaced; an editor that is not in it only gets its cursors moved into the text. The window shows
+// the state of the document, and the keyboard focus goes back to the editor when focus is set (the user asked for
+// it; a file that changed on disk takes no focus).
+func (s *shellState) documentReloaded(binding *widgets.WidgetsBinding, doc *document.Document, views []viewSnap, focus bool) {
+	win := PeekWindow(s.Context())
 	for _, other := range s.group.editors {
-		if other.doc != doc {
+		if other.doc != doc || other.disposed {
+			continue
+		}
+		other.view.DocumentChanged()
+		i := slices.IndexFunc(views, func(v viewSnap) bool { return v.ed == other })
+		if i >= 0 {
+			if err := other.view.RestoreView(views[i].state); err != nil {
+				win.Process.Logger.Debug("a fold could not be restored after the file was read again", "uri", doc.URI().String(), "err", err)
+			}
 			continue
 		}
 		snap := doc.Snapshot()
@@ -697,11 +718,16 @@ func (s *shellState) documentReloaded(binding *widgets.WidgetsBinding, doc *docu
 			sels[i].Anchor, sels[i].Active = snap.ValidatePosition(sels[i].Anchor), snap.ValidatePosition(sels[i].Active)
 		}
 		other.view.Cursors().SetSelections(sels)
-		other.view.DocumentChanged()
+		other.view.SelectionsChanged()
 	}
 	s.refreshKeys()
 	s.refreshStatus()
-	s.askFocus(binding)
+	if focus {
+		s.askFocus(binding)
+	}
+	if s.Mounted() {
+		s.SetState(func() {})
+	}
 }
 
 // ---- untitled files ----

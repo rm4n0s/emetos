@@ -122,6 +122,9 @@ type SaveJob struct {
 // Path is the file the job writes.
 func (j *SaveJob) Path() string { return j.path }
 
+// Document is the document the job saves.
+func (j *SaveJob) Document() *Document { return j.doc }
+
 // As reports that the job is a Save As.
 func (j *SaveJob) As() bool { return j.as }
 
@@ -179,7 +182,12 @@ func (d *Document) begin(path string, as bool, opts SaveOptions) (*SaveJob, erro
 		stat := d.stat
 		w.IfUnchanged = &stat
 	}
-	return &SaveJob{doc: d, uri: d.uri, path: path, as: as, text: d.Text(), opts: w, alt: d.altVersion, save: opts}, nil
+	j := &SaveJob{doc: d, uri: d.uri, path: path, as: as, text: d.Text(), opts: w, alt: d.altVersion, save: opts}
+	if d.inflight == nil {
+		d.inflight = map[*SaveJob]struct{}{}
+	}
+	d.inflight[j] = struct{}{}
+	return j, nil
 }
 
 // Write writes the text of the job to its file and returns the FileStat of the result. It fails with the
@@ -208,12 +216,16 @@ type SaveResult struct {
 // language of the new name. Undo history is kept.
 func (d *Document) FinishSave(j *SaveJob, stat fileio.FileStat) SaveResult {
 	res := SaveResult{Stat: stat}
+	delete(d.inflight, j)
+	d.saveGen++
 	if j.as {
 		d.savedVersion, d.stat = j.alt, stat
+		d.setExternal(false, nil) // the file of the new name is there as it was written
 		d.SetURI(FileURI(j.path))
 		res.LanguageChanged = d.detectLanguage(j.path, j.save.DetectLanguage)
 	} else if d.uri == j.uri {
 		d.savedVersion, d.stat = j.alt, stat
+		d.setExternal(false, nil) // written: the file is there again if it was gone, and the changes are saved
 	}
 	res.Clean = !d.Dirty()
 	ev := SavedEvent{Path: j.path, Stat: stat, Clean: res.Clean, As: j.as}
@@ -246,6 +258,7 @@ func (d *Document) Save(ctx context.Context, opts SaveOptions) (SaveResult, erro
 	}
 	stat, err := j.Write(ctx)
 	if err != nil {
+		j.Abort()
 		return SaveResult{}, err
 	}
 	return d.FinishSave(j, stat), nil
@@ -260,6 +273,7 @@ func (d *Document) SaveAs(ctx context.Context, path string, opts SaveOptions) (S
 	}
 	stat, err := j.Write(ctx)
 	if err != nil {
+		j.Abort()
 		return SaveResult{}, err
 	}
 	return d.FinishSave(j, stat), nil

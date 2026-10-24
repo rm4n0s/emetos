@@ -3,11 +3,13 @@ package editorgroup
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/fileio"
 )
 
 func TestOpenPositioning(t *testing.T) {
@@ -512,4 +514,85 @@ func TestTextInputFollowsASave(t *testing.T) {
 	if in.Dirty() || len(events) != 2 || events[0] != InputDirty || events[1] != InputDirty {
 		t.Errorf("dirty %v, events %v", in.Dirty(), events)
 	}
+}
+
+// openDocument reads the file as a document.
+func openDocument(t *testing.T, path string) *document.Document {
+	t.Helper()
+	res, err := fileio.Read(context.Background(), path, fileio.ReadOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return document.FromRead(document.FileURI(path), res, document.NewOptions())
+}
+
+// TestTextInputShowsADeletedFile checks that a document whose file another program deleted is a deleted input:
+// the label changes once when the file goes, the tooltip says so, and nothing else of the input changes (step
+// 7.4); a file that is there is not deleted, and an input of a document with no file never is.
+func TestTextInputShowsADeletedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.txt")
+	if err := os.WriteFile(path, []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc := openDocument(t, path)
+	in := NewTextInput(doc, TextInputOpts{})
+	var events []InputEventKind
+	in.Subscribe(func(e InputEvent) { events = append(events, e.Kind) })
+	look := func() {
+		t.Helper()
+		if _, err := doc.CheckExternal(context.Background(), nil, fileio.ReadOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	look()
+	if IsDeleted(in) || DecoratedTitle(in, in.Title()) != path || len(events) != 0 {
+		t.Fatalf("a file that is there: deleted %v, title %q, events %v", IsDeleted(in), DecoratedTitle(in, in.Title()), events)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	look()
+	look() // the same news again says nothing more
+	if !IsDeleted(in) || DecoratedTitle(in, in.Title()) != path+" \u2022 Deleted" || in.Dirty() || in.Name() != "a.txt" {
+		t.Errorf("deleted %v, title %q, dirty %v, name %q", IsDeleted(in), DecoratedTitle(in, in.Title()), in.Dirty(), in.Name())
+	}
+	if len(events) != 1 || events[0] != InputLabel {
+		t.Errorf("events = %v", events)
+	}
+	untitled := NewTextInput(document.New(document.UntitledURI(1), "x", document.NewOptions()), TextInputOpts{})
+	if IsDeleted(untitled) || untitled.Deleted() {
+		t.Error("an untitled document is deleted")
+	}
+}
+
+// TestTextInputDeletedFileComesBack checks that a save, which makes the file again, takes the mark away.
+func TestTextInputDeletedFileComesBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.txt")
+	if err := os.WriteFile(path, []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc := openDocument(t, path)
+	in := NewTextInput(doc, TextInputOpts{})
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := doc.CheckExternal(context.Background(), nil, fileio.ReadOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if !in.Deleted() {
+		t.Fatal("not deleted")
+	}
+	var labels int
+	in.Subscribe(func(e InputEvent) {
+		if e.Kind == InputLabel {
+			labels++
+		}
+	})
+	if _, err := doc.Save(context.Background(), document.SaveOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if in.Deleted() || labels != 1 {
+		t.Errorf("deleted %v, label events %d", in.Deleted(), labels)
+	}
+	in.Dispose()
 }

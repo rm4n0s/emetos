@@ -129,6 +129,44 @@ func TestTabsPreviewIsItalic(t *testing.T) {
 	}
 }
 
+func TestTabsDeletedIsStruckThrough(t *testing.T) {
+	items := []TabItem{
+		{Key: "a", Name: "kept.go", Description: "src"},
+		{Key: "b", Name: "gone.go", Description: "lib", Deleted: true},
+	}
+	tests := []struct {
+		name      string
+		opts      TabsOpts
+		wantError bool
+	}{
+		{"with colors", TabsOpts{Active: 0, DecorationColors: true}, true},
+		{"without colors", TabsOpts{Active: 0}, false},
+		{"single title of a deleted editor", TabsOpts{Active: 1, Mode: TabsSingle, DecorationColors: true}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := pumpTabs(t, DarkModern(), 600, items, tt.opts)
+			deleted := map[string]bool{"kept.go": false, "src": false, "gone.go": true, "lib": true}
+			for text, want := range deleted {
+				if tt.opts.Mode == TabsSingle && text != "gone.go" && text != "lib" {
+					continue // the single title shows the active editor alone
+				}
+				style := ts.Widget(gluttertest.ByText(text)).(*widgets.Text).Style()
+				deco, _ := style.Decoration.Get()
+				if got := deco.Contains(ui.TextDecorationLineThrough); got != want {
+					t.Errorf("%s: struck through = %v, want %v", text, got, want)
+				}
+				if text == "gone.go" {
+					color, _ := style.Color.Get()
+					if got := color == DarkModern().ListErrorForeground; got != tt.wantError {
+						t.Errorf("%s: drawn in the error color = %v, want %v", text, got, tt.wantError)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestTabsColors(t *testing.T) {
 	for _, th := range goldenThemes {
 		t.Run(th.name, func(t *testing.T) {

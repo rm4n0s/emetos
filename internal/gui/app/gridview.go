@@ -243,8 +243,8 @@ func (s *shellState) tabItems(group *editorgroup.Group) []kit.TabItem {
 			key = uri.String()
 		}
 		items[i] = kit.TabItem{
-			Key: key, Name: labels[i].Name, Description: labels[i].Description, Title: labels[i].Title,
-			Preview: !m.IsPinned(e), Sticky: m.IsSticky(e), Dirty: e.Dirty(),
+			Key: key, Name: labels[i].Name, Description: labels[i].Description, Title: editorgroup.DecoratedTitle(e, labels[i].Title),
+			Preview: !m.IsPinned(e), Sticky: m.IsSticky(e), Dirty: e.Dirty(), Deleted: editorgroup.IsDeleted(e),
 		}
 	}
 	return items
@@ -258,6 +258,7 @@ func (s *shellState) tabsOptions(win *Window, group *editorgroup.Group) kit.Tabs
 		Active:            m.IndexOf(m.ActiveEditor()),
 		Unfocused:         s.group.grid.Active() != group,
 		HighlightModified: settings.Get[bool](win.Settings, "workbench.editor.highlightModifiedTabs", ""),
+		DecorationColors:  settings.Get[bool](win.Settings, "workbench.editor.decorations.colors", ""),
 		OnActivate:        func(i int) { s.activateAt(group, i) },
 		OnClose:           func(i int) { s.closeAt(group, i) },
 		OnPin:             func(i int) { m.Pin(m.EditorAt(i)) },

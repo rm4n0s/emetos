@@ -283,8 +283,9 @@ func (s *shellState) readWithEncoding(binding *widgets.WidgetsBinding, e *textEd
 				win.Process.Notify.Error("Emetos", "Cannot reopen "+filepath.Base(file)+" with the encoding "+enc.LabelLong+": "+describe(err))
 				return
 			}
+			views := s.captureViews(e.doc)
 			e.doc.Reload(res)
-			s.documentReloaded(binding, e.doc)
+			s.documentReloaded(binding, e.doc, views, true)
 		})
 	})
 }

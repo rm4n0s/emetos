@@ -129,8 +129,10 @@ type Colors struct {
 	// in a row that is focused in an active list), the background and border of the matches in the filter
 	// mode (ListFilterMatchBackground, ListFilterMatchBorder); and the find box (ListFilterWidgetBackground,
 	// its outline and the outline when nothing matches, and its shadow).
-	ListDropBackground, ListDropBetweenBackground            ui.Color
-	ListHighlightForeground, ListFocusHighlightForeground    ui.Color
+	ListDropBackground, ListDropBetweenBackground         ui.Color
+	ListHighlightForeground, ListFocusHighlightForeground ui.Color
+	// ListErrorForeground is the label of a list item with an error: an editor whose file was deleted.
+	ListErrorForeground                                      ui.Color
 	ListFilterMatchBackground, ListFilterMatchBorder         ui.Color
 	ListFilterWidgetBackground, ListFilterWidgetOutline      ui.Color
 	ListFilterWidgetNoMatchesOutline, ListFilterWidgetShadow ui.Color
@@ -339,6 +341,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		ListInactiveFocusBackground: color("list.inactiveFocusBackground"), ListInactiveFocusOutline: color("list.inactiveFocusOutline"),
 		TreeIndentGuidesStroke: color("tree.indentGuidesStroke"), TreeInactiveIndentGuidesStroke: color("tree.inactiveIndentGuidesStroke"),
 		ListDropBackground: color("list.dropBackground"), ListDropBetweenBackground: color("list.dropBetweenBackground"),
+		ListErrorForeground:     color("list.errorForeground"),
 		ListHighlightForeground: color("list.highlightForeground"), ListFocusHighlightForeground: color("list.focusHighlightForeground"),
 		ListFilterMatchBackground: color("list.filterMatchBackground"), ListFilterMatchBorder: color("list.filterMatchBorder"),
 		ListFilterWidgetBackground: color("listFilterWidget.background"), ListFilterWidgetOutline: color("listFilterWidget.outline"),

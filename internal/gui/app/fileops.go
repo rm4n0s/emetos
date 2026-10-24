@@ -144,10 +144,18 @@ func (s *shellState) reportOpError(err error, retry func()) {
 // changes stay, and its language is found again when the extension changed), and the editors of a file that was
 // deleted close unless they have unsaved changes.
 func (s *shellState) followFileOp(binding *widgets.WidgetsBinding, res workspace.OpResult) {
+	s.followPaths(binding, res.Follow)
+}
+
+// followPaths makes the open editors, the recently opened files and the history follow the paths that moved:
+// follow gives the path an item has now and whether it is gone. It is the one code path of the operations of the
+// Explorer and of the renames that another program makes (the watcher's events), so that the echo of an
+// operation of our own, which finds everything where it should be, changes nothing.
+func (s *shellState) followPaths(binding *widgets.WidgetsBinding, follow func(path string) (string, bool)) {
 	win := PeekWindow(s.Context())
 	// the recently opened files of the quick open follow the moves and lose the files that were deleted
 	for _, p := range win.Recent.List() {
-		switch path, gone := res.Follow(p); {
+		switch path, gone := follow(p); {
 		case gone:
 			win.Recent.Remove(p)
 		case path != p:
@@ -155,13 +163,13 @@ func (s *shellState) followFileOp(binding *widgets.WidgetsBinding, res workspace
 		}
 	}
 	// the locations and the closed editors of the history follow too
-	s.followNavigation(res.Follow)
+	s.followNavigation(follow)
 	for _, doc := range win.Documents.All() {
 		uri := doc.URI()
 		if uri.Scheme != document.SchemeFile {
 			continue
 		}
-		path, gone := res.Follow(uri.Path)
+		path, gone := follow(uri.Path)
 		switch {
 		case gone:
 			s.closeCleanEditors(doc)
@@ -216,11 +224,13 @@ func (s *shellState) renameDocument(binding *widgets.WidgetsBinding, doc *docume
 	}
 }
 
-// externalFileEvents handles the events of the watcher on the UI thread. VS Code keeps the editor of a file that
-// another program deleted or renamed open, unless workbench.editor.closeOnFileDelete is on; the editors with
-// unsaved changes never close. The changes of our own operations were applied already, and are harmless here.
+// externalFileEvents handles the events of the watcher on the UI thread, for what is not the open documents' (that
+// is external.go): the history forgets the files that are gone. VS Code keeps the editor of a file that another
+// program deleted open, unless workbench.editor.closeOnFileDelete is on (then the clean editors close: see
+// finishExternal); one that was renamed follows the file. The changes of our own operations were applied
+// already, and are harmless here.
 func (s *shellState) externalFileEvents(events []workspace.Event) {
-	win := PeekWindow(s.Context())
+	s.externalEvents(events)
 	var removed []string
 	for _, e := range events {
 		switch e.Kind {
@@ -233,30 +243,6 @@ func (s *shellState) externalFileEvents(events []workspace.Event) {
 	}
 	// the history forgets the files that are gone (VS Code removes them when the watcher says they were deleted)
 	s.forgetDeleted(removed)
-	if !settings.Get[bool](win.Settings, "workbench.editor.closeOnFileDelete", "") {
-		return
-	}
-	for _, e := range events {
-		var gone string
-		switch e.Kind {
-		case workspace.EventDeleted:
-			gone = e.Path
-		case workspace.EventRenamed:
-			gone = e.OldPath
-		default:
-			continue
-		}
-		for _, doc := range win.Documents.All() {
-			uri := doc.URI()
-			if uri.Scheme != document.SchemeFile || (uri.Path != gone && !strings.HasPrefix(uri.Path, gone+string(filepath.Separator))) {
-				continue
-			}
-			if exists(uri.Path) {
-				continue // the file is there: a faulty event, or a file renamed back
-			}
-			s.closeCleanEditors(doc)
-		}
-	}
 }
 
 // ---- commands ----

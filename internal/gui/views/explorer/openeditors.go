@@ -31,8 +31,9 @@ type groupRow struct {
 type editorRow struct {
 	Group *editorgroup.Group
 	Input editorgroup.EditorInput
-	// Preview says that the editor is the preview editor of its group, Dirty that it has unsaved changes.
-	Preview, Dirty bool
+	// Preview says that the editor is the preview editor of its group, Dirty that it has unsaved changes and
+	// Deleted that its file was deleted by another program (the label is struck through).
+	Preview, Dirty, Deleted bool
 }
 
 // OpenEditorsOpts configure an OpenEditors.
@@ -43,6 +44,9 @@ type OpenEditorsOpts struct {
 	// nil is editorOrder. Visible gives explorer.openEditors.visible; nil is 9.
 	SortOrder func() string
 	Visible   func() int
+	// DecorationColors gives workbench.editor.decorations.colors: a deleted editor is drawn in the error color;
+	// nil is yes.
+	DecorationColors func() bool
 	// Icons and Language are those of ViewOpts.
 	Icons    func() *theme.FileIconTheme
 	Language func(path string) string
@@ -166,7 +170,7 @@ func (o *OpenEditors) Refresh() {
 				id = o.nextID
 			}
 			present[e] = id
-			row := editorRow{Group: g, Input: e, Preview: !g.Model.IsPinned(e), Dirty: e.Dirty()}
+			row := editorRow{Group: g, Input: e, Preview: !g.Model.IsPinned(e), Dirty: e.Dirty(), Deleted: editorgroup.IsDeleted(e)}
 			if row.Dirty {
 				o.dirty++
 			}
@@ -370,15 +374,26 @@ func (o *OpenEditors) renderEditor(bc widgets.BuildContext, d editorRow, st kit.
 			}
 		}
 	}
+	if d.Deleted && (o.opts.DecorationColors == nil || o.opts.DecorationColors()) {
+		if c := colors.ListErrorForeground; c.Alpha() != 0 {
+			fg = c
+		}
+	}
 	labelStyle := kit.TextStyleOf(bc, labelFontSize, fg)
 	if d.Preview {
 		labelStyle = labelStyle.Merge(painting.NewTextStyle(painting.TextStyleOpts{FontStyle: ui.FontStyleItalic}))
+	}
+	if d.Deleted {
+		labelStyle = labelStyle.Merge(painting.NewTextStyle(painting.TextStyleOpts{Decoration: foundation.Some(ui.TextDecorationLineThrough)}))
 	}
 	cells := []widgets.Widget{
 		widgets.NewText(name, widgets.TextOpts{Style: labelStyle, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis}),
 	}
 	if desc := d.Input.Description(); desc != "" {
 		dim := kit.TextStyleOf(bc, labelFontSize*0.9, fg.WithOpacity(0.7))
+		if d.Deleted {
+			dim = dim.Merge(painting.NewTextStyle(painting.TextStyleOpts{Decoration: foundation.Some(ui.TextDecorationLineThrough)}))
+		}
 		cells = append(cells,
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}),
 			widgets.NewFlexible(widgets.NewText(desc, widgets.TextOpts{Style: dim, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})))
