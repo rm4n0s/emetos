@@ -39,9 +39,19 @@ func (s *workbenchState) bindCommands() {
 
 		// the commands VS Code keeps in a setting write it, and the layout follows
 		"workbench.action.toggleStatusbarVisibility": func(c command.Context, _ any) error {
+			if l.ZenActive() {
+				// zen mode hides the bar apart from the setting: showing it is a change of the layout, which zen
+				// mode leaves as it is
+				l.SetStatusBarVisible(!l.State().StatusBarVisible)
+				return nil
+			}
 			return s.updateSetting(c.Ctx, "workbench.statusBar.visible", !l.State().StatusBarVisible, func() { l.SetStatusBarVisible(!l.State().StatusBarVisible) })
 		},
 		"workbench.action.toggleActivityBarVisibility": func(c command.Context, _ any) error {
+			if l.ZenActive() {
+				l.SetActivityBarVisible(!l.State().ActivityBarVisible)
+				return nil
+			}
 			value := "hidden"
 			if !l.State().ActivityBarVisible {
 				value = "default"
@@ -52,7 +62,7 @@ func (s *workbenchState) bindCommands() {
 			// VS Code's custom menu goes from classic or visible to compact, and back to classic; Emetos has no
 			// compact menu, and the nearest is toggle (the menu on the Alt key).
 			value := "classic"
-			if v := s.menuBarVisibility(); v == kit.MenuBarClassic || v == kit.MenuBarVisible {
+			if v := s.settingMenuBarVisibility(); v == kit.MenuBarClassic || v == kit.MenuBarVisible {
 				value = "toggle"
 			}
 			return s.updateSetting(c.Ctx, "window.menuBarVisibility", value, nil)

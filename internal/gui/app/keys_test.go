@@ -127,6 +127,13 @@ func newKeyApp(t *testing.T, text string) *keyApp {
 	return &keyApp{win: win, vm: vm, ts: ts, snippets: snippets}
 }
 
+// focusEditor gives the editor the keyboard focus, as it has when the window opens.
+func (a *keyApp) focusEditor() {
+	if e := a.win.shell.activeEditor(); e != nil && e.focus.Request() {
+		a.ts.Pump(time.Millisecond)
+	}
+}
+
 func (a *keyApp) text() string { return a.vm.Document().Text() }
 
 func (a *keyApp) selections() []buffer.Selection { return a.vm.Cursors().Selections() }
@@ -352,6 +359,14 @@ func unfocusedState(a *keyApp) func() {
 	}
 }
 
+// zenModeState is the state of a window in zen mode, for the keys that leave it (Escape Escape).
+func zenModeState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Set("inZenMode", true)
+	}
+}
+
 // groupsState is the state of a window with several groups, the active one empty, for the keys that act
 // on groups.
 func groupsState(a *keyApp) func() {
@@ -464,13 +479,16 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 		}
 		tried++
 		t.Run(item.Command+" "+item.Keybinding.UserSettingsLabel(), func(t *testing.T) {
+			// a command tried before may have left the editor without the focus
+			a.focusEditor()
 			var reached []string
 			states := append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a),
 				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
 				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a),
 				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true),
 				quickInputState(a), historyState(a), editorPickerState(a),
-				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false))
+				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
+				zenModeState(a))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
@@ -479,6 +497,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				for _, key := range keybindingsKeys {
 					a.win.Keys.Reset(key)
 				}
+				a.win.Keys.Set("inZenMode", false)
 				a.win.Keys.Set("activeEditorIsPinned", false)
 				a.win.Keys.Set("activeEditorGroupEmpty", false)
 				a.win.Keys.Set("multipleEditorGroups", false)
@@ -598,7 +617,7 @@ func TestChordsAndModifierKeys(t *testing.T) {
 	// A key that does not complete a chord is dropped with a message and not typed.
 	*ran = nil
 	sendChord(a.ts, keybinding.Chord{Ctrl: true, Key: keybinding.KeyK})
-	if !sendChord(a.ts, keybinding.Chord{Key: keybinding.KeyZ}) {
+	if !sendChord(a.ts, keybinding.Chord{Key: keybinding.KeyY}) { // Ctrl+K Z is zen mode since step 8.5
 		t.Error("the key that ends a failed chord is used up")
 	}
 	if len(*ran) != 0 || a.win.Dispatcher.InChordMode() {

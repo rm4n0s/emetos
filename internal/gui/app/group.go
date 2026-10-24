@@ -111,7 +111,7 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	s.initNavigation(binding)
 	g.stop = g.grid.OnChange(func(e editorgroup.GridEvent) { s.gridChanged(binding, e) })
 	g.stopSettings = win.Settings.OnChange(func(e settings.ChangeEvent) {
-		if e.Affects("workbench.editor", "") || e.Affects("breadcrumbs", "") {
+		if e.Affects("workbench.editor", "") || e.Affects("breadcrumbs", "") || e.Affects("zenMode", "") {
 			binding.Post(func() {
 				if !s.Mounted() {
 					return

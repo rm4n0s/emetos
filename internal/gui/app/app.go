@@ -181,6 +181,8 @@ func newAppWithPage(win *Window, page func() widgets.Widget) widgets.Widget {
 			Title: Title,
 			// The window is a proof image: it has no debug ribbon.
 			DebugShowCheckedModeBanner: foundation.Some(false),
+			// the zoom of the window is above the navigator, so that the pages and the overlays are zoomed together
+			Builder: func(_ widgets.BuildContext, navigator widgets.Widget) widgets.Widget { return newZoomHost(navigator) },
 			OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 				return widgets.NewPageRouteBuilder(
 					func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
@@ -270,6 +272,8 @@ type shellState struct {
 	state stateState
 	// launches is what the shell keeps of the launches of other processes (launch.go).
 	launches launchState
+	// modesStops stop following the full screen mode, zen mode and the zoom of the window (centered.go).
+	modesStops []func()
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -296,6 +300,7 @@ func (s *shellState) InitState() {
 	s.showRestoredConflicts()
 	s.initClosing(binding)
 	s.initState(binding)
+	s.initModes(binding)
 	s.initLaunch(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
@@ -377,6 +382,7 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	s.disposeModes()
 	s.disposeBackups() // before the documents close: their backups stay
 	s.disposeState()   // before the groups go: it saves them
 	s.disposeClosing()
@@ -400,10 +406,11 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, QuickInput: win.QuickInput, Context: win.ctx,
-		Editor:    s.editorArea(bc),
-		StatusBar: s.statusBarOptions(win),
-		NoFolder:  win.Folder == "",
-		Menus:     s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
+		Editor:     s.editorArea(bc),
+		FullScreen: win.IsFullScreen(),
+		StatusBar:  s.statusBarOptions(win),
+		NoFolder:   win.Folder == "",
+		Menus:      s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 		ViewBody: s.viewBody, ViewName: s.viewName, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
 		OnViewFocus: s.viewFocused,
@@ -426,6 +433,7 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 			s.window, _ = scope.Controller().(interface{ SetTitle(string) })
 			// Glutter: Activate is in the same position (RegularWindowController has it, BaseWindowController does not)
 			win.controller = scope.Controller()
+			defer win.controllerKnown() // after the controller is followed below
 			if src, ok := scope.Controller().(geometrySource); ok {
 				s.trackWindow(src)
 			}

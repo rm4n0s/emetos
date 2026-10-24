@@ -138,6 +138,41 @@ type LayoutState struct {
 	// is kept while the panel is hidden, and workbench.panel.opensMaximized says whether showing the
 	// panel again brings it back.
 	PanelMaximized bool `json:"panelMaximized"`
+	// CenteredLayout says that the user (or zen mode) asked for the editor area to be centered between two margins
+	// (step 8.5). It is the request: whether the margins show also depends on the groups (see CenteredLayoutActive of
+	// the shell). A state written before step 8.5 has none.
+	CenteredLayout bool `json:"centeredLayout,omitempty"`
+	// Zen is zen mode: whether it is on, and what it did, to be undone when it ends (a state without it is not in zen
+	// mode).
+	Zen ZenState `json:"zen,omitzero"`
+}
+
+// ZenState is what zen mode keeps of the layout it found, as VS Code's zenModeExitInfo does (SPEC §10.9). It is
+// saved with the layout, so that a window that closes in zen mode starts in it again (zenMode.restore) or leaves it
+// with the parts it had.
+//
+// Ported from VS Code: src/vs/workbench/browser/layout.ts (zenModeExitInfo, toggleZenMode)
+type ZenState struct {
+	// Active says that zen mode is on.
+	Active bool `json:"active,omitempty"`
+	// HidSideBar, HidPanel, HidActivityBar and HidStatusBar say that the part was shown when zen mode began and zen mode
+	// hid it; only those come back when it ends.
+	HidSideBar     bool `json:"hidSideBar,omitempty"`
+	HidPanel       bool `json:"hidPanel,omitempty"`
+	HidActivityBar bool `json:"hidActivityBar,omitempty"`
+	HidStatusBar   bool `json:"hidStatusBar,omitempty"`
+	// ChangedSideBar, ChangedPanel, ChangedActivityBar and ChangedStatusBar say that the user showed or hid the part
+	// while zen mode was on: it stays as the user left it when zen mode ends.
+	ChangedSideBar     bool `json:"changedSideBar,omitempty"`
+	ChangedPanel       bool `json:"changedPanel,omitempty"`
+	ChangedActivityBar bool `json:"changedActivityBar,omitempty"`
+	ChangedStatusBar   bool `json:"changedStatusBar,omitempty"`
+	// FullScreen, Centered and DoNotDisturb say that zen mode turned full screen, the centered layout and do not
+	// disturb on (they were off), so that ending it turns them off again (VS Code's transitionedToFullScreen,
+	// transitionedToCenteredEditorLayout and handleNotificationsDoNotDisturbMode).
+	FullScreen   bool `json:"fullScreen,omitempty"`
+	Centered     bool `json:"centered,omitempty"`
+	DoNotDisturb bool `json:"doNotDisturb,omitempty"`
 }
 
 // DefaultLayoutState is the layout of a window that has nothing saved: the side bar, the activity bar
@@ -222,6 +257,8 @@ type Layout struct {
 	// restores counts the calls of Restore that changed the layout: the split views start again from
 	// the sizes of the state after one, since they keep their own sizes otherwise.
 	restores int
+	// inZen is true while EnterZen and ExitZen change the parts, which are not the user's changes.
+	inZen bool
 
 	mu        sync.Mutex
 	listeners []*func()
@@ -264,6 +301,13 @@ func (l *Layout) OnChange(fn func()) (unsubscribe func()) {
 func (l *Layout) set(s LayoutState) {
 	if s == l.state {
 		return
+	}
+	if old := l.state; old.Zen.Active && s.Zen.Active && !l.inZen {
+		// a part that changes while zen mode is on is the user's doing: zen mode leaves it as it is
+		s.Zen.ChangedSideBar = s.Zen.ChangedSideBar || old.SideBarVisible != s.SideBarVisible
+		s.Zen.ChangedPanel = s.Zen.ChangedPanel || old.PanelVisible != s.PanelVisible
+		s.Zen.ChangedActivityBar = s.Zen.ChangedActivityBar || old.ActivityBarVisible != s.ActivityBarVisible
+		s.Zen.ChangedStatusBar = s.Zen.ChangedStatusBar || old.StatusBarVisible != s.StatusBarVisible
 	}
 	l.state = s
 	l.mu.Lock()
@@ -349,15 +393,11 @@ func (l *Layout) SetSideBarPosition(p SideBarPosition) {
 // as workbench.panel.opensMaximized says.
 func (l *Layout) SetPanelVisible(v bool) {
 	s := l.state
-	if v && !s.PanelVisible {
-		switch l.opens {
-		case OpensMaximizedAlways:
-			s.PanelMaximized = true
-		case OpensMaximizedNever:
-			s.PanelMaximized = false
-		}
+	if v {
+		s = showPanel(s, l.opens)
+	} else {
+		s.PanelVisible = false
 	}
-	s.PanelVisible = v
 	l.set(s)
 }
 
@@ -430,8 +470,14 @@ func (l *Layout) FollowSettings(s *settings.Store, post func(func())) (stop func
 	}
 	apply := func() {
 		l.SetSideBarPosition(sideBarPosition(settings.Get[string](s, "workbench.sideBar.location", "")))
-		l.SetActivityBarVisible(settings.Get[string](s, "workbench.activityBar.location", "") != "hidden")
-		l.SetStatusBarVisible(settings.Get[bool](s, "workbench.statusBar.visible", ""))
+		// a part that zen mode holds hidden stays hidden; a setting that now hides it takes it out of what zen mode
+		// brings back
+		if visible := settings.Get[string](s, "workbench.activityBar.location", "") != "hidden"; !l.zenHolds(PartActivityBar, visible) {
+			l.SetActivityBarVisible(visible)
+		}
+		if visible := settings.Get[bool](s, "workbench.statusBar.visible", ""); !l.zenHolds(PartStatusBar, visible) {
+			l.SetStatusBarVisible(visible)
+		}
 		l.SetPanelOpensMaximized(PanelOpensMaximized(settings.Get[string](s, "workbench.panel.opensMaximized", "")))
 	}
 	apply()
@@ -441,6 +487,159 @@ func (l *Layout) FollowSettings(s *settings.Store, post func(func())) (stop func
 			post(apply)
 		}
 	})
+}
+
+// zenHolds says that zen mode keeps a part hidden while the settings want it shown (visible): it hid the part and
+// the user has not touched it since. When the settings want it hidden zen mode has nothing to bring back, and the
+// part is not held.
+func (l *Layout) zenHolds(p Part, visible bool) bool {
+	z := &l.state.Zen
+	if !z.Active {
+		return false
+	}
+	switch p {
+	case PartActivityBar:
+		if z.HidActivityBar && !z.ChangedActivityBar {
+			if !visible {
+				z.HidActivityBar = false
+			}
+			return visible
+		}
+	case PartStatusBar:
+		if z.HidStatusBar && !z.ChangedStatusBar {
+			if !visible {
+				z.HidStatusBar = false
+			}
+			return visible
+		}
+	}
+	return false
+}
+
+// ZenActive says whether zen mode is on.
+func (l *Layout) ZenActive() bool { return l.state.Zen.Active }
+
+// EnterZen turns zen mode on: it remembers which of the side bar, the panel, the activity bar and the status bar are
+// shown, and hides the side bar and the panel always and the activity bar and the status bar when the arguments say
+// so (zenMode.hideActivityBar, zenMode.hideStatusBar). It does nothing when zen mode is on already. The caller sets
+// what else it did with SetZenTransitions.
+//
+// Ported from VS Code: src/vs/workbench/browser/layout.ts (toggleZenMode)
+func (l *Layout) EnterZen(hideActivityBar, hideStatusBar bool) {
+	if l.state.Zen.Active {
+		return
+	}
+	s := l.state
+	s.Zen = ZenState{
+		Active: true, HidSideBar: s.SideBarVisible, HidPanel: s.PanelVisible,
+		HidActivityBar: hideActivityBar && s.ActivityBarVisible, HidStatusBar: hideStatusBar && s.StatusBarVisible,
+	}
+	s.SideBarVisible, s.PanelVisible = false, false
+	if hideActivityBar {
+		s.ActivityBarVisible = false
+	}
+	if hideStatusBar {
+		s.StatusBarVisible = false
+	}
+	l.setByZen(s)
+}
+
+// setByZen sets a state that zen mode made, which the user did not (so no part is marked as changed).
+func (l *Layout) setByZen(s LayoutState) {
+	l.inZen = true
+	defer func() { l.inZen = false }()
+	l.set(s)
+}
+
+// UpdateZen makes the activity bar and the status bar follow zenMode.hideActivityBar and zenMode.hideStatusBar while
+// zen mode is on: a part that is to be hidden is hidden, and one that zen mode hid and is not to be any more comes
+// back (a part the user changed is left as it is).
+func (l *Layout) UpdateZen(hideActivityBar, hideStatusBar bool) {
+	if !l.state.Zen.Active {
+		return
+	}
+	s := l.state
+	if !s.Zen.ChangedActivityBar {
+		switch {
+		case hideActivityBar && s.ActivityBarVisible:
+			s.ActivityBarVisible, s.Zen.HidActivityBar = false, true
+		case !hideActivityBar && s.Zen.HidActivityBar:
+			s.ActivityBarVisible, s.Zen.HidActivityBar = true, false
+		}
+	}
+	if !s.Zen.ChangedStatusBar {
+		switch {
+		case hideStatusBar && s.StatusBarVisible:
+			s.StatusBarVisible, s.Zen.HidStatusBar = false, true
+		case !hideStatusBar && s.Zen.HidStatusBar:
+			s.StatusBarVisible, s.Zen.HidStatusBar = true, false
+		}
+	}
+	l.setByZen(s)
+}
+
+// SetZenTransitions records what the caller did when it turned zen mode on: went to full screen, turned the centered
+// layout on, turned do not disturb on. Ending zen mode asks for them to be undone (ZenState).
+func (l *Layout) SetZenTransitions(fullScreen, centered, doNotDisturb bool) {
+	s := l.state
+	if !s.Zen.Active {
+		return
+	}
+	s.Zen.FullScreen, s.Zen.Centered, s.Zen.DoNotDisturb = fullScreen, centered, doNotDisturb
+	l.setByZen(s)
+}
+
+// ExitZen turns zen mode off and shows again what zen mode hid and the user has not changed since. It returns what
+// zen mode had recorded (ZenState), for the caller to undo what is not the layout's. It does nothing, and returns
+// the zero state, when zen mode is off.
+//
+// Ported from VS Code: src/vs/workbench/browser/layout.ts (toggleZenMode)
+func (l *Layout) ExitZen() ZenState {
+	z := l.state.Zen
+	if !z.Active {
+		return ZenState{}
+	}
+	s := l.state
+	if z.HidSideBar && !z.ChangedSideBar {
+		s.SideBarVisible = true
+	}
+	if z.HidPanel && !z.ChangedPanel {
+		s = showPanel(s, l.opens)
+	}
+	if z.HidActivityBar && !z.ChangedActivityBar {
+		s.ActivityBarVisible = true
+	}
+	if z.HidStatusBar && !z.ChangedStatusBar {
+		s.StatusBarVisible = true
+	}
+	s.Zen = ZenState{}
+	l.set(s)
+	return z
+}
+
+// showPanel is the state with the panel shown, with the maximized state SetPanelVisible gives it.
+func showPanel(s LayoutState, opens PanelOpensMaximized) LayoutState {
+	if !s.PanelVisible {
+		switch opens {
+		case OpensMaximizedAlways:
+			s.PanelMaximized = true
+		case OpensMaximizedNever:
+			s.PanelMaximized = false
+		}
+	}
+	s.PanelVisible = true
+	return s
+}
+
+// CenteredLayout says whether the centered layout was asked for.
+func (l *Layout) CenteredLayout() bool { return l.state.CenteredLayout }
+
+// SetCenteredLayout asks for the editor area to be centered between two margins, or not. Whether the margins show
+// depends on the groups too (VS Code's workbench.editor.centeredLayoutAutoResize, which the shell applies).
+func (l *Layout) SetCenteredLayout(v bool) {
+	s := l.state
+	s.CenteredLayout = v
+	l.set(s)
 }
 
 // slot is a pane of a split view of the workbench: the part in it and how the split view treats it.

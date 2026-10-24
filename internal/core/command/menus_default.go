@@ -145,7 +145,9 @@ func registerSelectionMenu(r *MenuRegistry) {
 // registerViewMenu adds the View menu and its Appearance submenu.
 //
 // Ported from VS Code: src/vs/workbench/browser/actions/layoutActions.ts,
-// src/vs/workbench/browser/parts/panel/panelActions.ts and
+// src/vs/workbench/browser/parts/panel/panelActions.ts,
+// src/vs/workbench/browser/actions/windowActions.ts, src/vs/workbench/browser/workbench.zenMode.contribution.ts,
+// src/vs/workbench/electron-browser/actions/windowActions.ts and
 // src/vs/workbench/contrib/codeEditor/browser/toggleWordWrap.ts
 func registerViewMenu(r *MenuRegistry) {
 	r.MustAdd(
@@ -155,6 +157,17 @@ func registerViewMenu(r *MenuRegistry) {
 		MenuItem{Menu: MenubarViewMenu, Command: "workbench.action.output.toggleOutput", Title: "Output", MnemonicTitle: "&&Output", Group: "5_panel", Order: 1},
 		MenuItem{Menu: MenubarViewMenu, Command: "editor.action.toggleWordWrap", Title: "Word Wrap", MnemonicTitle: "&&Word Wrap", Group: "6_editor", Order: 1,
 			Precondition: contextkey.Has("canToggleWordWrap"), Toggled: contextkey.Has("editorWordWrap")},
+
+		// full screen, zen mode and the centered layout, then the zoom (step 8.5)
+		MenuItem{Menu: MenubarAppearanceMenu, Command: "workbench.action.toggleFullScreen", Title: "Full Screen", MnemonicTitle: "&&Full Screen", Group: "1_toggle_view", Order: 1,
+			Toggled: contextkey.Has("isFullscreen")},
+		MenuItem{Menu: MenubarAppearanceMenu, Command: "workbench.action.toggleZenMode", Title: "Zen Mode", MnemonicTitle: "Zen Mode", Group: "1_toggle_view", Order: 2,
+			Toggled: contextkey.Has("inZenMode")},
+		MenuItem{Menu: MenubarAppearanceMenu, Command: "workbench.action.toggleCenteredLayout", Title: "Centered Layout", MnemonicTitle: "&&Centered Layout", Group: "1_toggle_view", Order: 3,
+			Toggled: contextkey.Has("isCenteredLayout")},
+		MenuItem{Menu: MenubarAppearanceMenu, Command: "workbench.action.zoomIn", Title: "Zoom In", MnemonicTitle: "&&Zoom In", Group: "5_zoom", Order: 1},
+		MenuItem{Menu: MenubarAppearanceMenu, Command: "workbench.action.zoomOut", Title: "Zoom Out", MnemonicTitle: "&&Zoom Out", Group: "5_zoom", Order: 2},
+		MenuItem{Menu: MenubarAppearanceMenu, Command: "workbench.action.zoomReset", Title: "Reset Zoom", MnemonicTitle: "&&Reset Zoom", Group: "5_zoom", Order: 3},
 
 		// Menu Bar is toggled while the bar is a custom menu, which it always is in Emetos, unless the
 		// setting hides it or shows it on the Alt key

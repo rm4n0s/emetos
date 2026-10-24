@@ -41,6 +41,7 @@ func (w *Window) registerWindowCommands() {
 		w.Process.Windows.showSwitcher(w)
 		return nil
 	})
+	w.registerModeCommands(set)
 	if DevCommandsEnabled() {
 		set("dev.openFolderInNewWindow", func(_ command.Context, args any) error {
 			path, err := parseOpenFolderInNewWindow(args, os.Getwd)

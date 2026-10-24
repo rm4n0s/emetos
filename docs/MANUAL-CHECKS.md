@@ -57,3 +57,17 @@ scripts/isolated.sh -- go run ./cmd/emetos /tmp/nav/a.txt /tmp/nav/b.txt /tmp/na
 5. Press Ctrl+Alt+- and Ctrl+Shift+- after jumping to a few lines with Ctrl+G: do they go back and forward through the lines (and your keyboard layout's minus key works)?
 
 Say what you saw, and which compositor and keyboard layout you used.
+
+## 8.5 Full screen and zoom on a real compositor
+
+The tests drive full screen through Glutter's tester windows and a fake controller; zoom is checked by goldens. Run the editor with your configuration isolated:
+
+```
+scripts/isolated.sh -- go run ./cmd/emetos
+```
+
+1. Press F11. Does the window go full screen on your desktop, and back on the second press? Does View > Appearance > Full Screen show its check mark while it is full screen?
+2. Press Ctrl+= twice, then Ctrl+-, then Ctrl+Numpad0. Does everything (text, side bar, menus, tabs) scale together and are clicks still hitting what they show? Does the text stay sharp?
+3. Press Ctrl+K Z (zen mode): are the side bar, panel, activity bar, status bar and menu bar hidden and the editor centered? Does Escape twice leave zen mode and bring everything back?
+
+Say what you saw and which desktop you used.

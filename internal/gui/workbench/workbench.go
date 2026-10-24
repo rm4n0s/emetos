@@ -119,6 +119,9 @@ type Options struct {
 	// NoFolder gives the bar the colors of a window with no folder.
 	StatusLeft, StatusRight []widgets.Widget
 	NoFolder                bool
+	// FullScreen says that the window is in full screen mode, where the menu bar of the visibility classic is hidden
+	// until the Alt key shows it (SPEC §10.9). While zen mode is on (Layout) the menu bar is hidden.
+	FullScreen bool
 	// Context is the context of the commands the workbench runs; context.Background() when nil.
 	Context context.Context
 }
@@ -331,13 +334,29 @@ func (s *workbenchState) focusChanged(p Part, has bool) {
 	}
 }
 
-// menuBarVisibility is window.menuBarVisibility.
-func (s *workbenchState) menuBarVisibility() kit.MenuBarVisibility {
+// settingMenuBarVisibility is window.menuBarVisibility.
+func (s *workbenchState) settingMenuBarVisibility() kit.MenuBarVisibility {
 	st := s.Widget().opts.Settings
 	if st == nil {
 		return kit.MenuBarClassic
 	}
 	v, _ := kit.ParseMenuBarVisibility(settings.Get[string](st, "window.menuBarVisibility", ""))
+	return v
+}
+
+// menuBarVisibility is the visibility the menu bar has now: the setting, except that zen mode hides the bar and full
+// screen mode hides the bar of the visibility classic until the Alt key shows it (the visibility toggle).
+//
+// Ported from VS Code: src/vs/workbench/services/layout/browser/layoutService.ts (shouldShowCustomTitleBar) and
+// src/vs/workbench/browser/parts/titlebar/menubarControl.ts
+func (s *workbenchState) menuBarVisibility() kit.MenuBarVisibility {
+	if s.layout.ZenActive() {
+		return kit.MenuBarHidden
+	}
+	v := s.settingMenuBarVisibility()
+	if v == kit.MenuBarClassic && s.Widget().opts.FullScreen {
+		return kit.MenuBarToggle
+	}
 	return v
 }
 

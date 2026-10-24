@@ -58,7 +58,7 @@ func (s *shellState) view(group *editorgroup.Group) *groupView {
 
 // editorArea is what the editor area shows: the grid of groups.
 func (s *shellState) editorArea(bc widgets.BuildContext) widgets.Widget {
-	return s.nodeWidget(bc, s.group.grid.Tree(), nil)
+	return newCenteredArea(PeekWindow(bc), s.group.grid, s.nodeWidget(bc, s.group.grid.Tree(), nil))
 }
 
 // nodeWidget is a node of the tree of splits: a group, or a split view of the nodes below it. A
@@ -287,7 +287,7 @@ func (s *shellState) tabsOptions(win *Window, group *editorgroup.Group) kit.Tabs
 	case "shrink":
 		opts.PinnedSizing = kit.PinnedShrink
 	}
-	if settings.Get[string](win.Settings, "workbench.editor.showTabs", "") == "single" {
+	if win.ShowTabs() == "single" {
 		opts.Mode = kit.TabsSingle
 	}
 	return opts

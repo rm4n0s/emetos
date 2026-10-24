@@ -36,6 +36,7 @@ func DefaultRegistry() *Registry {
 	registerWorkbench(r)
 	registerLayout(r)
 	registerEditorGroups(r)
+	registerZenAndZoom(r)
 	registerEmmet(r)
 	registerOutput(r)
 	registerSearch(r)
@@ -1300,6 +1301,83 @@ func registerEditorGroups(r *Registry) {
 				"Splits the active editor group to equal parts.",
 			},
 			Description: "Controls the size of editor groups when splitting them.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+	)
+}
+
+// registerZenAndZoom registers the settings of the zoom of the window, of zen mode and of the centered
+// layout (step 8.5, SPEC §10.9). VS Code's zenMode.hideTabs was replaced by zenMode.showTabs (it migrates the
+// old value), and Emetos has the new one only.
+//
+// Ported from VS Code: src/vs/workbench/electron-browser/desktop.contribution.ts (window.zoomLevel,
+// window.zoomPerWindow), src/vs/workbench/browser/workbench.zenMode.contribution.ts and
+// src/vs/workbench/browser/workbench.contribution.ts (workbench.editor.centeredLayout*)
+func registerZenAndZoom(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "window.zoomLevel", Types: []Type{Number}, Default: 0, Minimum: Float(MinZoomLevel), Maximum: Float(MaxZoomLevel),
+			Description: "Adjust the default zoom level for all windows. Each increment above `0` (e.g. `1`) or below (e.g. `-1`) represents zooming `20%` larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity. See `#window.zoomPerWindow#` for configuring if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window.",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
+		Setting{
+			Key: "window.zoomPerWindow", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window. See `#window.zoomLevel#` for configuring a default zoom level for all windows.",
+			Scope:       ScopeWindow, Category: categoryWindow,
+		},
+		Setting{
+			Key: "zenMode.fullScreen", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether turning on Zen Mode also puts the workbench into full screen mode.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "zenMode.centerLayout", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether turning on Zen Mode also centers the layout.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "zenMode.showTabs", Types: []Type{String}, Default: "multiple", Enum: []any{"multiple", "single", "none"},
+			EnumDescriptions: []string{
+				"Each editor is displayed as a tab in the editor title area.",
+				"The active editor is displayed as a single large tab in the editor title area.",
+				"The editor title area is not displayed.",
+			},
+			Description: "Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab, or hide the editor title area completely.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "zenMode.hideStatusBar", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether turning on Zen Mode also hides the status bar at the bottom of the workbench.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "zenMode.hideActivityBar", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether turning on Zen Mode also hides the activity bar either at the left or right of the workbench.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "zenMode.hideLineNumbers", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether turning on Zen Mode also hides the editor line numbers.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "zenMode.restore", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether a window should restore to Zen Mode if it was exited in Zen Mode.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "zenMode.silentNotifications", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether notifications do not disturb mode should be enabled while in Zen Mode. If true, only error notifications will pop out.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.centeredLayoutAutoResize", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.centeredLayoutFixedWidth", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the centered layout tries to maintain constant width when the window is resized.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 	)

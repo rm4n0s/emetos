@@ -300,9 +300,9 @@ func TestTheChordMessageShowsAndClears(t *testing.T) {
 	}
 	// a key that is not a command: a message for ten seconds
 	sendChord(a.ts, keybinding.Chord{Ctrl: true, Key: keybinding.KeyK})
-	sendChord(a.ts, keybinding.Chord{Key: keybinding.KeyZ})
+	sendChord(a.ts, keybinding.Chord{Key: keybinding.KeyY}) // Ctrl+K Z is zen mode since step 8.5
 	a.pump()
-	if got := msg(); got != "The key combination (Ctrl+K, Z) is not a command." {
+	if got := msg(); got != "The key combination (Ctrl+K, Y) is not a command." {
 		t.Fatalf("after a failed chord: %q", got)
 	}
 	a.ts.Pump(9 * time.Second)

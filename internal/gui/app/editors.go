@@ -54,7 +54,11 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 	options := func() editor.Options {
 		desktop, _ := binding.PlatformDispatcher().MonospaceFont()
 		tabSize, _ := doc.Indentation()
-		return editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
+		o := editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
+		if win.zenHidesLineNumbers() {
+			o.LineNumbers = editor.LineNumbersOff
+		}
+		return o
 	}
 	e.view = editor.NewViewModel(doc, options(), nil)
 	if win.Documents.AnnounceLarge(doc) {
@@ -78,7 +82,7 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 	e.view.SetSnippetWorkspace(win.SnippetWorkspace())
 	e.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(doc.LanguageID())))
 	e.unsubscribe = win.Settings.OnChange(func(ev settings.ChangeEvent) {
-		if ev.Affects("editor", "") || ev.Affects("emmet", "") {
+		if ev.Affects("editor", "") || ev.Affects("emmet", "") || ev.Affects("zenMode", "") {
 			binding.Post(func() {
 				if !e.disposed {
 					e.view.SetOptions(options())
@@ -86,6 +90,17 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 			})
 		}
 	})
+	// zen mode hides the line numbers without a setting, so the editor looks at it as the layout changes
+	zenOff := win.zenHidesLineNumbers()
+	stopSettings, stopZen := e.unsubscribe, win.Layout.OnChange(func() {
+		binding.Post(func() {
+			if now := win.zenHidesLineNumbers(); !e.disposed && now != zenOff {
+				zenOff = now
+				e.view.SetOptions(options())
+			}
+		})
+	})
+	e.unsubscribe = func() { stopSettings(); stopZen() }
 	s.watchSelection(e)
 	s.followEditorState(e)
 	s.autoSaveTrack(doc)
@@ -159,7 +174,11 @@ func (s *shellState) languageChanged(binding *widgets.WidgetsBinding, e *textEdi
 	e.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(e.doc.LanguageID())))
 	desktop, _ := binding.PlatformDispatcher().MonospaceFont()
 	tabSize, _ := e.doc.Indentation()
-	e.view.SetOptions(editor.OptionsFromSettings(win.Settings, e.doc.LanguageID(), desktop, tabSize))
+	o := editor.OptionsFromSettings(win.Settings, e.doc.LanguageID(), desktop, tabSize)
+	if win.zenHidesLineNumbers() {
+		o.LineNumbers = editor.LineNumbersOff
+	}
+	e.view.SetOptions(o)
 }
 
 // startBrackets makes the bracket pairs of the document and gives them to the editor.

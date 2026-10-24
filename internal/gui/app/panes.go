@@ -7,7 +7,6 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
-	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -104,7 +103,7 @@ func (f *paneFocus) wrap(s *shellState, group *editorgroup.Group, child widgets.
 // tabStrip is the tab strip of a group in the host of the context menu of the tabs; nil while
 // workbench.editor.showTabs is none.
 func (s *shellState) tabStrip(bc widgets.BuildContext, win *Window, group *editorgroup.Group) widgets.Widget {
-	if settings.Get[string](win.Settings, "workbench.editor.showTabs", "") == "none" {
+	if win.ShowTabs() == "none" {
 		return nil
 	}
 	return kit.NewContextMenu(kit.NewTabs(s.tabItems(kit.ThemeOf(bc), group), s.tabsOptions(win, group)),

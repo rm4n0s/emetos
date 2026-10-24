@@ -11,7 +11,6 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
-	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
@@ -28,7 +27,7 @@ func (s *shellState) tabMenuContext(group *editorgroup.Group, index int) context
 	win := PeekWindow(s.Context())
 	extra := map[string]any{
 		"splitEditorsVertically": s.sideBySideDirection() == editorgroup.DirDown,
-		"editorTabsVisible":      settings.Get[string](win.Settings, "workbench.editor.showTabs", "") == "multiple",
+		"editorTabsVisible":      win.ShowTabs() == "multiple",
 	}
 	m := group.Model
 	if e := m.EditorAt(index); e != nil {

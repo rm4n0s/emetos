@@ -175,6 +175,10 @@ func (w *Window) restoreUIState(ctx context.Context, r *restoredWindow) (geometr
 		if err := w.restoreLayout(st.Layout); err != nil {
 			w.Process.Logger.Warn("the saved layout cannot be used", "err", err)
 		}
+		w.restoreZen()
+	}
+	if st.ZoomLevel != nil && w.zoomPerWindow() {
+		w.SetZoomLevel(*st.ZoomLevel)
 	}
 	if len(st.Recent) > 0 {
 		w.Recent.Replace(st.Recent)
@@ -477,6 +481,10 @@ func (s *shellState) windowState() storage.WindowState {
 	} else {
 		win.Process.Logger.Warn("the layout cannot be saved", "err", err)
 	}
+	// the zoom is the window's own only when it differs from the setting; it is kept for window.zoomPerWindow
+	if level := win.ZoomLevel(); win.zoomPerWindow() && level != win.defaultZoomLevel() {
+		st.ZoomLevel = &level
+	}
 	grid := s.group.grid.SerializeWith(s.inputState)
 	st.Grid = &grid
 	if ex := s.explorer.view; ex != nil && win.Folder != "" {
@@ -582,6 +590,7 @@ func (s *shellState) readGeometry(src geometrySource) {
 	if m, ok := src.(windowModes); ok {
 		geo.Maximized, geo.Fullscreen = m.IsMaximized(), m.IsFullscreen()
 	}
+	defer s.win.fullScreenChanged(geo.Fullscreen)
 	if (!geo.Maximized && !geo.Fullscreen) || geo.Width == 0 {
 		if size.Width > 0 && size.Height > 0 {
 			geo.Width, geo.Height = size.Width, size.Height

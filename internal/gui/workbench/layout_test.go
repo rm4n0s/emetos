@@ -3,6 +3,7 @@ package workbench
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -475,4 +476,165 @@ func TestFollowSettings(t *testing.T) {
 	}
 	// without a store there is nothing to follow
 	NewLayout(DefaultLayoutState()).FollowSettings(nil, nil)()
+}
+
+func TestZenModeOfTheLayout(t *testing.T) {
+	shownAll := func() LayoutState {
+		st := DefaultLayoutState()
+		st.PanelVisible = true
+		return st
+	}
+	cases := []struct {
+		name                    string
+		start                   func(*LayoutState)
+		hideActivity, hideState bool
+		during                  func(*Layout)
+		wantDuring              func(*LayoutState)
+		wantAfter               func(*LayoutState)
+	}{
+		{name: "everything is hidden and comes back", hideActivity: true, hideState: true,
+			wantDuring: func(s *LayoutState) {
+				s.SideBarVisible, s.PanelVisible, s.ActivityBarVisible, s.StatusBarVisible = false, false, false, false
+			}},
+		{name: "the activity bar stays", hideActivity: false, hideState: true,
+			wantDuring: func(s *LayoutState) { s.SideBarVisible, s.PanelVisible, s.StatusBarVisible = false, false, false }},
+		{name: "the status bar stays", hideActivity: true, hideState: false,
+			wantDuring: func(s *LayoutState) { s.SideBarVisible, s.PanelVisible, s.ActivityBarVisible = false, false, false }},
+		{name: "a part that was hidden stays hidden", hideActivity: true, hideState: true,
+			start:      func(s *LayoutState) { s.PanelVisible, s.ActivityBarVisible = false, false },
+			wantDuring: func(s *LayoutState) { s.SideBarVisible, s.StatusBarVisible = false, false },
+			wantAfter:  func(s *LayoutState) { s.PanelVisible, s.ActivityBarVisible = false, false }},
+		{name: "a part the user shows stays shown", hideActivity: true, hideState: true,
+			during:     func(l *Layout) { l.SetSideBarVisible(true); l.SetStatusBarVisible(true) },
+			wantDuring: func(s *LayoutState) { s.PanelVisible, s.ActivityBarVisible = false, false }},
+		{name: "a part the user shows and hides again stays hidden", hideActivity: true, hideState: true,
+			during: func(l *Layout) { l.SetSideBarVisible(true); l.SetSideBarVisible(false) },
+			wantDuring: func(s *LayoutState) {
+				s.SideBarVisible, s.PanelVisible, s.ActivityBarVisible, s.StatusBarVisible = false, false, false, false
+			},
+			wantAfter: func(s *LayoutState) { s.SideBarVisible = false }},
+		{name: "the sizes are kept", hideActivity: true, hideState: true,
+			start: func(s *LayoutState) { s.SideBarWidth, s.PanelHeight = 250, 180 },
+			wantDuring: func(s *LayoutState) {
+				s.SideBarVisible, s.PanelVisible, s.ActivityBarVisible, s.StatusBarVisible = false, false, false, false
+			}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			start := shownAll()
+			if tc.start != nil {
+				tc.start(&start)
+			}
+			l := NewLayout(start)
+			var changes int
+			l.OnChange(func() { changes++ })
+			l.EnterZen(tc.hideActivity, tc.hideState)
+			if !l.ZenActive() || !l.State().Zen.Active {
+				t.Fatal("zen mode is not on")
+			}
+			l.EnterZen(!tc.hideActivity, !tc.hideState) // a second call does nothing
+			if tc.during != nil {
+				tc.during(l)
+			}
+			want := start
+			tc.wantDuring(&want)
+			got := l.State()
+			got.Zen = ZenState{}
+			if got != want {
+				t.Errorf("during zen mode %+v, want %+v", got, want)
+			}
+			l.ExitZen()
+			want = start
+			if tc.wantAfter != nil {
+				tc.wantAfter(&want)
+			}
+			if l.ZenActive() || l.State() != want {
+				t.Errorf("after zen mode %+v, want %+v", l.State(), want)
+			}
+			if again := l.ExitZen(); again.Active {
+				t.Error("a second exit gave a state")
+			}
+		})
+	}
+}
+
+func TestZenModeTransitionsAreKeptAndSaved(t *testing.T) {
+	l := NewLayout(DefaultLayoutState())
+	l.SetZenTransitions(true, true, true) // not in zen mode: nothing to keep
+	if l.State().Zen != (ZenState{}) {
+		t.Fatalf("transitions outside zen mode: %+v", l.State().Zen)
+	}
+	l.EnterZen(true, true)
+	l.SetZenTransitions(true, false, true)
+	l.SetCenteredLayout(true)
+	data, err := json.Marshal(l.State())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved LayoutState
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatal(err)
+	}
+	restored := NewLayout(DefaultLayoutState())
+	restored.Restore(saved)
+	if restored.State() != l.State() {
+		t.Errorf("restored %+v, want %+v", restored.State(), l.State())
+	}
+	if z := restored.ExitZen(); !z.FullScreen || z.Centered || !z.DoNotDisturb {
+		t.Errorf("what zen mode recorded: %+v", z)
+	}
+	// a state written before step 8.5 has no zen mode and no centered layout
+	var old LayoutState
+	if err := json.Unmarshal([]byte(`{"sideBarVisible":true,"sideBarWidth":300,"sideBarPosition":"left","activityBarVisible":true,"statusBarVisible":true,"panelPosition":"bottom","panelHeight":300,"panelWidth":300}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Zen.Active || old.CenteredLayout {
+		t.Errorf("an old state has %+v", old)
+	}
+	if got := string(data); !strings.Contains(got, `"zen":{"active":true`) || !strings.Contains(got, `"centeredLayout":true`) {
+		t.Errorf("the JSON of the state: %s", got)
+	}
+	if plain, _ := json.Marshal(DefaultLayoutState()); strings.Contains(string(plain), "zen") || strings.Contains(string(plain), "centeredLayout") {
+		t.Errorf("a plain state writes the fields of zen mode: %s", plain)
+	}
+}
+
+func TestAPartZenModeHoldsIgnoresTheSettingsThatShowIt(t *testing.T) {
+	store := testutil.Settings(t, testutil.Isolate(t), nil)
+	l := NewLayout(DefaultLayoutState())
+	stop := l.FollowSettings(store, nil)
+	defer stop()
+	l.EnterZen(true, true)
+	update := func(key string, value any) {
+		t.Helper()
+		if err := store.Update(t.Context(), key, value, settings.TargetUser); err != nil {
+			t.Fatal(err)
+		}
+	}
+	update("workbench.statusBar.visible", true) // it was true: no change reaches the layout
+	update("workbench.sideBar.location", "right")
+	if l.State().StatusBarVisible || l.State().ActivityBarVisible {
+		t.Errorf("a setting showed a part that zen mode holds: %+v", l.State())
+	}
+	// a setting that hides it takes it out of what zen mode brings back
+	update("workbench.statusBar.visible", false)
+	l.ExitZen()
+	if l.State().StatusBarVisible {
+		t.Error("the status bar came back though its setting hides it")
+	}
+	if !l.State().ActivityBarVisible || l.State().SideBarPosition != SideBarRight {
+		t.Errorf("after zen mode %+v", l.State())
+	}
+	// UpdateZen follows the settings of zen mode
+	l.EnterZen(true, false)
+	l.UpdateZen(false, true)
+	st := l.State()
+	if !st.ActivityBarVisible || st.StatusBarVisible {
+		t.Errorf("UpdateZen %+v", st)
+	}
+	l.UpdateZen(true, false)
+	if l.State().ActivityBarVisible {
+		t.Error("the activity bar did not go again")
+	}
+	NewLayout(DefaultLayoutState()).UpdateZen(true, true) // outside zen mode it does nothing
 }

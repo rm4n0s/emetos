@@ -53,7 +53,10 @@ func DefaultRegistry() *Registry {
 // src/vs/workbench/browser/parts/statusbar/statusbarActions.ts,
 // src/vs/workbench/browser/parts/editor/editorActions.ts,
 // src/vs/workbench/browser/parts/activitybar/activitybarPart.ts and
-// src/vs/workbench/browser/parts/titlebar/menubarControl.ts
+// src/vs/workbench/browser/parts/titlebar/menubarControl.ts,
+// src/vs/workbench/browser/actions/windowActions.ts (toggleFullScreen),
+// src/vs/workbench/electron-browser/actions/windowActions.ts (zoomIn, zoomOut, zoomReset) and
+// src/vs/workbench/browser/workbench.zenMode.contribution.ts
 func registerLayoutCommands(r *Registry) {
 	maximizable := contextkey.Or(
 		contextkey.Equals("panelAlignment", "center"),
@@ -77,6 +80,16 @@ func registerLayoutCommands(r *Registry) {
 		Meta{ID: "workbench.action.focusStatusBar", Title: "Focus Status Bar", Category: "View"},
 		Meta{ID: "workbench.action.focusActivityBar", Title: "Focus Activity Bar", Category: "View"},
 		Meta{ID: "workbench.actions.menubar.focus", Title: "Focus Application Menu"},
+
+		// step 8.5: full screen, zen mode, the centered layout and the zoom of the window (SPEC §10.9);
+		// Escape Escape leaves zen mode and has no title, so the palette does not list it
+		Meta{ID: "workbench.action.toggleFullScreen", Title: "Toggle Full Screen", Category: "View"},
+		Meta{ID: "workbench.action.toggleZenMode", Title: "Toggle Zen Mode", Category: "View"},
+		Meta{ID: "workbench.action.exitZenMode"},
+		Meta{ID: "workbench.action.toggleCenteredLayout", Title: "Toggle Centered Layout", Category: "View"},
+		Meta{ID: "workbench.action.zoomIn", Title: "Zoom In", Category: "View"},
+		Meta{ID: "workbench.action.zoomOut", Title: "Zoom Out", Category: "View"},
+		Meta{ID: "workbench.action.zoomReset", Title: "Reset Zoom", Category: "View"},
 	)
 }
 

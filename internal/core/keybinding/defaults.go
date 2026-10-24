@@ -80,13 +80,23 @@ func DefaultRegistry() *Registry {
 // workbench: Ctrl+B and Ctrl+J toggle the side bar and the panel, Ctrl+0 focuses the side bar.
 //
 // Ported from VS Code: src/vs/workbench/browser/actions/layoutActions.ts,
-// src/vs/workbench/browser/parts/panel/panelActions.ts and
-// src/vs/workbench/browser/parts/sidebar/sidebarActions.ts
+// src/vs/workbench/browser/parts/panel/panelActions.ts,
+// src/vs/workbench/browser/parts/sidebar/sidebarActions.ts,
+// src/vs/workbench/browser/actions/windowActions.ts, src/vs/workbench/browser/workbench.zenMode.contribution.ts
+// and src/vs/workbench/electron-browser/actions/windowActions.ts
 func registerLayoutKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.action.toggleSidebarVisibility", Weight: WeightWorkbenchContrib, Primary: "ctrl+b"},
 		Rule{Command: "workbench.action.togglePanel", Weight: WeightWorkbenchContrib, Primary: "ctrl+j"},
 		Rule{Command: "workbench.action.focusSideBar", Weight: WeightWorkbenchContrib, Primary: "ctrl+0"},
+
+		// full screen, zen mode and the zoom of the window (step 8.5): the keys of Linux
+		Rule{Command: "workbench.action.toggleFullScreen", Weight: WeightWorkbenchContrib, Primary: "f11"},
+		Rule{Command: "workbench.action.toggleZenMode", Weight: WeightWorkbenchContrib, Primary: "ctrl+k z"},
+		Rule{Command: "workbench.action.exitZenMode", Weight: WeightEditorContrib - 1000, When: mustWhen("inZenMode"), Primary: "escape escape"},
+		Rule{Command: "workbench.action.zoomIn", Weight: WeightWorkbenchContrib, Primary: "ctrl+=", Secondary: []string{"ctrl+shift+=", "ctrl+numpad_add"}},
+		Rule{Command: "workbench.action.zoomOut", Weight: WeightWorkbenchContrib, Primary: "ctrl+-", Secondary: []string{"ctrl+numpad_subtract"}},
+		Rule{Command: "workbench.action.zoomReset", Weight: WeightWorkbenchContrib, Primary: "ctrl+numpad0"},
 	)
 }
 

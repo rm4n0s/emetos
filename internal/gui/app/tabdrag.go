@@ -283,8 +283,12 @@ func (s *shellState) dragLayer() widgets.Widget {
 			}
 			colors := kit.ThemeOf(bc)
 			var layers []widgets.Widget
+			// the pointer and the areas are in the window's coordinates; the layer is in those of the overlay, which a zoom of
+			// the window makes different
+			at := kit.GlobalToOverlay(bc, d.at)
 			if d.target.kind == dropArea && colors.EditorGroupDropBackground.Alpha() != 0 {
-				r := d.target.rect
+				tl, br := kit.GlobalToOverlay(bc, ui.Offset{Dx: d.target.rect.Left, Dy: d.target.rect.Top}), kit.GlobalToOverlay(bc, ui.Offset{Dx: d.target.rect.Right, Dy: d.target.rect.Bottom})
+				r := ui.NewRectFromLTRB(tl.Dx, tl.Dy, br.Dx, br.Dy)
 				layers = append(layers, widgets.NewPositioned(widgets.NewColoredBox(colors.EditorGroupDropBackground, widgets.NewSizedBox(nil)),
 					widgets.PositionedOpts{Left: foundation.Some(r.Left), Top: foundation.Some(r.Top), Width: foundation.Some(r.Width()), Height: foundation.Some(r.Height())}))
 			}
@@ -301,7 +305,7 @@ func (s *shellState) dragLayer() widgets.Widget {
 					}),
 				})
 			layers = append(layers, widgets.NewPositionedFill(widgets.NewCustomSingleChildLayout(
-				&dragLabelLayout{SingleChildLayoutDelegateBase: rendering.NewSingleChildLayoutDelegateBase(nil), at: d.at}, label)))
+				&dragLabelLayout{SingleChildLayoutDelegateBase: rendering.NewSingleChildLayoutDelegateBase(nil), at: at}, label)))
 			return widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand})
 		}, nil)))
 }

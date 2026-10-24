@@ -183,6 +183,9 @@ type Window struct {
 	eventListeners []*func([]workspace.Event)
 	// watch is the state of the file watcher (StartWatching).
 	watch watchState
+	// zoom is the zoom level of the window (zoom.go), and modes its full screen mode (zen.go).
+	zoom  zoomState
+	modes modeState
 	// title is the title of the window as the shell last made it.
 	title string
 	// after runs a function on the UI thread once a time has passed and returns the function that
@@ -342,6 +345,10 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 	if f := o.from; f != nil {
 		w.Quit, w.SaveDialog, w.OpenURI, w.OnChordStatus = f.Quit, f.SaveDialog, f.OpenURI, f.OnChordStatus
 	}
+	w.followZoom()
+	w.syncLayoutKeys()
+	w.Layout.OnChange(w.syncLayoutKeys)
+	w.followZen()
 	w.registerWindowCommands()
 	w.settingsDocs = newSettingsDocs(w)
 	keysPath, err := keybinding.UserKeybindingsPath(p.Paths, storage.DefaultProfile)

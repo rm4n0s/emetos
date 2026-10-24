@@ -56,6 +56,9 @@ type WindowState struct {
 	Explorer *ExplorerState `json:"explorer,omitempty"`
 	// Recent are the files the quick open lists first, the most recent first.
 	Recent []string `json:"recent,omitempty"`
+	// ZoomLevel is the zoom level the window had when it was saved, when it was not the one of window.zoomLevel; nil
+	// when there is none. A state written before step 8.5 has none.
+	ZoomLevel *float64 `json:"zoomLevel,omitempty"`
 }
 
 // LastWindow is the window the user last had open, which an empty command line opens again.

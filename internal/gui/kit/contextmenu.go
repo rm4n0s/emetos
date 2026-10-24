@@ -128,6 +128,9 @@ func (s *contextMenuState) show(position ui.Offset, items []MenuItem) {
 	if !s.Mounted() || len(PrepareMenuItems(items)) == 0 {
 		return
 	}
+	// the position is the pointer's, in the window's coordinates; the menu is placed in those of the overlay, which a
+	// zoom of the window makes different
+	position = GlobalToOverlay(s.Context(), position)
 	s.SetState(func() { s.at, s.items = position, items })
 	s.ctrl.Open()
 }
