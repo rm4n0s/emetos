@@ -22,6 +22,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerMenuColors(r)
 	registerInputKitColors(r)
 	registerLayoutColors(r)
+	registerNotificationColors(r)
 	registerTabColors(r)
 	return r
 }
@@ -775,5 +776,40 @@ func registerTabColors(r *ColorRegistry) {
 			Description: "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."},
 		ColorContribution{ID: "editorGroupHeader.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Border color of the editor group title header. Editor groups are the containers of editors."},
+	)
+}
+
+// registerNotificationColors registers the colors of the toasts and of the notification center
+// (gui/workbench), and the link color they use.
+//
+// Ported from VS Code: src/vs/workbench/common/theme.ts and
+// src/vs/platform/theme/common/colors/baseColors.ts (textLink.foreground)
+func registerNotificationColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "textLink.foreground", Defaults: dflt(Hex("#3794FF"), Hex("#006AB1"), Hex("#21A6FF"), Hex("#0F4A85")),
+			Description: "Foreground color for links in text."},
+		ColorContribution{ID: "notificationCenter.border", Defaults: dflt(Ref("widget.border"), Ref("widget.border"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Notifications center border color. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notificationToast.border", Defaults: dflt(Ref("widget.border"), Ref("widget.border"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Notification toast border color. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notifications.foreground", Defaults: AllThemes(Ref("editorWidget.foreground")),
+			Description: "Notifications foreground color. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notifications.background", Defaults: AllThemes(Ref("editorWidget.background")),
+			Description: "Notifications background color. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notificationLink.foreground", Defaults: AllThemes(Ref("textLink.foreground")),
+			Description: "Notification links foreground color. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notificationCenterHeader.foreground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "Notifications center header foreground color. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notificationCenterHeader.background",
+			Defaults:    dflt(Lighten(Ref("notifications.background"), 0.3), Darken(Ref("notifications.background"), 0.05), Ref("notifications.background"), Ref("notifications.background")),
+			Description: "Notifications center header background color. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notifications.border", Defaults: AllThemes(Ref("notificationCenterHeader.background")),
+			Description: "Notifications border color separating from other notifications in the notifications center. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notificationsErrorIcon.foreground", Defaults: AllThemes(Ref("editorError.foreground")),
+			Description: "The color used for the icon of error notifications. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notificationsWarningIcon.foreground", Defaults: AllThemes(Ref("editorWarning.foreground")),
+			Description: "The color used for the icon of warning notifications. Notifications slide in from the bottom right of the window."},
+		ColorContribution{ID: "notificationsInfoIcon.foreground", Defaults: AllThemes(Ref("editorInfo.foreground")),
+			Description: "The color used for the icon of info notifications. Notifications slide in from the bottom right of the window."},
 	)
 }

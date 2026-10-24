@@ -309,7 +309,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	s.syncTitle(bc, win)
 	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes,
-		Settings: win.Settings, Dialogs: win.Dialogs, Context: win.ctx,
+		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, Context: win.ctx,
 		Editor:   s.editorArea(bc),
 		NoFolder: win.Folder == "",
 		Menus:    s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,

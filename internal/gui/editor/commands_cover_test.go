@@ -20,8 +20,8 @@ func TestEveryEditorCommandHasAHandler(t *testing.T) {
 	have := CommandIDs()
 	var missing []string
 	for _, meta := range reg.All() {
-		if strings.HasPrefix(meta.ID, "workbench.") {
-			// the commands of the workbench are the workbench's (gui/workbench binds them, and its tests check that it does)
+		if strings.HasPrefix(meta.ID, "workbench.") || strings.HasPrefix(meta.ID, "notifications.") {
+			// the commands of the workbench and of the notifications are the workbench's (gui/workbench binds them, and its tests check that it does)
 			continue
 		}
 		if appCommands[meta.ID] {

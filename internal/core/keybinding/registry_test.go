@@ -148,6 +148,13 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+alt+left moves the editor to the previous group", nil, "ctrl+alt+left", "workbench.action.moveEditorToPreviousGroup"},
 		{"shift+alt+1 moves the editor to the first group", nil, "shift+alt+1", "workbench.action.moveEditorToFirstGroup"},
 		{"ctrl+b in the find input still toggles the side bar", map[string]any{"findInputFocussed": true}, "ctrl+b", "workbench.action.toggleSidebarVisibility"},
+		{"escape with the notification center open", map[string]any{"notificationCenterVisible": true}, "escape", "notifications.hideList"},
+		{"escape with the center open and a selection", map[string]any{"notificationCenterVisible": true, "editorHasSelection": true}, "escape", "notifications.hideList"},
+		{"escape with a toast", map[string]any{"notificationToastsVisible": true}, "escape", "notifications.hideToasts"},
+		{"escape with a toast and a selection", map[string]any{"notificationToastsVisible": true, "editorHasSelection": true}, "escape", "notifications.hideToasts"},
+		{"escape with a toast that has the focus", map[string]any{"notificationToastsVisible": true, "notificationFocus": true}, "escape", "notifications.hideToasts"},
+		{"escape in a snippet with a toast", map[string]any{"notificationToastsVisible": true, "inSnippetMode": true}, "escape", "notifications.hideToasts"},
+		{"escape with the center and a toast", map[string]any{"notificationCenterVisible": true, "notificationToastsVisible": true}, "escape", "notifications.hideList"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -189,6 +196,7 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+k down", "workbench.action.moveActiveEditorGroupDown"},
 		{"ctrl+k ctrl+shift+w", "workbench.action.closeAllGroups"},
 		{"ctrl+k p", "workbench.action.files.copyPathOfActiveFile"},
+		{"ctrl+k ctrl+shift+n", "notifications.showList"},
 	} {
 		kb := mustKB(t, tc.chords)
 		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())

@@ -29,6 +29,7 @@ func DefaultRegistry() *Registry {
 	registerLayoutCommands(r)
 	registerEditorGroupCommands(r)
 	registerEditorGridCommands(r)
+	registerNotificationCommands(r)
 	return r
 }
 
@@ -497,5 +498,24 @@ func registerEditorGridCommands(r *Registry) {
 		Meta{ID: "workbench.action.editorLayoutTwoColumnsBottom", Title: "Two Columns Bottom Editor Layout", Category: "View"},
 		Meta{ID: "workbench.action.editorLayoutTwoRowsRight", Title: "Two Rows Right Editor Layout", Category: "View"},
 		Meta{ID: "layoutEditorGroups", Description: "Set the layout of the editor groups. The argument is {\"orientation\": 0|1, \"groups\": [{\"size\": number, \"groups\": [...]}]}: a tree of groups in which the orientation of a node is the opposite of its parent's."},
+	)
+}
+
+// registerNotificationCommands registers the commands of the toasts and of the notification center
+// (SPEC §10.7). The commands that act on the notification that has the focus (notification.clear,
+// notification.expand, notification.collapse, notification.toggle), the ones that move between toasts
+// (notifications.focusNextToast and its kin), notifications.toggleDoNotDisturbModeBySource (it needs the
+// quick input) and notification.acceptPrimaryAction (it is for the screen reader mode) are not built yet.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/notifications/notificationsCommands.ts
+func registerNotificationCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "notifications.showList", Title: "Show Notifications", Category: "Notifications"},
+		Meta{ID: "notifications.hideList", Title: "Hide Notifications", Category: "Notifications"},
+		Meta{ID: "notifications.toggleList"},
+		Meta{ID: "notifications.hideToasts"},
+		Meta{ID: "notifications.focusToasts", Title: "Focus Notification Toast", Category: "Notifications"},
+		Meta{ID: "notifications.clearAll", Title: "Clear All Notifications", Category: "Notifications"},
+		Meta{ID: "notifications.toggleDoNotDisturbMode", Title: "Toggle Do Not Disturb Mode", Category: "Notifications"},
 	)
 }

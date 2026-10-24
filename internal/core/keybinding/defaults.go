@@ -63,6 +63,7 @@ func DefaultRegistry() *Registry {
 	registerLayoutKeys(r)
 	registerEditorGroupKeys(r)
 	registerEditorGridKeys(r)
+	registerNotificationKeys(r)
 	return r
 }
 
@@ -377,4 +378,19 @@ func registerEditorGridKeys(r *Registry) {
 		rule.Weight = WeightWorkbenchContrib
 		r.MustRegister(rule)
 	}
+}
+
+// registerNotificationKeys registers the keys of the notification commands: Ctrl+K Ctrl+Shift+N shows the
+// notification center, Escape hides it while it is visible, and hides the toasts while they are
+// visible (a lower weight, so that an editor widget that takes Escape wins, and a higher one while a
+// notification has the focus).
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/notifications/notificationsCommands.ts
+func registerNotificationKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "notifications.showList", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+shift+n"},
+		Rule{Command: "notifications.hideList", Weight: WeightWorkbenchContrib + 50, When: mustWhen("notificationCenterVisible"), Primary: "escape"},
+		Rule{Command: "notifications.hideToasts", Weight: WeightWorkbenchContrib - 50, When: mustWhen("notificationToastsVisible"), Primary: "escape"},
+		Rule{Command: "notifications.hideToasts", Weight: WeightWorkbenchContrib + 100, When: mustWhen("notificationToastsVisible", "notificationFocus"), Primary: "escape"},
+	)
 }

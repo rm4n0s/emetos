@@ -363,6 +363,17 @@ func groupsState(a *keyApp) func() {
 	}
 }
 
+// notificationsState is the state of a window with the notification center open, toasts showing, or a
+// toast with the focus, for the keys of the notifications.
+func notificationsState(a *keyApp, center, toasts, focus bool) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Set("notificationCenterVisible", center)
+		a.win.Keys.Set("notificationToastsVisible", toasts)
+		a.win.Keys.Set("notificationFocus", focus)
+	}
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -375,7 +386,10 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 		tried++
 		t.Run(item.Command+" "+item.Keybinding.UserSettingsLabel(), func(t *testing.T) {
 			var reached []string
-			for _, state := range append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a)) {
+			states := append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a),
+				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true))
+			for _, state := range states {
+				notificationsState(a, false, false, false)()
 				a.win.Keys.Set("activeEditorIsPinned", false)
 				a.win.Keys.Set("activeEditorGroupEmpty", false)
 				a.win.Keys.Set("multipleEditorGroups", false)

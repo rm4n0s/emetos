@@ -14,6 +14,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
@@ -82,8 +83,12 @@ type Options struct {
 	ActivePanel   string
 	Panel         widgets.Widget
 	OnSelectPanel func(id string)
+	// Notifications, when set, shows the toasts and the notification center of the presenter over the
+	// workbench, below the dialogs, and binds the notifications.* commands (SPEC §10.7).
+	Notifications *notify.Presenter
 	// StatusLeft and StatusRight are the items at the two ends of the status bar. NoFolder gives the
-	// bar the colors of a window with no folder.
+	// bar the colors of a window with no folder. TODO(step 6.20): the notifications bell goes in
+	// StatusRight; it runs notifications.showList and notifications.hideList.
 	StatusLeft, StatusRight []widgets.Widget
 	NoFolder                bool
 	// Context is the context of the commands the workbench runs; context.Background() when nil.
@@ -316,6 +321,19 @@ func (s *workbenchState) Build(bc widgets.BuildContext) widgets.Widget {
 		s.restorePanel = false
 		s.binding.Scheduler().AddPostFrameCallback(func(time.Duration) { s.restorePanelSize() })
 	}
+	if o.Notifications != nil {
+		inset := 0.0
+		if st.StatusBarVisible {
+			inset = StatusBarHeight
+		}
+		top := 0.0
+		if s.menuBarShown() {
+			top = MenuBarHeight
+		}
+		body = NewNotificationsHost(body, NotificationsOptions{
+			Presenter: o.Notifications, Commands: o.Commands, Keys: o.Keys, Context: o.Context, BottomInset: inset, TopInset: top,
+		})
+	}
 	if o.Dialogs != nil {
 		body = kit.NewDialogHost(body, o.Dialogs)
 	}
@@ -377,13 +395,19 @@ func (s *workbenchState) frame(p Part, bg, line ui.Color, at side, child widgets
 		widgets.WidgetOpts{Key: PartKey(p)}), widgets.WidgetOpts{Key: s.global[p]})
 }
 
+// menuBarShown says whether the menu bar takes room at the top now.
+func (s *workbenchState) menuBarShown() bool {
+	v := s.menuBarVisibility()
+	return v == kit.MenuBarClassic || v == kit.MenuBarVisible || (v == kit.MenuBarToggle && s.menuShown)
+}
+
 // menuBarArea is the menu bar at the top. It is as high as the bar when the bar is shown (always with
 // classic and visible, after the Alt key with toggle) and has no height otherwise; the bar itself is
 // always there, for the Alt key.
 func (s *workbenchState) menuBarArea(colors kit.Colors) widgets.Widget {
 	o := s.Widget().opts
 	visibility := s.menuBarVisibility()
-	shown := visibility == kit.MenuBarClassic || visibility == kit.MenuBarVisible || (visibility == kit.MenuBarToggle && s.menuShown)
+	shown := s.menuBarShown()
 	height := 0.0
 	if shown {
 		height = MenuBarHeight

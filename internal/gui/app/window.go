@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
@@ -60,6 +61,10 @@ type Window struct {
 	// Views is which view container the side bar of the window shows and which views are collapsed
 	// (SPEC §10.4).
 	Views *workbench.Views
+	// Notifications is what the window shows of the notifications of the process: the toasts, the
+	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
+	// thread.
+	Notifications *notify.Presenter
 	// Dialogs queues the dialogs of the window. The workbench shows them over everything, and the key
 	// dispatcher runs no command while one is showing.
 	Dialogs *kit.DialogController
@@ -104,21 +109,22 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
 	layout := workbench.NewLayout(workbench.LayoutStateFromSettings(store))
 	w := &Window{
-		Process:     p,
-		Folder:      folder,
-		Settings:    store,
-		Keys:        contextkey.NewRoot(),
-		Documents:   NewDocuments(),
-		Keybindings: resolver,
-		Dispatcher:  keybinding.NewDispatcher(resolver, time.Now),
-		Scopes:      kit.NewFocusScopes(),
-		Clipboard:   editor.NewClipboardMemory(),
-		Find:        &editor.FindMemory{},
-		Zoom:        editor.NewZoom(),
-		Layout:      layout,
-		Views:       workbench.NewViews(p.Views, layout),
-		Dialogs:     kit.NewDialogController(),
-		ctx:         ctx,
+		Process:       p,
+		Folder:        folder,
+		Settings:      store,
+		Keys:          contextkey.NewRoot(),
+		Documents:     NewDocuments(),
+		Keybindings:   resolver,
+		Dispatcher:    keybinding.NewDispatcher(resolver, time.Now),
+		Scopes:        kit.NewFocusScopes(),
+		Clipboard:     editor.NewClipboardMemory(),
+		Find:          &editor.FindMemory{},
+		Zoom:          editor.NewZoom(),
+		Layout:        layout,
+		Views:         workbench.NewViews(p.Views, layout),
+		Dialogs:       kit.NewDialogController(),
+		Notifications: notify.NewPresenter(p.Notify),
+		ctx:           ctx,
 	}
 	w.followTheme()
 	w.followLanguages()

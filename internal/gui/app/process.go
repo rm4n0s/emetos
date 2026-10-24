@@ -140,6 +140,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.Menus = command.DefaultMenus(p.Commands)
 	p.Views = command.DefaultViews()
 	registerDevCommands(p.Commands)
+	registerDevNotify(p.Commands, p.Notify, logger)
 	p.loadUserThemes()
 	p.loadSnippets()
 	return p

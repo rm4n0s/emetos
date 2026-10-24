@@ -213,6 +213,30 @@ func TestDefaultRegistry(t *testing.T) {
 	}
 }
 
+func TestNotificationCommands(t *testing.T) {
+	r := DefaultRegistry()
+	cases := []struct{ id, title, category string }{
+		{"notifications.showList", "Show Notifications", "Notifications"},
+		{"notifications.hideList", "Hide Notifications", "Notifications"},
+		{"notifications.toggleList", "", ""},
+		{"notifications.hideToasts", "", ""},
+		{"notifications.focusToasts", "Focus Notification Toast", "Notifications"},
+		{"notifications.clearAll", "Clear All Notifications", "Notifications"},
+		{"notifications.toggleDoNotDisturbMode", "Toggle Do Not Disturb Mode", "Notifications"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.id, func(t *testing.T) {
+			m, ok := r.Lookup(tc.id)
+			if !ok {
+				t.Fatal("not registered")
+			}
+			if m.Title != tc.title || m.Category != tc.category || m.Precondition != nil {
+				t.Errorf("title %q category %q precondition %v, want %q %q", m.Title, m.Category, m.Precondition, tc.title, tc.category)
+			}
+		})
+	}
+}
+
 func TestLayoutCommands(t *testing.T) {
 	r := DefaultRegistry()
 	maximizable := "panelAlignment == 'center' || panelPosition != 'bottom' && panelPosition != 'top'"

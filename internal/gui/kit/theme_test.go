@@ -244,6 +244,16 @@ func TestPartColorsOfTheModernThemes(t *testing.T) {
 		{"panelTitle.activeBorder", func(c Colors) ui.Color { return c.PanelTitleActiveBorder }, 0xFF0078D4, 0xFF005FB8},
 		{"titleBar.activeBackground", func(c Colors) ui.Color { return c.TitleBarActiveBackground }, 0xFF181818, 0xFFF8F8F8},
 		{"titleBar.border", func(c Colors) ui.Color { return c.TitleBarBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+		{"notifications.foreground", func(c Colors) ui.Color { return c.NotificationsForeground }, 0xFFCCCCCC, 0xFF3B3B3B},
+		{"notifications.background", func(c Colors) ui.Color { return c.NotificationsBackground }, 0xFF1F1F1F, 0xFFFFFFFF},
+		{"notificationToast.border", func(c Colors) ui.Color { return c.NotificationToastBorder }, 0xFF313131, 0xFFE5E5E5},
+		{"notificationCenter.border", func(c Colors) ui.Color { return c.NotificationCenterBorder }, 0xFF313131, 0xFFE5E5E5},
+		{"notificationCenterHeader.foreground", func(c Colors) ui.Color { return c.NotificationCenterHeaderForeground }, 0xFFCCCCCC, 0xFF3B3B3B},
+		{"notificationCenterHeader.background", func(c Colors) ui.Color { return c.NotificationCenterHeaderBackground }, 0xFF1F1F1F, 0xFFFFFFFF},
+		{"notifications.border", func(c Colors) ui.Color { return c.NotificationsBorder }, 0xFF2B2B2B, 0xFFE5E5E5},
+		{"notificationsErrorIcon.foreground", func(c Colors) ui.Color { return c.NotificationsErrorIconForeground }, 0xFFF14C4C, 0xFFE51400},
+		{"notificationsWarningIcon.foreground", func(c Colors) ui.Color { return c.NotificationsWarningIconForeground }, 0xFFCCA700, 0xFFBF8803},
+		{"notificationsInfoIcon.foreground", func(c Colors) ui.Color { return c.NotificationsInfoIconForeground }, 0xFF59A4F9, 0xFF0063D3},
 	}
 	for _, tc := range cases {
 		if got := tc.got(DarkModern()); got != ui.NewColor(tc.dark) {

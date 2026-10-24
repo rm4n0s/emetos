@@ -165,6 +165,12 @@ type Colors struct {
 	BadgeBackground, BadgeForeground, ProgressBarBackground ui.Color
 	// The colors of the icon of a dialog by type (error, warning, information).
 	ProblemsErrorIconForeground, ProblemsWarningIconForeground, ProblemsInfoIconForeground ui.Color
+	// The colors of toasts and of the notification center: the text and background of a notification,
+	// its border as a toast and the border of the center, the header of the center (text and
+	// background), the line between notifications of the center, and the icons by severity.
+	NotificationsForeground, NotificationsBackground, NotificationToastBorder, NotificationCenterBorder   ui.Color
+	NotificationCenterHeaderForeground, NotificationCenterHeaderBackground, NotificationsBorder           ui.Color
+	NotificationsErrorIconForeground, NotificationsWarningIconForeground, NotificationsInfoIconForeground ui.Color
 	// The colors of the parts of the workbench (gui/workbench). The status bar: text, background
 	// and border with a folder open, and the same three with none (the NoFolder colors). The
 	// activity bar: background and border. The side bar: background, text (transparent where the
@@ -335,6 +341,12 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		BadgeBackground: color("badge.background"), BadgeForeground: color("badge.foreground"), ProgressBarBackground: color("progressBar.background"),
 		ProblemsErrorIconForeground: color("problemsErrorIcon.foreground"), ProblemsWarningIconForeground: color("problemsWarningIcon.foreground"),
 		ProblemsInfoIconForeground: color("problemsInfoIcon.foreground"),
+		NotificationsForeground:    color("notifications.foreground"), NotificationsBackground: color("notifications.background"),
+		NotificationToastBorder: color("notificationToast.border"), NotificationCenterBorder: color("notificationCenter.border"),
+		NotificationCenterHeaderForeground: color("notificationCenterHeader.foreground"),
+		NotificationCenterHeaderBackground: color("notificationCenterHeader.background"), NotificationsBorder: color("notifications.border"),
+		NotificationsErrorIconForeground: color("notificationsErrorIcon.foreground"), NotificationsWarningIconForeground: color("notificationsWarningIcon.foreground"),
+		NotificationsInfoIconForeground: color("notificationsInfoIcon.foreground"),
 
 		StatusBarForeground: color("statusBar.foreground"), StatusBarBackground: color("statusBar.background"), StatusBarBorder: color("statusBar.border"),
 		StatusBarNoFolderForeground: color("statusBar.noFolderForeground"), StatusBarNoFolderBackground: color("statusBar.noFolderBackground"),
