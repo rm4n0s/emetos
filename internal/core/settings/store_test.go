@@ -865,3 +865,53 @@ func TestStoreSetWorkspacePath(t *testing.T) {
 		t.Errorf("with no folder an update of the workspace fails with SettingsNoWorkspace, got %v", err)
 	}
 }
+
+// TestRemoveKeepsTheRest is the table of the removal of a setting that the settings editor's "Reset Setting" makes
+// (SPEC §11.1): the comments, the other keys and the layout stay.
+func TestRemoveKeepsTheRest(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name, text, key, language, want string
+	}{
+		{"first key", "{\n  \"editor.tabSize\": 2,\n  \"files.eol\": \"\\n\"\n}", "editor.tabSize", "", "{\n  \"files.eol\": \"\\n\"\n}"},
+		{"middle key", "{\n  \"files.eol\": \"\\n\",\n  \"editor.tabSize\": 2,\n  \"editor.insertSpaces\": false\n}", "editor.tabSize", "", "{\n  \"files.eol\": \"\\n\",\n  \"editor.insertSpaces\": false\n}"},
+		{"last key", "{\n  \"files.eol\": \"\\n\",\n  \"editor.tabSize\": 2\n}", "editor.tabSize", "", "{\n  \"files.eol\": \"\\n\"\n}"},
+		{"only key", "{\n  \"editor.tabSize\": 2\n}", "editor.tabSize", "", "{\n}"},
+		{"comments of other keys stay", "// header\n{\n  \"files.eol\": \"\\n\",\n  \"editor.tabSize\": 2,\n  // about spaces\n  \"editor.insertSpaces\": false /* last */\n}", "editor.tabSize", "", "// header\n{\n  \"files.eol\": \"\\n\",\n  // about spaces\n  \"editor.insertSpaces\": false /* last */\n}"},
+		{"trailing comma", "{\n  \"files.eol\": \"\\n\",\n  \"editor.tabSize\": 2,\n}", "editor.tabSize", "", "{\n  \"files.eol\": \"\\n\",\n}"},
+		{"absent key", "{\n  // none\n  \"files.eol\": \"\\n\"\n}", "editor.tabSize", "", "{\n  // none\n  \"files.eol\": \"\\n\"\n}"},
+		{"language block", "{\n  \"editor.tabSize\": 2,\n  \"[go]\": {\n    \"editor.tabSize\": 8,\n    \"editor.insertSpaces\": false\n  }\n}", "editor.tabSize", "go", "{\n  \"editor.tabSize\": 2,\n  \"[go]\": {\n    \"editor.insertSpaces\": false\n  }\n}"},
+		{"nested key", "{\n  \"editor\": {\n    \"tabSize\": 2\n  },\n  \"files.eol\": \"\\n\"\n}", "editor.tabSize", "", "{\n  \"editor\": {\n  },\n  \"files.eol\": \"\\n\"\n}"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.write(f.userPath, c.text)
+			f.reload()
+			var err error
+			if c.language != "" {
+				err = f.store.RemoveForLanguage(ctx, c.key, c.language, TargetUser)
+			} else {
+				err = f.store.Remove(ctx, c.key, TargetUser)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := f.read(f.userPath); got != c.want {
+				t.Errorf("file %q, want %q", got, c.want)
+			}
+		})
+	}
+	t.Run("a file with a syntax error fails and is not written", func(t *testing.T) {
+		f := newFixture(t)
+		f.write(f.userPath, "{ \"editor.tabSize\": 2,, }")
+		err := f.store.Remove(ctx, "editor.tabSize", TargetUser)
+		appErr, ok := errors.FromError(err)
+		if !ok || !appErr.HasRoute("Store.write.SettingsFileInvalid") {
+			t.Fatalf("got %v", err)
+		}
+		if f.read(f.userPath) != "{ \"editor.tabSize\": 2,, }" {
+			t.Error("the file changed")
+		}
+	})
+}

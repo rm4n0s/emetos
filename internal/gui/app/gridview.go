@@ -15,6 +15,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 // The sizes below which a group is not made smaller (VS Code's EditorGroupView minimumWidth and
@@ -147,6 +148,8 @@ func (s *shellState) groupWidget(bc widgets.BuildContext, group *editorgroup.Gro
 	var content widgets.Widget
 	if ed := s.group.editors[group.Model.ActiveEditor()]; ed != nil {
 		content = s.editorColumn(bc, win, group, ed, active)
+	} else if p := s.group.panes[group.Model.ActiveEditor()]; p != nil {
+		content = s.paneColumn(bc, win, group, group.Model.ActiveEditor(), p, active)
 	} else {
 		content = s.emptyGroup(bc, group, active)
 	}
@@ -171,10 +174,9 @@ func (s *shellState) editorColumn(bc widgets.BuildContext, win *Window, group *e
 		kit.NewContextMenuRegion(text, s.editorMenuItems, kit.ContextMenuOpts{Controller: s.editorMenu, OnRun: s.menus.Run}),
 		widgets.WidgetOpts{Key: widgets.NewGlobalObjectKey[widgets.State](ed)})
 	column := []widgets.Widget{}
-	if settings.Get[string](win.Settings, "workbench.editor.showTabs", "") != "none" {
+	if tabs := s.tabStrip(bc, win, group); tabs != nil {
 		// a right click on a tab opens its context menu
-		column = append(column, kit.NewContextMenu(kit.NewTabs(s.tabItems(group), s.tabsOptions(win, group)),
-			kit.ContextMenuOpts{Controller: s.view(group).tabMenu, OnRun: s.menus.Run, OnHide: s.askFocusSoon}))
+		column = append(column, tabs)
 	}
 	if uri := ed.doc.URI(); uri.Scheme == document.SchemeFile {
 		// the path of the file above the text
@@ -232,7 +234,7 @@ func (s *shellState) emptyGroup(bc widgets.BuildContext, group *editorgroup.Grou
 
 // tabItems are the tabs of a group, in order: the label and the state of each editor. Editors that
 // share a name show their folders too.
-func (s *shellState) tabItems(group *editorgroup.Group) []kit.TabItem {
+func (s *shellState) tabItems(colors kit.Colors, group *editorgroup.Group) []kit.TabItem {
 	m := group.Model
 	editors := m.Editors(editorgroup.Sequential, false)
 	labels := editorgroup.TabLabels(editors)
@@ -245,6 +247,7 @@ func (s *shellState) tabItems(group *editorgroup.Group) []kit.TabItem {
 		items[i] = kit.TabItem{
 			Key: key, Name: labels[i].Name, Description: labels[i].Description, Title: editorgroup.DecoratedTitle(e, labels[i].Title),
 			Preview: !m.IsPinned(e), Sticky: m.IsSticky(e), Dirty: e.Dirty(), Deleted: editorgroup.IsDeleted(e),
+			Icon: s.tabIcon(colors, e, e == m.ActiveEditor()),
 		}
 	}
 	return items
@@ -314,4 +317,18 @@ func (s *shellState) emptyArea(bc widgets.BuildContext) widgets.Widget {
 		return editor.NewNotice(BinaryFileNotice, editor.NoticeOpts{Action: "Open Anyway", OnAction: func() { s.openAnyway(widgets.WidgetsBindingOf(bc), s.blocked) }})
 	}
 	return s.homePage(bc)
+}
+
+// tabIcon is the icon of the tab of an editor of a kind that has one (the settings editor's gear); a text editor's
+// tab shows none (the file icons of step 6.14 are for the explorer).
+func (s *shellState) tabIcon(colors kit.Colors, e editorgroup.EditorInput, active bool) widgets.Widget {
+	k, ok := kindOf(e.TypeID())
+	if !ok || k.icon == 0 {
+		return nil
+	}
+	color := colors.TabInactiveForeground
+	if active {
+		color = colors.TabActiveForeground
+	}
+	return widgets.NewIcon(fonts.CodiconIcon(k.icon), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(color)})
 }

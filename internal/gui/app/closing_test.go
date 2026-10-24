@@ -120,6 +120,8 @@ func (a *saveApp) tapDialog(label string) {
 	if !a.win.Dialogs.IsShowing() {
 		a.t.Fatalf("no dialog shows (looking for %q)", label)
 	}
+	// the dialog is built by the frame after it was asked for: pump before looking for its button
+	a.pump()
 	a.ts.Tap(gluttertest.Descendant(gluttertest.ByType[*kit.Dialog](), gluttertest.ByText(label)))
 	a.pump()
 }

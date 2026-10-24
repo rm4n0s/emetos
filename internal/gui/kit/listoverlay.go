@@ -305,7 +305,8 @@ func (s *listOverlayState) row(bc widgets.BuildContext, colors Colors, it ListIt
 	} else {
 		parts = append(parts, widgets.NewFlexible(label),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(8.0)}),
-			widgets.NewText(it.Description, widgets.TextOpts{Style: TextStyleOf(bc, listFontSize-1, fg.WithAlpha(0x99)), MaxLines: foundation.Some(1)}))
+			// a description longer than the row is cut: the row does not overflow
+			widgets.NewFlexible(widgets.NewText(it.Description, widgets.TextOpts{Style: TextStyleOf(bc, listFontSize-1, fg.WithAlpha(0x99)), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})))
 	}
 	// the outline of the focused row takes room in every row, so that the text does not move
 	outline := ui.Color{}

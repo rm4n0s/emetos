@@ -954,7 +954,7 @@ func TestTheFileMenuAndTheTabMenuShowTheStateOfSaving(t *testing.T) {
 	file := func() []string {
 		return menuRows(s.menus.Items(command.MenubarFileMenu, s.menuContext()))
 	}
-	tail := []string{"-", "Open Folder...", "Open Recent>", "-", "Save", "Save As...", "Save All~", "-", "Auto Save", "-", "Revert File", "Close Editor", "Close Window", "-", "Exit"}
+	tail := []string{"-", "Open Folder...", "Open Recent>", "-", "Save", "Save As...", "Save All~", "-", "Auto Save", "Preferences>", "-", "Revert File", "Close Editor", "Close Window", "-", "Exit"}
 	if got := file(); got[0] != "New Text File" || got[1] != "New Window" || !slices.Equal(got[2:], tail) {
 		t.Errorf("file menu %v", got)
 	}

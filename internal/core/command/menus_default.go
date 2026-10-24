@@ -24,6 +24,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerEditorTitleContext(r)
 	registerExplorerContext(r)
 	registerQuickInputMenus(r)
+	registerSettingsMenus(r)
 	return r
 }
 
@@ -371,5 +372,21 @@ func registerQuickInputMenus(r *MenuRegistry) {
 		MenuItem{Menu: GlobalActivity, Command: "workbench.action.showCommands", Title: "Command Palette...", Group: "1_command", Order: 1},
 
 		MenuItem{Menu: CommandPalette, Command: "workbench.action.quickOpenView", When: contextkey.False()},
+	)
+}
+
+// registerSettingsMenus adds the rows of the settings editor (step 8.1): the Preferences submenu of the File menu
+// with Settings (Ctrl+,), the same row in the Manage menu, and the palette rules: "Settings" is left out of the
+// palette (VS Code lists openSettings2 instead) and Open Workspace Settings needs a folder.
+//
+// Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
+func registerSettingsMenus(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: MenubarFileMenu, Submenu: MenubarPreferencesMenu, Title: "Preferences", MnemonicTitle: "&&Preferences", Group: "5_autosave", Order: 2},
+		MenuItem{Menu: MenubarPreferencesMenu, Command: "workbench.action.openSettings", Title: "Settings", MnemonicTitle: "&&Settings", Group: "2_configuration", Order: 2},
+		MenuItem{Menu: GlobalActivity, Command: "workbench.action.openSettings", Title: "Settings", Group: "2_configuration", Order: 2},
+
+		MenuItem{Menu: CommandPalette, Command: "workbench.action.openSettings", When: contextkey.False()},
+		MenuItem{Menu: CommandPalette, Command: "workbench.action.openWorkspaceSettings", When: when("workbenchState != 'empty'")},
 	)
 }

@@ -180,8 +180,8 @@ type Colors struct {
 	BadgeBackground, BadgeForeground, ProgressBarBackground ui.Color
 	// The colors of the icon of a dialog by type (error, warning, information).
 	ProblemsErrorIconForeground, ProblemsWarningIconForeground, ProblemsInfoIconForeground ui.Color
-	// TextLinkForeground is the color of a link in text.
-	TextLinkForeground ui.Color
+	// TextLinkForeground is the color of a link in text, and ErrorForeground that of an error message.
+	TextLinkForeground, ErrorForeground ui.Color
 	// The colors of toasts and of the notification center: the text and background of a notification,
 	// its border as a toast and the border of the center, the header of the center (text and
 	// background), the line between notifications of the center, and the icons by severity.
@@ -247,6 +247,17 @@ type Colors struct {
 	// empty group (transparent leaves the editor's) and the border of an empty group that has the
 	// focus.
 	EditorGroupBorder, EditorGroupEmptyBackground, EditorGroupFocusedEmptyBorder ui.Color
+	// The colors of the settings editor (step 8.1): the headers and the mark of a modified setting, the lines
+	// of the header and of the sash, the controls of a row (the dropdown, the check box, the text and number
+	// boxes) and the rows under the pointer or with the focus.
+	SettingsHeaderForeground, SettingsHeaderHoverForeground, SettingsModifiedItemIndicator  ui.Color
+	SettingsHeaderBorder, SettingsSashBorder                                                ui.Color
+	SettingsDropdownBackground, SettingsDropdownForeground, SettingsDropdownBorder          ui.Color
+	SettingsDropdownListBorder                                                              ui.Color
+	SettingsCheckboxBackground, SettingsCheckboxForeground, SettingsCheckboxBorder          ui.Color
+	SettingsTextInputBackground, SettingsTextInputForeground, SettingsTextInputBorder       ui.Color
+	SettingsNumberInputBackground, SettingsNumberInputForeground, SettingsNumberInputBorder ui.Color
+	SettingsFocusedRowBackground, SettingsRowHoverBackground, SettingsFocusedRowBorder      ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -381,8 +392,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		BadgeBackground: color("badge.background"), BadgeForeground: color("badge.foreground"), ProgressBarBackground: color("progressBar.background"),
 		ProblemsErrorIconForeground: color("problemsErrorIcon.foreground"), ProblemsWarningIconForeground: color("problemsWarningIcon.foreground"),
 		ProblemsInfoIconForeground: color("problemsInfoIcon.foreground"),
-		TextLinkForeground:         color("textLink.foreground"),
-		NotificationsForeground:    color("notifications.foreground"), NotificationsBackground: color("notifications.background"),
+		TextLinkForeground:         color("textLink.foreground"), ErrorForeground: color("errorForeground"),
+		NotificationsForeground: color("notifications.foreground"), NotificationsBackground: color("notifications.background"),
 		NotificationToastBorder: color("notificationToast.border"), NotificationCenterBorder: color("notificationCenter.border"),
 		NotificationCenterHeaderForeground: color("notificationCenterHeader.foreground"),
 		NotificationCenterHeaderBackground: color("notificationCenterHeader.background"), NotificationsBorder: color("notifications.border"),
@@ -433,6 +444,20 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorGroupBorder: color("editorGroup.border"), EditorGroupEmptyBackground: color("editorGroup.emptyBackground"),
 		EditorGroupFocusedEmptyBorder: color("editorGroup.focusedEmptyBorder"),
 		TabDragAndDropBorder:          color("tab.dragAndDropBorder"), EditorGroupDropBackground: color("editorGroup.dropBackground"),
+
+		SettingsHeaderForeground: color("settings.headerForeground"), SettingsHeaderHoverForeground: color("settings.settingsHeaderHoverForeground"),
+		SettingsModifiedItemIndicator: color("settings.modifiedItemIndicator"),
+		SettingsHeaderBorder:          color("settings.headerBorder"), SettingsSashBorder: color("settings.sashBorder"),
+		SettingsDropdownBackground: color("settings.dropdownBackground"), SettingsDropdownForeground: color("settings.dropdownForeground"),
+		SettingsDropdownBorder: color("settings.dropdownBorder"), SettingsDropdownListBorder: color("settings.dropdownListBorder"),
+		SettingsCheckboxBackground: color("settings.checkboxBackground"), SettingsCheckboxForeground: color("settings.checkboxForeground"),
+		SettingsCheckboxBorder:      color("settings.checkboxBorder"),
+		SettingsTextInputBackground: color("settings.textInputBackground"), SettingsTextInputForeground: color("settings.textInputForeground"),
+		SettingsTextInputBorder:       color("settings.textInputBorder"),
+		SettingsNumberInputBackground: color("settings.numberInputBackground"), SettingsNumberInputForeground: color("settings.numberInputForeground"),
+		SettingsNumberInputBorder:    color("settings.numberInputBorder"),
+		SettingsFocusedRowBackground: color("settings.focusedRowBackground"), SettingsRowHoverBackground: color("settings.rowHoverBackground"),
+		SettingsFocusedRowBorder: color("settings.focusedRowBorder"),
 	}
 }
 

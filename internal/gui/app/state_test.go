@@ -1315,6 +1315,8 @@ func (r *stateRun) tapDialog(label string) {
 	if !r.win.Dialogs.IsShowing() {
 		r.env.t.Fatalf("no dialog shows (looking for %q)", label)
 	}
+	// the dialog is built by the frame after it was asked for: pump before looking for its button
+	r.pump()
 	r.ts.Tap(gluttertest.Descendant(gluttertest.ByType[*kit.Dialog](), gluttertest.ByText(label)))
 	r.pump()
 }

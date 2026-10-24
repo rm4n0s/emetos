@@ -386,13 +386,13 @@ func TestDefaultFileMenu(t *testing.T) {
 	}{
 		// Save, Save As, Save All, Revert File and Close Editor are there with no editor open, dimmed
 		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Window", "-", "E&&xit"}},
 		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
 		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save", "Save &&As...", "Save A&&ll", "-", "A&&uto Save", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save", "Save &&As...", "Save A&&ll", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
 		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Window", "-", "E&&xit"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := titles(tc.ctx); !reflect.DeepEqual(got, tc.want) {
@@ -482,7 +482,7 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu", EditorContext, contextkey.MapContext{}, []string{"Cut", "Copy", "Paste", "-", "Select All"}},
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
-		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette..."}},
+		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Settings"}},
 		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Back", "Forward", "Last Edit Location", "-", "Switch Editor", "Switch Group", "-", "Go to File...", "-", "Go to Line/Column...", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
@@ -885,6 +885,62 @@ func TestDefaultOpenRecentMenu(t *testing.T) {
 		meta, ok := cmds.Lookup(id)
 		if !ok || meta.Title != title {
 			t.Errorf("%s: %+v, %v, want the title %q", id, meta, ok, title)
+		}
+	}
+}
+
+// TestSettingsMenus checks the rows of the settings editor (step 8.1): Settings in the Preferences submenu and the
+// Manage menu, and the rules of the palette.
+func TestSettingsMenus(t *testing.T) {
+	reg := DefaultRegistry()
+	menus := DefaultMenus(reg)
+	for _, id := range []string{"workbench.action.openSettings", "workbench.action.openSettings2", "workbench.action.openWorkspaceSettings"} {
+		if _, ok := reg.Lookup(id); !ok {
+			t.Errorf("command %s is not registered", id)
+		}
+	}
+	rowsOf := func(menu string) []string {
+		var out []string
+		for _, e := range menus.Items(menu, contextkey.MapContext{}) {
+			out = append(out, e.MnemonicTitle+"="+e.Command)
+		}
+		return out
+	}
+	if got := rowsOf(MenubarPreferencesMenu); len(got) != 1 || got[0] != "&&Settings=workbench.action.openSettings" {
+		t.Errorf("Preferences menu %v", got)
+	}
+	found := false
+	for _, e := range menus.Items(MenubarFileMenu, contextkey.MapContext{}) {
+		if e.Submenu == MenubarPreferencesMenu && e.MnemonicTitle == "&&Preferences" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("the File menu has no Preferences submenu")
+	}
+	// the palette: Settings is hidden, Open Workspace Settings needs a folder
+	shown := func(command string, ctx contextkey.Context) bool {
+		for _, it := range menus.All() {
+			if it.Menu == CommandPalette && it.Command == command && it.When != nil && !it.When.Evaluate(ctx) {
+				return false
+			}
+		}
+		return true
+	}
+	empty := contextkey.MapContext{"workbenchState": "empty"}
+	folder := contextkey.MapContext{"workbenchState": "folder"}
+	for _, c := range []struct {
+		command string
+		ctx     contextkey.Context
+		want    bool
+	}{
+		{"workbench.action.openSettings", folder, false},
+		{"workbench.action.openSettings2", empty, true},
+		{"workbench.action.openWorkspaceSettings", empty, false},
+		{"workbench.action.openWorkspaceSettings", folder, true},
+	} {
+		if got := shown(c.command, c.ctx); got != c.want {
+			t.Errorf("%s shown in the palette = %v, want %v", c.command, got, c.want)
 		}
 	}
 }

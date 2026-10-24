@@ -25,6 +25,8 @@ type groupState struct {
 	// editors are the editors of the inputs of all the groups. The input of an editor that moves to
 	// another group is the same one, and so is its editor.
 	editors map[editorgroup.EditorInput]*textEditor
+	// panes are the editors of the inputs that are not text (panes.go); an input has an editor or a pane.
+	panes map[editorgroup.EditorInput]pane
 	// views hold what the widgets of a group need to keep from build to build.
 	views map[*editorgroup.Group]*groupView
 	// focused tells which editors have the keyboard focus (the editor or its find widget).
@@ -102,6 +104,7 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	}
 	g.grid = restored
 	g.editors = map[editorgroup.EditorInput]*textEditor{}
+	g.panes = map[editorgroup.EditorInput]pane{}
 	g.views = map[*editorgroup.Group]*groupView{}
 	g.focused = map[*textEditor]bool{}
 	g.dragFeed = newDragFeed()
@@ -296,6 +299,8 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 				// takes it in its empty area)
 				if ed := s.group.editors[e.Change.Editor]; ed != nil && s.group.focused[ed] {
 					s.askFocus(binding)
+				} else if p := s.group.panes[e.Change.Editor]; p != nil && p.hasFocus() {
+					s.askFocus(binding)
 				}
 				s.recordClosed(e.Group, e.Change)
 				s.forgetClosed(e.Group, e.Change.Editor)
@@ -312,7 +317,14 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 			// the editor that had the focus is replaced by the new active editor of its group: the
 			// keyboard focus goes to the new one, and not to any editor of another group
 			for _, input := range e.Group.Model.Editors(editorgroup.Sequential, false) {
-				if ed := s.group.editors[input]; ed != nil && input != e.Change.Editor && s.group.focused[ed] {
+				if input == e.Change.Editor {
+					continue
+				}
+				if ed := s.group.editors[input]; ed != nil && s.group.focused[ed] {
+					s.askFocus(binding)
+					break
+				}
+				if p := s.group.panes[input]; p != nil && p.hasFocus() {
 					s.askFocus(binding)
 					break
 				}
@@ -370,7 +382,11 @@ func (s *shellState) heldByAGroup(input editorgroup.EditorInput) bool {
 // own.
 func (s *shellState) ensureEditor(binding *widgets.WidgetsBinding, input editorgroup.EditorInput) {
 	t, ok := input.(*editorgroup.TextInput)
-	if !ok || s.group.editors[input] != nil {
+	if !ok {
+		s.ensurePane(input)
+		return
+	}
+	if s.group.editors[input] != nil {
 		return
 	}
 	PeekWindow(s.Context()).Documents.Retain(t.Document())
@@ -380,6 +396,10 @@ func (s *shellState) ensureEditor(binding *widgets.WidgetsBinding, input editorg
 // releaseEditor ends the editor of a closed input: its view and background work stop, the input is
 // disposed and the document is released (it closes with its last user).
 func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
+	if p := s.group.panes[input]; p != nil {
+		delete(s.group.panes, input)
+		p.dispose()
+	}
 	e := s.group.editors[input]
 	delete(s.group.editors, input)
 	if e != nil {
@@ -454,6 +474,11 @@ func (s *shellState) disposeGroup() {
 		input.Dispose()
 	}
 	g.editors = nil
+	for input, p := range g.panes {
+		p.dispose()
+		input.Dispose()
+	}
+	g.panes = nil
 	g.grid.Dispose()
 	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
 		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically",
@@ -548,6 +573,13 @@ func (s *shellState) focusGroup(group *editorgroup.Group) bool {
 			return true
 		}
 		e.focus.Request()
+		return false
+	}
+	if p := s.group.panes[group.Model.ActiveEditor()]; p != nil {
+		if p.hasFocus() {
+			return true
+		}
+		p.focus()
 		return false
 	}
 	if v := s.group.views[group]; v != nil && v.empty != nil && v.empty.Context() != nil {

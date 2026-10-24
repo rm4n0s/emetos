@@ -138,6 +138,7 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+shift+w closes the window", nil, "ctrl+shift+w", "workbench.action.closeWindow"},
 		{"ctrl+q quits", nil, "ctrl+q", "workbench.action.quit"},
 		{"ctrl+shift+n opens a new window", nil, "ctrl+shift+n", "workbench.action.newWindow"},
+		{"ctrl+, opens the settings editor", nil, "ctrl+,", "workbench.action.openSettings"},
 		{"ctrl+r opens the recent list", nil, "ctrl+r", "workbench.action.openRecent"},
 		{"ctrl+pagedown opens the next editor", nil, "ctrl+pagedown", "workbench.action.nextEditor"},
 		{"ctrl+pageup opens the previous editor", nil, "ctrl+pageup", "workbench.action.previousEditor"},

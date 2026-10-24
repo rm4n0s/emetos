@@ -35,6 +35,7 @@ func DefaultRegistry() *Registry {
 	registerSaveCommands(r)
 	registerWindowCommands(r)
 	registerRecentCommands(r)
+	registerSettingsCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	return r
@@ -756,5 +757,20 @@ func registerRecentCommands(r *Registry) {
 		Meta{ID: "workbench.action.clearRecentFiles", Title: "Clear Recently Opened...", Category: "File"},
 		Meta{ID: "openRecentFolder"},
 		Meta{ID: "openRecentFile"},
+	)
+}
+
+// registerSettingsCommands registers the commands that open the settings editor (SPEC §11.1, step 8.1):
+// workbench.action.openSettings (Ctrl+,; the title "Settings" is that of the rows of the Preferences and Manage
+// menus, and the palette leaves it out as VS Code does: it lists "Preferences: Open Settings (UI)", which is
+// workbench.action.openSettings2) and Open Workspace Settings, which needs a folder. Step 8.2 adds the commands
+// that open the JSON files.
+//
+// Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
+func registerSettingsCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.openSettings", Title: "Settings"},
+		Meta{ID: "workbench.action.openSettings2", Title: "Open Settings (UI)", Category: "Preferences"},
+		Meta{ID: "workbench.action.openWorkspaceSettings", Title: "Open Workspace Settings", Category: "Preferences"},
 	)
 }

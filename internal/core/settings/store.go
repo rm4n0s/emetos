@@ -92,6 +92,9 @@ type Store struct {
 	consolidated *Model
 	regVersion   int
 	listeners    []*func(ChangeEvent)
+	// source, when set, gives the text of the documents that are open in place of the files
+	// (textsource.go).
+	source TextSource
 }
 
 // NewStore makes a store with the defaults of the registry and empty files; call Reload to
@@ -101,6 +104,13 @@ func NewStore(reg *Registry, opts StoreOptions) *Store {
 	s.user.model, s.workspace.model = NewModel(nil, nil, nil), NewModel(nil, nil, nil)
 	s.rebuild()
 	return s
+}
+
+// Paths are the files of the user's and the workspace's settings; the workspace's is empty while no folder is open.
+func (s *Store) Paths() (user, workspace string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.opts.UserPath, s.opts.WorkspacePath
 }
 
 // Registry returns the registry of the store.
@@ -315,11 +325,15 @@ func (s *Store) readLayer(ctx context.Context, path string, target Target) (laye
 		return layer{model: NewModel(nil, nil, nil)}, nil
 	}
 	text := ""
-	res, err := fileio.Read(ctx, path, fileio.ReadOptions{})
-	if err == nil {
-		text = res.Text
-	} else if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "FileNotFound" {
-		return layer{}, err
+	if open, ok := s.openText(path); ok {
+		text = open
+	} else {
+		res, err := fileio.Read(ctx, path, fileio.ReadOptions{})
+		if err == nil {
+			text = res.Text
+		} else if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "FileNotFound" {
+			return layer{}, err
+		}
 	}
 	opts := ParseOptions{}
 	if target == TargetWorkspace {
@@ -502,6 +516,22 @@ func (s *Store) write(ctx context.Context, key, languageID string, value any, re
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
+	// A document that is open for the file takes the edit (textsource.go): the store edits the text
+	// the document has, and the source saves the document only when it was not dirty.
+	if text, open := s.openText(path); open {
+		applied, err := s.editDocument(ctx, path, text, key, languageID, value, remove)
+		if applied {
+			// the document has the edit, even if saving it failed: the layers follow it
+			if _, rerr := s.Reload(ctx); err == nil {
+				err = rerr
+			}
+			return err
+		}
+		if err != nil {
+			return err
+		}
+	}
+
 	text, encoding, lineEnding, hasBOM := "", fileio.UTF8, fileio.LF, false
 	res, err := fileio.Read(ctx, path, fileio.ReadOptions{})
 	if err == nil {
@@ -514,7 +544,7 @@ func (s *Store) write(ctx context.Context, key, languageID string, value any, re
 		return errors.New("SettingsFileInvalid", "the settings file has errors; fix them first", "path", path)
 	}
 
-	updated, changed, err := s.editText(text, root, jsonPath(root, key, languageID), value, remove)
+	updated, _, changed, err := s.editText(text, jsonPath(root, key, languageID), value, remove)
 	if err != nil {
 		return err
 	}
@@ -528,6 +558,34 @@ func (s *Store) write(ctx context.Context, key, languageID string, value any, re
 	}
 	_, err = s.Reload(ctx)
 	return err
+}
+
+// openText is the text of the document that is open for a settings file, when the store has a
+// source and one is.
+func (s *Store) openText(path string) (string, bool) {
+	if src := s.textSource(); src != nil {
+		return src.OpenText(path)
+	}
+	return "", false
+}
+
+// editDocument makes the edit of a setting in the text of an open document and hands it to the
+// source. It fails with the tag SettingsFileInvalid when the document has syntax errors, as the
+// file would.
+func (s *Store) editDocument(ctx context.Context, path, text, key, languageID string, value any, remove bool) (applied bool, err error) {
+	root, errs := jsonc.ParseTree(text, jsonc.ParseOptions{AllowEmptyContent: true})
+	if len(errs) > 0 || (root != nil && root.Type != jsonc.ObjectNode) {
+		return false, errors.New("SettingsFileInvalid", "the settings file has errors; fix them first", "path", path)
+	}
+	_, edits, changed, err := s.editText(text, jsonPath(root, key, languageID), value, remove)
+	if err != nil {
+		return false, err
+	}
+	if !changed {
+		// nothing to change, as a file that is already as asked is not written
+		return true, nil
+	}
+	return s.textSource().EditText(ctx, path, edits)
 }
 
 // jsonPath is where a key goes in a file: the flat key "editor.tabSize" unless the file
@@ -552,8 +610,9 @@ func jsonPath(root *jsonc.Node, key, languageID string) jsonc.Path {
 	return append(base, key)
 }
 
-// editText applies the edit for a path and returns the new text.
-func (s *Store) editText(text string, _ *jsonc.Node, path jsonc.Path, value any, remove bool) (string, bool, error) {
+// editText computes the edit for a path: the new text, the edits that make it from the text, and whether
+// the text changes.
+func (s *Store) editText(text string, path jsonc.Path, value any, remove bool) (string, []jsonc.Edit, bool, error) {
 	opts := jsonc.FormattingOptions{
 		TabSize:      max(1, Get[int](s, "editor.tabSize", "")),
 		InsertSpaces: Get[bool](s, "editor.insertSpaces", ""),
@@ -570,13 +629,13 @@ func (s *Store) editText(text string, _ *jsonc.Node, path jsonc.Path, value any,
 		edits, err = jsonc.SetValue(text, path, value, opts)
 	}
 	if err != nil {
-		return "", false, err
+		return "", nil, false, err
 	}
 	updated, err := jsonc.ApplyEdits(text, edits)
 	if err != nil {
-		return "", false, err
+		return "", nil, false, err
 	}
-	return updated, updated != text, nil
+	return updated, edits, updated != text, nil
 }
 
 // Keys returns the dotted keys set in a file, sorted; the settings UI lists them.

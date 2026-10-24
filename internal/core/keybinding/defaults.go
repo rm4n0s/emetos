@@ -68,6 +68,7 @@ func DefaultRegistry() *Registry {
 	registerExplorerKeys(r)
 	registerSaveKeys(r)
 	registerWindowKeys(r)
+	registerSettingsKeys(r)
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
 	return r
@@ -529,5 +530,14 @@ func registerWindowKeys(r *Registry) {
 		Rule{Command: "workbench.action.closeWindow", Weight: WeightWorkbenchContrib, Primary: "alt+f4", Secondary: []string{"ctrl+shift+w"}},
 		Rule{Command: "workbench.action.quit", Weight: WeightWorkbenchContrib, Primary: "ctrl+q"},
 		Rule{Command: "workbench.action.newWindow", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+n"},
+	)
+}
+
+// registerSettingsKeys registers the key of the settings editor: Ctrl+, opens it.
+//
+// Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
+func registerSettingsKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.openSettings", Weight: WeightWorkbenchContrib, Primary: "ctrl+,"},
 	)
 }

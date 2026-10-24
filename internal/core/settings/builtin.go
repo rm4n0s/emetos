@@ -949,6 +949,13 @@ func registerExplorer(r *Registry) {
 // Ported from VS Code: src/vs/workbench/services/themes/common/themeConfiguration.ts
 func registerWorkbench(r *Registry) {
 	r.MustRegister(
+		// Step 8.1: which editor Settings (Ctrl+,) opens.
+		Setting{
+			Key: "workbench.settings.editor", Types: []Type{String}, Default: "ui", Enum: []any{"ui", "json"},
+			EnumDescriptions: []string{"Use the settings UI editor.", "Use the JSON file editor."},
+			Description:      "Determines which Settings editor to use by default.",
+			Scope:            ScopeWindow, Category: categoryWorkbench,
+		},
 		Setting{
 			Key: "workbench.colorTheme", Types: []Type{String}, Default: "Dark Modern",
 			Description: "Specifies the color theme used in the workbench when `window.autoDetectColorScheme` is not enabled.",

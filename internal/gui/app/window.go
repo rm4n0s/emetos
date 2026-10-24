@@ -129,6 +129,10 @@ type Window struct {
 	entry *windowEntry
 	// shell is the state of the shell that shows the window; nil until it is made and after it is gone.
 	shell *shellState
+	// settingsDocs lets the settings store read and edit the settings files that are open in an editor.
+	settingsDocs *settingsDocs
+	// uiModel is the model of the settings editor (SettingsModel).
+	uiModel *settings.UIModel
 	// stops end what the window follows (the settings of the other windows, ...) when it is gone.
 	stops []func()
 	// controller is the controller of the platform window that shows this one, as the shell found it; nil
@@ -334,6 +338,7 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 		w.Quit, w.SaveDialog, w.OpenURI, w.OnChordStatus = f.Quit, f.SaveDialog, f.OpenURI, f.OnChordStatus
 	}
 	w.registerWindowCommands()
+	w.settingsDocs = newSettingsDocs(w)
 	w.Documents.onFile = w.followFile
 	w.Documents.onClose = w.unfollowFile
 	if folder != "" {
@@ -343,6 +348,7 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 	}
 	w.initState(ctx)
 	w.syncWorkbenchState()
+	w.settingsDocs.install()
 	w.rememberSettingsPaths(userPath, p)
 	w.followWorkspaceSettings()
 	w.followTheme()
@@ -376,6 +382,32 @@ type Documents struct {
 	onOpen, onDrop func(doc *document.Document)
 	// closeWatchers are told of every document that is closed (WatchClose).
 	closeWatchers []*func(doc *document.Document)
+	// openWatchers are told of every document that is opened (WatchOpen).
+	openWatchers []*func(doc *document.Document)
+}
+
+// notifyOpen tells the watchers of a document that was added to the set.
+func (d *Documents) notifyOpen(doc *document.Document) {
+	d.mu.Lock()
+	watchers := slices.Clone(d.openWatchers)
+	d.mu.Unlock()
+	for _, w := range watchers {
+		(*w)(doc)
+	}
+}
+
+// WatchOpen makes the set tell fn of every document that is added to it from now on, in the goroutine that opened
+// it, and returns the function that stops it. The documents that are open already are not told (see All).
+func (d *Documents) WatchOpen(fn func(doc *document.Document)) (stop func()) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	h := &fn
+	d.openWatchers = append(d.openWatchers, h)
+	return func() {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		d.openWatchers = slices.DeleteFunc(d.openWatchers, func(x *func(*document.Document)) bool { return x == h })
+	}
 }
 
 // WatchClose makes the set tell fn of every document that is closed from now on, in the goroutine that closed it,
@@ -523,6 +555,7 @@ func (d *Documents) OpenFileWith(ctx context.Context, path string, opts document
 	if onOpen != nil {
 		onOpen(doc)
 	}
+	d.notifyOpen(doc)
 	return doc, nil
 }
 
@@ -583,6 +616,7 @@ func (d *Documents) NewUntitled(opts document.Options, encoding string) *documen
 	if onOpen != nil {
 		onOpen(doc)
 	}
+	d.notifyOpen(doc)
 	return doc
 }
 
@@ -613,6 +647,7 @@ func (d *Documents) OpenBlank(uri document.URI, opts document.Options) (doc *doc
 	if onOpen != nil {
 		onOpen(doc)
 	}
+	d.notifyOpen(doc)
 	return doc, true
 }
 

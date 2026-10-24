@@ -26,6 +26,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerNotificationColors(r)
 	registerPanelViewColors(r)
 	registerTabColors(r)
+	registerSettingsEditorColors(r)
 	return r
 }
 
@@ -925,5 +926,63 @@ func registerPanelViewColors(r *ColorRegistry) {
 			Description: "Panel title badge background color. Panels are shown below the editor area and contain views like output and integrated terminal."},
 		ColorContribution{ID: "panelTitleBadge.foreground", Defaults: AllThemes(Ref("activityBarBadge.foreground")),
 			Description: "Panel title badge foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."},
+	)
+}
+
+// registerSettingsEditorColors registers the colors of the settings editor (step 8.1, SPEC §11.1). The controls
+// of a row have colors of their own, which default to those of the same control elsewhere.
+//
+// Ported from VS Code: src/vs/workbench/contrib/preferences/common/settingsEditorColorRegistry.ts
+func registerSettingsEditorColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "settings.headerForeground", Defaults: dflt(Hex("#e7e7e7"), Hex("#444444"), Hex("#ffffff"), Hex("#292929")),
+			Description: "The foreground color for a section header or active title."},
+		ColorContribution{ID: "settings.settingsHeaderHoverForeground", Defaults: AllThemes(Transparent(Ref("settings.headerForeground"), 0.7)),
+			Description: "The foreground color for a section header or hovered title."},
+		ColorContribution{ID: "settings.modifiedItemIndicator", Defaults: dflt(Hex("#0C7D9D"), Hex("#66AFE0"), Hex("#00497A"), Hex("#66AFE0")),
+			Description: "The color of the modified setting indicator."},
+		ColorContribution{ID: "settings.headerBorder", Defaults: AllThemes(Ref("panel.border")),
+			Description: "The color of the header container border."},
+		ColorContribution{ID: "settings.sashBorder", Defaults: AllThemes(Ref("panel.border")),
+			Description: "The color of the Settings editor splitview sash border."},
+
+		ColorContribution{ID: "settings.dropdownBackground", Defaults: AllThemes(Ref("dropdown.background")),
+			Description: "Settings editor dropdown background."},
+		ColorContribution{ID: "settings.dropdownForeground", Defaults: AllThemes(Ref("dropdown.foreground")),
+			Description: "Settings editor dropdown foreground."},
+		ColorContribution{ID: "settings.dropdownBorder", Defaults: AllThemes(Ref("dropdown.border")),
+			Description: "Settings editor dropdown border."},
+		ColorContribution{ID: "settings.dropdownListBorder", Defaults: AllThemes(Ref("editorWidget.border")),
+			Description: "Settings editor dropdown list border. This surrounds the options and separates the options from the description."},
+
+		ColorContribution{ID: "settings.checkboxBackground", Defaults: AllThemes(Ref("checkbox.background")),
+			Description: "Settings editor checkbox background."},
+		ColorContribution{ID: "settings.checkboxForeground", Defaults: AllThemes(Ref("checkbox.foreground")),
+			Description: "Settings editor checkbox foreground."},
+		ColorContribution{ID: "settings.checkboxBorder", Defaults: AllThemes(Ref("checkbox.border")),
+			Description: "Settings editor checkbox border."},
+
+		ColorContribution{ID: "settings.textInputBackground", Defaults: AllThemes(Ref("input.background")),
+			Description: "Settings editor text input box background."},
+		ColorContribution{ID: "settings.textInputForeground", Defaults: AllThemes(Ref("input.foreground")),
+			Description: "Settings editor text input box foreground."},
+		ColorContribution{ID: "settings.textInputBorder", Defaults: AllThemes(Ref("input.border")),
+			Description: "Settings editor text input box border."},
+
+		ColorContribution{ID: "settings.numberInputBackground", Defaults: AllThemes(Ref("input.background")),
+			Description: "Settings editor number input box background."},
+		ColorContribution{ID: "settings.numberInputForeground", Defaults: AllThemes(Ref("input.foreground")),
+			Description: "Settings editor number input box foreground."},
+		ColorContribution{ID: "settings.numberInputBorder", Defaults: AllThemes(Ref("input.border")),
+			Description: "Settings editor number input box border."},
+
+		ColorContribution{ID: "settings.focusedRowBackground", NeedsTransparency: true,
+			Defaults:    dflt(Transparent(Ref("list.hoverBackground"), 0.6), Transparent(Ref("list.hoverBackground"), 0.6), nil, nil),
+			Description: "The background color of a settings row when focused."},
+		ColorContribution{ID: "settings.rowHoverBackground", NeedsTransparency: true,
+			Defaults:    dflt(Transparent(Ref("list.hoverBackground"), 0.3), Transparent(Ref("list.hoverBackground"), 0.3), nil, nil),
+			Description: "The background color of a settings row when hovered."},
+		ColorContribution{ID: "settings.focusedRowBorder", Defaults: AllThemes(Ref("focusBorder")),
+			Description: "The color of the row's top and bottom border when the row is focused."},
 	)
 }

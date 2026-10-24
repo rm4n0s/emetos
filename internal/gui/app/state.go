@@ -613,8 +613,15 @@ func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 	used := map[string]bool{}
 	viewStates := map[editorgroup.EditorInput]json.RawMessage{}
 	grid, err := editorgroup.RestoreGridWith(*r.state.Grid, s.gridOptions(), func(in editorgroup.SerializedInput) (editorgroup.EditorInput, bool) {
+		if in.TypeID != editorgroup.TextInputTypeID {
+			// an editor that is not text comes back through the restore of its kind (panes.go)
+			if k, ok := kindOf(in.TypeID); ok && k.restore != nil {
+				return k.restore(in.Value)
+			}
+			return nil, false
+		}
 		doc := r.docs[in.Value]
-		if in.TypeID != editorgroup.TextInputTypeID || doc == nil {
+		if doc == nil {
 			return nil, false
 		}
 		used[in.Value] = true
