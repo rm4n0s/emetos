@@ -1156,3 +1156,17 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Manual checks:** none
 - **Glutter issues:** none (tapping a `Checkbox` label in the dialog did not toggle it in the app tests, so they tap the `*kit.Checkbox`; not confirmed as a Glutter bug)
 - **Deviations and follow-ups:** "Delete Permanently" shows in the menu only where the trash cannot be used (Shift+Delete) instead of while Shift is held; name limits are counted in bytes; `explorer.confirmUndo` `light` asks only before undoing a creation; a rename by another program (watcher) updates the tree only, open editors do not follow it; deletes by another program close clean editors only with `workbench.editor.closeOnFileDelete`.
+
+## 6.16 Fuzzy scorer
+
+- **Date:** 2026-10-24
+- **Branch:** feat/step-6.16-fuzzy-scorer
+- **Summary:** `core/fuzzy` (SPEC §10.6), a port of VS Code's `fuzzyScorer.ts` and the `fuzzyScore` part of `filters.ts`: `PrepareQuery` (multi-word values, path separators, quoted contiguous queries), `Scorer` (owns the scratch buffers; one per goroutine) with `ScoreFuzzy`, `ScoreFuzzy2` and `FuzzyScore`, the generic `ScoreItemFuzzy`/`CompareItemsByFuzzyScore` over an `ItemAccessor` (label, description, path) with a hash-keyed `Cache`, `CreateMatches`, `MatchesPrefix`. Scores are identical to the reference. Positions and matches are rune offsets (not UTF-16 units). No function returns an error.
+- **Main files:** `internal/core/fuzzy/{runes,match,wordscore,scorer,fuzzy2,query,item,compare}.go`, `docs/SPEC.md` §10.6, §14, `docs/PERFORMANCE.md`.
+- **Tests:** all 68 tests of `fuzzyScorer.test.ts` ported (one adapted: the cache-key test checks distinct entries instead of VS Code's hash numbers; Windows-only branches not run), 26 of 41 tests of `filters.test.ts` (the `fuzzyScore` ones), own tests (rune offsets with accents, astral and CJK, a reused `Scorer` equals a fresh one, quick-reject never changes a result, 10,000-rune inputs bounded, separate scorers across goroutines under `-race`), `TestScoring100kPathsWithinTarget` (600 ms bound, skipped with `-short`) and benchmarks over 100,000 generated paths.
+- **Not ported:** `anyScore` and the graceful variants (not used by `fuzzyScorer.ts`), 15 `filters.test.ts` tests of filters the package does not contain.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · display tests none.
+- **Proof:** none
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** performance (go1.27.3 linux/amd64, AMD RYZEN AI MAX+ 395): one keystroke over 100,000 generated paths takes 10-19 ms for score and sort without a cache and 14-27 ms with a new cache each time; the SPEC §14 target is under 30 ms, met in every case (details in `docs/PERFORMANCE.md`); path separator is `/` only; names compare with `x/text/collate` instead of `Intl.Collator`; a query-by-target matrix over 2,097,152 cells scores nothing (VS Code allocates without bound).

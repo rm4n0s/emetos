@@ -47,6 +47,37 @@ Notes:
 
 - Step 5.12 (large files): `BenchmarkOpen200MB` writes a file of 200 MB (about 2.1 million Go-like lines) and measures `fileio.Read`, `document.FromRead`, the view model and the first frame. It needs about 1.2 GB, so it runs alone and once: `GOMEMLIMIT=3GiB go test -tags glutter_release ./internal/gui/editor -run xxx -bench Open200MB -benchtime 1x -benchmem`. A line longer than `editor.stopRenderingLineAfter` is laid out up to that many bytes only; `TestAHugeSingleLineStaysResponsive` shows and moves in a single line of 5 MB (with word wrap on) in a fraction of a second.
 
+## Fuzzy scorer (step 6.16)
+
+Target (SPEC §14): fuzzy file search over 100,000 paths, per keystroke, under 30 ms, off the UI thread. The scorer is `internal/core/fuzzy`; the benchmarks are in `internal/core/fuzzy/bench_test.go` and score 100,000 generated paths (seeded, 2 to 6 folders and a file name each, 4.2 MB of strings, 42 bytes a path on average: `tests/workbench/fixtures/language/electron-node/theme.go` is the kind of thing). One operation is one keystroke. Run:
+
+`GOMEMLIMIT=2GiB go test ./internal/core/fuzzy -run '^$' -bench . -benchmem -benchtime=20x`
+
+Machine of this run: `go1.27.3 linux/amd64`, `cpu: AMD RYZEN AI MAX+ 395 w/ Radeon 8060S` (the benchmark's own line; one goroutine, 32 threads idle), sway not involved. Times are per operation (the 100,000 paths against one query), measured with 20 operations.
+
+| Benchmark | Query | Time | Allocations | Matches |
+|---|---|---|---|---|
+| `Search100k` (score without a cache, sort the matches with a cache for them: the quick open) | `edtvw` | 18.8 ms | 1.4 MB, 23,401 | 1,556 |
+| | `gui/exp/bo` | 11.9 ms | 51 KB, 859 | 56 |
+| | `view model` | 19.5 ms | 1.4 MB, 48,007 | 486 |
+| | `zqxjk` (no match) | 10.1 ms | 64 B, 2 | 0 |
+| `ScoreItems100k` (score all with a new cache, as VS Code does) | `edtvw` | 26.9 ms | 3.1 MB, 12,669 | 1,556 |
+| | `gui/exp/bo` | 16.7 ms | 2.4 MB, 710 | 56 |
+| | `view model` | 23.0 ms | 3.5 MB, 42,271 | 486 |
+| | `zqxjk` | 14.2 ms | 2.4 MB, 259 | 0 |
+| `ScoreItems100kNoCache` (the scoring alone) | `edtvw` | 13.3 ms | 0.6 MB, 10,853 | 1,556 |
+| | `gui/exp/bo` | 11.7 ms | 22 KB, 395 | 56 |
+| | `view model` | 16.8 ms | 1.1 MB, 41,530 | 486 |
+| | `zqxjk` | 8.9 ms | 0, 0 | 0 |
+
+Result: **met**, 9 to 19 ms for the scoring and sorting of a keystroke (target 30 ms), 9 to 17 ms for the scoring alone; every case is also under 30 ms with the cache. The scoring is nearly allocation free after the first call (the allocations are the matches of the items that match). A `Scorer` is used by one goroutine; the search of step 6.18 runs on one goroutine per keystroke (and could split the paths over several scorers to be faster still). `TestScoring100kPathsWithinTarget` checks a bound of 600 ms (twenty times the target, so that a busy machine and the race detector, which is four times slower, do not make it flaky); it is skipped with `-short`.
+
+What made it fast, and what to keep in mind:
+
+- A query that is not a subsequence of the label or of the path cannot score. VS Code fills the dynamic programming matrix first and gets 0; `fuzzy` checks the subsequence on the bytes of ASCII strings before it makes runes (`mayContain`), and on the runes before it fills the matrix (`isSubsequence`). The results are the same (`TestQuickRejectKeepsResults`); a search where most paths do not match costs about 90 ns a path.
+- The matrix, the tables and the rune slices belong to the `Scorer` and are reused. A matrix over 65,536 cells is not kept.
+- The cache (`fuzzy.Cache`) is for sorting: scoring all 100,000 items into a cache costs a map insert for each (5 ms to 14 ms for 100,000, 16 bytes for an item that does not match). The quick open scores without a cache and gives the sort a cache for the matches only (`Search100k`).
+
 ## Pending
 
 `scripts/perf.sh --session` with the GPU for every row above, in `docs/MANUAL-CHECKS.md`.
