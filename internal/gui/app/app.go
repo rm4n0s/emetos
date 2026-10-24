@@ -225,6 +225,8 @@ type shellState struct {
 	menuBar    *kit.MenuBarController
 	manage     *workbench.ManageController
 	editorMenu *kit.ContextMenuController
+	// explorerMenu opens the context menu of the Explorer.
+	explorerMenu *kit.ContextMenuController
 	// unsubscribeTitle stops following the settings of the title.
 	unsubscribeTitle func()
 	// window is the controller of the window, which gets the title; nil where there is none.

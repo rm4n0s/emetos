@@ -82,6 +82,7 @@ func (s *shellState) initMenus(binding *widgets.WidgetsBinding) {
 	s.menuBar = kit.NewMenuBarController()
 	s.manage = workbench.NewManageController()
 	s.editorMenu = kit.NewContextMenuController()
+	s.explorerMenu = kit.NewContextMenuController()
 	resolver := win.Keybindings
 	s.menus = workbench.NewMenuSource(workbench.MenuSourceOptions{
 		Menus: win.Process.Menus, Commands: win.Process.Commands, Keybindings: resolver,

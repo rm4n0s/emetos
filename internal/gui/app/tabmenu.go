@@ -96,24 +96,25 @@ func pathText(path, folder string, relative bool) string {
 	return rel
 }
 
-// pathCommands are the commands that copy the path of the file of an editor: copyFilePath and
-// copyRelativeFilePath for the editor their argument names (the tab that was clicked) or the active
-// editor, and workbench.action.files.copyPathOfActiveFile for the active editor.
+// pathCommands are the commands that copy the path of a file: copyFilePath and copyRelativeFilePath for the
+// files their argument names (a path, a list of paths, or the context of the tab that was clicked), else for the
+// selected items of the Explorer when the folder view has the focus, else for the active editor;
+// workbench.action.files.copyPathOfActiveFile is for the active editor.
 func (s *shellState) pathCommands() map[string]command.Handler {
 	copyOf := func(relative, active bool) command.Handler {
 		return func(_ command.Context, args any) error {
-			var e editorgroup.EditorInput
 			if active {
-				e = s.activeGroup().Model.ActiveEditor()
-			} else {
-				_, e = s.commandTarget(args)
+				args = nil
+				if e := s.activeGroup().Model.ActiveEditor(); e != nil {
+					if path, ok := fileResource(e); ok {
+						args = path
+					}
+				}
+				if args == nil {
+					return nil
+				}
 			}
-			if e == nil {
-				return nil
-			}
-			if path, ok := fileResource(e); ok {
-				s.copyText(pathText(path, PeekWindow(s.Context()).Folder, relative))
-			}
+			s.copyPaths(s.commandPaths(args), relative)
 			return nil
 		}
 	}

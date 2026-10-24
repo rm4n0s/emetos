@@ -576,3 +576,32 @@ func TestRandomBatchesAgainstAString(t *testing.T) {
 		}
 	}
 }
+
+func TestSetURI(t *testing.T) {
+	doc := New(FileURI("/w/a.txt"), "hello\n", NewOptions())
+	if _, err := doc.Edit([]Edit{{Range: buffer.Range{}, Text: "x"}}, EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	version, dirty := doc.Version(), doc.Dirty()
+	type change struct{ old, new URI }
+	var got []change
+	stop := doc.OnURIChange(func(o, n URI) { got = append(got, change{o, n}) })
+
+	doc.SetURI(FileURI("/w/b.txt"))
+	doc.SetURI(FileURI("/w/b.txt"))
+	if doc.URI() != FileURI("/w/b.txt") || doc.Version() != version || doc.Dirty() != dirty || doc.Text() != "xhello\n" {
+		t.Errorf("uri %v version %d dirty %v text %q", doc.URI(), doc.Version(), doc.Dirty(), doc.Text())
+	}
+	if !doc.CanUndo() {
+		t.Error("the history was lost")
+	}
+	want := []change{{FileURI("/w/a.txt"), FileURI("/w/b.txt")}}
+	if len(got) != 1 || got[0] != want[0] {
+		t.Errorf("changes = %v, want %v", got, want)
+	}
+	stop()
+	doc.SetURI(FileURI("/w/c.txt"))
+	if len(got) != 1 {
+		t.Errorf("a stopped listener was told: %v", got)
+	}
+}

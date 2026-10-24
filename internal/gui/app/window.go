@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -81,6 +82,11 @@ type Window struct {
 	// Dialogs queues the dialogs of the window. The workbench shows them over everything, and the key
 	// dispatcher runs no command while one is showing.
 	Dialogs *kit.DialogController
+	// FileOps does the file operations of the Explorer and keeps their history for undo and redo
+	// (SPEC §10.5). Its trash is the user's, in $XDG_DATA_HOME/Trash.
+	FileOps *workspace.FileOps
+	// OpenURI opens a URI with the desktop; it is desktop.OpenURI when nil. Tests replace it.
+	OpenURI func(ctx context.Context, bc widgets.BuildContext, uri string) error
 
 	ctx context.Context
 	// icons is the file icon theme in use.
@@ -90,6 +96,9 @@ type Window struct {
 	folderMu sync.RWMutex
 	// folderListeners are told when SetFolder changed the folder.
 	folderListeners []*func()
+	// eventMu guards eventListeners, which are told of the events of the watcher.
+	eventMu        sync.Mutex
+	eventListeners []*func([]workspace.Event)
 	// watch is the state of the file watcher (StartWatching).
 	watch watchState
 	// title is the title of the window as the shell last made it.
@@ -145,6 +154,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Layout:        layout,
 		Views:         workbench.NewViews(p.Views, layout),
 		Dialogs:       kit.NewDialogController(),
+		FileOps:       workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
 		Markers:       problems.NewService(),
 		Notifications: notify.NewPresenter(p.Notify),
 		ctx:           ctx,
@@ -361,6 +371,41 @@ func (d *Documents) Refs(doc *document.Document) int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.refs[doc]
+}
+
+// Rename gives an open document the URI of the file it moved to (SPEC §10.5): the document keeps its text,
+// history and unsaved changes. It reports false when the document is not open or another document is open
+// at the new path. The watch of a file outside the folder follows the move.
+func (d *Documents) Rename(doc *document.Document, newPath string) bool {
+	old := doc.URI()
+	uri := document.FileURI(newPath)
+	d.mu.Lock()
+	if cur, ok := d.open[old]; !ok || cur != doc {
+		d.mu.Unlock()
+		return false
+	}
+	if other, ok := d.open[uri]; ok && other != doc {
+		d.mu.Unlock()
+		return false
+	}
+	delete(d.open, old)
+	d.open[uri] = doc
+	for i, u := range d.order {
+		if u == old {
+			d.order[i] = uri
+			break
+		}
+	}
+	onFile, onClose := d.onFile, d.onClose
+	d.mu.Unlock()
+	doc.SetURI(uri)
+	if old.Scheme == document.SchemeFile && onClose != nil {
+		onClose(old.Path)
+	}
+	if onFile != nil {
+		onFile(newPath)
+	}
+	return true
 }
 
 // Get returns an open document.

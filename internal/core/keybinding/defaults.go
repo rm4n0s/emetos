@@ -424,4 +424,37 @@ func registerExplorerKeys(r *Registry) {
 		Rule{Command: "workbench.action.files.openFolder", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+o"},
 		Rule{Command: "workbench.action.closeFolder", Weight: WeightWorkbenchContrib, When: mustWhen("workbenchState != 'empty'"), Primary: "ctrl+k f"},
 	)
+	registerExplorerFileKeys(r)
+}
+
+// whenFilesExplorerFocus is VS Code's FilesExplorerFocusCondition (the folder view is visible and has the
+// focus, and no input has it), and whenExplorerFocus its ExplorerFocusCondition.
+const (
+	whenFilesExplorerFocus = "foldersViewVisible && filesExplorerFocus && !inputFocus"
+	whenExplorerFocus      = "foldersViewVisible && explorerViewletFocus && !inputFocus"
+)
+
+// registerExplorerFileKeys registers the keys of the file operations of the Explorer (Linux values): F2
+// renames, Delete moves to the trash (deletes for good where the trash cannot be used), Shift+Delete deletes
+// for good, Ctrl+X, Ctrl+C and Ctrl+V cut, copy and paste, Escape forgets a cut, Ctrl+Enter opens to the
+// side and Ctrl+Alt+R reveals the file in the file manager. The weight is VS Code's explorerCommandsWeightBonus
+// (10) above the workbench's, to win over the commands of the lists.
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts,
+// src/vs/workbench/contrib/files/browser/fileCommands.ts and
+// src/vs/workbench/contrib/files/electron-browser/fileActions.contribution.ts
+func registerExplorerFileKeys(r *Registry) {
+	const weight = WeightWorkbenchContrib + 10
+	r.MustRegister(
+		Rule{Command: "renameFile", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "!explorerResourceIsRoot", "!explorerResourceReadonly"), Primary: "f2"},
+		Rule{Command: "moveFileToTrash", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "explorerResourceMoveableToTrash"), Primary: "delete"},
+		Rule{Command: "deleteFile", Weight: weight, When: mustWhen(whenFilesExplorerFocus), Primary: "shift+delete"},
+		Rule{Command: "deleteFile", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "!explorerResourceMoveableToTrash"), Primary: "delete"},
+		Rule{Command: "filesExplorer.cut", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "!explorerResourceIsRoot", "!explorerResourceReadonly"), Primary: "ctrl+x"},
+		Rule{Command: "filesExplorer.copy", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "!explorerResourceIsRoot"), Primary: "ctrl+c"},
+		Rule{Command: "filesExplorer.paste", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "!explorerResourceReadonly"), Primary: "ctrl+v"},
+		Rule{Command: "filesExplorer.cancelCut", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "explorerResourceCut"), Primary: "escape"},
+		Rule{Command: "explorer.openToSide", Weight: WeightWorkbenchContrib, When: mustWhen(whenExplorerFocus), Primary: "ctrl+enter"},
+		Rule{Command: "revealFileInOS", Weight: WeightWorkbenchContrib, When: mustWhen("!" + whenEditorFocus), Primary: "ctrl+alt+r"},
+	)
 }

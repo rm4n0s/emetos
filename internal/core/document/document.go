@@ -57,9 +57,10 @@ type Document struct {
 	readOnly     bool
 	stat         fileio.FileStat
 
-	history   history
-	listeners []*listener
-	deco      decorations
+	history      history
+	listeners    []*listener
+	uriListeners []*uriListener
+	deco         decorations
 }
 
 // New makes a document that holds text, which must use "\n" only. Its encoding
@@ -107,6 +108,36 @@ func FromRead(uri URI, res fileio.ReadResult, opts Options) *Document {
 
 // URI is the document's identity.
 func (d *Document) URI() URI { return d.uri }
+
+type uriListener struct{ fn func(oldURI, newURI URI) }
+
+// SetURI gives the document another identity, when the file it shows was renamed or moved (SPEC §10.5).
+// The text, the history, the version ids and the dirty mark stay. The listeners of OnURIChange are told.
+func (d *Document) SetURI(uri URI) {
+	if uri == d.uri {
+		return
+	}
+	old := d.uri
+	d.uri = uri
+	for _, l := range append([]*uriListener(nil), d.uriListeners...) {
+		l.fn(old, uri)
+	}
+}
+
+// OnURIChange calls fn after SetURI changed the URI, with the old one and the new one. The returned function
+// removes it.
+func (d *Document) OnURIChange(fn func(oldURI, newURI URI)) (unsubscribe func()) {
+	l := &uriListener{fn: fn}
+	d.uriListeners = append(d.uriListeners, l)
+	return func() {
+		for i, x := range d.uriListeners {
+			if x == l {
+				d.uriListeners = append(d.uriListeners[:i:i], d.uriListeners[i+1:]...)
+				return
+			}
+		}
+	}
+}
 
 // Snapshot is the text now, as an immutable value.
 func (d *Document) Snapshot() buffer.Snapshot { return d.buf.Snapshot() }

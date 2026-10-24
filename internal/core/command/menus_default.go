@@ -22,6 +22,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerEditorGroupMenus(r)
 	registerEditorContext(r)
 	registerEditorTitleContext(r)
+	registerExplorerContext(r)
 	return r
 }
 
@@ -259,5 +260,45 @@ func registerEditorTitleContext(r *MenuRegistry) {
 		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.moveEditorToBelowGroup", Title: "Move Below", Group: "2_move", Order: 20},
 		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.moveEditorToLeftGroup", Title: "Move Left", Group: "2_move", Order: 30},
 		MenuItem{Menu: EditorSplitMoveSubmenu, Command: "workbench.action.moveEditorToRightGroup", Title: "Move Right", Group: "2_move", Order: 40},
+	)
+}
+
+// registerExplorerContext adds the context menu of the Explorer (SPEC §10.5), in VS Code's groups and
+// order. The "Delete" row has the "Delete Permanently" row as its alternative, which VS Code shows while
+// Shift is held; here the permanent delete shows where the trash cannot be used, and has the key
+// Shift+Delete. Not here: the rows for a root folder of a workspace, Open With, the comparisons, Find in
+// Folder, the terminal and the upload and download rows of the web.
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts and
+// src/vs/workbench/contrib/files/electron-browser/fileActions.contribution.ts
+func registerExplorerContext(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: ExplorerContext, Command: "explorer.newFile", Title: "New File...", Group: "navigation", Order: 4,
+			When: contextkey.Has("explorerResourceIsFolder"), Precondition: contextkey.Not("explorerResourceReadonly")},
+		MenuItem{Menu: ExplorerContext, Command: "explorer.newFolder", Title: "New Folder...", Group: "navigation", Order: 6,
+			When: contextkey.Has("explorerResourceIsFolder"), Precondition: contextkey.Not("explorerResourceReadonly")},
+		MenuItem{Menu: ExplorerContext, Command: "explorer.openToSide", Title: "Open to the Side", Group: "navigation", Order: 10,
+			When: contextkey.And(contextkey.Not("explorerResourceIsFolder"), contextkey.Has("resourceScheme"))},
+		MenuItem{Menu: ExplorerContext, Command: "revealFileInOS", Title: "Open Containing Folder", Group: "navigation", Order: 20,
+			When: contextkey.Equals("resourceScheme", "file")},
+
+		MenuItem{Menu: ExplorerContext, Command: "filesExplorer.cut", Title: "Cut", Group: "5_cutcopypaste", Order: 8,
+			When: when("!explorerResourceIsRoot && !explorerResourceReadonly")},
+		MenuItem{Menu: ExplorerContext, Command: "filesExplorer.copy", Title: "Copy", Group: "5_cutcopypaste", Order: 10,
+			When: contextkey.Not("explorerResourceIsRoot")},
+		MenuItem{Menu: ExplorerContext, Command: "filesExplorer.paste", Title: "Paste", Group: "5_cutcopypaste", Order: 20,
+			When: contextkey.Has("explorerResourceIsFolder"), Precondition: when("!explorerResourceReadonly && fileCopied")},
+
+		MenuItem{Menu: ExplorerContext, Command: "copyFilePath", Title: "Copy Path", Group: "6_copypath", Order: 10,
+			When: contextkey.Has("isFileSystemResource")},
+		MenuItem{Menu: ExplorerContext, Command: "copyRelativeFilePath", Title: "Copy Relative Path", Group: "6_copypath", Order: 20,
+			When: contextkey.Has("isFileSystemResource")},
+
+		MenuItem{Menu: ExplorerContext, Command: "renameFile", Title: "Rename...", Group: "7_modification", Order: 10,
+			When: contextkey.Not("explorerResourceIsRoot"), Precondition: contextkey.Not("explorerResourceReadonly")},
+		MenuItem{Menu: ExplorerContext, Command: "moveFileToTrash", Title: "Delete", Group: "7_modification", Order: 20,
+			When: when("!explorerResourceIsRoot && explorerResourceMoveableToTrash")},
+		MenuItem{Menu: ExplorerContext, Command: "deleteFile", Title: "Delete Permanently", Group: "7_modification", Order: 20,
+			When: when("!explorerResourceIsRoot && !explorerResourceMoveableToTrash")},
 	)
 }

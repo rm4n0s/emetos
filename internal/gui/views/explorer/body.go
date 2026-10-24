@@ -35,6 +35,10 @@ const (
 	CommandRefresh = "workbench.files.action.refreshFilesExplorer"
 	// CommandCollapse folds every folder.
 	CommandCollapse = "workbench.files.action.collapseExplorerFolders"
+	// CommandNewFile starts the inline input of a new file.
+	CommandNewFile = "workbench.files.action.createFileFromExplorer"
+	// CommandNewFolder starts the inline input of a new folder.
+	CommandNewFolder = "workbench.files.action.createFolderFromExplorer"
 )
 
 // BodyOpts are the options of NewBody.
@@ -105,15 +109,18 @@ func (s *bodyState) Build(bc widgets.BuildContext) widgets.Widget {
 	if !v.loaded {
 		return widgets.NewSizedBox(nil)
 	}
-	tree := kit.NewTree(v.tree, kit.TreeOpts{
-		Key: TreeKey, Controller: v.ctl,
+	var tree widgets.Widget = kit.NewTree(v.tree, kit.TreeOpts{
+		Key: TreeKey, Controller: v.ctl, MultiSelect: true, Editing: v.edit != nil, DropHighlight: v.dropOver,
 		Render: func(bc widgets.BuildContext, n kit.TreeNode, st kit.TreeRowState) widgets.Widget {
 			return v.render(bc, n, st)
 		},
-		OnSelect: func(n kit.TreeNode) { v.open(n, false) },
-		OnOpen:   func(n kit.TreeNode) { v.open(n, true) },
+		OnSelect:      func(n kit.TreeNode) { v.open(n, false) },
+		OnOpen:        func(n kit.TreeNode) { v.open(n, true) },
+		DragAndDrop:   v.dragAndDrop(),
+		OnContextMenu: v.contextMenu,
 		// Escape reduces the selection; a letter starts the find box, as VS Code's explorer does
 	})
+	tree = v.importTarget(tree)
 	if v.scrollTo != "" {
 		after := w.opts.AfterFrame
 		if after == nil {
@@ -144,19 +151,28 @@ func message(bc widgets.BuildContext, key foundation.Key, text string, color ui.
 		widgets.WidgetOpts{Key: key})
 }
 
-// render builds the contents of a row: the icon of the file or folder, then its name.
+// render builds the contents of a row: the icon of the file or folder, then its name; the row being named
+// shows the inline input, and a cut item shows dimmed.
 func (v *View) render(bc widgets.BuildContext, n kit.TreeNode, st kit.TreeRowState) widgets.Widget {
 	colors := kit.ThemeOf(bc)
 	nd, ok := n.Data.(*nodeData)
 	if !ok {
 		return kit.NewHighlightedLabel(bc, n.Label, st)
 	}
+	if v.edit != nil && (nd.Edit && n.Key == v.edit.key || v.edit.kind == EditRename && n.Key == v.edit.key) {
+		return v.editRow(bc, nd, st)
+	}
 	var icon widgets.Widget
 	if ic, ok := v.iconFor(nd, n.Expanded, colors.Type); ok {
 		icon = FileIconWidget(ic, st.Foreground)
 	}
 	label := widgets.NewExpanded(kit.NewHighlightedLabel(bc, nd.label(), st))
-	return iconRow(icon, label)
+	row := iconRow(icon, label)
+	if it := nd.last(); it != nil && v.cut[it.Path()] {
+		// a cut item is dimmed until it is pasted (`.explorer-item.cut { opacity: 0.5 }`)
+		return widgets.NewOpacity(0.5, row)
+	}
+	return row
 }
 
 // ActionsOpts are the options of NewActions.
@@ -165,12 +181,14 @@ type ActionsOpts struct {
 	OnRun func(command string)
 }
 
-// NewActions makes the buttons of the header of the folder view: Refresh Explorer and Collapse Folders
-// in Explorer. (New File and New Folder come with the file operations of step 6.15.)
+// NewActions makes the buttons of the header of the folder view: New File, New Folder, Refresh Explorer and
+// Collapse Folders in Explorer.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/views/explorerView.ts
 func NewActions(opts ActionsOpts) widgets.Widget {
 	actions := []kit.Action{
+		{ID: CommandNewFile, Label: "New File...", Icon: fonts.CodiconNewFile},
+		{ID: CommandNewFolder, Label: "New Folder...", Icon: fonts.CodiconNewFolder},
 		{ID: CommandRefresh, Label: "Refresh Explorer", Icon: fonts.CodiconRefresh},
 		{ID: CommandCollapse, Label: "Collapse Folders in Explorer", Icon: fonts.CodiconCollapseAll},
 	}

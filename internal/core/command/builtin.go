@@ -592,4 +592,33 @@ func registerExplorerCommands(r *Registry) {
 		Meta{ID: "workbench.action.closeFolder", Title: "Close Workspace", Category: "Workspaces",
 			Precondition: contextkey.NotEquals("workbenchState", "empty")},
 	)
+	registerExplorerFileCommands(r)
+}
+
+// registerExplorerFileCommands registers the commands of the file operations of the Explorer (SPEC §10.5):
+// creating, renaming, deleting, cutting, copying and pasting, opening to the side, revealing in the file
+// manager, and the buttons in the header of the folder view that create. The handlers are the window's
+// (gui/app/fileops.go).
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.ts,
+// src/vs/workbench/contrib/files/browser/fileActions.contribution.ts,
+// src/vs/workbench/contrib/files/browser/fileCommands.ts,
+// src/vs/workbench/contrib/files/browser/views/explorerView.ts and
+// src/vs/workbench/contrib/files/electron-browser/fileActions.contribution.ts
+func registerExplorerFileCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "explorer.newFile", Title: "New File...", Description: "Creates a file in the folder of the Explorer."},
+		Meta{ID: "explorer.newFolder", Title: "New Folder...", Description: "Creates a folder in the folder of the Explorer."},
+		Meta{ID: "workbench.files.action.createFileFromExplorer", Title: "New File..."},
+		Meta{ID: "workbench.files.action.createFolderFromExplorer", Title: "New Folder..."},
+		Meta{ID: "renameFile", Title: "Rename..."},
+		Meta{ID: "moveFileToTrash", Title: "Delete"},
+		Meta{ID: "deleteFile", Title: "Delete Permanently"},
+		Meta{ID: "filesExplorer.cut", Title: "Cut"},
+		Meta{ID: "filesExplorer.copy", Title: "Copy"},
+		Meta{ID: "filesExplorer.paste", Title: "Paste"},
+		Meta{ID: "filesExplorer.cancelCut", Title: "Cancel Cut"},
+		Meta{ID: "explorer.openToSide", Title: "Open to the Side"},
+		Meta{ID: "revealFileInOS", Title: "Open Containing Folder"},
+	)
 }

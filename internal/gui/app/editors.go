@@ -34,6 +34,8 @@ type textEditor struct {
 	// done is closed when the editor is disposed; it ends the background loop of the tokenizer.
 	done     chan struct{}
 	disposed bool
+	// tokDone is closed to end the loop of the current tokenizer when the language changes.
+	tokDone chan struct{}
 }
 
 // newTextEditor makes the editor of an input: its view model, kept current as the settings change
@@ -92,6 +94,8 @@ func (s *shellState) startTokenizer(e *textEditor, win *Window) {
 	}
 	e.tokenizer = tokens.New(e.doc, grammar, tokens.Options{})
 	e.view.SetTokenizer(e.tokenizer)
+	tokenizer, tokDone := e.tokenizer, make(chan struct{})
+	e.tokDone = tokDone
 	s.Go(func(life context.Context) {
 		ctx, cancel := context.WithCancel(life)
 		defer cancel()
@@ -99,11 +103,52 @@ func (s *shellState) startTokenizer(e *textEditor, win *Window) {
 			select {
 			case <-e.done:
 				cancel()
+			case <-tokDone:
+				cancel()
 			case <-ctx.Done():
 			}
 		}()
-		e.tokenizer.Run(ctx)
+		tokenizer.Run(ctx)
 	})
+}
+
+// languageChanged makes the editor follow a new language of its document (the file was renamed to another
+// extension): the tokens, the bracket pairs, the guides, the folding, the comments, the auto-closing pairs and
+// the options of the language are made again.
+func (s *shellState) languageChanged(binding *widgets.WidgetsBinding, e *textEditor) {
+	if e.disposed {
+		return
+	}
+	win := PeekWindow(s.Context())
+	if e.stopFolding != nil {
+		e.stopFolding()
+		e.stopFolding = nil
+	}
+	if e.stopGuides != nil {
+		e.view.SetGuides(nil, false)
+		e.stopGuides()
+		e.stopGuides = nil
+	}
+	if e.stopBrackets != nil {
+		e.view.SetBrackets(nil)
+		e.stopBrackets()
+		e.stopBrackets = nil
+	}
+	if e.tokenizer != nil {
+		e.view.SetTokenizer(nil)
+		close(e.tokDone)
+		e.tokenizer.Close()
+		e.tokenizer = nil
+	}
+	s.startTokenizer(e, win)
+	e.startBrackets(win)
+	e.startGuides(win)
+	e.startFolding(win)
+	e.view.SetIndenter(win.Process.Indenter(), win.Process.Languages.Code(e.doc.LanguageID()))
+	e.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(e.doc.LanguageID())))
+	desktop, _ := binding.PlatformDispatcher().MonospaceFont()
+	tabSize, _ := e.doc.Indentation()
+	e.view.SetOptions(editor.OptionsFromSettings(win.Settings, e.doc.LanguageID(), desktop, tabSize))
 }
 
 // startBrackets makes the bracket pairs of the document and gives them to the editor.

@@ -15,6 +15,8 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/core/workspace"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/views/explorer"
 )
 
@@ -81,6 +83,10 @@ type explorerState struct {
 	// stops end what the Explorer follows; removeCommands give its commands back.
 	stops          []func()
 	removeCommands []func()
+	// clip is the internal clipboard of the file operations, and removeUndo gives back undo and redo, which the
+	// tree takes while it has the focus.
+	clip       fileClip
+	removeUndo []func()
 }
 
 // initExplorer makes the Explorer's views, follows the folder and the settings, and binds the commands.
@@ -112,7 +118,21 @@ func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
 	s.makeExplorerView(binding)
 	ex.stops = append(ex.stops,
 		win.OnFolderChange(func() { s.folderChanged(binding) }),
+		win.OnFileEvents(func(events []workspace.Event) {
+			binding.Post(func() {
+				if s.Mounted() {
+					s.externalFileEvents(events)
+				}
+			})
+		}),
 		win.Settings.OnChange(func(e settings.ChangeEvent) {
+			if e.Affects("files.enableTrash", "") {
+				binding.Post(func() {
+					if s.Mounted() && ex.view != nil {
+						ex.view.SyncKeys()
+					}
+				})
+			}
 			if e.Affects("explorer.openEditors", "") || e.Affects("workbench.iconTheme", "") || e.Affects("explorer.autoReveal", "") {
 				binding.Post(func() {
 					if !s.Mounted() {
@@ -156,7 +176,10 @@ func (s *shellState) disposeExplorer() {
 		ex.editors.Dispose()
 	}
 	win := PeekWindow(s.Context())
-	for _, key := range []string{"explorerViewletVisible", "foldersViewVisible", "explorerViewletFocus", "filesExplorerFocus", "openEditorsFocus"} {
+	for _, f := range ex.removeUndo {
+		f()
+	}
+	for _, key := range []string{"explorerViewletVisible", "foldersViewVisible", "explorerViewletFocus", "filesExplorerFocus", "openEditorsFocus", "fileCopied"} {
 		win.Keys.Reset(key)
 	}
 	*ex = explorerState{}
@@ -179,8 +202,21 @@ func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
 		OnLoadFailed: func(path string, err error) {
 			win.Process.Notify.Error("Emetos", "Cannot read the folder "+path+": "+describe(err))
 		},
-		Logger: win.Process.Logger,
+		Logger:       win.Process.Logger,
+		AfterFrame:   explorer.AfterFrame(binding),
+		TrashEnabled: func() bool { return settings.Get[bool](win.Settings, "files.enableTrash", "") },
+		DragEnabled:  func() bool { return settings.Get[bool](win.Settings, "explorer.enableDragAndDrop", "") },
+		Ctrl:         func() bool { return binding.Keyboard().IsControlPressed() },
+		OnCommitEdit: func(r explorer.EditResult) { s.editCommitted(binding, r) },
+		OnDropItems: func(sources []string, folder string, copying bool) {
+			s.dropItems(binding, sources, folder, copying)
+		},
+		OnImport:      func(paths []string, folder string) { s.importFiles(binding, paths, folder) },
+		OnContextMenu: s.openExplorerMenu,
 	})
+	win.FileOps.ClearHistory()
+	ex.clip = fileClip{}
+	win.Keys.Set("fileCopied", false)
 }
 
 // folderChanged follows SetFolder: the tree is made for the new folder, the Problems show paths relative to it
@@ -262,7 +298,18 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 		if ex.view == nil {
 			return nil
 		}
-		return explorer.NewBody(ex.view, explorer.BodyOpts{AfterFrame: explorer.AfterFrame(binding)})
+		// a right click on a row opens the context menu of the Explorer
+		return kit.NewContextMenu(explorer.NewBody(ex.view, explorer.BodyOpts{AfterFrame: explorer.AfterFrame(binding)}),
+			kit.ContextMenuOpts{
+				Controller: s.explorerMenu, OnRun: s.menus.Run,
+				OnHide: func() {
+					s.afterFrame(binding, func() {
+						if ex.view != nil {
+							ex.view.Focus()
+						}
+					})
+				},
+			})
 	case command.ViewExplorerEmpty:
 		return explorer.NewWelcome(explorer.WelcomeOpts{HasEditors: s.editorCount() > 0, OnOpenFolder: s.pickFolder})
 	case command.ViewOpenEditors:
@@ -319,6 +366,10 @@ func (s *shellState) viewFocused(viewID string, has bool) {
 		win.Keys.Set("filesExplorerFocus", ex.focus[command.ViewExplorerFolders])
 		win.Keys.Set("openEditorsFocus", ex.focus[command.ViewOpenEditors])
 	})
+	// the tree takes undo and redo for the file operations while it has the focus
+	if viewID == command.ViewExplorerFolders {
+		s.bindUndoRedo(widgets.WidgetsBindingOf(s.Context()), has)
+	}
 }
 
 // showExplorer shows the Explorer in the side bar, with its folder view unfolded, and gives the keyboard
@@ -432,6 +483,7 @@ func (s *shellState) bindExplorerCommands(binding *widgets.WidgetsBinding) {
 		}
 		ex.removeCommands = append(ex.removeCommands, remove)
 	}
+	s.bindFileOpsCommands(binding)
 }
 
 // chooseFolder shows the folder dialog of the desktop (a file chooser portal that picks folders) and waits for

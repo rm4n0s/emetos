@@ -442,3 +442,33 @@ func TestTextInputCopy(t *testing.T) {
 		t.Errorf("a disposed copy sent %v", events)
 	}
 }
+
+// TestTextInputFollowsARenamedDocument checks that a document that gets another URI (its file was renamed
+// or moved) changes the label of its inputs, which tell the model.
+func TestTextInputFollowsARenamedDocument(t *testing.T) {
+	doc := document.New(document.FileURI("/w/a.go"), "package a\n", document.NewOptions())
+	in := NewTextInput(doc, TextInputOpts{Folder: "/w"})
+	other := NewTextInput(doc, TextInputOpts{Folder: "/w"})
+	var events []InputEventKind
+	in.Subscribe(func(e InputEvent) { events = append(events, e.Kind) })
+
+	doc.SetURI(document.FileURI("/w/sub/b.go"))
+	if in.Name() != "b.go" || in.Description() != "sub" || in.Title() != "/w/sub/b.go" || !in.Matches(other) {
+		t.Errorf("name %q description %q title %q", in.Name(), in.Description(), in.Title())
+	}
+	if uri, _ := in.Resource(); uri != document.FileURI("/w/sub/b.go") {
+		t.Errorf("resource = %v", uri)
+	}
+	if len(events) != 1 || events[0] != InputLabel {
+		t.Errorf("events = %v", events)
+	}
+	doc.SetURI(document.FileURI("/w/sub/b.go")) // the same URI says nothing
+	if len(events) != 1 {
+		t.Errorf("events after the same URI = %v", events)
+	}
+	in.Dispose() // sends InputWillDispose
+	doc.SetURI(document.FileURI("/w/c.go"))
+	if len(events) != 2 || events[1] != InputWillDispose {
+		t.Errorf("a disposed input still follows: %v", events)
+	}
+}

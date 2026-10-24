@@ -362,6 +362,28 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 	if ws := w.currentWorkspace(); ws != nil {
 		ws.Apply(ctx, events)
 	}
+	w.eventMu.Lock()
+	listeners := slices.Clone(w.eventListeners)
+	w.eventMu.Unlock()
+	for _, f := range listeners {
+		(*f)(events)
+	}
+}
+
+// OnFileEvents calls fn with each batch of events of the watcher, after they were applied to the tree, on the
+// goroutine of the watcher (the shell hands them to the UI thread). It returns the function that stops it.
+func (w *Window) OnFileEvents(fn func([]workspace.Event)) (unsubscribe func()) {
+	p := &fn
+	w.eventMu.Lock()
+	w.eventListeners = append(w.eventListeners, p)
+	w.eventMu.Unlock()
+	return func() {
+		w.eventMu.Lock()
+		defer w.eventMu.Unlock()
+		if i := slices.Index(w.eventListeners, p); i >= 0 {
+			w.eventListeners = slices.Delete(w.eventListeners, i, i+1)
+		}
+	}
 }
 
 // isBelow tells whether path is inside dir.

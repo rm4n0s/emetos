@@ -700,3 +700,57 @@ func TestViewMenuHasThePanelViews(t *testing.T) {
 		t.Errorf("got %v, want %v", titles, want)
 	}
 }
+
+// TestExplorerContextMenu checks the rows of the context menu of the Explorer for the kinds of item.
+func TestExplorerContextMenu(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	rows := func(ctx contextkey.MapContext) []string {
+		var out []string
+		for _, e := range menus.Items(ExplorerContext, ctx) {
+			switch {
+			case e.Separator:
+				out = append(out, "-")
+			case e.Disabled:
+				out = append(out, "("+e.Title+")")
+			default:
+				out = append(out, e.Title)
+			}
+		}
+		return out
+	}
+	file := contextkey.MapContext{"resourceScheme": "file", "isFileSystemResource": true, "explorerResourceMoveableToTrash": true}
+	with := func(base contextkey.MapContext, extra contextkey.MapContext) contextkey.MapContext {
+		out := contextkey.MapContext{}
+		for k, v := range base {
+			out[k] = v
+		}
+		for k, v := range extra {
+			out[k] = v
+		}
+		return out
+	}
+	cases := []struct {
+		name string
+		ctx  contextkey.MapContext
+		want []string
+	}{
+		{"a file", file, []string{"Open to the Side", "Open Containing Folder", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"a folder with something to paste", with(file, contextkey.MapContext{"explorerResourceIsFolder": true, "fileCopied": true}),
+			[]string{"New File...", "New Folder...", "Open Containing Folder", "-", "Cut", "Copy", "Paste", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"a folder with nothing to paste", with(file, contextkey.MapContext{"explorerResourceIsFolder": true}),
+			[]string{"New File...", "New Folder...", "Open Containing Folder", "-", "Cut", "Copy", "(Paste)", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"the root folder", with(file, contextkey.MapContext{"explorerResourceIsFolder": true, "explorerResourceIsRoot": true}),
+			[]string{"New File...", "New Folder...", "Open Containing Folder", "-", "(Paste)", "-", "Copy Path", "Copy Relative Path"}},
+		{"a file where the trash cannot be used", with(file, contextkey.MapContext{"explorerResourceMoveableToTrash": false}),
+			[]string{"Open to the Side", "Open Containing Folder", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete Permanently"}},
+		{"a read-only file", with(file, contextkey.MapContext{"explorerResourceReadonly": true}),
+			[]string{"Open to the Side", "Open Containing Folder", "-", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "(Rename...)", "Delete"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rows(tc.ctx); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got  %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+}

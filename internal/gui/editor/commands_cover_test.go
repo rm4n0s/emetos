@@ -13,6 +13,10 @@ import (
 var appCommands = map[string]bool{
 	"moveActiveEditor": true, "copyActiveEditor": true, "layoutEditorGroups": true,
 	"copyFilePath": true, "copyRelativeFilePath": true, "revealInExplorer": true,
+	// the file operations of the Explorer (gui/app/fileops.go)
+	"explorer.newFile": true, "explorer.newFolder": true, "renameFile": true, "moveFileToTrash": true, "deleteFile": true,
+	"filesExplorer.cut": true, "filesExplorer.copy": true, "filesExplorer.paste": true, "filesExplorer.cancelCut": true,
+	"explorer.openToSide": true, "revealFileInOS": true,
 }
 
 func TestEveryEditorCommandHasAHandler(t *testing.T) {

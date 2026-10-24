@@ -272,3 +272,54 @@ func TestUserOverridesDefaults(t *testing.T) {
 		t.Errorf("lookup: %+v", got)
 	}
 }
+
+// TestExplorerFileKeys checks the keys of the file operations of the Explorer against the context keys
+// that the folder view sets.
+func TestExplorerFileKeys(t *testing.T) {
+	resolver := NewResolver(DefaultRegistry().Defaults(), nil, nil)
+	focus := func(extra map[string]any) contextkey.MapContext {
+		ctx := contextkey.MapContext{
+			"foldersViewVisible": true, "filesExplorerFocus": true, "explorerViewletFocus": true,
+			"explorerResourceMoveableToTrash": true,
+		}
+		for k, v := range extra {
+			ctx[k] = v
+		}
+		return ctx
+	}
+	cases := []struct {
+		name  string
+		ctx   contextkey.MapContext
+		press string
+		want  string
+	}{
+		{"F2 renames", focus(nil), "f2", "renameFile"},
+		{"F2 on the root does nothing", focus(map[string]any{"explorerResourceIsRoot": true}), "f2", ""},
+		{"F2 on a read-only item does nothing", focus(map[string]any{"explorerResourceReadonly": true}), "f2", ""},
+		{"Delete trashes", focus(nil), "delete", "moveFileToTrash"},
+		{"Delete deletes for good where the trash cannot be used", focus(map[string]any{"explorerResourceMoveableToTrash": false}), "delete", "deleteFile"},
+		{"Shift+Delete deletes for good", focus(nil), "shift+delete", "deleteFile"},
+		{"Ctrl+X cuts", focus(nil), "ctrl+x", "filesExplorer.cut"},
+		{"Ctrl+X on the root does nothing", focus(map[string]any{"explorerResourceIsRoot": true}), "ctrl+x", ""},
+		{"Ctrl+C copies", focus(nil), "ctrl+c", "filesExplorer.copy"},
+		{"Ctrl+V pastes", focus(nil), "ctrl+v", "filesExplorer.paste"},
+		{"Ctrl+V into a read-only folder does nothing", focus(map[string]any{"explorerResourceReadonly": true}), "ctrl+v", ""},
+		{"Escape forgets a cut", focus(map[string]any{"explorerResourceCut": true}), "escape", "filesExplorer.cancelCut"},
+		{"Escape with nothing cut", focus(nil), "escape", ""},
+		{"an input has the keys", focus(map[string]any{"inputFocus": true}), "f2", ""},
+		{"another view has the focus", contextkey.MapContext{"foldersViewVisible": true}, "delete", ""},
+		{"Ctrl+Enter opens to the side", focus(nil), "ctrl+enter", "explorer.openToSide"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := resolver.Resolve(tc.ctx, nil, dispatchOf(t, tc.press))
+			got := ""
+			if res.Kind == KbFound {
+				got = res.Command
+			}
+			if got != tc.want {
+				t.Errorf("%s: got %q, want %q (%+v)", tc.press, got, tc.want, res)
+			}
+		})
+	}
+}

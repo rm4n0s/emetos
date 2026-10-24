@@ -102,6 +102,16 @@ type TreeOpts struct {
 	OnSelectionChange func(keys []string)
 	// OnOpen is called when the user opens a node: Enter, or a double click.
 	OnOpen func(node TreeNode)
+	// OnContextMenu is called when the user presses the secondary button on a row, with its key, and on the
+	// empty part of the tree below the rows, with an empty key; at is the position in the window. The row is
+	// focused first (VS Code's `onContextMenu`); selecting it is up to the owner.
+	OnContextMenu func(key string, at ui.Offset)
+	// Editing says that a widget inside a row (an input box) has the keyboard: the tree handles no key then,
+	// so that the keys go to the widget.
+	Editing bool
+	// DropHighlight is the key of a row shown as the target of a drop from outside the tree (a drag of
+	// another application, which the owner follows with a DragTarget and KeyAt); empty for none.
+	DropHighlight string
 }
 
 // treeContent is what a node of Glutter's TreeSliver holds: the key of the node of the model. Glutter
@@ -200,6 +210,30 @@ func (c *TreeController) Focus() {
 // HasFocus is whether the tree has the keyboard focus.
 func (c *TreeController) HasFocus() bool { return c.state != nil && c.state.hasFocus }
 
+// KeyAt is the key of the row under a position in window coordinates. It reports false for a position
+// over no row (the empty part below the rows, or outside the tree). An owner that receives drops from other
+// applications uses it to find the row a drag is over.
+func (c *TreeController) KeyAt(global ui.Offset) (key string, ok bool) {
+	if c.state == nil {
+		return "", false
+	}
+	b := c.state.box()
+	if b == nil {
+		return "", false
+	}
+	local := b.GlobalToLocal(global, nil)
+	size := b.Size()
+	if local.Dx < 0 || local.Dy < 0 || local.Dx > size.Width || local.Dy > size.Height {
+		return "", false
+	}
+	nav := c.state.navigator()
+	i := nav.indexAt(local.Dy + c.state.scrollOffset())
+	if i < 0 || i >= nav.Len() || nav.isBlocked(i) {
+		return "", false
+	}
+	return nav.keys[i], true
+}
+
 type treeState struct {
 	widgets.StateOf[*Tree]
 	model  *TreeModel
@@ -211,6 +245,9 @@ type treeState struct {
 	drag     dragController
 	find     *findBoxState
 	areaCtx  widgets.BuildContext
+	// contextHandled is set by the press of the secondary button on a row, so that the press is not also one on
+	// the empty part of the tree.
+	contextHandled bool
 	// hover is the key of the row under the pointer, and overTree whether the pointer is over the tree.
 	hover    string
 	overTree bool
@@ -372,6 +409,9 @@ func (s *treeState) handleKey(_ *widgets.FocusNode, e services.KeyEvent) widgets
 	default:
 		return widgets.KeyEventResultIgnored
 	}
+	if s.Widget().opts.Editing {
+		return widgets.KeyEventResultIgnored
+	}
 	kb := widgets.WidgetsBindingOf(s.Context()).Keyboard()
 	m := keyMods{ctrl: kb.IsControlPressed(), shift: kb.IsShiftPressed(), alt: kb.IsAltPressed(), meta: kb.IsMetaPressed()}
 	key := e.LogicalKey()
@@ -448,6 +488,13 @@ func (s *treeState) down(key string, e *gestures.PointerDownEvent) {
 	s.model.SetFocus(key)
 	s.model.SetFindTyping(false)
 	s.node.RequestFocus()
+	if e.Buttons()&gestures.SecondaryButton != 0 {
+		s.contextHandled = true
+		if f := s.Widget().opts.OnContextMenu; f != nil {
+			f(key, e.Position())
+		}
+		return
+	}
 	s.drag.press(e, key)
 	if e.Buttons()&gestures.PrimaryButton == 0 {
 		return
@@ -475,6 +522,20 @@ func (s *treeState) tap(key string, onTwistie bool) {
 		return
 	}
 	s.dispatch(s.model.ClickWith(key, mods, onTwistie, kb.IsAltPressed()))
+}
+
+// areaDown is the press of a button anywhere in the tree, after the row it was on (the deepest widget sees it first):
+// a press of the secondary button that no row took is one on the empty part of the tree.
+func (s *treeState) areaDown(e *gestures.PointerDownEvent) {
+	handled := s.contextHandled
+	s.contextHandled = false
+	if handled || e.Buttons()&gestures.SecondaryButton == 0 {
+		return
+	}
+	if f := s.Widget().opts.OnContextMenu; f != nil {
+		s.model.ClearFocus()
+		f("", e.Position())
+	}
 }
 
 // closeFind is the close button of the find box.
@@ -586,7 +647,8 @@ func (s *treeState) Build(bc widgets.BuildContext) widgets.Widget {
 	// moves of the drag. The path of the press is kept for the whole drag, even when the row scrolls away.
 	content := widgets.NewListener(area, widgets.ListenerOpts{
 		OnPointerMove: s.drag.move, OnPointerUp: s.drag.up, OnPointerCancel: s.drag.pointerCancel,
-		Behavior: rendering.HitTestBehaviorTranslucent,
+		OnPointerDown: s.areaDown,
+		Behavior:      rendering.HitTestBehaviorTranslucent,
 	})
 	return widgets.NewMouseRegion(
 		widgets.NewFocus(content, widgets.FocusOpts{
@@ -661,6 +723,7 @@ func (s *treeState) buildRow(bc widgets.BuildContext, node *widgets.TreeSliverNo
 	st.Hovered = st.Hovered && !n.Placeholder
 	background, foreground, outline := rowLook(colors, st)
 	inside, before, after := s.drag.rowDrop(n.Key)
+	inside = inside || (t.opts.DropHighlight != "" && t.opts.DropHighlight == n.Key)
 	st.Foreground = foreground
 
 	var contents widgets.Widget

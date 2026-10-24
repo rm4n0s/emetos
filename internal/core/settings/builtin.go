@@ -705,6 +705,11 @@ func registerFiles(r *Registry) {
 			Scope:            ScopeLanguageOverridable, Category: categoryFiles,
 		},
 		Setting{
+			Key: "files.enableTrash", Types: []Type{Boolean}, Default: true,
+			Description: "Moves files/folders to the OS trash (recycle bin on Windows) when deleting. Disabling this will delete files/folders permanently.",
+			Scope:       ScopeWindow, Category: categoryFiles,
+		},
+		Setting{
 			Key: "files.exclude", Types: []Type{Object}, Default: map[string]any{
 				"**/.git": true, "**/.svn": true, "**/.hg": true, "**/.jj": true, "**/.DS_Store": true, "**/Thumbs.db": true,
 			},
@@ -778,6 +783,76 @@ func registerExplorer(r *Registry) {
 				"Files will not be scrolled into view, but will still be focused.",
 			},
 			Description: "Controls whether the Explorer should automatically reveal and select files when opening them.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.enableDragAndDrop", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the Explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the Explorer.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.confirmDragAndDrop", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the Explorer should ask for confirmation to move files and folders via drag and drop.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.confirmPasteNative", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the Explorer should ask for confirmation when pasting native files and folders.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.confirmDelete", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the Explorer should ask for confirmation when deleting files and folders.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.enableUndo", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the Explorer should support undoing file and folder operations.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.confirmUndo", Types: []Type{String}, Default: "default", Enum: []any{"verbose", "default", "light"},
+			EnumDescriptions: []string{
+				"Explorer will prompt before all undo operations.",
+				"Explorer will prompt before destructive undo operations.",
+				"Explorer will not prompt before undo operations when focused.",
+			},
+			Description: "Controls whether the Explorer should ask for confirmation when undoing.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.incrementalNaming", Types: []Type{String}, Default: "simple", Enum: []any{"simple", "smart", "disabled"},
+			EnumDescriptions: []string{
+				"Appends the word \"copy\" at the end of the duplicated name potentially followed by a number.",
+				"Adds a number at the end of the duplicated name. If some number is already part of the name, tries to increase that number.",
+				"Disables incremental naming. If two files with the same name exist you will be prompted to overwrite the existing file.",
+			},
+			Description: "Controls which naming strategy to use when giving a new name to a duplicated Explorer item on paste.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.autoOpenDroppedFile", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the Explorer should automatically open a file when it is dropped into the explorer",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.copyRelativePathSeparator", Types: []Type{String}, Default: "auto", Enum: []any{"/", "\\", "auto"},
+			EnumDescriptions: []string{
+				"Use slash as path separation character.",
+				"Use backslash as path separation character.",
+				"Uses operating system specific path separation character.",
+			},
+			Description: "The path separation character used when copying relative file paths.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.copyPathSeparator", Types: []Type{String}, Default: "auto", Enum: []any{"/", "\\", "auto"},
+			EnumDescriptions: []string{
+				"Use slash as path separation character.",
+				"Use backslash as path separation character.",
+				"Uses operating system specific path separation character.",
+			},
+			Description: "The path separation character used when copying file paths.",
 			Scope:       ScopeWindow, Category: categoryExplorer,
 		},
 		Setting{
@@ -977,6 +1052,11 @@ func registerEditorGroups(r *Registry) {
 				"The editor title area is not displayed.",
 			},
 			Description: "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.closeOnFileDelete", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that editors with unsaved changes will never close to preserve your data.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{

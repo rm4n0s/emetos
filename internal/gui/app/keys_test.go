@@ -391,6 +391,25 @@ func folderState(a *keyApp) func() {
 	return func() { a.win.Keys.Set("workbenchState", "folder") }
 }
 
+// explorerKeys are the context keys the keys of the file operations of the Explorer look at.
+var explorerKeys = []string{"foldersViewVisible", "filesExplorerFocus", "explorerViewletFocus", "inputFocus",
+	"explorerResourceMoveableToTrash", "explorerResourceCut", "explorerResourceIsRoot", "explorerResourceReadonly"}
+
+// filesExplorerState is the state of a window in which the folder view has the focus, on an item that can be moved
+// to the trash or not, with a cut item or not, for the keys of the file operations.
+func filesExplorerState(a *keyApp, trash, cut bool) func() {
+	return func() {
+		unfocusedState(a)()
+		a.win.Keys.Batch(func() {
+			a.win.Keys.Set("foldersViewVisible", true)
+			a.win.Keys.Set("filesExplorerFocus", true)
+			a.win.Keys.Set("explorerViewletFocus", true)
+			a.win.Keys.Set("explorerResourceMoveableToTrash", trash)
+			a.win.Keys.Set("explorerResourceCut", cut)
+		})
+	}
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -405,9 +424,13 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 			var reached []string
 			states := append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a),
 				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
-				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a))
+				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a),
+				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
+				for _, key := range explorerKeys {
+					a.win.Keys.Reset(key)
+				}
 				a.win.Keys.Set("activeEditorIsPinned", false)
 				a.win.Keys.Set("activeEditorGroupEmpty", false)
 				a.win.Keys.Set("multipleEditorGroups", false)

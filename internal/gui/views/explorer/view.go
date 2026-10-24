@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/theme"
@@ -26,9 +27,11 @@ type nodeData struct {
 	Chain []*workspace.Item
 	// IsDir tells a folder.
 	IsDir bool
+	// Edit marks the row of a new file or folder that is being named: it has no Item.
+	Edit bool
 }
 
-// last is the item whose children the node shows.
+// last is the item whose children the node shows; nil for the row of an item being created.
 func (n *nodeData) last() *workspace.Item {
 	if len(n.Chain) > 0 {
 		return n.Chain[len(n.Chain)-1]
@@ -38,6 +41,9 @@ func (n *nodeData) last() *workspace.Item {
 
 // label is the text of the node: the name, or the names of a chain joined by a slash.
 func (n *nodeData) label() string {
+	if n.Item == nil {
+		return ""
+	}
 	if len(n.Chain) <= 1 {
 		return n.Item.Name()
 	}
@@ -69,6 +75,29 @@ type ViewOpts struct {
 	OnLoadFailed func(path string, err error)
 	// Logger gets what has nobody to tell; slog.Default() when nil.
 	Logger *slog.Logger
+	// AfterFrame runs a function after the next frame; the view uses it to see where the focus went after a
+	// click. Without it the function is posted to the UI thread.
+	AfterFrame func(func())
+	// TrashEnabled tells whether deleting uses the trash (files.enableTrash); it sets the context key
+	// explorerResourceMoveableToTrash. Nil means yes.
+	TrashEnabled func() bool
+	// OnCommitEdit is called, on the UI thread, when the user commits the name typed in the inline input of a
+	// new file or folder or of a rename.
+	OnCommitEdit func(EditResult)
+	// DragEnabled tells whether the rows can be dragged (explorer.enableDragAndDrop); nil means yes.
+	DragEnabled func() bool
+	// Ctrl tells whether the Control key is held, which makes a drop a copy.
+	Ctrl func() bool
+	// OnDropItems is called, on the UI thread, when items of the tree are dropped on a folder of the tree: the
+	// paths dragged, the folder, and whether the drop copies.
+	OnDropItems func(sources []string, folder string, copy bool)
+	// OnImport is called, on the UI thread, when files are dropped on the tree from another application: their
+	// paths and the folder they were dropped on.
+	OnImport func(paths []string, folder string)
+	// OnContextMenu is called, on the UI thread, after the secondary button was pressed on a row (its path; the
+	// row is focused, and selected unless it is in the selection) or on the empty part of the tree (an empty
+	// path, the selection is cleared); at is the position in the window.
+	OnContextMenu func(path string, at ui.Offset)
 }
 
 // View is the tree of the folder of a window without its widgets (SPEC §10.8): the model of the rows
@@ -97,6 +126,14 @@ type View struct {
 	// scrollTo is the node to scroll into view as soon as the tree is on screen.
 	scrollTo  string
 	listeners []*func()
+	// edit is the inline input that is open, and retired the controllers of the inputs that closed, which
+	// are let go when the view is, since their widgets may still be on screen for a frame.
+	edit    *editState
+	retired []*kit.InputBoxController
+	// cut are the paths that were cut and not yet pasted; they show dimmed.
+	cut map[string]bool
+	// dropOver is the key of the row an external drag is over.
+	dropOver string
 }
 
 // NewView makes the view of a workspace and starts reading its folder; ctx ends everything the view does in
@@ -123,7 +160,13 @@ func (v *View) Dispose() {
 	v.cancel()
 	v.stop()
 	v.tree.RemoveListener(v.handle)
-	for _, key := range []string{"explorerResourceIsFolder", "explorerResourceIsRoot", "explorerResourceReadonly"} {
+	v.releaseEdit()
+	for _, c := range v.retired {
+		c.Dispose()
+	}
+	v.retired = nil
+	for _, key := range []string{"explorerResourceIsFolder", "explorerResourceIsRoot", "explorerResourceReadonly",
+		"explorerResourceMoveableToTrash", "explorerResourceCut", "inputFocus"} {
 		if v.opts.Keys != nil {
 			v.opts.Keys.Reset(key)
 		}
@@ -201,7 +244,9 @@ func (v *View) rebuild() {
 	if !v.loaded {
 		return
 	}
-	if err := v.tree.SetItems(v.items(v.ws.Root().Loaded())); err != nil {
+	roots := v.items(v.ws.Root().Loaded())
+	v.withEdit(&roots, v.ws.Path())
+	if err := v.tree.SetItems(roots); err != nil {
 		// the keys are paths of the tree, so a repeated one is a mistake of the model
 		v.opts.Logger.Error("explorer: cannot show the folder", "err", err)
 	}
@@ -227,6 +272,7 @@ func (v *View) item(it *workspace.Item) kit.TreeItem {
 	ti := kit.TreeItem{Key: it.Path(), Data: nd, Label: nd.label()}
 	if last := nd.last(); last.Resolved() {
 		ti.Children = v.items(last.Loaded())
+		v.withEdit(&ti.Children, last.Path())
 		ti.HasChildren = len(ti.Children) == 0
 	} else {
 		ti.Lazy = true
@@ -268,7 +314,9 @@ func (v *View) load(key string, data any) {
 				return
 			}
 			nd.Chain = chain
-			if err := v.tree.SetChildren(key, v.items(kids)); err != nil {
+			children := v.items(kids)
+			v.withEdit(&children, chain[len(chain)-1].Path())
+			if err := v.tree.SetChildren(key, children); err != nil {
 				v.opts.Logger.Error("explorer: cannot show a folder", "path", key, "err", err)
 			}
 			v.notify()
@@ -401,24 +449,101 @@ func (v *View) SelectedPath() string {
 	return ""
 }
 
-// syncKeys sets the context keys that describe the focused row.
+// syncKeys sets the context keys that describe the focused row. With no row focused the context is the
+// folder of the window, as in VS Code: a folder, and the root.
 func (v *View) syncKeys() {
 	keys := v.opts.Keys
 	if keys == nil {
 		return
 	}
 	item := v.FocusedItem()
+	trash := v.opts.TrashEnabled == nil || v.opts.TrashEnabled()
 	keys.Batch(func() {
-		keys.Set("explorerResourceIsFolder", item != nil && item.IsDir())
-		keys.Set("explorerResourceIsRoot", false)
+		keys.Set("explorerResourceIsFolder", item == nil || item.IsDir())
+		keys.Set("explorerResourceIsRoot", item == nil)
 		keys.Set("explorerResourceReadonly", false)
+		keys.Set("explorerResourceMoveableToTrash", item != nil && trash)
+		keys.Set("explorerResourceCut", len(v.cut) > 0)
 	})
+}
+
+// SyncKeys sets the context keys again, after a setting they depend on changed.
+func (v *View) SyncKeys() { v.syncKeys() }
+
+// SetCut marks paths as cut: their rows show dimmed until they are pasted (SetCut with none), the clipboard
+// changes, or Escape cancels the cut.
+func (v *View) SetCut(paths []string) {
+	v.cut = map[string]bool{}
+	for _, p := range paths {
+		v.cut[p] = true
+	}
+	v.syncKeys()
+	v.notify()
+}
+
+// CutPaths are the paths that are cut.
+func (v *View) CutPaths() []string {
+	out := make([]string, 0, len(v.cut))
+	for p := range v.cut {
+		out = append(out, p)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// IsCut tells whether a path is cut.
+func (v *View) IsCut(path string) bool { return v.cut[path] }
+
+// Context are the items the commands of the Explorer work on: the focused row, and with respectMulti the
+// whole selection when the focused row is part of it (VS Code's `explorerService.getContext`). It is
+// empty when no row is focused, which means the folder of the window.
+func (v *View) Context(respectMulti bool) []*workspace.Item {
+	focused, ok := v.tree.Focused()
+	if !ok {
+		return nil
+	}
+	if respectMulti && v.tree.IsSelected(focused) {
+		var out []*workspace.Item
+		for _, key := range v.tree.SelectedKeys() {
+			if it := v.itemOf(key); it != nil {
+				out = append(out, it)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	if it := v.itemOf(focused); it != nil {
+		return []*workspace.Item{it}
+	}
+	return nil
+}
+
+// itemOf is the item a row stands for (the last folder of a compact chain), or nil.
+func (v *View) itemOf(key string) *workspace.Item {
+	if data, ok := v.tree.Data(key); ok {
+		if nd, ok := data.(*nodeData); ok {
+			return nd.last()
+		}
+	}
+	return nil
+}
+
+// SelectedPaths are the paths of the selected rows.
+func (v *View) SelectedPaths() []string {
+	var out []string
+	for _, key := range v.tree.SelectedKeys() {
+		if it := v.itemOf(key); it != nil {
+			out = append(out, it.Path())
+		}
+	}
+	return out
 }
 
 // open opens the file of a node.
 func (v *View) open(node kit.TreeNode, pinned bool) {
 	nd, ok := node.Data.(*nodeData)
-	if !ok || nd.IsDir || v.opts.OnOpen == nil {
+	if !ok || nd.IsDir || nd.Item == nil || v.opts.OnOpen == nil {
 		return
 	}
 	v.opts.OnOpen(nd.Item.Path(), pinned)
@@ -434,6 +559,9 @@ func (v *View) iconFor(nd *nodeData, expanded bool, kind theme.Type) (theme.File
 		return theme.FileIcon{}, false
 	}
 	it := nd.last()
+	if it == nil {
+		return theme.FileIcon{}, false
+	}
 	q := theme.FileIconQuery{Kind: theme.FileIconFile, Name: it.Name(), Expanded: expanded, Type: kind}
 	if parent := it.Parent(); parent != nil {
 		q.Parent = parent.Name()

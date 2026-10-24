@@ -291,16 +291,16 @@ func TestBodyScrollsToARevealedFile(t *testing.T) {
 
 func TestActionsRunTheirCommands(t *testing.T) {
 	var ran []string
-	ts := pump(t, kit.DarkModern(), ui.Size{Width: 80, Height: 24}, NewActions(ActionsOpts{OnRun: func(c string) { ran = append(ran, c) }}))
-	for _, icon := range []int{fonts.CodiconRefresh, fonts.CodiconCollapseAll} {
+	ts := pump(t, kit.DarkModern(), ui.Size{Width: 120, Height: 24}, NewActions(ActionsOpts{OnRun: func(c string) { ran = append(ran, c) }}))
+	icons := []int{fonts.CodiconNewFile, fonts.CodiconNewFolder, fonts.CodiconRefresh, fonts.CodiconCollapseAll}
+	for _, icon := range icons {
 		if err := gluttertest.FindsOneWidget(ts, gluttertest.ByIcon(fonts.CodiconIcon(icon))); err != nil {
 			t.Error(err)
 		}
+		ts.Tap(gluttertest.ByIcon(fonts.CodiconIcon(icon)))
 	}
-	ts.Tap(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconRefresh)))
-	ts.Tap(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconCollapseAll)))
 	ts.Pump(time.Millisecond)
-	if want := []string{CommandRefresh, CommandCollapse}; !slices.Equal(ran, want) {
+	if want := []string{CommandNewFile, CommandNewFolder, CommandRefresh, CommandCollapse}; !slices.Equal(ran, want) {
 		t.Errorf("ran %v, want %v", ran, want)
 	}
 }

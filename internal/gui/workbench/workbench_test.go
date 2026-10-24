@@ -705,6 +705,7 @@ var explorerAppCommands = map[string]bool{
 	"workbench.files.action.focusFilesExplorer": true, "workbench.files.action.showActiveFileInExplorer": true,
 	"workbench.files.action.refreshFilesExplorer": true, "workbench.files.action.collapseExplorerFolders": true,
 	"workbench.action.files.openFolder": true, "workbench.action.closeFolder": true,
+	"workbench.files.action.createFileFromExplorer": true, "workbench.files.action.createFolderFromExplorer": true,
 }
 
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {

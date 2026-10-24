@@ -28,12 +28,16 @@ type TextInput struct {
 	opts  TextInputOpts
 	dirty bool
 	stop  func()
+	// stopURI stops following the document's URI.
+	stopURI func()
 }
 
 // NewTextInput makes the input of a document. It follows the document's dirty mark until Dispose.
 func NewTextInput(doc *document.Document, opts TextInputOpts) *TextInput {
 	t := &TextInput{doc: doc, opts: opts, dirty: doc.Dirty()}
 	t.stop = doc.Subscribe(func(document.ChangeEvent) { t.Refresh() })
+	// a renamed or moved file gives the tab another name, description and title
+	t.stopURI = doc.OnURIChange(func(_, _ document.URI) { t.Emit(InputLabel) })
 	return t
 }
 
@@ -144,6 +148,10 @@ func (t *TextInput) Dispose() {
 	if t.stop != nil {
 		t.stop()
 		t.stop = nil
+	}
+	if t.stopURI != nil {
+		t.stopURI()
+		t.stopURI = nil
 	}
 	t.BaseInput.Dispose()
 }
