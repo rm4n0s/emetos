@@ -201,6 +201,7 @@ func (s *shellState) disposeQuickInput() {
 	if win == nil {
 		return
 	}
+	s.endThemePicks()
 	for _, prefix := range s.quickPrefixes {
 		win.QuickAccess.Unregister(prefix)
 	}

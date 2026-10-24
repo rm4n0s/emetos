@@ -75,6 +75,8 @@ type Process struct {
 	// settings.
 	Virtual *document.VirtualRegistry
 
+	icons iconPreview
+
 	scanTimeout time.Duration
 	// backupAfter, backupWrite and backupMax are ProcessOptions.BackupAfter, BackupWriteFile and BackupMaxSize.
 	backupAfter storage.AfterFunc

@@ -37,6 +37,7 @@ func DefaultRegistry() *Registry {
 	registerRecentCommands(r)
 	registerSettingsCommands(r)
 	registerKeybindingsEditorCommands(r)
+	registerThemeCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	return r
@@ -808,5 +809,16 @@ func registerKeybindingsEditorCommands(r *Registry) {
 		Meta{ID: "keybindings.editor.copyKeybindingEntry"},
 		Meta{ID: "keybindings.editor.copyCommandKeybindingEntry"},
 		Meta{ID: "keybindings.editor.copyCommandTitle"},
+	)
+}
+
+// registerThemeCommands registers the commands of the theme pickers (step 8.4). Not registered: Product Icon Theme,
+// Try New Default Themes, Install Additional Color Themes and Generate Color Theme From Current Settings.
+//
+// Ported from VS Code: src/vs/workbench/contrib/themes/browser/themes.contribution.ts
+func registerThemeCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.selectTheme", Title: "Color Theme", Category: "Preferences"},
+		Meta{ID: "workbench.action.selectIconTheme", Title: "File Icon Theme", Category: "Preferences"},
 	)
 }

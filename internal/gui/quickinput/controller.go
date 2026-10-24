@@ -96,6 +96,14 @@ type PickOptions struct {
 	ActiveID string
 	// OnCancel is called when the picker closes without a choice.
 	OnCancel func()
+	// OnActive is called when the active item changes while the picker is open, with the item (the arrow keys
+	// and typing a filter move it; the pointer does not, as in VS Code's onDidChangeActive); ok is false when
+	// no item is active. It is not called for the item that ActiveID made active: the caller knows it. The theme
+	// pickers preview with it.
+	OnActive func(item Item, ok bool)
+	// OnHide is called once when the picker ends, whatever the way: chosen (accepted is true, before the item's
+	// Accept runs), closed without a choice, or replaced by another quick input. It is called before OnCancel.
+	OnHide func(accepted bool)
 }
 
 // PromptOptions describe an input box: a line of text that the user accepts with Enter or cancels with Escape (VS
@@ -126,12 +134,15 @@ type Controller struct {
 	provider Provider
 	handler  Handler
 	// fixed is set while a pick of the caller is shown: the value does not change the provider.
-	fixed     bool
-	onCancel  func()
-	accepted  bool
-	prompt    *prompt
-	listeners []*func()
-	last      map[string]string
+	fixed    bool
+	onCancel func()
+	// onHide is PickOptions.OnHide, and stopActive stops following the active item for PickOptions.OnActive.
+	onHide     func(accepted bool)
+	stopActive func()
+	accepted   bool
+	prompt     *prompt
+	listeners  []*func()
+	last       map[string]string
 
 	post    func(func())
 	after   func(func())
@@ -266,6 +277,7 @@ func (c *Controller) Show(value string, opts ShowOptions) {
 		}
 	}
 	wasVisible := c.visible
+	c.releasePick(false)
 	c.endSession(false)
 	c.endPrompt()
 	c.fixed, c.onCancel, c.accepted = false, nil, false
@@ -370,6 +382,7 @@ func (c *Controller) Pick(opts PickOptions) {
 	if !c.visible && c.invoker != nil {
 		c.context = c.invoker()
 	}
+	c.releasePick(false)
 	c.endSession(false)
 	c.endPrompt()
 	c.quickNav, c.quickMode = nil, false
@@ -388,7 +401,25 @@ func (c *Controller) Pick(opts PickOptions) {
 			}
 		}
 	}
+	c.onHide = opts.OnHide
+	if opts.OnActive != nil {
+		c.stopActive = c.picker.OnDidChangeActive(func(r Row, ok bool) { opts.OnActive(r.Item, ok) })
+	}
 	c.fire()
+}
+
+// releasePick ends what the pick that is shown asked for: it stops following the active item and calls its
+// OnHide. It is for the end of the pick, by hiding or by another quick input taking its place.
+func (c *Controller) releasePick(accepted bool) {
+	if c.stopActive != nil {
+		c.stopActive()
+		c.stopActive = nil
+	}
+	hide := c.onHide
+	c.onHide = nil
+	if hide != nil && c.visible {
+		hide(accepted)
+	}
 }
 
 // prompt is the state of an input box that is shown.
@@ -402,6 +433,7 @@ func (c *Controller) Prompt(opts PromptOptions) {
 	if !c.visible && c.invoker != nil {
 		c.context = c.invoker()
 	}
+	c.releasePick(false)
 	c.endSession(false)
 	c.endPrompt()
 	c.quickNav, c.quickMode = nil, false
@@ -561,11 +593,13 @@ func (c *Controller) hide(accepted bool) {
 		c.last[c.provider.Info().Prefix] = c.picker.Value()
 	}
 	c.accepted = accepted
+	cancel := c.onCancel
+	c.onCancel = nil
+	// the pick ends first, with the quick input still shown, so that its hooks see the picker they asked for
+	c.releasePick(accepted)
 	c.visible = false
 	c.quickNav, c.quickMode = nil, false
 	c.endPrompt()
-	cancel := c.onCancel
-	c.onCancel = nil
 	c.endSession(accepted)
 	if cancel != nil && !accepted {
 		cancel()

@@ -258,14 +258,21 @@ func TestEditorContextMenuItems(t *testing.T) {
 
 func TestManageItemsWithNothingRegistered(t *testing.T) {
 	m := newMenuServices(nil)
-	// the command palette, the settings and the keyboard shortcuts are the items of the Manage menu that the built-in rows
+	// the command palette, the settings, the keyboard shortcuts and the themes are the items of the Manage menu that the built-in rows
 	// have (the rows of the configuration follow a line, as VS Code's group of configuration does)
-	if items := m.source.ManageItems(); len(items) != 4 || items[0].Label != "Command Palette..." || items[0].Keybinding != "Ctrl+Shift+P" || !items[1].Separator || items[2].Label != "Settings" || items[2].Keybinding != "Ctrl+," || items[3].Label != "Keyboard Shortcuts" || items[3].Keybinding != "Ctrl+K Ctrl+S" {
+	items := m.source.ManageItems()
+	if len(items) != 5 || items[0].Label != "Command Palette..." || items[0].Keybinding != "Ctrl+Shift+P" || !items[1].Separator || items[2].Label != "Settings" || items[2].Keybinding != "Ctrl+," || items[3].Label != "Keyboard Shortcuts" || items[3].Keybinding != "Ctrl+K Ctrl+S" {
 		t.Errorf("the Manage menu: %+v", items)
+	}
+	// the Themes submenu follows (step 8.4)
+	if themes := items[4]; themes.Label != "Themes" || !themes.Submenu || len(themes.Items) != 2 ||
+		themes.Items[0].ID != "workbench.action.selectTheme" || themes.Items[0].Label != "Color Theme" || themes.Items[0].Keybinding != "Ctrl+K Ctrl+T" ||
+		themes.Items[1].ID != "workbench.action.selectIconTheme" || themes.Items[1].Label != "File Icon Theme" || themes.Items[1].Keybinding != "" {
+		t.Errorf("the Themes submenu: %+v", items[4])
 	}
 	m.menus = command.NewMenuRegistry(m.commands)
 	m.source = m.newSource(nil)
-	items := m.source.ManageItems()
+	items = m.source.ManageItems()
 	if len(items) != 1 || !items[0].Disabled || items[0].Label != "(empty)" {
 		t.Errorf("an empty Manage menu: %+v", items)
 	}

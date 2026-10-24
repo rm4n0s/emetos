@@ -781,13 +781,17 @@ var settingsAppCommands = map[string]bool{
 	"workbench.action.openGlobalKeybindings": true, "workbench.action.openGlobalKeybindingsFile": true, "workbench.action.openDefaultKeybindingsFile": true,
 }
 
+// themeAppCommands are the commands of the theme pickers, which the app binds since the quick input and the settings of
+// the window are its own (step 8.4).
+var themeAppCommands = map[string]bool{"workbench.action.selectTheme": true, "workbench.action.selectIconTheme": true}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	// the commands that open the views of the panel are the workbench's when it has the views
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] {
 			continue
 		}
 		n++

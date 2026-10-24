@@ -38,9 +38,13 @@ type fileIcons struct {
 }
 
 // FileIcons is the file icon theme of the window (workbench.iconTheme), or nil for none ("null", or a theme
-// that cannot be loaded, which is reported once). It is safe for concurrent use.
+// that cannot be loaded, which is reported once). While the file icon theme picker previews a theme, it is that
+// one. It is safe for concurrent use.
 func (w *Window) FileIcons() *theme.FileIconTheme {
 	id, _ := settings.Get[any](w.Settings, "workbench.iconTheme", "").(string)
+	if previewed, on := w.Process.FileIconThemePreview(); on {
+		id = previewed
+	}
 	c := &w.icons
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -145,6 +149,16 @@ func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
 					s.SetState(func() {})
 				})
 			}
+		}),
+		// the file icon theme picker previews a theme
+		win.Process.OnFileIconThemePreview(func() {
+			binding.Post(func() {
+				if !s.Mounted() {
+					return
+				}
+				ex.editors.Refresh()
+				s.SetState(func() {})
+			})
 		}),
 		win.Views.OnChange(func() {
 			if s.Mounted() {

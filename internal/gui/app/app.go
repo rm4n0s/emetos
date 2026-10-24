@@ -242,6 +242,8 @@ type shellState struct {
 	stopFolderWatch func()
 	// quickWin is the window the quick input was connected to, for the disposal.
 	quickWin *Window
+	// endPicks ends the previews of the theme picker that is open (themepickers.go); nil when none is.
+	endPicks func()
 	// menus turns the menu registry into the menus of the window; menuBar, manage and editorMenu open
 	// the menu bar, the Manage menu and the context menu of the editor from outside.
 	menus      *workbench.MenuSource

@@ -26,6 +26,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerQuickInputMenus(r)
 	registerSettingsMenus(r)
 	registerKeybindingsEditorMenus(r)
+	registerThemeMenus(r)
 	return r
 }
 
@@ -405,5 +406,18 @@ func registerKeybindingsEditorMenus(r *MenuRegistry) {
 		MenuItem{Menu: GlobalActivity, Command: "workbench.action.openGlobalKeybindings", Title: "Keyboard Shortcuts", Group: "2_configuration", Order: 4},
 
 		MenuItem{Menu: CommandPalette, Command: "keybindings.editor.clearSearchResults", When: contextkey.False()},
+	)
+}
+
+// registerThemeMenus adds the Themes submenu (step 8.4) to the Preferences submenu of the File menu and to the Manage
+// menu, with Color Theme and File Icon Theme. VS Code's third row, Product Icon Theme, is not built.
+//
+// Ported from VS Code: src/vs/workbench/contrib/themes/browser/themes.contribution.ts
+func registerThemeMenus(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: GlobalActivity, Submenu: ThemesSubMenu, Title: "Themes", Group: "2_configuration", Order: 7},
+		MenuItem{Menu: MenubarPreferencesMenu, Submenu: ThemesSubMenu, Title: "Themes", MnemonicTitle: "&&Themes", Group: "2_configuration", Order: 7},
+		MenuItem{Menu: ThemesSubMenu, Command: "workbench.action.selectTheme", Title: "Color Theme", Order: 1},
+		MenuItem{Menu: ThemesSubMenu, Command: "workbench.action.selectIconTheme", Title: "File Icon Theme", Order: 2},
 	)
 }

@@ -30,6 +30,10 @@ func (w *Window) followTheme() {
 	}
 	apply()
 	w.Settings.OnChange(func(e settings.ChangeEvent) {
+		// a file icon theme that is only being tried gives way to the setting
+		if e.Affects("workbench.iconTheme", "") {
+			w.Process.EndFileIconThemePreview()
+		}
 		if e.Affects("workbench", "") || e.Affects("window", "") {
 			apply()
 		}

@@ -29,6 +29,8 @@ const (
 	MenubarHelpMenu      = "MenubarHelpMenu"
 	// MenubarPreferencesMenu is the Preferences submenu of the File menu.
 	MenubarPreferencesMenu = "MenubarPreferencesMenu"
+	// ThemesSubMenu is the Themes submenu of the Preferences menu and of the Manage menu.
+	ThemesSubMenu = "ThemesSubMenu"
 	// MenubarAppearanceMenu is the Appearance submenu of the View menu.
 	MenubarAppearanceMenu = "MenubarAppearanceMenu"
 	// MenubarRecentMenu is the Open Recent submenu of the File menu; its items are dynamic.

@@ -2,6 +2,7 @@ package quickinput
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -469,4 +470,69 @@ func TestControllerPrompt(t *testing.T) {
 			t.Error("the validation of the prompt still runs")
 		}
 	})
+}
+
+func TestControllerPickHooks(t *testing.T) {
+	items := func() []Item {
+		return []Item{
+			{Separator: true, Label: "group"},
+			{ID: "a", Label: "alpha", Accept: func(KeyMods) {}},
+			{ID: "b", Label: "beta", Accept: func(KeyMods) {}},
+			{ID: "c", Label: "gamma", Accept: func(KeyMods) {}},
+		}
+	}
+	// events records what the hooks saw, in order
+	var events []string
+	opts := func() PickOptions {
+		return PickOptions{
+			Items: items(), ActiveID: "b",
+			OnActive: func(it Item, ok bool) {
+				if !ok {
+					events = append(events, "active:none")
+					return
+				}
+				events = append(events, "active:"+it.ID)
+			},
+			OnHide: func(accepted bool) { events = append(events, fmt.Sprintf("hide:%v", accepted)) },
+			OnCancel: func() {
+				events = append(events, "cancel")
+			},
+		}
+	}
+	tests := []struct {
+		name string
+		do   func(c *Controller)
+		want []string
+	}{
+		{"the initial active item is not reported", func(c *Controller) {}, nil},
+		{"moving reports each active item", func(c *Controller) { c.Picker().Move(1); c.Picker().Move(1) }, []string{"active:c", "active:a"}},
+		{"moving to the same item reports nothing", func(c *Controller) { c.Picker().SetActive(1) }, nil},
+		{"typing a filter reports the new active item, then none for no match", func(c *Controller) {
+			c.SetValue("gam")
+			c.SetValue("zzz")
+		}, []string{"active:c", "active:none"}},
+		{"escape hides without a choice", func(c *Controller) { c.Hide() }, []string{"hide:false", "cancel"}},
+		{"accepting hides with a choice and no cancel", func(c *Controller) { c.Accept(KeyMods{}) }, []string{"hide:true"}},
+		{"another pick takes the place", func(c *Controller) { c.Pick(PickOptions{Items: items()}) }, []string{"hide:false"}},
+		{"a prompt takes the place", func(c *Controller) { c.Prompt(PromptOptions{}) }, []string{"hide:false"}},
+		{"a quick access takes the place", func(c *Controller) { c.Show(">", ShowOptions{}) }, []string{"hide:false"}},
+		{"moving after the hide reports nothing", func(c *Controller) {
+			p := c.Picker()
+			c.Hide()
+			events = nil
+			p.Move(1)
+		}, nil},
+		{"hiding twice calls the hook once", func(c *Controller) { c.Hide(); c.Hide() }, []string{"hide:false", "cancel"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events = nil
+			c := NewController(ControllerOptions{})
+			c.Pick(opts())
+			tt.do(c)
+			if !reflect.DeepEqual(events, tt.want) {
+				t.Errorf("events %v, want %v", events, tt.want)
+			}
+		})
+	}
 }

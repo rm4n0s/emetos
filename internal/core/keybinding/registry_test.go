@@ -252,6 +252,7 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+k ctrl+shift+n", "notifications.showList"},
 		{"ctrl+k ctrl+h", "workbench.action.output.toggleOutput"},
 		{"ctrl+k ctrl+s", "workbench.action.openGlobalKeybindings"},
+		{"ctrl+k ctrl+t", "workbench.action.selectTheme"},
 	} {
 		kb := mustKB(t, tc.chords)
 		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())

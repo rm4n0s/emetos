@@ -482,7 +482,7 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu", EditorContext, contextkey.MapContext{}, []string{"Cut", "Copy", "Paste", "-", "Select All"}},
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
-		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Settings", "Keyboard Shortcuts"}},
+		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Settings", "Keyboard Shortcuts", "Themes"}},
 		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Back", "Forward", "Last Edit Location", "-", "Switch Editor", "Switch Group", "-", "Go to File...", "-", "Go to Line/Column...", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
@@ -914,7 +914,7 @@ func TestSettingsMenus(t *testing.T) {
 		}
 		return out
 	}
-	if got := rowsOf(MenubarPreferencesMenu); len(got) != 2 || got[0] != "&&Settings=workbench.action.openSettings" || got[1] != "Keyboard Shortcuts=workbench.action.openGlobalKeybindings" {
+	if got := rowsOf(MenubarPreferencesMenu); len(got) != 3 || got[0] != "&&Settings=workbench.action.openSettings" || got[1] != "Keyboard Shortcuts=workbench.action.openGlobalKeybindings" || got[2] != "&&Themes=" {
 		t.Errorf("Preferences menu %v", got)
 	}
 	found := false
@@ -1016,5 +1016,45 @@ func TestKeybindingsEditorMenus(t *testing.T) {
 		if got := hiddenInPalette(command); got != hidden {
 			t.Errorf("%s hidden in the palette = %v, want %v", command, got, hidden)
 		}
+	}
+}
+
+func TestThemeMenus(t *testing.T) {
+	reg := DefaultRegistry()
+	menus := DefaultMenus(reg)
+	for id, title := range map[string]string{"workbench.action.selectTheme": "Color Theme", "workbench.action.selectIconTheme": "File Icon Theme"} {
+		meta, ok := reg.Lookup(id)
+		if !ok || meta.Title != title || meta.Category != "Preferences" {
+			t.Errorf("%s: %+v, registered %v", id, meta, ok)
+		}
+	}
+	// the rows are (title, command, submenu)
+	type row struct{ title, command, submenu string }
+	tests := []struct {
+		name string
+		menu string
+		want []row
+	}{
+		{"the Themes submenu", ThemesSubMenu, []row{
+			{"Color Theme", "workbench.action.selectTheme", ""},
+			{"File Icon Theme", "workbench.action.selectIconTheme", ""},
+		}},
+		{"the Preferences menu ends with Themes", MenubarPreferencesMenu, []row{{"&&Themes", "", ThemesSubMenu}}},
+		{"the Manage menu ends with Themes", GlobalActivity, []row{{"Themes", "", ThemesSubMenu}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []row
+			for _, e := range menus.Items(tc.menu, contextkey.MapContext{}) {
+				title := e.Title
+				if e.MnemonicTitle != "" && e.Submenu != "" {
+					title = e.MnemonicTitle
+				}
+				got = append(got, row{title, e.Command, e.Submenu})
+			}
+			if len(got) < len(tc.want) || !reflect.DeepEqual(got[len(got)-len(tc.want):], tc.want) {
+				t.Errorf("got %v, want it to end with %v", got, tc.want)
+			}
+		})
 	}
 }

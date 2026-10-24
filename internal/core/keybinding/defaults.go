@@ -70,6 +70,7 @@ func DefaultRegistry() *Registry {
 	registerWindowKeys(r)
 	registerSettingsKeys(r)
 	registerKeybindingsEditorKeys(r)
+	registerThemeKeys(r)
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
 	return r
@@ -568,5 +569,15 @@ func registerKeybindingsEditorKeys(r *Registry) {
 		Rule{Command: "keybindings.editor.defineWhenExpression", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow), Primary: "ctrl+k ctrl+e"},
 		Rule{Command: "keybindings.editor.removeKeybinding", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow, "!inputFocus"), Primary: "delete"},
 		Rule{Command: "keybindings.editor.copyKeybindingEntry", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow, "!whenFocus"), Primary: "ctrl+c"},
+	)
+}
+
+// registerThemeKeys registers the key of the color theme picker (step 8.4): Ctrl+K Ctrl+T. The file icon theme picker
+// has no key.
+//
+// Ported from VS Code: src/vs/workbench/contrib/themes/browser/themes.contribution.ts
+func registerThemeKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.selectTheme", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+t"},
 	)
 }

@@ -36,6 +36,10 @@ type Service struct {
 	// bundled keeps the bundled themes that were loaded, so that choosing one again is the same
 	// theme and not a change.
 	bundled map[string]*Theme
+	// previewing says that the theme named previewName is shown for a preview (Preview) and not the one
+	// the settings choose.
+	previewing  bool
+	previewName string
 }
 
 // NewService makes a service over a color registry, with Dark Modern as the theme until the
@@ -99,8 +103,49 @@ func (s *Service) SetUserThemes(themes []UserTheme) error {
 // changes, the listeners are told. When the theme the settings name does not exist or cannot be
 // read, the default theme of the system's brightness is used and the error says why: it has the
 // tag ThemeNotFound or the tags of Load.
+//
+// Settings that differ from the ones applied before end a preview (EndPreview): the setting wins over a
+// theme that is only being tried.
 func (s *Service) Apply(settings Settings) error {
-	return s.apply(func() { s.settings = settings })
+	return s.apply(func() {
+		if s.previewing && s.settings != settings {
+			s.previewing = false
+		}
+		s.settings = settings
+	})
+}
+
+// Preview shows the theme with a label or id instead of the one the settings choose, until EndPreview, or
+// until other settings are applied (SPEC §10.8). Nothing is written to the settings. The listeners are told
+// when the theme in use changes. A theme that cannot be found or read leaves things as they were and fails
+// with the tag ThemeNotFound or the tags of Load.
+func (s *Service) Preview(name string) error {
+	s.mu.Lock()
+	if _, _, err := s.find(name); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	s.mu.Unlock()
+	return s.apply(func() { s.previewing, s.previewName = true, name })
+}
+
+// EndPreview goes back to the theme the settings choose. It does nothing when no preview is on. See Apply
+// for the error.
+func (s *Service) EndPreview() error {
+	s.mu.Lock()
+	on := s.previewing
+	s.mu.Unlock()
+	if !on {
+		return nil
+	}
+	return s.apply(func() { s.previewing = false })
+}
+
+// Previewing tells whether a theme is shown for a preview.
+func (s *Service) Previewing() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.previewing
 }
 
 // SetPlatformBrightness tells the service whether the system is dark. It matters when
@@ -152,6 +197,9 @@ func (s *Service) OnChange(fn func(*ColorTheme)) (unsubscribe func()) {
 
 // chosenName is the name of the theme the settings and the system's brightness ask for.
 func (s *Service) chosenName() string {
+	if s.previewing {
+		return s.previewName
+	}
 	if s.settings.AutoDetectColorScheme {
 		if s.darkOS {
 			return orDefault(s.settings.PreferredDarkColorTheme, DefaultDark)
