@@ -1519,11 +1519,11 @@ func TestASavedLayoutThatIsNotALayoutIsLeftOut(t *testing.T) {
 	}
 }
 
-func TestASavedEditorThatIsNotAFileIsNotOpened(t *testing.T) {
+func TestASavedEditorWithoutAFileOrAProviderIsNotOpened(t *testing.T) {
 	win := newTestWindow(t, "")
 	for value, route := range map[string]string{
 		"untitled:1":               "Window.openSavedDocument.SavedUntitledWithoutBackup",
-		"emetos-virtual:/settings": "Window.openSavedDocument.SavedEditorNotAFile",
+		"emetos-virtual:/settings": "Window.openSavedDocument->Documents.OpenVirtual->VirtualRegistry.Generate.VirtualURIUnknown",
 		"/relative":                "Window.openSavedDocument->ParseURI.URIInvalid",
 		"file://relative/x":        "Window.openSavedDocument->ParseURI.URIInvalid",
 	} {
@@ -1537,7 +1537,7 @@ func TestASavedEditorThatIsNotAFileIsNotOpened(t *testing.T) {
 			t.Errorf("%s: unexpected failure path: %s, want %s", value, appErr.Route(), route)
 		}
 	}
-	// a saved editor of that kind is dropped and counted
+	// a saved virtual editor that no provider makes is dropped, without a word
 	env := newStateEnv(t, nil)
 	first := env.start(env.root)
 	first.open(env.path("main.go"), 0)
@@ -1554,7 +1554,7 @@ func TestASavedEditorThatIsNotAFileIsNotOpened(t *testing.T) {
 	if got := second.layout(); len(got) != 1 || !strings.Contains(got[0], "main.go") {
 		t.Errorf("groups %v", got)
 	}
-	if items := second.win.Notify.Items(); len(items) != 1 || items[0].Message != DroppedEditorsNotice(1) {
+	if items := second.win.Notify.Items(); len(items) != 0 {
 		t.Errorf("notifications %+v", items)
 	}
 }

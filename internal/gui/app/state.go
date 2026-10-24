@@ -236,7 +236,8 @@ func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 					}
 					r.docs[in.Value] = doc // nil for a file that cannot be opened
 				}
-				if r.docs[in.Value] == nil && !strings.HasPrefix(in.Value, document.SchemeUntitled+":") {
+				// an untitled editor without a backup and a virtual one without a provider are dropped without a word
+				if r.docs[in.Value] == nil && !strings.HasPrefix(in.Value, document.SchemeUntitled+":") && !strings.HasPrefix(in.Value, document.SchemeVirtual+":") {
 					r.dropped++
 				}
 			}
@@ -245,25 +246,29 @@ func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 	visit(r.state.Grid.Root)
 }
 
-// openSavedDocument opens the document of a saved input (the value of TextInput.Serialize: a file URI or an
-// untitled one). A document that has a backup comes back from it.
+// openSavedDocument opens the document of a saved input (the value of TextInput.Serialize: a file URI, an
+// untitled one or a virtual one). A document that has a backup comes back from it.
 func (w *Window) openSavedDocument(ctx context.Context, r *restoredWindow, value string) (*document.Document, error) {
 	uri, err := document.ParseURI(value)
 	if err != nil {
 		return nil, err
 	}
 	backup, hasBackup := r.backups[value]
-	switch {
-	case uri.Scheme == document.SchemeFile && uri.Path != "" && hasBackup:
+	switch uri.Scheme {
+	case document.SchemeUntitled:
+		if !hasBackup {
+			return nil, errors.New("SavedUntitledWithoutBackup", "a saved untitled editor has no backup", "uri", value)
+		}
 		return w.restoreFromBackup(ctx, r, uri, backup)
-	case uri.Scheme == document.SchemeFile && uri.Path != "":
-		return w.Documents.OpenFile(ctx, uri.Path, document.NewOptions())
-	case uri.Scheme == document.SchemeUntitled && hasBackup:
-		return w.restoreFromBackup(ctx, r, uri, backup)
-	case uri.Scheme == document.SchemeUntitled:
-		return nil, errors.New("SavedUntitledWithoutBackup", "a saved untitled editor has no backup", "uri", value)
+	case document.SchemeVirtual:
+		// generated again; a provider that is gone drops the editor
+		return w.Documents.OpenVirtual(ctx, uri)
 	}
-	return nil, errors.New("SavedEditorNotAFile", "a saved editor is not a file", "uri", value)
+	// a file (ParseURI knows no other scheme)
+	if hasBackup {
+		return w.restoreFromBackup(ctx, r, uri, backup)
+	}
+	return w.Documents.OpenFile(ctx, uri.Path, document.NewOptions())
 }
 
 // takeRestored gives the shell what PrepareRestore found, once.

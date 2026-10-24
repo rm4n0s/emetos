@@ -1,0 +1,4 @@
+{
+	// the one setting that the search for "font" shows as modified (proof of step 8.2)
+	"editor.fontFamily": "Noto Sans Mono, monospace"
+}

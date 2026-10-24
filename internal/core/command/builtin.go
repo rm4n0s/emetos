@@ -764,7 +764,8 @@ func registerRecentCommands(r *Registry) {
 // workbench.action.openSettings (Ctrl+,; the title "Settings" is that of the rows of the Preferences and Manage
 // menus, and the palette leaves it out as VS Code does: it lists "Preferences: Open Settings (UI)", which is
 // workbench.action.openSettings2) and Open Workspace Settings, which needs a folder. Step 8.2 adds the commands
-// that open the JSON files.
+// that open the JSON files: Open User Settings (JSON), Open Workspace Settings (JSON), Open Default Settings (JSON)
+// and Open User Settings (the User tab of the editor); the palette has all of them.
 //
 // Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
 func registerSettingsCommands(r *Registry) {
@@ -772,5 +773,9 @@ func registerSettingsCommands(r *Registry) {
 		Meta{ID: "workbench.action.openSettings", Title: "Settings"},
 		Meta{ID: "workbench.action.openSettings2", Title: "Open Settings (UI)", Category: "Preferences"},
 		Meta{ID: "workbench.action.openWorkspaceSettings", Title: "Open Workspace Settings", Category: "Preferences"},
+		Meta{ID: "workbench.action.openSettingsJson", Title: "Open User Settings (JSON)", Category: "Preferences"},
+		Meta{ID: "workbench.action.openGlobalSettings", Title: "Open User Settings", Category: "Preferences"},
+		Meta{ID: "workbench.action.openRawDefaultSettings", Title: "Open Default Settings (JSON)", Category: "Preferences"},
+		Meta{ID: "workbench.action.openWorkspaceSettingsFile", Title: "Open Workspace Settings (JSON)", Category: "Preferences"},
 	)
 }

@@ -331,6 +331,7 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 		ctx:            ctx,
 	}
 	w.Notifications = notify.NewPresenter(w.Notify)
+	w.Documents.SetVirtual(p.Virtual)
 	if folder == "" {
 		w.emptyID = o.stateID
 	}
@@ -384,6 +385,8 @@ type Documents struct {
 	closeWatchers []*func(doc *document.Document)
 	// openWatchers are told of every document that is opened (WatchOpen).
 	openWatchers []*func(doc *document.Document)
+	// virtual makes the content of the `emetos-virtual:` documents (SetVirtual).
+	virtual *document.VirtualRegistry
 }
 
 // notifyOpen tells the watchers of a document that was added to the set.
@@ -494,7 +497,59 @@ func (d *Documents) SetLanguageDetector(detect func(path, firstLine string) stri
 
 // NewDocuments makes an empty set.
 func NewDocuments() *Documents {
-	return &Documents{open: map[document.URI]*document.Document{}}
+	return &Documents{open: map[document.URI]*document.Document{}, virtual: document.NewVirtualRegistry()}
+}
+
+// SetVirtual makes the set open the `emetos-virtual:` documents through the providers of a registry (SPEC §7.1).
+// A set starts with a registry that has no provider.
+func (d *Documents) SetVirtual(r *document.VirtualRegistry) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.virtual = r
+}
+
+// OpenVirtual returns the read-only document of an `emetos-virtual:` URI, with the content its provider makes now:
+// a document that is open already gets the new content (when it differs; the undo history is empty, as the
+// document is never edited). Call it on the thread that owns the documents. It fails with the tags
+// VirtualURIUnknown and VirtualGenerateFailed.
+func (d *Documents) OpenVirtual(ctx context.Context, uri document.URI) (*document.Document, error) {
+	d.mu.Lock()
+	registry := d.virtual
+	d.mu.Unlock()
+	content, err := registry.Generate(ctx, uri)
+	if err != nil {
+		return nil, err
+	}
+	d.mu.Lock()
+	if doc, ok := d.open[uri]; ok {
+		d.mu.Unlock()
+		if doc.Text() != content.Text {
+			doc.SetText(content.Text)
+		}
+		return doc, nil
+	}
+	doc := document.NewVirtual(uri, content)
+	d.open[uri] = doc
+	d.order = append(d.order, uri)
+	onOpen := d.onOpen
+	d.mu.Unlock()
+	d.track(doc)
+	if onOpen != nil {
+		onOpen(doc)
+	}
+	d.notifyOpen(doc)
+	return doc, nil
+}
+
+// AcquireVirtual is OpenVirtual for a document that an editor is about to show: it counts the editor as a user of
+// the document (see Acquire).
+func (d *Documents) AcquireVirtual(ctx context.Context, uri document.URI) (*document.Document, error) {
+	doc, err := d.OpenVirtual(ctx, uri)
+	if err != nil {
+		return nil, err
+	}
+	d.Retain(doc)
+	return doc, nil
 }
 
 // OpenFile returns the document of a file, reading it if it is not open yet. The error

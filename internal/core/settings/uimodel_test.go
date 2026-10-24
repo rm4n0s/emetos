@@ -182,7 +182,7 @@ func TestModelVisibility(t *testing.T) {
 		t.Error("window and resource settings are in the Workspace tab")
 	}
 	// the search
-	found := keys(TargetUser, func(r Row) bool { return MatchText(r, "font size") })
+	found := keys(TargetUser, func(r Row) bool { return r.Key == "editor.fontSize" })
 	if !slices.Contains(found, "editor.fontSize") || slices.Contains(found, "editor.tabSize") {
 		t.Errorf("found %v", found)
 	}
@@ -348,9 +348,9 @@ func TestModelErrors(t *testing.T) {
 		do    func() error
 		route string
 	}{
-		{"invalid input", func() error { return m.SetText(ctx, "editor.tabSize", TargetUser, "abc") }, "UIModel.SetText.SettingInputInvalid"},
-		{"out of range", func() error { return m.SetText(ctx, "editor.tabSize", TargetUser, "0") }, "UIModel.SetText.SettingInputInvalid"},
-		{"unregistered", func() error { return m.SetText(ctx, "nope.nope", TargetUser, "1") }, "UIModel.SetText.SettingUnregistered"},
+		{"invalid input", func() error { return m.SetText(ctx, "editor.tabSize", TargetUser, "abc") }, "UIModel.SetText->UIModel.SetTextFor.SettingInputInvalid"},
+		{"out of range", func() error { return m.SetText(ctx, "editor.tabSize", TargetUser, "0") }, "UIModel.SetText->UIModel.SetTextFor.SettingInputInvalid"},
+		{"unregistered", func() error { return m.SetText(ctx, "nope.nope", TargetUser, "1") }, "UIModel.SetText->UIModel.SetTextFor.SettingUnregistered"},
 		{"application setting in the workspace", func() error { return m.SetValue(ctx, "test.app", TargetWorkspace, true) }, "Store.write.SettingScopeInvalid"},
 		{"no workspace", func() error {
 			f.store.opts.WorkspacePath = ""
@@ -388,22 +388,6 @@ func TestRenderDescription(t *testing.T) {
 		got := RenderDescription(c.in)
 		if !reflect.DeepEqual(got, c.want) {
 			t.Errorf("RenderDescription(%q) = %+v, want %+v", c.in, got, c.want)
-		}
-	}
-}
-
-func TestMatchText(t *testing.T) {
-	_, m := uiFixture(t)
-	row, _ := m.Row("editor.tabSize", TargetUser, "")
-	for _, c := range []struct {
-		query string
-		want  bool
-	}{
-		{"", true}, {"tab", true}, {"TAB SIZE", true}, {"size tab", true}, {"editor.tabsize", true},
-		{"spaces", true}, {"zzz", false}, {"tab zzz", false},
-	} {
-		if got := MatchText(row, c.query); got != c.want {
-			t.Errorf("MatchText(%q) = %v", c.query, got)
 		}
 	}
 }

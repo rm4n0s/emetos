@@ -75,6 +75,9 @@ type Row struct {
 	Deprecated string
 	// Invalid is a message when the value in the file is not allowed by the setting (the editor shows the default).
 	Invalid string
+	// Language is the language id of a row that shows the language block of a file ("go" for "[go]": {...}), or
+	// empty for the plain settings.
+	Language string
 
 	setting Setting
 }
@@ -111,6 +114,18 @@ func (m *UIModel) Store() *Store { return m.store }
 // workspace may set (VS Code hides the application and machine settings there). Empty groups are not in it.
 // match, when not nil, keeps the settings it accepts (the search).
 func (m *UIModel) Categories(target Target, match func(Row) bool) []*Category {
+	return m.filterTree(target, func(s Setting, groupID string) bool {
+		if match == nil {
+			return true
+		}
+		row, ok := m.rowIn(s, target, "", groupID)
+		return ok && match(row)
+	})
+}
+
+// filterTree is the groups of the settings with the settings keep accepts (given the id of the group it is
+// listed in), in the order of the layout; the groups left empty are dropped.
+func (m *UIModel) filterTree(target Target, keep func(s Setting, groupID string) bool) []*Category {
 	m.mu.Lock()
 	if !m.built || m.version != m.store.reg.Version() {
 		m.tree = BuildCategories(m.toc, m.store.reg.All())
@@ -126,11 +141,8 @@ func (m *UIModel) Categories(target Target, match func(Row) bool) []*Category {
 			if !ok || !visibleIn(s, target) {
 				continue
 			}
-			if match != nil {
-				row, ok := m.rowIn(s, target, c.ID)
-				if !ok || !match(row) {
-					continue
-				}
+			if keep != nil && !keep(s, c.ID) {
+				continue
 			}
 			out.Keys = append(out.Keys, key)
 		}
@@ -161,30 +173,48 @@ func visibleIn(s Setting, target Target) bool {
 // Row describes a setting for a target, in the group the setting is shown in (the group says which part of
 // the title is left out; "" is none). It reports false for a key that is not registered.
 func (m *UIModel) Row(key string, target Target, groupID string) (Row, bool) {
+	return m.RowFor(key, target, "", groupID)
+}
+
+// RowFor is Row for the language block of a language ("@lang:go"): the value shown is the one the "[go]" block of
+// the file of the target sets, else the one the defaults give the language, else the default; the row is modified
+// when the block of that file sets the setting. A language "" is Row.
+func (m *UIModel) RowFor(key string, target Target, language, groupID string) (Row, bool) {
 	s, ok := m.store.reg.Lookup(key)
 	if !ok {
 		return Row{}, false
 	}
-	return m.rowIn(s, target, groupID)
+	return m.rowIn(s, target, language, groupID)
 }
 
-func (m *UIModel) rowIn(s Setting, target Target, groupID string) (Row, bool) {
+func (m *UIModel) rowIn(s Setting, target Target, language, groupID string) (Row, bool) {
 	category, label := KeyToDisplayFormat(s.Key, groupID)
-	in := m.store.Inspect(s.Key, "")
+	in := m.store.Inspect(s.Key, language)
 	r := Row{
 		Key: s.Key, Category: category, Label: label, Description: s.Description, Kind: kindOf(s),
 		Default: in.Default.Value, Minimum: s.Minimum, Maximum: s.Maximum, Deprecated: s.Deprecated, setting: s,
+		Language: language,
 	}
 	if !in.Default.Ok {
 		r.Default = s.Default
 	}
-	r.Value = r.Default
 	own, other := in.User, in.Workspace
 	otherName := "Workspace"
 	if target == TargetWorkspace {
 		own, other = in.Workspace, in.User
 		otherName = "User"
 	}
+	if language != "" {
+		// the language block of the file: a default that the language gives wins over the plain default
+		if in.DefaultLanguage.Ok {
+			r.Default = in.DefaultLanguage.Value
+		}
+		own, other = in.UserLanguage, in.WorkspaceLanguage
+		if target == TargetWorkspace {
+			own, other = in.WorkspaceLanguage, in.UserLanguage
+		}
+	}
+	r.Value = r.Default
 	if own.Ok {
 		r.Modified = true
 		r.Value = own.Value
@@ -193,7 +223,7 @@ func (m *UIModel) rowIn(s Setting, target Target, groupID string) (Row, bool) {
 			r.Invalid, r.Value = msg, r.Default
 		}
 	}
-	if other.Ok && (target != TargetUser || !in.WorkspaceIgnored) {
+	if other.Ok && language == "" && (target != TargetUser || !in.WorkspaceIgnored) {
 		r.AlsoModifiedIn = append(r.AlsoModifiedIn, otherName)
 	}
 	if r.Kind == KindEnum {
@@ -323,13 +353,26 @@ func (r Row) Checked() bool {
 
 // SetValue writes a value of a setting in the file of the target. It fails with the tags of Store.Update.
 func (m *UIModel) SetValue(ctx context.Context, key string, target Target, value any) error {
-	return m.store.Update(ctx, key, value, target)
+	return m.SetValueFor(ctx, key, target, "", value)
+}
+
+// SetValueFor is SetValue inside the block of a language ("[go]": {...}) when language is not empty.
+func (m *UIModel) SetValueFor(ctx context.Context, key string, target Target, language string, value any) error {
+	if language == "" {
+		return m.store.Update(ctx, key, value, target)
+	}
+	return m.store.UpdateForLanguage(ctx, key, language, value, target)
 }
 
 // SetText parses the text of an input box and writes the value; a text the setting does not allow
 // fails with the tag SettingInputInvalid, whose message is the one to show, and writes nothing.
 func (m *UIModel) SetText(ctx context.Context, key string, target Target, text string) error {
-	row, ok := m.Row(key, target, "")
+	return m.SetTextFor(ctx, key, target, "", text)
+}
+
+// SetTextFor is SetText inside the block of a language when language is not empty.
+func (m *UIModel) SetTextFor(ctx context.Context, key string, target Target, language, text string) error {
+	row, ok := m.RowFor(key, target, language, "")
 	if !ok {
 		return errors.New("SettingUnregistered", "the setting is not registered", "key", key)
 	}
@@ -337,12 +380,21 @@ func (m *UIModel) SetText(ctx context.Context, key string, target Target, text s
 	if msg != "" {
 		return errors.New("SettingInputInvalid", msg, "key", key)
 	}
-	return m.store.Update(ctx, key, value, target)
+	return m.SetValueFor(ctx, key, target, language, value)
 }
 
 // Reset removes the setting from the file of the target ("Reset Setting"): the layers below show again.
 func (m *UIModel) Reset(ctx context.Context, key string, target Target) error {
 	return m.store.Remove(ctx, key, target)
+}
+
+// ResetFor is Reset inside the block of a language when language is not empty: the key leaves the block, and the
+// block goes when it has no other setting.
+func (m *UIModel) ResetFor(ctx context.Context, key string, target Target, language string) error {
+	if language == "" {
+		return m.store.Remove(ctx, key, target)
+	}
+	return m.store.RemoveForLanguage(ctx, key, language, target)
 }
 
 // Span is a piece of a description: plain text, a code span or a link.
@@ -413,16 +465,4 @@ func renderLine(line string) []Span {
 		}
 	}
 	return out
-}
-
-// MatchText is the plain-text search of the editor: the words of query (separated by spaces) must all be in the
-// key, the title or the description of the row, whatever the case.
-func MatchText(r Row, query string) bool {
-	hay := strings.ToLower(r.Key + " " + r.Title() + " " + r.Description)
-	for _, word := range strings.Fields(strings.ToLower(query)) {
-		if !strings.Contains(hay, word) {
-			return false
-		}
-	}
-	return true
 }

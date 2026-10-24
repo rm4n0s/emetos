@@ -28,6 +28,9 @@ type Options struct {
 	LineEnding fileio.LineEnding
 	// ReadOnly makes the document refuse edits.
 	ReadOnly bool
+	// Label is the name the document is shown with when its URI does not say it (a virtual document, such as
+	// "Default Settings"); empty means the title of the URI.
+	Label string
 }
 
 // NewOptions are Options with VS Code's defaults.
@@ -55,6 +58,7 @@ type Document struct {
 	insertSpaces bool
 	largeFile    bool
 	readOnly     bool
+	label        string
 	stat         fileio.FileStat
 
 	// orphaned and conflict are the state of the file on disk (external.go); saveGen counts the saves that were
@@ -88,6 +92,7 @@ func New(uri URI, text string, opts Options) *Document {
 		tabSize:      opts.TabSize,
 		insertSpaces: opts.InsertSpaces,
 		readOnly:     opts.ReadOnly,
+		label:        opts.Label,
 	}
 	if d.languageID == "" {
 		d.languageID = DefaultLanguage
@@ -118,6 +123,9 @@ func FromRead(uri URI, res fileio.ReadResult, opts Options) *Document {
 
 // URI is the document's identity.
 func (d *Document) URI() URI { return d.uri }
+
+// Label is the name of the document when its URI does not give a good one (Options.Label), or "".
+func (d *Document) Label() string { return d.label }
 
 type uriListener struct{ fn func(oldURI, newURI URI) }
 

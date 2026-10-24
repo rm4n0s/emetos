@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -104,8 +105,8 @@ func newRig(t *testing.T, o rigOpts) *rig {
 func (r *rig) editor(o rigOpts) widgets.Widget {
 	return NewEditor(Options{
 		Model: r.model, Context: context.Background(), State: o.state, HasFolder: o.hasFolder, Controller: r.ctl,
-		CodeFont: testutil.MonoFamily,
-		OnState:  func(s editorgroup.SettingsViewState) { r.states = append(r.states, s) },
+		CodeFont: testutil.MonoFamily, Languages: testLanguages,
+		OnState: func(s editorgroup.SettingsViewState) { r.states = append(r.states, s) },
 		OnOpenJSON: func(t settings.Target, key string) {
 			r.opened = append(r.opened, openCall{t, key})
 		},
@@ -140,3 +141,16 @@ func (r *rig) read(path string) string {
 }
 
 var _ = painting.AlignmentTopLeft
+
+// testLanguages finds Go, JSON and Markdown by id or name, whatever the case.
+func testLanguages(name string) (id, display string, ok bool) {
+	switch strings.ToLower(name) {
+	case "go":
+		return "go", "Go", true
+	case "json":
+		return "json", "JSON", true
+	case "markdown":
+		return "markdown", "Markdown", true
+	}
+	return "", "", false
+}

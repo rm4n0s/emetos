@@ -377,7 +377,8 @@ func registerQuickInputMenus(r *MenuRegistry) {
 
 // registerSettingsMenus adds the rows of the settings editor (step 8.1): the Preferences submenu of the File menu
 // with Settings (Ctrl+,), the same row in the Manage menu, and the palette rules: "Settings" is left out of the
-// palette (VS Code lists openSettings2 instead) and Open Workspace Settings needs a folder.
+// palette (VS Code lists openSettings2 instead) and Open Workspace Settings needs a folder. Step 8.2 adds the same
+// rule for Open Workspace Settings (JSON); the other JSON commands are in the palette only, as in VS Code.
 //
 // Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
 func registerSettingsMenus(r *MenuRegistry) {
@@ -388,5 +389,6 @@ func registerSettingsMenus(r *MenuRegistry) {
 
 		MenuItem{Menu: CommandPalette, Command: "workbench.action.openSettings", When: contextkey.False()},
 		MenuItem{Menu: CommandPalette, Command: "workbench.action.openWorkspaceSettings", When: when("workbenchState != 'empty'")},
+		MenuItem{Menu: CommandPalette, Command: "workbench.action.openWorkspaceSettingsFile", When: when("workbenchState != 'empty'")},
 	)
 }

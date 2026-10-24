@@ -451,8 +451,8 @@ func (s *shellState) saveDocumentAs(doc *document.Document, req saveRequest, don
 			done(ok)
 		}
 	}
-	if doc.ReadOnly() && doc.URI().Scheme == document.SchemeFile {
-		s.saveDocument(doc, req, done) // says why it cannot
+	if doc.ReadOnly() {
+		s.saveDocument(doc, req, done) // says why it cannot (a read-only file, and a virtual document)
 		return
 	}
 	// auto save leaves the document alone while the dialog waits, and tries it again if the dialog gives nothing

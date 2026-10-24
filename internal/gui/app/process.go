@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/comment"
+	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/language"
@@ -70,6 +71,9 @@ type Process struct {
 	Launcher *Launcher
 	// Windows is the manager of the windows of the process: it opens, replaces and closes them (windows.go).
 	Windows *Windows
+	// Virtual holds the providers of the read-only `emetos-virtual:` documents (SPEC §7.1), such as the default
+	// settings.
+	Virtual *document.VirtualRegistry
 
 	scanTimeout time.Duration
 	// backupAfter, backupWrite and backupMax are ProcessOptions.BackupAfter, BackupWriteFile and BackupMaxSize.
@@ -206,6 +210,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.closing = autoclose.NewRegistryLanguages(languages)
 	p.comments = comment.NewRegistryLanguages(languages)
 	p.Windows = newWindows(p)
+	p.registerVirtualDocuments()
 	p.Menus = command.DefaultMenus(p.Commands)
 	p.Menus.SetProvider(command.MenubarRecentMenu, p.recentMenuItems)
 	p.Views = command.DefaultViews()

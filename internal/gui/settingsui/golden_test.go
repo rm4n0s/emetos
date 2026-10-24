@@ -64,3 +64,30 @@ func TestGoldenSettingsEditor(t *testing.T) {
 		})
 	}
 }
+
+// TestGoldenSettingsSearch looks at the search: the results for "font" with the count under the box, the counts in
+// the tree and a modified row; the settings of a language (@lang:go) with the block's value and the header; and the
+// result of a search that finds nothing, with the hint of an unsupported filter.
+func TestGoldenSettingsSearch(t *testing.T) {
+	for _, th := range goldenThemes {
+		t.Run(th.name+" font", func(t *testing.T) {
+			r := newRig(t, rigOpts{colors: th.colors(), size: ui.Size{Width: 900, Height: 820}, userText: "{\n  // my font\n  \"editor.fontSize\": 16\n}\n"})
+			r.show("font")
+			r.ts.Pump(pump)
+			testutil.MatchesGolden(r.ts, "settings_font_"+th.name)
+		})
+		t.Run(th.name+" a language", func(t *testing.T) {
+			r := newRig(t, rigOpts{colors: th.colors(), size: goldenSize,
+				userText: "{\n  \"editor.tabSize\": 2,\n  \"[go]\": {\n    \"editor.tabSize\": 8\n  }\n}\n"})
+			r.show("@lang:go tab")
+			r.ts.Pump(pump)
+			testutil.MatchesGolden(r.ts, "settings_lang_"+th.name)
+		})
+		t.Run(th.name+" nothing found", func(t *testing.T) {
+			r := newRig(t, rigOpts{colors: th.colors(), size: goldenSize})
+			r.show("@tag:accessibility zzzzqqq")
+			r.ts.Pump(pump)
+			testutil.MatchesGolden(r.ts, "settings_empty_"+th.name)
+		})
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/jsonc"
@@ -61,8 +62,8 @@ func (p *settingsPane) build(bc widgets.BuildContext, group *editorgroup.Group, 
 	return p.wrap(p.s, group, settingsui.NewEditor(settingsui.Options{
 		Model: win.SettingsModel(), Context: win.ctx, State: p.input.ViewState(),
 		OnState: p.noteState, HasFolder: win.Folder != "",
-		OnOpenJSON: p.s.openSettingsJSON, OnError: p.s.settingsWriteFailed, CopyText: p.s.copyText,
-		CodeFont: code, Controller: p.ctl,
+		OnOpenJSON: p.s.runOpenJSON, OnError: p.s.settingsWriteFailed, CopyText: p.s.copyText,
+		Languages: win.resolveLanguage, CodeFont: code, Controller: p.ctl,
 	}))
 }
 
@@ -145,45 +146,122 @@ func (s *shellState) openSettingsEditor(target editorgroup.SettingsTarget, query
 	s.refreshKeys()
 }
 
-// settingsCommands are the handlers of the commands that open the settings editor: the argument of Settings is
-// the search text ({"query": "..."} or a string), as VS Code's. With workbench.settings.editor set to json they
-// open the settings.json of the user instead.
+// settingsCommands are the handlers of the commands that open the settings editor and the settings files. The
+// argument of Settings, Open Settings (UI), Open User Settings and Open Workspace Settings is the search text (a
+// string, or {"query": "..."}), as VS Code's, and {"revealSetting": {"key": "editor.fontSize"}} searches for that
+// setting; with workbench.settings.editor set to json they open settings.json instead. Open User Settings (JSON) and
+// Open Workspace Settings (JSON) open the files, with the cursor on {"revealSetting": {"key": ...}} when the file has
+// it, and Open Default Settings (JSON) opens the read-only document of every default (SPEC §7.1, §11.1).
 func (s *shellState) settingsCommands() map[string]command.Handler {
 	open := func(target editorgroup.SettingsTarget) command.Handler {
 		return func(_ command.Context, args any) error {
 			win := PeekWindow(s.Context())
-			query := settingsQueryOf(args)
+			opts := settingsArgsOf(args)
 			if settings.Get[string](win.Settings, "workbench.settings.editor", "") == "json" {
 				t := settings.TargetUser
 				if target == editorgroup.SettingsWorkspace {
 					t = settings.TargetWorkspace
 				}
-				s.openSettingsJSON(t, "")
+				s.openSettingsJSON(t, opts.reveal)
 				return nil
+			}
+			query := opts.query
+			if query == "" && opts.reveal != "" {
+				query = settings.IDFilter + opts.reveal
 			}
 			s.openSettingsEditor(target, query)
 			return nil
 		}
 	}
+	file := func(target settings.Target) command.Handler {
+		return func(_ command.Context, args any) error {
+			s.openSettingsJSON(target, settingsArgsOf(args).reveal)
+			return nil
+		}
+	}
 	return map[string]command.Handler{
-		"workbench.action.openSettings":          open(editorgroup.SettingsUser),
-		"workbench.action.openSettings2":         open(editorgroup.SettingsUser),
-		"workbench.action.openWorkspaceSettings": open(editorgroup.SettingsWorkspace),
+		"workbench.action.openSettings":              open(editorgroup.SettingsUser),
+		"workbench.action.openSettings2":             open(editorgroup.SettingsUser),
+		"workbench.action.openGlobalSettings":        open(editorgroup.SettingsUser),
+		"workbench.action.openWorkspaceSettings":     open(editorgroup.SettingsWorkspace),
+		"workbench.action.openSettingsJson":          file(settings.TargetUser),
+		"workbench.action.openWorkspaceSettingsFile": file(settings.TargetWorkspace),
+		"workbench.action.openRawDefaultSettings": func(command.Context, any) error {
+			return s.openDefaultSettings()
+		},
 	}
 }
 
-// settingsQueryOf reads the search text of the argument of a command that opens the settings: a string, or an
-// object with a "query".
-func settingsQueryOf(args any) string {
+// settingsArgs are the arguments of the commands that open settings (VS Code's IOpenSettingsActionOptions, the part
+// Emetos uses).
+type settingsArgs struct {
+	// query is the search text, reveal the key of {"revealSetting": {"key"}}.
+	query, reveal string
+}
+
+// settingsArgsOf reads the argument of a command that opens settings: a string is the search text, an object may
+// have a "query" and a "revealSetting" with a "key". Anything else is ignored, as VS Code's sanitizeOpenSettingsArgs
+// does.
+func settingsArgsOf(args any) settingsArgs {
 	switch a := args.(type) {
 	case string:
-		return a
+		return settingsArgs{query: a}
 	case map[string]any:
+		var out settingsArgs
 		if q, ok := a["query"].(string); ok {
-			return q
+			out.query = q
 		}
+		if r, ok := a["revealSetting"].(map[string]any); ok {
+			if key, ok := r["key"].(string); ok {
+				out.reveal = key
+			}
+		}
+		return out
 	}
-	return ""
+	return settingsArgs{}
+}
+
+// runOpenJSON is the button and the link of the settings editor: they run the command for the file of the tab, as
+// VS Code's do, so that a key bound to the command or a handler that replaces it takes part.
+func (s *shellState) runOpenJSON(target settings.Target, key string) {
+	win := PeekWindow(s.Context())
+	id := "workbench.action.openSettingsJson"
+	if target == settings.TargetWorkspace {
+		id = "workbench.action.openWorkspaceSettingsFile"
+	}
+	var args any
+	if key != "" {
+		args = map[string]any{"revealSetting": map[string]any{"key": key}}
+	}
+	if err := win.Commands.Run(command.Context{Ctx: win.ctx, Keys: win.Keys, Source: command.SourceAPI}, id, args); err != nil {
+		win.Process.Logger.Warn("cannot open the settings file", "err", err)
+		win.Notify.Error("Emetos", "Cannot open the settings file: "+describe(err))
+	}
+}
+
+// openDefaultSettings shows the read-only document of the default settings (made again from the registry each time).
+func (s *shellState) openDefaultSettings() error {
+	win := PeekWindow(s.Context())
+	binding := widgets.WidgetsBindingOf(s.Context())
+	doc, err := win.Documents.AcquireVirtual(win.ctx, document.VirtualURI(DefaultSettingsPath))
+	if err != nil {
+		return err
+	}
+	s.show(binding, doc, openOptions{})
+	return nil
+}
+
+// resolveLanguage finds a language by its id or its name for the filter @lang: of the settings editor.
+func (w *Window) resolveLanguage(name string) (id, display string, ok bool) {
+	id, ok = w.Process.Languages.ByName(strings.TrimSpace(name))
+	if !ok {
+		return "", "", false
+	}
+	display = id
+	if l, found := w.Process.Languages.Language(id); found && l.Name != "" {
+		display = l.Name
+	}
+	return id, display, true
 }
 
 // ---- settings.json ----

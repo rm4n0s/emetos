@@ -370,6 +370,7 @@ func TestTextInputOfDocumentsThatAreNotFiles(t *testing.T) {
 	untitled := document.New(document.UntitledURI(2), "", document.NewOptions())
 	virtual := document.New(document.VirtualURI("settings.json"), "{}", document.NewOptions())
 	virtual.SetReadOnly(true)
+	labelled := document.NewVirtual(document.VirtualURI("/defaultSettings.json"), document.VirtualContent{Text: "{}", Label: "Default Settings", Language: "jsonc"})
 	for _, tc := range []struct {
 		name      string
 		in        *TextInput
@@ -378,7 +379,8 @@ func TestTextInputOfDocumentsThatAreNotFiles(t *testing.T) {
 		serialize bool
 	}{
 		{"untitled", NewTextInput(untitled, TextInputOpts{}), "Untitled-2", CapCanSplit | CapUntitled, true}, // restored from its backup (step 7.6)
-		{"virtual and read-only", NewTextInput(virtual, TextInputOpts{}), "settings.json", CapCanSplit | CapReadonly, false},
+		{"virtual and read-only", NewTextInput(virtual, TextInputOpts{}), "settings.json", CapCanSplit | CapReadonly, true},
+		{"virtual with a label", NewTextInput(labelled, TextInputOpts{}), "Default Settings", CapCanSplit | CapReadonly, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.in.Name() != tc.wantName || tc.in.Description() != "" {
@@ -391,8 +393,8 @@ func TestTextInputOfDocumentsThatAreNotFiles(t *testing.T) {
 			if ok != tc.serialize {
 				t.Errorf("serialize ok = %v", ok)
 			}
-			if ok && value != "untitled:2" {
-				t.Errorf("serialized %q, want the URI of the untitled document", value)
+			if ok && value != tc.in.Document().URI().String() {
+				t.Errorf("serialized %q, want the URI of the document", value)
 			}
 			if !tc.in.Capabilities().Has(CapCanSplit) {
 				t.Error("a text editor can be split")

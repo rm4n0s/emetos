@@ -894,9 +894,17 @@ func TestDefaultOpenRecentMenu(t *testing.T) {
 func TestSettingsMenus(t *testing.T) {
 	reg := DefaultRegistry()
 	menus := DefaultMenus(reg)
-	for _, id := range []string{"workbench.action.openSettings", "workbench.action.openSettings2", "workbench.action.openWorkspaceSettings"} {
-		if _, ok := reg.Lookup(id); !ok {
+	for id, title := range map[string]string{
+		"workbench.action.openSettings": "Settings", "workbench.action.openSettings2": "Open Settings (UI)",
+		"workbench.action.openWorkspaceSettings": "Open Workspace Settings", "workbench.action.openSettingsJson": "Open User Settings (JSON)",
+		"workbench.action.openGlobalSettings": "Open User Settings", "workbench.action.openRawDefaultSettings": "Open Default Settings (JSON)",
+		"workbench.action.openWorkspaceSettingsFile": "Open Workspace Settings (JSON)",
+	} {
+		meta, ok := reg.Lookup(id)
+		if !ok {
 			t.Errorf("command %s is not registered", id)
+		} else if meta.Title != title || (id != "workbench.action.openSettings" && meta.Category != "Preferences") {
+			t.Errorf("%s: %+v", id, meta)
 		}
 	}
 	rowsOf := func(menu string) []string {
@@ -938,6 +946,11 @@ func TestSettingsMenus(t *testing.T) {
 		{"workbench.action.openSettings2", empty, true},
 		{"workbench.action.openWorkspaceSettings", empty, false},
 		{"workbench.action.openWorkspaceSettings", folder, true},
+		{"workbench.action.openWorkspaceSettingsFile", empty, false},
+		{"workbench.action.openWorkspaceSettingsFile", folder, true},
+		{"workbench.action.openSettingsJson", empty, true},
+		{"workbench.action.openRawDefaultSettings", empty, true},
+		{"workbench.action.openGlobalSettings", empty, true},
 	} {
 		if got := shown(c.command, c.ctx); got != c.want {
 			t.Errorf("%s shown in the palette = %v, want %v", c.command, got, c.want)

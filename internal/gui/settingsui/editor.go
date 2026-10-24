@@ -3,12 +3,14 @@ package settingsui
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
+	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -37,6 +39,10 @@ const (
 	OpenJSONTooltip = "Open Settings (JSON)"
 	// NoResultsText is what the list says while nothing matches the search.
 	NoResultsText = "No Settings Found."
+	// LanguageHeaderPrefix is the text before the name of the language in the title of the list of @lang:.
+	LanguageHeaderPrefix = "Language: "
+	// ClearSearchTooltip is the tooltip of the button that clears the search box.
+	ClearSearchTooltip = "Clear Search Results"
 )
 
 // Options are the options of NewEditor.
@@ -56,6 +62,9 @@ type Options struct {
 	// OnOpenJSON opens the settings.json of a target in a text editor, at the key of a setting when it is not
 	// empty. The button of the header and the "Edit in settings.json" link call it.
 	OnOpenJSON func(target settings.Target, key string)
+	// Languages finds the language of the filter @lang: by its id or name; without it the text after @lang: is the
+	// id of a language that exists.
+	Languages settings.LanguageResolver
 	// OnError is told of a write that failed (the file has errors, cannot be written); the owner shows it.
 	OnError func(err error)
 	// CopyText puts a text on the clipboard ("Copy Setting ID").
@@ -163,7 +172,8 @@ type editorState struct {
 	headers  map[string]*kit.Bounds
 	tree     *kit.TreeModel
 	treeCtl  *kit.TreeController
-	// cats are the groups the list shows; order is their ids and the ids of their rows flattened.
+	// result is the search of the query; cats are its groups, the ones the list shows.
+	result    settings.SearchResult
 	cats      []*settings.Category
 	treeSig   string
 	stop      func()
@@ -192,6 +202,14 @@ func (s *editorState) InitState() {
 	if w.opts.Controller != nil {
 		w.opts.Controller.state = s
 	}
+	// Escape in the search box clears it
+	s.search.FocusNode().SetOnKeyEvent(func(_ *widgets.FocusNode, ev services.KeyEvent) widgets.KeyEventResult {
+		if _, down := ev.(*services.KeyDownEvent); !down || ev.LogicalKey() != services.LogicalKeyboardKeyEscape || s.search.Value() == "" {
+			return widgets.KeyEventResultIgnored
+		}
+		s.search.SetValue("")
+		return widgets.KeyEventResultHandled
+	})
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.stop = w.opts.Model.Store().OnChange(func(settings.ChangeEvent) {
 		binding.Post(func() {
@@ -275,50 +293,48 @@ func (s *editorState) afterFrame(f func()) {
 	})
 }
 
-// categories are the groups the target shows now, for the search.
-func (s *editorState) categories() []*settings.Category {
-	var match func(settings.Row) bool
-	if strings.TrimSpace(s.query) != "" {
-		q := s.query
-		match = func(r settings.Row) bool { return settings.MatchText(r, q) }
-	}
-	cats := s.Widget().opts.Model.Categories(s.target, match)
-	if match != nil {
-		// a search lists each setting once
-		out := cats[:0:0]
-		for _, c := range cats {
-			if c.ID != settings.CommonlyUsedID {
-				out = append(out, c)
-			}
-		}
-		cats = out
-	}
-	return cats
+// runSearch finds the settings the target shows for the text of the search box (core/settings, Search).
+func (s *editorState) runSearch() settings.SearchResult {
+	return s.Widget().opts.Model.Search(s.target, s.query, s.Widget().opts.Languages)
 }
+
+// language is the language whose block the rows show and edit (@lang:), or "".
+func (s *editorState) language() string { return s.result.Language }
 
 // ---- tree ----
 
-func treeItems(cats []*settings.Category) []kit.TreeItem {
+// treeItems are the groups as the items of the tree; while a search shows (counts), the label of a group has the
+// number of settings found in it and below it, as VS Code's "Font (3)".
+func treeItems(cats []*settings.Category, counts bool) []kit.TreeItem {
 	out := make([]kit.TreeItem, len(cats))
 	for i, c := range cats {
-		out[i] = kit.TreeItem{Key: c.ID, Data: c, Label: c.Label, Children: treeItems(c.Children)}
+		out[i] = kit.TreeItem{Key: c.ID, Data: c, Label: treeLabel(c, counts), Children: treeItems(c.Children, counts)}
 	}
 	return out
 }
 
-func categorySig(cats []*settings.Category) string {
+// treeLabel is the text of a group in the tree.
+func treeLabel(c *settings.Category, counts bool) string {
+	if !counts {
+		return c.Label
+	}
+	return c.Label + " (" + strconv.Itoa(c.Count()) + ")"
+}
+
+func categorySig(cats []*settings.Category, counts bool) string {
 	var b strings.Builder
 	for _, c := range cats {
-		c.Walk(func(c *settings.Category) { b.WriteString(c.ID + ",") })
+		c.Walk(func(c *settings.Category) { b.WriteString(treeLabel(c, counts) + "|" + c.ID + ",") })
 	}
 	return b.String()
 }
 
 // syncTree gives the tree the groups the list shows, all expanded, and selects the current group.
 func (s *editorState) syncTree() {
-	if sig := categorySig(s.cats); sig != s.treeSig {
+	counts := s.result.Active
+	if sig := categorySig(s.cats, counts); sig != s.treeSig {
 		s.treeSig = sig
-		if err := s.tree.SetItems(treeItems(s.cats)); err == nil {
+		if err := s.tree.SetItems(treeItems(s.cats, counts)); err == nil {
 			s.tree.ExpandAll()
 		}
 	}
@@ -405,7 +421,7 @@ func (s *editorState) fail(err error) {
 
 func (s *editorState) set(key string, value any) {
 	w := s.Widget()
-	if err := w.opts.Model.SetValue(w.opts.Context, key, s.target, value); err != nil {
+	if err := w.opts.Model.SetValueFor(w.opts.Context, key, s.target, s.language(), value); err != nil {
 		s.fail(err)
 	}
 	s.SetState(func() {})
@@ -413,7 +429,7 @@ func (s *editorState) set(key string, value any) {
 
 func (s *editorState) setText(key, text string) {
 	w := s.Widget()
-	if err := w.opts.Model.SetText(w.opts.Context, key, s.target, text); err != nil {
+	if err := w.opts.Model.SetTextFor(w.opts.Context, key, s.target, s.language(), text); err != nil {
 		s.fail(err)
 	}
 	s.SetState(func() {})
@@ -421,7 +437,7 @@ func (s *editorState) setText(key, text string) {
 
 func (s *editorState) reset(key string) {
 	w := s.Widget()
-	if err := w.opts.Model.Reset(w.opts.Context, key, s.target); err != nil {
+	if err := w.opts.Model.ResetFor(w.opts.Context, key, s.target, s.language()); err != nil {
 		s.fail(err)
 	}
 	s.SetState(func() {})
@@ -459,7 +475,8 @@ func (s *editorState) codeFont() string {
 // Build implements widgets.State.
 func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	colors := kit.ThemeOf(bc)
-	s.cats = s.categories()
+	s.result = s.runSearch()
+	s.cats = s.result.Categories
 	s.syncTree()
 	if s.restore > 0 {
 		s.restoreView()
@@ -492,8 +509,15 @@ func (s *editorState) restoreView() {
 // header is the search box over the tabs and the button that opens the JSON file, with a line under it.
 func (s *editorState) header(bc widgets.BuildContext, colors kit.Colors) widgets.Widget {
 	w := s.Widget()
+	var trailing []widgets.Widget
+	if s.query != "" {
+		trailing = append(trailing, kit.NewIconButton(fonts.CodiconClearAll, kit.IconButtonOpts{
+			Tooltip: ClearSearchTooltip, OnPressed: func() { s.search.SetValue("") },
+		}))
+	}
 	search := kit.NewInputBox(nil, nil, kit.InputBoxOpts{
 		Controller: s.search, Placeholder: searchPlaceholer, OnChanged: s.queryChanged, Autofocus: w.opts.Autofocus,
+		Trailing: trailing,
 	})
 	tabs := tabStrip(bc, colors, []tabButton{
 		{label: UserTabLabel, checked: s.target == settings.TargetUser, onTap: func() { s.setTarget(settings.TargetUser) }},
@@ -512,8 +536,24 @@ func (s *editorState) header(bc widgets.BuildContext, colors kit.Colors) widgets
 				Border: painting.Border{Bottom: painting.NewBorderSide(painting.BorderSideOpts{Color: foundation.Some(colors.SettingsHeaderBorder), Width: foundation.Some(1.0)})},
 			}),
 		})
+	parts := []widgets.Widget{search}
+	if s.result.Active {
+		parts = append(parts, s.resultsNote(bc, colors))
+	}
+	parts = append(parts, controls)
 	return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(headerSide, headerTop, headerSide, 0),
-		widgets.NewColumn([]widgets.Widget{search, controls}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}))
+		widgets.NewColumn(parts, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}))
+}
+
+// resultsNote is the line under the search box: how many settings were found ("3 Settings Found"), and a line for
+// each filter that was ignored or found nothing.
+func (s *editorState) resultsNote(bc widgets.BuildContext, colors kit.Colors) widgets.Widget {
+	lines := []widgets.Widget{textOf(bc, s.result.Summary(), descriptionFontSize, colors.Foreground, 0)}
+	for _, hint := range s.result.Hints {
+		lines = append(lines, textOf(bc, hint, descriptionFontSize, colors.Foreground.WithOpacity(0.8), 0))
+	}
+	return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(2, 6, 0, 0),
+		widgets.NewColumn(lines, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart, MainAxisSize: rendering.MainAxisSizeMin}))
 }
 
 // noWorkspaceTooltip is the tooltip of the Workspace tab: the reason it is disabled.
@@ -540,10 +580,13 @@ func (s *editorState) tocPane(colors kit.Colors) widgets.Widget {
 // with the wheel and the scrollbar.
 func (s *editorState) listPane(bc widgets.BuildContext, colors kit.Colors) widgets.Widget {
 	var children []widgets.Widget
+	if s.result.Language != "" && len(s.cats) > 0 {
+		children = append(children, s.languageHeader(bc, colors))
+	}
 	s.eachCategory(func(c *settings.Category) {
 		children = append(children, s.groupHeader(bc, colors, c))
 		for _, key := range c.Keys {
-			row, ok := s.Widget().opts.Model.Row(key, s.target, c.ID)
+			row, ok := s.Widget().opts.Model.RowFor(key, s.target, s.result.Language, c.ID)
 			if !ok {
 				continue
 			}
@@ -561,6 +604,18 @@ func (s *editorState) listPane(bc widgets.BuildContext, colors kit.Colors) widge
 		s.scrolled()
 		return false
 	}, scrolled)
+}
+
+// languageHeader is the title of the list while it shows the settings of a language (@lang:): the rows show and edit
+// the "[go]" block of the file of the tab.
+func (s *editorState) languageHeader(bc widgets.BuildContext, colors kit.Colors) widgets.Widget {
+	id := s.result.Language
+	title := textOf(bc, LanguageHeaderPrefix+s.result.LanguageName, 22, colors.SettingsHeaderForeground, ui.FontWeightW600)
+	note := textOf(bc, "The settings below are those of the "+settings.OverrideKey(id)+" block of the file.", descriptionFontSize, colors.Foreground.WithOpacity(0.9), 0)
+	return widgets.NewKeyedSubtree(widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(groupTitleSide, groupTitlePad, groupTitlePad, 0),
+		widgets.NewColumn([]widgets.Widget{title, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(4.0)}), note},
+			widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart, MainAxisSize: rendering.MainAxisSizeMin})),
+		widgets.WidgetOpts{Key: foundation.NewValueKey("settingsui-language")})
 }
 
 // groupHeader is the title of a group: 26 px for a group of the first level, 22 px for the second, 18 px below.

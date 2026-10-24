@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/jsonc"
@@ -635,7 +636,60 @@ func (s *Store) editText(text string, path jsonc.Path, value any, remove bool) (
 	if err != nil {
 		return "", nil, false, err
 	}
+	if remove && updated != text && len(path) >= 2 {
+		// the last setting of a language block takes the block with it (VS Code's ConfigurationEditing does
+		// not leave "[go]": {} behind)
+		if block, ok := path[0].(string); ok && IsOverrideKey(block) {
+			pruned, err := s.pruneEmptyBlock(updated, jsonc.Path{block}, opts)
+			if err != nil {
+				return "", nil, false, err
+			}
+			if pruned != updated {
+				updated = pruned
+				edits = []jsonc.Edit{diffEdit(text, updated)}
+			}
+		}
+	}
 	return updated, edits, updated != text, nil
+}
+
+// pruneEmptyBlock removes the object at path from the text when it has no property left.
+func (s *Store) pruneEmptyBlock(text string, path jsonc.Path, opts jsonc.FormattingOptions) (string, error) {
+	root, errs := jsonc.ParseTree(text, jsonc.ParseOptions{AllowEmptyContent: true})
+	if len(errs) > 0 || root == nil {
+		return text, nil
+	}
+	node := jsonc.FindNodeAtLocation(root, path)
+	if node == nil || node.Type != jsonc.ObjectNode || len(node.Children) > 0 {
+		return text, nil
+	}
+	edits, err := jsonc.Remove(text, path, opts)
+	if err != nil {
+		return "", err
+	}
+	return jsonc.ApplyEdits(text, edits)
+}
+
+// diffEdit is the one edit that turns before into after: it replaces what is between their common start and end.
+func diffEdit(before, after string) jsonc.Edit {
+	start := 0
+	for start < len(before) && start < len(after) && before[start] == after[start] {
+		start++
+	}
+	endBefore, endAfter := len(before), len(after)
+	for endBefore > start && endAfter > start && before[endBefore-1] == after[endAfter-1] {
+		endBefore--
+		endAfter--
+	}
+	// never cut inside a character
+	for start > 0 && start < len(before) && !utf8.RuneStart(before[start]) {
+		start--
+	}
+	for endBefore < len(before) && !utf8.RuneStart(before[endBefore]) {
+		endBefore++
+		endAfter++
+	}
+	return jsonc.Edit{Offset: start, Length: endBefore - start, Content: after[start:endAfter]}
 }
 
 // Keys returns the dotted keys set in a file, sorted; the settings UI lists them.

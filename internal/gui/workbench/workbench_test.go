@@ -771,9 +771,12 @@ var windowAppCommands = map[string]bool{
 var recentAppCommands = map[string]bool{"workbench.action.openRecent": true, "workbench.action.clearRecentFiles": true}
 
 // settingsAppCommands are the commands that open the settings editor, which the app binds since the editor groups are its
-// own (step 8.1).
+// own (steps 8.1 and 8.2).
 var settingsAppCommands = map[string]bool{
 	"workbench.action.openSettings": true, "workbench.action.openSettings2": true, "workbench.action.openWorkspaceSettings": true,
+	// the JSON files and the default settings (step 8.2)
+	"workbench.action.openSettingsJson": true, "workbench.action.openGlobalSettings": true, "workbench.action.openRawDefaultSettings": true,
+	"workbench.action.openWorkspaceSettingsFile": true,
 }
 
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {

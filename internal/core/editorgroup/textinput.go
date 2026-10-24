@@ -82,8 +82,14 @@ func (t *TextInput) TypeID() string { return TextInputTypeID }
 // Resource implements EditorInput.
 func (t *TextInput) Resource() (document.URI, bool) { return t.doc.URI(), true }
 
-// Name implements EditorInput: the name of the file, or Untitled-n.
-func (t *TextInput) Name() string { return t.doc.URI().Title() }
+// Name implements EditorInput: the name of the file, Untitled-n, or the label of a virtual document ("Default
+// Settings").
+func (t *TextInput) Name() string {
+	if label := t.doc.Label(); label != "" {
+		return label
+	}
+	return t.doc.URI().Title()
+}
 
 // Description implements EditorInput: the folder of the file, relative to the folder of the
 // window when it is below it, else with the home folder written "~". It is empty for a document
@@ -123,7 +129,7 @@ func tilde(path, home string) string {
 func (t *TextInput) Title() string {
 	uri := t.doc.URI()
 	if uri.Scheme != document.SchemeFile {
-		return uri.Title()
+		return t.Name()
 	}
 	return tilde(uri.Path, t.opts.Home)
 }
@@ -152,14 +158,16 @@ func (t *TextInput) Capabilities() Capabilities {
 	return c
 }
 
-// Serialize implements EditorInput: the URI of a file, or of an untitled document ("untitled:3"), which the
-// backup of the document (hot exit, SPEC §10.10) is named by. A virtual document is not restored.
+// Serialize implements EditorInput: the URI of a file, of an untitled document ("untitled:3"), which the
+// backup of the document (hot exit, SPEC §10.10) is named by, or of a virtual document, which comes back when a
+// provider still makes it (SPEC §7.1).
 func (t *TextInput) Serialize() (string, bool) {
 	uri := t.doc.URI()
-	if uri.Scheme != document.SchemeFile && uri.Scheme != document.SchemeUntitled {
-		return "", false
+	switch uri.Scheme {
+	case document.SchemeFile, document.SchemeUntitled, document.SchemeVirtual:
+		return uri.String(), true
 	}
-	return uri.String(), true
+	return "", false
 }
 
 // CopyInput implements Copier: another input for the same document, with the same options.
