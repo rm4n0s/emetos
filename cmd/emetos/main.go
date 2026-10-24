@@ -44,7 +44,7 @@ Options:
   -w, --wait                      end only when the files that were opened are closed (for git commit)
   -n, --new-window                open in a new window
   -r, --reuse-window              open in the existing window
-      --profile name              use the profile
+      --profile name              use the profile (made empty when it does not exist)
       --log level                 log level: debug, info, warn or error (default info)
   -v, --version                   print the version and exit
   -h, --help                      print this help and exit

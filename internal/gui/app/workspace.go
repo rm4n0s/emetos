@@ -10,7 +10,6 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
-	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 )
 
@@ -31,6 +30,8 @@ type watchState struct {
 	userSettings, workspaceSettings, userDir string
 	// userKeybindings is the keybindings.json of the user.
 	userKeybindings string
+	// userStop stops the watch of userDir; nil while it is not watched.
+	userStop func()
 }
 
 // SnippetWorkspace is what snippets know of the folder of the window: WORKSPACE_NAME and
@@ -280,7 +281,12 @@ func (w *Window) watchUserFolder() {
 	st := &w.watch
 	st.mu.Lock()
 	watcher, ctx, dir := st.watcher, st.ctx, st.userDir
+	oldStop := st.userStop
+	st.userStop = nil
 	st.mu.Unlock()
+	if oldStop != nil {
+		oldStop() // the folder of the profile the window had
+	}
 	if watcher == nil || dir == "" {
 		return
 	}
@@ -288,9 +294,20 @@ func (w *Window) watchUserFolder() {
 		w.Process.Logger.Warn("cannot make the configuration folder", "path", dir, "err", err)
 		return
 	}
-	if _, err := watcher.Watch(ctx, workspace.Target{Path: dir, Recursive: true}); err != nil {
+	stop, err := watcher.Watch(ctx, workspace.Target{Path: dir, Recursive: true})
+	if err != nil {
 		w.Process.Logger.Warn("cannot watch the configuration folder", "path", dir, "err", err)
+		return
 	}
+	st.mu.Lock()
+	if st.userDir != dir || st.userStop != nil {
+		// the profile changed again while the folder was being watched: the newer watch is the one that counts
+		st.mu.Unlock()
+		stop()
+		return
+	}
+	st.userStop = stop
+	st.mu.Unlock()
 }
 
 // followFile watches a file that is open, if it is outside the folder of the window (the folder
@@ -358,10 +375,7 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 	userSettings, workspaceSettings, userKeybindings := st.userSettings, st.workspaceSettings, st.userKeybindings
 	st.mu.Unlock()
 	var settingsChanged, snippetsChanged, keybindingsChanged bool
-	snippetsDir := ""
-	if w.Process.Snippets != nil {
-		snippetsDir = w.Process.Snippets.Dir()
-	}
+	snippetsDir := w.Snippets.Dir()
 	touches := func(p, file string) bool { return file != "" && (p == file || isBelow(file, p)) }
 	for _, e := range events {
 		for _, p := range []string{e.Path, e.OldPath} {
@@ -389,7 +403,7 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 		w.userKeys.reload(ctx, true)
 	}
 	if snippetsChanged {
-		if err := w.Process.Snippets.Reload(ctx); err != nil {
+		if err := w.Snippets.Reload(ctx); err != nil {
 			w.Process.Logger.Warn("reading the snippets again failed", "err", err)
 		}
 	}
@@ -433,12 +447,12 @@ func (w *Window) rememberSettingsPaths(userSettings string, p *Process) {
 	st := &w.watch
 	st.userSettings = userSettings
 	if w.userKeys != nil {
-		st.userKeybindings = w.userKeys.path
+		st.userKeybindings = w.userKeys.filePath()
 	}
 	if w.Folder != "" {
 		st.workspaceSettings = settings.WorkspaceSettingsPath(w.Folder)
 	}
-	if dir, err := p.Paths.ConfigDir(storage.DefaultProfile); err == nil {
+	if dir, err := p.Paths.ConfigDir(w.Profile()); err == nil {
 		st.userDir = dir
 	}
 }

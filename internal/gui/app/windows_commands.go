@@ -52,7 +52,34 @@ func (w *Window) registerWindowCommands() {
 			return err
 		})
 		set("dev.notify", devNotifyHandler(w.Notify, w.Process.Logger))
+		set("dev.switchProfile", func(c command.Context, args any) error {
+			name, err := parseSwitchProfile(args)
+			if err != nil {
+				return err
+			}
+			ctx := c.Ctx
+			if ctx == nil {
+				ctx = w.ctx
+			}
+			return w.SwitchProfile(ctx, name)
+		})
 	}
+}
+
+// parseSwitchProfile reads the arguments of dev.switchProfile: {"name": "..."}, or just the name as a string; the
+// default profile is "Default". The tag is DevSwitchProfileInvalid.
+func parseSwitchProfile(args any) (string, error) {
+	var name string
+	switch v := args.(type) {
+	case string:
+		name = v
+	case map[string]any:
+		name, _ = v["name"].(string)
+	}
+	if name == "" {
+		return "", errors.New("DevSwitchProfileInvalid", `dev.switchProfile needs a profile name or {"name": ...}`, "arguments", args)
+	}
+	return name, nil
 }
 
 // parseOpenFolderInNewWindow reads the arguments of dev.openFolderInNewWindow: {"path": "..."}, or just the path

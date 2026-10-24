@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"math"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -20,7 +21,9 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -49,8 +52,17 @@ type Window struct {
 	// Workspace is the model of the folder: its tree, read lazily and kept up to date by the watcher
 	// (SPEC §10.5). It is nil when no folder is open.
 	Workspace *workspace.Workspace
-	// Settings is the store of the user's and the workspace's settings.
+	// Settings is the store of the user's and the workspace's settings. Its user layer is the settings.json of the
+	// profile of the window (SwitchProfile moves it).
 	Settings *settings.Store
+	// Snippets are the snippet files of the profile of the window, in the snippets folder of its configuration
+	// (SPEC §9.9, §10.12). The watcher of the window reloads them when they change; SwitchProfile gives the
+	// service the folder of the other profile.
+	Snippets *snippet.Service
+	// Themes is the theme service of the window: it picks the color theme from the settings of the window and the
+	// system's brightness (SPEC §8.4). Each window has its own, since the profiles of two windows may choose
+	// different themes.
+	Themes *theme.Service
 	// Keys is the root scope of the context keys of the window.
 	Keys *contextkey.Scope
 	// Documents are the documents open in the window.
@@ -125,6 +137,13 @@ type Window struct {
 	Quit func()
 
 	ctx context.Context
+	// profileMu guards profile and profileListeners: the file watchers and the other windows read the profile from
+	// their own goroutines.
+	profileMu sync.RWMutex
+	// profile is the profile of the window (storage.DefaultProfile, the empty string, for the default one); it is
+	// changed on the UI thread only (SwitchProfile).
+	profile          string
+	profileListeners []*func(profile string)
 	// entry is the window in the list of the windows of the process (Windows); nil until the shell registers it.
 	entry *windowEntry
 	// shell is the state of the shell that shows the window; nil until it is made and after it is gone.
@@ -285,6 +304,8 @@ type windowOptions struct {
 	// stateID is the id of the state of a window without a folder (a window that comes back from the list of open
 	// windows, or a new one); empty lets the process pick one.
 	stateID string
+	// profile is the profile of the window, as storage.Profiles gives it (empty is the default profile).
+	profile string
 	// from is the window whose test seams (Quit, SaveDialog, OpenURI, OnChordStatus) the new one takes over: the
 	// window it replaces.
 	from *Window
@@ -293,7 +314,11 @@ type windowOptions struct {
 // newWindow is NewWindow with options.
 func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error) {
 	folder := o.folder
-	userPath, err := settings.UserSettingsPath(p.Paths, storage.DefaultProfile)
+	userPath, err := settings.UserSettingsPath(p.Paths, o.profile)
+	if err != nil {
+		return nil, err
+	}
+	snippetsDir, err := snippetsDirOf(p.Paths, o.profile)
 	if err != nil {
 		return nil, err
 	}
@@ -320,6 +345,9 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 		Notify:         notify.NewService(p.Logger, nil),
 		Folder:         folder,
 		Settings:       store,
+		Snippets:       snippet.NewService(snippetsDir),
+		Themes:         p.newThemes(),
+		profile:        o.profile,
 		Keys:           contextkey.NewRoot(),
 		Documents:      NewDocuments(),
 		Keybindings:    resolver,
@@ -351,7 +379,10 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 	w.followZen()
 	w.registerWindowCommands()
 	w.settingsDocs = newSettingsDocs(w)
-	keysPath, err := keybinding.UserKeybindingsPath(p.Paths, storage.DefaultProfile)
+	if err := w.Snippets.Reload(ctx); err != nil {
+		p.Logger.Warn("snippets", "err", err)
+	}
+	keysPath, err := keybinding.UserKeybindingsPath(p.Paths, o.profile)
 	if err != nil {
 		return nil, err
 	}
@@ -372,6 +403,15 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 	w.followTheme()
 	w.followLanguages()
 	return w, nil
+}
+
+// snippetsDirOf is the folder of the snippet files of a profile.
+func snippetsDirOf(paths storage.Paths, profile string) (string, error) {
+	dir, err := paths.ConfigDir(profile)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "snippets"), nil
 }
 
 // Documents are the documents open in a window, by URI. It is safe for concurrent use,

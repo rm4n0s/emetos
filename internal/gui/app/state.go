@@ -99,6 +99,12 @@ func (w *Window) initState(ctx context.Context) {
 	if err != nil {
 		w.Process.Logger.Warn("the global UI state could not be used", "err", err)
 	}
+	// the folder is used with the profile of the window now: the next window of the folder opens with it
+	if folder != "" {
+		if err := w.Process.Profiles.SetLastProfile(ctx, folder, w.Profile()); err != nil {
+			w.Process.Logger.Warn("the profile of the folder could not be noted", "folder", folder, "err", err)
+		}
+	}
 }
 
 // StateID is the id of the window's UI state file (storage.WindowID of its folder, or the id of the window with
@@ -163,7 +169,7 @@ func (w *Window) restoreUIState(ctx context.Context, r *restoredWindow) (geometr
 	if restoreMode(w.Settings) == "none" {
 		return nil, false
 	}
-	st, found, err := w.Process.State.LoadWindow(ctx, w.stateID)
+	st, found, err := w.stateStore().LoadWindow(ctx, w.stateID)
 	if err != nil {
 		w.Process.Logger.Warn("the saved UI state of the window cannot be used; it starts as new", "err", err)
 		return nil, false
@@ -438,7 +444,7 @@ func (s *shellState) snapshotState() {
 		st.timer()
 		st.timer = nil
 	}
-	if err := win.Process.State.SaveWindow(win.stateID, s.windowState()); err != nil {
+	if err := win.stateStore().SaveWindow(win.stateID, s.windowState()); err != nil {
 		win.Process.Logger.Warn("the UI state of the window cannot be saved", "err", err)
 	}
 	if st.geometry.Valid() {
@@ -464,7 +470,7 @@ func (s *shellState) flushState() {
 		return
 	}
 	s.snapshotState()
-	if err := win.Process.State.Flush(context.WithoutCancel(win.ctx)); err != nil {
+	if err := win.Process.flushStates(context.WithoutCancel(win.ctx)); err != nil {
 		win.Process.Logger.Warn("the UI state cannot be written", "err", err)
 	}
 }

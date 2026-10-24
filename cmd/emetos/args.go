@@ -8,6 +8,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/internal/core/storage"
 )
 
 // options are the parsed command line (SPEC §10.11). The paths are as typed: buildOpen makes them absolute and
@@ -50,7 +52,7 @@ var optionSpecs = []spec{
 	{short: 'd', long: "diff", values: 2, apply: func(o *options, v []string) error { o.diff = v; return nil }},
 	{short: 'm', long: "merge", values: 4, apply: func(o *options, v []string) error { o.merge = v; return nil }},
 	{long: "profile", values: 1, apply: func(o *options, v []string) error {
-		if !validProfileName(v[0]) {
+		if !storage.ValidProfileName(v[0]) {
 			return errors.New("ArgsProfileInvalid", "a profile name has 1 to 64 letters, digits, spaces, - or _", "name", v[0])
 		}
 		o.profile = v[0]
@@ -63,26 +65,6 @@ var optionSpecs = []spec{
 		return nil
 	}},
 }
-
-// validProfileName tells whether s is a profile name: 1 to 64 letters, digits, spaces, '-' and '_' (SPEC §10.12).
-func validProfileName(s string) bool {
-	n := utf8.RuneCountInString(s)
-	if n < 1 || n > 64 {
-		return false
-	}
-	for _, r := range s {
-		switch {
-		case r == ' ', r == '-', r == '_':
-		case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
-		case r > 127 && isLetter(r):
-		default:
-			return false
-		}
-	}
-	return true
-}
-
-func isLetter(r rune) bool { return strings.ToUpper(string(r)) != strings.ToLower(string(r)) }
 
 // parseArgs parses the command line by hand (SPEC §10.11):
 //

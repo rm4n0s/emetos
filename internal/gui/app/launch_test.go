@@ -252,8 +252,10 @@ func TestLaunchNotices(t *testing.T) {
 			[]LaunchOutcome{{ExitCode: 1, Message: DiffUnavailableNotice}}, false},
 		{"merge", ipc.OpenArgs{Merge: []string{"/1", "/2", "/3", "/4"}}, []string{MergeUnavailableNotice},
 			[]LaunchOutcome{{ExitCode: 1, Message: MergeUnavailableNotice}}, false},
-		{"profile", ipc.OpenArgs{Profile: "work"}, []string{"Profiles are not available yet: --profile work is ignored."},
+		// the manager picks the window that has the profile; a window that is asked for another one keeps its own and says so
+		{"profile of another window", ipc.OpenArgs{Profile: "work"}, []string{"The window uses the profile 'Default'."},
 			[]LaunchOutcome{{}}, true},
+		{"the profile of the window", ipc.OpenArgs{Profile: "default"}, nil, []LaunchOutcome{{}}, true},
 		// the manager of the windows decides where a launch opens (Windows.HandleLaunch); the window itself opens files
 		{"new window", ipc.OpenArgs{NewWindow: true}, nil, []LaunchOutcome{{}}, true},
 		{"reuse window", ipc.OpenArgs{ReuseWindow: true}, nil, []LaunchOutcome{{}}, true},
@@ -581,8 +583,8 @@ func TestStartupArgumentsOfTheFirstInstance(t *testing.T) {
 	if got := primarySelection(a.editorFor("a.go")).Active; got != (buffer.Position{Line: 1, Col: 2}) {
 		t.Errorf("the cursor is at %+v", got)
 	}
-	// the new window of the first instance is nothing to say; the profile gets its notice
-	if got := a.notices(); !slices.Equal(got, []string{"Profiles are not available yet: --profile p is ignored."}) {
+	// the new window of the first instance is nothing to say; the window does not use the profile, and says so
+	if got := a.notices(); !slices.Equal(got, []string{"The window uses the profile 'Default'."}) {
 		t.Errorf("notices %q", got)
 	}
 	if win.startup != nil {

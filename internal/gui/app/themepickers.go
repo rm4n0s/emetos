@@ -98,6 +98,19 @@ func (s *shellState) themeCommands() map[string]command.Handler {
 	}
 }
 
+// profileThemes are the theme services of the windows that use the profile of the window, the window's own first: a
+// preview of a theme shows in all of them (SPEC §8.4).
+func (w *Window) profileThemes() []*theme.Service {
+	out := []*theme.Service{w.Themes}
+	profile := w.Profile()
+	for _, e := range w.Process.Windows.entries() {
+		if e.win != w && e.win.Profile() == profile {
+			out = append(out, e.win.Themes)
+		}
+	}
+	return out
+}
+
 // themeItemID is the id of the item of a theme in the picker: a bundled theme and a user theme may share an id.
 func themeItemID(info theme.Info) string {
 	if info.Bundled {
@@ -132,7 +145,7 @@ func (s *shellState) endThemePicks() {
 // error has the tag of Service.PickerGroups.
 func (s *shellState) showColorThemePicker() error {
 	win := PeekWindow(s.Context())
-	service := win.Process.Themes
+	service := win.Themes
 	groups, err := service.PickerGroups()
 	if err != nil {
 		return err
@@ -151,9 +164,14 @@ func (s *shellState) showColorThemePicker() error {
 			})
 		}
 	}
+	// the preview shows in every window that uses the profile of this one: they have the same settings.json, so the
+	// choice would reach them all
+	services := win.profileThemes()
 	end := func() {
-		if err := service.EndPreview(); err != nil {
-			win.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
+		for _, sv := range services {
+			if err := sv.EndPreview(); err != nil && sv == service {
+				win.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
+			}
 		}
 	}
 	s.endPicks = end
@@ -165,9 +183,12 @@ func (s *shellState) showColorThemePicker() error {
 				end()
 				return
 			}
-			if err := service.Preview(e.Value); err != nil {
-				win.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
-				end()
+			for _, sv := range services {
+				if err := sv.Preview(e.Value); err != nil && sv == service {
+					win.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
+					end()
+					return
+				}
 			}
 		},
 		OnHide: func(accepted bool) {
@@ -188,8 +209,10 @@ func (s *shellState) chooseColorTheme(e theme.PickerEntry) {
 	err := win.Settings.Update(context.Background(), "workbench.colorTheme", e.Value, win.settingsTargetFor("workbench.colorTheme"))
 	// the change of the setting ended the preview with the same theme; when it was not written the preview
 	// goes
-	if endErr := win.Process.Themes.EndPreview(); endErr != nil {
-		win.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(endErr))
+	for _, sv := range win.profileThemes() {
+		if endErr := sv.EndPreview(); endErr != nil && sv == win.Themes {
+			win.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(endErr))
+		}
 	}
 	if err != nil {
 		win.Notify.Error("Emetos", "Cannot save the color theme: "+describe(err))

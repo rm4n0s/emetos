@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/settings"
-	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/theme"
@@ -53,17 +51,15 @@ type Process struct {
 	Keymap *keybinding.Registry
 	// Notify is the model of notifications.
 	Notify *notify.Service
-	// Themes is the theme service: it picks the color theme from the settings and the system's
-	// brightness (SPEC §8.4).
-	Themes *theme.Service
 	// Languages is the registry of the languages and their grammars (SPEC §8.1).
 	Languages *language.Registry
-	// Snippets are the user's snippet files, in the snippets folder of the configuration (SPEC
-	// §9.9). The workspace watcher of step 6.13 reloads them when they change.
-	Snippets *snippet.Service
-	// State reads and writes the UI state files: the recently opened folders and files and the state of each
-	// window (SPEC §10.10).
+	// State reads and writes the UI state files of the default profile: the global state (the recently opened
+	// folders and files, the open windows, the profile of each folder) that all the profiles share (SPEC
+	// §10.10, §10.12). The state of the windows is in the store of the profile of each window (StateFor).
 	State *storage.StateStore
+	// Profiles manages the profiles: the list, creating, renaming, deleting and the profile last used with each
+	// folder (SPEC §10.12).
+	Profiles *storage.Profiles
 	// WatchFiles tells whether the windows start their file watcher (ProcessOptions.WatchFiles).
 	WatchFiles bool
 	// Launcher hands the launches that other Emetos processes send over the socket (SPEC §10.11) to the windows;
@@ -76,6 +72,16 @@ type Process struct {
 	Virtual *document.VirtualRegistry
 
 	icons iconPreview
+
+	// userThemes are the themes of the user's folder of themes, which the profiles share; each window's theme
+	// service (Window.Themes) gets them.
+	userThemes []theme.UserTheme
+	// stateMu guards states, the state stores of the profiles other than the default one, made when a window
+	// first uses the profile.
+	stateMu sync.Mutex
+	states  map[string]*storage.StateStore
+	// stateOpts are the options the stores of the profiles are made with.
+	stateOpts storage.StateStoreOptions
 
 	scanTimeout time.Duration
 	// backupAfter, backupWrite and backupMax are ProcessOptions.BackupAfter, BackupWriteFile and BackupMaxSize.
@@ -185,16 +191,17 @@ func NewProcess(opts ProcessOptions) *Process {
 		panic(err)
 	}
 	p := &Process{
-		State:    state,
-		Paths:    opts.Paths,
-		Logger:   logger,
-		Logs:     opts.Logs,
-		Channels: channels,
-		Settings: defaults,
-		Commands: command.DefaultRegistry(),
-		Keymap:   keybinding.DefaultRegistry(),
-		Notify:   notify.NewService(logger, nil),
-		Themes:   theme.NewService(theme.DefaultColorRegistry()),
+		State:     state,
+		Profiles:  storage.NewProfiles(opts.Paths, storage.ProfilesOptions{State: state, Logger: logger}),
+		stateOpts: storage.StateStoreOptions{Delay: opts.StateDelay, After: opts.StateAfter, WriteFile: opts.StateWriteFile, Logger: logger},
+		Paths:     opts.Paths,
+		Logger:    logger,
+		Logs:      opts.Logs,
+		Channels:  channels,
+		Settings:  defaults,
+		Commands:  command.DefaultRegistry(),
+		Keymap:    keybinding.DefaultRegistry(),
+		Notify:    notify.NewService(logger, nil),
 
 		WatchFiles:  opts.WatchFiles,
 		Launcher:    opts.Launcher,
@@ -221,23 +228,60 @@ func NewProcess(opts ProcessOptions) *Process {
 	registerDevLog(p.Commands, p.Channels)
 	registerDevMarkers(p.Commands)
 	p.loadUserThemes()
-	p.loadSnippets()
 	return p
 }
 
-// loadSnippets makes the snippet service for the folder of the user's snippets and reads the files.
-// A folder that is not there is no snippets; a file that cannot be read is logged.
-func (p *Process) loadSnippets() {
-	dir, err := p.Paths.ConfigDir(storage.DefaultProfile)
+// StateFor is the state store of a profile: the store of the default profile is State, the others are made when
+// they are first asked for and kept. The error has the tag ProfilePathUnsafe.
+func (p *Process) StateFor(profile string) (*storage.StateStore, error) {
+	if profile == storage.DefaultProfile {
+		return p.State, nil
+	}
+	p.stateMu.Lock()
+	defer p.stateMu.Unlock()
+	if s := p.states[profile]; s != nil {
+		return s, nil
+	}
+	s, err := storage.NewStateStore(p.Paths, profile, p.stateOpts)
 	if err != nil {
-		p.Logger.Warn("snippets folder", "err", err)
-		p.Snippets = snippet.NewService("")
-		return
+		return nil, err
 	}
-	p.Snippets = snippet.NewService(filepath.Join(dir, "snippets"))
-	if err := p.Snippets.Reload(context.Background()); err != nil {
-		p.Logger.Warn("snippets", "err", err)
+	if p.states == nil {
+		p.states = map[string]*storage.StateStore{}
 	}
+	p.states[profile] = s
+	return s, nil
+}
+
+// flushStates writes every state file that waits, in the stores of all the profiles that were used. It tries
+// them all and returns the first error.
+func (p *Process) flushStates(ctx context.Context) error {
+	p.stateMu.Lock()
+	stores := make([]*storage.StateStore, 0, len(p.states)+1)
+	stores = append(stores, p.State)
+	for _, s := range p.states {
+		stores = append(stores, s)
+	}
+	p.stateMu.Unlock()
+	var first error
+	for _, s := range stores {
+		if err := s.Flush(ctx); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
+// newThemes makes the theme service of a window: the themes of the user's folder are in it, and the settings of
+// the window choose among them (Window.followTheme).
+func (p *Process) newThemes() *theme.Service {
+	service := theme.NewService(theme.DefaultColorRegistry())
+	if len(p.userThemes) > 0 {
+		if err := service.SetUserThemes(p.userThemes); err != nil {
+			p.Logger.Debug("theme from the settings is not among the user themes", "err", err)
+		}
+	}
+	return service
 }
 
 // loadUserThemes reads the themes in the user's folder of themes into the theme service. A
@@ -255,9 +299,7 @@ func (p *Process) loadUserThemes() {
 	for _, problem := range problems {
 		p.Logger.Warn("user theme", "dir", dir, "err", problem)
 	}
-	if err := p.Themes.SetUserThemes(themes); err != nil {
-		p.Logger.Debug("theme from the settings is not among the user themes", "err", err)
-	}
+	p.userThemes = themes
 }
 
 // Grammar gives the grammar of a language for tokenizing, made once and shared by the documents

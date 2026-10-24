@@ -143,6 +143,7 @@ func registerDevCommands(r *command.Registry) {
 		{ID: "dev.openFile", Description: "Open a file in the window, with the cursor at a line and a column."},
 		{ID: "dev.openMenu", Description: "Open a menu of the window: one of the menu bar, the Manage menu or the context menu of the editor."},
 		{ID: "dev.openFolderInNewWindow", Description: `Open a folder in a new window. Arguments: {"path": ...}.`},
+		{ID: "dev.switchProfile", Description: `Give the window another profile, in place. Arguments: {"name": ...}.`},
 	} {
 		// The ids are fixed, new and start with dev., so a failure is a mistake in this list.
 		if err := RegisterDev(r, meta, noEditor); err != nil {

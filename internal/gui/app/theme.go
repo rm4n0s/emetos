@@ -24,7 +24,7 @@ func themeSettings(s *settings.Store) theme.Settings {
 // as a warning.
 func (w *Window) followTheme() {
 	apply := func() {
-		if err := w.Process.Themes.Apply(themeSettings(w.Settings)); err != nil {
+		if err := w.Themes.Apply(themeSettings(w.Settings)); err != nil {
 			w.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
 		}
 	}
@@ -78,7 +78,7 @@ func (o *brightnessObserver) DidChangePlatformBrightness() { o.changed() }
 // InitState reads the system's color scheme and the theme in use, and follows both.
 func (s *themeHostState) InitState() {
 	s.binding = widgets.WidgetsBindingOf(s.Context())
-	s.service = PeekWindow(s.Context()).Process.Themes
+	s.service = PeekWindow(s.Context()).Themes
 	s.reportBrightness()
 	s.setTheme(s.service.Current())
 	s.observer = &brightnessObserver{changed: s.reportBrightness}

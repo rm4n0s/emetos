@@ -277,10 +277,10 @@ func (s *shellState) openKeybindingsJSON() {
 			}
 			if err != nil {
 				win.Process.Logger.Warn("cannot make the keybindings file", "err", err)
-				win.Notify.Error("Emetos", "Cannot open "+k.path+": "+describe(err))
+				win.Notify.Error("Emetos", "Cannot open "+k.filePath()+": "+describe(err))
 				return
 			}
-			s.openPathAt(binding, k.path, 0, 0, openOptions{})
+			s.openPathAt(binding, k.filePath(), 0, 0, openOptions{})
 		})
 	})
 }

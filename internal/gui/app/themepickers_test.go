@@ -192,10 +192,10 @@ func TestColorThemePickerPreviewsAndEscapeReverts(t *testing.T) {
 		if got := a.background(); got != tc.bg {
 			t.Errorf("%s: background %v, want %v", tc.name, got, tc.bg)
 		}
-		if got := a.win.Process.Themes.CurrentInfo().Label; got != tc.active {
+		if got := a.win.Themes.CurrentInfo().Label; got != tc.active {
 			t.Errorf("%s: the theme in use is %q", tc.name, got)
 		}
-		if !a.win.Process.Themes.Previewing() && tc.active != "Dark Modern" {
+		if !a.win.Themes.Previewing() && tc.active != "Dark Modern" {
 			t.Errorf("%s: no preview is on", tc.name)
 		}
 		if a.userText() != before {
@@ -209,7 +209,7 @@ func TestColorThemePickerPreviewsAndEscapeReverts(t *testing.T) {
 	if got := a.background(); got != darkBackground {
 		t.Errorf("after escape the background is %v", got)
 	}
-	if a.win.Process.Themes.Previewing() || a.win.Process.Themes.CurrentInfo().Label != "Dark Modern" {
+	if a.win.Themes.Previewing() || a.win.Themes.CurrentInfo().Label != "Dark Modern" {
 		t.Error("the preview is still on")
 	}
 	if a.userText() != before {
@@ -232,10 +232,10 @@ func TestColorThemePickerEnterWritesTheSetting(t *testing.T) {
 	if a.win.QuickInput.Visible() {
 		t.Error("enter left the picker open")
 	}
-	if got := a.win.Process.Themes.CurrentInfo().Label; got != want {
+	if got := a.win.Themes.CurrentInfo().Label; got != want {
 		t.Errorf("the theme is %q, want %q", got, want)
 	}
-	if a.win.Process.Themes.Previewing() {
+	if a.win.Themes.Previewing() {
 		t.Error("the preview is still on")
 	}
 	if got := a.background(); got != lightBackground {
@@ -262,7 +262,7 @@ func TestColorThemePickerEnterWritesTheSetting(t *testing.T) {
 		t.Errorf("the picker opens on %q, want %q", a.activeRow(), want)
 	}
 	a.press("escape")
-	if got := a.win.Process.Themes.CurrentInfo().Label; got != want {
+	if got := a.win.Themes.CurrentInfo().Label; got != want {
 		t.Errorf("after escape the theme is %q", got)
 	}
 	a.noErrors()
@@ -308,7 +308,7 @@ func TestColorThemeIsWrittenWhereTheSettingIs(t *testing.T) {
 					t.Errorf("the user's file changed:\n%s", userAfter)
 				}
 			}
-			if got := a.win.Process.Themes.CurrentInfo().Label; got != "Light Modern" {
+			if got := a.win.Themes.CurrentInfo().Label; got != "Light Modern" {
 				t.Errorf("the theme is %q", got)
 			}
 			a.noErrors()
@@ -337,7 +337,7 @@ func TestColorThemePickerRevertsWhenItClosesAnyOtherWay(t *testing.T) {
 			}
 			tc.close(a)
 			a.pump()
-			if a.win.Process.Themes.Previewing() {
+			if a.win.Themes.Previewing() {
 				t.Error("the preview is still on")
 			}
 			if got := a.background(); got != darkBackground {
@@ -363,8 +363,8 @@ func TestColorThemePickerFilterPreviewsTheMatch(t *testing.T) {
 	// no match: the theme in use is shown again
 	a.win.QuickInput.SetValue("zzzz")
 	a.pump()
-	if a.background() != darkBackground || a.win.Process.Themes.Previewing() {
-		t.Errorf("background %v previewing %v", a.background(), a.win.Process.Themes.Previewing())
+	if a.background() != darkBackground || a.win.Themes.Previewing() {
+		t.Errorf("background %v previewing %v", a.background(), a.win.Themes.Previewing())
 	}
 	a.win.QuickInput.Hide()
 	a.noErrors()
@@ -380,15 +380,15 @@ func TestTheSettingWinsOverAPreview(t *testing.T) {
 	}
 	// settings.json changes while the picker is open: the setting is shown, and the picker closing changes nothing
 	a.setting("workbench.colorTheme", "Dark High Contrast")
-	if a.win.Process.Themes.Previewing() {
+	if a.win.Themes.Previewing() {
 		t.Error("the preview goes on over a changed setting")
 	}
 	if a.background() != hcBackground {
 		t.Errorf("background %v, want the theme of the setting", a.background())
 	}
 	a.press("escape")
-	if a.background() != hcBackground || a.win.Process.Themes.CurrentInfo().Label != "Dark High Contrast" {
-		t.Errorf("after escape the theme is %q", a.win.Process.Themes.CurrentInfo().Label)
+	if a.background() != hcBackground || a.win.Themes.CurrentInfo().Label != "Dark High Contrast" {
+		t.Errorf("after escape the theme is %q", a.win.Themes.CurrentInfo().Label)
 	}
 	a.noErrors()
 }
@@ -400,8 +400,8 @@ func TestColorThemePickerFailsToWriteAFileWithErrors(t *testing.T) {
 	a.press("up")
 	a.press("up")
 	a.press("enter")
-	if a.win.Process.Themes.Previewing() || a.background() != darkBackground {
-		t.Errorf("the failed choice stays: previewing %v background %v", a.win.Process.Themes.Previewing(), a.background())
+	if a.win.Themes.Previewing() || a.background() != darkBackground {
+		t.Errorf("the failed choice stays: previewing %v background %v", a.win.Themes.Previewing(), a.background())
 	}
 	var told bool
 	for _, item := range a.win.Notify.Items() {
@@ -489,7 +489,7 @@ func TestColorThemePreviewReachesEveryWindow(t *testing.T) {
 	if got := backgrounds(); got[0] != lightBackground || got[1] != lightBackground {
 		t.Errorf("backgrounds after Enter %v", got)
 	}
-	if w1.Process.Themes.Previewing() {
+	if w1.Themes.Previewing() {
 		t.Error("the preview is still on")
 	}
 }
@@ -685,12 +685,12 @@ func TestThePickerDoesNotOutliveItsWindow(t *testing.T) {
 	a.press("ctrl+k ctrl+t")
 	a.press("up")
 	a.press("up")
-	if !a.win.Process.Themes.Previewing() {
+	if !a.win.Themes.Previewing() {
 		t.Fatal("no preview")
 	}
 	// the window goes away with the picker open
 	a.ts.PumpWidget(widgets.NewSizedBoxShrink(nil))
-	if a.win.Process.Themes.Previewing() {
+	if a.win.Themes.Previewing() {
 		t.Error("the preview of a window that is gone stays")
 	}
 }
@@ -804,8 +804,8 @@ func TestColorThemePickerRevertsWhenTheWindowLosesTheFocus(t *testing.T) {
 	if a.win.QuickInput.Visible() {
 		t.Fatal("the picker stays open without the focus")
 	}
-	if a.win.Process.Themes.Previewing() || a.background() != darkBackground {
-		t.Errorf("previewing %v, background %v after the picker closed with the focus", a.win.Process.Themes.Previewing(), a.background())
+	if a.win.Themes.Previewing() || a.background() != darkBackground {
+		t.Errorf("previewing %v, background %v after the picker closed with the focus", a.win.Themes.Previewing(), a.background())
 	}
 	a.noErrors()
 }

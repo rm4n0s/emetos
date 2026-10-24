@@ -50,7 +50,7 @@ func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []WindowS
 	if len(files) == 0 {
 		files = opts.Files
 	}
-	restored := p.restoredWindows(g, mode, last)
+	restored := p.restoredWindows(ctx, g, mode, last)
 	hasArgs := opts.Folder != "" || len(files) > 0
 	switch {
 	case !hasArgs:
@@ -90,6 +90,9 @@ func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []WindowS
 	if opts.Open != nil && !slices.ContainsFunc(plan, func(w WindowSpec) bool { return w.Launch != nil }) {
 		plan[0].Launch = opts.Open // the notices of the parts of the command line that come with later steps
 	}
+	if opts.Open != nil && opts.Open.Profile != "" {
+		plan = p.applyLaunchProfile(ctx, plan, opts.Open.Profile, hasArgs)
+	}
 	for i := range plan {
 		if plan[i].Folder == "" && plan[i].StateID == "" && i > 0 {
 			if id, err := storage.NewEmptyWindowID(); err == nil {
@@ -98,6 +101,44 @@ func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []WindowS
 		}
 	}
 	return plan, last
+}
+
+// applyLaunchProfile gives --profile to the window the command line opens (the one that carries the launch). A
+// window that is new, or the first one of a start with nothing restored, uses the profile (made when it is not there
+// yet, when the window is made). A window that came back from the last run keeps the profile it had, as the window of
+// a running instance does (Windows.HandleLaunch), and says so in a notice when it has the folder of the command line;
+// a command line with no folder and no files then opens a new empty window with the profile.
+func (p *Process) applyLaunchProfile(ctx context.Context, plan []WindowSpec, name string, hasArgs bool) []WindowSpec {
+	at := slices.IndexFunc(plan, func(w WindowSpec) bool { return w.Launch != nil })
+	if at < 0 {
+		return plan
+	}
+	spec := &plan[at]
+	profile, ok, err := p.Profiles.Lookup(ctx, name)
+	if err != nil {
+		p.Logger.Warn("the profile of the command line cannot be found", "profile", name, "err", err)
+	}
+	switch {
+	case spec.Profile == "":
+		spec.Profile = name
+	case ok && storage.ProfileDisplayName(profile) == spec.Profile:
+	case hasArgs && spec.Folder != "":
+		// the folder is open with another profile: its window keeps it, and the launch says so
+	default:
+		launch, files := spec.Launch, spec.Files
+		spec.Launch, spec.Files = nil, nil
+		plan = append(plan, WindowSpec{Profile: name, Launch: launch, Files: files})
+	}
+	return plan
+}
+
+// restoredProfile is the name of the profile a window that comes back from the last run uses: the profile it had,
+// as long as it exists, else the default profile.
+func (p *Process) restoredProfile(ctx context.Context, profile string) string {
+	if profile == storage.DefaultProfile || !p.Profiles.Exists(ctx, profile) {
+		return storage.DefaultProfileName
+	}
+	return profile
 }
 
 // primaryEmptyID is the id of the state of the window without a folder that the first run makes; empty when the
@@ -126,7 +167,7 @@ func (p *Process) restoreModeAtStart(ctx context.Context) string {
 // restoredWindows are the windows window.restoreWindows reopens, from the list of those that were open when the
 // application last quit. A window whose folder is gone is left out. Without a list (a state from before the
 // windows were kept) the last window is the one.
-func (p *Process) restoredWindows(g storage.GlobalState, mode, last string) []WindowSpec {
+func (p *Process) restoredWindows(ctx context.Context, g storage.GlobalState, mode, last string) []WindowSpec {
 	if mode == "none" {
 		return nil
 	}
@@ -148,7 +189,7 @@ func (p *Process) restoredWindows(g storage.GlobalState, mode, last string) []Wi
 		} else if mode == "folders" {
 			continue
 		}
-		out = append(out, WindowSpec{Folder: w.Folder, StateID: stateIDOfEmpty(w)})
+		out = append(out, WindowSpec{Folder: w.Folder, StateID: stateIDOfEmpty(w), Profile: p.restoredProfile(ctx, w.Profile)})
 	}
 	if mode == "one" && len(out) > 1 {
 		pick := out[len(out)-1]
@@ -197,7 +238,7 @@ func (p *Process) addWindowsWithBackups(ctx context.Context, g storage.GlobalSta
 		if err != nil || !store.HasBackups() {
 			continue
 		}
-		plan = append(plan, WindowSpec{Folder: w.Folder, StateID: stateIDOfEmpty(w)})
+		plan = append(plan, WindowSpec{Folder: w.Folder, StateID: stateIDOfEmpty(w), Profile: p.restoredProfile(ctx, w.Profile)})
 	}
 	return plan
 }

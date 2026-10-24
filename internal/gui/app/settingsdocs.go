@@ -54,7 +54,7 @@ func (d *settingsDocs) wants(path string) bool {
 // isKeybindings tells whether a cleaned path is the keybindings file of the user.
 func (d *settingsDocs) isKeybindings(path string) bool {
 	k := d.win.userKeys
-	return k != nil && k.path != "" && filepath.Clean(k.path) == path
+	return k != nil && k.filePath() != "" && filepath.Clean(k.filePath()) == path
 }
 
 // rescan follows the documents that show a settings file and lets go of those that do not any more (the folder of

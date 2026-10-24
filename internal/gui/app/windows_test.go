@@ -795,9 +795,9 @@ func TestSettingsReachEveryWindow(t *testing.T) {
 	if got := settings.Get[float64](w2.Settings, "editor.tabSize", ""); got != 3 {
 		t.Errorf("editor.tabSize = %v", got)
 	}
-	// the theme is the process's
-	if w1.Process.Themes != w2.Process.Themes {
-		t.Error("the windows have their own theme service")
+	// each window has its own theme service, since the profiles of the windows may differ (SPEC §10.12)
+	if w1.Themes == w2.Themes {
+		t.Error("the windows share a theme service")
 	}
 }
 

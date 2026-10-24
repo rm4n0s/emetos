@@ -21,8 +21,6 @@ const (
 	DiffUnavailableNotice = "The diff editor is not available yet."
 	// MergeUnavailableNotice is what --merge says until the merge editor exists (step 9.7).
 	MergeUnavailableNotice = "The merge editor is not available yet."
-	// ProfileUnavailableNotice is what --profile says until profiles exist (step 8.6).
-	ProfileUnavailableNotice = "Profiles are not available yet: --profile %s is ignored."
 	// LauncherClosingMessage is the reply to a launch that comes when the window is gone.
 	LauncherClosingMessage = "Emetos is closing."
 )
@@ -169,8 +167,9 @@ func (l *Launcher) manager() *Windows {
 
 // HandleLaunch carries out a launch in this window: what the command line of a second Emetos asked (SPEC §10.11),
 // once Windows.HandleLaunch has picked the window. It must run on the UI thread, with the shell on screen. The window
-// comes to the front; --diff and --merge show a notice and end with exit code 1 (and --profile a warning: they come
-// with later steps); a folder that is not the folder of the window is opened as Open Folder does (the questions
+// comes to the front; --diff and --merge show a notice and end with exit code 1 (they come with later steps);
+// --profile says in a notice that the window keeps its profile, when it is not the one asked for (Windows.HandleLaunch
+// picks or makes the window that has the profile); a folder that is not the folder of the window is opened as Open Folder does (the questions
 // about unsaved changes included);
 // then the files are opened in the active group, the first of them shown, with the cursor at the line and
 // column of a --goto. done is called once on the UI thread: at once when the launch does not wait, else when
@@ -254,9 +253,14 @@ func (w *Window) takeStartup() *ipc.OpenArgs {
 // launch is one that opens nothing else (--diff and --merge).
 func (s *shellState) launchExtras(args ipc.OpenArgs) (opensNothing bool) {
 	notify := PeekWindow(s.Context()).Notify
-	if args.Profile != "" {
-		// TODO(step 8.6): switch to the profile, or create it, in the window
-		notify.Warn("Emetos", fmt.Sprintf(ProfileUnavailableNotice, args.Profile))
+	if win := PeekWindow(s.Context()); args.Profile != "" && !win.Process.Windows.usesProfile(win, args.Profile) {
+		// the windows are picked by the profile (Windows.HandleLaunch), so this is a folder that is open with
+		// another profile, or a --reuse-window: the window keeps its profile and says so
+		if win.Folder != "" && sameFolder(win.Folder, args.Folder) {
+			notify.Info("Emetos", fmt.Sprintf(ProfileFolderOpenNotice, win.ProfileName()))
+		} else {
+			notify.Info("Emetos", fmt.Sprintf(ProfileWindowNotice, win.ProfileName()))
+		}
 	}
 	switch {
 	case len(args.Merge) > 0:

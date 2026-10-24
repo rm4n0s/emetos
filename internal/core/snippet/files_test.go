@@ -201,6 +201,50 @@ func TestServiceReload(t *testing.T) {
 	}
 }
 
+func TestServiceSetDir(t *testing.T) {
+	a, b := t.TempDir(), t.TempDir()
+	writeSnippets(t, a, "go.json", `{"one": {"prefix": "one", "body": "1"}}`)
+	writeSnippets(t, b, "go.json", `{"two": {"prefix": "two", "body": "2"}}`)
+	notDir := filepath.Join(t.TempDir(), "f")
+	if err := os.WriteFile(notDir, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(a)
+	if err := svc.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name    string
+		dir     string
+		want    []string
+		wantTag string
+	}{
+		{"another folder replaces the snippets", b, []string{"two:two"}, ""},
+		{"a folder that is not there has none", filepath.Join(t.TempDir(), "none"), nil, ""},
+		{"a file is not a folder: the old snippets are gone anyway", notDir, nil, "SnippetDirReadFailed"},
+		{"the first folder again", a, []string{"one:one"}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.SetDir(context.Background(), tt.dir)
+			if tt.wantTag != "" {
+				appErr, ok := errors.FromError(err)
+				if !ok || !appErr.HasRoute("Service.SetDir->Service.Reload.SnippetDirReadFailed") && !appErr.HasRoute("Service.Reload.SnippetDirReadFailed") {
+					t.Fatalf("unexpected failure path: %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if svc.Dir() != tt.dir {
+				t.Errorf("Dir = %q, want %q", svc.Dir(), tt.dir)
+			}
+			if got := names(svc.Snippets(Query{LanguageID: "go"})); !slices.Equal(got, tt.want) {
+				t.Errorf("snippets %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestServiceMissingDir(t *testing.T) {
 	svc := NewService(filepath.Join(t.TempDir(), "none"))
 	if err := svc.Reload(context.Background()); err != nil {

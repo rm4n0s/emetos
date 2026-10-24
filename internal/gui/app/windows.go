@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -184,8 +185,10 @@ func (m *Windows) followUserSettings(w *Window) {
 		if !slices.Contains(e.Targets, settings.TargetUser) {
 			return
 		}
+		profile := w.Profile()
 		for _, other := range m.entries() {
-			if other.win == w {
+			// a window of another profile has another settings.json
+			if other.win == w || other.win.Profile() != profile {
 				continue
 			}
 			if _, err := other.win.Settings.Reload(m.ctxOr()); err != nil {
@@ -264,7 +267,7 @@ func (m *Windows) syncOpenWindows() {
 	var list []storage.OpenWindow
 	for _, e := range m.entries() {
 		if id := e.win.stateID; id != "" {
-			list = append(list, storage.OpenWindow{ID: id, Folder: e.win.Folder})
+			list = append(list, storage.OpenWindow{ID: id, Folder: e.win.Folder, Profile: e.win.Profile()})
 		}
 	}
 	err := m.p.State.UpdateGlobal(m.ctxOr(), func(g *storage.GlobalState) bool {
@@ -438,6 +441,9 @@ type WindowSpec struct {
 	// StateID is the id of the state of a window without a folder that comes back (from the list of the open
 	// windows); empty makes a new one, which has no state to restore.
 	StateID string
+	// Profile is the name of the profile the window uses ("Default" for the default profile), made empty when it
+	// does not exist (SPEC §10.12); empty is the profile last used with the folder, else the default profile.
+	Profile string
 	// Files are opened in the window after its saved editors, the first of them shown.
 	Files []string
 	// Launch is the command line of the launch that opens the window, for the notices of the parts it does not do yet.
@@ -459,6 +465,8 @@ type preparedWindow struct {
 // NewWindow.
 func (m *Windows) prepare(ctx context.Context, spec WindowSpec, from *Window) (*preparedWindow, error) {
 	o := windowOptions{folder: spec.Folder, stateID: spec.StateID, from: from}
+	var profileProblem error
+	o.profile, profileProblem = m.windowProfile(ctx, spec)
 	if spec.Folder == "" && o.stateID == "" {
 		id, err := m.freshEmptyID()
 		if err != nil {
@@ -471,6 +479,9 @@ func (m *Windows) prepare(ctx context.Context, spec WindowSpec, from *Window) (*
 		return nil, err
 	}
 	win.startup = spec.Launch
+	if profileProblem != nil {
+		win.Notify.Warn("Emetos", fmt.Sprintf(ProfileCreateFailedNotice, spec.Profile, describe(profileProblem)))
+	}
 	geometry := win.PrepareRestore(ctx)
 	docs, blocked := win.openStartupFiles(ctx, spec.Files)
 	return &preparedWindow{win: win, geometry: geometry, docs: docs, blocked: blocked, steps: spec.Steps}, nil
@@ -846,7 +857,7 @@ func (m *Windows) RequestQuit(from *Window) {
 // written first, and the launcher stops answering.
 func (m *Windows) exitApplication(from *Window) {
 	m.quitting = true
-	if err := m.p.State.Flush(context.WithoutCancel(m.ctxOr())); err != nil {
+	if err := m.p.flushStates(context.WithoutCancel(m.ctxOr())); err != nil {
 		m.p.Logger.Warn("the UI state cannot be written", "err", err)
 	}
 	if l := m.p.Launcher; l != nil {
@@ -921,7 +932,7 @@ func (m *Windows) removeWindow(e *windowEntry) {
 	m.afterUnmount(func() {
 		w.release()
 		if w.dropState && w.stateID != "" {
-			if err := m.p.State.DeleteWindow(w.stateID); err != nil {
+			if err := w.stateStore().DeleteWindow(w.stateID); err != nil {
 				m.p.Logger.Warn("the state of a closed window cannot be removed", "err", err)
 			}
 		}
@@ -970,12 +981,16 @@ func (w *Window) release() {
 // window stays and everything in it is made again, as at the start: the services of the old window are disposed
 // and those of the new one created, and the state saved for the folder is restored. The caller closed the editors
 // of the old window (and asked about their unsaved changes). The error is that of NewWindow.
-func (m *Windows) replaceWindow(old *Window, folder string) (*Window, error) {
+func (m *Windows) replaceWindow(old *Window, folder, profile string) (*Window, error) {
 	e := old.entry
 	if e == nil || e.host == nil {
 		return nil, errors.New("WindowsUnavailable", "the window is not shown by the window manager")
 	}
-	spec := WindowSpec{Folder: folder}
+	spec := WindowSpec{Folder: folder, Profile: profile}
+	if folder == "" && profile == "" {
+		// Close Folder leaves the profile of the window as it is; a folder has the profile last used with it
+		spec.Profile = old.ProfileName()
+	}
 	pw, err := m.prepare(m.ctxOr(), spec, old)
 	if err != nil {
 		return nil, err
@@ -1116,6 +1131,12 @@ func (m *Windows) setting(w *Window, key string) string {
 // changes are answered, whether the folder is open in a window now (true also for a window that had it already, which
 // comes to the front); it may be nil. The window that gets the folder is passed to done.
 func (m *Windows) OpenFolder(from *Window, path string, src FolderSource, forceNew, forceReuse bool, done func(w *Window)) {
+	m.openFolderWith(from, path, src, forceNew, forceReuse, "", done)
+}
+
+// openFolderWith is OpenFolder for a window that opens with the profile of the name (see WindowSpec.Profile); empty
+// is the profile last used with the folder. A folder that is open already keeps the profile of its window.
+func (m *Windows) openFolderWith(from *Window, path string, src FolderSource, forceNew, forceReuse bool, profile string, done func(w *Window)) {
 	finish := func(w *Window) {
 		if done != nil {
 			done(w)
@@ -1125,7 +1146,7 @@ func (m *Windows) OpenFolder(from *Window, path string, src FolderSource, forceN
 		path = filepath.Clean(path)
 	}
 	if path == "" {
-		m.replaceFolder(from, "", finish)
+		m.replaceFolder(from, "", "", finish)
 		return
 	}
 	if from == nil {
@@ -1141,7 +1162,7 @@ func (m *Windows) OpenFolder(from *Window, path string, src FolderSource, forceN
 		elsewhere.Raise()
 		finish(elsewhere)
 	case PlaceNewWindow:
-		w, err := m.openFrom(WindowSpec{Folder: path}, from)
+		w, err := m.openFrom(WindowSpec{Folder: path, Profile: profile}, from)
 		if err != nil {
 			m.folderFailed(from, path, err)
 			finish(nil)
@@ -1149,7 +1170,7 @@ func (m *Windows) OpenFolder(from *Window, path string, src FolderSource, forceN
 		}
 		finish(w)
 	default:
-		m.replaceFolder(from, path, finish)
+		m.replaceFolder(from, path, profile, finish)
 	}
 }
 
@@ -1166,7 +1187,7 @@ func (m *Windows) folderFailed(from *Window, path string, err error) {
 
 // replaceFolder makes a window open another folder after the questions about unsaved changes. A window the manager
 // hosts is made again (replaceWindow); a window on its own changes its folder in place (Window.SetFolder).
-func (m *Windows) replaceFolder(w *Window, path string, done func(*Window)) {
+func (m *Windows) replaceFolder(w *Window, path, profile string, done func(*Window)) {
 	if w == nil {
 		done(nil)
 		return
@@ -1192,7 +1213,7 @@ func (m *Windows) replaceFolder(w *Window, path string, done func(*Window)) {
 			return
 		}
 		if w.entry != nil && w.entry.host != nil {
-			next, err := m.replaceWindow(w, path)
+			next, err := m.replaceWindow(w, path, profile)
 			if err != nil {
 				m.folderFailed(w, path, err)
 				s.resumeState()
@@ -1207,6 +1228,14 @@ func (m *Windows) replaceFolder(w *Window, path string, done func(*Window)) {
 			s.resumeState()
 			done(nil)
 			return
+		}
+		if profile != "" {
+			// a window on its own keeps its services: it moves to the profile in place
+			if _, _, err := m.p.Profiles.Ensure(w.ctx, profile); err != nil {
+				m.folderFailed(w, path, err)
+			} else if err := w.SwitchProfile(w.ctx, profile); err != nil {
+				m.p.Logger.Warn("cannot switch the profile", "profile", profile, "err", err)
+			}
 		}
 		s.resumeState()
 		done(w)
@@ -1247,9 +1276,14 @@ func (m *Windows) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (can
 		finish(LaunchOutcome{ExitCode: 1, Message: "the window is not ready"})
 		return cancel
 	}
+	// --profile (SPEC §10.12): a window of another profile is not changed; the launch opens a new window with the
+	// profile, unless --reuse-window says to use the window as it is
+	profile := args.Profile
+	needsProfile := func(w *Window) bool { return profile != "" && !args.ReuseWindow && !m.usesProfile(w, profile) }
 	switch {
 	case args.Folder != "":
-		m.OpenFolder(active, args.Folder, FolderFromLaunch, args.NewWindow, args.ReuseWindow, func(w *Window) {
+		forceNew := args.NewWindow || (needsProfile(active) && !active.emptyWindow())
+		m.openFolderWith(active, args.Folder, FolderFromLaunch, forceNew, args.ReuseWindow, profile, func(w *Window) {
 			if w == nil {
 				// the user cancelled the questions of the window that was replaced, or it failed: the files
 				// still open in the window that asked
@@ -1265,8 +1299,12 @@ func (m *Windows) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (can
 		})
 	case len(args.Files) > 0 || len(args.Diff) > 0 || len(args.Merge) > 0:
 		target := m.windowForFiles(active, args)
-		if len(args.Files) > 0 && placeFiles(m.setting(active, "window.openFilesInNewWindow"), FolderFromLaunch, args.NewWindow, args.ReuseWindow) {
-			w, err := m.openFrom(WindowSpec{}, active)
+		newWindow := len(args.Files) > 0 && placeFiles(m.setting(active, "window.openFilesInNewWindow"), FolderFromLaunch, args.NewWindow, args.ReuseWindow)
+		if len(args.Files) > 0 && needsProfile(target) {
+			newWindow = true
+		}
+		if newWindow {
+			w, err := m.openFrom(WindowSpec{Profile: profile}, active)
 			if err != nil {
 				m.p.Logger.Warn("cannot open a window for the files", "err", err)
 				active.Notify.Error("Emetos", "Cannot open a new window: "+describe(err))
@@ -1277,10 +1315,11 @@ func (m *Windows) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (can
 		target.Raise()
 		deliver(target, args)
 	default:
-		// no folder and no files: a new window with --new-window, else the active one comes to the front
+		// no folder and no files: a new window with --new-window or a profile the window does not use, else the
+		// active one comes to the front
 		target := active
-		if args.NewWindow && !args.ReuseWindow {
-			if w, err := m.openFrom(WindowSpec{}, active); err != nil {
+		if (args.NewWindow && !args.ReuseWindow) || needsProfile(active) {
+			if w, err := m.openFrom(WindowSpec{Profile: profile}, active); err != nil {
 				active.Notify.Error("Emetos", "Cannot open a new window: "+describe(err))
 			} else {
 				target = w
@@ -1290,6 +1329,12 @@ func (m *Windows) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (can
 		deliver(target, args)
 	}
 	return cancel
+}
+
+// usesProfile tells whether a window uses the profile of a name (the profile need not exist: then it does not).
+func (m *Windows) usesProfile(w *Window, name string) bool {
+	profile, ok, err := m.p.Profiles.Lookup(m.ctxOr(), name)
+	return err == nil && ok && profile == w.Profile()
 }
 
 // windowForFiles is the window that opens files without a folder: the one whose folder holds the first file, else

@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -111,6 +112,7 @@ func (s *StateStore) readGlobal(ctx context.Context) (GlobalState, error) {
 		read.LastWindow = nil
 	}
 	read.OpenWindows = cleanOpenWindows(read.OpenWindows)
+	read.LastProfiles = cleanLastProfiles(read.LastProfiles)
 	return read, nil
 }
 
@@ -130,7 +132,26 @@ func cleanOpenWindows(list []OpenWindow) []OpenWindow {
 			}
 			w.Folder = filepath.Clean(w.Folder)
 		}
+		if w.Profile != "" && !ValidProfileName(w.Profile) {
+			w.Profile = ""
+		}
 		out = append(out, w)
+	}
+	return out
+}
+
+// cleanLastProfiles drops the entries of the profile of each folder whose folder is not an absolute path or whose
+// profile is not a valid name, and cleans the paths.
+func cleanLastProfiles(m map[string]string) map[string]string {
+	var out map[string]string
+	for folder, profile := range m {
+		if !filepath.IsAbs(folder) || !ValidProfileName(profile) {
+			continue
+		}
+		if out == nil {
+			out = map[string]string{}
+		}
+		out[filepath.Clean(folder)] = profile
 	}
 	return out
 }
@@ -168,6 +189,7 @@ func cloneGlobal(g GlobalState) GlobalState {
 		g.LastWindow = &last
 	}
 	g.OpenWindows = slices.Clone(g.OpenWindows)
+	g.LastProfiles = maps.Clone(g.LastProfiles)
 	return g
 }
 

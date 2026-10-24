@@ -866,6 +866,77 @@ func TestStoreSetWorkspacePath(t *testing.T) {
 	}
 }
 
+func TestStoreSetUserPath(t *testing.T) {
+	f := newFixture(t)
+	work := filepath.Join(t.TempDir(), "work", "settings.json")
+	f.write(f.userPath, `{"test.size": 2, "test.mode": "two"}`)
+	f.write(work, `{"test.size": 6}`)
+	f.reload()
+	size := func() float64 { return Get[float64](f.store, "test.size", "") }
+	if size() != 2 {
+		t.Fatalf("test.size = %v before the switch", size())
+	}
+	tests := []struct {
+		name     string
+		path     string
+		wantSize float64
+		wantMode string
+		// changed are the keys the event of the switch names
+		changed []string
+	}{
+		{"another file replaces the layer", work, 6, "one", []string{"test.size", "test.mode"}},
+		{"a file that is not there has the defaults", filepath.Join(t.TempDir(), "none.json"), 3, "one", []string{"test.size"}},
+		{"no file drops the layer", "", 3, "one", nil},
+		{"the first file again", f.userPath, 2, "two", []string{"test.size", "test.mode"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.listeners = nil
+			ev, err := f.store.SetUserPath(context.Background(), tt.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := size(); got != tt.wantSize {
+				t.Errorf("test.size = %v, want %v", got, tt.wantSize)
+			}
+			if got := Get[string](f.store, "test.mode", ""); got != tt.wantMode {
+				t.Errorf("test.mode = %q, want %q", got, tt.wantMode)
+			}
+			for _, key := range tt.changed {
+				if !ev.Affects(key, "") {
+					t.Errorf("the event does not name %s", key)
+				}
+			}
+			if len(tt.changed) > 0 && len(f.listeners) != 1 {
+				t.Errorf("the listeners heard %d events, want 1", len(f.listeners))
+			}
+			if user, _ := f.store.Paths(); user != tt.path {
+				t.Errorf("the user path is %q, want %q", user, tt.path)
+			}
+		})
+	}
+	// an update goes to the new file
+	if _, err := f.store.SetUserPath(context.Background(), work); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.store.Update(context.Background(), "test.size", 8, TargetUser); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.read(work); !strings.Contains(got, "8") {
+		t.Errorf("the update went to %q", got)
+	}
+	if got := f.read(f.userPath); !strings.Contains(got, "2") {
+		t.Errorf("the old file changed: %q", got)
+	}
+	if _, err := f.store.SetUserPath(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	err := f.store.Update(context.Background(), "test.size", 4, TargetUser)
+	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("SettingsNoWorkspace") {
+		t.Errorf("with no file an update fails, got %v", err)
+	}
+}
+
 // TestRemoveKeepsTheRest is the table of the removal of a setting that the settings editor's "Reset Setting" makes
 // (SPEC §11.1): the comments, the other keys and the layout stay.
 func TestRemoveKeepsTheRest(t *testing.T) {

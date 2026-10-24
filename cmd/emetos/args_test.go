@@ -102,6 +102,7 @@ func TestParseArgsErrors(t *testing.T) {
 		{"diff and merge", []string{"-d", "a", "b", "-m", "1", "2", "3", "4"}, "ArgsConflict", nil},
 		{"standard input", []string{"-"}, "ArgsStdinUnsupported", nil},
 		{"empty profile", []string{"--profile", ""}, "ArgsProfileInvalid", nil},
+		{"profile with a leading space", []string{"--profile", " a"}, "ArgsProfileInvalid", nil},
 		{"profile with a slash", []string{"--profile=a/b"}, "ArgsProfileInvalid", nil},
 		{"profile too long", []string{"--profile", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "ArgsProfileInvalid", nil},
 	}
@@ -170,20 +171,5 @@ func TestParseGoto(t *testing.T) {
 				t.Errorf("parseGoto = %q %d %d, want %q %d %d", path, line, column, tt.path, tt.line, tt.column)
 			}
 		})
-	}
-}
-
-func TestValidProfileName(t *testing.T) {
-	tests := []struct {
-		name string
-		want bool
-	}{
-		{"a", true}, {"Work 2", true}, {"a-b_c", true}, {"Ünïcode", true}, {"", false}, {"a/b", false}, {"a.b", false},
-		{"tab\t", false}, {"emoji😀", false},
-	}
-	for _, tt := range tests {
-		if got := validProfileName(tt.name); got != tt.want {
-			t.Errorf("validProfileName(%q) = %v, want %v", tt.name, got, tt.want)
-		}
 	}
 }

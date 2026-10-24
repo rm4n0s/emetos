@@ -95,7 +95,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	defer func() {
 		// what is left to write (the recently opened list changed after the window closed)
-		if err := process.State.Flush(context.WithoutCancel(ctx)); err != nil {
+		if err := process.flushStates(context.WithoutCancel(ctx)); err != nil {
 			process.Logger.Warn("the UI state cannot be written", "err", err)
 		}
 	}()

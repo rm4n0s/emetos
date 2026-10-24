@@ -33,7 +33,9 @@ import (
 
 // userKeys is the keybindings.json of the user for a window.
 type userKeys struct {
-	win  *Window
+	win *Window
+	// path is the keybindings.json of the profile of the window; setPath moves it, on the UI thread, and filePath
+	// reads it from any goroutine.
 	path string
 
 	mu        sync.Mutex
@@ -45,6 +47,21 @@ type userKeys struct {
 
 func newUserKeys(win *Window, path string) *userKeys {
 	return &userKeys{win: win, path: path}
+}
+
+// filePath is the keybindings.json the window reads now.
+func (k *userKeys) filePath() string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.path
+}
+
+// setPath makes the window read another keybindings.json, that of another profile (SPEC §10.12). The keybindings
+// of the old file stay until reload reads the new one.
+func (k *userKeys) setPath(path string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.path = path
 }
 
 // Problems are what was wrong in the file the last time it was read.
@@ -71,10 +88,11 @@ func (k *userKeys) subscribe(f func()) (stop func()) {
 
 // text is the text of keybindings.json: the document that shows it, else the file ("" when there is none).
 func (k *userKeys) text(ctx context.Context) (string, error) {
-	if text, open := k.win.settingsDocs.OpenText(k.path); open {
+	path := k.filePath()
+	if text, open := k.win.settingsDocs.OpenText(path); open {
 		return text, nil
 	}
-	res, err := fileio.Read(ctx, k.path, fileio.ReadOptions{})
+	res, err := fileio.Read(ctx, path, fileio.ReadOptions{})
 	if err != nil {
 		if appErr, ok := errors.FromError(err); ok && appErr.Tag == "FileNotFound" {
 			return "", nil
@@ -88,6 +106,7 @@ func (k *userKeys) text(ctx context.Context) (string, error) {
 // keybindings the window has; an entry that is not a keybinding is skipped and logged. async says that the caller
 // is not the UI thread (the watcher): the resolver is replaced there.
 func (k *userKeys) reload(ctx context.Context, async bool) {
+	path := k.filePath()
 	text, err := k.text(ctx)
 	w := k.win
 	if err != nil {
@@ -100,6 +119,9 @@ func (k *userKeys) reload(ctx context.Context, async bool) {
 	}
 	resolver := keybinding.NewResolver(w.Process.Keymap.Defaults(), items, nil)
 	apply := func() {
+		if k.filePath() != path {
+			return // the profile changed while the file was read: the switch reads the new file
+		}
 		w.Keybindings.Replace(resolver)
 		w.Dispatcher.LeaveChordMode()
 		k.mu.Lock()
@@ -176,8 +198,8 @@ func (k *userKeys) Edit(ctx context.Context, op func(text string, e keybinding.E
 	if updated == text {
 		return nil
 	}
-	if _, open := k.win.settingsDocs.OpenText(k.path); open {
-		applied, err := k.win.settingsDocs.EditText(ctx, k.path, []jsonc.Edit{jsonc.DiffEdit(text, updated)})
+	if _, open := k.win.settingsDocs.OpenText(k.filePath()); open {
+		applied, err := k.win.settingsDocs.EditText(ctx, k.filePath(), []jsonc.Edit{jsonc.DiffEdit(text, updated)})
 		if applied {
 			// the document has the edit, even if saving it failed: the keybindings follow it
 			k.reload(ctx, false)
@@ -197,14 +219,14 @@ func (k *userKeys) Edit(ctx context.Context, op func(text string, e keybinding.E
 // write puts the text in the file, keeping its encoding, line ends and BOM when it exists.
 func (k *userKeys) write(ctx context.Context, text string) error {
 	opts := fileio.WriteOptions{Encoding: fileio.UTF8, LineEnding: fileio.LF}
-	if res, err := fileio.Read(ctx, k.path, fileio.ReadOptions{}); err == nil {
+	if res, err := fileio.Read(ctx, k.filePath(), fileio.ReadOptions{}); err == nil {
 		opts = fileio.WriteOptions{Encoding: res.Encoding, LineEnding: res.LineEnding, BOM: res.HasBOM}
 	}
-	if err := os.MkdirAll(filepath.Dir(k.path), 0o755); err != nil {
-		return errors.NewErr("KeybindingsFileWriteFailed", err).SetMetadata("path", k.path)
+	if err := os.MkdirAll(filepath.Dir(k.filePath()), 0o755); err != nil {
+		return errors.NewErr("KeybindingsFileWriteFailed", err).SetMetadata("path", k.filePath())
 	}
-	if _, err := fileio.Write(ctx, k.path, text, opts); err != nil {
-		return errors.NewErr("KeybindingsFileWriteFailed", err).SetMetadata("path", k.path)
+	if _, err := fileio.Write(ctx, k.filePath(), text, opts); err != nil {
+		return errors.NewErr("KeybindingsFileWriteFailed", err).SetMetadata("path", k.filePath())
 	}
 	return nil
 }
@@ -234,14 +256,14 @@ func (w *Window) keyLabelOf(commandID string) string {
 // ensure makes keybindings.json when it does not exist, with the comment and the empty array that
 // VS Code starts it with, so that an editor can open it. It fails with the tag KeybindingsFileCreateFailed.
 func (k *userKeys) ensure(ctx context.Context) error {
-	if _, err := os.Stat(k.path); err == nil {
+	if _, err := os.Stat(k.filePath()); err == nil {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(k.path), 0o755); err != nil {
-		return errors.NewErr("KeybindingsFileCreateFailed", err).SetMetadata("path", k.path)
+	if err := os.MkdirAll(filepath.Dir(k.filePath()), 0o755); err != nil {
+		return errors.NewErr("KeybindingsFileCreateFailed", err).SetMetadata("path", k.filePath())
 	}
-	if _, err := fileio.Write(ctx, k.path, keybinding.EmptyUserFile, fileio.WriteOptions{Encoding: fileio.UTF8, LineEnding: fileio.LF}); err != nil {
-		return errors.NewErr("KeybindingsFileCreateFailed", err).SetMetadata("path", k.path)
+	if _, err := fileio.Write(ctx, k.filePath(), keybinding.EmptyUserFile, fileio.WriteOptions{Encoding: fileio.UTF8, LineEnding: fileio.LF}); err != nil {
+		return errors.NewErr("KeybindingsFileCreateFailed", err).SetMetadata("path", k.filePath())
 	}
 	return nil
 }

@@ -346,9 +346,8 @@ func (f *File) Select(languageID string, bucket []*Snippet) []*Snippet {
 //
 // Ported from VS Code: src/vs/workbench/contrib/snippets/browser/snippetsService.ts
 type Service struct {
-	dir string
-
 	mu       sync.RWMutex
+	dir      string
 	files    []*File
 	disabled map[string]bool
 }
@@ -359,7 +358,22 @@ func NewService(dir string) *Service {
 }
 
 // Dir is the folder the snippet files are in.
-func (s *Service) Dir() string { return s.dir }
+func (s *Service) Dir() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.dir
+}
+
+// SetDir makes the service read another folder, that of another profile (SPEC §10.12), and reads it: the
+// snippets of the old folder are gone, and the next query answers from the new one. The errors are those of
+// Reload; the snippets of the old folder are dropped even when the new one cannot be read.
+func (s *Service) SetDir(ctx context.Context, dir string) error {
+	s.mu.Lock()
+	s.dir = dir
+	s.files = nil
+	s.mu.Unlock()
+	return s.Reload(ctx)
+}
 
 // SetDisabled sets the identifiers of the snippets that are not offered.
 func (s *Service) SetDisabled(identifiers ...string) {
@@ -375,14 +389,15 @@ func (s *Service) SetDisabled(identifiers ...string) {
 // exist has no snippets. A file that cannot be read is left out, and the first such failure is
 // returned after the others are loaded.
 func (s *Service) Reload(ctx context.Context) error {
-	entries, err := os.ReadDir(s.dir)
+	dir := s.Dir()
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			s.set(nil)
+			s.set(dir, nil)
 			return nil
 		}
-		s.set(nil)
-		return errors.NewErr("SnippetDirReadFailed", err).SetMetadata("dir", s.dir)
+		s.set(dir, nil)
+		return errors.NewErr("SnippetDirReadFailed", err).SetMetadata("dir", dir)
 	}
 	var files []*File
 	var first error
@@ -391,7 +406,7 @@ func (s *Service) Reload(ctx context.Context) error {
 		if e.IsDir() || (ext != ".json" && ext != ".code-snippets") {
 			continue
 		}
-		path := filepath.Join(s.dir, e.Name())
+		path := filepath.Join(dir, e.Name())
 		read, err := fileio.Read(ctx, path, fileio.ReadOptions{})
 		if err != nil {
 			if first == nil {
@@ -401,13 +416,17 @@ func (s *Service) Reload(ctx context.Context) error {
 		}
 		files = append(files, ParseFile(path, read.Text))
 	}
-	s.set(files)
+	s.set(dir, files)
 	return first
 }
 
-func (s *Service) set(files []*File) {
+// set keeps the files read from dir, unless the service reads another folder by now (SetDir ran while the files
+// were read).
+func (s *Service) set(dir string, files []*File) {
 	s.mu.Lock()
-	s.files = files
+	if s.dir == dir {
+		s.files = files
+	}
 	s.mu.Unlock()
 }
 

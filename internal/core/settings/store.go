@@ -400,6 +400,12 @@ func (s *Store) Reload(ctx context.Context) (ChangeEvent, error) {
 	workspace, wsErr := s.readLayer(ctx, workspacePath, TargetWorkspace)
 
 	s.mu.Lock()
+	if s.opts.UserPath != userPath || s.opts.WorkspacePath != workspacePath {
+		// SetUserPath or SetWorkspacePath moved a layer while the files were read: what was read belongs to the
+		// old file, and the call that moved the layer reads the new one
+		s.mu.Unlock()
+		return ChangeEvent{}, nil
+	}
 	oldConsolidated := s.consolidated
 	oldUserKeys, oldWsKeys := modelSignature(s.user.model), modelSignature(s.workspace.model)
 	var ev ChangeEvent
@@ -441,6 +447,21 @@ func (s *Store) SetWorkspacePath(ctx context.Context, path string) (ChangeEvent,
 	s.mu.Lock()
 	s.opts.WorkspacePath = path
 	s.workspace = layer{model: NewModel(nil, nil, nil)}
+	s.mu.Unlock()
+	return s.Reload(ctx)
+}
+
+// SetUserPath moves the user layer to another settings.json, that of another profile (SPEC §10.12), and reads
+// the files again: the listeners hear of the settings that change with it (the targets of the event include the
+// user's settings when its keys differ), so a window that follows the settings takes the new profile's values in
+// place. An empty path leaves the store with no user layer. The errors are those of Reload. The layer of the old
+// file is dropped even when the new file cannot be read.
+func (s *Store) SetUserPath(ctx context.Context, path string) (ChangeEvent, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	s.opts.UserPath = path
+	s.user = layer{model: NewModel(nil, nil, nil)}
 	s.mu.Unlock()
 	return s.Reload(ctx)
 }

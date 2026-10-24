@@ -78,7 +78,7 @@ func TestGoldenColorThemePickerPreview(t *testing.T) {
 			for _, k := range tc.keys {
 				a.pressKey(k)
 			}
-			if got := a.win.Process.Themes.CurrentInfo().Label; got != tc.want {
+			if got := a.win.Themes.CurrentInfo().Label; got != tc.want {
 				t.Fatalf("the preview is %q, want %q", got, tc.want)
 			}
 			testutil.MatchesGolden(a.ts, "theme_picker_preview_"+goldenName(tc.name))

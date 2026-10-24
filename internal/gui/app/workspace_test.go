@@ -182,9 +182,9 @@ func TestFilesExcludeSettingHidesFilesFromTheTree(t *testing.T) {
 
 func TestWatcherReloadsTheSnippets(t *testing.T) {
 	win := watchedWindow(t, "")
-	dir := win.Process.Snippets.Dir()
+	dir := win.Snippets.Dir()
 	query := snippet.Query{LanguageID: "go"}
-	if got := win.Process.Snippets.Snippets(query); len(got) != 0 {
+	if got := win.Snippets.Snippets(query); len(got) != 0 {
 		t.Fatalf("snippets: %v", got)
 	}
 	// the folder of the snippets does not exist; it is made, and a file written in it
@@ -199,13 +199,13 @@ func TestWatcherReloadsTheSnippets(t *testing.T) {
 		}
 	}
 	write(`{ "Hello": { "prefix": "hello", "body": "hello ${WORKSPACE_NAME}" } }`)
-	eventually(t, "the snippet", func() bool { return len(win.Process.Snippets.Snippets(query)) == 1 })
+	eventually(t, "the snippet", func() bool { return len(win.Snippets.Snippets(query)) == 1 })
 	write(`{ "Hello": { "prefix": "hello", "body": "one" }, "Bye": { "prefix": "bye", "body": "two" } }`)
-	eventually(t, "two snippets", func() bool { return len(win.Process.Snippets.Snippets(query)) == 2 })
+	eventually(t, "two snippets", func() bool { return len(win.Snippets.Snippets(query)) == 2 })
 	if err := os.Remove(file); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "no snippets", func() bool { return len(win.Process.Snippets.Snippets(query)) == 0 })
+	eventually(t, "no snippets", func() bool { return len(win.Snippets.Snippets(query)) == 0 })
 }
 
 func TestFilesOutsideTheFolderAreFollowed(t *testing.T) {

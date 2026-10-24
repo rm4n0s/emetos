@@ -584,7 +584,7 @@ func (s *shellState) openFolderThen(path string, done func(opened bool)) {
 	if path != "" {
 		path = filepath.Clean(path)
 	}
-	win.Process.Windows.replaceFolder(win, path, func(w *Window) {
+	win.Process.Windows.replaceFolder(win, path, "", func(w *Window) {
 		if done != nil {
 			done(w != nil)
 		}

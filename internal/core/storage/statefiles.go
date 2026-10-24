@@ -74,6 +74,10 @@ type OpenWindow struct {
 	ID string `json:"id"`
 	// Folder is the folder of the window, or empty for a window without one.
 	Folder string `json:"folder,omitempty"`
+	// Profile is the profile the window used (SPEC §10.12), so that the next start opens it with the same
+	// profile and reads its UI state from that profile's folder; empty is the default profile. A state written
+	// before step 8.6 has none.
+	Profile string `json:"profile,omitempty"`
 }
 
 // GlobalState is the UI state that belongs to no window (SPEC §10.10), in state.json.
@@ -92,6 +96,9 @@ type GlobalState struct {
 	Geometry *Geometry `json:"geometry,omitempty"`
 	// Recent are the folders and files of File > Open Recent.
 	Recent RecentlyOpened `json:"recent"`
+	// LastProfiles is the profile last used with each folder, by the cleaned absolute path of the folder (SPEC
+	// §10.12). A folder with no entry uses the default profile. A state written before step 8.6 has none.
+	LastProfiles map[string]string `json:"lastProfiles,omitempty"`
 }
 
 // sanitize drops what a window state read from a file holds that cannot be used: a geometry that is not a
