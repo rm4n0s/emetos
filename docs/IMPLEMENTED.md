@@ -1454,3 +1454,17 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** the create command is titled "Create Profile..." (VS Code: "New Profile..."); rename and delete stay enabled with no profile to act on and show an information notification (no context key); without a desktop file chooser, export and import report an error (no path prompt).
+
+## 9.1 Line diff
+
+- **Date:** 2026-10-25
+- **Branch:** feat/step-9.1-line-diff
+- **Summary:** SPEC §9.11, `core/diff`. A port of VS Code's `defaultLinesDiffComputer` up to, and excluding, the character refinement: `ComputeLines(ctx, original, modified, Options{IgnoreTrimWhitespace, MaxComputationTime, Now})` gives `LinesDiff{Changes []LineRangeMapping, HitTimeout}` (1-based line ranges with an exclusive end; `Inner []RangeMapping` is there for 9.2). Lines are hashed trimmed (JS-style `trim`); dynamic programming when both texts together have fewer than 1700 lines, Myers otherwise (DP scores an equal line 0.1 when empty, `1 + ln(1 + utf16len)` otherwise, 0.99 when equal only after trimming); the line-stage heuristics `optimizeSequenceDiffs` (join by shifting, shift to the best boundary score by indentation) and `removeVeryShortMatchingLinesBetweenDiffs`; the shortcuts of `computeDiff`; the line-stage part of `scanForWhitespaceChanges` (a line equal after trimming but not as written is a change, unless `IgnoreTrimWhitespace`). A timeout (`DateTimeout`, injectable clock) returns the trivial one-change diff with `HitTimeout`; the context is checked every 1024 steps (`DiffCancelled`). `Apply` rebuilds the modified lines from the original and the changes; `Validate` checks sortedness, bounds and equal unchanged gaps (`DiffInvalid`).
+- **Main files:** `internal/core/diff/{doc,types,timeout,sequence,dp,myers,optimize,lines,apply}.go`, `docs/SPEC.md` §9.11.
+- **Tests:** 31 top-level tests (188 with subtests, 99.5% coverage): 30 line diff table cases (each also `Validate`d and `Apply`d), heuristics, 500 random sequence pairs (Myers equals the LCS-optimal cost), the 1700 threshold, 600 seeded random `Apply == modified` cases, large cases up to 4000 lines, timeout with a stepping fake clock, cancellation mid-DP and mid-Myers, route tests for `DiffCancelled`, `DiffTimeoutInvalid`, `DiffAlignmentBroken` and 17 `DiffInvalid` cases; `fixtures_test.go` runs the 58 fixture folders of VS Code: 53 match `advanced.expected.diff.json` on the line ranges, the other 5 (`class-replacement`, `noisy-move1`, `shifting-twice`, `ts-confusing-2`, `ts-example1`) differ only where 9.2's refinement splits or trims a block and are validated and applied only (skipped when `reference/` is absent).
+- **Not ported:** moved code detection (SPEC §2), the character stage (9.2).
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · display tests none.
+- **Proof:** none
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** columns are byte-based, not UTF-16; no settings registered (9.2 registers `diffEditor.maxComputationTime`, the diff editor `diffEditor.ignoreTrimWhitespace`); after the limit the line stage gives the trivial diff like VS Code's algorithm, 9.2 confirms the SPEC wording ("the unrefined line diff").
