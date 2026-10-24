@@ -96,7 +96,7 @@ func TestWindowWithAFolderThatIsNotThereFails(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
 	}
-	if !appErr.HasRoute("NewWindow->Window.openWorkspace->Open.WorkspaceFolderNotFound") {
+	if !appErr.HasRoute("NewWindow->newWindow->Window.openWorkspace->Open.WorkspaceFolderNotFound") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }

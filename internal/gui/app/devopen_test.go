@@ -101,7 +101,7 @@ func TestDevOpenFileShowsTheFileAtAPosition(t *testing.T) {
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newApp(context.Background(), win, nil, steps))
 	waitFor(t, ts, "the editor", func() bool { return gluttertest.FindsOneWidget(ts, gluttertest.ByType[*editor.Editor]()) == nil })
-	waitFor(t, ts, "the error of the missing file", func() bool { return len(win.Process.Notify.Items()) > 0 })
+	waitFor(t, ts, "the error of the missing file", func() bool { return len(win.Notify.Items()) > 0 })
 
 	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
 	if got := vm.Document().URI(); !strings.HasSuffix(got.Path, "testdata/proof/3.1/sample.go") {
@@ -110,7 +110,7 @@ func TestDevOpenFileShowsTheFileAtAPosition(t *testing.T) {
 	if got := vm.Cursors().Primary().Position(); got != (buffer.Position{Line: 4, Col: 3}) {
 		t.Errorf("the cursor is at %v, want line 5 column 4", got)
 	}
-	if items := win.Process.Notify.Items(); !strings.Contains(items[0].Message, "dev.openFile") {
+	if items := win.Notify.Items(); !strings.Contains(items[0].Message, "dev.openFile") {
 		t.Errorf("a file that cannot be opened is reported: %+v", items)
 	}
 	if errs := ts.TakeErrors(); len(errs) != 0 {

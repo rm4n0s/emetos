@@ -131,6 +131,20 @@ func (r *Registry) SetHandler(id string, h Handler) (remove func(), err error) {
 	}, nil
 }
 
+// Fork makes a registry with the same commands and the handlers they have now: the stack of each command is
+// copied, so that setting or removing a handler in the fork does not touch this registry, nor the other way
+// round. The windows of the process each have a fork (SPEC §5.1): the commands are the process's, the handlers
+// that the shell of a window sets are the window's.
+func (r *Registry) Fork() *Registry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := &Registry{commands: make(map[string]*entry, len(r.commands))}
+	for id, e := range r.commands {
+		out.commands[id] = &entry{meta: e.meta, handlers: slices.Clone(e.handlers)}
+	}
+	return out
+}
+
 // Lookup returns the metadata of a command.
 func (r *Registry) Lookup(id string) (Meta, bool) {
 	r.mu.RLock()

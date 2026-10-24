@@ -696,7 +696,7 @@ func TestTheFileMenuShowsAutoSaveChecked(t *testing.T) {
 	a := newAutoApp(t, nil, map[string]string{"a.txt": "one\n"}, "a.txt")
 	row := func() kit.MenuItem {
 		t.Helper()
-		if err := a.win.Process.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, "dev.openMenu", map[string]any{"id": command.MenubarFileMenu}); err != nil {
+		if err := a.win.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, "dev.openMenu", map[string]any{"id": command.MenubarFileMenu}); err != nil {
 			t.Fatal(err)
 		}
 		a.pump()
@@ -727,7 +727,7 @@ func TestTheFileMenuShowsAutoSaveChecked(t *testing.T) {
 	}
 	// the row runs the toggle
 	a.setting("files.autoSave", "off")
-	if err := a.win.Process.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, "dev.openMenu", map[string]any{"id": command.MenubarFileMenu}); err != nil {
+	if err := a.win.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, "dev.openMenu", map[string]any{"id": command.MenubarFileMenu}); err != nil {
 		t.Fatal(err)
 	}
 	a.pump()
@@ -741,10 +741,10 @@ func TestTheFileMenuShowsAutoSaveChecked(t *testing.T) {
 func TestConfigKeysAreContextKeysOfTheKeybindings(t *testing.T) {
 	win := newTestWindow(t, "")
 	ran := 0
-	if err := win.Process.Commands.Register(command.Meta{ID: "test.whenAutoSaveIsOn", Title: "Test"}); err != nil {
+	if err := win.Commands.Register(command.Meta{ID: "test.whenAutoSaveIsOn", Title: "Test"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := win.Process.Commands.SetHandler("test.whenAutoSaveIsOn", func(command.Context, any) error { ran++; return nil }); err != nil {
+	if _, err := win.Commands.SetHandler("test.whenAutoSaveIsOn", func(command.Context, any) error { ran++; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	kb, err := keybinding.ParseKeybinding("ctrl+alt+shift+f")
@@ -772,7 +772,7 @@ func TestConfigKeysAreContextKeysOfTheKeybindings(t *testing.T) {
 
 func TestAutoSaveCommandAndMenuAreRegistered(t *testing.T) {
 	win := newTestWindow(t, "")
-	meta, ok := win.Process.Commands.Lookup("workbench.action.toggleAutoSave")
+	meta, ok := win.Commands.Lookup("workbench.action.toggleAutoSave")
 	if !ok || meta.Title != "Toggle Auto Save" || meta.Category != "File" {
 		t.Fatalf("command %+v, %v", meta, ok)
 	}

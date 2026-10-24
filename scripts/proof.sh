@@ -17,7 +17,11 @@
 #   --commands <json>   EMETOS_DEV_COMMANDS: a JSON array of ["command id", args]
 #                       or ["sleep", "duration"] steps run after the first frame
 #   --output            capture the whole headless output with grim, for several
-#                       windows (method C), instead of the first window (method B)
+#                       windows (method C), instead of the first window (method B).
+#                       The windows are tiled (HEADLESS_FLOATING=0 unless the
+#                       environment sets it), so that none hides another, and --after
+#                       is how long the capture waits once the first window is mapped
+#                       (SCREENSHOT_SETTLE), for the windows the commands open
 #
 # PROOF_TIMEOUT (seconds, default 90) stops a run that hangs. Needs sway (and grim
 # and jq for --output): sudo dnf install sway grim jq
@@ -108,7 +112,17 @@ isolated=("$root/scripts/isolated.sh")
 
 set +e
 if [[ "$output" == 1 ]]; then
-  # Method C: the whole output, captured by grim once a window is mapped.
+  # Method C: the whole output, captured by grim once a window is mapped. Tiled windows share the output, so
+  # several windows are all in the picture; the wait is --after (seconds, from 1s or 500ms).
+  settle=""
+  case "$after" in
+    "") ;;
+    *ms) settle="$(awk -v v="${after%ms}" 'BEGIN { printf "%.3f", v / 1000 }')" ;;
+    *s) settle="${after%s}" ;;
+    *) echo "error: --after $after is not a duration such as 500ms or 2s" >&2; exit 64 ;;
+  esac
+  [[ -n "$settle" ]] && run+=(SCREENSHOT_SETTLE="$settle")
+  run+=(HEADLESS_FLOATING="${HEADLESS_FLOATING:-0}")
   timeout -k 5 "${PROOF_TIMEOUT:-90}" "${run[@]}" "${isolated[@]}" -- \
     "$root/scripts/screenshot-headless.sh" "$out" -- "$tmp/emetos" "${args[@]}"
 else

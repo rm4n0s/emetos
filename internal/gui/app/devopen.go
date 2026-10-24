@@ -76,7 +76,7 @@ func (s *shellState) bindDevOpenFile(binding *widgets.WidgetsBinding) {
 		return
 	}
 	win := PeekWindow(s.Context())
-	remove, err := win.Process.Commands.SetHandler("dev.openFile", func(c command.Context, args any) error {
+	remove, err := win.Commands.SetHandler("dev.openFile", func(c command.Context, args any) error {
 		return s.devOpenFile(binding, c.Ctx, args)
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *shellState) openPathAt(binding *widgets.WidgetsBinding, path string, li
 					s.blockFile(path)
 					return
 				}
-				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
+				win.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 				return
 			}
 			if opts.Group != nil && s.group.grid.Group(opts.Group.ID()) != opts.Group {
@@ -175,7 +175,7 @@ func (s *shellState) openPathAt(binding *widgets.WidgetsBinding, path string, li
 // button to open the file anyway; otherwise the open editors stay and a notification says so.
 func (s *shellState) blockFile(path string) {
 	if s.editorCount() > 0 {
-		PeekWindow(s.Context()).Process.Notify.Warn("Emetos", path+": "+BinaryFileNotice)
+		PeekWindow(s.Context()).Notify.Warn("Emetos", path+": "+BinaryFileNotice)
 		return
 	}
 	s.SetState(func() { s.blocked = path })
@@ -194,7 +194,7 @@ func (s *shellState) openAnyway(binding *widgets.WidgetsBinding, path string) {
 				return
 			}
 			if err != nil {
-				win.Process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
+				win.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
 				return
 			}
 			s.show(binding, doc, openOptions{})

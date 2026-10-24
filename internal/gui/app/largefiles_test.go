@@ -65,7 +65,7 @@ func TestOpenAnywayFailureIsReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	ts.Tap(gluttertest.ByText("Open Anyway"))
-	waitFor(t, ts, "the error", func() bool { return len(win.Process.Notify.Items()) > 0 })
+	waitFor(t, ts, "the error", func() bool { return len(win.Notify.Items()) > 0 })
 	if !ts.Exists(gluttertest.ByType[*editor.Notice]()) {
 		t.Error("the notice went away although the file did not open")
 	}
@@ -90,7 +90,7 @@ func TestLargeFileNotificationAndSetting(t *testing.T) {
 		ts := testutil.New(t, testWindowSize)
 		ts.PumpWidget(newApp(context.Background(), win, doc, nil))
 		var told int
-		for _, it := range win.Process.Notify.Items() {
+		for _, it := range win.Notify.Items() {
 			if it.Message == LargeFileNotice {
 				told++
 			}

@@ -133,7 +133,7 @@ func (s *shellState) bindRecentCommands(binding *widgets.WidgetsBinding) {
 		},
 	}
 	for id, h := range handlers {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			// the commands are registered by the program itself: a missing one is a broken build
 			panic(err)
@@ -200,7 +200,8 @@ func (s *shellState) pickRecent(binding *widgets.WidgetsBinding, recent storage.
 		name, parent := split(path)
 		items = append(items, quickinput.Item{
 			ID: path, Label: name, Description: parent, Icon: fonts.CodiconFolder, Buttons: []quickinput.Button{remove},
-			Accept:  func(quickinput.KeyMods) { s.openFolder(path) },
+			// the Ctrl key opens the folder in a new window (VS Code's ctrlCmd)
+			Accept:  func(mods quickinput.KeyMods) { s.openFolderIn(path, mods.Ctrl) },
 			Trigger: trigger(path),
 		})
 		// the first row is the folder that is open: the second one is the one to open

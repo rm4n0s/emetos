@@ -112,7 +112,7 @@ func (a *groupApp) editorOf(id int) *textEditor {
 
 func (a *groupApp) runWith(id string, args any) error {
 	a.t.Helper()
-	err := a.win.Process.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
+	err := a.win.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
 	a.pump()
 	return err
 }
@@ -932,7 +932,7 @@ func TestDevOpenFileInAGroup(t *testing.T) {
 
 func TestTheGridCommandsAreBound(t *testing.T) {
 	a := newGroupApp(t, []string{"a.go"}, "a.go")
-	reg := a.win.Process.Commands
+	reg := a.win.Commands
 	var missing []string
 	for _, id := range []string{
 		"workbench.action.splitEditor", "workbench.action.splitEditorOrthogonal", "workbench.action.splitEditorLeft",

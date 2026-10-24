@@ -758,9 +758,13 @@ var saveAppCommands = map[string]bool{
 	"workbench.action.toggleAutoSave": true,
 }
 
-// windowAppCommands are the commands that close the window and quit, which the app binds since the windows, their
-// editors and their documents are its own (step 7.2).
-var windowAppCommands = map[string]bool{"workbench.action.closeWindow": true, "workbench.action.quit": true}
+// windowAppCommands are the commands that close the window, quit and open or pick a window, which the app binds since
+// the windows, their editors and their documents are its own (steps 7.2 and 7.8).
+var windowAppCommands = map[string]bool{
+	"workbench.action.closeWindow": true, "workbench.action.quit": true,
+	// the windows are the process's (step 7.8)
+	"workbench.action.newWindow": true, "workbench.action.switchWindow": true,
+}
 
 // recentAppCommands are the commands of the recently opened folders and files, which the app binds since the folder
 // and the editors of the window are its own (step 7.5).

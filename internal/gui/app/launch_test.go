@@ -86,7 +86,7 @@ func (a *launchApp) activeName() string {
 
 func (a *launchApp) notices() []string {
 	var out []string
-	for _, it := range a.win.Process.Notify.Items() {
+	for _, it := range a.win.Notify.Items() {
 		out = append(out, it.Message)
 	}
 	return out
@@ -254,7 +254,8 @@ func TestLaunchNotices(t *testing.T) {
 			[]LaunchOutcome{{ExitCode: 1, Message: MergeUnavailableNotice}}, false},
 		{"profile", ipc.OpenArgs{Profile: "work"}, []string{"Profiles are not available yet: --profile work is ignored."},
 			[]LaunchOutcome{{}}, true},
-		{"new window", ipc.OpenArgs{NewWindow: true}, []string{NewWindowUnavailableNotice}, []LaunchOutcome{{}}, true},
+		// the manager of the windows decides where a launch opens (Windows.HandleLaunch); the window itself opens files
+		{"new window", ipc.OpenArgs{NewWindow: true}, nil, []LaunchOutcome{{}}, true},
 		{"reuse window", ipc.OpenArgs{ReuseWindow: true}, nil, []LaunchOutcome{{}}, true},
 		{"nothing", ipc.OpenArgs{}, nil, []LaunchOutcome{{}}, true},
 	}

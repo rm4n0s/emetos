@@ -196,7 +196,7 @@ func TestRunWithACanceledContextOpensNothing(t *testing.T) {
 func TestDevCommandsRunAfterTheFirstFrame(t *testing.T) {
 	win := newTestWindow(t, "")
 	var got []any
-	if err := RegisterDev(win.Process.Commands, command.Meta{ID: "dev.record"}, func(_ command.Context, args any) error {
+	if err := RegisterDev(win.Commands, command.Meta{ID: "dev.record"}, func(_ command.Context, args any) error {
 		got = append(got, args)
 		return nil
 	}); err != nil {
@@ -211,7 +211,7 @@ func TestDevCommandsRunAfterTheFirstFrame(t *testing.T) {
 
 	for range 400 {
 		ts.Pump(10 * time.Millisecond)
-		if len(got) == 2 && len(win.Process.Notify.Items()) > 0 {
+		if len(got) == 2 && len(win.Notify.Items()) > 0 {
 			break
 		}
 		time.Sleep(time.Millisecond)
@@ -222,7 +222,7 @@ func TestDevCommandsRunAfterTheFirstFrame(t *testing.T) {
 	if m, _ := got[1].(map[string]any); m["n"] != 2.0 {
 		t.Errorf("second argument = %v", got[1])
 	}
-	items := win.Process.Notify.Items()
+	items := win.Notify.Items()
 	if len(items) != 1 || !strings.Contains(items[0].Message, "dev.missing") {
 		t.Errorf("a failing step is reported as a notification, got %+v", items)
 	}
@@ -342,7 +342,7 @@ func TestEditorFollowsTheDisplaySettingsAndTheZoom(t *testing.T) {
 	if got := vm.Options(); got.FontSize != 24 || got.LineHeight != 27*1.2 {
 		t.Errorf("zoom 2 on a font of 20: font %v line %v", got.FontSize, got.LineHeight)
 	}
-	if err := win.Process.Commands.Run(command.Context{}, "editor.action.fontZoomReset", nil); err != nil {
+	if err := win.Commands.Run(command.Context{}, "editor.action.fontZoomReset", nil); err != nil {
 		t.Fatal(err)
 	}
 	if win.Zoom.Level() != 0 || vm.Options().FontSize != 20 {
@@ -419,8 +419,8 @@ func TestPlainTextIsNotTokenized(t *testing.T) {
 	if vm.Tokenizer().Active() || vm.Tokenizer().Line(0) != nil {
 		t.Error("a language with no grammar has no tokens")
 	}
-	if n := len(win.Process.Notify.Items()); n != 0 {
-		t.Errorf("plain text is no problem: %+v", win.Process.Notify.Items())
+	if n := len(win.Notify.Items()); n != 0 {
+		t.Errorf("plain text is no problem: %+v", win.Notify.Items())
 	}
 }
 

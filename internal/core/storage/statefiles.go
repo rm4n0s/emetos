@@ -64,6 +64,15 @@ type LastWindow struct {
 	Folder string `json:"folder,omitempty"`
 }
 
+// OpenWindow is a window that is open: the id of its state (see WindowID and NewEmptyWindowID) and its folder.
+// The global state keeps the list of them in the order the windows were made (SPEC §10.10).
+type OpenWindow struct {
+	// ID is the id of the state file and the backups of the window.
+	ID string `json:"id"`
+	// Folder is the folder of the window, or empty for a window without one.
+	Folder string `json:"folder,omitempty"`
+}
+
 // GlobalState is the UI state that belongs to no window (SPEC §10.10), in state.json.
 type GlobalState struct {
 	// Version is StateVersion; the store sets it.
@@ -72,6 +81,10 @@ type GlobalState struct {
 	EmptyWindowID string `json:"emptyWindowId,omitempty"`
 	// LastWindow is the window that was open last; nil before any was.
 	LastWindow *LastWindow `json:"lastWindow,omitempty"`
+	// OpenWindows are the windows that are open, in the order they were made. A window that the user closes
+	// leaves the list; the windows that are open when the application quits stay in it, so the next start
+	// opens them again (window.restoreWindows).
+	OpenWindows []OpenWindow `json:"openWindows,omitempty"`
 	// Geometry is the size and state the last window had, for a window that has none of its own.
 	Geometry *Geometry `json:"geometry,omitempty"`
 	// Recent are the folders and files of File > Open Recent.

@@ -102,7 +102,7 @@ func TestAFileThatCannotBeOpenedIsReported(t *testing.T) {
 		t.Fatal(err)
 	}
 	ts.Tap(gluttertest.ByText("second.txt"))
-	waitFor(t, ts, "the error", func() bool { return len(win.Process.Notify.Items()) > 0 })
+	waitFor(t, ts, "the error", func() bool { return len(win.Notify.Items()) > 0 })
 	vm := ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
 	if vm.Document().URI() != document.FileURI(first) {
 		t.Errorf("the editor changed to %v", vm.Document().URI())

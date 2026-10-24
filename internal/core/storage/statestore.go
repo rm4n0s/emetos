@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"log/slog"
+	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -108,7 +110,29 @@ func (s *StateStore) readGlobal(ctx context.Context) (GlobalState, error) {
 	if read.LastWindow != nil && read.LastWindow.Folder != "" && !filepath.IsAbs(read.LastWindow.Folder) {
 		read.LastWindow = nil
 	}
+	read.OpenWindows = cleanOpenWindows(read.OpenWindows)
 	return read, nil
+}
+
+// cleanOpenWindows drops the windows of a list whose id is not an id or is there already, and the folders that
+// are not absolute paths.
+func cleanOpenWindows(list []OpenWindow) []OpenWindow {
+	var out []OpenWindow
+	seen := map[string]bool{}
+	for _, w := range list {
+		if !validWindowID(w.ID) || seen[w.ID] {
+			continue
+		}
+		seen[w.ID] = true
+		if w.Folder != "" {
+			if !filepath.IsAbs(w.Folder) {
+				continue
+			}
+			w.Folder = filepath.Clean(w.Folder)
+		}
+		out = append(out, w)
+	}
+	return out
 }
 
 // cleanAbsolute cleans the paths and drops the ones that are not absolute and the repeated ones, and keeps
@@ -143,6 +167,7 @@ func cloneGlobal(g GlobalState) GlobalState {
 		last := *g.LastWindow
 		g.LastWindow = &last
 	}
+	g.OpenWindows = slices.Clone(g.OpenWindows)
 	return g
 }
 
@@ -225,6 +250,25 @@ func (s *StateStore) SaveWindow(id string, st WindowState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writerFor(path).Set(data)
+	return nil
+}
+
+// DeleteWindow removes the state file of the window with the id, and what waits to be written to it: the window is
+// gone for good (an extra window without a folder that the user closed). A file that is not there is not an error.
+// The error has the tags WindowIDInvalid and StateDeleteFailed.
+func (s *StateStore) DeleteWindow(id string) error {
+	path, err := s.paths.WindowStatePath(s.profile, id)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	if w := s.writers[path]; w != nil {
+		w.Discard()
+	}
+	s.mu.Unlock()
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return errors.NewErr("StateDeleteFailed", err).SetMetadata("path", path)
+	}
 	return nil
 }
 

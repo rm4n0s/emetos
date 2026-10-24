@@ -665,10 +665,17 @@ func (s *workbenchState) panel(colors kit.Colors) widgets.Widget {
 		// the actions of the view take what the tabs and the buttons leave, and are left out when that is
 		// too little to be of use
 		room := cons.MaxWidth - panelTitleReserved
-		if o.PanelActions != nil && room >= panelActionsMinWidth {
+		if o.PanelActions != nil {
+			// Glutter: a Scrollable that leaves the tree in the frame after its metrics changed makes its position post
+			// DidUpdateScrollMetrics to a State that is gone, and the program panics (ScrollPositionBase.post looks the
+			// binding up through the context of a disposed ScrollableState). The actions of the view (the filter box
+			// of the Problems has an EditableText) are not taken out of the tree when the window narrows: they are put
+			// offstage (docs/GLUTTER-ISSUES.md). Glutter should not use the context of a disposed Scrollable in what it
+			// posted.
+			hidden := widgets.OffstageOpts{Offstage: foundation.Some(room < panelActionsMinWidth)}
 			viewActions = append(viewActions,
-				widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(room)}), o.PanelActions),
-				widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(4.0)}))
+				widgets.NewOffstage(widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(max(room, panelActionsMinWidth))}), o.PanelActions), hidden),
+				widgets.NewOffstage(widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(4.0)}), hidden))
 		}
 		actions := widgets.NewRow(append(viewActions, []widgets.Widget{
 			kit.NewIconButton(maximizeIcon, kit.IconButtonOpts{Tooltip: maximizeTip, OnPressed: s.toggleMaximizedPanel}),

@@ -268,6 +268,21 @@ func (s *BackupStore) List(ctx context.Context) (backups []Backup, problems []er
 	return backups, problems
 }
 
+// HasBackups tells whether the window has a backup file (a file that may not be usable; Check and List say). A
+// folder that is not there, or cannot be read, has none.
+func (s *BackupStore) HasBackups() bool {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+			return true
+		}
+	}
+	return false
+}
+
 // Check is the consistency check made when a window starts: it removes the backup files of the window's folder
 // that cannot be used (not JSON, another version, a name that is not the hash of the URI) and the temporary files
 // of writes that did not finish, and says how many it removed; other files are left alone. What it removes is

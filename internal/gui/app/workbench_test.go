@@ -76,7 +76,7 @@ func TestCtrlZeroFocusesTheSideBarAndTypingThenGoesNowhere(t *testing.T) {
 		t.Errorf("the editor took typing while the side bar has the focus: %q", a.text())
 	}
 	// and the editor has it back with its command
-	if err := a.win.Process.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys}, "workbench.action.focusActiveEditorGroup", nil); err != nil {
+	if err := a.win.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys}, "workbench.action.focusActiveEditorGroup", nil); err != nil {
 		t.Fatal(err)
 	}
 	a.ts.Pump(10 * time.Millisecond)
@@ -131,7 +131,7 @@ func slicesContains(list []string, s string) bool {
 func TestDispatchKeyIgnoresKeysWhileADialogShows(t *testing.T) {
 	win := newTestWindow(t, "")
 	ran := 0
-	if _, err := win.Process.Commands.SetHandler("workbench.action.toggleSidebarVisibility", func(command.Context, any) error { ran++; return nil }); err != nil {
+	if _, err := win.Commands.SetHandler("workbench.action.toggleSidebarVisibility", func(command.Context, any) error { ran++; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	chord := ctrl(keybinding.KeyB)
@@ -324,7 +324,7 @@ func TestTheTitleFollowsTheFileThatIsShown(t *testing.T) {
 	if win.Title() != "a.txt - Emetos" {
 		t.Fatalf("title %q", win.Title())
 	}
-	if err := win.Process.Commands.Run(command.Context{Ctx: t.Context()}, "dev.openFile", map[string]any{"path": b}); err != nil {
+	if err := win.Commands.Run(command.Context{Ctx: t.Context()}, "dev.openFile", map[string]any{"path": b}); err != nil {
 		t.Fatal(err)
 	}
 	for range 20 {

@@ -124,7 +124,7 @@ func (a *notifyApp) pump() {
 
 func (a *notifyApp) run(t *testing.T, id string, args any) error {
 	t.Helper()
-	err := a.win.Process.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
+	err := a.win.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
 	a.pump()
 	return err
 }
@@ -155,14 +155,14 @@ func TestDevNotifyShowsAToastWithActions(t *testing.T) {
 	if !a.ts.Exists(labelButton("Yes")) || !a.ts.Exists(labelButton("No")) {
 		t.Fatal("the buttons are not on screen")
 	}
-	items := a.win.Process.Notify.Items()
+	items := a.win.Notify.Items()
 	if len(items) != 2 || items[0].Severity != notify.Info || len(items[0].Actions) != 2 || items[1].Severity != notify.Error {
 		t.Fatalf("items: %+v", items)
 	}
 	// a button closes the toast and the log says which one was pressed
 	a.ts.Tap(labelButton("No"))
 	a.pump()
-	if a.has("Info with actions") || len(a.win.Process.Notify.Items()) != 1 {
+	if a.has("Info with actions") || len(a.win.Notify.Items()) != 1 {
 		t.Error("the button did not close the toast")
 	}
 	if !strings.Contains(a.log.String(), `msg="dev.notify action" action=No`) {
@@ -181,7 +181,7 @@ func TestDevNotifyWithProgressAndSource(t *testing.T) {
 	if !a.ts.Exists(gluttertest.ByType[*kit.ProgressBar]()) {
 		t.Error("no progress bar")
 	}
-	items := a.win.Process.Notify.Items()
+	items := a.win.Notify.Items()
 	if len(items) != 1 || items[0].Source != "Language" || !items[0].HasActiveProgress() {
 		t.Errorf("items: %+v", items)
 	}
@@ -201,7 +201,7 @@ func TestDevNotifyFailsOnBadArguments(t *testing.T) {
 	if !ok || !appErr.HasRoute("parseNotify.DevNotifySeverityInvalid") {
 		t.Errorf("err = %v", err)
 	}
-	if len(a.win.Process.Notify.Items()) != 0 {
+	if len(a.win.Notify.Items()) != 0 {
 		t.Error("a notification was sent")
 	}
 }
@@ -215,7 +215,7 @@ func TestDevNotifyIsRegisteredOnlyInDevBuilds(t *testing.T) {
 
 func TestNotificationKeysRunThroughTheDispatcher(t *testing.T) {
 	a := newNotifyApp(t)
-	svc := a.win.Process.Notify
+	svc := a.win.Notify
 	svc.Info("", "a toast")
 	a.pump()
 	if !a.has("a toast") || a.win.Keys.Get("notificationToastsVisible") != true {
@@ -272,7 +272,7 @@ func TestANotificationBeforeTheWindowShows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	win.Process.Notify.Error("Emetos", "Cannot open nothing.txt")
+	win.Notify.Error("Emetos", "Cannot open nothing.txt")
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newApp(context.Background(), win, nil, nil))
 	for range 4 {
@@ -286,12 +286,12 @@ func TestANotificationBeforeTheWindowShows(t *testing.T) {
 func TestEveryNotificationCommandHasAHandlerInTheWindow(t *testing.T) {
 	a := newNotifyApp(t)
 	var n int
-	for _, meta := range a.win.Process.Commands.All() {
+	for _, meta := range a.win.Commands.All() {
 		if !strings.HasPrefix(meta.ID, "notifications.") {
 			continue
 		}
 		n++
-		if !a.win.Process.Commands.HasHandler(meta.ID) {
+		if !a.win.Commands.HasHandler(meta.ID) {
 			t.Errorf("%s has no handler", meta.ID)
 		}
 	}

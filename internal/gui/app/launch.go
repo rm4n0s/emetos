@@ -23,8 +23,6 @@ const (
 	MergeUnavailableNotice = "The merge editor is not available yet."
 	// ProfileUnavailableNotice is what --profile says until profiles exist (step 8.6).
 	ProfileUnavailableNotice = "Profiles are not available yet: --profile %s is ignored."
-	// NewWindowUnavailableNotice is what --new-window says until the process can have several windows (step 7.8).
-	NewWindowUnavailableNotice = "Multiple windows are not available yet: this window is used."
 	// LauncherClosingMessage is the reply to a launch that comes when the window is gone.
 	LauncherClosingMessage = "Emetos is closing."
 )
@@ -38,28 +36,28 @@ type LaunchOutcome struct {
 	Message string
 }
 
-// Launcher brings the launches that arrive over the socket (core/ipc) to the window on the UI thread. It is made
-// before the process, so the socket can be served while the window is still starting: a launch that comes before
-// the window is on screen waits in a queue and is delivered when the shell attaches (SPEC §10.11). It is safe for
-// concurrent use.
+// Launcher brings the launches that arrive over the socket (core/ipc) to the windows on the UI thread. It is made
+// before the process, so the socket can be served while the first window is still starting: a launch that comes
+// before the windows are up waits in a queue and is delivered when the manager of the windows attaches (SPEC
+// §10.11). The manager picks the window the launch opens in (Windows.HandleLaunch). It is safe for concurrent use.
 type Launcher struct {
 	mu    sync.Mutex
-	win   *Window
+	wins  *Windows
 	post  func(func())
 	queue []func()
-	// closed is set when the window is gone; ended is closed with it.
+	// closed is set when the application ends; ended is closed with it.
 	closed bool
 	ended  chan struct{}
 }
 
-// NewLauncher makes a Launcher that has no window yet.
+// NewLauncher makes a Launcher that has no windows yet.
 func NewLauncher() *Launcher { return &Launcher{ended: make(chan struct{})} }
 
-// attach connects the launcher to a window and the function that runs a function on its UI thread, and delivers
-// the launches that were waiting. It runs on the UI thread.
-func (l *Launcher) attach(win *Window, post func(func())) {
+// attach connects the launcher to the manager of the windows and the function that runs a function on the UI
+// thread, and delivers the launches that were waiting. It runs on the UI thread.
+func (l *Launcher) attach(wins *Windows, post func(func())) {
 	l.mu.Lock()
-	l.win, l.post = win, post
+	l.wins, l.post = wins, post
 	queued := l.queue
 	l.queue = nil
 	l.mu.Unlock()
@@ -69,7 +67,7 @@ func (l *Launcher) attach(win *Window, post func(func())) {
 }
 
 // Close ends the launcher: launches that wait, and those that come later, get the reply that Emetos is closing.
-// It is safe to call more than once.
+// The application does it when it ends. It is safe to call more than once.
 func (l *Launcher) Close() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -77,11 +75,11 @@ func (l *Launcher) Close() {
 		return
 	}
 	l.closed = true
-	l.win, l.post, l.queue = nil, nil, nil
+	l.wins, l.post, l.queue = nil, nil, nil
 	close(l.ended)
 }
 
-// dispatch runs f on the UI thread of the window, or queues it until the window is attached. It reports false when
+// dispatch runs f on the UI thread, or queues it until the manager of the windows is attached. It reports false when
 // the launcher is closed.
 func (l *Launcher) dispatch(f func()) bool {
 	l.mu.Lock()
@@ -89,7 +87,7 @@ func (l *Launcher) dispatch(f func()) bool {
 		l.mu.Unlock()
 		return false
 	}
-	if l.win == nil {
+	if l.wins == nil {
 		l.queue = append(l.queue, f)
 		l.mu.Unlock()
 		return true
@@ -113,12 +111,12 @@ func (l *Launcher) Handle(ctx context.Context, args ipc.OpenArgs) ipc.Reply {
 		if cancelled {
 			return
 		}
-		win := l.window()
-		if win == nil {
+		wins := l.manager()
+		if wins == nil {
 			out <- LaunchOutcome{ExitCode: 1, Message: LauncherClosingMessage}
 			return
 		}
-		cancel = win.HandleLaunch(args, func(o LaunchOutcome) {
+		cancel = wins.HandleLaunch(args, func(o LaunchOutcome) {
 			select {
 			case out <- o:
 			default:
@@ -161,17 +159,19 @@ func (l *Launcher) Handle(ctx context.Context, args ipc.OpenArgs) ipc.Reply {
 	}
 }
 
-// window is the window the launcher is attached to (a function that runs on the UI thread, after attach).
-func (l *Launcher) window() *Window {
+// manager is the manager of the windows the launcher is attached to (a function that runs on the UI thread, after
+// attach).
+func (l *Launcher) manager() *Windows {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.win
+	return l.wins
 }
 
-// HandleLaunch carries out a launch in this window: what the command line of a second Emetos asked (SPEC §10.11).
-// It must run on the UI thread, with the shell on screen. The window comes to the front; --diff and --merge
-// show a notice and end with exit code 1, as do --profile and --new-window (they come with later steps; the
-// window is used); the folder is opened as Open Folder does (the questions about unsaved changes included);
+// HandleLaunch carries out a launch in this window: what the command line of a second Emetos asked (SPEC §10.11),
+// once Windows.HandleLaunch has picked the window. It must run on the UI thread, with the shell on screen. The window
+// comes to the front; --diff and --merge show a notice and end with exit code 1 (and --profile a warning: they come
+// with later steps); a folder that is not the folder of the window is opened as Open Folder does (the questions
+// about unsaved changes included);
 // then the files are opened in the active group, the first of them shown, with the cursor at the line and
 // column of a --goto. done is called once on the UI thread: at once when the launch does not wait, else when
 // every file that was opened is closed (or the window is, which counts as closed). The returned function
@@ -215,13 +215,11 @@ func (s *shellState) initLaunch(binding *widgets.WidgetsBinding) {
 			}
 		})
 	})
-	if l := win.Process.Launcher; l != nil {
-		l.attach(win, binding.Post)
-	}
 	// the command line of this process is handled as any other: the folder and the files were opened with the window
 	if st := win.takeStartup(); st != nil {
-		s.launchExtras(*st, true)
+		s.launchExtras(*st)
 	}
+	win.markReady()
 }
 
 // disposeLaunch ends the waits (a window that closes counts as its files being closed) and lets go of the launcher.
@@ -236,8 +234,11 @@ func (s *shellState) disposeLaunch() {
 	}
 	if win := s.win; win != nil {
 		win.launcher = nil
-		if lc := win.Process.Launcher; lc != nil {
-			lc.Close()
+		// the last window to go ends the launcher: a launch that comes after it has nobody to open in
+		if win.Process.Windows.unregister(win) {
+			if lc := win.Process.Launcher; lc != nil {
+				lc.Close()
+			}
 		}
 	}
 }
@@ -249,18 +250,13 @@ func (w *Window) takeStartup() *ipc.OpenArgs {
 	return st
 }
 
-// launchExtras shows the notices for the parts of a command line that come with later steps. first is true for
-// the command line of the process itself, whose window is new: --new-window and --reuse-window are nothing to
-// say then. It reports whether the launch is one that opens nothing else (--diff and --merge).
-func (s *shellState) launchExtras(args ipc.OpenArgs, first bool) (opensNothing bool) {
-	notify := PeekWindow(s.Context()).Process.Notify
+// launchExtras shows the notices for the parts of a command line that come with later steps. It reports whether the
+// launch is one that opens nothing else (--diff and --merge).
+func (s *shellState) launchExtras(args ipc.OpenArgs) (opensNothing bool) {
+	notify := PeekWindow(s.Context()).Notify
 	if args.Profile != "" {
 		// TODO(step 8.6): switch to the profile, or create it, in the window
 		notify.Warn("Emetos", fmt.Sprintf(ProfileUnavailableNotice, args.Profile))
-	}
-	if args.NewWindow && !first {
-		// TODO(step 7.8): open a new window
-		notify.Info("Emetos", NewWindowUnavailableNotice)
 	}
 	switch {
 	case len(args.Merge) > 0:
@@ -278,10 +274,8 @@ func (s *shellState) launchExtras(args ipc.OpenArgs, first bool) (opensNothing b
 // launch is the shell's part of Window.HandleLaunch.
 func (s *shellState) launch(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func()) {
 	win := PeekWindow(s.Context())
-	if s.activate != nil {
-		s.activate.Activate()
-	}
-	if s.launchExtras(args, false) {
+	win.Raise()
+	if s.launchExtras(args) {
 		msg := DiffUnavailableNotice
 		if len(args.Merge) > 0 {
 			msg = MergeUnavailableNotice
@@ -367,7 +361,7 @@ func (s *shellState) openLaunchFiles(files []ipc.FileTarget, w *launchWait, then
 					if isBinaryError(r.err) {
 						s.blockFile(r.target.Path)
 					} else {
-						win.Process.Notify.Error("Emetos", "Cannot open "+r.target.Path+": "+describe(r.err))
+						win.Notify.Error("Emetos", "Cannot open "+r.target.Path+": "+describe(r.err))
 					}
 					continue
 				}

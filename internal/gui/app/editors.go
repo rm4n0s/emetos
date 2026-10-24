@@ -58,7 +58,7 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 	}
 	e.view = editor.NewViewModel(doc, options(), nil)
 	if win.Documents.AnnounceLarge(doc) {
-		win.Process.Notify.Warn("Emetos", LargeFileNotice)
+		win.Notify.Warn("Emetos", LargeFileNotice)
 	}
 	// The background work of the editor (the folding regions, the tokens) hands its results to the
 	// UI thread from the start, before the editor widget exists to say how.
@@ -101,7 +101,7 @@ func (s *shellState) startTokenizer(e *textEditor, win *Window) {
 	maxLine := int(settings.Get[float64](win.Settings, "editor.maxTokenizationLineLength", languageID))
 	grammar, err := win.Process.Grammar(languageID, maxLine)
 	if err != nil {
-		win.Process.Notify.Warn("Emetos", "Cannot highlight the "+languageID+" file: "+describe(err))
+		win.Notify.Warn("Emetos", "Cannot highlight the "+languageID+" file: "+describe(err))
 	}
 	e.tokenizer = tokens.New(e.doc, grammar, tokens.Options{})
 	e.view.SetTokenizer(e.tokenizer)

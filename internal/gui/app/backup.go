@@ -62,10 +62,8 @@ func (w *Window) Backups() *storage.BackupTracker {
 	return w.backups.tracker
 }
 
-// otherWindows tells whether windows other than this one are open. The process has one window.
-//
-// TODO(step 7.8): the windows of the process are counted here.
-func (w *Window) otherWindows() bool { return false }
+// otherWindows tells whether windows other than this one are open.
+func (w *Window) otherWindows() bool { return w.Process.Windows.others(w) }
 
 // runUI runs f on the UI thread: through the function the shell gave (setUIPoster), and as soon as it gives
 // one when it has not yet. The backup tracker reads the documents only through it.
@@ -173,10 +171,10 @@ func (w *Window) dropDocument(doc *document.Document) {
 func (w *Window) backupProblem(doc *document.Document, err error) {
 	name := doc.URI().Title()
 	if appErr, ok := errors.FromError(err); ok && appErr.Tag == "BackupTooLarge" {
-		w.Process.Notify.Warn("Emetos", "'"+name+"' is too large to be backed up. Its unsaved changes are lost if Emetos closes unexpectedly.")
+		w.Notify.Warn("Emetos", "'"+name+"' is too large to be backed up. Its unsaved changes are lost if Emetos closes unexpectedly.")
 		return
 	}
-	w.Process.Notify.Warn("Emetos", "The unsaved changes of '"+name+"' cannot be backed up: "+describe(err))
+	w.Notify.Warn("Emetos", "The unsaved changes of '"+name+"' cannot be backed up: "+describe(err))
 }
 
 // markRunning writes the marker that says the window is open; it tells whether the last run left it. A failure is

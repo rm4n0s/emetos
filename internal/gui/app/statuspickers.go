@@ -50,7 +50,7 @@ func (s *shellState) bindStatusCommands(binding *widgets.WidgetsBinding) {
 		},
 	}
 	for id, h := range handlers {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			// the commands are registered by the program itself: a missing one is a broken build
 			panic(err)
@@ -82,13 +82,13 @@ func (s *shellState) showIndentationPicker() {
 	}
 	win := PeekWindow(s.Context())
 	action := func(id string) quickinput.Item {
-		meta, _ := win.Process.Commands.Lookup(id)
+		meta, _ := win.Commands.Lookup(id)
 		return quickinput.Item{
 			ID: id, Label: meta.Title,
 			Accept: func(quickinput.KeyMods) {
 				e.focus.Request()
 				if err := e.view.RunCommand(id, nil); err != nil {
-					win.Process.Notify.Error("Emetos", describe(err))
+					win.Notify.Error("Emetos", describe(err))
 				}
 				s.refreshStatus()
 			},
@@ -130,7 +130,7 @@ func (s *shellState) showEOLPicker(binding *widgets.WidgetsBinding) {
 				if !e.disposed && !e.doc.ReadOnly() {
 					e.doc.PushStackElement()
 					if err := e.doc.SetLineEnding(le); err != nil {
-						win.Process.Notify.Error("Emetos", describe(err))
+						win.Notify.Error("Emetos", describe(err))
 					}
 					e.doc.PushStackElement()
 					e.view.DocumentChanged()
@@ -280,7 +280,7 @@ func (s *shellState) readWithEncoding(binding *widgets.WidgetsBinding, e *textEd
 				return
 			}
 			if err != nil {
-				win.Process.Notify.Error("Emetos", "Cannot reopen "+filepath.Base(file)+" with the encoding "+enc.LabelLong+": "+describe(err))
+				win.Notify.Error("Emetos", "Cannot reopen "+filepath.Base(file)+" with the encoding "+enc.LabelLong+": "+describe(err))
 				return
 			}
 			views := s.captureViews(e.doc)
@@ -334,7 +334,7 @@ func (s *shellState) showLanguagePicker(binding *widgets.WidgetsBinding, args an
 		if id, found := win.Process.Languages.ByName(name); found {
 			s.setLanguage(binding, e, id)
 		} else {
-			win.Process.Notify.Error("Emetos", "There is no language named "+name+".")
+			win.Notify.Error("Emetos", "There is no language named "+name+".")
 		}
 		return
 	}
@@ -455,7 +455,7 @@ func (s *shellState) writeAssociation(binding *widgets.WidgetsBinding, e *textEd
 	merged[key] = languageID
 	if err := win.Settings.Update(win.ctx, "files.associations", merged, target); err != nil {
 		win.Process.Logger.Warn("cannot write the file association", "key", key, "err", err)
-		win.Process.Notify.Error("Emetos", "Cannot save the file association "+key+": "+describe(err))
+		win.Notify.Error("Emetos", "Cannot save the file association "+key+": "+describe(err))
 		return
 	}
 	for _, d := range follow {

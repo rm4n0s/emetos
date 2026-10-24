@@ -528,5 +528,6 @@ func registerWindowKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.action.closeWindow", Weight: WeightWorkbenchContrib, Primary: "alt+f4", Secondary: []string{"ctrl+shift+w"}},
 		Rule{Command: "workbench.action.quit", Weight: WeightWorkbenchContrib, Primary: "ctrl+q"},
+		Rule{Command: "workbench.action.newWindow", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+n"},
 	)
 }

@@ -749,3 +749,110 @@ func TestStoreOfAProfileWithAnUnsafeName(t *testing.T) {
 		t.Error("a bad window id was accepted")
 	}
 }
+
+func TestTheOpenWindowsAreKeptInTheGlobalState(t *testing.T) {
+	s, clock, paths := newStore(t, nil)
+	list := []storage.OpenWindow{{ID: "0123456789abcdef", Folder: "/work/one"}, {ID: "fedcba9876543210"}}
+	if err := s.UpdateGlobal(t.Context(), func(g *storage.GlobalState) bool { g.OpenWindows = list; return true }); err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(storage.DefaultStateDelay)
+	again, err := storage.NewStateStore(paths, storage.DefaultProfile, storage.StateStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := again.LoadGlobal(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got.OpenWindows, list) {
+		t.Errorf("open windows %+v, want %+v", got.OpenWindows, list)
+	}
+	// the copy that LoadGlobal gives is the caller's
+	got.OpenWindows[0].Folder = "/changed"
+	if again2, _ := again.LoadGlobal(t.Context()); again2.OpenWindows[0].Folder != "/work/one" {
+		t.Error("a change of the copy reached the store")
+	}
+}
+
+func TestTheOpenWindowsOfAFileAreCleanedWhenRead(t *testing.T) {
+	_, _, paths := newStore(t, nil)
+	path, err := paths.GlobalStatePath(storage.DefaultProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	text := `{"version": 1, "openWindows": [
+		{"id": "0123456789abcdef", "folder": "/a/b/../c"},
+		{"id": "0123456789abcdef", "folder": "/again"},
+		{"id": "not an id"},
+		{"id": "fedcba9876543210", "folder": "relative/folder"},
+		{"id": "00000000000000aa"}]}`
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := storage.NewStateStore(paths, storage.DefaultProfile, storage.StateStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := s.LoadGlobal(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []storage.OpenWindow{{ID: "0123456789abcdef", Folder: "/a/c"}, {ID: "00000000000000aa"}}
+	if !slices.Equal(g.OpenWindows, want) {
+		t.Errorf("open windows %+v, want %+v", g.OpenWindows, want)
+	}
+}
+
+func TestDeleteWindowRemovesTheStateAndWhatWaitsToBeWritten(t *testing.T) {
+	s, clock, paths := newStore(t, nil)
+	const id = "0123456789abcdef"
+	if err := s.SaveWindow(id, storage.WindowState{Folder: "/work/one"}); err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(storage.DefaultStateDelay)
+	path, err := paths.WindowStatePath(storage.DefaultProfile, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("the state was not written: %v", err)
+	}
+	// a state that waits for its timer is not written after the window is gone
+	if err := s.SaveWindow(id, storage.WindowState{Folder: "/work/two"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteWindow(id); err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(2 * storage.DefaultStateDelay)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("the state of the deleted window is there: %v", err)
+	}
+	// a window that has none is not an error
+	if err := s.DeleteWindow(id); err != nil {
+		t.Errorf("DeleteWindow of nothing: %v", err)
+	}
+	if _, found, err := s.LoadWindow(t.Context(), id); err != nil || found {
+		t.Errorf("LoadWindow = %v, %v", found, err)
+	}
+}
+
+func TestDeleteWindowErrors(t *testing.T) {
+	s, _, paths := newStore(t, nil)
+	if err := s.DeleteWindow("../x"); routeOf(t, err).Tag != "WindowIDInvalid" {
+		t.Errorf("error %v", err)
+	}
+	// a state file that cannot be removed: the file is a folder with something in it
+	const id = "0123456789abcdef"
+	path, _ := paths.WindowStatePath(storage.DefaultProfile, id)
+	if err := os.MkdirAll(filepath.Join(path, "inside"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteWindow(id); !routeOf(t, err).HasRoute("StateStore.DeleteWindow.StateDeleteFailed") {
+		t.Errorf("error %v", err)
+	}
+}

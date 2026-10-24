@@ -148,7 +148,7 @@ func (s *shellState) initSave(binding *widgets.WidgetsBinding) {
 		handlers[id] = h
 	}
 	for id, h := range handlers {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			// the commands are registered by the program itself: a missing one is a broken build
 			panic(err)
@@ -249,7 +249,7 @@ func (s *shellState) saveDocument(doc *document.Document, req saveRequest, done 
 	win := PeekWindow(s.Context())
 	switch {
 	case doc.ReadOnly():
-		win.Process.Notify.Notify(notify.Notification{
+		win.Notify.Notify(notify.Notification{
 			Severity: notify.Info, Source: "Emetos", Silent: true,
 			Message: "Cannot save '" + doc.URI().Title() + "': it is read-only.",
 		})
@@ -365,7 +365,7 @@ func (s *shellState) saved(doc *document.Document, oldURI document.URI, oldLang 
 // dismissSaveNote takes the notification of a failed save of a document away.
 func (s *shellState) dismissSaveNote(doc *document.Document) {
 	if id, ok := s.saves.notes[doc]; ok {
-		s.win.Process.Notify.Dismiss(id)
+		s.win.Notify.Dismiss(id)
 		delete(s.saves.notes, doc)
 	}
 }
@@ -411,7 +411,7 @@ func (s *shellState) saveFailed(f saveFailure, finish func(bool)) {
 	}
 	actions = append(actions, notify.Action{Label: "Save As...", Run: func() { s.saveDocumentAs(f.doc, saveRequest{}, nil) }})
 	s.dismissSaveNote(f.doc)
-	s.saves.notes[f.doc] = win.Process.Notify.Notify(notify.Notification{
+	s.saves.notes[f.doc] = win.Notify.Notify(notify.Notification{
 		Severity: notify.Error, Source: "Emetos", Message: msg, Actions: actions, Sticky: true,
 	})
 	if finish != nil {
@@ -482,7 +482,7 @@ func (s *shellState) saveDocumentAs(doc *document.Document, req saveRequest, don
 				s.promptSavePath(doc, req, suggestion, finish)
 			case err != nil:
 				win.Process.Logger.Warn("the save dialog failed", "err", err)
-				win.Process.Notify.Error("Emetos", "Cannot show the dialog to save a file: "+describe(err))
+				win.Notify.Error("Emetos", "Cannot show the dialog to save a file: "+describe(err))
 				finish(false)
 			case path == "":
 				finish(false)
@@ -666,7 +666,7 @@ func (s *shellState) revertDocument(binding *widgets.WidgetsBinding, doc *docume
 	}
 	job, err := doc.BeginRevert(fileio.ReadOptions{})
 	if err != nil {
-		win.Process.Notify.Error("Emetos", "Failed to revert '"+doc.URI().Title()+"': "+describe(err))
+		win.Notify.Error("Emetos", "Failed to revert '"+doc.URI().Title()+"': "+describe(err))
 		finish(false)
 		return
 	}
@@ -678,7 +678,7 @@ func (s *shellState) revertDocument(binding *widgets.WidgetsBinding, doc *docume
 			}
 			if err != nil {
 				win.Process.Logger.Warn("reverting failed", "uri", doc.URI().String(), "err", err)
-				win.Process.Notify.Error("Emetos", "Failed to revert '"+doc.URI().Title()+"': "+describe(err),
+				win.Notify.Error("Emetos", "Failed to revert '"+doc.URI().Title()+"': "+describe(err),
 					notify.Action{Label: "Retry", Run: func() { s.revertDocument(binding, doc, done) }})
 				finish(false)
 				return
@@ -789,7 +789,7 @@ func (s *shellState) showSaveEncodingList(binding *widgets.WidgetsBinding, e *te
 				return
 			}
 			if err := e.doc.SetSaveEncoding(enc.ID); err != nil {
-				win.Process.Notify.Error("Emetos", describe(err))
+				win.Notify.Error("Emetos", describe(err))
 				return
 			}
 			s.refreshStatus()

@@ -132,7 +132,7 @@ func (s *shellState) copyText(text string) {
 	editor.NewClipboard(win.ctx, binding.Clipboard()).Write(text, func(err error) {
 		if err != nil {
 			win.Process.Logger.Warn("cannot copy to the clipboard", "err", err)
-			win.Process.Notify.Warn("Emetos", "Cannot copy to the clipboard: "+describe(err))
+			win.Notify.Warn("Emetos", "Cannot copy to the clipboard: "+describe(err))
 		}
 	})
 }

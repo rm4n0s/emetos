@@ -155,7 +155,7 @@ func (r *stateRun) shell() *shellState {
 
 func (r *stateRun) command(id string, args any) {
 	r.env.t.Helper()
-	err := r.win.Process.Commands.Run(command.Context{Ctx: context.Background(), Keys: r.win.Keys, Source: command.SourceAPI}, id, args)
+	err := r.win.Commands.Run(command.Context{Ctx: context.Background(), Keys: r.win.Keys, Source: command.SourceAPI}, id, args)
 	if err != nil {
 		r.env.t.Fatalf("%s: %v", id, err)
 	}
@@ -358,7 +358,7 @@ func TestEverythingTheWindowHadComesBackAfterARestart(t *testing.T) {
 	if errs := second.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
 	}
-	if n := len(second.win.Process.Notify.Items()); n != 0 {
+	if n := len(second.win.Notify.Items()); n != 0 {
 		t.Errorf("%d notifications after a restore with nothing missing", n)
 	}
 }
@@ -416,7 +416,7 @@ func TestEditorsWhoseFilesAreGoneAreDroppedWithOneNotice(t *testing.T) {
 	if got, want := second.layout(), []string{"1: main.go*", "2!: c.md*"}; !slices.Equal(got, want) {
 		t.Errorf("groups %v, want %v", got, want)
 	}
-	items := second.win.Process.Notify.Items()
+	items := second.win.Notify.Items()
 	if len(items) != 1 || items[0].Message != "3 editors could not be restored because their files no longer exist." {
 		t.Fatalf("notifications %+v", items)
 	}
@@ -441,7 +441,7 @@ func TestEverythingGoneStartsWithAnEmptyGroup(t *testing.T) {
 	if got := second.layout(); !slices.Equal(got, []string{"1!: "}) {
 		t.Errorf("groups %v", got)
 	}
-	items := second.win.Process.Notify.Items()
+	items := second.win.Notify.Items()
 	if len(items) != 1 || items[0].Message != "1 editor could not be restored because its file no longer exists." {
 		t.Errorf("notifications %+v", items)
 	}
@@ -532,7 +532,7 @@ func TestAStateFileThatCannotBeUsedStartsCleanAndIsReplaced(t *testing.T) {
 			if got := first.layout(); !slices.Equal(got, []string{"1!: "}) {
 				t.Fatalf("groups %v", got)
 			}
-			if n := len(first.win.Process.Notify.Items()); n != 0 {
+			if n := len(first.win.Notify.Items()); n != 0 {
 				t.Errorf("%d notifications for an unusable file", n)
 			}
 			first.open(env.path("main.go"), 0)
@@ -801,6 +801,12 @@ func TestTheFirstWindowIsOpenedAsTheSavedStateSays(t *testing.T) {
 	}
 }
 
+// startupFolderOf is the folder of the first window the start opens.
+func startupFolderOf(p *Process, opts Options) string {
+	plan, _ := p.startupPlan(context.Background(), opts)
+	return plan[0].Folder
+}
+
 func TestTheFolderOfTheLastWindowOpensAgain(t *testing.T) {
 	env := newStateEnv(t, nil)
 	first := env.start(env.root)
@@ -828,7 +834,7 @@ func TestTheFolderOfTheLastWindowOpensAgain(t *testing.T) {
 				t.Fatal(err)
 			}
 			p := newTestProcess(ProcessOptions{Paths: env.paths})
-			if got := p.startupFolder(context.Background(), tc.opts); got != tc.want {
+			if got := startupFolderOf(p, tc.opts); got != tc.want {
 				t.Errorf("folder %q, want %q", got, tc.want)
 			}
 		})
@@ -845,7 +851,7 @@ func TestTheFolderOfTheLastWindowOpensAgain(t *testing.T) {
 			t.Fatal(err)
 		}
 		p := newTestProcess(ProcessOptions{Paths: env.paths})
-		if got := p.startupFolder(context.Background(), Options{}); got != "" {
+		if got := startupFolderOf(p, Options{}); got != "" {
 			t.Errorf("folder %q", got)
 		}
 	})
@@ -854,7 +860,7 @@ func TestTheFolderOfTheLastWindowOpensAgain(t *testing.T) {
 		run := env.start("")
 		run.close()
 		p := newTestProcess(ProcessOptions{Paths: env.paths})
-		if got := p.startupFolder(context.Background(), Options{}); got != "" {
+		if got := startupFolderOf(p, Options{}); got != "" {
 			t.Errorf("folder %q", got)
 		}
 	})
@@ -1363,7 +1369,7 @@ func TestTheRecentCommandsNeedAPath(t *testing.T) {
 	_, run, _ := recentEnv(t)
 	for _, id := range []string{"openRecentFolder", "openRecentFile"} {
 		for _, args := range []any{nil, "", "relative/path", 42} {
-			err := run.win.Process.Commands.Run(command.Context{Ctx: context.Background(), Keys: run.win.Keys, Source: command.SourceAPI}, id, args)
+			err := run.win.Commands.Run(command.Context{Ctx: context.Background(), Keys: run.win.Keys, Source: command.SourceAPI}, id, args)
 			appErr, ok := errors.FromError(err)
 			if !ok {
 				t.Fatalf("%s(%v): expected *errors.Error, got %T", id, args, err)
@@ -1546,7 +1552,7 @@ func TestASavedEditorThatIsNotAFileIsNotOpened(t *testing.T) {
 	if got := second.layout(); len(got) != 1 || !strings.Contains(got[0], "main.go") {
 		t.Errorf("groups %v", got)
 	}
-	if items := second.win.Process.Notify.Items(); len(items) != 1 || items[0].Message != DroppedEditorsNotice(1) {
+	if items := second.win.Notify.Items(); len(items) != 1 || items[0].Message != DroppedEditorsNotice(1) {
 		t.Errorf("notifications %+v", items)
 	}
 }

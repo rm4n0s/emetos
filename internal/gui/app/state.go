@@ -70,11 +70,15 @@ func restoreMode(store *settings.Store) string {
 // randomness, the state folder is unusable) keeps no state.
 func (w *Window) initState(ctx context.Context) {
 	defer w.initBackups(ctx) // the backups are named by the id
+	defer w.Process.Windows.folderNote(w)
 	w.stateID = ""
 	var err error
-	if w.Folder != "" {
+	switch {
+	case w.Folder != "":
 		w.stateID, err = storage.WindowID(w.Folder)
-	} else {
+	case w.emptyID != "":
+		w.stateID = w.emptyID
+	default:
 		w.stateID, err = w.Process.State.EmptyWindowID(ctx)
 	}
 	if err != nil {
@@ -147,7 +151,7 @@ func (w *Window) PrepareRestore(ctx context.Context) *storage.Geometry {
 		w.restored = r
 	}
 	if r.dropped > 0 {
-		w.Process.Notify.Info("Emetos", DroppedEditorsNotice(r.dropped))
+		w.Notify.Info("Emetos", DroppedEditorsNotice(r.dropped))
 	}
 	w.noticeRestoredBackups(r)
 	return geometry
@@ -274,35 +278,6 @@ func (w *Window) takeExpanded() []string {
 	dirs := w.pendingExpanded
 	w.pendingExpanded = nil
 	return dirs
-}
-
-// startupFolder is the folder a window opens with when the command line gives none: with no files either and
-// window.restoreWindows other than none, the folder of the window that was open last (the one window of this
-// version; the others come with step 7.8). It is empty when there is nothing to reopen or the folder is gone.
-func (p *Process) startupFolder(ctx context.Context, opts Options) string {
-	if opts.Folder != "" || len(opts.Files) > 0 {
-		return opts.Folder
-	}
-	userPath, err := settings.UserSettingsPath(p.Paths, storage.DefaultProfile)
-	if err != nil {
-		return ""
-	}
-	store := settings.NewStore(p.Settings, settings.StoreOptions{UserPath: userPath})
-	if _, err := store.Reload(ctx); err != nil || restoreMode(store) == "none" {
-		return ""
-	}
-	g, err := p.State.LoadGlobal(ctx)
-	if err != nil {
-		p.Logger.Warn("the global UI state cannot be used; the window starts as new", "err", err)
-		return ""
-	}
-	if g.LastWindow == nil || g.LastWindow.Folder == "" {
-		return ""
-	}
-	if info, err := os.Stat(g.LastWindow.Folder); err != nil || !info.IsDir() {
-		return ""
-	}
-	return g.LastWindow.Folder
 }
 
 // startupWindowConfig is the config of the first window: the saved size, else the size the window of the last
@@ -447,7 +422,7 @@ func (s *shellState) stateChanged() {
 func (s *shellState) snapshotState() {
 	st := &s.state
 	win := s.win
-	if win == nil || !st.ready || st.suspended || win.stateID == "" {
+	if win == nil || !st.ready || st.suspended || win.stateID == "" || win.dropState {
 		return
 	}
 	if st.timer != nil {

@@ -113,7 +113,7 @@ func readFile(t *testing.T, path string) string {
 }
 
 // notes are the notifications of the window.
-func (a *saveApp) notes() []notify.Item { return a.win.Process.Notify.Items() }
+func (a *saveApp) notes() []notify.Item { return a.win.Notify.Items() }
 
 // errorNote is the one notification of an error, which must be there.
 func (a *saveApp) errorNote() notify.Item {
@@ -955,7 +955,7 @@ func TestTheFileMenuAndTheTabMenuShowTheStateOfSaving(t *testing.T) {
 		return menuRows(s.menus.Items(command.MenubarFileMenu, s.menuContext()))
 	}
 	tail := []string{"-", "Open Folder...", "Open Recent>", "-", "Save", "Save As...", "Save All~", "-", "Auto Save", "-", "Revert File", "Close Editor", "Close Window", "-", "Exit"}
-	if got := file(); got[0] != "New Text File" || !slices.Equal(got[1:], tail) {
+	if got := file(); got[0] != "New Text File" || got[1] != "New Window" || !slices.Equal(got[2:], tail) {
 		t.Errorf("file menu %v", got)
 	}
 	a.edit("a.txt")
@@ -1051,7 +1051,7 @@ func TestSaveCommandsAreRegisteredWithTheirKeys(t *testing.T) {
 		"workbench.action.files.saveAll":               "",
 		"workbench.action.files.revert":                "",
 	} {
-		if _, ok := win.Process.Commands.Lookup(id); !ok {
+		if _, ok := win.Commands.Lookup(id); !ok {
 			t.Errorf("command %s is not registered", id)
 			continue
 		}

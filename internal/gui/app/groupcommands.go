@@ -17,7 +17,7 @@ import (
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts and
 // src/vs/workbench/browser/parts/editor/editorActions.ts
 func (s *shellState) bindGroupCommands() {
-	reg := PeekWindow(s.Context()).Process.Commands
+	reg := PeekWindow(s.Context()).Commands
 	handlers := s.editorCommands()
 	for _, more := range []map[string]command.Handler{s.gridCommands(), s.pathCommands(), s.navCommands(), s.switchCommands()} {
 		for id, h := range more {

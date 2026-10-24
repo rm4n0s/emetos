@@ -25,7 +25,7 @@ func themeSettings(s *settings.Store) theme.Settings {
 func (w *Window) followTheme() {
 	apply := func() {
 		if err := w.Process.Themes.Apply(themeSettings(w.Settings)); err != nil {
-			w.Process.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
+			w.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
 		}
 	}
 	apply()

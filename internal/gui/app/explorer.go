@@ -57,7 +57,7 @@ func (w *Window) FileIcons() *theme.FileIconTheme {
 	th, err := theme.BundledFileIconTheme(id)
 	if err != nil {
 		c.failed = id
-		w.Process.Notify.Warn("Emetos", "Cannot use the file icon theme "+id+": "+describe(err))
+		w.Notify.Warn("Emetos", "Cannot use the file icon theme "+id+": "+describe(err))
 		return nil
 	}
 	c.id, c.theme = id, th
@@ -206,7 +206,7 @@ func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
 		Post: binding.Post, Keys: win.Keys, Icons: win.FileIcons, Language: win.languageOf,
 		OnOpen: func(path string, pinned bool) { s.openPath(binding, nil, path, !pinned) },
 		OnLoadFailed: func(path string, err error) {
-			win.Process.Notify.Error("Emetos", "Cannot read the folder "+path+": "+describe(err))
+			win.Notify.Error("Emetos", "Cannot read the folder "+path+": "+describe(err))
 		},
 		Logger:       win.Process.Logger,
 		AfterFrame:   explorer.AfterFrame(binding),
@@ -346,7 +346,7 @@ func (s *shellState) viewActions(_ widgets.BuildContext, viewID string) widgets.
 	}
 	win := PeekWindow(s.Context())
 	return explorer.NewActions(explorer.ActionsOpts{OnRun: func(id string) {
-		if err := win.Process.Commands.Run(command.Context{Ctx: win.ctx, Keys: win.Keys, Source: command.SourceMenu}, id, nil); err != nil {
+		if err := win.Commands.Run(command.Context{Ctx: win.ctx, Keys: win.Keys, Source: command.SourceMenu}, id, nil); err != nil {
 			win.Process.Logger.Warn("explorer action failed", "command", id, "err", err)
 		}
 	}})
@@ -487,7 +487,7 @@ func (s *shellState) bindExplorerCommands(binding *widgets.WidgetsBinding) {
 		"workbench.action.closeFolder":      run(func() { s.openFolder("") }),
 	}
 	for id, h := range handlers {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			// the commands are registered by the program itself: a missing one is a broken build
 			panic(err)
@@ -536,7 +536,7 @@ func (s *shellState) folderChosen(path string, err error) {
 	win := PeekWindow(s.Context())
 	if err != nil {
 		win.Process.Logger.Warn("the folder dialog failed", "err", err)
-		win.Process.Notify.Error("Emetos", "Cannot show the dialog to open a folder: "+describe(err))
+		win.Notify.Error("Emetos", "Cannot show the dialog to open a folder: "+describe(err))
 		return
 	}
 	if path != "" {
@@ -544,43 +544,35 @@ func (s *shellState) folderChosen(path string, err error) {
 	}
 }
 
-// openFolder makes the window open a folder, or close its folder (an empty path). The editors of the old folder
-// close first; when some have unsaved changes a dialog asks whether to save them, and Cancel leaves the window
-// as it is. Opening the folder the window has is nothing to do.
+// openFolder opens a folder picked inside the application (Open Folder, Open Recent, Close Folder with an empty
+// path) as window.openFoldersInNewWindow says: in a new window, in this one (its editors close first; when some have
+// unsaved changes a dialog asks whether to save them, and Cancel leaves the window as it is), or, when a window has
+// the folder already, that window comes to the front. Opening the folder the window has is nothing to do.
 //
 // Ported from VS Code: src/vs/workbench/browser/actions/workspaceActions.ts (OpenFolderAction,
 // CloseWorkspaceAction) and SPEC §10.11
-func (s *shellState) openFolder(path string) { s.openFolderThen(path, nil) }
+func (s *shellState) openFolder(path string) { s.openFolderIn(path, false) }
 
-// openFolderThen is openFolder that tells done, on the UI thread, whether the window has the folder once the
-// question about unsaved changes is answered and the folder opened (true also for the folder the window has
-// already); false when the user cancelled or the folder could not be opened. done may be nil.
+// openFolderIn is openFolder that opens the folder in a new window when newWindow is set (the Ctrl key of the Open
+// Recent picker).
+func (s *shellState) openFolderIn(path string, newWindow bool) {
+	win := PeekWindow(s.Context())
+	win.Process.Windows.OpenFolder(win, path, FolderFromApp, newWindow, false, nil)
+}
+
+// openFolderThen replaces the folder of this window, whatever window.openFoldersInNewWindow says, and tells done, on
+// the UI thread, whether the window has the folder once the question about unsaved changes is answered and the
+// folder opened (true also for the folder the window has already); false when the user cancelled or the folder
+// could not be opened. done may be nil. A window that the manager hosts is made again for the folder, so done
+// belongs to a window that is gone by then: it is for a window on its own.
 func (s *shellState) openFolderThen(path string, done func(opened bool)) {
 	win := PeekWindow(s.Context())
 	if path != "" {
 		path = filepath.Clean(path)
 	}
-	if path == win.Folder {
+	win.Process.Windows.replaceFolder(win, path, func(w *Window) {
 		if done != nil {
-			done(true)
-		}
-		return
-	}
-	// the state of the folder that is left stays as it is while its editors close
-	s.suspendState()
-	s.closeAllEditors(func(closed bool) {
-		opened := false
-		if closed {
-			if err := win.SetFolder(win.ctx, path); err != nil {
-				win.Process.Logger.Warn("cannot open the folder", "path", path, "err", err)
-				win.Process.Notify.Error("Emetos", "Cannot open the folder "+path+": "+describe(err))
-			} else {
-				opened = true
-			}
-		}
-		s.resumeState()
-		if done != nil {
-			done(opened)
+			done(w != nil)
 		}
 	})
 }

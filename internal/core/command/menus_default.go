@@ -66,6 +66,7 @@ func registerMainMenu(r *MenuRegistry) {
 func registerFileMenu(r *MenuRegistry) {
 	r.MustAdd(
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.newUntitledFile", Title: "New Text File", MnemonicTitle: "&&New Text File", Group: "1_new", Order: 1},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.newWindow", MnemonicTitle: "New &&Window", Group: "1_new", Order: 3},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.openFolder", MnemonicTitle: "Open &&Folder...", Group: "2_open", Order: 2},
 		MenuItem{Menu: MenubarFileMenu, Submenu: MenubarRecentMenu, Title: "Open Recent", MnemonicTitle: "Open &&Recent", Group: "2_open", Order: 4},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.save", MnemonicTitle: "&&Save", Group: "4_save", Order: 1,

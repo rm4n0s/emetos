@@ -101,14 +101,16 @@ type autoSaveObserver struct {
 	s *shellState
 }
 
-// DidChangeViewFocus implements widgets.WidgetsBindingObserver.
-//
-// TODO(step 7.8): the process has one window until then, so any view that loses the focus is the window (the
-// quick input's observer does the same); with several windows the event's ViewID says which one it is.
+// DidChangeViewFocus implements widgets.WidgetsBindingObserver. With several windows the event says which one lost
+// the focus; a window the manager does not host (a test of one window) takes every event.
 func (o *autoSaveObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
-	if e.State == ui.ViewFocusStateUnfocused && o.s.Mounted() {
-		o.s.autosave.ctl.WindowFocusLost()
+	if e.State != ui.ViewFocusStateUnfocused || !o.s.Mounted() {
+		return
 	}
+	if win := o.s.win; win != nil && win.managed() && win.entry.view() != e.ViewID {
+		return
+	}
+	o.s.autosave.ctl.WindowFocusLost()
 }
 
 // initAutoSave makes the controller of auto save, before the editors are made (they are tracked as they
@@ -242,7 +244,7 @@ func (s *shellState) toggleAutoSave() {
 	}
 	if err := win.Settings.Update(win.ctx, "files.autoSave", value, target); err != nil {
 		win.Process.Logger.Warn("cannot write the setting", "key", "files.autoSave", "err", err)
-		win.Process.Notify.Warn("Emetos", "Cannot save the setting files.autoSave: "+describe(err))
+		win.Notify.Warn("Emetos", "Cannot save the setting files.autoSave: "+describe(err))
 	}
 }
 

@@ -1008,8 +1008,7 @@ func registerWorkbench(r *Registry) {
 			Description: "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar.",
 			Scope:       ScopeApplication, Category: categoryWindow,
 		},
-		// Step 7.5 restores the one window; the values that are about several windows act as "all" or "folders"
-		// until step 7.8.
+		// Step 7.8 gives the values of window.restoreWindows their meaning for several windows.
 		Setting{
 			Key: "window.restoreWindows", Types: []Type{String}, Default: "all",
 			Enum: []any{"preserve", "all", "folders", "one", "none"},
@@ -1026,6 +1025,45 @@ func registerWorkbench(r *Registry) {
 		Setting{
 			Key: "window.restoreFullscreen", Types: []Type{Boolean}, Default: false,
 			Description: "Controls whether a window should restore to full screen mode if it was exited in full screen mode.",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
+		// Step 7.8: the windows. Ported from VS Code: src/vs/workbench/browser/workbench.contribution.ts
+		// (window.openFilesInNewWindow, window.openFoldersInNewWindow) and
+		// src/vs/workbench/electron-browser/desktop.contribution.ts (window.newWindowDimensions); the text of the
+		// files setting is the one of Linux.
+		Setting{
+			Key: "window.openFilesInNewWindow", Types: []Type{String}, Default: "off",
+			Enum: []any{"on", "off", "default"},
+			EnumDescriptions: []string{
+				"Files will open in a new window.",
+				"Files will open in the window with the files' folder open or the last active window.",
+				"Files will open in a new window unless picked from within the application (e.g. via the File menu).",
+			},
+			Description: "Controls whether files should open in a new window when using a command line or file dialog.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
+		Setting{
+			Key: "window.openFoldersInNewWindow", Types: []Type{String}, Default: "default",
+			Enum: []any{"on", "off", "default"},
+			EnumDescriptions: []string{
+				"Folders will open in a new window.",
+				"Folders will replace the last active window.",
+				"Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu).",
+			},
+			Description: "Controls whether folders should open in a new window or replace the last active window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
+		Setting{
+			Key: "window.newWindowDimensions", Types: []Type{String}, Default: "default",
+			Enum: []any{"default", "inherit", "offset", "maximized", "fullscreen"},
+			EnumDescriptions: []string{
+				"Open new windows in the center of the screen.",
+				"Open new windows with same dimension as last active one.",
+				"Open new windows with same dimension as last active one with an offset position.",
+				"Open new windows maximized.",
+				"Open new windows in full screen mode.",
+			},
+			Description: "Controls the dimensions of opening a new window when at least one window is already opened. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.",
 			Scope:       ScopeApplication, Category: categoryWindow,
 		},
 	)

@@ -450,3 +450,32 @@ func TestAutoSaveSettingsAreRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestTheSettingsOfTheWindowsAreRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	for _, tc := range []struct {
+		key     string
+		def     string
+		values  []string
+		invalid any
+	}{
+		{"window.openFoldersInNewWindow", "default", []string{"on", "off", "default"}, "sometimes"},
+		{"window.openFilesInNewWindow", "off", []string{"on", "off", "default"}, 1.0},
+		{"window.newWindowDimensions", "default", []string{"default", "inherit", "offset", "maximized", "fullscreen"}, "tiled"},
+	} {
+		s, ok := r.Lookup(tc.key)
+		if !ok || s.Default != tc.def || s.Scope != ScopeApplication || s.Category != categoryWindow || s.Description == "" ||
+			len(s.Enum) != len(tc.values) || len(s.EnumDescriptions) != len(tc.values) {
+			t.Errorf("%s: %+v, %v", tc.key, s, ok)
+			continue
+		}
+		for _, v := range tc.values {
+			if msg := r.Validate(tc.key, v); msg != "" {
+				t.Errorf("%s = %q: %s", tc.key, v, msg)
+			}
+		}
+		if r.Validate(tc.key, tc.invalid) == "" {
+			t.Errorf("%s = %v is valid", tc.key, tc.invalid)
+		}
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
@@ -36,6 +37,13 @@ import (
 type Window struct {
 	// Process is the process the window belongs to.
 	Process *Process
+	// Commands is the registry of commands of the window: a fork of the registry of the process (SPEC §5.1), so
+	// that the handlers the shell of a window sets (the editor in front of the user, the Explorer, the save
+	// commands) are the window's and a command run in one window never reaches another.
+	Commands *command.Registry
+	// Notify is the notification service of the window: what the window reports is shown in the window (the
+	// Process has one for what belongs to no window).
+	Notify *notify.Service
 	// Folder is the absolute path of the folder open in the window, or empty.
 	Folder string
 	// Workspace is the model of the folder: its tree, read lazily and kept up to date by the watcher
@@ -117,6 +125,23 @@ type Window struct {
 	Quit func()
 
 	ctx context.Context
+	// entry is the window in the list of the windows of the process (Windows); nil until the shell registers it.
+	entry *windowEntry
+	// shell is the state of the shell that shows the window; nil until it is made and after it is gone.
+	shell *shellState
+	// stops end what the window follows (the settings of the other windows, ...) when it is gone.
+	stops []func()
+	// controller is the controller of the platform window that shows this one, as the shell found it; nil
+	// where there is none.
+	controller any
+	// onReady holds what waits for the shell to be on screen (whenReady).
+	onReady []func()
+	// emptyID is the state id the window has while it has no folder, when it was made with one (a window that comes
+	// back from the list of the open windows, or a new one); empty lets the state store pick the first one.
+	emptyID string
+	// dropState is true for a window that is gone for good (an extra window without a folder that was closed):
+	// its state is not written.
+	dropState bool
 	// stateID is the id of the window's UI state file (initState); restored is what PrepareRestore found, until
 	// the shell takes it, pendingExpanded the folders the Explorer expands when its tree exists, and flushState
 	// the function the shell sets to save the state when the window closes.
@@ -127,9 +152,9 @@ type Window struct {
 	flushState      func()
 	// backups are the backups of the unsaved documents of the window (backup.go).
 	backups backupState
-	// closer is the shell's answer to RequestClose, and exit ends the application without asking again; both
-	// are set while the shell is on screen (closing.go).
-	closer func(CloseReason)
+	// closer is the shell's answer to the questions of closing, and exit ends the application without asking
+	// again; both are set while the shell is on screen (closing.go).
+	closer func(CloseReason, func(closeResult))
 	exit   func()
 	// launcher is the shell's answer to HandleLaunch, set while the shell is on screen (launch.go), and startup
 	// is the command line of the first instance until the shell takes it.
@@ -239,6 +264,24 @@ func (w *Window) ClearStatusMessage() {
 // files; a file with errors does not fail the window (the store reports it as a problem,
 // which is logged), but a file that cannot be read does.
 func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) {
+	return newWindow(ctx, p, windowOptions{folder: folder})
+}
+
+// windowOptions are the parts of a window that NewWindow leaves to the process.
+type windowOptions struct {
+	// folder is the folder of the window, or empty.
+	folder string
+	// stateID is the id of the state of a window without a folder (a window that comes back from the list of open
+	// windows, or a new one); empty lets the process pick one.
+	stateID string
+	// from is the window whose test seams (Quit, SaveDialog, OpenURI, OnChordStatus) the new one takes over: the
+	// window it replaces.
+	from *Window
+}
+
+// newWindow is NewWindow with options.
+func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error) {
+	folder := o.folder
 	userPath, err := settings.UserSettingsPath(p.Paths, storage.DefaultProfile)
 	if err != nil {
 		return nil, err
@@ -262,6 +305,8 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		QuickInput:     quickinput.NewController(quickinput.ControllerOptions{Registry: access}),
 		CommandHistory: quickinput.NewCommandsHistory(settings.Get[int](store, "workbench.commandPalette.history", "")),
 		Process:        p,
+		Commands:       p.Commands.Fork(),
+		Notify:         notify.NewService(p.Logger, nil),
 		Folder:         folder,
 		Settings:       store,
 		Keys:           contextkey.NewRoot(),
@@ -278,10 +323,17 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
 		Markers:        problems.NewService(),
-		Notifications:  notify.NewPresenter(p.Notify),
 		StatusBar:      workbench.NewStatusBar(),
 		ctx:            ctx,
 	}
+	w.Notifications = notify.NewPresenter(w.Notify)
+	if folder == "" {
+		w.emptyID = o.stateID
+	}
+	if f := o.from; f != nil {
+		w.Quit, w.SaveDialog, w.OpenURI, w.OnChordStatus = f.Quit, f.SaveDialog, f.OpenURI, f.OnChordStatus
+	}
+	w.registerWindowCommands()
 	w.Documents.onFile = w.followFile
 	w.Documents.onClose = w.unfollowFile
 	if folder != "" {

@@ -155,7 +155,7 @@ func (r *stateRun) untitled(n int) *document.Document {
 // notes are the messages of the notifications.
 func (r *stateRun) notes() []string {
 	var out []string
-	for _, it := range r.win.Process.Notify.Items() {
+	for _, it := range r.win.Notify.Items() {
 		out = append(out, it.Message)
 	}
 	return out
@@ -228,7 +228,7 @@ func TestQuittingBacksUpWithoutAskingAndTheNextStartRestores(t *testing.T) {
 	if len(wantLayout) != 2 {
 		t.Fatalf("layout %v", wantLayout)
 	}
-	first.win.Process.Notify.ClearAll()
+	first.win.Notify.ClearAll()
 
 	first.exit()
 	if first.quits != 1 {
@@ -432,7 +432,7 @@ func TestTheFileChangedBetweenRunsOpensDirtyWithOneNotice(t *testing.T) {
 	if got := second.notes(); len(got) != 1 || got[0] != want {
 		t.Fatalf("notifications %q, want exactly %q", got, want)
 	}
-	items := second.win.Process.Notify.Items()
+	items := second.win.Notify.Items()
 	var labels []string
 	for _, a := range items[0].Actions {
 		labels = append(labels, a.Label)
@@ -444,14 +444,14 @@ func TestTheFileChangedBetweenRunsOpensDirtyWithOneNotice(t *testing.T) {
 	second.command("workbench.action.files.save", nil)
 	second.waitFor("the failed save", func() bool {
 		second.ts.FlushPosted()
-		return second.win.Process.Notify.Items() != nil && len(second.notes()) >= 1 && strings.Contains(strings.Join(second.notes(), "\n"), "Failed to save")
+		return second.win.Notify.Items() != nil && len(second.notes()) >= 1 && strings.Contains(strings.Join(second.notes(), "\n"), "Failed to save")
 	})
 	if readText(t, path) != external || !doc.Dirty() {
 		t.Errorf("the save overwrote the file or lost the changes: %q", readText(t, path))
 	}
 	// the Overwrite button saves over the file
 	var overwrite func()
-	for _, it := range second.win.Process.Notify.Items() {
+	for _, it := range second.win.Notify.Items() {
 		for _, a := range it.Actions {
 			if a.Label == "Overwrite" {
 				overwrite = a.Run

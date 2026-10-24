@@ -91,7 +91,7 @@ func TestQuickOpenCommandTakesTheInitialText(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newKeyApp(t, "text\n")
-			err := a.win.Process.Commands.Run(command.Context{Ctx: a.win.ctx, Keys: a.win.Keys}, "workbench.action.quickOpen", tc.args)
+			err := a.win.Commands.Run(command.Context{Ctx: a.win.ctx, Keys: a.win.Keys}, "workbench.action.quickOpen", tc.args)
 			if err != nil {
 				t.Fatal(err)
 			}

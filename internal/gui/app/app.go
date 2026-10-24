@@ -87,9 +87,9 @@ func Run(ctx context.Context, opts Options) error {
 			}
 		}
 	}
-	// with no folder and no file on the command line the folder of the last window opens again
-	folder := process.startupFolder(ctx, opts)
-	win, err := NewWindow(ctx, process, folder)
+	m := process.Windows
+	m.ctx, m.watch = ctx, true
+	entry, first, err := m.start(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -99,29 +99,10 @@ func Run(ctx context.Context, opts Options) error {
 			process.Logger.Warn("the UI state cannot be written", "err", err)
 		}
 	}()
-	win.startup = opts.Open
-	geometry := win.PrepareRestore(ctx)
-	var shown []*document.Document
-	var blocked string
-	for _, path := range opts.Files {
-		doc, err := win.Documents.OpenFile(ctx, path, document.NewOptions())
-		if err != nil {
-			if isBinaryError(err) {
-				// the window shows a notice with a button to open the file anyway
-				if len(shown) == 0 && blocked == "" {
-					blocked = path
-				}
-				continue
-			}
-			process.Notify.Error("Emetos", "Cannot open "+path+": "+describe(err))
-			continue
-		}
-		shown = append(shown, doc)
-	}
-	steps := devSteps(process, opts.DevCommands)
-	return widgets.RunApp(newAppDocs(ctx, win, shown, steps, blocked), widgets.RunAppOpts{
+	first.steps = devSteps(process, opts.DevCommands)
+	return widgets.RunApp(m.hostWidget(entry), widgets.RunAppOpts{
 		AppID:  AppID,
-		Window: startupWindowConfig(win, geometry),
+		Window: startupWindowConfig(first.win, first.geometry),
 		Fonts:  fonts.Sources(),
 		Logger: opts.Logger,
 	})
@@ -287,8 +268,6 @@ type shellState struct {
 	state stateState
 	// launches is what the shell keeps of the launches of other processes (launch.go).
 	launches launchState
-	// activate brings the window to the front, nil where there is no controller.
-	activate interface{ Activate() }
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -296,6 +275,8 @@ type shellState struct {
 func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.binding, s.win = binding, PeekWindow(s.Context())
+	s.win.shell = s
+	s.win.Process.Windows.register(s.win)
 	s.blocked = s.Widget().blocked
 	s.initBackups(binding)
 	s.initAutoSave(binding)
@@ -326,28 +307,32 @@ func (s *shellState) InitState() {
 			})
 		}
 	})
-	done := s.Widget().ctx.Done()
-	s.Go(func(life context.Context) {
-		select {
-		case <-done:
-			binding.Post(func() {
-				// the signal that ends the program does not go through the question about unsaved changes, but
-				// the UI state is still written
-				if s.Mounted() {
-					s.backupOnSignal()
-					s.flushState()
-				}
-				binding.ExitApplication(ui.AppExitTypeRequired)
-			})
-		case <-life.Done():
-		}
-	})
+	if !s.win.managed() {
+		// a window on its own (a test of one window) ends the program itself; the windows the manager hosts are ended
+		// together by it (Windows.watchSignal)
+		done := s.Widget().ctx.Done()
+		s.Go(func(life context.Context) {
+			select {
+			case <-done:
+				binding.Post(func() {
+					// the signal that ends the program does not go through the question about unsaved changes, but
+					// the UI state is still written
+					if s.Mounted() {
+						s.backupOnSignal()
+						s.flushState()
+					}
+					binding.ExitApplication(ui.AppExitTypeRequired)
+				})
+			case <-life.Done():
+			}
+		})
+	}
 	if steps := s.Widget().steps; len(steps) > 0 {
 		win := PeekWindow(s.Context())
 		binding.Scheduler().AddPostFrameCallback(func(time.Duration) {
 			runner := &DevRunner{
 				Steps:    steps,
-				Commands: win.Process.Commands,
+				Commands: win.Commands,
 				Post: func(f func()) {
 					// A step is done when the frames after it are: what a command changes (a new
 					// editor, a focus) is there for the next one.
@@ -367,7 +352,7 @@ func (s *shellState) InitState() {
 					}
 				},
 				OnError: func(step DevStep, err error) {
-					win.Process.Notify.Error("Emetos", "Dev command "+step.Command+" failed: "+describe(err))
+					win.Notify.Error("Emetos", "Dev command "+step.Command+" failed: "+describe(err))
 				},
 			}
 			s.Go(runner.Run)
@@ -377,6 +362,9 @@ func (s *shellState) InitState() {
 
 // Dispose stops following the settings, the model of the group and the documents.
 func (s *shellState) Dispose() {
+	if s.win != nil && s.win.shell == s {
+		s.win.shell = nil
+	}
 	s.disposeLaunch() // before the documents close: a wait ends with the window
 	if s.removeOpenFile != nil {
 		s.removeOpenFile()
@@ -408,7 +396,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	s.syncActiveFile(widgets.WidgetsBindingOf(bc))
 	s.syncExplorer(widgets.WidgetsBindingOf(bc), win)
 	bench := workbench.New(workbench.Options{
-		Layout: win.Layout, Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes,
+		Layout: win.Layout, Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, QuickInput: win.QuickInput, Context: win.ctx,
 		Editor:    s.editorArea(bc),
 		StatusBar: s.statusBarOptions(win),
@@ -435,7 +423,7 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 		if scope, ok := widgets.GetInherited[*widgets.WindowScope](bc); ok {
 			s.window, _ = scope.Controller().(interface{ SetTitle(string) })
 			// Glutter: Activate is in the same position (RegularWindowController has it, BaseWindowController does not)
-			s.activate, _ = scope.Controller().(interface{ Activate() })
+			win.controller = scope.Controller()
 			if src, ok := scope.Controller().(geometrySource); ok {
 				s.trackWindow(src)
 			}

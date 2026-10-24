@@ -94,11 +94,9 @@ func parseNotify(args any) (notifyArguments, error) {
 	return a, nil
 }
 
-// registerDevNotify registers dev.notify (SPEC §15.2), which sends a notification through the service: its
-// buttons close it and write which one was pressed to the log. It exists in builds that run dev commands only.
-func registerDevNotify(r *command.Registry, svc *notify.Service, log *slog.Logger) {
-	meta := command.Meta{ID: "dev.notify", Description: `Send a notification. Arguments: {"severity", "message", "source", "actions", "progress"}.`}
-	err := RegisterDev(r, meta, func(_ command.Context, args any) error {
+// devNotifyHandler is the handler of dev.notify: it sends the notification through the service.
+func devNotifyHandler(svc *notify.Service, log *slog.Logger) command.Handler {
+	return func(_ command.Context, args any) error {
 		a, err := parseNotify(args)
 		if err != nil {
 			return err
@@ -109,8 +107,15 @@ func registerDevNotify(r *command.Registry, svc *notify.Service, log *slog.Logge
 		}
 		svc.Notify(n)
 		return nil
-	})
-	if err != nil {
+	}
+}
+
+// registerDevNotify registers dev.notify (SPEC §15.2), which sends a notification through the service: its
+// buttons close it and write which one was pressed to the log. It exists in builds that run dev commands only.
+// The windows bind the command to their own service (registerWindowCommands).
+func registerDevNotify(r *command.Registry, svc *notify.Service, log *slog.Logger) {
+	meta := command.Meta{ID: "dev.notify", Description: `Send a notification. Arguments: {"severity", "message", "source", "actions", "progress"}.`}
+	if err := RegisterDev(r, meta, devNotifyHandler(svc, log)); err != nil {
 		// the id is fixed, new and starts with dev., so a failure is a mistake here
 		panic(err)
 	}

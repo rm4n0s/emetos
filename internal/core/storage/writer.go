@@ -111,6 +111,21 @@ func (w *writer) Set(data []byte) {
 	w.mu.Unlock()
 }
 
+// Discard forgets what waits to be written and cancels the timer.
+func (w *writer) Discard() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.data, w.dirty = nil, false
+	if w.scheduled {
+		w.scheduled = false
+		w.gen++
+		if w.stop != nil {
+			w.stop()
+			w.stop = nil
+		}
+	}
+}
+
 // fire is the timer: it forgets the timer and writes.
 func (w *writer) fire(gen int) {
 	w.mu.Lock()

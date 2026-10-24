@@ -211,7 +211,7 @@ func (s *shellState) bindDevMarkers() {
 		return
 	}
 	win := PeekWindow(s.Context())
-	remove, err := win.Process.Commands.SetHandler("dev.setMarkers", func(_ command.Context, args any) error {
+	remove, err := win.Commands.SetHandler("dev.setMarkers", func(_ command.Context, args any) error {
 		a, err := parseSetMarkers(args, os.Getwd)
 		if err != nil {
 			return err

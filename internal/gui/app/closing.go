@@ -51,7 +51,7 @@ const (
 //	onExitAndWindowClose   as onExit, and back up as well when a window that has a folder closes while others stay
 //
 // A value the setting does not have asks. hasFolder is whether the window has a folder open, otherWindows whether
-// other windows are open (always false until step 7.8: closing the window is closing the application).
+// other windows are open.
 //
 // Ported from VS Code: src/vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupTracker.ts
 // (onWillShutdown, shouldBackup) and the description of the setting files.hotExit
@@ -99,35 +99,21 @@ type closeState struct {
 	// busy is true from the moment a dialog asks about unsaved changes until the answer is carried out (the
 	// saves included): a request to close anything that would ask again is ignored meanwhile.
 	busy bool
-	// lifecycle hears the platform's request to close the window.
-	lifecycle *widgets.AppLifecycleListener
 	// removeCommands take the handlers of the window commands off the registry.
 	removeCommands []func()
 }
 
-// initClosing makes the window ask about unsaved changes before it closes: the request of the platform to
-// close the (first) window reaches the shell through an app lifecycle listener, and Close Window and Quit are
+// initClosing makes the window ask about unsaved changes before it closes: the platform's request to close a
+// window reaches the manager of the windows (Windows.bind), which asks the window, and Close Window and Quit are
 // commands.
-//
-// Glutter: the request to close the implicit first window is not handed to a window controller's delegate
-// (widgets.WindowingOwner.handleCloseRequested skips it); it only reaches the observers of the binding as a
-// request to exit the app, with no view ID, so it cannot be told from the close request of another window. The
-// shell answers it for its window, which is right while the process has one. Glutter should give observers the
-// view ID, or give the implicit window a controller with a delegate (see docs/GLUTTER-ISSUES.md).
 func (s *shellState) initClosing(binding *widgets.WidgetsBinding) {
 	win := PeekWindow(s.Context())
 	c := &s.closing
 	win.closer = s.requestWindowClose
 	win.exit = func() { binding.ExitApplication(ui.AppExitTypeRequired) }
-	c.lifecycle = widgets.NewAppLifecycleListener(binding, widgets.AppLifecycleListenerOpts{
-		// the window closes itself once the question is answered: the platform is told to keep it
-		OnExitRequested: func() ui.AppExitResponse {
-			win.RequestClose(CloseReasonWindow)
-			return ui.AppExitResponseCancel
-		},
-	})
+	win.Process.Windows.bind(binding, nil)
 	for id, reason := range map[string]CloseReason{"workbench.action.closeWindow": CloseReasonWindow, "workbench.action.quit": CloseReasonQuit} {
-		remove, err := win.Process.Commands.SetHandler(id, func(command.Context, any) error {
+		remove, err := win.Commands.SetHandler(id, func(command.Context, any) error {
 			win.RequestClose(reason)
 			return nil
 		})
@@ -145,78 +131,45 @@ func (s *shellState) disposeClosing() {
 	if win := s.win; win != nil {
 		win.closer, win.exit = nil, nil
 	}
-	if c.lifecycle != nil {
-		c.lifecycle.Dispose()
-		c.lifecycle = nil
-	}
 	for _, remove := range c.removeCommands {
 		remove()
 	}
 	c.removeCommands = nil
 }
 
-// RequestClose is the window being asked to close, by the platform, Close Window or Quit. It never closes
-// anything before the question is answered: the caller keeps the window open. When no document would lose
-// changes, or files.hotExit leaves them to the backups (they are written first), the window closes at once; else a
-// dialog asks whether to save them. The same dialog asks when the backups cannot be written. Save saves them (an untitled document through Save As) and closes; Don't Save closes; Cancel, or a
-// save that fails or is cancelled, keeps the window. The window then closes itself: Quit is called (the
-// application ends); a request that comes while the dialog is open is ignored.
-//
-// TODO(step 7.8): a window that is not the last is destroyed through its controller (controller.Destroy()), and
-// the last one ends the application.
-func (w *Window) RequestClose(reason CloseReason) {
-	if w.closer == nil {
-		// the window is not on screen: nothing is open that could be lost
-		w.quit()
-		return
-	}
-	w.closer(reason)
-}
-
-// quit ends the application: the Quit function when it is set, else the application is asked to exit without
-// asking the observers again.
-func (w *Window) quit() {
-	// the UI state is written before the application ends (SPEC §10.10)
-	if w.flushState != nil {
-		w.flushState()
-	}
-	// the window ends as it should: the next start is not a restore after a crash
-	w.endBackups()
-	if w.Quit != nil {
-		w.Quit()
-		return
-	}
-	if w.exit != nil {
-		w.exit()
-	}
-}
-
-// requestWindowClose is the shell's part of Window.RequestClose.
-func (s *shellState) requestWindowClose(reason CloseReason) {
+// requestWindowClose is the shell's part of closing a window (Window.closeAsk): it asks the questions of closing the
+// window, with the dialog of §10.3 when documents would lose changes, and tells done how they were answered. It
+// closes nothing. When no document would lose changes, or files.hotExit leaves them to the backups (they are
+// written first), done is told at once; the same dialog asks when the backups cannot be written. Save saves them (an
+// untitled document through Save As); Don't Save and a window with nothing to lose proceed; Cancel, or a save that
+// fails or is cancelled, does not. A request that comes while the dialog is open is not carried out (done gets
+// false).
+func (s *shellState) requestWindowClose(reason CloseReason, done func(closeResult)) {
 	win := PeekWindow(s.Context())
 	if s.closing.busy {
-		return // the dialog is open already
+		done(closeResult{}) // the dialog is open already
+		return
 	}
 	// with files.hotExit off nothing stays for the next start: whatever closes takes its backups with it
 	off := !hotExitEnabled(win.hotExitMode())
 	targets := editorgroup.AllTargets(s.group.grid)
 	losses := editorgroup.PlanClose(s.group.grid, targets)
 	if len(losses) == 0 {
-		s.finishClose(off)
+		done(closeResult{proceed: true, discard: off})
 		return
 	}
 	// the documents that auto save saves go first; the others are backed up (hot exit) or asked about
 	s.autoSaveBeforeClose(losses, true, func() {
 		losses := editorgroup.PlanClose(s.group.grid, editorgroup.AllTargets(s.group.grid))
 		if len(losses) == 0 {
-			s.finishClose(off)
+			done(closeResult{proceed: true, discard: off})
 			return
 		}
 		ask := func() {
+			s.raise()
 			s.askUnsaved(losses, func(proceed bool) {
-				if proceed {
-					s.finishClose(true) // saved or given up: nothing is left to restore
-				}
+				// saved or given up: nothing is left to restore
+				done(closeResult{proceed: proceed, discard: true})
 			})
 		}
 		if closeDecision(win.hotExitMode(), reason, win.Folder != "", win.otherWindows()) == closeAsk {
@@ -228,21 +181,16 @@ func (s *shellState) requestWindowClose(reason CloseReason) {
 				ask() // the unsaved changes could not be kept: the user decides
 				return
 			}
-			s.finishClose(false)
+			done(closeResult{proceed: true})
 		})
 	})
 }
 
-// finishClose ends the window once nothing is asked any more: with discard the backups are removed (the unsaved
-// documents were saved or given up, or hot exit is off); then the window closes, which removes its running marker.
-func (s *shellState) finishClose(discard bool) {
-	win := PeekWindow(s.Context())
-	if discard {
-		win.discardBackups()
-	} else if t := win.Backups(); t != nil {
-		t.Pause() // the editors close with the window: their backups stay
+// raise brings the window to the front, for the dialog that asks in it.
+func (s *shellState) raise() {
+	if win := s.win; win != nil {
+		win.Raise()
 	}
-	win.quit()
 }
 
 // backupBeforeClose backs up every document with unsaved changes (hot exit) and tells done whether all of them

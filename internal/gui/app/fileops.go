@@ -93,7 +93,7 @@ func (s *shellState) updateSetting(key string, value any) {
 	win := PeekWindow(s.Context())
 	if err := win.Settings.Update(win.ctx, key, value, settings.TargetUser); err != nil {
 		win.Process.Logger.Warn("cannot write the setting", "key", key, "err", err)
-		win.Process.Notify.Warn("Emetos", "Cannot save the setting "+key+": "+describe(err))
+		win.Notify.Warn("Emetos", "Cannot save the setting "+key+": "+describe(err))
 	}
 }
 
@@ -134,7 +134,7 @@ func (s *shellState) reportOpError(err error, retry func()) {
 	if retry != nil {
 		actions = append(actions, notify.Action{Label: "Retry", Run: retry})
 	}
-	win.Process.Notify.Error("Emetos", describe(err), actions...)
+	win.Notify.Error("Emetos", describe(err), actions...)
 }
 
 // ---- the editors follow the operations ----
@@ -270,7 +270,7 @@ func (s *shellState) bindFileOpsCommands(binding *widgets.WidgetsBinding) {
 		"revealFileInOS":          func(_ command.Context, args any) error { s.revealInOS(binding, args); return nil },
 	}
 	for id, h := range handlers {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			panic(err) // the commands are registered by the program itself: a missing one is a broken build
 		}
@@ -294,7 +294,7 @@ func (s *shellState) bindUndoRedo(binding *widgets.WidgetsBinding, bind bool) {
 		"undo": func(command.Context, any) error { s.undoInExplorer(binding, false); return nil },
 		"redo": func(command.Context, any) error { s.undoInExplorer(binding, true); return nil },
 	} {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			panic(err)
 		}
@@ -328,7 +328,7 @@ func (s *shellState) targetFolder() (*workspace.Item, bool) {
 func (s *shellState) newInExplorer(binding *widgets.WidgetsBinding, folder bool) {
 	win := PeekWindow(s.Context())
 	if s.explorer.view == nil {
-		win.Process.Notify.Info("Emetos", "You have not yet opened a folder.")
+		win.Notify.Info("Emetos", "You have not yet opened a folder.")
 		return
 	}
 	s.showExplorer(binding, false)
@@ -789,7 +789,7 @@ func (s *shellState) pasteInto(binding *widgets.WidgetsBinding, paths []string, 
 	for _, p := range paths {
 		if folder == p || strings.HasPrefix(folder, p+string(filepath.Separator)) {
 			if move || folder != p {
-				win.Process.Notify.Error("Emetos", "File to paste is an ancestor of the destination folder")
+				win.Notify.Error("Emetos", "File to paste is an ancestor of the destination folder")
 				return
 			}
 		}
@@ -958,7 +958,7 @@ func (s *shellState) importFiles(binding *widgets.WidgetsBinding, paths []string
 		if missing > 1 {
 			msg = "Some or all of the dropped files could not be accessed for import."
 		}
-		win.Process.Notify.Error("Emetos", msg)
+		win.Notify.Error("Emetos", msg)
 	}
 	run := func(srcs []string) {
 		if len(srcs) == 0 {
@@ -1179,7 +1179,7 @@ func (s *shellState) revealInOS(binding *widgets.WidgetsBinding, args any) {
 			if err := open(life, bc, (&url.URL{Scheme: "file", Path: dir}).String()); err != nil {
 				binding.Post(func() {
 					win.Process.Logger.Warn("cannot show the folder in the file manager", "path", dir, "err", err)
-					win.Process.Notify.Error("Emetos", "Cannot show the folder in the file manager: "+describe(err))
+					win.Notify.Error("Emetos", "Cannot show the folder in the file manager: "+describe(err))
 				})
 				return
 			}

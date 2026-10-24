@@ -189,7 +189,7 @@ func (w *Window) StartWatching(ctx context.Context) (ready <-chan struct{}) {
 	st.ctx = ctx
 	st.watcher = workspace.NewWatcher(ctx, workspace.WatcherOptions{
 		OnEvents: func(events []workspace.Event) { w.onFileEvents(ctx, events) },
-		OnNotice: func(n workspace.Notice) { w.Process.Notify.Warn("Emetos", n.Message) },
+		OnNotice: func(n workspace.Notice) { w.Notify.Warn("Emetos", n.Message) },
 		Logger:   w.Process.Logger,
 	})
 	st.mu.Unlock()

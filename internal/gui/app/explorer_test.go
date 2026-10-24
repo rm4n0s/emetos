@@ -112,7 +112,7 @@ func (a *explorerApp) rows() []string {
 }
 
 func (a *explorerApp) run(id string, args any) error {
-	return a.win.Process.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
+	return a.win.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
 }
 
 func (a *explorerApp) openFile(rel string) {
@@ -573,13 +573,13 @@ func TestChooseFolderFailureHasItsOwnTag(t *testing.T) {
 	s := (&explorerApp{t: t, win: win, ts: ts}).shell()
 	s.folderChosen("", err)
 	if !notified(win, "Cannot show the dialog to open a folder") {
-		t.Errorf("no notification: %v", win.Process.Notify.Items())
+		t.Errorf("no notification: %v", win.Notify.Items())
 	}
 }
 
 // notified tells whether a notification of the process has a text in its message.
 func notified(win *Window, text string) bool {
-	for _, n := range win.Process.Notify.Items() {
+	for _, n := range win.Notify.Items() {
 		if strings.Contains(n.Message, text) {
 			return true
 		}
@@ -701,7 +701,7 @@ func TestFileIcons(t *testing.T) {
 	}
 	// and the user is told once
 	var n int
-	for _, item := range win.Process.Notify.Items() {
+	for _, item := range win.Notify.Items() {
 		if strings.Contains(item.Message, "no-such-theme") {
 			n++
 		}

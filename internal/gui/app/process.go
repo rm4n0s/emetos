@@ -65,9 +65,11 @@ type Process struct {
 	State *storage.StateStore
 	// WatchFiles tells whether the windows start their file watcher (ProcessOptions.WatchFiles).
 	WatchFiles bool
-	// Launcher hands the launches that other Emetos processes send over the socket (SPEC §10.11) to the window;
+	// Launcher hands the launches that other Emetos processes send over the socket (SPEC §10.11) to the windows;
 	// nil when the process has no socket.
 	Launcher *Launcher
+	// Windows is the manager of the windows of the process: it opens, replaces and closes them (windows.go).
+	Windows *Windows
 
 	scanTimeout time.Duration
 	// backupAfter, backupWrite and backupMax are ProcessOptions.BackupAfter, BackupWriteFile and BackupMaxSize.
@@ -203,6 +205,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
 	p.closing = autoclose.NewRegistryLanguages(languages)
 	p.comments = comment.NewRegistryLanguages(languages)
+	p.Windows = newWindows(p)
 	p.Menus = command.DefaultMenus(p.Commands)
 	p.Menus.SetProvider(command.MenubarRecentMenu, p.recentMenuItems)
 	p.Views = command.DefaultViews()

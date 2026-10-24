@@ -52,7 +52,7 @@ func newPanelApp(t *testing.T, theme string) *panelApp {
 // do runs a command, as the dev commands do, and returns its error.
 func (a *panelApp) do(id string, args any) error {
 	a.t.Helper()
-	err := a.win.Process.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
+	err := a.win.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
 	a.pump()
 	return err
 }
@@ -628,7 +628,7 @@ func TestOutputOpensTheLogFile(t *testing.T) {
 	a.mustDo("workbench.action.output.toggleOutput", nil)
 	// the window of a test has no log file: a notification says so
 	a.mustDo("workbench.action.openActiveLogOutputFile", nil)
-	if got := a.win.Process.Notify.Items(); len(got) == 0 || !strings.Contains(got[len(got)-1].Message, "has no file") {
+	if got := a.win.Notify.Items(); len(got) == 0 || !strings.Contains(got[len(got)-1].Message, "has no file") {
 		t.Errorf("notifications: %+v", got)
 	}
 

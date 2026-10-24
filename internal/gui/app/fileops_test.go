@@ -654,7 +654,7 @@ func TestPasteIntoItselfIsRefused(t *testing.T) {
 		t.Error("a folder was moved into itself")
 	}
 	var found bool
-	for _, it := range a.win.Process.Notify.Items() {
+	for _, it := range a.win.Notify.Items() {
 		found = found || strings.Contains(it.Message, "ancestor")
 	}
 	if !found {
@@ -1084,7 +1084,7 @@ func TestDropFilesFromTheFileManager(t *testing.T) {
 		t.Error("the mark stays")
 	}
 	// an undo takes the copies away
-	a.win.Process.Notify.ClearAll()
+	a.win.Notify.ClearAll()
 	if !a.win.FileOps.CanUndo() {
 		t.Error("the import is not in the history")
 	}
@@ -1397,7 +1397,7 @@ func TestRevealInTheFileManager(t *testing.T) {
 	a.win.OpenURI = func(context.Context, widgets.BuildContext, string) error { return os.ErrPermission }
 	a.mustRun("revealFileInOS", a.path("main.go"))
 	a.waitFor("the error", func() bool {
-		for _, it := range a.win.Process.Notify.Items() {
+		for _, it := range a.win.Notify.Items() {
 			if strings.Contains(it.Message, "file manager") {
 				return true
 			}
@@ -1413,11 +1413,11 @@ func TestNewFileWithoutAFolderSaysSo(t *testing.T) {
 	for range 4 {
 		ts.Pump(20 * time.Millisecond)
 	}
-	if err := win.Process.Commands.Run(command.Context{Ctx: context.Background(), Keys: win.Keys, Source: command.SourceAPI}, "explorer.newFile", nil); err != nil {
+	if err := win.Commands.Run(command.Context{Ctx: context.Background(), Keys: win.Keys, Source: command.SourceAPI}, "explorer.newFile", nil); err != nil {
 		t.Fatal(err)
 	}
 	var found bool
-	for _, it := range win.Process.Notify.Items() {
+	for _, it := range win.Notify.Items() {
 		found = found || strings.Contains(it.Message, "not yet opened a folder")
 	}
 	if !found {

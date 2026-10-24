@@ -51,7 +51,7 @@ func menuItem(items []kit.MenuItem, id string) (kit.MenuItem, bool) {
 
 func (a *keyApp) devCommand(t *testing.T, id string, args any) error {
 	t.Helper()
-	err := a.win.Process.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
+	err := a.win.Commands.Run(command.Context{Ctx: t.Context(), Keys: a.win.Keys, Source: command.SourceAPI}, id, args)
 	a.pump()
 	return err
 }

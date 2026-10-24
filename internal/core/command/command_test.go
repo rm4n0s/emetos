@@ -328,3 +328,57 @@ func TestLayoutCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestForkCopiesTheCommandsAndTheirHandlers(t *testing.T) {
+	r := NewRegistry()
+	r.MustRegister(Meta{ID: "a", Title: "A"}, Meta{ID: "b"})
+	var ran []string
+	handler := func(name string) Handler {
+		return func(Context, any) error { ran = append(ran, name); return nil }
+	}
+	if _, err := r.SetHandler("a", handler("process")); err != nil {
+		t.Fatal(err)
+	}
+	f := r.Fork()
+	if meta, ok := f.Lookup("a"); !ok || meta.Title != "A" || len(f.All()) != 2 {
+		t.Fatalf("the fork lost the commands: %v %v", meta, f.All())
+	}
+	run := func(reg *Registry, id string) {
+		t.Helper()
+		if err := reg.Run(Context{Ctx: context.Background()}, id, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// the handler the registry had is the fork's too
+	run(f, "a")
+	// a handler set in the fork is the fork's only, and so is its removal
+	remove, err := f.SetHandler("a", handler("fork"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.SetHandler("b", handler("fork b")); err != nil {
+		t.Fatal(err)
+	}
+	run(f, "a")
+	run(r, "a")
+	if r.HasHandler("b") {
+		t.Error("a handler of the fork reached the registry")
+	}
+	remove()
+	run(f, "a")
+	// and what is set in the registry later does not reach the fork
+	if _, err := r.SetHandler("a", handler("process again")); err != nil {
+		t.Fatal(err)
+	}
+	run(f, "a")
+	want := []string{"process", "fork", "process", "process", "process"}
+	if len(ran) != len(want) {
+		t.Fatalf("ran %v, want %v", ran, want)
+	}
+	for i := range want {
+		if ran[i] != want[i] {
+			t.Errorf("ran %v, want %v", ran, want)
+			break
+		}
+	}
+}

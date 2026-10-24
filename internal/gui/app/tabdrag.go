@@ -129,7 +129,7 @@ func (s *shellState) dragEnd(at ui.Offset, dropped bool) {
 	if err != nil {
 		win := PeekWindow(s.Context())
 		win.Process.Logger.Error("cannot drop the tab", "err", err)
-		win.Process.Notify.Error("Emetos", "Cannot move the tab: "+describe(err))
+		win.Notify.Error("Emetos", "Cannot move the tab: "+describe(err))
 	}
 	s.askFocusSoon()
 }

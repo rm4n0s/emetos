@@ -67,7 +67,7 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 	providers := []quickinput.Provider{
 		quickinput.NewHelpProvider(reg, helpKeys),
 		quickinput.NewCommandsProvider(quickinput.CommandsOptions{
-			Commands: win.Process.Commands, Menus: win.Process.Menus, Context: ctl.InvokerContext, Keybinding: keyLabel,
+			Commands: win.Commands, Menus: win.Process.Menus, Context: ctl.InvokerContext, Keybinding: keyLabel,
 			History: win.CommandHistory,
 			Available: func(id string, ctx contextkey.Context) bool {
 				return !editorCommands[id] || ctx.Value("activeEditor") != nil
@@ -81,15 +81,15 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 				if e := s.activeEditor(); e != nil && editorCommands[id] {
 					e.focus.Request()
 				}
-				return win.Process.Commands.Run(command.Context{Ctx: win.ctx, Keys: ctl.InvokerContext(), Source: command.SourcePalette}, id, nil)
+				return win.Commands.Run(command.Context{Ctx: win.ctx, Keys: ctl.InvokerContext(), Source: command.SourcePalette}, id, nil)
 			},
 			OnError: func(id string, err error) {
 				title := id
-				if m, ok := win.Process.Commands.Lookup(id); ok && m.Title != "" {
+				if m, ok := win.Commands.Lookup(id); ok && m.Title != "" {
 					title = m.Title
 				}
 				win.Process.Logger.Warn("command run by the palette failed", "command", id, "error", describe(err))
-				win.Process.Notify.Error("Emetos", "Command '"+title+"' resulted in an error: "+describe(err))
+				win.Notify.Error("Emetos", "Command '"+title+"' resulted in an error: "+describe(err))
 			},
 		}),
 		quickinput.NewFilesProvider(s.filesOptions(binding)),
@@ -244,7 +244,7 @@ func (s *shellState) bindQuickInputCommands() {
 		quickinput.ClearHistoryCommand: func(command.Context, any) error { win.CommandHistory.Clear(); return nil },
 	}
 	for id, h := range handlers {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			// the commands are registered by the program itself: a missing one is a broken build
 			panic(errors.NewErr("QuickInputCommandMissing", err).SetMetadata("command", id))
@@ -261,7 +261,7 @@ func (s *shellState) openViewContainer(id string) {
 		return
 	}
 	run := func(cmd string) {
-		if err := win.Process.Commands.Run(command.Context{Ctx: win.ctx, Keys: win.Keys}, cmd, nil); err != nil {
+		if err := win.Commands.Run(command.Context{Ctx: win.ctx, Keys: win.Keys}, cmd, nil); err != nil {
 			win.Process.Logger.Warn("cannot focus a view", "command", cmd, "error", describe(err))
 		}
 	}

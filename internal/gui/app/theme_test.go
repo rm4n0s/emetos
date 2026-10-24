@@ -117,13 +117,13 @@ func TestAThemeThatIsNotThereIsAWarning(t *testing.T) {
 		t.Errorf("the default theme is used: %v", got)
 	}
 	var warned bool
-	for _, item := range win.Process.Notify.Items() {
+	for _, item := range win.Notify.Items() {
 		if item.Severity == notify.Warning && item.Source == "Emetos" {
 			warned = true
 		}
 	}
 	if !warned {
-		t.Errorf("a warning was expected: %+v", win.Process.Notify.Items())
+		t.Errorf("a warning was expected: %+v", win.Notify.Items())
 	}
 }
 
@@ -150,8 +150,8 @@ func TestUserThemesComeFromTheConfigFolder(t *testing.T) {
 	if got := uiBackground(t, ts); got != ui.NewColor(0xFFFAFAFA) {
 		t.Errorf("the user's theme: %v", got)
 	}
-	if n := len(win.Process.Notify.Items()); n != 0 {
-		t.Errorf("a theme that is in the folder is no warning: %+v", win.Process.Notify.Items())
+	if n := len(win.Notify.Items()); n != 0 {
+		t.Errorf("a theme that is in the folder is no warning: %+v", win.Notify.Items())
 	}
 }
 

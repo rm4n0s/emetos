@@ -160,7 +160,7 @@ func (s *shellState) groupWidget(bc widgets.BuildContext, group *editorgroup.Gro
 func (s *shellState) editorColumn(bc widgets.BuildContext, win *Window, group *editorgroup.Group, ed *textEditor, active bool) widgets.Widget {
 	binding := widgets.WidgetsBindingOf(bc)
 	text := editor.NewEditor(ed.view, editor.EditorOpts{
-		Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: active, Context: win.ctx, ClipboardMemory: win.Clipboard,
+		Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: active, Context: win.ctx, ClipboardMemory: win.Clipboard,
 		FindMemory: win.Find, Zoom: win.Zoom, Focus: ed.focus,
 		OnFocus: func(has bool) { s.editorFocus(group, ed, has) },
 	})

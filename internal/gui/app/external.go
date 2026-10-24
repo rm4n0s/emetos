@@ -354,7 +354,7 @@ func (s *shellState) showExternalNote(doc *document.Document) {
 	if win.changedSinceBackup(doc) {
 		message = NoticeChangedOnDisk(name) // a restored document: its backup is older than the file
 	}
-	id := win.Process.Notify.Notify(notify.Notification{
+	id := win.Notify.Notify(notify.Notification{
 		Severity: notify.Warning, Source: "Emetos", Sticky: true,
 		Message: message,
 		Actions: []notify.Action{

@@ -194,11 +194,11 @@ func (w *Window) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode) b
 		w.chordStatus(out.Status, out.ClearStatus)
 	}
 	if out.Command != "" {
-		err := w.Process.Commands.Run(command.Context{Ctx: w.ctx, Keys: keys, Source: command.SourceKeybinding}, out.Command, out.Args)
+		err := w.Commands.Run(command.Context{Ctx: w.ctx, Keys: keys, Source: command.SourceKeybinding}, out.Command, out.Args)
 		if err != nil {
 			w.Process.Logger.Warn("command run by a key failed", "command", out.Command, "key", chord.Label(), "error", describe(err))
 			if out.Command == "editor.emmet.action.expandAbbreviation" {
-				w.Process.Notify.Warn("Emmet", "Failed to expand abbreviation: "+describe(err))
+				w.Notify.Warn("Emmet", "Failed to expand abbreviation: "+describe(err))
 			}
 		}
 	}

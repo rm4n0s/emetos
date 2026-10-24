@@ -56,7 +56,8 @@ func TestGoldenOpenRecent(t *testing.T) {
 			s.menuBar.Open(s.menus.BarIndex(command.MenubarFileMenu))
 			r.ts.Pump(300 * time.Millisecond)
 			r.pump()
-			// New Text File, Open Folder, Open Recent
+			// New Text File, New Window, Open Folder, Open Recent
+			r.press("down")
 			r.press("down")
 			r.press("down")
 			r.press("down")

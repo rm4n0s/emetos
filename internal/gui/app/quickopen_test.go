@@ -356,7 +356,7 @@ func TestQuickOpenFollowsTheFolder(t *testing.T) {
 
 func TestQuickOpenCommandsAndKeys(t *testing.T) {
 	win := newTestWindow(t, "")
-	if m, ok := win.Process.Commands.Lookup("workbench.action.quickOpen"); !ok || m.Title != "Go to File..." {
+	if m, ok := win.Commands.Lookup("workbench.action.quickOpen"); !ok || m.Title != "Go to File..." {
 		t.Errorf("command %+v %v", m, ok)
 	}
 	items := win.Process.Menus.Items(command.MenubarGoMenu, win.Keys)

@@ -420,11 +420,11 @@ func TestTheCommandsOfTheMenuOfATabAreRegistered(t *testing.T) {
 		if it.Menu != command.EditorTitleContext && it.Menu != command.EditorSplitMoveSubmenu || it.Command == "" {
 			continue
 		}
-		if _, ok := a.win.Process.Commands.Lookup(it.Command); !ok {
+		if _, ok := a.win.Commands.Lookup(it.Command); !ok {
 			t.Errorf("%s is not registered", it.Command)
 		}
 		// a handler is bound: running it with no context must not say the command has none
-		if err := a.win.Process.Commands.Run(command.Context{Ctx: context.Background(), Source: command.SourceAPI}, it.Command, map[string]any{"groupId": 99.0}); err != nil {
+		if err := a.win.Commands.Run(command.Context{Ctx: context.Background(), Source: command.SourceAPI}, it.Command, map[string]any{"groupId": 99.0}); err != nil {
 			if appErr, ok := errors.FromError(err); ok && appErr.Tag == "CommandHandlerMissing" {
 				t.Errorf("%s has no handler", it.Command)
 			}

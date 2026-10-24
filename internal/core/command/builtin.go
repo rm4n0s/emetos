@@ -727,12 +727,17 @@ func registerStatusBarCommands(r *Registry) {
 // in the palette; Quit (VS Code's "Exit", workbench.action.quit) is a command with a key and a menu row but no
 // entry in the palette, as in VS Code.
 //
-// Ported from VS Code: src/vs/workbench/electron-browser/actions/windowActions.ts (CloseWindowAction) and
+// Ported from VS Code: src/vs/workbench/electron-browser/actions/windowActions.ts (CloseWindowAction,
+// SwitchWindowAction), src/vs/workbench/browser/actions/windowActions.ts (NewWindowAction) and
 // src/vs/workbench/electron-browser/desktop.contribution.ts (workbench.action.quit)
 func registerWindowCommands(r *Registry) {
 	r.MustRegister(
 		Meta{ID: "workbench.action.closeWindow", Title: "Close Window"},
 		Meta{ID: "workbench.action.quit"},
+		// Step 7.8: New Window (Ctrl+Shift+N, File menu) and Switch Window..., which picks one of the windows
+		// of the process (no key on Linux).
+		Meta{ID: "workbench.action.newWindow", Title: "New Window"},
+		Meta{ID: "workbench.action.switchWindow", Title: "Switch Window..."},
 	)
 }
 

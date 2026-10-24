@@ -158,12 +158,12 @@ func (w *Window) changedSinceBackup(doc *document.Document) bool {
 // disk are told by the notification of their conflict (see showExternalNote).
 func (w *Window) noticeRestoredBackups(r *restoredWindow) {
 	if len(r.gone) > 0 {
-		w.Process.Notify.Warn("Emetos", NoticeDeletedOnDisk(r.gone))
+		w.Notify.Warn("Emetos", NoticeDeletedOnDisk(r.gone))
 	}
 	w.backups.mu.Lock()
 	crashed := w.backups.crashed
 	w.backups.mu.Unlock()
 	if crashed && r.restored > 0 {
-		w.Process.Notify.Info("Emetos", NoticeBackupsRestored(r.restored))
+		w.Notify.Info("Emetos", NoticeBackupsRestored(r.restored))
 	}
 }

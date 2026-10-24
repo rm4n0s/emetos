@@ -183,7 +183,7 @@ func (a *groupApp) press(keys string) {
 
 func (a *groupApp) run(id string) {
 	a.t.Helper()
-	err := a.win.Process.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, nil)
+	err := a.win.Commands.Run(command.Context{Ctx: context.Background(), Keys: a.win.Keys, Source: command.SourceAPI}, id, nil)
 	if err != nil {
 		a.t.Fatalf("%s: %v", id, err)
 	}
@@ -664,7 +664,7 @@ func TestABinaryFileWithEditorsOpenIsReported(t *testing.T) {
 	if !a.ts.Exists(gluttertest.ByType[*editor.Editor]()) {
 		t.Error("the editor was replaced by the notice")
 	}
-	items := a.win.Process.Notify.Items()
+	items := a.win.Notify.Items()
 	if len(items) != 1 || !strings.Contains(items[0].Message, "data.bin") {
 		t.Errorf("notifications %+v", items)
 	}

@@ -378,3 +378,28 @@ func TestBackupRunningMarker(t *testing.T) {
 		t.Errorf("unexpected failure: %v", err)
 	}
 }
+
+func TestHasBackups(t *testing.T) {
+	s, _ := newBackupStore(t, nil)
+	if s.HasBackups() {
+		t.Error("a window that has no folder has backups")
+	}
+	if err := os.MkdirAll(s.Dir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// the marker of a running window is not a backup, nor is another kind of file
+	for _, name := range []string{"running", "notes.txt"} {
+		if err := os.WriteFile(filepath.Join(s.Dir(), name), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s.HasBackups() {
+		t.Error("the marker counts as a backup")
+	}
+	if err := s.Write(t.Context(), storage.Backup{URI: "file:///a.txt", Content: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.HasBackups() {
+		t.Error("a written backup is not found")
+	}
+}

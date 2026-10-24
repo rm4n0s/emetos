@@ -171,7 +171,7 @@ func (s *shellState) statusBarOptions(win *Window) *workbench.StatusBarOptions {
 		Keybinding: win.statusKeyLabel,
 		OnError: func(id string, err error) {
 			win.Process.Logger.Warn("command of the status bar failed", "command", id, "err", err)
-			win.Process.Notify.Error("Emetos", describe(err))
+			win.Notify.Error("Emetos", describe(err))
 		},
 	}
 }

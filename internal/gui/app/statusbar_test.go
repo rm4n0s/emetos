@@ -249,7 +249,7 @@ func TestTheBellShowsNewNotificationsAndOpensTheCenter(t *testing.T) {
 	if bell().Text != "$(bell)" || bell().Tooltip != "No Notifications" {
 		t.Fatalf("at first %+v", bell())
 	}
-	a.win.Process.Notify.Info("Test", "hello")
+	a.win.Notify.Info("Test", "hello")
 	a.pump()
 	if bell().Text != "$(bell-dot)" || bell().Tooltip != "1 New Notification" {
 		t.Errorf("one notification: %+v", bell())
@@ -436,7 +436,7 @@ func TestTheLanguageCommandTakesAName(t *testing.T) {
 	}
 	a.pump()
 	found := false
-	for _, it := range a.win.Process.Notify.Items() {
+	for _, it := range a.win.Notify.Items() {
 		found = found || strings.Contains(it.Message, "no language named")
 	}
 	if !found {
@@ -784,7 +784,7 @@ func TestEveryStatusBarCommandHasAHandler(t *testing.T) {
 		"workbench.action.editor.changeLanguageMode", "workbench.action.editor.changeEOL",
 		"workbench.action.editor.changeEncoding", "changeEditorIndentation",
 	} {
-		if !a.win.Process.Commands.HasHandler(id) {
+		if !a.win.Commands.HasHandler(id) {
 			t.Errorf("%s has no handler", id)
 		}
 	}
@@ -796,7 +796,7 @@ func TestAFailingStatusCommandIsReported(t *testing.T) {
 	a.pump()
 	a.clickStatus("test.item")
 	found := false
-	for _, it := range a.win.Process.Notify.Items() {
+	for _, it := range a.win.Notify.Items() {
 		if it.Severity == notify.Error {
 			found = true
 		}

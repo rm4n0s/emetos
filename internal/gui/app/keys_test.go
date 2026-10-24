@@ -137,9 +137,9 @@ func (a *keyApp) spyOnCommands(t *testing.T) (ran *[]string, restore func()) {
 	t.Helper()
 	ran = new([]string)
 	var removes []func()
-	for _, meta := range a.win.Process.Commands.All() {
+	for _, meta := range a.win.Commands.All() {
 		id := meta.ID
-		remove, err := a.win.Process.Commands.SetHandler(id, func(command.Context, any) error {
+		remove, err := a.win.Commands.SetHandler(id, func(command.Context, any) error {
 			*ran = append(*ran, id)
 			return nil
 		})
@@ -750,7 +750,7 @@ func TestReadOnlyDocumentKeepsItsText(t *testing.T) {
 
 func TestEditorsHandOverTheirCommandsWithTheFocus(t *testing.T) {
 	a := newKeyApp(t, "ab")
-	reg := a.win.Process.Commands
+	reg := a.win.Commands
 	if !reg.HasHandler("cursorLeft") {
 		t.Fatal("the focused editor handles the commands")
 	}
@@ -880,7 +880,7 @@ func TestTabExpandsAnEmmetAbbreviationAndReportsAFailure(t *testing.T) {
 	a.ts.Pump(time.Millisecond)
 	sendChord(a.ts, tab)
 	var reported bool
-	for _, it := range a.win.Process.Notify.Items() {
+	for _, it := range a.win.Notify.Items() {
 		if strings.Contains(it.Message, "Failed to expand abbreviation") {
 			reported = true
 		}

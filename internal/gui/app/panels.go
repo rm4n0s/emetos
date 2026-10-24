@@ -138,14 +138,14 @@ func (s *shellState) bindPanelCommands() {
 		"workbench.action.openActiveLogOutputFile": func(c command.Context, _ any) error {
 			path := p.output.LogFile()
 			if path == "" {
-				win.Process.Notify.Info("Emetos", "The channel "+p.output.Active()+" has no file.")
+				win.Notify.Info("Emetos", "The channel "+p.output.Active()+" has no file.")
 				return nil
 			}
 			return s.devOpenFile(widgets.WidgetsBindingOf(s.Context()), c.Ctx, path)
 		},
 	}
 	for id, h := range handlers {
-		remove, err := win.Process.Commands.SetHandler(id, h)
+		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			// the commands are registered by the program itself: a missing one is a broken build
 			panic(err)
@@ -179,7 +179,7 @@ func (s *shellState) panelBody(win *Window) widgets.Widget {
 		body, viewID = problems.NewBody(s.panels.problems), command.ViewMarkers
 	case command.ViewContainerOutput:
 		body, viewID = output.NewBody(s.panels.output, output.BodyOpts{
-			Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes, Context: win.ctx,
+			Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Context: win.ctx,
 			Clipboard: win.Clipboard, Find: win.Find, Zoom: win.Zoom,
 		}), command.ViewOutput
 	default:
@@ -264,7 +264,7 @@ func (s *shellState) openMarker(binding *widgets.WidgetsBinding, m problems.Mark
 					s.blockFile(m.Resource)
 					return
 				}
-				win.Process.Notify.Error("Emetos", "Cannot open "+m.Resource+": "+describe(err))
+				win.Notify.Error("Emetos", "Cannot open "+m.Resource+": "+describe(err))
 				return
 			}
 			place := func(e *textEditor) {
