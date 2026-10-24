@@ -111,9 +111,12 @@ type Options struct {
 	// Notifications, when set, shows the toasts and the notification center of the presenter over the
 	// workbench, below the dialogs, and binds the notifications.* commands (SPEC §10.7).
 	Notifications *notify.Presenter
-	// StatusLeft and StatusRight are the items at the two ends of the status bar. NoFolder gives the
-	// bar the colors of a window with no folder. TODO(step 6.20): the notifications bell goes in
-	// StatusRight; it runs notifications.showList and notifications.hideList.
+	// StatusBar, when set, fills the status bar with the items of its registry (SPEC §10.1): the left ones
+	// from the left end, the right ones to the right end. A click on an item runs its command with the
+	// registry of Commands.
+	StatusBar *StatusBarOptions
+	// StatusLeft and StatusRight are more widgets at the two ends of the status bar, outside the registry.
+	// NoFolder gives the bar the colors of a window with no folder.
 	StatusLeft, StatusRight []widgets.Widget
 	NoFolder                bool
 	// Context is the context of the commands the workbench runs; context.Background() when nil.
@@ -171,12 +174,14 @@ type workbenchState struct {
 	// wasMaximized is the maximized state the last change was seen in, and restorePanel asks for the
 	// panel to get back its size once the editor area is shown again.
 	wasMaximized, restorePanel bool
-	removeLayout               func()
-	stopFollow                 func()
-	removeSettings             func()
-	removeViews                func()
-	removeCommands             []func()
-	unregister                 []func()
+	// statusDelegate is shared by the hovers of the items of the status bar.
+	statusDelegate *kit.HoverDelegate
+	removeLayout   func()
+	stopFollow     func()
+	removeSettings func()
+	removeViews    func()
+	removeCommands []func()
+	unregister     []func()
 }
 
 // partOrder lists the parts that have a focus scope.
@@ -754,6 +759,22 @@ func PanelBadgeKey(id string) foundation.Key {
 	return foundation.NewValueKey("workbench:panel-badge:" + id)
 }
 
+// context is the Go context of the commands the status bar runs.
+func (s *workbenchState) context() context.Context {
+	if c := s.Widget().opts.Context; c != nil {
+		return c
+	}
+	return context.Background()
+}
+
+// rootKeys are the context keys the commands of the status bar run in: those of the window.
+func (s *workbenchState) rootKeys() contextkey.Context {
+	if k := s.Widget().opts.Keys; k != nil {
+		return k
+	}
+	return contextkey.MapContext{}
+}
+
 // statusBar is the strip at the bottom with the items at its two ends.
 func (s *workbenchState) statusBar(bc widgets.BuildContext, colors kit.Colors) widgets.Widget {
 	o := s.Widget().opts
@@ -765,11 +786,19 @@ func (s *workbenchState) statusBar(bc widgets.BuildContext, colors kit.Colors) w
 	if bg.Alpha() == 0 {
 		bg = colors.EditorBackground
 	}
-	items := make([]widgets.Widget, 0, len(o.StatusLeft)+len(o.StatusRight)+1)
-	items = append(items, o.StatusLeft...)
-	items = append(items, widgets.NewSpacer())
-	items = append(items, o.StatusRight...)
-	row := widgets.NewRow(items, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+	var row widgets.Widget
+	if o.StatusBar != nil {
+		if s.statusDelegate == nil {
+			s.statusDelegate = kit.NewHoverDelegate(kit.HoverDelegateOpts{Instant: true})
+		}
+		row = newStatusItems(*o.StatusBar, o.Commands, s.context(), s.rootKeys(), s.statusDelegate)
+	} else {
+		items := make([]widgets.Widget, 0, len(o.StatusLeft)+len(o.StatusRight)+1)
+		items = append(items, o.StatusLeft...)
+		items = append(items, widgets.NewSpacer())
+		items = append(items, o.StatusRight...)
+		row = widgets.NewRow(items, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+	}
 	content := widgets.NewDefaultTextStyle(kit.TextStyleOf(bc, 12, fg), row)
 	return widgets.NewSizedBox(s.frame(PartStatusBar, bg, line, sideTop, content), widgets.SizedBoxOpts{Height: foundation.Some(StatusBarHeight)})
 }

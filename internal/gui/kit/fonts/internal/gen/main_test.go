@@ -38,6 +38,8 @@ func TestGenerate(t *testing.T) {
 		"CodiconAdd     = 0xEA60", // sorted by name, hex in capitals, aligned by gofmt
 		"CodiconCode    = 0xEAC4",
 		"CodiconZoomOut = 0xEB82",
+		`"zoom-out": 0xEB82,`, // the table of the code points by short name
+		`"add":      0xEA60,`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output lacks %q:\n%s", want, got)

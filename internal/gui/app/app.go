@@ -244,6 +244,8 @@ type shellState struct {
 	unsubscribeTitle func()
 	// window is the controller of the window, which gets the title; nil where there is none.
 	window interface{ SetTitle(string) }
+	// status is what the shell keeps of the status bar (statusbar.go).
+	status statusState
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -259,6 +261,7 @@ func (s *shellState) InitState() {
 	// the watcher of the folder, of the configuration and of the open files outside the folder
 	PeekWindow(s.Context()).StartWatching(s.Lifetime())
 	s.initQuickInput(binding)
+	s.initStatus(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
@@ -323,6 +326,7 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	s.disposeStatus()
 	s.disposeQuickInput()
 	s.disposeExplorer()
 	s.disposePanels()
@@ -339,9 +343,10 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, QuickInput: win.QuickInput, Context: win.ctx,
-		Editor:   s.editorArea(bc),
-		NoFolder: win.Folder == "",
-		Menus:    s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
+		Editor:    s.editorArea(bc),
+		StatusBar: s.statusBarOptions(win),
+		NoFolder:  win.Folder == "",
+		Menus:     s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 		ViewBody: s.viewBody, ViewName: s.viewName, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
 		OnViewFocus: s.viewFocused,

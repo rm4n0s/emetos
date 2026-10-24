@@ -242,6 +242,35 @@ func TestControllerPick(t *testing.T) {
 	})
 }
 
+func TestControllerPickActiveItem(t *testing.T) {
+	items := []Item{
+		{Separator: true, Label: "group"},
+		{ID: "a", Label: "a", Accept: func(KeyMods) {}},
+		{ID: "b", Label: "b", Accept: func(KeyMods) {}},
+		{ID: "c", Label: "c", Accept: func(KeyMods) {}},
+	}
+	tests := []struct {
+		name   string
+		active string
+		want   string
+	}{
+		{"no id: the first item", "", "a"},
+		{"an id that is there", "c", "c"},
+		{"the middle one", "b", "b"},
+		{"an id that is not there: the first item", "z", "a"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewController(ControllerOptions{})
+			c.Pick(PickOptions{Items: items, ActiveID: tt.active})
+			row, ok := c.Picker().Active()
+			if !ok || row.Item.Label != tt.want {
+				t.Errorf("active %q, %v; want %q", row.Item.Label, ok, tt.want)
+			}
+		})
+	}
+}
+
 func TestControllerButtons(t *testing.T) {
 	reg := NewRegistry()
 	var triggered []int

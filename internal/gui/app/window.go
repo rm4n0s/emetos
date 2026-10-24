@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -51,10 +52,13 @@ type Window struct {
 	Dispatcher *keybinding.Dispatcher
 	// Scopes tells the context key scope of each focus node.
 	Scopes *kit.FocusScopes
-	// OnChordStatus is told the status message of a pending chord ("(Ctrl+K) was pressed.
-	// Waiting for second key of chord...") and when it is cleared. The status bar shows it
-	// (step 6.20); until then it is logged. It is called on the UI thread.
+	// OnChordStatus, when set, is told the status message of a pending chord ("(Ctrl+K) was pressed.
+	// Waiting for second key of chord...") and when it is cleared, in place of the status bar showing
+	// it (tests use it to watch the dispatcher). It is called on the UI thread.
 	OnChordStatus func(status string, cleared bool)
+	// StatusBar holds the items of the status bar of the window (SPEC §10.1): the shell adds those of
+	// the editor, the problems and the notifications, and a later step adds its own.
+	StatusBar *workbench.StatusBar
 	// Clipboard is what the editors of the window remember of what they copied, so that a copy
 	// in one editor pastes in another as it was made.
 	Clipboard *editor.ClipboardMemory
@@ -116,19 +120,87 @@ type Window struct {
 	watch watchState
 	// title is the title of the window as the shell last made it.
 	title string
+	// after runs a function on the UI thread once a time has passed and returns the function that
+	// cancels it; the shell sets it while it is on screen.
+	after func(d time.Duration, f func()) (stop func())
+	// statusMessage is the item of the status message, and statusMessageStop cancels the end of its time;
+	// chordTimeout cancels the timer that forgets a pending chord.
+	statusMessage     *workbench.StatusAccessor
+	statusMessageStop func()
+	chordTimeout      func()
 }
 
 // Title is the title of the window: window.title filled in for the active editor and the folder
 // (SPEC §10.1). It is empty until the window has been shown.
 func (w *Window) Title() string { return w.title }
 
-// chordStatus passes the status of a chord on, to OnChordStatus or the log.
+// chordStatus shows the status of a chord in the status bar, as VS Code's status message: "(Ctrl+K) was
+// pressed. Waiting for second key of chord..." stays until the chord is completed or aborted (or the
+// dispatcher forgets it after keybinding.ChordTimeout), and "The key combination (Ctrl+K, X) is not a command."
+// shows for ten seconds. OnChordStatus gets it instead when it is set.
 func (w *Window) chordStatus(status string, cleared bool) {
 	if w.OnChordStatus != nil {
 		w.OnChordStatus(status, cleared)
 		return
 	}
 	w.Process.Logger.Debug("chord status", "status", status, "cleared", cleared)
+	if cleared {
+		w.stopChordTimeout()
+		w.ClearStatusMessage()
+	}
+	switch {
+	case status == "":
+	case cleared:
+		w.ShowStatusMessage(status, failedChordMessageTime)
+	default:
+		w.ShowStatusMessage(status, 0)
+		w.stopChordTimeout()
+		if w.after != nil {
+			w.chordTimeout = w.after(keybinding.ChordTimeout, func() {
+				w.chordTimeout = nil
+				w.Dispatcher.LeaveChordMode()
+				w.ClearStatusMessage()
+			})
+		}
+	}
+}
+
+// failedChordMessageTime is how long the message of a chord that is not a command shows (VS Code's 10 s).
+const failedChordMessageTime = 10 * time.Second
+
+func (w *Window) stopChordTimeout() {
+	if w.chordTimeout != nil {
+		w.chordTimeout()
+		w.chordTimeout = nil
+	}
+}
+
+// ShowStatusMessage shows a message at the end of the left side of the status bar, in place of the one it
+// showed, and takes it away after hideAfter (never when it is zero). It is called on the UI thread.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/notifications/notificationsStatus.ts (doSetStatusMessage)
+func (w *Window) ShowStatusMessage(text string, hideAfter time.Duration) {
+	w.ClearStatusMessage()
+	entry := workbench.StatusEntry{Name: "Status Message", Text: text, AriaLabel: text}
+	w.statusMessage = w.StatusBar.Add("status.message", workbench.StatusLeft, math.Inf(-1), entry)
+	if hideAfter > 0 && w.after != nil {
+		w.statusMessageStop = w.after(hideAfter, func() {
+			w.statusMessageStop = nil
+			w.ClearStatusMessage()
+		})
+	}
+}
+
+// ClearStatusMessage takes the status message away.
+func (w *Window) ClearStatusMessage() {
+	if w.statusMessageStop != nil {
+		w.statusMessageStop()
+		w.statusMessageStop = nil
+	}
+	if w.statusMessage != nil {
+		w.statusMessage.Dispose()
+		w.statusMessage = nil
+	}
 }
 
 // NewWindow makes a window over a process, for a folder or for none. It reads the settings
@@ -175,6 +247,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
 		Markers:        problems.NewService(),
 		Notifications:  notify.NewPresenter(p.Notify),
+		StatusBar:      workbench.NewStatusBar(),
 		ctx:            ctx,
 	}
 	w.Documents.onFile = w.followFile

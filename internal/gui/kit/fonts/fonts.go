@@ -37,3 +37,10 @@ func Sources() []widgets.FontSource {
 func CodiconIcon(code int) widgets.IconData {
 	return widgets.NewIconData(code, widgets.IconDataOpts{FontFamily: Codicon})
 }
+
+// CodiconByName gives the code point of the codicon with a short name, such as "bell-dot" (the name
+// of $(bell-dot) in the text of a status bar item).
+func CodiconByName(name string) (int, bool) {
+	code, ok := codiconCodes[name]
+	return code, ok
+}

@@ -990,7 +990,8 @@ func TestEditorLayoutAndSwitchGroupMenus(t *testing.T) {
 	if st.group.grid.Count() != 2 {
 		t.Errorf("%d groups after View > Editor Layout > Two Columns", st.group.grid.Count())
 	}
-	a.ts.Tap(gluttertest.ByText("Go"))
+	// "Go" is also the language in the status bar: the menu is the one in the menu bar
+	a.ts.Tap(gluttertest.Descendant(gluttertest.ByType[*kit.MenuBar](), gluttertest.ByText("Go")))
 	a.pump()
 	a.ts.Tap(gluttertest.ByText("Switch Group"))
 	a.pump()

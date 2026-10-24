@@ -281,6 +281,16 @@ func (d *Document) SetLineEnding(le fileio.LineEnding) error {
 	return nil
 }
 
+// Reload replaces the text and the file properties of the document with those of a file that was read
+// again, as "Reopen with Encoding" does: the text, the encoding, the byte order mark, the line ending and the
+// stat; the large file mode stays as it was decided when the document was made. The undo history is cleared and
+// the document counts as saved, as with SetText. The result of
+// fileio.Read is already in "\n" lines.
+func (d *Document) Reload(res fileio.ReadResult) {
+	d.encoding, d.hasBOM, d.lineEnding, d.stat = res.Encoding, res.HasBOM, res.LineEnding, res.Stat
+	d.SetText(res.Text)
+}
+
 // SetText replaces the whole text, as when a file is reloaded after it changed on
 // disk. The undo history is cleared, the document counts as saved, and the text is
 // "\n" only.

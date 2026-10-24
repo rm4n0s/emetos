@@ -605,3 +605,41 @@ func TestSetURI(t *testing.T) {
 		t.Errorf("a stopped listener was told: %v", got)
 	}
 }
+
+func TestReload(t *testing.T) {
+	d := newDoc("old\ntext")
+	edit(t, d, []Edit{ins(0, 0, "x")}, EditOptions{})
+	var causes []Cause
+	d.Subscribe(func(e ChangeEvent) { causes = append(causes, e.Cause) })
+	d.Reload(fileio.ReadResult{
+		Text: "café\nbar", Encoding: "windows1252", HasBOM: true, LineEnding: fileio.CRLF, LargeFile: true,
+		Stat: fileio.FileStat{Size: 9},
+	})
+	tests := []struct {
+		name string
+		got  any
+		want any
+	}{
+		{"the text", d.Text(), "café\nbar"},
+		{"the encoding", d.Encoding(), "windows1252"},
+		{"the byte order mark", d.HasBOM(), true},
+		{"the line ending", d.LineEnding(), fileio.CRLF},
+		{"the stat", d.Stat().Size, int64(9)},
+		{"the large file mode is not changed", d.LargeFile(), false},
+		{"saved", d.Dirty(), false},
+		{"one event", len(causes), 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.want {
+				t.Errorf("got %v, want %v", tt.got, tt.want)
+			}
+		})
+	}
+	if len(causes) == 1 && causes[0] != CauseSetText {
+		t.Errorf("cause %v", causes[0])
+	}
+	if d.CanUndo() {
+		t.Error("the undo history survived the reload")
+	}
+}

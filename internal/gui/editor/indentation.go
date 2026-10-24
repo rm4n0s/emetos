@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"strconv"
+
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
@@ -10,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 )
 
 // maxTabSize is the largest tab size the commands accept (editor.tabSize goes to 100).
@@ -30,6 +33,7 @@ func (vm *ViewModel) setIndentation(tabSize int, insertSpaces bool) {
 	opts.TabSize = max(tabSize, 1)
 	vm.SetOptions(opts)
 	vm.NotifyListeners()
+	vm.sel.NotifyListeners()
 }
 
 // textLines reads the lines of the document for indent.Guess.
@@ -77,23 +81,70 @@ func tabSizeArgument(args any) (int, bool) {
 }
 
 // indentUsing makes the action of "Indent Using Spaces" (spaces true), "Indent Using Tabs" and
-// "Change Tab Display Size" (displayOnly: the tab size only, keeping what Tab inserts). VS Code
-// asks for the tab size with a list; until the quick input of area 2 can show it, the size is
-// an argument.
+// "Change Tab Display Size" (displayOnly: the tab size only, keeping what Tab inserts). The tab size is
+// the argument of the command, or, without one, what the user picks from a list of 1 to 8 (VS Code's
+// "Select Tab Size for Current File"); without the quick input (SetQuickPick) there is no list and the
+// argument is required.
 //
 // Ported from VS Code: src/vs/editor/contrib/indentation/browser/indentation.ts (ChangeIndentationSizeAction)
 func indentUsing(spaces, displayOnly bool) action {
 	return func(vm *ViewModel, args any) error {
 		size, ok := tabSizeArgument(args)
 		if !ok {
-			return errors.New("TabSizeRequired", `give the tab size as an argument, {"tabSize": 4} (a list to pick it from comes with the quick input)`)
+			if vm.snip.quick == nil {
+				return errors.New("TabSizeRequired", `give the tab size as an argument, {"tabSize": 4}`)
+			}
+			vm.pickTabSize(spaces, displayOnly)
+			return nil
 		}
-		if displayOnly {
-			_, spaces = vm.doc.Indentation()
-		}
-		vm.setIndentation(size, spaces)
+		vm.applyTabSize(size, spaces, displayOnly)
 		return nil
 	}
+}
+
+// applyTabSize makes the tab size the user chose, with the "Indent Using Spaces/Tabs" or the "Change Tab
+// Display Size" rule.
+func (vm *ViewModel) applyTabSize(size int, spaces, displayOnly bool) {
+	if displayOnly {
+		_, spaces = vm.doc.Indentation()
+	}
+	vm.setIndentation(size, spaces)
+}
+
+// tabSizePicks are the sizes the tab size picker offers.
+const tabSizePicks = 8
+
+// pickTabSize shows the picker of the tab size: the sizes 1 to 8, the one the settings give marked
+// "Default Tab Size" (or "Configured Tab Size" when it is the document's too) and the document's marked
+// "Current Tab Size", with the document's size active.
+func (vm *ViewModel) pickTabSize(spaces, displayOnly bool) {
+	current, _ := vm.doc.Indentation()
+	configured := 0
+	if vm.indentDefaults != nil {
+		configured, _ = vm.indentDefaults()
+	}
+	items := make([]quickinput.Item, 0, tabSizePicks)
+	for n := 1; n <= tabSizePicks; n++ {
+		description := ""
+		switch {
+		case n == configured && n == current:
+			description = "Configured Tab Size"
+		case n == configured:
+			description = "Default Tab Size"
+		case n == current:
+			description = "Current Tab Size"
+		}
+		items = append(items, quickinput.Item{
+			ID: strconv.Itoa(n), Label: strconv.Itoa(n), Description: description,
+			Accept: func(quickinput.KeyMods) {
+				vm.runLater(func() error { vm.applyTabSize(n, spaces, displayOnly); return nil })
+			},
+		})
+	}
+	vm.snip.quick(quickinput.PickOptions{
+		Placeholder: "Select Tab Size for Current File", Items: items,
+		ActiveID: strconv.Itoa(min(max(current, 1), tabSizePicks)),
+	})
 }
 
 // convertIndentation makes the action of Convert Indentation to Spaces and to Tabs.

@@ -91,6 +91,9 @@ type PickOptions struct {
 	Items []Item
 	// MatchOnDescription and MatchOnDetail let the filter look at those texts too.
 	MatchOnDescription, MatchOnDetail bool
+	// ActiveID, when it is the ID of one of the items, makes that item the active one when the picker opens
+	// (VS Code's activeItem: the current end of line sequence, the current tab size).
+	ActiveID string
 	// OnCancel is called when the picker closes without a choice.
 	OnCancel func()
 }
@@ -356,6 +359,14 @@ func (c *Controller) Pick(opts PickOptions) {
 	c.picker.MatchOnDescription, c.picker.MatchOnDetail = opts.MatchOnDescription, opts.MatchOnDetail
 	c.picker.SetPlaceholder(opts.Placeholder)
 	c.picker.SetItems(opts.Items)
+	if opts.ActiveID != "" {
+		for i, r := range c.picker.Rows() {
+			if r.Item.ID == opts.ActiveID && !r.Item.Separator {
+				c.picker.SetActive(i)
+				break
+			}
+		}
+	}
 	c.fire()
 }
 

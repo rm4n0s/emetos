@@ -1,5 +1,5 @@
 // Command gen turns codicon.csv into codicon_gen.go: one constant for the code
-// point of each codicon (SPEC §10.2). Run it with go generate in
+// point of each codicon, and the table of the code points by short name (SPEC §10.2). Run it with go generate in
 // internal/gui/kit/fonts, after scripts/update-assets.sh has copied the CSV.
 package main
 
@@ -75,8 +75,9 @@ func generate(r io.Reader) ([]byte, error) {
 		return nil, errors.New("CodiconCSVInvalid", "the header is not short_name,character,unicode", "header", got)
 	}
 	type icon struct {
-		name string
-		code uint64
+		name  string
+		short string
+		code  uint64
 	}
 	var icons []icon
 	taken := map[string]string{} // Go name -> short name
@@ -101,7 +102,7 @@ func generate(r io.Reader) ([]byte, error) {
 			return nil, errors.New("CodiconNameCollision", "two short names make the same constant", "constant", goName, "names", other+" "+name)
 		}
 		taken[goName] = name
-		icons = append(icons, icon{goName, code})
+		icons = append(icons, icon{goName, name, code})
 	}
 	sort.Slice(icons, func(i, j int) bool { return icons[i].name < icons[j].name })
 
@@ -114,7 +115,15 @@ func generate(r io.Reader) ([]byte, error) {
 	for _, ic := range icons {
 		b.WriteString("\t" + ic.name + " = 0x" + strings.ToUpper(strconv.FormatUint(ic.code, 16)) + "\n")
 	}
-	b.WriteString(")\n")
+	b.WriteString(")\n\n")
+	b.WriteString("// codiconCodes are the code points of the codicons by short name, for CodiconByName.\n")
+	b.WriteString("var codiconCodes = map[string]int{\n")
+	byShort := append([]icon(nil), icons...)
+	sort.Slice(byShort, func(i, j int) bool { return byShort[i].short < byShort[j].short })
+	for _, ic := range byShort {
+		b.WriteString("\t\"" + ic.short + "\": 0x" + strings.ToUpper(strconv.FormatUint(ic.code, 16)) + ",\n")
+	}
+	b.WriteString("}\n")
 	src, err := format.Source(b.Bytes())
 	if err != nil {
 		return nil, errors.NewErr("CodiconFormatFailed", err)

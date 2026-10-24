@@ -33,6 +33,7 @@ func DefaultRegistry() *Registry {
 	registerPanelViewCommands(r)
 	registerExplorerCommands(r)
 	registerQuickInputCommands(r)
+	registerStatusBarCommands(r)
 	return r
 }
 
@@ -676,5 +677,20 @@ func registerQuickInputCommands(r *Registry) {
 		Meta{ID: "workbench.action.quickOpenView", Title: "Quick Open View", Category: "View"},
 		Meta{ID: "workbench.action.clearCommandHistory", Title: "Clear Command History"},
 		Meta{ID: "workbench.action.closeQuickOpen"},
+	)
+}
+
+// registerStatusBarCommands registers the commands of the pickers of the status bar (SPEC §3.2): the
+// language mode, the end of line sequence, the encoding and the indentation. VS Code lists the first three
+// in the palette; the indentation one is registered with the id of the window in its name and has no title.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorStatus.ts
+func registerStatusBarCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.editor.changeLanguageMode", Title: "Change Language Mode",
+			Description: "Change the language mode of the active text editor."},
+		Meta{ID: "workbench.action.editor.changeEOL", Title: "Change End of Line Sequence"},
+		Meta{ID: "workbench.action.editor.changeEncoding", Title: "Change File Encoding"},
+		Meta{ID: "changeEditorIndentation"},
 	)
 }

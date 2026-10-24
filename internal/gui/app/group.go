@@ -301,6 +301,7 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 	}
 	s.syncNav()
 	s.refreshKeys()
+	s.refreshStatus()
 	if s.Mounted() {
 		binding.Post(func() {
 			if s.Mounted() {

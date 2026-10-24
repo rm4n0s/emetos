@@ -24,6 +24,8 @@ const (
 	SourceMenu
 	// SourcePalette is the command palette.
 	SourcePalette
+	// SourceStatusBar is a click on an item of the status bar.
+	SourceStatusBar
 )
 
 // Context is what a command handler receives: the Go context for cancellation, the context

@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	"github.com/rm4n0s/errors"
 )
 
@@ -301,5 +302,98 @@ func TestLineBreakInsertKeepsTheCursor(t *testing.T) {
 	}
 	if got := vm.Cursors().Primary().Selection; got != buffer.NewCursor(buffer.Position{Col: len("func main() {")}) {
 		t.Errorf("cursor = %v", got)
+	}
+}
+
+func TestIndentUsingPicksTheTabSizeWithTheQuickInput(t *testing.T) {
+	tests := []struct {
+		name        string
+		id          string
+		documentTab int
+		documentSp  bool
+		configured  int
+		pick        string
+		wantTab     int
+		wantSpaces  bool
+	}{
+		{"spaces", "editor.action.indentUsingSpaces", 4, false, 4, "2", 2, true},
+		{"tabs", "editor.action.indentUsingTabs", 4, true, 4, "8", 8, false},
+		{"the display size keeps the spaces", "editor.action.changeTabDisplaySize", 4, true, 4, "3", 3, true},
+		{"the display size keeps the tabs", "editor.action.changeTabDisplaySize", 4, false, 4, "6", 6, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vm := NewViewModel(newTestDoc("\tx"), testOptions(), nil)
+			vm.Document().SetIndentation(tt.documentTab, tt.documentSp)
+			vm.SetIndentationDefaults(func() (int, bool) { return tt.configured, true })
+			var opts quickinput.PickOptions
+			vm.SetQuickPick(func(o quickinput.PickOptions) { opts = o })
+			if err := vm.RunCommand(tt.id, nil); err != nil {
+				t.Fatal(err)
+			}
+			if opts.Placeholder != "Select Tab Size for Current File" || len(opts.Items) != 8 {
+				t.Fatalf("pick: %q, %d items", opts.Placeholder, len(opts.Items))
+			}
+			if opts.ActiveID != "4" {
+				t.Errorf("the current size is active: %q", opts.ActiveID)
+			}
+			if got := opts.Items[3].Description; got != "Configured Tab Size" {
+				t.Errorf("4 is both the setting's and the document's: %q", got)
+			}
+			// nothing changed until a size is picked
+			if size, _ := vm.Document().Indentation(); size != tt.documentTab {
+				t.Fatalf("changed before the pick: %d", size)
+			}
+			for _, it := range opts.Items {
+				if it.Label == tt.pick {
+					it.Accept(quickinput.KeyMods{})
+				}
+			}
+			if size, spaces := vm.Document().Indentation(); size != tt.wantTab || spaces != tt.wantSpaces {
+				t.Errorf("document: %d %v; want %d %v", size, spaces, tt.wantTab, tt.wantSpaces)
+			}
+			if vm.Options().TabSize != tt.wantTab {
+				t.Errorf("a tab is shown as %d columns", vm.Options().TabSize)
+			}
+		})
+	}
+}
+
+func TestTabSizePickDescriptions(t *testing.T) {
+	vm := NewViewModel(newTestDoc("x"), testOptions(), nil)
+	vm.Document().SetIndentation(2, true)
+	vm.SetIndentationDefaults(func() (int, bool) { return 4, true })
+	var opts quickinput.PickOptions
+	vm.SetQuickPick(func(o quickinput.PickOptions) { opts = o })
+	if err := vm.RunCommand("editor.action.indentUsingSpaces", nil); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"1": "", "2": "Current Tab Size", "3": "", "4": "Default Tab Size", "8": ""}
+	for _, it := range opts.Items {
+		if w, ok := want[it.Label]; ok && it.Description != w {
+			t.Errorf("size %s: %q, want %q", it.Label, it.Description, w)
+		}
+	}
+	if opts.ActiveID != "2" {
+		t.Errorf("active %q", opts.ActiveID)
+	}
+	// a document with a tab size past the list activates the last size
+	vm.Document().SetIndentation(12, true)
+	if err := vm.RunCommand("editor.action.indentUsingSpaces", nil); err != nil {
+		t.Fatal(err)
+	}
+	if opts.ActiveID != "8" {
+		t.Errorf("active %q for a tab size of 12", opts.ActiveID)
+	}
+	// an argument still wins over the list
+	opts = quickinput.PickOptions{}
+	if err := vm.RunCommand("editor.action.indentUsingSpaces", 3.0); err != nil {
+		t.Fatal(err)
+	}
+	if len(opts.Items) != 0 {
+		t.Error("an argument shows no list")
+	}
+	if size, _ := vm.Document().Indentation(); size != 3 {
+		t.Errorf("size %d", size)
 	}
 }

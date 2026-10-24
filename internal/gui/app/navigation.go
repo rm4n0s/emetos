@@ -163,7 +163,12 @@ func (s *shellState) syncNav() {
 // watchSelection follows the selection and the edits of an editor, to tell the history when they change.
 func (s *shellState) watchSelection(e *textEditor) {
 	e.nav.sel, e.nav.version = primarySelection(e), e.doc.Version()
-	e.nav.handle = e.view.AddSelectionListener(func() { s.selectionNotified(e, editorgroup.ReasonUser) })
+	e.nav.handle = e.view.AddSelectionListener(func() {
+		s.selectionNotified(e, editorgroup.ReasonUser)
+		if !e.disposed && s.activeEditor() == e {
+			s.refreshStatus()
+		}
+	})
 }
 
 // unwatchSelection stops following the selection of an editor.

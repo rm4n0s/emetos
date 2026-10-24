@@ -195,7 +195,17 @@ type Colors struct {
 	// background and border, which the menu bar area has.
 	StatusBarForeground, StatusBarBackground, StatusBarBorder                         ui.Color
 	StatusBarNoFolderForeground, StatusBarNoFolderBackground, StatusBarNoFolderBorder ui.Color
-	ActivityBarBackground, ActivityBarBorder                                          ui.Color
+	// The colors of the items of the status bar: the background under the pointer and while pressed,
+	// the text under the pointer, and for the prominent, error and warning items their text and
+	// background and the same two under the pointer.
+	StatusBarItemHoverBackground, StatusBarItemHoverForeground, StatusBarItemActiveBackground ui.Color
+	StatusBarItemProminentForeground, StatusBarItemProminentBackground                        ui.Color
+	StatusBarItemProminentHoverForeground, StatusBarItemProminentHoverBackground              ui.Color
+	StatusBarItemErrorForeground, StatusBarItemErrorBackground                                ui.Color
+	StatusBarItemErrorHoverForeground, StatusBarItemErrorHoverBackground                      ui.Color
+	StatusBarItemWarningForeground, StatusBarItemWarningBackground                            ui.Color
+	StatusBarItemWarningHoverForeground, StatusBarItemWarningHoverBackground                  ui.Color
+	ActivityBarBackground, ActivityBarBorder                                                  ui.Color
 	// The icons of the activity bar: the active one, the others, the line beside the active one (and
 	// its focus outline), and the background of the active one. The header of a view in the side
 	// bar: background, text and the line above it.
@@ -378,8 +388,18 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 
 		StatusBarForeground: color("statusBar.foreground"), StatusBarBackground: color("statusBar.background"), StatusBarBorder: color("statusBar.border"),
 		StatusBarNoFolderForeground: color("statusBar.noFolderForeground"), StatusBarNoFolderBackground: color("statusBar.noFolderBackground"),
-		StatusBarNoFolderBorder: color("statusBar.noFolderBorder"),
-		ActivityBarBackground:   color("activityBar.background"), ActivityBarBorder: color("activityBar.border"),
+		StatusBarNoFolderBorder:      color("statusBar.noFolderBorder"),
+		StatusBarItemHoverBackground: color("statusBarItem.hoverBackground"), StatusBarItemHoverForeground: color("statusBarItem.hoverForeground"),
+		StatusBarItemActiveBackground:    color("statusBarItem.activeBackground"),
+		StatusBarItemProminentForeground: color("statusBarItem.prominentForeground"), StatusBarItemProminentBackground: color("statusBarItem.prominentBackground"),
+		StatusBarItemProminentHoverForeground: color("statusBarItem.prominentHoverForeground"),
+		StatusBarItemProminentHoverBackground: color("statusBarItem.prominentHoverBackground"),
+		StatusBarItemErrorForeground:          color("statusBarItem.errorForeground"), StatusBarItemErrorBackground: color("statusBarItem.errorBackground"),
+		StatusBarItemErrorHoverForeground: color("statusBarItem.errorHoverForeground"), StatusBarItemErrorHoverBackground: color("statusBarItem.errorHoverBackground"),
+		StatusBarItemWarningForeground: color("statusBarItem.warningForeground"), StatusBarItemWarningBackground: color("statusBarItem.warningBackground"),
+		StatusBarItemWarningHoverForeground: color("statusBarItem.warningHoverForeground"),
+		StatusBarItemWarningHoverBackground: color("statusBarItem.warningHoverBackground"),
+		ActivityBarBackground:               color("activityBar.background"), ActivityBarBorder: color("activityBar.border"),
 		ActivityBarForeground: color("activityBar.foreground"), ActivityBarInactiveForeground: color("activityBar.inactiveForeground"),
 		ActivityBarActiveBorder: color("activityBar.activeBorder"), ActivityBarActiveFocusBorder: color("activityBar.activeFocusBorder"),
 		ActivityBarActiveBackground:    color("activityBar.activeBackground"),

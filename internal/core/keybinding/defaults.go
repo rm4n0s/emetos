@@ -67,6 +67,7 @@ func DefaultRegistry() *Registry {
 	registerPanelViewKeys(r)
 	registerExplorerKeys(r)
 	registerQuickInputKeys(r)
+	registerStatusBarKeys(r)
 	return r
 }
 
@@ -488,5 +489,14 @@ func registerQuickInputKeys(r *Registry) {
 		Rule{Command: "workbench.action.quickOpen", Weight: WeightWorkbenchContrib, Primary: "ctrl+p", Secondary: []string{"ctrl+e"}},
 		Rule{Command: "workbench.action.gotoLine", Weight: WeightWorkbenchContrib, Primary: "ctrl+g"},
 		Rule{Command: "workbench.action.closeQuickOpen", Weight: WeightWorkbenchContrib, When: mustWhen("inQuickOpen"), Primary: "escape", Secondary: []string{"shift+escape"}},
+	)
+}
+
+// registerStatusBarKeys registers the key of the language mode picker of the status bar: Ctrl+K M.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorStatus.ts
+func registerStatusBarKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.editor.changeLanguageMode", Weight: WeightWorkbenchContrib, Primary: "ctrl+k m"},
 	)
 }

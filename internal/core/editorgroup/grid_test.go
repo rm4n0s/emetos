@@ -493,16 +493,20 @@ func TestGridMaximize(t *testing.T) {
 		t.Error("a second toggle does not restore")
 	}
 	// adding, removing, moving and evening out exit
-	for name, do := range map[string]func(){
-		"add":    func() { mustAdd(t, g, 1, DirDown) },
-		"remove": func() { _, _ = g.RemoveGroup(g.Group(4)) },
-		"even":   func() { g.DistributeSizes() },
-		"move":   func() { _ = g.MoveGroup(g.Group(1), g.Group(2), DirRight) },
+	// in this order: "remove" takes the group that "add" made
+	for _, c := range []struct {
+		name string
+		do   func()
+	}{
+		{"add", func() { mustAdd(t, g, 1, DirDown) }},
+		{"remove", func() { _, _ = g.RemoveGroup(g.Group(4)) }},
+		{"even", func() { g.DistributeSizes() }},
+		{"move", func() { _ = g.MoveGroup(g.Group(1), g.Group(2), DirRight) }},
 	} {
 		_ = g.Maximize(g.Group(2))
-		do()
+		c.do()
 		if g.Maximized() != nil {
-			t.Errorf("%s keeps the group maximized", name)
+			t.Errorf("%s keeps the group maximized", c.name)
 		}
 	}
 }

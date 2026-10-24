@@ -67,3 +67,27 @@ func TestIconsDraw(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func TestCodiconByName(t *testing.T) {
+	tests := []struct {
+		name string
+		want int
+		ok   bool
+	}{
+		{"bell", CodiconBell, true},
+		{"bell-dot", CodiconBellDot, true},
+		{"bell-slash-dot", CodiconBellSlashDot, true},
+		{"error", CodiconError, true},
+		{"not-an-icon", 0, false},
+		{"", 0, false},
+		{"Bell", 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := CodiconByName(tt.name)
+			if got != tt.want || ok != tt.ok {
+				t.Errorf("CodiconByName(%q) = %#x, %v; want %#x, %v", tt.name, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}

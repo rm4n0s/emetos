@@ -17,6 +17,8 @@ var appCommands = map[string]bool{
 	"explorer.newFile": true, "explorer.newFolder": true, "renameFile": true, "moveFileToTrash": true, "deleteFile": true,
 	"filesExplorer.cut": true, "filesExplorer.copy": true, "filesExplorer.paste": true, "filesExplorer.cancelCut": true,
 	"explorer.openToSide": true, "revealFileInOS": true,
+	// the indentation picker of the status bar (gui/app/statuspickers.go)
+	"changeEditorIndentation": true,
 }
 
 func TestEveryEditorCommandHasAHandler(t *testing.T) {
