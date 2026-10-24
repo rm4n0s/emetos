@@ -8,6 +8,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/edit"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // whitespaceText has tabs, spaces of every kind and control characters.
@@ -48,7 +49,7 @@ func TestGoldenRenderWhitespace(t *testing.T) {
 			}
 			r.settle()
 			noErrors(t, r.ts)
-			r.ts.MatchesGolden("whitespace_" + mode)
+			testutil.MatchesGolden(r.ts, "whitespace_"+mode)
 		})
 	}
 }
@@ -58,7 +59,7 @@ func TestGoldenRulersAndControlCharacters(t *testing.T) {
 		o.Rulers = []ColumnRuler{{Column: 20}, {Column: 40, Color: ui.NewColor(0xFFFF0000)}}
 	})
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("rulers_control")
+	testutil.MatchesGolden(r.ts, "rulers_control")
 }
 
 func TestGoldenOccurrenceHighlights(t *testing.T) {
@@ -70,7 +71,7 @@ func TestGoldenOccurrenceHighlights(t *testing.T) {
 		r.ts.Pump(300 * time.Millisecond)
 		r.settle()
 		noErrors(t, r.ts)
-		r.ts.MatchesGolden("highlight_word")
+		testutil.MatchesGolden(r.ts, "highlight_word")
 	})
 	t.Run("selection", func(t *testing.T) {
 		r := newDisplayRig(t, text, func(o *Options) { o.OccurrencesHighlight = "off" })
@@ -78,7 +79,7 @@ func TestGoldenOccurrenceHighlights(t *testing.T) {
 		r.vm.SelectionsChanged()
 		r.settle()
 		noErrors(t, r.ts)
-		r.ts.MatchesGolden("highlight_selection")
+		testutil.MatchesGolden(r.ts, "highlight_selection")
 	})
 }
 

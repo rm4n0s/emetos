@@ -365,7 +365,7 @@ func (s *shellState) saved(doc *document.Document, oldURI document.URI, oldLang 
 // dismissSaveNote takes the notification of a failed save of a document away.
 func (s *shellState) dismissSaveNote(doc *document.Document) {
 	if id, ok := s.saves.notes[doc]; ok {
-		PeekWindow(s.Context()).Process.Notify.Dismiss(id)
+		s.win.Process.Notify.Dismiss(id)
 		delete(s.saves.notes, doc)
 	}
 }

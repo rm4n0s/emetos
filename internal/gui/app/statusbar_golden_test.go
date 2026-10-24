@@ -6,6 +6,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // TestGoldenStatusBar shows the status bar of a window with a file, markers and a notification, with a
@@ -20,7 +21,7 @@ func TestGoldenStatusBar(t *testing.T) {
 			a.vm().Cursors().SetSelections([]buffer.Selection{{Anchor: buffer.Position{Line: 9, Col: 1}, Active: buffer.Position{Line: 9, Col: 7}}})
 			a.vm().SelectionsChanged()
 			a.pump()
-			a.ts.MatchesGolden("statusbar_items_" + th.name)
+			testutil.MatchesGolden(a.ts, "statusbar_items_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" several cursors", func(t *testing.T) {
@@ -32,20 +33,20 @@ func TestGoldenStatusBar(t *testing.T) {
 			})
 			a.vm().SelectionsChanged()
 			a.pump()
-			a.ts.MatchesGolden("statusbar_multi_" + th.name)
+			testutil.MatchesGolden(a.ts, "statusbar_multi_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" language picker", func(t *testing.T) {
 			a := goldenPanels(t, th.theme, ui.Size{Width: 960, Height: 560})
 			a.mustDo("workbench.action.editor.changeLanguageMode", nil)
 			a.pump()
-			a.ts.MatchesGolden("statusbar_language_picker_" + th.name)
+			testutil.MatchesGolden(a.ts, "statusbar_language_picker_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" no editor", func(t *testing.T) {
 			a := goldenPanels(t, th.theme, size)
 			a.run("workbench.action.closeAllEditors")
-			a.ts.MatchesGolden("statusbar_no_editor_" + th.name)
+			testutil.MatchesGolden(a.ts, "statusbar_no_editor_"+th.name)
 			a.noErrors()
 		})
 	}

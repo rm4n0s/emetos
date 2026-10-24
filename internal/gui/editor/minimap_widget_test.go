@@ -234,7 +234,7 @@ func TestGoldenMinimap(t *testing.T) {
 	r.vm.scroller(19 * 40)
 	r.settle()
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("minimap")
+	testutil.MatchesGolden(r.ts, "minimap")
 }
 
 func TestGoldenMinimapLeftWithFind(t *testing.T) {
@@ -244,7 +244,7 @@ func TestGoldenMinimapLeftWithFind(t *testing.T) {
 	}
 	r.settle()
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("minimap_left_find")
+	testutil.MatchesGolden(r.ts, "minimap_left_find")
 }
 
 func TestMinimapIsOffInLargeFiles(t *testing.T) {

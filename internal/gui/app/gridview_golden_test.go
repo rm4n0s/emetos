@@ -49,7 +49,7 @@ func TestGoldenEditorGrid(t *testing.T) {
 			a.clickTab("util.go")
 			a.run("workbench.action.focusRightGroup")
 			a.pump()
-			a.ts.MatchesGolden("grid_two_groups_" + th.name)
+			testutil.MatchesGolden(a.ts, "grid_two_groups_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" three groups, the one below active", func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestGoldenEditorGrid(t *testing.T) {
 			if a.shape() != "H(1 V(2 3))" {
 				t.Fatalf("the grid is %s", a.shape())
 			}
-			a.ts.MatchesGolden("grid_three_groups_" + th.name)
+			testutil.MatchesGolden(a.ts, "grid_three_groups_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" an empty group", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestGoldenEditorGrid(t *testing.T) {
 			if !a.group(a.activeID()).Empty() || a.grid().Count() != 2 {
 				t.Fatalf("the grid is %s", a.shape())
 			}
-			a.ts.MatchesGolden("grid_empty_group_" + th.name)
+			testutil.MatchesGolden(a.ts, "grid_empty_group_"+th.name)
 			a.noErrors()
 		})
 	}

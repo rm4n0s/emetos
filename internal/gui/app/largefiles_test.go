@@ -112,7 +112,7 @@ func TestLargeFileNotificationAndSetting(t *testing.T) {
 	t.Run("optimizations off", func(t *testing.T) {
 		paths := testutil.Isolate(t)
 		testutil.Settings(t, paths, map[string]any{"editor.largeFileOptimizations": false})
-		win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), "")
+		win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 		if err != nil {
 			t.Fatal(err)
 		}

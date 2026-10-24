@@ -53,13 +53,13 @@ func TestGoldenProblemsPanel(t *testing.T) {
 			a := goldenPanels(t, th.theme, ui.Size{Width: 960, Height: 560})
 			a.goldenMarkers()
 			a.mustDo("workbench.action.showErrorsWarnings", nil)
-			a.ts.MatchesGolden("problems_markers_" + th.name)
+			testutil.MatchesGolden(a.ts, "problems_markers_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" empty", func(t *testing.T) {
 			a := goldenPanels(t, th.theme, ui.Size{Width: 960, Height: 560})
 			a.mustDo("workbench.action.showErrorsWarnings", nil)
-			a.ts.MatchesGolden("problems_empty_" + th.name)
+			testutil.MatchesGolden(a.ts, "problems_empty_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" filtered", func(t *testing.T) {
@@ -69,7 +69,7 @@ func TestGoldenProblemsPanel(t *testing.T) {
 			a.mustDo("workbench.actions.workbench.panel.markers.view.toggleErrors", nil)
 			a.win.Problems.Filter().SetValue("lint")
 			a.pump()
-			a.ts.MatchesGolden("problems_filtered_" + th.name)
+			testutil.MatchesGolden(a.ts, "problems_filtered_"+th.name)
 			a.noErrors()
 		})
 	}
@@ -91,7 +91,7 @@ func TestGoldenOutputPanel(t *testing.T) {
 			a.mustDo("dev.log", map[string]any{"channel": "Tasks", "message": "no task has run"})
 			a.win.Views.OpenPanel(command.ViewContainerOutput)
 			a.pump()
-			a.ts.MatchesGolden("output_lines_" + th.name)
+			testutil.MatchesGolden(a.ts, "output_lines_"+th.name)
 			a.noErrors()
 		})
 	}

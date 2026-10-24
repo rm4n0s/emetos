@@ -79,7 +79,7 @@ func (s *shellState) disposeStatus() {
 	if st.problems == nil {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := s.win
 	for _, f := range st.stops {
 		f()
 	}

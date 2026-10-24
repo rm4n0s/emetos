@@ -255,7 +255,7 @@ func TestGoldenStickyScroll(t *testing.T) {
 	r.vm.SelectionsChanged()
 	r.settle()
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("sticky_scroll")
+	testutil.MatchesGolden(r.ts, "sticky_scroll")
 }
 
 func TestGoldenStickyScrollPushedUp(t *testing.T) {
@@ -264,5 +264,5 @@ func TestGoldenStickyScrollPushedUp(t *testing.T) {
 	r.vm.scroller(19*46 - 10)
 	r.settle()
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("sticky_scroll_pushed")
+	testutil.MatchesGolden(r.ts, "sticky_scroll_pushed")
 }

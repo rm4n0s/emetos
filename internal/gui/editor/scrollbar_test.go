@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // wideDoc has a line of 300 characters among short ones.
@@ -222,7 +223,7 @@ func TestGoldenScrollbars(t *testing.T) {
 	ts.Pump(100 * time.Millisecond)
 	revealScrollbars(ts, ui.Offset{Dx: 300, Dy: 200})
 	noErrors(t, ts)
-	ts.MatchesGolden("scrollbars")
+	testutil.MatchesGolden(ts, "scrollbars")
 }
 
 // differsInColumn tells whether a pixel of a column of the screenshot, from y0 up to y1, is not

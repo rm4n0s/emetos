@@ -15,6 +15,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 var notifySize = ui.Size{Width: 760, Height: 480}
@@ -668,7 +669,7 @@ func TestGoldenNotifications(t *testing.T) {
 			n.advance(time.Second)
 			n.svc.Notify(notify.Notification{Severity: notify.Warning, Source: "Language", Message: "Indexing the workspace", Progress: &notify.Progress{Total: 100, Worked: 40}})
 			n.settle()
-			n.ts.MatchesGolden("notifications_toasts_" + th.name)
+			testutil.MatchesGolden(n.ts, "notifications_toasts_"+th.name)
 			noErrors(t, n.harness)
 		})
 		t.Run(th.name+" center", func(t *testing.T) {
@@ -684,13 +685,13 @@ func TestGoldenNotifications(t *testing.T) {
 			items := n.svc.Items()
 			n.svc.SetExpanded(items[1].ID, true)
 			n.run("notifications.showList")
-			n.ts.MatchesGolden("notifications_center_" + th.name)
+			testutil.MatchesGolden(n.ts, "notifications_center_"+th.name)
 			noErrors(t, n.harness)
 		})
 		t.Run(th.name+" empty center", func(t *testing.T) {
 			n := newNotifyHarness(t, th.colors(), nil)
 			n.run("notifications.showList")
-			n.ts.MatchesGolden("notifications_center_empty_" + th.name)
+			testutil.MatchesGolden(n.ts, "notifications_center_empty_"+th.name)
 			noErrors(t, n.harness)
 		})
 	}

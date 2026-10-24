@@ -249,7 +249,7 @@ func TestGoldenPlainGoText(t *testing.T) {
 	vm := NewViewModel(newTestDoc(goldenSample(t)), goOptions(), nil)
 	ts := pumpEditor(t, vm, ui.Size{Width: 640, Height: 440})
 	noErrors(t, ts)
-	ts.MatchesGolden("plain_go_text")
+	testutil.MatchesGolden(ts, "plain_go_text")
 	testutil.Proof(t, ts, "3.2-text-layer.png")
 }
 
@@ -271,7 +271,7 @@ func TestGoldenTabs(t *testing.T) {
 			vm := NewViewModel(newTestDoc(text), opts, nil)
 			ts := pumpEditor(t, vm, ui.Size{Width: 560, Height: 260})
 			noErrors(t, ts)
-			ts.MatchesGolden(fmt.Sprintf("tabs_%d", tabSize))
+			testutil.MatchesGolden(ts, fmt.Sprintf("tabs_%d", tabSize))
 		})
 	}
 }
@@ -283,7 +283,7 @@ func TestGoldenRelativeLineNumbers(t *testing.T) {
 	vm.Cursors().SetSelections([]buffer.Selection{{Anchor: buffer.Position{Line: 9}, Active: buffer.Position{Line: 9}}})
 	ts := pumpEditor(t, vm, ui.Size{Width: 640, Height: 440})
 	noErrors(t, ts)
-	ts.MatchesGolden("relative_line_numbers")
+	testutil.MatchesGolden(ts, "relative_line_numbers")
 }
 
 func TestGoldenIntervalLineNumbers(t *testing.T) {
@@ -293,7 +293,7 @@ func TestGoldenIntervalLineNumbers(t *testing.T) {
 	vm.Cursors().SetSelections([]buffer.Selection{{Anchor: buffer.Position{Line: 3}, Active: buffer.Position{Line: 3}}})
 	ts := pumpEditor(t, vm, ui.Size{Width: 400, Height: 440})
 	noErrors(t, ts)
-	ts.MatchesGolden("interval_line_numbers")
+	testutil.MatchesGolden(ts, "interval_line_numbers")
 }
 
 func selectionOf(l1, c1, l2, c2 int) buffer.Selection {
@@ -474,20 +474,20 @@ func TestBlinkingStopsWhenTheEditorIsGone(t *testing.T) {
 
 func TestGoldenMultiLineSelection(t *testing.T) {
 	_, ts := selectedEditor(t, goOptions(), selectionOf(12, 7, 17, 5))
-	ts.MatchesGolden("selection_multiline")
+	testutil.MatchesGolden(ts, "selection_multiline")
 }
 
 func TestGoldenSelectionStaircase(t *testing.T) {
 	// A selection that starts to the right of where it ends: the corners turn both ways.
 	_, ts := selectedEditor(t, goOptions(), selectionOf(13, 10, 17, 4))
-	ts.MatchesGolden("selection_staircase")
+	testutil.MatchesGolden(ts, "selection_staircase")
 }
 
 func TestGoldenSelectionNotRounded(t *testing.T) {
 	opts := goOptions()
 	opts.RoundedSelection = false
 	_, ts := selectedEditor(t, opts, selectionOf(12, 7, 17, 5))
-	ts.MatchesGolden("selection_square")
+	testutil.MatchesGolden(ts, "selection_square")
 }
 
 func TestGoldenInactiveSelection(t *testing.T) {
@@ -497,36 +497,36 @@ func TestGoldenInactiveSelection(t *testing.T) {
 	if vm.Focused() {
 		t.Fatal("the editor lost the focus")
 	}
-	ts.MatchesGolden("selection_inactive")
+	testutil.MatchesGolden(ts, "selection_inactive")
 }
 
 func TestGoldenThreeCursors(t *testing.T) {
 	_, ts := selectedEditor(t, goOptions(), selectionOf(13, 4, 13, 4), selectionOf(15, 8, 15, 8), selectionOf(18, 6, 18, 6))
-	ts.MatchesGolden("three_cursors")
+	testutil.MatchesGolden(ts, "three_cursors")
 }
 
 func TestGoldenSeveralSelections(t *testing.T) {
 	_, ts := selectedEditor(t, goOptions(), selectionOf(3, 0, 6, 8), selectionOf(12, 4, 12, 8), selectionOf(18, 4, 19, 9))
-	ts.MatchesGolden("selection_several")
+	testutil.MatchesGolden(ts, "selection_several")
 }
 
 func TestGoldenCurrentLine(t *testing.T) {
 	_, ts := selectedEditor(t, goOptions(), selectionOf(13, 9, 13, 9))
-	ts.MatchesGolden("current_line")
+	testutil.MatchesGolden(ts, "current_line")
 }
 
 func TestGoldenCurrentLineInGutterAndText(t *testing.T) {
 	opts := goOptions()
 	opts.RenderLineHighlight = "all"
 	_, ts := selectedEditor(t, opts, selectionOf(13, 9, 13, 9))
-	ts.MatchesGolden("current_line_all")
+	testutil.MatchesGolden(ts, "current_line_all")
 }
 
 func TestGoldenCurrentLineInGutter(t *testing.T) {
 	opts := goOptions()
 	opts.RenderLineHighlight = "gutter"
 	_, ts := selectedEditor(t, opts, selectionOf(13, 3, 15, 3))
-	ts.MatchesGolden("current_line_gutter")
+	testutil.MatchesGolden(ts, "current_line_gutter")
 }
 
 func TestCurrentLineHighlightOffAndOnlyWhenFocused(t *testing.T) {

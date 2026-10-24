@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // inputEditor shows a text in an editor that has the focus, with its input connected.
@@ -324,7 +325,7 @@ func TestGoldenPreedit(t *testing.T) {
 		t.Fatal("no preedit")
 	}
 	noErrors(t, ts)
-	ts.MatchesGolden("preedit")
+	testutil.MatchesGolden(ts, "preedit")
 }
 
 func TestAlignedAffixes(t *testing.T) {

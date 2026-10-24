@@ -176,7 +176,7 @@ func (s *shellState) disposeExplorer() {
 	if ex.editors != nil {
 		ex.editors.Dispose()
 	}
-	win := PeekWindow(s.Context())
+	win := s.win
 	for _, f := range ex.removeUndo {
 		f()
 	}

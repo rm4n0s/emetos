@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
+	"github.com/rm4n0s/glutter/widgets"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/gomonobold"
 	"golang.org/x/image/font/gofont/gomonobolditalic"
@@ -20,6 +22,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/storage/storagetest"
+	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
@@ -28,6 +31,12 @@ const MonoFamily = "Go Mono"
 
 // proofFlag is the -proof flag of proof method A: a test that calls Proof writes its image.
 var proofFlag = flag.Bool("proof", false, "write the proof images of tests that make them to docs/implemented-proof-images")
+
+// ScanTimeout is the time limit of one pattern search of a grammar in the tests that tokenize. The
+// default (100 ms in production, SPEC §8.2) is exceeded by the first search of a grammar on a loaded
+// machine under the race detector, and a search that times out leaves its line without colors, which a
+// golden image shows.
+const ScanTimeout = 30 * time.Second
 
 // Fonts are the fonts every UI test loads: Go Mono in its four styles under the family
 // MonoFamily, then Codicons and Seti. The look of a test never depends on the fonts of the
@@ -48,7 +57,19 @@ func Fonts() []gluttertest.Font {
 // New makes a tester of the given size in logical pixels with the test fonts loaded.
 func New(t testing.TB, size ui.Size) *gluttertest.Tester {
 	t.Helper()
-	return gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
+	ts := gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
+	t.Cleanup(func() { unmount(ts) })
+	return ts
+}
+
+// unmount replaces the widget tree of the tester with an empty one, so that the states are disposed
+// and the goroutines they started (State.Go, the tokenizers of the app) end with the test. Without
+// it every test leaves its goroutines and its whole window behind, the heap grows with every test
+// of a package, and the later tests run several times slower under the race detector.
+//
+// Glutter: gluttertest.Tester should unmount the tree in its own cleanup (docs/GLUTTER-ISSUES.md).
+func unmount(ts *gluttertest.Tester) {
+	ts.PumpWidget(widgets.NewSizedBoxShrink(nil))
 }
 
 // Isolate points every user folder at temporary ones (see storagetest.Isolate) and returns
@@ -129,4 +150,32 @@ func Proof(t testing.TB, ts *gluttertest.Tester, name string) {
 		t.Fatalf("testutil.Proof: %v", err)
 	}
 	t.Logf("proof image written to %s", path)
+}
+
+// tokenized is what a widget that shows highlighted text says of its tokenizer (the editor
+// widget does).
+type tokenized interface {
+	Tokenizer() *tokens.Tokenizer
+}
+
+// SettleTokens tokenizes, on the caller, every line of every editor the tester shows (also the
+// ones that are offstage), then pumps a frame so that the text is painted with the colors. The
+// editor tokenizes the lines it draws only as far as a wall-clock budget allows and leaves the rest
+// to a background goroutine, so a picture taken without this depends on the speed of the machine.
+func SettleTokens(ts *gluttertest.Tester) {
+	f := gluttertest.ByPredicate("a widget with a tokenizer", func(w widgets.Widget) bool {
+		t, ok := w.(tokenized)
+		return ok && t.Tokenizer() != nil
+	}, gluttertest.FindOpts{IncludeOffstage: true})
+	for _, w := range ts.Widgets(f) {
+		w.(tokenized).Tokenizer().Settle()
+	}
+	ts.Pump()
+}
+
+// MatchesGolden is the MatchesGolden of the tester after SettleTokens: a golden image never
+// depends on how far the background tokenizer got. Every golden test calls it.
+func MatchesGolden(ts *gluttertest.Tester, name string) {
+	SettleTokens(ts)
+	ts.MatchesGolden(name)
 }

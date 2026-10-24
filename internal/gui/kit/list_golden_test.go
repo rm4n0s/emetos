@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // goldenListItems are the files of a folder, as a list of results would show them.
@@ -44,7 +45,7 @@ func TestGoldenListMultiSelect(t *testing.T) {
 			r.ts.Hover(ui.Offset{Dx: 150, Dy: r.y(5)})
 			r.settle()
 			r.noErrors()
-			r.ts.MatchesGolden("list_multiselect_" + th.name)
+			testutil.MatchesGolden(r.ts, "list_multiselect_"+th.name)
 		})
 	}
 }
@@ -59,7 +60,7 @@ func TestGoldenListFind(t *testing.T) {
 			r.focusList()
 			r.typeText("li")
 			r.noErrors()
-			r.ts.MatchesGolden("list_find_" + th.name)
+			testutil.MatchesGolden(r.ts, "list_find_"+th.name)
 		})
 	}
 }
@@ -81,7 +82,7 @@ func TestGoldenTreeFind(t *testing.T) {
 				r.settle()
 				r.typeText("doc")
 				r.noErrors()
-				r.ts.MatchesGolden("tree_find_" + mode.name + "_" + th.name)
+				testutil.MatchesGolden(r.ts, "tree_find_"+mode.name+"_"+th.name)
 			})
 		}
 	}
@@ -99,7 +100,7 @@ func TestGoldenTreeFindNoResults(t *testing.T) {
 			r.settle()
 			r.typeText("zzz")
 			r.noErrors()
-			r.ts.MatchesGolden("tree_find_noresults_" + th.name)
+			testutil.MatchesGolden(r.ts, "tree_find_noresults_"+th.name)
 		})
 	}
 }
@@ -125,7 +126,7 @@ func TestGoldenTreeDropFeedback(t *testing.T) {
 				g.MoveTo(ui.Offset{Dx: 150, Dy: r.y(c.row) + c.dy})
 				r.settle()
 				r.noErrors()
-				r.ts.MatchesGolden("tree_drop_" + c.name + "_" + th.name)
+				testutil.MatchesGolden(r.ts, "tree_drop_"+c.name+"_"+th.name)
 				g.Up()
 				r.settle()
 			})

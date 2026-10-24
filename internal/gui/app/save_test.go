@@ -72,7 +72,7 @@ func settingsWindow(t *testing.T, extra map[string]any) *Window {
 	if err := os.WriteFile(userPath, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatalf("NewWindow: %v", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // goldenThemes are the themes every golden of this file is made in.
@@ -59,7 +60,7 @@ func TestGoldenButton(t *testing.T) {
 				),
 			))
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 440, Height: 130}, content)
-			ts.MatchesGolden("button_" + th.name)
+			testutil.MatchesGolden(ts, "button_"+th.name)
 		})
 	}
 }
@@ -80,7 +81,7 @@ func TestGoldenButtonStates(t *testing.T) {
 				ts := pumpThemed(t, th.colors(), ui.Size{Width: 340, Height: 62}, content)
 				ts.Hover(ts.Center(gluttertest.ByText("Hover")))
 				ts.Pump(time.Millisecond)
-				ts.MatchesGolden("button_states_" + variant.name + "_" + th.name)
+				testutil.MatchesGolden(ts, "button_states_"+variant.name+"_"+th.name)
 			})
 		}
 	}
@@ -102,7 +103,7 @@ func TestGoldenIconButton(t *testing.T) {
 			// the second button is under the pointer and the last one is pressed
 			ts.Hover(ts.Center(gluttertest.At(gluttertest.ByType[*IconButton](), 1)))
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("iconbutton_" + th.name)
+			testutil.MatchesGolden(ts, "iconbutton_"+th.name)
 		})
 	}
 }
@@ -123,7 +124,7 @@ func TestGoldenActionBar(t *testing.T) {
 			// the pointer rests on the first action of the vertical bar, after the tooltip is gone
 			ts.Hover(ts.Center(gluttertest.At(gluttertest.ByType[*actionItem](), 4)))
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("actionbar_" + th.name)
+			testutil.MatchesGolden(ts, "actionbar_"+th.name)
 		})
 	}
 }
@@ -147,7 +148,7 @@ func TestGoldenHover(t *testing.T) {
 				if !strings.Contains(ts.Widget(gluttertest.ByText("Save (Ctrl+S)")).(*widgets.Text).PlainText(), "Save") {
 					t.Fatal("no hover")
 				}
-				ts.MatchesGolden("hover_" + pos.name + "_" + th.name)
+				testutil.MatchesGolden(ts, "hover_"+pos.name+"_"+th.name)
 			})
 		}
 	}
@@ -162,7 +163,7 @@ func TestGoldenHover(t *testing.T) {
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 260, Height: 150}, widgets.NewSizedBox(child, widgets.SizedBoxOpts{Width: foundation.Some(260.0), Height: foundation.Some(150.0)}))
 			ctrl.Show()
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("hover_text_" + th.name)
+			testutil.MatchesGolden(ts, "hover_text_"+th.name)
 		})
 	}
 }

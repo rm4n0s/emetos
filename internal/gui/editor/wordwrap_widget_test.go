@@ -165,7 +165,7 @@ func TestGoldenWordWrap(t *testing.T) {
 	r.vm.SelectionsChanged()
 	r.settle()
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("wordwrap")
+	testutil.MatchesGolden(r.ts, "wordwrap")
 }
 
 func TestGoldenWordWrapIndentAndCursor(t *testing.T) {
@@ -174,7 +174,7 @@ func TestGoldenWordWrapIndentAndCursor(t *testing.T) {
 	r.vm.SelectionsChanged()
 	r.settle()
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("wordwrap_cursor")
+	testutil.MatchesGolden(r.ts, "wordwrap_cursor")
 }
 
 func TestGoldenWordWrapWithFoldsAndFind(t *testing.T) {
@@ -188,7 +188,7 @@ func TestGoldenWordWrapWithFoldsAndFind(t *testing.T) {
 	}
 	r.settle()
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("wordwrap_fold_find")
+	testutil.MatchesGolden(r.ts, "wordwrap_fold_find")
 }
 
 func TestWordWrapIsOffByDefaultAndTogglesLive(t *testing.T) {

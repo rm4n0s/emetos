@@ -173,7 +173,7 @@ func TestDevRunnerStopsWhenCanceled(t *testing.T) {
 }
 
 func TestDevStepsFromTextAndEnvironment(t *testing.T) {
-	p := NewProcess(ProcessOptions{Paths: newTestWindow(t, "").Process.Paths})
+	p := newTestProcess(ProcessOptions{Paths: newTestWindow(t, "").Process.Paths})
 	if !DevCommandsEnabled() {
 		t.Skip("this build does not run dev commands")
 	}
@@ -194,7 +194,7 @@ func TestDevStepsFromTextAndEnvironment(t *testing.T) {
 }
 
 func TestTheEditorDevCommandsAreInTheProcess(t *testing.T) {
-	p := NewProcess(ProcessOptions{Paths: testutil.Isolate(t)})
+	p := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
 	for _, id := range []string{"dev.type", "dev.scroll"} {
 		if _, ok := p.Commands.Lookup(id); ok != DevCommandsEnabled() {
 			t.Errorf("%s is registered = %v, want %v", id, ok, DevCommandsEnabled())

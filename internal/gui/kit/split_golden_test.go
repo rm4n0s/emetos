@@ -10,6 +10,8 @@ import (
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // label is a text in the foreground color of the theme, in the middle of the space it has.
@@ -36,7 +38,7 @@ func TestGoldenSplitViewHorizontal(t *testing.T) {
 			// the pointer rests on the second sash
 			ts.Hover(ts.Center(gluttertest.At(gluttertest.ByType[*Sash](), 1)))
 			ts.Pump(DefaultSashHoverDelay + 20*time.Millisecond)
-			ts.MatchesGolden("splitview_horizontal_" + th.name)
+			testutil.MatchesGolden(ts, "splitview_horizontal_"+th.name)
 		})
 	}
 }
@@ -56,7 +58,7 @@ func TestGoldenSplitViewVertical(t *testing.T) {
 			g := ts.StartGesture(at, gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse})
 			g.MoveBy(ui.Offset{Dy: -20})
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("splitview_vertical_" + th.name)
+			testutil.MatchesGolden(ts, "splitview_vertical_"+th.name)
 			g.Up()
 		})
 	}
@@ -98,11 +100,11 @@ func TestGoldenScrollableElement(t *testing.T) {
 				case "hover":
 					ts.Hover(slider)
 					ts.Pump(scrollbarRevealDuration + 20*time.Millisecond)
-					ts.MatchesGolden("scrollable_hover_" + th.name)
+					testutil.MatchesGolden(ts, "scrollable_hover_"+th.name)
 				case "active":
 					g := ts.StartGesture(slider, gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse})
 					ts.Pump(scrollbarRevealDuration + 20*time.Millisecond)
-					ts.MatchesGolden("scrollable_active_" + th.name)
+					testutil.MatchesGolden(ts, "scrollable_active_"+th.name)
 					g.Up()
 				}
 			})

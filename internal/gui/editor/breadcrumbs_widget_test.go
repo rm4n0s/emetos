@@ -332,14 +332,14 @@ func TestGoldenBreadcrumbs(t *testing.T) {
 	r := newCrumbsRig(t, crumbsFile, onOptions, crumbsOpts())
 	r.ts.Hover(r.ts.Center(gluttertest.ByText("proj")))
 	r.ts.Pump(time.Millisecond)
-	r.ts.MatchesGolden("breadcrumbs")
+	testutil.MatchesGolden(r.ts, "breadcrumbs")
 	r.ts.Tap(gluttertest.ByText("src"))
 	r.waitFor(t, "README.md")
 	r.ts.Pump(time.Millisecond)
 	if errs := r.ts.TakeErrors(); len(errs) != 0 {
 		t.Fatalf("errors: %v", errs)
 	}
-	r.ts.MatchesGolden("breadcrumbs_picker")
+	testutil.MatchesGolden(r.ts, "breadcrumbs_picker")
 }
 
 // TestProofStickyBreadcrumbs makes the proof image of step 5.7 with -proof: a scrolled Go file

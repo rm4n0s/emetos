@@ -105,7 +105,7 @@ func newNotifyApp(t *testing.T) *notifyApp {
 	testutil.Settings(t, paths, nil)
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths, Logger: logger}), "")
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths, Logger: logger}), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestDevNotifyFailsOnBadArguments(t *testing.T) {
 }
 
 func TestDevNotifyIsRegisteredOnlyInDevBuilds(t *testing.T) {
-	p := NewProcess(ProcessOptions{Paths: testutil.Isolate(t)})
+	p := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
 	if _, ok := p.Commands.Lookup("dev.notify"); ok != DevCommandsEnabled() {
 		t.Errorf("dev.notify is registered = %v, want %v", ok, DevCommandsEnabled())
 	}
@@ -268,7 +268,7 @@ func TestANotificationBeforeTheWindowShows(t *testing.T) {
 	// Run reports a file that cannot be opened before the window is up: the toast shows when it is
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, nil)
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 var goldenThemes = []struct {
@@ -32,7 +33,7 @@ func TestGoldenExplorer(t *testing.T) {
 	for _, th := range goldenThemes {
 		t.Run(th.name+" collapsed", func(t *testing.T) {
 			w := newWRig(t, th.colors, area, projectEntries...)
-			w.ts.MatchesGolden("explorer_collapsed_" + th.name)
+			testutil.MatchesGolden(w.ts, "explorer_collapsed_"+th.name)
 			w.noErrors()
 		})
 		t.Run(th.name+" revealed", func(t *testing.T) {
@@ -41,7 +42,7 @@ func TestGoldenExplorer(t *testing.T) {
 			w.view.Reveal(w.path("internal/server/server.go"), RevealSelect, func(bool) { done = true })
 			w.wait("the reveal", func() bool { return done })
 			w.settle()
-			w.ts.MatchesGolden("explorer_revealed_" + th.name)
+			testutil.MatchesGolden(w.ts, "explorer_revealed_"+th.name)
 			w.noErrors()
 		})
 		t.Run(th.name+" focused", func(t *testing.T) {
@@ -55,7 +56,7 @@ func TestGoldenExplorer(t *testing.T) {
 			w.settle()
 			w.key(keyDown)
 			w.key(keyDown)
-			w.ts.MatchesGolden("explorer_focused_" + th.name)
+			testutil.MatchesGolden(w.ts, "explorer_focused_"+th.name)
 			w.noErrors()
 		})
 	}
@@ -70,7 +71,7 @@ func TestGoldenWelcome(t *testing.T) {
 			}
 			t.Run(name, func(t *testing.T) {
 				ts := pump(t, th.colors, ui.Size{Width: 260, Height: 160}, NewWelcome(WelcomeOpts{HasEditors: editors, OnOpenFolder: func() {}}))
-				ts.MatchesGolden("explorer_" + name)
+				testutil.MatchesGolden(ts, "explorer_"+name)
 			})
 		}
 	}
@@ -97,7 +98,7 @@ func TestGoldenOpenEditors(t *testing.T) {
 			}
 			ts := pump(t, th.colors, ui.Size{Width: 260, Height: float64(r.view.Count()) * 22}, NewOpenEditorsBody(r.view))
 			ts.Pump(1)
-			ts.MatchesGolden("explorer_open_editors_" + th.name)
+			testutil.MatchesGolden(ts, "explorer_open_editors_"+th.name)
 			if errs := ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
 			}

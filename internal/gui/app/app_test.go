@@ -25,12 +25,21 @@ var testWindowSize = ui.Size{Width: windowWidth, Height: windowHeight}
 
 // newTestWindow makes a window over a process with isolated folders and the editor font of
 // the tests.
+// newTestProcess is NewProcess with the pattern search limit of the tests (testutil.ScanTimeout), so
+// that a slow run does not leave lines of text without colors.
+func newTestProcess(opts ProcessOptions) *Process {
+	if opts.ScanTimeout == 0 {
+		opts.ScanTimeout = testutil.ScanTimeout
+	}
+	return NewProcess(opts)
+}
+
 func newTestWindow(t *testing.T, folder string) *Window {
 	t.Helper()
 	paths := testutil.Isolate(t)
 	// The store of the window reads the settings.json that testutil.Settings writes.
 	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14})
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), folder)
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
 	if err != nil {
 		t.Fatalf("NewWindow: %v", err)
 	}
@@ -217,7 +226,7 @@ func TestDevCommandsRunAfterTheFirstFrame(t *testing.T) {
 
 func TestProcessHasTheServices(t *testing.T) {
 	paths := testutil.Isolate(t)
-	p := NewProcess(ProcessOptions{Paths: paths})
+	p := newTestProcess(ProcessOptions{Paths: paths})
 	if p.Settings == nil || p.Commands == nil || p.Keymap == nil || p.Notify == nil || p.Logger == nil || p.Logs != nil {
 		t.Fatalf("services: %+v", p)
 	}
@@ -234,7 +243,7 @@ func TestProcessHasTheServices(t *testing.T) {
 
 func TestWindowsOwnTheirDocuments(t *testing.T) {
 	paths := testutil.Isolate(t)
-	p := NewProcess(ProcessOptions{Paths: paths})
+	p := newTestProcess(ProcessOptions{Paths: paths})
 	ctx := context.Background()
 	a, err := NewWindow(ctx, p, "")
 	if err != nil {
@@ -411,7 +420,7 @@ func TestPlainTextIsNotTokenized(t *testing.T) {
 func TestFileAssociationsChooseTheLanguage(t *testing.T) {
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, map[string]any{"files.associations": map[string]any{"*.sample": "go", "*.json": "jsonc"}})
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +453,7 @@ func TestFileAssociationsChooseTheLanguage(t *testing.T) {
 }
 
 func TestProcessGrammars(t *testing.T) {
-	p := NewProcess(ProcessOptions{Paths: testutil.Isolate(t)})
+	p := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
 	g1, err := p.Grammar("go", 0)
 	if err != nil || g1 == nil {
 		t.Fatalf("go: %v %v", g1, err)

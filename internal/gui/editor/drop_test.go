@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 const dropText = "hello world\nfoo bar baz\nthe end"
@@ -331,7 +332,7 @@ func TestGoldenDropCaret(t *testing.T) {
 	g := r.ts.StartGesture(r.at(0, 8), mouseOpts())
 	g.MoveTo(r.at(1, 4))
 	r.ts.Pump()
-	r.ts.MatchesGolden("drop_caret")
+	testutil.MatchesGolden(r.ts, "drop_caret")
 	g.Up()
 }
 

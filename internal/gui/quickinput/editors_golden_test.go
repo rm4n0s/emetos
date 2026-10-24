@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // withIcons gives the entries of a model the Seti icon of their file.
@@ -73,7 +74,7 @@ func TestGoldenEditorPicker(t *testing.T) {
 					r.registry.MustRegister(NewEditorsProvider(mode, withIcons(m.options())))
 				}
 				tc.prepare(r)
-				r.ts.MatchesGolden("quickinput_editors_" + tc.name + "_" + th.name)
+				testutil.MatchesGolden(r.ts, "quickinput_editors_"+tc.name+"_"+th.name)
 			})
 		}
 	}

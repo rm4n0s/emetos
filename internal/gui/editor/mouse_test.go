@@ -528,5 +528,5 @@ func TestGoldenMouseColumnSelection(t *testing.T) {
 	releaseAlt()
 	releaseShift()
 	r.ts.Pump()
-	r.ts.MatchesGolden("mouse_column_selection")
+	testutil.MatchesGolden(r.ts, "mouse_column_selection")
 }

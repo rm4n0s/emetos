@@ -8,6 +8,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // demo fills the parts the way the views of the later steps will.
@@ -42,7 +43,7 @@ func TestGoldenWorkbench(t *testing.T) {
 				st := DefaultLayoutState()
 				tc.state(&st)
 				h := newHarness(t, ui.Size{Width: 960, Height: 600}, th.colors(), st, tc.extra, demo)
-				h.ts.MatchesGolden("workbench_" + tc.name + "_" + th.name)
+				testutil.MatchesGolden(h.ts, "workbench_"+tc.name+"_"+th.name)
 				noErrors(t, h)
 			})
 		}
@@ -100,7 +101,7 @@ func TestGoldenViewsAndMenus(t *testing.T) {
 				h.menuBar = ctl
 				tc.do(h, views)
 				h.settle()
-				h.ts.MatchesGolden("workbench_" + tc.name + "_" + th.name)
+				testutil.MatchesGolden(h.ts, "workbench_"+tc.name+"_"+th.name)
 				noErrors(t, h)
 			})
 		}

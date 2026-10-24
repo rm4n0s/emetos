@@ -49,7 +49,7 @@ func TestGoldenBundledThemes(t *testing.T) {
 			ts := testutil.New(t, ui.Size{Width: 520, Height: 220})
 			pumpEditorColors(t, ts, vm, EditorOpts{Autofocus: true}, bundledColors(t, name))
 			noErrors(t, ts)
-			ts.MatchesGolden("theme_" + slug)
+			testutil.MatchesGolden(ts, "theme_"+slug)
 		})
 	}
 }

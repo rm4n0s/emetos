@@ -17,6 +17,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -251,6 +252,10 @@ func NewEditor(vm *ViewModel, opts ...EditorOpts) *Editor {
 
 // ViewModel is the view model the editor shows.
 func (e *Editor) ViewModel() *ViewModel { return e.vm }
+
+// Tokenizer is the tokenizer of the document the editor shows, or nil. Tests use it to wait for the
+// colors of the text (see testutil.SettleTokens).
+func (e *Editor) Tokenizer() *tokens.Tokenizer { return e.vm.Tokenizer() }
 
 // CreateState implements widgets.StatefulWidget.
 func (e *Editor) CreateState() widgets.State { return &editorState{} }

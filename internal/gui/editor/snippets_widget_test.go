@@ -34,7 +34,7 @@ func TestSnippetTabStopsAreDrawn(t *testing.T) {
 			}
 			ts.Pump(time.Millisecond)
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden(tc.name)
+			testutil.MatchesGolden(ts, tc.name)
 		})
 	}
 }
@@ -50,7 +50,7 @@ func TestSnippetChoiceListIsShownBelowTheCaret(t *testing.T) {
 	if !ts.Exists(gluttertest.ByText("beta")) {
 		t.Fatal("the options are not shown")
 	}
-	ts.MatchesGolden("snippet_choices")
+	testutil.MatchesGolden(ts, "snippet_choices")
 
 	// Down and Enter choose the second option and give the focus back to the editor
 	ts.SendKeyDownEvent(services.LogicalKeyboardKeyArrowDown, gluttertest.KeyOpts{})

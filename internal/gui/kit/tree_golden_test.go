@@ -80,7 +80,7 @@ func TestGoldenTree(t *testing.T) {
 			r.ts.Hover(ui.Offset{Dx: 150, Dy: r.y(9)}) // docs
 			r.settle()
 			r.noErrors()
-			r.ts.MatchesGolden("tree_" + th.name)
+			testutil.MatchesGolden(r.ts, "tree_"+th.name)
 		})
 	}
 }
@@ -96,7 +96,7 @@ func TestGoldenTreeWithoutFocus(t *testing.T) {
 			r.other.RequestFocus()
 			r.settle()
 			r.noErrors()
-			r.ts.MatchesGolden("tree_unfocused_" + th.name)
+			testutil.MatchesGolden(r.ts, "tree_unfocused_"+th.name)
 		})
 	}
 }
@@ -114,7 +114,7 @@ func TestGoldenTreeLoading(t *testing.T) {
 			r.settle()
 			r.ts.Pump(100 * time.Millisecond)
 			r.noErrors()
-			r.ts.MatchesGolden("tree_loading_" + th.name)
+			testutil.MatchesGolden(r.ts, "tree_loading_"+th.name)
 		})
 	}
 }

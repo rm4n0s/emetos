@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // cursorColored says whether a pixel is the color of the cursor, up to the rounding of the
@@ -65,14 +66,14 @@ func TestGoldenCursorStyles(t *testing.T) {
 	for _, style := range []string{"line", "line-thin", "block", "underline", "underline-thin", "block-outline"} {
 		t.Run(style, func(t *testing.T) {
 			r := cursorRig(t, style, nil)
-			r.ts.MatchesGolden("cursor_" + style)
+			testutil.MatchesGolden(r.ts, "cursor_"+style)
 		})
 	}
 }
 
 func TestGoldenWideLineCursorShowsTheCharacter(t *testing.T) {
 	r := cursorRig(t, "line", func(o *Options) { o.CursorWidth = 6 })
-	r.ts.MatchesGolden("cursor_line_wide")
+	testutil.MatchesGolden(r.ts, "cursor_line_wide")
 }
 
 // pixelAt reads a pixel of the screenshot.
@@ -250,7 +251,7 @@ func TestGoldenBoldAndLetterSpacing(t *testing.T) {
 		o.FontWeight = 700
 		o.LetterSpacing = 1.5
 	})
-	r.ts.MatchesGolden("bold_spaced")
+	testutil.MatchesGolden(r.ts, "bold_spaced")
 }
 
 func TestZoomCommands(t *testing.T) {

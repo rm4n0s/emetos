@@ -223,10 +223,10 @@ func TestGoldenListOverlay(t *testing.T) {
 	if errs := r.ts.TakeErrors(); len(errs) != 0 {
 		t.Fatalf("errors: %v", errs)
 	}
-	r.ts.MatchesGolden("list_overlay")
+	testutil.MatchesGolden(r.ts, "list_overlay")
 	r.key(services.LogicalKeyboardKeyKeyA, "a")
 	r.key(services.LogicalKeyboardKeyKeyI, "i")
-	r.ts.MatchesGolden("list_overlay_filtered")
+	testutil.MatchesGolden(r.ts, "list_overlay_filtered")
 }
 
 func TestListOverlayTypeAhead(t *testing.T) {

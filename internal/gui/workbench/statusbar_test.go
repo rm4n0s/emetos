@@ -14,6 +14,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // The tests of the widget of the status bar (step 6.20): the items of the registry, their commands, hovers and
@@ -410,7 +411,7 @@ func TestGoldenStatusBar(t *testing.T) {
 					sh.ts.Hover(sh.ts.Center(sh.item(tc.hover)))
 					sh.settle()
 				}
-				sh.ts.MatchesGolden("statusbar_" + tc.name + "_" + th.name)
+				testutil.MatchesGolden(sh.ts, "statusbar_"+tc.name+"_"+th.name)
 				noErrors(t, sh.harness)
 			})
 		}

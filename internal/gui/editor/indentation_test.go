@@ -15,6 +15,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 	"github.com/rm4n0s/errors"
 )
 
@@ -159,7 +160,7 @@ func ruled(t testing.TB, languageID, text string) *ViewModel {
 	}
 	var g *textmate.Grammar // plain text has none
 	if languageID != "plaintext" {
-		if g, err = reg.NewGrammar(languageID, regex.NewCache(1<<14)); err != nil {
+		if g, err = reg.NewGrammarWith(languageID, language.GrammarSettings{Cache: regex.NewCache(1 << 14), ScanTimeout: testutil.ScanTimeout}); err != nil {
 			t.Fatal(err)
 		}
 	}

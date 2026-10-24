@@ -27,7 +27,7 @@ func goldenExplorer(t *testing.T, theme string, withFolder bool, open ...string)
 		writeTree(t, root, "main.go", "go.mod", "README.md", "Makefile", ".gitignore", "assets/logo.png", "docs/guide.md",
 			"internal/server/server.go", "internal/server/server_test.go", "internal/store/store.go")
 	}
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), root)
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,14 +68,14 @@ func TestGoldenExplorerInTheWorkbench(t *testing.T) {
 				return vm.Tokenizer().Line(0) != nil
 			})
 			a.pump()
-			a.ts.MatchesGolden("explorer_folder_" + th.name)
+			testutil.MatchesGolden(a.ts, "explorer_folder_"+th.name)
 			if errs := a.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
 			}
 		})
 		t.Run(th.name+" no folder", func(t *testing.T) {
 			a := goldenExplorer(t, th.theme, false)
-			a.ts.MatchesGolden("explorer_no_folder_" + th.name)
+			testutil.MatchesGolden(a.ts, "explorer_no_folder_"+th.name)
 			if errs := a.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
 			}

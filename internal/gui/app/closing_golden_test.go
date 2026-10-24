@@ -51,7 +51,7 @@ func TestGoldenCloseDialog(t *testing.T) {
 					t.Fatal("no dialog shows")
 				}
 				name := map[int]string{1: "one", 3: "several", 12: "many"}[tc.files]
-				a.ts.MatchesGolden("close_dialog_" + name + "_" + th.name)
+				testutil.MatchesGolden(a.ts, "close_dialog_"+name+"_"+th.name)
 				a.noErrors()
 			})
 		}

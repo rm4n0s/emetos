@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // goldenTabs is a strip of every kind of tab: active, inactive, preview (italic), pinned, modified,
@@ -39,7 +40,7 @@ func TestGoldenTabs(t *testing.T) {
 			items[0].Icon = widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconFileCode), widgets.IconOpts{Size: foundation.Some(16.0)})
 			items = append(items, TabItem{Key: "8", Name: "a-rather-long-name.test.ts", Title: "/w/a-rather-long-name.test.ts"})
 			ts := pumpTabs(t, th.colors(), 1000, items, TabsOpts{Active: 1})
-			ts.MatchesGolden("tabs_" + th.name)
+			testutil.MatchesGolden(ts, "tabs_"+th.name)
 		})
 		t.Run(th.name+" states", func(t *testing.T) {
 			c := th.colors()
@@ -60,7 +61,7 @@ func TestGoldenTabs(t *testing.T) {
 			// the pointer rests on the dot of the modified tab of the first strip
 			ts.Hover(ts.Center(gluttertest.At(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconCircleFilled)), 0)))
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("tabs_states_" + th.name)
+			testutil.MatchesGolden(ts, "tabs_states_"+th.name)
 		})
 		t.Run(th.name+" overflow", func(t *testing.T) {
 			names := []string{"one.go", "two.go", "three.go", "four.go", "five.go", "six.go", "seven.go", "eight.go"}
@@ -70,13 +71,13 @@ func TestGoldenTabs(t *testing.T) {
 			// the pointer over the strip shows its scrollbar
 			ts.Hover(ui.Offset{Dx: 200, Dy: 17})
 			ts.Pump(scrollbarRevealDuration + 20*time.Millisecond)
-			ts.MatchesGolden("tabs_overflow_" + th.name)
+			testutil.MatchesGolden(ts, "tabs_overflow_"+th.name)
 		})
 		t.Run(th.name+" single", func(t *testing.T) {
 			items := goldenTabs()
 			items[4].Description = "src"
 			ts := pumpTabs(t, th.colors(), 500, items, TabsOpts{Active: 4, Mode: TabsSingle})
-			ts.MatchesGolden("tabs_single_" + th.name)
+			testutil.MatchesGolden(ts, "tabs_single_"+th.name)
 		})
 	}
 }
@@ -101,7 +102,7 @@ func TestGoldenTabsDeleted(t *testing.T) {
 			}))
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 740, Height: 220}, content)
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("tabs_deleted_" + th.name)
+			testutil.MatchesGolden(ts, "tabs_deleted_"+th.name)
 		})
 	}
 }
@@ -128,7 +129,7 @@ func TestGoldenTabDrop(t *testing.T) {
 				if tc.index == 5 {
 					name = "tabs_drop_after_"
 				}
-				ts.MatchesGolden(name + th.name)
+				testutil.MatchesGolden(ts, name+th.name)
 			})
 		}
 	}

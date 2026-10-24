@@ -161,7 +161,7 @@ func TestFoldingControlsFollowTheSetting(t *testing.T) {
 			r.vm.setGutterHover(tc.hover)
 			r.ts.Pump(time.Millisecond)
 			noErrors(t, r.ts)
-			r.ts.MatchesGolden(tc.golden)
+			testutil.MatchesGolden(r.ts, tc.golden)
 		})
 	}
 }
@@ -175,7 +175,7 @@ func TestGoldenFoldedLight(t *testing.T) {
 	ts := testutil.New(t, ui.Size{Width: 640, Height: 300})
 	pumpEditorColors(t, ts, vm, EditorOpts{Autofocus: true}, bundledColors(t, "Light Modern"))
 	noErrors(t, ts)
-	ts.MatchesGolden("folding_light")
+	testutil.MatchesGolden(ts, "folding_light")
 }
 
 func TestFoldRowsAreGoneFromTheTextLayer(t *testing.T) {

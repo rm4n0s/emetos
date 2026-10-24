@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // inputRow is a labelled widget of a golden: the label is the state it shows.
@@ -52,7 +53,7 @@ func TestGoldenInputBox(t *testing.T) {
 			}))
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 360, Height: 290}, content)
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("inputbox_states_" + th.name)
+			testutil.MatchesGolden(ts, "inputbox_states_"+th.name)
 		})
 		for _, m := range []struct {
 			name string
@@ -73,7 +74,7 @@ func TestGoldenInputBox(t *testing.T) {
 				if !ts.Exists(gluttertest.ByText(msg.Content)) {
 					t.Fatal("the message is not shown")
 				}
-				ts.MatchesGolden("inputbox_" + m.name + "_" + th.name)
+				testutil.MatchesGolden(ts, "inputbox_"+m.name+"_"+th.name)
 			})
 		}
 		t.Run(th.name+" multiline", func(t *testing.T) {
@@ -91,7 +92,7 @@ func TestGoldenInputBox(t *testing.T) {
 			if h := ts.Size(gluttertest.ByType[*InputBox]()).Height; h != 25+3*inputBoxLineHeight {
 				t.Errorf("height %v: the box should stop growing at its maximum", h)
 			}
-			ts.MatchesGolden("inputbox_multiline_" + th.name)
+			testutil.MatchesGolden(ts, "inputbox_multiline_"+th.name)
 		})
 	}
 }
@@ -128,7 +129,7 @@ func TestGoldenToggleAndCheckbox(t *testing.T) {
 			// possible: the toggle takes it, the checkbox looks as the focus is on it by a request)
 			focusedBox.RequestFocus()
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("toggles_checkbox_" + th.name)
+			testutil.MatchesGolden(ts, "toggles_checkbox_"+th.name)
 		})
 	}
 }
@@ -144,7 +145,7 @@ func TestGoldenToggleFocus(t *testing.T) {
 			))
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 140, Height: 56}, content)
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("toggle_focus_" + th.name)
+			testutil.MatchesGolden(ts, "toggle_focus_"+th.name)
 		})
 	}
 }
@@ -166,7 +167,7 @@ func TestGoldenDropdown(t *testing.T) {
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 300, Height: 190}, content)
 			node.RequestFocus()
 			ts.Pump(time.Millisecond)
-			ts.MatchesGolden("dropdown_closed_" + th.name)
+			testutil.MatchesGolden(ts, "dropdown_closed_"+th.name)
 		})
 		t.Run(th.name+" open", func(t *testing.T) {
 			r := newDropdownRig(t, th.colors(), ui.Size{Width: 240, Height: 200}, nil)
@@ -176,7 +177,7 @@ func TestGoldenDropdown(t *testing.T) {
 			if !r.isOpen() {
 				t.Fatal("not open")
 			}
-			r.ts.MatchesGolden("dropdown_open_" + th.name)
+			testutil.MatchesGolden(r.ts, "dropdown_open_"+th.name)
 		})
 	}
 }
@@ -198,7 +199,7 @@ func TestGoldenProgressBar(t *testing.T) {
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 380, Height: 130}, content)
 			// the infinite bit is at the middle of its trip, 2 s after the start
 			ts.Pump(2 * time.Second)
-			ts.MatchesGolden("progressbar_" + th.name)
+			testutil.MatchesGolden(ts, "progressbar_"+th.name)
 		})
 	}
 }
@@ -210,7 +211,7 @@ func TestGoldenBadge(t *testing.T) {
 				NewBadge(1), gap(10), NewBadge(8), gap(10), NewBadge(42), gap(10), NewBadge(999), gap(10), NewBadge(12345), gap(10), NewBadge(3, BadgeOpts{Format: "{0}+"}),
 			))
 			ts := pumpThemed(t, th.colors(), ui.Size{Width: 260, Height: 56}, content)
-			ts.MatchesGolden("badge_" + th.name)
+			testutil.MatchesGolden(ts, "badge_"+th.name)
 		})
 	}
 }

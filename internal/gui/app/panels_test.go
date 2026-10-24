@@ -644,7 +644,7 @@ func TestOutputOpensTheLogFile(t *testing.T) {
 		}
 	})
 	l.Logger().Info("hello from the log")
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths, Logs: l}), "")
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths, Logs: l}), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -683,7 +683,7 @@ func TestDevCommandsFillThePanels(t *testing.T) {
 		t.Errorf("channels: %v", got)
 	}
 	// without a window the command says so
-	bare := NewProcess(ProcessOptions{Paths: testutil.Isolate(t)})
+	bare := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
 	err := bare.Commands.Run(command.Context{Ctx: context.Background(), Source: command.SourceAPI}, "dev.setMarkers", map[string]any{})
 	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("DevNoWindow") {
 		t.Errorf("dev.setMarkers with no window: %v", err)

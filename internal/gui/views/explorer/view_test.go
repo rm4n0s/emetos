@@ -247,6 +247,7 @@ func TestViewExpandsLazily(t *testing.T) {
 				r.view.Tree().Expand(r.path(p))
 				r.wait(p+" to be read", func() bool { return r.ws.Find(r.path(p)).Resolved() })
 			}
+			r.wait("the rows to show what was read", r.loaded)
 			if got := r.keys2(); !slices.Equal(got, tt.want) {
 				t.Errorf("rows %v, want %v", got, tt.want)
 			}

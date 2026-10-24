@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // The golden of files changed on disk (step 7.4): the tab of a file that was deleted (struck through, in the error color),
@@ -22,7 +24,7 @@ func TestGoldenExternalChanges(t *testing.T) {
 				t.Fatalf("notifications %v, tabs %+v", a.notes(), a.tabs())
 			}
 			a.ts.Pump(400 * time.Millisecond)
-			a.ts.MatchesGolden("external_changes_" + th.name)
+			testutil.MatchesGolden(a.ts, "external_changes_"+th.name)
 			a.noErrors()
 		})
 	}

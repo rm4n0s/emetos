@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
@@ -62,13 +63,14 @@ type Process struct {
 	// WatchFiles tells whether the windows start their file watcher (ProcessOptions.WatchFiles).
 	WatchFiles bool
 
-	grammarMu sync.Mutex
-	grammars  map[grammarKey]*textmate.Grammar
-	regexes   *regex.Cache
-	brackets  *brackets.RegistryLanguages
-	indenter  *indent.Indenter
-	closing   *autoclose.RegistryLanguages
-	comments  *comment.RegistryLanguages
+	scanTimeout time.Duration
+	grammarMu   sync.Mutex
+	grammars    map[grammarKey]*textmate.Grammar
+	regexes     *regex.Cache
+	brackets    *brackets.RegistryLanguages
+	indenter    *indent.Indenter
+	closing     *autoclose.RegistryLanguages
+	comments    *comment.RegistryLanguages
 }
 
 // BracketLanguages gives the brackets of the languages (SPEC §8.5), made from their configurations.
@@ -104,6 +106,10 @@ type ProcessOptions struct {
 	// watcher that the shell starts with its lifetime would never stop; Glutter should unmount the
 	// tree (or cancel the lifetimes of the states) when the test ends (docs/GLUTTER-ISSUES.md).
 	WatchFiles bool
+	// ScanTimeout is the longest a search of one pattern of a grammar may take; zero is the default
+	// of SPEC §8.2 (100 ms). Tests that run slowly (the race detector on a loaded machine) lengthen
+	// it, because a search that times out leaves its line of text without colors.
+	ScanTimeout time.Duration
 }
 
 // NewProcess makes the services of the process: the registries with every setting, command
@@ -146,7 +152,8 @@ func NewProcess(opts ProcessOptions) *Process {
 		Notify:   notify.NewService(logger, nil),
 		Themes:   theme.NewService(theme.DefaultColorRegistry()),
 
-		WatchFiles: opts.WatchFiles,
+		WatchFiles:  opts.WatchFiles,
+		scanTimeout: opts.ScanTimeout,
 
 		Languages: languages,
 		grammars:  map[grammarKey]*textmate.Grammar{},
@@ -216,7 +223,7 @@ func (p *Process) Grammar(languageID string, maxLineBytes int) (*textmate.Gramma
 	if g, ok := p.grammars[key]; ok {
 		return g, nil
 	}
-	g, err := p.Languages.NewGrammarWith(languageID, language.GrammarSettings{Cache: p.regexes, MaxLineBytes: maxLineBytes})
+	g, err := p.Languages.NewGrammarWith(languageID, language.GrammarSettings{Cache: p.regexes, MaxLineBytes: maxLineBytes, ScanTimeout: p.scanTimeout})
 	if err != nil {
 		return nil, err
 	}

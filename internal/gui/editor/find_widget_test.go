@@ -311,7 +311,7 @@ func TestGoldenFindWidgetWithReplace(t *testing.T) {
 		t.Run(tc.theme, func(t *testing.T) {
 			r := goldenFind(t, bundledColors(t, tc.theme))
 			noErrors(t, r.ts)
-			r.ts.MatchesGolden(tc.golden)
+			testutil.MatchesGolden(r.ts, tc.golden)
 		})
 	}
 }
@@ -320,7 +320,7 @@ func TestGoldenFindWidgetNoResults(t *testing.T) {
 	r := newFindRig(t, ui.Size{Width: 640, Height: 140}, kit.DarkModern())
 	r.run("editor.actions.findWithArgs", map[string]any{"searchString": "nothing here", "matchWholeWord": true})
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("find_no_results")
+	testutil.MatchesGolden(r.ts, "find_no_results")
 }
 
 func TestGoldenFindInSelection(t *testing.T) {
@@ -328,7 +328,7 @@ func TestGoldenFindInSelection(t *testing.T) {
 	selectRange(r.vm, 1, 0, 2, 0)
 	r.run("editor.actions.findWithArgs", map[string]any{"searchString": "beta", "findInSelection": true})
 	noErrors(t, r.ts)
-	r.ts.MatchesGolden("find_in_selection")
+	testutil.MatchesGolden(r.ts, "find_in_selection")
 }
 
 // TestProofFind writes the proof image of step 5.2: the find widget with the replace row open,

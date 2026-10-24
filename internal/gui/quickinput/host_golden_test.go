@@ -6,6 +6,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 var goldenThemes = []struct {
@@ -65,7 +66,7 @@ func TestGoldenQuickInput(t *testing.T) {
 			t.Run(th.name+" "+tc.name, func(t *testing.T) {
 				r := newRig(t, ui.Size{Width: 720, Height: 360}, th.colors())
 				tc.prepare(r)
-				r.ts.MatchesGolden("quickinput_" + tc.name + "_" + th.name)
+				testutil.MatchesGolden(r.ts, "quickinput_"+tc.name+"_"+th.name)
 			})
 		}
 	}

@@ -75,7 +75,7 @@ func TestGoldenNotice(t *testing.T) {
 		t.Run(tc.theme, func(t *testing.T) {
 			ts := testutil.New(t, ui.Size{Width: 640, Height: 200})
 			pumpNotice(t, ts, bundledColors(t, tc.theme), NewNotice(binaryMessage, NoticeOpts{Action: "Open Anyway", OnAction: func() {}}))
-			ts.MatchesGolden(tc.golden)
+			testutil.MatchesGolden(ts, tc.golden)
 		})
 	}
 }

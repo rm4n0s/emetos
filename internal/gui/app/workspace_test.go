@@ -29,7 +29,7 @@ func watchedWindow(t *testing.T, folder string) *Window {
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14})
 	ctx, cancel := context.WithCancel(context.Background())
-	win, err := NewWindow(ctx, NewProcess(ProcessOptions{Paths: paths, WatchFiles: true}), folder)
+	win, err := NewWindow(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), folder)
 	if err != nil {
 		cancel()
 		t.Fatalf("NewWindow: %v", err)
@@ -91,7 +91,7 @@ func TestWindowOpensTheFolderAsAWorkspace(t *testing.T) {
 
 func TestWindowWithAFolderThatIsNotThereFails(t *testing.T) {
 	paths := testutil.Isolate(t)
-	_, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), filepath.Join(t.TempDir(), "gone"))
+	_, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), filepath.Join(t.TempDir(), "gone"))
 	appErr, ok := errors.FromError(err)
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
@@ -250,7 +250,7 @@ func TestFilesOpenBeforeTheWatcherStartedAreFollowed(t *testing.T) {
 	}
 	paths := testutil.Isolate(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	win, err := NewWindow(ctx, NewProcess(ProcessOptions{Paths: paths, WatchFiles: true}), "")
+	win, err := NewWindow(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

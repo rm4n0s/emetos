@@ -9,6 +9,8 @@ import (
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // goldenMenuItems has every kind of item: plain ones with and without a keybinding, a checked
@@ -42,7 +44,7 @@ func TestGoldenMenu(t *testing.T) {
 			handle.Focus(true)
 			ts.Pump(time.Millisecond)
 			key(ts, services.LogicalKeyboardKeyArrowDown)
-			ts.MatchesGolden("menu_" + th.name)
+			testutil.MatchesGolden(ts, "menu_"+th.name)
 		})
 	}
 }
@@ -59,7 +61,7 @@ func TestGoldenMenuSubmenu(t *testing.T) {
 			key(ts, services.LogicalKeyboardKeyArrowDown) // Open Recent
 			key(ts, services.LogicalKeyboardKeyArrowRight)
 			key(ts, services.LogicalKeyboardKeyArrowDown)
-			ts.MatchesGolden("menu_submenu_" + th.name)
+			testutil.MatchesGolden(ts, "menu_submenu_"+th.name)
 		})
 	}
 }
@@ -98,7 +100,7 @@ func TestGoldenMenuBar(t *testing.T) {
 			if !ctrl.IsFocused() || !ctrl.MnemonicsShown() {
 				t.Fatal("Alt did not focus the bar")
 			}
-			ts.MatchesGolden("menubar_mnemonics_" + th.name)
+			testutil.MatchesGolden(ts, "menubar_mnemonics_"+th.name)
 		})
 		t.Run(th.name+" open", func(t *testing.T) {
 			ctrl := NewMenuBarController()
@@ -112,7 +114,7 @@ func TestGoldenMenuBar(t *testing.T) {
 			if !ctrl.IsOpen() {
 				t.Fatal("the menu is not open")
 			}
-			ts.MatchesGolden("menubar_open_" + th.name)
+			testutil.MatchesGolden(ts, "menubar_open_"+th.name)
 		})
 	}
 }
@@ -132,7 +134,7 @@ func TestGoldenContextMenu(t *testing.T) {
 			if !ctrl.IsShowing() {
 				t.Fatal("the menu is not showing")
 			}
-			ts.MatchesGolden("context_menu_" + th.name)
+			testutil.MatchesGolden(ts, "context_menu_"+th.name)
 		})
 	}
 }

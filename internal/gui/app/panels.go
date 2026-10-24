@@ -97,7 +97,7 @@ func (s *shellState) disposePanels() {
 	for _, remove := range p.removeCommands {
 		remove()
 	}
-	win := PeekWindow(s.Context())
+	win := s.win
 	if p.problems != nil {
 		p.problems.Dispose()
 	}

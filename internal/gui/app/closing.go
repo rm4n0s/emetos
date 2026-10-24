@@ -114,7 +114,7 @@ func (s *shellState) initClosing(binding *widgets.WidgetsBinding) {
 // disposeClosing stops listening and gives the commands back.
 func (s *shellState) disposeClosing() {
 	c := &s.closing
-	if win := PeekWindow(s.Context()); win != nil {
+	if win := s.win; win != nil {
 		win.closer, win.exit = nil, nil
 	}
 	if c.lifecycle != nil {

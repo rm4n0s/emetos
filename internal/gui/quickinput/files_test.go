@@ -20,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // fakeFiles stands for the window: the files and recent files it knows, a search that can be held back,
@@ -567,7 +568,7 @@ func TestGoldenQuickOpen(t *testing.T) {
 					want = 3
 				}
 				r.waitRows(tc.name, func(rows []Row) bool { return len(rows) == want })
-				r.ts.MatchesGolden("quickopen_" + tc.name + "_" + th.name)
+				testutil.MatchesGolden(r.ts, "quickopen_"+tc.name+"_"+th.name)
 			})
 		}
 	}

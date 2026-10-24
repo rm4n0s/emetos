@@ -222,7 +222,7 @@ func TestGoldenGuides(t *testing.T) {
 			colors.EditorBracketPairGuideBackground, colors.EditorBracketPairGuideActiveBackground = [6]ui.Color{}, [6]ui.Color{}
 			pumpHighlighted(t, ts, vm, colors, th.TokenTheme(nil))
 			noErrors(t, ts)
-			ts.MatchesGolden(tc.golden)
+			testutil.MatchesGolden(ts, tc.golden)
 		})
 	}
 }

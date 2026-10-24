@@ -6,6 +6,7 @@ import (
 
 	"github.com/rm4n0s/glutter/gluttertest"
 
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 	"github.com/rm4n0s/emetos/internal/gui/views/explorer"
 )
 
@@ -24,7 +25,7 @@ func TestGoldenExplorerFileOperations(t *testing.T) {
 				fa.ts.EnterText(gluttertest.ByKey(explorer.EditInputKey), "handler.go")
 				fa.ts.Pump(300 * time.Millisecond)
 				fa.pump()
-				fa.ts.MatchesGolden("explorer_new_file_" + th.name)
+				testutil.MatchesGolden(fa.ts, "explorer_new_file_"+th.name)
 				fa.noErrors()
 			})
 			// the input with the balloon of a name that is taken
@@ -36,7 +37,7 @@ func TestGoldenExplorerFileOperations(t *testing.T) {
 				fa.ts.EnterText(gluttertest.ByKey(explorer.EditInputKey), "go.mod")
 				fa.ts.Pump(300 * time.Millisecond)
 				fa.pump()
-				fa.ts.MatchesGolden("explorer_input_error_" + th.name)
+				testutil.MatchesGolden(fa.ts, "explorer_input_error_"+th.name)
 				fa.noErrors()
 			})
 			t.Run("rename input", func(t *testing.T) {
@@ -46,7 +47,7 @@ func TestGoldenExplorerFileOperations(t *testing.T) {
 				fa.mustRun("renameFile", nil)
 				fa.ts.Pump(300 * time.Millisecond)
 				fa.pump()
-				fa.ts.MatchesGolden("explorer_rename_" + th.name)
+				testutil.MatchesGolden(fa.ts, "explorer_rename_"+th.name)
 				fa.noErrors()
 			})
 			t.Run("delete confirmation", func(t *testing.T) {
@@ -56,7 +57,7 @@ func TestGoldenExplorerFileOperations(t *testing.T) {
 				fa.mustRun("moveFileToTrash", nil)
 				fa.ts.Pump(300 * time.Millisecond)
 				fa.pump()
-				fa.ts.MatchesGolden("explorer_delete_dialog_" + th.name)
+				testutil.MatchesGolden(fa.ts, "explorer_delete_dialog_"+th.name)
 				fa.noErrors()
 			})
 			t.Run("context menu", func(t *testing.T) {
@@ -67,7 +68,7 @@ func TestGoldenExplorerFileOperations(t *testing.T) {
 				fa.ts.TapAt(fa.rowCenter("docs"), secondaryDown)
 				fa.ts.Pump(300 * time.Millisecond)
 				fa.pump()
-				fa.ts.MatchesGolden("explorer_context_menu_" + th.name)
+				testutil.MatchesGolden(fa.ts, "explorer_context_menu_"+th.name)
 				fa.noErrors()
 			})
 			t.Run("cut item", func(t *testing.T) {
@@ -78,7 +79,7 @@ func TestGoldenExplorerFileOperations(t *testing.T) {
 				fa.focusTree("Makefile") // another row has the selection, so the cut row shows its own look
 				fa.ts.Pump(300 * time.Millisecond)
 				fa.pump()
-				fa.ts.MatchesGolden("explorer_cut_" + th.name)
+				testutil.MatchesGolden(fa.ts, "explorer_cut_"+th.name)
 				fa.noErrors()
 			})
 		})

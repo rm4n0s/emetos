@@ -351,7 +351,7 @@ func TestGoldenBracketColors(t *testing.T) {
 			if got := vm.matchedBrackets(); len(got) != 2 {
 				t.Fatalf("matched brackets = %v", got)
 			}
-			ts.MatchesGolden(tc.golden)
+			testutil.MatchesGolden(ts, tc.golden)
 		})
 	}
 }

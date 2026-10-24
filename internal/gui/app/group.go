@@ -407,7 +407,7 @@ func (s *shellState) disposeGroup() {
 		remove()
 	}
 	g.removeCommands = nil
-	win := PeekWindow(s.Context())
+	win := s.win
 	for input, e := range g.editors {
 		e.dispose()
 		win.Documents.Release(e.doc)

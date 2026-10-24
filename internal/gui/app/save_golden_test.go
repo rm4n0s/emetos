@@ -42,7 +42,7 @@ func TestGoldenSaving(t *testing.T) {
 			a.press("ctrl+s")
 			a.waitFor("the notification", func() bool { return len(a.notes()) > 0 })
 			a.ts.Pump(400 * time.Millisecond)
-			a.ts.MatchesGolden("save_error_" + th.name)
+			testutil.MatchesGolden(a.ts, "save_error_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" replace question", func(t *testing.T) {
@@ -59,7 +59,7 @@ func TestGoldenSaving(t *testing.T) {
 			a.fd.AnswerFileChooser(target)
 			a.waitFor("the question", func() bool { return a.ts.Exists(gluttertest.ByText("Replace")) })
 			a.ts.Pump(300 * time.Millisecond)
-			a.ts.MatchesGolden("save_replace_dialog_" + th.name)
+			testutil.MatchesGolden(a.ts, "save_replace_dialog_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" file menu", func(t *testing.T) {
@@ -68,7 +68,7 @@ func TestGoldenSaving(t *testing.T) {
 			s.menuBar.Open(s.menus.BarIndex(command.MenubarFileMenu))
 			a.ts.Pump(300 * time.Millisecond)
 			a.pump()
-			a.ts.MatchesGolden("save_file_menu_" + th.name)
+			testutil.MatchesGolden(a.ts, "save_file_menu_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" file menu with auto save on", func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestGoldenSaving(t *testing.T) {
 			s.menuBar.Open(s.menus.BarIndex(command.MenubarFileMenu))
 			a.ts.Pump(300 * time.Millisecond)
 			a.pump()
-			a.ts.MatchesGolden("save_file_menu_autosave_" + th.name)
+			testutil.MatchesGolden(a.ts, "save_file_menu_autosave_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" tab menu of a dirty tab", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestGoldenSaving(t *testing.T) {
 			a.rightClickTab(1, "main.go")
 			a.ts.Pump(300 * time.Millisecond)
 			a.pump()
-			a.ts.MatchesGolden("save_tab_menu_" + th.name)
+			testutil.MatchesGolden(a.ts, "save_tab_menu_"+th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" path prompt", func(t *testing.T) {
@@ -97,9 +97,10 @@ func TestGoldenSaving(t *testing.T) {
 			a.run("workbench.action.files.saveAs")
 			a.waitFor("the prompt", func() bool { return a.win.QuickInput.Prompting() })
 			a.win.QuickInput.SetValue("/no/such/folder/new.go")
-			a.ts.Pump(300 * time.Millisecond)
+			// the caret blinks every 500 ms of pumped time after the focus: pump little, so the golden does not depend
+			// on how many frames the wait above took
 			a.pump()
-			a.ts.MatchesGolden("save_path_prompt_" + th.name)
+			testutil.MatchesGolden(a.ts, "save_path_prompt_"+th.name)
 			a.noErrors()
 		})
 	}

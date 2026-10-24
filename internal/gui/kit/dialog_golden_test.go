@@ -6,6 +6,8 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
 // dialogBackdrop is what a dialog covers in a golden: some text and a button.
@@ -46,7 +48,7 @@ func TestGoldenDialog(t *testing.T) {
 				for range 3 {
 					ts.Pump(1000000)
 				}
-				ts.MatchesGolden("dialog_" + tc.name + "_" + th.name)
+				testutil.MatchesGolden(ts, "dialog_"+tc.name+"_"+th.name)
 			})
 		}
 	}

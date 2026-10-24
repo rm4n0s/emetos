@@ -26,7 +26,7 @@ func themedWindow(t *testing.T, extra map[string]any) (*Window, storage.Paths) {
 		extra = map[string]any{}
 	}
 	testutil.Settings(t, paths, extra)
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatalf("NewWindow: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestUserThemesComeFromTheConfigFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	testutil.Settings(t, paths, map[string]any{"workbench.colorTheme": "Mine"})
-	win, err := NewWindow(context.Background(), NewProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

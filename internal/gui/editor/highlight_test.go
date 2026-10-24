@@ -27,7 +27,7 @@ func highlighted(t testing.TB, text string) (*ViewModel, *tokens.Tokenizer) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g, err := reg.NewGrammar("go", regex.NewCache(1<<14))
+	g, err := reg.NewGrammarWith("go", language.GrammarSettings{Cache: regex.NewCache(1 << 14), ScanTimeout: testutil.ScanTimeout})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestGoldenHighlightedGo(t *testing.T) {
 	ts := testutil.New(t, ui.Size{Width: 640, Height: 440})
 	pumpHighlighted(t, ts, vm, kit.DarkModern(), darkModernTokens(t))
 	noErrors(t, ts)
-	ts.MatchesGolden("highlighted_go")
+	testutil.MatchesGolden(ts, "highlighted_go")
 }
 
 func TestGoldenHighlightedGoLight(t *testing.T) {
@@ -227,5 +227,5 @@ func TestGoldenHighlightedGoLight(t *testing.T) {
 	ts := testutil.New(t, ui.Size{Width: 640, Height: 440})
 	pumpHighlighted(t, ts, vm, bundledColors(t, "Light Modern"), th.TokenTheme(nil))
 	noErrors(t, ts)
-	ts.MatchesGolden("highlighted_go_light")
+	testutil.MatchesGolden(ts, "highlighted_go_light")
 }

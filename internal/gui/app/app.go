@@ -208,6 +208,10 @@ func (p *shell) CreateState() widgets.State { return &shellState{} }
 
 type shellState struct {
 	widgets.StateOf[*shell]
+	// win and binding are kept from InitState: Dispose cannot look an ancestor up (the element is
+	// inactive by then).
+	win     *Window
+	binding *widgets.WidgetsBinding
 	// group is the editor group of the window: the tabs and their editors.
 	group groupState
 	// nav is the history of locations and the closed editors.
@@ -260,6 +264,7 @@ type shellState struct {
 // the dev commands. Both end with the state, so a page that is gone stops waiting.
 func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
+	s.binding, s.win = binding, PeekWindow(s.Context())
 	s.blocked = s.Widget().blocked
 	s.initAutoSave(binding)
 	s.initExternal() // before the editors are made: they are followed as they appear
@@ -339,7 +344,7 @@ func (s *shellState) Dispose() {
 		s.unsubscribeTitle()
 	}
 	s.disposeClosing()
-	s.disposeAutoSave(widgets.WidgetsBindingOf(s.Context()))
+	s.disposeAutoSave(s.binding)
 	s.disposeExternal()
 	s.disposeSave()
 	s.disposeStatus()

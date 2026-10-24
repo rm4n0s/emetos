@@ -315,6 +315,11 @@ func TestALongLineIsNotWrapped(t *testing.T) {
 
 // fakeTimers is in decoration_test.go.
 
+// maxWrapSteps bounds the loops that run the steps of the breaks. A step ends after wrapSliceLines
+// lines or wrapSliceTime of wall-clock time, so on a loaded machine (the race detector, parallel
+// packages) it takes more steps than on an idle one; one step breaks at least 64 lines.
+const maxWrapSteps = 5000
+
 func TestTheBreaksAreMadeInSteps(t *testing.T) {
 	var b strings.Builder
 	for i := range 20000 {
@@ -338,7 +343,7 @@ func TestTheBreaksAreMadeInSteps(t *testing.T) {
 		t.Errorf("rows %d before the steps", proj.RowCount())
 	}
 	steps := 0
-	for vm.WrapPending() > 0 && steps < 50 {
+	for vm.WrapPending() > 0 && steps < maxWrapSteps {
 		clock.advance(2 * time.Millisecond)
 		steps++
 	}
@@ -371,7 +376,7 @@ func TestTheTopOfTheEditorStaysWhereItIsWhileLinesAboveAreBroken(t *testing.T) {
 	vm.SetScrollTop(vm.Projection().RowTop(5000))
 	vm.Projection()
 	steps := 0
-	for vm.WrapPending() > 0 && steps < 100 {
+	for vm.WrapPending() > 0 && steps < maxWrapSteps {
 		clock.advance(2 * time.Millisecond)
 		steps++
 	}
