@@ -44,6 +44,8 @@ type OverlayColors struct {
 	FindMatch, FindMatchBorder                   ui.Color
 	FindMatchHighlight, FindMatchHighlightBorder ui.Color
 	FindRangeHighlight, FindRangeHighlightBorder ui.Color
+	// RangeHighlight and its border color the line that go to line shows while the user types.
+	RangeHighlight, RangeHighlightBorder ui.Color
 	// Whitespace is the color of the dots and arrows of editor.renderWhitespace and Ruler the
 	// color of the rulers that have none of their own.
 	Whitespace, Ruler ui.Color
@@ -214,6 +216,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 		view.paintOccurrences()
 		view.paintSnippetPlaceholders()
 		view.paintFind()
+		view.paintRangeHighlight()
 		view.paintWhitespace()
 		view.paintMatchingBrackets()
 	} else {

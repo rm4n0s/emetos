@@ -158,8 +158,13 @@ func TestMenuItemsShowLabelsAndKeys(t *testing.T) {
 
 	// the View menu has the Appearance submenu with the layout toggles and their keys
 	view := m.source.Items(command.MenubarViewMenu, nil)
-	if len(view) < 4 || !view[0].Submenu || view[0].Label != "&Appearance" || !view[1].Submenu || view[1].Label != "Editor &Layout" || !view[2].Separator {
+	// the command palette and Open View come first, in a group of their own
+	if len(view) < 6 || view[0].Label != "&Command Palette..." || view[1].Label != "&Open View..." || !view[2].Separator ||
+		!view[3].Submenu || view[3].Label != "&Appearance" || !view[4].Submenu || view[4].Label != "Editor &Layout" || !view[5].Separator {
 		t.Fatalf("View: %v", labels(view))
+	}
+	if it, ok := find(view, "workbench.action.showCommands"); !ok || it.Keybinding != "Ctrl+Shift+P" {
+		t.Errorf("Command Palette: %+v", it)
 	}
 	if it, ok := find(view, "workbench.action.toggleSidebarVisibility"); !ok || it.Keybinding != "Ctrl+B" || it.Label != "&Primary Side Bar" {
 		t.Errorf("Primary Side Bar: %+v", it)
@@ -253,6 +258,12 @@ func TestEditorContextMenuItems(t *testing.T) {
 
 func TestManageItemsWithNothingRegistered(t *testing.T) {
 	m := newMenuServices(nil)
+	// the command palette is the one item of the Manage menu that the built-in rows have
+	if items := m.source.ManageItems(); len(items) != 1 || items[0].Label != "Command Palette..." || items[0].Keybinding != "Ctrl+Shift+P" {
+		t.Errorf("the Manage menu: %+v", items)
+	}
+	m.menus = command.NewMenuRegistry(m.commands)
+	m.source = m.newSource(nil)
 	items := m.source.ManageItems()
 	if len(items) != 1 || !items[0].Disabled || items[0].Label != "(empty)" {
 		t.Errorf("an empty Manage menu: %+v", items)

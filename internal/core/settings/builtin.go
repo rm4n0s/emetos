@@ -1060,6 +1060,21 @@ func registerEditorGroups(r *Registry) {
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{
+			Key: "workbench.commandPalette.history", Types: []Type{Number}, Default: 50, Minimum: Float(0),
+			Description: "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.commandPalette.preserveInput", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the last typed input to the command palette should be restored when opening it the next time.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.quickOpen.closeOnFocusLost", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether Quick Open should close automatically once it loses focus.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
 			Key: "workbench.editor.enablePreview", Types: []Type{Boolean}, Default: true,
 			Description: "Controls whether preview mode is used when editors open. There is a maximum of one preview mode editor per editor group. This editor displays its filename in italics on its tab or title label and in the Open Editors view. Its contents will be replaced by the next editor opened in preview mode. Making a change in a preview mode editor will persist it, as will a double-click on its label, or the 'Keep Open' option in its label context menu. Opening a file from Explorer with a double-click persists its editor immediately.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,

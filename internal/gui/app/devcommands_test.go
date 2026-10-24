@@ -127,6 +127,26 @@ func TestDevRunnerRunsStepsInOrder(t *testing.T) {
 	}
 }
 
+func TestDevRunnerPassesTheArgument(t *testing.T) {
+	r := command.NewRegistry()
+	r.MustRegister(command.Meta{ID: "workbench.action.quickOpen"})
+	var got []any
+	if _, err := r.SetHandler("workbench.action.quickOpen", func(_ command.Context, args any) error {
+		got = append(got, args)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	steps, err := ParseDevCommands(`[["workbench.action.quickOpen", ">line"], ["workbench.action.quickOpen"]]`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	(&DevRunner{Steps: steps, Commands: r, Post: func(f func()) { f() }}).Run(context.Background())
+	if want := []any{">line", nil}; !reflect.DeepEqual(got, want) {
+		t.Errorf("arguments %v, want %v", got, want)
+	}
+}
+
 func TestDevRunnerStopsWhenCanceled(t *testing.T) {
 	r := command.NewRegistry()
 	r.MustRegister(command.Meta{ID: "a"})

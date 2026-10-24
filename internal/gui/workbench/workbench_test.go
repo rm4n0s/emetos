@@ -708,13 +708,21 @@ var explorerAppCommands = map[string]bool{
 	"workbench.files.action.createFileFromExplorer": true, "workbench.files.action.createFolderFromExplorer": true,
 }
 
+// quickInputCommands are the commands of the quick input: the app binds the ones that open it (the providers need
+// the shell) and the quick input host binds the one that closes it (step 6.17).
+var quickInputCommands = map[string]bool{
+	"workbench.action.showCommands": true, "workbench.action.quickOpen": true, "workbench.action.gotoLine": true,
+	"workbench.action.gotoOffset": true, "workbench.action.openView": true, "workbench.action.quickOpenView": true,
+	"workbench.action.clearCommandHistory": true, "workbench.action.closeQuickOpen": true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	// the commands that open the views of the panel are the workbench's when it has the views
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] {
 			continue
 		}
 		n++

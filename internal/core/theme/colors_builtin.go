@@ -21,6 +21,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerKitColors(r)
 	registerMenuColors(r)
 	registerInputKitColors(r)
+	registerQuickInputColors(r)
 	registerLayoutColors(r)
 	registerNotificationColors(r)
 	registerPanelViewColors(r)
@@ -211,6 +212,10 @@ func registerFindColors(r *ColorRegistry) {
 			Description: "Color of the other search matches. The color must not be opaque so as not to hide underlying decorations."},
 		ColorContribution{ID: "editor.findRangeHighlightBackground", NeedsTransparency: true, Defaults: dflt(Hex("#3a3d4166"), Hex("#b4b4b44d"), nil, nil),
 			Description: "Color of the range limiting the search. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.rangeHighlightBackground", NeedsTransparency: true, Defaults: dflt(Hex("#ffffff0b"), Hex("#fdff0033"), nil, nil),
+			Description: "Background color of highlighted ranges, like by quick open and find features. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "editor.rangeHighlightBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Background color of the border around highlighted ranges."},
 		ColorContribution{ID: "editor.findMatchBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
 			Description: "Border color of the current search match."},
 		ColorContribution{ID: "editor.findMatchHighlightBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
@@ -610,6 +615,54 @@ func registerInputKitColors(r *ColorRegistry) {
 			Description: "The color used for the problems warning icon."},
 		ColorContribution{ID: "problemsInfoIcon.foreground", Defaults: AllThemes(Ref("editorInfo.foreground")),
 			Description: "The color used for the problems info icon."},
+	)
+}
+
+// registerQuickInputColors registers the colors of the quick input (gui/quickinput): its widget, the
+// group labels and lines of its list, its focused row and the key caps of the keybinding labels.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/quickpickColors.ts,
+// src/vs/platform/theme/common/colors/inputColors.ts (keybindingLabel.*) and
+// src/vs/platform/theme/common/colors/listColors.ts (list.activeSelectionIconForeground)
+func registerQuickInputColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "list.activeSelectionIconForeground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "List/Tree icon foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."},
+
+		ColorContribution{ID: "quickInput.background", Defaults: AllThemes(Ref("editorWidget.background")),
+			Description: "Quick picker background color. The quick picker widget is the container for pickers like the command palette."},
+		ColorContribution{ID: "quickInput.foreground", Defaults: AllThemes(Ref("editorWidget.foreground")),
+			Description: "Quick picker foreground color. The quick picker widget is the container for pickers like the command palette."},
+		ColorContribution{ID: "quickInputTitle.background",
+			Defaults:    dflt(Transparent(Lit(ColorWhite), 0.105), Transparent(Lit(ColorBlack), 0.06), Hex("#000000"), Lit(ColorWhite)),
+			Description: "Quick picker title background color. The quick picker widget is the container for pickers like the command palette."},
+		ColorContribution{ID: "pickerGroup.foreground", Defaults: dflt(Hex("#3794FF"), Hex("#0066BF"), Lit(ColorWhite), Hex("#0F4A85")),
+			Description: "Quick picker color for grouping labels."},
+		ColorContribution{ID: "pickerGroup.border", Defaults: dflt(Hex("#3F3F46"), Hex("#CCCEDB"), Lit(ColorWhite), Hex("#0F4A85")),
+			Description: "Quick picker color for grouping borders."},
+		ColorContribution{ID: "quickInput.list.focusBackground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "Please use quickInputList.focusBackground instead"},
+		ColorContribution{ID: "quickInputList.focusForeground", Defaults: AllThemes(Ref("list.activeSelectionForeground")),
+			Description: "Quick picker foreground color for the focused item."},
+		ColorContribution{ID: "quickInputList.focusIconForeground", Defaults: AllThemes(Ref("list.activeSelectionIconForeground")),
+			Description: "Quick picker icon foreground color for the focused item."},
+		ColorContribution{ID: "quickInputList.focusBackground",
+			Defaults:    dflt(OneOf(Ref("quickInput.list.focusBackground"), Ref("list.activeSelectionBackground")), OneOf(Ref("quickInput.list.focusBackground"), Ref("list.activeSelectionBackground")), nil, nil),
+			Description: "Quick picker background color for the focused item."},
+		ColorContribution{ID: "quickInputList.focusHighlightForeground", Defaults: AllThemes(Ref("list.focusHighlightForeground")),
+			Description: "Quick picker foreground color of the match highlights on the focused item."},
+
+		ColorContribution{ID: "keybindingLabel.background",
+			Defaults:    dflt(Transparent(Hex("#808080"), 0.17), Transparent(Hex("#DDDDDD"), 0.4), Lit(ColorTransparent), Lit(ColorTransparent)),
+			Description: "Keybinding label background color. The keybinding label is used to represent a keyboard shortcut."},
+		ColorContribution{ID: "keybindingLabel.foreground", Defaults: dflt(Hex("#CCCCCC"), Hex("#555555"), Lit(ColorWhite), Ref("foreground")),
+			Description: "Keybinding label foreground color. The keybinding label is used to represent a keyboard shortcut."},
+		ColorContribution{ID: "keybindingLabel.border",
+			Defaults:    dflt(Transparent(Hex("#333333"), 0.6), Transparent(Hex("#CCCCCC"), 0.4), Hex("#6FC3DF"), Ref("contrastBorder")),
+			Description: "Keybinding label border color. The keybinding label is used to represent a keyboard shortcut."},
+		ColorContribution{ID: "keybindingLabel.bottomBorder",
+			Defaults:    dflt(Transparent(Hex("#444444"), 0.6), Transparent(Hex("#BBBBBB"), 0.4), Hex("#6FC3DF"), Ref("foreground")),
+			Description: "Keybinding label border bottom color. The keybinding label is used to represent a keyboard shortcut."},
 	)
 }
 

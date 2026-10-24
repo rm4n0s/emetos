@@ -253,7 +253,7 @@ func TestDevOpenMenu(t *testing.T) {
 		{"the Selection menu as a string", "MenubarSelectionMenu", "Select All", "Undo"},
 		{"the View menu", map[string]any{"id": "MenubarViewMenu"}, "Word Wrap", "Undo"},
 		{"the Go menu", map[string]any{"id": "MenubarGoMenu"}, "Go to Bracket", "Undo"},
-		{"the Manage menu", map[string]any{"id": "GlobalActivity"}, "(empty)", "Undo"},
+		{"the Manage menu", map[string]any{"id": "GlobalActivity"}, "Command Palette...", "Undo"},
 		{"the context menu of the editor", map[string]any{"id": "EditorContext"}, "Paste", "Undo"},
 		{"the context menu where it is told", map[string]any{"id": "EditorContext", "x": 300.0, "y": 100.0}, "Paste", "Undo"},
 	}

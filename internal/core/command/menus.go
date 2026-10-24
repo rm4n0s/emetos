@@ -47,6 +47,9 @@ const (
 	EditorSplitMoveSubmenu = "EditorSplitMoveSubmenu"
 	// ExplorerContext is the context menu of the Explorer.
 	ExplorerContext = "ExplorerContext"
+	// CommandPalette is the menu of the command palette: a command is listed there unless an item
+	// of this menu hides it with a When that does not hold.
+	CommandPalette = "CommandPalette"
 	// GlobalActivity is the Manage menu: the gear at the bottom of the activity bar.
 	GlobalActivity = "GlobalActivity"
 )

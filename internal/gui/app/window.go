@@ -20,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	"github.com/rm4n0s/emetos/internal/gui/views/output"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
@@ -82,6 +83,12 @@ type Window struct {
 	// Dialogs queues the dialogs of the window. The workbench shows them over everything, and the key
 	// dispatcher runs no command while one is showing.
 	Dialogs *kit.DialogController
+	// QuickInput is the quick input of the window: the command palette, go to line, the views and the
+	// pickers (SPEC §10.6). The workbench shows it; the shell registers the providers of its modes in
+	// QuickAccess, and CommandHistory is the commands run from the palette, kept in memory.
+	QuickInput     *quickinput.Controller
+	QuickAccess    *quickinput.Registry
+	CommandHistory *quickinput.CommandsHistory
 	// FileOps does the file operations of the Explorer and keeps their history for undo and redo
 	// (SPEC §10.5). Its trash is the user's, in $XDG_DATA_HOME/Trash.
 	FileOps *workspace.FileOps
@@ -139,25 +146,29 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 	}
 	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
 	layout := workbench.NewLayout(workbench.LayoutStateFromSettings(store))
+	access := quickinput.NewRegistry()
 	w := &Window{
-		Process:       p,
-		Folder:        folder,
-		Settings:      store,
-		Keys:          contextkey.NewRoot(),
-		Documents:     NewDocuments(),
-		Keybindings:   resolver,
-		Dispatcher:    keybinding.NewDispatcher(resolver, time.Now),
-		Scopes:        kit.NewFocusScopes(),
-		Clipboard:     editor.NewClipboardMemory(),
-		Find:          &editor.FindMemory{},
-		Zoom:          editor.NewZoom(),
-		Layout:        layout,
-		Views:         workbench.NewViews(p.Views, layout),
-		Dialogs:       kit.NewDialogController(),
-		FileOps:       workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
-		Markers:       problems.NewService(),
-		Notifications: notify.NewPresenter(p.Notify),
-		ctx:           ctx,
+		QuickAccess:    access,
+		QuickInput:     quickinput.NewController(quickinput.ControllerOptions{Registry: access}),
+		CommandHistory: quickinput.NewCommandsHistory(settings.Get[int](store, "workbench.commandPalette.history", "")),
+		Process:        p,
+		Folder:         folder,
+		Settings:       store,
+		Keys:           contextkey.NewRoot(),
+		Documents:      NewDocuments(),
+		Keybindings:    resolver,
+		Dispatcher:     keybinding.NewDispatcher(resolver, time.Now),
+		Scopes:         kit.NewFocusScopes(),
+		Clipboard:      editor.NewClipboardMemory(),
+		Find:           &editor.FindMemory{},
+		Zoom:           editor.NewZoom(),
+		Layout:         layout,
+		Views:          workbench.NewViews(p.Views, layout),
+		Dialogs:        kit.NewDialogController(),
+		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
+		Markers:        problems.NewService(),
+		Notifications:  notify.NewPresenter(p.Notify),
+		ctx:            ctx,
 	}
 	w.Documents.onFile = w.followFile
 	w.Documents.onClose = w.unfollowFile

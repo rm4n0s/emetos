@@ -410,6 +410,14 @@ func filesExplorerState(a *keyApp, trash, cut bool) func() {
 	}
 }
 
+// quickInputState is the state of a window whose quick input has the focus, for the keys that close it.
+func quickInputState(a *keyApp) func() {
+	return func() {
+		unfocusedState(a)()
+		a.win.Keys.Set("inQuickOpen", true)
+	}
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -425,7 +433,8 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 			states := append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a),
 				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
 				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a),
-				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true))
+				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true),
+				quickInputState(a))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
@@ -436,6 +445,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				a.win.Keys.Set("multipleEditorGroups", false)
 				a.win.Keys.Set("editorPartMultipleEditorGroups", false)
 				a.win.Keys.Reset("focusedView")
+				a.win.Keys.Reset("inQuickOpen")
 				a.win.Keys.Set("problemsFilterFocus", false)
 				a.win.Keys.Set("workbenchState", "empty")
 				state()

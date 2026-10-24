@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
@@ -55,6 +57,16 @@ func TestGoldenExplorerInTheWorkbench(t *testing.T) {
 			a.win.Views.SetHidden(command.ViewOpenEditors, false)
 			a.openFile("internal/server/server.go")
 			a.ts.Pump(300 * time.Millisecond)
+			a.pump()
+			// the tokens of the open file come from a goroutine: a loaded machine paints the text before them
+			a.waitFor("the tokens of the open file", func() bool {
+				vm := a.ts.Widget(gluttertest.ByType[*editor.Editor]()).(*editor.Editor).ViewModel()
+				if !vm.Tokenizer().Active() {
+					return false
+				}
+				vm.Tokenizer().Settle()
+				return vm.Tokenizer().Line(0) != nil
+			})
 			a.pump()
 			a.ts.MatchesGolden("explorer_folder_" + th.name)
 			if errs := a.ts.TakeErrors(); len(errs) != 0 {

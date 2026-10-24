@@ -19,6 +19,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 )
 
 // PanelTab is a view of the panel: its id and the title it has in the title strip of the panel.
@@ -103,6 +104,10 @@ type Options struct {
 	// commands that open a view with the focus have shown it (the tree of the Problems, the editor of
 	// the Output). Without it the focus goes to the panel itself.
 	FocusPanelView func(container string)
+	// QuickInput, when set, shows the quick input (the command palette and the pickers) over the workbench,
+	// under the menu bar, above the notifications and below the dialogs (SPEC §10.6). The window keeps the
+	// controller; the workbench takes over workbench.action.closeQuickOpen while it is on screen.
+	QuickInput *quickinput.Controller
 	// Notifications, when set, shows the toasts and the notification center of the presenter over the
 	// workbench, below the dialogs, and binds the notifications.* commands (SPEC §10.7).
 	Notifications *notify.Presenter
@@ -359,6 +364,15 @@ func (s *workbenchState) Build(bc widgets.BuildContext) widgets.Widget {
 		}
 		body = NewNotificationsHost(body, NotificationsOptions{
 			Presenter: o.Notifications, Commands: o.Commands, Keys: o.Keys, Context: o.Context, BottomInset: inset, TopInset: top,
+		})
+	}
+	if o.QuickInput != nil {
+		top := 0.0
+		if s.menuBarShown() {
+			top = MenuBarHeight
+		}
+		body = quickinput.NewHost(body, quickinput.HostOptions{
+			Controller: o.QuickInput, Keys: o.Keys, Scopes: o.Scopes, Commands: o.Commands, Settings: o.Settings, TopInset: top,
 		})
 	}
 	if o.Dialogs != nil {

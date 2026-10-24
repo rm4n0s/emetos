@@ -688,6 +688,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		FindMatch: colors.EditorFindMatchBackground, FindMatchBorder: colors.EditorFindMatchBorder,
 		FindMatchHighlight: colors.EditorFindMatchHighlightBackground, FindMatchHighlightBorder: colors.EditorFindMatchHighlightBorder,
 		FindRangeHighlight: colors.EditorFindRangeHighlightBackground, FindRangeHighlightBorder: colors.EditorFindRangeHighlightBorder,
+		RangeHighlight: colors.EditorRangeHighlightBackground, RangeHighlightBorder: colors.EditorRangeHighlightBorder,
 		Whitespace: colors.EditorWhitespaceForeground, Ruler: colors.EditorRulerForeground,
 		SelectionHighlight: colors.EditorSelectionHighlightBackground, SelectionHighlightBorder: colors.EditorSelectionHighlightBorder,
 		SnippetTabstop: colors.EditorSnippetTabstopHighlightBackground, SnippetTabstopBorder: colors.EditorSnippetTabstopHighlightBorder,

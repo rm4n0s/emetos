@@ -96,6 +96,9 @@ type InputBoxOpts struct {
 	Disabled bool
 	// Autofocus asks for the focus when the box is shown.
 	Autofocus bool
+	// SelectAllOnFocus selects the text when the box gets the focus; the default is Glutter's (on, on
+	// the desktop, for a single-line box). A box whose owner chooses the selection turns it off.
+	SelectAllOnFocus foundation.Opt[bool]
 	// Controller reads and changes the box from outside (see InputBoxController); the text and
 	// focus node of the controller are used where NewInputBox is given none.
 	Controller *InputBoxController
@@ -507,11 +510,12 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	style := TextStyleOf(bc, inputBoxFontSize, fg)
 	opts := widgets.EditableTextOpts{
-		ReadOnly:       o.Disabled,
-		Autofocus:      o.Autofocus && !o.Disabled,
-		OnChanged:      s.changed,
-		SelectionColor: foundation.Some(colors.EditorSelectionBackground),
-		MouseCursor:    services.SystemMouseCursors.Text,
+		ReadOnly:         o.Disabled,
+		Autofocus:        o.Autofocus && !o.Disabled,
+		SelectAllOnFocus: o.SelectAllOnFocus,
+		OnChanged:        s.changed,
+		SelectionColor:   foundation.Some(colors.EditorSelectionBackground),
+		MouseCursor:      services.SystemMouseCursors.Text,
 		// The window's key dispatcher handles Enter and the other keys of the find widget before
 		// the text sees them; a click elsewhere in the window moves the focus on its own.
 		OnTapOutside: func(*gestures.PointerDownEvent) {},

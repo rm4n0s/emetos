@@ -65,6 +65,16 @@ type Colors struct {
 	EditorFindMatchBackground, EditorFindMatchBorder                   ui.Color
 	EditorFindMatchHighlightBackground, EditorFindMatchHighlightBorder ui.Color
 	EditorFindRangeHighlightBackground, EditorFindRangeHighlightBorder ui.Color
+	// EditorRangeHighlightBackground and its border color the line that go to line shows.
+	EditorRangeHighlightBackground, EditorRangeHighlightBorder ui.Color
+	// The colors of the quick input: the widget (QuickInputBackground and Foreground), the title
+	// strip, the focused row of the list (background, text, icon and the highlighted matches), the
+	// group labels and lines (PickerGroupForeground and Border), and the key caps of a keybinding label
+	// (background, text, border and the thicker border below).
+	QuickInputBackground, QuickInputForeground, QuickInputTitleBackground                                    ui.Color
+	QuickInputListFocusBackground, QuickInputListFocusForeground, QuickInputListFocusIconForeground          ui.Color
+	QuickInputListFocusHighlightForeground, PickerGroupForeground, PickerGroupBorder                         ui.Color
+	KeybindingLabelBackground, KeybindingLabelForeground, KeybindingLabelBorder, KeybindingLabelBottomBorder ui.Color
 	// EditorSelectionHighlightBackground and its border color the text that equals the selection;
 	// EditorWordHighlightTextBackground and its border the other occurrences of the word at the
 	// cursor.
@@ -282,6 +292,15 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorFindMatchBackground: color("editor.findMatchBackground"), EditorFindMatchBorder: color("editor.findMatchBorder"),
 		EditorFindMatchHighlightBackground: color("editor.findMatchHighlightBackground"), EditorFindMatchHighlightBorder: color("editor.findMatchHighlightBorder"),
 		EditorFindRangeHighlightBackground: color("editor.findRangeHighlightBackground"), EditorFindRangeHighlightBorder: color("editor.findRangeHighlightBorder"),
+		EditorRangeHighlightBackground: color("editor.rangeHighlightBackground"), EditorRangeHighlightBorder: color("editor.rangeHighlightBorder"),
+		QuickInputBackground: color("quickInput.background"), QuickInputForeground: color("quickInput.foreground"),
+		QuickInputTitleBackground:     color("quickInputTitle.background"),
+		QuickInputListFocusBackground: color("quickInputList.focusBackground"), QuickInputListFocusForeground: color("quickInputList.focusForeground"),
+		QuickInputListFocusIconForeground:      color("quickInputList.focusIconForeground"),
+		QuickInputListFocusHighlightForeground: color("quickInputList.focusHighlightForeground"),
+		PickerGroupForeground:                  color("pickerGroup.foreground"), PickerGroupBorder: color("pickerGroup.border"),
+		KeybindingLabelBackground: color("keybindingLabel.background"), KeybindingLabelForeground: color("keybindingLabel.foreground"),
+		KeybindingLabelBorder: color("keybindingLabel.border"), KeybindingLabelBottomBorder: color("keybindingLabel.bottomBorder"),
 		EditorSelectionHighlightBackground: color("editor.selectionHighlightBackground"), EditorSelectionHighlightBorder: color("editor.selectionHighlightBorder"),
 		EditorWordHighlightTextBackground: color("editor.wordHighlightTextBackground"), EditorWordHighlightTextBorder: color("editor.wordHighlightTextBorder"),
 		EditorSnippetTabstopHighlightBackground: color("editor.snippetTabstopHighlightBackground"), EditorSnippetTabstopHighlightBorder: color("editor.snippetTabstopHighlightBorder"),

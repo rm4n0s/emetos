@@ -219,6 +219,8 @@ type ViewModel struct {
 	scrollTop  float64
 	scrollLeft float64
 	viewport   float64 // the height of the viewport, set by the render object
+	// rangeLine is the line, counted from 1, that go to line shades; 0 for none.
+	rangeLine int
 
 	// sel tells the layers that show the selections, the current line and the cursors that
 	// they changed, without making the text layer lay out again.

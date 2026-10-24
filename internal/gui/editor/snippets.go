@@ -11,14 +11,16 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 )
 
 // Ported from VS Code: src/vs/editor/contrib/snippet/browser/snippetController2.ts and
 // src/vs/workbench/contrib/snippets/browser/tabCompletion.ts and commands/insertSnippet.ts
 
 // SnippetPicker is a short list the editor asks its widget to show at the caret: the options of a
-// choice (`${1|a,b|}`), the snippets that the Tab key could insert, or the snippets to pick for
-// Insert Snippet. Until the quick input exists (step 6.17) it is a kit.ListOverlay.
+// choice (`${1|a,b|}`) or the snippets that the Tab key could insert, as a kit.ListOverlay (VS Code
+// shows them as suggestions). The snippets to pick for Insert Snippet are a quick pick instead
+// (SetQuickPick).
 type SnippetPicker struct {
 	// Items are the rows: a label and, for a snippet, its description.
 	Items []SnippetPickerItem
@@ -42,6 +44,8 @@ type snippetLink struct {
 	workspace snippet.WorkspaceResolver
 	// picker is the list being shown, or nil.
 	picker *SnippetPicker
+	// quick shows a quick pick; nil where the editor has no quick input.
+	quick func(quickinput.PickOptions)
 	// tab are the snippets the Tab key would insert (editor.tabCompletion "onlySnippets").
 	tab []*snippet.Snippet
 	// busy is set while the view model changes the document for a snippet itself.
@@ -53,6 +57,10 @@ func (vm *ViewModel) SetSnippets(svc *snippet.Service) {
 	vm.snip.service = svc
 	vm.updateTabSnippets()
 }
+
+// SetQuickPick gives the editor the quick input that Insert Snippet picks a snippet in. Without it
+// Insert Snippet does nothing when it has no snippet text or name to insert.
+func (vm *ViewModel) SetQuickPick(show func(quickinput.PickOptions)) { vm.snip.quick = show }
 
 // SetSnippetWorkspace tells the editor which folder is open, for WORKSPACE_NAME, WORKSPACE_FOLDER
 // and RELATIVE_FILEPATH.
@@ -257,19 +265,44 @@ func (vm *ViewModel) insertSnippetCommand(args any) error {
 	if len(list) == 0 {
 		return nil
 	}
-	items := make([]SnippetPickerItem, len(list))
-	for i, s := range list {
-		label := s.Name
-		desc := s.Description
-		if s.Prefix != "" {
-			desc = strings.TrimSpace(s.Prefix + "  " + desc)
-		}
-		items[i] = SnippetPickerItem{Label: label, Description: desc}
+	if vm.snip.quick == nil {
+		return nil
 	}
-	vm.showSnippetPicker(&SnippetPicker{Items: items, Filterable: true, Accept: func(i int) {
-		vm.runLater(func() error { return vm.insertSnippetValue(list[i], 0) })
-	}})
+	vm.snip.quick(quickinput.PickOptions{
+		Placeholder:   "Select a snippet",
+		MatchOnDetail: true,
+		Items:         snippetPicks(list, func(s *snippet.Snippet) { vm.runLater(func() error { return vm.insertSnippetValue(s, 0) }) }),
+	})
 	return nil
+}
+
+// snippetPicks are the items of the Insert Snippet pick: the prefix (else the name) of each snippet with its
+// description (else its body) below, and the source of a group of snippets as a heading.
+//
+// Ported from VS Code: src/vs/workbench/contrib/snippets/browser/snippetPicker.ts
+func snippetPicks(list []*snippet.Snippet, insert func(*snippet.Snippet)) []quickinput.Item {
+	var items []quickinput.Item
+	prev := ""
+	for i, s := range list {
+		if i == 0 || s.Source != prev {
+			label := s.Source
+			if label == "User Snippet" {
+				label = "User Snippets"
+			}
+			items = append(items, quickinput.Item{Separator: true, Label: label})
+		}
+		prev = s.Source
+		label := s.Prefix
+		if label == "" {
+			label = s.Name
+		}
+		detail := s.Description
+		if detail == "" {
+			detail = strings.Join(strings.Fields(s.Body), " ")
+		}
+		items = append(items, quickinput.Item{ID: s.Identifier, Label: label, Detail: detail, Accept: func(quickinput.KeyMods) { insert(s) }})
+	}
+	return items
 }
 
 // runLater runs an editing function as a command, for the callbacks of the pickers.

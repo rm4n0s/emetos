@@ -219,6 +219,10 @@ type shellState struct {
 	// removeOpenFile and removeOpenMenu take the handlers of dev.openFile and dev.openMenu off the
 	// registry.
 	removeOpenFile, removeOpenMenu func()
+	// quickPrefixes are the prefixes of the quick access providers the shell registered, and
+	// removeQuickCommands give back the commands that open the quick input.
+	quickPrefixes       []string
+	removeQuickCommands []func()
 	// menus turns the menu registry into the menus of the window; menuBar, manage and editorMenu open
 	// the menu bar, the Manage menu and the context menu of the editor from outside.
 	menus      *workbench.MenuSource
@@ -245,6 +249,7 @@ func (s *shellState) InitState() {
 	s.initExplorer(binding)
 	// the watcher of the folder, of the configuration and of the open files outside the folder
 	PeekWindow(s.Context()).StartWatching(s.Lifetime())
+	s.initQuickInput(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
@@ -309,6 +314,7 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	s.disposeQuickInput()
 	s.disposeExplorer()
 	s.disposePanels()
 	s.disposeGroup()
@@ -323,7 +329,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	s.syncExplorer(widgets.WidgetsBindingOf(bc), win)
 	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes,
-		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, Context: win.ctx,
+		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, QuickInput: win.QuickInput, Context: win.ctx,
 		Editor:   s.editorArea(bc),
 		NoFolder: win.Folder == "",
 		Menus:    s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,

@@ -446,8 +446,8 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu", EditorContext, contextkey.MapContext{}, []string{"Cut", "Copy", "Paste", "-", "Select All"}},
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
-		{"the Manage menu has no commands yet", GlobalActivity, contextkey.MapContext{}, nil},
-		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Switch Group", "-", "Go to Bracket"}},
+		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette..."}},
+		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Switch Group", "-", "Go to Line/Column...", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -542,7 +542,8 @@ func TestEditorGroupMenus(t *testing.T) {
 	})
 	t.Run("the View menu has it after Appearance", func(t *testing.T) {
 		got, _ := rows(MenubarViewMenu, contextkey.MapContext{})
-		if len(got) < 2 || got[0] != "Appearance" || got[1] != "Editor Layout" {
+		// the group of the command palette and Open View comes first
+		if len(got) < 5 || got[3] != "Appearance" || got[4] != "Editor Layout" {
 			t.Errorf("got %v", got)
 		}
 	})
@@ -694,8 +695,9 @@ func TestViewMenuHasThePanelViews(t *testing.T) {
 		}
 		titles = append(titles, e.Title)
 	}
-	// the panel views come in their own group, between Editor Layout's group and Word Wrap's
-	want := []string{"Appearance", "Editor Layout", "-", "Problems", "Output", "-", "Word Wrap"}
+	// the panel views come in their own group, between Editor Layout's group and Word Wrap's; the group of
+	// the command palette comes first
+	want := []string{"Command Palette...", "Open View...", "-", "Appearance", "Editor Layout", "-", "Problems", "Output", "-", "Word Wrap"}
 	if !reflect.DeepEqual(titles, want) {
 		t.Errorf("got %v, want %v", titles, want)
 	}
@@ -752,5 +754,40 @@ func TestExplorerContextMenu(t *testing.T) {
 				t.Errorf("got  %q\nwant %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestQuickInputMenus(t *testing.T) {
+	reg := DefaultRegistry()
+	menus := DefaultMenus(reg)
+	titles := func(menu string, ctx contextkey.Context) []string {
+		var out []string
+		for _, e := range menus.Items(menu, ctx) {
+			if !e.Separator {
+				out = append(out, e.Title)
+			}
+		}
+		return out
+	}
+	if got := titles(GlobalActivity, contextkey.MapContext{}); len(got) == 0 || got[0] != "Command Palette..." {
+		t.Errorf("Manage: %v", got)
+	}
+	if got := titles(MenubarGoMenu, contextkey.MapContext{"activeEditor": true}); !slices.Contains(got, "Go to Line/Column...") {
+		t.Errorf("Go: %v", got)
+	}
+	// the palette leaves out Quick Open View: its row has a When that never holds
+	hidden := false
+	for _, it := range menus.All() {
+		if it.Menu == CommandPalette && it.Command == "workbench.action.quickOpenView" && it.When != nil && !it.When.Evaluate(contextkey.MapContext{}) {
+			hidden = true
+		}
+	}
+	if !hidden {
+		t.Error("the CommandPalette menu does not hide workbench.action.quickOpenView")
+	}
+	for _, id := range []string{"workbench.action.showCommands", "workbench.action.quickOpen", "workbench.action.gotoLine", "workbench.action.gotoOffset", "workbench.action.openView", "workbench.action.quickOpenView", "workbench.action.clearCommandHistory", "workbench.action.closeQuickOpen"} {
+		if _, ok := reg.Lookup(id); !ok {
+			t.Errorf("command %s is not registered", id)
+		}
 	}
 }

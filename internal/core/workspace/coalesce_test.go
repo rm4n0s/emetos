@@ -207,6 +207,7 @@ func TestTheDebounceBatchesEventsUntilTheTimerFires(t *testing.T) {
 	// the next event starts a new batch
 	w.send([]rawEvent{{kind: rawDeleted, path: "/r/a"}})
 	waitFor(t, "a new timer", func() bool { return clock.pending() == 1 })
+	waitFor(t, "the events", func() bool { return len(w.raw) == 0 })
 	clock.advance(DefaultDebounce)
 	waitFor(t, "the second batch", func() bool { return len(got.get()) == 2 })
 }
@@ -220,9 +221,11 @@ func TestABatchThatCancelsItselfIsNotReported(t *testing.T) {
 
 	w.send([]rawEvent{{kind: rawCreated, path: "/r/a"}, {kind: rawDeleted, path: "/r/a"}})
 	waitFor(t, "the timer", func() bool { return clock.pending() == 1 })
+	waitFor(t, "the events", func() bool { return len(w.raw) == 0 })
 	clock.advance(DefaultDebounce)
 	w.send([]rawEvent{{kind: rawChanged, path: "/r/sentinel"}})
 	waitFor(t, "the timer", func() bool { return clock.pending() == 1 })
+	waitFor(t, "the events", func() bool { return len(w.raw) == 0 })
 	clock.advance(DefaultDebounce)
 	waitFor(t, "the sentinel", func() bool { return len(got.get()) == 1 })
 	if b := got.get()[0]; len(b) != 1 || b[0].Path != "/r/sentinel" {
@@ -256,6 +259,8 @@ func TestOwnWritesAreDroppedByTheirFileStat(t *testing.T) {
 		before := len(got.get())
 		w.send(raws)
 		waitFor(t, "the timer", func() bool { return clock.pending() == 1 })
+		// the channel is buffered: advance only when the batcher has taken every event, or the batch splits
+		waitFor(t, "the events", func() bool { return len(w.raw) == 0 })
 		clock.advance(DefaultDebounce)
 		_ = before
 	}

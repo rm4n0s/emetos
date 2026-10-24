@@ -32,6 +32,7 @@ func DefaultRegistry() *Registry {
 	registerNotificationCommands(r)
 	registerPanelViewCommands(r)
 	registerExplorerCommands(r)
+	registerQuickInputCommands(r)
 	return r
 }
 
@@ -620,5 +621,26 @@ func registerExplorerFileCommands(r *Registry) {
 		Meta{ID: "filesExplorer.cancelCut", Title: "Cancel Cut"},
 		Meta{ID: "explorer.openToSide", Title: "Open to the Side"},
 		Meta{ID: "revealFileInOS", Title: "Open Containing Folder"},
+	)
+}
+
+// registerQuickInputCommands registers the commands that open the quick input in a mode (SPEC §10.6).
+// Quick Open View is a quick pick of its own in VS Code and is hidden from the palette (see
+// registerCommandPaletteMenu); Close Quick Open has no title.
+//
+// Ported from VS Code: src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts,
+// src/vs/workbench/contrib/quickaccess/browser/viewQuickAccess.ts,
+// src/vs/workbench/browser/actions/quickAccessActions.ts and
+// src/vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess.ts
+func registerQuickInputCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.showCommands", Title: "Show All Commands"},
+		Meta{ID: "workbench.action.quickOpen", Title: "Go to File...", Description: "Quick access"},
+		Meta{ID: "workbench.action.gotoLine", Title: "Go to Line/Column..."},
+		Meta{ID: "workbench.action.gotoOffset", Title: "Go to Offset..."},
+		Meta{ID: "workbench.action.openView", Title: "Open View", Category: "View"},
+		Meta{ID: "workbench.action.quickOpenView", Title: "Quick Open View", Category: "View"},
+		Meta{ID: "workbench.action.clearCommandHistory", Title: "Clear Command History"},
+		Meta{ID: "workbench.action.closeQuickOpen"},
 	)
 }

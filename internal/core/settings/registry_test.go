@@ -348,3 +348,20 @@ func TestLayoutSettingsAreRegistered(t *testing.T) {
 		t.Errorf("DefaultWindowTitle = %q", DefaultWindowTitle)
 	}
 }
+
+func TestQuickInputSettingsAreRegistered(t *testing.T) {
+	cases := []struct {
+		key  string
+		want any
+	}{
+		{"workbench.commandPalette.history", float64(50)},
+		{"workbench.commandPalette.preserveInput", false},
+		{"workbench.quickOpen.closeOnFocusLost", true},
+	}
+	for _, tc := range cases {
+		s, ok := DefaultRegistry().Lookup(tc.key)
+		if !ok || s.Default != tc.want || s.Description == "" {
+			t.Errorf("%s: %+v, %v", tc.key, s, ok)
+		}
+	}
+}

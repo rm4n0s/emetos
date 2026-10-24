@@ -323,3 +323,34 @@ func TestExplorerFileKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestQuickInputKeys(t *testing.T) {
+	resolver := NewResolver(DefaultRegistry().Defaults(), nil, nil)
+	cases := []struct {
+		name  string
+		ctx   contextkey.MapContext
+		press string
+		want  string
+	}{
+		{"Ctrl+Shift+P opens the palette", contextkey.MapContext{}, "ctrl+shift+p", "workbench.action.showCommands"},
+		{"F1 opens the palette", contextkey.MapContext{}, "f1", "workbench.action.showCommands"},
+		{"Ctrl+G goes to a line", contextkey.MapContext{}, "ctrl+g", "workbench.action.gotoLine"},
+		{"Ctrl+P opens quick open", contextkey.MapContext{}, "ctrl+p", "workbench.action.quickOpen"},
+		{"Ctrl+E opens quick open", contextkey.MapContext{}, "ctrl+e", "workbench.action.quickOpen"},
+		{"Escape closes it", contextkey.MapContext{"inQuickOpen": true}, "escape", "workbench.action.closeQuickOpen"},
+		{"Shift+Escape closes it", contextkey.MapContext{"inQuickOpen": true}, "shift+escape", "workbench.action.closeQuickOpen"},
+		{"Escape does nothing when it is closed", contextkey.MapContext{}, "escape", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := resolver.Resolve(tc.ctx, nil, dispatchOf(t, tc.press))
+			got := ""
+			if res.Kind == KbFound {
+				got = res.Command
+			}
+			if got != tc.want {
+				t.Errorf("%s: got %q, want %q (%+v)", tc.press, got, tc.want, res)
+			}
+		})
+	}
+}

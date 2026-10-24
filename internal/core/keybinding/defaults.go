@@ -66,6 +66,7 @@ func DefaultRegistry() *Registry {
 	registerNotificationKeys(r)
 	registerPanelViewKeys(r)
 	registerExplorerKeys(r)
+	registerQuickInputKeys(r)
 	return r
 }
 
@@ -456,5 +457,21 @@ func registerExplorerFileKeys(r *Registry) {
 		Rule{Command: "filesExplorer.cancelCut", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "explorerResourceCut"), Primary: "escape"},
 		Rule{Command: "explorer.openToSide", Weight: WeightWorkbenchContrib, When: mustWhen(whenExplorerFocus), Primary: "ctrl+enter"},
 		Rule{Command: "revealFileInOS", Weight: WeightWorkbenchContrib, When: mustWhen("!" + whenEditorFocus), Primary: "ctrl+alt+r"},
+	)
+}
+
+// registerQuickInputKeys registers the keys that open the quick input: Ctrl+Shift+P and F1 for the
+// command palette, Ctrl+P and Ctrl+E for quick open, Ctrl+G for go to line (VS Code's Linux keys;
+// Quick Open View has none on Linux), and Escape while the quick input has the focus.
+//
+// Ported from VS Code: src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts,
+// src/vs/workbench/browser/actions/quickAccessActions.ts and
+// src/vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess.ts
+func registerQuickInputKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.showCommands", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+p", Secondary: []string{"f1"}},
+		Rule{Command: "workbench.action.quickOpen", Weight: WeightWorkbenchContrib, Primary: "ctrl+p", Secondary: []string{"ctrl+e"}},
+		Rule{Command: "workbench.action.gotoLine", Weight: WeightWorkbenchContrib, Primary: "ctrl+g"},
+		Rule{Command: "workbench.action.closeQuickOpen", Weight: WeightWorkbenchContrib, When: mustWhen("inQuickOpen"), Primary: "escape", Secondary: []string{"shift+escape"}},
 	)
 }

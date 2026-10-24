@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/errors"
@@ -564,6 +565,54 @@ func TestDefaultNotificationColors(t *testing.T) {
 		border, _ := ct.Color("notifications.border")
 		if !ok || header.String() != want.String() || border.String() != header.String() {
 			t.Errorf("%s: header %v border %v, want %v", typ, header, border, want)
+		}
+	}
+}
+
+// The colors that step 6.17 added for the quick input, as VS Code's registry (quickpickColors.ts,
+// listColors.ts, keybindingLabel.ts) writes their defaults.
+func TestDefaultQuickInputColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"pickerGroup.foreground", "#3794ff", "#0066bf", "#ffffff", "#0f4a85"},
+		{"pickerGroup.border", "#3f3f46", "#ccceDb", "#ffffff", "#0f4a85"},
+		{"quickInputTitle.background", "rgba(255, 255, 255, 0.11)", "rgba(0, 0, 0, 0.06)", "#000000", "#ffffff"},
+		{"quickInput.list.focusBackground", none, none, none, none},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if !strings.EqualFold(got, typ.want) {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+	// the colors that follow others do so
+	th := colorTheme(TypeDark, nil, registry)
+	for _, pair := range [][2]string{
+		{"quickInput.background", "editorWidget.background"},
+		{"quickInput.foreground", "editorWidget.foreground"},
+		{"quickInputList.focusForeground", "list.activeSelectionForeground"},
+		{"quickInputList.focusBackground", "list.activeSelectionBackground"},
+		{"quickInputList.focusHighlightForeground", "list.focusHighlightForeground"},
+	} {
+		got, ok1 := th.Color(pair[0])
+		want, ok2 := th.Color(pair[1])
+		if !ok1 || !ok2 || got != want {
+			t.Errorf("%s = %v (%v), want %s = %v (%v)", pair[0], got, ok1, pair[1], want, ok2)
 		}
 	}
 }

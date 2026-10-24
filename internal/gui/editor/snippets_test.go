@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 )
 
 func snippetVM(t *testing.T, text string, sels ...buffer.Selection) *ViewModel {
@@ -351,19 +352,44 @@ func TestInsertSnippetPickerAndName(t *testing.T) {
 		vm := snippetVM(t, "")
 		vm.Document().SetLanguageID("test")
 		vm.SetSnippets(svc)
+		var got quickinput.PickOptions
+		vm.SetQuickPick(func(o quickinput.PickOptions) { got = o })
 		if err := vm.RunCommand("editor.action.insertSnippet", nil); err != nil {
 			t.Fatal(err)
 		}
-		p := vm.SnippetPicker()
-		if p == nil || len(p.Items) != 2 || !p.Filterable {
-			t.Fatalf("picker %+v", p)
+		if got.Placeholder != "Select a snippet" || !got.MatchOnDetail {
+			t.Fatalf("options %+v", got)
 		}
-		if p.Items[0].Label != "Hello" || p.Items[0].Description != "hi" {
-			t.Errorf("rows %+v", p.Items)
+		picks := map[string]quickinput.Item{}
+		separators := 0
+		for _, it := range got.Items {
+			if it.Separator {
+				separators++
+				continue
+			}
+			picks[it.Label] = it
 		}
-		p.Accept(0)
+		// the prefix is the label, else the name; the description, else the body, is the detail
+		if len(picks) != 2 || picks["hi"].Detail != "hello ${1:you}" || picks["NoPrefix"].Detail != "np" || separators == 0 {
+			t.Fatalf("items %+v", got.Items)
+		}
+		if vm.SnippetPicker() != nil {
+			t.Errorf("the list at the caret is shown too")
+		}
+		picks["hi"].Accept(quickinput.KeyMods{})
 		if got := text(vm); got != "hello you" {
 			t.Errorf("text %q", got)
+		}
+	})
+	t.Run("without a quick input", func(t *testing.T) {
+		vm := snippetVM(t, "")
+		vm.Document().SetLanguageID("test")
+		vm.SetSnippets(svc)
+		if err := vm.RunCommand("editor.action.insertSnippet", nil); err != nil {
+			t.Fatal(err)
+		}
+		if text(vm) != "" || vm.SnippetPicker() != nil {
+			t.Errorf("something happened: %q", text(vm))
 		}
 	})
 	t.Run("no service", func(t *testing.T) {
