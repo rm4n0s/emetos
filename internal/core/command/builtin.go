@@ -33,6 +33,7 @@ func DefaultRegistry() *Registry {
 	registerPanelViewCommands(r)
 	registerExplorerCommands(r)
 	registerSaveCommands(r)
+	registerWindowCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	return r
@@ -715,5 +716,18 @@ func registerStatusBarCommands(r *Registry) {
 		Meta{ID: "workbench.action.editor.changeEOL", Title: "Change End of Line Sequence"},
 		Meta{ID: "workbench.action.editor.changeEncoding", Title: "Change File Encoding"},
 		Meta{ID: "changeEditorIndentation"},
+	)
+}
+
+// registerWindowCommands registers the commands that close the window and quit (SPEC §10.11): Close Window is
+// in the palette; Quit (VS Code's "Exit", workbench.action.quit) is a command with a key and a menu row but no
+// entry in the palette, as in VS Code.
+//
+// Ported from VS Code: src/vs/workbench/electron-browser/actions/windowActions.ts (CloseWindowAction) and
+// src/vs/workbench/electron-browser/desktop.contribution.ts (workbench.action.quit)
+func registerWindowCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.closeWindow", Title: "Close Window"},
+		Meta{ID: "workbench.action.quit"},
 	)
 }

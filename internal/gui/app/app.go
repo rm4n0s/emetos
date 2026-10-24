@@ -248,6 +248,8 @@ type shellState struct {
 	status statusState
 	// saves is what the shell keeps of saving (save.go).
 	saves saveState
+	// closing is what the shell keeps of closing with unsaved changes (closing.go).
+	closing closeState
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -265,6 +267,7 @@ func (s *shellState) InitState() {
 	s.initQuickInput(binding)
 	s.initStatus(binding)
 	s.initSave(binding)
+	s.initClosing(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
@@ -329,6 +332,7 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	s.disposeClosing()
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()

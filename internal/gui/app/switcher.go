@@ -278,6 +278,10 @@ func (s *shellState) editorEntries(mode quickinput.EditorsMode) []quickinput.Edi
 					}
 				},
 				Close: func() bool {
+					if len(editorgroup.PlanClose(s.group.grid, []editorgroup.CloseTarget{{Group: g, Editors: []editorgroup.EditorInput{in}}})) > 0 {
+						// the dialog that asks about the changes comes over the picker, which makes way for it
+						win.QuickInput.Hide()
+					}
 					s.closeEditors(g, []editorgroup.EditorInput{in})
 					return !g.Model.Contains(in)
 				},

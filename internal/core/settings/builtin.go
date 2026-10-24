@@ -723,6 +723,16 @@ func registerFiles(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
 		},
 		Setting{
+			Key: "files.hotExit", Types: []Type{String}, Default: "onExit", Enum: []any{"off", "onExit", "onExitAndWindowClose"},
+			EnumDescriptions: []string{
+				"Disable hot exit. A prompt will show when attempting to close a window with editors that have unsaved changes.",
+				"Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`",
+				"Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it's the last window. All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`",
+			},
+			Description: "[Hot Exit](https://aka.ms/vscode-hot-exit) controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.",
+			Scope:       ScopeApplication, Category: categoryFiles,
+		},
+		Setting{
 			Key: "files.defaultLanguage", Types: []Type{String}, Default: "",
 			Description: "The default language identifier that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language identifier of the currently active text editor if any.",
 			Scope:       ScopeWindow, Category: categoryFiles,

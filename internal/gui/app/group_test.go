@@ -618,16 +618,6 @@ func TestTabSettings(t *testing.T) {
 	}
 }
 
-func TestClosingADirtyEditorDoesNotAskYet(t *testing.T) {
-	a := newGroupApp(t, []string{"a.go", "b.go"}, "a.go", "b.go")
-	a.edit("a.go")
-	a.press("ctrl+w")
-	wantNames(t, a.tabNames(), "b.go")
-	if !a.shell().confirmClose(nil) {
-		t.Error("confirmClose says no: the prompt of step 7.2 does not exist yet")
-	}
-}
-
 func TestTheContextKeysOfTheGroup(t *testing.T) {
 	a := newGroupApp(t, []string{"a.go", "b.go"}, "a.go")
 	get := func(k string) any { return a.win.Keys.Get(k) }

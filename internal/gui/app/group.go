@@ -414,36 +414,6 @@ func (s *shellState) disposeGroup() {
 	}
 }
 
-// confirmClose says whether an editor may close.
-//
-// TODO(step 7.2): ask whether to save, discard or cancel when the editor has unsaved changes; until
-// then a dirty editor closes without asking and its changes are lost.
-func (s *shellState) confirmClose(editorgroup.EditorInput) bool { return true }
-
-// closeEditors closes editors of a group (those that confirm); a group left empty closes with
-// workbench.editor.closeEmptyGroups. When the active editor is among them and others stay, one of
-// the others becomes active first, the most recently used (or the nearest, with
-// workbench.editor.focusRecentEditorAfterClose off), so that it does not pass through the editors
-// that close.
-func (s *shellState) closeEditors(group *editorgroup.Group, editors []editorgroup.EditorInput) {
-	m := group.Model
-	var closing []editorgroup.EditorInput
-	for _, e := range editors {
-		if m.Contains(e) && s.confirmClose(e) {
-			closing = append(closing, e)
-		}
-	}
-	if active := m.ActiveEditor(); active != nil && containsInput(closing, active) {
-		for _, candidate := range survivors(m, closing) {
-			m.SetActive(candidate)
-			break
-		}
-	}
-	for _, e := range closing {
-		m.CloseEditor(e, editorgroup.CloseUnknown, true)
-	}
-}
-
 // survivors are the editors that stay when some close, the one to activate first.
 func survivors(m *editorgroup.Model, closing []editorgroup.EditorInput) []editorgroup.EditorInput {
 	var out []editorgroup.EditorInput

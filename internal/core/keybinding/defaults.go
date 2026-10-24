@@ -67,6 +67,7 @@ func DefaultRegistry() *Registry {
 	registerPanelViewKeys(r)
 	registerExplorerKeys(r)
 	registerSaveKeys(r)
+	registerWindowKeys(r)
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
 	return r
@@ -513,5 +514,17 @@ func registerQuickInputKeys(r *Registry) {
 func registerStatusBarKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.action.editor.changeLanguageMode", Weight: WeightWorkbenchContrib, Primary: "ctrl+k m"},
+	)
+}
+
+// registerWindowKeys registers the keys that close the window: Alt+F4 or Ctrl+Shift+W close it and Ctrl+Q quits
+// (Linux).
+//
+// Ported from VS Code: src/vs/workbench/electron-browser/actions/windowActions.ts (CloseWindowAction) and
+// src/vs/workbench/electron-browser/desktop.contribution.ts (workbench.action.quit)
+func registerWindowKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.closeWindow", Weight: WeightWorkbenchContrib, Primary: "alt+f4", Secondary: []string{"ctrl+shift+w"}},
+		Rule{Command: "workbench.action.quit", Weight: WeightWorkbenchContrib, Primary: "ctrl+q"},
 	)
 }

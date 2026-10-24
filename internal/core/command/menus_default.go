@@ -59,7 +59,7 @@ func registerMainMenu(r *MenuRegistry) {
 // registerFileMenu adds the File menu. VS Code's other rows belong to the steps that add their
 // commands (opening files, 7.x), and its "Close Editor" row is enabled while an editor is open. Save and Save
 // As are enabled while an editor is open, Save All while a document has unsaved changes (dirtyWorkingCopies), and
-// Revert File while the active editor can revert (it is not an untitled one). Not here: Auto Save (step 7.3).
+// Revert File while the active editor can revert (it is not an untitled one). Close Window and Exit (Quit) close the window and the app (step 7.2). Not here: Auto Save (step 7.3).
 // VS Code has no "Close All Editors" row in the File menu; its command is in the palette only.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
@@ -79,6 +79,8 @@ func registerFileMenu(r *MenuRegistry) {
 			When: contextkey.Equals("workbenchState", "folder")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeActiveEditor", MnemonicTitle: "&&Close Editor", Group: "6_close", Order: 2,
 			Precondition: contextkey.Has("activeEditor")},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeWindow", MnemonicTitle: "Clos&&e Window", Group: "6_close", Order: 4},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.quit", Title: "Exit", MnemonicTitle: "E&&xit", Group: "z_Exit", Order: 1},
 	)
 }
 

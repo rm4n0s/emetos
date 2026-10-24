@@ -385,13 +385,13 @@ func TestDefaultFileMenu(t *testing.T) {
 	}{
 		// Save, Save As, Save All, Revert File and Close Editor are there with no editor open, dimmed
 		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "Re&&vert File~", "&&Close Editor~"}},
+			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Window", "-", "E&&xit"}},
 		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor"}},
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
 		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save", "Save &&As...", "Save A&&ll", "-", "Re&&vert File~", "&&Close Editor"}},
+			"&&Save", "Save &&As...", "Save A&&ll", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
 		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder"}},
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Window", "-", "E&&xit"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := titles(tc.ctx); !reflect.DeepEqual(got, tc.want) {

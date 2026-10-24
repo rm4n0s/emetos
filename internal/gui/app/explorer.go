@@ -533,8 +533,8 @@ func (s *shellState) folderChosen(path string, err error) {
 }
 
 // openFolder makes the window open a folder, or close its folder (an empty path). The editors of the old folder
-// close first, so a window with unsaved changes refuses and says why; opening the folder the window has is
-// nothing to do.
+// close first; when some have unsaved changes a dialog asks whether to save them, and Cancel leaves the window
+// as it is. Opening the folder the window has is nothing to do.
 //
 // Ported from VS Code: src/vs/workbench/browser/actions/workspaceActions.ts (OpenFolderAction,
 // CloseWorkspaceAction) and SPEC §10.11
@@ -546,22 +546,19 @@ func (s *shellState) openFolder(path string) {
 	if path == win.Folder {
 		return
 	}
-	for _, doc := range win.Documents.All() {
-		if doc.Dirty() {
-			win.Process.Notify.Warn("Emetos", "Cannot change the folder while files have unsaved changes: save or close them first.")
+	s.closeAllEditors(func(closed bool) {
+		if !closed {
 			return
 		}
-	}
-	s.closeAllEditors()
-	if err := win.SetFolder(win.ctx, path); err != nil {
-		win.Process.Logger.Warn("cannot open the folder", "path", path, "err", err)
-		win.Process.Notify.Error("Emetos", "Cannot open the folder "+path+": "+describe(err))
-	}
+		if err := win.SetFolder(win.ctx, path); err != nil {
+			win.Process.Logger.Warn("cannot open the folder", "path", path, "err", err)
+			win.Process.Notify.Error("Emetos", "Cannot open the folder "+path+": "+describe(err))
+		}
+	})
 }
 
-// closeAllEditors closes every editor of every group.
-func (s *shellState) closeAllEditors() {
-	for _, g := range s.group.grid.Groups(editorgroup.GridAppearance) {
-		s.closeEditors(g, g.Model.Editors(editorgroup.Sequential, false))
-	}
+// closeAllEditors closes every editor of every group (the sticky ones too), asking about unsaved changes first;
+// done is told whether they closed.
+func (s *shellState) closeAllEditors(done func(closed bool)) {
+	s.closeConfirmed(editorgroup.AllTargets(s.group.grid), done)
 }

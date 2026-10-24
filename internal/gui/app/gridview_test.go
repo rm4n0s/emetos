@@ -824,7 +824,13 @@ func TestTwoEditorsOfOneDocument(t *testing.T) {
 	if !second.disposed && a.grid().Active().Model.ActiveEditor() != second.input {
 		t.Error("the editor of the group that closed was not disposed")
 	}
+	// the last editor of a document with unsaved changes asks first
 	a.press("ctrl+w")
+	if !a.win.Dialogs.IsShowing() {
+		t.Fatal("closing the last editor of a document with unsaved changes did not ask")
+	}
+	a.ts.Tap(gluttertest.Descendant(gluttertest.ByType[*kit.Dialog](), gluttertest.ByText("Don't Save")))
+	a.pump()
 	if _, open := a.win.Documents.Get(doc.URI()); open {
 		t.Error("the document stays open after its last editor closed")
 	}

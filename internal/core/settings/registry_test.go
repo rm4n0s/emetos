@@ -365,3 +365,29 @@ func TestQuickInputSettingsAreRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestHotExitIsRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	s, ok := r.Lookup("files.hotExit")
+	if !ok || s.Default != "onExit" || s.Scope != ScopeApplication || s.Category != categoryFiles || s.Description == "" {
+		t.Fatalf("files.hotExit: %+v, %v", s, ok)
+	}
+	if len(s.Enum) != 3 || len(s.EnumDescriptions) != 3 {
+		t.Errorf("the values are off, onExit and onExitAndWindowClose: %v", s.Enum)
+	}
+	for _, tc := range []struct {
+		value   any
+		invalid bool
+	}{
+		{"off", false}, {"onExit", false}, {"onExitAndWindowClose", false},
+		{"always", true}, {"", true}, {true, true}, {nil, true},
+	} {
+		if got := r.Validate("files.hotExit", tc.value) != ""; got != tc.invalid {
+			t.Errorf("Validate(%v): invalid = %v, want %v", tc.value, got, tc.invalid)
+		}
+	}
+	// window.confirmBeforeClose is not registered (SPEC §10.10)
+	if _, ok := r.Lookup("window.confirmBeforeClose"); ok {
+		t.Error("window.confirmBeforeClose must not be registered")
+	}
+}

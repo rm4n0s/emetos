@@ -20,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 	"github.com/rm4n0s/emetos/internal/gui/views/explorer"
@@ -550,8 +551,13 @@ func TestOpenFolder(t *testing.T) {
 	}
 	s.openFolder(other)
 	a.pump()
-	if a.win.Folder != a.root || !notified(a.win, "unsaved changes") {
-		t.Errorf("the folder is %q, notified %v", a.win.Folder, notified(a.win, "unsaved changes"))
+	if !a.win.Dialogs.IsShowing() || !a.ts.Exists(gluttertest.ByText("Do you want to save the changes you made to main.go?")) {
+		t.Fatal("no dialog asks about the changes")
+	}
+	a.ts.Tap(gluttertest.Descendant(gluttertest.ByType[*kit.Dialog](), gluttertest.ByText("Cancel")))
+	a.pump()
+	if a.win.Folder != a.root || a.win.Dialogs.IsShowing() || s.editorCount() != 2 {
+		t.Errorf("the folder is %q after Cancel, %d editors", a.win.Folder, s.editorCount())
 	}
 	// without changes the editors close and the folder changes
 	if _, err := doc.Undo(); err != nil {

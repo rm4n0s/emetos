@@ -109,8 +109,15 @@ type Window struct {
 	SaveDialog func(ctx context.Context, bc widgets.BuildContext, opts SaveDialogOptions) (string, error)
 	// OpenURI opens a URI with the desktop; it is desktop.OpenURI when nil. Tests replace it.
 	OpenURI func(ctx context.Context, bc widgets.BuildContext, uri string) error
+	// Quit ends the application once the window has been closed with RequestClose and the unsaved changes were
+	// answered; the application is asked to exit when it is nil. Tests replace it.
+	Quit func()
 
 	ctx context.Context
+	// closer is the shell's answer to RequestClose, and exit ends the application without asking again; both
+	// are set while the shell is on screen (closing.go).
+	closer func(CloseReason)
+	exit   func()
 	// icons is the file icon theme in use.
 	icons fileIcons
 	// files is the list of the files of the folder for the quick open; nil without a folder. It is made when

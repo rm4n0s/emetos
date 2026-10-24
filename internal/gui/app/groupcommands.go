@@ -48,14 +48,19 @@ func (s *shellState) editorCommands() map[string]command.Handler {
 		}
 		return out
 	}
-	closeInGroup := func(g *editorgroup.Group, keep func(editorgroup.EditorInput) bool) {
-		var closing []editorgroup.EditorInput
+	// targetIn is the editors of a group that a close command closes (the sticky ones stay), those that keep
+	// accepts.
+	targetIn := func(g *editorgroup.Group, keep func(editorgroup.EditorInput) bool) editorgroup.CloseTarget {
+		t := editorgroup.CloseTarget{Group: g}
 		for _, e := range notSticky(g.Model, g.Model.Editors(editorgroup.Sequential, false)) {
 			if keep == nil || keep(e) {
-				closing = append(closing, e)
+				t.Editors = append(t.Editors, e)
 			}
 		}
-		s.closeEditors(g, closing)
+		return t
+	}
+	closeInGroup := func(g *editorgroup.Group, keep func(editorgroup.EditorInput) bool) {
+		s.closeConfirmed([]editorgroup.CloseTarget{targetIn(g, keep)}, nil)
 	}
 	// onEditor runs f for the group and the editor of the argument
 	onEditor := func(f func(g *editorgroup.Group, e editorgroup.EditorInput)) command.Handler {
@@ -82,11 +87,11 @@ func (s *shellState) editorCommands() map[string]command.Handler {
 		"workbench.action.closeEditorsInGroup": onGroup(func(g *editorgroup.Group) { closeInGroup(g, nil) }),
 		// all the editors of all the groups
 		"workbench.action.closeAllEditors": func(command.Context, any) error {
+			var targets []editorgroup.CloseTarget
 			for _, g := range s.group.grid.Groups(editorgroup.MostRecentlyActiveGroups) {
-				if s.group.grid.Group(g.ID()) == g {
-					closeInGroup(g, nil)
-				}
+				targets = append(targets, targetIn(g, nil))
 			}
+			s.closeConfirmed(targets, nil)
 			return nil
 		},
 		"workbench.action.closeUnmodifiedEditors": onGroup(func(g *editorgroup.Group) {
@@ -338,37 +343,50 @@ func (s *shellState) gridCommands() map[string]command.Handler {
 	})
 	handlers["workbench.action.closeEditorsAndGroup"] = run(func() error {
 		g := s.activeGroup()
-		s.closeEditors(g, g.Model.Editors(editorgroup.Sequential, false))
-		if grid().Group(g.ID()) == g && g.Empty() {
-			_, err := grid().RemoveGroup(g)
-			return err
-		}
-		return nil
-	})
-	handlers["workbench.action.closeAllGroups"] = run(func() error {
-		for _, g := range grid().Groups(editorgroup.MostRecentlyActiveGroups) {
-			if grid().Group(g.ID()) == g {
-				s.closeEditors(g, g.Model.Editors(editorgroup.Sequential, false))
-			}
-		}
-		// a group that is empty goes, whatever workbench.editor.closeEmptyGroups says
-		for _, g := range grid().Groups(editorgroup.MostRecentlyActiveGroups) {
-			if grid().Group(g.ID()) == g && g.Empty() && grid().Count() > 1 {
-				if _, err := grid().RemoveGroup(g); err != nil {
-					return err
+		var err error
+		s.closeConfirmed([]editorgroup.CloseTarget{{Group: g, Editors: g.Model.Editors(editorgroup.Sequential, false)}}, func(closed bool) {
+			if closed && grid().Group(g.ID()) == g && g.Empty() {
+				// the answer may come after the command returned, so the failure is logged as well
+				if _, err = grid().RemoveGroup(g); err != nil {
+					PeekWindow(s.Context()).Process.Logger.Warn("cannot remove the group", "err", err)
 				}
 			}
+		})
+		return err
+	})
+	handlers["workbench.action.closeAllGroups"] = run(func() error {
+		var targets []editorgroup.CloseTarget
+		for _, g := range grid().Groups(editorgroup.MostRecentlyActiveGroups) {
+			targets = append(targets, editorgroup.CloseTarget{Group: g, Editors: g.Model.Editors(editorgroup.Sequential, false)})
 		}
-		return nil
+		var err error
+		s.closeConfirmed(targets, func(closed bool) {
+			if !closed {
+				return
+			}
+			// a group that is empty goes, whatever workbench.editor.closeEmptyGroups says
+			for _, g := range grid().Groups(editorgroup.MostRecentlyActiveGroups) {
+				if grid().Group(g.ID()) == g && g.Empty() && grid().Count() > 1 {
+					if _, e := grid().RemoveGroup(g); e != nil {
+						PeekWindow(s.Context()).Process.Logger.Warn("cannot remove the group", "err", e)
+						if err == nil {
+							err = e
+						}
+					}
+				}
+			}
+		})
+		return err
 	})
 	handlers["workbench.action.closeEditorsInOtherGroups"] = run(func() error {
 		skip := s.activeGroup()
+		var targets []editorgroup.CloseTarget
 		for _, g := range grid().Groups(editorgroup.MostRecentlyActiveGroups) {
-			if g == skip || grid().Group(g.ID()) != g {
-				continue
+			if g != skip {
+				targets = append(targets, editorgroup.CloseTarget{Group: g, Editors: g.Model.Editors(editorgroup.Sequential, true)})
 			}
-			s.closeEditors(g, g.Model.Editors(editorgroup.Sequential, true))
 		}
+		s.closeConfirmed(targets, nil)
 		return nil
 	})
 	handlers["workbench.action.closeEditorInAllGroups"] = run(func() error {
@@ -376,11 +394,13 @@ func (s *shellState) gridCommands() map[string]command.Handler {
 		if active == nil {
 			return nil
 		}
+		var targets []editorgroup.CloseTarget
 		for _, g := range grid().Groups(editorgroup.MostRecentlyActiveGroups) {
-			if grid().Group(g.ID()) == g && g.Model.Contains(active) {
-				s.closeEditors(g, []editorgroup.EditorInput{g.Model.EditorAt(g.Model.IndexOf(active))})
+			if g.Model.Contains(active) {
+				targets = append(targets, editorgroup.CloseTarget{Group: g, Editors: []editorgroup.EditorInput{g.Model.EditorAt(g.Model.IndexOf(active))}})
 			}
 		}
+		s.closeConfirmed(targets, nil)
 		return nil
 	})
 
