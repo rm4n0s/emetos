@@ -10,6 +10,9 @@ import (
 // Colors are the workbench colors the widgets read, named as VS Code names them in a color
 // theme's "colors". ColorsOf takes them from a theme of the theme service.
 type Colors struct {
+	// Type is the type of the theme the colors come from (dark, light, high contrast); the file icons
+	// choose their light and high contrast variants by it.
+	Type                              theme.Type
 	EditorBackground                  ui.Color
 	EditorForeground                  ui.Color
 	EditorLineHighlightBackground     ui.Color
@@ -236,6 +239,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		return ui.NewColor(c.ARGB())
 	}
 	return Colors{
+		Type:                                   ct.Type(),
 		EditorBackground:                       color("editor.background"),
 		EditorForeground:                       color("editor.foreground"),
 		EditorLineHighlightBackground:          color("editor.lineHighlightBackground"),

@@ -770,10 +770,35 @@ func registerExplorer(r *Registry) {
 			Description: "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example.",
 			Scope:       ScopeWindow, Category: categoryExplorer,
 		},
+		Setting{
+			Key: "explorer.autoReveal", Types: []Type{Boolean, String}, Default: true, Enum: []any{true, false, "focusNoScroll"},
+			EnumDescriptions: []string{
+				"Files will be revealed and selected.",
+				"Files will not be revealed and selected.",
+				"Files will not be scrolled into view, but will still be focused.",
+			},
+			Description: "Controls whether the Explorer should automatically reveal and select files when opening them.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.openEditors.visible", Types: []Type{Number}, Default: 9, Minimum: Float(1),
+			Description: "The initial maximum number of editors shown in the Open Editors pane. Exceeding this limit will show a scroll bar and allow resizing the pane to display more items.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.openEditors.sortOrder", Types: []Type{String}, Default: "editorOrder", Enum: []any{"editorOrder", "alphabetical", "fullPath"},
+			EnumDescriptions: []string{
+				"Editors are ordered in the same order editor tabs are shown.",
+				"Editors are ordered alphabetically by tab name inside each editor group.",
+				"Editors are ordered alphabetically by full path inside each editor group.",
+			},
+			Description: "Controls the sorting order of editors in the Open Editors pane.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
 	)
 }
 
-// registerWorkbench registers the workbench.* settings that choose the color theme. The default
+// registerWorkbench registers the workbench.* settings that choose the color theme and the file icon theme. The default
 // themes have the names of Emetos's bundled themes ("Dark Modern", where VS Code says "Default
 // Dark Modern"), and the value is the label or id of any theme, bundled or the user's, so the
 // settings have no fixed list of values.
@@ -784,6 +809,11 @@ func registerWorkbench(r *Registry) {
 		Setting{
 			Key: "workbench.colorTheme", Types: []Type{String}, Default: "Dark Modern",
 			Description: "Specifies the color theme used in the workbench when `window.autoDetectColorScheme` is not enabled.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.iconTheme", Types: []Type{String, Null}, Default: "vs-seti",
+			Description: "Specifies the file icon theme used in the workbench or 'null' to not show any file icons.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{

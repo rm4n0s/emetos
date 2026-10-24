@@ -55,6 +55,9 @@ type View struct {
 	Order int
 	// Collapsed tells that the view starts with its body folded away.
 	Collapsed bool
+	// HideByDefault tells that the view is not shown until the user (or a command) shows it, such as
+	// Open Editors in the Explorer.
+	HideByDefault bool
 }
 
 // ViewRegistry holds the view containers and the views in them (SPEC §10.4). It is safe for

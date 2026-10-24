@@ -25,3 +25,18 @@ scripts/perf.sh --session
 ```
 
 Say what the table shows (or paste it), in particular the cold start (target < 400 ms), the 10 MB open (< 300 ms), the idle CPU (< 1%) and the frames of the unfocused window (none).
+
+## 6.14 The folder dialog of the desktop
+
+The tests answer the file chooser portal with a fake; only a desktop session has the real portal. Run the editor with no folder, isolated from your configuration:
+
+```
+scripts/isolated.sh -- go run ./cmd/emetos
+```
+
+1. Press "Open Folder" in the Explorer (or Ctrl+K Ctrl+O). Does the dialog of your desktop open, titled "Open Folder", choosing folders and not files?
+2. Choose a folder with a few files and subfolders. Does the Explorer show it (its name in the header, the files with their icons) and the window title and status bar change from the "no folder" ones?
+3. Open the dialog again and cancel it. Does nothing change?
+4. Run "Close Workspace" (Ctrl+K F) from the palette once step 6.17 exists, or from File > Close Folder: does the Explorer go back to "You have not yet opened a folder."?
+
+Say what you saw, and which desktop (and portal backend) you used.

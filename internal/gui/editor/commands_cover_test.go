@@ -12,7 +12,7 @@ import (
 // "workbench." id: gui/app binds them, and its tests check that it does.
 var appCommands = map[string]bool{
 	"moveActiveEditor": true, "copyActiveEditor": true, "layoutEditorGroups": true,
-	"copyFilePath": true, "copyRelativeFilePath": true,
+	"copyFilePath": true, "copyRelativeFilePath": true, "revealInExplorer": true,
 }
 
 func TestEveryEditorCommandHasAHandler(t *testing.T) {

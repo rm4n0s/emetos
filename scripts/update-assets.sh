@@ -193,4 +193,10 @@ copy_license emmet emmet/LICENSE
 # copied by the Step 5.10 block above).
 copy_file "emmet/src/snippets/css.json" "internal/core/emmet/assets/css.json"
 
+# Step 6.14: the Seti file icon theme (SPEC §10.8): the mapping from file names, extensions and languages
+# to glyphs of the Seti font, in VS Code's icon theme format (the font itself is the Step 0.4 copy).
+# internal/core/theme embeds it; its license is the Seti one of Step 0.4 (third_party/seti).
+rm -rf "$root/internal/core/theme/iconassets"
+copy_file vscode/extensions/theme-seti/icons/vs-seti-icon-theme.json internal/core/theme/iconassets/vs-seti-icon-theme.json
+
 echo "update-assets: done"

@@ -93,6 +93,10 @@ func TestDefaultRegistry(t *testing.T) {
 		{"files.encoding", []Type{String}, "utf8", ScopeLanguageOverridable, "Files"},
 		{"files.eol", []Type{String}, "auto", ScopeLanguageOverridable, "Files"},
 		{"files.autoGuessEncoding", []Type{Boolean}, false, ScopeLanguageOverridable, "Files"},
+		{"explorer.autoReveal", []Type{Boolean, String}, true, ScopeWindow, "Explorer"},
+		{"explorer.openEditors.visible", []Type{Number}, 9.0, ScopeWindow, "Explorer"},
+		{"explorer.openEditors.sortOrder", []Type{String}, "editorOrder", ScopeWindow, "Explorer"},
+		{"workbench.iconTheme", []Type{String, Null}, "vs-seti", ScopeWindow, "Workbench"},
 	} {
 		s, ok := r.Lookup(w.key)
 		if !ok {
@@ -806,5 +810,49 @@ func TestErrorsPackageIsUsed(t *testing.T) {
 	appErr, ok := errors.FromError(err)
 	if !ok || appErr.Tag != "SettingUnregistered" {
 		t.Errorf("error %v", err)
+	}
+}
+
+func TestStoreSetWorkspacePath(t *testing.T) {
+	f := newFixture(t)
+	other := filepath.Join(t.TempDir(), "other")
+	f.write(f.wsPath, `{"test.size": 7}`)
+	f.write(WorkspaceSettingsPath(other), `{"test.size": 5}`)
+	f.reload()
+	size := func() float64 { return Get[float64](f.store, "test.size", "") }
+	tests := []struct {
+		name string
+		path string
+		want float64
+	}{
+		{"the layer of the old folder is replaced", WorkspaceSettingsPath(other), 5},
+		{"a folder without a file has the defaults", WorkspaceSettingsPath(filepath.Join(t.TempDir(), "empty")), 3},
+		{"no folder drops the layer", "", 3},
+		{"the first folder again", f.wsPath, 7},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.listeners = nil
+			if _, err := f.store.SetWorkspacePath(context.Background(), tt.path); err != nil {
+				t.Fatal(err)
+			}
+			if got := size(); got != tt.want {
+				t.Errorf("test.size = %v, want %v", got, tt.want)
+			}
+		})
+	}
+	if err := f.store.Update(context.Background(), "test.size", 4, TargetWorkspace); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.read(f.wsPath); !strings.Contains(got, "4") {
+		t.Errorf("the update went to %q", got)
+	}
+	if _, err := f.store.SetWorkspacePath(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	err := f.store.Update(context.Background(), "test.size", 4, TargetWorkspace)
+	appErr, ok := errors.FromError(err)
+	if !ok || !appErr.HasRoute("SettingsNoWorkspace") {
+		t.Errorf("with no folder an update of the workspace fails with SettingsNoWorkspace, got %v", err)
 	}
 }

@@ -698,13 +698,22 @@ var panelAppCommands = map[string]bool{
 	"workbench.actions.workbench.panel.markers.view.toggleActiveFile":     true,
 }
 
+// explorerAppCommands are the commands of the Explorer, which the app binds since the view and the folder
+// are the window's (step 6.14).
+var explorerAppCommands = map[string]bool{
+	"workbench.view.explorer": true, "workbench.explorer.fileView.focus": true, "workbench.files.action.focusOpenEditorsView": true,
+	"workbench.files.action.focusFilesExplorer": true, "workbench.files.action.showActiveFileInExplorer": true,
+	"workbench.files.action.refreshFilesExplorer": true, "workbench.files.action.collapseExplorerFolders": true,
+	"workbench.action.files.openFolder": true, "workbench.action.closeFolder": true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	// the commands that open the views of the panel are the workbench's when it has the views
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] {
 			continue
 		}
 		n++

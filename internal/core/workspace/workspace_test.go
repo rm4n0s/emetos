@@ -589,3 +589,57 @@ func TestConfigFromSettings(t *testing.T) {
 		t.Errorf("watcherInclude: %q", ws.Include)
 	}
 }
+
+func TestLoadedChain(t *testing.T) {
+	root := tree(t, "top/a/b/c/f.txt", "top/a/b/c/g.txt", "multi/p/q.txt", "multi/r.txt")
+	ctx := context.Background()
+	w := open(t, root, &Config{CompactFolders: true})
+	item := func(path string) *Item {
+		t.Helper()
+		it := w.Find(filepath.Join(root, path))
+		if it == nil {
+			// read the folders above it
+			cur := w.Root()
+			for _, name := range strings.Split(path, "/") {
+				kids, err := cur.Children(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				cur = nil
+				for _, k := range kids {
+					if k.Name() == name {
+						cur = k
+					}
+				}
+			}
+			it = cur
+		}
+		return it
+	}
+	a := item("top/a")
+	if got := names(w.LoadedChain(a)); !slices.Equal(got, []string{"a"}) {
+		t.Errorf("a folder that was not read is alone: %q", got)
+	}
+	if _, err := a.Children(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := names(w.LoadedChain(a)); !slices.Equal(got, []string{"a", "b"}) {
+		t.Errorf("b was not read yet: %q", got)
+	}
+	if _, err := w.CompactChain(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	if got := names(w.LoadedChain(a)); !slices.Equal(got, []string{"a", "b", "c"}) {
+		t.Errorf("after reading the chain: %q", got)
+	}
+	if got := names(w.LoadedChain(item("multi/p"))); !slices.Equal(got, []string{"p"}) {
+		t.Errorf("a folder with a file next to it: %q", got)
+	}
+	if got := names(w.LoadedChain(item("top"))); !slices.Equal(got, []string{"top"}) {
+		t.Errorf("a folder below the root is alone: %q", got)
+	}
+	w.SetConfig(Config{})
+	if got := names(w.LoadedChain(a)); !slices.Equal(got, []string{"a"}) {
+		t.Errorf("with the setting off: %q", got)
+	}
+}

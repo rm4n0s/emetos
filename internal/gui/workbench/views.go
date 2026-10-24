@@ -20,6 +20,8 @@ type Views struct {
 	activePanel string
 	// collapsed has the views the user collapsed or expanded; the others start as their View says.
 	collapsed map[string]bool
+	// hidden has the views the user (or a command) hid or showed; the others start as their View says.
+	hidden    map[string]bool
 	listeners []*func()
 }
 
@@ -27,7 +29,7 @@ type Views struct {
 // activity bar. layout is the layout of the window, whose side bar the activity bar shows and hides;
 // it may be nil.
 func NewViews(registry *command.ViewRegistry, layout *Layout) *Views {
-	v := &Views{registry: registry, layout: layout, collapsed: map[string]bool{}}
+	v := &Views{registry: registry, layout: layout, collapsed: map[string]bool{}, hidden: map[string]bool{}}
 	if cs := registry.Containers(command.ViewLocationSideBar); len(cs) > 0 {
 		v.active = cs[0].ID
 	}
@@ -110,6 +112,28 @@ func (v *Views) SetCollapsed(viewID string, collapsed bool) {
 		return
 	}
 	v.collapsed[viewID] = collapsed
+	v.notify()
+}
+
+// IsHidden tells whether a view is not shown in its container: it starts hidden when its View says
+// HideByDefault (Open Editors) and shows when SetHidden says so.
+func (v *Views) IsHidden(viewID string) bool {
+	if h, ok := v.hidden[viewID]; ok {
+		return h
+	}
+	view, ok := v.registry.View(viewID)
+	return ok && view.HideByDefault
+}
+
+// SetHidden hides a view or shows it again, and unfolds a view that is shown.
+func (v *Views) SetHidden(viewID string, hidden bool) {
+	if v.IsHidden(viewID) == hidden {
+		return
+	}
+	v.hidden[viewID] = hidden
+	if !hidden {
+		v.collapsed[viewID] = false
+	}
 	v.notify()
 }
 

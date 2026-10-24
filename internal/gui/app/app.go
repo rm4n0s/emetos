@@ -211,6 +211,8 @@ type shellState struct {
 	group groupState
 	// panels are the views of the Problems and the Output.
 	panels panelsState
+	// explorer is the Explorer: the tree of the folder and the Open Editors.
+	explorer explorerState
 	// blocked is the path of the file that looks binary and that a notice offers to open anyway,
 	// while there is no editor.
 	blocked string
@@ -238,6 +240,7 @@ func (s *shellState) InitState() {
 	s.initMenus(binding)
 	s.bindGroupCommands()
 	s.initPanels(binding)
+	s.initExplorer(binding)
 	// the watcher of the folder, of the configuration and of the open files outside the folder
 	PeekWindow(s.Context()).StartWatching(s.Lifetime())
 	s.bindDevOpenFile(binding)
@@ -304,6 +307,7 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	s.disposeExplorer()
 	s.disposePanels()
 	s.disposeGroup()
 }
@@ -314,6 +318,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	win := PeekWindow(bc)
 	s.syncTitle(bc, win)
 	s.syncActiveFile(widgets.WidgetsBindingOf(bc))
+	s.syncExplorer(widgets.WidgetsBindingOf(bc), win)
 	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Process.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, Context: win.ctx,
@@ -321,7 +326,9 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		NoFolder: win.Folder == "",
 		Menus:    s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
-		PanelTabs: s.panelTabs(win), ActivePanel: win.Views.ActivePanel(), Panel: s.panelBody(win),
+		ViewBody: s.viewBody, ViewName: s.viewName, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
+		OnViewFocus: s.viewFocused,
+		PanelTabs:   s.panelTabs(win), ActivePanel: win.Views.ActivePanel(), Panel: s.panelBody(win),
 		PanelActions: s.panelActions(win), FocusPanelView: s.focusPanelView,
 		OnSelectPanel: func(id string) { win.Views.OpenPanel(id) },
 	})

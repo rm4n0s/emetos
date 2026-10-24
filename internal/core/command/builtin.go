@@ -31,6 +31,7 @@ func DefaultRegistry() *Registry {
 	registerEditorGridCommands(r)
 	registerNotificationCommands(r)
 	registerPanelViewCommands(r)
+	registerExplorerCommands(r)
 	return r
 }
 
@@ -561,5 +562,34 @@ func registerPanelViewCommands(r *Registry) {
 		Meta{ID: "workbench.output.action.clearOutput", Title: "Clear Output", Category: "View"},
 		Meta{ID: "workbench.output.action.toggleAutoScroll", Title: "Toggle Auto Scrolling"},
 		Meta{ID: "workbench.action.openActiveLogOutputFile", Title: "Open Output in Editor"},
+	)
+}
+
+// registerExplorerCommands registers the commands of the Explorer (SPEC §10.8): showing and focusing it,
+// revealing a file in it, refreshing and collapsing its tree, and opening and closing the folder of
+// the window. The commands of its file operations (new file, rename, delete) come with step 6.15.
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/explorerViewlet.ts,
+// src/vs/workbench/contrib/files/browser/fileActions.ts (FocusFilesExplorer, ShowActiveFileInExplorer),
+// src/vs/workbench/contrib/files/browser/fileCommands.ts (revealInExplorer),
+// src/vs/workbench/contrib/files/browser/views/explorerView.ts (refreshFilesExplorer,
+// collapseExplorerFolders) and src/vs/workbench/browser/actions/workspaceActions.ts
+func registerExplorerCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.view.explorer", Title: "Show Explorer", Category: "View"},
+		Meta{ID: "workbench.explorer.fileView.focus", Title: "Focus on Folders View", Category: "View"},
+		Meta{ID: "workbench.files.action.focusOpenEditorsView", Title: "Focus on Open Editors View", Category: "View"},
+		Meta{ID: "workbench.files.action.focusFilesExplorer", Title: "Focus on Files Explorer", Category: "File",
+			Description: "Moves focus to the file explorer view container."},
+		Meta{ID: "workbench.files.action.showActiveFileInExplorer", Title: "Reveal Active File in Explorer View", Category: "File",
+			Description: "Reveals and selects the active file within the explorer view."},
+		Meta{ID: "revealInExplorer", Title: "Reveal in Explorer View"},
+		Meta{ID: "workbench.files.action.refreshFilesExplorer", Title: "Refresh Explorer",
+			Description: "Forces a refresh of the Explorer."},
+		Meta{ID: "workbench.files.action.collapseExplorerFolders", Title: "Collapse Folders in Explorer",
+			Description: "Folds all folders in the Explorer."},
+		Meta{ID: "workbench.action.files.openFolder", Title: "Open Folder...", Category: "File"},
+		Meta{ID: "workbench.action.closeFolder", Title: "Close Workspace", Category: "Workspaces",
+			Precondition: contextkey.NotEquals("workbenchState", "empty")},
 	)
 }

@@ -365,17 +365,34 @@ func equalWithoutMnemonic(mnemonic, title string) bool {
 
 func TestDefaultFileMenu(t *testing.T) {
 	menus := DefaultMenus(DefaultRegistry())
-	items := menus.Items(MenubarFileMenu, contextkey.MapContext{})
-	if len(items) != 1 || items[0].Command != "workbench.action.closeActiveEditor" || items[0].MnemonicTitle != "&&Close Editor" {
-		t.Fatalf("file menu %+v", items)
+	titles := func(ctx contextkey.MapContext) (rows []string) {
+		for _, it := range menus.Items(MenubarFileMenu, ctx) {
+			switch {
+			case it.Separator:
+				rows = append(rows, "-")
+			case it.Disabled:
+				rows = append(rows, it.MnemonicTitle+"~")
+			default:
+				rows = append(rows, it.MnemonicTitle)
+			}
+		}
+		return rows
 	}
-	// the item is there with no editor open, dimmed
-	if !items[0].Disabled {
-		t.Error("Close Editor is enabled with no editor open")
-	}
-	open := menus.Items(MenubarFileMenu, contextkey.MapContext{"activeEditor": "emetos.textEditor"})
-	if len(open) != 1 || open[0].Disabled {
-		t.Errorf("Close Editor with an editor open: %+v", open)
+	for _, tc := range []struct {
+		name string
+		ctx  contextkey.MapContext
+		want []string
+	}{
+		// Close Editor is there with no editor open, dimmed
+		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"Open &&Folder...", "-", "&&Close Editor~"}},
+		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor"}, []string{"Open &&Folder...", "-", "&&Close Editor"}},
+		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor"}, []string{"Open &&Folder...", "-", "&&Close Editor", "Close &&Folder"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := titles(tc.ctx); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("file menu %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -593,36 +610,43 @@ func TestEditorTitleContextMenu(t *testing.T) {
 		{"a kept tab", base(nil), []string{
 			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open~", "Pin", "-",
 			"Split Right", "Split & Move>"}},
 		{"a preview tab can be kept", base(contextkey.MapContext{"activeEditorIsNotPreview": false}), []string{
 			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open", "Pin", "-",
 			"Split Right", "Split & Move>"}},
 		{"a pinned tab can be unpinned", base(contextkey.MapContext{"activeEditorIsPinned": true}), []string{
 			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open~", "Unpin", "-",
 			"Split Right", "Split & Move>"}},
 		{"the last tab has nothing to its right", base(contextkey.MapContext{"activeEditorIsLastInGroup": true}), []string{
 			"Close", "Close Others", "Close to the Right~", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open~", "Pin", "-",
 			"Split Right", "Split & Move>"}},
 		{"the only tab has no others", base(contextkey.MapContext{"groupEditorsCount": 1.0, "activeEditorIsLastInGroup": true}), []string{
 			"Close", "Close Others~", "Close to the Right~", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open~", "Pin", "-",
 			"Split Right", "Split & Move>"}},
 		{"splitting down", base(contextkey.MapContext{"splitEditorsVertically": true}), []string{
 			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open~", "Pin", "-",
 			"Split Down", "Split & Move>"}},
 		{"no preview editors, no Keep Open", base(contextkey.MapContext{"config.workbench.editor.enablePreview": false}), []string{
 			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Pin", "-",
 			"Split Right", "Split & Move>"}},
 		{"a tab of something that is not a file", base(contextkey.MapContext{"isFileSystemResource": false}), []string{
@@ -632,6 +656,7 @@ func TestEditorTitleContextMenu(t *testing.T) {
 		{"without tabs there is no Close to the Right", base(contextkey.MapContext{"editorTabsVisible": false}), []string{
 			"Close", "Close Others", "Close Saved", "Close All", "-",
 			"Copy Path", "Copy Relative Path", "-",
+			"Reveal in Explorer View", "-",
 			"Keep Open~", "Pin", "-",
 			"Split Right", "Split & Move>"}},
 	} {

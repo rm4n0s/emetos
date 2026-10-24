@@ -334,7 +334,7 @@ func TestDevOpenMenuOfAnUnknownMenu(t *testing.T) {
 func TestTheActivityBarAndTheSideBarOfTheWindow(t *testing.T) {
 	a := newKeyApp(t, "alpha\n")
 	icon := gluttertest.ByKey(workbench.ActivityItemKey(command.ViewContainerExplorer))
-	if !a.ts.Exists(icon) || !a.ts.Exists(gluttertest.ByText("EXPLORER")) || !a.ts.Exists(gluttertest.ByText("FOLDERS")) {
+	if !a.ts.Exists(icon) || !a.ts.Exists(gluttertest.ByText("EXPLORER")) || !a.ts.Exists(gluttertest.ByText("NO FOLDER OPENED")) {
 		t.Fatal("the Explorer is not in the activity bar and the side bar")
 	}
 	a.ts.Tap(icon)
@@ -344,12 +344,12 @@ func TestTheActivityBarAndTheSideBarOfTheWindow(t *testing.T) {
 	}
 	a.ts.Tap(icon)
 	a.pump()
-	if !a.win.Layout.State().SideBarVisible || !a.ts.Exists(gluttertest.ByText("FOLDERS")) {
+	if !a.win.Layout.State().SideBarVisible || !a.ts.Exists(gluttertest.ByText("NO FOLDER OPENED")) {
 		t.Error("a click on the icon did not show the side bar")
 	}
-	a.ts.Tap(gluttertest.ByKey(workbench.ViewHeaderKey(command.ViewExplorerFolders)))
+	a.ts.Tap(gluttertest.ByKey(workbench.ViewHeaderKey(command.ViewExplorerEmpty)))
 	a.pump()
-	if !a.win.Views.IsCollapsed(command.ViewExplorerFolders) {
+	if !a.win.Views.IsCollapsed(command.ViewExplorerEmpty) {
 		t.Error("a click on the header did not collapse the view")
 	}
 	if !a.ts.Exists(gluttertest.ByKey(workbench.ManageKey)) {

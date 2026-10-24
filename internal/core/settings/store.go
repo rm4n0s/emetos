@@ -379,8 +379,11 @@ func (s *Store) diagnose(target Target, parsed ParseResult) []Problem {
 // be read keeps its old settings and the error is returned after the other one is applied.
 // The file watcher calls it when a file changes (SPEC §10.5).
 func (s *Store) Reload(ctx context.Context) (ChangeEvent, error) {
-	user, userErr := s.readLayer(ctx, s.opts.UserPath, TargetUser)
-	workspace, wsErr := s.readLayer(ctx, s.opts.WorkspacePath, TargetWorkspace)
+	s.mu.RLock()
+	userPath, workspacePath := s.opts.UserPath, s.opts.WorkspacePath
+	s.mu.RUnlock()
+	user, userErr := s.readLayer(ctx, userPath, TargetUser)
+	workspace, wsErr := s.readLayer(ctx, workspacePath, TargetWorkspace)
 
 	s.mu.Lock()
 	oldConsolidated := s.consolidated
@@ -412,6 +415,20 @@ func (s *Store) Reload(ctx context.Context) (ChangeEvent, error) {
 		return ev, userErr
 	}
 	return ev, wsErr
+}
+
+// SetWorkspacePath moves the workspace layer to another settings.json, that of the folder a window
+// opens (an empty path is no folder), and reads the files again: the listeners hear of the settings
+// that change with it. The window calls it when its folder changes (SPEC §10.11); the errors are those
+// of Reload. The layer of the old folder is dropped even when the new file cannot be read.
+func (s *Store) SetWorkspacePath(ctx context.Context, path string) (ChangeEvent, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	s.mu.Lock()
+	s.opts.WorkspacePath = path
+	s.workspace = layer{model: NewModel(nil, nil, nil)}
+	s.mu.Unlock()
+	return s.Reload(ctx)
 }
 
 // modelSignature is a string that differs when the settings of a model differ.
@@ -446,12 +463,14 @@ func (s *Store) RemoveForLanguage(ctx context.Context, key, languageID string, t
 
 func (s *Store) pathOf(target Target) (string, error) {
 	var path string
+	s.mu.RLock()
 	switch target {
 	case TargetUser:
 		path = s.opts.UserPath
 	case TargetWorkspace:
 		path = s.opts.WorkspacePath
 	}
+	s.mu.RUnlock()
 	if path == "" {
 		return "", errors.New("SettingsNoWorkspace", "there is no file for the settings of that kind", "target", target.String())
 	}

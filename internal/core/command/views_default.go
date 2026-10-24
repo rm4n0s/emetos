@@ -1,11 +1,17 @@
 package command
 
+import "github.com/rm4n0s/emetos/internal/core/contextkey"
+
 // The ids of the view containers and views of the window.
 const (
 	// ViewContainerExplorer is the Explorer, the first container of the activity bar.
 	ViewContainerExplorer = "workbench.view.explorer"
 	// ViewExplorerFolders is the view of the folder in the Explorer.
 	ViewExplorerFolders = "workbench.explorer.fileView"
+	// ViewExplorerEmpty is the view of the Explorer in a window that has no folder.
+	ViewExplorerEmpty = "workbench.explorer.emptyView"
+	// ViewOpenEditors is the Open Editors view of the Explorer.
+	ViewOpenEditors = "workbench.explorer.openEditorsView"
 	// ViewContainerMarkers is the Problems tab of the panel.
 	ViewContainerMarkers = "workbench.panel.markers"
 	// ViewMarkers is the view of the Problems tab.
@@ -39,7 +45,15 @@ const (
 func DefaultViews() *ViewRegistry {
 	r := NewViewRegistry()
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerExplorer, Title: "Explorer", Icon: codiconFiles, Order: 0})
-	r.MustRegisterViews(View{ID: ViewExplorerFolders, Name: "Folders", Container: ViewContainerExplorer, Order: 1})
+	// The Explorer has the Open Editors (hidden until it is shown), and either the folder or, in a window
+	// with no folder, the empty view (workbenchState is "empty" or "folder").
+	r.MustRegisterViews(
+		View{ID: ViewOpenEditors, Name: "Open Editors", Container: ViewContainerExplorer, Order: 0, HideByDefault: true},
+		View{ID: ViewExplorerEmpty, Name: "No Folder Opened", Container: ViewContainerExplorer, Order: 1,
+			When: contextkey.Equals("workbenchState", "empty")},
+		View{ID: ViewExplorerFolders, Name: "Folders", Container: ViewContainerExplorer, Order: 1,
+			When: contextkey.NotEquals("workbenchState", "empty")},
+	)
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerMarkers, Title: "Problems", Icon: codiconWarning, Order: 0, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerOutput, Title: "Output", Icon: codiconOutput, Order: 1, Location: ViewLocationPanel})

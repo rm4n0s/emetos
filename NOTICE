@@ -70,8 +70,8 @@ planned and has no files in the repository yet.
 7. Seti file icons (font and icon theme mapping)
    Source:  Visual Studio Code, extensions/theme-seti
    License: MIT (Microsoft Corporation; the Seti UI icon set by Jesse Weed)
-   Font added by step 0.4 (third_party/seti/); mapping added by step 6.14 (not
-   yet added).
+   Font added by step 0.4 and mapping (vs-seti-icon-theme.json) added by step
+   6.14 (internal/core/theme/iconassets/; the license is third_party/seti/).
 
 8. Codicons (font and codicon.csv)
    Source:  npm package @vscode/codicons (https://github.com/microsoft/vscode-codicons)

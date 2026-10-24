@@ -125,6 +125,12 @@ func (s *shellState) devOpenFile(binding *widgets.WidgetsBinding, ctx context.Co
 // replaced by the active group). The file is read in the background; a file that cannot be opened is
 // reported.
 func (s *shellState) openPathIn(binding *widgets.WidgetsBinding, group *editorgroup.Group, path string) {
+	s.openPath(binding, group, path, true)
+}
+
+// openPath is openPathIn for a file shown as a preview editor or, with preview false, kept (a double click in
+// the explorer).
+func (s *shellState) openPath(binding *widgets.WidgetsBinding, group *editorgroup.Group, path string, preview bool) {
 	win := PeekWindow(s.Context())
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, path, document.NewOptions())
@@ -146,7 +152,7 @@ func (s *shellState) openPathIn(binding *widgets.WidgetsBinding, group *editorgr
 			if group != nil && s.group.grid.Group(group.ID()) != group {
 				group = nil
 			}
-			s.show(binding, doc, openOptions{Preview: true, Group: group})
+			s.show(binding, doc, openOptions{Preview: preview, Group: group})
 		})
 	})
 }

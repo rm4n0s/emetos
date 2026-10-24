@@ -131,8 +131,23 @@ func TestDefaultViews(t *testing.T) {
 	if len(containers) != 1 || containers[0].ID != ViewContainerExplorer || containers[0].Title != "Explorer" || containers[0].Icon != 0xEAF0 {
 		t.Fatalf("containers: %+v", containers)
 	}
-	if got := viewIDs(r.Views(ViewContainerExplorer, contextkey.MapContext{})); !reflect.DeepEqual(got, []string{ViewExplorerFolders}) {
-		t.Errorf("views: %v", got)
+	for _, tc := range []struct {
+		name  string
+		state string
+		want  []string
+	}{
+		{"a folder", "folder", []string{ViewOpenEditors, ViewExplorerFolders}},
+		{"no folder", "empty", []string{ViewOpenEditors, ViewExplorerEmpty}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := viewIDs(r.Views(ViewContainerExplorer, contextkey.MapContext{"workbenchState": tc.state}))
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("views: %v, want %v", got, tc.want)
+			}
+		})
+	}
+	if v, _ := r.View(ViewOpenEditors); !v.HideByDefault {
+		t.Error("Open Editors starts hidden")
 	}
 }
 

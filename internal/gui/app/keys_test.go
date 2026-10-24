@@ -386,6 +386,11 @@ func problemsState(a *keyApp, view string, filter bool) func() {
 	}
 }
 
+// folderState is the state of a window that has a folder open, for the keys that need one.
+func folderState(a *keyApp) func() {
+	return func() { a.win.Keys.Set("workbenchState", "folder") }
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -400,7 +405,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 			var reached []string
 			states := append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a),
 				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
-				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true))
+				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				a.win.Keys.Set("activeEditorIsPinned", false)
@@ -409,6 +414,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				a.win.Keys.Set("editorPartMultipleEditorGroups", false)
 				a.win.Keys.Reset("focusedView")
 				a.win.Keys.Set("problemsFilterFocus", false)
+				a.win.Keys.Set("workbenchState", "empty")
 				state()
 				a.vm.SelectionsChanged()
 				a.ts.Pump(time.Millisecond)

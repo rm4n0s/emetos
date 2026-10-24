@@ -4,12 +4,14 @@ import (
 	"strings"
 
 	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
@@ -32,6 +34,18 @@ type SideBarViewsOpts struct {
 	// Body builds the body of a view; a view it gives nothing for (or no Body at all) has an empty
 	// body, which is what the views are until the steps that build them.
 	Body func(bc widgets.BuildContext, viewID string) widgets.Widget
+	// Name gives the title of a view when it is not the name the registry has (the Explorer shows the
+	// name of the folder); empty keeps the name.
+	Name func(viewID string) string
+	// Actions builds the buttons at the right end of the header of a view (the title actions); nil or a
+	// nil widget has none. They are shown while the pointer is over the view or the focus is in it, as
+	// VS Code shows them.
+	Actions func(bc widgets.BuildContext, viewID string) widgets.Widget
+	// BodyHeight gives a view a body of a fixed height (Open Editors); false shares the room that is left
+	// with the other views.
+	BodyHeight func(viewID string) (height float64, ok bool)
+	// OnFocusChange is told when the focus enters or leaves a view (the header or the body).
+	OnFocusChange func(viewID string, has bool)
 }
 
 // SideBarViews is the body of the side bar: the views of the container the side bar shows, each a
@@ -64,11 +78,15 @@ type sideBarViewsState struct {
 	stop func()
 	// nodes are the focus nodes of the headers, by view.
 	nodes map[string]*widgets.FocusNode
+	// hover is the view the pointer is over, and focused the views the focus is in.
+	hover   string
+	focused map[string]bool
 }
 
 // InitState follows the views.
 func (s *sideBarViewsState) InitState() {
 	s.nodes = map[string]*widgets.FocusNode{}
+	s.focused = map[string]bool{}
 	s.follow()
 }
 
@@ -113,24 +131,84 @@ func (s *sideBarViewsState) node(viewID string) *widgets.FocusNode {
 func (s *sideBarViewsState) Build(bc widgets.BuildContext) widgets.Widget {
 	w := s.Widget()
 	colors := kit.ThemeOf(bc)
-	views := w.views.Registry().Views(w.views.Active(), w.opts.Context)
+	var views []command.View
+	for _, v := range w.views.Registry().Views(w.views.Active(), w.opts.Context) {
+		if !w.views.IsHidden(v.ID) {
+			views = append(views, v)
+		}
+	}
 	var rows []widgets.Widget
 	for i, v := range views {
 		collapsed := w.views.IsCollapsed(v.ID)
-		rows = append(rows, s.header(bc, colors, v.ID, v.Name, collapsed, i > 0))
-		if collapsed {
-			continue
+		name := v.Name
+		if w.opts.Name != nil {
+			if n := w.opts.Name(v.ID); n != "" {
+				name = n
+			}
 		}
+		section := []widgets.Widget{s.header(bc, colors, v.ID, name, collapsed, i > 0)}
 		var body widgets.Widget
-		if w.opts.Body != nil {
-			body = w.opts.Body(bc, v.ID)
+		if !collapsed {
+			if w.opts.Body != nil {
+				body = w.opts.Body(bc, v.ID)
+			}
+			if body == nil {
+				body = widgets.NewSizedBox(nil)
+			}
+			if h, ok := s.bodyHeight(v.ID); ok {
+				section = append(section, widgets.NewSizedBox(body, widgets.SizedBoxOpts{Height: foundation.Some(h)}))
+			} else {
+				section = append(section, widgets.NewExpanded(body))
+			}
 		}
-		if body == nil {
-			body = widgets.NewSizedBox(nil)
+		var sec widgets.Widget = widgets.NewColumn(section, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+		id := v.ID
+		sec = widgets.NewMouseRegion(sec, widgets.MouseRegionOpts{
+			OnEnter: func(*gestures.PointerEnterEvent) { s.setHover(id, true) },
+			OnExit:  func(*gestures.PointerExitEvent) { s.setHover(id, false) },
+		})
+		sec = widgets.NewFocus(sec, widgets.FocusOpts{
+			CanRequestFocus: foundation.Some(false), SkipTraversal: foundation.Some(true), DebugLabel: "ViewSection",
+			OnFocusChange: func(has bool) {
+				if s.focused[id] != has {
+					s.focused[id] = has
+					if s.Mounted() {
+						s.SetState(func() {})
+					}
+				}
+				if f := s.Widget().opts.OnFocusChange; f != nil {
+					f(id, has)
+				}
+			},
+		})
+		// a view with a body of its own height keeps it; the others share what is left
+		if _, fixed := s.bodyHeight(v.ID); fixed || collapsed {
+			rows = append(rows, sec)
+		} else {
+			rows = append(rows, widgets.NewExpanded(sec))
 		}
-		rows = append(rows, widgets.NewExpanded(body))
 	}
 	return widgets.NewColumn(rows, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+}
+
+func (s *sideBarViewsState) bodyHeight(viewID string) (float64, bool) {
+	if f := s.Widget().opts.BodyHeight; f != nil {
+		return f(viewID)
+	}
+	return 0, false
+}
+
+func (s *sideBarViewsState) setHover(viewID string, over bool) {
+	if over && s.hover != viewID {
+		s.hover = viewID
+	} else if !over && s.hover == viewID {
+		s.hover = ""
+	} else {
+		return
+	}
+	if s.Mounted() {
+		s.SetState(func() {})
+	}
 }
 
 // header is the header of a view.
@@ -141,11 +219,19 @@ func (s *sideBarViewsState) header(bc widgets.BuildContext, colors kit.Colors, v
 		chevron = fonts.CodiconChevronRight
 	}
 	style := kit.TextStyleOf(bc, 11, fg).Merge(painting.NewTextStyle(painting.TextStyleOpts{FontWeight: ui.FontWeightW700}))
-	row := widgets.NewRow([]widgets.Widget{
+	cells := []widgets.Widget{
 		widgets.NewIcon(fonts.CodiconIcon(chevron), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(fg)}),
 		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(2.0)}),
 		widgets.NewExpanded(widgets.NewText(strings.ToUpper(name), widgets.TextOpts{Style: style, Overflow: painting.TextOverflowEllipsis, MaxLines: foundation.Some(1)})),
-	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+	}
+	// the title actions show while the pointer is over the view or the focus is in it, and not in a
+	// view that is folded
+	if f := s.Widget().opts.Actions; f != nil && !collapsed && (s.hover == viewID || s.focused[viewID]) {
+		if actions := f(bc, viewID); actions != nil {
+			cells = append(cells, actions)
+		}
+	}
+	row := widgets.NewRow(cells, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 	var box widgets.Widget = widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(2, 0, 8, 0), row)
 	children := []widgets.Widget{widgets.NewColoredBox(colors.SideBarSectionHeaderBackground, box)}
 	if line && colors.SideBarSectionHeaderBorder.Alpha() != 0 {

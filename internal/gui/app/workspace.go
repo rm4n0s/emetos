@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -46,7 +47,77 @@ func (w *Window) openWorkspace(ctx context.Context, folder string) error {
 	if err != nil {
 		return err
 	}
+	w.folderMu.Lock()
 	w.Workspace, w.Folder = ws, ws.Path()
+	w.folderMu.Unlock()
+	return nil
+}
+
+// currentWorkspace is the workspace of the window, for the goroutines that do not run on the UI thread.
+func (w *Window) currentWorkspace() *workspace.Workspace {
+	w.folderMu.RLock()
+	defer w.folderMu.RUnlock()
+	return w.Workspace
+}
+
+// syncWorkbenchState sets the context key workbenchState: "folder" with a folder open, "empty" without
+// (VS Code's WorkbenchStateContext; Emetos has no multi-root workspaces).
+func (w *Window) syncWorkbenchState() {
+	state := "empty"
+	if w.Workspace != nil {
+		state = "folder"
+	}
+	w.Keys.Set("workbenchState", state)
+}
+
+// OnFolderChange calls fn, on the thread that called SetFolder, after the folder of the window changed,
+// and returns the function that stops it.
+func (w *Window) OnFolderChange(fn func()) (unsubscribe func()) {
+	p := &fn
+	w.folderListeners = append(w.folderListeners, p)
+	return func() {
+		if i := slices.Index(w.folderListeners, p); i >= 0 {
+			w.folderListeners = slices.Delete(w.folderListeners, i, i+1)
+		}
+	}
+}
+
+// SetFolder makes the window open another folder, or none (an empty path): the model of the folder, the
+// workspace layer of the settings, the watch of the folder and the context key workbenchState follow, and
+// the listeners of OnFolderChange are told. It runs on the UI thread. The editors of the window are not
+// touched; the caller closes the ones of the old folder first (SPEC §10.11). The error has the tags of
+// workspace.Open and of settings.Store.Reload; with an error the window keeps its folder.
+func (w *Window) SetFolder(ctx context.Context, folder string) error {
+	var ws *workspace.Workspace
+	if folder != "" {
+		cfg := workspace.ConfigFromSettings(w.Settings)
+		var err error
+		if ws, err = workspace.Open(ctx, folder, workspace.Options{Config: &cfg}); err != nil {
+			return err
+		}
+	}
+	w.folderMu.Lock()
+	w.Workspace, w.Folder = ws, ""
+	if ws != nil {
+		w.Folder = ws.Path()
+	}
+	w.folderMu.Unlock()
+	w.syncWorkbenchState()
+	settingsPath := ""
+	if ws != nil {
+		settingsPath = settings.WorkspaceSettingsPath(ws.Path())
+	}
+	w.watch.mu.Lock()
+	w.watch.workspaceSettings = settingsPath
+	w.watch.mu.Unlock()
+	_, err := w.Settings.SetWorkspacePath(ctx, settingsPath)
+	if err != nil {
+		w.Process.Logger.Warn("reading the settings of the folder failed", "err", err)
+	}
+	go w.watchFolder()
+	for _, f := range slices.Clone(w.folderListeners) {
+		(*f)()
+	}
 	return nil
 }
 
@@ -55,14 +126,15 @@ func (w *Window) openWorkspace(ctx context.Context, folder string) error {
 // goroutine, and reading folders is slow, so the work runs on a goroutine of its own.
 func (w *Window) followWorkspaceSettings() {
 	w.Settings.OnChange(func(e settings.ChangeEvent) {
-		tree := w.Workspace != nil && (e.Affects("explorer", "") || e.Affects("files.exclude", ""))
-		watch := w.Workspace != nil && (e.Affects("files.watcherExclude", "") || e.Affects("files.watcherInclude", ""))
+		ws := w.currentWorkspace()
+		tree := ws != nil && (e.Affects("explorer", "") || e.Affects("files.exclude", ""))
+		watch := ws != nil && (e.Affects("files.watcherExclude", "") || e.Affects("files.watcherInclude", ""))
 		if !tree && !watch {
 			return
 		}
 		go func() {
-			if tree && w.Workspace.SetConfig(workspace.ConfigFromSettings(w.Settings)) {
-				if err := w.Workspace.Refresh(w.ctx, nil); err != nil {
+			if tree && ws.SetConfig(workspace.ConfigFromSettings(w.Settings)) {
+				if err := ws.Refresh(w.ctx, nil); err != nil {
 					w.Process.Logger.Debug("refreshing the folder after a change of settings", "err", err)
 				}
 			}
@@ -121,9 +193,7 @@ func (w *Window) Watcher() *workspace.Watcher {
 // watchFolder (re)starts the targets of the folder: the folder itself and the paths of
 // files.watcherInclude, with files.watcherExclude.
 func (w *Window) watchFolder() {
-	if w.Workspace == nil {
-		return
-	}
+	ws := w.currentWorkspace()
 	st := &w.watch
 	st.mu.Lock()
 	watcher, ctx := st.watcher, st.ctx
@@ -136,8 +206,11 @@ func (w *Window) watchFolder() {
 	for _, stop := range old {
 		stop()
 	}
+	if ws == nil {
+		return // a window with no folder watches none
+	}
 	cfg := workspace.WatchSettingsFromSettings(w.Settings)
-	folder := w.Workspace.Path()
+	folder := ws.Path()
 	paths := []string{folder}
 	for _, p := range cfg.Include {
 		if !filepath.IsAbs(p) {
@@ -197,7 +270,7 @@ func (w *Window) watchUserFolder() {
 func (w *Window) followFile(path string) {
 	st := &w.watch
 	path = filepath.Clean(path)
-	if w.Workspace != nil && (path == w.Workspace.Path() || strings.HasPrefix(path, w.Workspace.Path()+string(filepath.Separator))) {
+	if ws := w.currentWorkspace(); ws != nil && (path == ws.Path() || strings.HasPrefix(path, ws.Path()+string(filepath.Separator))) {
 		return
 	}
 	st.mu.Lock()
@@ -253,6 +326,9 @@ func filePath(scheme, path string) (string, bool) {
 // the folder.
 func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 	st := &w.watch
+	st.mu.Lock()
+	userSettings, workspaceSettings := st.userSettings, st.workspaceSettings
+	st.mu.Unlock()
 	var settingsChanged, snippetsChanged bool
 	snippetsDir := ""
 	if w.Process.Snippets != nil {
@@ -265,7 +341,7 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 				continue
 			}
 			// a rescan or a folder that was deleted or renamed covers the files below it
-			if touches(p, st.userSettings) || touches(p, st.workspaceSettings) {
+			if touches(p, userSettings) || touches(p, workspaceSettings) {
 				settingsChanged = true
 			}
 			if snippetsDir != "" && (p == snippetsDir || isBelow(p, snippetsDir) || isBelow(snippetsDir, p)) {
@@ -283,8 +359,8 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 			w.Process.Logger.Warn("reading the snippets again failed", "err", err)
 		}
 	}
-	if w.Workspace != nil {
-		w.Workspace.Apply(ctx, events)
+	if ws := w.currentWorkspace(); ws != nil {
+		ws.Apply(ctx, events)
 	}
 }
 

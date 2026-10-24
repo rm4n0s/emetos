@@ -70,6 +70,13 @@ type Options struct {
 	ViewContext contextkey.Context
 	// ViewBody builds the body of a view; a view it gives nothing for has an empty body.
 	ViewBody func(bc widgets.BuildContext, viewID string) widgets.Widget
+	// ViewName, ViewActions, ViewBodyHeight and OnViewFocus are the slots of SideBarViewsOpts of the same
+	// names: the title of a view when it is not the registry's, the buttons in its header, a body of a
+	// fixed height, and the focus entering or leaving a view.
+	ViewName       func(viewID string) string
+	ViewActions    func(bc widgets.BuildContext, viewID string) widgets.Widget
+	ViewBodyHeight func(viewID string) (float64, bool)
+	OnViewFocus    func(viewID string, has bool)
 	// ManageItems gives the items of the Manage menu when the user opens it, from the gear at the
 	// bottom of the activity bar (it has none without this); OnRunMenu is told which one ran.
 	ManageItems func() []kit.MenuItem
@@ -591,7 +598,10 @@ func (s *workbenchState) sideBar(colors kit.Colors) widgets.Widget {
 	body, name := o.SideBar, o.SideBarTitle
 	if o.Views != nil {
 		if body == nil {
-			body = NewSideBarViews(o.Views, SideBarViewsOpts{Context: o.ViewContext, Body: o.ViewBody})
+			body = NewSideBarViews(o.Views, SideBarViewsOpts{
+				Context: o.ViewContext, Body: o.ViewBody, Name: o.ViewName, Actions: o.ViewActions,
+				BodyHeight: o.ViewBodyHeight, OnFocusChange: o.OnViewFocus,
+			})
 		}
 		if c, ok := o.Views.ActiveContainer(); ok && name == "" {
 			name = c.Title

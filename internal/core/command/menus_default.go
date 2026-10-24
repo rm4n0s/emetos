@@ -61,6 +61,9 @@ func registerMainMenu(r *MenuRegistry) {
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
 func registerFileMenu(r *MenuRegistry) {
 	r.MustAdd(
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.openFolder", MnemonicTitle: "Open &&Folder...", Group: "2_open", Order: 2},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeFolder", Title: "Close Folder", MnemonicTitle: "Close &&Folder", Group: "6_close", Order: 3,
+			When: contextkey.Equals("workbenchState", "folder")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeActiveEditor", MnemonicTitle: "&&Close Editor", Group: "6_close", Order: 2,
 			Precondition: contextkey.Has("activeEditor")},
 	)
@@ -219,11 +222,7 @@ func registerEditorGroupMenus(r *MenuRegistry) {
 // when-clauses and preconditions read the keys of the editor that was clicked (`activeEditorIsPinned`
 // and the rest of the keys of the active editor, set to those of the tab for the menu).
 //
-// Not here yet: Save and Save As (step 7.1), Reveal in Explorer View and Reveal in File Manager (steps
-// 6.14 and 7.x), Reopen Editor With, Share, the moves into a new window and Split in Group.
-//
-// TODO(step 6.14): Reveal in Explorer View (group 2_files, order 1, when isFileSystemResource) once the
-// explorer has a command that reveals a file.
+// Not here yet: Save and Save As (step 7.1), Reveal in File Manager (step 7.x), Reopen Editor With, Share, the moves into a new window and Split in Group.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editor.contribution.ts and
 // src/vs/workbench/contrib/files/browser/fileActions.contribution.ts (appendEditorTitleContextMenuItem)
@@ -239,6 +238,9 @@ func registerEditorTitleContext(r *MenuRegistry) {
 
 		MenuItem{Menu: EditorTitleContext, Command: "copyFilePath", Title: "Copy Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},
 		MenuItem{Menu: EditorTitleContext, Command: "copyRelativeFilePath", Title: "Copy Relative Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},
+
+		MenuItem{Menu: EditorTitleContext, Command: "revealInExplorer", Title: "Reveal in Explorer View", Group: "2_files", Order: 1,
+			When: contextkey.Has("isFileSystemResource")},
 
 		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.keepEditor", Title: "Keep Open", Group: "3_preview", Order: 10,
 			Precondition: when("!activeEditorIsNotPreview"), When: contextkey.Has("config.workbench.editor.enablePreview")},

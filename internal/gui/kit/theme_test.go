@@ -6,6 +6,8 @@ import (
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/core/theme"
 )
 
 func TestDarkModernValues(t *testing.T) {
@@ -265,5 +267,23 @@ func TestPartColorsOfTheModernThemes(t *testing.T) {
 		if got := tc.got(LightModern()); got != ui.NewColor(tc.light) {
 			t.Errorf("Light Modern %s = %v, want %#x", tc.name, got, tc.light)
 		}
+	}
+}
+
+func TestColorsHaveTheTypeOfTheirTheme(t *testing.T) {
+	tests := []struct {
+		name   string
+		colors Colors
+		want   theme.Type
+	}{
+		{"Dark Modern", DarkModern(), theme.TypeDark},
+		{"Light Modern", LightModern(), theme.TypeLight},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.colors.Type != tt.want {
+				t.Errorf("type %q, want %q", tt.colors.Type, tt.want)
+			}
+		})
 	}
 }

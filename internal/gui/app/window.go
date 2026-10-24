@@ -83,6 +83,13 @@ type Window struct {
 	Dialogs *kit.DialogController
 
 	ctx context.Context
+	// icons is the file icon theme in use.
+	icons fileIcons
+	// folderMu guards Folder and Workspace against the goroutines that read them (the watcher, the
+	// settings listeners); the UI thread, which changes them, reads the fields as they are.
+	folderMu sync.RWMutex
+	// folderListeners are told when SetFolder changed the folder.
+	folderListeners []*func()
 	// watch is the state of the file watcher (StartWatching).
 	watch watchState
 	// title is the title of the window as the shell last made it.
@@ -149,6 +156,7 @@ func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) 
 			return nil, err
 		}
 	}
+	w.syncWorkbenchState()
 	w.rememberSettingsPaths(userPath, p)
 	w.followWorkspaceSettings()
 	w.followTheme()

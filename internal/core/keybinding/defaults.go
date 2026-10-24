@@ -65,6 +65,7 @@ func DefaultRegistry() *Registry {
 	registerEditorGridKeys(r)
 	registerNotificationKeys(r)
 	registerPanelViewKeys(r)
+	registerExplorerKeys(r)
 	return r
 }
 
@@ -408,5 +409,19 @@ func registerPanelViewKeys(r *Registry) {
 		Rule{Command: "problems.action.focusProblemsFromFilter", Weight: WeightWorkbenchContrib, When: mustWhen("problemsFilterFocus"), Primary: "ctrl+down"},
 		Rule{Command: "problems.action.focusFilter", Weight: WeightWorkbenchContrib, When: mustWhen("focusedView == 'workbench.panel.markers.view'"), Primary: "ctrl+f"},
 		Rule{Command: "problems.action.clearFilterText", Weight: WeightWorkbenchContrib, When: mustWhen("problemsFilterFocus"), Primary: "escape"},
+	)
+}
+
+// registerExplorerKeys registers the keys of the Explorer: Ctrl+Shift+E shows it, Ctrl+K E focuses the Open
+// Editors, and the chords that open and close the folder of the window (Linux).
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/explorerViewlet.ts and
+// src/vs/workbench/browser/actions/workspaceActions.ts
+func registerExplorerKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.view.explorer", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+e"},
+		Rule{Command: "workbench.files.action.focusOpenEditorsView", Weight: WeightWorkbenchContrib, Primary: "ctrl+k e"},
+		Rule{Command: "workbench.action.files.openFolder", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+o"},
+		Rule{Command: "workbench.action.closeFolder", Weight: WeightWorkbenchContrib, When: mustWhen("workbenchState != 'empty'"), Primary: "ctrl+k f"},
 	)
 }

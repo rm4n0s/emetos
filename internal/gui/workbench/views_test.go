@@ -363,3 +363,104 @@ func TestViewsPanelModel(t *testing.T) {
 	}
 	empty.OpenPanel("problems") // no layout, no container: nothing to do
 }
+
+func TestViewsHideAndShowAView(t *testing.T) {
+	r := command.NewViewRegistry()
+	r.MustRegisterContainer(command.ViewContainer{ID: "c", Title: "C", Icon: fonts.CodiconFiles})
+	r.MustRegisterViews(
+		command.View{ID: "shown", Name: "Shown", Container: "c"},
+		command.View{ID: "hidden", Name: "Hidden", Container: "c", HideByDefault: true, Collapsed: true})
+	v := NewViews(r, nil)
+	changes := 0
+	stop := v.OnChange(func() { changes++ })
+	defer stop()
+	steps := []struct {
+		name        string
+		do          func()
+		hidden      map[string]bool
+		collapsed   bool
+		wantChanges int
+	}{
+		{"a view starts as its descriptor says", func() {}, map[string]bool{"shown": false, "hidden": true}, true, 0},
+		{"showing a hidden view unfolds it", func() { v.SetHidden("hidden", false) }, map[string]bool{"shown": false, "hidden": false}, false, 1},
+		{"showing it again changes nothing", func() { v.SetHidden("hidden", false) }, map[string]bool{"shown": false, "hidden": false}, false, 1},
+		{"hiding it", func() { v.SetHidden("hidden", true) }, map[string]bool{"shown": false, "hidden": true}, false, 2},
+		{"hiding a view that is shown", func() { v.SetHidden("shown", true) }, map[string]bool{"shown": true, "hidden": true}, false, 3},
+		{"an unknown view is not hidden", func() {}, map[string]bool{"nope": false}, false, 3},
+	}
+	for _, s := range steps {
+		t.Run(s.name, func(t *testing.T) {
+			s.do()
+			for id, want := range s.hidden {
+				if got := v.IsHidden(id); got != want {
+					t.Errorf("IsHidden(%s) = %v, want %v", id, got, want)
+				}
+			}
+			if got := v.IsCollapsed("hidden"); got != s.collapsed {
+				t.Errorf("IsCollapsed(hidden) = %v, want %v", got, s.collapsed)
+			}
+			if changes != s.wantChanges {
+				t.Errorf("%d changes, want %d", changes, s.wantChanges)
+			}
+		})
+	}
+}
+
+func TestTheSideBarSkipsHiddenViewsAndTakesTheSlots(t *testing.T) {
+	var focus []string
+	h, views := viewsHarness(t, func(o *Options) {
+		o.ViewBody = func(_ widgets.BuildContext, id string) widgets.Widget {
+			return widgets.NewKeyedSubtree(widgets.NewText("body of "+id), widgets.WidgetOpts{Key: foundation.NewValueKey("body:" + id)})
+		}
+		o.ViewName = func(id string) string {
+			if id == "folders" {
+				return "my folder"
+			}
+			return ""
+		}
+		o.ViewActions = func(_ widgets.BuildContext, id string) widgets.Widget {
+			if id != "folders" {
+				return nil
+			}
+			return widgets.NewKeyedSubtree(widgets.NewText("act"), widgets.WidgetOpts{Key: foundation.NewValueKey("actions")})
+		}
+		o.ViewBodyHeight = func(id string) (float64, bool) { return 44, id == "outline" }
+		o.OnViewFocus = func(id string, has bool) {
+			if has {
+				focus = append(focus, id)
+			}
+		}
+	})
+	// the name of a view can be another than the registry's
+	if !h.ts.Exists(gluttertest.ByText("MY FOLDER")) || h.ts.Exists(gluttertest.ByText("FOLDERS")) {
+		t.Error("the view is not titled with the name the window gives")
+	}
+	// the buttons show for the view under the pointer, and for no other
+	if h.ts.Exists(gluttertest.ByKey(foundation.NewValueKey("actions"))) {
+		t.Error("the actions show before the pointer is over the view")
+	}
+	h.ts.Hover(h.ts.Center(gluttertest.ByKey(foundation.NewValueKey("body:folders"))))
+	h.settle()
+	if !h.ts.Exists(gluttertest.ByKey(foundation.NewValueKey("actions"))) {
+		t.Error("the actions do not show while the pointer is over the view")
+	}
+	// a view with a body of its own height has it (and the header)
+	views.SetCollapsed("outline", false)
+	h.settle()
+	if got := h.ts.Size(gluttertest.ByKey(foundation.NewValueKey("body:outline"))).Height; got != 44 {
+		t.Errorf("the body of outline is %v high, want 44", got)
+	}
+	// a hidden view is not there
+	views.SetHidden("outline", true)
+	h.settle()
+	if h.ts.Exists(gluttertest.ByText("OUTLINE")) {
+		t.Error("a hidden view shows")
+	}
+	// the focus entering a view is told
+	h.ts.Tap(gluttertest.ByKey(ViewHeaderKey("folders")))
+	h.settle()
+	if len(focus) == 0 || focus[len(focus)-1] != "folders" {
+		t.Errorf("the focus was told as %v, want folders", focus)
+	}
+	noErrors(t, h)
+}

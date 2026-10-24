@@ -600,6 +600,25 @@ func (w *Workspace) CompactChain(ctx context.Context, item *Item) ([]*Item, erro
 	}
 }
 
+// LoadedChain is CompactChain for what was read already: it follows the only child of a folder as long as
+// the folder was read, and reads nothing, so the UI thread can ask it. A folder that was not read ends the
+// chain (the explorer shows it longer once it has read it).
+func (w *Workspace) LoadedChain(item *Item) []*Item {
+	chain := []*Item{item}
+	if !w.Config().CompactFolders || !w.compressible(item) {
+		return chain
+	}
+	for cur := item; cur.Resolved(); {
+		kids := cur.Loaded()
+		if len(kids) != 1 || !w.compressible(kids[0]) {
+			break
+		}
+		cur = kids[0]
+		chain = append(chain, cur)
+	}
+	return chain
+}
+
 // compressible tells whether a folder can be part of a chain.
 func (w *Workspace) compressible(item *Item) bool {
 	w.mu.RLock()

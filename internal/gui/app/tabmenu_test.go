@@ -66,7 +66,7 @@ func (a *groupApp) chooseRow(label string) {
 }
 
 func TestTheContextMenuOfATab(t *testing.T) {
-	closeRows := []string{"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-", "Copy Path", "Copy Relative Path", "-"}
+	closeRows := []string{"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-", "Copy Path", "Copy Relative Path", "-", "Reveal in Explorer View", "-"}
 	for _, tc := range []struct {
 		name  string
 		setup func(a *groupApp)
@@ -75,11 +75,11 @@ func TestTheContextMenuOfATab(t *testing.T) {
 	}{
 		{"a kept tab", func(a *groupApp) {}, "b.go", append(slices.Clone(closeRows), "Keep Open~", "Pin", "-", "Split Right", "Split & Move>")},
 		{"the last tab has nothing to its right", func(a *groupApp) {}, "c.go", []string{
-			"Close", "Close Others", "Close to the Right~", "Close Saved", "Close All", "-", "Copy Path", "Copy Relative Path", "-",
+			"Close", "Close Others", "Close to the Right~", "Close Saved", "Close All", "-", "Copy Path", "Copy Relative Path", "-", "Reveal in Explorer View", "-",
 			"Keep Open~", "Pin", "-", "Split Right", "Split & Move>"}},
 		{"a preview tab can be kept", func(a *groupApp) { a.show("d.go", true) }, "d.go", []string{
 			// the preview opens on the right of the active tab, not at the end
-			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-", "Copy Path", "Copy Relative Path", "-",
+			"Close", "Close Others", "Close to the Right", "Close Saved", "Close All", "-", "Copy Path", "Copy Relative Path", "-", "Reveal in Explorer View", "-",
 			"Keep Open", "Pin", "-", "Split Right", "Split & Move>"}},
 		{"a pinned tab can be unpinned", func(a *groupApp) { a.group(1).Model.Stick(a.group(1).Model.EditorAt(1)) }, "b.go", append(slices.Clone(closeRows), "Keep Open~", "Unpin", "-", "Split Right", "Split & Move>")},
 		{"a modified tab", func(a *groupApp) { a.edit("b.go") }, "b.go", append(slices.Clone(closeRows), "Keep Open~", "Pin", "-", "Split Right", "Split & Move>")},
