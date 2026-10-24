@@ -299,6 +299,11 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 		h.Recent.Reset()
 		h.RecentInGroup.Reset()
 	}
+	// another editor that becomes the active one has taken the focus from the previous one (auto save)
+	switch e.Kind {
+	case editorgroup.GroupEditorsChanged, editorgroup.GroupRemoved, editorgroup.ActiveGroupChanged:
+		s.activeEditorChanged()
+	}
 	s.syncNav()
 	s.refreshKeys()
 	s.refreshStatus()
@@ -340,7 +345,9 @@ func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 	if e != nil {
 		delete(s.group.focused, e)
 		e.dispose()
-		PeekWindow(s.Context()).Documents.Release(e.doc)
+		if PeekWindow(s.Context()).Documents.Release(e.doc) {
+			s.autoSaveUntrack(e.doc)
+		}
 	}
 	input.Dispose()
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 )
 
@@ -186,7 +187,8 @@ func (w *Window) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode) b
 	if w.Dialogs != nil && w.Dialogs.IsShowing() {
 		return false
 	}
-	keys := w.Scopes.ScopeOf(focus, w.Keys)
+	// the settings are keys too, "config.<setting>" as in VS Code (menuContext)
+	var keys contextkey.Context = menuContext{base: w.Scopes.ScopeOf(focus, w.Keys), settings: w.Settings}
 	out := w.Dispatcher.Dispatch(keys, chord)
 	if out.Status != "" || out.ClearStatus {
 		w.chordStatus(out.Status, out.ClearStatus)

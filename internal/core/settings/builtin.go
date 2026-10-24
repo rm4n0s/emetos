@@ -723,6 +723,32 @@ func registerFiles(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
 		},
 		Setting{
+			Key: "files.autoSave", Types: []Type{String}, Default: "off", Enum: []any{"off", "afterDelay", "onFocusChange", "onWindowChange"},
+			EnumDescriptions: []string{
+				"An editor with changes is never automatically saved.",
+				"An editor with changes is automatically saved after the configured `#files.autoSaveDelay#`.",
+				"An editor with changes is automatically saved when the editor loses focus.",
+				"An editor with changes is automatically saved when the window loses focus.",
+			},
+			Description: "Controls [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors that have unsaved changes.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.autoSaveDelay", Types: []Type{Number}, Default: 1000, Minimum: Float(0),
+			Description: "Controls the delay in milliseconds after which an editor with unsaved changes is saved automatically. Only applies when `#files.autoSave#` is set to `afterDelay`.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.autoSaveWorkspaceFilesOnly", Types: []Type{Boolean}, Default: false,
+			Description: "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that are inside the opened workspace. Only applies when `#files.autoSave#` is enabled.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
+			Key: "files.autoSaveWhenNoErrors", Types: []Type{Boolean}, Default: false,
+			Description: "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that have no errors reported in them at the time the auto save is triggered. Only applies when `#files.autoSave#` is enabled.",
+			Scope:       ScopeLanguageOverridable, Category: categoryFiles,
+		},
+		Setting{
 			Key: "files.hotExit", Types: []Type{String}, Default: "onExit", Enum: []any{"off", "onExit", "onExitAndWindowClose"},
 			EnumDescriptions: []string{
 				"Disable hot exit. A prompt will show when attempting to close a window with editors that have unsaved changes.",

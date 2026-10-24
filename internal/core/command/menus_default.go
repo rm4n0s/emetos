@@ -59,7 +59,7 @@ func registerMainMenu(r *MenuRegistry) {
 // registerFileMenu adds the File menu. VS Code's other rows belong to the steps that add their
 // commands (opening files, 7.x), and its "Close Editor" row is enabled while an editor is open. Save and Save
 // As are enabled while an editor is open, Save All while a document has unsaved changes (dirtyWorkingCopies), and
-// Revert File while the active editor can revert (it is not an untitled one). Close Window and Exit (Quit) close the window and the app (step 7.2). Not here: Auto Save (step 7.3).
+// Revert File while the active editor can revert (it is not an untitled one). Close Window and Exit (Quit) close the window and the app (step 7.2). Auto Save is a toggled row (step 7.3).
 // VS Code has no "Close All Editors" row in the File menu; its command is in the palette only.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
@@ -73,6 +73,9 @@ func registerFileMenu(r *MenuRegistry) {
 			Precondition: contextkey.Has("activeEditor")},
 		MenuItem{Menu: MenubarFileMenu, Command: "saveAll", Title: "Save All", MnemonicTitle: "Save A&&ll", Group: "4_save", Order: 3,
 			Precondition: contextkey.Has("dirtyWorkingCopies")},
+		// the check mark follows files.autoSave: any mode but "off" is on
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.toggleAutoSave", Title: "Auto Save", MnemonicTitle: "A&&uto Save", Group: "5_autosave", Order: 1,
+			Toggled: when("config.files.autoSave != 'off'")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.revert", MnemonicTitle: "Re&&vert File", Group: "6_close", Order: 1,
 			Precondition: contextkey.Has("activeEditorCanRevert")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeFolder", Title: "Close Folder", MnemonicTitle: "Close &&Folder", Group: "6_close", Order: 3,

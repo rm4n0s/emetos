@@ -250,6 +250,8 @@ type shellState struct {
 	saves saveState
 	// closing is what the shell keeps of closing with unsaved changes (closing.go).
 	closing closeState
+	// autosave is what the shell keeps of auto save (autosave.go).
+	autosave autoSaveState
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -257,6 +259,7 @@ type shellState struct {
 func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.blocked = s.Widget().blocked
+	s.initAutoSave(binding)
 	s.initGroup(binding, s.Widget().docs)
 	s.initMenus(binding)
 	s.bindGroupCommands()
@@ -333,6 +336,7 @@ func (s *shellState) Dispose() {
 		s.unsubscribeTitle()
 	}
 	s.disposeClosing()
+	s.disposeAutoSave(widgets.WidgetsBindingOf(s.Context()))
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()

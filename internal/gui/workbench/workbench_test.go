@@ -751,10 +751,11 @@ var statusBarAppCommands = map[string]bool{
 	"workbench.action.editor.changeEncoding": true,
 }
 
-// saveAppCommands are the commands of saving, which the app binds since the documents are the window's (step 7.1).
+// saveAppCommands are the commands of saving, which the app binds since the documents are the window's (step 7.1); Toggle Auto Save writes the window's settings (step 7.3).
 var saveAppCommands = map[string]bool{
 	"workbench.action.files.save": true, "workbench.action.files.saveWithoutFormatting": true, "workbench.action.files.saveAs": true,
 	"workbench.action.files.saveAll": true, "workbench.action.files.revert": true, "workbench.action.files.newUntitledFile": true,
+	"workbench.action.toggleAutoSave": true,
 }
 
 // windowAppCommands are the commands that close the window and quit, which the app binds since the windows, their

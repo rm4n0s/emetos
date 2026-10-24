@@ -163,15 +163,24 @@ func (s *shellState) requestWindowClose(reason CloseReason) {
 	if s.closing.busy {
 		return // the dialog is open already
 	}
-	losses := editorgroup.PlanClose(s.group.grid, editorgroup.AllTargets(s.group.grid))
-	if len(losses) == 0 || !shouldAskBeforeClose(settings.Get[string](win.Settings, "files.hotExit", ""), reason) {
+	targets := editorgroup.AllTargets(s.group.grid)
+	losses := editorgroup.PlanClose(s.group.grid, targets)
+	if len(losses) == 0 {
 		win.quit()
 		return
 	}
-	s.askUnsaved(losses, func(proceed bool) {
-		if proceed {
+	// the documents that auto save saves go first; the others are asked about (or left to hot exit)
+	s.autoSaveBeforeClose(losses, true, func() {
+		losses := editorgroup.PlanClose(s.group.grid, editorgroup.AllTargets(s.group.grid))
+		if len(losses) == 0 || !shouldAskBeforeClose(settings.Get[string](win.Settings, "files.hotExit", ""), reason) {
 			win.quit()
+			return
 		}
+		s.askUnsaved(losses, func(proceed bool) {
+			if proceed {
+				win.quit()
+			}
+		})
 	})
 }
 
@@ -181,7 +190,8 @@ func (s *shellState) closeEditors(group *editorgroup.Group, editors []editorgrou
 }
 
 // closeConfirmed closes the editors of the targets. When some of them have changes that no other editor shows,
-// a dialog asks whether to save them (Save), drop them (Don't Save) or keep everything open (Cancel). done, when
+// and files.autoSave is onFocusChange or onWindowChange, they are saved (a failure is reported, and the document
+// is asked about); the changes that are left are asked about: a dialog asks whether to save them (Save), drop them (Don't Save) or keep everything open (Cancel). done, when
 // set, is told on the UI thread whether the editors closed; a request that would ask while another dialog about
 // closing is open is ignored (done gets false).
 func (s *shellState) closeConfirmed(targets []editorgroup.CloseTarget, done func(closed bool)) {
@@ -197,11 +207,22 @@ func (s *shellState) closeConfirmed(targets []editorgroup.CloseTarget, done func
 		finish(true)
 		return
 	}
-	s.askUnsaved(losses, func(proceed bool) {
-		if proceed {
-			s.closeNow(s.liveTargets(targets))
+	// with onFocusChange and onWindowChange the documents are saved instead of asked about; whatever is still
+	// dirty after that (a save failed, or auto save does not apply) is asked about as before
+	s.autoSaveBeforeClose(losses, false, func() {
+		targets = s.liveTargets(targets)
+		losses = editorgroup.PlanClose(s.group.grid, targets)
+		if len(losses) == 0 {
+			s.closeNow(targets)
+			finish(true)
+			return
 		}
-		finish(proceed)
+		s.askUnsaved(losses, func(proceed bool) {
+			if proceed {
+				s.closeNow(s.liveTargets(targets))
+			}
+			finish(proceed)
+		})
 	})
 }
 
@@ -235,6 +256,12 @@ func (s *shellState) liveTargets(targets []editorgroup.CloseTarget) []editorgrou
 // nearest, with workbench.editor.focusRecentEditorAfterClose off), so that the group does not pass through the
 // editors that close. A group left empty closes with workbench.editor.closeEmptyGroups.
 func (s *shellState) closeNow(targets []editorgroup.CloseTarget) {
+	// the editors that go next to the ones that come to the front are not the user leaving them: no auto save
+	s.autosave.hold++
+	defer func() {
+		s.autosave.hold--
+		s.autosave.last = s.activeEditor()
+	}()
 	for _, t := range targets {
 		m := t.Group.Model
 		var closing []editorgroup.EditorInput

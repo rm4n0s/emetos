@@ -391,3 +391,42 @@ func TestHotExitIsRegistered(t *testing.T) {
 		t.Error("window.confirmBeforeClose must not be registered")
 	}
 }
+
+func TestAutoSaveSettingsAreRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	for _, tc := range []struct {
+		key  string
+		want any
+	}{
+		{"files.autoSave", "off"}, {"files.autoSaveDelay", float64(1000)},
+		{"files.autoSaveWorkspaceFilesOnly", false}, {"files.autoSaveWhenNoErrors", false},
+	} {
+		s, ok := r.Lookup(tc.key)
+		if !ok || s.Scope != ScopeLanguageOverridable || s.Category != categoryFiles || s.Description == "" {
+			t.Errorf("%s: %+v, %v", tc.key, s, ok)
+			continue
+		}
+		if got := Get[any](NewStore(r, StoreOptions{}), tc.key, ""); got != tc.want {
+			t.Errorf("%s defaults to %v (%T), want %v", tc.key, got, got, tc.want)
+		}
+	}
+	if s, _ := r.Lookup("files.autoSave"); len(s.Enum) != 4 || len(s.EnumDescriptions) != 4 {
+		t.Errorf("the values are off, afterDelay, onFocusChange and onWindowChange: %v", s.Enum)
+	}
+	for _, tc := range []struct {
+		key     string
+		value   any
+		invalid bool
+	}{
+		{"files.autoSave", "off", false}, {"files.autoSave", "afterDelay", false}, {"files.autoSave", "onFocusChange", false},
+		{"files.autoSave", "onWindowChange", false}, {"files.autoSave", "always", true}, {"files.autoSave", true, true},
+		{"files.autoSaveDelay", float64(0), false}, {"files.autoSaveDelay", float64(250), false},
+		{"files.autoSaveDelay", float64(-1), true}, {"files.autoSaveDelay", "1000", true},
+		{"files.autoSaveWorkspaceFilesOnly", true, false}, {"files.autoSaveWorkspaceFilesOnly", "yes", true},
+		{"files.autoSaveWhenNoErrors", true, false}, {"files.autoSaveWhenNoErrors", 1.0, true},
+	} {
+		if got := r.Validate(tc.key, tc.value) != ""; got != tc.invalid {
+			t.Errorf("Validate(%s, %v): invalid = %v, want %v", tc.key, tc.value, got, tc.invalid)
+		}
+	}
+}

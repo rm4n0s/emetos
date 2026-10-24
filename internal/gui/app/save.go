@@ -88,6 +88,8 @@ type saveState struct {
 	running map[*document.Document]*saveRun
 	// notes are the notifications of the saves that failed, one for each document.
 	notes map[*document.Document]uint64
+	// asOpen are the documents that wait for the dialog of Save As (or its prompt): auto save leaves them alone.
+	asOpen map[*document.Document]bool
 	// removeCommands take the handlers of the save commands off the registry.
 	removeCommands []func()
 }
@@ -109,6 +111,7 @@ func (s *shellState) initSave(binding *widgets.WidgetsBinding) {
 	st := &s.saves
 	st.running = map[*document.Document]*saveRun{}
 	st.notes = map[*document.Document]uint64{}
+	st.asOpen = map[*document.Document]bool{}
 	save := func(skip bool) command.Handler {
 		return func(_ command.Context, args any) error {
 			if t := s.targetInput(args); t != nil {
@@ -139,6 +142,9 @@ func (s *shellState) initSave(binding *widgets.WidgetsBinding) {
 			s.newUntitled(binding, args)
 			return nil
 		},
+	}
+	for id, h := range s.autoSaveCommands() {
+		handlers[id] = h
 	}
 	for id, h := range handlers {
 		remove, err := win.Process.Commands.SetHandler(id, h)
@@ -363,7 +369,8 @@ func (s *shellState) dismissSaveNote(doc *document.Document) {
 func (s *shellState) saveFailed(f saveFailure, finish func(bool)) {
 	win := PeekWindow(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
-	win.Process.Logger.Warn("saving failed", "uri", f.doc.URI().String(), "err", f.err)
+	win.Process.Logger.Warn("saving failed", "uri", f.doc.URI().String(), "err", f.err, "reason", f.req.reason.String())
+	s.autoSaveFailed(f.doc) // no auto save of the document until it is saved or read again
 	name := f.doc.URI().Title()
 	tag := ""
 	if appErr, ok := errors.FromError(f.err); ok {
@@ -374,6 +381,7 @@ func (s *shellState) saveFailed(f saveFailure, finish func(bool)) {
 	retryWith := func(label string, change func(*saveRequest)) notify.Action {
 		return notify.Action{Label: label, Run: func() {
 			r := f.req
+			r.reason = document.SaveExplicit // the user asks now, whatever failed before
 			change(&r)
 			f.again(r)
 		}}
@@ -394,7 +402,7 @@ func (s *shellState) saveFailed(f saveFailure, finish func(bool)) {
 	default:
 		actions = append(actions, retryWith("Retry", func(*saveRequest) {}))
 	}
-	actions = append(actions, notify.Action{Label: "Save As...", Run: func() { s.saveDocumentAs(f.doc, saveRequest{reason: f.req.reason}, nil) }})
+	actions = append(actions, notify.Action{Label: "Save As...", Run: func() { s.saveDocumentAs(f.doc, saveRequest{}, nil) }})
 	s.dismissSaveNote(f.doc)
 	s.saves.notes[f.doc] = win.Process.Notify.Notify(notify.Notification{
 		Severity: notify.Error, Source: "Emetos", Message: msg, Actions: actions, Sticky: true,
@@ -439,6 +447,16 @@ func (s *shellState) saveDocumentAs(doc *document.Document, req saveRequest, don
 	if doc.ReadOnly() && doc.URI().Scheme == document.SchemeFile {
 		s.saveDocument(doc, req, done) // says why it cannot
 		return
+	}
+	// auto save leaves the document alone while the dialog waits, and tries it again if the dialog gives nothing
+	s.saves.asOpen[doc] = true
+	inner := finish
+	finish = func(ok bool) {
+		delete(s.saves.asOpen, doc)
+		if !ok {
+			s.autoSaveRetry(doc)
+		}
+		inner(ok)
 	}
 	req.overwrite, req.ignoreConflict = false, false
 	suggestion := s.saveAsSuggestion(doc)

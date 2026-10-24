@@ -1,6 +1,7 @@
 package command
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
@@ -385,19 +386,49 @@ func TestDefaultFileMenu(t *testing.T) {
 	}{
 		// Save, Save As, Save All, Revert File and Close Editor are there with no editor open, dimmed
 		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Window", "-", "E&&xit"}},
 		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
 		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save", "Save &&As...", "Save A&&ll", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save", "Save &&As...", "Save A&&ll", "-", "A&&uto Save", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
 		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "-", "Open &&Folder...", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Window", "-", "E&&xit"}},
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Window", "-", "E&&xit"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := titles(tc.ctx); !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("file menu %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestAutoSaveRowIsCheckedWhileAutoSaveIsOn(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	for _, tc := range []struct {
+		value any
+		want  bool
+	}{
+		{"off", false}, {"afterDelay", true}, {"onFocusChange", true}, {"onWindowChange", true},
+	} {
+		t.Run(fmt.Sprint(tc.value), func(t *testing.T) {
+			found := false
+			for _, it := range menus.Items(MenubarFileMenu, contextkey.MapContext{"config.files.autoSave": tc.value}) {
+				if it.Command != "workbench.action.toggleAutoSave" {
+					continue
+				}
+				found = true
+				if it.Checked != tc.want || it.Disabled || it.MnemonicTitle != "A&&uto Save" || it.Title != "Auto Save" {
+					t.Errorf("row %+v, want checked = %v", it, tc.want)
+				}
+			}
+			if !found {
+				t.Error("the File menu has no Auto Save row")
+			}
+		})
+	}
+	meta, ok := DefaultRegistry().Lookup("workbench.action.toggleAutoSave")
+	if !ok || meta.Title != "Toggle Auto Save" || meta.Category != "File" {
+		t.Errorf("command %+v (registered: %v)", meta, ok)
 	}
 }
 

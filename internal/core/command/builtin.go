@@ -634,14 +634,15 @@ func registerExplorerCommands(r *Registry) {
 }
 
 // registerSaveCommands registers the commands that save, revert and make files (SPEC §3.1, §6.3): Save, Save As,
-// Save All, Save without Formatting (which skips the save participants, as there is no formatter), Revert File
-// and New Untitled Text File. "saveAll" is VS Code's id of the command the File menu and the keys run;
+// Save All, Save without Formatting (which skips the save participants, as there is no formatter), Revert File,
+// New Untitled Text File and Toggle Auto Save (files.autoSave, step 7.3). "saveAll" is VS Code's id of the command the File menu and the keys run;
 // workbench.action.files.saveAll is the one of the palette, which runs it. Not here: Save All in Group
 // (workbench.files.action.saveAllInGroup) and Save All Files (workbench.action.files.saveFiles).
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileConstants.ts,
 // src/vs/workbench/contrib/files/browser/fileCommands.ts and
-// src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
+// src/vs/workbench/contrib/files/browser/fileActions.contribution.ts and
+// src/vs/workbench/contrib/files/browser/fileActions.ts (ToggleAutoSaveAction)
 func registerSaveCommands(r *Registry) {
 	r.MustRegister(
 		Meta{ID: "workbench.action.files.save", Title: "Save", Category: "File"},
@@ -652,6 +653,8 @@ func registerSaveCommands(r *Registry) {
 		Meta{ID: "workbench.action.files.revert", Title: "Revert File", Category: "File"},
 		Meta{ID: "workbench.action.files.newUntitledFile", Title: "New Untitled Text File", Category: "File",
 			Description: "New Untitled Text File"},
+		Meta{ID: "workbench.action.toggleAutoSave", Title: "Toggle Auto Save", Category: "File",
+			Description: "Toggle the ability to save files automatically after typing"},
 	)
 }
 

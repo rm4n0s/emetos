@@ -31,9 +31,31 @@ type SaveReason int
 const (
 	// SaveExplicit is a save the user asked for (VS Code's SaveReason.EXPLICIT).
 	SaveExplicit SaveReason = iota
-	// SaveAuto is a save the editor makes by itself (files.autoSave; VS Code's SaveReason.AUTO).
+	// SaveAuto is a save the editor makes by itself after a delay (files.autoSave "afterDelay"; VS Code's
+	// SaveReason.AUTO). Only this reason keeps the white space in front of the cursors.
 	SaveAuto
+	// SaveFocusChange is an auto save because an editor lost the focus (files.autoSave "onFocusChange";
+	// VS Code's SaveReason.FOCUS_CHANGE).
+	SaveFocusChange
+	// SaveWindowChange is an auto save because the window lost the focus (files.autoSave "onFocusChange" and
+	// "onWindowChange"; VS Code's SaveReason.WINDOW_CHANGE).
+	SaveWindowChange
 )
+
+// String names the reason as VS Code's SaveReason is named in its logs.
+func (r SaveReason) String() string {
+	switch r {
+	case SaveExplicit:
+		return "explicit"
+	case SaveAuto:
+		return "auto"
+	case SaveFocusChange:
+		return "focusChange"
+	case SaveWindowChange:
+		return "windowChange"
+	}
+	return "unknown"
+}
 
 // SaveOptions say how a document is saved.
 type SaveOptions struct {

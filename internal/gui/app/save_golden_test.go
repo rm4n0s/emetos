@@ -14,7 +14,7 @@ import (
 )
 
 // The goldens of saving: the notification of a save that failed, the question before a file is replaced, the prompt for a
-// path, the File menu with its save rows and the context menu of a tab that has unsaved changes.
+// path, the File menu with its save rows (and with the check mark of Auto Save) and the context menu of a tab that has unsaved changes.
 
 func goldenSave(t *testing.T, theme string) *saveApp {
 	t.Helper()
@@ -69,6 +69,18 @@ func TestGoldenSaving(t *testing.T) {
 			a.ts.Pump(300 * time.Millisecond)
 			a.pump()
 			a.ts.MatchesGolden("save_file_menu_" + th.name)
+			a.noErrors()
+		})
+		t.Run(th.name+" file menu with auto save on", func(t *testing.T) {
+			a := goldenSave(t, th.theme)
+			// switching auto save on saves the file that has changes at once: the tab is clean, the row checked
+			a.setting("files.autoSave", "onWindowChange")
+			a.waitFor("the save", func() bool { return !a.doc("main.go").Dirty() })
+			s := a.shell()
+			s.menuBar.Open(s.menus.BarIndex(command.MenubarFileMenu))
+			a.ts.Pump(300 * time.Millisecond)
+			a.pump()
+			a.ts.MatchesGolden("save_file_menu_autosave_" + th.name)
 			a.noErrors()
 		})
 		t.Run(th.name+" tab menu of a dirty tab", func(t *testing.T) {

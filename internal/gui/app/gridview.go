@@ -196,6 +196,7 @@ func (s *shellState) editorFocus(group *editorgroup.Group, ed *textEditor, has b
 		return
 	}
 	delete(s.group.focused, ed)
+	s.editorBlurred(widgets.WidgetsBindingOf(s.Context()), ed)
 }
 
 // emptyGroup is a group with no editor: the notice of a file that looks binary, with a button to open
