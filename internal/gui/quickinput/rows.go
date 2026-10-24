@@ -82,6 +82,9 @@ func textSpans(text string, matches []fuzzy.Match, marked *painting.TextStyle) [
 // one line of text that ends with an ellipsis when it does not fit.
 func labelAndDescription(bc widgets.BuildContext, it Item, r Row, fg, meta, highlight ui.Color) widgets.Widget {
 	base := kit.TextStyleOf(bc, rowFontSize, fg)
+	if it.Italic {
+		base = base.CopyWith(painting.TextStyleOpts{FontStyle: ui.FontStyleItalic})
+	}
 	marked := base.CopyWith(painting.TextStyleOpts{Color: foundation.Some(highlight), FontWeight: ui.FontWeightBold})
 	spans := textSpans(it.Label, r.Label, marked)
 	if it.Description != "" {
@@ -161,10 +164,13 @@ func (s *hostState) row(bc widgets.BuildContext, colors kit.Colors, i int, r Row
 			widgets.NewText(r.Separator, widgets.TextOpts{Style: kit.TextStyleOf(bc, sepFontSize, sepColor(colors, active, fg)), MaxLines: foundation.Some(1)}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(4.0)}))
 	}
-	if (active || s.hover == i) && len(it.Buttons) > 0 {
-		for b, btn := range it.Buttons {
-			b := b
-			cells = append(cells, kit.NewIconButton(btn.Icon, kit.IconButtonOpts{Tooltip: btn.Tooltip, OnPressed: func() { s.ctl.Trigger(r, b, s.mods()) }}))
+	for b, btn := range it.Buttons {
+		if btn.AlwaysVisible || active || s.hover == i {
+			icon := btn.Icon
+			if btn.HoverIcon != 0 && s.hover == i {
+				icon = btn.HoverIcon
+			}
+			cells = append(cells, kit.NewIconButton(icon, kit.IconButtonOpts{Tooltip: btn.Tooltip, OnPressed: func() { s.ctl.Trigger(r, b, s.mods()) }}))
 		}
 	}
 

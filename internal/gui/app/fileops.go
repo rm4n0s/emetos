@@ -154,6 +154,8 @@ func (s *shellState) followFileOp(binding *widgets.WidgetsBinding, res workspace
 			win.Recent.Rename(p, path)
 		}
 	}
+	// the locations and the closed editors of the history follow too
+	s.followNavigation(res.Follow)
 	for _, doc := range win.Documents.All() {
 		uri := doc.URI()
 		if uri.Scheme != document.SchemeFile {
@@ -219,6 +221,18 @@ func (s *shellState) renameDocument(binding *widgets.WidgetsBinding, doc *docume
 // unsaved changes never close. The changes of our own operations were applied already, and are harmless here.
 func (s *shellState) externalFileEvents(events []workspace.Event) {
 	win := PeekWindow(s.Context())
+	var removed []string
+	for _, e := range events {
+		switch e.Kind {
+		case workspace.EventDeleted:
+			removed = append(removed, e.Path)
+		case workspace.EventRenamed:
+			removed = append(removed, e.OldPath)
+		default:
+		}
+	}
+	// the history forgets the files that are gone (VS Code removes them when the watcher says they were deleted)
+	s.forgetDeleted(removed)
 	if !settings.Get[bool](win.Settings, "workbench.editor.closeOnFileDelete", "") {
 		return
 	}

@@ -716,13 +716,41 @@ var quickInputCommands = map[string]bool{
 	"workbench.action.clearCommandHistory": true, "workbench.action.closeQuickOpen": true,
 }
 
+// historyCommands are the commands of the history of locations and of the editor picker, which the app binds
+// since the groups, the editors and the quick input are the window's (step 6.19).
+var historyCommands = map[string]bool{
+	"workbench.action.nextEditorInGroup": true, "workbench.action.previousEditorInGroup": true,
+	"workbench.action.openNextRecentlyUsedEditor": true, "workbench.action.openPreviousRecentlyUsedEditor": true,
+	"workbench.action.showAllEditors": true, "workbench.action.showAllEditorsByMostRecentlyUsed": true,
+	"workbench.action.showEditorsInActiveGroup":                   true,
+	"workbench.action.quickOpenPreviousRecentlyUsedEditor":        true,
+	"workbench.action.quickOpenLeastRecentlyUsedEditor":           true,
+	"workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup": true,
+	"workbench.action.quickOpenLeastRecentlyUsedEditorInGroup":    true,
+	"workbench.action.openPreviousEditorFromHistory":              true,
+	"workbench.action.quickOpenNavigateNextInEditorPicker":        true,
+	"workbench.action.quickOpenNavigatePreviousInEditorPicker":    true,
+	"workbench.action.navigateBack":                               true,
+	"workbench.action.navigateForward":                            true,
+	"workbench.action.navigateLast":                               true,
+	"workbench.action.navigateBackInEditLocations":                true,
+	"workbench.action.navigateForwardInEditLocations":             true,
+	"workbench.action.navigatePreviousInEditLocations":            true,
+	"workbench.action.navigateToLastEditLocation":                 true,
+	"workbench.action.navigateBackInNavigationLocations":          true,
+	"workbench.action.navigateForwardInNavigationLocations":       true,
+	"workbench.action.navigatePreviousInNavigationLocations":      true,
+	"workbench.action.navigateToLastNavigationLocation":           true,
+	"workbench.action.reopenClosedEditor":                         true, "workbench.action.clearEditorHistory": true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	// the commands that open the views of the panel are the workbench's when it has the views
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] {
 			continue
 		}
 		n++

@@ -210,6 +210,8 @@ type shellState struct {
 	widgets.StateOf[*shell]
 	// group is the editor group of the window: the tabs and their editors.
 	group groupState
+	// nav is the history of locations and the closed editors.
+	nav navState
 	// panels are the views of the Problems and the Output.
 	panels panelsState
 	// explorer is the Explorer: the tree of the folder and the Open Editors.

@@ -35,6 +35,8 @@ const (
 	MenubarRecentMenu = "MenubarRecentMenu"
 	// MenubarLayoutMenu is the Editor Layout submenu of the View menu.
 	MenubarLayoutMenu = "MenubarLayoutMenu"
+	// MenubarSwitchEditorMenu is the Switch Editor submenu of the Go menu.
+	MenubarSwitchEditorMenu = "MenubarSwitchEditorMenu"
 	// MenubarSwitchGroupMenu is the Switch Group submenu of the Go menu.
 	MenubarSwitchGroupMenu = "MenubarSwitchGroupMenu"
 	// PanelPositionMenu is the Panel Position submenu of the Appearance menu.

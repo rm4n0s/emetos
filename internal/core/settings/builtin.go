@@ -1138,6 +1138,21 @@ func registerEditorGroups(r *Registry) {
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{
+			Key: "workbench.editor.navigationScope", Types: []Type{String}, Default: "default", Enum: []any{"default", "editorGroup", "editor"},
+			EnumDescriptions: []string{
+				"Navigate across all opened editors and editor groups.",
+				"Navigate only in editors of the active editor group.",
+				"Navigate only in the active editor.",
+			},
+			Description: "Controls the scope of history navigation in editors for commands such as 'Go Back' and 'Go Forward'.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.restoreViewState", Types: []Type{Boolean}, Default: true,
+			Description: "Restores the last editor view state (such as scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes.",
+			Scope:       ScopeLanguageOverridable, Category: categoryWorkbench,
+		},
+		Setting{
 			Key: "workbench.editor.closeEmptyGroups", Types: []Type{Boolean}, Default: true,
 			Description: "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,

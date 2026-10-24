@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 )
 
 // The editor groups of the window (SPEC §10.3): a grid of groups, each with its tab strip, its
@@ -53,6 +54,14 @@ type openOptions struct {
 	// Place, when set, runs once the editor exists (to put the cursor somewhere); the editor then
 	// scrolls to the cursor.
 	Place func(*textEditor)
+	// Sticky opens the editor pinned (a tab with the pin icon), and Index, when HasIndex is set, at a place
+	// of the tabs.
+	Sticky   bool
+	Index    int
+	HasIndex bool
+	// ViewState, when set, is given back to the editor: the cursors, the scroll position and the folds it had
+	// when it was closed.
+	ViewState *editor.ViewState
 }
 
 // gridOptions are the settings the grid follows.
@@ -88,6 +97,7 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 	g.views = map[*editorgroup.Group]*groupView{}
 	g.focused = map[*textEditor]bool{}
 	g.dragFeed = newDragFeed()
+	s.initNavigation(binding)
 	g.stop = g.grid.OnChange(func(e editorgroup.GridEvent) { s.gridChanged(binding, e) })
 	g.stopSettings = win.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("workbench.editor", "") || e.Affects("breadcrumbs", "") {
@@ -181,7 +191,11 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 		win.Recent.Add(path) // the quick open shows the files that were opened first
 	}
 	input := editorgroup.NewTextInput(doc, s.inputOptions())
-	shown, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: !preview, Active: true})
+	// The history hears of the editor once it has its cursor: a view that comes back or a place to show.
+	s.nav.hold++
+	shown, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{
+		Pinned: !preview, Active: true, Sticky: opts.Sticky, Index: opts.Index, HasIndex: opts.HasIndex,
+	})
 	if !isNew {
 		input.Dispose()
 	}
@@ -189,17 +203,30 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 	if err := s.group.grid.Activate(group); err != nil {
 		win.Process.Logger.Error("cannot activate the group", "err", err)
 	}
-	if opts.Place == nil {
+	e := s.group.editors[shown]
+	if e != nil && opts.ViewState != nil {
+		if err := e.view.RestoreViewState(*opts.ViewState); err != nil {
+			win.Process.Logger.Debug("not all of the view of the editor could come back", "err", describe(err))
+		}
+		s.setSelection(e, e.view.Cursors().Selections(), editorgroup.ReasonProgrammatic)
+	}
+	if e != nil && opts.Place != nil {
+		opts.Place(e)
+	}
+	s.nav.hold--
+	s.syncNav()
+	if e != nil && (opts.Place != nil || opts.ViewState != nil) {
+		// the editor was shown already, but the cursor moved: that is a change of its selection
+		s.selectionNotified(e, editorgroup.ReasonProgrammatic)
+	}
+	if opts.Place == nil || e == nil {
 		return
 	}
-	if e := s.group.editors[shown]; e != nil {
-		opts.Place(e)
-		binding.Scheduler().AddPostFrameCallback(func(time.Duration) {
-			if !e.disposed {
-				e.view.RevealPrimary()
-			}
-		})
-	}
+	binding.Scheduler().AddPostFrameCallback(func(time.Duration) {
+		if !e.disposed {
+			e.view.RevealPrimary()
+		}
+	})
 }
 
 // show is showAcquired for code that opens a document in a callback of the UI thread: it asks the
@@ -230,6 +257,8 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 				if ed := s.group.editors[e.Change.Editor]; ed != nil && s.group.focused[ed] {
 					s.askFocus(binding)
 				}
+				s.recordClosed(e.Group, e.Change)
+				s.forgetClosed(e.Group, e.Change.Editor)
 				s.releaseEditor(e.Change.Editor)
 			}
 		case editorgroup.EditorDirty:
@@ -253,6 +282,9 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 		}
 	case editorgroup.GroupRemoved:
 		delete(s.group.views, e.Group)
+		if h := s.nav.history; h != nil {
+			h.GroupRemoved(e.Group.ID())
+		}
 	case editorgroup.ActiveGroupChanged:
 		s.askFocus(binding)
 	case editorgroup.GroupAdded:
@@ -262,6 +294,12 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 		}
 	case editorgroup.GroupMoved, editorgroup.LayoutChanged:
 	}
+	// the order the editors were used in changed, which ends the walk of Open Next Recently Used Editor
+	if h := s.nav.history; h != nil && e.Kind != editorgroup.LayoutChanged && e.Kind != editorgroup.GroupMoved {
+		h.Recent.Reset()
+		h.RecentInGroup.Reset()
+	}
+	s.syncNav()
 	s.refreshKeys()
 	if s.Mounted() {
 		binding.Post(func() {
@@ -333,6 +371,7 @@ func (s *shellState) refreshKeys() {
 		win.Keys.Set("activeEditorIsPinned", m.IsSticky(active))
 		win.Keys.Set("activeEditorIsNotPreview", m.IsPinned(active))
 	})
+	s.refreshNavKeys()
 }
 
 // disposeGroup stops following the grid and the settings, ends every editor and releases the
@@ -346,6 +385,7 @@ func (s *shellState) disposeGroup() {
 	if g.stop != nil {
 		g.stop()
 	}
+	s.disposeNavigation()
 	if g.stopSettings != nil {
 		g.stopSettings()
 	}
@@ -361,8 +401,8 @@ func (s *shellState) disposeGroup() {
 	}
 	g.editors = nil
 	g.grid.Dispose()
-	for _, key := range []string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
-		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically"} {
+	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
+		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically"}, navKeys...) {
 		win.Keys.Reset(key)
 	}
 }

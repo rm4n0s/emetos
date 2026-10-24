@@ -36,6 +36,8 @@ type textEditor struct {
 	disposed bool
 	// tokDone is closed to end the loop of the current tokenizer when the language changes.
 	tokDone chan struct{}
+	// nav is what the history of locations remembers of the editor (navigation.go).
+	nav editorNav
 }
 
 // newTextEditor makes the editor of an input: its view model, kept current as the settings change
@@ -80,6 +82,7 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 			})
 		}
 	})
+	s.watchSelection(e)
 	return e
 }
 
@@ -199,6 +202,7 @@ func (e *textEditor) dispose() {
 	}
 	e.disposed = true
 	close(e.done)
+	e.unwatchSelection()
 	e.view.DisposeFind()
 	e.view.DisposeWrap()
 	e.view.DisposeHighlights()

@@ -19,7 +19,7 @@ import (
 func (s *shellState) bindGroupCommands() {
 	reg := PeekWindow(s.Context()).Process.Commands
 	handlers := s.editorCommands()
-	for _, more := range []map[string]command.Handler{s.gridCommands(), s.pathCommands()} {
+	for _, more := range []map[string]command.Handler{s.gridCommands(), s.pathCommands(), s.navCommands(), s.switchCommands()} {
 		for id, h := range more {
 			handlers[id] = h
 		}
@@ -32,13 +32,12 @@ func (s *shellState) bindGroupCommands() {
 	s.group.removeCommands = append(s.group.removeCommands, removes...)
 }
 
-// editorCommands are the commands of the editors of a group: close, keep, pin and switch. The commands
+// editorCommands are the commands of the editors of a group: close, keep and pin (switching between them is in
+// switchCommands). The commands
 // that act on an editor take it from their argument when it names one ({"groupId", "editorIndex"}, the
 // context that the menu of a tab passes, as in VS Code), else they act on the active editor of the
 // active group.
 func (s *shellState) editorCommands() map[string]command.Handler {
-	group := s.activeGroup
-	model := func() *editorgroup.Model { return group().Model }
 	// notSticky filters the editors that the commands that close many leave alone when sticky.
 	notSticky := func(m *editorgroup.Model, editors []editorgroup.EditorInput) []editorgroup.EditorInput {
 		var out []editorgroup.EditorInput
@@ -48,29 +47,6 @@ func (s *shellState) editorCommands() map[string]command.Handler {
 			}
 		}
 		return out
-	}
-	// move activates the editor at an offset in the order of the tabs, going round
-	move := func(by int) {
-		m := model()
-		editors := m.Editors(editorgroup.Sequential, false)
-		if len(editors) < 2 {
-			return
-		}
-		at := m.IndexOf(m.ActiveEditor())
-		m.SetActive(editors[((at+by)%len(editors)+len(editors))%len(editors)])
-	}
-	// recent activates the previously used editor (the second in the most recently used order), or
-	// the one used longest ago
-	recent := func(oldest bool) {
-		editors := model().Editors(editorgroup.MostRecentlyActive, false)
-		if len(editors) < 2 {
-			return
-		}
-		if oldest {
-			model().SetActive(editors[len(editors)-1])
-		} else {
-			model().SetActive(editors[1])
-		}
 	}
 	closeInGroup := func(g *editorgroup.Group, keep func(editorgroup.EditorInput) bool) {
 		var closing []editorgroup.EditorInput
@@ -133,17 +109,6 @@ func (s *shellState) editorCommands() map[string]command.Handler {
 		"workbench.action.keepEditor":  onEditor(func(g *editorgroup.Group, e editorgroup.EditorInput) { g.Model.Pin(e) }),
 		"workbench.action.pinEditor":   onEditor(func(g *editorgroup.Group, e editorgroup.EditorInput) { g.Model.Stick(e) }),
 		"workbench.action.unpinEditor": onEditor(func(g *editorgroup.Group, e editorgroup.EditorInput) { g.Model.Unstick(e) }),
-
-		"workbench.action.nextEditor":     func(command.Context, any) error { move(1); return nil },
-		"workbench.action.previousEditor": func(command.Context, any) error { move(-1); return nil },
-		"workbench.action.openNextRecentlyUsedEditorInGroup": func(command.Context, any) error {
-			recent(false)
-			return nil
-		},
-		"workbench.action.openPreviousRecentlyUsedEditorInGroup": func(command.Context, any) error {
-			recent(true)
-			return nil
-		},
 	}
 }
 

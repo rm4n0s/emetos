@@ -74,8 +74,8 @@ func registerLayoutCommands(r *Registry) {
 }
 
 // registerEditorGroupCommands registers the commands that close, switch and keep the editors of a
-// group (SPEC §10.3). The commands of the grid of groups are in registerEditorGridCommands; the
-// commands that need the quick input (the editor picker, step 6.17) are not here yet.
+// group (SPEC §10.3), switch between them with the quick input and walk the history of locations (step
+// 6.19). The commands of the grid of groups are in registerEditorGridCommands.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts,
 // src/vs/workbench/browser/parts/editor/editorActions.ts and
@@ -93,8 +93,42 @@ func registerEditorGroupCommands(r *Registry) {
 		Meta{ID: "workbench.action.unpinEditor", Title: "Unpin Editor", Category: "View"},
 		Meta{ID: "workbench.action.nextEditor", Title: "Open Next Editor", Category: "View"},
 		Meta{ID: "workbench.action.previousEditor", Title: "Open Previous Editor", Category: "View"},
+		Meta{ID: "workbench.action.nextEditorInGroup", Title: "Open Next Editor in Group", Category: "View"},
+		Meta{ID: "workbench.action.previousEditorInGroup", Title: "Open Previous Editor in Group", Category: "View"},
+		Meta{ID: "workbench.action.openNextRecentlyUsedEditor", Title: "Open Next Recently Used Editor", Category: "View"},
+		Meta{ID: "workbench.action.openPreviousRecentlyUsedEditor", Title: "Open Previous Recently Used Editor", Category: "View"},
 		Meta{ID: "workbench.action.openNextRecentlyUsedEditorInGroup", Title: "Open Next Recently Used Editor In Group", Category: "View"},
 		Meta{ID: "workbench.action.openPreviousRecentlyUsedEditorInGroup", Title: "Open Previous Recently Used Editor In Group", Category: "View"},
+
+		// the editor picker: the modes of the quick input that list the open editors, and the keys that
+		// open it and move in it while the key that opened it is held
+		Meta{ID: "workbench.action.showAllEditors", Title: "Show All Editors By Appearance", Category: "File"},
+		Meta{ID: "workbench.action.showAllEditorsByMostRecentlyUsed", Title: "Show All Editors By Most Recently Used", Category: "View"},
+		Meta{ID: "workbench.action.showEditorsInActiveGroup", Title: "Show Editors in Active Group By Most Recently Used", Category: "View"},
+		Meta{ID: "workbench.action.quickOpenPreviousRecentlyUsedEditor", Title: "Quick Open Previous Recently Used Editor", Category: "View"},
+		Meta{ID: "workbench.action.quickOpenLeastRecentlyUsedEditor", Title: "Quick Open Least Recently Used Editor", Category: "View"},
+		Meta{ID: "workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup", Title: "Quick Open Previous Recently Used Editor in Group", Category: "View",
+			Precondition: contextkey.Not("activeEditorGroupEmpty")},
+		Meta{ID: "workbench.action.quickOpenLeastRecentlyUsedEditorInGroup", Title: "Quick Open Least Recently Used Editor in Group", Category: "View",
+			Precondition: contextkey.Not("activeEditorGroupEmpty")},
+		Meta{ID: "workbench.action.openPreviousEditorFromHistory", Title: "Quick Open Previous Editor from History"},
+		Meta{ID: "workbench.action.quickOpenNavigateNextInEditorPicker"},
+		Meta{ID: "workbench.action.quickOpenNavigatePreviousInEditorPicker"},
+
+		// the history of locations
+		Meta{ID: "workbench.action.navigateBack", Title: "Go Back", Precondition: contextkey.Has("canNavigateBack")},
+		Meta{ID: "workbench.action.navigateForward", Title: "Go Forward", Precondition: contextkey.Has("canNavigateForward")},
+		Meta{ID: "workbench.action.navigateLast", Title: "Go Previous"},
+		Meta{ID: "workbench.action.navigateBackInEditLocations", Title: "Go Back in Edit Locations"},
+		Meta{ID: "workbench.action.navigateForwardInEditLocations", Title: "Go Forward in Edit Locations"},
+		Meta{ID: "workbench.action.navigatePreviousInEditLocations", Title: "Go Previous in Edit Locations"},
+		Meta{ID: "workbench.action.navigateToLastEditLocation", Title: "Go to Last Edit Location"},
+		Meta{ID: "workbench.action.navigateBackInNavigationLocations", Title: "Go Back in Navigation Locations"},
+		Meta{ID: "workbench.action.navigateForwardInNavigationLocations", Title: "Go Forward in Navigation Locations"},
+		Meta{ID: "workbench.action.navigatePreviousInNavigationLocations", Title: "Go Previous in Navigation Locations"},
+		Meta{ID: "workbench.action.navigateToLastNavigationLocation", Title: "Go to Last Navigation Location"},
+		Meta{ID: "workbench.action.reopenClosedEditor", Title: "Reopen Closed Editor", Category: "View"},
+		Meta{ID: "workbench.action.clearEditorHistory", Title: "Clear Editor History"},
 
 		// the paths of the file of an editor: the menu of a tab, the palette and the keys
 		Meta{ID: "copyFilePath", Title: "Copy Path of Active File", Category: "File"},

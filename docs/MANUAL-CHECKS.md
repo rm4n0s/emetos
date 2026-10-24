@@ -40,3 +40,20 @@ scripts/isolated.sh -- go run ./cmd/emetos
 4. Run "Close Workspace" (Ctrl+K F) from the palette once step 6.17 exists, or from File > Close Folder: does the Explorer go back to "You have not yet opened a folder."?
 
 Say what you saw, and which desktop (and portal backend) you used.
+
+## 6.19 Ctrl+Tab on a real keyboard
+
+The tests send the key presses and the release of Ctrl through Glutter's test dispatcher; only a desktop session has the real keyboard events of Wayland or X11. Run the editor on three files, isolated from your configuration:
+
+```
+mkdir -p /tmp/nav && printf 'one\n' > /tmp/nav/a.txt && printf 'two\n' > /tmp/nav/b.txt && printf 'three\n' > /tmp/nav/c.txt
+scripts/isolated.sh -- go run ./cmd/emetos /tmp/nav/a.txt /tmp/nav/b.txt /tmp/nav/c.txt
+```
+
+1. Click the tabs b.txt, then c.txt. Hold Ctrl and press Tab once: does a list of the three editors appear with b.txt highlighted and no input box? Let go of Ctrl: does b.txt open?
+2. Hold Ctrl and press Tab twice, then Shift+Tab once, then let go of Ctrl: does the highlight move down, down, up, and does the editor under it open when Ctrl is released?
+3. Hold Ctrl+Shift and press Tab: does the list start at the last editor? Let go of Shift first, then Ctrl: does the editor open only when Ctrl is released?
+4. Hold Ctrl, press Tab, then switch to another window with Alt+Tab or the mouse and let go of Ctrl there. Come back: is the list closed or does Enter choose the highlighted editor? Is the editor ever stuck with a list that does nothing?
+5. Press Ctrl+Alt+- and Ctrl+Shift+- after jumping to a few lines with Ctrl+G: do they go back and forward through the lines (and your keyboard layout's minus key works)?
+
+Say what you saw, and which compositor and keyboard layout you used.

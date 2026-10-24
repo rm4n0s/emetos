@@ -22,6 +22,8 @@ type Picker struct {
 	// filter; NewPicker turns on the first and the last. Change them before the next SetValue or
 	// SetItems.
 	MatchOnLabel, MatchOnDescription, MatchOnDetail, SortByLabel bool
+	// HideInput hides the input of the picker, which keeps the keyboard: the switcher that Ctrl+Tab opens.
+	HideInput bool
 	// KeepScrollPosition keeps the first row in view when the items change instead of showing the
 	// top of the list.
 	KeepScrollPosition bool
@@ -37,10 +39,33 @@ type Picker struct {
 	valueSel  [2]int
 	hasSel    bool
 
+	activation ItemActivation
+
 	changed     []*func()
 	valueChange []*func(string)
 	activeChang []*func(Row, bool)
 }
+
+// ItemActivation says which item is active once the items of a picker are set (VS Code's ItemActivation).
+// It applies to the first items that give a row and then goes back to ItemFirst: typing a filter later
+// activates the first row as always.
+type ItemActivation int
+
+// The ways the first active item is chosen.
+const (
+	// ItemFirst activates the first item that can be chosen.
+	ItemFirst ItemActivation = iota
+	// ItemSecond activates the second item, or the first when there is only one: the editor that was used
+	// before the active one.
+	ItemSecond
+	// ItemLast activates the last item.
+	ItemLast
+	// ItemNone activates no item.
+	ItemNone
+)
+
+// SetItemActivation says which row becomes active when the items are set next.
+func (p *Picker) SetItemActivation(a ItemActivation) { p.activation = a }
 
 // NewPicker makes an empty picker that filters by label and sorts by label.
 func NewPicker() *Picker {
@@ -122,6 +147,7 @@ func (p *Picker) SetItems(items []Item) {
 	}
 	p.items = items
 	p.applyFilter()
+	p.activate()
 	if keep != nil {
 		for i, r := range p.rows {
 			if r.Item.ID == keep.ID && r.Item.Label == keep.Label && r.Item.ID != "" {
@@ -366,4 +392,35 @@ func (p *Picker) rowsFiltered(query string) []Row {
 		rows[i].Border = rows[i].Separator != "" && i > 0
 	}
 	return rows
+}
+
+// activate gives the first rows that a SetItems makes the active row that SetItemActivation asked for.
+func (p *Picker) activate() {
+	if p.activation == ItemFirst || len(p.rows) == 0 {
+		return
+	}
+	a := p.activation
+	p.activation = ItemFirst
+	switch a {
+	case ItemSecond:
+		second, seen := -1, false
+		for i, r := range p.rows {
+			if r.Item.Separator {
+				continue
+			}
+			if seen {
+				second = i
+				break
+			}
+			seen = true
+		}
+		if second >= 0 {
+			p.setActive(second)
+		}
+	case ItemLast:
+		p.Last()
+	case ItemNone:
+		p.setActive(-1)
+	case ItemFirst:
+	}
 }

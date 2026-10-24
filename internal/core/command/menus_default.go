@@ -180,9 +180,11 @@ func registerEditorContext(r *MenuRegistry) {
 	)
 }
 
-// registerEditorGroupMenus adds the Editor Layout submenu of the View menu and the Switch Group
-// submenu of the Go menu. Not here: Split in Group and Join in Group (editors that split inside a
-// group), Move/Copy Editor into New Window, and the Switch Editor submenu (step 6.17).
+// registerEditorGroupMenus adds the Editor Layout submenu of the View menu, the Switch Editor and Switch
+// Group submenus of the Go menu, the history rows of the Go menu (Back, Forward, Last Edit Location) and
+// Reopen Closed Editor in the Open Recent submenu of the File menu. Not here: Split in Group and Join in
+// Group (editors that split inside a group), Move/Copy Editor into New Window, and the first and second
+// side of a side by side editor.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editor.contribution.ts
 func registerEditorGroupMenus(r *MenuRegistry) {
@@ -204,7 +206,28 @@ func registerEditorGroupMenus(r *MenuRegistry) {
 		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutTwoRowsRight", Title: "Two Rows Right", MnemonicTitle: "Two R&&ows Right", Group: "4_layouts", Order: 8},
 		MenuItem{Menu: MenubarLayoutMenu, Command: "workbench.action.editorLayoutTwoColumnsBottom", Title: "Two Columns Bottom", MnemonicTitle: "Two &&Columns Bottom", Group: "4_layouts", Order: 9},
 
+		MenuItem{Menu: MenubarGoMenu, Submenu: MenubarSwitchEditorMenu, Title: "Switch Editor", MnemonicTitle: "Switch &&Editor", Group: "2_editor_nav", Order: 1},
 		MenuItem{Menu: MenubarGoMenu, Submenu: MenubarSwitchGroupMenu, Title: "Switch Group", MnemonicTitle: "Switch &&Group", Group: "2_editor_nav", Order: 2},
+
+		// Back, Forward and Last Edit Location (step 6.19); the first side and the second side of an editor
+		// are not here: Emetos has no side by side editors
+		MenuItem{Menu: MenubarGoMenu, Command: "workbench.action.navigateBack", Title: "Back", MnemonicTitle: "&&Back", Group: "1_history_nav", Order: 1,
+			Precondition: contextkey.Has("canNavigateBack")},
+		MenuItem{Menu: MenubarGoMenu, Command: "workbench.action.navigateForward", Title: "Forward", MnemonicTitle: "&&Forward", Group: "1_history_nav", Order: 2,
+			Precondition: contextkey.Has("canNavigateForward")},
+		MenuItem{Menu: MenubarGoMenu, Command: "workbench.action.navigateToLastEditLocation", Title: "Last Edit Location", MnemonicTitle: "&&Last Edit Location", Group: "1_history_nav", Order: 3,
+			Precondition: contextkey.Has("canNavigateToLastEditLocation")},
+		MenuItem{Menu: MenubarRecentMenu, Command: "workbench.action.reopenClosedEditor", Title: "Reopen Closed Editor", MnemonicTitle: "&&Reopen Closed Editor", Group: "1_editor", Order: 1,
+			Precondition: contextkey.Has("canReopenClosedEditor")},
+
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.nextEditor", Title: "Next Editor", MnemonicTitle: "&&Next Editor", Group: "2_any", Order: 1},
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.previousEditor", Title: "Previous Editor", MnemonicTitle: "&&Previous Editor", Group: "2_any", Order: 2},
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.openNextRecentlyUsedEditor", Title: "Next Used Editor", MnemonicTitle: "&&Next Used Editor", Group: "3_any_used", Order: 1},
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.openPreviousRecentlyUsedEditor", Title: "Previous Used Editor", MnemonicTitle: "&&Previous Used Editor", Group: "3_any_used", Order: 2},
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.nextEditorInGroup", Title: "Next Editor in Group", MnemonicTitle: "&&Next Editor in Group", Group: "4_group", Order: 1},
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.previousEditorInGroup", Title: "Previous Editor in Group", MnemonicTitle: "&&Previous Editor in Group", Group: "4_group", Order: 2},
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.openNextRecentlyUsedEditorInGroup", Title: "Next Used Editor in Group", MnemonicTitle: "&&Next Used Editor in Group", Group: "5_group_used", Order: 1},
+		MenuItem{Menu: MenubarSwitchEditorMenu, Command: "workbench.action.openPreviousRecentlyUsedEditorInGroup", Title: "Previous Used Editor in Group", MnemonicTitle: "&&Previous Used Editor in Group", Group: "5_group_used", Order: 2},
 
 		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusFirstEditorGroup", Title: "Group 1", MnemonicTitle: "Group &&1", Group: "1_focus_index", Order: 1},
 		MenuItem{Menu: MenubarSwitchGroupMenu, Command: "workbench.action.focusSecondEditorGroup", Title: "Group 2", MnemonicTitle: "Group &&2", Group: "1_focus_index", Order: 2},

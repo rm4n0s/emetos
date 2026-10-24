@@ -112,6 +112,7 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 			},
 		}),
 	}
+	providers = append(providers, s.editorProviders()...)
 	for _, p := range providers {
 		if err := reg.Register(p); err != nil {
 			win.Process.Logger.Error("cannot register a quick access provider", "err", err)
@@ -299,7 +300,7 @@ func (s *shellState) goToLineEditor() quickinput.GoToLineEditor {
 		return nil
 	}
 	win := PeekWindow(s.Context())
-	return &goToLine{e: e, saved: e.view.ViewState(), log: func(err error) {
+	return &goToLine{e: e, saved: e.view.ViewState(), jump: func(p buffer.Position) { s.jumpTo(e, p) }, log: func(err error) {
 		win.Process.Logger.Warn("cannot restore the view of the editor", "error", describe(err))
 	}}
 }
@@ -310,6 +311,7 @@ type goToLine struct {
 	e     *textEditor
 	saved editor.ViewState
 	log   func(error)
+	jump  func(buffer.Position)
 }
 
 func (g *goToLine) snap() buffer.Snapshot { return g.e.doc.Snapshot() }
@@ -343,8 +345,9 @@ func (g *goToLine) Reveal(line, col int) {
 
 func (g *goToLine) ClearHighlight() { g.e.view.ClearRangeHighlight() }
 
+// Go moves the cursor, as a jump: the place it leaves and the place it goes to are locations of the history.
 func (g *goToLine) Go(line, col int) {
-	g.e.view.GoToPosition(buffer.Position{Line: line - 1, Col: col - 1})
+	g.jump(buffer.Position{Line: line - 1, Col: col - 1})
 }
 
 func (g *goToLine) Restore() {

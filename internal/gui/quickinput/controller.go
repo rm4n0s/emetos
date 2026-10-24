@@ -16,6 +16,70 @@ type ShowOptions struct {
 	// PreserveValue takes the value as it is, instead of selecting what follows the prefix and
 	// restoring the last input of a provider.
 	PreserveValue bool
+	// QuickNavigate opens the picker the way Ctrl+Tab does: it is a switcher that the keyboard drives while
+	// the keys that opened it are held. The input is hidden, the second item is active (the first, when
+	// Activation says so), and the active item is chosen when the held modifier key is released.
+	QuickNavigate *QuickNavigate
+	// Activation says which item is active when the items are set. In the quick navigate mode it is the
+	// second item unless it says otherwise.
+	Activation ItemActivation
+}
+
+// Modifiers are the modifier keys of a chord.
+type Modifiers struct {
+	Ctrl, Shift, Alt, Meta bool
+}
+
+// Modifier names a modifier key.
+type Modifier int
+
+// The modifier keys.
+const (
+	// ModCtrl is the Ctrl key.
+	ModCtrl Modifier = iota + 1
+	// ModShift is the Shift key.
+	ModShift
+	// ModAlt is the Alt key.
+	ModAlt
+	// ModMeta is the Meta key (Super).
+	ModMeta
+)
+
+// QuickNavigate is the state of a picker that is driven by keys that are held (VS Code's
+// IQuickNavigateConfiguration): the chords of the keys that opened it, and the keys that move in it. Releasing
+// the modifier of one of the chords chooses the active item.
+type QuickNavigate struct {
+	// Chords are the modifiers of the keybindings of the command that opened the picker; a chord of more than
+	// one key press is not in the list.
+	Chords []Modifiers
+}
+
+// triggered tells whether releasing a modifier key, with the modifiers still held, is the signal to choose
+// the active item (VS Code's registerQuickNavigation): the release of Shift counts only when no other
+// modifier is held, since Ctrl+Shift+Tab lets Shift go first to go back.
+func (q *QuickNavigate) triggered(released Modifier, held Modifiers) bool {
+	for _, c := range q.Chords {
+		switch {
+		case c.Shift && released == ModShift:
+			if held.Ctrl || held.Alt || held.Meta {
+				continue
+			}
+			return true
+		case c.Alt && released == ModAlt, c.Ctrl && released == ModCtrl, c.Meta && released == ModMeta:
+			return true
+		}
+	}
+	return false
+}
+
+// heldBy tells whether the modifiers held now are those of one of the chords.
+func (q *QuickNavigate) heldBy(held Modifiers) bool {
+	for _, c := range q.Chords {
+		if (!c.Ctrl || held.Ctrl) && (!c.Shift || held.Shift) && (!c.Alt || held.Alt) && (!c.Meta || held.Meta) {
+			return true
+		}
+	}
+	return false
 }
 
 // PickOptions describe a pick from a list of items that the caller owns: the Insert Snippet
@@ -54,6 +118,10 @@ type Controller struct {
 	fallback string
 	// context is the context keys of the widget that had the focus when the quick input opened.
 	context contextkey.Context
+	// quickNav is set while the picker waits for the release of the keys that opened it; quickMode says
+	// that it was opened as a switcher (and has no input), whether the release was seen or not.
+	quickNav  *QuickNavigate
+	quickMode bool
 }
 
 // ControllerOptions are the options of NewController.
@@ -148,6 +216,9 @@ func (c *Controller) Show(value string, opts ShowOptions) {
 	}
 	provider := c.registry.Resolve(value)
 	if c.visible && !c.fixed && provider != nil && provider == c.provider {
+		if opts.QuickNavigate != nil {
+			c.quickNav = opts.QuickNavigate
+		}
 		prefix := provider.Info().Prefix
 		if value != prefix && !opts.PreserveValue {
 			c.picker.SetValue(value)
@@ -172,11 +243,22 @@ func (c *Controller) Show(value string, opts ShowOptions) {
 			value = newValue
 		}
 	}
+	wasVisible := c.visible
 	c.endSession(false)
 	c.fixed, c.onCancel, c.accepted = false, nil, false
 	c.visible = true
 	c.picker = NewPicker()
 	c.picker.SetValue(value)
+	activation := opts.Activation
+	c.quickNav, c.quickMode = opts.QuickNavigate, opts.QuickNavigate != nil
+	if c.quickMode {
+		// the input is hidden unless a picker was open already
+		c.picker.HideInput = !wasVisible
+		if activation == ItemFirst {
+			activation = ItemSecond
+		}
+	}
+	c.picker.SetItemActivation(activation)
 	c.start(provider)
 	prefix := ""
 	if provider != nil {
@@ -266,6 +348,7 @@ func (c *Controller) Pick(opts PickOptions) {
 		c.context = c.invoker()
 	}
 	c.endSession(false)
+	c.quickNav, c.quickMode = nil, false
 	c.visible, c.fixed, c.accepted = true, true, false
 	c.onCancel = opts.OnCancel
 	c.provider, c.handler, c.session = nil, nil, nil
@@ -326,6 +409,52 @@ func (c *Controller) Trigger(row Row, button int, mods KeyMods) {
 	}
 }
 
+// QuickNavigating tells whether the picker waits for the release of the keys that opened it.
+func (c *Controller) QuickNavigating() bool { return c.visible && c.quickNav != nil }
+
+// QuickMode tells whether the picker was opened as a switcher driven by held keys. It stays true when the
+// release was never seen and the picker works as any other.
+func (c *Controller) QuickMode() bool { return c.visible && c.quickMode }
+
+// QuickHeld tells whether the modifiers held now are those the quick navigate picker waits for the release of;
+// false when it does not wait.
+func (c *Controller) QuickHeld(held Modifiers) bool {
+	return c.QuickNavigating() && c.quickNav.heldBy(held)
+}
+
+// Navigate moves the active row to the next or the previous one, going round at the ends, and waits again for
+// the release of the keys (VS Code's navigate; the commands quickOpenNavigateNextInEditorPicker and
+// quickOpenNavigatePreviousInEditorPicker run it). With qn nil the picker keeps waiting or not as it was.
+func (c *Controller) Navigate(next bool, qn *QuickNavigate) {
+	if !c.visible || len(c.picker.Rows()) == 0 {
+		return
+	}
+	if next {
+		c.picker.Move(1)
+	} else {
+		c.picker.Move(-1)
+	}
+	if qn != nil {
+		c.quickNav = qn
+	}
+}
+
+// QuickNavigateKeyUp tells the controller that a modifier key was released, with the modifiers held after it.
+// When the picker waits for that key it chooses the active row and stops waiting (it waits for the release
+// only once); it tells whether it did.
+func (c *Controller) QuickNavigateKeyUp(released Modifier, held Modifiers) bool {
+	if !c.QuickNavigating() || !c.quickNav.triggered(released, held) {
+		return false
+	}
+	c.quickNav = nil
+	c.Accept(KeyMods{})
+	return true
+}
+
+// DisarmQuickNavigate stops waiting for the release of the keys: the release was missed, or the window lost
+// the keyboard. The picker goes on as any other: Enter or a click chooses, Escape closes.
+func (c *Controller) DisarmQuickNavigate() { c.quickNav = nil }
+
 // RememberValue stores the value as the last input of the provider, for DefaultFilterLast.
 func (c *Controller) RememberValue(prefix, value string) { c.last[prefix] = value }
 
@@ -341,6 +470,7 @@ func (c *Controller) hide(accepted bool) {
 	}
 	c.accepted = accepted
 	c.visible = false
+	c.quickNav, c.quickMode = nil, false
 	cancel := c.onCancel
 	c.onCancel = nil
 	c.endSession(accepted)

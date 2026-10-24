@@ -85,9 +85,9 @@ func registerLayoutKeys(r *Registry) {
 }
 
 // registerEditorGroupKeys registers the keys of the commands that close, switch and keep the editors
-// of a group. Ctrl+Tab and Ctrl+Shift+Tab are VS Code's keys of the editor picker
-// (workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup, step 6.17); until the picker exists
-// they run the recently used editor commands, which switch at once.
+// of a group, and those of the history of locations. Ctrl+Tab and Ctrl+Shift+Tab open the editor picker
+// (workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup and quickOpenLeastRecentlyUsedEditorInGroup);
+// pressed again inside the picker they move in it (quickOpenNavigateNext and PreviousInEditorPicker).
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts,
 // src/vs/workbench/browser/parts/editor/editorActions.ts and
@@ -103,8 +103,23 @@ func registerEditorGroupKeys(r *Registry) {
 		Rule{Command: "workbench.action.unpinEditor", Weight: WeightWorkbenchContrib, When: mustWhen("activeEditorIsPinned"), Primary: "ctrl+k shift+enter"},
 		Rule{Command: "workbench.action.nextEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+pagedown"},
 		Rule{Command: "workbench.action.previousEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+pageup"},
-		Rule{Command: "workbench.action.openNextRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+tab"},
-		Rule{Command: "workbench.action.openPreviousRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+tab"},
+		Rule{Command: "workbench.action.nextEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+pagedown"},
+		Rule{Command: "workbench.action.previousEditorInGroup", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+pageup"},
+		Rule{Command: "workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib,
+			When: mustWhen("!activeEditorGroupEmpty"), Primary: "ctrl+tab"},
+		Rule{Command: "workbench.action.quickOpenLeastRecentlyUsedEditorInGroup", Weight: WeightWorkbenchContrib,
+			When: mustWhen("!activeEditorGroupEmpty"), Primary: "ctrl+shift+tab"},
+		Rule{Command: "workbench.action.quickOpenNavigateNextInEditorPicker", Weight: WeightWorkbenchContrib + 50,
+			When: mustWhen("inQuickOpen", "inEditorsPicker"), Primary: "ctrl+tab"},
+		Rule{Command: "workbench.action.quickOpenNavigatePreviousInEditorPicker", Weight: WeightWorkbenchContrib + 50,
+			When: mustWhen("inQuickOpen", "inEditorsPicker"), Primary: "ctrl+shift+tab"},
+		Rule{Command: "workbench.action.showAllEditors", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+p"},
+
+		// the history of locations and the closed editors
+		Rule{Command: "workbench.action.navigateBack", Weight: WeightWorkbenchContrib, When: mustWhen("canNavigateBack"), Primary: "ctrl+alt+-"},
+		Rule{Command: "workbench.action.navigateForward", Weight: WeightWorkbenchContrib, When: mustWhen("canNavigateForward"), Primary: "ctrl+shift+-"},
+		Rule{Command: "workbench.action.navigateToLastEditLocation", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+q"},
+		Rule{Command: "workbench.action.reopenClosedEditor", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+t"},
 
 		// the paths of the file: Ctrl+Alt+C outside the editor, the chord with Ctrl+K in it (VS Code's
 		// Linux keys; Ctrl+K P copies the path of the active file anywhere)

@@ -11,6 +11,12 @@ type Button struct {
 	Icon int
 	// Tooltip is the hover text.
 	Tooltip string
+	// AlwaysVisible shows the button on every row, not only on the active row and the row under the pointer:
+	// the dirty mark of the editor picker.
+	AlwaysVisible bool
+	// HoverIcon, when set, is the Codicon the button shows while the pointer is over the row: the dirty dot
+	// turns into the cross.
+	HoverIcon int
 }
 
 // TriggerAction says what happens after an item's button was triggered (VS Code's TriggerAction).
@@ -55,6 +61,8 @@ type Item struct {
 	// of Icon, for the type of the color theme; false draws none. It runs on the UI thread, when the row is
 	// built.
 	FileIcon func(typ theme.Type) (theme.FileIcon, bool)
+	// Italic draws the label in italics: a preview editor in the editor picker.
+	Italic bool
 	// Separator makes the item the heading of the items after it: it cannot be chosen and its
 	// Label is drawn at the right of the next item shown, with a line above that item.
 	Separator bool

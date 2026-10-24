@@ -418,6 +418,24 @@ func quickInputState(a *keyApp) func() {
 	}
 }
 
+// historyState is the state of a window that can go back and forward in its history of locations.
+func historyState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Set("canNavigateBack", true)
+		a.win.Keys.Set("canNavigateForward", true)
+	}
+}
+
+// editorPickerState is the state of a window whose quick input shows the open editors, for the keys that move
+// in the picker.
+func editorPickerState(a *keyApp) func() {
+	return func() {
+		quickInputState(a)()
+		a.win.Keys.Set("inEditorsPicker", true)
+	}
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -434,7 +452,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
 				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a),
 				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true),
-				quickInputState(a))
+				quickInputState(a), historyState(a), editorPickerState(a))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
@@ -446,6 +464,9 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				a.win.Keys.Set("editorPartMultipleEditorGroups", false)
 				a.win.Keys.Reset("focusedView")
 				a.win.Keys.Reset("inQuickOpen")
+				a.win.Keys.Reset("inEditorsPicker")
+				a.win.Keys.Set("canNavigateBack", false)
+				a.win.Keys.Set("canNavigateForward", false)
 				a.win.Keys.Set("problemsFilterFocus", false)
 				a.win.Keys.Set("workbenchState", "empty")
 				state()

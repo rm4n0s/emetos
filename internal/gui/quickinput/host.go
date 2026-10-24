@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/services"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -97,6 +98,24 @@ type hostState struct {
 	version                int
 	hover                  int
 	providerKey            string
+
+	// keyHandle is the handler of the keyboard that sees the release of the keys that opened a switcher,
+	// whatever has the focus; observer tells when the window loses the keyboard focus.
+	keyHandle services.KeyHandlerHandle
+	observer  *viewFocusObserver
+	// bound is the binding the handlers were added to, which Dispose cannot look up again.
+	bound *widgets.WidgetsBinding
+}
+
+// viewFocusObserver tells the host when the window gets or loses the keyboard focus.
+type viewFocusObserver struct {
+	widgets.WidgetsBindingObserverBase
+	onFocus func(focused bool)
+}
+
+// DidChangeViewFocus implements widgets.WidgetsBindingObserver.
+func (o *viewFocusObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
+	o.onFocus(e.State == ui.ViewFocusStateFocused)
 }
 
 // InitState follows the controller and takes the command.
@@ -126,10 +145,16 @@ func (s *hostState) InitState() {
 	s.removeCtl = s.ctl.OnChange(s.controllerChanged)
 	s.wasVisible = s.ctl.Visible()
 	s.followPicker()
+	s.bound = s.binding()
+	s.keyHandle = s.bound.Keyboard().AddHandler(s.hardwareKey)
+	s.observer = &viewFocusObserver{onFocus: s.windowFocusChanged}
+	s.bound.AddObserver(s.observer)
 }
 
 // Dispose stops following the controller and gives the command back.
 func (s *hostState) Dispose() {
+	s.bound.Keyboard().RemoveHandler(s.keyHandle)
+	s.bound.RemoveObserver(s.observer)
 	if s.removeCtl != nil {
 		s.removeCtl()
 	}
@@ -285,10 +310,70 @@ func (s *hostState) closeOnFocusLost() bool {
 	return settings.Get[bool](st, "workbench.quickOpen.closeOnFocusLost", "")
 }
 
-// mods reads the modifier keys that are held.
+// mods reads the modifier keys that are held. A switcher opened by held keys ignores them: the keys that
+// opened it are held on purpose (VS Code turns the key modifiers off in the quick navigate mode).
 func (s *hostState) mods() KeyMods {
+	if s.ctl.QuickMode() {
+		return KeyMods{}
+	}
 	kb := s.binding().Keyboard()
 	return KeyMods{Ctrl: kb.IsControlPressed(), Alt: kb.IsAltPressed()}
+}
+
+// held reads the modifier keys that are held.
+func (s *hostState) held() Modifiers {
+	kb := s.binding().Keyboard()
+	return Modifiers{Ctrl: kb.IsControlPressed(), Shift: kb.IsShiftPressed(), Alt: kb.IsAltPressed(), Meta: kb.IsMetaPressed()}
+}
+
+// modifierOf is the modifier a key is, or 0.
+func modifierOf(k services.LogicalKeyboardKey) Modifier {
+	switch k {
+	case services.LogicalKeyboardKeyControl, services.LogicalKeyboardKeyControlLeft, services.LogicalKeyboardKeyControlRight:
+		return ModCtrl
+	case services.LogicalKeyboardKeyShift, services.LogicalKeyboardKeyShiftLeft, services.LogicalKeyboardKeyShiftRight:
+		return ModShift
+	case services.LogicalKeyboardKeyAlt, services.LogicalKeyboardKeyAltLeft, services.LogicalKeyboardKeyAltRight:
+		return ModAlt
+	case services.LogicalKeyboardKeyMeta, services.LogicalKeyboardKeyMetaLeft, services.LogicalKeyboardKeyMetaRight:
+		return ModMeta
+	}
+	return 0
+}
+
+// hardwareKey sees every key of the window, whatever has the focus. While a switcher waits for the release of
+// the keys that opened it, the release of the modifier chooses the active row. A key that is pressed while
+// the modifier is not held means that the release was missed (the focus was somewhere else when it came):
+// the switcher stops waiting and works as any picker. It never uses the event.
+func (s *hostState) hardwareKey(e services.KeyEvent) bool {
+	if !s.Mounted() || !s.ctl.QuickNavigating() {
+		return false
+	}
+	mod := modifierOf(e.LogicalKey())
+	switch e.(type) {
+	case *services.KeyUpEvent:
+		if mod != 0 {
+			s.ctl.QuickNavigateKeyUp(mod, s.held())
+		}
+	case *services.KeyDownEvent, *services.KeyRepeatEvent:
+		if mod == 0 && !s.ctl.QuickHeld(s.held()) {
+			s.ctl.DisarmQuickNavigate()
+		}
+	}
+	return false
+}
+
+// windowFocusChanged follows the keyboard focus of the window. A window that lost it will not send the
+// release of the keys any more: the switcher stops waiting for it, and closes when workbench.quickOpen.closeOnFocusLost
+// asks for it.
+func (s *hostState) windowFocusChanged(focused bool) {
+	if focused || !s.Mounted() || !s.ctl.Visible() {
+		return
+	}
+	s.ctl.DisarmQuickNavigate()
+	if s.closeOnFocusLost() {
+		s.ctl.Hide()
+	}
 }
 
 // handleKey is the keyboard of the quick input; the input box sees Enter first.
@@ -424,8 +509,13 @@ func (s *hostState) widget(bc widgets.BuildContext, width float64) widgets.Widge
 		OnChanged:        func(text string) { s.ctl.SetValue(text) },
 		OnSubmit:         func(string) { s.ctl.Accept(s.mods()) },
 	})
-	col := []widgets.Widget{
-		widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(headerPadding, headerPadding, headerPadding, 4), input),
+	var col []widgets.Widget
+	if pk.HideInput {
+		// The switcher has no input to see, but the input keeps the keyboard focus.
+		col = append(col, widgets.NewSizedBox(widgets.NewClipRect(input), widgets.SizedBoxOpts{Height: foundation.Some(0.0)}),
+			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(headerPadding)}))
+	} else {
+		col = append(col, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(headerPadding, headerPadding, headerPadding, 4), input))
 	}
 	if len(pk.Rows()) > 0 {
 		col = append(col, s.list(bc, colors))
