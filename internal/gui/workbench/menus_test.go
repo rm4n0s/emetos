@@ -258,9 +258,9 @@ func TestEditorContextMenuItems(t *testing.T) {
 
 func TestManageItemsWithNothingRegistered(t *testing.T) {
 	m := newMenuServices(nil)
-	// the command palette and the settings are the items of the Manage menu that the built-in rows have (the Settings row
-	// follows a line, as VS Code's group of configuration does)
-	if items := m.source.ManageItems(); len(items) != 3 || items[0].Label != "Command Palette..." || items[0].Keybinding != "Ctrl+Shift+P" || !items[1].Separator || items[2].Label != "Settings" || items[2].Keybinding != "Ctrl+," {
+	// the command palette, the settings and the keyboard shortcuts are the items of the Manage menu that the built-in rows
+	// have (the rows of the configuration follow a line, as VS Code's group of configuration does)
+	if items := m.source.ManageItems(); len(items) != 4 || items[0].Label != "Command Palette..." || items[0].Keybinding != "Ctrl+Shift+P" || !items[1].Separator || items[2].Label != "Settings" || items[2].Keybinding != "Ctrl+," || items[3].Label != "Keyboard Shortcuts" || items[3].Keybinding != "Ctrl+K Ctrl+S" {
 		t.Errorf("the Manage menu: %+v", items)
 	}
 	m.menus = command.NewMenuRegistry(m.commands)

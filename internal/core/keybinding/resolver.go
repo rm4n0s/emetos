@@ -30,6 +30,9 @@ type Item struct {
 	When contextkey.Expr
 	// IsDefault is set for the keybindings of the built-in keymap, false for the user's.
 	IsDefault bool
+	// FileEntry is the position of the entry in keybindings.json that made the item, counted from 1, or 0 for an
+	// item that was not read from the file (the keybindings UI finds the entry to edit with it).
+	FileEntry int
 
 	// evalWhen is When with the constant keys (isLinux, …) replaced.
 	evalWhen contextkey.Expr
@@ -53,6 +56,10 @@ func NewItem(kb Keybinding, command string, args any, when contextkey.Expr, isDe
 	}
 	return it
 }
+
+// Replace makes the resolver what o is, in place: the holders of r (the menus, the status bar, the dispatcher of a
+// window) see the keybindings of o from now on. It is how a window follows keybindings.json when the file changes.
+func (r *Resolver) Replace(o *Resolver) { *r = *o }
 
 // ResultKind tells what a key press resolved to.
 type ResultKind int

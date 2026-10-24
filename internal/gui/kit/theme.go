@@ -258,6 +258,11 @@ type Colors struct {
 	SettingsTextInputBackground, SettingsTextInputForeground, SettingsTextInputBorder       ui.Color
 	SettingsNumberInputBackground, SettingsNumberInputForeground, SettingsNumberInputBorder ui.Color
 	SettingsFocusedRowBackground, SettingsRowHoverBackground, SettingsFocusedRowBorder      ui.Color
+	// The colors of a table, and of the table of the keybindings editor (step 8.3): the line between the
+	// columns, the background of the odd rows, and the background of the header and of the alternating rows of
+	// the keyboard shortcuts table.
+	TableColumnsBorder, TableOddRowsBackground                     ui.Color
+	KeybindingTableHeaderBackground, KeybindingTableRowsBackground ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -458,6 +463,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		SettingsNumberInputBorder:    color("settings.numberInputBorder"),
 		SettingsFocusedRowBackground: color("settings.focusedRowBackground"), SettingsRowHoverBackground: color("settings.rowHoverBackground"),
 		SettingsFocusedRowBorder: color("settings.focusedRowBorder"),
+		TableColumnsBorder:       color("tree.tableColumnsBorder"), TableOddRowsBackground: color("tree.tableOddRowsBackground"),
+		KeybindingTableHeaderBackground: color("keybindingTable.headerBackground"), KeybindingTableRowsBackground: color("keybindingTable.rowsBackground"),
 	}
 }
 

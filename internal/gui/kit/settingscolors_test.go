@@ -39,3 +39,23 @@ func TestSettingsEditorColors(t *testing.T) {
 		t.Errorf("header border %v sash border %v", d.SettingsHeaderBorder, d.SettingsSashBorder)
 	}
 }
+
+func TestKeybindingsTableColors(t *testing.T) {
+	d, l := DarkModern(), LightModern()
+	for _, tc := range []struct {
+		name string
+		got  ui.Color
+		want uint32
+	}{
+		{"dark tree.tableColumnsBorder", d.TableColumnsBorder, 0x20CCCCCC},
+		{"light tree.tableColumnsBorder", l.TableColumnsBorder, 0x20616161},
+		{"dark tree.tableOddRowsBackground", d.TableOddRowsBackground, 0x0ACCCCCC},
+		{"light tree.tableOddRowsBackground", l.TableOddRowsBackground, 0x0A3B3B3B},
+		{"dark keybindingTable.headerBackground", d.KeybindingTableHeaderBackground, 0x0ACCCCCC},
+		{"light keybindingTable.rowsBackground", l.KeybindingTableRowsBackground, 0x0A3B3B3B},
+	} {
+		if tc.got != ui.NewColor(tc.want) {
+			t.Errorf("%s = %v, want %#08x", tc.name, tc.got, tc.want)
+		}
+	}
+}

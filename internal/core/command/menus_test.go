@@ -482,7 +482,7 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu", EditorContext, contextkey.MapContext{}, []string{"Cut", "Copy", "Paste", "-", "Select All"}},
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
-		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Settings"}},
+		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Settings", "Keyboard Shortcuts"}},
 		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Back", "Forward", "Last Edit Location", "-", "Switch Editor", "Switch Group", "-", "Go to File...", "-", "Go to Line/Column...", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
@@ -914,7 +914,7 @@ func TestSettingsMenus(t *testing.T) {
 		}
 		return out
 	}
-	if got := rowsOf(MenubarPreferencesMenu); len(got) != 1 || got[0] != "&&Settings=workbench.action.openSettings" {
+	if got := rowsOf(MenubarPreferencesMenu); len(got) != 2 || got[0] != "&&Settings=workbench.action.openSettings" || got[1] != "Keyboard Shortcuts=workbench.action.openGlobalKeybindings" {
 		t.Errorf("Preferences menu %v", got)
 	}
 	found := false
@@ -954,6 +954,67 @@ func TestSettingsMenus(t *testing.T) {
 	} {
 		if got := shown(c.command, c.ctx); got != c.want {
 			t.Errorf("%s shown in the palette = %v, want %v", c.command, got, c.want)
+		}
+	}
+}
+
+func TestKeybindingsEditorMenus(t *testing.T) {
+	reg := DefaultRegistry()
+	menus := DefaultMenus(reg)
+	for id, want := range map[string]Meta{
+		"workbench.action.openGlobalKeybindings":        {Title: "Open Keyboard Shortcuts", Category: "Preferences"},
+		"workbench.action.openGlobalKeybindingsFile":    {Title: "Open Keyboard Shortcuts (JSON)", Category: "Preferences"},
+		"workbench.action.openDefaultKeybindingsFile":   {Title: "Open Default Keyboard Shortcuts (JSON)", Category: "Preferences"},
+		"keybindings.editor.clearSearchResults":         {Title: "Clear Search Results"},
+		"keybindings.editor.defineKeybinding":           {},
+		"keybindings.editor.addKeybinding":              {},
+		"keybindings.editor.defineWhenExpression":       {},
+		"keybindings.editor.removeKeybinding":           {},
+		"keybindings.editor.resetKeybinding":            {},
+		"keybindings.editor.showConflicts":              {},
+		"keybindings.editor.copyKeybindingEntry":        {},
+		"keybindings.editor.copyCommandKeybindingEntry": {},
+		"keybindings.editor.copyCommandTitle":           {},
+		"keybindings.editor.searchKeybindings":          {},
+		"keybindings.editor.recordSearchKeys":           {},
+		"keybindings.editor.focusKeybindings":           {},
+	} {
+		meta, ok := reg.Lookup(id)
+		if !ok {
+			t.Errorf("command %s is not registered", id)
+		} else if meta.Title != want.Title || meta.Category != want.Category {
+			t.Errorf("%s: %+v, want %+v", id, meta, want)
+		}
+	}
+	// the rows of the menus
+	for _, menu := range []string{MenubarPreferencesMenu, GlobalActivity} {
+		found := false
+		for _, e := range menus.Items(menu, contextkey.MapContext{}) {
+			if e.Command == "workbench.action.openGlobalKeybindings" && e.Title == "Keyboard Shortcuts" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("the %s menu has no Keyboard Shortcuts row", menu)
+		}
+	}
+	// the palette lists the commands that open the files and hides Clear Search Results
+	hiddenInPalette := func(command string) bool {
+		for _, it := range menus.All() {
+			if it.Menu == CommandPalette && it.Command == command && it.When != nil && !it.When.Evaluate(contextkey.MapContext{}) {
+				return true
+			}
+		}
+		return false
+	}
+	for command, hidden := range map[string]bool{
+		"keybindings.editor.clearSearchResults":       true,
+		"workbench.action.openGlobalKeybindings":      false,
+		"workbench.action.openGlobalKeybindingsFile":  false,
+		"workbench.action.openDefaultKeybindingsFile": false,
+	} {
+		if got := hiddenInPalette(command); got != hidden {
+			t.Errorf("%s hidden in the palette = %v, want %v", command, got, hidden)
 		}
 	}
 }

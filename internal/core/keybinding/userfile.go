@@ -1,12 +1,26 @@
 package keybinding
 
 import (
+	"path/filepath"
 	"strconv"
 
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/errors"
 )
+
+// userFileName is the name of the user's keybindings file.
+const userFileName = "keybindings.json"
+
+// UserKeybindingsPath is the keybindings.json of a profile (SPEC §11.3), next to its settings.json.
+func UserKeybindingsPath(paths storage.Paths, profile string) (string, error) {
+	dir, err := paths.ConfigDir(profile)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, userFileName), nil
+}
 
 // Problem is something wrong with keybindings.json. The entry it concerns is skipped, the
 // others still apply.
@@ -47,6 +61,7 @@ func ParseUserFile(text string) ([]Item, []Problem) {
 			problems = append(problems, Problem{Index: i, Err: err})
 			continue
 		}
+		item.FileEntry = i + 1
 		items = append(items, item)
 	}
 	return items, problems

@@ -10,8 +10,9 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/jsonc"
 )
 
-// Settings in an open editor (SPEC §11.1): a settings.json that has a document open in the window is read and
-// edited through the document, not the file, as VS Code's JSONEditingService does. A change from the settings
+// Settings in an open editor (SPEC §11.1, §11.3): a settings.json (and the keybindings.json of the user, which the
+// same rule covers) that has a document open in the window is read and edited through the document, not the file,
+// as VS Code's JSONEditingService does. A change from the settings
 // editor (or the Auto Save toggle) is an edit of the document, which is saved when the document was not dirty before
 // it; a dirty document stays dirty and the file is left alone. The store reads the document's text for the layer.
 //
@@ -43,11 +44,17 @@ func (d *settingsDocs) install() {
 	d.rescan()
 }
 
-// wants tells whether a path is one of the settings files of the store.
+// wants tells whether a path is one of the settings files of the store, or the keybindings file of the user.
 func (d *settingsDocs) wants(path string) bool {
 	user, workspace := d.win.Settings.Paths()
 	path = filepath.Clean(path)
-	return path != "." && ((user != "" && filepath.Clean(user) == path) || (workspace != "" && filepath.Clean(workspace) == path))
+	return path != "." && ((user != "" && filepath.Clean(user) == path) || (workspace != "" && filepath.Clean(workspace) == path) || d.isKeybindings(path))
+}
+
+// isKeybindings tells whether a cleaned path is the keybindings file of the user.
+func (d *settingsDocs) isKeybindings(path string) bool {
+	k := d.win.userKeys
+	return k != nil && k.path != "" && filepath.Clean(k.path) == path
 }
 
 // rescan follows the documents that show a settings file and lets go of those that do not any more (the folder of
@@ -91,6 +98,8 @@ func (d *settingsDocs) opened(doc *document.Document) {
 	d.docs[path], d.texts[path] = doc, doc.Text()
 	d.stops[doc] = []func(){
 		doc.Subscribe(func(document.ChangeEvent) { d.changed(path, doc) }),
+		// what was typed counts when it is saved
+		doc.OnSaved(func(document.SavedEvent) { d.savedDoc(path, doc) }),
 		// a Save As gives the document another file: it is not a settings file any more
 		doc.OnURIChange(func(_, _ document.URI) { d.untrack(doc) }),
 	}
@@ -131,14 +140,33 @@ func (d *settingsDocs) changed(path string, doc *document.Document) {
 	d.texts[path] = doc.Text()
 	d.mu.Unlock()
 	if !doc.Dirty() {
-		d.reload()
+		d.reloadPath(path)
 	}
 }
 
-func (d *settingsDocs) reload() {
+// savedDoc keeps the text of a document that was saved and reads the file again.
+func (d *settingsDocs) savedDoc(path string, doc *document.Document) {
+	d.mu.Lock()
+	d.texts[path] = doc.Text()
+	d.mu.Unlock()
+	d.reloadPath(path)
+}
+
+// reload reads the settings and the keybindings again.
+func (d *settingsDocs) reload() { d.reloadPath("") }
+
+// reloadPath reads the file at a cleaned path again, or all of them for an empty path. It runs on the UI thread.
+func (d *settingsDocs) reloadPath(path string) {
 	w := d.win
-	if _, err := w.Settings.Reload(w.ctx); err != nil {
-		w.Process.Logger.Warn("reading the settings again failed", "err", err)
+	if path == "" || !d.isKeybindings(path) {
+		if _, err := w.Settings.Reload(w.ctx); err != nil {
+			w.Process.Logger.Warn("reading the settings again failed", "err", err)
+		}
+	}
+	if path == "" || d.isKeybindings(path) {
+		if k := w.userKeys; k != nil {
+			k.reload(w.ctx, false)
+		}
 	}
 }
 

@@ -436,6 +436,23 @@ func editorPickerState(a *keyApp) func() {
 	}
 }
 
+// keybindingsKeys are the context keys the keys of the keybindings editor look at.
+var keybindingsKeys = []string{"inKeybindings", "inKeybindingsSearch", "keybindingsSearchHasValue", "keybindingFocus", "whenFocus"}
+
+// keybindingsEditorState is the state of a window whose keybindings editor has the focus: in the search box (with
+// a search or without) or on a row of the table.
+func keybindingsEditorState(a *keyApp, search, hasValue bool) func() {
+	return func() {
+		unfocusedState(a)()
+		a.win.Keys.Batch(func() {
+			a.win.Keys.Set("inKeybindings", true)
+			a.win.Keys.Set("inKeybindingsSearch", search)
+			a.win.Keys.Set("keybindingsSearchHasValue", hasValue)
+			a.win.Keys.Set("keybindingFocus", !search)
+		})
+	}
+}
+
 func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	a := newKeyApp(t, "alpha beta\ngamma delta\nepsilon zeta\n")
 	ran, restore := a.spyOnCommands(t)
@@ -452,10 +469,14 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
 				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a),
 				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true),
-				quickInputState(a), historyState(a), editorPickerState(a))
+				quickInputState(a), historyState(a), editorPickerState(a),
+				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
+					a.win.Keys.Reset(key)
+				}
+				for _, key := range keybindingsKeys {
 					a.win.Keys.Reset(key)
 				}
 				a.win.Keys.Set("activeEditorIsPinned", false)

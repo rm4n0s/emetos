@@ -36,6 +36,7 @@ func DefaultRegistry() *Registry {
 	registerWindowCommands(r)
 	registerRecentCommands(r)
 	registerSettingsCommands(r)
+	registerKeybindingsEditorCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	return r
@@ -777,5 +778,35 @@ func registerSettingsCommands(r *Registry) {
 		Meta{ID: "workbench.action.openGlobalSettings", Title: "Open User Settings", Category: "Preferences"},
 		Meta{ID: "workbench.action.openRawDefaultSettings", Title: "Open Default Settings (JSON)", Category: "Preferences"},
 		Meta{ID: "workbench.action.openWorkspaceSettingsFile", Title: "Open Workspace Settings (JSON)", Category: "Preferences"},
+	)
+}
+
+// registerKeybindingsEditorCommands registers the commands of the keybindings editor (step 8.3): the ones that open
+// it and the files of the keybindings, and the ones it runs on its own rows and search box, which have no title
+// (VS Code lists them by id in its own table) except Clear Search Results. The palette does not list the commands
+// of the rows. Not registered: Sort by Precedence, Show System/Extension/User Keybindings, Clear Keyboard Shortcuts
+// Search History, Define Keybinding of a JSON editor, and the Accept and Reject of the when-clause box (the box
+// takes Enter and Escape itself).
+//
+// Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
+func registerKeybindingsEditorCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.openGlobalKeybindings", Title: "Open Keyboard Shortcuts", Category: "Preferences"},
+		Meta{ID: "workbench.action.openGlobalKeybindingsFile", Title: "Open Keyboard Shortcuts (JSON)", Category: "Preferences"},
+		Meta{ID: "workbench.action.openDefaultKeybindingsFile", Title: "Open Default Keyboard Shortcuts (JSON)", Category: "Preferences"},
+
+		Meta{ID: "keybindings.editor.searchKeybindings"},
+		Meta{ID: "keybindings.editor.clearSearchResults", Title: "Clear Search Results"},
+		Meta{ID: "keybindings.editor.recordSearchKeys"},
+		Meta{ID: "keybindings.editor.focusKeybindings"},
+		Meta{ID: "keybindings.editor.defineKeybinding"},
+		Meta{ID: "keybindings.editor.addKeybinding"},
+		Meta{ID: "keybindings.editor.defineWhenExpression"},
+		Meta{ID: "keybindings.editor.removeKeybinding"},
+		Meta{ID: "keybindings.editor.resetKeybinding"},
+		Meta{ID: "keybindings.editor.showConflicts"},
+		Meta{ID: "keybindings.editor.copyKeybindingEntry"},
+		Meta{ID: "keybindings.editor.copyCommandKeybindingEntry"},
+		Meta{ID: "keybindings.editor.copyCommandTitle"},
 	)
 }

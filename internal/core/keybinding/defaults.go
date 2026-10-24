@@ -69,6 +69,7 @@ func DefaultRegistry() *Registry {
 	registerSaveKeys(r)
 	registerWindowKeys(r)
 	registerSettingsKeys(r)
+	registerKeybindingsEditorKeys(r)
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
 	return r
@@ -539,5 +540,33 @@ func registerWindowKeys(r *Registry) {
 func registerSettingsKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.action.openSettings", Weight: WeightWorkbenchContrib, Primary: "ctrl+,"},
+	)
+}
+
+// registerKeybindingsEditorKeys registers the keys of the keybindings editor (step 8.3): Ctrl+K Ctrl+S opens it, and
+// the keys inside it work on its search box or on the row that has the focus. The editor sets the context keys
+// inKeybindings, inKeybindingsSearch, keybindingsSearchHasValue, keybindingFocus and whenFocus while it has the
+// focus. Reset, Show Same Keybindings, Copy Command ID and Copy Command Title have no key.
+//
+// Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
+func registerKeybindingsEditorKeys(r *Registry) {
+	const (
+		inEditor    = "inKeybindings"
+		onRow       = "keybindingFocus"
+		inSearch    = "inKeybindingsSearch"
+		searchValue = "keybindingsSearchHasValue"
+	)
+	r.MustRegister(
+		Rule{Command: "workbench.action.openGlobalKeybindings", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+s"},
+
+		Rule{Command: "keybindings.editor.searchKeybindings", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor), Primary: "ctrl+f"},
+		Rule{Command: "keybindings.editor.clearSearchResults", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, inSearch, searchValue), Primary: "escape"},
+		Rule{Command: "keybindings.editor.recordSearchKeys", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, inSearch), Primary: "alt+k"},
+		Rule{Command: "keybindings.editor.focusKeybindings", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, inSearch), Primary: "ctrl+down"},
+		Rule{Command: "keybindings.editor.defineKeybinding", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow, "!whenFocus"), Primary: "enter"},
+		Rule{Command: "keybindings.editor.addKeybinding", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow), Primary: "ctrl+k ctrl+a"},
+		Rule{Command: "keybindings.editor.defineWhenExpression", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow), Primary: "ctrl+k ctrl+e"},
+		Rule{Command: "keybindings.editor.removeKeybinding", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow, "!inputFocus"), Primary: "delete"},
+		Rule{Command: "keybindings.editor.copyKeybindingEntry", Weight: WeightWorkbenchContrib, When: mustWhen(inEditor, onRow, "!whenFocus"), Primary: "ctrl+c"},
 	)
 }

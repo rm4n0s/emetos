@@ -15,8 +15,8 @@ import (
 // the shell makes for every TextInput; any other input type has an editorKind: how its input comes back from the saved
 // state of the window, and how its editor, a pane, is made. A pane builds the widget that fills the group below the
 // tab strip, takes the keyboard focus when its group does, and ends with its input. The settings editor is the
-// first; the keyboard shortcuts editor (step 8.3), the diff editor (step 9.5) and the merge editor (step 9.7) are
-// registered the same way, in editorKinds.
+// first and the keyboard shortcuts editor (step 8.3) the second; the diff editor (step 9.5) and the merge editor
+// (step 9.7) are registered the same way, in editorKinds.
 
 // pane is the editor of an input that shows no text.
 type pane interface {
@@ -44,7 +44,7 @@ type editorKind struct {
 
 // editorKinds are the kinds of editors the window has besides the text editor.
 func editorKinds() []editorKind {
-	return []editorKind{settingsKind()}
+	return []editorKind{settingsKind(), keybindingsKind()}
 }
 
 // kindOf finds the kind of a type of input.

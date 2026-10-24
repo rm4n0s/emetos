@@ -214,41 +214,6 @@ func sepColor(colors kit.Colors, active bool, fg ui.Color) ui.Color {
 
 // keyCaps draws the label of a keybinding as key caps (VS Code's keybinding label): each key in a small box
 // with a border that is thicker below, a plus sign between the keys of a chord.
-func (s *hostState) keyCaps(bc widgets.BuildContext, colors kit.Colors, label string, lit bool, fg ui.Color) widgets.Widget {
-	capFg, border, bottom := colors.KeybindingLabelForeground, colors.KeybindingLabelBorder, colors.KeybindingLabelBottomBorder
-	bg := colors.KeybindingLabelBackground
-	if lit {
-		// the caps of the active row or of the row under the pointer have no background
-		capFg, bg, border, bottom = fg, ui.Color{}, colors.WidgetShadow, colors.WidgetShadow
-	}
-	var parts []widgets.Widget
-	for ci, chord := range KeyCaps(label) {
-		if ci > 0 {
-			parts = append(parts, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}))
-		}
-		for ki, key := range chord {
-			if ki > 0 {
-				parts = append(parts, widgets.NewText("+", widgets.TextOpts{Style: kit.TextStyleOf(bc, keyCapFontSize, capFg)}))
-			}
-			opts := painting.BoxDecorationOpts{
-				Border:       painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(border), Width: foundation.Some(1.0)}),
-				BorderRadius: painting.NewBorderRadiusCircular(3),
-			}
-			if bg.Alpha() > 0 {
-				opts.Color = foundation.Some(bg)
-			}
-			cap := widgets.NewStack([]widgets.Widget{
-				widgets.NewContainer(
-					widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(4, 1, 4, 2),
-						widgets.NewText(key, widgets.TextOpts{Style: kit.TextStyleOf(bc, keyCapFontSize, capFg)})),
-					widgets.ContainerOpts{Decoration: painting.NewBoxDecoration(opts)}),
-				// the border below is thicker and has a color of its own
-				widgets.NewPositioned(widgets.NewIgnorePointer(widgets.NewContainer(nil, widgets.ContainerOpts{
-					Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{Color: foundation.Some(bottom)})})),
-					widgets.PositionedOpts{Left: foundation.Some(2.0), Right: foundation.Some(2.0), Bottom: foundation.Some(0.0), Height: foundation.Some(2.0)}),
-			}, widgets.StackOpts{Fit: rendering.StackFitLoose})
-			parts = append(parts, widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, 1), cap))
-		}
-	}
-	return widgets.NewRow(parts, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+func (s *hostState) keyCaps(bc widgets.BuildContext, _ kit.Colors, label string, lit bool, fg ui.Color) widgets.Widget {
+	return kit.NewKeyCaps(bc, KeyCaps(label), kit.KeyCapsOpts{FontSize: keyCapFontSize, Lit: lit, Foreground: fg})
 }

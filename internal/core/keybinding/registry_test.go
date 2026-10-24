@@ -139,6 +139,18 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+q quits", nil, "ctrl+q", "workbench.action.quit"},
 		{"ctrl+shift+n opens a new window", nil, "ctrl+shift+n", "workbench.action.newWindow"},
 		{"ctrl+, opens the settings editor", nil, "ctrl+,", "workbench.action.openSettings"},
+		{"ctrl+f in the keybindings editor searches it", map[string]any{"inKeybindings": true}, "ctrl+f", "keybindings.editor.searchKeybindings"},
+		{"ctrl+f outside it finds in the editor", map[string]any{"editorFocus": true}, "ctrl+f", "actions.find"},
+		{"escape in its search box clears it", map[string]any{"inKeybindings": true, "inKeybindingsSearch": true, "keybindingsSearchHasValue": true}, "escape", "keybindings.editor.clearSearchResults"},
+		{"escape in an empty search box does nothing", map[string]any{"inKeybindings": true, "inKeybindingsSearch": true}, "escape", ""},
+		{"alt+k in its search box records keys", map[string]any{"inKeybindings": true, "inKeybindingsSearch": true}, "alt+k", "keybindings.editor.recordSearchKeys"},
+		{"ctrl+down in its search box goes to the rows", map[string]any{"inKeybindings": true, "inKeybindingsSearch": true}, "ctrl+down", "keybindings.editor.focusKeybindings"},
+		{"enter on a row defines its keybinding", map[string]any{"inKeybindings": true, "keybindingFocus": true}, "enter", "keybindings.editor.defineKeybinding"},
+		{"enter on a row whose when-clause is edited does not", map[string]any{"inKeybindings": true, "keybindingFocus": true, "whenFocus": true}, "enter", ""},
+		{"enter without a row does nothing", map[string]any{"inKeybindings": true}, "enter", ""},
+		{"delete on a row removes its keybinding", map[string]any{"inKeybindings": true, "keybindingFocus": true}, "delete", "keybindings.editor.removeKeybinding"},
+		{"delete in an input is the editor's", map[string]any{"inKeybindings": true, "keybindingFocus": true, "inputFocus": true}, "delete", "deleteRight"},
+		{"ctrl+c on a row copies it", map[string]any{"inKeybindings": true, "keybindingFocus": true}, "ctrl+c", "keybindings.editor.copyKeybindingEntry"},
 		{"ctrl+r opens the recent list", nil, "ctrl+r", "workbench.action.openRecent"},
 		{"ctrl+pagedown opens the next editor", nil, "ctrl+pagedown", "workbench.action.nextEditor"},
 		{"ctrl+pageup opens the previous editor", nil, "ctrl+pageup", "workbench.action.previousEditor"},
@@ -197,6 +209,22 @@ func TestDefaultKeymap(t *testing.T) {
 		t.Errorf("ctrl+k shift+enter with a pinned editor: %+v", res)
 	}
 
+	// the chords of the keybindings editor need a row
+	row := defaultContext(map[string]any{"inKeybindings": true, "keybindingFocus": true})
+	for _, tc := range []struct{ chords, want string }{
+		{"ctrl+k ctrl+a", "keybindings.editor.addKeybinding"},
+		{"ctrl+k ctrl+e", "keybindings.editor.defineWhenExpression"},
+	} {
+		kb := mustKB(t, tc.chords)
+		if res := resolver.Resolve(row, []string{kb[0].Dispatch()}, kb[1].Dispatch()); res.Kind != KbFound || res.Command != tc.want {
+			t.Errorf("%s on a row: %+v", tc.chords, res)
+		}
+		kb = mustKB(t, tc.chords)
+		if res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch()); res.Kind == KbFound && res.Command == tc.want {
+			t.Errorf("%s without a row: %+v", tc.chords, res)
+		}
+	}
+
 	// Chords.
 	for _, tc := range []struct{ chords, want string }{
 		{"ctrl+k ctrl+x", "editor.action.trimTrailingWhitespace"},
@@ -223,6 +251,7 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+k p", "workbench.action.files.copyPathOfActiveFile"},
 		{"ctrl+k ctrl+shift+n", "notifications.showList"},
 		{"ctrl+k ctrl+h", "workbench.action.output.toggleOutput"},
+		{"ctrl+k ctrl+s", "workbench.action.openGlobalKeybindings"},
 	} {
 		kb := mustKB(t, tc.chords)
 		res := resolver.Resolve(defaultContext(nil), []string{kb[0].Dispatch()}, kb[1].Dispatch())

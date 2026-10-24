@@ -25,13 +25,16 @@ var appCommands = map[string]bool{
 	"openRecentFolder": true, "openRecentFile": true,
 }
 
+// keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).
+const keybindingsEditorPrefix = "keybindings.editor."
+
 func TestEveryEditorCommandHasAHandler(t *testing.T) {
 	reg := command.DefaultRegistry()
 	have := CommandIDs()
 	var missing []string
 	for _, meta := range reg.All() {
 		if strings.HasPrefix(meta.ID, "workbench.") || strings.HasPrefix(meta.ID, "notifications.") ||
-			strings.HasPrefix(meta.ID, "problems.") {
+			strings.HasPrefix(meta.ID, "problems.") || strings.HasPrefix(meta.ID, keybindingsEditorPrefix) {
 			// the commands of the workbench, of the notifications and of the filter of the Problems panel are the workbench's and the window's (gui/workbench and gui/app bind them, and their tests check that they do)
 			continue
 		}

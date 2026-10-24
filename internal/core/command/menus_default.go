@@ -25,6 +25,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerExplorerContext(r)
 	registerQuickInputMenus(r)
 	registerSettingsMenus(r)
+	registerKeybindingsEditorMenus(r)
 	return r
 }
 
@@ -390,5 +391,19 @@ func registerSettingsMenus(r *MenuRegistry) {
 		MenuItem{Menu: CommandPalette, Command: "workbench.action.openSettings", When: contextkey.False()},
 		MenuItem{Menu: CommandPalette, Command: "workbench.action.openWorkspaceSettings", When: when("workbenchState != 'empty'")},
 		MenuItem{Menu: CommandPalette, Command: "workbench.action.openWorkspaceSettingsFile", When: when("workbenchState != 'empty'")},
+	)
+}
+
+// registerKeybindingsEditorMenus adds the rows of the keybindings editor (step 8.3): Keyboard Shortcuts (Ctrl+K
+// Ctrl+S) in the Preferences submenu of the File menu and in the Manage menu, and the palette rule that hides
+// Clear Search Results. The palette lists Open Keyboard Shortcuts and the two JSON commands.
+//
+// Ported from VS Code: src/vs/workbench/contrib/preferences/browser/preferences.contribution.ts
+func registerKeybindingsEditorMenus(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: MenubarPreferencesMenu, Command: "workbench.action.openGlobalKeybindings", Title: "Keyboard Shortcuts", Group: "2_configuration", Order: 4},
+		MenuItem{Menu: GlobalActivity, Command: "workbench.action.openGlobalKeybindings", Title: "Keyboard Shortcuts", Group: "2_configuration", Order: 4},
+
+		MenuItem{Menu: CommandPalette, Command: "keybindings.editor.clearSearchResults", When: contextkey.False()},
 	)
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"sort"
+	"unicode/utf8"
 
 	"github.com/rm4n0s/errors"
 )
@@ -269,4 +270,28 @@ func ApplyEdits(text string, edits []Edit) (string, error) {
 		last = e.Offset
 	}
 	return text, nil
+}
+
+// DiffEdit is the one edit that turns before into after: it replaces what is between their common start
+// and their common end. A caller that computed the new text of a document by other means (edits applied one
+// after the other, each to the text before it) hands the document this single edit. It never cuts inside a
+// character.
+func DiffEdit(before, after string) Edit {
+	start := 0
+	for start < len(before) && start < len(after) && before[start] == after[start] {
+		start++
+	}
+	endBefore, endAfter := len(before), len(after)
+	for endBefore > start && endAfter > start && before[endBefore-1] == after[endAfter-1] {
+		endBefore--
+		endAfter--
+	}
+	for start > 0 && start < len(before) && !utf8.RuneStart(before[start]) {
+		start--
+	}
+	for endBefore < len(before) && !utf8.RuneStart(before[endBefore]) {
+		endBefore++
+		endAfter++
+	}
+	return Edit{Offset: start, Length: endBefore - start, Content: after[start:endAfter]}
 }

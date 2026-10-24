@@ -29,6 +29,8 @@ type watchState struct {
 	// userSettings and workspaceSettings are the settings files, userDir the folder of the user's
 	// configuration.
 	userSettings, workspaceSettings, userDir string
+	// userKeybindings is the keybindings.json of the user.
+	userKeybindings string
 }
 
 // SnippetWorkspace is what snippets know of the folder of the window: WORKSPACE_NAME and
@@ -353,9 +355,9 @@ func filePath(scheme, path string) (string, bool) {
 func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 	st := &w.watch
 	st.mu.Lock()
-	userSettings, workspaceSettings := st.userSettings, st.workspaceSettings
+	userSettings, workspaceSettings, userKeybindings := st.userSettings, st.workspaceSettings, st.userKeybindings
 	st.mu.Unlock()
-	var settingsChanged, snippetsChanged bool
+	var settingsChanged, snippetsChanged, keybindingsChanged bool
 	snippetsDir := ""
 	if w.Process.Snippets != nil {
 		snippetsDir = w.Process.Snippets.Dir()
@@ -370,6 +372,9 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 			if touches(p, userSettings) || touches(p, workspaceSettings) {
 				settingsChanged = true
 			}
+			if touches(p, userKeybindings) {
+				keybindingsChanged = true
+			}
 			if snippetsDir != "" && (p == snippetsDir || isBelow(p, snippetsDir) || isBelow(snippetsDir, p)) {
 				snippetsChanged = true
 			}
@@ -379,6 +384,9 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 		if _, err := w.Settings.Reload(ctx); err != nil {
 			w.Process.Logger.Warn("reading the settings again failed", "err", err)
 		}
+	}
+	if keybindingsChanged && w.userKeys != nil {
+		w.userKeys.reload(ctx, true)
 	}
 	if snippetsChanged {
 		if err := w.Process.Snippets.Reload(ctx); err != nil {
@@ -424,6 +432,9 @@ func isBelow(path, dir string) bool {
 func (w *Window) rememberSettingsPaths(userSettings string, p *Process) {
 	st := &w.watch
 	st.userSettings = userSettings
+	if w.userKeys != nil {
+		st.userKeybindings = w.userKeys.path
+	}
 	if w.Folder != "" {
 		st.workspaceSettings = settings.WorkspaceSettingsPath(w.Folder)
 	}

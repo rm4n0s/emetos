@@ -133,6 +133,10 @@ type Window struct {
 	settingsDocs *settingsDocs
 	// uiModel is the model of the settings editor (SettingsModel).
 	uiModel *settings.UIModel
+	// userKeys is the keybindings.json of the user: the window reads it and the keybindings editor edits it.
+	userKeys *userKeys
+	// recorder is the recorder that the dispatcher hands the key presses to while it records keys (startRecording).
+	recorder keybinding.Recorder
 	// stops end what the window follows (the settings of the other windows, ...) when it is gone.
 	stops []func()
 	// controller is the controller of the platform window that shows this one, as the shell found it; nil
@@ -340,6 +344,11 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 	}
 	w.registerWindowCommands()
 	w.settingsDocs = newSettingsDocs(w)
+	keysPath, err := keybinding.UserKeybindingsPath(p.Paths, storage.DefaultProfile)
+	if err != nil {
+		return nil, err
+	}
+	w.userKeys = newUserKeys(w, keysPath)
 	w.Documents.onFile = w.followFile
 	w.Documents.onClose = w.unfollowFile
 	if folder != "" {
@@ -350,6 +359,7 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 	w.initState(ctx)
 	w.syncWorkbenchState()
 	w.settingsDocs.install()
+	w.userKeys.reload(ctx, false)
 	w.rememberSettingsPaths(userPath, p)
 	w.followWorkspaceSettings()
 	w.followTheme()

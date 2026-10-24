@@ -905,3 +905,36 @@ func TestListControllerReveal(t *testing.T) {
 	}
 	r.noErrors()
 }
+
+func TestListContextMenuAndRowPadding(t *testing.T) {
+	var asked []string
+	var at ui.Offset
+	r := newListViewRig(t, listViewRigOpts{list: ListOpts{
+		RowPadding: foundation.Some(0.0),
+		OnContextMenu: func(row ListViewRow, position ui.Offset) {
+			asked = append(asked, row.Key)
+			at = position
+		},
+		Render: func(bc widgets.BuildContext, row ListViewRow, st RowState) widgets.Widget {
+			return widgets.NewKeyedSubtree(widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(20.0), Height: foundation.Some(10.0)}),
+				widgets.WidgetOpts{Key: foundation.NewValueKey("cell-" + row.Key)})
+		},
+	}})
+	// the contents start at the left edge: there is no padding
+	if left := r.ts.TopLeft(gluttertest.ByKey(foundation.NewValueKey("cell-a"))).Dx; left != 0 {
+		t.Errorf("the contents start at %v", left)
+	}
+	right := gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.SecondaryButton)}
+	r.ts.TapAt(ui.Offset{Dx: 100, Dy: r.y(2)}, right)
+	r.settle()
+	if !slices.Equal(asked, []string{"c"}) || at.Dx != 100 || at.Dy != r.y(2) {
+		t.Errorf("asked %q at %v", asked, at)
+	}
+	if got := focusKey(r.m); got != "c" || !r.ctrl.HasFocus() {
+		t.Errorf("focus %q %v", got, r.ctrl.HasFocus())
+	}
+	if len(r.opened) != 0 || len(r.selected) != 0 {
+		t.Errorf("a right click opened %q or selected %q", r.opened, r.selected)
+	}
+	r.noErrors()
+}

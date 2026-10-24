@@ -27,6 +27,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerPanelViewColors(r)
 	registerTabColors(r)
 	registerSettingsEditorColors(r)
+	registerKeybindingsEditorColors(r)
 	return r
 }
 
@@ -984,5 +985,25 @@ func registerSettingsEditorColors(r *ColorRegistry) {
 			Description: "The background color of a settings row when hovered."},
 		ColorContribution{ID: "settings.focusedRowBorder", Defaults: AllThemes(Ref("focusBorder")),
 			Description: "The color of the row's top and bottom border when the row is focused."},
+	)
+}
+
+// registerKeybindingsEditorColors registers the colors of the table of the keybindings editor (step 8.3): the
+// lines between the columns of a table, the background of its odd rows and the two that the keybindings editor
+// gives to its header and its alternating rows.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/listColors.ts (the table colors) and
+// src/vs/workbench/contrib/preferences/browser/keybindingsEditor.ts (keybindingTable.*)
+func registerKeybindingsEditorColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "tree.tableColumnsBorder", Defaults: dflt(Hex("#CCCCCC20"), Hex("#61616120"), nil, nil),
+			Description: "Table border color between columns."},
+		ColorContribution{ID: "tree.tableOddRowsBackground", NeedsTransparency: true,
+			Defaults:    dflt(Transparent(Ref("foreground"), 0.04), Transparent(Ref("foreground"), 0.04), nil, nil),
+			Description: "Background color for odd table rows."},
+		ColorContribution{ID: "keybindingTable.headerBackground", NeedsTransparency: true, Defaults: AllThemes(Ref("tree.tableOddRowsBackground")),
+			Description: "Background color for the keyboard shortcuts table header."},
+		ColorContribution{ID: "keybindingTable.rowsBackground", NeedsTransparency: true, Defaults: AllThemes(Ref("tree.tableOddRowsBackground")),
+			Description: "Background color for the keyboard shortcuts table alternating rows."},
 	)
 }

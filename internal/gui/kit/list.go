@@ -49,6 +49,12 @@ type ListOpts struct {
 	OnSelect func(row ListViewRow)
 	// OnOpen is called when the user opens a row: Enter, or a double click.
 	OnOpen func(row ListViewRow)
+	// OnContextMenu is called when the user presses the secondary button on a row (a context menu), with the row,
+	// which is the focused one now, and the position of the pointer in the coordinates of the window.
+	OnContextMenu func(row ListViewRow, position ui.Offset)
+	// RowPadding is the room before the contents of a row; the default is 8 px. A table whose rows paint a
+	// background across the whole row sets 0.
+	RowPadding foundation.Opt[float64]
 	// OnSelectionChange is called when the user changed the selected rows (a click, Ctrl+click, Shift+click, a
 	// key), with their keys and indexes in the order of the rows. It is not called for changes the program
 	// makes.
@@ -354,6 +360,12 @@ func (s *listState) down(key string, e *gestures.PointerDownEvent) {
 	s.model.SetFocus(key)
 	s.model.SetFindTyping(false)
 	s.node.RequestFocus()
+	if e.Buttons()&gestures.SecondaryButton != 0 {
+		if f := s.Widget().opts.OnContextMenu; f != nil {
+			f(s.model.Row(s.model.IndexOf(key)), e.Position())
+			return
+		}
+	}
 	s.drag.press(e, key)
 	if e.Buttons()&gestures.PrimaryButton == 0 {
 		return
@@ -495,7 +507,7 @@ func (s *listState) buildRow(bc widgets.BuildContext, i int) widgets.Widget {
 		contents = defaultListRender(bc, row, st)
 	}
 	body := widgets.NewRow([]widgets.Widget{
-		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(listRowPadding)}),
+		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(l.opts.RowPadding.OrElse(listRowPadding))}),
 		widgets.NewExpanded(widgets.NewAlign(contents, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})),
 	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 	layers := []widgets.Widget{widgets.NewSizedBox(body, widgets.SizedBoxOpts{Height: foundation.Some(height)})}

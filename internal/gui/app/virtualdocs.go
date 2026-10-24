@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 )
 
@@ -20,7 +21,8 @@ const (
 )
 
 // registerVirtualDocuments makes the registry of the virtual documents with the providers Emetos has: the default
-// settings, made from the registry of settings each time the document is opened.
+// settings, made from the registry of settings each time the document is opened, and the default keyboard
+// shortcuts, made from the keymap.
 func (p *Process) registerVirtualDocuments() {
 	p.Virtual = document.NewVirtualRegistry()
 	err := p.Virtual.Register(DefaultSettingsPath, document.VirtualProvider{
@@ -29,6 +31,13 @@ func (p *Process) registerVirtualDocuments() {
 	})
 	if err != nil {
 		// the path is fixed and the registry is new: this is a broken build
+		panic(err)
+	}
+	err = p.Virtual.Register(DefaultKeybindingsPath, document.VirtualProvider{
+		Label: DefaultKeybindingsLabel, Language: "jsonc",
+		Text: func(context.Context) (string, error) { return keybinding.DefaultKeybindingsJSON(p.Keymap), nil },
+	})
+	if err != nil {
 		panic(err)
 	}
 }

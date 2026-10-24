@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"unicode/utf8"
 
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/jsonc"
@@ -670,27 +669,8 @@ func (s *Store) pruneEmptyBlock(text string, path jsonc.Path, opts jsonc.Formatt
 	return jsonc.ApplyEdits(text, edits)
 }
 
-// diffEdit is the one edit that turns before into after: it replaces what is between their common start and end.
-func diffEdit(before, after string) jsonc.Edit {
-	start := 0
-	for start < len(before) && start < len(after) && before[start] == after[start] {
-		start++
-	}
-	endBefore, endAfter := len(before), len(after)
-	for endBefore > start && endAfter > start && before[endBefore-1] == after[endAfter-1] {
-		endBefore--
-		endAfter--
-	}
-	// never cut inside a character
-	for start > 0 && start < len(before) && !utf8.RuneStart(before[start]) {
-		start--
-	}
-	for endBefore < len(before) && !utf8.RuneStart(before[endBefore]) {
-		endBefore++
-		endAfter++
-	}
-	return jsonc.Edit{Offset: start, Length: endBefore - start, Content: after[start:endAfter]}
-}
+// diffEdit is the one edit that turns before into after (see jsonc.DiffEdit).
+func diffEdit(before, after string) jsonc.Edit { return jsonc.DiffEdit(before, after) }
 
 // Keys returns the dotted keys set in a file, sorted; the settings UI lists them.
 func (s *Store) Keys(target Target) []string {
@@ -703,6 +683,13 @@ func (s *Store) Keys(target Target) []string {
 	keys := s.reg.flatten(m.rawConfiguration().contents)
 	sort.Strings(keys)
 	return keys
+}
+
+// DetectIndentation finds how a text is indented from its first indented line (see the indentation a settings
+// file keeps when the store edits it): with tabs, or with that many spaces; ok is false when no line is indented
+// or the indentation mixes both.
+func DetectIndentation(text string) (tabSize int, insertSpaces, ok bool) {
+	return detectIndentation(text)
 }
 
 // detectIndentation finds how a file is indented from its first indented line: with tabs,
