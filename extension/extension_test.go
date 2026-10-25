@@ -38,6 +38,22 @@ func TestCheckManifest(t *testing.T) {
 		{"a handled topic that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{Handles: []string{""}}}, "checkEventDecl->CheckTopic.EventTopicInvalid"},
 		{"a pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{Subscribes: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
 		{"cross-tab topics", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"emetos.document.*", "a.**"}}}, ""},
+		{"views, panel views and actions", Manifest{ID: "a", Name: "N", Contributes: Contributes{
+			ViewContainers: []ViewContainerSpec{{ID: "a.box", Title: "Box", Icon: "list"}},
+			Views:          []ViewSpec{{ID: "a.view", Name: "View", Container: "a.box"}, {ID: "a.in-explorer", Name: "In Explorer", Container: "workbench.view.explorer"}},
+			PanelViews:     []PanelViewSpec{{ID: "a.tab", Title: "Tab"}},
+			ViewActions:    []ViewActionSpec{{View: "a.view", Command: "a.go", Icon: "play"}, {View: "a.tab", Command: "a.stop", Icon: "stop"}},
+		}}, ""},
+		{"a container of another extension's id", Manifest{ID: "a", Name: "N", Contributes: Contributes{ViewContainers: []ViewContainerSpec{{ID: "b.box", Title: "Box"}}}}, "checkViews.func1.ExtensionViewIDForeign"},
+		{"a view that is the id of the extension", Manifest{ID: "a", Name: "N", Contributes: Contributes{Views: []ViewSpec{{ID: "a.", Name: "V", Container: "x"}}}}, "checkViews.func1.ExtensionViewIDForeign"},
+		{"a view and a panel view with the same id", Manifest{ID: "a", Name: "N", Contributes: Contributes{
+			Views: []ViewSpec{{ID: "a.v", Name: "V", Container: "x"}}, PanelViews: []PanelViewSpec{{ID: "a.v", Title: "V"}}}}, "checkViews.func1.ExtensionViewDuplicate"},
+		{"a container with no title", Manifest{ID: "a", Name: "N", Contributes: Contributes{ViewContainers: []ViewContainerSpec{{ID: "a.box"}}}}, "checkViews.ExtensionViewInvalid"},
+		{"a view with no container", Manifest{ID: "a", Name: "N", Contributes: Contributes{Views: []ViewSpec{{ID: "a.v", Name: "V"}}}}, "checkViews.ExtensionViewInvalid"},
+		{"a panel view with no title", Manifest{ID: "a", Name: "N", Contributes: Contributes{PanelViews: []PanelViewSpec{{ID: "a.v"}}}}, "checkViews.ExtensionViewInvalid"},
+		{"an action of a view that is not there", Manifest{ID: "a", Name: "N", Contributes: Contributes{ViewActions: []ViewActionSpec{{View: "a.v", Command: "a.c", Icon: "x"}}}}, "checkViews.ExtensionViewActionInvalid"},
+		{"an action with no command", Manifest{ID: "a", Name: "N", Contributes: Contributes{
+			PanelViews: []PanelViewSpec{{ID: "a.v", Title: "V"}}, ViewActions: []ViewActionSpec{{View: "a.v", Icon: "x"}}}}, "checkViews.ExtensionViewActionInvalid"},
 		{"a cross-tab pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
 	}
 	for _, tt := range tests {

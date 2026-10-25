@@ -121,6 +121,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M13 The Agents extension | 13.1–13.3 |
 | M14 The Go extension | 14.1–14.3 |
 | M15 Remote control of a workspace | 15.1–15.4 |
+| M16 Wrap-up | 16.1 |
 
 ---
 
@@ -1300,3 +1301,15 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Tasks:** the window tab kind "Remote Workspace..." in the `+` menu (host, port, key file or agent; the tab titled `<host>: <workspace>` with a remote icon), the picture drawn from tiles at the tab's size (resize sends the new size), keys with their text, mouse and scroll sent, clipboard on copy and paste both ways, A's notifications shown on B with their actions run on A, reconnection after a drop, the disconnect reasons shown; A's side wires the headless view of 15.1 to the session; the tab's state saved (host, port, key path; never a passphrase or token).
 **Tests:** two Emetos instances in one test process on loopback (or two `gluttertest` apps): B opens A's workspace, types into a file that changes on A, A's edit appears on B, copy and paste across, a notification's action runs on A, Disconnect on A ends B's tab with its reason, reconnection.
 **Proof:** method B: two isolated Emetos instances started by the step's proof script on loopback, B's window showing A's workspace in a remote tab beside its own workspace tab.
+
+---
+
+## M16: Wrap-up
+
+### 16.1 Update the README
+**Goal:** `README.md` describes Emetos as it is after every other step (the user's request of 2026-10-26).
+**Read:** `README.md`, `docs/IMPLEMENTED.md` (the entries after 10.2 and the coverage table), SPEC §1, §3, §10.15–§10.18, §16, §18.
+**Tasks:** bring every section of the README up to date: the status and version (the areas and milestones now built, what is still planned), the feature lists (extensions and their seven kinds of contribution, event sharing, the bundled extensions such as TODOs, Tasks, the Markdown preview, notes, scratchpad, Agents, Go, remote control, and the language intelligence of M12), install and requirements (the `claude` program, `gopls` and the tools, the remote control port and keys, with the security notes of SPEC §10.18), where the new state files live (`event-sharing.json`, `remote-control.json`, `remote-hosts.json`), privacy (what talks to the network now: the agent's own program, remote control, language servers; still no telemetry), the command line, and fresh screenshots made with `scripts/screenshots.sh` (add the new ones: an extension view, a session of the Agents extension, a Go file with hovers or completion, a remote tab); every link and image resolves; the coverage table in `docs/IMPLEMENTED.md` gets the rows of the areas built since 10.2.
+**Tests:** a check that every relative link and image of the README resolves (a test or a script run in the checks).
+**Proof:** the README's screenshots, viewed.
+

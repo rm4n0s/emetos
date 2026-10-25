@@ -60,8 +60,7 @@ func TestEveryPackHasItsFiles(t *testing.T) {
 		m := f().Manifest()
 		fsys := m.Contributes.Languages
 		if fsys == nil {
-			t.Errorf("%s is not a language pack", m.ID)
-			continue
+			continue // an extension of the workbench (the TODOs view, the Tasks tab), not a language pack
 		}
 		packs++
 		data, err := fs.ReadFile(fsys, "package.json")

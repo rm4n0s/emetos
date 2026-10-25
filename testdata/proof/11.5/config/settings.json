@@ -1,0 +1,5 @@
+{
+	"emetos.tasks.commands": ["go vet ./...", "go test ./..."],
+	"editor.minimap.enabled": false,
+	"workbench.colorTheme": "Dark Modern"
+}

@@ -52,6 +52,8 @@ type Host struct {
 	// owners tells who registered each setting key of the extensions and how many scopes hold it: a setting is registered
 	// once for the process, by the first scope that needs it, and removed with the last.
 	owners map[string]*settingOwner
+	// channelHolds counts the activations that hold each Output channel by name; the last to let go removes the channel.
+	channelHolds map[string]int
 
 	// languages is the registry of the language packs, packs the extensions that have one by id (languages.go); both are
 	// guarded by mu.

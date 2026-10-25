@@ -15,9 +15,11 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
@@ -157,6 +159,16 @@ type tab struct {
 	frames   []func()
 	clock    *fakeClock
 
+	// views, ctxKeys, markers and channels are the views model, the context keys, the Problems and the Output store of the
+	// tab; shownChannels records the calls of ShowChannel and folder is the real folder of the tab when a test gives it one.
+	views         *workbench.Views
+	layout        *workbench.Layout
+	ctxKeys       *contextkey.Scope
+	markers       *problems.Service
+	channels      *logs.Store
+	shownChannels []string
+	complete      bool
+
 	// asked are the questions the tab was asked about links, and answers the functions that answer them (askSharing).
 	asked   []SharingAsk
 	answers []func(SharingAnswer)
@@ -173,6 +185,16 @@ type rig struct {
 	sharing *storage.SharingStore
 	noID    map[string]bool
 	noAsk   map[string]bool
+	// folders gives a tab a real folder instead of /work/<name>.
+	folders map[string]string
+}
+
+// folderOf is the folder of the tab named name.
+func (r *rig) folderOf(name string) string {
+	if f, ok := r.folders[name]; ok {
+		return f
+	}
+	return "/work/" + name
 }
 
 // newRig makes a host over the factories.
@@ -192,7 +214,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, folders: map[string]string{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -206,14 +228,23 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	tb.clock = &fakeClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	tb.store = settings.NewStore(r.registry, settings.StoreOptions{UserPath: filepath.Join(r.t.TempDir(), "settings.json")})
 	tb.notify = notify.NewService(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), nil)
+	tb.layout = workbench.NewLayout(workbench.LayoutStateFromSettings(tb.store))
+	tb.views = workbench.NewViews(command.DefaultViews(), tb.layout)
+	tb.ctxKeys = contextkey.NewRoot()
+	tb.markers = problems.NewService()
+	tb.channels = logs.NewStore(0)
+	tb.complete = true
 	tb.scope = r.host.NewScope(ScopeOptions{
-		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: "/work/" + name, ID: r.scopeID(name)},
+		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
 		Ctx:  context.Background(), Commands: commands, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
 		Notify: tb.notify, StatusBar: tb.bar, Documents: tb.docs,
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
 		Post: tb.post, AskSharing: r.askFunc(tb, name),
-		Frame: func(f func()) { tb.evMu.Lock(); tb.frames = append(tb.frames, f); tb.evMu.Unlock() },
-		After: tb.clock.after, Now: tb.clock.nowFunc,
+		Views: tb.views, Keys: tb.ctxKeys, Markers: tb.markers, Channels: tb.channels,
+		ShowChannel:   func(name string, _ bool) { tb.shownChannels = append(tb.shownChannels, name) },
+		FilesComplete: func() bool { return tb.complete },
+		Frame:         func(f func()) { tb.evMu.Lock(); tb.frames = append(tb.frames, f); tb.evMu.Unlock() },
+		After:         tb.clock.after, Now: tb.clock.nowFunc,
 		Logger: slog.New(slog.NewTextHandler(tb.log, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	})
 	r.t.Cleanup(tb.scope.Close)

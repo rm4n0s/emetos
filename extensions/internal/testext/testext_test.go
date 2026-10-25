@@ -9,8 +9,10 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 )
 
-// recorder is an extension.API that remembers what the extension did with it.
+// recorder is an extension.API that remembers what the extension did with it. It implements what testext uses; the rest
+// of the interface is the embedded one, which is nil, so a call of a part testext does not use panics.
 type recorder struct {
+	extension.API
 	handlers      map[string]extension.CommandHandler
 	settings      []string
 	statusUpdates []string

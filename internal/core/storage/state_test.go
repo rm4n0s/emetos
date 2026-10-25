@@ -265,6 +265,7 @@ func TestWindowStateRoundTrip(t *testing.T) {
 		Grid:     ptr(sampleGrid(t)),
 		Explorer: &storage.ExplorerState{Expanded: []string{"internal", "internal/core", "docs"}},
 		Recent:   []string{"/work/project/main.go", "/work/project/go.mod"},
+		Views:    map[string]json.RawMessage{"emetos.todo.list": json.RawMessage(`{"expanded":["main.go"]}`), "emetos.tasks.panel": json.RawMessage(`{"command":"go test ./..."}`)},
 	}
 	if err := s.SaveWindow(id, want); err != nil {
 		t.Fatal(err)

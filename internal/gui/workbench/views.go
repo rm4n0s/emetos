@@ -36,8 +36,32 @@ func NewViews(registry *command.ViewRegistry, layout *Layout) *Views {
 	if cs := registry.Containers(command.ViewLocationPanel); len(cs) > 0 {
 		v.activePanel = cs[0].ID
 	}
+	// containers and views come and go with the extensions of the window
+	registry.OnChange(v.registryChanged)
 	return v
 }
+
+// registryChanged follows a change of the containers: the container that was shown and is gone is replaced by the first
+// one of its place, and everybody who follows the views is told.
+func (v *Views) registryChanged() {
+	if _, ok := v.registry.Container(v.active); !ok {
+		v.active = ""
+		if cs := v.registry.Containers(command.ViewLocationSideBar); len(cs) > 0 {
+			v.active = cs[0].ID
+		}
+	}
+	if _, ok := v.registry.Container(v.activePanel); !ok {
+		v.activePanel = ""
+		if cs := v.registry.Containers(command.ViewLocationPanel); len(cs) > 0 {
+			v.activePanel = cs[0].ID
+		}
+	}
+	v.notify()
+}
+
+// Changed tells the listeners of OnChange that something the views show changed without the registry changing: a badge,
+// a context key that a `when` reads, the title actions of a view.
+func (v *Views) Changed() { v.notify() }
 
 // Registry is the registry the views come from.
 func (v *Views) Registry() *command.ViewRegistry { return v.registry }
@@ -85,6 +109,17 @@ func (v *Views) OpenPanel(id string) {
 	if changed {
 		v.notify()
 	}
+}
+
+// TogglePanel is the command of a view of the panel: the panel is hidden when it shows the tab of the container, and shows
+// the tab otherwise. It reports whether the tab is shown afterwards.
+func (v *Views) TogglePanel(id string) (shown bool) {
+	if v.layout != nil && v.layout.State().PanelVisible && v.activePanel == id {
+		v.layout.SetPanelVisible(false)
+		return false
+	}
+	v.OpenPanel(id)
+	return v.activePanel == id
 }
 
 // Toggle is a click on an icon of the activity bar: the container of the icon opens, and the one that

@@ -167,6 +167,10 @@ const (
 	TopicWorkspaceClosed = "emetos.workspace.closed"
 	// TopicWindowTabActivated: the window tab of the scope became the one the window shows. Payload WorkspaceInfo.
 	TopicWindowTabActivated = "emetos.windowTab.activated"
+	// TopicFilesChanged: files of the folder of the workspace were created, changed, deleted or renamed, as the watcher
+	// of the folder saw it, or the list of files that Workspace().Files gives changed. Payload FilesChanged. It is not
+	// published for a workspace with no folder.
+	TopicFilesChanged = "emetos.files.changed"
 	// TopicSharingRevoked: a link that let the events of another window tab reach this one was removed, or that tab
 	// became private. It is published in the receiving tab. Payload SharingRevoked.
 	TopicSharingRevoked = "emetos.sharing.revoked"
@@ -253,6 +257,40 @@ type EditorSelection struct {
 	// Selections are all the selections of the editor; the first is the primary one.
 	Selections []Selection `json:"selections"`
 }
+
+// The kinds of FileChange.
+const (
+	// FileCreated: a new file. FileChanged: a file whose content changed. FileDeleted: a file or a folder that is gone.
+	FileCreated = "created"
+	FileChanged = "changed"
+	FileDeleted = "deleted"
+	// FileRenamed: an item moved from OldPath to Path.
+	FileRenamed = "renamed"
+	// FileRescan: events were lost below Path (or a folder was deleted or renamed): read everything below it again.
+	FileRescan = "rescan"
+	// FileListed: the list of files that Workspace().Files gives changed (the walk of the folder found more files or
+	// ended): read it again. Path is empty.
+	FileListed = "listed"
+)
+
+// FileChange is one change of a file or folder of the workspace.
+type FileChange struct {
+	// Kind is one of FileCreated, FileChanged, FileDeleted, FileRenamed, FileRescan and FileListed.
+	Kind string `json:"kind"`
+	// Path is the path relative to the folder, with forward slashes ("." for the folder itself).
+	Path string `json:"path,omitempty"`
+	// OldPath is where a renamed item was, in the same form.
+	OldPath string `json:"oldPath,omitempty"`
+}
+
+// FilesChanged is the payload of TopicFilesChanged: what the watcher reported in one go, at most MaxFileChanges of it
+// (a larger batch is one FileRescan of ".").
+type FilesChanged struct {
+	Changes []FileChange `json:"changes"`
+}
+
+// MaxFileChanges is the most changes a FilesChanged carries.
+const MaxFileChanges = 500
 
 // WorkspaceInfo is the payload of the workspace events and of TopicWindowTabActivated.
 type WorkspaceInfo struct {
@@ -428,5 +466,5 @@ func MatchTopic(pattern, topic string) bool {
 // them).
 var reservedIDs = map[string]bool{
 	"emetos": true, "emetos.document": true, "emetos.editor": true, "emetos.workspace": true,
-	"emetos.sharing": true,
+	"emetos.sharing": true, "emetos.files": true,
 }

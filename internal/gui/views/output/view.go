@@ -303,7 +303,7 @@ func (v *View) flush() {
 	v.scheduled = false
 	v.pendingMu.Unlock()
 
-	listChanged := false
+	listChanged, activeGone := false, false
 	var added []string
 	for _, p := range events {
 		if p.gen != v.gen {
@@ -312,6 +312,9 @@ func (v *View) flush() {
 		switch ev := p.ev; ev.Kind {
 		case logs.EventChannelAdded:
 			listChanged = true
+		case logs.EventChannelRemoved:
+			listChanged = true
+			activeGone = activeGone || ev.Channel == v.active
 		case logs.EventLine:
 			if ev.Channel == v.active {
 				added = append(added, ev.Line)
@@ -329,6 +332,10 @@ func (v *View) flush() {
 	if listChanged {
 		v.names = slices.Clone(v.opts.Store.Names())
 		v.notify()
+	}
+	if activeGone {
+		// the channel that was shown went with its extension: the view goes back to the log of Emetos
+		v.SetActive(logs.MainChannel)
 	}
 }
 

@@ -68,10 +68,71 @@ type ViewRegistry struct {
 	mu         sync.RWMutex
 	containers []ViewContainer
 	views      []View
+	listeners  []*func()
 }
 
 // NewViewRegistry makes an empty registry.
 func NewViewRegistry() *ViewRegistry { return &ViewRegistry{} }
+
+// Fork makes a registry with the containers and the views of r. The two are independent from then on: what is added to
+// or removed from one is not in the other. A window forks the registry of the process, so the views its extensions add
+// are its own (SPEC §10.15).
+func (r *ViewRegistry) Fork() *ViewRegistry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return &ViewRegistry{containers: slices.Clone(r.containers), views: slices.Clone(r.views)}
+}
+
+// OnChange calls fn after a container or a view was added or removed, on the goroutine that changed the registry and
+// with no lock held, and returns the function that stops it.
+func (r *ViewRegistry) OnChange(fn func()) (unsubscribe func()) {
+	p := &fn
+	r.mu.Lock()
+	r.listeners = append(r.listeners, p)
+	r.mu.Unlock()
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if i := slices.Index(r.listeners, p); i >= 0 {
+			r.listeners = slices.Delete(r.listeners, i, i+1)
+		}
+	}
+}
+
+// changed tells the listeners; r.mu is not held.
+func (r *ViewRegistry) changed() {
+	r.mu.RLock()
+	listeners := slices.Clone(r.listeners)
+	r.mu.RUnlock()
+	for _, f := range listeners {
+		(*f)()
+	}
+}
+
+// UnregisterContainer removes a container and its views. An id that is not a container does nothing.
+func (r *ViewRegistry) UnregisterContainer(id string) {
+	r.mu.Lock()
+	before := len(r.containers)
+	r.containers = slices.DeleteFunc(r.containers, func(c ViewContainer) bool { return c.ID == id })
+	r.views = slices.DeleteFunc(r.views, func(v View) bool { return v.Container == id })
+	removed := len(r.containers) != before
+	r.mu.Unlock()
+	if removed {
+		r.changed()
+	}
+}
+
+// UnregisterView removes a view. An id that is not a view does nothing.
+func (r *ViewRegistry) UnregisterView(id string) {
+	r.mu.Lock()
+	before := len(r.views)
+	r.views = slices.DeleteFunc(r.views, func(v View) bool { return v.ID == id })
+	removed := len(r.views) != before
+	r.mu.Unlock()
+	if removed {
+		r.changed()
+	}
+}
 
 // RegisterContainer adds a view container. It needs an id and a title, and its id must be new.
 func (r *ViewRegistry) RegisterContainer(c ViewContainer) error {
@@ -82,11 +143,13 @@ func (r *ViewRegistry) RegisterContainer(c ViewContainer) error {
 		c.Location = ViewLocationSideBar
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if slices.ContainsFunc(r.containers, func(o ViewContainer) bool { return o.ID == c.ID }) {
+		r.mu.Unlock()
 		return errors.New("ViewContainerDuplicate", "the view container is already registered", "id", c.ID)
 	}
 	r.containers = append(r.containers, c)
+	r.mu.Unlock()
+	r.changed()
 	return nil
 }
 
@@ -94,18 +157,30 @@ func (r *ViewRegistry) RegisterContainer(c ViewContainer) error {
 // name, and its id must be new.
 func (r *ViewRegistry) RegisterViews(views ...View) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	added := false
 	for _, v := range views {
-		if v.ID == "" || v.Name == "" {
-			return errors.New("ViewInvalid", "a view needs an id and a name", "id", v.ID)
+		var err error
+		switch {
+		case v.ID == "" || v.Name == "":
+			err = errors.New("ViewInvalid", "a view needs an id and a name", "id", v.ID)
+		case !slices.ContainsFunc(r.containers, func(c ViewContainer) bool { return c.ID == v.Container }):
+			err = errors.New("ViewContainerUnknown", "the container of the view is not registered", "view", v.ID, "container", v.Container)
+		case slices.ContainsFunc(r.views, func(o View) bool { return o.ID == v.ID }):
+			err = errors.New("ViewDuplicate", "the view is already registered", "id", v.ID)
 		}
-		if !slices.ContainsFunc(r.containers, func(c ViewContainer) bool { return c.ID == v.Container }) {
-			return errors.New("ViewContainerUnknown", "the container of the view is not registered", "view", v.ID, "container", v.Container)
-		}
-		if slices.ContainsFunc(r.views, func(o View) bool { return o.ID == v.ID }) {
-			return errors.New("ViewDuplicate", "the view is already registered", "id", v.ID)
+		if err != nil {
+			r.mu.Unlock()
+			if added {
+				r.changed()
+			}
+			return err
 		}
 		r.views = append(r.views, v)
+		added = true
+	}
+	r.mu.Unlock()
+	if added {
+		r.changed()
 	}
 	return nil
 }

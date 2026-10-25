@@ -180,3 +180,50 @@ func TestDefaultPanelViews(t *testing.T) {
 		}
 	}
 }
+
+func TestViewRegistryForkChangesAndRemoval(t *testing.T) {
+	r := NewViewRegistry()
+	r.MustRegisterContainer(ViewContainer{ID: "a", Title: "A"})
+	r.MustRegisterViews(View{ID: "a.v", Name: "V", Container: "a"})
+	fork := r.Fork()
+	changes := 0
+	stop := fork.OnChange(func() { changes++ })
+	fork.MustRegisterContainer(ViewContainer{ID: "b", Title: "B", Location: ViewLocationPanel})
+	fork.MustRegisterViews(View{ID: "b.v", Name: "BV", Container: "b"}, View{ID: "b.w", Name: "BW", Container: "b"})
+	if changes != 2 {
+		t.Errorf("%d changes after two registrations, want 2", changes)
+	}
+	if _, ok := r.Container("b"); ok {
+		t.Error("what the fork added is in the original")
+	}
+	if _, ok := fork.Container("a"); !ok || len(fork.Views("a", nil)) != 1 {
+		t.Error("the fork lost what the original had")
+	}
+	// a failed registration tells nothing, a partial one tells once
+	before := changes
+	if err := fork.RegisterViews(View{ID: "b.x", Name: "X", Container: "b"}, View{ID: "b.v", Name: "Dup", Container: "b"}); err == nil {
+		t.Error("a duplicate view was accepted")
+	}
+	if changes != before+1 {
+		t.Errorf("a registration that added one view then failed told %d times", changes-before)
+	}
+	fork.UnregisterView("b.x")
+	fork.UnregisterView("nothing") // nothing changes
+	fork.UnregisterContainer("b")
+	fork.UnregisterContainer("b")
+	if _, ok := fork.Container("b"); ok || len(fork.Views("b", nil)) != 0 {
+		t.Error("the container or its views stayed")
+	}
+	if changes != before+3 {
+		t.Errorf("%d changes, want %d", changes, before+3)
+	}
+	stop()
+	fork.MustRegisterContainer(ViewContainer{ID: "c", Title: "C"})
+	if changes != before+3 {
+		t.Error("a listener that stopped was told")
+	}
+	// the original did not see any of it
+	if len(r.Containers(ViewLocationPanel)) != 0 || len(r.Containers(ViewLocationSideBar)) != 1 {
+		t.Errorf("the original changed: %+v", r.Containers(ViewLocationSideBar))
+	}
+}

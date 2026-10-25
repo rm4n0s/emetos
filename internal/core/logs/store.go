@@ -19,6 +19,8 @@ const (
 	EventLine
 	// EventCleared: a channel was emptied (Store.Clear); the channel stays.
 	EventCleared
+	// EventChannelRemoved: a channel was taken away with its lines (Store.Remove).
+	EventChannelRemoved
 )
 
 // Event is what subscribers of a Store are told.
@@ -93,6 +95,50 @@ func (s *Store) Clear(channel string) {
 	s.mu.Unlock()
 
 	ev := Event{Kind: EventCleared, Channel: channel}
+	for _, fn := range subs {
+		fn(ev)
+	}
+}
+
+// Add creates an empty channel when there is none, and tells subscribers with an EventChannelAdded; a channel that exists
+// is left alone. It is how a channel shows in the list before its first line.
+func (s *Store) Add(channel string) {
+	s.mu.Lock()
+	if _, ok := s.lines[channel]; ok {
+		s.mu.Unlock()
+		return
+	}
+	s.order = append(s.order, channel)
+	s.lines[channel] = nil
+	subs := s.subscribers()
+	s.mu.Unlock()
+
+	ev := Event{Kind: EventChannelAdded, Channel: channel}
+	for _, fn := range subs {
+		fn(ev)
+	}
+}
+
+// Remove takes a channel away with its lines and tells subscribers with an EventChannelRemoved. The channel of the
+// Emetos log (MainChannel) and a channel that does not exist are left alone. It is how the Output channel of an
+// extension goes when the extension does.
+func (s *Store) Remove(channel string) {
+	s.mu.Lock()
+	if _, ok := s.lines[channel]; !ok || channel == MainChannel {
+		s.mu.Unlock()
+		return
+	}
+	delete(s.lines, channel)
+	for i, name := range s.order {
+		if name == channel {
+			s.order = append(s.order[:i], s.order[i+1:]...)
+			break
+		}
+	}
+	subs := s.subscribers()
+	s.mu.Unlock()
+
+	ev := Event{Kind: EventChannelRemoved, Channel: channel}
 	for _, fn := range subs {
 		fn(ev)
 	}

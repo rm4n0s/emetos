@@ -464,3 +464,44 @@ func TestTheSideBarSkipsHiddenViewsAndTakesTheSlots(t *testing.T) {
 	}
 	noErrors(t, h)
 }
+
+func TestViewsFollowTheRegistryAndTogglePanelTabs(t *testing.T) {
+	reg := testViewRegistry()
+	reg.MustRegisterContainer(command.ViewContainer{ID: "tasks", Title: "Tasks", Order: 5, Location: command.ViewLocationPanel})
+	layout := NewLayout(DefaultLayoutState())
+	v := NewViews(reg, layout)
+	changes := 0
+	v.OnChange(func() { changes++ })
+	// a container that comes is an icon; the one that is shown and goes is replaced by the first
+	reg.MustRegisterContainer(command.ViewContainer{ID: "ext", Title: "Ext", Order: 9})
+	if changes != 1 {
+		t.Errorf("%d changes after a container came", changes)
+	}
+	v.Open("ext")
+	reg.UnregisterContainer("ext")
+	if v.Active() != "explorer" {
+		t.Errorf("active = %q after the container that was shown went", v.Active())
+	}
+	v.OpenPanel("tasks")
+	reg.UnregisterContainer("tasks")
+	if v.ActivePanel() != "problems" {
+		t.Errorf("active panel = %q after its tab went", v.ActivePanel())
+	}
+	before := changes
+	v.Changed()
+	if changes != before+1 {
+		t.Error("Changed did not tell the listeners")
+	}
+	// TogglePanel shows the tab, then hides the panel
+	layout.SetPanelVisible(false)
+	reg.MustRegisterContainer(command.ViewContainer{ID: "tasks", Title: "Tasks", Order: 5, Location: command.ViewLocationPanel})
+	if !v.TogglePanel("tasks") || !layout.State().PanelVisible || v.ActivePanel() != "tasks" {
+		t.Errorf("the first toggle: visible %v, tab %q", layout.State().PanelVisible, v.ActivePanel())
+	}
+	if v.TogglePanel("tasks") || layout.State().PanelVisible {
+		t.Error("the second toggle did not hide the panel")
+	}
+	if !v.TogglePanel("tasks") || v.TogglePanel("nothing") {
+		t.Error("a toggle of a tab that is not there shows it, or toggling back did not show")
+	}
+}

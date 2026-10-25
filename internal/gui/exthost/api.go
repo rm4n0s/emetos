@@ -421,3 +421,23 @@ func (d documentsAPI) Open() []string {
 	}
 	return src.Open()
 }
+
+// DocumentShower is the optional part of a DocumentSource that shows a document in an editor.
+type DocumentShower interface {
+	// Show opens the file with the URI in the active editor group with the cursor at the line and column (from 1; the
+	// column counts UTF-16 units).
+	Show(uri string, line, column int, preview bool) error
+}
+
+// Show implements extension.Documents. The window's error is returned as it is.
+func (d documentsAPI) Show(uri string, line, column int, preview bool) error {
+	in := d.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	shower, ok := in.scope.opts.Documents.(DocumentShower)
+	if !ok {
+		return errors.New("ExtensionDocumentUnavailable", "the scope cannot show documents", "extension", in.id, "uri", uri)
+	}
+	return shower.Show(uri, line, column, preview)
+}

@@ -79,6 +79,14 @@ func TestCheck(t *testing.T) {
 			{"extensions/golang/bad.go", 9, RuleExtensionImportsForbidden, "github.com/someone/lib"},
 			{"extensions/golang/bad.go", 11, RuleExtensionImportsForbidden, "gopkg.in/yaml.v3"},
 		}},
+		{"the contract and extension/ui import the editor", "extension_contract_imports_internal", []want{
+			{"extension/bad.go", 4, RuleExtensionContractImportsEmetos, "github.com/rm4n0s/emetos/internal/core/buffer"},
+			{"extension/bad.go", 5, RuleExtensionContractImportsEmetos, "github.com/rm4n0s/emetos/internal/gui/kit"},
+			{"extension/ui/bad.go", 4, RuleExtensionUIImportsInternal, "github.com/rm4n0s/emetos/internal/core/buffer"},
+			{"extension/ui/bad.go", 5, RuleExtensionUIImportsInternal, "github.com/rm4n0s/emetos/internal/gui/testutil"},
+			{"extension/ui/bad.go", 6, RuleExtensionUIImportsInternal, "github.com/rm4n0s/emetos/internal/gui/workbench"},
+			{"extension/ui/uitest/bad.go", 3, RuleExtensionUIImportsInternal, "github.com/rm4n0s/emetos/internal/gui/app"},
+		}},
 		{"the editor imports the extensions", "extensions_imported_by_internal", []want{
 			{"internal/gui/app/bad.go", 4, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions"},
 			{"internal/gui/app/bad.go", 5, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions/golang"},

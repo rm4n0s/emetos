@@ -197,6 +197,7 @@ func (w *Workspace) restoreUIState(ctx context.Context, r *restoredWindow) (geom
 		}
 	}
 	w.geometry = st.Geometry
+	w.restoreExtensionViews(st.Views)
 	r.state = st
 	if st.Grid != nil {
 		w.openSavedEditors(ctx, r)
@@ -514,6 +515,7 @@ func (s *shellState) windowState() storage.WindowState {
 	}
 	grid := s.group.grid.SerializeWith(s.inputState)
 	st.Grid = &grid
+	st.Views = win.extensionViewStates()
 	if ex := s.explorer.view; ex != nil && win.Folder != "" {
 		st.Explorer = &storage.ExplorerState{Expanded: storage.ExpandedRelative(win.Folder, ex.Tree().ExpandedKeys())}
 	}

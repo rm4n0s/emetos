@@ -161,12 +161,14 @@ func (s *shellState) bindPanelCommands() {
 // problems on it.
 func (s *shellState) panelTabs(win *Workspace) []workbench.PanelTab {
 	var tabs []workbench.PanelTab
-	for _, c := range win.Process.Views.Containers(command.ViewLocationPanel) {
+	for _, c := range win.Views.Registry().Containers(command.ViewLocationPanel) {
 		tab := workbench.PanelTab{ID: c.ID, Title: c.Title}
 		if c.ID == command.ViewContainerMarkers {
 			if total := win.Markers.Stats().Total(); total > 0 {
 				tab.Badge, tab.BadgeTooltip = total, "Total "+strconv.Itoa(total)+" Problems"
 			}
+		} else if scope := win.Extensions(); scope != nil {
+			tab.Badge, tab.BadgeTooltip = scope.PanelBadge(c.ID)
 		}
 		tabs = append(tabs, tab)
 	}
@@ -186,6 +188,10 @@ func (s *shellState) panelBody(win *Workspace) widgets.Widget {
 			Clipboard: win.Clipboard, Find: win.Find, Zoom: win.Zoom,
 		}), command.ViewOutput
 	default:
+		// a tab an extension declared is the box of its content, which sets focusedView itself
+		if scope := win.Extensions(); scope != nil {
+			return scope.ViewBody(win.Views.ActivePanel())
+		}
 		return nil
 	}
 	// focusedView is the view that has the keyboard focus
@@ -209,7 +215,16 @@ func (s *shellState) panelActions(win *Workspace) widgets.Widget {
 	case command.ViewContainerOutput:
 		return output.NewActions(s.panels.output)
 	}
-	return nil
+	return s.extensionViewActions(win, win.Views.ActivePanel())
+}
+
+// extensionViewActions are the title actions of a view an extension declared, or nil.
+func (s *shellState) extensionViewActions(win *Workspace, viewID string) widgets.Widget {
+	scope := win.Extensions()
+	if scope == nil {
+		return nil
+	}
+	return scope.ViewActions(viewID, win.Keys, win.runLogged)
 }
 
 // focusPanelView gives the keyboard focus to the content of a tab of the panel.

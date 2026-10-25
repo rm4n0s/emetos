@@ -53,6 +53,15 @@ type Contributes struct {
 	Menus []MenuItem
 	// Keybindings are default keybindings of commands.
 	Keybindings []Keybinding
+	// ViewContainers are the containers of the side bar the extension adds: an icon in the activity bar each.
+	ViewContainers []ViewContainerSpec
+	// Views are the views of the side bar, in the containers of the extension or of Emetos. Showing one activates the
+	// extension (the activation event OnView).
+	Views []ViewSpec
+	// PanelViews are the tabs of the panel. Showing one activates the extension.
+	PanelViews []PanelViewSpec
+	// ViewActions are the title actions of the views.
+	ViewActions []ViewActionSpec
 	// Languages is the language pack of the extension: a file system (an embed.FS, rooted with fs.Sub) that has the
 	// package.json of a VS Code extension at its root, with the languages (contributes.languages), the grammars
 	// (contributes.grammars) and the settings defaults of languages (contributes.configurationDefaults) it contributes, and

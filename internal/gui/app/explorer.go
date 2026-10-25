@@ -343,6 +343,10 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 	case command.ViewOpenEditors:
 		return explorer.NewOpenEditorsBody(ex.editors)
 	}
+	// a view an extension declared is the box of its content
+	if scope := PeekWorkspace(s.Context()).Extensions(); scope != nil {
+		return scope.ViewBody(viewID)
+	}
 	return nil
 }
 
@@ -358,10 +362,10 @@ func (s *shellState) viewName(viewID string) string {
 
 // viewActions are the buttons in the header of the folder view.
 func (s *shellState) viewActions(_ widgets.BuildContext, viewID string) widgets.Widget {
-	if viewID != command.ViewExplorerFolders {
-		return nil
-	}
 	win := PeekWorkspace(s.Context())
+	if viewID != command.ViewExplorerFolders {
+		return s.extensionViewActions(win, viewID)
+	}
 	return explorer.NewActions(explorer.ActionsOpts{OnRun: func(id string) {
 		if err := win.Commands.Run(command.Context{Ctx: win.ctx, Keys: win.Keys, Source: command.SourceMenu}, id, nil); err != nil {
 			win.Process.Logger.Warn("explorer action failed", "command", id, "err", err)

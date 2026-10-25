@@ -276,3 +276,39 @@ func TestStoreWatchSeesEveryLineOnceUnderConcurrentAppends(t *testing.T) {
 		}
 	}
 }
+
+func TestStoreAddAndRemoveChannels(t *testing.T) {
+	s := NewStore(10)
+	var events []Event
+	s.Subscribe(func(e Event) { events = append(events, e) })
+	s.Add("Tasks")
+	s.Add("Tasks") // a channel that exists is left alone
+	if got := s.Names(); !reflect.DeepEqual(got, []string{"Tasks"}) || len(s.Lines("Tasks")) != 0 {
+		t.Fatalf("names %v after Add", got)
+	}
+	s.Append("Tasks", "one")
+	s.Append(MainChannel, "main")
+	s.Remove(MainChannel) // the log of Emetos stays
+	s.Remove("Nothing")   // so does a channel that is not there
+	s.Remove("Tasks")
+	if got := s.Names(); !reflect.DeepEqual(got, []string{MainChannel}) {
+		t.Errorf("names %v after Remove", got)
+	}
+	if got := s.Lines("Tasks"); len(got) != 0 {
+		t.Errorf("a removed channel has lines: %v", got)
+	}
+	var kinds []EventKind
+	for _, e := range events {
+		if e.Channel == "Tasks" {
+			kinds = append(kinds, e.Kind)
+		}
+	}
+	if want := []EventKind{EventChannelAdded, EventLine, EventChannelRemoved}; !reflect.DeepEqual(kinds, want) {
+		t.Errorf("events of the channel = %v, want %v", kinds, want)
+	}
+	// the channel can be made again, empty
+	s.Add("Tasks")
+	if len(s.Lines("Tasks")) != 0 || len(s.Names()) != 2 {
+		t.Errorf("names %v lines %v", s.Names(), s.Lines("Tasks"))
+	}
+}

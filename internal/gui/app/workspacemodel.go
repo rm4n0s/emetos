@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"math"
 	"path/filepath"
 	"slices"
@@ -191,6 +192,9 @@ type Workspace struct {
 	restored        *restoredWindow
 	pendingExpanded []string
 	flushState      func()
+	// extViewMu guards extViewStates, the state the views of the extensions saved before the scope closed (stopExtensions).
+	extViewMu     sync.Mutex
+	extViewStates map[string]json.RawMessage
 	// backups are the backups of the unsaved documents of the window (backup.go).
 	backups backupState
 	// closer is the shell's answer to the questions of closing, and exit ends the application without asking
@@ -379,7 +383,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		Zoom:           editor.NewZoom(),
 		InputMode:      p.InputMode,
 		Layout:         layout,
-		Views:          workbench.NewViews(p.Views, layout),
+		Views:          workbench.NewViews(p.Views.Fork(), layout), // the views its extensions add are its own
 		Dialogs:        kit.NewDialogController(),
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),

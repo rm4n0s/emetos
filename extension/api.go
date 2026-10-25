@@ -29,6 +29,16 @@ type API interface {
 	StatusBar() StatusBar
 	// Documents reads the documents of the scope.
 	Documents() Documents
+	// Views gives the views the manifest declares (side bar and panel) their content.
+	Views() Views
+	// Output makes channels of the Output panel.
+	Output() Output
+	// Problems sets markers in the Problems panel.
+	Problems() Problems
+	// Workspace reads the folder of the workspace.
+	Workspace() Workspace
+	// Context sets context keys.
+	Context() ContextKeys
 	// Events publishes and subscribes to events and sends requests to the other extensions of the scope.
 	Events() Events
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the
@@ -250,4 +260,9 @@ type Documents interface {
 	Read(ctx context.Context, uri string, opts ...ReadOption) (string, error)
 	// Open lists the URIs of the documents open in the scope, in the order they were opened.
 	Open() []string
+	// Show opens the file with the URI (or shows the open document) in the active editor group, with the cursor at the
+	// line and column (counted from 1; a column counts UTF-16 units), as a click on a problem does; a click opens a
+	// preview, preview false keeps the editor. It fails with ExtensionDocumentUnavailable when the scope cannot show
+	// documents and returns the window's error for a file that cannot be opened. Call it on the UI thread.
+	Show(uri string, line, column int, preview bool) error
 }

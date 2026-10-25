@@ -2,6 +2,7 @@ package exthost
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"slices"
 	"strings"
@@ -15,8 +16,10 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/glob"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
@@ -116,6 +119,22 @@ type ScopeOptions struct {
 	// sharing"): it shows the question and calls answer once, on the UI thread, with what the user chose. Nil means the
 	// scope cannot ask, so no link is ever made for it.
 	AskSharing func(q SharingAsk, answer func(SharingAnswer))
+	// Views is the views model of the window tab: the extensions register their view containers and views in its registry
+	// (the fork of the window's), and it tells the workbench when a badge or a context key changed. Nil leaves the views
+	// of the extensions out.
+	Views *workbench.Views
+	// Keys is the context keys of the window tab: the extensions set theirs there, and the focused view is noted there. Nil
+	// leaves them out.
+	Keys *contextkey.Scope
+	// Markers is the Problems panel's service and Channels the store of the Output panel; nil leaves the contributions out.
+	Markers  *problems.Service
+	Channels *logs.Store
+	// ShowChannel selects an Output channel in the panel and shows the panel; FocusView gives the keyboard focus to a view.
+	// Both may be nil.
+	ShowChannel func(name string, preserveFocus bool)
+	FocusView   func(viewID string)
+	// FilesComplete tells whether the walk of the folder has finished (Files lists what it found so far); nil is always.
+	FilesComplete func() bool
 	// ShowLog is the command the "Show Log" button of the failure notification runs; the Output panel by default.
 	ShowLog string
 }
@@ -130,6 +149,9 @@ type slot struct {
 	installed []func()
 	// handlers are the handlers that Activate set for the commands the manifest declares.
 	handlers map[string]extension.CommandHandler
+	// viewRemovers take the views of the manifest out of the registry. They are not part of installed: the views of an
+	// extension that failed stay, to show that it did, and go when it is turned off or the scope closes (removeViews).
+	viewRemovers []func()
 }
 
 // Scope is the extension host of one window tab (SPEC §10.15 "Lifetime"): it activates each extension at most once, with
@@ -153,6 +175,10 @@ type Scope struct {
 	slots  []*slot
 	fired  map[string]bool
 	closed bool
+
+	// viewDecls are the views the extensions of the scope declare, by id, and viewStates the state they saved (views.go).
+	viewDecls  map[string]*viewDecl
+	viewStates map[string]json.RawMessage
 }
 
 // NewScope makes the scope of a window tab. The manifests of the extensions that are enabled are installed (their
@@ -218,7 +244,7 @@ func (s *Scope) Fire(event string) {
 	}
 	var wanted []*slot
 	for _, sl := range s.slots {
-		if sl.state == StateInactive && slices.Contains(sl.info.Manifest.ActivationEvents, event) {
+		if sl.state == StateInactive && (slices.Contains(sl.info.Manifest.ActivationEvents, event) || declaresView(sl.info.Manifest, event)) {
 			wanted = append(wanted, sl)
 		}
 	}
@@ -226,6 +252,26 @@ func (s *Scope) Fire(event string) {
 	for _, sl := range wanted {
 		s.activate(sl)
 	}
+}
+
+// declaresView tells whether the activation event is onView of a view that the manifest declares: showing a declared view
+// activates its extension without the manifest listing the event.
+func declaresView(m extension.Manifest, event string) bool {
+	name, id := extension.SplitEvent(event)
+	if name != "onView" {
+		return false
+	}
+	for _, v := range m.Contributes.Views {
+		if v.ID == id {
+			return true
+		}
+	}
+	for _, v := range m.Contributes.PanelViews {
+		if v.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckFiles looks at the files of the folder (ScopeOptions.Files) and activates the extensions whose onFile glob
@@ -307,6 +353,7 @@ func (s *Scope) Refresh() {
 		s.mu.Lock()
 		sl.state, sl.failure = StateInactive, nil
 		s.mu.Unlock()
+		s.removeViews(sl) // the views a failure left
 		s.install(sl)
 		s.replay(sl)
 	}
@@ -422,7 +469,11 @@ func (s *Scope) install(sl *slot) {
 		s.h.holdLanguages(m.ID)
 		removers = append(removers, func() { s.h.releaseLanguages(m.ID) })
 	}
-	for _, spec := range m.Contributes.Commands {
+	commands, menus := m.Contributes.Commands, m.Contributes.Menus
+	if s.opts.Commands == nil { // a scope with no registry of commands (a test of the languages) installs no command or menu item
+		commands, menus = nil, nil
+	}
+	for _, spec := range commands {
 		meta, err := commandMeta(spec)
 		if err == nil {
 			err = s.opts.Commands.Register(meta)
@@ -439,7 +490,7 @@ func (s *Scope) install(sl *slot) {
 		id := spec.ID
 		removers = append(removers, func() { removeHandler(); s.opts.Commands.Unregister(id) })
 	}
-	for _, item := range m.Contributes.Menus {
+	for _, item := range menus {
 		remove, err := s.addMenu(item)
 		if err != nil {
 			s.log.Warn("a menu item of an extension is left out", "extension", m.ID, "menu", item.Menu, "command", item.Command, "err", err)
@@ -455,8 +506,11 @@ func (s *Scope) install(sl *slot) {
 		}
 		removers = append(removers, remove)
 	}
+	registry, others := s.installViews(sl)
+	removers = append(removers, others...)
 	s.mu.Lock()
 	sl.installed = removers
+	sl.viewRemovers = registry
 	s.mu.Unlock()
 }
 

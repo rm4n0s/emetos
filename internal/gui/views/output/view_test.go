@@ -444,3 +444,35 @@ func TestAHiddenPanelAsksForNoFrames(t *testing.T) {
 		t.Error("a visible panel does not follow the tail")
 	}
 }
+
+func TestAChannelThatGoesTakesItsViewBackToTheLog(t *testing.T) {
+	r := newRig(t, 100, logs.MainChannel)
+	r.store.Append(logs.MainChannel, "main")
+	r.store.Add("Tasks")
+	r.store.Append("Tasks", "task line")
+	r.ui()
+	if got := r.view.Channels(); !reflect.DeepEqual(got, []string{logs.MainChannel, "Tasks"}) {
+		t.Fatalf("channels = %v", got)
+	}
+	r.view.SetActive("Tasks")
+	r.ui()
+	if r.view.Active() != "Tasks" || !strings.Contains(r.view.Document().Text(), "task line") {
+		t.Fatalf("the view shows %q: %q", r.view.Active(), r.view.Document().Text())
+	}
+	// a channel that goes while it is not the one shown leaves the view alone
+	r.store.Add("Other")
+	r.ui()
+	r.store.Remove("Other")
+	r.ui()
+	if r.view.Active() != "Tasks" {
+		t.Errorf("active = %q after another channel went", r.view.Active())
+	}
+	r.store.Remove("Tasks")
+	r.ui()
+	if r.view.Active() != logs.MainChannel || !strings.Contains(r.view.Document().Text(), "main") {
+		t.Errorf("active = %q text %q after its channel went", r.view.Active(), r.view.Document().Text())
+	}
+	if got := r.view.Channels(); !reflect.DeepEqual(got, []string{logs.MainChannel}) {
+		t.Errorf("channels = %v", got)
+	}
+}

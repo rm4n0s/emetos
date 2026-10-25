@@ -59,6 +59,9 @@ type WindowState struct {
 	// ZoomLevel is the zoom level the window had when it was saved, when it was not the one of window.zoomLevel; nil
 	// when there is none. A state written before step 8.5 has none.
 	ZoomLevel *float64 `json:"zoomLevel,omitempty"`
+	// Views is the state the views of extensions saved (SPEC §10.15 "As built (step 11.5)"): the JSON each view's
+	// SaveState gave, by view id; the store does not look into it.
+	Views map[string]json.RawMessage `json:"views,omitempty"`
 }
 
 // LastWindow is the window the user last had open, which an empty command line opens again.

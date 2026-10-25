@@ -30,6 +30,11 @@ type instance struct {
 	// settingKeys and statusIDs are what the instance registered, to refuse a second registration of the same.
 	settingKeys map[string]bool
 	statusIDs   map[string]bool
+	// channels are the Output channels, markerOwners the owners of Problems markers and contextKeys the context keys the
+	// activation made.
+	channels     map[string]bool
+	markerOwners map[string]bool
+	contextKeys  map[string]bool
 }
 
 // isDead tells whether the activation ended. It is safe for concurrent use.
@@ -94,6 +99,7 @@ func (s *Scope) activate(sl *slot) {
 		scope: s, slot: sl, id: m.ID, name: m.Name, ext: ext, ctx: ctx, cancel: cancel,
 		log:         s.log.With("extension", m.ID, "scope", s.opts.Info.Name),
 		settingKeys: map[string]bool{}, statusIDs: map[string]bool{},
+		channels: map[string]bool{}, markerOwners: map[string]bool{}, contextKeys: map[string]bool{},
 	}
 	s.mu.Lock()
 	sl.inst = inst
@@ -267,5 +273,6 @@ func (s *Scope) deactivate(sl *slot, next State) {
 		inst.kill()
 	}
 	s.uninstall(sl)
+	s.removeViews(sl)
 	s.h.changed()
 }

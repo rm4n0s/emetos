@@ -1,6 +1,4 @@
 package extension
 
-import "github.com/rm4n0s/emetos/internal/core/buffer"
-
-// API is the contract; it may use the core (SPEC §10.15).
-var _ = buffer.Position{}
+// API is the contract; it imports nothing of the editor (SPEC §10.15).
+type API interface{}

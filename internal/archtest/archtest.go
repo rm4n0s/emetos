@@ -19,6 +19,7 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -40,6 +41,9 @@ const (
 	// they import (SPEC §10.15).
 	extensionsPrefix = "extensions/"
 	extensionPackage = "extension"
+	// extensionUIPrefix is the package that gives extensions the widgets of the editor, the one place of the contract that may
+	// import internal packages (SPEC §10.15 "As built (step 11.5)").
+	extensionUIPrefix = "extension/ui"
 )
 
 // Rule names a boundary rule of SPEC §5.3.
@@ -74,6 +78,14 @@ const (
 	// RuleExtensionImportsForbidden: a package under extensions/ imports a module that neither the standard library nor the
 	// dependencies CLAUDE.md allows are, or a package inside Glutter's internal folders.
 	RuleExtensionImportsForbidden Rule = "ExtensionImportsForbidden"
+	// RuleExtensionContractImportsEmetos: a package of the public contract, extension/ but not extension/ui, imports a
+	// package of Emetos other than the contract's own (internal/..., cmd/..., extensions/...). The contract imports nothing of
+	// the editor (SPEC §10.15).
+	RuleExtensionContractImportsEmetos Rule = "ExtensionContractImportsEmetos"
+	// RuleExtensionUIImportsInternal: a package under extension/ui imports a package of Emetos other than the contract, its
+	// own subpackages, internal/gui/kit and internal/gui/kit/fonts; the test harness extension/ui/uitest may also import
+	// internal/gui/testutil. extension/ui is the one bridge of the contract to the widgets of the editor (SPEC §10.15).
+	RuleExtensionUIImportsInternal Rule = "ExtensionUIImportsInternal"
 	// RuleExtensionsImportedByInternal: a package under internal/ imports extensions/...; only cmd/ lists the extensions, so
 	// the editor has no special case for a bundled one.
 	RuleExtensionsImportedByInternal Rule = "ExtensionsImportedByInternal"
@@ -177,6 +189,7 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 	inCore := strings.HasPrefix(rel, corePrefix)
 	inInternal := strings.HasPrefix(rel, "internal/")
 	inExtensions := strings.HasPrefix(rel, extensionsPrefix)
+	inContract := strings.HasPrefix(rel, extensionPackage+"/")
 	fmtNames := map[string]bool{}
 	errorsName := ""
 	for _, imp := range file.Imports {
@@ -213,6 +226,11 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 		}
 		if inExtensions {
 			if rule, bad := extensionImportRule(rel, path); bad {
+				add(imp.Pos(), rule, path)
+			}
+		}
+		if inContract {
+			if rule, bad := contractImportRule(rel, path); bad {
 				add(imp.Pos(), rule, path)
 			}
 		}
@@ -286,6 +304,37 @@ func extensionImportRule(rel, path string) (Rule, bool) {
 		return RuleExtensionImportsExtension, true
 	}
 	return RuleExtensionImportsInternal, true
+}
+
+// uiAllowedImports are the packages of Emetos that extension/ui may import, and uitestAllowedImports the ones that its
+// test harness may import besides.
+var (
+	uiAllowedImports     = []string{emetosModule + "internal/gui/kit", emetosModule + "internal/gui/kit/fonts"}
+	uitestAllowedImports = []string{emetosModule + "internal/gui/testutil"}
+)
+
+// contractImportRule applies the rules of the public contract to one import of a file under extension/ (rel is its path
+// relative to the root): the rule it breaks and true, or false when the import is allowed. Only packages of Emetos are
+// looked at; the other imports of the contract are the business of review.
+func contractImportRule(rel, path string) (Rule, bool) {
+	if !isOrUnder(path, "github.com/rm4n0s/emetos") {
+		return "", false
+	}
+	inside := strings.TrimPrefix(strings.TrimPrefix(path, strings.TrimSuffix(emetosModule, "/")), "/")
+	if inside == extensionPackage || strings.HasPrefix(inside, extensionPackage+"/") {
+		return "", false
+	}
+	if !isOrUnder(rel, extensionUIPrefix) {
+		return RuleExtensionContractImportsEmetos, true
+	}
+	allowed := uiAllowedImports
+	if isOrUnder(rel, extensionUIPrefix+"/uitest") {
+		allowed = append(slices.Clone(allowed), uitestAllowedImports...)
+	}
+	if slices.Contains(allowed, path) {
+		return "", false
+	}
+	return RuleExtensionUIImportsInternal, true
 }
 
 // isOrUnder reports whether path is module or a package below it.
