@@ -31,7 +31,8 @@ const (
 	EditorMinHeight = 70.0
 	// StatusBarHeight is the height of the status bar.
 	StatusBarHeight = 22.0
-	// MenuBarHeight is the height of the menu bar area.
+	// MenuBarHeight is the height of the row of its own that holds the menu in full screen mode (the title bar row,
+	// TitleBarHeight, holds it otherwise).
 	MenuBarHeight = 30.0
 	// PartTitleHeight is the height of the title of the side bar and of the panel.
 	PartTitleHeight = 35.0
@@ -42,7 +43,7 @@ type Part int
 
 // The parts of the workbench.
 const (
-	// PartMenuBar is the menu bar area at the top.
+	// PartMenuBar is the menu in the title bar row, or in the row of its own that full screen mode has (step 9b.2).
 	PartMenuBar Part = iota
 	// PartActivityBar is the activity bar, on the side of the side bar.
 	PartActivityBar

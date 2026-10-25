@@ -135,8 +135,8 @@ func TestActivityBarShowsTheContainersInOrder(t *testing.T) {
 		}
 		tops = append(tops, h.ts.TopLeft(f).Dy)
 	}
-	if !reflect.DeepEqual(tops, []float64{30, 78, 126}) {
-		t.Errorf("the icons are at %v, one under the other from the menu bar", tops)
+	if !reflect.DeepEqual(tops, []float64{35, 83, 131}) {
+		t.Errorf("the icons are at %v, one under the other from the title bar", tops)
 	}
 	if h.ts.Exists(gluttertest.ByKey(ActivityItemKey("problems"))) {
 		t.Error("a container of the panel is in the activity bar")
@@ -273,8 +273,8 @@ func TestExpandedViewsShareTheHeight(t *testing.T) {
 	if h.ts.Exists(gluttertest.ByKey(bodyKey("timeline"))) {
 		t.Error("the body of a collapsed view is built")
 	}
-	// the side bar is 588 high with a title of 35 and three headers of 22
-	if got, want := folders.Height+outline.Height, 588.0-35-3*22; got != want {
+	// the side bar is 583 high with a title of 35 and three headers of 22
+	if got, want := folders.Height+outline.Height, 583.0-35-3*22; got != want {
 		t.Errorf("bodies take %v, want %v", got, want)
 	}
 	noErrors(t, h)

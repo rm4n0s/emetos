@@ -46,7 +46,8 @@ func newTestWorkspace(t *testing.T, folder string) *Workspace {
 	paths := testutil.Isolate(t)
 	// The store of the window reads the settings.json that testutil.Settings writes.
 	// closing a window with unsaved changes asks unless a test turns hot exit on (the backups are step 7.6)
-	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off"})
+	// the menu bar of the tests is the classic one: the tests tap its titles (the compact menu has tests of its own)
+	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off", "window.menuBarVisibility": "classic"})
 	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
 	if err != nil {
 		t.Fatalf("NewWorkspace: %v", err)

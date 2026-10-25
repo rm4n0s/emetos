@@ -54,12 +54,22 @@ func Fonts() []gluttertest.Font {
 	return out
 }
 
+// WindowInfo is the window the tester shows: the one Emetos asks for (SPEC §10.14), whose title bar the application
+// draws (DecorationApp), with every capability, focused and maximized (so that the window has no border and no resize
+// edges, which would show in every image).
+var WindowInfo = ui.WindowInfo{
+	Decoration: ui.DecorationApp, Capabilities: ui.AllWindowCapabilities, Activated: true, Maximized: true,
+}
+
 // New makes a tester of the given size in logical pixels with the test fonts loaded. The tester
 // unmounts the widget tree when the test ends, so the states are disposed and the goroutines they
-// started (State.Go, the tokenizers of the app) end with the test.
+// started (State.Go, the tokenizers of the app) end with the test. Its window is WindowInfo, so
+// that the title bar row shows as it does in the application.
 func New(t testing.TB, size ui.Size) *gluttertest.Tester {
 	t.Helper()
-	return gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
+	ts := gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
+	ts.SetViewConfiguration(func(c *ui.ViewConfiguration) { c.Window = WindowInfo })
+	return ts
 }
 
 // Isolate points every user folder at temporary ones (see storagetest.Isolate) and returns

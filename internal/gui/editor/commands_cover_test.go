@@ -36,6 +36,9 @@ var appCommands = map[string]bool{
 	"merge.acceptAllInput1": true, "merge.acceptAllInput2": true, "merge.toggleActiveConflictInput1": true,
 	"merge.toggleActiveConflictInput2": true, "mergeEditor.acceptAllCombination": true,
 	"mergeEditor.resetResultToBaseAndAutoMerge": true, "mergeEditor.acceptMerge": true,
+	// the commands of the workspace tabs of the title bar (step 9b.2, gui/app/titlebar.go)
+	"emetos.workspaceTab.close": true, "emetos.workspaceTab.closeOthers": true, "emetos.workspaceTab.closeToTheRight": true,
+	"emetos.workspaceTab.copyPath": true, "emetos.workspaceTab.revealInFileManager": true, "emetos.workspaceTab.openFolder": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

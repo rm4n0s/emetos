@@ -35,7 +35,7 @@ import (
 func newKeybindingsApp(t *testing.T, folder, userText string) *groupApp {
 	t.Helper()
 	paths := testutil.Isolate(t)
-	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off"})
+	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off", "window.menuBarVisibility": "classic"})
 	if userText != "" {
 		path, err := keybinding.UserKeybindingsPath(paths, storage.DefaultProfile)
 		if err != nil {

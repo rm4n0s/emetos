@@ -54,7 +54,8 @@ func settingsWindow(t *testing.T, extra map[string]any) *Workspace {
 	t.Helper()
 	paths := testutil.Isolate(t)
 	// closing a window with unsaved changes asks unless a test turns hot exit on (the backups are step 7.6)
-	values := map[string]any{"editor.fontSize": 14, "editor.fontFamily": testutil.MonoFamily, "files.hotExit": "off"}
+	// (the menu bar of the tests is the classic one: the tests tap its titles; the compact menu has tests of its own)
+	values := map[string]any{"editor.fontSize": 14, "editor.fontFamily": testutil.MonoFamily, "files.hotExit": "off", "window.menuBarVisibility": "classic"}
 	for k, v := range extra {
 		values[k] = v
 	}
@@ -969,8 +970,8 @@ func TestTheFileMenuAndTheTabMenuShowTheStateOfSaving(t *testing.T) {
 	file := func() []string {
 		return menuRows(s.menus.Items(command.MenubarFileMenu, s.menuContext()))
 	}
-	tail := []string{"-", "Open Folder...", "Open Recent>", "-", "Save", "Save As...", "Save All~", "-", "Auto Save", "Preferences>", "-", "Revert File", "Close Editor", "Close Window", "-", "Exit"}
-	if got := file(); got[0] != "New Text File" || got[1] != "New Window" || !slices.Equal(got[2:], tail) {
+	tail := []string{"-", "Open Folder...", "Open Recent>", "-", "Save", "Save As...", "Save All~", "-", "Auto Save", "Preferences>", "-", "Revert File", "Close Editor", "Close Workspace Tab", "-", "Exit"}
+	if got := file(); got[0] != "New Text File" || got[1] != "New Workspace Tab" || !slices.Equal(got[2:], tail) {
 		t.Errorf("file menu %v", got)
 	}
 	a.edit("a.txt")

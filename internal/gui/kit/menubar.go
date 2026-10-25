@@ -8,6 +8,8 @@ import (
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 // Metrics of VS Code's menu bar: the bar is as high as the title bar (30 px), its titles are 22 px
@@ -21,12 +23,14 @@ const (
 	menuBarTitlePadH   = 8.0
 	menuBarTitleRadius = 5.0
 	menuBarFontSize    = 13.0
+	// menuBarCompactSize is the side of the square button of the compact bar.
+	menuBarCompactSize = 28.0
 )
 
 // MenuBarVisibility is the `window.menuBarVisibility` setting: when the menu bar is shown.
 type MenuBarVisibility int
 
-// The values of the setting that the menu bar supports (not `compact`, the menu in the side bar).
+// The values of the setting that the menu bar supports.
 const (
 	// MenuBarClassic shows the menu bar, except in full screen mode.
 	MenuBarClassic MenuBarVisibility = iota
@@ -36,10 +40,14 @@ const (
 	MenuBarToggle
 	// MenuBarHidden always hides the menu bar (its menus still open with the mnemonics).
 	MenuBarHidden
+	// MenuBarCompact shows one "≡" button in place of the titles; the button opens the menus as one menu whose items
+	// are the menus (submenus). The bar is hidden in full screen mode, like the classic one (the workbench then shows
+	// the titles after the Alt key).
+	MenuBarCompact
 )
 
-// ParseMenuBarVisibility reads the value of the setting: "classic", "visible", "toggle" or
-// "hidden".
+// ParseMenuBarVisibility reads the value of the setting: "classic", "visible", "toggle", "hidden" or
+// "compact".
 func ParseMenuBarVisibility(s string) (MenuBarVisibility, bool) {
 	switch s {
 	case "classic":
@@ -50,6 +58,8 @@ func ParseMenuBarVisibility(s string) (MenuBarVisibility, bool) {
 		return MenuBarToggle, true
 	case "hidden":
 		return MenuBarHidden, true
+	case "compact":
+		return MenuBarCompact, true
 	}
 	return MenuBarClassic, false
 }
@@ -63,6 +73,8 @@ func (v MenuBarVisibility) String() string {
 		return "toggle"
 	case MenuBarHidden:
 		return "hidden"
+	case MenuBarCompact:
+		return "compact"
 	}
 	return "classic"
 }
@@ -123,12 +135,12 @@ func (m *menuBarModel) openIndex() int {
 }
 
 // setUnfocused gives the bar its resting phase: hidden for the visibility `toggle` and `hidden`
-// and for `classic` in full screen, else visible.
+// and for `classic` and `compact` in full screen, else visible.
 func (m *menuBarModel) setUnfocused() {
 	switch {
 	case m.visibility == MenuBarToggle || m.visibility == MenuBarHidden:
 		m.phase = barHidden
-	case m.visibility == MenuBarClassic && m.fullScreen:
+	case (m.visibility == MenuBarClassic || m.visibility == MenuBarCompact) && m.fullScreen:
 		m.phase = barHidden
 	default:
 		m.phase = barVisible
@@ -310,6 +322,10 @@ func (c *MenuBarController) Open(index int) {
 	if c.state == nil || index < 0 || index >= len(c.state.Widget().menus) || c.state.m.visibility == MenuBarHidden {
 		return
 	}
+	if c.state.m.visibility == MenuBarCompact {
+		// the one menu of the compact bar holds them all
+		index = 0
+	}
 	if m := c.state.m; m.isOpen() && m.focused == index {
 		return
 	}
@@ -484,14 +500,36 @@ func (s *menuBarState) attach() {
 	}
 }
 
+// menus are the menus the bar shows: the ones it was given, or, with the visibility compact, one menu without a title
+// (the "≡" button) whose items are those menus as submenus, built when it opens.
+func (s *menuBarState) menus() []MenuBarMenu {
+	w := s.Widget()
+	if s.m.visibility != MenuBarCompact {
+		return w.menus
+	}
+	all := w.menus
+	return []MenuBarMenu{{ID: "compact", Source: func() []MenuItem {
+		items := make([]MenuItem, 0, len(all))
+		for _, menu := range all {
+			sub := menu.Items
+			if menu.Source != nil {
+				sub = menu.Source()
+			}
+			items = append(items, SubmenuItem(menu.Label, sub))
+		}
+		return items
+	}}}
+}
+
 // configure takes the options and the labels into the model.
 func (s *menuBarState) configure() {
 	w := s.Widget()
 	m := s.m
 	m.visibility, m.fullScreen = w.opts.Visibility, w.opts.FullScreen
 	m.enableMnemonics, m.alwaysOnMnemonics, m.disableAltFocus = !w.opts.DisableMnemonics, w.opts.AlwaysOnMnemonics, w.opts.DisableAltFocus
-	labels := make([]string, len(w.menus))
-	for i, menu := range w.menus {
+	menus := s.menus()
+	labels := make([]string, len(menus))
+	for i, menu := range menus {
 		labels[i] = menu.Label
 	}
 	m.setMnemonics(labels)
@@ -548,8 +586,9 @@ func (s *menuBarState) sync() {
 			s.ctrls[old].Close()
 		}
 		if want >= 0 && want < len(s.ctrls) {
-			s.opened = s.Widget().menus[want].Items
-			if src := s.Widget().menus[want].Source; src != nil {
+			menus := s.menus()
+			s.opened = menus[want].Items
+			if src := menus[want].Source; src != nil {
 				s.opened = src()
 			}
 			s.ctrls[want].Open()
@@ -757,8 +796,9 @@ func (s *menuBarState) Build(bc widgets.BuildContext) widgets.Widget {
 	w := s.Widget()
 	colors := ThemeOf(bc)
 	height := w.opts.Height.OrElse(menuBarHeight)
-	titles := make([]widgets.Widget, len(w.menus))
-	for i := range w.menus {
+	menus := s.menus()
+	titles := make([]widgets.Widget, len(menus))
+	for i := range menus {
 		titles[i] = s.button(bc, colors, i, height)
 	}
 	row := widgets.NewRow(titles, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
@@ -777,7 +817,6 @@ func (s *menuBarState) Build(bc widgets.BuildContext) widgets.Widget {
 
 // button builds the title of a menu and its anchor.
 func (s *menuBarState) button(bc widgets.BuildContext, colors Colors, i int, height float64) widgets.Widget {
-	w := s.Widget()
 	m := s.m
 	open := m.isOpen() && m.focused == i
 	focused := m.isFocused() && !m.isOpen() && m.focused == i
@@ -797,8 +836,17 @@ func (s *menuBarState) button(bc widgets.BuildContext, colors Colors, i int, hei
 			BorderRadius: painting.NewBorderRadiusCircular(menuBarTitleRadius),
 		})
 	}
-	label := labelWidget(bc, w.menus[i].Label, m.enableMnemonics, s.mnemonicsShown(), menuBarFontSize, fg)
-	title := widgets.NewContainer(widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, menuBarTitlePadH), widgets.NewCenter(label)), opts)
+	var title widgets.Widget
+	if m.visibility == MenuBarCompact {
+		// the button of the compact bar: the "≡" icon in a square
+		opts.Width = foundation.Some(menuBarCompactSize)
+		opts.Height = foundation.Some(menuBarCompactSize)
+		title = widgets.NewContainer(widgets.NewCenter(widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconMenu),
+			widgets.IconOpts{Size: foundation.Some(iconSize), Color: foundation.Some(fg)})), opts)
+	} else {
+		label := labelWidget(bc, s.menus()[i].Label, m.enableMnemonics, s.mnemonicsShown(), menuBarFontSize, fg)
+		title = widgets.NewContainer(widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, menuBarTitlePadH), widgets.NewCenter(label)), opts)
+	}
 	anchor := widgets.NewRawMenuAnchor(s.ctrls[i], func(bc widgets.BuildContext, info widgets.RawMenuOverlayInfo) widgets.Widget {
 		return s.overlay(i, info)
 	}, title, widgets.RawMenuAnchorOpts{UseRootOverlay: true, OnClose: func() { s.menuClosed(i) }})
@@ -819,7 +867,7 @@ func (s *menuBarState) button(bc widgets.BuildContext, colors Colors, i int, hei
 func (s *menuBarState) overlay(i int, info widgets.RawMenuOverlayInfo) widgets.Widget {
 	m := s.m
 	anchor := info.AnchorRect
-	items := s.Widget().menus[i].Items
+	items := s.menus()[i].Items
 	if s.shown == i && s.opened != nil {
 		items = s.opened
 	}

@@ -144,7 +144,7 @@ func TestDevOpenFileAddsATab(t *testing.T) {
 		t.Errorf("the new editor has its tokens, its brackets and its folding")
 	}
 	// the first file keeps its tab and its editor, which is not shown
-	if items := ts.Widget(gluttertest.ByType[*kit.Tabs]()).(*kit.Tabs).Items(); len(items) != 2 {
+	if items := ts.Widget(editorTabs()).(*kit.Tabs).Items(); len(items) != 2 {
 		t.Errorf("%d tabs, want 2", len(items))
 	}
 	if len(first.DecorationsOf(2)) == 0 {

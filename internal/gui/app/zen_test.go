@@ -9,7 +9,6 @@ import (
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
-	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -17,7 +16,6 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
-	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
@@ -77,7 +75,7 @@ func (a *groupApp) lineNumbers() editor.LineNumbersMode {
 
 func (a *groupApp) menuBarHeight() float64 { return a.ts.Size(partOf(workbench.PartMenuBar)).Height }
 
-func (a *groupApp) hasTabs() bool { return a.ts.Exists(gluttertest.ByType[*kit.Tabs]()) }
+func (a *groupApp) hasTabs() bool { return a.ts.Exists(editorTabs()) }
 
 func TestZenModeHidesThePartsAndExitRestoresThem(t *testing.T) {
 	a, fake := zenApp(t, nil)
@@ -85,7 +83,7 @@ func TestZenModeHidesThePartsAndExitRestoresThem(t *testing.T) {
 	if !before.SideBarVisible || !before.PanelVisible || !before.ActivityBarVisible || !before.StatusBarVisible {
 		t.Fatalf("the layout before: %+v", before)
 	}
-	if a.menuBarHeight() != workbench.MenuBarHeight || !a.hasTabs() || a.lineNumbers() != editor.LineNumbersOn {
+	if a.menuBarHeight() != workbench.TitleBarHeight || !a.hasTabs() || a.lineNumbers() != editor.LineNumbersOn {
 		t.Fatalf("the window before: menu bar %v, tabs %v, line numbers %v", a.menuBarHeight(), a.hasTabs(), a.lineNumbers())
 	}
 
@@ -130,7 +128,7 @@ func TestZenModeHidesThePartsAndExitRestoresThem(t *testing.T) {
 	if !reflect.DeepEqual(fake.calls, []bool{true, false}) || a.win.IsFullScreen() {
 		t.Errorf("full screen: calls %v, is %v", fake.calls, a.win.IsFullScreen())
 	}
-	if a.menuBarHeight() != workbench.MenuBarHeight || a.lineNumbers() != editor.LineNumbersOn {
+	if a.menuBarHeight() != workbench.TitleBarHeight || a.lineNumbers() != editor.LineNumbersOn {
 		t.Errorf("after zen mode: menu bar %v, line numbers %v", a.menuBarHeight(), a.lineNumbers())
 	}
 	a.noErrors()
@@ -318,7 +316,7 @@ func TestZenModeAndFullScreenFollowEachOther(t *testing.T) {
 			t.Errorf("full screen %v, menu bar %v (the classic menu bar hides in full screen)", a.win.IsFullScreen(), a.menuBarHeight())
 		}
 		a.press("f11")
-		if a.win.IsFullScreen() || a.menuBarHeight() != workbench.MenuBarHeight || !reflect.DeepEqual(fake.calls, []bool{true, false}) {
+		if a.win.IsFullScreen() || a.menuBarHeight() != workbench.TitleBarHeight || !reflect.DeepEqual(fake.calls, []bool{true, false}) {
 			t.Errorf("after the second F11: full screen %v, menu bar %v, calls %v", a.win.IsFullScreen(), a.menuBarHeight(), fake.calls)
 		}
 	})

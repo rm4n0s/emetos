@@ -1003,18 +1003,19 @@ func registerWorkbench(r *Registry) {
 			Description: "If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, `workbench.preferredDarkColorTheme` is used, else `workbench.preferredLightColorTheme`.",
 			Scope:       ScopeWindow, Category: categoryWindow,
 		},
-		// Not ported: VS Code's "compact" value (the menu as a button in the side bar), which
-		// Emetos's menu bar does not have.
+		// Since step 9b.2 (SPEC §10.14) "compact" is the default: the menus are the "≡" button in the title bar row, where
+		// VS Code puts them in the side bar.
 		Setting{
-			Key: "window.menuBarVisibility", Types: []Type{String}, Default: "classic",
-			Enum: []any{"classic", "visible", "toggle", "hidden"},
+			Key: "window.menuBarVisibility", Types: []Type{String}, Default: "compact",
+			Enum: []any{"classic", "visible", "toggle", "hidden", "compact"},
 			EnumDescriptions: []string{
 				"Menu is displayed at the top of the window and only hidden in full screen mode.",
 				"Menu is always visible at the top of the window even in full screen mode.",
 				"Menu is hidden but can be displayed at the top of the window via the Alt key.",
 				"Menu is always hidden.",
+				"Menu is displayed as a compact button in the title bar.",
 			},
-			Description: "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar.",
+			Description: "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will show the menu as a button in the title bar.",
 			Scope:       ScopeApplication, Category: categoryWindow,
 		},
 		// Step 7.8 gives the values of window.restoreWindows their meaning for several windows.

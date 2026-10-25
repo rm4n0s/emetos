@@ -353,6 +353,8 @@ func TestTheBarClipsTheLeftSideAndKeepsTheRight(t *testing.T) {
 	}
 	noErrors(t, sh.harness)
 	// a bar narrower than the right side alone still lays out
+	// (a window of 120 px has no room for the title bar either: the test shows it without)
+	sh.ts.SetViewConfiguration(func(c *ui.ViewConfiguration) { c.Window = ui.WindowInfo{} })
 	sh.ts.SetViewSize(ui.Size{Width: 120, Height: 300})
 	sh.settle()
 	noErrors(t, sh.harness)

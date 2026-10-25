@@ -287,6 +287,17 @@ func (s *shellState) show(binding *widgets.WidgetsBinding, doc *document.Documen
 	s.refreshKeys()
 }
 
+// tabsChanged tells the strip of workspace tabs, after the frame that is going on, that what it shows of this workspace
+// (whether a document has unsaved changes) may have changed.
+func (s *shellState) tabsChanged(binding *widgets.WidgetsBinding) {
+	m := PeekWorkspace(s.Context()).Process.Workspaces
+	binding.Post(func() {
+		if s.Mounted() {
+			m.changed()
+		}
+	})
+}
+
 // gridChanged follows the grid: an editor that opens gets its editor (a split or a copy opens
 // editors the shell did not ask for), one that closes lets go of its editor and its document, anything
 // else rebuilds the groups and updates the context keys. Typing in a preview editor keeps it. A new
@@ -294,6 +305,11 @@ func (s *shellState) show(binding *widgets.WidgetsBinding, doc *document.Documen
 func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.GridEvent) {
 	switch e.Kind {
 	case editorgroup.GroupEditorsChanged:
+		switch e.Change.Kind {
+		case editorgroup.EditorOpen, editorgroup.EditorClose, editorgroup.EditorDirty:
+			// the dot of the tab of the workspace shows whether a document has unsaved changes
+			defer s.tabsChanged(binding)
+		}
 		switch e.Change.Kind {
 		case editorgroup.EditorOpen:
 			s.ensureEditor(binding, e.Change.Editor)

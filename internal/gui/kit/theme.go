@@ -159,7 +159,7 @@ type Colors struct {
 	MenuSeparatorBackground                                               ui.Color
 	// The colors of the menu bar: the titles are in TitleBarActiveForeground, and the title that is
 	// open, focused or under the pointer has the Selection colors.
-	TitleBarActiveForeground                                                       ui.Color
+	TitleBarActiveForeground, TitleBarInactiveForeground                           ui.Color
 	MenubarSelectionForeground, MenubarSelectionBackground, MenubarSelectionBorder ui.Color
 	// The colors of the validation messages of an input box and of the border it takes with one, by
 	// severity: background, text (transparent where the theme sets none: the text then keeps the
@@ -220,8 +220,8 @@ type Colors struct {
 	PanelBackground, PanelBorder, PanelTitleBorder                                   ui.Color
 	PanelTitleActiveForeground, PanelTitleInactiveForeground, PanelTitleActiveBorder ui.Color
 	// The count on a tab of the panel (the Problems badge).
-	PanelTitleBadgeBackground, PanelTitleBadgeForeground ui.Color
-	TitleBarActiveBackground, TitleBarBorder             ui.Color
+	PanelTitleBadgeBackground, PanelTitleBadgeForeground                 ui.Color
+	TitleBarActiveBackground, TitleBarInactiveBackground, TitleBarBorder ui.Color
 	// The colors of tabs (kit.Tabs): the background and the text of a tab by whether it is the active
 	// tab and whether its group is the active group (the Unfocused colors are those of the tabs of
 	// another group), the tab under the pointer (a transparent hover color leaves the tab as it is),
@@ -396,7 +396,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		MenuForeground: color("menu.foreground"), MenuBackground: color("menu.background"), MenuBorder: color("menu.border"),
 		MenuSelectionForeground: color("menu.selectionForeground"), MenuSelectionBackground: color("menu.selectionBackground"),
 		MenuSelectionBorder: color("menu.selectionBorder"), MenuSeparatorBackground: color("menu.separatorBackground"),
-		TitleBarActiveForeground:   color("titleBar.activeForeground"),
+		TitleBarActiveForeground: color("titleBar.activeForeground"), TitleBarInactiveForeground: color("titleBar.inactiveForeground"),
 		MenubarSelectionForeground: color("menubar.selectionForeground"), MenubarSelectionBackground: color("menubar.selectionBackground"),
 		MenubarSelectionBorder: color("menubar.selectionBorder"),
 
@@ -447,7 +447,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		PanelTitleActiveForeground: color("panelTitle.activeForeground"), PanelTitleInactiveForeground: color("panelTitle.inactiveForeground"),
 		PanelTitleActiveBorder:    color("panelTitle.activeBorder"),
 		PanelTitleBadgeBackground: color("panelTitleBadge.background"), PanelTitleBadgeForeground: color("panelTitleBadge.foreground"),
-		TitleBarActiveBackground: color("titleBar.activeBackground"), TitleBarBorder: color("titleBar.border"),
+		TitleBarActiveBackground: color("titleBar.activeBackground"), TitleBarInactiveBackground: color("titleBar.inactiveBackground"), TitleBarBorder: color("titleBar.border"),
 
 		TabActiveBackground: color("tab.activeBackground"), TabUnfocusedActiveBackground: color("tab.unfocusedActiveBackground"),
 		TabInactiveBackground: color("tab.inactiveBackground"), TabUnfocusedInactiveBackground: color("tab.unfocusedInactiveBackground"),

@@ -25,6 +25,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 	"github.com/rm4n0s/emetos/internal/gui/views/explorer"
+	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
 // explorerApp is a window over a folder, with the Explorer in its side bar.
@@ -539,8 +540,10 @@ func TestExplorerWelcomeAndOpenFolder(t *testing.T) {
 	if win.Workspace == nil || win.Keys.Get("workbenchState") != "folder" {
 		t.Errorf("workspace %v, workbenchState %v", win.Workspace, win.Keys.Get("workbenchState"))
 	}
+	// (the name of the folder is the label of its workspace tab too: the explorer is looked at on its own)
+	side := gluttertest.ByKey(workbench.PartKey(workbench.PartSideBar))
 	for _, text := range []string{strings.ToUpper(filepath.Base(folder)), "a.go", "sub"} {
-		if err := gluttertest.FindsOneWidget(ts, gluttertest.ByText(text)); err != nil {
+		if err := gluttertest.FindsOneWidget(ts, gluttertest.Descendant(side, gluttertest.ByText(text))); err != nil {
 			t.Error(err)
 		}
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/settings"
-	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
 // bindCommands takes over the layout commands in the registry while the workbench is on screen.
@@ -57,11 +56,11 @@ func (s *workbenchState) bindCommands() {
 			return s.updateSetting(c.Ctx, "workbench.activityBar.location", value, func() { l.SetActivityBarVisible(!l.State().ActivityBarVisible) })
 		},
 		"workbench.action.toggleMenuBar": func(c command.Context, _ any) error {
-			// VS Code's custom menu goes from classic or visible to compact, and back to classic; Emetos has no
-			// compact menu, and the nearest is toggle (the menu on the Alt key).
-			value := "classic"
-			if v := s.settingMenuBarVisibility(); v == kit.MenuBarClassic || v == kit.MenuBarVisible {
-				value = "toggle"
+			// VS Code's rule: from classic or visible the menu goes to the compact button, from any other value back to
+			// classic
+			value := menuClassic
+			if v := s.settingMenuBarVisibility(); v == menuClassic || v == menuVisible {
+				value = menuCompact
 			}
 			return s.updateSetting(c.Ctx, "window.menuBarVisibility", value, nil)
 		},

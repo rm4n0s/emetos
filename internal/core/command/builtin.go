@@ -39,6 +39,7 @@ func DefaultRegistry() *Registry {
 	registerKeybindingsEditorCommands(r)
 	registerThemeCommands(r)
 	registerProfileCommands(r)
+	registerWorkspaceTabCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	registerDiffEditorCommands(r)
@@ -826,6 +827,21 @@ func registerKeybindingsEditorCommands(r *Registry) {
 		Meta{ID: "keybindings.editor.copyKeybindingEntry"},
 		Meta{ID: "keybindings.editor.copyCommandKeybindingEntry"},
 		Meta{ID: "keybindings.editor.copyCommandTitle"},
+	)
+}
+
+// registerWorkspaceTabCommands registers the commands of the workspace tabs of the title bar (step 9b.2, SPEC §10.14):
+// the ones of the context menu of a tab (they act on the tab their argument {"tabId"} names, else on the active tab)
+// and the one behind the "+" button. They are Emetos's own (VS Code has no workspace tabs) and are in the palette,
+// category Workspace. Step 9b.5 adds the commands that switch and move tabs.
+func registerWorkspaceTabCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "emetos.workspaceTab.close", Title: "Close Workspace Tab", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.closeOthers", Title: "Close Other Workspace Tabs", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.closeToTheRight", Title: "Close Workspace Tabs to the Right", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.copyPath", Title: "Copy Path of Workspace Tab", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.revealInFileManager", Title: "Reveal Workspace Tab in File Manager", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.openFolder", Title: "Open Folder in New Workspace Tab...", Category: "Workspace"},
 	)
 }
 

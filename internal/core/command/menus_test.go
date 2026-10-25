@@ -337,11 +337,7 @@ func TestDefaultMenusRefertoCommands(t *testing.T) {
 			if it.Title == "" && meta.Title == "" {
 				t.Errorf("%s: %s has no title", it.Menu, it.Command)
 			}
-			// TODO(step 9b.2): the rows New Window and Close Window of the File menu keep their labels until the menu is
-			// reworked (a label of the menu changes the goldens of every open File menu); the commands are titled New
-			// Workspace Tab and Close Workspace Tab since step 9b.1 (SPEC §10.14).
-			tabRow := it.Command == "workbench.action.newWindow" || it.Command == "workbench.action.closeWindow"
-			if it.MnemonicTitle != "" && it.Title == "" && !tabRow && !equalWithoutMnemonic(it.MnemonicTitle, meta.Title) {
+			if it.MnemonicTitle != "" && it.Title == "" && !equalWithoutMnemonic(it.MnemonicTitle, meta.Title) {
 				t.Errorf("%s: %s has the title %q, the mnemonic title is %q", it.Menu, it.Command, meta.Title, it.MnemonicTitle)
 			}
 		case it.Submenu != "":
@@ -389,14 +385,14 @@ func TestDefaultFileMenu(t *testing.T) {
 		want []string
 	}{
 		// Save, Save As, Save All, Revert File and Close Editor are there with no editor open, dimmed
-		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Window", "-", "E&&xit"}},
-		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
-		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save", "Save &&As...", "Save A&&ll", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Window", "-", "E&&xit"}},
-		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "New &&Window", "-", "Open &&Folder...", "Open &&Recent", "-",
-			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Window", "-", "E&&xit"}},
+		{"no folder, no editor", contextkey.MapContext{"workbenchState": "empty"}, []string{"&&New Text File", "New &&Workspace Tab", "-", "Open &&Folder...", "Open &&Recent", "-",
+			"&&Save~", "Save &&As...~", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File~", "&&Close Editor~", "Clos&&e Workspace Tab", "-", "E&&xit"}},
+		{"no folder, an editor", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "New &&Workspace Tab", "-", "Open &&Folder...", "Open &&Recent", "-",
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File", "&&Close Editor", "Clos&&e Workspace Tab", "-", "E&&xit"}},
+		{"an untitled editor cannot revert", contextkey.MapContext{"workbenchState": "empty", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": false, "dirtyWorkingCopies": true}, []string{"&&New Text File", "New &&Workspace Tab", "-", "Open &&Folder...", "Open &&Recent", "-",
+			"&&Save", "Save &&As...", "Save A&&ll", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File~", "&&Close Editor", "Clos&&e Workspace Tab", "-", "E&&xit"}},
+		{"a folder", contextkey.MapContext{"workbenchState": "folder", "activeEditor": "emetos.textEditor", "activeEditorCanRevert": true}, []string{"&&New Text File", "New &&Workspace Tab", "-", "Open &&Folder...", "Open &&Recent", "-",
+			"&&Save", "Save &&As...", "Save A&&ll~", "-", "A&&uto Save", "&&Preferences", "-", "Re&&vert File", "&&Close Editor", "Close &&Folder", "Clos&&e Workspace Tab", "-", "E&&xit"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := titles(tc.ctx); !reflect.DeepEqual(got, tc.want) {
@@ -1142,4 +1138,56 @@ func TestProfileMenus(t *testing.T) {
 			t.Errorf("%s: Profiles at %d, Settings at %d", menu, profiles, settings)
 		}
 	}
+}
+
+// TestWorkspaceTabMenus checks the rows of the context menu of a workspace tab and of the "+" button (step 9b.2).
+func TestWorkspaceTabMenus(t *testing.T) {
+	commands := DefaultRegistry()
+	menus := DefaultMenus(commands)
+	rows := func(menu string, ctx contextkey.Context) []string {
+		var out []string
+		for _, e := range menus.Items(menu, ctx) {
+			switch {
+			case e.Separator:
+				out = append(out, "-")
+			case e.Disabled:
+				out = append(out, e.Title+"~")
+			default:
+				out = append(out, e.Title)
+			}
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name string
+		ctx  contextkey.MapContext
+		want []string
+	}{
+		{"a folder tab among others", contextkey.MapContext{"workspaceTabCount": 3.0, "activeWorkspaceTabHasFolder": true},
+			[]string{"Close", "Close Others", "Close to the Right", "-", "Copy Path", "Reveal in File Manager", "-", "Switch Profile..."}},
+		{"the last tab has nothing to its right", contextkey.MapContext{"workspaceTabCount": 3.0, "workspaceTabIsLast": true, "activeWorkspaceTabHasFolder": true},
+			[]string{"Close", "Close Others", "Close to the Right~", "-", "Copy Path", "Reveal in File Manager", "-", "Switch Profile..."}},
+		{"the only tab, with no folder", contextkey.MapContext{"workspaceTabCount": 1.0, "workspaceTabIsLast": true},
+			[]string{"Close", "Close Others~", "Close to the Right~", "-", "Copy Path~", "Reveal in File Manager~", "-", "Switch Profile..."}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rows(WorkspaceTabContext, tc.ctx); !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got  %v\nwant %v", got, tc.want)
+			}
+		})
+	}
+	t.Run("the plus button has Workspace...", func(t *testing.T) {
+		if got, want := rows(WorkspaceTabNew, contextkey.MapContext{}), []string{"Workspace..."}; !reflect.DeepEqual(got, want) {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+	t.Run("every row runs a command that exists", func(t *testing.T) {
+		for _, it := range menus.All() {
+			if (it.Menu == WorkspaceTabContext || it.Menu == WorkspaceTabNew) && it.Command != "" {
+				if _, ok := commands.Lookup(it.Command); !ok {
+					t.Errorf("%s: no command %s", it.Menu, it.Command)
+				}
+			}
+		}
+	})
 }

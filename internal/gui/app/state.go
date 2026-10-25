@@ -327,7 +327,8 @@ func startupWindowConfig(win *Workspace, saved *storage.Geometry) widgets.Window
 	case saved != nil && saved.Valid():
 		geo = *saved
 	}
-	cfg := widgets.WindowConfig{Title: Title, Size: ui.Size{Width: geo.Width, Height: geo.Height}}
+	// Emetos draws the title bar of its window: the workspace tabs are in it (SPEC §10.14)
+	cfg := widgets.WindowConfig{Title: Title, Size: ui.Size{Width: geo.Width, Height: geo.Height}, Decorations: widgets.DecorationsApp}
 	if restoreMode(win.Settings) == "none" {
 		return cfg
 	}

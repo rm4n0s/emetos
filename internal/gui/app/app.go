@@ -264,6 +264,8 @@ type shellState struct {
 	explorerMenu *kit.ContextMenuController
 	// unsubscribeTitle stops following the settings of the title.
 	unsubscribeTitle func()
+	// unbindTitleBar gives the commands of the workspace tabs back and stops following the tabs.
+	unbindTitleBar func()
 	// window is the controller of the window, which gets the title; nil where there is none.
 	window widgets.WindowController
 	// status is what the shell keeps of the status bar (statusbar.go).
@@ -316,6 +318,7 @@ func (s *shellState) InitState() {
 	s.bindDevOpenDiff()
 	s.bindDevMerge()
 	s.bindDevOpenMenu()
+	s.unbindTitleBar = s.bindTitleBar(binding)
 	// the title of the window follows its template
 	s.unsubscribeTitle = PeekWorkspace(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("window.title", "") || e.Affects("window.titleSeparator", "") {
@@ -407,6 +410,9 @@ func (s *shellState) Dispose() {
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
+	if s.unbindTitleBar != nil {
+		s.unbindTitleBar()
+	}
 	s.disposeModes()
 	s.disposeBackups() // before the documents close: their backups stay
 	s.disposeState()   // before the groups go: it saves them
@@ -435,7 +441,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		FullScreen: win.IsFullScreen(),
 		StatusBar:  s.statusBarOptions(win),
 		NoFolder:   win.Folder == "",
-		Menus:      s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar,
+		Menus:      s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar, TitleBar: s.titleBarOptions(win),
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 		ViewBody: s.viewBody, ViewName: s.viewName, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
 		OnViewFocus: s.viewFocused,

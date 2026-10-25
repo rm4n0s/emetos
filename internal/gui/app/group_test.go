@@ -116,10 +116,10 @@ func (a *groupApp) shell() *shellState {
 
 // tabs are the tabs of the strip.
 func (a *groupApp) tabs() []kit.TabItem {
-	if !a.ts.Exists(gluttertest.ByType[*kit.Tabs]()) {
+	if !a.ts.Exists(editorTabs()) {
 		return nil
 	}
-	return a.ts.Widget(gluttertest.ByType[*kit.Tabs]()).(*kit.Tabs).Items()
+	return a.ts.Widget(editorTabs()).(*kit.Tabs).Items()
 }
 
 func (a *groupApp) tabNames() []string {
@@ -132,7 +132,7 @@ func (a *groupApp) tabNames() []string {
 
 // active is the name of the active tab, or "".
 func (a *groupApp) active() string {
-	tabs := a.ts.Widget(gluttertest.ByType[*kit.Tabs]()).(*kit.Tabs)
+	tabs := a.ts.Widget(editorTabs()).(*kit.Tabs)
 	if i := tabs.Active(); i >= 0 && i < len(tabs.Items()) {
 		return tabs.Items()[i].Name
 	}
@@ -156,7 +156,7 @@ func (a *groupApp) vm() *editor.ViewModel {
 }
 
 func (a *groupApp) tabFinder(name string) gluttertest.Finder {
-	return gluttertest.Descendant(gluttertest.ByType[*kit.Tabs](), gluttertest.ByText(name))
+	return gluttertest.Descendant(editorTabs(), gluttertest.ByText(name))
 }
 
 var mouseButton = gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse}
@@ -253,7 +253,7 @@ func TestTheFilesOfTheCommandLineAreTabs(t *testing.T) {
 		}
 	}
 	// the tabs and the breadcrumbs are above the text, in that order
-	if tabs, bar := a.ts.TopLeft(gluttertest.ByType[*kit.Tabs]()).Dy, a.ts.TopLeft(gluttertest.ByType[*editor.Breadcrumbs]()).Dy; tabs >= bar {
+	if tabs, bar := a.ts.TopLeft(editorTabs()).Dy, a.ts.TopLeft(gluttertest.ByType[*editor.Breadcrumbs]()).Dy; tabs >= bar {
 		t.Errorf("tabs at %v, breadcrumbs at %v", tabs, bar)
 	}
 	a.noErrors()
@@ -386,7 +386,7 @@ func TestClosingTheActiveEditorActivatesTheMostRecentlyUsed(t *testing.T) {
 func TestTheLastClosingEditorShowsTheEmptyState(t *testing.T) {
 	a := newGroupApp(t, []string{"a.go"}, "a.go")
 	a.press("ctrl+w")
-	if a.ts.Exists(gluttertest.ByType[*editor.Editor]()) || a.ts.Exists(gluttertest.ByType[*kit.Tabs]()) {
+	if a.ts.Exists(gluttertest.ByType[*editor.Editor]()) || a.ts.Exists(editorTabs()) {
 		t.Error("the editor or the tabs are still there")
 	}
 	if err := gluttertest.FindsOneWidget(a.ts, gluttertest.ByText("Emetos")); err != nil {
@@ -542,7 +542,7 @@ func TestPinnedTabsKeepTheirPlace(t *testing.T) {
 	a.show("a.go", false)
 	wantNames(t, a.tabNames(), "c.go", "a.go", "b.go")
 	// the pin on the tab unpins it
-	a.ts.TapAt(a.ts.Center(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconPinned))), mouseButton)
+	a.ts.TapAt(a.ts.Center(gluttertest.Descendant(editorTabs(), gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconPinned)))), mouseButton)
 	a.pump()
 	if a.item("c.go").Sticky {
 		t.Error("clicking the pin leaves the tab pinned")
@@ -558,7 +558,7 @@ func TestTheTabsReactToTheMouse(t *testing.T) {
 	// the close button closes: it shows under the pointer
 	a.ts.Hover(a.ts.Center(a.tabFinder("c.go")))
 	a.ts.Pump(time.Millisecond)
-	a.ts.TapAt(a.ts.Center(gluttertest.At(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconClose)), 1)), mouseButton)
+	a.ts.TapAt(a.ts.Center(gluttertest.At(gluttertest.Descendant(editorTabs(), gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconClose))), 1)), mouseButton)
 	a.pump()
 	wantNames(t, a.tabNames(), "a.go")
 	if a.active() != "a.go" {
@@ -573,11 +573,11 @@ func TestShowTabs(t *testing.T) {
 	if a.ts.Exists(a.tabFinder("b.go")) || !a.ts.Exists(a.tabFinder("a.go")) {
 		t.Errorf("single mode shows the title of the active editor only")
 	}
-	if got := a.ts.Size(gluttertest.ByType[*kit.Tabs]()).Height; got != kit.TabHeight {
+	if got := a.ts.Size(editorTabs()).Height; got != kit.TabHeight {
 		t.Errorf("the header is %v high", got)
 	}
 	a.setting("workbench.editor.showTabs", "none")
-	if a.ts.Exists(gluttertest.ByType[*kit.Tabs]()) {
+	if a.ts.Exists(editorTabs()) {
 		t.Error("none shows no title area")
 	}
 	if !a.ts.Exists(gluttertest.ByType[*editor.Editor]()) {

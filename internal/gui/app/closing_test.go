@@ -170,9 +170,9 @@ func askOf(name string) string { return "Do you want to save the changes you mad
 func (a *saveApp) hoverTabAndClose(name string) {
 	a.t.Helper()
 	// a tab with unsaved changes shows a dot where the close button is; the button shows under the pointer
-	dot := gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconCircleFilled))
+	dot := gluttertest.Descendant(editorTabs(), gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconCircleFilled)))
 	if !a.ts.Exists(dot) {
-		dot = gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconClose))
+		dot = gluttertest.Descendant(editorTabs(), gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconClose)))
 	}
 	at := a.ts.Center(dot)
 	a.ts.Hover(at)
@@ -835,7 +835,7 @@ func TestCloseWorkspaceTabAndQuitAreCommandsWithKeysAndMenuRows(t *testing.T) {
 	a := newSaveApp(t, map[string]string{"a.txt": "one\n"}, "a.txt")
 	s := a.shell()
 	rows := menuRows(s.menus.Items(command.MenubarFileMenu, s.menuContext()))
-	if !slices.Contains(rows, "Close Window") || rows[len(rows)-1] != "Exit" {
+	if !slices.Contains(rows, "Close Workspace Tab") || rows[len(rows)-1] != "Exit" {
 		t.Errorf("file menu %v", rows)
 	}
 	// the menu rows run the commands

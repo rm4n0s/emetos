@@ -47,7 +47,7 @@ const (
 func newProfileFolders(t *testing.T) *profileFolders {
 	t.Helper()
 	paths := testutil.Isolate(t)
-	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "editor.tabSize": 4, "files.hotExit": "off"})
+	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "editor.tabSize": 4, "files.hotExit": "off", "window.menuBarVisibility": "classic"})
 	f := &profileFolders{t: t, paths: paths, clock: storagetest.NewClock()}
 	f.write(storage.DefaultProfile, "snippets/plaintext.json", defaultSnip)
 	if _, err := f.profiles().Create(context.Background(), "Work", storage.CreateEmpty); err != nil {

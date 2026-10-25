@@ -536,6 +536,9 @@ func registerMenuColors(r *ColorRegistry) {
 		ColorContribution{ID: "titleBar.activeForeground", Defaults: dflt(Hex("#CCCCCC"), Hex("#333333"), Hex("#FFFFFF"), Hex("#292929")),
 			Description: "Title bar foreground when the window is active."},
 
+		ColorContribution{ID: "titleBar.inactiveForeground", Defaults: dflt(Transparent(Ref("titleBar.activeForeground"), 0.6), Transparent(Ref("titleBar.activeForeground"), 0.6), nil, Hex("#292929")),
+			Description: "Title bar foreground when the window is inactive."},
+
 		ColorContribution{ID: "menu.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Border color of menus."},
 		ColorContribution{ID: "menu.foreground", Defaults: AllThemes(Ref("dropdown.foreground")),
@@ -785,6 +788,8 @@ func registerLayoutColors(r *ColorRegistry) {
 
 		ColorContribution{ID: "titleBar.activeBackground", Defaults: dflt(Hex("#3C3C3C"), Hex("#DDDDDD"), Hex("#000000"), Hex("#FFFFFF")),
 			Description: "Title bar background when the window is active."},
+		ColorContribution{ID: "titleBar.inactiveBackground", Defaults: dflt(Transparent(Ref("titleBar.activeBackground"), 0.6), Transparent(Ref("titleBar.activeBackground"), 0.6), nil, nil),
+			Description: "Title bar background when the window is inactive."},
 		ColorContribution{ID: "titleBar.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
 			Description: "Title bar border color."},
 	)

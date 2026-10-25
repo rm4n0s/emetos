@@ -34,10 +34,12 @@ func noErrors(t *testing.T, h *harness) {
 
 func TestPartsAreLaidOutAsVSCodeDoes(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, nil)
-	rectIs(t, "the menu bar", h.rect(PartMenuBar), 0, 0, 1000, 30)
-	rectIs(t, "the activity bar", h.rect(PartActivityBar), 0, 30, 48, 618)
-	rectIs(t, "the side bar", h.rect(PartSideBar), 48, 30, 348, 618)
-	rectIs(t, "the editor area", h.rect(PartEditor), 348, 30, 1000, 618)
+	if r := h.rect(PartMenuBar); r.Top != 0 || r.Height() != 35 {
+		t.Errorf("the menu is at %v, want it in the title bar row, 35 high", r)
+	}
+	rectIs(t, "the activity bar", h.rect(PartActivityBar), 0, 35, 48, 618)
+	rectIs(t, "the side bar", h.rect(PartSideBar), 48, 35, 348, 618)
+	rectIs(t, "the editor area", h.rect(PartEditor), 348, 35, 1000, 618)
 	rectIs(t, "the status bar", h.rect(PartStatusBar), 0, 618, 1000, 640)
 	if h.shown(PartPanel) {
 		t.Error("the panel is hidden until it is asked for")
@@ -49,7 +51,7 @@ func TestWithEveryPartShown(t *testing.T) {
 	st := DefaultLayoutState()
 	st.PanelVisible = true
 	h := newHarness(t, testSize, kit.DarkModern(), st, nil, nil)
-	rectIs(t, "the editor area", h.rect(PartEditor), 348, 30, 1000, 318)
+	rectIs(t, "the editor area", h.rect(PartEditor), 348, 35, 1000, 318)
 	rectIs(t, "the panel", h.rect(PartPanel), 348, 318, 1000, 618)
 	noErrors(t, h)
 }
@@ -87,14 +89,14 @@ func TestToggleCommandsShowAndHideTheirParts(t *testing.T) {
 func TestTheEditorAreaTakesThePlaceOfAHiddenPart(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, nil)
 	h.run("workbench.action.toggleSidebarVisibility")
-	rectIs(t, "the editor area without the side bar", h.rect(PartEditor), 48, 30, 1000, 618)
+	rectIs(t, "the editor area without the side bar", h.rect(PartEditor), 48, 35, 1000, 618)
 	h.run("workbench.action.toggleActivityBarVisibility")
-	rectIs(t, "the editor area without the activity bar", h.rect(PartEditor), 0, 30, 1000, 618)
+	rectIs(t, "the editor area without the activity bar", h.rect(PartEditor), 0, 35, 1000, 618)
 	h.run("workbench.action.toggleStatusbarVisibility")
-	rectIs(t, "the editor area without the status bar", h.rect(PartEditor), 0, 30, 1000, 640)
+	rectIs(t, "the editor area without the status bar", h.rect(PartEditor), 0, 35, 1000, 640)
 	// and the side bar comes back with the width it had
 	h.run("workbench.action.toggleSidebarVisibility")
-	rectIs(t, "the side bar again", h.rect(PartSideBar), 0, 30, 300, 640)
+	rectIs(t, "the side bar again", h.rect(PartSideBar), 0, 35, 300, 640)
 	noErrors(t, h)
 }
 
@@ -124,7 +126,7 @@ func TestCommandsThatAreSettingsWriteThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.settle()
-	rectIs(t, "the side bar on the right", h.rect(PartSideBar), 652, 30, 952, 618)
+	rectIs(t, "the side bar on the right", h.rect(PartSideBar), 652, 35, 952, 618)
 	noErrors(t, h)
 }
 
@@ -132,11 +134,11 @@ func TestSideBarOnTheRight(t *testing.T) {
 	st := DefaultLayoutState()
 	st.SideBarPosition = SideBarRight
 	h := newHarness(t, testSize, kit.LightModern(), st, nil, nil)
-	rectIs(t, "the editor area", h.rect(PartEditor), 0, 30, 652, 618)
-	rectIs(t, "the side bar", h.rect(PartSideBar), 652, 30, 952, 618)
-	rectIs(t, "the activity bar", h.rect(PartActivityBar), 952, 30, 1000, 618)
+	rectIs(t, "the editor area", h.rect(PartEditor), 0, 35, 652, 618)
+	rectIs(t, "the side bar", h.rect(PartSideBar), 652, 35, 952, 618)
+	rectIs(t, "the activity bar", h.rect(PartActivityBar), 952, 35, 1000, 618)
 	h.run("workbench.action.toggleSidebarVisibility")
-	rectIs(t, "the editor area without the side bar", h.rect(PartEditor), 0, 30, 952, 618)
+	rectIs(t, "the editor area without the side bar", h.rect(PartEditor), 0, 35, 952, 618)
 	noErrors(t, h)
 }
 
@@ -147,10 +149,10 @@ func TestPanelPositions(t *testing.T) {
 		editor   [4]float64
 		panel    [4]float64
 	}{
-		{"workbench.action.positionPanelBottom", "bottom", [4]float64{348, 30, 1000, 318}, [4]float64{348, 318, 1000, 618}},
-		{"workbench.action.positionPanelTop", "top", [4]float64{348, 330, 1000, 618}, [4]float64{348, 30, 1000, 330}},
-		{"workbench.action.positionPanelLeft", "left", [4]float64{648, 30, 1000, 618}, [4]float64{348, 30, 648, 618}},
-		{"workbench.action.positionPanelRight", "right", [4]float64{348, 30, 700, 618}, [4]float64{700, 30, 1000, 618}},
+		{"workbench.action.positionPanelBottom", "bottom", [4]float64{348, 35, 1000, 318}, [4]float64{348, 318, 1000, 618}},
+		{"workbench.action.positionPanelTop", "top", [4]float64{348, 335, 1000, 618}, [4]float64{348, 35, 1000, 335}},
+		{"workbench.action.positionPanelLeft", "left", [4]float64{648, 35, 1000, 618}, [4]float64{348, 35, 648, 618}},
+		{"workbench.action.positionPanelRight", "right", [4]float64{348, 35, 700, 618}, [4]float64{700, 35, 1000, 618}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.position, func(t *testing.T) {
@@ -216,13 +218,13 @@ func TestMaximizeAndRestoreThePanel(t *testing.T) {
 	if h.shown(PartEditor) {
 		t.Error("the editor area is shown while the panel is maximized")
 	}
-	rectIs(t, "the maximized panel", h.rect(PartPanel), 348, 30, 1000, 618)
+	rectIs(t, "the maximized panel", h.rect(PartPanel), 348, 35, 1000, 618)
 	if h.key("panelMaximized") != true || h.key("mainEditorAreaVisible") != false {
 		t.Errorf("keys: panelMaximized %v, mainEditorAreaVisible %v", h.key("panelMaximized"), h.key("mainEditorAreaVisible"))
 	}
 
 	h.run("workbench.action.toggleMaximizedPanel")
-	rectIs(t, "the editor area restored", h.rect(PartEditor), 348, 30, 1000, 318)
+	rectIs(t, "the editor area restored", h.rect(PartEditor), 348, 35, 1000, 318)
 	rectIs(t, "the panel restored", h.rect(PartPanel), 348, 318, 1000, 618)
 	if h.key("panelMaximized") != false || h.key("mainEditorAreaVisible") != true {
 		t.Errorf("keys: panelMaximized %v, mainEditorAreaVisible %v", h.key("panelMaximized"), h.key("mainEditorAreaVisible"))
@@ -250,9 +252,9 @@ func TestTheRestoredPanelHasTheSizeItHadEvenAfterTheWindowChanged(t *testing.T) 
 func TestMaximizingAHiddenPanelShowsIt(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, nil)
 	h.run("workbench.action.toggleMaximizedPanel")
-	rectIs(t, "the panel", h.rect(PartPanel), 348, 30, 1000, 618)
+	rectIs(t, "the panel", h.rect(PartPanel), 348, 35, 1000, 618)
 	h.run("workbench.action.togglePanel")
-	rectIs(t, "the editor area with the panel hidden", h.rect(PartEditor), 348, 30, 1000, 618)
+	rectIs(t, "the editor area with the panel hidden", h.rect(PartEditor), 348, 35, 1000, 618)
 	h.run("workbench.action.togglePanel")
 	if h.shown(PartEditor) {
 		t.Error("the panel came back maximized (workbench.panel.opensMaximized preserve)")
@@ -284,7 +286,7 @@ func TestSashesResizeTheSideBarAndThePanel(t *testing.T) {
 	at := ui.Offset{Dx: 348, Dy: 300}
 	h.ts.DragFrom(at, ui.Offset{Dx: 60})
 	h.settle()
-	rectIs(t, "the side bar", h.rect(PartSideBar), 48, 30, 408, 618)
+	rectIs(t, "the side bar", h.rect(PartSideBar), 48, 35, 408, 618)
 	if got := h.layout.State().SideBarWidth; got != 360 {
 		t.Errorf("SideBarWidth = %v, want 360", got)
 	}
@@ -314,13 +316,13 @@ func TestTheEditorAreaTakesTheResizeOfTheWindow(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), st, nil, nil)
 	h.ts.SetViewSize(ui.Size{Width: 1300, Height: 800})
 	h.settle()
-	rectIs(t, "the side bar", h.rect(PartSideBar), 48, 30, 348, 778)
-	rectIs(t, "the editor area", h.rect(PartEditor), 348, 30, 1300, 478)
+	rectIs(t, "the side bar", h.rect(PartSideBar), 48, 35, 348, 778)
+	rectIs(t, "the editor area", h.rect(PartEditor), 348, 35, 1300, 478)
 	rectIs(t, "the panel", h.rect(PartPanel), 348, 478, 1300, 778)
 	h.ts.SetViewSize(ui.Size{Width: 700, Height: 500})
 	h.settle()
-	rectIs(t, "the side bar when smaller", h.rect(PartSideBar), 48, 30, 348, 478)
-	rectIs(t, "the editor area when smaller", h.rect(PartEditor), 348, 30, 700, 178)
+	rectIs(t, "the side bar when smaller", h.rect(PartSideBar), 48, 35, 348, 478)
+	rectIs(t, "the editor area when smaller", h.rect(PartEditor), 348, 35, 700, 178)
 	rectIs(t, "the panel when smaller", h.rect(PartPanel), 348, 178, 700, 478)
 	noErrors(t, h)
 }
@@ -476,53 +478,69 @@ func TestEachPartHasItsOwnScope(t *testing.T) {
 
 func TestMenuBarVisibility(t *testing.T) {
 	menus := []kit.MenuBarMenu{{Label: "&File"}, {Label: "&Edit"}}
+	// the menu is in the title bar row, which is 35 high whatever the setting says; the widget that is the menu
+	// is the "≡" button (compact), the titles (classic, visible), the titles after the Alt key (toggle) or nothing
 	cases := []struct {
-		value  string
-		height float64
-	}{{"classic", 30}, {"visible", 30}, {"toggle", 0}, {"hidden", 0}}
+		value string
+		shown bool
+		width float64
+	}{{"compact", true, 28}, {"classic", true, 0}, {"visible", true, 0}, {"toggle", false, 0}, {"hidden", false, 0}}
 	for _, tc := range cases {
 		t.Run(tc.value, func(t *testing.T) {
 			h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), map[string]any{"window.menuBarVisibility": tc.value},
 				func(o *Options) { o.Menus = menus })
-			if got := h.rect(PartMenuBar).Height(); got != tc.height {
-				t.Errorf("the menu bar area is %v high, want %v", got, tc.height)
+			r := h.rect(PartMenuBar)
+			if tc.shown && (r.Width() < 28 || r.Height() != 35) {
+				t.Errorf("the menu is %v, want a menu in the title bar row", r)
 			}
-			rectIs(t, "the activity bar", h.rect(PartActivityBar), 0, tc.height, 48, 618)
+			if !tc.shown && r.Width() != 0 {
+				t.Errorf("the menu is %v wide, want it hidden", r.Width())
+			}
+			if tc.width != 0 && r.Width() != tc.width {
+				t.Errorf("the menu is %v wide, want %v", r.Width(), tc.width)
+			}
+			rectIs(t, "the activity bar", h.rect(PartActivityBar), 0, 35, 48, 618)
+			if got := h.ts.Exists(gluttertest.ByText("File")); got != (tc.value == "classic" || tc.value == "visible") {
+				t.Errorf("the titles show = %v", got)
+			}
 			noErrors(t, h)
 		})
 	}
 }
 
 func TestToggleMenuBar(t *testing.T) {
-	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Menus = []kit.MenuBarMenu{{Label: "&File"}} })
-	value := func() string { return settings.Get[string](h.store, "window.menuBarVisibility", "") }
-	if value() != "classic" || h.rect(PartMenuBar).Height() != 30 {
-		t.Fatal("the menu bar does not start classic")
+	// VS Code's rule: classic and visible go to compact, everything else to classic
+	cases := []struct {
+		start, want string
+	}{{"compact", "classic"}, {"classic", "compact"}, {"visible", "compact"}, {"toggle", "classic"}, {"hidden", "classic"}}
+	for _, tc := range cases {
+		t.Run(tc.start, func(t *testing.T) {
+			h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), map[string]any{"window.menuBarVisibility": tc.start},
+				func(o *Options) { o.Menus = []kit.MenuBarMenu{{Label: "&File"}} })
+			value := func() string { return settings.Get[string](h.store, "window.menuBarVisibility", "") }
+			h.run("workbench.action.toggleMenuBar")
+			if value() != tc.want {
+				t.Errorf("%s went to %q, want %q", tc.start, value(), tc.want)
+			}
+			noErrors(t, h)
+		})
 	}
-	h.run("workbench.action.toggleMenuBar")
-	if value() != "toggle" || h.rect(PartMenuBar).Height() != 0 {
-		t.Errorf("after one run: %q, %v high", value(), h.rect(PartMenuBar).Height())
-	}
-	h.run("workbench.action.toggleMenuBar")
-	if value() != "classic" || h.rect(PartMenuBar).Height() != 30 {
-		t.Errorf("after two runs: %q, %v high", value(), h.rect(PartMenuBar).Height())
-	}
-	noErrors(t, h)
 }
 
 func TestAltShowsTheMenuBarThatIsToggled(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), map[string]any{"window.menuBarVisibility": "toggle"},
 		func(o *Options) { o.Menus = []kit.MenuBarMenu{{Label: "&File"}, {Label: "&Edit"}} })
-	if h.rect(PartMenuBar).Height() != 0 {
-		t.Fatal("the menu bar is shown")
+	if h.rect(PartMenuBar).Width() != 0 || h.ts.Exists(gluttertest.ByText("File")) {
+		t.Fatal("the menu is shown")
 	}
 	h.run("workbench.actions.menubar.focus")
-	if got := h.rect(PartMenuBar).Height(); got != 30 {
-		t.Errorf("the menu bar area is %v high after the command that focuses it", got)
+	if !h.ts.Exists(gluttertest.ByText("File")) || h.rect(PartMenuBar).Height() != 35 {
+		t.Errorf("the titles do not show in the title bar after the command that focuses the menu")
 	}
+	rectIs(t, "the activity bar", h.rect(PartActivityBar), 0, 35, 48, 618)
 	h.run("workbench.actions.menubar.focus")
-	if got := h.rect(PartMenuBar).Height(); got != 0 {
-		t.Errorf("the menu bar area is %v high after the second run", got)
+	if h.ts.Exists(gluttertest.ByText("File")) {
+		t.Error("the titles show after the second run")
 	}
 	noErrors(t, h)
 }
@@ -633,7 +651,7 @@ func TestAWorkbenchWithoutServicesStillShows(t *testing.T) {
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) {
 		o.Commands, o.Keys, o.Scopes, o.Settings, o.Dialogs, o.Editor = nil, nil, nil, nil, nil, nil
 	})
-	rectIs(t, "the editor area", h.rect(PartEditor), 348, 30, 1000, 618)
+	rectIs(t, "the editor area", h.rect(PartEditor), 348, 35, 1000, 618)
 	noErrors(t, h)
 }
 

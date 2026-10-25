@@ -22,10 +22,12 @@ import (
 func themedWindow(t *testing.T, extra map[string]any) (*Workspace, storage.Paths) {
 	t.Helper()
 	paths := testutil.Isolate(t)
-	if extra == nil {
-		extra = map[string]any{}
+	// the menu bar of the tests is the classic one: the tests tap its titles (the compact menu has tests of its own)
+	values := map[string]any{"window.menuBarVisibility": "classic"}
+	for k, v := range extra {
+		values[k] = v
 	}
-	testutil.Settings(t, paths, extra)
+	testutil.Settings(t, paths, values)
 	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatalf("NewWorkspace: %v", err)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -129,6 +130,10 @@ func TestGoldenThemesMenus(t *testing.T) {
 	for _, th := range goldenThemesOfTheGrid {
 		t.Run(th.name+" the Preferences submenu", func(t *testing.T) {
 			a := themeGolden(t, th.theme, "")
+			// the classic menu bar, whose File menu this image shows (the compact menu has its own images)
+			if err := a.win.Settings.Update(t.Context(), "window.menuBarVisibility", "classic", settings.TargetUser); err != nil {
+				t.Fatal(err)
+			}
 			// wide enough for the submenus to open to the right
 			a.ts.SetViewSize(ui.Size{Width: 1100, Height: 460})
 			a.pump()

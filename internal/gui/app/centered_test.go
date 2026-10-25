@@ -8,7 +8,6 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
-	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
@@ -71,12 +70,12 @@ func TestTheCenteredLayoutShowsWithOneColumnOfGroups(t *testing.T) {
 
 // groupWidth is the width of the first group on the screen and areaWidth the editor area's.
 func (a *groupApp) groupWidth() float64 {
-	return a.ts.Size(gluttertest.First(gluttertest.ByType[*kit.Tabs]())).Width
+	return a.ts.Size(gluttertest.First(editorTabs())).Width
 }
 
 // groupLeft is how far the first group is from the left edge of the editor area.
 func (a *groupApp) groupLeft() float64 {
-	return a.ts.TopLeft(gluttertest.First(gluttertest.ByType[*kit.Tabs]())).Dx - a.ts.TopLeft(partOf(workbench.PartEditor)).Dx
+	return a.ts.TopLeft(gluttertest.First(editorTabs())).Dx - a.ts.TopLeft(partOf(workbench.PartEditor)).Dx
 }
 
 func (a *groupApp) areaWidth() float64 { return a.ts.Size(partOf(workbench.PartEditor)).Width }

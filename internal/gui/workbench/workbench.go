@@ -51,7 +51,7 @@ type Options struct {
 	// (the status bar, the activity bar, the menu bar) write it; the layout follows the settings
 	// workbench.sideBar.location, workbench.activityBar.location, workbench.statusBar.visible and
 	// workbench.panel.opensMaximized. Without it the commands change the layout directly and the menu
-	// bar is the classic one.
+	// is the compact one.
 	Settings *settings.Store
 	// Dialogs is the queue of the dialogs of the window; the workbench shows them over everything, once.
 	Dialogs *kit.DialogController
@@ -60,6 +60,8 @@ type Options struct {
 	// Menus are the menus of the menu bar, and OnRunMenu is told which item the user ran.
 	Menus     []kit.MenuBarMenu
 	OnRunMenu func(item kit.MenuItem)
+	// TitleBar, when set, puts the workspace tabs in the title bar row (SPEC §10.14), next to the menu.
+	TitleBar *TitleBarOptions
 	// MenuBar, when set, is the controller of the menu bar, with which the caller opens a menu or
 	// reads the state of the bar; the workbench makes its own without it.
 	MenuBar *kit.MenuBarController
@@ -119,15 +121,16 @@ type Options struct {
 	// NoFolder gives the bar the colors of a window with no folder.
 	StatusLeft, StatusRight []widgets.Widget
 	NoFolder                bool
-	// FullScreen says that the window is in full screen mode, where the menu bar of the visibility classic is hidden
-	// until the Alt key shows it (SPEC §10.9). While zen mode is on (Layout) the menu bar is hidden.
+	// FullScreen says that the window is in full screen mode, where the window has no title bar and the menu of the
+	// visibility classic and compact is hidden until the Alt key shows it, in a row of its own (SPEC §10.9). While
+	// zen mode is on (Layout) the menu is hidden.
 	FullScreen bool
 	// Context is the context of the commands the workbench runs; context.Background() when nil.
 	Context context.Context
 }
 
-// Workbench is the layout of the window (SPEC §10.1): the menu bar over a row of the activity bar, the
-// primary side bar and the center, over the status bar; the center is the editor area and the panel,
+// Workbench is the layout of the window (SPEC §10.1): the title bar row (the menu and the workspace tabs) over a row
+// of the activity bar, the primary side bar and the center, over the status bar; the center is the editor area and the panel,
 // which lies below, above, left or right of the editors. Each part can be hidden, the side bar and the
 // panel are resized by their sashes, and the editor area takes what the window gains or loses. The
 // dialogs of the window show over all of it.
@@ -334,30 +337,13 @@ func (s *workbenchState) focusChanged(p Part, has bool) {
 	}
 }
 
-// settingMenuBarVisibility is window.menuBarVisibility.
-func (s *workbenchState) settingMenuBarVisibility() kit.MenuBarVisibility {
+// settingMenuBarVisibility is window.menuBarVisibility ("compact" when the workbench has no settings).
+func (s *workbenchState) settingMenuBarVisibility() string {
 	st := s.Widget().opts.Settings
 	if st == nil {
-		return kit.MenuBarClassic
+		return menuCompact
 	}
-	v, _ := kit.ParseMenuBarVisibility(settings.Get[string](st, "window.menuBarVisibility", ""))
-	return v
-}
-
-// menuBarVisibility is the visibility the menu bar has now: the setting, except that zen mode hides the bar and full
-// screen mode hides the bar of the visibility classic until the Alt key shows it (the visibility toggle).
-//
-// Ported from VS Code: src/vs/workbench/services/layout/browser/layoutService.ts (shouldShowCustomTitleBar) and
-// src/vs/workbench/browser/parts/titlebar/menubarControl.ts
-func (s *workbenchState) menuBarVisibility() kit.MenuBarVisibility {
-	if s.layout.ZenActive() {
-		return kit.MenuBarHidden
-	}
-	v := s.settingMenuBarVisibility()
-	if v == kit.MenuBarClassic && s.Widget().opts.FullScreen {
-		return kit.MenuBarToggle
-	}
-	return v
+	return settings.Get[string](st, "window.menuBarVisibility", "")
 }
 
 // Build implements widgets.State.
@@ -365,10 +351,7 @@ func (s *workbenchState) Build(bc widgets.BuildContext) widgets.Widget {
 	o := s.Widget().opts
 	colors := kit.ThemeOf(bc)
 	st := s.layout.State()
-	rows := []widgets.Widget{
-		s.menuBarArea(colors),
-		widgets.NewExpanded(s.main(colors)),
-	}
+	rows := []widgets.Widget{widgets.NewExpanded(s.main(colors))}
 	if st.StatusBarVisible {
 		rows = append(rows, s.statusBar(bc, colors))
 	}
@@ -382,27 +365,23 @@ func (s *workbenchState) Build(bc widgets.BuildContext) widgets.Widget {
 		if st.StatusBarVisible {
 			inset = StatusBarHeight
 		}
-		top := 0.0
-		if s.menuBarShown() {
-			top = MenuBarHeight
-		}
 		body = NewNotificationsHost(body, NotificationsOptions{
-			Presenter: o.Notifications, Commands: o.Commands, Keys: o.Keys, Context: o.Context, BottomInset: inset, TopInset: top,
+			Presenter: o.Notifications, Commands: o.Commands, Keys: o.Keys, Context: o.Context, BottomInset: inset,
 		})
 	}
 	if o.QuickInput != nil {
-		top := 0.0
-		if s.menuBarShown() {
-			top = MenuBarHeight
-		}
 		body = quickinput.NewHost(body, quickinput.HostOptions{
-			Controller: o.QuickInput, Keys: o.Keys, Scopes: o.Scopes, Commands: o.Commands, Settings: o.Settings, TopInset: top,
+			Controller: o.QuickInput, Keys: o.Keys, Scopes: o.Scopes, Commands: o.Commands, Settings: o.Settings,
 		})
 	}
 	if o.Dialogs != nil {
 		body = kit.NewDialogHost(body, o.Dialogs)
 	}
-	return body
+	// the title bar is above the dialogs: the buttons of the window and the tabs work while a dialog shows
+	return newTitleBarHost(titleBarConfig{
+		bar: o.TitleBar, setting: s.settingMenuBarVisibility(), zen: s.layout.ZenActive(), fullScreen: o.FullScreen, shown: s.menuShown,
+		menu: s.menuBar,
+	}, body)
 }
 
 // restorePanelSize gives the panel the size it had before it was maximized, as the editor area comes
@@ -460,27 +439,14 @@ func (s *workbenchState) frame(p Part, bg, line ui.Color, at side, child widgets
 		widgets.WidgetOpts{Key: PartKey(p)}), widgets.WidgetOpts{Key: s.global[p]})
 }
 
-// menuBarShown says whether the menu bar takes room at the top now.
-func (s *workbenchState) menuBarShown() bool {
-	v := s.menuBarVisibility()
-	return v == kit.MenuBarClassic || v == kit.MenuBarVisible || (v == kit.MenuBarToggle && s.menuShown)
-}
-
-// menuBarArea is the menu bar at the top. It is as high as the bar when the bar is shown (always with
-// classic and visible, after the Alt key with toggle) and has no height otherwise; the bar itself is
-// always there, for the Alt key.
-func (s *workbenchState) menuBarArea(colors kit.Colors) widgets.Widget {
+// menuBar is the menu bar widget, for a visibility: it sits in the title bar row or in a row of its own (titleBarState).
+func (s *workbenchState) menuBar(visibility kit.MenuBarVisibility) widgets.Widget {
 	o := s.Widget().opts
-	visibility := s.menuBarVisibility()
-	shown := s.menuBarShown()
-	height := 0.0
-	if shown {
-		height = MenuBarHeight
-	}
-	bar := kit.NewMenuBar(o.Menus, kit.MenuBarOpts{
-		Visibility: visibility, Controller: s.menuCtl, Height: foundation.Some(MenuBarHeight),
+	return kit.NewMenuBar(o.Menus, kit.MenuBarOpts{
+		Visibility: visibility, Controller: s.menuCtl, Height: foundation.Some(TitleBarHeight),
 		OnRun: o.OnRunMenu,
 		OnVisibilityChange: func(v bool) {
+			// the row of its own grows and shrinks with the menu that the Alt key reveals
 			if visibility == kit.MenuBarToggle && v != s.menuShown {
 				s.binding.Post(func() {
 					if s.Mounted() {
@@ -490,14 +456,9 @@ func (s *workbenchState) menuBarArea(colors kit.Colors) widgets.Widget {
 			}
 		},
 	})
-	return widgets.NewKeyedSubtree(
-		widgets.NewSizedBox(
-			bordered(colors.TitleBarActiveBackground, colors.TitleBarBorder, sideBottom, widgets.NewAlign(bar, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})),
-			widgets.SizedBoxOpts{Height: foundation.Some(height)}),
-		widgets.WidgetOpts{Key: PartKey(PartMenuBar)})
 }
 
-// main is the row between the menu bar and the status bar.
+// main is the row between the title bar and the status bar.
 func (s *workbenchState) main(colors kit.Colors) widgets.Widget {
 	st := s.layout.State()
 	return widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {

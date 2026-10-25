@@ -50,7 +50,7 @@ type themeApp struct {
 func newThemeApp(t *testing.T, user, workspace string) *themeApp {
 	t.Helper()
 	paths := testutil.Isolate(t)
-	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off"})
+	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off", "window.menuBarVisibility": "classic"})
 	userFile, err := settings.UserSettingsPath(paths, storage.DefaultProfile)
 	if err != nil {
 		t.Fatal(err)
@@ -414,7 +414,7 @@ func TestColorThemePickerFailsToWriteAFileWithErrors(t *testing.T) {
 
 func TestColorThemePickerIncludesTheUserThemes(t *testing.T) {
 	paths := testutil.Isolate(t)
-	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off"})
+	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off", "window.menuBarVisibility": "classic"})
 	if err := os.MkdirAll(paths.ThemesDir(), 0o755); err != nil {
 		t.Fatal(err)
 	}

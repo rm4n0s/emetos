@@ -29,6 +29,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerKeybindingsEditorMenus(r)
 	registerThemeMenus(r)
 	registerProfileMenus(r)
+	registerWorkspaceTabMenus(r)
 	return r
 }
 
@@ -71,7 +72,7 @@ func registerMainMenu(r *MenuRegistry) {
 func registerFileMenu(r *MenuRegistry) {
 	r.MustAdd(
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.newUntitledFile", Title: "New Text File", MnemonicTitle: "&&New Text File", Group: "1_new", Order: 1},
-		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.newWindow", MnemonicTitle: "New &&Window", Group: "1_new", Order: 3},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.newWindow", MnemonicTitle: "New &&Workspace Tab", Group: "1_new", Order: 3},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.openFolder", MnemonicTitle: "Open &&Folder...", Group: "2_open", Order: 2},
 		MenuItem{Menu: MenubarFileMenu, Submenu: MenubarRecentMenu, Title: "Open Recent", MnemonicTitle: "Open &&Recent", Group: "2_open", Order: 4},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.files.save", MnemonicTitle: "&&Save", Group: "4_save", Order: 1,
@@ -89,7 +90,7 @@ func registerFileMenu(r *MenuRegistry) {
 			When: contextkey.Equals("workbenchState", "folder")},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeActiveEditor", MnemonicTitle: "&&Close Editor", Group: "6_close", Order: 2,
 			Precondition: contextkey.Has("activeEditor")},
-		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeWindow", MnemonicTitle: "Clos&&e Window", Group: "6_close", Order: 4},
+		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.closeWindow", MnemonicTitle: "Clos&&e Workspace Tab", Group: "6_close", Order: 4},
 		MenuItem{Menu: MenubarFileMenu, Command: "workbench.action.quit", Title: "Exit", MnemonicTitle: "E&&xit", Group: "z_Exit", Order: 1},
 	)
 }
@@ -474,5 +475,26 @@ func registerProfileMenus(r *MenuRegistry) {
 		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.deleteProfile", Title: "Delete Profile...", Group: "1_manage", Order: 4},
 		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.exportProfile", Title: "Export Profile...", Group: "2_share", Order: 1},
 		MenuItem{Menu: ProfilesSubMenu, Command: "workbench.profiles.actions.importProfile", Title: "Import Profile...", Group: "2_share", Order: 2},
+	)
+}
+
+// registerWorkspaceTabMenus adds the context menu of a workspace tab and the menu of the "+" button (step 9b.2, SPEC
+// §10.14). Reveal in File Manager is for a tab with a folder (the key activeWorkspaceTabHasFolder, set for the tab that
+// was clicked while the menu is built), and Close Others and Close to the Right when there is a tab to close
+// (workspaceTabCount, and the tab being the last).
+func registerWorkspaceTabMenus(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: WorkspaceTabContext, Command: "emetos.workspaceTab.close", Title: "Close", Group: "1_close", Order: 10},
+		MenuItem{Menu: WorkspaceTabContext, Command: "emetos.workspaceTab.closeOthers", Title: "Close Others", Group: "1_close", Order: 20,
+			Precondition: when("workspaceTabCount > 1")},
+		MenuItem{Menu: WorkspaceTabContext, Command: "emetos.workspaceTab.closeToTheRight", Title: "Close to the Right", Group: "1_close", Order: 30,
+			Precondition: when("!workspaceTabIsLast")},
+		MenuItem{Menu: WorkspaceTabContext, Command: "emetos.workspaceTab.copyPath", Title: "Copy Path", Group: "2_path", Order: 10,
+			Precondition: contextkey.Has("activeWorkspaceTabHasFolder")},
+		MenuItem{Menu: WorkspaceTabContext, Command: "emetos.workspaceTab.revealInFileManager", Title: "Reveal in File Manager", Group: "2_path", Order: 20,
+			Precondition: contextkey.Has("activeWorkspaceTabHasFolder")},
+		MenuItem{Menu: WorkspaceTabContext, Command: "workbench.profiles.actions.switchProfile", Title: "Switch Profile...", Group: "3_profile", Order: 10},
+
+		MenuItem{Menu: WorkspaceTabNew, Command: "emetos.workspaceTab.openFolder", Title: "Workspace...", Group: "1_new", Order: 10},
 	)
 }

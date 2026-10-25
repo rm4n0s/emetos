@@ -38,7 +38,8 @@ type multiEnv struct {
 func newMultiEnv(t *testing.T, extra map[string]any) *multiEnv {
 	t.Helper()
 	paths := testutil.Isolate(t)
-	values := map[string]any{"editor.fontSize": 14, "files.hotExit": "off"}
+	// the menu bar of the tests is the classic one: the tests tap its titles (the compact menu has tests of its own)
+	values := map[string]any{"editor.fontSize": 14, "files.hotExit": "off", "window.menuBarVisibility": "classic"}
 	for k, v := range extra {
 		values[k] = v
 	}

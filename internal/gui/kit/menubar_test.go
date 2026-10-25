@@ -13,6 +13,8 @@ import (
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 func testBarMenus() []MenuBarMenu {
@@ -609,7 +611,7 @@ func TestParseMenuBarVisibility(t *testing.T) {
 		ok   bool
 	}{
 		{"classic", MenuBarClassic, true}, {"visible", MenuBarVisible, true}, {"toggle", MenuBarToggle, true}, {"hidden", MenuBarHidden, true},
-		{"compact", MenuBarClassic, false}, {"", MenuBarClassic, false}, {"Classic", MenuBarClassic, false},
+		{"compact", MenuBarCompact, true}, {"", MenuBarClassic, false}, {"Classic", MenuBarClassic, false},
 	}
 	for _, tc := range cases {
 		got, ok := ParseMenuBarVisibility(tc.in)
@@ -764,5 +766,74 @@ func TestMenuBarMenuSourceIsAskedWhenTheMenuOpens(t *testing.T) {
 	ts.Pump(time.Millisecond)
 	if !reflect.DeepEqual(ran, []any{"fresh", "argument"}) {
 		t.Errorf("ran %v: the data of the item comes back with it", ran)
+	}
+}
+
+// compactTitle is the center of the "≡" button of the compact bar.
+func compactTitle(r *menuBarRig) ui.Offset {
+	return r.ts.Center(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconMenu)))
+}
+
+func TestMenuBarCompactShowsOneButtonWithTheMenusAsSubmenus(t *testing.T) {
+	r := newMenuBarRig(t, MenuBarOpts{Visibility: MenuBarCompact})
+	for _, label := range menuBarLabels {
+		if r.ts.Exists(gluttertest.ByText(label)) {
+			t.Errorf("the title %q shows in the compact bar", label)
+		}
+	}
+	if !r.ctrl.IsVisible() {
+		t.Fatalf("the compact bar is not visible: %s", r.state())
+	}
+	r.ts.TapAt(compactTitle(r), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse})
+	r.pump()
+	if !r.ctrl.IsOpen() {
+		t.Fatalf("a click on the button does not open the menu: %s", r.state())
+	}
+	for _, label := range menuBarLabels {
+		if !r.ts.Exists(gluttertest.ByText(label)) {
+			t.Errorf("the menu has no submenu %q", label)
+		}
+	}
+	// choosing a submenu opens it, and an item of it runs
+	r.ts.TapAt(r.ts.Center(gluttertest.ByText("Edit")), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse})
+	r.pump()
+	r.ts.Tap(gluttertest.ByText("Redo"))
+	r.pump()
+	if !reflect.DeepEqual(r.ran, []string{"redo"}) {
+		t.Errorf("ran %v, want [redo]", r.ran)
+	}
+	if r.ctrl.IsOpen() {
+		t.Errorf("the menu stays open after an item ran: %s", r.state())
+	}
+}
+
+func TestMenuBarCompactKeyboardAndController(t *testing.T) {
+	r := newMenuBarRig(t, MenuBarOpts{Visibility: MenuBarCompact})
+	// a tap of Alt focuses the button, Down opens the menu with the first submenu focused
+	r.altTap()
+	if !r.ctrl.IsFocused() || r.ctrl.IsOpen() {
+		t.Fatalf("after Alt: %s", r.state())
+	}
+	r.key(services.LogicalKeyboardKeyArrowDown)
+	if !r.ctrl.IsOpen() || !r.ts.Exists(gluttertest.ByText("Selection")) {
+		t.Fatalf("after Down: %s", r.state())
+	}
+	r.key(services.LogicalKeyboardKeyEscape)
+	r.key(services.LogicalKeyboardKeyEscape)
+	if r.ctrl.IsFocused() {
+		t.Errorf("Escape does not give the focus up: %s", r.state())
+	}
+	// the controller opens the one menu whatever the index of the menu it is asked for
+	r.ctrl.Open(2)
+	r.pump()
+	if !r.ctrl.IsOpen() || !r.ts.Exists(gluttertest.ByText("View")) {
+		t.Errorf("Open(2) does not open the compact menu: %s", r.state())
+	}
+}
+
+func TestMenuBarCompactIsHiddenInFullScreen(t *testing.T) {
+	r := newMenuBarRig(t, MenuBarOpts{Visibility: MenuBarCompact, FullScreen: true})
+	if r.ctrl.IsVisible() {
+		t.Errorf("the compact bar shows in full screen: %s", r.state())
 	}
 }

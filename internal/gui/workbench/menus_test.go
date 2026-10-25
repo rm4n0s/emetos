@@ -350,7 +350,8 @@ func TestMenuRunErrorKeepsItsTag(t *testing.T) {
 func newMenuHarness(t *testing.T, m *menuServices, tune func(*Options)) *harness {
 	t.Helper()
 	ctl := kit.NewMenuBarController()
-	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) {
+	// the titles of the classic menu bar are what the tests tap; the compact menu has its own test
+	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), map[string]any{"window.menuBarVisibility": "classic"}, func(o *Options) {
 		o.MenuBar = ctl
 		m.commands = o.Commands
 		m.menus = command.DefaultMenus(o.Commands)

@@ -79,15 +79,24 @@ func viewsDemo(m *menuServices, views **Views, ctl *kit.MenuBarController) func(
 
 func TestGoldenViewsAndMenus(t *testing.T) {
 	size := ui.Size{Width: 760, Height: 480}
+	classic := map[string]any{"window.menuBarVisibility": "classic"}
 	cases := []struct {
-		name string
-		do   func(h *harness, v *Views)
+		name  string
+		extra map[string]any
+		do    func(h *harness, v *Views)
 	}{
-		{"views", func(h *harness, v *Views) { v.SetCollapsed("outline", false) }},
-		{"views_collapsed", func(h *harness, v *Views) { v.SetCollapsed("folders", true) }},
-		{"edit_menu", func(h *harness, v *Views) { h.openMenu(1) }},
-		{"view_menu", func(h *harness, v *Views) { h.keys.Set("sideBarVisible", true); h.openMenu(3) }},
-		{"manage_menu", func(h *harness, v *Views) { h.ts.Tap(gluttertest.ByKey(ManageKey)); h.settle() }},
+		{"views", nil, func(h *harness, v *Views) { v.SetCollapsed("outline", false) }},
+		{"views_collapsed", nil, func(h *harness, v *Views) { v.SetCollapsed("folders", true) }},
+		// the menus of the classic menu bar: titles in the title bar row
+		{"edit_menu", classic, func(h *harness, v *Views) { h.openMenu(1) }},
+		{"view_menu", classic, func(h *harness, v *Views) { h.keys.Set("sideBarVisible", true); h.openMenu(3) }},
+		{"manage_menu", nil, func(h *harness, v *Views) { h.ts.Tap(gluttertest.ByKey(ManageKey)); h.settle() }},
+		// the compact menu: the "≡" button, its menu and the submenu of Edit
+		{"compact_menu", nil, func(h *harness, v *Views) { h.openMenu(0) }},
+		{"compact_submenu", nil, func(h *harness, v *Views) {
+			h.openMenu(0)
+			h.ts.TapAt(h.ts.Center(gluttertest.ByText("Edit")), gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse})
+		}},
 	}
 	for _, th := range goldenThemes {
 		for _, tc := range cases {
@@ -97,7 +106,7 @@ func TestGoldenViewsAndMenus(t *testing.T) {
 				ctl := kit.NewMenuBarController()
 				st := DefaultLayoutState()
 				st.PanelVisible = true
-				h := newHarness(t, size, th.colors(), st, nil, viewsDemo(m, &views, ctl))
+				h := newHarness(t, size, th.colors(), st, tc.extra, viewsDemo(m, &views, ctl))
 				h.menuBar = ctl
 				tc.do(h, views)
 				h.settle()

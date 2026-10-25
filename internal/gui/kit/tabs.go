@@ -162,6 +162,29 @@ type TabsOpts struct {
 	Feedback *TabDropFeedback
 	// Controller, when set, tells where the strip and its tabs are and scrolls the strip.
 	Controller *TabsController
+	// TitleBar, when set, makes the strip the workspace tabs of the title bar (SPEC §10.14): tabs between MinWidth and
+	// MaxWidth that shrink to MinWidth before the strip scrolls, an inactive tab on the background of the row (it has no
+	// background of its own and no lines), the active tab with its top line only, the close button on the active tab
+	// and under the pointer, and the dot of a modified tab giving way to the close button while the pointer is over the
+	// tab. The strip is as wide as its tabs (at most the room it has) and as high as TabHeight.
+	TitleBar *TabsTitleBar
+}
+
+// TabsTitleBar is TabsOpts.TitleBar.
+type TabsTitleBar struct {
+	// MinWidth and MaxWidth are the widths a tab has between (WorkspaceTabMinWidth and WorkspaceTabMaxWidth when 0).
+	MinWidth, MaxWidth float64
+}
+
+func (b *TabsTitleBar) widths() (minW, maxW float64) {
+	minW, maxW = WorkspaceTabMinWidth, WorkspaceTabMaxWidth
+	if b.MinWidth > 0 {
+		minW = b.MinWidth
+	}
+	if b.MaxWidth > 0 {
+		maxW = b.MaxWidth
+	}
+	return minW, max(maxW, minW)
 }
 
 // Tabs is the strip of tabs of an editor group: one tab for each editor, 35 px high, with the
@@ -199,11 +222,17 @@ func (t *Tabs) Items() []TabItem { return t.items }
 // Active is the index of the active tab.
 func (t *Tabs) Active() int { return t.opts.Active }
 
+// TitleBar is the look of the strip of workspace tabs of the title bar, or nil for the strip of an editor group.
+func (t *Tabs) TitleBar() *TabsTitleBar { return t.opts.TitleBar }
+
 // Build implements widgets.StatelessWidget.
 func (t *Tabs) Build(bc widgets.BuildContext) widgets.Widget {
 	colors := ThemeOf(bc)
 	if t.opts.Mode == TabsSingle {
 		return t.buildSingle(bc, colors)
+	}
+	if t.opts.TitleBar != nil {
+		return t.buildTitleBar(bc)
 	}
 	stickyCount := 0
 	for _, it := range t.items {
@@ -250,6 +279,83 @@ func (t *Tabs) Build(bc widgets.BuildContext) widgets.Widget {
 		box = NewBoundsProbe(box, &c.strip)
 	}
 	return box
+}
+
+// buildTitleBar is the strip of the workspace tabs of the title bar: every tab has the width FitTabWidths gives it for
+// the room the strip has.
+func (t *Tabs) buildTitleBar(bc widgets.BuildContext) widgets.Widget {
+	tb := t.opts.TitleBar
+	minW, maxW := tb.widths()
+	natural := make([]float64, len(t.items))
+	for i, it := range t.items {
+		natural[i] = tabNaturalWidth(bc, it)
+	}
+	return widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+		room := c.MaxWidth
+		if math.IsInf(room, 1) {
+			room = 0
+		}
+		widths, _ := FitTabWidths(natural, room, minW, maxW)
+		total := 0.0
+		children := make([]widgets.Widget, len(t.items))
+		for i, it := range t.items {
+			var probe *Bounds
+			if t.opts.Controller != nil {
+				probe = t.opts.Controller.bounds(i)
+			}
+			total += widths[i]
+			children[i] = newTabWidget(tabSpec{
+				item: it, index: i, count: len(t.items), opts: t.opts, bounds: probe,
+				active: i == t.opts.Active, width: widths[i], titleBar: true,
+			})
+		}
+		scrollOpts := ScrollableElementOpts{
+			Axes: ScrollAxisHorizontal, HorizontalSize: foundation.Some(tabsScrollbarSize), ScrollYToX: true,
+			NoSmoothScroll: true,
+		}
+		if ctl := t.opts.Controller; ctl != nil {
+			scrollOpts.Handle = &ctl.scroll
+		}
+		strip := NewScrollableElement(
+			widgets.NewRow(children, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}),
+			scrollOpts)
+		if room > 0 {
+			total = min(total, room)
+		}
+		var box widgets.Widget = widgets.NewSizedBox(strip, widgets.SizedBoxOpts{Width: foundation.Some(total), Height: foundation.Some(TabHeight)})
+		if ctl := t.opts.Controller; ctl != nil {
+			box = NewBoundsProbe(box, &ctl.strip)
+		}
+		return box
+	})
+}
+
+// tabNaturalWidth is the width a workspace tab wants: the space before the label, the icon, the name and the description
+// and the box of the close button.
+func tabNaturalWidth(bc widgets.BuildContext, it TabItem) float64 {
+	w := tabPaddingStart + tabActionWidth + tabLabelWidth(bc, it.Name, tabFontSize)
+	if it.Icon != nil {
+		w += tabIconSize + tabIconGap
+	}
+	if it.Description != "" {
+		w += tabLabelWidth(bc, " "+it.Description, tabDescriptionSize)
+	}
+	return w
+}
+
+// tabLabelWidth is how wide a text is in the font of the tabs.
+func tabLabelWidth(bc widgets.BuildContext, text string, size float64) float64 {
+	engine := widgets.WidgetsBindingOf(bc).PlatformDispatcher().TextEngine()
+	if engine == nil {
+		return float64(utf8.RuneCountInString(text)) * size * 0.55
+	}
+	painter := painting.NewTextPainter(painting.TextPainterOpts{
+		TextEngine: engine, Text: painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(text), Style: tabTextStyle(bc, size, ui.Color{}, false, false)}),
+		TextDirection: ui.TextDirectionLTR, MaxLines: foundation.Some(1),
+	})
+	defer painter.Dispose()
+	painter.Layout(0, math.Inf(1))
+	return math.Ceil(painter.MaxIntrinsicWidth())
 }
 
 // compactLetter is what a compact pinned tab without an icon shows: the first letter of the name.
@@ -307,12 +413,28 @@ func decoratedForeground(bc widgets.BuildContext, it TabItem, colors bool, fg ui
 	return fg
 }
 
+// titleBarLabel is the label of a workspace tab: the name and the dimmer description in one line of text, which an
+// ellipsis shortens when the tab is narrower than its label (the description goes first).
+func titleBarLabel(bc widgets.BuildContext, it TabItem, fg ui.Color) []widgets.Widget {
+	spans := []painting.InlineSpan{painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(it.Name)})}
+	if it.Description != "" {
+		desc := tabTextStyle(bc, tabDescriptionSize, fg.WithOpacity(fg.Opacity()*tabDescriptionA), false, false)
+		spans = append(spans, painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(" " + it.Description), Style: desc}))
+	}
+	return []widgets.Widget{widgets.NewFlexible(widgets.NewTextRich(
+		painting.NewTextSpan(painting.TextSpanOpts{Style: tabTextStyle(bc, tabFontSize, fg, false, false), Children: spans}),
+		widgets.TextOpts{Overflow: painting.TextOverflowEllipsis, SoftWrap: foundation.Some(false), MaxLines: foundation.Some(1)}))}
+}
+
 // tabLabel is the name of a tab and, when it has one, its description.
-func tabLabel(bc widgets.BuildContext, it TabItem, fg ui.Color, size float64, clip bool) []widgets.Widget {
+func tabLabel(bc widgets.BuildContext, it TabItem, fg ui.Color, size float64, clip bool, ellipsis ...bool) []widgets.Widget {
 	name := tabTextStyle(bc, size, fg, it.Preview, it.Deleted)
 	overflow := painting.TextOverflowVisible
 	if clip {
 		overflow = painting.TextOverflowClip
+		if len(ellipsis) > 0 && ellipsis[0] {
+			overflow = painting.TextOverflowEllipsis
+		}
 	}
 	// a label that is clipped shares the room it has; one that is not takes what it needs
 	fit := func(w widgets.Widget) widgets.Widget {
@@ -362,6 +484,9 @@ type tabSpec struct {
 	stripBorder ui.Color
 	// compactLetter is what a compact pinned tab without an icon shows.
 	compactLetter string
+	// titleBar says that the tab is a workspace tab of the title bar (TabsOpts.TitleBar), width pixels wide.
+	titleBar bool
+	width    float64
 }
 
 // tabWidget is one tab. It keeps what the pointer does to it: the hover, the hover over its action
@@ -599,6 +724,12 @@ func (s *tabState) up(e *gestures.PointerUpEvent) {
 func (s *tabState) colors(c Colors) (background, foreground ui.Color) {
 	spec := s.Widget().spec
 	focused := !spec.opts.Unfocused
+	defer func() {
+		// an inactive workspace tab is on the background of the title bar
+		if spec.titleBar && !spec.active && !s.hover {
+			background = ui.Color{}
+		}
+	}()
 	switch {
 	case spec.active && focused:
 		background, foreground = c.TabActiveBackground, c.TabActiveForeground
@@ -666,6 +797,10 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 		if !focused {
 			topColor = colors.TabUnfocusedActiveBorderTop
 		}
+		if topColor.Alpha() == 0 && spec.titleBar {
+			// the title bar has no line of the strip to tell the active tab, so the line falls back to the focus border
+			topColor = colors.FocusBorder
+		}
 	}
 	bottomColor := spec.stripBorder
 	if spec.active {
@@ -673,6 +808,10 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 		if !focused {
 			bottomColor = colors.TabUnfocusedActiveBorder
 		}
+	}
+	if spec.titleBar {
+		// the workspace tabs of the title bar have no lines between them or along the bottom
+		rightColor, bottomColor = ui.Color{}, ui.Color{}
 	}
 
 	// the label
@@ -682,6 +821,8 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 		content = tabLabel(bc, TabItem{Name: spec.compactLetter, Preview: it.Preview, Deleted: it.Deleted}, decoratedForeground(bc, it, o.DecorationColors, foreground), tabFontSize, true)
 	case compact:
 		content = nil
+	case spec.titleBar:
+		content = titleBarLabel(bc, it, foreground)
 	default:
 		content = tabLabel(bc, it, decoratedForeground(bc, it, o.DecorationColors, foreground), tabFontSize, shrink)
 	}
@@ -727,6 +868,8 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 		sized = widgets.NewSizedBox(row, widgets.SizedBoxOpts{Width: foundation.Some(tabCompactWidth)})
 	case shrink:
 		sized = widgets.NewSizedBox(row, widgets.SizedBoxOpts{Width: foundation.Some(tabShrinkWidth)})
+	case spec.titleBar:
+		sized = widgets.NewSizedBox(row, widgets.SizedBoxOpts{Width: foundation.Some(spec.width)})
 	default:
 		// as wide as the label and the action, and at least 120 px (the action then stays at the end)
 		sized = widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MinWidth: foundation.Some(tabMinWidth)}),
@@ -808,6 +951,9 @@ func (s *tabState) action(bc widgets.BuildContext, colors Colors, foreground ui.
 		code = fonts.CodiconPinnedDirty
 	case it.Sticky:
 		code = fonts.CodiconPinned
+	case it.Dirty && spec.titleBar && closeable && s.hover:
+		// the dot of a workspace tab gives way to the close button while the pointer is over the tab
+		code = fonts.CodiconClose
 	case it.Dirty && (!s.actionHover || !closeable):
 		code = fonts.CodiconCircleFilled
 	default:

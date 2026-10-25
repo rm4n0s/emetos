@@ -183,13 +183,13 @@ func TestTheEditorAreaKeepsTheBreadcrumbsAndTheEditor(t *testing.T) {
 	if err := gluttertest.FindsOneWidget(ts, gluttertest.ByType[*editor.Breadcrumbs]()); err != nil {
 		t.Error(err)
 	}
-	// the editor is in the editor area, below the menu bar and beside the side bar and the activity bar
+	// the editor is in the editor area, below the title bar and beside the side bar and the activity bar
 	area := gluttertest.ByKey(workbench.PartKey(workbench.PartEditor))
 	if err := gluttertest.FindsOneWidget(ts, gluttertest.Descendant(area, gluttertest.ByType[*editor.Editor]())); err != nil {
 		t.Error(err)
 	}
-	if got := ts.TopLeft(area); got.Dx != 348 || got.Dy != 30 {
-		t.Errorf("the editor area starts at %v, want (348, 30)", got)
+	if got := ts.TopLeft(area); got.Dx != 348 || got.Dy != 35 {
+		t.Errorf("the editor area starts at %v, want (348, 35)", got)
 	}
 	// the editor keeps the focus it asked for when it was shown
 	if got := win.Keys.Get("editorAreaFocus"); got != true {

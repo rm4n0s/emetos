@@ -68,7 +68,7 @@ func (a *groupApp) names(id int) []string {
 // shown are the names of the tabs the widgets of a group show.
 func (a *groupApp) shown(id int) []string {
 	a.t.Helper()
-	finder := gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(id)).key), gluttertest.ByType[*kit.Tabs]())
+	finder := gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(id)).key), editorTabs())
 	if !a.ts.Exists(finder) {
 		return nil
 	}
@@ -290,14 +290,14 @@ func TestFocusFollowsClicks(t *testing.T) {
 		t.Errorf("after a click in group 1: active %d, focus %v", a.activeID(), a.editorOf(1).focus.HasFocus())
 	}
 	// a click on a tab of the other group
-	a.ts.TapAt(a.ts.Center(gluttertest.Descendant(gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(2)).key), gluttertest.ByType[*kit.Tabs]()), gluttertest.ByText("a.go"))), mouseButton)
+	a.ts.TapAt(a.ts.Center(gluttertest.Descendant(gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(2)).key), editorTabs()), gluttertest.ByText("a.go"))), mouseButton)
 	a.pump()
 	if a.activeID() != 2 || !a.editorOf(2).focus.HasFocus() {
 		t.Errorf("after a click on a tab of group 2: active %d, focus %v", a.activeID(), a.editorOf(2).focus.HasFocus())
 	}
 	// the strip of the group that is not active has the colors of an unfocused group
 	for id, want := range map[int]bool{1: true, 2: false} {
-		finder := gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(id)).key), gluttertest.ByType[*kit.Tabs]())
+		finder := gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(id)).key), editorTabs())
 		_ = finder
 		if got := a.shell().tabsOptions(a.win, a.group(id)).Unfocused; got != want {
 			t.Errorf("group %d: unfocused %v, want %v", id, got, want)
@@ -777,7 +777,7 @@ func TestTwoEditorsOfOneDocument(t *testing.T) {
 		t.Errorf("the texts differ: %q %q", first.view.Document().Text(), second.view.Document().Text())
 	}
 	for _, id := range []int{1, 2} {
-		finder := gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(id)).key), gluttertest.ByType[*kit.Tabs]())
+		finder := gluttertest.Descendant(gluttertest.ByKey(a.shell().view(a.group(id)).key), editorTabs())
 		if items := a.ts.Widget(finder).(*kit.Tabs).Items(); len(items) != 1 || !items[0].Dirty {
 			t.Errorf("group %d: tabs %+v", id, items)
 		}
