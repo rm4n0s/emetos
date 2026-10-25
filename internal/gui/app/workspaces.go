@@ -41,7 +41,7 @@ const (
 	// TabWorkspace is a tab that holds a workspace: a folder or none, with its profile and every service of
 	// Workspace.
 	TabWorkspace TabKind = iota
-	// TODO(step 11.6): the kinds of the extension tabs (SPEC §10.15), which hold a widget of an extension in place of a
+	// TODO(step 11.7): the kinds of the extension tabs (SPEC §10.15), which hold a widget of an extension in place of a
 	// workspace.
 )
 
@@ -54,7 +54,7 @@ func (k TabKind) String() string {
 	return "unknown"
 }
 
-// WindowTab is a tab of the window (SPEC §10.14): a workspace now, an extension from step 11.6. The tab is what the
+// WindowTab is a tab of the window (SPEC §10.14): a workspace now, an extension from step 11.7. The tab is what the
 // strip shows, what the restore brings back and what the keys switch between; its Workspace is what it holds.
 type WindowTab struct {
 	// seq numbers the tabs in the order they were made; it never changes, even when the tab opens another folder.

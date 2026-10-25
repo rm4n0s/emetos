@@ -54,7 +54,7 @@ const (
 	// WorkspaceTabContext is the context menu of a workspace tab in the title bar (step 9b.2, SPEC §10.14).
 	WorkspaceTabContext = "WorkspaceTabContext"
 	// WorkspaceTabNew is the menu of the "+" button after the workspace tabs: one row for each kind of window tab that
-	// can be made (step 9b.2 has Workspace...; step 11.6 adds the extension tabs).
+	// can be made (step 9b.2 has Workspace...; step 11.7 adds the extension tabs).
 	WorkspaceTabNew = "WorkspaceTabNew"
 	// ExplorerContext is the context menu of the Explorer.
 	ExplorerContext = "ExplorerContext"
