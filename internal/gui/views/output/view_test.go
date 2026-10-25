@@ -409,3 +409,38 @@ func TestViewIsSafeForConcurrentAppends(t *testing.T) {
 		t.Errorf("the view shows %d lines, want 400", n)
 	}
 }
+
+// TestAHiddenPanelAsksForNoFrames pins the cost of a log line while the panel is closed: the view
+// asks for no frame to follow the tail (step 10.1: every line of the log drew a frame of the whole
+// window, which also doubled the frames of an idle window that logs its frame statistics), and goes
+// to the end when the panel opens.
+func TestAHiddenPanelAsksForNoFrames(t *testing.T) {
+	visible := false
+	r := newRig(t, 0, "")
+	asked := 0
+	r.view.opts.AfterFrame = func(f func()) { asked++; r.frames = append(r.frames, f) }
+	r.view.opts.Visible = func() bool { return visible }
+	for i := range 20 {
+		r.store.Append("Emetos", fmt.Sprint(i))
+	}
+	r.ui()
+	if asked != 0 {
+		t.Errorf("a hidden panel asked for %d frames", asked)
+	}
+	visible = true
+	r.view.Shown()
+	r.ui()
+	if asked == 0 {
+		t.Error("the panel that opens does not go to the end")
+	}
+	if len(r.revealed) == 0 {
+		t.Error("the end was not revealed")
+	}
+	r.view.ViewModel().SetScrollTop(300) // the end of 20 lines of 20 px in a viewport of 100
+	before := asked
+	r.store.Append("Emetos", "one more")
+	r.ui()
+	if asked == before {
+		t.Error("a visible panel does not follow the tail")
+	}
+}

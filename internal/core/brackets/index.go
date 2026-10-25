@@ -107,6 +107,11 @@ type Index struct {
 	slots    []*Bracket
 	lastOpen []int32
 	complete bool // the tokens were complete when the result was made
+	// dirtyFrom to dirtyTo are the lines whose tokens changed while the pairs were made (dirtyTo is below
+	// dirtyFrom when there are none): see Invalidate.
+	dirtyFrom, dirtyTo int
+	// resolutions counts the times the pairs were made, for the tests.
+	resolutions int
 
 	listeners map[int]func(from int)
 	nextID    int
@@ -115,7 +120,7 @@ type Index struct {
 // New makes the index of a source. A disabled index (a document in large file mode) finds
 // nothing.
 func New(src Source, langs Languages, enabled bool) *Index {
-	ix := &Index{src: src, langs: langs, enabled: enabled, listeners: map[int]func(int){}}
+	ix := &Index{src: src, langs: langs, enabled: enabled, listeners: map[int]func(int){}, dirtyTo: -1}
 	ix.lines = make([]lineEntry, src.LineCount())
 	return ix
 }
@@ -154,6 +159,7 @@ func (ix *Index) notify(from int) {
 // Reset forgets everything, as when the text is replaced or the language changes.
 func (ix *Index) Reset() {
 	ix.mu.Lock()
+	ix.dirtyFrom, ix.dirtyTo = 0, -1
 	ix.lines = make([]lineEntry, ix.src.LineCount())
 	ix.resolved = false
 	ix.mu.Unlock()
@@ -164,6 +170,7 @@ func (ix *Index) Reset() {
 // lines.
 func (ix *Index) Splice(from, to, count int) {
 	ix.mu.Lock()
+	ix.forgetDirtyLocked()
 	ix.spliceLocked(from, to, count)
 	ix.resolved = false
 	ix.mu.Unlock()
@@ -183,14 +190,83 @@ func (ix *Index) spliceLocked(from, to, count int) {
 }
 
 // Invalidate tells that the lines from to to (zero-based, inclusive) have other tokens or text.
+//
+// New tokens of lines whose pairs are made usually leave their brackets as they were: the brackets
+// of a line are found in its text when it has no tokens yet, and the tokens only take away those in
+// strings and comments. Making the pairs again of a whole document (10 ms for 100,000 lines) for every
+// slice of the tokenizer made each frame of a scroll cost that much (step 10.1). So the lines are only
+// noted here, from any goroutine (the document is not read: it belongs to the UI thread), and the next
+// question finds their brackets again and makes the pairs only when some are not the same.
 func (ix *Index) Invalidate(from, to int) {
 	ix.mu.Lock()
-	for i := max(from, 0); i <= to && i < len(ix.lines); i++ {
-		ix.lines[i] = lineEntry{}
+	if !ix.enabled {
+		ix.resolved = false
+	} else {
+		ix.markDirtyLocked(from, to)
 	}
-	ix.resolved = false
 	ix.mu.Unlock()
 	ix.notify(from)
+}
+
+// markDirtyLocked notes that the tokens of the lines from to to changed. While the pairs are made
+// the range joins the one noted (a range that covers more than the tokenizer touched only costs the
+// finding of brackets in the lines between); otherwise the lines are just forgotten.
+func (ix *Index) markDirtyLocked(from, to int) {
+	from, to = max(from, 0), min(to, len(ix.lines)-1)
+	if from > to {
+		return
+	}
+	if !ix.resolved {
+		for i := from; i <= to; i++ {
+			ix.lines[i] = lineEntry{}
+		}
+		return
+	}
+	if ix.dirtyTo < ix.dirtyFrom { // none noted
+		ix.dirtyFrom, ix.dirtyTo = from, to
+		return
+	}
+	ix.dirtyFrom, ix.dirtyTo = min(ix.dirtyFrom, from), max(ix.dirtyTo, to)
+}
+
+// forgetDirtyLocked forgets the lines that were noted, before the lines move or the pairs are made
+// from scratch: their brackets are to be found again, with the tokens they have now.
+func (ix *Index) forgetDirtyLocked() {
+	for i := max(ix.dirtyFrom, 0); i <= ix.dirtyTo && i < len(ix.lines); i++ {
+		ix.lines[i] = lineEntry{}
+	}
+	ix.dirtyFrom, ix.dirtyTo = 0, -1
+}
+
+// settleDirtyLocked finds the brackets of the lines that were noted and tells the pairs they are out
+// of date when some are not what they were, or when the tokens are complete now (or no longer).
+func (ix *Index) settleDirtyLocked() {
+	changed := false
+	for i := max(ix.dirtyFrom, 0); i <= ix.dirtyTo && i < len(ix.lines); i++ {
+		e := &ix.lines[i]
+		brs := ix.extractLocked(i)
+		if !e.valid || !sameBrackets(e.brs, brs) {
+			e.brs, e.valid = brs, true
+			changed = true
+		}
+	}
+	ix.dirtyFrom, ix.dirtyTo = 0, -1
+	if changed || ix.src.TokensComplete() != ix.complete {
+		ix.resolved = false
+	}
+}
+
+// sameBrackets reports whether two lists of the brackets of a line are the same.
+func sameBrackets(a, b []found) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Edited tells that the text changed: each change replaced the old lines from..to with count
@@ -203,6 +279,7 @@ type Edited struct {
 // line count tells whether the index kept up with the text; if it did not, it starts again.
 func (ix *Index) Apply(changes []Edited) {
 	ix.mu.Lock()
+	ix.forgetDirtyLocked()
 	for i := len(changes) - 1; i >= 0; i-- {
 		c := changes[i]
 		ix.spliceLocked(c.From, c.To, c.Count)
@@ -266,9 +343,13 @@ func (ix *Index) extractLocked(line int) []found {
 
 // ensureLocked makes the pairs up to date.
 func (ix *Index) ensureLocked() {
+	if ix.resolved && ix.dirtyTo >= ix.dirtyFrom {
+		ix.settleDirtyLocked()
+	}
 	if ix.resolved {
 		return
 	}
+	ix.resolutions++
 	ix.nodes = ix.nodes[:0]
 	ix.pairs = ix.pairs[:0]
 	ix.unexpect = ix.unexpect[:0]

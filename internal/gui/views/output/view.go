@@ -26,6 +26,10 @@ type ViewOpts struct {
 	// AfterFrame runs a function after the next frame, which the view asks for with it; the tail follows
 	// the text once the editor has been laid out with the new lines. Without it the tail is not followed.
 	AfterFrame func(func())
+	// Visible tells whether the body of the panel is on screen. While it is not, the view does not ask
+	// for frames to follow the tail (a log line would draw a frame of the whole window for a panel nobody
+	// sees; Shown goes to the end when the panel opens). Without it the panel counts as visible.
+	Visible func() bool
 	// Options gives the options of the editor (the settings of the editor for plain text); the Output
 	// panel turns off what an output text does not need. Without it the editor has the zero Options.
 	Options func() editor.Options
@@ -404,6 +408,9 @@ func (v *View) followIfNeeded(follow bool) {
 // editor, whose layout lags a frame behind the text, is still short of it. It lets wait frames go by
 // first.
 func (v *View) revealEnd(attempts, wait int) {
+	if v.opts.Visible != nil && !v.opts.Visible() {
+		return
+	}
 	v.opts.AfterFrame(func() {
 		if v.lock {
 			return

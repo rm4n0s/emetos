@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rm4n0s/emetos/internal/core/regex"
@@ -70,11 +71,14 @@ type Grammar struct {
 	tokenTypes      []tokenTypeOverride
 	injections      []injection
 
-	once     sync.Once
-	rootID   int
-	rules    []*rule
-	ids      map[*RawRule]int
-	included map[string]*instance
+	once  sync.Once
+	ready atomic.Bool // the rules are made (init has ended)
+	// compiling is set while a goroutine makes the rules (inside init).
+	compiling atomic.Bool
+	rootID    int
+	rules     []*rule
+	ids       map[*RawRule]int
+	included  map[string]*instance
 
 	problemsMu sync.Mutex
 	problems   []error
@@ -174,11 +178,27 @@ func (g *Grammar) externalGrammar(scopeName string, repository map[string]*RawRu
 // init compiles the rules from the root.
 func (g *Grammar) init() {
 	g.once.Do(func() {
+		g.compiling.Store(true)
+		defer g.compiling.Store(false)
 		g.rootID = g.compileRule(g.root.repository["$self"], g.root.repository)
 		// This makes the numbers of the rules the same every time.
 		g.injections = g.collectInjections()
+		g.ready.Store(true)
 	})
 }
+
+// Warm makes the rules of the grammar now, which the tokenizing of the first line would do: it lets a
+// goroutine that has the time (the window is not shown yet, or a file is about to open) take the
+// 2 to 60 ms the rules of a language take from the thread that paints. It is safe to call from several
+// goroutines and again; a call while another makes the rules waits for it.
+func (g *Grammar) Warm() { g.init() }
+
+// Compiling tells whether a goroutine is making the rules now: whoever tokenizes a line waits for it. A
+// thread that must not wait (the one that paints) leaves the line to a goroutine that may.
+func (g *Grammar) Compiling() bool { return g.compiling.Load() }
+
+// Ready tells whether the rules are made (by Warm or by the first line that was tokenized).
+func (g *Grammar) Ready() bool { return g.ready.Load() }
 
 // register makes the next rule.
 func (g *Grammar) register() *rule {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -312,6 +313,42 @@ func (p *Process) loadUserThemes() {
 		p.Logger.Warn("user theme", "dir", dir, "err", problem)
 	}
 	p.userThemes = themes
+}
+
+// WarmGrammars makes the grammars of the languages of documents, and their rules, on a goroutine, so that
+// the first tokenizing of a file of each (on the thread that paints, in the first frame of the editor) finds
+// them ready. It is called with the documents of the first window before it is shown: the renderer takes the
+// better part of a second to start, which is otherwise idle (step 10.1: the rules of Markdown take 60 ms to
+// make, those of HTML and TypeScript 15). store gives editor.maxTokenizationLineLength of each language.
+func (p *Process) WarmGrammars(ctx context.Context, store *settings.Store, docs []*document.Document) {
+	var languages []string
+	for _, d := range docs {
+		if d == nil || slices.Contains(languages, d.LanguageID()) || !p.Languages.HasGrammar(d.LanguageID()) {
+			continue
+		}
+		languages = append(languages, d.LanguageID())
+	}
+	if len(languages) == 0 {
+		return
+	}
+	lines := make([]int, len(languages))
+	for i, id := range languages {
+		lines[i] = int(settings.Get[float64](store, "editor.maxTokenizationLineLength", id))
+	}
+	go func() {
+		for i, id := range languages {
+			if ctx.Err() != nil {
+				return
+			}
+			g, err := p.Grammar(id, lines[i])
+			if err != nil {
+				return // the editor reports it when it opens the file
+			}
+			if g != nil {
+				g.Warm()
+			}
+		}
+	}()
 }
 
 // Grammar gives the grammar of a language for tokenizing, made once and shared by the documents

@@ -345,3 +345,33 @@ func TestTheScanTimeoutIsAnOption(t *testing.T) {
 		})
 	}
 }
+
+func TestWarmMakesTheRulesBeforeTheFirstLine(t *testing.T) {
+	raw := grammarOf(t, "source.warm", `"patterns": [{"match": "\\bfoo\\b", "name": "keyword.foo"}]`)
+	g := tokenizerOf(t, "source.warm", raw)
+	if g.Ready() {
+		t.Fatal("a grammar that nobody asked is ready")
+	}
+	var wg sync.WaitGroup
+	for range 4 { // several goroutines at once, and the tokenizing of a line among them
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			g.Warm()
+		}()
+	}
+	wg.Wait()
+	if !g.Ready() || len(g.rules) == 0 {
+		t.Fatalf("after Warm: ready %v, %d rules", g.Ready(), len(g.rules))
+	}
+	g.Warm() // again
+	if got := show(g, "a foo b"); len(got) != 1 || !strings.Contains(got[0], "foo|keyword.foo") {
+		t.Errorf("tokens after Warm: %q", got)
+	}
+	// and the first line of another grammar makes its rules too
+	other := tokenizerOf(t, "source.warm", raw)
+	show(other, "x")
+	if !other.Ready() {
+		t.Error("a grammar that tokenized a line is not ready")
+	}
+}

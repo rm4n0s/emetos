@@ -202,6 +202,14 @@ func (t *Tokenizer) Ensure(line int, budget time.Duration) bool {
 		t.mu.Unlock()
 		return true
 	}
+	if t.grammar.Compiling() {
+		// Another goroutine is making the rules of the grammar (the window warms the grammars of its files before
+		// it is shown; the rules of Markdown take 60 ms): the caller, which is the thread that paints, does not
+		// wait for it. The background loop waits instead and tokenizes the lines when the rules are there.
+		t.mu.Unlock()
+		t.wakeUp()
+		return false
+	}
 	deadline := time.Now().Add(budget)
 	t.slices++
 	from := t.invalidFrom

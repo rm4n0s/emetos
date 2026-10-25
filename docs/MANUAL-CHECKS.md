@@ -16,15 +16,17 @@ scripts/isolated.sh -- go run ./cmd/emetos /tmp/x.txt
 
 Say what you saw, and which input method and compositor you used.
 
-## 3.11 Performance with the GPU
+## 3.11 and 10.1 Performance with the GPU
 
-The targets of SPEC §14 are decided by the numbers in your desktop session, with its GPU; the headless ones are in `docs/PERFORMANCE.md`. Close other heavy programs, then run (it opens and closes a few editor windows, and one counter window to take the focus away; it reads nothing of your configuration):
+The targets of SPEC §14 are decided by the numbers in your desktop session, with its GPU; the headless ones are in `docs/PERFORMANCE.md`. Close other heavy programs, then run it from a terminal in your desktop session (it builds the editor, makes its test files in a temporary folder, opens and closes a few dozen editor windows one after the other and one counter window to take the focus away, and runs a few Go benchmarks; it reads nothing of your configuration, and takes about 10 minutes; it needs about 2 GB of memory for the 200 MB file):
 
 ```
 scripts/perf.sh --session
 ```
 
-Say what the table shows (or paste it), in particular the cold start (target < 400 ms), the 10 MB open (< 300 ms), the idle CPU (< 1%) and the frames of the unfocused window (none).
+Paste the two tables it prints (Markdown). If something is over its target and you want to see why, run it again with `scripts/perf.sh --session --no-go --profile ~/perf-profiles` and tell me where the folder is: it keeps a CPU profile of the typing, the scrolling and the idle runs, and the heap profile after them, with the binary that made them.
+
+The numbers that decide, in the first table: the cold start with no folder and with the session restored (target < 400 ms), the 10 MB open (< 300 ms), the 200 MB open (< 3 s), the typing and scrolling frames (build under 4 ms and 8 ms), the idle CPU focused (< 1%) and the frames of the unfocused window (none), and the resident memory (the counter + 50 MB).
 
 ## 6.14 The folder dialog of the desktop
 

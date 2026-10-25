@@ -7,12 +7,13 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/tokens"
 )
 
-// tokenBudget is how long the layout of the text layer may tokenize, on the UI thread, the lines
-// it is about to draw before it leaves the rest to the background tokenizer (SPEC §8.3). It is
-// under the 8 ms that SPEC §14 allows a frame of scrolling: a page of Go is tokenized in about
-// 6 ms, so a jump far down the file shows its first lines in colors and the rest when the
-// background has caught up.
-const tokenBudget = 6 * time.Millisecond
+// tokenBudget is how long a frame may tokenize, on the UI thread, the lines it is about to draw before
+// it leaves the rest to the background tokenizer (SPEC §8.3). It is for the whole frame: the layout of
+// the text, its paint and the minimap share it (takeFrameBudget). It is well under the 8 ms that SPEC
+// §14 allows a frame of scrolling, leaving room for the rest of the frame (step 10.1: each of the
+// requests had a budget of 6 ms, which made the first view of unseen lines 7 to 8 ms): a jump far down
+// the file shows its first lines in colors and the rest when the background has caught up.
+const tokenBudget = 4 * time.Millisecond
 
 // tokenLink is what a view model knows of the tokenization of its document.
 type tokenLink struct {
@@ -31,6 +32,58 @@ type tokenLink struct {
 	// mmFirst and mmLast are the lines the minimap draws.
 	mmFirst, mmLast int
 	mmVisible       bool
+	// frameOpen is set from the first request for tokens of a frame until the end of that frame; frameStart
+	// is when it came, and frameSpent how much time the frame has spent tokenizing on the UI thread so far.
+	frameOpen  bool
+	frameStart time.Time
+	frameSpent time.Duration
+}
+
+// frameStale is how long after the first request for tokens a frame counts as over even if the function
+// posted at its end did not run (a view model without a poster, or one whose poster holds the function).
+const frameStale = 30 * time.Millisecond
+
+// takeFrameBudget gives the time that one request for tokens may spend tokenizing on the UI thread: at
+// most max, and no more than what is left of tokenBudget for the whole frame. The layout of the text, its
+// paint and the minimap's all ask in one frame, and each one's own budget made the frame's tokenization
+// the sum of them (8 ms for a page of lines nobody had tokenized). A frame ends with a function posted to
+// the UI thread; a view model without a poster gives every request its whole budget.
+func (vm *ViewModel) takeFrameBudget(max time.Duration) time.Duration {
+	l := &vm.tok
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.post == nil {
+		return max
+	}
+	now := time.Now()
+	if !l.frameOpen || now.Sub(l.frameStart) > frameStale {
+		l.frameOpen, l.frameStart, l.frameSpent = true, now, 0
+		l.post(func() {
+			l.mu.Lock()
+			l.frameOpen = false
+			l.mu.Unlock()
+		})
+	}
+	return min(max, tokenBudget-l.frameSpent)
+}
+
+// spendFrameBudget notes time spent tokenizing in the frame.
+func (vm *ViewModel) spendFrameBudget(d time.Duration) {
+	vm.tok.mu.Lock()
+	vm.tok.frameSpent += d
+	vm.tok.mu.Unlock()
+}
+
+// ensureWithin tokenizes up to a line within the frame's budget, at most max, and says how it went as
+// Tokenizer.Ensure does; it does nothing once the frame has spent its budget.
+func (vm *ViewModel) ensureWithin(line int, max time.Duration) {
+	budget := vm.takeFrameBudget(max)
+	if budget <= 0 {
+		return
+	}
+	t0 := time.Now()
+	vm.tok.tokenizer.Ensure(line, budget)
+	vm.spendFrameBudget(time.Since(t0))
 }
 
 // SetTokenizer gives the view model the tokenizer of its document, whose tokens the text layer
@@ -83,7 +136,7 @@ func (vm *ViewModel) ensureTokens(first, last int) {
 	vm.tok.first, vm.tok.last, vm.tok.visible = first, last, true
 	vm.tok.mu.Unlock()
 	if vm.tok.tokenizer != nil {
-		vm.tok.tokenizer.Ensure(last, tokenBudget)
+		vm.ensureWithin(last, tokenBudget)
 	}
 }
 
@@ -98,7 +151,7 @@ func (vm *ViewModel) ensureMinimapTokens(first, last int) {
 	vm.tok.mmFirst, vm.tok.mmLast, vm.tok.mmVisible = first, last, true
 	vm.tok.mu.Unlock()
 	if vm.tok.tokenizer != nil {
-		vm.tok.tokenizer.Ensure(last, minimapTokenBudget)
+		vm.ensureWithin(last, minimapTokenBudget)
 	}
 }
 

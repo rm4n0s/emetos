@@ -47,6 +47,9 @@ func (s *shellState) initPanels(binding *widgets.WidgetsBinding) {
 	})
 	p.output = output.NewView(output.ViewOpts{
 		Store: win.Process.Channels, Post: binding.Post, Keys: win.Keys, Logger: win.Process.Logger,
+		Visible: func() bool {
+			return win.Layout.State().PanelVisible && win.Views.ActivePanel() == command.ViewContainerOutput
+		},
 		AfterFrame: func(f func()) {
 			scheduler := binding.Scheduler()
 			scheduler.ScheduleFrame()

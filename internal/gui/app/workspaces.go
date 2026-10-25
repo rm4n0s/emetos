@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -616,7 +617,19 @@ func (m *Workspaces) start(ctx context.Context, opts Options) (*preparedWorkspac
 	for _, f := range failures {
 		shown.ws.Notify.Error("Emetos", f)
 	}
+	m.p.WarmGrammars(ctx, shown.ws.Settings, shown.startupDocuments())
 	return shown, nil
+}
+
+// startupDocuments are the documents the window opens with, before it is shown: those of the command line, the
+// editors that came back and the documents restored from backups.
+func (pw *preparedWorkspace) startupDocuments() []*document.Document {
+	docs := slices.Clone(pw.docs)
+	if r := pw.ws.restored; r != nil {
+		docs = slices.AppendSeq(docs, maps.Values(r.docs))
+		docs = append(docs, r.extra...)
+	}
+	return docs
 }
 
 // Open opens a workspace in a new tab, after the active one, and makes it the active tab, or, when a tab has the folder

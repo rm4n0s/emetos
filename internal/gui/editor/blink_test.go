@@ -166,3 +166,24 @@ func TestNoAnimationWithoutFocusOrWithOtherStyles(t *testing.T) {
 		t.Error("an editor without the focus animates nothing")
 	}
 }
+
+// TestBlinkingDrawsOneFramePerHalfSecond pins the idle cost of a focused editor (SPEC §14, under
+// 1% of a core): the cursor that blinks asks for one frame each time it is shown or hidden, and
+// nothing else asks for frames while nobody types.
+func TestBlinkingDrawsOneFramePerHalfSecond(t *testing.T) {
+	r := newMouseRig(t, "hello world", nil)
+	r.ts.Pump(time.Second) // settles the first frames
+	sched := r.ts.Binding.Scheduler()
+	const seconds = 10
+	frames := 0
+	sched.AddPersistentFrameCallback(func(time.Duration) { frames++ })
+	for range seconds * 100 { // every 10 ms of the fake clock
+		r.ts.Pump(10 * time.Millisecond)
+	}
+	if want := seconds * int(time.Second/BlinkInterval); frames > want+1 {
+		t.Errorf("%d frames in %d s of blinking, want at most %d (one each time the cursor is shown or hidden)", frames, seconds, want+1)
+	}
+	if frames == 0 {
+		t.Error("the cursor did not blink")
+	}
+}

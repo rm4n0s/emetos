@@ -11,7 +11,7 @@ import (
 
 func TestSources(t *testing.T) {
 	sources := Sources()
-	want := []string{Codicon, Seti}
+	want := []string{Codicon, Seti, Controls}
 	if len(sources) != len(want) {
 		t.Fatalf("Sources has %d fonts, want %d", len(sources), len(want))
 	}
@@ -19,7 +19,7 @@ func TestSources(t *testing.T) {
 		if src.Family != want[i] {
 			t.Errorf("Sources[%d].Family = %q, want %q", i, src.Family, want[i])
 		}
-		if len(src.Data) < 10_000 {
+		if len(src.Data) < 10_000 && src.Family != Controls { // the font of the tab is a few hundred bytes
 			t.Errorf("%s: %d bytes of font data, want a real font", src.Family, len(src.Data))
 		}
 	}

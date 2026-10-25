@@ -250,6 +250,7 @@ func start(ctx context.Context, paths storage.Paths, srv *ipc.Server, l launch) 
 		}
 	}()
 	lg.Logger().Info("starting", "version", versionString(), "log", lg.Path())
+	defer startProfiling(lg.Logger())()
 	if srv != nil {
 		go func() {
 			handler := func(hctx context.Context, req ipc.Request) ipc.Reply {

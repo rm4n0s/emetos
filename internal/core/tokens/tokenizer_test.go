@@ -512,3 +512,77 @@ func TestTypeIfInsertingNeedsTheLinesAbove(t *testing.T) {
 		t.Error("a document with no grammar has no answer")
 	}
 }
+
+// gatedRegistry holds the compile of a grammar that includes another: the lookup of source.other waits for
+// the gate, so that a test can look at the tokenizer while the rules are being made.
+type gatedRegistry struct {
+	grammars map[string]*textmate.RawGrammar
+	gate     chan struct{}
+	entered  chan struct{}
+	once     sync.Once
+}
+
+func (r *gatedRegistry) Grammar(scope string) *textmate.RawGrammar {
+	if scope == "source.other" {
+		r.once.Do(func() { close(r.entered) })
+		<-r.gate
+	}
+	return r.grammars[scope]
+}
+
+func (r *gatedRegistry) Injections(string) []string { return nil }
+
+// TestEnsureDoesNotWaitForTheRulesOfTheGrammar pins that the thread that paints leaves a line to the
+// background loop while another goroutine makes the rules of the grammar (step 10.1).
+func TestEnsureDoesNotWaitForTheRulesOfTheGrammar(t *testing.T) {
+	parse := func(src string) *textmate.RawGrammar {
+		raw, err := textmate.ParseGrammar([]byte(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	reg := &gatedRegistry{
+		grammars: map[string]*textmate.RawGrammar{
+			"source.main":  parse(`{"scopeName": "source.main", "patterns": [{"include": "source.other"}]}`),
+			"source.other": parse(`{"scopeName": "source.other", "patterns": [{"match": "\\bb\\b", "name": "keyword.b"}]}`),
+		},
+		gate:    make(chan struct{}),
+		entered: make(chan struct{}),
+	}
+	g, err := textmate.NewGrammar("source.main", reg, textmate.GrammarOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok := New(newDoc("a\nb\nc\n"), g, Options{})
+	defer tok.Close()
+
+	warmed := make(chan struct{})
+	go func() {
+		g.Warm()
+		close(warmed)
+	}()
+	<-reg.entered // the rules are being made, held at the include
+	if !g.Compiling() {
+		t.Fatal("the grammar is not being compiled")
+	}
+	done := make(chan bool, 1)
+	go func() { done <- tok.Ensure(2, time.Second) }()
+	select {
+	case ok := <-done:
+		if ok || tok.Line(0) != nil {
+			t.Errorf("Ensure tokenized while the rules were being made: %v", ok)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Ensure waited for the rules of the grammar")
+	}
+
+	close(reg.gate)
+	<-warmed
+	if g.Compiling() || !g.Ready() {
+		t.Errorf("after the rules: compiling %v, ready %v", g.Compiling(), g.Ready())
+	}
+	if !tok.Ensure(2, time.Second) || tok.Line(2) == nil {
+		t.Error("Ensure does not tokenize once the rules are made")
+	}
+}
