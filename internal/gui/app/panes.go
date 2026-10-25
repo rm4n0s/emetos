@@ -43,7 +43,7 @@ type editorKind struct {
 
 // editorKinds are the kinds of editors the window has besides the text editor.
 func editorKinds() []editorKind {
-	return []editorKind{settingsKind(), keybindingsKind(), diffKind(), mergeKind()}
+	return []editorKind{settingsKind(), keybindingsKind(), extensionsKind(), diffKind(), mergeKind()}
 }
 
 // kindOf finds the kind of a type of input.

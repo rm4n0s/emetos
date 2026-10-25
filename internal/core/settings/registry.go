@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -138,6 +139,21 @@ func (r *Registry) Register(s Setting) error {
 	r.order = append(r.order, s.Key)
 	r.version++
 	return nil
+}
+
+// Unregister removes a setting and reports whether it was registered. It is how the settings of an extension go when the
+// extension is deactivated (SPEC §10.15); the settings of the editor are never removed. A value the user wrote for the key
+// stays in their file.
+func (r *Registry) Unregister(key string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.settings[key]; !ok {
+		return false
+	}
+	delete(r.settings, key)
+	r.order = slices.DeleteFunc(r.order, func(k string) bool { return k == key })
+	r.version++
+	return true
 }
 
 // MustRegister is Register for settings written in the code: it panics on an error.

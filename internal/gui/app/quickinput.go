@@ -66,7 +66,7 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 	providers := []quickinput.Provider{
 		quickinput.NewHelpProvider(reg, helpKeys),
 		quickinput.NewCommandsProvider(quickinput.CommandsOptions{
-			Commands: win.Commands, Menus: win.Process.Menus, Context: ctl.InvokerContext, Keybinding: keyLabel,
+			Commands: win.Commands, Menus: win.Menus, Context: ctl.InvokerContext, Keybinding: keyLabel,
 			History: win.CommandHistory,
 			Available: func(id string, ctx contextkey.Context) bool {
 				return !editorCommands[id] || ctx.Value("activeEditor") != nil

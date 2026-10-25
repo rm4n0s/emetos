@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -24,6 +25,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
+	"github.com/rm4n0s/emetos/internal/gui/exthost"
 )
 
 // Process holds what the whole process shares (SPEC §5.1): the folders, the registries of
@@ -70,6 +72,9 @@ type Process struct {
 	// InputMode is the insert or overtype mode of the editors of every workspace tab, as VS Code's InputMode is the
 	// mode of every editor of its window (SPEC §9.3).
 	InputMode *editor.InputMode
+	// Extensions is the host of the extensions compiled into Emetos: their manifests, and the scopes (the workspace tabs)
+	// they run in (SPEC §10.15).
+	Extensions *exthost.Host
 	// Workspaces is the manager of the window tabs of the process: it opens, activates, moves, replaces and closes them (workspaces.go, SPEC §10.14).
 	Workspaces *Workspaces
 	// Virtual holds the providers of the read-only `emetos-virtual:` documents (SPEC §7.1), such as the default
@@ -152,6 +157,8 @@ type ProcessOptions struct {
 	// not pass one gets timers that never run.
 	StateAfter     storage.AfterFunc
 	StateWriteFile storage.WriteFileFunc
+	// Extensions are the constructors of the extensions to run (extensions.All in the editor); tests pass their own.
+	Extensions []extension.Factory
 	// BackupAfter sets the timers of the delay of the backups of unsaved documents (hot exit, SPEC §10.10); it is
 	// StateAfter when nil. BackupWriteFile replaces the function that writes a backup, and BackupMaxSize is the
 	// largest text that is backed up; the atomic write and storage.MaxBackupSize when zero. Tests set them.
@@ -228,6 +235,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
 	p.closing = autoclose.NewRegistryLanguages(languages)
 	p.comments = comment.NewRegistryLanguages(languages)
+	p.Extensions = exthost.NewHost(exthost.HostOptions{Factories: opts.Extensions, Logger: logger, Settings: defaults})
 	p.Workspaces = newWorkspaces(p)
 	p.registerVirtualDocuments()
 	p.Menus = command.DefaultMenus(p.Commands)

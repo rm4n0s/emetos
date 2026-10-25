@@ -44,6 +44,7 @@ func DefaultRegistry() *Registry {
 	registerStatusBarCommands(r)
 	registerDiffEditorCommands(r)
 	registerMergeEditorCommands(r)
+	registerExtensionsCommands(r)
 	return r
 }
 
@@ -955,5 +956,16 @@ func registerMergeEditorCommands(r *Registry) {
 		Meta{ID: "git.openMergeEditor", Title: "Resolve in Merge Editor", Category: "Git",
 			Description: "Opens the merge editor for the file with conflict markers of the active editor."},
 		Meta{ID: "_open.mergeEditor"},
+	)
+}
+
+// registerExtensionsCommands registers the command of the page "Extensions" (step 11.1, SPEC §10.15). VS Code's id and
+// title are those of its "Show Installed Extensions"; its Extensions view (workbench.view.extensions) is the side bar
+// of the marketplace, which Emetos does not have.
+//
+// Ported from VS Code: src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+func registerExtensionsCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.extensions.action.showInstalledExtensions", Title: "Show Installed Extensions", Category: "Extensions"},
 	)
 }

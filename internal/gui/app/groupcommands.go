@@ -19,7 +19,7 @@ import (
 func (s *shellState) bindGroupCommands() {
 	reg := PeekWorkspace(s.Context()).Commands
 	handlers := s.editorCommands()
-	for _, more := range []map[string]command.Handler{s.gridCommands(), s.pathCommands(), s.navCommands(), s.switchCommands(), s.settingsCommands(), s.keybindingsCommands(), s.themeCommands(), s.profileCommands(), s.diffCommands(), s.compareCommands(), s.mergeCommands()} {
+	for _, more := range []map[string]command.Handler{s.gridCommands(), s.pathCommands(), s.navCommands(), s.switchCommands(), s.settingsCommands(), s.keybindingsCommands(), s.extensionsCommands(), s.themeCommands(), s.profileCommands(), s.diffCommands(), s.compareCommands(), s.mergeCommands()} {
 		for id, h := range more {
 			handlers[id] = h
 		}

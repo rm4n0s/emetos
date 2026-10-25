@@ -498,3 +498,55 @@ func TestTheSettingsOfTheWindowsAreRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestUnregister(t *testing.T) {
+	r := NewRegistry()
+	r.MustRegister(
+		Setting{Key: "a.one", Types: []Type{String}},
+		Setting{Key: "a.two", Types: []Type{String}},
+		Setting{Key: "a.three", Types: []Type{String}},
+	)
+	version := r.Version()
+	if !r.Unregister("a.two") {
+		t.Fatal("Unregister reported that a registered key was not there")
+	}
+	if r.Version() == version {
+		t.Errorf("the version did not change")
+	}
+	if r.Unregister("a.two") || r.Unregister("nothing") {
+		t.Errorf("Unregister reported a key that is not registered")
+	}
+	if _, ok := r.Lookup("a.two"); ok {
+		t.Errorf("a.two is still registered")
+	}
+	var keys []string
+	for _, s := range r.All() {
+		keys = append(keys, s.Key)
+	}
+	if !reflect.DeepEqual(keys, []string{"a.one", "a.three"}) {
+		t.Errorf("settings = %v, want the others in order", keys)
+	}
+	if err := r.Register(Setting{Key: "a.two", Types: []Type{Number}}); err != nil {
+		t.Errorf("a key that was unregistered cannot be registered again: %v", err)
+	}
+	// a store over the registry follows
+	store := NewStore(r, StoreOptions{})
+	r.Unregister("a.one")
+	if _, ok := store.Registry().Lookup("a.one"); ok {
+		t.Errorf("the store still sees a.one")
+	}
+}
+
+func TestExtensionsDisabledIsAnApplicationSettingWithNoDefault(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("extensions.disabled")
+	if !ok {
+		t.Fatal("extensions.disabled is not registered")
+	}
+	if s.Scope != ScopeApplication || !reflect.DeepEqual(s.Default, []any{}) || len(s.Types) != 1 || s.Types[0] != Array {
+		t.Errorf("extensions.disabled = %+v", s)
+	}
+	store := NewStore(DefaultRegistry(), StoreOptions{})
+	if got := Get[[]string](store, "extensions.disabled", ""); len(got) != 0 {
+		t.Errorf("default = %v", got)
+	}
+}

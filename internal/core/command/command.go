@@ -131,6 +131,16 @@ func (r *Registry) SetHandler(id string, h Handler) (remove func(), err error) {
 	}, nil
 }
 
+// Unregister removes a command and its handlers, and reports whether it was registered. It is how an extension's
+// commands go when the extension is deactivated (SPEC §10.15); the commands of the editor are never removed.
+func (r *Registry) Unregister(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.commands[id]
+	delete(r.commands, id)
+	return ok
+}
+
 // Fork makes a registry with the same commands and the handlers they have now: the stack of each command is
 // copied, so that setting or removing a handler in the fork does not touch this registry, nor the other way
 // round. The windows of the process each have a fork (SPEC §5.1): the commands are the process's, the handlers

@@ -811,6 +811,10 @@ var profileAppCommands = map[string]bool{
 	"workbench.profiles.actions.exportProfile": true, "workbench.profiles.actions.importProfile": true,
 }
 
+// extensionsAppCommands is the command of the page of the extensions, which the app binds since the page, the host and the
+// settings of the window are its own (step 11.1).
+var extensionsAppCommands = map[string]bool{"workbench.extensions.action.showInstalledExtensions": true}
+
 // modeAppCommands are the commands of full screen, zen mode, the centered layout and the zoom, which the app binds since
 // the window, its notifications and its controller are its own (step 8.5).
 var modeAppCommands = map[string]bool{
@@ -835,7 +839,7 @@ func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] || extensionsAppCommands[meta.ID] {
 			continue
 		}
 		n++

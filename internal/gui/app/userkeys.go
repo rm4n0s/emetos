@@ -117,7 +117,7 @@ func (k *userKeys) reload(ctx context.Context, async bool) {
 	for _, p := range problems {
 		w.Process.Logger.Warn("keybindings.json problem", "message", p.Describe())
 	}
-	resolver := keybinding.NewResolver(w.Process.Keymap.Defaults(), items, nil)
+	resolver := keybinding.NewResolver(w.defaultKeys(), items, nil)
 	apply := func() {
 		if k.filePath() != path {
 			return // the profile changed while the file was read: the switch reads the new file
@@ -136,6 +136,24 @@ func (k *userKeys) reload(ctx context.Context, async bool) {
 		w.onUI(apply)
 	} else {
 		apply()
+	}
+}
+
+// rebuild makes the resolver of the window again from the keymap, the keys of the extensions and the user's entries it
+// has, when the keys of the extensions change. It runs on the UI thread.
+func (k *userKeys) rebuild() {
+	w := k.win
+	k.mu.Lock()
+	items := k.items
+	k.mu.Unlock()
+	w.Keybindings.Replace(keybinding.NewResolver(w.defaultKeys(), items, nil))
+	w.Dispatcher.LeaveChordMode()
+	k.mu.Lock()
+	k.model = nil
+	listeners := slices.Clone(k.listeners)
+	k.mu.Unlock()
+	for _, f := range listeners {
+		(*f)()
 	}
 }
 
@@ -163,7 +181,7 @@ func (w *Workspace) KeybindingsModel() *keybinding.Model {
 			}
 			commands = append(commands, keybinding.CommandInfo{ID: m.ID, Title: m.Title, Category: m.Category})
 		}
-		k.model = keybinding.NewModel(w.Process.Keymap.Defaults(), k.items, commands)
+		k.model = keybinding.NewModel(w.defaultKeys(), k.items, commands)
 	}
 	return k.model
 }

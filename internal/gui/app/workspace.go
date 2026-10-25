@@ -61,7 +61,9 @@ func (w *Workspace) openWorkspace(ctx context.Context, folder string) error {
 // search. The shell walks it (it is not started here), so a window that never shows has no walk to stop.
 func (w *Workspace) newFileIndex(folder string) *workspace.FileIndex {
 	cfg := workspace.IndexConfigFromSettings(w.Settings)
-	return workspace.NewFileIndex(folder, workspace.IndexOptions{Config: &cfg})
+	idx := workspace.NewFileIndex(folder, workspace.IndexOptions{Config: &cfg})
+	w.watchExtensionFiles(idx)
+	return idx
 }
 
 // FileIndex is the list of the files of the folder of the window that the quick open searches, or nil

@@ -66,6 +66,23 @@ func TestCheck(t *testing.T) {
 			{"internal/core/regex/bad.go", 18, RuleNonLiteralTag, "errors.NewErr(failTag, ...)"},
 			{"internal/core/regex/bad.go", 23, RuleNonLiteralTag, "errors.New(tagConst, ...)"},
 		}},
+		{"an extension imports the editor", "extension_imports_internal", []want{
+			{"extensions/golang/bad.go", 5, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/internal/core/buffer"},
+			{"extensions/golang/bad.go", 6, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/internal/gui/kit"},
+			{"extensions/golang/cmd.go", 3, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/cmd/emetos"},
+		}},
+		{"an extension imports another extension, but not its own subpackages or extensions/internal", "extension_imports_extension", []want{
+			{"extensions/golang/bad.go", 7, RuleExtensionImportsExtension, "github.com/rm4n0s/emetos/extensions/markdown"},
+		}},
+		{"an extension imports a module nobody allowed", "extension_forbidden_dependency", []want{
+			{"extensions/golang/bad.go", 7, RuleExtensionImportsForbidden, "github.com/rm4n0s/glutter/internal/engine"},
+			{"extensions/golang/bad.go", 9, RuleExtensionImportsForbidden, "github.com/someone/lib"},
+			{"extensions/golang/bad.go", 11, RuleExtensionImportsForbidden, "gopkg.in/yaml.v3"},
+		}},
+		{"the editor imports the extensions", "extensions_imported_by_internal", []want{
+			{"internal/gui/app/bad.go", 4, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions"},
+			{"internal/gui/app/bad.go", 5, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions/golang"},
+		}},
 		{"reference and testdata folders are skipped", "skipped_dirs", nil},
 	}
 	for _, tt := range tests {

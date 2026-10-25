@@ -30,6 +30,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerThemeMenus(r)
 	registerProfileMenus(r)
 	registerWorkspaceTabMenus(r)
+	registerExtensionsMenus(r)
 	return r
 }
 
@@ -514,5 +515,18 @@ func registerWorkspaceTabMenus(r *MenuRegistry) {
 			Precondition: when("workspaceTabCount > 1")},
 		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.closeToTheRight", Title: "Close Tabs to the Right", MnemonicTitle: "Close Tabs to the &&Right", Group: "3_close", Order: 2,
 			Precondition: when("!workspaceTabIsLast")},
+	)
+}
+
+// registerExtensionsMenus adds the page "Extensions" (step 11.1) to the View menu, the Preferences submenu of the File
+// menu and the Manage menu, where VS Code has its Extensions row.
+//
+// Ported from VS Code: src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+func registerExtensionsMenus(r *MenuRegistry) {
+	const id = "workbench.extensions.action.showInstalledExtensions"
+	r.MustAdd(
+		MenuItem{Menu: MenubarViewMenu, Command: id, Title: "Extensions", MnemonicTitle: "E&&xtensions", Group: "3_views", Order: 5},
+		MenuItem{Menu: MenubarPreferencesMenu, Command: id, Title: "Extensions", MnemonicTitle: "&&Extensions", Group: "2_configuration", Order: 3},
+		MenuItem{Menu: GlobalActivity, Command: id, Title: "Extensions", Group: "2_configuration", Order: 3},
 	)
 }

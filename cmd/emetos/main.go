@@ -26,6 +26,7 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/extensions"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -262,7 +263,7 @@ func start(ctx context.Context, paths storage.Paths, srv *ipc.Server, l launch) 
 			}
 		}()
 	}
-	process := app.NewProcess(app.ProcessOptions{Paths: paths, Logs: lg, WatchFiles: true, Launcher: launcher})
+	process := app.NewProcess(app.ProcessOptions{Paths: paths, Logs: lg, WatchFiles: true, Launcher: launcher, Extensions: extensions.All()})
 	if err := app.Run(ctx, app.Options{Process: process, Logger: lg.Logger(), Open: &l.open}); err != nil {
 		logError(lg.Logger(), err)
 		return err

@@ -16,7 +16,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 - Update golden images: `go test ./... -run Golden -update-goldens`, then review every changed PNG
 - Vet: `go vet ./...`
 - Lint: `golangci-lint run`
-- Format: `gofmt -w cmd internal` (not `.`: `reference/` holds VS Code's Go test files)
+- Format: `gofmt -w cmd internal assets extension extensions` (not `.`: `reference/` holds VS Code's Go test files)
 - Generate: `go generate ./...`
 - Run the editor: `go run ./cmd/emetos` (debug build; it uses your real configuration)
 - Run the editor isolated from your configuration: `scripts/isolated.sh [--config <fixture dir>] -- go run ./cmd/emetos <args>`
@@ -26,7 +26,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 - After changing dependencies: `go mod tidy`
 
 ## Definition of done
-Before reporting a task as finished, run `gofmt` (on `cmd` and `internal`), `go vet ./...`, `golangci-lint run` and `go test -race ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
+Before reporting a task as finished, run `gofmt` (on `cmd`, `internal`, `assets`, `extension` and `extensions`), `go vet ./...`, `golangci-lint run` and `go test -race ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
 - `CGO_ENABLED=0 go build ./...` and `CGO_ENABLED=0 go test ./...` pass (proves the editor stays cgo-free)
 - `scripts/error-tags.sh --untested` prints nothing (every error Tag has a test that asserts its route; `docs/ERROR-TAGS-UNTESTED.md` is the only exception list)
 - Every new exported identifier has a doc comment
@@ -36,6 +36,7 @@ Before reporting a task as finished, run `gofmt` (on `cmd` and `internal`), `go 
 - `cmd/emetos/` is the editor's `main` package
 - `internal/core/...` is the editor core (text buffer, documents, editing, languages, settings, keybindings, workspace, storage). It never imports Glutter or `internal/gui`, so it is tested without a UI
 - `internal/gui/...` is the UI on Glutter: the widget kit, the editor widget, the workbench, views and dialogs. It imports the core, never the other way round
+- `extension/` is the public API of extensions (no Emetos imports); `extensions/` holds the compiled-in extensions, one folder each, listed by `extensions.All()` in `extensions/all.go`; the host that runs them is `internal/gui/exthost` (SPEC §10.15)
 - `internal/archtest/` checks the package boundaries and forbidden imports (SPEC §5.3)
 - The UI is built on Glutter's `widgets` layer; no Material widgets (SPEC D9)
 - `third_party/` holds the licenses of bundled assets (grammars, themes, icon fonts); `NOTICE` lists them

@@ -952,6 +952,8 @@ func (m *Workspaces) exitApplication(from *Workspace) {
 			return
 		}
 	}
+	// the extensions end with the application: their contexts are cancelled (SPEC §10.15)
+	m.p.Extensions.Shutdown()
 	if m.binding != nil {
 		m.binding.ExitApplication(ui.AppExitTypeRequired)
 	}
@@ -1015,6 +1017,7 @@ func (m *Workspaces) afterUnmount(f func()) {
 
 // release lets go of what a workspace that is gone holds: the tracker of its backups and its settings listeners.
 func (w *Workspace) release() {
+	w.stopExtensions()
 	b := &w.backups
 	b.mu.Lock()
 	tracker, stop := b.tracker, b.stopSettings

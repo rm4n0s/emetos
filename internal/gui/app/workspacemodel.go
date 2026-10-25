@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rm4n0s/glutter/widgets"
@@ -25,6 +26,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
+	"github.com/rm4n0s/emetos/internal/gui/exthost"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	"github.com/rm4n0s/emetos/internal/gui/views/output"
@@ -43,6 +45,9 @@ type Workspace struct {
 	// that the handlers the shell of a window sets (the editor in front of the user, the Explorer, the save
 	// commands) are the window's and a command run in one window never reaches another.
 	Commands *command.Registry
+	// Menus holds the menu items of the window: a fork of the registry of the process, over Commands, so that the menu
+	// items of the extensions of a workspace tab are in its menus only (SPEC §10.15).
+	Menus *command.MenuRegistry
 	// Notify is the notification service of the window: what the window reports is shown in the window (the
 	// Process has one for what belongs to no window).
 	Notify *notify.Service
@@ -136,6 +141,10 @@ type Workspace struct {
 	Quit func()
 
 	ctx context.Context
+	// extKeys is the layer of default keybindings of the extensions (extensions.go), and extScope the scope of the
+	// workspace in the extension host; the watcher of the file list reads extScope from its goroutine.
+	extKeys  *extensionKeys
+	extScope atomic.Pointer[exthost.Scope]
 	// profileMu guards profile and profileListeners: the file watchers and the other windows read the profile from
 	// their own goroutines.
 	profileMu sync.RWMutex
@@ -337,6 +346,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		p.Logger.Warn("settings problem", "target", problem.Target, "key", problem.Key, "message", problem.Message)
 	}
 	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
+	commands := p.Commands.Fork()
 	layout := workbench.NewLayout(workbench.LayoutStateFromSettings(store))
 	access := quickinput.NewRegistry()
 	w := &Workspace{
@@ -344,7 +354,8 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		QuickInput:     quickinput.NewController(quickinput.ControllerOptions{Registry: access}),
 		CommandHistory: quickinput.NewCommandsHistory(settings.Get[int](store, "workbench.commandPalette.history", "")),
 		Process:        p,
-		Commands:       p.Commands.Fork(),
+		Commands:       commands,
+		Menus:          p.Menus.Fork(commands),
 		Notify:         notify.NewService(p.Logger, nil),
 		Folder:         folder,
 		Settings:       store,
@@ -406,6 +417,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	w.followWorkspaceSettings()
 	w.followTheme()
 	w.followLanguages()
+	w.startExtensions()
 	return w, nil
 }
 

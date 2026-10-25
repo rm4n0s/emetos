@@ -1,7 +1,8 @@
 // Package archtest checks the package boundaries and the forbidden imports of
-// SPEC §5.3: the editor core never imports Glutter or the GUI, no cgo, and errors
-// go through github.com/rm4n0s/errors,
-// built where the failure happens and never in a helper (SPEC §5.3 and §13).
+// SPEC §5.3: the editor core never imports Glutter or the GUI, no cgo, errors go
+// through github.com/rm4n0s/errors, built where the failure happens and never in a
+// helper (SPEC §5.3 and §13), and the extensions compiled into Emetos import only
+// the public package extension (SPEC §10.15).
 // ErrorTags and UntestedErrorTags list the error Tags of the code and the ones no
 // test asserts (scripts/error-tags.sh).
 //
@@ -34,6 +35,11 @@ const (
 
 	corePrefix  = "internal/core/"
 	regexPrefix = "internal/core/regex/"
+
+	// extensionsPrefix is the folder of the extensions compiled into Emetos, and extensionPackage the public contract
+	// they import (SPEC §10.15).
+	extensionsPrefix = "extensions/"
+	extensionPackage = "extension"
 )
 
 // Rule names a boundary rule of SPEC §5.3.
@@ -59,6 +65,18 @@ const (
 	RuleProjectErrorRewrapped Rule = "ProjectErrorRewrapped"
 	// RuleNonLiteralTag: the tag of errors.New, errors.NewErr or errors.NewErrf in non-test code is not a string literal.
 	RuleNonLiteralTag Rule = "NonLiteralTag"
+	// RuleExtensionImportsInternal: a package under extensions/ imports a package of Emetos other than extension, a
+	// subpackage of its own or one under extensions/internal (internal/..., cmd/...). The public package extension is the
+	// only bridge to the editor (SPEC §10.15).
+	RuleExtensionImportsInternal Rule = "ExtensionImportsInternal"
+	// RuleExtensionImportsExtension: a package under extensions/<name>/ imports another extension, extensions/<other>/...
+	RuleExtensionImportsExtension Rule = "ExtensionImportsExtension"
+	// RuleExtensionImportsForbidden: a package under extensions/ imports a module that neither the standard library nor the
+	// dependencies CLAUDE.md allows are, or a package inside Glutter's internal folders.
+	RuleExtensionImportsForbidden Rule = "ExtensionImportsForbidden"
+	// RuleExtensionsImportedByInternal: a package under internal/ imports extensions/...; only cmd/ lists the extensions, so
+	// the editor has no special case for a bundled one.
+	RuleExtensionsImportedByInternal Rule = "ExtensionsImportedByInternal"
 )
 
 // Violation is one broken rule at one place.
@@ -157,6 +175,8 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 		found = append(found, Violation{File: rel, Line: fset.Position(pos).Line, Rule: rule, Detail: detail})
 	}
 	inCore := strings.HasPrefix(rel, corePrefix)
+	inInternal := strings.HasPrefix(rel, "internal/")
+	inExtensions := strings.HasPrefix(rel, extensionsPrefix)
 	fmtNames := map[string]bool{}
 	errorsName := ""
 	for _, imp := range file.Imports {
@@ -188,6 +208,14 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 		if inCore && (isOrUnder(path, glutterModule) || isOrUnder(path, guiPackage)) {
 			add(imp.Pos(), RuleCoreImportsUI, path)
 		}
+		if inInternal && isOrUnder(path, emetosModule+"extensions") {
+			add(imp.Pos(), RuleExtensionsImportedByInternal, path)
+		}
+		if inExtensions {
+			if rule, bad := extensionImportRule(rel, path); bad {
+				add(imp.Pos(), rule, path)
+			}
+		}
 	}
 	if len(fmtNames) > 0 {
 		ast.Inspect(file, func(n ast.Node) bool {
@@ -209,6 +237,55 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 		found = append(found, checkErrorRules(fset, rel, file, errorsName)...)
 	}
 	return found
+}
+
+// allowedExtensionModules are the modules, besides the standard library and Emetos's own public packages, that a package
+// under extensions/ may import: the dependencies CLAUDE.md allows. regexp2 is left to RuleRegexp2Outside.
+var allowedExtensionModules = []string{
+	errorsModule, glutterModule, "golang.org/x/text", "golang.org/x/image", "golang.org/x/sys",
+	"github.com/go-text/typesetting", "golang.org/x/crypto", "github.com/quic-go/quic-go",
+}
+
+// extensionImportRule applies the rules of SPEC §10.15 to one import of a file under extensions/ (rel is its path
+// relative to the root): the rule it breaks and true, or false when the import is allowed.
+func extensionImportRule(rel, path string) (Rule, bool) {
+	if isOrUnder(path, regexp2Module) || path == "C" {
+		return "", false // other rules
+	}
+	if !isOrUnder(path, "github.com/rm4n0s/emetos") {
+		if !strings.Contains(strings.SplitN(path, "/", 2)[0], ".") {
+			return "", false // the standard library
+		}
+		if strings.Contains(path, "/internal/") && isOrUnder(path, glutterModule) {
+			return RuleExtensionImportsForbidden, true
+		}
+		for _, m := range allowedExtensionModules {
+			if isOrUnder(path, m) {
+				return "", false
+			}
+		}
+		return RuleExtensionImportsForbidden, true
+	}
+	inside := strings.TrimPrefix(path, emetosModule)
+	switch {
+	case path == strings.TrimSuffix(emetosModule, "/"):
+		return RuleExtensionImportsInternal, true
+	case inside == extensionPackage || strings.HasPrefix(inside, extensionPackage+"/"):
+		return "", false
+	case inside == "extensions" || strings.HasPrefix(inside, extensionsPrefix):
+		// the list in extensions/ imports every extension; an extension imports its own subpackages and the shared
+		// extensions/internal ones
+		own := strings.SplitN(strings.TrimPrefix(rel, extensionsPrefix), "/", 2)
+		if len(own) < 2 {
+			return "", false // a file of extensions/ itself
+		}
+		target := strings.SplitN(strings.TrimPrefix(strings.TrimPrefix(inside, "extensions"), "/"), "/", 2)[0]
+		if target == "" || target == own[0] || target == "internal" {
+			return "", false
+		}
+		return RuleExtensionImportsExtension, true
+	}
+	return RuleExtensionImportsInternal, true
 }
 
 // isOrUnder reports whether path is module or a package below it.

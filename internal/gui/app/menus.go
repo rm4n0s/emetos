@@ -85,7 +85,7 @@ func (s *shellState) initMenus(binding *widgets.WidgetsBinding) {
 	s.explorerMenu = kit.NewContextMenuController()
 	resolver := win.Keybindings
 	s.menus = workbench.NewMenuSource(workbench.MenuSourceOptions{
-		Menus: win.Process.Menus, Commands: win.Commands, Keybindings: resolver,
+		Menus: win.Menus, Commands: win.Commands, Keybindings: resolver,
 		Context: s.menuContext, Ctx: win.ctx,
 		// the menu has the focus until it closes, and the editor binds its commands while it has the
 		// focus itself: the command runs two frames after the item was chosen, when the menu is gone

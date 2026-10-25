@@ -258,10 +258,12 @@ func TestEditorContextMenuItems(t *testing.T) {
 
 func TestManageItemsWithNothingRegistered(t *testing.T) {
 	m := newMenuServices(nil)
-	// the command palette, the profiles, the settings, the keyboard shortcuts and the themes are the items of the Manage menu that the
+	// the command palette, the profiles, the settings, the extensions, the keyboard shortcuts and the themes are the items of the Manage menu that the
 	// built-in rows have (the rows of the configuration follow a line, as VS Code's group of configuration does)
 	items := m.source.ManageItems()
-	if len(items) != 6 || items[0].Label != "Command Palette..." || items[0].Keybinding != "Ctrl+Shift+P" || !items[1].Separator || items[3].Label != "Settings" || items[3].Keybinding != "Ctrl+," || items[4].Label != "Keyboard Shortcuts" || items[4].Keybinding != "Ctrl+K Ctrl+S" {
+	if len(items) != 7 || items[0].Label != "Command Palette..." || items[0].Keybinding != "Ctrl+Shift+P" || !items[1].Separator || items[3].Label != "Settings" || items[3].Keybinding != "Ctrl+," ||
+		items[4].Label != "Extensions" || items[4].ID != "workbench.extensions.action.showInstalledExtensions" || items[4].Keybinding != "Ctrl+Shift+X" ||
+		items[5].Label != "Keyboard Shortcuts" || items[5].Keybinding != "Ctrl+K Ctrl+S" {
 		t.Errorf("the Manage menu: %+v", items)
 	}
 	// the Profiles submenu follows the line (step 8.6b): the six commands, the line between the groups
@@ -272,10 +274,10 @@ func TestManageItemsWithNothingRegistered(t *testing.T) {
 		t.Errorf("the Profiles submenu: %+v", items[2])
 	}
 	// the Themes submenu follows (step 8.4)
-	if themes := items[5]; themes.Label != "Themes" || !themes.Submenu || len(themes.Items) != 2 ||
+	if themes := items[6]; themes.Label != "Themes" || !themes.Submenu || len(themes.Items) != 2 ||
 		themes.Items[0].ID != "workbench.action.selectTheme" || themes.Items[0].Label != "Color Theme" || themes.Items[0].Keybinding != "Ctrl+K Ctrl+T" ||
 		themes.Items[1].ID != "workbench.action.selectIconTheme" || themes.Items[1].Label != "File Icon Theme" || themes.Items[1].Keybinding != "" {
-		t.Errorf("the Themes submenu: %+v", items[5])
+		t.Errorf("the Themes submenu: %+v", items[6])
 	}
 	m.menus = command.NewMenuRegistry(m.commands)
 	m.source = m.newSource(nil)

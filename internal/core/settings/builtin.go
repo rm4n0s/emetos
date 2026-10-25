@@ -24,6 +24,8 @@ const (
 	categoryOutput = "Output"
 	// categorySearch is the group of the settings of the file search.
 	categorySearch = "Search"
+	// categoryExtensions is the group of the settings of the extensions.
+	categoryExtensions = "Extensions"
 )
 
 // DefaultRegistry makes a registry with the settings Emetos has. Each step that reads a
@@ -41,7 +43,20 @@ func DefaultRegistry() *Registry {
 	registerOutput(r)
 	registerSearch(r)
 	registerDiffEditor(r)
+	registerExtensions(r)
 	return r
+}
+
+// registerExtensions registers the settings of the extension host (step 11.1, SPEC §10.15). VS Code has no such setting:
+// its extensions are installed and uninstalled, Emetos's are compiled in, so the user turns them off here.
+func registerExtensions(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "extensions.disabled", Types: []Type{Array}, Default: []any{}, ItemTypes: []Type{String},
+			Description: "The ids of the extensions that are turned off, such as `emetos.markdown`. A disabled extension is not activated in any workspace tab, and the commands, keys and menu items it declares are not there. The Extensions page (Manage menu) turns an extension on or off.",
+			Scope:       ScopeApplication, Category: categoryExtensions,
+		},
+	)
 }
 
 // registerEditor registers the editor.* settings.

@@ -104,6 +104,9 @@ type MenuItem struct {
 	Toggled contextkey.Expr
 	// Args are the arguments the command is run with (an item of a dynamic menu).
 	Args any
+
+	// token marks the items that AddRemovable added together, so that the function it returns takes them out.
+	token uint64
 }
 
 // MenuEntry is an item of a menu as the context shows it: the items that apply, in order, with a
@@ -142,6 +145,8 @@ type MenuRegistry struct {
 	mu        sync.RWMutex
 	items     map[string][]MenuItem
 	providers map[string][]MenuProvider
+	// tokens numbers the calls of AddRemovable.
+	tokens uint64
 }
 
 // NewMenuRegistry makes an empty registry of menus over a registry of commands, which gives the
@@ -166,6 +171,45 @@ func (r *MenuRegistry) Add(items ...MenuItem) error {
 		r.items[it.Menu] = append(r.items[it.Menu], it)
 	}
 	return nil
+}
+
+// AddRemovable is Add that gives back the function which takes the items out of their menus again (an extension's
+// menu items go with the extension, SPEC §10.15). The function may be called more than once.
+func (r *MenuRegistry) AddRemovable(items ...MenuItem) (remove func(), err error) {
+	r.mu.Lock()
+	r.tokens++
+	token := r.tokens
+	r.mu.Unlock()
+	marked := slices.Clone(items)
+	for i := range marked {
+		marked[i].token = token
+	}
+	if err := r.Add(marked...); err != nil {
+		return nil, err
+	}
+	return func() {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		for menu, list := range r.items {
+			r.items[menu] = slices.DeleteFunc(list, func(it MenuItem) bool { return it.token == token })
+		}
+	}, nil
+}
+
+// Fork makes a registry of menus over another registry of commands (the fork of one window, SPEC §5.1) with the items
+// and the providers this one has now: adding or removing an item in the fork does not touch this registry, nor the other
+// way round.
+func (r *MenuRegistry) Fork(commands *Registry) *MenuRegistry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := &MenuRegistry{commands: commands, items: make(map[string][]MenuItem, len(r.items)), providers: make(map[string][]MenuProvider, len(r.providers)), tokens: r.tokens}
+	for menu, list := range r.items {
+		out.items[menu] = slices.Clone(list)
+	}
+	for menu, list := range r.providers {
+		out.providers[menu] = slices.Clone(list)
+	}
+	return out
 }
 
 // MustAdd is Add for the table of built-in items; it panics on an invalid item.

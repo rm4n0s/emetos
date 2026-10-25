@@ -494,3 +494,41 @@ func TestMergeEditorActionCommands(t *testing.T) {
 		}
 	}
 }
+
+func TestUnregister(t *testing.T) {
+	r := NewRegistry()
+	r.MustRegister(Meta{ID: "a", Title: "A"}, Meta{ID: "b", Title: "B"})
+	if _, err := r.SetHandler("a", func(Context, any) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		id   string
+		want bool
+	}{
+		{"a command with a handler", "a", true},
+		{"a command twice", "a", false},
+		{"a command without a handler", "b", true},
+		{"an unknown command", "zzz", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := r.Unregister(tt.id); got != tt.want {
+				t.Errorf("Unregister(%q) = %v, want %v", tt.id, got, tt.want)
+			}
+			if _, ok := r.Lookup(tt.id); ok {
+				t.Errorf("%q is still registered", tt.id)
+			}
+		})
+	}
+	assertRoute(t, r.Run(Context{Ctx: context.Background()}, "a", nil), "Run.CommandNotFound")
+	if err := r.Register(Meta{ID: "a", Title: "Again"}); err != nil {
+		t.Errorf("an id that was unregistered cannot be registered again: %v", err)
+	}
+	// the fork of a window keeps its own set
+	fork := r.Fork()
+	fork.Unregister("a")
+	if _, ok := r.Lookup("a"); !ok {
+		t.Errorf("unregistering in the fork removed the command from the original")
+	}
+}

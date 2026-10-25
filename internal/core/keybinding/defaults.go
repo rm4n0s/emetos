@@ -71,6 +71,7 @@ func DefaultRegistry() *Registry {
 	registerWorkspaceTabKeys(r)
 	registerSettingsKeys(r)
 	registerKeybindingsEditorKeys(r)
+	registerExtensionsKeys(r)
 	registerThemeKeys(r)
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
@@ -633,5 +634,14 @@ func registerDiffEditorKeys(r *Registry) {
 func registerMergeEditorKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "mergeEditor.acceptMerge", Weight: WeightEditorContrib, When: mustWhen("isMergeEditor"), Primary: "ctrl+enter"},
+	)
+}
+
+// registerExtensionsKeys binds Ctrl+Shift+X to the page "Extensions" (step 11.1), the key VS Code gives its Extensions view.
+//
+// Ported from VS Code: src/vs/workbench/contrib/extensions/browser/extensions.contribution.ts
+func registerExtensionsKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.extensions.action.showInstalledExtensions", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+x"},
 	)
 }

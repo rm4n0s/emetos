@@ -482,7 +482,7 @@ func TestDefaultMenuContexts(t *testing.T) {
 		{"editor context menu", EditorContext, contextkey.MapContext{}, []string{"Cut", "Copy", "Paste", "-", "Select All"}},
 		{"editor context menu of a read-only editor has no Cut or Paste", EditorContext, contextkey.MapContext{"editorReadonly": true}, []string{"Copy", "-", "Select All"}},
 		{"panel position", PanelPositionMenu, contextkey.MapContext{"panelPosition": "bottom"}, []string{"Top", "Left", "Right", "Bottom"}},
-		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Profiles", "Settings", "Keyboard Shortcuts", "Themes"}},
+		{"the Manage menu has the command palette", GlobalActivity, contextkey.MapContext{}, []string{"Command Palette...", "-", "Profiles", "Settings", "Extensions", "Keyboard Shortcuts", "Themes"}},
 		{"Go", MenubarGoMenu, contextkey.MapContext{}, []string{"Back", "Forward", "Last Edit Location", "-", "Switch Editor", "Switch Group", "-", "Go to File...", "-", "Go to Line/Column...", "Go to Bracket"}},
 	}
 	for _, tc := range cases {
@@ -739,8 +739,8 @@ func TestViewMenuHasThePanelViews(t *testing.T) {
 		titles = append(titles, e.Title)
 	}
 	// the panel views come in their own group, between the group of Editor Layout and Workspace Tabs and Word Wrap's; the group of
-	// the command palette comes first
-	want := []string{"Command Palette...", "Open View...", "-", "Appearance", "Editor Layout", "Workspace Tabs", "-", "Problems", "Output", "-", "Word Wrap"}
+	// the command palette comes first; the Extensions page (step 11.1) has the group of the views
+	want := []string{"Command Palette...", "Open View...", "-", "Appearance", "Editor Layout", "Workspace Tabs", "-", "Extensions", "-", "Problems", "Output", "-", "Word Wrap"}
 	if !reflect.DeepEqual(titles, want) {
 		t.Errorf("got %v, want %v", titles, want)
 	}
@@ -918,7 +918,7 @@ func TestSettingsMenus(t *testing.T) {
 		}
 		return out
 	}
-	if got := rowsOf(MenubarPreferencesMenu); len(got) != 4 || got[0] != "&&Profiles=" || got[1] != "&&Settings=workbench.action.openSettings" || got[2] != "Keyboard Shortcuts=workbench.action.openGlobalKeybindings" || got[3] != "&&Themes=" {
+	if got := rowsOf(MenubarPreferencesMenu); len(got) != 5 || got[0] != "&&Profiles=" || got[1] != "&&Settings=workbench.action.openSettings" || got[2] != "&&Extensions=workbench.extensions.action.showInstalledExtensions" || got[3] != "Keyboard Shortcuts=workbench.action.openGlobalKeybindings" || got[4] != "&&Themes=" {
 		t.Errorf("Preferences menu %v", got)
 	}
 	found := false
@@ -1190,4 +1190,74 @@ func TestWorkspaceTabMenus(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestAddRemovableTakesOnlyItsItemsOut(t *testing.T) {
+	_, r := testMenus()
+	r.MustAdd(MenuItem{Menu: "m", Command: "a", Group: "1"})
+	removeB, err := r.AddRemovable(MenuItem{Menu: "m", Command: "b", Group: "2"}, MenuItem{Menu: "n", Command: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	removeD, err := r.AddRemovable(MenuItem{Menu: "m", Command: "d", Group: "3", Args: map[string]any{"x": 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := contextkey.MapContext{}
+	if got, want := shape(r.Items("m", keys)), []string{"a", "-", "b", "-", "d"}; !slices.Equal(got, want) {
+		t.Fatalf("m = %v, want %v", got, want)
+	}
+	removeB()
+	removeB() // more than once is fine
+	if got, want := shape(r.Items("m", keys)), []string{"a", "-", "d"}; !slices.Equal(got, want) {
+		t.Errorf("m after removing b = %v, want %v", got, want)
+	}
+	if got := shape(r.Items("n", keys)); len(got) != 0 {
+		t.Errorf("n after removing b = %v", got)
+	}
+	removeD()
+	if got, want := shape(r.Items("m", keys)), []string{"a"}; !slices.Equal(got, want) {
+		t.Errorf("m after removing d = %v, want %v", got, want)
+	}
+}
+
+func TestAddRemovableErrorsLeaveNothing(t *testing.T) {
+	_, r := testMenus()
+	_, err := r.AddRemovable(MenuItem{Menu: "m", Command: "a"}, MenuItem{Command: "b"})
+	assertRoute(t, err, "AddRemovable->MenuRegistry.Add.MenuItemMenuMissing")
+	if got := shape(r.Items("m", contextkey.MapContext{})); len(got) != 0 {
+		t.Errorf("a failed AddRemovable left %v", got)
+	}
+}
+
+func TestMenuForkIsIndependent(t *testing.T) {
+	cmds, r := testMenus()
+	r.MustAdd(MenuItem{Menu: "m", Command: "a", Group: "1"})
+	r.SetProvider("p", func(contextkey.Context) []MenuItem { return []MenuItem{{Menu: "p", Command: "d"}} })
+	forkCmds := cmds.Fork()
+	forkCmds.MustRegister(Meta{ID: "x", Title: "Extra"})
+	fork := r.Fork(forkCmds)
+	remove, err := fork.AddRemovable(MenuItem{Menu: "m", Command: "x", Group: "2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := contextkey.MapContext{}
+	if got, want := shape(fork.Items("m", keys)), []string{"a", "-", "x"}; !slices.Equal(got, want) {
+		t.Errorf("fork = %v, want %v", got, want)
+	}
+	if got, want := shape(r.Items("m", keys)), []string{"a"}; !slices.Equal(got, want) {
+		t.Errorf("the original saw the item of the fork: %v, want %v", got, want)
+	}
+	if got := shape(fork.Items("p", keys)); !slices.Equal(got, []string{"d"}) {
+		t.Errorf("the fork lost the provider: %v", got)
+	}
+	// an item added to the original after the fork is not in the fork
+	r.MustAdd(MenuItem{Menu: "m", Command: "b", Group: "3"})
+	if got := shape(fork.Items("m", keys)); slices.Contains(got, "b") {
+		t.Errorf("the fork saw an item added to the original: %v", got)
+	}
+	remove()
+	if got := shape(fork.Items("m", keys)); !slices.Equal(got, []string{"a"}) {
+		t.Errorf("fork after remove = %v", got)
+	}
 }
