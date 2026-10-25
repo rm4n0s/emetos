@@ -1040,7 +1040,19 @@ func (r *stateRun) global() storage.GlobalState {
 // and src/a.go were opened last.
 func recentEnv(t *testing.T) (*stateEnv, *stateRun, string) {
 	t.Helper()
-	env := newStateEnv(t, nil)
+	return recentEnvWith(t, nil)
+}
+
+// recentEnvReplacing is recentEnv with window.openFoldersInNewWindow "off": a folder opened from the application
+// replaces the folder of the tab (with the default setting it opens in a new tab, SPEC §10.14).
+func recentEnvReplacing(t *testing.T) (*stateEnv, *stateRun, string) {
+	t.Helper()
+	return recentEnvWith(t, map[string]any{"window.openFoldersInNewWindow": "off"})
+}
+
+func recentEnvWith(t *testing.T, extra map[string]any) (*stateEnv, *stateRun, string) {
+	t.Helper()
+	env := newStateEnv(t, extra)
 	other := env.folder("glutter", "g.go", "pkg/h.go")
 	first := env.start(other)
 	first.open(filepath.Join(other, "g.go"), 0)
@@ -1236,7 +1248,7 @@ func TestTheOpenRecentPicker(t *testing.T) {
 }
 
 func TestChoosingARecentFileOpensItAndChoosingAFolderOpensTheFolder(t *testing.T) {
-	env, run, other := recentEnv(t)
+	env, run, other := recentEnvReplacing(t)
 	run.command("workbench.action.openRecent", nil)
 	run.waitFor("the picker", func() bool { return run.win.QuickInput.Visible() })
 	var file quickinput.Row
@@ -1269,7 +1281,7 @@ func TestChoosingARecentFileOpensItAndChoosingAFolderOpensTheFolder(t *testing.T
 }
 
 func TestOpeningAFolderKeepsTheSavedStateOfTheFolderItLeaves(t *testing.T) {
-	env, run, other := recentEnv(t)
+	env, run, other := recentEnvReplacing(t)
 	run.command("openRecentFolder", other)
 	run.waitFor("the folder", func() bool { return run.win.Folder == other })
 	run.ts.Pump(stateSnapshotDelay + 100*time.Millisecond)
@@ -1302,7 +1314,7 @@ func TestOpeningAFolderKeepsTheSavedStateOfTheFolderItLeaves(t *testing.T) {
 }
 
 func TestACancelledFolderChangeGoesOnSavingTheState(t *testing.T) {
-	env, run, other := recentEnv(t)
+	env, run, other := recentEnvReplacing(t)
 	doc, ok := run.win.Documents.Get(document.FileURI(env.path("main.go")))
 	if !ok {
 		t.Fatal("main.go is not open")

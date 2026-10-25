@@ -630,7 +630,7 @@ func TestOpenFolderSavesThenOpens(t *testing.T) {
 	if _, err := doc.Edit([]document.Edit{{Text: "// changed\n"}}, document.EditOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	a.shell().openFolder(other)
+	a.replaceFolder(other)
 	a.pump()
 	a.ts.Tap(gluttertest.Descendant(gluttertest.ByType[*kit.Dialog](), gluttertest.ByText("Save")))
 	deadline := time.Now().Add(5 * time.Second)

@@ -347,35 +347,33 @@ func TestNoGlutterWindowIsMadeForATab(t *testing.T) {
 }
 
 func TestPlaceFolder(t *testing.T) {
-	const (
-		app    = FolderFromApp
-		launch = FolderFromLaunch
-	)
 	tests := []struct {
 		name string
 		req  folderRequest
 		want FolderPlacement
 	}{
 		// a folder that is open comes to the front, whatever else is asked
-		{"open, default, app", folderRequest{Setting: "default", Source: app, Open: true}, PlaceFocus},
-		{"open, on", folderRequest{Setting: "on", Source: launch, Open: true}, PlaceFocus},
-		{"open, off", folderRequest{Setting: "off", Source: app, Open: true}, PlaceFocus},
-		{"open, new window", folderRequest{Setting: "off", Source: launch, ForceNew: true, Open: true}, PlaceFocus},
+		{"open, default", folderRequest{Setting: "default", Open: true}, PlaceFocus},
+		{"open, on", folderRequest{Setting: "on", Open: true}, PlaceFocus},
+		{"open, off", folderRequest{Setting: "off", Open: true}, PlaceFocus},
+		{"open, -n", folderRequest{Setting: "off", ForceNew: true, Open: true}, PlaceFocus},
+		{"open, -r", folderRequest{Setting: "on", ForceReuse: true, Open: true}, PlaceFocus},
 		// the options of the command line win over the setting
-		{"--new-window with off", folderRequest{Setting: "off", Source: launch, ForceNew: true}, PlaceNewTab},
-		{"--reuse-window with on", folderRequest{Setting: "on", Source: launch, ForceReuse: true}, PlaceSameTab},
-		{"--new-window from the app", folderRequest{Setting: "default", Source: app, ForceNew: true}, PlaceNewTab},
-		// the setting
-		{"on, app", folderRequest{Setting: "on", Source: app}, PlaceNewTab},
-		{"on, launch", folderRequest{Setting: "on", Source: launch}, PlaceNewTab},
-		{"off, app", folderRequest{Setting: "off", Source: app}, PlaceSameTab},
-		{"off, launch", folderRequest{Setting: "off", Source: launch}, PlaceSameTab},
-		{"default, app", folderRequest{Setting: "default", Source: app}, PlaceSameTab},
-		{"default, launch", folderRequest{Setting: "default", Source: launch}, PlaceNewTab},
-		{"default, launch, the window is empty", folderRequest{Setting: "default", Source: launch, TargetEmpty: true}, PlaceSameTab},
-		{"on, launch, the window is empty", folderRequest{Setting: "on", Source: launch, TargetEmpty: true}, PlaceNewTab},
-		{"a value that is not one", folderRequest{Setting: "maybe", Source: launch}, PlaceNewTab},
-		{"a value that is not one, app", folderRequest{Setting: "", Source: app}, PlaceSameTab},
+		{"-n with off", folderRequest{Setting: "off", ForceNew: true}, PlaceNewTab},
+		{"-r with on", folderRequest{Setting: "on", ForceReuse: true}, PlaceSameTab},
+		{"-n with default", folderRequest{Setting: "default", ForceNew: true}, PlaceNewTab},
+		{"-r with default", folderRequest{Setting: "default", ForceReuse: true}, PlaceSameTab},
+		{"-n on an untouched No Folder tab", folderRequest{Setting: "default", ForceNew: true, TargetEmpty: true}, PlaceNewTab},
+		// the setting, read as "in a new tab"
+		{"on", folderRequest{Setting: "on"}, PlaceNewTab},
+		{"off", folderRequest{Setting: "off"}, PlaceSameTab},
+		{"default", folderRequest{Setting: "default"}, PlaceNewTab},
+		{"default, an untouched No Folder tab", folderRequest{Setting: "default", TargetEmpty: true}, PlaceSameTab},
+		{"on, an untouched No Folder tab", folderRequest{Setting: "on", TargetEmpty: true}, PlaceNewTab},
+		{"off, an untouched No Folder tab", folderRequest{Setting: "off", TargetEmpty: true}, PlaceSameTab},
+		{"a value that is not one", folderRequest{Setting: "maybe"}, PlaceNewTab},
+		{"no value", folderRequest{}, PlaceNewTab},
+		{"no value, an untouched No Folder tab", folderRequest{TargetEmpty: true}, PlaceSameTab},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -389,21 +387,20 @@ func TestPlaceFolder(t *testing.T) {
 func TestPlaceFiles(t *testing.T) {
 	tests := []struct {
 		setting         string
-		source          FolderSource
 		forceNew, reuse bool
 		want            bool
 	}{
-		{"off", FolderFromLaunch, false, false, false},
-		{"on", FolderFromLaunch, false, false, true},
-		{"default", FolderFromLaunch, false, false, true},
-		{"default", FolderFromApp, false, false, false},
-		{"off", FolderFromLaunch, true, false, true},
-		{"on", FolderFromLaunch, false, true, false},
-		{"", FolderFromLaunch, false, false, false},
+		{"off", false, false, false},
+		{"on", false, false, true},
+		{"default", false, false, false},
+		{"", false, false, false},
+		{"off", true, false, true},
+		{"default", true, false, true},
+		{"on", false, true, false},
 	}
 	for _, tc := range tests {
-		if got := placeFiles(tc.setting, tc.source, tc.forceNew, tc.reuse); got != tc.want {
-			t.Errorf("placeFiles(%q, %d, %v, %v) = %v, want %v", tc.setting, tc.source, tc.forceNew, tc.reuse, got, tc.want)
+		if got := placeFiles(tc.setting, tc.forceNew, tc.reuse); got != tc.want {
+			t.Errorf("placeFiles(%q, %v, %v) = %v, want %v", tc.setting, tc.forceNew, tc.reuse, got, tc.want)
 		}
 	}
 }
@@ -420,7 +417,7 @@ func TestOpenFolderFollowsTheSettingForEverySource(t *testing.T) {
 			}
 		}},
 		{"the manager (a folder picked in the app)", func(a *multiApp, from *Workspace, folder string) {
-			a.m.OpenFolder(from, folder, FolderFromApp, false, false, nil)
+			a.m.OpenFolder(from, folder, false, false, nil)
 			a.settle()
 		}},
 		{"a launch", func(a *multiApp, from *Workspace, folder string) {
@@ -430,12 +427,12 @@ func TestOpenFolderFollowsTheSettingForEverySource(t *testing.T) {
 	}
 	tests := []struct {
 		setting string
-		// wantNew[source] says whether a new window opens, else the window is replaced
+		// wantNew[source] says whether a new tab opens, else the active tab is replaced
 		wantNew [3]bool
 	}{
 		{"on", [3]bool{true, true, true}},
 		{"off", [3]bool{false, false, false}},
-		{"default", [3]bool{false, false, true}},
+		{"default", [3]bool{true, true, true}},
 	}
 	for _, tc := range tests {
 		for i, src := range sources {
@@ -474,7 +471,7 @@ func TestAnOpenFolderComesToTheFrontInsteadOfOpeningAgain(t *testing.T) {
 		t.Fatal("the first window is the active one already")
 	}
 	var got *Workspace
-	a.m.OpenFolder(a.m.Active(), one, FolderFromApp, false, false, func(w *Workspace) { got = w })
+	a.m.OpenFolder(a.m.Active(), one, false, false, func(w *Workspace) { got = w })
 	a.settle()
 	if got != w1 || a.m.Active() != w1 || a.m.Count() != 2 {
 		t.Errorf("got %v active %v with %d windows", got, a.m.Active(), a.m.Count())
@@ -494,7 +491,7 @@ func TestOpeningAFolderInTheSameTabRecreatesTheWorkspace(t *testing.T) {
 	tab := old.Tab()
 	a.edit(old, filepath.Join(one, "a.go"))
 	// the tab has unsaved changes: the folder waits for the answer, and Cancel keeps the tab as it is
-	a.m.OpenFolder(old, other, FolderFromApp, false, false, nil)
+	a.m.OpenFolder(old, other, false, false, nil)
 	a.settle()
 	if got := a.dialog(old); got != askAbout("a.go") {
 		t.Fatalf("the dialog says %q", got)
@@ -503,7 +500,7 @@ func TestOpeningAFolderInTheSameTabRecreatesTheWorkspace(t *testing.T) {
 	if a.m.All()[0] != old || old.Folder != one {
 		t.Fatal("the window changed after Cancel")
 	}
-	a.m.OpenFolder(old, other, FolderFromApp, false, false, nil)
+	a.m.OpenFolder(old, other, false, false, nil)
 	a.settle()
 	a.answer(old, "Don't Save")
 	a.waitFor("the new window", func() bool { return a.m.All()[0].Folder == other })
@@ -561,7 +558,7 @@ func TestOpeningAFolderRestoresItsSavedState(t *testing.T) {
 	// a run in the first folder opens the second in the same window: its editors come back
 	a := env.run(Options{Folder: one})
 	old := a.workspaceOf(one)
-	a.m.OpenFolder(old, other, FolderFromApp, false, false, nil)
+	a.m.OpenFolder(old, other, false, false, nil)
 	a.waitFor("the folder", func() bool { return a.m.All()[0].Folder == other })
 	a.settle()
 	next := a.m.All()[0]
@@ -1301,7 +1298,7 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 			t.Errorf("%d windows, active %q", a.m.Count(), a.m.Active().Folder)
 		}
 	})
-	t.Run("a new folder opens in a new window with the default", func(t *testing.T) {
+	t.Run("a new folder opens in a new tab with the default", func(t *testing.T) {
 		a, _, _ := setup(t, nil)
 		three := a.env.folder("three", "c.go")
 		a.launched(ipc.OpenArgs{Folder: three, Files: []ipc.FileTarget{target(three, "c.go")}})
@@ -1336,26 +1333,17 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 			t.Errorf("windows %q", a.folders())
 		}
 	})
-	t.Run("files go to the window that has their folder, else the active one", func(t *testing.T) {
+	t.Run("files go to the active tab, whatever folder the other tabs have", func(t *testing.T) {
 		a, one, two := setup(t, nil)
 		w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
+		// the second tab is the active one: the file of the first tab's folder opens there
 		a.launched(ipc.OpenArgs{Files: []ipc.FileTarget{target(one, "a2.go")}})
-		a.waitFor("the file in the first window", func() bool { return len(w1.Documents.All()) == 1 })
-		if a.m.Active() != w1 {
-			t.Error("the window of the file did not come to the front")
-		}
-		outside := filepath.Join(t.TempDir(), "x.txt")
-		if err := os.WriteFile(outside, []byte("x"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		w2.Raise()
-		a.launched(ipc.OpenArgs{Files: []ipc.FileTarget{{Path: outside}}})
-		a.waitFor("the file in the active window", func() bool { return len(w2.Documents.All()) == 1 })
-		if len(w1.Documents.All()) != 1 || a.m.Count() != 2 {
-			t.Errorf("documents %d, windows %d", len(w1.Documents.All()), a.m.Count())
+		a.waitFor("the file in the active tab", func() bool { return len(w2.Documents.All()) == 1 })
+		if a.m.Active() != w2 || len(w1.Documents.All()) != 0 || a.m.Count() != 2 {
+			t.Errorf("active %q, %d documents in the first tab, %d tabs", a.m.Active().Folder, len(w1.Documents.All()), a.m.Count())
 		}
 	})
-	t.Run("files open in a new window with --new-window and with the setting on", func(t *testing.T) {
+	t.Run("files open in a new No Folder tab with --new-window and with the setting on", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
 			extra map[string]any
@@ -1364,7 +1352,7 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 		}{
 			{"--new-window", nil, ipc.OpenArgs{NewWindow: true}, 3},
 			{"on", map[string]any{"window.openFilesInNewWindow": "on"}, ipc.OpenArgs{}, 3},
-			{"default", map[string]any{"window.openFilesInNewWindow": "default"}, ipc.OpenArgs{}, 3},
+			{"default", map[string]any{"window.openFilesInNewWindow": "default"}, ipc.OpenArgs{}, 2},
 			{"--reuse-window beats on", map[string]any{"window.openFilesInNewWindow": "on"}, ipc.OpenArgs{ReuseWindow: true}, 2},
 			{"off", nil, ipc.OpenArgs{}, 2},
 		} {
@@ -1372,17 +1360,15 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 			args := tc.args
 			args.Files = []ipc.FileTarget{target(two, "b.go")}
 			a.launched(args)
-			a.waitFor(tc.name+": the windows", func() bool { return a.m.Count() == tc.want })
+			a.waitFor(tc.name+": the tabs", func() bool { return a.m.Count() == tc.want })
 			a.settle()
 			if a.m.Count() != tc.want {
-				t.Errorf("%s: %d windows", tc.name, a.m.Count())
+				t.Errorf("%s: %d tabs", tc.name, a.m.Count())
 			}
-			if tc.want == 3 {
-				w := a.m.All()[2]
-				a.waitFor(tc.name+": the file", func() bool { return len(w.Documents.All()) == 1 })
-				if w.Folder != "" {
-					t.Errorf("%s: the new window has the folder %q", tc.name, w.Folder)
-				}
+			w := a.m.Active()
+			a.waitFor(tc.name+": the file", func() bool { return len(w.Documents.All()) == 1 })
+			if tc.want == 3 && w.Folder != "" {
+				t.Errorf("%s: the new tab has the folder %q", tc.name, w.Folder)
 			}
 		}
 	})

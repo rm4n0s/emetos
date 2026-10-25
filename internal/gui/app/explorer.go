@@ -558,20 +558,22 @@ func (s *shellState) folderChosen(path string, err error) {
 	}
 }
 
-// openFolder opens a folder picked inside the application (Open Folder, Open Recent, Close Folder with an empty
-// path) as window.openFoldersInNewWindow says: in a new window, in this one (its editors close first; when some have
-// unsaved changes a dialog asks whether to save them, and Cancel leaves the window as it is), or, when a window has
-// the folder already, that window comes to the front. Opening the folder the window has is nothing to do.
+// openFolder opens a folder picked inside the application (Open Folder, Open Recent, the button of the empty Explorer;
+// Close Folder with an empty path) by the rules of SPEC §10.14, the ones a launch follows: a tab that has the folder
+// becomes the active tab; else window.openFoldersInNewWindow decides: in a new tab ("on"), in the active tab ("off":
+// its editors close first, and when some have unsaved changes a dialog asks whether to save them, and Cancel leaves the
+// tab as it is), or, with "default", in a new tab unless the active tab is an untouched No Folder tab, which is
+// replaced. An empty path turns the active tab into a No Folder tab.
 //
 // Ported from VS Code: src/vs/workbench/browser/actions/workspaceActions.ts (OpenFolderAction,
-// CloseWorkspaceAction) and SPEC §10.11
+// CloseWorkspaceAction) and SPEC §10.14
 func (s *shellState) openFolder(path string) { s.openFolderIn(path, false) }
 
-// openFolderIn is openFolder that opens the folder in a new window when newWindow is set (the Ctrl key of the Open
-// Recent picker).
-func (s *shellState) openFolderIn(path string, newWindow bool) {
+// openFolderIn is openFolder that opens the folder in a new tab when newTab is set (the Ctrl key of the Open Recent
+// picker).
+func (s *shellState) openFolderIn(path string, newTab bool) {
 	win := PeekWorkspace(s.Context())
-	win.Process.Workspaces.OpenFolder(win, path, FolderFromApp, newWindow, false, nil)
+	win.Process.Workspaces.OpenFolder(win, path, newTab, false, nil)
 }
 
 // openFolderThen replaces the folder of this window, whatever window.openFoldersInNewWindow says, and tells done, on

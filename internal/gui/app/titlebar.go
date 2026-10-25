@@ -239,7 +239,7 @@ func (s *shellState) pickFolderInNewTab() {
 				return
 			}
 			if path != "" {
-				win.Process.Workspaces.OpenFolder(win, path, FolderFromApp, true, false, nil)
+				win.Process.Workspaces.OpenFolder(win, path, true, false, nil)
 			}
 		})
 	})

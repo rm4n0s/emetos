@@ -86,6 +86,12 @@ func (a *explorerApp) pump() {
 	}
 }
 
+// replaceFolder opens a folder in the tab of the window, as --reuse-window does (the default setting would open a new
+// tab, SPEC §10.14): the editors close first, with the questions about unsaved changes.
+func (a *explorerApp) replaceFolder(path string) {
+	a.win.Process.Workspaces.OpenFolder(a.win, path, false, true, nil)
+}
+
 func (a *explorerApp) shell() *shellState {
 	return a.ts.Element(gluttertest.ByType[*shell]()).(*widgets.StatefulElement).State().(*shellState)
 }
@@ -606,7 +612,7 @@ func TestOpenFolder(t *testing.T) {
 	if _, err := doc.Edit([]document.Edit{{Range: buffer.Range{}, Text: "x"}}, document.EditOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	s.openFolder(other)
+	a.replaceFolder(other)
 	a.pump()
 	if !a.win.Dialogs.IsShowing() || !a.ts.Exists(gluttertest.ByText("Do you want to save the changes you made to main.go?")) {
 		t.Fatal("no dialog asks about the changes")
@@ -626,7 +632,7 @@ func TestOpenFolder(t *testing.T) {
 	changes := 0
 	stop := a.win.OnFolderChange(func() { changes++ })
 	defer stop()
-	s.openFolder(other)
+	a.replaceFolder(other)
 	a.pump()
 	want, _ := filepath.EvalSymlinks(other)
 	if got, _ := filepath.EvalSymlinks(a.win.Folder); got != want || changes != 1 {
@@ -643,7 +649,7 @@ func TestOpenFolder(t *testing.T) {
 		t.Error("the settings of the new folder are not in use")
 	}
 	// the same folder again is nothing to do
-	s.openFolder(other)
+	a.replaceFolder(other)
 	if changes != 1 {
 		t.Errorf("%d changes after opening the same folder", changes)
 	}

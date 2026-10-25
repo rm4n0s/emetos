@@ -54,3 +54,13 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 ## 2026-10-25: extension UI completed (the user's requests)
 
 23. The extension UI kinds are now seven (SPEC §10.15 table): **window tabs**, **side bar views**, **panel views** (bottom panel: terminal, tasks, logs), **editor tabs** (tabs in the editor area with no file, several instances: an agent's sessions), **editor title actions** (micro icons at the right of the editor tab strip: Claude Code, opencode, ... each opening a new session tab), **file views** (micro-tabs inside a file's tab) and **contributions to the built-in parts** (Output channels, Problems markers, status bar). One extension can contribute any number of each. This replaces entry 4's "extension tabs are window tabs only" and entry 22. Steps: 11.5 (side bar views, panel views, built-in parts; `extensions/todo`, `extensions/tasks`), 11.6 (editor tabs, editor title actions, file views; `extensions/markdown`, `extensions/notes` as the agent-style example), 11.7 (window tabs; `extensions/scratchpad`). Moving a view between side bar and panel, and a secondary side bar, are not planned.
+
+## 2026-10-25: network access allowed (the user's request)
+
+24. The rule "never import `net/http`; `net` only in `internal/core/ipc`" is removed from CLAUDE.md, so features and extensions may use the network (the Claude Code integration channel, remote workspaces, future HTTP clients). What I kept, unless you say otherwise: **no telemetry, crash reports or update checks** of Emetos's own (D4 and §12 become "no telemetry" instead of "no network"). Still to do after step 9b.3 (the agent is editing the SPEC now): rewrite D4 and §12, drop the archtest rules `NetworkImport` and `NetOutsideIPC` with their testdata, and update §5.3.
+
+## 2026-10-25: step 9b.3 (launches open tabs), decided by the agent and accepted by me
+
+25. Open Folder, Open Recent and the empty Explorer's button now follow `window.openFoldersInNewWindow` like a launch (default: **a new tab**); 7.8's rule "a folder picked inside the app replaces the window" is gone. Use `-r`, the setting `off`, or Close Folder to stay in the same tab.
+26. Files open in the **active tab** (not the tab whose folder contains them, as in 7.8). `window.openFilesInNewWindow` `on` opens a new No Folder tab for them; `default` behaves like `off`.
+27. `--profile` with a folder that is not open opens a new tab only when the active tab lacks that profile (an untouched No Folder tab is replaced instead), as §10.12 and VS Code do, rather than always a new tab.

@@ -858,7 +858,7 @@ func TestTheFolderOfAWindowOpensWithTheProfileOfTheFolder(t *testing.T) {
 	w1 := a.workspaceOf(one)
 	// Open Folder replaces the window: the new window has the profile of the folder
 	done := make(chan *Workspace, 1)
-	a.m.OpenFolder(w1, two, FolderFromApp, false, false, func(w *Workspace) { done <- w })
+	a.m.OpenFolder(w1, two, false, false, func(w *Workspace) { done <- w })
 	a.settle()
 	var w2 *Workspace
 	select {
@@ -871,7 +871,7 @@ func TestTheFolderOfAWindowOpensWithTheProfileOfTheFolder(t *testing.T) {
 	}
 	// Close Folder leaves the profile of the window as it is
 	done = make(chan *Workspace, 1)
-	a.m.OpenFolder(w2, "", FolderFromApp, false, false, func(w *Workspace) { done <- w })
+	a.m.OpenFolder(w2, "", false, false, func(w *Workspace) { done <- w })
 	a.settle()
 	select {
 	case w3 := <-done:

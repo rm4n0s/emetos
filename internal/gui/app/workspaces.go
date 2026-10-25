@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -1039,17 +1039,6 @@ func (m *Workspaces) replaceWorkspace(old *Workspace, folder, profile string) (*
 
 // ---- opening a folder ----
 
-// FolderSource says where a request to open a folder comes from.
-type FolderSource int
-
-const (
-	// FolderFromApp is a folder picked inside the application: Open Folder, Open Recent, the button of the empty
-	// Explorer.
-	FolderFromApp FolderSource = iota
-	// FolderFromLaunch is a folder given outside the application: the command line, a second Emetos handing over.
-	FolderFromLaunch
-)
-
 // FolderPlacement is where a folder opens.
 type FolderPlacement int
 
@@ -1066,8 +1055,7 @@ const (
 type folderRequest struct {
 	// Setting is window.openFoldersInNewWindow.
 	Setting string
-	Source  FolderSource
-	// ForceNew and ForceReuse are --new-window and --reuse-window.
+	// ForceNew and ForceReuse are --new-window and --reuse-window (the Ctrl key of Open Recent is ForceNew).
 	ForceNew, ForceReuse bool
 	// Open is true when a tab has the folder already, the tab that would be replaced included.
 	Open bool
@@ -1075,14 +1063,12 @@ type folderRequest struct {
 	TargetEmpty bool
 }
 
-// placeFolder tells where a folder opens. A folder that a tab has is never opened twice (the state id is made from the
-// folder): that tab becomes the active one. --new-window and --reuse-window decide next; then
-// window.openFoldersInNewWindow, read as "in a new tab": "on" opens a new tab, "off" replaces the tab, and "default" a
-// new tab, unless the folder is picked from within the application, or the tab that would be replaced is empty.
-//
-// TODO(step 9b.3): the placement rules of SPEC §10.14 (Open Folder and Open Recent follow the setting as a launch does,
-// and the Ctrl key forces a new tab). Until then a folder picked in the application replaces the active tab, as it
-// replaced the folder of the window.
+// placeFolder tells where a folder opens (SPEC §10.14). A folder that a tab has is never opened twice (the state id is
+// made from the folder): that tab becomes the active one. --new-window (-n, and the Ctrl key of Open Recent) and
+// --reuse-window (-r) decide next; then window.openFoldersInNewWindow, read as "in a new tab": "on" opens a new tab,
+// "off" replaces the active tab, and "default" (and any other value) a new tab, unless the active tab is an untouched
+// No Folder tab, which is replaced. A folder picked in the application (Open Folder, Open Recent, the button of the
+// empty Explorer) and a folder given by a launch follow the same rule.
 //
 // Ported from VS Code: src/vs/platform/windows/electron-main/windowsMainService.ts (doOpenFolderOrWorkspace,
 // shouldOpenNewWindow) and the setting window.openFoldersInNewWindow
@@ -1101,36 +1087,27 @@ func placeFolder(r folderRequest) FolderPlacement {
 	case "off":
 		return PlaceSameTab
 	}
-	if r.Source == FolderFromApp || r.TargetEmpty {
+	if r.TargetEmpty {
 		return PlaceSameTab
 	}
 	return PlaceNewTab
 }
 
-// placeFiles tells whether files open in a new tab: --new-window and --reuse-window decide, then
-// window.openFilesInNewWindow ("default" opens a new tab unless the files are picked from within the application).
-//
-// TODO(step 9b.3): files without a folder open in the active tab (SPEC §10.14).
-//
-// Ported from VS Code: src/vs/platform/windows/electron-main/windowsMainService.ts (shouldOpenNewWindow) and the
-// setting window.openFilesInNewWindow
-func placeFiles(setting string, source FolderSource, forceNew, forceReuse bool) (newTab bool) {
+// placeFiles tells whether files that come with no folder open in a new No Folder tab (SPEC §10.14): --new-window
+// does, --reuse-window does not, and window.openFilesInNewWindow decides otherwise: "on" opens a new tab, any other
+// value (the default is "off") the active tab. (VS Code's "default" would open a new window for a launch; a tab is
+// not worth that, so "default" is the active tab here.)
+func placeFiles(setting string, forceNew, forceReuse bool) (newTab bool) {
 	switch {
 	case forceNew:
 		return true
 	case forceReuse:
 		return false
 	}
-	switch setting {
-	case "on":
-		return true
-	case "default":
-		return source == FolderFromLaunch
-	}
-	return false
+	return setting == "on"
 }
 
-// emptyWorkspace tells whether the workspace has no folder and nothing open.
+// emptyWorkspace tells whether the workspace is an untouched No Folder tab: no folder, no document and no editor.
 func (w *Workspace) emptyWorkspace() bool {
 	if w.Folder != "" {
 		return false
@@ -1139,6 +1116,9 @@ func (w *Workspace) emptyWorkspace() bool {
 		if d != nil {
 			return false
 		}
+	}
+	if sh := w.shell; sh != nil && sh.group.grid != nil && len(editorgroup.AllTargets(sh.group.grid)) > 0 {
+		return false
 	}
 	return true
 }
@@ -1155,13 +1135,13 @@ func (m *Workspaces) setting(w *Workspace, key string) string {
 // empty path closes the folder of the workspace. done is told on the UI thread, once the questions about unsaved
 // changes are answered, whether the folder is open in a tab now (true also for a tab that had it already, which becomes
 // the active one); it may be nil. The workspace that gets the folder is passed to done.
-func (m *Workspaces) OpenFolder(from *Workspace, path string, src FolderSource, forceNew, forceReuse bool, done func(w *Workspace)) {
-	m.openFolderWith(from, path, src, forceNew, forceReuse, "", done)
+func (m *Workspaces) OpenFolder(from *Workspace, path string, forceNew, forceReuse bool, done func(w *Workspace)) {
+	m.openFolderWith(from, path, forceNew, forceReuse, "", done)
 }
 
 // openFolderWith is OpenFolder for a workspace that opens with the profile of the name (see WorkspaceSpec.Profile);
 // empty is the profile last used with the folder. A folder that is open already keeps the profile of its tab.
-func (m *Workspaces) openFolderWith(from *Workspace, path string, src FolderSource, forceNew, forceReuse bool, profile string, done func(w *Workspace)) {
+func (m *Workspaces) openFolderWith(from *Workspace, path string, forceNew, forceReuse bool, profile string, done func(w *Workspace)) {
 	finish := func(w *Workspace) {
 		if done != nil {
 			done(w)
@@ -1179,7 +1159,7 @@ func (m *Workspaces) openFolderWith(from *Workspace, path string, src FolderSour
 	}
 	elsewhere := m.workspaceForFolder(path)
 	req := folderRequest{
-		Setting: m.setting(from, "window.openFoldersInNewWindow"), Source: src, ForceNew: forceNew, ForceReuse: forceReuse,
+		Setting: m.setting(from, "window.openFoldersInNewWindow"), ForceNew: forceNew, ForceReuse: forceReuse,
 		Open: elsewhere != nil, TargetEmpty: from != nil && from.emptyWorkspace(),
 	}
 	switch placeFolder(req) {
@@ -1271,13 +1251,14 @@ func (m *Workspaces) replaceFolder(w *Workspace, path, profile string, done func
 // ---- launches ----
 
 // HandleLaunch carries out a launch (the command line of another Emetos, SPEC §10.11) in the right tab, on the UI
-// thread. The tab that gets the folder is the one that has it (it becomes the active one), else a new tab or the active
-// one per window.openFoldersInNewWindow, --new-window and --reuse-window; files go to that tab, or, with no folder, to
-// a new tab (--new-window, window.openFilesInNewWindow) or to the tab that has their folder open, or the active tab.
-// done is told as Workspace.HandleLaunch's is; the returned function stops waiting.
-//
-// TODO(step 9b.3): the placement rules of SPEC §10.14 for a launch; this is the placement of step 7.8 with tabs in
-// place of windows.
+// thread, by the rules of SPEC §10.14: the window is shown and brought to the front first (it may be hidden). A folder
+// goes where placeFolder says (the tab that has it, the active tab with -r or the setting "off", a new tab with -n or
+// the setting "on", and with "default" a new tab or an untouched No Folder tab replaced), under the --profile rules;
+// the files, --goto, --diff and --merge that come with it open in the tab that got the folder. With no folder they
+// open in the active tab, or in a new No Folder tab with -n or window.openFilesInNewWindow "on" (placeFiles); a launch
+// with nothing else shows the window (and -n opens a No Folder tab). A --profile that the active tab does not use
+// makes the files and the launch without a folder go to a new No Folder tab with the profile. done is told as
+// Workspace.HandleLaunch's is; the returned function stops waiting.
 func (m *Workspaces) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func()) {
 	cancelled := false
 	var inner func()
@@ -1304,14 +1285,26 @@ func (m *Workspaces) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (
 		finish(LaunchOutcome{ExitCode: 1, Message: "the window is not ready"})
 		return cancel
 	}
+	// every launch shows the window (it may be hidden to the tray) and brings it to the front
+	m.showWindow(active.controller)
 	// --profile (SPEC §10.12): a tab of another profile is not changed; the launch opens a new tab with the profile,
 	// unless --reuse-window says to use the tab as it is
 	profile := args.Profile
 	needsProfile := func(w *Workspace) bool { return profile != "" && !args.ReuseWindow && !m.usesProfile(w, profile) }
+	// newTab opens a No Folder tab for the launch, or tells why it could not
+	newTab := func() *Workspace {
+		w, err := m.openFrom(WorkspaceSpec{Profile: profile}, active)
+		if err != nil {
+			m.p.Logger.Warn("cannot open a tab for the launch", "err", err)
+			active.Notify.Error("Emetos", "Cannot open a new workspace tab: "+describe(err))
+			return nil
+		}
+		return w
+	}
 	switch {
 	case args.Folder != "":
 		forceNew := args.NewWindow || (needsProfile(active) && !active.emptyWorkspace())
-		m.openFolderWith(active, args.Folder, FolderFromLaunch, forceNew, args.ReuseWindow, profile, func(w *Workspace) {
+		m.openFolderWith(active, args.Folder, forceNew, args.ReuseWindow, profile, func(w *Workspace) {
 			if w == nil {
 				// the user cancelled the questions of the tab that was replaced, or it failed: the files
 				// still open in the tab that asked
@@ -1326,30 +1319,27 @@ func (m *Workspaces) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (
 			deliver(w, a)
 		})
 	case len(args.Files) > 0 || len(args.Diff) > 0 || len(args.Merge) > 0:
-		target := m.workspaceForFiles(active, args)
-		newTab := len(args.Files) > 0 && placeFiles(m.setting(active, "window.openFilesInNewWindow"), FolderFromLaunch, args.NewWindow, args.ReuseWindow)
-		if len(args.Files) > 0 && needsProfile(target) {
-			newTab = true
+		target := active
+		inNewTab := args.NewWindow && !args.ReuseWindow
+		if len(args.Files) > 0 && placeFiles(m.setting(active, "window.openFilesInNewWindow"), args.NewWindow, args.ReuseWindow) {
+			inNewTab = true
 		}
-		if newTab {
-			w, err := m.openFrom(WorkspaceSpec{Profile: profile}, active)
-			if err != nil {
-				m.p.Logger.Warn("cannot open a tab for the files", "err", err)
-				active.Notify.Error("Emetos", "Cannot open a new workspace tab: "+describe(err))
-			} else {
+		if needsProfile(active) {
+			inNewTab = true
+		}
+		if inNewTab {
+			if w := newTab(); w != nil {
 				target = w
 			}
 		}
 		target.Raise()
 		deliver(target, args)
 	default:
-		// no folder and no files: a new tab with --new-window or a profile the tab does not use, else the active one
-		// is shown
+		// no folder and no files: a new tab with --new-window or a profile the tab does not use, else the active
+		// tab is shown
 		target := active
 		if (args.NewWindow && !args.ReuseWindow) || needsProfile(active) {
-			if w, err := m.openFrom(WorkspaceSpec{Profile: profile}, active); err != nil {
-				active.Notify.Error("Emetos", "Cannot open a new workspace tab: "+describe(err))
-			} else {
+			if w := newTab(); w != nil {
 				target = w
 			}
 		}
@@ -1365,38 +1355,41 @@ func (m *Workspaces) usesProfile(w *Workspace, name string) bool {
 	return err == nil && ok && profile == w.Profile()
 }
 
-// workspaceForFiles is the workspace that opens files without a folder: the one whose folder holds the first file,
-// else the active one.
-func (m *Workspaces) workspaceForFiles(active *Workspace, args ipc.OpenArgs) *Workspace {
-	if len(args.Files) == 0 {
-		return active
-	}
-	path := filepath.Clean(args.Files[0].Path)
-	var best *Workspace
-	for _, w := range m.All() {
-		f := w.Folder
-		if f != "" && (path == f || strings.HasPrefix(path, f+string(filepath.Separator))) {
-			if best == nil || len(f) > len(best.Folder) {
-				best = w
-			}
-		}
-	}
-	if best != nil {
-		return best
-	}
-	return active
-}
-
-// Raise makes the tab of the workspace the active one and brings the window to the front.
+// Raise makes the tab of the workspace the active one and shows the window and brings it to the front.
 func (w *Workspace) Raise() {
-	if m := w.Process.Workspaces; m != nil {
+	m := w.Process.Workspaces
+	if m != nil {
 		if t := m.tabOf(w); t != nil {
 			m.Activate(t)
 		}
+		m.showWindow(w.controller)
+		return
 	}
 	if c := w.controller; c != nil {
 		c.Activate()
 	}
+}
+
+// showWindow shows the window if the application hid it (the tray of step 9b.4 hides it) and brings it to the front.
+// c is the controller the caller knows (a workspace's); the controller of the implicit window is used when it has
+// none. It is the one place that shows the window: step 9b.4 adds the hiding (SetHidden(true)) beside it, and the
+// tray's click and its Show item call it. Glutter's Activate shows a hidden window too; SetHidden(false) before it
+// keeps that explicit and covers a controller whose Activate does not.
+func (m *Workspaces) showWindow(c widgets.WindowController) {
+	if c == nil {
+		ic, ok := m.implicitController()
+		if !ok {
+			return
+		}
+		c = ic
+	}
+	if h, ok := c.(interface {
+		IsHidden() bool
+		SetHidden(bool)
+	}); ok && h.IsHidden() {
+		h.SetHidden(false)
+	}
+	c.Activate()
 }
 
 // whenReady runs f once the shell of the workspace is on screen (at once when it is).
