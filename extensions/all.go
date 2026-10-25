@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/less"
 	"github.com/rm4n0s/emetos/extensions/makefile"
 	"github.com/rm4n0s/emetos/extensions/markdown"
+	"github.com/rm4n0s/emetos/extensions/notes"
 	"github.com/rm4n0s/emetos/extensions/python"
 	"github.com/rm4n0s/emetos/extensions/rust"
 	"github.com/rm4n0s/emetos/extensions/scss"
@@ -37,12 +38,12 @@ import (
 // which language wins when two claim the same file name. internal/core/language/packfs lists the same packs in the same
 // order for the tests, and a test in cmd/emetos keeps the two the same. The test extension of the contract is
 // extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the TODOs view
-// (extensions/todo) and the Tasks tab of the panel (extensions/tasks).
+// (extensions/todo), the Tasks tab of the panel (extensions/tasks) and the notes (extensions/notes).
 func All() []extension.Factory {
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
-		todo.New, tasks.New,
+		todo.New, tasks.New, notes.New,
 	}
 }

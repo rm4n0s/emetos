@@ -40,6 +40,8 @@ type groupView struct {
 	feedback *kit.TabDropFeedback
 	area     kit.Bounds
 	tabMenu  *kit.ContextMenuController
+	// overflow is where the "..." button of the title actions is (exttitle.go).
+	overflow kit.Bounds
 }
 
 // view is the groupView of a group.
@@ -173,17 +175,42 @@ func (s *shellState) editorColumn(bc widgets.BuildContext, win *Workspace, group
 		// a right click opens the context menu of the editor
 		kit.NewContextMenuRegion(text, s.editorMenuItems, kit.ContextMenuOpts{Controller: s.editorMenu, OnRun: s.menus.Run}),
 		widgets.WidgetOpts{Key: widgets.NewGlobalObjectKey[widgets.State](ed)})
+	// a file view of an extension takes the place of the text; one that is not available (its extension went, failed or
+	// failed to open the view) leaves the text
+	views := s.fileViewsFor(ed)
+	current := s.currentFileView(ed, views)
+	if current != "" {
+		if scope := win.Extensions(); scope != nil {
+			if body, ok := scope.FileViewBody(ed.input, current, ed.handle(s)); ok {
+				area = body
+			} else {
+				current = ""
+			}
+		}
+	}
 	column := []widgets.Widget{}
 	if tabs := s.tabStrip(bc, win, group); tabs != nil {
 		// a right click on a tab opens its context menu
 		column = append(column, tabs)
 	}
+	var crumbs widgets.Widget
 	if uri := ed.doc.URI(); uri.Scheme == document.SchemeFile {
 		// the path of the file above the text
-		column = append(column, editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
+		crumbs = editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
 			Root:   win.Folder,
 			OnOpen: func(path string) { s.openPathIn(binding, group, path) },
-		}))
+		})
+	}
+	if len(views) > 0 {
+		// the micro-tabs at the right end of the breadcrumbs row, or a strip of their own when there are no breadcrumbs
+		if crumbs == nil {
+			crumbs = widgets.NewColoredBox(kit.ThemeOf(bc).BreadcrumbBackground, widgets.NewSizedBox(nil))
+		}
+		crumbs = widgets.NewSizedBox(widgets.NewRow([]widgets.Widget{widgets.NewExpanded(crumbs), s.fileViewBar(ed, views, current)},
+			widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), widgets.SizedBoxOpts{Height: foundation.Some(editor.BreadcrumbsHeight)})
+	}
+	if crumbs != nil {
+		column = append(column, crumbs)
 	}
 	column = append(column, widgets.NewExpanded(area))
 	return widgets.NewColumn(column, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
@@ -275,6 +302,7 @@ func (s *shellState) tabsOptions(win *Workspace, group *editorgroup.Group) kit.T
 		Feedback:          s.view(group).feedback,
 		Controller:        s.view(group).tabs,
 	}
+	opts.Actions = s.titleActions(win, group)
 	// the close button: the old setting tabCloseButton is honored with the two that replace it
 	button := settings.Get[string](win.Settings, "workbench.editor.tabCloseButton", "")
 	switch {
@@ -324,6 +352,9 @@ func (s *shellState) emptyArea(bc widgets.BuildContext) widgets.Widget {
 // tabIcon is the icon of the tab of an editor of a kind that has one (the settings editor's gear); a text editor's
 // tab shows none (the file icons of step 6.14 are for the explorer).
 func (s *shellState) tabIcon(colors kit.Colors, e editorgroup.EditorInput, active bool) widgets.Widget {
+	if in, ok := e.(*editorgroup.ExtensionTabInput); ok {
+		return extTabIcon(colors, in, active)
+	}
 	k, ok := kindOf(e.TypeID())
 	if !ok || k.icon == 0 {
 		return nil

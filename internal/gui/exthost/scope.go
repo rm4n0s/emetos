@@ -135,6 +135,14 @@ type ScopeOptions struct {
 	FocusView   func(viewID string)
 	// FilesComplete tells whether the walk of the folder has finished (Files lists what it found so far); nil is always.
 	FilesComplete func() bool
+	// Editors shows the tabs and file views of the extensions in the editor area, and Languages gives the grammars; both
+	// may be nil (the scope then has no editor area, or no grammars). EditorsChanged is called, on the UI thread, when the
+	// title actions, the file views or the tabs of the extensions changed (an extension came, went or failed).
+	// OpenURI opens a URI with the desktop; nil leaves it unavailable.
+	OpenURI        func(ctx context.Context, uri string) error
+	Editors        EditorHost
+	Languages      LanguageSource
+	EditorsChanged func()
 	// ShowLog is the command the "Show Log" button of the failure notification runs; the Output panel by default.
 	ShowLog string
 }
@@ -152,6 +160,8 @@ type slot struct {
 	// viewRemovers take the views of the manifest out of the registry. They are not part of installed: the views of an
 	// extension that failed stay, to show that it did, and go when it is turned off or the scope closes (removeViews).
 	viewRemovers []func()
+	// editors are the editor kinds, title actions and file views the manifest declares, while the extension is on.
+	editors *editorDecls
 }
 
 // Scope is the extension host of one window tab (SPEC §10.15 "Lifetime"): it activates each extension at most once, with
@@ -179,6 +189,11 @@ type Scope struct {
 	// viewDecls are the views the extensions of the scope declare, by id, and viewStates the state they saved (views.go).
 	viewDecls  map[string]*viewDecl
 	viewStates map[string]json.RawMessage
+	// kindDecls are the editor kinds by id, tabs the editor tabs by instance id and fileViewInstances the file views that
+	// are open in editor tabs (editors.go).
+	kindDecls         map[string]*kindDecl
+	tabs              map[string]*editorTab
+	fileViewInstances []*fileViewInstance
 }
 
 // NewScope makes the scope of a window tab. The manifests of the extensions that are enabled are installed (their
@@ -258,6 +273,14 @@ func (s *Scope) Fire(event string) {
 // activates its extension without the manifest listing the event.
 func declaresView(m extension.Manifest, event string) bool {
 	name, id := extension.SplitEvent(event)
+	if name == "onEditor" {
+		for _, k := range m.Contributes.EditorKinds {
+			if k.ID == id {
+				return true
+			}
+		}
+		return false
+	}
 	if name != "onView" {
 		return false
 	}
@@ -267,6 +290,11 @@ func declaresView(m extension.Manifest, event string) bool {
 		}
 	}
 	for _, v := range m.Contributes.PanelViews {
+		if v.ID == id {
+			return true
+		}
+	}
+	for _, v := range m.Contributes.FileViews {
 		if v.ID == id {
 			return true
 		}
@@ -508,6 +536,7 @@ func (s *Scope) install(sl *slot) {
 	}
 	registry, others := s.installViews(sl)
 	removers = append(removers, others...)
+	removers = append(removers, s.installEditors(sl))
 	s.mu.Lock()
 	sl.installed = removers
 	sl.viewRemovers = registry

@@ -117,6 +117,7 @@ func registerEditorGroupCommands(r *Registry) {
 		Meta{ID: "workbench.action.closeEditorsToTheRight", Title: "Close Editors to the Right in Group", Category: "View"},
 		Meta{ID: "workbench.action.closeAllEditors", Title: "Close All Editors", Category: "View"},
 		Meta{ID: "workbench.action.keepEditor", Title: "Keep Editor", Category: "View"},
+		Meta{ID: "workbench.action.cycleFileView", Title: "Cycle File View", Category: "View", Description: "Shows the next view of the file in the active editor: Text, then the views of the extensions, then Text again."},
 		Meta{ID: "workbench.action.pinEditor", Title: "Pin Editor", Category: "View"},
 		Meta{ID: "workbench.action.unpinEditor", Title: "Unpin Editor", Category: "View"},
 		Meta{ID: "workbench.action.nextEditor", Title: "Open Next Editor", Category: "View"},

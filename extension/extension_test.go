@@ -54,6 +54,17 @@ func TestCheckManifest(t *testing.T) {
 		{"an action of a view that is not there", Manifest{ID: "a", Name: "N", Contributes: Contributes{ViewActions: []ViewActionSpec{{View: "a.v", Command: "a.c", Icon: "x"}}}}, "checkViews.ExtensionViewActionInvalid"},
 		{"an action with no command", Manifest{ID: "a", Name: "N", Contributes: Contributes{
 			PanelViews: []PanelViewSpec{{ID: "a.v", Title: "V"}}, ViewActions: []ViewActionSpec{{View: "a.v", Icon: "x"}}}}, "checkViews.ExtensionViewActionInvalid"},
+		{"editor kinds, actions and file views", Manifest{ID: "a", Name: "N", ActivationEvents: []string{OnEditor("a.note")}, Contributes: Contributes{
+			EditorKinds:   []EditorKindSpec{{ID: "a.note", Name: "Note", Icon: "note"}},
+			EditorActions: []EditorActionSpec{{Command: "a.new", Icon: "new-file"}},
+			FileViews:     []FileViewSpec{{ID: "a.preview", Name: "Preview", Languages: []string{"markdown"}}, {ID: "a.grid", Name: "Grid", Globs: []string{"*.csv"}}},
+		}}, ""},
+		{"an editor kind of another extension's id", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorKinds: []EditorKindSpec{{ID: "b.note", Name: "Note"}}}}, "checkEditors.func1.ExtensionEditorIDForeign"},
+		{"a kind and a file view with the same id", Manifest{ID: "a", Name: "N", Contributes: Contributes{
+			EditorKinds: []EditorKindSpec{{ID: "a.x", Name: "X"}}, FileViews: []FileViewSpec{{ID: "a.x", Name: "X", Languages: []string{"go"}}}}}, "checkEditors.func1.ExtensionEditorDuplicate"},
+		{"an editor kind with no name", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorKinds: []EditorKindSpec{{ID: "a.note"}}}}, "checkEditors.ExtensionEditorInvalid"},
+		{"a file view that selects nothing", Manifest{ID: "a", Name: "N", Contributes: Contributes{FileViews: []FileViewSpec{{ID: "a.v", Name: "V"}}}}, "checkEditors.ExtensionEditorInvalid"},
+		{"an editor action with no icon", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorActions: []EditorActionSpec{{Command: "a.c"}}}}, "checkEditors.ExtensionEditorActionInvalid"},
 		{"a cross-tab pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
 	}
 	for _, tt := range tests {
@@ -275,5 +286,26 @@ func TestScopeFilter(t *testing.T) {
 	}
 	if readOpts.Scope != "/d" || !slices.Equal(subOpts.From.IDs, []string{"/a", "/b"}) {
 		t.Errorf("options not applied: %+v %+v", readOpts, subOpts)
+	}
+}
+
+func TestGroupOfArgsReadsTheGroupOfAnEditorTitleAction(t *testing.T) {
+	tests := []struct {
+		name string
+		args any
+		want int
+	}{
+		{"nothing", nil, 0},
+		{"a JSON number", map[string]any{"groupId": float64(3)}, 3},
+		{"an int", map[string]any{"groupId": 2}, 2},
+		{"another key", map[string]any{"group": 2}, 0},
+		{"another type", "2", 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GroupOfArgs(tt.args); got != tt.want {
+				t.Errorf("GroupOfArgs(%v) = %d, want %d", tt.args, got, tt.want)
+			}
+		})
 	}
 }

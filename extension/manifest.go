@@ -32,15 +32,18 @@ func CheckManifest(m Manifest) error {
 			if arg != "" || e != OnStartup {
 				return errors.New("ExtensionEventInvalid", "onStartup takes no argument", "id", m.ID, "event", e)
 			}
-		case "onLanguage", "onFile", "onCommand", "onView", "onWindowTab":
+		case "onLanguage", "onFile", "onCommand", "onView", "onEditor", "onWindowTab":
 			if arg == "" {
 				return errors.New("ExtensionEventInvalid", "the activation event needs an argument", "id", m.ID, "event", e)
 			}
 		default:
-			return errors.New("ExtensionEventInvalid", "unknown activation event (onStartup, onLanguage:, onFile:, onCommand:, onView: and onWindowTab:)", "id", m.ID, "event", e)
+			return errors.New("ExtensionEventInvalid", "unknown activation event (onStartup, onLanguage:, onFile:, onCommand:, onView:, onEditor: and onWindowTab:)", "id", m.ID, "event", e)
 		}
 	}
 	if err := checkViews(m); err != nil {
+		return err
+	}
+	if err := checkEditors(m); err != nil {
 		return err
 	}
 	return checkEventDecl(m)
@@ -120,6 +123,46 @@ func checkEventDecl(m Manifest) error {
 	for _, p := range m.Events.CrossTab {
 		if err := CheckPattern(p); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// checkEditors checks the editor kinds, title actions and file views a manifest declares: every id is under the id of the
+// extension and new, a kind has a name, an action has a command and an icon, and a view has a name and selects files.
+func checkEditors(m Manifest) error {
+	c := m.Contributes
+	prefix := m.ID + "."
+	ids := map[string]bool{}
+	own := func(kind, id string) error {
+		switch {
+		case id == "" || len(id) <= len(prefix) || id[:len(prefix)] != prefix:
+			return errors.New("ExtensionEditorIDForeign", "the id of an editor kind or a file view starts with the id of the extension and a dot", "id", m.ID, "kind", kind, "editor", id)
+		case ids[id]:
+			return errors.New("ExtensionEditorDuplicate", "two editor kinds or file views of the extension have the same id", "id", m.ID, "kind", kind, "editor", id)
+		}
+		ids[id] = true
+		return nil
+	}
+	for _, k := range c.EditorKinds {
+		if err := own("editor kind", k.ID); err != nil {
+			return err
+		}
+		if strings.TrimSpace(k.Name) == "" {
+			return errors.New("ExtensionEditorInvalid", "an editor kind needs a name", "id", m.ID, "editor", k.ID)
+		}
+	}
+	for _, a := range c.EditorActions {
+		if a.Command == "" || a.Icon == "" {
+			return errors.New("ExtensionEditorActionInvalid", "an editor title action needs a command and an icon", "id", m.ID, "command", a.Command)
+		}
+	}
+	for _, v := range c.FileViews {
+		if err := own("file view", v.ID); err != nil {
+			return err
+		}
+		if strings.TrimSpace(v.Name) == "" || (len(v.Languages) == 0 && len(v.Globs) == 0) {
+			return errors.New("ExtensionEditorInvalid", "a file view needs a name and the languages or globs of the files it is for", "id", m.ID, "editor", v.ID)
 		}
 	}
 	return nil

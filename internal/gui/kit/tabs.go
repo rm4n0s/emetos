@@ -162,6 +162,10 @@ type TabsOpts struct {
 	Feedback *TabDropFeedback
 	// Controller, when set, tells where the strip and its tabs are and scrolls the strip.
 	Controller *TabsController
+	// Actions, when set, makes the widget placed at the right end of the strip, outside the part that scrolls: the editor
+	// title actions of the extensions (SPEC §10.15). It is given the width of the whole strip, so that it can decide how
+	// many icons fit, and is centered in the height of the strip; it may return nil for none.
+	Actions func(width float64) widgets.Widget
 	// TitleBar, when set, makes the strip the workspace tabs of the title bar (SPEC §10.14): tabs between MinWidth and
 	// MaxWidth that shrink to MinWidth before the strip scrolls, an inactive tab on the background of the row (it has no
 	// background of its own and no lines), the active tab with its top line only, the close button on the active tab
@@ -273,6 +277,17 @@ func (t *Tabs) Build(bc widgets.BuildContext) widgets.Widget {
 		layers = append(layers, widgets.NewPositioned(
 			widgets.NewColoredBox(colors.EditorGroupHeaderTabsBorder, widgets.NewSizedBox(nil)),
 			widgets.PositionedOpts{Left: foundation.Some(0.0), Right: foundation.Some(0.0), Bottom: foundation.Some(0.0), Height: foundation.Some(tabBorderWidth)}))
+	}
+	if t.opts.Actions != nil {
+		scrolling := strip
+		strip = widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+			actions := t.opts.Actions(c.MaxWidth)
+			if actions == nil {
+				return scrolling
+			}
+			return widgets.NewRow([]widgets.Widget{widgets.NewExpanded(scrolling), widgets.NewCenter(actions)},
+				widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+		})
 	}
 	layers = append(layers, widgets.NewPositionedFill(strip))
 	var box widgets.Widget = widgets.NewSizedBox(
@@ -394,6 +409,17 @@ func (t *Tabs) buildSingle(bc widgets.BuildContext, colors Colors) widgets.Widge
 		if it.Title != "" {
 			body = NewHover(body, HoverOpts{Text: it.Title, Compact: true})
 		}
+	}
+	if t.opts.Actions != nil {
+		title := body
+		body = widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+			actions := t.opts.Actions(c.MaxWidth)
+			if actions == nil {
+				return title
+			}
+			return widgets.NewRow([]widgets.Widget{widgets.NewExpanded(title), widgets.NewCenter(actions)},
+				widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+		})
 	}
 	deco := painting.NewBoxDecoration(painting.BoxDecorationOpts{
 		Color:  foundation.Some(colors.EditorGroupHeaderNoTabsBackground),

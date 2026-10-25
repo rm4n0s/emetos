@@ -56,6 +56,11 @@ func registerExtensions(r *Registry) {
 			Description: "The ids of the extensions that are turned off, such as `emetos.markdown`. A disabled extension is not activated in any workspace tab, and the commands, keys and menu items it declares are not there. The Extensions page (Manage menu) turns an extension on or off.",
 			Scope:       ScopeApplication, Category: categoryExtensions,
 		},
+		Setting{
+			Key: "workbench.editor.defaultFileViews", Types: []Type{Object}, Default: map[string]any{},
+			Description: "Maps file name patterns to the id of the file view a file opens in, such as `{\"*.md\": \"emetos.markdown.preview\"}` (the views are listed in the Extensions page and in the micro-tabs of an editor). A file whose pattern matches opens in that view when the view is available for it, and in Text otherwise. The first pattern that matches in the order of the keys wins.",
+			Scope:       ScopeApplication, Category: categoryExtensions,
+		},
 	)
 }
 

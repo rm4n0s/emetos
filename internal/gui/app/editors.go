@@ -42,6 +42,10 @@ type textEditor struct {
 	// as last noted (state.go).
 	stopState func()
 	stateSig  viewSig
+	// fileView is the id of the file view the editor shows, "" for the text (fileviews.go), and docHandle the document as
+	// the extension's views see it.
+	fileView  string
+	docHandle *docHandle
 }
 
 // newTextEditor makes the editor of an input: its view model, kept current as the settings change
@@ -237,6 +241,9 @@ func (e *textEditor) dispose() {
 	}
 	e.disposed = true
 	close(e.done)
+	if e.docHandle != nil {
+		e.docHandle.release()
+	}
 	e.unwatchSelection()
 	if e.stopState != nil {
 		e.stopState()

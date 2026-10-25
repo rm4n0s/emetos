@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/rm4n0s/glutter/widgets"
@@ -11,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
+	"github.com/rm4n0s/emetos/internal/gui/exthost"
 )
 
 // The editor groups of the window (SPEC §10.3): a grid of groups, each with its tab strip, its
@@ -67,6 +69,9 @@ type openOptions struct {
 	// NoMergeNotice leaves out the notification that offers the merge editor for a file with conflict markers: an
 	// editor that is restored or that comes back from the closed ones is not an open of the file.
 	NoMergeNotice bool
+	// FileView, when set, is the id of the file view the editor shows (an editor that is open already is switched to it);
+	// otherwise a new editor gets the view workbench.editor.defaultFileViews names for its file.
+	FileView string
 }
 
 // gridOptions are the settings the grid follows.
@@ -252,6 +257,16 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 		win.Process.Logger.Error("cannot activate the group", "err", err)
 	}
 	e := s.group.editors[shown]
+	if e != nil {
+		switch {
+		case opts.FileView != "":
+			if slices.ContainsFunc(s.fileViewsFor(e), func(v exthost.FileViewInfo) bool { return v.ID == opts.FileView }) {
+				e.fileView = opts.FileView
+			}
+		case isNew:
+			s.applyDefaultFileView(e)
+		}
+	}
 	if e != nil && opts.ViewState != nil {
 		if err := e.view.RestoreViewState(*opts.ViewState); err != nil {
 			win.Process.Logger.Debug("not all of the view of the editor could come back", "err", describe(err))
@@ -421,10 +436,16 @@ func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 	if p := s.group.panes[input]; p != nil {
 		delete(s.group.panes, input)
 		p.dispose()
+		if c, ok := p.(interface{ closed() }); ok {
+			c.closed()
+		}
 	}
 	e := s.group.editors[input]
 	delete(s.group.editors, input)
 	if e != nil {
+		if scope := PeekWorkspace(s.Context()).Extensions(); scope != nil {
+			scope.ReleaseFileViews(input, "")
+		}
 		delete(s.group.focused, e)
 		e.dispose()
 		if PeekWorkspace(s.Context()).Documents.Release(e.doc) {

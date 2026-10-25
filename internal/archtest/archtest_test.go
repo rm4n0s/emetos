@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/errors"
@@ -162,4 +163,22 @@ func brokenTree(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+// TestAPackageOfTheBridgeMayUseTheKit pins what step 11.6 relies on: extension/ui/markdown, a subpackage of extension/ui,
+// imports the contract and the kit like extension/ui does, and nothing else of the editor.
+func TestAPackageOfTheBridgeMayUseTheKit(t *testing.T) {
+	root := filepath.Join("testdata", "clean")
+	got, err := Check(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range got {
+		if strings.HasPrefix(v.File, "extension/ui/markdown/") {
+			t.Errorf("the bridge's subpackage breaks a rule: %+v", v)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "extension", "ui", "markdown", "ok.go")); err != nil {
+		t.Errorf("the fixture is missing: %v", err)
+	}
 }

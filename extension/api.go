@@ -39,6 +39,12 @@ type API interface {
 	Workspace() Workspace
 	// Context sets context keys.
 	Context() ContextKeys
+	// Editors makes the tabs of the editor area of the kinds the manifest declares.
+	Editors() Editors
+	// FileViews gives the file views the manifest declares their content.
+	FileViews() FileViews
+	// Languages gives the grammars of the languages, for highlighting.
+	Languages() Languages
 	// Events publishes and subscribes to events and sends requests to the other extensions of the scope.
 	Events() Events
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the

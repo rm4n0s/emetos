@@ -543,3 +543,31 @@ func TestDarkModernTabColors(t *testing.T) {
 		}
 	}
 }
+
+func TestTabsActionsAreAtTheRightEndAndGetTheWidthOfTheStrip(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		single bool
+	}{{"tabs", false}, {"single", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			var width float64
+			opts := TabsOpts{Active: 0, Actions: func(w float64) widgets.Widget {
+				width = w
+				return NewIconButton(fonts.CodiconAdd, IconButtonOpts{Tooltip: "Add"})
+			}}
+			if tc.single {
+				opts.Mode = TabsSingle
+			}
+			ts := pumpTabs(t, DarkModern(), 400, names("a", "b"), opts)
+			if width != 400 {
+				t.Errorf("the actions were asked for the width %v, want 400", width)
+			}
+			at := ts.Center(gluttertest.ByType[*IconButton]())
+			if at.Dx < 400-30 || at.Dy < 10 || at.Dy > 25 {
+				t.Errorf("the action is at %v, not at the right end of the strip", at)
+			}
+		})
+	}
+	// an actions function that gives nothing leaves the strip as it was
+	pumpTabs(t, DarkModern(), 400, names("a"), TabsOpts{Actions: func(float64) widgets.Widget { return nil }})
+}

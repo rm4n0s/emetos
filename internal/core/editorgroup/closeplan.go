@@ -19,6 +19,12 @@ type Unsaved struct {
 	Input EditorInput
 }
 
+// CloseUnasked is implemented by an input whose dirty mark is only a mark: closing it never asks, because what it holds is
+// kept some other way (the state an extension tab saves with the window). The editors of extension tabs are like that.
+type CloseUnasked interface {
+	CloseUnasked() bool
+}
+
 // PlanClose lists what a close would lose: the editors among the targets that have unsaved changes and
 // whose changes no editor that stays open shows. A document that is open in two editors is lost when the
 // last of them closes, so it is listed once, for the first editor of the targets (in the order of the
@@ -46,7 +52,7 @@ func PlanClose(grid *Grid, targets []CloseTarget) []Unsaved {
 	var out []Unsaved
 	for _, t := range targets {
 		for _, e := range t.Editors {
-			if !closing[e] || !e.Dirty() || shownBy(staying, e) {
+			if !closing[e] || !e.Dirty() || unasked(e) || shownBy(staying, e) {
 				continue
 			}
 			listed := false
@@ -62,6 +68,12 @@ func PlanClose(grid *Grid, targets []CloseTarget) []Unsaved {
 		}
 	}
 	return out
+}
+
+// unasked tells whether closing the editor never asks about its dirty mark.
+func unasked(e EditorInput) bool {
+	u, ok := e.(CloseUnasked)
+	return ok && u.CloseUnasked()
 }
 
 // shownBy tells whether an editor of the list shows the same thing as e.

@@ -812,8 +812,9 @@ var profileAppCommands = map[string]bool{
 }
 
 // extensionsAppCommands is the command of the page of the extensions, which the app binds since the page, the host and the
-// settings of the window are its own (step 11.1).
-var extensionsAppCommands = map[string]bool{"workbench.extensions.action.showInstalledExtensions": true}
+// settings of the window are its own (step 11.1), and Cycle File View, which the app binds since the file views are
+// its own (step 11.6).
+var extensionsAppCommands = map[string]bool{"workbench.extensions.action.showInstalledExtensions": true, "workbench.action.cycleFileView": true}
 
 // modeAppCommands are the commands of full screen, zen mode, the centered layout and the zoom, which the app binds since
 // the window, its notifications and its controller are its own (step 8.5).

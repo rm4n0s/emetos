@@ -40,6 +40,8 @@ const MonoFamily = testutil.MonoFamily
 func Pump(t testing.TB, th Theme, size gui.Size, child widgets.Widget) *gluttertest.Tester {
 	t.Helper()
 	ts := testutil.New(t, size)
+	// the monospace font of the desktop is the test font, so that code does not depend on the machine's fonts
+	ts.SetPlatformConfiguration(func(c *gui.PlatformConfiguration) { c.MonospaceFontFamily, c.MonospaceFontSize = MonoFamily, 13 })
 	colors := th.Colors
 	ts.PumpWidget(widgets.NewWidgetsApp(colors.SideBarBackground, widgets.WidgetsAppOpts{
 		DebugShowCheckedModeBanner: foundation.Some(false),
@@ -51,7 +53,9 @@ func Pump(t testing.TB, th Theme, size gui.Size, child widgets.Widget) *gluttert
 						widgets.NewSizedBox(child, widgets.SizedBoxOpts{Width: foundation.Some(size.Width), Height: foundation.Some(size.Height)}),
 						widgets.AlignOpts{Alignment: painting.AlignmentTopLeft})))
 				})
-				return kit.NewTheme(colors, body, kit.ThemeOpts{UIFont: MonoFamily})
+				// the colors of tokens are those of the bundled theme of the same name: code is highlighted as in the window
+				tokens, _ := kit.BundledTokens(map[string]string{"dark": "Dark Modern", "light": "Light Modern"}[th.Name])
+				return kit.NewTheme(colors, body, kit.ThemeOpts{UIFont: MonoFamily, Tokens: tokens})
 			}, widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 		},
 	}))

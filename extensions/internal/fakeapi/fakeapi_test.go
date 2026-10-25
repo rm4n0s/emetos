@@ -2,6 +2,7 @@ package fakeapi
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -197,4 +198,78 @@ func TestTheFakeDoesWhatTheHostDoes(t *testing.T) {
 	_ = a.Events().Handle("x", nil)
 	_ = a.Events().HandleAsync("x", nil)
 	_ = a.RunCtx
+}
+
+func TestTheFakeEditorsRefuseWhatTheHostRefuses(t *testing.T) {
+	m := manifest()
+	m.Contributes.EditorKinds = []extension.EditorKindSpec{{ID: "fk.card", Name: "Card"}}
+	m.Contributes.FileViews = []extension.FileViewSpec{{ID: "fk.preview", Name: "Preview", Languages: []string{"markdown"}}}
+	a := New(t, m, extension.ScopeInfo{})
+	route(t, a.Editors().Provide("fk.nope", extension.EditorKind{}), "editors.Provide.FakeEditorKindNotDeclared")
+	route(t, a.Editors().Provide("fk.card", extension.EditorKind{}), "editors.Provide.FakeEditorKindInvalid")
+	_, err := a.Editors().Open("fk.card", nil, extension.EditorOpenOptions{})
+	route(t, err, "API.makeTab.FakeEditorKindNotProvided")
+	create := func(extension.EditorTab, json.RawMessage) (extension.EditorTabContent, error) {
+		return extension.EditorTabContent{SaveState: func() (any, error) { return "s", nil }, OnClose: func() {}}, nil
+	}
+	if err := a.Editors().Provide("fk.card", extension.EditorKind{Create: create}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.Editors().Open("fk.card", make(chan int), extension.EditorOpenOptions{})
+	route(t, err, "editors.Open.FakeEditorStateInvalid")
+	tab, err := a.Editors().Open("fk.card", "x", extension.EditorOpenOptions{Group: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tab.SetTitle("T")
+	tab.SetHint("H")
+	tab.SetDirty(true)
+	tab.SetBusy(true)
+	tab.Refresh()
+	tab.Reveal(true)
+	ft := a.EditorTabs()[0]
+	if ft.Title() != "T" || ft.Hint() != "H" || !ft.Dirty() || !ft.Busy() || ft.Refreshs != 1 || !ft.Revealed || tab.Group() != 2 || string(ft.State()) != `"s"` {
+		t.Errorf("the tab = %q %q %v %v", ft.Title(), ft.Hint(), ft.Dirty(), ft.Busy())
+	}
+	if got := a.Editors().Tabs("fk.card"); len(got) != 1 {
+		t.Errorf("Tabs = %d", len(got))
+	}
+	tab.Close()
+	if got := a.Editors().Tabs("fk.card"); len(got) != 0 {
+		t.Errorf("Tabs after Close = %d", len(got))
+	}
+	restored := a.RestoreTab("fk.card", "r1", json.RawMessage(`"old"`))
+	if restored.ID() != "r1" || restored.Kind() != "fk.card" {
+		t.Errorf("restored = %s %s", restored.ID(), restored.Kind())
+	}
+
+	route(t, a.FileViews().Provide("fk.nope", extension.FileViewProvider{}), "fileViews.Provide.FakeFileViewNotDeclared")
+	route(t, a.FileViews().Provide("fk.preview", extension.FileViewProvider{}), "fileViews.Provide.FakeFileViewInvalid")
+	_, err = a.OpenFileView("fk.preview", nil)
+	route(t, err, "API.OpenFileView.FakeFileViewNotProvided")
+	if err := a.FileViews().Provide("fk.preview", extension.FileViewProvider{Open: func(extension.DocumentHandle, extension.FileViewTab) (extension.FileViewContent, error) {
+		return extension.FileViewContent{}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.OpenFileView("fk.preview", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.FileViews().Open("file:///a.md", "fk.preview", extension.FileViewOpenOptions{Side: true}); err != nil || len(a.FileViewOpens()) != 1 {
+		t.Errorf("FileViews.Open: %v, %v", err, a.FileViewOpens())
+	}
+	if id, ok := a.Languages().Resolve("Go"); !ok || id != "go" {
+		t.Errorf("Resolve = %q, %v", id, ok)
+	}
+	lines, _ := a.Languages().Tokenize("go", "a\nb")
+	if len(lines) != 2 || lines[0][0].Scopes[0] != "source.go" {
+		t.Errorf("Tokenize = %+v", lines)
+	}
+	a.SetTokenizer(func(string, string) ([][]extension.Token, error) { return nil, nil })
+	if lines, _ := a.Languages().Tokenize("go", "a"); lines != nil {
+		t.Error("SetTokenizer did not replace the tokenizer")
+	}
+	if err := a.Workspace().OpenURI(context.Background(), "https://x.dev"); err != nil || len(a.OpenedURIs()) != 1 {
+		t.Errorf("OpenURI: %v %v", err, a.OpenedURIs())
+	}
 }

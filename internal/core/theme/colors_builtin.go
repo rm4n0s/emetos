@@ -894,6 +894,22 @@ func registerTabColors(r *ColorRegistry) {
 // src/vs/platform/theme/common/colors/baseColors.ts (textLink.foreground)
 func registerNotificationColors(r *ColorRegistry) {
 	r.MustRegister(
+		ColorContribution{ID: "textLink.activeForeground", Defaults: dflt(Hex("#3794FF"), Hex("#006AB1"), Hex("#21A6FF"), Hex("#0F4A85")),
+			Description: "Foreground color for links in text when clicked on and on mouse hover."},
+		ColorContribution{ID: "textSeparator.foreground", Defaults: dflt(Hex("#ffffff2e"), Hex("#0000002e"), Hex("#000000"), Hex("#292929")),
+			Description: "Color for text separators."},
+		ColorContribution{ID: "textPreformat.foreground", Defaults: dflt(Hex("#D7BA7D"), Hex("#A31515"), Hex("#FFFFFF"), Hex("#FFFFFF")),
+			Description: "Foreground color for preformatted text segments."},
+		ColorContribution{ID: "textPreformat.background", Defaults: dflt(Hex("#FFFFFF1A"), Hex("#0000001A"), nil, Hex("#09345f")),
+			Description: "Background color for preformatted text segments."},
+		ColorContribution{ID: "textBlockQuote.background", Defaults: dflt(Hex("#222222"), Hex("#f2f2f2"), nil, Hex("#F2F2F2")),
+			Description: "Background color for block quotes in text."},
+		ColorContribution{ID: "textBlockQuote.border", Defaults: dflt(Hex("#007acc80"), Hex("#007acc80"), Hex("#FFFFFF"), Hex("#292929")),
+			Description: "Border color for block quotes in text."},
+		ColorContribution{ID: "textCodeBlock.background", Defaults: dflt(Hex("#0a0a0a66"), Hex("#dcdcdc66"), Hex("#000000"), Hex("#F2F2F2")),
+			Description: "Background color for code blocks in text."},
+	)
+	r.MustRegister(
 		ColorContribution{ID: "textLink.foreground", Defaults: dflt(Hex("#3794FF"), Hex("#006AB1"), Hex("#21A6FF"), Hex("#0F4A85")),
 			Description: "Foreground color for links in text."},
 		ColorContribution{ID: "notificationCenter.border", Defaults: dflt(Ref("widget.border"), Ref("widget.border"), Ref("contrastBorder"), Ref("contrastBorder")),

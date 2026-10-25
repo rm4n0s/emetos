@@ -182,6 +182,10 @@ type Colors struct {
 	ProblemsErrorIconForeground, ProblemsWarningIconForeground, ProblemsInfoIconForeground ui.Color
 	// TextLinkForeground is the color of a link in text, and ErrorForeground that of an error message.
 	TextLinkForeground, ErrorForeground ui.Color
+	// The colors of rendered text (the Markdown preview): the active link, a separator, preformatted text (its
+	// foreground and background), a block quote (background and border) and a code block.
+	TextLinkActiveForeground, TextSeparatorForeground, TextPreformatForeground, TextPreformatBackground ui.Color
+	TextBlockQuoteBackground, TextBlockQuoteBorder, TextCodeBlockBackground                             ui.Color
 	// The colors of toasts and of the notification center: the text and background of a notification,
 	// its border as a toast and the border of the center, the header of the center (text and
 	// background), the line between notifications of the center, and the icons by severity.
@@ -414,6 +418,10 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		ProblemsErrorIconForeground: color("problemsErrorIcon.foreground"), ProblemsWarningIconForeground: color("problemsWarningIcon.foreground"),
 		ProblemsInfoIconForeground: color("problemsInfoIcon.foreground"),
 		TextLinkForeground:         color("textLink.foreground"), ErrorForeground: color("errorForeground"),
+		TextLinkActiveForeground: color("textLink.activeForeground"), TextSeparatorForeground: color("textSeparator.foreground"),
+		TextPreformatForeground: color("textPreformat.foreground"), TextPreformatBackground: color("textPreformat.background"),
+		TextBlockQuoteBackground: color("textBlockQuote.background"), TextBlockQuoteBorder: color("textBlockQuote.border"),
+		TextCodeBlockBackground: color("textCodeBlock.background"),
 		NotificationsForeground: color("notifications.foreground"), NotificationsBackground: color("notifications.background"),
 		NotificationToastBorder: color("notificationToast.border"), NotificationCenterBorder: color("notificationCenter.border"),
 		NotificationCenterHeaderForeground: color("notificationCenterHeader.foreground"),
@@ -578,4 +586,44 @@ func guideColors(color func(string) ui.Color, prefix string) [6]ui.Color {
 		out[i] = color(prefix + string(rune('1'+i)))
 	}
 	return out
+}
+
+// BundledTokens loads the token theme of a bundled color theme ("Dark Modern"): the colors of the tokens of its rules, for
+// a Theme that is made without the window (a test of a widget that shows highlighted code).
+func BundledTokens(name string) (*theme.TokenTheme, error) {
+	th, err := theme.LoadBundled(name)
+	if err != nil {
+		return nil, err
+	}
+	return th.TokenTheme(nil), nil
+}
+
+// TokenLook is how a token theme draws a token.
+type TokenLook struct {
+	// Color is the color of the text.
+	Color ui.Color
+	// Bold, Italic, Underline and Strikethrough are the font styles of the token.
+	Bold, Italic, Underline, Strikethrough bool
+}
+
+// TokenLookOf returns how the token theme of the nearest Theme above bc draws a token with the scopes (outermost first);
+// the fallback color is used when the theme gives none or there is no token theme. It rebuilds the caller when the theme
+// changes.
+func TokenLookOf(bc widgets.BuildContext, scopes []string, fallback ui.Color) TokenLook {
+	look := TokenLook{Color: fallback}
+	t := TokenThemeOf(bc)
+	if t == nil {
+		return look
+	}
+	style := t.Resolve(scopes)
+	if c, ok := theme.ParseColor(t.Color(style.Foreground)); ok {
+		look.Color = ui.NewColor(c.ARGB())
+	}
+	if style.FontStyle > 0 {
+		look.Bold = style.FontStyle&theme.FontStyleBold != 0
+		look.Italic = style.FontStyle&theme.FontStyleItalic != 0
+		look.Underline = style.FontStyle&theme.FontStyleUnderline != 0
+		look.Strikethrough = style.FontStyle&theme.FontStyleStrikethrough != 0
+	}
+	return look
 }

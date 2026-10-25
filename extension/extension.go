@@ -62,6 +62,13 @@ type Contributes struct {
 	PanelViews []PanelViewSpec
 	// ViewActions are the title actions of the views.
 	ViewActions []ViewActionSpec
+	// EditorKinds are the kinds of editor tab the extension adds. Opening or restoring a tab of a kind activates the
+	// extension (the activation event OnEditor).
+	EditorKinds []EditorKindSpec
+	// EditorActions are the icons at the right end of the tab strip of every editor group.
+	EditorActions []EditorActionSpec
+	// FileViews are the micro-tabs of the editor tab of the files they select. Showing one activates the extension.
+	FileViews []FileViewSpec
 	// Languages is the language pack of the extension: a file system (an embed.FS, rooted with fs.Sub) that has the
 	// package.json of a VS Code extension at its root, with the languages (contributes.languages), the grammars
 	// (contributes.grammars) and the settings defaults of languages (contributes.configurationDefaults) it contributes, and
@@ -81,6 +88,7 @@ const (
 	onFilePrefix      = "onFile:"
 	onCommandPrefix   = "onCommand:"
 	onViewPrefix      = "onView:"
+	onEditorPrefix    = "onEditor:"
 	onWindowTabPrefix = "onWindowTab:"
 )
 
@@ -97,6 +105,10 @@ func OnCommand(commandID string) string { return onCommandPrefix + commandID }
 
 // OnView is the event of the view with the id being shown (from the step that adds views).
 func OnView(viewID string) string { return onViewPrefix + viewID }
+
+// OnEditor is the event of a tab of the editor kind with the id being shown (a restored tab, or one that is opened); an
+// extension that declares the kind is activated by it without listing it.
+func OnEditor(kindID string) string { return onEditorPrefix + kindID }
 
 // OnWindowTab is the event of a window tab of the extension's kind being opened (from the step that adds window tab
 // extensions).

@@ -550,3 +550,17 @@ func TestExtensionsDisabledIsAnApplicationSettingWithNoDefault(t *testing.T) {
 		t.Errorf("default = %v", got)
 	}
 }
+
+func TestDefaultFileViewsIsAnApplicationSettingOfGlobsToViewIDs(t *testing.T) {
+	s, ok := DefaultRegistry().Lookup("workbench.editor.defaultFileViews")
+	if !ok {
+		t.Fatal("workbench.editor.defaultFileViews is not registered")
+	}
+	if s.Scope != ScopeApplication || len(s.Types) != 1 || s.Types[0] != Object || !reflect.DeepEqual(s.Default, map[string]any{}) {
+		t.Errorf("workbench.editor.defaultFileViews = %+v", s)
+	}
+	store := NewStore(DefaultRegistry(), StoreOptions{})
+	if got := Get[map[string]any](store, "workbench.editor.defaultFileViews", ""); len(got) != 0 {
+		t.Errorf("default = %v", got)
+	}
+}

@@ -92,4 +92,7 @@ type Workspace interface {
 	// ExtensionFileNotText for a file that is not valid UTF-8; the error of the file system is wrapped otherwise. Unlike
 	// Documents().Read it may be called from any goroutine.
 	ReadFile(ctx context.Context, path string) (string, error)
+	// OpenURI opens a URI with the desktop (the OpenURI portal): a web address in the browser, a mail address in the mail
+	// program. It fails with ExtensionOpenURIUnavailable when the scope cannot, and returns the portal's error otherwise.
+	OpenURI(ctx context.Context, uri string) error
 }

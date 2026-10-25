@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/desktop"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -128,6 +129,7 @@ func (w *Workspace) startExtensions() {
 		Logger: p.Logger, AskSharing: w.askSharing,
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
+		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -391,4 +393,29 @@ func toAnyList(list []string) []any {
 		out[i] = s
 	}
 	return out
+}
+
+// editorsChanged makes the editor area build again: the title actions, the file views or the tabs of the extensions changed.
+func (w *Workspace) editorsChanged() {
+	w.onUI(func() {
+		s := w.shell
+		if s == nil || !s.Mounted() {
+			return
+		}
+		s.SetState(func() {})
+		s.refreshKeys()
+	})
+}
+
+// openURI opens a URI with the desktop for an extension: the OpenURI portal, or the test seam of the workspace.
+func (w *Workspace) openURI(ctx context.Context, uri string) error {
+	open := w.OpenURI
+	if open == nil {
+		open = desktop.OpenURI
+	}
+	s := w.shell
+	if s == nil || !s.Mounted() {
+		return errors.New("ExtOpenURIUnavailable", "the window tab is not on screen", "uri", uri)
+	}
+	return open(ctx, s.Context(), uri)
 }

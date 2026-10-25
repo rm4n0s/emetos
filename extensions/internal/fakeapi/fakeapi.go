@@ -25,23 +25,30 @@ type API struct {
 	info   extension.ScopeInfo
 	logger *slog.Logger
 
-	mu       sync.Mutex
-	posted   []func()
-	handlers map[string]extension.CommandHandler
-	specs    map[string]extension.SettingSpec
-	values   map[string]any
-	changeFn []func()
-	subs     []*subscription
-	keys     map[string]any
-	status   map[string]*StatusItem
-	notes    []Note
-	shown    []Shown
-	views    map[string]*View
-	channels map[string]*Channel
-	markers  map[string]map[string][]extension.Marker
-	files    []string
-	complete bool
-	manifest extension.Manifest
+	mu                sync.Mutex
+	posted            []func()
+	handlers          map[string]extension.CommandHandler
+	specs             map[string]extension.SettingSpec
+	values            map[string]any
+	changeFn          []func()
+	subs              []*subscription
+	keys              map[string]any
+	status            map[string]*StatusItem
+	notes             []Note
+	shown             []Shown
+	views             map[string]*View
+	openedURIs        []string
+	fileViewRefreshes int
+	kinds             map[string]extension.EditorKind
+	tabs              []*Tab
+	fileViews         map[string]extension.FileViewProvider
+	fileViewOpens     []FileViewOpen
+	tokenizer         func(languageID, text string) ([][]extension.Token, error)
+	channels          map[string]*Channel
+	markers           map[string]map[string][]extension.Marker
+	files             []string
+	complete          bool
+	manifest          extension.Manifest
 }
 
 // Note is a notification the extension showed.
@@ -644,6 +651,21 @@ func (a *API) MarkerCount() int {
 // ---- the folder ----
 
 type workspace struct{ a *API }
+
+// OpenURI implements extension.Workspace: the call is recorded (OpenedURIs).
+func (w workspace) OpenURI(_ context.Context, uri string) error {
+	w.a.mu.Lock()
+	w.a.openedURIs = append(w.a.openedURIs, uri)
+	w.a.mu.Unlock()
+	return nil
+}
+
+// OpenedURIs are the URIs the extension opened with Workspace().OpenURI.
+func (a *API) OpenedURIs() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.openedURIs...)
+}
 
 func (w workspace) Files() (extension.FileList, error) {
 	w.a.mu.Lock()

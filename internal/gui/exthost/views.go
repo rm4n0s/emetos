@@ -44,6 +44,13 @@ type viewDecl struct {
 	badgeTip string
 	// boxes are the boxes of the view that are on screen.
 	boxes []*viewBoxState
+	// tab is the editor tab the declaration stands for, and event the activation event showing its box fires; both are
+	// empty for a view of the side bar or the panel (the event is then onView of the id).
+	tab   *editorTab
+	event string
+	// provided says that the extension gave the view its content and restoreView gave it its state: the state is then
+	// saved with the window's even while the view is off screen.
+	provided bool
 }
 
 // viewAction is a title action of a view.
@@ -278,7 +285,11 @@ func (s *Scope) PanelBadge(containerID string) (count int, tooltip string) {
 // ViewShown tells the scope that the box of a view is on screen: the extension that declares it is activated, on the
 // UI thread's next turn, if it was not.
 func (s *Scope) ViewShown(viewID string) {
-	s.post(func() { s.Fire(extension.OnView(viewID)) })
+	event := extension.OnView(viewID)
+	if d := s.decl(viewID); d != nil && d.event != "" {
+		event = d.event
+	}
+	s.post(func() { s.Fire(event) })
 }
 
 // SetViewStates gives the scope the state that the views saved in an earlier session (the window state keeps it); the
@@ -302,7 +313,7 @@ func (s *Scope) ViewStates() map[string]json.RawMessage {
 	s.mu.Lock()
 	var shown []*viewDecl
 	for _, d := range s.viewDecls {
-		if d.content != nil && len(d.boxes) > 0 {
+		if d.content != nil && d.content.SaveState != nil && (len(d.boxes) > 0 || d.provided) {
 			shown = append(shown, d)
 		}
 	}

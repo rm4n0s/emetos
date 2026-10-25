@@ -169,6 +169,13 @@ type tab struct {
 	shownChannels []string
 	complete      bool
 
+	// editors is the editor area of the tab, languages its grammars, uris the URIs it opened and changed how many times the
+	// editor contributions changed (editors_test.go).
+	editors   *fakeEditors
+	languages *fakeLanguages
+	uris      []string
+	changed   int
+
 	// asked are the questions the tab was asked about links, and answers the functions that answer them (askSharing).
 	asked   []SharingAsk
 	answers []func(SharingAnswer)
@@ -234,9 +241,13 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	tb.markers = problems.NewService()
 	tb.channels = logs.NewStore(0)
 	tb.complete = true
+	tb.editors = &fakeEditors{}
+	tb.languages = &fakeLanguages{}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
-		Ctx:  context.Background(), Commands: commands, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
+		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
+		OpenURI: func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
+		Info:    extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
+		Ctx:     context.Background(), Commands: commands, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
 		Notify: tb.notify, StatusBar: tb.bar, Documents: tb.docs,
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
 		Post: tb.post, AskSharing: r.askFunc(tb, name),

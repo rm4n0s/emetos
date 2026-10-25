@@ -533,7 +533,7 @@ func (s *shellState) inputState(input editorgroup.EditorInput) json.RawMessage {
 		s.win.Process.Logger.Warn("the view state of an editor cannot be saved", "err", err)
 		return nil
 	}
-	return data
+	return encodeEditorState(data, e.fileView)
 }
 
 // viewSig is what is compared to tell that the cursors or the scroll position of an editor changed.
@@ -718,8 +718,11 @@ func (s *shellState) restoreEditors(binding *widgets.WidgetsBinding) {
 	for _, g := range s.group.grid.Groups(editorgroup.GridAppearance) {
 		for _, input := range g.Model.Editors(editorgroup.Sequential, false) {
 			s.ensureEditor(binding, input)
-			data := s.state.viewStates[input]
+			data, fileView := decodeEditorState(s.state.viewStates[input])
 			e := s.group.editors[input]
+			if e != nil {
+				e.fileView = fileView
+			}
 			if e == nil || !restore || len(data) == 0 {
 				continue
 			}

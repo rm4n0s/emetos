@@ -60,6 +60,11 @@ func (v viewsAPI) Provide(viewID string, content extension.ViewContent) (extensi
 	}
 	d.content, d.inst = &content, in
 	s.mu.Unlock()
+	// the content has its saved state at once, so that what it saves with the window is never less than what it had
+	s.restoreView(d)
+	s.mu.Lock()
+	d.provided = true
+	s.mu.Unlock()
 	h := &viewHandle{inst: in, decl: d}
 	in.track(h.release)
 	s.post(h.refresh)
@@ -148,7 +153,7 @@ func (h *viewHandle) release() {
 	s.saveViewWhile(h.decl, true)
 	s.mu.Lock()
 	if h.decl.inst == h.inst {
-		h.decl.content, h.decl.inst = nil, nil
+		h.decl.content, h.decl.inst, h.decl.provided = nil, nil, false
 		h.decl.badge, h.decl.badgeTip = 0, ""
 	}
 	s.mu.Unlock()
@@ -348,6 +353,15 @@ func markerSeverity(s extension.Severity) problems.Severity {
 // ---- the folder of the workspace ----
 
 type workspaceAPI struct{ inst *instance }
+
+// OpenURI implements extension.Workspace.
+func (w workspaceAPI) OpenURI(ctx context.Context, uri string) error {
+	open := w.inst.scope.opts.OpenURI
+	if open == nil {
+		return errors.New("ExtensionOpenURIUnavailable", "the scope cannot open a URI", "extension", w.inst.id, "uri", uri)
+	}
+	return open(ctx, uri)
+}
 
 // Files implements extension.Workspace.
 func (w workspaceAPI) Files() (extension.FileList, error) {
