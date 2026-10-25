@@ -271,6 +271,46 @@ func TestHoverInstantAfterAnother(t *testing.T) {
 	})
 }
 
+// RawTooltip hides a showing tooltip for a press anywhere in the window, not only on its target.
+func TestHoverHidesForAPressElsewhere(t *testing.T) {
+	ts := pumpSized(t, ui.Size{Width: 300, Height: 200}, widgets.NewPadding(painting.NewEdgeInsetsAll(50), hoverTarget(HoverOpts{Text: "tip"})))
+	ts.Hover(ui.Offset{Dx: 70, Dy: 60})
+	ts.Pump(DefaultHoverDelay + time.Millisecond)
+	if !shown(ts, "tip") {
+		t.Fatal("not shown")
+	}
+	ts.TapAt(ui.Offset{Dx: 250, Dy: 150})
+	ts.Pump(time.Millisecond)
+	if shown(ts, "tip") {
+		t.Error("still shown after a press elsewhere")
+	}
+	if errs := ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
+}
+
+// Two hovers of different groups are not shown together: the first hides when the pointer leaves it, and the second
+// waits for its own delay, since neither group is an instant one.
+func TestHoverOfAnotherGroupWaitsForItsDelay(t *testing.T) {
+	pair := widgets.NewPadding(painting.NewEdgeInsetsAll(50), widgets.NewRow([]widgets.Widget{
+		hoverTarget(HoverOpts{Text: "first", Delegate: NewHoverDelegate()}),
+		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(20.0)}),
+		hoverTarget(HoverOpts{Text: "second", Delegate: NewHoverDelegate()}),
+	}))
+	ts := pumpSized(t, ui.Size{Width: 300, Height: 200}, pair)
+	ts.Hover(ui.Offset{Dx: 70, Dy: 60})
+	ts.Pump(DefaultHoverDelay + time.Millisecond)
+	ts.Hover(ui.Offset{Dx: 130, Dy: 60})
+	ts.Pump(time.Millisecond)
+	if shown(ts, "first") || shown(ts, "second") {
+		t.Errorf("first %v, second %v right after the move", shown(ts, "first"), shown(ts, "second"))
+	}
+	ts.Pump(DefaultHoverDelay + time.Millisecond)
+	if shown(ts, "first") || !shown(ts, "second") {
+		t.Errorf("first %v, second %v after the delay", shown(ts, "first"), shown(ts, "second"))
+	}
+}
+
 func TestHoverController(t *testing.T) {
 	ctrl := NewHoverController()
 	ts := pumpSized(t, ui.Size{Width: 300, Height: 200}, widgets.NewPadding(painting.NewEdgeInsetsAll(50), hoverTarget(HoverOpts{Text: "tip", Controller: ctrl})))

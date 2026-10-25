@@ -371,12 +371,6 @@ type geometrySource interface {
 	RemoveListener(foundation.ListenerHandle)
 }
 
-// windowModes is implemented by the controller of a regular window.
-type windowModes interface {
-	IsMaximized() bool
-	IsFullscreen() bool
-}
-
 // initState follows what the state of the window is made of, and gives the window the function that saves it
 // when it closes.
 func (s *shellState) initState(binding *widgets.WidgetsBinding) {
@@ -613,7 +607,7 @@ func (s *shellState) readGeometry(src geometrySource) {
 	geo := st.geometry
 	size := src.ContentSize()
 	geo.Maximized, geo.Fullscreen = false, false
-	if m, ok := src.(windowModes); ok {
+	if m, ok := src.(widgets.MaximizableWindowController); ok {
 		geo.Maximized, geo.Fullscreen = m.IsMaximized(), m.IsFullscreen()
 	}
 	defer s.win.fullScreenChanged(geo.Fullscreen)

@@ -268,9 +268,12 @@ func (s *sashState) Build(bc widgets.BuildContext) widgets.Widget {
 		OnPointerCancel: func(*gestures.PointerCancelEvent) { s.up(true) },
 	})
 	region := widgets.NewMouseRegion(body, widgets.MouseRegionOpts{
-		Cursor:  SashCursor(opts.Orientation, opts.State),
-		OnEnter: func(*gestures.PointerEnterEvent) { s.enter() },
-		OnExit:  func(*gestures.PointerExitEvent) { s.leave() },
+		Cursor: SashCursor(opts.Orientation, opts.State),
+		// the resize cursor stays for the whole drag, also when the pointer outruns the sash
+		// (VS Code: `* { cursor: ... !important }` while a sash is dragged)
+		HoldCursorWhilePressed: true,
+		OnEnter:                func(*gestures.PointerEnterEvent) { s.enter() },
+		OnExit:                 func(*gestures.PointerExitEvent) { s.leave() },
 	})
 	return widgets.NewIgnorePointer(region, widgets.IgnorePointerOpts{Ignoring: foundation.Some(s.disabled())})
 }

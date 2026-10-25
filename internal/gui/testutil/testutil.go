@@ -54,22 +54,12 @@ func Fonts() []gluttertest.Font {
 	return out
 }
 
-// New makes a tester of the given size in logical pixels with the test fonts loaded.
+// New makes a tester of the given size in logical pixels with the test fonts loaded. The tester
+// unmounts the widget tree when the test ends, so the states are disposed and the goroutines they
+// started (State.Go, the tokenizers of the app) end with the test.
 func New(t testing.TB, size ui.Size) *gluttertest.Tester {
 	t.Helper()
-	ts := gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
-	t.Cleanup(func() { unmount(ts) })
-	return ts
-}
-
-// unmount replaces the widget tree of the tester with an empty one, so that the states are disposed
-// and the goroutines they started (State.Go, the tokenizers of the app) end with the test. Without
-// it every test leaves its goroutines and its whole window behind, the heap grows with every test
-// of a package, and the later tests run several times slower under the race detector.
-//
-// Glutter: gluttertest.Tester should unmount the tree in its own cleanup (docs/GLUTTER-ISSUES.md).
-func unmount(ts *gluttertest.Tester) {
-	ts.PumpWidget(widgets.NewSizedBoxShrink(nil))
+	return gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
 }
 
 // Isolate points every user folder at temporary ones (see storagetest.Isolate) and returns

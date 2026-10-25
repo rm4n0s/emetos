@@ -401,9 +401,10 @@ type workspacesObserver struct {
 // the application or the platform. It is a quit, with the questions of every tab. The answer is always cancel; the
 // application ends itself once every tab has agreed.
 //
-// TODO(step 9b.4): the close button hides the window to the tray when there is one; the request does not say where it
-// comes from (docs/GLUTTER-ISSUES.md), so the hook of PlatformDispatcher.OnExitRequested, which gets the view, is
-// what tells the close button from the application's own exit.
+// TODO(step 9b.4): the close button hides the window to the tray when there is one. Glutter tells the close button
+// from a quit: WindowingOwner.SetImplicitWindowDelegate gives a delegate that is asked when the user closes the first
+// window (OnWindowCloseRequested, with the controller), and without one the close button is this request to exit.
+// Nothing takes PlatformDispatcher.OnExitRequested over.
 func (o *workspacesObserver) DidRequestAppExit() ui.AppExitResponse {
 	o.m.RequestQuit(o.m.Active())
 	return ui.AppExitResponseCancel
@@ -721,8 +722,7 @@ func (m *Workspaces) pushTitle(t *WindowTab) {
 	if t == nil || t.ws == nil || t.ws.title == "" {
 		return
 	}
-	// Glutter: BaseWindowController has no SetTitle (docs/GLUTTER-ISSUES.md); an interface assertion reaches it.
-	if c, ok := t.ws.controller.(interface{ SetTitle(string) }); ok {
+	if c := t.ws.controller; c != nil {
 		c.SetTitle(t.ws.title)
 	}
 }
@@ -1394,10 +1394,8 @@ func (w *Workspace) Raise() {
 			m.Activate(t)
 		}
 	}
-	// Glutter: Activate is not in the BaseWindowController interface (docs/GLUTTER-ISSUES.md); an interface assertion
-	// reaches it.
-	if a, ok := w.controller.(interface{ Activate() }); ok {
-		a.Activate()
+	if c := w.controller; c != nil {
+		c.Activate()
 	}
 }
 

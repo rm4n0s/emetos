@@ -12,7 +12,6 @@ import (
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
-	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
@@ -406,23 +405,16 @@ func TestAutoSaveResumesWhenTheFileIsRevertedOrReadAgain(t *testing.T) {
 
 func TestAutoSaveLeavesADocumentAloneWhileItsSaveAsDialogIsOpen(t *testing.T) {
 	a := newAutoApp(t, afterDelay(100), map[string]string{"a.txt": "one\n"}, "a.txt")
-	release := make(chan struct{})
-	a.win.SaveDialog = func(ctx context.Context, _ widgets.BuildContext, _ SaveDialogOptions) (string, error) {
-		select {
-		case <-release:
-		case <-ctx.Done():
-		}
-		return "", nil // cancelled
-	}
 	a.typeText("x")
 	a.run("workbench.action.files.saveAs")
+	a.fd.WaitFor("the dialog", func() bool { return a.fd.PendingFileChoosers() == 1 })
 	a.settle()
 	a.ts.Pump(time.Second)
 	a.settle()
 	if !a.doc("a.txt").Dirty() || a.fileText("a.txt") != "one\n" {
 		t.Fatal("auto save wrote the file while the Save As dialog was open")
 	}
-	close(release)
+	a.fd.CancelFileChooser()
 	// the dialog gave nothing: the document is tried again after the delay
 	a.waitFor("the dialog to end", func() bool { return !a.shell().saves.asOpen[a.doc("a.txt")] })
 	a.ts.Pump(200 * time.Millisecond)

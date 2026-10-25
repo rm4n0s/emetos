@@ -441,23 +441,38 @@ func TestADialogThatFailsIsReported(t *testing.T) {
 	}
 }
 
-// unavailable is a save dialog of a desktop that has no file chooser.
-func unavailable(context.Context, widgets.BuildContext, SaveDialogOptions) (string, error) {
-	cause := errors.New("FileChooserUnavailable", "no portal")
-	return "", errors.NewErr("SaveDialogFailed", cause)
-}
-
 func TestDialogUnavailable(t *testing.T) {
-	_, err := unavailable(context.Background(), nil, SaveDialogOptions{})
+	// the fake desktop without a file chooser portal fails the dialog the way a desktop without one does
+	a := newSaveApp(t, map[string]string{"a.txt": "one\n"}, "a.txt")
+	a.fd.DisableFileChooser()
+	bc := a.ts.Element(gluttertest.ByType[*shell]())
+	result := make(chan error, 1)
+	go func() {
+		_, err := chooseSavePath(context.Background(), bc, SaveDialogOptions{Name: "x"})
+		result <- err
+	}()
+	var err error
+	a.waitFor("the dialog to fail", func() bool {
+		select {
+		case err = <-result:
+			return true
+		default:
+			return false
+		}
+	})
 	other := errors.NewErr("SaveDialogFailed", errors.New("Other", "x"))
 	if !dialogUnavailable(err) || dialogUnavailable(other) || dialogUnavailable(nil) {
-		t.Error("dialogUnavailable is wrong")
+		t.Errorf("dialogUnavailable is wrong for %v", err)
+	}
+	appErr, ok := errors.FromError(err)
+	if !ok || !appErr.HasRoute("chooseSavePath.SaveDialogFailed") {
+		t.Errorf("unexpected failure path: %v", err)
 	}
 }
 
 func TestWithoutAPortalSaveAsAsksForThePathInTheQuickInput(t *testing.T) {
 	a := newSaveApp(t, map[string]string{"a.txt": "one\n"}, "a.txt")
-	a.win.SaveDialog = unavailable
+	a.fd.DisableFileChooser()
 	doc := a.doc("a.txt")
 	a.edit("a.txt")
 	qi := a.win.QuickInput

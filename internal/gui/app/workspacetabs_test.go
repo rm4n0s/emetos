@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -250,29 +251,39 @@ func TestTheWindowShowsTheTitleOfTheActiveTab(t *testing.T) {
 	if !ok {
 		t.Fatal("no controller")
 	}
+	// windowTitle is the title the platform got for the window (the fake platform records it), which is also what the
+	// controller says
+	windowTitle := func() string {
+		t.Helper()
+		got := a.ts.ViewTitle(ui.ImplicitViewID)
+		if got != controller.Title() {
+			t.Errorf("the platform got the title %q, the controller says %q", got, controller.Title())
+		}
+		return got
+	}
 	a.edit(w1, filepath.Join(f[0], "a.go"))
 	if !strings.Contains(w1.Title(), "a.go") || !strings.Contains(w3.Title(), "three") {
 		t.Fatalf("titles %q %q", w1.Title(), w3.Title())
 	}
-	if got := controller.Title(); got != w3.Title() {
+	if got := windowTitle(); got != w3.Title() {
 		t.Errorf("the window is titled %q, want the active tab's %q", got, w3.Title())
 	}
 	a.m.Activate(w1.Tab())
 	a.settle()
-	if got := controller.Title(); got != w1.Title() {
+	if got := windowTitle(); got != w1.Title() {
 		t.Errorf("the window is titled %q, want %q", got, w1.Title())
 	}
 	// a tab that is not shown does not give the window its title when it changes
 	if err := a.command(w3, "dev.openFile", filepath.Join(f[2], "d.go")); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(w3.Title(), "d.go") || controller.Title() != w1.Title() {
-		t.Errorf("w3 %q, window %q", w3.Title(), controller.Title())
+	if !strings.Contains(w3.Title(), "d.go") || windowTitle() != w1.Title() {
+		t.Errorf("w3 %q, window %q", w3.Title(), windowTitle())
 	}
 	a.m.Activate(w3.Tab())
 	a.settle()
-	if controller.Title() != w3.Title() {
-		t.Errorf("window %q, want %q", controller.Title(), w3.Title())
+	if windowTitle() != w3.Title() {
+		t.Errorf("window %q, want %q", windowTitle(), w3.Title())
 	}
 }
 

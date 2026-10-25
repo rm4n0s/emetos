@@ -896,6 +896,32 @@ func TestPanelTabBadgeAndViewActions(t *testing.T) {
 	}
 }
 
+// The actions of a panel view leave the tree when the window narrows and come back when it widens again. One of them
+// holds a text field with a Scrollable; before Glutter 1.7 the position of a disposed Scrollable made the program panic
+// in the frame after, so the actions had to stay in the tree, offstage.
+func TestPanelViewActionsWithATextFieldLeaveAndComeBack(t *testing.T) {
+	st := DefaultLayoutState()
+	st.PanelVisible = true
+	field := widgets.NewSizedBox(kit.NewInputBox(nil, nil, kit.InputBoxOpts{Placeholder: "filter text"}),
+		widgets.SizedBoxOpts{Width: foundation.Some(200.0), Height: foundation.Some(22.0)})
+	h := newHarness(t, testSize, kit.DarkModern(), st, nil, func(o *Options) {
+		o.PanelTabs = []PanelTab{{ID: "problems", Title: "Problems"}, {ID: "output", Title: "Output"}}
+		o.ActivePanel = "problems"
+		o.PanelActions = field
+	})
+	widths := []float64{testSize.Width, 300, testSize.Width, 250, testSize.Width}
+	for i, w := range widths {
+		h.ts.SetViewSize(ui.Size{Width: w, Height: testSize.Height})
+		h.ts.Pump(time.Millisecond)
+		h.ts.Pump(time.Millisecond)
+		want := w == testSize.Width
+		if got := h.ts.Exists(gluttertest.ByType[*kit.InputBox]()); got != want {
+			t.Errorf("step %d, width %v: the text field is in the tree: %v, want %v", i, w, got, want)
+		}
+	}
+	noErrors(t, h)
+}
+
 func TestPanelViewCommandsNeedViews(t *testing.T) {
 	// the commands that open the views of the panel are bound only when the workbench has the views
 	st := DefaultLayoutState()

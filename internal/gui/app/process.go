@@ -126,11 +126,13 @@ type ProcessOptions struct {
 	// Logger is the process logger when Logs is nil; slog.Default() when both are nil.
 	Logger *slog.Logger
 	// WatchFiles lets the windows watch their folder, the configuration and the open files (SPEC
-	// §10.5). The editor sets it; tests leave it off so that no inotify instance is left behind.
-	//
-	// Glutter: gluttertest.Tester never disposes the widget tree at the end of a test, so the
-	// watcher that the shell starts with its lifetime would never stop; Glutter should unmount the
-	// tree (or cancel the lifetimes of the states) when the test ends (docs/GLUTTER-ISSUES.md).
+	// §10.5). The editor sets it; tests leave it off, and the tests of the watcher and of what it
+	// does set it. Many tests stage a change of a file on disk by hand (a file "changed by another
+	// program", a file written behind the editor's back) and count on nothing else reacting to it;
+	// with a live watcher the reload and the notice of the watcher race with them (step 9b.1b ran
+	// the whole suite with it on: with -race the auto save test of a file that changed on disk
+	// failed every time). Since Glutter 1.7 the tester unmounts the tree, so a watcher no longer
+	// leaks an inotify instance when it is on.
 	WatchFiles bool
 	// Launcher, when set, receives the launches of other processes (Process.Launcher); the window attaches to it.
 	Launcher *Launcher

@@ -265,7 +265,7 @@ type shellState struct {
 	// unsubscribeTitle stops following the settings of the title.
 	unsubscribeTitle func()
 	// window is the controller of the window, which gets the title; nil where there is none.
-	window interface{ SetTitle(string) }
+	window widgets.WindowController
 	// status is what the shell keeps of the status bar (statusbar.go).
 	status statusState
 	// saves is what the shell keeps of saving (save.go).
@@ -451,27 +451,20 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 // to the window when it changed.
 func (s *shellState) syncTitle(bc widgets.BuildContext, win *Workspace) {
 	if s.window == nil {
-		// Glutter: the controller of the window that WindowScope gives is a BaseWindowController, which
-		// has no SetTitle (RegularWindowController has it, promoted from an unexported base), so the
-		// title is set through an interface assertion. Glutter should put SetTitle in the interface.
-		//
 		// The manager of the tabs gives the workspaces it shows the controller of the window too (Workspaces.bind): a
 		// tester that pumps the host without RunApp has no WindowScope.
-		var controller any
+		var controller widgets.WindowController
 		if win.managed() {
 			controller = win.controller
 		}
-		if scope, ok := widgets.GetInherited[*widgets.WindowScope](bc); ok {
-			controller = scope.Controller()
+		if c := widgets.WindowControllerMaybeOf(bc); c != nil {
+			controller = c
 		}
 		if controller != nil {
-			s.window, _ = controller.(interface{ SetTitle(string) })
-			// Glutter: Activate is in the same position (RegularWindowController has it, BaseWindowController does not)
+			s.window = controller
 			win.controller = controller
 			defer win.controllerKnown() // after the controller is followed below
-			if src, ok := controller.(geometrySource); ok {
-				s.trackWindow(src)
-			}
+			s.trackWindow(controller)
 		}
 	}
 	in := workbench.TitleInput{

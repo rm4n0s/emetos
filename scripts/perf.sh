@@ -18,9 +18,17 @@
 # is driven with dev commands (dev.type, dev.scroll). Glutter's counter example is built and
 # measured the same way, as the baseline of the start and the memory of a window.
 #
-# The Mesa shader cache is kept in the temporary folder across the runs (isolated.sh moves the
-# home folder, which would make every start compile the shaders again), and a first start warms
-# it before anything is measured.
+# The cold start is measured in three states of the shader caches (Glutter 1.7 keeps GLES program
+# binaries in $XDG_CACHE_HOME/glutter/shaders, and the driver, Mesa, has its own cache): both
+# empty (a machine that never ran the app), the driver's warm and Glutter's empty, and both warm
+# (the second start of a user). isolated.sh gives every run a fresh XDG_CACHE_HOME, so the runs
+# that need a warm cache of Glutter's are given a folder of the temporary work folder instead
+# (PERF_CACHE; the user's cache is never touched), and the Mesa cache is moved the same way
+# (MESA_SHADER_CACHE_DIR). The parts of the first draw come from the log of GLUTTER_FRAME_STATS=1.
+#
+# The idle CPU without the focus is measured headless too: a second window (Glutter's counter)
+# is started, the compositor activates it, and the editor's window loses the focus (Glutter 1.7
+# takes the view focus from the active window of the compositor).
 #
 # Needs sway for the headless mode (scripts/headless-wayland.sh). The output is a Markdown table.
 set -euo pipefail
@@ -53,6 +61,8 @@ done
 if [[ $mode == one ]]; then
   out="$1" name="$2" bin="$3" file="$4" commands="$5" settle="$6" measure="$7" other="$8"
   export GLUTTER_FRAME_STATS=1
+  # a cache folder of the work folder where a warm cache of Glutter's is wanted
+  [[ -n "${PERF_CACHE:-}" ]] && export XDG_CACHE_HOME="$PERF_CACHE"
   args=()
   [[ "$file" != "-" ]] && args+=("$file")
   [[ "$commands" != "-" ]] && export EMETOS_DEV_COMMANDS="$commands"
@@ -140,7 +150,8 @@ fi
 # ---------------------------------------------------------------------------------------------
 work="$PERF_WORK" runs="$PERF_RUNS" seconds="$PERF_SECONDS" session="$PERF_SESSION"
 out="$work/out"
-export MESA_SHADER_CACHE_DIR="$work/mesa" MESA_SHADER_CACHE_MAX_SIZE=1G
+export MESA_SHADER_CACHE_MAX_SIZE=1G
+caches="$work/caches"
 
 # measure runs one isolated measured run; the same arguments as --one.
 measure() {
@@ -177,28 +188,64 @@ frames_summary() {
     END { if (frames) printf "%d %.3f %.3f %.2f %.2f %d", frames, b / frames, bm, r / frames, rm, slow; else printf "0 0 0 0 0 0" }'
 }
 
-# warm the shader cache, then the cold start: the editor with no folder and no file, and the
-# counter as the baseline.
-measure warm "$work/bin/emetos" - - 1 0 - >/dev/null
-rm -f "$out"/warm.*
-cold=() base=()
-for i in $(seq 1 "$runs"); do
-  measure "cold$i" "$work/bin/emetos" - - 0 0 -
-  cold+=("$(first_frame_ms "cold$i")")
-  measure "base$i" "$work/bin/counter" - - 0 0 -
-  base+=("$(first_frame_ms "base$i")")
+# stage_ms is the sum of the "took" of the log lines of a startup stage of a measured run, in
+# milliseconds (0 when there is none; several renderers can be tried and fail).
+stage_ms() { # stage_ms <name> <stage>
+  local total=0 line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && total="$(awk -v a="$total" -v b="$(duration_ms "$(field "$line" took)")" 'BEGIN { printf "%.1f", a + b }')"
+  done < <(grep -h -e "stage=$2 " -e "stage=\"$2\" " "$out/$1.log" 2>/dev/null | sort -u)
+  echo "$total"
+}
+# shader_counts says how many programs the last start built and took from the cache.
+shader_counts() {
+  local line
+  line="$(grep -h "stage=shaders " "$out/$1.log" 2>/dev/null | head -1)"
+  echo "$(field "$line" built) built, $(field "$line" from_cache) from the cache"
+}
+
+# cold_start <mode> measures the editor with no folder and no file, and the counter as the baseline,
+# $runs times, and sets cold_ms and base_ms to the medians. The mode says what the caches hold:
+# "empty" has a new cache of Glutter's and of the driver for every start, "driver" the driver's
+# warm and Glutter's new for every start, "warm" both warm (a first start of each app fills them
+# before anything is measured). The log of the last editor start is kept as part-<mode>.log.
+cold_start() {
+  local mode="$1" i app glutter mesa
+  cold=() base=()
+  glutter="$caches/glutter-$mode"
+  mesa="$caches/mesa-$mode"
+  if [[ $mode != empty ]]; then
+    for app in emetos counter; do
+      PERF_CACHE="$glutter" MESA_SHADER_CACHE_DIR="$mesa" measure "prime-$mode-$app" "$work/bin/$app" - - 1 0 - >/dev/null
+    done
+  fi
+  for i in $(seq 1 "$runs"); do
+    case $mode in
+      empty) glutter="$caches/glutter-empty-$i"; mesa="$caches/mesa-empty-$i" ;;
+      driver) glutter="$caches/glutter-driver-$i" ;;
+    esac
+    PERF_CACHE="$glutter" MESA_SHADER_CACHE_DIR="$mesa" measure "cold-$mode-$i" "$work/bin/emetos" - - 0 0 -
+    cold+=("$(first_frame_ms "cold-$mode-$i")")
+    PERF_CACHE="$glutter" MESA_SHADER_CACHE_DIR="$mesa" measure "base-$mode-$i" "$work/bin/counter" - - 0 0 -
+    base+=("$(first_frame_ms "base-$mode-$i")")
+  done
+  cold_ms="$(median "${cold[@]}")"
+  base_ms="$(median "${base[@]}")"
+  cp "$out/cold-$mode-$runs.log" "$out/part-$mode.log"
+}
+for mode in empty driver warm; do
+  cold_start "$mode"
+  eval "cold_$mode=$cold_ms base_$mode=$base_ms"
 done
-cold_ms="$(median "${cold[@]}")"
-base_ms="$(median "${base[@]}")"
+# the driver's cache for everything that follows: the one the warm runs filled
+export MESA_SHADER_CACHE_DIR="$caches/mesa-warm" PERF_CACHE="$caches/glutter-warm"
 
 # Idle: the editor on a 10,000-line file, focused (the cursor blinks) and with another window in
 # front. The memory is read at the same time.
 measure idle "$work/bin/emetos" "$work/data/go10k.go" - 5 "$seconds" -
-# The window loses the focus when another one takes it. A headless compositor has no keyboard, so
-# its windows never get the focus and never lose it: this one is measured in the session only.
-if [[ $session -eq 1 ]]; then
-  measure unfocused "$work/bin/emetos" "$work/data/go10k.go" - 5 "$seconds" "$work/bin/counter"
-fi
+# The window loses the focus when another one takes it: the counter is started next to it, the
+# compositor activates the newest window, and the editor's view gets the unfocused event.
+measure unfocused "$work/bin/emetos" "$work/data/go10k.go" - 5 "$seconds" "$work/bin/counter"
 measure idlebase "$work/bin/counter" - - 5 "$seconds" -
 cpu() { # cpu <name> <key>: percent of one core, from the ticks (1/100 s) of the sample
   local t
@@ -210,11 +257,7 @@ frames_during() { # frames_during <name>: frames drawn in the measuring time
   { grep -E "( msg=frames | INFO frames )" "$out/$1.during" || true; } | awk '{ for (i = 1; i <= NF; i++) { split($i, kv, "="); if (kv[1] == "fps") f += kv[2] } } END { print f + 0 }'
 }
 idle_cpu="$(cpu idle ticks)"; idle_app="$(cpu idle app_ticks)"; idle_frames="$(frames_during idle)"
-if [[ $session -eq 1 ]]; then
-  unf="$(frames_during unfocused) frames, $(cpu unfocused ticks)% ($(cpu unfocused app_ticks)% without the renderer threads) of a core"
-else
-  unf="not measurable headless (no keyboard, so the window never loses the focus): run with --session"
-fi
+unf="$(frames_during unfocused) frames, $(cpu unfocused ticks)% ($(cpu unfocused app_ticks)% without the renderer threads) of a core"
 base_cpu="$(cpu idlebase ticks)"
 idle_rss="$(rss idle rss_kb)"; idle_hwm="$(rss idle hwm_kb)"; base_rss="$(rss idlebase rss_kb)"
 
@@ -234,7 +277,19 @@ big_build="$(duration_ms "$(field "$(grep -hE '( msg="slow frame"| INFO slow fra
 
 [[ -n "${PERF_KEEP:-}" ]] && cp -r "$out/." "$PERF_KEEP/"
 renderer="$(grep -h "first frame presented" "$out/idle.log" | head -1 | sed -n 's/.* renderer="\([^"]*\)".*/\1/p')"
-extra="$(awk -v a="$big_ms" -v b="$cold_ms" 'BEGIN { printf "%.0f", a - b }')"
+extra="$(awk -v a="$big_ms" -v b="$cold_warm" 'BEGIN { printf "%.0f", a - b }')"
+part() { # part <mode> <stage>: a part of the first draw of the last start of a mode, in milliseconds
+  cp "$out/part-$1.log" "$out/cold-part.log"
+  case "$2" in
+    tried) stage_ms cold-part "renderer tried" ;;
+    context) stage_ms cold-part "GPU context or device" ;;
+    shaders) stage_ms cold-part shaders ;;
+    frame) stage_ms cold-part "frame without the above" ;;
+    draw) stage_ms cold-part "first draw (renderer, GL context, shaders, first frame)" ;;
+  esac
+}
+shaders_of() { cp "$out/part-$1.log" "$out/cold-part.log"; shader_counts cold-part; }
+since_run() { duration_ms "$(field "$(grep -h "first frame presented" "$out/part-$1.log" | head -1)" since_run)"; }
 cat <<TABLE
 Renderer: ${renderer} ($([[ $session -eq 1 ]] && echo "the session of the caller" || echo "headless: software rendering, no GPU"))
 
@@ -243,8 +298,22 @@ Renderer: ${renderer} ($([[ $session -eq 1 ]] && echo "the session of the caller
 | Typing in a 10,000-line file: build time of the frames (average, worst of $t_frames frames) | < 4 ms | ${t_build} ms, ${t_build_max} ms (raster ${t_raster} ms average, ${t_raster_max} ms worst; ${t_slow} frames over 16 ms) |
 | Scrolling a 100,000-line file: frames | the refresh rate, none over 8 ms | ${s_frames} frames; build ${s_build} ms average, ${s_build_max} ms worst; raster ${s_raster} ms average, ${s_raster_max} ms worst; ${s_slow} frames over 16 ms |
 | Opening a 10 MB file: first frame | < 300 ms | ${big_ms} ms from the start of the process (${extra} ms more than the empty window); build of the first frame ${big_build} ms |
-| Cold start, no folder, to the first frame (median of $runs) | < 400 ms | ${cold_ms} ms (Glutter's counter, same run: ${base_ms} ms) |
+| Cold start, no folder, to the first frame (median of $runs, from the start of the process), both shader caches warm | < 400 ms | ${cold_warm} ms (Glutter's counter, same run: ${base_warm} ms) |
+| Cold start, the driver's cache warm and Glutter's empty | < 400 ms | ${cold_driver} ms (the counter: ${base_driver} ms) |
+| Cold start, both caches empty (the first start on a machine) | < 400 ms | ${cold_empty} ms (the counter: ${base_empty} ms) |
 | Idle, focused, cursor blinking ($seconds s) | < 1% of a core | ${idle_cpu}% of a core with the renderer threads, ${idle_app}% without them (${idle_frames} frames; the counter: ${base_cpu}%) |
-| Idle, without the focus ($seconds s) | no frames at all | ${unf} |
+| Idle, without the focus ($seconds s, another window has it) | no frames at all | ${unf} |
 | Resident memory, one 10,000-line file | < 200 MB (see the note) | $((idle_rss / 1024)) MB (peak $((idle_hwm / 1024)) MB); Glutter's counter: $((base_rss / 1024)) MB |
 TABLE
+
+cat <<PARTS
+
+| Part of the first draw of the last start (ms) | Both caches empty | The driver's warm | Both warm |
+|---|---|---|---|
+| Renderers tried that failed (Vulkan on a compositor that presents no GPU buffers) | $(part empty tried) | $(part driver tried) | $(part warm tried) |
+| GPU context or device | $(part empty context) | $(part driver context) | $(part warm context) |
+| Shaders ($(shaders_of empty); $(shaders_of driver); $(shaders_of warm)) | $(part empty shaders) | $(part driver shaders) | $(part warm shaders) |
+| The frame itself | $(part empty frame) | $(part driver frame) | $(part warm frame) |
+| First draw, all of it | $(part empty draw) | $(part driver draw) | $(part warm draw) |
+| From the start of Run to the first frame | $(since_run empty) | $(since_run driver) | $(since_run warm) |
+PARTS

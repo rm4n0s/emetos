@@ -3,6 +3,7 @@ package kit
 import (
 	"time"
 
+	"github.com/rm4n0s/glutter/animation"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
@@ -238,17 +239,17 @@ func (o HoverOpts) hasContent() bool { return o.Text != "" || o.Content != nil }
 
 // Hover wraps a widget (its target) and shows a popup next to it when the pointer rests on it for
 // the delay: VS Code's hover. The popup hides when the pointer leaves the target or is pressed,
-// and when a key is pressed (a hover that is still waiting for its delay is cancelled too) (VS Code's `hideOnKeyDown`; Escape among them). It shows in the nearest
-// Overlay, next to the target on the side that fits, and never leaves the window. The text of the
-// popup cannot be selected and the pointer cannot go into it.
+// and when a key is pressed (a hover that is still waiting for its delay is cancelled too) (VS Code's
+// `hideOnKeyDown`; Escape among them, a modifier on its own not). It shows in the nearest Overlay,
+// next to the target on the side that fits, and never leaves the window. The text of the popup
+// cannot be selected and the pointer cannot go into it.
 //
-// It is built the way Glutter's RawTooltip is (an OverlayPortal) but not on it.
-//
-// Glutter: RawTooltip fixes its hover delay in its options (the delay cannot depend on whether
-// another hover hid a moment ago), tells nobody when it hides and cannot be shown or hidden from
-// outside before the delay; Hover needs all three (VS Code's instant hover rule and keyboard
-// navigation), so it makes its own portal. Glutter should offer a delay callback, a hide callback
-// and an exported controller (docs/GLUTTER-ISSUES.md).
+// It is built on Glutter's RawTooltip: the popup, the wait, the overlay and the dismissal by a
+// press come from it. The hover adds the delay rule of the delegate (RawTooltipOpts.HoverDelayFunc),
+// the group of hovers and its time limit (OnShown, OnHidden), the controller and PlaceHover for
+// the place. The key handler is the hover's own, not RawTooltipOpts.DismissOnKey: VS Code does not
+// hide a hover for a modifier pressed on its own, and a hover that still waits for its delay is
+// cancelled by a key, neither of which DismissOnKey can do.
 //
 // Ported from VS Code: src/vs/base/browser/ui/hover/hover.ts, src/vs/platform/hover/browser/hover.ts
 // (WorkbenchHoverDelegate) and src/vs/platform/hover/browser/hoverWidget.ts
@@ -270,16 +271,16 @@ func NewHover(child widgets.Widget, opts ...HoverOpts) *Hover {
 
 // CreateState implements widgets.StatefulWidget.
 func (h *Hover) CreateState() widgets.State {
-	return &hoverState{portal: widgets.NewOverlayPortalController(widgets.OverlayPortalControllerOpts{DebugLabel: "Hover"})}
+	return &hoverState{tip: widgets.NewRawTooltipController()}
 }
 
 type hoverState struct {
 	widgets.StateOf[*Hover]
-	portal   *widgets.OverlayPortalController
+	// tip shows and hides the RawTooltip the state builds.
+	tip      *widgets.RawTooltipController
 	delegate *HoverDelegate
 	// own is true when the delegate is the one the state made.
 	own     bool
-	timer   *gestures.Timer
 	visible bool
 	key     services.KeyHandlerHandle
 	// watching is true while the key handler is added: from the start of the wait to the hide.
@@ -287,7 +288,8 @@ type hoverState struct {
 	// ctrl is the controller the state is attached to.
 	ctrl *HoverController
 	// bound is the binding of the window, kept for Dispose, which runs when the context is gone.
-	bound *widgets.WidgetsBinding
+	bound    *widgets.WidgetsBinding
+	disposed bool
 }
 
 // InitState attaches the controller and chooses the delegate.
@@ -319,17 +321,10 @@ func (s *hoverState) attach() {
 	}
 }
 
-// Dispose stops the timer and the key handler.
+// Dispose stops the key handler. The RawTooltip below reports the hide of a popup that was showing.
 func (s *hoverState) Dispose() {
-	s.cancelTimer()
+	s.disposed = true
 	s.removeKeyHandler()
-	if s.visible {
-		// the overlay goes away with the portal
-		s.visible = false
-		if s.delegate.current == s {
-			s.delegate.current = nil
-		}
-	}
 	if s.ctrl != nil && s.ctrl.state == s {
 		s.ctrl.state = nil
 	}
@@ -337,16 +332,9 @@ func (s *hoverState) Dispose() {
 
 func (s *hoverState) binding() *widgets.WidgetsBinding { return s.bound }
 
-func (s *hoverState) cancelTimer() {
-	if s.timer != nil {
-		s.timer.Cancel()
-		s.timer = nil
-	}
-}
-
 // watchKeys starts to hide the hover on keys, if it is not doing so yet.
 func (s *hoverState) watchKeys() {
-	if !s.watching {
+	if !s.watching && !s.disposed {
 		s.watching = true
 		s.key = s.binding().Keyboard().AddHandler(s.handleKey)
 	}
@@ -362,26 +350,16 @@ func (s *hoverState) removeKeyHandler() {
 
 // Show shows the hover now.
 func (s *hoverState) Show() {
-	s.cancelTimer()
-	if s.visible || !s.Mounted() || !s.Widget().opts.hasContent() {
+	if s.visible || s.disposed || !s.Mounted() || !s.Widget().opts.hasContent() {
 		return
 	}
-	s.visible = true
-	s.delegate.shown(s)
-	s.watchKeys()
-	s.portal.Show()
+	s.tip.Show()
 }
 
 // Hide hides the hover and cancels the wait for it.
 func (s *hoverState) Hide() {
-	s.cancelTimer()
 	s.removeKeyHandler()
-	if !s.visible {
-		return
-	}
-	s.visible = false
-	s.portal.Hide()
-	s.delegate.hidden(s, s.binding().Gestures())
+	s.tip.Hide()
 }
 
 // handleKey hides the hover on a key that is not a modifier, and lets the key go on.
@@ -400,47 +378,82 @@ func (s *hoverState) handleKey(e services.KeyEvent) bool {
 	return false
 }
 
-func (s *hoverState) entered() {
+// delay is the wait for a pointer that enters now: none right after another hover of an instant
+// delegate hid, else the delay of the hover or of the delegate. RawTooltip asks for it when the
+// pointer enters, which is also when the hover starts to watch the keys.
+func (s *hoverState) delay() time.Duration {
 	o := s.Widget().opts
 	if !o.hasContent() {
-		return
+		return 0
 	}
-	s.cancelTimer()
-	if s.visible {
-		return
-	}
-	delay := o.Delay.OrElse(s.delegate.delay)
+	d := o.Delay.OrElse(s.delegate.delay)
 	if s.delegate.recent {
-		delay = 0
+		d = 0
 	}
-	if delay <= 0 {
-		s.Show()
+	if d > 0 {
+		s.watchKeys()
+	}
+	return d
+}
+
+// shown records the popup in the delegate, which hides the one that showed before.
+func (s *hoverState) shown() {
+	s.visible = true
+	if s.disposed {
 		return
 	}
 	s.watchKeys()
-	s.timer = s.binding().Gestures().NewTimer(delay, func() { s.timer = nil; s.Show() })
+	s.delegate.shown(s)
+}
+
+// hidden records the hide in the delegate, which starts the time of the instant rule.
+func (s *hoverState) hidden() {
+	s.visible = false
+	if s.disposed {
+		// the target left the tree: the next hover waits for its delay
+		if s.delegate.current == s {
+			s.delegate.current = nil
+		}
+		return
+	}
+	s.removeKeyHandler()
+	s.delegate.hidden(s, s.binding().Gestures())
 }
 
 // Build implements widgets.State.
 func (s *hoverState) Build(widgets.BuildContext) widgets.Widget {
 	h := s.Widget()
-	target := widgets.NewMouseRegion(
-		widgets.NewListener(h.child, widgets.ListenerOpts{OnPointerDown: func(*gestures.PointerDownEvent) { s.Hide() }, Behavior: rendering.HitTestBehaviorTranslucent}),
-		widgets.MouseRegionOpts{
-			Opaque:          foundation.Some(false),
-			HitTestBehavior: rendering.HitTestBehaviorTranslucent,
-			OnEnter:         func(*gestures.PointerEnterEvent) { s.entered() },
-			OnExit:          func(*gestures.PointerExitEvent) { s.Hide() },
-		})
-	return widgets.NewOverlayPortalOverlayChildLayoutBuilder(s.portal, s.buildOverlay, target)
+	o := h.opts
+	semantics := foundation.None[string]()
+	switch {
+	case !o.hasContent():
+		// an empty tooltip builds nothing but the child
+		semantics = foundation.Some("")
+	case o.Content == nil:
+		semantics = foundation.Some(o.Text)
+	}
+	return widgets.NewRawTooltip(semantics, s.buildPopup, h.child, widgets.RawTooltipOpts{
+		TriggerMode:      widgets.TooltipTriggerModeManual,
+		HoverDelayFunc:   s.delay,
+		DismissDelay:     foundation.Some(time.Duration(0)),
+		AnimationStyle:   animation.AnimationStyle{Duration: foundation.Some(time.Duration(0)), ReverseDuration: foundation.Some(time.Duration(0))},
+		IgnorePointer:    true,
+		OnShown:          s.shown,
+		OnHidden:         s.hidden,
+		Controller:       s.tip,
+		PositionDelegate: s.place,
+	})
 }
 
-func (s *hoverState) buildOverlay(bc widgets.BuildContext, info widgets.OverlayChildLayoutInfo) widgets.Widget {
-	o := s.Widget().opts
-	transform := info.ChildPaintTransform
-	target := transform.TransformRect(ui.NewRectFromLTWH(0, 0, info.ChildSize.Width, info.ChildSize.Height))
-	layout := &hoverLayout{SingleChildLayoutDelegateBase: rendering.NewSingleChildLayoutDelegateBase(nil), target: target, pos: o.Position}
-	return widgets.NewPositionedFill(widgets.NewCustomSingleChildLayout(layout, widgets.NewIgnorePointer(hoverBox(bc, o))))
+// place gives the top left corner of the popup with PlaceHover.
+func (s *hoverState) place(c widgets.TooltipPositionContext) ui.Offset {
+	target := ui.NewRectFromLTWH(c.Target.Dx-c.TargetSize.Width/2, c.Target.Dy-c.TargetSize.Height/2, c.TargetSize.Width, c.TargetSize.Height)
+	offset, _ := PlaceHover(target, c.TooltipSize, c.OverlaySize, s.Widget().opts.Position)
+	return offset
+}
+
+func (s *hoverState) buildPopup(bc widgets.BuildContext, _ animation.Animation[float64]) widgets.Widget {
+	return widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(hoverMaxWidth)}), hoverBox(bc, s.Widget().opts))
 }
 
 // hoverBox is the popup: the text or the content in a box with the colors of the hover.
@@ -471,29 +484,4 @@ func hoverBox(bc widgets.BuildContext, o HoverOpts) widgets.Widget {
 			BorderRadius: painting.NewBorderRadiusCircular(hoverRadius),
 			BoxShadow:    []painting.BoxShadow{painting.NewBoxShadow(painting.BoxShadowOpts{Color: foundation.Some(colors.WidgetShadow), BlurRadius: hoverShadowBlur})},
 		})})
-}
-
-// hoverLayout places the popup with PlaceHover.
-type hoverLayout struct {
-	rendering.SingleChildLayoutDelegateBase
-	target ui.Rect
-	pos    HoverPosition
-}
-
-func (l *hoverLayout) GetConstraintsForChild(c rendering.BoxConstraints) rendering.BoxConstraints {
-	maxWidth := c.MaxWidth
-	if maxWidth > hoverMaxWidth {
-		maxWidth = hoverMaxWidth
-	}
-	return rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(maxWidth), MaxHeight: foundation.Some(c.MaxHeight)})
-}
-
-func (l *hoverLayout) GetPositionForChild(size, childSize ui.Size) ui.Offset {
-	offset, _ := PlaceHover(l.target, childSize, size, l.pos)
-	return offset
-}
-
-func (l *hoverLayout) ShouldRelayout(old rendering.SingleChildLayoutDelegate) bool {
-	o := old.(*hoverLayout)
-	return l.target != o.target || l.pos != o.pos
 }

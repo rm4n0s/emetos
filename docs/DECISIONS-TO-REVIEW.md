@@ -39,3 +39,10 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 ## 2026-10-25: Glutter v1.7.0
 
 17. Glutter v1.7.0 (its steps 27.1–27.10) answers all twelve entries of `docs/GLUTTER-ISSUES.md`. I added step **9b.1b "Glutter 1.7 and the end of the workarounds"** after 9b.1 (9b.1 rewrites the same window code, so the upgrade waits for it): upgrade, replace each `// Glutter:` workaround with the new API, use the split startup log and the headless focus in `scripts/perf.sh`, remove the fixed entries and delete the issues file when it is empty.
+
+## 2026-10-25: step 9b.1b (Glutter 1.7), decided by the agent and accepted by me
+
+18. `docs/GLUTTER-ISSUES.md` is **not** empty after the upgrade: two entries stay, rewritten to what 1.7 still lacks — the tree cannot set a node's expansion from outside (`TreeSliverNode.SetExpanded` asked), and the cold start loses 560–605 ms to a failed Vulkan try before GLES (ask Glutter to try GLES first where Vulkan presents to no output).
+19. The list and tab **drags keep Emetos's own controllers** even though 1.7's `Draggable` could now do it: the custom code already does what the tests pin (scrolling and auto-expand while the pointer rests, Escape, positions across groups); moving would only spread the state over the rows. Possible follow-up, not planned.
+20. **Hovers hide on a press anywhere** now (RawTooltip's behavior; before only a press on the target hid them).
+21. Tests keep the file watcher off by default (`ProcessOptions.WatchFiles`): the leak that forced it is gone, but a live watcher races with tests that stage on-disk changes.

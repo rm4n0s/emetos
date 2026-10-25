@@ -515,23 +515,18 @@ func (s *actionsState) actions(room float64) widgets.Widget {
 		}))
 	}
 	var children []widgets.Widget
-	// Glutter: a Scrollable that leaves the tree in the frame after its metrics changed makes the position post
-	// DidUpdateScrollMetrics to a State that is gone, and the program panics (ScrollPositionBase.post looks the
-	// binding up through the context of a disposed ScrollableState). The filter box has an EditableText, so
-	// when there is no room for it it stays in the tree, offstage, and is not removed (docs/GLUTTER-ISSUES.md).
-	// Glutter should not use the context of a disposed Scrollable in what it posted.
-	width := min(room-buttonsWidth, filterWidth)
-	children = append(children,
-		widgets.NewOffstage(widgets.NewSizedBox(
-			kit.NewInputBox(nil, nil, kit.InputBoxOpts{
-				Key: FilterKey, Controller: v.filter, Placeholder: FilterPlaceholder,
-				OnChanged:     v.model.SetText,
-				OnFocusChange: func(has bool) { v.setKey("problemsFilterFocus", has) },
-			}),
-			widgets.SizedBoxOpts{Width: foundation.Some(max(width, filterMinWidth))}),
-			widgets.OffstageOpts{Offstage: foundation.Some(width < filterMinWidth)}),
-		widgets.NewOffstage(widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}),
-			widgets.OffstageOpts{Offstage: foundation.Some(width < filterMinWidth)}))
+	// with too little room the filter box is left out; its text is the view's, and comes back with it
+	if width := min(room-buttonsWidth, filterWidth); width >= filterMinWidth {
+		children = append(children,
+			widgets.NewSizedBox(
+				kit.NewInputBox(nil, nil, kit.InputBoxOpts{
+					Key: FilterKey, Controller: v.filter, Placeholder: FilterPlaceholder,
+					OnChanged:     v.model.SetText,
+					OnFocusChange: func(has bool) { v.setKey("problemsFilterFocus", has) },
+				}),
+				widgets.SizedBoxOpts{Width: foundation.Some(width)}),
+			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}))
+	}
 	children = append(children,
 		toggle(ToggleKey(SeverityError), fonts.CodiconError, "Show Errors", o.Severities.Has(SeverityError), func() { v.model.ToggleSeverity(SeverityError) }),
 		toggle(ToggleKey(SeverityWarning), fonts.CodiconWarning, "Show Warnings", o.Severities.Has(SeverityWarning), func() { v.model.ToggleSeverity(SeverityWarning) }),

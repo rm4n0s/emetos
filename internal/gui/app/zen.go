@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -45,9 +46,8 @@ func (w *Workspace) SetFullScreen(on bool) error {
 		set(on)
 		return nil
 	}
-	// Glutter: BaseWindowController (what WindowScope gives) has no SetFullscreen, which RegularWindowController has;
-	// an interface assertion reaches it (docs/GLUTTER-ISSUES.md). Glutter should put it in the interface.
-	if c, ok := w.controller.(interface{ SetFullscreen(bool) }); ok {
+	// a dialog's controller is not maximizable, which is no window of the editor
+	if c, ok := w.controller.(widgets.MaximizableWindowController); ok {
 		c.SetFullscreen(on)
 		return nil
 	}

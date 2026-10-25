@@ -195,11 +195,12 @@ type dragHost interface {
 // dragController turns the pointer events of a list or tree into a drag: it recognizes the start, finds the
 // target under the pointer, scrolls the view near its edges, expands a folder the drag rests on and drops.
 //
-// Glutter: widgets.Draggable starts a mouse drag after 1 px of movement (PrecisePointerHitSlop, no option), so
-// a click with a shaky hand would become a drag and lose its tap, and nothing can cancel a drag from the
-// keyboard; DragTarget only reports moves of the pointer, which is not enough to scroll while the pointer
-// rests near an edge. The drag is built on the pointer events of a Listener instead (docs/GLUTTER-ISSUES.md,
-// 6.4b). Glutter should provide a drag slop and a way to cancel a drag.
+// It is built on the pointer events of one Listener around the rows, not on widgets.Draggable and DragTarget,
+// although Glutter 1.7 has what the first version of this lacked (DraggableOpts.Slop, CancelOnEscape and
+// DragTargetOpts.RepeatMove): the rows of a list come and go as it scrolls, so one controller in the state of the
+// list holds the drag, finds the target from the geometry of the rows (dragSession, which knows nothing of widgets
+// and has tests of its own) and drives the scrolling and the expanding with the timers of the binding. Moving it
+// to Draggable would give the same behavior with the state spread over the rows, so it stays.
 type dragController struct {
 	host dragHost
 	dnd  func() *DragAndDrop

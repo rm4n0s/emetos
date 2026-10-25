@@ -509,10 +509,11 @@ func (s *tabState) down(e *gestures.PointerDownEvent) {
 
 // move follows the pointer that is pressed on the tab: past the slop it starts a drag.
 //
-// Glutter: widgets.Draggable starts a mouse drag after 1 px (no option for the slop) and nothing cancels a
-// drag from the keyboard, so the drag of a tab is built on the pointer events of the tab's Listener, with
-// its own slop of 4 px and an Escape handler of the keyboard (docs/GLUTTER-ISSUES.md, 6.4b and 6.10).
-// Glutter should provide a drag slop and a way to cancel a drag.
+// The drag of a tab is built on the pointer events of the tab's Listener, with a slop of 4 px and an Escape handler
+// of the keyboard, not on widgets.Draggable (Glutter 1.7 has its Slop and CancelOnEscape): the window finds the strips
+// and the editor areas the tab can be dropped on by their places on the screen (kit.Bounds, TabsController, and
+// shellState.scrollNearEdge in the app), over several groups, which a Draggable with one DragTarget per strip would
+// not make simpler, and the press that starts the drag also activates the tab and counts double clicks.
 func (s *tabState) move(e *gestures.PointerMoveEvent) {
 	if !s.pressed || e.Pointer() != s.pointer || s.cancelled {
 		return

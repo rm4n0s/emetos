@@ -93,7 +93,7 @@ func TestGoldenSaving(t *testing.T) {
 		})
 		t.Run(th.name+" path prompt", func(t *testing.T) {
 			a := goldenSave(t, th.theme)
-			a.win.SaveDialog = unavailable
+			a.fd.DisableFileChooser()
 			a.run("workbench.action.files.saveAs")
 			a.waitFor("the prompt", func() bool { return a.win.QuickInput.Prompting() })
 			a.win.QuickInput.SetValue("/no/such/folder/new.go")

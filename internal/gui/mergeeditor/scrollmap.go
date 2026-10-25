@@ -8,7 +8,7 @@ import (
 
 // Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/model/mapping.ts (DocumentLineRangeMap) and
 // src/vs/workbench/contrib/mergeEditor/browser/view/scrollSynchronizer.ts (_synchronizeScrolling). This file imports no
-// Glutter: the maps and the scroll arithmetic are plain data.
+// part of the toolkit: the maps and the scroll arithmetic are plain data.
 
 // LinePair maps a range of lines of one text (In) to the range of lines of another text (Out) that corresponds to
 // it (lines are counted from 1, the end is excluded).

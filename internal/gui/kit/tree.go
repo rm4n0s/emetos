@@ -127,13 +127,13 @@ type treeContent struct{ Key string }
 // several nodes can be selected (Ctrl, Shift); typing starts a find box that highlights or filters the nodes
 // (TreeItem.Label); with DragAndDrop nodes can be dragged and dropped on, before and after other nodes.
 //
-// Glutter's TreeSliver has limits that shape this widget. It draws no twistie of its own that we use, and
-// toggles only nodes that have children, so a node that is not read has a placeholder child; its nodes
-// can not be removed, so the model owns the expansion state (by key) and every change of the model makes
-// the nodes again, showing only the expanded part; the toggle animation is off
-// (animation.AnimationStyleNoAnimation) because rows come and go with the model; and its contents are
-// compared with reflect.DeepEqual, so a node holds only its key. The focus, the selection and the keys
-// are Emetos's own: they are in the model.
+// Glutter's TreeSliver keeps whether a node is expanded in the node, and offers no way to set that on a
+// node that exists (Glutter 1.7 lets an app change the children of a node, make a node lazy and key the
+// contents, but not set the expansion). The expansion is the model's (by key, also of the nodes that are not
+// shown, and what the find filter shows), so every change of the model makes the nodes again, showing only
+// the expanded part; the toggle animation is off (animation.AnimationStyleNoAnimation) because rows come and
+// go with the model; and its contents are compared with reflect.DeepEqual, so a node holds only its key. The
+// focus, the selection and the keys are Emetos's own: they are in the model.
 //
 // The model is used on the UI thread only; a reading in the background hands its answer over with the
 // binding's Post.
@@ -595,9 +595,10 @@ func (s *treeState) setOverTree(over bool) {
 // glutterNodes makes the nodes of the TreeSliver from the entries of the model: only the expanded part
 // has its children, and a node that is not read has the placeholder as its only child.
 //
-// Glutter: TreeSliver cannot remove nodes, toggles only nodes that have children and keeps the expansion in
-// its nodes, so the model owns the state and the nodes are made again at every change; Glutter should let a
-// node be expandable without children and let the app replace children (docs/GLUTTER-ISSUES.md, 6.4).
+// Glutter: TreeSliver (1.7) cannot set the expansion of a node that exists, and with TreeSliverOpts.NodeKey a
+// tree built again with new nodes keeps the expansion of the old ones, which would undo the model's, so the
+// model owns the state and the nodes are made again at every change. Glutter should let the app say which
+// nodes are expanded (docs/GLUTTER-ISSUES.md, 6.4).
 func (s *treeState) glutterNodes(entries []*treeEntry) []*widgets.TreeSliverNode[treeContent] {
 	m := s.model
 	filtering := m.find.filtering()

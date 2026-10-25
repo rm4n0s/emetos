@@ -121,13 +121,11 @@ type Workspace struct {
 	// FileOps does the file operations of the Explorer and keeps their history for undo and redo
 	// (SPEC §10.5). Its trash is the user's, in $XDG_DATA_HOME/Trash.
 	FileOps *workspace.FileOps
-	// Glutter: gluttertest.FakeDesktop cannot make the file chooser portal unavailable, so tests replace the dialog
-	// to reach the prompt that takes its place; Glutter should provide a fake desktop without a file chooser.
-	//
 	// SaveDialog asks the user for the file to save a document in (Save As); it is the file chooser of the desktop
 	// when nil (chooseSavePath). It is called on a goroutine and gives "" for a dialog that was cancelled. A
 	// desktop with no file chooser gives an error whose cause has the tag FileChooserUnavailable, and the window
-	// asks for the path in the quick input instead. Tests replace it.
+	// asks for the path in the quick input instead. Tests use the fake desktop of the tester (a chooser that
+	// answers, or FakeDesktop.DisableFileChooser); they replace this only for a dialog that fails some other way.
 	SaveDialog func(ctx context.Context, bc widgets.BuildContext, opts SaveDialogOptions) (string, error)
 	// OpenURI opens a URI with the desktop; it is desktop.OpenURI when nil. Tests replace it.
 	OpenURI func(ctx context.Context, bc widgets.BuildContext, uri string) error
@@ -163,7 +161,7 @@ type Workspace struct {
 	stops []func()
 	// controller is the controller of the platform window that shows this one, as the shell found it; nil
 	// where there is none.
-	controller any
+	controller widgets.WindowController
 	// onReady holds what waits for the shell to be on screen (whenReady).
 	onReady []func()
 	// emptyID is the state id the window has while it has no folder, when it was made with one (a window that comes

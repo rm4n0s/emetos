@@ -707,16 +707,34 @@ func TestEachKindOfChangeSavesTheState(t *testing.T) {
 	}
 }
 
-// fakeWindow is a window controller that tells its size and state.
+// fakeWindow is a window controller that tells its size and state. It embeds a nil Glutter controller, which
+// gives it the unexported method of the interface; the methods below are all it does.
 type fakeWindow struct {
+	widgets.MaximizableWindowController
 	foundation.ChangeNotifier
 	size                  ui.Size
 	maximized, fullscreen bool
+	title                 string
+	activated             int
 }
 
-func (f *fakeWindow) ContentSize() ui.Size { return f.size }
-func (f *fakeWindow) IsMaximized() bool    { return f.maximized }
-func (f *fakeWindow) IsFullscreen() bool   { return f.fullscreen }
+// AddListener and RemoveListener are the notifier's: the embedded controller has them too.
+func (f *fakeWindow) AddListener(l foundation.VoidCallback) foundation.ListenerHandle {
+	return f.ChangeNotifier.AddListener(l)
+}
+
+func (f *fakeWindow) RemoveListener(h foundation.ListenerHandle) { f.ChangeNotifier.RemoveListener(h) }
+
+func (f *fakeWindow) ContentSize() ui.Size  { return f.size }
+func (f *fakeWindow) IsMaximized() bool     { return f.maximized }
+func (f *fakeWindow) IsFullscreen() bool    { return f.fullscreen }
+func (f *fakeWindow) Title() string         { return f.title }
+func (f *fakeWindow) SetTitle(title string) { f.title = title }
+func (f *fakeWindow) Activate()             { f.activated++ }
+func (f *fakeWindow) IsActivated() bool     { return f.activated > 0 }
+func (f *fakeWindow) SetMinimized(bool)     {}
+func (f *fakeWindow) IsMinimized() bool     { return false }
+func (f *fakeWindow) SetMaximized(on bool)  { f.maximized = on }
 
 func TestTheGeometryOfTheWindowIsKeptWhileItIsNeitherMaximizedNorFullScreen(t *testing.T) {
 	env := newStateEnv(t, nil)

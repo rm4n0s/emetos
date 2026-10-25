@@ -7,7 +7,6 @@ import (
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/rendering"
-	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 )
@@ -235,14 +234,11 @@ type splitViewState struct {
 	notifying bool
 	// alt is whether Alt was held at the last event of the drag.
 	alt bool
-	// dragged is the sash being dragged, or -1.
-	dragged int
 }
 
 // InitState reads the binding and the controller.
 func (s *splitViewState) InitState() {
 	s.binding = widgets.WidgetsBindingOf(s.Context())
-	s.dragged = -1
 	s.scroller = &splitScroll{ChangeNotifier: *foundation.NewChangeNotifier(), state: s}
 	if c := s.Widget().opts.Controller; c != nil {
 		c.state = s
@@ -395,7 +391,6 @@ func (s *splitViewState) sashStart(index int, e SashEvent) {
 		return
 	}
 	s.alt = e.Alt
-	s.dragged = index
 	s.model.SashStart(index, s.along(e.StartX, e.StartY), e.Alt)
 }
 
@@ -416,7 +411,6 @@ func (s *splitViewState) sashEnd() {
 		return
 	}
 	s.model.SashEnd()
-	s.dragged = -1
 	s.SetState(func() {})
 	s.notify()
 }
@@ -507,17 +501,7 @@ func (s *splitViewState) content() widgets.Widget {
 			OnDidReset:  func() { s.sashReset(i) },
 		}), m.SashPosition(i)-sashSize/2, sashSize))
 	}
-	// Glutter: a cursor can only be set by the region the pointer is over, so the resize cursor
-	// of a drag is lost when the pointer outruns the sash (a pane that cannot shrink any more).
-	// A region over the whole split view, always there so that the panes keep their state, holds
-	// the cursor while a sash is dragged. Glutter should let a pointer that is pressed keep the
-	// cursor of the region it was pressed on (see docs/GLUTTER-ISSUES.md).
-	cursor := services.MouseCursorDefer
-	if s.dragged >= 0 && s.dragged < len(m.SashStates()) {
-		cursor = SashCursor(orientation, m.SashStates()[s.dragged])
-	}
-	stack := widgets.NewMouseRegion(widgets.NewStack(children, widgets.StackOpts{Fit: rendering.StackFitExpand}),
-		widgets.MouseRegionOpts{Cursor: cursor, Opaque: foundation.Some(false)})
+	stack := widgets.NewStack(children, widgets.StackOpts{Fit: rendering.StackFitExpand})
 	bars := ScrollableElementOpts{Model: s.scroller, Vertical: ScrollbarHidden, Horizontal: ScrollbarHidden, HandleMouseWheel: foundation.Some(true)}
 	if horizontal {
 		bars.Horizontal = w.opts.Scrollbar
