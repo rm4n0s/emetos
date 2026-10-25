@@ -49,3 +49,20 @@ func TestMergeEditorResolvedGolden(t *testing.T) {
 		})
 	}
 }
+
+// TestMergeEditorActionsGolden shows the rows of actions above the conflicts after the first conflict was resolved with the
+// incoming side: the result says "Incoming" with "Remove Incoming", the current side offers "Accept Current" and the
+// combination, and the incoming side has an empty row; the second conflict has all its actions and "No Changes Accepted".
+func TestMergeEditorActionsGolden(t *testing.T) {
+	for _, th := range goldenThemes {
+		t.Run(th.name, func(t *testing.T) {
+			inputs, _ := goMerge()
+			r := newRig(t, rigConfig{inputs: inputs, size: ui.Size{Width: 1000, Height: 840}, colors: th.colors(), highlight: th.theme})
+			if err := r.model.Accept(0, diff.AcceptInput1); err != nil {
+				t.Fatal(err)
+			}
+			r.settle()
+			testutil.MatchesGolden(r.ts, "merge_actions_"+th.name)
+		})
+	}
+}

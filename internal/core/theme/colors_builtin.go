@@ -134,6 +134,8 @@ func registerEditorColors(r *ColorRegistry) {
 			Description: "Color of the active editor indentation guides (6)."},
 		ColorContribution{ID: "editorRuler.foreground", Defaults: dflt(Hex("#5A5A5A"), Lit(ColorLightGrey), Lit(ColorWhite), Hex("#292929")),
 			Description: "Color of the editor rulers."},
+		ColorContribution{ID: "editorCodeLens.foreground", Defaults: dflt(Hex("#999999"), Hex("#919191"), Hex("#999999"), Hex("#292929")),
+			Description: "Foreground color of editor CodeLens"},
 		ColorContribution{ID: "editorBracketMatch.background", Defaults: dflt(Hex("#0064001a"), Hex("#0064001a"), Hex("#0064001a"), Hex("#0000")),
 			Description: "Background color behind matching brackets"},
 		ColorContribution{ID: "editorBracketMatch.border", Defaults: dflt(Hex("#888"), Hex("#B9B9B9"), Ref("contrastBorder"), Ref("contrastBorder")),

@@ -468,3 +468,29 @@ func TestPaletteRulesOfTheInlineView(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeEditorActionCommands(t *testing.T) {
+	r := DefaultRegistry()
+	for id, title := range map[string]string{
+		"merge.acceptAllInput1":                     "Accept All Incoming Changes from Left",
+		"merge.acceptAllInput2":                     "Accept All Current Changes from Right",
+		"merge.toggleActiveConflictInput1":          "Toggle Current Conflict from Left",
+		"merge.toggleActiveConflictInput2":          "Toggle Current Conflict from Right",
+		"mergeEditor.resetResultToBaseAndAutoMerge": "Reset Result",
+		"mergeEditor.acceptAllCombination":          "Accept All Combination",
+		"mergeEditor.acceptMerge":                   "Complete Merge",
+	} {
+		got, ok := r.Lookup(id)
+		if !ok {
+			t.Errorf("%s is not registered", id)
+			continue
+		}
+		if got.Title != title || got.Category != "Merge Editor" {
+			t.Errorf("%s: title %q category %q, want %q in Merge Editor", id, got.Title, got.Category, title)
+		}
+		// they need a merge editor
+		if got.Precondition == nil || !got.Precondition.Evaluate(contextkey.MapContext{"isMergeEditor": true}) || got.Precondition.Evaluate(contextkey.MapContext{}) {
+			t.Errorf("%s: precondition %v", id, got.Precondition)
+		}
+	}
+}

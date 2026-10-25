@@ -237,6 +237,8 @@ type shellState struct {
 	removeOpenFile, removeOpenMenu func()
 	// removeOpenDiff takes the handler of dev.openDiff off the registry.
 	removeOpenDiff func()
+	// removeDevMerge take the handlers of dev.openMergeEditor and dev.acceptMerge off the registry.
+	removeDevMerge []func()
 	// compare is what the comparisons remember (compare.go).
 	compare compareState
 	// quickPrefixes are the prefixes of the quick access providers the shell registered, and
@@ -311,6 +313,7 @@ func (s *shellState) InitState() {
 	s.initLaunch(binding)
 	s.bindDevOpenFile(binding)
 	s.bindDevOpenDiff()
+	s.bindDevMerge()
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
 	s.unsubscribeTitle = PeekWindow(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
@@ -383,6 +386,9 @@ func (s *shellState) Dispose() {
 	s.disposeLaunch() // before the documents close: a wait ends with the window
 	if s.removeOpenDiff != nil {
 		s.removeOpenDiff()
+	}
+	for _, remove := range s.removeDevMerge {
+		remove()
 	}
 	if s.removeOpenFile != nil {
 		s.removeOpenFile()

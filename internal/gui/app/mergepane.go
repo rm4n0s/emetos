@@ -41,9 +41,16 @@ const (
 	MergeConflictsButton = "Resolve in Merge Editor"
 	// MergeNoConflictsNotice is what git.openMergeEditor says about a file without conflict markers.
 	MergeNoConflictsNotice = "This file has no merge conflicts."
-	// MergeNotCompletedNotice is the message of `--merge --wait` when the merge editor was closed. (Step 9.8 makes
-	// Complete Merge end it with exit code 0.)
+	// MergeNotCompletedNotice is the message of `--merge --wait` when the merge editor was closed (or the window was) without
+	// Complete Merge: the exit code is 1. A merge that was completed ends the wait with exit code 0.
 	MergeNotCompletedNotice = "The merge was not completed."
+	// MergeCompleteMessage and MergeCompleteDetail are the question asked when Complete Merge finds conflicts that are not
+	// handled (VS Code's words; the message is followed by the name of the file and a question mark).
+	MergeCompleteMessage = "Do you want to complete the merge of "
+	// MergeCompleteDetail is the detail of the question of Complete Merge.
+	MergeCompleteDetail = "The file contains unhandled conflicts."
+	// MergeCompleteButton is the button of the question that completes the merge (VS Code's "&&Complete with Conflicts").
+	MergeCompleteButton = "Complete with Conflicts"
 	// mergeNoticeLimit is the largest text that is looked at for conflict markers when a file opens.
 	mergeNoticeLimit = 2 << 20
 	// mergeDiffLimit is how long the diffs of a merge may take; past it the ranges are coarse (a whole block).
@@ -77,6 +84,9 @@ type mergeState struct {
 	prepared map[*editorgroup.MergeInput]*mergePrepared
 	// number gives the virtual documents of the inputs their URIs.
 	number int
+	// completed are the merge editors whose merge was completed (Complete Merge): their tab is closed by the completion, which
+	// is not the merge editor being given up (`--merge --wait` ends with exit code 0 for it, 1 for the others).
+	completed map[*editorgroup.MergeInput]bool
 }
 
 // ---- preparing a merge ----
@@ -159,8 +169,10 @@ type mergePane struct {
 	session *mergeeditor.Session
 	model   *mergeeditor.Model
 	// failed is why the pane has no merge editor; the pane then says so.
-	failed   error
-	disposed bool
+	failed error
+	// completing is set while Complete Merge asks or saves, so that a second press does not start a second one.
+	completing bool
+	disposed   bool
 }
 
 // newMergePane makes the pane of an input from the merge that was prepared for it (or, for an input that was not, from the
@@ -230,28 +242,15 @@ func buildMergePane(s *shellState, input *editorgroup.MergeInput, prep *mergePre
 	return p
 }
 
-// displayPath is the path of a file for a label: relative to the folder of the window when it is inside it, else with the home
-// folder written "~".
+// displayPath is the label of the result of a merge: the base name of its file.
 func (s *shellState) displayPath(doc *document.Document) string {
-	return mergeDisplayPath(doc.URI(), s.inputOptions())
+	return mergeDisplayPath(doc.URI())
 }
 
-// mergeDisplayPath is the label of the result of a merge: the folder the description of the tab gives, and the name.
-func mergeDisplayPath(uri document.URI, opts editorgroup.TextInputOpts) string {
-	if uri.Scheme != document.SchemeFile {
-		return uri.Title()
-	}
-	if opts.Folder != "" {
-		if rel, err := filepath.Rel(opts.Folder, uri.Path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return rel
-		}
-	}
-	if opts.Home != "" {
-		if rel, err := filepath.Rel(opts.Home, uri.Path); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return "~" + string(filepath.Separator) + rel
-		}
-	}
-	return uri.Path
+// mergeDisplayPath is the label of the result of a merge, as VS Code labels a file: its base name, never a path (the
+// tooltip of the tab has the whole path).
+func mergeDisplayPath(uri document.URI) string {
+	return uri.Title()
 }
 
 // Model is the model of the merge editor of the pane; nil for a pane that failed.
@@ -272,6 +271,7 @@ func (p *mergePane) build(bc widgets.BuildContext, group *editorgroup.Group, act
 	}
 	return p.wrap(p.s, group, mergeeditor.NewWidget(p.model, mergeeditor.WidgetOpts{
 		Incoming: opts(p.sides[0], false), Current: opts(p.sides[1], false), Result: opts(p.sides[2], active),
+		OnCompleteMerge: func() { p.s.completeMerge(p) },
 	}))
 }
 
@@ -550,9 +550,42 @@ func (s *shellState) mergeCommands() map[string]command.Handler {
 			return nil
 		}
 	}
+	// act runs an action of the merge editor of the active group; a failure of the action is logged, as the click of a
+	// link does (the editor is still there, and the result is as it was)
+	act := func(do func(*mergePane) error) command.Handler {
+		return func(command.Context, any) error {
+			if p := s.activeMergePane(); p != nil {
+				if err := do(p); err != nil {
+					PeekWindow(s.Context()).Process.Logger.Warn("the merge editor action failed", "err", err)
+				}
+			}
+			return nil
+		}
+	}
+	toggle := func(in diff.Input) command.Handler {
+		return act(func(p *mergePane) error {
+			ok, err := p.model.ToggleActive(in)
+			if !ok && err == nil {
+				PeekWindow(s.Context()).Notify.Error("Emetos", "There is currently no conflict focused that can be toggled.")
+			}
+			return err
+		})
+	}
 	return map[string]command.Handler{
-		"merge.goToNextUnhandledConflict":     goTo(true),
-		"merge.goToPreviousUnhandledConflict": goTo(false),
+		"merge.goToNextUnhandledConflict":           goTo(true),
+		"merge.goToPreviousUnhandledConflict":       goTo(false),
+		"merge.toggleActiveConflictInput1":          toggle(diff.Input1),
+		"merge.toggleActiveConflictInput2":          toggle(diff.Input2),
+		"merge.acceptAllInput1":                     act(func(p *mergePane) error { return p.model.AcceptAll(diff.Input1) }),
+		"merge.acceptAllInput2":                     act(func(p *mergePane) error { return p.model.AcceptAll(diff.Input2) }),
+		"mergeEditor.acceptAllCombination":          act(func(p *mergePane) error { return p.model.AcceptAllCombination() }),
+		"mergeEditor.resetResultToBaseAndAutoMerge": act(func(p *mergePane) error { return p.model.ResetResult() }),
+		"mergeEditor.acceptMerge": func(command.Context, any) error {
+			if p := s.activeMergePane(); p != nil {
+				s.completeMerge(p)
+			}
+			return nil
+		},
 		"git.openMergeEditor": func(_ command.Context, args any) error {
 			return s.openMergeEditorCommand(args)
 		},
@@ -560,6 +593,68 @@ func (s *shellState) mergeCommands() map[string]command.Handler {
 			return s.openMergeEditorWith(args)
 		},
 	}
+}
+
+// ---- complete merge ----
+
+// completeMerge is mergeEditor.acceptMerge ("Complete Merge", Ctrl+Enter, and the button of the result header): when conflicts
+// are not handled it asks whether to complete the merge with them (VS Code's confirmation; Cancel changes nothing); then it
+// saves the result document, which is the file itself for a marker file and the `result` path of --merge, and closes the
+// merge editor. A marker file is then shown in a text editor in the same group. The merge counts as completed for
+// `--merge --wait`, which ends with exit code 0.
+//
+// Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/commands/commands.ts (AcceptMerge) and
+// mergeEditorInputModel.ts (accept)
+func (s *shellState) completeMerge(p *mergePane) {
+	if p.model == nil || p.completing || p.disposed {
+		return
+	}
+	if unhandled := p.model.Session().Model().UnhandledCount(); unhandled > 0 {
+		p.completing = true
+		s.confirm(confirmSpec{
+			Type: kit.DialogQuestion, Message: MergeCompleteMessage + p.input.Result().URI().Title() + "?",
+			Detail: MergeCompleteDetail, Primary: MergeCompleteButton,
+		}, func(confirmed, _ bool) {
+			p.completing = false
+			if confirmed && s.Mounted() && !p.disposed {
+				s.saveMerge(p)
+			}
+		})
+		return
+	}
+	s.saveMerge(p)
+}
+
+// saveMerge saves the result of a merge and, once it is written, finishes the merge.
+func (s *shellState) saveMerge(p *mergePane) {
+	p.completing = true
+	s.saveDocument(p.input.Result(), saveRequest{}, func(saved bool) {
+		p.completing = false
+		if saved && s.Mounted() && !p.disposed {
+			s.finishMerge(p)
+		}
+	})
+}
+
+// finishMerge ends a merge whose result was saved: the merge counts as completed, a marker file opens in a text editor of
+// the group the merge editor is in (VS Code shows the file again once the merge editor is closed), and the merge editor
+// closes.
+func (s *shellState) finishMerge(p *mergePane) {
+	win := PeekWindow(s.Context())
+	doc := p.input.Result()
+	group, input := s.mergeEditorOf(doc)
+	if input == nil {
+		return
+	}
+	if s.merge.completed == nil {
+		s.merge.completed = map[*editorgroup.MergeInput]bool{}
+	}
+	s.merge.completed[input] = true
+	if input.Source().Kind == editorgroup.MergeMarkers {
+		win.Documents.Retain(doc)
+		s.show(s.binding, doc, openOptions{Group: group, NoMergeNotice: true})
+	}
+	s.closeEditors(group, []editorgroup.EditorInput{input})
 }
 
 // openMergeEditorCommand is git.openMergeEditor ("Resolve in Merge Editor"): it opens the merge editor for the file of the

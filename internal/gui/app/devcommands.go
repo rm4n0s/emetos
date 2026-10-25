@@ -142,6 +142,8 @@ func registerDevCommands(r *command.Registry) {
 		{ID: "dev.scroll", Description: "Scroll the focused editor by rows in every frame."},
 		{ID: "dev.openFile", Description: "Open a file in the window, with the cursor at a line and a column."},
 		{ID: "dev.openDiff", Description: `Open a comparison of two files in the active group. Arguments: {"original": ..., "modified": ...}.`},
+		{ID: "dev.openMergeEditor", Description: `Open a file with conflict markers in the merge editor. Arguments: {"path": ...}.`},
+		{ID: "dev.acceptMerge", Description: `Resolve a conflict of the merge editor. Arguments: {"conflict": ..., "side": "incoming"|"current"|"both"|"base"}.`},
 		{ID: "dev.openMenu", Description: "Open a menu of the window: one of the menu bar, the Manage menu or the context menu of the editor."},
 		{ID: "dev.openFolderInNewWindow", Description: `Open a folder in a new window. Arguments: {"path": ...}.`},
 		{ID: "dev.switchProfile", Description: `Give the window another profile, in place. Arguments: {"name": ...}.`},

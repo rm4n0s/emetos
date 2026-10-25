@@ -91,6 +91,7 @@ func TestDefaultColors(t *testing.T) {
 		{"editorBracketPairGuide.background1", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"},
 		{"editorBracketPairGuide.activeBackground6", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"},
 		{"editorRuler.foreground", "#5a5a5a", "#d3d3d3", "#ffffff", "#292929"},
+		{"editorCodeLens.foreground", "#999999", "#919191", "#999999", "#292929"},
 		{"scrollbar.shadow", "#000000", "#dddddd", none, none},
 		{"scrollbarSlider.background", "rgba(121, 121, 121, 0.4)", "rgba(100, 100, 100, 0.4)", "rgba(111, 195, 223, 0.6)", "rgba(15, 74, 133, 0.4)"},
 		{"scrollbarSlider.hoverBackground", "rgba(100, 100, 100, 0.7)", "rgba(100, 100, 100, 0.7)", "rgba(111, 195, 223, 0.8)", "rgba(15, 74, 133, 0.8)"},

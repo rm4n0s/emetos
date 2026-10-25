@@ -276,6 +276,9 @@ type Colors struct {
 	MergeChange, MergeChangeWord                                                                                       ui.Color
 	MergeUnhandledUnfocusedBorder, MergeUnhandledFocusedBorder, MergeHandledUnfocusedBorder, MergeHandledFocusedBorder ui.Color
 	MergeConflictInput1Background, MergeConflictInput2Background                                                       ui.Color
+	// CodeLensForeground is editorCodeLens.foreground: the color of the action rows over the conflicts of the merge
+	// editor (step 9.8), which are VS Code's code lenses.
+	CodeLensForeground ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -491,6 +494,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		MergeHandledFocusedBorder:     color("mergeEditor.conflict.handledFocused.border"),
 		MergeConflictInput1Background: color("mergeEditor.conflict.input1.background"),
 		MergeConflictInput2Background: color("mergeEditor.conflict.input2.background"),
+		CodeLensForeground:            color("editorCodeLens.foreground"),
 	}
 }
 

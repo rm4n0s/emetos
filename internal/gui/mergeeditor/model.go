@@ -67,7 +67,7 @@ type ModelOpts struct {
 	// makes its own for a side that has none.
 	Focus [3]*editor.EditorFocus
 	// IncomingLabel and CurrentLabel are what the headers of the inputs say after their titles (the branch of the
-	// marker, the name of the file of --merge); ResultLabel is what the header of the result says (the path).
+	// marker, the name of the file of --merge); ResultLabel is what the header of the result says (the name of its file).
 	IncomingLabel, CurrentLabel, ResultLabel string
 	// Post hands a function to the UI thread (the binding's Post). Required.
 	Post func(func())
@@ -88,6 +88,8 @@ type Model struct {
 
 	// zones are the alignment zones of the two inputs.
 	zones [2][]editor.ZoneID
+	// actionZones are the zones of the rows of actions above the conflicts, in each of the three editors (actions.go).
+	actionZones [3][]actionZone
 	// syncing is set while one editor scrolls the others, so that the scroll does not come back.
 	syncing bool
 	// leader is the editor that scrolled last; the others follow it when the sizes change.
@@ -129,6 +131,7 @@ func NewModel(opts ModelOpts) *Model {
 	}
 	m.stops = append(m.stops, m.sess.OnChange(m.sessionChanged))
 	m.alignInputs()
+	m.addActionZones()
 	m.decorate()
 	return m
 }
@@ -414,6 +417,7 @@ func (m *Model) queueRealign() {
 	m.opts.Post(func() {
 		m.realigns = false
 		if !m.disposed {
+			m.syncActionZones()
 			m.follow(m.leader)
 		}
 	})
@@ -660,20 +664,27 @@ func (m *Model) Dispose() {
 		vm.RemoveSelectionListener(m.sels[i])
 		vm.DisposeMarks()
 		vm.SetLineBlocks(nil)
+		var ids []editor.ZoneID
 		if i < 2 {
-			ids := m.zones[i]
-			if err := vm.ChangeZones(func(c editor.ZoneChanges) error {
-				var first error
-				for _, id := range ids {
-					if err := c.Remove(id); err != nil && first == nil {
-						first = err
-					}
+			ids = m.zones[i]
+		}
+		for _, z := range m.actionZones[i] {
+			ids = append(ids, z.id)
+		}
+		if err := vm.ChangeZones(func(c editor.ZoneChanges) error {
+			var first error
+			for _, id := range ids {
+				if err := c.Remove(id); err != nil && first == nil {
+					first = err
 				}
-				return first
-			}); err != nil && m.opts.OnError != nil {
-				m.opts.OnError(err)
 			}
+			return first
+		}); err != nil && m.opts.OnError != nil {
+			m.opts.OnError(err)
+		}
+		if i < 2 {
 			m.zones[i] = nil
 		}
+		m.actionZones[i] = nil
 	}
 }

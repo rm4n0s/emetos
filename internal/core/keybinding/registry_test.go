@@ -124,6 +124,8 @@ func TestDefaultKeymap(t *testing.T) {
 		{"ctrl+]", nil, "ctrl+]", "editor.action.indentLines"},
 		{"ctrl+[", nil, "ctrl+[", "editor.action.outdentLines"},
 		{"ctrl+enter", nil, "ctrl+enter", "editor.action.insertLineAfter"},
+		{"ctrl+enter in a merge editor completes the merge", map[string]any{"isMergeEditor": true}, "ctrl+enter", "mergeEditor.acceptMerge"},
+		{"ctrl+enter in a merge editor that is not the active editor", map[string]any{"isMergeEditor": false}, "ctrl+enter", "editor.action.insertLineAfter"},
 		{"ctrl+shift+enter", nil, "ctrl+shift+enter", "editor.action.insertLineBefore"},
 		{"ctrl+d", nil, "ctrl+d", "editor.action.addSelectionToNextFindMatch"},
 		{"ctrl+shift+l", nil, "ctrl+shift+l", "editor.action.selectHighlights"},

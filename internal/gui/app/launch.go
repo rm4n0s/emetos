@@ -195,9 +195,10 @@ type launchWait struct {
 	open map[*document.Document]bool
 	// diffs are the diff editors it opened that are not closed yet.
 	diffs map[*editorgroup.DiffInput]bool
-	// merges are the merge editors it opened that are not closed yet, and merged tells that it opened one.
-	merges map[*editorgroup.MergeInput]bool
-	merged bool
+	// merges are the merge editors it opened that are not closed yet; abandoned tells that one of them was closed without
+	// Complete Merge.
+	merges    map[*editorgroup.MergeInput]bool
+	abandoned bool
 	// pending is how many files are still being read; failed is how many could not be opened.
 	pending, failed int
 	// tracked is how many documents it has opened and shown.
@@ -234,6 +235,11 @@ func (s *shellState) disposeLaunch() {
 		l.stopWatch = nil
 	}
 	for _, w := range slices.Clone(l.waits) {
+		if len(w.merges) > 0 || w.abandoned {
+			// the window closes with a merge that was not completed
+			s.finishWait(w, LaunchOutcome{ExitCode: 1, Message: MergeNotCompletedNotice})
+			continue
+		}
 		s.finishWait(w, LaunchOutcome{})
 	}
 	if win := s.win; win != nil {
@@ -452,8 +458,8 @@ func (s *shellState) launchDiffClosed(input *editorgroup.DiffInput) {
 // openLaunchMerge opens the merge editor of --merge: the four files (the two sides, the base and the result) are read in
 // the background and the merge is shown in the active group, the first path on the left (incoming) and the second on
 // the right (current). A file that cannot be read is reported and nothing is shown. The merge editor is tracked by w, so
-// that --wait ends when its tab is closed; the exit code is 1 then (the merge was not completed: step 9.8 makes
-// Complete Merge end the wait with 0). then is called once the merge is shown, or has failed; nothing is done for a
+// that --wait ends when its tab is closed: with exit code 0 when Complete Merge closed it, and 1 when it was closed any other
+// way (the merge was not completed). then is called once the merge is shown, or has failed; nothing is done for a
 // launch with no --merge.
 func (s *shellState) openLaunchMerge(paths []string, w *launchWait, then func()) {
 	if len(paths) == 0 {
@@ -477,17 +483,22 @@ func (s *shellState) openLaunchMerge(paths []string, w *launchWait, then func())
 			return
 		}
 		w.merges[input] = true
-		w.merged = true
 		w.tracked++
 		then()
 	})
 }
 
-// launchMergeClosed is told that a merge editor was closed: a launch that waits for it may be over.
+// launchMergeClosed is told that a merge editor was closed: a launch that waits for it may be over. A merge editor that
+// was closed by Complete Merge was completed; one that was closed any other way (its tab, the window) was given up.
 func (s *shellState) launchMergeClosed(input *editorgroup.MergeInput) {
+	completed := s.merge.completed[input]
+	delete(s.merge.completed, input)
 	for _, w := range slices.Clone(s.launches.waits) {
 		if w.merges[input] {
 			delete(w.merges, input)
+			if !completed {
+				w.abandoned = true
+			}
 			s.checkWait(w)
 		}
 	}
@@ -526,8 +537,8 @@ func (s *shellState) checkWait(w *launchWait) {
 		s.finishWait(w, LaunchOutcome{ExitCode: 1, Message: "none of the files could be opened"})
 		return
 	}
-	if w.merged {
-		// TODO(step 9.8): exit code 0 when the merge was completed (Complete Merge); a closed merge editor is a merge that was not
+	if w.abandoned {
+		// a merge editor that was closed without Complete Merge: the merge was not completed
 		s.finishWait(w, LaunchOutcome{ExitCode: 1, Message: MergeNotCompletedNotice})
 		return
 	}

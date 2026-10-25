@@ -125,8 +125,8 @@ func TestAFileWithConflictMarkersOffersTheMergeEditor(t *testing.T) {
 	if got := m.Session().Model().ConflictCount(); got != 2 {
 		t.Errorf("%d conflicts", got)
 	}
-	// the window has no folder here, so the result is labelled with its path
-	if m.Label(mergeeditor.Incoming) != "feature" || m.Label(mergeeditor.Current) != "HEAD" || m.Label(mergeeditor.Result) != a.files["c.go"] {
+	// the result is labelled with the name of its file, never a path
+	if m.Label(mergeeditor.Incoming) != "feature" || m.Label(mergeeditor.Current) != "HEAD" || m.Label(mergeeditor.Result) != "c.go" {
 		t.Errorf("labels %q %q %q", m.Label(mergeeditor.Incoming), m.Label(mergeeditor.Current), m.Label(mergeeditor.Result))
 	}
 	if m.Remaining() != "2 Conflicts Remaining" {
@@ -477,7 +477,7 @@ func TestOpenMergeEditorArgumentErrors(t *testing.T) {
 		args  any
 		route string
 	}{
-		{"not an object", "x", "mergeCommands.func3->shellState.openMergeEditorWith.MergeOpenInvalid"},
+		{"not an object", "x", "shellState.openMergeEditorWith.MergeOpenInvalid"},
 		{"a relative path", map[string]any{"input1": "x", "input2": "/b", "base": "/c", "output": "/d"}, "shellState.openMergeEditorWith.MergeOpenSideInvalid"},
 		{"a missing side", map[string]any{"input1": "/a", "input2": "/b", "base": "/c"}, "shellState.openMergeEditorWith.MergeOpenSideInvalid"},
 		{"a side that is a number", map[string]any{"input1": 1.0, "input2": "/b", "base": "/c", "output": "/d"}, "shellState.openMergeEditorWith.MergeOpenSideInvalid"},
@@ -607,7 +607,7 @@ func TestLaunchMergeWaitsForTheMergeEditorToClose(t *testing.T) {
 	a.waitFor("the merge editor", func() bool { return a.mergePane() != nil })
 	wantOutcomes(t, r)
 	s := a.shell()
-	// a merge that was not completed leaves with exit code 1 (step 9.8 makes Complete Merge leave with 0)
+	// a merge that was not completed leaves with exit code 1 (Complete Merge leaves with 0: mergeactions_test.go)
 	s.closeEditors(s.activeGroup(), []editorgroup.EditorInput{s.activeGroup().Model.ActiveEditor()})
 	a.pump()
 	// the result was replaced by the merged text, so the close asks first

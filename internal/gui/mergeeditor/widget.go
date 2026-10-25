@@ -9,8 +9,10 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/diff"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 // HeaderHeight is the height of the row above each editor, with its title and its label (VS Code's 30 px).
@@ -25,6 +27,9 @@ type WidgetOpts struct {
 	// focus handle when it has none, and puts the three in a scope of context keys of its own below Result.Keys,
 	// which has isMergeEditor set; the result editor has a scope of its own below that, with isMergeResultEditor.
 	Incoming, Current, Result editor.EditorOpts
+	// OnCompleteMerge is called when the "Complete Merge" button of the result header is pressed (the window asks about the
+	// conflicts that are left, saves the result and closes the merge editor). Without it the button is left out.
+	OnCompleteMerge func()
 }
 
 // Widget is the merge editor (SPEC §9.11): the incoming editor on the left and the current editor on the right of
@@ -192,7 +197,30 @@ func (s *widgetState) header(bc widgets.BuildContext, colors kit.Colors, side Si
 					Behavior: rendering.HitTestBehaviorOpaque, OnTap: func() { w.model.GoToConflict(true) },
 				}), widgets.MouseRegionOpts{Cursor: services.SystemMouseCursors.Click})
 		}
-		children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(10.0)}), action)
+		children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(10.0)}), action,
+			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}),
+			kit.NewIconButton(fonts.CodiconDiscard, kit.IconButtonOpts{
+				Key: foundation.NewValueKey(childKey("reset")), Tooltip: "Reset Result",
+				OnPressed: func() { w.model.report(w.model.ResetResult()) },
+			}))
+		if w.opts.OnCompleteMerge != nil {
+			children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}),
+				kit.NewButton("Complete Merge", kit.ButtonOpts{
+					Key: foundation.NewValueKey(childKey("complete")), Small: true, Tooltip: "Complete Merge", OnPressed: w.opts.OnCompleteMerge,
+				}))
+		}
+	}
+	if in, ok := side.Input(); ok {
+		title := "Accept All Incoming Changes from Left"
+		if in == diff.Input2 {
+			title = "Accept All Current Changes from Right"
+		}
+		children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}),
+			kit.NewIconButton(fonts.CodiconCheckAll, kit.IconButtonOpts{
+				Key: foundation.NewValueKey(childKey("acceptAll")), Tooltip: title,
+				Disabled:  w.model.Session().Model().UnhandledCount() == 0,
+				OnPressed: func() { w.model.report(w.model.AcceptAll(in)) },
+			}))
 	}
 	return widgets.NewColoredBox(colors.EditorBackground, widgets.NewSizedBox(
 		widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, 10),

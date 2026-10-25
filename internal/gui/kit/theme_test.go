@@ -34,6 +34,7 @@ func TestDarkModernValues(t *testing.T) {
 		{"editorBracketPairGuide.background1", c.EditorBracketPairGuideBackground[0], 0x00000000},
 		{"editorBracketPairGuide.activeBackground3", c.EditorBracketPairGuideActiveBackground[2], 0x00000000},
 		{"editorRuler.foreground", c.EditorRulerForeground, 0xFF5A5A5A},
+		{"editorCodeLens.foreground", c.CodeLensForeground, 0xFF999999},
 		{"scrollbarSlider.background", c.ScrollbarSliderBackground, 0x66797979},
 		{"scrollbarSlider.hoverBackground", c.ScrollbarSliderHoverBackground, 0xB3646464},
 		{"scrollbarSlider.activeBackground", c.ScrollbarSliderActiveBackground, 0x66BFBFBF},

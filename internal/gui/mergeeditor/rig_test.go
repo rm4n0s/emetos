@@ -48,6 +48,8 @@ type rig struct {
 	errs    []error
 	// tokenTheme colors the text when the rig highlights.
 	tokenTheme *theme.TokenTheme
+	// onComplete is the Complete Merge button's callback.
+	onComplete func()
 }
 
 type rigConfig struct {
@@ -60,6 +62,8 @@ type rigConfig struct {
 	initial    Initial
 	// highlight shows the text as Go, with the token theme of Dark Modern or Light Modern ("Dark Modern", "Light Modern").
 	highlight string
+	// onComplete is what the Complete Merge button of the header does; the button is left out without it.
+	onComplete func()
 }
 
 // newRig shows a merge and settles it.
@@ -72,7 +76,7 @@ func newRig(t *testing.T, cfg rigConfig) *rig {
 	if cfg.colors == (kit.Colors{}) {
 		cfg.colors = kit.DarkModern()
 	}
-	r := &rig{t: t}
+	r := &rig{t: t, onComplete: cfg.onComplete}
 	docOpts := document.NewOptions()
 	lang := ""
 	if cfg.highlight != "" {
@@ -152,6 +156,8 @@ func (r *rig) pump(colors kit.Colors) {
 						Incoming: editor.EditorOpts{Context: context.Background()},
 						Current:  editor.EditorOpts{Context: context.Background()},
 						Result:   editor.EditorOpts{Autofocus: true, Context: context.Background()},
+
+						OnCompleteMerge: r.onComplete,
 					})
 				},
 				widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: s}}})

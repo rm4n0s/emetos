@@ -57,7 +57,8 @@ type sessionListener struct{ fn func() }
 // Session is a three-way merge being edited (SPEC §9.11): the merge model and the result document, kept the same.
 // A change of the document, whoever makes it (typing, undo and redo, a reload), is handed to the model as whole-line
 // edits, so that the regions follow it; an edit the session makes to the document itself (a toggled checkbox, the
-// accept actions of step 9.8) is made to the model first and applied to the document as one undoable edit. It works
+// accept actions, Accept All and Reset Result) is made to the model first and applied to the document as one undoable
+// edit, with the handled flags of the conflicts remembered for undo and redo. It works
 // on the UI thread only, as the document does.
 type Session struct {
 	model     *diff.MergeModel
@@ -69,6 +70,10 @@ type Session struct {
 	version   int
 	resyncs   int
 	disposed  bool
+	// handled holds, for the alternative versions of the result document that an accept action left or reached, the
+	// handled flags of the conflicts at that version, so that undo and redo give them back (VS Code's attached
+	// history elements, MarkAsHandledUndoRedoElement).
+	handled map[int][]bool
 }
 
 // NewSession makes the model of the merge and takes the result document. The error of the model (DiffCancelled for
@@ -153,32 +158,200 @@ func (s *Session) Dispose() {
 // checkbox of the input (VS Code's setState with the toggled state), one undoable edit of the document. The error
 // is that of the model (MergeConflictIndexInvalid, MergeChoiceInvalid) or of the document.
 func (s *Session) Toggle(conflict int, in diff.Input) error {
-	edit, err := s.model.Toggle(conflict, in)
+	before := s.begin()
+	e, err := s.model.Toggle(conflict, in)
 	if err != nil {
 		return err
 	}
-	return s.applyEdit(edit)
+	return s.finish(before, []diff.Edit{e})
 }
 
-// applyEdit applies an edit the model made to its own result to the document, as one undoable edit.
-func (s *Session) applyEdit(e diff.Edit) error {
-	before := s.result.Snapshot()
-	de, ok := documentEdit(before, e)
+// Accept resolves a conflict with a choice: the lines of the base, of the incoming input, of the current input, or of
+// both (current first, SPEC §9.11), and marks it handled; one undoable edit of the document. The errors are those of
+// the model (MergeConflictIndexInvalid, MergeChoiceInvalid) or of the document.
+func (s *Session) Accept(conflict int, c diff.Choice) error {
+	before := s.begin()
+	e, err := s.model.Accept(conflict, c)
+	if err != nil {
+		return err
+	}
+	return s.finish(before, []diff.Edit{e})
+}
+
+// SetState puts the result of a conflict in a state (the general form of Accept: AcceptBoth puts the current input first,
+// while "Accept Combination" of an input puts that input first) and marks it handled; one undoable edit.
+func (s *Session) SetState(conflict int, st diff.RangeState) error {
+	before := s.begin()
+	e, err := s.model.SetState(conflict, st)
+	if err != nil {
+		return err
+	}
+	return s.finish(before, []diff.Edit{e})
+}
+
+// AcceptAll resolves every conflict that is not handled with a choice, as one undoable edit of the document (VS Code's
+// merge.acceptAllInput1 and merge.acceptAllInput2, the choices AcceptInput1 and AcceptInput2). Nothing happens when no
+// conflict is unhandled.
+func (s *Session) AcceptAll(c diff.Choice) error {
+	before := s.begin()
+	edits, err := s.model.AcceptAll(c)
+	if err != nil {
+		return err
+	}
+	return s.finish(before, edits)
+}
+
+// ResetResult puts every conflict that was resolved back to the lines of the base and marks it unhandled, as one
+// undoable edit (VS Code's mergeEditor.resetResultToBaseAndAutoMerge; the text outside the conflicts, and the changes
+// that do not conflict, stay as they are now).
+func (s *Session) ResetResult() error {
+	before := s.begin()
+	conflicts := s.model.Conflicts()
+	var edits []diff.Edit
+	for i := len(conflicts) - 1; i >= 0; i-- {
+		if c := conflicts[i]; c.State.Kind == diff.StateBase && !c.Handled && s.holdsBase(c) {
+			continue
+		}
+		e, err := s.model.Reset(i)
+		if err != nil {
+			// the edits the model made before it failed are in its result: the document gets them too
+			s.reportResync(s.applyEdits(edits))
+			return err
+		}
+		edits = append(edits, e)
+	}
+	return s.finish(before, edits)
+}
+
+// AcceptAllCombination puts the lines of both inputs in the result of every conflict that has not got those of the
+// incoming input yet and was not edited by hand (the one that is in the result stays first), as one undoable edit (VS
+// Code's mergeEditor.acceptAllCombination, without the smart combination of the characters).
+func (s *Session) AcceptAllCombination() error {
+	before := s.begin()
+	conflicts := s.model.Conflicts()
+	var edits []diff.Edit
+	for i := len(conflicts) - 1; i >= 0; i-- {
+		c := conflicts[i]
+		if c.State.Kind == diff.StateUnrecognized || c.State.IncludesInput(diff.Input1) || !c.Range.IsConflicting() {
+			continue
+		}
+		e, err := s.model.SetState(i, c.State.WithInputValue(diff.Input1, true).WithInputValue(diff.Input2, true))
+		if err != nil {
+			// the edits the model made before it failed are in its result: the document gets them too
+			s.reportResync(s.applyEdits(edits))
+			return err
+		}
+		edits = append(edits, e)
+	}
+	return s.finish(before, edits)
+}
+
+// holdsBase tells whether the lines of the result in a region are the lines of its base.
+func (s *Session) holdsBase(r diff.Region) bool {
+	got := s.model.Result()
+	want := r.Range.BaseLines()
+	if r.Result.StartLine < 1 || r.Result.EndLine-1 > len(got) || r.Result.Len() != len(want) {
+		return false
+	}
+	return slices.Equal(got[r.Result.StartLine-1:r.Result.EndLine-1], want)
+}
+
+// handledFlags are the handled flags of the conflicts.
+func (s *Session) handledFlags() []bool {
+	conflicts := s.model.Conflicts()
+	flags := make([]bool, len(conflicts))
+	for i, c := range conflicts {
+		flags[i] = c.Handled
+	}
+	return flags
+}
+
+// beginning is the state of the result before a change of the model: the alternative version of the document and the
+// handled flags.
+type beginning struct {
+	alt   int
+	flags []bool
+}
+
+// begin takes note of the state before a change of the model.
+func (s *Session) begin() beginning {
+	return beginning{alt: s.result.AlternativeVersion(), flags: s.handledFlags()}
+}
+
+// finish applies the edits the model made to the document as one undoable edit. The handled flags of the conflicts before
+// and after are remembered for the versions of the document, so that an undo or a redo gives them back.
+func (s *Session) finish(before beginning, edits []diff.Edit) error {
+	err := s.applyEdits(edits)
+	if s.handled == nil {
+		s.handled = map[int][]bool{}
+	}
+	if _, ok := s.handled[before.alt]; !ok {
+		s.handled[before.alt] = before.flags
+	}
+	s.handled[s.result.AlternativeVersion()] = s.handledFlags()
+	if err == nil {
+		s.changed()
+	}
+	return err
+}
+
+// restoreHandled gives the conflicts the handled flags they had at a version of the document that an undo or a redo
+// reached, when an accept action left or reached it.
+func (s *Session) restoreHandled(version int) {
+	flags, ok := s.handled[version]
 	if !ok {
+		return
+	}
+	for i, c := range s.model.Conflicts() {
+		if i < len(flags) && c.Handled != flags[i] {
+			s.reportResync(s.model.SetHandled(i, flags[i]))
+		}
+	}
+}
+
+// applyEdits applies edits the model made to its own result (from the last to the first, each valid against the result
+// before them all) to the document, as one undoable edit. Edits that change no line are left out.
+func (s *Session) applyEdits(edits []diff.Edit) error {
+	before := s.result.Snapshot()
+	var des []document.Edit
+	for _, e := range edits {
+		if sameLines(before, e) {
+			continue
+		}
+		if de, ok := documentEdit(before, e); ok {
+			des = append(des, de)
+		}
+	}
+	if len(des) == 0 {
 		return nil
 	}
+	s.result.PushStackElement()
 	s.applying = true
-	_, err := s.result.Edit([]document.Edit{de}, document.EditOptions{Kind: document.KindOther})
+	_, err := s.result.Edit(des, document.EditOptions{Kind: document.KindOther})
 	s.applying = false
 	if err != nil {
-		// the model has the edit and the document does not: put the model right
+		// the model has the edits and the document does not: put the model right
 		s.reportResync(err)
+		s.reportResync(s.resync(context.Background()))
 		s.changed()
 		return err
 	}
 	s.result.PushStackElement()
-	s.changed()
 	return nil
+}
+
+// sameLines tells whether an edit puts the lines that are there already.
+func sameLines(snap buffer.Snapshot, e diff.Edit) bool {
+	if e.EndLine-e.StartLine != len(e.NewLines) || e.EndLine-1 > snap.LineCount() {
+		return false
+	}
+	for i, line := range e.NewLines {
+		got, err := snap.LineContent(e.StartLine - 1 + i)
+		if err != nil || got != line {
+			return false
+		}
+	}
+	return true
 }
 
 // replaceDocument puts lines in the document as its whole text, as one undoable edit that is not handed to the model
@@ -243,6 +416,7 @@ func (s *Session) documentChanged(ev document.ChangeEvent) {
 	case document.CauseLineEnding:
 		return // no text changed
 	case document.CauseSetText:
+		s.handled = nil
 		s.reportResync(s.resync(context.Background()))
 	default:
 		for _, e := range LineEdits(ev) {
@@ -254,6 +428,9 @@ func (s *Session) documentChanged(ev document.ChangeEvent) {
 		}
 		if lines := ev.After.LineCount(); s.model.ResultLineCount() != lines {
 			s.reportResync(s.resyncTo(context.Background(), ev.After))
+		}
+		if ev.Cause == document.CauseUndo || ev.Cause == document.CauseRedo {
+			s.restoreHandled(ev.AlternativeVersion)
 		}
 	}
 	s.changed()

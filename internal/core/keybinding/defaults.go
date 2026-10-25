@@ -74,6 +74,7 @@ func DefaultRegistry() *Registry {
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
 	registerDiffEditorKeys(r)
+	registerMergeEditorKeys(r)
 	return r
 }
 
@@ -605,5 +606,16 @@ func registerDiffEditorKeys(r *Registry) {
 		// the commands that open a diff (step 9.6)
 		Rule{Command: "workbench.files.action.compareWithSaved", Weight: WeightWorkbenchContrib, Primary: "ctrl+k d"},
 		Rule{Command: "workbench.files.action.compareWithClipboard", Weight: WeightWorkbenchContrib, Primary: "ctrl+k c"},
+	)
+}
+
+// registerMergeEditorKeys registers the key of the merge editor (step 9.8): Ctrl+Enter completes the merge while a merge
+// editor is the active editor. It has the weight of the editor contributions, as in VS Code, and is registered after the
+// line commands, so that it wins over Insert Line Below in the result editor.
+//
+// Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/commands/commands.ts (AcceptMerge)
+func registerMergeEditorKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "mergeEditor.acceptMerge", Weight: WeightEditorContrib, When: mustWhen("isMergeEditor"), Primary: "ctrl+enter"},
 	)
 }

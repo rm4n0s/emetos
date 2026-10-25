@@ -27,3 +27,11 @@ The user asked on 2026-10-25 (night): "don't bring me decisions, I am going to s
 9. The **checkboxes** in the inputs' gutter are already clickable in 9.7 (VS Code shows them too); the code-lens-style accept buttons come with 9.8.
 10. The **"This file has merge conflicts."** notice appears only when a file newly opens (not for restored backups or reopened tabs), with the button "Resolve in Merge Editor" (`git.openMergeEditor`, also in the palette).
 11. Until 9.8, `emetos --merge ... --wait` ends with exit code 1 when the tab closes; 9.8 makes Complete Merge exit 0.
+
+## 2026-10-25: step 9.8 (merge editor actions), decided by the agent and accepted by me
+
+12. A **manual edit does not mark a conflict handled** (that is what VS Code's model does; the 9.7 SPEC text saying otherwise was corrected). Undo/redo of an accept gives the handled state back.
+13. **Accept All** leaves conflicts that are already handled alone (VS Code overwrites them); **Reset Result** resets the conflicts only and keeps your edits outside them (VS Code rewrites the whole result).
+14. After **Complete Merge** of a file with markers, the file opens in a normal text editor in the same group; for `--merge` the result is written and nothing else opens.
+15. **Ctrl+Enter** completes the merge in the merge editor (VS Code's key); it wins over "Insert Line Below" only there.
+16. The merge editor's labels show **file names only** (I sent the agent back to remove an absolute path from the Result header); the tab tooltip keeps the full path.

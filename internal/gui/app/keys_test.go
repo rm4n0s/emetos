@@ -375,6 +375,14 @@ func diffEditorState(a *keyApp) func() {
 	}
 }
 
+// mergeEditorState is the state of a window that shows a merge editor, for the key that completes the merge (step 9.8).
+func mergeEditorState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Set("isMergeEditor", true)
+	}
+}
+
 // groupsState is the state of a window with several groups, the active one empty, for the keys that act
 // on groups.
 func groupsState(a *keyApp) func() {
@@ -496,7 +504,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true),
 				quickInputState(a), historyState(a), editorPickerState(a),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
-				zenModeState(a), diffEditorState(a))
+				zenModeState(a), diffEditorState(a), mergeEditorState(a))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
@@ -507,6 +515,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				}
 				a.win.Keys.Set("inZenMode", false)
 				a.win.Keys.Set("textCompareEditorVisible", false)
+				a.win.Keys.Reset("isMergeEditor")
 				a.win.Keys.Set("activeEditorIsPinned", false)
 				a.win.Keys.Set("activeEditorGroupEmpty", false)
 				a.win.Keys.Set("multipleEditorGroups", false)

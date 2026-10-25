@@ -32,6 +32,10 @@ var appCommands = map[string]bool{
 	// the commands of the merge editor (gui/app/mergepane.go)
 	"merge.goToNextUnhandledConflict": true, "merge.goToPreviousUnhandledConflict": true,
 	"git.openMergeEditor": true, "_open.mergeEditor": true,
+	// the commands that resolve and complete a merge (step 9.8, gui/app/mergepane.go)
+	"merge.acceptAllInput1": true, "merge.acceptAllInput2": true, "merge.toggleActiveConflictInput1": true,
+	"merge.toggleActiveConflictInput2": true, "mergeEditor.acceptAllCombination": true,
+	"mergeEditor.resetResultToBaseAndAutoMerge": true, "mergeEditor.acceptMerge": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).
