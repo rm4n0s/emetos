@@ -113,7 +113,8 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M6 Workbench | 6.1–6.20 |
 | M7 Files and sessions | 7.1–7.8 |
 | M8 Settings, keybindings, themes, profiles | 8.1–8.6 |
-| M9 Diff and merge | 9.1–9.8 |
+| M9 Diff and merge | 9.1–9.9 |
+| M9b One window: workspace tabs and the tray | 9b.1–9b.5 |
 | M10 Release of areas 1–2 | 10.1–10.2 |
 
 ---
@@ -1073,6 +1074,62 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Tests:** each action; completion for both kinds; exit codes.
 **Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/9.8-merge.png --commands '[["dev.openMergeEditor",{"path":"testdata/proof/9.8/conflicted.go"}],["dev.acceptMerge",{"conflict":0,"side":"incoming"}]]' --`: the merge editor with two conflicts, the first resolved (`dev.openMergeEditor` opens a marker file in the merge editor; add it in this step).
 
+### 9.9 Error routes audit
+**Goal:** every error Tag of the code has a test that asserts its route, and no error is built in a helper (CLAUDE.md "Error handling", and `AI_GUIDE.md` of `github.com/rm4n0s/errors`, in the Go module cache: `go list -m -f '{{.Dir}}' github.com/rm4n0s/errors`).
+**Read:** CLAUDE.md "Error handling"; `AI_GUIDE.md` of the errors package (R3, R4, R5 and section 4); every earlier step's "Tests" lines that name route tests.
+**Tasks:**
+1. Make the list of Tags: every first argument of `errors.New`, `errors.NewErr` and `errors.NewErrf` in non-test code of `cmd` and `internal` (including generators under `internal/.../gen`, which are exempt only when they cannot be run from a test: then say so in the report). Make the list of Tags that no test asserts: a test counts when it asserts the Tag in a route (`HasRoute("...->Func.Tag")`) or through `appErr.Tag`; a Tag that is only named in a comment or a constant does not count. Keep the script that makes both lists as `scripts/error-tags.sh` (prints the Tags and, with `--untested`, those without a test) so the check can be repeated; it must not need network and must run in a second or two.
+2. For each Tag without a test, write the test that makes the failure happen and asserts the route from the entry function (`HasRoute("Entry.Func->Inner.Func.Tag")`, the Tag included) and, where the Tag carries metadata, the metadata. Make the failure happen with the seams that exist (injected file systems, fake clipboard, fake desktop, closed channels, cancelled contexts, unwritable folders in a temp dir, bad input); where a failure cannot be made to happen without changing production code, add the smallest seam (an option or an injectable function, never a global) and use it. Where it truly cannot be tested (an `os` call that cannot fail on a healthy system and has no seam worth adding), list the Tag in `docs/ERROR-TAGS-UNTESTED.md` with the reason; this file is the only allowed exception list and the step is "done" only when it holds nothing that a seam of a few lines would have made testable.
+3. R4: no error is built in a helper. Find the functions whose body builds and returns an error through `errors.New`, `errors.NewErr` or `errors.NewErrf` and that are called from several places or only to wrap the construction (for example `errNoWindow`, `errCancelled`, `errInvalid`, `errInvalidRegex`, `invalid`, `preferenceInvalid`, `cssEmptyValueError`, `(*parser).fail`, `(*scanner).fail`; the scan must also look at helpers longer than six lines and at helpers that return `*errors.Error`), and inline the construction into the function that detects the failure, so the helper's name leaves the routes. Update every route assertion that names a helper. A function that detects a failure and builds the error itself is fine however small it is.
+4. R5: no package-level `errors.New`/`NewErr`/`NewErrf` (a sentinel is `&errors.Error{Tag: ...}`); fix `errFailed` in `internal/gui/keybindingsui/rig_test.go` and any other.
+5. Add to CLAUDE.md "Error handling" one bullet for R4 (construct in the failing function, never in a helper) and one for R5 (sentinels are struct literals) and a line telling to read `AI_GUIDE.md`; add `scripts/error-tags.sh --untested` (must print nothing) to the Definition of done in CLAUDE.md.
+**Tests:** the new route tests; an archtest rule or a Go test that fails on a package-level `errors.New` and on a function that only builds and returns an error (so R4 and R5 stay true), with the testdata of the archtest style; `scripts/error-tags.sh --untested` prints nothing (except what `docs/ERROR-TAGS-UNTESTED.md` lists).
+
+---
+
+## M9b: One window, workspace tabs and the tray
+
+### 9b.1 Workspaces in one window
+**Goal:** one Glutter window holding every workspace as a tab, without the strip yet (SPEC §10.14, D17).
+**Read:** SPEC §10.14, §10.10, §10.11, §10.12; the "Several windows as built" paragraph of §5 and step 7.8's entry in `docs/IMPLEMENTED.md`.
+**Tasks:**
+1. Rename `app.Window` to `app.Workspace` and `app.Windows` to `app.Workspaces` (a mechanical rename first, in its own commit-sized change, with every test passing), then make `Workspaces` host the workspaces in the one implicit window: an `IndexedStack` of the tabs' workbenches under a `TickerMode` (only the active one ticks and paints), the focus and the key dispatcher of the active tab, the window title of the active tab. No `RegularWindowController` window is made any more; remove the multi-window code and its Glutter workarounds that no longer apply (update `docs/GLUTTER-ISSUES.md` and §20).
+2. Opening, activating, moving and closing tabs (`Workspaces.Open/Activate/Move/Close`); closing a tab with the questions about unsaved changes or hot exit; the last tab leaves a No Folder tab; the quit flow over every tab; `workbench.action.newWindow` and `workbench.action.closeWindow` with their new titles.
+3. State: `workspaceTabs`, `activeWorkspaceTab` and `windowGeometry` in `state.json` (additive), an old `openWindows` list read as tabs, `window.restoreWindows` read as in §10.14, the UI state file of each tab as before.
+4. Profiles per tab (§10.12 as built moves from windows to tabs unchanged).
+**Tests:** open, activate, move and close tabs; switching keeps each tab's editors, scroll positions, focus and view states; an inactive tab's watcher still applies an external change; closing a tab with unsaved changes (prompt, hot exit); the last tab leaves a No Folder tab; quit over several tabs; restore of every `window.restoreWindows` value; the migration of an old `state.json`; two tabs with two profiles; the existing tests of steps 7.5–8.6b rewritten from windows to tabs (list them).
+
+### 9b.2 The title bar and the workspace tab strip
+**Goal:** Emetos's own title bar row with the menu, the workspace tabs and the window buttons (SPEC §10.14, §10.1).
+**Read:** SPEC §10.14, §10.1; Glutter: `widgets/window_decoration.go`, `widgets/run_app.go` (`Decorations`), `ui/window_info.go` (`PerformWindowAction`).
+**Tasks:** `Decorations: DecorationsApp` and `widgets.WindowDecoration` with the row as its content (35 px, the `titleBar.*` colors); the menu (`window.menuBarVisibility` `compact`, the new default, as a `≡` button; `classic`/`visible`/`toggle`/`hidden`), replacing the separate menu bar row of §10.1; the tab strip in `gui/workbench` (icon, name, disambiguated duplicate names, dirty dot, close button, tooltip with path and profile, active and inactive colors, widths from 120 to 240 px, horizontal scroll with the active tab in view, middle click, `+`, the context menu); drag on the empty strip moves the window, double click maximizes, right click opens the window menu; full screen and zen hide the row.
+**Tests:** the strip's layout tables (widths, shrinking, scrolling, duplicate names); dirty dot follows the documents of the tab; close button and middle click; the context menu items; each `window.menuBarVisibility` value; window actions sent through a fake controller; goldens of the row (Dark Modern, Light Modern; one tab, three tabs with a dirty one and two of the same name, overflowing tabs, the compact and classic menus).
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/9b.2-workspace-tabs.png --commands '[["dev.openFolderInNewTab",{"path":"testdata/proof/9b.2/notes"}],["dev.openFile",{"path":"testdata/proof/9b.2/notes/main.go"}]]' -- testdata/proof/9b.2/api`: the window with two workspace tabs, the second active with a file open (add `dev.openFolderInNewTab` in this step, SPEC §15.2).
+
+### 9b.3 Launches open tabs
+**Goal:** every launch and every Open Folder opens or focuses a tab (SPEC §10.14, §10.11).
+**Read:** SPEC §10.14, §10.11, §10.12.
+**Tasks:** `Workspaces.Open` with the placement rules of §10.14 for the first instance's command line, a hand-over over the socket, Open Folder, Open Recent (Ctrl forces a new tab), Close Folder, `-n`, `-r`, files, `--goto`, `--diff`, `--merge`, `--wait`, `--profile`; a launch shows a hidden window and brings it to the front; `emetos` with no argument shows the window; `window.openFoldersInNewWindow` read as "in a new tab". Extend `scripts/proof.sh` with `--launch '<args>'` (repeatable): after the first frame it runs `emetos <args>` again with the same isolated runtime folder, so the run is handed over to the first instance.
+**Tests:** each placement rule over a real socket (two launches of two folders give one window with two tabs; the same folder twice focuses its tab; `-r` replaces the active tab with the questions about unsaved changes; an untouched No Folder tab is replaced; files go to the active tab; `--profile` rules; `--wait` returns when the files are closed); Open Folder and Open Recent from inside; a launch while hidden shows the window.
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/9b.3-two-launches.png --launch 'testdata/proof/9b.3/notes' -- testdata/proof/9b.3/api`: one window with the tabs `api` and `notes` after two launches.
+
+### 9b.4 The system tray and close to tray
+**Goal:** the tray icon, its menu, and the close button hiding the window (SPEC §10.14, §17).
+**Read:** SPEC §10.14, §17; Glutter: `desktop/tray.go`, `desktop/tray_menu.go`, `gluttertest/desktop.go` (the fake tray), `widgets/window_controller.go` (`SetHidden`).
+**Tasks:**
+1. The application icon (moved here from step 10.2): a small Go program draws it with Glutter's canvas, a test renders it at 16, 22, 24, 32, 48, 64, 128, 256 and 512 px into `assets/icons/` (and the tray's pixmaps through `TrayIconFromRGBA`); **ask the user** to look at it before going on.
+2. `desktop.NewSystemTray` around the app with the icon, the tooltip, the click (show and bring to the front, or hide), and the menu of §10.14 (the tabs, Open Folder..., New Workspace Tab, Show/Hide Emetos, Quit), kept up to date when tabs open, close, rename or reorder.
+3. `window.closeToTray` (application scope, default `true`); the close button hides the window (backups written first, no frames while hidden) when a tray is shown and the setting is on, and quits otherwise (`TrayUnavailable` makes the close button quit; it is logged once, no notification); Quit from the tray and Ctrl+Q run the quit flow; a quit with unsaved changes and `files.hotExit` off shows the window first.
+**Tests:** with `FakeDesktop`: the tray registers, its title and tooltip, the menu labels in order and after tabs change, a click on the icon toggles the window, choosing a tab shows it, Quit quits (hot exit and prompts), the close button hides with the tray and quits without it or with the setting off, no frames are scheduled while hidden; the icon test (sizes, non-empty pixels).
+**Manual checks:** the user sees the tray icon and its menu on their desktop and closes and reopens the window from it (`docs/MANUAL-CHECKS.md`; GNOME needs the AppIndicator extension).
+
+### 9b.5 Switching and arranging tabs
+**Goal:** the keys, the picker and the drag of the workspace tabs (SPEC §10.14).
+**Read:** SPEC §10.14, §10.6.
+**Tasks:** `emetos.workspaceTab.next`/`previous` (Ctrl+Alt+PageDown/PageUp), `open1`...`open9` (Ctrl+Alt+1...9), `switch` (the quick pick), `moveLeft`/`moveRight`, Close Others, Close to the Right; drag to reorder with the 4 px slop and Escape to cancel; the context keys `workspaceTabCount` and `activeWorkspaceTabHasFolder`; the commands in the palette and the View menu ("Workspace Tabs" submenu).
+**Tests:** each command and key through the dispatcher; the picker's items, order, filtering and accept; drag and drop reorders and keeps the active tab; Escape cancels a drag; the order is restored after a restart.
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/9b.5-switch-picker.png --commands '[["dev.openFolderInNewTab",{"path":"testdata/proof/9b.5/notes"}],["dev.openFolderInNewTab",{"path":"testdata/proof/9b.5/web"}],["emetos.workspaceTab.switch"]]' -- testdata/proof/9b.5/api`: three workspace tabs and the switch picker open.
+
 ---
 
 ## M10: Release of areas 1–2
@@ -1091,7 +1148,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Read:** SPEC §1, §3, §16, §17.
 **Tasks:**
 1. `README.md`: what Emetos is, install with `go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@latest` (D16), requirements, the feature list, privacy, where settings and keybindings live, screenshots from the proof images.
-2. An icon drawn by a small Go program with Glutter's canvas (rendered by a test at 16–512 px into `assets/icons/`), a `dev.emetos.Emetos.desktop` file (`Exec=emetos %F`, matching the app id), and `scripts/install-desktop.sh` for `~/.local/share/applications` and the icon theme folders.
+2. The icon of step 9b.4 in the icon theme folders, a `dev.emetos.Emetos.desktop` file (`Exec=emetos %F`, matching the app id), and `scripts/install-desktop.sh` for `~/.local/share/applications` and the icon theme folders.
 3. A coverage table in `docs/IMPLEMENTED.md`: every row of SPEC §3.1 and §3.2, the step(s) and tests that cover it, and its status; a `NOTICE` and `third_party/` audit (Codicons CC BY attribution).
 4. **Ask the user** before tagging a version.
 **Manual checks:** the user looks at the icon, and uses Emetos for their own work and reports problems; each problem becomes separate fix work after this step.
