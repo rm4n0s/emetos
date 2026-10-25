@@ -1130,7 +1130,19 @@ Emetos's extensions are **Go packages compiled into Emetos** (D18): one folder p
 - `type Extension interface { Manifest() Manifest; Activate(ctx context.Context, api API) error }`. `ctx` is cancelled when the extension is deactivated (its window tab closes, it is disabled, Emetos quits); everything the extension started must end with it.
 - `Manifest`: `ID` (lowercase, dotted, unique: `emetos.markdown`, `sqltools`), `Name`, `Version`, `Description`, `ActivationEvents` (`onStartup`; `onLanguage:<id>`; `onFile:<glob>` for a file in the folder such as `go.mod`; `onCommand:<id>`; `onView:<id>`; `onWindowTab:<kind>`), the contributions it declares (below, so they show before activation: menu items, commands in the palette, the `+` menu entries, micro-tab icons, activity bar icons), the event topics it publishes and subscribes to, and the cross-tab topics it may ask for (§ "Event sharing").
 - **One extension, many contribution points.** Through `API` an extension contributes any mix of:
-  - *UI, always contained in the box the workbench gives it* (the widget gets that box's constraints and cannot paint outside it; it uses the `kit` widgets and the theme colors; focus and keys stay in the box while it has the focus; Escape and the global keys still work): **window tabs** (a tab kind in the window's tab strip, §10.14: a web browser, an office suite), **file views** (micro-tabs inside a file's editor tab, for the files it declares: a Markdown preview, a CSV grid), **side bar views** (an activity bar icon with a view container and its views, with title actions: Docker containers, SQL tables), status bar items, notifications.
+  - *UI, always contained in the box the workbench gives it* (the widget gets that box's constraints and cannot paint outside it; it uses the `kit` widgets and the theme colors; focus and keys stay in the box while it has the focus; Escape and the global keys still work). The contributions, by what they belong to:
+
+    | Contribution | Belongs to | Where |
+    |---|---|---|
+    | **Window tab** | the window | a tab kind in the window's tab strip beside the workspaces (§10.14): an office suite, a scratchpad |
+    | **Side bar view** | a workspace | an activity bar icon with a view container and its views, with title actions (Docker containers, SQL tables, an agent's sessions) |
+    | **Panel view** | a workspace | a tab of the bottom panel beside Problems and Output (a terminal, a task runner, a log stream), with title actions and a badge; it moves and maximizes with the panel |
+    | **Editor tab** | a workspace | a tab kind in the editor area beside the file tabs, with no file: several can be open (an agent's sessions, a query console); it splits, moves between groups, pins, closes, and is restored when the extension saves its state as data; it may show a dirty or busy mark |
+    | **Editor title action** | a workspace | a micro icon at the right end of every editor group's tab strip (an icon, a tooltip, a command, an optional `when` condition): agents' "New Session" icons always shown, "Open Preview to the Side" only for Markdown; icons that do not fit go into a `...` menu |
+    | **File view** | a file | micro-tabs inside a file's editor tab, for the files the extension declares: Text always first, then the extension's views (a Markdown preview, a CSV grid) |
+    | **Contributions to the built-in parts** | a workspace | Output channels (`api.Output().Channel(name)`), Problems markers (`api.Problems().Set(owner, uri, markers)`), status bar items, notifications |
+
+    One extension may contribute any number of each (the Go pack writes its log to an Output channel and its diagnostics to Problems; an agent extension adds a side bar view of sessions, an editor tab kind for a session and an editor title action that opens a new session).
   - *Workbench*: commands (in the palette, menus and keys; extensions never call each other's commands), keybindings with `when` clauses on the extension's own context keys, menu items, settings (registered under the extension's ID prefix, read per workspace like every setting).
   - *Language*: languages, grammars, language configurations, snippets, color themes and file icon themes, as VS Code `package.json` contributions in an `embed.FS` (`language.Registry.AddExtension`, §8.1); language servers (area 3); providers written in Go (completion, hover, definition, formatting, diagnostics) for languages without a server (area 3).
   - *Tools* (later areas): tasks, formatters run as processes, debug adapters.
@@ -1152,7 +1164,7 @@ Emetos's extensions are **Go packages compiled into Emetos** (D18): one folder p
 
 **Rules kept by tests** (`internal/archtest`, §5.3): a package under `extensions/` imports only `extension/`, the standard library, its own subpackages and the allowed dependencies (CLAUDE.md); never `internal/...`, Glutter's internals or another extension. `extension/` imports the core and the `gui` packages it exposes through its API (a widget type for the UI contributions is Glutter's `widgets.Widget`; the theme and kit helpers come through `extension/ui`), and is the only bridge.
 
-**Not built:** loading extensions at run time, extension processes, VS Code extensions, a marketplace or downloads (D4), typed APIs between extensions, extensions calling each other's commands, extension tabs inside a workspace's editor area (extension tabs are window tabs), per-profile extension lists.
+**Not built:** loading extensions at run time, extension processes, VS Code extensions, a marketplace or downloads (D4), typed APIs between extensions, extensions calling each other's commands, moving a view between the side bar and the panel (a view stays where its extension put it), a secondary side bar, per-profile extension lists.
 
 ## 11. Configuration
 
