@@ -1380,10 +1380,11 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 		a.settle()
 		wantOutcomes(t, r, LaunchOutcome{})
 	})
-	t.Run("a merge ends with the notice, whichever window", func(t *testing.T) {
+	t.Run("a merge of files that cannot be read ends with the failure, whichever window", func(t *testing.T) {
 		a, _, _ := setup(t, nil)
-		r := a.launched(ipc.OpenArgs{Merge: []string{"/1", "/2", "/3", "/4"}})
-		wantOutcomes(t, r, LaunchOutcome{ExitCode: 1, Message: MergeUnavailableNotice})
+		r := a.launched(ipc.OpenArgs{Wait: true, Merge: []string{"/1", "/2", "/3", "/4"}})
+		a.waitFor("the end of the wait", func() bool { return len(r.outcomes) == 1 })
+		wantOutcomes(t, r, LaunchOutcome{ExitCode: 1, Message: "none of the files could be opened"})
 	})
 }
 

@@ -398,7 +398,7 @@ func (s *shellState) reopenClosed() {
 					win.Documents.Release(doc) // it is open in the group already
 					continue
 				}
-				opts := openOptions{Group: group, Sticky: c.Sticky}
+				opts := openOptions{Group: group, Sticky: c.Sticky, NoMergeNotice: true}
 				// the place it had, unless that is among the other kind of tabs (the pinned ones are first)
 				if c.Sticky == group.Model.IsStickyAt(c.Index) {
 					opts.Index, opts.HasIndex = min(c.Index, group.Model.Count()), true

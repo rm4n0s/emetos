@@ -42,6 +42,7 @@ func DefaultRegistry() *Registry {
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	registerDiffEditorCommands(r)
+	registerMergeEditorCommands(r)
 	return r
 }
 
@@ -892,5 +893,26 @@ func registerDiffEditorCommands(r *Registry) {
 		Meta{ID: "selectForCompare"},
 		Meta{ID: "compareFiles"},
 		Meta{ID: "compareSelected"},
+	)
+}
+
+// registerMergeEditorCommands registers the commands of the merge editor (step 9.7): Go to Next Unhandled Conflict and Go
+// to Previous Unhandled Conflict (in the palette while the active editor is a merge editor; VS Code gives them no key),
+// "Resolve in Merge Editor" (git.openMergeEditor of VS Code's Git extension, which Emetos offers for a file with conflict
+// markers) and _open.mergeEditor, the internal command that opens a merge of four files (no title: the palette skips
+// it). Not built: the layout commands (mixed and column layout, show base), Show Non-Conflicting Changes, Open File, Open
+// Base File, Compare Input With Base, Toggle Current Conflict from Left and from Right, Accept All Incoming and Current,
+// Reset Result, Complete Merge (steps 9.8) and Toggle Between Merge Editor Inputs (SPEC section 9.11).
+//
+// Ported from VS Code: src/vs/workbench/contrib/mergeEditor/browser/commands/commands.ts and
+// extensions/git/package.json (command.git.openMergeEditor)
+func registerMergeEditorCommands(r *Registry) {
+	isMergeEditor := contextkey.Has("isMergeEditor")
+	r.MustRegister(
+		Meta{ID: "merge.goToNextUnhandledConflict", Title: "Go to Next Unhandled Conflict", Category: "Merge Editor", Precondition: isMergeEditor},
+		Meta{ID: "merge.goToPreviousUnhandledConflict", Title: "Go to Previous Unhandled Conflict", Category: "Merge Editor", Precondition: isMergeEditor},
+		Meta{ID: "git.openMergeEditor", Title: "Resolve in Merge Editor", Category: "Git",
+			Description: "Opens the merge editor for the file with conflict markers of the active editor."},
+		Meta{ID: "_open.mergeEditor"},
 	)
 }

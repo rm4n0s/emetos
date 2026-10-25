@@ -23,6 +23,10 @@ type fillerWidget struct {
 	widgets.StatelessWidget
 }
 
+// NewFiller is the widget of a filler zone, for the other editors that line texts up with view zones (the inputs of the
+// merge editor, step 9.7, use the same diagonal fill).
+func NewFiller() widgets.Widget { return newFiller() }
+
 func newFiller() *fillerWidget {
 	return &fillerWidget{StatelessWidget: widgets.NewStatelessWidgetBase()}
 }

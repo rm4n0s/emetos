@@ -226,6 +226,8 @@ type ViewModel struct {
 	scrollLeft float64
 	// markCount is the number of background marks (marks.go).
 	markCount int
+	// blocks are the borders around lines that the caller asked for (blocks.go).
+	blocks []LineBlock
 	// scrollWatch tells the listeners of AddScrollListener that the editor scrolled.
 	scrollWatch *foundation.ChangeNotifier
 	viewport    float64 // the height of the viewport, set by the render object

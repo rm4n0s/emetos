@@ -29,6 +29,9 @@ var appCommands = map[string]bool{
 	"toggle.diff.renderSideBySide": true, "diffEditor.toggleUseInlineViewWhenSpaceIsLimited": true,
 	"diffEditor.setViewMode.inline": true, "diffEditor.setViewMode.sideBySide": true, "diffEditor.setViewMode.automatic": true,
 	"selectForCompare": true, "compareFiles": true, "compareSelected": true,
+	// the commands of the merge editor (gui/app/mergepane.go)
+	"merge.goToNextUnhandledConflict": true, "merge.goToPreviousUnhandledConflict": true,
+	"git.openMergeEditor": true, "_open.mergeEditor": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

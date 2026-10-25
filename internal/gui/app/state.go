@@ -248,6 +248,12 @@ func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 						w.openSavedValue(ctx, r, mod.String())
 						r.dropped = min(r.dropped, before+1) // one editor, whichever sides are gone
 					}
+				case editorgroup.MergeInputTypeID:
+					// the result of a saved merge editor is a document like the ones of text editors; the rest of the
+					// merge is read again when the editor is made
+					if _, uri, err := editorgroup.ParseMergeInput(in.Value); err == nil {
+						w.openSavedValue(ctx, r, uri.String())
+					}
 				}
 			}
 		}
@@ -649,6 +655,9 @@ func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 	grid, err := editorgroup.RestoreGridWith(*r.state.Grid, s.gridOptions(), func(in editorgroup.SerializedInput) (editorgroup.EditorInput, bool) {
 		if in.TypeID == editorgroup.DiffInputTypeID {
 			return s.restoreDiff(r, in.Value, used)
+		}
+		if in.TypeID == editorgroup.MergeInputTypeID {
+			return s.restoreMerge(r, in.Value, used)
 		}
 		if in.TypeID != editorgroup.TextInputTypeID {
 			// an editor that is not text comes back through the restore of its kind (panes.go)

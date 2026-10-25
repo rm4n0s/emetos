@@ -80,6 +80,9 @@ func checkModel(t *testing.T, m *MergeModel, pure bool) {
 	if got, want := m.ResultText(), JoinLines(m.result, m.eol); got != want {
 		t.Fatalf("ResultText %q, want %q", got, want)
 	}
+	if got := m.ResultLineCount(); got != len(m.result) {
+		t.Fatalf("ResultLineCount %d, want %d", got, len(m.result))
+	}
 }
 
 // step is one operation on a model and what it must leave.

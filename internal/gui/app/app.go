@@ -277,6 +277,8 @@ type shellState struct {
 	state stateState
 	// launches is what the shell keeps of the launches of other processes (launch.go).
 	launches launchState
+	// merge is what the shell keeps of the merge editors (mergepane.go).
+	merge mergeState
 	// modesStops stop following the full screen mode, zen mode and the zoom of the window (centered.go).
 	modesStops []func()
 }
@@ -471,6 +473,9 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 	} else if d, ok := s.activeGroup().Model.ActiveEditor().(*editorgroup.DiffInput); ok {
 		// a diff editor shows the names of its two sides, and is modified with its modified side
 		in.LanguageID, in.Dirty, in.ActiveName = d.Modified().LanguageID(), d.Dirty(), d.Name()
+	} else if m, ok := s.activeGroup().Model.ActiveEditor().(*editorgroup.MergeInput); ok {
+		// a merge editor is named "Merging: <result>" and is modified with its result
+		in.LanguageID, in.Dirty, in.ActiveName = m.Result().LanguageID(), m.Dirty(), m.Name()
 	}
 	title := in.Title()
 	if title == win.title {

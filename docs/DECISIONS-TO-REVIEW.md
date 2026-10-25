@@ -20,3 +20,10 @@ The user asked on 2026-10-25 (night): "don't bring me decisions, I am going to s
 5. **Error routes:** step 9.9 adds route tests for every untested tag, removes the error-building helpers (AI_GUIDE R4) and the package-level `errors.New` (R5), adds a script `scripts/error-tags.sh --untested`, and puts R4/R5 into CLAUDE.md.
 6. **How "ask the user" steps are handled tonight:** 9b.4's icon: I look at it and accept it if it is clean and readable at 16 px; 10.1: a target still missed after profiling is recorded in `docs/PERFORMANCE.md` with the measurement and a Glutter issue where the cause is Glutter, and the work goes on; 10.2: everything is prepared, committed, and the version tag is **pushed** (you said "Push release tag, don't leave anything for me"); the version is `v0.1.0` (the first release of areas 1–2, not yet 1.0 since areas 3–11 are missing); 12.1: the plan is written and logged here, and building it waits for you.
 7. **CLAUDE.md** now says "through the last one in the file" instead of "through the last one, 10.2", since the plan grew.
+
+## 2026-10-25: step 9.7 (merge editor layout), decided by the agent and accepted by me
+
+8. A file with conflict markers opened in the merge editor has its text **replaced by the merged result** (base plus the non-conflicting changes, conflicts empty or at base) as one undoable edit, left dirty; one Undo brings the markers back. A `--merge` result file keeps its existing text.
+9. The **checkboxes** in the inputs' gutter are already clickable in 9.7 (VS Code shows them too); the code-lens-style accept buttons come with 9.8.
+10. The **"This file has merge conflicts."** notice appears only when a file newly opens (not for restored backups or reopened tabs), with the button "Resolve in Merge Editor" (`git.openMergeEditor`, also in the palette).
+11. Until 9.8, `emetos --merge ... --wait` ends with exit code 1 when the tab closes; 9.8 makes Complete Merge exit 0.

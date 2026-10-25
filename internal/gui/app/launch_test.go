@@ -248,8 +248,6 @@ func TestLaunchNotices(t *testing.T) {
 		outcome []LaunchOutcome
 		opens   bool
 	}{
-		{"merge", ipc.OpenArgs{Merge: []string{"/1", "/2", "/3", "/4"}}, []string{MergeUnavailableNotice},
-			[]LaunchOutcome{{ExitCode: 1, Message: MergeUnavailableNotice}}, false},
 		// the manager picks the window that has the profile; a window that is asked for another one keeps its own and says so
 		{"profile of another window", ipc.OpenArgs{Profile: "work"}, []string{"The window uses the profile 'Default'."},
 			[]LaunchOutcome{{}}, true},
@@ -451,8 +449,9 @@ func TestLauncherHandle(t *testing.T) {
 
 func TestLauncherHandleErrorReplies(t *testing.T) {
 	a, l := newLauncherApp(t, true)
-	reply := a.await(a.handle(l, context.Background(), ipc.OpenArgs{Merge: []string{"/1", "/2", "/3", "/4"}}))
-	if reply.Type != ipc.TypeError || reply.ExitCode != 1 || reply.Message != MergeUnavailableNotice {
+	// a merge whose files cannot be read, waited for: the files could not be opened
+	reply := a.await(a.handle(l, context.Background(), ipc.OpenArgs{Wait: true, Merge: []string{"/1", "/2", "/3", "/4"}}))
+	if reply.Type != ipc.TypeError || reply.ExitCode != 1 || reply.Message != "none of the files could be opened" {
 		t.Errorf("reply %+v", reply)
 	}
 }

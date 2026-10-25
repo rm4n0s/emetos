@@ -64,6 +64,9 @@ type openOptions struct {
 	// ViewState, when set, is given back to the editor: the cursors, the scroll position and the folds it had
 	// when it was closed.
 	ViewState *editor.ViewState
+	// NoMergeNotice leaves out the notification that offers the merge editor for a file with conflict markers: an
+	// editor that is restored or that comes back from the closed ones is not an open of the file.
+	NoMergeNotice bool
 }
 
 // gridOptions are the settings the grid follows.
@@ -160,7 +163,7 @@ func (s *shellState) showRestoredBackups(binding *widgets.WidgetsBinding, docs [
 	was := group.Model.ActiveEditor()
 	for _, doc := range docs {
 		win.Documents.Retain(doc)
-		s.showAcquired(binding, doc, openOptions{Group: group})
+		s.showAcquired(binding, doc, openOptions{Group: group, NoMergeNotice: true})
 	}
 	if was != nil && group.Model.Contains(was) {
 		group.Model.SetActive(was)
@@ -241,6 +244,8 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 	})
 	if !isNew {
 		input.Dispose()
+	} else if !opts.NoMergeNotice {
+		s.noticeMergeConflicts(doc)
 	}
 	// opening an editor makes its group the active one
 	if err := s.group.grid.Activate(group); err != nil {
@@ -439,6 +444,15 @@ func (s *shellState) refreshKeys() {
 		compareVisible, compareActive := s.diffKeys()
 		win.Keys.Set("textCompareEditorVisible", compareVisible)
 		win.Keys.Set("textCompareEditorActive", compareActive)
+		if merging, result := s.mergeKeys(); merging {
+			win.Keys.Set("isMergeEditor", true)
+			win.Keys.Set("mergeEditorResultUri", result)
+			win.Keys.Set("mergeEditorLayout", "mixed")
+		} else {
+			win.Keys.Reset("isMergeEditor")
+			win.Keys.Reset("mergeEditorResultUri")
+			win.Keys.Reset("mergeEditorLayout")
+		}
 		if active == nil {
 			win.Keys.Reset("activeEditor")
 			win.Keys.Set("activeEditorIsPinned", false)
@@ -487,7 +501,7 @@ func (s *shellState) disposeGroup() {
 	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
 		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically",
 		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies", "textCompareEditorVisible", "textCompareEditorActive",
-		"resourceSelectedForCompare"}, navKeys...) {
+		"isMergeEditor", "mergeEditorResultUri", "mergeEditorLayout", "resourceSelectedForCompare"}, navKeys...) {
 		win.Keys.Reset(key)
 	}
 }

@@ -270,6 +270,12 @@ type Colors struct {
 	DiffInsertedTextBackground, DiffRemovedTextBackground, DiffInsertedLineBackground, DiffRemovedLineBackground ui.Color
 	DiffInsertedLineGutter, DiffRemovedLineGutter, DiffOverviewInserted, DiffOverviewRemoved                     ui.Color
 	DiffInsertedTextBorder, DiffRemovedTextBorder, DiffBorder, DiffDiagonalFill                                  ui.Color
+	// The colors of the merge editor (step 9.7): the backgrounds of the changed lines and characters of the inputs,
+	// the borders of the conflicts (unhandled or handled, focused or not) and the backgrounds of the conflicts in the
+	// inputs of the simplified decorations (input 1 is the incoming side, input 2 the current side).
+	MergeChange, MergeChangeWord                                                                                       ui.Color
+	MergeUnhandledUnfocusedBorder, MergeUnhandledFocusedBorder, MergeHandledUnfocusedBorder, MergeHandledFocusedBorder ui.Color
+	MergeConflictInput1Background, MergeConflictInput2Background                                                       ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -478,6 +484,13 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		DiffOverviewInserted: color("diffEditorOverview.insertedForeground"), DiffOverviewRemoved: color("diffEditorOverview.removedForeground"),
 		DiffInsertedTextBorder: color("diffEditor.insertedTextBorder"), DiffRemovedTextBorder: color("diffEditor.removedTextBorder"),
 		DiffBorder: color("diffEditor.border"), DiffDiagonalFill: color("diffEditor.diagonalFill"),
+		MergeChange: color("mergeEditor.change.background"), MergeChangeWord: color("mergeEditor.change.word.background"),
+		MergeUnhandledUnfocusedBorder: color("mergeEditor.conflict.unhandledUnfocused.border"),
+		MergeUnhandledFocusedBorder:   color("mergeEditor.conflict.unhandledFocused.border"),
+		MergeHandledUnfocusedBorder:   color("mergeEditor.conflict.handledUnfocused.border"),
+		MergeHandledFocusedBorder:     color("mergeEditor.conflict.handledFocused.border"),
+		MergeConflictInput1Background: color("mergeEditor.conflict.input1.background"),
+		MergeConflictInput2Background: color("mergeEditor.conflict.input2.background"),
 	}
 }
 

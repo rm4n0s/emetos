@@ -209,6 +209,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 	}
 	if r.kind == overlayUnder {
 		view.paintBackgroundMarks()
+		view.paintLineBlocks()
 		view.paintLineHighlight()
 		view.paintFolded()
 		view.paintSelections()

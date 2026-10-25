@@ -29,6 +29,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerSettingsEditorColors(r)
 	registerKeybindingsEditorColors(r)
 	registerDiffEditorColors(r)
+	registerMergeEditorColors(r)
 	return r
 }
 
@@ -1042,5 +1043,62 @@ func registerDiffEditorColors(r *ColorRegistry) {
 			Description: "Border color between the two text editors."},
 		ColorContribution{ID: "diffEditor.diagonalFill", Defaults: dflt(Hex("#CCCCCC33"), Hex("#22222233"), nil, nil),
 			Description: "Color of the diff editor's diagonal fill. The diagonal fill is used in side-by-side diff views."},
+	)
+}
+
+// registerMergeEditorColors registers the colors of the merge editor (step 9.7): the headers and contents of the
+// current, incoming and common sides (the "merge." colors of the inline conflicts, which the merge editor takes the
+// colors of its input decorations from), and the "mergeEditor." colors: the background of changes and of the
+// characters changed, the same for the base (the base view is not built, SPEC section 9.11), the borders of the
+// conflicts (handled or not, focused or not), their marks on the overview ruler and the minimap, the background of the
+// "Conflicting Lines" text and the backgrounds of the decorations of the inputs.
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts (the merge section) and
+// src/vs/workbench/contrib/mergeEditor/browser/view/colors.ts
+func registerMergeEditorColors(r *ColorRegistry) {
+	current, incoming, common := Hex("#40C8AE80"), Hex("#40A6FF80"), Hex("#60606066") // the base colors made 50%, 50% and 40% opaque
+	const inline = " The color must not be opaque so as not to hide underlying decorations."
+	r.MustRegister(
+		ColorContribution{ID: "merge.currentHeaderBackground", NeedsTransparency: true, Defaults: dflt(current, current, nil, nil),
+			Description: "Current header background in inline merge-conflicts." + inline},
+		ColorContribution{ID: "merge.currentContentBackground", NeedsTransparency: true, Defaults: AllThemes(Transparent(Ref("merge.currentHeaderBackground"), 0.4)),
+			Description: "Current content background in inline merge-conflicts." + inline},
+		ColorContribution{ID: "merge.incomingHeaderBackground", NeedsTransparency: true, Defaults: dflt(incoming, incoming, nil, nil),
+			Description: "Incoming header background in inline merge-conflicts." + inline},
+		ColorContribution{ID: "merge.incomingContentBackground", NeedsTransparency: true, Defaults: AllThemes(Transparent(Ref("merge.incomingHeaderBackground"), 0.4)),
+			Description: "Incoming content background in inline merge-conflicts." + inline},
+		ColorContribution{ID: "merge.commonHeaderBackground", NeedsTransparency: true, Defaults: dflt(common, common, nil, nil),
+			Description: "Common ancestor header background in inline merge-conflicts." + inline},
+		ColorContribution{ID: "merge.commonContentBackground", NeedsTransparency: true, Defaults: AllThemes(Transparent(Ref("merge.commonHeaderBackground"), 0.4)),
+			Description: "Common ancestor content background in inline merge-conflicts." + inline},
+		ColorContribution{ID: "merge.border", Defaults: dflt(nil, nil, Hex("#C3DF6F"), Hex("#007ACC")),
+			Description: "Border color on headers and the splitter in inline merge-conflicts."},
+
+		ColorContribution{ID: "mergeEditor.change.background", Defaults: AllThemes(Hex("#9BB95533")),
+			Description: "The background color for changes."},
+		ColorContribution{ID: "mergeEditor.change.word.background", Defaults: dflt(Hex("#9CCC2C33"), Hex("#9CCC2C66"), Hex("#9CCC2C33"), Hex("#9CCC2C66")),
+			Description: "The background color for word changes."},
+		ColorContribution{ID: "mergeEditor.changeBase.background", Defaults: dflt(Hex("#4B1818FF"), Hex("#FFCCCCFF"), Hex("#4B1818FF"), Hex("#FFCCCCFF")),
+			Description: "The background color for changes in base."},
+		ColorContribution{ID: "mergeEditor.changeBase.word.background", Defaults: dflt(Hex("#6F1313FF"), Hex("#FFA3A3FF"), Hex("#6F1313FF"), Hex("#FFA3A3FF")),
+			Description: "The background color for word changes in base."},
+		ColorContribution{ID: "mergeEditor.conflict.unhandledUnfocused.border", Defaults: dflt(Hex("#FFA6007A"), Hex("#FFA600FF"), Hex("#FFA6007A"), Hex("#FFA6007A")),
+			Description: "The border color of unhandled unfocused conflicts."},
+		ColorContribution{ID: "mergeEditor.conflict.unhandledFocused.border", Defaults: AllThemes(Hex("#FFA600")),
+			Description: "The border color of unhandled focused conflicts."},
+		ColorContribution{ID: "mergeEditor.conflict.handledUnfocused.border", Defaults: AllThemes(Hex("#86868649")),
+			Description: "The border color of handled unfocused conflicts."},
+		ColorContribution{ID: "mergeEditor.conflict.handledFocused.border", Defaults: AllThemes(Hex("#C1C1C1CC")),
+			Description: "The border color of handled focused conflicts."},
+		ColorContribution{ID: "mergeEditor.conflict.handled.minimapOverViewRuler", Defaults: AllThemes(Hex("#ADACA8EE")),
+			Description: "The foreground color for changes in input 1."},
+		ColorContribution{ID: "mergeEditor.conflict.unhandled.minimapOverViewRuler", Defaults: AllThemes(Hex("#FCBA03FF")),
+			Description: "The foreground color for changes in input 1."},
+		ColorContribution{ID: "mergeEditor.conflictingLines.background", Defaults: AllThemes(Hex("#FFEA0047")),
+			Description: "The background of the \"Conflicting Lines\" text."},
+		ColorContribution{ID: "mergeEditor.conflict.input1.background", NeedsTransparency: true, Defaults: AllThemes(Transparent(Ref("merge.currentHeaderBackground"), 0.4)),
+			Description: "The background color of decorations in input 1."},
+		ColorContribution{ID: "mergeEditor.conflict.input2.background", NeedsTransparency: true, Defaults: AllThemes(Transparent(Ref("merge.incomingHeaderBackground"), 0.4)),
+			Description: "The background color of decorations in input 2."},
 	)
 }

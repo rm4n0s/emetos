@@ -284,6 +284,9 @@ func (m *MergeModel) HandledCount() int { return m.ConflictCount() - m.Unhandled
 // Result returns the lines of the result (a copy).
 func (m *MergeModel) Result() []string { return slices.Clone(m.result) }
 
+// ResultLineCount returns the number of lines of the result (without copying them, as Result does).
+func (m *MergeModel) ResultLineCount() int { return len(m.result) }
+
 // ResultText returns the result as a text with the model's line breaks: what
 // a completed merge writes. The model does not forbid it while conflicts are
 // unhandled (UnhandledCount); asking the user is for the caller.

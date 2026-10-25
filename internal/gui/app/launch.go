@@ -18,8 +18,6 @@ import (
 
 // Texts of the notices of a launch (SPEC §10.11).
 const (
-	// MergeUnavailableNotice is what --merge says until the merge editor exists (step 9.7).
-	MergeUnavailableNotice = "The merge editor is not available yet."
 	// LauncherClosingMessage is the reply to a launch that comes when the window is gone.
 	LauncherClosingMessage = "Emetos is closing."
 )
@@ -166,8 +164,8 @@ func (l *Launcher) manager() *Windows {
 
 // HandleLaunch carries out a launch in this window: what the command line of a second Emetos asked (SPEC §10.11),
 // once Windows.HandleLaunch has picked the window. It must run on the UI thread, with the shell on screen. The window
-// comes to the front; --diff opens the diff editor over the two files (see openLaunchDiff) and --merge shows a notice and
-// ends with exit code 1 (it comes with a later step); --profile says in a notice that the window keeps its profile, when it is not the one asked for (Windows.HandleLaunch
+// comes to the front; --diff opens the diff editor over the two files (see openLaunchDiff) and --merge the merge editor over the four
+// (see openLaunchMerge); --profile says in a notice that the window keeps its profile, when it is not the one asked for (Windows.HandleLaunch
 // picks or makes the window that has the profile); a folder that is not the folder of the window is opened as Open Folder does (the questions
 // about unsaved changes included);
 // then the files are opened in the active group, the first of them shown, with the cursor at the line and
@@ -190,12 +188,16 @@ type launchState struct {
 	stopWatch func()
 }
 
-// launchWait is a launch with --wait: it ends when every document it opened is closed, and every diff editor it opened.
+// launchWait is a launch with --wait: it ends when every document it opened is closed, and every diff editor and merge
+// editor it opened.
 type launchWait struct {
 	// open are the documents it opened that are not closed yet.
 	open map[*document.Document]bool
 	// diffs are the diff editors it opened that are not closed yet.
 	diffs map[*editorgroup.DiffInput]bool
+	// merges are the merge editors it opened that are not closed yet, and merged tells that it opened one.
+	merges map[*editorgroup.MergeInput]bool
+	merged bool
 	// pending is how many files are still being read; failed is how many could not be opened.
 	pending, failed int
 	// tracked is how many documents it has opened and shown.
@@ -218,7 +220,8 @@ func (s *shellState) initLaunch(binding *widgets.WidgetsBinding) {
 	// the command line of this process is handled as any other: the folder and the files were opened with the window
 	if st := win.takeStartup(); st != nil {
 		s.launchExtras(*st)
-		s.openLaunchDiff(st.Diff, &launchWait{open: map[*document.Document]bool{}, diffs: map[*editorgroup.DiffInput]bool{}}, func() {})
+		w := newLaunchWait(func(LaunchOutcome) {})
+		s.openLaunchDiff(st.Diff, w, func() { s.openLaunchMerge(st.Merge, w, func() {}) })
 	}
 	win.markReady()
 }
@@ -251,9 +254,16 @@ func (w *Window) takeStartup() *ipc.OpenArgs {
 	return st
 }
 
-// launchExtras shows the notices for the parts of a command line that come with later steps. It reports whether the
-// launch is one that opens nothing else (--merge).
-func (s *shellState) launchExtras(args ipc.OpenArgs) (opensNothing bool) {
+// newLaunchWait makes the wait of a launch, which calls done once.
+func newLaunchWait(done func(LaunchOutcome)) *launchWait {
+	return &launchWait{
+		done: done, open: map[*document.Document]bool{}, diffs: map[*editorgroup.DiffInput]bool{},
+		merges: map[*editorgroup.MergeInput]bool{},
+	}
+}
+
+// launchExtras shows the notices for the parts of a command line that need one: the profile of the window.
+func (s *shellState) launchExtras(args ipc.OpenArgs) {
 	notify := PeekWindow(s.Context()).Notify
 	if win := PeekWindow(s.Context()); args.Profile != "" && !win.Process.Windows.usesProfile(win, args.Profile) {
 		// the windows are picked by the profile (Windows.HandleLaunch), so this is a folder that is open with
@@ -264,24 +274,14 @@ func (s *shellState) launchExtras(args ipc.OpenArgs) (opensNothing bool) {
 			notify.Info("Emetos", fmt.Sprintf(ProfileWindowNotice, win.ProfileName()))
 		}
 	}
-	switch {
-	case len(args.Merge) > 0:
-		// TODO(step 9.7): open the merge editor
-		notify.Info("Emetos", MergeUnavailableNotice)
-		return true
-	}
-	return false
 }
 
 // launch is the shell's part of Window.HandleLaunch.
 func (s *shellState) launch(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func()) {
 	win := PeekWindow(s.Context())
 	win.Raise()
-	if s.launchExtras(args) {
-		done(LaunchOutcome{ExitCode: 1, Message: MergeUnavailableNotice})
-		return func() {}
-	}
-	w := &launchWait{done: done, open: map[*document.Document]bool{}, diffs: map[*editorgroup.DiffInput]bool{}}
+	s.launchExtras(args)
+	w := newLaunchWait(done)
 	if args.Wait {
 		s.launches.waits = append(s.launches.waits, w)
 	} else {
@@ -291,9 +291,11 @@ func (s *shellState) launch(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel
 	openFiles := func() {
 		s.openLaunchFiles(args.Files, w, func() {
 			s.openLaunchDiff(args.Diff, w, func() {
-				if args.Wait {
-					s.checkWait(w)
-				}
+				s.openLaunchMerge(args.Merge, w, func() {
+					if args.Wait {
+						s.checkWait(w)
+					}
+				})
 			})
 		})
 	}
@@ -447,6 +449,50 @@ func (s *shellState) launchDiffClosed(input *editorgroup.DiffInput) {
 	}
 }
 
+// openLaunchMerge opens the merge editor of --merge: the four files (the two sides, the base and the result) are read in
+// the background and the merge is shown in the active group, the first path on the left (incoming) and the second on
+// the right (current). A file that cannot be read is reported and nothing is shown. The merge editor is tracked by w, so
+// that --wait ends when its tab is closed; the exit code is 1 then (the merge was not completed: step 9.8 makes
+// Complete Merge end the wait with 0). then is called once the merge is shown, or has failed; nothing is done for a
+// launch with no --merge.
+func (s *shellState) openLaunchMerge(paths []string, w *launchWait, then func()) {
+	if len(paths) == 0 {
+		then()
+		return
+	}
+	win := PeekWindow(s.Context())
+	if len(paths) != 4 {
+		win.Notify.Error("Emetos", "--merge needs four files")
+		w.failed++
+		then()
+		return
+	}
+	w.pending++
+	s.openMergeFiles(paths[0], paths[1], paths[2], paths[3], "", "", func(input *editorgroup.MergeInput, err error) {
+		w.pending--
+		if err != nil {
+			w.failed++
+			win.Notify.Error("Emetos", "Cannot open the merge editor: "+describe(err))
+			then()
+			return
+		}
+		w.merges[input] = true
+		w.merged = true
+		w.tracked++
+		then()
+	})
+}
+
+// launchMergeClosed is told that a merge editor was closed: a launch that waits for it may be over.
+func (s *shellState) launchMergeClosed(input *editorgroup.MergeInput) {
+	for _, w := range slices.Clone(s.launches.waits) {
+		if w.merges[input] {
+			delete(w.merges, input)
+			s.checkWait(w)
+		}
+	}
+}
+
 // placeAt gives the function that puts the cursor of the editor of doc at a line and column counted from 1; nil
 // when line is 0.
 func placeAt(doc *document.Document, line, column int) func(*textEditor) {
@@ -473,11 +519,16 @@ func (s *shellState) launchDocClosed(doc *document.Document) {
 // checkWait ends a wait whose files are all read and closed: with exit code 0, or 1 when files were asked for and
 // none of them could be opened.
 func (s *shellState) checkWait(w *launchWait) {
-	if w.pending > 0 || len(w.open) > 0 || len(w.diffs) > 0 || w.finished {
+	if w.pending > 0 || len(w.open) > 0 || len(w.diffs) > 0 || len(w.merges) > 0 || w.finished {
 		return
 	}
 	if w.failed > 0 && w.tracked == 0 {
 		s.finishWait(w, LaunchOutcome{ExitCode: 1, Message: "none of the files could be opened"})
+		return
+	}
+	if w.merged {
+		// TODO(step 9.8): exit code 0 when the merge was completed (Complete Merge); a closed merge editor is a merge that was not
+		s.finishWait(w, LaunchOutcome{ExitCode: 1, Message: MergeNotCompletedNotice})
 		return
 	}
 	s.finishWait(w, LaunchOutcome{})
