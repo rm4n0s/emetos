@@ -33,6 +33,9 @@ type Options struct {
 	// Overtype is the overtype input mode: a typed character replaces the one after
 	// the cursor.
 	Overtype bool
+	// OvertypeOnPaste is editor.overtypeOnPaste: in overtype mode a paste replaces the
+	// characters after the cursor as typing does; off, a paste inserts.
+	OvertypeOnPaste bool
 	// AutoIndent is editor.autoIndent: what a new line, typing and pasting do with the
 	// indentation (SPEC §8.6.2).
 	AutoIndent indent.AutoIndent
@@ -87,6 +90,7 @@ func DefaultOptions() Options {
 		WordSeparators:                NewWordClassifier(DefaultWordSeparators),
 		MultiCursorMergeOverlapping:   true,
 		UseTabStops:                   true,
+		OvertypeOnPaste:               true,
 		AutoIndent:                    indent.AutoIndentFull,
 		AutoIndentOnPasteWithinString: true,
 		CommentInsertSpace:            true,

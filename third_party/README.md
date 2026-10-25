@@ -14,3 +14,7 @@ recorded in `NOTICE` instead.
 `third_party/glutter/LICENSE` is Glutter's license, for the two scripts adapted from
 it (`scripts/headless-wayland.sh` and `scripts/screenshot-headless.sh`); it is copied
 from Glutter's module, not from `reference/`.
+
+`third_party/vscode-textmate/LICENSE.md` is the license of vscode-textmate, whose tokenizer and theme algorithms are
+ported (`// Ported from vscode-textmate` comments); no file of it is bundled. The licenses of the Go modules that are linked
+into the program come with their sources (`go list -m -f '{{.Dir}}' <module>`) and are listed in `NOTICE`.

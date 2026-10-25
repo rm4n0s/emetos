@@ -336,7 +336,10 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 				},
 			})
 	case command.ViewExplorerEmpty:
-		return explorer.NewWelcome(explorer.WelcomeOpts{HasEditors: s.editorCount() > 0, OnOpenFolder: s.pickFolder})
+		// the warning that opening a folder closes the editors holds only when the folder replaces this tab
+		win := PeekWorkspace(s.Context())
+		replaces := win.Process.Workspaces.setting(win, "window.openFoldersInNewWindow") == "off"
+		return explorer.NewWelcome(explorer.WelcomeOpts{HasEditors: replaces && s.editorCount() > 0, OnOpenFolder: s.pickFolder})
 	case command.ViewOpenEditors:
 		return explorer.NewOpenEditorsBody(ex.editors)
 	}

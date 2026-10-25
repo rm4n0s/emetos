@@ -89,6 +89,9 @@ func registerLayoutCommands(r *Registry) {
 		// Escape Escape leaves zen mode and has no title, so the palette does not list it
 		Meta{ID: "workbench.action.toggleFullScreen", Title: "Toggle Full Screen", Category: "View"},
 		Meta{ID: "workbench.action.toggleZenMode", Title: "Toggle Zen Mode", Category: "View"},
+		// Ported from VS Code: src/vs/workbench/contrib/codeEditor/browser/toggleOvertype.ts (step 10.2)
+		Meta{ID: "editor.action.toggleOvertypeInsertMode", Title: "Toggle Overtype/Insert Mode", Category: "View",
+			Description: "Toggle between overtype and insert mode"},
 		Meta{ID: "workbench.action.exitZenMode"},
 		Meta{ID: "workbench.action.toggleCenteredLayout", Title: "Toggle Centered Layout", Category: "View"},
 		Meta{ID: "workbench.action.zoomIn", Title: "Zoom In", Category: "View"},

@@ -20,7 +20,9 @@ import (
 
 // The priorities of the items of the status bar (VS Code's): the problems count and the items of the editor.
 const (
-	problemsPriority    = 50
+	problemsPriority = 50
+	// inputModePriority is the item "OVR" of the overtype mode, at the left of the selection.
+	inputModePriority   = 100.6
 	selectionPriority   = 100.5
 	indentationPriority = 100.4
 	encodingPriority    = 100.3
@@ -38,7 +40,10 @@ type statusState struct {
 	// hidden while no editor is active.
 	selection, indentation, encoding, eol, language *workbench.StatusAccessor
 	// profile is the item of the profile of the window; it is hidden while the window has the default profile.
-	profile        *workbench.StatusAccessor
+	profile *workbench.StatusAccessor
+	// inputMode is the item "OVR", shown while the editors are in overtype mode (the mode of the process, not of
+	// the active editor).
+	inputMode      *workbench.StatusAccessor
 	stops          []func()
 	removeCommands []func()
 }
@@ -74,6 +79,10 @@ func (s *shellState) initStatus(binding *widgets.WidgetsBinding) {
 	for _, it := range st.editorItems() {
 		it.SetVisible(false)
 	}
+	st.inputMode = bar.Add("status.editor.inputMode", workbench.StatusRight, inputModePriority, inputModeEntry())
+	st.inputMode.SetVisible(win.InputMode.Overtype())
+	handle := win.InputMode.AddListener(func() { st.inputMode.SetVisible(win.InputMode.Overtype()) })
+	st.stops = append(st.stops, func() { win.InputMode.RemoveListener(handle) })
 	st.profile = bar.Add("status.profile", workbench.StatusRight, profilePriority, workbench.StatusEntry{})
 	s.refreshProfileStatus()
 	st.stops = append(st.stops, win.OnProfileChange(func(string) {
@@ -84,6 +93,16 @@ func (s *shellState) initStatus(binding *widgets.WidgetsBinding) {
 	}))
 	s.bindStatusCommands(binding)
 	s.refreshStatus()
+}
+
+// inputModeEntry is the item of the overtype mode: "OVR" on the prominent background, whose click goes back to insert mode.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/editorStatus.ts (updateInputModeElement)
+func inputModeEntry() workbench.StatusEntry {
+	return workbench.StatusEntry{
+		Name: "Enable Insert Mode", Text: "OVR", AriaLabel: "OVR", Tooltip: "Enable Insert Mode",
+		Command: "editor.action.toggleOvertypeInsertMode", Kind: workbench.StatusProminent,
+	}
 }
 
 // profileEntry is the item of the profile: the name of the profile of the window, and a click opens the picker that
@@ -127,6 +146,7 @@ func (s *shellState) disposeStatus() {
 	st.bell.Dispose()
 	st.problems.Dispose()
 	st.profile.Dispose()
+	st.inputMode.Dispose()
 	for _, it := range st.editorItems() {
 		it.Dispose()
 	}

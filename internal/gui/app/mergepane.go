@@ -265,7 +265,7 @@ func (p *mergePane) build(bc widgets.BuildContext, group *editorgroup.Group, act
 	opts := func(ed *textEditor, autofocus bool) editor.EditorOpts {
 		return editor.EditorOpts{
 			Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: autofocus, Context: win.ctx,
-			ClipboardMemory: win.Clipboard, FindMemory: win.Find, Zoom: win.Zoom, Focus: ed.focus,
+			ClipboardMemory: win.Clipboard, FindMemory: win.Find, Zoom: win.Zoom, InputMode: win.InputMode, Focus: ed.focus,
 			OnFocus: func(has bool) { p.s.editorFocus(group, ed, has) },
 		}
 	}

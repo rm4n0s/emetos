@@ -95,6 +95,8 @@ func registerLayoutKeys(r *Registry) {
 
 		// full screen, zen mode and the zoom of the window (step 8.5): the keys of Linux
 		Rule{Command: "workbench.action.toggleFullScreen", Weight: WeightWorkbenchContrib, Primary: "f11"},
+		// Insert toggles overtype mode (Linux; VS Code's macOS key is Alt+Cmd+O)
+		Rule{Command: "editor.action.toggleOvertypeInsertMode", Weight: WeightWorkbenchContrib, Primary: "insert"},
 		Rule{Command: "workbench.action.toggleZenMode", Weight: WeightWorkbenchContrib, Primary: "ctrl+k z"},
 		Rule{Command: "workbench.action.exitZenMode", Weight: WeightEditorContrib - 1000, When: mustWhen("inZenMode"), Primary: "escape escape"},
 		Rule{Command: "workbench.action.zoomIn", Weight: WeightWorkbenchContrib, Primary: "ctrl+=", Secondary: []string{"ctrl+shift+=", "ctrl+numpad_add"}},

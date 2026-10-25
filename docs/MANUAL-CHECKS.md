@@ -91,3 +91,24 @@ scripts/isolated.sh -- go run -tags glutter_release ./cmd/emetos /tmp/emetos-tra
 6. If you can, turn the tray off (or use a desktop without one, such as GNOME without the extension): does the close button then quit instead of hiding the window?
 
 Say what you saw, and which desktop you used.
+
+## 10.2 The release: the icon in your launcher, and using Emetos for your own work
+
+Unlike the other checks, this one is meant to use your real desktop and your real configuration: it installs the program and the launcher entry for you. Run it from a checkout of the repository, on the commit that is to be tagged `v0.1.0`:
+
+```
+go install -tags glutter_release ./cmd/emetos
+emetos --version
+scripts/install-desktop.sh
+```
+
+(`go install ...@latest` of the published module is the same program: `go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@latest`, once the tag is pushed. `emetos` must be in your `PATH`, or run `scripts/install-desktop.sh --exec "$(go env GOPATH)/bin/emetos"`. The script writes only `~/.local/share/applications/dev.emetos.Emetos.desktop` and `~/.local/share/icons/hicolor/<N>x<N>/apps/dev.emetos.Emetos.png`; `scripts/install-desktop.sh --uninstall` removes them.)
+
+1. Does `emetos --version` print `v0.1.0` (built from the checkout at the `v0.1.0` tag, or `go install ...@v0.1.0`)? A build from an untagged or modified checkout prints Go's pseudo-version (`v0.0.0-<date>-<revision>+dirty`), and `go run` prints `v0.1.0-dev`.
+2. Open your application launcher or menu and search for "Emetos" (log out and in if it does not show at once). Is the icon there (a rounded indigo square with a white `</>`), is it sharp at the launcher's size, and does it fit next to the other icons on a light and on a dark theme? Does choosing it start Emetos?
+3. While Emetos runs, does the window in your task bar or dock use the same icon and group under the launcher entry (the entry has `StartupWMClass=dev.emetos.Emetos`)? Right click the launcher entry: is there a "New Workspace Tab" action?
+4. In your file manager, "Open With" on a text file and on a folder: is Emetos listed, and does it open the file or the folder as a workspace tab?
+5. Overtype mode: in a text file press Insert. Does `OVR` show in the status bar (right side, on a colored background) and the cursor become a block? Do typed characters replace the ones after the cursor, and at the end of a line insert? Does pasting replace too (and insert after `"editor.overtypeOnPaste": false`)? Does clicking `OVR` or pressing Insert again go back to insert mode, in every workspace tab? Does it work with your keyboard layout and input method?
+6. Use Emetos for your own work for a while (your real folders, your own settings in `~/.config/emetos/settings.json` and `keybindings.json`). Report every problem: each becomes separate fix work after this step.
+
+Say what you saw, and which desktop and icon theme you used.

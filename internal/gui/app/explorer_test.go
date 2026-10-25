@@ -505,6 +505,48 @@ func TestExplorerOpenEditorsCloseButtonAndSettings(t *testing.T) {
 	}
 }
 
+// The empty Explorer warns that opening a folder closes the open editors only when the folder would replace the tab
+// (window.openFoldersInNewWindow "off"); otherwise the folder opens in a new tab and the editors stay (step 9b.3).
+func TestExplorerWelcomeWarnsOnlyWhenTheFolderReplacesTheTab(t *testing.T) {
+	cases := []struct {
+		setting string
+		warns   bool
+	}{
+		{"default", false},
+		{"on", false},
+		{"off", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.setting, func(t *testing.T) {
+			paths := testutil.Isolate(t)
+			testutil.Settings(t, paths, map[string]any{"files.hotExit": "off", "window.menuBarVisibility": "classic",
+				"window.openFoldersInNewWindow": tc.setting})
+			win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+			if err != nil {
+				t.Fatalf("NewWorkspace: %v", err)
+			}
+			doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
+			if err != nil {
+				t.Fatalf("OpenFile: %v", err)
+			}
+			ts := testutil.New(t, ui.Size{Width: 900, Height: 600})
+			ts.PumpWidget(newAppDocs(context.Background(), win, []*document.Document{doc}, nil, ""))
+			for range 4 {
+				ts.Pump(20 * time.Millisecond)
+			}
+			if err := gluttertest.FindsOneWidget(ts, gluttertest.ByText(explorer.WelcomeText)); err != nil {
+				t.Fatal(err)
+			}
+			if got := ts.Exists(gluttertest.ByText(explorer.WelcomeEditorsText)); got != tc.warns {
+				t.Errorf("the warning is shown: %v, want %v", got, tc.warns)
+			}
+			if errs := ts.TakeErrors(); len(errs) != 0 {
+				t.Errorf("errors: %v", errs)
+			}
+		})
+	}
+}
+
 func TestExplorerWelcomeAndOpenFolder(t *testing.T) {
 	win := newTestWorkspace(t, "")
 	ts := testutil.New(t, ui.Size{Width: 900, Height: 600})

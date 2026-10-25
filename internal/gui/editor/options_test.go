@@ -69,7 +69,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		MouseWheelScrollSensitivity: 1, FastScrollSensitivity: 5, DragAndDrop: true, SelectionClipboard: true,
 		MultiCursorPaste: "spread", EmptySelectionClipboard: true, TabCompletion: "off",
 		Emmet:      EmmetOptions{IncludeLanguages: map[string]any{}, ExcludeLanguages: []any{"markdown"}, Variables: map[string]any{}, SyntaxProfiles: map[string]any{}},
-		FontWeight: 400, CursorStyle: "line",
+		FontWeight: 400, CursorStyle: "line", OvertypeCursorStyle: "block", OvertypeOnPaste: true,
 		MatchBrackets: "always", BracketPairColorization: true,
 		AutoIndent: "full", AutoIndentOnPasteWithinString: true, Guides: indent.DefaultGuideOptions(),
 		AutoClosingBrackets: "languageDefined", AutoClosingComments: "languageDefined", AutoClosingQuotes: "languageDefined",
@@ -147,6 +147,8 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 		"editor.comments.ignoreEmptyLines":         false,
 		"editor.autoIndentOnPaste":                 true,
 		"editor.autoIndentOnPasteWithinString":     false,
+		"editor.overtypeCursorStyle":               "underline",
+		"editor.overtypeOnPaste":                   false,
 
 		"editor.renderWhitespace":            "boundary",
 		"editor.renderControlCharacters":     false,
@@ -193,6 +195,9 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	if got.AutoClosingBrackets != "beforeWhitespace" || got.AutoClosingComments != "always" || got.AutoClosingQuotes != "never" ||
 		got.AutoClosingDelete != "always" || got.AutoClosingOvertype != "never" || got.AutoSurround != "quotes" {
 		t.Errorf("auto-closing options: %+v", got)
+	}
+	if got.OvertypeCursorStyle != "underline" || got.OvertypeOnPaste {
+		t.Errorf("overtype options: %q, %v", got.OvertypeCursorStyle, got.OvertypeOnPaste)
 	}
 	if got.CommentsInsertSpace || got.CommentsIgnoreEmptyLines {
 		t.Errorf("comment options: %+v", got)

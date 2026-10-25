@@ -180,10 +180,10 @@ func splitLines(text string) []string {
 }
 
 // replaceRange is the range that a paste replaces for a selection: the selection, grown in
-// overtype mode as typing grows it.
+// overtype mode (with Options.OvertypeOnPaste) as typing grows it.
 func (c Commands) replaceRange(s buffer.Selection, text string) buffer.Range {
 	r := c.validRange(s)
-	if c.Options.Overtype {
+	if c.Options.Overtype && c.Options.OvertypeOnPaste {
 		r = c.overtypeRange(r, text)
 	}
 	return r

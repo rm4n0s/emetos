@@ -164,7 +164,7 @@ func (s *shellState) editorColumn(bc widgets.BuildContext, win *Workspace, group
 	binding := widgets.WidgetsBindingOf(bc)
 	text := editor.NewEditor(ed.view, editor.EditorOpts{
 		Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: active, Context: win.ctx, ClipboardMemory: win.Clipboard,
-		FindMemory: win.Find, Zoom: win.Zoom, Focus: ed.focus,
+		FindMemory: win.Find, Zoom: win.Zoom, InputMode: win.InputMode, Focus: ed.focus,
 		OnFocus: func(has bool) { s.editorFocus(group, ed, has) },
 	})
 	// each editor has its own widget state (scroll, focus), which a key apart keeps; the key is global

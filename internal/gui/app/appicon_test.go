@@ -3,7 +3,10 @@ package app
 import (
 	"bytes"
 	"image/png"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/errors"
@@ -137,5 +140,20 @@ func TestAnIconThatCannotBeMade(t *testing.T) {
 	icon, err := iconFromPNGs(func(int) ([]byte, bool) { return good, true }, []int{16})
 	if err != nil || icon.Images[0].Size != 16 {
 		t.Fatalf("%v %v", icon, err)
+	}
+}
+
+// TestDesktopEntryNamesTheAppID pins the application id to the desktop entry that scripts/install-desktop.sh installs:
+// the file is named after the id, and its icon and StartupWMClass are the id, so a launcher groups the window with the
+// entry and finds the icon.
+func TestDesktopEntryNamesTheAppID(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", AppID+".desktop"))
+	if err != nil {
+		t.Fatalf("the desktop entry is not named after AppID %q: %v", AppID, err)
+	}
+	for _, want := range []string{"\nIcon=" + AppID + "\n", "\nStartupWMClass=" + AppID + "\n"} {
+		if !bytes.Contains(data, []byte(want)) {
+			t.Errorf("the desktop entry lacks %q", strings.TrimSpace(want))
+		}
 	}
 }

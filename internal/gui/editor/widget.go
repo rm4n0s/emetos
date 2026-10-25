@@ -210,6 +210,9 @@ type EditorOpts struct {
 	// Zoom is the zoom of the font that the editors of a window share; without it the editor has
 	// its own.
 	Zoom *Zoom
+	// InputMode is the insert or overtype mode that the editors of the process share; without it the editor has its
+	// own.
+	InputMode *InputMode
 	// ClipboardMemory is what the editors of a window remember of their copies, so that a copy
 	// in one can be pasted in another as it was made; without it the editor has its own.
 	ClipboardMemory *ClipboardMemory
@@ -333,6 +336,7 @@ func (s *editorState) InitState() {
 	vm.SetAnimator(s.startCursorAnimation)
 	vm.SetFramer(s.runPerFrame)
 	vm.SetZoom(opts.Zoom)
+	vm.SetInputMode(opts.InputMode)
 
 	// The focus: the editor's node, with the scope of its context keys.
 	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Editor"})
@@ -592,6 +596,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.SetClipboard(nil, nil, nil)
 		old.vm.SetAnimator(nil)
 		old.vm.SetFramer(nil)
+		old.vm.SetInputMode(nil)
 		vm := s.Widget().vm
 		vm.SetPoster(s.binding.Post)
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
@@ -605,6 +610,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		vm.SetAnimator(s.startCursorAnimation)
 		vm.SetFramer(s.runPerFrame)
 		vm.SetZoom(s.Widget().opts.Zoom)
+		vm.SetInputMode(s.Widget().opts.InputMode)
 		s.refreshCommands()
 		s.useFind(vm)
 		s.applyFocus()
@@ -648,6 +654,7 @@ func (s *editorState) Dispose() {
 		s.primaryTimer()
 	}
 	vm.RemoveListener(s.vmHandle)
+	vm.SetInputMode(nil) // a mode shared by the process must not keep the editor alive
 	s.controller.RemoveListener(s.scrollHandle)
 	s.controller.Dispose()
 }

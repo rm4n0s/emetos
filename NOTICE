@@ -4,8 +4,9 @@ Licensed under the MIT License (see LICENSE).
 
 Emetos bundles or ports the third-party material listed below. Each entry names
 the step of docs/IMPLEMENTATION.md that adds it; the license text of each asset
-is kept in third_party/<name>/ by that step. An entry marked "not yet added" is
-planned and has no files in the repository yet.
+is kept in third_party/<name>/ (copied by scripts/update-assets.sh). Audited for
+the release of version 0.1.0 (step 10.2): every entry has its files in the
+repository and its license text in third_party/.
 
 1. TextMate grammars and language configurations
    Source:  Visual Studio Code, extensions/* (https://github.com/microsoft/vscode)
@@ -35,6 +36,8 @@ planned and has no files in the repository yet.
    module, workspace and checksum grammars of golang/vscode-go (MIT; its
    LICENSE is third_party/vscode-go/LICENSE); none was left out.
    A grammar without a permissive license is left out and recorded here.
+   License texts: third_party/vscode-extensions/ (VS Code's LICENSE.txt and
+   ThirdPartyNotices.txt) and third_party/vscode-go/LICENSE.
 
 2. Color themes
    Source:  Visual Studio Code, extensions/theme-defaults
@@ -48,17 +51,22 @@ planned and has no files in the repository yet.
    Source:  Visual Studio Code, src/vs (https://github.com/microsoft/vscode)
    License: MIT (Microsoft Corporation)
    Code ported from VS Code says so in a "Ported from VS Code: <path>" comment.
-   First added by step 1.1 (not yet added).
+   First added by step 1.1. License text: third_party/vscode-extensions/LICENSE.txt
+   (VS Code's own).
 
 4. TextMate tokenizer and theme algorithms
    Source:  vscode-textmate (https://github.com/microsoft/vscode-textmate)
    License: MIT (Microsoft Corporation)
-   Added by steps 4.3 and 4.7 (the resolution of token styles).
+   Added by steps 4.3 and 4.7 (the resolution of token styles). No file of it is
+   bundled; ported code says "Ported from vscode-textmate" in a comment. License
+   text: third_party/vscode-textmate/LICENSE.md.
 
 5. Go module grammar
    Source:  vscode-go (https://github.com/golang/vscode-go)
    License: MIT (The Go Authors)
-   Added by step 4.11 (not yet added).
+   Added by step 4.11 (the go.mod, go.work and go.sum grammars and the language
+   configuration, in internal/core/language/assets/go-mod/; the license is
+   third_party/vscode-go/LICENSE).
 
 6. Emmet abbreviation parser and snippets
    Source:  Emmet (https://github.com/emmetio/emmet)
@@ -77,17 +85,46 @@ planned and has no files in the repository yet.
    Source:  npm package @vscode/codicons (https://github.com/microsoft/vscode-codicons)
    License: CC BY 4.0 (icons), MIT (code). Attribution: "Codicons by Microsoft
             Corporation, licensed under CC BY 4.0".
-   Added by step 0.4 (third_party/codicons/).
+   Added by step 0.4 (internal/gui/kit/fonts/codicon.ttf and codicon.csv, copied
+   unmodified; third_party/codicons/LICENSE is the CC BY 4.0 text and
+   third_party/codicons/LICENSE-CODE the MIT text). Emetos shows the attribution
+   in its README and here, as CC BY 4.0 requires; no change was made to the icons.
 
 9. scripts/headless-wayland.sh and scripts/screenshot-headless.sh
    Source:  Glutter (https://github.com/rm4n0s/glutter)
    License: BSD-3-Clause (third_party/glutter/LICENSE)
    Added by step 0.4.
 
+Made for Emetos (the project's own work, MIT, no third-party artwork or font in them):
+
+10. Application icon
+    Files:   assets/icons/emetos-<size>.png, drawn with Glutter's canvas by
+             kit.AppIconPainter (step 9b.4) and installed by
+             scripts/install-desktop.sh (step 10.2).
+    License: MIT (see LICENSE).
+
+11. emetos-controls font
+    File:    internal/gui/kit/fonts/controls.go: a TrueType font of under 300
+             bytes with one empty glyph (the tab), written byte by byte by the
+             code (step 10.1). No font file or design of another project is in it.
+    License: MIT (see LICENSE).
+
+Go modules linked into the binary (their source and LICENSE files come with the
+module; `go list -m -f '{{.Dir}}' <module>` shows them):
+
+12. github.com/rm4n0s/glutter (BSD-3-Clause), github.com/rm4n0s/errors (MIT),
+    github.com/dlclark/regexp2 (MIT), github.com/go-text/typesetting
+    (Unlicense or BSD-3-Clause), golang.org/x/image, golang.org/x/sys and
+    golang.org/x/text (BSD-3-Clause, The Go Authors), github.com/ebitengine/purego
+    (Apache-2.0) and github.com/godbus/dbus/v5 (BSD-2-Clause). Versions are in
+    go.mod.
+
 Used by tests only, not bundled:
 
-10. Go Mono font
+13. Go Mono font
     Source:  golang.org/x/image/font/gofont
-    License: BSD-3-Clause (The Go Authors); the fonts are under the Bitstream
-             Vera / Go font license of the Go project.
+    License: BSD-3-Clause style license of the Go fonts (Copyright (c) 2016
+             Bigelow & Holmes Inc.; the text is font/gofont/ttfs/README of
+             golang.org/x/image). Linked into the test binaries only; it is not
+             in the Emetos program.
     Used from step 3.1.

@@ -266,6 +266,7 @@ func (w *Workspace) ToggleCenteredLayout() {
 // registerModeCommands sets the handlers of the commands of full screen, zen mode and the centered layout, and of the zoom.
 func (w *Workspace) registerModeCommands(set func(id string, h command.Handler)) {
 	set("workbench.action.toggleFullScreen", func(command.Context, any) error { return w.toggleFullScreen() })
+	set("editor.action.toggleOvertypeInsertMode", func(command.Context, any) error { w.InputMode.Toggle(); return nil })
 	set("workbench.action.toggleZenMode", func(command.Context, any) error { w.ToggleZenMode(); return nil })
 	set("workbench.action.exitZenMode", func(command.Context, any) error {
 		if w.Layout.ZenActive() {

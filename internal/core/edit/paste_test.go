@@ -142,3 +142,31 @@ func TestPasteInOvertypeMode(t *testing.T) {
 	e.run(func(c Commands, s []buffer.Selection) Result { return c.Paste(s, "XY", PasteOptions{}) })
 	e.assertText("aXYdef")
 }
+
+// TestPasteInOvertypeModeWithOvertypeOnPaste: in overtype mode a paste replaces the characters after the cursor only
+// with editor.overtypeOnPaste; without it, or in insert mode, it inserts.
+func TestPasteInOvertypeModeWithOvertypeOnPaste(t *testing.T) {
+	tests := []struct {
+		name              string
+		overtype, onPaste bool
+		line, text, want  string
+	}{
+		{"overtype and overtypeOnPaste", true, true, "abcdef", "XY", "aXYdef"},
+		{"overtype without overtypeOnPaste", true, false, "abcdef", "XY", "aXYbcdef"},
+		{"insert mode ignores overtypeOnPaste", false, true, "abcdef", "XY", "aXYbcdef"},
+		{"at the end of the line it inserts", true, true, "ab", "XYZ", "abXYZ"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			opts := DefaultOptions()
+			opts.Overtype, opts.OvertypeOnPaste = tc.overtype, tc.onPaste
+			col := 2
+			if tc.line == "ab" {
+				col = 3
+			}
+			e := newEd(t, opts, tc.line).caret(1, col)
+			e.run(func(c Commands, s []buffer.Selection) Result { return c.Paste(s, tc.text, PasteOptions{}) })
+			e.assertText(tc.want)
+		})
+	}
+}

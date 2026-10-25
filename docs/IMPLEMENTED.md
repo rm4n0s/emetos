@@ -25,6 +25,63 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 
 ---
 
+## Coverage of areas 1 and 2
+
+Written for the release (step 10.2). Every row of SPEC §3.1 (area 1) and §3.2 (area 2), the steps that built it, the main tests that cover it (packages under `internal/`, the test files in them, `golden` for the golden images), and its status: **done** (every behavior of the row exists and is tested), **partial** (with what is missing) or **not done**. Each row was checked against the code and the tests, not only against the entries below. Totals: 35 rows, 35 done, 0 partial, 0 not done (the Editing row was partial, for overtype mode, until the end of step 10.2). Things that SPEC §2 leaves out, and things the rows say come later (symbols in the breadcrumbs with area 3, the problems that language servers report), are not counted as missing.
+
+"Done" means the tests pass; six things need a real desktop, which the headless tests cannot show, and wait for the user in `docs/MANUAL-CHECKS.md`: the input method (3.6), the performance numbers with the GPU (3.11, 10.1), the portal's folder dialog (6.14), Ctrl+Tab and the history keys on a real keyboard (6.19), full screen and zoom on a real compositor (8.5) and the tray (9b.4). They are named in the rows they touch.
+
+### Area 1: the editor (SPEC §3.1)
+
+| Row | Steps | Main tests | Status |
+|---|---|---|---|
+| Editing | 1.3, 1.8, 1.9, 3.5, 3.6, 4.14, 4.15, 10.2 | `core/edit`: `typing_test`, `delete_test`, `worddelete_test`, `shift_test`, `shift_cases_test`, `indent_test`, `indentation_vscode_test`, `paste_test`; `core/indent`: `guess_test`, `guess_vscode_cases_test`; `gui/editor`: `input_test`, `commands_test`, `indentation_test`, `overtype_test`; `gui/app`: `overtype_test` | done (overtype mode, step 10.2: the Insert key and `editor.action.toggleOvertypeInsertMode`, `editor.overtypeOnPaste`, `editor.overtypeCursorStyle`, the cursor of the mode, "OVR" in the status bar). The IME check (3.6) is pending |
+| Line commands | 1.10, 4.18 | `core/edit`: `linecmds_test`, `lines_test`, `lines_cases_test`, `comment_test`, `comment_vscode_test`; `gui/editor`: `commands_test`, `commands_cover_test`, `comment_test` | done |
+| Cursors and selections | 1.8, 1.11, 3.3, 3.7, 3.8, 3.9, 4.13 | `core/edit`: `cursors_test`, `multicursor_test`, `move_test`, `mouse_test`, `drag_test`, `brackets_test`; `gui/editor`: `mouse_test`, `clipboard_test`, `scroll_test`, `viewstate_test` | done (cursor undo, expand and shrink selection by word, string, brackets and line, column selection by mouse and keys, Alt+Click, and the primary selection are in) |
+| Find and replace | 5.1, 5.2 | `core/find`: `model_test`, `model_vscode_test`, `query_vscode_test`, `replace_vscode_test`, `state_test`; `gui/editor`: `find_test`, `find_widget_test`; `gui/app`: `find_test` | done |
+| Highlighting | 4.1 to 4.11, 5.4 | `core/regex`, `core/textmate`, `core/tokens`: `tokenizer_test`, `core/theme`: `theme_test`, `colorregistry_test`; `core/language`: `bundled_test`, `oracle_test`, `systems_test`; `gui/editor`: `highlight_test`, `highlights_test`, `theme_test` | done (the languages of SPEC §8.1 and the eight themes of §8.4 are bundled) |
+| Brackets | 4.12, 4.13, 4.17 | `core/brackets`: `index_test`, `edit_test`, `language_test`; `core/autoclose`: `autoclose_test`; `core/edit`: `brackets_test`, `autoclosing_test`; `gui/editor`: `brackets_test`, `autoclosing_test` | done |
+| Indentation | 4.14 to 4.16 | `core/indent`: `indent_test`, `guides_test`, `guess_test`; `core/edit`: `indentation_vscode_test`; `gui/editor`: `guides_test`, `indentation_test`; `gui/app`: `indentation_test` | done |
+| Folding | 4.19, 4.20 | `core/folding`: `regions_test`, `model_vscode_test`, `indent_vscode_test`; `gui/editor`: `folding_test`, `folding_widget_test` | done |
+| Display | 3.10, 5.3, 5.4, 8.5 | `gui/editor`: `display_test`, `display_widget_test`, `wordwrap_test`, `wordwrap_widget_test`, `whitespace_test`, `marks_test`, `blink_test`; `core/wrap`: `breaks_test`; `gui/kit`: `zoom_test`; `gui/app`: `zoom_test` | done (`editor.cursorSmoothCaretAnimation`, `editor.cursorHeight` and the overtype cursor style are not implemented and are not rows of §3.1) |
+| Minimap | 5.5 | `gui/editor`: `minimap_layout_test`, `minimap_render_test`, `minimap_test`, `minimap_widget_test` | done |
+| Sticky scroll | 5.6 | `gui/editor`: `sticky_test`, `sticky_widget_test` | done |
+| Breadcrumbs | 5.7 | `gui/editor`: `breadcrumbs_test`, `breadcrumbs_widget_test`; `gui/kit`: `listoverlay_test`; `gui/app`: `breadcrumbs_test` | done (file path segments and sibling pickers; symbols come with area 3, as the row says) |
+| Undo/redo | 1.6 | `core/document`: `history_test`, `document_test`, `restore_test` | done |
+| Saving | 1.5, 7.1, 7.2, 7.3 | `core/fileio`: `write_test`, `fault_test`; `core/document`: `save_test`, `autosave_test`; `core/edit`: `saveparticipants_test`; `gui/app`: `save_test`, `save_golden_test`, `autosave_test`, `closing_test`, `closing_golden_test` | done (not built, and not in the row: formatting on save, code actions on save, saving as administrator) |
+| Hot exit | 7.6 | `core/storage`: `backup_test`, `backuptracker_test`; `gui/app`: `backup_test` | done |
+| Snippets | 5.8, 5.9 | `core/snippet`: `parser_test`, `variables_test`, `session_test`, `files_test`, `fuzz_test`; `gui/editor`: `snippets_test`, `snippets_widget_test` | done (the text that a cursor typed over is not given to `TM_SELECTED_TEXT`) |
+| Emmet | 5.10, 5.11 | `core/emmet`: `markup_test`, `stylesheet_test`, `expand_test`, `extract_test`, `output_test`; `gui/editor`: `emmet_test` | done |
+| Diff editor | 9.1, 9.2, 9.4, 9.5, 9.6 | `core/diff`: `lines_test`, `refine_test`, `algorithms_test`, `apply_test`; `gui/diffeditor`: `model_test`, `inline_test`, `navigate_test`, `golden_test`; `gui/app`: `diffpane_test`, `compare_test` | done (collapsing unchanged regions, moved code and the accessible viewer are out of scope, SPEC §2) |
+| Merge editor | 9.3, 9.7, 9.8 | `core/diff`: `markers_test`, `mergemodel_test`, `mergerandom_test`; `gui/mergeeditor`: `actions_test`, `navigate_test`, `session_test`, `widget_test`, `golden_test`; `gui/app`: `mergepane_test`, `mergeactions_test` | done (the "smart" combination of the two inputs, "Ignore" and "Append" of VS Code are not built: "Accept Combination" is the plain one) |
+| Files | 1.4, 1.5, 5.12, 7.4 | `core/fileio`: `read_test`, `write_test`, `trash_test`; `core/document`: `external_test`; `gui/editor`: `largefile_test`, `longlines_test`, `readonly_test`, `notice_test`; `gui/app`: `external_test`, `external_golden_test`, `largefiles_test` | done |
+
+### Area 2: the workbench (SPEC §3.2)
+
+| Row | Steps | Main tests | Status |
+|---|---|---|---|
+| Layout | 6.6, 6.7, 8.5 | `gui/workbench`: `layout_test`, `workbench_test`, `workbench_golden_test`, `menus_test`; `gui/kit`: `splitmodel_test`, `splitview_test`, `menubar_test`; `core/command`: `menus_test` | done |
+| Editor groups | 6.8, 6.9 | `core/editorgroup`: `model_test`, `model_port_test`, `grid_test`; `gui/app`: `group_test`, `gridview_test`, `gridview_golden_test` | done |
+| Tabs | 6.8, 6.10 | `core/editorgroup`: `droptarget_test`; `gui/kit`: `tabs_test`, `tabdrag_test`, `tabfit_test`, `tabs_golden_test`; `gui/app`: `tabdnd_test`, `tabdnd_golden_test`, `tabmenu_test` | done |
+| Navigation | 6.16 to 6.19 | `core/editorgroup`: `history_test`; `core/fuzzy`: `fuzzy_test`, `scorer_port_test`; `core/workspace`: `index_test`, `quickopen_test`; `gui/quickinput`: `commands_test`, `files_test`, `gotoline_test`, `quicknav_test`, `editors_test`; `gui/app`: `navigation_test`, `quickinput_test`, `quickopen_test` | done (Ctrl+Tab and the history keys on a real keyboard: manual check 6.19 pending) |
+| Explorer | 6.13, 6.14, 6.15 | `core/workspace`: `workspace_test`, `watcher_test`, `fileops_test`, `names_test`, `inotify_linux_test`; `core/glob`; `gui/views/explorer`: `view_test`, `widget_test`, `golden_test`; `gui/app`: `explorer_test`, `fileops_test`, `fileops_golden_test` | done (the folder dialog of the desktop: manual check 6.14 pending; file nesting, multi-root and `explorer.excludeGitIgnore` are not built and not in the row) |
+| Status bar | 6.20 | `gui/workbench`: `statusbar_test`, `statusmodel_test`, `statuslabels_test`, `statusnotify_test`; `gui/app`: `statusbar_test`, `statusbar_golden_test` | done |
+| Notifications | 6.11 | `core/notify`: `notify_test`, `presenter_test`; `gui/workbench`: `notifications_test`; `gui/app`: `notifications_test` | done |
+| Panels | 6.12 | `gui/views/output`: `view_test`; `gui/views/problems`: `model_test`, `markers_test`; `gui/app`: `panels_test`, `panels_golden_test` | done (Problems has no producers until area 3, as the row says) |
+| Zen mode and full screen | 8.5 | `gui/app`: `zen_test`, `centered_test`, `zoom_test`, `modes_golden_test` | done (full screen on a real compositor: manual check 8.5 pending) |
+| Workspace tabs and tray | 7.7, 7.8, 9b.1, 9b.1b, 9b.2, 9b.3, 9b.4, 9b.5 | `cmd/emetos`: `args_test`, `main_test`; `core/ipc`: `ipc_test`, `process_test`; `gui/app`: `workspaces_test`, `workspacetabs_test`, `workspacetabkeys_test`, `launch_test`, `launchplace_test`, `tray_test`, `appicon_test`; `gui/workbench`: `titlebar_test`, `titlebar_golden_test` | done (the tray on a real desktop: manual check 9b.4 pending; the rename and the color of a workspace tab are not built and not in the row) |
+| Restore and recent lists | 7.5, 7.6, 9b.1 | `core/storage`: `state_test`; `core/workspace`: `recent_test`; `gui/app`: `state_test`, `recent_golden_test`, `backup_test` | done |
+| Themes | 4.7, 4.8, 6.14, 8.4 | `core/theme`: `theme_test`, `service_test`, `pick_test`, `fileicons_test`, `bundled_test`; `gui/app`: `theme_test`, `themepickers_test`, `themepickers_golden_test` | done ("Browse Additional Color Themes", icon themes of extensions and product icon themes are not built and not in the row) |
+| Settings | 2.1, 2.2, 2.3, 8.1, 8.2 | `core/jsonc`; `core/settings`: `store_test`, `registry_test`, `uimodel_test`, `search_test`, `defaultjson_test`, `textsource_test`; `gui/settingsui`: `editor_test`, `search_test`, `golden_test`; `gui/app`: `settings_test`, `settings_json_test`, `settings_json_golden_test` | done (arrays and objects link to the JSON, as the row says) |
+| Keybindings | 2.4, 2.5, 3.5, 8.3 | `core/contextkey`; `core/keybinding`: `resolver_test`, `userfile_test`, `model_test`, `editing_test`, `dispatch_test`; `gui/keybindingsui`: `editor_test`, `golden_test`; `gui/app`: `keybindings_test`, `keys_test` | done (the sort by precedence, "Show Default/User Keybindings" and completion in the when box are not built and not in the row) |
+| Profiles | 8.6, 8.6b | `core/storage`: `profiles_test`, `profileexport_test`; `gui/app`: `profiles_test`, `profilecommands_test`, `profilecommands_golden_test` | done |
+
+### What is partial
+
+Nothing. (Overtype mode, the one partial row of the first audit, was finished in step 10.2.)
+
+---
+
 <!-- Entries start below this line. -->
 
 ## 0.1 Module and package layout
@@ -1690,3 +1747,19 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 - **Manual checks:** pending, see docs/MANUAL-CHECKS.md (`scripts/perf.sh --session` on the user's desktop with the GPU).
 - **Glutter issues:** a new entry: a character no font has makes Glutter load every font of the style (the tab); worked around with the controls font (`// Glutter:` in `textStyle.families`). The Vulkan-first entry stays.
 - **Deviations and follow-ups:** the missed targets are decided in `docs/DECISIONS-TO-REVIEW.md` entries 41–44 (SPEC §14 revised). `TestACloseWhoseAutoSaveFailsAsksAndDontSaveIsNotUndoneByTheFocus` failed once in three full race runs under load and passed every rerun; watch it.
+
+## 10.2 Release
+
+- **Date:** 2026-10-25
+- **Branch:** feat/step-10.2-release
+- **Summary:** SPEC §1, §3, §16, §17, D16. The first release of areas 1 and 2, version **0.1.0** (tag `v0.1.0`). `README.md`: what Emetos is, status, install (`go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@latest`), requirements (with the tray's StatusNotifier host and GNOME's AppIndicator extension), the launcher entry, the features, one window with workspace tabs and the tray, the command line (from the real `--help`), where settings, keybindings, snippets, themes, profiles, state, logs and the trash live, privacy, screenshots, development and license. Fresh screenshots in `docs/screenshots/` made by `scripts/screenshots.sh` (isolated and headless, fixtures in `testdata/screenshots/`). `assets/dev.emetos.Emetos.desktop` (`Exec=emetos %F`, `Icon` and `StartupWMClass` = the app id `dev.emetos.Emetos`, text MIME types and `inode/directory`, the action New Workspace Tab; `desktop-file-validate` passes) and `scripts/install-desktop.sh [--exec <path>] [--uninstall]` (into `${XDG_DATA_HOME:-~/.local/share}`: the entry with the absolute path of `emetos` in `Exec`, the icon at nine sizes in `icons/hicolor/<N>x<N>/apps/` made from `assets/icons/`, the cache tools when present). `emetos --version` prints the module version of the build (`v0.1.0` for `go install ...@v0.1.0` or a clean tagged checkout), with `v0.1.0-dev` when the build has no stamp. The coverage table "Coverage of areas 1 and 2" at the top of this file: 35 rows of SPEC §3.1 and §3.2, all done. The one partial row, **overtype mode**, was finished in this step: `editor.action.toggleOvertypeInsertMode` (Insert), `editor.overtypeOnPaste`, `editor.overtypeCursorStyle`, the cursor in the overtype style, the `OVR` status item (VS Code's, click toggles); one mode for the process as VS Code's `InputMode`, not saved. NOTICE and `third_party/` audit: vscode-textmate's license added (`scripts/update-assets.sh`), stale "not yet added" markers removed, the application icon, the `emetos-controls` font (own work) and the Go modules linked into the binary listed, the Go Mono entry corrected. Fixed: the empty Explorer warned "Opening a folder will close all currently open editors" although Open Folder opens a new tab since step 9b.3; it now warns only with `window.openFoldersInNewWindow` `off`.
+- **Main files:** `README.md`, `assets/dev.emetos.Emetos.desktop`, `scripts/{install-desktop,screenshots,update-assets}.sh`, `docs/screenshots/`, `testdata/screenshots/`, `cmd/emetos/main.go`, `internal/gui/editor/{inputmode,overlay,viewmodel,commands,options,widget}.go`, `internal/core/edit/{options,clipboard}.go`, `internal/gui/app/{statusbar,zen,process,explorer}.go`, `NOTICE`, `third_party/`, `docs/SPEC.md` §3.1, §5.2, §9.3, §10.1, §16, §17.
+- **Tests:** `assets/icons/desktop_test.go` (the entry's keys, `desktop-file-validate` when installed, install with and without the cache tools into a temp `XDG_DATA_HOME` with every icon equal to `icons.PNG(size)`, plain `emetos` kept with a warning, a relative `XDG_DATA_HOME`, five usage errors, uninstall), `TestDesktopEntryNamesTheAppID`, `TestFormatVersion` (5 cases); overtype: `TestPasteInOvertypeModeWithOvertypeOnPaste`, `gui/editor/overtype_test.go` (toggle, typing in overtype in 7 cases, paste on and off, the cursor style, two editors share the mode; goldens `cursor_overtype_{block,underline,line}`, viewed), `gui/app/overtype_test.go` (Insert through the dispatcher, `OVR` shown, hidden and clicked, the mode shared by two workspaces, the settings reaching the editor); `TestExplorerWelcomeWarnsOnlyWhenTheFolderReplacesTheTab`. Existing tests changed: option defaults and the command coverage list for the new command and settings.
+- **Not ported:** VS Code's `CompositionEndOvertypeOperation` (Emetos types the committed IME text, which overtypes already).
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · release build ✅ · display tests none.
+- **Proof:** the README's screenshots, e.g. `docs/screenshots/editor.png`, made with `scripts/screenshots.sh`
+
+  ![Emetos 0.1.0](screenshots/editor.png)
+- **Manual checks:** pending, see docs/MANUAL-CHECKS.md (install, the launcher icon, overtype, using Emetos for real work).
+- **Glutter issues:** none.
+- **Deviations and follow-ups:** the step's "ask the user before tagging a version" was decided by the user's own instruction ("Push release tag, don't leave anything for me"): `v0.1.0` is tagged and pushed. Decisions in `docs/DECISIONS-TO-REVIEW.md` entry 45.

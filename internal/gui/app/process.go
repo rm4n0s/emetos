@@ -23,6 +23,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 )
 
 // Process holds what the whole process shares (SPEC §5.1): the folders, the registries of
@@ -66,6 +67,9 @@ type Process struct {
 	// Launcher hands the launches that other Emetos processes send over the socket (SPEC §10.11) to the windows;
 	// nil when the process has no socket.
 	Launcher *Launcher
+	// InputMode is the insert or overtype mode of the editors of every workspace tab, as VS Code's InputMode is the
+	// mode of every editor of its window (SPEC §9.3).
+	InputMode *editor.InputMode
 	// Workspaces is the manager of the window tabs of the process: it opens, activates, moves, replaces and closes them (workspaces.go, SPEC §10.14).
 	Workspaces *Workspaces
 	// Virtual holds the providers of the read-only `emetos-virtual:` documents (SPEC §7.1), such as the default
@@ -207,6 +211,7 @@ func NewProcess(opts ProcessOptions) *Process {
 		Commands:  command.DefaultRegistry(),
 		Keymap:    keybinding.DefaultRegistry(),
 		Notify:    notify.NewService(logger, nil),
+		InputMode: editor.NewInputMode(),
 
 		WatchFiles:  opts.WatchFiles,
 		Launcher:    opts.Launcher,

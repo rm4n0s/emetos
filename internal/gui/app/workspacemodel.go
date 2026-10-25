@@ -88,6 +88,8 @@ type Workspace struct {
 	Find *editor.FindMemory
 	// Zoom is the zoom level of the font of the editors of the window.
 	Zoom *editor.Zoom
+	// InputMode is the insert or overtype mode of the editors; it is the process's, shared by every workspace tab.
+	InputMode *editor.InputMode
 	// Layout is the layout of the workbench of the window: which parts are shown, their sizes and
 	// where they are (SPEC §10.1). It follows the settings of the layout.
 	Layout *workbench.Layout
@@ -357,6 +359,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		Clipboard:      editor.NewClipboardMemory(),
 		Find:           &editor.FindMemory{},
 		Zoom:           editor.NewZoom(),
+		InputMode:      p.InputMode,
 		Layout:         layout,
 		Views:          workbench.NewViews(p.Views, layout),
 		Dialogs:        kit.NewDialogController(),

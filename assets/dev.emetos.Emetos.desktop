@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Emetos
+GenericName=Text Editor
+Comment=Code editor in the spirit of Visual Studio Code, written in Go
+Exec=emetos %F
+Icon=dev.emetos.Emetos
+Terminal=false
+StartupWMClass=dev.emetos.Emetos
+Categories=Development;TextEditor;IDE;
+Keywords=code;editor;text;programming;ide;
+MimeType=text/plain;text/markdown;text/x-go;text/x-python;text/x-csrc;text/x-chdr;text/x-c++src;text/x-c++hdr;text/x-makefile;text/html;text/css;text/xml;application/json;application/xml;application/x-yaml;application/x-shellscript;inode/directory;
+Actions=new-workspace-tab;
+
+[Desktop Action new-workspace-tab]
+Name=New Workspace Tab
+Exec=emetos -n

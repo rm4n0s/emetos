@@ -199,4 +199,8 @@ copy_file "emmet/src/snippets/css.json" "internal/core/emmet/assets/css.json"
 rm -rf "$root/internal/core/theme/iconassets"
 copy_file vscode/extensions/theme-seti/icons/vs-seti-icon-theme.json internal/core/theme/iconassets/vs-seti-icon-theme.json
 
+# Step 10.2: the license of vscode-textmate (MIT), whose tokenizer and theme algorithms are ported
+# (core/textmate, core/theme; "Ported from vscode-textmate" comments). No file of it is bundled.
+copy_license vscode-textmate vscode-textmate/LICENSE.md
+
 echo "update-assets: done"

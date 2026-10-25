@@ -51,6 +51,8 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		CursorWidth:                      settings.Get[float64](store, "editor.cursorWidth", languageID),
 		CursorBlinking:                   settings.Get[string](store, "editor.cursorBlinking", languageID),
 		CursorStyle:                      settings.Get[string](store, "editor.cursorStyle", languageID),
+		OvertypeCursorStyle:              settings.Get[string](store, "editor.overtypeCursorStyle", languageID),
+		OvertypeOnPaste:                  settings.Get[bool](store, "editor.overtypeOnPaste", languageID),
 		MouseWheelZoom:                   settings.Get[bool](store, "editor.mouseWheelZoom", languageID),
 		MultiCursorModifier:              settings.Get[string](store, "editor.multiCursorModifier", languageID),
 		ColumnSelection:                  settings.Get[bool](store, "editor.columnSelection", languageID),

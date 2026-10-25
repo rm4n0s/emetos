@@ -71,6 +71,12 @@ type Options struct {
 	// CursorStyle is the shape of the cursor: "line", "block", "underline", "line-thin",
 	// "block-outline" or "underline-thin".
 	CursorStyle string
+	// OvertypeCursorStyle is the shape of the cursor in overtype mode (editor.overtypeCursorStyle), in the
+	// values of CursorStyle; empty means "block".
+	OvertypeCursorStyle string
+	// OvertypeOnPaste is editor.overtypeOnPaste: in overtype mode a paste replaces the characters after the
+	// cursor.
+	OvertypeOnPaste bool
 	// MouseWheelZoom zooms the font with Control and the mouse wheel.
 	MouseWheelZoom bool
 	// MultiCursorModifier is the key that adds cursors with the mouse: "alt" or "ctrlCmd".
@@ -261,6 +267,10 @@ type ViewModel struct {
 	base       Options
 	zoom       *Zoom
 	zoomHandle foundation.ListenerHandle
+	// inputMode is the insert or overtype mode, shared with the other editors of the window when the widget was given
+	// one.
+	inputMode       *InputMode
+	inputModeHandle foundation.ListenerHandle
 	// framer runs a function after every frame (the widget sets it).
 	framer framer
 	// animate starts the animation of the cursors (the widget sets it).
@@ -354,6 +364,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		opts:           opts,
 		base:           opts,
 		zoom:           NewZoom(),
+		inputMode:      NewInputMode(),
 		cache:          cache,
 		syncedAt:       -1,
 		sel:            foundation.NewChangeNotifier(),
@@ -363,6 +374,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		scrollWatch:    foundation.NewChangeNotifier(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
+	vm.inputModeHandle = vm.inputMode.AddListener(vm.inputModeChanged)
 	vm.ownerBase = doc.AllocOwners(ownerSlots)
 	vm.autoClosed = edit.NewAutoClosedTracker(doc, vm.owner(autoClosedOwner))
 	vm.cursors.SetOnChange(vm.cursorsChanged)

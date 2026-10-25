@@ -144,6 +144,27 @@ func TestVersionString(t *testing.T) {
 	}
 }
 
+func TestFormatVersion(t *testing.T) {
+	tests := []struct {
+		name                  string
+		mainVersion, revision string
+		want                  string
+	}{
+		{"installed release", "v0.1.0", "", "emetos v0.1.0 go1.27.3 linux/amd64"},
+		{"tagged checkout with revision", "v0.1.0", "0123456789ab", "emetos v0.1.0 (0123456789ab) go1.27.3 linux/amd64"},
+		{"checkout without a version", "(devel)", "", "emetos " + devVersion + " go1.27.3 linux/amd64"},
+		{"no build information", "", "", "emetos " + devVersion + " go1.27.3 linux/amd64"},
+		{"pseudo version", "v0.1.1-0.20261025120000-abcdef123456+dirty", "", "emetos v0.1.1-0.20261025120000-abcdef123456+dirty go1.27.3 linux/amd64"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatVersion(tt.mainVersion, tt.revision, "go1.27.3", "linux", "amd64"); got != tt.want {
+				t.Errorf("formatVersion = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // brokenWriter is an output that always fails, like a closed pipe.
 type brokenWriter struct{}
 

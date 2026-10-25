@@ -285,23 +285,37 @@ func describe(err error) string {
 	return err.Error()
 }
 
+// devVersion is the version printed by a build that carries no module version: `go build` or `go run` in
+// a checkout that Go cannot stamp (Go reports "(devel)" or nothing). A build made by `go install
+// ...@v0.1.0` or from a tagged checkout carries its tag, which is printed instead, so this changes only
+// when the next development cycle starts.
+const devVersion = "v0.1.0-dev"
+
 // versionString is the version line of --version: the module version and VCS
 // revision from the build, and the Go version and platform.
 func versionString() string {
-	version, revision := "(devel)", ""
+	mainVersion, revision := "", ""
 	if bi, ok := debug.ReadBuildInfo(); ok {
-		if bi.Main.Version != "" {
-			version = bi.Main.Version
-		}
+		mainVersion = bi.Main.Version
 		for _, s := range bi.Settings {
 			if s.Key == "vcs.revision" {
 				revision = s.Value[:min(12, len(s.Value))]
 			}
 		}
 	}
+	return formatVersion(mainVersion, revision, runtime.Version(), runtime.GOOS, runtime.GOARCH)
+}
+
+// formatVersion makes the line of --version. An empty mainVersion or "(devel)" means the build has no
+// version of its own, and devVersion is printed.
+func formatVersion(mainVersion, revision, goVersion, goos, goarch string) string {
+	version := mainVersion
+	if version == "" || version == "(devel)" {
+		version = devVersion
+	}
 	line := "emetos " + version
 	if revision != "" {
 		line += " (" + revision + ")"
 	}
-	return line + " " + runtime.Version() + " " + runtime.GOOS + "/" + runtime.GOARCH
+	return line + " " + goVersion + " " + goos + "/" + goarch
 }

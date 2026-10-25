@@ -111,6 +111,7 @@ func (vm *ViewModel) dropStaleSessions() {
 func (vm *ViewModel) editOptions() edit.Options {
 	o := edit.DefaultOptions()
 	o.TabSize = vm.opts.TabSize
+	o.Overtype, o.OvertypeOnPaste = vm.inputMode.Overtype(), vm.opts.OvertypeOnPaste
 	_, o.InsertSpaces = vm.doc.Indentation()
 	o.AutoIndent = vm.autoIndent()
 	o.AutoIndentOnPaste = vm.opts.AutoIndentOnPaste

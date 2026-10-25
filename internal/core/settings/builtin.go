@@ -660,6 +660,17 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.overtypeCursorStyle", Types: []Type{String}, Default: "block",
+			Enum:        []any{"line", "block", "underline", "line-thin", "block-outline", "underline-thin"},
+			Description: "Controls the cursor style in overtype input mode.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.overtypeOnPaste", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether pasting should overtype.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.mouseWheelZoom", Types: []Type{Boolean}, Default: false,
 			Description: "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

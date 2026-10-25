@@ -518,7 +518,7 @@ func cursorStyleOf(style string) (shape cursorShape, thickness float64) {
 func (v overlayView) paintCursor(pos buffer.Position, row int, shift, opacity, scale float64) {
 	vm := v.geo.vm
 	opts := vm.Options()
-	shape, thickness := cursorStyleOf(opts.CursorStyle)
+	shape, thickness := cursorStyleOf(vm.EffectiveCursorStyle())
 	if shift != 0 {
 		shape, thickness = shapeLine, 0 // an input method composes: the cursor is its caret
 	}
