@@ -170,6 +170,25 @@ func TestRestoreSettingsAreRegistered(t *testing.T) {
 	}
 }
 
+func TestCloseToTrayIsRegistered(t *testing.T) {
+	r := DefaultRegistry()
+	s, ok := r.Lookup("window.closeToTray")
+	if !ok || s.Default != true || s.Scope != ScopeApplication || s.Category != categoryWindow || s.Description == "" {
+		t.Fatalf("window.closeToTray: %+v, %v", s, ok)
+	}
+	if len(s.Types) != 1 || s.Types[0] != Boolean {
+		t.Errorf("window.closeToTray types %v, want a boolean", s.Types)
+	}
+	for _, tc := range []struct {
+		value   any
+		invalid bool
+	}{{true, false}, {false, false}, {"on", true}, {1, true}} {
+		if got := r.Validate("window.closeToTray", tc.value) != ""; got != tc.invalid {
+			t.Errorf("window.closeToTray = %v: invalid = %v, want %v", tc.value, got, tc.invalid)
+		}
+	}
+}
+
 func TestThemeSettingsAreRegistered(t *testing.T) {
 	r := DefaultRegistry()
 	cases := []struct {

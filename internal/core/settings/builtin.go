@@ -1037,6 +1037,12 @@ func registerWorkbench(r *Registry) {
 			Description: "Controls whether a window should restore to full screen mode if it was exited in full screen mode.",
 			Scope:       ScopeApplication, Category: categoryWindow,
 		},
+		// Emetos's own (step 9b.4, SPEC §10.14): VS Code has no system tray.
+		Setting{
+			Key: "window.closeToTray", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the close button of the window hides Emetos to the system tray instead of quitting. Emetos keeps running with its workspaces; choose Quit in the tray menu, or press Ctrl+Q, to end it. On a desktop that shows no system tray icons the close button always quits.",
+			Scope:       ScopeApplication, Category: categoryWindow,
+		},
 		// Step 7.8: the windows. Ported from VS Code: src/vs/workbench/browser/workbench.contribution.ts
 		// (window.openFilesInNewWindow, window.openFoldersInNewWindow) and
 		// src/vs/workbench/electron-browser/desktop.contribution.ts (window.newWindowDimensions); the text of the

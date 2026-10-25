@@ -33,6 +33,9 @@ type multiEnv struct {
 	t     *testing.T
 	paths storage.Paths
 	clock *storagetest.Clock
+	// realBus makes runRoot leave the desktop to the session bus named by DBUS_SESSION_BUS_ADDRESS (a test points it
+	// at nothing) instead of installing a fake one.
+	realBus bool
 }
 
 func newMultiEnv(t *testing.T, extra map[string]any) *multiEnv {
@@ -78,6 +81,14 @@ func (e *multiEnv) run(opts Options) *multiApp {
 
 func (e *multiEnv) runWith(opts Options, po ProcessOptions) *multiApp {
 	e.t.Helper()
+	a, _ := e.runRoot(opts, po, false)
+	return a
+}
+
+// runRoot is runWith that can show the root of the application as Run makes it: the tabs inside the system tray (step
+// 9b.4), on a fake desktop that the test gets (without one the tray would use the session bus of the machine).
+func (e *multiEnv) runRoot(opts Options, po ProcessOptions, tray bool) (*multiApp, *gluttertest.FakeDesktop) {
+	e.t.Helper()
 	po.Paths = e.paths
 	if po.StateAfter == nil {
 		po.StateAfter = e.clock.AfterFunc
@@ -93,9 +104,18 @@ func (e *multiEnv) runWith(opts Options, po ProcessOptions) *multiApp {
 	}
 	shown.steps = nil
 	a.ts = testutil.New(e.t, ui.Size{Width: 1000, Height: 700})
-	a.ts.PumpWidget(a.m.hostWidget())
+	if !tray {
+		a.ts.PumpWidget(a.m.hostWidget())
+		a.settle()
+		return a, nil
+	}
+	var fd *gluttertest.FakeDesktop
+	if !e.realBus {
+		fd = a.ts.FakeDesktop()
+	}
+	a.ts.PumpWidget(a.m.rootWidget())
 	a.settle()
-	return a
+	return a, fd
 }
 
 // settle pumps the frames the windows need to be made and shown.
@@ -784,7 +804,7 @@ func TestTheCloseButtonOfTheWindowIsAQuitOverEveryTab(t *testing.T) {
 	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	a.edit(w1, filepath.Join(one, "a.go"))
 	// the platform's request to close the window is the one Glutter gives the app: it is not carried out before the
-	// questions, and it asks every tab (TODO(step 9b.4): the tray hides the window instead)
+	// questions, and it asks every tab (with a tray the close button hides the window instead: tray_test.go)
 	if closes := a.ts.RequestWindowClose(ui.ImplicitViewID); closes {
 		t.Fatal("the platform would close the window before the question")
 	}

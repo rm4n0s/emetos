@@ -111,6 +111,8 @@ type Workspaces struct {
 	watch bool
 	// listeners are told when the tabs change: opened, closed, moved, activated or renamed.
 	listeners []*func()
+	// tray is the system tray and the hiding of the window (tray.go).
+	tray trayState
 }
 
 func newWorkspaces(p *Process) *Workspaces { return &Workspaces{p: p} }
@@ -397,14 +399,10 @@ type workspacesObserver struct {
 	m *Workspaces
 }
 
-// DidRequestAppExit is a request to exit the application: the close button of the window, or a request that comes from
-// the application or the platform. It is a quit, with the questions of every tab. The answer is always cancel; the
-// application ends itself once every tab has agreed.
-//
-// TODO(step 9b.4): the close button hides the window to the tray when there is one. Glutter tells the close button
-// from a quit: WindowingOwner.SetImplicitWindowDelegate gives a delegate that is asked when the user closes the first
-// window (OnWindowCloseRequested, with the controller), and without one the close button is this request to exit.
-// Nothing takes PlatformDispatcher.OnExitRequested over.
+// DidRequestAppExit is a request to exit the application, from the application or the platform (the system, a
+// signal handler of the desktop): it is a quit, with the questions of every tab. The close button of the window is not
+// one: Glutter gives it to the delegate of the implicit window (closeDelegate), which hides the window to the tray or
+// quits. The answer is always cancel; the application ends itself once every tab has agreed.
 func (o *workspacesObserver) DidRequestAppExit() ui.AppExitResponse {
 	o.m.RequestQuit(o.m.Active())
 	return ui.AppExitResponseCancel
@@ -426,6 +424,8 @@ func (m *Workspaces) bind(binding *widgets.WidgetsBinding) {
 	if m.watch {
 		m.watchSignal(m.ctx, binding)
 	}
+	// the close button of the window reaches the manager as a close request of the window, not as a request to exit
+	binding.WindowingOwner().SetImplicitWindowDelegate(closeDelegate{m})
 	if c, ok := m.implicitController(); ok {
 		for _, w := range m.All() {
 			if w.controller == nil {
@@ -1370,12 +1370,14 @@ func (w *Workspace) Raise() {
 	}
 }
 
-// showWindow shows the window if the application hid it (the tray of step 9b.4 hides it) and brings it to the front.
-// c is the controller the caller knows (a workspace's); the controller of the implicit window is used when it has
-// none. It is the one place that shows the window: step 9b.4 adds the hiding (SetHidden(true)) beside it, and the
-// tray's click and its Show item call it. Glutter's Activate shows a hidden window too; SetHidden(false) before it
-// keeps that explicit and covers a controller whose Activate does not.
+// showWindow shows the window if the application hid it (the close button, the tray: hideWindow) and brings it to the
+// front. c is the controller the caller knows (a workspace's); the controller of the implicit window is used when it has
+// none. It is the one place that shows the window: a launch, Raise (the questions of a quit, the dialogs that need the
+// user) and the tray's click and items call it, and it cancels a hide that has not finished. Glutter's Activate shows a
+// hidden window too; SetHidden(false) before it keeps that explicit and covers a controller whose Activate does not.
 func (m *Workspaces) showWindow(c widgets.WindowController) {
+	m.tray.gen++
+	m.tray.hidePending = false
 	if c == nil {
 		ic, ok := m.implicitController()
 		if !ok {
@@ -1390,6 +1392,8 @@ func (m *Workspaces) showWindow(c widgets.WindowController) {
 		h.SetHidden(false)
 	}
 	c.Activate()
+	// the tray says "Hide Emetos" again: it is built with the first frame of the shown window
+	m.refreshTray()
 }
 
 // whenReady runs f once the shell of the workspace is on screen (at once when it is).

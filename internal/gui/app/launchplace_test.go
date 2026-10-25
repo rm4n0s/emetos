@@ -634,7 +634,7 @@ func TestSocketProfileRules(t *testing.T) {
 	})
 }
 
-// hideWindow takes the window off the screen, as the tray of step 9b.4 will.
+// hideWindow takes the window off the screen, as the tray of step 9b.4 does (but at once, with no backups and no frame).
 func (a *socketApp) hideWindow() {
 	a.t.Helper()
 	c, ok := a.m.implicitController()

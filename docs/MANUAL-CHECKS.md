@@ -71,3 +71,21 @@ scripts/isolated.sh -- go run ./cmd/emetos
 3. Press Ctrl+K Z (zen mode): are the side bar, panel, activity bar, status bar and menu bar hidden and the editor centered? Does Escape twice leave zen mode and bring everything back?
 
 Say what you saw and which desktop you used.
+
+## 9b.4 The system tray and close to tray
+
+The tests use a fake desktop; only your desktop has a real tray. Run a release build of Emetos, isolated from your configuration (it opens a window and puts an icon in the tray; GNOME shows the icon only with the AppIndicator extension, for example "AppIndicator and KStatusNotifierItem Support"):
+
+```
+mkdir -p /tmp/emetos-tray-a /tmp/emetos-tray-b && printf 'hello\n' > /tmp/emetos-tray-a/a.txt
+scripts/isolated.sh -- go run -tags glutter_release ./cmd/emetos /tmp/emetos-tray-a
+```
+
+1. Is there an Emetos icon in the tray (a rounded indigo square with a white `</>`)? Is it readable at the size of your panel? Does the tooltip say "Emetos" and "1 workspace"?
+2. Open the tray menu (right click). Does it show the tab `emetos-tray-a`, then Open Folder..., New Workspace Tab, Hide Emetos and Quit? Choose Open Folder... and pick `/tmp/emetos-tray-b`: does the tab appear in the window and in the menu, and does the tooltip say "2 workspaces"?
+3. Press the close button of the window. Does the window disappear (no task bar entry) while the icon stays, and does the menu now say Show Emetos? Click the icon: does the window come back, with its tabs, in front? Click it again while the window is in front: does it hide?
+4. Hide the window, then choose a tab in the menu: does the window come back with that tab active?
+5. Type something in `a.txt` without saving, press the close button, and show the window again: is the unsaved text still there? Then choose Quit in the menu: does the question (or, with hot exit, nothing) behave as Ctrl+Q does, and does Emetos end (no icon, `pgrep -a emetos` shows nothing)?
+6. If you can, turn the tray off (or use a desktop without one, such as GNOME without the extension): does the close button then quit instead of hiding the window?
+
+Say what you saw, and which desktop you used.

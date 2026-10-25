@@ -329,6 +329,12 @@ func startupWindowConfig(win *Workspace, saved *storage.Geometry) widgets.Window
 	}
 	// Emetos draws the title bar of its window: the workspace tabs are in it (SPEC §10.14)
 	cfg := widgets.WindowConfig{Title: Title, Size: ui.Size{Width: geo.Width, Height: geo.Height}, Decorations: widgets.DecorationsApp}
+	// the application icon (SPEC §17); without it the compositor takes the icon from the .desktop file of step 10.2
+	if icon, err := windowIcon(); err != nil {
+		win.Process.Logger.Warn("the window has no icon", "err", err)
+	} else {
+		cfg.Icon = icon
+	}
 	if restoreMode(win.Settings) == "none" {
 		return cfg
 	}

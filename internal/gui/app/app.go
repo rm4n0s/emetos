@@ -102,11 +102,13 @@ func Run(ctx context.Context, opts Options) error {
 		}
 	}()
 	first.steps = devSteps(process, opts.DevCommands)
-	return widgets.RunApp(m.hostWidget(), widgets.RunAppOpts{
+	return widgets.RunApp(m.rootWidget(), widgets.RunAppOpts{
 		AppID:  AppID,
 		Window: startupWindowConfig(first.ws, first.geometry),
 		Fonts:  fonts.Sources(),
 		Logger: opts.Logger,
+		// the errors that say the tray is not shown are noted (the close button quits), logged once and not reported
+		ErrorReporter: m.errorReporter(widgets.DefaultErrorReporter(opts.Logger)),
 	})
 }
 
