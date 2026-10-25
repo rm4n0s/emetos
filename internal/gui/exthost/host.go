@@ -10,6 +10,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/storage"
 )
 
 // Info is a compiled-in extension as the host knows it: its factory and the manifest read from it.
@@ -27,6 +28,9 @@ type HostOptions struct {
 	Logger *slog.Logger
 	// Settings is the registry of the settings of the process: the extensions register theirs in it.
 	Settings *settings.Registry
+	// Sharing holds the links between window tabs and the private workspaces (SPEC §10.15 "Event sharing"); the host
+	// reads them at every delivery. Nil makes a store in memory, with no links.
+	Sharing *storage.SharingStore
 }
 
 // Host holds the extensions of the process (SPEC §10.15): the manifests of the compiled-in extensions and the scopes
@@ -44,6 +48,11 @@ type Host struct {
 	// owners tells who registered each setting key of the extensions and how many scopes hold it: a setting is registered
 	// once for the process, by the first scope that needs it, and removed with the last.
 	owners map[string]*settingOwner
+
+	// sharing holds the links; asks are the questions on screen, one per pair of scopes (sharing.go).
+	sharing *storage.SharingStore
+	askMu   sync.Mutex
+	asks    map[askKey]*pendingAsk
 }
 
 // settingOwner is the extension that registered a setting and the number of activations that hold it.
@@ -55,9 +64,12 @@ type settingOwner struct {
 // NewHost reads the manifest of each factory and keeps the extensions whose manifest is valid. An extension whose
 // factory or Manifest panics, or whose manifest is invalid, is left out and logged; Problems lists them.
 func NewHost(opts HostOptions) *Host {
-	h := &Host{log: opts.Logger, registry: opts.Settings, owners: map[string]*settingOwner{}}
+	h := &Host{log: opts.Logger, registry: opts.Settings, owners: map[string]*settingOwner{}, sharing: opts.Sharing, asks: map[askKey]*pendingAsk{}}
 	if h.log == nil {
 		h.log = slog.Default()
+	}
+	if h.sharing == nil {
+		h.sharing = storage.NewSharingStore(storage.Paths{}, storage.SharingStoreOptions{Logger: h.log})
 	}
 	seen := map[string]bool{}
 	for i, f := range opts.Factories {
@@ -241,16 +253,4 @@ func (h *Host) changed() {
 	for _, f := range listeners {
 		(*f)()
 	}
-}
-
-// targets are the scopes whose subscribers get an event that was published in src. Inside one scope that is the scope
-// itself; step 11.3 adds the scopes that a link the user allowed leads to, checked here, at delivery.
-func (h *Host) targets(src *Scope, publisher, topic string) []*Scope {
-	_, _ = publisher, topic
-	return []*Scope{src}
-}
-
-// handlerFor is the handler of a request of the topic made in src, or nil. Step 11.3 looks along the links too.
-func (h *Host) handlerFor(src *Scope, topic string) *handlerEntry {
-	return src.bus.handlerOf(topic)
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
@@ -154,6 +155,10 @@ type tab struct {
 	queued   []func()
 	frames   []func()
 	clock    *fakeClock
+
+	// asked are the questions the tab was asked about links, and answers the functions that answer them (askSharing).
+	asked   []SharingAsk
+	answers []func(SharingAnswer)
 }
 
 // rig is a host with the registry of the process and the tabs made over it.
@@ -162,13 +167,25 @@ type rig struct {
 	host     *Host
 	registry *settings.Registry
 	tabs     []*tab
+	// sharing is the store of the links the host reads (newRigStore); noID and noAsk name tabs that cannot be named in a
+	// link and tabs that cannot ask.
+	sharing *storage.SharingStore
+	noID    map[string]bool
+	noAsk   map[string]bool
 }
 
 // newRig makes a host over the factories.
 func newRig(t *testing.T, factories ...extension.Factory) *rig {
 	t.Helper()
+	return newRigStore(t, nil, factories...)
+}
+
+// newRigStore makes a host over the store of links; nil is a store in memory.
+func newRigStore(t *testing.T, store *storage.SharingStore, factories ...extension.Factory) *rig {
+	t.Helper()
 	reg := settings.DefaultRegistry()
-	return &rig{t: t, registry: reg, host: NewHost(HostOptions{Factories: factories, Settings: reg, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})}
+	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -183,11 +200,11 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	tb.store = settings.NewStore(r.registry, settings.StoreOptions{UserPath: filepath.Join(r.t.TempDir(), "settings.json")})
 	tb.notify = notify.NewService(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), nil)
 	tb.scope = r.host.NewScope(ScopeOptions{
-		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: "/work/" + name},
+		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: "/work/" + name, ID: r.scopeID(name)},
 		Ctx:  context.Background(), Commands: commands, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
 		Notify: tb.notify, StatusBar: tb.bar, Documents: tb.docs,
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
-		Post:  tb.post,
+		Post: tb.post, AskSharing: r.askFunc(tb, name),
 		Frame: func(f func()) { tb.evMu.Lock(); tb.frames = append(tb.frames, f); tb.evMu.Unlock() },
 		After: tb.clock.after, Now: tb.clock.nowFunc,
 		Logger: slog.New(slog.NewTextHandler(tb.log, &slog.HandlerOptions{Level: slog.LevelDebug})),
@@ -347,4 +364,26 @@ func (c *fakeClock) pending() int {
 		}
 	}
 	return n
+}
+
+// scopeID is the ID a tab named name has in the links: its folder, or none for a tab in noID.
+func (r *rig) scopeID(name string) string {
+	if r.noID[name] {
+		return ""
+	}
+	return "/work/" + name
+}
+
+// askFunc is the AskSharing of a tab: it records the question and keeps the function that answers it, for the test to
+// call; nil for a tab in noAsk.
+func (r *rig) askFunc(tb *tab, name string) func(SharingAsk, func(SharingAnswer)) {
+	if r.noAsk[name] {
+		return nil
+	}
+	return func(q SharingAsk, answer func(SharingAnswer)) {
+		tb.evMu.Lock()
+		defer tb.evMu.Unlock()
+		tb.asked = append(tb.asked, q)
+		tb.answers = append(tb.answers, answer)
+	}
 }

@@ -235,7 +235,12 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
 	p.closing = autoclose.NewRegistryLanguages(languages)
 	p.comments = comment.NewRegistryLanguages(languages)
-	p.Extensions = exthost.NewHost(exthost.HostOptions{Factories: opts.Extensions, Logger: logger, Settings: defaults})
+	// the links between window tabs (event-sharing.json); a file that cannot be used is ignored with a warning
+	sharing := storage.NewSharingStore(opts.Paths, storage.SharingStoreOptions{Logger: logger})
+	if err := sharing.Load(context.Background()); err != nil {
+		logger.Warn("event-sharing.json is ignored; no tab shares events until the user allows it again", "err", err)
+	}
+	p.Extensions = exthost.NewHost(exthost.HostOptions{Factories: opts.Extensions, Logger: logger, Settings: defaults, Sharing: sharing})
 	p.Workspaces = newWorkspaces(p)
 	p.registerVirtualDocuments()
 	p.Menus = command.DefaultMenus(p.Commands)

@@ -246,8 +246,8 @@ type StatusBar interface {
 type Documents interface {
 	// Read returns the text of the document with the URI (file:///path/to/file, untitled:1): the text open in the
 	// scope, with its unsaved changes, or the file of the folder on disk. It fails for a document the scope does not
-	// have.
-	Read(ctx context.Context, uri string) (string, error)
+	// have. With FromScope it reads from another window tab along a link (SPEC §10.15 "Event sharing").
+	Read(ctx context.Context, uri string, opts ...ReadOption) (string, error)
 	// Open lists the URIs of the documents open in the scope, in the order they were opened.
 	Open() []string
 }

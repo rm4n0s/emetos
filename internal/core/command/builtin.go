@@ -967,5 +967,7 @@ func registerMergeEditorCommands(r *Registry) {
 func registerExtensionsCommands(r *Registry) {
 	r.MustRegister(
 		Meta{ID: "workbench.extensions.action.showInstalledExtensions", Title: "Show Installed Extensions", Category: "Extensions"},
+		// Emetos's own: the page of the links between window tabs (step 11.3, SPEC §10.15 "Event sharing")
+		Meta{ID: "emetos.extensions.manageEventSharing", Title: "Manage Event Sharing", Category: "Extensions"},
 	)
 }

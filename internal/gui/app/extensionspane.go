@@ -42,8 +42,9 @@ type extensionsPane struct {
 func (p *extensionsPane) build(bc widgets.BuildContext, group *editorgroup.Group, _ bool) widgets.Widget {
 	win := PeekWorkspace(bc)
 	return p.wrap(p.s, group, extensionsui.NewPage(extensionsui.Options{
-		Rows:      func() []exthost.Row { return win.Process.Extensions.Rows(win.disabledExtensions()) },
-		Subscribe: win.Process.Extensions.OnChange,
+		Rows:            func() []exthost.Row { return win.Process.Extensions.Rows(win.disabledExtensions()) },
+		Subscribe:       win.Process.Extensions.OnChange,
+		OnManageSharing: p.s.openEventSharingPage,
 		OnToggle: func(id string, enable bool) {
 			if err := win.setExtensionEnabled(id, enable); err != nil {
 				win.Process.Logger.Warn("cannot write the setting", "err", err)
@@ -62,18 +63,25 @@ func (p *extensionsPane) dispose() {}
 // openExtensionsPage shows the page: the one a group has is revealed, else a new one opens in the active group, kept
 // and not a preview.
 func (s *shellState) openExtensionsPage() {
-	var input *editorgroup.ExtensionsInput
+	s.openSingletonPage(func(e editorgroup.EditorInput) bool { _, ok := e.(*editorgroup.ExtensionsInput); return ok },
+		func() editorgroup.EditorInput { return editorgroup.NewExtensionsInput() })
+}
+
+// openSingletonPage shows a page of which a window has one: the editor that is, if a group has one, is revealed, else a
+// new one opens in the active group, kept and not a preview.
+func (s *shellState) openSingletonPage(is func(editorgroup.EditorInput) bool, create func() editorgroup.EditorInput) {
+	var input editorgroup.EditorInput
 	var group *editorgroup.Group
 	for _, g := range s.group.grid.Groups(editorgroup.GridAppearance) {
 		for _, e := range g.Model.Editors(editorgroup.Sequential, false) {
-			if ei, ok := e.(*editorgroup.ExtensionsInput); ok && input == nil {
-				input, group = ei, g
+			if is(e) && input == nil {
+				input, group = e, g
 			}
 		}
 	}
 	win := PeekWorkspace(s.Context())
 	if input == nil {
-		input, group = editorgroup.NewExtensionsInput(), s.activeGroup()
+		input, group = create(), s.activeGroup()
 		s.SetState(func() {
 			s.nav.hold++
 			group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: true, Active: true})
@@ -100,6 +108,10 @@ func (s *shellState) extensionsCommands() map[string]command.Handler {
 	return map[string]command.Handler{
 		"workbench.extensions.action.showInstalledExtensions": func(command.Context, any) error {
 			s.openExtensionsPage()
+			return nil
+		},
+		"emetos.extensions.manageEventSharing": func(command.Context, any) error {
+			s.openEventSharingPage()
 			return nil
 		},
 	}

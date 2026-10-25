@@ -61,5 +61,10 @@ func checkEventDecl(m Manifest) error {
 			return err
 		}
 	}
+	for _, p := range m.Events.CrossTab {
+		if err := CheckPattern(p); err != nil {
+			return err
+		}
+	}
 	return nil
 }

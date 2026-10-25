@@ -50,6 +50,9 @@ type Options struct {
 	Subscribe func(fn func()) (unsubscribe func())
 	// OnToggle is called when the user presses Enable (enable true) or Disable on an extension.
 	OnToggle func(extensionID string, enable bool)
+	// OnManageSharing is called when the user presses Event Sharing..., which opens the page of the links between window
+	// tabs; without it the button is not shown.
+	OnManageSharing func()
 }
 
 // Page is the Extensions page.
@@ -124,8 +127,14 @@ func (s *pageState) Build(bc widgets.BuildContext) widgets.Widget {
 		text(titleText, style(titleSize, ui.FontWeightW600, colors.Foreground)),
 		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(6.0)}),
 		text(introText, style(detailSize, ui.FontWeightW400, colors.DescriptionForeground)),
-		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(14.0)}),
+		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(10.0)}),
 	}
+	if o.OnManageSharing != nil {
+		children = append(children,
+			widgets.NewAlign(kit.NewButton(manageSharingBtn, kit.ButtonOpts{Key: ManageSharingKey(), Secondary: true, Small: true, Tooltip: "Choose which window tabs may send events to which", OnPressed: o.OnManageSharing}),
+				widgets.AlignOpts{Alignment: painting.AlignmentTopLeft}))
+	}
+	children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(14.0)}))
 	if len(rows) == 0 {
 		children = append(children, text(emptyText, style(nameSize, ui.FontWeightW400, colors.DescriptionForeground)))
 	}

@@ -47,6 +47,8 @@ var appCommands = map[string]bool{
 	"emetos.workspaceTab.open1": true, "emetos.workspaceTab.open2": true, "emetos.workspaceTab.open3": true,
 	"emetos.workspaceTab.open4": true, "emetos.workspaceTab.open5": true, "emetos.workspaceTab.open6": true,
 	"emetos.workspaceTab.open7": true, "emetos.workspaceTab.open8": true, "emetos.workspaceTab.open9": true,
+	// the page of the links between window tabs (step 11.3, gui/app/eventsharingpane.go)
+	"emetos.extensions.manageEventSharing": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

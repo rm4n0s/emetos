@@ -32,6 +32,14 @@
 // (typing) arrive once per frame as one batch. A request is answered by the handler of its topic, never blocks, and calls
 // its reply function once, with the reply or an error (EventNoHandler, EventTimeout, EventCanceled, EventHandlerFailed).
 //
+// # Other window tabs
+//
+// Events never leave their scope unless the user allowed it (SPEC §10.15 "Event sharing"). An extension that wants the
+// events of other window tabs lists the topics in Manifest.Events.CrossTab, subscribes with FromOtherScopes (or asks with
+// ToOtherScopes, or reads with FromScope), and the user is asked in its tab, once, whether the events of the other tab
+// may reach it. The answer is a link in one direction; the extension is told with TopicSharingRevoked when it goes. Until
+// there is a link nothing arrives, and a topic outside CrossTab is never asked about.
+//
 // # An example
 //
 //	package hello

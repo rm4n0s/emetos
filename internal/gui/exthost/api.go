@@ -394,10 +394,17 @@ func (h *statusHandle) Dispose() {
 type documentsAPI struct{ inst *instance }
 
 // Read implements extension.Documents. The window's error is returned as it is.
-func (d documentsAPI) Read(ctx context.Context, uri string) (string, error) {
+func (d documentsAPI) Read(ctx context.Context, uri string, opts ...extension.ReadOption) (string, error) {
 	in := d.inst
 	if in.isDead() {
 		return "", errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	var o extension.ReadOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.Scope != "" && o.Scope != in.scope.ID() {
+		return in.scope.readFrom(ctx, in, o.Scope, uri)
 	}
 	src := in.scope.opts.Documents
 	if src == nil {

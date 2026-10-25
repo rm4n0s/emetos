@@ -112,6 +112,10 @@ type ScopeOptions struct {
 	Now func() time.Time
 	// Logger is the log of the process; slog.Default when nil.
 	Logger *slog.Logger
+	// AskSharing asks the user, in this window tab, whether the events of another tab may reach it (SPEC §10.15 "Event
+	// sharing"): it shows the question and calls answer once, on the UI thread, with what the user chose. Nil means the
+	// scope cannot ask, so no link is ever made for it.
+	AskSharing func(q SharingAsk, answer func(SharingAnswer))
 	// ShowLog is the command the "Show Log" button of the failure notification runs; the Output panel by default.
 	ShowLog string
 }
@@ -140,6 +144,10 @@ type Scope struct {
 
 	// bus is the event bus of the scope (events.go, bus.go).
 	bus *bus
+
+	// denied are the questions the user answered with Deny since the extension was activated (sharing.go).
+	denyMu sync.Mutex
+	denied map[denyKey]bool
 
 	mu     sync.Mutex
 	slots  []*slot

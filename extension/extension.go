@@ -108,4 +108,8 @@ type ScopeInfo struct {
 	Name string
 	// Folder is the absolute path of the folder of a workspace scope, or empty.
 	Folder string
+	// ID names the scope in the links between window tabs (SPEC §10.15 "Event sharing"): the cleaned absolute folder of
+	// a workspace, "<extension id>:<tab id>" for the tab of an extension. It is empty for a scope that cannot be named
+	// in a link, such as a workspace tab with no folder: it sends nothing to other tabs and receives nothing from them.
+	ID string
 }

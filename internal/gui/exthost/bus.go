@@ -40,6 +40,9 @@ type subscription struct {
 	pattern string
 	fn      func(extension.Event)
 	inst    *instance
+	// from are the other scopes whose events the subscription hears too (extension.FromScopes); the pattern is within
+	// the cross-tab topics of the manifest then.
+	from extension.ScopeFilter
 }
 
 // handlerEntry is the handler of a topic.
@@ -58,6 +61,10 @@ type request struct {
 	cancel    context.CancelFunc // ends the context of the handler
 	stops     []func()           // the timer and the watch on the context of the requester
 	settled   bool               // UI thread only
+	// to are the other scopes whose handler answers (extension.ToScopes); nil for a request inside the scope.
+	to *extension.ScopeFilter
+	// handlerScope is the scope of the handler of a request that crossed to another scope.
+	handlerScope *Scope
 }
 
 // bus is the event bus of one scope (SPEC §10.15 "Events"). Publish and Request may be called from any goroutine; the
@@ -200,20 +207,59 @@ func (b *bus) pass(frame bool) {
 	flush()
 }
 
-// deliver gives an event to the subscribers that are to get it. Inside one scope that is every subscriber of the scope;
-// a later step adds the links to other scopes here, and checks them at this moment (SPEC §10.15 "Event sharing").
+// deliver gives an event to the subscribers that are to get it: all those of this scope, and the ones of other scopes that
+// listen to this one (extension.FromScopes) when a link the user allowed carries the topic in this direction (SPEC
+// §10.15 "Event sharing"). The link is checked here, at the moment of delivery, so a link that was removed (or a scope
+// that became private) stops the events that are queued still. Where there is no link, and an extension waits for the
+// topic, the user is asked once; the event that caused the question is not delivered.
 func (b *bus) deliver(publisher, topic string, seq uint64, data json.RawMessage, items []json.RawMessage) {
-	for _, target := range b.s.h.targets(b.s, publisher, topic) {
-		target.bus.dispatch(b.s.opts.Info, publisher, topic, seq, data, items)
+	b.dispatch(b.s, publisher, topic, seq, data, items)
+	h := b.s.h
+	for _, target := range h.otherScopes(b.s) {
+		if !target.bus.listensTo(b.s) {
+			continue
+		}
+		if h.allows(b.s, target, topic) {
+			target.bus.dispatch(b.s, publisher, topic, seq, data, items)
+		} else {
+			target.bus.askFor(b.s, topic)
+		}
 	}
 }
 
-// dispatch calls the subscribers of this scope whose pattern matches. Each gets a copy of the bytes.
-func (b *bus) dispatch(src extension.ScopeInfo, publisher, topic string, seq uint64, data json.RawMessage, items []json.RawMessage) {
+// listensTo tells whether any subscription of this scope hears the events of the scope src.
+func (b *bus) listensTo(src *Scope) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return slices.ContainsFunc(b.subs, func(sub *subscription) bool { return sub.from.Matches(src.ID()) })
+}
+
+// askFor asks, for each subscription of this scope that listens to src and matches the topic, whether the events may
+// come (Host.ask). The subscriptions that were denied are not asked again.
+func (b *bus) askFor(src *Scope, topic string) {
 	b.mu.Lock()
 	var subs []*subscription
 	for _, sub := range b.subs {
-		if extension.MatchTopic(sub.pattern, topic) {
+		if sub.from.Matches(src.ID()) && extension.MatchTopic(sub.pattern, topic) {
+			subs = append(subs, sub)
+		}
+	}
+	b.mu.Unlock()
+	for _, sub := range subs {
+		if !sub.inst.isDead() {
+			b.s.h.ask(src, sub.inst, sub.pattern, nil)
+		}
+	}
+}
+
+// dispatch calls the subscribers of this scope whose pattern matches. An event of another scope (src is not this scope)
+// goes to the subscriptions that listen to it only. Each gets a copy of the bytes.
+func (b *bus) dispatch(src *Scope, publisher, topic string, seq uint64, data json.RawMessage, items []json.RawMessage) {
+	cross := src != b.s
+	b.mu.Lock()
+	var subs []*subscription
+	for _, sub := range b.subs {
+		if extension.MatchTopic(sub.pattern, topic) && (!cross || sub.from.Matches(src.ID())) {
 			subs = append(subs, sub)
 		}
 	}
@@ -222,7 +268,7 @@ func (b *bus) dispatch(src extension.ScopeInfo, publisher, topic string, seq uin
 		if sub.inst.isDead() || !b.subscribed(sub) {
 			continue
 		}
-		ev := extension.Event{Topic: topic, Publisher: publisher, Scope: src, Seq: seq, Data: slices.Clone(data)}
+		ev := extension.Event{Topic: topic, Publisher: publisher, Scope: src.opts.Info, Seq: seq, Data: slices.Clone(data)}
 		if items != nil {
 			ev.Batch = make([]json.RawMessage, len(items))
 			for i, it := range items {
@@ -298,6 +344,7 @@ func (b *bus) instanceGone(inst *instance) {
 		}
 	}
 	b.mu.Unlock()
+	b.s.clearDenied(inst.id)
 	for _, r := range mine {
 		b.s.post(func() { b.settle(r) })
 	}
@@ -339,8 +386,8 @@ func (b *bus) settle(r *request) bool {
 // ---- the requests ----
 
 // request sends a request from an extension; the delivery to the handler happens on the UI thread, soon.
-func (b *bus) request(inst *instance, ctx context.Context, topic string, data json.RawMessage, reply func(extension.Event, error)) {
-	r := &request{requester: inst, reply: reply}
+func (b *bus) request(inst *instance, ctx context.Context, topic string, data json.RawMessage, reply func(extension.Event, error), to *extension.ScopeFilter) {
+	r := &request{requester: inst, reply: reply, to: to}
 	b.mu.Lock()
 	b.pending[r] = true
 	b.mu.Unlock()
@@ -354,7 +401,11 @@ func (b *bus) start(r *request, ctx context.Context, topic string, data json.Raw
 		return
 	}
 	r.ev = extension.Event{Topic: topic, Publisher: r.requester.id, Scope: b.s.opts.Info, Seq: b.nextSeq(), Data: data}
-	h := b.s.h.handlerFor(b.s, topic)
+	if r.to != nil {
+		b.startCross(r, ctx, topic)
+		return
+	}
+	h := b.s.bus.handlerOf(topic)
 	if h == nil || h.inst.isDead() {
 		if b.settle(r) {
 			b.s.callReply(r, extension.Event{}, errors.New("EventNoHandler", "no extension handles this topic", "topic", topic))
@@ -389,4 +440,92 @@ func (b *bus) watch(r *request, ctx context.Context) (stop func()) {
 	}
 	stopWatch := context.AfterFunc(ctx, func() { expire(ctx.Err() == context.DeadlineExceeded) })
 	return func() { stopTimer(); stopWatch() }
+}
+
+// candidate is a scope with a handler for the topic of a request that goes to other scopes.
+type candidate struct {
+	scope *Scope
+	entry *handlerEntry
+}
+
+// startCross sends a request to the handler of a topic in another scope (UI thread). The request travels along the link
+// that lets the events of the handler's scope reach this one, and the reply comes back the same way; where no link exists
+// the user is asked, as for a subscription, and the request waits for the answer until its deadline. It is refused when
+// this scope is private or cannot be named in a link.
+func (b *bus) startCross(r *request, ctx context.Context, topic string) {
+	fail := func(err error) {
+		if b.settle(r) {
+			b.s.callReply(r, extension.Event{}, err)
+		}
+	}
+	r.stops = append(r.stops, b.watch(r, ctx))
+	h := b.s.h
+	switch {
+	case b.s.ID() == "":
+		fail(errors.New("EventSharingUnnamed", "a window tab with no folder cannot be named in a link, so it cannot ask other tabs", "topic", topic, "extension", r.requester.id))
+		return
+	case h.sharing.IsPrivate(b.s.ID()):
+		fail(errors.New("EventSharingPrivate", "a private workspace sends nothing to other tabs, and a request is something it sends", "topic", topic, "extension", r.requester.id))
+		return
+	}
+	var cands []candidate
+	private := false
+	for _, s := range h.otherScopes(b.s) {
+		if !r.to.Matches(s.ID()) {
+			continue
+		}
+		entry := s.bus.handlerOf(topic)
+		if entry == nil || entry.inst.isDead() {
+			continue
+		}
+		if h.sharing.IsPrivate(s.ID()) {
+			private = true
+			continue
+		}
+		cands = append(cands, candidate{s, entry})
+	}
+	if len(cands) == 0 {
+		if private {
+			fail(errors.New("EventSharingSourcePrivate", "the window tab that handles the topic is private", "topic", topic))
+			return
+		}
+		fail(errors.New("EventNoHandler", "no extension of those window tabs handles this topic", "topic", topic))
+		return
+	}
+	for _, c := range cands {
+		if h.allows(c.scope, b.s, topic) {
+			b.runCross(r, ctx, c)
+			return
+		}
+	}
+	for _, c := range cands {
+		if !h.canAsk(c.scope, r.requester, topic) {
+			continue
+		}
+		h.ask(c.scope, r.requester, topic, func(ok bool) {
+			if r.settled {
+				return
+			}
+			if !ok {
+				fail(errors.New("EventSharingDenied", "the user did not let the events of that window tab reach this one", "topic", topic, "from", c.scope.ID()))
+				return
+			}
+			entry := c.scope.bus.handlerOf(topic)
+			if entry == nil || entry.inst.isDead() || !h.allows(c.scope, b.s, topic) {
+				fail(errors.New("EventNoHandler", "the handler is gone", "topic", topic))
+				return
+			}
+			b.runCross(r, ctx, candidate{c.scope, entry})
+		})
+		return
+	}
+	fail(errors.New("EventSharingRefused", "no link lets that window tab answer this one, and none can be asked for", "topic", topic))
+}
+
+// runCross calls the handler of a request in another scope.
+func (b *bus) runCross(r *request, ctx context.Context, c candidate) {
+	r.handler, r.handlerScope = c.entry.inst, c.scope
+	hctx, cancel := context.WithCancel(ctx)
+	r.cancel = cancel
+	c.scope.runHandler(c.entry, r, hctx)
 }

@@ -61,7 +61,7 @@ func (e eventsAPI) Publish(topic string, value any) error {
 }
 
 // Subscribe implements extension.Events. It fails with ExtensionDeactivated and EventPatternInvalid.
-func (e eventsAPI) Subscribe(pattern string, fn func(extension.Event)) (func(), error) {
+func (e eventsAPI) Subscribe(pattern string, fn func(extension.Event), opts ...extension.SubscribeOption) (func(), error) {
 	in := e.inst
 	if in.isDead() {
 		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
@@ -69,17 +69,35 @@ func (e eventsAPI) Subscribe(pattern string, fn func(extension.Event)) (func(), 
 	if err := extension.CheckPattern(pattern); err != nil {
 		return nil, err
 	}
-	return in.scope.bus.subscribe(&subscription{pattern: pattern, fn: fn, inst: in}), nil
+	var o extension.SubscribeOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.From.Any() && !extension.PatternWithin(pattern, in.slot.info.Manifest.Events.CrossTab) {
+		return nil, errors.New("EventCrossTabNotDeclared", "a subscription to other window tabs must be within the cross-tab topics of the manifest", "extension", in.id, "pattern", pattern)
+	}
+	return in.scope.bus.subscribe(&subscription{pattern: pattern, fn: fn, inst: in, from: o.From}), nil
 }
 
 // Request implements extension.Events. It fails with ExtensionDeactivated, EventTopicInvalid and EventValueInvalid.
-func (e eventsAPI) Request(ctx context.Context, topic string, value any, reply func(extension.Event, error)) error {
+func (e eventsAPI) Request(ctx context.Context, topic string, value any, reply func(extension.Event, error), opts ...extension.RequestOption) error {
 	in := e.inst
 	if in.isDead() {
 		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
 	}
 	if err := extension.CheckTopic(topic); err != nil {
 		return err
+	}
+	var o extension.RequestOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	var to *extension.ScopeFilter
+	if o.To.Any() {
+		if !extension.PatternWithin(topic, in.slot.info.Manifest.Events.CrossTab) {
+			return errors.New("EventRequestCrossTabNotDeclared", "a request to other window tabs must be within the cross-tab topics of the manifest", "extension", in.id, "topic", topic)
+		}
+		to = &o.To
 	}
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -91,7 +109,7 @@ func (e eventsAPI) Request(ctx context.Context, topic string, value any, reply f
 	if reply == nil {
 		reply = func(extension.Event, error) {}
 	}
-	in.scope.bus.request(in, ctx, topic, data, reply)
+	in.scope.bus.request(in, ctx, topic, data, reply, to)
 	return nil
 }
 
@@ -129,7 +147,7 @@ func (e eventsAPI) HandleAsync(topic string, fn extension.AsyncEventHandler) err
 var coreTopics = []string{
 	extension.TopicDocumentOpened, extension.TopicDocumentChanged, extension.TopicDocumentSaved, extension.TopicDocumentClosed,
 	extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged,
-	extension.TopicWorkspaceOpened, extension.TopicWorkspaceClosed, extension.TopicWindowTabActivated,
+	extension.TopicWorkspaceOpened, extension.TopicWorkspaceClosed, extension.TopicWindowTabActivated, extension.TopicSharingRevoked,
 }
 
 // PublishCore publishes one of the core events of Emetos (the Topic constants of package extension) in the scope; the
@@ -215,9 +233,15 @@ func (s *Scope) runHandler(h *handlerEntry, r *request, hctx context.Context) {
 	answer := func(ev extension.Event, err error) {
 		once.Do(func() {
 			rb.s.post(func() {
-				if rb.settle(r) {
-					rb.s.callReply(r, ev, err)
+				if !rb.settle(r) {
+					return
 				}
+				// the reply goes back along the link it came by; a link that was removed since stops it
+				if r.handlerScope != nil && !rb.s.h.allows(r.handlerScope, rb.s, r.ev.Topic) {
+					rb.s.callReply(r, extension.Event{}, errors.New("EventSharingRevoked", "the link that carried the request was removed before the reply came", "topic", r.ev.Topic, "from", r.handlerScope.ID()))
+					return
+				}
+				rb.s.callReply(r, ev, err)
 			})
 		})
 	}

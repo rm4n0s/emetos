@@ -3,6 +3,7 @@ package extension
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/errors"
@@ -36,6 +37,8 @@ func TestCheckManifest(t *testing.T) {
 		{"a published topic with a star", Manifest{ID: "a", Name: "N", Events: EventDecl{Publishes: []EventSpec{{Topic: "a.*"}}}}, "checkEventDecl->CheckTopic.EventTopicInvalid"},
 		{"a handled topic that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{Handles: []string{""}}}, "checkEventDecl->CheckTopic.EventTopicInvalid"},
 		{"a pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{Subscribes: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
+		{"cross-tab topics", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"emetos.document.*", "a.**"}}}, ""},
+		{"a cross-tab pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -187,5 +190,74 @@ func TestEventValues(t *testing.T) {
 	_, err = EventValues[payload](bad)
 	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("EventValues[...].EventValueInvalid") {
 		t.Errorf("EventValues of a value of another shape: %v", err)
+	}
+}
+
+func TestPatternWithin(t *testing.T) {
+	tests := []struct {
+		pattern string
+		list    []string
+		want    bool
+	}{
+		{"a.b", []string{"a.b"}, true},
+		{"a.b", []string{"a.*"}, true},
+		{"a.*", []string{"a.*"}, true},
+		{"a.b", []string{"a.**"}, true},
+		{"a.b.c", []string{"a.**"}, true},
+		{"a.**", []string{"a.**"}, true},
+		{"a.*", []string{"a.**"}, true},
+		{"a", []string{"a.**"}, false},
+		{"a.*", []string{"a.b"}, false},
+		{"a.**", []string{"a.*"}, false},
+		{"a.b.c", []string{"a.*"}, false},
+		{"b.c", []string{"a.*"}, false},
+		{"a.b", []string{"x.y", "a.b"}, true},
+		{"a.b", nil, false},
+		{"**", []string{"**"}, true},
+		{"a.b", []string{"**"}, true},
+		{"a..b", []string{"**"}, false},
+		{"a.b", []string{"a..b"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.pattern+" in "+strings.Join(tt.list, ","), func(t *testing.T) {
+			if got := PatternWithin(tt.pattern, tt.list); got != tt.want {
+				t.Errorf("PatternWithin(%q, %v) = %v, want %v", tt.pattern, tt.list, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestScopeFilter(t *testing.T) {
+	var none ScopeFilter
+	var subOpts SubscribeOptions
+	FromScopes("/a", "/b")(&subOpts)
+	FromOtherScopes()(&subOpts)
+	var reqOpts RequestOptions
+	ToScopes("/c")(&reqOpts)
+	var readOpts ReadOptions
+	FromScope("/d")(&readOpts)
+	tests := []struct {
+		name   string
+		filter ScopeFilter
+		id     string
+		any    bool
+		match  bool
+	}{
+		{"zero value", none, "/a", false, false},
+		{"others", subOpts.From, "/z", true, true},
+		{"listed", ScopeFilter{IDs: []string{"/a"}}, "/a", true, true},
+		{"not listed", ScopeFilter{IDs: []string{"/a"}}, "/b", true, false},
+		{"a scope with no id is never matched", ScopeFilter{Others: true}, "", true, false},
+		{"request ids", reqOpts.To, "/c", true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.filter.Any() != tt.any || tt.filter.Matches(tt.id) != tt.match {
+				t.Errorf("Any = %v, Matches(%q) = %v; want %v, %v", tt.filter.Any(), tt.id, tt.filter.Matches(tt.id), tt.any, tt.match)
+			}
+		})
+	}
+	if readOpts.Scope != "/d" || !slices.Equal(subOpts.From.IDs, []string{"/a", "/b"}) {
+		t.Errorf("options not applied: %+v %+v", readOpts, subOpts)
 	}
 }

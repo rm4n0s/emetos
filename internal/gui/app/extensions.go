@@ -117,11 +117,11 @@ func (w *Workspace) startExtensions() {
 	}
 	w.extKeys = &extensionKeys{w: w}
 	scope := p.Extensions.NewScope(exthost.ScopeOptions{
-		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: w.extensionName(), Folder: w.Folder},
+		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: w.extensionName(), Folder: w.Folder, ID: w.sharingID()},
 		Ctx:  w.ctx, Commands: w.Commands, Menus: w.Menus, Keybindings: w.extKeys, Settings: w.Settings,
 		Notify: w.Notify, StatusBar: w.StatusBar, Documents: extensionDocuments{w: w},
 		Disabled: w.disabledExtensions, Files: w.extensionFiles, Post: w.onUI, Frame: w.extensionFrame, After: w.extensionAfter,
-		Logger: p.Logger,
+		Logger: p.Logger, AskSharing: w.askSharing,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
