@@ -14,6 +14,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/theme"
@@ -92,7 +93,7 @@ func newRig(t *testing.T, original, modified string, cfg rigConfig) *rig {
 	ovm := editor.NewViewModel(r.orig, AdjustOptions(o, Original), nil)
 	mvm := editor.NewViewModel(r.mod, AdjustOptions(o, Modified), nil)
 	if cfg.highlight != "" {
-		reg, err := language.Bundled()
+		reg, err := languagetest.Bundled()
 		if err != nil {
 			t.Fatal(err)
 		}

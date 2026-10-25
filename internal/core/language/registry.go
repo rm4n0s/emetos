@@ -3,6 +3,7 @@ package language
 import (
 	"io/fs"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -81,27 +82,49 @@ type Registry struct {
 	problems []error
 	// configDefaults are the settings that extensions give to languages, by language id.
 	configDefaults map[string]map[string]any
+
+	// sources are the extensions that were added, in order: a registry is made again from them when one is removed.
+	sources []*source
+	// version counts the changes of the set of languages and grammars (Version).
+	version uint64
+}
+
+// source is an extension that was added to a registry.
+type source struct {
+	// key names the extension for RemoveExtension; empty for one that cannot be removed.
+	key      string
+	fsys     fs.FS
+	manifest *Manifest
 }
 
 // NewRegistry makes a registry that has the plain text language.
 func NewRegistry() *Registry {
-	r := &Registry{
-		languages: map[string]*Language{}, config: map[string][]resource{}, codes: map[string]int{},
-		byCode: []string{"", PlainTextID}, names: map[string]string{}, mimes: map[string]string{},
-		grammars: map[string]*grammarDef{}, langScope: map[string]string{}, injections: map[string][]string{},
-		injectedEmb: map[string][]map[string]string{}, parsed: map[string]*textmate.RawGrammar{}, configs: map[string]*Configuration{},
+	r := &Registry{}
+	r.reset()
+	return r
+}
+
+// reset empties the registry down to the plain text language. The numbers of the languages, the associations of the
+// user and the list of the extensions that were added are kept. The lock is held, or the registry is not shared yet.
+func (r *Registry) reset() {
+	r.languages, r.config, r.names, r.mimes = map[string]*Language{}, map[string][]resource{}, map[string]string{}, map[string]string{}
+	r.order, r.platform, r.all, r.problems = nil, nil, nil, nil
+	r.grammars, r.langScope, r.injections = map[string]*grammarDef{}, map[string]string{}, map[string][]string{}
+	r.injectedEmb, r.parsed, r.configs = map[string][]map[string]string{}, map[string]*textmate.RawGrammar{}, map[string]*Configuration{}
+	r.configDefaults = nil
+	if r.codes == nil {
+		r.codes, r.byCode = map[string]int{PlainTextID: plainTextCode}, []string{"", PlainTextID}
 	}
-	r.codes[PlainTextID] = plainTextCode
 	r.addLanguage(LanguageContribution{
 		ID: PlainTextID, Extensions: []string{".txt"}, Aliases: []string{"Plain Text", "text"}, MIMETypes: []string{"text/plain"},
 	}, resource{})
-	return r
 }
 
 // AddExtension adds the languages and grammars that the package.json at the root of fsys
 // contributes. The error has the tag ExtensionUnreadable when there is no readable package.json
 // and ManifestInvalid when it is not JSON; contributions that are not valid are left out and
-// listed in Problems.
+// listed in Problems. The extension stays for the life of the registry; AddNamedExtension adds
+// one that can be taken away.
 func (r *Registry) AddExtension(fsys fs.FS) error {
 	data, err := fs.ReadFile(fsys, "package.json")
 	if err != nil {
@@ -111,8 +134,78 @@ func (r *Registry) AddExtension(fsys fs.FS) error {
 	if err != nil {
 		return err
 	}
+	r.addSource("", fsys, m)
+	return nil
+}
+
+// AddNamedExtension is AddExtension for an extension that RemoveExtension can take away again (a language pack of
+// Emetos, SPEC §10.15). It returns what the package.json contributes, so that the caller can tell the languages and
+// the settings defaults that came with it. The error has the tags of AddExtension and ExtensionKeyTaken when an
+// extension with the key is in the registry, ExtensionKeyEmpty when the key is empty.
+func (r *Registry) AddNamedExtension(key string, fsys fs.FS) (*Manifest, error) {
+	if key == "" {
+		return nil, errors.New("ExtensionKeyEmpty", "an extension that can be removed needs a key")
+	}
+	data, err := fs.ReadFile(fsys, "package.json")
+	if err != nil {
+		return nil, errors.NewErr("ExtensionUnreadable", err).SetMetadata("file", "package.json")
+	}
+	m, err := ParseManifest(data)
+	if err != nil {
+		return nil, err
+	}
+	if !r.addSource(key, fsys, m) {
+		return nil, errors.New("ExtensionKeyTaken", "an extension with this key is in the registry", "key", key)
+	}
+	return m, nil
+}
+
+// RemoveExtension takes away the extension added with the key, with its languages, grammars, associations and
+// configurations, and reports whether it was there. A language that remains in no extension is no longer registered,
+// but its number stays reserved for it, so tokens already made and grammars that name the number stay valid, and an
+// extension that comes back gets the same number.
+func (r *Registry) RemoveExtension(key string) bool {
+	if key == "" {
+		return false
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	i := slices.IndexFunc(r.sources, func(s *source) bool { return s.key == key })
+	if i < 0 {
+		return false
+	}
+	r.sources = slices.Delete(r.sources, i, i+1)
+	r.reset()
+	for _, s := range r.sources {
+		r.apply(s.fsys, s.manifest)
+	}
+	r.version++
+	return true
+}
+
+// Version counts the changes of the set of languages and grammars: it grows whenever an extension is added or
+// removed. A cache of what the registry made (the grammars) is valid while it is the same.
+func (r *Registry) Version() uint64 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.version
+}
+
+// addSource adds an extension whose manifest was read. It reports false, and adds nothing, when an extension has the key.
+func (r *Registry) addSource(key string, fsys fs.FS, m *Manifest) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if key != "" && slices.ContainsFunc(r.sources, func(s *source) bool { return s.key == key }) {
+		return false
+	}
+	r.sources = append(r.sources, &source{key: key, fsys: fsys, manifest: m})
+	r.apply(fsys, m)
+	r.version++
+	return true
+}
+
+// apply adds the contributions of a manifest. The lock is held.
+func (r *Registry) apply(fsys fs.FS, m *Manifest) {
 	r.problems = append(r.problems, m.Problems...)
 	for id, values := range m.ConfigurationDefaults {
 		if r.configDefaults == nil {
@@ -131,7 +224,6 @@ func (r *Registry) AddExtension(fsys fs.FS) error {
 	for _, g := range m.Grammars {
 		r.addGrammar(g, resource{fsys: fsys, path: cleanContributionPath(g.Path)})
 	}
-	return nil
 }
 
 // ConfigurationDefaults gives the settings that the extensions contribute to languages

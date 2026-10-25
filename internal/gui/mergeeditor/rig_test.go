@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/diff"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
@@ -101,7 +102,7 @@ func newRig(t *testing.T, cfg rigConfig) *rig {
 	for i, doc := range []*document.Document{r.in1, r.in2, r.result} {
 		vms[i] = editor.NewViewModel(doc, AdjustOptions(o, Side(i)), nil)
 		if cfg.highlight != "" {
-			reg, err := language.Bundled()
+			reg, err := languagetest.Bundled()
 			if err != nil {
 				t.Fatal(err)
 			}

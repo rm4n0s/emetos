@@ -2,4 +2,7 @@
 // folder below this one with a function of type extension.Factory, and one line in All. A package under extensions
 // imports only the public package extension, the standard library, its own subpackages and the dependencies CLAUDE.md
 // allows; internal/archtest checks it.
+//
+// The bundled languages are extensions too (SPEC §8.1, step 11.4): one language pack per folder, each with its grammars
+// and language configurations in assets/ and a Factory made with extensions/internal/langpack.
 package extensions

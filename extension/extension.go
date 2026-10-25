@@ -2,6 +2,7 @@ package extension
 
 import (
 	"context"
+	"io/fs"
 	"strings"
 )
 
@@ -52,6 +53,14 @@ type Contributes struct {
 	Menus []MenuItem
 	// Keybindings are default keybindings of commands.
 	Keybindings []Keybinding
+	// Languages is the language pack of the extension: a file system (an embed.FS, rooted with fs.Sub) that has the
+	// package.json of a VS Code extension at its root, with the languages (contributes.languages), the grammars
+	// (contributes.grammars) and the settings defaults of languages (contributes.configurationDefaults) it contributes, and
+	// the files they name (the language configurations, the grammars). It is nil for an extension that adds no language.
+	// Emetos adds the languages to its registry while the extension is enabled in at least one window tab, before any file
+	// opens, and takes them away when the last tab that has the extension enabled closes or turns it off (SPEC §10.15
+	// "As built (step 11.4)"). It needs no activation: the languages are there whether or not the extension was activated.
+	Languages fs.FS
 }
 
 // The activation events of a Manifest.

@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
@@ -154,7 +155,7 @@ func TestTabSizeArgument(t *testing.T) {
 // indentation rules of the languages, the cursor at the end of the text.
 func ruled(t testing.TB, languageID, text string) *ViewModel {
 	t.Helper()
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}

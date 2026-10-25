@@ -6,7 +6,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
-	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
 )
@@ -25,7 +25,7 @@ func f(a []int) {
 // goFixture makes a Go document with its tokenizer and an attached index.
 func goFixture(t *testing.T, text string, large bool) (*document.Document, *tokens.Tokenizer, *Index) {
 	t.Helper()
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestAttachedIndexOfALargeFileFindsNothing(t *testing.T) {
 }
 
 func TestRegistryLanguagesAreMadeOnce(t *testing.T) {
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}

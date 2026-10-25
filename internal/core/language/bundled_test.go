@@ -7,9 +7,26 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/core/language/packfs"
 	"github.com/rm4n0s/emetos/internal/core/regex"
-	"github.com/rm4n0s/errors"
 )
+
+// Bundled makes a registry of its own with the languages of the language packs, which live under extensions/ (SPEC §8.1,
+// §10.15) and are read from the source tree in the order the editor registers them. The tests of other packages use
+// languagetest.Bundled, which cannot be imported here.
+func Bundled() (*Registry, error) {
+	r := NewRegistry()
+	list, err := packfs.All()
+	if err != nil {
+		return nil, err
+	}
+	for _, fsys := range list {
+		if err := r.AddExtension(fsys); err != nil {
+			return nil, err
+		}
+	}
+	return r, nil
+}
 
 // backReferences are the references to the captures of a begin in an end or while pattern.
 var backReferences = regexp.MustCompile(`\\(\d+)`)
@@ -152,7 +169,22 @@ func TestEveryBundledGrammarCompiles(t *testing.T) {
 	cache := regex.NewCache(1 << 20)
 	files := 0
 	patterns := 0
-	err := fs.WalkDir(assets, "assets", func(p string, d fs.DirEntry, err error) error {
+	packs, err := packfs.All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, fsys := range packs {
+		walkGrammars(t, fsys, packfs.Names()[i], cache, &files, &patterns)
+	}
+	if files < 15 || patterns < 2000 {
+		t.Errorf("only %d grammar files and %d patterns were found", files, patterns)
+	}
+}
+
+// walkGrammars compiles every pattern of the grammar files of one pack.
+func walkGrammars(t *testing.T, assets fs.FS, pack string, cache *regex.Cache, files, patterns *int) {
+	t.Helper()
+	err := fs.WalkDir(assets, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -160,6 +192,7 @@ func TestEveryBundledGrammarCompiles(t *testing.T) {
 			return nil
 		}
 		data, err := fs.ReadFile(assets, p)
+		p = pack + "/" + p
 		if err != nil {
 			return err
 		}
@@ -168,7 +201,7 @@ func TestEveryBundledGrammarCompiles(t *testing.T) {
 			t.Errorf("%s: %v", p, err)
 			return nil
 		}
-		files++
+		*files++
 		var walk func(v any)
 		walk = func(v any) {
 			switch v := v.(type) {
@@ -179,7 +212,7 @@ func TestEveryBundledGrammarCompiles(t *testing.T) {
 						walk(x)
 						continue
 					}
-					patterns++
+					*patterns++
 					if k == "end" || k == "while" {
 						// The captures of the begin are written into these when they are used.
 						s = backReferences.ReplaceAllString(s, "x")
@@ -199,31 +232,5 @@ func TestEveryBundledGrammarCompiles(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if files < 15 || patterns < 2000 {
-		t.Errorf("only %d grammar files and %d patterns were found", files, patterns)
-	}
-}
-
-func TestAddExtensionsErrors(t *testing.T) {
-	cases := []struct {
-		name  string
-		names []string
-		route string
-	}{
-		{"a name that is not a path", []string{"../x"}, "addExtensions.BundledExtensionUnreadable"},
-		{"a folder that is not there", []string{"nothing"}, "addExtensions->Registry.AddExtension.ExtensionUnreadable"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := addExtensions(NewRegistry(), assets, tc.names)
-			appErr, ok := errors.FromError(err)
-			if !ok {
-				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
-			}
-			if !appErr.HasRoute(tc.route) {
-				t.Errorf("unexpected failure path: %s", appErr.Route())
-			}
-		})
 	}
 }

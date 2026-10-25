@@ -102,11 +102,13 @@ type Process struct {
 	backupMax   int
 	grammarMu   sync.Mutex
 	grammars    map[grammarKey]*textmate.Grammar
-	regexes     *regex.Cache
-	brackets    *brackets.RegistryLanguages
-	indenter    *indent.Indenter
-	closing     *autoclose.RegistryLanguages
-	comments    *comment.RegistryLanguages
+	// grammarsAt is the version of the language registry the grammars were made at (language.Registry.Version).
+	grammarsAt uint64
+	regexes    *regex.Cache
+	brackets   *brackets.RegistryLanguages
+	indenter   *indent.Indenter
+	closing    *autoclose.RegistryLanguages
+	comments   *comment.RegistryLanguages
 }
 
 // BracketLanguages gives the brackets of the languages (SPEC §8.5), made from their configurations.
@@ -157,8 +159,13 @@ type ProcessOptions struct {
 	// not pass one gets timers that never run.
 	StateAfter     storage.AfterFunc
 	StateWriteFile storage.WriteFileFunc
-	// Extensions are the constructors of the extensions to run (extensions.All in the editor); tests pass their own.
+	// Extensions are the constructors of the extensions to run (extensions.All in the editor); tests pass their own. The
+	// language packs among them (Manifest.Contributes.Languages) add their languages to the registry of the process.
 	Extensions []extension.Factory
+	// Languages is a registry that has languages already, which no extension adds and which stay for the life of the
+	// process; nil makes one that has plain text only. The editor leaves it nil, because the bundled languages are
+	// extensions; the tests of the packages under internal/ cannot import those and pass languagetest.Bundled().
+	Languages *language.Registry
 	// BackupAfter sets the timers of the delay of the backups of unsaved documents (hot exit, SPEC §10.10); it is
 	// StateAfter when nil. BackupWriteFile replaces the function that writes a backup, and BackupMaxSize is the
 	// largest text that is backed up; the atomic write and storage.MaxBackupSize when zero. Tests set them.
@@ -177,16 +184,13 @@ func NewProcess(opts ProcessOptions) *Process {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	languages, err := language.Bundled()
-	if err != nil {
-		// The languages are embedded in the program, so this is a broken build.
-		panic(err)
-	}
-	for _, problem := range languages.Problems() {
-		logger.Warn("language problem", "err", problem)
+	languages := opts.Languages
+	if languages == nil {
+		languages = language.NewRegistry()
 	}
 	defaults := settings.DefaultRegistry()
-	// What the languages ask of the settings (Go indents with tabs, YAML with two spaces).
+	// What the languages that are there already ask of the settings; the language packs of the extensions give theirs when
+	// the host adds them (Go indents with tabs, YAML with two spaces).
 	for id, values := range languages.ConfigurationDefaults() {
 		if err := defaults.RegisterLanguageDefaults(id, values); err != nil {
 			logger.Warn("language settings", "language", id, "err", err)
@@ -240,7 +244,11 @@ func NewProcess(opts ProcessOptions) *Process {
 	if err := sharing.Load(context.Background()); err != nil {
 		logger.Warn("event-sharing.json is ignored; no tab shares events until the user allows it again", "err", err)
 	}
-	p.Extensions = exthost.NewHost(exthost.HostOptions{Factories: opts.Extensions, Logger: logger, Settings: defaults, Sharing: sharing})
+	// the language packs register their languages here, before the first window and its first file
+	p.Extensions = exthost.NewHost(exthost.HostOptions{Factories: opts.Extensions, Logger: logger, Settings: defaults, Sharing: sharing, Languages: languages})
+	for _, problem := range languages.Problems() {
+		logger.Warn("language problem", "err", problem)
+	}
 	p.Workspaces = newWorkspaces(p)
 	p.registerVirtualDocuments()
 	p.Menus = command.DefaultMenus(p.Commands)
@@ -380,6 +388,11 @@ func (p *Process) Grammar(languageID string, maxLineBytes int) (*textmate.Gramma
 	key := grammarKey{languageID, maxLineBytes}
 	p.grammarMu.Lock()
 	defer p.grammarMu.Unlock()
+	// a language pack came or went: the embedded languages of the grammars made so far may be out of date
+	if v := p.Languages.Version(); v != p.grammarsAt {
+		clear(p.grammars)
+		p.grammarsAt = v
+	}
 	if g, ok := p.grammars[key]; ok {
 		return g, nil
 	}

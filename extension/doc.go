@@ -40,6 +40,14 @@
 // may reach it. The answer is a link in one direction; the extension is told with TopicSharingRevoked when it goes. Until
 // there is a link nothing arrives, and a topic outside CrossTab is never asked about.
 //
+// # Languages
+//
+// An extension adds languages by declaring them: Contributes.Languages is a file system with the package.json of a VS
+// Code extension at its root (the languages, the grammars and the settings defaults of languages) and the files it names.
+// Emetos adds them to the registry of the process while the extension is enabled in some window tab, before any file
+// opens, so the extension needs no code to be a language pack; the bundled languages are such extensions. Several tabs
+// may have the extension enabled: the languages are added once and taken away when the last tab lets go of them.
+//
 // # An example
 //
 //	package hello

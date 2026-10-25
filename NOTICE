@@ -36,6 +36,12 @@ repository and its license text in third_party/.
    module, workspace and checksum grammars of golang/vscode-go (MIT; its
    LICENSE is third_party/vscode-go/LICENSE); none was left out.
    A grammar without a permissive license is left out and recorded here.
+   Since step 11.4 these files are in the language packs, the extensions
+   golang, json, yaml, markdown, python, javascript, typescript, html, css,
+   scss, less, xml, sql, shellscript, makefile, docker, ini, cpp, rust, diff,
+   git and gomod under extensions/<pack>/assets/ (a pack's cgmanifest.json names
+   the upstream of each of its grammars); the licenses did not change and stay
+   in third_party/.
    License texts: third_party/vscode-extensions/ (VS Code's LICENSE.txt and
    ThirdPartyNotices.txt) and third_party/vscode-go/LICENSE.
 
@@ -65,7 +71,7 @@ repository and its license text in third_party/.
    Source:  vscode-go (https://github.com/golang/vscode-go)
    License: MIT (The Go Authors)
    Added by step 4.11 (the go.mod, go.work and go.sum grammars and the language
-   configuration, in internal/core/language/assets/go-mod/; the license is
+   configuration, in extensions/gomod/assets/; the license is
    third_party/vscode-go/LICENSE).
 
 6. Emmet abbreviation parser and snippets

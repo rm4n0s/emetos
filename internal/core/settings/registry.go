@@ -193,6 +193,33 @@ func (r *Registry) RegisterLanguageDefaults(languageID string, values map[string
 	return nil
 }
 
+// UnregisterLanguageDefaults takes back the defaults that RegisterLanguageDefaults gave a language for the keys, and
+// reports whether there was anything to take. It is how the defaults of a language pack go when the pack is turned off
+// (SPEC §10.15). A value the user wrote stays in their file. A language with no default left is forgotten.
+func (r *Registry) UnregisterLanguageDefaults(languageID string, keys []string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	values, ok := r.languageDefaults[languageID]
+	if !ok {
+		return false
+	}
+	removed := false
+	for _, k := range keys {
+		if _, has := values[k]; has {
+			delete(values, k)
+			removed = true
+		}
+	}
+	if len(values) == 0 {
+		delete(r.languageDefaults, languageID)
+		r.languageOrder = slices.DeleteFunc(r.languageOrder, func(id string) bool { return id == languageID })
+	}
+	if removed {
+		r.version++
+	}
+	return removed
+}
+
 // Lookup returns the setting with the key.
 func (r *Registry) Lookup(key string) (Setting, bool) {
 	r.mu.RLock()

@@ -347,6 +347,11 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	for _, problem := range store.Problems() {
 		p.Logger.Warn("settings problem", "target", problem.Target, "key", problem.Key, "message", problem.Message)
 	}
+	// the languages of the language packs follow extensions.disabled before this window opens a file (the documents it
+	// restores are given their language by the registry); the scope of the window holds them once it starts
+	if p.Extensions != nil {
+		p.Extensions.SyncLanguages(settings.Get[[]string](store, disabledExtensionsSetting, ""))
+	}
 	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
 	commands := p.Commands.Fork()
 	layout := workbench.NewLayout(workbench.LayoutStateFromSettings(store))

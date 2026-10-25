@@ -10,7 +10,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
-	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 )
@@ -18,7 +18,7 @@ import (
 // grammarFor makes the grammar of a bundled language.
 func grammarFor(t testing.TB, id string) *textmate.Grammar {
 	t.Helper()
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -189,3 +189,96 @@ func errorsFrom(err error) (string, bool) {
 	}
 	return appErr.Tag, true
 }
+
+// pack makes a small extension that contributes the language id for the extension ext, with a grammar and settings defaults.
+func pack(id, ext string) fstest.MapFS {
+	return fstest.MapFS{
+		"package.json": {Data: []byte(`{"name": "` + id + `", "contributes": {
+			"languages": [{"id": "` + id + `", "extensions": ["` + ext + `"], "aliases": ["` + strings.ToUpper(id) + `"], "configuration": "./c.json"}],
+			"grammars": [{"language": "` + id + `", "scopeName": "source.` + id + `", "path": "./g.json"}],
+			"configurationDefaults": {"[` + id + `]": {"editor.tabSize": 3}}}}`)},
+		"c.json": {Data: []byte(`{"comments": {"lineComment": "#"}}`)},
+		"g.json": {Data: []byte(`{"scopeName": "source.` + id + `", "patterns": [{"match": "\\w+", "name": "word"}]}`)},
+	}
+}
+
+func TestRemoveExtensionTakesTheLanguageAway(t *testing.T) {
+	r := NewRegistry()
+	if err := r.AddExtension(pack("fixed", ".fx")); err != nil {
+		t.Fatal(err)
+	}
+	m, err := r.AddNamedExtension("one", pack("one", ".one"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Languages) != 1 || m.Languages[0].ID != "one" || m.ConfigurationDefaults["one"]["editor.tabSize"] != float64(3) {
+		t.Fatalf("manifest = %+v", m)
+	}
+	if _, err := r.AddNamedExtension("two", pack("two", ".two")); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.SetFileAssociations(map[string]any{"*.mine": "two"}); len(err) != 0 {
+		t.Fatal(err)
+	}
+	version := r.Version()
+	codeTwo := r.Code("two")
+	if r.Detect("a.one", "") != "one" || !r.HasGrammar("one") || r.Configuration("one").Comments == nil {
+		t.Fatal("the extension is not in the registry")
+	}
+
+	if !r.RemoveExtension("one") {
+		t.Fatal("RemoveExtension of an extension that is there reported false")
+	}
+	if r.Version() == version {
+		t.Error("Version did not change")
+	}
+	if r.Detect("a.one", "") != PlainTextID || r.IsRegistered("one") || r.HasGrammar("one") || r.Grammar("source.one") != nil {
+		t.Error("the language of the removed extension is still known")
+	}
+	if _, ok := r.ByName("ONE"); ok {
+		t.Error("the alias of the removed language is still known")
+	}
+	if _, has := r.ConfigurationDefaults()["one"]; has {
+		t.Error("the settings defaults of the removed extension are still given")
+	}
+	// the others stay, with the same numbers, and so do the associations of the user
+	if r.Detect("a.fx", "") != "fixed" || r.Detect("a.two", "") != "two" || r.Detect("x.mine", "") != "two" || r.Code("two") != codeTwo {
+		t.Errorf("the other extensions changed: %q %q %q, code %d (was %d)", r.Detect("a.fx", ""), r.Detect("a.two", ""), r.Detect("x.mine", ""), r.Code("two"), codeTwo)
+	}
+	if r.Detect("a.txt", "") != PlainTextID || !r.IsRegistered(PlainTextID) {
+		t.Error("plain text is gone")
+	}
+	if r.RemoveExtension("one") || r.RemoveExtension("") || r.RemoveExtension("fixed") {
+		t.Error("RemoveExtension of an extension that is not there, or that cannot be removed, reported true")
+	}
+
+	// it comes back with the number it had
+	codeOne := r.Code("one")
+	if codeOne == 0 || r.IDOfCode(codeOne) != "one" {
+		t.Fatalf("the number of the removed language was not kept: %d", codeOne)
+	}
+	if _, err := r.AddNamedExtension("one", pack("one", ".one")); err != nil {
+		t.Fatal(err)
+	}
+	if r.Detect("a.one", "") != "one" || r.Code("one") != codeOne || r.Grammar("source.one") == nil {
+		t.Error("the extension did not come back")
+	}
+}
+
+func TestAddNamedExtensionErrors(t *testing.T) {
+	r := NewRegistry()
+	_, err := r.AddNamedExtension("", pack("x", ".x"))
+	wantTag(t, err, "Registry.AddNamedExtension.ExtensionKeyEmpty")
+	_, err = r.AddNamedExtension("k", fstest.MapFS{})
+	wantTag(t, err, "Registry.AddNamedExtension.ExtensionUnreadable")
+	_, err = r.AddNamedExtension("k", ext(`[`, nil))
+	wantTag(t, err, "Registry.AddNamedExtension->ParseManifest.ManifestInvalid")
+	if _, err = r.AddNamedExtension("k", pack("x", ".x")); err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.AddNamedExtension("k", pack("y", ".y"))
+	wantTag(t, err, "Registry.AddNamedExtension.ExtensionKeyTaken")
+	if r.IsRegistered("y") {
+		t.Error("an extension that was refused was added")
+	}
+}

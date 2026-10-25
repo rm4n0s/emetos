@@ -998,3 +998,29 @@ func TestRemoveKeepsTheRest(t *testing.T) {
 		}
 	})
 }
+
+func TestUnregisterLanguageDefaults(t *testing.T) {
+	f := newFixture(t)
+	reg := f.store.Registry()
+	if err := reg.RegisterLanguageDefaults("go", map[string]any{"editor.insertSpaces": false, "editor.tabSize": 8}); err != nil {
+		t.Fatal(err)
+	}
+	if reg.UnregisterLanguageDefaults("nope", []string{"editor.tabSize"}) || reg.UnregisterLanguageDefaults("go", []string{"editor.other"}) {
+		t.Error("took back what was not given")
+	}
+	if !reg.UnregisterLanguageDefaults("go", []string{"editor.tabSize"}) {
+		t.Fatal("did not take back a default that was given")
+	}
+	if Get[int](f.store, "editor.tabSize", "go") != 4 || Get[bool](f.store, "editor.insertSpaces", "go") {
+		t.Error("the default taken back still applies, or the other one is gone")
+	}
+	if !reg.UnregisterLanguageDefaults("go", []string{"editor.insertSpaces"}) {
+		t.Fatal("did not take back the last default")
+	}
+	if !Get[bool](f.store, "editor.insertSpaces", "go") {
+		t.Error("the last default is still given")
+	}
+	if reg.UnregisterLanguageDefaults("go", []string{"editor.insertSpaces"}) {
+		t.Error("took back twice")
+	}
+}

@@ -9,7 +9,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/brackets"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
-	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -278,7 +278,7 @@ func TestBracketColorsOfTheBundledThemes(t *testing.T) {
 }
 
 func TestBracketsOfARegisteredLanguageAreFound(t *testing.T) {
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func f(a []int, m map[string][]int) (int, error) {
 func highlightedBrackets(t *testing.T, text string, at buffer.Position) (*ViewModel, *tokens.Tokenizer) {
 	t.Helper()
 	vm, tok := highlighted(t, text)
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}

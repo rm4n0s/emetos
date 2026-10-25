@@ -50,15 +50,16 @@ copy_license() {
   done
 }
 
-# copy_extension <extension folder under reference/vscode/extensions>
+# copy_extension <extension folder under reference/vscode/extensions> <language pack>
 # Copies what the language registry reads of a VS Code extension (SPEC §8.1) into
-# internal/core/language/assets/<name>/: package.json, the language configurations,
-# the grammars (syntaxes/), languages/ when there is one (git-base) and cgmanifest.json, which names the upstream of each
-# grammar. The build scripts, snippets and translations stay behind. A grammar in the
-# plist format is converted to JSON (internal/core/language/internal/plist2json) and
-# package.json is changed to name the .json file, as the loader reads JSON only.
+# extensions/<language pack>/assets/, which the language pack of that name embeds (SPEC §10.15, step 11.4):
+# package.json, the language configurations, the grammars (syntaxes/), languages/ when there is one (git-base)
+# and cgmanifest.json, which names the upstream of each grammar. The build scripts, snippets and translations
+# stay behind. A grammar in the plist format is converted to JSON
+# (internal/core/language/internal/plist2json) and package.json is changed to name the .json file, as the
+# loader reads JSON only.
 copy_extension() {
-  local name=$1 src="$ref/vscode/extensions/$1" dst="$root/internal/core/language/assets/$1"
+  local name=$1 src="$ref/vscode/extensions/$1" dst="$root/extensions/$2/assets"
   [[ -d "$src" ]] || { echo "error: reference/vscode/extensions/$name is not a folder" >&2; exit 1; }
   rm -rf "$dst"
   mkdir -p "$dst"
@@ -96,41 +97,50 @@ copy_license codicons codicons/package/LICENSE codicons/package/LICENSE-CODE
 copy_file vscode/extensions/theme-seti/icons/seti.woff internal/gui/kit/fonts/seti.woff
 copy_license seti vscode/extensions/theme-seti/ThirdPartyNotices.txt vscode/LICENSE.txt
 
+# Step 11.4 moved the languages from internal/core/language/assets/<extension>/ to the language packs,
+# extensions/<pack>/assets/ (golang, json, yaml, markdown, python, javascript, typescript, html, css, scss, less,
+# xml, sql, shellscript, makefile, docker, ini, cpp, rust, diff, git, gomod); the blocks of the steps below say
+# which pack each extension goes to.
+
 # Step 4.6: the first languages. The grammars of these extensions come from the upstream
 # projects named in their cgmanifest.json, all permissive (MIT, and the TextMate bundle
 # license); the texts are in VS Code's ThirdPartyNotices.txt.
-for ext in go json yaml markdown-basics; do
-  copy_extension "$ext"
-done
+# Since step 11.4 each goes to the folder of its language pack, extensions/<pack>/assets/.
+copy_extension go golang
+copy_extension json json
+copy_extension yaml yaml
+copy_extension markdown-basics markdown
 copy_license vscode-extensions vscode/LICENSE.txt vscode/ThirdPartyNotices.txt
 
 # Step 4.6b: Python, JavaScript (and JavaScript React) and TypeScript (and TypeScript React). The
 # regular expression grammar of JavaScript, source.js.regexp, is a plist and is converted.
-for ext in python javascript typescript-basics; do
-  copy_extension "$ext"
-done
+copy_extension python python
+copy_extension javascript javascript
+copy_extension typescript-basics typescript
 
 # Step 4.10: web and script languages: HTML (which embeds CSS and JavaScript), CSS, SCSS, Less, XML (and
 # XSL), SQL, Shell Script, Makefile, Dockerfile, INI (and Properties). Their grammars come from MIT
 # projects, the TextMate bundles (TextMate bundle license) and moby (Apache-2.0), named in each cgmanifest.json.
-for ext in html css scss less xml sql shellscript make docker ini; do
-  copy_extension "$ext"
+for ext in html css scss less xml sql shellscript docker ini; do
+  copy_extension "$ext" "$ext"
 done
+copy_extension make makefile
 
 # Step 4.11: systems and git. C, C++ and CUDA C++ (the cpp extension), Rust, Diff, and the git-base
 # extension (Git commit and rebase messages, Ignore files). The Go module grammars come from
 # golang/vscode-go, which is not an extension in the format of VS Code's own: its package.json has
 # much more than the three languages, so a package.json that names only go.mod, go.work (which uses
 # the go.mod grammar) and go.sum is written here, with the grammars and the language configuration.
-for ext in cpp rust diff git-base; do
-  copy_extension "$ext"
+for ext in cpp rust diff; do
+  copy_extension "$ext" "$ext"
 done
-gomod_dst="$root/internal/core/language/assets/go-mod"
+copy_extension git-base git
+gomod_dst="$root/extensions/gomod/assets"
 rm -rf "$gomod_dst"
 mkdir -p "$gomod_dst/syntaxes"
-copy_file vscode-go/extension/syntaxes/go.mod.tmGrammar.json internal/core/language/assets/go-mod/syntaxes/go.mod.tmGrammar.json
-copy_file vscode-go/extension/syntaxes/go.sum.tmGrammar.json internal/core/language/assets/go-mod/syntaxes/go.sum.tmGrammar.json
-copy_file vscode-go/extension/languages/go.mod.language-configuration.json internal/core/language/assets/go-mod/go.mod.language-configuration.json
+copy_file vscode-go/extension/syntaxes/go.mod.tmGrammar.json extensions/gomod/assets/syntaxes/go.mod.tmGrammar.json
+copy_file vscode-go/extension/syntaxes/go.sum.tmGrammar.json extensions/gomod/assets/syntaxes/go.sum.tmGrammar.json
+copy_file vscode-go/extension/languages/go.mod.language-configuration.json extensions/gomod/assets/go.mod.language-configuration.json
 cat >"$gomod_dst/package.json" <<'JSON'
 {
   "name": "go-mod",

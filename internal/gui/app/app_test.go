@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -16,6 +17,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage/storagetest"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
@@ -32,6 +34,14 @@ var testWindowSize = ui.Size{Width: windowWidth, Height: windowHeight}
 func newTestProcess(opts ProcessOptions) *Process {
 	if opts.ScanTimeout == 0 {
 		opts.ScanTimeout = testutil.ScanTimeout
+	}
+	if opts.Languages == nil {
+		// the language packs are extensions that internal/ cannot import: the tests read their files from the source tree
+		reg, err := languagetest.Bundled()
+		if err != nil {
+			panic(err)
+		}
+		opts.Languages = reg
 	}
 	if opts.StateAfter == nil {
 		// the state files are written when a test says so (Flush, or a clock it moves), never by a timer that
@@ -512,5 +522,37 @@ func TestProcessGrammars(t *testing.T) {
 	}
 	if g, err := p.Grammar("plaintext", 0); g != nil || err != nil {
 		t.Errorf("plain text has no grammar and no error: %v %v", g, err)
+	}
+}
+
+// TestProcessGrammarsFollowTheLanguages: a language pack that comes or goes (language.Registry.Version changes) makes the
+// grammars again, because the embedded languages of the ones made so far may be out of date, and a language that is gone
+// has no grammar.
+func TestProcessGrammarsFollowTheLanguages(t *testing.T) {
+	p := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
+	g1, err := p.Grammar("go", 0)
+	if err != nil || g1 == nil {
+		t.Fatalf("go: %v %v", g1, err)
+	}
+	pack := fstest.MapFS{
+		"package.json": {Data: []byte(`{"contributes": {"languages": [{"id": "pk", "extensions": [".pk"]}], "grammars": [{"language": "pk", "scopeName": "source.pk", "path": "./g.json"}]}}`)},
+		"g.json":       {Data: []byte(`{"scopeName": "source.pk", "patterns": []}`)},
+	}
+	if _, err := p.Languages.AddNamedExtension("pk", pack); err != nil {
+		t.Fatal(err)
+	}
+	g2, err := p.Grammar("go", 0)
+	if err != nil || g2 == nil || g2 == g1 {
+		t.Errorf("the grammar was not made again after a language came: %v %v", g2 == g1, err)
+	}
+	if g, err := p.Grammar("pk", 0); err != nil || g == nil {
+		t.Errorf("the grammar of the new language: %v %v", g, err)
+	}
+	p.Languages.RemoveExtension("pk")
+	if g, err := p.Grammar("pk", 0); g != nil || err != nil {
+		t.Errorf("the grammar of a language that is gone: %v %v", g, err)
+	}
+	if g3, _ := p.Grammar("go", 0); g3 == g2 {
+		t.Error("the grammar was not made again after a language went")
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/internal/core/language"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 )
@@ -28,6 +29,9 @@ type HostOptions struct {
 	Logger *slog.Logger
 	// Settings is the registry of the settings of the process: the extensions register theirs in it.
 	Settings *settings.Registry
+	// Languages is the language registry of the process: the extensions that declare Contributes.Languages add their
+	// languages to it while they are enabled in some scope. Nil leaves the languages of the extensions out.
+	Languages *language.Registry
 	// Sharing holds the links between window tabs and the private workspaces (SPEC §10.15 "Event sharing"); the host
 	// reads them at every delivery. Nil makes a store in memory, with no links.
 	Sharing *storage.SharingStore
@@ -49,6 +53,11 @@ type Host struct {
 	// once for the process, by the first scope that needs it, and removed with the last.
 	owners map[string]*settingOwner
 
+	// languages is the registry of the language packs, packs the extensions that have one by id (languages.go); both are
+	// guarded by mu.
+	languages *language.Registry
+	packs     map[string]*langPack
+
 	// sharing holds the links; asks are the questions on screen, one per pair of scopes (sharing.go).
 	sharing *storage.SharingStore
 	askMu   sync.Mutex
@@ -64,7 +73,8 @@ type settingOwner struct {
 // NewHost reads the manifest of each factory and keeps the extensions whose manifest is valid. An extension whose
 // factory or Manifest panics, or whose manifest is invalid, is left out and logged; Problems lists them.
 func NewHost(opts HostOptions) *Host {
-	h := &Host{log: opts.Logger, registry: opts.Settings, owners: map[string]*settingOwner{}, sharing: opts.Sharing, asks: map[askKey]*pendingAsk{}}
+	h := &Host{log: opts.Logger, registry: opts.Settings, owners: map[string]*settingOwner{}, sharing: opts.Sharing, asks: map[askKey]*pendingAsk{},
+		languages: opts.Languages, packs: map[string]*langPack{}}
 	if h.log == nil {
 		h.log = slog.Default()
 	}
@@ -98,6 +108,16 @@ func NewHost(opts HostOptions) *Host {
 		}
 		return err != nil
 	})
+	// the languages of the packs are there from the start, before the first scope and the first file
+	h.mu.Lock()
+	for _, in := range h.infos {
+		if in.Manifest.Contributes.Languages != nil && h.languages != nil {
+			p := &langPack{info: in}
+			h.packs[in.Manifest.ID] = p
+			h.registerLanguages(p)
+		}
+	}
+	h.mu.Unlock()
 	return h
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/language"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -183,8 +184,14 @@ func newRig(t *testing.T, factories ...extension.Factory) *rig {
 // newRigStore makes a host over the store of links; nil is a store in memory.
 func newRigStore(t *testing.T, store *storage.SharingStore, factories ...extension.Factory) *rig {
 	t.Helper()
+	return newRigLanguages(t, store, nil, factories...)
+}
+
+// newRigLanguages is newRigStore over a language registry, which the language packs among the factories fill.
+func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *language.Registry, factories ...extension.Factory) *rig {
+	t.Helper()
 	reg := settings.DefaultRegistry()
-	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
+	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
 	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}}
 }
 

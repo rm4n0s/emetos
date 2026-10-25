@@ -13,6 +13,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
@@ -23,7 +24,7 @@ import (
 // highlighted makes the view model of a Go document with its tokens.
 func highlighted(t testing.TB, text string) (*ViewModel, *tokens.Tokenizer) {
 	t.Helper()
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}

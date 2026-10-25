@@ -10,7 +10,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/indent"
-	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -36,7 +36,7 @@ func main() {
 func withGuides(t *testing.T, text string, opts indent.GuideOptions, at buffer.Position) *ViewModel {
 	t.Helper()
 	vm, tok := highlighted(t, text)
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}

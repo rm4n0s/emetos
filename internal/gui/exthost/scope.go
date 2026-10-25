@@ -171,6 +171,7 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	s.ctx, s.cancel = context.WithCancel(opts.Ctx)
 	s.bus = newBus(s)
 	disabled := s.disabledSet()
+	h.SyncLanguages(s.disabledIDs())
 	for _, in := range h.infos {
 		sl := &slot{info: in, handlers: map[string]extension.CommandHandler{}}
 		if disabled[in.Manifest.ID] {
@@ -382,13 +383,18 @@ func (s *Scope) status(id string) (State, *Failure) {
 	return StateInactive, nil
 }
 
+// disabledIDs reads extensions.disabled.
+func (s *Scope) disabledIDs() []string {
+	if s.opts.Disabled == nil {
+		return nil
+	}
+	return s.opts.Disabled()
+}
+
 // disabledSet reads extensions.disabled.
 func (s *Scope) disabledSet() map[string]bool {
 	out := map[string]bool{}
-	if s.opts.Disabled == nil {
-		return out
-	}
-	for _, id := range s.opts.Disabled() {
+	for _, id := range s.disabledIDs() {
 		out[id] = true
 	}
 	return out
@@ -411,6 +417,11 @@ func (s *Scope) post(f func()) {
 func (s *Scope) install(sl *slot) {
 	m := sl.info.Manifest
 	var removers []func()
+	if m.Contributes.Languages != nil {
+		// the scope holds the languages of the pack; the last to let go takes them out of the registry
+		s.h.holdLanguages(m.ID)
+		removers = append(removers, func() { s.h.releaseLanguages(m.ID) })
+	}
 	for _, spec := range m.Contributes.Commands {
 		meta, err := commandMeta(spec)
 		if err == nil {

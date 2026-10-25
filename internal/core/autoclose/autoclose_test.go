@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/language"
+	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 )
 
@@ -225,7 +226,7 @@ func TestBeforeText(t *testing.T) {
 }
 
 func TestRegistryLanguages(t *testing.T) {
-	reg, err := language.Bundled()
+	reg, err := languagetest.Bundled()
 	if err != nil {
 		t.Fatal(err)
 	}
