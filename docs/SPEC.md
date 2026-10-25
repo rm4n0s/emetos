@@ -13,7 +13,7 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | # | Goal |
 |---|---|
 | G1 | **What VS Code has.** Areas 1 and 2 (§3) match VS Code's behavior, defaults, command ids and Linux keyboard shortcuts closely enough that a VS Code user feels at home. When in doubt, do what VS Code does |
-| G2 | **Private.** No telemetry, no crash reporting, no update checks, no network access of its own (§12) |
+| G2 | **Private.** No telemetry, no crash reporting, no update checks (§12) |
 | G3 | **Native and light.** One Go binary, no Electron, no Node.js, no cgo. Starts fast, stays responsive on large files, uses no CPU when idle (§14) |
 | G4 | **Compatible file formats.** VS Code's color themes, file icon themes, TextMate grammars, language configurations, snippet files, `settings.json` and `keybindings.json` formats work, so existing material can be reused |
 | G5 | **Core and UI apart.** The editor core never imports Glutter. It is tested without a display, and the UI only shows and edits its state (§5) |
@@ -98,7 +98,7 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | D1 | Go, Glutter, Linux desktop only | The user's choice; Glutter is the user's toolkit |
 | D2 | No cgo, ever | Glutter is cgo-free; `CGO_ENABLED=0 go build` keeps the build to Go alone |
 | D3 | The core (`internal/core/...`) never imports Glutter; the UI (`internal/gui/...`) imports the core (§5.2) | Testable core, a UI that can change |
-| D4 | No telemetry and no network access of Emetos's own (§12) | G2 |
+| D4 | No telemetry, crash reports or update checks (§12). Features and extensions may use the network for what the user asks of them (the user's choice, 2026-10-25: the earlier rule of no network access at all is gone) | G2 |
 | D5 | Language intelligence comes only from LSP and debugging only from DAP (areas 3 and 6) | One mechanism for every language |
 | D6 | Text is UTF-8 in memory; positions are zero-based lines and byte columns; visual columns are computed for display (§6.2) | Matches Glutter's text API; LSP 3.17 can negotiate UTF-8 positions, and UTF-16 is converted when a server can't |
 | D7 | VS Code's file formats for themes, icon themes, grammars, language configurations, snippets, settings and keybindings (G4) | Reuse of existing material |
@@ -190,7 +190,6 @@ Directories hold a `doc.go` only when they hold Go code.
 ### 5.3 Boundary rules (checked by `internal/archtest`)
 
 - No package under `internal/core/` imports `github.com/rm4n0s/glutter/...` or `internal/gui/...`.
-- No package imports `net/http`, `net/rpc` or `crypto/tls`. `net` is allowed only in `internal/core/ipc` and, later, in the packages that talk to language servers and debug adapters.
 - No `import "C"`.
 - `github.com/dlclark/regexp2` only in `internal/core/regex`.
 - No import of the standard library `errors`, and no call of `fmt.Errorf` (CLAUDE.md "Error handling").
@@ -1261,8 +1260,8 @@ Emetos's extensions are **Go packages compiled into Emetos** (D18): one folder p
 
 ## 12. Privacy
 
-- Emetos never opens a network connection of its own: no telemetry, crash reports, update checks, extension galleries or remote fonts. `internal/archtest` fails the build when a package imports `net/http` (§5.3). The one socket Emetos opens is the Unix domain socket of the single instance (§10.11): `core/ipc` is the only package that imports `net`, it listens and dials `unix` addresses only (never TCP or UDP), the socket is private to the user (mode 0600 in a private folder, peer user checked), and archtest fails the build when any other package imports `net`.
-- Links in notifications or help open in the user's browser through the desktop portal; that is the only path to the network, and only on a click.
+- Emetos sends nothing about the user anywhere on its own: no telemetry, crash reports or update checks. Network access is allowed for what the user asks of a feature or an extension (an extension that talks to a service, a remote workspace, a link opened in the browser); the archtest no longer forbids network packages (the rules `NetworkImport` and `NetOutsideIPC` were removed on 2026-10-25 at the user's request).
+- Links in notifications or help open in the user's browser through the desktop portal, only on a click.
 - Logs stay on disk (§13).
 
 ## 13. Errors and logging

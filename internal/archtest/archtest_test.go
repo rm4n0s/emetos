@@ -28,14 +28,6 @@ func TestCheck(t *testing.T) {
 		{"core imports gui", "core_imports_gui", []want{
 			{"internal/core/edit/bad.go", 3, RuleCoreImportsUI, "github.com/rm4n0s/emetos/internal/gui/kit"},
 		}},
-		{"network packages", "network_import", []want{
-			{"internal/gui/app/bad.go", 4, RuleNetworkImport, "crypto/tls"},
-			{"internal/gui/app/bad.go", 5, RuleNetworkImport, "net/http"},
-			{"internal/gui/app/bad.go", 6, RuleNetworkImport, "net/rpc"},
-		}},
-		{"net outside ipc", "net_outside_ipc", []want{
-			{"internal/core/storage/bad.go", 3, RuleNetOutsideIPC, "net"},
-		}},
 		{"import C", "import_c", []want{
 			{"internal/gui/app/bad.go", 4, RuleImportC, "C"},
 		}},

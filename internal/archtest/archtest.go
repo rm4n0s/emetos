@@ -1,6 +1,6 @@
 // Package archtest checks the package boundaries and the forbidden imports of
-// SPEC §5.3 and §12: the editor core never imports Glutter or the GUI, nothing
-// imports the network packages, and errors go through github.com/rm4n0s/errors,
+// SPEC §5.3: the editor core never imports Glutter or the GUI, no cgo, and errors
+// go through github.com/rm4n0s/errors,
 // built where the failure happens and never in a helper (SPEC §5.3 and §13).
 // ErrorTags and UntestedErrorTags list the error Tags of the code and the ones no
 // test asserts (scripts/error-tags.sh).
@@ -33,7 +33,6 @@ const (
 	regexp2Module = "github.com/dlclark/regexp2"
 
 	corePrefix  = "internal/core/"
-	ipcPrefix   = "internal/core/ipc/"
 	regexPrefix = "internal/core/regex/"
 )
 
@@ -44,10 +43,6 @@ type Rule string
 const (
 	// RuleCoreImportsUI: a package under internal/core imports Glutter or internal/gui.
 	RuleCoreImportsUI Rule = "CoreImportsUI"
-	// RuleNetworkImport: a package imports net/http, net/rpc or crypto/tls.
-	RuleNetworkImport Rule = "NetworkImport"
-	// RuleNetOutsideIPC: a package other than internal/core/ipc imports net.
-	RuleNetOutsideIPC Rule = "NetOutsideIPC"
 	// RuleImportC: a file contains import "C".
 	RuleImportC Rule = "ImportC"
 	// RuleRegexp2Outside: a package other than internal/core/regex imports regexp2.
@@ -187,10 +182,6 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 			}
 		case path == "C":
 			add(imp.Pos(), RuleImportC, path)
-		case path == "net/http" || path == "net/rpc" || path == "crypto/tls":
-			add(imp.Pos(), RuleNetworkImport, path)
-		case path == "net" && !strings.HasPrefix(rel, ipcPrefix):
-			add(imp.Pos(), RuleNetOutsideIPC, path)
 		case isOrUnder(path, regexp2Module) && !strings.HasPrefix(rel, regexPrefix):
 			add(imp.Pos(), RuleRegexp2Outside, path)
 		}

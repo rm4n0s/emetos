@@ -52,7 +52,6 @@ Before reporting a task as finished, run `gofmt` (on `cmd` and `internal`), `go 
 - Tests are table-driven
 - No global mutable state and no singletons. Package-level read-only values are fine and are never reassigned
 - Prefer the standard library. Allowed dependencies: `github.com/rm4n0s/glutter` (v1.4.0 or newer), `github.com/rm4n0s/errors`, `github.com/dlclark/regexp2` (v1.12.0 or newer, only in `internal/core/regex`), and what Glutter brings in (`golang.org/x/text`, `golang.org/x/image`, `golang.org/x/sys`, `github.com/go-text/typesetting`). A step that first imports one of them adds it with `go get <module>@<version>`. Ask before adding any other
-- No network access: never import `net/http`; `net` only in `internal/core/ipc` (SPEC §12)
 - **No cgo**: never write `import "C"`. If a C library is ever needed, ask first
 - Only Glutter's UI thread touches widgets and render objects. Other goroutines (file watchers, language servers, search) hand work over through `SetState` or the binding's `Post`
 - Long-running work (search, indexing, language-server requests) never blocks the UI thread, and takes a `ctx` so it can be cancelled

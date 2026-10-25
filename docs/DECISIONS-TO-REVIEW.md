@@ -57,7 +57,7 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 
 ## 2026-10-25: network access allowed (the user's request)
 
-24. The rule "never import `net/http`; `net` only in `internal/core/ipc`" is removed from CLAUDE.md, so features and extensions may use the network (the Claude Code integration channel, remote workspaces, future HTTP clients). What I kept, unless you say otherwise: **no telemetry, crash reports or update checks** of Emetos's own (D4 and §12 become "no telemetry" instead of "no network"). Still to do after step 9b.3 (the agent is editing the SPEC now): rewrite D4 and §12, drop the archtest rules `NetworkImport` and `NetOutsideIPC` with their testdata, and update §5.3.
+24. The rule "never import `net/http`; `net` only in `internal/core/ipc`" is removed from CLAUDE.md, so features and extensions may use the network (the Claude Code integration channel, remote workspaces, future HTTP clients). What I kept, unless you say otherwise: **no telemetry, crash reports or update checks** of Emetos's own (D4 and §12 become "no telemetry" instead of "no network"). Done after step 9b.3: G2, D4, §5.3 and §12 rewritten, the archtest rules `NetworkImport` and `NetOutsideIPC` and their testdata removed.
 
 ## 2026-10-25: step 9b.3 (launches open tabs), decided by the agent and accepted by me
 
