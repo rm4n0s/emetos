@@ -1,6 +1,6 @@
 # Decisions to review
 
-The user asked on 2026-10-25 (night): "don't bring me decisions, I am going to sleep. Decide for me and write down what you decided to read tomorrow." Every decision taken on the user's behalf from then on is listed here, newest last, with its reason and where it lives. Delete an entry once you have read it (and tell me to change what you disagree with); delete the file when it is empty.
+Decisions taken on the user's behalf while the steps run, newest last, with their reason and where they live. Entries 1–17 were accepted by the user on 2026-10-25.
 
 ## 2026-10-25: the plan
 
@@ -35,3 +35,7 @@ The user asked on 2026-10-25 (night): "don't bring me decisions, I am going to s
 14. After **Complete Merge** of a file with markers, the file opens in a normal text editor in the same group; for `--merge` the result is written and nothing else opens.
 15. **Ctrl+Enter** completes the merge in the merge editor (VS Code's key); it wins over "Insert Line Below" only there.
 16. The merge editor's labels show **file names only** (I sent the agent back to remove an absolute path from the Result header); the tab tooltip keeps the full path.
+
+## 2026-10-25: Glutter v1.7.0
+
+17. Glutter v1.7.0 (its steps 27.1–27.10) answers all twelve entries of `docs/GLUTTER-ISSUES.md`. I added step **9b.1b "Glutter 1.7 and the end of the workarounds"** after 9b.1 (9b.1 rewrites the same window code, so the upgrade waits for it): upgrade, replace each `// Glutter:` workaround with the new API, use the split startup log and the headless focus in `scripts/perf.sh`, remove the fixed entries and delete the issues file when it is empty.

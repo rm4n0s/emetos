@@ -114,7 +114,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M7 Files and sessions | 7.1–7.8 |
 | M8 Settings, keybindings, themes, profiles | 8.1–8.6 |
 | M9 Diff and merge | 9.1–9.9 |
-| M9b One window: workspace tabs and the tray | 9b.1–9b.5 |
+| M9b One window: workspace tabs and the tray | 9b.1, 9b.1b, 9b.2–9b.5 |
 | M10 Release of areas 1–2 | 10.1–10.2 |
 | M11 Extensions | 11.1–11.6 |
 | M12 Language intelligence (area 3) | 12.1 (more steps after it) |
@@ -1100,6 +1100,16 @@ Every **Proof** item gives its exact command. A state no existing command reache
 3. State: `workspaceTabs`, `activeWorkspaceTab` and `windowGeometry` in `state.json` (additive), an old `openWindows` list read as tabs, `window.restoreWindows` read as in §10.14, the UI state file of each tab as before.
 4. Profiles per tab (§10.12 as built moves from windows to tabs unchanged).
 **Tests:** open, activate, move and close tabs; switching keeps each tab's editors, scroll positions, focus and view states; an inactive tab's watcher still applies an external change; closing a tab with unsaved changes (prompt, hot exit); the last tab leaves a No Folder tab; quit over several tabs; restore of every `window.restoreWindows` value; the migration of an old `state.json`; two tabs with two profiles; the existing tests of steps 7.5–8.6b rewritten from windows to tabs (list them).
+
+### 9b.1b Glutter 1.7 and the end of the workarounds
+**Goal:** Emetos on Glutter v1.7.0, with every workaround whose fix is in that release removed (CLAUDE.md "Glutter", `docs/GLUTTER-ISSUES.md`).
+**Read:** `docs/GLUTTER-ISSUES.md` (every entry); Glutter v1.7.0's `docs/IMPLEMENTED.md` entries 27.1–27.10 and the APIs they name (in the Go module cache); every `// Glutter:` comment in `cmd` and `internal` (`grep -rn "// Glutter:"`).
+**Tasks:**
+1. `go get github.com/rm4n0s/glutter@v1.7.0` and `go mod tidy`; the build, the tests and every golden as before (a golden that changes is looked at and explained: a Glutter rendering change is accepted only when it is the release's intent).
+2. Replace each workaround with the API of the fix and remove its `// Glutter:` comment: `kit.Hover` on `RawTooltipOpts.HoverDelayFunc`/`OnShown`/`OnHidden`/`Controller`/`DismissOnKey` (27.6); `SplitView` on `MouseRegionOpts.HoldCursorWhilePressed` (27.7); `kit.Tree` keeping its nodes with `SetChildren`/`InsertChild`/`RemoveChild`, lazy `HasChildren` and `NodeKey` (27.9); the list and tab drags on `DraggableOpts.Slop`, `CancelOnEscape` and `DragTargetOpts.RepeatMove` (27.8) where that keeps their behavior (the 4 px slop, Escape, scrolling and auto-expand while the pointer rests); the window title, activation, full screen and minimize through `widgets.WindowController`/`MaximizableWindowController`/`WindowControllerOf` and the tests through `Tester.ViewTitle` (27.4); the tests' unmount cleanup in `testutil.New` dropped in favor of `gluttertest.New`'s (27.2) and `ProcessOptions.WatchFiles` reconsidered (keep it only if a reason other than the leak remains); the `SaveDialog` test seam replaced by `FakeDesktop.DisableFileChooser()` (27.2); the `Scrollable` workaround (27.1); whatever of the first-window and placement workarounds step 9b.1 left (27.4, 27.5).
+3. `scripts/perf.sh`: use the split startup log of 27.10 and the focus events of 27.3 (the idle-and-unfocused target becomes measurable headless); record the new cold start in `docs/PERFORMANCE.md`.
+4. Remove each entry of `docs/GLUTTER-ISSUES.md` whose fix is now used (keep an entry only if the release does not cover all of it, rewritten to what is still missing); delete the file when no entry is left, and update SPEC §20, D8's note and every SPEC paragraph that describes a removed workaround.
+**Tests:** every existing test passes on v1.7.0 (the kit, tree, list, tab and drag tests are the guard for the replaced workarounds); new tests where a new API changes behavior (a tooltip hidden by a key, the cursor held during a sash drag, a lazy tree node, Escape cancelling a drag, the title read through `Tester.ViewTitle`, a test of the save dialog without a file chooser through `DisableFileChooser`).
 
 ### 9b.2 The title bar and the workspace tab strip
 **Goal:** Emetos's own title bar row with the menu, the workspace tabs and the window buttons (SPEC §10.14, §10.1).
