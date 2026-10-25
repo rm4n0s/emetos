@@ -174,7 +174,7 @@ func (s *keyDispatcherState) Dispose() {
 
 // handleKey resolves one key event.
 func (s *keyDispatcherState) handleKey(e services.KeyEvent) widgets.KeyEventResult {
-	if !s.window.activeTab() {
+	if !s.window.usesKey(e) {
 		return widgets.KeyEventResultIgnored
 	}
 	chord, ok := ChordOf(e, s.binding.Keyboard())

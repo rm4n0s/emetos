@@ -68,6 +68,7 @@ func DefaultRegistry() *Registry {
 	registerExplorerKeys(r)
 	registerSaveKeys(r)
 	registerWindowKeys(r)
+	registerWorkspaceTabKeys(r)
 	registerSettingsKeys(r)
 	registerKeybindingsEditorKeys(r)
 	registerThemeKeys(r)
@@ -545,6 +546,19 @@ func registerWindowKeys(r *Registry) {
 		Rule{Command: "workbench.action.quit", Weight: WeightWorkbenchContrib, Primary: "ctrl+q"},
 		Rule{Command: "workbench.action.newWindow", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+n"},
 	)
+}
+
+// registerWorkspaceTabKeys registers the keys of the workspace tabs (step 9b.5, SPEC §10.14): Ctrl+Alt+PageDown and
+// Ctrl+Alt+PageUp go to the next and the previous tab, Ctrl+Alt+1 ... Ctrl+Alt+9 to the tab at that place (9 is the
+// last one). They are Emetos's own: VS Code has no workspace tabs, and Alt+1 ... Alt+9 stay its openEditorAtIndex.
+func registerWorkspaceTabKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "emetos.workspaceTab.next", Weight: WeightWorkbenchContrib, Primary: "ctrl+alt+pagedown"},
+		Rule{Command: "emetos.workspaceTab.previous", Weight: WeightWorkbenchContrib, Primary: "ctrl+alt+pageup"},
+	)
+	for i := 1; i <= 9; i++ {
+		r.MustRegister(Rule{Command: "emetos.workspaceTab.open" + strconv.Itoa(i), Weight: WeightWorkbenchContrib, Primary: "ctrl+alt+" + strconv.Itoa(i)})
+	}
 }
 
 // registerSettingsKeys registers the key of the settings editor: Ctrl+, opens it.

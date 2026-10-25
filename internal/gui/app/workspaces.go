@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -113,6 +114,10 @@ type Workspaces struct {
 	listeners []*func()
 	// tray is the system tray and the hiding of the window (tray.go).
 	tray trayState
+	// keyEvent is the key event that the dispatchers of the tabs saw last, and keyOwner the tab that was the active one
+	// when it first reached one (Workspace.usesKey).
+	keyEvent services.KeyEvent
+	keyOwner *WindowTab
 }
 
 func newWorkspaces(p *Process) *Workspaces { return &Workspaces{p: p} }
@@ -185,6 +190,7 @@ func (m *Workspaces) OnChange(fn func()) (unsubscribe func()) {
 
 // changed tells the listeners that the tabs changed.
 func (m *Workspaces) changed() {
+	m.syncKeys()
 	m.mu.Lock()
 	listeners := slices.Clone(m.listeners)
 	m.mu.Unlock()
@@ -246,6 +252,7 @@ func (m *Workspaces) register(w *Workspace) *WindowTab {
 	m.insert(t, len(m.Tabs()))
 	m.Activate(t)
 	m.syncTabs()
+	m.syncKeys()
 	return t
 }
 
@@ -344,6 +351,22 @@ func (w *Workspace) activeTab() bool {
 		return true
 	}
 	return w.Process.Workspaces.ActiveTab() == w.tab
+}
+
+// usesKey tells whether the workspace is the one that uses a key event: the one whose tab was the active tab when the event
+// first reached a dispatcher. Glutter gives every early handler the event, the handlers of all the tabs, so a key that
+// changes the active tab (Next Workspace Tab, New Workspace Tab) would be used again by the dispatcher of the tab it
+// went to, and again by the next one. The dispatcher of a workspace that is shown on its own uses every key.
+func (w *Workspace) usesKey(e services.KeyEvent) bool {
+	m := w.Process.Workspaces
+	tab := m.tabOf(w)
+	if tab == nil || !tab.hosted {
+		return true
+	}
+	if m.keyEvent != e {
+		m.keyEvent, m.keyOwner = e, m.ActiveTab()
+	}
+	return m.keyOwner == tab
 }
 
 // folderNote is told by a workspace whose state id or folder changed.

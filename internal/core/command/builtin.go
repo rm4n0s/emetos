@@ -833,8 +833,20 @@ func registerKeybindingsEditorCommands(r *Registry) {
 // registerWorkspaceTabCommands registers the commands of the workspace tabs of the title bar (step 9b.2, SPEC §10.14):
 // the ones of the context menu of a tab (they act on the tab their argument {"tabId"} names, else on the active tab)
 // and the one behind the "+" button. They are Emetos's own (VS Code has no workspace tabs) and are in the palette,
-// category Workspace. Step 9b.5 adds the commands that switch and move tabs.
+// category Workspace. Step 9b.5 adds the commands that switch and move tabs: next, previous, open1 ... open9 (keys
+// only, as VS Code's openEditorAtIndex1 ... 9: no title, so they are not in the palette), switch (the picker),
+// moveLeft and moveRight.
 func registerWorkspaceTabCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "emetos.workspaceTab.next", Title: "Next Workspace Tab", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.previous", Title: "Previous Workspace Tab", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.switch", Title: "Switch Workspace Tab...", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.moveLeft", Title: "Move Workspace Tab Left", Category: "Workspace"},
+		Meta{ID: "emetos.workspaceTab.moveRight", Title: "Move Workspace Tab Right", Category: "Workspace"},
+	)
+	for i := 1; i <= 9; i++ {
+		r.MustRegister(Meta{ID: "emetos.workspaceTab.open" + strconv.Itoa(i)})
+	}
 	r.MustRegister(
 		Meta{ID: "emetos.workspaceTab.close", Title: "Close Workspace Tab", Category: "Workspace"},
 		Meta{ID: "emetos.workspaceTab.closeOthers", Title: "Close Other Workspace Tabs", Category: "Workspace"},

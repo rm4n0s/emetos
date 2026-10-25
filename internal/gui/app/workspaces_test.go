@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -897,7 +898,7 @@ func TestCommandsAndNotificationsBelongToTheWindow(t *testing.T) {
 	}
 }
 
-func TestSwitchWindowPicksAWindow(t *testing.T) {
+func TestSwitchWindowIsThePickerOfTheTabs(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
@@ -918,20 +919,21 @@ func TestSwitchWindowPicksAWindow(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("%d rows, want 2", len(items))
 	}
+	// the active tab is the first row (step 9b.5), and says so
 	var current []string
 	for _, it := range items {
 		if it.Label == "" {
 			t.Errorf("a row without a name: %+v", it)
 		}
-		if it.Description == SwitchWindowCurrent {
+		if strings.HasPrefix(it.Description, SwitchTabCurrent) {
 			current = append(current, it.ID)
 		}
 	}
-	if len(current) != 1 || current[0] != items[1].ID {
-		t.Errorf("the rows marked as the current window: %v", current)
+	if len(current) != 1 || current[0] != items[0].ID || items[0].ID != w2.Tab().ID() {
+		t.Errorf("the rows marked as the current tab: %v", current)
 	}
-	// the window after the current one (the first, wrapping around) is the one the picker is on
-	if row, ok := w2.QuickInput.Picker().Active(); !ok || row.Item.ID != items[0].ID {
+	// the tab after it is the one the picker is on
+	if row, ok := w2.QuickInput.Picker().Active(); !ok || row.Item.ID != items[1].ID || row.Item.ID != w1.Tab().ID() {
 		t.Errorf("the active row is %+v", row)
 	}
 	w2.QuickInput.Accept(quickinput.KeyMods{})

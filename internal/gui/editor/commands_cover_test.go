@@ -39,6 +39,12 @@ var appCommands = map[string]bool{
 	// the commands of the workspace tabs of the title bar (step 9b.2, gui/app/titlebar.go)
 	"emetos.workspaceTab.close": true, "emetos.workspaceTab.closeOthers": true, "emetos.workspaceTab.closeToTheRight": true,
 	"emetos.workspaceTab.copyPath": true, "emetos.workspaceTab.revealInFileManager": true, "emetos.workspaceTab.openFolder": true,
+	// the commands that switch and move the workspace tabs (step 9b.5, gui/app/workspaces_commands.go)
+	"emetos.workspaceTab.next": true, "emetos.workspaceTab.previous": true, "emetos.workspaceTab.switch": true,
+	"emetos.workspaceTab.moveLeft": true, "emetos.workspaceTab.moveRight": true,
+	"emetos.workspaceTab.open1": true, "emetos.workspaceTab.open2": true, "emetos.workspaceTab.open3": true,
+	"emetos.workspaceTab.open4": true, "emetos.workspaceTab.open5": true, "emetos.workspaceTab.open6": true,
+	"emetos.workspaceTab.open7": true, "emetos.workspaceTab.open8": true, "emetos.workspaceTab.open9": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

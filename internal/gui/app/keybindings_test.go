@@ -287,43 +287,43 @@ func TestKeybindingsInTheManageAndTheFileMenus(t *testing.T) {
 func TestTheUserKeybindingsWorkAtOnce(t *testing.T) {
 	a := newKeybindingsApp(t, "", `// mine
 [
-	{ "key": "ctrl+alt+9", "command": "workbench.action.openGlobalKeybindings" },
+	{ "key": "ctrl+alt+f9", "command": "workbench.action.openGlobalKeybindings" },
 	{ "key": "ctrl+,", "command": "-workbench.action.openSettings" }
 ]`)
 	// the file at the start of the window: a new key works, a removed default does not
 	a.pressUnbound("ctrl+,")
 	wantNames(t, a.tabNames(), "a.txt")
-	a.press("ctrl+alt+9")
+	a.press("ctrl+alt+f9")
 	wantNames(t, a.tabNames(), "a.txt", "Keyboard Shortcuts")
 	// the menus and the status bar follow: the label of the key of a command is the new one
-	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+9" {
+	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+F9" {
 		t.Errorf("label %q", got)
 	}
 	if got := a.win.keyLabelOf("workbench.action.openSettings"); got != "" {
 		t.Errorf("label of the removed key %q", got)
 	}
 	// the file changes: the keys follow
-	if err := os.WriteFile(a.keybindingsFile(), []byte(`[{ "key": "ctrl+alt+8", "command": "workbench.action.openSettings" }]`), 0o644); err != nil {
+	if err := os.WriteFile(a.keybindingsFile(), []byte(`[{ "key": "ctrl+alt+f8", "command": "workbench.action.openSettings" }]`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	a.win.userKeys.reload(context.Background(), false)
-	a.press("ctrl+alt+8")
+	a.press("ctrl+alt+f8")
 	wantNames(t, a.tabNames(), "a.txt", "Keyboard Shortcuts", "Settings")
-	a.pressUnbound("ctrl+alt+9") // gone
+	a.pressUnbound("ctrl+alt+f9") // gone
 	wantNames(t, a.tabNames(), "a.txt", "Keyboard Shortcuts", "Settings")
 	a.noErrors()
 }
 
 func TestAKeybindingsFileWithProblemsStillWorks(t *testing.T) {
 	a := newKeybindingsApp(t, "", `[
-	{ "key": "ctrl+alt+9", "command": "workbench.action.openGlobalKeybindings" },
+	{ "key": "ctrl+alt+f9", "command": "workbench.action.openGlobalKeybindings" },
 	{ "key": "nokey", "command": "x" },
-	{ "key": "ctrl+alt+7", "command": "y", "when": "a &&" }
+	{ "key": "ctrl+alt+f7", "command": "y", "when": "a &&" }
 ]`)
 	if got := len(a.win.userKeys.Problems()); got != 2 {
 		t.Errorf("%d problems", got)
 	}
-	a.press("ctrl+alt+9")
+	a.press("ctrl+alt+f9")
 	wantNames(t, a.tabNames(), "a.txt", "Keyboard Shortcuts")
 	a.noErrors()
 }
@@ -397,27 +397,27 @@ func (a *groupApp) defineKeys(command, key, keys string, add bool) {
 
 func TestAddAKeybinding(t *testing.T) {
 	a := newKeybindingsApp(t, "", "")
-	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+5", true)
-	if got, want := a.fileEntries(), []string{"ctrl+alt+5|workbench.action.openSettings|"}; !reflect.DeepEqual(got, want) {
+	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+f5", true)
+	if got, want := a.fileEntries(), []string{"ctrl+alt+f5|workbench.action.openSettings|"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("entries %q, want %q", got, want)
 	}
 	// both keys work
 	a.press("ctrl+,")
 	wantNames(t, a.tabNames(), "a.txt", "Keyboard Shortcuts", "Settings")
 	a.run("workbench.action.closeActiveEditor")
-	a.press("ctrl+alt+5")
+	a.press("ctrl+alt+f5")
 	wantNames(t, a.tabNames(), "a.txt", "Keyboard Shortcuts", "Settings")
 	a.noErrors()
 }
 
 func TestChangeAUserKeybindingInPlace(t *testing.T) {
-	a := newKeybindingsApp(t, "", "// keep me\n[\n\t{ \"key\": \"ctrl+alt+5\", \"command\": \"workbench.action.openSettings\" }\n]\n")
-	a.defineKeys("workbench.action.openSettings", "ctrl+alt+5", "ctrl+alt+6", false)
+	a := newKeybindingsApp(t, "", "// keep me\n[\n\t{ \"key\": \"ctrl+alt+f5\", \"command\": \"workbench.action.openSettings\" }\n]\n")
+	a.defineKeys("workbench.action.openSettings", "ctrl+alt+f5", "ctrl+alt+f6", false)
 	text := readFile(t, a.keybindingsFile())
 	if !strings.HasPrefix(text, "// keep me\n") {
 		t.Errorf("the comment went: %q", text)
 	}
-	if got, want := a.fileEntries(), []string{"ctrl+alt+6|workbench.action.openSettings|"}; !reflect.DeepEqual(got, want) {
+	if got, want := a.fileEntries(), []string{"ctrl+alt+f6|workbench.action.openSettings|"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("entries %q, want %q", got, want)
 	}
 	a.noErrors()
@@ -493,14 +493,14 @@ func TestRemoveAKeybinding(t *testing.T) {
 
 func TestResetAKeybinding(t *testing.T) {
 	a := newKeybindingsApp(t, "", `[
-	{ "key": "ctrl+alt+5", "command": "workbench.action.openSettings" },
+	{ "key": "ctrl+alt+f5", "command": "workbench.action.openSettings" },
 	{ "key": "ctrl+,", "command": "-workbench.action.openSettings" },
-	{ "key": "ctrl+alt+1", "command": "workbench.action.openGlobalKeybindings" }
+	{ "key": "ctrl+alt+f1", "command": "workbench.action.openGlobalKeybindings" }
 ]`)
 	a.searchKeybindings("workbench.action.openSettings")
-	a.tapKeysRow("workbench.action.openSettings", "ctrl+alt+5")
+	a.tapKeysRow("workbench.action.openSettings", "ctrl+alt+f5")
 	a.run("keybindings.editor.resetKeybinding")
-	if got, want := a.fileEntries(), []string{"ctrl+alt+1|workbench.action.openGlobalKeybindings|"}; !reflect.DeepEqual(got, want) {
+	if got, want := a.fileEntries(), []string{"ctrl+alt+f1|workbench.action.openGlobalKeybindings|"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("entries %q, want %q", got, want)
 	}
 	// the built-in key is back
@@ -511,9 +511,9 @@ func TestResetAKeybinding(t *testing.T) {
 }
 
 func TestChangeTheWhenClause(t *testing.T) {
-	a := newKeybindingsApp(t, "", `[{ "key": "ctrl+alt+5", "command": "workbench.action.openSettings" }]`)
+	a := newKeybindingsApp(t, "", `[{ "key": "ctrl+alt+f5", "command": "workbench.action.openSettings" }]`)
 	a.searchKeybindings("workbench.action.openSettings")
-	a.tapKeysRow("workbench.action.openSettings", "ctrl+alt+5")
+	a.tapKeysRow("workbench.action.openSettings", "ctrl+alt+f5")
 	a.press("ctrl+k ctrl+e")
 	input := gluttertest.ByKey(foundation.NewValueKey("keybindingsui-when"))
 	if !a.ts.Exists(input) {
@@ -522,7 +522,7 @@ func TestChangeTheWhenClause(t *testing.T) {
 	// a text that is not a clause is not written
 	a.ts.EnterText(input, "isLinux &&")
 	a.press("enter")
-	if got := a.fileEntries(); !reflect.DeepEqual(got, []string{"ctrl+alt+5|workbench.action.openSettings|"}) {
+	if got := a.fileEntries(); !reflect.DeepEqual(got, []string{"ctrl+alt+f5|workbench.action.openSettings|"}) {
 		t.Errorf("entries %q", got)
 	}
 	if !a.ts.Exists(gluttertest.ByTextContaining("Not a when-clause")) {
@@ -530,7 +530,7 @@ func TestChangeTheWhenClause(t *testing.T) {
 	}
 	a.ts.EnterText(input, "editorTextFocus")
 	a.press("enter")
-	if got := a.fileEntries(); !reflect.DeepEqual(got, []string{"ctrl+alt+5|workbench.action.openSettings|editorTextFocus"}) {
+	if got := a.fileEntries(); !reflect.DeepEqual(got, []string{"ctrl+alt+f5|workbench.action.openSettings|editorTextFocus"}) {
 		t.Errorf("entries %q", got)
 	}
 	a.noErrors()
@@ -655,12 +655,12 @@ func TestADirtyKeybindingsDocumentGetsTheEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 	onDisk := readFile(t, a.keybindingsFile())
-	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+5", true)
+	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+f5", true)
 	if got := readFile(t, a.keybindingsFile()); got != onDisk {
 		t.Errorf("the file was written: %q", got)
 	}
 	text := doc.Text()
-	if !strings.HasPrefix(text, "// typed, not saved\n") || !strings.Contains(text, `"key": "ctrl+alt+5"`) {
+	if !strings.HasPrefix(text, "// typed, not saved\n") || !strings.Contains(text, `"key": "ctrl+alt+f5"`) {
 		t.Errorf("document %q", text)
 	}
 	if !doc.Dirty() {
@@ -668,7 +668,7 @@ func TestADirtyKeybindingsDocumentGetsTheEdit(t *testing.T) {
 	}
 	// the keys follow the document
 	a.run("workbench.action.closeActiveEditor")
-	a.press("ctrl+alt+5")
+	a.press("ctrl+alt+f5")
 	if got := a.tabNames(); got[len(got)-1] != "Settings" {
 		t.Errorf("tabs %v", got)
 	}
@@ -681,8 +681,8 @@ func TestACleanKeybindingsDocumentGetsTheEditAndIsSaved(t *testing.T) {
 	if doc.Dirty() {
 		t.Fatal("the document is dirty")
 	}
-	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+5", true)
-	a.waitFor("the file to be written", func() bool { return strings.Contains(readFile(t, a.keybindingsFile()), `"ctrl+alt+5"`) })
+	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+f5", true)
+	a.waitFor("the file to be written", func() bool { return strings.Contains(readFile(t, a.keybindingsFile()), `"ctrl+alt+f5"`) })
 	a.waitFor("the document to be saved", func() bool { return !doc.Dirty() })
 	if got, want := doc.Text(), readFile(t, a.keybindingsFile()); got != want {
 		t.Errorf("document %q, file %q", got, want)
@@ -697,8 +697,8 @@ func TestAClosedKeybindingsDocumentIsNotUsed(t *testing.T) {
 	if _, ok := a.win.settingsDocs.OpenText(a.keybindingsFile()); ok {
 		t.Fatal("the closed document is still used")
 	}
-	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+5", true)
-	if got := readFile(t, a.keybindingsFile()); !strings.Contains(got, `"ctrl+alt+5"`) {
+	a.defineKeys("workbench.action.openSettings", "ctrl+,", "ctrl+alt+f5", true)
+	if got := readFile(t, a.keybindingsFile()); !strings.Contains(got, `"ctrl+alt+f5"`) {
 		t.Errorf("file %q", got)
 	}
 	a.noErrors()
@@ -707,17 +707,17 @@ func TestAClosedKeybindingsDocumentIsNotUsed(t *testing.T) {
 func TestSavingTheKeybindingsDocumentChangesTheKeys(t *testing.T) {
 	a := newKeybindingsApp(t, "", "")
 	doc := a.keybindingsDoc()
-	text := "[{ \"key\": \"ctrl+alt+4\", \"command\": \"workbench.action.openSettings\" }]"
+	text := "[{ \"key\": \"ctrl+alt+f4\", \"command\": \"workbench.action.openSettings\" }]"
 	if _, err := doc.Edit([]document.Edit{{Range: buffer0(doc), Text: text}}, document.EditOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	// typed, not saved: the keys are not changed yet
-	a.pressUnbound("ctrl+alt+4")
+	a.pressUnbound("ctrl+alt+f4")
 	if len(a.tabNames()) != 2 {
 		t.Fatalf("tabs %v", a.tabNames())
 	}
 	a.run("workbench.action.files.save")
-	a.waitFor("the keys to follow the file", func() bool { return a.win.keyLabelOf("workbench.action.openSettings") == "Ctrl+Alt+4" })
+	a.waitFor("the keys to follow the file", func() bool { return a.win.keyLabelOf("workbench.action.openSettings") == "Ctrl+Alt+F4" })
 	a.noErrors()
 }
 

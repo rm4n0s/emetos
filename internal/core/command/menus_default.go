@@ -496,5 +496,23 @@ func registerWorkspaceTabMenus(r *MenuRegistry) {
 		MenuItem{Menu: WorkspaceTabContext, Command: "workbench.profiles.actions.switchProfile", Title: "Switch Profile...", Group: "3_profile", Order: 10},
 
 		MenuItem{Menu: WorkspaceTabNew, Command: "emetos.workspaceTab.openFolder", Title: "Workspace...", Group: "1_new", Order: 10},
+
+		// the View menu's Workspace Tabs submenu (step 9b.5). The keys workspaceTabCount, workspaceTabIsFirst and
+		// workspaceTabIsLast are the window's own, for the active tab.
+		MenuItem{Menu: MenubarViewMenu, Submenu: MenubarWorkspaceTabsMenu, Title: "Workspace Tabs", MnemonicTitle: "Workspace &&Tabs", Group: "2_appearance", Order: 3},
+		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.next", Title: "Next Tab", MnemonicTitle: "&&Next Tab", Group: "1_switch", Order: 1,
+			Precondition: when("workspaceTabCount > 1")},
+		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.previous", Title: "Previous Tab", MnemonicTitle: "&&Previous Tab", Group: "1_switch", Order: 2,
+			Precondition: when("workspaceTabCount > 1")},
+		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.switch", Title: "Switch Tab...", MnemonicTitle: "&&Switch Tab...", Group: "1_switch", Order: 3,
+			Precondition: when("workspaceTabCount > 1")},
+		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.moveLeft", Title: "Move Tab Left", MnemonicTitle: "Move Tab &&Left", Group: "2_move", Order: 1,
+			Precondition: when("!workspaceTabIsFirst")},
+		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.moveRight", Title: "Move Tab Right", MnemonicTitle: "Move Tab &&Right", Group: "2_move", Order: 2,
+			Precondition: when("!workspaceTabIsLast")},
+		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.closeOthers", Title: "Close Other Tabs", MnemonicTitle: "Close &&Other Tabs", Group: "3_close", Order: 1,
+			Precondition: when("workspaceTabCount > 1")},
+		MenuItem{Menu: MenubarWorkspaceTabsMenu, Command: "emetos.workspaceTab.closeToTheRight", Title: "Close Tabs to the Right", MnemonicTitle: "Close Tabs to the &&Right", Group: "3_close", Order: 2,
+			Precondition: when("!workspaceTabIsLast")},
 	)
 }

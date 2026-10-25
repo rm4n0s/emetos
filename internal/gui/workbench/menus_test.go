@@ -159,8 +159,8 @@ func TestMenuItemsShowLabelsAndKeys(t *testing.T) {
 	// the View menu has the Appearance submenu with the layout toggles and their keys
 	view := m.source.Items(command.MenubarViewMenu, nil)
 	// the command palette and Open View come first, in a group of their own
-	if len(view) < 6 || view[0].Label != "&Command Palette..." || view[1].Label != "&Open View..." || !view[2].Separator ||
-		!view[3].Submenu || view[3].Label != "&Appearance" || !view[4].Submenu || view[4].Label != "Editor &Layout" || !view[5].Separator {
+	if len(view) < 7 || view[0].Label != "&Command Palette..." || view[1].Label != "&Open View..." || !view[2].Separator ||
+		!view[3].Submenu || view[3].Label != "&Appearance" || !view[4].Submenu || view[4].Label != "Editor &Layout" || !view[5].Submenu || view[5].Label != "Workspace &Tabs" || !view[6].Separator {
 		t.Fatalf("View: %v", labels(view))
 	}
 	if it, ok := find(view, "workbench.action.showCommands"); !ok || it.Keybinding != "Ctrl+Shift+P" {

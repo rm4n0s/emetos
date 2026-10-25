@@ -738,9 +738,9 @@ func TestViewMenuHasThePanelViews(t *testing.T) {
 		}
 		titles = append(titles, e.Title)
 	}
-	// the panel views come in their own group, between Editor Layout's group and Word Wrap's; the group of
+	// the panel views come in their own group, between the group of Editor Layout and Workspace Tabs and Word Wrap's; the group of
 	// the command palette comes first
-	want := []string{"Command Palette...", "Open View...", "-", "Appearance", "Editor Layout", "-", "Problems", "Output", "-", "Word Wrap"}
+	want := []string{"Command Palette...", "Open View...", "-", "Appearance", "Editor Layout", "Workspace Tabs", "-", "Problems", "Output", "-", "Word Wrap"}
 	if !reflect.DeepEqual(titles, want) {
 		t.Errorf("got %v, want %v", titles, want)
 	}

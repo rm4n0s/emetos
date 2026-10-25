@@ -39,7 +39,7 @@ type profileFolders struct {
 }
 
 const (
-	workKeys     = `[{ "key": "ctrl+alt+9", "command": "workbench.action.openGlobalKeybindings" }, { "key": "ctrl+,", "command": "-workbench.action.openSettings" }]`
+	workKeys     = `[{ "key": "ctrl+alt+f9", "command": "workbench.action.openGlobalKeybindings" }, { "key": "ctrl+,", "command": "-workbench.action.openSettings" }]`
 	defaultSnip  = `{ "d": { "prefix": "dflt", "body": "DEFAULT" } }`
 	workSnippets = `{ "w": { "prefix": "wrk", "body": "WORK" } }`
 )
@@ -201,7 +201,7 @@ func TestSwitchingTheProfileChangesTheSettingsAndTheKeysWithoutClosingEditors(t 
 	if got := a.win.keyLabelOf("workbench.action.openSettings"); got != "Ctrl+," {
 		t.Errorf("the key of Settings is %q before the switch", got)
 	}
-	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got == "Ctrl+Alt+9" {
+	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got == "Ctrl+Alt+F9" {
 		t.Errorf("the key of Work is bound in the default profile")
 	}
 	if got := snippetNames(a.win); !slices.Equal(got, []string{"d"}) {
@@ -231,7 +231,7 @@ func TestSwitchingTheProfileChangesTheSettingsAndTheKeysWithoutClosingEditors(t 
 	if got := snippetNames(a.win); !slices.Equal(got, []string{"w"}) {
 		t.Errorf("snippets %v after the switch", got)
 	}
-	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+9" {
+	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+F9" {
 		t.Errorf("the key of Work is %q after the switch", got)
 	}
 	if got := a.win.keyLabelOf("workbench.action.openSettings"); got != "" {
@@ -261,7 +261,7 @@ func TestSwitchingTheProfileChangesTheSettingsAndTheKeysWithoutClosingEditors(t 
 	wantNames(t, a.tabNames(), tabs...)
 
 	// the key of the new profile works
-	a.press("ctrl+alt+9")
+	a.press("ctrl+alt+f9")
 	if got := a.tabNames(); len(got) != len(tabs)+1 || !slices.Contains(got, "Keyboard Shortcuts") {
 		t.Errorf("tabs %v after the key of Work", got)
 	}
@@ -283,7 +283,7 @@ func TestSwitchingTheProfileChangesTheSettingsAndTheKeysWithoutClosingEditors(t 
 	if got := a.win.keyLabelOf("workbench.action.openSettings"); got != "Ctrl+," {
 		t.Errorf("the key of Settings is %q after the switch back", got)
 	}
-	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got == "Ctrl+Alt+9" {
+	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got == "Ctrl+Alt+F9" {
 		t.Errorf("the key of Work is still bound after the switch back")
 	}
 	if !slices.Equal(heard, []string{"Work", storage.DefaultProfile}) {
@@ -324,7 +324,7 @@ func TestSwitchingTheProfileChangesTheSettingsEditorAndTheKeybindingsEditor(t *t
 	if got := row("editor.tabSize"); got.Value != float64(4) {
 		t.Errorf("the settings editor shows %v for editor.tabSize", got.Value)
 	}
-	if hasKey("workbench.action.openGlobalKeybindings", "ctrl+alt+9") {
+	if hasKey("workbench.action.openGlobalKeybindings", "ctrl+alt+f9") {
 		t.Error("the keybindings editor shows the key of Work in the default profile")
 	}
 	model := a.win.KeybindingsModel()
@@ -337,7 +337,7 @@ func TestSwitchingTheProfileChangesTheSettingsEditorAndTheKeybindingsEditor(t *t
 	if got := row("editor.fontSize"); got.Value != float64(22) {
 		t.Errorf("after the switch the settings editor shows %v for editor.fontSize", got.Value)
 	}
-	if !hasKey("workbench.action.openGlobalKeybindings", "ctrl+alt+9") {
+	if !hasKey("workbench.action.openGlobalKeybindings", "ctrl+alt+f9") {
 		t.Error("the keybindings editor does not show the key of Work")
 	}
 	if a.win.KeybindingsModel() == model {
@@ -1169,21 +1169,21 @@ func TestTheWatcherFollowsTheProfile(t *testing.T) {
 	// the new profile's files are followed
 	f.write("Work", "settings.json", `{ "editor.tabSize": 7 }`)
 	eventually(t, "the tab size of Work", func() bool { return tab() == 7 })
-	f.write("Work", "keybindings.json", `[{ "key": "ctrl+alt+8", "command": "workbench.action.openSettings" }]`)
+	f.write("Work", "keybindings.json", `[{ "key": "ctrl+alt+f8", "command": "workbench.action.openSettings" }]`)
 	eventually(t, "the keys of Work", func() bool {
-		return slices.Equal(userKeyLabels(win, "workbench.action.openSettings"), []string{"Ctrl+Alt+8"})
+		return slices.Equal(userKeyLabels(win, "workbench.action.openSettings"), []string{"Ctrl+Alt+F8"})
 	})
 	f.write("Work", "snippets/plaintext.json", `{ "n": { "prefix": "nn", "body": "N" } }`)
 	eventually(t, "the snippets of Work", func() bool { return slices.Equal(snippetNames(win), []string{"n"}) })
 
 	// the old profile's files are not: an edit of them does not reach the window
 	f.write(storage.DefaultProfile, "settings.json", `{ "editor.tabSize": 9 }`)
-	f.write(storage.DefaultProfile, "keybindings.json", `[{ "key": "ctrl+alt+7", "command": "workbench.action.openSettings" }]`)
+	f.write(storage.DefaultProfile, "keybindings.json", `[{ "key": "ctrl+alt+f7", "command": "workbench.action.openSettings" }]`)
 	f.write(storage.DefaultProfile, "snippets/plaintext.json", `{ "o": { "prefix": "oo", "body": "O" } }`)
 	// a change of the new profile that comes after them proves the events of the old ones were handled
 	f.write("Work", "settings.json", `{ "editor.tabSize": 8 }`)
 	eventually(t, "the tab size of Work again", func() bool { return tab() == 8 })
-	if got := userKeyLabels(win, "workbench.action.openSettings"); !slices.Equal(got, []string{"Ctrl+Alt+8"}) {
+	if got := userKeyLabels(win, "workbench.action.openSettings"); !slices.Equal(got, []string{"Ctrl+Alt+F8"}) {
 		t.Errorf("the keys of Settings are %q", got)
 	}
 	if got := snippetNames(win); !slices.Equal(got, []string{"n"}) {

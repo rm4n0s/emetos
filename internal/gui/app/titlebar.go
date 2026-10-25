@@ -84,6 +84,11 @@ func (s *shellState) titleBarOptions(win *Workspace) *workbench.TitleBarOptions 
 			m.Close(tabs[i], nil)
 		}
 	}
+	opts.OnMove = func(i, to int) {
+		if tabs := m.Tabs(); i >= 0 && i < len(tabs) {
+			m.Move(tabs[i], to)
+		}
+	}
 	opts.ContextItems = func(i int) []kit.MenuItem {
 		tabs := m.Tabs()
 		if i < 0 || i >= len(tabs) {

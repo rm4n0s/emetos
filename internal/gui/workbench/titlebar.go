@@ -1,6 +1,8 @@
 package workbench
 
 import (
+	"time"
+
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
@@ -9,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
@@ -52,10 +55,17 @@ type TitleBarOptions struct {
 	// Tabs are the workspace tabs in order, and Active the index of the one that is shown.
 	Tabs   []WorkspaceTab
 	Active int
-	// OnActivate is called with the index of a tab that is pressed; OnClose with the index of a tab whose close button
-	// is pressed or that is pressed with the middle button.
+	// OnActivate is called with the index of a tab that is clicked: for the active tab at the press, for the others when
+	// the button is released (a press that becomes a drag does not activate the tab, so the strip that is shown stays the
+	// strip the drag goes on in); OnClose with the index of a tab whose close button is pressed or that is pressed with
+	// the middle button.
 	OnActivate func(index int)
 	OnClose    func(index int)
+	// OnMove is called when a tab is dropped at another place of the strip, with the index of the tab and the place it
+	// goes to (the index it has afterwards). A tab is dragged by the primary button once the pointer has moved 4 px, a
+	// line shows where it would go, Escape cancels, and the strip scrolls when the pointer rests at its ends. Without it
+	// the tabs cannot be dragged.
+	OnMove func(index, to int)
 	// ContextItems gives the items of the context menu of the tab at an index when it is pressed with the secondary
 	// button, and NewItems those of the menu of the "+" button. OnRunItem is called with the item the user runs in
 	// either menu (the workbench's OnRunMenu when nil).
@@ -182,13 +192,171 @@ func newWorkspaceStrip(bar *TitleBarOptions, unfocused bool) *workspaceStrip {
 
 // CreateState implements widgets.StatefulWidget.
 func (w *workspaceStrip) CreateState() widgets.State {
-	return &workspaceStripState{menu: kit.NewContextMenuController()}
+	return &workspaceStripState{menu: kit.NewContextMenuController(), tabs: kit.NewTabsController(), feedback: kit.NewTabDropFeedback()}
 }
+
+// stripScrollInterval is the time between two steps of the scrolling of the strip for a dragged tab (a frame).
+const stripScrollInterval = 16 * time.Millisecond
 
 type workspaceStripState struct {
 	widgets.StateOf[*workspaceStrip]
 	menu *kit.ContextMenuController
 	plus kit.Bounds
+	// tabs and feedback tell where the tabs are and show where a dragged tab goes.
+	tabs     *kit.TabsController
+	feedback *kit.TabDropFeedback
+	// pending is the id of the tab that was pressed and waits for its release to become the active one.
+	pending string
+	// dragged is the id of the tab that is dragged ("" for none), and at where the pointer is.
+	dragged string
+	at      ui.Offset
+	scroll  *gestures.Timer
+}
+
+// Dispose stops the scrolling of a drag.
+func (s *workspaceStripState) Dispose() { s.stopScroll() }
+
+// press is the press of a tab: the active tab is activated at once (that does nothing), another tab waits for the release
+// (see TitleBarOptions.OnActivate).
+func (s *workspaceStripState) press(i int) {
+	bar := s.Widget().bar
+	if i < 0 || i >= len(bar.Tabs) {
+		return
+	}
+	if i == bar.Active {
+		s.pending = ""
+		if bar.OnActivate != nil {
+			bar.OnActivate(i)
+		}
+		return
+	}
+	s.pending = bar.Tabs[i].ID
+}
+
+// release is the release of a button over the strip: a tab that was pressed and not dragged becomes the active one.
+func (s *workspaceStripState) release() {
+	id := s.pending
+	s.pending = ""
+	if id == "" {
+		return
+	}
+	if bar := s.Widget().bar; bar.OnActivate != nil {
+		if i := s.indexOf(id); i >= 0 {
+			bar.OnActivate(i)
+		}
+	}
+}
+
+// indexOf is the place of the tab with an id, or -1.
+func (s *workspaceStripState) indexOf(id string) int {
+	for i, t := range s.Widget().bar.Tabs {
+		if t.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// dropIndex is the place between two tabs (0 before the first, the number of tabs after the last) a tab dropped with the
+// pointer at x goes to.
+func (s *workspaceStripState) dropIndex(x float64) int {
+	var spans []editorgroup.Span
+	for i := range s.Widget().bar.Tabs {
+		r, ok := s.tabs.TabRect(i)
+		if !ok {
+			break
+		}
+		spans = append(spans, editorgroup.Span{Start: r.Left, End: r.Right})
+	}
+	return editorgroup.TabDropIndex(spans, x)
+}
+
+// dragStart begins the drag of the tab at an index; it says whether the tab is dragged (not when it is the only tab).
+func (s *workspaceStripState) dragStart(i int) bool {
+	bar := s.Widget().bar
+	if bar.OnMove == nil || len(bar.Tabs) < 2 || i < 0 || i >= len(bar.Tabs) {
+		return false
+	}
+	s.pending = "" // a drag is not a click
+	s.dragged = bar.Tabs[i].ID
+	return true
+}
+
+// dragMove follows the pointer of the drag.
+func (s *workspaceStripState) dragMove(_ int, at ui.Offset) {
+	if s.dragged == "" {
+		return
+	}
+	s.at = at
+	s.dragUpdate()
+	s.startScroll()
+}
+
+// dragUpdate shows where the tab would go: no line when it would stay where it is.
+func (s *workspaceStripState) dragUpdate() {
+	from, to := s.indexOf(s.dragged), s.dropIndex(s.at.Dx)
+	if from < 0 || to == from || to == from+1 {
+		s.feedback.Set(-1)
+		return
+	}
+	s.feedback.Set(to)
+}
+
+// dragEnd ends the drag: a drop moves the tab, a cancel (Escape) leaves everything as it was.
+func (s *workspaceStripState) dragEnd(_ int, at ui.Offset, dropped bool) {
+	s.stopScroll()
+	s.feedback.Set(-1)
+	id := s.dragged
+	s.dragged = ""
+	bar := s.Widget().bar
+	if !dropped || id == "" || bar.OnMove == nil {
+		return
+	}
+	from, to := s.indexOf(id), s.dropIndex(at.Dx)
+	if from < 0 {
+		return
+	}
+	if to > from {
+		to-- // the tab leaves its place before it goes to the new one
+	}
+	if to != from {
+		bar.OnMove(from, to)
+	}
+}
+
+// startScroll starts the scrolling when the pointer of a drag is near an end of the strip.
+func (s *workspaceStripState) startScroll() {
+	if s.scroll != nil || s.dragged == "" {
+		return
+	}
+	strip, ok := s.tabs.Bounds()
+	if !ok || kit.TabEdgeStep(s.at.Dx, strip.Left, strip.Right) == 0 {
+		return
+	}
+	s.scroll = widgets.WidgetsBindingOf(s.Context()).Gestures().NewTimer(stripScrollInterval, s.scrollTick)
+}
+
+// scrollTick scrolls the strip a step and finds again where the tab would go.
+func (s *workspaceStripState) scrollTick() {
+	s.scroll = nil
+	if s.dragged == "" || !s.Mounted() {
+		return
+	}
+	if strip, ok := s.tabs.Bounds(); ok {
+		if step := kit.TabEdgeStep(s.at.Dx, strip.Left, strip.Right); step != 0 {
+			s.tabs.ScrollBy(step)
+			s.dragUpdate()
+			s.startScroll()
+		}
+	}
+}
+
+// stopScroll cancels the scrolling.
+func (s *workspaceStripState) stopScroll() {
+	if s.scroll != nil {
+		s.scroll.Cancel()
+		s.scroll = nil
+	}
 }
 
 // tabIcon is the icon of a tab in the color of its text.
@@ -224,11 +392,9 @@ func (s *workspaceStripState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	tabs := kit.NewTabs(items, kit.TabsOpts{
 		Active: bar.Active, Unfocused: w.unfocused, CloseButton: kit.TabCloseRight, TitleBar: &kit.TabsTitleBar{},
-		OnActivate: func(i int) {
-			if bar.OnActivate != nil {
-				bar.OnActivate(i)
-			}
-		},
+		OnActivate: s.press,
+		Controller: s.tabs, Feedback: s.feedback,
+		OnDragStart: s.dragStart, OnDragMove: s.dragMove, OnDragEnd: s.dragEnd,
 		OnClose: func(i int) {
 			if bar.OnClose != nil {
 				bar.OnClose(i)
@@ -243,8 +409,14 @@ func (s *workspaceStripState) Build(bc widgets.BuildContext) widgets.Widget {
 			}
 		},
 	})
+	// the release of the press that activates a tab (a drag has taken the press by then)
+	released := widgets.NewListener(tabs, widgets.ListenerOpts{
+		Behavior:        rendering.HitTestBehaviorTranslucent,
+		OnPointerUp:     func(*gestures.PointerUpEvent) { s.release() },
+		OnPointerCancel: func(*gestures.PointerCancelEvent) { s.pending = "" },
+	})
 	row := widgets.NewRow([]widgets.Widget{
-		widgets.NewFlexible(tabs, widgets.FlexibleOpts{Fit: rendering.FlexFitLoose}),
+		widgets.NewFlexible(released, widgets.FlexibleOpts{Fit: rendering.FlexFitLoose}),
 		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(plusButtonGap)}),
 		kit.NewBoundsProbe(newPlusButton(func() { s.openNewMenu() }), &s.plus),
 	}, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})

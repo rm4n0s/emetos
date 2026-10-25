@@ -222,6 +222,9 @@ func (t *Tabs) Items() []TabItem { return t.items }
 // Active is the index of the active tab.
 func (t *Tabs) Active() int { return t.opts.Active }
 
+// Feedback is the line that shows where a dragged tab would go, or nil for a strip that has none.
+func (t *Tabs) Feedback() *TabDropFeedback { return t.opts.Feedback }
+
 // TitleBar is the look of the strip of workspace tabs of the title bar, or nil for the strip of an editor group.
 func (t *Tabs) TitleBar() *TabsTitleBar { return t.opts.TitleBar }
 

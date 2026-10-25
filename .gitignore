@@ -37,3 +37,7 @@ reference/
 
 # the binary of `go build ./cmd/emetos` in the repo root
 /emetos
+
+# Failed golden comparisons written by gluttertest
+*.actual.png
+*.diff.png

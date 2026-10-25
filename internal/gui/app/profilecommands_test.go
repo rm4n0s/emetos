@@ -508,7 +508,7 @@ func TestRenameProfileChecksTheNameAndKeepsTheProfileOfTheWindow(t *testing.T) {
 	if got := snippetNames(a.win); !slices.Equal(got, []string{"w"}) {
 		t.Errorf("snippets %v", got)
 	}
-	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+9" {
+	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+F9" {
 		t.Errorf("the key of the profile is %q", got)
 	}
 	// the settings still work and are written to the new folder
@@ -656,9 +656,9 @@ func TestAWatchedWindowFollowsTheRenamedProfile(t *testing.T) {
 	// an edit of the files in the folder it has now reaches the window
 	f.write("Office", "settings.json", `{ "editor.tabSize": 7 }`)
 	eventually(t, "the tab size of the renamed profile", func() bool { return tab() == 7 })
-	f.write("Office", "keybindings.json", `[{ "key": "ctrl+alt+8", "command": "workbench.action.openSettings" }]`)
+	f.write("Office", "keybindings.json", `[{ "key": "ctrl+alt+f8", "command": "workbench.action.openSettings" }]`)
 	eventually(t, "the keys of the renamed profile", func() bool {
-		return slices.Equal(userKeyLabels(win, "workbench.action.openSettings"), []string{"Ctrl+Alt+8"})
+		return slices.Equal(userKeyLabels(win, "workbench.action.openSettings"), []string{"Ctrl+Alt+F8"})
 	})
 	f.write("Office", "snippets/plaintext.json", `{ "n": { "prefix": "nn", "body": "N" } }`)
 	eventually(t, "the snippets of the renamed profile", func() bool { return slices.Equal(snippetNames(win), []string{"n"}) })
@@ -930,7 +930,7 @@ func TestExportThenImportRoundTrips(t *testing.T) {
 	for _, vm := range a.editors() {
 		a.waitFontSize(vm, 22)
 	}
-	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+9" {
+	if got := a.win.keyLabelOf("workbench.action.openGlobalKeybindings"); got != "Ctrl+Alt+F9" {
 		t.Errorf("the key is %q", got)
 	}
 	a.noErrors()
