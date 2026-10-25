@@ -178,7 +178,7 @@ type mergePane struct {
 // newMergePane makes the pane of an input from the merge that was prepared for it (or, for an input that was not, from the
 // files again, keeping the text of the result). A merge that cannot be shown leaves a pane that says why.
 func newMergePane(s *shellState, input *editorgroup.MergeInput) pane {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	prep := s.merge.prepared[input]
 	delete(s.merge.prepared, input)
 	if prep == nil {
@@ -194,7 +194,7 @@ func newMergePane(s *shellState, input *editorgroup.MergeInput) pane {
 // buildMergeSession makes the session of a merge over the result document of the input: the document is replaced by the
 // model's result when the merge is a new one.
 func buildMergeSession(s *shellState, input *editorgroup.MergeInput, prep *mergePrepared) (*mergeeditor.Session, error) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	return mergeeditor.NewSession(win.ctx, mergeeditor.SessionOpts{
 		Result: input.Result(), Inputs: prep.inputs, Model: prep.model, Initial: prep.initial,
 		OnError: func(err error) { win.Process.Logger.Warn("the merge editor lost track of the result", "err", err) },
@@ -203,7 +203,7 @@ func buildMergeSession(s *shellState, input *editorgroup.MergeInput, prep *merge
 
 // buildMergePane makes the editors and the model of a merge.
 func buildMergePane(s *shellState, input *editorgroup.MergeInput, prep *mergePrepared) pane {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	p := &mergePane{s: s, input: input}
 	session, err := buildMergeSession(s, input, prep)
@@ -261,7 +261,7 @@ func (p *mergePane) build(bc widgets.BuildContext, group *editorgroup.Group, act
 	if p.model == nil {
 		return p.wrap(p.s, group, mergeFailedWidget(bc, p.failed))
 	}
-	win := PeekWindow(bc)
+	win := PeekWorkspace(bc)
 	opts := func(ed *textEditor, autofocus bool) editor.EditorOpts {
 		return editor.EditorOpts{
 			Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: autofocus, Context: win.ctx,
@@ -351,7 +351,7 @@ func (s *shellState) mergeKeys() (active bool, resultURI string) {
 // the same result that the group shows already is activated and the prepared merge is dropped. It returns the input of
 // the tab that shows the merge.
 func (s *shellState) openMerge(prep *mergePrepared, source editorgroup.MergeSource, result *document.Document, group *editorgroup.Group) *editorgroup.MergeInput {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if group == nil {
 		group = s.activeGroup()
 	}
@@ -430,7 +430,7 @@ func (s *shellState) noticeMergeConflicts(doc *document.Document) {
 	if !hasConflictMarkers(doc) {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	name := doc.URI().Title()
 	win.Notify.Notify(notify.Notification{
 		Severity: notify.Info, Source: "Emetos", Message: MergeConflictsNotice + " (" + name + ")",
@@ -447,7 +447,7 @@ func (s *shellState) noticeMergeConflicts(doc *document.Document) {
 // merge editor replaces with the merged text as one undoable edit when it opens. A document that has no conflict, is not a
 // file or is read-only is reported.
 func (s *shellState) resolveInMergeEditor(doc *document.Document) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	// a merge editor that shows the file already is the answer (its result has no markers any more)
 	if group, input := s.mergeEditorOf(doc); input != nil {
 		group.Model.SetActive(input)
@@ -500,7 +500,7 @@ func (s *shellState) mergeEditorOf(doc *document.Document) (*editorgroup.Group, 
 // created when it does not exist, and the merge is shown in the active group; done is called on the UI thread with the
 // input of the tab, or with the error. Nothing is shown when a file cannot be read.
 func (s *shellState) openMergeFiles(in1, in2, base, result, label1, label2 string, done func(*editorgroup.MergeInput, error)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		prep, err := filesMerge(life, base, in1, in2, label1, label2)
 		var doc *document.Document
@@ -556,7 +556,7 @@ func (s *shellState) mergeCommands() map[string]command.Handler {
 		return func(command.Context, any) error {
 			if p := s.activeMergePane(); p != nil {
 				if err := do(p); err != nil {
-					PeekWindow(s.Context()).Process.Logger.Warn("the merge editor action failed", "err", err)
+					PeekWorkspace(s.Context()).Process.Logger.Warn("the merge editor action failed", "err", err)
 				}
 			}
 			return nil
@@ -566,7 +566,7 @@ func (s *shellState) mergeCommands() map[string]command.Handler {
 		return act(func(p *mergePane) error {
 			ok, err := p.model.ToggleActive(in)
 			if !ok && err == nil {
-				PeekWindow(s.Context()).Notify.Error("Emetos", "There is currently no conflict focused that can be toggled.")
+				PeekWorkspace(s.Context()).Notify.Error("Emetos", "There is currently no conflict focused that can be toggled.")
 			}
 			return err
 		})
@@ -640,7 +640,7 @@ func (s *shellState) saveMerge(p *mergePane) {
 // the group the merge editor is in (VS Code shows the file again once the merge editor is closed), and the merge editor
 // closes.
 func (s *shellState) finishMerge(p *mergePane) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	doc := p.input.Result()
 	group, input := s.mergeEditorOf(doc)
 	if input == nil {
@@ -661,7 +661,7 @@ func (s *shellState) finishMerge(p *mergePane) {
 // editor the command names (a tab, as the commands of the tabs do) or, without one, the active text editor, and says so
 // when there is none or its file has no conflict.
 func (s *shellState) openMergeEditorCommand(args any) error {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	doc := s.targetDocument(args)
 	if doc == nil {
 		win.Notify.Info("Emetos", MergeNoConflictsNotice)
@@ -705,7 +705,7 @@ func (s *shellState) openMergeEditorWith(args any) error {
 		}
 		sides[i] = side
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.openMergeFiles(sides[0].path, sides[1].path, sides[2].path, sides[3].path, sides[0].label, sides[1].label, func(_ *editorgroup.MergeInput, err error) {
 		if err != nil {
 			win.Notify.Error("Emetos", "Cannot open the merge editor: "+describe(err))

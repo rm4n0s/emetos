@@ -51,23 +51,20 @@ type backupState struct {
 }
 
 // hotExitMode is the value of files.hotExit.
-func (w *Window) hotExitMode() string {
+func (w *Workspace) hotExitMode() string {
 	return settings.Get[string](w.Settings, "files.hotExit", "")
 }
 
 // Backups is the tracker of the backups of the window, or nil when the window keeps no state.
-func (w *Window) Backups() *storage.BackupTracker {
+func (w *Workspace) Backups() *storage.BackupTracker {
 	w.backups.mu.Lock()
 	defer w.backups.mu.Unlock()
 	return w.backups.tracker
 }
 
-// otherWindows tells whether windows other than this one are open.
-func (w *Window) otherWindows() bool { return w.Process.Windows.others(w) }
-
 // runUI runs f on the UI thread: through the function the shell gave (setUIPoster), and as soon as it gives
 // one when it has not yet. The backup tracker reads the documents only through it.
-func (w *Window) runUI(f func()) {
+func (w *Workspace) runUI(f func()) {
 	b := &w.backups
 	b.mu.Lock()
 	post := b.post
@@ -81,7 +78,7 @@ func (w *Window) runUI(f func()) {
 }
 
 // setUIPoster gives the window the function that runs a function on the UI thread, and runs what waited for it.
-func (w *Window) setUIPoster(post func(func())) {
+func (w *Workspace) setUIPoster(post func(func())) {
 	b := &w.backups
 	b.mu.Lock()
 	b.post = post
@@ -99,7 +96,7 @@ func (w *Window) setUIPoster(post func(func())) {
 // initBackups makes the store and the tracker of the backups of the window, for the state id it has now (it is
 // called with initState: when the window is made and when its folder changes). The documents that are open are
 // tracked. The tracker of the id the window had is let go, and so is its running marker.
-func (w *Window) initBackups(ctx context.Context) {
+func (w *Workspace) initBackups(ctx context.Context) {
 	b := &w.backups
 	b.mu.Lock()
 	oldTracker, oldStore, marked := b.tracker, b.store, b.marked
@@ -152,13 +149,13 @@ func (w *Window) initBackups(ctx context.Context) {
 // trackDocument and dropDocument are what the set of documents tells the tracker: a document that opens is
 // followed, and one that closes is let go of with its backup (it was saved, or given up). While the window is going
 // away (the tracker is paused) nothing is discarded: the backups are what is left of the documents.
-func (w *Window) trackDocument(doc *document.Document) {
+func (w *Workspace) trackDocument(doc *document.Document) {
 	if t := w.Backups(); t != nil {
 		t.Track(doc)
 	}
 }
 
-func (w *Window) dropDocument(doc *document.Document) {
+func (w *Workspace) dropDocument(doc *document.Document) {
 	if t := w.Backups(); t != nil {
 		t.Untrack(doc, true)
 	}
@@ -168,7 +165,7 @@ func (w *Window) dropDocument(doc *document.Document) {
 }
 
 // backupProblem tells the user, once for a document, that its unsaved changes cannot be backed up.
-func (w *Window) backupProblem(doc *document.Document, err error) {
+func (w *Workspace) backupProblem(doc *document.Document, err error) {
 	name := doc.URI().Title()
 	if appErr, ok := errors.FromError(err); ok && appErr.Tag == "BackupTooLarge" {
 		w.Notify.Warn("Emetos", "'"+name+"' is too large to be backed up. Its unsaved changes are lost if Emetos closes unexpectedly.")
@@ -179,7 +176,7 @@ func (w *Window) backupProblem(doc *document.Document, err error) {
 
 // markRunning writes the marker that says the window is open; it tells whether the last run left it. A failure is
 // logged: the window works without.
-func (w *Window) markRunning(ctx context.Context) (wasRunning bool) {
+func (w *Workspace) markRunning(ctx context.Context) (wasRunning bool) {
 	b := &w.backups
 	b.mu.Lock()
 	store := b.store
@@ -199,7 +196,7 @@ func (w *Window) markRunning(ctx context.Context) (wasRunning bool) {
 }
 
 // endBackups removes the running marker: the window closes as it should.
-func (w *Window) endBackups() {
+func (w *Workspace) endBackups() {
 	b := &w.backups
 	b.mu.Lock()
 	store, marked := b.store, b.marked
@@ -215,7 +212,7 @@ func (w *Window) endBackups() {
 
 // discardBackups removes every backup of the window: it closes with nothing left to restore (files.hotExit off, or
 // the unsaved documents were saved or given up).
-func (w *Window) discardBackups() {
+func (w *Workspace) discardBackups() {
 	t := w.Backups()
 	if t == nil {
 		return
@@ -254,7 +251,7 @@ func NoticeDeletedOnDisk(names []string) string {
 // initBackups connects the backups of the window to the shell: the tracker reads the documents on the UI thread
 // from now on, and the documents that have unsaved changes (the ones that came back from backups) are scheduled.
 func (s *shellState) initBackups(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.setUIPoster(binding.Post)
 	if t := win.Backups(); t != nil {
 		t.Resume()

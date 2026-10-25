@@ -36,7 +36,7 @@ type watchState struct {
 
 // SnippetWorkspace is what snippets know of the folder of the window: WORKSPACE_NAME and
 // WORKSPACE_FOLDER (SPEC §9.9). A window with no folder has neither.
-func (w *Window) SnippetWorkspace() snippet.WorkspaceResolver {
+func (w *Workspace) SnippetWorkspace() snippet.WorkspaceResolver {
 	if w.Workspace == nil {
 		return snippet.WorkspaceResolver{}
 	}
@@ -44,7 +44,7 @@ func (w *Window) SnippetWorkspace() snippet.WorkspaceResolver {
 }
 
 // openWorkspace opens the folder of the window and makes the tree follow the settings.
-func (w *Window) openWorkspace(ctx context.Context, folder string) error {
+func (w *Workspace) openWorkspace(ctx context.Context, folder string) error {
 	cfg := workspace.ConfigFromSettings(w.Settings)
 	ws, err := workspace.Open(ctx, folder, workspace.Options{Config: &cfg})
 	if err != nil {
@@ -59,7 +59,7 @@ func (w *Window) openWorkspace(ctx context.Context, folder string) error {
 
 // newFileIndex makes the list of the files of a folder for the quick open, with the settings of the file
 // search. The shell walks it (it is not started here), so a window that never shows has no walk to stop.
-func (w *Window) newFileIndex(folder string) *workspace.FileIndex {
+func (w *Workspace) newFileIndex(folder string) *workspace.FileIndex {
 	cfg := workspace.IndexConfigFromSettings(w.Settings)
 	return workspace.NewFileIndex(folder, workspace.IndexOptions{Config: &cfg})
 }
@@ -68,14 +68,14 @@ func (w *Window) newFileIndex(folder string) *workspace.FileIndex {
 // when no folder is open. It is walked in the background once the shell is shown, kept up to date with
 // the events of the watcher and made again when the settings of the file search change. It is safe for
 // concurrent use.
-func (w *Window) FileIndex() *workspace.FileIndex {
+func (w *Workspace) FileIndex() *workspace.FileIndex {
 	w.folderMu.RLock()
 	defer w.folderMu.RUnlock()
 	return w.files
 }
 
 // currentWorkspace is the workspace of the window, for the goroutines that do not run on the UI thread.
-func (w *Window) currentWorkspace() *workspace.Workspace {
+func (w *Workspace) currentWorkspace() *workspace.Workspace {
 	w.folderMu.RLock()
 	defer w.folderMu.RUnlock()
 	return w.Workspace
@@ -83,7 +83,7 @@ func (w *Window) currentWorkspace() *workspace.Workspace {
 
 // syncWorkbenchState sets the context key workbenchState: "folder" with a folder open, "empty" without
 // (VS Code's WorkbenchStateContext; Emetos has no multi-root workspaces).
-func (w *Window) syncWorkbenchState() {
+func (w *Workspace) syncWorkbenchState() {
 	state := "empty"
 	if w.Workspace != nil {
 		state = "folder"
@@ -93,7 +93,7 @@ func (w *Window) syncWorkbenchState() {
 
 // OnFolderChange calls fn, on the thread that called SetFolder, after the folder of the window changed,
 // and returns the function that stops it.
-func (w *Window) OnFolderChange(fn func()) (unsubscribe func()) {
+func (w *Workspace) OnFolderChange(fn func()) (unsubscribe func()) {
 	p := &fn
 	w.folderListeners = append(w.folderListeners, p)
 	return func() {
@@ -108,7 +108,7 @@ func (w *Window) OnFolderChange(fn func()) (unsubscribe func()) {
 // the listeners of OnFolderChange are told. It runs on the UI thread. The editors of the window are not
 // touched; the caller closes the ones of the old folder first (SPEC §10.11). The error has the tags of
 // workspace.Open and of settings.Store.Reload; with an error the window keeps its folder.
-func (w *Window) SetFolder(ctx context.Context, folder string) error {
+func (w *Workspace) SetFolder(ctx context.Context, folder string) error {
 	var ws *workspace.Workspace
 	if folder != "" {
 		cfg := workspace.ConfigFromSettings(w.Settings)
@@ -149,7 +149,7 @@ func (w *Window) SetFolder(ctx context.Context, folder string) error {
 // followWorkspaceSettings applies the settings of the tree when they change, and restarts the
 // watch of the folder when the settings of the watcher change. The change may come from any
 // goroutine, and reading folders is slow, so the work runs on a goroutine of its own.
-func (w *Window) followWorkspaceSettings() {
+func (w *Workspace) followWorkspaceSettings() {
 	w.Settings.OnChange(func(e settings.ChangeEvent) {
 		ws := w.currentWorkspace()
 		// the list of files for the quick open follows the settings of the file search (it starts a new
@@ -182,7 +182,7 @@ func (w *Window) followWorkspaceSettings() {
 // Failures of the watcher are logged, and the ones the user should hear of (no inotify, the
 // limit of watches) become one warning. It does nothing unless the process was made with
 // ProcessOptions.WatchFiles.
-func (w *Window) StartWatching(ctx context.Context) (ready <-chan struct{}) {
+func (w *Workspace) StartWatching(ctx context.Context) (ready <-chan struct{}) {
 	st := &w.watch
 	st.mu.Lock()
 	if st.watcher != nil || !w.Process.WatchFiles {
@@ -213,7 +213,7 @@ func (w *Window) StartWatching(ctx context.Context) (ready <-chan struct{}) {
 }
 
 // Watcher is the watcher of the window, nil until StartWatching.
-func (w *Window) Watcher() *workspace.Watcher {
+func (w *Workspace) Watcher() *workspace.Watcher {
 	w.watch.mu.Lock()
 	defer w.watch.mu.Unlock()
 	return w.watch.watcher
@@ -221,7 +221,7 @@ func (w *Window) Watcher() *workspace.Watcher {
 
 // watchFolder (re)starts the targets of the folder: the folder itself and the paths of
 // files.watcherInclude, with files.watcherExclude.
-func (w *Window) watchFolder() {
+func (w *Workspace) watchFolder() {
 	ws := w.currentWorkspace()
 	st := &w.watch
 	st.mu.Lock()
@@ -277,7 +277,7 @@ func contains(list []string, s string) bool {
 // watchUserFolder watches the folder of the user's configuration, where settings.json and the
 // snippets are. The folder is made if it is not there, so that a settings.json written later is
 // seen.
-func (w *Window) watchUserFolder() {
+func (w *Workspace) watchUserFolder() {
 	st := &w.watch
 	st.mu.Lock()
 	watcher, ctx, dir := st.watcher, st.ctx, st.userDir
@@ -312,7 +312,7 @@ func (w *Window) watchUserFolder() {
 
 // followFile watches a file that is open, if it is outside the folder of the window (the folder
 // is watched as a whole).
-func (w *Window) followFile(path string) {
+func (w *Workspace) followFile(path string) {
 	st := &w.watch
 	path = filepath.Clean(path)
 	if ws := w.currentWorkspace(); ws != nil && (path == ws.Path() || strings.HasPrefix(path, ws.Path()+string(filepath.Separator))) {
@@ -349,7 +349,7 @@ func (w *Window) followFile(path string) {
 }
 
 // unfollowFile stops watching a file that was closed.
-func (w *Window) unfollowFile(path string) {
+func (w *Workspace) unfollowFile(path string) {
 	st := &w.watch
 	path = filepath.Clean(path)
 	st.mu.Lock()
@@ -369,7 +369,7 @@ func filePath(scheme, path string) (string, bool) {
 // onFileEvents handles a batch of events of the watcher, on the goroutine of the watcher: it
 // reads the settings and the snippets again when their files changed, and updates the tree of
 // the folder.
-func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
+func (w *Workspace) onFileEvents(ctx context.Context, events []workspace.Event) {
 	st := &w.watch
 	st.mu.Lock()
 	userSettings, workspaceSettings, userKeybindings := st.userSettings, st.workspaceSettings, st.userKeybindings
@@ -423,7 +423,7 @@ func (w *Window) onFileEvents(ctx context.Context, events []workspace.Event) {
 
 // OnFileEvents calls fn with each batch of events of the watcher, after they were applied to the tree, on the
 // goroutine of the watcher (the shell hands them to the UI thread). It returns the function that stops it.
-func (w *Window) OnFileEvents(fn func([]workspace.Event)) (unsubscribe func()) {
+func (w *Workspace) OnFileEvents(fn func([]workspace.Event)) (unsubscribe func()) {
 	p := &fn
 	w.eventMu.Lock()
 	w.eventListeners = append(w.eventListeners, p)
@@ -443,7 +443,7 @@ func isBelow(path, dir string) bool {
 }
 
 // settingsPaths remembers the files the watcher reloads.
-func (w *Window) rememberSettingsPaths(userSettings string, p *Process) {
+func (w *Workspace) rememberSettingsPaths(userSettings string, p *Process) {
 	st := &w.watch
 	st.userSettings = userSettings
 	if w.userKeys != nil {

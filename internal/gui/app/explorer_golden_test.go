@@ -27,7 +27,7 @@ func goldenExplorer(t *testing.T, theme string, withFolder bool, open ...string)
 		writeTree(t, root, "main.go", "go.mod", "README.md", "Makefile", ".gitignore", "assets/logo.png", "docs/guide.md",
 			"internal/server/server.go", "internal/server/server_test.go", "internal/store/store.go")
 	}
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), root)
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), root)
 	if err != nil {
 		t.Fatal(err)
 	}

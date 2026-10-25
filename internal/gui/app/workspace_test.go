@@ -24,15 +24,15 @@ import (
 
 // watchedWindow makes a window over a process that watches files, with the watcher started and
 // stopped with the test.
-func watchedWindow(t *testing.T, folder string) *Window {
+func watchedWindow(t *testing.T, folder string) *Workspace {
 	t.Helper()
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14})
 	ctx, cancel := context.WithCancel(context.Background())
-	win, err := NewWindow(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), folder)
+	win, err := NewWorkspace(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), folder)
 	if err != nil {
 		cancel()
-		t.Fatalf("NewWindow: %v", err)
+		t.Fatalf("NewWorkspace: %v", err)
 	}
 	ready := win.StartWatching(ctx)
 	t.Cleanup(func() {
@@ -65,13 +65,13 @@ func eventually(t *testing.T, what string, cond func() bool) {
 	}
 }
 
-func fontSize(win *Window) float64 {
+func fontSize(win *Workspace) float64 {
 	return editor.OptionsFromSettings(win.Settings, "", "", 4).FontSize
 }
 
 func TestWindowOpensTheFolderAsAWorkspace(t *testing.T) {
 	folder := t.TempDir()
-	win := newTestWindow(t, folder)
+	win := newTestWorkspace(t, folder)
 	if win.Workspace == nil || win.Workspace.Path() != folder || win.Workspace.Name() != filepath.Base(folder) || win.Folder != folder {
 		t.Fatalf("Workspace %+v Folder %q", win.Workspace, win.Folder)
 	}
@@ -83,7 +83,7 @@ func TestWindowOpensTheFolderAsAWorkspace(t *testing.T) {
 	if cfg.SortOrder != workspace.SortDefault || !cfg.CompactFolders {
 		t.Errorf("config %+v", cfg)
 	}
-	none := newTestWindow(t, "")
+	none := newTestWorkspace(t, "")
 	if none.Workspace != nil || none.Folder != "" || none.SnippetWorkspace() != (snippet.WorkspaceResolver{}) {
 		t.Error("a window with no folder has no workspace")
 	}
@@ -91,12 +91,12 @@ func TestWindowOpensTheFolderAsAWorkspace(t *testing.T) {
 
 func TestWindowWithAFolderThatIsNotThereFails(t *testing.T) {
 	paths := testutil.Isolate(t)
-	_, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), filepath.Join(t.TempDir(), "gone"))
+	_, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), filepath.Join(t.TempDir(), "gone"))
 	appErr, ok := errors.FromError(err)
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
 	}
-	if !appErr.HasRoute("NewWindow->newWindow->Window.openWorkspace->Open.WorkspaceFolderNotFound") {
+	if !appErr.HasRoute("NewWorkspace->newWorkspace->Workspace.openWorkspace->Open.WorkspaceFolderNotFound") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }
@@ -250,7 +250,7 @@ func TestFilesOpenBeforeTheWatcherStartedAreFollowed(t *testing.T) {
 	}
 	paths := testutil.Isolate(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	win, err := NewWindow(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), "")
+	win, err := NewWorkspace(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestFilesOpenBeforeTheWatcherStartedAreFollowed(t *testing.T) {
 }
 
 func TestProcessWithoutWatchFilesStartsNoWatcher(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	<-win.StartWatching(context.Background())
 	if win.Watcher() != nil {
 		t.Error("a watcher was started")
@@ -284,7 +284,7 @@ func TestBreadcrumbsAndSnippetsUseTheFolder(t *testing.T) {
 	if err := os.WriteFile(file, []byte("package x\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win := newTestWindow(t, folder)
+	win := newTestWorkspace(t, folder)
 	doc, err := win.Documents.OpenFile(context.Background(), file, document.NewOptions())
 	if err != nil {
 		t.Fatal(err)

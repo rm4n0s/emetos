@@ -35,12 +35,12 @@ type modeState struct {
 }
 
 // IsFullScreen says whether the window is in full screen mode, as the platform last reported it.
-func (w *Window) IsFullScreen() bool { return w.modes.fullscreen }
+func (w *Workspace) IsFullScreen() bool { return w.modes.fullscreen }
 
 // SetFullScreen asks the platform to put the window in full screen mode, or to bring it back. The platform answers by
 // reporting its state (fullScreenChanged), which may be a refusal. It fails with the tag FullScreenUnavailable when the
 // window is not on screen yet, which has no controller to ask.
-func (w *Window) SetFullScreen(on bool) error {
+func (w *Workspace) SetFullScreen(on bool) error {
 	if set := w.modes.fullScreenSetter; set != nil {
 		set(on)
 		return nil
@@ -55,11 +55,11 @@ func (w *Window) SetFullScreen(on bool) error {
 }
 
 // toggleFullScreen is the command Toggle Full Screen.
-func (w *Window) toggleFullScreen() error { return w.SetFullScreen(!w.modes.fullscreen) }
+func (w *Workspace) toggleFullScreen() error { return w.SetFullScreen(!w.modes.fullscreen) }
 
 // OnModesChange calls fn, on the UI thread, after the full screen mode of the window changed, and returns the function
 // that stops it.
-func (w *Window) OnModesChange(fn func()) (unsubscribe func()) {
+func (w *Workspace) OnModesChange(fn func()) (unsubscribe func()) {
 	p := &fn
 	w.modes.listeners = append(w.modes.listeners, p)
 	return func() {
@@ -69,7 +69,7 @@ func (w *Window) OnModesChange(fn func()) (unsubscribe func()) {
 
 // fullScreenChanged takes the full screen state the platform reported: the context key follows it, and when a window that
 // zen mode put in full screen leaves it, zen mode ends too (VS Code does the same).
-func (w *Window) fullScreenChanged(on bool) {
+func (w *Workspace) fullScreenChanged(on bool) {
 	if w.modes.fullscreen == on {
 		return
 	}
@@ -84,7 +84,7 @@ func (w *Window) fullScreenChanged(on bool) {
 }
 
 // controllerKnown runs what waited for the controller of the window.
-func (w *Window) controllerKnown() {
+func (w *Workspace) controllerKnown() {
 	pending := w.modes.onController
 	w.modes.onController = nil
 	for _, f := range pending {
@@ -93,7 +93,7 @@ func (w *Window) controllerKnown() {
 }
 
 // whenController runs f once the window has a controller (at once when it has).
-func (w *Window) whenController(f func()) {
+func (w *Workspace) whenController(f func()) {
 	if w.controller != nil || w.modes.fullScreenSetter != nil {
 		f()
 		return
@@ -102,7 +102,7 @@ func (w *Window) whenController(f func()) {
 }
 
 // syncLayoutKeys sets the context keys of the modes: inZenMode, isCenteredLayout and isFullscreen.
-func (w *Window) syncLayoutKeys() {
+func (w *Workspace) syncLayoutKeys() {
 	st := w.Layout.State()
 	w.Keys.Batch(func() {
 		w.Keys.Set("inZenMode", st.Zen.Active)
@@ -117,7 +117,7 @@ type zenConfig struct {
 	showTabs                                                                                                string
 }
 
-func (w *Window) zenConfig() zenConfig {
+func (w *Workspace) zenConfig() zenConfig {
 	get := func(key string) bool { return settings.Get[bool](w.Settings, key, "") }
 	return zenConfig{
 		fullScreen: get("zenMode.fullScreen"), centerLayout: get("zenMode.centerLayout"), hideStatusBar: get("zenMode.hideStatusBar"),
@@ -127,11 +127,11 @@ func (w *Window) zenConfig() zenConfig {
 }
 
 // ZenMode says whether zen mode is on.
-func (w *Window) ZenMode() bool { return w.Layout.ZenActive() }
+func (w *Workspace) ZenMode() bool { return w.Layout.ZenActive() }
 
 // ShowTabs is what the editor groups show of their tabs: workbench.editor.showTabs ("multiple", "single" or "none"), or
 // zenMode.showTabs while zen mode is on. It is the zen mode's override of the setting, which is not written.
-func (w *Window) ShowTabs() string {
+func (w *Workspace) ShowTabs() string {
 	if w.Layout.ZenActive() {
 		return w.zenConfig().showTabs
 	}
@@ -140,12 +140,12 @@ func (w *Window) ShowTabs() string {
 
 // zenHidesLineNumbers says that the editors show no line numbers because zen mode is on and zenMode.hideLineNumbers says
 // so; the setting editor.lineNumbers is not changed.
-func (w *Window) zenHidesLineNumbers() bool {
+func (w *Workspace) zenHidesLineNumbers() bool {
 	return w.Layout.ZenActive() && w.zenConfig().hideLineNumbers
 }
 
 // ToggleZenMode turns zen mode on, or off when it is on.
-func (w *Window) ToggleZenMode() {
+func (w *Workspace) ToggleZenMode() {
 	if w.Layout.ZenActive() {
 		w.exitZen()
 		return
@@ -160,7 +160,7 @@ func (w *Window) ToggleZenMode() {
 // the editors follow (ShowTabs, zenHidesLineNumbers).
 //
 // Ported from VS Code: src/vs/workbench/browser/layout.ts (toggleZenMode)
-func (w *Window) enterZen() {
+func (w *Workspace) enterZen() {
 	cfg := w.zenConfig()
 	goFullScreen := !w.modes.fullscreen && cfg.fullScreen
 	centered := !w.Layout.CenteredLayout() && cfg.centerLayout
@@ -185,7 +185,7 @@ func (w *Window) enterZen() {
 // is turned off.
 //
 // Ported from VS Code: src/vs/workbench/browser/layout.ts (toggleZenMode)
-func (w *Window) exitZen() {
+func (w *Workspace) exitZen() {
 	z := w.Layout.ExitZen()
 	if !z.Active {
 		return
@@ -208,7 +208,7 @@ func (w *Window) exitZen() {
 // screen, or ends it with what it recorded.
 //
 // Ported from VS Code: src/vs/workbench/browser/layout.ts (restoreWorkbenchLayout)
-func (w *Window) restoreZen() {
+func (w *Workspace) restoreZen() {
 	z := w.Layout.State().Zen
 	if !z.Active {
 		return
@@ -235,7 +235,7 @@ func (w *Window) restoreZen() {
 
 // followZen follows the zenMode.* settings while zen mode is on: the activity bar, the status bar, the centered layout and
 // do not disturb take the new values (the tabs and the line numbers are read when they are drawn).
-func (w *Window) followZen() {
+func (w *Workspace) followZen() {
 	stop := w.Settings.OnChange(func(e settings.ChangeEvent) {
 		if !e.Affects("zenMode", "") {
 			return
@@ -259,12 +259,12 @@ func (w *Window) followZen() {
 }
 
 // ToggleCenteredLayout turns the centered layout on, or off when it is on.
-func (w *Window) ToggleCenteredLayout() {
+func (w *Workspace) ToggleCenteredLayout() {
 	w.Layout.SetCenteredLayout(!w.Layout.CenteredLayout())
 }
 
 // registerModeCommands sets the handlers of the commands of full screen, zen mode and the centered layout, and of the zoom.
-func (w *Window) registerModeCommands(set func(id string, h command.Handler)) {
+func (w *Workspace) registerModeCommands(set func(id string, h command.Handler)) {
 	set("workbench.action.toggleFullScreen", func(command.Context, any) error { return w.toggleFullScreen() })
 	set("workbench.action.toggleZenMode", func(command.Context, any) error { w.ToggleZenMode(); return nil })
 	set("workbench.action.exitZenMode", func(command.Context, any) error {

@@ -30,7 +30,7 @@ import (
 // presses Enter.
 type qiDriver struct {
 	t    *testing.T
-	w    *Window
+	w    *Workspace
 	pump func()
 	wait func(what string, cond func() bool)
 }
@@ -539,19 +539,19 @@ func TestRenamingAProfileTwoWindowsUseMovesBoth(t *testing.T) {
 	workProfile(t, env)
 	one, two, three := env.folder("one", "a.go"), env.folder("two", "b.go"), env.folder("three", "c.go")
 	a := env.run(Options{Folder: one, Open: &ipc.OpenArgs{Folder: one, Profile: "Work"}})
-	if _, err := a.m.Open(WindowSpec{Folder: two, Profile: "Work"}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two, Profile: "Work"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.m.Open(WindowSpec{Folder: three}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: three}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2, w3 := a.windowOf(one), a.windowOf(two), a.windowOf(three)
+	w1, w2, w3 := a.workspaceOf(one), a.workspaceOf(two), a.workspaceOf(three)
 	if w1.ProfileName() != "Work" || w2.ProfileName() != "Work" || w3.ProfileName() != "Default" {
 		t.Fatalf("profiles %s %s %s", w1.ProfileName(), w2.ProfileName(), w3.ProfileName())
 	}
 	// the windows write their state
-	for _, w := range []*Window{w1, w2} {
+	for _, w := range []*Workspace{w1, w2} {
 		a.shellOf(w).flushState()
 	}
 	if err := a.p.flushStates(a.ctx); err != nil {
@@ -582,7 +582,7 @@ func TestRenamingAProfileTwoWindowsUseMovesBoth(t *testing.T) {
 		}
 	}
 	// both windows read and write the new file
-	for _, w := range []*Window{w1, w2} {
+	for _, w := range []*Workspace{w1, w2} {
 		if user, _ := w.Settings.Paths(); user != filepath.Join(newConfig, "settings.json") {
 			t.Errorf("the settings file of %s is %q", w.Folder, user)
 		}
@@ -611,7 +611,7 @@ func TestRenamingAProfileTwoWindowsUseMovesBoth(t *testing.T) {
 		t.Fatal(err)
 	}
 	var noted []string
-	for _, w := range g.OpenWindows {
+	for _, w := range g.WorkspaceTabs {
 		noted = append(noted, filepath.Base(w.Folder)+":"+w.Profile)
 	}
 	slices.Sort(noted)
@@ -1035,7 +1035,7 @@ func TestImportProfileDialogCancelledDoesNothing(t *testing.T) {
 }
 
 func TestTheDialogsOfExportAndImportHaveTheirOwnTags(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ts := testutil.New(t, ui.Size{Width: 400, Height: 300})
 	ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
 	ts.Pump(20 * time.Millisecond)

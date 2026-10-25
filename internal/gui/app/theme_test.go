@@ -19,16 +19,16 @@ import (
 
 // themedWindow makes a window over a process with isolated folders whose user settings are
 // extra (plus the editor font of the tests).
-func themedWindow(t *testing.T, extra map[string]any) (*Window, storage.Paths) {
+func themedWindow(t *testing.T, extra map[string]any) (*Workspace, storage.Paths) {
 	t.Helper()
 	paths := testutil.Isolate(t)
 	if extra == nil {
 		extra = map[string]any{}
 	}
 	testutil.Settings(t, paths, extra)
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
-		t.Fatalf("NewWindow: %v", err)
+		t.Fatalf("NewWorkspace: %v", err)
 	}
 	return win, paths
 }
@@ -141,7 +141,7 @@ func TestUserThemesComeFromTheConfigFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 	testutil.Settings(t, paths, map[string]any{"workbench.colorTheme": "Mine"})
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

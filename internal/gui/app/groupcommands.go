@@ -17,7 +17,7 @@ import (
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts and
 // src/vs/workbench/browser/parts/editor/editorActions.ts
 func (s *shellState) bindGroupCommands() {
-	reg := PeekWindow(s.Context()).Commands
+	reg := PeekWorkspace(s.Context()).Commands
 	handlers := s.editorCommands()
 	for _, more := range []map[string]command.Handler{s.gridCommands(), s.pathCommands(), s.navCommands(), s.switchCommands(), s.settingsCommands(), s.keybindingsCommands(), s.themeCommands(), s.profileCommands(), s.diffCommands(), s.compareCommands(), s.mergeCommands()} {
 		for id, h := range more {
@@ -348,7 +348,7 @@ func (s *shellState) gridCommands() map[string]command.Handler {
 			if closed && grid().Group(g.ID()) == g && g.Empty() {
 				// the answer may come after the command returned, so the failure is logged as well
 				if _, err = grid().RemoveGroup(g); err != nil {
-					PeekWindow(s.Context()).Process.Logger.Warn("cannot remove the group", "err", err)
+					PeekWorkspace(s.Context()).Process.Logger.Warn("cannot remove the group", "err", err)
 				}
 			}
 		})
@@ -368,7 +368,7 @@ func (s *shellState) gridCommands() map[string]command.Handler {
 			for _, g := range grid().Groups(editorgroup.MostRecentlyActiveGroups) {
 				if grid().Group(g.ID()) == g && g.Empty() && grid().Count() > 1 {
 					if _, e := grid().RemoveGroup(g); e != nil {
-						PeekWindow(s.Context()).Process.Logger.Warn("cannot remove the group", "err", e)
+						PeekWorkspace(s.Context()).Process.Logger.Warn("cannot remove the group", "err", e)
 						if err == nil {
 							err = e
 						}

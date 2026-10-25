@@ -527,9 +527,9 @@ func (a *diffApp) hasCommandInPalette(id string) bool {
 	return false
 }
 
-func settingValue(win *Window, key string) any { return settings.Get[bool](win.Settings, key, "") }
+func settingValue(win *Workspace, key string) any { return settings.Get[bool](win.Settings, key, "") }
 
 // apiContext is the context a command runs in when it is run from code.
-func apiContext(win *Window) command.Context {
+func apiContext(win *Workspace) command.Context {
 	return command.Context{Ctx: context.Background(), Keys: win.Keys, Source: command.SourceAPI}
 }

@@ -34,18 +34,18 @@ const (
 
 // Profile is the profile of the window as storage.Profiles names it: storage.DefaultProfile (the empty string) for
 // the default profile. It may be called from any goroutine.
-func (w *Window) Profile() string {
+func (w *Workspace) Profile() string {
 	w.profileMu.RLock()
 	defer w.profileMu.RUnlock()
 	return w.profile
 }
 
 // ProfileName is the name the profile of the window is shown with: "Default" for the default profile.
-func (w *Window) ProfileName() string { return storage.ProfileDisplayName(w.Profile()) }
+func (w *Workspace) ProfileName() string { return storage.ProfileDisplayName(w.Profile()) }
 
 // OnProfileChange calls fn, on the UI thread, with the new profile after SwitchProfile moved the window to it, and
 // returns the function that stops it. The status bar item of the profile (step 8.6b) follows the window with it.
-func (w *Window) OnProfileChange(fn func(profile string)) (stop func()) {
+func (w *Workspace) OnProfileChange(fn func(profile string)) (stop func()) {
 	p := &fn
 	w.profileMu.Lock()
 	w.profileListeners = append(w.profileListeners, p)
@@ -60,7 +60,7 @@ func (w *Window) OnProfileChange(fn func(profile string)) (stop func()) {
 }
 
 // stateStore is the state store of the profile of the window: the store that keeps the state file of the window.
-func (w *Window) stateStore() *storage.StateStore {
+func (w *Workspace) stateStore() *storage.StateStore {
 	s, err := w.Process.StateFor(w.Profile())
 	if err != nil {
 		// the names of the profiles are checked when they are made: this is a broken profile folder
@@ -87,7 +87,7 @@ func (w *Window) stateStore() *storage.StateStore {
 // A switch to the profile the window has is nothing. A settings file or a keybindings file of the new profile that
 // cannot be read is reported by the return value after the switch is complete: the window uses the defaults for it.
 // It must run on the UI thread. The error has the tags of Profiles.Lookup, of the paths of the profile and of settings.Store.Reload.
-func (w *Window) SwitchProfile(ctx context.Context, name string) error {
+func (w *Workspace) SwitchProfile(ctx context.Context, name string) error {
 	p := w.Process
 	profile, ok, err := p.Profiles.Lookup(ctx, name)
 	if err != nil {
@@ -106,13 +106,13 @@ func (w *Window) SwitchProfile(ctx context.Context, name string) error {
 // of the profile were renamed (storage.Profiles.Rename), so the files the window follows are at new paths. It is
 // SwitchProfile that does not write the state of the window first (the old state folder is gone; the caller wrote
 // it before the rename) and tells the observers of OnProfileChange. The error is that of SwitchProfile.
-func (w *Window) profileRenamed(ctx context.Context, newName string) error {
+func (w *Workspace) profileRenamed(ctx context.Context, newName string) error {
 	return w.moveToProfile(ctx, newName, false)
 }
 
 // moveToProfile is the switch of SwitchProfile to a profile that exists and that the window does not have under
 // that name; flush says that the state of the window is written to the folder of the old profile first.
-func (w *Window) moveToProfile(ctx context.Context, profile string, flush bool) error {
+func (w *Workspace) moveToProfile(ctx context.Context, profile string, flush bool) error {
 	p := w.Process
 	userPath, err := settings.UserSettingsPath(p.Paths, profile)
 	if err != nil {
@@ -169,8 +169,8 @@ func (w *Window) moveToProfile(ctx context.Context, profile string, flush bool) 
 			p.Logger.Warn("the profile of the folder cannot be noted", "folder", w.Folder, "err", err)
 		}
 	}
-	p.Windows.folderNote(w)
-	p.Windows.syncOpenWindows()
+	p.Workspaces.folderNote(w)
+	p.Workspaces.syncTabs()
 	if s := w.shell; s != nil && s.Mounted() {
 		s.stateChanged() // the state of the window is written to the folder of the new profile
 	}
@@ -185,20 +185,20 @@ func (w *Window) moveToProfile(ctx context.Context, profile string, flush bool) 
 
 // UsingProfile lists the windows that use a profile (as storage.Profiles names it), in the order the windows were
 // made. The commands that delete or rename a profile refuse while there are some (step 8.6b).
-func (m *Windows) UsingProfile(profile string) []*Window {
-	var out []*Window
-	for _, e := range m.entries() {
-		if e.win.Profile() == profile {
-			out = append(out, e.win)
+func (m *Workspaces) UsingProfile(profile string) []*Workspace {
+	var out []*Workspace
+	for _, w := range m.All() {
+		if w.Profile() == profile {
+			out = append(out, w)
 		}
 	}
 	return out
 }
 
-// windowProfile works out the profile a new window opens with, from the spec: the profile the spec names (made empty
+// workspaceProfile works out the profile a new window opens with, from the spec: the profile the spec names (made empty
 // when there is none, as --profile does), else the profile last used with its folder, else the default profile. A
 // profile that cannot be made leaves the default profile, and the notice says so in the window once it exists.
-func (m *Windows) windowProfile(ctx context.Context, spec WindowSpec) (profile string, problem error) {
+func (m *Workspaces) workspaceProfile(ctx context.Context, spec WorkspaceSpec) (profile string, problem error) {
 	p := m.p
 	if spec.Profile != "" {
 		profile, created, err := p.Profiles.Ensure(ctx, spec.Profile)

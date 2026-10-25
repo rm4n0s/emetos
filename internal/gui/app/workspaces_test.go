@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,8 +25,8 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
-// The tests of several windows in one process (step 7.8): the manager of the windows over the real Glutter
-// windows of the widget tester (Tester.Windows).
+// The tests of the workspace tabs of the one window (step 9b.1; they were the tests of several windows of step 7.8):
+// the manager of the tabs over the implicit window of the widget tester, which makes no other window.
 
 // multiEnv is the folders of a user: what several runs of the program (several multiApp) share.
 type multiEnv struct {
@@ -58,13 +57,13 @@ func (e *multiEnv) folder(name string, files ...string) string {
 	return dir
 }
 
-// multiApp is one run of the program: its process and its windows, shown in a tester.
+// multiApp is one run of the program: its process and its tabs, shown in a tester.
 type multiApp struct {
 	t     *testing.T
 	env   *multiEnv
 	ts    *gluttertest.Tester
 	p     *Process
-	m     *Windows
+	m     *Workspaces
 	ctx   context.Context
 	quits int
 }
@@ -84,16 +83,16 @@ func (e *multiEnv) runWith(opts Options, po ProcessOptions) *multiApp {
 	}
 	ctx := e.t.Context()
 	p := newTestProcess(po)
-	a := &multiApp{t: e.t, env: e, p: p, m: p.Windows, ctx: ctx}
+	a := &multiApp{t: e.t, env: e, p: p, m: p.Workspaces, ctx: ctx}
 	a.m.ctx = ctx
 	a.m.Quit = func() { a.quits++ }
-	entry, first, err := a.m.start(ctx, opts)
+	shown, err := a.m.start(ctx, opts)
 	if err != nil {
 		e.t.Fatalf("start: %v", err)
 	}
-	first.steps = nil
+	shown.steps = nil
 	a.ts = testutil.New(e.t, ui.Size{Width: 1000, Height: 700})
-	a.ts.PumpWidget(a.m.hostWidget(entry))
+	a.ts.PumpWidget(a.m.hostWidget())
 	a.settle()
 	return a
 }
@@ -129,19 +128,12 @@ func (a *multiApp) folders() []string {
 	return out
 }
 
-// alive are the Glutter windows the app made that are not destroyed.
-func (a *multiApp) alive() []gluttertest.TestWindow {
-	var out []gluttertest.TestWindow
-	for _, w := range a.ts.Windows() {
-		if !w.Destroyed {
-			out = append(out, w)
-		}
-	}
-	return out
-}
+// otherWindows are the Glutter windows the app made besides the one window of RunApp: there are none, whatever the
+// tabs do (SPEC §10.14).
+func (a *multiApp) otherWindows() []gluttertest.TestWindow { return a.ts.Windows() }
 
 // shellOf is the shell of a window.
-func (a *multiApp) shellOf(w *Window) *shellState {
+func (a *multiApp) shellOf(w *Workspace) *shellState {
 	a.t.Helper()
 	if w.shell == nil {
 		a.t.Fatalf("the window %q has no shell", w.Folder)
@@ -150,7 +142,7 @@ func (a *multiApp) shellOf(w *Window) *shellState {
 }
 
 // command runs a command in a window.
-func (a *multiApp) command(w *Window, id string, args any) error {
+func (a *multiApp) command(w *Workspace, id string, args any) error {
 	a.t.Helper()
 	err := w.Commands.Run(command.Context{Ctx: a.ctx, Keys: w.Keys, Source: command.SourceAPI}, id, args)
 	a.settle()
@@ -158,7 +150,7 @@ func (a *multiApp) command(w *Window, id string, args any) error {
 }
 
 // open opens a file in a window and makes it dirty.
-func (a *multiApp) edit(w *Window, path string) {
+func (a *multiApp) edit(w *Workspace, path string) {
 	a.t.Helper()
 	if err := a.command(w, "dev.openFile", map[string]any{"path": path}); err != nil {
 		a.t.Fatal(err)
@@ -174,7 +166,7 @@ func (a *multiApp) edit(w *Window, path string) {
 }
 
 // dialog is the message of the dialog that shows in a window, or "".
-func (a *multiApp) dialog(w *Window) string {
+func (a *multiApp) dialog(w *Workspace) string {
 	spec, ok := w.Dialogs.Current()
 	if !ok {
 		return ""
@@ -183,7 +175,7 @@ func (a *multiApp) dialog(w *Window) string {
 }
 
 // answer presses a button of the dialog of a window.
-func (a *multiApp) answer(w *Window, label string) {
+func (a *multiApp) answer(w *Workspace, label string) {
 	a.t.Helper()
 	if !w.Dialogs.IsShowing() {
 		a.t.Fatalf("no dialog shows in %q (looking for %q)", w.Folder, label)
@@ -193,9 +185,9 @@ func (a *multiApp) answer(w *Window, label string) {
 }
 
 // windowOf is the window that has the folder.
-func (a *multiApp) windowOf(folder string) *Window {
+func (a *multiApp) workspaceOf(folder string) *Workspace {
 	a.t.Helper()
-	w := a.m.windowForFolder(folder)
+	w := a.m.workspaceForFolder(folder)
 	if w == nil {
 		a.t.Fatalf("no window has %q (windows: %q)", folder, a.folders())
 	}
@@ -206,179 +198,150 @@ func askAbout(name string) string {
 	return "Do you want to save the changes you made to " + name + "?"
 }
 
-func TestWindowsListsTheWindowsInTheOrderTheyWereMade(t *testing.T) {
+func TestWorkspacesListsTheTabsInTheOrderOfTheStrip(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
 	if got := a.folders(); !slices.Equal(got, []string{one}) {
-		t.Fatalf("windows %q", got)
+		t.Fatalf("tabs %q", got)
 	}
-	if w, err := a.m.Open(WindowSpec{Folder: two}); err != nil || w.Folder != two {
+	if w, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil || w.Folder != two {
 		t.Fatalf("Open = %v, %v", w, err)
 	}
 	a.settle()
 	if got := a.folders(); !slices.Equal(got, []string{one, two}) {
-		t.Errorf("windows %q", got)
+		t.Errorf("tabs %q", got)
 	}
 	if got := a.m.Active(); got == nil || got.Folder != two {
-		t.Errorf("the window that was made last is the active one: %v", got)
+		t.Errorf("the tab that was opened last is the active one: %v", got)
 	}
-	if n := len(a.alive()); n != 1 {
-		t.Errorf("%d Glutter windows besides the first, want 1", n)
+	// one window holds both tabs: no other Glutter window is made
+	if n := len(a.otherWindows()); n != 0 {
+		t.Errorf("%d Glutter windows besides the first, want 0", n)
 	}
-	// every window has a state id of its own, and its own services
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	// every tab has a kind, a stable id, a state id of its own, and its own services
+	tabs := a.m.Tabs()
+	if len(tabs) != 2 || tabs[0].Kind() != TabWorkspace || tabs[0].ID() == "" || tabs[0].ID() == tabs[1].ID() {
+		t.Errorf("tabs %+v", tabs)
+	}
+	if tabs[0].Workspace().Tab() != tabs[0] {
+		t.Error("a workspace does not know its tab")
+	}
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	if w1.StateID() == "" || w1.StateID() == w2.StateID() {
 		t.Errorf("state ids %q %q", w1.StateID(), w2.StateID())
 	}
 	if w1.Commands == w2.Commands || w1.Notify == w2.Notify || w1.Documents == w2.Documents || w1.Settings == w2.Settings {
-		t.Error("the windows share services that are the window's")
+		t.Error("the tabs share services that are the workspace's")
 	}
 	if w1.Process != w2.Process {
-		t.Error("the windows are of different processes")
+		t.Error("the tabs are of different processes")
 	}
 	if errs := a.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
 	}
 }
 
-func TestAFolderIsNeverOpenInTwoWindows(t *testing.T) {
+func TestAFolderIsNeverOpenInTwoTabs(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
+	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	w, err := a.m.Open(WindowSpec{Folder: one})
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	// opening the folder of the first tab makes that tab the active one
+	w, err := a.m.Open(WorkspaceSpec{Folder: one})
 	if err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	if w != a.m.All()[0] || a.m.Count() != 1 || len(a.alive()) != 0 {
-		t.Errorf("a second window was made for the folder: %d windows, %d Glutter windows", a.m.Count(), len(a.alive()))
+	if w != a.m.All()[0] || a.m.Count() != 2 || a.m.Active() != w {
+		t.Errorf("a second tab was made for the folder: %d tabs, active %v", a.m.Count(), a.m.Active().Folder)
 	}
 	// through a link to the folder too
 	link := filepath.Join(t.TempDir(), "link")
-	if err := os.Symlink(one, link); err != nil {
+	if err := os.Symlink(two, link); err != nil {
 		t.Skip("no symbolic links")
 	}
-	if w, err := a.m.Open(WindowSpec{Folder: link}); err != nil || w.Folder != one || a.m.Count() != 1 {
-		t.Errorf("Open(link) = %v, %v with %d windows", w, err, a.m.Count())
+	if w, err := a.m.Open(WorkspaceSpec{Folder: link}); err != nil || w.Folder != two || a.m.Count() != 2 || a.m.Active() != w {
+		t.Errorf("Open(link) = %v, %v with %d tabs", w, err, a.m.Count())
 	}
 }
 
-func TestNewWindowOpensAnEmptyWindowWithItsOwnState(t *testing.T) {
+func TestNewWorkspaceTabOpensAnEmptyTabWithItsOwnState(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
 	a := env.run(Options{Folder: one})
-	w1 := a.windowOf(one)
+	w1 := a.workspaceOf(one)
 	// the command through the key, as the dispatcher runs it
 	if !sendChord(a.ts, chordOf(t, "ctrl+shift+n")) {
 		t.Fatal("ctrl+shift+n was not used")
 	}
 	a.settle()
 	if a.m.Count() != 2 {
-		t.Fatalf("%d windows after New Window, want 2", a.m.Count())
+		t.Fatalf("%d tabs after New Workspace Tab, want 2", a.m.Count())
 	}
 	w2 := a.m.All()[1]
 	if w2.Folder != "" || w2.Workspace != nil || len(w2.Documents.All()) != 0 {
-		t.Errorf("the new window is not empty: folder %q, %d documents", w2.Folder, len(w2.Documents.All()))
+		t.Errorf("the new tab is not empty: folder %q, %d documents", w2.Folder, len(w2.Documents.All()))
 	}
 	if w2.StateID() == "" || w2.StateID() == w1.StateID() {
 		t.Errorf("state ids %q and %q", w1.StateID(), w2.StateID())
 	}
 	if w1.Documents == w2.Documents {
-		t.Error("the new window shares the documents")
+		t.Error("the new tab shares the documents")
 	}
-	// a second one has an id of its own too
+	// a second one has an id of its own too, and opens after the active tab
+	a.m.Activate(w1.Tab())
 	if err := a.command(w1, "workbench.action.newWindow", nil); err != nil {
 		t.Fatal(err)
 	}
-	w3 := a.m.All()[2]
+	if a.m.Count() != 3 {
+		t.Fatalf("%d tabs", a.m.Count())
+	}
+	w3 := a.m.Active()
 	if w3.StateID() == w2.StateID() || w3.StateID() == w1.StateID() {
-		t.Errorf("state id %q of the third window is not new", w3.StateID())
+		t.Errorf("state id %q of the third tab is not new", w3.StateID())
 	}
-	if got := a.alive(); len(got) != 2 || got[0].Spec.Size.Width != float64(defaultGeometry.Width) {
-		t.Errorf("Glutter windows %+v", got)
+	if a.m.All()[1] != w3 {
+		t.Errorf("a tab opens after the one that was active: %q", a.folders())
 	}
-	// the open windows are noted in the global state
+	// the open tabs are noted in the global state, in the order of the strip
 	g, _ := a.p.State.LoadGlobal(a.ctx)
-	if len(g.OpenWindows) != 3 || g.OpenWindows[0].Folder != one || g.OpenWindows[1].ID != w2.StateID() {
-		t.Errorf("open windows %+v", g.OpenWindows)
+	if len(g.WorkspaceTabs) != 3 || g.WorkspaceTabs[0].Folder != one || g.WorkspaceTabs[1].StateID != w3.StateID() || g.WorkspaceTabs[2].StateID != w2.StateID() {
+		t.Errorf("tabs %+v", g.WorkspaceTabs)
+	}
+	if g.ActiveWorkspaceTab != a.m.ActiveTab().ID() {
+		t.Errorf("active tab %q, want %q", g.ActiveWorkspaceTab, a.m.ActiveTab().ID())
+	}
+	if len(g.OpenWindows) != 0 {
+		t.Errorf("the list of windows of an older Emetos is written again: %+v", g.OpenWindows)
 	}
 	if errs := a.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
 	}
 }
 
-// A platform that cannot make the window leaves the windows as they were, and the error is WindowCreateFailed.
-func TestAWindowThePlatformCannotMakeIsNotKept(t *testing.T) {
+// No window is made besides the one of RunApp, whatever opens: the platform is never asked for a regular window.
+func TestNoGlutterWindowIsMadeForATab(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
+	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
+	// a platform that could not make a window is of no consequence
 	a.ts.SetWindowCreateError(os.ErrPermission)
-	_, err := a.m.Open(WindowSpec{})
-	appErr, ok := errors.FromError(err)
-	if !ok {
-		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
+		t.Fatalf("Open: %v", err)
 	}
-	if appErr.Tag != "WindowCreateFailed" || !appErr.HasRoute("Windows.Open->Windows.openFrom.WindowCreateFailed") {
-		t.Errorf("Tag = %q, route = %s", appErr.Tag, appErr.Route())
-	}
-	if !errors.Is(err, os.ErrPermission) {
-		t.Errorf("the cause is lost: %v", err)
+	if _, err := a.m.NewTab(); err != nil {
+		t.Fatalf("NewTab: %v", err)
 	}
 	a.settle()
-	// the first window is the implicit one, which the tester does not list
-	if a.m.Count() != 1 || len(a.alive()) != 0 {
-		t.Errorf("%d windows, %d Glutter windows, want 1 and 0", a.m.Count(), len(a.alive()))
-	}
-	// and a platform that works again makes the window
-	a.ts.SetWindowCreateError(nil)
-	if _, err := a.m.Open(WindowSpec{}); err != nil {
-		t.Fatal(err)
-	}
-	a.settle()
-	if a.m.Count() != 2 || len(a.alive()) != 1 {
-		t.Errorf("%d windows, %d Glutter windows after the retry, want 2 and 1", a.m.Count(), len(a.alive()))
-	}
-}
-
-func TestNewWindowDimensions(t *testing.T) {
-	tests := []struct {
-		setting    string
-		wantSize   ui.Size
-		maximized  bool
-		fullscreen bool
-	}{
-		{"default", ui.Size{Width: 1280, Height: 800}, false, false},
-		{"inherit", ui.Size{Width: 1000, Height: 700}, false, false},
-		{"offset", ui.Size{Width: 1000, Height: 700}, false, false},
-		{"maximized", ui.Size{Width: 1280, Height: 800}, true, false},
-		{"fullscreen", ui.Size{Width: 1280, Height: 800}, false, true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.setting, func(t *testing.T) {
-			env := newMultiEnv(t, map[string]any{"window.newWindowDimensions": tc.setting})
-			a := env.run(Options{})
-			if _, err := a.m.NewWindow(); err != nil {
-				t.Fatal(err)
-			}
-			a.settle()
-			wins := a.alive()
-			if len(wins) != 1 {
-				t.Fatalf("%d windows", len(wins))
-			}
-			if wins[0].Spec.Size != tc.wantSize {
-				t.Errorf("size %v, want %v", wins[0].Spec.Size, tc.wantSize)
-			}
-			var maximized, fullscreen bool
-			for _, act := range a.ts.ViewActions(wins[0].View) {
-				maximized = maximized || act.Kind == ui.WindowActionMaximize
-				fullscreen = fullscreen || act.Kind == ui.WindowActionFullscreen
-			}
-			if maximized != tc.maximized || fullscreen != tc.fullscreen {
-				t.Errorf("maximized %v fullscreen %v", maximized, fullscreen)
-			}
-		})
+	if a.m.Count() != 3 || len(a.otherWindows()) != 0 {
+		t.Errorf("%d tabs, %d Glutter windows, want 3 and 0", a.m.Count(), len(a.otherWindows()))
 	}
 }
 
@@ -398,20 +361,20 @@ func TestPlaceFolder(t *testing.T) {
 		{"open, off", folderRequest{Setting: "off", Source: app, Open: true}, PlaceFocus},
 		{"open, new window", folderRequest{Setting: "off", Source: launch, ForceNew: true, Open: true}, PlaceFocus},
 		// the options of the command line win over the setting
-		{"--new-window with off", folderRequest{Setting: "off", Source: launch, ForceNew: true}, PlaceNewWindow},
-		{"--reuse-window with on", folderRequest{Setting: "on", Source: launch, ForceReuse: true}, PlaceSameWindow},
-		{"--new-window from the app", folderRequest{Setting: "default", Source: app, ForceNew: true}, PlaceNewWindow},
+		{"--new-window with off", folderRequest{Setting: "off", Source: launch, ForceNew: true}, PlaceNewTab},
+		{"--reuse-window with on", folderRequest{Setting: "on", Source: launch, ForceReuse: true}, PlaceSameTab},
+		{"--new-window from the app", folderRequest{Setting: "default", Source: app, ForceNew: true}, PlaceNewTab},
 		// the setting
-		{"on, app", folderRequest{Setting: "on", Source: app}, PlaceNewWindow},
-		{"on, launch", folderRequest{Setting: "on", Source: launch}, PlaceNewWindow},
-		{"off, app", folderRequest{Setting: "off", Source: app}, PlaceSameWindow},
-		{"off, launch", folderRequest{Setting: "off", Source: launch}, PlaceSameWindow},
-		{"default, app", folderRequest{Setting: "default", Source: app}, PlaceSameWindow},
-		{"default, launch", folderRequest{Setting: "default", Source: launch}, PlaceNewWindow},
-		{"default, launch, the window is empty", folderRequest{Setting: "default", Source: launch, TargetEmpty: true}, PlaceSameWindow},
-		{"on, launch, the window is empty", folderRequest{Setting: "on", Source: launch, TargetEmpty: true}, PlaceNewWindow},
-		{"a value that is not one", folderRequest{Setting: "maybe", Source: launch}, PlaceNewWindow},
-		{"a value that is not one, app", folderRequest{Setting: "", Source: app}, PlaceSameWindow},
+		{"on, app", folderRequest{Setting: "on", Source: app}, PlaceNewTab},
+		{"on, launch", folderRequest{Setting: "on", Source: launch}, PlaceNewTab},
+		{"off, app", folderRequest{Setting: "off", Source: app}, PlaceSameTab},
+		{"off, launch", folderRequest{Setting: "off", Source: launch}, PlaceSameTab},
+		{"default, app", folderRequest{Setting: "default", Source: app}, PlaceSameTab},
+		{"default, launch", folderRequest{Setting: "default", Source: launch}, PlaceNewTab},
+		{"default, launch, the window is empty", folderRequest{Setting: "default", Source: launch, TargetEmpty: true}, PlaceSameTab},
+		{"on, launch, the window is empty", folderRequest{Setting: "on", Source: launch, TargetEmpty: true}, PlaceNewTab},
+		{"a value that is not one", folderRequest{Setting: "maybe", Source: launch}, PlaceNewTab},
+		{"a value that is not one, app", folderRequest{Setting: "", Source: app}, PlaceSameTab},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -447,19 +410,19 @@ func TestPlaceFiles(t *testing.T) {
 func TestOpenFolderFollowsTheSettingForEverySource(t *testing.T) {
 	type source struct {
 		name string
-		do   func(a *multiApp, from *Window, folder string)
+		do   func(a *multiApp, from *Workspace, folder string)
 	}
 	sources := []source{
-		{"Open Recent", func(a *multiApp, from *Window, folder string) {
+		{"Open Recent", func(a *multiApp, from *Workspace, folder string) {
 			if err := a.command(from, "openRecentFolder", folder); err != nil {
 				a.t.Fatal(err)
 			}
 		}},
-		{"the manager (a folder picked in the app)", func(a *multiApp, from *Window, folder string) {
+		{"the manager (a folder picked in the app)", func(a *multiApp, from *Workspace, folder string) {
 			a.m.OpenFolder(from, folder, FolderFromApp, false, false, nil)
 			a.settle()
 		}},
-		{"a launch", func(a *multiApp, from *Window, folder string) {
+		{"a launch", func(a *multiApp, from *Workspace, folder string) {
 			a.m.HandleLaunch(ipcOpen(folder), func(LaunchOutcome) {})
 			a.settle()
 		}},
@@ -481,7 +444,7 @@ func TestOpenFolderFollowsTheSettingForEverySource(t *testing.T) {
 				other := env.folder("other", "b.go")
 				a := env.run(Options{Folder: one})
 				src.do(a, a.m.All()[0], other)
-				a.waitFor("the folder", func() bool { return a.m.windowForFolder(other) != nil })
+				a.waitFor("the folder", func() bool { return a.m.workspaceForFolder(other) != nil })
 				if tc.wantNew[i] {
 					if got := a.folders(); !slices.Equal(got, []string{one, other}) {
 						t.Errorf("windows %q, want a new one", got)
@@ -501,16 +464,16 @@ func TestAnOpenFolderComesToTheFrontInsteadOfOpeningAgain(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1 := a.windowOf(one)
+	w1 := a.workspaceOf(one)
 	if a.m.Active() == w1 {
 		t.Fatal("the first window is the active one already")
 	}
-	var got *Window
-	a.m.OpenFolder(a.m.Active(), one, FolderFromApp, false, false, func(w *Window) { got = w })
+	var got *Workspace
+	a.m.OpenFolder(a.m.Active(), one, FolderFromApp, false, false, func(w *Workspace) { got = w })
 	a.settle()
 	if got != w1 || a.m.Active() != w1 || a.m.Count() != 2 {
 		t.Errorf("got %v active %v with %d windows", got, a.m.Active(), a.m.Count())
@@ -521,14 +484,15 @@ func TestAnOpenFolderComesToTheFrontInsteadOfOpeningAgain(t *testing.T) {
 	}
 }
 
-func TestOpeningAFolderInTheSameWindowRecreatesTheWindow(t *testing.T) {
+func TestOpeningAFolderInTheSameTabRecreatesTheWorkspace(t *testing.T) {
 	env := newMultiEnv(t, map[string]any{"window.openFoldersInNewWindow": "off"})
 	one := env.folder("one", "a.go", "b.go")
 	other := env.folder("other", "c.go")
 	a := env.run(Options{Folder: one})
-	old := a.windowOf(one)
+	old := a.workspaceOf(one)
+	tab := old.Tab()
 	a.edit(old, filepath.Join(one, "a.go"))
-	// the window has unsaved changes: the folder waits for the answer, and Cancel keeps the window as it is
+	// the tab has unsaved changes: the folder waits for the answer, and Cancel keeps the tab as it is
 	a.m.OpenFolder(old, other, FolderFromApp, false, false, nil)
 	a.settle()
 	if got := a.dialog(old); got != askAbout("a.go") {
@@ -545,14 +509,17 @@ func TestOpeningAFolderInTheSameWindowRecreatesTheWindow(t *testing.T) {
 	next := a.m.All()[0]
 	a.settle()
 	if next == old || a.m.Count() != 1 {
-		t.Fatalf("the window was not made again: %d windows", a.m.Count())
+		t.Fatalf("the workspace was not made again: %d tabs", a.m.Count())
+	}
+	if next.Tab() != tab || tab.Workspace() != next || a.m.Tabs()[0] != tab {
+		t.Error("the tab did not keep its place and its identity")
 	}
 	if next.StateID() == old.StateID() || next.Folder != other || next.Workspace == nil {
 		t.Errorf("the new window: state id %q folder %q", next.StateID(), next.Folder)
 	}
 	// the services of the old window are disposed and those of the new one run
-	if old.shell != nil || old.entry != nil {
-		t.Error("the old window is still shown")
+	if old.shell != nil || old.Tab() != nil {
+		t.Error("the old workspace is still shown")
 	}
 	if old.Backups() != nil {
 		t.Error("the backups of the old window are still tracked")
@@ -564,11 +531,11 @@ func TestOpeningAFolderInTheSameWindowRecreatesTheWindow(t *testing.T) {
 		t.Error("the old window keeps documents")
 	}
 	if got := a.ts.Windows(); len(got) != 0 {
-		t.Errorf("a Glutter window was made for a window that replaces another: %+v", got)
+		t.Errorf("a Glutter window was made for a workspace that replaces another: %+v", got)
 	}
 	g, _ := a.p.State.LoadGlobal(a.ctx)
-	if len(g.OpenWindows) != 1 || g.OpenWindows[0].Folder != other || g.LastWindow == nil || g.LastWindow.Folder != other {
-		t.Errorf("global state: windows %+v last %+v", g.OpenWindows, g.LastWindow)
+	if len(g.WorkspaceTabs) != 1 || g.WorkspaceTabs[0].Folder != other || g.WorkspaceTabs[0].ID != tab.ID() || g.LastWindow == nil || g.LastWindow.Folder != other {
+		t.Errorf("global state: tabs %+v last %+v", g.WorkspaceTabs, g.LastWindow)
 	}
 	if errs := a.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
@@ -581,18 +548,18 @@ func TestOpeningAFolderRestoresItsSavedState(t *testing.T) {
 	other := env.folder("other", "c.go", "d.go")
 	// a run that leaves editors in the second folder
 	first := env.run(Options{Folder: other})
-	first.edit(first.windowOf(other), filepath.Join(other, "d.go"))
-	if err := first.command(first.windowOf(other), "workbench.action.files.save", nil); err != nil {
+	first.edit(first.workspaceOf(other), filepath.Join(other, "d.go"))
+	if err := first.command(first.workspaceOf(other), "workbench.action.files.save", nil); err != nil {
 		t.Fatal(err)
 	}
-	first.windowOf(other).RequestClose(CloseReasonQuit)
+	first.workspaceOf(other).RequestClose(CloseReasonQuit)
 	first.settle()
 	if first.quits != 1 {
 		t.Fatalf("quit %d times", first.quits)
 	}
 	// a run in the first folder opens the second in the same window: its editors come back
 	a := env.run(Options{Folder: one})
-	old := a.windowOf(one)
+	old := a.workspaceOf(one)
 	a.m.OpenFolder(old, other, FolderFromApp, false, false, nil)
 	a.waitFor("the folder", func() bool { return a.m.All()[0].Folder == other })
 	a.settle()
@@ -607,74 +574,135 @@ func TestOpeningAFolderRestoresItsSavedState(t *testing.T) {
 	a.waitFor("the saved editors", func() bool { return slices.Contains(names(), "d.go") })
 }
 
-func TestClosingOneWindowAsksOnlyAboutItsDocuments(t *testing.T) {
+func TestClosingOneTabAsksOnlyAboutItsDocuments(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	a.edit(w1, filepath.Join(one, "a.go"))
 	a.edit(w2, filepath.Join(two, "b.go"))
-	w2.RequestClose(CloseReasonWindow)
+	w2.RequestClose(CloseReasonTab)
 	a.settle()
 	if got := a.dialog(w2); got != askAbout("b.go") {
-		t.Fatalf("the dialog of the closing window says %q", got)
+		t.Fatalf("the dialog of the closing tab says %q", got)
 	}
 	if got := a.dialog(w1); got != "" {
-		t.Errorf("the other window asks %q", got)
+		t.Errorf("the other tab asks %q", got)
 	}
 	// Cancel keeps both
 	a.answer(w2, "Cancel")
-	if a.m.Count() != 2 || a.quits != 0 || len(a.alive()) != 1 {
-		t.Fatalf("after Cancel: %d windows, %d quits, %d Glutter windows", a.m.Count(), a.quits, len(a.alive()))
+	if a.m.Count() != 2 || a.quits != 0 {
+		t.Fatalf("after Cancel: %d tabs, %d quits", a.m.Count(), a.quits)
 	}
-	w2.RequestClose(CloseReasonWindow)
+	w2.RequestClose(CloseReasonTab)
 	a.settle()
 	a.answer(w2, "Don't Save")
-	a.waitFor("the window to go", func() bool { return a.m.Count() == 1 })
+	a.waitFor("the tab to go", func() bool { return a.m.Count() == 1 })
 	a.settle()
 	if a.quits != 0 {
-		t.Error("the application quit although a window stays")
+		t.Error("the application quit although a tab stays")
 	}
-	if len(a.alive()) != 0 || !a.ts.Windows()[0].Destroyed {
-		t.Errorf("the Glutter window of the closed window is not destroyed: %+v", a.ts.Windows())
-	}
-	if w2.shell != nil || w2.Backups() != nil {
-		t.Error("the closed window still has services")
+	if w2.shell != nil || w2.Backups() != nil || w2.Tab() != nil {
+		t.Error("the closed tab still has services")
 	}
 	if a.m.Active() != w1 || a.dialog(w1) != "" {
-		t.Errorf("the other window: active %v dialog %q", a.m.Active() == w1, a.dialog(w1))
+		t.Errorf("the other tab: active %v dialog %q", a.m.Active() == w1, a.dialog(w1))
 	}
-	// the list of the open windows no longer has it
+	if n := len(a.otherWindows()); n != 0 {
+		t.Errorf("%d Glutter windows", n)
+	}
+	// the list of the open tabs no longer has it
 	g, _ := a.p.State.LoadGlobal(a.ctx)
-	if len(g.OpenWindows) != 1 || g.OpenWindows[0].Folder != one {
-		t.Errorf("open windows %+v", g.OpenWindows)
-	}
-	// the last window closing quits
-	w1.RequestClose(CloseReasonWindow)
-	a.settle()
-	a.answer(w1, "Don't Save")
-	a.waitFor("the quit", func() bool { return a.quits == 1 })
-	if a.quits != 1 {
-		t.Errorf("quit %d times", a.quits)
+	if len(g.WorkspaceTabs) != 1 || g.WorkspaceTabs[0].Folder != one || g.ActiveWorkspaceTab != g.WorkspaceTabs[0].ID {
+		t.Errorf("tabs %+v active %q", g.WorkspaceTabs, g.ActiveWorkspaceTab)
 	}
 }
 
-func TestQuitAsksEveryWindowInTurn(t *testing.T) {
-	setup := func(t *testing.T) (*multiApp, *Window, *Window) {
+func TestClosingTheLastTabLeavesANoFolderTab(t *testing.T) {
+	env := newMultiEnv(t, nil)
+	one := env.folder("one", "a.go")
+	a := env.run(Options{Folder: one})
+	w1 := a.workspaceOf(one)
+	a.edit(w1, filepath.Join(one, "a.go"))
+	w1.RequestClose(CloseReasonTab)
+	a.settle()
+	if got := a.dialog(w1); got != askAbout("a.go") {
+		t.Fatalf("the dialog says %q", got)
+	}
+	// Cancel keeps the tab
+	a.answer(w1, "Cancel")
+	if a.m.Count() != 1 || a.m.Active() != w1 {
+		t.Fatalf("after Cancel: %d tabs", a.m.Count())
+	}
+	w1.RequestClose(CloseReasonTab)
+	a.settle()
+	a.answer(w1, "Don't Save")
+	a.waitFor("the new tab", func() bool { return a.m.Count() == 1 && a.m.Active() != w1 })
+	a.settle()
+	next := a.m.Active()
+	if next.Folder != "" || next.Workspace != nil || len(next.Documents.All()) != 0 || a.m.Tabs()[0].Kind() != TabWorkspace {
+		t.Errorf("the tab that is left is not an empty workspace: %q", next.Folder)
+	}
+	if next.shell == nil || !next.shell.Mounted() {
+		t.Error("the new tab is not shown")
+	}
+	if a.quits != 0 {
+		t.Error("closing the last tab quit the application")
+	}
+	g, _ := a.p.State.LoadGlobal(a.ctx)
+	if len(g.WorkspaceTabs) != 1 || g.WorkspaceTabs[0].Folder != "" || g.WorkspaceTabs[0].StateID != next.StateID() {
+		t.Errorf("tabs %+v", g.WorkspaceTabs)
+	}
+	// and the No Folder tab closing leaves another one
+	next.RequestClose(CloseReasonTab)
+	a.waitFor("a new No Folder tab", func() bool { return a.m.Count() == 1 && a.m.Active() != next })
+	if a.m.Active().StateID() == next.StateID() {
+		t.Error("the new No Folder tab has the state of the one that closed")
+	}
+}
+
+func TestClosingATabThatIsNotActiveBringsItToTheFrontForTheDialog(t *testing.T) {
+	env := newMultiEnv(t, nil)
+	one := env.folder("one", "a.go")
+	two := env.folder("two", "b.go")
+	a := env.run(Options{Folder: one})
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
+	a.edit(w1, filepath.Join(one, "a.go"))
+	if a.m.Active() != w2 {
+		t.Fatal("the second tab is not the active one")
+	}
+	w1.RequestClose(CloseReasonTab)
+	a.settle()
+	if a.m.Active() != w1 || a.dialog(w1) != askAbout("a.go") {
+		t.Errorf("active %q dialog %q", a.m.Active().Folder, a.dialog(w1))
+	}
+	a.answer(w1, "Don't Save")
+	a.waitFor("the tab to go", func() bool { return a.m.Count() == 1 })
+	if a.m.Active() != w2 {
+		t.Error("the tab that was active before is not the active one again")
+	}
+}
+
+func TestQuitAsksEveryTabInTurn(t *testing.T) {
+	setup := func(t *testing.T) (*multiApp, *Workspace, *Workspace) {
 		env := newMultiEnv(t, nil)
 		one := env.folder("one", "a.go")
 		two := env.folder("two", "b.go")
 		a := env.run(Options{Folder: one})
-		if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+		if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 			t.Fatal(err)
 		}
 		a.settle()
-		w1, w2 := a.windowOf(one), a.windowOf(two)
+		w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 		a.edit(w1, filepath.Join(one, "a.go"))
 		a.edit(w2, filepath.Join(two, "b.go"))
 		return a, w1, w2
@@ -683,7 +711,7 @@ func TestQuitAsksEveryWindowInTurn(t *testing.T) {
 		a, w1, w2 := setup(t)
 		w2.RequestClose(CloseReasonQuit)
 		a.settle()
-		// the windows are asked in the order they were made, whichever asked
+		// the tabs are asked in the order of the strip, whichever asked
 		if got := a.dialog(w1); got != askAbout("a.go") || a.dialog(w2) != "" {
 			t.Fatalf("first window asks %q, second %q", got, a.dialog(w2))
 		}
@@ -692,8 +720,8 @@ func TestQuitAsksEveryWindowInTurn(t *testing.T) {
 			t.Fatalf("second window asks %q", got)
 		}
 		a.answer(w2, "Cancel")
-		if a.quits != 0 || a.m.Count() != 2 || len(a.alive()) != 1 {
-			t.Errorf("quits %d windows %d Glutter windows %d", a.quits, a.m.Count(), len(a.alive()))
+		if a.quits != 0 || a.m.Count() != 2 {
+			t.Errorf("quits %d tabs %d", a.quits, a.m.Count())
 		}
 		// the first window answered "Don't Save", but nothing was closed: the changes are still there
 		if !w1.Documents.All()[0].Dirty() {
@@ -727,7 +755,7 @@ func TestQuitAsksEveryWindowInTurn(t *testing.T) {
 		a.waitFor("the second question", func() bool { return a.dialog(w2) != "" })
 		a.answer(w2, "Save")
 		a.waitFor("the quit", func() bool { return a.quits == 1 })
-		for _, w := range []*Window{w1, w2} {
+		for _, w := range []*Workspace{w1, w2} {
 			for _, doc := range w.Documents.All() {
 				if doc.Dirty() {
 					t.Errorf("%s is still dirty", doc.URI())
@@ -735,49 +763,41 @@ func TestQuitAsksEveryWindowInTurn(t *testing.T) {
 			}
 		}
 	})
-	t.Run("the window the dialog asks in comes to the front", func(t *testing.T) {
+	t.Run("the tab the dialog asks in becomes the active one", func(t *testing.T) {
 		a, w1, w2 := setup(t)
 		w2.RequestClose(CloseReasonQuit)
 		a.settle()
 		a.answer(w1, "Don't Save")
 		if a.m.Active() != w2 {
-			t.Errorf("the window that asks is not the active one")
+			t.Errorf("the tab that asks is not the active one")
 		}
 	})
 }
 
-func TestTheFirstWindowCanCloseWhileOthersStay(t *testing.T) {
+func TestTheCloseButtonOfTheWindowIsAQuitOverEveryTab(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
-	// the platform's request to close the first window is the one Glutter gives the app
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
+	a.edit(w1, filepath.Join(one, "a.go"))
+	// the platform's request to close the window is the one Glutter gives the app: it is not carried out before the
+	// questions, and it asks every tab (TODO(step 9b.4): the tray hides the window instead)
 	if closes := a.ts.RequestWindowClose(ui.ImplicitViewID); closes {
-		t.Fatal("the platform would close the first window before the question")
-	}
-	a.waitFor("the first window to go", func() bool { return a.m.Count() == 1 })
-	a.settle()
-	if a.m.All()[0] != w2 || a.quits != 0 {
-		t.Fatalf("windows %q quits %d", a.folders(), a.quits)
-	}
-	if !a.ts.WindowHidden(ui.ImplicitViewID) {
-		t.Error("the first Glutter window, which cannot be dropped, is not hidden")
-	}
-	if w1.shell != nil || w1.Backups() != nil {
-		t.Error("the first window still has its services")
-	}
-	// closing the one that is left quits
-	if closes := a.ts.RequestWindowClose(a.ts.Windows()[0].View); closes {
 		t.Fatal("the platform would close the window before the question")
 	}
+	a.settle()
+	if got := a.dialog(w1); got != askAbout("a.go") || a.m.Active() != w1 {
+		t.Fatalf("the first tab asks %q (active %q)", got, a.m.Active().Folder)
+	}
+	a.answer(w1, "Don't Save")
 	a.waitFor("the quit", func() bool { return a.quits == 1 })
-	if a.quits != 1 {
-		t.Errorf("quit %d times", a.quits)
+	if a.m.Count() != 2 || w2.shell == nil {
+		t.Errorf("%d tabs after the quit was agreed", a.m.Count())
 	}
 }
 
@@ -786,16 +806,16 @@ func TestTheApplicationsRequestToExitIsAQuit(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	a.edit(a.windowOf(two), filepath.Join(two, "b.go"))
+	a.edit(a.workspaceOf(two), filepath.Join(two, "b.go"))
 	if resp := a.ts.Binding.HandleRequestAppExit(); resp != ui.AppExitResponseCancel {
 		t.Errorf("the response is %v: the application ends itself", resp)
 	}
 	a.settle()
-	if got := a.dialog(a.windowOf(two)); got != askAbout("b.go") {
+	if got := a.dialog(a.workspaceOf(two)); got != askAbout("b.go") {
 		t.Errorf("the dialog says %q", got)
 	}
 }
@@ -805,15 +825,15 @@ func TestSettingsReachEveryWindow(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	if err := w1.Settings.Update(a.ctx, "editor.fontSize", 21, settings.TargetUser); err != nil {
 		t.Fatal(err)
 	}
-	for _, w := range []*Window{w1, w2} {
+	for _, w := range []*Workspace{w1, w2} {
 		if got := settings.Get[float64](w.Settings, "editor.fontSize", ""); got != 21 {
 			t.Errorf("editor.fontSize = %v in %q", got, w.Folder)
 		}
@@ -839,11 +859,11 @@ func TestCommandsAndNotificationsBelongToTheWindow(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	// a command opens the file in the window it runs in
 	if err := a.command(w1, "dev.openFile", filepath.Join(one, "a.go")); err != nil {
 		t.Fatal(err)
@@ -864,11 +884,11 @@ func TestSwitchWindowPicksAWindow(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	if err := a.command(w2, "workbench.action.switchWindow", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -903,13 +923,13 @@ func TestSwitchWindowPicksAWindow(t *testing.T) {
 	}
 }
 
-func TestDevOpenFolderInNewWindow(t *testing.T) {
+func TestDevOpenFolderInNewTab(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	w1 := a.windowOf(one)
-	if err := a.command(w1, "dev.openFolderInNewWindow", map[string]any{"path": two}); err != nil {
+	w1 := a.workspaceOf(one)
+	if err := a.command(w1, "dev.openFolderInNewTab", map[string]any{"path": two}); err != nil {
 		t.Fatal(err)
 	}
 	if got := a.folders(); !slices.Equal(got, []string{one, two}) {
@@ -924,18 +944,18 @@ func TestDevOpenFolderInNewWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.command(w1, "dev.openFolderInNewWindow", rel); err != nil || a.m.Count() != 2 {
+	if err := a.command(w1, "dev.openFolderInNewTab", rel); err != nil || a.m.Count() != 2 {
 		t.Errorf("an open folder by a relative path: %v with %d windows", err, a.m.Count())
 	}
 	// a folder that is not there fails with the tag of the workspace
-	err = a.command(w1, "dev.openFolderInNewWindow", map[string]any{"path": filepath.Join(one, "nothing")})
+	err = a.command(w1, "dev.openFolderInNewTab", map[string]any{"path": filepath.Join(one, "nothing")})
 	appErr, ok := errors.FromError(err)
 	if !ok || !appErr.HasRoute("WorkspaceFolderNotFound") {
 		t.Errorf("error %v", err)
 	}
 }
 
-func TestParseOpenFolderInNewWindow(t *testing.T) {
+func TestParseOpenFolderInNewTab(t *testing.T) {
 	getwd := func() (string, error) { return "/work", nil }
 	tests := []struct {
 		name string
@@ -946,15 +966,15 @@ func TestParseOpenFolderInNewWindow(t *testing.T) {
 		{"a path", "/a/b", "/a/b", ""},
 		{"an object", map[string]any{"path": "/a/b/"}, "/a/b", ""},
 		{"relative", map[string]any{"path": "x/y"}, "/work/x/y", ""},
-		{"nothing", nil, "", "parseOpenFolderInNewWindow.DevOpenFolderInvalid"},
-		{"a number", 3.0, "", "parseOpenFolderInNewWindow.DevOpenFolderInvalid"},
-		{"an empty path", "", "", "parseOpenFolderInNewWindow.DevOpenFolderInvalid"},
-		{"no path", map[string]any{"folder": "/a"}, "", "parseOpenFolderInNewWindow.DevOpenFolderInvalid"},
-		{"a path that is not a text", map[string]any{"path": 4.0}, "", "parseOpenFolderInNewWindow.DevOpenFolderInvalid"},
+		{"nothing", nil, "", "parseOpenFolderInNewTab.DevOpenFolderInvalid"},
+		{"a number", 3.0, "", "parseOpenFolderInNewTab.DevOpenFolderInvalid"},
+		{"an empty path", "", "", "parseOpenFolderInNewTab.DevOpenFolderInvalid"},
+		{"no path", map[string]any{"folder": "/a"}, "", "parseOpenFolderInNewTab.DevOpenFolderInvalid"},
+		{"a path that is not a text", map[string]any{"path": 4.0}, "", "parseOpenFolderInNewTab.DevOpenFolderInvalid"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseOpenFolderInNewWindow(tc.args, getwd)
+			got, err := parseOpenFolderInNewTab(tc.args, getwd)
 			if tc.tag == "" {
 				if err != nil || got != tc.want {
 					t.Errorf("got %q, %v, want %q", got, err, tc.want)
@@ -968,25 +988,9 @@ func TestParseOpenFolderInNewWindow(t *testing.T) {
 		})
 	}
 	// a working directory that cannot be found
-	_, err := parseOpenFolderInNewWindow("x", func() (string, error) { return "", os.ErrNotExist })
-	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("parseOpenFolderInNewWindow.DevOpenFolderInvalid") {
+	_, err := parseOpenFolderInNewTab("x", func() (string, error) { return "", os.ErrNotExist })
+	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("parseOpenFolderInNewTab.DevOpenFolderInvalid") {
 		t.Errorf("error %v", err)
-	}
-}
-
-func TestWithoutTheWindowManagerTheWindowsCannotBeOpened(t *testing.T) {
-	win := newTestWindow(t, "")
-	_, err := win.Process.Windows.Open(WindowSpec{})
-	appErr, ok := errors.FromError(err)
-	if !ok || !appErr.HasRoute("Windows.openFrom.WindowsUnavailable") && !appErr.HasRoute("WindowsUnavailable") {
-		t.Errorf("error %v", err)
-	}
-	// and the command tells the user
-	if err := win.Commands.Run(command.Context{Ctx: t.Context(), Keys: win.Keys}, "workbench.action.newWindow", nil); err != nil {
-		t.Fatal(err)
-	}
-	if got := win.Notify.Items(); len(got) != 1 || !strings.Contains(got[0].Message, "Cannot open a new window") {
-		t.Errorf("notifications %v", got)
 	}
 }
 
@@ -995,11 +999,11 @@ func TestStateOfTheOpenWindowsIsWrittenOnceAndAgrees(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	// the recently opened lists are the process's: the files of both windows are in the one list
 	a.edit(w1, filepath.Join(one, "a.go"))
 	w1.AddRecentFile(filepath.Join(one, "a.go"))
@@ -1025,18 +1029,18 @@ func ipcOpen(folder string) ipc.OpenArgs { return ipc.OpenArgs{Folder: folder} }
 
 // ---- hot exit, restore and launches across windows ----
 
-// openWindowsOf lists the folders of the windows the global state keeps ("" for one without a folder).
-func openWindowsOf(a *multiApp) []string {
+// tabFoldersOf lists the folders of the windows the global state keeps ("" for one without a folder).
+func tabFoldersOf(a *multiApp) []string {
 	g, _ := a.p.State.LoadGlobal(a.ctx)
 	var out []string
-	for _, w := range g.OpenWindows {
+	for _, w := range g.WorkspaceTabs {
 		out = append(out, w.Folder)
 	}
 	return out
 }
 
 // dirtyDocs are the paths of the documents of a window that have unsaved changes.
-func dirtyDocs(w *Window) []string {
+func dirtyDocs(w *Workspace) []string {
 	var out []string
 	for _, d := range w.Documents.All() {
 		if d != nil && d.Dirty() {
@@ -1051,11 +1055,11 @@ func TestQuitBacksUpEveryWindowWithoutAskingAndTheNextStartRestoresBoth(t *testi
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	a.edit(w1, filepath.Join(one, "a.go"))
 	a.edit(w2, filepath.Join(two, "b.go"))
 	w2.RequestClose(CloseReasonQuit)
@@ -1064,7 +1068,7 @@ func TestQuitBacksUpEveryWindowWithoutAskingAndTheNextStartRestoresBoth(t *testi
 		t.Errorf("a dialog asked: %q %q", a.dialog(w1), a.dialog(w2))
 	}
 	// both windows were kept in the list, and each has its backup
-	if got := openWindowsOf(a); !slices.Equal(got, []string{one, two}) {
+	if got := tabFoldersOf(a); !slices.Equal(got, []string{one, two}) {
 		t.Errorf("open windows %q", got)
 	}
 	b := env.run(Options{})
@@ -1073,14 +1077,14 @@ func TestQuitBacksUpEveryWindowWithoutAskingAndTheNextStartRestoresBoth(t *testi
 	if got := b.folders(); !slices.Equal(got, []string{one, two}) {
 		t.Fatalf("restored windows %q", got)
 	}
-	if got := dirtyDocs(b.windowOf(one)); !slices.Equal(got, []string{"a.go"}) {
+	if got := dirtyDocs(b.workspaceOf(one)); !slices.Equal(got, []string{"a.go"}) {
 		t.Errorf("the first window restored %q", got)
 	}
-	if got := dirtyDocs(b.windowOf(two)); !slices.Equal(got, []string{"b.go"}) {
+	if got := dirtyDocs(b.workspaceOf(two)); !slices.Equal(got, []string{"b.go"}) {
 		t.Errorf("the second window restored %q", got)
 	}
 	// the window that was active last is the active one again
-	if b.m.Active() != b.windowOf(two) {
+	if b.m.Active() != b.workspaceOf(two) {
 		t.Errorf("the active window is %q", b.m.Active().Folder)
 	}
 	if errs := b.ts.TakeErrors(); len(errs) != 0 {
@@ -1098,13 +1102,13 @@ func TestClosingOneWindowAsksWithOnExitButBacksUpAFolderWithOnExitAndWindowClose
 			one := env.folder("one", "a.go")
 			two := env.folder("two", "b.go")
 			a := env.run(Options{Folder: one})
-			if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+			if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 				t.Fatal(err)
 			}
 			a.settle()
-			w2 := a.windowOf(two)
+			w2 := a.workspaceOf(two)
 			a.edit(w2, filepath.Join(two, "b.go"))
-			w2.RequestClose(CloseReasonWindow)
+			w2.RequestClose(CloseReasonTab)
 			a.settle()
 			if got := a.dialog(w2) != ""; got != tc.asks {
 				t.Fatalf("asks = %v, want %v", got, tc.asks)
@@ -1135,15 +1139,15 @@ func TestEachModeOfRestoreWindows(t *testing.T) {
 			one := env.folder("one", "a.go")
 			two := env.folder("two", "b.go")
 			a := env.run(Options{Folder: one})
-			if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+			if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := a.m.NewWindow(); err != nil {
+			if _, err := a.m.NewTab(); err != nil {
 				t.Fatal(err)
 			}
 			a.settle()
-			a.windowOf(two).Raise()
-			a.windowOf(one).RequestClose(CloseReasonQuit)
+			a.workspaceOf(two).Raise()
+			a.workspaceOf(one).RequestClose(CloseReasonQuit)
 			a.waitFor("the quit", func() bool { return a.quits == 1 })
 			b := env.run(Options{})
 			b.waitFor("the windows", func() bool { return b.m.Count() == len(tc.want) })
@@ -1181,11 +1185,11 @@ func TestACommandLineOpensOnTopOfTheRestoredWindowsOnlyWithPreserve(t *testing.T
 			two := env.folder("two", "b.go")
 			three := env.folder("three", "c.go")
 			a := env.run(Options{Folder: one})
-			if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+			if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 				t.Fatal(err)
 			}
 			a.settle()
-			a.windowOf(one).RequestClose(CloseReasonQuit)
+			a.workspaceOf(one).RequestClose(CloseReasonQuit)
 			a.waitFor("the quit", func() bool { return a.quits == 1 })
 			b := env.run(Options{Folder: three})
 			b.waitFor("the windows", func() bool { return b.m.Count() == tc.want })
@@ -1193,7 +1197,7 @@ func TestACommandLineOpensOnTopOfTheRestoredWindowsOnlyWithPreserve(t *testing.T
 			if got := b.folders(); got[0] == three && tc.mode == "preserve" {
 				t.Errorf("windows %q: the folder of the command line is a window after the restored ones", got)
 			}
-			if b.m.windowForFolder(three) == nil {
+			if b.m.workspaceForFolder(three) == nil {
 				t.Errorf("windows %q have no window for the command line", b.folders())
 			}
 		})
@@ -1203,11 +1207,11 @@ func TestACommandLineOpensOnTopOfTheRestoredWindowsOnlyWithPreserve(t *testing.T
 		one := env.folder("one", "a.go")
 		two := env.folder("two", "b.go")
 		a := env.run(Options{Folder: one})
-		if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+		if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 			t.Fatal(err)
 		}
 		a.settle()
-		a.windowOf(one).RequestClose(CloseReasonQuit)
+		a.workspaceOf(one).RequestClose(CloseReasonQuit)
 		a.waitFor("the quit", func() bool { return a.quits == 1 })
 		b := env.run(Options{Folder: two, Files: []string{filepath.Join(two, "b.go")}})
 		b.waitFor("the windows", func() bool { return b.m.Count() == 2 })
@@ -1215,7 +1219,7 @@ func TestACommandLineOpensOnTopOfTheRestoredWindowsOnlyWithPreserve(t *testing.T
 		if got := b.folders(); !slices.Equal(got, []string{one, two}) {
 			t.Errorf("windows %q", got)
 		}
-		w := b.windowOf(two)
+		w := b.workspaceOf(two)
 		b.waitFor("the file", func() bool { return len(w.Documents.All()) == 1 })
 	})
 }
@@ -1225,17 +1229,17 @@ func TestTheBackupsOfEveryWindowComeBackAfterACrashWhateverTheMode(t *testing.T)
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	a.edit(w1, filepath.Join(one, "a.go"))
 	a.edit(w2, filepath.Join(two, "b.go"))
 	// the backups are written as the documents change, and the process dies (no RequestClose)
 	env.clock.Advance(2 * storage.DefaultBackupDelay)
 	a.waitFor("both backups", func() bool {
-		for _, w := range []*Window{w1, w2} {
+		for _, w := range []*Workspace{w1, w2} {
 			store, err := storage.NewBackupStore(env.paths, w.StateID(), storage.BackupStoreOptions{})
 			if err != nil || !store.HasBackups() {
 				return false
@@ -1258,7 +1262,7 @@ func TestTheBackupsOfEveryWindowComeBackAfterACrashWhateverTheMode(t *testing.T)
 		folder string
 		want   string
 	}{{one, "a.go"}, {two, "b.go"}} {
-		if got := dirtyDocs(b.windowOf(tc.folder)); !slices.Equal(got, []string{tc.want}) {
+		if got := dirtyDocs(b.workspaceOf(tc.folder)); !slices.Equal(got, []string{tc.want}) {
 			t.Errorf("%s restored %q", tc.folder, got)
 		}
 	}
@@ -1279,7 +1283,7 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 		one := env.folder("one", "a.go", "a2.go")
 		two := env.folder("two", "b.go")
 		a := env.run(Options{Folder: one})
-		if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+		if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 			t.Fatal(err)
 		}
 		a.settle()
@@ -1288,7 +1292,7 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 	target := func(dir, name string) ipc.FileTarget { return ipc.FileTarget{Path: filepath.Join(dir, name)} }
 	t.Run("a folder that is open gets the files and comes to the front", func(t *testing.T) {
 		a, one, _ := setup(t, nil)
-		w1 := a.windowOf(one)
+		w1 := a.workspaceOf(one)
 		r := a.launched(ipc.OpenArgs{Folder: one, Files: []ipc.FileTarget{target(one, "a.go")}})
 		wantOutcomes(t, r, LaunchOutcome{})
 		a.waitFor("the file", func() bool { return len(w1.Documents.All()) == 1 })
@@ -1300,8 +1304,8 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 		a, _, _ := setup(t, nil)
 		three := a.env.folder("three", "c.go")
 		a.launched(ipc.OpenArgs{Folder: three, Files: []ipc.FileTarget{target(three, "c.go")}})
-		a.waitFor("the window", func() bool { return a.m.windowForFolder(three) != nil })
-		w := a.m.windowForFolder(three)
+		a.waitFor("the window", func() bool { return a.m.workspaceForFolder(three) != nil })
+		w := a.m.workspaceForFolder(three)
 		a.waitFor("the file", func() bool { return len(w.Documents.All()) == 1 })
 		if a.m.Count() != 3 {
 			t.Errorf("%d windows", a.m.Count())
@@ -1316,8 +1320,8 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 			a, _, two := setup(t, extra)
 			three := a.env.folder("three", "c.go")
 			a.launched(ipc.OpenArgs{Folder: three, ReuseWindow: reuse})
-			a.waitFor("the window", func() bool { return a.m.windowForFolder(three) != nil })
-			if a.m.Count() != 2 || a.m.windowForFolder(two) != nil {
+			a.waitFor("the window", func() bool { return a.m.workspaceForFolder(three) != nil })
+			if a.m.Count() != 2 || a.m.workspaceForFolder(two) != nil {
 				t.Errorf("reuse %v: windows %q, want the active window replaced", reuse, a.folders())
 			}
 		}
@@ -1326,14 +1330,14 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 		a, _, _ := setup(t, map[string]any{"window.openFoldersInNewWindow": "off"})
 		three := a.env.folder("three", "c.go")
 		a.launched(ipc.OpenArgs{Folder: three, NewWindow: true})
-		a.waitFor("the window", func() bool { return a.m.windowForFolder(three) != nil })
+		a.waitFor("the window", func() bool { return a.m.workspaceForFolder(three) != nil })
 		if a.m.Count() != 3 {
 			t.Errorf("windows %q", a.folders())
 		}
 	})
 	t.Run("files go to the window that has their folder, else the active one", func(t *testing.T) {
 		a, one, two := setup(t, nil)
-		w1, w2 := a.windowOf(one), a.windowOf(two)
+		w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 		a.launched(ipc.OpenArgs{Files: []ipc.FileTarget{target(one, "a2.go")}})
 		a.waitFor("the file in the first window", func() bool { return len(w1.Documents.All()) == 1 })
 		if a.m.Active() != w1 {
@@ -1390,7 +1394,7 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 	})
 	t.Run("--wait ends when the file closes in the window it opened in", func(t *testing.T) {
 		a, one, two := setup(t, nil)
-		w2 := a.windowOf(two)
+		w2 := a.workspaceOf(two)
 		r := a.launched(ipc.OpenArgs{Wait: true, Files: []ipc.FileTarget{target(two, "b.go")}})
 		a.waitFor("the file", func() bool { return len(w2.Documents.All()) == 1 })
 		if len(r.outcomes) != 0 {
@@ -1405,10 +1409,10 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 	})
 	t.Run("--wait ends when the window closes", func(t *testing.T) {
 		a, _, two := setup(t, nil)
-		w2 := a.windowOf(two)
+		w2 := a.workspaceOf(two)
 		r := a.launched(ipc.OpenArgs{Wait: true, Files: []ipc.FileTarget{target(two, "b.go")}})
 		a.waitFor("the file", func() bool { return len(w2.Documents.All()) == 1 })
-		w2.RequestClose(CloseReasonWindow)
+		w2.RequestClose(CloseReasonTab)
 		a.waitFor("the end of the wait", func() bool { return len(r.outcomes) == 1 })
 		a.settle()
 		wantOutcomes(t, r, LaunchOutcome{})
@@ -1431,7 +1435,7 @@ func TestTheLauncherReachesTheManagerOfTheWindows(t *testing.T) {
 	go func() {
 		out <- launcher.Handle(context.Background(), ipc.OpenArgs{Folder: two, NewWindow: true})
 	}()
-	a.waitFor("the window", func() bool { return a.m.windowForFolder(two) != nil })
+	a.waitFor("the window", func() bool { return a.m.workspaceForFolder(two) != nil })
 	select {
 	case r := <-out:
 		if r.Type != ipc.TypeOK {
@@ -1441,7 +1445,7 @@ func TestTheLauncherReachesTheManagerOfTheWindows(t *testing.T) {
 		t.Fatal("no reply")
 	}
 	// the application ends: the launcher answers that Emetos is closing
-	a.windowOf(one).RequestClose(CloseReasonQuit)
+	a.workspaceOf(one).RequestClose(CloseReasonQuit)
 	a.waitFor("the quit", func() bool { return a.quits == 1 })
 	if r := launcher.Handle(context.Background(), ipc.OpenArgs{}); r.Type != ipc.TypeError || r.Message != LauncherClosingMessage {
 		t.Errorf("reply %+v", r)
@@ -1465,7 +1469,11 @@ func TestStartupPlan(t *testing.T) {
 	}
 	const emptyID = "00000000000000aa"
 	if err := p.State.UpdateGlobal(ctx, func(g *storage.GlobalState) bool {
-		g.OpenWindows = []storage.OpenWindow{{ID: "1111111111111111", Folder: one}, {ID: emptyID}, {ID: "2222222222222222", Folder: two}, {ID: "3333333333333333", Folder: gone}}
+		g.WorkspaceTabs = []storage.WorkspaceTab{
+			{ID: "1111111111111111", Folder: one}, {ID: "4444444444444444", StateID: emptyID},
+			{ID: "2222222222222222", Folder: two}, {ID: "3333333333333333", Folder: gone},
+		}
+		g.ActiveWorkspaceTab = "2222222222222222"
 		g.LastWindow = &storage.LastWindow{Folder: two}
 		return true
 	}); err != nil {
@@ -1474,7 +1482,8 @@ func TestStartupPlan(t *testing.T) {
 	if err := os.RemoveAll(gone); err != nil {
 		t.Fatal(err)
 	}
-	folders := func(plan []WindowSpec) []string {
+	gone2 := env.folder("gone2", "d.go")
+	folders := func(plan []WorkspaceSpec) []string {
 		var out []string
 		for _, w := range plan {
 			if w.Folder == "" {
@@ -1490,37 +1499,51 @@ func TestStartupPlan(t *testing.T) {
 		mode string
 		opts Options
 		want []string
-		last string
+		// active is the place in the plan of the tab that is shown first
+		active int
 	}{
-		{"all", "all", Options{}, []string{"one", "-", "two"}, two},
-		{"preserve", "preserve", Options{}, []string{"one", "-", "two"}, two},
-		{"folders", "folders", Options{}, []string{"one", "two"}, two},
-		{"one", "one", Options{}, []string{"two"}, two},
-		{"none", "none", Options{}, []string{"-"}, two},
-		{"all with a folder", "all", Options{Folder: one}, []string{"one"}, one},
-		{"all with files", "all", Options{Files: []string{"/x/y.txt"}}, []string{"-"}, ""},
-		{"preserve with a folder that was open", "preserve", Options{Folder: two}, []string{"one", "-", "two"}, two},
-		{"preserve with files", "preserve", Options{Files: []string{"/x/y.txt"}}, []string{"one", "-", "two"}, two},
+		{"all", "all", Options{}, []string{"one", "-", "two"}, 2},
+		{"preserve", "preserve", Options{}, []string{"one", "-", "two"}, 2},
+		{"folders", "folders", Options{}, []string{"one", "two"}, 1},
+		{"one", "one", Options{}, []string{"two"}, 0},
+		{"none", "none", Options{}, []string{"-"}, 0},
+		{"all with a folder", "all", Options{Folder: one}, []string{"one"}, 0},
+		{"all with files", "all", Options{Files: []string{"/x/y.txt"}}, []string{"-"}, 0},
+		{"preserve with a folder that was open", "preserve", Options{Folder: two}, []string{"one", "-", "two"}, 2},
+		{"preserve with a folder that was not", "preserve", Options{Folder: gone2}, []string{"one", "-", "two", "gone2"}, 3},
+		{"preserve with files", "preserve", Options{Files: []string{"/x/y.txt"}}, []string{"one", "-", "two"}, 2},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			setMode(tc.mode)
-			plan, last := p.startupPlan(ctx, tc.opts)
+			plan, active := p.startupPlan(ctx, tc.opts)
 			if got := folders(plan); !slices.Equal(got, tc.want) {
 				t.Errorf("plan %q, want %q", got, tc.want)
 			}
-			if last != tc.last {
-				t.Errorf("last %q, want %q", last, tc.last)
+			if active != tc.active {
+				t.Errorf("the tab shown first is %d, want %d", active, tc.active)
 			}
-			// a window without a folder has a state id; the first one is never without one
+			// a tab without a folder has a state id; the first one is never without one
 			for _, w := range plan {
 				if w.Folder == "" && w.StateID == "" {
-					t.Errorf("a window without a folder has no id: %+v", w)
+					t.Errorf("a tab without a folder has no id: %+v", w)
 				}
 			}
 		})
 	}
-	t.Run("the files of preserve go to the window that was active", func(t *testing.T) {
+	// the tabs that come back keep their ids, so that the strip is the same
+	t.Run("the ids of the tabs come back", func(t *testing.T) {
+		setMode("all")
+		plan, _ := p.startupPlan(ctx, Options{})
+		var ids []string
+		for _, w := range plan {
+			ids = append(ids, w.TabID)
+		}
+		if !slices.Equal(ids, []string{"1111111111111111", "4444444444444444", "2222222222222222"}) {
+			t.Errorf("tab ids %q", ids)
+		}
+	})
+	t.Run("the files of preserve go to the tab that was active", func(t *testing.T) {
 		setMode("preserve")
 		plan, _ := p.startupPlan(ctx, Options{Files: []string{"/x/y.txt"}})
 		for _, w := range plan {
@@ -1529,57 +1552,4 @@ func TestStartupPlan(t *testing.T) {
 			}
 		}
 	})
-}
-
-func TestTheFocusMakesAWindowTheActiveOne(t *testing.T) {
-	env := newMultiEnv(t, nil)
-	one := env.folder("one", "a.go")
-	two := env.folder("two", "b.go")
-	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
-		t.Fatal(err)
-	}
-	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
-	if a.m.Active() != w2 {
-		t.Fatalf("the active window is %q", a.m.Active().Folder)
-	}
-	a.ts.SetViewFocus(ui.ImplicitViewID, true)
-	a.settle()
-	if a.m.Active() != w1 {
-		t.Errorf("after the focus of the first window the active one is %q", a.m.Active().Folder)
-	}
-	a.ts.SetViewFocus(a.ts.Windows()[0].View, true)
-	a.settle()
-	if a.m.Active() != w2 {
-		t.Errorf("after the focus of the second window the active one is %q", a.m.Active().Folder)
-	}
-	g, _ := a.p.State.LoadGlobal(a.ctx)
-	if g.LastWindow == nil || g.LastWindow.Folder != two {
-		t.Errorf("last window %+v", g.LastWindow)
-	}
-	// a view that is not a window of Emetos is nothing to it
-	a.ts.SetViewFocus(ui.ViewID(9999), true)
-}
-
-func TestAutoSaveOnWindowChangeSavesTheWindowThatLostTheFocus(t *testing.T) {
-	env := newMultiEnv(t, map[string]any{"files.autoSave": "onWindowChange"})
-	one := env.folder("one", "a.go")
-	two := env.folder("two", "b.go")
-	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
-		t.Fatal(err)
-	}
-	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
-	a.edit(w1, filepath.Join(one, "a.go"))
-	a.edit(w2, filepath.Join(two, "b.go"))
-	// the second window loses the focus: its file is saved, the first window's is not
-	a.ts.SetViewFocus(a.ts.Windows()[0].View, false)
-	a.waitFor("the save of the second window", func() bool { return len(dirtyDocs(w2)) == 0 })
-	if got := dirtyDocs(w1); !slices.Equal(got, []string{"a.go"}) {
-		t.Errorf("the first window has %q dirty", got)
-	}
-	a.ts.SetViewFocus(ui.ImplicitViewID, false)
-	a.waitFor("the save of the first window", func() bool { return len(dirtyDocs(w1)) == 0 })
 }

@@ -48,7 +48,7 @@ func newKeybindingsApp(t *testing.T, folder, userText string) *groupApp {
 			t.Fatal(err)
 		}
 	}
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
 	if err != nil {
 		t.Fatal(err)
 	}

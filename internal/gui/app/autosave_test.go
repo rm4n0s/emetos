@@ -573,7 +573,7 @@ func TestACloseOutsideTheFolderAsksWithAutoSaveWorkspaceFilesOnly(t *testing.T) 
 	}
 }
 
-func TestClosingTheWindowSavesWhatAutoSaveSavesInEveryMode(t *testing.T) {
+func TestQuittingSavesWhatAutoSaveSavesInEveryMode(t *testing.T) {
 	tests := []struct {
 		name  string
 		extra map[string]any
@@ -596,7 +596,7 @@ func TestClosingTheWindowSavesWhatAutoSaveSavesInEveryMode(t *testing.T) {
 				t.Fatal(err)
 			}
 			a.typeText("x  ")
-			a.win.RequestClose(CloseReasonWindow)
+			a.win.RequestClose(CloseReasonQuit)
 			if !tt.saved {
 				a.wantAsked(askOf("a.txt"))
 				a.tapDialog("Cancel")
@@ -612,13 +612,13 @@ func TestClosingTheWindowSavesWhatAutoSaveSavesInEveryMode(t *testing.T) {
 	}
 }
 
-func TestClosingTheWindowAsksAboutWhatAutoSaveCannotSave(t *testing.T) {
+func TestQuittingAsksAboutWhatAutoSaveCannotSave(t *testing.T) {
 	t.Run("an untitled document", func(t *testing.T) {
 		a := newAutoApp(t, afterDelay(3600*1000), map[string]string{"a.txt": "a\n"}, "a.txt")
 		quits := a.quits()
 		a.edit("a.txt")
 		a.untitled("scratch")
-		a.win.RequestClose(CloseReasonWindow)
+		a.win.RequestClose(CloseReasonQuit)
 		a.waitFor("the question", a.win.Dialogs.IsShowing)
 		a.wantAsked(askOf("Untitled-1"))
 		if a.fileText("a.txt") != "xa\n" {
@@ -634,7 +634,7 @@ func TestClosingTheWindowAsksAboutWhatAutoSaveCannotSave(t *testing.T) {
 		quits := a.quits()
 		a.edit("a.txt")
 		a.changedByAnotherProgram("a.txt")
-		a.win.RequestClose(CloseReasonWindow)
+		a.win.RequestClose(CloseReasonQuit)
 		a.waitFor("the error", func() bool { return len(a.errorNotes()) == 1 })
 		a.wantAsked(askOf("a.txt"))
 		a.tapDialog("Cancel")
@@ -681,7 +681,7 @@ func TestToggleAutoSaveWritesTheWorkspaceFileWhenTheWorkspaceSetsIt(t *testing.T
 	if err := os.WriteFile(filepath.Join(folder, ".emetos", "settings.json"), []byte(`{"files.autoSave": "onFocusChange"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win := newTestWindow(t, folder)
+	win := newTestWorkspace(t, folder)
 	a := newSaveAppWith(t, win, []string{"a.txt"}, map[string]string{"a.txt": "one\n"}, "a.txt")
 	a.run("workbench.action.toggleAutoSave")
 	if got := settings.Get[string](win.Settings, "files.autoSave", ""); got != "off" {
@@ -739,7 +739,7 @@ func TestTheFileMenuShowsAutoSaveChecked(t *testing.T) {
 }
 
 func TestConfigKeysAreContextKeysOfTheKeybindings(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ran := 0
 	if err := win.Commands.Register(command.Meta{ID: "test.whenAutoSaveIsOn", Title: "Test"}); err != nil {
 		t.Fatal(err)
@@ -771,7 +771,7 @@ func TestConfigKeysAreContextKeysOfTheKeybindings(t *testing.T) {
 }
 
 func TestAutoSaveCommandAndMenuAreRegistered(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	meta, ok := win.Commands.Lookup("workbench.action.toggleAutoSave")
 	if !ok || meta.Title != "Toggle Auto Save" || meta.Category != "File" {
 		t.Fatalf("command %+v, %v", meta, ok)

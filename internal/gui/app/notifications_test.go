@@ -91,7 +91,7 @@ func TestParseNotifyErrors(t *testing.T) {
 
 // notifyApp is a window with nothing open, whose process logs to a buffer.
 type notifyApp struct {
-	win *Window
+	win *Workspace
 	ts  *gluttertest.Tester
 	log *bytes.Buffer
 }
@@ -105,7 +105,7 @@ func newNotifyApp(t *testing.T) *notifyApp {
 	testutil.Settings(t, paths, nil)
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths, Logger: logger}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths, Logger: logger}), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestANotificationBeforeTheWindowShows(t *testing.T) {
 	// Run reports a file that cannot be opened before the window is up: the toast shows when it is
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, nil)
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

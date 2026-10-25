@@ -65,13 +65,13 @@ func (o navOpener) OpenLocation(loc editorgroup.NavLocation, done func()) {
 
 // navigationScope is workbench.editor.navigationScope.
 func (s *shellState) navigationScope() editorgroup.NavigationScope {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	return editorgroup.NavigationScope(settings.Get[string](win.Settings, "workbench.editor.navigationScope", ""))
 }
 
 // initNavigation makes the history. The grid exists already.
 func (s *shellState) initNavigation(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	n := &s.nav
 	n.history = editorgroup.NewHistory(navOpener{s}, s.navigationScope())
 	n.stopHistory = n.history.OnChange(s.refreshNavKeys)
@@ -103,7 +103,7 @@ func (s *shellState) refreshNavKeys() {
 	if s.nav.history == nil {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	st := s.nav.history.State()
 	win.Keys.Batch(func() {
 		win.Keys.Set("canNavigateBack", st.CanBack)
@@ -229,7 +229,7 @@ func (s *shellState) inputForURI(g *editorgroup.Group, uri document.URI) editorg
 func (s *shellState) activateEditor(g *editorgroup.Group, input editorgroup.EditorInput) {
 	g.Model.SetActive(input)
 	if err := s.group.grid.Activate(g); err != nil {
-		PeekWindow(s.Context()).Process.Logger.Error("cannot activate the group", "err", err)
+		PeekWorkspace(s.Context()).Process.Logger.Error("cannot activate the group", "err", err)
 	}
 	s.askFocusSoon()
 }
@@ -238,7 +238,7 @@ func (s *shellState) activateEditor(g *editorgroup.Group, input editorgroup.Edit
 // that is gone), opened again when it was closed, with the cursor where the location says. done tells the
 // history that the editor is shown; the file of a closed editor is read on a goroutine first.
 func (s *shellState) openLocation(loc editorgroup.NavLocation, done func()) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	group := s.group.grid.Group(loc.GroupID)
 	if group == nil {
@@ -368,7 +368,7 @@ func (s *shellState) reopenClosed() {
 	if len(batch) == 0 {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.Go(func(life context.Context) {
 		docs := make([]*document.Document, len(batch))
@@ -495,7 +495,7 @@ func (s *shellState) navCommands() map[string]command.Handler {
 			}, func(confirmed, _ bool) {
 				if confirmed && s.Mounted() && s.nav.history != nil {
 					s.nav.history.Clear()
-					PeekWindow(s.Context()).Recent.Clear()
+					PeekWorkspace(s.Context()).Recent.Clear()
 				}
 			})
 			return nil

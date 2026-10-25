@@ -127,7 +127,7 @@ func (s *shellState) dragEnd(at ui.Offset, dropped bool) {
 		return
 	}
 	if err != nil {
-		win := PeekWindow(s.Context())
+		win := PeekWorkspace(s.Context())
 		win.Process.Logger.Error("cannot drop the tab", "err", err)
 		win.Notify.Error("Emetos", "Cannot move the tab: "+describe(err))
 	}
@@ -155,7 +155,7 @@ func (s *shellState) stopDrag() {
 // when reveal is set.
 func (s *shellState) dragUpdate(reveal bool) {
 	d := s.group.drag
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	d.copied = binding.Keyboard().IsControlPressed()
 	target, hovered := s.dropTargetAt(d, win, binding.Keyboard().IsAltPressed())
@@ -187,7 +187,7 @@ func (s *shellState) dragUpdate(reveal bool) {
 //
 // Ported from VS Code: multiEditorTabsControl.ts (computeDropTarget) and editorDropTarget.ts
 // (DropOverlay.positionOverlay)
-func (s *shellState) dropTargetAt(d *tabDrag, win *Window, alt bool) (dropTarget, int) {
+func (s *shellState) dropTargetAt(d *tabDrag, win *Workspace, alt bool) (dropTarget, int) {
 	groups := s.group.grid.Groups(editorgroup.GridAppearance)
 	for _, g := range groups {
 		v := s.view(g)

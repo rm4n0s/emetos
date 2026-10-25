@@ -71,7 +71,7 @@ type openOptions struct {
 
 // gridOptions are the settings the grid follows.
 func (s *shellState) gridOptions() editorgroup.GridOptions {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	return editorgroup.GridOptions{
 		Model: editorgroup.Options{
 			OpenPositioning:             editorgroup.OpenPositioning(settings.Get[string](win.Settings, "workbench.editor.openPositioning", "")),
@@ -84,7 +84,7 @@ func (s *shellState) gridOptions() editorgroup.GridOptions {
 
 // sideBySideDirection is the side a split opens on (`workbench.editor.openSideBySideDirection`).
 func (s *shellState) sideBySideDirection() editorgroup.Direction {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if settings.Get[string](win.Settings, "workbench.editor.openSideBySideDirection", "") == "down" {
 		return editorgroup.DirDown
 	}
@@ -95,7 +95,7 @@ func (s *shellState) sideBySideDirection() editorgroup.Direction {
 // (PrepareRestore, SPEC §10.10), and the editors for the documents the window starts with: the first is the
 // active editor, and all are kept (not previews), as VS Code opens the files of the command line.
 func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document.Document) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	g := &s.group
 	// the groups the window had are made again from the saved state; the documents of the command line open on
 	// top of them
@@ -158,7 +158,7 @@ func (s *shellState) showRestoredBackups(binding *widgets.WidgetsBinding, docs [
 	if len(docs) == 0 {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	group := s.activeGroup()
 	was := group.Model.ActiveEditor()
 	for _, doc := range docs {
@@ -211,7 +211,7 @@ func (s *shellState) editorCount() int {
 
 // inputOptions are what the inputs of the window need to describe their files.
 func (s *shellState) inputOptions() editorgroup.TextInputOpts {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	opts := editorgroup.TextInputOpts{Folder: win.Folder}
 	if home, err := os.UserHomeDir(); err == nil {
 		opts.Home = home
@@ -226,7 +226,7 @@ func (s *shellState) inputOptions() editorgroup.TextInputOpts {
 // shows it counts its own. The new editor is a preview editor only when asked for and
 // workbench.editor.enablePreview is on; a document that has unsaved changes is kept.
 func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document.Document, opts openOptions) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	group := opts.Group
 	if group == nil {
 		group = s.activeGroup()
@@ -317,7 +317,7 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 			}
 		case editorgroup.EditorActive:
 			if path, ok := fileResource(e.Change.Editor); ok {
-				PeekWindow(s.Context()).AddRecentFile(path)
+				PeekWorkspace(s.Context()).AddRecentFile(path)
 			}
 			// the editor that had the focus is replaced by the new active editor of its group: the
 			// keyboard focus goes to the new one, and not to any editor of another group
@@ -394,7 +394,7 @@ func (s *shellState) ensureEditor(binding *widgets.WidgetsBinding, input editorg
 	if s.group.editors[input] != nil {
 		return
 	}
-	PeekWindow(s.Context()).Documents.Retain(t.Document())
+	PeekWorkspace(s.Context()).Documents.Retain(t.Document())
 	s.group.editors[input] = s.newTextEditor(binding, t)
 }
 
@@ -410,7 +410,7 @@ func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 	if e != nil {
 		delete(s.group.focused, e)
 		e.dispose()
-		if PeekWindow(s.Context()).Documents.Release(e.doc) {
+		if PeekWorkspace(s.Context()).Documents.Release(e.doc) {
 			s.autoSaveUntrack(e.doc)
 			s.externalUntrack(e.doc)
 		}
@@ -426,7 +426,7 @@ func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 // activeEditorCanRevert and dirtyWorkingCopies, and those of the compare editor: textCompareEditorVisible (a group
 // shows a diff editor) and textCompareEditorActive (the active group does).
 func (s *shellState) refreshKeys() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	grid := s.group.grid
 	group := grid.Active()
 	m := group.Model
@@ -545,7 +545,7 @@ func containsInput(list []editorgroup.EditorInput, e editorgroup.EditorInput) bo
 // openFile reads a file for an editor of a group (the document is acquired once; showAcquired gives
 // that use back).
 func (s *shellState) openFile(ctx context.Context, path string) (*document.Document, error) {
-	return PeekWindow(s.Context()).Documents.Acquire(ctx, path, document.NewOptions())
+	return PeekWorkspace(s.Context()).Documents.Acquire(ctx, path, document.NewOptions())
 }
 
 // ---- focus ----
@@ -624,6 +624,6 @@ func (s *shellState) groupFocused(group *editorgroup.Group) {
 		return
 	}
 	if err := s.group.grid.Activate(group); err != nil {
-		PeekWindow(s.Context()).Process.Logger.Error("cannot activate the group", "err", err)
+		PeekWorkspace(s.Context()).Process.Logger.Error("cannot activate the group", "err", err)
 	}
 }

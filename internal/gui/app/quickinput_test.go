@@ -17,7 +17,7 @@ import (
 // A command of the quick input that the program did not register is a broken build: the shell panics
 // with the CommandNotFound of the registry when it binds the commands.
 func TestAQuickInputCommandThatIsNotRegisteredBreaksTheShell(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	reg := command.NewRegistry()
 	for _, m := range win.Commands.All() {
 		if m.ID == quickinput.GoToLineCommand {

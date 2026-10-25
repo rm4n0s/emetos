@@ -18,7 +18,7 @@ import (
 
 // The commands of the profiles (SPEC §10.12, step 8.6b): create, switch, rename, delete, export and import. They ask
 // with the quick input (a list of profiles, an input box for a name, a question in a dialog) and the file chooser
-// of the desktop, and act on storage.Profiles and Window.SwitchProfile.
+// of the desktop, and act on storage.Profiles and Workspace.SwitchProfile.
 //
 // Ported from VS Code: src/vs/workbench/contrib/userDataProfile/browser/userDataProfile.ts (the actions
 // switchProfile, createProfile, deleteProfile and exportProfile; VS Code makes and renames profiles in its profiles
@@ -100,7 +100,7 @@ func profileItemID(profile string) string { return "profile:" + profile }
 
 // listProfiles gives the profiles, the default one first. A failure is reported to the user and gives nil.
 func (s *shellState) listProfiles() []string {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	list, err := win.Process.Profiles.List(win.ctx)
 	if err != nil {
 		win.Notify.Error("Emetos", "Cannot list the profiles: "+describe(err))
@@ -112,7 +112,7 @@ func (s *shellState) listProfiles() []string {
 // profileItems are the items of a picker over profiles: the name of each, and "Current" for the profile of the
 // window.
 func (s *shellState) profileItems(profiles []string, accept func(profile string)) []quickinput.Item {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	current := win.Profile()
 	items := make([]quickinput.Item, 0, len(profiles))
 	for _, profile := range profiles {
@@ -131,7 +131,7 @@ func (s *shellState) profileItems(profiles []string, accept func(profile string)
 // profileNameProblem is what the input box says about a name for a profile: "" when it is fine. except is the
 // profile that is renamed, which may keep its name (in another capitalization).
 func (s *shellState) profileNameProblem(name, except string) string {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	err := win.Process.Profiles.CheckName(win.ctx, name, except)
 	if err == nil {
 		return ""
@@ -152,7 +152,7 @@ func (s *shellState) profileNameProblem(name, except string) string {
 // askProfileName shows the input box for the name of a profile, validated as the user types; Enter on a name that is
 // not valid keeps the box open with the message. accept gets the name.
 func (s *shellState) askProfileName(value, except string, accept func(name string)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.QuickInput.Prompt(quickinput.PromptOptions{
 		Placeholder: ProfileNamePlaceholder,
 		Value:       value,
@@ -180,7 +180,7 @@ func (s *shellState) profileTask(work func(ctx context.Context) (string, error),
 
 // switchTo gives the window the profile and tells the user when that fails.
 func (s *shellState) switchTo(profile string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if err := win.SwitchProfile(win.ctx, profile); err != nil {
 		win.Notify.Error("Emetos", "Cannot switch to the profile '"+storage.ProfileDisplayName(profile)+"': "+describe(err))
 	}
@@ -196,7 +196,7 @@ func (s *shellState) createProfile() {
 // pickCreateSource asks what the new profile starts with: nothing, or a copy of any of the profiles (the current
 // one first).
 func (s *shellState) pickCreateSource(name string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	list := s.listProfiles()
 	if list == nil {
 		return
@@ -235,7 +235,7 @@ func (s *shellState) pickCreateSource(name string) {
 
 // switchProfile lists the profiles; the one the window has is active, and choosing another switches the window to it.
 func (s *shellState) switchProfile() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	list := s.listProfiles()
 	if list == nil {
 		return
@@ -255,7 +255,7 @@ func (s *shellState) switchProfile() {
 
 // renameProfile asks which profile to rename (not the default one) and for its new name.
 func (s *shellState) renameProfile() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	list := s.listProfiles()
 	if list == nil {
 		return
@@ -276,12 +276,12 @@ func (s *shellState) renameProfile() {
 	})
 }
 
-// doRenameProfile renames a profile. The windows that use it follow in place (Window.profileRenamed): the state of
+// doRenameProfile renames a profile. The windows that use it follow in place (Workspace.profileRenamed): the state of
 // each is written first, since the folder of the state moves, and nothing closes.
 func (s *shellState) doRenameProfile(profile, name string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	p := win.Process
-	users := p.Windows.UsingProfile(profile)
+	users := p.Workspaces.UsingProfile(profile)
 	for _, w := range users {
 		if w.flushState != nil {
 			w.flushState()
@@ -305,7 +305,7 @@ func (s *shellState) doRenameProfile(profile, name string) {
 // deleteProfile asks which profile to delete (not the default one) and whether to be sure. The windows that use it
 // switch to the default profile first.
 func (s *shellState) deleteProfile() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	list := s.listProfiles()
 	if list == nil {
 		return
@@ -330,9 +330,9 @@ func (s *shellState) deleteProfile() {
 
 // doDeleteProfile moves the windows that use the profile to the default profile, in place, and deletes the profile.
 func (s *shellState) doDeleteProfile(profile string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	p := win.Process
-	for _, w := range p.Windows.UsingProfile(profile) {
+	for _, w := range p.Workspaces.UsingProfile(profile) {
 		if err := w.SwitchProfile(w.ctx, storage.DefaultProfileName); err != nil {
 			w.Notify.Error("Emetos", "Cannot switch to the default profile: "+describe(err))
 		}
@@ -348,7 +348,7 @@ func (s *shellState) doDeleteProfile(profile string) {
 
 // exportProfile asks which profile to export (the current one is active), then for the file, and writes the file.
 func (s *shellState) exportProfile() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	list := s.listProfiles()
 	if list == nil {
 		return
@@ -363,7 +363,7 @@ func (s *shellState) exportProfile() {
 // exportProfileTo asks for the file with the dialog of the desktop, on a goroutine, and writes the profile to it
 // there. A dialog that is cancelled does nothing.
 func (s *shellState) exportProfileTo(profile string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	bc := s.Context()
 	name := storage.ProfileDisplayName(profile)
 	s.profileTask(func(ctx context.Context) (string, error) {
@@ -395,7 +395,7 @@ func (s *shellState) exportProfileTo(profile string) {
 // importProfile asks for the file with the dialog of the desktop, on a goroutine, reads it there and goes on with
 // the name of the new profile.
 func (s *shellState) importProfile() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	bc := s.Context()
 	var read storage.ProfileExport
 	s.profileTask(func(ctx context.Context) (string, error) {
@@ -419,7 +419,7 @@ func (s *shellState) importProfile() {
 // nameImportedProfile makes the profile of an export with its own name, or, when the name is taken (the name Default
 // is), asks for another one in an input box that starts with a free name.
 func (s *shellState) nameImportedProfile(export storage.ProfileExport) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if s.profileNameProblem(export.Name, "") == "" {
 		s.doImportProfile(export, export.Name)
 		return
@@ -434,7 +434,7 @@ func (s *shellState) nameImportedProfile(export storage.ProfileExport) {
 
 // doImportProfile makes the profile from the export on a goroutine and switches the window to it.
 func (s *shellState) doImportProfile(export storage.ProfileExport, name string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.profileTask(func(ctx context.Context) (string, error) {
 		return win.Process.Profiles.Import(ctx, export, name)
 	}, func(made string, err error) {

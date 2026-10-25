@@ -104,7 +104,7 @@ func (p *Process) recentMenuItems(contextkey.Context) []command.MenuItem {
 
 // bindRecentCommands binds the commands of the recently opened list while the shell is on screen.
 func (s *shellState) bindRecentCommands(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	pathOf := func(id string, args any) (string, error) {
 		path, _ := args.(string)
 		if !filepath.IsAbs(path) {
@@ -150,7 +150,7 @@ func (s *shellState) clearRecent() {
 			if !confirmed || !s.Mounted() {
 				return
 			}
-			PeekWindow(s.Context()).ClearRecent()
+			PeekWorkspace(s.Context()).ClearRecent()
 			if s.nav.history != nil {
 				s.nav.history.Clear()
 			}
@@ -161,7 +161,7 @@ func (s *shellState) clearRecent() {
 // "files", with the folder of each as its description. The folders and files that are gone are checked for in the
 // background and left out.
 func (s *shellState) showRecent(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		g, err := win.Process.State.LoadGlobal(life)
 		if err != nil {
@@ -178,7 +178,7 @@ func (s *shellState) showRecent(binding *widgets.WidgetsBinding) {
 
 // pickRecent shows the picker of the recently opened folders and files.
 func (s *shellState) pickRecent(binding *widgets.WidgetsBinding, recent storage.RecentlyOpened) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	remove := quickinput.Button{Icon: fonts.CodiconClose, Tooltip: "Remove from Recently Opened"}
 	trigger := func(path string) func(int, quickinput.KeyMods) quickinput.TriggerAction {
 		return func(int, quickinput.KeyMods) quickinput.TriggerAction {

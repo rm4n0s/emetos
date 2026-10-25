@@ -32,7 +32,7 @@ import (
 // groupApp is a window that shows files in its editor group.
 type groupApp struct {
 	t     *testing.T
-	win   *Window
+	win   *Workspace
 	ts    *gluttertest.Tester
 	files map[string]string // name to path
 	docs  map[string]*document.Document
@@ -54,12 +54,12 @@ func longText(n int) string {
 // that order, as the command line does.
 func newGroupApp(t *testing.T, names []string, open ...string) *groupApp {
 	t.Helper()
-	return newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, names, nil, open...)
+	return newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, names, nil, open...)
 }
 
 // newGroupAppWith is newGroupApp over a window, with the text of the files named in texts (a file with
 // none gets a short one).
-func newGroupAppWith(t *testing.T, win *Window, size ui.Size, names []string, texts map[string]string, open ...string) *groupApp {
+func newGroupAppWith(t *testing.T, win *Workspace, size ui.Size, names []string, texts map[string]string, open ...string) *groupApp {
 	t.Helper()
 	dir := t.TempDir()
 	a := &groupApp{t: t, win: win, files: map[string]string{}, docs: map[string]*document.Document{}}

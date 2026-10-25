@@ -742,20 +742,21 @@ func registerStatusBarCommands(r *Registry) {
 	)
 }
 
-// registerWindowCommands registers the commands that close the window and quit (SPEC §10.11): Close Window is
-// in the palette; Quit (VS Code's "Exit", workbench.action.quit) is a command with a key and a menu row but no
-// entry in the palette, as in VS Code.
+// registerWindowCommands registers the commands that open and close the tabs of the window and quit (SPEC §10.11,
+// §10.14): New Workspace Tab and Close Workspace Tab are in the palette (the ids are VS Code's, for the windows they
+// stood for before step 9b.1); Quit (VS Code's "Exit", workbench.action.quit) is a command with a key and a menu row but
+// no entry in the palette, as in VS Code.
 //
 // Ported from VS Code: src/vs/workbench/electron-browser/actions/windowActions.ts (CloseWindowAction,
 // SwitchWindowAction), src/vs/workbench/browser/actions/windowActions.ts (NewWindowAction) and
 // src/vs/workbench/electron-browser/desktop.contribution.ts (workbench.action.quit)
 func registerWindowCommands(r *Registry) {
 	r.MustRegister(
-		Meta{ID: "workbench.action.closeWindow", Title: "Close Window"},
+		Meta{ID: "workbench.action.closeWindow", Title: "Close Workspace Tab"},
 		Meta{ID: "workbench.action.quit"},
 		// Step 7.8: New Window (Ctrl+Shift+N, File menu) and Switch Window..., which picks one of the windows
-		// of the process (no key on Linux).
-		Meta{ID: "workbench.action.newWindow", Title: "New Window"},
+		// of the process (no key on Linux); from step 9b.1 they open a tab and pick one.
+		Meta{ID: "workbench.action.newWindow", Title: "New Workspace Tab"},
 		Meta{ID: "workbench.action.switchWindow", Title: "Switch Window..."},
 	)
 }

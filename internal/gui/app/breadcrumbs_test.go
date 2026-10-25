@@ -20,9 +20,9 @@ func inBar(text string) gluttertest.Finder {
 }
 
 // twoFiles makes a folder with two small files and opens the first in a window.
-func twoFiles(t *testing.T) (win *Window, doc *document.Document, first, second string) {
+func twoFiles(t *testing.T) (win *Workspace, doc *document.Document, first, second string) {
 	t.Helper()
-	win = newTestWindow(t, "")
+	win = newTestWorkspace(t, "")
 	dir := t.TempDir()
 	first, second = filepath.Join(dir, "first.go"), filepath.Join(dir, "second.txt")
 	for _, p := range []string{first, second} {

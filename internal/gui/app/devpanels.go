@@ -210,7 +210,7 @@ func (s *shellState) bindDevMarkers() {
 	if !DevCommandsEnabled() {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	remove, err := win.Commands.SetHandler("dev.setMarkers", func(_ command.Context, args any) error {
 		a, err := parseSetMarkers(args, os.Getwd)
 		if err != nil {

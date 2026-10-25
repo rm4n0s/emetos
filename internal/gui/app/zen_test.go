@@ -371,7 +371,7 @@ func TestFullScreenNeedsAController(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T", err)
 	}
-	if !appErr.HasRoute("Window.SetFullScreen.FullScreenUnavailable") {
+	if !appErr.HasRoute("Workspace.SetFullScreen.FullScreenUnavailable") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 	err = win.Commands.Run(command.Context{Ctx: context.Background(), Keys: win.Keys}, "workbench.action.toggleFullScreen", nil)
@@ -500,11 +500,11 @@ func TestZenModeBelongsToItsWindow(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	before := w2.Layout.State()
 	if err := a.command(w1, "workbench.action.toggleZenMode", nil); err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestFullScreenThroughTheRealWindowController(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one := env.folder("one", "a.go")
 	a := env.run(Options{Folder: one})
-	w := a.windowOf(one)
+	w := a.workspaceOf(one)
 	wins := a.ts.Windows()
 	if len(wins) == 0 {
 		t.Skip("the tester has no window")

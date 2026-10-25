@@ -57,7 +57,7 @@ type diffPane struct {
 
 // newDiffPane makes the pane of an input and starts the first diff.
 func newDiffPane(s *shellState, input *editorgroup.DiffInput) *diffPane {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	p := &diffPane{s: s, input: input}
 	docs := [2]*document.Document{input.Original(), input.Modified()}
@@ -86,7 +86,7 @@ func (p *diffPane) Model() *diffeditor.Model { return p.model }
 
 // build implements pane.
 func (p *diffPane) build(bc widgets.BuildContext, group *editorgroup.Group, active bool) widgets.Widget {
-	win := PeekWindow(bc)
+	win := PeekWorkspace(bc)
 	opts := func(ed *textEditor, autofocus bool) editor.EditorOpts {
 		return editor.EditorOpts{
 			Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: autofocus, Context: win.ctx,
@@ -194,7 +194,7 @@ func (s *shellState) diffCommands() map[string]command.Handler {
 // counts its own. A comparison that the group shows already is activated. It returns the input of the tab that
 // shows the comparison (the one that was there, when there was one).
 func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.Group) *editorgroup.DiffInput {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if group == nil {
 		group = s.activeGroup()
 	}
@@ -264,7 +264,7 @@ func (s *shellState) bindDevOpenDiff() {
 	if !DevCommandsEnabled() {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	remove, err := win.Commands.SetHandler("dev.openDiff", func(c command.Context, args any) error {
 		return s.devOpenDiff(c.Ctx, args)
 	})
@@ -287,7 +287,7 @@ func (s *shellState) devOpenDiff(ctx context.Context, args any) error {
 	}
 	mod, err := s.acquireSide(ctx, a.Modified)
 	if err != nil {
-		PeekWindow(s.Context()).Documents.Release(orig)
+		PeekWorkspace(s.Context()).Documents.Release(orig)
 		return err
 	}
 	s.openDiff(orig, mod, nil)
@@ -298,7 +298,7 @@ func (s *shellState) devOpenDiff(ctx context.Context, args any) error {
 // provider, an untitled one must be open, a file is read (a relative path is relative to the folder of the window,
 // and fails when no folder is open).
 func (s *shellState) acquireSide(ctx context.Context, spec string) (*document.Document, error) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	switch {
 	case strings.HasPrefix(spec, document.SchemeVirtual+":"):
 		uri, err := document.ParseURI(spec)

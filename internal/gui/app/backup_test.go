@@ -694,7 +694,7 @@ func TestTheBackupOfAnEmptyUntitledDocumentBringsNothingBack(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
 	}
-	if appErr.Tag != "BackupEmpty" || !appErr.HasRoute("Window.restoreFromBackup.BackupEmpty") {
+	if appErr.Tag != "BackupEmpty" || !appErr.HasRoute("Workspace.restoreFromBackup.BackupEmpty") {
 		t.Errorf("Tag = %q, route = %s", appErr.Tag, appErr.Route())
 	}
 	if appErr.Metadata["uri"] != uri.String() {
@@ -749,7 +749,7 @@ func TestTheSignalThatEndsTheProgramBacksUpAndLeavesNoMarker(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	process := newTestProcess(ProcessOptions{Paths: env.paths, StateAfter: env.clock.AfterFunc})
-	win, err := NewWindow(ctx, process, env.root)
+	win, err := NewWorkspace(ctx, process, env.root)
 	if err != nil {
 		t.Fatal(err)
 	}

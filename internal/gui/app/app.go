@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
@@ -29,7 +30,7 @@ const (
 	// AppID is the application id: the Wayland app_id and the X11 WM_CLASS. It
 	// matches the .desktop file of step 10.2.
 	AppID = "dev.emetos.Emetos"
-	// Title is the title of the first window.
+	// Title is the title of the window.
 	Title = "Emetos"
 )
 
@@ -60,8 +61,8 @@ type Options struct {
 	DevCommands string
 }
 
-// Run opens the window and runs the event loop until the last window is closed
-// or ctx is canceled, which asks the application to exit. It must be called on
+// Run opens the window, with a workspace tab for every folder that starts, and runs the event loop until the
+// application quits or ctx is canceled, which asks the application to exit. It must be called on
 // the main goroutine. A ctx that is already canceled opens nothing. The failures
 // of the environment (no display, no GPU driver) come back as the tagged errors
 // of Glutter. A file that cannot be opened is reported as a notification (and in the
@@ -88,9 +89,9 @@ func Run(ctx context.Context, opts Options) error {
 			}
 		}
 	}
-	m := process.Windows
+	m := process.Workspaces
 	m.ctx, m.watch = ctx, true
-	entry, first, err := m.start(ctx, opts)
+	first, err := m.start(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -101,9 +102,9 @@ func Run(ctx context.Context, opts Options) error {
 		}
 	}()
 	first.steps = devSteps(process, opts.DevCommands)
-	return widgets.RunApp(m.hostWidget(entry), widgets.RunAppOpts{
+	return widgets.RunApp(m.hostWidget(), widgets.RunAppOpts{
 		AppID:  AppID,
-		Window: startupWindowConfig(first.win, first.geometry),
+		Window: startupWindowConfig(first.ws, first.geometry),
 		Fonts:  fonts.Sources(),
 		Logger: opts.Logger,
 	})
@@ -149,13 +150,13 @@ func devSteps(p *Process, text string) []DevStep {
 }
 
 // newApp is the whole app so far: the window's page is the shell.
-func newApp(ctx context.Context, win *Window, doc *document.Document, steps []DevStep) widgets.Widget {
+func newApp(ctx context.Context, win *Workspace, doc *document.Document, steps []DevStep) widgets.Widget {
 	return newAppBlocked(ctx, win, doc, steps, "")
 }
 
 // newAppDocs is newApp for the documents of the command line: each opens in the editor group, kept
 // (not as a preview), and the first is the one that is shown.
-func newAppDocs(ctx context.Context, win *Window, docs []*document.Document, steps []DevStep, blocked string) widgets.Widget {
+func newAppDocs(ctx context.Context, win *Workspace, docs []*document.Document, steps []DevStep, blocked string) widgets.Widget {
 	return newAppWithPage(win, func() widgets.Widget {
 		sh := newShell(ctx, docs, steps)
 		sh.blocked = blocked
@@ -165,7 +166,7 @@ func newAppDocs(ctx context.Context, win *Window, docs []*document.Document, ste
 
 // newAppBlocked is newApp for a window whose file looks binary: with no document it shows the
 // notice of the file at the path blocked, with a button that opens it anyway.
-func newAppBlocked(ctx context.Context, win *Window, doc *document.Document, steps []DevStep, blocked string) widgets.Widget {
+func newAppBlocked(ctx context.Context, win *Workspace, doc *document.Document, steps []DevStep, blocked string) widgets.Widget {
 	var docs []*document.Document
 	if doc != nil {
 		docs = append(docs, doc)
@@ -176,8 +177,8 @@ func newAppBlocked(ctx context.Context, win *Window, doc *document.Document, ste
 // newAppWithPage is a WidgetsApp with one route, whose page is made by page. The route gives
 // the page the Overlay and Navigator it will need. The window and the theme sit above the
 // app, so that everything in it can read them.
-func newAppWithPage(win *Window, page func() widgets.Widget) widgets.Widget {
-	return NewWindowScope(win, NewKeyDispatcher(newThemeHost(func(colors kit.Colors) widgets.Widget {
+func newAppWithPage(win *Workspace, page func() widgets.Widget) widgets.Widget {
+	return NewWorkspaceScope(win, NewKeyDispatcher(newThemeHost(func(colors kit.Colors) widgets.Widget {
 		return widgets.NewWidgetsApp(colors.EditorBackground, widgets.WidgetsAppOpts{
 			Title: Title,
 			// The window is a proof image: it has no debug ribbon.
@@ -219,7 +220,7 @@ type shellState struct {
 	widgets.StateOf[*shell]
 	// win and binding are kept from InitState: Dispose cannot look an ancestor up (the element is
 	// inactive by then).
-	win     *Window
+	win     *Workspace
 	binding *widgets.WidgetsBinding
 	// group is the editor group of the window: the tabs and their editors.
 	group groupState
@@ -250,7 +251,7 @@ type shellState struct {
 	fileIndex       *workspace.FileIndex
 	stopFolderWatch func()
 	// quickWin is the window the quick input was connected to, for the disposal.
-	quickWin *Window
+	quickWin *Workspace
 	// endPicks ends the previews of the theme picker that is open (themepickers.go); nil when none is.
 	endPicks func()
 	// menus turns the menu registry into the menus of the window; menuBar, manage and editorMenu open
@@ -289,9 +290,9 @@ type shellState struct {
 // the dev commands. Both end with the state, so a page that is gone stops waiting.
 func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
-	s.binding, s.win = binding, PeekWindow(s.Context())
+	s.binding, s.win = binding, PeekWorkspace(s.Context())
 	s.win.shell = s
-	s.win.Process.Windows.register(s.win)
+	s.win.Process.Workspaces.register(s.win) // a workspace that no tab holds (the test of one) is adopted
 	s.blocked = s.Widget().blocked
 	s.initBackups(binding)
 	s.initAutoSave(binding)
@@ -302,7 +303,7 @@ func (s *shellState) InitState() {
 	s.initPanels(binding)
 	s.initExplorer(binding)
 	// the watcher of the folder, of the configuration and of the open files outside the folder
-	PeekWindow(s.Context()).StartWatching(s.Lifetime())
+	PeekWorkspace(s.Context()).StartWatching(s.Lifetime())
 	s.initQuickInput(binding)
 	s.initStatus(binding)
 	s.initSave(binding)
@@ -316,7 +317,7 @@ func (s *shellState) InitState() {
 	s.bindDevMerge()
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
-	s.unsubscribeTitle = PeekWindow(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
+	s.unsubscribeTitle = PeekWorkspace(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("window.title", "") || e.Affects("window.titleSeparator", "") {
 			binding.Post(func() {
 				if s.Mounted() {
@@ -327,7 +328,7 @@ func (s *shellState) InitState() {
 	})
 	if !s.win.managed() {
 		// a window on its own (a test of one window) ends the program itself; the windows the manager hosts are ended
-		// together by it (Windows.watchSignal)
+		// together by it (Workspaces.watchSignal)
 		done := s.Widget().ctx.Done()
 		s.Go(func(life context.Context) {
 			select {
@@ -346,11 +347,17 @@ func (s *shellState) InitState() {
 		})
 	}
 	if steps := s.Widget().steps; len(steps) > 0 {
-		win := PeekWindow(s.Context())
+		win := PeekWorkspace(s.Context())
 		binding.Scheduler().AddPostFrameCallback(func(time.Duration) {
 			runner := &DevRunner{
 				Steps:    steps,
 				Commands: win.Commands,
+				Registry: func() *command.Registry {
+					if active := win.Process.Workspaces.Active(); active != nil {
+						return active.Commands
+					}
+					return win.Commands
+				},
 				Post: func(f func()) {
 					// A step is done when the frames after it are: what a command changes (a new
 					// editor, a focus) is there for the next one.
@@ -370,6 +377,7 @@ func (s *shellState) InitState() {
 					}
 				},
 				OnError: func(step DevStep, err error) {
+					win.Process.Logger.Warn("a dev command failed", "command", step.Command, "err", err)
 					win.Notify.Error("Emetos", "Dev command "+step.Command+" failed: "+describe(err))
 				},
 			}
@@ -416,7 +424,7 @@ func (s *shellState) Dispose() {
 // Build implements widgets.State: the workbench of the window, with what the shell has in the editor
 // area.
 func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
-	win := PeekWindow(bc)
+	win := PeekWorkspace(bc)
 	s.syncTitle(bc, win)
 	s.syncActiveFile(widgets.WidgetsBindingOf(bc))
 	s.syncExplorer(widgets.WidgetsBindingOf(bc), win)
@@ -441,17 +449,27 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 
 // syncTitle makes the title of the window from the template and the active editor, and passes it on
 // to the window when it changed.
-func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
+func (s *shellState) syncTitle(bc widgets.BuildContext, win *Workspace) {
 	if s.window == nil {
 		// Glutter: the controller of the window that WindowScope gives is a BaseWindowController, which
 		// has no SetTitle (RegularWindowController has it, promoted from an unexported base), so the
 		// title is set through an interface assertion. Glutter should put SetTitle in the interface.
+		//
+		// The manager of the tabs gives the workspaces it shows the controller of the window too (Workspaces.bind): a
+		// tester that pumps the host without RunApp has no WindowScope.
+		var controller any
+		if win.managed() {
+			controller = win.controller
+		}
 		if scope, ok := widgets.GetInherited[*widgets.WindowScope](bc); ok {
-			s.window, _ = scope.Controller().(interface{ SetTitle(string) })
+			controller = scope.Controller()
+		}
+		if controller != nil {
+			s.window, _ = controller.(interface{ SetTitle(string) })
 			// Glutter: Activate is in the same position (RegularWindowController has it, BaseWindowController does not)
-			win.controller = scope.Controller()
+			win.controller = controller
 			defer win.controllerKnown() // after the controller is followed below
-			if src, ok := scope.Controller().(geometrySource); ok {
+			if src, ok := controller.(geometrySource); ok {
 				s.trackWindow(src)
 			}
 		}
@@ -488,9 +506,14 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 		return
 	}
 	win.title = title
-	if s.window != nil {
+	// only the active tab gives the window its title; a tab that becomes active gives it then (Workspaces.pushTitle)
+	if s.window != nil && win.activeTab() {
 		controller := s.window
-		widgets.WidgetsBindingOf(bc).Post(func() { controller.SetTitle(title) })
+		widgets.WidgetsBindingOf(bc).Post(func() {
+			if win.activeTab() {
+				controller.SetTitle(title)
+			}
+		})
 	}
 }
 

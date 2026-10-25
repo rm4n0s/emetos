@@ -33,7 +33,7 @@ import (
 
 // userKeys is the keybindings.json of the user for a window.
 type userKeys struct {
-	win *Window
+	win *Workspace
 	// path is the keybindings.json of the profile of the window; setPath moves it, on the UI thread, and filePath
 	// reads it from any goroutine.
 	path string
@@ -45,7 +45,7 @@ type userKeys struct {
 	listeners []*func()
 }
 
-func newUserKeys(win *Window, path string) *userKeys {
+func newUserKeys(win *Workspace, path string) *userKeys {
 	return &userKeys{win: win, path: path}
 }
 
@@ -141,7 +141,7 @@ func (k *userKeys) reload(ctx context.Context, async bool) {
 
 // onUI runs f on the UI thread: at once when the window has no shell on screen (its callers are on that thread
 // or there is none), else through the binding.
-func (w *Window) onUI(f func()) {
+func (w *Workspace) onUI(f func()) {
 	if s := w.shell; s != nil && s.Mounted() {
 		widgets.WidgetsBindingOf(s.Context()).Post(f)
 		return
@@ -151,7 +151,7 @@ func (w *Window) onUI(f func()) {
 
 // KeybindingsModel is the model of the keybindings editor: the rows of the built-in keybindings, the user's and the
 // commands of the window. It is made again when the keybindings change.
-func (w *Window) KeybindingsModel() *keybinding.Model {
+func (w *Workspace) KeybindingsModel() *keybinding.Model {
 	k := w.userKeys
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -234,7 +234,7 @@ func (k *userKeys) write(ctx context.Context, text string) error {
 // startRecording puts the dispatcher of the window in recording mode: every key press goes to the recorder and
 // nothing is resolved. It gives the function that ends the mode; a recorder that another one replaced does not
 // end the mode of the other.
-func (w *Window) startRecording(r keybinding.Recorder) (stop func()) {
+func (w *Workspace) startRecording(r keybinding.Recorder) (stop func()) {
 	w.Dispatcher.SetRecorder(r)
 	w.recorder = r
 	return func() {
@@ -246,7 +246,7 @@ func (w *Window) startRecording(r keybinding.Recorder) (stop func()) {
 }
 
 // keyLabelOf is the label of the keybinding of a command ("Ctrl+K Ctrl+S") for the tooltips of the editors, or "".
-func (w *Window) keyLabelOf(commandID string) string {
+func (w *Workspace) keyLabelOf(commandID string) string {
 	if item, ok := w.Keybindings.LookupPrimaryKeybinding(commandID, w.Keys, false); ok && item.Keybinding != nil {
 		return item.Keybinding.Label()
 	}
@@ -269,6 +269,6 @@ func (k *userKeys) ensure(ctx context.Context) error {
 }
 
 // runCommand runs a command for a button of the editors, as VS Code's buttons do.
-func (w *Window) runCommand(id string, args any) error {
+func (w *Workspace) runCommand(id string, args any) error {
 	return w.Commands.Run(command.Context{Ctx: w.ctx, Keys: w.Keys, Source: command.SourceAPI}, id, args)
 }

@@ -58,7 +58,7 @@ func (s *shellState) view(group *editorgroup.Group) *groupView {
 
 // editorArea is what the editor area shows: the grid of groups.
 func (s *shellState) editorArea(bc widgets.BuildContext) widgets.Widget {
-	return newCenteredArea(PeekWindow(bc), s.group.grid, s.nodeWidget(bc, s.group.grid.Tree(), nil))
+	return newCenteredArea(PeekWorkspace(bc), s.group.grid, s.nodeWidget(bc, s.group.grid.Tree(), nil))
 }
 
 // nodeWidget is a node of the tree of splits: a group, or a split view of the nodes below it. A
@@ -142,7 +142,7 @@ func (s *shellState) sized(path []int, sizes []float64) {
 // groupWidget is a group: the tab strip, the breadcrumbs and the editor of the active tab, or the
 // empty area. A pointer pressed in it makes it the active group.
 func (s *shellState) groupWidget(bc widgets.BuildContext, group *editorgroup.Group) widgets.Widget {
-	win := PeekWindow(bc)
+	win := PeekWorkspace(bc)
 	v := s.view(group)
 	active := s.group.grid.Active() == group
 	var content widgets.Widget
@@ -160,7 +160,7 @@ func (s *shellState) groupWidget(bc widgets.BuildContext, group *editorgroup.Gro
 }
 
 // editorColumn is the tab strip over the breadcrumbs over the editor of a group.
-func (s *shellState) editorColumn(bc widgets.BuildContext, win *Window, group *editorgroup.Group, ed *textEditor, active bool) widgets.Widget {
+func (s *shellState) editorColumn(bc widgets.BuildContext, win *Workspace, group *editorgroup.Group, ed *textEditor, active bool) widgets.Widget {
 	binding := widgets.WidgetsBindingOf(bc)
 	text := editor.NewEditor(ed.view, editor.EditorOpts{
 		Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: active, Context: win.ctx, ClipboardMemory: win.Clipboard,
@@ -257,7 +257,7 @@ func (s *shellState) tabItems(colors kit.Colors, group *editorgroup.Group) []kit
 
 // tabsOptions are the options of the tab strip of a group from the settings and the model; the strip of
 // a group that is not the active group has the colors of an unfocused one.
-func (s *shellState) tabsOptions(win *Window, group *editorgroup.Group) kit.TabsOpts {
+func (s *shellState) tabsOptions(win *Workspace, group *editorgroup.Group) kit.TabsOpts {
 	m := group.Model
 	opts := kit.TabsOpts{
 		Active:            m.IndexOf(m.ActiveEditor()),

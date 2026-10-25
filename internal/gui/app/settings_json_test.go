@@ -168,7 +168,7 @@ func TestOpenWorkspaceSettingsFile(t *testing.T) {
 }
 
 // paletteShows tells whether the rules of the palette show a command in a window.
-func paletteShows(win *Window, id string) bool {
+func paletteShows(win *Workspace, id string) bool {
 	for _, it := range win.Process.Menus.All() {
 		if it.Menu == command.CommandPalette && it.Command == id && it.When != nil && !it.When.Evaluate(contextkey.Context(win.Keys)) {
 			return false
@@ -376,7 +376,7 @@ func TestTheVirtualDocumentIsNotBackedUp(t *testing.T) {
 }
 
 func TestOpenVirtualErrors(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ctx := context.Background()
 	boom := fs.ErrPermission
 	if err := win.Process.Virtual.Register("/broken.json", document.VirtualProvider{Text: func(context.Context) (string, error) { return "", boom }}); err != nil {
@@ -409,7 +409,7 @@ func TestOpenVirtualErrors(t *testing.T) {
 		})
 	}
 	// the command fails with the tag too, and opens nothing
-	win2 := newTestWindow(t, "")
+	win2 := newTestWorkspace(t, "")
 	win2.Process.Virtual = document.NewVirtualRegistry()
 	win2.Documents.SetVirtual(win2.Process.Virtual)
 	a := newSettingsApp(t, "")
@@ -422,7 +422,7 @@ func TestOpenVirtualErrors(t *testing.T) {
 }
 
 func TestTheSettingsEditorGetsTheLanguagesOfTheProcess(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	for name, want := range map[string]string{"go": "Go", "GO": "Go", "Markdown": "Markdown", " json ": "JSON with Comments"} {
 		id, display, ok := win.resolveLanguage(name)
 		if !ok || id == "" {

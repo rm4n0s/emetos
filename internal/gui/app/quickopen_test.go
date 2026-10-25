@@ -33,7 +33,7 @@ func newQuickOpenApp(t *testing.T, open ...string) *explorerApp {
 	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("build/\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win := newTestWindow(t, root)
+	win := newTestWorkspace(t, root)
 	a := &explorerApp{t: t, win: win, root: win.Folder}
 	var docs []*document.Document
 	for _, p := range open {
@@ -223,7 +223,7 @@ func TestQuickOpenRevealsTheLine(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "poem.txt"), []byte("one\ntwo three\nfour\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win := newTestWindow(t, root)
+	win := newTestWorkspace(t, root)
 	a := &explorerApp{t: t, win: win, root: win.Folder}
 	a.ts = testutil.New(t, ui.Size{Width: 900, Height: 600})
 	a.ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
@@ -274,7 +274,7 @@ func TestQuickOpenWithoutAFolderListsTheRecentFiles(t *testing.T) {
 	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	win.Recent.Add(file)
 	ts := testutil.New(t, ui.Size{Width: 900, Height: 600})
 	ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
@@ -355,7 +355,7 @@ func TestQuickOpenFollowsTheFolder(t *testing.T) {
 }
 
 func TestQuickOpenCommandsAndKeys(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	if m, ok := win.Commands.Lookup("workbench.action.quickOpen"); !ok || m.Title != "Go to File..." {
 		t.Errorf("command %+v %v", m, ok)
 	}

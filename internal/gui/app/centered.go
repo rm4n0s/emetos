@@ -80,12 +80,12 @@ func centeredActive(requested, autoResize bool, layout editorgroup.Layout, maxim
 // editors keep their state when they come and go.
 type centeredArea struct {
 	widgets.StatefulWidget
-	win   *Window
+	win   *Workspace
 	grid  *editorgroup.Grid
 	child widgets.Widget
 }
 
-func newCenteredArea(win *Window, grid *editorgroup.Grid, child widgets.Widget) *centeredArea {
+func newCenteredArea(win *Workspace, grid *editorgroup.Grid, child widgets.Widget) *centeredArea {
 	return &centeredArea{StatefulWidget: widgets.NewStatefulWidgetBase(), win: win, grid: grid, child: child}
 }
 

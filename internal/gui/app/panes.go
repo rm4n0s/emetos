@@ -67,7 +67,7 @@ func (s *shellState) ensurePane(input editorgroup.EditorInput) {
 }
 
 // paneColumn is the tab strip over the pane of a group.
-func (s *shellState) paneColumn(bc widgets.BuildContext, win *Window, group *editorgroup.Group, input editorgroup.EditorInput, p pane, active bool) widgets.Widget {
+func (s *shellState) paneColumn(bc widgets.BuildContext, win *Workspace, group *editorgroup.Group, input editorgroup.EditorInput, p pane, active bool) widgets.Widget {
 	var area widgets.Widget = widgets.NewKeyedSubtree(p.build(bc, group, active), widgets.WidgetOpts{Key: widgets.NewGlobalObjectKey[widgets.State](p)})
 	area = widgets.NewListener(area, widgets.ListenerOpts{
 		Behavior:      rendering.HitTestBehaviorTranslucent,
@@ -102,7 +102,7 @@ func (f *paneFocus) wrap(s *shellState, group *editorgroup.Group, child widgets.
 
 // tabStrip is the tab strip of a group in the host of the context menu of the tabs; nil while
 // workbench.editor.showTabs is none.
-func (s *shellState) tabStrip(bc widgets.BuildContext, win *Window, group *editorgroup.Group) widgets.Widget {
+func (s *shellState) tabStrip(bc widgets.BuildContext, win *Workspace, group *editorgroup.Group) widgets.Widget {
 	if win.ShowTabs() == "none" {
 		return nil
 	}

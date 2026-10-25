@@ -54,7 +54,7 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 // newTextEditorWith is newTextEditor for an editor whose options the caller adjusts, after the settings have made them
 // (the editors of the diff editor are read-only on the left and have no minimap, SPEC §9.11).
 func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *editorgroup.TextInput, adjust func(editor.Options) editor.Options) *textEditor {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	doc := input.Document()
 	e := &textEditor{input: input, doc: doc, done: make(chan struct{}), focus: &editor.EditorFocus{}}
 	options := func() editor.Options {
@@ -120,7 +120,7 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 // startTokenizer makes the tokenizer of the document, with the grammar of its language, gives it
 // to the editor and starts its background loop, which ends with the editor. A language with no
 // grammar has none; a grammar that cannot be made is reported and the text stays plain.
-func (s *shellState) startTokenizer(e *textEditor, win *Window) {
+func (s *shellState) startTokenizer(e *textEditor, win *Workspace) {
 	languageID := e.doc.LanguageID()
 	maxLine := int(settings.Get[float64](win.Settings, "editor.maxTokenizationLineLength", languageID))
 	grammar, err := win.Process.Grammar(languageID, maxLine)
@@ -154,7 +154,7 @@ func (s *shellState) languageChanged(binding *widgets.WidgetsBinding, e *textEdi
 	if e.disposed {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if e.stopFolding != nil {
 		e.stopFolding()
 		e.stopFolding = nil
@@ -191,7 +191,7 @@ func (s *shellState) languageChanged(binding *widgets.WidgetsBinding, e *textEdi
 }
 
 // startBrackets makes the bracket pairs of the document and gives them to the editor.
-func (e *textEditor) startBrackets(win *Window) {
+func (e *textEditor) startBrackets(win *Workspace) {
 	code := win.Process.Languages.Code(e.doc.LanguageID())
 	ix, stop := brackets.Attach(e.doc, e.tokenizer, win.Process.BracketLanguages(), code)
 	e.stopBrackets = stop
@@ -200,7 +200,7 @@ func (e *textEditor) startBrackets(win *Window) {
 
 // startGuides makes the indentation levels of the document, which its indent guides and bracket
 // pair guides are drawn from, and gives them to the editor.
-func (e *textEditor) startGuides(win *Window) {
+func (e *textEditor) startGuides(win *Workspace) {
 	tabSize, _ := e.doc.Indentation()
 	levels, stop := indent.AttachLevels(e.doc, tabSize)
 	e.stopGuides = stop
@@ -214,7 +214,7 @@ func (e *textEditor) startGuides(win *Window) {
 // startFolding makes the folding of the document: the regions come from the indentation of its
 // lines and the folding rules of its language, up to editor.foldingMaximumRegions, and are
 // computed in the background.
-func (e *textEditor) startFolding(win *Window) {
+func (e *textEditor) startFolding(win *Workspace) {
 	provider := folding.IndentProvider{
 		Limit: folding.Limit{Max: int(settings.Get[float64](win.Settings, "editor.foldingMaximumRegions", e.doc.LanguageID()))},
 	}

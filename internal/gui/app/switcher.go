@@ -101,7 +101,7 @@ func (s *shellState) stepRecent(delta int, inGroup bool) {
 // quickNavigateOf is the state of a switcher opened by a command: the modifiers of its keys, whose release
 // chooses the active item. A command without a key of one press opens a picker like any other.
 func (s *shellState) quickNavigateOf(id string) *quickinput.QuickNavigate {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	qn := &quickinput.QuickNavigate{}
 	for _, it := range win.Keybindings.LookupKeybindings(id) {
 		if len(it.Keybinding) == 1 {
@@ -118,7 +118,7 @@ func (s *shellState) quickNavigateOf(id string) *quickinput.QuickNavigate {
 // switchCommands are the commands that move between the editors: next and previous (across groups or in the
 // group), the recently used editors, and the editor picker with the keys that move in it.
 func (s *shellState) switchCommands() map[string]command.Handler {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ctl := win.QuickInput
 	open := func(g *editorgroup.Group, in editorgroup.EditorInput) {
 		if g != nil && in != nil {
@@ -250,7 +250,7 @@ func (s *shellState) editorsOptions() quickinput.EditorsOptions {
 
 // editorEntries lists the open editors for a mode of the editor picker.
 func (s *shellState) editorEntries(mode quickinput.EditorsMode) []quickinput.EditorEntry {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	grid := s.group.grid
 	groups := grid.Groups(editorgroup.GridAppearance)
 	order := editorgroup.Sequential

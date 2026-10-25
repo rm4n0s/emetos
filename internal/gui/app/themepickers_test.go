@@ -70,7 +70,7 @@ func newThemeApp(t *testing.T, user, workspace string) *themeApp {
 			t.Fatal(err)
 		}
 	}
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +422,7 @@ func TestColorThemePickerIncludesTheUserThemes(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(paths.ThemesDir(), "sepia.json"), []byte(mine), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -447,19 +447,27 @@ func TestColorThemePreviewReachesEveryWindow(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one, two := env.folder("one", "a.go"), env.folder("two", "b.go")
 	app := env.run(Options{Folder: one})
-	if _, err := app.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := app.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	app.settle()
 	if app.m.Count() != 2 {
 		t.Fatalf("%d windows", app.m.Count())
 	}
-	w1, w2 := app.windowOf(one), app.windowOf(two)
+	w1, w2 := app.workspaceOf(one), app.workspaceOf(two)
+	// the window shows one tab: each tab is shown in turn, and the active one comes back
 	backgrounds := func() []ui.Color {
 		var out []ui.Color
-		for _, w := range app.ts.Widgets(gluttertest.ByType[*kit.Theme]()) {
-			out = append(out, w.(*kit.Theme).Colors().EditorBackground)
+		active := app.m.ActiveTab()
+		for _, tab := range app.m.Tabs() {
+			app.m.Activate(tab)
+			app.settle()
+			for _, w := range app.ts.Widgets(gluttertest.ByType[*kit.Theme]()) {
+				out = append(out, w.(*kit.Theme).Colors().EditorBackground)
+			}
 		}
+		app.m.Activate(active)
+		app.settle()
 		return out
 	}
 	if got := backgrounds(); len(got) != 2 || got[0] != darkBackground || got[1] != darkBackground {
@@ -646,12 +654,23 @@ func TestFileIconThemePreviewReachesEveryWindow(t *testing.T) {
 	env := newMultiEnv(t, nil)
 	one, two := env.folder("one", "a.go"), env.folder("two", "b.go")
 	app := env.run(Options{Folder: one})
-	if _, err := app.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := app.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	app.settle()
-	w1, w2 := app.windowOf(one), app.windowOf(two)
-	icons := func() int { return app.ts.Count(gluttertest.ByText(goGlyph)) }
+	w1, w2 := app.workspaceOf(one), app.workspaceOf(two)
+	icons := func() int {
+		n := 0
+		active := app.m.ActiveTab()
+		for _, tab := range app.m.Tabs() {
+			app.m.Activate(tab)
+			app.settle()
+			n += app.ts.Count(gluttertest.ByText(goGlyph))
+		}
+		app.m.Activate(active)
+		app.settle()
+		return n
+	}
 	if got := icons(); got != 2 {
 		t.Fatalf("%d Go icons to begin with, want one in each window", got)
 	}

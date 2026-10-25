@@ -53,7 +53,7 @@ type settingsPane struct {
 
 // build implements pane.
 func (p *settingsPane) build(bc widgets.BuildContext, group *editorgroup.Group, _ bool) widgets.Widget {
-	win := PeekWindow(bc)
+	win := PeekWorkspace(bc)
 	// the code spans of the descriptions are in the font of the editor
 	code, _ := widgets.WidgetsBindingOf(bc).PlatformDispatcher().MonospaceFont()
 	if first, _, _ := strings.Cut(settings.Get[string](win.Settings, "editor.fontFamily", ""), ","); strings.Trim(strings.TrimSpace(first), `"'`) != "" {
@@ -80,7 +80,7 @@ func (p *settingsPane) focus() { p.ctl.FocusSearch() }
 func (p *settingsPane) dispose() {}
 
 // SettingsModel is the model of the settings editor of the window, over its store.
-func (w *Window) SettingsModel() *settings.UIModel {
+func (w *Workspace) SettingsModel() *settings.UIModel {
 	if w.uiModel == nil {
 		w.uiModel = settings.NewUIModel(w.Settings)
 	}
@@ -89,7 +89,7 @@ func (w *Window) SettingsModel() *settings.UIModel {
 
 // settingsWriteFailed reports a change of a setting that could not be written.
 func (s *shellState) settingsWriteFailed(err error) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.Process.Logger.Warn("cannot write the setting", "err", err)
 	win.Notify.Warn("Emetos", "Cannot save the setting: "+describe(err))
 }
@@ -107,7 +107,7 @@ func (s *shellState) openSettingsEditor(target editorgroup.SettingsTarget, query
 			}
 		}
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if target == editorgroup.SettingsWorkspace && win.Folder == "" {
 		target = ""
 	}
@@ -155,7 +155,7 @@ func (s *shellState) openSettingsEditor(target editorgroup.SettingsTarget, query
 func (s *shellState) settingsCommands() map[string]command.Handler {
 	open := func(target editorgroup.SettingsTarget) command.Handler {
 		return func(_ command.Context, args any) error {
-			win := PeekWindow(s.Context())
+			win := PeekWorkspace(s.Context())
 			opts := settingsArgsOf(args)
 			if settings.Get[string](win.Settings, "workbench.settings.editor", "") == "json" {
 				t := settings.TargetUser
@@ -224,7 +224,7 @@ func settingsArgsOf(args any) settingsArgs {
 // runOpenJSON is the button and the link of the settings editor: they run the command for the file of the tab, as
 // VS Code's do, so that a key bound to the command or a handler that replaces it takes part.
 func (s *shellState) runOpenJSON(target settings.Target, key string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	id := "workbench.action.openSettingsJson"
 	if target == settings.TargetWorkspace {
 		id = "workbench.action.openWorkspaceSettingsFile"
@@ -241,7 +241,7 @@ func (s *shellState) runOpenJSON(target settings.Target, key string) {
 
 // openDefaultSettings shows the read-only document of the default settings (made again from the registry each time).
 func (s *shellState) openDefaultSettings() error {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	doc, err := win.Documents.AcquireVirtual(win.ctx, document.VirtualURI(DefaultSettingsPath))
 	if err != nil {
@@ -252,7 +252,7 @@ func (s *shellState) openDefaultSettings() error {
 }
 
 // resolveLanguage finds a language by its id or its name for the filter @lang: of the settings editor.
-func (w *Window) resolveLanguage(name string) (id, display string, ok bool) {
+func (w *Workspace) resolveLanguage(name string) (id, display string, ok bool) {
 	id, ok = w.Process.Languages.ByName(strings.TrimSpace(name))
 	if !ok {
 		return "", "", false
@@ -309,7 +309,7 @@ func settingsKeyPosition(text, key string) (line, column int) {
 // openSettingsJSON opens the settings.json of a target in a text editor (the file is made when it does not exist),
 // with the cursor on the name of a setting when key is not empty and the file has it.
 func (s *shellState) openSettingsJSON(target settings.Target, key string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	user, workspace := win.Settings.Paths()
 	path := user

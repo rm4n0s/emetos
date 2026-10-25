@@ -29,7 +29,7 @@ const quickInputPlaceholder = "Type '?' to get help on the actions you can take 
 // src/vs/workbench/browser/actions/quickAccessActions.ts and
 // src/vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess.ts
 func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.quickWin = win
 	ctl := win.QuickInput
 	ctl.Configure(quickinput.ControllerOptions{
@@ -128,7 +128,7 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 // syncFileIndex starts the walk of the folder of the window when it has not started, and stops the walk of
 // the folder that was closed.
 func (s *shellState) syncFileIndex() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	idx := win.FileIndex()
 	if idx == s.fileIndex {
 		return
@@ -144,7 +144,7 @@ func (s *shellState) syncFileIndex() {
 
 // filesOptions connect the file mode of the quick input to the window.
 func (s *shellState) filesOptions(binding *widgets.WidgetsBinding) quickinput.FilesOptions {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	home, _ := os.UserHomeDir()
 	return quickinput.FilesOptions{
 		Search: func(ctx context.Context, filter string) (workspace.QuickOpenResult, error) {
@@ -221,7 +221,7 @@ func (s *shellState) disposeQuickInput() {
 
 // bindQuickInputCommands takes over the commands that open the quick input in a mode.
 func (s *shellState) bindQuickInputCommands() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ctl := win.QuickInput
 	show := func(prefix string) command.Handler {
 		return func(command.Context, any) error { ctl.Show(prefix, quickinput.ShowOptions{}); return nil }
@@ -255,7 +255,7 @@ func (s *shellState) bindQuickInputCommands() {
 
 // openViewContainer shows a view container of the side bar or of the panel and gives it the focus.
 func (s *shellState) openViewContainer(id string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	c, ok := win.Views.Registry().Container(id)
 	if !ok {
 		return
@@ -283,7 +283,7 @@ func (s *shellState) openViewContainer(id string) {
 
 // openView shows a view, unfolding it, and its container, and gives them the focus.
 func (s *shellState) openView(id string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	v, ok := win.Views.Registry().View(id)
 	if !ok {
 		return
@@ -299,7 +299,7 @@ func (s *shellState) goToLineEditor() quickinput.GoToLineEditor {
 	if e == nil || e.view == nil {
 		return nil
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	return &goToLine{e: e, saved: e.view.ViewState(), jump: func(p buffer.Position) { s.jumpTo(e, p) }, log: func(err error) {
 		win.Process.Logger.Warn("cannot restore the view of the editor", "error", describe(err))
 	}}

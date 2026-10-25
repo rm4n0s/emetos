@@ -41,15 +41,15 @@ func newTestProcess(opts ProcessOptions) *Process {
 	return NewProcess(opts)
 }
 
-func newTestWindow(t *testing.T, folder string) *Window {
+func newTestWorkspace(t *testing.T, folder string) *Workspace {
 	t.Helper()
 	paths := testutil.Isolate(t)
 	// The store of the window reads the settings.json that testutil.Settings writes.
 	// closing a window with unsaved changes asks unless a test turns hot exit on (the backups are step 7.6)
 	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "files.hotExit": "off"})
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), folder)
 	if err != nil {
-		t.Fatalf("NewWindow: %v", err)
+		t.Fatalf("NewWorkspace: %v", err)
 	}
 	return win
 }
@@ -60,7 +60,7 @@ func sampleFile(t *testing.T) string {
 }
 
 func TestHomeShowsTheIconAndTheName(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newApp(context.Background(), win, nil, nil))
 
@@ -79,7 +79,7 @@ func TestHomeShowsTheIconAndTheName(t *testing.T) {
 }
 
 func TestShellShowsTheFile(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestShellShowsTheFile(t *testing.T) {
 }
 
 func TestEditorFollowsTheSettings(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -141,7 +141,7 @@ func TestEditorFollowsTheSettings(t *testing.T) {
 }
 
 // pumpPage shows the widget that build makes inside the window and theme of the app.
-func pumpPage(t *testing.T, win *Window, build func(bc widgets.BuildContext) widgets.Widget) *gluttertest.Tester {
+func pumpPage(t *testing.T, win *Workspace, build func(bc widgets.BuildContext) widgets.Widget) *gluttertest.Tester {
 	t.Helper()
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newAppWithPage(win, func() widgets.Widget { return widgets.NewBuilder(build) }))
@@ -149,17 +149,17 @@ func pumpPage(t *testing.T, win *Window, build func(bc widgets.BuildContext) wid
 }
 
 func TestWindowScope(t *testing.T) {
-	win := newTestWindow(t, "")
-	var got *Window
+	win := newTestWorkspace(t, "")
+	var got *Workspace
 	ts := pumpPage(t, win, func(bc widgets.BuildContext) widgets.Widget {
-		got = WindowOf(bc)
+		got = WorkspaceOf(bc)
 		return widgets.NewSizedBox(nil)
 	})
 	if errs := ts.TakeErrors(); len(errs) != 0 {
 		t.Fatalf("the framework reported errors: %v", errs)
 	}
 	if got != win {
-		t.Error("WindowOf must return the window of the scope")
+		t.Error("WorkspaceOf must return the window of the scope")
 	}
 }
 
@@ -171,8 +171,8 @@ func TestWindowMissing(t *testing.T) {
 		find  func(bc widgets.BuildContext)
 		route string
 	}{
-		{"WindowOf", func(bc widgets.BuildContext) { WindowOf(bc) }, "WindowOf.WindowMissing"},
-		{"PeekWindow", func(bc widgets.BuildContext) { PeekWindow(bc) }, "PeekWindow.WindowMissing"},
+		{"WorkspaceOf", func(bc widgets.BuildContext) { WorkspaceOf(bc) }, "WorkspaceOf.WorkspaceMissing"},
+		{"PeekWorkspace", func(bc widgets.BuildContext) { PeekWorkspace(bc) }, "PeekWorkspace.WorkspaceMissing"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestWindowMissing(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
 			}
-			if appErr.Tag != "WindowMissing" || !appErr.HasRoute(tt.route) {
+			if appErr.Tag != "WorkspaceMissing" || !appErr.HasRoute(tt.route) {
 				t.Errorf("Tag = %q, route = %s, want %s", appErr.Tag, appErr.Route(), tt.route)
 			}
 		})
@@ -203,7 +203,7 @@ func TestWindowMissing(t *testing.T) {
 func TestCancelingTheContextExits(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newApp(ctx, win, nil, nil))
 
@@ -232,7 +232,7 @@ func TestRunWithACanceledContextOpensNothing(t *testing.T) {
 // TestDevCommandsRunAfterTheFirstFrame shows the dev commands of the app running: a dev
 // command registered with RegisterDev is run with its argument once the page is up.
 func TestDevCommandsRunAfterTheFirstFrame(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	var got []any
 	if err := RegisterDev(win.Commands, command.Meta{ID: "dev.record"}, func(_ command.Context, args any) error {
 		got = append(got, args)
@@ -290,11 +290,11 @@ func TestWindowsOwnTheirDocuments(t *testing.T) {
 	paths := testutil.Isolate(t)
 	p := newTestProcess(ProcessOptions{Paths: paths})
 	ctx := context.Background()
-	a, err := NewWindow(ctx, p, "")
+	a, err := NewWorkspace(ctx, p, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := NewWindow(ctx, p, "")
+	b, err := NewWorkspace(ctx, p, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func TestWindowsOwnTheirDocuments(t *testing.T) {
 }
 
 func TestOpenFileErrors(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	_, err := win.Documents.OpenFile(context.Background(), filepath.Join(t.TempDir(), "missing.txt"), document.NewOptions())
 	if err == nil {
 		t.Fatal("opening a missing file must fail")
@@ -334,7 +334,7 @@ func TestWindowWithAFolderReadsItsSettings(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(folder, ".emetos", "settings.json"), []byte(`{ "editor.fontSize": 20 }`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win := newTestWindow(t, folder)
+	win := newTestWorkspace(t, folder)
 	if win.Folder != folder {
 		t.Errorf("Folder = %q", win.Folder)
 	}
@@ -345,7 +345,7 @@ func TestWindowWithAFolderReadsItsSettings(t *testing.T) {
 }
 
 func TestEditorFollowsTheDisplaySettingsAndTheZoom(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -392,7 +392,7 @@ func TestEditorFollowsTheDisplaySettingsAndTheZoom(t *testing.T) {
 }
 
 func TestShellHighlightsTheFile(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -439,7 +439,7 @@ func TestShellHighlightsTheFile(t *testing.T) {
 }
 
 func TestPlainTextIsNotTokenized(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	path := filepath.Join(t.TempDir(), "notes.txt")
 	if err := os.WriteFile(path, []byte("just words\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -465,7 +465,7 @@ func TestPlainTextIsNotTokenized(t *testing.T) {
 func TestFileAssociationsChooseTheLanguage(t *testing.T) {
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, map[string]any{"files.associations": map[string]any{"*.sample": "go", "*.json": "jsonc"}})
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

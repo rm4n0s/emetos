@@ -67,16 +67,37 @@ type LastWindow struct {
 	Folder string `json:"folder,omitempty"`
 }
 
-// OpenWindow is a window that is open: the id of its state (see WindowID and NewEmptyWindowID) and its folder.
-// The global state keeps the list of them in the order the windows were made (SPEC §10.10).
+// TabKindWorkspace is the kind of a window tab that holds a workspace (a folder, or none). Step 11.6 adds the kinds
+// of the extension tabs; a tab with no kind is a workspace.
+const TabKindWorkspace = "workspace"
+
+// WorkspaceTab is a window tab that is open (SPEC §10.14): the stable id of the tab, the id of the UI state of its
+// workspace (see WindowID and NewEmptyWindowID) and its folder. The global state keeps the list of them in the order
+// of the strip.
+type WorkspaceTab struct {
+	// ID is the stable id of the tab (NewTabID); it stays the same when the tab opens another folder. A tab read from
+	// the openWindows of a state written before step 9b.1 has the id of its window.
+	ID string `json:"id"`
+	// Kind is the kind of the tab: TabKindWorkspace, or empty (the same). A tab of a kind that is not known is dropped
+	// when the state is read.
+	Kind string `json:"kind,omitempty"`
+	// StateID is the id of the state file and the backups of the workspace of the tab.
+	StateID string `json:"stateId,omitempty"`
+	// Folder is the folder of the workspace, or empty for a tab without one.
+	Folder string `json:"folder,omitempty"`
+	// Profile is the profile the workspace used (SPEC §10.12), so that the next start opens it with the same
+	// profile and reads its UI state from that profile's folder; empty is the default profile.
+	Profile string `json:"profile,omitempty"`
+}
+
+// OpenWindow is a window of the list openWindows that an Emetos older than step 9b.1 wrote (one Glutter window per
+// folder). It is read as a WorkspaceTab and not written any more.
 type OpenWindow struct {
 	// ID is the id of the state file and the backups of the window.
 	ID string `json:"id"`
 	// Folder is the folder of the window, or empty for a window without one.
 	Folder string `json:"folder,omitempty"`
-	// Profile is the profile the window used (SPEC §10.12), so that the next start opens it with the same
-	// profile and reads its UI state from that profile's folder; empty is the default profile. A state written
-	// before step 8.6 has none.
+	// Profile is the profile the window used (SPEC §10.12).
 	Profile string `json:"profile,omitempty"`
 }
 
@@ -86,14 +107,20 @@ type GlobalState struct {
 	Version int `json:"version"`
 	// EmptyWindowID is the id of the window without a folder (see NewEmptyWindowID).
 	EmptyWindowID string `json:"emptyWindowId,omitempty"`
-	// LastWindow is the window that was open last; nil before any was.
+	// LastWindow is the workspace that was active last; nil before any was.
 	LastWindow *LastWindow `json:"lastWindow,omitempty"`
-	// OpenWindows are the windows that are open, in the order they were made. A window that the user closes
-	// leaves the list; the windows that are open when the application quits stay in it, so the next start
-	// opens them again (window.restoreWindows).
+	// WorkspaceTabs are the window tabs that are open, in the order of the strip. A tab that the user closes leaves
+	// the list; the tabs that are open when the application quits stay in it, so the next start opens them again
+	// (window.restoreWindows, SPEC §10.14).
+	WorkspaceTabs []WorkspaceTab `json:"workspaceTabs,omitempty"`
+	// ActiveWorkspaceTab is the id of the tab that was active.
+	ActiveWorkspaceTab string `json:"activeWorkspaceTab,omitempty"`
+	// WindowGeometry is the size and state of the one window.
+	WindowGeometry *Geometry `json:"windowGeometry,omitempty"`
+	// OpenWindows and Geometry are what a state written before step 9b.1 holds: the store moves them to WorkspaceTabs
+	// and WindowGeometry when it reads the file (when those are not there) and leaves them empty.
 	OpenWindows []OpenWindow `json:"openWindows,omitempty"`
-	// Geometry is the size and state the last window had, for a window that has none of its own.
-	Geometry *Geometry `json:"geometry,omitempty"`
+	Geometry    *Geometry    `json:"geometry,omitempty"`
 	// Recent are the folders and files of File > Open Recent.
 	Recent RecentlyOpened `json:"recent"`
 	// LastProfiles is the profile last used with each folder, by the cleaned absolute path of the folder (SPEC

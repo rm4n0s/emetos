@@ -30,7 +30,7 @@ import (
 // explorerApp is a window over a folder, with the Explorer in its side bar.
 type explorerApp struct {
 	t    *testing.T
-	win  *Window
+	win  *Workspace
 	ts   *gluttertest.Tester
 	root string
 }
@@ -61,7 +61,7 @@ func newExplorerApp(t *testing.T, size ui.Size, entries []string, open ...string
 	t.Helper()
 	root := t.TempDir()
 	writeTree(t, root, entries...)
-	win := newTestWindow(t, root)
+	win := newTestWorkspace(t, root)
 	var docs []*document.Document
 	for _, p := range open {
 		doc, err := win.Documents.OpenFile(context.Background(), filepath.Join(root, p), document.NewOptions())
@@ -499,7 +499,7 @@ func TestExplorerOpenEditorsCloseButtonAndSettings(t *testing.T) {
 }
 
 func TestExplorerWelcomeAndOpenFolder(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ts := testutil.New(t, ui.Size{Width: 900, Height: 600})
 	fd := ts.FakeDesktop()
 	ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
@@ -553,7 +553,7 @@ func TestExplorerWelcomeAndOpenFolder(t *testing.T) {
 }
 
 func TestChooseFolderFailureHasItsOwnTag(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ts := testutil.New(t, ui.Size{Width: 400, Height: 300})
 	ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
 	ts.Pump(20 * time.Millisecond)
@@ -578,7 +578,7 @@ func TestChooseFolderFailureHasItsOwnTag(t *testing.T) {
 }
 
 // notified tells whether a notification of the process has a text in its message.
-func notified(win *Window, text string) bool {
+func notified(win *Workspace, text string) bool {
 	for _, n := range win.Notify.Items() {
 		if strings.Contains(n.Message, text) {
 			return true
@@ -664,14 +664,14 @@ func TestOpenFolder(t *testing.T) {
 }
 
 func TestSetFolderFailureKeepsTheFolder(t *testing.T) {
-	win := newTestWindow(t, t.TempDir())
+	win := newTestWorkspace(t, t.TempDir())
 	before := win.Folder
 	err := win.SetFolder(context.Background(), filepath.Join(t.TempDir(), "missing"))
 	appErr, ok := errors.FromError(err)
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T", err)
 	}
-	if !appErr.HasRoute("Window.SetFolder->Open.WorkspaceFolderNotFound") {
+	if !appErr.HasRoute("Workspace.SetFolder->Open.WorkspaceFolderNotFound") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 	if win.Folder != before || win.Workspace == nil {
@@ -680,7 +680,7 @@ func TestSetFolderFailureKeepsTheFolder(t *testing.T) {
 }
 
 func TestFileIcons(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ctx := context.Background()
 	if th := win.FileIcons(); th == nil || th.ID() != theme.DefaultFileIconTheme {
 		t.Fatalf("the default theme is %v", th)
@@ -722,7 +722,7 @@ func TestWindowStateKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			win := newTestWindow(t, tt.folder(t))
+			win := newTestWorkspace(t, tt.folder(t))
 			if got := win.Keys.Get("workbenchState"); got != tt.want {
 				t.Errorf("workbenchState = %v, want %v", got, tt.want)
 			}

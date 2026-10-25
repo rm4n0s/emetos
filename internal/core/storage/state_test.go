@@ -347,7 +347,7 @@ func TestGlobalStateRoundTrip(t *testing.T) {
 	}
 	err = s.UpdateGlobal(t.Context(), func(g *storage.GlobalState) bool {
 		g.LastWindow = &storage.LastWindow{Folder: "/work/project"}
-		g.Geometry = &storage.Geometry{Width: 900, Height: 600}
+		g.WindowGeometry = &storage.Geometry{Width: 900, Height: 600}
 		g.Recent.AddFolder("/work/project")
 		g.Recent.AddFile("/work/project/main.go")
 		return true
@@ -367,7 +367,7 @@ func TestGlobalStateRoundTrip(t *testing.T) {
 	}
 	want := storage.GlobalState{
 		Version: storage.StateVersion, EmptyWindowID: id,
-		LastWindow: &storage.LastWindow{Folder: "/work/project"}, Geometry: &storage.Geometry{Width: 900, Height: 600},
+		LastWindow: &storage.LastWindow{Folder: "/work/project"}, WindowGeometry: &storage.Geometry{Width: 900, Height: 600},
 		Recent: storage.RecentlyOpened{Folders: []string{"/work/project"}, Files: []string{"/work/project/main.go"}},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -750,10 +750,25 @@ func TestStoreOfAProfileWithAnUnsafeName(t *testing.T) {
 	}
 }
 
-func TestTheOpenWindowsAreKeptInTheGlobalState(t *testing.T) {
+func TestTheWorkspaceTabsAreKeptInTheGlobalState(t *testing.T) {
 	s, clock, paths := newStore(t, nil)
-	list := []storage.OpenWindow{{ID: "0123456789abcdef", Folder: "/work/one"}, {ID: "fedcba9876543210"}}
-	if err := s.UpdateGlobal(t.Context(), func(g *storage.GlobalState) bool { g.OpenWindows = list; return true }); err != nil {
+	list := []storage.WorkspaceTab{
+		{ID: "0123456789abcdef", StateID: "aaaaaaaaaaaaaaaa", Folder: "/work/one", Profile: "Work"},
+		{ID: "fedcba9876543210", StateID: "bbbbbbbbbbbbbbbb"},
+	}
+	// the state id of a tab with a folder is the one the folder makes
+	one, err := storage.WindowID("/work/one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := slices.Clone(list)
+	want[0].StateID = one
+	err = s.UpdateGlobal(t.Context(), func(g *storage.GlobalState) bool {
+		g.WorkspaceTabs, g.ActiveWorkspaceTab = list, "fedcba9876543210"
+		g.WindowGeometry = &storage.Geometry{Width: 1200, Height: 700, Maximized: true}
+		return true
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 	clock.Advance(storage.DefaultStateDelay)
@@ -765,17 +780,21 @@ func TestTheOpenWindowsAreKeptInTheGlobalState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(got.OpenWindows, list) {
-		t.Errorf("open windows %+v, want %+v", got.OpenWindows, list)
+	if !slices.Equal(got.WorkspaceTabs, want) || got.ActiveWorkspaceTab != "fedcba9876543210" {
+		t.Errorf("tabs %+v active %q, want %+v", got.WorkspaceTabs, got.ActiveWorkspaceTab, want)
+	}
+	if got.WindowGeometry == nil || *got.WindowGeometry != (storage.Geometry{Width: 1200, Height: 700, Maximized: true}) {
+		t.Errorf("window geometry %+v", got.WindowGeometry)
 	}
 	// the copy that LoadGlobal gives is the caller's
-	got.OpenWindows[0].Folder = "/changed"
-	if again2, _ := again.LoadGlobal(t.Context()); again2.OpenWindows[0].Folder != "/work/one" {
+	got.WorkspaceTabs[0].Folder = "/changed"
+	got.WindowGeometry.Width = 1
+	if again2, _ := again.LoadGlobal(t.Context()); again2.WorkspaceTabs[0].Folder != "/work/one" || again2.WindowGeometry.Width != 1200 {
 		t.Error("a change of the copy reached the store")
 	}
 }
 
-func TestTheOpenWindowsOfAFileAreCleanedWhenRead(t *testing.T) {
+func TestTheWorkspaceTabsOfAFileAreCleanedWhenRead(t *testing.T) {
 	_, _, paths := newStore(t, nil)
 	path, err := paths.GlobalStatePath(storage.DefaultProfile)
 	if err != nil {
@@ -784,12 +803,14 @@ func TestTheOpenWindowsOfAFileAreCleanedWhenRead(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	text := `{"version": 1, "openWindows": [
+	text := `{"version": 1, "activeWorkspaceTab": "not a tab", "workspaceTabs": [
 		{"id": "0123456789abcdef", "folder": "/a/b/../c"},
 		{"id": "0123456789abcdef", "folder": "/again"},
 		{"id": "not an id"},
 		{"id": "fedcba9876543210", "folder": "relative/folder"},
-		{"id": "00000000000000aa"}]}`
+		{"id": "1111111111111111", "kind": "browser"},
+		{"id": "2222222222222222", "kind": "workspace", "stateId": "../escape"},
+		{"id": "00000000000000aa", "stateId": "00000000000000bb", "profile": "bad/name"}]}`
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -801,9 +822,102 @@ func TestTheOpenWindowsOfAFileAreCleanedWhenRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []storage.OpenWindow{{ID: "0123456789abcdef", Folder: "/a/c"}, {ID: "00000000000000aa"}}
-	if !slices.Equal(g.OpenWindows, want) {
-		t.Errorf("open windows %+v, want %+v", g.OpenWindows, want)
+	c, _ := storage.WindowID("/a/c")
+	want := []storage.WorkspaceTab{
+		{ID: "0123456789abcdef", StateID: c, Folder: "/a/c"}, {ID: "2222222222222222"}, {ID: "00000000000000aa", StateID: "00000000000000bb"},
+	}
+	if !slices.Equal(g.WorkspaceTabs, want) {
+		t.Errorf("tabs %+v, want %+v", g.WorkspaceTabs, want)
+	}
+	if g.ActiveWorkspaceTab != "" {
+		t.Errorf("an active tab that is not in the list was kept: %q", g.ActiveWorkspaceTab)
+	}
+}
+
+// A state.json written before step 9b.1 has the list of windows and the geometry of the last window: they are the
+// tabs, in the same order, and the geometry of the window, and the file is written with the new fields only.
+func TestAnOldStateFileIsReadAsTabs(t *testing.T) {
+	s0, _, paths := newStore(t, nil)
+	_ = s0
+	path, err := paths.GlobalStatePath(storage.DefaultProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	one, _ := storage.WindowID("/work/one")
+	text := `{"version": 1, "emptyWindowId": "00000000000000aa",
+		"lastWindow": {"folder": "/work/one"},
+		"geometry": {"width": 1100, "height": 650, "maximized": true},
+		"openWindows": [
+			{"id": "` + one + `", "folder": "/work/one", "profile": "Work"},
+			{"id": "00000000000000aa"},
+			{"id": "00000000000000bb"}]}`
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	clock := storagetest.NewClock()
+	s, err := storage.NewStateStore(paths, storage.DefaultProfile, storage.StateStoreOptions{After: clock.AfterFunc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := s.LoadGlobal(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []storage.WorkspaceTab{
+		{ID: one, StateID: one, Folder: "/work/one", Profile: "Work"},
+		{ID: "00000000000000aa", StateID: "00000000000000aa"},
+		{ID: "00000000000000bb", StateID: "00000000000000bb"},
+	}
+	if !slices.Equal(g.WorkspaceTabs, want) {
+		t.Errorf("tabs %+v, want %+v", g.WorkspaceTabs, want)
+	}
+	if g.WindowGeometry == nil || *g.WindowGeometry != (storage.Geometry{Width: 1100, Height: 650, Maximized: true}) {
+		t.Errorf("window geometry %+v", g.WindowGeometry)
+	}
+	if len(g.OpenWindows) != 0 || g.Geometry != nil {
+		t.Errorf("the old fields stay: %+v %+v", g.OpenWindows, g.Geometry)
+	}
+	if g.LastWindow == nil || g.LastWindow.Folder != "/work/one" || g.EmptyWindowID != "00000000000000aa" {
+		t.Errorf("the rest of the file was not kept: %+v", g)
+	}
+	// the next write has the new fields, and not the old ones
+	if err := s.UpdateGlobal(t.Context(), func(g *storage.GlobalState) bool { g.ActiveWorkspaceTab = one; return true }); err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(storage.DefaultStateDelay)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, need := range []string{`"workspaceTabs"`, `"activeWorkspaceTab"`, `"windowGeometry"`} {
+		if !strings.Contains(string(raw), need) {
+			t.Errorf("the state file has no %s: %s", need, raw)
+		}
+	}
+	for _, gone := range []string{`"openWindows"`, `"geometry"`} {
+		if strings.Contains(string(raw), gone) {
+			t.Errorf("the state file still has %s: %s", gone, raw)
+		}
+	}
+	// a file that has both lists keeps the new one
+	text = `{"version": 1, "workspaceTabs": [{"id": "00000000000000cc"}], "openWindows": [{"id": "00000000000000dd"}],
+		"windowGeometry": {"width": 900, "height": 500}, "geometry": {"width": 1100, "height": 650}}`
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	both, err := storage.NewStateStore(paths, storage.DefaultProfile, storage.StateStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	g2, err := both.LoadGlobal(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g2.WorkspaceTabs) != 1 || g2.WorkspaceTabs[0].ID != "00000000000000cc" || g2.WindowGeometry.Width != 900 {
+		t.Errorf("tabs %+v geometry %+v", g2.WorkspaceTabs, g2.WindowGeometry)
 	}
 }
 

@@ -131,7 +131,7 @@ func (p *Process) registerCompareDocuments() {
 // it differs: the comparison with the saved file follows a save and a change of the file on disk. A file that cannot be
 // read (it is gone) leaves the text as it was.
 func (s *shellState) refreshSaved(path string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	uri := savedURI(path)
 	doc, ok := win.Documents.Get(uri)
 	if !ok {
@@ -181,10 +181,10 @@ func (s *shellState) compareCommands() map[string]command.Handler {
 		"compareSelected":                             func(command.Context, any) error { s.compareSelected(); return nil },
 
 		"toggle.diff.renderSideBySide": func(command.Context, any) error {
-			return s.writeSetting("diffEditor.renderSideBySide", !settings.Get[bool](PeekWindow(s.Context()).Settings, "diffEditor.renderSideBySide", ""))
+			return s.writeSetting("diffEditor.renderSideBySide", !settings.Get[bool](PeekWorkspace(s.Context()).Settings, "diffEditor.renderSideBySide", ""))
 		},
 		"diffEditor.toggleUseInlineViewWhenSpaceIsLimited": func(command.Context, any) error {
-			return s.writeSetting("diffEditor.useInlineViewWhenSpaceIsLimited", !settings.Get[bool](PeekWindow(s.Context()).Settings, "diffEditor.useInlineViewWhenSpaceIsLimited", ""))
+			return s.writeSetting("diffEditor.useInlineViewWhenSpaceIsLimited", !settings.Get[bool](PeekWorkspace(s.Context()).Settings, "diffEditor.useInlineViewWhenSpaceIsLimited", ""))
 		},
 		"diffEditor.setViewMode.inline": func(command.Context, any) error {
 			return s.writeSetting("diffEditor.renderSideBySide", false)
@@ -207,7 +207,7 @@ func (s *shellState) compareCommands() map[string]command.Handler {
 // writeSetting changes a setting where the user has it: in the workspace settings when the workspace sets it, else in
 // the user's.
 func (s *shellState) writeSetting(key string, value any) error {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	target := settings.TargetUser
 	if win.Folder != "" && win.Settings.Inspect(key, "").Workspace.Ok {
 		target = settings.TargetWorkspace
@@ -218,7 +218,7 @@ func (s *shellState) writeSetting(key string, value any) error {
 // compareWithSaved opens the diff of a file as it is on disk (left) and as the window has it (right). The file is the
 // one the argument names (a path or a file URI), else the active editor's.
 func (s *shellState) compareWithSaved(args any) error {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	var live *document.Document
 	switch v := args.(type) {
 	case nil, map[string]any:
@@ -245,7 +245,7 @@ func (s *shellState) compareWithSaved(args any) error {
 
 // openSavedDiff shows the file of a document as it is on disk against the document.
 func (s *shellState) openSavedDiff(live *document.Document) error {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	saved, err := win.Documents.AcquireVirtual(win.ctx, savedURI(live.URI().Path))
 	if err != nil {
 		return err
@@ -258,7 +258,7 @@ func (s *shellState) openSavedDiff(live *document.Document) error {
 // compareFileWith asks for a file in the quick open and opens the diff of the active editor's file (left) and the one
 // that was picked (right); the quick open starts with the second item active, as the first is the file that is open.
 func (s *shellState) compareFileWith() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	active := s.activeDocument()
 	if active == nil {
 		return
@@ -275,7 +275,7 @@ func (s *shellState) compareFileWith() {
 
 // compareDocumentWith opens the diff of a document (left) and a file (right), reading the file in the background.
 func (s *shellState) compareDocumentWith(left *document.Document, path string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.Documents.Retain(left)
 	s.Go(func(life context.Context) {
 		right, err := win.Documents.Acquire(life, path, document.NewOptions())
@@ -299,7 +299,7 @@ func (s *shellState) compareDocumentWith(left *document.Document, path string) {
 
 // compareWithClipboard opens the diff of what the clipboard holds (left) and the active file (right).
 func (s *shellState) compareWithClipboard(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	live := s.activeDocument()
 	if live == nil || live.URI().Scheme == document.SchemeVirtual {
 		return
@@ -331,7 +331,7 @@ func (s *shellState) compareWithClipboard(binding *widgets.WidgetsBinding) {
 // selectForCompare remembers the file the command is run on: the focused row of the Explorer, or the file the
 // argument names, or the active editor's. Compare with Selected then compares another file with it.
 func (s *shellState) selectForCompare(args any) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if path, ok := s.compareTarget(args); ok {
 		s.compare.source = path
 		win.Keys.Set("resourceSelectedForCompare", true)
@@ -380,7 +380,7 @@ func (s *shellState) compareSelected() {
 
 // compareFiles opens the diff of two files, reading them in the background.
 func (s *shellState) compareFiles(left, right string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		a, errA := win.Documents.Acquire(life, left, document.NewOptions())
 		var b *document.Document

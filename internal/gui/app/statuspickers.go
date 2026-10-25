@@ -39,7 +39,7 @@ const guessLimit = 1 << 20
 
 // bindStatusCommands binds the commands of the pickers while the shell is on screen.
 func (s *shellState) bindStatusCommands(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	handlers := map[string]command.Handler{
 		"changeEditorIndentation":                func(command.Context, any) error { s.showIndentationPicker(); return nil },
 		"workbench.action.editor.changeEOL":      func(command.Context, any) error { s.showEOLPicker(binding); return nil },
@@ -61,7 +61,7 @@ func (s *shellState) bindStatusCommands(binding *widgets.WidgetsBinding) {
 
 // pickInfo shows a picker with a single line that tells why there is nothing to do; choosing it closes it.
 func (s *shellState) pickInfo(text string) {
-	PeekWindow(s.Context()).QuickInput.Pick(quickinput.PickOptions{
+	PeekWorkspace(s.Context()).QuickInput.Pick(quickinput.PickOptions{
 		Items: []quickinput.Item{{Label: text, Accept: func(quickinput.KeyMods) {}}},
 	})
 }
@@ -80,7 +80,7 @@ func (s *shellState) showIndentationPicker() {
 		s.pickInfo(readOnlyText)
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	action := func(id string) quickinput.Item {
 		meta, _ := win.Commands.Lookup(id)
 		return quickinput.Item{
@@ -122,7 +122,7 @@ func (s *shellState) showEOLPicker(binding *widgets.WidgetsBinding) {
 		s.pickInfo(readOnlyText)
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	option := func(le fileio.LineEnding) quickinput.Item {
 		return quickinput.Item{
 			ID: workbench.EOLLabel(le), Label: workbench.EOLLabel(le),
@@ -179,13 +179,13 @@ func (s *shellState) showEncodingPicker(binding *widgets.WidgetsBinding) {
 	}
 	items = append(items, quickinput.Item{ID: "save", Label: "Save with Encoding",
 		Accept: func(quickinput.KeyMods) { s.showSaveEncodingList(binding, e, "") }})
-	PeekWindow(s.Context()).QuickInput.Pick(quickinput.PickOptions{Placeholder: "Select Action", MatchOnDetail: true, Items: items})
+	PeekWorkspace(s.Context()).QuickInput.Pick(quickinput.PickOptions{Placeholder: "Select Action", MatchOnDetail: true, Items: items})
 }
 
 // guessEncoding finds the encoding the file looks to be in (a byte order mark, or valid UTF-8) on a goroutine
 // and shows the list of encodings to reopen it with.
 func (s *shellState) guessEncoding(binding *widgets.WidgetsBinding, e *textEditor) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	file := e.doc.URI().Path
 	configured := settings.Get[string](win.Settings, "files.encoding", e.doc.LanguageID())
 	s.Go(func(life context.Context) {
@@ -242,7 +242,7 @@ func encodingPicks(configured, guessed string, reopen bool, accept func(fileio.E
 
 // showEncodingList shows the encodings to reopen the file with; the one the file has is active.
 func (s *shellState) showEncodingList(binding *widgets.WidgetsBinding, e *textEditor, configured, guessed string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.QuickInput.Pick(quickinput.PickOptions{
 		Placeholder: "Select File Encoding to Reopen File",
 		Items:       encodingPicks(configured, guessed, true, func(enc fileio.Encoding) { s.reopenWithEncoding(binding, e, enc) }),
@@ -271,7 +271,7 @@ func (s *shellState) reopenWithEncoding(binding *widgets.WidgetsBinding, e *text
 
 // readWithEncoding does the read of reopenWithEncoding on a goroutine and applies it on the UI thread.
 func (s *shellState) readWithEncoding(binding *widgets.WidgetsBinding, e *textEditor, enc fileio.Encoding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	file := e.doc.URI().Path
 	s.Go(func(life context.Context) {
 		res, err := fileio.Read(life, file, fileio.ReadOptions{Encoding: enc.ID, ForceEncoding: true, AllowBinary: true})
@@ -296,7 +296,7 @@ func (s *shellState) readWithEncoding(binding *widgets.WidgetsBinding, e *textEd
 type languagePick struct{ id, name string }
 
 // sortedLanguages are the languages in the order of their names, without regard to case.
-func (w *Window) sortedLanguages() []languagePick {
+func (w *Workspace) sortedLanguages() []languagePick {
 	var out []languagePick
 	for _, l := range w.Process.Languages.Languages() {
 		name := l.Name
@@ -328,7 +328,7 @@ func (s *shellState) showLanguagePicker(binding *widgets.WidgetsBinding, args an
 		s.pickInfo(noEditorText)
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	doc := e.doc
 	if name, ok := args.(string); ok {
 		if id, found := win.Process.Languages.ByName(name); found {
@@ -398,7 +398,7 @@ func currentAssociation(langs *language.Registry, base string) string {
 // .gitignore or Dockerfile. The setting is written to the workspace settings when the association is made there
 // already, else to the user settings; the documents open take the language their name gives now.
 func (s *shellState) pickAssociation(binding *widgets.WidgetsBinding, e *textEditor) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	file := e.doc.URI().Path
 	base, ext := path.Base(file), path.Ext(file)
 	current := currentAssociation(win.Process.Languages, base)
@@ -422,7 +422,7 @@ func (s *shellState) pickAssociation(binding *widgets.WidgetsBinding, e *textEdi
 
 // writeAssociation stores the association of a file name with a language.
 func (s *shellState) writeAssociation(binding *widgets.WidgetsBinding, e *textEditor, base, ext, languageID string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	key := base
 	if ext != "" && base[0] != '.' {
 		key = "*" + ext

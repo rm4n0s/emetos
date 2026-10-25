@@ -35,7 +35,7 @@ type panelsState struct {
 // initPanels makes the views of the panels, follows the markers (the badge on the tab of the Problems)
 // and the settings of the Output, and binds the commands of the panels.
 func (s *shellState) initPanels(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	p := &s.panels
 	root := win.Folder
 	if abs, err := filepath.Abs(root); err == nil && root != "" {
@@ -118,7 +118,7 @@ func (s *shellState) disposePanels() {
 // Ported from VS Code: src/vs/workbench/contrib/markers/browser/markers.contribution.ts and
 // src/vs/workbench/contrib/output/browser/output.contribution.ts
 func (s *shellState) bindPanelCommands() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	p := &s.panels
 	run := func(f func()) command.Handler {
 		return func(command.Context, any) error { f(); return nil }
@@ -156,7 +156,7 @@ func (s *shellState) bindPanelCommands() {
 
 // panelTabs are the tabs of the panel: its view containers in order, the Problems with the count of
 // problems on it.
-func (s *shellState) panelTabs(win *Window) []workbench.PanelTab {
+func (s *shellState) panelTabs(win *Workspace) []workbench.PanelTab {
 	var tabs []workbench.PanelTab
 	for _, c := range win.Process.Views.Containers(command.ViewLocationPanel) {
 		tab := workbench.PanelTab{ID: c.ID, Title: c.Title}
@@ -171,7 +171,7 @@ func (s *shellState) panelTabs(win *Window) []workbench.PanelTab {
 }
 
 // panelBody is the body of the panel: the view of the tab that is open.
-func (s *shellState) panelBody(win *Window) widgets.Widget {
+func (s *shellState) panelBody(win *Workspace) widgets.Widget {
 	var body widgets.Widget
 	var viewID string
 	switch win.Views.ActivePanel() {
@@ -199,7 +199,7 @@ func (s *shellState) panelBody(win *Window) widgets.Widget {
 }
 
 // panelActions are the actions of the tab that is open, in the title strip of the panel.
-func (s *shellState) panelActions(win *Window) widgets.Widget {
+func (s *shellState) panelActions(win *Workspace) widgets.Widget {
 	switch win.Views.ActivePanel() {
 	case command.ViewContainerMarkers:
 		return problems.NewActions(s.panels.problems)
@@ -249,7 +249,7 @@ func (s *shellState) syncActiveFile(binding *widgets.WidgetsBinding) {
 //
 // Ported from VS Code: src/vs/workbench/contrib/markers/browser/markersView.ts (openFileAtElement)
 func (s *shellState) openMarker(binding *widgets.WidgetsBinding, m problems.Marker, pinned bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, m.Resource, document.NewOptions())
 		binding.Post(func() {

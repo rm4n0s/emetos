@@ -173,7 +173,7 @@ func TestDevRunnerStopsWhenCanceled(t *testing.T) {
 }
 
 func TestDevStepsFromTextAndEnvironment(t *testing.T) {
-	p := newTestProcess(ProcessOptions{Paths: newTestWindow(t, "").Process.Paths})
+	p := newTestProcess(ProcessOptions{Paths: newTestWorkspace(t, "").Process.Paths})
 	if !DevCommandsEnabled() {
 		t.Skip("this build does not run dev commands")
 	}

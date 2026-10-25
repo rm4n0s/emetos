@@ -40,17 +40,17 @@ func newSaveApp(t *testing.T, texts map[string]string, open ...string) *saveApp 
 		names = append(names, n)
 	}
 	slices.Sort(names)
-	return newSaveAppWith(t, newTestWindow(t, ""), names, texts, open...)
+	return newSaveAppWith(t, newTestWorkspace(t, ""), names, texts, open...)
 }
 
-func newSaveAppWith(t *testing.T, win *Window, names []string, texts map[string]string, open ...string) *saveApp {
+func newSaveAppWith(t *testing.T, win *Workspace, names []string, texts map[string]string, open ...string) *saveApp {
 	t.Helper()
 	g := newGroupAppWith(t, win, testWindowSize, names, texts, open...)
 	return &saveApp{groupApp: g, fd: g.ts.FakeDesktop()}
 }
 
 // settingsWindow is a window whose settings file has the given settings.
-func settingsWindow(t *testing.T, extra map[string]any) *Window {
+func settingsWindow(t *testing.T, extra map[string]any) *Workspace {
 	t.Helper()
 	paths := testutil.Isolate(t)
 	// closing a window with unsaved changes asks unless a test turns hot exit on (the backups are step 7.6)
@@ -73,9 +73,9 @@ func settingsWindow(t *testing.T, extra map[string]any) *Window {
 	if err := os.WriteFile(userPath, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
-		t.Fatalf("NewWindow: %v", err)
+		t.Fatalf("NewWorkspace: %v", err)
 	}
 	return win
 }
@@ -1041,7 +1041,7 @@ func TestTheWatcherDoesNotReportOurOwnWrite(t *testing.T) {
 // ---- the registry ----
 
 func TestSaveCommandsAreRegisteredWithTheirKeys(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	for id, key := range map[string]string{
 		"workbench.action.files.save":                  "Ctrl+S",
 		"workbench.action.files.saveAs":                "Ctrl+Shift+S",

@@ -77,7 +77,7 @@ type confirmSpec struct {
 // confirm asks a question in a dialog (VS Code's `dialogService.confirm`): the primary button confirms, Cancel
 // and Escape do not.
 func (s *shellState) confirm(spec confirmSpec, answer func(confirmed, checked bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.Dialogs.Show(kit.DialogSpec{
 		Type: spec.Type, Message: spec.Message, Detail: strings.TrimRight(spec.Detail, "\n"),
 		Buttons: []string{spec.Primary, "Cancel"}, CancelButton: foundation.Some(1),
@@ -90,7 +90,7 @@ func (s *shellState) confirm(spec confirmSpec, answer func(confirmed, checked bo
 
 // updateSetting writes a setting of the user, the way the "Do not ask me again" box does.
 func (s *shellState) updateSetting(key string, value any) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if err := win.Settings.Update(win.ctx, key, value, settings.TargetUser); err != nil {
 		win.Process.Logger.Warn("cannot write the setting", "key", key, "err", err)
 		win.Notify.Warn("Emetos", "Cannot save the setting "+key+": "+describe(err))
@@ -106,7 +106,7 @@ type opsRun struct {
 // runFileOp runs a file operation on a goroutine, applies its events to the tree, and then, on the UI thread, makes the
 // editors follow it and calls done with the outcome. Nothing runs when the shell is gone.
 func (s *shellState) runFileOp(binding *widgets.WidgetsBinding, work func(ctx context.Context) (workspace.OpResult, error), done func(opsRun)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		res, err := work(life)
 		if ws := win.currentWorkspace(); ws != nil && !res.Empty() {
@@ -128,7 +128,7 @@ func (s *shellState) runFileOp(binding *widgets.WidgetsBinding, work func(ctx co
 
 // reportOpError tells the user that an operation failed, with a button that tries again when retry is set.
 func (s *shellState) reportOpError(err error, retry func()) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.Process.Logger.Warn("file operation failed", "err", err)
 	var actions []notify.Action
 	if retry != nil {
@@ -152,7 +152,7 @@ func (s *shellState) followFileOp(binding *widgets.WidgetsBinding, res workspace
 // Explorer and of the renames that another program makes (the watcher's events), so that the echo of an
 // operation of our own, which finds everything where it should be, changes nothing.
 func (s *shellState) followPaths(binding *widgets.WidgetsBinding, follow func(path string) (string, bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	// the recently opened files of the quick open follow the moves and lose the files that were deleted
 	for _, p := range win.Recent.List() {
 		switch path, gone := follow(p); {
@@ -204,7 +204,7 @@ func (s *shellState) closeCleanEditors(doc *document.Document) {
 // renameDocument gives a document the path its file moved to, and finds its language again when the language it
 // has is the one its old name gave.
 func (s *shellState) renameDocument(binding *widgets.WidgetsBinding, doc *document.Document, newPath string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	oldPath := doc.URI().Path
 	firstLine, _, _ := strings.Cut(doc.Snapshot().String(), "\n")
 	autoDetected := doc.LanguageID() == win.Process.Languages.Detect(oldPath, firstLine)
@@ -249,7 +249,7 @@ func (s *shellState) externalFileEvents(events []workspace.Event) {
 
 // bindFileOpsCommands takes over the commands of the file operations while the shell is on screen.
 func (s *shellState) bindFileOpsCommands(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	run := func(f func()) command.Handler {
 		return func(command.Context, any) error { f(); return nil }
@@ -281,7 +281,7 @@ func (s *shellState) bindFileOpsCommands(binding *widgets.WidgetsBinding) {
 // bindUndoRedo takes undo and redo over for the file operations while the tree has the keyboard focus, and gives them
 // back when it loses it.
 func (s *shellState) bindUndoRedo(binding *widgets.WidgetsBinding, bind bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	for _, f := range ex.removeUndo {
 		f()
@@ -326,7 +326,7 @@ func (s *shellState) targetFolder() (*workspace.Item, bool) {
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.ts (openExplorerAndCreate)
 func (s *shellState) newInExplorer(binding *widgets.WidgetsBinding, folder bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if s.explorer.view == nil {
 		win.Notify.Info("Emetos", "You have not yet opened a folder.")
 		return
@@ -352,7 +352,7 @@ func (s *shellState) renameInExplorer() {
 
 // editCommitted is what the user typed into the inline input: the item is created or renamed.
 func (s *shellState) editCommitted(binding *widgets.WidgetsBinding, r explorer.EditResult) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ops := win.FileOps
 	switch r.Kind {
 	case explorer.EditNewFile, explorer.EditNewFolder:
@@ -446,7 +446,7 @@ func (s *shellState) deleteInExplorer(binding *widgets.WidgetsBinding, useTrash 
 	if len(items) == 0 {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if !settings.Get[bool](win.Settings, "files.enableTrash", "") {
 		useTrash = false
 	}
@@ -455,7 +455,7 @@ func (s *shellState) deleteInExplorer(binding *widgets.WidgetsBinding, useTrash 
 
 // deleteItems asks what has to be asked and deletes.
 func (s *shellState) deleteItems(binding *widgets.WidgetsBinding, items []*workspace.Item, useTrash, skipConfirm bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	paths := distinctPaths(items)
 	byPath := map[string]*workspace.Item{}
 	for _, it := range items {
@@ -549,7 +549,7 @@ func deleteMessage(items []*workspace.Item, permanently bool) (message, detail s
 
 // deleteConfirmed asks to confirm (explorer.confirmDelete) and deletes.
 func (s *shellState) deleteConfirmed(binding *widgets.WidgetsBinding, items []*workspace.Item, paths []string, useTrash, skipConfirm bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	// folders cannot be restored after a permanent delete, and nothing can: it is not undoable here
 	irreversible := "This action is irreversible!"
 	if skipConfirm || !settings.Get[bool](win.Settings, "explorer.confirmDelete", "") {
@@ -592,7 +592,7 @@ func (s *shellState) deleteConfirmed(binding *widgets.WidgetsBinding, items []*w
 
 // doDelete deletes the paths. A trash that cannot take them asks whether to delete for good.
 func (s *shellState) doDelete(binding *widgets.WidgetsBinding, items []*workspace.Item, paths []string, useTrash bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ops := win.FileOps
 	s.runFileOp(binding, func(ctx context.Context) (workspace.OpResult, error) {
 		if useTrash {
@@ -634,7 +634,7 @@ func fileURIs(paths []string) []string {
 // on the system clipboard too (text/uri-list, and their paths as text), so a file manager can paste them.
 func (s *shellState) copyInExplorer(cut bool) {
 	ex := &s.explorer
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if ex.view == nil {
 		return
 	}
@@ -672,14 +672,14 @@ func (s *shellState) clearFileClip() {
 	}
 	if ex.clip.cut {
 		ex.clip = fileClip{}
-		PeekWindow(s.Context()).Keys.Set("fileCopied", false)
+		PeekWorkspace(s.Context()).Keys.Set("fileCopied", false)
 	}
 }
 
 // readClipboardFiles reads the files on the system clipboard; the function is called on the UI thread with none when the
 // clipboard has no files.
 func (s *shellState) readClipboardFiles(binding *widgets.WidgetsBinding, done func(paths []string)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding.Clipboard().GetData(win.ctx, services.ClipboardKURIList, func(data *services.ClipboardData, err error) {
 		var paths []string
 		if err == nil && data != nil {
@@ -734,7 +734,7 @@ func (s *shellState) pasteInExplorer(binding *widgets.WidgetsBinding) {
 			return
 		}
 		do := func() { s.pasteInto(binding, paths, target.Path(), cut) }
-		win := PeekWindow(s.Context())
+		win := PeekWorkspace(s.Context())
 		if native && settings.Get[bool](win.Settings, "explorer.confirmPasteNative", "") {
 			msg := "Are you sure you want to paste '" + filepath.Base(paths[0]) + "'?"
 			detail := ""
@@ -759,7 +759,7 @@ func (s *shellState) pasteInExplorer(binding *widgets.WidgetsBinding) {
 
 // naming is explorer.incrementalNaming.
 func (s *shellState) naming() workspace.IncrementalNaming {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	return workspace.IncrementalNaming(settings.Get[string](win.Settings, "explorer.incrementalNaming", ""))
 }
 
@@ -783,7 +783,7 @@ func overwriteConfirm(conflicts []string) confirmSpec {
 
 // pasteInto moves or copies paths into a folder, asking before it replaces anything. A cut ends with the paste.
 func (s *shellState) pasteInto(binding *widgets.WidgetsBinding, paths []string, folder string, move bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ops := win.FileOps
 	// the folder of the paste must not be one of the items, or below one of them
 	for _, p := range paths {
@@ -839,7 +839,7 @@ func (s *shellState) pasteInto(binding *widgets.WidgetsBinding, paths []string, 
 
 // moveWithConfirm moves paths into a folder, asking before it replaces an item of the same name.
 func (s *shellState) moveWithConfirm(binding *widgets.WidgetsBinding, srcs []string, folder string, done func(opsRun)) {
-	ops := PeekWindow(s.Context()).FileOps
+	ops := PeekWorkspace(s.Context()).FileOps
 	move := func(overwrite bool) {
 		s.runFileOp(binding, func(ctx context.Context) (workspace.OpResult, error) {
 			return ops.Move(ctx, folder, srcs, workspace.MoveOptions{Overwrite: overwrite})
@@ -874,7 +874,7 @@ func (s *shellState) showResults(binding *widgets.WidgetsBinding, res workspace.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/views/explorerViewer.ts (handleExplorerDrop)
 func (s *shellState) dropItems(binding *widgets.WidgetsBinding, sources []string, folder string, copying bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ops := win.FileOps
 	finish := func(o opsRun) {
 		if o.err != nil {
@@ -942,7 +942,7 @@ func (s *shellState) dropItems(binding *widgets.WidgetsBinding, sources []string
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileImportExport.ts (ExternalFileImport.importResources)
 func (s *shellState) importFiles(binding *widgets.WidgetsBinding, paths []string, folder string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ops := win.FileOps
 	var existing []string
 	missing := 0
@@ -1009,7 +1009,7 @@ func (s *shellState) importFiles(binding *widgets.WidgetsBinding, paths []string
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/files.contribution.ts (UndoCommand, RedoCommand
 // implementations) and src/vs/platform/undoRedo/common/undoRedoService.ts (confirmBeforeUndo)
 func (s *shellState) undoInExplorer(binding *widgets.WidgetsBinding, redo bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ops := win.FileOps
 	if !settings.Get[bool](win.Settings, "explorer.enableUndo", "") {
 		return
@@ -1146,7 +1146,7 @@ func (s *shellState) sideGroup() *editorgroup.Group {
 	if side == nil {
 		var err error
 		if side, err = grid.AddGroup(s.activeGroup(), dir); err != nil {
-			PeekWindow(s.Context()).Process.Logger.Warn("cannot make the group for open to the side", "err", err)
+			PeekWorkspace(s.Context()).Process.Logger.Warn("cannot make the group for open to the side", "err", err)
 			return nil
 		}
 	}
@@ -1158,7 +1158,7 @@ func (s *shellState) sideGroup() *editorgroup.Group {
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/electron-browser/fileActions.contribution.ts
 func (s *shellState) revealInOS(binding *widgets.WidgetsBinding, args any) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	paths := s.commandPaths(args)
 	if len(paths) == 0 {
 		return
@@ -1192,7 +1192,7 @@ func (s *shellState) revealInOS(binding *widgets.WidgetsBinding, args any) {
 // pathSeparator is the separator copied paths use (explorer.copyPathSeparator, explorer.copyRelativePathSeparator):
 // "auto" is the slash of Linux.
 func (s *shellState) pathSeparator(relative bool) string {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	key := "explorer.copyPathSeparator"
 	if relative {
 		key = "explorer.copyRelativePathSeparator"
@@ -1210,7 +1210,7 @@ func (s *shellState) copyPaths(paths []string, relative bool) {
 	if len(paths) == 0 {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	sep := s.pathSeparator(relative)
 	lines := make([]string, len(paths))
 	for i, p := range paths {
@@ -1228,7 +1228,7 @@ func (s *shellState) copyPaths(paths []string, relative bool) {
 // explorerMenuContext is the context the context menu of the Explorer is evaluated in: the keys of the window with
 // those of the item that was pressed (the folder of the window for the empty part of the tree).
 func (s *shellState) explorerMenuContext(path string) contextkey.Context {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	isRoot := path == ""
 	folder := isRoot || isDir(path)

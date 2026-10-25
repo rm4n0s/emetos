@@ -34,10 +34,10 @@ type LaunchOutcome struct {
 // Launcher brings the launches that arrive over the socket (core/ipc) to the windows on the UI thread. It is made
 // before the process, so the socket can be served while the first window is still starting: a launch that comes
 // before the windows are up waits in a queue and is delivered when the manager of the windows attaches (SPEC
-// §10.11). The manager picks the window the launch opens in (Windows.HandleLaunch). It is safe for concurrent use.
+// §10.11). The manager picks the window the launch opens in (Workspaces.HandleLaunch). It is safe for concurrent use.
 type Launcher struct {
 	mu    sync.Mutex
-	wins  *Windows
+	wins  *Workspaces
 	post  func(func())
 	queue []func()
 	// closed is set when the application ends; ended is closed with it.
@@ -50,7 +50,7 @@ func NewLauncher() *Launcher { return &Launcher{ended: make(chan struct{})} }
 
 // attach connects the launcher to the manager of the windows and the function that runs a function on the UI
 // thread, and delivers the launches that were waiting. It runs on the UI thread.
-func (l *Launcher) attach(wins *Windows, post func(func())) {
+func (l *Launcher) attach(wins *Workspaces, post func(func())) {
 	l.mu.Lock()
 	l.wins, l.post = wins, post
 	queued := l.queue
@@ -156,23 +156,23 @@ func (l *Launcher) Handle(ctx context.Context, args ipc.OpenArgs) ipc.Reply {
 
 // manager is the manager of the windows the launcher is attached to (a function that runs on the UI thread, after
 // attach).
-func (l *Launcher) manager() *Windows {
+func (l *Launcher) manager() *Workspaces {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.wins
 }
 
 // HandleLaunch carries out a launch in this window: what the command line of a second Emetos asked (SPEC §10.11),
-// once Windows.HandleLaunch has picked the window. It must run on the UI thread, with the shell on screen. The window
+// once Workspaces.HandleLaunch has picked the window. It must run on the UI thread, with the shell on screen. The window
 // comes to the front; --diff opens the diff editor over the two files (see openLaunchDiff) and --merge the merge editor over the four
-// (see openLaunchMerge); --profile says in a notice that the window keeps its profile, when it is not the one asked for (Windows.HandleLaunch
+// (see openLaunchMerge); --profile says in a notice that the window keeps its profile, when it is not the one asked for (Workspaces.HandleLaunch
 // picks or makes the window that has the profile); a folder that is not the folder of the window is opened as Open Folder does (the questions
 // about unsaved changes included);
 // then the files are opened in the active group, the first of them shown, with the cursor at the line and
 // column of a --goto. done is called once on the UI thread: at once when the launch does not wait, else when
 // every file that was opened is closed (or the window is, which counts as closed). The returned function
 // stops waiting (the client went away); it may be called more than once.
-func (w *Window) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func()) {
+func (w *Workspace) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func()) {
 	if w.launcher == nil {
 		done(LaunchOutcome{ExitCode: 1, Message: "the window is not ready"})
 		return func() {}
@@ -209,7 +209,7 @@ type launchWait struct {
 
 // initLaunch connects the shell to the launcher of the process and follows the documents that close.
 func (s *shellState) initLaunch(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.launcher = s.launch
 	s.launches.stopWatch = win.Documents.WatchClose(func(doc *document.Document) {
 		binding.Post(func() {
@@ -245,7 +245,7 @@ func (s *shellState) disposeLaunch() {
 	if win := s.win; win != nil {
 		win.launcher = nil
 		// the last window to go ends the launcher: a launch that comes after it has nobody to open in
-		if win.Process.Windows.unregister(win) {
+		if win.Process.Workspaces.unregister(win) {
 			if lc := win.Process.Launcher; lc != nil {
 				lc.Close()
 			}
@@ -254,7 +254,7 @@ func (s *shellState) disposeLaunch() {
 }
 
 // takeStartup gives the shell the command line of the first instance, once.
-func (w *Window) takeStartup() *ipc.OpenArgs {
+func (w *Workspace) takeStartup() *ipc.OpenArgs {
 	st := w.startup
 	w.startup = nil
 	return st
@@ -270,9 +270,9 @@ func newLaunchWait(done func(LaunchOutcome)) *launchWait {
 
 // launchExtras shows the notices for the parts of a command line that need one: the profile of the window.
 func (s *shellState) launchExtras(args ipc.OpenArgs) {
-	notify := PeekWindow(s.Context()).Notify
-	if win := PeekWindow(s.Context()); args.Profile != "" && !win.Process.Windows.usesProfile(win, args.Profile) {
-		// the windows are picked by the profile (Windows.HandleLaunch), so this is a folder that is open with
+	notify := PeekWorkspace(s.Context()).Notify
+	if win := PeekWorkspace(s.Context()); args.Profile != "" && !win.Process.Workspaces.usesProfile(win, args.Profile) {
+		// the windows are picked by the profile (Workspaces.HandleLaunch), so this is a folder that is open with
 		// another profile, or a --reuse-window: the window keeps its profile and says so
 		if win.Folder != "" && sameFolder(win.Folder, args.Folder) {
 			notify.Info("Emetos", fmt.Sprintf(ProfileFolderOpenNotice, win.ProfileName()))
@@ -282,9 +282,9 @@ func (s *shellState) launchExtras(args ipc.OpenArgs) {
 	}
 }
 
-// launch is the shell's part of Window.HandleLaunch.
+// launch is the shell's part of Workspace.HandleLaunch.
 func (s *shellState) launch(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func()) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.Raise()
 	s.launchExtras(args)
 	w := newLaunchWait(done)
@@ -343,7 +343,7 @@ func (s *shellState) openLaunchFiles(files []ipc.FileTarget, w *launchWait, then
 		then()
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := s.binding
 	w.pending += len(files)
 	s.Go(func(life context.Context) {
@@ -398,7 +398,7 @@ func (s *shellState) openLaunchDiff(paths []string, w *launchWait, then func()) 
 		then()
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if len(paths) != 2 {
 		win.Notify.Error("Emetos", "--diff needs two files")
 		w.failed++
@@ -466,7 +466,7 @@ func (s *shellState) openLaunchMerge(paths []string, w *launchWait, then func())
 		then()
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if len(paths) != 4 {
 		win.Notify.Error("Emetos", "--merge needs four files")
 		w.failed++

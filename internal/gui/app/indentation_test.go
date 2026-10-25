@@ -15,7 +15,7 @@ func openWith(t *testing.T, extra map[string]any, name, text string) *document.D
 	t.Helper()
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, extra)
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

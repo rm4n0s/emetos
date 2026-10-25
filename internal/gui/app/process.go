@@ -54,7 +54,7 @@ type Process struct {
 	// Languages is the registry of the languages and their grammars (SPEC §8.1).
 	Languages *language.Registry
 	// State reads and writes the UI state files of the default profile: the global state (the recently opened
-	// folders and files, the open windows, the profile of each folder) that all the profiles share (SPEC
+	// folders and files, the open tabs, the profile of each folder) that all the profiles share (SPEC
 	// §10.10, §10.12). The state of the windows is in the store of the profile of each window (StateFor).
 	State *storage.StateStore
 	// Profiles manages the profiles: the list, creating, renaming, deleting and the profile last used with each
@@ -65,8 +65,8 @@ type Process struct {
 	// Launcher hands the launches that other Emetos processes send over the socket (SPEC §10.11) to the windows;
 	// nil when the process has no socket.
 	Launcher *Launcher
-	// Windows is the manager of the windows of the process: it opens, replaces and closes them (windows.go).
-	Windows *Windows
+	// Workspaces is the manager of the window tabs of the process: it opens, activates, moves, replaces and closes them (workspaces.go, SPEC §10.14).
+	Workspaces *Workspaces
 	// Virtual holds the providers of the read-only `emetos-virtual:` documents (SPEC §7.1), such as the default
 	// settings.
 	Virtual *document.VirtualRegistry
@@ -76,7 +76,7 @@ type Process struct {
 	icons iconPreview
 
 	// userThemes are the themes of the user's folder of themes, which the profiles share; each window's theme
-	// service (Window.Themes) gets them.
+	// service (Workspace.Themes) gets them.
 	userThemes []theme.UserTheme
 	// stateMu guards states, the state stores of the profiles other than the default one, made when a window
 	// first uses the profile.
@@ -220,7 +220,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.indenter = indent.New(indent.NewRegistryLanguages(languages, p.brackets))
 	p.closing = autoclose.NewRegistryLanguages(languages)
 	p.comments = comment.NewRegistryLanguages(languages)
-	p.Windows = newWindows(p)
+	p.Workspaces = newWorkspaces(p)
 	p.registerVirtualDocuments()
 	p.Menus = command.DefaultMenus(p.Commands)
 	p.Menus.SetProvider(command.MenubarRecentMenu, p.recentMenuItems)
@@ -283,7 +283,7 @@ func (p *Process) flushStates(ctx context.Context) error {
 }
 
 // newThemes makes the theme service of a window: the themes of the user's folder are in it, and the settings of
-// the window choose among them (Window.followTheme).
+// the window choose among them (Workspace.followTheme).
 func (p *Process) newThemes() *theme.Service {
 	service := theme.NewService(theme.DefaultColorRegistry())
 	if len(p.userThemes) > 0 {

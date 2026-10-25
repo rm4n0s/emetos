@@ -92,7 +92,7 @@ func (e *stateEnv) path(rel string) string { return filepath.Join(e.root, filepa
 // run is one run of the program: its window, shown in a tester.
 type stateRun struct {
 	env      *stateEnv
-	win      *Window
+	win      *Workspace
 	ts       *gluttertest.Tester
 	quits    int
 	geometry *storage.Geometry
@@ -113,7 +113,7 @@ func (e *stateEnv) startWith(folder string, opts ProcessOptions, files ...string
 	}
 	ctx := context.Background()
 	process := newTestProcess(opts)
-	win, err := NewWindow(ctx, process, folder)
+	win, err := NewWorkspace(ctx, process, folder)
 	if err != nil {
 		e.t.Fatal(err)
 	}
@@ -784,7 +784,7 @@ func TestTheFirstWindowIsOpenedAsTheSavedStateSays(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: env.paths}), env.root)
+			win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: env.paths}), env.root)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1497,14 +1497,14 @@ func TestTheSavedSizeSurvivesAWindowThatStartsMaximized(t *testing.T) {
 
 func TestASavedLayoutThatIsNotALayoutIsLeftOut(t *testing.T) {
 	env := newStateEnv(t, nil)
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	for _, raw := range []string{`[1,2]`, `"layout"`, `{"sideBarVisible": "yes"}`, `{`} {
 		err := win.restoreLayout(json.RawMessage(raw))
 		appErr, ok := errors.FromError(err)
 		if !ok {
 			t.Fatalf("%s: expected *errors.Error, got %T (%v)", raw, err, err)
 		}
-		if !appErr.HasRoute("Window.restoreLayout.LayoutStateInvalid") {
+		if !appErr.HasRoute("Workspace.restoreLayout.LayoutStateInvalid") {
 			t.Errorf("%s: unexpected failure path: %s", raw, appErr.Route())
 		}
 	}
@@ -1520,12 +1520,12 @@ func TestASavedLayoutThatIsNotALayoutIsLeftOut(t *testing.T) {
 }
 
 func TestASavedEditorWithoutAFileOrAProviderIsNotOpened(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	for value, route := range map[string]string{
-		"untitled:1":               "Window.openSavedDocument.SavedUntitledWithoutBackup",
-		"emetos-virtual:/settings": "Window.openSavedDocument->Documents.OpenVirtual->VirtualRegistry.Generate.VirtualURIUnknown",
-		"/relative":                "Window.openSavedDocument->ParseURI.URIInvalid",
-		"file://relative/x":        "Window.openSavedDocument->ParseURI.URIInvalid",
+		"untitled:1":               "Workspace.openSavedDocument.SavedUntitledWithoutBackup",
+		"emetos-virtual:/settings": "Workspace.openSavedDocument->Documents.OpenVirtual->VirtualRegistry.Generate.VirtualURIUnknown",
+		"/relative":                "Workspace.openSavedDocument->ParseURI.URIInvalid",
+		"file://relative/x":        "Workspace.openSavedDocument->ParseURI.URIInvalid",
 	} {
 		_, err := win.openSavedDocument(context.Background(), &restoredWindow{backups: map[string]storage.Backup{}}, value)
 		appErr, ok := errors.FromError(err)

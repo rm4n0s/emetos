@@ -91,20 +91,20 @@ func (f *profileFolders) process(opts ProcessOptions) *Process {
 }
 
 // window makes a window over a folder ("" for none) with a profile ("" is the default one).
-func (f *profileFolders) window(p *Process, folder, profile string) *Window {
+func (f *profileFolders) window(p *Process, folder, profile string) *Workspace {
 	f.t.Helper()
 	id, ok, err := p.Profiles.Lookup(context.Background(), profile)
 	if err != nil || !ok {
 		f.t.Fatalf("no profile %q: %v", profile, err)
 	}
-	win, err := newWindow(context.Background(), p, windowOptions{folder: folder, profile: id})
+	win, err := newWorkspace(context.Background(), p, workspaceOptions{folder: folder, profile: id})
 	if err != nil {
 		f.t.Fatal(err)
 	}
 	return win
 }
 
-func snippetNames(w *Window) []string {
+func snippetNames(w *Workspace) []string {
 	var out []string
 	for _, s := range w.Snippets.Snippets(snippet.Query{LanguageID: "plaintext"}) {
 		out = append(out, s.Name)
@@ -112,9 +112,9 @@ func snippetNames(w *Window) []string {
 	return out
 }
 
-func themeLabel(w *Window) string { return w.Themes.CurrentInfo().Label }
+func themeLabel(w *Workspace) string { return w.Themes.CurrentInfo().Label }
 
-func tabSizeOf(w *Window) int { return w.indentationFor("plaintext").TabSize }
+func tabSizeOf(w *Workspace) int { return w.indentationFor("plaintext").TabSize }
 
 // profileApp is a window with two files open, shown in a tester.
 type profileApp struct {
@@ -477,37 +477,44 @@ func TestTwoWindowsWithTwoProfilesDoNotMeet(t *testing.T) {
 	work := workProfile(t, env)
 	one, two, three := env.folder("one", "a.go"), env.folder("two", "b.go"), env.folder("three", "c.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two, Profile: "work"}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two, Profile: "work"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.m.Open(WindowSpec{Folder: three}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: three}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2, w3 := a.windowOf(one), a.windowOf(two), a.windowOf(three)
+	w1, w2, w3 := a.workspaceOf(one), a.workspaceOf(two), a.workspaceOf(three)
 	if w1.ProfileName() != "Default" || w2.ProfileName() != "Work" || w3.ProfileName() != "Default" {
 		t.Fatalf("profiles %s %s %s", w1.ProfileName(), w2.ProfileName(), w3.ProfileName())
 	}
-	size := func(w *Window) float64 { return settings.Get[float64](w.Settings, "editor.fontSize", "") }
+	size := func(w *Workspace) float64 { return settings.Get[float64](w.Settings, "editor.fontSize", "") }
 	if size(w1) != 14 || size(w2) != 22 || size(w3) != 14 {
 		t.Errorf("font sizes %v %v %v", size(w1), size(w2), size(w3))
 	}
 	if themeLabel(w1) != "Dark Modern" || themeLabel(w2) != "Light Modern" || themeLabel(w3) != "Dark Modern" {
 		t.Errorf("themes %s %s %s", themeLabel(w1), themeLabel(w2), themeLabel(w3))
 	}
+	// the window shows one tab: each tab is shown in turn, and the active one comes back
 	backgrounds := func() []string {
 		var out []string
-		for _, w := range a.ts.Widgets(gluttertest.ByType[*kit.Theme]()) {
-			c := w.(*kit.Theme).Colors().EditorBackground
-			switch c {
-			case darkBackground:
-				out = append(out, "dark")
-			case lightBackground:
-				out = append(out, "light")
-			default:
-				out = append(out, "other")
+		active := a.m.ActiveTab()
+		for _, tab := range a.m.Tabs() {
+			a.m.Activate(tab)
+			a.settle()
+			for _, w := range a.ts.Widgets(gluttertest.ByType[*kit.Theme]()) {
+				switch w.(*kit.Theme).Colors().EditorBackground {
+				case darkBackground:
+					out = append(out, "dark")
+				case lightBackground:
+					out = append(out, "light")
+				default:
+					out = append(out, "other")
+				}
 			}
 		}
+		a.m.Activate(active)
+		a.settle()
 		slices.Sort(out)
 		return out
 	}
@@ -546,7 +553,7 @@ func TestTwoWindowsWithTwoProfilesDoNotMeet(t *testing.T) {
 		t.Fatal(err)
 	}
 	var noted []string
-	for _, w := range g.OpenWindows {
+	for _, w := range g.WorkspaceTabs {
 		noted = append(noted, filepath.Base(w.Folder)+":"+w.Profile)
 	}
 	if !slices.Equal(noted, []string{"one:", "two:Work", "three:"}) {
@@ -585,7 +592,7 @@ func TestTheCommandLineProfileOfTheFirstInstance(t *testing.T) {
 		workProfile(t, env)
 		one := env.folder("one", "a.go")
 		a := env.run(Options{Folder: one, Open: &ipc.OpenArgs{Folder: one, Profile: "work"}})
-		w := a.windowOf(one)
+		w := a.workspaceOf(one)
 		if w.ProfileName() != "Work" {
 			t.Fatalf("the profile of the window is %q", w.ProfileName())
 		}
@@ -604,7 +611,7 @@ func TestTheCommandLineProfileOfTheFirstInstance(t *testing.T) {
 		env := newMultiEnv(t, map[string]any{"editor.tabSize": 7})
 		one := env.folder("one", "a.go")
 		a := env.run(Options{Folder: one, Open: &ipc.OpenArgs{Folder: one, Profile: "Fresh"}})
-		w := a.windowOf(one)
+		w := a.workspaceOf(one)
 		if w.ProfileName() != "Fresh" {
 			t.Fatalf("the profile of the window is %q", w.ProfileName())
 		}
@@ -636,14 +643,14 @@ func TestTheCommandLineProfileOfTheFirstInstance(t *testing.T) {
 		}
 		one := env.folder("one", "a.go")
 		p := newTestProcess(ProcessOptions{Paths: env.paths})
-		pw, err := p.Windows.prepare(context.Background(), WindowSpec{Folder: one, Profile: "Work"}, nil)
+		pw, err := p.Workspaces.prepare(context.Background(), WorkspaceSpec{Folder: one, Profile: "Work"}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if pw.win.ProfileName() != "Default" {
-			t.Errorf("the profile of the window is %q", pw.win.ProfileName())
+		if pw.ws.ProfileName() != "Default" {
+			t.Errorf("the profile of the window is %q", pw.ws.ProfileName())
 		}
-		items := pw.win.Notify.Items()
+		items := pw.ws.Notify.Items()
 		if len(items) != 1 || !strings.HasPrefix(items[0].Message, "Cannot use the profile 'Work': ") {
 			t.Errorf("notices: %v", items)
 		}
@@ -658,7 +665,7 @@ func TestTheProfileOfALaunchInTheRunningInstance(t *testing.T) {
 		two := env.folder("two", "b.go")
 		return env.run(Options{Folder: one}), one, two
 	}
-	notices := func(w *Window) []string {
+	notices := func(w *Workspace) []string {
 		var out []string
 		for _, it := range w.Notify.Items() {
 			out = append(out, it.Message)
@@ -672,10 +679,10 @@ func TestTheProfileOfALaunchInTheRunningInstance(t *testing.T) {
 		if a.m.Count() != 2 {
 			t.Fatalf("%d windows", a.m.Count())
 		}
-		if w := a.windowOf(two); w.ProfileName() != "Work" {
+		if w := a.workspaceOf(two); w.ProfileName() != "Work" {
 			t.Errorf("the new window uses %q", w.ProfileName())
 		}
-		if w := a.windowOf(one); w.ProfileName() != "Default" || len(notices(w)) != 0 {
+		if w := a.workspaceOf(one); w.ProfileName() != "Default" || len(notices(w)) != 0 {
 			t.Errorf("the first window uses %q: %v", w.ProfileName(), notices(w))
 		}
 	})
@@ -686,7 +693,7 @@ func TestTheProfileOfALaunchInTheRunningInstance(t *testing.T) {
 		if a.m.Count() != 1 {
 			t.Fatalf("%d windows", a.m.Count())
 		}
-		w := a.windowOf(one)
+		w := a.workspaceOf(one)
 		if w.ProfileName() != "Default" {
 			t.Errorf("the window uses %q", w.ProfileName())
 		}
@@ -698,8 +705,8 @@ func TestTheProfileOfALaunchInTheRunningInstance(t *testing.T) {
 		a, one, _ := setup(t)
 		r := a.launched(ipc.OpenArgs{Folder: one, Profile: "default"})
 		wantOutcomes(t, r, LaunchOutcome{})
-		if a.m.Count() != 1 || len(notices(a.windowOf(one))) != 0 {
-			t.Errorf("%d windows, notices %q", a.m.Count(), notices(a.windowOf(one)))
+		if a.m.Count() != 1 || len(notices(a.workspaceOf(one))) != 0 {
+			t.Errorf("%d windows, notices %q", a.m.Count(), notices(a.workspaceOf(one)))
 		}
 	})
 	t.Run("files open in a new window when the window has another profile", func(t *testing.T) {
@@ -730,7 +737,7 @@ func TestTheProfileOfALaunchInTheRunningInstance(t *testing.T) {
 		if a.m.Count() != 1 {
 			t.Fatalf("%d windows", a.m.Count())
 		}
-		if got := notices(a.windowOf(one)); !slices.Equal(got, []string{"The window uses the profile 'Default'."}) {
+		if got := notices(a.workspaceOf(one)); !slices.Equal(got, []string{"The window uses the profile 'Default'."}) {
 			t.Errorf("notices %q", got)
 		}
 	})
@@ -751,7 +758,7 @@ func TestTheProfileOfALaunchInTheRunningInstance(t *testing.T) {
 	t.Run("a profile that does not exist is made", func(t *testing.T) {
 		a, _, two := setup(t)
 		wantOutcomes(t, a.launched(ipc.OpenArgs{Folder: two, Profile: "Brand New"}), LaunchOutcome{})
-		if w := a.windowOf(two); w.ProfileName() != "Brand New" {
+		if w := a.workspaceOf(two); w.ProfileName() != "Brand New" {
 			t.Errorf("the window uses %q", w.ProfileName())
 		}
 		if !a.p.Profiles.Exists(a.ctx, "brand new") {
@@ -767,7 +774,7 @@ func TestTheProfileOfALaunchInTheRunningInstance(t *testing.T) {
 		if a.m.Count() != 1 {
 			t.Fatalf("%d windows", a.m.Count())
 		}
-		if w := a.windowOf(two); w.ProfileName() != "Work" {
+		if w := a.workspaceOf(two); w.ProfileName() != "Work" {
 			t.Errorf("the window uses %q", w.ProfileName())
 		}
 	})
@@ -778,7 +785,7 @@ func TestTheProfileLastUsedWithAFolder(t *testing.T) {
 	workProfile(t, env)
 	one := env.folder("one", "a.go")
 	a := env.run(Options{Folder: one})
-	w := a.windowOf(one)
+	w := a.workspaceOf(one)
 	ctx := a.ctx
 	last := func() (string, bool) {
 		p, ok, err := a.p.Profiles.LastProfile(ctx, one)
@@ -803,15 +810,15 @@ func TestTheProfileLastUsedWithAFolder(t *testing.T) {
 		t.Errorf("another process reads %q %v %v", p, ok, err)
 	}
 	// a window for the folder that the command line does not give a profile opens with it
-	if got, problem := again.Windows.windowProfile(ctx, WindowSpec{Folder: one}); problem != nil || got != "Work" {
+	if got, problem := again.Workspaces.workspaceProfile(ctx, WorkspaceSpec{Folder: one}); problem != nil || got != "Work" {
 		t.Errorf("the profile of a window for the folder is %q, %v", got, problem)
 	}
 	plan, _ := again.startupPlan(ctx, Options{Folder: env.folder("elsewhere")})
-	if got, _ := again.Windows.windowProfile(ctx, plan[0]); got != storage.DefaultProfile {
+	if got, _ := again.Workspaces.workspaceProfile(ctx, plan[0]); got != storage.DefaultProfile {
 		t.Errorf("a folder with no record opens with %q", got)
 	}
 	// an explicit profile wins, and becomes the record
-	if got, _ := again.Windows.windowProfile(ctx, WindowSpec{Folder: one, Profile: "Default"}); got != storage.DefaultProfile {
+	if got, _ := again.Workspaces.workspaceProfile(ctx, WorkspaceSpec{Folder: one, Profile: "Default"}); got != storage.DefaultProfile {
 		t.Errorf("--profile Default opens with %q", got)
 	}
 	// the default profile again leaves no record
@@ -848,12 +855,12 @@ func TestTheFolderOfAWindowOpensWithTheProfileOfTheFolder(t *testing.T) {
 	if err := a.p.Profiles.SetLastProfile(a.ctx, two, "Work"); err != nil {
 		t.Fatal(err)
 	}
-	w1 := a.windowOf(one)
+	w1 := a.workspaceOf(one)
 	// Open Folder replaces the window: the new window has the profile of the folder
-	done := make(chan *Window, 1)
-	a.m.OpenFolder(w1, two, FolderFromApp, false, false, func(w *Window) { done <- w })
+	done := make(chan *Workspace, 1)
+	a.m.OpenFolder(w1, two, FolderFromApp, false, false, func(w *Workspace) { done <- w })
 	a.settle()
-	var w2 *Window
+	var w2 *Workspace
 	select {
 	case w2 = <-done:
 	case <-time.After(5 * time.Second):
@@ -863,8 +870,8 @@ func TestTheFolderOfAWindowOpensWithTheProfileOfTheFolder(t *testing.T) {
 		t.Fatalf("the window: %+v", w2)
 	}
 	// Close Folder leaves the profile of the window as it is
-	done = make(chan *Window, 1)
-	a.m.OpenFolder(w2, "", FolderFromApp, false, false, func(w *Window) { done <- w })
+	done = make(chan *Workspace, 1)
+	a.m.OpenFolder(w2, "", FolderFromApp, false, false, func(w *Workspace) { done <- w })
 	a.settle()
 	select {
 	case w3 := <-done:
@@ -881,11 +888,11 @@ func TestTheWindowsComeBackWithTheirProfiles(t *testing.T) {
 	workProfile(t, env)
 	one, two := env.folder("one", "a.go"), env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two, Profile: "Work"}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two, Profile: "Work"}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w2 := a.windowOf(two)
+	w2 := a.workspaceOf(two)
 	if err := a.command(w2, "dev.openFile", map[string]any{"path": filepath.Join(two, "b.go")}); err != nil {
 		t.Fatal(err)
 	}
@@ -920,10 +927,10 @@ func TestTheWindowsComeBackWithTheirProfiles(t *testing.T) {
 	if c.m.Count() != 2 {
 		t.Fatalf("%d windows", c.m.Count())
 	}
-	c.waitFor("the second window", func() bool { return c.m.windowForFolder(two) != nil })
-	r2 := c.windowOf(two)
-	if r2.ProfileName() != "Work" || c.windowOf(one).ProfileName() != "Default" {
-		t.Errorf("profiles %s %s", c.windowOf(one).ProfileName(), r2.ProfileName())
+	c.waitFor("the second window", func() bool { return c.m.workspaceForFolder(two) != nil })
+	r2 := c.workspaceOf(two)
+	if r2.ProfileName() != "Work" || c.workspaceOf(one).ProfileName() != "Default" {
+		t.Errorf("profiles %s %s", c.workspaceOf(one).ProfileName(), r2.ProfileName())
 	}
 	c.waitFor("the editor of b.go", func() bool { return r2.shell != nil && r2.shell.editorCount() == 1 })
 
@@ -953,12 +960,12 @@ func TestTheStartPlanGivesTheCommandLineProfileToTheRightWindow(t *testing.T) {
 	p := newTestProcess(ProcessOptions{Paths: env.paths, StateAfter: env.clock.AfterFunc})
 	ctx := t.Context()
 	if err := p.State.UpdateGlobal(ctx, func(g *storage.GlobalState) bool {
-		g.OpenWindows = []storage.OpenWindow{{ID: "1111111111111111", Folder: one}, {ID: "2222222222222222", Folder: two, Profile: "Work"}}
+		g.WorkspaceTabs = []storage.WorkspaceTab{{ID: "1111111111111111", Folder: one}, {ID: "2222222222222222", Folder: two, Profile: "Work"}}
 		return true
 	}); err != nil {
 		t.Fatal(err)
 	}
-	describe := func(plan []WindowSpec) []string {
+	describe := func(plan []WorkspaceSpec) []string {
 		var out []string
 		for _, s := range plan {
 			folder := ""
@@ -1003,8 +1010,8 @@ func TestSwitchProfileFailures(t *testing.T) {
 	tests := []struct {
 		name, profile, route string
 	}{
-		{"a profile that does not exist", "Nope", "Window.SwitchProfile.ProfileSwitchNotFound"},
-		{"an invalid name", "a/b", "Window.SwitchProfile.ProfileSwitchNotFound"},
+		{"a profile that does not exist", "Nope", "Workspace.SwitchProfile.ProfileSwitchNotFound"},
+		{"an invalid name", "a/b", "Workspace.SwitchProfile.ProfileSwitchNotFound"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1032,7 +1039,7 @@ func TestSwitchProfileFailures(t *testing.T) {
 		}
 		err := b.win.SwitchProfile(ctx, "Work")
 		appErr, ok := errors.FromError(err)
-		if !ok || !appErr.HasRoute("Window.SwitchProfile->Profiles.Lookup->Profiles.List.ProfileListFailed") {
+		if !ok || !appErr.HasRoute("Workspace.SwitchProfile->Profiles.Lookup->Profiles.List.ProfileListFailed") {
 			t.Errorf("SwitchProfile = %v", err)
 		}
 	})
@@ -1101,7 +1108,7 @@ func TestTheDevCommandSwitchesTheProfile(t *testing.T) {
 
 // userKeyLabels are the keys of a command in the keybindings.json of the window. They are read under the lock of the
 // keybindings, not from the resolver, which the goroutine of the watcher replaces when the window has no shell.
-func userKeyLabels(w *Window, command string) []string {
+func userKeyLabels(w *Workspace, command string) []string {
 	k := w.userKeys
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -1115,7 +1122,7 @@ func userKeyLabels(w *Window, command string) []string {
 }
 
 // watchedProfileWindow is a window with a watcher over a profile.
-func watchedProfileWindow(t *testing.T, f *profileFolders, profile string) *Window {
+func watchedProfileWindow(t *testing.T, f *profileFolders, profile string) *Workspace {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	win := f.window(f.process(ProcessOptions{WatchFiles: true}), "", profile)

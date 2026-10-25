@@ -17,20 +17,20 @@ import (
 
 // Closing with unsaved changes (SPEC §10.3, §10.10, §10.11). Every way to close editors (the close button
 // of a tab, the close commands, the Open Editors view, the editor picker, Close Folder and Open Folder) goes
-// through closeConfirmed, and closing the window goes through Window.RequestClose; both ask with the same
+// through closeConfirmed, and closing the window goes through Workspace.RequestClose; both ask with the same
 // dialog (askUnsaved).
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editorGroupView.ts (handleCloseConfirmation,
 // doHandleCloseConfirmation) and src/vs/platform/dialogs (showSaveConfirm in
 // src/vs/workbench/services/dialogs/browser/abstractFileDialogService.ts)
 
-// CloseReason says why a window is asked to close.
+// CloseReason says why a workspace is asked to close.
 type CloseReason int
 
 const (
-	// CloseReasonWindow is the user closing the window (its close button, Close Window).
-	CloseReasonWindow CloseReason = iota
-	// CloseReasonQuit is the user quitting the application (Quit, Exit).
+	// CloseReasonTab is the user closing the tab of the workspace (Close Workspace Tab, the close button of the tab).
+	CloseReasonTab CloseReason = iota
+	// CloseReasonQuit is the user quitting the application (Quit, Exit, the close button of the window).
 	CloseReasonQuit
 )
 
@@ -47,17 +47,18 @@ const (
 // closeDecision tells what closing a window with unsaved changes does, from files.hotExit (SPEC §10.10):
 //
 //	off                    ask, always
-//	onExit                 back up when the application quits or the window is the last one; ask when another window
-//	                       closes while others stay
-//	onExitAndWindowClose   as onExit, and back up as well when a window that has a folder closes while others stay
+//	onExit                 back up when the application quits or the tab is the last one; ask when a tab closes
+//	                       while others stay
+//	onExitAndWindowClose   as onExit, and back up as well when a tab that has a folder closes while others stay
 //
-// A value the setting does not have asks. hasFolder is whether the window has a folder open, otherWindows whether
-// other windows are open.
+// A value the setting does not have asks. hasFolder is whether the workspace has a folder open, otherTabs whether
+// other tabs are open. Closing a tab is never the end of the application (the last tab leaves a No Folder tab, SPEC
+// §10.14), so it is asked with otherTabs true; the quit backs up whatever the tabs are.
 //
 // Ported from VS Code: src/vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupTracker.ts
 // (onWillShutdown, shouldBackup) and the description of the setting files.hotExit
-func closeDecision(hotExit string, reason CloseReason, hasFolder, otherWindows bool) closeAction {
-	lastOrQuit := reason == CloseReasonQuit || !otherWindows
+func closeDecision(hotExit string, reason CloseReason, hasFolder, otherTabs bool) closeAction {
+	lastOrQuit := reason == CloseReasonQuit || !otherTabs
 	switch hotExit {
 	case "onExit":
 		if lastOrQuit {
@@ -105,15 +106,15 @@ type closeState struct {
 }
 
 // initClosing makes the window ask about unsaved changes before it closes: the platform's request to close a
-// window reaches the manager of the windows (Windows.bind), which asks the window, and Close Window and Quit are
+// window reaches the manager of the tabs (Workspaces.bind), which runs the quit, and Close Window and Quit are
 // commands.
 func (s *shellState) initClosing(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	c := &s.closing
 	win.closer = s.requestWindowClose
 	win.exit = func() { binding.ExitApplication(ui.AppExitTypeRequired) }
-	win.Process.Windows.bind(binding, nil)
-	for id, reason := range map[string]CloseReason{"workbench.action.closeWindow": CloseReasonWindow, "workbench.action.quit": CloseReasonQuit} {
+	win.Process.Workspaces.bind(binding)
+	for id, reason := range map[string]CloseReason{"workbench.action.closeWindow": CloseReasonTab, "workbench.action.quit": CloseReasonQuit} {
 		remove, err := win.Commands.SetHandler(id, func(command.Context, any) error {
 			win.RequestClose(reason)
 			return nil
@@ -138,7 +139,7 @@ func (s *shellState) disposeClosing() {
 	c.removeCommands = nil
 }
 
-// requestWindowClose is the shell's part of closing a window (Window.closeAsk): it asks the questions of closing the
+// requestWindowClose is the shell's part of closing a window (Workspace.closeAsk): it asks the questions of closing the
 // window, with the dialog of §10.3 when documents would lose changes, and tells done how they were answered. It
 // closes nothing. When no document would lose changes, or files.hotExit leaves them to the backups (they are
 // written first), done is told at once; the same dialog asks when the backups cannot be written. Save saves them (an
@@ -146,7 +147,7 @@ func (s *shellState) disposeClosing() {
 // fails or is cancelled, does not. A request that comes while the dialog is open is not carried out (done gets
 // false).
 func (s *shellState) requestWindowClose(reason CloseReason, done func(closeResult)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if s.closing.busy {
 		done(closeResult{}) // the dialog is open already
 		return
@@ -173,7 +174,7 @@ func (s *shellState) requestWindowClose(reason CloseReason, done func(closeResul
 				done(closeResult{proceed: proceed, discard: true})
 			})
 		}
-		if closeDecision(win.hotExitMode(), reason, win.Folder != "", win.otherWindows()) == closeAsk {
+		if closeDecision(win.hotExitMode(), reason, win.Folder != "", true) == closeAsk {
 			ask()
 			return
 		}
@@ -198,7 +199,7 @@ func (s *shellState) raise() {
 // were: the texts are read here, on the UI thread, and written on a goroutine, so the window does not wait for the
 // disk; done is called on the UI thread. While it goes on, a request to close is ignored. A failure is logged.
 func (s *shellState) backupBeforeClose(done func(ok bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	tracker := win.Backups()
 	if tracker == nil {
 		done(false) // the window keeps no backups
@@ -331,7 +332,7 @@ func (s *shellState) askUnsaved(losses []editorgroup.Unsaved, done func(proceed 
 		done(false)
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.closing.busy = true
 	end := func(proceed bool) {
 		s.closing.busy = false

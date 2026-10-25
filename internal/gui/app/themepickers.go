@@ -100,12 +100,12 @@ func (s *shellState) themeCommands() map[string]command.Handler {
 
 // profileThemes are the theme services of the windows that use the profile of the window, the window's own first: a
 // preview of a theme shows in all of them (SPEC §8.4).
-func (w *Window) profileThemes() []*theme.Service {
+func (w *Workspace) profileThemes() []*theme.Service {
 	out := []*theme.Service{w.Themes}
 	profile := w.Profile()
-	for _, e := range w.Process.Windows.entries() {
-		if e.win != w && e.win.Profile() == profile {
-			out = append(out, e.win.Themes)
+	for _, other := range w.Process.Workspaces.All() {
+		if other != w && other.Profile() == profile {
+			out = append(out, other.Themes)
 		}
 	}
 	return out
@@ -121,7 +121,7 @@ func themeItemID(info theme.Info) string {
 
 // settingsTargetFor is the file a theme setting is written to: the workspace's when its settings.json has the
 // setting (and counts), else the user's (VS Code's 'auto' target: the highest layer that sets the value).
-func (w *Window) settingsTargetFor(key string) settings.Target {
+func (w *Workspace) settingsTargetFor(key string) settings.Target {
 	_, workspace := w.Settings.Paths()
 	in := w.Settings.Inspect(key, "")
 	if workspace != "" && in.Workspace.Ok && !in.WorkspaceIgnored {
@@ -144,7 +144,7 @@ func (s *shellState) endThemePicks() {
 // showColorThemePicker opens the picker of the color theme: the themes in groups, the one in use active. The
 // error has the tag of Service.PickerGroups.
 func (s *shellState) showColorThemePicker() error {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	service := win.Themes
 	groups, err := service.PickerGroups()
 	if err != nil {
@@ -204,7 +204,7 @@ func (s *shellState) showColorThemePicker() error {
 // chooseColorTheme writes the choice to workbench.colorTheme and keeps the theme that is shown. When the
 // setting cannot be written the theme goes back to the one of the settings and the user is told.
 func (s *shellState) chooseColorTheme(e theme.PickerEntry) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.endPicks = nil
 	err := win.Settings.Update(context.Background(), "workbench.colorTheme", e.Value, win.settingsTargetFor("workbench.colorTheme"))
 	// the change of the setting ended the preview with the same theme; when it was not written the preview
@@ -222,7 +222,7 @@ func (s *shellState) chooseColorTheme(e theme.PickerEntry) {
 // showIconThemePicker opens the picker of the file icon theme: None and the bundled themes, the one in use
 // active.
 func (s *shellState) showIconThemePicker() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	choices := theme.FileIconChoices()
 	current, _ := settings.Get[any](win.Settings, "workbench.iconTheme", "").(string)
 	items := []quickinput.Item{{Separator: true, Label: theme.PickFileIconThemes}}
@@ -273,7 +273,7 @@ const noIconThemeID = "none"
 
 // chooseFileIconTheme writes the choice to workbench.iconTheme (null for None).
 func (s *shellState) chooseFileIconTheme(c theme.FileIconChoice) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.endPicks = nil
 	err := win.Settings.Update(context.Background(), "workbench.iconTheme", c.SettingValue(), win.settingsTargetFor("workbench.iconTheme"))
 	win.Process.EndFileIconThemePreview()

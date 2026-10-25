@@ -644,7 +644,7 @@ func TestOutputOpensTheLogFile(t *testing.T) {
 		}
 	})
 	l.Logger().Info("hello from the log")
-	win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths, Logs: l}), "")
+	win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths, Logs: l}), "")
 	if err != nil {
 		t.Fatal(err)
 	}

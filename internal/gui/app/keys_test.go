@@ -93,7 +93,7 @@ func sendChord(ts *gluttertest.Tester, c keybinding.Chord) bool {
 
 // keyApp is an app that shows a text in an editor that has the focus.
 type keyApp struct {
-	win *Window
+	win *Workspace
 	vm  *editor.ViewModel
 	ts  *gluttertest.Tester
 	// snippets has one snippet, with the prefix "alp", for the state with snippets before the cursor.
@@ -102,7 +102,7 @@ type keyApp struct {
 
 func newKeyApp(t *testing.T, text string) *keyApp {
 	t.Helper()
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	path := filepath.Join(t.TempDir(), "text.txt")
 	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
 		t.Fatal(err)

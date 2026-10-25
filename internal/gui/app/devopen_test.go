@@ -86,7 +86,7 @@ func waitFor(t *testing.T, ts *gluttertest.Tester, what string, cond func() bool
 }
 
 func TestDevOpenFileShowsTheFileAtAPosition(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	args, err := json.Marshal([][]any{
 		{"dev.openFile", map[string]any{"path": sampleFile(t), "line": 5, "column": 4}},
 		{"dev.openFile", map[string]any{"path": "missing/file.go"}},
@@ -119,7 +119,7 @@ func TestDevOpenFileShowsTheFileAtAPosition(t *testing.T) {
 }
 
 func TestDevOpenFileAddsATab(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	first, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +156,7 @@ func TestDevOpenFileAddsATab(t *testing.T) {
 }
 
 func TestShellFoldsTheFile(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)

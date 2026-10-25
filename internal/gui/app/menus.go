@@ -58,14 +58,14 @@ func (s *shellState) editorKeys() map[string]any {
 
 // menuContext is the context of the menu bar and the Manage menu: the keys of the window.
 func (s *shellState) menuContext() contextkey.Context {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	return menuContext{base: win.Keys, settings: win.Settings, extra: s.editorKeys()}
 }
 
 // editorMenuContext is the context of the context menu of the editor: the keys of the widget that has
 // the focus, which is the editor when it was clicked.
 func (s *shellState) editorMenuContext() contextkey.Context {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	focus := widgets.WidgetsBindingOf(s.Context()).FocusManager().PrimaryFocus()
 	return menuContext{base: win.Scopes.ScopeOf(focus, win.Keys), settings: win.Settings, extra: s.editorKeys()}
 }
@@ -78,7 +78,7 @@ func (s *shellState) editorMenuItems() []kit.MenuItem {
 // initMenus makes the source of the menus of the window and the controllers that open them from
 // outside.
 func (s *shellState) initMenus(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.menuBar = kit.NewMenuBarController()
 	s.manage = workbench.NewManageController()
 	s.editorMenu = kit.NewContextMenuController()
@@ -114,7 +114,7 @@ func (s *shellState) bindDevOpenMenu() {
 	if !DevCommandsEnabled() {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	remove, err := win.Commands.SetHandler("dev.openMenu", func(_ command.Context, args any) error { return s.devOpenMenu(args) })
 	if err != nil {
 		win.Process.Logger.Error("cannot bind dev.openMenu", "err", err)

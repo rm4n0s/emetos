@@ -837,10 +837,10 @@ func newWatchedApp(t *testing.T, texts map[string]string, open ...string) (*extA
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, map[string]any{"editor.fontSize": 14, "editor.fontFamily": testutil.MonoFamily})
 	ctx, cancel := context.WithCancel(context.Background())
-	win, err := NewWindow(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), folder)
+	win, err := NewWorkspace(ctx, newTestProcess(ProcessOptions{Paths: paths, WatchFiles: true}), folder)
 	if err != nil {
 		cancel()
-		t.Fatalf("NewWindow: %v", err)
+		t.Fatalf("NewWorkspace: %v", err)
 	}
 	a := &extApp{&saveApp{groupApp: &groupApp{t: t, win: win, files: map[string]string{}, docs: map[string]*document.Document{}}}}
 	var docs []*document.Document

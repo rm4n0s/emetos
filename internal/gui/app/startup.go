@@ -10,34 +10,34 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/storage"
 )
 
-// Which windows open when the application starts (SPEC §10.10 "Which windows open"): the command line, the windows
-// that were open when the application last quit (window.restoreWindows), and the windows that have backups of
-// unsaved documents.
+// Which tabs open when the application starts (SPEC §10.10 "Which windows open", §10.14): the command line, the tabs
+// that were open when the application last quit (window.restoreWindows), and the tabs that have backups of unsaved
+// documents.
 
-// startupPlan is the windows to open at the start, the first of them in the first Glutter window and the others
-// with the first frame. It is never empty. last is the folder of the window that was active last, which is the
-// active one again once all are open ("" when it had none).
+// startupPlan is the tabs to open at the start, in the order of the strip; the one at active is shown. It is never
+// empty.
 //
 //	window.restoreWindows   no folder or file on the command line     a folder or a file on the command line
-//	preserve                every window that was open                those, and the folder (a new window, unless
+//	preserve                every tab that was open                   those, and the folder (a new tab, unless
 //	                                                                  it was open), the files in the active one
-//	all                     every window that was open                only the command line
-//	folders                 the windows that had a folder             only the command line
-//	one                     the window that was active last           only the command line
-//	none                    an empty window                           only the command line
+//	all                     every tab that was open                   only the command line
+//	folders                 the tabs that had a folder                only the command line
+//	one                     the tab that was active last              only the command line
+//	none                    a No Folder tab                           only the command line
 //
-// The files of a command line with no folder open in a window without a folder, which has its own state. Whatever the
-// setting says, the windows that were open and have backups of unsaved documents come back: the hot exit of a window
+// The files of a command line with no folder open in a tab without a folder, which has its own state. Whatever the
+// setting says, the tabs that were open and have backups of unsaved documents come back: the hot exit of a tab
 // that was not restored is not lost.
 //
 // Ported from VS Code: src/vs/platform/windows/electron-main/windowsMainService.ts (getPathsToOpen,
 // doGetRestoredWindows) and the setting window.restoreWindows
-func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []WindowSpec, last string) {
+func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []WorkspaceSpec, active int) {
 	mode := p.restoreModeAtStart(ctx)
 	g, err := p.State.LoadGlobal(ctx)
 	if err != nil {
-		p.Logger.Warn("the global UI state cannot be used; the window starts as new", "err", err)
+		p.Logger.Warn("the global UI state cannot be used; the tabs start as new", "err", err)
 	}
+	last := ""
 	if g.LastWindow != nil {
 		last = g.LastWindow.Folder
 	}
@@ -50,44 +50,37 @@ func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []WindowS
 	if len(files) == 0 {
 		files = opts.Files
 	}
-	restored := p.restoredWindows(ctx, g, mode, last)
+	restored := p.restoredTabs(ctx, g, mode, last)
 	hasArgs := opts.Folder != "" || len(files) > 0
 	switch {
 	case !hasArgs:
 		plan = restored
 	case mode == "preserve" && opts.Folder != "":
 		plan = restored
-		plan = append(plan, WindowSpec{Folder: opts.Folder, Files: files, Launch: opts.Open})
+		plan = append(plan, WorkspaceSpec{Folder: opts.Folder, Files: files, Launch: opts.Open})
 		for i, spec := range plan[:len(plan)-1] {
 			if sameFolder(spec.Folder, opts.Folder) {
-				// the folder was open before: its window gets the files
+				// the folder was open before: its tab gets the files
 				plan[i].Files, plan[i].Launch = files, opts.Open
 				plan = plan[:len(plan)-1]
 				break
 			}
 		}
-		last = opts.Folder
 	case mode == "preserve" && len(restored) > 0:
 		plan = restored
-		at := 0
-		for i, spec := range plan {
-			if spec.Folder == last {
-				at = i
-			}
-		}
+		at := activeIndex(plan, g, Options{}, last)
 		plan[at].Files, plan[at].Launch = files, opts.Open
 	default:
-		plan = []WindowSpec{{Folder: opts.Folder, Files: files, Launch: opts.Open}}
-		last = opts.Folder
+		plan = []WorkspaceSpec{{Folder: opts.Folder, Files: files, Launch: opts.Open}}
 	}
 	if len(plan) > 0 && plan[0].Folder == "" && plan[0].StateID == "" {
 		plan[0].StateID = p.primaryEmptyID(ctx)
 	}
-	plan = p.addWindowsWithBackups(ctx, g, plan)
+	plan = p.addTabsWithBackups(ctx, g, plan)
 	if len(plan) == 0 {
-		plan = []WindowSpec{{StateID: p.primaryEmptyID(ctx)}}
+		plan = []WorkspaceSpec{{StateID: p.primaryEmptyID(ctx)}}
 	}
-	if opts.Open != nil && !slices.ContainsFunc(plan, func(w WindowSpec) bool { return w.Launch != nil }) {
+	if opts.Open != nil && !slices.ContainsFunc(plan, func(w WorkspaceSpec) bool { return w.Launch != nil }) {
 		plan[0].Launch = opts.Open // the notices of the parts of the command line that come with later steps
 	}
 	if opts.Open != nil && opts.Open.Profile != "" {
@@ -100,16 +93,35 @@ func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []WindowS
 			}
 		}
 	}
-	return plan, last
+	return plan, activeIndex(plan, g, opts, last)
+}
+
+// activeIndex is the place in the plan of the tab that is shown first: the one that has the folder of the command line,
+// else the one that was active when the application quit, else the one of the last folder, else the first.
+func activeIndex(plan []WorkspaceSpec, g storage.GlobalState, opts Options, last string) int {
+	if opts.Folder != "" {
+		if i := slices.IndexFunc(plan, func(s WorkspaceSpec) bool { return sameFolder(s.Folder, opts.Folder) }); i >= 0 {
+			return i
+		}
+	}
+	if g.ActiveWorkspaceTab != "" {
+		if i := slices.IndexFunc(plan, func(s WorkspaceSpec) bool { return s.TabID == g.ActiveWorkspaceTab }); i >= 0 {
+			return i
+		}
+	}
+	if i := slices.IndexFunc(plan, func(s WorkspaceSpec) bool { return s.Folder == last }); i >= 0 {
+		return i
+	}
+	return 0
 }
 
 // applyLaunchProfile gives --profile to the window the command line opens (the one that carries the launch). A
 // window that is new, or the first one of a start with nothing restored, uses the profile (made when it is not there
 // yet, when the window is made). A window that came back from the last run keeps the profile it had, as the window of
-// a running instance does (Windows.HandleLaunch), and says so in a notice when it has the folder of the command line;
+// a running instance does (Workspaces.HandleLaunch), and says so in a notice when it has the folder of the command line;
 // a command line with no folder and no files then opens a new empty window with the profile.
-func (p *Process) applyLaunchProfile(ctx context.Context, plan []WindowSpec, name string, hasArgs bool) []WindowSpec {
-	at := slices.IndexFunc(plan, func(w WindowSpec) bool { return w.Launch != nil })
+func (p *Process) applyLaunchProfile(ctx context.Context, plan []WorkspaceSpec, name string, hasArgs bool) []WorkspaceSpec {
+	at := slices.IndexFunc(plan, func(w WorkspaceSpec) bool { return w.Launch != nil })
 	if at < 0 {
 		return plan
 	}
@@ -127,7 +139,7 @@ func (p *Process) applyLaunchProfile(ctx context.Context, plan []WindowSpec, nam
 	default:
 		launch, files := spec.Launch, spec.Files
 		spec.Launch, spec.Files = nil, nil
-		plan = append(plan, WindowSpec{Profile: name, Launch: launch, Files: files})
+		plan = append(plan, WorkspaceSpec{Profile: name, Launch: launch, Files: files})
 	}
 	return plan
 }
@@ -164,81 +176,85 @@ func (p *Process) restoreModeAtStart(ctx context.Context) string {
 	return restoreMode(store)
 }
 
-// restoredWindows are the windows window.restoreWindows reopens, from the list of those that were open when the
-// application last quit. A window whose folder is gone is left out. Without a list (a state from before the
-// windows were kept) the last window is the one.
-func (p *Process) restoredWindows(ctx context.Context, g storage.GlobalState, mode, last string) []WindowSpec {
+// restoredTabs are the tabs window.restoreWindows reopens, from the list of those that were open when the
+// application last quit. A tab whose folder is gone is left out. Without a list (a state from before the windows were
+// kept) the last window is the one.
+func (p *Process) restoredTabs(ctx context.Context, g storage.GlobalState, mode, last string) []WorkspaceSpec {
 	if mode == "none" {
 		return nil
 	}
-	open := g.OpenWindows
+	open := g.WorkspaceTabs
 	if len(open) == 0 && g.LastWindow != nil {
-		open = []storage.OpenWindow{{Folder: g.LastWindow.Folder}}
+		open = []storage.WorkspaceTab{{Folder: g.LastWindow.Folder}}
 	}
-	var out []WindowSpec
+	var out []WorkspaceSpec
 	seen := map[string]bool{}
-	for _, w := range open {
-		if w.Folder != "" {
-			if info, err := os.Stat(w.Folder); err != nil || !info.IsDir() {
+	for _, t := range open {
+		if t.Folder != "" {
+			if info, err := os.Stat(t.Folder); err != nil || !info.IsDir() {
 				continue
 			}
-			if seen[filepath.Clean(w.Folder)] {
+			if seen[filepath.Clean(t.Folder)] {
 				continue
 			}
-			seen[filepath.Clean(w.Folder)] = true
+			seen[filepath.Clean(t.Folder)] = true
 		} else if mode == "folders" {
 			continue
 		}
-		out = append(out, WindowSpec{Folder: w.Folder, StateID: stateIDOfEmpty(w), Profile: p.restoredProfile(ctx, w.Profile)})
+		out = append(out, WorkspaceSpec{TabID: t.ID, Folder: t.Folder, StateID: stateIDOfEmpty(t), Profile: p.restoredProfile(ctx, t.Profile)})
 	}
 	if mode == "one" && len(out) > 1 {
 		pick := out[len(out)-1]
 		for _, spec := range out {
-			if spec.Folder == last {
+			if g.ActiveWorkspaceTab != "" && spec.TabID == g.ActiveWorkspaceTab {
+				pick = spec
+				break
+			}
+			if g.ActiveWorkspaceTab == "" && spec.Folder == last {
 				pick = spec
 			}
 		}
-		out = []WindowSpec{pick}
+		out = []WorkspaceSpec{pick}
 	}
 	return out
 }
 
-// stateIDOfEmpty is the state id of a window that has no folder; a window with one gets it from the folder.
-func stateIDOfEmpty(w storage.OpenWindow) string {
-	if w.Folder != "" {
+// stateIDOfEmpty is the state id of a tab that has no folder; a tab with one gets it from the folder.
+func stateIDOfEmpty(t storage.WorkspaceTab) string {
+	if t.Folder != "" {
 		return ""
 	}
-	return w.ID
+	return t.StateID
 }
 
-// addWindowsWithBackups adds the windows that were open and have backups of unsaved documents to the plan, when
+// addTabsWithBackups adds the tabs that were open and have backups of unsaved documents to the plan, when
 // it does not have them already.
-func (p *Process) addWindowsWithBackups(ctx context.Context, g storage.GlobalState, plan []WindowSpec) []WindowSpec {
-	has := func(w storage.OpenWindow) bool {
+func (p *Process) addTabsWithBackups(ctx context.Context, g storage.GlobalState, plan []WorkspaceSpec) []WorkspaceSpec {
+	has := func(t storage.WorkspaceTab) bool {
 		for _, spec := range plan {
-			if w.Folder != "" && sameFolder(spec.Folder, w.Folder) {
+			if t.Folder != "" && sameFolder(spec.Folder, t.Folder) {
 				return true
 			}
-			if w.Folder == "" && spec.Folder == "" && spec.StateID == w.ID {
+			if t.Folder == "" && spec.Folder == "" && spec.StateID == t.StateID {
 				return true
 			}
 		}
 		return false
 	}
-	for _, w := range g.OpenWindows {
-		if has(w) {
+	for _, t := range g.WorkspaceTabs {
+		if has(t) || t.StateID == "" {
 			continue
 		}
-		if w.Folder != "" {
-			if info, err := os.Stat(w.Folder); err != nil || !info.IsDir() {
+		if t.Folder != "" {
+			if info, err := os.Stat(t.Folder); err != nil || !info.IsDir() {
 				continue
 			}
 		}
-		store, err := storage.NewBackupStore(p.Paths, w.ID, storage.BackupStoreOptions{Logger: p.Logger})
+		store, err := storage.NewBackupStore(p.Paths, t.StateID, storage.BackupStoreOptions{Logger: p.Logger})
 		if err != nil || !store.HasBackups() {
 			continue
 		}
-		plan = append(plan, WindowSpec{Folder: w.Folder, StateID: stateIDOfEmpty(w), Profile: p.restoredProfile(ctx, w.Profile)})
+		plan = append(plan, WorkspaceSpec{TabID: t.ID, Folder: t.Folder, StateID: stateIDOfEmpty(t), Profile: p.restoredProfile(ctx, t.Profile)})
 	}
 	return plan
 }

@@ -655,7 +655,7 @@ func TestLaunchMergeNeedsFourFiles(t *testing.T) {
 }
 
 func TestStartupMergeOfTheFirstInstance(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	dir := t.TempDir()
 	paths := make([]string, 4)
 	for i, f := range []struct{ name, text string }{{"theirs", "a\nONE\nc\n"}, {"ours", "a\nTWO\nc\n"}, {"base", "a\nb\nc\n"}, {"merged", "stale\n"}} {

@@ -93,7 +93,7 @@ func (s *shellState) bindDevMerge() {
 	if !DevCommandsEnabled() {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	for id, handler := range map[string]command.Handler{
 		"dev.openMergeEditor": func(c command.Context, args any) error { return s.devOpenMergeEditor(c.Ctx, args) },
 		"dev.acceptMerge":     func(_ command.Context, args any) error { return s.devAcceptMerge(args) },
@@ -115,7 +115,7 @@ func (s *shellState) devOpenMergeEditor(ctx context.Context, args any) error {
 	if err != nil {
 		return err
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if a.Path == "" {
 		var paths [4]string
 		for i, p := range []string{a.Input1, a.Input2, a.Base, a.Result} {
@@ -174,7 +174,7 @@ func (s *shellState) devAcceptMerge(args any) error {
 // devMergePath is the absolute path of a file of dev.openMergeEditor: a relative path is relative to the folder of the
 // window, or to the folder Emetos runs in when none is open (as dev.openFile's is).
 func (s *shellState) devMergePath(path string) (string, error) {
-	if folder := PeekWindow(s.Context()).Folder; folder != "" && !filepath.IsAbs(path) {
+	if folder := PeekWorkspace(s.Context()).Folder; folder != "" && !filepath.IsAbs(path) {
 		return filepath.Join(folder, path), nil
 	}
 	abs, err := filepath.Abs(path)

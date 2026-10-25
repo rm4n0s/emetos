@@ -30,7 +30,7 @@ import (
 // newSettingsApp is a window over a folder (none when empty) with a.txt open, whose text is in the test font.
 func newSettingsApp(t *testing.T, folder string) *groupApp {
 	t.Helper()
-	win := newTestWindow(t, folder)
+	win := newTestWorkspace(t, folder)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "a.txt")
 	if err := os.WriteFile(path, []byte("one\n"), 0o644); err != nil {

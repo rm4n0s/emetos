@@ -68,9 +68,9 @@ func restoreMode(store *settings.Store) string {
 // initState works out the id of the state file of the window and notes the folder as the last one opened. It
 // is called when the window is made and when its folder changes. A window whose id is unknown (the system has no
 // randomness, the state folder is unusable) keeps no state.
-func (w *Window) initState(ctx context.Context) {
+func (w *Workspace) initState(ctx context.Context) {
 	defer w.initBackups(ctx) // the backups are named by the id
-	defer w.Process.Windows.folderNote(w)
+	defer w.Process.Workspaces.folderNote(w)
 	w.stateID = ""
 	var err error
 	switch {
@@ -109,21 +109,21 @@ func (w *Window) initState(ctx context.Context) {
 
 // StateID is the id of the window's UI state file (storage.WindowID of its folder, or the id of the window with
 // no folder); it is empty when the window keeps no state.
-func (w *Window) StateID() string { return w.stateID }
+func (w *Workspace) StateID() string { return w.stateID }
 
 // AddRecentFile notes that a file was opened: the quick open lists it first, and File > Open Recent lists it.
-func (w *Window) AddRecentFile(path string) {
+func (w *Workspace) AddRecentFile(path string) {
 	w.Recent.Add(path)
 	w.updateRecent(func(r *storage.RecentlyOpened) bool { return r.AddFile(path) })
 }
 
 // RemoveRecent takes a folder or a file out of File > Open Recent.
-func (w *Window) RemoveRecent(path string) {
+func (w *Workspace) RemoveRecent(path string) {
 	w.updateRecent(func(r *storage.RecentlyOpened) bool { return r.Remove(path) })
 }
 
 // ClearRecent empties File > Open Recent and the files the quick open lists first.
-func (w *Window) ClearRecent() {
+func (w *Workspace) ClearRecent() {
 	w.Recent.Clear()
 	w.updateRecent(func(r *storage.RecentlyOpened) bool {
 		had := !r.Empty()
@@ -132,7 +132,7 @@ func (w *Window) ClearRecent() {
 	})
 }
 
-func (w *Window) updateRecent(fn func(*storage.RecentlyOpened) bool) {
+func (w *Workspace) updateRecent(fn func(*storage.RecentlyOpened) bool) {
 	err := w.Process.State.UpdateGlobal(w.ctx, func(g *storage.GlobalState) bool { return fn(&g.Recent) })
 	if err != nil {
 		w.Process.Logger.Warn("the recently opened list could not be saved", "err", err)
@@ -145,7 +145,7 @@ func (w *Window) updateRecent(fn func(*storage.RecentlyOpened) bool) {
 // editors whose files cannot be opened are dropped, and one notification says how many. It does nothing when
 // window.restoreWindows is none, when the window has no saved state, and when the saved state cannot be used
 // (that is logged). It returns the saved geometry of the window, or nil.
-func (w *Window) PrepareRestore(ctx context.Context) *storage.Geometry {
+func (w *Workspace) PrepareRestore(ctx context.Context) *storage.Geometry {
 	if w.stateID == "" {
 		return nil
 	}
@@ -165,7 +165,7 @@ func (w *Window) PrepareRestore(ctx context.Context) *storage.Geometry {
 
 // restoreUIState reads the saved state of the window and applies it (PrepareRestore); found tells that there was a
 // state to restore.
-func (w *Window) restoreUIState(ctx context.Context, r *restoredWindow) (geometry *storage.Geometry, found bool) {
+func (w *Workspace) restoreUIState(ctx context.Context, r *restoredWindow) (geometry *storage.Geometry, found bool) {
 	if restoreMode(w.Settings) == "none" {
 		return nil, false
 	}
@@ -207,7 +207,7 @@ func (w *Window) restoreUIState(ctx context.Context, r *restoredWindow) (geometr
 // restoreLayout puts the layout of the window back as the saved JSON says: it is read over the layout the settings make,
 // so a key it lacks keeps that value, and sizes and positions that cannot be are repaired by Layout.Restore. A text
 // that is not the JSON of a layout has the tag LayoutStateInvalid.
-func (w *Window) restoreLayout(raw json.RawMessage) error {
+func (w *Workspace) restoreLayout(raw json.RawMessage) error {
 	layout := workbench.LayoutStateFromSettings(w.Settings)
 	if err := json.Unmarshal(raw, &layout); err != nil {
 		return errors.NewErr("LayoutStateInvalid", err)
@@ -227,7 +227,7 @@ func DroppedEditorsNotice(n int) string {
 // openSavedEditors opens the document of every saved text editor, once for a file that is in several groups,
 // and counts the saved editors whose file cannot be opened. A document with a backup comes back from it
 // (restoreFromBackup), and so does an untitled one: without a backup it is dropped, without a word.
-func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
+func (w *Workspace) openSavedEditors(ctx context.Context, r *restoredWindow) {
 	var visit func(nodes []editorgroup.SerializedNode)
 	visit = func(nodes []editorgroup.SerializedNode) {
 		for _, n := range nodes {
@@ -262,7 +262,7 @@ func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 }
 
 // openSavedValue opens the document of a saved URI once, and counts the saved editors whose file cannot be opened.
-func (w *Window) openSavedValue(ctx context.Context, r *restoredWindow, value string) {
+func (w *Workspace) openSavedValue(ctx context.Context, r *restoredWindow, value string) {
 	if _, tried := r.docs[value]; !tried {
 		doc, err := w.openSavedDocument(ctx, r, value)
 		if err != nil {
@@ -278,7 +278,7 @@ func (w *Window) openSavedValue(ctx context.Context, r *restoredWindow, value st
 
 // openSavedDocument opens the document of a saved input (the value of TextInput.Serialize: a file URI, an
 // untitled one or a virtual one). A document that has a backup comes back from it.
-func (w *Window) openSavedDocument(ctx context.Context, r *restoredWindow, value string) (*document.Document, error) {
+func (w *Workspace) openSavedDocument(ctx context.Context, r *restoredWindow, value string) (*document.Document, error) {
 	uri, err := document.ParseURI(value)
 	if err != nil {
 		return nil, err
@@ -302,31 +302,30 @@ func (w *Window) openSavedDocument(ctx context.Context, r *restoredWindow, value
 }
 
 // takeRestored gives the shell what PrepareRestore found, once.
-func (w *Window) takeRestored() *restoredWindow {
+func (w *Workspace) takeRestored() *restoredWindow {
 	r := w.restored
 	w.restored = nil
 	return r
 }
 
 // takeExpanded gives the Explorer the folders to expand, once.
-func (w *Window) takeExpanded() []string {
+func (w *Workspace) takeExpanded() []string {
 	dirs := w.pendingExpanded
 	w.pendingExpanded = nil
 	return dirs
 }
 
-// startupWindowConfig is the config of the first window: the saved size, else the size the window of the last
-// session had, else the default; maximized when it was, and full screen when it was and window.restoreFullscreen
-// says so.
-func startupWindowConfig(win *Window, saved *storage.Geometry) widgets.WindowConfig {
+// startupWindowConfig is the config of the window: the size the window of the last session had (windowGeometry of the
+// global state), else the size the shown workspace saved (a state from before the tabs shared a window), else the
+// default; maximized when it was, and full screen when it was and window.restoreFullscreen says so. win is the
+// workspace of the tab that is shown first.
+func startupWindowConfig(win *Workspace, saved *storage.Geometry) widgets.WindowConfig {
 	geo := defaultGeometry
-	switch {
+	switch g, _ := win.Process.State.LoadGlobal(win.ctx); {
+	case restoreMode(win.Settings) != "none" && g.WindowGeometry != nil && g.WindowGeometry.Valid():
+		geo = *g.WindowGeometry
 	case saved != nil && saved.Valid():
 		geo = *saved
-	case restoreMode(win.Settings) != "none":
-		if g, _ := win.Process.State.LoadGlobal(win.ctx); g.Geometry != nil && g.Geometry.Valid() {
-			geo = *g.Geometry
-		}
 	}
 	cfg := widgets.WindowConfig{Title: Title, Size: ui.Size{Width: geo.Width, Height: geo.Height}}
 	if restoreMode(win.Settings) == "none" {
@@ -381,18 +380,19 @@ type windowModes interface {
 // initState follows what the state of the window is made of, and gives the window the function that saves it
 // when it closes.
 func (s *shellState) initState(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	st := &s.state
 	if win.stateID == "" {
 		return
 	}
-	// the size the window comes back to when it is not maximized: the saved one, else the last window's
+	// the size the window comes back to when it is not maximized: the one window's (the global state), else the one
+	// this workspace saved before the tabs shared one window
 	switch g, _ := win.Process.State.LoadGlobal(win.ctx); {
+	case g.WindowGeometry != nil && g.WindowGeometry.Valid():
+		st.geometry = *g.WindowGeometry
+		st.geometry.Maximized, st.geometry.Fullscreen = false, false
 	case win.geometry != nil && win.geometry.Valid():
 		st.geometry = *win.geometry
-	case g.Geometry != nil && g.Geometry.Valid():
-		st.geometry = *g.Geometry
-		st.geometry.Maximized, st.geometry.Fullscreen = false, false
 	}
 	changed := func() { s.stateChanged() }
 	st.stops = append(st.stops,
@@ -470,10 +470,10 @@ func (s *shellState) snapshotState() {
 	if st.geometry.Valid() {
 		geo := st.geometry
 		err := win.Process.State.UpdateGlobal(win.ctx, func(g *storage.GlobalState) bool {
-			if g.Geometry != nil && *g.Geometry == geo {
+			if g.WindowGeometry != nil && *g.WindowGeometry == geo {
 				return false
 			}
-			g.Geometry = &geo
+			g.WindowGeometry = &geo
 			return true
 		})
 		if err != nil {

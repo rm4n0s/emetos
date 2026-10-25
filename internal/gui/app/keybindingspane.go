@@ -59,7 +59,7 @@ type keybindingsPane struct {
 
 // build implements pane.
 func (p *keybindingsPane) build(bc widgets.BuildContext, group *editorgroup.Group, _ bool) widgets.Widget {
-	win := PeekWindow(bc)
+	win := PeekWorkspace(bc)
 	code, _ := widgets.WidgetsBindingOf(bc).PlatformDispatcher().MonospaceFont()
 	if first, _, _ := strings.Cut(settings.Get[string](win.Settings, "editor.fontFamily", ""), ","); strings.Trim(strings.TrimSpace(first), `"'`) != "" {
 		code = strings.Trim(strings.TrimSpace(first), `"'`)
@@ -102,7 +102,7 @@ func (p *keybindingsPane) dispose() {}
 
 // keybindingActions are the edits of the keybindings editor to keybindings.json.
 func (s *shellState) keybindingActions() keybindingsui.Actions {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	edit := func(op func(text string, e keybinding.Editing) (string, error)) error {
 		return win.userKeys.Edit(win.ctx, op)
 	}
@@ -136,7 +136,7 @@ func (s *shellState) keybindingActions() keybindingsui.Actions {
 
 // keybindingEditFailed reports an edit of keybindings.json that failed.
 func (s *shellState) keybindingEditFailed(err error) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.Process.Logger.Warn("cannot change the keybinding", "err", err)
 	win.Notify.Error("Emetos", "Cannot change the keybinding: "+describe(err)+" Open keybindings.json and check it for errors.")
 }
@@ -178,7 +178,7 @@ func (s *shellState) openKeybindingsEditor(query string) {
 			}
 		}
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if input == nil {
 		input, group = editorgroup.NewKeybindingsInput(editorgroup.KeybindingsViewState{Query: query}), s.activeGroup()
 		s.SetState(func() {
@@ -266,7 +266,7 @@ func keybindingsQueryOf(args any) string {
 
 // openKeybindingsJSON opens keybindings.json in a text editor; the file is made when it does not exist.
 func (s *shellState) openKeybindingsJSON() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	k := win.userKeys
 	s.Go(func(life context.Context) {
@@ -288,7 +288,7 @@ func (s *shellState) openKeybindingsJSON() {
 // openDefaultKeybindings shows the read-only document of the built-in keybindings (made again from the keymap each
 // time).
 func (s *shellState) openDefaultKeybindings() error {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	doc, err := win.Documents.AcquireVirtual(win.ctx, document.VirtualURI(DefaultKeybindingsPath))
 	if err != nil {

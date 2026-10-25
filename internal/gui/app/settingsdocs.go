@@ -23,7 +23,7 @@ import (
 // copy of the text of each document that shows a settings file, updated on every change of the document, so that
 // the store can read it from the goroutine of the file watcher.
 type settingsDocs struct {
-	win *Window
+	win *Workspace
 
 	mu    sync.Mutex
 	texts map[string]string
@@ -31,7 +31,7 @@ type settingsDocs struct {
 	stops map[*document.Document][]func()
 }
 
-func newSettingsDocs(win *Window) *settingsDocs {
+func newSettingsDocs(win *Workspace) *settingsDocs {
 	return &settingsDocs{win: win, texts: map[string]string{}, docs: map[string]*document.Document{}, stops: map[*document.Document][]func(){}}
 }
 
@@ -209,7 +209,7 @@ func (d *settingsDocs) EditText(ctx context.Context, path string, edits []jsonc.
 
 // saveSettingsDocument saves a settings document the way Ctrl+S does (the save participants of its language run,
 // a failure is reported by the window); a window without a shell on screen writes it at once.
-func (w *Window) saveSettingsDocument(ctx context.Context, doc *document.Document) error {
+func (w *Workspace) saveSettingsDocument(ctx context.Context, doc *document.Document) error {
 	if s := w.shell; s != nil && s.Mounted() {
 		s.saveDocument(doc, saveRequest{}, nil)
 		return nil

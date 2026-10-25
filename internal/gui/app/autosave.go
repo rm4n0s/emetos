@@ -47,7 +47,7 @@ type autoSaveState struct {
 // autoSaveHost gives the controller what the window knows.
 type autoSaveHost struct {
 	s   *shellState
-	win *Window
+	win *Workspace
 }
 
 // Config implements document.AutoSaveHost: the settings of the language of the document. A files.autoSave
@@ -101,13 +101,13 @@ type autoSaveObserver struct {
 	s *shellState
 }
 
-// DidChangeViewFocus implements widgets.WidgetsBindingObserver. With several windows the event says which one lost
-// the focus; a window the manager does not host (a test of one window) takes every event.
+// DidChangeViewFocus implements widgets.WidgetsBindingObserver. The window has the focus for its active tab only: a
+// tab that is not the active one lost it when it was left (Workspaces.leave).
 func (o *autoSaveObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
 	if e.State != ui.ViewFocusStateUnfocused || !o.s.Mounted() {
 		return
 	}
-	if win := o.s.win; win != nil && win.managed() && win.entry.view() != e.ViewID {
+	if win := o.s.win; win != nil && !win.activeTab() {
 		return
 	}
 	o.s.autosave.ctl.WindowFocusLost()
@@ -116,7 +116,7 @@ func (o *autoSaveObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
 // initAutoSave makes the controller of auto save, before the editors are made (they are tracked as they
 // appear), and follows the settings, the markers and the focus of the window.
 func (s *shellState) initAutoSave(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	st := &s.autosave
 	clock := document.AutoSaveClockFunc(func(d time.Duration, f func()) func() {
 		if win.after == nil {
@@ -233,7 +233,7 @@ func (s *shellState) activeEditorChanged() {
 // toggleAutoSave is Toggle Auto Save: any mode but off becomes off, and off becomes afterDelay. The value goes
 // to the workspace settings when the workspace sets files.autoSave, else to the user's.
 func (s *shellState) toggleAutoSave() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	value := "afterDelay"
 	if mode, _ := document.ParseAutoSaveMode(settings.Get[string](win.Settings, "files.autoSave", "")); mode != document.AutoSaveOff {
 		value = "off"

@@ -62,15 +62,15 @@ func TestSaveConfirmation(t *testing.T) {
 
 func TestCloseDecision(t *testing.T) {
 	const (
-		window = CloseReasonWindow
+		window = CloseReasonTab
 		quit   = CloseReasonQuit
 	)
 	tests := []struct {
-		hotExit      string
-		reason       CloseReason
-		hasFolder    bool
-		otherWindows bool
-		want         closeAction
+		hotExit   string
+		reason    CloseReason
+		hasFolder bool
+		otherTabs bool
+		want      closeAction
 	}{
 		// off always asks
 		{"off", quit, true, false, closeAsk},
@@ -94,8 +94,8 @@ func TestCloseDecision(t *testing.T) {
 		{"unknown", window, true, false, closeAsk},
 	}
 	for _, tc := range tests {
-		t.Run(fmt.Sprintf("%q/reason %d/folder %v/others %v", tc.hotExit, tc.reason, tc.hasFolder, tc.otherWindows), func(t *testing.T) {
-			if got := closeDecision(tc.hotExit, tc.reason, tc.hasFolder, tc.otherWindows); got != tc.want {
+		t.Run(fmt.Sprintf("%q/reason %d/folder %v/others %v", tc.hotExit, tc.reason, tc.hasFolder, tc.otherTabs), func(t *testing.T) {
+			if got := closeDecision(tc.hotExit, tc.reason, tc.hasFolder, tc.otherTabs); got != tc.want {
 				t.Errorf("closeDecision = %d, want %d", got, tc.want)
 			}
 		})
@@ -506,7 +506,7 @@ func TestACloseThatAsksIgnoresAnotherRequest(t *testing.T) {
 	// the same close, another close and the close of the window while the dialog is open
 	a.run("workbench.action.closeAllEditors")
 	a.run("workbench.action.closeActiveEditor")
-	a.win.RequestClose(CloseReasonWindow)
+	a.win.RequestClose(CloseReasonQuit)
 	a.pump()
 	if a.win.Dialogs.Pending() != 0 {
 		t.Errorf("%d dialogs wait behind the first", a.win.Dialogs.Pending())
@@ -649,25 +649,33 @@ func TestOpenFolderSavesThenOpens(t *testing.T) {
 
 // ---- the window ----
 
-func TestRequestCloseOfTheWindow(t *testing.T) {
+func TestRequestCloseOfTheWorkspace(t *testing.T) {
 	tests := []struct {
 		name   string
 		reason CloseReason
 		answer string // the button, "" for no dialog
-		quits  int
+		closes bool   // whether the tab closes (CloseReasonTab) or the application quits (CloseReasonQuit)
 		saved  bool
 	}{
-		{"nothing is dirty", CloseReasonWindow, "", 1, false},
-		{"Save", CloseReasonWindow, "Save", 1, true},
-		{"Don't Save", CloseReasonWindow, "Don't Save", 1, false},
-		{"Cancel", CloseReasonWindow, "Cancel", 0, false},
-		{"Save when quitting", CloseReasonQuit, "Save", 1, true},
-		{"Cancel when quitting", CloseReasonQuit, "Cancel", 0, false},
+		{"nothing is dirty", CloseReasonTab, "", true, false},
+		{"Save", CloseReasonTab, "Save", true, true},
+		{"Don't Save", CloseReasonTab, "Don't Save", true, false},
+		{"Cancel", CloseReasonTab, "Cancel", false, false},
+		{"nothing is dirty when quitting", CloseReasonQuit, "", true, false},
+		{"Save when quitting", CloseReasonQuit, "Save", true, true},
+		{"Don't Save when quitting", CloseReasonQuit, "Don't Save", true, false},
+		{"Cancel when quitting", CloseReasonQuit, "Cancel", false, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newSaveApp(t, map[string]string{"a.txt": "one\n", "b.txt": "two\n"}, "a.txt", "b.txt")
 			quits := a.quits()
+			// a tab that closes is gone from the list (and, as it was the last one, another takes its place); the
+			// application that quits is told to end, and its tab stays
+			ended := func() bool { return a.win.Tab() == nil }
+			if tc.reason == CloseReasonQuit {
+				ended = func() bool { return *quits == 1 }
+			}
 			if tc.answer != "" {
 				a.edit("b.txt")
 			}
@@ -675,24 +683,29 @@ func TestRequestCloseOfTheWindow(t *testing.T) {
 			a.pump()
 			if tc.answer == "" {
 				a.wantNoDialog()
-				if *quits != 1 {
-					t.Errorf("Quit called %d times", *quits)
+				if !ended() {
+					t.Error("the workspace did not close")
 				}
 				return
 			}
 			a.wantAsked(askOf("b.txt"))
-			if *quits != 0 {
-				t.Fatal("the window quit before the answer")
+			if ended() {
+				t.Fatal("the workspace closed before the answer")
 			}
 			a.tapDialog(tc.answer)
 			if tc.saved {
-				a.waitFor("the quit", func() bool { return *quits == 1 })
+				a.waitFor("the end", ended)
 			}
-			if *quits != tc.quits {
-				t.Errorf("Quit called %d times, want %d", *quits, tc.quits)
+			if ended() != tc.closes {
+				t.Errorf("closed = %v, want %v", ended(), tc.closes)
+			}
+			if tc.reason == CloseReasonTab && *quits != 0 {
+				t.Error("closing the tab quit the application")
 			}
 			a.wantNoDialog()
-			wantNames(t, a.tabNames(), "a.txt", "b.txt")
+			if !tc.closes {
+				wantNames(t, a.tabNames(), "a.txt", "b.txt")
+			}
 			want := "two\n"
 			if tc.saved {
 				want = "xtwo\n"
@@ -700,7 +713,7 @@ func TestRequestCloseOfTheWindow(t *testing.T) {
 			if got := a.fileText("b.txt"); got != want {
 				t.Errorf("b.txt = %q, want %q", got, want)
 			}
-			// the window keeps asking after a Cancel
+			// the workspace keeps asking after a Cancel
 			if tc.answer == "Cancel" {
 				a.win.RequestClose(tc.reason)
 				a.wantAsked(askOf("b.txt"))
@@ -714,7 +727,7 @@ func TestACloseRequestWhileTheDialogIsOpenIsIgnored(t *testing.T) {
 	quits := a.quits()
 	a.edit("a.txt")
 	for range 3 {
-		a.win.RequestClose(CloseReasonWindow)
+		a.win.RequestClose(CloseReasonQuit)
 		a.pump()
 	}
 	if a.win.Dialogs.Pending() != 0 || !a.win.Dialogs.IsShowing() {
@@ -731,7 +744,7 @@ func TestAnUntitledDocumentIsSavedBeforeTheWindowCloses(t *testing.T) {
 	quits := a.quits()
 	a.press("ctrl+n")
 	a.typeText("hello\n")
-	a.win.RequestClose(CloseReasonWindow)
+	a.win.RequestClose(CloseReasonQuit)
 	a.wantAsked(askOf("Untitled-1"))
 	a.tapDialog("Save")
 	a.fd.WaitFor("the dialog", func() bool { return a.fd.PendingFileChoosers() == 1 })
@@ -794,11 +807,14 @@ func TestThePlatformsRequestToCloseTheWindowIsCancelledAndAnswered(t *testing.T)
 	}
 }
 
-func TestCloseWindowAndQuitAreCommandsWithKeysAndMenuRows(t *testing.T) {
-	for _, tc := range []struct{ keys, command string }{
-		{"alt+f4", "workbench.action.closeWindow"},
-		{"ctrl+shift+w", "workbench.action.closeWindow"},
-		{"ctrl+q", "workbench.action.quit"},
+func TestCloseWorkspaceTabAndQuitAreCommandsWithKeysAndMenuRows(t *testing.T) {
+	for _, tc := range []struct {
+		keys, command string
+		quit          bool
+	}{
+		{"alt+f4", "workbench.action.closeWindow", false},
+		{"ctrl+shift+w", "workbench.action.closeWindow", false},
+		{"ctrl+q", "workbench.action.quit", true},
 	} {
 		t.Run(tc.keys, func(t *testing.T) {
 			a := newSaveApp(t, map[string]string{"a.txt": "one\n"}, "a.txt")
@@ -807,8 +823,12 @@ func TestCloseWindowAndQuitAreCommandsWithKeysAndMenuRows(t *testing.T) {
 			a.press(tc.keys)
 			a.wantAsked(askOf("a.txt"))
 			a.tapDialog("Don't Save")
-			if *quits != 1 {
+			// Close Workspace Tab closes the tab (another takes its place); Quit ends the application
+			if tc.quit && *quits != 1 {
 				t.Errorf("Quit called %d times", *quits)
+			}
+			if !tc.quit && (*quits != 0 || a.win.Tab() != nil) {
+				t.Errorf("Quit called %d times, the tab is still there: %v", *quits, a.win.Tab() != nil)
 			}
 		})
 	}
@@ -825,14 +845,18 @@ func TestCloseWindowAndQuitAreCommandsWithKeysAndMenuRows(t *testing.T) {
 			s.menus.Run(it)
 		}
 	}
-	a.waitFor("the quit", func() bool { return *quits == 1 })
+	// Close Window closes the tab, which was the last one: another takes its place, and the application stays
+	a.waitFor("the tab to close", func() bool { return a.win.Tab() == nil })
+	if *quits != 0 {
+		t.Error("closing the last tab quit the application")
+	}
 }
 
 func TestWithoutAShellRequestCloseQuits(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	n := 0
 	win.Quit = func() { n++ }
-	win.RequestClose(CloseReasonWindow)
+	win.RequestClose(CloseReasonQuit)
 	if n != 1 {
 		t.Errorf("Quit called %d times", n)
 	}

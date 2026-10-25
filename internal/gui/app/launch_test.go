@@ -390,7 +390,7 @@ func TestLaunchCancelStopsTheWait(t *testing.T) {
 }
 
 func TestHandleLaunchWithoutAShell(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	var got []LaunchOutcome
 	cancel := win.HandleLaunch(ipc.OpenArgs{}, func(o LaunchOutcome) { got = append(got, o) })
 	cancel()
@@ -404,7 +404,7 @@ func newLauncherApp(t *testing.T, attach bool) (*launchApp, *Launcher) {
 	t.Helper()
 	root := t.TempDir()
 	writeTree(t, root, launchFiles...)
-	win := newTestWindow(t, root)
+	win := newTestWorkspace(t, root)
 	launcher := NewLauncher()
 	win.Process.Launcher = launcher
 	a := &explorerApp{t: t, win: win, root: win.Folder}
@@ -558,7 +558,7 @@ func TestLauncherHandlesManyClientsAtOnce(t *testing.T) {
 func TestStartupArgumentsOfTheFirstInstance(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root, launchFiles...)
-	win := newTestWindow(t, root)
+	win := newTestWorkspace(t, root)
 	win.startup = &ipc.OpenArgs{
 		Files:   []ipc.FileTarget{{Path: filepath.Join(root, "a.go"), Line: 2, Column: 3}, {Path: filepath.Join(root, "b.go")}},
 		Profile: "p", NewWindow: true,
@@ -590,7 +590,7 @@ func TestStartupArgumentsOfTheFirstInstance(t *testing.T) {
 }
 
 func TestStartupDiffOfTheFirstInstance(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	dir := t.TempDir()
 	left, right := filepath.Join(dir, "old.go"), filepath.Join(dir, "new.go")
 	for path, text := range map[string]string{left: "a\nb\n", right: "a\nB\n"} {

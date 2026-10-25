@@ -29,6 +29,10 @@ func WindowID(folder string) (string, error) {
 // has no randomness.
 func NewEmptyWindowID() (string, error) { return newEmptyWindowID(rand.Reader) }
 
+// NewTabID makes the random id of a window tab (SPEC §10.14), of the shape of a window id. It has the tag
+// WindowIDUnavailable when the system has no randomness.
+func NewTabID() (string, error) { return newEmptyWindowID(rand.Reader) }
+
 // newEmptyWindowID reads the random bytes of the id from r.
 func newEmptyWindowID(r io.Reader) (string, error) {
 	var b [windowIDLength / 2]byte

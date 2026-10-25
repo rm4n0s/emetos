@@ -284,11 +284,11 @@ func TestAChangeOfWindowZoomLevelResetsEveryWindow(t *testing.T) {
 	one := env.folder("one", "a.go")
 	two := env.folder("two", "b.go")
 	a := env.run(Options{Folder: one})
-	if _, err := a.m.Open(WindowSpec{Folder: two}); err != nil {
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
 		t.Fatal(err)
 	}
 	a.settle()
-	w1, w2 := a.windowOf(one), a.windowOf(two)
+	w1, w2 := a.workspaceOf(one), a.workspaceOf(two)
 	// the windows have a zoom each
 	if err := a.command(w1, "workbench.action.zoomIn", nil); err != nil {
 		t.Fatal(err)

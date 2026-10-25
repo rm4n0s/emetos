@@ -18,7 +18,7 @@ import (
 
 // beginBackups checks the backups of the window (what cannot be read is removed and logged), lists them for the
 // restore, and writes the marker that says the window is open; a marker left by the last run means it did not end.
-func (w *Window) beginBackups(ctx context.Context, r *restoredWindow) {
+func (w *Workspace) beginBackups(ctx context.Context, r *restoredWindow) {
 	b := &w.backups
 	b.mu.Lock()
 	store, tracker := b.store, b.tracker
@@ -47,7 +47,7 @@ func (w *Window) beginBackups(ctx context.Context, r *restoredWindow) {
 
 // openUnshownBackups opens the documents of the backups that no saved editor showed, in the order of their URIs:
 // they open in the active group, as VS Code opens the backups that have no editor.
-func (w *Window) openUnshownBackups(ctx context.Context, r *restoredWindow) {
+func (w *Workspace) openUnshownBackups(ctx context.Context, r *restoredWindow) {
 	uris := make([]string, 0, len(r.backups))
 	for uri := range r.backups {
 		if _, tried := r.docs[uri]; !tried {
@@ -70,7 +70,7 @@ func (w *Window) openUnshownBackups(ctx context.Context, r *restoredWindow) {
 }
 
 // discardBackup removes the backup of a document that cannot come back.
-func (w *Window) discardBackup(ctx context.Context, uri string) {
+func (w *Workspace) discardBackup(ctx context.Context, uri string) {
 	b := &w.backups
 	b.mu.Lock()
 	store := b.store
@@ -88,7 +88,7 @@ func (w *Window) discardBackup(ctx context.Context, uri string) {
 // the backup (its size or modification time is not the one the backup noted) leaves the document conflicted with
 // the stat of the backup, so a save fails until the user overwrites; a file that is gone leaves it orphaned. The
 // backup of a document that has no unsaved changes after all is removed.
-func (w *Window) restoreFromBackup(ctx context.Context, r *restoredWindow, uri document.URI, b storage.Backup) (*document.Document, error) {
+func (w *Workspace) restoreFromBackup(ctx context.Context, r *restoredWindow, uri document.URI, b storage.Backup) (*document.Document, error) {
 	u := document.Unsaved{
 		Text: b.Content, Encoding: b.Encoding, HasBOM: b.BOM, LineEnding: b.LineEnding, LanguageID: b.Language,
 	}
@@ -147,7 +147,7 @@ func (w *Window) restoreFromBackup(ctx context.Context, r *restoredWindow, uri d
 
 // changedSinceBackup tells whether a restored document is conflicted because its file changed after its backup was
 // made; the notification of the conflict then says so.
-func (w *Window) changedSinceBackup(doc *document.Document) bool {
+func (w *Workspace) changedSinceBackup(doc *document.Document) bool {
 	w.backups.mu.Lock()
 	defer w.backups.mu.Unlock()
 	return w.backups.changed[doc]
@@ -156,7 +156,7 @@ func (w *Window) changedSinceBackup(doc *document.Document) bool {
 // noticeRestoredBackups tells the user what the restore did that the editors do not show: the files that are gone,
 // and, when the last run did not end, that the documents came back from backups. The files that changed on the
 // disk are told by the notification of their conflict (see showExternalNote).
-func (w *Window) noticeRestoredBackups(r *restoredWindow) {
+func (w *Workspace) noticeRestoredBackups(r *restoredWindow) {
 	if len(r.gone) > 0 {
 		w.Notify.Warn("Emetos", NoticeDeletedOnDisk(r.gone))
 	}

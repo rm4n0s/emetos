@@ -108,7 +108,7 @@ type saveFailure struct {
 
 // initSave binds the commands of saving while the shell is on screen.
 func (s *shellState) initSave(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	st := &s.saves
 	st.running = map[*document.Document]*saveRun{}
 	st.notes = map[*document.Document]uint64{}
@@ -194,7 +194,7 @@ func (s *shellState) editorOf(doc *document.Document) *textEditor {
 }
 
 // saveParticipants are the participants the settings turn on for the language of a document.
-func (w *Window) saveParticipants(doc *document.Document) edit.SaveParticipants {
+func (w *Workspace) saveParticipants(doc *document.Document) edit.SaveParticipants {
 	lang := doc.LanguageID()
 	return edit.SaveParticipants{
 		TrimTrailingWhitespace: settings.Get[bool](w.Settings, "files.trimTrailingWhitespace", lang),
@@ -206,7 +206,7 @@ func (w *Window) saveParticipants(doc *document.Document) edit.SaveParticipants 
 // participate runs the save participants over a document before it is written: through the editor that shows it,
 // so that its cursors stay where they are, else on the text alone.
 func (s *shellState) participate(doc *document.Document, reason document.SaveReason) error {
-	p := PeekWindow(s.Context()).saveParticipants(doc)
+	p := PeekWorkspace(s.Context()).saveParticipants(doc)
 	if !p.Any() {
 		return nil
 	}
@@ -225,7 +225,7 @@ func (s *shellState) participate(doc *document.Document, reason document.SaveRea
 
 // saveOptions are the options of a document's save for a request.
 func (s *shellState) saveOptions(doc *document.Document, req saveRequest) document.SaveOptions {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	opts := document.SaveOptions{
 		Reason: req.reason, Overwrite: req.overwrite, IgnoreConflict: req.ignoreConflict,
 		DetectLanguage: win.Process.Languages.Detect,
@@ -249,7 +249,7 @@ func (s *shellState) saveDocument(doc *document.Document, req saveRequest, done 
 			done(ok)
 		}
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	switch {
 	case doc.ReadOnly():
 		win.Notify.Notify(notify.Notification{
@@ -307,7 +307,7 @@ func (s *shellState) saveDocument(doc *document.Document, req saveRequest, done 
 // event of our own write is not taken for a change by another program (SPEC §10.5); then, on the UI thread,
 // it calls done with the stat and the error. Nothing is called when the shell is gone.
 func (s *shellState) writeJob(job *document.SaveJob, done func(fileio.FileStat, error)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.Go(func(life context.Context) {
 		stat, err := job.Write(life)
@@ -334,7 +334,7 @@ func (s *shellState) writeJob(job *document.SaveJob, done func(fileio.FileStat, 
 // recently opened, and after a Save As the editors of the document follow the new name, the history follows the
 // new URI and the language is found again.
 func (s *shellState) saved(doc *document.Document, oldURI document.URI, oldLang string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.dismissSaveNote(doc)
 	uri := doc.URI()
@@ -377,7 +377,7 @@ func (s *shellState) dismissSaveNote(doc *document.Document) {
 // that suit the failure (SPEC §6.3): Retry; Overwrite for a file that another program changed or that is
 // read-only; Revert for the first; Save with Encoding for a character the encoding lacks; and Save As.
 func (s *shellState) saveFailed(f saveFailure, finish func(bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	win.Process.Logger.Warn("saving failed", "uri", f.doc.URI().String(), "err", f.err, "reason", f.req.reason.String())
 	s.autoSaveFailed(f.doc) // no auto save of the document until it is saved or read again
@@ -428,7 +428,7 @@ func (s *shellState) saveFailed(f saveFailure, finish func(bool)) {
 // saveAsSuggestion is the name and the folder the dialog of Save As starts with: the file's own, or for an untitled
 // document its name with the extension of its language, in the folder of the window or the home folder.
 func (s *shellState) saveAsSuggestion(doc *document.Document) SaveDialogOptions {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	uri := doc.URI()
 	if uri.Scheme == document.SchemeFile {
 		return SaveDialogOptions{Name: filepath.Base(uri.Path), Folder: filepath.Dir(uri.Path)}
@@ -447,7 +447,7 @@ func (s *shellState) saveAsSuggestion(doc *document.Document) SaveDialogOptions 
 // saveDocumentAs asks for the file to save a document in and saves it there: the dialog of the desktop on a
 // goroutine, or, where the desktop has none, a prompt for the path. A cancelled dialog changes nothing.
 func (s *shellState) saveDocumentAs(doc *document.Document, req saveRequest, done func(saved bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	bc := s.Context()
 	finish := func(ok bool) {
@@ -520,7 +520,7 @@ func validateSavePath(value string) string {
 
 // promptSavePath asks for the path in the quick input, with the suggestion in full to edit; Escape cancels.
 func (s *shellState) promptSavePath(doc *document.Document, req saveRequest, suggestion SaveDialogOptions, finish func(bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.QuickInput.Prompt(quickinput.PromptOptions{
 		Placeholder: "Enter the path of the file to save in",
 		Value:       filepath.Join(suggestion.Folder, suggestion.Name),
@@ -537,7 +537,7 @@ func (s *shellState) promptSavePath(doc *document.Document, req saveRequest, sug
 // saveAsPath saves a document in a file and makes that file the document's own. A file that exists asks first
 // whether to replace it.
 func (s *shellState) saveAsPath(doc *document.Document, path string, req saveRequest, finish func(bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	path = filepath.Clean(path)
 	again := func(r saveRequest) { s.saveAsPath(doc, path, r, nil) }
 	if err := checkSaveAsTarget(win, doc, path); err != nil {
@@ -569,7 +569,7 @@ func (s *shellState) saveAsPath(doc *document.Document, path string, req saveReq
 
 // checkSaveAsTarget fails with the tag SaveAsTargetOpen when the file to save in is open in the window as another
 // document: the window does not merge two documents of one file, so that one is closed first.
-func checkSaveAsTarget(win *Window, doc *document.Document, path string) error {
+func checkSaveAsTarget(win *Workspace, doc *document.Document, path string) error {
 	if other, open := win.Documents.Get(document.FileURI(path)); open && other != doc {
 		return errors.New("SaveAsTargetOpen", "the file is open in another editor; close it first", "path", path)
 	}
@@ -662,7 +662,7 @@ func (s *shellState) saveAll() {
 // revertDocument reads a document again from its file, dropping its unsaved changes. An untitled document
 // becomes empty. done, when set, is told whether it was reverted.
 func (s *shellState) revertDocument(binding *widgets.WidgetsBinding, doc *document.Document, done func(bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	finish := func(ok bool) {
 		if done != nil {
 			done(ok)
@@ -703,7 +703,7 @@ func (s *shellState) revertDocument(binding *widgets.WidgetsBinding, doc *docume
 // the state of the document, and the keyboard focus goes back to the editor when focus is set (the user asked for
 // it; a file that changed on disk takes no focus).
 func (s *shellState) documentReloaded(binding *widgets.WidgetsBinding, doc *document.Document, views []viewSnap, focus bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	for _, other := range s.group.editors {
 		if other.doc != doc || other.disposed {
 			continue
@@ -740,7 +740,7 @@ func (s *shellState) documentReloaded(binding *widgets.WidgetsBinding, doc *docu
 // editor that is active when it is "${activeEditorLanguage}"; plain text when it names none that exists), the
 // encoding of files.encoding and the line ending of files.eol. languageID, when it names a language, wins over the
 // setting. It is open in the window's documents but not shown.
-func (w *Window) NewUntitled(languageID, activeLanguage string) *document.Document {
+func (w *Workspace) NewUntitled(languageID, activeLanguage string) *document.Document {
 	lang := languageID
 	if lang == "" {
 		lang = settings.Get[string](w.Settings, "files.defaultLanguage", "")
@@ -763,7 +763,7 @@ func (w *Window) NewUntitled(languageID, activeLanguage string) *document.Docume
 // newUntitled opens a new untitled file in the active group, kept (not a preview) and with the keyboard focus.
 // Its argument may be {"languageId": "go"}.
 func (s *shellState) newUntitled(binding *widgets.WidgetsBinding, args any) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	languageID := ""
 	if m, ok := args.(map[string]any); ok {
 		languageID, _ = m["languageId"].(string)
@@ -784,7 +784,7 @@ func (s *shellState) newUntitled(binding *widgets.WidgetsBinding, args any) {
 // document has is active. Choosing one makes the document save in it and saves it at once (an untitled document
 // asks for its file).
 func (s *shellState) showSaveEncodingList(binding *widgets.WidgetsBinding, e *textEditor, guessed string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	configured := settings.Get[string](win.Settings, "files.encoding", e.doc.LanguageID())
 	win.QuickInput.Pick(quickinput.PickOptions{
 		Placeholder: "Select File Encoding to Save with",
@@ -809,7 +809,7 @@ func (s *shellState) showSaveEncodingList(binding *widgets.WidgetsBinding, e *te
 // activeEditorCanRevert (an editor is open and is not an untitled one) and dirtyWorkingCopies (a document of the
 // window has unsaved changes).
 func (s *shellState) saveKeys() (dirty, canRevert, anyDirty bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if active := s.activeGroup().Model.ActiveEditor(); active != nil {
 		dirty = active.Dirty()
 		canRevert = !active.Capabilities().Has(editorgroup.CapUntitled)

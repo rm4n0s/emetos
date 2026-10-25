@@ -100,6 +100,9 @@ type DevRunner struct {
 	Post func(f func())
 	// Commands is where the commands run.
 	Commands *command.Registry
+	// Registry, when set, gives the registry for each step in place of Commands: the commands run in the workspace
+	// that is the active tab when the step runs (a step may open another tab, and the next one acts there).
+	Registry func() *command.Registry
 	// OnError gets the error of a step; the next step still runs.
 	OnError func(step DevStep, err error)
 }
@@ -121,7 +124,11 @@ func (r *DevRunner) Run(ctx context.Context) {
 		}
 		var err error
 		r.Post(func() {
-			err = r.Commands.Run(command.Context{Ctx: ctx, Source: command.SourceAPI}, step.Command, step.Args)
+			registry := r.Commands
+			if r.Registry != nil {
+				registry = r.Registry()
+			}
+			err = registry.Run(command.Context{Ctx: ctx, Source: command.SourceAPI}, step.Command, step.Args)
 		})
 		if err != nil && r.OnError != nil {
 			r.OnError(step, err)
@@ -145,7 +152,8 @@ func registerDevCommands(r *command.Registry) {
 		{ID: "dev.openMergeEditor", Description: `Open a file with conflict markers in the merge editor. Arguments: {"path": ...}.`},
 		{ID: "dev.acceptMerge", Description: `Resolve a conflict of the merge editor. Arguments: {"conflict": ..., "side": "incoming"|"current"|"both"|"base"}.`},
 		{ID: "dev.openMenu", Description: "Open a menu of the window: one of the menu bar, the Manage menu or the context menu of the editor."},
-		{ID: "dev.openFolderInNewWindow", Description: `Open a folder in a new window. Arguments: {"path": ...}.`},
+		{ID: "dev.openFolderInNewTab", Description: `Open a folder in a new workspace tab. Arguments: {"path": ...}.`},
+		{ID: "dev.activateWindowTab", Description: `Make the tab at a place of the strip, counted from 0, the active one. Arguments: {"index": ...}.`},
 		{ID: "dev.switchProfile", Description: `Give the window another profile, in place. Arguments: {"name": ...}.`},
 	} {
 		// The ids are fixed, new and start with dev., so a failure is a mistake in this list.

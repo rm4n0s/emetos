@@ -133,7 +133,7 @@ func (s *shellState) externalUntrack(doc *document.Document) {
 // externalEvents handles a batch of events of the watcher for the open documents, on the UI thread: the documents
 // whose file was renamed follow it, and every document a path of an event touches is looked at.
 func (s *shellState) externalEvents(events []workspace.Event) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	if moves := renamesOf(events); len(moves) > 0 {
 		s.followPaths(binding, followMoves(moves))
@@ -218,7 +218,7 @@ func (s *shellState) checkDocumentAttempt(doc *document.Document, stale int) {
 	if !s.Mounted() || ex.running == nil || doc.URI().Scheme != document.SchemeFile {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	if stop := ex.retries[doc]; stop != nil {
 		stop()
@@ -252,7 +252,7 @@ func (s *shellState) checkDocumentAttempt(doc *document.Document, stale int) {
 // finishExternal applies what a look found, on the UI thread.
 func (s *shellState) finishExternal(binding *widgets.WidgetsBinding, doc *document.Document, job *document.ExternalJob, probe document.ExternalProbe, run *externalRun, stale int) {
 	ex := &s.ext
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if ex.running[doc] == run {
 		delete(ex.running, doc)
 	}
@@ -302,7 +302,7 @@ func (s *shellState) finishExternal(binding *widgets.WidgetsBinding, doc *docume
 // one to act on.
 func (s *shellState) retryExternal(doc *document.Document) {
 	ex := &s.ext
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	n := ex.attempts[doc]
 	if win.after == nil || n >= len(externalRetryDelays) || ex.retries[doc] != nil {
 		return
@@ -337,7 +337,7 @@ func (s *shellState) externalStateChanged(doc *document.Document, st document.Ex
 		s.showExternalNote(doc)
 	} else {
 		s.dismissExternalNote(doc)
-		win := PeekWindow(s.Context())
+		win := PeekWorkspace(s.Context())
 		win.backups.mu.Lock()
 		delete(win.backups.changed, doc)
 		win.backups.mu.Unlock()
@@ -355,7 +355,7 @@ func (s *shellState) showExternalNote(doc *document.Document) {
 	if s.saves.notes == nil {
 		return // the shell is not made yet: initSave makes the notes
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.dismissSaveNote(doc)
 	name := doc.URI().Title()
@@ -425,7 +425,7 @@ func (s *shellState) compareConflict(doc *document.Document) {
 	if !s.Mounted() || doc.URI().Scheme != document.SchemeFile {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if err := s.openSavedDiff(doc); err != nil {
 		win.Process.Logger.Warn("cannot compare the document with the file on disk", "uri", doc.URI().String(), "err", err)
 		win.Notify.Error("Emetos", "Cannot compare with the file on disk: "+describe(err))

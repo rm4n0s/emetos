@@ -105,6 +105,9 @@ func (s *StateStore) readGlobal(ctx context.Context) (GlobalState, error) {
 	if read.Geometry != nil && !read.Geometry.Valid() {
 		read.Geometry = nil
 	}
+	if read.WindowGeometry != nil && !read.WindowGeometry.Valid() {
+		read.WindowGeometry = nil
+	}
 	if read.EmptyWindowID != "" && !validWindowID(read.EmptyWindowID) {
 		read.EmptyWindowID = ""
 	}
@@ -112,8 +115,61 @@ func (s *StateStore) readGlobal(ctx context.Context) (GlobalState, error) {
 		read.LastWindow = nil
 	}
 	read.OpenWindows = cleanOpenWindows(read.OpenWindows)
+	read.WorkspaceTabs = cleanWorkspaceTabs(read.WorkspaceTabs)
+	migrateWindows(&read)
 	read.LastProfiles = cleanLastProfiles(read.LastProfiles)
 	return read, nil
+}
+
+// migrateWindows reads what an Emetos older than step 9b.1 wrote as what it is now (SPEC §10.14): the openWindows list
+// is the list of the tabs, in the same order, when the file has no workspaceTabs, and the geometry of the last window
+// is the geometry of the window when the file has no windowGeometry. The old fields are emptied, so that they are not
+// written again.
+func migrateWindows(g *GlobalState) {
+	if len(g.WorkspaceTabs) == 0 {
+		for _, w := range g.OpenWindows {
+			g.WorkspaceTabs = append(g.WorkspaceTabs, WorkspaceTab{ID: w.ID, StateID: w.ID, Folder: w.Folder, Profile: w.Profile})
+		}
+	}
+	g.OpenWindows = nil
+	if g.WindowGeometry == nil {
+		g.WindowGeometry = g.Geometry
+	}
+	g.Geometry = nil
+	if g.ActiveWorkspaceTab != "" && !slices.ContainsFunc(g.WorkspaceTabs, func(t WorkspaceTab) bool { return t.ID == g.ActiveWorkspaceTab }) {
+		g.ActiveWorkspaceTab = ""
+	}
+}
+
+// cleanWorkspaceTabs drops the tabs of a list whose id is not an id or is there already, whose kind is not known, and
+// the folders that are not absolute paths; a tab with no state id gets the one its folder makes.
+func cleanWorkspaceTabs(list []WorkspaceTab) []WorkspaceTab {
+	var out []WorkspaceTab
+	seen := map[string]bool{}
+	for _, t := range list {
+		if !validWindowID(t.ID) || seen[t.ID] || (t.Kind != "" && t.Kind != TabKindWorkspace) {
+			continue
+		}
+		seen[t.ID] = true
+		t.Kind = ""
+		if t.Folder != "" {
+			if !filepath.IsAbs(t.Folder) {
+				continue
+			}
+			t.Folder = filepath.Clean(t.Folder)
+			if id, err := WindowID(t.Folder); err == nil {
+				t.StateID = id
+			}
+		}
+		if t.StateID != "" && !validWindowID(t.StateID) {
+			t.StateID = ""
+		}
+		if t.Profile != "" && !ValidProfileName(t.Profile) {
+			t.Profile = ""
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // cleanOpenWindows drops the windows of a list whose id is not an id or is there already, and the folders that
@@ -184,10 +240,15 @@ func cloneGlobal(g GlobalState) GlobalState {
 		geo := *g.Geometry
 		g.Geometry = &geo
 	}
+	if g.WindowGeometry != nil {
+		geo := *g.WindowGeometry
+		g.WindowGeometry = &geo
+	}
 	if g.LastWindow != nil {
 		last := *g.LastWindow
 		g.LastWindow = &last
 	}
+	g.WorkspaceTabs = slices.Clone(g.WorkspaceTabs)
 	g.OpenWindows = slices.Clone(g.OpenWindows)
 	g.LastProfiles = maps.Clone(g.LastProfiles)
 	return g

@@ -24,7 +24,7 @@ import (
 // window, with those that describe the active editor set for the editor of the tab, as VS Code sets
 // them while it shows the menu.
 func (s *shellState) tabMenuContext(group *editorgroup.Group, index int) contextkey.Context {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	extra := map[string]any{
 		"splitEditorsVertically": s.sideBySideDirection() == editorgroup.DirDown,
 		"editorTabsVisible":      win.ShowTabs() == "multiple",
@@ -126,7 +126,7 @@ func (s *shellState) pathCommands() map[string]command.Handler {
 
 // copyText puts a text on the clipboard; a clipboard that fails is reported.
 func (s *shellState) copyText(text string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	editor.NewClipboard(win.ctx, binding.Clipboard()).Write(text, func(err error) {
 		if err != nil {

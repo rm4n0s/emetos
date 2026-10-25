@@ -129,7 +129,7 @@ func slicesContains(list []string, s string) bool {
 }
 
 func TestDispatchKeyIgnoresKeysWhileADialogShows(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ran := 0
 	if _, err := win.Commands.SetHandler("workbench.action.toggleSidebarVisibility", func(command.Context, any) error { ran++; return nil }); err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestTheLayoutFollowsTheSettings(t *testing.T) {
 }
 
 func TestTheEditorAreaKeepsTheBreadcrumbsAndTheEditor(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	doc, err := win.Documents.OpenFile(context.Background(), sampleFile(t), document.NewOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -201,9 +201,9 @@ func TestTheEditorAreaKeepsTheBreadcrumbsAndTheEditor(t *testing.T) {
 }
 
 // titleApp is an app on a file in a folder, with the title it makes.
-func titleApp(t *testing.T, folder string, files ...string) (*Window, *gluttertest.Tester, []*document.Document) {
+func titleApp(t *testing.T, folder string, files ...string) (*Workspace, *gluttertest.Tester, []*document.Document) {
 	t.Helper()
-	win := newTestWindow(t, folder)
+	win := newTestWorkspace(t, folder)
 	var docs []*document.Document
 	for _, f := range files {
 		doc, err := win.Documents.OpenFile(context.Background(), f, document.NewOptions())

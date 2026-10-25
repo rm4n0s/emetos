@@ -10,7 +10,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
-// The status bar of the window (SPEC §3.2, §10.1). The registry of its items is Window.StatusBar; the shell
+// The status bar of the window (SPEC §3.2, §10.1). The registry of its items is Workspace.StatusBar; the shell
 // adds the items of the problems, of the notifications and of the active editor, keeps them up to date, and
 // binds the commands of their pickers (statuspickers.go).
 //
@@ -50,7 +50,7 @@ func (st *statusState) editorItems() []*workbench.StatusAccessor {
 
 // initStatus adds the items of the shell to the status bar of the window and starts to follow what they show.
 func (s *shellState) initStatus(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	st := &s.status
 	win.after = func(d time.Duration, f func()) func() { return binding.Gestures().NewTimer(d, f).Cancel }
 	bar := win.StatusBar
@@ -102,7 +102,7 @@ func (s *shellState) refreshProfileStatus() {
 	if st.profile == nil {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if win.Profile() == storage.DefaultProfile {
 		st.profile.SetVisible(false)
 		return
@@ -139,7 +139,7 @@ func (s *shellState) disposeStatus() {
 // problemsEntry is the item of the problems: the errors and warnings of the markers, and a click toggles the
 // Problems panel.
 func (s *shellState) problemsEntry() workbench.StatusEntry {
-	stats := PeekWindow(s.Context()).Markers.Stats()
+	stats := PeekWorkspace(s.Context()).Markers.Stats()
 	counts := workbench.ProblemCounts{Errors: stats.Errors, Warnings: stats.Warnings, Infos: stats.Infos}
 	tooltip := workbench.ProblemsTooltip(counts)
 	return workbench.StatusEntry{
@@ -163,7 +163,7 @@ func (s *shellState) refreshStatus() {
 		}
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	doc := e.doc
 	tabSize, insertSpaces := doc.Indentation()
 	cursors := e.view.Cursors()
@@ -187,7 +187,7 @@ func (s *shellState) refreshStatus() {
 
 // languageName is the name of a language as the status bar and the language picker show it: "Go",
 // "Plain Text"; the id for a language that is not registered.
-func (w *Window) languageName(id string) string {
+func (w *Workspace) languageName(id string) string {
 	if l, ok := w.Process.Languages.Language(id); ok && l.Name != "" {
 		return l.Name
 	}
@@ -195,7 +195,7 @@ func (w *Window) languageName(id string) string {
 }
 
 // statusKeyLabel is the label of the key of a command for the tooltips of the status bar, "" when it has none.
-func (w *Window) statusKeyLabel(commandID string) string {
+func (w *Workspace) statusKeyLabel(commandID string) string {
 	item, ok := w.Keybindings.LookupPrimaryKeybinding(commandID, w.Keys, false)
 	if !ok || item.Keybinding == nil {
 		return ""
@@ -204,7 +204,7 @@ func (w *Window) statusKeyLabel(commandID string) string {
 }
 
 // statusBarOptions are the options of the status bar of the workbench.
-func (s *shellState) statusBarOptions(win *Window) *workbench.StatusBarOptions {
+func (s *shellState) statusBarOptions(win *Workspace) *workbench.StatusBarOptions {
 	return &workbench.StatusBarOptions{
 		Bar:        win.StatusBar,
 		Keybinding: win.statusKeyLabel,

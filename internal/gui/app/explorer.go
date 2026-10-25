@@ -40,7 +40,7 @@ type fileIcons struct {
 // FileIcons is the file icon theme of the window (workbench.iconTheme), or nil for none ("null", or a theme
 // that cannot be loaded, which is reported once). While the file icon theme picker previews a theme, it is that
 // one. It is safe for concurrent use.
-func (w *Window) FileIcons() *theme.FileIconTheme {
+func (w *Workspace) FileIcons() *theme.FileIconTheme {
 	id, _ := settings.Get[any](w.Settings, "workbench.iconTheme", "").(string)
 	if previewed, on := w.Process.FileIconThemePreview(); on {
 		id = previewed
@@ -69,7 +69,7 @@ func (w *Window) FileIcons() *theme.FileIconTheme {
 }
 
 // languageOf is the language of the file at a path, found from its name as a document would.
-func (w *Window) languageOf(path string) string {
+func (w *Workspace) languageOf(path string) string {
 	return w.Process.Languages.Detect(path, "")
 }
 
@@ -97,7 +97,7 @@ type explorerState struct {
 
 // initExplorer makes the Explorer's views, follows the folder and the settings, and binds the commands.
 func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	ex.focus = map[string]bool{}
 	ex.editors = explorer.NewOpenEditors(explorer.OpenEditorsOpts{
@@ -207,7 +207,7 @@ func (s *shellState) disposeExplorer() {
 
 // makeExplorerView makes the tree of the folder of the window, or drops it when the window has none.
 func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	if ex.view != nil {
 		ex.view.Dispose()
@@ -247,7 +247,7 @@ func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
 // folderChanged follows SetFolder: the tree is made for the new folder, the Problems show paths relative to it
 // and the window is built again (its title, the status bar and the header of the folder view).
 func (s *shellState) folderChanged(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.makeExplorerView(binding)
 	s.explorer.revealedFor = ""
 	if s.panels.problems != nil {
@@ -260,7 +260,7 @@ func (s *shellState) folderChanged(binding *widgets.WidgetsBinding) {
 
 // explorerShown tells whether the folder view is on screen: the side bar shows the Explorer and the view is
 // not folded.
-func (s *shellState) explorerShown(win *Window) bool {
+func (s *shellState) explorerShown(win *Workspace) bool {
 	return win.Layout.State().SideBarVisible && win.Views.Active() == command.ViewContainerExplorer &&
 		!win.Views.IsHidden(command.ViewExplorerFolders) && !win.Views.IsCollapsed(command.ViewExplorerFolders)
 }
@@ -280,7 +280,7 @@ func (s *shellState) activePath() string {
 // builds, so the reveal is made after it.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/views/explorerView.ts (selectActiveFile)
-func (s *shellState) syncExplorer(binding *widgets.WidgetsBinding, win *Window) {
+func (s *shellState) syncExplorer(binding *widgets.WidgetsBinding, win *Workspace) {
 	ex := &s.explorer
 	shown := s.explorerShown(win) && ex.view != nil
 	win.Keys.Batch(func() {
@@ -302,7 +302,7 @@ func (s *shellState) syncExplorer(binding *widgets.WidgetsBinding, win *Window) 
 
 // autoRevealMode reads explorer.autoReveal: true selects and scrolls, "focusNoScroll" selects without
 // scrolling, false does nothing.
-func autoRevealMode(win *Window) (mode explorer.RevealMode, on bool) {
+func autoRevealMode(win *Workspace) (mode explorer.RevealMode, on bool) {
 	switch v := settings.Get[any](win.Settings, "explorer.autoReveal", "").(type) {
 	case bool:
 		return explorer.RevealSelect, v
@@ -346,7 +346,7 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 // viewName is the title of the folder view: the name of the folder, as VS Code shows it.
 func (s *shellState) viewName(viewID string) string {
 	if viewID == command.ViewExplorerFolders {
-		if ws := PeekWindow(s.Context()).Workspace; ws != nil {
+		if ws := PeekWorkspace(s.Context()).Workspace; ws != nil {
 			return ws.Name()
 		}
 	}
@@ -358,7 +358,7 @@ func (s *shellState) viewActions(_ widgets.BuildContext, viewID string) widgets.
 	if viewID != command.ViewExplorerFolders {
 		return nil
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	return explorer.NewActions(explorer.ActionsOpts{OnRun: func(id string) {
 		if err := win.Commands.Run(command.Context{Ctx: win.ctx, Keys: win.Keys, Source: command.SourceMenu}, id, nil); err != nil {
 			win.Process.Logger.Warn("explorer action failed", "command", id, "err", err)
@@ -376,7 +376,7 @@ func (s *shellState) viewBodyHeight(viewID string) (float64, bool) {
 
 // viewFocused sets the context keys that say where in the Explorer the focus is.
 func (s *shellState) viewFocused(viewID string, has bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	if ex.focus == nil {
 		return
@@ -400,7 +400,7 @@ func (s *shellState) viewFocused(viewID string, has bool) {
 // showExplorer shows the Explorer in the side bar, with its folder view unfolded, and gives the keyboard
 // focus to the tree when focus is set.
 func (s *shellState) showExplorer(binding *widgets.WidgetsBinding, focus bool) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	win.Views.Open(command.ViewContainerExplorer)
 	win.Views.SetCollapsed(command.ViewExplorerFolders, false)
 	if focus {
@@ -424,7 +424,7 @@ func (s *shellState) afterFrame(binding *widgets.WidgetsBinding, f func()) {
 }
 
 // insideFolder tells whether a path is in the folder of the window.
-func insideFolder(win *Window, path string) bool {
+func insideFolder(win *Workspace, path string) bool {
 	if win.Folder == "" {
 		return false
 	}
@@ -437,7 +437,7 @@ func insideFolder(win *Window, path string) bool {
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileCommands.ts (REVEAL_IN_EXPLORER_COMMAND_ID)
 func (s *shellState) revealInExplorer(binding *widgets.WidgetsBinding, path string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	if path == "" {
 		return
@@ -460,7 +460,7 @@ func (s *shellState) revealInExplorer(binding *widgets.WidgetsBinding, path stri
 
 // bindExplorerCommands takes over the commands of the Explorer in the registry while the shell is on screen.
 func (s *shellState) bindExplorerCommands(binding *widgets.WidgetsBinding) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	run := func(f func()) command.Handler {
 		return func(command.Context, any) error { f(); return nil }
@@ -531,7 +531,7 @@ func chooseFolder(ctx context.Context, bc widgets.BuildContext, current string) 
 // pickFolder asks the user for a folder, with the dialog of the desktop on a goroutine, and opens the one
 // chosen in the window. A dialog that fails is reported as a notification.
 func (s *shellState) pickFolder() {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	bc := s.Context()
 	s.Go(func(life context.Context) {
@@ -547,7 +547,7 @@ func (s *shellState) pickFolder() {
 // folderChosen is what the window does with the answer of the folder dialog, on the UI thread: it opens the
 // folder, does nothing when the dialog was cancelled (an empty path), and tells the user when it failed.
 func (s *shellState) folderChosen(path string, err error) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if err != nil {
 		win.Process.Logger.Warn("the folder dialog failed", "err", err)
 		win.Notify.Error("Emetos", "Cannot show the dialog to open a folder: "+describe(err))
@@ -570,8 +570,8 @@ func (s *shellState) openFolder(path string) { s.openFolderIn(path, false) }
 // openFolderIn is openFolder that opens the folder in a new window when newWindow is set (the Ctrl key of the Open
 // Recent picker).
 func (s *shellState) openFolderIn(path string, newWindow bool) {
-	win := PeekWindow(s.Context())
-	win.Process.Windows.OpenFolder(win, path, FolderFromApp, newWindow, false, nil)
+	win := PeekWorkspace(s.Context())
+	win.Process.Workspaces.OpenFolder(win, path, FolderFromApp, newWindow, false, nil)
 }
 
 // openFolderThen replaces the folder of this window, whatever window.openFoldersInNewWindow says, and tells done, on
@@ -580,11 +580,11 @@ func (s *shellState) openFolderIn(path string, newWindow bool) {
 // could not be opened. done may be nil. A window that the manager hosts is made again for the folder, so done
 // belongs to a window that is gone by then: it is for a window on its own.
 func (s *shellState) openFolderThen(path string, done func(opened bool)) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	if path != "" {
 		path = filepath.Clean(path)
 	}
-	win.Process.Windows.replaceFolder(win, path, "", func(w *Window) {
+	win.Process.Workspaces.replaceFolder(win, path, "", func(w *Workspace) {
 		if done != nil {
 			done(w != nil)
 		}

@@ -122,12 +122,14 @@ func ChordOf(e services.KeyEvent, keyboard *services.HardwareKeyboard) (chord ke
 	}, true
 }
 
-// KeyDispatcher is the widget at the root of a window's tree that turns key presses into
+// KeyDispatcher is the widget at the root of a workspace's tree that turns key presses into
 // commands (SPEC §5.4). It sees every key before the focused widget and before focus
 // traversal (an early handler of the focus manager), resolves it against the context keys of
 // the widget that has the focus, runs the command of a binding and tells the caller that the
 // key was used. A key with no binding is left alone, so that Glutter types its character into
-// the focused text input; a chord's first key is held back until the rest comes.
+// the focused text input; a chord's first key is held back until the rest comes. Every tab of the
+// window has a dispatcher and the focus manager is the application's, so only the dispatcher of the active
+// tab uses a key (SPEC §10.14).
 type KeyDispatcher struct {
 	widgets.StatefulWidget
 	child widgets.Widget
@@ -145,23 +147,36 @@ type keyDispatcherState struct {
 	widgets.StateOf[*KeyDispatcher]
 	handle  widgets.FocusHandlerHandle
 	manager *widgets.FocusManager
-	window  *Window
+	window  *Workspace
 	binding *widgets.WidgetsBinding
+	// node is the focus node at the root of the tree of the workspace (Workspace.keyNode).
+	node *widgets.FocusNode
 }
 
 // InitState registers the early handler.
 func (s *keyDispatcherState) InitState() {
-	s.window = PeekWindow(s.Context())
+	s.window = PeekWorkspace(s.Context())
 	s.binding = widgets.WidgetsBindingOf(s.Context())
 	s.manager = s.binding.FocusManager()
+	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{SkipTraversal: true, DebugLabel: "KeyDispatcher"})
+	s.window.keyNode = s.node
 	s.handle = s.manager.AddEarlyKeyEventHandler(s.handleKey)
 }
 
 // Dispose removes the handler.
-func (s *keyDispatcherState) Dispose() { s.manager.RemoveEarlyKeyEventHandler(s.handle) }
+func (s *keyDispatcherState) Dispose() {
+	s.manager.RemoveEarlyKeyEventHandler(s.handle)
+	if s.window.keyNode == s.node {
+		s.window.keyNode = nil
+	}
+	s.node.Dispose()
+}
 
 // handleKey resolves one key event.
 func (s *keyDispatcherState) handleKey(e services.KeyEvent) widgets.KeyEventResult {
+	if !s.window.activeTab() {
+		return widgets.KeyEventResultIgnored
+	}
 	chord, ok := ChordOf(e, s.binding.Keyboard())
 	if !ok {
 		return widgets.KeyEventResultIgnored
@@ -175,7 +190,7 @@ func (s *keyDispatcherState) handleKey(e services.KeyEvent) widgets.KeyEventResu
 // Build implements widgets.State.
 func (s *keyDispatcherState) Build(widgets.BuildContext) widgets.Widget {
 	return widgets.NewFocus(s.Widget().child, widgets.FocusOpts{
-		SkipTraversal: foundation.Some(true), DebugLabel: "KeyDispatcher",
+		FocusNode: s.node, SkipTraversal: foundation.Some(true), DebugLabel: "KeyDispatcher",
 	})
 }
 
@@ -183,7 +198,7 @@ func (s *keyDispatcherState) Build(widgets.BuildContext) widgets.Widget {
 // command it is bound to, and reports whether the key was used. focus may be nil. While a dialog is
 // showing no key runs a command (the window is modal; the dialog takes its own keys) and none is
 // used.
-func (w *Window) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode) bool {
+func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode) bool {
 	if w.Dialogs != nil && w.Dialogs.IsShowing() {
 		return false
 	}

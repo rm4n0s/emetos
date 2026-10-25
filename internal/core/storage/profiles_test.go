@@ -462,7 +462,7 @@ func TestRename(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := f.state.UpdateGlobal(ctx, func(g *storage.GlobalState) bool {
-		g.OpenWindows = []storage.OpenWindow{
+		g.WorkspaceTabs = []storage.WorkspaceTab{
 			{ID: "0123456789abcdef", Folder: "/work/a", Profile: "Work"},
 			{ID: "fedcba9876543210", Folder: "/work/b", Profile: "Play"},
 			{ID: "aaaaaaaaaaaaaaaa"},
@@ -502,9 +502,9 @@ func TestRename(t *testing.T) {
 	if g.LastProfiles["/work/a"] != "Job" || g.LastProfiles["/work/b"] != "Play" || len(g.LastProfiles) != 2 {
 		t.Errorf("last profiles: %v", g.LastProfiles)
 	}
-	profiles := []string{g.OpenWindows[0].Profile, g.OpenWindows[1].Profile, g.OpenWindows[2].Profile}
+	profiles := []string{g.WorkspaceTabs[0].Profile, g.WorkspaceTabs[1].Profile, g.WorkspaceTabs[2].Profile}
 	if !slices.Equal(profiles, []string{"Job", "Play", ""}) {
-		t.Errorf("profiles of the open windows: %q", profiles)
+		t.Errorf("profiles of the open tabs: %q", profiles)
 	}
 	if p, ok, err := f.profiles.LastProfile(ctx, "/work/a"); err != nil || !ok || p != "Job" {
 		t.Errorf("LastProfile = %q, %v, %v", p, ok, err)
@@ -622,7 +622,7 @@ func TestDelete(t *testing.T) {
 		}
 	}
 	err := f.state.UpdateGlobal(ctx, func(g *storage.GlobalState) bool {
-		g.OpenWindows = []storage.OpenWindow{{ID: "0123456789abcdef", Folder: "/a", Profile: "Work"}, {ID: "fedcba9876543210", Folder: "/b", Profile: "Play"}}
+		g.WorkspaceTabs = []storage.WorkspaceTab{{ID: "0123456789abcdef", Folder: "/a", Profile: "Work"}, {ID: "fedcba9876543210", Folder: "/b", Profile: "Play"}}
 		return true
 	})
 	if err != nil {
@@ -647,8 +647,8 @@ func TestDelete(t *testing.T) {
 	if len(g.LastProfiles) != 1 || g.LastProfiles["/b"] != "Play" {
 		t.Errorf("last profiles after the delete: %v", g.LastProfiles)
 	}
-	if g.OpenWindows[0].Profile != "" || g.OpenWindows[1].Profile != "Play" {
-		t.Errorf("profiles of the windows after the delete: %+v", g.OpenWindows)
+	if g.WorkspaceTabs[0].Profile != "" || g.WorkspaceTabs[1].Profile != "Play" {
+		t.Errorf("profiles of the tabs after the delete: %+v", g.WorkspaceTabs)
 	}
 	// the record of a deleted profile reads as no record
 	if _, ok, err := f.profiles.LastProfile(ctx, "/a"); ok || err != nil {
@@ -856,8 +856,8 @@ func TestTheStateOfProfilesIsAdditive(t *testing.T) {
 					t.Errorf("last profile of %s = %q, want %q", k, g.LastProfiles[k], v)
 				}
 			}
-			if len(g.OpenWindows) != 1 || g.OpenWindows[0].Profile != tt.wantWindow {
-				t.Errorf("open windows %+v, want profile %q", g.OpenWindows, tt.wantWindow)
+			if len(g.WorkspaceTabs) != 1 || g.WorkspaceTabs[0].Profile != tt.wantWindow {
+				t.Errorf("tabs %+v, want profile %q", g.WorkspaceTabs, tt.wantWindow)
 			}
 			// what the caller changes in a copy does not reach the kept state
 			if g.LastProfiles != nil {

@@ -82,7 +82,7 @@ func (a *groupApp) pickRow(label string) {
 }
 
 func TestTheEditorItemsShowTheActiveEditor(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.go", "b.txt"},
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.go", "b.txt"},
 		map[string]string{"a.go": "package a\n\nfunc f() {\n\tx := 1\n}\n", "b.txt": "one\r\ntwo\r\n"}, "a.go", "b.txt")
 	// the first file is shown, with its cursor at the start
 	if got := a.editorStatus(); !slices.Equal(got, []string{"Ln 1, Col 1", "Tab Size: 4", "UTF-8", "LF", "Go"}) {
@@ -131,7 +131,7 @@ func TestTheSelectionItemCountsWhatIsSelected(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": text}, "a.txt")
+			a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": text}, "a.txt")
 			a.vm().Cursors().SetSelections(tt.sels)
 			a.vm().SelectionsChanged()
 			a.pump()
@@ -143,7 +143,7 @@ func TestTheSelectionItemCountsWhatIsSelected(t *testing.T) {
 }
 
 func TestTheSelectionItemFollowsEditsAndCRLF(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "ab\r\ncd\r\n"}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "ab\r\ncd\r\n"}, "a.txt")
 	a.vm().Cursors().SetSelections([]buffer.Selection{{Anchor: buffer.Position{Line: 0, Col: 1}, Active: buffer.Position{Line: 1, Col: 1}}})
 	a.vm().SelectionsChanged()
 	a.pump()
@@ -180,7 +180,7 @@ func TestTheEditorItemsAreHiddenWithoutAnEditor(t *testing.T) {
 }
 
 func TestTheIndentationItemFollowsTheCommands(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "x\n"}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "x\n"}, "a.txt")
 	if got := a.statusText("status.editor.indentation"); got != "Spaces: 4" {
 		t.Fatalf("at first %q", got)
 	}
@@ -361,7 +361,7 @@ func TestTheTooltipsShowTheKeyOfTheCommand(t *testing.T) {
 }
 
 func TestTheLanguagePicker(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.go", "n.txt"},
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.go", "n.txt"},
 		map[string]string{"a.go": "package a\n", "n.txt": ""}, "a.go", "n.txt")
 	a.clickTab("a.go")
 	a.clickStatus("status.editor.mode")
@@ -445,7 +445,7 @@ func TestTheLanguageCommandTakesAName(t *testing.T) {
 }
 
 func TestTheLanguageChangeReachesTheHighlighting(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "func main() {}\n"}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "func main() {}\n"}, "a.txt")
 	e := a.shell().activeEditor()
 	if e.tokenizer != nil && e.tokenizer.Active() {
 		t.Fatal("plain text is not tokenized")
@@ -459,7 +459,7 @@ func TestTheLanguageChangeReachesTheHighlighting(t *testing.T) {
 }
 
 func TestConfiguringAFileAssociation(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.foo", "b.foo", "Dockerfile.x"},
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.foo", "b.foo", "Dockerfile.x"},
 		map[string]string{"a.foo": "x\n", "b.foo": "y\n", "Dockerfile.x": "FROM a\n"}, "a.foo", "b.foo", "Dockerfile.x")
 	a.clickTab("a.foo")
 	if a.doc("a.foo").LanguageID() != "plaintext" {
@@ -510,7 +510,7 @@ func TestConfiguringAFileAssociation(t *testing.T) {
 }
 
 func TestEOLPicker(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "one\ntwo\n"}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "one\ntwo\n"}, "a.txt")
 	doc := a.doc("a.txt")
 	a.clickStatus("status.editor.eol")
 	ctl := a.win.QuickInput
@@ -546,7 +546,7 @@ func TestEOLPicker(t *testing.T) {
 }
 
 func TestAReadOnlyEditorHasNoEOLItemAndNoPickers(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "one\n"}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "one\n"}, "a.txt")
 	a.doc("a.txt").SetReadOnly(true)
 	a.shell().refreshStatus()
 	a.pump()
@@ -585,7 +585,7 @@ func TestThePickersNeedAnEditor(t *testing.T) {
 }
 
 func TestTheIndentationPicker(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "x\n    y\n"}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": "x\n    y\n"}, "a.txt")
 	a.clickStatus("status.editor.indentation")
 	ctl := a.win.QuickInput
 	if !ctl.Visible() || ctl.Picker().Placeholder() != "Select Action" {
@@ -634,7 +634,7 @@ func TestTheIndentationPicker(t *testing.T) {
 const latin1File = "caf\xe9\nna\xefve\n"
 
 func TestReopenWithEncoding(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": latin1File}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": latin1File}, "a.txt")
 	doc := a.doc("a.txt")
 	_ = doc
 	a.clickStatus("status.editor.encoding")
@@ -678,7 +678,7 @@ func TestReopenWithEncoding(t *testing.T) {
 }
 
 func TestReopenWithEncodingOfADirtyFileAsks(t *testing.T) {
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": latin1File}, "a.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"a.txt"}, map[string]string{"a.txt": latin1File}, "a.txt")
 	a.edit("a.txt")
 	if !a.doc("a.txt").Dirty() {
 		t.Fatal("the edit did not make the file dirty")
@@ -716,7 +716,7 @@ func TestReopenWithEncodingOfADirtyFileAsks(t *testing.T) {
 func TestTheEncodingPickerOffersTheGuessedEncoding(t *testing.T) {
 	// a UTF-16 file with a byte order mark: the guess is UTF-16 LE, and the setting says UTF-8
 	utf16 := "\xff\xfeh\x00i\x00\n\x00"
-	a := newGroupAppWith(t, newTestWindow(t, ""), testWindowSize, []string{"u.txt"}, map[string]string{"u.txt": utf16}, "u.txt")
+	a := newGroupAppWith(t, newTestWorkspace(t, ""), testWindowSize, []string{"u.txt"}, map[string]string{"u.txt": utf16}, "u.txt")
 	if a.doc("u.txt").Encoding() != "utf16le" || a.statusText("status.editor.encoding") != "UTF-16 LE" {
 		t.Fatalf("encoding %q, item %q", a.doc("u.txt").Encoding(), a.statusText("status.editor.encoding"))
 	}

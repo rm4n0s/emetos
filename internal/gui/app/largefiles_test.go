@@ -26,7 +26,7 @@ func writeBinaryFile(t *testing.T) string {
 }
 
 func TestABinaryFileShowsANoticeAndOpensAnyway(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	path := writeBinaryFile(t)
 	_, err := win.Documents.OpenFile(context.Background(), path, document.NewOptions())
 	if !isBinaryError(err) {
@@ -57,7 +57,7 @@ func TestABinaryFileShowsANoticeAndOpensAnyway(t *testing.T) {
 }
 
 func TestOpenAnywayFailureIsReported(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	path := writeBinaryFile(t)
 	ts := testutil.New(t, testWindowSize)
 	ts.PumpWidget(newAppBlocked(context.Background(), win, nil, nil, path))
@@ -79,7 +79,7 @@ func TestLargeFileNotificationAndSetting(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("large", func(t *testing.T) {
-		win := newTestWindow(t, "")
+		win := newTestWorkspace(t, "")
 		doc, err := win.Documents.OpenFile(context.Background(), path, document.NewOptions())
 		if err != nil {
 			t.Fatal(err)
@@ -103,7 +103,7 @@ func TestLargeFileNotificationAndSetting(t *testing.T) {
 		}
 	})
 	t.Run("small", func(t *testing.T) {
-		win := newTestWindow(t, "")
+		win := newTestWorkspace(t, "")
 		doc := document.New(document.FileURI("/small.txt"), "x", document.NewOptions())
 		if win.Documents.AnnounceLarge(doc) {
 			t.Error("a small document is announced")
@@ -112,7 +112,7 @@ func TestLargeFileNotificationAndSetting(t *testing.T) {
 	t.Run("optimizations off", func(t *testing.T) {
 		paths := testutil.Isolate(t)
 		testutil.Settings(t, paths, map[string]any{"editor.largeFileOptimizations": false})
-		win, err := NewWindow(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
+		win, err := NewWorkspace(context.Background(), newTestProcess(ProcessOptions{Paths: paths}), "")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -75,7 +75,7 @@ func (s *shellState) bindDevOpenFile(binding *widgets.WidgetsBinding) {
 	if !DevCommandsEnabled() {
 		return
 	}
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	remove, err := win.Commands.SetHandler("dev.openFile", func(c command.Context, args any) error {
 		return s.devOpenFile(binding, c.Ctx, args)
 	})
@@ -138,7 +138,7 @@ func (s *shellState) openPath(binding *widgets.WidgetsBinding, group *editorgrou
 // column, counted from 1; 0 leaves the cursor where it is). A group that is gone by the time the file is
 // read is replaced by the active group. A file that cannot be opened is reported.
 func (s *shellState) openPathAt(binding *widgets.WidgetsBinding, path string, line, column int, opts openOptions) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, path, document.NewOptions())
 		binding.Post(func() {
@@ -175,7 +175,7 @@ func (s *shellState) openPathAt(binding *widgets.WidgetsBinding, path string, li
 // button to open the file anyway; otherwise the open editors stay and a notification says so.
 func (s *shellState) blockFile(path string) {
 	if s.editorCount() > 0 {
-		PeekWindow(s.Context()).Notify.Warn("Emetos", path+": "+BinaryFileNotice)
+		PeekWorkspace(s.Context()).Notify.Warn("Emetos", path+": "+BinaryFileNotice)
 		return
 	}
 	s.SetState(func() { s.blocked = path })
@@ -183,7 +183,7 @@ func (s *shellState) blockFile(path string) {
 
 // openAnyway opens a file that looks binary, as the button of its notice asks.
 func (s *shellState) openAnyway(binding *widgets.WidgetsBinding, path string) {
-	win := PeekWindow(s.Context())
+	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.AcquireWith(life, path, document.NewOptions(), fileio.ReadOptions{AllowBinary: true})
 		binding.Post(func() {

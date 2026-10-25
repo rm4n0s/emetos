@@ -107,7 +107,7 @@ func CreateFrom(profile string) CreateSource { return CreateSource{From: profile
 // ProfilesOptions say what a Profiles is made of.
 type ProfilesOptions struct {
 	// State is the state store of the default profile, which keeps the profile of each folder and of each
-	// window (GlobalState.LastProfiles, OpenWindow.Profile). Nil keeps none of them.
+	// window (GlobalState.LastProfiles, WorkspaceTab.Profile). Nil keeps none of them.
 	State *StateStore
 	// Logger gets the failures of the bookkeeping that does not fail an operation; slog.Default() when nil.
 	Logger *slog.Logger
@@ -522,9 +522,9 @@ func (p *Profiles) rewriteReferences(ctx context.Context, mapTo func(string) str
 				changed = true
 			}
 		}
-		for i := range g.OpenWindows {
-			if next := mapTo(g.OpenWindows[i].Profile); next != g.OpenWindows[i].Profile {
-				g.OpenWindows[i].Profile = next
+		for i := range g.WorkspaceTabs {
+			if next := mapTo(g.WorkspaceTabs[i].Profile); next != g.WorkspaceTabs[i].Profile {
+				g.WorkspaceTabs[i].Profile = next
 				changed = true
 			}
 		}

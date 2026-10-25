@@ -22,7 +22,7 @@ func themeSettings(s *settings.Store) theme.Settings {
 // followTheme gives the theme service the theme settings of the window, now and whenever they
 // change. A theme that cannot be found or read leaves the default theme in use and is reported
 // as a warning.
-func (w *Window) followTheme() {
+func (w *Workspace) followTheme() {
 	apply := func() {
 		if err := w.Themes.Apply(themeSettings(w.Settings)); err != nil {
 			w.Notify.Warn("Emetos", "Cannot use the color theme: "+describe(err))
@@ -78,7 +78,7 @@ func (o *brightnessObserver) DidChangePlatformBrightness() { o.changed() }
 // InitState reads the system's color scheme and the theme in use, and follows both.
 func (s *themeHostState) InitState() {
 	s.binding = widgets.WidgetsBindingOf(s.Context())
-	s.service = PeekWindow(s.Context()).Themes
+	s.service = PeekWorkspace(s.Context()).Themes
 	s.reportBrightness()
 	s.setTheme(s.service.Current())
 	s.observer = &brightnessObserver{changed: s.reportBrightness}
@@ -120,7 +120,7 @@ func (s *themeHostState) Build(widgets.BuildContext) widgets.Widget {
 // followLanguages gives the language registry the file associations of the window's settings,
 // now and whenever they change, and makes the documents of the window take their language from
 // it. An association that is not valid is logged.
-func (w *Window) followLanguages() {
+func (w *Workspace) followLanguages() {
 	apply := func() {
 		value := settings.Get[map[string]any](w.Settings, "files.associations", "")
 		for _, err := range w.Process.Languages.SetFileAssociations(value) {
@@ -139,7 +139,7 @@ func (w *Window) followLanguages() {
 }
 
 // indentationFor is how a new document of a language is indented, from the settings.
-func (w *Window) indentationFor(languageID string) Indentation {
+func (w *Workspace) indentationFor(languageID string) Indentation {
 	return Indentation{
 		TabSize:      max(1, int(settings.Get[float64](w.Settings, "editor.tabSize", languageID))),
 		InsertSpaces: settings.Get[bool](w.Settings, "editor.insertSpaces", languageID),

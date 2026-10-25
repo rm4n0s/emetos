@@ -1423,7 +1423,7 @@ func TestRevealInTheFileManager(t *testing.T) {
 }
 
 func TestNewFileWithoutAFolderSaysSo(t *testing.T) {
-	win := newTestWindow(t, "")
+	win := newTestWorkspace(t, "")
 	ts := testutil.New(t, fileOpsSize)
 	ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
 	for range 4 {

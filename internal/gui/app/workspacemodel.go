@@ -32,11 +32,11 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
-// Window holds what one window owns (SPEC §5.1): the folder, the settings with the
+// Workspace holds what one window owns (SPEC §5.1): the folder, the settings with the
 // workspace layer, the root of the context keys, and the documents. The same file open in
-// two windows is two documents. A Window has no Glutter types: widgets reach it through
+// two windows is two documents. A Workspace has no Glutter types: widgets reach it through
 // WindowScope.
-type Window struct {
+type Workspace struct {
 	// Process is the process the window belongs to.
 	Process *Process
 	// Commands is the registry of commands of the window: a fork of the registry of the process (SPEC §5.1), so
@@ -143,8 +143,12 @@ type Window struct {
 	// changed on the UI thread only (SwitchProfile).
 	profile          string
 	profileListeners []*func(profile string)
-	// entry is the window in the list of the windows of the process (Windows); nil until the shell registers it.
-	entry *windowEntry
+	// tab is the window tab that holds the workspace, in the list of the tabs of the process (Workspaces); nil for a
+	// workspace that nothing holds yet.
+	tab *WindowTab
+	// keyNode is the focus node at the root of the tree of the workspace (the key dispatcher's): a keyboard focus below
+	// it is the workspace's, and only the active tab's dispatcher uses a key.
+	keyNode *widgets.FocusNode
 	// shell is the state of the shell that shows the window; nil until it is made and after it is gone.
 	shell *shellState
 	// settingsDocs lets the settings store read and edit the settings files that are open in an editor.
@@ -218,13 +222,13 @@ type Window struct {
 
 // Title is the title of the window: window.title filled in for the active editor and the folder
 // (SPEC §10.1). It is empty until the window has been shown.
-func (w *Window) Title() string { return w.title }
+func (w *Workspace) Title() string { return w.title }
 
 // chordStatus shows the status of a chord in the status bar, as VS Code's status message: "(Ctrl+K) was
 // pressed. Waiting for second key of chord..." stays until the chord is completed or aborted (or the
 // dispatcher forgets it after keybinding.ChordTimeout), and "The key combination (Ctrl+K, X) is not a command."
 // shows for ten seconds. OnChordStatus gets it instead when it is set.
-func (w *Window) chordStatus(status string, cleared bool) {
+func (w *Workspace) chordStatus(status string, cleared bool) {
 	if w.OnChordStatus != nil {
 		w.OnChordStatus(status, cleared)
 		return
@@ -254,7 +258,7 @@ func (w *Window) chordStatus(status string, cleared bool) {
 // failedChordMessageTime is how long the message of a chord that is not a command shows (VS Code's 10 s).
 const failedChordMessageTime = 10 * time.Second
 
-func (w *Window) stopChordTimeout() {
+func (w *Workspace) stopChordTimeout() {
 	if w.chordTimeout != nil {
 		w.chordTimeout()
 		w.chordTimeout = nil
@@ -265,7 +269,7 @@ func (w *Window) stopChordTimeout() {
 // showed, and takes it away after hideAfter (never when it is zero). It is called on the UI thread.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/notifications/notificationsStatus.ts (doSetStatusMessage)
-func (w *Window) ShowStatusMessage(text string, hideAfter time.Duration) {
+func (w *Workspace) ShowStatusMessage(text string, hideAfter time.Duration) {
 	w.ClearStatusMessage()
 	entry := workbench.StatusEntry{Name: "Status Message", Text: text, AriaLabel: text}
 	w.statusMessage = w.StatusBar.Add("status.message", workbench.StatusLeft, math.Inf(-1), entry)
@@ -278,7 +282,7 @@ func (w *Window) ShowStatusMessage(text string, hideAfter time.Duration) {
 }
 
 // ClearStatusMessage takes the status message away.
-func (w *Window) ClearStatusMessage() {
+func (w *Workspace) ClearStatusMessage() {
 	if w.statusMessageStop != nil {
 		w.statusMessageStop()
 		w.statusMessageStop = nil
@@ -289,15 +293,15 @@ func (w *Window) ClearStatusMessage() {
 	}
 }
 
-// NewWindow makes a window over a process, for a folder or for none. It reads the settings
+// NewWorkspace makes a window over a process, for a folder or for none. It reads the settings
 // files; a file with errors does not fail the window (the store reports it as a problem,
 // which is logged), but a file that cannot be read does.
-func NewWindow(ctx context.Context, p *Process, folder string) (*Window, error) {
-	return newWindow(ctx, p, windowOptions{folder: folder})
+func NewWorkspace(ctx context.Context, p *Process, folder string) (*Workspace, error) {
+	return newWorkspace(ctx, p, workspaceOptions{folder: folder})
 }
 
-// windowOptions are the parts of a window that NewWindow leaves to the process.
-type windowOptions struct {
+// workspaceOptions are the parts of a window that NewWindow leaves to the process.
+type workspaceOptions struct {
 	// folder is the folder of the window, or empty.
 	folder string
 	// stateID is the id of the state of a window without a folder (a window that comes back from the list of open
@@ -307,11 +311,11 @@ type windowOptions struct {
 	profile string
 	// from is the window whose test seams (Quit, SaveDialog, OpenURI, OnChordStatus) the new one takes over: the
 	// window it replaces.
-	from *Window
+	from *Workspace
 }
 
-// newWindow is NewWindow with options.
-func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error) {
+// newWorkspace is NewWindow with options.
+func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspace, error) {
 	folder := o.folder
 	userPath, err := settings.UserSettingsPath(p.Paths, o.profile)
 	if err != nil {
@@ -335,7 +339,7 @@ func newWindow(ctx context.Context, p *Process, o windowOptions) (*Window, error
 	resolver := keybinding.NewResolver(p.Keymap.Defaults(), nil, nil)
 	layout := workbench.NewLayout(workbench.LayoutStateFromSettings(store))
 	access := quickinput.NewRegistry()
-	w := &Window{
+	w := &Workspace{
 		QuickAccess:    access,
 		QuickInput:     quickinput.NewController(quickinput.ControllerOptions{Registry: access}),
 		CommandHistory: quickinput.NewCommandsHistory(settings.Get[int](store, "workbench.commandPalette.history", "")),

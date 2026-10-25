@@ -25,11 +25,11 @@ type zoomState struct {
 }
 
 // ZoomLevel is the zoom level of the window.
-func (w *Window) ZoomLevel() float64 { return w.zoom.level }
+func (w *Workspace) ZoomLevel() float64 { return w.zoom.level }
 
 // SetZoomLevel gives the window a zoom level (kept in the range of settings.MinZoomLevel to settings.MaxZoomLevel);
 // the listeners of OnZoomChange are told when it changes. It does not write a setting.
-func (w *Window) SetZoomLevel(level float64) {
+func (w *Workspace) SetZoomLevel(level float64) {
 	level = settings.ClampZoomLevel(level)
 	if level == w.zoom.level {
 		return
@@ -42,26 +42,26 @@ func (w *Window) SetZoomLevel(level float64) {
 
 // OnZoomChange calls fn, on the UI thread, after the zoom level of the window changed, and returns the function that
 // stops it.
-func (w *Window) OnZoomChange(fn func()) (unsubscribe func()) {
+func (w *Workspace) OnZoomChange(fn func()) (unsubscribe func()) {
 	p := &fn
 	w.zoom.listeners = append(w.zoom.listeners, p)
 	return func() { w.zoom.listeners = slices.DeleteFunc(w.zoom.listeners, func(x *func()) bool { return x == p }) }
 }
 
 // defaultZoomLevel is window.zoomLevel, the level a window starts at and Reset Zoom goes back to.
-func (w *Window) defaultZoomLevel() float64 {
+func (w *Workspace) defaultZoomLevel() float64 {
 	return settings.ClampZoomLevel(settings.Get[float64](w.Settings, "window.zoomLevel", ""))
 }
 
 // zoomPerWindow is window.zoomPerWindow: whether the zoom commands change the zoom of this window only (the default) or of
 // every window, through window.zoomLevel.
-func (w *Window) zoomPerWindow() bool {
+func (w *Workspace) zoomPerWindow() bool {
 	return settings.Get[bool](w.Settings, "window.zoomPerWindow", "")
 }
 
 // followZoom gives the window the zoom level of window.zoomLevel, and makes every change of that setting set it again:
 // a window that was zoomed by itself goes back to the setting, as VS Code applies the setting to every window.
-func (w *Window) followZoom() {
+func (w *Workspace) followZoom() {
 	w.zoom.level = w.defaultZoomLevel()
 	stop := w.Settings.OnChange(func(e settings.ChangeEvent) {
 		if e.Affects("window.zoomLevel", "") {
@@ -74,7 +74,7 @@ func (w *Window) followZoom() {
 // zoom changes the zoom level of the window by one step in or out (the commands Zoom In and Zoom Out). A level out of the
 // range is not reached: the command does nothing. With window.zoomPerWindow false the level is the setting's, which all
 // the windows follow.
-func (w *Window) zoomStep(ctx context.Context, in bool) error {
+func (w *Workspace) zoomStep(ctx context.Context, in bool) error {
 	next, ok := settings.ZoomStep(w.zoom.level, in)
 	if !ok {
 		return nil
@@ -84,7 +84,7 @@ func (w *Window) zoomStep(ctx context.Context, in bool) error {
 
 // zoomReset is the command Reset Zoom: the level goes back to window.zoomLevel, or to 0 when the zoom is of every window
 // (and the setting is written as 0).
-func (w *Window) zoomReset(ctx context.Context) error {
+func (w *Workspace) zoomReset(ctx context.Context) error {
 	level := w.defaultZoomLevel()
 	if !w.zoomPerWindow() {
 		level = 0
@@ -94,7 +94,7 @@ func (w *Window) zoomReset(ctx context.Context) error {
 
 // applyZoom sets the level of this window, and with window.zoomPerWindow false writes it as window.zoomLevel to the user's
 // settings, from where the other windows take it.
-func (w *Window) applyZoom(ctx context.Context, level float64) error {
+func (w *Workspace) applyZoom(ctx context.Context, level float64) error {
 	if !w.zoomPerWindow() {
 		if ctx == nil {
 			ctx = w.ctx
@@ -108,7 +108,7 @@ func (w *Window) applyZoom(ctx context.Context, level float64) error {
 }
 
 // registerZoomCommands sets the handlers of the zoom commands.
-func (w *Window) registerZoomCommands(set func(id string, h command.Handler)) {
+func (w *Workspace) registerZoomCommands(set func(id string, h command.Handler)) {
 	set("workbench.action.zoomIn", func(c command.Context, _ any) error { return w.zoomStep(c.Ctx, true) })
 	set("workbench.action.zoomOut", func(c command.Context, _ any) error { return w.zoomStep(c.Ctx, false) })
 	set("workbench.action.zoomReset", func(c command.Context, _ any) error { return w.zoomReset(c.Ctx) })
@@ -130,13 +130,13 @@ func (h *zoomHost) CreateState() widgets.State { return &zoomHostState{} }
 
 type zoomHostState struct {
 	widgets.StateOf[*zoomHost]
-	win  *Window
+	win  *Workspace
 	stop func()
 }
 
 // InitState follows the zoom level of the window.
 func (s *zoomHostState) InitState() {
-	s.win = PeekWindow(s.Context())
+	s.win = PeekWorkspace(s.Context())
 	s.stop = s.win.OnZoomChange(func() {
 		if s.Mounted() {
 			s.SetState(func() {})
