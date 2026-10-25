@@ -408,3 +408,63 @@ func TestDiffEditorCommands(t *testing.T) {
 		t.Errorf("precondition %v", meta.Precondition)
 	}
 }
+
+func TestInlineViewAndCompareCommands(t *testing.T) {
+	r := DefaultRegistry()
+	for id, want := range map[string]Meta{
+		"toggle.diff.renderSideBySide":                     {Title: "Toggle Inline View", Category: "Compare"},
+		"diffEditor.toggleUseInlineViewWhenSpaceIsLimited": {Title: "Toggle Use Inline View When Space Is Limited"},
+		"diffEditor.setViewMode.inline":                    {},
+		"diffEditor.setViewMode.sideBySide":                {},
+		"diffEditor.setViewMode.automatic":                 {},
+		"workbench.files.action.compareWithSaved":          {Title: "Compare Active File with Saved", Category: "File"},
+		"workbench.files.action.compareFileWith":           {Title: "Compare Active File With...", Category: "File"},
+		"workbench.files.action.compareWithClipboard":      {Title: "Compare Active File with Clipboard", Category: "File"},
+		"selectForCompare":                                 {},
+		"compareFiles":                                     {},
+		"compareSelected":                                  {},
+	} {
+		got, ok := r.Lookup(id)
+		if !ok {
+			t.Errorf("%s is not registered", id)
+			continue
+		}
+		if got.Title != want.Title || got.Category != want.Category {
+			t.Errorf("%s: title %q category %q, want %q %q", id, got.Title, got.Category, want.Title, want.Category)
+		}
+	}
+	// Compare Active File With... needs an editor
+	meta, _ := r.Lookup("workbench.files.action.compareFileWith")
+	if meta.Precondition == nil || !meta.Precondition.Evaluate(contextkey.MapContext{"activeEditor": "emetos.textEditor"}) || meta.Precondition.Evaluate(contextkey.MapContext{}) {
+		t.Errorf("precondition %v", meta.Precondition)
+	}
+}
+
+func TestPaletteRulesOfTheInlineView(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	listed := func(id string, ctx contextkey.MapContext) bool {
+		for _, it := range menus.Items(CommandPalette, ctx) {
+			if it.Command == id {
+				return true
+			}
+		}
+		return false
+	}
+	// a row of the CommandPalette menu says when the palette hides its command: Items lists the rows that hold
+	for _, tc := range []struct {
+		name string
+		id   string
+		ctx  contextkey.MapContext
+		want bool
+	}{
+		{"Toggle Inline View with a compare editor", "toggle.diff.renderSideBySide", contextkey.MapContext{"textCompareEditorActive": true}, true},
+		{"Toggle Inline View without one", "toggle.diff.renderSideBySide", contextkey.MapContext{}, false},
+		{"the toggle of the limited space is never listed", "diffEditor.toggleUseInlineViewWhenSpaceIsLimited", contextkey.MapContext{"isInDiffEditor": true}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := listed(tc.id, tc.ctx); got != tc.want {
+				t.Errorf("listed = %v", got)
+			}
+		})
+	}
+}

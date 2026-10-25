@@ -130,12 +130,14 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
 	defer canvas.Restore()
 	r.paintMarkGutter(canvas, offset, size, top, first, last)
+	r.paintZoneGutter(canvas, offset, size, top, first, last)
 	r.paintHighlight(canvas, offset, size, top, first, last)
 	widths := r.vm.GutterWidths(r.factory)
 	if opts.LineNumbers != LineNumbersOff {
 		r.paintNumbers(canvas, offset, top, first, last, widths)
 	}
 	r.paintFoldingControls(canvas, offset, top, first, last, widths)
+	r.paintZoneGlyphs(canvas, offset, top, first, last, widths)
 }
 
 // paintNumbers draws the line numbers of the visible rows.

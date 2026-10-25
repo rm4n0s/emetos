@@ -486,7 +486,8 @@ func (s *shellState) disposeGroup() {
 	g.grid.Dispose()
 	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
 		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically",
-		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies", "textCompareEditorVisible", "textCompareEditorActive"}, navKeys...) {
+		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies", "textCompareEditorVisible", "textCompareEditorActive",
+		"resourceSelectedForCompare"}, navKeys...) {
 		win.Keys.Reset(key)
 	}
 }

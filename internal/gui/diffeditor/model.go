@@ -73,11 +73,18 @@ type Model struct {
 	cancel      context.CancelFunc
 	cancelTimer func()
 
-	zones   [2]zoneSet
-	handles [2]foundation.ListenerHandle
-	scrolls [2]foundation.ListenerHandle
-	metrics [2]foundation.ListenerHandle
-	stops   []func()
+	zones [2]zoneSet
+	// mode is the view the editors are laid out for now, width the width of the widget (0 until it was laid
+	// out), inline the zones of the deleted lines of the inline view and inlineSig what they were made for.
+	mode       Mode
+	width      float64
+	inline     []inlineZone
+	inlineSig  inlineSig
+	modeQueued bool
+	handles    [2]foundation.ListenerHandle
+	scrolls    [2]foundation.ListenerHandle
+	metrics    [2]foundation.ListenerHandle
+	stops      []func()
 	// syncing is set while one editor scrolls the other, so that the scroll does not come back.
 	syncing bool
 	// leader is the side that scrolled last; the other follows it when the sizes change.
@@ -109,12 +116,16 @@ func NewModel(opts ModelOpts) *Model {
 	}
 	if opts.Settings != nil {
 		m.stops = append(m.stops, opts.Settings.OnChange(func(e settings.ChangeEvent) {
-			if e.Affects("diffEditor", "") {
+			if e.Affects("diffEditor.ignoreTrimWhitespace", "") || e.Affects("diffEditor.maxComputationTime", "") {
 				opts.Post(func() {
 					if !m.disposed {
 						m.Recompute()
 					}
 				})
+			}
+			if e.Affects("diffEditor.renderSideBySide", "") || e.Affects("diffEditor.useInlineViewWhenSpaceIsLimited", "") ||
+				e.Affects("diffEditor.renderSideBySideInlineBreakpoint", "") {
+				m.queueMode()
 			}
 		}))
 	}
@@ -170,6 +181,9 @@ func (m *Model) SetColors(c Colors) {
 		m.opts.Post(func() {
 			if !m.disposed {
 				m.applyMarks()
+				if err := m.align(); err != nil && m.opts.OnError != nil {
+					m.opts.OnError(err)
+				}
 				m.NotifyListeners()
 			}
 		})
@@ -302,7 +316,7 @@ func (m *Model) finish(gen, origVersion, modVersion int, res diff.LinesDiff, err
 // viewChanged follows a change of the layout of an editor: when lines wrap, the rows of a line depend on the
 // width and on the breaks that are known, and the filler has to follow them.
 func (m *Model) viewChanged() {
-	if m.disposed || !m.computed || (!m.vms[Original].Wrapping() && !m.vms[Modified].Wrapping() && len(m.zones[0].ids)+len(m.zones[1].ids) == 0) {
+	if m.disposed || !m.computed || m.mode == Inline || (!m.vms[Original].Wrapping() && !m.vms[Modified].Wrapping() && len(m.zones[0].ids)+len(m.zones[1].ids) == 0) {
 		return
 	}
 	m.queueAlign()
@@ -361,13 +375,27 @@ func (m *Model) align() error {
 	if !m.computed {
 		return nil
 	}
+	if m.mode == Inline {
+		errOrig := m.setZones(Original, nil)
+		errMod := m.setZones(Modified, nil)
+		errInline := m.setInlineZones()
+		return firstError(errOrig, errMod, errInline)
+	}
+	errInline := m.clearInlineZones()
 	orig, mod := Zones(m.Alignments())
 	errOrig := m.setZones(Original, orig)
 	errMod := m.setZones(Modified, mod)
-	if errOrig != nil {
-		return errOrig
+	return firstError(errInline, errOrig, errMod)
+}
+
+// firstError is the first of some errors that is not nil.
+func firstError(errs ...error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
 	}
-	return errMod
+	return nil
 }
 
 // setZones makes the zones of an editor the ones given.
@@ -431,6 +459,11 @@ func (m *Model) ZonesOf(s Side) []Zone {
 // applyMarks colors the changed lines and characters of both editors.
 func (m *Model) applyMarks() {
 	for _, s := range []Side{Original, Modified} {
+		if m.mode == Inline && s == Original {
+			// the original editor is not on screen: its lines are drawn in the zones of the modified one
+			m.vms[s].SetBackgroundMarks(nil)
+			continue
+		}
 		m.vms[s].SetBackgroundMarks(Marks(m.changes, s, m.colors, m.vms[s].Document().Snapshot()))
 	}
 }
@@ -479,7 +512,7 @@ func Marks(changes []diff.LineRangeMapping, s Side, c Colors, snap buffer.Snapsh
 
 // scrolled keeps the other editor where this one is.
 func (m *Model) scrolled(s Side) {
-	if m.disposed || m.syncing {
+	if m.disposed || m.syncing || m.mode == Inline {
 		return
 	}
 	m.leader = s
@@ -502,7 +535,7 @@ func (m *Model) follow(s Side) {
 // metricsChanged follows a change of the sizes of an editor (the filler changed what scrolls): the editor that
 // was scrolled last keeps the lead.
 func (m *Model) metricsChanged() {
-	if m.disposed || m.syncing {
+	if m.disposed || m.syncing || m.mode == Inline {
 		return
 	}
 	m.follow(m.leader)
@@ -539,6 +572,9 @@ func (m *Model) MapToOtherSide(from Side) buffer.Selection {
 // SwitchSide moves the keyboard focus to the other editor, with the selection mapped through the changes (VS Code's
 // diffEditor.switchSide). The side that has the focus is the modified one when neither has it.
 func (m *Model) SwitchSide() {
+	if m.mode == Inline {
+		return // one editor shows both texts
+	}
 	from := Modified
 	if s, ok := m.FocusedSide(); ok {
 		from = s
@@ -555,7 +591,14 @@ func (m *Model) SwitchSide() {
 }
 
 // FocusSide gives the keyboard focus to the editor of a side.
-func (m *Model) FocusSide(s Side) bool { return m.focus[s].Request() }
+//
+// The inline view has one editor, the modified one, which every side stands for.
+func (m *Model) FocusSide(s Side) bool {
+	if m.mode == Inline {
+		s = Modified
+	}
+	return m.focus[s].Request()
+}
 
 // Dispose stops the computation, the timers and the listeners and takes the zones and the marks off the editors.
 func (m *Model) Dispose() {
@@ -574,6 +617,12 @@ func (m *Model) Dispose() {
 		vm.RemoveMetricsListener(m.metrics[i])
 		vm.DisposeMarks()
 		ids := m.zones[i].ids
+		if i == int(Modified) {
+			for _, z := range m.inline {
+				ids = append(ids, z.id)
+			}
+			m.inline = nil
+		}
 		if err := vm.ChangeZones(func(c editor.ZoneChanges) error {
 			var first error
 			for _, id := range ids {

@@ -56,6 +56,9 @@ type rigConfig struct {
 	tweak            func(*editor.Options)
 	now              func() time.Time
 	readOnlyModified bool
+	// settings are user settings to start with; the rig turns diffEditor.useInlineViewWhenSpaceIsLimited off
+	// unless they say otherwise, since its default size is under the breakpoint of the inline view.
+	settings map[string]any
 	// highlight shows the text as Go, with the token theme of Dark Modern or Light Modern ("Dark Modern", "Light Modern").
 	highlight string
 }
@@ -70,7 +73,11 @@ func newRig(t *testing.T, original, modified string, cfg rigConfig) *rig {
 	if cfg.colors == (kit.Colors{}) {
 		cfg.colors = kit.DarkModern()
 	}
-	r := &rig{t: t, store: testutil.Settings(t, paths, nil)}
+	extra := map[string]any{"diffEditor.useInlineViewWhenSpaceIsLimited": false}
+	for k, v := range cfg.settings {
+		extra[k] = v
+	}
+	r := &rig{t: t, store: testutil.Settings(t, paths, extra)}
 	docOpts := document.NewOptions()
 	if cfg.highlight != "" {
 		docOpts.LanguageID = "go"

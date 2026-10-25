@@ -1483,9 +1483,10 @@ func registerSearch(r *Registry) {
 }
 
 // registerDiffEditor registers the settings of the diff editor that a step has a consumer for. Step 9.2
-// registers the time limit of the diff of core/diff (SPEC section 9.11) and step 9.5, the diff editor, the
-// setting that ignores white space at the start and end of lines; the others (diffEditor.renderSideBySide, the
-// hiding of unchanged regions) come with the code that reads them.
+// registers the time limit of the diff of core/diff (SPEC section 9.11), step 9.5, the diff editor, the
+// setting that ignores white space at the start and end of lines, and step 9.6, the inline view, the three
+// that choose between the views; the others (the hiding of unchanged regions) come with the code that reads
+// them.
 //
 // Ported from VS Code: src/vs/editor/common/config/editorConfigurationSchema.ts and
 // src/vs/editor/common/config/diffEditor.ts
@@ -1499,6 +1500,21 @@ func registerDiffEditor(r *Registry) {
 		Setting{
 			Key: "diffEditor.ignoreTrimWhitespace", Types: []Type{Boolean}, Default: true,
 			Description: "When enabled, the diff editor ignores changes in leading or trailing whitespace.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "diffEditor.renderSideBySide", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the diff editor shows the diff side by side or inline.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "diffEditor.renderSideBySideInlineBreakpoint", Types: []Type{Number}, Default: 900,
+			Description: "If the diff editor width is smaller than this value, the inline view is used.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "diffEditor.useInlineViewWhenSpaceIsLimited", Types: []Type{Boolean}, Default: true,
+			Description: "If enabled and the editor width is too small, the inline view is used.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 	)

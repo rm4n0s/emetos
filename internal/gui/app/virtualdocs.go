@@ -22,7 +22,7 @@ const (
 
 // registerVirtualDocuments makes the registry of the virtual documents with the providers Emetos has: the default
 // settings, made from the registry of settings each time the document is opened, and the default keyboard
-// shortcuts, made from the keymap.
+// shortcuts, made from the keymap, and the documents of the comparisons (compare.go).
 func (p *Process) registerVirtualDocuments() {
 	p.Virtual = document.NewVirtualRegistry()
 	err := p.Virtual.Register(DefaultSettingsPath, document.VirtualProvider{
@@ -40,4 +40,5 @@ func (p *Process) registerVirtualDocuments() {
 	if err != nil {
 		panic(err)
 	}
+	p.registerCompareDocuments()
 }

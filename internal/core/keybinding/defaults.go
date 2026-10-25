@@ -602,5 +602,8 @@ func registerDiffEditorKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.action.compareEditor.nextChange", Weight: WeightWorkbenchContrib, When: mustWhen("textCompareEditorVisible"), Primary: "alt+f5"},
 		Rule{Command: "workbench.action.compareEditor.previousChange", Weight: WeightWorkbenchContrib, When: mustWhen("textCompareEditorVisible"), Primary: "shift+alt+f5"},
+		// the commands that open a diff (step 9.6)
+		Rule{Command: "workbench.files.action.compareWithSaved", Weight: WeightWorkbenchContrib, Primary: "ctrl+k d"},
+		Rule{Command: "workbench.files.action.compareWithClipboard", Weight: WeightWorkbenchContrib, Primary: "ctrl+k c"},
 	)
 }

@@ -801,12 +801,14 @@ var modeAppCommands = map[string]bool{
 	"workbench.action.zoomIn":               true, "workbench.action.zoomOut": true, "workbench.action.zoomReset": true,
 }
 
-// diffAppCommands are the commands of the diff editor, which the app binds since the diff editors of the window are its
-// own (step 9.5).
+// diffAppCommands are the commands of the diff editor and the ones that open a diff, which the app binds since the diff
+// editors, the files and the quick input of the window are its own (steps 9.5 and 9.6).
 var diffAppCommands = map[string]bool{
 	"workbench.action.compareEditor.nextChange": true, "workbench.action.compareEditor.previousChange": true,
 	"workbench.action.compareEditor.focusPrimarySide": true, "workbench.action.compareEditor.focusSecondarySide": true,
 	"workbench.action.compareEditor.focusOtherSide": true,
+	"workbench.files.action.compareWithSaved":       true, "workbench.files.action.compareFileWith": true,
+	"workbench.files.action.compareWithClipboard": true,
 }
 
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {

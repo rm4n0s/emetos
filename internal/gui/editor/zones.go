@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -28,6 +29,13 @@ type ZoneSpec struct {
 	// Widget is drawn in the rows of the zone, as wide as the text area; nil leaves the rows empty.
 	// A zone's widget does not scroll sideways with the text.
 	Widget widgets.Widget
+	// Gutter, when it is not transparent, fills the gutter along the rows of the zone (VS Code's margin of a
+	// view zone: the diff editor colors the margin of the deleted lines of its inline view).
+	Gutter ui.Color
+	// GutterGlyph, when it is not 0, is the Codicon (its code point) drawn at the right of the line
+	// decorations column on every row of the zone, in the color of the line numbers: the minus sign of the
+	// deleted lines of the inline diff.
+	GutterGlyph int
 }
 
 // ZoneInfo is a zone and where the editor shows it now.

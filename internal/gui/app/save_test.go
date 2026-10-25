@@ -775,7 +775,7 @@ func TestAFileThatChangedOnDiskIsAConflict(t *testing.T) {
 			a.press("ctrl+s")
 			a.waitFor("the notification", func() bool { return len(a.notes()) > 0 })
 			n := a.errorNote()
-			if !slices.Equal(actionLabels(n), []string{"Overwrite", "Revert", "Save As..."}) || !n.IsSticky() {
+			if !slices.Equal(actionLabels(n), []string{"Compare", "Overwrite", "Revert", "Save As..."}) || !n.IsSticky() {
 				t.Errorf("buttons %v sticky %v", actionLabels(n), n.IsSticky())
 			}
 			if !strings.Contains(n.Message, "'a.txt'") || !strings.Contains(n.Message, "newer") {

@@ -859,13 +859,15 @@ func registerProfileCommands(r *Registry) {
 // registerDiffEditorCommands registers the commands of the diff editor (step 9.5): Go to Next Change and Go to
 // Previous Change (Alt+F5 and Shift+Alt+F5, the compare editor commands of the workbench), the three that focus a
 // side of the diff (no title, as in VS Code: they are for keybindings) and Switch Side (the editor command, which
-// maps the cursor to the other side). Not built: Open Active Diff Side, Swap Left and Right Editor Side, Toggle
-// Inline View and the view modes (step 9.6), Toggle Collapse Unchanged Regions, Toggle Show Moved Code Blocks, Toggle
-// Use Inline View When Space Is Limited, Exit Compare Move, the revert commands and the accessible diff viewer
-// (SPEC section 9.11).
+// maps the cursor to the other side); step 9.6 adds Toggle Inline View, Toggle Use Inline View When Space Is Limited and
+// the three view modes, and the commands that open a diff: Compare with Saved, Compare Active File With..., Compare
+// Active File with Clipboard and the Explorer's Select for Compare, Compare with Selected and Compare Selected (the ones
+// without a title are for menus and keys). Not built: Open Active Diff Side, Swap Left and Right Editor Side, Toggle
+// Collapse Unchanged Regions, Toggle Show Moved Code Blocks, Exit Compare Move, Compare New Untitled Text Files, the
+// revert commands and the accessible diff viewer (SPEC section 9.11).
 //
-// Ported from VS Code: src/vs/workbench/browser/parts/editor/diffEditorCommands.ts and
-// src/vs/editor/browser/widget/diffEditor/commands.ts
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/diffEditorCommands.ts,
+// src/vs/editor/browser/widget/diffEditor/commands.ts and src/vs/workbench/contrib/files/browser/fileActions.contribution.ts
 func registerDiffEditorCommands(r *Registry) {
 	r.MustRegister(
 		Meta{ID: "workbench.action.compareEditor.nextChange", Title: "Go to Next Change"},
@@ -874,5 +876,21 @@ func registerDiffEditorCommands(r *Registry) {
 		Meta{ID: "workbench.action.compareEditor.focusSecondarySide"},
 		Meta{ID: "workbench.action.compareEditor.focusOtherSide"},
 		Meta{ID: "diffEditor.switchSide", Title: "Switch Side", Category: "Diff Editor", Precondition: contextkey.Has("isInDiffEditor")},
+		// the inline view (step 9.6)
+		Meta{ID: "toggle.diff.renderSideBySide", Title: "Toggle Inline View", Category: "Compare"},
+		Meta{ID: "diffEditor.toggleUseInlineViewWhenSpaceIsLimited", Title: "Toggle Use Inline View When Space Is Limited", Precondition: contextkey.Has("isInDiffEditor")},
+		Meta{ID: "diffEditor.setViewMode.inline"},
+		Meta{ID: "diffEditor.setViewMode.sideBySide"},
+		Meta{ID: "diffEditor.setViewMode.automatic"},
+		// the ways to open a diff (step 9.6)
+		Meta{ID: "workbench.files.action.compareWithSaved", Title: "Compare Active File with Saved", Category: "File",
+			Description: "Opens a new diff editor to compare the active file with the version on disk."},
+		Meta{ID: "workbench.files.action.compareFileWith", Title: "Compare Active File With...", Category: "File", Precondition: contextkey.Has("activeEditor"),
+			Description: "Opens a picker to select a file to diff with the active editor."},
+		Meta{ID: "workbench.files.action.compareWithClipboard", Title: "Compare Active File with Clipboard", Category: "File",
+			Description: "Opens a new diff editor to compare the active file with the contents of the clipboard."},
+		Meta{ID: "selectForCompare"},
+		Meta{ID: "compareFiles"},
+		Meta{ID: "compareSelected"},
 	)
 }

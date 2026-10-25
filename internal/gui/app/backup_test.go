@@ -437,7 +437,7 @@ func TestTheFileChangedBetweenRunsOpensDirtyWithOneNotice(t *testing.T) {
 	for _, a := range items[0].Actions {
 		labels = append(labels, a.Label)
 	}
-	if !slices.Equal(labels, []string{"Overwrite", "Revert"}) {
+	if !slices.Equal(labels, []string{"Compare", "Overwrite", "Revert"}) {
 		t.Errorf("buttons %v", labels)
 	}
 	// a save asks before overwriting: it fails and leaves the file

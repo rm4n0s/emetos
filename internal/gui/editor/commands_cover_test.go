@@ -25,6 +25,10 @@ var appCommands = map[string]bool{
 	"openRecentFolder": true, "openRecentFile": true,
 	// Switch Side of the diff editor (gui/app/diffpane.go)
 	"diffEditor.switchSide": true,
+	// the inline view and the ways to open a diff (gui/app/compare.go)
+	"toggle.diff.renderSideBySide": true, "diffEditor.toggleUseInlineViewWhenSpaceIsLimited": true,
+	"diffEditor.setViewMode.inline": true, "diffEditor.setViewMode.sideBySide": true, "diffEditor.setViewMode.automatic": true,
+	"selectForCompare": true, "compareFiles": true, "compareSelected": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

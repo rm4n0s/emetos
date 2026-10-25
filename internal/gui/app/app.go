@@ -237,6 +237,8 @@ type shellState struct {
 	removeOpenFile, removeOpenMenu func()
 	// removeOpenDiff takes the handler of dev.openDiff off the registry.
 	removeOpenDiff func()
+	// compare is what the comparisons remember (compare.go).
+	compare compareState
 	// quickPrefixes are the prefixes of the quick access providers the shell registered, and
 	// removeQuickCommands give back the commands that open the quick input.
 	quickPrefixes       []string

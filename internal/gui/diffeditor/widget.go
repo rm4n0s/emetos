@@ -4,6 +4,7 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/rendering"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
@@ -91,17 +92,35 @@ func (s *widgetState) editorOf(side Side) *editor.Editor {
 	return editor.NewEditor(w.model.View(side), opts)
 }
 
-// Build implements widgets.State.
+// Child keys of the row of the diff editor: the modified editor keeps its state (its scroll position, its focus) when
+// the view changes between side by side and inline.
+type childKey string
+
+// Build implements widgets.State: the view the model is in, side by side or inline, at the width the widget has.
 func (s *widgetState) Build(bc widgets.BuildContext) widgets.Widget {
 	w := s.Widget()
 	colors := ColorsOf(kit.ThemeOf(bc))
 	w.model.SetColors(colors)
+	background := kit.ThemeOf(bc).EditorBackground
+	return widgets.NewListenableBuilder(w.model, func(bc widgets.BuildContext, _ widgets.Widget) widgets.Widget {
+		return widgets.NewLayoutBuilder(func(bc widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+			w.model.SetWidth(c.MaxWidth)
+			return s.layout(bc, colors, background)
+		})
+	}, nil)
+}
+
+// layout is the row of the editors for the mode of the model.
+func (s *widgetState) layout(bc widgets.BuildContext, colors Colors, background ui.Color) widgets.Widget {
+	w := s.Widget()
+	inline := w.model.Mode() == Inline
 	if s.scope != nil {
 		s.scope.Set("diffEditorModifiedWritable", !w.model.View(Modified).ReadOnly())
+		s.scope.Set("diffEditorInlineMode", inline)
+		s.scope.Set("diffEditorRenderSideBySideInlineBreakpointReached", w.model.BreakpointReached())
 	}
-	divider := widgets.NewColoredBox(colors.Border, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(dividerWidth)}))
 	ruler := widgets.NewSizedBox(widgets.NewListener(
-		widgets.NewCustomPaint(nil, widgets.CustomPaintOpts{Painter: newRulerPainter(w.model, colors, kit.ThemeOf(bc).EditorBackground)}),
+		widgets.NewCustomPaint(nil, widgets.CustomPaintOpts{Painter: newRulerPainter(w.model, colors, background)}),
 		widgets.ListenerOpts{
 			Behavior:      rendering.HitTestBehaviorOpaque,
 			OnPointerDown: func(e *gestures.PointerDownEvent) { s.pressed = true; s.rulerTo(e.LocalPosition().Dy, bc) },
@@ -112,13 +131,21 @@ func (s *widgetState) Build(bc widgets.BuildContext) widgets.Widget {
 			},
 			OnPointerUp:     func(*gestures.PointerUpEvent) { s.pressed = false },
 			OnPointerCancel: func(*gestures.PointerCancelEvent) { s.pressed = false },
-		}), widgets.SizedBoxOpts{Width: foundation.Some(RulerWidth)})
-	return widgets.NewRow([]widgets.Widget{
-		widgets.NewExpanded(s.editorOf(Original)),
-		divider,
-		widgets.NewExpanded(s.editorOf(Modified)),
-		ruler,
-	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+		}), widgets.SizedBoxOpts{Key: foundation.NewValueKey(childKey("ruler")), Width: foundation.Some(RulerWidth)})
+	modified := widgets.NewExpanded(s.editorOf(Modified), widgets.ExpandedOpts{Key: foundation.NewValueKey(childKey("modified"))})
+	var children []widgets.Widget
+	if inline {
+		children = []widgets.Widget{modified, ruler}
+	} else {
+		divider := widgets.NewColoredBox(colors.Border, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(dividerWidth)}))
+		children = []widgets.Widget{
+			widgets.NewExpanded(s.editorOf(Original), widgets.ExpandedOpts{Key: foundation.NewValueKey(childKey("original"))}),
+			widgets.NewKeyedSubtree(divider, widgets.WidgetOpts{Key: foundation.NewValueKey(childKey("divider"))}),
+			modified,
+			ruler,
+		}
+	}
+	return widgets.NewRow(children, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 }
 
 // rulerTo scrolls the editors so that the place of the overview ruler at a height is in the middle of the view.

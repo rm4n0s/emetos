@@ -23,6 +23,10 @@ type ShowOptions struct {
 	// Activation says which item is active when the items are set. In the quick navigate mode it is the
 	// second item unless it says otherwise.
 	Activation ItemActivation
+	// OnFile, when it is set, is given the file that is chosen in the file mode of this session, in the place of
+	// opening it: "Compare Active File With..." asks for a file this way. It is called on the UI thread, once the
+	// picker is closed, as FilesOptions.Open is.
+	OnFile func(FileOpen)
 }
 
 // Modifiers are the modifier keys of a chord.
@@ -136,6 +140,8 @@ type Controller struct {
 	// fixed is set while a pick of the caller is shown: the value does not change the provider.
 	fixed    bool
 	onCancel func()
+	// onFile is ShowOptions.OnFile of the last Show.
+	onFile func(FileOpen)
 	// onHide is PickOptions.OnHide, and stopActive stops following the active item for PickOptions.OnActive.
 	onHide     func(accepted bool)
 	stopActive func()
@@ -252,6 +258,10 @@ func (c *Controller) Show(value string, opts ShowOptions) {
 		if opts.QuickNavigate != nil {
 			c.quickNav = opts.QuickNavigate
 		}
+		c.onFile = opts.OnFile
+		if c.session != nil {
+			c.session.onFile = opts.OnFile
+		}
 		prefix := provider.Info().Prefix
 		if value != prefix && !opts.PreserveValue {
 			c.picker.SetValue(value)
@@ -294,6 +304,7 @@ func (c *Controller) Show(value string, opts ShowOptions) {
 		}
 	}
 	c.picker.SetItemActivation(activation)
+	c.onFile = opts.OnFile
 	c.start(provider)
 	prefix := ""
 	if provider != nil {
@@ -322,7 +333,7 @@ func (c *Controller) start(p Provider) {
 		info = p.Info()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	c.session = &Session{c: c, picker: c.picker, ctx: ctx, cancel: cancel, prefix: info.Prefix}
+	c.session = &Session{c: c, picker: c.picker, ctx: ctx, cancel: cancel, prefix: info.Prefix, onFile: c.onFile}
 	c.picker.SetPrefixLen(len(info.Prefix))
 	c.picker.SetPlaceholder(info.Placeholder)
 	if p == nil {

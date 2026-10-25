@@ -248,8 +248,6 @@ func TestLaunchNotices(t *testing.T) {
 		outcome []LaunchOutcome
 		opens   bool
 	}{
-		{"diff", ipc.OpenArgs{Diff: []string{"/a", "/b"}}, []string{DiffUnavailableNotice},
-			[]LaunchOutcome{{ExitCode: 1, Message: DiffUnavailableNotice}}, false},
 		{"merge", ipc.OpenArgs{Merge: []string{"/1", "/2", "/3", "/4"}}, []string{MergeUnavailableNotice},
 			[]LaunchOutcome{{ExitCode: 1, Message: MergeUnavailableNotice}}, false},
 		// the manager picks the window that has the profile; a window that is asked for another one keeps its own and says so
@@ -453,8 +451,8 @@ func TestLauncherHandle(t *testing.T) {
 
 func TestLauncherHandleErrorReplies(t *testing.T) {
 	a, l := newLauncherApp(t, true)
-	reply := a.await(a.handle(l, context.Background(), ipc.OpenArgs{Diff: []string{"/a", "/b"}}))
-	if reply.Type != ipc.TypeError || reply.ExitCode != 1 || reply.Message != DiffUnavailableNotice {
+	reply := a.await(a.handle(l, context.Background(), ipc.OpenArgs{Merge: []string{"/1", "/2", "/3", "/4"}}))
+	if reply.Type != ipc.TypeError || reply.ExitCode != 1 || reply.Message != MergeUnavailableNotice {
 		t.Errorf("reply %+v", reply)
 	}
 }
@@ -594,12 +592,29 @@ func TestStartupArgumentsOfTheFirstInstance(t *testing.T) {
 
 func TestStartupDiffOfTheFirstInstance(t *testing.T) {
 	win := newTestWindow(t, "")
-	win.startup = &ipc.OpenArgs{Diff: []string{"/a", "/b"}}
+	dir := t.TempDir()
+	left, right := filepath.Join(dir, "old.go"), filepath.Join(dir, "new.go")
+	for path, text := range map[string]string{left: "a\nb\n", right: "a\nB\n"} {
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	win.startup = &ipc.OpenArgs{Diff: []string{left, right}}
 	a := &launchApp{&explorerApp{t: t, win: win, ts: testutil.New(t, ui.Size{Width: 900, Height: 600})}}
 	a.ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
-	a.pump()
-	if got := a.notices(); !slices.Equal(got, []string{DiffUnavailableNotice}) {
+	a.waitFor("the diff editor", func() bool { return len(a.shell().diffPanes()) == 1 })
+	if got := a.openNames(); !slices.Equal(got, []string{"old.go ↔ new.go"}) {
+		t.Errorf("tabs %v", got)
+	}
+	if got := a.notices(); len(got) != 0 {
 		t.Errorf("notices %q", got)
+	}
+	in, ok := a.shell().activeGroup().Model.ActiveEditor().(*editorgroup.DiffInput)
+	if !ok || in.Original().URI() != document.FileURI(left) || in.Modified().URI() != document.FileURI(right) {
+		t.Errorf("the active editor is %v: the first file is the left side, the second the right", a.shell().activeGroup().Model.ActiveEditor())
+	}
+	if win.startup != nil {
+		t.Error("the shell did not take the startup arguments")
 	}
 }
 
@@ -634,4 +649,89 @@ func TestDocumentsWatchClose(t *testing.T) {
 	if !slices.Equal(closed, []string{"a.go"}) {
 		t.Errorf("closed %v, want only a.go (b.go closed after the watch was stopped)", closed)
 	}
+}
+
+// diffTargets are the two files of a --diff in the folder of the app.
+func (a *launchApp) diffTargets(left, right string) []string {
+	return []string{a.path(left), a.path(right)}
+}
+
+func TestLaunchDiffOpensTheDiffEditorInTheActiveGroup(t *testing.T) {
+	a := newLaunchApp(t, "c.go")
+	r := a.launch(ipc.OpenArgs{Diff: a.diffTargets("a.go", "b.go")})
+	// the client does not wait: it is told at once
+	wantOutcomes(t, r, LaunchOutcome{})
+	a.waitFor("the diff editor", func() bool { return len(a.shell().diffPanes()) == 1 })
+	in, ok := a.shell().activeGroup().Model.ActiveEditor().(*editorgroup.DiffInput)
+	if !ok {
+		t.Fatalf("the active editor is %T", a.shell().activeGroup().Model.ActiveEditor())
+	}
+	if in.Original().URI() != document.FileURI(a.path("a.go")) || in.Modified().URI() != document.FileURI(a.path("b.go")) {
+		t.Errorf("the sides are %v and %v", in.Original().URI(), in.Modified().URI())
+	}
+	if !a.shell().activeGroup().Model.IsPinned(in) {
+		t.Error("the diff editor is a preview")
+	}
+	if got := a.openNames(); !slices.Equal(got, []string{"c.go", "a.go ↔ b.go"}) {
+		t.Errorf("tabs %v", got)
+	}
+	if got := a.notices(); len(got) != 0 {
+		t.Errorf("notices %q", got)
+	}
+}
+
+func TestLaunchDiffWaitsForTheDiffEditorToClose(t *testing.T) {
+	a := newLaunchApp(t, "a.go")
+	s := a.shell()
+	r := a.launch(ipc.OpenArgs{Wait: true, Diff: a.diffTargets("a.go", "b.go")})
+	a.waitFor("the diff editor", func() bool { return len(s.diffPanes()) == 1 })
+	wantOutcomes(t, r)
+	// the text editor of a.go is still open, and the files are used by it: it is the diff editor that counts
+	in := s.activeGroup().Model.ActiveEditor()
+	s.closeEditors(s.activeGroup(), []editorgroup.EditorInput{in})
+	a.pump()
+	wantOutcomes(t, r, LaunchOutcome{})
+	if len(s.diffPanes()) != 0 {
+		t.Error("the diff editor is still open")
+	}
+}
+
+func TestLaunchDiffWithAFileThatCannotBeOpened(t *testing.T) {
+	for _, wait := range []bool{false, true} {
+		name := "without --wait"
+		if wait {
+			name = "with --wait"
+		}
+		t.Run(name, func(t *testing.T) {
+			a := newLaunchApp(t)
+			r := a.launch(ipc.OpenArgs{Wait: wait, Diff: []string{a.path("a.go"), filepath.Join(a.root, "missing.go")}})
+			a.waitFor("the notice", func() bool { return len(a.notices()) == 1 })
+			if got := a.notices(); !strings.Contains(got[0], "missing.go") {
+				t.Errorf("notices %q", got)
+			}
+			if len(a.shell().diffPanes()) != 0 || a.shell().editorCount() != 0 {
+				t.Error("something was opened")
+			}
+			if wait {
+				a.waitFor("the end of the wait", func() bool { return len(r.outcomes) == 1 })
+				if r.outcomes[0].ExitCode != 1 {
+					t.Errorf("outcome %+v", r.outcomes[0])
+				}
+			}
+			if n := len(a.win.Documents.All()); n != 0 {
+				// a.go was read for the diff and is let go again
+				t.Errorf("%d documents are kept", n)
+			}
+		})
+	}
+}
+
+func TestLaunchDiffNeedsTwoFiles(t *testing.T) {
+	a := newLaunchApp(t)
+	r := a.launch(ipc.OpenArgs{Wait: true, Diff: []string{a.path("a.go")}})
+	a.pump()
+	if got := a.notices(); !slices.Equal(got, []string{"--diff needs two files"}) {
+		t.Errorf("notices %q", got)
+	}
+	wantOutcomes(t, r, LaunchOutcome{ExitCode: 1, Message: "none of the files could be opened"})
 }

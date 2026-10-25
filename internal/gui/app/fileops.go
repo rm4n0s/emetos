@@ -1242,6 +1242,8 @@ func (s *shellState) explorerMenuContext(path string) contextkey.Context {
 		"fileCopied":                      len(ex.clip.paths) > 0,
 		"resourceScheme":                  "file",
 		"isFileSystemResource":            true,
+		// two rows are selected and the pressed one is one of them: Compare Selected (VS Code's listDoubleSelection)
+		"listDoubleSelection": ex.view != nil && len(ex.view.Context(true)) == 2,
 	}
 	return menuContext{base: win.Keys, settings: win.Settings, extra: extra}
 }

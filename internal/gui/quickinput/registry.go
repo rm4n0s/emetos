@@ -147,6 +147,8 @@ type Session struct {
 	prefix   string
 	ended    bool
 	cleanups []func()
+	// onFile is ShowOptions.OnFile of the Show that started the session.
+	onFile func(FileOpen)
 }
 
 // Picker is the picker the provider fills.

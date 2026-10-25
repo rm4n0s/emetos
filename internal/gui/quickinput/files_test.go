@@ -573,3 +573,29 @@ func TestGoldenQuickOpen(t *testing.T) {
 		}
 	}
 }
+
+func TestShowOptionsOnFileTakesTheChosenFileInsteadOfOpeningIt(t *testing.T) {
+	f := newFakeFiles(projectFiles...)
+	r := filesRig(t, f, ui.Size{Width: 800, Height: 500}, kit.DarkModern())
+	var got []FileOpen
+	r.show("", ShowOptions{OnFile: func(req FileOpen) { got = append(got, req) }})
+	r.typeText("main")
+	r.waitRows("main", labelsAre("main.go"))
+	r.press(services.LogicalKeyboardKeyEnter)
+	r.settle()
+	if want := []FileOpen{{Path: "/work/main.go", Pinned: true}}; !slices.Equal(got, want) {
+		t.Errorf("OnFile got %+v, want %+v", got, want)
+	}
+	if len(f.opened) != 0 {
+		t.Errorf("the file was opened as well: %+v", f.opened)
+	}
+	// the next quick open, without the option, opens files again
+	r.show("", ShowOptions{})
+	r.typeText("main")
+	r.waitRows("main", labelsAre("main.go"))
+	r.press(services.LogicalKeyboardKeyEnter)
+	r.settle()
+	if len(got) != 1 || len(f.opened) != 1 {
+		t.Errorf("OnFile got %+v, opened %+v", got, f.opened)
+	}
+}

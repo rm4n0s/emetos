@@ -106,3 +106,84 @@ func TestVirtualDocumentIsReadOnly(t *testing.T) {
 		t.Errorf("after SetText: %q dirty %v", doc.Text(), doc.Dirty())
 	}
 }
+
+func TestVirtualPrefixProviders(t *testing.T) {
+	ctx := context.Background()
+	r := NewVirtualRegistry()
+	say := func(who string) func(context.Context, string) (string, error) {
+		return func(_ context.Context, rest string) (string, error) { return who + ":" + rest + "\r\nend", nil }
+	}
+	must := func(err error) {
+		t.Helper()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(r.RegisterPrefix("/saved/", VirtualPrefixProvider{
+		Label:    func(rest string) string { return "label " + rest },
+		Language: func(rest string) string { return "lang-" + rest },
+		Text:     say("saved"),
+	}))
+	must(r.RegisterPrefix("/saved/deep/", VirtualPrefixProvider{Text: say("deep")}))
+	must(r.Register("/saved/exact", VirtualProvider{Label: "Exact", Text: func(context.Context) (string, error) { return "one", nil }}))
+	for _, c := range []struct {
+		name                  string
+		uri                   URI
+		has                   bool
+		text, label, language string
+	}{
+		{"the rest of the path", VirtualURI("/saved/home/a.go"), true, "saved:home/a.go\nend", "label home/a.go", "lang-home/a.go"},
+		{"the longer prefix wins", VirtualURI("/saved/deep/x"), true, "deep:x\nend", "x", DefaultLanguage},
+		{"a document of its own wins over the prefix", VirtualURI("/saved/exact"), true, "one", "Exact", DefaultLanguage},
+		{"nothing after the prefix", VirtualURI("/saved/"), false, "", "", ""},
+		{"another folder", VirtualURI("/other/x"), false, "", "", ""},
+		{"not virtual", FileURI("/saved/x"), false, "", "", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := r.Has(c.uri); got != c.has {
+				t.Errorf("Has = %v", got)
+			}
+			got, err := r.Generate(ctx, c.uri)
+			if !c.has {
+				routeIs(t, err, "VirtualRegistry.Generate.VirtualURIUnknown")
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Text != c.text || got.Label != c.label || got.Language != c.language {
+				t.Errorf("got %+v, want text %q label %q language %q", got, c.text, c.label, c.language)
+			}
+		})
+	}
+	if paths := r.Paths(); len(paths) != 1 || paths[0] != "/saved/exact" {
+		t.Errorf("paths %v: the prefixes are not paths", paths)
+	}
+}
+
+func TestVirtualPrefixErrors(t *testing.T) {
+	ctx := context.Background()
+	r := NewVirtualRegistry()
+	text := func(context.Context, string) (string, error) { return "x", nil }
+	if err := r.RegisterPrefix("/a/", VirtualPrefixProvider{Text: text}); err != nil {
+		t.Fatal(err)
+	}
+	boom := errors.New("Boom", "the provider broke")
+	if err := r.RegisterPrefix("/broken/", VirtualPrefixProvider{Text: func(context.Context, string) (string, error) { return "", boom }}); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name  string
+		err   func() error
+		route string
+	}{
+		{"no slash at the start", func() error { return r.RegisterPrefix("a/", VirtualPrefixProvider{Text: text}) }, "VirtualRegistry.RegisterPrefix.VirtualPrefixInvalid"},
+		{"no slash at the end", func() error { return r.RegisterPrefix("/a", VirtualPrefixProvider{Text: text}) }, "VirtualRegistry.RegisterPrefix.VirtualPrefixInvalid"},
+		{"only a slash", func() error { return r.RegisterPrefix("/", VirtualPrefixProvider{Text: text}) }, "VirtualRegistry.RegisterPrefix.VirtualPrefixInvalid"},
+		{"no function", func() error { return r.RegisterPrefix("/b/", VirtualPrefixProvider{}) }, "VirtualRegistry.RegisterPrefix.VirtualPrefixInvalid"},
+		{"duplicate", func() error { return r.RegisterPrefix("/a/", VirtualPrefixProvider{Text: text}) }, "VirtualRegistry.RegisterPrefix.VirtualPrefixDuplicate"},
+		{"the provider fails", func() error { _, err := r.Generate(ctx, VirtualURI("/broken/x")); return err }, "VirtualRegistry.Generate.VirtualGenerateFailed"},
+	} {
+		t.Run(c.name, func(t *testing.T) { routeIs(t, c.err(), c.route) })
+	}
+}

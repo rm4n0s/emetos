@@ -400,6 +400,7 @@ func (s *shellState) saveFailed(f saveFailure, finish func(bool)) {
 	case "FileModifiedSince":
 		msg = "Failed to save '" + name + "': The content of the file is newer. Overwrite the content of the file with your changes, or revert to the content of the file."
 		actions = append(actions,
+			notify.Action{Label: "Compare", Run: func() { s.compareConflict(f.doc) }},
 			retryWith("Overwrite", func(r *saveRequest) { r.ignoreConflict = true }),
 			notify.Action{Label: "Revert", Run: func() { s.revertDocument(binding, f.doc, nil) }})
 	case "FileReadOnly":

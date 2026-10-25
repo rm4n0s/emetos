@@ -48,7 +48,10 @@ type diffPane struct {
 	sides [2]*textEditor
 	model *diffeditor.Model
 	// inputs are the inputs the text editors were made over; they are in no group.
-	inputs   [2]*editorgroup.TextInput
+	inputs [2]*editorgroup.TextInput
+	// stops end what the pane follows besides the diff: the saves of the modified document, for a comparison with
+	// the saved file.
+	stops    []func()
 	disposed bool
 }
 
@@ -71,6 +74,10 @@ func newDiffPane(s *shellState, input *editorgroup.DiffInput) *diffPane {
 		OriginalFocus: p.sides[0].focus, ModifiedFocus: p.sides[1].focus,
 	})
 	p.model.Start()
+	// the saved text of a file that a comparison shows is what is on disk: a save of the document changes it
+	if path, ok := savedPathOf(input.Original().URI()); ok {
+		p.stops = append(p.stops, input.Modified().OnSaved(func(document.SavedEvent) { s.refreshSaved(path) }))
+	}
 	return p
 }
 
@@ -102,6 +109,10 @@ func (p *diffPane) dispose() {
 	}
 	p.disposed = true
 	win := p.s.win
+	for _, stop := range p.stops {
+		stop()
+	}
+	p.stops = nil
 	p.model.Dispose()
 	for i, ed := range p.sides {
 		delete(p.s.group.focused, ed)
@@ -112,6 +123,7 @@ func (p *diffPane) dispose() {
 		}
 		p.inputs[i].Dispose()
 	}
+	p.s.launchDiffClosed(p.input)
 }
 
 // diffPanes are the diff editors on screen: the one of the active group first, then those of the other groups
@@ -179,8 +191,9 @@ func (s *shellState) diffCommands() map[string]command.Handler {
 
 // openDiff shows a comparison of two documents in a group (the active one by default), as an editor that is kept,
 // and makes it the active editor. The caller has acquired each document once; the use is given back here, the pane
-// counts its own. A comparison that the group shows already is activated.
-func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.Group) {
+// counts its own. A comparison that the group shows already is activated. It returns the input of the tab that
+// shows the comparison (the one that was there, when there was one).
+func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.Group) *editorgroup.DiffInput {
 	win := PeekWindow(s.Context())
 	if group == nil {
 		group = s.activeGroup()
@@ -188,11 +201,15 @@ func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.G
 	defer win.Documents.Release(orig)
 	defer win.Documents.Release(mod)
 	input := editorgroup.NewDiffInput(orig, mod, s.inputOptions())
+	shown := input
 	s.SetState(func() {
 		s.nav.hold++
-		_, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: true, Active: true})
+		opened, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: true, Active: true})
 		s.nav.hold--
 		if !isNew {
+			if d, ok := opened.(*editorgroup.DiffInput); ok {
+				shown = d
+			}
 			input.Dispose()
 		}
 		s.syncNav()
@@ -201,6 +218,7 @@ func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.G
 		}
 	})
 	s.refreshKeys()
+	return shown
 }
 
 // restoreDiff makes the input of a saved diff editor from the documents that PrepareRestore opened (openSavedEditors);

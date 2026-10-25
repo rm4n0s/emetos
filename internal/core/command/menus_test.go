@@ -779,7 +779,11 @@ func TestExplorerContextMenu(t *testing.T) {
 		ctx  contextkey.MapContext
 		want []string
 	}{
-		{"a file", file, []string{"Open to the Side", "Open Containing Folder", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"a file", file, []string{"Open to the Side", "Open Containing Folder", "-", "Select for Compare", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"a file when another one is selected for compare", with(file, contextkey.MapContext{"resourceSelectedForCompare": true}),
+			[]string{"Open to the Side", "Open Containing Folder", "-", "Compare with Selected", "Select for Compare", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"a file of two that are selected", with(file, contextkey.MapContext{"listDoubleSelection": true, "resourceSelectedForCompare": true}),
+			[]string{"Open to the Side", "Open Containing Folder", "-", "Compare Selected", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
 		{"a folder with something to paste", with(file, contextkey.MapContext{"explorerResourceIsFolder": true, "fileCopied": true}),
 			[]string{"New File...", "New Folder...", "Open Containing Folder", "-", "Cut", "Copy", "Paste", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
 		{"a folder with nothing to paste", with(file, contextkey.MapContext{"explorerResourceIsFolder": true}),
@@ -787,9 +791,9 @@ func TestExplorerContextMenu(t *testing.T) {
 		{"the root folder", with(file, contextkey.MapContext{"explorerResourceIsFolder": true, "explorerResourceIsRoot": true}),
 			[]string{"New File...", "New Folder...", "Open Containing Folder", "-", "(Paste)", "-", "Copy Path", "Copy Relative Path"}},
 		{"a file where the trash cannot be used", with(file, contextkey.MapContext{"explorerResourceMoveableToTrash": false}),
-			[]string{"Open to the Side", "Open Containing Folder", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete Permanently"}},
+			[]string{"Open to the Side", "Open Containing Folder", "-", "Select for Compare", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete Permanently"}},
 		{"a read-only file", with(file, contextkey.MapContext{"explorerResourceReadonly": true}),
-			[]string{"Open to the Side", "Open Containing Folder", "-", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "(Rename...)", "Delete"}},
+			[]string{"Open to the Side", "Open Containing Folder", "-", "Select for Compare", "-", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "(Rename...)", "Delete"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

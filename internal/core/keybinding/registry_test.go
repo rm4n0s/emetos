@@ -439,3 +439,20 @@ func TestDiffEditorKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestCompareKeys(t *testing.T) {
+	resolver := NewResolver(DefaultRegistry().Defaults(), nil, nil)
+	cases := []struct{ chords, want string }{
+		{"ctrl+k d", "workbench.files.action.compareWithSaved"},
+		{"ctrl+k c", "workbench.files.action.compareWithClipboard"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.chords, func(t *testing.T) {
+			kb := mustKB(t, tc.chords)
+			res := resolver.Resolve(contextkey.MapContext{}, []string{kb[0].Dispatch()}, kb[1].Dispatch())
+			if res.Kind != KbFound || res.Command != tc.want {
+				t.Errorf("got %+v, want %q", res, tc.want)
+			}
+		})
+	}
+}

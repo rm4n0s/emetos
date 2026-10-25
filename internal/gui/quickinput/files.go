@@ -244,7 +244,7 @@ func (h *filesHandler) item(hit workspace.QuickOpenHit, recent bool) Item {
 // default, the editor is kept.
 func (h *filesHandler) open(path string, mods KeyMods, forceSide bool) {
 	o := h.p.opts
-	if o.Open == nil {
+	if o.Open == nil && h.s.onFile == nil {
 		return
 	}
 	pinnedByDefault := o.OpenPinned == nil || o.OpenPinned()
@@ -255,6 +255,10 @@ func (h *filesHandler) open(path string, mods KeyMods, forceSide bool) {
 	}
 	if h.rng != nil {
 		req.Line, req.Column = h.rng.StartLine, h.rng.StartColumn
+	}
+	if h.s.onFile != nil {
+		h.s.onFile(req)
+		return
 	}
 	o.Open(req)
 }

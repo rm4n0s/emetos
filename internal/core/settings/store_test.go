@@ -110,6 +110,10 @@ func TestDefaultRegistry(t *testing.T) {
 		{"diffEditor.maxComputationTime", []Type{Number}, 5000.0, ScopeLanguageOverridable, "Text Editor"},
 		// the white space of the diff editor (step 9.5)
 		{"diffEditor.ignoreTrimWhitespace", []Type{Boolean}, true, ScopeLanguageOverridable, "Text Editor"},
+		// the views of the diff editor (step 9.6)
+		{"diffEditor.renderSideBySide", []Type{Boolean}, true, ScopeLanguageOverridable, "Text Editor"},
+		{"diffEditor.renderSideBySideInlineBreakpoint", []Type{Number}, 900.0, ScopeLanguageOverridable, "Text Editor"},
+		{"diffEditor.useInlineViewWhenSpaceIsLimited", []Type{Boolean}, true, ScopeLanguageOverridable, "Text Editor"},
 	} {
 		s, ok := r.Lookup(w.key)
 		if !ok {

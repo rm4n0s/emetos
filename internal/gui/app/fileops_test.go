@@ -1229,7 +1229,7 @@ func TestTheContextMenuOfTheExplorer(t *testing.T) {
 		want  []string
 	}{
 		{"a file", func(a *fileApp) {}, "main.go", []string{
-			"Open to the Side", "Open Containing Folder", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+			"Open to the Side", "Open Containing Folder", "-", "Select for Compare", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
 		{"a folder", func(a *fileApp) {}, "docs", []string{
 			"New File...", "New Folder...", "Open Containing Folder", "-", "Cut", "Copy", "Paste~", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
 		{"a folder with something copied", func(a *fileApp) {
@@ -1238,7 +1238,23 @@ func TestTheContextMenuOfTheExplorer(t *testing.T) {
 		}, "docs", []string{
 			"New File...", "New Folder...", "Open Containing Folder", "-", "Cut", "Copy", "Paste", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
 		{"without the trash", func(a *fileApp) { a.setting("files.enableTrash", false) }, "main.go", []string{
-			"Open to the Side", "Open Containing Folder", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete Permanently"}},
+			"Open to the Side", "Open Containing Folder", "-", "Select for Compare", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete Permanently"}},
+		{"a file when another one is selected for compare", func(a *fileApp) {
+			a.focusTree("go.mod")
+			a.mustRun("selectForCompare", nil)
+		}, "main.go", []string{
+			"Open to the Side", "Open Containing Folder", "-", "Compare with Selected", "Select for Compare", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"a folder when a file is selected for compare", func(a *fileApp) {
+			a.focusTree("go.mod")
+			a.mustRun("selectForCompare", nil)
+		}, "docs", []string{
+			"New File...", "New Folder...", "Open Containing Folder", "-", "Cut", "Copy", "Paste~", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
+		{"a file of two that are selected", func(a *fileApp) {
+			a.view().Tree().SetSelected(a.path("go.mod"))
+			a.view().Tree().ClickWith(a.path("main.go"), kit.ClickModifiers{Ctrl: true}, false, false)
+			a.view().Tree().SetFocus(a.path("main.go"))
+		}, "main.go", []string{
+			"Open to the Side", "Open Containing Folder", "-", "Compare Selected", "-", "Cut", "Copy", "-", "Copy Path", "Copy Relative Path", "-", "Rename...", "Delete"}},
 		{"the empty part of the tree is the folder of the window", func(a *fileApp) {}, "", []string{
 			"New File...", "New Folder...", "Open Containing Folder", "-", "Paste~", "-", "Copy Path", "Copy Relative Path"}},
 	}

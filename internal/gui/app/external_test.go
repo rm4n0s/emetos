@@ -248,7 +248,7 @@ func TestExternalChangeOfADirtyEditorAsksOnce(t *testing.T) {
 		if n.Message != "The file 'a.txt' has changed on disk and you have unsaved changes." || !n.Sticky {
 			t.Errorf("notification %q, sticky %v", n.Message, n.Sticky)
 		}
-		if got := actionLabels(n); !slices.Equal(got, []string{"Overwrite", "Revert"}) {
+		if got := actionLabels(n); !slices.Equal(got, []string{"Compare", "Overwrite", "Revert"}) {
 			t.Errorf("buttons %v", got)
 		}
 		// more changes of the file: still one question
@@ -308,7 +308,7 @@ func TestExternalChangeOfADirtyEditorAsksOnce(t *testing.T) {
 		if len(a.notes()) != 1 {
 			t.Fatalf("notifications: %v", a.notes())
 		}
-		if got := actionLabels(a.errorNote()); !slices.Equal(got, []string{"Overwrite", "Revert", "Save As..."}) {
+		if got := actionLabels(a.errorNote()); !slices.Equal(got, []string{"Compare", "Overwrite", "Revert", "Save As..."}) {
 			t.Errorf("buttons %v", got)
 		}
 		if got := readFile(t, a.files["a.txt"]); got != "theirs\n" {

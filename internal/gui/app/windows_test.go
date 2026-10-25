@@ -1380,10 +1380,10 @@ func TestLaunchesOpenInTheRightWindow(t *testing.T) {
 		a.settle()
 		wantOutcomes(t, r, LaunchOutcome{})
 	})
-	t.Run("a diff ends with the notice, whichever window", func(t *testing.T) {
+	t.Run("a merge ends with the notice, whichever window", func(t *testing.T) {
 		a, _, _ := setup(t, nil)
-		r := a.launched(ipc.OpenArgs{Diff: []string{"/a", "/b"}})
-		wantOutcomes(t, r, LaunchOutcome{ExitCode: 1, Message: DiffUnavailableNotice})
+		r := a.launched(ipc.OpenArgs{Merge: []string{"/1", "/2", "/3", "/4"}})
+		wantOutcomes(t, r, LaunchOutcome{ExitCode: 1, Message: MergeUnavailableNotice})
 	})
 }
 

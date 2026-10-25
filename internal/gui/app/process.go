@@ -70,6 +70,8 @@ type Process struct {
 	// Virtual holds the providers of the read-only `emetos-virtual:` documents (SPEC §7.1), such as the default
 	// settings.
 	Virtual *document.VirtualRegistry
+	// clipboard holds the texts of the comparisons with the clipboard (compare.go).
+	clipboard *clipboardTexts
 
 	icons iconPreview
 

@@ -23,6 +23,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerEditorContext(r)
 	registerEditorTitleContext(r)
 	registerExplorerContext(r)
+	registerDiffEditorMenus(r)
 	registerQuickInputMenus(r)
 	registerSettingsMenus(r)
 	registerKeybindingsEditorMenus(r)
@@ -334,8 +335,8 @@ func registerEditorTitleContext(r *MenuRegistry) {
 // registerExplorerContext adds the context menu of the Explorer (SPEC §10.5), in VS Code's groups and
 // order. The "Delete" row has the "Delete Permanently" row as its alternative, which VS Code shows while
 // Shift is held; here the permanent delete shows where the trash cannot be used, and has the key
-// Shift+Delete. Not here: the rows for a root folder of a workspace, Open With, the comparisons, Find in
-// Folder, the terminal and the upload and download rows of the web.
+// Shift+Delete. The comparisons are the group 3_compare (step 9.6). Not here: the rows for a root folder of a
+// workspace, Open With, Find in Folder, the terminal and the upload and download rows of the web.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts and
 // src/vs/workbench/contrib/files/electron-browser/fileActions.contribution.ts
@@ -349,6 +350,14 @@ func registerExplorerContext(r *MenuRegistry) {
 			When: contextkey.And(contextkey.Not("explorerResourceIsFolder"), contextkey.Has("resourceScheme"))},
 		MenuItem{Menu: ExplorerContext, Command: "revealFileInOS", Title: "Open Containing Folder", Group: "navigation", Order: 20,
 			When: contextkey.Equals("resourceScheme", "file")},
+
+		// the comparisons (step 9.6); the clicked row is the one that is compared with the row selected for compare
+		MenuItem{Menu: ExplorerContext, Command: "compareFiles", Title: "Compare with Selected", Group: "3_compare", Order: 20,
+			When: when("!explorerResourceIsFolder && resourceScheme && resourceSelectedForCompare && !listDoubleSelection")},
+		MenuItem{Menu: ExplorerContext, Command: "selectForCompare", Title: "Select for Compare", Group: "3_compare", Order: 30,
+			When: when("!explorerResourceIsFolder && resourceScheme && !listDoubleSelection")},
+		MenuItem{Menu: ExplorerContext, Command: "compareSelected", Title: "Compare Selected", Group: "3_compare", Order: 30,
+			When: when("!explorerResourceIsFolder && resourceScheme && listDoubleSelection")},
 
 		MenuItem{Menu: ExplorerContext, Command: "filesExplorer.cut", Title: "Cut", Group: "5_cutcopypaste", Order: 8,
 			When: when("!explorerResourceIsRoot && !explorerResourceReadonly")},
@@ -388,6 +397,19 @@ func registerQuickInputMenus(r *MenuRegistry) {
 		MenuItem{Menu: GlobalActivity, Command: "workbench.action.showCommands", Title: "Command Palette...", Group: "1_command", Order: 1},
 
 		MenuItem{Menu: CommandPalette, Command: "workbench.action.quickOpenView", When: contextkey.False()},
+	)
+}
+
+// registerDiffEditorMenus adds the palette rules of the inline view (step 9.6): Toggle Inline View only while a
+// compare editor is the active editor, and the toggle of the setting for limited space is not listed (VS Code lists
+// neither it nor the view modes).
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/diffEditorCommands.ts and
+// src/vs/editor/browser/widget/diffEditor/commands.ts
+func registerDiffEditorMenus(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: CommandPalette, Command: "toggle.diff.renderSideBySide", When: contextkey.Has("textCompareEditorActive")},
+		MenuItem{Menu: CommandPalette, Command: "diffEditor.toggleUseInlineViewWhenSpaceIsLimited", When: contextkey.False()},
 	)
 }
 

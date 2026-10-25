@@ -26,6 +26,9 @@ type RulerMark struct {
 // RulerMarks are the marks of the changes, one for every change that has lines on a side. Total is the height of
 // all the rows of the editors (they are as tall as each other once aligned), which the marks are scaled to.
 func (m *Model) RulerMarks() (marks []RulerMark, total float64) {
+	if m.mode == Inline {
+		return m.inlineRulerMarks()
+	}
 	total = max(m.vms[Original].Projection().Height(), m.vms[Modified].Projection().Height())
 	for _, c := range m.changes {
 		for _, s := range []Side{Original, Modified} {
@@ -65,6 +68,9 @@ func (m *Model) ScrollToFraction(y, height float64) {
 	mod := m.vms[Modified]
 	_, viewport := mod.ViewportSize()
 	total := max(m.vms[Original].Projection().Height(), mod.Projection().Height())
+	if m.mode == Inline {
+		total = mod.Projection().Height()
+	}
 	m.leader = Modified
 	mod.ScrollTo(max(y/height*total-viewport/2, 0))
 }
@@ -113,4 +119,27 @@ func fillPaint(c ui.Color) *ui.Paint {
 	paint := ui.NewPaint()
 	paint.SetColor(c)
 	return paint
+}
+
+// inlineRulerMarks are the marks of the inline view: both halves of the ruler measure the one editor, the removed
+// one the zone of the deleted lines of a change, the inserted one the lines that took their place.
+func (m *Model) inlineRulerMarks() (marks []RulerMark, total float64) {
+	mod := m.vms[Modified]
+	proj := mod.Projection()
+	total = proj.Height()
+	zoneOf := map[int]editor.ZoneID{}
+	for _, z := range m.inline {
+		zoneOf[z.change] = z.id
+	}
+	for i, c := range m.changes {
+		if id, ok := zoneOf[i]; ok {
+			if first, count := proj.ZoneRows(id); count > 0 && first+count <= proj.RowCount() {
+				marks = append(marks, RulerMark{Side: Original, Top: proj.RowTop(first), Bottom: proj.RowTop(first+count-1) + proj.RowHeight(first+count-1)})
+			}
+		}
+		if top, bottom, ok := lineRangeExtent(mod, c.Modified); ok {
+			marks = append(marks, RulerMark{Side: Modified, Top: top, Bottom: bottom})
+		}
+	}
+	return marks, total
 }

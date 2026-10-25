@@ -22,7 +22,6 @@ import (
 // folds; a dirty one is left alone and gets one sticky notification with Overwrite and Revert; a deleted file
 // leaves the document open, struck through in its tab, and a save makes the file again.
 //
-// TODO(step 9.6): the "Compare" button of the notification opens the diff editor of the document and the file.
 //
 // Ported from VS Code: src/vs/workbench/services/textfile/common/textFileEditorModelManager.ts and
 // textFileEditorModel.ts (onDidFilesChange), src/vs/workbench/services/textfile/browser/textFileService.ts (the
@@ -140,7 +139,17 @@ func (s *shellState) externalEvents(events []workspace.Event) {
 		s.followPaths(binding, followMoves(moves))
 	}
 	for _, doc := range win.Documents.All() {
-		if doc == nil || doc.URI().Scheme != document.SchemeFile {
+		if doc == nil {
+			continue
+		}
+		if path, ok := savedPathOf(doc.URI()); ok {
+			// the saved text a comparison shows is what is on disk now
+			if eventsTouch(events, path) {
+				s.refreshSaved(path)
+			}
+			continue
+		}
+		if doc.URI().Scheme != document.SchemeFile {
 			continue
 		}
 		if eventsTouch(events, doc.URI().Path) {
@@ -339,8 +348,8 @@ func (s *shellState) externalStateChanged(doc *document.Document, st document.Ex
 }
 
 // showExternalNote tells the user that the file of a document with unsaved changes changed on disk: one sticky
-// notification for the document, in place of the one of a failed save, with Overwrite (save over the file) and
-// Revert (drop the unsaved changes and read the file). A save of the document that fails as a conflict later
+// notification for the document, in place of the one of a failed save, with Compare (the diff of the file on disk and
+// the document), Overwrite (save over the file) and Revert (drop the unsaved changes and read the file). A save of the document that fails as a conflict later
 // replaces it with its own, which has the same buttons.
 func (s *shellState) showExternalNote(doc *document.Document) {
 	if s.saves.notes == nil {
@@ -358,6 +367,7 @@ func (s *shellState) showExternalNote(doc *document.Document) {
 		Severity: notify.Warning, Source: "Emetos", Sticky: true,
 		Message: message,
 		Actions: []notify.Action{
+			{Label: "Compare", Run: func() { s.compareConflict(doc) }},
 			{Label: "Overwrite", Run: func() {
 				if s.Mounted() {
 					s.saveDocument(doc, saveRequest{ignoreConflict: true}, nil)
@@ -368,7 +378,6 @@ func (s *shellState) showExternalNote(doc *document.Document) {
 					s.revertDocument(binding, doc, nil)
 				}
 			}},
-			// TODO(step 9.6): a "Compare" button opens the diff editor of the document and the file on disk.
 		},
 	})
 	s.saves.notes[doc] = id
@@ -405,4 +414,20 @@ func (s *shellState) captureViews(doc *document.Document) []viewSnap {
 		}
 	}
 	return out
+}
+
+// compareConflict opens the diff of the file on disk (left, read only) and the document with its unsaved changes
+// (right): the "Compare" of the notification about a file that changed on disk and of a save that found it newer. The
+// notification stays: the changes are resolved by saving over the file (Overwrite) or by Revert, as before.
+//
+// Ported from VS Code: src/vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler.ts (ResolveSaveConflictAction)
+func (s *shellState) compareConflict(doc *document.Document) {
+	if !s.Mounted() || doc.URI().Scheme != document.SchemeFile {
+		return
+	}
+	win := PeekWindow(s.Context())
+	if err := s.openSavedDiff(doc); err != nil {
+		win.Process.Logger.Warn("cannot compare the document with the file on disk", "uri", doc.URI().String(), "err", err)
+		win.Notify.Error("Emetos", "Cannot compare with the file on disk: "+describe(err))
+	}
 }
