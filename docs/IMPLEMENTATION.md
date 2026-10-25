@@ -116,6 +116,8 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M9 Diff and merge | 9.1–9.9 |
 | M9b One window: workspace tabs and the tray | 9b.1–9b.5 |
 | M10 Release of areas 1–2 | 10.1–10.2 |
+| M11 Extensions | 11.1–11.6 |
+| M12 Language intelligence (area 3) | 12.1 (more steps after it) |
 
 ---
 
@@ -1093,7 +1095,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Goal:** one Glutter window holding every workspace as a tab, without the strip yet (SPEC §10.14, D17).
 **Read:** SPEC §10.14, §10.10, §10.11, §10.12; the "Several windows as built" paragraph of §5 and step 7.8's entry in `docs/IMPLEMENTED.md`.
 **Tasks:**
-1. Rename `app.Window` to `app.Workspace` and `app.Windows` to `app.Workspaces` (a mechanical rename first, in its own commit-sized change, with every test passing), then make `Workspaces` host the workspaces in the one implicit window: an `IndexedStack` of the tabs' workbenches under a `TickerMode` (only the active one ticks and paints), the focus and the key dispatcher of the active tab, the window title of the active tab. No `RegularWindowController` window is made any more; remove the multi-window code and its Glutter workarounds that no longer apply (update `docs/GLUTTER-ISSUES.md` and §20).
+1. Rename `app.Window` to `app.Workspace` and `app.Windows` to `app.Workspaces` (a mechanical rename first, in its own commit-sized change, with every test passing), then make `Workspaces` hold *window tabs* (each with a kind: a workspace now, an extension tab from step 11.6, so the strip, the restore, the tray and the keys never assume a folder) and host them in the one implicit window: an `IndexedStack` of the tabs' workbenches under a `TickerMode` (only the active one ticks and paints), the focus and the key dispatcher of the active tab, the window title of the active tab. No `RegularWindowController` window is made any more; remove the multi-window code and its Glutter workarounds that no longer apply (update `docs/GLUTTER-ISSUES.md` and §20).
 2. Opening, activating, moving and closing tabs (`Workspaces.Open/Activate/Move/Close`); closing a tab with the questions about unsaved changes or hot exit; the last tab leaves a No Folder tab; the quit flow over every tab; `workbench.action.newWindow` and `workbench.action.closeWindow` with their new titles.
 3. State: `workspaceTabs`, `activeWorkspaceTab` and `windowGeometry` in `state.json` (additive), an old `openWindows` list read as tabs, `window.restoreWindows` read as in §10.14, the UI state file of each tab as before.
 4. Profiles per tab (§10.12 as built moves from windows to tabs unchanged).
@@ -1102,7 +1104,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 ### 9b.2 The title bar and the workspace tab strip
 **Goal:** Emetos's own title bar row with the menu, the workspace tabs and the window buttons (SPEC §10.14, §10.1).
 **Read:** SPEC §10.14, §10.1; Glutter: `widgets/window_decoration.go`, `widgets/run_app.go` (`Decorations`), `ui/window_info.go` (`PerformWindowAction`).
-**Tasks:** `Decorations: DecorationsApp` and `widgets.WindowDecoration` with the row as its content (35 px, the `titleBar.*` colors); the menu (`window.menuBarVisibility` `compact`, the new default, as a `≡` button; `classic`/`visible`/`toggle`/`hidden`), replacing the separate menu bar row of §10.1; the tab strip in `gui/workbench` (icon, name, disambiguated duplicate names, dirty dot, close button, tooltip with path and profile, active and inactive colors, widths from 120 to 240 px, horizontal scroll with the active tab in view, middle click, `+`, the context menu); drag on the empty strip moves the window, double click maximizes, right click opens the window menu; full screen and zen hide the row.
+**Tasks:** `Decorations: DecorationsApp` and `widgets.WindowDecoration` with the row as its content (35 px, the `titleBar.*` colors); the menu (`window.menuBarVisibility` `compact`, the new default, as a `≡` button; `classic`/`visible`/`toggle`/`hidden`), replacing the separate menu bar row of §10.1; the tab strip in `gui/workbench` (icon, name, disambiguated duplicate names, dirty dot, close button, tooltip with path and profile, active and inactive colors, widths from 120 to 240 px, horizontal scroll with the active tab in view, middle click, the `+` menu with its one entry **Workspace...** that opens the desktop portal's folder chooser and opens the folder as a new tab (step 11.6 adds the extension tab kinds), the context menu); drag on the empty strip moves the window, double click maximizes, right click opens the window menu; full screen and zen hide the row.
 **Tests:** the strip's layout tables (widths, shrinking, scrolling, duplicate names); dirty dot follows the documents of the tab; close button and middle click; the context menu items; each `window.menuBarVisibility` value; window actions sent through a fake controller; goldens of the row (Dark Modern, Light Modern; one tab, three tabs with a dirty one and two of the same name, overflowing tabs, the compact and classic menus).
 **Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/9b.2-workspace-tabs.png --commands '[["dev.openFolderInNewTab",{"path":"testdata/proof/9b.2/notes"}],["dev.openFile",{"path":"testdata/proof/9b.2/notes/main.go"}]]' -- testdata/proof/9b.2/api`: the window with two workspace tabs, the second active with a file open (add `dev.openFolderInNewTab` in this step, SPEC §15.2).
 
@@ -1152,3 +1154,53 @@ Every **Proof** item gives its exact command. A state no existing command reache
 3. A coverage table in `docs/IMPLEMENTED.md`: every row of SPEC §3.1 and §3.2, the step(s) and tests that cover it, and its status; a `NOTICE` and `third_party/` audit (Codicons CC BY attribution).
 4. **Ask the user** before tagging a version.
 **Manual checks:** the user looks at the icon, and uses Emetos for their own work and reports problems; each problem becomes separate fix work after this step.
+
+---
+
+## M11: Extensions
+
+### 11.1 The extension contract and its lifetime
+**Goal:** compiled-in extensions activated per window tab, with their failures contained (SPEC §10.15, D18).
+**Read:** SPEC §10.15, §10.14, §5.2, §5.3; CLAUDE.md "Error handling" and the errors package's `AI_GUIDE.md`.
+**Tasks:** the public package `extension/` (`Factory`, `Extension`, `Manifest`, `API` with the parts this step needs: commands, keybindings, menus, settings, notifications, status bar items, documents read), `extensions/all.go` (empty list plus a test-only extension under `extensions/internal/testext`), activation events, one activation per scope with a scope-bound `API`, deactivation by `ctx`, the catching of errors and panics at every call into an extension (the box text, the notification, the log), `extensions.disabled`, the page "Extensions" with Enable/Disable, the archtest rules of §10.15 (with testdata like the existing rules). Add `extension/` and `extensions/` to SPEC §5.2/§5.3.
+**Tests:** activation by each activation event; two scopes get two instances; closing a scope cancels the `ctx` and removes its contributions; a panic in `Activate`, in a command handler and in a status bar callback is caught (route-tested tags, the notification once, the extension inactive in that scope only); `extensions.disabled`; the page lists the manifests and states; the archtest rules catch a forbidden import.
+
+### 11.2 Events
+**Goal:** the event bus within a scope, request and reply, and the core events (SPEC §10.15 "Events").
+**Read:** SPEC §10.15.
+**Tasks:** `api.Events()`: `Publish`, `Subscribe` with patterns, `Request`/`Handle` with `EventNoHandler` and `EventTimeout`, topic ownership (an extension publishes and handles only its own and its declared topics), JSON copies of the values, delivery on the UI thread in order, per-frame batching of fast topics, the slow-handler log; the core events of §10.15 published by every workspace scope; `api.Documents().Read`.
+**Tests:** delivery and order; patterns; request and reply, no handler, timeout, a handler's error and panic; ownership refused with a route-tested tag; values are copies (a change by the receiver does not reach the sender); typing 100 characters in one frame gives one batch; the core events for open, change, save, close, active editor and selection; no event crosses to another scope (no links yet).
+
+### 11.3 Event sharing between window tabs
+**Goal:** directional links, private workspaces, the prompt and the page (SPEC §10.15 "Event sharing").
+**Read:** SPEC §10.15, §10.10.
+**Tasks:** the store `event-sharing.json` in `storage.Paths` (atomic, 0600, versioned, read at start), delivery across scopes only along a link in its direction and for its topics, requests and replies along links, private workspaces (no events, no `Read` out), session links, the prompt in the receiving tab (Allow, This Session Only, Deny) for topics in the manifest's cross-tab list only, the page "Extensions › Event Sharing" with Remove and the private switches, `emetos.sharing.revoked`.
+**Tests:** `notes → office` delivers notes' events to office and nothing back; a topic-limited link; removing a link stops delivery at once; a private workspace sends nothing and refuses `Read`; the prompt's three answers (the file written or not); a topic outside the manifest is never asked about; the file survives a restart; a corrupt file is ignored with a warning (route-tested); tests never touch the real state folder (`testutil.Isolate`).
+
+### 11.4 Language packs move to `extensions/`
+**Goal:** every bundled language becomes an extension, with no change of behavior (SPEC §10.15, §8.1, D13).
+**Read:** SPEC §8.1, §10.15.
+**Tasks:** an extension per language of §8.1 under `extensions/` (its grammar, language configuration and snippets in an `embed.FS`, registered through `language.Registry.AddExtension` from its `Activate` at `onStartup` (the registry must know every language before the first file opens), its `third_party/` licenses unchanged in `NOTICE`), the bundled themes and the Seti icon theme stay in the core; the core keeps plain text only; `scripts/update-assets.sh` writes into the new folders; D13 and §8.1 updated.
+**Tests:** every existing language, highlighting and golden test passes unchanged (no golden changes); disabling `emetos.markdown` makes `.md` files plain text; the archtest rules hold for every pack.
+
+### 11.5 Side bar views and file views
+**Goal:** the two UI contributions inside a workspace (SPEC §10.15, §10.4, §10.3).
+**Read:** SPEC §10.15, §10.4, §10.3.
+**Tasks:** side bar view contributions (activity bar icon, view container, views with title actions and context keys, the box constraints, state per scope); file view contributions: the micro-tabs at the right end of the breadcrumbs row (or a 22 px strip when breadcrumbs are hidden) shown only for files with at least one view, Text always first, the choice per editor tab remembered and restored, `workbench.editor.defaultFileViews` (a map of glob to view ID, application scope) for the default view, the command `workbench.action.cycleFileView`, edits from a view through the document API (undo, dirty, save, hot exit unchanged), the fall back to Text on failure; `extensions/todo`: a side bar view "TODOs" listing the `TODO`/`FIXME` comments of the folder (from the file index, updated by the watcher) with click to open; `extensions/markdown`: the preview file view (headings, paragraphs, emphasis, lists, block quotes, code blocks with the syntax colors of their language, tables, links opened with the `OpenURI` portal, local images), following edits live and the scroll of the Text view.
+**Tests:** the side bar view's icon, title actions, state and constraints; micro-tabs appear only for matching files and disappear when the extension is disabled; switching keeps the document and its undo; the default view setting; restore of the chosen view; a failing view falls back to Text; the TODO list follows file changes; the Markdown preview renders each element (goldens, Dark Modern and Light Modern) and follows edits.
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/11.5-markdown-preview.png --commands '[["dev.openFile",{"path":"testdata/proof/11.5/project/README.md"}],["workbench.action.cycleFileView"]]' -- testdata/proof/11.5/project`: a Markdown file in its preview with the micro-tabs and the TODO view in the side bar.
+
+### 11.6 Window tab extensions
+**Goal:** extension tabs in the window's tab strip and the `+` menu entries (SPEC §10.15, §10.14).
+**Read:** SPEC §10.15, §10.14.
+**Tasks:** the window tab contribution (a tab kind with its icon, title and widget; its `+` menu entry; its state saved and restored; it is its own event scope; it is in the tray menu, the switch picker and the keys), the `+` menu listing "Workspace..." then each tab kind; `extensions/scratchpad`: a window tab "Scratchpad" (notes kept in the tab's state across restarts) with a feed "Recent edits" that subscribes to `emetos.document.changed` from other tabs, so it exercises the prompt and the links of 11.3 end to end.
+**Tests:** the `+` menu entries appear and disappear with the extension; opening, restoring and closing a Scratchpad tab; its scope gets no events without a link and gets them after Allow; the tray menu and the picker list it.
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/11.6-window-tab-extension.png --commands '[["dev.openWindowTab",{"kind":"scratchpad"}],["dev.openPlusMenu"]]' -- testdata/proof/11.6/project`: a workspace tab and a Scratchpad tab, with the `+` menu open (add the two dev commands in this step, SPEC §15.2).
+
+---
+
+## M12: Language intelligence (area 3)
+
+### 12.1 Plan area 3 with the user
+**Goal:** a specification and steps for the LSP client and its UI, with `extensions/golang` and `gopls` as the first user (SPEC §3 area 3, D5, §10.15).
+**Tasks:** write the area 3 sections of the SPEC (the LSP client, the providers API of `extension/`, completion, hover, signature help, definition and references, diagnostics, code actions, formatting, rename, the Go pack's server) and the steps that build them into this file; **ask the user** to review them before any of them is built.
