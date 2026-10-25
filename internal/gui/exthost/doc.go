@@ -8,7 +8,8 @@
 // core never imports it.
 //
 // Every call into an extension is made through a function of this package that catches a panic and an error
-// (Activate, a command handler, a status bar callback, a notification action, a settings listener, the factory itself).
+// (Activate, a command handler, a status bar callback, a notification action, a settings listener, an event subscriber, an event
+// handler, the reply of a request, the factory itself). The event bus of a scope is in bus.go and events.go.
 // The tag of the error says which call it was; see Failure for what is done with it. Everything runs on the UI thread
 // except where a method says otherwise.
 package exthost

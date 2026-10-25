@@ -120,7 +120,8 @@ func (w *Workspace) startExtensions() {
 		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: w.extensionName(), Folder: w.Folder},
 		Ctx:  w.ctx, Commands: w.Commands, Menus: w.Menus, Keybindings: w.extKeys, Settings: w.Settings,
 		Notify: w.Notify, StatusBar: w.StatusBar, Documents: extensionDocuments{w: w},
-		Disabled: w.disabledExtensions, Files: w.extensionFiles, Post: w.onUI, Logger: p.Logger,
+		Disabled: w.disabledExtensions, Files: w.extensionFiles, Post: w.onUI, Frame: w.extensionFrame, After: w.extensionAfter,
+		Logger: p.Logger,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -134,11 +135,13 @@ func (w *Workspace) startExtensions() {
 	w.stops = append(w.stops, w.Documents.WatchOpen(func(doc *document.Document) {
 		w.onUI(func() { scope.Fire(extension.OnLanguage(doc.LanguageID())) })
 	}))
+	w.startCoreEvents(scope)
 	scope.Start()
 }
 
 // stopExtensions closes the scope of the workspace: the extensions are deactivated and what they contributed is removed.
 func (w *Workspace) stopExtensions() {
+	w.stopCoreEvents()
 	if scope := w.extScope.Swap(nil); scope != nil {
 		scope.Close()
 	}

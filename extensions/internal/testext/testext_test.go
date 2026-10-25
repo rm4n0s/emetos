@@ -29,6 +29,7 @@ func (r *recorder) Settings() extension.Settings           { return recSettings{
 func (r *recorder) Notifications() extension.Notifications { return recNotes{r} }
 func (r *recorder) StatusBar() extension.StatusBar         { return recBar{r} }
 func (r *recorder) Documents() extension.Documents         { return nil }
+func (r *recorder) Events() extension.Events               { return nil }
 
 type recCommands struct{ r *recorder }
 

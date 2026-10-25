@@ -69,6 +69,7 @@ func (in *instance) kill() {
 	for i := len(disposers) - 1; i >= 0; i-- {
 		disposers[i]()
 	}
+	in.scope.bus.instanceGone(in)
 }
 
 // activate activates an extension in the scope, once: nothing happens unless it is inactive. Every call into the

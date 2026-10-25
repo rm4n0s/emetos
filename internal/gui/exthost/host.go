@@ -73,6 +73,19 @@ func NewHost(opts HostOptions) *Host {
 		seen[m.ID] = true
 		h.infos = append(h.infos, &Info{Manifest: m, factory: f})
 	}
+	// the topics an extension declares must not be another's: checked once every id is known
+	ids := make([]string, len(h.infos))
+	for i, in := range h.infos {
+		ids[i] = in.Manifest.ID
+	}
+	h.infos = slices.DeleteFunc(h.infos, func(in *Info) bool {
+		err := checkTopicOwnership(in.Manifest, ids)
+		if err != nil {
+			h.problems = append(h.problems, err)
+			h.log.Warn("an extension is left out", "err", err)
+		}
+		return err != nil
+	})
 	return h
 }
 
@@ -228,4 +241,16 @@ func (h *Host) changed() {
 	for _, f := range listeners {
 		(*f)()
 	}
+}
+
+// targets are the scopes whose subscribers get an event that was published in src. Inside one scope that is the scope
+// itself; step 11.3 adds the scopes that a link the user allowed leads to, checked here, at delivery.
+func (h *Host) targets(src *Scope, publisher, topic string) []*Scope {
+	_, _ = publisher, topic
+	return []*Scope{src}
+}
+
+// handlerFor is the handler of a request of the topic made in src, or nil. Step 11.3 looks along the links too.
+func (h *Host) handlerFor(src *Scope, topic string) *handlerEntry {
+	return src.bus.handlerOf(topic)
 }

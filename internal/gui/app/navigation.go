@@ -168,6 +168,7 @@ func (s *shellState) watchSelection(e *textEditor) {
 		if !e.disposed && s.activeEditor() == e {
 			s.refreshStatus()
 		}
+		s.coreSelectionChanged(e)
 	})
 }
 

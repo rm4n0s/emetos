@@ -5,8 +5,10 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
+	"sort"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -144,6 +146,14 @@ type tab struct {
 	changes  int
 	posted   []func()
 	log      *bytes.Buffer
+
+	// evMu guards what the event tests share between goroutines: the queue of a deferred tab, the frames and the clock.
+	evMu sync.Mutex
+	// deferred makes Post queue its functions until pump runs them, as the UI thread does; by default Post runs them at once.
+	deferred bool
+	queued   []func()
+	frames   []func()
+	clock    *fakeClock
 }
 
 // rig is a host with the registry of the process and the tabs made over it.
@@ -169,6 +179,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		t: r.t, commands: commands, menus: command.DefaultMenus(commands), bar: workbench.NewStatusBar(),
 		keys: &keySink{}, docs: &docSource{texts: map[string]string{}}, disabled: disabled, log: &bytes.Buffer{},
 	}
+	tb.clock = &fakeClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	tb.store = settings.NewStore(r.registry, settings.StoreOptions{UserPath: filepath.Join(r.t.TempDir(), "settings.json")})
 	tb.notify = notify.NewService(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), nil)
 	tb.scope = r.host.NewScope(ScopeOptions{
@@ -176,7 +187,9 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		Ctx:  context.Background(), Commands: commands, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
 		Notify: tb.notify, StatusBar: tb.bar, Documents: tb.docs,
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
-		Post:   func(f func()) { tb.posted = append(tb.posted, f); f() },
+		Post:  tb.post,
+		Frame: func(f func()) { tb.evMu.Lock(); tb.frames = append(tb.frames, f); tb.evMu.Unlock() },
+		After: tb.clock.after, Now: tb.clock.nowFunc,
 		Logger: slog.New(slog.NewTextHandler(tb.log, &slog.HandlerOptions{Level: slog.LevelDebug})),
 	})
 	r.t.Cleanup(tb.scope.Close)
@@ -231,4 +244,107 @@ func (tb *tab) changeSetting(key string, value any) {
 	if err := tb.store.Update(context.Background(), key, value, settings.TargetUser); err != nil {
 		tb.t.Fatal(err)
 	}
+}
+
+// post is the Post function of a tab: at once, or queued for pump when the tab is deferred.
+func (tb *tab) post(f func()) {
+	tb.evMu.Lock()
+	tb.posted = append(tb.posted, f)
+	if tb.deferred {
+		tb.queued = append(tb.queued, f)
+		tb.evMu.Unlock()
+		return
+	}
+	tb.evMu.Unlock()
+	f()
+}
+
+// pump runs what was posted, and what that posts, as the UI thread does between two frames.
+func (tb *tab) pump() {
+	for {
+		tb.evMu.Lock()
+		if len(tb.queued) == 0 {
+			tb.evMu.Unlock()
+			return
+		}
+		f := tb.queued[0]
+		tb.queued = tb.queued[1:]
+		tb.evMu.Unlock()
+		f()
+	}
+}
+
+// frame ends a frame: the functions that asked for it run, then what they posted.
+func (tb *tab) frame() {
+	tb.evMu.Lock()
+	frames := tb.frames
+	tb.frames = nil
+	tb.evMu.Unlock()
+	for _, f := range frames {
+		f()
+	}
+	tb.pump()
+}
+
+// fakeClock is the clock and the timers of a tab: time passes only when a test says so.
+type fakeClock struct {
+	mu     sync.Mutex
+	t      time.Time
+	timers []*fakeTimer
+}
+
+type fakeTimer struct {
+	at      time.Time
+	f       func()
+	stopped bool
+}
+
+func (c *fakeClock) nowFunc() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *fakeClock) after(d time.Duration, f func()) func() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	tm := &fakeTimer{at: c.t.Add(d), f: f}
+	c.timers = append(c.timers, tm)
+	return func() { c.mu.Lock(); tm.stopped = true; c.mu.Unlock() }
+}
+
+// advance moves the clock on and calls the timers that fall due, earliest first.
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	c.t = c.t.Add(d)
+	var due []*fakeTimer
+	rest := c.timers[:0]
+	for _, tm := range c.timers {
+		switch {
+		case tm.stopped:
+		case !tm.at.After(c.t):
+			due = append(due, tm)
+		default:
+			rest = append(rest, tm)
+		}
+	}
+	c.timers = rest
+	c.mu.Unlock()
+	sort.SliceStable(due, func(i, j int) bool { return due[i].at.Before(due[j].at) })
+	for _, tm := range due {
+		tm.f()
+	}
+}
+
+// pending is how many timers wait.
+func (c *fakeClock) pending() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	n := 0
+	for _, tm := range c.timers {
+		if !tm.stopped {
+			n++
+		}
+	}
+	return n
 }

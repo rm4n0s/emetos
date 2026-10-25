@@ -29,6 +29,8 @@ type API interface {
 	StatusBar() StatusBar
 	// Documents reads the documents of the scope.
 	Documents() Documents
+	// Events publishes and subscribes to events and sends requests to the other extensions of the scope.
+	Events() Events
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the
 	// editor. fn is not run when the extension was deactivated before its turn comes, and a panic in it deactivates the
 	// extension. Activate, command handlers, the callbacks of the API and the event handlers run on the UI thread already.

@@ -86,20 +86,20 @@ func TestAPIMisuseHasTagsWithRoutes(t *testing.T) {
 }
 
 func TestASettingOfAnotherExtensionIsTaken(t *testing.T) {
-	// "emetos" owns the prefix "emetos." and so may name a key that "emetos.api" would also be allowed to name
+	// "ext" owns the prefix "ext." and so may name a key that "ext.api" would also be allowed to name
 	var inner, outer extension.API
-	a, _ := factory(manifest("emetos.api"), func(f *fake) {
+	a, _ := factory(manifest("ext.api"), func(f *fake) {
 		f.activate = func(_ context.Context, api extension.API) error { inner = api; return nil }
 	})
-	b, _ := factory(manifest("emetos"), func(f *fake) {
+	b, _ := factory(manifest("ext"), func(f *fake) {
 		f.activate = func(_ context.Context, api extension.API) error { outer = api; return nil }
 	})
 	r := newRig(t, a, b)
 	r.newTab("one").scope.Start()
-	if err := inner.Settings().Register(extension.SettingSpec{Key: "emetos.api.k", Type: "string"}); err != nil {
+	if err := inner.Settings().Register(extension.SettingSpec{Key: "ext.api.k", Type: "string"}); err != nil {
 		t.Fatal(err)
 	}
-	appErr, ok := errors.FromError(outer.Settings().Register(extension.SettingSpec{Key: "emetos.api.k", Type: "string"}))
+	appErr, ok := errors.FromError(outer.Settings().Register(extension.SettingSpec{Key: "ext.api.k", Type: "string"}))
 	if !ok || !appErr.HasRoute("Host.holdSetting.ExtensionSettingTaken") {
 		t.Errorf("error = %+v", appErr)
 	}
@@ -322,10 +322,11 @@ func TestTheLoggerNamesTheExtensionAndTheScope(t *testing.T) {
 func TestPostRunsOnTheUIThreadUnlessTheExtensionIsGone(t *testing.T) {
 	api, _, tb := withAPI(t, "emetos.post")
 	ran := 0
+	base := len(tb.posted) // the start of the scope handed the event workspace.opened over already
 	api.Post(func() { ran++ })
 	api.Post(nil)
-	if ran != 1 || len(tb.posted) != 1 {
-		t.Errorf("ran %d times, %d handed to the UI thread", ran, len(tb.posted))
+	if ran != 1 || len(tb.posted)-base != 1 {
+		t.Errorf("ran %d times, %d handed to the UI thread", ran, len(tb.posted)-base)
 	}
 	// a function that is still waiting for its turn when the extension goes is dropped
 	var pending func()

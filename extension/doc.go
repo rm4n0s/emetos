@@ -22,6 +22,16 @@
 // the editor, are not touched. An error that a command handler returns is not a failure of the extension: it is the
 // error of the command, and is shown to the user like the error of any command.
 //
+// # Events
+//
+// Extensions never call each other: they publish events and send requests through API.Events. A topic is dotted names
+// (markdown.preview.open); an extension publishes and handles the topics under its own id and those its Manifest
+// declares (Manifest.Events), and Emetos publishes the core events (TopicDocumentOpened and its siblings) in every
+// workspace. The value of an event is copied as JSON, so no live object crosses and a receiver can do what it likes with
+// what it got. Events reach the subscribers of the scope on the UI thread, later, in order; the events of fast topics
+// (typing) arrive once per frame as one batch. A request is answered by the handler of its topic, never blocks, and calls
+// its reply function once, with the reply or an error (EventNoHandler, EventTimeout, EventCanceled, EventHandlerFailed).
+//
 // # An example
 //
 //	package hello

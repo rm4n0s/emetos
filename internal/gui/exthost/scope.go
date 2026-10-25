@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -101,6 +102,14 @@ type ScopeOptions struct {
 	// Post runs a function on the UI thread; nil calls it at once. Callbacks that come from other goroutines (a settings
 	// change) are handed over with it.
 	Post func(func())
+	// Frame runs a function after the next frame, on the UI thread; fast events (typing) are delivered then, once per
+	// frame. Nil is Post: every fast event is delivered by itself.
+	Frame func(func())
+	// After calls a function after a duration, from any goroutine, and returns the function that stops it; the timeouts
+	// of requests use it, so tests give it a fake clock. Nil is a timer of the standard library.
+	After func(d time.Duration, f func()) (stop func())
+	// Now is the clock that measures how long a subscriber or a handler takes; nil is time.Now.
+	Now func() time.Time
 	// Logger is the log of the process; slog.Default when nil.
 	Logger *slog.Logger
 	// ShowLog is the command the "Show Log" button of the failure notification runs; the Output panel by default.
@@ -129,6 +138,9 @@ type Scope struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	// bus is the event bus of the scope (events.go, bus.go).
+	bus *bus
+
 	mu     sync.Mutex
 	slots  []*slot
 	fired  map[string]bool
@@ -149,6 +161,7 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	}
 	s := &Scope{h: h, opts: opts, log: opts.Logger, fired: map[string]bool{}}
 	s.ctx, s.cancel = context.WithCancel(opts.Ctx)
+	s.bus = newBus(s)
 	disabled := s.disabledSet()
 	for _, in := range h.infos {
 		sl := &slot{info: in, handlers: map[string]extension.CommandHandler{}}
@@ -169,10 +182,16 @@ func (s *Scope) Info() extension.ScopeInfo { return s.opts.Info }
 // Ctx is the context of the scope; it ends when the scope is closed.
 func (s *Scope) Ctx() context.Context { return s.ctx }
 
-// Start activates the extensions that want onStartup, and those whose onFile glob matches a file of the folder.
+// Start activates the extensions that want onStartup, and those whose onFile glob matches a file of the folder, then
+// publishes emetos.workspace.opened, which they hear when it is delivered, right after.
 func (s *Scope) Start() {
 	s.Fire(extension.OnStartup)
 	s.CheckFiles()
+	if s.opts.Info.Kind == extension.ScopeWorkspace {
+		if err := s.PublishCore(extension.TopicWorkspaceOpened, s.workspaceInfo()); err != nil {
+			s.log.Error("the workspace event cannot be published", "err", err)
+		}
+	}
 }
 
 // Fire says that an activation event happened in the scope and activates the enabled extensions that list it:
@@ -317,6 +336,14 @@ func (s *Scope) Close() {
 	s.closed = true
 	slots := slices.Clone(s.slots)
 	s.mu.Unlock()
+	// the extensions hear that the workspace closes before they go: everything queued is delivered now
+	if s.opts.Info.Kind == extension.ScopeWorkspace {
+		if err := s.PublishCore(extension.TopicWorkspaceClosed, s.workspaceInfo()); err != nil {
+			s.log.Error("the workspace event cannot be published", "err", err)
+		}
+	}
+	s.bus.flush()
+	s.bus.close()
 	for _, sl := range slots {
 		s.deactivate(sl, StateInactive)
 	}

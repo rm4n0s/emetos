@@ -38,6 +38,8 @@ type Manifest struct {
 	ActivationEvents []string
 	// Contributes are the contributions the extension declares, so that they are there before it is activated.
 	Contributes Contributes
+	// Events are the event topics the extension declares (SPEC §10.15 "Events").
+	Events EventDecl
 }
 
 // Contributes are the contributions a Manifest declares. Emetos installs them in a scope when the extension is enabled
