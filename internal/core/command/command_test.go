@@ -382,3 +382,29 @@ func TestForkCopiesTheCommandsAndTheirHandlers(t *testing.T) {
 		}
 	}
 }
+
+func TestDiffEditorCommands(t *testing.T) {
+	r := DefaultRegistry()
+	for id, want := range map[string]Meta{
+		"workbench.action.compareEditor.nextChange":         {Title: "Go to Next Change"},
+		"workbench.action.compareEditor.previousChange":     {Title: "Go to Previous Change"},
+		"workbench.action.compareEditor.focusPrimarySide":   {},
+		"workbench.action.compareEditor.focusSecondarySide": {},
+		"workbench.action.compareEditor.focusOtherSide":     {},
+		"diffEditor.switchSide":                             {Title: "Switch Side", Category: "Diff Editor"},
+	} {
+		got, ok := r.Lookup(id)
+		if !ok {
+			t.Errorf("%s is not registered", id)
+			continue
+		}
+		if got.Title != want.Title || got.Category != want.Category {
+			t.Errorf("%s: title %q category %q, want %q %q", id, got.Title, got.Category, want.Title, want.Category)
+		}
+	}
+	// Switch Side needs the cursor to be in a diff editor
+	meta, _ := r.Lookup("diffEditor.switchSide")
+	if meta.Precondition == nil || !meta.Precondition.Evaluate(contextkey.MapContext{"isInDiffEditor": true}) || meta.Precondition.Evaluate(contextkey.MapContext{}) {
+		t.Errorf("precondition %v", meta.Precondition)
+	}
+}

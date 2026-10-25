@@ -23,6 +23,8 @@ var appCommands = map[string]bool{
 	"saveAll": true,
 	// the rows of File > Open Recent (gui/app/recent.go)
 	"openRecentFolder": true, "openRecentFile": true,
+	// Switch Side of the diff editor (gui/app/diffpane.go)
+	"diffEditor.switchSide": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

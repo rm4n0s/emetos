@@ -417,8 +417,9 @@ func (s *shellState) releaseEditor(input editorgroup.EditorInput) {
 // active editor), activeEditorIsPinned (it is sticky: the pinned tab with the pin),
 // activeEditorIsNotPreview, activeEditorGroupEmpty, multipleEditorGroups, the two keys of the
 // editor part that tell there are several groups and that one is maximized, and
-// splitEditorsVertically (the side-by-side direction is down), and the keys of saving: activeEditorIsDirty,
-// activeEditorCanRevert and dirtyWorkingCopies.
+// splitEditorsVertically (the side-by-side direction is down), the keys of saving: activeEditorIsDirty,
+// activeEditorCanRevert and dirtyWorkingCopies, and those of the compare editor: textCompareEditorVisible (a group
+// shows a diff editor) and textCompareEditorActive (the active group does).
 func (s *shellState) refreshKeys() {
 	win := PeekWindow(s.Context())
 	grid := s.group.grid
@@ -435,6 +436,9 @@ func (s *shellState) refreshKeys() {
 		win.Keys.Set("activeEditorIsDirty", dirty)
 		win.Keys.Set("activeEditorCanRevert", canRevert)
 		win.Keys.Set("dirtyWorkingCopies", anyDirty)
+		compareVisible, compareActive := s.diffKeys()
+		win.Keys.Set("textCompareEditorVisible", compareVisible)
+		win.Keys.Set("textCompareEditorActive", compareActive)
 		if active == nil {
 			win.Keys.Reset("activeEditor")
 			win.Keys.Set("activeEditorIsPinned", false)
@@ -482,7 +486,7 @@ func (s *shellState) disposeGroup() {
 	g.grid.Dispose()
 	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
 		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically",
-		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies"}, navKeys...) {
+		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies", "textCompareEditorVisible", "textCompareEditorActive"}, navKeys...) {
 		win.Keys.Reset(key)
 	}
 }

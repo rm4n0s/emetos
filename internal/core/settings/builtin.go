@@ -1483,8 +1483,9 @@ func registerSearch(r *Registry) {
 }
 
 // registerDiffEditor registers the settings of the diff editor that a step has a consumer for. Step 9.2
-// registers the time limit of the diff of core/diff (SPEC section 9.11); diffEditor.ignoreTrimWhitespace and
-// the others come with the diff editor that reads them.
+// registers the time limit of the diff of core/diff (SPEC section 9.11) and step 9.5, the diff editor, the
+// setting that ignores white space at the start and end of lines; the others (diffEditor.renderSideBySide, the
+// hiding of unchanged regions) come with the code that reads them.
 //
 // Ported from VS Code: src/vs/editor/common/config/editorConfigurationSchema.ts and
 // src/vs/editor/common/config/diffEditor.ts
@@ -1493,6 +1494,11 @@ func registerDiffEditor(r *Registry) {
 		Setting{
 			Key: "diffEditor.maxComputationTime", Types: []Type{Number}, Default: 5000,
 			Description: "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "diffEditor.ignoreTrimWhitespace", Types: []Type{Boolean}, Default: true,
+			Description: "When enabled, the diff editor ignores changes in leading or trailing whitespace.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 	)

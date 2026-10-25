@@ -156,6 +156,9 @@ func (vm *ViewModel) mover() edit.Mover {
 func (vm *ViewModel) apply(res edit.Result) error {
 	before := vm.cursors.Selections()
 	if len(res.Edits) > 0 {
+		if err := vm.checkEditable(); err != nil {
+			return err
+		}
 		after := res.Selections
 		_, err := vm.doc.Edit(res.Edits, document.EditOptions{
 			Kind: res.Kind, Before: before,
@@ -504,6 +507,9 @@ func textArgument(args any) (string, bool) {
 
 // undoRedo undoes or redoes a step of the document and puts the cursors back where it says.
 func (vm *ViewModel) undoRedo(f func() (document.HistoryResult, error)) error {
+	if err := vm.checkEditable(); err != nil {
+		return err
+	}
 	res, err := f()
 	if err != nil {
 		return err

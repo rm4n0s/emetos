@@ -801,13 +801,21 @@ var modeAppCommands = map[string]bool{
 	"workbench.action.zoomIn":               true, "workbench.action.zoomOut": true, "workbench.action.zoomReset": true,
 }
 
+// diffAppCommands are the commands of the diff editor, which the app binds since the diff editors of the window are its
+// own (step 9.5).
+var diffAppCommands = map[string]bool{
+	"workbench.action.compareEditor.nextChange": true, "workbench.action.compareEditor.previousChange": true,
+	"workbench.action.compareEditor.focusPrimarySide": true, "workbench.action.compareEditor.focusSecondarySide": true,
+	"workbench.action.compareEditor.focusOtherSide": true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	// the commands that open the views of the panel are the workbench's when it has the views
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] {
 			continue
 		}
 		n++

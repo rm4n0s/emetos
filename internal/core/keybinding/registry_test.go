@@ -412,3 +412,30 @@ func TestQuickInputKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestDiffEditorKeys(t *testing.T) {
+	resolver := NewResolver(DefaultRegistry().Defaults(), nil, nil)
+	cases := []struct {
+		name  string
+		ctx   contextkey.MapContext
+		press string
+		want  string
+	}{
+		{"Alt+F5 goes to the next change", contextkey.MapContext{"textCompareEditorVisible": true}, "alt+f5", "workbench.action.compareEditor.nextChange"},
+		{"Shift+Alt+F5 goes to the previous change", contextkey.MapContext{"textCompareEditorVisible": true}, "shift+alt+f5", "workbench.action.compareEditor.previousChange"},
+		{"Alt+F5 does nothing without a compare editor", contextkey.MapContext{}, "alt+f5", ""},
+		{"Shift+Alt+F5 does nothing without a compare editor", contextkey.MapContext{}, "shift+alt+f5", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := resolver.Resolve(tc.ctx, nil, dispatchOf(t, tc.press))
+			got := ""
+			if res.Kind == KbFound {
+				got = res.Command
+			}
+			if got != tc.want {
+				t.Errorf("%s: got %q, want %q (%+v)", tc.press, got, tc.want, res)
+			}
+		})
+	}
+}

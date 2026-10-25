@@ -91,7 +91,7 @@ func findActions(a map[string]action) {
 		return nil
 	}
 	a["editor.action.startFindReplaceAction"] = func(vm *ViewModel, _ any) error {
-		if vm.doc.ReadOnly() {
+		if vm.ReadOnly() {
 			return nil
 		}
 		vm.skipReveal = true
@@ -151,11 +151,17 @@ func findActions(a map[string]action) {
 		if vm.findw.model == nil {
 			return nil
 		}
+		if err := vm.checkEditable(); err != nil {
+			return err
+		}
 		return vm.findw.model.Replace()
 	}
 	a["editor.action.replaceAll"] = func(vm *ViewModel, _ any) error {
 		if vm.findw.model == nil {
 			return nil
+		}
+		if err := vm.checkEditable(); err != nil {
+			return err
 		}
 		return vm.findw.model.ReplaceAll()
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -234,6 +235,8 @@ type shellState struct {
 	// removeOpenFile and removeOpenMenu take the handlers of dev.openFile and dev.openMenu off the
 	// registry.
 	removeOpenFile, removeOpenMenu func()
+	// removeOpenDiff takes the handler of dev.openDiff off the registry.
+	removeOpenDiff func()
 	// quickPrefixes are the prefixes of the quick access providers the shell registered, and
 	// removeQuickCommands give back the commands that open the quick input.
 	quickPrefixes       []string
@@ -303,6 +306,7 @@ func (s *shellState) InitState() {
 	s.initModes(binding)
 	s.initLaunch(binding)
 	s.bindDevOpenFile(binding)
+	s.bindDevOpenDiff()
 	s.bindDevOpenMenu()
 	// the title of the window follows its template
 	s.unsubscribeTitle = PeekWindow(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
@@ -373,6 +377,9 @@ func (s *shellState) Dispose() {
 		s.win.shell = nil
 	}
 	s.disposeLaunch() // before the documents close: a wait ends with the window
+	if s.removeOpenDiff != nil {
+		s.removeOpenDiff()
+	}
 	if s.removeOpenFile != nil {
 		s.removeOpenFile()
 	}
@@ -459,6 +466,9 @@ func (s *shellState) syncTitle(bc widgets.BuildContext, win *Window) {
 		} else {
 			in.ActiveName = uri.Path
 		}
+	} else if d, ok := s.activeGroup().Model.ActiveEditor().(*editorgroup.DiffInput); ok {
+		// a diff editor shows the names of its two sides, and is modified with its modified side
+		in.LanguageID, in.Dirty, in.ActiveName = d.Modified().LanguageID(), d.Dirty(), d.Name()
 	}
 	title := in.Title()
 	if title == win.title {

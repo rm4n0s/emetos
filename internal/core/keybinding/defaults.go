@@ -73,6 +73,7 @@ func DefaultRegistry() *Registry {
 	registerThemeKeys(r)
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
+	registerDiffEditorKeys(r)
 	return r
 }
 
@@ -589,5 +590,17 @@ func registerKeybindingsEditorKeys(r *Registry) {
 func registerThemeKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.action.selectTheme", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+t"},
+	)
+}
+
+// registerDiffEditorKeys registers the keys of the diff editor (step 9.5): Alt+F5 and Shift+Alt+F5 go to the next and
+// the previous change while a text compare editor is visible. The commands that focus a side and Switch Side have no
+// key. Not built: Ctrl+K Shift+O (Open Active Diff Side) and F7/Shift+F7 of the accessible diff viewer.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/diffEditorCommands.ts
+func registerDiffEditorKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "workbench.action.compareEditor.nextChange", Weight: WeightWorkbenchContrib, When: mustWhen("textCompareEditorVisible"), Primary: "alt+f5"},
+		Rule{Command: "workbench.action.compareEditor.previousChange", Weight: WeightWorkbenchContrib, When: mustWhen("textCompareEditorVisible"), Primary: "shift+alt+f5"},
 	)
 }

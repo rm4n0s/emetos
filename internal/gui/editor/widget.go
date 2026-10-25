@@ -554,7 +554,7 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorHasSelection", !allEmpty(sels))
 		s.scope.Set("editorHasMultipleSelections", len(sels) > 1)
 		s.scope.Set("editorColumnSelection", vm.columns != nil)
-		s.scope.Set("editorReadonly", vm.Document().ReadOnly())
+		s.scope.Set("editorReadonly", vm.ReadOnly())
 		s.scope.Set("editorTabMovesFocus", false)
 		s.scope.Set("editorLangId", vm.Document().LanguageID())
 		s.scope.Set("foldingEnabled", vm.foldingEnabled())

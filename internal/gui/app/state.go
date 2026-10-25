@@ -236,24 +236,38 @@ func (w *Window) openSavedEditors(ctx context.Context, r *restoredWindow) {
 				continue
 			}
 			for _, in := range n.Model.Editors {
-				if in.TypeID != editorgroup.TextInputTypeID {
-					continue
-				}
-				if _, tried := r.docs[in.Value]; !tried {
-					doc, err := w.openSavedDocument(ctx, r, in.Value)
-					if err != nil {
-						w.Process.Logger.Info("a saved editor cannot be restored", "file", in.Value, "err", describe(err))
+				switch in.TypeID {
+				case editorgroup.TextInputTypeID:
+					w.openSavedValue(ctx, r, in.Value)
+				case editorgroup.DiffInputTypeID:
+					// both sides of a saved diff editor are documents like the ones of text editors; a diff that
+					// cannot be read is dropped
+					if orig, mod, err := editorgroup.ParseDiffInput(in.Value); err == nil {
+						before := r.dropped
+						w.openSavedValue(ctx, r, orig.String())
+						w.openSavedValue(ctx, r, mod.String())
+						r.dropped = min(r.dropped, before+1) // one editor, whichever sides are gone
 					}
-					r.docs[in.Value] = doc // nil for a file that cannot be opened
-				}
-				// an untitled editor without a backup and a virtual one without a provider are dropped without a word
-				if r.docs[in.Value] == nil && !strings.HasPrefix(in.Value, document.SchemeUntitled+":") && !strings.HasPrefix(in.Value, document.SchemeVirtual+":") {
-					r.dropped++
 				}
 			}
 		}
 	}
 	visit(r.state.Grid.Root)
+}
+
+// openSavedValue opens the document of a saved URI once, and counts the saved editors whose file cannot be opened.
+func (w *Window) openSavedValue(ctx context.Context, r *restoredWindow, value string) {
+	if _, tried := r.docs[value]; !tried {
+		doc, err := w.openSavedDocument(ctx, r, value)
+		if err != nil {
+			w.Process.Logger.Info("a saved editor cannot be restored", "file", value, "err", describe(err))
+		}
+		r.docs[value] = doc // nil for a file that cannot be opened
+	}
+	// an untitled editor without a backup and a virtual one without a provider are dropped without a word
+	if r.docs[value] == nil && !strings.HasPrefix(value, document.SchemeUntitled+":") && !strings.HasPrefix(value, document.SchemeVirtual+":") {
+		r.dropped++
+	}
 }
 
 // openSavedDocument opens the document of a saved input (the value of TextInput.Serialize: a file URI, an
@@ -633,6 +647,9 @@ func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 	used := map[string]bool{}
 	viewStates := map[editorgroup.EditorInput]json.RawMessage{}
 	grid, err := editorgroup.RestoreGridWith(*r.state.Grid, s.gridOptions(), func(in editorgroup.SerializedInput) (editorgroup.EditorInput, bool) {
+		if in.TypeID == editorgroup.DiffInputTypeID {
+			return s.restoreDiff(r, in.Value, used)
+		}
 		if in.TypeID != editorgroup.TextInputTypeID {
 			// an editor that is not text comes back through the restore of its kind (panes.go)
 			if k, ok := kindOf(in.TypeID); ok && k.restore != nil {

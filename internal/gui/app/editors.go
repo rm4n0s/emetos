@@ -48,6 +48,12 @@ type textEditor struct {
 // (the change may come from any goroutine, so it is posted to the UI thread), and the background
 // work. spawn starts a goroutine that ends with the shell.
 func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *editorgroup.TextInput) *textEditor {
+	return s.newTextEditorWith(binding, input, nil)
+}
+
+// newTextEditorWith is newTextEditor for an editor whose options the caller adjusts, after the settings have made them
+// (the editors of the diff editor are read-only on the left and have no minimap, SPEC §9.11).
+func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *editorgroup.TextInput, adjust func(editor.Options) editor.Options) *textEditor {
 	win := PeekWindow(s.Context())
 	doc := input.Document()
 	e := &textEditor{input: input, doc: doc, done: make(chan struct{}), focus: &editor.EditorFocus{}}
@@ -57,6 +63,9 @@ func (s *shellState) newTextEditor(binding *widgets.WidgetsBinding, input *edito
 		o := editor.OptionsFromSettings(win.Settings, doc.LanguageID(), desktop, tabSize)
 		if win.zenHidesLineNumbers() {
 			o.LineNumbers = editor.LineNumbersOff
+		}
+		if adjust != nil {
+			o = adjust(o)
 		}
 		return o
 	}

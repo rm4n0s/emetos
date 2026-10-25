@@ -108,6 +108,8 @@ func TestDefaultRegistry(t *testing.T) {
 		{"workbench.editor.enablePreviewFromQuickOpen", []Type{Boolean}, false, ScopeWindow, "Workbench"},
 		// the time limit of the diff (step 9.2)
 		{"diffEditor.maxComputationTime", []Type{Number}, 5000.0, ScopeLanguageOverridable, "Text Editor"},
+		// the white space of the diff editor (step 9.5)
+		{"diffEditor.ignoreTrimWhitespace", []Type{Boolean}, true, ScopeLanguageOverridable, "Text Editor"},
 	} {
 		s, ok := r.Lookup(w.key)
 		if !ok {

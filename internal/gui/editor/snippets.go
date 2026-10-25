@@ -137,6 +137,9 @@ func (vm *ViewModel) InsertSnippet(template string, opts snippet.InsertOptions) 
 }
 
 func (vm *ViewModel) insertSnippet(template string, opts snippet.InsertOptions) error {
+	if err := vm.checkEditable(); err != nil {
+		return err
+	}
 	vm.dismissSnippetPicker(false)
 	opts.Overtyped = vm.overtypedBy
 	err := vm.snippets().Insert(template, opts)

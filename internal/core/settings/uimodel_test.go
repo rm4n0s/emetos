@@ -165,7 +165,7 @@ func TestDiffEditorSettingsAreInTheirGroup(t *testing.T) {
 			}
 		})
 	}
-	if !slices.Equal(found, []string{"diffEditor.maxComputationTime"}) {
+	if !slices.Equal(found, []string{"diffEditor.ignoreTrimWhitespace", "diffEditor.maxComputationTime"}) {
 		t.Errorf("the Diff Editor group holds %v", found)
 	}
 }

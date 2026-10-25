@@ -51,7 +51,7 @@ func PlanClose(grid *Grid, targets []CloseTarget) []Unsaved {
 			}
 			listed := false
 			for _, u := range out {
-				if u.Input.Matches(e) {
+				if sameThing(u.Input, e) {
 					listed = true
 					break
 				}
@@ -67,11 +67,21 @@ func PlanClose(grid *Grid, targets []CloseTarget) []Unsaved {
 // shownBy tells whether an editor of the list shows the same thing as e.
 func shownBy(editors []EditorInput, e EditorInput) bool {
 	for _, o := range editors {
-		if o.Matches(e) {
+		if sameThing(o, e) {
 			return true
 		}
 	}
 	return false
+}
+
+// sameThing tells whether two inputs show the same thing as far as unsaved changes go: they are the same editor,
+// or they edit the same document (a diff editor whose modified side is a file that a text editor shows too).
+func sameThing(a, b EditorInput) bool {
+	if a.Matches(b) {
+		return true
+	}
+	da := EditedDocument(a)
+	return da != nil && da == EditedDocument(b)
 }
 
 // AllTargets makes the targets that close every editor of every group of the grid, in the order of the

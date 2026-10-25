@@ -76,6 +76,28 @@ type EditorInput interface {
 	Dispose()
 }
 
+// DocumentEditor is implemented by an input whose editor changes one document and saves it: a text editor, and a
+// diff editor (its modified side). The input is dirty when the document is, a save and a revert act on the
+// document, and a close that would lose the document's changes asks about it unless another input shows the same
+// document.
+type DocumentEditor interface {
+	EditedDocument() *document.Document
+}
+
+// EditedDocument is the document the editor of an input changes, or nil for an input that has none.
+func EditedDocument(e EditorInput) *document.Document {
+	if d, ok := e.(DocumentEditor); ok {
+		return d.EditedDocument()
+	}
+	return nil
+}
+
+// TabKeyed is implemented by an input that shows no resource but needs a tab key of its own: two diff editors with
+// the same name are two tabs.
+type TabKeyed interface {
+	TabKey() string
+}
+
 // DeletedState is implemented by an input whose resource another program can delete: Deleted tells that it did
 // (the document is orphaned, SPEC §3.1 "Files"). The input keeps its content; the tab and the Open Editors list
 // show it struck through.

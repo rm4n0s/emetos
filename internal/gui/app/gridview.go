@@ -243,6 +243,8 @@ func (s *shellState) tabItems(colors kit.Colors, group *editorgroup.Group) []kit
 		key := labels[i].Name
 		if uri, ok := e.Resource(); ok {
 			key = uri.String()
+		} else if k, ok := e.(editorgroup.TabKeyed); ok {
+			key = k.TabKey()
 		}
 		items[i] = kit.TabItem{
 			Key: key, Name: labels[i].Name, Description: labels[i].Description, Title: editorgroup.DecoratedTitle(e, labels[i].Title),

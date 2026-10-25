@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"slices"
 	"strconv"
 
 	"github.com/rm4n0s/glutter/foundation"
@@ -341,10 +342,15 @@ func (s *shellState) askUnsaved(losses []editorgroup.Unsaved, done func(proceed 
 	var names []string
 	var docs []*document.Document
 	for _, u := range losses {
-		names = append(names, u.Input.Name())
-		if t, ok := u.Input.(*editorgroup.TextInput); ok {
-			docs = append(docs, t.Document())
+		name := u.Input.Name()
+		if doc := editorgroup.EditedDocument(u.Input); doc != nil {
+			// the question is about the document that has the changes: the modified side of a diff editor
+			name = editorgroup.DocumentName(doc)
+			if !slices.Contains(docs, doc) {
+				docs = append(docs, doc)
+			}
 		}
+		names = append(names, name)
 	}
 	message, detail, save := saveConfirmation(names)
 	win.Dialogs.Show(kit.DialogSpec{

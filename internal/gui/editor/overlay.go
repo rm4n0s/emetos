@@ -208,6 +208,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 		first: first, last: last, bounds: ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height),
 	}
 	if r.kind == overlayUnder {
+		view.paintBackgroundMarks()
 		view.paintLineHighlight()
 		view.paintFolded()
 		view.paintSelections()

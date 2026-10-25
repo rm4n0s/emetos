@@ -28,6 +28,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerTabColors(r)
 	registerSettingsEditorColors(r)
 	registerKeybindingsEditorColors(r)
+	registerDiffEditorColors(r)
 	return r
 }
 
@@ -1005,5 +1006,41 @@ func registerKeybindingsEditorColors(r *ColorRegistry) {
 			Description: "Background color for the keyboard shortcuts table header."},
 		ColorContribution{ID: "keybindingTable.rowsBackground", NeedsTransparency: true, Defaults: AllThemes(Ref("tree.tableOddRowsBackground")),
 			Description: "Background color for the keyboard shortcuts table alternating rows."},
+	)
+}
+
+// registerDiffEditorColors registers the colors of the diff editor (step 9.5): the backgrounds of the lines and
+// the characters that were inserted or removed, the margin next to them, their marks on the overview ruler, the
+// outlines of the high contrast themes, the border between the two editors and the diagonal fill of the filler
+// lines. The colors of the unchanged regions are left out (the regions are not collapsed, SPEC §9.11).
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts (the diff editor section)
+func registerDiffEditorColors(r *ColorRegistry) {
+	insert, remove := Hex("#9BB95533"), Hex("#FF000033") // defaultInsertColor and defaultRemoveColor: RGBA(155, 185, 85, .2) and RGBA(255, 0, 0, .2)
+	r.MustRegister(
+		ColorContribution{ID: "diffEditor.insertedTextBackground", NeedsTransparency: true, Defaults: dflt(Hex("#9CCC2C33"), Hex("#9CCC2C40"), nil, nil),
+			Description: "Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "diffEditor.removedTextBackground", NeedsTransparency: true, Defaults: dflt(Hex("#FF000033"), Hex("#FF000033"), nil, nil),
+			Description: "Background color for text that got removed. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "diffEditor.insertedLineBackground", NeedsTransparency: true, Defaults: dflt(insert, insert, nil, nil),
+			Description: "Background color for lines that got inserted. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "diffEditor.removedLineBackground", NeedsTransparency: true, Defaults: dflt(remove, remove, nil, nil),
+			Description: "Background color for lines that got removed. The color must not be opaque so as not to hide underlying decorations."},
+		ColorContribution{ID: "diffEditorGutter.insertedLineBackground",
+			Description: "Background color for the margin where lines got inserted."},
+		ColorContribution{ID: "diffEditorGutter.removedLineBackground",
+			Description: "Background color for the margin where lines got removed."},
+		ColorContribution{ID: "diffEditorOverview.insertedForeground",
+			Description: "Diff overview ruler foreground for inserted content."},
+		ColorContribution{ID: "diffEditorOverview.removedForeground",
+			Description: "Diff overview ruler foreground for removed content."},
+		ColorContribution{ID: "diffEditor.insertedTextBorder", Defaults: dflt(nil, nil, Hex("#33FF2EFF"), Hex("#374E06")),
+			Description: "Outline color for the text that got inserted."},
+		ColorContribution{ID: "diffEditor.removedTextBorder", Defaults: dflt(nil, nil, Hex("#FF008F"), Hex("#AD0707")),
+			Description: "Outline color for text that got removed."},
+		ColorContribution{ID: "diffEditor.border", Defaults: dflt(nil, nil, Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Border color between the two text editors."},
+		ColorContribution{ID: "diffEditor.diagonalFill", Defaults: dflt(Hex("#CCCCCC33"), Hex("#22222233"), nil, nil),
+			Description: "Color of the diff editor's diagonal fill. The diagonal fill is used in side-by-side diff views."},
 	)
 }

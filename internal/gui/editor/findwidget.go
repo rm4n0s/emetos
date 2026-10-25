@@ -149,7 +149,7 @@ func (s *findWidgetState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	colors := kit.ThemeOf(bc)
 	style := kit.TextStyleOf(bc, findWidgetFontSize, colors.EditorWidgetForeground)
-	readOnly := vm.doc.ReadOnly()
+	readOnly := vm.ReadOnly()
 	nonEmpty := st.SearchString() != ""
 	noMatches := nonEmpty && st.MatchesCount() == 0 && !st.IsSearching()
 

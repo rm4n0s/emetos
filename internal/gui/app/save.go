@@ -115,8 +115,8 @@ func (s *shellState) initSave(binding *widgets.WidgetsBinding) {
 	st.asOpen = map[*document.Document]bool{}
 	save := func(skip bool) command.Handler {
 		return func(_ command.Context, args any) error {
-			if t := s.targetInput(args); t != nil {
-				s.saveDocument(t.Document(), saveRequest{skipParticipants: skip}, nil)
+			if doc := s.targetDocument(args); doc != nil {
+				s.saveDocument(doc, saveRequest{skipParticipants: skip}, nil)
 			}
 			return nil
 		}
@@ -126,16 +126,16 @@ func (s *shellState) initSave(binding *widgets.WidgetsBinding) {
 		"workbench.action.files.save":                  save(false),
 		"workbench.action.files.saveWithoutFormatting": save(true),
 		"workbench.action.files.saveAs": func(_ command.Context, args any) error {
-			if t := s.targetInput(args); t != nil {
-				s.saveDocumentAs(t.Document(), saveRequest{}, nil)
+			if doc := s.targetDocument(args); doc != nil {
+				s.saveDocumentAs(doc, saveRequest{}, nil)
 			}
 			return nil
 		},
 		"saveAll":                        saveAll,
 		"workbench.action.files.saveAll": saveAll,
 		"workbench.action.files.revert": func(_ command.Context, args any) error {
-			if t := s.targetInput(args); t != nil {
-				s.revertDocument(binding, t.Document(), nil)
+			if doc := s.targetDocument(args); doc != nil {
+				s.revertDocument(binding, doc, nil)
 			}
 			return nil
 		},
@@ -165,12 +165,15 @@ func (s *shellState) disposeSave() {
 	s.saves.removeCommands = nil
 }
 
-// targetInput is the text input a save command acts on: the one its argument names (the tab that was clicked),
-// else the active editor's. It is nil for an editor that shows no document.
-func (s *shellState) targetInput(args any) *editorgroup.TextInput {
+// targetDocument is the document a save command acts on: the one of the editor its argument names (the tab that was
+// clicked), else of the active editor; the modified side of a diff editor. It is nil for an editor that has no
+// document.
+func (s *shellState) targetDocument(args any) *document.Document {
 	_, input := s.commandTarget(args)
-	t, _ := input.(*editorgroup.TextInput)
-	return t
+	if input == nil {
+		return nil
+	}
+	return editorgroup.EditedDocument(input)
 }
 
 // ---- participants ----
@@ -618,9 +621,9 @@ func (s *shellState) dirtyDocuments() []*document.Document {
 	seen := map[*document.Document]bool{}
 	for _, g := range s.group.grid.Groups(editorgroup.GridAppearance) {
 		for _, in := range g.Model.Editors(editorgroup.Sequential, false) {
-			if t, ok := in.(*editorgroup.TextInput); ok && !seen[t.Document()] && t.Document().Dirty() {
-				seen[t.Document()] = true
-				out = append(out, t.Document())
+			if doc := editorgroup.EditedDocument(in); doc != nil && !seen[doc] && doc.Dirty() {
+				seen[doc] = true
+				out = append(out, doc)
 			}
 		}
 	}

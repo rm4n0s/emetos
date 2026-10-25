@@ -180,7 +180,7 @@ func (s *editorState) startsTextDrag(e *gestures.PointerDownEvent, ev MouseEvent
 	opts := vm.Options()
 	primary := vm.Cursors().Primary().Selection
 	if !opts.DragAndDrop || opts.ColumnSelection || ev.Mods.Alt || ev.Clicks >= 2 || ev.OnLineNumbers ||
-		vm.Document().ReadOnly() || primary.IsEmpty() || e.LocalPosition().Dx < gutterWidth ||
+		vm.ReadOnly() || primary.IsEmpty() || e.LocalPosition().Dx < gutterWidth ||
 		!primary.Range().ContainsPosition(ev.Position) || !s.overText(e.LocalPosition(), gutterWidth, ev.Position) {
 		return false
 	}

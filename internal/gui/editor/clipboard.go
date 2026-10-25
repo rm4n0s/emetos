@@ -181,7 +181,7 @@ func (vm *ViewModel) cutSelection() error {
 	if err != nil {
 		return err
 	}
-	if !vm.copyToClipboard(l) || vm.doc.ReadOnly() {
+	if !vm.copyToClipboard(l) || vm.ReadOnly() {
 		return nil
 	}
 	return vm.apply(vm.commands().Cut(vm.cursors.Selections(), vm.opts.EmptySelectionClipboard))
@@ -195,7 +195,7 @@ func (vm *ViewModel) pasteClipboard() error {
 	if err != nil {
 		return err
 	}
-	if vm.doc.ReadOnly() {
+	if vm.ReadOnly() {
 		return nil
 	}
 	l.clipboard.Read(func(text string, err error) {

@@ -84,31 +84,38 @@ func (t *TextInput) Resource() (document.URI, bool) { return t.doc.URI(), true }
 
 // Name implements EditorInput: the name of the file, Untitled-n, or the label of a virtual document ("Default
 // Settings").
-func (t *TextInput) Name() string {
-	if label := t.doc.Label(); label != "" {
+func (t *TextInput) Name() string { return DocumentName(t.doc) }
+
+// DocumentName is the name a tab gives a document: its label, else the name of its file. The question that asks
+// whether to save a document names it so.
+func DocumentName(doc *document.Document) string {
+	if label := doc.Label(); label != "" {
 		return label
 	}
-	return t.doc.URI().Title()
+	return doc.URI().Title()
 }
 
 // Description implements EditorInput: the folder of the file, relative to the folder of the
 // window when it is below it, else with the home folder written "~". It is empty for a document
 // that has no file.
-func (t *TextInput) Description() string {
-	uri := t.doc.URI()
+func (t *TextInput) Description() string { return docDescription(t.doc, t.opts) }
+
+// docDescription is the folder of the file of a document for the description of a tab.
+func docDescription(doc *document.Document, opts TextInputOpts) string {
+	uri := doc.URI()
 	if uri.Scheme != document.SchemeFile {
 		return ""
 	}
 	dir := filepath.Dir(uri.Path)
-	if t.opts.Folder != "" {
-		if rel, err := filepath.Rel(t.opts.Folder, dir); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	if opts.Folder != "" {
+		if rel, err := filepath.Rel(opts.Folder, dir); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			if rel == "." {
 				return ""
 			}
 			return rel
 		}
 	}
-	return tilde(dir, t.opts.Home)
+	return tilde(dir, opts.Home)
 }
 
 // tilde writes a path inside the home folder with "~".
@@ -126,16 +133,22 @@ func tilde(path, home string) string {
 }
 
 // Title implements EditorInput: the full path, with the home folder written "~".
-func (t *TextInput) Title() string {
-	uri := t.doc.URI()
+func (t *TextInput) Title() string { return docTitle(t.doc, t.opts) }
+
+// docTitle is the tooltip of a document: its path with the home folder written "~", or its name.
+func docTitle(doc *document.Document, opts TextInputOpts) string {
+	uri := doc.URI()
 	if uri.Scheme != document.SchemeFile {
-		return t.Name()
+		return DocumentName(doc)
 	}
-	return tilde(uri.Path, t.opts.Home)
+	return tilde(uri.Path, opts.Home)
 }
 
 // Dirty implements EditorInput.
 func (t *TextInput) Dirty() bool { return t.dirty }
+
+// EditedDocument implements DocumentEditor.
+func (t *TextInput) EditedDocument() *document.Document { return t.doc }
 
 // Matches implements EditorInput: another text input of the same document.
 func (t *TextInput) Matches(other EditorInput) bool {

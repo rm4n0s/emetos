@@ -129,6 +129,7 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 	canvas.Save()
 	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
 	defer canvas.Restore()
+	r.paintMarkGutter(canvas, offset, size, top, first, last)
 	r.paintHighlight(canvas, offset, size, top, first, last)
 	widths := r.vm.GutterWidths(r.factory)
 	if opts.LineNumbers != LineNumbersOff {

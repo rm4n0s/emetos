@@ -138,6 +138,10 @@ type Options struct {
 	// editor.find.cursorMoveOnType and FindLoop editor.find.loop.
 	FindSeedSearchStringFromSelection, FindAutoInSelection string
 	FindCloseOnResult, FindCursorMoveOnType, FindLoop      bool
+	// ReadOnly makes this editor refuse every edit of its document without making the document
+	// read-only for the other editors that show it (VS Code's readOnly editor option; the diff editor's
+	// original side). The editorReadonly context key is true for it.
+	ReadOnly bool
 	// WordWrap is editor.wordWrap ("off", "on", "wordWrapColumn" or "bounded"), WordWrapColumn
 	// editor.wordWrapColumn, WrappingIndent editor.wrappingIndent ("none", "same", "indent" or
 	// "deepIndent"), WrappingStrategy editor.wrappingStrategy ("simple" or "advanced") and
@@ -220,7 +224,11 @@ type ViewModel struct {
 	syncedAt   int // the version of the document the projection was made for
 	scrollTop  float64
 	scrollLeft float64
-	viewport   float64 // the height of the viewport, set by the render object
+	// markCount is the number of background marks (marks.go).
+	markCount int
+	// scrollWatch tells the listeners of AddScrollListener that the editor scrolled.
+	scrollWatch *foundation.ChangeNotifier
+	viewport    float64 // the height of the viewport, set by the render object
 	// rangeLine is the line, counted from 1, that go to line shades; 0 for none.
 	rangeLine int
 
@@ -350,6 +358,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		blink:          newCursorBlink(),
 		focused:        true,
 		metrics:        foundation.NewChangeNotifier(),
+		scrollWatch:    foundation.NewChangeNotifier(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.ownerBase = doc.AllocOwners(ownerSlots)
@@ -454,8 +463,36 @@ func (vm *ViewModel) ScrollTop() float64 { return vm.scrollTop }
 func (vm *ViewModel) ScrollLeft() float64 { return vm.scrollLeft }
 
 // SetScrollTop sets the vertical scroll position; the render object follows it through the
-// scrollable's offset, and the view model records what it was told.
-func (vm *ViewModel) SetScrollTop(top float64) { vm.scrollTop = max(top, 0) }
+// scrollable's offset, and the view model records what it was told. The scroll listeners are told
+// when the position changed.
+func (vm *ViewModel) SetScrollTop(top float64) {
+	top = max(top, 0)
+	if top == vm.scrollTop {
+		return
+	}
+	vm.scrollTop = top
+	vm.scrollWatch.NotifyListeners()
+}
+
+// AddScrollListener calls fn when the editor scrolls, vertically or horizontally (the diff editor
+// keeps its two editors scrolled together with it). fn is called on the UI thread, possibly during
+// layout.
+func (vm *ViewModel) AddScrollListener(fn foundation.VoidCallback) foundation.ListenerHandle {
+	return vm.scrollWatch.AddListener(fn)
+}
+
+// RemoveScrollListener removes a listener of AddScrollListener.
+func (vm *ViewModel) RemoveScrollListener(h foundation.ListenerHandle) {
+	vm.scrollWatch.RemoveListener(h)
+}
+
+// ScrollTo scrolls the editor vertically to a position in pixels, through the widget; an editor
+// that is not on screen does not scroll.
+func (vm *ViewModel) ScrollTo(top float64) {
+	if vm.scroller != nil {
+		vm.scroller(top)
+	}
+}
 
 // SetScrollLeft sets the horizontal scroll position, within the content once the text layer
 // has measured it, and repaints.
@@ -469,6 +506,7 @@ func (vm *ViewModel) SetScrollLeft(left float64) {
 	}
 	vm.scrollLeft = left
 	vm.NotifyListeners()
+	vm.scrollWatch.NotifyListeners()
 }
 
 // SetViewportHeight records the height of the viewport, which sets the size of a page.

@@ -272,11 +272,10 @@ func (s *shellState) autoSaveBeforeClose(losses []editorgroup.Unsaved, shutdown 
 	}
 	var plans []autoSavePlan
 	for _, u := range losses {
-		t, ok := u.Input.(*editorgroup.TextInput)
-		if !ok || slices.ContainsFunc(plans, func(p autoSavePlan) bool { return p.doc == t.Document() }) {
+		doc := editorgroup.EditedDocument(u.Input)
+		if doc == nil || slices.ContainsFunc(plans, func(p autoSavePlan) bool { return p.doc == doc }) {
 			continue
 		}
-		doc := t.Document()
 		if shutdown {
 			if ctl.OnShutdown(doc) {
 				plans = append(plans, autoSavePlan{doc: doc, reason: document.SaveAuto, skipParticipants: true})

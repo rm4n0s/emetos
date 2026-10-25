@@ -263,6 +263,13 @@ type Colors struct {
 	// the keyboard shortcuts table.
 	TableColumnsBorder, TableOddRowsBackground                     ui.Color
 	KeybindingTableHeaderBackground, KeybindingTableRowsBackground ui.Color
+	// The colors of the diff editor (step 9.5): the backgrounds of the lines and the characters that were
+	// inserted or removed, the margin along the lines (a transparent one takes the line background), their
+	// marks on the overview ruler (transparent: the line background), the outlines of the characters, the line
+	// between the two editors (transparent: the line between editor groups) and the diagonal lines of the filler.
+	DiffInsertedTextBackground, DiffRemovedTextBackground, DiffInsertedLineBackground, DiffRemovedLineBackground ui.Color
+	DiffInsertedLineGutter, DiffRemovedLineGutter, DiffOverviewInserted, DiffOverviewRemoved                     ui.Color
+	DiffInsertedTextBorder, DiffRemovedTextBorder, DiffBorder, DiffDiagonalFill                                  ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -465,6 +472,12 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		SettingsFocusedRowBorder: color("settings.focusedRowBorder"),
 		TableColumnsBorder:       color("tree.tableColumnsBorder"), TableOddRowsBackground: color("tree.tableOddRowsBackground"),
 		KeybindingTableHeaderBackground: color("keybindingTable.headerBackground"), KeybindingTableRowsBackground: color("keybindingTable.rowsBackground"),
+		DiffInsertedTextBackground: color("diffEditor.insertedTextBackground"), DiffRemovedTextBackground: color("diffEditor.removedTextBackground"),
+		DiffInsertedLineBackground: color("diffEditor.insertedLineBackground"), DiffRemovedLineBackground: color("diffEditor.removedLineBackground"),
+		DiffInsertedLineGutter: color("diffEditorGutter.insertedLineBackground"), DiffRemovedLineGutter: color("diffEditorGutter.removedLineBackground"),
+		DiffOverviewInserted: color("diffEditorOverview.insertedForeground"), DiffOverviewRemoved: color("diffEditorOverview.removedForeground"),
+		DiffInsertedTextBorder: color("diffEditor.insertedTextBorder"), DiffRemovedTextBorder: color("diffEditor.removedTextBorder"),
+		DiffBorder: color("diffEditor.border"), DiffDiagonalFill: color("diffEditor.diagonalFill"),
 	}
 }
 

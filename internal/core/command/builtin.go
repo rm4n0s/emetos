@@ -41,6 +41,7 @@ func DefaultRegistry() *Registry {
 	registerProfileCommands(r)
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
+	registerDiffEditorCommands(r)
 	return r
 }
 
@@ -852,5 +853,26 @@ func registerProfileCommands(r *Registry) {
 		Meta{ID: "workbench.profiles.actions.deleteProfile", Title: "Delete Profile...", Category: "Profiles"},
 		Meta{ID: "workbench.profiles.actions.exportProfile", Title: "Export Profile...", Category: "Profiles"},
 		Meta{ID: "workbench.profiles.actions.importProfile", Title: "Import Profile...", Category: "Profiles"},
+	)
+}
+
+// registerDiffEditorCommands registers the commands of the diff editor (step 9.5): Go to Next Change and Go to
+// Previous Change (Alt+F5 and Shift+Alt+F5, the compare editor commands of the workbench), the three that focus a
+// side of the diff (no title, as in VS Code: they are for keybindings) and Switch Side (the editor command, which
+// maps the cursor to the other side). Not built: Open Active Diff Side, Swap Left and Right Editor Side, Toggle
+// Inline View and the view modes (step 9.6), Toggle Collapse Unchanged Regions, Toggle Show Moved Code Blocks, Toggle
+// Use Inline View When Space Is Limited, Exit Compare Move, the revert commands and the accessible diff viewer
+// (SPEC section 9.11).
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/diffEditorCommands.ts and
+// src/vs/editor/browser/widget/diffEditor/commands.ts
+func registerDiffEditorCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "workbench.action.compareEditor.nextChange", Title: "Go to Next Change"},
+		Meta{ID: "workbench.action.compareEditor.previousChange", Title: "Go to Previous Change"},
+		Meta{ID: "workbench.action.compareEditor.focusPrimarySide"},
+		Meta{ID: "workbench.action.compareEditor.focusSecondarySide"},
+		Meta{ID: "workbench.action.compareEditor.focusOtherSide"},
+		Meta{ID: "diffEditor.switchSide", Title: "Switch Side", Category: "Diff Editor", Precondition: contextkey.Has("isInDiffEditor")},
 	)
 }
