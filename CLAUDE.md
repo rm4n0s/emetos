@@ -28,6 +28,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 ## Definition of done
 Before reporting a task as finished, run `gofmt` (on `cmd` and `internal`), `go vet ./...`, `golangci-lint run` and `go test -race ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
 - `CGO_ENABLED=0 go build ./...` and `CGO_ENABLED=0 go test ./...` pass (proves the editor stays cgo-free)
+- `scripts/error-tags.sh --untested` prints nothing (every error Tag has a test that asserts its route; `docs/ERROR-TAGS-UNTESTED.md` is the only exception list)
 - Every new exported identifier has a doc comment
 - Every changed golden image has been looked at, not just regenerated
 
@@ -63,7 +64,7 @@ Before reporting a task as finished, run `gofmt` (on `cmd` and `internal`), `go 
 - Read Glutter's source in the Go module cache when its behavior is unclear; its `docs/SPEC.md` describes its design
 
 ## Error handling
-Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never import the standard library `errors` package: this package re-exports `errors.Is`, `errors.As` and `errors.Unwrap`, so a single import covers everything.
+Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never import the standard library `errors` package: this package re-exports `errors.Is`, `errors.As` and `errors.Unwrap`, so a single import covers everything. Read `AI_GUIDE.md` of github.com/rm4n0s/errors (in the Go module cache: `go list -m -f '{{.Dir}}' github.com/rm4n0s/errors`) before writing error code.
 
 **Creating errors**
 - New failure with a fixed message: `errors.New("Tag", "message", "key", value, ...)` (all metadata in this one call, never `New(...).SetMetadata(...)`)
@@ -72,6 +73,8 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
 - New failure with a formatted message: `errors.NewErrf("Tag", "format %s", arg)`
 - Wrapping an error that is NOT already an `*errors.Error` (stdlib, third-party, Glutter errors that are not from this package): `errors.NewErr("Tag", err)`. Add metadata with one `.SetMetadata("key", value, "key2", value2)` call (a later call merges into the metadata, it does not replace it, but use one call unless the data only becomes available later)
 - Every `New`, `NewErr` and `NewErrf` call captures the stack at that point
+- Construct the error in the function that detects the failure, never in a helper that only builds it (`errNoWindow()`, `fail(tag, msg)`): the route is the stack at the constructor, so a helper puts its own name in every route. The tag is a string literal at the call
+- Sentinels are struct literals, `&errors.Error{Tag: "X"}`, never a package-level `errors.New`: its stack is `init`, so every route through it is wrong
 
 **Propagating errors**
 - If the error already came from this package, return it untouched: `return err`. Re-wrapping it would replace the Tag and the stack and break route tests

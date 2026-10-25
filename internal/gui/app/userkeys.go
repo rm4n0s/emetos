@@ -226,7 +226,7 @@ func (k *userKeys) write(ctx context.Context, text string) error {
 		return errors.NewErr("KeybindingsFileWriteFailed", err).SetMetadata("path", k.filePath())
 	}
 	if _, err := fileio.Write(ctx, k.filePath(), text, opts); err != nil {
-		return errors.NewErr("KeybindingsFileWriteFailed", err).SetMetadata("path", k.filePath())
+		return err
 	}
 	return nil
 }
@@ -263,7 +263,7 @@ func (k *userKeys) ensure(ctx context.Context) error {
 		return errors.NewErr("KeybindingsFileCreateFailed", err).SetMetadata("path", k.filePath())
 	}
 	if _, err := fileio.Write(ctx, k.filePath(), keybinding.EmptyUserFile, fileio.WriteOptions{Encoding: fileio.UTF8, LineEnding: fileio.LF}); err != nil {
-		return errors.NewErr("KeybindingsFileCreateFailed", err).SetMetadata("path", k.filePath())
+		return err
 	}
 	return nil
 }

@@ -47,7 +47,7 @@ func run(in, out string) error {
 	if err != nil {
 		return errors.NewErr("CodiconReadFailed", err).SetMetadata("path", in)
 	}
-	src, err := generate(f)
+	src, err := generate(f, format.Source)
 	if cerr := f.Close(); err == nil && cerr != nil {
 		err = errors.NewErr("CodiconReadFailed", cerr).SetMetadata("path", in)
 	}
@@ -63,8 +63,9 @@ func run(in, out string) error {
 // generate returns the Go source for the codicons in the CSV (a header line
 // short_name,character,unicode, then one codicon per line). The error tags are
 // CodiconCSVInvalid, CodiconNameInvalid, CodiconCodeInvalid,
-// CodiconNameCollision and CodiconFormatFailed.
-func generate(r io.Reader) ([]byte, error) {
+// CodiconNameCollision and CodiconFormatFailed. formatSource formats the Go source (go/format.Source); a
+// generated file always formats, so tests give one that fails to reach CodiconFormatFailed.
+func generate(r io.Reader, formatSource func([]byte) ([]byte, error)) ([]byte, error) {
 	rd := csv.NewReader(r)
 	rd.FieldsPerRecord = 3
 	header, err := rd.Read()
@@ -124,7 +125,7 @@ func generate(r io.Reader) ([]byte, error) {
 		b.WriteString("\t\"" + ic.short + "\": 0x" + strings.ToUpper(strconv.FormatUint(ic.code, 16)) + ",\n")
 	}
 	b.WriteString("}\n")
-	src, err := format.Source(b.Bytes())
+	src, err := formatSource(b.Bytes())
 	if err != nil {
 		return nil, errors.NewErr("CodiconFormatFailed", err)
 	}

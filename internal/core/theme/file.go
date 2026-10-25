@@ -169,7 +169,7 @@ func (t *Theme) load(fsys fs.FS, name string, depth int, active map[string]bool)
 func (t *Theme) loadTextMateTheme(data []byte, name string) error {
 	root, err := plist.Parse(data)
 	if err != nil {
-		return errors.NewErr("TextMateThemeInvalid", err).SetMetadata("file", name)
+		return err
 	}
 	settings, isList := root["settings"].([]any)
 	if !isList {

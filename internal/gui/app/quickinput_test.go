@@ -4,12 +4,50 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
+	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
+
+// A command of the quick input that the program did not register is a broken build: the shell panics
+// with the CommandNotFound of the registry when it binds the commands.
+func TestAQuickInputCommandThatIsNotRegisteredBreaksTheShell(t *testing.T) {
+	win := newTestWindow(t, "")
+	reg := command.NewRegistry()
+	for _, m := range win.Commands.All() {
+		if m.ID == quickinput.GoToLineCommand {
+			continue
+		}
+		if err := reg.Register(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	win.Commands = reg
+	ts := testutil.New(t, testWindowSize)
+	ts.PumpWidget(newApp(t.Context(), win, nil, nil))
+
+	var found *errors.Error
+	for _, err := range ts.TakeErrors() {
+		var appErr *errors.Error
+		if errors.As(err, &appErr) && appErr.Tag == "CommandNotFound" && appErr.HasRoute("shellState.bindQuickInputCommands") {
+			found = appErr
+		}
+	}
+	if found == nil {
+		t.Fatal("the shell did not fail with CommandNotFound")
+	}
+	if !found.HasRoute("shellState.bindQuickInputCommands->Registry.SetHandler.CommandNotFound") {
+		t.Errorf("unexpected failure path: %s", found.Route())
+	}
+	if found.Metadata["id"] != quickinput.GoToLineCommand {
+		t.Errorf("metadata %v", found.Metadata)
+	}
+}
 
 // quickInputType types text in the input of the quick input and lets the frames pass.
 func (a *keyApp) quickInputType(text string) {

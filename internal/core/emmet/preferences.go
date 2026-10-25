@@ -58,15 +58,10 @@ func (c *Config) ApplyPreferences(prefs map[string]any) error {
 	return nil
 }
 
-// preferenceInvalid makes the error of a value that is not valid; ApplyPreferences adds the key.
-func preferenceInvalid(v any, want string) error {
-	return errors.New("PreferenceValueInvalid", "the value of a preference must be "+want, "got", v)
-}
-
 func prefString(dst *string, v any) error {
 	s, ok := v.(string)
 	if !ok {
-		return preferenceInvalid(v, "a string")
+		return errors.New("PreferenceValueInvalid", "the value of a preference must be "+"a string", "got", v)
 	}
 	*dst = s
 	return nil
@@ -75,7 +70,7 @@ func prefString(dst *string, v any) error {
 func prefBool(dst *bool, v any) error {
 	b, ok := v.(bool)
 	if !ok {
-		return preferenceInvalid(v, "true or false")
+		return errors.New("PreferenceValueInvalid", "the value of a preference must be "+"true or false", "got", v)
 	}
 	*dst = b
 	return nil
@@ -91,10 +86,10 @@ func prefScore(dst *float64, v any) error {
 	case int64:
 		f = float64(n)
 	default:
-		return preferenceInvalid(v, "a number from 0 to 1")
+		return errors.New("PreferenceValueInvalid", "the value of a preference must be "+"a number from 0 to 1", "got", v)
 	}
 	if f < 0 || f > 1 || math.IsNaN(f) {
-		return preferenceInvalid(v, "a number from 0 to 1")
+		return errors.New("PreferenceValueInvalid", "the value of a preference must be "+"a number from 0 to 1", "got", v)
 	}
 	*dst = f
 	return nil
@@ -107,7 +102,7 @@ func prefAliases(dst *map[string]string, v any) error {
 		for k, a := range x {
 			s, ok := a.(string)
 			if !ok {
-				return preferenceInvalid(v, "an object of strings, or a string like `e:em, p:%`")
+				return errors.New("PreferenceValueInvalid", "the value of a preference must be "+"an object of strings, or a string like `e:em, p:%`", "got", v)
 			}
 			aliases[k] = s
 		}
@@ -122,12 +117,12 @@ func prefAliases(dst *map[string]string, v any) error {
 			}
 			k, a, ok := strings.Cut(pair, ":")
 			if !ok || strings.TrimSpace(k) == "" {
-				return preferenceInvalid(v, "an object of strings, or a string like `e:em, p:%`")
+				return errors.New("PreferenceValueInvalid", "the value of a preference must be "+"an object of strings, or a string like `e:em, p:%`", "got", v)
 			}
 			aliases[strings.TrimSpace(k)] = strings.TrimSpace(a)
 		}
 	default:
-		return preferenceInvalid(v, "an object of strings, or a string like `e:em, p:%`")
+		return errors.New("PreferenceValueInvalid", "the value of a preference must be "+"an object of strings, or a string like `e:em, p:%`", "got", v)
 	}
 	*dst = aliases
 	return nil

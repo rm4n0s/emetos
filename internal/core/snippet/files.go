@@ -410,7 +410,7 @@ func (s *Service) Reload(ctx context.Context) error {
 		read, err := fileio.Read(ctx, path, fileio.ReadOptions{})
 		if err != nil {
 			if first == nil {
-				first = errors.NewErr("SnippetFileReadFailed", err).SetMetadata("path", path)
+				first = err
 			}
 			continue
 		}

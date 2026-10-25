@@ -385,10 +385,6 @@ func (p *Parser) peek() Token { return p.tokens[p.current] }
 
 func (p *Parser) atEnd() bool { return p.peek().Type == TokEOF }
 
-func errInvalidRegex(source, flags string) error {
-	return errors.New("WhenRegexInvalid", "the regular expression is not valid", "source", source, "flags", flags)
-}
-
 // Parse reads a when-clause with the strict parser (a regex with unescaped slashes is an
 // error). It fails with the tag WhenClauseInvalid, whose metadata has the message and the
 // offset of the first problem.

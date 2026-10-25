@@ -1,6 +1,10 @@
 package emmet
 
-import "unicode/utf8"
+import (
+	"unicode/utf8"
+
+	"github.com/rm4n0s/errors"
+)
 
 // Ported from Emmet: packages/abbreviation/src/tokenizer/index.ts,
 // packages/abbreviation/src/tokenizer/tokens.ts and packages/abbreviation/src/tokenizer/utils.ts
@@ -120,7 +124,7 @@ func Tokenize(source string) ([]Token, error) {
 			return nil, err
 		}
 		if !ok {
-			return nil, s.fail("UnexpectedCharacter", "Unexpected character", s.pos)
+			return nil, errors.New("UnexpectedCharacter", "Unexpected character"+" at "+itoa(s.pos+1), "pos", s.pos, "abbreviation", s.str)
 		}
 		result = append(result, tok)
 		switch tok.Type {
@@ -367,7 +371,7 @@ func field(s *scanner, ctx *tokenCtx) (Token, bool, error) {
 		if s.eat('}') {
 			return Token{Type: TokenField, Index: index, HasIndex: hasIndex, Name: name, Start: start, End: s.pos}, true, nil
 		}
-		return Token{}, false, s.fail("FieldUnclosed", "Expecting }", s.pos)
+		return Token{}, false, errors.New("FieldUnclosed", "Expecting }"+" at "+itoa(s.pos+1), "pos", s.pos, "abbreviation", s.str)
 	}
 
 	// There is no field here: back to the start
@@ -394,7 +398,7 @@ func consumeFieldPlaceholder(s *scanner) (string, error) {
 	}
 	if len(stack) > 0 {
 		s.pos = stack[len(stack)-1]
-		return "", s.fail("PlaceholderUnclosed", "Expecting }", s.pos)
+		return "", errors.New("PlaceholderUnclosed", "Expecting }"+" at "+itoa(s.pos+1), "pos", s.pos, "abbreviation", s.str)
 	}
 	return s.str[start:s.pos], nil
 }

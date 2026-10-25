@@ -61,7 +61,7 @@ func Compute(ctx context.Context, original, modified []string, opts Options) (Li
 // blocks are refined to character changes.
 func computeDiff(ctx context.Context, original, modified []string, opts Options, refine bool) (LinesDiff, error) {
 	if err := ctx.Err(); err != nil {
-		return LinesDiff{}, errCancelled(err)
+		return LinesDiff{}, errors.NewErr("DiffCancelled", err)
 	}
 	if opts.MaxComputationTime < 0 {
 		return LinesDiff{}, errors.New("DiffTimeoutInvalid", "the time limit of a diff must not be negative",

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
@@ -159,6 +160,43 @@ func TestWindowScope(t *testing.T) {
 	}
 	if got != win {
 		t.Error("WindowOf must return the window of the scope")
+	}
+}
+
+// A widget outside a WindowScope is a mistake in the tree: WindowOf and PeekWindow panic with the
+// error WindowMissing.
+func TestWindowMissing(t *testing.T) {
+	tests := []struct {
+		name  string
+		find  func(bc widgets.BuildContext)
+		route string
+	}{
+		{"WindowOf", func(bc widgets.BuildContext) { WindowOf(bc) }, "WindowOf.WindowMissing"},
+		{"PeekWindow", func(bc widgets.BuildContext) { PeekWindow(bc) }, "PeekWindow.WindowMissing"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var recovered any
+			ts := testutil.New(t, testWindowSize)
+			ts.PumpWidget(widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget {
+				func() {
+					defer func() { recovered = recover() }()
+					tt.find(bc)
+				}()
+				return widgets.NewSizedBox(nil)
+			}))
+			err, ok := recovered.(error)
+			if !ok {
+				t.Fatalf("panic value = %#v, want an error", recovered)
+			}
+			appErr, ok := errors.FromError(err)
+			if !ok {
+				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+			}
+			if appErr.Tag != "WindowMissing" || !appErr.HasRoute(tt.route) {
+				t.Errorf("Tag = %q, route = %s, want %s", appErr.Tag, appErr.Route(), tt.route)
+			}
+		})
 	}
 }
 

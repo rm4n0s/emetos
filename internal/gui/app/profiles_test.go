@@ -1032,7 +1032,7 @@ func TestSwitchProfileFailures(t *testing.T) {
 		}
 		err := b.win.SwitchProfile(ctx, "Work")
 		appErr, ok := errors.FromError(err)
-		if !ok || !appErr.HasRoute("Window.SwitchProfile.ProfileSwitchFailed") {
+		if !ok || !appErr.HasRoute("Window.SwitchProfile->Profiles.Lookup->Profiles.List.ProfileListFailed") {
 			t.Errorf("SwitchProfile = %v", err)
 		}
 	})

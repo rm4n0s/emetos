@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/rm4n0s/errors"
-
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -13,7 +11,7 @@ import (
 
 // bindCommands takes over the layout commands in the registry while the workbench is on screen.
 // The registry must have them (command.DefaultRegistry does): a missing one is a mistake of the
-// caller and panics with the tag LayoutCommandMissing.
+// caller and panics with the CommandNotFound of command.Registry.SetHandler.
 //
 // Ported from VS Code: src/vs/workbench/browser/actions/layoutActions.ts,
 // src/vs/workbench/browser/parts/panel/panelActions.ts,
@@ -107,7 +105,7 @@ func (s *workbenchState) bindCommands() {
 	for id, h := range handlers {
 		remove, err := reg.SetHandler(id, h)
 		if err != nil {
-			panic(errors.NewErr("LayoutCommandMissing", err).SetMetadata("command", id))
+			panic(err)
 		}
 		s.removeCommands = append(s.removeCommands, remove)
 	}

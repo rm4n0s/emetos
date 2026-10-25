@@ -34,7 +34,7 @@ func TestRegisterErrors(t *testing.T) {
 		{"default of another type", Setting{Key: "a.b", Types: []Type{String}, Default: 5}, "Register.SettingDefaultInvalid"},
 		{"default not in the enum", Setting{Key: "a.b", Types: []Type{String}, Default: "x", Enum: []any{"y"}}, "Register.SettingDefaultInvalid"},
 		{"default below the minimum", Setting{Key: "a.b", Types: []Type{Number}, Default: 0, Minimum: Float(1)}, "Register.SettingDefaultInvalid"},
-		{"default that is no JSON", Setting{Key: "a.b", Types: []Type{Object}, Default: make(chan int)}, "Register.SettingDefaultInvalid"},
+		{"default that is no JSON", Setting{Key: "a.b", Types: []Type{Object}, Default: make(chan int)}, "Register->normalize.SettingValueNotJSON"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestRegisterErrors(t *testing.T) {
 		for _, id := range []string{"", " ", "[go]", "a]b"} {
 			assertRoute(t, r.RegisterLanguageDefaults(id, nil), "RegisterLanguageDefaults.SettingLanguageInvalid")
 		}
-		assertRoute(t, r.RegisterLanguageDefaults("go", map[string]any{"a": make(chan int)}), "RegisterLanguageDefaults.SettingDefaultInvalid")
+		assertRoute(t, r.RegisterLanguageDefaults("go", map[string]any{"a": make(chan int)}), "RegisterLanguageDefaults->normalize.SettingValueNotJSON")
 	})
 }
 

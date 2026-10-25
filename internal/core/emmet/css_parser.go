@@ -47,7 +47,8 @@ func ParseCSSTokens(tokens []*CSSToken, value bool) ([]*CSSProperty, error) {
 		if prop != nil {
 			result = append(result, prop)
 		} else if !s.consume(cssIsSibling) {
-			return nil, s.fail("CSSUnexpectedToken", "Unexpected token", nil)
+			at, pos := s.where(nil)
+			return nil, errors.New("CSSUnexpectedToken", "Unexpected token"+at, "pos", pos)
 		}
 	}
 	return result, nil
@@ -76,17 +77,16 @@ func (s *cssTokenScanner) consume(test func(*CSSToken) bool) bool {
 	return false
 }
 
-// fail makes an error at a token (the one at the position by default).
-func (s *cssTokenScanner) fail(tag, message string, tok *CSSToken) error {
+// where gives the place of an error at a token (the one at the position by default): the text " at N" to
+// add to the message, and the offset, or "" and -1 when there is no token.
+func (s *cssTokenScanner) where(tok *CSSToken) (at string, pos int) {
 	if tok == nil {
 		tok = s.peek()
 	}
-	pos := -1
-	if tok != nil {
-		message += " at " + itoa(tok.Start)
-		pos = tok.Start
+	if tok == nil {
+		return "", -1
 	}
-	return errors.New(tag, message, "pos", pos)
+	return " at " + itoa(tok.Start), tok.Start
 }
 
 // consumeProperty reads one property, or nothing (nil).
@@ -171,7 +171,8 @@ func (s *cssTokenScanner) consumeArguments(depth int) ([]*CSSValue, bool, error)
 		return nil, false, nil
 	}
 	if depth >= maxCSSNesting {
-		return nil, false, s.fail("CSSNestingTooDeep", "Abbreviation is nested too deep", s.tokens[s.pos-1])
+		at, pos := s.where(s.tokens[s.pos-1])
+		return nil, false, errors.New("CSSNestingTooDeep", "Abbreviation is nested too deep"+at, "pos", pos)
 	}
 	args := []*CSSValue{}
 	for s.readable() && !s.consume(cssIsCloseBracket) {
@@ -182,7 +183,8 @@ func (s *cssTokenScanner) consumeArguments(depth int) ([]*CSSValue, bool, error)
 		if value != nil {
 			args = append(args, value)
 		} else if !s.consume(cssIsWhiteSpace) && !s.consume(cssIsArgumentDelimiter) {
-			return nil, false, s.fail("CSSUnexpectedToken", "Unexpected token", nil)
+			at, pos := s.where(nil)
+			return nil, false, errors.New("CSSUnexpectedToken", "Unexpected token"+at, "pos", pos)
 		}
 	}
 	return args, true, nil

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -926,6 +927,29 @@ func TestDevOpenFileInAGroup(t *testing.T) {
 				t.Errorf("unexpected failure path: %s", appErr.Route())
 			}
 		})
+	}
+	a.noErrors()
+}
+
+// A relative path is made absolute from the working folder; when that folder is gone the command fails
+// with DevOpenFileFailed, and nothing is opened.
+func TestDevOpenFileWithTheWorkingFolderGone(t *testing.T) {
+	a := newGroupApp(t, []string{"a.go"}, "a.go")
+	gone := t.TempDir()
+	t.Chdir(gone)
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+	err := a.runWith("dev.openFile", "relative.go")
+	appErr, ok := errors.FromError(err)
+	if !ok {
+		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+	}
+	if appErr.Tag != "DevOpenFileFailed" || !appErr.HasRoute("shellState.devOpenFile.DevOpenFileFailed") {
+		t.Errorf("Tag = %q, route = %s", appErr.Tag, appErr.Route())
+	}
+	if appErr.Metadata["path"] != "relative.go" {
+		t.Errorf("metadata %v", appErr.Metadata)
 	}
 	a.noErrors()
 }

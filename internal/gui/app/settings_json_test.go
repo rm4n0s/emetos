@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -377,7 +378,7 @@ func TestTheVirtualDocumentIsNotBackedUp(t *testing.T) {
 func TestOpenVirtualErrors(t *testing.T) {
 	win := newTestWindow(t, "")
 	ctx := context.Background()
-	boom := errors.New("Boom", "the provider broke")
+	boom := fs.ErrPermission
 	if err := win.Process.Virtual.Register("/broken.json", document.VirtualProvider{Text: func(context.Context) (string, error) { return "", boom }}); err != nil {
 		t.Fatal(err)
 	}

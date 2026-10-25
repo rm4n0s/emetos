@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/rm4n0s/errors"
 )
 
 // bom is U+FEFF, written out because source files cannot hold it.
@@ -371,6 +373,32 @@ func TestDecode(t *testing.T) {
 	big := FindNodeAtLocation(ParseTreeOnly("1e999"), Path{})
 	if err := Decode(big, &anyValue); err == nil {
 		t.Error("an infinity was decoded")
+	}
+}
+
+func TestDecodeErrorRoutes(t *testing.T) {
+	root := ParseTreeOnly(`{"editor.tabSize": 4}`)
+	tests := []struct {
+		name  string
+		node  *Node
+		into  any
+		route string
+	}{
+		{"no node", nil, new(string), "Decode.JSONCNoValue"},
+		{"a number into a string", FindNodeAtLocation(root, Path{"editor.tabSize"}), new(string), "Decode.JSONCDecodeFailed"},
+		{"a value that cannot be written as JSON", FindNodeAtLocation(ParseTreeOnly("1e999"), Path{}), new(any), "Decode.JSONCDecodeFailed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := Decode(tt.node, tt.into)
+			appErr, ok := errors.FromError(err)
+			if !ok {
+				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+			}
+			if !appErr.HasRoute(tt.route) {
+				t.Errorf("unexpected failure path: %s, want %s", appErr.Route(), tt.route)
+			}
+		})
 	}
 }
 

@@ -134,6 +134,10 @@ func NewModel(defaults, user []Item, commands []CommandInfo) *Model {
 	return &Model{rows: out}
 }
 
+// NewModelOfRows makes a model of rows as they are given: their ids are not made again, and rows with the same
+// id are not left out, which NewModel never produces. It lets a test show the editor a model it cannot make.
+func NewModelOfRows(rows []Row) *Model { return &Model{rows: slices.Clone(rows)} }
+
 // rowOf makes the row of a resolved item.
 func rowOf(it Item, label string) Row {
 	r := Row{Command: it.Command, Label: label, Keybinding: it.Keybinding, Args: it.Args, FileEntry: it.FileEntry}

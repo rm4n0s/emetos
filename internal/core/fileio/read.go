@@ -198,8 +198,13 @@ func readFile(ctx context.Context, path string, maxSize int64) ([]byte, FileStat
 		return nil, FileStat{}, err
 	}
 	f, err := os.Open(path)
-	if err != nil {
-		return nil, FileStat{}, openError(path, err)
+	switch {
+	case os.IsNotExist(err):
+		return nil, FileStat{}, errors.NewErr("FileNotFound", err).SetMetadata("path", path)
+	case os.IsPermission(err):
+		return nil, FileStat{}, errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
+	case err != nil:
+		return nil, FileStat{}, errors.NewErr("FileReadFailed", err).SetMetadata("path", path)
 	}
 	defer func() { _ = f.Close() }()
 	info, err := f.Stat()
@@ -230,8 +235,12 @@ func readFile(ctx context.Context, path string, maxSize int64) ([]byte, FileStat
 func checkRegular(path string, maxSize int64) error {
 	info, err := os.Stat(path)
 	switch {
+	case os.IsNotExist(err):
+		return errors.NewErr("FileNotFound", err).SetMetadata("path", path)
+	case os.IsPermission(err):
+		return errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
 	case err != nil:
-		return openError(path, err)
+		return errors.NewErr("FileReadFailed", err).SetMetadata("path", path)
 	case info.IsDir():
 		return errors.New("FileIsDirectory", "the path is a folder", "path", path)
 	case !info.Mode().IsRegular():
@@ -240,16 +249,6 @@ func checkRegular(path string, maxSize int64) error {
 		return errors.New("FileTooLarge", "the file is larger than the limit", "path", path, "size", info.Size(), "limit", maxSize)
 	}
 	return nil
-}
-
-func openError(path string, err error) error {
-	switch {
-	case os.IsNotExist(err):
-		return errors.NewErr("FileNotFound", err).SetMetadata("path", path)
-	case os.IsPermission(err):
-		return errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
-	}
-	return errors.NewErr("FileReadFailed", err).SetMetadata("path", path)
 }
 
 // detectBOM finds a byte order mark at the start of data: the encoding it says

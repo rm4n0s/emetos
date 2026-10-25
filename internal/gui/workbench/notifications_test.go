@@ -636,15 +636,15 @@ func TestAHostWithoutTheCommandsReportsTheMistake(t *testing.T) {
 	var found bool
 	for _, err := range errs {
 		var appErr *errors.Error
-		if errors.As(err, &appErr) && appErr.HasRoute("notificationsHostState.bindCommands.NotificationCommandMissing") {
+		if errors.As(err, &appErr) && appErr.HasRoute("notificationsHostState.bindCommands->Registry.SetHandler.CommandNotFound") {
 			found = true
-			if _, ok := appErr.Metadata["command"]; !ok {
+			if _, ok := appErr.Metadata["id"]; !ok {
 				t.Errorf("the error does not say which command: %v", appErr.Metadata)
 			}
 		}
 	}
 	if !found {
-		t.Errorf("no error has the tag NotificationCommandMissing: %v", errs)
+		t.Errorf("no error has the tag CommandNotFound from the notifications: %v", errs)
 	}
 }
 

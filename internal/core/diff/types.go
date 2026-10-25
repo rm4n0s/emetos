@@ -3,6 +3,8 @@ package diff
 import (
 	"context"
 	"time"
+
+	"github.com/rm4n0s/errors"
 )
 
 // Ported from VS Code: src/vs/editor/common/diff/rangeMapping.ts and linesDiffComputer.ts
@@ -117,7 +119,7 @@ func (b *budget) expired() (bool, error) {
 	b.steps++
 	if b.steps%ctxCheckInterval == 0 {
 		if err := b.ctx.Err(); err != nil {
-			return false, errCancelled(err)
+			return false, errors.NewErr("DiffCancelled", err)
 		}
 	}
 	return !b.timeout.isValid(), nil

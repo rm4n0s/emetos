@@ -290,48 +290,43 @@ func (p *Profiles) create(ctx context.Context, name string, from CreateSource) (
 			return "", err
 		}
 	}
-	return p.build(name, "ProfileCreateFailed", func(tmp string) error {
-		if from.Copy {
-			return p.copyProfile(ctx, source, tmp)
-		}
-		return nil
-	})
-}
-
-// build makes the folder of a new profile: it is built under a temporary name beside the others by fill and
-// renamed into place, so a failure leaves nothing. failTag is the tag of the failures of the folders themselves
-// (the errors of fill are returned as they are). The name must be checked already; p.mu is held.
-func (p *Profiles) build(name, failTag string, fill func(tmp string) error) (string, error) {
 	dir, err := p.paths.ConfigDir(name)
 	if err != nil {
 		return "", err
 	}
 	if err := os.MkdirAll(p.root(), 0o755); err != nil {
-		return "", errors.NewErr(failTag, err).SetMetadata("path", p.root())
+		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", p.root())
 	}
 	tmp, err := os.MkdirTemp(p.root(), ".new-")
 	if err != nil {
-		return "", errors.NewErr(failTag, err).SetMetadata("path", p.root())
+		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", p.root())
 	}
 	done := false
-	defer func() {
-		if !done {
-			if err := p.opts.RemoveAll(tmp); err != nil {
-				p.opts.Logger.Warn("a profile that was not made could not be removed", "path", tmp, "err", err)
-			}
-		}
-	}()
+	defer p.removeUnfinished(tmp, &done)
 	if err := os.Chmod(tmp, 0o755); err != nil {
-		return "", errors.NewErr(failTag, err).SetMetadata("path", tmp)
+		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", tmp)
 	}
-	if err := fill(tmp); err != nil {
-		return "", err
+	if from.Copy {
+		if err := p.copyProfile(ctx, source, tmp); err != nil {
+			return "", err
+		}
 	}
 	if err := p.opts.Rename(tmp, dir); err != nil {
-		return "", errors.NewErr(failTag, err).SetMetadata("path", dir)
+		return "", errors.NewErr("ProfileCreateFailed", err).SetMetadata("path", dir)
 	}
 	done = true
 	return name, nil
+}
+
+// removeUnfinished removes the temporary folder of a profile that was not made whole (done is false), so that a
+// failure leaves nothing; Create and Import defer it. p.mu is held.
+func (p *Profiles) removeUnfinished(tmp string, done *bool) {
+	if *done {
+		return
+	}
+	if err := p.opts.RemoveAll(tmp); err != nil {
+		p.opts.Logger.Warn("a profile that was not made could not be removed", "path", tmp, "err", err)
+	}
 }
 
 // Ensure gives the profile of a name, making it empty when there is none (what --profile does with a name that is

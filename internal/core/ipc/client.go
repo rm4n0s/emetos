@@ -40,8 +40,10 @@ func Dial(ctx context.Context, opts Options) (*Client, error) {
 // them (Version, TypeOpen, the process id). A request that does not wait (Open.Wait false) gets its reply
 // within the I/O timeout; one that waits has no limit but ctx, whose end closes the connection (the instance
 // then stops waiting). The reply can be an error reply (TypeError): that is a Reply, not an error here.
-// The tags are IPCSendFailed, IPCMessageTooLarge, IPCReplyFailed (the connection ended or the reply did not
-// come in time), IPCReplyInvalid and IPCVersionUnsupported (the reply is of another version).
+// The tags are IPCSendFailed and IPCReplyFailed (the deadline of the connection could not be set, or the
+// context ended), those of writeMessage and readMessage (IPCWriteFailed, IPCMessageTooLarge, IPCReadFailed,
+// IPCConnectionClosed, IPCMessageInvalid: the connection ended or the reply did not come in time), IPCReplyInvalid and
+// IPCVersionUnsupported (the reply is of another version).
 func (c *Client) Send(ctx context.Context, req Request) (Reply, error) {
 	if req.Version == 0 {
 		req.Version = Version
@@ -59,10 +61,7 @@ func (c *Client) Send(ctx context.Context, req Request) (Reply, error) {
 		return Reply{}, errors.NewErr("IPCSendFailed", err)
 	}
 	if err := writeMessage(c.conn, req); err != nil {
-		if appErr, ok := errors.FromError(err); ok && appErr.Tag == "IPCMessageTooLarge" {
-			return Reply{}, err
-		}
-		return Reply{}, errors.NewErr("IPCSendFailed", err)
+		return Reply{}, err
 	}
 	deadline := time.Time{}
 	if req.Open == nil || !req.Open.Wait {
@@ -76,10 +75,7 @@ func (c *Client) Send(ctx context.Context, req Request) (Reply, error) {
 		if ctx.Err() != nil {
 			return Reply{}, errors.NewErr("IPCReplyFailed", ctx.Err())
 		}
-		if appErr, ok := errors.FromError(err); ok && appErr.Tag == "IPCMessageTooLarge" {
-			return Reply{}, err
-		}
-		return Reply{}, errors.NewErr("IPCReplyFailed", err)
+		return Reply{}, err
 	}
 	if reply.Version != Version {
 		return Reply{}, errors.New("IPCVersionUnsupported", "the reply is of another version of the protocol", "version", reply.Version, "supported", Version)

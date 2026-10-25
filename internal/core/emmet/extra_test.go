@@ -416,7 +416,7 @@ func TestBEMOptions(t *testing.T) {
 // are an error (they can be quoted in an attribute).
 func TestCharactersOfClassNames(t *testing.T) {
 	_, err := Expand("p.日本", newConfig(t, "html"))
-	wantRoute(t, err, "scanner.fail.UnexpectedCharacter")
+	wantRoute(t, err, "Tokenize.UnexpectedCharacter")
 	got, err := Expand(`p[class="日本"]`, newConfig(t, "html"))
 	if err != nil || got != `<p class="日本"></p>` {
 		t.Errorf("got %q, %v", got, err)

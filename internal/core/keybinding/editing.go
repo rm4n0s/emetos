@@ -114,11 +114,11 @@ func (d *document) entry(index int) (key, command, when string, ok bool) {
 // apply makes the edits to the text and parses it again.
 func (e Editing) apply(d *document, edits []jsonc.Edit, err error) (*document, error) {
 	if err != nil {
-		return nil, errors.NewErr("KeybindingsEditFailed", err)
+		return nil, err
 	}
 	text, err := jsonc.ApplyEdits(d.text, edits)
 	if err != nil {
-		return nil, errors.NewErr("KeybindingsEditFailed", err)
+		return nil, err
 	}
 	return open(text)
 }

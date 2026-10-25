@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-
-	"github.com/rm4n0s/errors"
 )
 
 // Ported from Emmet: src/stylesheet/index.ts and src/index.ts (the stylesheet part)
@@ -63,11 +61,6 @@ func convertSnippets(snippets map[string]string, cfg *Config) []*cssSnippet {
 		result = append(result, sn)
 	}
 	return nest(result)
-}
-
-// cssEmptyValueError is the error of a property snippet whose values are no property.
-func cssEmptyValueError(value string) error {
-	return errors.New("CSSSnippetValueEmpty", "the value of a property snippet must have a value", "value", value)
 }
 
 // resolveNode finds the snippet of a property with a fuzzy match and resolves the keywords of its

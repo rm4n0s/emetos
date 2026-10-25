@@ -80,7 +80,7 @@ func TestValidate(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
 			}
-			if !appErr.HasRoute("Validate->errInvalid.DiffInvalid") {
+			if !appErr.HasRoute("Validate.DiffInvalid") {
 				t.Errorf("unexpected failure path: %s", appErr.Route())
 			}
 			if reason, _ := appErr.Metadata["reason"].(string); tc.reasonSubstr != "" && !strings.Contains(reason, tc.reasonSubstr) {

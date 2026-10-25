@@ -767,7 +767,7 @@ func TestClientRefusesABadReply(t *testing.T) {
 	}{
 		{"other version", `{"version":9,"type":"ok"}`, "Client.Send.IPCVersionUnsupported"},
 		{"unknown type", `{"version":1,"type":"maybe"}`, "Client.Send.IPCReplyInvalid"},
-		{"not json", `nonsense`, "Client.Send.IPCReplyFailed"},
+		{"not json", `nonsense`, "Client.Send->readMessage.IPCMessageInvalid"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
@@ -676,6 +677,31 @@ func TestACorruptBackupIsIgnoredAndTheOthersComeBack(t *testing.T) {
 	}
 	if got := env.backupURIs(); len(got) != 1 {
 		t.Errorf("backups %v", got)
+	}
+}
+
+// The backup of an untitled document with no text brings nothing back: its document is closed again and
+// restoreFromBackup fails with BackupEmpty (the caller logs it and goes on).
+func TestTheBackupOfAnEmptyUntitledDocumentBringsNothingBack(t *testing.T) {
+	env := hotExitEnv(t, "onExit")
+	run := env.start(env.root)
+	uri := document.UntitledURI(7)
+	doc, err := run.win.restoreFromBackup(context.Background(), &restoredWindow{}, uri, storage.Backup{URI: uri.String()})
+	if doc != nil {
+		t.Errorf("a document came back: %v", doc.URI())
+	}
+	appErr, ok := errors.FromError(err)
+	if !ok {
+		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+	}
+	if appErr.Tag != "BackupEmpty" || !appErr.HasRoute("Window.restoreFromBackup.BackupEmpty") {
+		t.Errorf("Tag = %q, route = %s", appErr.Tag, appErr.Route())
+	}
+	if appErr.Metadata["uri"] != uri.String() {
+		t.Errorf("metadata %v", appErr.Metadata)
+	}
+	if _, open := run.win.Documents.Get(uri); open {
+		t.Error("the empty document was left open")
 	}
 }
 

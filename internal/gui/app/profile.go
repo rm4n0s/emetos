@@ -86,12 +86,12 @@ func (w *Window) stateStore() *storage.StateStore {
 //
 // A switch to the profile the window has is nothing. A settings file or a keybindings file of the new profile that
 // cannot be read is reported by the return value after the switch is complete: the window uses the defaults for it.
-// It must run on the UI thread. The error has the tags ProfileSwitchFailed and those of settings.Store.Reload.
+// It must run on the UI thread. The error has the tags of Profiles.Lookup, of the paths of the profile and of settings.Store.Reload.
 func (w *Window) SwitchProfile(ctx context.Context, name string) error {
 	p := w.Process
 	profile, ok, err := p.Profiles.Lookup(ctx, name)
 	if err != nil {
-		return errors.NewErr("ProfileSwitchFailed", err).SetMetadata("profile", name)
+		return err
 	}
 	if !ok {
 		return errors.New("ProfileSwitchNotFound", "there is no such profile", "profile", name)
@@ -114,22 +114,21 @@ func (w *Window) profileRenamed(ctx context.Context, newName string) error {
 // that name; flush says that the state of the window is written to the folder of the old profile first.
 func (w *Window) moveToProfile(ctx context.Context, profile string, flush bool) error {
 	p := w.Process
-	name := profile
 	userPath, err := settings.UserSettingsPath(p.Paths, profile)
 	if err != nil {
-		return errors.NewErr("ProfileSwitchFailed", err).SetMetadata("profile", name)
+		return err
 	}
 	keysPath, err := keybinding.UserKeybindingsPath(p.Paths, profile)
 	if err != nil {
-		return errors.NewErr("ProfileSwitchFailed", err).SetMetadata("profile", name)
+		return err
 	}
 	snippetsDir, err := snippetsDirOf(p.Paths, profile)
 	if err != nil {
-		return errors.NewErr("ProfileSwitchFailed", err).SetMetadata("profile", name)
+		return err
 	}
 	configDir, err := p.Paths.ConfigDir(profile)
 	if err != nil {
-		return errors.NewErr("ProfileSwitchFailed", err).SetMetadata("profile", name)
+		return err
 	}
 
 	// the state file of the old profile is up to date before the window leaves it

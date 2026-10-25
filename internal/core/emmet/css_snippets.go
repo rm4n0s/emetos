@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/rm4n0s/errors"
 )
 
 // Ported from Emmet: src/stylesheet/snippets.ts
@@ -152,7 +154,7 @@ func parseSnippetValue(value string) ([]*CSSValue, error) {
 		return nil, err
 	}
 	if len(props) == 0 {
-		return nil, cssEmptyValueError(value)
+		return nil, errors.New("CSSSnippetValueEmpty", "the value of a property snippet must have a value", "value", value)
 	}
 	return props[0].Value, nil
 }

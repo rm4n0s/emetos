@@ -214,3 +214,21 @@ func TestProofUsage(t *testing.T) {
 		})
 	}
 }
+
+// scripts/error-tags.sh lists the Tags, and with --untested prints nothing when every Tag has a route test
+// (CLAUDE.md "Definition of done").
+func TestErrorTagsScript(t *testing.T) {
+	stdout, stderr, status := runScript(t, nil, "error-tags.sh", "--untested")
+	if status != 0 || stdout != "" || stderr != "" {
+		t.Errorf("--untested: status %d, stdout %q, stderr %q, want nothing", status, stdout, stderr)
+	}
+	stdout, stderr, status = runScript(t, nil, "error-tags.sh")
+	if status != 0 || stderr != "" {
+		t.Errorf("status %d, stderr %q", status, stderr)
+	}
+	for _, line := range []string{"ArchWalkFailed\tinternal/archtest/archtest.go:", "ErrorTagsExceptionsReadFailed\tinternal/archtest/errortags.go:"} {
+		if !strings.Contains(stdout, line) {
+			t.Errorf("the list lacks %q", line)
+		}
+	}
+}

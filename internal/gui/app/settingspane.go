@@ -276,7 +276,7 @@ func ensureSettingsFile(ctx context.Context, path string) error {
 		return errors.NewErr("SettingsFileCreateFailed", err).SetMetadata("path", path)
 	}
 	if _, err := fileio.Write(ctx, path, "{\n}\n", fileio.WriteOptions{Encoding: fileio.UTF8, LineEnding: fileio.LF}); err != nil {
-		return errors.NewErr("SettingsFileCreateFailed", err).SetMetadata("path", path)
+		return err
 	}
 	return nil
 }

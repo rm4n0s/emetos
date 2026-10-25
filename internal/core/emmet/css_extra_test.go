@@ -13,16 +13,16 @@ func TestCSSErrorRoutes(t *testing.T) {
 		name, abbr, route, message string
 		value                      bool
 	}{
-		{"a character that is nothing", "p10é", "TokenizeCSS->scanner.fail.CSSUnexpectedCharacter", "Unexpected character at 4", false},
-		{"a closing bracket alone", "p)", "TokenizeCSS->scanner.fail.CSSUnexpectedBracket", "Unexpected bracket at 2", false},
-		{"a field that is not closed", "p${1", "TokenizeCSS->cssGetToken->cssField->scanner.fail.CSSFieldUnclosed", "Expecting } at 5", false},
-		{"a variable that is not closed", "p${a", "cssField->scanner.fail.CSSFieldUnclosed", "Expecting } at 5", false},
-		{"a placeholder with a brace that is not closed", "p${1:{x", "cssField->cssPlaceholder->scanner.fail.CSSPlaceholderUnclosed", "Expecting } at 7", false},
-		{"a token that is nothing", "p10 ", "ParseCSSTokens->cssTokenScanner.fail.CSSUnexpectedToken", "Unexpected token at 3", false},
-		{"a token that is nothing in the arguments", "f(a,b!)", "consumeArguments->cssTokenScanner.fail.CSSUnexpectedToken", "Unexpected token at 5", false},
+		{"a character that is nothing", "p10é", "TokenizeCSS.CSSUnexpectedCharacter", "Unexpected character at 4", false},
+		{"a closing bracket alone", "p)", "TokenizeCSS.CSSUnexpectedBracket", "Unexpected bracket at 2", false},
+		{"a field that is not closed", "p${1", "TokenizeCSS->cssGetToken->cssField.CSSFieldUnclosed", "Expecting } at 5", false},
+		{"a variable that is not closed", "p${a", "cssField.CSSFieldUnclosed", "Expecting } at 5", false},
+		{"a placeholder with a brace that is not closed", "p${1:{x", "cssField->cssPlaceholder.CSSPlaceholderUnclosed", "Expecting } at 7", false},
+		{"a token that is nothing", "p10 ", "ParseCSSTokens.CSSUnexpectedToken", "Unexpected token at 3", false},
+		{"a token that is nothing in the arguments", "f(a,b!)", "consumeArguments.CSSUnexpectedToken", "Unexpected token at 5", false},
 		{"arguments nested too deep", strings.Repeat("f(", maxCSSNesting+2) + strings.Repeat(")", maxCSSNesting+2),
-			"consumeValue->cssTokenScanner.consumeArguments->cssTokenScanner.fail.CSSNestingTooDeep", "nested too deep", false},
-		{"a bracket in a value", ")", "TokenizeCSS->scanner.fail.CSSUnexpectedBracket", "Unexpected bracket at 1", true},
+			"consumeValue->cssTokenScanner.consumeArguments.CSSNestingTooDeep", "nested too deep", false},
+		{"a bracket in a value", ")", "TokenizeCSS.CSSUnexpectedBracket", "Unexpected bracket at 1", true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestCSSErrorRoutes(t *testing.T) {
 	// through Expand, with the route of the whole call
 	cfg := newConfig(t, "css")
 	_, err := Expand("p10é", cfg)
-	wantRoute(t, err, "Expand->ExpandStylesheet->ParseStylesheet->ParseCSS->TokenizeCSS->scanner.fail.CSSUnexpectedCharacter")
+	wantRoute(t, err, "Expand->ExpandStylesheet->ParseStylesheet->ParseCSS->TokenizeCSS.CSSUnexpectedCharacter")
 }
 
 func TestCSSTagsAreCovered(t *testing.T) {
@@ -79,7 +79,7 @@ func TestCSSTagsAreCovered(t *testing.T) {
 
 func TestCSSSnippetValueEmptyRoute(t *testing.T) {
 	_, err := createSnippet("k", "x:|")
-	wantRoute(t, err, "createSnippet->parseSnippetValue->cssEmptyValueError.CSSSnippetValueEmpty")
+	wantRoute(t, err, "createSnippet->parseSnippetValue.CSSSnippetValueEmpty")
 }
 
 // A snippet of the user that does not parse is left out and the user is told; it is no error.

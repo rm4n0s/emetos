@@ -1,10 +1,6 @@
 package emmet
 
-import (
-	"unicode/utf8"
-
-	"github.com/rm4n0s/errors"
-)
+import "unicode/utf8"
 
 // Ported from Emmet: packages/scanner/src/scanner.ts and packages/scanner/src/utils.ts
 //
@@ -52,11 +48,6 @@ func (s *scanner) eatWhile(match func(int) bool) bool {
 		s.pos++
 	}
 	return s.pos != start
-}
-
-// error makes the error of the scanner: the position is a byte offset, the message says it counted from 1.
-func (s *scanner) fail(tag, message string, pos int) error {
-	return errors.New(tag, message+" at "+itoa(pos+1), "pos", pos, "abbreviation", s.str)
 }
 
 // runeAt decodes the character at a position.

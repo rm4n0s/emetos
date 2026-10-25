@@ -144,6 +144,9 @@ func (r *VirtualRegistry) Generate(ctx context.Context, uri URI) (VirtualContent
 		}
 	}
 	if err != nil {
+		if _, ok := errors.FromError(err); ok {
+			return VirtualContent{}, err
+		}
 		return VirtualContent{}, errors.NewErr("VirtualGenerateFailed", err).SetMetadata("uri", uri.String())
 	}
 	if lang == "" {

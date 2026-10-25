@@ -80,7 +80,7 @@ func buildRefinedChanges(b *budget, original, modified []string, alignments []se
 // block).
 func refineDiff(b *budget, original, modified []string, diff sequenceDiff, considerWhitespaceChanges, extendToSubwords bool) ([]RangeMapping, bool, error) {
 	if err := b.ctx.Err(); err != nil {
-		return nil, false, errCancelled(err)
+		return nil, false, errors.NewErr("DiffCancelled", err)
 	}
 
 	origBlock := LineRange{diff.seq1.start + 1, diff.seq1.end + 1}

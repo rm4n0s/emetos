@@ -206,7 +206,10 @@ func (j *ExternalJob) Probe(ctx context.Context, disk Disk) ExternalProbe {
 	}
 	before, exists, err := disk.Stat(ctx, j.path)
 	if err != nil {
-		return ExternalProbe{Err: tagged(err, "ExternalStatFailed", j.path)}
+		if _, ok := errors.FromError(err); !ok {
+			err = errors.NewErr("ExternalStatFailed", err).SetMetadata("path", j.path)
+		}
+		return ExternalProbe{Err: err}
 	}
 	if !exists {
 		return ExternalProbe{}
@@ -221,12 +224,18 @@ func (j *ExternalJob) Probe(ctx context.Context, disk Disk) ExternalProbe {
 			p.Unstable = true // gone since the look: the watcher says so next
 			return p
 		}
-		p.Err = tagged(err, "ExternalReadFailed", j.path)
+		if _, ok := errors.FromError(err); !ok {
+			err = errors.NewErr("ExternalReadFailed", err).SetMetadata("path", j.path)
+		}
+		p.Err = err
 		return p
 	}
 	after, exists, err := disk.Stat(ctx, j.path)
 	if err != nil {
-		p.Err = tagged(err, "ExternalStatFailed", j.path)
+		if _, ok := errors.FromError(err); !ok {
+			err = errors.NewErr("ExternalStatFailed", err).SetMetadata("path", j.path)
+		}
+		p.Err = err
 		return p
 	}
 	if !exists || !SameStat(before, res.Stat) || !SameStat(res.Stat, after) {
@@ -235,14 +244,6 @@ func (j *ExternalJob) Probe(ctx context.Context, disk Disk) ExternalProbe {
 	}
 	p.Stat, p.Read = res.Stat, &res
 	return p
-}
-
-// tagged keeps an error of this package as it is and gives any other the tag.
-func tagged(err error, tag, path string) error {
-	if _, ok := errors.FromError(err); ok {
-		return err
-	}
-	return errors.NewErr(tag, err).SetMetadata("path", path)
 }
 
 // ExternalOutcome says what ApplyExternal did.

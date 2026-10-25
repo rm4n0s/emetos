@@ -97,6 +97,8 @@ func BackupName(uri string) string {
 type BackupStoreOptions struct {
 	// WriteFile replaces a file; WriteFileAtomic when nil. Tests give one that fails.
 	WriteFile WriteFileFunc
+	// Marshal encodes a backup; json.Marshal when nil. Tests give one that fails, since a Backup always encodes.
+	Marshal func(v any) ([]byte, error)
 	// Logger gets the files the consistency check and the listing leave out; slog.Default() when nil.
 	Logger *slog.Logger
 	// MaxSize is the largest text that is backed up; MaxBackupSize when zero. Tests lower it.
@@ -118,6 +120,9 @@ func NewBackupStore(paths Paths, windowID string, opts BackupStoreOptions) (*Bac
 	}
 	if opts.WriteFile == nil {
 		opts.WriteFile = WriteFileAtomic
+	}
+	if opts.Marshal == nil {
+		opts.Marshal = json.Marshal
 	}
 	if opts.Logger == nil {
 		opts.Logger = slog.Default()
@@ -151,7 +156,7 @@ func (s *BackupStore) Write(ctx context.Context, b Backup) error {
 			"uri", b.URI, "size", len(b.Content), "limit", s.opts.MaxSize)
 	}
 	b.Version = BackupVersion
-	data, err := json.Marshal(b)
+	data, err := s.opts.Marshal(b)
 	if err != nil {
 		return errors.NewErr("BackupEncodeFailed", err).SetMetadata("uri", b.URI)
 	}

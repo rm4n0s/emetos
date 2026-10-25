@@ -327,11 +327,11 @@ func TestExpandAtErrors(t *testing.T) {
 		name, route string
 		req         ExpandRequest
 	}{
-		{"markup nested too deep", "ExpandAt->Expand->Parse->ParseAbbreviation->ParseTokens->statements->tokenScanner.fail.NestingTooDeep",
+		{"markup nested too deep", "ExpandAt->Expand->Parse->ParseAbbreviation->ParseTokens->statements.NestingTooDeep",
 			ExpandRequest{Syntax: "html", TextBefore: tooDeep}},
-		{"stylesheet nested too deep", "cssTokenScanner.consumeArguments->cssTokenScanner.fail.CSSNestingTooDeep",
+		{"stylesheet nested too deep", "cssTokenScanner.consumeArguments.CSSNestingTooDeep",
 			ExpandRequest{Syntax: "css", TextBefore: cssDeep}},
-		{"a preference that is wrong", "ExpandRequest.config->Config.ApplyPreferences->Config.ApplyPreferences.func1->prefString->preferenceInvalid.PreferenceValueInvalid",
+		{"a preference that is wrong", "ExpandRequest.config->Config.ApplyPreferences->Config.ApplyPreferences.func1->prefString.PreferenceValueInvalid",
 			ExpandRequest{Syntax: "css", TextBefore: "p10", Preferences: map[string]any{"css.intUnit": 3}}},
 		{"a profile that is wrong", "ExpandAt->ExpandRequest.config->Config.ApplyProfiles.ProfileInvalid",
 			ExpandRequest{Syntax: "html", TextBefore: "ul", Profiles: map[string]any{"html": "upper"}}},

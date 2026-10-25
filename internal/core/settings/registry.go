@@ -121,7 +121,7 @@ func (r *Registry) Register(s Setting) error {
 	}
 	def, err := normalize(s.Default)
 	if err != nil {
-		return errors.NewErr("SettingDefaultInvalid", err).SetMetadata("key", s.Key)
+		return err
 	}
 	s.Default = def
 	s.Enum = normalizeAll(s.Enum)
@@ -160,7 +160,7 @@ func (r *Registry) RegisterLanguageDefaults(languageID string, values map[string
 	for k, v := range values {
 		nv, err := normalize(v)
 		if err != nil {
-			return errors.NewErr("SettingDefaultInvalid", err).SetMetadata("key", k, "language", languageID)
+			return err
 		}
 		norm[k] = nv
 	}

@@ -838,7 +838,7 @@ func TestValidateInner(t *testing.T) {
 			if !ok {
 				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
 			}
-			if !appErr.HasRoute("Validate->validateInner->errInvalid.DiffInvalid") {
+			if !appErr.HasRoute("Validate->validateInner.DiffInvalid") {
 				t.Errorf("unexpected failure path: %s", appErr.Route())
 			}
 			if reason, _ := appErr.Metadata["reason"].(string); !strings.Contains(reason, tc.invalid) {

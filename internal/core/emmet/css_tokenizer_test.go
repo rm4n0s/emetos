@@ -307,5 +307,5 @@ func TestCSSParserErrors(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "Unexpected token") {
 		t.Fatalf("p10 with a space: %v", err)
 	}
-	wantRoute(t, err, "ParseCSS->ParseCSSTokens->cssTokenScanner.fail.CSSUnexpectedToken")
+	wantRoute(t, err, "ParseCSS->ParseCSSTokens.CSSUnexpectedToken")
 }

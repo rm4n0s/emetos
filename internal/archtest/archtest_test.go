@@ -50,6 +50,30 @@ func TestCheck(t *testing.T) {
 			{"internal/core/fileio/bad.go", 9, RuleFmtErrorf, "f.Errorf"},
 		}},
 		{"a local value called fmt", "fmt_errorf_shadow", nil},
+		{"package-level errors, in code and in tests", "package_level_error", []want{
+			{"internal/core/fileio/bad.go", 9, RulePackageLevelError, "errors.New"},
+			{"internal/core/fileio/bad.go", 12, RulePackageLevelError, "errors.NewErr"},
+			{"internal/core/fileio/bad.go", 13, RulePackageLevelError, "errors.NewErrf"},
+			{"internal/core/fileio/bad_test.go", 5, RulePackageLevelError, "e.New"},
+		}},
+		{"functions that only build an error", "error_helper", []want{
+			{"internal/core/emmet/helper.go", 11, RuleErrorHelper, "fail"},
+			{"internal/core/emmet/helper.go", 16, RuleErrorHelper, "errNoWindow"},
+			{"internal/core/emmet/helper.go", 21, RuleErrorHelper, "wrap"},
+			{"internal/core/emmet/helper.go", 64, RuleErrorHelper, "fail"},
+		}},
+		{"errors of Emetos wrapped again", "project_error_rewrapped", []want{
+			{"internal/gui/app/bad.go", 16, RuleProjectErrorRewrapped, "fileio.Read"},
+			{"internal/gui/app/bad.go", 23, RuleProjectErrorRewrapped, "fileio.Write"},
+			{"internal/gui/app/bad.go", 31, RuleProjectErrorRewrapped, "plistpkg.Parse"},
+			{"internal/gui/app/bad.go", 45, RuleProjectErrorRewrapped, "fileio.Read"},
+		}},
+		{"tags that are not string literals", "non_literal_tag", []want{
+			{"internal/core/regex/alias.go", 6, RuleNonLiteralTag, "xerr.NewErrf(t, ...)"},
+			{"internal/core/regex/bad.go", 11, RuleNonLiteralTag, "errors.New(tag, ...)"},
+			{"internal/core/regex/bad.go", 18, RuleNonLiteralTag, "errors.NewErr(failTag, ...)"},
+			{"internal/core/regex/bad.go", 23, RuleNonLiteralTag, "errors.New(tagConst, ...)"},
+		}},
 		{"reference and testdata folders are skipped", "skipped_dirs", nil},
 	}
 	for _, tt := range tests {
@@ -88,8 +112,8 @@ func TestCheckErrors(t *testing.T) {
 		route string
 		tag   string
 	}{
-		{"missing root", "testdata/does_not_exist", "Check", "ArchWalkFailed"},
-		{"file that does not parse", brokenTree(t), "Check", "ArchParseFailed"},
+		{"missing root", "testdata/does_not_exist", "Check->walkGo", "ArchWalkFailed"},
+		{"file that does not parse", brokenTree(t), "Check->walkGo", "ArchParseFailed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

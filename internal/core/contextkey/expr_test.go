@@ -445,7 +445,7 @@ func TestExprMore(t *testing.T) {
 		for _, bad := range []struct{ src, flags string }{{"(", ""}, {"a)", ""}, {"[a", ""}, {"a", "q"}, {"a", "ii"}, {`a\`, ""}} {
 			_, err := Regex("k", bad.src, bad.flags)
 			appErr, ok := errors.FromError(err)
-			if !ok || !appErr.HasRoute("WhenRegexInvalid") {
+			if !ok || !appErr.HasRoute("Regex->newRegex.WhenRegexInvalid") {
 				t.Errorf("/%s/%s: %v", bad.src, bad.flags, err)
 			}
 		}

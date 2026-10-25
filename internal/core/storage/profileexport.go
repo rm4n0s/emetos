@@ -224,37 +224,55 @@ func (p *Profiles) Import(ctx context.Context, export ProfileExport, name string
 		names = append(names, file)
 	}
 	slices.Sort(names)
-	return p.build(name, "ProfileImportFailed", func(tmp string) error {
-		write := func(rel, text string) error {
-			if err := ctx.Err(); err != nil {
-				return errors.NewErr("ProfileImportFailed", err).SetMetadata("file", rel)
-			}
-			path := filepath.Join(tmp, rel)
-			if err := p.opts.WriteFile(path, []byte(text), 0o644); err != nil {
-				return errors.NewErr("ProfileImportFailed", err).SetMetadata("file", rel)
-			}
-			return nil
+	dir, err := p.paths.ConfigDir(name)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(p.root(), 0o755); err != nil {
+		return "", errors.NewErr("ProfileImportFailed", err).SetMetadata("path", p.root())
+	}
+	tmp, err := os.MkdirTemp(p.root(), ".new-")
+	if err != nil {
+		return "", errors.NewErr("ProfileImportFailed", err).SetMetadata("path", p.root())
+	}
+	done := false
+	defer p.removeUnfinished(tmp, &done)
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		return "", errors.NewErr("ProfileImportFailed", err).SetMetadata("path", tmp)
+	}
+	write := func(rel, text string) error {
+		if err := ctx.Err(); err != nil {
+			return errors.NewErr("ProfileImportFailed", err).SetMetadata("file", rel)
 		}
-		for _, f := range []struct{ rel, text string }{{"settings.json", export.Settings}, {"keybindings.json", export.Keybindings}} {
-			if f.text == "" {
-				continue
-			}
-			if err := write(f.rel, f.text); err != nil {
-				return err
-			}
-		}
-		if len(names) > 0 {
-			if err := os.Mkdir(filepath.Join(tmp, "snippets"), 0o755); err != nil {
-				return errors.NewErr("ProfileImportFailed", err).SetMetadata("file", "snippets")
-			}
-		}
-		for _, file := range names {
-			if err := write(filepath.Join("snippets", file), export.Snippets[file]); err != nil {
-				return err
-			}
+		path := filepath.Join(tmp, rel)
+		if err := p.opts.WriteFile(path, []byte(text), 0o644); err != nil {
+			return errors.NewErr("ProfileImportFailed", err).SetMetadata("file", rel)
 		}
 		return nil
-	})
+	}
+	for _, f := range []struct{ rel, text string }{{"settings.json", export.Settings}, {"keybindings.json", export.Keybindings}} {
+		if f.text == "" {
+			continue
+		}
+		if err := write(f.rel, f.text); err != nil {
+			return "", err
+		}
+	}
+	if len(names) > 0 {
+		if err := os.Mkdir(filepath.Join(tmp, "snippets"), 0o755); err != nil {
+			return "", errors.NewErr("ProfileImportFailed", err).SetMetadata("file", "snippets")
+		}
+	}
+	for _, file := range names {
+		if err := write(filepath.Join("snippets", file), export.Snippets[file]); err != nil {
+			return "", err
+		}
+	}
+	if err := p.opts.Rename(tmp, dir); err != nil {
+		return "", errors.NewErr("ProfileImportFailed", err).SetMetadata("path", dir)
+	}
+	done = true
+	return name, nil
 }
 
 // FreeName gives a name for a new profile that is valid and not taken, starting from base (the name of an

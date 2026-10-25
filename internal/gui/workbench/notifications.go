@@ -219,7 +219,7 @@ func (s *notificationsHostState) focusChanged(id uint64, has bool) {
 
 // bindCommands takes over the notification commands in the registry while the host is on screen. The
 // registry must have them (command.DefaultRegistry does): a missing one is a mistake of the caller and
-// panics with the tag NotificationCommandMissing.
+// panics with the CommandNotFound of command.Registry.SetHandler.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/notifications/notificationsCommands.ts
 func (s *notificationsHostState) bindCommands() {
@@ -240,7 +240,7 @@ func (s *notificationsHostState) bindCommands() {
 	for id, h := range handlers {
 		remove, err := reg.SetHandler(id, h)
 		if err != nil {
-			panic(errors.NewErr("NotificationCommandMissing", err).SetMetadata("command", id))
+			panic(err)
 		}
 		s.removeCommands = append(s.removeCommands, remove)
 	}

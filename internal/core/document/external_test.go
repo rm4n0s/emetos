@@ -640,12 +640,12 @@ func TestExternalFailures(t *testing.T) {
 		{"a stat that fails", func(t *testing.T) (*Document, *hookDisk) {
 			d := openAt(t, dir, "stat.txt", "text\n", 0)
 			return d, &hookDisk{statErr: os.ErrDeadlineExceeded}
-		}, "Document.CheckExternal->ExternalJob.Probe->tagged.ExternalStatFailed", "ExternalStatFailed"},
+		}, "Document.CheckExternal->ExternalJob.Probe.ExternalStatFailed", "ExternalStatFailed"},
 		{"a read that fails with a plain error", func(t *testing.T) (*Document, *hookDisk) {
 			d := openAt(t, dir, "plain.txt", "text\n", 0)
 			putFile(t, d.URI().Path, "other\n", 10)
 			return d, &hookDisk{readErr: os.ErrInvalid}
-		}, "Document.CheckExternal->ExternalJob.Probe->tagged.ExternalReadFailed", "ExternalReadFailed"},
+		}, "Document.CheckExternal->ExternalJob.Probe.ExternalReadFailed", "ExternalReadFailed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

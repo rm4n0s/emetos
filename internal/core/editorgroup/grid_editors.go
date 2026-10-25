@@ -24,10 +24,10 @@ type MoveOptions struct {
 // Ported from VS Code: EditorGroupView.moveEditor
 func (g *Grid) MoveEditor(from *Group, editor EditorInput, to *Group, opts MoveOptions) (bool, error) {
 	if !g.has(from) {
-		return false, errUnknownGroup(from)
+		return false, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(from))
 	}
 	if !g.has(to) {
-		return false, errUnknownGroup(to)
+		return false, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(to))
 	}
 	if !from.Model.Contains(editor) {
 		return false, nil
@@ -49,10 +49,10 @@ func (g *Grid) MoveEditor(from *Group, editor EditorInput, to *Group, opts MoveO
 // Ported from VS Code: EditorGroupView.copyEditor
 func (g *Grid) CopyEditor(from *Group, editor EditorInput, to *Group, opts MoveOptions) (EditorInput, bool, error) {
 	if !g.has(from) {
-		return nil, false, errUnknownGroup(from)
+		return nil, false, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(from))
 	}
 	if !g.has(to) {
-		return nil, false, errUnknownGroup(to)
+		return nil, false, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(to))
 	}
 	if !from.Model.Contains(editor) {
 		return nil, false, nil
@@ -103,10 +103,10 @@ func (g *Grid) moveInside(grp *Group, editor EditorInput, opts MoveOptions) {
 // Ported from VS Code: EditorPart.mergeGroup
 func (g *Grid) MergeGroup(grp, target *Group) (bool, error) {
 	if !g.has(grp) {
-		return false, errUnknownGroup(grp)
+		return false, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(grp))
 	}
 	if !g.has(target) {
-		return false, errUnknownGroup(target)
+		return false, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(target))
 	}
 	if grp == target {
 		return false, errors.New("GroupMergeOntoItself", "a group cannot be merged into itself", "group", grp.ID())
@@ -136,7 +136,7 @@ func (g *Grid) MergeGroup(grp, target *Group) (bool, error) {
 // Ported from VS Code: EditorPart.mergeAllGroups
 func (g *Grid) MergeAllGroups(target *Group) error {
 	if !g.has(target) {
-		return errUnknownGroup(target)
+		return errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(target))
 	}
 	for _, grp := range g.Groups(MostRecentlyActiveGroups) {
 		if grp == target || !g.has(grp) {
@@ -156,7 +156,7 @@ func (g *Grid) MergeAllGroups(target *Group) error {
 // Ported from VS Code: editorCommands.ts (splitEditor)
 func (g *Grid) SplitGroup(grp *Group, dir Direction) (*Group, error) {
 	if !g.has(grp) {
-		return nil, errUnknownGroup(grp)
+		return nil, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(grp))
 	}
 	return g.SplitEditor(grp, grp.Model.ActiveEditor(), dir)
 }
@@ -209,7 +209,7 @@ const (
 // Ported from VS Code: editorCommands.ts (moveCopyEditorsToGroup)
 func (g *Grid) MoveOrCopyTarget(source *Group, to Target, value int, preferred Direction) (*Group, error) {
 	if !g.has(source) {
-		return nil, errUnknownGroup(source)
+		return nil, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(source))
 	}
 	side := func(dir Direction) (*Group, error) {
 		if found := g.FindByDirection(source, dir, false); found != nil {

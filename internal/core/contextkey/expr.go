@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/rm4n0s/errors"
 )
 
 // Context gives the value of a key; a key that is not set has the value nil.
@@ -598,12 +600,12 @@ func Regex(key, source, flags string) (Expr, error) {
 func newRegex(key, source, flags string) (*regexExpr, error) {
 	canon, ok := canonicalFlags(flags)
 	if !ok {
-		return nil, errInvalidRegex(source, flags)
+		return nil, errors.New("WhenRegexInvalid", "the regular expression is not valid", "source", source, "flags", flags)
 	}
 	canon = strings.NewReplacer("g", "", "y", "").Replace(canon)
 	re, ok := compileRegex(source, canon)
 	if !ok {
-		return nil, errInvalidRegex(source, flags)
+		return nil, errors.New("WhenRegexInvalid", "the regular expression is not valid", "source", source, "flags", flags)
 	}
 	return &regexExpr{key: key, source: jsRegexSource(source), flags: canon, re: re, neg: &negation{}}, nil
 }

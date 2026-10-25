@@ -2,6 +2,7 @@ package document
 
 import (
 	"context"
+	"io/fs"
 	"reflect"
 	"strings"
 	"testing"
@@ -64,8 +65,13 @@ func TestVirtualRegistryErrors(t *testing.T) {
 	if err := r.Register("/a", VirtualProvider{Text: text}); err != nil {
 		t.Fatal(err)
 	}
-	boom := errors.New("Boom", "the provider broke")
+	boom := fs.ErrPermission
 	if err := r.Register("/broken", VirtualProvider{Text: func(context.Context) (string, error) { return "", boom }}); err != nil {
+		t.Fatal(err)
+	}
+	// an error of Emetos from the provider is passed on as it is
+	own := errors.New("ProviderOwn", "the provider broke in its own way")
+	if err := r.Register("/own", VirtualProvider{Text: func(context.Context) (string, error) { return "", own }}); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []struct {
@@ -83,8 +89,12 @@ func TestVirtualRegistryErrors(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) { routeIs(t, c.err(), c.route) })
 	}
 	_, err := r.Generate(ctx, VirtualURI("/broken"))
-	if appErr, _ := errors.FromError(err); !errors.Is(appErr, boom) || !strings.Contains(appErr.Error(), "broke") {
+	if appErr, _ := errors.FromError(err); !errors.Is(appErr, boom) || !strings.Contains(appErr.Error(), "permission") {
 		t.Errorf("the cause is lost: %v", err)
+	}
+	_, err = r.Generate(ctx, VirtualURI("/own"))
+	if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "ProviderOwn" {
+		t.Errorf("the error of the provider is not passed on as it is: %v", err)
 	}
 }
 
@@ -168,7 +178,7 @@ func TestVirtualPrefixErrors(t *testing.T) {
 	if err := r.RegisterPrefix("/a/", VirtualPrefixProvider{Text: text}); err != nil {
 		t.Fatal(err)
 	}
-	boom := errors.New("Boom", "the provider broke")
+	boom := fs.ErrPermission
 	if err := r.RegisterPrefix("/broken/", VirtualPrefixProvider{Text: func(context.Context, string) (string, error) { return "", boom }}); err != nil {
 		t.Fatal(err)
 	}

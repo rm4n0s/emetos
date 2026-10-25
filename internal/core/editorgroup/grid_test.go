@@ -417,9 +417,9 @@ func TestGridErrors(t *testing.T) {
 		do    func() error
 		route string
 	}{
-		{"add next to a stranger", func() error { _, err := g.AddGroup(stranger, DirRight); return err }, "Grid.AddGroup->Grid.addGroup->errUnknownGroup.GroupUnknown"},
-		{"remove a stranger", func() error { _, err := g.RemoveGroup(stranger); return err }, "Grid.RemoveGroup->errUnknownGroup.GroupUnknown"},
-		{"activate a stranger", func() error { return g.Activate(stranger) }, "Grid.Activate->errUnknownGroup.GroupUnknown"},
+		{"add next to a stranger", func() error { _, err := g.AddGroup(stranger, DirRight); return err }, "Grid.AddGroup->Grid.addGroup.GroupUnknown"},
+		{"remove a stranger", func() error { _, err := g.RemoveGroup(stranger); return err }, "Grid.RemoveGroup.GroupUnknown"},
+		{"activate a stranger", func() error { return g.Activate(stranger) }, "Grid.Activate.GroupUnknown"},
 		{"move onto itself", func() error { return g.MoveGroup(g.Group(1), g.Group(1), DirRight) }, "Grid.MoveGroup.GroupMoveOntoItself"},
 		{"merge onto itself", func() error { _, err := g.MergeGroup(g.Group(1), g.Group(1)); return err }, "Grid.MergeGroup.GroupMergeOntoItself"},
 		{"an unknown target", func() error { _, err := g.MoveOrCopyTarget(g.Group(1), "sideways", 0, DirRight); return err }, "Grid.MoveOrCopyTarget.GroupTargetInvalid"},

@@ -286,7 +286,7 @@ func TestServiceReloadFailures(t *testing.T) {
 		if !ok {
 			t.Fatalf("expected *errors.Error, got %T", err)
 		}
-		if !appErr.HasRoute("Service.Reload.SnippetFileReadFailed") {
+		if !appErr.HasRoute("Service.Reload->Read->readFile.FilePermissionDenied") {
 			t.Errorf("unexpected failure path: %s", appErr.Route())
 		}
 		if got := names(svc.Snippets(Query{})); !slices.Equal(got, []string{"b:b"}) {

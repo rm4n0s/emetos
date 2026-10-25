@@ -116,7 +116,7 @@ func TokenizeCSS(abbr string, isValue bool) ([]*CSSToken, error) {
 			return nil, err
 		}
 		if tok == nil {
-			return nil, s.fail("CSSUnexpectedCharacter", "Unexpected character", s.pos)
+			return nil, errors.New("CSSUnexpectedCharacter", "Unexpected character"+" at "+itoa(s.pos+1), "pos", s.pos, "abbreviation", s.str)
 		}
 
 		if tok.Type == CSSBracket {
@@ -129,7 +129,7 @@ func TokenizeCSS(abbr string, isValue bool) ([]*CSSToken, error) {
 				brackets--
 			}
 			if brackets < 0 {
-				return nil, s.fail("CSSUnexpectedBracket", "Unexpected bracket", tok.Start)
+				return nil, errors.New("CSSUnexpectedBracket", "Unexpected bracket"+" at "+itoa(tok.Start+1), "pos", tok.Start, "abbreviation", s.str)
 			}
 		}
 
@@ -204,7 +204,7 @@ func cssField(s *scanner) (*CSSToken, error) {
 			tok.End = s.pos
 			return tok, nil
 		}
-		return nil, s.fail("CSSFieldUnclosed", "Expecting }", s.pos)
+		return nil, errors.New("CSSFieldUnclosed", "Expecting }"+" at "+itoa(s.pos+1), "pos", s.pos, "abbreviation", s.str)
 	}
 
 	// There is no field here: back to the start
@@ -231,7 +231,7 @@ func cssPlaceholder(s *scanner) (string, error) {
 	}
 	if len(stack) > 0 {
 		s.pos = stack[len(stack)-1]
-		return "", s.fail("CSSPlaceholderUnclosed", "Expecting }", s.pos)
+		return "", errors.New("CSSPlaceholderUnclosed", "Expecting }"+" at "+itoa(s.pos+1), "pos", s.pos, "abbreviation", s.str)
 	}
 	return s.str[start:s.pos], nil
 }

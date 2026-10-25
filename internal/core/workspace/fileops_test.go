@@ -201,7 +201,7 @@ func TestCreateErrors(t *testing.T) {
 		c, cancel := context.WithCancel(ctx())
 		cancel()
 		_, err := e.ops.CreateFile(c, e.root, "x")
-		wantTag(t, err, "FileOps.create->cancelled.FileOpCancelled")
+		wantTag(t, err, "FileOps.create.FileOpCancelled")
 	})
 }
 
@@ -545,7 +545,7 @@ func TestCopyErrors(t *testing.T) {
 		c, cancel := context.WithCancel(ctx())
 		cancel()
 		_, err := e.ops.Copy(c, e.root, []string{e.p("x.txt")}, CopyOptions{})
-		wantTag(t, err, "FileOps.copyItem->cancelled.FileOpCancelled")
+		wantTag(t, err, "FileOps.copyItem.FileOpCancelled")
 	})
 	t.Run("an unreadable file", func(t *testing.T) {
 		e := newOpsEnv(t)

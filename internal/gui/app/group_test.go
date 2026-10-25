@@ -692,7 +692,7 @@ func TestGroupHandlersOfACommandTheRegistryDoesNotKnow(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
 	}
-	if !appErr.HasRoute("setGroupHandlers.EditorGroupCommandMissing") {
+	if !appErr.HasRoute("setGroupHandlers->Registry.SetHandler.CommandNotFound") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }

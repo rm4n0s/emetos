@@ -77,17 +77,16 @@ func (s *tokenScanner) consume(test func(*Token) bool) bool {
 	return false
 }
 
-// fail makes an error at a token (the one at the position by default).
-func (s *tokenScanner) fail(tag, message string, tok *Token) error {
+// where gives the place of an error at a token (the one at the position by default): the text " at N" to
+// add to the message, and the offset, or "" and -1 when there is no token.
+func (s *tokenScanner) where(tok *Token) (at string, pos int) {
 	if tok == nil {
 		tok = s.peek()
 	}
-	pos := -1
-	if tok != nil {
-		message += " at " + itoa(tok.Start)
-		pos = tok.Start
+	if tok == nil {
+		return "", -1
 	}
-	return errors.New(tag, message, "pos", pos)
+	return " at " + itoa(tok.Start), tok.Start
 }
 
 // ParseTokens reads the tokens of an abbreviation as a tree of elements and groups. The result is
@@ -99,14 +98,16 @@ func ParseTokens(tokens []Token, opts ParserOptions) (*Statement, error) {
 		return nil, err
 	}
 	if s.readable() {
-		return nil, s.fail("UnexpectedToken", "Unexpected character", nil)
+		at, pos := s.where(nil)
+		return nil, errors.New("UnexpectedToken", "Unexpected character"+at, "pos", pos)
 	}
 	return result, nil
 }
 
 func statements(s *tokenScanner, opts ParserOptions, depth int) (*Statement, error) {
 	if depth > maxNesting {
-		return nil, s.fail("NestingTooDeep", "Abbreviation is nested too deep", nil)
+		at, pos := s.where(nil)
+		return nil, errors.New("NestingTooDeep", "Abbreviation is nested too deep"+at, "pos", pos)
 	}
 	result := &Statement{IsGroup: true, Elements: []*Statement{}}
 	ctx := result
@@ -130,7 +131,8 @@ func statements(s *tokenScanner, opts ParserOptions, depth int) (*Statement, err
 		switch {
 		case s.consume(isChildOperator):
 			if depth+len(stack) >= maxNesting {
-				return nil, s.fail("NestingTooDeep", "Abbreviation is nested too deep", nil)
+				at, pos := s.where(nil)
+				return nil, errors.New("NestingTooDeep", "Abbreviation is nested too deep"+at, "pos", pos)
 			}
 			stack = append(stack, ctx)
 			ctx = node
@@ -238,7 +240,8 @@ func attributeSet(s *tokenScanner) ([]TokenAttribute, bool, error) {
 		} else if s.consume(isAttributeSetEnd) {
 			break
 		} else if !s.consume(isWhiteSpaceToken) {
-			return nil, false, s.fail("UnexpectedAttributeToken", `Unexpected "`+tokenTypeName(s.peek().Type)+`" token`, nil)
+			at, pos := s.where(nil)
+			return nil, false, errors.New("UnexpectedAttributeToken", `Unexpected "`+tokenTypeName(s.peek().Type)+`" token`+at, "pos", pos)
 		}
 	}
 	return attributes, true, nil
@@ -353,7 +356,8 @@ func quoted(s *tokenScanner) (bool, error) {
 				return true, nil
 			}
 		}
-		return false, s.fail("UnclosedQuote", "Unclosed quote", &quote)
+		at, pos := s.where(&quote)
+		return false, errors.New("UnclosedQuote", "Unclosed quote"+at, "pos", pos)
 	}
 	return false, nil
 }

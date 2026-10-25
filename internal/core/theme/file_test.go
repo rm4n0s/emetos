@@ -145,9 +145,9 @@ func TestLoadErrors(t *testing.T) {
 		{"notokens.json", "Load->Theme.load.ThemeFileUnreadable"},
 		{"a.json", "Theme.load->Theme.load->Theme.load.ThemeIncludeCycle"},
 		{"self.json", "Theme.load->Theme.load.ThemeIncludeCycle"},
-		{"badplist.tmTheme", "Theme.loadTextMateTheme.TextMateThemeInvalid"},
+		{"badplist.tmTheme", "Theme.loadTextMateTheme->Parse.PlistInvalid"},
 		{"nosettings.tmTheme", "Theme.loadTextMateTheme.TextMateThemeInvalid"},
-		{"usesbad.json", "Theme.loadTextMateTheme.TextMateThemeInvalid"},
+		{"usesbad.json", "Theme.loadTextMateTheme->Parse.PlistInvalid"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.file, func(t *testing.T) {

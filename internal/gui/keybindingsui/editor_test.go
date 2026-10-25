@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
+	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -407,6 +409,28 @@ func TestADialogIsNotShownWithoutConflicts(t *testing.T) {
 		t.Errorf("dialog %v calls %q", r.dialogs.IsShowing(), r.calls)
 	}
 	r.noErrors()
+}
+
+// The table refuses rows with the same id; NewModel never makes them, so the test gives the editor
+// a model of two rows that are the same.
+func TestATableOfRowsThatRepeatIsReported(t *testing.T) {
+	r := newRig(t, rigOpts{})
+	row := keybinding.Row{ID: "same", Command: "editor.action.clipboardCopyAction", Label: "Copy"}
+	r.model = keybinding.NewModelOfRows([]keybinding.Row{row, row})
+	for _, f := range r.changed {
+		f()
+	}
+	r.ts.Pump(time.Millisecond)
+	if len(r.errs) == 0 {
+		t.Fatal("no error was reported")
+	}
+	appErr, ok := errors.FromError(r.errs[0])
+	if !ok {
+		t.Fatalf("expected *errors.Error, got %T (%v)", r.errs[0], r.errs[0])
+	}
+	if !appErr.HasRoute("editorState.refresh->ListViewModel.SetItems.ListItemKeyDuplicated") || appErr.Tag != "ListItemKeyDuplicated" {
+		t.Errorf("unexpected failure path: %s", appErr.Route())
+	}
 }
 
 func TestAFailedEditIsReported(t *testing.T) {

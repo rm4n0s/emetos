@@ -176,10 +176,10 @@ func DropAllowed(from, onto *Group, copied bool) bool {
 // Ported from VS Code: multiEditorTabsControl.ts (onDrop)
 func (g *Grid) DropOnTabs(from *Group, editor EditorInput, onto *Group, index int, copied bool) error {
 	if !g.has(from) {
-		return errUnknownGroup(from)
+		return errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(from))
 	}
 	if !g.has(onto) {
-		return errUnknownGroup(onto)
+		return errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(onto))
 	}
 	if !from.Model.Contains(editor) {
 		return errors.New("DropOnTabsEditorMissing", "the dragged editor is not in its group", "group", from.ID())
@@ -212,10 +212,10 @@ func (g *Grid) DropOnTabs(from *Group, editor EditorInput, onto *Group, index in
 // Ported from VS Code: editorDropTarget.ts (DropOverlay.handleDrop)
 func (g *Grid) DropOnZone(from *Group, editor EditorInput, onto *Group, zone DropZone, copied bool) (*Group, error) {
 	if !g.has(from) {
-		return nil, errUnknownGroup(from)
+		return nil, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(from))
 	}
 	if !g.has(onto) {
-		return nil, errUnknownGroup(onto)
+		return nil, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(onto))
 	}
 	if !from.Model.Contains(editor) {
 		return nil, errors.New("DropOnZoneEditorMissing", "the dragged editor is not in its group", "group", from.ID())

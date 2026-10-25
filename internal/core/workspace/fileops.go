@@ -235,13 +235,6 @@ func checkPath(path string) error {
 	return nil
 }
 
-func cancelled(ctx context.Context, tag string) error {
-	if err := ctx.Err(); err != nil {
-		return errors.NewErr(tag, err)
-	}
-	return nil
-}
-
 func exists(path string) bool {
 	_, err := os.Lstat(path)
 	return err == nil
@@ -301,8 +294,8 @@ func (o *FileOps) create(ctx context.Context, parent, name string, folder bool) 
 	if err := checkPath(parent); err != nil {
 		return OpResult{}, err
 	}
-	if err := cancelled(ctx, "FileOpCancelled"); err != nil {
-		return OpResult{}, err
+	if err := ctx.Err(); err != nil {
+		return OpResult{}, errors.NewErr("FileOpCancelled", err)
 	}
 	rel, endsInSlash := CleanNewName(name)
 	if endsInSlash {
@@ -425,8 +418,8 @@ func (o *FileOps) moveAll(ctx context.Context, label string, moves []PathMove, o
 
 // moveItem moves one item. It returns the item it replaced, which went to the trash.
 func (o *FileOps) moveItem(ctx context.Context, src, dst string, overwrite bool) (*fileio.TrashedItem, error) {
-	if err := cancelled(ctx, "FileOpCancelled"); err != nil {
-		return nil, err
+	if err := ctx.Err(); err != nil {
+		return nil, errors.NewErr("FileOpCancelled", err)
 	}
 	if _, err := os.Lstat(src); err != nil {
 		return nil, errors.NewErr("FileOpSourceMissing", err).SetMetadata("path", src)
@@ -547,8 +540,8 @@ func (o *FileOps) copyItem(ctx context.Context, src, dstDir string, opts CopyOpt
 	if err := checkPath(src); err != nil {
 		return nil, err
 	}
-	if err := cancelled(ctx, "FileOpCancelled"); err != nil {
-		return nil, err
+	if err := ctx.Err(); err != nil {
+		return nil, errors.NewErr("FileOpCancelled", err)
 	}
 	info, err := os.Lstat(src)
 	if err != nil {
@@ -613,8 +606,8 @@ func copyTree(ctx context.Context, src, dst string, depth int) error {
 	if depth > maxCopyDepth {
 		return errors.New("FileOpCopyTooDeep", "the folders are nested too deep to copy", "path", src)
 	}
-	if err := cancelled(ctx, "FileOpCancelled"); err != nil {
-		return err
+	if err := ctx.Err(); err != nil {
+		return errors.NewErr("FileOpCancelled", err)
 	}
 	info, err := os.Lstat(src)
 	if err != nil {

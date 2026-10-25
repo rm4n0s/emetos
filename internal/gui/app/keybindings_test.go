@@ -757,13 +757,36 @@ func TestTheKeybindingsFileCannotBeWritten(t *testing.T) {
 		return e.Add(text, "x", "ctrl+x", "", nil)
 	})
 	appErr, ok := errors.FromError(err)
-	if !ok || !appErr.HasRoute("userKeys.write.KeybindingsFileWriteFailed") {
+	if !ok || !appErr.HasRoute("userKeys.write->Write->writeInPlace.FilePermissionDenied") {
 		t.Fatalf("error %v", err)
 	}
 	if err := a.win.userKeys.ensure(context.Background()); err == nil {
 		t.Error("the file was made")
-	} else if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("userKeys.ensure.KeybindingsFileCreateFailed") {
+	} else if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("userKeys.ensure->Write->writeInPlace.FilePermissionDenied") {
 		t.Errorf("error %v", err)
+	}
+}
+
+// A folder of the configuration that cannot be made (a file is where it should be) is the tags
+// KeybindingsFileWriteFailed and KeybindingsFileCreateFailed.
+func TestTheFolderOfTheKeybindingsFileCannotBeMade(t *testing.T) {
+	a := newKeybindingsApp(t, "", "")
+	dir := filepath.Dir(a.keybindingsFile())
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := a.win.userKeys.write(context.Background(), "[]")
+	appErr, ok := errors.FromError(err)
+	if !ok || !appErr.HasRoute("userKeys.write.KeybindingsFileWriteFailed") || appErr.Metadata["path"] != a.keybindingsFile() {
+		t.Errorf("write: %v", err)
+	}
+	err = a.win.userKeys.ensure(context.Background())
+	appErr, ok = errors.FromError(err)
+	if !ok || !appErr.HasRoute("userKeys.ensure.KeybindingsFileCreateFailed") || appErr.Metadata["path"] != a.keybindingsFile() {
+		t.Errorf("ensure: %v", err)
 	}
 }
 

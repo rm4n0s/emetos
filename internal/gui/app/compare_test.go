@@ -195,16 +195,10 @@ func TestCompareProvidersFailWithTheirOwnTags(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := win.Documents.OpenVirtual(context.Background(), tc.uri)
+			// the provider's error is the provider's own: the registry passes it on as it is
 			appErr, ok := errors.FromError(err)
-			if !ok || appErr.Tag != "VirtualGenerateFailed" || !appErr.HasRoute("Documents.OpenVirtual->VirtualRegistry.Generate.VirtualGenerateFailed") {
+			if !ok || appErr.Tag != tc.route || !appErr.HasRoute("Documents.OpenVirtual->VirtualRegistry.Generate->") {
 				t.Fatalf("the failure is %v", err)
-			}
-			cause, ok := errors.FromError(errors.Unwrap(err))
-			if !ok {
-				t.Fatalf("the cause is %T: %v", errors.Unwrap(err), errors.Unwrap(err))
-			}
-			if !strings.Contains(cause.Route(), tc.route) && cause.Tag != tc.route {
-				t.Errorf("the cause is %s (%s), want %s", cause.Tag, cause.Route(), tc.route)
 			}
 		})
 	}

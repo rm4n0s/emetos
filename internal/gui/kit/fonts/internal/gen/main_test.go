@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/csv"
+	"go/format"
 	"os"
 	"strings"
 	"testing"
@@ -27,7 +28,7 @@ func TestPascal(t *testing.T) {
 }
 
 func TestGenerate(t *testing.T) {
-	src, err := generate(strings.NewReader("short_name,character,unicode\nzoom-out,,EB82\nadd,,ea60\ncode,,EAC4\n"))
+	src, err := generate(strings.NewReader("short_name,character,unicode\nzoom-out,,EB82\nadd,,ea60\ncode,,EAC4\n"), format.Source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,9 +70,19 @@ func TestGenerateErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := generate(strings.NewReader(tt.csv))
+			_, err := generate(strings.NewReader(tt.csv), format.Source)
 			assertTag(t, err, tt.tag, "generate")
 		})
+	}
+}
+
+func TestGenerateFormatFailed(t *testing.T) {
+	boom := errors.New("Boom", "the formatter broke")
+	_, err := generate(strings.NewReader("short_name,character,unicode\nadd,,EA60\n"),
+		func([]byte) ([]byte, error) { return nil, boom })
+	assertTag(t, err, "CodiconFormatFailed", "generate")
+	if !errors.Is(err, boom) {
+		t.Errorf("the cause is lost: %v", err)
 	}
 }
 
@@ -79,11 +90,11 @@ func TestGenerateErrors(t *testing.T) {
 // separate words; the collision tag guards against a future change to it.
 func TestGenerateNameCollision(t *testing.T) {
 	// "a1-b" and "a-1b" are both valid names but make A1B and A1b: no collision.
-	if _, err := generate(strings.NewReader("short_name,character,unicode\na1-b,,EA60\na-1b,,EA61\n")); err != nil {
+	if _, err := generate(strings.NewReader("short_name,character,unicode\na1-b,,EA60\na-1b,,EA61\n"), format.Source); err != nil {
 		t.Fatalf("distinct constants must not collide: %v", err)
 	}
 	// The same name twice does collide.
-	_, err := generate(strings.NewReader("short_name,character,unicode\nadd,,EA60\nadd,,EA61\n"))
+	_, err := generate(strings.NewReader("short_name,character,unicode\nadd,,EA60\nadd,,EA61\n"), format.Source)
 	assertTag(t, err, "CodiconNameCollision", "generate")
 }
 
@@ -116,7 +127,7 @@ func TestGeneratedFileIsUpToDate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fresh, err := generate(bytes.NewReader(csvBytes))
+	fresh, err := generate(bytes.NewReader(csvBytes), format.Source)
 	if err != nil {
 		t.Fatal(err)
 	}

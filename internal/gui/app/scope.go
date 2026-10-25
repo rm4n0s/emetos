@@ -1,6 +1,9 @@
 package app
 
-import "github.com/rm4n0s/glutter/widgets"
+import (
+	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/widgets"
+)
 
 // WindowScope is the inherited widget that gives its subtree the Window it belongs to
 // (SPEC §5.1). The core never sees it: a widget reads the window with WindowOf and passes
@@ -25,7 +28,7 @@ func (s *WindowScope) UpdateShouldNotify(old widgets.Widget) bool {
 func WindowOf(bc widgets.BuildContext) *Window {
 	scope, ok := widgets.DependOn[*WindowScope](bc)
 	if !ok {
-		panic(errNoWindow())
+		panic(errors.New("WindowMissing", "no window is above this widget; wrap it in WindowScope"))
 	}
 	return scope.window
 }
@@ -35,7 +38,7 @@ func WindowOf(bc widgets.BuildContext) *Window {
 func PeekWindow(bc widgets.BuildContext) *Window {
 	scope, ok := widgets.GetInherited[*WindowScope](bc)
 	if !ok {
-		panic(errNoWindow())
+		panic(errors.New("WindowMissing", "no window is above this widget; wrap it in WindowScope"))
 	}
 	return scope.window
 }

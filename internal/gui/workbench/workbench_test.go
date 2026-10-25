@@ -840,15 +840,15 @@ func TestAWorkbenchWithoutTheCommandsReportsTheMistake(t *testing.T) {
 	var found bool
 	for _, err := range errs {
 		var appErr *errors.Error
-		if errors.As(err, &appErr) && appErr.Tag == "LayoutCommandMissing" {
+		if errors.As(err, &appErr) && appErr.Tag == "CommandNotFound" && appErr.HasRoute("->Registry.SetHandler.CommandNotFound") {
 			found = true
-			if _, ok := appErr.Metadata["command"]; !ok {
+			if _, ok := appErr.Metadata["id"]; !ok {
 				t.Errorf("the error does not say which command: %v", appErr.Metadata)
 			}
 		}
 	}
 	if !found {
-		t.Errorf("no error has the tag LayoutCommandMissing: %v", errs)
+		t.Errorf("no error has the tag CommandNotFound: %v", errs)
 	}
 }
 

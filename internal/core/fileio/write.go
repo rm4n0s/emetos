@@ -135,15 +135,31 @@ func prepareTarget(fsys fileSystem, path string, opts WriteOptions) (target stri
 
 // writeAtomic writes data to a temporary file next to target and renames it over. The
 // owner and group of the original (orig, nil for a new file) are given to the new file when
-// the process may.
-func writeAtomic(fsys fileSystem, target string, data []byte, mode os.FileMode, orig os.FileInfo) (err error) {
+// the process may. A failure of the operating system is FilePermissionDenied, FileNotFound
+// or FileWriteFailed.
+func writeAtomic(fsys fileSystem, target string, data []byte, mode os.FileMode, orig os.FileInfo) error {
+	err := writeTemp(fsys, target, data, mode, orig)
+	switch {
+	case err == nil:
+		return nil
+	case os.IsPermission(err):
+		return errors.NewErr("FilePermissionDenied", err).SetMetadata("path", target)
+	case os.IsNotExist(err):
+		return errors.NewErr("FileNotFound", err).SetMetadata("path", target)
+	}
+	return errors.NewErr("FileWriteFailed", err).SetMetadata("path", target)
+}
+
+// writeTemp is the work of writeAtomic; it returns the errors of the operating system as
+// they are.
+func writeTemp(fsys fileSystem, target string, data []byte, mode os.FileMode, orig os.FileInfo) error {
 	dir, base := filepath.Split(target)
 	if dir == "" {
 		dir = "."
 	}
 	tmp, err := fsys.CreateTemp(dir, "."+base+".emetos-*.tmp")
 	if err != nil {
-		return writeError(err, target)
+		return err
 	}
 	renamed := false
 	defer func() {
@@ -153,59 +169,61 @@ func writeAtomic(fsys fileSystem, target string, data []byte, mode os.FileMode, 
 		}
 	}()
 	if _, err := tmp.Write(data); err != nil {
-		return writeError(err, target)
+		return err
 	}
 	if err := tmp.Chmod(mode); err != nil {
-		return writeError(err, target)
+		return err
 	}
 	keepOwner(tmp.Name(), orig)
 	if err := tmp.Sync(); err != nil {
-		return writeError(err, target)
+		return err
 	}
 	if err := tmp.Close(); err != nil {
-		return writeError(err, target)
+		return err
 	}
 	if err := fsys.Rename(tmp.Name(), target); err != nil {
-		return writeError(err, target)
+		return err
 	}
 	renamed = true
 	fsys.SyncDir(dir)
 	return nil
 }
 
-// writeInPlace writes data into the file itself, for a folder that can't be written to.
+// writeInPlace writes data into the file itself, for a folder that can't be written to. A
+// failure of the operating system is FilePermissionDenied, FileNotFound or FileWriteFailed.
 func writeInPlace(fsys fileSystem, target string, data []byte, mode os.FileMode, exists bool) error {
+	err := overwriteFile(fsys, target, data, mode, exists)
+	switch {
+	case err == nil:
+		return nil
+	case os.IsPermission(err):
+		return errors.NewErr("FilePermissionDenied", err).SetMetadata("path", target)
+	case os.IsNotExist(err):
+		return errors.NewErr("FileNotFound", err).SetMetadata("path", target)
+	}
+	return errors.NewErr("FileWriteFailed", err).SetMetadata("path", target)
+}
+
+// overwriteFile is the work of writeInPlace; it returns the errors of the operating system as
+// they are.
+func overwriteFile(fsys fileSystem, target string, data []byte, mode os.FileMode, exists bool) error {
 	flag := os.O_WRONLY | os.O_TRUNC
 	if !exists {
 		flag |= os.O_CREATE
 	}
 	f, err := fsys.OpenFile(target, flag, mode)
 	if err != nil {
-		return writeError(err, target)
+		return err
 	}
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
-		return writeError(err, target)
+		return err
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		return writeError(err, target)
+		return err
 	}
-	if err := f.Close(); err != nil {
-		return writeError(err, target)
-	}
-	return nil
-}
-
-// writeError tags an error of the operating system.
-func writeError(err error, path string) error {
-	switch {
-	case os.IsPermission(err):
-		return errors.NewErr("FilePermissionDenied", err).SetMetadata("path", path)
-	case os.IsNotExist(err):
-		return errors.NewErr("FileNotFound", err).SetMetadata("path", path)
-	}
-	return errors.NewErr("FileWriteFailed", err).SetMetadata("path", path)
+	return f.Close()
 }
 
 func isPermission(err error) bool {

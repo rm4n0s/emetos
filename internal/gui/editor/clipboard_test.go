@@ -1,8 +1,11 @@
 package editor
 
 import (
+	"os"
 	"testing"
 	"time"
+
+	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 )
@@ -280,18 +283,100 @@ func TestColumnCopyPastesAsAColumn(t *testing.T) {
 }
 
 func TestNoClipboardIsAnError(t *testing.T) {
-	r := newClipRig(t, "ab", nil).at(sel(0, 0, 0, 1))
-	r.vm.SetClipboard(nil, nil, nil)
-	for _, id := range []string{copyCmd, cutCmd, pasteCmd} {
-		if err := r.vm.RunCommand(id, nil); err == nil {
-			t.Errorf("%s without a clipboard", id)
-		}
+	tests := []struct {
+		name  string
+		run   func(vm *ViewModel) error
+		route string
+	}{
+		{"copy", func(vm *ViewModel) error { return vm.RunCommand(copyCmd, nil) }, "ViewModel.RunCommand->"},
+		{"cut", func(vm *ViewModel) error { return vm.RunCommand(cutCmd, nil) }, "ViewModel.RunCommand->"},
+		{"paste", func(vm *ViewModel) error { return vm.RunCommand(pasteCmd, nil) }, "ViewModel.RunCommand->"},
+		{"paste the primary selection", func(vm *ViewModel) error { return vm.PastePrimary() }, "ViewModel.PastePrimary->"},
 	}
-	if err := r.vm.PastePrimary(); err == nil {
-		t.Error("PastePrimary without a clipboard")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newClipRig(t, "ab", nil).at(sel(0, 0, 0, 1))
+			r.vm.SetClipboard(nil, nil, nil)
+			err := tt.run(r.vm)
+			appErr, ok := errors.FromError(err)
+			if !ok {
+				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+			}
+			if !appErr.HasRoute(tt.route) || !appErr.HasRoute("ViewModel.clipboard.EditorClipboardUnavailable") {
+				t.Errorf("unexpected failure path: %s", appErr.Route())
+			}
+			if r.vm.Document().Text() != "ab" {
+				t.Errorf("text %q", r.vm.Document().Text())
+			}
+		})
 	}
-	if r.vm.Document().Text() != "ab" {
-		t.Errorf("text %q", r.vm.Document().Text())
+}
+
+// failingClipboard is a Clipboard whose requests finish with err, and that keeps the answers
+// until flush, as the platform's does.
+type failingClipboard struct {
+	err     error
+	pending []func()
+}
+
+func (c *failingClipboard) Write(_ string, done func(error)) {
+	c.pending = append(c.pending, func() { done(c.err) })
+}
+func (c *failingClipboard) Read(done func(string, error)) {
+	c.pending = append(c.pending, func() { done("", c.err) })
+}
+func (c *failingClipboard) WritePrimary(_ string, done func(error)) { c.Write("", done) }
+func (c *failingClipboard) ReadPrimary(done func(string, error))    { c.Read(done) }
+func (c *failingClipboard) flush() {
+	p := c.pending
+	c.pending = nil
+	for _, f := range p {
+		f()
+	}
+}
+
+// A request that finishes with an error of the platform is reported to the window with the tag
+// EditorClipboardFailed; one that is already an error of Emetos is passed on as it is.
+func TestClipboardRequestThatFailsIsReported(t *testing.T) {
+	own := errors.New("Own", "an error of Emetos")
+	tests := []struct {
+		name      string
+		cmd       string
+		cause     error
+		wantTag   string
+		wantRoute string
+	}{
+		{"a copy that fails", copyCmd, os.ErrPermission, "EditorClipboardFailed", "clipboardLink.failed.EditorClipboardFailed"},
+		{"a paste that fails", pasteCmd, os.ErrPermission, "EditorClipboardFailed", "clipboardLink.failed.EditorClipboardFailed"},
+		{"an error of Emetos", copyCmd, own, "Own", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newClipRig(t, "ab", nil).at(sel(0, 0, 0, 1))
+			clip := &failingClipboard{err: tt.cause}
+			var reported []error
+			r.vm.SetClipboard(clip, nil, func(err error) { reported = append(reported, err) })
+			if err := r.vm.RunCommand(tt.cmd, nil); err != nil {
+				t.Fatal(err)
+			}
+			if len(reported) != 0 {
+				t.Fatalf("reported before the platform answered: %v", reported)
+			}
+			clip.flush()
+			if len(reported) != 1 {
+				t.Fatalf("reported %v", reported)
+			}
+			appErr, ok := errors.FromError(reported[0])
+			if !ok {
+				t.Fatalf("expected *errors.Error, got %T (%v)", reported[0], reported[0])
+			}
+			if appErr.Tag != tt.wantTag || !appErr.HasRoute(tt.wantRoute) {
+				t.Errorf("Tag = %q, route = %s", appErr.Tag, appErr.Route())
+			}
+			if tt.wantRoute != "" && !errors.Is(reported[0], tt.cause) {
+				t.Errorf("the cause is lost: %v", reported[0])
+			}
+		})
 	}
 }
 

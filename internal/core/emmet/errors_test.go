@@ -14,14 +14,14 @@ func TestExpandErrorRoutes(t *testing.T) {
 	cases := []struct {
 		name, abbr, route, message string
 	}{
-		{"a character that is nothing", "str?", "Expand->Parse->ParseAbbreviation->Tokenize->scanner.fail.UnexpectedCharacter", "Unexpected character at 4"},
-		{"a field with a brace in the placeholder that is never closed", "a[b=${1:{x]", "Tokenize->getToken->field->consumeFieldPlaceholder->scanner.fail.PlaceholderUnclosed", "Expecting } at"},
-		{"a variable with no closing brace", "a[b=${1]", "Tokenize->getToken->field->scanner.fail.FieldUnclosed", "Expecting } at 8"},
-		{"a token that is nothing", "/", "ParseAbbreviation->ParseTokens->tokenScanner.fail.UnexpectedToken", "Unexpected character at 0"},
-		{"a token in the attributes that is nothing", "[a=b=c]", "ParseTokens->statements->element->attributeSet->tokenScanner.fail.UnexpectedAttributeToken", `Unexpected "Operator" token at 4`},
-		{"a quote that is never closed", `[a="foo]`, "attributeSet->attribute->quoted->tokenScanner.fail.UnclosedQuote", "Unclosed quote at 3"},
-		{"groups nested too deep", strings.Repeat("(", maxNesting+2) + "a" + strings.Repeat(")", maxNesting+2), "statements->group->statements->tokenScanner.fail.NestingTooDeep", "nested too deep"},
-		{"elements nested too deep", strings.Repeat("a>", maxNesting+2) + "a", "ParseTokens->statements->tokenScanner.fail.NestingTooDeep", "nested too deep"},
+		{"a character that is nothing", "str?", "Expand->Parse->ParseAbbreviation->Tokenize.UnexpectedCharacter", "Unexpected character at 4"},
+		{"a field with a brace in the placeholder that is never closed", "a[b=${1:{x]", "Tokenize->getToken->field->consumeFieldPlaceholder.PlaceholderUnclosed", "Expecting } at"},
+		{"a variable with no closing brace", "a[b=${1]", "Tokenize->getToken->field.FieldUnclosed", "Expecting } at 8"},
+		{"a token that is nothing", "/", "ParseAbbreviation->ParseTokens.UnexpectedToken", "Unexpected character at 0"},
+		{"a token in the attributes that is nothing", "[a=b=c]", "ParseTokens->statements->element->attributeSet.UnexpectedAttributeToken", `Unexpected "Operator" token at 4`},
+		{"a quote that is never closed", `[a="foo]`, "attributeSet->attribute->quoted.UnclosedQuote", "Unclosed quote at 3"},
+		{"groups nested too deep", strings.Repeat("(", maxNesting+2) + "a" + strings.Repeat(")", maxNesting+2), "statements->group->statements.NestingTooDeep", "nested too deep"},
+		{"elements nested too deep", strings.Repeat("a>", maxNesting+2) + "a", "ParseTokens->statements.NestingTooDeep", "nested too deep"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestSettingsErrorRoutes(t *testing.T) {
 	wantRoute(t, err, "Config.ApplyProfiles.ProfileInvalid")
 
 	err = cfg.ApplyProfile(map[string]any{"attributeQuotes": "triple"})
-	wantRoute(t, err, "setQuotes->invalid.ProfileValueInvalid")
+	wantRoute(t, err, "setQuotes.ProfileValueInvalid")
 	appErr, _ := errors.FromError(err)
 	if appErr.Metadata["key"] != "attributeQuotes" {
 		t.Errorf("metadata %v has no key", appErr.Metadata)

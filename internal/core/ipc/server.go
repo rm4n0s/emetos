@@ -49,23 +49,26 @@ func listen(opts Options) (*Server, error) {
 		return nil, errors.NewErr("IPCListenFailed", err).SetMetadata("path", path)
 	}
 	l.SetUnlinkOnClose(false)
-	fail := func(err error) (*Server, error) {
-		_ = l.Close()
-		_ = os.Remove(path)
-		return nil, errors.NewErr("IPCListenFailed", err).SetMetadata("path", path)
-	}
+	made := false
+	defer func() {
+		if !made { // a failure below leaves no socket behind
+			_ = l.Close()
+			_ = os.Remove(path)
+		}
+	}()
 	if err := os.Chmod(path, 0o600); err != nil {
-		return fail(err)
+		return nil, errors.NewErr("IPCListenFailed", err).SetMetadata("path", path)
 	}
 	info, err := os.Lstat(path)
 	if err != nil {
-		return fail(err)
+		return nil, errors.NewErr("IPCListenFailed", err).SetMetadata("path", path)
 	}
 	st, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
-		return fail(syscall.ENOTSUP)
+		return nil, errors.NewErr("IPCListenFailed", syscall.ENOTSUP).SetMetadata("path", path)
 	}
 	base, stop := context.WithCancel(context.Background())
+	made = true
 	return &Server{opts: opts, listener: l, base: base, stopBase: stop, dev: uint64(st.Dev), ino: st.Ino, conns: map[net.Conn]struct{}{}}, nil //nolint:gosec // dev is an unsigned device number
 }
 

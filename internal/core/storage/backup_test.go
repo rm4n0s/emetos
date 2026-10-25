@@ -235,6 +235,20 @@ func TestBackupErrors(t *testing.T) {
 			t.Errorf("unexpected failure: %v", err)
 		}
 	})
+	t.Run("encode failed", func(t *testing.T) {
+		boom := errors.New("Boom", "the encoder broke")
+		s, _ := newBackupStore(t, func(o *storage.BackupStoreOptions) {
+			o.Marshal = func(any) ([]byte, error) { return nil, boom }
+		})
+		err := s.Write(ctx, storage.Backup{URI: "file:///a", Content: "x"})
+		appErr := routeOf(t, err)
+		if !appErr.HasRoute("BackupStore.Write.BackupEncodeFailed") || !errors.Is(err, boom) || appErr.Metadata["uri"] != "file:///a" {
+			t.Errorf("unexpected failure: %s, metadata %v", appErr.Route(), appErr.Metadata)
+		}
+		if _, statErr := os.Stat(filepath.Join(s.Dir(), storage.BackupName("file:///a"))); !os.IsNotExist(statErr) {
+			t.Errorf("a backup was written: %v", statErr)
+		}
+	})
 	t.Run("the window id", func(t *testing.T) {
 		_, err := storage.NewBackupStore(storagetest.Isolate(t), "../x", storage.BackupStoreOptions{})
 		if appErr := routeOf(t, err); !appErr.HasRoute("NewBackupStore.WindowIDInvalid") {

@@ -126,7 +126,8 @@ func parseOnig(pattern string, ic bool) (*parser, node, error) {
 		return nil, nil, err
 	}
 	if p.pos < len(p.src) {
-		return nil, nil, p.fail("RegexUnbalancedParen", "a closing parenthesis has no opening one")
+		return nil, nil, errors.New("RegexUnbalancedParen", "a closing parenthesis has no opening one",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	for _, r := range p.refs {
 		index, err := p.resolve(r)
@@ -136,11 +137,6 @@ func parseOnig(pattern string, ic bool) (*parser, node, error) {
 		r.set(index)
 	}
 	return p, root, nil
-}
-
-// fail makes a syntax error at the current position.
-func (p *parser) fail(tag, msg string) error {
-	return errors.New(tag, msg, "offset", p.pos, "pattern", string(p.src))
 }
 
 // resolve finds the number of the group a reference names.
@@ -321,7 +317,8 @@ func (p *parser) quantifiers(f flags, atom node) (node, error) {
 			return atom, nil
 		}
 		if !repeatable(atom) {
-			return nil, p.fail("RegexNothingToRepeat", "the target of a repetition is not valid")
+			return nil, errors.New("RegexNothingToRepeat", "the target of a repetition is not valid",
+				"offset", p.pos, "pattern", string(p.src))
 		}
 		mode := greedy
 		if q.max >= 0 && q.min > q.max {
@@ -444,7 +441,8 @@ func (p *parser) atom(f flags) (node, error) {
 		p.pos++
 		return &anchorNode{kind: byte(r)}, nil
 	case '*', '+', '?':
-		return nil, p.fail("RegexNothingToRepeat", "the target of a repetition is not specified")
+		return nil, errors.New("RegexNothingToRepeat", "the target of a repetition is not specified",
+			"offset", p.pos, "pattern", string(p.src))
 	case '\\':
 		return p.escape(f)
 	}
@@ -465,7 +463,8 @@ func (p *parser) group(f flags) (node, error) {
 			}
 			if p.pos >= len(p.src) {
 				p.pos = open
-				return nil, p.fail("RegexUnbalancedParen", "a comment is not closed")
+				return nil, errors.New("RegexUnbalancedParen", "a comment is not closed",
+					"offset", p.pos, "pattern", string(p.src))
 			}
 			p.pos++
 			return &seqNode{}, nil
@@ -506,7 +505,8 @@ func (p *parser) group(f flags) (node, error) {
 			}
 			if p.pos >= len(p.src) || p.pos == start {
 				p.pos = open
-				return nil, p.fail("RegexInvalidGroupName", "the name of a group is missing or not closed")
+				return nil, errors.New("RegexInvalidGroupName", "the name of a group is missing or not closed",
+					"offset", p.pos, "pattern", string(p.src))
 			}
 			name = string(p.src[start:p.pos])
 			p.pos++
@@ -520,7 +520,8 @@ func (p *parser) group(f flags) (node, error) {
 			}
 			if end >= len(p.src) || p.src[end] != ':' {
 				p.pos = open
-				return nil, p.fail("RegexInvalidGroup", "the group is not valid")
+				return nil, errors.New("RegexInvalidGroup", "the group is not valid",
+					"offset", p.pos, "pattern", string(p.src))
 			}
 			nf, err := p.applyFlags(f, string(p.src[p.pos+1:end]))
 			if err != nil {
@@ -562,7 +563,8 @@ func (p *parser) groupBody(f flags, open int) (node, error) {
 	}
 	if p.peek() != ')' {
 		p.pos = open
-		return nil, p.fail("RegexUnbalancedParen", "a group is not closed")
+		return nil, errors.New("RegexUnbalancedParen", "a group is not closed",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	p.pos++
 	return body, nil
@@ -577,7 +579,8 @@ func (p *parser) conditional(f flags, open int) (node, error) {
 	}
 	if p.pos >= len(p.src) {
 		p.pos = open
-		return nil, p.fail("RegexUnbalancedParen", "the condition of a group is not closed")
+		return nil, errors.New("RegexUnbalancedParen", "the condition of a group is not closed",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	text := strings.Trim(string(p.src[start:p.pos]), "<>'")
 	p.pos++
@@ -597,7 +600,8 @@ func (p *parser) conditional(f flags, open int) (node, error) {
 	}
 	if len(branches) > 2 {
 		p.pos = open
-		return nil, p.fail("RegexInvalidGroup", "a conditional has two branches at most")
+		return nil, errors.New("RegexInvalidGroup", "a conditional has two branches at most",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	c.yes = branches[0]
 	if len(branches) == 2 {
@@ -609,7 +613,8 @@ func (p *parser) conditional(f flags, open int) (node, error) {
 // escape reads a backslash escape outside a class.
 func (p *parser) escape(f flags) (node, error) {
 	if p.pos+1 >= len(p.src) {
-		return nil, p.fail("RegexInvalidEscape", "the pattern ends with a backslash")
+		return nil, errors.New("RegexInvalidEscape", "the pattern ends with a backslash",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	c := p.src[p.pos+1]
 	switch c {
@@ -692,7 +697,8 @@ func (p *parser) reference(kind rune) (node, error) {
 		closer = '\''
 	default:
 		p.pos = start
-		return nil, p.fail("RegexInvalidEscape", "\\"+string(kind)+" needs a name in <> or ''")
+		return nil, errors.New("RegexInvalidEscape", "\\"+string(kind)+" needs a name in <> or ''",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	p.pos++
 	begin := p.pos
@@ -701,7 +707,8 @@ func (p *parser) reference(kind rune) (node, error) {
 	}
 	if p.pos >= len(p.src) || p.pos == begin {
 		p.pos = start
-		return nil, p.fail("RegexInvalidGroupName", "the name of a reference is missing or not closed")
+		return nil, errors.New("RegexInvalidGroupName", "the name of a reference is missing or not closed",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	text := string(p.src[begin:p.pos])
 	p.pos++
@@ -795,7 +802,8 @@ func (p *parser) charEscape(inClass bool) (set *charSet, runes []rune, err error
 				p.pos++
 			}
 			if p.pos >= len(p.src) {
-				return nil, nil, p.fail("RegexInvalidEscape", "\\x{ is not closed")
+				return nil, nil, errors.New("RegexInvalidEscape", "\\x{ is not closed",
+					"offset", p.pos, "pattern", string(p.src))
 			}
 			fields := strings.Fields(string(p.src[start:p.pos]))
 			p.pos++
@@ -803,24 +811,28 @@ func (p *parser) charEscape(inClass bool) (set *charSet, runes []rune, err error
 			for _, field := range fields {
 				v, perr := strconv.ParseUint(field, 16, 32)
 				if perr != nil || v > unicode.MaxRune {
-					return nil, nil, p.fail("RegexInvalidEscape", "the code point of \\x{} is not valid")
+					return nil, nil, errors.New("RegexInvalidEscape", "the code point of \\x{} is not valid",
+						"offset", p.pos, "pattern", string(p.src))
 				}
 				runes = append(runes, rune(v))
 			}
 			if len(runes) == 0 {
-				return nil, nil, p.fail("RegexInvalidEscape", "\\x{} has no code point")
+				return nil, nil, errors.New("RegexInvalidEscape", "\\x{} has no code point",
+					"offset", p.pos, "pattern", string(p.src))
 			}
 			return nil, runes, nil
 		}
 		v, n := p.hexDigits(2)
 		if n == 0 {
-			return nil, nil, p.fail("RegexInvalidEscape", "\\x needs hex digits")
+			return nil, nil, errors.New("RegexInvalidEscape", "\\x needs hex digits",
+				"offset", p.pos, "pattern", string(p.src))
 		}
 		return nil, []rune{rune(v)}, nil
 	case 'u':
 		v, n := p.hexDigits(4)
 		if n != 4 {
-			return nil, nil, p.fail("RegexInvalidEscape", "\\u needs four hex digits")
+			return nil, nil, errors.New("RegexInvalidEscape", "\\u needs four hex digits",
+				"offset", p.pos, "pattern", string(p.src))
 		}
 		return nil, []rune{rune(v)}, nil
 	case 'o':
@@ -831,12 +843,14 @@ func (p *parser) charEscape(inClass bool) (set *charSet, runes []rune, err error
 				p.pos++
 			}
 			if p.pos >= len(p.src) {
-				return nil, nil, p.fail("RegexInvalidEscape", "\\o{ is not closed")
+				return nil, nil, errors.New("RegexInvalidEscape", "\\o{ is not closed",
+					"offset", p.pos, "pattern", string(p.src))
 			}
 			v, perr := strconv.ParseUint(string(p.src[start:p.pos]), 8, 32)
 			p.pos++
 			if perr != nil || v > unicode.MaxRune {
-				return nil, nil, p.fail("RegexInvalidEscape", "the code point of \\o{} is not valid")
+				return nil, nil, errors.New("RegexInvalidEscape", "the code point of \\o{} is not valid",
+					"offset", p.pos, "pattern", string(p.src))
 			}
 			return nil, []rune{rune(v)}, nil
 		}
@@ -853,7 +867,8 @@ func (p *parser) charEscape(inClass bool) (set *charSet, runes []rune, err error
 			p.pos++
 			return nil, []rune{x & 0x1f}, nil
 		}
-		return nil, nil, p.fail("RegexInvalidEscape", "\\c needs a character")
+		return nil, nil, errors.New("RegexInvalidEscape", "\\c needs a character",
+			"offset", p.pos, "pattern", string(p.src))
 	case 'C', 'M':
 		return nil, nil, errors.New("RegexUnsupportedFeature", "control and meta escapes are not supported", "escape", `\`+string(c), "pattern", string(p.src))
 	case 'y', 'Y':
@@ -893,7 +908,8 @@ func hexValue(r rune) int {
 // property reads the {name} of \p and \P, which may start with ^.
 func (p *parser) property(negate bool) (*charSet, error) {
 	if p.peek() != '{' {
-		return nil, p.fail("RegexInvalidEscape", "\\p needs a name in braces")
+		return nil, errors.New("RegexInvalidEscape", "\\p needs a name in braces",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	p.pos++
 	start := p.pos
@@ -901,7 +917,8 @@ func (p *parser) property(negate bool) (*charSet, error) {
 		p.pos++
 	}
 	if p.pos >= len(p.src) {
-		return nil, p.fail("RegexInvalidEscape", "\\p{ is not closed")
+		return nil, errors.New("RegexInvalidEscape", "\\p{ is not closed",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	name := string(p.src[start:p.pos])
 	p.pos++
@@ -935,7 +952,8 @@ func (p *parser) class(f flags) (*charSet, error) {
 	for {
 		if p.pos >= len(p.src) {
 			p.pos = open
-			return nil, p.fail("RegexUnterminatedClass", "a character class is not closed")
+			return nil, errors.New("RegexUnterminatedClass", "a character class is not closed",
+				"offset", p.pos, "pattern", string(p.src))
 		}
 		r := p.src[p.pos]
 		switch {
@@ -1001,7 +1019,8 @@ func (p *parser) class(f flags) (*charSet, error) {
 					continue
 				}
 				if hi < lo {
-					return nil, p.fail("RegexInvalidRange", "the end of a character range is before its start")
+					return nil, errors.New("RegexInvalidRange", "the end of a character range is before its start",
+						"offset", p.pos, "pattern", string(p.src))
 				}
 				cur.addRange(lo, hi)
 				continue
@@ -1019,7 +1038,8 @@ func (p *parser) classAtom() (rune, *charSet, error) {
 		return r, nil, nil
 	}
 	if p.pos+1 >= len(p.src) {
-		return 0, nil, p.fail("RegexInvalidEscape", "the pattern ends with a backslash")
+		return 0, nil, errors.New("RegexInvalidEscape", "the pattern ends with a backslash",
+			"offset", p.pos, "pattern", string(p.src))
 	}
 	set, runes, err := p.charEscape(true)
 	if err != nil {

@@ -96,15 +96,10 @@ func (c *Config) ApplyProfile(profile map[string]any) error {
 	return nil
 }
 
-// invalid makes the error of a value of a profile that is not valid; ApplyProfile adds the key.
-func invalid(v any, want string) error {
-	return errors.New("ProfileValueInvalid", "the value of a profile key must be "+want, "got", v)
-}
-
 func setBool(dst *bool, v any) error {
 	b, ok := v.(bool)
 	if !ok {
-		return invalid(v, "true or false")
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+"true or false", "got", v)
 	}
 	*dst = b
 	return nil
@@ -125,7 +120,7 @@ func setCase(dst *StringCase, v any) error {
 			return nil
 		}
 	}
-	return invalid(v, `"upper", "lower" or "leave"`)
+	return errors.New("ProfileValueInvalid", "the value of a profile key must be "+`"upper", "lower" or "leave"`, "got", v)
 }
 
 func setQuotes(o *Options, v any) error {
@@ -137,7 +132,7 @@ func setQuotes(o *Options, v any) error {
 		o.AttributeQuotes = QuoteDouble
 		return nil
 	}
-	return invalid(v, `"single" or "double"`)
+	return errors.New("ProfileValueInvalid", "the value of a profile key must be "+`"single" or "double"`, "got", v)
 }
 
 func setStrings(dst *[]string, v any) error {
@@ -147,13 +142,13 @@ func setStrings(dst *[]string, v any) error {
 			*dst = slices.Clone(ss)
 			return nil
 		}
-		return invalid(v, "an array of strings")
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+"an array of strings", "got", v)
 	}
 	out := make([]string, 0, len(list))
 	for _, e := range list {
 		s, ok := e.(string)
 		if !ok {
-			return invalid(v, "an array of strings")
+			return errors.New("ProfileValueInvalid", "the value of a profile key must be "+"an array of strings", "got", v)
 		}
 		out = append(out, s)
 	}
@@ -172,10 +167,10 @@ func setCount(dst *int, v any) error {
 	case int64:
 		f = float64(n)
 	default:
-		return invalid(v, "a whole number")
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+"a whole number", "got", v)
 	}
 	if f < 0 || f != math.Trunc(f) || f > 1e9 {
-		return invalid(v, "a whole number from 0")
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+"a whole number from 0", "got", v)
 	}
 	*dst = int(f)
 	return nil
@@ -190,7 +185,7 @@ func setSelfClosingStyle(o *Options, v any) error {
 	case "xhtml":
 		o.SelfClosingStyle = SelfClosingXHTML
 	default:
-		return invalid(v, `"html", "xml" or "xhtml"`)
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+`"html", "xml" or "xhtml"`, "got", v)
 	}
 	return nil
 }
@@ -205,7 +200,7 @@ func setSelfClosingTag(o *Options, v any) error {
 	case "xhtml":
 		o.SelfClosingStyle = SelfClosingXHTML
 	default:
-		return invalid(v, `true, false or "xhtml"`)
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+`true, false or "xhtml"`, "got", v)
 	}
 	return nil
 }
@@ -218,7 +213,7 @@ func setTagNL(o *Options, v any) error {
 	case false:
 		o.Format = false
 	default:
-		return invalid(v, `true, false or "decide"`)
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+`true, false or "decide"`, "got", v)
 	}
 	return nil
 }
@@ -227,7 +222,7 @@ func setTagNL(o *Options, v any) error {
 func setIndentFlag(o *Options, v any) error {
 	b, ok := v.(bool)
 	if !ok {
-		return invalid(v, "true or false")
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+"true or false", "got", v)
 	}
 	if !b {
 		o.Indent = ""
@@ -240,7 +235,7 @@ func setIndentFlag(o *Options, v any) error {
 func setFilters(o *Options, v any) error {
 	s, ok := v.(string)
 	if !ok {
-		return invalid(v, "a string")
+		return errors.New("ProfileValueInvalid", "the value of a profile key must be "+"a string", "got", v)
 	}
 	for _, f := range strings.Split(s, ",") {
 		switch strings.TrimSpace(f) {

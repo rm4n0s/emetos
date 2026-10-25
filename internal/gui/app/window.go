@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -884,9 +883,4 @@ func (d *Documents) Close(uri document.URI) bool {
 		(*w)(doc)
 	}
 	return true
-}
-
-// errNoWindow is the error of code that needs a window and has none.
-func errNoWindow() error {
-	return errors.New("WindowMissing", "no window is above this widget; wrap it in WindowScope")
 }

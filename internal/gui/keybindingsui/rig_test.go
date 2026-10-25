@@ -369,7 +369,7 @@ func (r *rig) afterAction() {
 	}
 }
 
-var errFailed = errors.New("EditFailed", "the edit failed")
+var errFailed = &errors.Error{Tag: "EditFailed", Message: "the edit failed"}
 
 // textOfKey is the text of the Text widget under a key.
 func textOfKey(r *rig, key string) string {

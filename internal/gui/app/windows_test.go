@@ -309,6 +309,39 @@ func TestNewWindowOpensAnEmptyWindowWithItsOwnState(t *testing.T) {
 	}
 }
 
+// A platform that cannot make the window leaves the windows as they were, and the error is WindowCreateFailed.
+func TestAWindowThePlatformCannotMakeIsNotKept(t *testing.T) {
+	env := newMultiEnv(t, nil)
+	one := env.folder("one", "a.go")
+	a := env.run(Options{Folder: one})
+	a.ts.SetWindowCreateError(os.ErrPermission)
+	_, err := a.m.Open(WindowSpec{})
+	appErr, ok := errors.FromError(err)
+	if !ok {
+		t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+	}
+	if appErr.Tag != "WindowCreateFailed" || !appErr.HasRoute("Windows.Open->Windows.openFrom.WindowCreateFailed") {
+		t.Errorf("Tag = %q, route = %s", appErr.Tag, appErr.Route())
+	}
+	if !errors.Is(err, os.ErrPermission) {
+		t.Errorf("the cause is lost: %v", err)
+	}
+	a.settle()
+	// the first window is the implicit one, which the tester does not list
+	if a.m.Count() != 1 || len(a.alive()) != 0 {
+		t.Errorf("%d windows, %d Glutter windows, want 1 and 0", a.m.Count(), len(a.alive()))
+	}
+	// and a platform that works again makes the window
+	a.ts.SetWindowCreateError(nil)
+	if _, err := a.m.Open(WindowSpec{}); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	if a.m.Count() != 2 || len(a.alive()) != 1 {
+		t.Errorf("%d windows, %d Glutter windows after the retry, want 2 and 1", a.m.Count(), len(a.alive()))
+	}
+}
+
 func TestNewWindowDimensions(t *testing.T) {
 	tests := []struct {
 		setting    string

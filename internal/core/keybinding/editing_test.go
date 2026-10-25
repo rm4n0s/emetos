@@ -403,7 +403,7 @@ func TestEditingFailures(t *testing.T) {
 		{"arguments that cannot be written", func() error {
 			_, err := e.Add("[]", "a", "ctrl+x", "", make(chan int))
 			return err
-		}, "Editing.Add->Editing.append->Editing.apply.KeybindingsEditFailed"},
+		}, "Editing.Add->Editing.append->SetValue->setValue->setInArray->stringify.JSONCEncodeFailed"},
 		{"nothing to remove from an unbound command", func() error {
 			_, err := e.Remove("[]", Row{Command: "cursorLeft"})
 			return err

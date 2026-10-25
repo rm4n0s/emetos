@@ -341,9 +341,9 @@ func (s *editorState) refresh() {
 	}
 	if err := s.list.SetItems(items); err != nil {
 		// the ids of the rows are made of the command, the keys and the when-clause, so a repeat is a row
-		// that is the same twice: the model leaves those out
+		// that is the same twice: the model leaves those out. The error is the table's own (ListItemKey...).
 		if f := w.opts.OnError; f != nil {
-			f(errors.NewErr("KeybindingsTableInvalid", err))
+			f(err)
 		}
 	}
 	switch {

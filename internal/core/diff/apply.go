@@ -2,17 +2,6 @@ package diff
 
 import "github.com/rm4n0s/errors"
 
-// errCancelled reports that the context of a diff is done.
-func errCancelled(cause error) error {
-	return errors.NewErr("DiffCancelled", cause)
-}
-
-// errInvalid reports that the changes are not a valid diff.
-func errInvalid(reason string, index, originalLines, modifiedLines int) error {
-	return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", reason, "change", index,
-		"originalLines", originalLines, "modifiedLines", modifiedLines)
-}
-
 // Apply rebuilds the modified lines: the lines of original that no change
 // covers, and the lines of modified that the changes map to. Changes must be a
 // valid diff of the two texts (see Validate); line numbers out of range are
@@ -57,16 +46,20 @@ func Validate(changes []LineRangeMapping, originalLines, modifiedLines int) erro
 		o, m := c.Original, c.Modified
 		if o.StartLine < 1 || o.StartLine > o.EndLine || o.EndLine > originalLines+1 ||
 			m.StartLine < 1 || m.StartLine > m.EndLine || m.EndLine > modifiedLines+1 {
-			return errInvalid("range out of its text", i, originalLines, modifiedLines)
+			return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", "range out of its text", "change", i,
+				"originalLines", originalLines, "modifiedLines", modifiedLines)
 		}
 		if o.IsEmpty() && m.IsEmpty() {
-			return errInvalid("empty change", i, originalLines, modifiedLines)
+			return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", "empty change", "change", i,
+				"originalLines", originalLines, "modifiedLines", modifiedLines)
 		}
 		if i > 0 && (o.StartLine <= prevOrig || m.StartLine <= prevMod) {
-			return errInvalid("changes overlap, touch or are not sorted", i, originalLines, modifiedLines)
+			return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", "changes overlap, touch or are not sorted", "change", i,
+				"originalLines", originalLines, "modifiedLines", modifiedLines)
 		}
 		if o.StartLine-prevOrig != m.StartLine-prevMod {
-			return errInvalid("unchanged lines before the change differ in number", i, originalLines, modifiedLines)
+			return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", "unchanged lines before the change differ in number", "change", i,
+				"originalLines", originalLines, "modifiedLines", modifiedLines)
 		}
 		if err := validateInner(c, i, originalLines, modifiedLines); err != nil {
 			return err
@@ -74,7 +67,8 @@ func Validate(changes []LineRangeMapping, originalLines, modifiedLines int) erro
 		prevOrig, prevMod = o.EndLine, m.EndLine
 	}
 	if originalLines+1-prevOrig != modifiedLines+1-prevMod {
-		return errInvalid("unchanged lines after the last change differ in number", len(changes), originalLines, modifiedLines)
+		return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", "unchanged lines after the last change differ in number", "change", len(changes),
+			"originalLines", originalLines, "modifiedLines", modifiedLines)
 	}
 	return nil
 }
@@ -90,12 +84,14 @@ func validateInner(c LineRangeMapping, i, originalLines, modifiedLines int) erro
 	}
 	for j, in := range c.Inner {
 		if !inside(in.Original, c.Original, originalLines) || !inside(in.Modified, c.Modified, modifiedLines) {
-			return errInvalid("character change outside its change or reversed", i, originalLines, modifiedLines)
+			return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", "character change outside its change or reversed", "change", i,
+				"originalLines", originalLines, "modifiedLines", modifiedLines)
 		}
 		if j > 0 {
 			prev := c.Inner[j-1]
 			if in.Original.Start.isBefore(prev.Original.End) || in.Modified.Start.isBefore(prev.Modified.End) {
-				return errInvalid("character changes overlap or are not sorted", i, originalLines, modifiedLines)
+				return errors.New("DiffInvalid", "the changes are not a valid diff", "reason", "character changes overlap or are not sorted", "change", i,
+					"originalLines", originalLines, "modifiedLines", modifiedLines)
 			}
 		}
 	}

@@ -12,7 +12,7 @@ import (
 
 // bindGroupCommands takes over the commands of the editor groups in the registry while the shell is on
 // screen. The registry must have them (command.DefaultRegistry does): a missing one is a mistake of the
-// caller and panics with the tag EditorGroupCommandMissing.
+// caller and panics with the CommandNotFound of command.Registry.SetHandler.
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/editor/editorCommands.ts and
 // src/vs/workbench/browser/parts/editor/editorActions.ts
@@ -590,7 +590,7 @@ func parseLayoutNodes(raw any) ([]editorgroup.LayoutNode, error) {
 }
 
 // setGroupHandlers binds handlers to commands of a registry and returns the functions that take them
-// off again. It fails with the tag EditorGroupCommandMissing for a command the registry does not know
+// off again. It fails with the CommandNotFound of command.Registry.SetHandler for a command the registry does not know
 // (the handlers bound so far are taken off).
 func setGroupHandlers(reg *command.Registry, handlers map[string]command.Handler) ([]func(), error) {
 	var removes []func()
@@ -600,7 +600,7 @@ func setGroupHandlers(reg *command.Registry, handlers map[string]command.Handler
 			for _, r := range removes {
 				r()
 			}
-			return nil, errors.NewErr("EditorGroupCommandMissing", err).SetMetadata("command", id)
+			return nil, err
 		}
 		removes = append(removes, remove)
 	}

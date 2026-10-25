@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
@@ -248,7 +247,7 @@ func (s *shellState) bindQuickInputCommands() {
 		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {
 			// the commands are registered by the program itself: a missing one is a broken build
-			panic(errors.NewErr("QuickInputCommandMissing", err).SetMetadata("command", id))
+			panic(err)
 		}
 		s.removeQuickCommands = append(s.removeQuickCommands, remove)
 	}

@@ -355,20 +355,19 @@ func (g *Grid) Orientation() Orientation { return g.root.orient }
 // has tells whether a group is in the grid.
 func (g *Grid) has(grp *Group) bool { return grp != nil && g.groups[grp.ID()] == grp }
 
-// errUnknownGroup is the error of an operation on a group that is not in the grid.
-func errUnknownGroup(grp *Group) error {
-	id := 0
-	if grp != nil {
-		id = grp.ID()
+// groupID is the id of a group, or 0 for none; the metadata of GroupUnknown.
+func groupID(grp *Group) int {
+	if grp == nil {
+		return 0
 	}
-	return errors.New("GroupUnknown", "the group is not in the grid", "group", id)
+	return grp.ID()
 }
 
 // Activate makes a group the active group. A maximized group that is not the one activated stops
 // being maximized.
 func (g *Grid) Activate(grp *Group) error {
 	if !g.has(grp) {
-		return errUnknownGroup(grp)
+		return errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(grp))
 	}
 	if g.maximized != nil && g.maximized != grp {
 		g.exitMaximized()
@@ -656,14 +655,14 @@ func (g *Grid) AddGroup(at *Group, dir Direction) (*Group, error) {
 // Ported from VS Code: EditorPart.copyGroup
 func (g *Grid) CopyGroup(grp, at *Group, dir Direction) (*Group, error) {
 	if !g.has(grp) {
-		return nil, errUnknownGroup(grp)
+		return nil, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(grp))
 	}
 	return g.addGroup(at, dir, grp)
 }
 
 func (g *Grid) addGroup(at *Group, dir Direction, from *Group) (*Group, error) {
 	if !g.has(at) {
-		return nil, errUnknownGroup(at)
+		return nil, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(at))
 	}
 	g.exitMaximized()
 	var nu *Group
@@ -691,7 +690,7 @@ func (g *Grid) addGroup(at *Group, dir Direction, from *Group) (*Group, error) {
 // Ported from VS Code: EditorPart.removeGroup
 func (g *Grid) RemoveGroup(grp *Group) (bool, error) {
 	if !g.has(grp) {
-		return false, errUnknownGroup(grp)
+		return false, errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(grp))
 	}
 	if len(g.groups) == 1 {
 		return false, nil
@@ -738,10 +737,10 @@ func (g *Grid) removeEmpty(grp *Group) {
 // Ported from VS Code: Grid.moveView and EditorPart.moveGroup
 func (g *Grid) MoveGroup(grp, target *Group, dir Direction) error {
 	if !g.has(grp) {
-		return errUnknownGroup(grp)
+		return errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(grp))
 	}
 	if !g.has(target) {
-		return errUnknownGroup(target)
+		return errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(target))
 	}
 	if grp == target {
 		return errors.New("GroupMoveOntoItself", "a group cannot be moved next to itself", "group", grp.ID())
@@ -781,7 +780,7 @@ func (g *Grid) Maximized() *Group { return g.maximized }
 // Ported from VS Code: GridView.maximizeView
 func (g *Grid) Maximize(grp *Group) error {
 	if !g.has(grp) {
-		return errUnknownGroup(grp)
+		return errors.New("GroupUnknown", "the group is not in the grid", "group", groupID(grp))
 	}
 	if len(g.groups) < 2 || g.maximized == grp {
 		return nil
