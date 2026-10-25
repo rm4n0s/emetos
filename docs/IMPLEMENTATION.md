@@ -118,6 +118,9 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M10 Release of areas 1–2 | 10.1–10.2 |
 | M11 Extensions | 11.1–11.7 |
 | M12 Language intelligence (area 3) | 12.1 (more steps after it) |
+| M13 The Agents extension | 13.1–13.3 |
+| M14 The Go extension | 14.1–14.3 |
+| M15 Remote control of a workspace | 15.1–15.4 |
 
 ---
 
@@ -1219,4 +1222,81 @@ Every **Proof** item gives its exact command. A state no existing command reache
 
 ### 12.1 Plan area 3 with the user
 **Goal:** a specification and steps for the LSP client and its UI, with `extensions/golang` and `gopls` as the first user (SPEC §3 area 3, D5, §10.15).
-**Tasks:** write the area 3 sections of the SPEC (the LSP client, the providers API of `extension/`, completion, hover, signature help, definition and references, diagnostics, code actions, formatting, rename, the Go pack's server) and the steps that build them into this file; **ask the user** to review them before any of them is built.
+**Tasks:** write the area 3 sections of the SPEC (the LSP client, the providers API of `extension/`, completion, hover, signature help, definition and references, diagnostics, code actions, formatting, rename, the Go pack's server; the rest of the Go extension is M14, SPEC §10.17, whose steps use what these steps build) and the steps that build them into this file; **ask the user** to review them before any of them is built.
+
+---
+
+## M13: The Agents extension
+
+### 13.1 The `claude` adapter's protocol
+**Goal:** a Go client of the `claude` program's stream-json mode, with no UI (SPEC §10.16).
+**Read:** SPEC §10.16, §10.15; the Agent SDK documentation of the stream-json input and output and of the control requests (Anthropic's Python SDK, `claude_agent_sdk/_internal/query.py` and `transport/subprocess_cli.py`, is the reference of the wire shapes; read it online, do not copy it).
+**Tasks:** `extensions/agents/claude`: find the program (`agents.claude.path`, else `PATH`); `AuthStatus(ctx)` from `claude auth status` (JSON, exit status); `Start(ctx, opts)` spawning the command line of §10.16 in the workspace folder in its own process group (killed with the scope's `ctx`); typed messages for `system/init`, `assistant` (text, thinking, `tool_use`), `user` (`tool_result`), `stream_event` (partial text), `result` (cost, turns, error) and unknown types kept as raw JSON; sending user messages; the control channel (`initialize`, `interrupt`, `set_permission_mode`, `set_model`, `rewind_files` out, `can_use_tool` in with `allow`/`updatedInput`/`deny`, request IDs, timeouts); capability detection from `system/init`; a fake `claude` (a test program built by the tests, replaying JSONL fixtures and answering control requests) and fixtures written from the documented shapes. Never `--bare`, never `CLAUDE_CONFIG_DIR`, never a token: a test checks the command line and the environment the adapter builds.
+**Tests:** each message type parses (table of fixtures); partial text joins; a turn with a `can_use_tool` round trip; interrupt; a dead program and malformed lines give route-tested errors; the auth status cases (logged in, not, program missing); cancel kills the process group. A test against the real program carries the build tag `emetos_claude` and is skipped when `claude` is not installed; running it is a manual check (it uses the user's own account).
+
+### 13.2 Sessions: the side bar view, the session tab and the title action
+**Goal:** talk to the agent from the editor area (SPEC §10.16).
+**Read:** SPEC §10.16, §10.15, §10.3.
+**Tasks:** move the Markdown renderer of `extensions/markdown` to `extension/ui/markdown` (both use it); `extensions/agents`: the "Agents" side bar view (the session index in the extension's state: ID, name, time, the first message as title; resume, rename, delete from the list, New Session), the session editor tab (the conversation as in §10.16, streaming text, thinking collapsed, tool calls as rows with their results, the busy mark, the input box with `/` commands from the handshake and `@` file completion, Stop, the model and permission mode pickers), the editor title action "New Session (runs Claude Code)" with a generic agent icon, "Add Selection to Agent" (Alt+K, editor context menu), `agents.attachActiveFile`, Log in (the pseudo-terminal panel view of §10.16), the program-missing state, restore of open session tabs (resumed with `--resume` when the user sends the next message, not at start).
+**Tests:** with the fake program: a new session streams into the tab; the side bar lists, renames, resumes and deletes; two session tabs at once; Stop; `/` and `@` completion; Add Selection inserts the reference; the not-logged-in and missing states; restore; goldens of the session tab (Dark Modern, Light Modern).
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/13.2-agents.png --config testdata/proof/13.2/config --commands '[["agents.newSession"],["dev.agents.replay",{"fixture":"testdata/proof/13.2/session.jsonl"}]]' -- testdata/proof/13.2/project`: a session tab with a replayed conversation (the fake program, set by `agents.claude.path` in the fixture config), the side bar view and the micro icon (add the dev command in this step, SPEC §15.2).
+
+### 13.3 Permissions, proposed edits, plans and checkpoints
+**Goal:** the user decides what the agent may do, and sees every edit as a diff (SPEC §10.16, §9.11).
+**Read:** SPEC §10.16, §9.11, §10.15.
+**Tasks:** `api.Editors().OpenProposedChange` in `extension/` (the diff editor with the proposed text on the right, editable, Accept and Reject in its title, the answer and the final text returned; closing it is Reject); `can_use_tool` for `Edit`/`Write`/`NotebookEdit` through it (`updatedInput` when the user changed the text); the tool dialog in the session tab (the command or the URL shown, Allow once, Allow for this session with the request's suggestions, Deny with a message); `ExitPlanMode` (the plan as Markdown, Approve, Keep Planning); `AskUserQuestion`; "Rewind code to here" on user messages (`rewind_files`, when the capability is there); the notification when a turn ends in a hidden tab; the status bar item; the Output channel "Agents".
+**Tests:** with the fake program: an Edit request opens the diff, Accept answers `allow`, an edited Accept sends `updatedInput`, Reject and close answer `deny`; the Bash dialog's three answers; a plan approved and kept; a question answered; rewind sends the request and is hidden without the capability; the notification and status item.
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/13.3-proposed-edit.png --config testdata/proof/13.3/config --commands '[["agents.newSession"],["dev.agents.replay",{"fixture":"testdata/proof/13.3/edit.jsonl"}]]' -- testdata/proof/13.3/project`: a proposed edit open in the diff editor beside the session tab.
+
+---
+
+## M14: The Go extension
+
+### 14.1 gopls, the status bar and the tools
+**Goal:** Go's language features through `gopls` (SPEC §10.17 and the area 3 sections written in step 12.1).
+**Read:** SPEC §10.17, the area 3 sections, §10.15.
+**Tasks:** `extensions/golang` starts `gopls` through the area 3 client (per workspace, `go.goplsPath`, the `go.gopls` settings, restart), formatting and organize imports on save, the status bar item (Go version from `go env GOVERSION`, the state of `gopls`, its menu), "Go: Install/Update Tools" (a panel view with the `go install` output) and the notification for a missing tool, "Go: Show Go Environment".
+**Tests:** with a fake server (the area 3 test server): start, restart, state in the status bar, settings passed; format and organize imports on save; the tools panel runs a fake `go`; missing-tool notification. A test against the real `gopls` carries the build tag `emetos_gopls` and is skipped when it is not installed.
+**Proof:** method B with `gopls` installed (else a fake server and a note in the entry): a Go file with a hover, a completion list and the Go status item.
+
+### 14.2 Go commands
+**Goal:** the commands of VS Code's Go extension that `gopls` and the tools give (SPEC §10.17).
+**Read:** SPEC §10.17.
+**Tasks:** Add Tags to Struct Fields and Remove Tags (`gopls` `modify_tags` when the server has it, else editing the struct through the document API with a pure-Go tag editor), Fill Struct (the code action), Generate Unit Tests for Function (a table-driven test skeleton written by the extension into `<file>_test.go`), Toggle Test File, Run (`go run .` in a panel view).
+**Tests:** tags added and removed (table of structs and options), fill struct through a fake server, the generated test skeleton (golden text), toggle between file and test file and creating the test file, run streams output.
+
+### 14.3 Tests, lint and vet
+**Goal:** run Go tests from the editor and see lint results (SPEC §10.17).
+**Read:** SPEC §10.17, §10.13.
+**Tasks:** the code lenses "run test | debug test" (debug shown disabled until area 6), Test Function at Cursor, Test File, Test Package, Rerun Last; `go test -json` parsed into the panel view "Go Tests" (tree of packages and tests, pass/fail/skip, output per test, durations) and failures into Problems; `go vet` and the lint tool on save into Problems (`go.vetOnSave`, `go.lintOnSave`, `go.lintTool`).
+**Tests:** `go test -json` fixtures parse into the tree (pass, fail, skip, panic, build failure); lenses run the right `-run` pattern; Problems markers from a failure and from vet output; lint on save with a fake tool.
+**Proof:** method B: a Go test file with its lenses and the "Go Tests" panel showing a passed and a failed test.
+
+---
+
+## M15: Remote control of a workspace
+
+### 15.1 The protocol and the headless view
+**Goal:** the message format of remote control and a second, off-screen view of a workspace (SPEC §10.18).
+**Read:** SPEC §10.18, §10.15, §10.14.
+**Tasks:** `extensions/remote/protocol`: versioned, length-prefixed messages with a size limit on each (hello with version and token, frame tiles, frame confirm, keys with text, mouse, scroll, clipboard, notification and its action, resize, ping, disconnect with a reason), encode and decode with no allocation beyond the limit; the tile differ (64x64 tiles changed since the confirmed frame, deflate, a full refresh on request); `api.Workspace().NewHeadlessView(size)` in `extension/`, implemented in `internal/gui/app`: a second workbench of the same workspace with its own focus, cursor and scroll, rendered with Glutter's software renderer when it changes, input events delivered to it, resize, close.
+**Tests:** round trip of every message (table); malformed, truncated and oversized input is refused with route-tested errors (seeded random inputs; a fuzz target run with `-parallel=1 -fuzztime=30s` and `GOMEMLIMIT=2GiB` as CLAUDE.md says); the differ sends only changed tiles and a full refresh; the headless view renders an edit made in the main view, takes typed keys into the document, and resizes (`gluttertest`).
+
+### 15.2 Login over SSH and the Remote Control page
+**Goal:** A lets listed keys in; B logs in with its key (SPEC §10.18).
+**Read:** SPEC §10.18, §12.
+**Tasks:** `go get golang.org/x/crypto@<latest>`; `extensions/remote/sshlogin`: the server on A (public-key only against the listed keys, the `emetos-remote` channel and nothing else, rate limit, logging), the host key made and kept with mode 0600, the client on B (key file with the passphrase dialog, or `ssh-agent` from `SSH_AUTH_SOCK`), host key pinning in `remote-hosts.json` (first-use fingerprint dialog, changed key refused); the session token and the QUIC certificate fingerprint sent over the channel; `remote-control.json` (mode 0600) and the page "Remote Control" (per-workspace switch, port, idle timeout, keys added by pasting a line or choosing a `.pub` file, the host fingerprint shown, the security notes of §10.18); A listens only while a workspace has it on; the connected banner with Disconnect; notifications for logins and refused attempts.
+**Tests:** login with a listed key, refusal of an unlisted key, of passwords, of other channel types and of shells; the agent path (an in-process agent); a wrong passphrase; first-use pinning and a changed host key; the rate limit; turning remote control off closes the listener and ends sessions; the state files' modes; all on loopback with ephemeral ports.
+
+### 15.3 QUIC transport and the TCP fallback
+**Goal:** the session's messages over QUIC on UDP, or SSH channels when UDP is blocked (SPEC §10.18).
+**Read:** SPEC §10.18.
+**Tasks:** `go get github.com/quic-go/quic-go@<latest>`; `extensions/remote/transport`: A's QUIC listener on the same port (self-signed certificate made at start), B's dial that accepts only the fingerprint from the SSH channel, the token check, tiles as datagrams (dropped when stale, never queued), reliable streams for the rest, resume of a dropped QUIC connection with the token while SSH lives, the 3 s fallback to SSH channels with the same messages, the idle timeout, one interface for both transports.
+**Tests:** on loopback: a session over QUIC; a wrong token and a wrong certificate are refused; datagrams arrive and stale ones are dropped; the fallback when UDP is blocked (a test that drops the UDP packets); resume after a dropped connection; the idle timeout ends the session; a lossy-link measurement (a UDP proxy in the test dropping 5% of packets with 50 ms of delay) reports the frame rate and the time to a full picture, recorded in the step's entry.
+
+### 15.4 The remote window tab
+**Goal:** use A's workspace from B (SPEC §10.18).
+**Read:** SPEC §10.18, §10.14, §10.15.
+**Tasks:** the window tab kind "Remote Workspace..." in the `+` menu (host, port, key file or agent; the tab titled `<host>: <workspace>` with a remote icon), the picture drawn from tiles at the tab's size (resize sends the new size), keys with their text, mouse and scroll sent, clipboard on copy and paste both ways, A's notifications shown on B with their actions run on A, reconnection after a drop, the disconnect reasons shown; A's side wires the headless view of 15.1 to the session; the tab's state saved (host, port, key path; never a passphrase or token).
+**Tests:** two Emetos instances in one test process on loopback (or two `gluttertest` apps): B opens A's workspace, types into a file that changes on A, A's edit appears on B, copy and paste across, a notification's action runs on A, Disconnect on A ends B's tab with its reason, reconnection.
+**Proof:** method B: two isolated Emetos instances started by the step's proof script on loopback, B's window showing A's workspace in a remote tab beside its own workspace tab.
