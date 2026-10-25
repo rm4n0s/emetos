@@ -1762,4 +1762,4 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   ![Emetos 0.1.0](screenshots/editor.png)
 - **Manual checks:** pending, see docs/MANUAL-CHECKS.md (install, the launcher icon, overtype, using Emetos for real work).
 - **Glutter issues:** none.
-- **Deviations and follow-ups:** the step's "ask the user before tagging a version" was decided by the user's own instruction ("Push release tag, don't leave anything for me"): `v0.1.0` is tagged and pushed. Decisions in `docs/DECISIONS-TO-REVIEW.md` entry 45.
+- **Deviations and follow-ups:** the step's "ask the user before tagging a version" was decided by the user's own instruction ("Push release tag, don't leave anything for me"): `v0.1.0` is tagged and pushed. Decisions in `docs/DECISIONS-TO-REVIEW.md` entry 45. **Correction:** the step commit (tagged `step-10.2` and `v0.1.0`) was published with 22 goldens of `internal/gui/app` still showing the Explorer warning that the fix above removed (6 golden tests failed; the behavior was right); the next commit on `main` regenerates them (viewed) and the package passes with `-race` and with `CGO_ENABLED=0`.
