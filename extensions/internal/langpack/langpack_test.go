@@ -48,3 +48,15 @@ func TestAPackWhoseFolderIsNotAPathFailsToActivate(t *testing.T) {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }
+
+func TestAPackDeclaresItsLanguageServers(t *testing.T) {
+	assets := fstest.MapFS{"assets/package.json": {Data: []byte(`{"name": "x"}`)}}
+	servers := []extension.LanguageServerSpec{{ID: "xls", Name: "X LS", Languages: []string{"x"}, Program: "xls"}}
+	m := New(Spec{ID: "emetos.x", Name: "X", Assets: assets, LanguageServers: servers}).Manifest()
+	if err := extension.CheckManifest(m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Contributes.LanguageServers) != 1 || m.Contributes.LanguageServers[0].ID != "xls" {
+		t.Errorf("servers = %+v", m.Contributes.LanguageServers)
+	}
+}

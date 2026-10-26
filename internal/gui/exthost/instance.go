@@ -35,6 +35,8 @@ type instance struct {
 	channels     map[string]bool
 	markerOwners map[string]bool
 	contextKeys  map[string]bool
+	// servers are the language servers of the activation (servers.go).
+	servers []*serverCtl
 }
 
 // isDead tells whether the activation ended. It is safe for concurrent use.
@@ -108,6 +110,7 @@ func (s *Scope) activate(sl *slot) {
 		s.fail(sl, err, "activate")
 		return
 	}
+	s.startServers(inst)
 	inst.log.Debug("extension activated")
 	s.h.changed()
 }

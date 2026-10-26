@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -32,6 +33,9 @@ type HostOptions struct {
 	// Languages is the language registry of the process: the extensions that declare Contributes.Languages add their
 	// languages to it while they are enabled in some scope. Nil leaves the languages of the extensions out.
 	Languages *language.Registry
+	// ServerGrace is how long a language server has to end after shutdown and exit before it is told to terminate (and, two
+	// seconds later, killed); zero is DefaultServerGrace.
+	ServerGrace time.Duration
 	// Sharing holds the links between window tabs and the private workspaces (SPEC §10.15 "Event sharing"); the host
 	// reads them at every delivery. Nil makes a store in memory, with no links.
 	Sharing *storage.SharingStore
@@ -60,6 +64,10 @@ type Host struct {
 	languages *language.Registry
 	packs     map[string]*langPack
 
+	// servers counts the goroutines of the language servers (their starts and shutdowns), grace is the time a server has to end.
+	servers sync.WaitGroup
+	grace   time.Duration
+
 	// sharing holds the links; asks are the questions on screen, one per pair of scopes (sharing.go).
 	sharing *storage.SharingStore
 	askMu   sync.Mutex
@@ -76,7 +84,10 @@ type settingOwner struct {
 // factory or Manifest panics, or whose manifest is invalid, is left out and logged; Problems lists them.
 func NewHost(opts HostOptions) *Host {
 	h := &Host{log: opts.Logger, registry: opts.Settings, owners: map[string]*settingOwner{}, sharing: opts.Sharing, asks: map[askKey]*pendingAsk{},
-		languages: opts.Languages, packs: map[string]*langPack{}}
+		languages: opts.Languages, packs: map[string]*langPack{}, grace: opts.ServerGrace}
+	if h.grace <= 0 {
+		h.grace = DefaultServerGrace
+	}
 	if h.log == nil {
 		h.log = slog.Default()
 	}
@@ -166,7 +177,12 @@ func (h *Host) Shutdown() {
 	for _, s := range h.Scopes() {
 		s.Close()
 	}
+	h.WaitServers()
 }
+
+// WaitServers returns when every language server that was started has ended, the ones of the scopes that closed included:
+// they are stopped in the background, within the grace period and a kill after it.
+func (h *Host) WaitServers() { h.servers.Wait() }
 
 // ScopeRow is the state of an extension in one scope.
 type ScopeRow struct {

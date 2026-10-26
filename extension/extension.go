@@ -80,6 +80,10 @@ type Contributes struct {
 	// opens, and takes them away when the last tab that has the extension enabled closes or turns it off (SPEC §10.15
 	// "As built (step 11.4)"). It needs no activation: the languages are there whether or not the extension was activated.
 	Languages fs.FS
+	// LanguageServers are the language servers the extension runs, one per window tab (SPEC §9.12 "Servers and their
+	// lifetime"). They are started by the host, not by Activate; the extension gets the server's Output channel, status and
+	// restart command for free. Declaring one adds the command <extension id>.restartServer.
+	LanguageServers []LanguageServerSpec
 }
 
 // The activation events of a Manifest.

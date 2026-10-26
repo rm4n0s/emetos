@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/glob"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -152,6 +153,9 @@ type ScopeOptions struct {
 	// WindowTab is the strip's view of the tab of a scope whose Info.Kind is ScopeWindowTab; nil leaves the title, the
 	// hint, the state notice and the close to nobody.
 	WindowTab WindowTabHost
+	// LSP is what the tab offers the language servers of its extensions (servers.go); nil leaves the servers out (the
+	// providers written in Go still work).
+	LSP LanguageWorkspace
 }
 
 // slot is an extension in a scope.
@@ -203,6 +207,8 @@ type Scope struct {
 	fileViewInstances []*fileViewInstance
 	// wtab is the window tab of a scope whose Info.Kind is ScopeWindowTab (windowtabs.go).
 	wtab *windowTab
+	// features is the registry of the language feature providers of the scope (servers.go, providers.go).
+	features *langfeatures.Registry
 }
 
 // NewScope makes the scope of a window tab. The manifests of the extensions that are enabled are installed (their
@@ -217,7 +223,7 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	if opts.ShowLog == "" {
 		opts.ShowLog = "workbench.panel.output.focus"
 	}
-	s := &Scope{h: h, opts: opts, log: opts.Logger, fired: map[string]bool{}}
+	s := &Scope{h: h, opts: opts, log: opts.Logger, fired: map[string]bool{}, features: langfeatures.NewRegistry()}
 	s.ctx, s.cancel = context.WithCancel(opts.Ctx)
 	s.bus = newBus(s)
 	disabled := s.disabledSet()
@@ -570,6 +576,7 @@ func (s *Scope) install(sl *slot) {
 		}
 		removers = append(removers, remove)
 	}
+	removers = append(removers, s.installServers(sl)...)
 	registry, others := s.installViews(sl)
 	removers = append(removers, others...)
 	removers = append(removers, s.installEditors(sl))

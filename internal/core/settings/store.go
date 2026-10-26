@@ -184,6 +184,20 @@ func (s *Store) value(key, languageID string) (any, bool) {
 	return defaults.Override(languageID).GetValue(key)
 }
 
+// Section returns the value of a dotted section of the consolidated settings, whether or not a setting is registered
+// under it, or false when there is none: "go.gopls" gives the object that "go.gopls": {...} and "go.gopls.ui.x": 1
+// make together, defaults under the user's and the workspace's values. It is how a language server is given the
+// settings of a section it asks for (SPEC §9.12 "As built (step 12.3)"). The value is a copy the caller may keep. An
+// empty section is the whole tree.
+func (s *Store) Section(section string) (any, bool) {
+	_, consolidated := s.current()
+	v, ok := consolidated.GetValue(section)
+	if !ok {
+		return nil, false
+	}
+	return deepClone(v), true
+}
+
 // Get returns the value of a setting for a language ("" for none): a language block of the
 // workspace or the user's file wins over the plain settings of both files, and the
 // workspace wins over the user, which wins over the defaults. A value that the setting does

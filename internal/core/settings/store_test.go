@@ -1024,3 +1024,52 @@ func TestUnregisterLanguageDefaults(t *testing.T) {
 		t.Error("took back twice")
 	}
 }
+
+func TestSectionReadsRegisteredAndUnregisteredSettings(t *testing.T) {
+	f := newFixture(t)
+	if err := os.MkdirAll(filepath.Dir(f.userPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	text := `{"go.gopls.ui.completion.x": 1, "go.gopls.build": {"y": true}, "go.other": 2, "editor.tabSize": 2}`
+	if err := os.WriteFile(f.userPath, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		section string
+		want    any
+		ok      bool
+	}{
+		{"go.gopls.build", map[string]any{"y": true}, true},
+		{"go.gopls.ui.completion.x", float64(1), true},
+		{"go.other", float64(2), true},
+		{"editor.tabSize", float64(2), true},
+		{"go.nothing", nil, false},
+		{"test.obj", map[string]any{"a": true}, true},
+	}
+	for _, tt := range tests {
+		got, ok := f.store.Section(tt.section)
+		if ok != tt.ok || !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("Section(%q) = %v, %v; want %v, %v", tt.section, got, ok, tt.want, tt.ok)
+		}
+	}
+	whole, ok := f.store.Section("go.gopls")
+	if !ok {
+		t.Fatal("no go.gopls section")
+	}
+	obj, _ := whole.(map[string]any)
+	if _, has := obj["build"]; !has {
+		t.Errorf("go.gopls = %v", whole)
+	}
+	// the value is a copy
+	copyOf, _ := f.store.Section("test.obj")
+	copyOf.(map[string]any)["a"] = false
+	if again, _ := f.store.Section("test.obj"); !reflect.DeepEqual(again, map[string]any{"a": true}) {
+		t.Errorf("a change of the copy reached the store: %v", again)
+	}
+	if all, ok := f.store.Section(""); !ok || all == nil {
+		t.Errorf("the whole tree = %v, %v", all, ok)
+	}
+}

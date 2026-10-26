@@ -322,3 +322,43 @@ func TestTheFakeDeliversTheEventsOfOtherTabsToTheSubscriptionsThatListenToThem(t
 		t.Errorf("own %q, others %q", own, others)
 	}
 }
+
+func TestTheFakeRecordsProviders(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Name: "w"})
+	l := a.Languages()
+	_, err := l.RegisterHoverProvider(extension.DocumentSelector{}, nil)
+	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("register.FakeProviderInvalid") {
+		t.Errorf("a nil provider: %v", err)
+	}
+	dispose, err := l.RegisterCompletionProvider(extension.DocumentSelector{Languages: []string{"go"}}, fakeCompletion{}, ".", ":")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.RegisterRenameProvider(extension.DocumentSelector{Pattern: "**/*.go"}, fakeRename{}); err != nil {
+		t.Fatal(err)
+	}
+	ps := a.Providers()
+	if len(ps) != 2 || ps[0].Feature != "completion" || ps[0].Selector.Languages[0] != "go" || len(ps[0].Triggers) != 2 || ps[1].Feature != "rename" || ps[0].Disposed {
+		t.Fatalf("providers = %+v", ps)
+	}
+	dispose()
+	if !a.Providers()[0].Disposed {
+		t.Error("the provider was not marked disposed")
+	}
+}
+
+type fakeCompletion struct{}
+
+func (fakeCompletion) ProvideCompletion(context.Context, extension.TextDocument, extension.Position, extension.CompletionTrigger) (extension.CompletionList, error) {
+	return extension.CompletionList{}, nil
+}
+
+type fakeRename struct{}
+
+func (fakeRename) PrepareRename(context.Context, extension.TextDocument, extension.Position) (*extension.PrepareRenameResult, error) {
+	return nil, nil
+}
+
+func (fakeRename) ProvideRename(context.Context, extension.TextDocument, extension.Position, string) (*extension.WorkspaceEdit, error) {
+	return nil, nil
+}

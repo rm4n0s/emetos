@@ -69,6 +69,9 @@ type openOptions struct {
 	// NoMergeNotice leaves out the notification that offers the merge editor for a file with conflict markers: an
 	// editor that is restored or that comes back from the closed ones is not an open of the file.
 	NoMergeNotice bool
+	// Inactive opens the editor without making it the active one, and its group without making it the active group: the
+	// editors a refactoring opened for the files it changed (VS Code leaves those inactive too).
+	Inactive bool
 	// FileView, when set, is the id of the file view the editor shows (an editor that is open already is switched to it);
 	// otherwise a new editor gets the view workbench.editor.defaultFileViews names for its file.
 	FileView string
@@ -245,7 +248,7 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 	// The history hears of the editor once it has its cursor: a view that comes back or a place to show.
 	s.nav.hold++
 	shown, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{
-		Pinned: !preview, Active: true, Sticky: opts.Sticky, Index: opts.Index, HasIndex: opts.HasIndex,
+		Pinned: !preview, Active: !opts.Inactive, Sticky: opts.Sticky, Index: opts.Index, HasIndex: opts.HasIndex,
 	})
 	if !isNew {
 		input.Dispose()
@@ -253,8 +256,10 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 		s.noticeMergeConflicts(doc)
 	}
 	// opening an editor makes its group the active one
-	if err := s.group.grid.Activate(group); err != nil {
-		win.Process.Logger.Error("cannot activate the group", "err", err)
+	if !opts.Inactive {
+		if err := s.group.grid.Activate(group); err != nil {
+			win.Process.Logger.Error("cannot activate the group", "err", err)
+		}
 	}
 	e := s.group.editors[shown]
 	if e != nil {

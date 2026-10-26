@@ -236,7 +236,8 @@ type Token struct {
 	Scopes     []string
 }
 
-// Languages gives the extension the grammars of the languages Emetos knows.
+// Languages gives the extension the grammars of the languages Emetos knows, and takes the language feature providers it
+// writes in Go (SPEC §9.12 "Providers in Go"; the diagnostics of such a provider are set with Problems).
 type Languages interface {
 	// Resolve gives the id of the language called name (an id, an alias or a file extension such as go, golang or py); false
 	// when none is.
@@ -245,4 +246,28 @@ type Languages interface {
 	// with ExtensionLanguageUnknown for a language that has no grammar. It belongs to the UI thread and costs a
 	// tokenization of the text, so a caller keeps the answer.
 	Tokenize(languageID, text string) ([][]Token, error)
+
+	// RegisterCompletionProvider adds a provider of completion items for the documents the selector matches;
+	// triggerCharacters are the characters that start a request when typed. Each Register method returns the function
+	// that takes the provider away; it also goes with the activation. They fail with ExtensionDeactivated and
+	// ExtensionProviderInvalid (a nil provider or a selector that selects nothing).
+	RegisterCompletionProvider(sel DocumentSelector, p CompletionProvider, triggerCharacters ...string) (dispose func(), err error)
+	// RegisterHoverProvider adds a hover provider.
+	RegisterHoverProvider(sel DocumentSelector, p HoverProvider) (dispose func(), err error)
+	// RegisterSignatureHelpProvider adds a signature help provider; triggerCharacters start a request when typed.
+	RegisterSignatureHelpProvider(sel DocumentSelector, p SignatureHelpProvider, triggerCharacters ...string) (dispose func(), err error)
+	// RegisterDefinitionProvider adds a definition provider.
+	RegisterDefinitionProvider(sel DocumentSelector, p DefinitionProvider) (dispose func(), err error)
+	// RegisterReferenceProvider adds a references provider.
+	RegisterReferenceProvider(sel DocumentSelector, p ReferenceProvider) (dispose func(), err error)
+	// RegisterDocumentSymbolProvider adds a provider of the symbols of a document.
+	RegisterDocumentSymbolProvider(sel DocumentSelector, p DocumentSymbolProvider) (dispose func(), err error)
+	// RegisterDocumentHighlightProvider adds a provider of document highlights.
+	RegisterDocumentHighlightProvider(sel DocumentSelector, p DocumentHighlightProvider) (dispose func(), err error)
+	// RegisterCodeActionProvider adds a code action provider.
+	RegisterCodeActionProvider(sel DocumentSelector, p CodeActionProvider) (dispose func(), err error)
+	// RegisterFormattingProvider adds a formatter; it formats ranges too when it implements RangeFormattingProvider.
+	RegisterFormattingProvider(sel DocumentSelector, p FormattingProvider) (dispose func(), err error)
+	// RegisterRenameProvider adds a rename provider.
+	RegisterRenameProvider(sel DocumentSelector, p RenameProvider) (dispose func(), err error)
 }

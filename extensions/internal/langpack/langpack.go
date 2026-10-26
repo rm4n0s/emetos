@@ -40,6 +40,8 @@ type Spec struct {
 	Assets fs.FS
 	// Dir is the folder of Assets that holds the package.json; AssetsDir when empty. A test sets it.
 	Dir string
+	// LanguageServers are the servers of the pack (Contributes.LanguageServers): the pack of a language that has one.
+	LanguageServers []extension.LanguageServerSpec
 }
 
 // pack is the extension of a language pack.
@@ -70,7 +72,7 @@ func (p *pack) Manifest() extension.Manifest {
 	return extension.Manifest{
 		ID: p.spec.ID, Name: p.spec.Name, Version: "0.1.0", Description: p.spec.Description,
 		ActivationEvents: []string{extension.OnStartup},
-		Contributes:      extension.Contributes{Languages: p.root},
+		Contributes:      extension.Contributes{Languages: p.root, LanguageServers: p.spec.LanguageServers},
 	}
 }
 

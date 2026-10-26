@@ -1,0 +1,330 @@
+package langfeatures
+
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/internal/core/lsp"
+)
+
+// Server is the part of an lsp.Client that a ServerProvider uses; *lsp.Client is one.
+type Server interface {
+	// Call sends a request and decodes its result.
+	Call(ctx context.Context, method string, params, result any) error
+	// Capabilities are the capabilities the server returned from initialize.
+	Capabilities() lsp.ServerCapabilities
+	// Encoding is the position encoding negotiated with the server.
+	Encoding() lsp.Encoding
+	// Registered lists the dynamic registrations of a method.
+	Registered(method string) []lsp.Registration
+}
+
+// ServerProvider answers the feature requests of the documents with a language server (SPEC §9.12). One value implements
+// every provider interface of this package; Register adds it to a registry. The server is asked for the current client at
+// each request, so a server that restarts keeps its registration, and a request while there is no client (starting,
+// crashed) answers nothing. A feature the server does not offer (neither in its capabilities nor by registration) answers
+// nothing without asking.
+type ServerProvider struct {
+	// Name is the id of the server; the commands of its code actions are run through it.
+	Name string
+	// Client gives the client of the server, or nil while there is none. It is called from the goroutines of the requests.
+	Client func() Server
+	// Texts gives the text of the other documents that answers refer to; see TextSource.
+	Texts TextSource
+}
+
+// Register adds the provider for every feature to the registry, for the documents the selector matches, under the owner (the
+// id of the extension), and returns the function that removes them all. The characters that trigger completion and
+// signature help are those the server declared: the registry asks the provider for them (CompletionTriggers and
+// SignatureTriggers) when it is asked, so they are right once the server is up.
+func (sp *ServerProvider) Register(r *Registry, owner string, sel Selector) (remove func()) {
+	removers := []func(){
+		r.RegisterCompletion(owner, sel, sp),
+		r.RegisterHover(owner, sel, sp),
+		r.RegisterSignatureHelp(owner, sel, sp),
+		r.RegisterNavigation(owner, sel, sp),
+		r.RegisterReferences(owner, sel, sp),
+		r.RegisterSymbols(owner, sel, sp),
+		r.RegisterHighlights(owner, sel, sp),
+		r.RegisterCodeActions(owner, sel, sp),
+		r.RegisterFormatting(owner, sel, sp),
+		r.RegisterRename(owner, sel, sp),
+	}
+	return func() {
+		for _, rm := range removers {
+			rm()
+		}
+	}
+}
+
+// server is the client now, or nil.
+func (sp *ServerProvider) server() Server {
+	if sp.Client == nil {
+		return nil
+	}
+	return sp.Client()
+}
+
+// offers tells whether the server offers a feature: its capability is on, or it registered the method.
+func offers(c Server, enabled bool, method string) bool {
+	return enabled || len(c.Registered(method)) > 0
+}
+
+// textDocument names the document to the server.
+func textDocument(doc Document) lsp.TextDocumentIdentifier {
+	return lsp.TextDocumentIdentifier{URI: lsp.DocumentURI(doc.URI)}
+}
+
+// ProvideCompletion implements CompletionProvider.
+func (sp *ServerProvider) ProvideCompletion(ctx context.Context, doc Document, pos Position, trigger CompletionTrigger) (CompletionList, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().CompletionProvider != nil, lsp.MethodCompletion) {
+		return CompletionList{}, nil
+	}
+	enc := c.Encoding()
+	params := lsp.CompletionParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos)}
+	switch trigger.Kind {
+	case TriggerCharacter:
+		params.Context = &lsp.CompletionContext{TriggerKind: lsp.TriggerCharacter, TriggerCharacter: trigger.Character}
+	case TriggerIncomplete:
+		params.Context = &lsp.CompletionContext{TriggerKind: lsp.TriggerForIncompleteCompletions}
+	default:
+		params.Context = &lsp.CompletionContext{TriggerKind: lsp.TriggerInvoked}
+	}
+	var list lsp.CompletionList
+	if err := c.Call(ctx, lsp.MethodCompletion, params, &list); err != nil {
+		return CompletionList{}, err
+	}
+	return CompletionFromLSP(enc, doc, list), nil
+}
+
+// ProvideHover implements HoverProvider.
+func (sp *ServerProvider) ProvideHover(ctx context.Context, doc Document, pos Position) (*Hover, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().HoverProvider.Enabled, lsp.MethodHover) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	var h *lsp.Hover
+	err := c.Call(ctx, lsp.MethodHover, lsp.TextDocumentPositionParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos)}, &h)
+	if err != nil {
+		return nil, err
+	}
+	return HoverFromLSP(enc, doc, h), nil
+}
+
+// ProvideSignatureHelp implements SignatureHelpProvider.
+func (sp *ServerProvider) ProvideSignatureHelp(ctx context.Context, doc Document, pos Position, sc SignatureContext) (*SignatureHelp, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().SignatureHelpProvider != nil, lsp.MethodSignatureHelp) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	params := lsp.SignatureHelpParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos), Context: &lsp.SignatureHelpContext{
+		TriggerKind: lsp.SignatureHelpInvoked, TriggerCharacter: sc.Character, IsRetrigger: sc.IsRetrigger,
+	}}
+	if sc.Character != "" {
+		params.Context.TriggerKind = lsp.SignatureHelpTriggerChar
+	}
+	var h *lsp.SignatureHelp
+	if err := c.Call(ctx, lsp.MethodSignatureHelp, params, &h); err != nil {
+		return nil, err
+	}
+	out := SignatureHelpFromLSP(h)
+	return out, nil
+}
+
+// ProvideLocations implements NavigationProvider.
+func (sp *ServerProvider) ProvideLocations(ctx context.Context, doc Document, pos Position, kind NavKind) ([]LocationLink, error) {
+	c := sp.server()
+	if c == nil {
+		return nil, nil
+	}
+	caps := c.Capabilities()
+	method, enabled := lsp.MethodDefinition, caps.DefinitionProvider.Enabled
+	switch kind {
+	case NavDeclaration:
+		method, enabled = lsp.MethodDeclaration, caps.DeclarationProvider.Enabled
+	case NavTypeDefinition:
+		method, enabled = lsp.MethodTypeDefinition, caps.TypeDefinitionProvider.Enabled
+	case NavImplementation:
+		method, enabled = lsp.MethodImplementation, caps.ImplementationProvider.Enabled
+	}
+	if !offers(c, enabled, method) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	var links lsp.LocationLinks
+	err := c.Call(ctx, method, lsp.TextDocumentPositionParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos)}, &links)
+	if err != nil {
+		return nil, err
+	}
+	return LocationsFromLSP(ctx, enc, doc, sp.Texts, links), nil
+}
+
+// ProvideReferences implements ReferenceProvider.
+func (sp *ServerProvider) ProvideReferences(ctx context.Context, doc Document, pos Position, includeDeclaration bool) ([]Location, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().ReferencesProvider.Enabled, lsp.MethodReferences) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	params := lsp.ReferenceParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos), Context: lsp.ReferenceContext{IncludeDeclaration: includeDeclaration}}
+	var locs []lsp.Location
+	if err := c.Call(ctx, lsp.MethodReferences, params, &locs); err != nil {
+		return nil, err
+	}
+	return ReferencesFromLSP(ctx, enc, doc, sp.Texts, locs), nil
+}
+
+// ProvideDocumentSymbols implements SymbolProvider.
+func (sp *ServerProvider) ProvideDocumentSymbols(ctx context.Context, doc Document) ([]DocumentSymbol, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().DocumentSymbolProvider.Enabled, lsp.MethodDocumentSymbol) {
+		return nil, nil
+	}
+	var syms lsp.DocumentSymbols
+	if err := c.Call(ctx, lsp.MethodDocumentSymbol, lsp.DocumentSymbolParams{TextDocument: textDocument(doc)}, &syms); err != nil {
+		return nil, err
+	}
+	return SymbolsFromLSP(c.Encoding(), doc, syms), nil
+}
+
+// ProvideDocumentHighlights implements HighlightProvider.
+func (sp *ServerProvider) ProvideDocumentHighlights(ctx context.Context, doc Document, pos Position) ([]DocumentHighlight, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().DocumentHighlightProvider.Enabled, lsp.MethodDocumentHighlight) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	var hs []lsp.DocumentHighlight
+	err := c.Call(ctx, lsp.MethodDocumentHighlight, lsp.TextDocumentPositionParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos)}, &hs)
+	if err != nil {
+		return nil, err
+	}
+	return HighlightsFromLSP(enc, doc, hs), nil
+}
+
+// ProvideCodeActions implements CodeActionProvider.
+func (sp *ServerProvider) ProvideCodeActions(ctx context.Context, doc Document, req CodeActionRequest) ([]CodeAction, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().CodeActionProvider.Enabled, lsp.MethodCodeAction) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	cx := lsp.CodeActionContext{Diagnostics: make([]lsp.Diagnostic, 0, len(req.Diagnostics)), Only: req.Only, TriggerKind: lsp.CodeActionTriggerInvoked}
+	if req.Automatic {
+		cx.TriggerKind = lsp.CodeActionTriggerAutomatic
+	}
+	for _, d := range req.Diagnostics {
+		var ld lsp.Diagnostic
+		if len(d.Raw) > 0 && json.Unmarshal(d.Raw, &ld) == nil {
+			cx.Diagnostics = append(cx.Diagnostics, ld)
+			continue
+		}
+		cx.Diagnostics = append(cx.Diagnostics, lsp.Diagnostic{Range: enc.RangeToLSP(doc.Text, d.Range), Message: d.Message, Source: d.Source, Severity: int(d.Severity) + 1})
+	}
+	params := lsp.CodeActionParams{TextDocument: textDocument(doc), Range: enc.RangeToLSP(doc.Text, req.Range), Context: cx}
+	var actions lsp.CodeActions
+	if err := c.Call(ctx, lsp.MethodCodeAction, params, &actions); err != nil {
+		return nil, err
+	}
+	return CodeActionsFromLSP(enc, doc, sp.Name, actions), nil
+}
+
+// formattingOptions are the options of the protocol for ours.
+func formattingOptions(o FormattingOptions) lsp.FormattingOptions {
+	return lsp.FormattingOptions{TabSize: o.TabSize, InsertSpaces: o.InsertSpaces}
+}
+
+// ProvideFormatting implements FormattingProvider.
+func (sp *ServerProvider) ProvideFormatting(ctx context.Context, doc Document, opts FormattingOptions) ([]TextEdit, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().DocumentFormattingProvider.Enabled, lsp.MethodFormatting) {
+		return nil, nil
+	}
+	var edits []lsp.TextEdit
+	params := lsp.DocumentFormattingParams{TextDocument: textDocument(doc), Options: formattingOptions(opts)}
+	if err := c.Call(ctx, lsp.MethodFormatting, params, &edits); err != nil {
+		return nil, err
+	}
+	return TextEditsFromLSP(c.Encoding(), doc, edits), nil
+}
+
+// ProvideRangeFormatting implements RangeFormattingProvider.
+func (sp *ServerProvider) ProvideRangeFormatting(ctx context.Context, doc Document, r Range, opts FormattingOptions) ([]TextEdit, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().DocumentRangeFormattingProvider.Enabled, lsp.MethodRangeFormatting) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	var edits []lsp.TextEdit
+	params := lsp.DocumentRangeFormattingParams{TextDocument: textDocument(doc), Range: enc.RangeToLSP(doc.Text, r), Options: formattingOptions(opts)}
+	if err := c.Call(ctx, lsp.MethodRangeFormatting, params, &edits); err != nil {
+		return nil, err
+	}
+	return TextEditsFromLSP(enc, doc, edits), nil
+}
+
+// PrepareRename implements RenameProvider. A server that cannot prepare answers nil, which asks the editor to use the word
+// at the position; a server that refuses (null) gives the error NotRenameable.
+func (sp *ServerProvider) PrepareRename(ctx context.Context, doc Document, pos Position) (*PrepareRename, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().RenameProvider.Enabled, lsp.MethodRename) {
+		return nil, nil
+	}
+	if !c.Capabilities().RenameProvider.Bool("prepareProvider") {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	var res *lsp.PrepareRenameResult
+	err := c.Call(ctx, lsp.MethodPrepareRename, lsp.TextDocumentPositionParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos)}, &res)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case res == nil || (res.Range == nil && !res.DefaultBehavior):
+		return nil, errors.New("NotRenameable", "the symbol at the position cannot be renamed", "uri", doc.URI.String(), "line", pos.Line, "col", pos.Col)
+	case res.DefaultBehavior:
+		return &PrepareRename{DefaultBehavior: true}, nil
+	}
+	cv := newConverter(ctx, enc, doc, nil)
+	return &PrepareRename{Range: cv.own(*res.Range), Placeholder: res.Placeholder}, nil
+}
+
+// ProvideRename implements RenameProvider.
+func (sp *ServerProvider) ProvideRename(ctx context.Context, doc Document, pos Position, newName string) (*WorkspaceEdit, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().RenameProvider.Enabled, lsp.MethodRename) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	var we *lsp.WorkspaceEdit
+	params := lsp.RenameParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos), NewName: newName}
+	if err := c.Call(ctx, lsp.MethodRename, params, &we); err != nil {
+		return nil, err
+	}
+	if we == nil {
+		return nil, nil
+	}
+	return FromLSPEdit(enc, *we), nil
+}
+
+// CompletionTriggers are the trigger characters the server declared; none while there is no server.
+func (sp *ServerProvider) CompletionTriggers() []string {
+	if c := sp.server(); c != nil && c.Capabilities().CompletionProvider != nil {
+		return c.Capabilities().CompletionProvider.TriggerCharacters
+	}
+	return nil
+}
+
+// SignatureTriggers are the trigger and retrigger characters the server declared for signature help.
+func (sp *ServerProvider) SignatureTriggers() []string {
+	if c := sp.server(); c != nil && c.Capabilities().SignatureHelpProvider != nil {
+		o := c.Capabilities().SignatureHelpProvider
+		return append(append([]string(nil), o.TriggerCharacters...), o.RetriggerCharacters...)
+	}
+	return nil
+}

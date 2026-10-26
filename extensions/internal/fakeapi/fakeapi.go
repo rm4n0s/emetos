@@ -47,6 +47,7 @@ type API struct {
 	fileViews         map[string]extension.FileViewProvider
 	fileViewOpens     []FileViewOpen
 	tokenizer         func(languageID, text string) ([][]extension.Token, error)
+	providers         []*ProviderRegistration
 	channels          map[string]*Channel
 	markers           map[string]map[string][]extension.Marker
 	files             []string

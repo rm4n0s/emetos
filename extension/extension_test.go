@@ -71,6 +71,14 @@ func TestCheckManifest(t *testing.T) {
 		{"two window tab kinds with the same id", Manifest{ID: "a", Name: "N", Contributes: Contributes{
 			WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab", Title: "Tab"}, {ID: "a.tab", Title: "Again"}}}}, "checkWindowTabs.ExtensionWindowTabDuplicate"},
 		{"a window tab kind with no title", Manifest{ID: "a", Name: "N", Contributes: Contributes{WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab"}}}}, "checkWindowTabs.ExtensionWindowTabInvalid"},
+		{"a language server", Manifest{ID: "a", Name: "N", Contributes: Contributes{LanguageServers: []LanguageServerSpec{
+			{ID: "ls", Name: "LS", Languages: []string{"go"}, Program: "ls"}, {ID: "other-2", Name: "O", Languages: []string{"x"}, Program: "o"}}}}, ""},
+		{"a server id that is not lowercase", Manifest{ID: "a", Name: "N", Contributes: Contributes{LanguageServers: []LanguageServerSpec{{ID: "LS", Name: "LS", Languages: []string{"go"}, Program: "ls"}}}}, "checkLanguageServers.ExtensionServerInvalid"},
+		{"a server with no languages", Manifest{ID: "a", Name: "N", Contributes: Contributes{LanguageServers: []LanguageServerSpec{{ID: "ls", Name: "LS", Program: "ls"}}}}, "checkLanguageServers.ExtensionServerInvalid"},
+		{"a server with no program", Manifest{ID: "a", Name: "N", Contributes: Contributes{LanguageServers: []LanguageServerSpec{{ID: "ls", Name: "LS", Languages: []string{"go"}}}}}, "checkLanguageServers.ExtensionServerInvalid"},
+		{"a server with no name", Manifest{ID: "a", Name: "N", Contributes: Contributes{LanguageServers: []LanguageServerSpec{{ID: "ls", Languages: []string{"go"}, Program: "ls"}}}}, "checkLanguageServers.ExtensionServerInvalid"},
+		{"two servers with the same id", Manifest{ID: "a", Name: "N", Contributes: Contributes{LanguageServers: []LanguageServerSpec{
+			{ID: "ls", Name: "LS", Languages: []string{"go"}, Program: "ls"}, {ID: "ls", Name: "LS", Languages: []string{"go"}, Program: "ls"}}}}, "checkLanguageServers.ExtensionServerDuplicate"},
 		{"a cross-tab pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
 	}
 	for _, tt := range tests {
@@ -313,5 +321,18 @@ func TestGroupOfArgsReadsTheGroupOfAnEditorTitleAction(t *testing.T) {
 				t.Errorf("GroupOfArgs(%v) = %d, want %d", tt.args, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLanguageServerNames(t *testing.T) {
+	spec := LanguageServerSpec{ID: "gopls"}
+	if got := QualifiedServerID("emetos.golang", spec); got != "emetos.golang.gopls" {
+		t.Errorf("QualifiedServerID = %s", got)
+	}
+	if got := TraceSetting("emetos.golang", spec); got != "emetos.golang.gopls.trace.server" {
+		t.Errorf("TraceSetting = %s", got)
+	}
+	if got := RestartServerCommand("emetos.golang"); got != "emetos.golang.restartServer" {
+		t.Errorf("RestartServerCommand = %s", got)
 	}
 }

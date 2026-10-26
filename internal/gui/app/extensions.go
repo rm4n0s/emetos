@@ -130,6 +130,7 @@ func (w *Workspace) startExtensions() {
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
+		LSP: workspaceLSP{w: w},
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace

@@ -176,6 +176,9 @@ type tab struct {
 	uris      []string
 	changed   int
 
+	// lsp is the window's side of the language servers (servers_rig_test.go).
+	lsp *fakeLSP
+
 	// asked are the questions the tab was asked about links, and answers the functions that answer them (askSharing).
 	asked   []SharingAsk
 	answers []func(SharingAnswer)
@@ -243,7 +246,9 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	tb.complete = true
 	tb.editors = &fakeEditors{}
 	tb.languages = &fakeLanguages{}
+	tb.lsp = newFakeLSP()
 	tb.scope = r.host.NewScope(ScopeOptions{
+		LSP:     tb.lsp,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI: func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		Info:    extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
