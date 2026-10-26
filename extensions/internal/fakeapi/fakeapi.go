@@ -57,6 +57,14 @@ type API struct {
 	servers           map[string]*serverState
 	picks             []*Pick
 	ranCommands       []RanCommand
+	docs              map[string]string
+	applied           []extension.WorkspaceEdit
+	inputs            []*Input
+	serverCalls       []ServerCall
+	serverCommands    map[string][]string
+	commandHandler    func(ServerCall) error
+	actionHandler     func(CodeActionCall) (string, error)
+	actionCalls       []CodeActionCall
 }
 
 // Note is a notification the extension showed.
@@ -438,11 +446,26 @@ func (a *API) StatusItem(id string) *StatusItem {
 type documents struct{ a *API }
 
 func (d documents) Read(_ context.Context, uri string, _ ...extension.ReadOption) (string, error) {
+	d.a.mu.Lock()
+	text, open := d.a.docs[uri]
+	d.a.mu.Unlock()
+	if open {
+		return text, nil
+	}
 	path := strings.TrimPrefix(uri, "file://")
 	data, err := os.ReadFile(path)
 	return string(data), err
 }
-func (d documents) Open() []string { return nil }
+func (d documents) Open() []string {
+	d.a.mu.Lock()
+	defer d.a.mu.Unlock()
+	uris := make([]string, 0, len(d.a.docs))
+	for uri := range d.a.docs {
+		uris = append(uris, uri)
+	}
+	sort.Strings(uris)
+	return uris
+}
 func (d documents) Show(uri string, line, column int, preview bool) error {
 	d.a.mu.Lock()
 	d.a.shown = append(d.a.shown, Shown{URI: uri, Line: line, Column: column, Preview: preview})

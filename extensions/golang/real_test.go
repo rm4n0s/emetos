@@ -3,7 +3,9 @@
 package golang
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -53,4 +55,37 @@ func TestGoplsShowGoEnvironmentRunsTheRealGoEnv(t *testing.T) {
 		return false
 	})
 	r.ext.wait()
+}
+
+func TestRealRunRunsTheRealGoRun(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go is not installed")
+	}
+	tests := []struct {
+		name   string
+		main   string
+		state  int
+		status string
+		out    string
+	}{
+		{"a program that prints", "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(\"hello from the real go\") }\n", runExited, "exit status 0", "hello from the real go"},
+		{"a program that exits with a status", "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\nfunc main() { fmt.Fprintln(os.Stderr, \"bye\"); os.Exit(3) }\n", runFailed, "exit status 1", "exit status 3"},
+		{"a program that does not build", "package main\n\nfunc main() { undefined() }\n", runFailed, "exit status 1", "undefined: undefined"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// go only builds into its temporary folder and the build cache; the toolchain is never downloaded
+			r := newRig(t, rigOptions{realGo: true, settings: map[string]any{ToolsEnvVarsSetting: map[string]any{"GOTOOLCHAIN": "local", "GOFLAGS": "-mod=mod"}}})
+			if err := os.WriteFile(filepath.Join(r.folder, "main.go"), []byte(tt.main), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.api.Run(RunCommand, nil); err != nil {
+				t.Fatal(err)
+			}
+			run := r.ended()
+			if run.state != tt.state || run.status != tt.status || !strings.Contains(run.text(), tt.out) {
+				t.Errorf("state %d, status %q, output:\n%s", run.state, run.status, run.text())
+			}
+		})
+	}
 }

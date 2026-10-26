@@ -1,0 +1,4 @@
+package calc
+
+func Join(int, map[string][]int, func(string) error) {§
+}

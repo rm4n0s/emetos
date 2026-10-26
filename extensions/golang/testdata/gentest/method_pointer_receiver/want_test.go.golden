@@ -1,0 +1,49 @@
+package web
+
+import (
+	"net/http"
+	"reflect"
+	"sync"
+	"testing"
+)
+
+func TestServer_Handle(t *testing.T) {
+	type fields struct {
+		Addr     string
+		mu       sync.Mutex
+		handlers map[string]http.Handler
+		Logger   *Logger
+	}
+	type args struct {
+		path string
+		h    http.Handler
+		opts []Option
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *Response
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Server{
+				Addr:     tt.fields.Addr,
+				mu:       tt.fields.mu,
+				handlers: tt.fields.handlers,
+				Logger:   tt.fields.Logger,
+			}
+			got, err := s.Handle(tt.args.path, tt.args.h, tt.args.opts...)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Server.Handle() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Server.Handle() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

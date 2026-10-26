@@ -138,3 +138,14 @@ Used by tests only, not bundled:
              golang.org/x/image). Linked into the test binaries only; it is not
              in the Emetos program.
     Used from step 3.1.
+
+Ported code:
+
+14. Struct tag editor of "Go: Add Tags To Struct Fields" and "Go: Remove Tags From Struct Fields"
+    Sources: gomodifytags (https://github.com/fatih/gomodifytags, modifytags/modifytags.go),
+             fatih/structtag (the tag parser) and fatih/camelcase (the word splitter)
+    License: BSD-3-Clause (gomodifytags and structtag, Fatih Arslan) and MIT (camelcase, Fatih Arslan)
+    Added by step 14.2 (extensions/golang/tags.go, ported as Go code with "Ported from"
+    comments; no file of them is bundled). The license texts are in
+    third_party/gomodifytags/ (LICENSE, LICENSE-structtag, LICENSE-camelcase.md). gopls runs
+    the same algorithm in its command gopls.modify_tags; the extension uses gopls when it has it.

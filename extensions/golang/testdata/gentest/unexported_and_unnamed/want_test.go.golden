@@ -1,0 +1,28 @@
+package calc
+
+import (
+	"reflect"
+	"testing"
+)
+
+func Test_helper(t *testing.T) {
+	type args struct {
+		in1  int
+		name string
+		in3  []byte
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := helper(tt.args.in1, tt.args.name, tt.args.in3); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("helper() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -49,6 +49,8 @@ type API interface {
 	LanguageServers() LanguageServers
 	// QuickPick shows a list to choose from, the way the command palette does.
 	QuickPick() QuickPick
+	// InputBox asks the user for a line of text, the way the rename and the Save As of the window do.
+	InputBox() InputBox
 	// WindowTabs gives the content of the window tabs of the kinds the manifest declares; it works in the scope of such a
 	// tab only.
 	WindowTabs() WindowTabs
@@ -279,4 +281,12 @@ type Documents interface {
 	// preview, preview false keeps the editor. It fails with ExtensionDocumentUnavailable when the scope cannot show
 	// documents and returns the window's error for a file that cannot be opened. Call it on the UI thread.
 	Show(uri string, line, column int, preview bool) error
+	// Apply applies the edit to the documents and files of the scope, the way the rename of the editor applies its edit: the
+	// changes are made in order, the edits of one document in a run of changes are one step of its undo history, a document
+	// that is not open is opened in the scope (it stays open, with its changes unsaved), the cursors of the editors keep their
+	// places in the text, and a create makes the file on disk (an empty one). The ranges of the edits of a document are in the
+	// text as it is when Apply is called. It fails with ExtensionEditInvalid for a change whose kind or URI is not valid,
+	// with ExtensionDocumentUnavailable when the scope cannot edit documents, with ExtensionDeactivated after the activation
+	// ended, and returns the window's error when a change fails (an earlier change stays). Call it on the UI thread.
+	Apply(ctx context.Context, edit WorkspaceEdit) error
 }

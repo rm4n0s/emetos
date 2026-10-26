@@ -1,0 +1,22 @@
+package calc
+
+import "testing"
+
+func TestJoin(t *testing.T) {
+	type args struct {
+		in1 int
+		in2 map[string][]int
+		in3 func(string) error
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			Join(tt.args.in1, tt.args.in2, tt.args.in3)
+		})
+	}
+}

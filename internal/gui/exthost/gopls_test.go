@@ -4,18 +4,22 @@ package exthost
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
+	"github.com/rm4n0s/emetos/internal/core/lsp"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
@@ -968,4 +972,202 @@ func TestGoplsStateIsFollowedAndRestartedByTheExtension(t *testing.T) {
 	tb.scope.Close()
 	r.host.WaitServers()
 	requireGone(t, "gopls", last.PID)
+}
+
+// goplsRig runs the real gopls in a Go module of a folder, as the extension of Go declares it, for the extension API of a test
+// extension: api is the API of its activation. The folder has a go.mod; the tests write their packages in it.
+type goplsRig struct {
+	t      *testing.T
+	r      *rig
+	tb     *tab
+	api    extension.API
+	folder string
+}
+
+func newGoplsRig(t *testing.T) *goplsRig {
+	t.Helper()
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls is not installed")
+	}
+	g := &goplsRig{t: t, folder: t.TempDir()}
+	if err := os.WriteFile(filepath.Join(g.folder, "go.mod"), []byte("module example.com/real\n\ngo 1.21\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m := manifest("gopls.pack")
+	m.Contributes.LanguageServers = []extension.LanguageServerSpec{{
+		ID: "gopls", Name: "gopls", Languages: []string{"go", "go.mod", "go.work"}, Program: "gopls",
+		PathSetting: "go.goplsPath", ConfigurationSection: "go.gopls", OwnUI: true, Category: "Go",
+	}}
+	m.Contributes.Settings = []extension.SettingSpec{{Key: "go.gopls", Type: "object", Default: map[string]any{}}}
+	f, _ := factory(m, func(f *fake) {
+		f.activate = func(_ context.Context, a extension.API) error { g.api = a; return nil }
+	})
+	g.r = newRig(t, f)
+	g.r.folders["one"] = g.folder
+	t.Cleanup(func() { g.r.host.Shutdown(); g.r.host.WaitServers() })
+	g.tb = g.r.newTab("one")
+	g.tb.deferred = true
+	g.tb.scope.Start()
+	return g
+}
+
+// open writes the file of a package folder of the module and opens it in the window; gopls is waited for.
+func (g *goplsRig) open(dir, name, text string) *document.Document {
+	g.t.Helper()
+	if err := os.MkdirAll(filepath.Join(g.folder, dir), 0o755); err != nil {
+		g.t.Fatal(err)
+	}
+	path := filepath.Join(g.folder, dir, name)
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		g.t.Fatal(err)
+	}
+	opts := document.NewOptions()
+	opts.LanguageID = "go"
+	doc := document.New(document.FileURI(path), text, opts)
+	g.tb.lsp.open(doc)
+	g.tb.pump()
+	waitFor(g.t, g.tb, "gopls to run", func() bool {
+		s, _ := g.tb.scope.ServerStatus("gopls.pack", "gopls")
+		return s.State == ServerRunning
+	})
+	return doc
+}
+
+// goplsMarks cuts the cursor (§) or the selection (‹ ›) out of a source and gives it as an LSP range, whose characters count in
+// UTF-16 units as gopls counts them.
+func goplsMarks(t *testing.T, src string) (text string, rng map[string]any) {
+	t.Helper()
+	var sb strings.Builder
+	var start, end = -1, -1
+	for _, r := range src {
+		switch r {
+		case '§':
+			start, end = sb.Len(), sb.Len()
+		case '‹':
+			start = sb.Len()
+		case '›':
+			end = sb.Len()
+		default:
+			sb.WriteRune(r)
+		}
+	}
+	text = sb.String()
+	if start < 0 || end < 0 {
+		t.Fatalf("no cursor or selection in %q", src)
+	}
+	pos := func(off int) map[string]any {
+		line := strings.Count(text[:off], "\n")
+		col := 0
+		for _, r := range text[strings.LastIndex(text[:off], "\n")+1 : off] {
+			col += len(utf16.Encode([]rune{r}))
+		}
+		return map[string]any{"line": line, "character": col}
+	}
+	return text, map[string]any{"start": pos(start), "end": pos(end)}
+}
+
+// TestGoplsModifiesTagsLikeThePureGoEditor runs the cases of extensions/golang/testdata/tags/cases.json through the command
+// gopls.modify_tags of the real gopls, with ExecuteCommand of the extension API: the text must be what the pure Go editor of the
+// extension makes (its test reads the same cases). Nothing is installed; gopls only reads the module.
+func TestGoplsModifiesTagsLikeThePureGoEditor(t *testing.T) {
+	g := newGoplsRig(t)
+	data, err := os.ReadFile(filepath.Join(testRoot(t), "extensions", "golang", "testdata", "tags", "cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name string         `json:"name"`
+		Src  string         `json:"src"`
+		Args map[string]any `json:"args"`
+		Want string         `json:"want"`
+		// GoplsDiffers says how gopls differs for a case that only the pure Go editor does the same way as gomodifytags.
+		GoplsDiffers string `json:"goplsDiffers"`
+		GoplsWant    string `json:"goplsWant"`
+		GoplsError   string `json:"goplsError"`
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases) < 20 {
+		t.Fatalf("%d cases", len(cases))
+	}
+	// gopls has the command
+	g.open("probe", "a.go", "package probe\n")
+	waitFor(t, g.tb, "gopls to announce its commands", func() bool {
+		cmds, _ := g.api.LanguageServers().Commands("gopls")
+		return slices.Contains(cmds, "gopls.modify_tags")
+	})
+	for i, tt := range cases {
+		t.Run(tt.Name, func(t *testing.T) {
+			text, rng := goplsMarks(t, tt.Src)
+			doc := g.open("case"+strconv.Itoa(i), "a.go", text)
+			args := map[string]any{"URI": lsp.DocumentURI(doc.URI()), "Range": rng}
+			for k, v := range tt.Args {
+				args[k] = v
+			}
+			var done bool
+			var told error
+			err := g.api.LanguageServers().ExecuteCommand(context.Background(), "gopls", "gopls.modify_tags", []any{args}, func(err error) { done, told = true, err })
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitFor(t, g.tb, "the command", func() bool { return done })
+			want := tt.Want
+			if tt.GoplsDiffers != "" {
+				// a case where gopls does not do what gomodifytags does (the reason is in the file): what it does now is what is expected, so
+				// that a gopls that changes is noticed
+				want = tt.GoplsWant
+				if tt.GoplsError != "" {
+					if told == nil || !strings.Contains(told.Error(), tt.GoplsError) {
+						t.Fatalf("gopls told %v, want an error with %q (%s)", told, tt.GoplsError, tt.GoplsDiffers)
+					}
+					want = text
+				}
+			} else if told != nil {
+				t.Fatalf("gopls: %v", told)
+			}
+			if doc.Text() != want {
+				t.Errorf("gopls made:\n%s\nwant:\n%s", doc.Text(), want)
+			}
+		})
+	}
+}
+
+// TestGoplsFillsAStructWithTheCodeActionOfTheAPI asks the real gopls for the code action refactor.rewrite.fillStruct at the
+// cursor, in a composite literal, with ApplyCodeAction of the extension API, and checks the edit that is applied to the document.
+func TestGoplsFillsAStructWithTheCodeActionOfTheAPI(t *testing.T) {
+	g := newGoplsRig(t)
+	text, rng := goplsMarks(t, "package fill\n\ntype Point struct {\n\tX, Y  int\n\tLabel string\n}\n\nvar p = Point{§}\n")
+	doc := g.open("fill", "a.go", text)
+	cursor := extension.Position{Line: 7, Col: len("var p = Point{")}
+	_ = rng
+	req := extension.CodeActionRequest{Range: extension.Range{Start: cursor, End: cursor}, Only: []string{"refactor.rewrite.fillStruct"}}
+	var title string
+	deadline := time.Now().Add(120 * time.Second)
+	// gopls offers the action once the package is type checked: ask until it does
+	for title == "" && time.Now().Before(deadline) {
+		var done bool
+		var told error
+		if err := g.api.LanguageServers().ApplyCodeAction(context.Background(), "gopls", doc.URI().String(), req, func(ti string, err error) { done, title, told = true, ti, err }); err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, g.tb, "the code action", func() bool { return done })
+		if told != nil {
+			t.Fatalf("gopls: %v", told)
+		}
+		if title == "" {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if title == "" {
+		t.Fatalf("gopls offered no fillStruct action; Output:\n%s", strings.Join(g.tb.channels.Lines("gopls"), "\n"))
+	}
+	want := "package fill\n\ntype Point struct {\n\tX, Y  int\n\tLabel string\n}\n\nvar p = Point{\n\tX:     0,\n\tY:     0,\n\tLabel: \"\",\n}\n"
+	if !strings.HasPrefix(title, "Fill") || doc.Text() != want {
+		t.Errorf("title %q, text:\n%s\nwant:\n%s", title, doc.Text(), want)
+	}
+	// one undo step brings the literal back
+	if !doc.CanUndo() {
+		t.Error("nothing to undo")
+	}
 }

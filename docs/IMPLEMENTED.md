@@ -2313,3 +2313,57 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - the install summary says `GOBIN` must be on `PATH`.
 
   Not registered yet: the lint and vet settings (14.3), `formatTool`, and the update checks.
+
+## 14.2 Go commands
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-14.2-go-commands
+- **Summary:** SPEC §10.17, §10.15. The commands are `emetos.golang.*` in the palette (category "Go"). The editor context menu shows all but Run for Go files.
+  - **Add Tags and Remove Tags:**
+    - `go.addTags` and `go.removeTags` are registered with VS Code Go's defaults; the prompts use the new input box.
+    - They act on the innermost struct at the cursor, or on the fields the selection touches.
+    - They use gopls's `gopls.modify_tags` when it is announced. Otherwise a pure-Go port of gomodifytags (with structtag and camelcase) edits the tree, prints it with `go/format`, and applies the difference as one undo step.
+  - **Fill Struct:** gopls's `refactor.rewrite.fillStruct` at the selection; with no gopls, a warning.
+  - **Generate Unit Tests For Function:** a gotests-style table-driven skeleton for the function at the cursor (fields for the receiver, args, wants, `wantErr`), with the imports it needs.
+    - A new test file is written with `O_EXCL`; an existing one gets the test and missing imports as one undo step.
+    - A test of the same name is shown, not duplicated.
+  - **Toggle Test File:** `foo.go` ↔ `foo_test.go`; a missing file is created with the package clause.
+  - **Run:** "Go: Run" runs `go run .` in the "Go Run" panel, with the output streamed, Stop, Run Again and the exit status, in its own process group.
+  - **New extension API:** `Documents().Apply`, `LanguageServers().Commands`, `ExecuteCommand`, `ApplyCodeAction`, and `InputBox().Show`. Server calls are asynchronous, with `done` on the UI thread.
+  - **New error tags:** 13, plus 4 test-helper tags, all route-tested.
+- **Main files:** `extensions/golang/{tags,tagscmd,fillstruct,gentest,toggletest,runpanel,editor,settings,golang}.go`, `extension/{inputbox,api,languageservers}.go`, `internal/gui/exthost/{inputbox,servercommands,api,scope}.go`, `internal/gui/app/extensions.go`, `extensions/internal/fakeapi/editing.go`, the fake `go` (now with `go run`), `third_party/gomodifytags/`, `NOTICE` (item 14), `testdata/proof/14.2/`, `docs/SPEC.md` §10.17, §10.15.
+- **Tests:**
+  - added:
+    - the tag editor: 26 cases in `cases.json`, 21 of them also run through the command, plus the gopls path's arguments;
+    - Fill Struct in 8 server states;
+    - Toggle Test File: 6 cases;
+    - the generator: 18 golden test files, plus duplicates and errors;
+    - Run with the fake `go`: streaming, statuses, Stop killing the group, a new Run replacing the old, the end of the activation;
+    - `exthost` with the fake LSP server: commands, `ExecuteCommand` with an `applyEdit`, `ApplyCodeAction` in 10 cases;
+    - the input box.
+  - tagged `emetos_gopls`: the real gopls `modify_tags` agrees with the pure-Go editor on 24 of 26 cases (the 2 differences are documented and asserted), real Fill Struct, real `go run`; 22 tests pass, none skipped.
+  - changed: counts in the golang tests, and rig options.
+- **Goldens:**
+  - new: `run_{idle,running,exited,failed}_{dark,light}`, and 18 text goldens `testdata/gentest/*/want_test.go.golden`.
+  - Viewed by the agent and me: I viewed `run_exited_light`, the one the agent skipped, and the proof.
+  - No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** `docs/implemented-proof-images/14.2-generate-tests.png`, made with:
+  ```
+  PROOF_TIMEOUT=150 scripts/proof.sh docs/implemented-proof-images/14.2-generate-tests.png --after 7s --commands '[["dev.openFile",{"path":"testdata/proof/14.2/project/calc.go","line":11,"column":5}],["sleep","1s"],["emetos.golang.generateTestsForFunction"],["sleep","2s"]]' -- testdata/proof/14.2/project
+  ```
+  It shows the generated `calc_test.go` open at `TestCalculator_Divide`, with its notification. The generated file is git-ignored in the fixture.
+
+  ![14.2 generate tests](implemented-proof-images/14.2-generate-tests.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.17 "As built (step 14.2)" lists the decisions:
+  - Emetos's command ids, with no aliases for VS Code Go's;
+  - `go.editorContextMenuCommands` is not built;
+  - Escape in a tag prompt cancels the command;
+  - a gopls failure is not retried locally;
+  - Fill Struct works only through gopls;
+  - new files are written directly with `O_EXCL`;
+  - "Go: Run" is Emetos's own command (VS Code Go has none).
+
+  Not built: generic functions in the generator, `go.generateTestsFlags`, stdin for Run.

@@ -122,6 +122,26 @@ func settingSpecs() []extension.SettingSpec {
 	return []extension.SettingSpec{
 		{Key: GoplsSetting, Type: "object", Default: map[string]any{}, Category: category, Description: goplsDescription()},
 		{
+			Key: AddTagsSetting, Type: "object", Category: category,
+			Default: map[string]any{"tags": "", "options": "", "promptForTags": false, "transform": "", "template": ""},
+			Description: "Tags and options configured here will be used by the Add Tags command to add tags to struct fields. If promptForTags is true, " +
+				"or if neither tags nor options are configured, the user will be prompted for tags and the transformation rule.\n\n" +
+				"- `tags`: comma separated tags to be used by Go: Add Tags command\n" +
+				"- `options`: comma separated tag=options pairs to be used by Go: Add Tags command\n" +
+				"- `promptForTags`: if true, Go: Add Tags command will always prompt the user to provide tags, options, and transform values instead of using the configured values\n" +
+				"- `transform`: transformation rule used by Go: Add Tags command to add tags (`snakecase`, `camelcase`, `lispcase`, `pascalcase`, `titlecase` or `keep`). Defaults to snakecase if empty\n" +
+				"- `template`: custom format used by Go: Add Tags command for the tag value to be applied, such as `column:{field}`",
+		},
+		{
+			Key: RemoveTagsSetting, Type: "object", Category: category,
+			Default: map[string]any{"tags": "", "options": "", "promptForTags": false},
+			Description: "Tags and options configured here will be used by the Remove Tags command to remove tags from struct fields. If promptForTags is true, " +
+				"or if neither tags nor options are configured, the user will be prompted for tags.\n\n" +
+				"- `tags`: comma separated tags to be used by Go: Remove Tags command\n" +
+				"- `options`: comma separated tag=options pairs to be used by Go: Remove Tags command\n" +
+				"- `promptForTags`: if true, Go: Remove Tags command will always prompt the user to provide tags and options instead of using the configured values",
+		},
+		{
 			Key: AlternateToolsSetting, Type: "object", Default: map[string]any{}, Category: category,
 			Description: "Alternate tools or alternate paths for the same tools used by the Go extension. Provide either an absolute path or " +
 				"the name of the program in PATH. Useful when you want to use a wrapper script for the Go tools. The names the extension " +

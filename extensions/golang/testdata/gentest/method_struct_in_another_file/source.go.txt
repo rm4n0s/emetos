@@ -1,0 +1,5 @@
+package web
+
+func (r *Router) Route(path string) bool {§
+	return false
+}

@@ -1,0 +1,251 @@
+[
+  {
+    "name": "json on every field, snake case by default",
+    "src": "package p\n\ntype User struct {\n\tID int\n\tUserName string§\n\tHTTPServer bool\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype User struct {\n\tID         int    `json:\"id\"`\n\tUserName   string `json:\"user_name\"`\n\tHTTPServer bool   `json:\"http_server\"`\n}\n"
+  },
+  {
+    "name": "camel case",
+    "src": "package p\n\ntype T struct {\n\tUserName string§\n\tHTTPServer bool\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add",
+      "Transform": "camelcase"
+    },
+    "want": "package p\n\ntype T struct {\n\tUserName   string `json:\"userName\"`\n\tHTTPServer bool   `json:\"httpServer\"`\n}\n"
+  },
+  {
+    "name": "lisp case",
+    "src": "package p\n\ntype T struct {\n\tUserName string§\n}\n",
+    "args": {
+      "Add": "yaml",
+      "Modification": "add",
+      "Transform": "lispcase"
+    },
+    "want": "package p\n\ntype T struct {\n\tUserName string `yaml:\"user-name\"`\n}\n"
+  },
+  {
+    "name": "pascal case and keep",
+    "src": "package p\n\ntype T struct {\n\tuserName string§\n\tOther int\n}\n",
+    "args": {
+      "Add": "json,xml",
+      "Modification": "add",
+      "Transform": "pascalcase"
+    },
+    "want": "package p\n\ntype T struct {\n\tuserName string `json:\"UserName\" xml:\"UserName\"`\n\tOther    int    `json:\"Other\" xml:\"Other\"`\n}\n"
+  },
+  {
+    "name": "keep the name",
+    "src": "package p\n\ntype T struct {\n\tUserName string§\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add",
+      "Transform": "keep"
+    },
+    "want": "package p\n\ntype T struct {\n\tUserName string `json:\"UserName\"`\n}\n"
+  },
+  {
+    "name": "title case",
+    "src": "package p\n\ntype T struct {\n\tUserName string§\n}\n",
+    "args": {
+      "Add": "db",
+      "Modification": "add",
+      "Transform": "titlecase"
+    },
+    "want": "package p\n\ntype T struct {\n\tUserName string `db:\"User Name\"`\n}\n"
+  },
+  {
+    "name": "options on the tags that are added",
+    "src": "package p\n\ntype T struct {\n\tA int§\n\tB string\n}\n",
+    "args": {
+      "Add": "json,xml",
+      "AddOptions": "json=omitempty,xml=attr,xml=omitempty",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int    `json:\"a,omitempty\" xml:\"a,attr,omitempty\"`\n\tB string `json:\"b,omitempty\" xml:\"b,attr,omitempty\"`\n}\n"
+  },
+  {
+    "name": "a tag that is there keeps its name, and other tags stay",
+    "src": "package p\n\ntype T struct {\n\tA int `json:\"alpha\" db:\"a\"`§\n}\n",
+    "args": {
+      "Add": "json,xml",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `json:\"alpha\" db:\"a\" xml:\"a\"`\n}\n"
+  },
+  {
+    "name": "overwrite replaces the name",
+    "src": "package p\n\ntype T struct {\n\tA int `json:\"alpha,omitempty\"`§\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add",
+      "Overwrite": true
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `json:\"a,omitempty\"`\n}\n"
+  },
+  {
+    "name": "options for a tag that is not there change nothing",
+    "src": "package p\n\ntype T struct {\n\tA int `json:\"a\"`§\n}\n",
+    "args": {
+      "AddOptions": "json=string,xml=attr",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `json:\"a,string\"`\n}\n"
+  },
+  {
+    "name": "a selection touches only the fields it covers",
+    "src": "package p\n\ntype T struct {\n\tA int\n\t‹B string\n\tC bool›\n\tD int\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int\n\tB string `json:\"b\"`\n\tC bool   `json:\"c\"`\n\tD int\n}\n"
+  },
+  {
+    "name": "a selection inside one field",
+    "src": "package p\n\ntype T struct {\n\tA int\n\tBeta ‹str›ing\n\tC bool\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA    int\n\tBeta string `json:\"beta\"`\n\tC    bool\n}\n"
+  },
+  {
+    "name": "remove a tag",
+    "src": "package p\n\ntype T struct {\n\tA int    `json:\"a\" xml:\"a\"`§\n\tB string `json:\"b\"`\n}\n",
+    "args": {
+      "Modification": "remove",
+      "Remove": "json"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `xml:\"a\"`\n\tB string\n}\n"
+  },
+  {
+    "name": "remove an option",
+    "src": "package p\n\ntype T struct {\n\tA int `json:\"a,omitempty,string\" xml:\"a,attr\"`§\n}\n",
+    "args": {
+      "Modification": "remove",
+      "RemoveOptions": "json=omitempty,xml=attr"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `json:\"a,string\" xml:\"a\"`\n}\n"
+  },
+  {
+    "name": "clear the tags",
+    "src": "package p\n\ntype T struct {\n\tA int    `json:\"a\"`§\n\tB string `xml:\"b\" db:\"b\"`\n}\n",
+    "args": {
+      "Clear": true,
+      "Modification": "remove"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int\n\tB string\n}\n"
+  },
+  {
+    "name": "clear the options",
+    "src": "package p\n\ntype T struct {\n\tA int `json:\"a,omitempty\" xml:\"a,attr\"`§\n}\n",
+    "args": {
+      "ClearOptions": true,
+      "Modification": "remove"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `json:\"a\" xml:\"a\"`\n}\n",
+    "goplsDiffers": "gopls v0.24 asks the user (a form) when only ClearOptions is set, and a client with no form gets an error",
+    "goplsError": "requires additional information"
+  },
+  {
+    "name": "clear the tags and add one",
+    "src": "package p\n\ntype T struct {\n\tA int `json:\"x\" xml:\"x\"`§\n}\n",
+    "args": {
+      "Add": "db",
+      "Clear": true,
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `db:\"a\"`\n}\n"
+  },
+  {
+    "name": "an embedded field is named by its type",
+    "src": "package p\n\ntype T struct {\n\tBase§\n\tA int\n\t*Ptr\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tBase `json:\"base\"`\n\tA    int `json:\"a\"`\n\t*Ptr\n}\n"
+  },
+  {
+    "name": "unexported fields can be skipped, and so are the embedded ones (as gomodifytags does)",
+    "src": "package p\n\ntype T struct {\n\tName string§\n\tage int\n\tBase\n\tbase2\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add",
+      "SkipUnexportedFields": true
+    },
+    "want": "package p\n\ntype T struct {\n\tName string `json:\"name\"`\n\tage  int\n\tBase\n\tbase2\n}\n",
+    "goplsDiffers": "gopls v0.24 does not pass SkipUnexportedFields on to gomodifytags, so it tags every field",
+    "goplsWant": "package p\n\ntype T struct {\n\tName  string `json:\"name\"`\n\tage   int    `json:\"age\"`\n\tBase  `json:\"base\"`\n\tbase2 `json:\"base_2\"`\n}\n"
+  },
+  {
+    "name": "the first name of a field with several",
+    "src": "package p\n\ntype T struct {\n\tX, Y int§\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tX, Y int `json:\"x\"`\n}\n"
+  },
+  {
+    "name": "a format for the value",
+    "src": "package p\n\ntype T struct {\n\tUserName string§\n}\n",
+    "args": {
+      "Add": "gorm",
+      "Modification": "add",
+      "ValueFormat": "column:{field}"
+    },
+    "want": "package p\n\ntype T struct {\n\tUserName string `gorm:\"column:user_name\"`\n}\n"
+  },
+  {
+    "name": "a name written in the tag to add",
+    "src": "package p\n\ntype T struct {\n\tA int§\n}\n",
+    "args": {
+      "Add": "json:custom",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA int `json:\"custom\"`\n}\n"
+  },
+  {
+    "name": "the inner struct under the cursor and the field that holds it",
+    "src": "package p\n\ntype T struct {\n\tA int\n\tIn struct {\n\t\tB int§\n\t}\n\tC int\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tA  int\n\tIn struct {\n\t\tB int `json:\"b\"`\n\t} `json:\"in\"`\n\tC int\n}\n"
+  },
+  {
+    "name": "a struct in a function, with comments",
+    "src": "package p\n\nfunc f() {\n\tv := struct {\n\t\t// the id\n\t\tID int §// trailing\n\t\tName string\n\t}{}\n\t_ = v\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\nfunc f() {\n\tv := struct {\n\t\t// the id\n\t\tID   int    `json:\"id\"` // trailing\n\t\tName string `json:\"name\"`\n\t}{}\n\t_ = v\n}\n"
+  },
+  {
+    "name": "digits and underscores in the name",
+    "src": "package p\n\ntype T struct {\n\tGL11Version int§\n\tuser_id int\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add"
+    },
+    "want": "package p\n\ntype T struct {\n\tGL11Version int `json:\"gl_11_version\"`\n\tuser_id     int `json:\"user_id\"`\n}\n"
+  },
+  {
+    "name": "text that is not ASCII",
+    "src": "package p\n\ntype T struct {\n\tÜberHöhe int§\n}\n",
+    "args": {
+      "Add": "json",
+      "Modification": "add",
+      "Transform": "camelcase"
+    },
+    "want": "package p\n\ntype T struct {\n\tÜberHöhe int `json:\"überHöhe\"`\n}\n"
+  }
+]

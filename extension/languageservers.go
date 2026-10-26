@@ -1,6 +1,7 @@
 package extension
 
 import (
+	"context"
 	"regexp"
 	"strings"
 
@@ -144,4 +145,20 @@ type LanguageServers interface {
 	// ShowOutput shows the Output channel of the server (the channel is named after the server); with preserveFocus the
 	// keyboard focus stays where it is. It fails with ExtensionServerUnknown.
 	ShowOutput(serverID string, preserveFocus bool) error
+	// Commands lists the commands the running server can execute (the commands of executeCommandProvider and those it
+	// registered); it is empty while the server is not running. It fails with ExtensionServerUnknown. Call it on the UI thread.
+	Commands(serverID string) ([]string, error)
+	// ExecuteCommand asks the server to execute one of its commands (workspace/executeCommand) with the arguments, which must
+	// encode to JSON. The call returns at once; done is called, on the UI thread, with the outcome: nil when the server
+	// answered, else the error (a server that is not running fails with ExtensionServerNotRunning). The edits the server makes
+	// meanwhile with workspace/applyEdit are applied like those of any other request. It fails with ExtensionServerUnknown, with
+	// ExtensionArgumentsInvalid for arguments that do not encode, and with ExtensionDeactivated; done is not called then.
+	ExecuteCommand(ctx context.Context, serverID, command string, args []any, done func(error)) error
+	// ApplyCodeAction asks the server for the code actions of the document at the range of req (req.Only lists the kinds wanted,
+	// such as refactor.rewrite.fillStruct) and applies the first one that is not disabled, the preferred one before the others:
+	// it is resolved when the server resolves its edit later, its edit is applied (as Documents().Apply does) and its command
+	// is executed. The call returns at once; done is called, on the UI thread, with the title of the action that was applied
+	// and nil, with an empty title and nil when the server offers none (or none of the kinds), or with the error. The document
+	// must be open in the scope. It fails with ExtensionServerUnknown and ExtensionDeactivated; done is not called then.
+	ApplyCodeAction(ctx context.Context, serverID, uri string, req CodeActionRequest, done func(title string, err error)) error
 }

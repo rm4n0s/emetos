@@ -1,0 +1,5 @@
+package calc
+
+func helper(_ int, name string, _ []byte) bool {§
+	return name != ""
+}

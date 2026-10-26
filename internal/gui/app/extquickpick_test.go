@@ -1,6 +1,8 @@
 package app
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
@@ -69,6 +71,54 @@ func TestAnExtensionListIsShownInTheQuickInput(t *testing.T) {
 			tt.end(w)
 			if len(chosen) != 1 || chosen[0] != tt.want[0] {
 				t.Errorf("chosen = %v, want %v", chosen, tt.want)
+			}
+		})
+	}
+}
+
+func TestAnExtensionInputBoxIsShownInTheQuickInput(t *testing.T) {
+	tests := []struct {
+		name       string
+		typed      string
+		end        func(w *Workspace)
+		wantAccept []string
+		wantHidden int
+		wantMsg    string
+	}{
+		{"a valid text is accepted", "json,xml", func(w *Workspace) { w.QuickInput.Accept(quickinput.KeyMods{}) }, []string{"json,xml"}, 0, ""},
+		{"an invalid text keeps the box open", "a b", func(w *Workspace) { w.QuickInput.Accept(quickinput.KeyMods{}) }, nil, 0, "no spaces"},
+		{"the box is closed", "json", func(w *Workspace) { w.QuickInput.Hide() }, nil, 1, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := settingsWindow(t, nil)
+			t.Cleanup(w.release)
+			var accepted []string
+			var hidden int
+			w.extensionInputBox(exthost.InputBoxRequest{
+				Prompt: "Enter comma separated tag names", Value: "json",
+				Validate: func(v string) string {
+					if strings.Contains(v, " ") {
+						return "no spaces"
+					}
+					return ""
+				},
+				Accepted: func(v string) { accepted = append(accepted, v) },
+				Hidden:   func() { hidden++ },
+			})
+			if !w.QuickInput.Prompting() {
+				t.Fatal("the input box is not shown")
+			}
+			if w.QuickInput.Picker().Placeholder() != "Enter comma separated tag names" {
+				t.Errorf("placeholder = %q", w.QuickInput.Picker().Placeholder())
+			}
+			w.QuickInput.SetValue(tt.typed)
+			tt.end(w)
+			if !slices.Equal(accepted, tt.wantAccept) || hidden != tt.wantHidden {
+				t.Errorf("accepted = %q, hidden = %d; want %q, %d", accepted, hidden, tt.wantAccept, tt.wantHidden)
+			}
+			if tt.wantMsg != "" && w.QuickInput.Picker().Message() != tt.wantMsg {
+				t.Errorf("message = %q, want %q", w.QuickInput.Picker().Message(), tt.wantMsg)
 			}
 		})
 	}

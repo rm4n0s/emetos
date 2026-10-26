@@ -1,0 +1,5 @@
+package calc
+
+func Parse(s string, base int) (int, error) {
+	§return 0, nil
+}

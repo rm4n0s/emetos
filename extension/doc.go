@@ -51,8 +51,10 @@
 // A language server (Contributes.LanguageServers) is started and stopped by Emetos as part of the activation. The extension
 // reads its state with API.LanguageServers (to show it, as the Go extension does in the status bar), restarts it, and shows
 // its Output channel; with LanguageServerSpec.OwnUI Emetos leaves the status item and the "program not found" notification to
-// the extension. The settings of an extension may have keys of their own (Contributes.Settings: go.gopls), and API.QuickPick
-// shows a list to choose from, such as the menu of a status bar item.
+// the extension. The extension may also ask the server for its commands and code actions (LanguageServers().Commands,
+// ExecuteCommand and ApplyCodeAction), and edit documents (Documents().Apply). The settings of an extension may have keys of
+// their own (Contributes.Settings: go.gopls), API.QuickPick shows a list to choose from, such as the menu of a status bar item,
+// and API.InputBox asks for a line of text.
 //
 // # An example
 //

@@ -18,3 +18,5 @@ from Glutter's module, not from `reference/`.
 `third_party/vscode-textmate/LICENSE.md` is the license of vscode-textmate, whose tokenizer and theme algorithms are
 ported (`// Ported from vscode-textmate` comments); no file of it is bundled. The licenses of the Go modules that are linked
 into the program come with their sources (`go list -m -f '{{.Dir}}' <module>`) and are listed in `NOTICE`.
+
+`third_party/gomodifytags/` holds the licenses of gomodifytags and its two small libraries, `fatih/structtag` and `fatih/camelcase`, whose algorithms are ported into `extensions/golang/tags.go` (`// Ported from` comments); they are copied from the Go module cache of those modules, not from `reference/`, and no file of them is bundled.

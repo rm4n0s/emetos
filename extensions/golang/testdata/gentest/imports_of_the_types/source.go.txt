@@ -1,0 +1,16 @@
+package files
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/example/yaml.v3"
+	str "strings"
+)
+
+func Load(r io.Reader, d time.Duration, v yaml.Node, b *str.Builder) (*bytes.Buffer, error) {§
+	fmt.Println()
+	return nil, nil
+}

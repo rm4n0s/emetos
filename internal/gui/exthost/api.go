@@ -10,6 +10,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
@@ -427,6 +428,25 @@ type DocumentShower interface {
 	// Show opens the file with the URI in the active editor group with the cursor at the line and column (from 1; the
 	// column counts UTF-16 units).
 	Show(uri string, line, column int, preview bool) error
+}
+
+// Apply implements extension.Documents: the edit is applied with langfeatures.Apply over the edit host of the window, as the
+// edit of a rename is. An error of the host is returned as it is.
+func (d documentsAPI) Apply(ctx context.Context, edit extension.WorkspaceEdit) error {
+	in := d.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	lsw := in.scope.opts.LSP
+	if lsw == nil {
+		return errors.New("ExtensionDocumentUnavailable", "the scope cannot edit documents", "extension", in.id)
+	}
+	we, err := fromWorkspaceEdit(&edit)
+	if err != nil {
+		return err
+	}
+	_, err = langfeatures.Apply(ctx, lsw.Edits(), we)
+	return err
 }
 
 // Show implements extension.Documents. The window's error is returned as it is.

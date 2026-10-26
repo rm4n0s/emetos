@@ -1,0 +1,10 @@
+package calc
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestOther(t *testing.T) {
+	_ = reflect.TypeOf(1)
+}

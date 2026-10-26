@@ -25,6 +25,8 @@ func TestTheSettingsOfTheExtension(t *testing.T) {
 		{ToolsManagementGoSetting, "string", `""`, "install the Go tools"},
 		{ToolsGopathSetting, "string", `""`, "Location to install the Go tools"},
 		{ToolsEnvVarsSetting, "object", "{}", "Environment variables"},
+		{AddTagsSetting, "object", `{"options":"","promptForTags":false,"tags":"","template":"","transform":""}`, "used by the Add Tags command"},
+		{RemoveTagsSetting, "object", `{"options":"","promptForTags":false,"tags":""}`, "used by the Remove Tags command"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {

@@ -7,7 +7,10 @@
 // GOVERSION` (go1.99.1 by default), and FAKEGO_ENVFAIL makes `go env` fail with that text and status 1. For `go install`,
 // FAKEGO_FAIL is a comma separated list of texts: a package that contains one fails with status 1 and a message on the standard
 // error; FAKEGO_HANG is the same list for a package that never ends (it writes its process id and the one of a child in its
-// group to FAKEGO_PIDFILE, one number per line, and waits). A hard limit of 60 seconds ends the program whatever happens.
+// group to FAKEGO_PIDFILE, one number per line, and waits). For `go run`, FAKEGO_RUN_STDOUT is printed to the standard output;
+// then, when FAKEGO_RUN_GATE is set, the program waits until that file exists; then FAKEGO_RUN_STDERR is printed to the standard
+// error, and the program ends with the status FAKEGO_RUN_EXIT (0 by default); with FAKEGO_RUN_HANG set it hangs after the output
+// as a hanging install does. A hard limit of 60 seconds ends the program whatever happens.
 package main
 
 import (
@@ -34,6 +37,8 @@ func main() {
 		env(args[1:])
 	case len(args) >= 2 && args[0] == "install":
 		install(args[1:])
+	case len(args) >= 1 && args[0] == "run":
+		goRun()
 	default:
 		fmt.Fprintf(os.Stderr, "fakego: unsupported command %q\n", strings.Join(args, " "))
 		os.Exit(2)
@@ -123,6 +128,30 @@ func install(pkgs []string) {
 			hang()
 		}
 		fmt.Printf("go: installed %s\n", pkg)
+	}
+}
+
+// goRun is `go run`: the output, the gate, the end that the environment says.
+func goRun() {
+	if out := os.Getenv("FAKEGO_RUN_STDOUT"); out != "" {
+		fmt.Println(out)
+	}
+	if gate := os.Getenv("FAKEGO_RUN_GATE"); gate != "" {
+		for {
+			if _, err := os.Stat(gate); err == nil {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if os.Getenv("FAKEGO_RUN_HANG") != "" {
+		hang()
+	}
+	if out := os.Getenv("FAKEGO_RUN_STDERR"); out != "" {
+		fmt.Fprintln(os.Stderr, out)
+	}
+	if code, err := strconv.Atoi(os.Getenv("FAKEGO_RUN_EXIT")); err == nil {
+		os.Exit(code)
 	}
 }
 

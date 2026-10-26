@@ -92,6 +92,8 @@ type rigOptions struct {
 	// env are the variables of the fake ("NAME=value") and settings the values of settings set before the activation.
 	env      []string
 	settings map[string]any
+	// noFolder makes a scope without a folder.
+	noFolder bool
 }
 
 // newRig activates the extension. The fake go is in PATH when asked, and writes a record of each run to the log of the rig.
@@ -116,7 +118,11 @@ func newRig(t *testing.T, opts rigOptions) *rig {
 	}
 	e := New().(*golang)
 	r.ext = e
-	r.api = fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "project", Folder: r.folder})
+	info := extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "project", Folder: r.folder}
+	if opts.noFolder {
+		info.Folder = ""
+	}
+	r.api = fakeapi.New(t, e.Manifest(), info)
 	for k, v := range opts.settings {
 		r.api.SetSetting(k, v)
 	}

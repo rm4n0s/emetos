@@ -32,6 +32,8 @@ func TestBuildAndRun(t *testing.T) {
 		{"an environment that fails", []string{EnvEnvFail + "=no go here"}, []string{"env"}, "no go here", true},
 		{"an install", nil, []string{"install", "a.b/c@latest"}, "go: installed a.b/c@latest", false},
 		{"an install that fails", []string{EnvFail + "=b/c"}, []string{"install", "a.b/c@latest"}, "module lookup disabled", true},
+		{"a run that prints", []string{EnvRunStdout + "=hello from main"}, []string{"run", "."}, "hello from main\n", false},
+		{"a run that fails", []string{EnvRunStderr + "=panic: boom", EnvRunExit + "=3"}, []string{"run", "."}, "panic: boom", true},
 		{"an unknown command", nil, []string{"build"}, "unsupported", true},
 	}
 	for _, tt := range tests {

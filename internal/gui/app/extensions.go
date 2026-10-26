@@ -134,7 +134,7 @@ func (w *Workspace) startExtensions() {
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
-		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick,
+		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -448,6 +448,15 @@ func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 				req.Hidden()
 			}
 		},
+	})
+}
+
+// extensionInputBox shows the input box of InputBox().Show in the quick input of the window. The prompt is the hint of the input;
+// the quick input validates the text as the user types.
+func (w *Workspace) extensionInputBox(req exthost.InputBoxRequest) {
+	w.QuickInput.Prompt(quickinput.PromptOptions{
+		Placeholder: req.Prompt, Value: req.Value, Validate: req.Validate,
+		OnAccept: req.Accepted, OnCancel: req.Hidden,
 	})
 }
 

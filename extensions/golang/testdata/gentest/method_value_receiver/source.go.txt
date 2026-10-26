@@ -1,0 +1,7 @@
+package temp
+
+type Celsius float64
+
+func (c Celsius) String() string {§
+	return ""
+}

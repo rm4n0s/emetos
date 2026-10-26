@@ -158,6 +158,8 @@ type ScopeOptions struct {
 	LSP LanguageWorkspace
 	// QuickPick shows a list to choose from for an extension (QuickPick().Show); nil leaves it unavailable.
 	QuickPick func(QuickPickRequest)
+	// InputBox shows an input box for an extension (InputBox().Show); nil leaves it unavailable.
+	InputBox func(InputBoxRequest)
 }
 
 // slot is an extension in a scope.

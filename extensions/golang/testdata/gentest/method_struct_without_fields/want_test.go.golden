@@ -1,0 +1,23 @@
+package web
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestEmpty_Name(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := Empty{}
+			if got := e.Name(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Empty.Name() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

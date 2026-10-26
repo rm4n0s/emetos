@@ -1,0 +1,20 @@
+package web
+
+import (
+	"net/http"
+	"sync"
+)
+
+type Server struct {
+	Addr string
+	mu   sync.Mutex
+	handlers map[string]http.Handler
+	_    int
+	*Logger
+}
+
+type Logger struct{}
+
+func (s *Server) Handle(path string, h http.Handler, opts ...Option) (*Response, error) {§
+	return nil, nil
+}

@@ -1,0 +1,6 @@
+package web
+
+type Router struct {
+	Prefix string
+	routes []string
+}

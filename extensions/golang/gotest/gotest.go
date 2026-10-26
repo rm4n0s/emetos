@@ -27,6 +27,13 @@ const (
 	EnvHang = "FAKEGO_HANG"
 	// EnvPidfile is the file a hanging install writes its process id and its child's to.
 	EnvPidfile = "FAKEGO_PIDFILE"
+	// EnvRunStdout and EnvRunStderr are what `go run` prints; EnvRunGate is a file it waits for after the standard output, EnvRunExit
+	// the status it ends with and EnvRunHang makes it hang after the output (EnvPidfile gets the process ids).
+	EnvRunStdout = "FAKEGO_RUN_STDOUT"
+	EnvRunStderr = "FAKEGO_RUN_STDERR"
+	EnvRunGate   = "FAKEGO_RUN_GATE"
+	EnvRunExit   = "FAKEGO_RUN_EXIT"
+	EnvRunHang   = "FAKEGO_RUN_HANG"
 )
 
 // Build builds the fake program into dir, as the file "go", and returns its path. It runs the real Go tool (once per test

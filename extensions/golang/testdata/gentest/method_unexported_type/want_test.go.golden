@@ -1,0 +1,38 @@
+package web
+
+import (
+	"reflect"
+	"testing"
+)
+
+func Test_cache_get(t *testing.T) {
+	type fields struct {
+		size int
+	}
+	type args struct {
+		key string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   string
+		want1  bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &cache{
+				size: tt.fields.size,
+			}
+			got, got1 := c.get(tt.args.key)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("cache.get() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("cache.get() got1 = %v, want %v", got1, tt.want1)
+			}
+		})
+	}
+}

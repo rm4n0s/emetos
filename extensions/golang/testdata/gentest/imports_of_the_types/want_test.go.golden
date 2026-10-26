@@ -1,0 +1,41 @@
+package files
+
+import (
+	"bytes"
+	"io"
+	"reflect"
+	str "strings"
+	"testing"
+	"time"
+
+	"github.com/example/yaml.v3"
+)
+
+func TestLoad(t *testing.T) {
+	type args struct {
+		r io.Reader
+		d time.Duration
+		v yaml.Node
+		b *str.Builder
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *bytes.Buffer
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Load(tt.args.r, tt.args.d, tt.args.v, tt.args.b)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Load() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
