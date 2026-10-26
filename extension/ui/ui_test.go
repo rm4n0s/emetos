@@ -59,33 +59,3 @@ func TestTheWidgetsAreTheKitsAndUseTheTheme(t *testing.T) {
 		t.Errorf("the button was pressed %d times", pressed)
 	}
 }
-
-func TestNewBuilderFailsTheBoxAboveAndOnlyThere(t *testing.T) {
-	th := uitest.Themes()[0]
-	var failed []any
-	guarded := widgets.NewColumn([]widgets.Widget{
-		ui.NewBuilder(func(widgets.BuildContext) widgets.Widget { return widgets.NewText("fine") }),
-		ui.NewBuilder(func(widgets.BuildContext) widgets.Widget { panic("deep") }),
-		widgets.NewText("after"),
-	})
-	scope := ui.NewBoxScope("v.id", func(r any) { failed = append(failed, r) }, guarded)
-	if scope.ViewID() != "v.id" || scope.UpdateShouldNotify(nil) {
-		t.Error("the scope has the wrong id or notifies")
-	}
-	ts := uitest.Pump(t, th, gui.Size{Width: 200, Height: 100}, scope)
-	if len(failed) != 1 || failed[0] != "deep" {
-		t.Errorf("failed = %v, want the one panic", failed)
-	}
-	if !ts.Exists(gluttertest.ByText("fine")) || !ts.Exists(gluttertest.ByText("after")) {
-		t.Error("the widgets around the failure are gone")
-	}
-}
-
-func TestNewBuilderOutsideABoxBuildsNormally(t *testing.T) {
-	ts := uitest.Pump(t, uitest.Themes()[0], gui.Size{Width: 200, Height: 50}, ui.NewBuilder(func(widgets.BuildContext) widgets.Widget {
-		return widgets.NewText("plain")
-	}))
-	if !ts.Exists(gluttertest.ByText("plain")) {
-		t.Error("the builder shows nothing")
-	}
-}

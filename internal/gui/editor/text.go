@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"github.com/rm4n0s/glutter/ui"
-
-	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 // textStyle builds the paragraphs of one look: a font, a size, a line height, features and
@@ -60,16 +58,10 @@ func (s textStyle) build(text string, spans []span) *ui.Paragraph {
 // make builds the paragraph of a text that is not laid out yet.
 func (s textStyle) make(text string, spans []span) *ui.Paragraph {
 	size := s.opts.FontSize
-	family, fallback := s.families(text)
-	// the paragraph's own family measures the tab stop (the width of a space), so it stays the
-	// editor's: the font of the tab has no space
-	baseFamily := ""
-	if len(s.opts.FontFamilies) > 0 {
-		baseFamily = s.opts.FontFamilies[0]
-	}
+	family, fallback := s.families()
 	pstyle := ui.NewParagraphStyle(ui.ParagraphStyleOpts{
 		TextDirection: ui.TextDirectionLTR,
-		FontFamily:    baseFamily,
+		FontFamily:    family,
 		FontSize:      &size,
 		TabSize:       float64(s.opts.TabSize),
 	})
@@ -128,21 +120,10 @@ func (s textStyle) make(text string, spans []span) *ui.Paragraph {
 	return builder.Build()
 }
 
-// families are the family and the fallback families of a text: those of the options, with the font
-// of the tab first when the text has a tab.
-func (s textStyle) families(text string) (family string, fallback []string) {
+// families are the family and the fallback families of the text: those of the options.
+func (s textStyle) families() (family string, fallback []string) {
 	if len(s.opts.FontFamilies) > 0 {
 		family, fallback = s.opts.FontFamilies[0], s.opts.FontFamilies[1:]
-	}
-	if strings.IndexByte(text, '\t') >= 0 {
-		// Glutter: no font has a glyph for a tab, and Glutter then loads every font file of the
-		// style looking for one (170 MB of heap on a desktop with many fonts). A font with an
-		// empty glyph for the tab, first, ends the search at once (fonts.ControlsFont;
-		// docs/GLUTTER-ISSUES.md).
-		if family != "" {
-			fallback = append([]string{family}, fallback...)
-		}
-		family = fonts.Controls
 	}
 	return family, fallback
 }

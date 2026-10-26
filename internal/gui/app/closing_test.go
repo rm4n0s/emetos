@@ -304,7 +304,9 @@ func TestSaveOfAnUntitledDocumentAsksForTheFile(t *testing.T) {
 	t.Run("Save As is cancelled", func(t *testing.T) {
 		a := setup(t)
 		a.fd.CancelFileChooser()
-		a.waitFor("the cancel", func() bool { return a.fd.PendingFileChoosers() == 0 })
+		// The dialog is gone from the fake desktop at once, but its answer travels through goroutines (the signal, then
+		// the Save As that was waiting) before it arrives on the UI thread: wait for what the answer does.
+		a.waitFor("the window to stop waiting for the answer", func() bool { return !a.shell().closing.busy })
 		a.pump()
 		wantNames(t, a.tabNames(), "a.txt", "Untitled-1")
 		a.wantNoDialog()

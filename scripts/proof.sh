@@ -30,7 +30,8 @@
 #                       is how long the capture waits once the first window is mapped
 #                       (SCREENSHOT_SETTLE), for the windows the commands open
 #
-# PROOF_TIMEOUT (seconds, default 90) stops a run that hangs. Needs sway (and grim
+# GLUTTER_RENDERER is gles for the run unless the environment sets it (the headless compositor has no GPU, and Glutter
+# would try Vulkan first, 600 ms for nothing). PROOF_TIMEOUT (seconds, default 90) stops a run that hangs. Needs sway (and grim
 # and jq for --output): sudo dnf install sway grim jq
 #
 # Exit status: 0 and a non-empty PNG on success; 1 when no image was written; 2 for
@@ -118,6 +119,10 @@ fi
 
 # The run must not reach the user's compositor: the headless one replaces it.
 run=(env -u WAYLAND_DISPLAY -u DISPLAY)
+# The headless compositor presents no GPU buffers, and Glutter's `auto` tries Vulkan first (SPEC §9.6 of Glutter: the owner
+# accepted that a headless run pays about 600 ms for the try), so the run asks for GLES. GLUTTER_RENDERER in the
+# environment of the caller wins (GLUTTER_RENDERER=auto, or vulkan, for a proof of the renderer itself).
+run+=(GLUTTER_RENDERER="${GLUTTER_RENDERER:-gles}")
 [[ -n "$commands" ]] && run+=(EMETOS_DEV_COMMANDS="$commands")
 isolated=("$root/scripts/isolated.sh")
 [[ -n "$config" ]] && isolated+=(--config "$config")

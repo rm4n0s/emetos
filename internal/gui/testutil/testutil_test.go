@@ -25,8 +25,7 @@ func TestFontsAreGoMonoAndTheIconFonts(t *testing.T) {
 		}
 		counts[f.Family]++
 	}
-	// and the font of the tab (step 10.1: fonts.Controls, which the editor puts first in a row with a tab)
-	if counts[MonoFamily] != 4 || counts["codicon"] != 1 || counts["seti"] != 1 || counts["emetos-controls"] != 1 || len(fonts) != 7 {
+	if counts[MonoFamily] != 4 || counts["codicon"] != 1 || counts["seti"] != 1 || len(fonts) != 6 {
 		t.Errorf("fonts by family: %v", counts)
 	}
 }

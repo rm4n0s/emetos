@@ -10,6 +10,7 @@ package kit
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/rm4n0s/glutter/animation"
@@ -127,13 +128,10 @@ type treeContent struct{ Key string }
 // several nodes can be selected (Ctrl, Shift); typing starts a find box that highlights or filters the nodes
 // (TreeItem.Label); with DragAndDrop nodes can be dragged and dropped on, before and after other nodes.
 //
-// Glutter's TreeSliver keeps whether a node is expanded in the node, and offers no way to set that on a
-// node that exists (Glutter 1.7 lets an app change the children of a node, make a node lazy and key the
-// contents, but not set the expansion). The expansion is the model's (by key, also of the nodes that are not
-// shown, and what the find filter shows), so every change of the model makes the nodes again, showing only
-// the expanded part; the toggle animation is off (animation.AnimationStyleNoAnimation) because rows come and
-// go with the model; and its contents are compared with reflect.DeepEqual, so a node holds only its key. The
-// focus, the selection and the keys are Emetos's own: they are in the model.
+// The expansion, the focus, the selection and the keys are Emetos's own: they are in the model. The nodes of
+// Glutter's TreeSliver are kept from one change of the model to the next and follow it (syncNodes): SetExpanded
+// for the expansion, SetChildren for the content; only the expanded part has nodes below it. The rows do not
+// animate (animation.AnimationStyleNoAnimation, as in VS Code) and the indent is the row's own.
 //
 // The model is used on the UI thread only; a reading in the background hands its answer over with the
 // binding's Post.
@@ -254,8 +252,11 @@ type treeState struct {
 	// activeGuides are the nodes whose guide is the active one, as of the last build.
 	activeGuides map[string]bool
 
-	// nodes are the nodes of Glutter's TreeSliver; they are made again when the model changed.
+	// nodes are the roots of Glutter's TreeSliver, and byKey every node it holds by the key of its entry in the
+	// model (the placeholder of a lazy node under PlaceholderKey). The nodes are kept from one change of the model
+	// to the next and brought in line with the model (syncNodes); nodesStale says that this is still to be done.
 	nodes      []*widgets.TreeSliverNode[treeContent]
+	byKey      map[string]*widgets.TreeSliverNode[treeContent]
 	nodesStale bool
 
 	// the press that may be the first of a double click, and how many presses the last one made
@@ -297,7 +298,8 @@ func (s *treeState) DidUpdateWidget(old *Tree) {
 		s.model.RemoveListener(s.handle)
 		s.model = t.model
 		s.handle = s.model.AddListener(s.modelChanged)
-		s.nodesStale = true
+		// the nodes of the old model are let go with the tree that was built from them, not changed
+		s.nodes, s.byKey, s.nodesStale = nil, nil, true
 	}
 	s.model.SetToggleOnSelect(t.opts.ToggleOnClick.OrElse(true))
 	if t.opts.MultiSelect {
@@ -329,6 +331,8 @@ func (s *treeState) modelChanged() {
 	s.nodesStale = true
 	s.find.sync(s.model.find.pattern)
 	if s.Mounted() {
+		// Not in Build: changing the children of a node tells the TreeSliver, which is below this widget.
+		s.syncNodes()
 		s.SetState(func() {})
 	}
 }
@@ -592,16 +596,29 @@ func (s *treeState) setOverTree(over bool) {
 	}
 }
 
-// glutterNodes makes the nodes of the TreeSliver from the entries of the model: only the expanded part
-// has its children, and a node that is not read has the placeholder as its only child.
+// syncNodes brings the nodes of the TreeSliver in line with the entries of the model, keeping the nodes of the
+// entries that are still there: only the expanded part has its children, and a node that is not read has the
+// placeholder as its only child. A node whose children are the same nodes as before is not touched; the others are
+// given their children with SetChildren, and the expansion of the model, also of the nodes that are not shown and
+// what the find filter shows, is given with SetExpanded. The TreeSliver is told of each change and makes its rows
+// again once per change, not for every node of the tree.
 //
-// Glutter: TreeSliver (1.7) cannot set the expansion of a node that exists, and with TreeSliverOpts.NodeKey a
-// tree built again with new nodes keeps the expansion of the old ones, which would undo the model's, so the
-// model owns the state and the nodes are made again at every change. Glutter should let the app say which
-// nodes are expanded (docs/GLUTTER-ISSUES.md, 6.4).
-func (s *treeState) glutterNodes(entries []*treeEntry) []*widgets.TreeSliverNode[treeContent] {
+// Glutter 1.8 (TreeSliverNode.SetExpanded) is what makes this possible: the expansion is the model's, and the nodes
+// no longer have to be made again to show it. Glutter's own animation of the rows and its indentation are not used
+// (ToggleAnimationStyle and Indentation in Build): the rows come and go with the model, VS Code's tree does not
+// animate them, and the indent is part of the row (its background, its guides and its twistie are drawn in it).
+func (s *treeState) syncNodes() {
+	s.nodesStale = false
+	filtering := s.model.find.filtering()
+	old := s.byKey
+	s.byKey = make(map[string]*widgets.TreeSliverNode[treeContent], len(old))
+	s.nodes = s.syncLevel(old, s.model.roots, filtering)
+}
+
+// syncLevel returns the nodes for the entries of one level, in the order of the entries. old holds the nodes of
+// the last sync that have not been taken into the new set yet.
+func (s *treeState) syncLevel(old map[string]*widgets.TreeSliverNode[treeContent], entries []*treeEntry, filtering bool) []*widgets.TreeSliverNode[treeContent] {
 	m := s.model
-	filtering := m.find.filtering()
 	out := make([]*widgets.TreeSliverNode[treeContent], 0, len(entries))
 	for _, e := range entries {
 		if filtering && !m.hit[e.key] {
@@ -611,21 +628,38 @@ func (s *treeState) glutterNodes(entries []*treeEntry) []*widgets.TreeSliverNode
 		var children []*widgets.TreeSliverNode[treeContent]
 		switch {
 		case e.lazy:
-			children = []*widgets.TreeSliverNode[treeContent]{widgets.NewTreeSliverNode(treeContent{Key: PlaceholderKey(e.key)})}
+			children = []*widgets.TreeSliverNode[treeContent]{s.nodeFor(old, PlaceholderKey(e.key), nil, false)}
 		case expanded:
-			children = s.glutterNodes(e.children)
+			children = s.syncLevel(old, e.children, filtering)
 		}
-		out = append(out, widgets.NewTreeSliverNode(treeContent{Key: e.key}, widgets.TreeSliverNodeOpts[treeContent]{Children: children, Expanded: expanded}))
+		out = append(out, s.nodeFor(old, e.key, children, expanded))
 	}
 	return out
+}
+
+// nodeFor returns the node of a key with the children and the expansion given: the node of the last sync when
+// there is one, else a new node. The node is kept in byKey.
+func (s *treeState) nodeFor(old map[string]*widgets.TreeSliverNode[treeContent], key string, children []*widgets.TreeSliverNode[treeContent], expanded bool) *widgets.TreeSliverNode[treeContent] {
+	node := old[key]
+	if node == nil {
+		node = widgets.NewTreeSliverNode(treeContent{Key: key}, widgets.TreeSliverNodeOpts[treeContent]{Children: children, Expanded: expanded})
+	} else {
+		if !slices.Equal(node.Children(), children) {
+			node.SetChildren(children)
+		}
+		if node.IsExpanded() != expanded {
+			node.SetExpanded(expanded)
+		}
+	}
+	s.byKey[key] = node
+	return node
 }
 
 // Build implements widgets.State.
 func (s *treeState) Build(bc widgets.BuildContext) widgets.Widget {
 	t := s.Widget()
 	if s.nodesStale {
-		s.nodes = s.glutterNodes(s.model.roots)
-		s.nodesStale = false
+		s.syncNodes() // the first build, or the build after the model was replaced: no node is shown yet
 	}
 	s.activeGuides = s.model.ActiveGuides()
 	height := s.model.RowHeight()

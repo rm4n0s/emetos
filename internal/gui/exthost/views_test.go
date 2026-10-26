@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
+	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/services"
 	gui "github.com/rm4n0s/glutter/ui"
@@ -526,9 +527,32 @@ func TestAPanicInTheContentFailsTheExtensionInThatScopeOnly(t *testing.T) {
 		{"Build panics", "ExtensionViewBuildPanicked", "Scope.failView.ExtensionViewBuildPanicked", func() extension.ViewContent {
 			return extension.ViewContent{Build: func(widgets.BuildContext) widgets.Widget { panic("boom") }}
 		}},
-		{"a guarded builder below Build panics", "ExtensionViewWidgetPanicked", "Scope.failView.ExtensionViewWidgetPanicked", func() extension.ViewContent {
+		{"a plain widget below Build panics", "ExtensionViewWidgetPanicked", "Scope.failView.ExtensionViewWidgetPanicked", func() extension.ViewContent {
 			return extension.ViewContent{Build: func(widgets.BuildContext) widgets.Widget {
-				return ui.NewBuilder(func(widgets.BuildContext) widgets.Widget { panic("deep boom") })
+				return widgets.NewColumn([]widgets.Widget{
+					widgets.NewText("above"),
+					widgets.NewPadding(painting.NewEdgeInsetsAll(2), widgets.NewBuilder(func(widgets.BuildContext) widgets.Widget { panic("deep boom") })),
+				})
+			}}
+		}},
+		{"a state below Build panics in InitState", "ExtensionViewWidgetPanicked", "Scope.failView.ExtensionViewWidgetPanicked", func() extension.ViewContent {
+			return extension.ViewContent{Build: func(widgets.BuildContext) widgets.Widget {
+				return widgets.NewColumn([]widgets.Widget{widgets.NewText("above"), newPanickyState("init boom", true)})
+			}}
+		}},
+		{"a state below Build panics in its Build", "ExtensionViewWidgetPanicked", "Scope.failView.ExtensionViewWidgetPanicked", func() extension.ViewContent {
+			return extension.ViewContent{Build: func(widgets.BuildContext) widgets.Widget {
+				return widgets.NewColumn([]widgets.Widget{widgets.NewText("above"), newPanickyState("build boom", false)})
+			}}
+		}},
+		{"an item of a lazy list below Build panics", "ExtensionViewWidgetPanicked", "Scope.failView.ExtensionViewWidgetPanicked", func() extension.ViewContent {
+			return extension.ViewContent{Build: func(widgets.BuildContext) widgets.Widget {
+				return widgets.NewListViewBuilder(func(_ widgets.BuildContext, i int) widgets.Widget {
+					if i == 1 {
+						panic("item boom")
+					}
+					return widgets.NewText("item")
+				}, widgets.ListViewOpts{ItemCount: foundation.Some(3)})
 			}}
 		}},
 		{"SaveState panics", "ExtensionViewStatePanicked", "Scope.callSave.func1.ExtensionViewStatePanicked", func() extension.ViewContent {
@@ -562,6 +586,12 @@ func TestAPanicInTheContentFailsTheExtensionInThatScopeOnly(t *testing.T) {
 			other.scope.Start()
 			v := &viewTab{rig: r, tab: tb}
 			v.show("vx.list")
+			// Glutter reports the error of a widget below Build to the owner as well (the boundary is told first); the
+			// panic of Build itself is caught by the box, which reports none
+			reported := v.ts.TakeErrors()
+			if below := tt.tag == "ExtensionViewWidgetPanicked"; below != (len(reported) > 0) {
+				t.Errorf("the owner got %d errors, a widget below Build panicked: %v", len(reported), below)
+			}
 			if tt.tag == "ExtensionViewStatePanicked" && strings.Contains(tt.name, "SaveState") {
 				// the state is saved when the box goes off screen
 				v.ts.PumpWidget(widgets.NewSizedBox(nil))
@@ -608,6 +638,89 @@ func TestAPanicInTheContentFailsTheExtensionInThatScopeOnly(t *testing.T) {
 				t.Error("the container stayed after the extension was turned off")
 			}
 		})
+	}
+}
+
+// panickyState is a widget of the extension's own, with a state that panics in InitState or in Build: not made by any
+// helper of the extension API.
+type panickyState struct {
+	widgets.StatefulWidget
+	message string
+	inInit  bool
+}
+
+func newPanickyState(message string, inInit bool) *panickyState {
+	return &panickyState{StatefulWidget: widgets.NewStatefulWidgetBase(), message: message, inInit: inInit}
+}
+
+// CreateState implements widgets.StatefulWidget.
+func (w *panickyState) CreateState() widgets.State { return &panickyStateState{} }
+
+type panickyStateState struct{ widgets.StateOf[*panickyState] }
+
+func (s *panickyStateState) InitState() {
+	if w := s.Widget(); w.inInit {
+		panic(w.message)
+	}
+}
+
+func (s *panickyStateState) Build(widgets.BuildContext) widgets.Widget {
+	panic(s.Widget().message)
+}
+
+// TestAPanicInAPlainWidgetDeepInTheViewFailsTheExtensionAndShowsTheBox is the case the recovery of the box could not
+// cover before Glutter's error boundary: the widget that panics is deep in the tree of the view, built by no helper of
+// the extension API. The extension fails, the box says "Vx failed" with Show Log (the sibling of the failed widget is
+// gone with the whole subtree), and turning the extension off and on again shows the view again, with a boundary that
+// has not failed.
+func TestAPanicInAPlainWidgetDeepInTheViewFailsTheExtensionAndShowsTheBox(t *testing.T) {
+	broken := true
+	m := viewsManifest()
+	f, _ := factory(m, func(f *fake) {
+		f.activate = func(_ context.Context, api extension.API) error {
+			_, err := api.Views().Provide("vx.list", extension.ViewContent{Build: func(widgets.BuildContext) widgets.Widget {
+				if !broken {
+					return widgets.NewText("the list is fine")
+				}
+				return widgets.NewColumn([]widgets.Widget{
+					widgets.NewText("a sibling of the failure"),
+					widgets.NewPadding(painting.NewEdgeInsetsAll(2), widgets.NewBuilder(func(widgets.BuildContext) widgets.Widget {
+						return widgets.NewSizedBox(widgets.NewBuilder(func(widgets.BuildContext) widgets.Widget { panic("deep boom") }))
+					})),
+				})
+			}})
+			return err
+		}
+	})
+	r := newRig(t, f)
+	tb := r.newTab("one")
+	tb.deferred = true
+	tb.scope.Start()
+	v := &viewTab{rig: r, tab: tb}
+	v.show("vx.list")
+	if got := len(v.ts.TakeErrors()); got == 0 {
+		t.Error("the owner of the tree was not told of the panic")
+	}
+	if tb.scope.State("vx") != StateFailed {
+		t.Fatalf("state = %v, want failed", tb.scope.State("vx"))
+	}
+	appErr, ok := errors.FromError(tb.scope.Failure("vx").Err)
+	if !ok || appErr.Tag != "ExtensionViewWidgetPanicked" || !strings.Contains(appErr.Message, "deep boom") {
+		t.Errorf("failure %v", tb.scope.Failure("vx").Err)
+	}
+	if !v.text1("Vx failed") || !v.ts.Exists(gluttertest.ByText("Show Log")) || v.text1("a sibling of the failure") {
+		t.Error("the box does not say that the extension failed, or still shows what the extension built")
+	}
+
+	// off and on again, the view works
+	broken = false
+	tb.disabled = []string{"vx"}
+	tb.scope.Refresh()
+	tb.disabled = nil
+	tb.scope.Refresh()
+	v.show("vx.list")
+	if got := tb.scope.State("vx"); got != StateActive || !v.text1("the list is fine") || v.text1("Vx failed") {
+		t.Errorf("after off and on: state %v, the list shown %v", got, v.text1("the list is fine"))
 	}
 }
 

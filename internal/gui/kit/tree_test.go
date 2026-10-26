@@ -883,3 +883,87 @@ func TestTreeLoadingNodeLooks(t *testing.T) {
 	}
 	r.noErrors()
 }
+
+// TestTreeKeepsItsNodesBetweenChanges pins that the nodes of Glutter's TreeSliver are not made again when the model
+// changes (Glutter 1.8, TreeSliverNode.SetExpanded): a node that is still in the model is the same node, its expansion
+// is the model's, and only what is shown has nodes.
+func TestTreeKeepsItsNodesBetweenChanges(t *testing.T) {
+	r := newTreeRig(t, treeRigOpts{})
+	state := r.ctrl.state
+	node := func(key string) *widgets.TreeSliverNode[treeContent] { return state.byKey[key] }
+	r.tapRow(0, twistieX(0)) // a
+	a, a2 := node("a"), node("a2")
+	if a == nil || !a.IsExpanded() || a2 == nil || a2.IsExpanded() {
+		t.Fatalf("a %v, a2 %v", a, a2)
+	}
+	if node("a2x") != nil {
+		t.Error("a2 is collapsed: its child has no node")
+	}
+
+	tests := []struct {
+		name     string
+		change   func(t *testing.T)
+		kept     []string // nodes that are the same as before
+		expanded []string // nodes that are expanded after
+		gone     []string // keys that have no node after
+	}{
+		{"a selection", func(t *testing.T) { r.tapRow(1, 150) }, []string{"a", "a1", "a2", "a3", "b", "c", "d"}, []string{"a"}, []string{"a2x"}},
+		{"the expansion of a2", func(t *testing.T) { r.tapRow(2, twistieX(1)) }, []string{"a", "a1", "a2", "a3"}, []string{"a", "a2"}, nil},
+		{"the collapse of a", func(t *testing.T) { r.m.Collapse("a") }, []string{"a", "d"}, nil, []string{"a1", "a2", "a2x", "a3"}},
+		{"the expansion of a again", func(t *testing.T) { r.m.Expand("a") }, []string{"a", "d"}, []string{"a", "a2"}, nil},
+		{"items that come again", func(t *testing.T) {
+			items := sampleItems()
+			items[0].Children = append(items[0].Children, TreeItem{Key: "a4"})
+			items[0].Children[0], items[0].Children[2] = items[0].Children[2], items[0].Children[0] // a3, a2, a1, a4
+			if err := r.m.SetItems(items); err != nil {
+				t.Fatal(err)
+			}
+		}, []string{"a", "a1", "a2", "a2x", "a3", "d"}, []string{"a", "a2"}, nil},
+		{"a child that is removed", func(t *testing.T) {
+			items := sampleItems()
+			items[0].Children = items[0].Children[1:] // a1 is gone
+			if err := r.m.SetItems(items); err != nil {
+				t.Fatal(err)
+			}
+		}, []string{"a", "a2", "a2x", "a3", "d"}, []string{"a", "a2"}, []string{"a1", "a4"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			before := map[string]*widgets.TreeSliverNode[treeContent]{}
+			for _, k := range tt.kept {
+				before[k] = node(k)
+			}
+			tt.change(t)
+			r.settle()
+			for _, k := range tt.kept {
+				if before[k] == nil {
+					continue // the node was not there before (it is checked below)
+				}
+				if got := node(k); got != before[k] {
+					t.Errorf("the node of %q was made again", k)
+				}
+			}
+			for _, k := range tt.gone {
+				if node(k) != nil {
+					t.Errorf("%q has a node", k)
+				}
+			}
+			for key, n := range state.byKey {
+				entry := r.m.entries[key]
+				if entry == nil {
+					if key != PlaceholderKey("c") {
+						t.Errorf("a node for %q, which is not in the model", key)
+					}
+					continue
+				}
+				if want := slices.Contains(tt.expanded, key); n.IsExpanded() != want {
+					t.Errorf("%q is expanded: %v, want %v", key, n.IsExpanded(), want)
+				}
+				if want := r.m.expanded[key] && entry.expandable(); n.IsExpanded() != want {
+					t.Errorf("%q: the node is expanded (%v), the model says %v", key, n.IsExpanded(), want)
+				}
+			}
+			r.noErrors()
+		})
+	}
+}

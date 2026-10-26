@@ -41,6 +41,9 @@
 # is started, the compositor activates it, and the editor's window loses the focus (Glutter 1.7
 # takes the view focus from the active window of the compositor).
 #
+# Headless runs set GLUTTER_RENDERER=gles (unless the environment sets it): Vulkan is tried first by `auto` and costs 600 ms
+# where the compositor presents no GPU buffers. A --session run sets nothing.
+#
 # Needs sway for the headless mode (scripts/headless-wayland.sh). The output is a Markdown table.
 set -euo pipefail
 
@@ -213,6 +216,11 @@ if [[ $mode == main ]]; then
   if [[ $session -eq 1 ]]; then
     exec "$0" --inner
   fi
+  # The headless compositor presents no GPU buffers, and Glutter's `auto` tries Vulkan first and gives it up after about
+  # 600 ms (Glutter SPEC §9.6: the owner accepted that cost); a headless run asks for GLES, for the editor and for the
+  # counter. The environment's GLUTTER_RENDERER wins (GLUTTER_RENDERER=auto measures the old start). With --session
+  # the user's GPU decides and nothing is set.
+  export GLUTTER_RENDERER="${GLUTTER_RENDERER:-gles}"
   export HEADLESS_SIZE="${HEADLESS_SIZE:-1920x1080}" HEADLESS_SCALE="${HEADLESS_SCALE:-1.25}" HEADLESS_FLOATING=0
   # The trap of this shell removes the work folder when the compositor run ends.
   scripts/headless-wayland.sh -- "$0" --inner

@@ -531,7 +531,11 @@ func TestACloseWhoseAutoSaveFailsAsksAndDontSaveIsNotUndoneByTheFocus(t *testing
 	a.changedByAnotherProgram("a.txt")
 	elsewhere := a.fileText("a.txt")
 	a.run("workbench.action.closeActiveEditor")
-	a.waitFor("the error", func() bool { return len(a.errorNotes()) == 1 })
+	// the write fails on a goroutine, and the question is asked when the failure arrives on the UI thread
+	a.waitFor("the question", a.win.Dialogs.IsShowing)
+	if len(a.errorNotes()) != 1 {
+		t.Errorf("notifications of errors: %v", a.errorNotes())
+	}
 	a.wantAsked(askOf("a.txt"))
 	a.tapDialog("Don't Save")
 	a.settle()
@@ -547,7 +551,8 @@ func TestACloseWhoseAutoSaveFailsAsksAndDontSaveIsNotUndoneByTheFocus(t *testing
 	a.typeText("y")
 	a.changedByAnotherProgram("a.txt")
 	a.run("workbench.action.closeActiveEditor")
-	a.waitFor("the second error", func() bool { return len(a.errorNotes()) >= 1 })
+	// not "an error note exists": the note of the first failure is still there, and the second write may not be done
+	a.waitFor("the question", a.win.Dialogs.IsShowing)
 	a.wantAsked(askOf("a.txt"))
 	a.tapDialog("Cancel")
 	wantNames(t, a.tabNames(), "b.txt", "a.txt")

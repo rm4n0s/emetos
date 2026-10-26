@@ -29,7 +29,6 @@ func Sources() []widgets.FontSource {
 	return []widgets.FontSource{
 		{Family: Codicon, Data: codiconData},
 		{Family: Seti, Data: setiData},
-		{Family: Controls, Data: ControlsFont()},
 	}
 }
 

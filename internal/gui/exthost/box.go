@@ -7,14 +7,15 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/widgets"
 
-	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
 // The box (SPEC §10.15 "As built (step 11.5)"): the widget the workbench puts in the body of a view of an extension, and
 // the only place the widget of the extension is built. It gives the widget the constraints of the body, clips what it
 // paints to them, sets the text style of the theme, keeps the keyboard focus inside (a key the widget does not handle goes
-// on to the keys of the workbench, as it does from any focused widget) and catches a panic of the extension's Build.
+// on to the keys of the workbench, as it does from any focused widget) and fails the extension when its widget panics: in
+// its Build function (caught here, ExtensionViewBuildPanicked) or anywhere below it, in a widget it built or in a state it
+// wrote (the widgets.ErrorBoundary around the widget, ExtensionViewWidgetPanicked).
 
 // viewBox is the widget of the box of a view.
 type viewBox struct {
@@ -86,10 +87,20 @@ func (s *viewBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 			s.restored = true
 			sc.restoreView(d)
 		}
-		body = s.build(bc, d, inst, content.Build)
+		// The boundary takes the build errors of everything below the widget the extension built: the extension fails (on
+		// the UI thread's next turn) and the box shows "<Name> failed" in the same frame. It is made for this instance, so
+		// an extension that is turned on again (a new instance) has a boundary that has not failed.
+		body = widgets.NewErrorBoundary(
+			func(bc widgets.BuildContext, _ error) widgets.Widget {
+				return sc.failureBox(bc, d.slot.info.Manifest.Name+" failed")
+			},
+			s.build(bc, d, inst, content.Build),
+			widgets.ErrorBoundaryOpts{
+				Key:     foundation.NewObjectKey(inst),
+				OnError: func(err error) { sc.failView(d, inst, "ExtensionViewWidgetPanicked", err) },
+			})
 	}
-	scoped := ui.NewBoxScope(d.id, func(r any) { sc.failView(d, inst, "ExtensionViewWidgetPanicked", r) }, body)
-	focused := widgets.NewFocus(scoped, widgets.FocusOpts{
+	focused := widgets.NewFocus(body, widgets.FocusOpts{
 		CanRequestFocus: foundation.Some(false), SkipTraversal: foundation.Some(true), DebugLabel: "ExtensionView",
 		OnFocusChange: func(has bool) { sc.viewFocus(d.id, has) },
 	})
@@ -97,7 +108,7 @@ func (s *viewBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 }
 
 // build calls the Build function of the extension. A panic fails the extension with ExtensionViewBuildPanicked, and the
-// box shows the failure.
+// box shows the failure; the widget it returns is built below the boundary of the box.
 func (s *viewBoxState) build(bc widgets.BuildContext, d *viewDecl, inst *instance, f func(widgets.BuildContext) widgets.Widget) (built widgets.Widget) {
 	sc := s.Widget().scope
 	defer func() {
@@ -114,7 +125,7 @@ func (s *viewBoxState) build(bc widgets.BuildContext, d *viewDecl, inst *instanc
 
 // failView fails the extension of a view whose widget panicked, on the UI thread's next turn (the tree is being built, so
 // the registries must not change now). The tag is ExtensionViewBuildPanicked for the Build function and
-// ExtensionViewWidgetPanicked for a guarded builder below it.
+// ExtensionViewWidgetPanicked for a widget below it (the boundary's OnError).
 func (s *Scope) failView(d *viewDecl, inst *instance, tag string, recovered any) {
 	if inst == nil || inst.isDead() {
 		return

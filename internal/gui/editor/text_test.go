@@ -7,46 +7,39 @@ import (
 
 	"github.com/rm4n0s/glutter/ui"
 
-	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
-func TestTextWithATabPutsTheFontOfTheTabFirst(t *testing.T) {
+func TestFamiliesAreThoseOfTheOptions(t *testing.T) {
 	tests := []struct {
 		name         string
 		families     []string
-		text         string
 		wantFamily   string
 		wantFallback []string
 	}{
-		{"no tab keeps the families", []string{"Go Mono", "monospace"}, "func main() {}", "Go Mono", []string{"monospace"}},
-		{"a tab goes before the first family", []string{"Go Mono", "monospace"}, "\tfunc main() {}", fonts.Controls, []string{"Go Mono", "monospace"}},
-		{"a tab in the middle", []string{"Go Mono"}, "a\tb", fonts.Controls, []string{"Go Mono"}},
-		{"a tab with no families", nil, "\t", fonts.Controls, nil},
-		{"no tab, no families", nil, "x", "", nil},
+		{"the first is the family, the rest the fallback", []string{"Go Mono", "monospace"}, "Go Mono", []string{"monospace"}},
+		{"one family", []string{"Go Mono"}, "Go Mono", nil},
+		{"no families", nil, "", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := textStyle{opts: Options{FontFamilies: tt.families}}
-			family, fallback := s.families(tt.text)
+			family, fallback := s.families()
 			if family != tt.wantFamily || len(fallback) != len(tt.wantFallback) {
-				t.Fatalf("families(%q) = %q, %q; want %q, %q", tt.text, family, fallback, tt.wantFamily, tt.wantFallback)
+				t.Fatalf("families() = %q, %q; want %q, %q", family, fallback, tt.wantFamily, tt.wantFallback)
 			}
 			for i := range fallback {
 				if fallback[i] != tt.wantFallback[i] {
 					t.Errorf("fallback = %q, want %q", fallback, tt.wantFallback)
 				}
 			}
-			if len(tt.families) > 0 && len(s.opts.FontFamilies) != len(tt.families) {
-				t.Error("the options were changed")
-			}
 		})
 	}
 }
 
-// TestTheFontOfTheTabChangesNoMeasure pins that the font put first for a tab takes no room and has no
-// height: a row with a tab is as wide and as high as it was with the font of the editor alone.
-func TestTheFontOfTheTabChangesNoMeasure(t *testing.T) {
+// TestATabIsATabStopWide pins that a tab takes the room of its tab stop (the width of a space, TabSize times) and
+// adds no height: a row with a tab is as wide and as high as the characters and the stops make it.
+func TestATabIsATabStopWide(t *testing.T) {
 	ts := testutil.New(t, ui.Size{Width: 800, Height: 400})
 	opts := goOptions()
 	s := newTextStyle(ts.Dispatcher().TextEngine(), opts, ui.Color{})
