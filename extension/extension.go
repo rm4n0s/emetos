@@ -84,6 +84,12 @@ type Contributes struct {
 	// lifetime"). They are started by the host, not by Activate; the extension gets the server's Output channel, status and
 	// restart command for free. Declaring one adds the command <extension id>.restartServer.
 	LanguageServers []LanguageServerSpec
+	// Settings are settings the extension declares, as VS Code's contributes.configuration does: unlike the ones registered
+	// with Settings().Register, their keys are free (go.gopls) as long as the editor and the other extensions do not have
+	// them. The host registers them while the extension is enabled in a tab, before it is activated, so that the settings
+	// editor and the settings files know them; Settings().Get reads them. Two declarations of one key, an empty key and a
+	// type that is not a JSON type are refused by CheckManifest.
+	Settings []SettingSpec
 }
 
 // The activation events of a Manifest.

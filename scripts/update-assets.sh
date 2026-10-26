@@ -175,6 +175,25 @@ cat >"$gomod_dst/package.json" <<'JSON'
 JSON
 copy_license vscode-go vscode-go/LICENSE
 
+# Step 14.1: what the Go extension takes from golang/vscode-go. The defaults of its "[go]" language block (format on save,
+# organize imports on save: SPEC §10.17) are merged into the package.json of the Go pack, and the settings of gopls
+# (type, default, enum and description of each, from its package.json) are written to extensions/golang/gopls-settings.json,
+# which the extension embeds to register the setting go.gopls.
+vscodego_pkg="$ref/vscode-go/extension/package.json"
+[[ -f "$vscodego_pkg" ]] || { echo "error: reference/vscode-go/extension/package.json is not a file" >&2; exit 1; }
+golang_pkg="$root/extensions/golang/assets/package.json"
+golang_tmp="$(mktemp)"
+jq --argjson defaults "$(jq '.contributes.configurationDefaults["[go]"]' "$vscodego_pkg")" \
+  '.contributes.configurationDefaults["[go]"] += $defaults' "$golang_pkg" >"$golang_tmp"
+cp -f "$golang_tmp" "$golang_pkg"
+rm -f "$golang_tmp"
+chmod 0644 "$golang_pkg"
+jq -S '.contributes.configuration.properties.gopls.properties
+  | to_entries
+  | map({key, value: ({type: .value.type, default: .value.default, enum: .value.enum, description: (.value.markdownDescription // .value.description)} | with_entries(select(.value != null)))})
+  | from_entries' "$vscodego_pkg" >"$root/extensions/golang/gopls-settings.json"
+chmod 0644 "$root/extensions/golang/gopls-settings.json"
+
 # Step 4.7: the bundled color themes (SPEC §8.4): the six that VS Code ships as its defaults, and
 # the Visual Studio Dark and Light themes that Dark+ and Light+ include. The manifest and its
 # translations give the names; the 2026 themes are not bundled.

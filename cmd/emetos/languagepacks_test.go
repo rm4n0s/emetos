@@ -12,17 +12,24 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions"
+	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/language"
 	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/language/packfs"
+	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage/storagetest"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
 	"github.com/rm4n0s/emetos/internal/gui/app"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
+	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
+
+// noPrograms makes PATH an empty folder: the Go extension runs go (and the host gopls) when it is activated, and a test of the
+// languages must not reach the programs of the user.
+func noPrograms(t *testing.T) { t.Setenv("PATH", t.TempDir()) }
 
 // packIDs are the ids of the language packs of extensions.All, in order.
 func packIDs() []string {
@@ -126,11 +133,18 @@ func TestAPackFindsTheGrammarsOfOtherPacks(t *testing.T) {
 // TestDisablingMarkdownMakesPlainText is the contract of step 11.4: with emetos.markdown off, .md files are plain text
 // and have no grammar; every other language stays; turning it on brings Markdown back.
 func TestDisablingMarkdownMakesPlainText(t *testing.T) {
-	host, langs, _ := hostOver(t)
+	noPrograms(t)
+	host, langs, defaults := hostOver(t)
 	var disabled []string
+	// the services a workspace always gives its extensions: the Go extension has a status item, a panel view and settings
+	store := settings.NewStore(defaults, settings.StoreOptions{})
+	commands := command.DefaultRegistry()
 	scope := host.NewScope(exthost.ScopeOptions{
 		Info:     extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "w"},
 		Disabled: func() []string { return disabled },
+		Commands: commands, Menus: command.DefaultMenus(commands), Settings: store, StatusBar: workbench.NewStatusBar(),
+		Notify: notify.NewService(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), nil),
+		Views:  workbench.NewViews(command.DefaultViews(), workbench.NewLayout(workbench.LayoutStateFromSettings(store))),
 	})
 	t.Cleanup(scope.Close)
 	scope.Start()
@@ -172,6 +186,7 @@ func TestAProcessKnowsEveryLanguageBeforeItsFirstWindow(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			noPrograms(t)
 			paths := testutil.Isolate(t)
 			extra := map[string]any{"window.menuBarVisibility": "classic"}
 			if tc.disabled != nil {

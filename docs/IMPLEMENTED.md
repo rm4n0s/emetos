@@ -2266,3 +2266,50 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - rewind confirms, and only while the program runs.
 
   Not built: `MultiEdit` as a diff, keys for Accept and Reject, and answering from the notification. The agent fixed a flaky ordering test of its own (50 runs, and 20 with `-race`).
+
+## 14.1 gopls, the status bar and the tools
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-14.1-go-extension
+- **Summary:** SPEC §10.17, §9.12, §10.15. The extension `extensions/golang` is renamed "Go".
+  - **Settings:** declared in a new `Manifest.Contributes.Settings`, whose keys may sit outside the extension id: `go.gopls` (one object, as in VS Code; its description lists VS Code Go's 43 gopls properties, from `gopls-settings.json`, which `update-assets.sh` copies from vscode-go v0.59.0), `go.alternateTools`, `go.toolsManagement.go`, `go.toolsGopath`, `go.toolsEnvVars`.
+  - **Restart:** "Go: Restart Language Server", through the new `LanguageServerSpec.Category`.
+  - **Server-state API:** `api.LanguageServers()` is new, with `Status`, `OnChange` (on the UI thread, once per burst), `Restart` and `ShowOutput`, plus `LanguageServerSpec.OwnUI`.
+  - **Quick pick API:** `api.QuickPick().Show` is new.
+  - **On save:** VS Code Go's `[go]` defaults (tabs, format on save, `source.organizeImports` on explicit saves) are in the Go pack, and the 12.8 save participants do the work.
+  - **Status item:** shown while a Go file is in front.
+    - The version comes from `go env GOVERSION`, run off the UI thread with `GOTOOLCHAIN=local` and a 20 s limit.
+    - It shows gopls's state, starting, running (✓), working (with progress), stopped or not found, or a warning when `go` is missing.
+    - Its menu: Restart, Show gopls Output, Install/Update Tools, Show Go Environment, Open Settings.
+  - **"Go: Install/Update Tools":** installs `gopls`, `dlv` and `staticcheck` at `@latest` in the "Go Tools" panel. Each runs `go install` in its own process group and temporary folder, with the output streamed and a Cancel button. A summary notification follows, and gopls restarts if it was missing.
+  - **Missing gopls:** one notification per activation, with Install.
+  - **"Go: Show Go Environment":** `go env` in the Output channel "Go".
+  - **New error tags:** 11, plus 3 test-helper tags, all route-tested.
+- **Main files:** `extension/{quickpick,languageservers,manifest,api}.go`, `extensions/golang/{golang,env,run,settings,status,tools}.go`, `extensions/golang/gopls-settings.json`, `extensions/golang/assets/package.json`, `extensions/golang/gotest/` (the fake `go`), `internal/gui/exthost/{serverapi,servers,scope,api}.go`, `internal/gui/app/extensions.go`, `extensions/internal/fakeapi/servers.go`, `scripts/update-assets.sh`, `NOTICE`, `testdata/proof/14.1/`, `docs/SPEC.md` §10.17, §9.12, §10.15.
+- **Tests:**
+  - added:
+    - `exthost`, with a fake server: states and progress, restart, output, unknown ids, `OwnUI`, the command's category, panicking callbacks, declared settings served as the server's section, the quick pick;
+    - app: the quick input; a Go save organizes imports then formats in one undo step with the defaults alone;
+    - `extensions/golang`, with a fake `go` built by `TestMain` and `PATH`, `HOME` and `XDG` isolated, so no test can reach a real `go install`: every status state and the menu, the install arguments, environment, failure and cancel, the missing tool, Show Go Environment;
+    - tagged tests run the real `go env` (read-only) and the real gopls under the new declaration: 14 gopls-tagged tests pass, none skipped.
+  - changed: the save-pipeline tests now put their settings in a `[go]` block, because the new language defaults beat plain settings, as in VS Code. The bare-scope test of `cmd/emetos` gets a workspace's services, and both of its extension tests run with an empty `PATH`.
+- **Goldens:** new `tools_{idle,running,failed}_{dark,light}`, all viewed by the agent; I viewed the failed one and the proof. No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** `docs/implemented-proof-images/14.1-gopls.png`, made with:
+  ```
+  scripts/proof.sh docs/implemented-proof-images/14.1-gopls.png --after 9s --commands '[["dev.openFile",{"path":"testdata/proof/14.1/project/main.go","line":23,"column":4}],["sleep","4s"],["dev.type","."],["sleep","2s"],["dev.showHover",{"line":21,"column":20}],["sleep","1s"]]' -- testdata/proof/14.1/project
+  ```
+  It shows the real `gopls`: the hover of `Greet`, the completion list of `sb.`, and the status item "✓ Go 1.27.3".
+
+  ![14.1 gopls](implemented-proof-images/14.1-gopls.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.17 "As built (step 14.1)" lists the 10 decisions. Among them:
+  - `go.gopls` is one object, and settings are declared in the manifest;
+  - the status item shows only for Go files;
+  - there is no "don't show again", because extensions have no persistent store;
+  - Show Go Environment uses an Output channel;
+  - `GOTOOLCHAIN=local`; tools are `@latest`;
+  - the install summary says `GOBIN` must be on `PATH`.
+
+  Not registered yet: the lint and vet settings (14.3), `formatTool`, and the update checks.

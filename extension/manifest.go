@@ -15,7 +15,8 @@ var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$`)
 // ExtensionIDReserved, ExtensionNameMissing, ExtensionEventInvalid (an unknown event, onStartup with an argument, an
 // event that takes an argument without one), and EventTopicInvalid or EventPatternInvalid for a topic or pattern the
 // manifest declares that is malformed, and ExtensionWindowTabIDForeign, ExtensionWindowTabDuplicate and
-// ExtensionWindowTabInvalid for the window tab kinds, and ExtensionServerInvalid and ExtensionServerDuplicate for the language servers.
+// ExtensionWindowTabInvalid for the window tab kinds, and ExtensionServerInvalid and ExtensionServerDuplicate for the language servers, and ExtensionSettingDeclInvalid and
+// ExtensionSettingDeclDuplicate for the settings it declares.
 func CheckManifest(m Manifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return errors.New("ExtensionIDInvalid", "the id of an extension is lowercase, dotted and not empty (emetos.markdown)", "id", m.ID)
@@ -51,6 +52,9 @@ func CheckManifest(m Manifest) error {
 		return err
 	}
 	if err := checkLanguageServers(m); err != nil {
+		return err
+	}
+	if err := checkSettings(m); err != nil {
 		return err
 	}
 	return checkEventDecl(m)
@@ -190,6 +194,30 @@ func checkWindowTabs(m Manifest) error {
 			return errors.New("ExtensionWindowTabInvalid", "a window tab kind needs a title", "id", m.ID, "kind", k.ID)
 		}
 		seen[k.ID] = true
+	}
+	return nil
+}
+
+// settingTypeNames are the JSON types a SettingSpec may have.
+var settingTypeNames = map[string]bool{"string": true, "number": true, "integer": true, "boolean": true, "array": true, "object": true}
+
+// ValidSettingType tells whether the type is one a SettingSpec may have: string, number, integer, boolean, array or object.
+func ValidSettingType(typ string) bool { return settingTypeNames[typ] }
+
+// checkSettings checks the settings a manifest declares: every key is a dotted name and new, and every type is a JSON type.
+func checkSettings(m Manifest) error {
+	seen := map[string]bool{}
+	for _, s := range m.Contributes.Settings {
+		key := s.Key
+		switch {
+		case key == "" || strings.HasPrefix(key, ".") || strings.HasSuffix(key, ".") || strings.Contains(key, ".."):
+			return errors.New("ExtensionSettingDeclInvalid", "the key of a setting is a dotted name", "id", m.ID, "key", key)
+		case !ValidSettingType(s.Type):
+			return errors.New("ExtensionSettingDeclInvalid", "the type of a setting is string, number, integer, boolean, array or object", "id", m.ID, "key", key, "type", s.Type)
+		case seen[key]:
+			return errors.New("ExtensionSettingDeclDuplicate", "two settings of the extension have the same key", "id", m.ID, "key", key)
+		}
+		seen[key] = true
 	}
 	return nil
 }

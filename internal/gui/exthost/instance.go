@@ -35,8 +35,10 @@ type instance struct {
 	channels     map[string]bool
 	markerOwners map[string]bool
 	contextKeys  map[string]bool
-	// servers are the language servers of the activation (servers.go).
-	servers []*serverCtl
+	// servers are the language servers of the activation (servers.go) and serverSubs the listeners of their changes
+	// (serverapi.go).
+	servers    []*serverCtl
+	serverSubs []*serverSub
 }
 
 // isDead tells whether the activation ended. It is safe for concurrent use.

@@ -54,6 +54,9 @@ type API struct {
 	files             []string
 	complete          bool
 	manifest          extension.Manifest
+	servers           map[string]*serverState
+	picks             []*Pick
+	ranCommands       []RanCommand
 }
 
 // Note is a notification the extension showed.
@@ -81,6 +84,9 @@ func New(t testing.TB, m extension.Manifest, info extension.ScopeInfo) *API {
 		handlers: map[string]extension.CommandHandler{}, specs: map[string]extension.SettingSpec{}, values: map[string]any{},
 		keys: map[string]any{}, status: map[string]*StatusItem{}, views: map[string]*View{}, channels: map[string]*Channel{},
 		markers: map[string]map[string][]extension.Marker{},
+	}
+	for _, spec := range m.Contributes.Settings {
+		a.specs[spec.Key] = spec
 	}
 	if info.Folder != "" {
 		a.RescanFiles()

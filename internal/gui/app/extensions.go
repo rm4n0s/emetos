@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/rm4n0s/errors"
@@ -19,6 +21,8 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
+	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 )
 
@@ -130,7 +134,7 @@ func (w *Workspace) startExtensions() {
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
-		LSP: workspaceLSP{w: w},
+		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -423,4 +427,45 @@ func (w *Workspace) openURI(ctx context.Context, uri string) error {
 		return errors.New("ExtOpenURIUnavailable", "the window tab is not on screen", "uri", uri)
 	}
 	return open(ctx, s.Context(), uri)
+}
+
+// extensionQuickPick shows the list of QuickPick().Show in the quick input of the window. The icon of an item is the codicon its
+// label starts with ($(name) Label).
+func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
+	items := make([]quickinput.Item, len(req.Items))
+	for i, e := range req.Items {
+		i := i
+		label, icon := splitLabelIcon(e.Label)
+		items[i] = quickinput.Item{
+			ID: strconv.Itoa(i), Label: label, Icon: icon, Description: e.Description, Detail: e.Detail,
+			Accept: func(quickinput.KeyMods) { req.Chosen(i) },
+		}
+	}
+	w.QuickInput.Pick(quickinput.PickOptions{
+		Placeholder: req.Placeholder, Items: items, MatchOnDescription: req.MatchOnDescription,
+		OnHide: func(accepted bool) {
+			if !accepted {
+				req.Hidden()
+			}
+		},
+	})
+}
+
+// splitLabelIcon splits "$(name) Label" into the label and the code point of the codicon; a label that does not start with a
+// known icon is returned whole with icon 0.
+func splitLabelIcon(label string) (string, int) {
+	rest, ok := strings.CutPrefix(label, "$(")
+	if !ok {
+		return label, 0
+	}
+	name, after, ok := strings.Cut(rest, ")")
+	if !ok {
+		return label, 0
+	}
+	name, _, _ = strings.Cut(name, "~")
+	code, ok := fonts.CodiconByName(name)
+	if !ok {
+		return label, 0
+	}
+	return strings.TrimSpace(after), code
 }

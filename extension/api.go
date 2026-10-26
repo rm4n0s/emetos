@@ -45,6 +45,10 @@ type API interface {
 	FileViews() FileViews
 	// Languages gives the grammars of the languages, for highlighting.
 	Languages() Languages
+	// LanguageServers follows and controls the language servers the manifest declares.
+	LanguageServers() LanguageServers
+	// QuickPick shows a list to choose from, the way the command palette does.
+	QuickPick() QuickPick
 	// WindowTabs gives the content of the window tabs of the kinds the manifest declares; it works in the scope of such a
 	// tab only.
 	WindowTabs() WindowTabs
@@ -147,7 +151,8 @@ type Menus interface {
 
 // SettingSpec declares a setting of an extension.
 type SettingSpec struct {
-	// Key is the dotted name; it starts with the id of the extension and a dot: sqltools.connections.
+	// Key is the dotted name. For Settings().Register it starts with the id of the extension and a dot: sqltools.connections.
+	// A setting declared in Contributes.Settings may have any key the editor and the other extensions do not have (go.gopls).
 	Key string
 	// Type is the JSON type of the value: string, number, integer, boolean, array or object.
 	Type string

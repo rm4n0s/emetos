@@ -48,6 +48,12 @@
 // opens, so the extension needs no code to be a language pack; the bundled languages are such extensions. Several tabs
 // may have the extension enabled: the languages are added once and taken away when the last tab lets go of them.
 //
+// A language server (Contributes.LanguageServers) is started and stopped by Emetos as part of the activation. The extension
+// reads its state with API.LanguageServers (to show it, as the Go extension does in the status bar), restarts it, and shows
+// its Output channel; with LanguageServerSpec.OwnUI Emetos leaves the status item and the "program not found" notification to
+// the extension. The settings of an extension may have keys of their own (Contributes.Settings: go.gopls), and API.QuickPick
+// shows a list to choose from, such as the menu of a status bar item.
+//
 // # An example
 //
 //	package hello

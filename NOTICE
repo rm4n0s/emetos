@@ -67,12 +67,16 @@ repository and its license text in third_party/.
    bundled; ported code says "Ported from vscode-textmate" in a comment. License
    text: third_party/vscode-textmate/LICENSE.md.
 
-5. Go module grammar
+5. Go module grammar, and the Go extension's settings
    Source:  vscode-go (https://github.com/golang/vscode-go)
    License: MIT (The Go Authors)
    Added by step 4.11 (the go.mod, go.work and go.sum grammars and the language
    configuration, in extensions/gomod/assets/; the license is
-   third_party/vscode-go/LICENSE).
+   third_party/vscode-go/LICENSE). Step 14.1 added the defaults of the
+   [go] language block (format and organize imports on save) merged into the
+   package.json of the Go pack, and the names, types, defaults and descriptions
+   of the settings of gopls (extensions/golang/gopls-settings.json), both from
+   vscode-go's package.json (v0.59.0).
 
 6. Emmet abbreviation parser and snippets
    Source:  Emmet (https://github.com/emmetio/emmet)

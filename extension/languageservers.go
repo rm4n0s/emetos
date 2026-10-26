@@ -45,6 +45,15 @@ type LanguageServerSpec struct {
 	WatchedFiles []string
 	// OnActivation starts the server when the extension is activated in a tab, without waiting for a document.
 	OnActivation bool
+	// OwnUI says that the extension shows the state of the server itself, with LanguageServers().Status and OnChange: Emetos
+	// makes no status bar item for the server and shows no notification when its program is not found (the line in the
+	// Output channel and the crash notification stay). The extension then tells the user about a missing program (SPEC
+	// §10.17 "As built (step 14.1)").
+	OwnUI bool
+	// Category is the category of the command <extension id>.restartServer in the command palette ("Go" gives "Go: Restart
+	// Language Server"); the name of the extension when empty. With several servers the first Category that is not empty
+	// is used.
+	Category string
 }
 
 // QualifiedServerID is the id of a server in Emetos: the id of the extension, a dot and the ID of the spec.
@@ -83,4 +92,56 @@ func checkLanguageServers(m Manifest) error {
 		seen[sv.ID] = true
 	}
 	return nil
+}
+
+// ServerState is the state of a language server in the scope of an extension.
+type ServerState string
+
+// The states of a language server (LanguageServers().Status).
+const (
+	// ServerIdle: declared, and waiting for the first document of its languages.
+	ServerIdle ServerState = "idle"
+	// ServerStarting: the program was started and the handshake is not done (a crashed server that is started again too).
+	ServerStarting ServerState = "starting"
+	// ServerRunning: initialized; its documents are open on it.
+	ServerRunning ServerState = "running"
+	// ServerFailed: it crashed five times in three minutes and is not started again until the user restarts it.
+	ServerFailed ServerState = "failed"
+	// ServerMissing: the program was not found; nothing is started again until the path setting changes or the server is
+	// restarted.
+	ServerMissing ServerState = "missing"
+	// ServerStopped: the activation ended.
+	ServerStopped ServerState = "stopped"
+)
+
+// ServerStatus is what an extension may know of one of its language servers in its scope.
+type ServerStatus struct {
+	// State is the state of the server.
+	State ServerState
+	// Starts counts the times the program was started in this scope, Crashes the crashes among the last five (a restart by
+	// the user forgets them).
+	Starts, Crashes int
+	// Progress is the work the server reports with $/progress, as the status bar of a language client shows it ("Loading
+	// packages 40%"): the last work that began and has not ended; empty when there is none.
+	Progress string
+}
+
+// LanguageServers lets an extension follow and control the language servers its manifest declares. The id of a server is the
+// ID of its LanguageServerSpec. The host starts and stops the servers (the activation does not); this is how the extension
+// shows their state and offers their commands.
+type LanguageServers interface {
+	// Status returns the state of the server. A server that is declared but not made yet (the call is made in Activate) is
+	// idle. It fails with ExtensionServerUnknown for an id the manifest does not declare. Call it on the UI thread.
+	Status(serverID string) (ServerStatus, error)
+	// OnChange calls fn, on the UI thread and after the change, whenever the state or the progress of the server changes,
+	// with the new status, and returns the function that stops the calls. The calls stop with the activation. It fails with
+	// ExtensionServerUnknown for an id the manifest does not declare. A panic in fn deactivates the extension.
+	OnChange(serverID string, fn func(ServerStatus)) (cancel func(), err error)
+	// Restart stops the server, if it runs, and starts it again, forgetting its crashes; an idle server is started and a
+	// server whose program was not found is looked for again. It is what the command <extension id>.restartServer does. It
+	// fails with ExtensionServerUnknown, and with ExtensionDeactivated after the activation ended.
+	Restart(serverID string) error
+	// ShowOutput shows the Output channel of the server (the channel is named after the server); with preserveFocus the
+	// keyboard focus stays where it is. It fails with ExtensionServerUnknown.
+	ShowOutput(serverID string, preserveFocus bool) error
 }

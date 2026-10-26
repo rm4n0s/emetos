@@ -156,6 +156,8 @@ type ScopeOptions struct {
 	// LSP is what the tab offers the language servers of its extensions (servers.go); nil leaves the servers out (the
 	// providers written in Go still work).
 	LSP LanguageWorkspace
+	// QuickPick shows a list to choose from for an extension (QuickPick().Show); nil leaves it unavailable.
+	QuickPick func(QuickPickRequest)
 }
 
 // slot is an extension in a scope.
@@ -576,6 +578,7 @@ func (s *Scope) install(sl *slot) {
 		}
 		removers = append(removers, remove)
 	}
+	removers = append(removers, s.installSettings(sl)...)
 	removers = append(removers, s.installServers(sl)...)
 	registry, others := s.installViews(sl)
 	removers = append(removers, others...)

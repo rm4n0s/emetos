@@ -165,8 +165,7 @@ func (s settingsAPI) Register(spec extension.SettingSpec) error {
 	if !strings.HasPrefix(spec.Key, in.id+".") {
 		return errors.New("ExtensionSettingKeyForeign", "the key of a setting of an extension starts with the id of the extension and a dot", "extension", in.id, "key", spec.Key)
 	}
-	typ, ok := settingTypes[spec.Type]
-	if !ok {
+	if _, ok := settingTypes[spec.Type]; !ok {
 		return errors.New("ExtensionSettingTypeInvalid", "the type of a setting is string, number, integer, boolean, array or object", "extension", in.id, "key", spec.Key, "type", spec.Type)
 	}
 	in.mu.Lock()
@@ -179,10 +178,8 @@ func (s settingsAPI) Register(spec extension.SettingSpec) error {
 	if category == "" {
 		category = in.name
 	}
-	err := in.scope.h.holdSetting(in.id, settings.Setting{
-		Key: spec.Key, Types: []settings.Type{typ}, Default: spec.Default, Description: spec.Description, Enum: spec.Enum,
-		Minimum: spec.Minimum, Maximum: spec.Maximum, Scope: settings.ScopeWindow, Category: category,
-	})
+	def, _ := settingFromSpec(spec, category)
+	err := in.scope.h.holdSetting(in.id, def)
 	if err != nil {
 		return err
 	}

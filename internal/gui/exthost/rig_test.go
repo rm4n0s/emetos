@@ -179,6 +179,9 @@ type tab struct {
 	// lsp is the window's side of the language servers (servers_rig_test.go).
 	lsp *fakeLSP
 
+	// picks are the lists the tab was asked to show (QuickPick().Show), the first first.
+	picks []QuickPickRequest
+
 	// asked are the questions the tab was asked about links, and answers the functions that answer them (askSharing).
 	asked   []SharingAsk
 	answers []func(SharingAnswer)
@@ -195,6 +198,8 @@ type rig struct {
 	sharing *storage.SharingStore
 	noID    map[string]bool
 	noAsk   map[string]bool
+	// noPick names tabs that cannot show a list to choose from.
+	noPick map[string]bool
 	// folders gives a tab a real folder instead of /work/<name>.
 	folders map[string]string
 }
@@ -224,7 +229,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, folders: map[string]string{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, folders: map[string]string{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -247,8 +252,12 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	tb.editors = &fakeEditors{}
 	tb.languages = &fakeLanguages{}
 	tb.lsp = newFakeLSP()
+	var pick func(QuickPickRequest)
+	if !r.noPick[name] {
+		pick = func(req QuickPickRequest) { tb.picks = append(tb.picks, req) }
+	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		LSP:     tb.lsp,
+		LSP: tb.lsp, QuickPick: pick,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI: func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		Info:    extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},

@@ -1,0 +1,264 @@
+{
+  "build.buildFlags": {
+    "default": [],
+    "description": "buildFlags is the set of flags passed on to the build system when invoked.\nIt is applied to queries like `go list`, which is used when discovering files.\nThe most common use is to set `-tags`.\n\nIf unspecified, values of `go.buildFlags, go.buildTags` will be propagated.\n",
+    "type": "array"
+  },
+  "build.directoryFilters": {
+    "default": [
+      "-**/node_modules"
+    ],
+    "description": "directoryFilters can be used to exclude unwanted directories from the\nworkspace. By default, all directories are included. Filters are an\noperator, `+` to include and `-` to exclude, followed by a path prefix\nrelative to the workspace folder. They are evaluated in order, and\nthe last filter that applies to a path controls whether it is included.\nThe path prefix can be empty, so an initial `-` excludes everything.\n\nDirectoryFilters also supports the `**` operator to match 0 or more directories.\n\nExamples:\n\nExclude node_modules at current depth: `-node_modules`\n\nExclude node_modules at any depth: `-**/node_modules`\n\nInclude only project_a: `-` (exclude everything), `+project_a`\n\nInclude only project_a, but not node_modules inside it: `-`, `+project_a`, `-project_a/node_modules`\n",
+    "type": "array"
+  },
+  "build.env": {
+    "description": "env adds environment variables to external commands run by `gopls`, most notably `go list`.\n",
+    "type": "object"
+  },
+  "build.expandWorkspaceToModule": {
+    "default": true,
+    "description": "(Experimental) expandWorkspaceToModule determines which packages are considered\n\"workspace packages\" when the workspace is using modules.\n\nWorkspace packages affect the scope of workspace-wide operations. Notably,\ngopls diagnoses all packages considered to be part of the workspace after\nevery keystroke, so by setting \"ExpandWorkspaceToModule\" to false, and\nopening a nested workspace directory, you can reduce the amount of work\ngopls has to do to keep your workspace up to date.\n",
+    "type": "boolean"
+  },
+  "build.memoryMode": {
+    "default": "",
+    "description": "(Experimental) obsolete, no effect\n",
+    "type": "string"
+  },
+  "build.standaloneTags": {
+    "default": [
+      "ignore"
+    ],
+    "description": "standaloneTags specifies a set of build constraints that identify\nindividual Go source files that make up the entire main package of an\nexecutable.\n\nA common example of standalone main files is the convention of using the\ndirective `//go:build ignore` to denote files that are not intended to be\nincluded in any package, for example because they are invoked directly by\nthe developer using `go run`.\n\nGopls considers a file to be a standalone main file if and only if it has\npackage name \"main\" and has a build directive of the exact form\n\"//go:build tag\" or \"// +build tag\", where tag is among the list of tags\nconfigured by this setting. Notably, if the build constraint is more\ncomplicated than a simple tag (such as the composite constraint\n`//go:build tag && go1.18`), the file is not considered to be a standalone\nmain file.\n\nThis setting is only supported when gopls is built with Go 1.16 or later.\n",
+    "type": "array"
+  },
+  "build.templateExtensions": {
+    "default": [],
+    "description": "templateExtensions gives the extensions of file names that are treated\nas template files. (The extension\nis the part of the file name after the final dot.)\n",
+    "type": "array"
+  },
+  "build.workspaceFiles": {
+    "default": [],
+    "description": "workspaceFiles configures the set of globs that match files defining the\nlogical build of the current workspace. Any on-disk changes to any files\nmatching a glob specified here will trigger a reload of the workspace.\n\nThis setting need only be customized in environments with a custom\nGOPACKAGESDRIVER.\n",
+    "type": "array"
+  },
+  "fileWatcher": {
+    "default": "off",
+    "description": "(Experimental) fileWatcher specifies the server-side file watching strategy used by gopls.\n\nBy default, this is set to \"off\", meaning gopls relies exclusively on the\nlanguage client (e.g., the editor) to send file change notifications.\n\nAvailable options:\n  - \"off\"      : Client-driven watching (default)\n  - \"fsnotify\" : OS-level event notifications\n  - \"poll\"     : Periodic directory scanning\n",
+    "enum": [
+      "fsnotify",
+      "off",
+      "poll"
+    ],
+    "type": "string"
+  },
+  "formatting.gofumpt": {
+    "default": false,
+    "description": "gofumpt indicates if we should run gofumpt formatting.\n",
+    "type": "boolean"
+  },
+  "formatting.local": {
+    "default": "",
+    "description": "local is the equivalent of the `goimports -local` flag, which puts\nimports beginning with this string after third-party packages. It should\nbe the prefix of the import path whose imports should be grouped\nseparately.\n\nIt is used when tidying imports (during an LSP Organize\nImports request) or when inserting new ones (for example,\nduring completion); an LSP Formatting request merely sorts the\nexisting imports.\n",
+    "type": "string"
+  },
+  "maxFileCacheBytes": {
+    "default": 0,
+    "description": "(Experimental) maxFileCacheBytes sets a soft limit on the file cache size in bytes.\nIf zero, the default budget is used.\n\nThe cache may temporarily use more than this amount.\nAlso, this parameter limits file contents; disk block usage\nas measured by du(1) may be significantly higher.\n",
+    "type": "number"
+  },
+  "memoryLimit": {
+    "default": 0,
+    "description": "(Experimental) memoryLimit sets a soft memory limit (in bytes) for the gopls process, via\nruntime/debug.SetMemoryLimit. If non-positive (the default), no limit is set.\n\nOn large workspaces, a single edit that invalidates many\npackages (for example a syntax error in a widely-imported\npackage) can make the heap briefly grow well above the\nsteady-state working set before the garbage collector\ncatches up, spiking memory and, on memory-constrained\nmachines, causing swapping. A soft limit makes the GC work\nharder to stay near the limit, trading some CPU for a lower\nmemory peak.\n\nThe limit is soft and may be exceeded. Set it comfortably above the\nsteady-state working set, as too low a value causes excessive GC.\n\nUnlike the GOMEMLIMIT environment variable, this setting is\nstrictly numeric; SI suffixes are not permitted.\n",
+    "type": "number"
+  },
+  "ui.codelenses": {
+    "description": "codelenses overrides the enabled/disabled state of each of gopls'\nsources of [Code Lenses](codelenses.md).\n\nExample Usage:\n\n```json5\n\"gopls\": {\n...\n  \"codelenses\": {\n    \"generate\": false,  // Don't show the `go generate` lens.\n  }\n...\n}\n```\n",
+    "type": "object"
+  },
+  "ui.completion.completeFunctionCalls": {
+    "default": true,
+    "description": "completeFunctionCalls enables function call completion.\n\nWhen completing a statement, or when a function return type matches the\nexpected of the expression being completed, completion may suggest call\nexpressions (i.e. may include parentheses).\n",
+    "type": "boolean"
+  },
+  "ui.completion.completionBudget": {
+    "default": "100ms",
+    "description": "(For Debugging) completionBudget is the soft latency goal for completion requests. Most\nrequests finish in a couple milliseconds, but in some cases deep\ncompletions can take much longer. As we use up our budget we\ndynamically reduce the search scope to ensure we return timely\nresults. Zero means unlimited.\n",
+    "type": "string"
+  },
+  "ui.completion.experimentalPostfixCompletions": {
+    "default": true,
+    "description": "(Experimental) experimentalPostfixCompletions enables artificial method snippets\nsuch as \"someSlice.sort!\".\n",
+    "type": "boolean"
+  },
+  "ui.completion.matcher": {
+    "default": "Fuzzy",
+    "description": "(Advanced) matcher sets the algorithm that is used when calculating completion\ncandidates.\n",
+    "enum": [
+      "CaseInsensitive",
+      "CaseSensitive",
+      "Fuzzy"
+    ],
+    "type": "string"
+  },
+  "ui.completion.usePlaceholders": {
+    "default": false,
+    "description": "placeholders enables placeholders for function parameters or struct\nfields in completion responses.\n",
+    "type": "boolean"
+  },
+  "ui.diagnostic.analyses": {
+    "description": "analyses specify analyses that the user would like to enable or disable.\nA map of the names of analysis passes that should be enabled/disabled.\nA full list of analyzers that gopls uses can be found in\n[analyzers](https://go.dev/gopls/analyzers).\n\nExample Usage:\n\n```json5\n...\n\"analyses\": {\n  \"unreachable\": false, // Disable the unreachable analyzer.\n  \"unusedvariable\": true  // Enable the unusedvariable analyzer.\n}\n...\n```\n",
+    "type": "object"
+  },
+  "ui.diagnostic.analysisProgressReporting": {
+    "default": true,
+    "description": "analysisProgressReporting controls whether gopls sends progress\nnotifications when construction of its index of analysis facts is taking a\nlong time. Cancelling these notifications will cancel the indexing task,\nthough it will restart after the next change in the workspace.\n\nWhen a package is opened for the first time and heavyweight analyses such as\nstaticcheck are enabled, it can take a while to construct the index of\nanalysis facts for all its dependencies. The index is cached in the\nfilesystem, so subsequent analysis should be faster.\n",
+    "type": "boolean"
+  },
+  "ui.diagnostic.annotations": {
+    "description": "annotations specifies the various kinds of compiler\noptimization details that should be reported as diagnostics\nwhen enabled for a package by the \"Toggle compiler\noptimization details\" (`gopls.gc_details`) command.\n\n(Some users care only about one kind of annotation in their\nprofiling efforts. More importantly, in large packages, the\nnumber of annotations can sometimes overwhelm the user\ninterface and exceed the per-file diagnostic limit.)\n\nTODO(adonovan): rename this field to CompilerOptDetail.\n",
+    "type": "object"
+  },
+  "ui.diagnostic.diagnosticsDelay": {
+    "default": "1s",
+    "description": "(Advanced) diagnosticsDelay controls the amount of time that gopls waits\nafter the most recent file modification before computing deep diagnostics.\nSimple diagnostics (parsing and type-checking) are always run immediately\non recently modified packages.\n\nThis option must be set to a valid duration string, for example `\"250ms\"`.\n",
+    "type": "string"
+  },
+  "ui.diagnostic.diagnosticsTrigger": {
+    "default": "Edit",
+    "description": "(Experimental) diagnosticsTrigger controls when to run diagnostics.\n",
+    "enum": [
+      "Edit",
+      "Save"
+    ],
+    "type": "string"
+  },
+  "ui.diagnostic.staticcheck": {
+    "default": false,
+    "description": "(Experimental) staticcheck configures the default set of analyses staticcheck.io.\nThese analyses are documented on\n[Staticcheck's website](https://staticcheck.io/docs/checks/).\n\nThe \"staticcheck\" option has three values:\n- false: disable all staticcheck analyzers\n- true: enable all staticcheck analyzers\n- unset: enable a subset of staticcheck analyzers\n  selected by gopls maintainers for runtime efficiency\n  and analytic precision.\n\nRegardless of this setting, individual analyzers can be\nselectively enabled or disabled using the `analyses` setting.\n",
+    "type": "boolean"
+  },
+  "ui.diagnostic.staticcheckProvided": {
+    "default": false,
+    "description": "(Experimental) ",
+    "type": "boolean"
+  },
+  "ui.documentation.hoverKind": {
+    "default": "FullDocumentation",
+    "description": "hoverKind controls the information that appears in the hover text.\nSingleLine is intended for use only by authors of editor plugins.\n",
+    "enum": [
+      "FullDocumentation",
+      "NoDocumentation",
+      "SingleLine",
+      "Structured",
+      "SynopsisDocumentation"
+    ],
+    "type": "string"
+  },
+  "ui.documentation.linkTarget": {
+    "default": "pkg.go.dev",
+    "description": "linkTarget is the base URL for links to Go package\ndocumentation returned by LSP operations such as Hover and\nDocumentLinks and in the CodeDescription field of each\nDiagnostic.\n\nIt might be one of:\n\n* `\"godoc.org\"`\n* `\"pkg.go.dev\"`\n\nIf company chooses to use its own `godoc.org`, its address can be used as well.\n\nModules matching the GOPRIVATE environment variable will not have\ndocumentation links in hover.\n",
+    "type": "string"
+  },
+  "ui.documentation.linksInHover": {
+    "default": true,
+    "description": "linksInHover controls the presence of documentation links in hover markdown.\n",
+    "enum": [
+      false,
+      true,
+      "gopls"
+    ],
+    "type": [
+      "boolean",
+      "string"
+    ]
+  },
+  "ui.moveDeclaration": {
+    "default": false,
+    "description": "(Experimental) moveDeclaration enables producing Move Declaration codeactions. The implementation\nis unfinished so we use this setting to gate its use.\n",
+    "type": "boolean"
+  },
+  "ui.moveType": {
+    "default": false,
+    "description": "(Experimental) moveType enables producing Move Type codeactions. The implementation\nis unfinished so we use this setting to gate its use.\n",
+    "type": "boolean"
+  },
+  "ui.navigation.importShortcut": {
+    "default": "Both",
+    "description": "importShortcut specifies whether import statements should link to\ndocumentation or go to definitions.\n",
+    "enum": [
+      "Both",
+      "Definition",
+      "Link"
+    ],
+    "type": "string"
+  },
+  "ui.navigation.symbolMatcher": {
+    "default": "FastFuzzy",
+    "description": "(Advanced) symbolMatcher sets the algorithm that is used when finding workspace symbols.\n",
+    "enum": [
+      "CaseInsensitive",
+      "CaseSensitive",
+      "FastFuzzy",
+      "Fuzzy"
+    ],
+    "type": "string"
+  },
+  "ui.navigation.symbolScope": {
+    "default": "all",
+    "description": "symbolScope controls which packages are searched for workspace/symbol\nrequests. When the scope is \"workspace\", gopls searches only workspace\npackages. When the scope is \"all\", gopls searches all loaded packages,\nincluding dependencies and the standard library.\n",
+    "enum": [
+      "all",
+      "workspace"
+    ],
+    "type": "string"
+  },
+  "ui.navigation.symbolStyle": {
+    "default": "Dynamic",
+    "description": "(Advanced) symbolStyle controls how symbols are qualified in symbol responses.\n\nExample Usage:\n\n```json5\n\"gopls\": {\n...\n  \"symbolStyle\": \"Dynamic\",\n...\n}\n```\n",
+    "enum": [
+      "Dynamic",
+      "Full",
+      "Package"
+    ],
+    "type": "string"
+  },
+  "ui.newGoFileHeader": {
+    "default": true,
+    "description": "newGoFileHeader enables automatic insertion of the copyright comment\nand package declaration in a newly created Go file.\n",
+    "type": "boolean"
+  },
+  "ui.noSemanticNumber": {
+    "default": false,
+    "description": "(Experimental) noSemanticNumber turns off the sending of the semantic token 'number'\n\nDeprecated: Use SemanticTokenTypes[\"number\"] = false instead. See\ngolang/vscode-go#3632.\n",
+    "type": "boolean"
+  },
+  "ui.noSemanticString": {
+    "default": false,
+    "description": "(Experimental) noSemanticString turns off the sending of the semantic token 'string'\n\nDeprecated: Use SemanticTokenTypes[\"string\"] = false instead. See\ngolang/vscode-go#3632\n",
+    "type": "boolean"
+  },
+  "ui.renameMovesSubpackages": {
+    "default": false,
+    "description": "(Experimental) renameMovesSubpackages enables Rename operations on packages to\nmove subdirectories of the target package.\n",
+    "type": "boolean"
+  },
+  "ui.semanticTokenModifiers": {
+    "description": "(Experimental) semanticTokenModifiers configures the semantic token modifiers. It allows\ndisabling modifiers by setting each value to false.\nBy default, all modifiers are enabled.\n",
+    "type": "object"
+  },
+  "ui.semanticTokenTypes": {
+    "description": "(Experimental) semanticTokenTypes configures the semantic token types. It allows\ndisabling types by setting each value to false.\nBy default, all types are enabled.\n",
+    "type": "object"
+  },
+  "ui.semanticTokens": {
+    "default": false,
+    "description": "(Experimental) semanticTokens determines whether gopls will return a\nSemanticTokensProvider at initialization, or respond\nto requests for semantic tokens.\n\nThis setting being `false` won't necessary disable the client's calls\nfor semantic tokens. If you want that, it would need to be configured in\nthe client. For example, in VSCode, this would disable all Go semantic\ntoken calls to the LSP server:\n\n```json5\n\"[go]\": {\n    \"editor.semanticHighlighting.enabled\": false,\n}\n```\n",
+    "type": "boolean"
+  },
+  "verboseOutput": {
+    "default": false,
+    "description": "(For Debugging) verboseOutput enables additional debug logging.\n",
+    "type": "boolean"
+  }
+}

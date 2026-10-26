@@ -146,6 +146,8 @@ type serverCtl struct {
 	lastConfig   string
 	missingShown bool
 	globs        sync.Map // pattern -> glob.Matcher, for the watched files
+	// changePending says that a call of the listeners of the server (LanguageServers().OnChange) waits for the UI thread.
+	changePending atomic.Bool
 }
 
 // progressItem is a work done progress that is running.
@@ -185,7 +187,9 @@ func (c *serverCtl) begin() {
 	} else {
 		c.channel = ch
 	}
-	if h, err := a.StatusBar().Add(extension.StatusItem{
+	if c.spec.OwnUI {
+		// the extension shows the state itself (LanguageServers().Status)
+	} else if h, err := a.StatusBar().Add(extension.StatusItem{
 		ID: "server." + c.spec.ID, Name: c.spec.Name, Alignment: extension.StatusLeft, Priority: 0,
 		OnClick: func() { c.showOutput(false) },
 	}); err != nil {
@@ -423,8 +427,11 @@ func (c *serverCtl) start() {
 		c.logLine("Error", fmt.Sprintf("%s was not found: %s", program, describe(err)))
 		if !c.missingShown {
 			c.missingShown = true
-			c.notify(notify.Error, fmt.Sprintf("%s was not found. Install it, or set the path in the settings.", c.spec.Program), c.openSettingsAction())
+			if !c.spec.OwnUI {
+				c.notify(notify.Error, fmt.Sprintf("%s was not found. Install it, or set the path in the settings.", c.spec.Program), c.openSettingsAction())
+			}
 		}
+		c.changed()
 		return
 	}
 	c.missingShown = false
@@ -435,6 +442,7 @@ func (c *serverCtl) start() {
 	c.starts++
 	c.mu.Unlock()
 	c.showStatus("starting")
+	c.changed()
 	c.logLine("Info", "Starting "+c.spec.Name+": "+path+" "+strings.Join(c.spec.Args, " "))
 
 	folder := c.s.opts.Info.Folder
@@ -514,6 +522,7 @@ func (c *serverCtl) started(gen int, proc *lsp.Process, client *lsp.Client, err 
 	c.client, c.proc, c.state = client, proc, ServerRunning
 	c.mu.Unlock()
 	c.hideStatus()
+	c.changed()
 	for _, doc := range c.wanted {
 		c.attach(doc)
 	}
@@ -575,6 +584,7 @@ func (c *serverCtl) crashed(gen int) {
 	}
 	c.mu.Unlock()
 	c.hideStatus()
+	c.changed()
 	if !give {
 		c.logLine("Info", "Restarting "+c.spec.Name)
 		c.start()
@@ -606,6 +616,7 @@ func (c *serverCtl) restart() {
 	c.state = ServerIdle
 	c.mu.Unlock()
 	c.missingShown = false
+	c.changed()
 	c.start()
 }
 
@@ -638,6 +649,7 @@ func (c *serverCtl) stop() {
 	c.mu.Unlock()
 	c.cancel()
 	c.detach()
+	c.changed()
 	if c.status != nil {
 		c.status.Dispose()
 	}
@@ -840,30 +852,36 @@ func (c *serverCtl) onProgress(p lsp.ProgressParams) {
 	c.s.post(c.updateProgressStatus)
 }
 
+// progressText is the text of the work that runs: the title and message of the last one that began, with its percentage; empty
+// when none runs. The caller holds mu.
+func (c *serverCtl) progressText() string {
+	n := len(c.progress)
+	if n == 0 {
+		return ""
+	}
+	cur := c.progress[n-1]
+	parts := []string{cur.title}
+	if cur.message != "" {
+		parts = append(parts, cur.message)
+	}
+	text := strings.Join(parts, " ")
+	if cur.percent >= 0 {
+		text += fmt.Sprintf(" %d%%", cur.percent)
+	}
+	return text
+}
+
 // updateProgressStatus shows the last running progress, or hides the item.
 func (c *serverCtl) updateProgressStatus() {
 	c.mu.Lock()
 	stopped := c.stopped
-	var cur *progressItem
-	if n := len(c.progress); n > 0 {
-		cur = &c.progress[n-1]
-	}
-	var text string
-	if cur != nil {
-		parts := []string{cur.title}
-		if cur.message != "" {
-			parts = append(parts, cur.message)
-		}
-		text = strings.Join(parts, " ")
-		if cur.percent >= 0 {
-			text += fmt.Sprintf(" %d%%", cur.percent)
-		}
-	}
+	text := c.progressText()
 	c.mu.Unlock()
 	if stopped {
 		return
 	}
-	if cur == nil {
+	c.changed()
+	if text == "" {
 		c.hideStatus()
 		return
 	}
@@ -1281,7 +1299,14 @@ func (s *Scope) installServers(sl *slot) []func() {
 	}
 	if s.opts.Commands != nil {
 		id := extension.RestartServerCommand(m.ID)
-		err := s.opts.Commands.Register(command.Meta{ID: id, Title: "Restart Language Server", Category: m.Name})
+		category := m.Name
+		for _, spec := range specs {
+			if spec.Category != "" {
+				category = spec.Category
+				break
+			}
+		}
+		err := s.opts.Commands.Register(command.Meta{ID: id, Title: "Restart Language Server", Category: category})
 		if err == nil {
 			var remove func()
 			remove, err = s.opts.Commands.SetHandler(id, func(command.Context, any) error {

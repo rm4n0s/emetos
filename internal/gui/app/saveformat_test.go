@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
+	"github.com/rm4n0s/emetos/internal/core/settings"
 )
 
 // The save participants of the language features (step 12.8): the code actions of editor.codeActionsOnSave, then the formatter,
@@ -110,6 +111,24 @@ func saveFeaturesApp(t *testing.T, extra map[string]any, text string) (*saveApp,
 	for k, v := range extra {
 		values[k] = v
 	}
+	// The [go] block of the Go pack gives Go files the defaults of VS Code's Go extension (SPEC §10.17: format and organize
+	// imports on save), and a language block wins over plain settings, as it does in VS Code. These tests are about the save
+	// participants and write the plain settings for the Go file they save, so the block says the same.
+	// (the objects of the layers are merged, so the default action is switched off by name)
+	block := map[string]any{"editor.formatOnSaveMode": "file", "editor.codeActionsOnSave": map[string]any{"source.organizeImports": "never"}}
+	for _, key := range []string{"editor.formatOnSave", "editor.formatOnSaveMode", "editor.codeActionsOnSave"} {
+		if v, ok := values[key]; ok {
+			if m, isMap := v.(map[string]any); isMap {
+				merged := map[string]any{"source.organizeImports": "never"}
+				for k, x := range m {
+					merged[k] = x
+				}
+				v = merged
+			}
+			block[key] = v
+		}
+	}
+	values["[go]"] = block
 	win := settingsWindow(t, values)
 	t.Cleanup(win.release)
 	a := newSaveAppWith(t, win, []string{"a.go"}, map[string]string{"a.go": text}, "a.go")
@@ -148,6 +167,49 @@ func TestOrganizeImportsRunsBeforeFormattingOnSaveAsOneUndoStep(t *testing.T) {
 		t.Errorf("file %q", got)
 	}
 	// the trim, the code action and the formatter are one undo step: one undo gives the text that was typed
+	a.press("ctrl+z")
+	if got := a.doc("a.go").Text(); got != "ximports  \nbody\n" {
+		t.Errorf("after one undo %q", got)
+	}
+}
+
+// TestTheGoLanguageDefaultsOrganizeImportsAndFormatOnSave saves a Go file in a window whose user settings say nothing about saving:
+// the defaults of the [go] block of the Go extension (SPEC §10.17: formatting and organize imports on save) make the save ask for
+// the code action and then the formatter, as one undo step, and leave a file of another language alone.
+func TestTheGoLanguageDefaultsOrganizeImportsAndFormatOnSave(t *testing.T) {
+	win := settingsWindow(t, map[string]any{"editor.formatOnSaveTimeout": 400, "editor.codeActionsOnSaveTimeout": 400})
+	t.Cleanup(win.release)
+	a := newSaveAppWith(t, win, []string{"a.go", "b.md"}, map[string]string{"a.go": "imports  \nbody\n", "b.md": "text\n"}, "a.go")
+	scope := win.Extensions()
+	if scope == nil {
+		t.Fatal("the window has no scope of extensions")
+	}
+	f := &saveFeatures{}
+	reg := scope.Features()
+	for _, lang := range []string{"go", "markdown"} {
+		sel := langfeatures.Selector{Languages: []string{lang}}
+		t.Cleanup(reg.RegisterCodeActions("fake", sel, f))
+		t.Cleanup(reg.RegisterFormatting("fake", sel, f))
+	}
+	// the defaults themselves: Go formats and organizes imports, Markdown does not
+	if !settings.Get[bool](win.Settings, "editor.formatOnSave", "go") || settings.Get[string](win.Settings, "editor.formatOnSaveMode", "go") != "file" {
+		t.Error("the defaults of the Go language block did not reach the settings of the window")
+	}
+	if got := settings.Get[map[string]any](win.Settings, "editor.codeActionsOnSave", "go"); got["source.organizeImports"] != "explicit" {
+		t.Errorf("codeActionsOnSave for Go = %v", got)
+	}
+	if settings.Get[bool](win.Settings, "editor.formatOnSave", "markdown") || len(settings.Get[map[string]any](win.Settings, "editor.codeActionsOnSave", "markdown")) != 0 {
+		t.Error("the Go defaults reached Markdown")
+	}
+	a.typeText("x")
+	a.press("ctrl+s")
+	a.waitFor("the save", func() bool { return !a.doc("a.go").Dirty() })
+	if got := f.seen(); strings.Join(got, ",") != "code actions,format" {
+		t.Errorf("order %v, want the code actions and then the formatter", got)
+	}
+	if got := readFile(t, a.files["a.go"]); got != "xorganized imports  \nbody\n!" {
+		t.Errorf("file %q", got)
+	}
 	a.press("ctrl+z")
 	if got := a.doc("a.go").Text(); got != "ximports  \nbody\n" {
 		t.Errorf("after one undo %q", got)

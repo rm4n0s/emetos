@@ -902,3 +902,70 @@ func TestGoplsAnswersHintsTokensFoldingAndSelectionRanges(t *testing.T) {
 	r.host.WaitServers()
 	requireGone(t, "gopls", status.PID)
 }
+
+// TestGoplsStateIsFollowedAndRestartedByTheExtension runs the real gopls with the declaration of extensions/golang (its own UI,
+// a category, the settings it declares) and checks what the status item of that extension reads (SPEC §10.17 "As built (step
+// 14.1)"): the states starting and running, a restart through the API, and a start again that leaves no process behind.
+func TestGoplsStateIsFollowedAndRestartedByTheExtension(t *testing.T) {
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls is not installed")
+	}
+	folder := t.TempDir()
+	src := "package main\n\nfunc main() {}\n"
+	for name, text := range map[string]string{"go.mod": "module example.com/state\n\ngo 1.21\n", "main.go": src} {
+		if err := os.WriteFile(filepath.Join(folder, name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := manifest("gopls.pack")
+	m.Contributes.LanguageServers = []extension.LanguageServerSpec{{
+		ID: "gopls", Name: "gopls", Languages: []string{"go", "go.mod", "go.work"}, Program: "gopls",
+		PathSetting: "go.goplsPath", ConfigurationSection: "go.gopls", OwnUI: true, Category: "Go",
+	}}
+	m.Contributes.Settings = []extension.SettingSpec{{Key: "go.gopls", Type: "object", Default: map[string]any{}}}
+	var api extension.API
+	var states []extension.ServerState
+	f, _ := factory(m, func(f *fake) {
+		f.activate = func(_ context.Context, a extension.API) error {
+			api = a
+			_, err := a.LanguageServers().OnChange("gopls", func(s extension.ServerStatus) { states = append(states, s.State) })
+			return err
+		}
+	})
+	r := newRig(t, f)
+	r.folders["one"] = folder
+	t.Cleanup(func() { r.host.Shutdown() })
+	tb := r.newTab("one")
+	tb.deferred = true
+	tb.scope.Start()
+	if meta, ok := tb.commands.Lookup(extension.RestartServerCommand("gopls.pack")); !ok || meta.Category != "Go" || meta.Title != "Restart Language Server" {
+		t.Errorf("restart command = %+v, %v", meta, ok)
+	}
+	opts := document.NewOptions()
+	opts.LanguageID = "go"
+	tb.lsp.open(document.New(document.FileURI(filepath.Join(folder, "main.go")), src, opts))
+	tb.pump()
+	waitFor(t, tb, "gopls to run", func() bool {
+		s, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+		return s.State == ServerRunning
+	})
+	first, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+	if !slices.Contains(states, extension.ServerStarting) || states[len(states)-1] != extension.ServerRunning {
+		t.Errorf("states = %v", states)
+	}
+	if _, ok := tb.bar.Get("extension.gopls.pack.server.gopls"); ok {
+		t.Error("the host made a status item for a server with its own UI")
+	}
+	if err := api.LanguageServers().Restart("gopls"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, tb, "gopls to run again", func() bool {
+		s, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+		return s.State == ServerRunning && s.Starts == 2
+	})
+	requireGone(t, "the first gopls", first.PID)
+	last, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+	tb.scope.Close()
+	r.host.WaitServers()
+	requireGone(t, "gopls", last.PID)
+}
