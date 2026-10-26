@@ -1,0 +1,2 @@
+{"$":"reply","subtype":"initialize","response":{"commands":"not a list"}}
+{"$":"wait","for":"any"}

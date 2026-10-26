@@ -173,3 +173,10 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 ## 2026-10-26: Glutter 1.8.3 (decided by me)
 
 73. **Emetos uses Glutter v1.8.3, and `docs/GLUTTER-ISSUES.md` is deleted** because no entry is left. The workspace tabs are a loose `Flexible` `Leading` widget; Glutter 1.8.2 gives them the room in the bar. The peek view's rows use a plain ellipsis, which 1.8.3 cuts at a character.
+
+## 2026-10-26: step 13.1 (the `claude` adapter; decided by the agent and accepted by me)
+
+74. **The adapter passes the user's environment through unchanged** (plus `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=true`).
+    - It keeps `CLAUDECODE`, which Anthropic's Python SDK removes. As a result, an Emetos started from a terminal inside a `claude` session may find the program refusing to run nested; removing that one variable is a one-line change if you prefer the SDK's behaviour.
+    - **"Rewind code to here" is offered on every session Emetos started**, because the documentation names no capability for file checkpoints, and a program that cannot restore shows its reason.
+    - The fixtures of the tests are written from the documented shapes, not recorded from your account. The manual check of 13.1 runs the adapter once against your real `claude`.

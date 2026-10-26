@@ -112,3 +112,17 @@ scripts/install-desktop.sh
 6. Use Emetos for your own work for a while (your real folders, your own settings in `~/.config/emetos/settings.json` and `keybindings.json`). Report every problem: each becomes separate fix work after this step.
 
 Say what you saw, and which desktop and icon theme you used.
+
+## 13.1 The `claude` adapter against the real program
+
+The tests of the adapter use a fake program and never reach the user's own `claude`; this check runs the adapter once against the real one, with your own login. It runs `claude auth status`, starts one session in an empty temporary folder in Plan mode, sends one short message ("Reply with the single word: ok. Do not use any tool.") and ends. That is one small request on your account (a few cents at most on a key, a small part of a subscription's limit). It reads none of the program's files and sets no variable of its own but `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING`. It is skipped when `claude` is not installed or not logged in:
+
+```
+go test -tags emetos_claude -run TestRealClaude -v -timeout 5m ./extensions/agents/claude
+```
+
+1. Does it print `logged in: true` with your login method, and does it end with `result: success`? Paste the lines it logs (`init: capabilities [...]`, `commands: N, models: M`, `assistant: "ok" (streamed: "ok")`, `result: ...`).
+2. If it fails, paste the whole output: a failure shows how the real program's stream differs from the documented shapes the adapter was written from (`protocol error:` lines name the line that did not fit).
+3. Afterwards `pgrep -a claude` must show only the program your own editor or terminal runs, none started by the test.
+
+Say what you saw, and the version of the program (`claude --version`).

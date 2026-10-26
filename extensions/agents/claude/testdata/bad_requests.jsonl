@@ -1,0 +1,6 @@
+{"$":"wait","for":"user"}
+{"type":"control_request","request_id":"b1","request":{"subtype":"can_use_tool","input":{}}}
+{"type":"control_request","request_id":"b2","request":{"subtype":"hook_callback","callback_id":"hook_0","input":{}}}
+{"$":"wait","for":"control_response"}
+{"$":"wait","for":"control_response"}
+{"type":"result","subtype":"success","uuid":"r1","session_id":"s","is_error":false,"duration_ms":1,"duration_api_ms":1,"num_turns":1,"result":"ok","total_cost_usd":0}

@@ -2113,3 +2113,46 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** SPEC §9.12 "As built (step 12.9)" lists the 10 decisions and what is not built: per-theme `semanticTokenColorCustomizations` blocks, extensions' `semanticTokenScopes`, applying a hint's `textEdits` on double click, hints in the minimap, and registering these providers through the extension API. The agent's first race run failed about 150 app tests, because a theme change notified listeners during a build; listeners are now told after the frame. Lint also found that a change of `editor.inlayHints.enabled` did nothing; that is fixed and tested. Area 3 (M12) is complete with this step.
+
+## 13.1 The `claude` adapter's protocol
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-13.1-agents
+- **Summary:** SPEC §10.16. This step adds `extensions/agents/claude`, a Go client of the `claude` program's stream-json mode, with no UI.
+  - **Finding the program:** `Find` reads `agents.claude.path`, else `PATH`.
+  - **Login status:** `AuthStatus(ctx)` reads `claude auth status`, using the exit status as the answer and keeping the JSON's method, provider, email, organization and subscription.
+  - **Starting:** `Adapter.Start` runs the §10.16 command line in the workspace folder, in its own process group:
+    ```
+    -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --replay-user-messages --permission-prompt-tool stdio --permission-mode <mode> [--session-id|--resume] [--model]
+    ```
+    It does the `initialize` handshake before it returns. The environment is the user's, unchanged, plus `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING=true`: never `--bare`, never `CLAUDE_CONFIG_DIR`, never a key or token.
+  - **Messages:** typed `system/init` (with capabilities), `assistant` (text, thinking, `tool_use`), `user` (`tool_result`, replays), `stream_event` (partial text joined per parent tool use), and `result`. Unknown types keep their raw JSON.
+  - **Control channel:**
+    - out: `interrupt`, `set_permission_mode`, `set_model`, `rewind_files`;
+    - in: `can_use_tool`, one goroutine per request; a cancel request ends its `ctx`;
+    - request IDs with a 60 s timeout, and a dead program fails every pending request.
+  - **Events:** delivered in order through an unbounded queue, so a slow UI never blocks the reading.
+  - **Lines:** up to 16 MiB; a bad line becomes an event and the stream goes on.
+  - **Ending:** `Close` closes stdin, then TERM and KILL to the group.
+  - **Error tags:** 16, all route-tested.
+  - **Sources of the wire shapes:** the Agent SDK documentation and the Python SDK, read online, not copied.
+- **Main files:** `extensions/agents/claude/{command,auth,lines,messages,partial,control,process,session}.go`, `extensions/agents/claude/internal/fakeclaude/main.go`, `extensions/agents/claude/claudetest/`, `extensions/agents/claude/testdata/*.jsonl` (17 fixtures), `docs/SPEC.md` §10.16, `docs/MANUAL-CHECKS.md`, `docs/IMPLEMENTATION.md` (13.3's rewind wording).
+- **Tests:** everything runs against a fake `claude` that the tests build. It replays the JSONL fixtures, answers control requests, and records its argv, environment and process group. `TestMain` makes `PATH` an empty folder, moves `HOME` and `XDG_*`, and unsets `CLAUDE*`/`ANTHROPIC*`, so the real program can't be reached. Covered:
+  - parsing: every message type (a table of fixtures) and partial text;
+  - the command line, environment, working folder and process group;
+  - permissions: the `can_use_tool` round trip (allow with `updatedInput` and `updatedPermissions`, deny, handler error, nil handler, cancel);
+  - the control channel: interrupt, mode, model, rewind, timeouts, a bad handshake;
+  - failures: a dead program, malformed lines, a slow `OnEvent`;
+  - the auth status cases;
+  - processes: cancel and `Close` kill the process group, including a program that ignores TERM.
+
+  `real_test.go` (tag `emetos_claude`) is compiled, not run.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** none; this step has no UI. The test logs of the fake program are the proof.
+- **Manual checks:** pending, see docs/MANUAL-CHECKS.md (13.1: the adapter against the real `claude`, on the user's account).
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.16 "As built (step 13.1)" lists 10 decisions.
+  - `--permission-prompt-tool stdio` is added to the command line, as the Python SDK does when a permission callback is set.
+  - `CLAUDECODE` is passed through unchanged; the Python SDK removes it (decision 74).
+  - Rewind is offered on every session Emetos started, because no capability names it, and a refusal shows the program's reason. Step 13.3's tasks and tests now say so.
+  - No streams recorded from the real program: that needs the user's account, so the fixtures are written from the documented shapes.

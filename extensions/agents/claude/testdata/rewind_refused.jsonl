@@ -1,0 +1,2 @@
+{"$":"reply","subtype":"rewind_files","response":{"canRewind":false,"error":"no checkpoint for that message"}}
+{"$":"wait","for":"any"}

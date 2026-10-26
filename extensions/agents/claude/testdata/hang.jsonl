@@ -1,0 +1,3 @@
+{"$":"spawn_child"}
+{"type":"system","subtype":"init","uuid":"i1","session_id":"s","cwd":"/work","model":"m","permissionMode":"default","tools":[],"slash_commands":[],"capabilities":[]}
+{"$":"hang"}

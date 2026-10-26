@@ -1,0 +1,4 @@
+{"$":"silent","subtype":"interrupt"}
+{"$":"wait","for":"control:interrupt"}
+{"$":"stderr","line":"fatal: crashed while interrupting"}
+{"$":"exit","code":9}

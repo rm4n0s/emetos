@@ -1,0 +1,5 @@
+{"$":"wait","for":"user"}
+{"type":"control_request","request_id":"c1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"sleep 100"},"tool_use_id":"toolu_c"}}
+{"type":"control_cancel_request","request_id":"c1"}
+{"$":"wait","for":"user"}
+{"type":"result","subtype":"success","uuid":"r1","session_id":"s","is_error":false,"duration_ms":1,"duration_api_ms":1,"num_turns":1,"result":"ok","total_cost_usd":0}
