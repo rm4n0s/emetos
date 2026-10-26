@@ -160,3 +160,25 @@ func TestCodeLensWidgetLayoutAndClick(t *testing.T) {
 	}
 	noErrors(t, ts)
 }
+
+func TestADisabledCodeLensShowsItsTitleAndRunsNothing(t *testing.T) {
+	r := newLang129Rig(t, lensText, nil)
+	disabled := lens(2, "debug test")
+	disabled.Command.Disabled = true
+	p := &lensProvider{lenses: []langfeatures.CodeLens{lens(2, "run test"), disabled}}
+	r.reg.RegisterCodeLens("test", r.selector(), p)
+	r.host()
+	r.settle()
+	if got := r.vm.CodeLensTitles()[0]; !reflect.DeepEqual(got, []string{"run test", "debug test"}) {
+		t.Fatalf("titles = %v", got)
+	}
+	zs := r.vm.CodeLensZones()
+	r.vm.CodeLensRunAt(zs[0], 1)
+	if cmds := r.executedCommands(); len(cmds) != 0 {
+		t.Errorf("a disabled lens ran %+v", cmds)
+	}
+	r.vm.CodeLensRunAt(zs[0], 0)
+	if cmds := r.executedCommands(); len(cmds) != 1 || cmds[0].ID != "cmd.run test" {
+		t.Errorf("executed = %+v", cmds)
+	}
+}

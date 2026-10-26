@@ -407,7 +407,7 @@ func (vm *ViewModel) lensLine(r *lensRow) int {
 // of the window.
 func (vm *ViewModel) lensExecute(it *lensItem) {
 	h := vm.sg.host
-	if h == nil || h.Execute == nil || it.lens.Command == nil || it.lens.Command.ID == "" {
+	if h == nil || h.Execute == nil || it.lens.Command == nil || it.lens.Command.ID == "" || it.lens.Command.Disabled {
 		return
 	}
 	ctx := h.Ctx
@@ -506,6 +506,12 @@ func (w *lensRowWidget) Build(bc widgets.BuildContext) widgets.Widget {
 		}
 		title := it.lens.Command.Title
 		item := it
+		if it.lens.Command.Disabled {
+			// a title that cannot be run: dimmed, no hand and no click
+			dim := style.CopyWith(painting.TextStyleOpts{Color: foundation.Some(colors.CodeLensForeground.WithOpacity(0.5))})
+			children = append(children, widgets.NewText(title, widgets.TextOpts{Style: dim, MaxLines: foundation.Some(1)}))
+			continue
+		}
 		children = append(children, widgets.NewMouseRegion(
 			widgets.NewGestureDetector(widgets.NewText(title, widgets.TextOpts{Style: style, MaxLines: foundation.Some(1)}), widgets.GestureDetectorOpts{
 				Behavior: rendering.HitTestBehaviorOpaque, OnTap: func() { vm.lensExecute(item) },

@@ -354,3 +354,21 @@ func TestLanguageServerNames(t *testing.T) {
 		t.Errorf("RestartServerCommand = %s", got)
 	}
 }
+
+func TestNewCommandEncodesTheArguments(t *testing.T) {
+	cmd, err := NewCommand("run test", "go.runTest", map[string]any{"name": "TestA"}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd.Title != "run test" || cmd.ID != "go.runTest" || len(cmd.Arguments) != 2 || string(cmd.Arguments[0]) != `{"name":"TestA"}` || string(cmd.Arguments[1]) != "3" {
+		t.Errorf("command = %+v", cmd)
+	}
+	_, err = NewCommand("bad", "go.bad", make(chan int))
+	appErr, ok := errors.FromError(err)
+	if !ok {
+		t.Fatalf("expected *errors.Error, got %T", err)
+	}
+	if !appErr.HasRoute("NewCommand.CommandArgumentInvalid") {
+		t.Errorf("unexpected failure path: %s", appErr.Route())
+	}
+}

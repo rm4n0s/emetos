@@ -3,6 +3,8 @@ package extension
 import (
 	"context"
 	"encoding/json"
+
+	"github.com/rm4n0s/errors"
 )
 
 // Providers in Go (SPEC §9.12 "Providers in Go"): an extension that has no language server, or wants to add to one, gives
@@ -300,4 +302,36 @@ type PrepareRenameResult struct {
 type RenameProvider interface {
 	PrepareRename(ctx context.Context, doc TextDocument, pos Position) (*PrepareRenameResult, error)
 	ProvideRename(ctx context.Context, doc TextDocument, pos Position, newName string) (*WorkspaceEdit, error)
+}
+
+// CodeLens is a command shown above a line of a document (SPEC §9.12 "Providers in Go", step 14.3).
+type CodeLens struct {
+	// Range is the line the lens is above; only its start line counts. The lenses of one line are shown on one row, in the
+	// order the providers gave them.
+	Range Range
+	// Command is what the lens shows (its Title) and runs when it is clicked: a command of the editor with the first of its
+	// Arguments. A lens with no title is not shown.
+	Command Command
+	// Disabled shows the title dimmed and runs nothing when it is clicked: an action that is announced and not available yet.
+	Disabled bool
+}
+
+// CodeLensProvider answers the code lenses of a document. The editor asks again after the text changed (the newest request
+// wins) and when the extension calls Languages().RefreshCodeLenses.
+type CodeLensProvider interface {
+	ProvideCodeLenses(ctx context.Context, doc TextDocument) ([]CodeLens, error)
+}
+
+// NewCommand makes a Command from a title, the id of a command and its arguments, which are encoded to JSON. It fails with
+// ExtensionArgumentsInvalid for an argument that does not encode.
+func NewCommand(title, id string, args ...any) (Command, error) {
+	cmd := Command{Title: title, ID: id}
+	for _, a := range args {
+		data, err := json.Marshal(a)
+		if err != nil {
+			return Command{}, errors.NewErr("CommandArgumentInvalid", err).SetMetadata("command", id)
+		}
+		cmd.Arguments = append(cmd.Arguments, data)
+	}
+	return cmd, nil
 }

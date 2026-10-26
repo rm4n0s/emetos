@@ -50,11 +50,11 @@ func TestTheManifestContributesTheGoFeatures(t *testing.T) {
 			t.Errorf("command %s = %+v, %v", id, c, ok)
 		}
 	}
-	// the panel views of the tools (step 14.1) and of Go: Run (step 14.2)
-	if len(m.Contributes.PanelViews) != 2 || m.Contributes.PanelViews[0].ID != ToolsViewID || m.Contributes.PanelViews[1].ID != RunViewID {
+	// the panel views of the tools (step 14.1), of Go: Run (step 14.2) and of the tests (step 14.3)
+	if len(m.Contributes.PanelViews) != 3 || m.Contributes.PanelViews[0].ID != ToolsViewID || m.Contributes.PanelViews[1].ID != RunViewID || m.Contributes.PanelViews[2].ID != TestsViewID {
 		t.Errorf("panel views = %+v", m.Contributes.PanelViews)
 	}
-	for _, topic := range []string{extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged} {
+	for _, topic := range []string{extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentSaved} {
 		if !slices.Contains(m.Events.Subscribes, topic) {
 			t.Errorf("subscribes = %v, want %s", m.Events.Subscribes, topic)
 		}

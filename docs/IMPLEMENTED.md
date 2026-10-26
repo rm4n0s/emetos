@@ -2367,3 +2367,51 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - "Go: Run" is Emetos's own command (VS Code Go has none).
 
   Not built: generic functions in the generator, `go.generateTestsFlags`, stdin for Run.
+
+## 14.3 Tests, lint and vet
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-14.3-go-tests-lint
+- **Summary:** SPEC §10.17, §10.13.
+  - **Code lenses for extensions:** a new API, `Languages().RegisterCodeLensProvider` and `RefreshCodeLenses`, with `extension.NewCommand` and `CodeLens.Disabled` (drawn at half opacity, not clickable).
+    - The Go extension puts lenses in `*_test.go` files, found with `go/parser` by go test's rules: "run test | debug test" (and the benchmark form), and "run package tests | run file tests" on the package line.
+    - "debug" is disabled until area 6; `go.enableCodeLens.runtest` turns the lenses off.
+  - **Commands:** Test Function At Cursor, Benchmark Function At Cursor, Test File, Test Package, Test Previous, Cancel Running Tests, Vet Current Package, Vet Workspace, Lint Current Package, Lint Workspace.
+    - Tests run `go test -json -timeout <go.testTimeout> <go.testFlags> -run ^(A|B)$` in local-directory mode, so reruns are never cached, in its own process group. A new run stops the old one.
+  - **"Go Tests" panel:** a tree of packages, tests and subtests with pass, fail and skip, durations, and each node's output, streamed as the JSON events come. Panics and build failures show as failed packages. It has Stop and Run Again.
+  - **Problems:** test failures (`file:line`, build errors, the first panic frame in the workspace), `go vet`, and the lint tool, each under its own owner, replacing only its own scope.
+  - **On save:** `go.vetOnSave` (`package`) and `go.lintOnSave` (`package`) with `go.lintTool` (staticcheck by default; golangci-lint v1 and v2, revive), debounced 400 ms, cancelling an older run. A missing staticcheck offers Install once.
+  - **Settings:** `go.enableCodeLens`, `go.testFlags`, `go.testTimeout`, `go.testEnvVars`, `go.testEnvFile` (only inside the workspace), `go.vetOnSave`, `go.vetFlags`, `go.lintOnSave`, `go.lintTool`, `go.lintFlags`.
+  - **New error tags:** 5, plus one test-helper tag, all route-tested.
+  - **Flake fixed** (by me, in this commit): `TestTheVisibleLinesAreTokenizedBeforeTheyAreDrawn` (`internal/gui/editor`) failed on a loaded machine. It counted on the 4 ms per-frame tokenizing budget reaching the last line on the screen. The view model now has a budget override (`tokenLink.budget`, zero = `tokenBudget`); the test gives it one second, and `raceEnabled`, whose only user was that test, is removed. The editor package passes 20 times without and 5 times with `-race`.
+- **Main files:** `extension/{providers,editors}.go`, `internal/gui/exthost/providers.go`, `internal/gui/editor/{codelens,tokens}.go`, `internal/core/langfeatures/types.go`, `extensions/golang/{testjson,testfuncs,testrun,testpanel,findings,diagnostics,settings,golang}.go`, the fake `go` (now `go test -json` and `go vet`) and a fake lint tool, `extensions/internal/fakeapi/`, `testdata/proof/14.3/`, `docs/SPEC.md` §10.17.
+- **Tests:**
+  - added:
+    - `go test -json` fixtures recorded from the real `go test` (pass, fail, skip, panic, build failure, the legacy build form) parse into the tree;
+    - the exact `-run` arguments of every lens and command;
+    - markers from tests, vet and each lint tool;
+    - debounce and cancel; missing tools;
+    - the env file outside the workspace;
+    - Stop and process groups;
+    - the lens API in `exthost`, a disabled lens in the editor.
+  - tagged `emetos_gopls`: the real `go test` (mixed results, a build failure), the real `go vet`, and the real golangci-lint v2 with its cache in a temporary folder; 25 pass, and 1 is skipped because staticcheck is not installed.
+  - changed: counts in the golang tests, the flaky editor test above.
+- **Goldens:** new `tests_{idle,running,passed,failed,build}_{dark,light}`. I viewed `tests_passed_dark` and the proof; the agent viewed 7 of the 10. No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none. The editor package was re-run with and without `-race` after the flake fix.
+- **Proof:** `docs/implemented-proof-images/14.3-go-tests.png`, made with:
+  ```
+  PROOF_TIMEOUT=150 scripts/proof.sh docs/implemented-proof-images/14.3-go-tests.png --after 7s --commands '[["dev.openFile",{"path":"testdata/proof/14.3/project/calc_test.go","line":10,"column":6}],["sleep","1500ms"],["emetos.golang.testPackage"],["sleep","3s"]]' -- testdata/proof/14.3/project
+  ```
+  The real `go test` ran: the lenses show (with "debug test" dimmed), and the Go Tests panel has `TestAdd` passed, `TestDivide` failed with its output, and a table test passed. Problems shows 1.
+
+  ![14.3 go tests](implemented-proof-images/14.3-go-tests.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.17 "As built (step 14.3)" lists the decisions:
+  - `go.lintTool` defaults to staticcheck; golint is not supported;
+  - one `go lint` owner, with the tool as the source;
+  - the lenses follow go test's rules (no subtest or testify lenses);
+  - "debug" lenses are disabled, not omitted;
+  - a new run stops the old one.
+
+  Not built: Test All Packages, Subtest At Cursor, coverage, `go.testTags`/`go.buildFlags`, `go.testOnSave`, debug (area 6). M14 is complete with this step.

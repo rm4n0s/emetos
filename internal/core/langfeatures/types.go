@@ -45,6 +45,8 @@ type Command struct {
 	ID        string
 	Arguments []json.RawMessage
 	Owner     string
+	// Disabled says that the command is shown but cannot be run: a code lens shows its title dimmed and a click does nothing.
+	Disabled bool
 }
 
 // Location is a place in a document.

@@ -6,10 +6,12 @@
 // Go Environment". Step 14.2 adds the commands that gopls and the tools give: Add Tags To Struct Fields and Remove Tags From Struct
 // Fields (gopls.modify_tags, else a Go port of gomodifytags), Fill Struct (the code action of gopls), Generate Unit Tests For
 // Function (a table-driven skeleton in the style of gotests), Toggle Test File and Run (go run . in the panel view "Go Run"). The
-// server itself is declared in the manifest and run by the host (SPEC §9.12); the tests, lint and vet of step 14.3 come after.
+// server itself is declared in the manifest and run by the host (SPEC §9.12). Step 14.3 adds the tests (code lenses from the
+// extension's own provider, the commands Test Function At Cursor, Test File, Test Package and Test Previous, `go test -json` read into
+// the panel view "Go Tests", the failures in Problems) and go vet and the lint tool on save into Problems.
 //
-// Every program the extension starts (go env, go install, go run) runs in a process group of its own, under a timeout, a Cancel or
-// a Stop, and ends with the activation.
+// Every program the extension starts (go env, go install, go run, go test, go vet, the lint tool) runs in a process group of its own,
+// under a timeout, a Cancel or a Stop, and ends with the activation.
 package golang
 
 import (
@@ -17,6 +19,8 @@ import (
 	"embed"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
@@ -72,9 +76,10 @@ func (g *golang) Manifest() extension.Manifest {
 	m.Contributes.Menus = append(m.Contributes.Menus, menuItems()...)
 	m.Contributes.PanelViews = append(m.Contributes.PanelViews,
 		extension.PanelViewSpec{ID: ToolsViewID, Title: "Go Tools", Icon: "tools", Order: 50},
-		extension.PanelViewSpec{ID: RunViewID, Title: "Go Run", Icon: "play", Order: 51})
+		extension.PanelViewSpec{ID: RunViewID, Title: "Go Run", Icon: "play", Order: 51},
+		extension.PanelViewSpec{ID: TestsViewID, Title: "Go Tests", Icon: "beaker", Order: 52})
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
-	m.Events.Subscribes = append(m.Events.Subscribes, extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged)
+	m.Events.Subscribes = append(m.Events.Subscribes, extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentSaved)
 	return m
 }
 
@@ -89,6 +94,17 @@ func (g *golang) handlers() map[string]extension.CommandHandler {
 		GenerateTestsCommand:   g.generateTestsCommand,
 		ToggleTestFileCommand:  g.toggleTestFileCommand,
 		RunCommand:             g.runCommand,
+		TestCursorCommand:      g.testCursorCommand,
+		BenchmarkCursorCommand: g.benchmarkCursorCommand,
+		TestFileCommand:        g.testFileCommand,
+		TestPackageCommand:     g.testPackageCommand,
+		TestPreviousCommand:    g.testPreviousCommand,
+		TestCancelCommand:      g.testCancelCommand,
+		TestFunctionCommand:    g.testFunctionCommand,
+		VetPackageCommand:      g.diagCommandHandler(false, scopePackage),
+		VetWorkspaceCommand:    g.diagCommandHandler(false, scopeWorkspace),
+		LintPackageCommand:     g.diagCommandHandler(true, scopePackage),
+		LintWorkspaceCommand:   g.diagCommandHandler(true, scopeWorkspace),
 	}
 }
 
@@ -102,6 +118,19 @@ func commandSpecs() []extension.CommandSpec {
 		{ID: GenerateTestsCommand, Title: "Generate Unit Tests For Function", Category: "Go", Description: "Writes a table-driven test for the function at the cursor into the test file of the file."},
 		{ID: ToggleTestFileCommand, Title: "Toggle Test File", Category: "Go", Description: "Shows the test file of the file in front, or the file of the test file."},
 		{ID: RunCommand, Title: "Run", Category: "Go", Description: "Runs go run . in the folder of the Go file in front and shows the output in the Go Run panel."},
+		// step 14.3; the titles are those of VS Code's Go extension ("Go: Test Function At Cursor", "Go: Test File", ...)
+		{ID: TestCursorCommand, Title: "Test Function At Cursor", Category: "Go", Description: "Runs the test, example or fuzz function at the cursor with go test and shows the result in the Go Tests panel."},
+		{ID: BenchmarkCursorCommand, Title: "Benchmark Function At Cursor", Category: "Go", Description: "Runs the benchmark function at the cursor with go test -bench."},
+		{ID: TestFileCommand, Title: "Test File", Category: "Go", Description: "Runs all the tests of the test file in front."},
+		{ID: TestPackageCommand, Title: "Test Package", Category: "Go", Description: "Runs all the tests of the package of the Go file in front."},
+		{ID: TestPreviousCommand, Title: "Test Previous", Category: "Go", Description: "Runs the last test run again."},
+		{ID: TestCancelCommand, Title: "Cancel Running Tests", Category: "Go", Description: "Stops the test run that goes on."},
+		// the lenses run this one; it has no title, so it is not in the palette
+		{ID: TestFunctionCommand, Category: "Go", Description: "Runs one test or benchmark by its name: {\"uri\": ..., \"name\": ...}."},
+		{ID: VetPackageCommand, Title: "Vet Current Package", Category: "Go", Description: "Runs go vet in the package of the Go file in front and puts the findings into the Problems panel."},
+		{ID: VetWorkspaceCommand, Title: "Vet Workspace", Category: "Go", Description: "Runs go vet ./... in the folder of the workspace."},
+		{ID: LintPackageCommand, Title: "Lint Current Package", Category: "Go", Description: "Runs the lint tool of go.lintTool in the package of the Go file in front."},
+		{ID: LintWorkspaceCommand, Title: "Lint Workspace", Category: "Go", Description: "Runs the lint tool of go.lintTool in the folder of the workspace."},
 	}
 }
 
@@ -142,6 +171,18 @@ type golang struct {
 	tools *toolsPanel
 	// runs is the panel view of Go: Run.
 	runs *runPanel
+	// tests is the panel view "Go Tests" and lastTest the request of the last run, which Test Previous and Run Again run again.
+	tests    *testsPanel
+	lastTest *testRequest
+	// lensesOn is go.enableCodeLens.runtest: the provider of the lenses reads it off the UI thread.
+	lensesOn atomic.Bool
+	// debounce is the wait after a save; timers are the runs that wait, and diagRuns the runs that go on, by their key; vetSet and
+	// lintSet remember the files the markers of go vet and of the lint tool are in.
+	debounce time.Duration
+	timers   map[string]*time.Timer
+	diagRuns map[string]*diagRun
+	vetSet   *markerSet
+	lintSet  *markerSet
 	// missing are the tools the user was told are missing, once each.
 	missing map[string]bool
 	// closers waits for the programs that were started, so that a test can see that none is left.
@@ -155,6 +196,8 @@ func (g *golang) Activate(ctx context.Context, api extension.API) error {
 	}
 	g.api, g.ctx = api, ctx
 	g.missing = map[string]bool{}
+	g.debounce, g.timers, g.diagRuns = saveDebounce, map[string]*time.Timer{}, map[string]*diagRun{}
+	g.vetSet, g.lintSet = newMarkerSet(VetMarkerOwner), newMarkerSet(LintMarkerOwner)
 	var err error
 	if g.status, err = api.StatusBar().Add(extension.StatusItem{ID: StatusID, Name: "Go", Alignment: extension.StatusRight, Priority: statusPriority}); err != nil {
 		return err
@@ -166,6 +209,14 @@ func (g *golang) Activate(ctx context.Context, api extension.API) error {
 	}
 	g.runs = newRunPanel(g)
 	if g.runs.handle, err = api.Views().Provide(RunViewID, extension.ViewContent{Build: g.runs.build}); err != nil {
+		return err
+	}
+	g.tests = newTestsPanel(g)
+	if g.tests.handle, err = api.Views().Provide(TestsViewID, extension.ViewContent{Build: g.tests.build}); err != nil {
+		return err
+	}
+	g.readLensSetting()
+	if _, err = api.Languages().RegisterCodeLensProvider(extension.DocumentSelector{Languages: []string{"go"}}, goLenses{g}); err != nil {
 		return err
 	}
 	for id, handler := range g.handlers() {
@@ -184,14 +235,39 @@ func (g *golang) Activate(ctx context.Context, api extension.API) error {
 			return err
 		}
 	}
+	if _, err = api.Events().Subscribe(extension.TopicDocumentSaved, g.documentSaved); err != nil {
+		return err
+	}
 	g.settingsKey = g.programSettings()
 	api.Settings().OnChange(g.settingsChanged)
+	api.Settings().OnChange(g.lensSettingChanged)
 	for _, uri := range api.Documents().Open() {
 		g.activeGo = g.activeGo || goURI(uri)
 	}
 	g.askVersion()
 	g.updateStatus()
 	return nil
+}
+
+// readLensSetting reads go.enableCodeLens.runtest.
+func (g *golang) readLensSetting() {
+	m, err := extension.SettingValue[map[string]any](g.api.Settings(), EnableCodeLensSetting)
+	on := defaultCodeLensTest
+	if err == nil {
+		if v, ok := m["runtest"].(bool); ok {
+			on = v
+		}
+	}
+	g.lensesOn.Store(on)
+}
+
+// lensSettingChanged asks the editors for the lenses again when go.enableCodeLens.runtest changed.
+func (g *golang) lensSettingChanged() {
+	before := g.lensesOn.Load()
+	g.readLensSetting()
+	if g.lensesOn.Load() != before {
+		g.api.Languages().RefreshCodeLenses()
+	}
 }
 
 // goURI tells whether the URI is of a Go file, by its name: the editor tells the language of the editor in front only when it

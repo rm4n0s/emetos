@@ -37,6 +37,9 @@ type tokenLink struct {
 	frameOpen  bool
 	frameStart time.Time
 	frameSpent time.Duration
+	// budget is the frame's budget; zero means tokenBudget. Tests that check what a frame tokenizes give a
+	// longer one, so that a loaded machine does not leave the lines on the screen to the background.
+	budget time.Duration
 }
 
 // frameStale is how long after the first request for tokens a frame counts as over even if the function
@@ -64,7 +67,11 @@ func (vm *ViewModel) takeFrameBudget(max time.Duration) time.Duration {
 			l.mu.Unlock()
 		})
 	}
-	return min(max, tokenBudget-l.frameSpent)
+	budget := tokenBudget
+	if l.budget > 0 {
+		budget = l.budget
+	}
+	return min(max, budget-l.frameSpent)
 }
 
 // spendFrameBudget notes time spent tokenizing in the frame.
@@ -136,7 +143,11 @@ func (vm *ViewModel) ensureTokens(first, last int) {
 	vm.tok.first, vm.tok.last, vm.tok.visible = first, last, true
 	vm.tok.mu.Unlock()
 	if vm.tok.tokenizer != nil {
-		vm.ensureWithin(last, tokenBudget)
+		budget := tokenBudget
+		if vm.tok.budget > 0 {
+			budget = vm.tok.budget
+		}
+		vm.ensureWithin(last, budget)
 	}
 }
 

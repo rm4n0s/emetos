@@ -1,0 +1,11 @@
+{"Time":"2026-10-27T00:16:17.1+02:00","Action":"start","Package":"example.com/ok"}
+{"Time":"2026-10-27T00:16:17.2+02:00","Action":"run","Package":"example.com/ok","Test":"TestOne"}
+{"Time":"2026-10-27T00:16:17.3+02:00","Action":"output","Package":"example.com/ok","Test":"TestOne","Output":"=== RUN   TestOne\n"}
+{"Time":"2026-10-27T00:16:17.4+02:00","Action":"output","Package":"example.com/ok","Test":"TestOne","Output":"--- PASS: TestOne (1.25s)\n"}
+{"Time":"2026-10-27T00:16:17.5+02:00","Action":"pass","Package":"example.com/ok","Test":"TestOne","Elapsed":1.25}
+{"Time":"2026-10-27T00:16:17.6+02:00","Action":"run","Package":"example.com/ok","Test":"TestTwo"}
+{"Time":"2026-10-27T00:16:17.7+02:00","Action":"output","Package":"example.com/ok","Test":"TestTwo","Output":"--- PASS: TestTwo (0.01s)\n"}
+{"Time":"2026-10-27T00:16:17.8+02:00","Action":"pass","Package":"example.com/ok","Test":"TestTwo","Elapsed":0.01}
+{"Time":"2026-10-27T00:16:17.9+02:00","Action":"output","Package":"example.com/ok","Output":"PASS\n"}
+{"Time":"2026-10-27T00:16:18.0+02:00","Action":"output","Package":"example.com/ok","Output":"ok  \texample.com/ok\t1.3s\n"}
+{"Time":"2026-10-27T00:16:18.1+02:00","Action":"pass","Package":"example.com/ok","Elapsed":1.3}

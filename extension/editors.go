@@ -307,4 +307,9 @@ type Languages interface {
 	RegisterFormattingProvider(sel DocumentSelector, p FormattingProvider) (dispose func(), err error)
 	// RegisterRenameProvider adds a rename provider.
 	RegisterRenameProvider(sel DocumentSelector, p RenameProvider) (dispose func(), err error)
+	// RegisterCodeLensProvider adds a provider of code lenses.
+	RegisterCodeLensProvider(sel DocumentSelector, p CodeLensProvider) (dispose func(), err error)
+	// RefreshCodeLenses tells the editors that the code lenses of the providers of this extension (and of the language
+	// servers, which do the same by themselves) are stale: they ask again. It may be called from any goroutine.
+	RefreshCodeLenses()
 }

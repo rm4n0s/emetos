@@ -161,9 +161,12 @@ func TestTheVisibleLinesAreTokenizedBeforeTheyAreDrawn(t *testing.T) {
 		text.WriteString("var x = 1 // a line\n")
 	}
 	vm, tok := highlighted(t, text.String())
+	// The frame's budget is a time: on a loaded machine (the race detector, every package at once) 4 ms may
+	// not reach the last line on the screen, which is what this test is about, not the time.
+	vm.tok.budget = time.Second
 	ts := testutil.New(t, ui.Size{Width: 500, Height: 200})
 	pumpHighlighted(t, ts, vm, kit.DarkModern(), darkModernTokens(t))
-	if tok.Line(0) == nil || (!raceEnabled && tok.Line(5) == nil) {
+	if tok.Line(0) == nil || tok.Line(5) == nil {
 		t.Error("the lines on the screen have tokens although the background loop never ran")
 	}
 	if tok.Line(400) != nil {

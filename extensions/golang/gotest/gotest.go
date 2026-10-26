@@ -34,6 +34,25 @@ const (
 	EnvRunGate   = "FAKEGO_RUN_GATE"
 	EnvRunExit   = "FAKEGO_RUN_EXIT"
 	EnvRunHang   = "FAKEGO_RUN_HANG"
+	// EnvTestFile is the file `go test` prints the lines of (the lines of `go test -json`; "#gate", "#hang" and "#stderr text" are
+	// instructions), and EnvTestExit the status it ends with. EnvVetOut is what `go vet` prints to the standard error and EnvVetExit
+	// its status.
+	EnvTestFile = "FAKEGO_TEST_FILE"
+	EnvTestExit = "FAKEGO_TEST_EXIT"
+	EnvVetOut   = "FAKEGO_VET_OUT"
+	EnvVetExit  = "FAKEGO_VET_EXIT"
+)
+
+// The environment variables the fake lint tool reads (see its package comment).
+const (
+	// EnvLintLog is the path of a JSONL file the fake appends a record of each run to (the tool's name, arguments and working
+	// folder), EnvLintOut what it prints to the standard output and EnvLintExit the status it ends with (1 when it printed
+	// something, else 0). EnvLintGate is a file it waits for before it prints, and EnvLintHang makes it hang after it started.
+	EnvLintLog  = "FAKELINT_LOG"
+	EnvLintOut  = "FAKELINT_OUT"
+	EnvLintExit = "FAKELINT_EXIT"
+	EnvLintGate = "FAKELINT_GATE"
+	EnvLintHang = "FAKELINT_HANG"
 )
 
 // Build builds the fake program into dir, as the file "go", and returns its path. It runs the real Go tool (once per test
@@ -50,6 +69,24 @@ func Build(dir string) (string, error) {
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if msg, err := cmd.CombinedOutput(); err != nil {
 		return "", errors.NewErr("FakeGoBuildFailed", err).SetMetadata("output", string(msg))
+	}
+	return out, nil
+}
+
+// BuildLint builds the fake lint tool (internal/fakelint) into dir under the name of the tool it stands for (staticcheck,
+// golangci-lint, revive), and returns its path. It fails with the tag FakeLintBuildFailed, with the output of the Go tool in the
+// metadata.
+func BuildLint(dir, name string) (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", errors.New("FakeLintBuildFailed", "cannot find the source of gotest")
+	}
+	out := filepath.Join(dir, name)
+	cmd := exec.Command("go", "build", "-o", out, "./internal/fakelint")
+	cmd.Dir = filepath.Dir(file)
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if msg, err := cmd.CombinedOutput(); err != nil {
+		return "", errors.NewErr("FakeLintBuildFailed", err).SetMetadata("output", string(msg))
 	}
 	return out, nil
 }

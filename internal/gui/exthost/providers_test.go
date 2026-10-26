@@ -433,3 +433,103 @@ func assertRoute(t *testing.T, err error, route string) {
 	t.Helper()
 	mustRoute(t, err, route)
 }
+
+// lensProvider answers two lenses on the first line: one that runs and one that is disabled.
+type lensProvider struct {
+	seen  *extension.TextDocument
+	fail  bool
+	panic bool
+}
+
+func (p *lensProvider) ProvideCodeLenses(_ context.Context, doc extension.TextDocument) ([]extension.CodeLens, error) {
+	p.seen = &doc
+	if p.panic {
+		panic("lens boom")
+	}
+	if p.fail {
+		return nil, errors.New("LensFailure", "it failed")
+	}
+	run, err := extension.NewCommand("run test", "go.runTest", map[string]any{"name": "TestA"})
+	if err != nil {
+		return nil, err
+	}
+	return []extension.CodeLens{
+		{Range: extension.Range{Start: extension.Position{Line: 2}, End: extension.Position{Line: 2, Col: 5}}, Command: run},
+		{Range: extension.Range{Start: extension.Position{Line: 2}, End: extension.Position{Line: 2}}, Command: extension.Command{Title: "debug test"}, Disabled: true},
+	}, nil
+}
+
+func TestACodeLensProviderGivesLensesWithCommandsOfTheExtension(t *testing.T) {
+	p := &lensProvider{}
+	var api extension.API
+	_, tb := providerTab(t, "golens", func(a extension.API) error {
+		api = a
+		_, err := a.Languages().RegisterCodeLensProvider(extension.DocumentSelector{Languages: []string{"go"}}, p)
+		return err
+	})
+	doc := goDocument("package a\n\nfunc TestA(t *testing.T) {}\n")
+	lenses, errs := tb.scope.Features().CodeLenses(context.Background(), doc)
+	if len(errs) != 0 || len(lenses) != 2 {
+		t.Fatalf("lenses = %+v %v", lenses, errs)
+	}
+	run, dbg := lenses[0], lenses[1]
+	if run.Range.Start.Line != 2 || run.Command == nil || run.Command.Title != "run test" || run.Command.ID != "go.runTest" || run.Command.Owner != "golens" || run.Command.Disabled || run.Owner != "golens" {
+		t.Errorf("run lens = %+v %+v", run, run.Command)
+	}
+	if len(run.Command.Arguments) != 1 || string(run.Command.Arguments[0]) != `{"name":"TestA"}` {
+		t.Errorf("arguments = %s", run.Command.Arguments)
+	}
+	if dbg.Command == nil || dbg.Command.Title != "debug test" || !dbg.Command.Disabled {
+		t.Errorf("debug lens = %+v", dbg.Command)
+	}
+	if p.seen == nil || p.seen.URI != "file:///work/one/a.go" || p.seen.LanguageID != "go" {
+		t.Errorf("the provider saw %+v", p.seen)
+	}
+	// a document of another language is not the provider's
+	other := doc
+	other.LanguageID = "rust"
+	if lenses, _ := tb.scope.Features().CodeLenses(context.Background(), other); len(lenses) != 0 {
+		t.Errorf("lenses of another language = %+v", lenses)
+	}
+	// RefreshCodeLenses tells the listeners of the registry, once for each call
+	refreshes := 0
+	stop := tb.scope.Features().OnRefresh(func(f langfeatures.Feature) {
+		if f == langfeatures.FeatureCodeLens {
+			refreshes++
+		}
+	})
+	api.Languages().RefreshCodeLenses()
+	api.Languages().RefreshCodeLenses()
+	stop()
+	if refreshes != 2 {
+		t.Errorf("%d refreshes", refreshes)
+	}
+}
+
+func TestACodeLensProviderThatFailsOrPanicsGivesNoLenses(t *testing.T) {
+	failing := &lensProvider{fail: true}
+	_, tb := providerTab(t, "lensfail", func(a extension.API) error {
+		_, err := a.Languages().RegisterCodeLensProvider(extension.DocumentSelector{}, failing)
+		return err
+	})
+	lenses, errs := tb.scope.Features().CodeLenses(context.Background(), goDocument("package a\n"))
+	if len(lenses) != 0 || len(errs) != 1 {
+		t.Fatalf("lenses = %+v errors = %v", lenses, errs)
+	}
+	assertRoute(t, errs[0].Err, "guardProvider.ExtensionProviderFailed")
+	failing.fail, failing.panic = false, true
+	_, errs = tb.scope.Features().CodeLenses(context.Background(), goDocument("package a\n"))
+	if len(errs) != 1 {
+		t.Fatalf("errors = %v", errs)
+	}
+	assertRoute(t, errs[0].Err, "guardProvider.func1.ExtensionProviderPanicked")
+	tb.pump()
+	if tb.scope.State("lensfail") != StateFailed {
+		t.Errorf("state = %v", tb.scope.State("lensfail"))
+	}
+	var api extension.API
+	_, tb2 := providerTab(t, "lensnil", func(a extension.API) error { api = a; return nil })
+	_ = tb2
+	_, err := api.Languages().RegisterCodeLensProvider(extension.DocumentSelector{}, nil)
+	assertRoute(t, err, "register.ExtensionProviderInvalid")
+}

@@ -1,0 +1,4 @@
+# what go test, go vet and the lint tools may leave here when the proof runs them
+go.sum
+*.test
+*.out

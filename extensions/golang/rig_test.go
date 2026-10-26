@@ -20,6 +20,10 @@ import (
 // is built once per test run by TestMain.
 var fakeGoDir string
 
+// fakeLintDir is the folder that holds the fake lint tool as staticcheck, golangci-lint and revive (step 14.3); a test that wants
+// them puts it in PATH after the fake go.
+var fakeLintDir string
+
 // emptyPath is an empty folder: the PATH of every test that has no go program, whatever the environment of the run is.
 var emptyPath string
 
@@ -43,6 +47,17 @@ func run(m *testing.M) int {
 	if _, err := gotest.Build(fakeGoDir); err != nil {
 		fmt.Fprintln(os.Stderr, "building the fake go:", err)
 		return 1
+	}
+	fakeLintDir = filepath.Join(dir, "fakelint")
+	if err := os.Mkdir(fakeLintDir, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, "fake lint folder:", err)
+		return 1
+	}
+	for _, name := range []string{"staticcheck", "golangci-lint", "revive"} {
+		if _, err := gotest.BuildLint(fakeLintDir, name); err != nil {
+			fmt.Fprintln(os.Stderr, "building the fake lint tool:", err)
+			return 1
+		}
 	}
 	emptyPath = filepath.Join(dir, "empty-path")
 	if err := os.Mkdir(emptyPath, 0o755); err != nil {
@@ -81,7 +96,9 @@ type rig struct {
 	ext    *golang
 	folder string
 	log    string
-	cancel context.CancelFunc
+	// lintLog is the file the fake lint tools write a record of each run to.
+	lintLog string
+	cancel  context.CancelFunc
 }
 
 // rigOptions are what a test changes before the activation.
@@ -89,6 +106,8 @@ type rigOptions struct {
 	// withGo puts the fake go program in PATH; realGo leaves PATH as the run has it, for the tests of the real tools (build tag
 	// emetos_gopls) that only read. Without either PATH is empty, so that no test can reach the user's own go.
 	withGo, realGo bool
+	// withLint puts the fake lint tools (staticcheck, golangci-lint, revive) in PATH after the fake go.
+	withLint bool
 	// env are the variables of the fake ("NAME=value") and settings the values of settings set before the activation.
 	env      []string
 	settings map[string]any
@@ -106,12 +125,16 @@ func newRig(t *testing.T, opts rigOptions) *rig {
 		}
 	}
 	switch {
+	case opts.withGo && opts.withLint:
+		t.Setenv("PATH", fakeGoDir+string(os.PathListSeparator)+fakeLintDir)
 	case opts.withGo:
 		t.Setenv("PATH", fakeGoDir)
 	case !opts.realGo:
 		t.Setenv("PATH", emptyPath)
 	}
 	t.Setenv(gotest.EnvLog, r.log)
+	r.lintLog = filepath.Join(t.TempDir(), "fakelint.log")
+	t.Setenv(gotest.EnvLintLog, r.lintLog)
 	for _, kv := range opts.env {
 		name, value, _ := strings.Cut(kv, "=")
 		t.Setenv(name, value)
@@ -180,6 +203,9 @@ func (r *rig) noProgramLeft() {
 	r.t.Helper()
 	for _, run := range r.runs() {
 		requireGone(r.t, "the fake go "+strings.Join(run.Args, " "), run.Pgid)
+	}
+	for _, run := range r.lintRuns() {
+		requireGone(r.t, "the fake "+run.Tool+" "+strings.Join(run.Args, " "), run.Pgid)
 	}
 }
 

@@ -26,6 +26,26 @@ const (
 	ToolsEnvVarsSetting      = "go.toolsEnvVars"
 )
 
+// The settings of the tests, the lenses, vet and lint (step 14.3), with the names and defaults of VS Code's Go extension.
+const (
+	// EnableCodeLensSetting is the object whose member runtest turns the lenses "run test | debug test" on and off.
+	EnableCodeLensSetting = "go.enableCodeLens"
+	// TestFlagsSetting are the flags passed to go test, TestTimeoutSetting the -timeout (a duration), TestEnvVarsSetting the
+	// environment of the tests and TestEnvFileSetting a file of NAME=value lines inside the workspace.
+	TestFlagsSetting    = "go.testFlags"
+	TestTimeoutSetting  = "go.testTimeout"
+	TestEnvVarsSetting  = "go.testEnvVars"
+	TestEnvFileSetting  = "go.testEnvFile"
+	VetOnSaveSetting    = "go.vetOnSave"
+	VetFlagsSetting     = "go.vetFlags"
+	LintOnSaveSetting   = "go.lintOnSave"
+	LintToolSetting     = "go.lintTool"
+	LintFlagsSetting    = "go.lintFlags"
+	defaultTestTimeout  = "30s"
+	defaultLintTool     = "staticcheck"
+	defaultCodeLensTest = true
+)
+
 // category is the group of the settings editor.
 const category = "Go"
 
@@ -145,7 +165,8 @@ func settingSpecs() []extension.SettingSpec {
 			Key: AlternateToolsSetting, Type: "object", Default: map[string]any{}, Category: category,
 			Description: "Alternate tools or alternate paths for the same tools used by the Go extension. Provide either an absolute path or " +
 				"the name of the program in PATH. Useful when you want to use a wrapper script for the Go tools. The names the extension " +
-				"reads are `go` (the go program), `dlv` and `staticcheck`; gopls has its own setting, `go.goplsPath`.",
+				"reads are `go` (the go program), `dlv`, and the lint tools (`staticcheck`, `golangci-lint`, `golangci-lint-v2` and `revive`); " +
+				"gopls has its own setting, `go.goplsPath`.",
 		},
 		{
 			Key: ToolsManagementGoSetting, Type: "string", Default: "", Category: category,
@@ -158,6 +179,46 @@ func settingSpecs() []extension.SettingSpec {
 		{
 			Key: ToolsEnvVarsSetting, Type: "object", Default: map[string]any{}, Category: category,
 			Description: "Environment variables that will be passed to the programs the Go extension runs (`go env`, `go install`), such as `CGO_CFLAGS`. Format as string key:value pairs.",
+		},
+		{
+			Key: EnableCodeLensSetting, Type: "object", Category: category, Default: map[string]any{"runtest": defaultCodeLensTest},
+			Description: "Feature level setting to enable/disable code lens for running and debugging tests. `runtest` shows \"run test\" and \"debug test\" above the tests of a `_test.go` file (debugging comes later, so \"debug test\" is shown disabled).",
+		},
+		{
+			Key: TestFlagsSetting, Type: "array", Category: category, Default: []string{},
+			Description: "Flags to pass to `go test` (for example `[\"-race\", \"-tags=integration\"]`). The extension adds `-json` and, unless the flags have them, `-timeout` and `-run`.",
+		},
+		{
+			Key: TestTimeoutSetting, Type: "string", Category: category, Default: defaultTestTimeout,
+			Description: "Specifies the timeout for `go test` in ParseDuration format (`30s`, `5m`). Benchmarks have none.",
+		},
+		{
+			Key: TestEnvVarsSetting, Type: "object", Category: category, Default: map[string]any{},
+			Description: "Environment variables that will be passed to the process that runs the Go tests. They win over `go.testEnvFile` and `go.toolsEnvVars`.",
+		},
+		{
+			Key: TestEnvFileSetting, Type: "string", Category: category, Default: "",
+			Description: "Path of a file containing environment variable definitions (`NAME=value` lines, `#` comments), absolute or relative to the folder of the workspace. The file must be inside the workspace.",
+		},
+		{
+			Key: VetOnSaveSetting, Type: "string", Category: category, Default: "package", Enum: []any{"package", "workspace", "off"},
+			Description: "Vets code on file save using `go vet`. `package` vets the package of the saved file, `workspace` all the packages of the folder, `off` does not run vet automatically. The findings are in the Problems panel.",
+		},
+		{
+			Key: VetFlagsSetting, Type: "array", Category: category, Default: []string{},
+			Description: "Flags to pass to `go vet` (for example `[\"-printf=false\"]`).",
+		},
+		{
+			Key: LintOnSaveSetting, Type: "string", Category: category, Default: "package", Enum: []any{"file", "package", "workspace", "off"},
+			Description: "Lints code on file save using the lint tool of `go.lintTool`. `file` lints the saved file, `package` its package, `workspace` all the packages of the folder, `off` does not run the tool automatically. The findings are in the Problems panel.",
+		},
+		{
+			Key: LintToolSetting, Type: "string", Category: category, Default: defaultLintTool, Enum: []any{"staticcheck", "golangci-lint", "golangci-lint-v2", "revive"},
+			Description: "Specifies the client-side lint tool the Go extension runs. `golangci-lint` is the 1.x version of that tool and `golangci-lint-v2` the 2.x one. The tool must be installed (**Go: Install/Update Tools** installs `staticcheck`); a tool is looked up in PATH or in `go.alternateTools`.",
+		},
+		{
+			Key: LintFlagsSetting, Type: "array", Category: category, Default: []string{},
+			Description: "Flags to pass to the lint tool (for example `[\"-checks=all\"]` for staticcheck).",
 		},
 	}
 }

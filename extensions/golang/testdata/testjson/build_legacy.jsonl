@@ -1,0 +1,5 @@
+{"Time":"2026-10-27T00:16:17.273822601+02:00","Action":"start","Package":"example.com/broken"}
+{"Time":"2026-10-27T00:16:17.273882623+02:00","Action":"output","Package":"example.com/broken","Output":"# example.com/broken [example.com/broken.test]\n"}
+{"Time":"2026-10-27T00:16:17.273882624+02:00","Action":"output","Package":"example.com/broken","Output":"./b_test.go:6:12: undefined: undefinedName\n"}
+{"Time":"2026-10-27T00:16:17.273882625+02:00","Action":"output","Package":"example.com/broken","Output":"FAIL\texample.com/broken [build failed]\n"}
+{"Time":"2026-10-27T00:16:17.273890598+02:00","Action":"fail","Package":"example.com/broken","Elapsed":0,"FailedBuild":"example.com/broken [example.com/broken.test]"}

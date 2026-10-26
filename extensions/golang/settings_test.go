@@ -27,6 +27,17 @@ func TestTheSettingsOfTheExtension(t *testing.T) {
 		{ToolsEnvVarsSetting, "object", "{}", "Environment variables"},
 		{AddTagsSetting, "object", `{"options":"","promptForTags":false,"tags":"","template":"","transform":""}`, "used by the Add Tags command"},
 		{RemoveTagsSetting, "object", `{"options":"","promptForTags":false,"tags":""}`, "used by the Remove Tags command"},
+		// step 14.3, with the defaults of VS Code's Go extension (go.lintTool is staticcheck here: SPEC §10.17)
+		{EnableCodeLensSetting, "object", `{"runtest":true}`, "code lens for running and debugging tests"},
+		{TestFlagsSetting, "array", `[]`, "Flags to pass to `go test`"},
+		{TestTimeoutSetting, "string", `"30s"`, "timeout for `go test`"},
+		{TestEnvVarsSetting, "object", `{}`, "process that runs the Go tests"},
+		{TestEnvFileSetting, "string", `""`, "must be inside the workspace"},
+		{VetOnSaveSetting, "string", `"package"`, "Vets code on file save"},
+		{VetFlagsSetting, "array", `[]`, "Flags to pass to `go vet`"},
+		{LintOnSaveSetting, "string", `"package"`, "Lints code on file save"},
+		{LintToolSetting, "string", `"staticcheck"`, "client-side lint tool"},
+		{LintFlagsSetting, "array", `[]`, "Flags to pass to the lint tool"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {

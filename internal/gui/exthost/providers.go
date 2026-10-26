@@ -133,6 +133,22 @@ func (l languagesAPI) RegisterRenameProvider(sel extension.DocumentSelector, p e
 	})
 }
 
+// RegisterCodeLensProvider implements extension.Languages.
+func (l languagesAPI) RegisterCodeLensProvider(sel extension.DocumentSelector, p extension.CodeLensProvider) (func(), error) {
+	return l.register("codeLens", sel, p == nil, func(owner string, s langfeatures.Selector) func() {
+		return l.inst.scope.features.RegisterCodeLens(owner, s, codeLensAdapter{adapter(l), p})
+	})
+}
+
+// RefreshCodeLenses implements extension.Languages: the editors ask for the lenses again, as they do when a server sends
+// workspace/codeLens/refresh.
+func (l languagesAPI) RefreshCodeLenses() {
+	if l.inst.isDead() {
+		return
+	}
+	l.inst.scope.features.Refreshed(langfeatures.FeatureCodeLens)
+}
+
 // ---- conversions ----
 
 func toTextDocument(d langfeatures.Document) extension.TextDocument {
@@ -523,6 +539,27 @@ func (a renameAdapter) ProvideRename(ctx context.Context, doc langfeatures.Docum
 		}
 		res, e = fromWorkspaceEdit(we)
 		return e
+	})
+	return res, err
+}
+
+type codeLensAdapter struct {
+	adapter
+	p extension.CodeLensProvider
+}
+
+func (a codeLensAdapter) ProvideCodeLenses(ctx context.Context, doc langfeatures.Document) (res []langfeatures.CodeLens, err error) {
+	err = a.call("codeLens", func() error {
+		lenses, e := a.p.ProvideCodeLenses(ctx, toTextDocument(doc))
+		if e != nil {
+			return e
+		}
+		for _, l := range lenses {
+			cmd := fromCommand(&l.Command, a.inst.id)
+			cmd.Disabled = l.Disabled
+			res = append(res, langfeatures.CodeLens{Range: fromRange(l.Range), Command: cmd, Owner: a.inst.id})
+		}
+		return nil
 	})
 	return res, err
 }

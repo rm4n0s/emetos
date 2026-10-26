@@ -1,0 +1,29 @@
+{"Time":"2026-10-27T00:16:17.228295337+02:00","Action":"start","Package":"example.com/panics"}
+{"Time":"2026-10-27T00:16:17.230112439+02:00","Action":"run","Package":"example.com/panics","Test":"TestOk"}
+{"Time":"2026-10-27T00:16:17.230179215+02:00","Action":"output","Package":"example.com/panics","Test":"TestOk","Output":"=== RUN   TestOk\n","OutputType":"frame"}
+{"Time":"2026-10-27T00:16:17.230218889+02:00","Action":"output","Package":"example.com/panics","Test":"TestOk","Output":"--- PASS: TestOk (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T00:16:17.230223228+02:00","Action":"pass","Package":"example.com/panics","Test":"TestOk","Elapsed":0}
+{"Time":"2026-10-27T00:16:17.230229469+02:00","Action":"run","Package":"example.com/panics","Test":"TestBoom"}
+{"Time":"2026-10-27T00:16:17.230231152+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"=== RUN   TestBoom\n","OutputType":"frame"}
+{"Time":"2026-10-27T00:16:17.230234068+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"--- FAIL: TestBoom (0.00s)\n","OutputType":"frame"}
+{"Time":"2026-10-27T00:16:17.23225886+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"panic: assignment to entry in nil map [recovered, repanicked]\n"}
+{"Time":"2026-10-27T00:16:17.232271925+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\n"}
+{"Time":"2026-10-27T00:16:17.232274119+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"goroutine 19 [running]:\n"}
+{"Time":"2026-10-27T00:16:17.232278096+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"testing.tRunner.func1.2({0x6b8270, 0x6f0100})\n"}
+{"Time":"2026-10-27T00:16:17.232280361+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\t/usr/local/go/src/testing/testing.go:2125 +0x232\n"}
+{"Time":"2026-10-27T00:16:17.232282334+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"testing.tRunner.func1()\n"}
+{"Time":"2026-10-27T00:16:17.232284078+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\t/usr/local/go/src/testing/testing.go:2128 +0x329\n"}
+{"Time":"2026-10-27T00:16:17.232285841+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"panic({0x6b8270?, 0x6f0100?})\n"}
+{"Time":"2026-10-27T00:16:17.232287574+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\t/usr/local/go/src/runtime/panic.go:859 +0x125\n"}
+{"Time":"2026-10-27T00:16:17.232289087+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"example.com/panics.Boom(...)\n"}
+{"Time":"2026-10-27T00:16:17.232291051+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\t{{DIR}}/p.go:3\n"}
+{"Time":"2026-10-27T00:16:17.232294918+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"example.com/panics.TestBoom(0x2f6debd5a488?)\n"}
+{"Time":"2026-10-27T00:16:17.232297232+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\t{{DIR}}/p_test.go:9 +0x29\n"}
+{"Time":"2026-10-27T00:16:17.232298996+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"testing.tRunner(0x2f6debd5a488, 0x6d5d08)\n"}
+{"Time":"2026-10-27T00:16:17.232300839+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\t/usr/local/go/src/testing/testing.go:2195 +0xea\n"}
+{"Time":"2026-10-27T00:16:17.232302693+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"created by testing.(*T).Run in goroutine 1\n"}
+{"Time":"2026-10-27T00:16:17.232304336+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"\t/usr/local/go/src/testing/testing.go:2260 +0x4d4\n"}
+{"Time":"2026-10-27T00:16:17.232572499+02:00","Action":"output","Package":"example.com/panics","Test":"TestBoom","Output":"exit status 2\n"}
+{"Time":"2026-10-27T00:16:17.232590002+02:00","Action":"fail","Package":"example.com/panics","Test":"TestBoom","Elapsed":0}
+{"Time":"2026-10-27T00:16:17.232592737+02:00","Action":"output","Package":"example.com/panics","Output":"FAIL\texample.com/panics\t0.004s\n","OutputType":"frame"}
+{"Time":"2026-10-27T00:16:17.232603477+02:00","Action":"fail","Package":"example.com/panics","Elapsed":0.004}

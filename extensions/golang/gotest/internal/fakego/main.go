@@ -10,10 +10,15 @@
 // group to FAKEGO_PIDFILE, one number per line, and waits). For `go run`, FAKEGO_RUN_STDOUT is printed to the standard output;
 // then, when FAKEGO_RUN_GATE is set, the program waits until that file exists; then FAKEGO_RUN_STDERR is printed to the standard
 // error, and the program ends with the status FAKEGO_RUN_EXIT (0 by default); with FAKEGO_RUN_HANG set it hangs after the output
-// as a hanging install does. A hard limit of 60 seconds ends the program whatever happens.
+// as a hanging install does. For `go test` (step 14.3), FAKEGO_TEST_FILE is a file whose lines are printed to the standard output
+// one by one (the lines of `go test -json`, with {{DIR}} replaced by the working folder); a line "#gate" waits for the file FAKEGO_RUN_GATE, "#hang" hangs as a hanging install
+// does, and "#stderr text" prints text to the standard error. The status is FAKEGO_TEST_EXIT, else 1 when a line has a failed
+// action and 0 when none has. For `go vet`, FAKEGO_VET_OUT is printed to the standard error (where go vet prints) and the status is
+// FAKEGO_VET_EXIT, else 1 when there is output. A hard limit of 60 seconds ends the program whatever happens.
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -39,6 +44,10 @@ func main() {
 		install(args[1:])
 	case len(args) >= 1 && args[0] == "run":
 		goRun()
+	case len(args) >= 1 && args[0] == "test":
+		goTest()
+	case len(args) >= 1 && args[0] == "vet":
+		goVet()
 	default:
 		fmt.Fprintf(os.Stderr, "fakego: unsupported command %q\n", strings.Join(args, " "))
 		os.Exit(2)
@@ -53,7 +62,7 @@ func record(args []string) {
 	}
 	dir, _ := os.Getwd()
 	vars := map[string]string{}
-	for _, name := range []string{"GOPATH", "GOFLAGS", "GO111MODULE", "GOTOOLCHAIN", "GOBIN", "FAKE_TOOLS_VAR", "FAKEGO_DELAY_MS"} {
+	for _, name := range []string{"GOPATH", "GOFLAGS", "GO111MODULE", "GOTOOLCHAIN", "GOBIN", "FAKE_TOOLS_VAR", "FAKEGO_DELAY_MS", "FAKE_TEST_VAR", "FAKE_ENVFILE_VAR", "FAKE_ENVFILE_QUOTED"} {
 		if v, ok := os.LookupEnv(name); ok {
 			vars[name] = v
 		}
@@ -136,14 +145,7 @@ func goRun() {
 	if out := os.Getenv("FAKEGO_RUN_STDOUT"); out != "" {
 		fmt.Println(out)
 	}
-	if gate := os.Getenv("FAKEGO_RUN_GATE"); gate != "" {
-		for {
-			if _, err := os.Stat(gate); err == nil {
-				break
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
-	}
+	waitFor(os.Getenv("FAKEGO_RUN_GATE"))
 	if os.Getenv("FAKEGO_RUN_HANG") != "" {
 		hang()
 	}
@@ -152,6 +154,75 @@ func goRun() {
 	}
 	if code, err := strconv.Atoi(os.Getenv("FAKEGO_RUN_EXIT")); err == nil {
 		os.Exit(code)
+	}
+}
+
+// goTest is `go test`: the lines of the file, the gate and the hang they ask for, and the status.
+func goTest() {
+	path := os.Getenv("FAKEGO_TEST_FILE")
+	failed := false
+	if path != "" {
+		f, err := os.Open(path)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "fakego:", err)
+			os.Exit(2)
+		}
+		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
+		for sc.Scan() {
+			line := sc.Text()
+			switch {
+			case line == "#gate":
+				waitFor(os.Getenv("FAKEGO_RUN_GATE"))
+			case line == "#hang":
+				hang()
+			case strings.HasPrefix(line, "#stderr "):
+				fmt.Fprintln(os.Stderr, strings.TrimPrefix(line, "#stderr "))
+			default:
+				line = strings.ReplaceAll(line, "{{DIR}}", workDir())
+				if strings.Contains(line, `"Action":"fail"`) {
+					failed = true
+				}
+				fmt.Println(line)
+			}
+		}
+		_ = f.Close()
+	}
+	if code, err := strconv.Atoi(os.Getenv("FAKEGO_TEST_EXIT")); err == nil {
+		os.Exit(code)
+	}
+	if failed {
+		os.Exit(1)
+	}
+}
+
+// goVet is `go vet`: the findings go to the standard error.
+func goVet() {
+	out := os.Getenv("FAKEGO_VET_OUT")
+	if out != "" {
+		fmt.Fprintln(os.Stderr, out)
+	}
+	if code, err := strconv.Atoi(os.Getenv("FAKEGO_VET_EXIT")); err == nil {
+		os.Exit(code)
+	}
+	if out != "" {
+		os.Exit(1)
+	}
+}
+
+// workDir is the working folder as the system reports it.
+func workDir() string {
+	dir, _ := os.Getwd()
+	return dir
+}
+
+// waitFor waits until the file exists.
+func waitFor(gate string) {
+	for gate != "" {
+		if _, err := os.Stat(gate); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

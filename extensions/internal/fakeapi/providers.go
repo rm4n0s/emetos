@@ -12,7 +12,7 @@ import (
 // ProviderRegistration is a provider an extension registered with Languages().Register...Provider.
 type ProviderRegistration struct {
 	// Feature is completion, hover, signatureHelp, definition, references, documentSymbols, documentHighlights, codeActions,
-	// formatting or rename.
+	// formatting, rename or codeLens.
 	Feature string
 	// Selector is the documents the provider is for.
 	Selector extension.DocumentSelector
@@ -95,4 +95,23 @@ func (l languages) RegisterFormattingProvider(sel extension.DocumentSelector, p 
 // RegisterRenameProvider implements extension.Languages.
 func (l languages) RegisterRenameProvider(sel extension.DocumentSelector, p extension.RenameProvider) (func(), error) {
 	return l.register("rename", sel, p, nil)
+}
+
+// RegisterCodeLensProvider implements extension.Languages.
+func (l languages) RegisterCodeLensProvider(sel extension.DocumentSelector, p extension.CodeLensProvider) (func(), error) {
+	return l.register("codeLens", sel, p, nil)
+}
+
+// RefreshCodeLenses implements extension.Languages: the call is counted (CodeLensRefreshes).
+func (l languages) RefreshCodeLenses() {
+	l.a.mu.Lock()
+	l.a.lensRefreshes++
+	l.a.mu.Unlock()
+}
+
+// CodeLensRefreshes is how many times the extension asked for its code lenses to be asked again.
+func (a *API) CodeLensRefreshes() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lensRefreshes
 }
