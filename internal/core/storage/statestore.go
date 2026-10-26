@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"maps"
 	"os"
@@ -147,11 +148,21 @@ func cleanWorkspaceTabs(list []WorkspaceTab) []WorkspaceTab {
 	var out []WorkspaceTab
 	seen := map[string]bool{}
 	for _, t := range list {
-		if !validWindowID(t.ID) || seen[t.ID] || (t.Kind != "" && t.Kind != TabKindWorkspace) {
+		extensionTab := t.Kind != "" && t.Kind != TabKindWorkspace
+		if !validWindowID(t.ID) || seen[t.ID] || (extensionTab && !ValidTabKind(t.Kind)) {
 			continue
 		}
 		seen[t.ID] = true
-		t.Kind = ""
+		if extensionTab {
+			// the tab of an extension has no folder, state id or profile; its state must be JSON
+			t.Folder, t.StateID, t.Profile = "", "", ""
+			if len(t.State) > 0 && !json.Valid(t.State) {
+				t.State = nil
+			}
+			out = append(out, t)
+			continue
+		}
+		t.Kind, t.Title, t.State = "", "", nil
 		if t.Folder != "" {
 			if !filepath.IsAbs(t.Folder) {
 				continue

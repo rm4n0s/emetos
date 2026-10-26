@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -70,9 +71,16 @@ type LastWindow struct {
 	Folder string `json:"folder,omitempty"`
 }
 
-// TabKindWorkspace is the kind of a window tab that holds a workspace (a folder, or none). Step 11.6 adds the kinds
-// of the extension tabs; a tab with no kind is a workspace.
+// TabKindWorkspace is the kind of a window tab that holds a workspace (a folder, or none). A tab with no kind is a
+// workspace; the kind of the tab of an extension is the id of its kind (ValidTabKind).
 const TabKindWorkspace = "workspace"
+
+// tabKindPattern is the form of the id of a kind of window tab of an extension: the id of the extension, a dot and a name
+// (emetos.scratchpad.tab), so that it never is TabKindWorkspace.
+var tabKindPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`)
+
+// ValidTabKind tells whether kind can be the kind of the window tab of an extension.
+func ValidTabKind(kind string) bool { return tabKindPattern.MatchString(kind) }
 
 // WorkspaceTab is a window tab that is open (SPEC §10.14): the stable id of the tab, the id of the UI state of its
 // workspace (see WindowID and NewEmptyWindowID) and its folder. The global state keeps the list of them in the order
@@ -81,9 +89,14 @@ type WorkspaceTab struct {
 	// ID is the stable id of the tab (NewTabID); it stays the same when the tab opens another folder. A tab read from
 	// the openWindows of a state written before step 9b.1 has the id of its window.
 	ID string `json:"id"`
-	// Kind is the kind of the tab: TabKindWorkspace, or empty (the same). A tab of a kind that is not known is dropped
-	// when the state is read.
+	// Kind is the kind of the tab: TabKindWorkspace, or empty (the same), or the id of the kind of an extension's window
+	// tab (ValidTabKind). A tab of another kind is dropped when the state is read; the window leaves out a tab of a kind
+	// no extension of this Emetos has, so the next write of the list forgets it.
 	Kind string `json:"kind,omitempty"`
+	// Title and State belong to the tab of an extension: the title it had last, and the JSON its content saved (SPEC
+	// §10.15 "As built (step 11.7)"). The store does not look into the state. A workspace has neither.
+	Title string          `json:"title,omitempty"`
+	State json.RawMessage `json:"state,omitempty"`
 	// StateID is the id of the state file and the backups of the workspace of the tab.
 	StateID string `json:"stateId,omitempty"`
 	// Folder is the folder of the workspace, or empty for a tab without one.

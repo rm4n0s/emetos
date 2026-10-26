@@ -145,6 +145,13 @@ type ScopeOptions struct {
 	EditorsChanged func()
 	// ShowLog is the command the "Show Log" button of the failure notification runs; the Output panel by default.
 	ShowLog string
+	// Only, when it is not empty, is the id of the only extension the scope has: the scope of a window tab of an extension
+	// holds the extension that owns the kind and no other (SPEC §10.15 "As built (step 11.7)"). The others are not
+	// installed, never activated and not listed in the Extensions page for the scope.
+	Only string
+	// WindowTab is the strip's view of the tab of a scope whose Info.Kind is ScopeWindowTab; nil leaves the title, the
+	// hint, the state notice and the close to nobody.
+	WindowTab WindowTabHost
 }
 
 // slot is an extension in a scope.
@@ -194,6 +201,8 @@ type Scope struct {
 	kindDecls         map[string]*kindDecl
 	tabs              map[string]*editorTab
 	fileViewInstances []*fileViewInstance
+	// wtab is the window tab of a scope whose Info.Kind is ScopeWindowTab (windowtabs.go).
+	wtab *windowTab
 }
 
 // NewScope makes the scope of a window tab. The manifests of the extensions that are enabled are installed (their
@@ -214,6 +223,9 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	disabled := s.disabledSet()
 	h.SyncLanguages(s.disabledIDs())
 	for _, in := range h.infos {
+		if opts.Only != "" && in.Manifest.ID != opts.Only {
+			continue
+		}
 		sl := &slot{info: in, handlers: map[string]extension.CommandHandler{}}
 		if disabled[in.Manifest.ID] {
 			sl.state = StateDisabled
@@ -221,6 +233,9 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 			s.install(sl)
 		}
 		s.slots = append(s.slots, sl)
+	}
+	if opts.Info.Kind == extension.ScopeWindowTab {
+		s.initWindowTab()
 	}
 	h.addScope(s)
 	return s
@@ -236,6 +251,9 @@ func (s *Scope) Ctx() context.Context { return s.ctx }
 // publishes emetos.workspace.opened, which they hear when it is delivered, right after.
 func (s *Scope) Start() {
 	s.Fire(extension.OnStartup)
+	if s.wtab != nil {
+		s.Fire(extension.OnWindowTab(s.wtab.spec.ID))
+	}
 	s.CheckFiles()
 	if s.opts.Info.Kind == extension.ScopeWorkspace {
 		if err := s.PublishCore(extension.TopicWorkspaceOpened, s.workspaceInfo()); err != nil {
@@ -270,9 +288,18 @@ func (s *Scope) Fire(event string) {
 }
 
 // declaresView tells whether the activation event is onView of a view that the manifest declares: showing a declared view
-// activates its extension without the manifest listing the event.
+// activates its extension without the manifest listing the event. The same holds for onEditor and the editor kinds, and
+// for onWindowTab and the window tab kinds.
 func declaresView(m extension.Manifest, event string) bool {
 	name, id := extension.SplitEvent(event)
+	if name == "onWindowTab" {
+		for _, k := range m.Contributes.WindowTabKinds {
+			if k.ID == id {
+				return true
+			}
+		}
+		return false
+	}
 	if name == "onEditor" {
 		for _, k := range m.Contributes.EditorKinds {
 			if k.ID == id {
@@ -387,6 +414,7 @@ func (s *Scope) Refresh() {
 	}
 	if len(off)+len(on) > 0 {
 		s.h.changed()
+		s.windowTabChanged()
 	}
 }
 
@@ -396,6 +424,12 @@ func (s *Scope) replay(sl *slot) {
 	wanted := false
 	for _, e := range sl.info.Manifest.ActivationEvents {
 		if s.fired[e] {
+			wanted = true
+		}
+	}
+	for e := range s.fired {
+		// showing a declared view, editor kind or window tab activates the extension without the manifest listing the event
+		if declaresView(sl.info.Manifest, e) {
 			wanted = true
 		}
 	}
@@ -437,25 +471,27 @@ func (s *Scope) Close() {
 
 // State is the state of an extension in the scope; an unknown id is inactive.
 func (s *Scope) State(id string) State {
-	st, _ := s.status(id)
+	st, _, _ := s.status(id)
 	return st
 }
 
 // Failure is why the extension is off in the scope, or nil.
 func (s *Scope) Failure(id string) *Failure {
-	_, f := s.status(id)
+	_, f, _ := s.status(id)
 	return f
 }
 
-func (s *Scope) status(id string) (State, *Failure) {
+// status is the state and the failure of an extension in the scope; found is false for an extension the scope does not
+// have (the scope of a window tab holds its owner only).
+func (s *Scope) status(id string) (st State, f *Failure, found bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, sl := range s.slots {
 		if sl.info.Manifest.ID == id {
-			return sl.state, sl.failure
+			return sl.state, sl.failure, true
 		}
 	}
-	return StateInactive, nil
+	return StateInactive, nil, false
 }
 
 // disabledIDs reads extensions.disabled.

@@ -65,6 +65,12 @@ func TestCheckManifest(t *testing.T) {
 		{"an editor kind with no name", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorKinds: []EditorKindSpec{{ID: "a.note"}}}}, "checkEditors.ExtensionEditorInvalid"},
 		{"a file view that selects nothing", Manifest{ID: "a", Name: "N", Contributes: Contributes{FileViews: []FileViewSpec{{ID: "a.v", Name: "V"}}}}, "checkEditors.ExtensionEditorInvalid"},
 		{"an editor action with no icon", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorActions: []EditorActionSpec{{Command: "a.c"}}}}, "checkEditors.ExtensionEditorActionInvalid"},
+		{"window tab kinds", Manifest{ID: "a", Name: "N", ActivationEvents: []string{OnWindowTab("a.tab")}, Contributes: Contributes{
+			WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab", Title: "Tab", Icon: "note", PlusMenuLabel: "Tab..."}, {ID: "a.other", Title: "Other"}}}}, ""},
+		{"a window tab kind of another extension's id", Manifest{ID: "a", Name: "N", Contributes: Contributes{WindowTabKinds: []WindowTabKindSpec{{ID: "b.tab", Title: "Tab"}}}}, "checkWindowTabs.ExtensionWindowTabIDForeign"},
+		{"two window tab kinds with the same id", Manifest{ID: "a", Name: "N", Contributes: Contributes{
+			WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab", Title: "Tab"}, {ID: "a.tab", Title: "Again"}}}}, "checkWindowTabs.ExtensionWindowTabDuplicate"},
+		{"a window tab kind with no title", Manifest{ID: "a", Name: "N", Contributes: Contributes{WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab"}}}}, "checkWindowTabs.ExtensionWindowTabInvalid"},
 		{"a cross-tab pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
 	}
 	for _, tt := range tests {

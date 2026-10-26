@@ -45,6 +45,9 @@ type API interface {
 	FileViews() FileViews
 	// Languages gives the grammars of the languages, for highlighting.
 	Languages() Languages
+	// WindowTabs gives the content of the window tabs of the kinds the manifest declares; it works in the scope of such a
+	// tab only.
+	WindowTabs() WindowTabs
 	// Events publishes and subscribes to events and sends requests to the other extensions of the scope.
 	Events() Events
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the

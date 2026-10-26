@@ -154,6 +154,8 @@ func registerDevCommands(r *command.Registry) {
 		{ID: "dev.openMenu", Description: "Open a menu of the window: one of the menu bar, the Manage menu or the context menu of the editor."},
 		{ID: "dev.openFolderInNewTab", Description: `Open a folder in a new workspace tab. Arguments: {"path": ...}.`},
 		{ID: "dev.activateWindowTab", Description: `Make the tab at a place of the strip, counted from 0, the active one. Arguments: {"index": ...}.`},
+		{ID: "dev.openWindowTab", Description: `Open a window tab of an extension. Arguments: {"kind": ...}.`},
+		{ID: "dev.openPlusMenu", Description: `Open the menu of the "+" button of the strip of window tabs.`},
 		{ID: "dev.switchProfile", Description: `Give the window another profile, in place. Arguments: {"name": ...}.`},
 	} {
 		// The ids are fixed, new and start with dev., so a failure is a mistake in this list.

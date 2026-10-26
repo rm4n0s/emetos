@@ -142,6 +142,9 @@ type Workspace struct {
 	Quit func()
 
 	ctx context.Context
+	// ext is the window tab of an extension the workspace stands for (exttab.go): the host of its services, with no
+	// folder and no documents. Nil for a workspace.
+	ext *extTab
 	// extKeys is the layer of default keybindings of the extensions (extensions.go), and extScope the scope of the
 	// workspace in the extension host; the watcher of the file list reads extScope from its goroutine.
 	extKeys  *extensionKeys
@@ -327,6 +330,9 @@ type workspaceOptions struct {
 	// from is the window whose test seams (Quit, SaveDialog, OpenURI, OnChordStatus) the new one takes over: the
 	// window it replaces.
 	from *Workspace
+	// ext, when set, makes the workspace the host of the window tab of an extension: it keeps no UI state and its scope in
+	// the extension host is that of the tab.
+	ext *extTab
 }
 
 // newWorkspace is NewWindow with options.
@@ -390,6 +396,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		Markers:        problems.NewService(),
 		StatusBar:      workbench.NewStatusBar(),
 		ctx:            ctx,
+		ext:            o.ext,
 	}
 	w.Notifications = notify.NewPresenter(w.Notify)
 	w.Documents.SetVirtual(p.Virtual)
@@ -420,7 +427,9 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 			return nil, err
 		}
 	}
-	w.initState(ctx)
+	if o.ext == nil { // the tab of an extension keeps no state file of its own: its state is in the list of the tabs
+		w.initState(ctx)
+	}
 	w.syncWorkbenchState()
 	w.settingsDocs.install()
 	w.userKeys.reload(ctx, false)
@@ -428,7 +437,11 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	w.followWorkspaceSettings()
 	w.followTheme()
 	w.followLanguages()
-	w.startExtensions()
+	if o.ext != nil {
+		w.startExtensionTab()
+	} else {
+		w.startExtensions()
+	}
 	return w, nil
 }
 

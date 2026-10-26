@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -402,3 +403,88 @@ func TestCompactMenuOpensWithTheMenusAsSubmenus(t *testing.T) {
 
 func codiconMenu() any { return fonts.CodiconIcon(fonts.CodiconMenu) }
 func codiconAdd() any  { return fonts.CodiconIcon(fonts.CodiconAdd) }
+
+func TestTheTabOfAnExtensionHasTheIconOfItsKind(t *testing.T) {
+	note, ok := fonts.CodiconByName("note")
+	if !ok {
+		t.Fatal("no codicon note")
+	}
+	tabs := []WorkspaceTab{
+		{ID: "t1", Name: "emetos", Folder: true}, {ID: "t2", Name: "No folder"}, {ID: "t3", Name: "Scratchpad", IconCode: note, Folder: true},
+	}
+	r := newStripRig(t, tabs, 2, nil, nil)
+	for _, c := range []struct {
+		name string
+		code int
+		want bool
+	}{{"the icon of the kind", note, true}, {"the icon of a folder", fonts.CodiconRootFolder, true}, {"the icon of a window", fonts.CodiconWindow, true}} {
+		if got := r.ts.Exists(gluttertest.ByIcon(fonts.CodiconIcon(c.code))); got != c.want {
+			t.Errorf("%s: shown %v, want %v", c.name, got, c.want)
+		}
+	}
+	// the icon of the kind wins over the folder: the third tab has no folder icon, so there is one folder icon only
+	if n := len(r.ts.Elements(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconRootFolder)))); n != 1 {
+		t.Errorf("%d folder icons, want 1 (the tab of the extension has its own)", n)
+	}
+}
+
+func TestTheControllerOpensTheNewMenuFromOutside(t *testing.T) {
+	c := NewNewMenuController()
+	if c.Open() {
+		t.Error("a controller that is not attached opened a menu")
+	}
+	var nilController *NewMenuController
+	if nilController.Open() {
+		t.Error("a nil controller opened a menu")
+	}
+	r := newStripRig(t, threeTabs(), 0, nil, func(o *Options) { o.TitleBar.NewMenu = c })
+	if r.ts.Exists(gluttertest.ByText("Workspace...")) {
+		t.Fatal("the menu is open before it was asked for")
+	}
+	if !c.Open() {
+		t.Fatal("the controller of a strip that is on screen did not open the menu")
+	}
+	r.settle()
+	if !r.ts.Exists(gluttertest.ByText("Workspace...")) {
+		t.Error("the menu is not on screen")
+	}
+}
+
+func TestEditorOnlyShowsTheEditorAreaUnderTheTitleBar(t *testing.T) {
+	st := DefaultLayoutState()
+	st.PanelVisible = true
+	h := newHarness(t, testSize, kit.DarkModern(), st, nil, func(o *Options) {
+		demo(o)
+		o.EditorOnly = true
+		o.TitleBar = &TitleBarOptions{Tabs: threeTabs(), Active: 0}
+	})
+	for _, p := range []Part{PartActivityBar, PartSideBar, PartPanel, PartStatusBar} {
+		if h.shown(p) {
+			t.Errorf("the %v is on screen", p)
+		}
+	}
+	if !h.shown(PartEditor) {
+		t.Fatal("the editor area is not on screen")
+	}
+	if got, want := h.rect(PartEditor).Width(), testSize.Width; got != want {
+		t.Errorf("the area is %v wide, want the whole window (%v)", got, want)
+	}
+	// the layout commands change the layout and show nothing
+	h.run("workbench.action.toggleSidebarVisibility")
+	h.run("workbench.action.togglePanel")
+	h.run("workbench.action.toggleStatusbarVisibility")
+	for _, p := range []Part{PartActivityBar, PartSideBar, PartPanel, PartStatusBar} {
+		if h.shown(p) {
+			t.Errorf("the %v is on screen after its command", p)
+		}
+	}
+	// and the settings of the layout are not followed
+	if err := h.store.Update(h.t.Context(), "workbench.statusBar.visible", true, settings.TargetUser); err != nil {
+		t.Fatal(err)
+	}
+	h.settle()
+	if h.shown(PartStatusBar) {
+		t.Error("the status bar came back with the setting")
+	}
+	noErrors(t, h)
+}

@@ -127,6 +127,10 @@ type Options struct {
 	FullScreen bool
 	// Context is the context of the commands the workbench runs; context.Background() when nil.
 	Context context.Context
+	// EditorOnly shows the editor area alone below the title bar: no activity bar, side bar, panel or status bar, whatever
+	// the layout says, and the layout does not follow the settings. It is the body of the window tab of an extension (SPEC
+	// §10.14); the title bar, the quick input, the notifications and the dialogs are there as always.
+	EditorOnly bool
 }
 
 // Workbench is the layout of the window (SPEC §10.1): the title bar row (the menu and the workspace tabs) over a row
@@ -226,7 +230,11 @@ func (s *workbenchState) InitState() {
 		}
 	}
 	s.wasMaximized = s.layout.PanelMaximized()
-	s.stopFollow = s.layout.FollowSettings(o.Settings, s.binding.Post)
+	if o.EditorOnly {
+		s.stopFollow = func() {}
+	} else {
+		s.stopFollow = s.layout.FollowSettings(o.Settings, s.binding.Post)
+	}
 	s.removeLayout = s.layout.OnChange(s.layoutChanged)
 	if o.Settings != nil {
 		s.removeSettings = o.Settings.OnChange(func(e settings.ChangeEvent) {
@@ -351,7 +359,16 @@ func (s *workbenchState) Build(bc widgets.BuildContext) widgets.Widget {
 	o := s.Widget().opts
 	colors := kit.ThemeOf(bc)
 	st := s.layout.State()
-	rows := []widgets.Widget{widgets.NewExpanded(s.main(colors))}
+	if o.EditorOnly {
+		st.StatusBarVisible = false
+	}
+	var center widgets.Widget
+	if o.EditorOnly {
+		center = s.editorArea(colors)
+	} else {
+		center = s.main(colors)
+	}
+	rows := []widgets.Widget{widgets.NewExpanded(center)}
 	if st.StatusBarVisible {
 		rows = append(rows, s.statusBar(bc, colors))
 	}

@@ -288,6 +288,8 @@ type shellState struct {
 	merge mergeState
 	// modesStops stop following the full screen mode, zen mode and the zoom of the window (centered.go).
 	modesStops []func()
+	// newMenu opens the menu of the "+" button of the strip (titlebar.go, dev.openPlusMenu).
+	newMenu *workbench.NewMenuController
 }
 
 // InitState starts the goroutine that waits for the context to be canceled, and schedules
@@ -297,6 +299,10 @@ func (s *shellState) InitState() {
 	s.binding, s.win = binding, PeekWorkspace(s.Context())
 	s.win.shell = s
 	s.win.Process.Workspaces.register(s.win) // a workspace that no tab holds (the test of one) is adopted
+	if s.win.ext != nil {
+		s.initExtTab(binding) // the page of the tab of an extension has none of the parts below
+		return
+	}
 	s.blocked = s.Widget().blocked
 	s.initBackups(binding)
 	s.initAutoSave(binding)
@@ -351,6 +357,11 @@ func (s *shellState) InitState() {
 			}
 		})
 	}
+	s.startDevSteps(binding)
+}
+
+// startDevSteps runs the dev commands of the page (SPEC §15.2) once the first frame is done.
+func (s *shellState) startDevSteps(binding *widgets.WidgetsBinding) {
 	if steps := s.Widget().steps; len(steps) > 0 {
 		win := PeekWorkspace(s.Context())
 		binding.Scheduler().AddPostFrameCallback(func(time.Duration) {
@@ -396,6 +407,10 @@ func (s *shellState) Dispose() {
 	if s.win != nil && s.win.shell == s {
 		s.win.shell = nil
 	}
+	if s.win != nil && s.win.ext != nil {
+		s.disposeExtTab()
+		return
+	}
 	s.disposeLaunch() // before the documents close: a wait ends with the window
 	if s.removeOpenDiff != nil {
 		s.removeOpenDiff()
@@ -433,6 +448,9 @@ func (s *shellState) Dispose() {
 // area.
 func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	win := PeekWorkspace(bc)
+	if win.ext != nil {
+		return s.buildExtTab(bc, win)
+	}
 	s.syncTitle(bc, win)
 	s.syncActiveFile(widgets.WidgetsBindingOf(bc))
 	s.syncExplorer(widgets.WidgetsBindingOf(bc), win)
@@ -455,26 +473,35 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	return widgets.NewStack([]widgets.Widget{bench, s.dragLayer()}, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
 
+// bindController finds the controller of the platform window the shell is shown in, the first time it is built, and
+// follows its size and state. The manager of the tabs gives the workspaces it shows the controller of the window too
+// (Workspaces.bind): a tester that pumps the host without RunApp has no WindowScope.
+// The function it returns runs what waited for the controller (Workspace.controllerKnown); the caller defers it.
+func (s *shellState) bindController(bc widgets.BuildContext, win *Workspace) (known func()) {
+	known = func() {}
+	if s.window != nil {
+		return known
+	}
+	var controller widgets.WindowController
+	if win.managed() {
+		controller = win.controller
+	}
+	if c := widgets.WindowControllerMaybeOf(bc); c != nil {
+		controller = c
+	}
+	if controller != nil {
+		s.window = controller
+		win.controller = controller
+		known = win.controllerKnown // after the controller is followed below
+		s.trackWindow(controller)
+	}
+	return known
+}
+
 // syncTitle makes the title of the window from the template and the active editor, and passes it on
 // to the window when it changed.
 func (s *shellState) syncTitle(bc widgets.BuildContext, win *Workspace) {
-	if s.window == nil {
-		// The manager of the tabs gives the workspaces it shows the controller of the window too (Workspaces.bind): a
-		// tester that pumps the host without RunApp has no WindowScope.
-		var controller widgets.WindowController
-		if win.managed() {
-			controller = win.controller
-		}
-		if c := widgets.WindowControllerMaybeOf(bc); c != nil {
-			controller = c
-		}
-		if controller != nil {
-			s.window = controller
-			win.controller = controller
-			defer win.controllerKnown() // after the controller is followed below
-			s.trackWindow(controller)
-		}
-	}
+	defer s.bindController(bc, win)()
 	in := workbench.TitleInput{
 		Template:  settings.Get[string](win.Settings, "window.title", ""),
 		Separator: settings.Get[string](win.Settings, "window.titleSeparator", ""),

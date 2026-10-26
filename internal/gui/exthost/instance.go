@@ -243,6 +243,7 @@ func (s *Scope) fail(sl *slot, err error, where string) {
 		inst.kill()
 	}
 	s.uninstall(sl)
+	s.windowTabChanged()
 	s.log.Error("an extension failed and is off in this scope", "extension", m.ID, "scope", s.opts.Info.Name, "where", where, "err", err)
 	message := m.Name + " failed: " + describe(err)
 	s.opts.Notify.Notify(notify.Notification{
@@ -275,4 +276,7 @@ func (s *Scope) deactivate(sl *slot, next State) {
 	s.uninstall(sl)
 	s.removeViews(sl)
 	s.h.changed()
+	if next == StateDisabled {
+		s.windowTabChanged()
+	}
 }

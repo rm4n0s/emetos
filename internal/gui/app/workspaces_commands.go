@@ -77,6 +77,7 @@ func (w *Workspace) registerWindowCommands() {
 		return nil
 	})
 	w.registerModeCommands(set)
+	w.registerExtensionTabCommands(set)
 	if DevCommandsEnabled() {
 		set("dev.openFolderInNewTab", func(_ command.Context, args any) error {
 			path, err := parseOpenFolderInNewTab(args, os.Getwd)
@@ -247,6 +248,9 @@ func (m *Workspaces) showSwitcher(from *Workspace) {
 	}
 	for i, l := range workbench.LabelWorkspaceTabs(folders) {
 		labels[i] = l.Name
+		if w := tabs[i].ws; w != nil && w.ext != nil {
+			labels[i] = w.ext.displayTitle()
+		}
 	}
 	home, _ := os.UserHomeDir()
 	active := m.ActiveTab()
@@ -260,6 +264,14 @@ func (m *Workspaces) showSwitcher(from *Workspace) {
 		var parts []string
 		if t == active {
 			parts = append(parts, SwitchTabCurrent)
+		}
+		if w.ext != nil {
+			// the tab of an extension: its icon, and the name of the extension in place of a folder
+			if code := w.ext.iconCode(); code != 0 {
+				item.Icon = code
+			}
+			item.Description = strings.Join(append(parts, w.ext.kind.ExtensionName), " · ")
+			return item
 		}
 		if w.Folder != "" {
 			item.Icon = fonts.CodiconRootFolder

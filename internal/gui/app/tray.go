@@ -313,7 +313,12 @@ func (m *Workspaces) trayMenu() []desktop.TrayMenuEntry {
 
 // trayTooltipBody is the line under "Emetos" in the tooltip: how many workspaces are open.
 func (m *Workspaces) trayTooltipBody() string {
-	n := m.Count()
+	n := 0
+	for _, w := range m.All() {
+		if w.ext == nil {
+			n++ // the tab of an extension is not a workspace
+		}
+	}
 	if n == 1 {
 		return "1 workspace"
 	}

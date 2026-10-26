@@ -153,6 +153,9 @@ func (w *Workspace) startExtensions() {
 func (w *Workspace) stopExtensions() {
 	w.stopCoreEvents()
 	if scope := w.extScope.Swap(nil); scope != nil {
+		if w.ext != nil {
+			w.ext.state = scope.WindowTabState() // what the next write of the list of the tabs keeps
+		}
 		states := scope.ViewStates()
 		scope.Close()
 		w.extViewMu.Lock()

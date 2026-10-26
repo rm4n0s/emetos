@@ -781,7 +781,7 @@ func TestTheWorkspaceTabsAreKeptInTheGlobalState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(got.WorkspaceTabs, want) || got.ActiveWorkspaceTab != "fedcba9876543210" {
+	if !reflect.DeepEqual(got.WorkspaceTabs, want) || got.ActiveWorkspaceTab != "fedcba9876543210" {
 		t.Errorf("tabs %+v active %q, want %+v", got.WorkspaceTabs, got.ActiveWorkspaceTab, want)
 	}
 	if got.WindowGeometry == nil || *got.WindowGeometry != (storage.Geometry{Width: 1200, Height: 700, Maximized: true}) {
@@ -792,6 +792,45 @@ func TestTheWorkspaceTabsAreKeptInTheGlobalState(t *testing.T) {
 	got.WindowGeometry.Width = 1
 	if again2, _ := again.LoadGlobal(t.Context()); again2.WorkspaceTabs[0].Folder != "/work/one" || again2.WindowGeometry.Width != 1200 {
 		t.Error("a change of the copy reached the store")
+	}
+}
+
+func TestAnExtensionTabKeepsItsKindTitleAndStateInTheGlobalState(t *testing.T) {
+	s, clock, paths := newStore(t, nil)
+	list := []storage.WorkspaceTab{
+		{ID: "0123456789abcdef", StateID: "aaaaaaaaaaaaaaaa"},
+		{ID: "fedcba9876543210", Kind: "emetos.scratchpad.tab", Title: "Scratchpad", State: json.RawMessage(`{"notes":"remember"}`)},
+	}
+	err := s.UpdateGlobal(t.Context(), func(g *storage.GlobalState) bool {
+		g.WorkspaceTabs, g.ActiveWorkspaceTab = list, "fedcba9876543210"
+		return true
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.Advance(storage.DefaultStateDelay)
+	again, err := storage.NewStateStore(paths, storage.DefaultProfile, storage.StateStoreOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := again.LoadGlobal(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.WorkspaceTabs, list) || got.ActiveWorkspaceTab != "fedcba9876543210" {
+		t.Errorf("tabs %+v active %q, want %+v", got.WorkspaceTabs, got.ActiveWorkspaceTab, list)
+	}
+	tests := []struct {
+		kind string
+		want bool
+	}{
+		{"emetos.scratchpad.tab", true}, {"a.b", true}, {"remote-control.tab", true},
+		{"workspace", false}, {"", false}, {"Upper.case", false}, {"a..b", false}, {".a", false}, {"a.", false}, {"a b.c", false},
+	}
+	for _, tt := range tests {
+		if got := storage.ValidTabKind(tt.kind); got != tt.want {
+			t.Errorf("ValidTabKind(%q) = %v, want %v", tt.kind, got, tt.want)
+		}
 	}
 }
 
@@ -811,7 +850,10 @@ func TestTheWorkspaceTabsOfAFileAreCleanedWhenRead(t *testing.T) {
 		{"id": "fedcba9876543210", "folder": "relative/folder"},
 		{"id": "1111111111111111", "kind": "browser"},
 		{"id": "2222222222222222", "kind": "workspace", "stateId": "../escape"},
-		{"id": "00000000000000aa", "stateId": "00000000000000bb", "profile": "bad/name"}]}`
+		{"id": "00000000000000aa", "stateId": "00000000000000bb", "profile": "bad/name"},
+		{"id": "3333333333333333", "kind": "emetos.scratchpad.tab", "title": "Scratchpad", "state": {"notes": "x"}, "folder": "/ignored", "stateId": "1", "profile": "Work"},
+		{"id": "4444444444444444", "kind": "Bad.Kind", "title": "dropped"},
+		{"id": "5555555555555555", "kind": "workspace", "title": "not an extension", "state": 1}]}`
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -826,8 +868,11 @@ func TestTheWorkspaceTabsOfAFileAreCleanedWhenRead(t *testing.T) {
 	c, _ := storage.WindowID("/a/c")
 	want := []storage.WorkspaceTab{
 		{ID: "0123456789abcdef", StateID: c, Folder: "/a/c"}, {ID: "2222222222222222"}, {ID: "00000000000000aa", StateID: "00000000000000bb"},
+		// the tab of an extension keeps its kind, title and state, and has no folder, state id or profile
+		{ID: "3333333333333333", Kind: "emetos.scratchpad.tab", Title: "Scratchpad", State: json.RawMessage(`{"notes": "x"}`)},
+		{ID: "5555555555555555"},
 	}
-	if !slices.Equal(g.WorkspaceTabs, want) {
+	if !reflect.DeepEqual(g.WorkspaceTabs, want) {
 		t.Errorf("tabs %+v, want %+v", g.WorkspaceTabs, want)
 	}
 	if g.ActiveWorkspaceTab != "" {
@@ -872,7 +917,7 @@ func TestAnOldStateFileIsReadAsTabs(t *testing.T) {
 		{ID: "00000000000000aa", StateID: "00000000000000aa"},
 		{ID: "00000000000000bb", StateID: "00000000000000bb"},
 	}
-	if !slices.Equal(g.WorkspaceTabs, want) {
+	if !reflect.DeepEqual(g.WorkspaceTabs, want) {
 		t.Errorf("tabs %+v, want %+v", g.WorkspaceTabs, want)
 	}
 	if g.WindowGeometry == nil || *g.WindowGeometry != (storage.Geometry{Width: 1100, Height: 650, Maximized: true}) {

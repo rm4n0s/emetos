@@ -273,3 +273,52 @@ func TestTheFakeEditorsRefuseWhatTheHostRefuses(t *testing.T) {
 		t.Errorf("OpenURI: %v %v", err, a.OpenedURIs())
 	}
 }
+
+func TestTheFakeWindowTabRefusesWhatTheHostRefusesAndKeepsTheTab(t *testing.T) {
+	m := manifest()
+	m.Contributes.WindowTabKinds = []extension.WindowTabKindSpec{{ID: "fk.tab", Title: "Tab"}}
+	a := New(t, m, extension.ScopeInfo{Kind: extension.ScopeWindowTab, Name: "Tab", WindowTab: "fk.tab", ID: "fk:t1"})
+	create := func(tab extension.WindowTab, state json.RawMessage) (extension.WindowTabContent, error) {
+		tab.SetTitle("T " + string(state))
+		tab.SetHint("hint")
+		tab.StateChanged()
+		tab.Refresh()
+		return extension.WindowTabContent{
+			Build:     func(widgets.BuildContext) widgets.Widget { return widgets.NewSizedBox(nil) },
+			SaveState: func() (any, error) { return "saved", nil },
+			OnClose:   func() { tab.Close() },
+		}, nil
+	}
+	route(t, a.WindowTabs().Provide("fk.other", extension.WindowTabKind{Create: create}), "windowTabs.Provide.FakeWindowTabKindNotDeclared")
+	route(t, a.WindowTabs().Provide("fk.tab", extension.WindowTabKind{}), "windowTabs.Provide.FakeWindowTabKindInvalid")
+	if err := a.WindowTabs().Provide("fk.tab", extension.WindowTabKind{Create: create}); err != nil {
+		t.Fatal(err)
+	}
+	tab := a.StartWindowTab("t1", json.RawMessage(`"old"`))
+	if tab.ID() != "t1" || tab.Kind() != "fk.tab" || tab.Title() != `T "old"` || tab.Hint() != "hint" || tab.Changes != 1 || tab.Refreshs != 1 {
+		t.Errorf("the tab = %q %q %q %q, %d changes, %d refreshs", tab.ID(), tab.Kind(), tab.Title(), tab.Hint(), tab.Changes, tab.Refreshs)
+	}
+	if got := string(tab.State()); got != `"saved"` {
+		t.Errorf("the state = %s", got)
+	}
+	a.CloseWindowTab()
+	if tab.Closes != 1 {
+		t.Errorf("Close was called %d times by OnClose", tab.Closes)
+	}
+}
+
+func TestTheFakeDeliversTheEventsOfOtherTabsToTheSubscriptionsThatListenToThem(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Name: "me", ID: "fk:t1"})
+	var own, others []string
+	if _, err := a.Events().Subscribe("fk.ping", func(e extension.Event) { own = append(own, e.Scope.Name) }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Events().Subscribe("fk.ping", func(e extension.Event) { others = append(others, e.Scope.Name) }, extension.FromOtherScopes()); err != nil {
+		t.Fatal(err)
+	}
+	a.Emit("fk.ping", 1)
+	a.EmitFrom(extension.ScopeInfo{Name: "elsewhere", ID: "/work/elsewhere"}, "fk.ping", 2)
+	if !slices.Equal(own, []string{"me"}) || !slices.Equal(others, []string{"me", "elsewhere"}) {
+		t.Errorf("own %q, others %q", own, others)
+	}
+}

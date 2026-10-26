@@ -40,6 +40,9 @@ type API struct {
 	openedURIs        []string
 	fileViewRefreshes int
 	kinds             map[string]extension.EditorKind
+	windowKind        *extension.WindowTabKind
+	windowKindID      string
+	windowTab         *WindowTab
 	tabs              []*Tab
 	fileViews         map[string]extension.FileViewProvider
 	fileViewOpens     []FileViewOpen
@@ -424,6 +427,8 @@ type subscription struct {
 	pattern string
 	fn      func(extension.Event)
 	off     bool
+	// others says that the subscription hears the other window tabs too (extension.FromOtherScopes).
+	others bool
 }
 
 type events struct{ a *API }
@@ -433,11 +438,15 @@ func (e events) Publish(topic string, value any) error {
 	return nil
 }
 
-func (e events) Subscribe(pattern string, fn func(extension.Event), _ ...extension.SubscribeOption) (func(), error) {
+func (e events) Subscribe(pattern string, fn func(extension.Event), opts ...extension.SubscribeOption) (func(), error) {
 	if err := extension.CheckPattern(pattern); err != nil {
 		return nil, err
 	}
-	s := &subscription{pattern: pattern, fn: fn}
+	var o extension.SubscribeOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	s := &subscription{pattern: pattern, fn: fn, others: o.From.Others}
 	e.a.mu.Lock()
 	e.a.subs = append(e.a.subs, s)
 	e.a.mu.Unlock()
@@ -454,21 +463,29 @@ func (e events) HandleAsync(string, extension.AsyncEventHandler) error {
 
 // Emit delivers an event to the subscribers whose pattern matches, at once, on the caller's goroutine (a test calls it on
 // its own, which stands for the UI thread).
-func (a *API) Emit(topic string, value any) {
+func (a *API) Emit(topic string, value any) { a.emit(a.info, topic, value) }
+
+// EmitFrom delivers an event as if the scope published it: to the subscribers of the topic that listen to other window tabs
+// (extension.FromOtherScopes), the way a link that the user allowed does.
+func (a *API) EmitFrom(from extension.ScopeInfo, topic string, value any) { a.emit(from, topic, value) }
+
+// emit delivers an event published in a scope.
+func (a *API) emit(from extension.ScopeInfo, topic string, value any) {
 	data, err := json.Marshal(value)
 	if err != nil {
 		a.t.Fatalf("event value: %v", err)
 	}
 	a.mu.Lock()
 	var fns []func(extension.Event)
+	own := from.ID == a.info.ID && from.Name == a.info.Name
 	for _, s := range a.subs {
-		if !s.off && extension.MatchTopic(s.pattern, topic) {
+		if !s.off && extension.MatchTopic(s.pattern, topic) && (own || s.others) {
 			fns = append(fns, s.fn)
 		}
 	}
 	a.mu.Unlock()
 	for _, fn := range fns {
-		fn(extension.Event{Topic: topic, Publisher: extension.CorePublisher, Scope: a.info, Data: data})
+		fn(extension.Event{Topic: topic, Publisher: extension.CorePublisher, Scope: from, Data: data})
 	}
 }
 

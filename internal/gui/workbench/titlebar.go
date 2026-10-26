@@ -47,6 +47,9 @@ type WorkspaceTab struct {
 	Dirty bool
 	// Folder says that the tab has a folder (the icon root-folder); a tab without one has the icon window.
 	Folder bool
+	// IconCode, when it is not 0, is the code point of the Codicon of the tab (the tab of an extension has the icon of its
+	// kind); it wins over Folder.
+	IconCode int
 }
 
 // TitleBarOptions are the workspace tabs of the title bar row and what the user does to them. A Workbench without them
@@ -72,6 +75,25 @@ type TitleBarOptions struct {
 	ContextItems func(index int) []kit.MenuItem
 	NewItems     func() []kit.MenuItem
 	OnRunItem    func(item kit.MenuItem)
+	// NewMenu, when set, opens the menu of the "+" button from outside (the dev command of step 11.7, a test).
+	NewMenu *NewMenuController
+}
+
+// NewMenuController opens the menu of the "+" button of the strip that is on screen, as a click on the button does.
+type NewMenuController struct {
+	open func()
+}
+
+// NewNewMenuController makes a controller that is not attached to a strip yet.
+func NewNewMenuController() *NewMenuController { return &NewMenuController{} }
+
+// Open opens the menu; it reports false when no strip is on screen.
+func (c *NewMenuController) Open() bool {
+	if c == nil || c.open == nil {
+		return false
+	}
+	c.open()
+	return true
 }
 
 // titleBarConfig is everything the title bar needs of the workbench for a build.
@@ -213,8 +235,26 @@ type workspaceStripState struct {
 	scroll  *gestures.Timer
 }
 
-// Dispose stops the scrolling of a drag.
-func (s *workspaceStripState) Dispose() { s.stopScroll() }
+// InitState lets the controller of the "+" menu open it.
+func (s *workspaceStripState) InitState() { s.attach() }
+
+// DidUpdateWidget keeps the controller attached to this strip.
+func (s *workspaceStripState) DidUpdateWidget(*workspaceStrip) { s.attach() }
+
+// attach makes the controller of the options open the menu of this strip.
+func (s *workspaceStripState) attach() {
+	if c := s.Widget().bar.NewMenu; c != nil {
+		c.open = s.openNewMenu
+	}
+}
+
+// Dispose stops the scrolling of a drag and lets the controller go.
+func (s *workspaceStripState) Dispose() {
+	s.stopScroll()
+	if c := s.Widget().bar.NewMenu; c != nil {
+		c.open = nil
+	}
+}
 
 // press is the press of a tab: the active tab is activated at once (that does nothing), another tab waits for the release
 // (see TitleBarOptions.OnActivate).
@@ -364,6 +404,9 @@ func tabIcon(t WorkspaceTab, color ui.Color) widgets.Widget {
 	code := fonts.CodiconWindow
 	if t.Folder {
 		code = fonts.CodiconRootFolder
+	}
+	if t.IconCode != 0 {
+		code = t.IconCode
 	}
 	return widgets.NewIcon(fonts.CodiconIcon(code), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(color)})
 }

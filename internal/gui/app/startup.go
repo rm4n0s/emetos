@@ -8,6 +8,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	"github.com/rm4n0s/emetos/internal/gui/exthost"
 )
 
 // Which tabs open when the application starts (SPEC §10.10 "Which windows open", §10.14): the command line, the tabs
@@ -69,11 +70,18 @@ func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []Workspa
 	case mode == "preserve" && len(restored) > 0:
 		plan = restored
 		at := activeIndex(plan, g, Options{}, last)
+		if plan[at].Extension != nil {
+			// the files go to a workspace: the first one that came back, else a tab of its own
+			if at = slices.IndexFunc(plan, func(w WorkspaceSpec) bool { return w.Extension == nil }); at < 0 {
+				plan = append(plan, WorkspaceSpec{})
+				at = len(plan) - 1
+			}
+		}
 		plan[at].Files, plan[at].Launch = files, opts.Open
 	default:
 		plan = []WorkspaceSpec{{Folder: opts.Folder, Files: files, Launch: opts.Open}}
 	}
-	if len(plan) > 0 && plan[0].Folder == "" && plan[0].StateID == "" {
+	if len(plan) > 0 && plan[0].Folder == "" && plan[0].StateID == "" && plan[0].Extension == nil {
 		plan[0].StateID = p.primaryEmptyID(ctx)
 	}
 	plan = p.addTabsWithBackups(ctx, g, plan)
@@ -81,13 +89,16 @@ func (p *Process) startupPlan(ctx context.Context, opts Options) (plan []Workspa
 		plan = []WorkspaceSpec{{StateID: p.primaryEmptyID(ctx)}}
 	}
 	if opts.Open != nil && !slices.ContainsFunc(plan, func(w WorkspaceSpec) bool { return w.Launch != nil }) {
-		plan[0].Launch = opts.Open // the notices of the parts of the command line that come with later steps
+		// the notices of the parts of the command line that come with later steps
+		if at := slices.IndexFunc(plan, func(w WorkspaceSpec) bool { return w.Extension == nil }); at >= 0 {
+			plan[at].Launch = opts.Open
+		}
 	}
 	if opts.Open != nil && opts.Open.Profile != "" {
 		plan = p.applyLaunchProfile(ctx, plan, opts.Open.Profile, hasArgs)
 	}
 	for i := range plan {
-		if plan[i].Folder == "" && plan[i].StateID == "" && i > 0 {
+		if plan[i].Folder == "" && plan[i].StateID == "" && plan[i].Extension == nil && i > 0 {
 			if id, err := storage.NewEmptyWindowID(); err == nil {
 				plan[i].StateID = id
 			}
@@ -109,7 +120,7 @@ func activeIndex(plan []WorkspaceSpec, g storage.GlobalState, opts Options, last
 			return i
 		}
 	}
-	if i := slices.IndexFunc(plan, func(s WorkspaceSpec) bool { return s.Folder == last }); i >= 0 {
+	if i := slices.IndexFunc(plan, func(s WorkspaceSpec) bool { return s.Extension == nil && s.Folder == last }); i >= 0 {
 		return i
 	}
 	return 0
@@ -190,6 +201,18 @@ func (p *Process) restoredTabs(ctx context.Context, g storage.GlobalState, mode,
 	var out []WorkspaceSpec
 	seen := map[string]bool{}
 	for _, t := range open {
+		if t.Kind != "" && t.Kind != storage.TabKindWorkspace {
+			// the tab of an extension comes back with its title and state, unless no extension has its kind any more
+			if mode == "folders" {
+				continue
+			}
+			if _, ok := p.windowTabKind(t.Kind); !ok {
+				p.Logger.Info("a window tab of an extension is left out: no extension has its kind", "kind", t.Kind)
+				continue
+			}
+			out = append(out, WorkspaceSpec{TabID: t.ID, Extension: &ExtensionTabSpec{Kind: t.Kind, Title: t.Title, State: t.State}})
+			continue
+		}
 		if t.Folder != "" {
 			if info, err := os.Stat(t.Folder); err != nil || !info.IsDir() {
 				continue
@@ -210,7 +233,7 @@ func (p *Process) restoredTabs(ctx context.Context, g storage.GlobalState, mode,
 				pick = spec
 				break
 			}
-			if g.ActiveWorkspaceTab == "" && spec.Folder == last {
+			if g.ActiveWorkspaceTab == "" && spec.Extension == nil && spec.Folder == last {
 				pick = spec
 			}
 		}
@@ -257,4 +280,12 @@ func (p *Process) addTabsWithBackups(ctx context.Context, g storage.GlobalState,
 		plan = append(plan, WorkspaceSpec{TabID: t.ID, Folder: t.Folder, StateID: stateIDOfEmpty(t), Profile: p.restoredProfile(ctx, t.Profile)})
 	}
 	return plan
+}
+
+// windowTabKind finds the kind of window tab of an extension by its id.
+func (p *Process) windowTabKind(kindID string) (exthost.WindowTabKindInfo, bool) {
+	if p.Extensions == nil {
+		return exthost.WindowTabKindInfo{}, false
+	}
+	return p.Extensions.WindowTabKind(kindID)
 }

@@ -69,6 +69,9 @@ type Contributes struct {
 	EditorActions []EditorActionSpec
 	// FileViews are the micro-tabs of the editor tab of the files they select. Showing one activates the extension.
 	FileViews []FileViewSpec
+	// WindowTabKinds are the kinds of window tab the extension adds: an entry of the "+" menu of the strip each. Opening or
+	// restoring a tab of a kind activates the extension, in the scope of that tab (the activation event OnWindowTab).
+	WindowTabKinds []WindowTabKindSpec
 	// Languages is the language pack of the extension: a file system (an embed.FS, rooted with fs.Sub) that has the
 	// package.json of a VS Code extension at its root, with the languages (contributes.languages), the grammars
 	// (contributes.grammars) and the settings defaults of languages (contributes.configurationDefaults) it contributes, and
@@ -110,8 +113,8 @@ func OnView(viewID string) string { return onViewPrefix + viewID }
 // extension that declares the kind is activated by it without listing it.
 func OnEditor(kindID string) string { return onEditorPrefix + kindID }
 
-// OnWindowTab is the event of a window tab of the extension's kind being opened (from the step that adds window tab
-// extensions).
+// OnWindowTab is the event of a window tab of the kind with the id being opened or restored; an extension that declares the
+// kind is activated by it without listing it.
 func OnWindowTab(kind string) string { return onWindowTabPrefix + kind }
 
 // SplitEvent splits an activation event into its name and argument: "onLanguage:go" is ("onLanguage", "go"), and
@@ -128,16 +131,22 @@ type ScopeKind string
 const (
 	// ScopeWorkspace is a window tab that holds a workspace: a folder, or none.
 	ScopeWorkspace ScopeKind = "workspace"
+	// ScopeWindowTab is a window tab of an extension (a kind of Contributes.WindowTabKinds). Only the extension that owns
+	// the kind is activated in it; it has no folder, no documents and no editor area.
+	ScopeWindowTab ScopeKind = "windowTab"
 )
 
 // ScopeInfo describes the scope an API is bound to.
 type ScopeInfo struct {
 	// Kind is what the scope is.
 	Kind ScopeKind
-	// Name is the name of the window tab: the base name of the folder, or "No Folder".
+	// Name is the name of the window tab: the base name of the folder, or "No Folder"; the title of the kind for the tab
+	// of an extension.
 	Name string
 	// Folder is the absolute path of the folder of a workspace scope, or empty.
 	Folder string
+	// WindowTab is the id of the kind of window tab of a ScopeWindowTab scope; empty for a workspace.
+	WindowTab string
 	// ID names the scope in the links between window tabs (SPEC §10.15 "Event sharing"): the cleaned absolute folder of
 	// a workspace, "<extension id>:<tab id>" for the tab of an extension. It is empty for a scope that cannot be named
 	// in a link, such as a workspace tab with no folder: it sends nothing to other tabs and receives nothing from them.

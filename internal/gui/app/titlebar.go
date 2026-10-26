@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"slices"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/desktop"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -54,8 +55,13 @@ func (m *Workspaces) workspaceTabs() []workbench.WorkspaceTab {
 	out := make([]workbench.WorkspaceTab, len(tabs))
 	for i, t := range tabs {
 		out[i] = workbench.WorkspaceTab{ID: t.id, Name: labels[i].Name, Description: labels[i].Description}
-		if t.ws != nil {
-			out[i].Tooltip, out[i].Dirty, out[i].Folder = tabTooltip(t.ws), t.ws.hasUnsavedChanges(), t.ws.Folder != ""
+		switch w := t.ws; {
+		case w == nil:
+		case w.ext != nil:
+			// the tab of an extension: its title and icon, no folder and nothing to save
+			out[i].Name, out[i].Description, out[i].Tooltip, out[i].IconCode = w.ext.displayTitle(), "", w.ext.tooltip(), w.ext.iconCode()
+		default:
+			out[i].Tooltip, out[i].Dirty, out[i].Folder = tabTooltip(w), w.hasUnsavedChanges(), w.Folder != ""
 		}
 	}
 	return out
@@ -77,7 +83,10 @@ func tabArgs(t *WindowTab) map[string]any { return map[string]any{"tabId": t.id}
 // titleBarOptions are the workspace tabs of the title bar for the workbench of this shell.
 func (s *shellState) titleBarOptions(win *Workspace) *workbench.TitleBarOptions {
 	m := win.Process.Workspaces
-	opts := &workbench.TitleBarOptions{Tabs: m.workspaceTabs(), Active: m.IndexOf(m.ActiveTab())}
+	if s.newMenu == nil {
+		s.newMenu = workbench.NewNewMenuController()
+	}
+	opts := &workbench.TitleBarOptions{Tabs: m.workspaceTabs(), Active: m.IndexOf(m.ActiveTab()), NewMenu: s.newMenu}
 	opts.OnActivate = func(i int) { m.ActivateIndex(i) }
 	opts.OnClose = func(i int) {
 		if tabs := m.Tabs(); i >= 0 && i < len(tabs) {
@@ -100,7 +109,9 @@ func (s *shellState) titleBarOptions(win *Workspace) *workbench.TitleBarOptions 
 		return items
 	}
 	opts.NewItems = func() []kit.MenuItem {
-		return s.menus.Items(command.WorkspaceTabNew, menuContext{base: win.Keys, settings: win.Settings})
+		// "Workspace...", then the kinds of window tab of the extensions that are turned on
+		items := s.menus.Items(command.WorkspaceTabNew, menuContext{base: win.Keys, settings: win.Settings})
+		return append(items, win.extensionTabItems()...)
 	}
 	opts.OnRunItem = s.menus.Run
 	return opts
@@ -182,6 +193,14 @@ func (s *shellState) bindTitleBar(binding *widgets.WidgetsBinding) func() {
 			s.pickFolderInNewTab()
 			return nil
 		},
+	}
+	if DevCommandsEnabled() {
+		handlers["dev.openPlusMenu"] = func(command.Context, any) error {
+			if !s.newMenu.Open() {
+				return errors.New("DevOpenPlusMenuUnavailable", "the strip of the window tabs is not on screen")
+			}
+			return nil
+		}
 	}
 	var removers []func()
 	for id, h := range handlers {

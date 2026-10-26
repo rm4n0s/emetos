@@ -297,6 +297,8 @@ type WorkspaceInfo struct {
 	Kind   ScopeKind `json:"kind"`
 	Name   string    `json:"name"`
 	Folder string    `json:"folder,omitempty"`
+	// WindowTab is the id of the kind of an extension's window tab, empty for a workspace.
+	WindowTab string `json:"windowTab,omitempty"`
 	// ID names the scope in the links between window tabs (ScopeInfo.ID); empty for a tab that has no folder.
 	ID string `json:"id,omitempty"`
 }

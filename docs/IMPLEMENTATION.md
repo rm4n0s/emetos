@@ -1215,7 +1215,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Read:** SPEC §10.15, §10.14.
 **Tasks:** the window tab contribution (a tab kind with its icon, title and widget; its `+` menu entry; its state saved and restored; it is its own event scope; it is in the tray menu, the switch picker and the keys), the `+` menu listing "Workspace..." then each tab kind; `extensions/scratchpad`: a window tab "Scratchpad" (notes kept in the tab's state across restarts) with a feed "Recent edits" that subscribes to `emetos.document.changed` from other tabs, so it exercises the prompt and the links of 11.3 end to end.
 **Tests:** the `+` menu entries appear and disappear with the extension; opening, restoring and closing a Scratchpad tab; its scope gets no events without a link and gets them after Allow; the tray menu and the picker list it.
-**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/11.7-window-tab-extension.png --commands '[["dev.openWindowTab",{"kind":"scratchpad"}],["dev.openPlusMenu"]]' -- testdata/proof/11.7/project`: a workspace tab and a Scratchpad tab, with the `+` menu open (add the two dev commands in this step, SPEC §15.2).
+**Proof:** method B, `scripts/proof.sh docs/implemented-proof-images/11.7-window-tab-extension.png --commands '[["dev.openWindowTab",{"kind":"emetos.scratchpad.tab"}],["dev.openPlusMenu"]]' -- testdata/proof/11.7/project`: a workspace tab and a Scratchpad tab, with the `+` menu open (add the two dev commands in this step, SPEC §15.2).
 
 ---
 

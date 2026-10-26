@@ -14,7 +14,8 @@ var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$`)
 // events and the topics it declares. An extension's own test can call it. The errors have the tags ExtensionIDInvalid,
 // ExtensionIDReserved, ExtensionNameMissing, ExtensionEventInvalid (an unknown event, onStartup with an argument, an
 // event that takes an argument without one), and EventTopicInvalid or EventPatternInvalid for a topic or pattern the
-// manifest declares that is malformed.
+// manifest declares that is malformed, and ExtensionWindowTabIDForeign, ExtensionWindowTabDuplicate and
+// ExtensionWindowTabInvalid for the window tab kinds.
 func CheckManifest(m Manifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return errors.New("ExtensionIDInvalid", "the id of an extension is lowercase, dotted and not empty (emetos.markdown)", "id", m.ID)
@@ -44,6 +45,9 @@ func CheckManifest(m Manifest) error {
 		return err
 	}
 	if err := checkEditors(m); err != nil {
+		return err
+	}
+	if err := checkWindowTabs(m); err != nil {
 		return err
 	}
 	return checkEventDecl(m)
@@ -164,6 +168,25 @@ func checkEditors(m Manifest) error {
 		if strings.TrimSpace(v.Name) == "" || (len(v.Languages) == 0 && len(v.Globs) == 0) {
 			return errors.New("ExtensionEditorInvalid", "a file view needs a name and the languages or globs of the files it is for", "id", m.ID, "editor", v.ID)
 		}
+	}
+	return nil
+}
+
+// checkWindowTabs checks the window tab kinds a manifest declares: every id is under the id of the extension and new,
+// every kind has a title.
+func checkWindowTabs(m Manifest) error {
+	prefix := m.ID + "."
+	seen := map[string]bool{}
+	for _, k := range m.Contributes.WindowTabKinds {
+		switch {
+		case k.ID == "" || len(k.ID) <= len(prefix) || k.ID[:len(prefix)] != prefix:
+			return errors.New("ExtensionWindowTabIDForeign", "the id of a window tab kind starts with the id of the extension and a dot", "id", m.ID, "kind", k.ID)
+		case seen[k.ID]:
+			return errors.New("ExtensionWindowTabDuplicate", "two window tab kinds of the extension have the same id", "id", m.ID, "kind", k.ID)
+		case strings.TrimSpace(k.Title) == "":
+			return errors.New("ExtensionWindowTabInvalid", "a window tab kind needs a title", "id", m.ID, "kind", k.ID)
+		}
+		seen[k.ID] = true
 	}
 	return nil
 }

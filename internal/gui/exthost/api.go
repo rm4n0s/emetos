@@ -275,6 +275,9 @@ func (b statusBarAPI) Add(item extension.StatusItem) (extension.StatusHandle, er
 	if in.isDead() {
 		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
 	}
+	if in.scope.opts.StatusBar == nil {
+		return nil, errors.New("ExtensionStatusBarUnavailable", "the scope has no status bar (a window tab of an extension has none)", "extension", in.id)
+	}
 	if item.ID == "" {
 		return nil, errors.New("ExtensionStatusItemInvalid", "a status bar item needs an ID", "extension", in.id)
 	}

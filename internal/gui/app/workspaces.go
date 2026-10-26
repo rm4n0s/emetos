@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"maps"
@@ -43,21 +44,26 @@ const (
 	// TabWorkspace is a tab that holds a workspace: a folder or none, with its profile and every service of
 	// Workspace.
 	TabWorkspace TabKind = iota
-	// TODO(step 11.7): the kinds of the extension tabs (SPEC §10.15), which hold a widget of an extension in place of a
-	// workspace.
+	// TabExtension is a tab that holds the widget of an extension in place of a workbench (SPEC §10.15, step 11.7). Its
+	// Workspace is the host of the services of the tab (commands, keys, notifications, quick input, settings), with no
+	// folder and no documents, and its scope in the extension host is the scope of the kind (extension.ScopeWindowTab).
+	TabExtension
 )
 
-// String is the name of the kind as the state file writes it.
+// String is the name of the kind as the state file writes it; the tab of an extension is written with the id of its
+// kind (WindowTab.KindID).
 func (k TabKind) String() string {
 	switch k {
 	case TabWorkspace:
 		return storage.TabKindWorkspace
+	case TabExtension:
+		return "extension"
 	}
 	return "unknown"
 }
 
-// WindowTab is a tab of the window (SPEC §10.14): a workspace now, an extension from step 11.7. The tab is what the
-// strip shows, what the restore brings back and what the keys switch between; its Workspace is what it holds.
+// WindowTab is a tab of the window (SPEC §10.14): a workspace, or the tab of an extension (step 11.7). The tab is what
+// the strip shows, what the restore brings back and what the keys switch between; its Workspace is what it holds.
 type WindowTab struct {
 	// seq numbers the tabs in the order they were made; it never changes, even when the tab opens another folder.
 	seq int
@@ -84,6 +90,14 @@ func (t *WindowTab) ID() string { return t.id }
 
 // Kind is what the tab holds.
 func (t *WindowTab) Kind() TabKind { return t.kind }
+
+// KindID is the id of the kind of the window tab of an extension (emetos.scratchpad.tab); empty for a workspace.
+func (t *WindowTab) KindID() string {
+	if t.ws != nil && t.ws.ext != nil {
+		return t.ws.ext.kind.Spec.ID
+	}
+	return ""
+}
 
 // Workspace is the workspace of the tab, or nil for a kind of tab that holds none.
 func (t *WindowTab) Workspace() *Workspace { return t.ws }
@@ -158,6 +172,19 @@ func (m *Workspaces) ActiveTab() *WindowTab {
 		return nil
 	}
 	return m.order[len(m.order)-1]
+}
+
+// launchTarget is the workspace a launch of the command line acts on: the active tab's, or, when the active tab is the
+// tab of an extension, the workspace tab used last; nil when no workspace tab is open.
+func (m *Workspaces) launchTarget() *Workspace {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := len(m.order) - 1; i >= 0; i-- {
+		if w := m.order[i].ws; w != nil && w.ext == nil {
+			return w
+		}
+	}
+	return nil
 }
 
 // Active is the workspace of the active tab, or nil when there is none (or it holds none).
@@ -304,11 +331,16 @@ func (m *Workspaces) ctxOr() context.Context {
 	return context.Background()
 }
 
-// syncTabs writes the list of the open tabs and the active one to the global state.
+// syncTabs writes the list of the open tabs and the active one to the global state. The tab of an extension is written
+// with its kind, its title and the state its content saves now.
 func (m *Workspaces) syncTabs() {
 	var list []storage.WorkspaceTab
 	for _, t := range m.Tabs() {
-		if w := t.ws; w != nil && w.stateID != "" {
+		switch w := t.ws; {
+		case w == nil:
+		case w.ext != nil:
+			list = append(list, storage.WorkspaceTab{ID: t.id, Kind: w.ext.kind.Spec.ID, Title: w.ext.title, State: w.currentExtState()})
+		case w.stateID != "":
 			list = append(list, storage.WorkspaceTab{ID: t.id, StateID: w.stateID, Folder: w.Folder, Profile: w.Profile()})
 		}
 	}
@@ -316,12 +348,14 @@ func (m *Workspaces) syncTabs() {
 	var folder *string
 	if t := m.ActiveTab(); t != nil && t.ws != nil {
 		active = t.id
-		f := t.ws.Folder
-		folder = &f
+		if t.ws.ext == nil {
+			f := t.ws.Folder
+			folder = &f
+		}
 	}
 	err := m.p.State.UpdateGlobal(m.ctxOr(), func(g *storage.GlobalState) bool {
 		changed := false
-		if !slices.Equal(g.WorkspaceTabs, list) {
+		if !slices.EqualFunc(g.WorkspaceTabs, list, sameStoredTab) {
 			g.WorkspaceTabs, changed = list, true
 		}
 		if len(g.OpenWindows) > 0 {
@@ -338,6 +372,12 @@ func (m *Workspaces) syncTabs() {
 	if err != nil {
 		m.p.Logger.Warn("the global UI state could not be used", "err", err)
 	}
+}
+
+// sameStoredTab tells whether two entries of the list of the open tabs are the same.
+func sameStoredTab(a, b storage.WorkspaceTab) bool {
+	return a.ID == b.ID && a.Kind == b.Kind && a.StateID == b.StateID && a.Folder == b.Folder && a.Profile == b.Profile &&
+		a.Title == b.Title && bytes.Equal(a.State, b.State)
 }
 
 // Tab is the window tab that holds the workspace, or nil for a workspace that no tab holds.
@@ -466,11 +506,12 @@ func (m *Workspaces) watchSignal(ctx context.Context, binding *widgets.WidgetsBi
 		<-ctx.Done()
 		binding.Post(func() {
 			for _, w := range m.All() {
-				if s := w.shell; s != nil && s.Mounted() {
+				if s := w.shell; s != nil && s.Mounted() && w.ext == nil {
 					s.backupOnSignal()
 					s.flushState()
 				}
 			}
+			m.syncTabs()
 			binding.ExitApplication(ui.AppExitTypeRequired)
 		})
 	}()
@@ -505,6 +546,9 @@ type WorkspaceSpec struct {
 	Launch *ipc.OpenArgs
 	// Steps are the dev commands to run once the workspace is up.
 	Steps []DevStep
+	// Extension, when set, makes the spec the tab of an extension instead of a workspace: the other fields, but TabID and
+	// Steps, are not used.
+	Extension *ExtensionTabSpec
 }
 
 // preparedWorkspace is a workspace that is made and restored, and waits for its tab.
@@ -515,11 +559,16 @@ type preparedWorkspace struct {
 	docs     []*document.Document
 	blocked  string
 	steps    []DevStep
+	// ext is the extension tab a prepared tab of an extension holds; nil for a workspace.
+	ext *extTab
 }
 
 // prepare makes a workspace for a spec and restores its state; nothing is on screen yet. The error has the tags of
 // NewWorkspace.
 func (m *Workspaces) prepare(ctx context.Context, spec WorkspaceSpec, from *Workspace) (*preparedWorkspace, error) {
+	if spec.Extension != nil {
+		return m.prepareExtension(ctx, spec, from)
+	}
 	o := workspaceOptions{folder: spec.Folder, stateID: spec.StateID, from: from}
 	var profileProblem error
 	o.profile, profileProblem = m.workspaceProfile(ctx, spec)
@@ -578,7 +627,11 @@ func (m *Workspaces) addTab(pw *preparedWorkspace, at int) *WindowTab {
 	if id == "" {
 		id = m.newTabID()
 	}
-	t := &WindowTab{kind: TabWorkspace, ws: pw.ws, id: id, page: m.pageOf(pw), hosted: true}
+	kind := TabWorkspace
+	if pw.ext != nil {
+		kind = TabExtension
+	}
+	t := &WindowTab{kind: kind, ws: pw.ws, id: id, page: m.pageOf(pw), hosted: true}
 	t.key = widgets.NewGlobalKey[*tabSlotState]()
 	m.insert(t, at)
 	m.syncTabs()
@@ -755,11 +808,18 @@ func (m *Workspaces) restoreFocus(t *WindowTab) {
 
 // pushTitle gives the window the title of the tab: the title of the workspace as the shell last made it.
 func (m *Workspaces) pushTitle(t *WindowTab) {
-	if t == nil || t.ws == nil || t.ws.title == "" {
+	if t == nil || t.ws == nil {
+		return
+	}
+	title := t.ws.title
+	if e := t.ws.ext; e != nil {
+		title = e.windowTitle() // the title of a tab of an extension is known without a shell
+	}
+	if title == "" {
 		return
 	}
 	if c := t.ws.controller; c != nil {
-		c.SetTitle(t.ws.title)
+		c.SetTitle(title)
 	}
 }
 
@@ -921,6 +981,7 @@ func (m *Workspaces) RequestQuit(from *Workspace) {
 // written first, and the launcher stops answering.
 func (m *Workspaces) exitApplication(from *Workspace) {
 	m.quitting = true
+	m.syncTabs() // the state the tabs of extensions saved last
 	if err := m.p.flushStates(context.WithoutCancel(m.ctxOr())); err != nil {
 		m.p.Logger.Warn("the UI state cannot be written", "err", err)
 	}
@@ -984,6 +1045,9 @@ func (m *Workspaces) removeTab(t *WindowTab) {
 	}
 	m.refreshHost()
 	m.changed()
+	if sc := w.Extensions(); sc != nil && w.ext != nil {
+		sc.WindowTabClosed() // the tab of an extension is closed for good; on quit the extension is not told
+	}
 	m.afterUnmount(func() {
 		w.release()
 		if w.dropState && w.stateID != "" {
@@ -1319,7 +1383,17 @@ func (m *Workspaces) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (
 			inner = w.HandleLaunch(a, done)
 		})
 	}
-	active := m.Active()
+	active := m.launchTarget()
+	if active == nil && m.Active() != nil {
+		// only tabs of extensions are open: a No Folder tab takes the launch
+		w, err := m.openFrom(WorkspaceSpec{}, m.Active())
+		if err != nil {
+			m.p.Logger.Warn("cannot open a tab for the launch", "err", err)
+			finish(LaunchOutcome{ExitCode: 1, Message: "cannot open a workspace tab: " + describe(err)})
+			return cancel
+		}
+		active = w
+	}
 	if active == nil {
 		finish(LaunchOutcome{ExitCode: 1, Message: "the window is not ready"})
 		return cancel

@@ -859,6 +859,8 @@ func registerWorkspaceTabCommands(r *Registry) {
 		Meta{ID: "emetos.workspaceTab.copyPath", Title: "Copy Path of Workspace Tab", Category: "Workspace"},
 		Meta{ID: "emetos.workspaceTab.revealInFileManager", Title: "Reveal Workspace Tab in File Manager", Category: "Workspace"},
 		Meta{ID: "emetos.workspaceTab.openFolder", Title: "Open Folder in New Workspace Tab...", Category: "Workspace"},
+		// the window tab of an extension (step 11.7): the "+" menu runs it with {"kind": id}, the palette without arguments
+		Meta{ID: "emetos.windowTab.open", Title: "New Window Tab...", Category: "Workspace"},
 	)
 }
 

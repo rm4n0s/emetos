@@ -195,7 +195,10 @@ func (h *Host) Rows(disabled []string) []Row {
 	for i, in := range h.infos {
 		rows[i] = Row{Manifest: in.Manifest, Disabled: slices.Contains(disabled, in.Manifest.ID)}
 		for _, s := range scopes {
-			state, failure := s.status(in.Manifest.ID)
+			state, failure, found := s.status(in.Manifest.ID)
+			if !found {
+				continue
+			}
 			rows[i].Scopes = append(rows[i].Scopes, ScopeRow{Scope: s.opts.Info.Name, State: state, Failure: failure})
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/gui/kit"
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
@@ -92,4 +93,40 @@ func newStripRigIn(t *testing.T, size ui.Size, colors kit.Colors, tabs []Workspa
 		}
 	})
 	return r
+}
+
+// extensionTabs are a workspace tab and the tab of an extension, which has the icon of its kind.
+func extensionTabs() []WorkspaceTab {
+	note, _ := fonts.CodiconByName("note")
+	return []WorkspaceTab{
+		{ID: "t1", Name: "emetos", Tooltip: "/home/me/emetos", Folder: true},
+		{ID: "t2", Name: "Scratchpad", Tooltip: "Scratchpad", IconCode: note},
+	}
+}
+
+// TestGoldenTitleBarOfAWindowTabOfAnExtension shows the window tab of an extension (step 11.7): the workbench with the
+// editor area alone under the title bar, which has the tab of the extension with its own icon, and the "+" menu with the
+// entry of the extension after Workspace..., in Dark Modern and Light Modern.
+func TestGoldenTitleBarOfAWindowTabOfAnExtension(t *testing.T) {
+	for _, th := range goldenThemes {
+		t.Run(th.name+" tab", func(t *testing.T) {
+			r := newStripRigIn(t, ui.Size{Width: 960, Height: 300}, th.colors(), extensionTabs(), 1, nil, func(o *Options) {
+				o.EditorOnly = true
+				o.StatusLeft = []Widget{statusText("hidden")}
+			})
+			r.settle()
+			testutil.MatchesGolden(r.ts, "titlebar_extension_tab_"+th.name)
+			noErrors(t, r.harness)
+		})
+		t.Run(th.name+" new menu", func(t *testing.T) {
+			r := newStripRigIn(t, ui.Size{Width: 960, Height: 300}, th.colors(), extensionTabs(), 0, nil, func(o *Options) { o.EditorOnly = true })
+			r.bar.NewItems = func() []kit.MenuItem {
+				return []kit.MenuItem{{ID: "emetos.workspaceTab.openFolder", Label: "Workspace..."}, {ID: "emetos.windowTab.open", Label: "Scratchpad"}}
+			}
+			r.ts.TapAt(r.ts.Center(gluttertest.ByIcon(codiconAdd())), r.mouse())
+			r.settle()
+			testutil.MatchesGolden(r.ts, "titlebar_extension_new_menu_"+th.name)
+			noErrors(t, r.harness)
+		})
+	}
 }
