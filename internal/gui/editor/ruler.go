@@ -19,6 +19,8 @@ type RulerColors struct {
 	// FindMatch marks the matches of the find widget, in the middle lane; RangeHighlight marks
 	// the lines of the current match, across all three lanes.
 	FindMatch, RangeHighlight ui.Color
+	// Error, Warning and Info mark the diagnostics, in the right lane (hints have no mark).
+	Error, Warning, Info ui.Color
 }
 
 // rulerMinMarkHeight is the height of the smallest mark.
@@ -134,12 +136,75 @@ type rulerLane int
 const (
 	laneCenter rulerLane = iota
 	laneFull
+	laneRight
 )
 
-// rulerMark is a mark on the ruler: from y to y+height in the lane.
+// rulerMark is a mark on the ruler: from y to y+height in the lane. A mark of the right lane has the severity of the
+// diagnostic it stands for.
 type rulerMark struct {
 	y, height float64
 	lane      rulerLane
+	severity  DiagnosticSeverity
+}
+
+// rulerCache holds the marks of the diagnostics for what they were made for: the diagnostics (their generation), the height of
+// the ruler and the size of the text (its height and number of lines). Typing inside a line changes none of them, so the
+// marks of thousands of diagnostics are not worked out again for every key.
+type rulerCache struct {
+	valid         bool
+	generation    int
+	height, total float64
+	lines         int
+	marks         []rulerMark
+}
+
+// diagnosticRulerMarks are the marks of the diagnostics for a ruler of a height: one run of pixels for each stretch of the
+// ruler where the most serious diagnostic is the same, so that thousands of diagnostics make as many marks as the ruler has
+// pixels at most.
+//
+// Ported from VS Code: src/vs/editor/common/viewModel/overviewZoneManager.ts (the zones of a lane are merged by color)
+func (vm *ViewModel) diagnosticRulerMarks(height float64) []rulerMark {
+	if !vm.diagnosticsShown() || height <= 0 {
+		return nil
+	}
+	total := vm.ContentHeight()
+	if total <= 0 {
+		return nil
+	}
+	lines := vm.doc.Snapshot().LineCount()
+	c := &vm.diag.ruler
+	if c.valid && c.generation == vm.diag.generation && c.height == height && c.total == total && c.lines == lines {
+		return c.marks
+	}
+	proj := vm.Projection()
+	scale := height / total
+	best := make([]DiagnosticSeverity, int(math.Ceil(height))+1)
+	for _, d := range diagnosticsOf(vm.doc.DecorationsOf(vm.owner(diagnosticsOwner))) {
+		if d.Severity == DiagnosticHint {
+			continue
+		}
+		first, last := vm.RowOfPosition(d.Range.Start), vm.RowOfPosition(d.Range.End)
+		y := int(math.Round(proj.RowTop(first) * scale))
+		end := max(int(math.Round((proj.RowTop(last)+proj.RowHeight(last))*scale)), y+int(rulerMinMarkHeight))
+		for p := max(y, 0); p < min(end, len(best)); p++ {
+			best[p] = max(best[p], d.Severity)
+		}
+	}
+	var marks []rulerMark
+	for p := 0; p < len(best); {
+		if best[p] == 0 {
+			p++
+			continue
+		}
+		q := p
+		for q < len(best) && best[q] == best[p] {
+			q++
+		}
+		marks = append(marks, rulerMark{y: float64(p), height: float64(q - p), lane: laneRight, severity: best[p]})
+		p = q
+	}
+	*c = rulerCache{valid: true, generation: vm.diag.generation, height: height, total: total, lines: lines, marks: marks}
+	return marks
 }
 
 // marks are the marks of the find decorations for a ruler of a height, merged so that none is
@@ -180,10 +245,21 @@ func (vm *ViewModel) rulerMarks(height float64) []rulerMark {
 	return marks
 }
 
+// severity is the color of the marks of a severity.
+func (c RulerColors) severity(s DiagnosticSeverity) ui.Color {
+	switch s {
+	case DiagnosticError:
+		return c.Error
+	case DiagnosticWarning:
+		return c.Warning
+	}
+	return c.Info
+}
+
 // Paint implements rendering.RenderObject.
 func (r *RenderEditorRuler) Paint(context *rendering.PaintingContext, offset ui.Offset) {
 	size := r.Size()
-	marks := r.vm.rulerMarks(size.Height)
+	marks := append(r.vm.rulerMarks(size.Height), r.vm.diagnosticRulerMarks(size.Height)...)
 	if len(marks) == 0 {
 		return
 	}
@@ -191,8 +267,11 @@ func (r *RenderEditorRuler) Paint(context *rendering.PaintingContext, offset ui.
 	third := math.Floor(size.Width / 3)
 	for _, m := range marks {
 		left, width, color := offset.Dx+third, size.Width-2*third, r.colors.FindMatch
-		if m.lane == laneFull {
+		switch m.lane {
+		case laneFull:
 			left, width, color = offset.Dx, size.Width, r.colors.RangeHighlight
+		case laneRight:
+			left, width, color = offset.Dx+size.Width-third, third, r.colors.severity(m.severity)
 		}
 		canvas.DrawRect(ui.NewRectFromLTWH(left, offset.Dy+m.y, width, m.height), fill(color))
 	}

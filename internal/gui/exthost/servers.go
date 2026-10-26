@@ -135,8 +135,14 @@ type serverCtl struct {
 	// traceLevel is <id>.trace.server as it was last read on the UI thread; the connection reads it from its goroutines.
 	traceLevel atomic.Value
 
-	wanted       map[document.URI]*document.Document
-	synced       map[document.URI]*lsp.SyncedDocument
+	wanted map[document.URI]*document.Document
+	synced map[document.URI]*lsp.SyncedDocument
+	// ctx ends with the controller (stop); diag is the state of the diagnostics (diagnostics.go) and pullSubs the
+	// subscriptions to the changes of the documents that are pulled.
+	ctx          context.Context
+	cancel       context.CancelFunc
+	diag         diagState
+	pullSubs     map[*document.Document]func()
 	lastConfig   string
 	missingShown bool
 	globs        sync.Map // pattern -> glob.Matcher, for the watched files
@@ -160,7 +166,9 @@ func (s *Scope) startServers(inst *instance) {
 			s: s, inst: inst, spec: spec, qid: extension.QualifiedServerID(inst.id, spec), ws: s.opts.LSP,
 			log:    inst.log.With("server", spec.ID),
 			wanted: map[document.URI]*document.Document{}, synced: map[document.URI]*lsp.SyncedDocument{},
+			diag: newDiagState(), pullSubs: map[*document.Document]func(){},
 		}
+		c.ctx, c.cancel = context.WithCancel(context.Background())
 		inst.mu.Lock()
 		inst.servers = append(inst.servers, c)
 		inst.mu.Unlock()
@@ -319,6 +327,11 @@ func (c *serverCtl) docClosed(doc *document.Document) {
 			delete(c.synced, uri)
 		}
 	}
+	if unsub := c.pullSubs[doc]; unsub != nil {
+		unsub()
+		delete(c.pullSubs, doc)
+	}
+	c.forgetDocument(doc.URI())
 }
 
 // attach opens a document on the running server.
@@ -338,6 +351,10 @@ func (c *serverCtl) attach(doc *document.Document) {
 		return
 	}
 	c.synced[doc.URI()] = sd
+	if _, ok := c.pullOptions(client); ok {
+		c.pullSubs[doc] = doc.Subscribe(func(document.ChangeEvent) { c.schedulePull(doc) })
+		c.pull(doc)
+	}
 	// a rename (Save As) changes the key
 	doc.OnURIChange(func(oldURI, newURI document.URI) {
 		c.s.post(func() {
@@ -351,6 +368,18 @@ func (c *serverCtl) attach(doc *document.Document) {
 			}
 		})
 	})
+}
+
+// closeSynced closes the documents on the server and stops following their changes (UI thread).
+func (c *serverCtl) closeSynced() {
+	for uri, sd := range c.synced {
+		sd.Close()
+		delete(c.synced, uri)
+	}
+	for doc, unsub := range c.pullSubs {
+		unsub()
+		delete(c.pullSubs, doc)
+	}
 }
 
 func (c *serverCtl) currentClient() *lsp.Client {
@@ -455,6 +484,11 @@ func (c *serverCtl) clientOptions(gen int) lsp.ClientOptions {
 			ShowMessage:        c.showMessage,
 			LogMessage:         c.logMessage,
 			Progress:           c.onProgress,
+			PublishDiagnostics: c.publishDiagnostics,
+			Refresh:            c.refresh,
+			RegistrationsChanged: func() {
+				c.s.post(c.pullAll)
+			},
 		},
 	}
 }
@@ -505,13 +539,11 @@ func (c *serverCtl) exited(gen int, client *lsp.Client, proc *lsp.Process) {
 		defer c.s.h.servers.Done()
 		proc.Stop(0)
 	}()
-	for uri, sd := range c.synced {
-		sd.Close()
-		delete(c.synced, uri)
-	}
+	c.closeSynced()
 	c.mu.Lock()
 	c.client, c.proc = nil, nil
 	c.mu.Unlock()
+	c.clearMarkers()
 	c.crashed(gen)
 }
 
@@ -578,16 +610,14 @@ func (c *serverCtl) restart() {
 // detach lets go of the running server: its documents are closed on it and it is shut down in the background, and the
 // generation moves on so that a start in progress is thrown away when it ends.
 func (c *serverCtl) detach() {
-	for uri, sd := range c.synced {
-		sd.Close()
-		delete(c.synced, uri)
-	}
+	c.closeSynced()
 	c.mu.Lock()
 	client, proc := c.client, c.proc
 	c.client, c.proc = nil, nil
 	c.gen++
 	c.progress = nil
 	c.mu.Unlock()
+	c.clearMarkers()
 	if client != nil {
 		c.shutdown(client, proc)
 	}
@@ -603,6 +633,7 @@ func (c *serverCtl) stop() {
 	c.stopped = true
 	c.state = ServerStopped
 	c.mu.Unlock()
+	c.cancel()
 	c.detach()
 	if c.status != nil {
 		c.status.Dispose()
@@ -872,6 +903,14 @@ func (c *serverCtl) encoding() lsp.Encoding {
 		return cl.Encoding()
 	}
 	return lsp.UTF16
+}
+
+// refresh answers the refresh requests of the server: the diagnostics of the open documents are pulled again.
+func (c *serverCtl) refresh(_ context.Context, method string) error {
+	if method == lsp.MethodDiagnosticRefresh {
+		c.refreshDiagnostics()
+	}
+	return nil
 }
 
 // ---- configuration ----

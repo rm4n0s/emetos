@@ -201,7 +201,11 @@ func (s *Server) writeError() error {
 
 func (s *Server) record(fromClient bool, kind, method, id string, body []byte) (count int) {
 	s.mu.Lock()
-	s.traffic = append(s.traffic, Message{FromClient: fromClient, Kind: kind, Method: method, ID: id, Body: append(json.RawMessage(nil), body...)})
+	// the control requests of the tests and their answers are not traffic: the answer to a traffic request
+	// holds the traffic, so recording it would make every later answer double
+	if !strings.HasPrefix(method, "$/lsptest/") {
+		s.traffic = append(s.traffic, Message{FromClient: fromClient, Kind: kind, Method: method, ID: id, Body: append(json.RawMessage(nil), body...)})
+	}
 	if fromClient && kind != "response" {
 		s.counts[method]++
 		count = s.counts[method]

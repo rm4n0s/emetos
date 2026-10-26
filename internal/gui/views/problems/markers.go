@@ -95,6 +95,11 @@ type Marker struct {
 	Message string
 	// StartLine, StartColumn, EndLine and EndColumn are the range, counted from 1.
 	StartLine, StartColumn, EndLine, EndColumn int
+	// CodeHref is a link that describes the code (the target of VS Code's code object); may be empty.
+	CodeHref string
+	// Unnecessary and Deprecated are VS Code's marker tags: the editor fades the text of an unnecessary
+	// (unused) marker and strikes through the text of a deprecated one.
+	Unnecessary, Deprecated bool
 	// Related are the places that are part of the problem.
 	Related []RelatedInformation
 }

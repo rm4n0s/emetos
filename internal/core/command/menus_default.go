@@ -198,6 +198,8 @@ func registerViewMenu(r *MenuRegistry) {
 func registerGoMenu(r *MenuRegistry) {
 	r.MustAdd(
 		MenuItem{Menu: MenubarGoMenu, Command: "editor.action.jumpToBracket", MnemonicTitle: "Go to &&Bracket", Group: "5_infile_nav", Order: 2},
+		MenuItem{Menu: MenubarGoMenu, Command: "editor.action.marker.nextInFiles", Title: "Next Problem", MnemonicTitle: "Next &&Problem", Group: "6_problem_nav", Order: 1},
+		MenuItem{Menu: MenubarGoMenu, Command: "editor.action.marker.prevInFiles", Title: "Previous Problem", MnemonicTitle: "Previous &&Problem", Group: "6_problem_nav", Order: 2},
 	)
 }
 

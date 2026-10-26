@@ -51,6 +51,9 @@ var appCommands = map[string]bool{
 	"emetos.extensions.manageEventSharing": true,
 	// the command that opens a window tab of an extension (step 11.7, gui/app/exttab.go)
 	"emetos.windowTab.open": true,
+	// Go to Next Problem and the like go through the files of the window (step 12.4, gui/app/diagnostics.go)
+	"editor.action.marker.next": true, "editor.action.marker.prev": true,
+	"editor.action.marker.nextInFiles": true, "editor.action.marker.prevInFiles": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

@@ -411,6 +411,47 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.showUnused", Types: []Type{Boolean}, Default: true,
+			Description: "Controls fading out of unused code.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.showDeprecated", Types: []Type{Boolean}, Default: true,
+			Description: "Controls strikethrough deprecated variables.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.hover.enabled", Types: []Type{String}, Default: "on",
+			Enum: []any{"on", "off", "onKeyboardModifier"},
+			EnumDescriptions: []string{
+				"Hover is enabled.",
+				"Hover is disabled.",
+				"Hover is shown when holding `Control` or `Alt` (the opposite modifier of `#editor.multiCursorModifier#`).",
+			},
+			Description: "Controls whether the hover is shown.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.hover.delay", Types: []Type{Number}, Default: 300, Minimum: Float(0), Maximum: Float(10000),
+			Description: "Controls the delay in milliseconds after which the hover is shown.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.hover.sticky", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the hover should remain visible when mouse is moved over it.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.hover.hidingDelay", Types: []Type{Integer}, Default: 300, Minimum: Float(0),
+			Description: "Controls the delay in milliseconds after which the hover is hidden. Requires `#editor.hover.sticky#` to be enabled.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.hover.above", Types: []Type{Boolean}, Default: true,
+			Description: "Prefer showing hovers above the line, if there's space.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.selectionHighlight", Types: []Type{Boolean}, Default: true,
 			Description: "Controls whether the editor should highlight matches similar to the selection.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

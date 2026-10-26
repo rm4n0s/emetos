@@ -17,6 +17,7 @@ func DefaultRegistry() *Registry {
 	registerLineCommands(r)
 	registerMultiCursorCommands(r)
 	registerBracketCommands(r)
+	registerMarkerCommands(r)
 	registerIndentationCommands(r)
 	registerCommentCommands(r)
 	registerFoldingCommands(r)
@@ -333,6 +334,19 @@ func registerCommentCommands(r *Registry) {
 		Meta{ID: "editor.action.addCommentLine", Title: "Add Line Comment", Precondition: writable()},
 		Meta{ID: "editor.action.removeCommentLine", Title: "Remove Line Comment", Precondition: writable()},
 		Meta{ID: "editor.action.blockComment", Title: "Toggle Block Comment", Precondition: writable()},
+	)
+}
+
+// registerMarkerCommands registers the commands that go through the problems of the files.
+//
+// Ported from VS Code: src/vs/editor/contrib/gotoError/browser/gotoError.ts
+func registerMarkerCommands(r *Registry) {
+	r.MustRegister(
+		Meta{ID: "editor.action.marker.next", Title: "Go to Next Problem (Error, Warning, Info)"},
+		Meta{ID: "editor.action.marker.prev", Title: "Go to Previous Problem (Error, Warning, Info)"},
+		Meta{ID: "editor.action.marker.nextInFiles", Title: "Go to Next Problem in Files (Error, Warning, Info)"},
+		Meta{ID: "editor.action.marker.prevInFiles", Title: "Go to Previous Problem in Files (Error, Warning, Info)"},
+		Meta{ID: "closeMarkersNavigation", Title: "Close Marker Navigation"},
 	)
 }
 

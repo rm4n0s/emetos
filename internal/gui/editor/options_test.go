@@ -81,6 +81,8 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		WordWrap: "off", WordWrapColumn: 80, WrappingIndent: "same", WrappingStrategy: "simple", StopRenderingLineAfter: 10000,
 		RenderWhitespace: "selection", RenderControlCharacters: true,
 		OccurrencesHighlight: "singleFile", OccurrencesHighlightDelay: 250, SelectionHighlight: true, SelectionHighlightMaxLength: 200,
+		ShowUnused: true, ShowDeprecated: true,
+		Hover:        HoverOptions{Enabled: "on", Delay: 300, Sticky: true, HidingDelay: 300, Above: true},
 		Minimap:      MinimapOptions{Enabled: true, Side: "right", Size: "proportional", ShowSlider: "mouseover", Scale: 1, MaxColumn: 120},
 		StickyScroll: StickyScrollOptions{Enabled: true, MaxLineCount: 5, ScrollWithEditor: true},
 	}

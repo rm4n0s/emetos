@@ -89,6 +89,7 @@ func (s *shellState) initPanels(binding *widgets.WidgetsBinding) {
 	)
 	s.bindPanelCommands()
 	s.bindDevMarkers()
+	s.bindMarkerCommands()
 }
 
 // disposePanels ends the views of the panels and gives the commands back.
@@ -267,6 +268,11 @@ func (s *shellState) syncActiveFile(binding *widgets.WidgetsBinding) {
 //
 // Ported from VS Code: src/vs/workbench/contrib/markers/browser/markersView.ts (openFileAtElement)
 func (s *shellState) openMarker(binding *widgets.WidgetsBinding, m problems.Marker, pinned bool) {
+	s.openMarkerThen(binding, m, pinned, nil)
+}
+
+// openMarkerThen is openMarker that calls after with the editor once the range is selected in it.
+func (s *shellState) openMarkerThen(binding *widgets.WidgetsBinding, m problems.Marker, pinned bool, after func(*textEditor)) {
 	win := PeekWorkspace(s.Context())
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, m.Resource, document.NewOptions())
@@ -290,6 +296,9 @@ func (s *shellState) openMarker(binding *widgets.WidgetsBinding, m problems.Mark
 				start := model.ValidatePosition(markerPosition(doc, m.StartLine, m.StartColumn))
 				end := model.ValidatePosition(markerPosition(doc, m.EndLine, m.EndColumn))
 				e.view.Cursors().SetSelections([]buffer.Selection{{Anchor: start, Active: end}})
+				if after != nil {
+					after(e)
+				}
 			}
 			s.show(binding, doc, openOptions{Preview: !pinned, Place: place})
 		})

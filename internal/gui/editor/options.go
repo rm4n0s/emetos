@@ -101,6 +101,13 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		SelectionHighlight:            settings.Get[bool](store, "editor.selectionHighlight", languageID),
 		SelectionHighlightMaxLength:   int(settings.Get[float64](store, "editor.selectionHighlightMaxLength", languageID)),
 		SelectionHighlightMultiline:   settings.Get[bool](store, "editor.selectionHighlightMultiline", languageID),
+		ShowUnused:                    settings.Get[bool](store, "editor.showUnused", languageID),
+		ShowDeprecated:                settings.Get[bool](store, "editor.showDeprecated", languageID),
+		Hover: HoverOptions{
+			Enabled: settings.Get[string](store, "editor.hover.enabled", languageID), Delay: int(settings.Get[float64](store, "editor.hover.delay", languageID)),
+			Sticky: settings.Get[bool](store, "editor.hover.sticky", languageID), HidingDelay: int(settings.Get[float64](store, "editor.hover.hidingDelay", languageID)),
+			Above: settings.Get[bool](store, "editor.hover.above", languageID),
+		},
 		StickyScroll: StickyScrollOptions{
 			Enabled:          settings.Get[bool](store, "editor.stickyScroll.enabled", languageID),
 			MaxLineCount:     int(settings.Get[float64](store, "editor.stickyScroll.maxLineCount", languageID)),

@@ -57,6 +57,8 @@ type OverlayColors struct {
 	// SnippetFinalTabstop and its border the final one.
 	SnippetTabstop, SnippetTabstopBorder           ui.Color
 	SnippetFinalTabstop, SnippetFinalTabstopBorder ui.Color
+	// Diagnostics are the colors of the squiggles and of the unused code.
+	Diagnostics DiagnosticColors
 }
 
 // overlayKind tells which part of the decorations a RenderEditorOverlay draws.
@@ -221,8 +223,10 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 		view.paintRangeHighlight()
 		view.paintWhitespace()
 		view.paintMatchingBrackets()
+		view.paintDiagnostics()
 	} else {
-		// the boxes of control characters cover what the font draws for them
+		// the unused and the deprecated text, then the boxes of control characters, which cover what the font draws for them
+		view.paintDiagnosticText()
 		view.paintControlCharacters()
 		view.paintCursors()
 	}

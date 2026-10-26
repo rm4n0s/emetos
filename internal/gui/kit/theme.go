@@ -100,6 +100,17 @@ type Colors struct {
 	// EditorOverviewRulerFindMatch and EditorOverviewRulerRangeHighlight are the marks of the
 	// matches and of the range highlight on the vertical scrollbar.
 	EditorOverviewRulerFindMatch, EditorOverviewRulerRangeHighlight ui.Color
+	// EditorOverviewRulerError, EditorOverviewRulerWarning and EditorOverviewRulerInfo are the marks of the
+	// diagnostics on the vertical scrollbar, MinimapError, MinimapWarning and MinimapInfo their marks on the
+	// minimap.
+	EditorOverviewRulerError, EditorOverviewRulerWarning, EditorOverviewRulerInfo ui.Color
+	MinimapError, MinimapWarning, MinimapInfo                                     ui.Color
+	// EditorError, EditorWarning, EditorInfo and EditorHint are the colors of the squiggles of the diagnostics
+	// (foreground) and of the double underlines a theme can ask for instead (border); EditorUnnecessaryCodeOpacity
+	// is the opacity of unused code (its alpha) and EditorUnnecessaryCodeBorder the line under it.
+	EditorErrorForeground, EditorWarningForeground, EditorInfoForeground, EditorHintForeground ui.Color
+	EditorErrorBorder, EditorWarningBorder, EditorInfoBorder, EditorHintBorder                 ui.Color
+	EditorUnnecessaryCodeOpacity, EditorUnnecessaryCodeBorder                                  ui.Color
 	// EditorWidgetBackground, EditorWidgetForeground and WidgetBorder are the colors of widgets
 	// over the editor (find).
 	EditorWidgetBackground, EditorWidgetForeground, WidgetBorder ui.Color
@@ -151,7 +162,7 @@ type Colors struct {
 	// the one of a toggled action.
 	DisabledForeground, ToolbarActiveBackground, ActionBarToggledBackground ui.Color
 	// The colors of hovers (tooltips): background, text and border.
-	EditorHoverWidgetBackground, EditorHoverWidgetForeground, EditorHoverWidgetBorder ui.Color
+	EditorHoverWidgetBackground, EditorHoverWidgetForeground, EditorHoverWidgetBorder, EditorHoverWidgetStatusBarBackground ui.Color
 	// The colors of menus: text, background and border, the focused item (text, background and
 	// border) and the separator.
 	MenuForeground, MenuBackground, MenuBorder                            ui.Color
@@ -362,6 +373,14 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorStickyScrollHoverBackground: color("editorStickyScrollHover.background"),
 		EditorStickyScrollBorder:          color("editorStickyScroll.border"), EditorStickyScrollShadow: color("editorStickyScroll.shadow"),
 		EditorOverviewRulerFindMatch: color("editorOverviewRuler.findMatchForeground"), EditorOverviewRulerRangeHighlight: color("editorOverviewRuler.rangeHighlightForeground"),
+		EditorOverviewRulerError: color("editorOverviewRuler.errorForeground"), EditorOverviewRulerWarning: color("editorOverviewRuler.warningForeground"),
+		EditorOverviewRulerInfo: color("editorOverviewRuler.infoForeground"),
+		MinimapError:            color("minimap.errorHighlight"), MinimapWarning: color("minimap.warningHighlight"), MinimapInfo: color("minimap.infoHighlight"),
+		EditorErrorForeground: color("editorError.foreground"), EditorWarningForeground: color("editorWarning.foreground"),
+		EditorInfoForeground: color("editorInfo.foreground"), EditorHintForeground: color("editorHint.foreground"),
+		EditorErrorBorder: color("editorError.border"), EditorWarningBorder: color("editorWarning.border"),
+		EditorInfoBorder: color("editorInfo.border"), EditorHintBorder: color("editorHint.border"),
+		EditorUnnecessaryCodeOpacity: color("editorUnnecessaryCode.opacity"), EditorUnnecessaryCodeBorder: color("editorUnnecessaryCode.border"),
 		EditorWidgetBackground: color("editorWidget.background"), EditorWidgetForeground: color("editorWidget.foreground"), WidgetBorder: color("widget.border"),
 		IconForeground: color("icon.foreground"), ToolbarHoverBackground: color("toolbar.hoverBackground"),
 		InputBackground: color("input.background"), InputForeground: color("input.foreground"), InputBorder: color("input.border"),
@@ -395,7 +414,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		DisabledForeground: color("disabledForeground"), ToolbarActiveBackground: color("toolbar.activeBackground"),
 		ActionBarToggledBackground:  color("actionBar.toggledBackground"),
 		EditorHoverWidgetBackground: color("editorHoverWidget.background"), EditorHoverWidgetForeground: color("editorHoverWidget.foreground"),
-		EditorHoverWidgetBorder: color("editorHoverWidget.border"),
+		EditorHoverWidgetBorder: color("editorHoverWidget.border"), EditorHoverWidgetStatusBarBackground: color("editorHoverWidget.statusBarBackground"),
 
 		MenuForeground: color("menu.foreground"), MenuBackground: color("menu.background"), MenuBorder: color("menu.border"),
 		MenuSelectionForeground: color("menu.selectionForeground"), MenuSelectionBackground: color("menu.selectionBackground"),

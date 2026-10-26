@@ -434,6 +434,11 @@ func buildActions() map[string]action {
 		}
 		return nil
 	}
+	a["closeMarkersNavigation"] = func(vm *ViewModel, _ any) error {
+		vm.keepSessions, vm.skipReveal = true, true
+		vm.HideHover()
+		return nil
+	}
 	a["editor.action.jumpToBracket"] = func(vm *ViewModel, _ any) error {
 		if ix := vm.bracketIndex; ix != nil && ix.Enabled() {
 			vm.setSelections(edit.JumpToBracket(ix, vm.cursors.Selections()))

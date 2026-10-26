@@ -337,6 +337,16 @@ func (a *keyApp) states() []func() {
 			a.openFind("editor.action.startFindReplaceAction")
 			a.openFind("editor.action.startFindReplaceAction") // from the find input, it goes to the replace input
 		},
+		// the hover of a problem that a command opened is showing (step 12.4), for the key that closes it
+		func() {
+			a.leaveFind()
+			a.endSnippet()
+			a.vm.SetDiagnostics([]editor.Diagnostic{{
+				Range: buffer.Range{Start: buffer.Position{Line: 1, Col: 0}, End: buffer.Position{Line: 1, Col: 5}}, Severity: editor.DiagnosticError, Message: "a problem",
+			}})
+			a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 1)})
+			a.vm.ShowHoverAt(buffer.Position{Line: 1, Col: 1})
+		},
 	}
 }
 
@@ -513,6 +523,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				for _, key := range keybindingsKeys {
 					a.win.Keys.Reset(key)
 				}
+				a.vm.HideHover() // only the state of the hover of a problem shows one
 				a.win.Keys.Set("inZenMode", false)
 				a.win.Keys.Set("textCompareEditorVisible", false)
 				a.win.Keys.Reset("isMergeEditor")

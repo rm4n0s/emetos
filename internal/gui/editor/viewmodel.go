@@ -171,6 +171,11 @@ type Options struct {
 	SelectionHighlight          bool
 	SelectionHighlightMaxLength int
 	SelectionHighlightMultiline bool
+	// ShowUnused is editor.showUnused (fade the text of unused code) and ShowDeprecated editor.showDeprecated (strike through
+	// the text of deprecated code).
+	ShowUnused, ShowDeprecated bool
+	// Hover are the settings of the hover (editor.hover.*).
+	Hover HoverOptions
 	// Minimap are the settings of the minimap (editor.minimap.*).
 	Minimap MinimapOptions
 	// StickyScroll are the settings of sticky scroll (editor.stickyScroll.*).
@@ -232,6 +237,14 @@ type ViewModel struct {
 	scrollLeft float64
 	// markCount is the number of background marks (marks.go).
 	markCount int
+	// diag is the state of the diagnostics (diagnostics.go) and hover the hover (hover.go).
+	diag  diagnosticState
+	hover hoverModel
+	// viewProblem is what "View Problem" of the hover does (SetViewProblem); openURI and openAt are what its links open
+	// (SetOpeners).
+	viewProblem func(buffer.Position)
+	openURI     func(string)
+	openAt      func(string, int, int)
 	// blocks are the borders around lines that the caller asked for (blocks.go).
 	blocks []LineBlock
 	// scrollWatch tells the listeners of AddScrollListener that the editor scrolled.
@@ -343,7 +356,7 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 8
+	ownerSlots   = 9
 	snippetOwner = 6
 )
 
@@ -372,6 +385,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		focused:        true,
 		metrics:        foundation.NewChangeNotifier(),
 		scrollWatch:    foundation.NewChangeNotifier(),
+		hover:          newHoverModel(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.inputModeHandle = vm.inputMode.AddListener(vm.inputModeChanged)
@@ -589,6 +603,7 @@ func (vm *ViewModel) Layout() edit.LineLayout {
 // cursors are shown and start blinking anew.
 func (vm *ViewModel) SelectionsChanged() {
 	vm.restartBlink()
+	vm.hoverSelectionsChanged()
 	vm.sel.NotifyListeners()
 }
 

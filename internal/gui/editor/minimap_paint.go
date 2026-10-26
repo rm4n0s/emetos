@@ -23,6 +23,8 @@ type MinimapColors struct {
 	// Selection colors the selections, FindMatch the matches of the find widget and
 	// SelectionOccurrence the text that equals the selection.
 	Selection, FindMatch, SelectionOccurrence ui.Color
+	// Error, Warning and Info mark the diagnostics.
+	Error, Warning, Info ui.Color
 	// Slider, SliderHover and SliderActive color the slider when the pointer is away, over the
 	// minimap and pressing it.
 	Slider, SliderHover, SliderActive ui.Color
@@ -313,6 +315,7 @@ func (r *RenderEditorMinimap) paintDecorations(canvas *ui.Canvas, offset ui.Offs
 	for _, d := range vm.occurrencesIn(selectionHighlightOwner, firstRow, lastRow) {
 		marks = append(marks, minimapMark{rng: d.Range, color: r.colors.SelectionOccurrence})
 	}
+	marks = append(marks, vm.diagnosticMinimapMarks(firstRow, lastRow, r.colors.Error, r.colors.Warning, r.colors.Info)...)
 	for _, sel := range vm.Cursors().Selections() {
 		if !sel.IsEmpty() {
 			marks = append(marks, minimapMark{rng: sel.Range(), color: r.colors.Selection})

@@ -143,6 +143,7 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 	s.node.RequestFocus()
 	m := &s.mouse
 	vm := s.Widget().vm
+	vm.HideHover()
 	if s.pressOnZone(e, hasPrimary(buttons)) {
 		return
 	}

@@ -291,6 +291,8 @@ type editorState struct {
 	unbindCommands  func()
 	selHandle       foundation.ListenerHandle
 	metricsHandle   foundation.ListenerHandle
+	// hoverHandle and hoverScrollHandle follow the hover of the view model and the scroll that moves it.
+	hoverHandle, hoverScrollHandle foundation.ListenerHandle
 	// The find widget: the focus nodes and the text of its inputs, the scope its inputs have their
 	// keys in, and whether one of the inputs has the focus.
 	findNode, replaceNode *widgets.FocusNode
@@ -320,6 +322,8 @@ func (s *editorState) InitState() {
 		s.scheduleInputGeometry()
 	})
 	s.vmHandle = vm.AddListener(s.viewModelChanged)
+	s.hoverHandle = vm.AddHoverListener(s.hoverChanged)
+	s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 	s.scroll = newEditorScroll(vm, s.controller)
 	vm.SetScroller(s.scrollTo)
 
@@ -352,7 +356,7 @@ func (s *editorState) InitState() {
 	s.initFind(vm)
 	s.input = &textInput{state: s}
 	s.selHandle = vm.AddSelectionListener(s.selectionChanged)
-	s.metricsHandle = vm.AddMetricsListener(s.scheduleInputGeometry)
+	s.metricsHandle = vm.AddMetricsListener(s.metricsChanged)
 	s.applyFocus()
 }
 
@@ -562,6 +566,7 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorTabMovesFocus", false)
 		s.scope.Set("editorLangId", vm.Document().LanguageID())
 		s.scope.Set("foldingEnabled", vm.foldingEnabled())
+		s.scope.Set("markersNavigationVisible", vm.markersNavigationVisible())
 		s.scope.Set("findWidgetVisible", vm.FindRevealed())
 		state := vm.SnippetState()
 		s.scope.Set("inSnippetMode", state.InSnippet)
@@ -588,6 +593,9 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		}
 		s.releaseFind(old.vm)
 		old.vm.RemoveListener(s.vmHandle)
+		old.vm.RemoveHoverListener(s.hoverHandle)
+		old.vm.RemoveScrollListener(s.hoverScrollHandle)
+		old.vm.HideHover()
 		old.vm.RemoveSelectionListener(s.selHandle)
 		old.vm.RemoveMetricsListener(s.metricsHandle)
 		old.vm.SetPreedit(Preedit{})
@@ -600,8 +608,10 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		vm := s.Widget().vm
 		vm.SetPoster(s.binding.Post)
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
+		s.hoverHandle = vm.AddHoverListener(s.hoverChanged)
+		s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
-		s.metricsHandle = vm.AddMetricsListener(s.scheduleInputGeometry)
+		s.metricsHandle = vm.AddMetricsListener(s.metricsChanged)
 		s.scroll.dispose()
 		s.scroll = newEditorScroll(vm, s.controller)
 		vm.SetScroller(s.scrollTo)
@@ -653,6 +663,9 @@ func (s *editorState) Dispose() {
 	if s.primaryTimer != nil {
 		s.primaryTimer()
 	}
+	vm.RemoveHoverListener(s.hoverHandle)
+	vm.RemoveScrollListener(s.hoverScrollHandle)
+	vm.HideHover()
 	vm.RemoveListener(s.vmHandle)
 	vm.SetInputMode(nil) // a mode shared by the process must not keep the editor alive
 	s.controller.RemoveListener(s.scrollHandle)
@@ -675,6 +688,9 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	if p := vm.SnippetPicker(); p != nil {
 		layers = append(layers, s.snippetPicker(vm, p))
+	}
+	if hover := s.hoverLayer(bc, vm, colors); hover != nil {
+		layers = append(layers, hover)
 	}
 	return widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
@@ -706,6 +722,11 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		SnippetTabstop: colors.EditorSnippetTabstopHighlightBackground, SnippetTabstopBorder: colors.EditorSnippetTabstopHighlightBorder,
 		SnippetFinalTabstop: colors.EditorSnippetFinalTabstopHighlightBackground, SnippetFinalTabstopBorder: colors.EditorSnippetFinalTabstopHighlightBorder,
 		WordHighlight: colors.EditorWordHighlightTextBackground, WordHighlightBorder: colors.EditorWordHighlightTextBorder,
+		Diagnostics: DiagnosticColors{
+			Error: colors.EditorErrorForeground, Warning: colors.EditorWarningForeground, Info: colors.EditorInfoForeground, Hint: colors.EditorHintForeground,
+			ErrorBorder: colors.EditorErrorBorder, WarningBorder: colors.EditorWarningBorder, InfoBorder: colors.EditorInfoBorder, HintBorder: colors.EditorHintBorder,
+			UnnecessaryOpacity: colors.EditorUnnecessaryCodeOpacity, UnnecessaryBorder: colors.EditorUnnecessaryCodeBorder,
+		},
 		Guides: NewGuideColors(colors.EditorIndentGuideBackground, colors.EditorIndentGuideActiveBackground,
 			colors.EditorBracketPairGuideBackground, colors.EditorBracketPairGuideActiveBackground, colors.EditorBracketHighlightForeground),
 	}
@@ -724,7 +745,10 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, bracketColors, func(r *RenderEditorText) { s.textRO = r }),
 				newOverlayLayer(overlayCursors, vm, offset, overlayColors),
 				newZoneLayer(vm, offset),
-			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{Cursor: mouseCursor(s.mouseStyle(vm))})),
+			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{
+				Cursor: mouseCursor(s.mouseStyle(vm)), OnHover: s.hoverPointer,
+				OnExit: func(*gestures.PointerExitEvent) { vm.HoverPointerLeft() },
+			})),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)
 	}, widgets.ScrollableOpts{
 		AxisDirection: painting.AxisDirectionDown,
@@ -737,6 +761,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	})
 	ruler := widgets.NewPositioned(widgets.NewIgnorePointer(newRulerLayer(vm, RulerColors{
 		FindMatch: colors.EditorOverviewRulerFindMatch, RangeHighlight: colors.EditorOverviewRulerRangeHighlight,
+		Error: colors.EditorOverviewRulerError, Warning: colors.EditorOverviewRulerWarning, Info: colors.EditorOverviewRulerInfo,
 	})), widgets.PositionedOpts{Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Right: foundation.Some(0.0), Width: foundation.Some(kit.DefaultVerticalScrollbarSize)})
 	pixelRatio, _ := widgets.MediaQueryMaybeDevicePixelRatioOf(bc)
 	fontMetrics := newGeometry(vm, textFactory(bc))
@@ -744,6 +769,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		Background: colors.MinimapBackground, EditorBackground: colors.EditorBackground, Foreground: colors.EditorForeground,
 		ForegroundOpacity: colors.MinimapForegroundOpacity,
 		Selection:         colors.MinimapSelection, FindMatch: colors.MinimapFindMatch, SelectionOccurrence: colors.MinimapSelectionOccurrence,
+		Error: colors.MinimapError, Warning: colors.MinimapWarning, Info: colors.MinimapInfo,
 		Slider: colors.MinimapSliderBackground, SliderHover: colors.MinimapSliderHoverBackground, SliderActive: colors.MinimapSliderActive,
 	}
 	stickyColors := StickyColors{
@@ -898,4 +924,46 @@ func (s *editorState) stickyDown(e *gestures.PointerDownEvent, inset float64) {
 	}
 	s.node.RequestFocus()
 	vm.RevealStickyPosition(pos)
+}
+
+// hoverChanged rebuilds the editor for the hover that showed or hid, and sets the context key that says that a hover of a
+// command is open.
+func (s *editorState) hoverChanged() {
+	s.updateKeys()
+	s.viewModelChanged()
+}
+
+// hoverPointer follows the pointer over the text for the hover: it rests on the text of a position, or is past the end of its
+// line.
+func (s *editorState) hoverPointer(e *gestures.PointerHoverEvent) {
+	vm := s.Widget().vm
+	if s.textRO == nil || !s.textRO.Attached() || s.mouse.pressed {
+		return
+	}
+	local := e.LocalPosition()
+	pos := s.textRO.PositionAt(local)
+	if local.Dx > s.textRO.RectOf(vm.lineEndOf(pos)).Left {
+		vm.HoverPointerLeft()
+		return
+	}
+	vm.HoverPointerMoved(pos)
+}
+
+// metricsChanged follows the sizes the text layer measured: the input method learns where the caret is, and a hover that came
+// before the editor was laid out is placed.
+func (s *editorState) metricsChanged() {
+	s.scheduleInputGeometry()
+	s.hoverScrolled()
+}
+
+// hoverScrolled moves the hover that the editor scrolls with the text.
+func (s *editorState) hoverScrolled() {
+	if s.Widget().vm.Hover() == nil || !s.Mounted() {
+		return
+	}
+	s.binding.Post(func() {
+		if s.Mounted() {
+			s.SetState(func() {})
+		}
+	})
 }

@@ -60,6 +60,7 @@ func DefaultRegistry() *Registry {
 	registerSnippetKeys(r)
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
+	registerMarkerKeys(r)
 	registerLayoutKeys(r)
 	registerEditorGroupKeys(r)
 	registerEditorGridKeys(r)
@@ -643,5 +644,18 @@ func registerMergeEditorKeys(r *Registry) {
 func registerExtensionsKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.extensions.action.showInstalledExtensions", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+x"},
+	)
+}
+
+// registerMarkerKeys registers the keys of the navigation through the problems.
+//
+// Ported from VS Code: src/vs/editor/contrib/gotoError/browser/gotoError.ts
+func registerMarkerKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "editor.action.marker.next", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "alt+f8"},
+		Rule{Command: "editor.action.marker.prev", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "shift+alt+f8"},
+		Rule{Command: "editor.action.marker.nextInFiles", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "f8"},
+		Rule{Command: "editor.action.marker.prevInFiles", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "shift+f8"},
+		Rule{Command: "closeMarkersNavigation", Weight: WeightEditorContrib + 50, When: mustWhen(whenEditorFocus, "markersNavigationVisible"), Primary: "escape", Secondary: []string{"shift+escape"}},
 	)
 }

@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 )
 
 // framer runs a function once after every frame, for as long as it returns true; the widget
@@ -35,6 +37,23 @@ func devActions(a map[string]action) {
 			runes = runes[1:]
 			return len(runes) > 0
 		})
+	}
+	// dev.showHover shows the hover at a position, {"line": ..., "column": ...} counted from 1 (the cursor when missing), and
+	// keeps it until the cursor moves; it fails with the tag DevShowHoverEmpty when nothing is there.
+	a["dev.showHover"] = func(vm *ViewModel, args any) error {
+		vm.keepSessions, vm.skipReveal = true, true // the command only shows
+		pos := vm.cursors.Primary().Position()
+		if m, ok := args.(map[string]any); ok {
+			line, hasLine := m["line"].(float64)
+			col, hasCol := m["column"].(float64)
+			if hasLine && hasCol {
+				pos = vm.doc.Snapshot().ValidatePosition(buffer.Position{Line: int(line) - 1, Col: int(col) - 1})
+			}
+		}
+		if !vm.ShowHoverAt(pos) {
+			return errors.New("DevShowHoverEmpty", "there is nothing to show a hover for at the position", "line", pos.Line+1, "column", pos.Col+1)
+		}
+		return nil
 	}
 	// dev.scroll scrolls down by rows in every frame for a number of frames (negative rows go
 	// up). The argument is a number of rows, or {"rows": ..., "frames": ...}; one frame by

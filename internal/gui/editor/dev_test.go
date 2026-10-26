@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/errors"
 )
@@ -119,5 +120,34 @@ func wantRoute(t *testing.T, err error, tag string) {
 	}
 	if !appErr.HasRoute(tag) {
 		t.Errorf("unexpected failure path: %s, want %s", appErr.Route(), tag)
+	}
+}
+
+func TestDevShowHoverShowsTheHoverAtAPositionAndFailsWithNothingThere(t *testing.T) {
+	opts := goOptions()
+	vm := NewViewModel(newTestDoc(diagnosticsText), opts, nil)
+	vm.SetDiagnostics(sampleDiagnostics())
+	registry := command.DefaultRegistry()
+	if err := registry.Register(command.Meta{ID: "dev.showHover"}); err != nil {
+		t.Fatal(err)
+	}
+	unbind := BindCommands(registry, vm)
+	defer unbind()
+	// line 4, column 8 (counted from 1) is the "n" of undefined, byte column 7 after the tab
+	if err := registry.Run(command.Context{}, "dev.showHover", map[string]any{"line": 4.0, "column": 8.0}); err != nil {
+		t.Fatal(err)
+	}
+	if h := vm.Hover(); h == nil || !h.Pinned || h.Parts[0].Diagnostic.Message != "undefined: undefined" {
+		t.Fatalf("hover = %+v", vm.Hover())
+	}
+	// the cursor is where it was, and the hover stays with the cursor
+	if got := vm.Cursors().Primary().Position(); got != (buffer.Position{}) {
+		t.Errorf("the command moved the cursor to %v", got)
+	}
+	vm.HideHover()
+	// with no arguments the cursor is the place, and nothing is there
+	wantRoute(t, registry.Run(command.Context{}, "dev.showHover", nil), "DevShowHoverEmpty")
+	if vm.Hover() != nil {
+		t.Error("a hover shows where there is nothing")
 	}
 }
