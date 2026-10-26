@@ -255,3 +255,40 @@ func TestSliceOfParameterLabelsCountsUTF16(t *testing.T) {
 		t.Errorf("labels = %q, want %q", labels, want)
 	}
 }
+
+func TestSignatureLabelRange(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		sig        Signature
+		index      int
+		start, end int
+	}{
+		{"offsets", Signature{Label: "f(é int, y string)", Parameters: []Parameter{{Label: "é int", Offsets: &[2]int{2, 8}}}}, 0, 2, 8},
+		{"a text", Signature{Label: "f(a int, b string)", Parameters: []Parameter{{Label: "a int"}, {Label: "b string"}}}, 1, 9, 17},
+		{"a word of its own, not part of another", Signature{Label: "f(ab, a)", Parameters: []Parameter{{Label: "a"}}}, 0, 6, 7},
+		{"the first place wins", Signature{Label: "f(a, a)", Parameters: []Parameter{{Label: "a"}}}, 0, 2, 3},
+		{"after a non-ASCII character, which is not a word character in a regular expression", Signature{Label: "f(éa, a)", Parameters: []Parameter{{Label: "a"}}}, 0, 4, 5},
+		{"not found", Signature{Label: "f(a)", Parameters: []Parameter{{Label: "zz"}}}, 0, 0, 0},
+		{"an empty label", Signature{Label: "f(a)", Parameters: []Parameter{{Label: ""}}}, 0, 0, 0},
+		{"no such parameter", Signature{Label: "f(a)", Parameters: []Parameter{{Label: "a"}}}, 3, 0, 0},
+		{"a negative index", Signature{Label: "f(a)", Parameters: []Parameter{{Label: "a"}}}, -1, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if s, e := tc.sig.LabelRange(tc.index); s != tc.start || e != tc.end {
+				t.Errorf("LabelRange = %d, %d, want %d, %d", s, e, tc.start, tc.end)
+			}
+		})
+	}
+}
+
+func TestSignatureHelpFromLSPKeepsTheOffsetsInBytes(t *testing.T) {
+	h := decodeLSP[lsp.SignatureHelp](t, `{"signatures":[{"label":"f(😀 a, b)","parameters":[{"label":[2,6]},{"label":[8,9]}]}]}`)
+	sig := SignatureHelpFromLSP(&h).Signatures[0]
+	// the emoji is two UTF-16 units and four bytes
+	if got := sig.Parameters[0].Offsets; got == nil || *got != [2]int{2, 8} {
+		t.Errorf("offsets = %v", got)
+	}
+	if s, e := sig.LabelRange(1); sig.Label[s:e] != "b" {
+		t.Errorf("the second parameter is %q", sig.Label[s:e])
+	}
+}

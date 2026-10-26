@@ -235,6 +235,7 @@ func (vm *ViewModel) typeInput(was services.TextEditingValue, now string) error 
 	vm.sessionSelections = vm.cursors.Selections()
 	vm.columns, vm.occurrences, vm.expansion = nil, nil, nil
 	vm.suggestAfter(pre, runEdit, text)
+	vm.signatureAfter(pre, text)
 	vm.SelectionsChanged()
 	vm.RevealPrimary()
 	return nil

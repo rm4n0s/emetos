@@ -163,6 +163,7 @@ type Colors struct {
 	DisabledForeground, ToolbarActiveBackground, ActionBarToggledBackground ui.Color
 	// The colors of hovers (tooltips): background, text and border.
 	EditorHoverWidgetBackground, EditorHoverWidgetForeground, EditorHoverWidgetBorder, EditorHoverWidgetStatusBarBackground ui.Color
+	EditorHoverWidgetHighlightForeground                                                                                    ui.Color
 	// The colors of menus: text, background and border, the focused item (text, background and
 	// border) and the separator.
 	MenuForeground, MenuBackground, MenuBorder                            ui.Color
@@ -423,6 +424,7 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		ActionBarToggledBackground:  color("actionBar.toggledBackground"),
 		EditorHoverWidgetBackground: color("editorHoverWidget.background"), EditorHoverWidgetForeground: color("editorHoverWidget.foreground"),
 		EditorHoverWidgetBorder: color("editorHoverWidget.border"), EditorHoverWidgetStatusBarBackground: color("editorHoverWidget.statusBarBackground"),
+		EditorHoverWidgetHighlightForeground: color("editorHoverWidget.highlightForeground"),
 
 		MenuForeground: color("menu.foreground"), MenuBackground: color("menu.background"), MenuBorder: color("menu.border"),
 		MenuSelectionForeground: color("menu.selectionForeground"), MenuSelectionBackground: color("menu.selectionBackground"),

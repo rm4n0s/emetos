@@ -1,20 +1,27 @@
 package editor
 
 import (
+	"context"
+	"slices"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 )
 
-// The hover (SPEC §9.12 "Hover", "As built (step 12.4)"): a box next to the text that tells what is under the pointer. Step
-// 12.4 builds the hover and its first participant, the diagnostics of the position; step 12.6 adds the participants of the
-// language providers, whose parts stack with these in the same box.
+// The hover (SPEC §9.12 "Hover", "As built (step 12.4)", "As built (step 12.6)"): a box next to the text that tells what is
+// under the pointer or at the cursor. Its content comes from participants: the diagnostics of the position (computed at once)
+// and the hover providers of the language (asked off the UI thread, their answers stacked as they come), under the timing of
+// VS Code's HoverOperation.
 //
-// Ported from VS Code: src/vs/editor/contrib/hover/browser/contentHoverController.ts, contentHoverWidget.ts and
-// markerHoverParticipant.ts
+// Ported from VS Code: src/vs/editor/contrib/hover/browser/contentHoverController.ts, contentHoverWidgetWrapper.ts,
+// hoverOperation.ts, markdownHoverParticipant.ts and markerHoverParticipant.ts
 
 // HoverOptions are the settings of the hover (editor.hover.*).
 type HoverOptions struct {
@@ -37,7 +44,17 @@ type HoverPartKind int
 const (
 	// HoverPartDiagnostic is a diagnostic under the position: its message, source and code, and the places related to it.
 	HoverPartDiagnostic HoverPartKind = iota
-	// TODO(step 12.6): the Markdown part of the hover providers.
+	// HoverPartMarkdown is the content of a hover provider: Markdown or plain text, with code blocks in the colors of their
+	// language.
+	HoverPartMarkdown
+)
+
+// The order of the parts in the box: the participants in the order of VS Code's hoverOrdinal, and, in the Markdown
+// participant, the order of the providers (the loading message is last).
+const (
+	hoverOrdinalDiagnostic = 1
+	hoverOrdinalMarkdown   = 3
+	hoverOrdinalLoading    = 2000
 )
 
 // HoverAction is a link in the row of actions below a part of the hover.
@@ -52,9 +69,18 @@ type HoverPart struct {
 	Kind HoverPartKind
 	// Diagnostic is the diagnostic of a HoverPartDiagnostic.
 	Diagnostic Diagnostic
+	// Contents are the texts of a HoverPartMarkdown, one under the other, and Owner the provider that made them.
+	Contents []langfeatures.Markup
+	Owner    string
+	// Loading says that the part is the message "Loading..." of an answer that is late.
+	Loading bool
+	// Range is what the part is about.
+	Range buffer.Range
 	// Actions are the links below the part. The diagnostics have "View Problem"; step 12.8 adds "Quick Fix..." and the quick
 	// fixes of the diagnostic here.
 	Actions []HoverAction
+	// order sorts the parts in the box.
+	order [2]int
 }
 
 // Hover is what the hover shows: the parts, and the range of the text they are about (the hover is placed over it).
@@ -64,20 +90,65 @@ type Hover struct {
 	// Pinned says that the hover does not go away when the editor scrolls: the hover of a command (F8, Show Hover) stays until
 	// the cursor moves or the text changes.
 	Pinned bool
+	// Complete says that every participant has answered; before that the box may grow.
+	Complete bool
+	// Focused says that the keys scroll the box (Show Hover pressed again).
+	Focused bool
 }
 
-// hoverParticipant gives the parts of the hover for a position.
-type hoverParticipant func(vm *ViewModel, p buffer.Position) (parts []HoverPart, anchor buffer.Range)
+// hoverAnchor is what a hover is about: the range of the text under the pointer or at the cursor, and the position the
+// providers are asked at.
+type hoverAnchor struct {
+	rng buffer.Range
+	pos buffer.Position
+}
+
+// hoverOpState is the state of the computation of a hover (VS Code's HoverOperationState).
+type hoverOpState int
+
+const (
+	hoverIdle hoverOpState = iota
+	hoverFirstWait
+	hoverSecondWait
+	hoverWaitingAsync
+	hoverWaitingAsyncLoading
+)
+
+// hoverOp is the computation of the hover of one anchor.
+//
+// Ported from VS Code: src/vs/editor/contrib/hover/browser/hoverOperation.ts. With the delay of the setting: at half of it the
+// providers are asked (their answers are kept, not shown), at the delay the participants that answer at once are asked and
+// what there is shows, then each answer that comes is added, and at three times the delay a message says that an answer is
+// late.
+type hoverOp struct {
+	anchor hoverAnchor
+	state  hoverOpState
+	gen    int
+	pinned bool
+	// results are the parts that came so far; asyncDone says that every provider has answered.
+	results   []HoverPart
+	asyncDone bool
+	// selections are the selections the op was started with, version the version of the document.
+	selections []buffer.Selection
+	version    int
+	// cancelAsyncTimer, cancelSyncTimer and cancelLoadingTimer cancel the waits; cancelRequests ends the requests.
+	cancelAsyncTimer, cancelSyncTimer, cancelLoadingTimer func()
+	cancelRequests                                        context.CancelFunc
+}
 
 // hoverModel is the state of the hover of a view model.
 type hoverModel struct {
 	shown *Hover
+	// op is the computation in progress or done for the anchor the pointer rests on; gen numbers them.
+	op  *hoverOp
+	gen int
 	// pointerIn says that the pointer is over the hover box, which keeps a sticky hover.
 	pointerIn bool
-	// cancelShow cancels the wait to show, cancelHide the wait to hide; pending is the range the wait to show is for.
-	cancelShow, cancelHide func()
-	pending                buffer.Range
-	hasPending             bool
+	// focused says that Show Hover was pressed on a shown hover: the keys scroll it.
+	focused bool
+	// cancelHide cancels the wait to hide, cancelReact the wait of a sticky hover to react to the pointer that went elsewhere.
+	cancelHide, cancelReact func()
+	lastPointer             buffer.Position
 	// selections are the selections when the hover came, which a different selection hides; unsubDoc stops the follow of the
 	// document; scrollHandle is the listener of the scroll.
 	selections   []buffer.Selection
@@ -85,6 +156,8 @@ type hoverModel struct {
 	scrollHandle foundation.ListenerHandle
 	scrollOn     bool
 	changed      *foundation.ChangeNotifier
+	// scroller scrolls the box (set by the widget).
+	scroller func(HoverScroll)
 }
 
 func newHoverModel() hoverModel { return hoverModel{changed: foundation.NewChangeNotifier()} }
@@ -102,41 +175,53 @@ func (vm *ViewModel) RemoveHoverListener(h foundation.ListenerHandle) {
 	vm.hover.changed.RemoveListener(h)
 }
 
-// hoverParts asks the participants for the parts under a position: the diagnostics for now.
-func (vm *ViewModel) hoverParts(p buffer.Position) ([]HoverPart, buffer.Range) {
-	var parts []HoverPart
-	var anchor buffer.Range
-	for _, participant := range []hoverParticipant{diagnosticHover} {
-		got, rng := participant(vm, p)
-		if len(got) == 0 {
-			continue
-		}
-		if len(parts) == 0 {
-			anchor = rng
-		}
-		parts = append(parts, got...)
+// HoverScroll is a way to scroll the box of a focused hover.
+type HoverScroll int
+
+// The ways to scroll the hover.
+const (
+	HoverScrollUp HoverScroll = iota
+	HoverScrollDown
+	HoverScrollLeft
+	HoverScrollRight
+	HoverScrollPageUp
+	HoverScrollPageDown
+	HoverScrollTop
+	HoverScrollBottom
+)
+
+// SetHoverScroller gives the hover the means to scroll its box (the widget sets it).
+func (vm *ViewModel) SetHoverScroller(fn func(HoverScroll)) { vm.hover.scroller = fn }
+
+// hoverFeatures are the providers the hover asks, or nil.
+func (vm *ViewModel) hoverFeatures() *langfeatures.Registry {
+	if h := vm.sg.host; h != nil {
+		return h.Features
 	}
-	return parts, anchor
+	return nil
+}
+
+// hoverHasProviders tells whether a hover provider matches the document.
+func (vm *ViewModel) hoverHasProviders() bool {
+	f := vm.hoverFeatures()
+	return f != nil && f.HasHover(vm.langDocument())
 }
 
 // diagnosticHover is the participant of the diagnostics: a part for each diagnostic under the position, the most serious
-// first, anchored on the range of the first.
+// first. It answers at once.
 //
 // Ported from VS Code: markerHoverParticipant.ts (computeSync)
-func diagnosticHover(vm *ViewModel, p buffer.Position) ([]HoverPart, buffer.Range) {
+func diagnosticHover(vm *ViewModel, p buffer.Position) []HoverPart {
 	ds := vm.DiagnosticsAt(p)
-	if len(ds) == 0 {
-		return nil, buffer.Range{}
-	}
 	parts := make([]HoverPart, len(ds))
 	for i, d := range ds {
-		parts[i] = HoverPart{Kind: HoverPartDiagnostic, Diagnostic: d}
+		parts[i] = HoverPart{Kind: HoverPartDiagnostic, Diagnostic: d, Range: d.Range, order: [2]int{hoverOrdinalDiagnostic, i}}
 		if vm.viewProblem != nil {
 			start := d.Range.Start
 			parts[i].Actions = []HoverAction{{Label: "View Problem", Run: func() { vm.viewProblem(start) }}}
 		}
 	}
-	return parts, ds[0].Range
+	return parts
 }
 
 // SetViewProblem gives the hover the function that "View Problem" runs, with the start of the diagnostic: the window shows the
@@ -146,49 +231,95 @@ func (vm *ViewModel) SetViewProblem(fn func(p buffer.Position)) { vm.viewProblem
 // hoverEnabled tells whether the pointer shows the hover.
 func (vm *ViewModel) hoverEnabled() bool { return vm.opts.Hover.Enabled != "off" }
 
-// HoverPointerMoved tells the hover that the pointer rests on the text at a position: after editor.hover.delay it shows what
-// is there, and a hover that shows for another place hides.
+// hoverAnchorAt is what the hover is about at a position: the range of the diagnostic there, else the word, else the
+// character, and with the keyboard the cursor itself. The pointer is over the character at the position, so the end of a word
+// is not in it; the cursor may be at the end.
+func (vm *ViewModel) hoverAnchorAt(p buffer.Position, keyboard bool) (hoverAnchor, bool) {
+	if ds := vm.DiagnosticsAt(p); len(ds) > 0 {
+		return hoverAnchor{rng: ds[0].Range, pos: p}, true
+	}
+	line, _ := vm.doc.Snapshot().LineContent(p.Line)
+	col := min(p.Col, len(line))
+	if s, e, ok := vm.wordFunc()(line, col); ok && s <= col && (col < e || keyboard && col == e) {
+		return hoverAnchor{rng: buffer.Range{Start: buffer.Position{Line: p.Line, Col: s}, End: buffer.Position{Line: p.Line, Col: e}}, pos: p}, true
+	}
+	if col < len(line) {
+		r, n := utf8.DecodeRuneInString(line[col:])
+		if unicode.IsSpace(r) {
+			return hoverAnchor{}, false
+		}
+		return hoverAnchor{rng: buffer.Range{Start: buffer.Position{Line: p.Line, Col: col}, End: buffer.Position{Line: p.Line, Col: col + n}}, pos: p}, true
+	}
+	if keyboard {
+		return hoverAnchor{rng: buffer.Range{Start: p, End: p}, pos: p}, true
+	}
+	return hoverAnchor{}, false
+}
+
+// HoverPointerMoved tells the hover that the pointer rests on the text at a position. A hover that shows for the place keeps
+// showing. Otherwise, with a sticky hover on screen the pointer is given editor.hover.hidingDelay to get into the box before
+// the hover reacts (VS Code's grace period); then the hover of the place before starts to go (it hides) and the one of the
+// place starts to be computed, to show after editor.hover.delay.
 func (vm *ViewModel) HoverPointerMoved(p buffer.Position) {
 	h := &vm.hover
-	if !vm.hoverEnabled() || vm.hoverMouseBlocked() {
+	if !vm.hoverEnabled() || vm.hoverMouseBlocked() || h.focused {
 		return
+	}
+	h.lastPointer = p
+	if h.shown == nil && h.op != nil && !h.op.pinned && rangeHolds(h.op.anchor.rng, p) {
+		vm.cancelHoverHide()
+		return // the pointer moves inside what it rested on: the wait goes on, or the answer is known
 	}
 	if h.shown != nil && rangeHolds(h.shown.Range, p) {
 		vm.cancelHoverHide()
-		vm.cancelHoverShow()
+		vm.cancelHoverReact()
 		return
 	}
-	parts, anchor := vm.hoverParts(p)
-	if len(parts) == 0 {
-		vm.cancelHoverShow()
-		vm.scheduleHoverHide()
+	if h.shown != nil && vm.opts.Hover.Sticky && vm.opts.Hover.HidingDelay > 0 && vm.afterTimer != nil {
+		if h.cancelReact == nil {
+			h.cancelReact = vm.afterTimer(time.Duration(vm.opts.Hover.HidingDelay)*time.Millisecond, func() {
+				h.cancelReact = nil
+				if !h.pointerIn && !h.focused && vm.hoverEnabled() && !vm.hoverMouseBlocked() {
+					vm.hoverReact(h.lastPointer)
+				}
+			})
+		}
+		return
+	}
+	vm.hoverReact(p)
+}
+
+// hoverReact starts the hover of the place the pointer is at now.
+func (vm *ViewModel) hoverReact(p buffer.Position) {
+	h := &vm.hover
+	anchor, ok := vm.hoverAnchorAt(p, false)
+	if !ok {
+		vm.HideHover()
 		return
 	}
 	vm.cancelHoverHide()
-	if h.hasPending && rangeHolds(h.pending, p) {
-		return // the pointer moves inside what it rested on: the wait goes on
+	if h.shown == nil && h.op != nil && !h.op.pinned && rangeHolds(h.op.anchor.rng, p) {
+		return // the pointer moves inside what it rested on: the wait goes on, or the answer is known
 	}
-	vm.cancelHoverShow()
-	h.pending, h.hasPending = anchor, true
-	if vm.opts.Hover.Delay <= 0 || vm.afterTimer == nil {
-		vm.showHover(p, false)
-		return
-	}
-	h.cancelShow = vm.afterTimer(time.Duration(vm.opts.Hover.Delay)*time.Millisecond, func() {
-		h.cancelShow, h.hasPending = nil, false
-		vm.showHover(p, false)
-	})
+	vm.hoverHideShown()
+	vm.hoverStart(anchor, false, false)
 }
 
 // hoverMouseBlocked tells whether the pointer cannot show the hover now: a pinned hover (the user asked for it) stays until
 // something else removes it.
-func (vm *ViewModel) hoverMouseBlocked() bool { return vm.hover.shown != nil && vm.hover.shown.Pinned }
+func (vm *ViewModel) hoverMouseBlocked() bool {
+	return vm.hover.shown != nil && vm.hover.shown.Pinned || vm.hover.op != nil && vm.hover.op.pinned
+}
 
 // HoverPointerLeft tells the hover that the pointer left the text: a hover that shows hides after editor.hover.hidingDelay,
-// unless the pointer went into it.
+// unless the pointer went into it, and one that was still to come does not come.
 func (vm *ViewModel) HoverPointerLeft() {
-	vm.cancelHoverShow()
-	if vm.hoverMouseBlocked() {
+	vm.cancelHoverReact()
+	if vm.hoverMouseBlocked() || vm.hover.focused {
+		return
+	}
+	if vm.hover.shown == nil {
+		vm.HideHover()
 		return
 	}
 	vm.scheduleHoverHide()
@@ -201,54 +332,274 @@ func (vm *ViewModel) HoverBoxEntered(in bool) {
 	h.pointerIn = in
 	if in {
 		vm.cancelHoverHide()
+		vm.cancelHoverReact()
 		return
 	}
-	if h.shown != nil && !h.shown.Pinned {
+	if h.shown != nil && !h.shown.Pinned && !h.focused {
 		vm.scheduleHoverHide()
 	}
 }
 
-// ShowHoverAt shows the hover at a position at once, as the command Show Hover and the marker navigation do, and keeps it
-// until the cursor moves or the text changes. It says whether there was something to show.
+// ShowHoverAt shows the hover at a position as the command Show Hover and the marker navigation do: at once, and until the
+// cursor moves or the text changes. It says whether there is something that can show: a diagnostic at the position, or a hover
+// provider to ask (its answer comes later).
 func (vm *ViewModel) ShowHoverAt(p buffer.Position) bool {
-	vm.cancelHoverShow()
 	vm.cancelHoverHide()
-	return vm.showHover(p, true)
-}
-
-// showHover shows the parts under a position.
-func (vm *ViewModel) showHover(p buffer.Position, pinned bool) bool {
-	h := &vm.hover
-	parts, anchor := vm.hoverParts(p)
-	if len(parts) == 0 {
+	vm.cancelHoverReact()
+	anchor, ok := vm.hoverAnchorAt(p, true)
+	if !ok || len(diagnosticHover(vm, p)) == 0 && !vm.hoverHasProviders() {
 		vm.HideHover()
 		return false
 	}
-	h.shown = &Hover{Range: anchor, Parts: parts, Pinned: pinned}
-	h.selections = vm.cursors.Selections()
+	vm.hoverHideShown()
+	vm.hoverStart(anchor, true, true)
+	return true
+}
+
+// FocusHover gives the keys to the hover box (the command Show Hover pressed while the hover shows); it says whether there was
+// a hover to focus.
+func (vm *ViewModel) FocusHover() bool {
+	h := &vm.hover
+	if h.shown == nil {
+		return false
+	}
+	h.focused = true
+	h.shown.Focused = true
+	vm.cancelHoverHide()
+	vm.cancelHoverReact()
+	h.changed.NotifyListeners()
+	return true
+}
+
+// HoverFocused tells whether the keys scroll the hover (the key editorHoverFocused).
+func (vm *ViewModel) HoverFocused() bool { return vm.hover.focused && vm.hover.shown != nil }
+
+// HoverVisible tells whether a hover shows (the key editorHoverVisible).
+func (vm *ViewModel) HoverVisible() bool { return vm.hover.shown != nil }
+
+// ScrollHover scrolls the box of a focused hover.
+func (vm *ViewModel) ScrollHover(how HoverScroll) {
+	if s := vm.hover.scroller; s != nil && vm.HoverFocused() {
+		s(how)
+	}
+}
+
+// hoverStart starts the computation of the hover of an anchor: delayed, as the pointer's, or at once.
+//
+// Ported from VS Code: hoverOperation.ts (start)
+func (vm *ViewModel) hoverStart(a hoverAnchor, immediate, pinned bool) {
+	h := &vm.hover
+	vm.hoverCancelOp()
+	h.gen++
+	op := &hoverOp{anchor: a, gen: h.gen, pinned: pinned, selections: vm.cursors.Selections(), version: vm.doc.Version()}
+	h.op = op
+	vm.hoverListen()
+	delay := vm.opts.Hover.Delay
+	if immediate || delay <= 0 || vm.afterTimer == nil {
+		vm.hoverTriggerAsync(op)
+		if op.cancelSyncTimer != nil {
+			op.cancelSyncTimer()
+			op.cancelSyncTimer = nil
+		}
+		vm.hoverTriggerSync(op)
+		return
+	}
+	op.state = hoverFirstWait
+	half := time.Duration(delay/2) * time.Millisecond
+	op.cancelAsyncTimer = vm.afterTimer(half, func() { op.cancelAsyncTimer = nil; vm.hoverTriggerAsync(op) })
+	op.cancelLoadingTimer = vm.afterTimer(time.Duration(3*delay)*time.Millisecond, func() { op.cancelLoadingTimer = nil; vm.hoverTriggerLoading(op) })
+}
+
+// hoverTriggerAsync asks the providers (the first half of the wait is over).
+func (vm *ViewModel) hoverTriggerAsync(op *hoverOp) {
+	if vm.hover.op != op {
+		return
+	}
+	op.state = hoverSecondWait
+	if delay := vm.opts.Hover.Delay; delay > 0 && vm.afterTimer != nil {
+		op.cancelSyncTimer = vm.afterTimer(time.Duration(delay-delay/2)*time.Millisecond, func() { op.cancelSyncTimer = nil; vm.hoverTriggerSync(op) })
+	}
+	f := vm.hoverFeatures()
+	doc := vm.langDocument()
+	if f == nil || !f.HasHover(doc) {
+		op.asyncDone = true
+		return
+	}
+	ctx := context.Background()
+	if h := vm.sg.host; h != nil && h.Ctx != nil {
+		ctx = h.Ctx
+	}
+	ctx, op.cancelRequests = context.WithCancel(ctx)
+	pos, version, gen, anchor := op.anchor.pos, doc.Version, op.gen, op.anchor.rng
+	go func() {
+		errs := f.HoverEach(ctx, doc, pos, func(r langfeatures.HoverResult) {
+			vm.post(func() { vm.hoverAnswer(op, gen, version, anchor, r) })
+		})
+		vm.post(func() { vm.hoverAnswered(op, gen, errs) })
+	}()
+}
+
+// hoverTriggerSync asks the participants that answer at once (the whole delay is over) and shows what there is.
+func (vm *ViewModel) hoverTriggerSync(op *hoverOp) {
+	if vm.hover.op != op {
+		return
+	}
+	op.results = append(op.results, diagnosticHover(vm, op.anchor.pos)...)
+	op.state = hoverWaitingAsync
+	if op.asyncDone {
+		op.state = hoverIdle
+	}
+	vm.hoverFire(op)
+}
+
+// hoverTriggerLoading adds the message "Loading..." when an answer is still to come after three times the delay.
+func (vm *ViewModel) hoverTriggerLoading(op *hoverOp) {
+	if vm.hover.op == op && op.state == hoverWaitingAsync {
+		op.state = hoverWaitingAsyncLoading
+		vm.hoverFire(op)
+	}
+}
+
+// hoverAnswer takes the answer of a provider. An answer for a document that changed, or of an op that was replaced or
+// cancelled, is dropped.
+func (vm *ViewModel) hoverAnswer(op *hoverOp, gen, version int, anchor buffer.Range, r langfeatures.HoverResult) {
+	if vm.hover.op != op || op.gen != gen || vm.doc.Version() != version {
+		return
+	}
+	rng := anchor
+	if r.Hover.Range != nil {
+		rng = vm.doc.Snapshot().ValidateRange(*r.Hover.Range)
+	}
+	op.results = append(op.results, HoverPart{
+		Kind: HoverPartMarkdown, Contents: r.Hover.Contents, Owner: r.Hover.Owner, Range: rng, order: [2]int{hoverOrdinalMarkdown, r.Ordinal},
+	})
+	vm.hoverFire(op)
+}
+
+// hoverAnswered is told that every provider has answered.
+func (vm *ViewModel) hoverAnswered(op *hoverOp, gen int, errs []langfeatures.ProviderError) {
+	if vm.hover.op != op || op.gen != gen {
+		return
+	}
+	for _, e := range errs {
+		if h := vm.sg.host; h != nil && h.Log != nil && !errors.Is(e.Err, context.Canceled) {
+			h.Log("hover provider "+e.Owner+" failed", e.Err)
+		}
+	}
+	op.asyncDone = true
+	if op.state == hoverWaitingAsync || op.state == hoverWaitingAsyncLoading {
+		op.state = hoverIdle
+		vm.hoverFire(op)
+	}
+}
+
+// hoverFire gives what the op has to the box, once the delay is over.
+func (vm *ViewModel) hoverFire(op *hoverOp) {
+	if op.state == hoverFirstWait || op.state == hoverSecondWait {
+		return // no results before the hover time
+	}
+	complete := op.state == hoverIdle
+	parts := slices.Clone(op.results)
+	if op.state == hoverWaitingAsyncLoading {
+		parts = append(parts, HoverPart{
+			Kind: HoverPartMarkdown, Contents: []langfeatures.Markup{{Value: "Loading..."}}, Loading: true, Range: op.anchor.rng,
+			order: [2]int{hoverOrdinalMarkdown, hoverOrdinalLoading},
+		})
+	}
+	h := &vm.hover
+	if complete && len(parts) == 0 && op.pinned {
+		vm.HideHover() // the hover of a command has nothing to show: the pointer may have its own
+		return
+	}
+	// a complete hover that shows is not replaced by a partial one: the box waits for the complete answer
+	if h.shown != nil && h.shown.Complete && !complete {
+		return
+	}
+	vm.hoverSet(op, parts, complete)
+}
+
+// hoverSet puts the parts in the box, or removes the box when there are none.
+func (vm *ViewModel) hoverSet(op *hoverOp, parts []HoverPart, complete bool) {
+	h := &vm.hover
+	if len(parts) == 0 {
+		vm.hoverHideShown()
+		return
+	}
+	slices.SortStableFunc(parts, func(a, b HoverPart) int {
+		if a.order[0] != b.order[0] {
+			return a.order[0] - b.order[0]
+		}
+		return a.order[1] - b.order[1]
+	})
+	rng := parts[0].Range
+	for _, p := range parts[1:] {
+		if p.Range.Start.IsBefore(rng.Start) {
+			rng.Start = p.Range.Start
+		}
+		if rng.End.IsBefore(p.Range.End) {
+			rng.End = p.Range.End
+		}
+	}
+	h.shown = &Hover{Range: rng, Parts: parts, Pinned: op.pinned, Complete: complete, Focused: h.focused}
+	h.selections = op.selections
+	vm.hoverListen()
+	h.changed.NotifyListeners()
+}
+
+// hoverListen follows the document and the scroll while a hover is computed or shows.
+func (vm *ViewModel) hoverListen() {
+	h := &vm.hover
 	if h.unsubDoc == nil {
 		h.unsubDoc = vm.doc.Subscribe(func(document.ChangeEvent) { vm.HideHover() })
 	}
 	if !h.scrollOn {
 		h.scrollHandle, h.scrollOn = vm.AddScrollListener(vm.hoverScrolled), true
 	}
-	h.changed.NotifyListeners()
-	return true
 }
 
 // hoverScrolled hides a hover of the pointer when the editor scrolls.
 func (vm *ViewModel) hoverScrolled() {
-	if h := vm.hover.shown; h != nil && !h.Pinned {
+	h := &vm.hover
+	if h.shown != nil && !h.shown.Pinned || h.shown == nil && h.op != nil && !h.op.pinned {
 		vm.HideHover()
 	}
 }
 
-// HideHover hides the hover and cancels the waits.
+// hoverCancelOp stops the computation: the waits and the requests.
+func (vm *ViewModel) hoverCancelOp() {
+	h := &vm.hover
+	op := h.op
+	if op == nil {
+		return
+	}
+	h.op = nil
+	for _, stop := range []func(){op.cancelAsyncTimer, op.cancelSyncTimer, op.cancelLoadingTimer} {
+		if stop != nil {
+			stop()
+		}
+	}
+	if op.cancelRequests != nil {
+		op.cancelRequests()
+	}
+}
+
+// hoverHideShown removes the box and leaves the computation to go on.
+func (vm *ViewModel) hoverHideShown() {
+	h := &vm.hover
+	h.pointerIn, h.focused = false, false
+	if h.shown == nil {
+		return
+	}
+	h.shown = nil
+	h.changed.NotifyListeners()
+}
+
+// HideHover hides the hover, stops its computation and cancels the waits.
 func (vm *ViewModel) HideHover() {
 	h := &vm.hover
-	vm.cancelHoverShow()
+	vm.cancelHoverReact()
 	vm.cancelHoverHide()
-	h.pointerIn = false
+	vm.hoverCancelOp()
 	if h.unsubDoc != nil {
 		h.unsubDoc()
 		h.unsubDoc = nil
@@ -257,28 +608,26 @@ func (vm *ViewModel) HideHover() {
 		vm.RemoveScrollListener(h.scrollHandle)
 		h.scrollOn = false
 	}
-	if h.shown == nil {
-		return
-	}
-	h.shown = nil
-	h.changed.NotifyListeners()
+	vm.hoverHideShown()
 }
 
 // hoverSelectionsChanged hides the hover when the selections are not those it came with.
 func (vm *ViewModel) hoverSelectionsChanged() {
 	h := &vm.hover
-	if h.shown != nil && !buffer.SelectionsEqual(h.selections, vm.cursors.Selections()) {
+	switch {
+	case h.shown != nil && !buffer.SelectionsEqual(h.selections, vm.cursors.Selections()):
+		vm.HideHover()
+	case h.shown == nil && h.op != nil && h.op.pinned && !buffer.SelectionsEqual(h.op.selections, vm.cursors.Selections()):
 		vm.HideHover()
 	}
 }
 
-func (vm *ViewModel) cancelHoverShow() {
+func (vm *ViewModel) cancelHoverReact() {
 	h := &vm.hover
-	if h.cancelShow != nil {
-		h.cancelShow()
-		h.cancelShow = nil
+	if h.cancelReact != nil {
+		h.cancelReact()
+		h.cancelReact = nil
 	}
-	h.hasPending = false
 }
 
 func (vm *ViewModel) cancelHoverHide() {
@@ -292,7 +641,7 @@ func (vm *ViewModel) cancelHoverHide() {
 // scheduleHoverHide hides the hover after the hiding delay; without stickiness, at once.
 func (vm *ViewModel) scheduleHoverHide() {
 	h := &vm.hover
-	if h.shown == nil || h.cancelHide != nil || h.pointerIn && vm.opts.Hover.Sticky {
+	if h.shown == nil || h.cancelHide != nil || h.focused || h.pointerIn && vm.opts.Hover.Sticky {
 		return
 	}
 	delay := vm.opts.Hover.HidingDelay
@@ -302,7 +651,7 @@ func (vm *ViewModel) scheduleHoverHide() {
 	}
 	h.cancelHide = vm.afterTimer(time.Duration(delay)*time.Millisecond, func() {
 		h.cancelHide = nil
-		if !h.pointerIn {
+		if !h.pointerIn && !h.focused {
 			vm.HideHover()
 		}
 	})
@@ -312,4 +661,40 @@ func (vm *ViewModel) scheduleHoverHide() {
 func (vm *ViewModel) markersNavigationVisible() bool {
 	h := vm.hover.shown
 	return h != nil && h.Pinned
+}
+
+// hoverActions are the commands of the hover.
+//
+// Ported from VS Code: src/vs/editor/contrib/hover/browser/hoverActions.ts
+func hoverActions(a map[string]action) {
+	// editor.action.showHover shows the hover at the cursor, or gives the keys to the box when it already shows.
+	a["editor.action.showHover"] = func(vm *ViewModel, _ any) error {
+		vm.keepSessions, vm.skipReveal = true, true
+		if vm.Hover() != nil {
+			vm.FocusHover()
+			return nil
+		}
+		vm.ShowHoverAt(vm.cursors.Primary().Position())
+		return nil
+	}
+	a["editor.action.hideHover"] = func(vm *ViewModel, _ any) error {
+		vm.keepSessions, vm.skipReveal = true, true
+		vm.HideHover()
+		return nil
+	}
+	scroll := func(how HoverScroll) action {
+		return func(vm *ViewModel, _ any) error {
+			vm.keepSessions, vm.skipReveal = true, true
+			vm.ScrollHover(how)
+			return nil
+		}
+	}
+	a["editor.action.scrollUpHover"] = scroll(HoverScrollUp)
+	a["editor.action.scrollDownHover"] = scroll(HoverScrollDown)
+	a["editor.action.scrollLeftHover"] = scroll(HoverScrollLeft)
+	a["editor.action.scrollRightHover"] = scroll(HoverScrollRight)
+	a["editor.action.pageUpHover"] = scroll(HoverScrollPageUp)
+	a["editor.action.pageDownHover"] = scroll(HoverScrollPageDown)
+	a["editor.action.goToTopHover"] = scroll(HoverScrollTop)
+	a["editor.action.goToBottomHover"] = scroll(HoverScrollBottom)
 }

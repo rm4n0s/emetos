@@ -24,6 +24,8 @@ func DefaultRegistry() *Registry {
 	registerFindCommands(r)
 	registerSnippetCommands(r)
 	registerSuggestCommands(r)
+	registerHoverCommands(r)
+	registerParameterHintsCommands(r)
 	registerEmmetCommands(r)
 	registerWordWrapCommands(r)
 	registerClipboardCommands(r)
@@ -1017,5 +1019,40 @@ func registerSuggestCommands(r *Registry) {
 		Meta{ID: "focusAndAcceptSuggestion", Precondition: contextkey.And(visible, contextkey.Not("suggestWidgetHasFocusedSuggestion"))},
 		Meta{ID: "toggleSuggestionDetails", Precondition: focused},
 		Meta{ID: "toggleSuggestionFocus", Precondition: visible},
+	)
+}
+
+// registerHoverCommands registers the commands of the editor hover: Show or Focus Hover, Hide Hover, and the ones that scroll
+// the box while it has the keys.
+//
+// Ported from VS Code: src/vs/editor/contrib/hover/browser/hoverActions.ts
+func registerHoverCommands(r *Registry) {
+	focused := contextkey.Has("editorHoverFocused")
+	r.MustRegister(
+		Meta{ID: "editor.action.showHover", Title: "Show or Focus Hover",
+			Description: "Show or focus the editor hover which shows documentation, references, and other content for a symbol at the current cursor position."},
+		Meta{ID: "editor.action.hideHover", Title: "Hide Hover", Precondition: contextkey.Has("editorHoverVisible")},
+		Meta{ID: "editor.action.scrollUpHover", Title: "Scroll Up Hover", Precondition: focused},
+		Meta{ID: "editor.action.scrollDownHover", Title: "Scroll Down Hover", Precondition: focused},
+		Meta{ID: "editor.action.scrollLeftHover", Title: "Scroll Left Hover", Precondition: focused},
+		Meta{ID: "editor.action.scrollRightHover", Title: "Scroll Right Hover", Precondition: focused},
+		Meta{ID: "editor.action.pageUpHover", Title: "Page Up Hover", Precondition: focused},
+		Meta{ID: "editor.action.pageDownHover", Title: "Page Down Hover", Precondition: focused},
+		Meta{ID: "editor.action.goToTopHover", Title: "Go To Top Hover", Precondition: focused},
+		Meta{ID: "editor.action.goToBottomHover", Title: "Go To Bottom Hover", Precondition: focused},
+	)
+}
+
+// registerParameterHintsCommands registers the commands of the parameter hints. Only Trigger Parameter Hints has a title: the
+// others are run by the keys of the widget.
+//
+// Ported from VS Code: src/vs/editor/contrib/parameterHints/browser/parameterHints.ts
+func registerParameterHintsCommands(r *Registry) {
+	visible := contextkey.Has("parameterHintsVisible")
+	r.MustRegister(
+		Meta{ID: "editor.action.triggerParameterHints", Title: "Trigger Parameter Hints", Precondition: contextkey.Has("editorHasSignatureHelpProvider")},
+		Meta{ID: "closeParameterHints", Precondition: visible},
+		Meta{ID: "showPrevParameterHint", Precondition: contextkey.And(visible, contextkey.Has("parameterHintsMultipleSignatures"))},
+		Meta{ID: "showNextParameterHint", Precondition: contextkey.And(visible, contextkey.Has("parameterHintsMultipleSignatures"))},
 	)
 }

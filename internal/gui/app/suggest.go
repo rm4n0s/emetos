@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
@@ -25,13 +26,26 @@ func (w *Workspace) suggestHost() *editor.SuggestHost {
 	}
 	h := &editor.SuggestHost{
 		Ctx: w.ctx, Shared: w.suggest, Execute: w.executeCompletionCommand,
-		Report: func(err error) { w.Notify.Error("Emetos", describe(err)) },
-		Log:    func(msg string, err error) { w.Process.Logger.Debug(msg, "err", err) },
+		Report:   func(err error) { w.Notify.Error("Emetos", describe(err)) },
+		Tokenize: w.tokenizeBlock,
+		Log:      func(msg string, err error) { w.Process.Logger.Debug(msg, "err", err) },
 	}
 	if scope := w.Extensions(); scope != nil {
 		h.Features = scope.Features()
 	}
 	return h
+}
+
+// tokenizeBlock colors the code of a Markdown block of the hover: the language is named as a fence names it, and the grammar
+// and the theme are the editor's.
+func (w *Workspace) tokenizeBlock(language, text string) ([][]extension.Token, bool) {
+	l := extLanguages{w: w}
+	id, ok := l.Resolve(language)
+	if !ok {
+		return nil, false
+	}
+	lines, err := l.Tokenize(id, text)
+	return lines, err == nil
 }
 
 // executeCompletionCommand runs the command of an accepted item. The command of a language server goes to the server, off the

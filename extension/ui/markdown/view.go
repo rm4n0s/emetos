@@ -32,6 +32,10 @@ type Options struct {
 	// Compact lays the text out for a small pane next to the editor, such as the details of the suggest widget: 13 px text,
 	// small margins and the colors of the suggest widget.
 	Compact bool
+	// Hover lays the text out for the box of a hover or of the parameter hints: the blocks one under the other at their natural
+	// height (no scrolling, no page background), 13 px text with a 19 px line in the colors of the editor hover, 8 px between
+	// the blocks, and code blocks without a background of their own.
+	Hover bool
 }
 
 // Controller moves a View: it scrolls to the block that a line of the source belongs to.
@@ -152,7 +156,10 @@ func (s *viewState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	r := &renderer{s: s, bc: bc, colors: kit.ThemeOf(bc), opts: v.opts}
 	size, lineHeight := bodySize, bodyLineHeight
-	if v.opts.Compact {
+	if v.opts.Hover {
+		r.colors.EditorForeground, r.colors.EditorBackground = r.colors.EditorHoverWidgetForeground, r.colors.EditorHoverWidgetBackground
+		size, lineHeight = hoverSize, hoverLineHeight
+	} else if v.opts.Compact {
 		// a pane of the suggest widget: its colors stand where the editor's would
 		r.colors.EditorForeground, r.colors.EditorBackground = r.colors.EditorSuggestWidgetForeground, r.colors.EditorSuggestWidgetBackground
 		size, lineHeight = compactSize, compactLineHeight
@@ -179,6 +186,9 @@ func (s *viewState) Build(bc widgets.BuildContext) widgets.Widget {
 			}
 		})
 	}
+	if v.opts.Hover {
+		return widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch, MainAxisSize: rendering.MainAxisSizeMin})
+	}
 	column := widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 	padding := painting.NewEdgeInsetsFromLTRB(pagePadding, 16, pagePadding, 40)
 	if v.opts.Compact {
@@ -199,6 +209,10 @@ const (
 	compactSize       = 13.0
 	compactLineHeight = 1.4
 	compactPadding    = 8.0
+	// the hover look (Options.Hover)
+	hoverSize       = 13.0
+	hoverLineHeight = 19.0 / 13.0
+	hoverBlockGap   = 8.0
 )
 
 // renderer builds the widgets of one build of a View.
@@ -229,7 +243,15 @@ func (r *renderer) block(b Block, first bool) widgets.Widget {
 	case Table:
 		w = r.table(b)
 	case Rule:
-		w = widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, 8, 0, 8), widgets.NewColoredBox(r.colors.TextSeparatorForeground, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(2.0)})))
+		thickness := 2.0
+		if r.opts.Hover {
+			thickness = 1
+		}
+		gap := 8.0
+		if r.opts.Hover {
+			gap = 4
+		}
+		w = widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, gap, 0, gap), widgets.NewColoredBox(r.colors.TextSeparatorForeground, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(thickness)})))
 	case HTMLBlock:
 		w = widgets.NewText(strings.TrimRight(b.Text, "\n"), widgets.TextOpts{Style: r.monoStyle(r.colors.DescriptionForeground)})
 	default:
@@ -238,6 +260,9 @@ func (r *renderer) block(b Block, first bool) widgets.Widget {
 	top := 0.0
 	if !first {
 		top = 10
+		if r.opts.Hover {
+			top = hoverBlockGap
+		}
 	}
 	return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, top, 0, 0), w)
 }
@@ -278,6 +303,9 @@ func (r *renderer) codeBlock(b CodeBlock) widgets.Widget {
 	var span painting.InlineSpan = painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(b.Text), Style: style})
 	if lines, ok := r.tokenize(b); ok {
 		span = r.highlighted(b.Text, lines, style, fg)
+	}
+	if r.opts.Hover {
+		return widgets.NewRichText(span)
 	}
 	return widgets.NewContainer(widgets.NewPadding(painting.NewEdgeInsetsAll(12), widgets.NewRichText(span)), widgets.ContainerOpts{
 		Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{

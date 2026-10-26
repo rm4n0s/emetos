@@ -273,3 +273,81 @@ func TestRegisterAddsEveryFeature(t *testing.T) {
 
 // sleepABit gives the connection a moment.
 func sleepABit() { time.Sleep(5 * time.Millisecond) }
+
+func TestSignatureHelpContextReachesTheServer(t *testing.T) {
+	ctx := context.Background()
+	doc := docOf("go", "/work/a.go", emojiLine)
+	c := connect(t, allCapabilities, map[string]lsptest.Response{
+		lsp.MethodSignatureHelp: result(`{"signatures":[{"label":"f(a, b)","parameters":[{"label":"a"},{"label":[5,6]}]},{"label":"f()"}],"activeSignature":0,"activeParameter":1}`),
+	})
+	first, err := c.sp.ProvideSignatureHelp(ctx, doc, Position{}, SignatureContext{Kind: SignatureInvoke})
+	if err != nil || first == nil || len(first.Signatures) != 2 {
+		t.Fatalf("help = %+v, %v", first, err)
+	}
+	// the user went to the second signature, then typed a comma: the server gets the help it sent with that signature active
+	moved := *first
+	moved.ActiveSignature = 1
+	if _, err := c.sp.ProvideSignatureHelp(ctx, doc, Position{}, SignatureContext{Kind: SignatureTriggerCharacter, Character: ",", IsRetrigger: true, Active: &moved}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.sp.ProvideSignatureHelp(ctx, doc, Position{}, SignatureContext{Kind: SignatureContentChange, IsRetrigger: true, Active: first}); err != nil {
+		t.Fatal(err)
+	}
+	reqs := c.requests(lsp.MethodSignatureHelp)
+	if len(reqs) != 3 {
+		t.Fatalf("%d requests", len(reqs))
+	}
+	var got [3]struct {
+		Context struct {
+			TriggerKind         int                `json:"triggerKind"`
+			TriggerCharacter    string             `json:"triggerCharacter"`
+			IsRetrigger         bool               `json:"isRetrigger"`
+			ActiveSignatureHelp *lsp.SignatureHelp `json:"activeSignatureHelp"`
+		} `json:"context"`
+	}
+	for i, r := range reqs {
+		if err := json.Unmarshal(r, &got[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if k := got[0].Context; k.TriggerKind != lsp.SignatureHelpInvoked || k.IsRetrigger || k.ActiveSignatureHelp != nil || k.TriggerCharacter != "" {
+		t.Errorf("invoked: %+v", k)
+	}
+	k := got[1].Context
+	if k.TriggerKind != lsp.SignatureHelpTriggerChar || k.TriggerCharacter != "," || !k.IsRetrigger || k.ActiveSignatureHelp == nil ||
+		len(k.ActiveSignatureHelp.Signatures) != 2 || *k.ActiveSignatureHelp.ActiveSignature != 1 {
+		t.Errorf("character: %+v", k)
+	}
+	if p := k.ActiveSignatureHelp.Signatures[0].Parameters[1].Label; p.Offsets == nil || *p.Offsets != [2]int{5, 6} {
+		t.Errorf("the offsets of the label did not come back as they were sent: %+v", p)
+	}
+	if k := got[2].Context; k.TriggerKind != lsp.SignatureHelpContentChange || !k.IsRetrigger || *k.ActiveSignatureHelp.ActiveSignature != 0 {
+		t.Errorf("content change: %+v", k)
+	}
+	// a help that was made by another provider is not sent to the server
+	other := &SignatureHelp{Signatures: []Signature{{Label: "g()"}}}
+	if _, err := c.sp.ProvideSignatureHelp(ctx, doc, Position{}, SignatureContext{Kind: SignatureContentChange, IsRetrigger: true, Active: other}); err != nil {
+		t.Fatal(err)
+	}
+	var last struct {
+		Context struct {
+			ActiveSignatureHelp *lsp.SignatureHelp `json:"activeSignatureHelp"`
+		} `json:"context"`
+	}
+	reqs = c.requests(lsp.MethodSignatureHelp)
+	if err := json.Unmarshal(reqs[len(reqs)-1], &last); err != nil || last.Context.ActiveSignatureHelp != nil {
+		t.Errorf("active help of another provider = %+v, %v", last.Context.ActiveSignatureHelp, err)
+	}
+}
+
+func TestServerProviderTellsItsSignatureCharacters(t *testing.T) {
+	c := connect(t, allCapabilities, nil)
+	triggers, retriggers := c.sp.SignatureCharacters()
+	if !slices.Equal(triggers, []string{"("}) || !slices.Equal(retriggers, []string{","}) {
+		t.Errorf("characters = %q, %q", triggers, retriggers)
+	}
+	none := &ServerProvider{Name: "x", Client: func() Server { return nil }}
+	if tr, re := none.SignatureCharacters(); tr != nil || re != nil {
+		t.Errorf("a provider without a server has characters %q %q", tr, re)
+	}
+}

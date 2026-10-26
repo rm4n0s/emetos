@@ -293,6 +293,38 @@ func (r *Registry) SignatureTriggers(doc Document) []string {
 	})
 }
 
+// HasHover tells whether a hover provider matches the document.
+func (r *Registry) HasHover(doc Document) bool { return len(r.hover.ordered(doc)) > 0 }
+
+// HasSignatureHelp tells whether a signature help provider matches the document (the key editorHasSignatureHelpProvider).
+func (r *Registry) HasSignatureHelp(doc Document) bool { return len(r.signature.ordered(doc)) > 0 }
+
+// SignatureCharacters are the characters that start signature help and those that start it again while it shows, of the
+// providers that match the document, without duplicates. Every trigger character is a retrigger character too (VS Code's
+// parameter hints model); a provider that does not tell them apart (SignatureTriggers) has trigger characters only.
+func (r *Registry) SignatureCharacters(doc Document) (triggers, retriggers []string) {
+	add := func(into *[]string, cs ...string) {
+		for _, c := range cs {
+			if c != "" && !slices.Contains(*into, c) {
+				*into = append(*into, c)
+			}
+		}
+	}
+	for _, reg := range r.signature.ordered(doc) {
+		add(&triggers, reg.Triggers...)
+		switch p := any(reg.Provider).(type) {
+		case interface{ SignatureCharacters() ([]string, []string) }:
+			t, rt := p.SignatureCharacters()
+			add(&triggers, t...)
+			add(&retriggers, rt...)
+		case interface{ SignatureTriggers() []string }:
+			add(&triggers, p.SignatureTriggers()...)
+		}
+	}
+	add(&retriggers, triggers...)
+	return triggers, retriggers
+}
+
 // triggersOf joins the trigger characters the providers were registered with and those they declare themselves.
 func triggersOf[P any](regs []Registered[P], own func(P) []string) []string {
 	var out []string

@@ -139,6 +139,44 @@ func (r *Registry) Hover(ctx context.Context, doc Document, pos Position) ([]Hov
 	return out, errorsOf(rs)
 }
 
+// HoverResult is the answer of one hover provider that has contents; Ordinal is the place of the provider in the order of the
+// providers (0 is the first).
+type HoverResult struct {
+	Hover   Hover
+	Ordinal int
+}
+
+// HoverEach asks every hover provider of the document and calls each with the answer of a provider as soon as it comes, in
+// the order the providers answer (VS Code shows the hovers as the providers resolve); an answer without contents is not
+// reported. Calls of each never overlap, and each runs on the goroutine of the provider that answered, so it must hand the
+// result over to where it is used. HoverEach returns when every provider has answered or ctx has ended.
+func (r *Registry) HoverEach(ctx context.Context, doc Document, pos Position, each func(HoverResult)) []ProviderError {
+	regs := r.hover.ordered(doc)
+	var mu sync.Mutex
+	rs := make([]result[*Hover], len(regs))
+	var wg sync.WaitGroup
+	for i, reg := range regs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			h, err := reg.Provider.ProvideHover(ctx, doc, pos)
+			mu.Lock()
+			defer mu.Unlock()
+			rs[i] = result[*Hover]{owner: reg.Owner, err: err}
+			if err != nil || h == nil || len(h.Contents) == 0 || ctx.Err() != nil {
+				return
+			}
+			out := *h
+			if out.Owner == "" {
+				out.Owner = reg.Owner
+			}
+			each(HoverResult{Hover: out, Ordinal: i})
+		}()
+	}
+	wg.Wait()
+	return errorsOf(rs)
+}
+
 // SignatureHelp asks the signature help providers and takes the answer of the first, in the order of the providers, that
 // has signatures.
 func (r *Registry) SignatureHelp(ctx context.Context, doc Document, pos Position, sc SignatureContext) (*SignatureHelp, []ProviderError) {

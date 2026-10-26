@@ -295,6 +295,10 @@ type editorState struct {
 	hoverHandle, hoverScrollHandle foundation.ListenerHandle
 	// suggestHandle follows the suggest widget of the view model.
 	suggestHandle foundation.ListenerHandle
+	// signatureHandle follows the parameter hints of the view model; hoverScroll scrolls the box of the hover.
+	signatureHandle foundation.ListenerHandle
+	hoverScroll     *widgets.ScrollControllerBase
+	signatureScroll *widgets.ScrollControllerBase
 	// The find widget: the focus nodes and the text of its inputs, the scope its inputs have their
 	// keys in, and whether one of the inputs has the focus.
 	findNode, replaceNode *widgets.FocusNode
@@ -326,6 +330,10 @@ func (s *editorState) InitState() {
 	s.vmHandle = vm.AddListener(s.viewModelChanged)
 	s.hoverHandle = vm.AddHoverListener(s.hoverChanged)
 	s.suggestHandle = vm.AddSuggestListener(s.hoverChanged)
+	s.signatureHandle = vm.AddSignatureListener(s.hoverChanged)
+	s.hoverScroll = widgets.NewScrollController(widgets.ScrollControllerOpts{KeepScrollOffset: foundation.Some(false)})
+	s.signatureScroll = widgets.NewScrollController(widgets.ScrollControllerOpts{KeepScrollOffset: foundation.Some(false)})
+	vm.SetHoverScroller(s.scrollHoverBox)
 	s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 	s.scroll = newEditorScroll(vm, s.controller)
 	vm.SetScroller(s.scrollTo)
@@ -570,6 +578,12 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorLangId", vm.Document().LanguageID())
 		s.scope.Set("foldingEnabled", vm.foldingEnabled())
 		s.scope.Set("markersNavigationVisible", vm.markersNavigationVisible())
+		s.scope.Set("editorHoverVisible", vm.HoverVisible())
+		s.scope.Set("editorHoverFocused", vm.HoverFocused())
+		pk := vm.SignatureKeys()
+		s.scope.Set("parameterHintsVisible", pk.Visible)
+		s.scope.Set("parameterHintsMultipleSignatures", pk.Multiple)
+		s.scope.Set("editorHasSignatureHelpProvider", pk.HasProvider)
 		s.scope.Set("findWidgetVisible", vm.FindRevealed())
 		state := vm.SnippetState()
 		s.scope.Set("inSnippetMode", state.InSnippet)
@@ -610,7 +624,10 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.RemoveListener(s.vmHandle)
 		old.vm.RemoveHoverListener(s.hoverHandle)
 		old.vm.RemoveSuggestListener(s.suggestHandle)
+		old.vm.RemoveSignatureListener(s.signatureHandle)
+		old.vm.SetHoverScroller(nil)
 		old.vm.suggestCancel()
+		old.vm.SignatureCancel()
 		old.vm.RemoveScrollListener(s.hoverScrollHandle)
 		old.vm.HideHover()
 		old.vm.RemoveSelectionListener(s.selHandle)
@@ -627,6 +644,8 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
 		s.hoverHandle = vm.AddHoverListener(s.hoverChanged)
 		s.suggestHandle = vm.AddSuggestListener(s.hoverChanged)
+		s.signatureHandle = vm.AddSignatureListener(s.hoverChanged)
+		vm.SetHoverScroller(s.scrollHoverBox)
 		s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
 		s.metricsHandle = vm.AddMetricsListener(s.metricsChanged)
@@ -683,10 +702,15 @@ func (s *editorState) Dispose() {
 	}
 	vm.RemoveHoverListener(s.hoverHandle)
 	vm.RemoveSuggestListener(s.suggestHandle)
+	vm.RemoveSignatureListener(s.signatureHandle)
+	vm.SetHoverScroller(nil)
 	vm.RemoveScrollListener(s.hoverScrollHandle)
 	vm.HideHover()
+	vm.SignatureCancel()
 	vm.RemoveListener(s.vmHandle)
 	vm.suggestShutdown(s.binding.Post)
+	s.hoverScroll.Dispose()
+	s.signatureScroll.Dispose()
 	vm.SetInputMode(nil) // a mode shared by the process must not keep the editor alive
 	s.controller.RemoveListener(s.scrollHandle)
 	s.controller.Dispose()
@@ -708,6 +732,9 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	if p := vm.SnippetPicker(); p != nil {
 		layers = append(layers, s.snippetPicker(vm, p))
+	}
+	if hints := s.signatureLayer(bc, vm, colors); hints != nil {
+		layers = append(layers, hints)
 	}
 	if suggest := s.suggestLayer(bc, vm, colors); suggest != nil {
 		layers = append(layers, suggest)

@@ -453,6 +453,16 @@ func registerEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 		Setting{
+			Key: "editor.parameterHints.enabled", Types: []Type{Boolean}, Default: true,
+			Description: "Enables a pop-up that shows parameter documentation and type information as you type.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.parameterHints.cycle", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether the parameter hints menu cycles or closes when reaching the end of the list.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
 			Key: "editor.selectionHighlight", Types: []Type{Boolean}, Default: true,
 			Description: "Controls whether the editor should highlight matches similar to the selection.",
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,

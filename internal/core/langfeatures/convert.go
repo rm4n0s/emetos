@@ -198,7 +198,7 @@ func SignatureHelpFromLSP(h *lsp.SignatureHelp) *SignatureHelp {
 	if h == nil || len(h.Signatures) == 0 {
 		return nil
 	}
-	out := &SignatureHelp{}
+	out := &SignatureHelp{server: h}
 	if h.ActiveSignature != nil {
 		out.ActiveSignature = *h.ActiveSignature
 	}
@@ -208,20 +208,21 @@ func SignatureHelpFromLSP(h *lsp.SignatureHelp) *SignatureHelp {
 	for _, s := range h.Signatures {
 		sig := Signature{Label: s.Label, Documentation: markup(s.Documentation), ActiveParameter: s.ActiveParameter}
 		for _, p := range s.Parameters {
-			label := p.Label.Text
+			param := Parameter{Label: p.Label.Text, Documentation: markup(p.Documentation)}
 			if p.Label.Offsets != nil {
-				label = utf16Slice(s.Label, p.Label.Offsets[0], p.Label.Offsets[1])
+				from, to := utf16Bytes(s.Label, p.Label.Offsets[0], p.Label.Offsets[1])
+				param.Label, param.Offsets = s.Label[from:to], &[2]int{from, to}
 			}
-			sig.Parameters = append(sig.Parameters, Parameter{Label: label, Documentation: markup(p.Documentation)})
+			sig.Parameters = append(sig.Parameters, param)
 		}
 		out.Signatures = append(out.Signatures, sig)
 	}
 	return out
 }
 
-// utf16Slice is the part of s between two offsets counted in UTF-16 code units (the offsets of a parameter label, which
-// the protocol counts so whatever the position encoding is); offsets outside s are moved into it.
-func utf16Slice(s string, from, to int) string {
+// utf16Bytes is the byte offsets in s of two offsets counted in UTF-16 code units (the offsets of a parameter label, which the
+// protocol counts so whatever the position encoding is), moved into s; both are the end of s for offsets past it.
+func utf16Bytes(s string, from, to int) (int, int) {
 	units := 0
 	start, end := -1, len(s)
 	for i, r := range s {
@@ -235,9 +236,9 @@ func utf16Slice(s string, from, to int) string {
 		units += max(utf16.RuneLen(r), 1)
 	}
 	if start < 0 {
-		return ""
+		return len(s), len(s)
 	}
-	return s[start:max(end, start)]
+	return start, max(end, start)
 }
 
 // LocationsFromLSP converts the links of a definition-like answer. Links the editor cannot open (another URI scheme) are

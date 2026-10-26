@@ -532,6 +532,8 @@ func registerKitColors(r *ColorRegistry) {
 			Description: "Background color of the editor hover status bar."},
 		ColorContribution{ID: "editorHoverWidget.border", Defaults: AllThemes(Ref("editorWidget.border")),
 			Description: "Border color of the editor hover."},
+		ColorContribution{ID: "editorHoverWidget.highlightForeground", Defaults: AllThemes(Ref("list.highlightForeground")),
+			Description: "Foreground color of the active item in the parameter hint."},
 	)
 }
 

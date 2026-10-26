@@ -3,6 +3,7 @@ package langfeatures
 import (
 	"context"
 	"encoding/json"
+	"slices"
 
 	"github.com/rm4n0s/errors"
 
@@ -174,11 +175,18 @@ func (sp *ServerProvider) ProvideSignatureHelp(ctx context.Context, doc Document
 		return nil, nil
 	}
 	enc := c.Encoding()
+	kind := sc.Kind
+	if kind == 0 {
+		kind = SignatureInvoke
+		if sc.Character != "" {
+			kind = SignatureTriggerCharacter
+		}
+	}
 	params := lsp.SignatureHelpParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos), Context: &lsp.SignatureHelpContext{
-		TriggerKind: lsp.SignatureHelpInvoked, TriggerCharacter: sc.Character, IsRetrigger: sc.IsRetrigger,
+		TriggerKind: int(kind), TriggerCharacter: sc.Character, IsRetrigger: sc.IsRetrigger,
 	}}
-	if sc.Character != "" {
-		params.Context.TriggerKind = lsp.SignatureHelpTriggerChar
+	if sc.Active != nil && sc.Active.server != nil {
+		params.Context.ActiveSignatureHelp = activeForServer(sc.Active)
 	}
 	var h *lsp.SignatureHelp
 	if err := c.Call(ctx, lsp.MethodSignatureHelp, params, &h); err != nil {
@@ -186,6 +194,15 @@ func (sp *ServerProvider) ProvideSignatureHelp(ctx context.Context, doc Document
 	}
 	out := SignatureHelpFromLSP(h)
 	return out, nil
+}
+
+// activeForServer is the help the server gets back as the active one: the answer it sent, with the signature the user moved
+// to (Up and Down) as the active signature.
+func activeForServer(h *SignatureHelp) *lsp.SignatureHelp {
+	out := *h.server
+	active := h.ActiveSignature
+	out.ActiveSignature = &active
+	return &out
 }
 
 // ProvideLocations implements NavigationProvider.
@@ -370,6 +387,16 @@ func (sp *ServerProvider) CompletionTriggers() []string {
 		return c.Capabilities().CompletionProvider.TriggerCharacters
 	}
 	return nil
+}
+
+// SignatureCharacters are the trigger characters and the retrigger characters the server declared for signature help; none
+// while there is no server.
+func (sp *ServerProvider) SignatureCharacters() (triggers, retriggers []string) {
+	if c := sp.server(); c != nil && c.Capabilities().SignatureHelpProvider != nil {
+		o := c.Capabilities().SignatureHelpProvider
+		return slices.Clone(o.TriggerCharacters), slices.Clone(o.RetriggerCharacters)
+	}
+	return nil, nil
 }
 
 // SignatureTriggers are the trigger and retrigger characters the server declared for signature help.

@@ -3,6 +3,7 @@ package editor
 import (
 	"math"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension/ui/markdown"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -30,6 +32,8 @@ const (
 	hoverShadowBlur  = 8.0
 	// hoverCharWidth estimates the width of a character of the box, to place the box before it is laid out.
 	hoverCharWidth = 7.0
+	// hoverBlockGap is the space between two blocks of Markdown (the 8 pixels of the markdown hover look).
+	hoverBlockGap = 8.0
 )
 
 // SetOpeners gives the hover what its links open: openURI a web page (the code of a diagnostic), openAt a place in a file
@@ -50,7 +54,7 @@ func (s *editorState) hoverLayer(bc widgets.BuildContext, vm *ViewModel, colors 
 	if rect.Bottom < 0 || rect.Top > vm.viewport {
 		return nil // the range is scrolled out of view
 	}
-	width, height := estimateHoverSize(h)
+	width, height := estimateHoverSize(h, vm.viewport)
 	origin := s.gutterWidth
 	if vm.mm.info.Show && vm.Options().Minimap.Side == "left" {
 		origin += vm.mm.info.Width
@@ -61,71 +65,158 @@ func (s *editorState) hoverLayer(bc widgets.BuildContext, vm *ViewModel, colors 
 	}
 	pos := widgets.PositionedOpts{Left: foundation.Some(left)}
 	fitsAbove, fitsBelow := rect.Top-height >= 0, rect.Bottom+height <= vm.viewport
+	var room float64
 	if (vm.opts.Hover.Above && fitsAbove) || (!fitsBelow && fitsAbove) || (!fitsAbove && !fitsBelow && rect.Top > vm.viewport-rect.Bottom) {
 		pos.Bottom = foundation.Some(vm.viewport - rect.Top)
+		room = rect.Top
 	} else {
 		pos.Top = foundation.Some(max(rect.Bottom, 0))
+		room = vm.viewport - max(rect.Bottom, 0)
 	}
-	box := s.hoverBox(bc, vm, colors, h)
+	box := s.hoverBox(bc, vm, colors, h, room)
 	return widgets.NewStack([]widgets.Widget{widgets.NewPositioned(box, pos)}, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
 
+var (
+	markdownFence = regexp.MustCompile("(?m)^```.*\n")
+	markdownLink  = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+)
+
+// markdownShown is the text of a Markdown source as it is read, roughly: without the lines of the fences and the destinations
+// of the links. The size of the box is estimated from it.
+func markdownShown(src string) string {
+	return markdownLink.ReplaceAllString(markdownFence.ReplaceAllString(src, ""), "$1")
+}
+
+// hoverMaxHeight is the tallest the box gets before it scrolls: a quarter of the editor, 250 pixels at least.
+func hoverMaxHeight(viewport float64) float64 { return math.Max(viewport/4, 250) }
+
 // estimateHoverSize is the size the box will have, worked out from the text: good enough to place it.
-func estimateHoverSize(h *Hover) (width, height float64) {
+func estimateHoverSize(h *Hover, viewport float64) (width, height float64) {
 	inner := hoverMaxWidth - 2*hoverPadH
 	perLine := math.Max(math.Floor(inner/hoverCharWidth), 1)
+	lines := func(text string) (n float64, w float64) {
+		for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+			c := float64(len([]rune(l)))
+			if c == 0 {
+				n += hoverBlockGap / hoverLineHeight // the space between two blocks
+				continue
+			}
+			n += math.Ceil(c / perLine)
+			w = math.Max(w, math.Min(c, perLine)*hoverCharWidth+2*hoverPadH)
+			if c > perLine {
+				w = hoverMaxWidth // a line that wraps fills the box
+			}
+		}
+		return n, w
+	}
 	width = 0
 	for _, p := range h.Parts {
-		if p.Kind != HoverPartDiagnostic {
-			continue
-		}
-		d := p.Diagnostic
-		lines := 0
-		for _, l := range strings.Split(d.Message, "\n") {
-			n := float64(len([]rune(l)))
-			lines += max(int(math.Ceil(n/perLine)), 1)
-			width = math.Max(width, math.Min(n, perLine)*hoverCharWidth+2*hoverPadH)
-		}
-		height += float64(lines)*hoverLineHeight + 2*hoverPadV
-		if d.Source != "" || d.Code != "" {
-			height += hoverLineHeight
-			width = math.Max(width, float64(len(d.Source)+len(d.Code)+2)*hoverCharWidth+2*hoverPadH)
-		}
-		height += float64(len(d.Related)) * hoverLineHeight
-		if len(p.Actions) > 0 {
-			height += hoverActionsRow
+		switch p.Kind {
+		case HoverPartMarkdown:
+			for _, c := range p.Contents {
+				text := c.Value
+				if c.Markdown {
+					text = markdownShown(text)
+				}
+				n, w := lines(text)
+				width = math.Max(width, w)
+				height += n*hoverLineHeight + 2*hoverPadV
+			}
+		case HoverPartDiagnostic:
+			d := p.Diagnostic
+			n, w := lines(d.Message)
+			width = math.Max(width, w)
+			height += n*hoverLineHeight + 2*hoverPadV
+			if d.Source != "" || d.Code != "" {
+				height += hoverLineHeight
+				width = math.Max(width, float64(len(d.Source)+len(d.Code)+2)*hoverCharWidth+2*hoverPadH)
+			}
+			height += float64(len(d.Related)) * hoverLineHeight
+			if len(p.Actions) > 0 {
+				height += hoverActionsRow
+			}
 		}
 	}
 	height += float64(max(len(h.Parts)-1, 0)) + 2
+	if viewport > 0 {
+		height = math.Min(height, hoverMaxHeight(viewport))
+	}
 	return math.Min(math.Max(width, 60), hoverMaxWidth), height
 }
 
-// hoverBox is the box: the parts one below the other, each with the links below it.
-func (s *editorState) hoverBox(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors, h *Hover) widgets.Widget {
+// hoverBox is the box: the parts one below the other, each with the links below it, scrolled when they are taller than
+// hoverMaxHeight or than the room there is on the side of the line it stands on.
+func (s *editorState) hoverBox(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors, h *Hover, room float64) widgets.Widget {
 	var rows []widgets.Widget
 	for i, p := range h.Parts {
 		if i > 0 {
 			rows = append(rows, widgets.NewSizedBox(widgets.NewColoredBox(colors.EditorHoverWidgetBorder, nil), widgets.SizedBoxOpts{Height: foundation.Some(1.0)}))
 		}
-		if p.Kind == HoverPartDiagnostic {
+		switch p.Kind {
+		case HoverPartDiagnostic:
 			rows = append(rows, hoverDiagnostic(bc, vm, colors, p))
+		case HoverPartMarkdown:
+			rows = append(rows, hoverMarkdown(vm, p))
 		}
 	}
 	column := widgets.NewColumn(rows, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch, MainAxisSize: rendering.MainAxisSizeMin})
-	box := widgets.NewContainer(widgets.NewClipRRect(column, widgets.ClipRRectOpts{BorderRadius: painting.NewBorderRadiusCircular(hoverRadius)}),
+	scrolled := widgets.NewRawScrollbar(
+		widgets.NewSingleChildScrollView(column, widgets.SingleChildScrollViewOpts{Controller: s.hoverScroll, Primary: foundation.Some(false)}),
+		widgets.RawScrollbarOpts{Controller: s.hoverScroll, Thickness: foundation.Some(6.0), ThumbColor: foundation.Some(colors.ScrollbarSliderBackground)})
+	border := colors.EditorHoverWidgetBorder
+	if h.Focused {
+		border = colors.FocusBorder
+	}
+	box := widgets.NewContainer(widgets.NewClipRRect(scrolled, widgets.ClipRRectOpts{BorderRadius: painting.NewBorderRadiusCircular(hoverRadius)}),
 		widgets.ContainerOpts{Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
 			Color:        foundation.Some(colors.EditorHoverWidgetBackground),
-			Border:       painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(colors.EditorHoverWidgetBorder), Width: foundation.Some(1.0)}),
+			Border:       painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(border), Width: foundation.Some(1.0)}),
 			BorderRadius: painting.NewBorderRadiusCircular(hoverRadius),
 			BoxShadow:    []painting.BoxShadow{painting.NewBoxShadow(painting.BoxShadowOpts{Color: foundation.Some(colors.WidgetShadow), BlurRadius: hoverShadowBlur})},
 		})})
-	constrained := widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(hoverMaxWidth)}), box)
+	constrained := widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{
+		MaxWidth: foundation.Some(hoverMaxWidth), MaxHeight: foundation.Some(math.Max(math.Min(hoverMaxHeight(vm.viewport), room), hoverLineHeight*3)),
+	}), box)
 	return widgets.NewMouseRegion(
 		widgets.NewGestureDetector(constrained, widgets.GestureDetectorOpts{Behavior: rendering.HitTestBehaviorOpaque}),
 		widgets.MouseRegionOpts{
 			OnEnter: func(*gestures.PointerEnterEvent) { vm.HoverBoxEntered(true) },
 			OnExit:  func(*gestures.PointerExitEvent) { vm.HoverBoxEntered(false) },
 		})
+}
+
+// markdownOptions are the options of a Markdown text in the hover or the parameter hints: the code is colored by its language.
+func (vm *ViewModel) markdownOptions() markdown.Options {
+	o := markdown.Options{Hover: true, OnLink: vm.openLink}
+	if h := vm.sg.host; h != nil {
+		o.Tokenize = h.Tokenize
+	}
+	return o
+}
+
+// openLink opens a link of a hover.
+func (vm *ViewModel) openLink(dest string) {
+	if vm.openURI != nil {
+		vm.openURI(dest)
+	}
+}
+
+// hoverMarkdown is the part of a provider: each content one under the other, as Markdown or as plain text.
+func hoverMarkdown(vm *ViewModel, p HoverPart) widgets.Widget {
+	var rows []widgets.Widget
+	for _, c := range p.Contents {
+		var body widgets.Widget
+		if c.Markdown {
+			body = markdown.NewView(c.Value, vm.markdownOptions())
+		} else {
+			body = widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget {
+				return hoverText(bc, c.Value, hoverFontSize, kit.ThemeOf(bc).EditorHoverWidgetForeground)
+			})
+		}
+		rows = append(rows, widgets.NewPadding(painting.NewEdgeInsetsSymmetric(hoverPadV, hoverPadH), body))
+	}
+	return widgets.NewColumn(rows, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch, MainAxisSize: rendering.MainAxisSizeMin})
 }
 
 // hoverText is a text of the box in the UI font.

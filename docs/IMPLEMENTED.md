@@ -1946,3 +1946,32 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
 - **Measurements:** `docs/PERFORMANCE.md` "Results after Glutter 1.8". Memory is 422 MB without the old workaround. Warm cold start went from 920 to 340 ms, and opening a 10 MB file from 1000 to 470 ms. A restored 4-tab session uses 30–46 MB more; this is not chased yet, because the renderer change confounds the measurement.
 - **Manual checks:** none
 - **Glutter issues:** four removed (the Vulkan try headless, now avoided with `GLUTTER_RENDERER=gles` as Glutter's owner advises; the font loading for a missing character; tree node updates; the error boundary); the title bar entry was replaced by the `Leading` width one (still so in 1.8.1).
+
+## 12.6 Hover and signature help
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-12.6-hover-signature
+- **Summary:** SPEC §9.12 "Hover" and "Signature help".
+  - **Hover:** VS Code's `HoverOperation` timing (H = `editor.hover.delay`): providers are asked at H/2, results show at H with the diagnostics part from 12.4, later answers are added, and "Loading..." appears at 3H. There is one operation per word (a diagnostic's range, else the word, else the character) and no request over white space or past the end of the line. `Registry.HoverEach` runs off the UI thread and hands each answer back as it resolves; answers for a replaced operation or an older document version are dropped, and the requests are cancelled with the operation. Parts stack diagnostics first, then the providers in order. The sticky hover keeps the `hidingDelay` grace. The box is at most 500 px wide and as tall as max(a quarter of the editor, 250), and scrolls. Markdown uses a new `Options.Hover` look of `extension/ui/markdown`, with code blocks colored by the fenced language's grammar and the theme (`SuggestHost.Tokenize`). Ctrl+K Ctrl+I shows the hover and, pressed again, focuses it; the eight scroll commands, `editor.action.hideHover`, and the `editorHoverVisible`/`editorHoverFocused` keys are added.
+  - **Signature help:** a port of VS Code's `ParameterHintsModel`. It triggers on trigger characters after 120 ms, or at once with Ctrl+Shift+Space. Retrigger characters, typing and cursor moves ask again while the hints show, and requests carry `isRetrigger` and `activeSignatureHelp`. The hints close on Escape, blur, a mouse press, an empty answer or the setting turned off. Superseded requests are cancelled and stale answers dropped. Overloads switch with Up/Down (and Alt+Up/Down) or the arrows; the counter is "1/3", and `editor.parameterHints.cycle` makes the list wrap. The active parameter, found by the server's offsets or VS Code's whole-word rule, is drawn bold in `editorHoverWidget.highlightForeground`. Parameter and signature documentation are Markdown. The hints coexist with the suggest widget (Escape closes suggest first). New: `editor.parameterHints.enabled`/`cycle`, 4 commands, 3 context keys and `dev.triggerParameterHints`; `dev.showHover` now asks the providers too.
+- **Main files:** `internal/gui/editor/{signature,signature_widget,hover,hover_widget,suggest,viewmodel,options,commands,input,pointer,widget,dev}.go`, `internal/core/langfeatures/{types,registry,merge,server,convert}.go`, `extension/ui/markdown/view.go`, `internal/gui/app/{suggest,devcommands}.go`, `internal/core/{command,keybinding,settings,theme}`, `internal/gui/kit/theme.go`, `testdata/proof/12.6/`, `docs/SPEC.md` §9.12.
+- **Tests:**
+  - `langfeatures`: `HoverEach` order and cancel, the `Has*` checks, signature characters, `LabelRange` and byte offsets, the signature context on the fake server.
+  - `editor/hover_providers_test.go`: timing at H/2, H and 3H on the fake clock, stacking, stale answers, cancel, white space, the command, focus and scroll, sticky.
+  - `editor/signature_test.go`: ports `parameterHintsModel.test.ts` (triggers, retriggers, close rules, cancel and drop, overloads with and without cycle, keys, active parameter).
+  - `editor/hover_markdown_widget_test.go`: goldens, scrolling, links, placement.
+  - `app/keys_hover_test.go`: five states for the default keys test.
+  - `TestGoplsAnswersHoverAndSignatureHelp`: runs the real `gopls`.
+  - Existing tests changed: the editor option defaults, and the keys test's states and reset.
+  - Goldens: new `hover_markdown_{dark,light}`, `parameter_hints_{dark,light}`, `parameter_hints_overloads_{dark,light}`. No existing golden changed. The agent viewed them all, and I viewed two of them and both proofs.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** two images, both with the real `gopls`.
+  - `docs/implemented-proof-images/12.6-hover.png`, made with `scripts/proof.sh docs/implemented-proof-images/12.6-hover.png --after 9s --commands '[["dev.openFile",{"path":"testdata/proof/12.6/project/main.go","line":11,"column":19}],["sleep","6s"],["dev.showHover",{"line":11,"column":19}],["sleep","2s"]]' -- testdata/proof/12.6/project`. It shows the hover of `strings.Join` with a colored signature block, its documentation and the pkg.go.dev link.
+
+    ![12.6 hover](implemented-proof-images/12.6-hover.png)
+  - `docs/implemented-proof-images/12.6-signature-help.png`, made with `scripts/proof.sh docs/implemented-proof-images/12.6-signature-help.png --after 9s --commands '[["dev.openFile",{"path":"testdata/proof/12.6/project/main.go","line":15,"column":38}],["sleep","6s"],["dev.triggerParameterHints"],["sleep","3s"]]' -- testdata/proof/12.6/project`. It shows the signature help in a call to `Greeting`, with the variadic `words ...string` highlighted and the documentation.
+
+    ![12.6 signature help](implemented-proof-images/12.6-signature-help.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §9.12 "As built (step 12.6)" lists the 12 decisions and what is not built: the verbosity commands, the definition preview, the glyph-margin hover, the copy button, `command:` links, resizing either widget, hiding the hover on any key, the 100 ms fade-in, focusing the hints. The agent's first full race run had one failing test, the editor options defaults it had not yet updated. It fixed that test and re-ran the package; I then ran the whole suite.

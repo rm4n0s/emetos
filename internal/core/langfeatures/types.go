@@ -2,6 +2,7 @@ package langfeatures
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -146,6 +147,45 @@ type Hover struct {
 type Parameter struct {
 	Label         string
 	Documentation *Markup
+	// Offsets, when set, are the byte offsets of the parameter in the label of the signature (a server that sent the label as
+	// a pair of offsets); without them the parameter is found by its text.
+	Offsets *[2]int
+}
+
+// LabelRange is where a parameter is in the label of a signature, as byte offsets: the offsets the provider gave, else the first
+// place the text of the parameter stands as a word of its own (VS Code's rule: after a non-word character or the start, before
+// one or the end). It is empty when the parameter is not found.
+//
+// Ported from VS Code: src/vs/editor/contrib/parameterHints/browser/parameterHintsWidget.ts (getParameterLabelOffsets)
+func (s Signature) LabelRange(index int) (start, end int) {
+	if index < 0 || index >= len(s.Parameters) {
+		return 0, 0
+	}
+	p := s.Parameters[index]
+	if p.Offsets != nil {
+		return p.Offsets[0], p.Offsets[1]
+	}
+	if p.Label == "" {
+		return 0, 0
+	}
+	for from := 0; ; {
+		i := strings.Index(s.Label[from:], p.Label)
+		if i < 0 {
+			return 0, 0
+		}
+		i += from
+		end := i + len(p.Label)
+		if (i == 0 || !isWordByte(s.Label[i-1])) && (end == len(s.Label) || !isWordByte(s.Label[end])) {
+			return i, end
+		}
+		from = i + 1
+	}
+}
+
+// isWordByte tells whether the byte is a regular expression word character (\w): a letter, a digit or an underscore. A byte of
+// a multi-byte character is not.
+func isWordByte(b byte) bool {
+	return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }
 
 // Signature is a signature of a function.
@@ -162,12 +202,35 @@ type SignatureHelp struct {
 	ActiveSignature int
 	ActiveParameter int
 	Owner           string
+
+	// server is the answer as the language server sent it, which the server gets back as the active signature help of the
+	// next request (LSP's SignatureHelpContext.activeSignatureHelp).
+	server *lsp.SignatureHelp
 }
+
+// SignatureTrigger says why signature help is asked for (VS Code's SignatureHelpTriggerKind, LSP's numbers).
+type SignatureTrigger int
+
+// The reasons signature help is asked for.
+const (
+	// SignatureInvoke: the user asked (Ctrl+Shift+Space).
+	SignatureInvoke SignatureTrigger = 1
+	// SignatureTriggerCharacter: a trigger or retrigger character was typed.
+	SignatureTriggerCharacter SignatureTrigger = 2
+	// SignatureContentChange: the cursor or the text changed while the help showed.
+	SignatureContentChange SignatureTrigger = 3
+)
 
 // SignatureContext is the context of a signature help request.
 type SignatureContext struct {
-	Character   string
+	// Kind is why the help is asked for; zero is SignatureTriggerCharacter when Character is set, else SignatureInvoke.
+	Kind SignatureTrigger
+	// Character is the character that was typed, for a SignatureTriggerCharacter.
+	Character string
+	// IsRetrigger says that the help was showing, or being asked for, when this request was made.
 	IsRetrigger bool
+	// Active is the help that showed when the request was made (nil when none did).
+	Active *SignatureHelp
 }
 
 // DocumentSymbol is a symbol of a document; Kind is the LSP's SymbolKind.

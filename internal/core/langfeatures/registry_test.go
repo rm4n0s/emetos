@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -427,5 +428,133 @@ func TestRenameUsesTheFirstThatAnswers(t *testing.T) {
 	}
 	if _, err := reg.Rename(ctx, doc, Position{}, "x"); err == nil {
 		t.Error("a provider that fails did not fail the rename")
+	}
+}
+
+// gatedHover answers after its gate opens, and says when it was asked.
+type gatedHover struct {
+	text  string
+	gate  chan struct{}
+	asked chan struct{}
+	ended chan error
+}
+
+func (g *gatedHover) ProvideHover(ctx context.Context, _ Document, _ Position) (*Hover, error) {
+	if g.asked != nil {
+		g.asked <- struct{}{}
+	}
+	if g.gate != nil {
+		select {
+		case <-g.gate:
+		case <-ctx.Done():
+			if g.ended != nil {
+				g.ended <- ctx.Err()
+			}
+			return nil, ctx.Err()
+		}
+	}
+	return &Hover{Contents: []Markup{{Value: g.text}}}, nil
+}
+
+func TestHoverEachReportsAnswersAsTheyComeWithTheirOrdinals(t *testing.T) {
+	reg := NewRegistry()
+	doc := docOf("go", "/work/main.go", "")
+	slow := &gatedHover{text: "slow", gate: make(chan struct{}), asked: make(chan struct{}, 1)}
+	reg.RegisterHover("first-registered", Selector{Languages: []string{"go"}}, &gatedHover{text: "fast"})
+	reg.RegisterHover("last-registered", Selector{Languages: []string{"go"}}, slow)
+	reg.RegisterHover("empty", Selector{Languages: []string{"go"}}, &fakeProvider{hover: &Hover{}})
+	// the order of the providers is the last registered first: empty, slow, fast
+	got := make(chan HoverResult, 4)
+	done := make(chan []ProviderError, 1)
+	go func() {
+		done <- reg.HoverEach(context.Background(), doc, Position{}, func(r HoverResult) { got <- r })
+	}()
+	first := <-got
+	if first.Hover.Contents[0].Value != "fast" || first.Ordinal != 2 || first.Hover.Owner != "first-registered" {
+		t.Fatalf("the first answer = %+v, want the fast one with its place in the order of the providers", first)
+	}
+	select {
+	case errs := <-done:
+		t.Fatalf("HoverEach returned %v before the slow provider answered", errs)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(slow.gate)
+	second := <-got
+	if second.Hover.Contents[0].Value != "slow" || second.Ordinal != 1 {
+		t.Errorf("the second answer = %+v", second)
+	}
+	if errs := <-done; len(errs) != 0 {
+		t.Errorf("errors = %v", errs)
+	}
+	if len(got) != 0 {
+		t.Error("an answer without contents was reported")
+	}
+}
+
+func TestHoverEachStopsWhenTheContextEnds(t *testing.T) {
+	reg := NewRegistry()
+	doc := docOf("go", "/work/main.go", "")
+	g := &gatedHover{text: "never", gate: make(chan struct{}), asked: make(chan struct{}, 1), ended: make(chan error, 1)}
+	reg.RegisterHover("a", Selector{}, g)
+	ctx, cancel := context.WithCancel(context.Background())
+	var reported int
+	done := make(chan struct{})
+	go func() {
+		reg.HoverEach(ctx, doc, Position{}, func(HoverResult) { reported++ })
+		close(done)
+	}()
+	<-g.asked
+	cancel()
+	if err := <-g.ended; !errors.Is(err, context.Canceled) {
+		t.Errorf("the provider ended with %v", err)
+	}
+	<-done
+	if reported != 0 {
+		t.Error("an answer of a cancelled request was reported")
+	}
+}
+
+func TestHasHoverAndSignatureHelp(t *testing.T) {
+	reg := NewRegistry()
+	goDoc := docOf("go", "/work/main.go", "")
+	textDoc := docOf("plaintext", "/work/a.txt", "")
+	if reg.HasHover(goDoc) || reg.HasSignatureHelp(goDoc) {
+		t.Fatal("an empty registry has providers")
+	}
+	reg.RegisterHover("a", Selector{Languages: []string{"go"}}, &fakeProvider{})
+	reg.RegisterSignatureHelp("a", Selector{Languages: []string{"go"}}, &fakeProvider{})
+	if !reg.HasHover(goDoc) || !reg.HasSignatureHelp(goDoc) || reg.HasHover(textDoc) || reg.HasSignatureHelp(textDoc) {
+		t.Error("the providers are not matched by language")
+	}
+}
+
+// charsProvider tells its trigger and retrigger characters.
+type charsProvider struct {
+	fakeProvider
+	triggers, retriggers []string
+}
+
+func (c *charsProvider) SignatureCharacters() ([]string, []string) { return c.triggers, c.retriggers }
+
+// oldProvider only has SignatureTriggers.
+type oldProvider struct{ fakeProvider }
+
+func (oldProvider) SignatureTriggers() []string { return []string{"<"} }
+
+func TestSignatureCharactersJoinTheProviders(t *testing.T) {
+	reg := NewRegistry()
+	doc := docOf("go", "/work/main.go", "")
+	reg.RegisterSignatureHelp("a", Selector{Languages: []string{"go"}}, &charsProvider{triggers: []string{"(", ","}, retriggers: []string{")", ","}})
+	reg.RegisterSignatureHelp("b", Selector{Languages: []string{"go"}}, &fakeProvider{}, "[", "(")
+	reg.RegisterSignatureHelp("c", Selector{Languages: []string{"go"}}, &oldProvider{})
+	triggers, retriggers := reg.SignatureCharacters(doc)
+	slices.Sort(triggers)
+	slices.Sort(retriggers)
+	if want := []string{"(", ",", "<", "["}; !slices.Equal(triggers, want) {
+		t.Errorf("triggers = %q, want %q", triggers, want)
+	}
+	// every trigger character is a retrigger character too
+	if want := []string{"(", ")", ",", "<", "["}; !slices.Equal(retriggers, want) {
+		t.Errorf("retriggers = %q, want %q", retriggers, want)
 	}
 }

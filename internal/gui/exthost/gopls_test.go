@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -234,6 +235,142 @@ func TestGoplsCompletesAMemberOfAPackage(t *testing.T) {
 		if resolved.Documentation == nil || !strings.Contains(resolved.Documentation.Value, "Println") {
 			t.Errorf("the resolved item has no documentation: %+v", resolved.Documentation)
 		}
+	}
+
+	tb.scope.Close()
+	r.host.WaitServers()
+	requireGone(t, "gopls", status.PID)
+}
+
+// TestGoplsAnswersHoverAndSignatureHelp runs the real gopls on the fixture of step 12.6: the hover of a function of the
+// standard library has a code block and its documentation, and the signature help inside a call has the signature with the
+// active parameter, found by the offsets of its label (SPEC §9.12 "Hover", "Signature help").
+func TestGoplsAnswersHoverAndSignatureHelp(t *testing.T) {
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls is not installed")
+	}
+	folder := t.TempDir()
+	src, err := os.ReadFile(filepath.Join(testRoot(t), "testdata", "proof", "12.6", "project", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"go.mod": "module example.com/proof\n\ngo 1.21\n", "main.go": string(src)} {
+		if err := os.WriteFile(filepath.Join(folder, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := manifest("gopls.pack")
+	m.Contributes.LanguageServers = []extension.LanguageServerSpec{{
+		ID: "gopls", Name: "gopls", Languages: []string{"go", "go.mod", "go.work"}, Program: "gopls",
+		PathSetting: "go.goplsPath", ConfigurationSection: "go.gopls",
+	}}
+	f, _ := factory(m, nil)
+	r := newRig(t, f)
+	r.folders["one"] = folder
+	t.Cleanup(func() { r.host.Shutdown() })
+	tb := r.newTab("one")
+	tb.deferred = true
+	tb.scope.Start()
+
+	opts := document.NewOptions()
+	opts.LanguageID = "go"
+	doc := document.New(document.FileURI(filepath.Join(folder, "main.go")), string(src), opts)
+	tb.lsp.open(doc)
+	tb.pump()
+	waitFor(t, tb, "gopls to run", func() bool {
+		s, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+		return s.State == ServerRunning
+	})
+	status, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+
+	d := langfeatures.Document{URI: doc.URI(), LanguageID: "go", Version: doc.Version(), Text: doc.Snapshot()}
+	lines := strings.Split(string(src), "\n")
+	line := func(sub string) int {
+		for i, l := range lines {
+			if strings.Contains(l, sub) {
+				return i
+			}
+		}
+		t.Fatalf("the fixture has no line with %q", sub)
+		return 0
+	}
+
+	// the hover of strings.Join: a code block and the documentation
+	join := langfeatures.Position{Line: line("strings.Join"), Col: strings.Index(lines[line("strings.Join")], "Join") + 1}
+	var hover langfeatures.Hover
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) && len(hover.Contents) == 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		hs, _ := tb.scope.Features().Hover(ctx, d, join)
+		cancel()
+		if len(hs) > 0 {
+			hover = hs[0]
+		} else {
+			tb.pump()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if len(hover.Contents) == 0 {
+		t.Fatalf("gopls did not answer the hover; Output:\n%s", strings.Join(tb.channels.Lines("gopls"), "\n"))
+	}
+	text := hover.Contents[0]
+	if !text.Markdown || !strings.Contains(text.Value, "```go\nfunc strings.Join(elems []string, sep string) string\n```") || !strings.Contains(text.Value, "Join concatenates") {
+		t.Errorf("hover = %q", text.Value)
+	}
+	if hover.Range == nil || hover.Range.Start.Line != join.Line {
+		t.Errorf("hover range = %v", hover.Range)
+	}
+
+	// the trigger and retrigger characters
+	triggers, retriggers := tb.scope.Features().SignatureCharacters(d)
+	if !slices.Contains(triggers, "(") || !slices.Contains(triggers, ",") && !slices.Contains(retriggers, ",") {
+		t.Errorf("trigger characters %q, retrigger characters %q", triggers, retriggers)
+	}
+
+	// the signature help right after the comma typed in Greeting(", ", "hello",
+	call := lines[line("Greeting(\", \"")]
+	pos := langfeatures.Position{Line: line("Greeting(\", \""), Col: strings.Index(call, `"hello",`) + len(`"hello",`)}
+	var help *langfeatures.SignatureHelp
+	for time.Now().Before(deadline) && help == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		var errs []langfeatures.ProviderError
+		help, errs = tb.scope.Features().SignatureHelp(ctx, d, pos, langfeatures.SignatureContext{Kind: langfeatures.SignatureTriggerCharacter, Character: ","})
+		cancel()
+		if len(errs) > 0 {
+			t.Logf("signature help errors: %v", errs)
+		}
+		if help == nil {
+			tb.pump()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if help == nil {
+		t.Fatalf("gopls did not answer the signature help; Output:\n%s", strings.Join(tb.channels.Lines("gopls"), "\n"))
+	}
+	sig := help.Signatures[help.ActiveSignature]
+	if sig.Label != "Greeting(sep string, words ...string) string" || sig.Documentation == nil || !strings.Contains(sig.Documentation.Value, "joins the words") {
+		t.Errorf("signature = %+v", sig)
+	}
+	active := help.ActiveParameter
+	if sig.ActiveParameter != nil {
+		active = *sig.ActiveParameter
+	}
+	if start, end := sig.LabelRange(active); sig.Label[start:end] != "words ...string" {
+		t.Errorf("the active parameter %d is %q, want the variadic parameter", active, sig.Label[start:end])
+	}
+	// asked again with the help that showed, as a retrigger
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	again, _ := tb.scope.Features().SignatureHelp(ctx, d, pos, langfeatures.SignatureContext{Kind: langfeatures.SignatureContentChange, IsRetrigger: true, Active: help})
+	cancel()
+	if again == nil || len(again.Signatures) == 0 {
+		t.Error("gopls does not answer a retrigger")
+	}
+	// outside a call there is none
+	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Second)
+	none, _ := tb.scope.Features().SignatureHelp(ctx, d, langfeatures.Position{Line: 0, Col: 3}, langfeatures.SignatureContext{Kind: langfeatures.SignatureInvoke})
+	cancel()
+	if none != nil {
+		t.Errorf("signature help at the package clause: %+v", none)
 	}
 
 	tb.scope.Close()

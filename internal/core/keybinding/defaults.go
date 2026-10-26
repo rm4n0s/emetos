@@ -59,6 +59,8 @@ func DefaultRegistry() *Registry {
 	registerEmmetKeys(r)
 	registerSnippetKeys(r)
 	registerSuggestKeys(r)
+	registerHoverKeys(r)
+	registerParameterHintsKeys(r)
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
 	registerMarkerKeys(r)
@@ -697,5 +699,41 @@ func registerMarkerKeys(r *Registry) {
 		Rule{Command: "editor.action.marker.nextInFiles", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "f8"},
 		Rule{Command: "editor.action.marker.prevInFiles", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus), Primary: "shift+f8"},
 		Rule{Command: "closeMarkersNavigation", Weight: WeightEditorContrib + 50, When: mustWhen(whenEditorFocus, "markersNavigationVisible"), Primary: "escape", Secondary: []string{"shift+escape"}},
+	)
+}
+
+// registerHoverKeys registers the keys of the editor hover: Ctrl+K Ctrl+I shows it or gives it the keys, Escape hides it, and
+// while it has the keys the arrows, the page keys, Home and End scroll its box.
+//
+// Ported from VS Code: src/vs/editor/contrib/hover/browser/hoverActions.ts
+func registerHoverKeys(r *Registry) {
+	focused := "editorHoverFocused"
+	r.MustRegister(
+		Rule{Command: "editor.action.showHover", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus), Primary: "ctrl+k ctrl+i"},
+		// VS Code hides the hover on any key; here the keys that change the text or the cursor do, and Escape is for the rest.
+		Rule{Command: "editor.action.hideHover", Weight: WeightEditorContrib + 40, When: mustWhen(whenEditorFocus, "editorHoverVisible"), Primary: "escape", Secondary: []string{"shift+escape"}},
+		Rule{Command: "editor.action.scrollUpHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "up"},
+		Rule{Command: "editor.action.scrollDownHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "down"},
+		Rule{Command: "editor.action.scrollLeftHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "left"},
+		Rule{Command: "editor.action.scrollRightHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "right"},
+		Rule{Command: "editor.action.pageUpHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "pageup"},
+		Rule{Command: "editor.action.pageDownHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "pagedown"},
+		Rule{Command: "editor.action.goToTopHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "home"},
+		Rule{Command: "editor.action.goToBottomHover", Weight: WeightEditorContrib, When: mustWhen(whenEditorFocus, focused), Primary: "end"},
+	)
+}
+
+// registerParameterHintsKeys registers the keys of the parameter hints: Ctrl+Shift+Space asks for them, Escape closes them and
+// the arrows (and Alt with them) go through the signatures.
+//
+// Ported from VS Code: src/vs/editor/contrib/parameterHints/browser/parameterHints.ts
+func registerParameterHintsKeys(r *Registry) {
+	const weight = WeightEditorContrib + 75
+	visible := "parameterHintsVisible"
+	r.MustRegister(
+		Rule{Command: "editor.action.triggerParameterHints", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus, "editorHasSignatureHelpProvider"), Primary: "ctrl+shift+space"},
+		Rule{Command: "closeParameterHints", Weight: weight, When: mustWhen(whenEditorFocus, visible), Primary: "escape", Secondary: []string{"shift+escape"}},
+		Rule{Command: "showPrevParameterHint", Weight: weight, When: mustWhen(whenEditorFocus, visible, "parameterHintsMultipleSignatures"), Primary: "up", Secondary: []string{"alt+up"}},
+		Rule{Command: "showNextParameterHint", Weight: weight, When: mustWhen(whenEditorFocus, visible, "parameterHintsMultipleSignatures"), Primary: "down", Secondary: []string{"alt+down"}},
 	)
 }

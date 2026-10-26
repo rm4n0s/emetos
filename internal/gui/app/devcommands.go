@@ -147,7 +147,8 @@ func registerDevCommands(r *command.Registry) {
 	for _, meta := range []command.Meta{
 		{ID: "dev.type", Description: "Type a text into the focused editor, a character in every frame."},
 		{ID: "dev.scroll", Description: "Scroll the focused editor by rows in every frame."},
-		{ID: "dev.showHover", Description: `Show the hover at a position of the focused editor and keep it. Arguments: {"line": ..., "column": ...} counted from 1; the cursor when missing.`},
+		{ID: "dev.showHover", Description: `Show the hover at a position of the focused editor and keep it (the providers are asked, so it shows when they answer). Arguments: {"line": ..., "column": ...} counted from 1; the cursor when missing.`},
+		{ID: "dev.triggerParameterHints", Description: "Open the parameter hints of the focused editor at the cursor, as Trigger Parameter Hints does."},
 		{ID: "dev.triggerSuggest", Description: "Open the suggest widget of the focused editor, as Trigger Suggest does."},
 		{ID: "dev.toggleSuggestDetails", Description: "Open or close the details pane of the suggest widget of the focused editor."},
 		{ID: "dev.openFile", Description: "Open a file in the window, with the cursor at a line and a column."},

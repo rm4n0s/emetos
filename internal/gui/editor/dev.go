@@ -56,6 +56,9 @@ func devActions(a map[string]action) {
 		}
 		return nil
 	}
+	// dev.triggerParameterHints opens the parameter hints at the cursor as Trigger Parameter Hints does (Ctrl+Shift+Space), for the
+	// proofs.
+	a["dev.triggerParameterHints"] = a["editor.action.triggerParameterHints"]
 	// dev.triggerSuggest opens the suggest widget as Trigger Suggest does (Ctrl+Space), for the proofs.
 	a["dev.triggerSuggest"] = a[triggerSuggestCommand]
 	// dev.toggleSuggestDetails opens or closes the details pane of the suggest widget.

@@ -81,6 +81,7 @@ func (vm *ViewModel) Run(act action, args any) error {
 	}
 	vm.sg.typed = ""
 	vm.suggestAfter(pre, kind, typed)
+	vm.signatureAfter(pre, typed)
 	// A command that is not part of a session ends it, unless it only reads (a copy).
 	if !vm.keepSessions {
 		if vm.sessionOwner != sessionColumns {
@@ -501,6 +502,8 @@ func buildActions() map[string]action {
 	findActions(a)
 	snippetActions(a)
 	suggestActions(a)
+	hoverActions(a)
+	signatureActions(a)
 	emmetActions(a)
 	wrapActions(a)
 	devActions(a)

@@ -108,6 +108,9 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 			Sticky: settings.Get[bool](store, "editor.hover.sticky", languageID), HidingDelay: int(settings.Get[float64](store, "editor.hover.hidingDelay", languageID)),
 			Above: settings.Get[bool](store, "editor.hover.above", languageID),
 		},
+		ParameterHints: ParameterHintsOptions{
+			Enabled: settings.Get[bool](store, "editor.parameterHints.enabled", languageID), Cycle: settings.Get[bool](store, "editor.parameterHints.cycle", languageID),
+		},
 		Suggest: suggestOptions(store, languageID),
 		StickyScroll: StickyScrollOptions{
 			Enabled:          settings.Get[bool](store, "editor.stickyScroll.enabled", languageID),

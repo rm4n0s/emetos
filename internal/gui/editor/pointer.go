@@ -144,6 +144,7 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 	m := &s.mouse
 	vm := s.Widget().vm
 	vm.HideHover()
+	vm.SignatureCancel() // a cursor moved with the mouse closes the hints
 	if s.pressOnZone(e, hasPrimary(buttons)) {
 		return
 	}

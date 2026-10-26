@@ -176,6 +176,8 @@ type Options struct {
 	ShowUnused, ShowDeprecated bool
 	// Hover are the settings of the hover (editor.hover.*).
 	Hover HoverOptions
+	// ParameterHints are the settings of the parameter hints (editor.parameterHints.*).
+	ParameterHints ParameterHintsOptions
 	// Suggest are the settings of the suggest widget (editor.suggest.* and the options around it).
 	Suggest SuggestOptions
 	// Minimap are the settings of the minimap (editor.minimap.*).
@@ -242,8 +244,9 @@ type ViewModel struct {
 	// diag is the state of the diagnostics (diagnostics.go) and hover the hover (hover.go).
 	diag  diagnosticState
 	hover hoverModel
-	// sg is the suggest widget (suggest.go).
-	sg suggestState
+	// sg is the suggest widget (suggest.go) and sig the parameter hints (signature.go).
+	sg  suggestState
+	sig signatureModel
 	// viewProblem is what "View Problem" of the hover does (SetViewProblem); openURI and openAt are what its links open
 	// (SetOpeners).
 	viewProblem func(buffer.Position)
@@ -393,6 +396,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		scrollWatch:    foundation.NewChangeNotifier(),
 		hover:          newHoverModel(),
 		sg:             newSuggestState(),
+		sig:            newSignatureModel(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.inputModeHandle = vm.inputMode.AddListener(vm.inputModeChanged)
@@ -431,6 +435,9 @@ func (vm *ViewModel) applyOptions() {
 		return
 	}
 	vm.opts = opts
+	if !opts.ParameterHints.Enabled {
+		vm.SignatureCancel()
+	}
 	vm.syncedAt = -1
 	vm.maxLineWidth = 0 // the font may have changed: the rows measure it again
 	vm.Sync()
@@ -643,6 +650,7 @@ func (vm *ViewModel) SetFocused(focused bool) {
 	vm.focused = focused
 	if !focused {
 		vm.suggestCancel()
+		vm.SignatureCancel()
 	}
 	vm.restartBlink()
 	vm.sel.NotifyListeners()

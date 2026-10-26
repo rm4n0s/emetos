@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
@@ -126,6 +127,9 @@ type SuggestHost struct {
 	// shown. Log writes the failure of a provider to the log: a provider that fails on a keystroke is not shown on every one.
 	Report func(err error)
 	Log    func(message string, err error)
+	// Tokenize gives the tokens of a code block of a language, named as a fence names it ("go"); false when the language has no
+	// grammar. The hover and the parameter hints use it (and the registry above) to color the code of their Markdown.
+	Tokenize func(language, text string) ([][]extension.Token, bool)
 }
 
 // SetSuggest gives the editor the means to complete (SPEC §9.12): without a host the editor has no suggest widget.
