@@ -97,7 +97,59 @@ func (sp *ServerProvider) ProvideCompletion(ctx context.Context, doc Document, p
 	if err := c.Call(ctx, lsp.MethodCompletion, params, &list); err != nil {
 		return CompletionList{}, err
 	}
-	return CompletionFromLSP(enc, doc, list), nil
+	out := CompletionFromLSP(enc, doc, list)
+	for i := range out.Items {
+		if out.Items[i].Command != nil {
+			out.Items[i].Command.Owner = sp.Name
+		}
+	}
+	return out, nil
+}
+
+// CanResolve implements CompletionResolver: the server offers completionItem/resolve and sent the item.
+func (sp *ServerProvider) CanResolve(item CompletionItem) bool {
+	c := sp.server()
+	if c == nil || item.server == nil {
+		return false
+	}
+	o := c.Capabilities().CompletionProvider
+	return (o != nil && o.ResolveProvider) || len(c.Registered(lsp.MethodCompletionResolve)) > 0
+}
+
+// ResolveCompletion implements CompletionResolver: the item goes back to the server, which fills in its documentation, its
+// detail and its additional edits. The item is returned as it was when the server cannot resolve it.
+func (sp *ServerProvider) ResolveCompletion(ctx context.Context, doc Document, item CompletionItem) (CompletionItem, error) {
+	if !sp.CanResolve(item) {
+		return item, nil
+	}
+	c := sp.server()
+	if c == nil {
+		return item, nil
+	}
+	var resolved lsp.CompletionItem
+	if err := c.Call(ctx, lsp.MethodCompletionResolve, *item.server, &resolved); err != nil {
+		return item, err
+	}
+	list := CompletionFromLSP(c.Encoding(), doc, lsp.CompletionList{Items: []lsp.CompletionItem{resolved}})
+	if len(list.Items) == 0 {
+		return item, nil
+	}
+	merged := MergeResolvedCompletion(item, list.Items[0])
+	if merged.Command != nil && merged.Command.Owner == "" {
+		merged.Command.Owner = sp.Name
+	}
+	return merged, nil
+}
+
+// ExecuteCommand runs a command of the server (workspace/executeCommand), for the command of a completion item or a code
+// action. It does nothing while there is no server.
+func (sp *ServerProvider) ExecuteCommand(ctx context.Context, cmd Command) error {
+	c := sp.server()
+	if c == nil {
+		return nil
+	}
+	var result json.RawMessage
+	return c.Call(ctx, lsp.MethodExecuteCommand, lsp.ExecuteCommandParams{Command: cmd.ID, Arguments: cmd.Arguments}, &result)
 }
 
 // ProvideHover implements HoverProvider.

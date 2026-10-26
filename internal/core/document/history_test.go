@@ -380,3 +380,52 @@ func TestTypingSpaceForSeveralCursors(t *testing.T) {
 		}
 	}
 }
+
+func TestEditJoinsTheOpenGroup(t *testing.T) {
+	tests := []struct {
+		name       string
+		closeAfter bool // PushStackElement between the two edits
+		join       bool
+		undos      int // undo steps for both edits to be gone
+	}{
+		{"join the open group", false, true, 1},
+		{"an edit of kind other starts a group", false, false, 2},
+		{"a closed group is not joined", true, true, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := newDoc("abc")
+			edit(t, d, []Edit{{Range: rg(0, 0, 0, 0), Text: "1"}}, EditOptions{})
+			if tt.closeAfter {
+				d.PushStackElement()
+			}
+			edit(t, d, []Edit{{Range: rg(0, 4, 0, 4), Text: "2"}}, EditOptions{Join: tt.join})
+			if d.Text() != "1abc2" {
+				t.Fatalf("text %q", d.Text())
+			}
+			steps := 0
+			for d.CanUndo() {
+				if _, err := d.Undo(); err != nil {
+					t.Fatal(err)
+				}
+				steps++
+			}
+			if steps != tt.undos || d.Text() != "abc" {
+				t.Errorf("undone in %d steps to %q, want %d steps to %q", steps, d.Text(), tt.undos, "abc")
+			}
+		})
+	}
+}
+
+func TestEditJoinStartsAnOpenGroupWhenThereIsNone(t *testing.T) {
+	d := newDoc("abc")
+	d.PushStackElement()
+	edit(t, d, []Edit{{Range: rg(0, 0, 0, 0), Text: "1"}}, EditOptions{Join: true})
+	edit(t, d, []Edit{{Range: rg(0, 4, 0, 4), Text: "2"}}, EditOptions{Join: true})
+	if _, err := d.Undo(); err != nil {
+		t.Fatal(err)
+	}
+	if d.Text() != "abc" || d.CanUndo() {
+		t.Errorf("one undo left %q (can undo %v)", d.Text(), d.CanUndo())
+	}
+}

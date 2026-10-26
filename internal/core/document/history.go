@@ -107,10 +107,13 @@ func (h *history) recordEOL(altBefore, altAfter int, eolBefore, eolAfter fileio.
 	})
 }
 
-// canJoin reports whether an edit with opts continues this group: it is open,
+// canJoin reports whether an edit with opts continues this group: it is open and the edit has Join, or
 // the edit is of the same kind as the group (and not KindOther), and the cursors
 // are where the group left them. Unknown cursors don't prevent it.
 func (g *group) canJoin(opts EditOptions) bool {
+	if opts.Join {
+		return !g.closed
+	}
 	if g.closed || opts.Kind == KindOther || g.kind != opts.Kind {
 		return false
 	}

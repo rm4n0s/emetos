@@ -122,7 +122,7 @@ func CompletionFromLSP(enc lsp.Encoding, doc Document, l lsp.CompletionList) Com
 			defRange = &r
 		}
 	}
-	for _, it := range l.Items {
+	for i, it := range l.Items {
 		item := CompletionItem{
 			Label: it.Label, Detail: it.Detail, Documentation: markup(it.Documentation), Kind: CompletionKind(it.Kind),
 			Deprecated: it.Deprecated, Preselect: it.Preselect, SortText: it.SortText, FilterText: it.FilterText,
@@ -144,6 +144,11 @@ func CompletionFromLSP(enc lsp.Encoding, doc Document, l lsp.CompletionList) Com
 			}
 		}
 		item.Snippet = format == lsp.InsertTextFormatSnippet
+		mode := it.InsertTextMode
+		if d := l.ItemDefaults; d != nil && mode == 0 {
+			mode = d.InsertTextMode
+		}
+		item.KeepWhitespace = mode == lsp.InsertTextModeAsIs
 		switch te := it.TextEdit; {
 		case te != nil && te.Range != nil:
 			r := c.own(*te.Range)
@@ -167,6 +172,13 @@ func CompletionFromLSP(enc lsp.Encoding, doc Document, l lsp.CompletionList) Com
 		}
 		if it.Command != nil {
 			item.Command = commandFromLSP(it.Command, "")
+		}
+		// the item goes back to the server unchanged to resolve it, with the data its list gave it when it has none
+		item.server = &l.Items[i]
+		if d := l.ItemDefaults; d != nil && len(it.Data) == 0 && len(d.Data) > 0 {
+			withData := it
+			withData.Data = d.Data
+			item.server = &withData
 		}
 		out.Items = append(out.Items, item)
 	}

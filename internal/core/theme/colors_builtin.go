@@ -19,6 +19,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerBreadcrumbColors(r)
 	registerButtonColors(r)
 	registerKitColors(r)
+	registerSuggestColors(r)
 	registerMenuColors(r)
 	registerInputKitColors(r)
 	registerQuickInputColors(r)
@@ -1152,4 +1153,63 @@ func registerMergeEditorColors(r *ColorRegistry) {
 		ColorContribution{ID: "mergeEditor.conflict.input2.background", NeedsTransparency: true, Defaults: AllThemes(Transparent(Ref("merge.incomingHeaderBackground"), 0.4)),
 			Description: "The background color of decorations in input 2."},
 	)
+}
+
+// registerSuggestColors registers the colors of the suggest widget (step 12.5) and the colors of the symbol icons that its
+// rows show for the kind of an item. The symbol icons also belong to the outline and the breadcrumbs (step 12.7).
+//
+// Ported from VS Code: src/vs/editor/contrib/suggest/browser/suggestWidget.ts (the colors) and
+// src/vs/editor/contrib/symbolIcons/browser/symbolIcons.ts
+func registerSuggestColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editorSuggestWidget.background", Defaults: AllThemes(Ref("editorWidget.background")),
+			Description: "Background color of the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.border", Defaults: AllThemes(Ref("editorWidget.border")),
+			Description: "Border color of the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.foreground", Defaults: AllThemes(Ref("editor.foreground")),
+			Description: "Foreground color of the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.selectedForeground",
+			Defaults:    dflt(Ref("quickInputList.focusForeground"), Ref("quickInputList.focusForeground"), Ref("editorSuggestWidget.background"), Ref("editorSuggestWidget.background")),
+			Description: "Foreground color of the selected entry in the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.selectedIconForeground",
+			Defaults:    dflt(Ref("quickInputList.focusIconForeground"), Ref("quickInputList.focusIconForeground"), Ref("editorSuggestWidget.background"), Ref("editorSuggestWidget.background")),
+			Description: "Icon foreground color of the selected entry in the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.selectedBackground",
+			Defaults:    dflt(Ref("quickInputList.focusBackground"), Ref("quickInputList.focusBackground"), Ref("editorSuggestWidget.foreground"), Ref("editorSuggestWidget.foreground")),
+			Description: "Background color of the selected entry in the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.focusOutline", Defaults: AllThemes(Ref("contrastActiveBorder")),
+			Description: "Outline color of the focused (keyboard-navigated) entry in the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.highlightForeground", Defaults: AllThemes(Ref("list.highlightForeground")),
+			Description: "Color of the match highlights in the suggest widget."},
+		ColorContribution{ID: "editorSuggestWidget.focusHighlightForeground",
+			Defaults:    dflt(Ref("list.focusHighlightForeground"), Ref("list.focusHighlightForeground"), Ref("editorSuggestWidget.selectedForeground"), Ref("editorSuggestWidget.selectedForeground")),
+			Description: "Color of the match highlights in the suggest widget when an item is focused."},
+		ColorContribution{ID: "editorSuggestWidgetStatus.foreground", Defaults: AllThemes(Transparent(Ref("editorSuggestWidget.foreground"), 0.5)),
+			Description: "Foreground color of the suggest widget status."},
+	)
+	const (
+		orange = "#EE9D28"
+		blue   = "#75BEFF"
+		purple = "#B180D7"
+	)
+	lightOf := map[string]string{orange: "#D67E00", blue: "#007ACC", purple: "#652D90"}
+	icons := []struct{ name, kind, color string }{
+		{"array", "array", ""}, {"boolean", "boolean", ""}, {"class", "class", orange}, {"color", "color", ""},
+		{"constant", "constant", ""}, {"constructor", "constructor", purple}, {"enumerator", "enumerator", orange},
+		{"enumeratorMember", "enumerator member", blue}, {"event", "event", orange}, {"field", "field", blue},
+		{"file", "file", ""}, {"folder", "folder", ""}, {"function", "function", purple}, {"interface", "interface", blue},
+		{"key", "key", ""}, {"keyword", "keyword", ""}, {"method", "method", purple}, {"module", "module", ""},
+		{"namespace", "namespace", ""}, {"null", "null", ""}, {"number", "number", ""}, {"object", "object", ""},
+		{"operator", "operator", ""}, {"package", "package", ""}, {"property", "property", ""}, {"reference", "reference", ""},
+		{"snippet", "snippet", ""}, {"string", "string", ""}, {"struct", "struct", ""}, {"text", "text", ""},
+		{"typeParameter", "type parameter", ""}, {"unit", "unit", ""}, {"variable", "variable", blue},
+	}
+	for _, ic := range icons {
+		def := AllThemes(Ref("foreground"))
+		if ic.color != "" {
+			def = dflt(Hex(ic.color), Hex(lightOf[ic.color]), Hex(ic.color), Hex(lightOf[ic.color]))
+		}
+		r.MustRegister(ColorContribution{ID: "symbolIcon." + ic.name + "Foreground", Defaults: def,
+			Description: "The foreground color for " + ic.kind + " symbols. These symbols appear in the outline, breadcrumb, and suggest widget."})
+	}
 }

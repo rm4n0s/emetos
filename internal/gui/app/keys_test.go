@@ -18,6 +18,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -240,11 +241,62 @@ func (a *keyApp) leaveFind() {
 // endSnippet leaves the snippet that is being filled in and turns the tab completion of
 // snippets off.
 func (a *keyApp) endSnippet() {
+	a.resetSuggest()
 	if err := a.vm.RunCommand("leaveSnippet", nil); err != nil {
 		panic(err)
 	}
 	a.setTabCompletion("off")
 	a.setEmmetOnTab(false)
+}
+
+// resetSuggest closes the suggest widget and gives the editor the host of the window and its default selection mode back.
+func (a *keyApp) resetSuggest() {
+	if err := a.vm.RunCommand("hideSuggestWidget", nil); err != nil {
+		panic(err)
+	}
+	a.vm.SetSuggest(a.win.suggestHost())
+	o := a.vm.Options()
+	o.Suggest.SelectionMode = "always"
+	a.vm.SetOptions(o)
+}
+
+// suggestState is the state of an editor whose suggest widget shows two items that change the text, with a row focused or,
+// when unfocused, with none (a widget that opened by typing and has selectionMode never).
+func suggestState(a *keyApp, focused bool) func() {
+	return func() {
+		a.leaveFind()
+		a.endSnippet()
+		a.focusEditor() // the widget closes when the editor loses the focus: it must have it when the widget opens
+		reg := langfeatures.NewRegistry()
+		reg.RegisterCompletion("keys", langfeatures.Selector{}, keysCompletions{})
+		a.vm.SetSuggest(&editor.SuggestHost{Ctx: context.Background(), Features: reg, Shared: editor.NewSuggestShared()})
+		o := a.vm.Options()
+		args := map[string]any{}
+		if !focused {
+			o.Suggest.SelectionMode = "never"
+			args["auto"] = true
+		}
+		a.vm.SetOptions(o)
+		a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 5)})
+		if err := a.vm.RunCommand("editor.action.triggerSuggest", args); err != nil {
+			panic(err)
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for !a.vm.SuggestVisible() && time.Now().Before(deadline) {
+			time.Sleep(2 * time.Millisecond)
+			a.ts.FlushPosted()
+		}
+		if !a.vm.SuggestVisible() {
+			panic("the suggest widget did not show")
+		}
+	}
+}
+
+// keysCompletions answers every request with two words that continue "gamma".
+type keysCompletions struct{}
+
+func (keysCompletions) ProvideCompletion(context.Context, langfeatures.Document, langfeatures.Position, langfeatures.CompletionTrigger) (langfeatures.CompletionList, error) {
+	return langfeatures.CompletionList{Items: []langfeatures.CompletionItem{{Label: "gammaOne", Kind: 3, Detail: "one", Documentation: &langfeatures.Markup{Value: "the first"}}, {Label: "gammaTwo", Kind: 3}}}, nil
 }
 
 func (a *keyApp) setEmmetOnTab(on bool) {
@@ -507,12 +559,13 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 		t.Run(item.Command+" "+item.Keybinding.UserSettingsLabel(), func(t *testing.T) {
 			// a command tried before may have left the editor without the focus
 			a.focusEditor()
+			a.resetSuggest()
 			var reached []string
 			states := append(a.states(), pinnedState(a), groupsState(a), unfocusedState(a),
 				notificationsState(a, true, false, false), notificationsState(a, false, true, false), notificationsState(a, false, true, true),
 				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a),
 				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true),
-				quickInputState(a), historyState(a), editorPickerState(a),
+				quickInputState(a), historyState(a), editorPickerState(a), suggestState(a, true), suggestState(a, false),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
 				zenModeState(a), diffEditorState(a), mergeEditorState(a))
 			for _, state := range states {

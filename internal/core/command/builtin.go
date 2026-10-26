@@ -23,6 +23,7 @@ func DefaultRegistry() *Registry {
 	registerFoldingCommands(r)
 	registerFindCommands(r)
 	registerSnippetCommands(r)
+	registerSuggestCommands(r)
 	registerEmmetCommands(r)
 	registerWordWrapCommands(r)
 	registerClipboardCommands(r)
@@ -986,5 +987,35 @@ func registerExtensionsCommands(r *Registry) {
 		Meta{ID: "workbench.extensions.action.showInstalledExtensions", Title: "Show Installed Extensions", Category: "Extensions"},
 		// Emetos's own: the page of the links between window tabs (step 11.3, SPEC §10.15 "Event sharing")
 		Meta{ID: "emetos.extensions.manageEventSharing", Title: "Manage Event Sharing", Category: "Extensions"},
+	)
+}
+
+// registerSuggestCommands registers the commands of the suggest widget. Only Trigger Suggest has a title: the others are
+// run by the keys of the widget.
+//
+// Ported from VS Code: src/vs/editor/contrib/suggest/browser/suggestController.ts
+func registerSuggestCommands(r *Registry) {
+	visible := contextkey.Has("suggestWidgetVisible")
+	focused := contextkey.And(visible, contextkey.Has("suggestWidgetHasFocusedSuggestion"))
+	// VS Code adds that there are several suggestions or none is focused; the keys say so, and the check of the keymap needs the
+	// key to imply the precondition
+	navigable := visible
+	r.MustRegister(
+		Meta{ID: "editor.action.triggerSuggest", Title: "Trigger Suggest",
+			Precondition: contextkey.And(writable(), contextkey.Has("editorHasCompletionItemProvider"), contextkey.Not("suggestWidgetVisible")),
+			Description:  "Open the suggest widget at the cursor."},
+		Meta{ID: "acceptSelectedSuggestion", Precondition: focused},
+		Meta{ID: "acceptAlternativeSelectedSuggestion", Precondition: focused},
+		Meta{ID: "hideSuggestWidget", Precondition: visible},
+		Meta{ID: "selectNextSuggestion", Precondition: navigable},
+		Meta{ID: "selectPrevSuggestion", Precondition: navigable},
+		Meta{ID: "selectNextPageSuggestion", Precondition: navigable},
+		Meta{ID: "selectPrevPageSuggestion", Precondition: navigable},
+		Meta{ID: "selectFirstSuggestion", Precondition: navigable},
+		Meta{ID: "selectLastSuggestion", Precondition: navigable},
+		Meta{ID: "focusSuggestion", Precondition: contextkey.And(visible, contextkey.Not("suggestWidgetHasFocusedSuggestion"))},
+		Meta{ID: "focusAndAcceptSuggestion", Precondition: contextkey.And(visible, contextkey.Not("suggestWidgetHasFocusedSuggestion"))},
+		Meta{ID: "toggleSuggestionDetails", Precondition: focused},
+		Meta{ID: "toggleSuggestionFocus", Precondition: visible},
 	)
 }

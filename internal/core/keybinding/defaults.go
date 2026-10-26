@@ -58,6 +58,7 @@ func DefaultRegistry() *Registry {
 	registerFindKeys(r)
 	registerEmmetKeys(r)
 	registerSnippetKeys(r)
+	registerSuggestKeys(r)
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
 	registerMarkerKeys(r)
@@ -364,6 +365,45 @@ func registerSnippetKeys(r *Registry) {
 		Rule{Command: "leaveSnippet", Weight: weight, When: mustWhen(whenTextInputFocus, "inSnippetMode"), Primary: "escape", Secondary: []string{"shift+escape"}},
 		Rule{Command: "insertSnippet", Weight: WeightEditorContrib, When: mustWhen(whenEditorText, "!editorTabMovesFocus", "!inSnippetMode", "hasSnippetCompletions"), Primary: "tab"},
 	)
+}
+
+// registerSuggestKeys registers the keys of the suggest widget: Ctrl+Space (and Ctrl+I) opens it and, while it shows, focuses its
+// first row or toggles the details; Tab, and Enter when editor.acceptSuggestionOnEnter says so and the suggestion changes
+// the text, accept the focused row; Shift+Enter and Shift+Tab accept it the other way (insert or replace); Escape hides the
+// widget; the arrows and the page keys move in the list. The widget's keys are above the snippet's (Tab, Escape).
+//
+// Ported from VS Code: src/vs/editor/contrib/suggest/browser/suggestController.ts
+func registerSuggestKeys(r *Registry) {
+	const weight = WeightEditorContrib + 90
+	visible := "suggestWidgetVisible"
+	// The arrows and the page keys move in the list when it has several rows or none is focused; with one focused row they
+	// move the cursor (the widget ends). VS Code writes the condition with an "or", which is two rules here.
+	navigable := func(rule Rule) []Rule {
+		several, none := rule, rule
+		several.When = mustWhen(whenTextInputFocus, visible, "suggestWidgetMultipleSuggestions")
+		none.When = mustWhen(whenTextInputFocus, visible, "!suggestWidgetHasFocusedSuggestion")
+		return []Rule{several, none}
+	}
+	r.MustRegister(
+		Rule{Command: "editor.action.triggerSuggest", Weight: WeightEditorContrib, When: mustWhen(whenTextInputFocus, whenWritable, "editorHasCompletionItemProvider", "!"+visible), Primary: "ctrl+space", Secondary: []string{"ctrl+i"}},
+		Rule{Command: "acceptSelectedSuggestion", Weight: weight, When: mustWhen(visible, whenTextInputFocus, "suggestWidgetHasFocusedSuggestion"), Primary: "tab"},
+		Rule{Command: "acceptSelectedSuggestion", Weight: weight, When: mustWhen(visible, whenTextInputFocus, "suggestWidgetHasFocusedSuggestion", "acceptSuggestionOnEnter", "suggestionMakesTextEdit"), Primary: "enter"},
+		Rule{Command: "acceptAlternativeSelectedSuggestion", Weight: weight, When: mustWhen(visible, whenTextInputFocus, "suggestWidgetHasFocusedSuggestion"), Primary: "shift+enter", Secondary: []string{"shift+tab"}},
+		Rule{Command: "hideSuggestWidget", Weight: weight, When: mustWhen(visible, whenTextInputFocus), Primary: "escape", Secondary: []string{"shift+escape"}},
+		Rule{Command: "focusSuggestion", Weight: weight, When: mustWhen(visible, whenTextInputFocus, "!suggestWidgetHasFocusedSuggestion"), Primary: "ctrl+space", Secondary: []string{"ctrl+i"}},
+		Rule{Command: "toggleSuggestionDetails", Weight: weight, When: mustWhen(visible, whenTextInputFocus, "suggestWidgetHasFocusedSuggestion"), Primary: "ctrl+space", Secondary: []string{"ctrl+i"}},
+		Rule{Command: "toggleSuggestionFocus", Weight: weight, When: mustWhen(visible, whenTextInputFocus), Primary: "ctrl+alt+space"},
+	)
+	// VS Code also binds Ctrl+PageUp and Ctrl+PageDown here, but the workbench's keys for the next and the previous editor have
+	// a higher weight and win, so they are left out: a key that is never reached is no key.
+	for _, rule := range []Rule{
+		{Command: "selectNextSuggestion", Weight: weight, Primary: "down", Secondary: []string{"ctrl+down"}},
+		{Command: "selectNextPageSuggestion", Weight: weight, Primary: "pagedown"},
+		{Command: "selectPrevSuggestion", Weight: weight, Primary: "up", Secondary: []string{"ctrl+up"}},
+		{Command: "selectPrevPageSuggestion", Weight: weight, Primary: "pageup"},
+	} {
+		r.MustRegister(navigable(rule)...)
+	}
 }
 
 // registerEmmetKeys registers Tab for Emmet: with emmet.triggerExpansionOnTab it expands the

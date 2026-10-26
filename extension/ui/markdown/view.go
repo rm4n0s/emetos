@@ -29,6 +29,9 @@ type Options struct {
 	ResolveImage func(dest string) string
 	// Controller, when set, scrolls the view to a line of the source.
 	Controller *Controller
+	// Compact lays the text out for a small pane next to the editor, such as the details of the suggest widget: 13 px text,
+	// small margins and the colors of the suggest widget.
+	Compact bool
 }
 
 // Controller moves a View: it scrolls to the block that a line of the source belongs to.
@@ -148,7 +151,13 @@ func (s *viewState) Build(bc widgets.BuildContext) widgets.Widget {
 		s.ctl = NewController()
 	}
 	r := &renderer{s: s, bc: bc, colors: kit.ThemeOf(bc), opts: v.opts}
-	r.base = kit.TextStyleOf(bc, bodySize, r.colors.EditorForeground).CopyWith(painting.TextStyleOpts{Height: foundation.Some(bodyLineHeight)})
+	size, lineHeight := bodySize, bodyLineHeight
+	if v.opts.Compact {
+		// a pane of the suggest widget: its colors stand where the editor's would
+		r.colors.EditorForeground, r.colors.EditorBackground = r.colors.EditorSuggestWidgetForeground, r.colors.EditorSuggestWidgetBackground
+		size, lineHeight = compactSize, compactLineHeight
+	}
+	r.base = kit.TextStyleOf(bc, size, r.colors.EditorForeground).CopyWith(painting.TextStyleOpts{Height: foundation.Some(lineHeight)})
 	r.mono = widgets.WidgetsBindingOf(bc).PlatformDispatcher()
 	family, _ := r.mono.MonospaceFont()
 	if family == "" {
@@ -171,7 +180,11 @@ func (s *viewState) Build(bc widgets.BuildContext) widgets.Widget {
 		})
 	}
 	column := widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
-	body := widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(pagePadding, 16, pagePadding, 40), column)
+	padding := painting.NewEdgeInsetsFromLTRB(pagePadding, 16, pagePadding, 40)
+	if v.opts.Compact {
+		padding = painting.NewEdgeInsetsFromLTRB(compactPadding, compactPadding, compactPadding, compactPadding)
+	}
+	body := widgets.NewPadding(padding, column)
 	scroll := kit.NewScrollableElement(body, kit.ScrollableElementOpts{Axes: kit.ScrollAxisVertical, Handle: &s.ctl.scroll})
 	return widgets.NewColoredBox(r.colors.EditorBackground, kit.NewBoundsProbe(scroll, &s.ctl.viewport))
 }
@@ -182,6 +195,10 @@ const (
 	bodySize       = 14.0
 	bodyLineHeight = 1.6
 	codeSize       = 13.0
+	// the compact look (Options.Compact)
+	compactSize       = 13.0
+	compactLineHeight = 1.4
+	compactPadding    = 8.0
 )
 
 // renderer builds the widgets of one build of a View.

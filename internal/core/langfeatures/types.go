@@ -5,6 +5,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/lsp"
 )
 
 // Position and Range are Emetos's: zero-based lines and columns counted in bytes of the UTF-8 line.
@@ -106,6 +107,8 @@ type CompletionItem struct {
 	// InsertText is what is inserted, the label when empty; with Snippet it is a snippet.
 	InsertText string
 	Snippet    bool
+	// KeepWhitespace inserts the text as it is, without fitting its indentation to the line (insertTextMode asIs).
+	KeepWhitespace bool
 	// Insert and Replace are the ranges the item replaces when it is inserted and when it replaces the word; both nil
 	// means the word before the cursor; only Insert set is the range of a plain edit.
 	Insert, Replace *Range
@@ -115,6 +118,14 @@ type CompletionItem struct {
 	Command          *Command
 	// Owner is the provider that made the item: the id of a language server or of an extension.
 	Owner string
+	// IncompleteList is true when the list the item came in was incomplete: a request made again after more typing may give
+	// others.
+	IncompleteList bool
+
+	// source is the provider that answered with the item, which resolves it; server is the item as the language server
+	// sent it (with the defaults of its list applied), which the server gets back to resolve it.
+	source CompletionProvider
+	server *lsp.CompletionItem
 }
 
 // CompletionList is the items of a completion request.

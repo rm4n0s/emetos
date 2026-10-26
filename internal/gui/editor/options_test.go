@@ -82,7 +82,13 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		RenderWhitespace: "selection", RenderControlCharacters: true,
 		OccurrencesHighlight: "singleFile", OccurrencesHighlightDelay: 250, SelectionHighlight: true, SelectionHighlightMaxLength: 200,
 		ShowUnused: true, ShowDeprecated: true,
-		Hover:        HoverOptions{Enabled: "on", Delay: 300, Sticky: true, HidingDelay: 300, Above: true},
+		Hover: HoverOptions{Enabled: "on", Delay: 300, Sticky: true, HidingDelay: 300, Above: true},
+		Suggest: SuggestOptions{
+			QuickSuggestions: QuickSuggestions{Other: "offWhenInlineCompletions", Comments: "off", Strings: "off"}, QuickSuggestionsDelay: 10,
+			SuggestOnTriggerCharacters: true, AcceptSuggestionOnEnter: "on", AcceptSuggestionOnCommitCharacter: true, SuggestSelection: "first",
+			SnippetSuggestions: "inline", WordBasedSuggestions: "offWithInlineSuggestions", InsertMode: "insert", FilterGraceful: true,
+			ShowIcons: true, ShowInlineDetails: true, ShowDeprecated: true, MatchOnWordStartOnly: true, SelectionMode: "always",
+		},
 		Minimap:      MinimapOptions{Enabled: true, Side: "right", Size: "proportional", ShowSlider: "mouseover", Scale: 1, MaxColumn: 120},
 		StickyScroll: StickyScrollOptions{Enabled: true, MaxLineCount: 5, ScrollWithEditor: true},
 	}

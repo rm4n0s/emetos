@@ -33,6 +33,7 @@ func devActions(a map[string]action) {
 			if len(runes) == 0 {
 				return false
 			}
+			vm.sg.runKind = runEdit
 			_ = vm.Run(typeText, string(runes[0]))
 			runes = runes[1:]
 			return len(runes) > 0
@@ -55,6 +56,10 @@ func devActions(a map[string]action) {
 		}
 		return nil
 	}
+	// dev.triggerSuggest opens the suggest widget as Trigger Suggest does (Ctrl+Space), for the proofs.
+	a["dev.triggerSuggest"] = a[triggerSuggestCommand]
+	// dev.toggleSuggestDetails opens or closes the details pane of the suggest widget.
+	a["dev.toggleSuggestDetails"] = a["toggleSuggestionDetails"]
 	// dev.scroll scrolls down by rows in every frame for a number of frames (negative rows go
 	// up). The argument is a number of rows, or {"rows": ..., "frames": ...}; one frame by
 	// default.

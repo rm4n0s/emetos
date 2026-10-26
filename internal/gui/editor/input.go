@@ -215,6 +215,8 @@ func alignedAffixes(old, now string) (from, to int, replacement string) {
 // (the difference between two texts as typing, deleting and replacing)
 func (vm *ViewModel) typeInput(was services.TextEditingValue, now string) error {
 	from, to, text := alignedAffixes(was.Text, now)
+	pre := vm.suggestBefore()
+	vm.suggestWillType(text)
 	s, e := was.Selection.Start(), was.Selection.End()
 	var res edit.Result
 	switch {
@@ -232,6 +234,7 @@ func (vm *ViewModel) typeInput(was services.TextEditingValue, now string) error 
 	}
 	vm.sessionSelections = vm.cursors.Selections()
 	vm.columns, vm.occurrences, vm.expansion = nil, nil, nil
+	vm.suggestAfter(pre, runEdit, text)
 	vm.SelectionsChanged()
 	vm.RevealPrimary()
 	return nil

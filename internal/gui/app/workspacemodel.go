@@ -149,6 +149,8 @@ type Workspace struct {
 	// workspace in the extension host; the watcher of the file list reads extScope from its goroutine.
 	extKeys  *extensionKeys
 	extScope atomic.Pointer[exthost.Scope]
+	// suggest is what the editors of the tab share about the suggest widget (suggest.go); UI thread only.
+	suggest *editor.SuggestShared
 	// coreEv publishes the core events of the extension bus (coreevents.go); UI thread only.
 	coreEv *coreEvents
 	// profileMu guards profile and profileListeners: the file watchers and the other windows read the profile from

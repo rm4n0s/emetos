@@ -145,6 +145,7 @@ func (w *Workspace) startExtensions() {
 		w.onUI(func() { scope.Fire(extension.OnLanguage(doc.LanguageID())) })
 	}))
 	w.startCoreEvents(scope)
+	w.startCompletion(scope)
 	w.watchExtensionFileEvents()
 	scope.Start()
 }

@@ -79,6 +79,9 @@ type InsertOptions struct {
 	ClipboardText string
 	// Overtyped gives the text that the cursor with an index typed over last, or nil.
 	Overtyped func(index int) *Overtyped
+	// JoinUndo makes the insertion part of the open undo group of the document (document.EditOptions.Join), so that the
+	// edits an action made just before it are undone with it.
+	JoinUndo bool
 }
 
 // DefaultInsertOptions are the options of inserting a snippet as VS Code does by default: the
@@ -724,6 +727,8 @@ type Session struct {
 	edits    []Edit
 	opts     InsertOptions
 	snippets []*oneSnippet
+	// join is JoinUndo of the insertion being run.
+	join bool
 }
 
 // NewSession makes a session that inserts a template at the cursors of an editor.
@@ -747,6 +752,7 @@ func (s *Session) Dispose() {
 // (or puts the cursors after the text when there is none). It fails with the errors of
 // document.Document.Edit (DocumentReadOnly, EditsOverlap).
 func (s *Session) Insert() error {
+	s.join = s.opts.JoinUndo
 	var p pending
 	if s.edits != nil {
 		p = s.fromEdits(s.edits, false, s.opts)
@@ -805,6 +811,7 @@ func (s *Session) run(p pending, selections func(ends []buffer.Position) ([]buff
 		return sels
 	}
 	res, err := doc.Edit(p.edits, document.EditOptions{
+		Join:   s.join,
 		Before: s.ed.Cursors.Selections(),
 		After:  func([]document.Edit) []buffer.Selection { return finish() },
 	})
@@ -829,6 +836,7 @@ func (s *Session) run(p pending, selections func(ends []buffer.Position) ([]buff
 // between the one it is in and the next. A nested snippet that is only text, or that cannot be
 // matched to the active tab stops, is inserted as text.
 func (s *Session) Merge(template string, opts InsertOptions) error {
+	s.join = opts.JoinUndo
 	p := s.fromSelections(template, opts.OverwriteBefore, opts.OverwriteAfter, true, opts)
 	if len(p.snippets) == 0 {
 		return nil

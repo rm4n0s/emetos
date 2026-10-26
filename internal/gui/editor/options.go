@@ -108,6 +108,7 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 			Sticky: settings.Get[bool](store, "editor.hover.sticky", languageID), HidingDelay: int(settings.Get[float64](store, "editor.hover.hidingDelay", languageID)),
 			Above: settings.Get[bool](store, "editor.hover.above", languageID),
 		},
+		Suggest: suggestOptions(store, languageID),
 		StickyScroll: StickyScrollOptions{
 			Enabled:          settings.Get[bool](store, "editor.stickyScroll.enabled", languageID),
 			MaxLineCount:     int(settings.Get[float64](store, "editor.stickyScroll.maxLineCount", languageID)),
@@ -283,3 +284,42 @@ func rulers(raw []any) []ColumnRuler {
 }
 
 func clampColumn(f float64) int { return min(max(int(f), 0), 10000) }
+
+// suggestOptions reads the settings of the suggest widget.
+func suggestOptions(store *settings.Store, languageID string) SuggestOptions {
+	get := func(key string) bool { return settings.Get[bool](store, "editor.suggest."+key, languageID) }
+	o := SuggestOptions{
+		QuickSuggestions:                  ParseQuickSuggestions(settings.Get[any](store, "editor.quickSuggestions", languageID)),
+		QuickSuggestionsDelay:             int(settings.Get[float64](store, "editor.quickSuggestionsDelay", languageID)),
+		SuggestOnTriggerCharacters:        settings.Get[bool](store, "editor.suggestOnTriggerCharacters", languageID),
+		AcceptSuggestionOnEnter:           settings.Get[string](store, "editor.acceptSuggestionOnEnter", languageID),
+		AcceptSuggestionOnCommitCharacter: settings.Get[bool](store, "editor.acceptSuggestionOnCommitCharacter", languageID),
+		SuggestSelection:                  settings.Get[string](store, "editor.suggestSelection", languageID),
+		SnippetSuggestions:                settings.Get[string](store, "editor.snippetSuggestions", languageID),
+		WordBasedSuggestions:              settings.Get[string](store, "editor.wordBasedSuggestions", languageID),
+		FontSize:                          int(settings.Get[float64](store, "editor.suggestFontSize", languageID)),
+		LineHeight:                        int(settings.Get[float64](store, "editor.suggestLineHeight", languageID)),
+		InsertMode:                        settings.Get[string](store, "editor.suggest.insertMode", languageID),
+		FilterGraceful:                    get("filterGraceful"),
+		LocalityBonus:                     get("localityBonus"),
+		SelectionMode:                     settings.Get[string](store, "editor.suggest.selectionMode", languageID),
+		SnippetsPreventQuickSuggestions:   get("snippetsPreventQuickSuggestions"),
+		ShowIcons:                         get("showIcons"),
+		ShowStatusBar:                     get("showStatusBar"),
+		Preview:                           get("preview"),
+		ShowInlineDetails:                 get("showInlineDetails"),
+		ShowDeprecated:                    get("showDeprecated"),
+		MatchOnWordStartOnly:              get("matchOnWordStartOnly"),
+	}
+	for _, k := range settings.SuggestKinds {
+		if !get("show" + k.Name) {
+			for _, kind := range k.Kinds {
+				if o.HiddenKinds == nil {
+					o.HiddenKinds = map[int]bool{}
+				}
+				o.HiddenKinds[kind] = true
+			}
+		}
+	}
+	return o
+}

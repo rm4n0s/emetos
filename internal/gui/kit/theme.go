@@ -294,6 +294,14 @@ type Colors struct {
 	// CodeLensForeground is editorCodeLens.foreground: the color of the action rows over the conflicts of the merge
 	// editor (step 9.8), which are VS Code's code lenses.
 	CodeLensForeground ui.Color
+	// The colors of the suggest widget (editorSuggestWidget.*): the widget, its selected row and the match highlights.
+	EditorSuggestWidgetBackground, EditorSuggestWidgetBorder, EditorSuggestWidgetForeground ui.Color
+	EditorSuggestWidgetSelectedForeground, EditorSuggestWidgetSelectedIconForeground        ui.Color
+	EditorSuggestWidgetSelectedBackground, EditorSuggestWidgetFocusOutline                  ui.Color
+	EditorSuggestWidgetHighlightForeground, EditorSuggestWidgetFocusHighlightForeground     ui.Color
+	EditorSuggestWidgetStatusForeground                                                     ui.Color
+	// SymbolIcons are the colors of the symbol icons, in the order of SymbolIconNames; SymbolIconColor finds one by name.
+	SymbolIcons [33]ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -522,6 +530,16 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		MergeConflictInput1Background: color("mergeEditor.conflict.input1.background"),
 		MergeConflictInput2Background: color("mergeEditor.conflict.input2.background"),
 		CodeLensForeground:            color("editorCodeLens.foreground"),
+		EditorSuggestWidgetBackground: color("editorSuggestWidget.background"), EditorSuggestWidgetBorder: color("editorSuggestWidget.border"),
+		EditorSuggestWidgetForeground:               color("editorSuggestWidget.foreground"),
+		EditorSuggestWidgetSelectedForeground:       color("editorSuggestWidget.selectedForeground"),
+		EditorSuggestWidgetSelectedIconForeground:   color("editorSuggestWidget.selectedIconForeground"),
+		EditorSuggestWidgetSelectedBackground:       color("editorSuggestWidget.selectedBackground"),
+		EditorSuggestWidgetFocusOutline:             color("editorSuggestWidget.focusOutline"),
+		EditorSuggestWidgetHighlightForeground:      color("editorSuggestWidget.highlightForeground"),
+		EditorSuggestWidgetFocusHighlightForeground: color("editorSuggestWidget.focusHighlightForeground"),
+		EditorSuggestWidgetStatusForeground:         color("editorSuggestWidgetStatus.foreground"),
+		SymbolIcons:                                 symbolIconColors(color),
 	}
 }
 
@@ -645,4 +663,31 @@ func TokenLookOf(bc widgets.BuildContext, scopes []string, fallback ui.Color) To
 		look.Strikethrough = style.FontStyle&theme.FontStyleStrikethrough != 0
 	}
 	return look
+}
+
+// SymbolIconNames are the names of the symbolIcon.<name>Foreground colors, in the order of Colors.SymbolIcons.
+var SymbolIconNames = [33]string{
+	"array", "boolean", "class", "color", "constant", "constructor", "enumerator", "enumeratorMember", "event", "field", "file",
+	"folder", "function", "interface", "key", "keyword", "method", "module", "namespace", "null", "number", "object",
+	"operator", "package", "property", "reference", "snippet", "string", "struct", "text", "typeParameter", "unit", "variable",
+}
+
+// SymbolIconColor is the color of the symbol icon with the name ("method", "field", "typeParameter"); the foreground of the
+// editor when there is no such icon.
+func (c Colors) SymbolIconColor(name string) ui.Color {
+	for i, n := range SymbolIconNames {
+		if n == name {
+			return c.SymbolIcons[i]
+		}
+	}
+	return c.EditorForeground
+}
+
+// symbolIconColors reads the symbol icon colors with the color function of ColorsOf.
+func symbolIconColors(color func(string) ui.Color) [33]ui.Color {
+	var out [33]ui.Color
+	for i, n := range SymbolIconNames {
+		out[i] = color("symbolIcon." + n + "Foreground")
+	}
+	return out
 }

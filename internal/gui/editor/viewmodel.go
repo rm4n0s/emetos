@@ -176,6 +176,8 @@ type Options struct {
 	ShowUnused, ShowDeprecated bool
 	// Hover are the settings of the hover (editor.hover.*).
 	Hover HoverOptions
+	// Suggest are the settings of the suggest widget (editor.suggest.* and the options around it).
+	Suggest SuggestOptions
 	// Minimap are the settings of the minimap (editor.minimap.*).
 	Minimap MinimapOptions
 	// StickyScroll are the settings of sticky scroll (editor.stickyScroll.*).
@@ -240,6 +242,8 @@ type ViewModel struct {
 	// diag is the state of the diagnostics (diagnostics.go) and hover the hover (hover.go).
 	diag  diagnosticState
 	hover hoverModel
+	// sg is the suggest widget (suggest.go).
+	sg suggestState
 	// viewProblem is what "View Problem" of the hover does (SetViewProblem); openURI and openAt are what its links open
 	// (SetOpeners).
 	viewProblem func(buffer.Position)
@@ -358,6 +362,8 @@ type ViewModel struct {
 const (
 	ownerSlots   = 9
 	snippetOwner = 6
+	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
+	suggestOwner = 9
 )
 
 // owner is the document owner of a slot of this view model.
@@ -386,6 +392,7 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		metrics:        foundation.NewChangeNotifier(),
 		scrollWatch:    foundation.NewChangeNotifier(),
 		hover:          newHoverModel(),
+		sg:             newSuggestState(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.inputModeHandle = vm.inputMode.AddListener(vm.inputModeChanged)
@@ -634,6 +641,9 @@ func (vm *ViewModel) SetFocused(focused bool) {
 		return
 	}
 	vm.focused = focused
+	if !focused {
+		vm.suggestCancel()
+	}
 	vm.restartBlink()
 	vm.sel.NotifyListeners()
 }

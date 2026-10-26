@@ -293,6 +293,8 @@ type editorState struct {
 	metricsHandle   foundation.ListenerHandle
 	// hoverHandle and hoverScrollHandle follow the hover of the view model and the scroll that moves it.
 	hoverHandle, hoverScrollHandle foundation.ListenerHandle
+	// suggestHandle follows the suggest widget of the view model.
+	suggestHandle foundation.ListenerHandle
 	// The find widget: the focus nodes and the text of its inputs, the scope its inputs have their
 	// keys in, and whether one of the inputs has the focus.
 	findNode, replaceNode *widgets.FocusNode
@@ -323,6 +325,7 @@ func (s *editorState) InitState() {
 	})
 	s.vmHandle = vm.AddListener(s.viewModelChanged)
 	s.hoverHandle = vm.AddHoverListener(s.hoverChanged)
+	s.suggestHandle = vm.AddSuggestListener(s.hoverChanged)
 	s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 	s.scroll = newEditorScroll(vm, s.controller)
 	vm.SetScroller(s.scrollTo)
@@ -574,6 +577,18 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("hasPrevTabstop", state.HasPrev)
 		s.scope.Set("inSnippetChoice", state.InChoice)
 		s.scope.Set("hasSnippetCompletions", vm.HasSnippetCompletions())
+		sk := vm.SuggestKeys()
+		s.scope.Set("suggestWidgetVisible", sk.Visible)
+		s.scope.Set("suggestWidgetHasFocusedSuggestion", sk.HasFocused)
+		s.scope.Set("suggestWidgetDetailsVisible", sk.DetailsVisible)
+		s.scope.Set("suggestWidgetDetailsFocused", false)
+		s.scope.Set("suggestWidgetMultipleSuggestions", sk.Multiple)
+		s.scope.Set("suggestionMakesTextEdit", sk.MakesTextEdit)
+		s.scope.Set("acceptSuggestionOnEnter", sk.AcceptOnEnter)
+		s.scope.Set("suggestionHasInsertAndReplaceRange", sk.HasInsertAndReplace)
+		s.scope.Set("suggestionInsertMode", sk.InsertMode)
+		s.scope.Set("suggestionCanResolve", sk.CanResolve)
+		s.scope.Set("editorHasCompletionItemProvider", vm.SuggestHasProvider())
 		s.scope.Set("config.emmet.triggerExpansionOnTab", vm.Options().Emmet.TriggerExpansionOnTab)
 	})
 }
@@ -594,6 +609,8 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		s.releaseFind(old.vm)
 		old.vm.RemoveListener(s.vmHandle)
 		old.vm.RemoveHoverListener(s.hoverHandle)
+		old.vm.RemoveSuggestListener(s.suggestHandle)
+		old.vm.suggestCancel()
 		old.vm.RemoveScrollListener(s.hoverScrollHandle)
 		old.vm.HideHover()
 		old.vm.RemoveSelectionListener(s.selHandle)
@@ -609,6 +626,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		vm.SetPoster(s.binding.Post)
 		s.vmHandle = vm.AddListener(s.viewModelChanged)
 		s.hoverHandle = vm.AddHoverListener(s.hoverChanged)
+		s.suggestHandle = vm.AddSuggestListener(s.hoverChanged)
 		s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
 		s.metricsHandle = vm.AddMetricsListener(s.metricsChanged)
@@ -664,9 +682,11 @@ func (s *editorState) Dispose() {
 		s.primaryTimer()
 	}
 	vm.RemoveHoverListener(s.hoverHandle)
+	vm.RemoveSuggestListener(s.suggestHandle)
 	vm.RemoveScrollListener(s.hoverScrollHandle)
 	vm.HideHover()
 	vm.RemoveListener(s.vmHandle)
+	vm.suggestShutdown(s.binding.Post)
 	vm.SetInputMode(nil) // a mode shared by the process must not keep the editor alive
 	s.controller.RemoveListener(s.scrollHandle)
 	s.controller.Dispose()
@@ -688,6 +708,9 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	if p := vm.SnippetPicker(); p != nil {
 		layers = append(layers, s.snippetPicker(vm, p))
+	}
+	if suggest := s.suggestLayer(bc, vm, colors); suggest != nil {
+		layers = append(layers, suggest)
 	}
 	if hover := s.hoverLayer(bc, vm, colors); hover != nil {
 		layers = append(layers, hover)

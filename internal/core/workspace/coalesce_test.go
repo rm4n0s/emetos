@@ -223,11 +223,19 @@ func TestABatchThatCancelsItselfIsNotReported(t *testing.T) {
 	waitFor(t, "the timer", func() bool { return clock.pending() == 1 })
 	waitFor(t, "the events", func() bool { return len(w.raw) == 0 })
 	clock.advance(DefaultDebounce)
+	// The flush of the timer that just fired may still be waiting in the loop when the sentinel
+	// arrives; the loop's select then takes either first, so the sentinel goes out with that flush
+	// or starts a timer of its own. Either way it is the only event reported.
 	w.send([]rawEvent{{kind: rawChanged, path: "/r/sentinel"}})
-	waitFor(t, "the timer", func() bool { return clock.pending() == 1 })
-	waitFor(t, "the events", func() bool { return len(w.raw) == 0 })
-	clock.advance(DefaultDebounce)
-	waitFor(t, "the sentinel", func() bool { return len(got.get()) == 1 })
+	waitFor(t, "the sentinel", func() bool {
+		if len(got.get()) > 0 {
+			return true
+		}
+		if clock.pending() == 1 && len(w.raw) == 0 {
+			clock.advance(DefaultDebounce)
+		}
+		return false
+	})
 	if b := got.get()[0]; len(b) != 1 || b[0].Path != "/r/sentinel" {
 		t.Errorf("batches: %+v", got.get())
 	}

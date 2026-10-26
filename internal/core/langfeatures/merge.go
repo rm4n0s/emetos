@@ -2,6 +2,7 @@ package langfeatures
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/rm4n0s/errors"
@@ -19,8 +20,10 @@ type ProviderError struct {
 // result is the answer of one provider.
 type result[R any] struct {
 	owner string
-	val   R
-	err   error
+	// provider is the provider that answered.
+	provider any
+	val      R
+	err      error
 }
 
 // fanOut calls the providers at the same time, each on a goroutine of its own, and returns their answers in the order of
@@ -34,7 +37,7 @@ func fanOut[P, R any](ctx context.Context, regs []Registered[P], call func(conte
 		go func() {
 			defer wg.Done()
 			v, err := call(ctx, reg.Provider)
-			out[i] = result[R]{owner: reg.Owner, val: v, err: err}
+			out[i] = result[R]{owner: reg.Owner, provider: reg.Provider, val: v, err: err}
 		}()
 	}
 	wg.Wait()
@@ -52,14 +55,36 @@ func errorsOf[R any](rs []result[R]) []ProviderError {
 	return out
 }
 
+// CompletionQuery narrows a completion request.
+type CompletionQuery struct {
+	// Owners, when not nil, are the only providers asked (by owner): the ones whose lists were incomplete, when a request is
+	// made again for them.
+	Owners map[string]bool
+}
+
 // Completion asks the completion providers of the document. The providers of the best score are asked together; when they
 // have no items and none of their lists is incomplete, the next score is asked (VS Code's groups); the items of the
-// providers that answered are concatenated in the order of the providers, each marked with its provider. Sorting is the
+// providers that answered are concatenated in the order of the providers, each marked with its provider. A request for a
+// trigger character asks only the providers that have the character as a trigger (VS Code's providerFilter). Sorting is the
 // suggest widget's.
 func (r *Registry) Completion(ctx context.Context, doc Document, pos Position, trigger CompletionTrigger) (CompletionList, []ProviderError) {
+	return r.CompletionFor(ctx, doc, pos, trigger, CompletionQuery{})
+}
+
+// CompletionFor is Completion limited by the query.
+func (r *Registry) CompletionFor(ctx context.Context, doc Document, pos Position, trigger CompletionTrigger, q CompletionQuery) (CompletionList, []ProviderError) {
 	var all CompletionList
 	var errs []ProviderError
 	for _, group := range r.completion.groups(doc) {
+		group = slices.DeleteFunc(slices.Clone(group), func(reg Registered[CompletionProvider]) bool {
+			if q.Owners != nil && !q.Owners[reg.Owner] {
+				return true
+			}
+			return trigger.Kind == TriggerCharacter && !hasTrigger(reg, trigger.Character)
+		})
+		if len(group) == 0 {
+			continue
+		}
 		rs := fanOut(ctx, group, func(ctx context.Context, p CompletionProvider) (CompletionList, error) {
 			return p.ProvideCompletion(ctx, doc, pos, trigger)
 		})
@@ -68,10 +93,12 @@ func (r *Registry) Completion(ctx context.Context, doc Document, pos Position, t
 			if res.err != nil {
 				continue
 			}
+			src, _ := res.provider.(CompletionProvider)
 			for _, it := range res.val.Items {
 				if it.Owner == "" {
 					it.Owner = res.owner
 				}
+				it.source, it.IncompleteList = src, res.val.Incomplete
 				all.Items = append(all.Items, it)
 			}
 			all.Incomplete = all.Incomplete || res.val.Incomplete
@@ -81,6 +108,15 @@ func (r *Registry) Completion(ctx context.Context, doc Document, pos Position, t
 		}
 	}
 	return all, errs
+}
+
+// hasTrigger tells whether the provider starts a request when the character is typed.
+func hasTrigger(reg Registered[CompletionProvider], ch string) bool {
+	if slices.Contains(reg.Triggers, ch) {
+		return true
+	}
+	tp, ok := reg.Provider.(interface{ CompletionTriggers() []string })
+	return ok && slices.Contains(tp.CompletionTriggers(), ch)
 }
 
 // Hover asks every hover provider of the document; the answers that have contents are stacked in the order of the

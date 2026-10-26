@@ -109,6 +109,11 @@ type EditOptions struct {
 	// ranges are in the new text); a redo of the group restores the ones of its
 	// last edit. It may be nil.
 	After func(inverse []Edit) []buffer.Selection
+	// Join makes the edit part of the open undo group, whatever its kind, when there is one (the group was not closed by
+	// PushStackElement); without an open group it starts a new one that stays open. It is for the edits that one action makes
+	// in several steps, such as the additional edits and the insertion of an accepted suggestion (VS Code's executeEdits,
+	// which joins the open stack element).
+	Join bool
 }
 
 // EditResult is what an edit did.

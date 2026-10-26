@@ -27,7 +27,10 @@ func BindCommands(r *command.Registry, vm *ViewModel) (unbind func()) {
 	var removers []func()
 	for id, act := range actions {
 		act := act
-		remove, err := r.SetHandler(id, func(_ command.Context, args any) error { return vm.Run(act, args) })
+		remove, err := r.SetHandler(id, func(_ command.Context, args any) error {
+			vm.sg.runKind = runKindOf(id)
+			return vm.Run(act, args)
+		})
 		if err != nil {
 			continue
 		}
@@ -58,6 +61,7 @@ func (vm *ViewModel) RunCommand(id string, args any) error {
 	if !ok {
 		return errors.New("EditorCommandUnknown", "not a command of the editor", "id", id)
 	}
+	vm.sg.runKind = runKindOf(id)
 	return vm.Run(act, args)
 }
 
@@ -68,7 +72,15 @@ func (vm *ViewModel) Run(act action, args any) error {
 	vm.dropStaleSessions()
 	vm.sessionOwner = sessionNone
 	vm.keepSessions, vm.skipReveal = false, false
+	kind, typed := vm.sg.runKind, vm.sg.typed
+	vm.sg.runKind, vm.sg.typed = runOther, ""
+	pre := vm.suggestBefore()
 	err := act(vm, args)
+	if t := vm.sg.typed; t != "" {
+		typed = t
+	}
+	vm.sg.typed = ""
+	vm.suggestAfter(pre, kind, typed)
 	// A command that is not part of a session ends it, unless it only reads (a copy).
 	if !vm.keepSessions {
 		if vm.sessionOwner != sessionColumns {
@@ -332,6 +344,8 @@ func buildActions() map[string]action {
 		if !ok || text == "" {
 			return nil
 		}
+		vm.suggestWillType(text)
+		vm.sg.typed = text
 		return vm.apply(vm.commands().Type(vm.cursors.Selections(), text))
 	}
 	a["lineBreakInsert"] = func(vm *ViewModel, _ any) error { return vm.apply(vm.lineBreakInsert()) }
@@ -486,6 +500,7 @@ func buildActions() map[string]action {
 	foldingActions(a)
 	findActions(a)
 	snippetActions(a)
+	suggestActions(a)
 	emmetActions(a)
 	wrapActions(a)
 	devActions(a)

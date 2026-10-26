@@ -120,8 +120,9 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M12 Language intelligence (area 3) | 12.1–12.9 |
 | M13 The Agents extension | 13.1–13.3 |
 | M14 The Go extension | 14.1–14.3 |
-| M15 Remote control of a workspace | 15.1–15.4 |
-| M16 Wrap-up | 16.1 |
+| M15 Remote Work | 15.1–15.5 |
+| M16 Relay | 16.1–16.3 |
+| M17 Wrap-up | 17.1 |
 
 ---
 
@@ -1328,41 +1329,71 @@ Every **Proof** item gives its exact command. A state no existing command reache
 
 ---
 
-## M15: Remote control of a workspace
+## M15: Remote Work (remote control of a workspace)
 
 ### 15.1 The protocol and the headless view
-**Goal:** the message format of remote control and a second, off-screen view of a workspace (SPEC §10.18).
+**Goal:** the message format of Remote Work and a second, off-screen view of a workspace (SPEC §10.18).
 **Read:** SPEC §10.18, §10.15, §10.14.
-**Tasks:** `extensions/remote/protocol`: versioned, length-prefixed messages with a size limit on each (hello with version and token, frame tiles, frame confirm, keys with text, mouse, scroll, clipboard, notification and its action, resize, ping, disconnect with a reason), encode and decode with no allocation beyond the limit; the tile differ (64x64 tiles changed since the confirmed frame, deflate, a full refresh on request); `api.Workspace().NewHeadlessView(size)` in `extension/`, implemented in `internal/gui/app`: a second workbench of the same workspace with its own focus, cursor and scroll, rendered with Glutter's software renderer when it changes, input events delivered to it, resize, close.
+**Tasks:** `extensions/remotework/protocol`: versioned, length-prefixed messages with a size limit on each (hello with version and token, frame tiles, frame confirm, keys with text, mouse, scroll, clipboard, notification and its action, resize, ping, disconnect with a reason), encode and decode with no allocation beyond the limit; the tile differ (64x64 tiles changed since the confirmed frame, deflate, a full refresh on request); `api.Workspace().NewHeadlessView(size)` in `extension/`, implemented in `internal/gui/app`: a second workbench of the same workspace with its own focus, cursor and scroll, rendered with Glutter's software renderer when it changes, input events delivered to it, resize, close.
 **Tests:** round trip of every message (table); malformed, truncated and oversized input is refused with route-tested errors (seeded random inputs; a fuzz target run with `-parallel=1 -fuzztime=30s` and `GOMEMLIMIT=2GiB` as CLAUDE.md says); the differ sends only changed tiles and a full refresh; the headless view renders an edit made in the main view, takes typed keys into the document, and resizes (`gluttertest`).
 
-### 15.2 Login over SSH and the Remote Control page
+### 15.2 Login over SSH and the Remote Work page
 **Goal:** A lets listed keys in; B logs in with its key (SPEC §10.18).
 **Read:** SPEC §10.18, §12.
-**Tasks:** `go get golang.org/x/crypto@<latest>`; `extensions/remote/sshlogin`: the server on A (public-key only against the listed keys, the `emetos-remote` channel and nothing else, rate limit, logging), the host key made and kept with mode 0600, the client on B (key file with the passphrase dialog, or `ssh-agent` from `SSH_AUTH_SOCK`), host key pinning in `remote-hosts.json` (first-use fingerprint dialog, changed key refused); the session token and the QUIC certificate fingerprint sent over the channel; `remote-control.json` (mode 0600) and the page "Remote Control" (per-workspace switch, port, idle timeout, keys added by pasting a line or choosing a `.pub` file, the host fingerprint shown, the security notes of §10.18); A listens only while a workspace has it on; the connected banner with Disconnect; notifications for logins and refused attempts.
+**Tasks:** `go get golang.org/x/crypto@<latest>`; `extensions/internal/sshlogin` (shared with Relay, M16): the server on A (public-key only against the listed keys, the `emetos-remotework` channel and nothing else, rate limit, logging), the host key made and kept with mode 0600, the client on B (key file with the passphrase dialog, or `ssh-agent` from `SSH_AUTH_SOCK`), host key pinning in `remote-work-hosts.json` (first-use fingerprint dialog, changed key refused); the session token and the QUIC certificate fingerprint sent over the channel; `remote-work.json` (mode 0600) and the page "Remote Work" (per-workspace switch, port, idle timeout, keys added by pasting a line or choosing a `.pub` file, the host fingerprint shown, the security notes of §10.18); A listens only while a workspace has it on; the connected banner with Disconnect; notifications for logins and refused attempts.
 **Tests:** login with a listed key, refusal of an unlisted key, of passwords, of other channel types and of shells; the agent path (an in-process agent); a wrong passphrase; first-use pinning and a changed host key; the rate limit; turning remote control off closes the listener and ends sessions; the state files' modes; all on loopback with ephemeral ports.
 
 ### 15.3 QUIC transport and the TCP fallback
 **Goal:** the session's messages over QUIC on UDP, or SSH channels when UDP is blocked (SPEC §10.18).
 **Read:** SPEC §10.18.
-**Tasks:** `go get github.com/quic-go/quic-go@<latest>`; `extensions/remote/transport`: A's QUIC listener on the same port (self-signed certificate made at start), B's dial that accepts only the fingerprint from the SSH channel, the token check, tiles as datagrams (dropped when stale, never queued), reliable streams for the rest, resume of a dropped QUIC connection with the token while SSH lives, the 3 s fallback to SSH channels with the same messages, the idle timeout, one interface for both transports.
+**Tasks:** `go get github.com/quic-go/quic-go@<latest>`; `extensions/remotework/transport`: A's QUIC listener on the same port (self-signed certificate made at start), B's dial that accepts only the fingerprint from the SSH channel, the token check, tiles as datagrams (dropped when stale, never queued), reliable streams for the rest, resume of a dropped QUIC connection with the token while SSH lives, the 3 s fallback to SSH channels with the same messages, the idle timeout, one interface for both transports.
 **Tests:** on loopback: a session over QUIC; a wrong token and a wrong certificate are refused; datagrams arrive and stale ones are dropped; the fallback when UDP is blocked (a test that drops the UDP packets); resume after a dropped connection; the idle timeout ends the session; a lossy-link measurement (a UDP proxy in the test dropping 5% of packets with 50 ms of delay) reports the frame rate and the time to a full picture, recorded in the step's entry.
 
 ### 15.4 The remote window tab
 **Goal:** use A's workspace from B (SPEC §10.18).
 **Read:** SPEC §10.18, §10.14, §10.15.
-**Tasks:** the window tab kind "Remote Workspace..." in the `+` menu (host, port, key file or agent; the tab titled `<host>: <workspace>` with a remote icon), the picture drawn from tiles at the tab's size (resize sends the new size), keys with their text, mouse and scroll sent, clipboard on copy and paste both ways, A's notifications shown on B with their actions run on A, reconnection after a drop, the disconnect reasons shown; A's side wires the headless view of 15.1 to the session; the tab's state saved (host, port, key path; never a passphrase or token).
+**Tasks:** the window tab kind "Remote Work..." in the `+` menu (host, port, key file or agent; the tab titled `<host>: <workspace>` with a remote icon), the picture drawn from tiles at the tab's size (resize sends the new size), keys with their text, mouse and scroll sent, clipboard on copy and paste both ways, A's notifications shown on B with their actions run on A, reconnection after a drop, the disconnect reasons shown; A's side wires the headless view of 15.1 to the session; the tab's state saved (host, port, key path; never a passphrase or token).
 **Tests:** two Emetos instances in one test process on loopback (or two `gluttertest` apps): B opens A's workspace, types into a file that changes on A, A's edit appears on B, copy and paste across, a notification's action runs on A, Disconnect on A ends B's tab with its reason, reconnection.
 **Proof:** method B: two isolated Emetos instances started by the step's proof script on loopback, B's window showing A's workspace in a remote tab beside its own workspace tab.
 
+### 15.5 Public keys by QR code
+**Goal:** add an allowed key from the camera and show one's own key as a QR code (SPEC §10.18 "Public keys by QR code").
+**Read:** SPEC §10.18, §10.19, §12; the Linux V4L2 API (`linux/videodev2.h`, online), gozxing's README.
+**Tasks:** `go get github.com/makiuchi-d/gozxing@<latest>` (add it to `NOTICE` with its Apache-2.0 license in `third_party/gozxing/`); `extensions/internal/keyqr`: the camera through V4L2 ioctls with `golang.org/x/sys/unix` (listing capture devices, choosing a format: MJPEG preferred, else YUYV; memory-mapped buffers; start and stop; everything under a `ctx`, released on cancel), frames to `image.Image`, decoding QR codes with gozxing off the UI thread, parsing the text with `ssh.ParseAuthorizedKey`, encoding a public key as a QR image; an image widget in `extension/ui` if there is none; the **Scan QR Code** dialog (live preview, camera picker, the confirmation with type, fingerprint and comment, the disabled button with the reason when there is no camera) on the Remote Work page; **Show My Public Key as QR Code** in the "Remote Work..." dialog (from the key file's `.pub` or the agent's key).
+**Tests:** QR round trip for Ed25519, ECDSA and RSA 4096 keys (encode, then decode the image, also scaled, rotated by a few degrees, blurred and with noise); text that is not a key refused with its tag; the V4L2 layer against a fake device interface (format choice, YUYV conversion, buffer cycling, stop on cancel; no real camera in tests); the dialog with a fake camera that plays a sequence of frames (closes on the first valid key, ignores other QR codes, releases the camera on close); a test with the real camera carries the build tag `emetos_camera` and is a manual check (`docs/MANUAL-CHECKS.md`).
+**Proof:** method B with a fake camera fed by a QR image of a test key (an `emetos_dev` dev command): the Scan QR Code dialog with the preview and the key's confirmation.
+
 ---
 
-## M16: Wrap-up
+## M16: Relay (event control of a workspace)
 
-### 16.1 Update the README
+### 16.1 Core request topics, privileges and confinement
+**Goal:** what lets an extension drive a workspace through events, confined to it (SPEC §10.19 "Privileges", "Core request topics", "Confinement").
+**Read:** SPEC §10.19, §10.15 (events, ownership, containment, the "As built" notes), §10.11 (commands that act on windows and folders).
+**Tasks:** the core request topics of §10.19 answered by every workspace scope (`emetos.commands.list`/`execute`, `emetos.files.list`/`stat`/`read`, `emetos.document.open`/`read`/`edit`/`save`/`close`, `emetos.editor.reveal`), with their payload types in `extension/`; `Manifest.Privileges` (`events.publishAny`, `commands.execute`) granted by the host only to `emetos.relay` (others refused with a problem on the Extensions page); `commands.execute` running core and extension commands in the requester's scope; the list of commands refused to clients (window tabs, quit, close window, open or replace a folder, new windows, profiles, user and profile settings) and its marking in `emetos.commands.list`.
+**Tests:** each topic's payloads and errors (route-tested), file reads confined to the folder (`..`, absolute paths, symlinks out), an edit with a stale version refused, a privileged and an unprivileged extension (publishing another's topic and executing a command refused for the latter), every refused command class, a command run in one tab does not reach another.
+
+### 16.2 The Relay host
+**Goal:** sharing workspaces' events with keys, watch-only or watch and send (SPEC §10.19 "The host side", "Login and transport", "State").
+**Read:** SPEC §10.19, §10.18 (the login of Remote Work), §12.
+**Tasks:** `extensions/relay`: the Relay window tab kind and its "Be a Host" section (listen switch, port, shared workspaces, keys with Watch only or Watch and send per workspace, added by pasting, a `.pub` file or Scan QR Code from `extensions/internal/keyqr`, step 15.5); `relay.json`; the SSH listener with `extensions/internal/sshlogin` (built in 15.2; if 15.2 is not done, build it here and let 15.2 use it), the `emetos-relay` channel and the message protocol (versioned, length-prefixed, a size limit on each message); the host's Relay active in each shared workspace forwarding every event to the connected clients granted that workspace, and for Watch and send publishing, requesting and executing in that scope only; the banner with Disconnect, logs, notifications and the rate limit.
+**Tests:** on loopback: a listed key connects and gets only its granted workspaces; an unlisted key and a password are refused; watch-only receives events but its sends are refused (`RelayWatchOnly`); watch and send publishes, requests and runs a command in the right workspace only; a refused command class; a workspace unshared mid-session stops its events; the protocol's malformed, truncated and oversized messages refused (seeded random inputs and a short fuzz target as CLAUDE.md says); the state file's mode.
+
+### 16.3 The Relay client
+**Goal:** connect to hosts and watch and drive their workspaces (SPEC §10.19 "The tab").
+**Read:** SPEC §10.19, §10.15.
+**Tasks:** the "Hosts" section (Add Host with address, port, key file or agent, name, and Show My Public Key as QR Code (step 15.5); host key pinning in `relay-hosts.json` with the first-use fingerprint dialog; connect, disconnect, remove; several hosts at once; reconnection); the Events panel (live log with time, topic, publisher, collapsible JSON, batches as one row, requests with replies and durations, filter, Pause, Clear, 10,000-row cap); the Send panel (topic and JSON with Publish and Request, Run Command with the host's command picker and JSON arguments, results and errors, history in the tab's state; hidden for watch-only); the tab's state saved (hosts, selection, history; never a passphrase).
+**Tests:** two Emetos instances in one test process on loopback: the client connects, sees the host's `emetos.document.changed` while a file is edited on the host, lists files with `emetos.files.list`, opens and edits a file with the document topics, runs a command and an extension's command, sends a request to an extension's handled topic, is refused outside its workspace; watch-only shows no Send panel; reconnection after a drop; goldens of the tab (dark and light).
+**Proof:** method B: two isolated Emetos instances on loopback started by the step's proof script, the client's Relay tab with a connected host, the Events panel showing the host's events and the Send panel with a reply.
+
+---
+
+## M17: Wrap-up
+
+### 17.1 Update the README
 **Goal:** `README.md` describes Emetos as it is after every other step (the user's request of 2026-10-26).
 **Read:** `README.md`, `docs/IMPLEMENTED.md` (the entries after 10.2 and the coverage table), SPEC §1, §3, §10.15–§10.18, §16, §18.
-**Tasks:** bring every section of the README up to date: the status and version (the areas and milestones now built, what is still planned), the feature lists (extensions and their seven kinds of contribution, event sharing, the bundled extensions such as TODOs, Tasks, the Markdown preview, notes, scratchpad, Agents, Go, remote control, and the language intelligence of M12), install and requirements (the `claude` program, `gopls` and the tools, the remote control port and keys, with the security notes of SPEC §10.18), where the new state files live (`event-sharing.json`, `remote-control.json`, `remote-hosts.json`), privacy (what talks to the network now: the agent's own program, remote control, language servers; still no telemetry), the command line, and fresh screenshots made with `scripts/screenshots.sh` (add the new ones: an extension view, a session of the Agents extension, a Go file with hovers or completion, a remote tab); every link and image resolves; the coverage table in `docs/IMPLEMENTED.md` gets the rows of the areas built since 10.2.
+**Tasks:** bring every section of the README up to date: the status and version (the areas and milestones now built, what is still planned), the feature lists (extensions and their seven kinds of contribution, event sharing, the bundled extensions such as TODOs, Tasks, the Markdown preview, notes, scratchpad, Agents, Go, Remote Work, Relay, and the language intelligence of M12), install and requirements (the `claude` program, `gopls` and the tools, the Remote Work and Relay ports and keys, with the security notes of SPEC §10.18 and §10.19), where the new state files live (`event-sharing.json`, `remote-work.json`, `remote-work-hosts.json`, `relay.json`, `relay-hosts.json`), privacy (what talks to the network now: the agent's own program, remote control, language servers; still no telemetry), the command line, and fresh screenshots made with `scripts/screenshots.sh` (add the new ones: an extension view, a session of the Agents extension, a Go file with hovers or completion, a remote tab); every link and image resolves; the coverage table in `docs/IMPLEMENTED.md` gets the rows of the areas built since 10.2.
 **Tests:** a check that every relative link and image of the README resolves (a test or a script run in the checks).
 **Proof:** the README's screenshots, viewed.
 

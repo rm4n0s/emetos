@@ -1186,6 +1186,32 @@ func (s *Scope) ServerStatus(extensionID, serverID string) (ServerStatus, bool) 
 // providers they wrote in Go are in it (SPEC §9.12).
 func (s *Scope) Features() *langfeatures.Registry { return s.features }
 
+// ExecuteServerCommand runs a command of a language server (workspace/executeCommand) for the command of a completion item or a
+// code action: Command.Owner is the qualified id of the server. It reports false when the scope has no such server, so that the
+// caller runs the command as a command of the editor. The call waits for the answer of the server; call it off the UI thread.
+func (s *Scope) ExecuteServerCommand(ctx context.Context, cmd langfeatures.Command) (found bool, err error) {
+	s.mu.Lock()
+	slots := slices.Clone(s.slots)
+	s.mu.Unlock()
+	for _, sl := range slots {
+		s.mu.Lock()
+		inst := sl.inst
+		s.mu.Unlock()
+		if inst == nil {
+			continue
+		}
+		inst.mu.Lock()
+		servers := slices.Clone(inst.servers)
+		inst.mu.Unlock()
+		for _, c := range servers {
+			if c.qid == cmd.Owner {
+				return true, c.provider.ExecuteCommand(ctx, cmd)
+			}
+		}
+	}
+	return false, nil
+}
+
 // restartServers restarts the servers of an extension in the scope (the command <id>.restartServer); an idle server is
 // started.
 func (s *Scope) restartServers(sl *slot) {

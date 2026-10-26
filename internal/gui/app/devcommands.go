@@ -148,6 +148,8 @@ func registerDevCommands(r *command.Registry) {
 		{ID: "dev.type", Description: "Type a text into the focused editor, a character in every frame."},
 		{ID: "dev.scroll", Description: "Scroll the focused editor by rows in every frame."},
 		{ID: "dev.showHover", Description: `Show the hover at a position of the focused editor and keep it. Arguments: {"line": ..., "column": ...} counted from 1; the cursor when missing.`},
+		{ID: "dev.triggerSuggest", Description: "Open the suggest widget of the focused editor, as Trigger Suggest does."},
+		{ID: "dev.toggleSuggestDetails", Description: "Open or close the details pane of the suggest widget of the focused editor."},
 		{ID: "dev.openFile", Description: "Open a file in the window, with the cursor at a line and a column."},
 		{ID: "dev.openDiff", Description: `Open a comparison of two files in the active group. Arguments: {"original": ..., "modified": ...}.`},
 		{ID: "dev.openMergeEditor", Description: `Open a file with conflict markers in the merge editor. Arguments: {"path": ...}.`},

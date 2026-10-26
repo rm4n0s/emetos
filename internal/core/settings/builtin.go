@@ -33,6 +33,7 @@ const (
 func DefaultRegistry() *Registry {
 	r := NewRegistry()
 	registerEditor(r)
+	registerSuggest(r)
 	registerFiles(r)
 	registerExplorer(r)
 	registerWorkbench(r)
@@ -1597,4 +1598,177 @@ func registerDiffEditor(r *Registry) {
 			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
 		},
 	)
+}
+
+// SuggestKinds are the kinds of completion items that editor.suggest.show<Kind> turns off: the setting key suffix, in the
+// order of VS Code's list, and the LSP kind numbers it covers.
+var SuggestKinds = []struct {
+	Name  string
+	Kinds []int
+}{
+	{"Methods", []int{2}}, {"Functions", []int{3}}, {"Constructors", []int{4}}, {"Fields", []int{5}}, {"Variables", []int{6}},
+	{"Classes", []int{7}}, {"Structs", []int{22}}, {"Interfaces", []int{8}}, {"Modules", []int{9}}, {"Properties", []int{10}},
+	{"Events", []int{23}}, {"Operators", []int{24}}, {"Units", []int{11}}, {"Values", []int{12}}, {"Constants", []int{21}},
+	{"Enums", []int{13}}, {"EnumMembers", []int{20}}, {"Keywords", []int{14}}, {"Words", []int{1}}, {"Colors", []int{16}},
+	{"Files", []int{17}}, {"References", []int{18}}, {"Folders", []int{19}}, {"TypeParameters", []int{25}}, {"Snippets", []int{15}},
+}
+
+// registerSuggest registers the settings of the suggest widget (step 12.5, SPEC §9.12 "Completion"), with VS Code's keys,
+// defaults and descriptions: when the suggestions show, how they are chosen, accepted and inserted, and which kinds of
+// items they have.
+//
+// Ported from VS Code: src/vs/editor/common/config/editorOptions.ts (quickSuggestions, EditorSuggest and the options of
+// the suggest widget) and src/vs/editor/common/config/editorConfigurationSchema.ts (wordBasedSuggestions)
+func registerSuggest(r *Registry) {
+	r.MustRegister(
+		Setting{
+			Key: "editor.quickSuggestions", Types: []Type{Object, Boolean, String},
+			Default:     map[string]any{"other": "offWhenInlineCompletions", "comments": "off", "strings": "off"},
+			Description: "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code (`other`, `comments`, `strings`, each `on`, `inline`, `off` or `offWhenInlineCompletions`). Also be aware of the `#editor.suggestOnTriggerCharacters#`-setting which controls if suggestions are triggered by special characters.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.quickSuggestionsDelay", Types: []Type{Integer}, Default: 10, Minimum: Float(0),
+			Description: "Controls the delay in milliseconds after which quick suggestions will show up.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggestOnTriggerCharacters", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether suggestions should automatically show up when typing trigger characters.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.acceptSuggestionOnEnter", Types: []Type{String}, Default: "on", Enum: []any{"on", "smart", "off"},
+			EnumDescriptions: []string{"", "Only accept a suggestion with `Enter` when it makes a textual change.", ""},
+			Description:      "Controls whether suggestions should be accepted on `Enter`, in addition to `Tab`. Helps to avoid ambiguity between inserting new lines or accepting suggestions.",
+			Scope:            ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.acceptSuggestionOnCommitCharacter", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggestSelection", Types: []Type{String}, Default: "first", Enum: []any{"first", "recentlyUsed", "recentlyUsedByPrefix"},
+			EnumDescriptions: []string{
+				"Always select the first suggestion.",
+				"Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log` because `log` has been completed recently.",
+				"Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`.",
+			},
+			Description: "Controls how suggestions are pre-selected when showing the suggest list.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.snippetSuggestions", Types: []Type{String}, Default: "inline", Enum: []any{"top", "bottom", "inline", "none"},
+			EnumDescriptions: []string{
+				"Show snippet suggestions on top of other suggestions.",
+				"Show snippet suggestions below other suggestions.",
+				"Show snippets suggestions with other suggestions.",
+				"Do not show snippet suggestions.",
+			},
+			Description: "Controls whether snippets are shown with other suggestions and how they are sorted.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.wordBasedSuggestions", Types: []Type{String}, Default: "offWithInlineSuggestions",
+			Enum: []any{"off", "offWithInlineSuggestions", "currentDocument", "matchingDocuments", "allDocuments"},
+			EnumDescriptions: []string{
+				"Turn off Word Based Suggestions.",
+				"Turn off Word Based Suggestions when Inline Suggestions are present. Emetos has no inline suggestions, so this suggests the words of the open documents of the same language.",
+				"Only suggest words from the active document.",
+				"Suggest words from all open documents of the same language.",
+				"Suggest words from all open documents.",
+			},
+			Description: "Controls whether completions should be computed based on words in the document and from which documents they are computed.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggestFontSize", Types: []Type{Integer}, Default: 0, Minimum: Float(0), Maximum: Float(1000),
+			Description: "Font size for the suggest widget. When set to `0`, the value of `#editor.fontSize#` is used.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggestLineHeight", Types: []Type{Integer}, Default: 0, Minimum: Float(0), Maximum: Float(1000),
+			Description: "Line height for the suggest widget. When set to `0`, the value of `#editor.lineHeight#` is used. The minimum value is 8.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.insertMode", Types: []Type{String}, Default: "insert", Enum: []any{"insert", "replace"},
+			EnumDescriptions: []string{
+				"Insert suggestion without overwriting text right of the cursor.",
+				"Insert suggestion and overwrite text right of the cursor.",
+			},
+			Description: "Controls whether words are overwritten when accepting completions. Note that this depends on extensions opting into this feature.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.filterGraceful", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether filtering and sorting suggestions accounts for small typos.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.localityBonus", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether sorting favors words that appear close to the cursor. Not built: the setting is read and has no effect.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.shareSuggestSelections", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether remembered suggestion selections are shared between multiple workspaces and windows (needs `#editor.suggestSelection#`). Emetos keeps the memory per window tab, for the session: the setting is read and has no effect.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.selectionMode", Types: []Type{String}, Default: "always",
+			Enum: []any{"always", "never", "whenTriggerCharacter", "whenQuickSuggestion"},
+			EnumDescriptions: []string{
+				"Always select a suggestion when automatically triggering IntelliSense.",
+				"Never select a suggestion when automatically triggering IntelliSense.",
+				"Select a suggestion only when triggering IntelliSense from a trigger character.",
+				"Select a suggestion only when triggering IntelliSense as you type.",
+			},
+			Description: "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions (`#editor.quickSuggestions#` and `#editor.suggestOnTriggerCharacters#`) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.snippetsPreventQuickSuggestions", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether an active snippet prevents quick suggestions.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.showIcons", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether to show or hide icons in suggestions.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.showStatusBar", Types: []Type{Boolean}, Default: false,
+			Description: "Controls the visibility of the status bar at the bottom of the suggest widget.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.preview", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether to preview the suggestion outcome in the editor. Not built: the setting is read and has no effect.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.showInlineDetails", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether suggestion details show inline with the label or only in the details widget.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.showDeprecated", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether deprecated suggestions are shown.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+		Setting{
+			Key: "editor.suggest.matchOnWordStartOnly", Types: []Type{Boolean}, Default: true,
+			Description: "When enabled IntelliSense filtering requires that the first character matches on a word start. For example, `c` on `Console` or `WebContext` but _not_ on `description`. When disabled IntelliSense will show more results but still sorts them by match quality.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		},
+	)
+	for _, k := range SuggestKinds {
+		r.MustRegister(Setting{
+			Key: "editor.suggest.show" + k.Name, Types: []Type{Boolean}, Default: true,
+			Description: "When enabled IntelliSense shows `" + k.Name[:len(k.Name)-1] + "`-suggestions.",
+			Scope:       ScopeLanguageOverridable, Category: categoryEditor,
+		})
+	}
 }

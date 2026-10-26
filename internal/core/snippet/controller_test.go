@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/errors"
 )
 
@@ -258,5 +259,37 @@ func TestControllerMethodsWithoutASession(t *testing.T) {
 	r.insert("${1:a} ${2:b}$0")
 	if rg, ok := r.c.EnclosingRange(); !ok || rg != rng(1, 4, 1, 4).Union(rng(1, 1, 1, 4)) {
 		t.Errorf("enclosing range %v %v", rg, ok)
+	}
+}
+
+func TestControllerJoinUndoMakesTheInsertionPartOfTheOpenGroup(t *testing.T) {
+	tests := []struct {
+		name  string
+		join  bool
+		undos int
+	}{
+		{"joined", true, 1},
+		{"apart", false, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newCtlRig(t, "x", sel(1, 2, 1, 2))
+			r.doc.PushStackElement()
+			_, err := r.doc.Edit([]document.Edit{{Range: rng(1, 1, 1, 1), Text: "import\n"}}, document.EditOptions{Join: true})
+			must(t, err)
+			r.cur.SetSelections([]buffer.Selection{sel(2, 2, 2, 2)})
+			opts := DefaultInsertOptions()
+			opts.JoinUndo, opts.UndoStopBefore, opts.UndoStopAfter = tt.join, false, false
+			must(t, r.c.Insert("${1:a}$0", opts))
+			steps := 0
+			for r.doc.CanUndo() {
+				_, err := r.doc.Undo()
+				must(t, err)
+				steps++
+			}
+			if steps != tt.undos || r.value() != "x" {
+				t.Errorf("undone in %d steps to %q, want %d steps to x", steps, r.value(), tt.undos)
+			}
+		})
 	}
 }

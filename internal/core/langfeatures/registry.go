@@ -270,6 +270,9 @@ func (r *Registry) RegisterRename(owner string, sel Selector, p RenameProvider) 
 	return r.rename.add(owner, sel, p)
 }
 
+// HasCompletion tells whether a completion provider matches the document.
+func (r *Registry) HasCompletion(doc Document) bool { return len(r.completion.ordered(doc)) > 0 }
+
 // CompletionTriggers are the trigger characters of the completion providers that match the document, without duplicates.
 func (r *Registry) CompletionTriggers(doc Document) []string {
 	return triggersOf(r.completion.ordered(doc), func(p CompletionProvider) []string {
