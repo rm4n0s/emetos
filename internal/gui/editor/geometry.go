@@ -93,18 +93,77 @@ func (g geometry) x(row, col int) float64 {
 	if rel == 0 {
 		return indent
 	}
+	r := g.injectedRow(row, shown, start)
 	if rel > len(shown) {
-		return indent + g.textWidth(shown) + float64(rel-len(shown))*g.charWidth
+		return indent + g.injectedWidth(r) + float64(rel-len(shown))*g.charWidth
 	}
-	p := g.style.paragraph(g.vm.Paragraphs(), shown)
+	p := g.injectedParagraph(r)
 	right := 0.0
-	for _, b := range p.GetBoxesForRange(0, rel) {
+	for _, b := range p.GetBoxesForRange(0, r.viewOffset(rel)) {
 		right = max(right, b.Right)
 	}
 	if right == 0 && rel == len(shown) {
 		right = p.LongestLine()
 	}
 	return indent + right
+}
+
+// injectedRow is the text a row shows (the first shown bytes of its line from start) with the inlay hints in it.
+func (g geometry) injectedRow(row int, shown string, start int) injectedRow {
+	line, _, end := g.proj.RowSpan(row)
+	return inject(shown, start, g.vm.rowInjections(line, start, end, len(shown), g.lastRowOfLine(row)))
+}
+
+// injectedParagraph is the paragraph of an injected row for measuring: the font of the hints is in it.
+func (g geometry) injectedParagraph(r injectedRow) *ui.Paragraph {
+	return g.style.styledParagraph(g.vm.Paragraphs(), r.text, r.hintSpans())
+}
+
+// injectedWidth is the width of an injected row.
+func (g geometry) injectedWidth(r injectedRow) float64 {
+	if r.text == "" {
+		return 0
+	}
+	return g.injectedParagraph(r).LongestLine()
+}
+
+// hintAt finds the inlay hint at a distance from the left edge of the text on a row, and the label part it is on; false when
+// the point is not on a hint.
+func (g geometry) hintAt(row int, x float64) (inj *injection, part int, ok bool) {
+	full, start := g.rowFull(row)
+	shown := full[:shownLength(full, g.vm.opts.StopRenderingLineAfter)]
+	r := g.injectedRow(row, shown, start)
+	if len(r.injs) == 0 {
+		return nil, 0, false
+	}
+	x -= g.indentPx(row)
+	p := g.injectedParagraph(r)
+	xAt := func(off int) float64 {
+		if off == 0 {
+			return 0
+		}
+		right := 0.0
+		for _, b := range p.GetBoxesForRange(0, off) {
+			right = max(right, b.Right)
+		}
+		if right == 0 && off == len(r.text) {
+			right = p.LongestLine()
+		}
+		return right
+	}
+	for i, in := range r.injs {
+		from, to := xAt(r.at[i]+in.bgFrom), xAt(r.at[i]+in.bgTo)
+		if x < from || x >= to {
+			continue
+		}
+		for _, pt := range in.parts {
+			if x >= xAt(r.at[i]+pt.from) && x < xAt(r.at[i]+pt.to) {
+				return in, pt.index, true
+			}
+		}
+		return in, -1, true // on the padding of the hint
+	}
+	return nil, 0, false
 }
 
 // textWidth is the width of a text laid out in the font of the editor.
@@ -293,14 +352,27 @@ func (g geometry) columnAt(text string, x float64) int {
 	if asciiWithoutTabs(text) && g.isMonospace() {
 		return min(int(math.Floor(x/g.charWidth+0.5)), len(text))
 	}
-	return g.slowColumnAt(text, x)
+	return g.slowColumnAt(text, nil, x)
+}
+
+// columnAtRow is columnAt for the text of a row, whose hints are among the characters it measures: the column of the
+// document nearest to x, which is the place of the hint when x is on one.
+func (g geometry) columnAtRow(row int, text string, start int, x float64) int {
+	r := g.injectedRow(row, text, start)
+	if len(r.injs) == 0 {
+		return g.columnAt(text, x)
+	}
+	if x <= 0 {
+		return 0
+	}
+	return r.modelOffset(g.slowColumnAt(r.text, r.hintSpans(), x))
 }
 
 // slowColumnAt finds the column through the paragraph: a binary search over the grapheme
 // boundaries of the text with the x of each from the paragraph's boxes.
-func (g geometry) slowColumnAt(text string, x float64) int {
+func (g geometry) slowColumnAt(text string, spans []span, x float64) int {
 	bounds := edit.GraphemeBoundaries(text)
-	p := g.style.paragraph(g.vm.Paragraphs(), text)
+	p := g.style.styledParagraph(g.vm.Paragraphs(), text, spans)
 	xAt := func(col int) float64 {
 		if col == 0 {
 			return 0
@@ -341,12 +413,12 @@ func (g geometry) positionAt(x, y float64) buffer.Position {
 	px := x - g.indentPx(row)
 	if len(text) < len(full) {
 		// past the part that is drawn the columns are as wide as a character
-		if w := g.textWidth(text); px > w && g.charWidth > 0 {
+		if w := g.injectedWidth(g.injectedRow(row, text, start)); px > w && g.charWidth > 0 {
 			col := len(text) + int(math.Floor((px-w)/g.charWidth+0.5))
 			return buffer.Position{Line: line, Col: start + min(col, len(full))}
 		}
 	}
-	return buffer.Position{Line: line, Col: start + g.columnAt(text, px)}
+	return buffer.Position{Line: line, Col: start + g.columnAtRow(row, text, start, px)}
 }
 
 // rectOf is the rectangle of the character at a position, in document coordinates: from the x

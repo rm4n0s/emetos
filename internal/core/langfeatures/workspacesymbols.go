@@ -119,6 +119,13 @@ const (
 	FeatureOnTypeFormatting
 	// FeatureRename is rename (prepareRename is part of it).
 	FeatureRename
+	// FeatureCodeLens is textDocument/codeLens, FeatureInlayHints textDocument/inlayHint, FeatureSemanticTokens the semantic
+	// tokens, FeatureFoldingRanges textDocument/foldingRange and FeatureSelectionRanges textDocument/selectionRange (step 12.9).
+	FeatureCodeLens
+	FeatureInlayHints
+	FeatureSemanticTokens
+	FeatureFoldingRanges
+	FeatureSelectionRanges
 )
 
 // featureOffers is implemented by a provider that serves several features and may not offer all of them: a language server
@@ -159,6 +166,16 @@ func (r *Registry) Has(doc Document, f Feature) bool {
 		return slices.ContainsFunc(r.onType.ordered(doc), func(reg Registered[OnTypeFormattingProvider]) bool { return offered(reg.Provider, f) })
 	case FeatureRename:
 		return slices.ContainsFunc(r.rename.ordered(doc), func(reg Registered[RenameProvider]) bool { return offered(reg.Provider, f) })
+	case FeatureCodeLens:
+		return slices.ContainsFunc(r.codeLens.ordered(doc), func(reg Registered[CodeLensProvider]) bool { return offered(reg.Provider, f) })
+	case FeatureInlayHints:
+		return slices.ContainsFunc(r.inlayHints.ordered(doc), func(reg Registered[InlayHintProvider]) bool { return offered(reg.Provider, f) })
+	case FeatureSemanticTokens:
+		return r.SemanticTokensProviderFor(doc) != nil
+	case FeatureFoldingRanges:
+		return slices.ContainsFunc(r.folding.ordered(doc), func(reg Registered[FoldingRangeProvider]) bool { return offered(reg.Provider, f) })
+	case FeatureSelectionRanges:
+		return slices.ContainsFunc(r.selection.ordered(doc), func(reg Registered[SelectionRangeProvider]) bool { return offered(reg.Provider, f) })
 	}
 	return false
 }

@@ -170,11 +170,17 @@ type Registry struct {
 	formatting  list[FormattingProvider]
 	rename      list[RenameProvider]
 	onType      list[OnTypeFormattingProvider]
+	codeLens    list[CodeLensProvider]
+	inlayHints  list[InlayHintProvider]
+	semantic    list[SemanticTokensProvider]
+	folding     list[FoldingRangeProvider]
+	selection   list[SelectionRangeProvider]
 
 	workspaceSymbols list[WorkspaceSymbolProvider]
 
 	changeMu  sync.Mutex
 	listeners map[int]func()
+	refreshes map[int]func(Feature)
 	nextID    int
 }
 
@@ -207,6 +213,38 @@ func (r *Registry) Changed() {
 	r.changeMu.Unlock()
 	for _, fn := range fns {
 		fn()
+	}
+}
+
+// OnRefresh calls fn when a language server asks for one kind of its answers to be asked for again (the refresh requests of
+// semantic tokens, code lenses and inlay hints): the feature says which. fn runs on the goroutine that called Refreshed. The
+// function that stops the listener is returned.
+func (r *Registry) OnRefresh(fn func(Feature)) (stop func()) {
+	r.changeMu.Lock()
+	defer r.changeMu.Unlock()
+	if r.refreshes == nil {
+		r.refreshes = map[int]func(Feature){}
+	}
+	r.nextID++
+	id := r.nextID
+	r.refreshes[id] = fn
+	return func() {
+		r.changeMu.Lock()
+		defer r.changeMu.Unlock()
+		delete(r.refreshes, id)
+	}
+}
+
+// Refreshed tells the listeners of OnRefresh that the answers of a feature are stale.
+func (r *Registry) Refreshed(f Feature) {
+	r.changeMu.Lock()
+	fns := make([]func(Feature), 0, len(r.refreshes))
+	for _, fn := range r.refreshes {
+		fns = append(fns, fn)
+	}
+	r.changeMu.Unlock()
+	for _, fn := range fns {
+		fn(f)
 	}
 }
 

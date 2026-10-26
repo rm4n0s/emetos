@@ -54,6 +54,11 @@ func (sp *ServerProvider) Register(r *Registry, owner string, sel Selector) (rem
 		r.RegisterRename(owner, sel, sp),
 		r.RegisterOnTypeFormatting(owner, sel, sp),
 		r.RegisterWorkspaceSymbols(owner, sp),
+		r.RegisterCodeLens(owner, sel, sp),
+		r.RegisterInlayHints(owner, sel, sp),
+		r.RegisterSemanticTokens(owner, sel, sp),
+		r.RegisterFoldingRanges(owner, sel, sp),
+		r.RegisterSelectionRanges(owner, sel, sp),
 	}
 	return func() {
 		for _, rm := range removers {
@@ -513,6 +518,16 @@ func (sp *ServerProvider) Offers(f Feature) bool {
 		return caps.DocumentOnTypeFormattingProvider != nil || len(c.Registered(lsp.MethodOnTypeFormatting)) > 0
 	case FeatureRename:
 		return offers(c, caps.RenameProvider.Enabled, lsp.MethodRename)
+	case FeatureCodeLens:
+		return caps.CodeLensProvider != nil || len(c.Registered(lsp.MethodCodeLens)) > 0
+	case FeatureInlayHints:
+		return offers(c, caps.InlayHintProvider.Enabled, lsp.MethodInlayHint)
+	case FeatureSemanticTokens:
+		return caps.SemanticTokensProvider != nil || len(c.Registered(lsp.MethodSemanticTokensFull)) > 0
+	case FeatureFoldingRanges:
+		return offers(c, caps.FoldingRangeProvider.Enabled, lsp.MethodFoldingRange)
+	case FeatureSelectionRanges:
+		return offers(c, caps.SelectionRangeProvider.Enabled, lsp.MethodSelectionRange)
 	}
 	return false
 }

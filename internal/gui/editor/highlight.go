@@ -16,6 +16,11 @@ type span struct {
 	start, end int
 	color      ui.Color
 	style      theme.FontStyle
+	// size and family, when they are set, are the font size and the font family of the span instead of the paragraph's (the text
+	// of an inlay hint); lineHeight is then the height of the line the text is laid out in.
+	size       float64
+	family     string
+	lineHeight float64
 }
 
 // tokenStyle is the look a theme gives to a stack of scopes.
@@ -100,6 +105,12 @@ func spansKey(spans []span) string {
 		b.WriteString(strconv.FormatUint(uint64(s.color.ToARGB32()), 16))
 		b.WriteByte(':')
 		b.WriteString(strconv.Itoa(int(s.style)))
+		if s.size != 0 || s.family != "" {
+			b.WriteByte(':')
+			b.WriteString(strconv.FormatFloat(s.size, 'g', -1, 64))
+			b.WriteByte(':')
+			b.WriteString(s.family)
+		}
 		b.WriteByte(';')
 	}
 	return b.String()
@@ -109,6 +120,17 @@ func spansKey(spans []span) string {
 func (s span) textStyle() *ui.TextStyle {
 	color := s.color
 	opts := ui.TextStyleOpts{Color: &color}
+	if s.size > 0 {
+		size := s.size
+		opts.FontSize = &size
+		if s.lineHeight > 0 {
+			height := s.lineHeight / size
+			opts.Height = &height
+		}
+	}
+	if s.family != "" {
+		opts.FontFamily = s.family
+	}
 	if s.style&theme.FontStyleBold != 0 {
 		opts.FontWeight = ui.FontWeightW700
 	}

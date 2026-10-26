@@ -83,8 +83,33 @@ func (r *RenderEditorText) SetTokenTheme(t *theme.TokenTheme) {
 		return
 	}
 	r.tokenTheme = t
+	r.vm.SetSemanticTheme(t)
 	r.styles = nil
 	r.MarkNeedsPaint()
+}
+
+// paintHintBackgrounds draws the backgrounds of the inlay hints of a row, behind its text: a rounded box around the label of each.
+//
+// Ported from VS Code: src/vs/editor/contrib/inlayHints/browser/inlayHintsController.ts (the background of the injected text)
+func (r *RenderEditorText) paintHintBackgrounds(canvas *ui.Canvas, p *ui.Paragraph, ir injectedRow, x, y, rowHeight float64) {
+	for i, inj := range ir.injs {
+		if inj.bg.Alpha() == 0 || inj.bgTo <= inj.bgFrom {
+			continue
+		}
+		left, right := 0.0, 0.0
+		for _, b := range p.GetBoxesForRange(0, ir.at[i]+inj.bgFrom) {
+			left = max(left, b.Right)
+		}
+		for _, b := range p.GetBoxesForRange(0, ir.at[i]+inj.bgTo) {
+			right = max(right, b.Right)
+		}
+		if right <= left {
+			continue
+		}
+		pad := 1.0
+		rect := ui.NewRectFromLTRB(x+left, y+pad, x+right, y+rowHeight-pad)
+		canvas.DrawRRect(ui.NewRRectFromRectXY(rect, 3, 3), fill(inj.bg))
+	}
 }
 
 // SetBracketColors changes the colors of the brackets.
@@ -212,11 +237,19 @@ func (r *RenderEditorText) top() float64 {
 // rowParagraph returns the paragraph of a row, or nil for a row with no text, and the number of
 // bytes of the row that are not in it because the line is longer than editor.stopRenderingLineAfter.
 func (r *RenderEditorText) rowParagraph(style textStyle, proj Projection, lineContent func(int) (string, error), row int) (*ui.Paragraph, int) {
+	p, hidden, _ := r.injectedParagraph(style, proj, lineContent, row)
+	return p, hidden
+}
+
+// injectedParagraph is rowParagraph that also gives the row with its inlay hints, so that the backgrounds of the hints can be
+// drawn where they are.
+func (r *RenderEditorText) injectedParagraph(style textStyle, proj Projection, lineContent func(int) (string, error), row int) (*ui.Paragraph, int, injectedRow) {
 	line, start, end := proj.RowSpan(row)
 	text, err := lineContent(line)
 	if err != nil {
-		return nil, 0
+		return nil, 0, injectedRow{}
 	}
+	rowEnd := end
 	if end < 0 || end > len(text) {
 		end = len(text)
 	}
@@ -226,11 +259,15 @@ func (r *RenderEditorText) rowParagraph(style textStyle, proj Projection, lineCo
 	hidden := len(text) - shown
 	text = text[:shown]
 	end = start + shown
-	if text == "" {
-		return nil, hidden
+	first, count := proj.LineRows(line)
+	injs := r.vm.rowInjections(line, start, rowEnd, shown, row == first+count-1)
+	if text == "" && len(injs) == 0 {
+		return nil, hidden, injectedRow{}
 	}
-	spans := overlaySpans(r.rowSpans(line, start, end), r.vm.bracketSpans(r.bracketColors, line, start, end))
-	return style.styledParagraph(r.vm.Paragraphs(), text, spans), hidden
+	base := r.rowSpans(line, start, end)
+	spans := overlaySpans(mergeSemantic(base, r.vm.semanticSpans(line, start, end), r.color), r.vm.bracketSpans(r.bracketColors, line, start, end))
+	ir := inject(text, start, injs)
+	return style.styledParagraph(r.vm.Paragraphs(), ir.text, ir.spans(spans)), hidden, ir
 }
 
 // prepareTokens tokenizes, as far as there is time, up to the last line on the screen, so that
@@ -281,12 +318,14 @@ func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.O
 		charWidth = style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
 	}
 	for row := first; row <= last; row++ {
-		if p, _ := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
+		if p, _, ir := r.injectedParagraph(style, proj, snap.LineContent, row); p != nil {
 			x := offset.Dx - left
 			if indenter != nil {
 				x += float64(indenter.RowIndentColumns(row)) * charWidth // a row that continues a wrapped line
 			}
-			canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: offset.Dy + proj.RowTop(row) - top})
+			y := offset.Dy + proj.RowTop(row) - top
+			r.paintHintBackgrounds(canvas, p, ir, x, y, proj.RowHeight(row))
+			canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: y})
 		}
 	}
 	canvas.Restore()

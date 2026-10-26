@@ -310,8 +310,13 @@ type Colors struct {
 	// The colors of the light bulb of the code actions: the plain one, the one of a preferred quick fix, and the one of an
 	// action an AI made.
 	EditorLightBulbForeground, EditorLightBulbAutoFixForeground, EditorLightBulbAiForeground ui.Color
-	EditorWordHighlightBackground, EditorWordHighlightBorder                                 ui.Color
-	EditorWordHighlightStrongBackground, EditorWordHighlightStrongBorder                     ui.Color
+	// EditorInlayHint... are the colors of inlay hints (the plain ones, and the ones for types and for parameters); the color of
+	// code lenses is CodeLensForeground.
+	EditorInlayHintForeground, EditorInlayHintBackground                   ui.Color
+	EditorInlayHintTypeForeground, EditorInlayHintTypeBackground           ui.Color
+	EditorInlayHintParameterForeground, EditorInlayHintParameterBackground ui.Color
+	EditorWordHighlightBackground, EditorWordHighlightBorder               ui.Color
+	EditorWordHighlightStrongBackground, EditorWordHighlightStrongBorder   ui.Color
 	// The colors of the peek view (peekView*): the border and the arrow, the title area with its label and description, the
 	// list of results with its lines, files, selection and match highlight, and the editor with its gutter and match highlight.
 	PeekViewBorder                                                                            ui.Color
@@ -578,7 +583,11 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		PeekViewEditorBackground:                    color("peekViewEditor.background"),
 		PeekViewEditorGutterBackground:              color("peekViewEditorGutter.background"),
 		EditorLightBulbForeground:                   color("editorLightBulb.foreground"), EditorLightBulbAutoFixForeground: color("editorLightBulbAutoFix.foreground"),
-		EditorLightBulbAiForeground:            color("editorLightBulbAi.foreground"),
+		EditorLightBulbAiForeground: color("editorLightBulbAi.foreground"),
+		EditorInlayHintForeground:   color("editorInlayHint.foreground"), EditorInlayHintBackground: color("editorInlayHint.background"),
+		EditorInlayHintTypeForeground: color("editorInlayHint.typeForeground"), EditorInlayHintTypeBackground: color("editorInlayHint.typeBackground"),
+		EditorInlayHintParameterForeground:     color("editorInlayHint.parameterForeground"),
+		EditorInlayHintParameterBackground:     color("editorInlayHint.parameterBackground"),
 		PeekViewEditorMatchHighlightBackground: color("peekViewEditor.matchHighlightBackground"),
 		PeekViewEditorMatchHighlightBorder:     color("peekViewEditor.matchHighlightBorder"),
 	}

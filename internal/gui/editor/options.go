@@ -130,6 +130,10 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 			DefaultModel:     settings.Get[string](store, "editor.stickyScroll.defaultModel", languageID),
 		},
 		GotoLocation: gotoLocationOptions(store, languageID),
+		Lens:         lensOptions(store, languageID),
+
+		FoldingStrategy:         settings.Get[string](store, "editor.foldingStrategy", languageID),
+		FoldingImportsByDefault: settings.Get[bool](store, "editor.foldingImportsByDefault", languageID),
 		Minimap: MinimapOptions{
 			Enabled: settings.Get[bool](store, "editor.minimap.enabled", languageID), Side: settings.Get[string](store, "editor.minimap.side", languageID),
 			Size: settings.Get[string](store, "editor.minimap.size", languageID), ShowSlider: settings.Get[string](store, "editor.minimap.showSlider", languageID),

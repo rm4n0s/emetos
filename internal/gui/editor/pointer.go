@@ -150,7 +150,7 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 	}
 	vm.PeekClose() // a press in the editor outside the peek view closes it
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
-	if !middle && !ev.OnLineNumbers && e.Kind() != ui.PointerDeviceKindTouch && s.linkPress(e, ev, gutterWidth) {
+	if !middle && !ev.OnLineNumbers && e.Kind() != ui.PointerDeviceKindTouch && (s.hintPress(e, gutterWidth) || s.linkPress(e, ev, gutterWidth)) {
 		return
 	}
 	if s.startsFoldPress(e, ev, middle, gutterWidth) {
@@ -472,10 +472,41 @@ func (s *editorState) linkKeyEvent(k services.KeyEvent) bool {
 	default:
 		return false
 	}
+	s.inlayKeyEvent(key, down)
 	switch {
 	case vm.Options().MultiCursorModifier != "ctrlCmd" && (key == services.LogicalKeyboardKeyControlLeft || key == services.LogicalKeyboardKeyControlRight),
 		vm.Options().MultiCursorModifier == "ctrlCmd" && (key == services.LogicalKeyboardKeyAltLeft || key == services.LogicalKeyboardKeyAltRight):
 		vm.LinkModifierChanged(down)
 	}
 	return false
+}
+
+// inlayKeyEvent follows the modifier keys for the modes of the inlay hints that depend on Ctrl+Alt: the key that went down or
+// up is taken as the keyboard will have it, as the events come before the keyboard's own state changes.
+func (s *editorState) inlayKeyEvent(key services.LogicalKeyboardKey, down bool) {
+	m := s.modifiers()
+	switch key {
+	case services.LogicalKeyboardKeyControlLeft, services.LogicalKeyboardKeyControlRight:
+		m.Ctrl = down
+	case services.LogicalKeyboardKeyAltLeft, services.LogicalKeyboardKeyAltRight:
+		m.Alt = down
+	case services.LogicalKeyboardKeyShiftLeft, services.LogicalKeyboardKeyShiftRight:
+		m.Shift = down
+	case services.LogicalKeyboardKeyMetaLeft, services.LogicalKeyboardKeyMetaRight:
+		m.Meta = down
+	default:
+		return
+	}
+	s.Widget().vm.InlayModifiersChanged(m)
+}
+
+// hintPress handles a press of the primary button with the modifier of the links held on a part of an inlay hint: it follows the
+// part and does not move the cursors.
+func (s *editorState) hintPress(e *gestures.PointerDownEvent, gutterWidth float64) bool {
+	if e.Buttons()&gestures.PrimaryButton == 0 || e.LocalPosition().Dx < gutterWidth || s.textRO == nil {
+		return false
+	}
+	in := ui.Offset{Dx: e.LocalPosition().Dx - gutterWidth, Dy: e.LocalPosition().Dy}
+	id, part, ok := s.textRO.HintAt(in)
+	return ok && s.Widget().vm.HintClick(id, part, s.modifiers())
 }

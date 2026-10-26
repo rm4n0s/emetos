@@ -195,6 +195,13 @@ type Options struct {
 	StickyScroll StickyScrollOptions
 	// GotoLocation are the settings of go to definition and its kin (editor.gotoLocation.*).
 	GotoLocation GotoLocationOptions
+	// Lens are the settings of the code lenses, the inlay hints and the semantic highlighting (editor.codeLens*,
+	// editor.inlayHints.*, editor.semanticHighlighting.enabled, editor.semanticTokenColorCustomizations; step 12.9).
+	Lens LensOptions
+	// FoldingStrategy is editor.foldingStrategy: "auto" uses the folding ranges of a language server when there is one,
+	// "indentation" always folds by indentation. FoldingImportsByDefault is editor.foldingImportsByDefault.
+	FoldingStrategy         string
+	FoldingImportsByDefault bool
 }
 
 // ColumnRuler is a vertical line drawn after a number of characters (editor.rulers).
@@ -372,6 +379,14 @@ type ViewModel struct {
 	mm minimapState
 	// sticky is sticky scroll.
 	sticky stickyState
+	// inlay is the inlay hints (inlay.go) and inlayColors their colors; lens the code lenses (codelens.go) and sem the semantic
+	// tokens (semantic.go).
+	inlay       inlayState
+	inlayColors InlayColors
+	lens        lensState
+	sem         semanticState
+	// selr is the request for the selection ranges of an expansion (selectionranges.go).
+	selr selectionRangeState
 	// afterTimer is the source of timers the editor widget gave.
 	afterTimer TimerFunc
 	// indentDefaults give editor.tabSize and editor.insertSpaces, for Detect Indentation.
@@ -389,12 +404,14 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 11
+	ownerSlots   = 12
 	snippetOwner = 6
 	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
 	suggestOwner = 9
 	// trackOwner is the slot of the markers that follow the cursors through the edits of a formatter, a code action or a rename.
 	trackOwner = 11
+	// inlayOwner is the slot of the markers that follow the inlay hints through the edits.
+	inlayOwner = 12
 )
 
 // owner is the document owner of a slot of this view model.
@@ -431,6 +448,9 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		sym:            newSymbolState(),
 		peek:           newPeekModel(),
 		link:           newLinkState(),
+		inlay:          newInlayState(),
+		lens:           newLensState(),
+		sem:            newSemanticState(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.inputModeHandle = vm.inputMode.AddListener(vm.inputModeChanged)
@@ -477,6 +497,8 @@ func (vm *ViewModel) applyOptions() {
 	vm.Sync()
 	vm.restartBlink()
 	vm.highlightsOptionsChanged()
+	vm.lensOptionsChanged()
+	vm.inlayOptionsChanged()
 	vm.NotifyListeners()
 }
 

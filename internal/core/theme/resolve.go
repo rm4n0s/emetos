@@ -85,7 +85,9 @@ func (t *Theme) TokenRules(custom []RawRule) []RawRule {
 // TokenTheme resolves the token rules of the theme (see TokenRules) into the theme that gives a
 // style to the scopes of a token.
 func (t *Theme) TokenTheme(custom []RawRule) *TokenTheme {
-	return NewTokenTheme(ParseRules(t.TokenRules(custom)))
+	tt := NewTokenTheme(ParseRules(t.TokenRules(custom)))
+	tt.semantic = NewSemanticTheme(t, tt)
+	return tt
 }
 
 // hasScope tells whether the rule has a scope, as JavaScript counts it: no scope and the empty

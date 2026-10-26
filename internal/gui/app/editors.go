@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/folding"
 	"github.com/rm4n0s/emetos/internal/core/indent"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
@@ -236,7 +237,17 @@ func (e *textEditor) startFolding(win *Workspace) {
 		}
 	}
 	e.view.SetFoldingMarkers(provider.Markers)
-	e.stopFolding = e.view.StartFolding(provider, 0)
+	var p folding.Provider = provider
+	// the ranges of a language server replace the indentation provider (step 12.9); it stays the fallback
+	if scope := win.Extensions(); scope != nil {
+		lang := e.doc.LanguageID()
+		p = langfeatures.FoldingProvider{
+			Registry: scope.Features(), Fallback: provider, Limit: provider.Limit,
+			Strategy: func() string { return settings.Get[string](win.Settings, "editor.foldingStrategy", lang) },
+			Log:      func(msg string, err error) { win.Process.Logger.Debug(msg, "err", err) },
+		}
+	}
+	e.stopFolding = e.view.StartFolding(p, 0)
 }
 
 // dispose stops the background work and the following of the settings and the document, and
@@ -268,6 +279,10 @@ func (e *textEditor) dispose() {
 	e.view.CancelGoTo()
 	e.view.LinkClear()
 	e.view.DisposeSymbols()
+	e.view.DisposeInlayHints()
+	e.view.DisposeCodeLenses()
+	e.view.DisposeSemanticTokens()
+	e.view.SelectionRangesCancel()
 	e.view.DisposeFind()
 	e.view.DisposeWrap()
 	e.view.DisposeZones()

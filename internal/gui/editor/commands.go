@@ -436,6 +436,9 @@ func buildActions() map[string]action {
 	a["editor.action.smartSelect.expand"] = func(vm *ViewModel, _ any) error {
 		vm.sessionOwner = sessionExpansion
 		if vm.expansion == nil {
+			if vm.startsServerExpansion() {
+				return nil // the providers are asked; the expansion starts when they answer
+			}
 			vm.expansion = vm.commands().NewExpansion(vm.cursors.Selections(), edit.DefaultSelectionRangesOptions(), vm.selectionProviders()...)
 		}
 		if vm.expansion != nil {

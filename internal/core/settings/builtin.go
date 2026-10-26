@@ -47,6 +47,7 @@ func DefaultRegistry() *Registry {
 	registerExtensions(r)
 	registerNavigation(r)
 	registerCodeActions(r)
+	registerLens(r)
 	return r
 }
 

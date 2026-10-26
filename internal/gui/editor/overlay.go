@@ -637,7 +637,8 @@ const foldPlaceholderMargin = 0.2
 // foldPlaceholder is the rectangle of the placeholder after the folded line on a row, in document
 // coordinates.
 func (g geometry) foldPlaceholder(row int) ui.Rect {
-	p := g.style.paragraph(g.vm.Paragraphs(), foldPlaceholderText)
+	line, _, _ := g.proj.RowSpan(row)
+	p := g.style.paragraph(g.vm.Paragraphs(), g.vm.foldPlaceholderFor(line))
 	margin := foldPlaceholderMargin * g.vm.Options().FontSize
 	left := g.rowEnd(row)
 	top := g.proj.RowTop(row)
@@ -670,7 +671,7 @@ func (v overlayView) paintFolded() {
 		}
 		rect := v.geo.foldPlaceholder(row)
 		margin := foldPlaceholderMargin * vm.Options().FontSize
-		v.canvas.DrawParagraph(style.paragraph(vm.Paragraphs(), foldPlaceholderText),
+		v.canvas.DrawParagraph(style.paragraph(vm.Paragraphs(), vm.foldPlaceholderFor(line)),
 			ui.Offset{Dx: v.origin.Dx + rect.Left + margin, Dy: v.origin.Dy + rect.Top})
 	}
 }

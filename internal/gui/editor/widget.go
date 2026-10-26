@@ -834,6 +834,11 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 			colors.EditorBracketPairGuideBackground, colors.EditorBracketPairGuideActiveBackground, colors.EditorBracketHighlightForeground),
 	}
 	bracketColors := BracketColors{Levels: colors.EditorBracketHighlightForeground, Unexpected: colors.EditorBracketUnexpectedForeground}
+	vm.InlayColorsSet(InlayColors{
+		Foreground: colors.EditorInlayHintForeground, Background: colors.EditorInlayHintBackground,
+		TypeForeground: colors.EditorInlayHintTypeForeground, TypeBackground: colors.EditorInlayHintTypeBackground,
+		ParameterForeground: colors.EditorInlayHintParameterForeground, ParameterBackground: colors.EditorInlayHintParameterBackground,
+	})
 	scrollable := widgets.NewScrollable(func(bc widgets.BuildContext, offset rendering.ViewportOffset) widgets.Widget {
 		return s.pointerListener(widgets.NewRow([]widgets.Widget{
 			// The open folds show their controls while the pointer is over the gutter.
@@ -1047,6 +1052,11 @@ func (s *editorState) hoverPointer(e *gestures.PointerHoverEvent) {
 	if _, inZone := s.textRO.ZoneAt(local); inZone {
 		vm.HoverPointerLeft()
 		vm.LinkPointerLeft()
+		return
+	}
+	if id, part, ok := s.textRO.HintAt(local); ok {
+		vm.LinkPointerLeft()
+		vm.HoverHintMoved(id, part)
 		return
 	}
 	pos := s.textRO.PositionAt(local)

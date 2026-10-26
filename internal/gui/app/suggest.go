@@ -33,6 +33,7 @@ func (w *Workspace) suggestHost() *editor.SuggestHost {
 	if scope := w.Extensions(); scope != nil {
 		h.Features = scope.Features()
 		h.Symbols = w.symbolCache(h.Features)
+		h.Semantic = w.semanticCache(h.Features)
 	}
 	w.navigationHost(h)
 	h.ApplyEdit = w.applyWorkspaceEdit

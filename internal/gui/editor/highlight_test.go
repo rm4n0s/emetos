@@ -124,8 +124,8 @@ func TestSpansColorTheTokensOfARow(t *testing.T) {
 }
 
 func TestSpansKeys(t *testing.T) {
-	a := []span{{0, 3, ui.NewColor(0xFF112233), theme.FontStyleNone}, {3, 5, ui.NewColor(0xFF112233), theme.FontStyleBold}}
-	b := []span{{0, 3, ui.NewColor(0xFF112233), theme.FontStyleNone}, {3, 5, ui.NewColor(0xFF112233), theme.FontStyleItalic}}
+	a := []span{{start: 0, end: 3, color: ui.NewColor(0xFF112233), style: theme.FontStyleNone}, {start: 3, end: 5, color: ui.NewColor(0xFF112233), style: theme.FontStyleBold}}
+	b := []span{{start: 0, end: 3, color: ui.NewColor(0xFF112233), style: theme.FontStyleNone}, {start: 3, end: 5, color: ui.NewColor(0xFF112233), style: theme.FontStyleItalic}}
 	again := spansKey(a)
 	if spansKey(nil) != "" || spansKey(a) == "" || spansKey(a) == spansKey(b) || spansKey(a) != again {
 		t.Errorf("keys: %q %q", spansKey(a), spansKey(b))

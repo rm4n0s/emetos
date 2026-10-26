@@ -98,6 +98,10 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 			Multiple:    [goKinds]string{"peek", "peek", "peek", "peek", "peek"},
 			Alternative: [goKinds]string{"editor.action.goToReferences", "editor.action.goToReferences", "editor.action.goToReferences", "", ""},
 		},
+		Lens: LensOptions{
+			CodeLens: true, InlayHints: "on", InlayMaxLength: 43, Semantic: SemanticByTheme,
+		},
+		FoldingStrategy: "auto",
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)

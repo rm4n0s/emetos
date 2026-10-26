@@ -22,6 +22,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerSuggestColors(r)
 	registerNavigationColors(r)
 	registerCodeActionColors(r)
+	registerInlayHintColors(r)
 	registerMenuColors(r)
 	registerInputKitColors(r)
 	registerQuickInputColors(r)
@@ -1268,5 +1269,28 @@ func registerCodeActionColors(r *ColorRegistry) {
 			Description: "The color used for the lightbulb auto fix actions icon."},
 		ColorContribution{ID: "editorLightBulbAi.foreground", Defaults: AllThemes(Ref("editorLightBulb.foreground")),
 			Description: "The color used for the lightbulb AI icon."},
+	)
+}
+
+// registerInlayHintColors registers the colors of the inlay hints (step 12.9). The colors of the code lenses are registered with
+// the editor's (editorCodeLens.foreground).
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts (editorInlayHint)
+func registerInlayHintColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editorInlayHint.foreground", Defaults: dflt(Hex("#969696"), Hex("#969696"), Lit(ColorWhite), Lit(ColorBlack)),
+			Description: "Foreground color of inline hints"},
+		ColorContribution{ID: "editorInlayHint.background",
+			Defaults: dflt(Transparent(Ref("badge.background"), 0.10), Transparent(Ref("badge.background"), 0.10),
+				Transparent(Lit(ColorWhite), 0.10), Transparent(Ref("badge.background"), 0.10)),
+			Description: "Background color of inline hints"},
+		ColorContribution{ID: "editorInlayHint.typeForeground", Defaults: AllThemes(Ref("editorInlayHint.foreground")),
+			Description: "Foreground color of inline hints for types"},
+		ColorContribution{ID: "editorInlayHint.typeBackground", Defaults: AllThemes(Ref("editorInlayHint.background")),
+			Description: "Background color of inline hints for types"},
+		ColorContribution{ID: "editorInlayHint.parameterForeground", Defaults: AllThemes(Ref("editorInlayHint.foreground")),
+			Description: "Foreground color of inline hints for parameters"},
+		ColorContribution{ID: "editorInlayHint.parameterBackground", Defaults: AllThemes(Ref("editorInlayHint.background")),
+			Description: "Background color of inline hints for parameters"},
 	)
 }

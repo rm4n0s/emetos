@@ -67,7 +67,7 @@ func TestFastPathAgreesWithTheParagraph(t *testing.T) {
 	g, _, _ := hitGeometry(t, "package main // a line of plain text\n", 4)
 	text := "package main // a line of plain text"
 	for x := -5.0; x < 40*g.charWidth; x += 0.7 {
-		if fast, slow := g.columnAt(text, x), g.slowColumnAt(text, x); fast != slow {
+		if fast, slow := g.columnAt(text, x), g.slowColumnAt(text, nil, x); fast != slow {
 			t.Fatalf("x = %v: fast %d, paragraph %d", x, fast, slow)
 		}
 	}

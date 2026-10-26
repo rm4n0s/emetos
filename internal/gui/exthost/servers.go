@@ -908,10 +908,18 @@ func (c *serverCtl) encoding() lsp.Encoding {
 	return lsp.UTF16
 }
 
-// refresh answers the refresh requests of the server: the diagnostics of the open documents are pulled again.
+// refresh answers the refresh requests of the server: the diagnostics of the open documents are pulled again, and the editors
+// ask again for the semantic tokens, the code lenses or the inlay hints (step 12.9).
 func (c *serverCtl) refresh(_ context.Context, method string) error {
-	if method == lsp.MethodDiagnosticRefresh {
+	switch method {
+	case lsp.MethodDiagnosticRefresh:
 		c.refreshDiagnostics()
+	case lsp.MethodSemanticTokensRefresh:
+		c.s.features.Refreshed(langfeatures.FeatureSemanticTokens)
+	case lsp.MethodCodeLensRefresh:
+		c.s.features.Refreshed(langfeatures.FeatureCodeLens)
+	case lsp.MethodInlayHintRefresh:
+		c.s.features.Refreshed(langfeatures.FeatureInlayHints)
 	}
 	return nil
 }

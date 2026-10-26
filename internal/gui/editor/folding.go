@@ -20,6 +20,12 @@ type foldLink struct {
 	// unsubscribe stops following the model, and stopUpdater the background computation of
 	// the regions.
 	unsubscribe, stopUpdater func()
+	// updater is the background computation of the regions, to ask for them again.
+	updater *folding.Updater
+	// texts are the texts a folded region shows in place of its lines, by its first line, when the provider gave some.
+	texts map[int]string
+	// importsDone says that the regions of kind imports were folded once (editor.foldingImportsByDefault).
+	importsDone bool
 	// epoch counts the changes of the model; the projection was made for syncedEpoch.
 	epoch, syncedEpoch int
 	// hidden are the spans of hidden lines of the projection (the same as its own).
@@ -64,7 +70,8 @@ func (vm *ViewModel) StartFolding(provider folding.Provider, delay time.Duration
 	vm.fold.model = m
 	vm.fold.unsubscribe = m.OnChange(func(folding.ChangeEvent) { vm.foldingChanged() })
 	if provider != nil {
-		vm.fold.stopUpdater = folding.Attach(vm.doc, provider, folding.UpdaterOptions{Delay: delay}, func(r *folding.Regions) {
+		opts := folding.UpdaterOptions{Delay: delay, Tag: func() any { return vm.langDocument() }}
+		vm.fold.updater = folding.AttachUpdater(vm.doc, provider, opts, func(r *folding.Regions) {
 			run := func() {
 				if vm.fold.model != m {
 					return
@@ -79,6 +86,9 @@ func (vm *ViewModel) StartFolding(provider folding.Provider, delay time.Duration
 			}
 			run()
 		})
+		if u := vm.fold.updater; u != nil {
+			vm.fold.stopUpdater = u.Stop
+		}
 	}
 	return func() {
 		if vm.fold.model == m {
@@ -102,6 +112,13 @@ func (vm *ViewModel) stopFolding() {
 	vm.NotifyListeners()
 }
 
+// RefreshFolding computes the folding regions again at once: a language server that has folding ranges started or stopped.
+func (vm *ViewModel) RefreshFolding() {
+	if vm.fold.updater != nil {
+		vm.fold.updater.Refresh()
+	}
+}
+
 // FoldingModel is the folding model, or nil when the editor does not fold.
 func (vm *ViewModel) FoldingModel() *folding.Model { return vm.fold.model }
 
@@ -120,6 +137,8 @@ func (vm *ViewModel) UpdateFolding(regions *folding.Regions) error {
 	if err := m.Update(regions, folding.LinesOf(vm.selectedLines())); err != nil {
 		return err
 	}
+	vm.fold.texts = regions.CollapsedTexts()
+	vm.foldImportsOnce(regions)
 	if vm.fold.memento != nil {
 		memento := vm.fold.memento
 		vm.fold.memento = nil
@@ -349,4 +368,35 @@ func (vm *ViewModel) setGutterHover(over bool) {
 	if vm.opts.ShowFoldingControls == "mouseover" {
 		vm.sel.NotifyListeners()
 	}
+}
+
+// foldImportsOnce folds the regions of kind imports the first time a provider gives some (editor.foldingImportsByDefault); the
+// user can unfold them, and they are not folded again.
+//
+// Ported from VS Code: src/vs/editor/contrib/folding/browser/folding.ts (foldingImportsByDefault)
+func (vm *ViewModel) foldImportsOnce(regions *folding.Regions) {
+	f := &vm.fold
+	if f.importsDone || !vm.opts.FoldingImportsByDefault || !regions.HasTypes() {
+		return
+	}
+	for i := 0; i < regions.Len(); i++ {
+		if regions.Type(i) == folding.KindImports {
+			f.importsDone = true
+			f.busy++
+			folding.SetCollapseStateForType(f.model, folding.KindImports, true)
+			f.busy--
+			return
+		}
+	}
+}
+
+// foldPlaceholderFor is the text that stands for the lines the fold that starts on a line hides: the text the provider gave for
+// the region, else the ellipsis.
+func (vm *ViewModel) foldPlaceholderFor(line int) string {
+	if text := vm.fold.texts[line]; text != "" && vm.foldingEnabled() {
+		if r, ok := vm.fold.model.RegionAtLine(line); ok && r.Start() == line && r.Collapsed() {
+			return text
+		}
+	}
+	return foldPlaceholderText
 }

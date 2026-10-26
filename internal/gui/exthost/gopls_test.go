@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
+	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 )
@@ -730,6 +731,171 @@ func TestGoplsFixesFormatsAndRenamesAGoProject(t *testing.T) {
 	})
 	if err == nil {
 		t.Log("prepareRename on the package clause did not refuse")
+	}
+
+	tb.scope.Close()
+	r.host.WaitServers()
+	requireGone(t, "gopls", status.PID)
+}
+
+// TestGoplsAnswersHintsTokensFoldingAndSelectionRanges runs the real gopls on the fixture of step 12.9 with the hints and the
+// semantic tokens on (the section go.gopls of the settings): inlay hints for the parameters, the types and the fields, semantic
+// tokens that decode to the text of the identifiers they cover, folding ranges, selection ranges and the code lens of
+// //go:generate (SPEC §9.12 "As built (step 12.9)").
+func TestGoplsAnswersHintsTokensFoldingAndSelectionRanges(t *testing.T) {
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls is not installed")
+	}
+	folder := t.TempDir()
+	src, err := os.ReadFile(filepath.Join(testRoot(t), "testdata", "proof", "12.9", "project", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range map[string]string{"go.mod": "module example.com/proof\n\ngo 1.21\n", "main.go": string(src)} {
+		if err := os.WriteFile(filepath.Join(folder, name), []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := manifest("gopls.pack")
+	m.Contributes.LanguageServers = []extension.LanguageServerSpec{{
+		ID: "gopls", Name: "gopls", Languages: []string{"go", "go.mod", "go.work"}, Program: "gopls",
+		PathSetting: "go.goplsPath", ConfigurationSection: "go.gopls",
+	}}
+	f, _ := factory(m, nil)
+	r := newRig(t, f)
+	r.folders["one"] = folder
+	t.Cleanup(func() { r.host.Shutdown() })
+	tb := r.newTab("one")
+	tb.deferred = true
+	if err := r.registry.Register(settings.Setting{Key: "go.gopls", Types: []settings.Type{settings.Object}, Default: map[string]any{}, Scope: settings.ScopeWindow}); err != nil {
+		t.Fatal(err)
+	}
+	tb.changeSetting("go.gopls", map[string]any{
+		"semanticTokens": true,
+		"hints": map[string]any{
+			"parameterNames": true, "assignVariableTypes": true, "compositeLiteralFields": true,
+			"constantValues": true, "rangeVariableTypes": true,
+		},
+	})
+	tb.scope.Start()
+
+	opts := document.NewOptions()
+	opts.LanguageID = "go"
+	doc := document.New(document.FileURI(filepath.Join(folder, "main.go")), string(src), opts)
+	tb.lsp.open(doc)
+	tb.pump()
+	waitFor(t, tb, "gopls to run", func() bool {
+		s, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+		return s.State == ServerRunning
+	})
+	status, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+
+	f2 := tb.scope.Features()
+	d := langfeatures.Document{URI: doc.URI(), LanguageID: "go", Version: doc.Version(), Text: doc.Snapshot()}
+	lines := strings.Split(string(src), "\n")
+	whole := buffer.Range{Start: buffer.Position{}, End: buffer.Position{Line: len(lines) - 1}}
+
+	// the inlay hints: gopls needs its workspace loaded, so ask until it answers
+	var hints []langfeatures.InlayHint
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) && len(hints) == 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		hints, _ = f2.InlayHints(ctx, d, whole)
+		cancel()
+		if len(hints) == 0 {
+			tb.pump()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if len(hints) == 0 {
+		t.Fatalf("gopls gave no inlay hints; Output:\n%s", strings.Join(tb.channels.Lines("gopls"), "\n"))
+	}
+	var labels []string
+	for _, h := range hints {
+		labels = append(labels, h.Label())
+	}
+	t.Logf("%d hints: %q", len(hints), labels)
+	for _, want := range []string{"p:", "factor:", "label:", "X:", "Y:"} {
+		if !slices.Contains(labels, want) {
+			t.Errorf("hints %q lack %q", labels, want)
+		}
+	}
+	if !slices.ContainsFunc(labels, func(l string) bool { return strings.Contains(l, "Point") }) {
+		t.Errorf("hints %q have no type of the variables", labels)
+	}
+	for _, h := range hints {
+		if h.Label() == "p:" && (h.Kind != langfeatures.InlayHintParameter || h.Position.Line != 23) {
+			t.Errorf("the hint p: = %+v", h)
+		}
+	}
+
+	// the semantic tokens: each token covers the text of an identifier, and `scale` is a function
+	cache := langfeatures.NewSemanticTokensCache(f2)
+	var toks *langfeatures.SemanticTokens
+	for time.Now().Before(deadline) && (toks == nil || len(toks.Tokens) == 0) {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		toks, _ = cache.Get(ctx, d)
+		cancel()
+		if toks == nil || len(toks.Tokens) == 0 {
+			tb.pump()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if toks == nil || len(toks.Tokens) == 0 {
+		t.Fatalf("gopls gave no semantic tokens; Output:\n%s", strings.Join(tb.channels.Lines("gopls"), "\n"))
+	}
+	t.Logf("%d semantic tokens", len(toks.Tokens))
+	found := map[string]string{}
+	for _, tk := range toks.Tokens {
+		text := lines[tk.Line][tk.Col : tk.Col+tk.Len]
+		if text == "scale" || text == "Point" || text == "fmt" || text == "limit" {
+			found[text] = toks.TypeName(tk)
+		}
+	}
+	for text, typ := range map[string]string{"scale": "function", "Point": "type", "fmt": "namespace", "limit": "variable"} {
+		if found[text] != typ {
+			t.Errorf("token of %q has the type %q, want %q (all: %v)", text, found[text], typ, found)
+		}
+	}
+	// a second request for the same version is the cached one; after an edit gopls may answer with edits (a delta)
+	again, err := cache.Get(context.Background(), d)
+	if err != nil || again == nil || len(again.Tokens) != len(toks.Tokens) {
+		t.Errorf("the second request gave %v, %v", again, err)
+	}
+
+	// the folding ranges: the function main, the import group and the struct
+	ranges, _, ok, _ := f2.FoldingRanges(context.Background(), d)
+	if !ok {
+		t.Fatal("gopls gave no folding ranges")
+	}
+	var starts []int
+	for _, fr := range ranges {
+		starts = append(starts, fr.Start)
+	}
+	for _, sub := range []string{"import (", "type Point struct", "func main()"} {
+		line := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, sub) })
+		if !slices.Contains(starts, line) {
+			t.Errorf("no folding range starts at %q (line %d): %v", sub, line, starts)
+		}
+	}
+
+	// the selection ranges around `limit` in the call of scale: the chain grows to the whole file
+	callLine := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "moved := scale") })
+	at := langfeatures.Position{Line: callLine, Col: strings.Index(lines[callLine], "limit") + 1}
+	set, ok, _ := f2.SelectionRanges(context.Background(), d, []langfeatures.Position{at})
+	if !ok || len(set.Positions()) != 1 {
+		t.Fatalf("selection ranges = %+v, %v", set, ok)
+	}
+
+	// the code lens of the //go:generate directive
+	lenses, _ := f2.CodeLenses(context.Background(), d)
+	genLine := slices.IndexFunc(lines, func(l string) bool { return strings.HasPrefix(l, "//go:generate") })
+	var gen bool
+	for _, l := range lenses {
+		gen = gen || (l.Range.Start.Line == genLine && l.Command != nil && strings.Contains(l.Command.Title, "go generate"))
+	}
+	if !gen {
+		t.Errorf("no code lens for //go:generate at line %d: %+v", genLine, lenses)
 	}
 
 	tb.scope.Close()

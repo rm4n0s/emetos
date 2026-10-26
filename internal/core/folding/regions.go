@@ -68,7 +68,23 @@ type Regions struct {
 	user         []bool
 	recovered    []bool
 	types        []string // nil when no region has a type
+	// collapsedTexts are the texts that stand for the lines of a folded region, by the region's first line (a language server
+	// may give one); nil for none.
+	collapsedTexts map[int]string
 }
+
+// SetCollapsedTexts gives the regions the texts that a folded region shows in place of its lines, by the first line of the
+// region.
+func (r *Regions) SetCollapsedTexts(texts map[int]string) {
+	if len(texts) == 0 {
+		r.collapsedTexts = nil
+		return
+	}
+	r.collapsedTexts = texts
+}
+
+// CollapsedTexts are the texts of SetCollapsedTexts; nil for none. The map is not to be changed.
+func (r *Regions) CollapsedTexts() map[int]string { return r.collapsedTexts }
 
 // NewRegions makes regions from their first and last lines (zero-based). The starts must be in
 // ascending order and the regions nested; types may be nil.

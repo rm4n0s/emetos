@@ -247,7 +247,7 @@ func TestOverlaySpansKeepTheFontStyle(t *testing.T) {
 	over := []span{{start: 3, end: 5, color: green}, {start: 7, end: 8, color: green}}
 	got := overlaySpans(base, over)
 	want := []span{
-		{0, 3, red, 1}, {3, 5, green, 1}, {5, 7, blue, 2}, {7, 8, green, 2},
+		{start: 0, end: 3, color: red, style: 1}, {start: 3, end: 5, color: green, style: 1}, {start: 5, end: 7, color: blue, style: 2}, {start: 7, end: 8, color: green, style: 2},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("spans = %+v\nwant %+v", got, want)

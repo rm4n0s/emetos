@@ -31,7 +31,13 @@ type TokenTheme struct {
 
 	mu    sync.Mutex
 	cache map[string][]*trieRule
+
+	semantic *SemanticTheme
 }
+
+// Semantic is the semantic token styling of the theme the token theme was made from; nil for a token theme that was made
+// from rules alone.
+func (t *TokenTheme) Semantic() *SemanticTheme { return t.semantic }
 
 // NewTokenTheme resolves rules: the rules with no scope make the defaults, the others a trie
 // that gives each scope the rule that fits it best. The rules are sorted in place.

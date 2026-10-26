@@ -158,6 +158,10 @@ type SuggestHost struct {
 	// KeyLabel gives the label of the key of a command ("Ctrl+."), or empty when it has none: the tooltip of the light bulb and
 	// the keys in the list of actions show them.
 	KeyLabel func(command string) string
+
+	// Semantic is the cache of the semantic tokens that the editors of the window share (step 12.9); an editor has no semantic
+	// highlighting without it.
+	Semantic *langfeatures.SemanticTokensCache
 }
 
 // SetSuggest gives the editor the means to complete (SPEC §9.12): without a host the editor has no suggest widget.
@@ -168,6 +172,9 @@ func (vm *ViewModel) SetSuggest(h *SuggestHost) {
 	}
 	vm.sg.host = h
 	vm.symbolsHostChanged()
+	vm.lensHostChanged()
+	vm.inlayHostChanged()
+	vm.semanticHostChanged()
 	vm.sel.NotifyListeners()
 }
 

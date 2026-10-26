@@ -46,6 +46,9 @@ type snapshotText struct{ snap buffer.Snapshot }
 
 func (s snapshotText) LineCount() int { return s.snap.LineCount() }
 
+// Snapshot is the snapshot the text reads.
+func (s snapshotText) Snapshot() buffer.Snapshot { return s.snap }
+
 func (s snapshotText) LineContent(line int) string {
 	text, _ := s.snap.LineContent(line)
 	return text
@@ -59,7 +62,21 @@ type UpdaterOptions struct {
 	// Delay is how long the document must be quiet before the regions are computed again; 200 ms
 	// when 0.
 	Delay time.Duration
+	// Tag, when it is not nil, is called on the goroutine of the document with the snapshot (when the computation is
+	// scheduled) and its value reaches the provider through the context: TagOf gives it. A provider that asks a language
+	// server for the ranges learns the document and its version this way, without reading them from another goroutine.
+	Tag func() any
 }
+
+type tagKey struct{}
+
+// WithTag is a context that carries a value as UpdaterOptions.Tag gives it (for the tests of a provider that reads it).
+func WithTag(ctx context.Context, tag any) context.Context {
+	return context.WithValue(ctx, tagKey{}, tag)
+}
+
+// TagOf is the value UpdaterOptions.Tag gave for the computation that ctx belongs to, or nil.
+func TagOf(ctx context.Context) any { return ctx.Value(tagKey{}) }
 
 // DefaultDelay is the default of UpdaterOptions.Delay.
 const DefaultDelay = 200 * time.Millisecond
@@ -72,6 +89,7 @@ type Updater struct {
 	doc      *document.Document
 	provider Provider
 	delay    time.Duration
+	tag      func() any
 	apply    func(*Regions)
 
 	mu      sync.Mutex
@@ -87,17 +105,30 @@ type Updater struct {
 // it is called once at the start too. The returned function stops it. For a document in large file
 // mode nothing is computed.
 func Attach(doc *document.Document, provider Provider, opts UpdaterOptions, apply func(*Regions)) (stop func()) {
-	if doc.LargeFile() {
+	u := AttachUpdater(doc, provider, opts, apply)
+	if u == nil {
 		return func() {}
 	}
-	u := &Updater{doc: doc, provider: provider, delay: opts.Delay, apply: apply}
+	return u.Stop
+}
+
+// AttachUpdater is Attach that gives the Updater, to ask for the regions again with Refresh (the provider found something new:
+// a language server started). It is nil for a document in large file mode.
+func AttachUpdater(doc *document.Document, provider Provider, opts UpdaterOptions, apply func(*Regions)) *Updater {
+	if doc.LargeFile() {
+		return nil
+	}
+	u := &Updater{doc: doc, provider: provider, delay: opts.Delay, tag: opts.Tag, apply: apply}
 	if u.delay <= 0 {
 		u.delay = DefaultDelay
 	}
 	u.unsub = doc.Subscribe(func(document.ChangeEvent) { u.schedule(u.delay) })
 	u.schedule(0)
-	return u.stop
+	return u
 }
+
+// Refresh computes the regions again at once, for the text the document has now. Call it on the goroutine of the document.
+func (u *Updater) Refresh() { u.schedule(0) }
 
 func (u *Updater) schedule(after time.Duration) {
 	u.mu.Lock()
@@ -117,16 +148,20 @@ func (u *Updater) schedule(after time.Duration) {
 	// The snapshot is taken now, on the goroutine of the document.
 	snap := u.doc.Snapshot()
 	tabSize, _ := u.doc.Indentation()
-	u.timer = time.AfterFunc(after, func() { u.run(gen, snap, tabSize) })
+	var tag any
+	if u.tag != nil {
+		tag = u.tag()
+	}
+	u.timer = time.AfterFunc(after, func() { u.run(gen, snap, tabSize, tag) })
 }
 
-func (u *Updater) run(gen uint64, snap buffer.Snapshot, tabSize int) {
+func (u *Updater) run(gen uint64, snap buffer.Snapshot, tabSize int, tag any) {
 	u.mu.Lock()
 	if u.stopped || u.gen != gen {
 		u.mu.Unlock()
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), tagKey{}, tag))
 	u.cancel = cancel
 	u.mu.Unlock()
 	regions, err := u.provider.Compute(ctx, SnapshotText(snap), tabSize)
@@ -142,7 +177,8 @@ func (u *Updater) run(gen uint64, snap buffer.Snapshot, tabSize int) {
 	}
 }
 
-func (u *Updater) stop() {
+// Stop ends the updates.
+func (u *Updater) Stop() {
 	u.mu.Lock()
 	u.stopped = true
 	if u.cancel != nil {

@@ -31,6 +31,14 @@ func (w *Workspace) symbolCache(reg *langfeatures.Registry) *langfeatures.Symbol
 	return w.symbols
 }
 
+// semanticCache is the cache of semantic tokens the editors of the window share, made for the registry of the scope (step 12.9).
+func (w *Workspace) semanticCache(reg *langfeatures.Registry) *langfeatures.SemanticTokensCache {
+	if w.semantic == nil || w.semanticReg != reg {
+		w.semantic, w.semanticReg = langfeatures.NewSemanticTokensCache(reg), reg
+	}
+	return w.semantic
+}
+
 // liveShell is the shell of the window while it is on screen, else nil.
 func (w *Workspace) liveShell() *shellState {
 	if s := w.shell; s != nil && s.Mounted() {
@@ -95,13 +103,21 @@ func (s *shellState) followFeatures(binding *widgets.WidgetsBinding, e *textEdit
 	if scope == nil {
 		return
 	}
-	e.stopFeatures = scope.Features().OnChange(func() {
+	stopChange := scope.Features().OnChange(func() {
 		binding.Post(func() {
 			if !e.disposed {
 				e.view.FeaturesChanged()
 			}
 		})
 	})
+	stopRefresh := scope.Features().OnRefresh(func(f langfeatures.Feature) {
+		binding.Post(func() {
+			if !e.disposed {
+				e.view.FeaturesRefreshed(f)
+			}
+		})
+	})
+	e.stopFeatures = func() { stopChange(); stopRefresh() }
 }
 
 // navOpen shows a location as a jump of the history (SPEC §10.3): in the active editor when it holds the file, else in the

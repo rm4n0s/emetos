@@ -1,0 +1,14 @@
+{
+	"editor.inlayHints.enabled": "on",
+	"editor.semanticHighlighting.enabled": true,
+	"go.gopls": {
+		"semanticTokens": true,
+		"hints": {
+			"parameterNames": true,
+			"assignVariableTypes": true,
+			"compositeLiteralFields": true,
+			"constantValues": true,
+			"rangeVariableTypes": true
+		}
+	}
+}

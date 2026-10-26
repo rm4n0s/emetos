@@ -224,5 +224,25 @@ func (vm *ViewModel) FeaturesChanged() {
 	}
 	vm.updateWordHighlight(false)
 	vm.codeActionsDiagnosticsChanged()
+	vm.lensSchedule(0)
+	vm.inlaySchedule(0)
+	vm.semanticSchedule(0)
+	vm.RefreshFolding()
 	vm.sel.NotifyListeners()
+}
+
+// FeaturesRefreshed tells the editor that a language server wants the answers of a feature asked for again (the refresh requests
+// of the semantic tokens, the code lenses and the inlay hints). It runs on the UI thread.
+func (vm *ViewModel) FeaturesRefreshed(f langfeatures.Feature) {
+	switch f {
+	case langfeatures.FeatureSemanticTokens:
+		if c := vm.semanticCache(); c != nil {
+			c.Refresh()
+		}
+		vm.semanticRefresh()
+	case langfeatures.FeatureCodeLens:
+		vm.lensSchedule(0)
+	case langfeatures.FeatureInlayHints:
+		vm.inlaySchedule(0)
+	}
 }

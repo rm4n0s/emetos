@@ -156,6 +156,9 @@ type Workspace struct {
 	// the registry symbolsReg (navhost.go); UI thread only.
 	symbols    *langfeatures.SymbolCache
 	symbolsReg *langfeatures.Registry
+	// semantic is the cache of semantic tokens the editors share, made for the registry semanticReg (navhost.go); UI thread only.
+	semantic    *langfeatures.SemanticTokensCache
+	semanticReg *langfeatures.Registry
 	// coreEv publishes the core events of the extension bus (coreevents.go); UI thread only.
 	coreEv *coreEvents
 	// profileMu guards profile and profileListeners: the file watchers and the other windows read the profile from

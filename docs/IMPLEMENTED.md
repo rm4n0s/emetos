@@ -2074,3 +2074,42 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
 - **Proof:** a run of the 12.7 peek proof command (kept in the scratchpad): every location row keeps its characters and ends with the ellipsis.
 - **Manual checks:** none
 - **Glutter issues:** both entries removed, and the file is deleted.
+
+## 12.9 Code lens, inlay hints, semantic tokens, folding and selection ranges
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-12.9-lens-hints-tokens
+- **Summary:** SPEC §9.12, §8.6, §9.2.
+  - **Code lenses:** a one-line view-zone row above their line, with the titles of a line joined by " | ". They are resolved when their row comes into view, and a click runs the command. Requests are debounced, and stale answers are dropped by generation and version. Settings: `editor.codeLens`, `codeLensFontFamily`, `codeLensFontSize`.
+  - **Inlay hints:** injected into the row's paragraph only, with one map between document and drawn offsets. The document, clipboard, find and undo never see them, and the cursor never rests inside a hint. They support the four `editor.inlayHints.enabled` modes with Ctrl+Alt, padding, `maximumLength` (43, ellipsis), `fontSize` and `fontFamily`, and the `editorInlayHint.*` colours. Label parts have tooltips, and Ctrl+click on a part opens its location or runs its command. Requests cover the viewport plus 30 lines.
+  - **Semantic tokens:**
+    - a per-window cache with full, delta (`ApplySemanticEdits`) and range requests while a full one is pending, and `workspace/semanticTokens/refresh`;
+    - decoding in UTF-16 (UTF-8 and UTF-32 servers converted);
+    - styling with VS Code's ported `parseTokenSelector` scoring, the theme's `semanticTokenColors`, `editor.semanticTokenColorCustomizations` rules, and the type and modifier fallback to TextMate scopes, drawn over the TextMate spans;
+    - tokens move with edits until the next answer;
+    - cost per key: about 0.26 ms for a letter and 0.57 ms for a line break, with 100,000 tokens over 20,000 lines;
+    - new error tags: `SemanticTokensEditInvalid`, `SemanticTokensDeltaUnexpected`.
+  - **Folding ranges:** the server's ranges replace the indentation provider (`editor.foldingStrategy`), cleaned by a port of `sanitizeRanges` (kinds, `foldingMaximumRegions`, crossing ranges dropped). They support `collapsedText` and `editor.foldingImportsByDefault`.
+  - **Selection ranges:** Expand Selection asks `textDocument/selectionRange` once for all cursors, and falls back to the editor's own ranges.
+  - **gopls:** inlay hints and semantic tokens are switched on through the `go.gopls` settings (`semanticTokens`, `hints`).
+- **Main files:**
+  - core: `internal/core/langfeatures/{lens,ranges,semantic,registry,server}.go`, `internal/core/folding/{syntax,provider,regions}.go`, `internal/core/theme/{semantic,resolve,theme}.go`, `internal/core/settings/lens.go`;
+  - editor and app: `internal/gui/editor/{codelens,inlay,inlay_interact,semantic,selectionranges,lensoptions,geometry,render,folding,viewmodel}.go`, `internal/gui/app/{editors,workspacemodel}.go`, `internal/gui/exthost/servers.go`;
+  - other: `testdata/proof/12.9/`, `docs/SPEC.md` §9.12.
+- **Tests:**
+  - added:
+    - core: conversion and resolve of lenses and hints, folding answers and `Sanitize`, semantic decoding and delta edits with both tag routes, the cache, theme selectors, scoring, fallback and flag merge.
+    - editor: lens rows and click; hints that leave the text unchanged, cursor skipping, the four modes, padding and truncation, hover and click, stale answers, a settings change; `moveTokens` and `mergeSemantic` tables and the request flow; server folding against the fallback; the selection range expansion.
+    - `TestGoplsAnswersHintsTokensFoldingAndSelectionRanges` runs the real `gopls`: 15 hints, 68 tokens, folding, selection ranges and the `//go:generate` lens.
+  - changed: span literals in two editor tests, an argument in a hit-test test, and the options defaults.
+- **Goldens:**
+  - new: `semantic_tokens_{dark,light}_modern`.
+  - changed: `settings_font_{dark,light}`, where a search for "font" now finds the four new font settings.
+  - The agent viewed them all; I viewed the dark semantic golden and the proof.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** `docs/implemented-proof-images/12.9-hints-tokens-lens.png`, made with `scripts/proof.sh docs/implemented-proof-images/12.9-hints-tokens-lens.png --config testdata/proof/12.9/config --after 9s --commands '[["dev.openFile",{"path":"testdata/proof/12.9/project/main.go","line":20,"column":0}],["sleep","8s"]]' -- testdata/proof/12.9/project`. The real `gopls` shows the code lens "run go generate ./... | run go generate", parameter, type and field hints, and semantic colours.
+
+  ![12.9 hints, tokens and lens](implemented-proof-images/12.9-hints-tokens-lens.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §9.12 "As built (step 12.9)" lists the 10 decisions and what is not built: per-theme `semanticTokenColorCustomizations` blocks, extensions' `semanticTokenScopes`, applying a hint's `textEdits` on double click, hints in the minimap, and registering these providers through the extension API. The agent's first race run failed about 150 app tests, because a theme change notified listeners during a build; listeners are now told after the frame. Lint also found that a change of `editor.inlayHints.enabled` did nothing; that is fixed and tested. Area 3 (M12) is complete with this step.

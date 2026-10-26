@@ -104,6 +104,8 @@ type Hover struct {
 type hoverAnchor struct {
 	rng buffer.Range
 	pos buffer.Position
+	// hint, when it is set, says that the hover is that of a part of an inlay hint (inlay_interact.go), not of the text.
+	hint *hintAnchor
 }
 
 // hoverOpState is the state of the computation of a hover (VS Code's HoverOperationState).
@@ -152,6 +154,8 @@ type hoverModel struct {
 	// cancelHide cancels the wait to hide, cancelReact the wait of a sticky hover to react to the pointer that went elsewhere.
 	cancelHide, cancelReact func()
 	lastPointer             buffer.Position
+	// shownHint is the inlay hint the shown hover is about, or nil.
+	shownHint *hintAnchor
 	// selections are the selections when the hover came, which a different selection hides; unsubDoc stops the follow of the
 	// document; scrollHandle is the listener of the scroll.
 	selections   []buffer.Selection
@@ -269,11 +273,11 @@ func (vm *ViewModel) HoverPointerMoved(p buffer.Position) {
 		return
 	}
 	h.lastPointer = p
-	if h.shown == nil && h.op != nil && !h.op.pinned && rangeHolds(h.op.anchor.rng, p) {
+	if h.shown == nil && h.op != nil && !h.op.pinned && h.op.anchor.hint == nil && rangeHolds(h.op.anchor.rng, p) {
 		vm.cancelHoverHide()
 		return // the pointer moves inside what it rested on: the wait goes on, or the answer is known
 	}
-	if h.shown != nil && rangeHolds(h.shown.Range, p) {
+	if h.shown != nil && h.shownHint == nil && rangeHolds(h.shown.Range, p) {
 		vm.cancelHoverHide()
 		vm.cancelHoverReact()
 		return
@@ -301,7 +305,7 @@ func (vm *ViewModel) hoverReact(p buffer.Position) {
 		return
 	}
 	vm.cancelHoverHide()
-	if h.shown == nil && h.op != nil && !h.op.pinned && rangeHolds(h.op.anchor.rng, p) {
+	if h.shown == nil && h.op != nil && !h.op.pinned && h.op.anchor.hint == nil && rangeHolds(h.op.anchor.rng, p) {
 		return // the pointer moves inside what it rested on: the wait goes on, or the answer is known
 	}
 	vm.hoverHideShown()
@@ -422,6 +426,10 @@ func (vm *ViewModel) hoverTriggerAsync(op *hoverOp) {
 	if delay := vm.opts.Hover.Delay; delay > 0 && vm.afterTimer != nil {
 		op.cancelSyncTimer = vm.afterTimer(time.Duration(delay-delay/2)*time.Millisecond, func() { op.cancelSyncTimer = nil; vm.hoverTriggerSync(op) })
 	}
+	if op.anchor.hint != nil {
+		vm.hoverHintAsync(op)
+		return
+	}
 	f := vm.hoverFeatures()
 	doc := vm.langDocument()
 	if f == nil || !f.HasHover(doc) {
@@ -445,6 +453,15 @@ func (vm *ViewModel) hoverTriggerAsync(op *hoverOp) {
 // hoverTriggerSync asks the participants that answer at once (the whole delay is over) and shows what there is.
 func (vm *ViewModel) hoverTriggerSync(op *hoverOp) {
 	if vm.hover.op != op {
+		return
+	}
+	if op.anchor.hint != nil {
+		op.results = append(op.results, hintHoverParts(op.anchor)...)
+		op.state = hoverWaitingAsync
+		if op.asyncDone {
+			op.state = hoverIdle
+		}
+		vm.hoverFire(op)
 		return
 	}
 	diags := diagnosticHover(vm, op.anchor.pos)
@@ -546,6 +563,7 @@ func (vm *ViewModel) hoverSet(op *hoverOp, parts []HoverPart, complete bool) {
 		}
 	}
 	h.shown = &Hover{Range: rng, Parts: parts, Pinned: op.pinned, Complete: complete, Focused: h.focused}
+	h.shownHint = op.anchor.hint
 	h.selections = op.selections
 	vm.hoverListen()
 	h.changed.NotifyListeners()
@@ -595,7 +613,7 @@ func (vm *ViewModel) hoverHideShown() {
 	if h.shown == nil {
 		return
 	}
-	h.shown = nil
+	h.shown, h.shownHint = nil, nil
 	h.changed.NotifyListeners()
 }
 
