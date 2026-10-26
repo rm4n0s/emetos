@@ -15,6 +15,40 @@ type fakeEditors struct {
 	revealed []*editorgroup.ExtensionTabInput
 	fileOpen []fileOpen
 	failOpen error
+	// proposals are the proposed changes the extensions asked to show.
+	proposals   []*fakeProposal
+	failPropose error
+}
+
+// fakeProposal is a diff editor of a proposed change: the test answers it as the user does.
+type fakeProposal struct {
+	change  extension.ProposedChange
+	answer  func(extension.ProposedResult)
+	closed  int
+	settled bool
+}
+
+// reply answers once, like the title buttons of the diff editor; a settled proposal ignores it.
+func (p *fakeProposal) reply(r extension.ProposedResult) {
+	if p.settled {
+		return
+	}
+	p.settled = true
+	p.answer(r)
+}
+
+func (f *fakeEditors) OpenProposed(change extension.ProposedChange, answer func(extension.ProposedResult)) (func(), error) {
+	if f.failPropose != nil {
+		return nil, f.failPropose
+	}
+	p := &fakeProposal{change: change, answer: answer}
+	f.proposals = append(f.proposals, p)
+	return func() {
+		if !p.settled {
+			p.closed++
+			p.settled = true
+		}
+	}, nil
 }
 
 // fileOpen is a call of OpenFileView.

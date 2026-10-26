@@ -242,3 +242,41 @@ func TestDecisionBody(t *testing.T) {
 		})
 	}
 }
+
+func TestParseToolRequest(t *testing.T) {
+	tests := []struct {
+		name  string
+		line  string
+		ok    bool
+		check func(t *testing.T, r ToolRequest)
+		route string
+	}{
+		{"a request", `{"type":"control_request","request_id":"p1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"ls"},"tool_use_id":"t1","title":"Run ls?","permission_suggestions":[{"type":"addRules","destination":"localSettings","rules":[{"toolName":"Bash"}],"behavior":"allow"}]}}`, true,
+			func(t *testing.T, r ToolRequest) {
+				if r.RequestID != "p1" || r.ToolName != "Bash" || r.ToolUseID != "t1" || r.Title != "Run ls?" || string(r.Input) != `{"command":"ls"}` || len(r.Suggestions) != 1 {
+					t.Errorf("request = %+v", r)
+				}
+			}, ""},
+		{"another control request", `{"type":"control_request","request_id":"p1","request":{"subtype":"hook_callback"}}`, false, nil, ""},
+		{"a message", `{"type":"assistant","message":{"content":[]}}`, false, nil, ""},
+		{"not JSON", `{broken`, false, nil, "ParseToolRequest->parseEnvelope.MalformedLine"},
+		{"a request that is not an object", `{"type":"control_request","request_id":"p1","request":"x"}`, false, nil, "ParseToolRequest->decode.MessageInvalid"},
+		{"a request with a tool that is a number", `{"type":"control_request","request_id":"p1","request":{"subtype":"can_use_tool","tool_name":5}}`, false, nil, "ParseToolRequest->decode.MessageInvalid"},
+		{"a request without a tool", `{"type":"control_request","request_id":"p1","request":{"subtype":"can_use_tool"}}`, false, nil, "ParseToolRequest.ToolRequestInvalid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, ok, err := ParseToolRequest([]byte(tt.line))
+			if tt.route != "" {
+				wantRoute(t, err, tt.route)
+				return
+			}
+			if err != nil || ok != tt.ok {
+				t.Fatalf("ok %v err %v, want ok %v", ok, err, tt.ok)
+			}
+			if tt.check != nil {
+				tt.check(t, req)
+			}
+		})
+	}
+}

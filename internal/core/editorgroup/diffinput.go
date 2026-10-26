@@ -29,7 +29,61 @@ type DiffInput struct {
 	dirty              bool
 	caps               Capabilities
 	stops              []func()
+	proposal           *DiffProposal
 }
+
+// DiffProposal makes a diff editor the review of a change that someone proposes to a file (SPEC §10.16 "As built (step
+// 13.3)"): the modified side is the proposed text, which the user may edit, and the editor ends with an answer, Accept or
+// Reject. Closing the editor, in any way, is Reject. The modified document is the proposal's own, never a file: nothing is
+// saved, asked about when the editor closes, backed up or restored.
+type DiffProposal struct {
+	// Title is the name of the tab and its tooltip.
+	Title string
+
+	settle  func(accepted bool)
+	settled bool
+}
+
+// NewDiffProposal makes a proposal with the title. settle is called once, with true for Accept and false for Reject, when
+// the proposal is settled with Settle or when the input is disposed.
+func NewDiffProposal(title string, settle func(accepted bool)) *DiffProposal {
+	return &DiffProposal{Title: title, settle: settle}
+}
+
+// Settle answers the proposal, once: the first call calls the function of the proposal and reports true, later ones do
+// nothing and report false.
+func (p *DiffProposal) Settle(accepted bool) bool {
+	if p.settled {
+		return false
+	}
+	p.settled = true
+	if p.settle != nil {
+		p.settle(accepted)
+	}
+	return true
+}
+
+// Cancel ends the proposal without an answer: the function of the proposal is never called. It reports whether the
+// proposal was still open.
+func (p *DiffProposal) Cancel() bool {
+	open := !p.settled
+	p.settled = true
+	return open
+}
+
+// Settled tells whether the proposal was answered or cancelled.
+func (p *DiffProposal) Settled() bool { return p.settled }
+
+// SetProposal makes the input the review of a proposed change. It is called once, before the input is shown. A proposal
+// is not saved with the window (Serialize says no), cannot be split, is never dirty and edits no document for saving, so
+// that closing it asks nothing.
+func (d *DiffInput) SetProposal(p *DiffProposal) {
+	d.proposal = p
+	d.caps = d.Capabilities()
+}
+
+// Proposal is the proposal the input reviews, or nil for an ordinary comparison.
+func (d *DiffInput) Proposal() *DiffProposal { return d.proposal }
 
 // NewDiffInput makes the input that compares two documents. It follows the modified document until Dispose.
 func NewDiffInput(original, modified *document.Document, opts TextInputOpts) *DiffInput {
@@ -66,7 +120,12 @@ func (d *DiffInput) Refresh() {
 }
 
 // EditedDocument implements DocumentEditor: the modified document.
-func (d *DiffInput) EditedDocument() *document.Document { return d.modified }
+func (d *DiffInput) EditedDocument() *document.Document {
+	if d.proposal != nil {
+		return nil // the proposed text is not saved anywhere
+	}
+	return d.modified
+}
 
 // TypeID implements EditorInput.
 func (d *DiffInput) TypeID() string { return DiffInputTypeID }
@@ -77,11 +136,17 @@ func (d *DiffInput) Resource() (document.URI, bool) { return document.URI{}, fal
 
 // Name implements EditorInput: the names of the two sides, "<original> ↔ <modified>".
 func (d *DiffInput) Name() string {
+	if d.proposal != nil {
+		return d.proposal.Title
+	}
 	return DocumentName(d.original) + DiffSeparator + DocumentName(d.modified)
 }
 
 // Description implements EditorInput: the folders of the two sides, or the one they share.
 func (d *DiffInput) Description() string {
+	if d.proposal != nil {
+		return ""
+	}
 	a, b := docDescription(d.original, d.opts), docDescription(d.modified, d.opts)
 	switch {
 	case a == b:
@@ -94,6 +159,9 @@ func (d *DiffInput) Description() string {
 
 // Title implements EditorInput: the paths of the two sides.
 func (d *DiffInput) Title() string {
+	if d.proposal != nil {
+		return d.proposal.Title
+	}
 	return docTitle(d.original, d.opts) + DiffSeparator + docTitle(d.modified, d.opts)
 }
 
@@ -103,7 +171,7 @@ func (d *DiffInput) TabKey() string {
 }
 
 // Dirty implements EditorInput: the modified document has unsaved changes.
-func (d *DiffInput) Dirty() bool { return d.dirty }
+func (d *DiffInput) Dirty() bool { return d.dirty && d.proposal == nil }
 
 // Matches implements EditorInput: a comparison of the same two documents.
 func (d *DiffInput) Matches(other EditorInput) bool {
@@ -118,6 +186,9 @@ func (d *DiffInput) Matches(other EditorInput) bool {
 // side is, and untitled while the modified side has no file yet.
 func (d *DiffInput) Capabilities() Capabilities {
 	c := CapCanSplit
+	if d.proposal != nil {
+		c = 0
+	}
 	if d.modified.ReadOnly() {
 		c |= CapReadonly
 	}
@@ -136,6 +207,9 @@ type diffValue struct {
 // Serialize implements EditorInput: the URIs of the two documents as JSON. A side that is neither a file, an
 // untitled document nor a virtual one cannot come back.
 func (d *DiffInput) Serialize() (string, bool) {
+	if d.proposal != nil {
+		return "", false
+	}
 	for _, doc := range []*document.Document{d.original, d.modified} {
 		switch doc.URI().Scheme {
 		case document.SchemeFile, document.SchemeUntitled, document.SchemeVirtual:
@@ -177,6 +251,9 @@ func (d *DiffInput) CopyInput() EditorInput { return NewDiffInput(d.original, d.
 
 // Dispose implements EditorInput: it stops following the documents.
 func (d *DiffInput) Dispose() {
+	if d.proposal != nil {
+		d.proposal.Settle(false) // closing a proposed change is rejecting it
+	}
 	for _, stop := range d.stops {
 		stop()
 	}

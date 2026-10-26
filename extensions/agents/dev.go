@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/extensions/agents/claude"
 )
 
@@ -61,10 +62,17 @@ func (a *agents) replayCommand(_ context.Context, args any) error {
 	return nil
 }
 
+// fixtureEntry is one line of a recorded stream: a message of the program, or a permission request of it.
+type fixtureEntry struct {
+	msg claude.Message
+	req *claude.ToolRequest
+}
+
 // parseFixture reads a recorded stream: a message per line; empty lines, the directives of the fake program (objects with a
-// "$" key) and control messages are skipped. A line that is not a message fails with ReplayFixtureInvalid.
-func parseFixture(data []byte) ([]claude.Message, error) {
-	var out []claude.Message
+// "$" key, except "ask", which is a permission request) and control messages (except can_use_tool requests, which are shown
+// as the request of a real program is) are skipped. A line that is not a message fails with ReplayFixtureInvalid.
+func parseFixture(data []byte) ([]fixtureEntry, error) {
+	var out []fixtureEntry
 	for i, line := range bytes.Split(data, []byte("\n")) {
 		line = bytes.TrimSpace(line)
 		if len(line) == 0 {
@@ -74,7 +82,23 @@ func parseFixture(data []byte) ([]claude.Message, error) {
 		if err := json.Unmarshal(line, &probe); err != nil {
 			return nil, errors.NewErr("ReplayFixtureInvalid", err).SetMetadata("line", strconv.Itoa(i+1))
 		}
-		if _, directive := probe["$"]; directive {
+		if d, directive := probe["$"]; directive {
+			if string(d) != `"ask"` {
+				continue
+			}
+			// the directive of the fake program that sends a request: the same request as a line of the stream
+			asked, err := json.Marshal(map[string]any{"type": "control_request", "request_id": string(probe["id"]), "request": probe["request"]})
+			if err != nil {
+				return nil, errors.NewErr("ReplayFixtureInvalid", err).SetMetadata("line", strconv.Itoa(i+1))
+			}
+			line = asked
+		}
+		req, ok, err := claude.ParseToolRequest(line)
+		if err != nil {
+			return nil, err // the adapter's error says what is wrong with the request
+		}
+		if ok {
+			out = append(out, fixtureEntry{req: &req})
 			continue
 		}
 		msg, err := claude.ParseLine(line)
@@ -84,23 +108,34 @@ func parseFixture(data []byte) ([]claude.Message, error) {
 		if _, unknown := msg.(*claude.UnknownMessage); unknown {
 			continue
 		}
-		out = append(out, msg)
+		out = append(out, fixtureEntry{msg: msg})
 	}
 	return out, nil
 }
 
 // replayEvents plays recorded messages into the tab. The program of the tab, if one is starting or runs, is ended: the tab
-// shows the recording and nothing else.
-func (t *sessionTab) replayEvents(events []claude.Message) {
+// shows the recording and nothing else. A permission request of the recording is shown as a real one is (the diff of an edit,
+// the dialog of a tool); the answer is logged and goes nowhere.
+func (t *sessionTab) replayEvents(events []fixtureEntry) {
 	t.stopProgram()
 	t.replay = true
 	t.phase, t.problem = phaseReady, ""
 	t.turns = 0
 	for _, ev := range events {
-		t.apply(ev)
+		if ev.req != nil {
+			t.replayRequest(*ev.req)
+			continue
+		}
+		t.apply(ev.msg)
 	}
 	t.busy = false
 	t.stick = true
 	t.ext.sync()
 	t.changed()
+}
+
+// replayRequest shows a permission request of a recording.
+func (t *sessionTab) replayRequest(req claude.ToolRequest) {
+	p := &permission{kind: classify(req.ToolName), req: req, reply: make(chan claude.Decision, 1), message: ui.NewInputBoxController("")}
+	t.addPermission(t.gen, p)
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/extension/ui/uitest"
+	"github.com/rm4n0s/emetos/extensions/agents/claude"
 )
 
 // proofFixture is the recorded conversation of the proof of step 13.2.
@@ -265,4 +266,58 @@ func TestAConversationThatFollowsItsEndKeepsFollowingAndOneScrolledUpStays(t *te
 		t.Errorf("the view moved to %v while the user reads the top", top)
 	}
 	_ = filepath.Join
+}
+
+// asking is a tab that shows a conversation and the panel of a permission request of a recording.
+func asking(t *testing.T, requests ...string) (*rig, *sessionTab) {
+	t.Helper()
+	r := newRig(t, "")
+	tab := r.openIdle("")
+	tab.replay = true
+	tab.tr.add(&item{Kind: kindUser, Text: "Make the program say hello, then run the tests."})
+	tab.tr.add(&item{Kind: kindText, Text: "I will change `main.go` first."})
+	for _, line := range requests {
+		req, ok, err := claude.ParseToolRequest([]byte(line))
+		if err != nil || !ok {
+			t.Fatalf("request %s: %v %v", line, ok, err)
+		}
+		tab.replayRequest(req)
+	}
+	return r, tab
+}
+
+func TestGoldenThePermissionPanels(t *testing.T) {
+	bash := `{"type":"control_request","request_id":"p","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"go test -race ./...\ngo vet ./..."},"title":"Run this command?","description":"Run the tests and vet the code","decision_reason":"Not in the allowed commands","permission_suggestions":[{"type":"addRules","rules":[{"toolName":"Bash"}],"behavior":"allow","destination":"localSettings"}]}}`
+	plan := `{"type":"control_request","request_id":"p","request":{"subtype":"can_use_tool","tool_name":"ExitPlanMode","input":{"plan":"## Plan\n\n1. Print the greeting from ` + "`main`" + `\n2. Add a test that captures the output\n3. Run ` + "`go test`" + `\n"}}}`
+	question := `{"type":"control_request","request_id":"p","request":{"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[{"question":"Which greeting?","header":"Greeting","multiSelect":false,"options":[{"label":"Hello, world","description":"The classic"},{"label":"Hi there","description":"Shorter"}]}]}}}`
+	edit := `{"type":"control_request","request_id":"p","request":{"subtype":"can_use_tool","tool_name":"Edit","input":{"file_path":"main.go","old_string":"func main() {}","new_string":"func main() {}"}}}`
+	for _, tc := range []struct {
+		name, request string
+		themes        []uitest.Theme
+		size          gui.Size
+	}{
+		{"permission_bash", bash, uitest.Themes(), gui.Size{Width: 760, Height: 520}},
+		{"permission_plan", plan, uitest.Themes()[:1], gui.Size{Width: 760, Height: 620}},
+		{"permission_question", question, uitest.Themes()[:1], gui.Size{Width: 760, Height: 560}},
+		{"permission_edit", edit, uitest.Themes()[:1], gui.Size{Width: 760, Height: 480}},
+	} {
+		for _, th := range tc.themes {
+			t.Run(tc.name+"_"+th.Name, func(t *testing.T) {
+				_, tab := asking(t, tc.request)
+				s := show(t, tab, th, tc.size)
+				uitest.MatchesGolden(s.ts, tc.name+"_"+th.Name)
+			})
+		}
+	}
+}
+
+func TestGoldenTheRewindButton(t *testing.T) {
+	r := newRig(t, "rewind.jsonl")
+	tab, _ := r.answered("Make the program say hello")
+	tab.tr.add(&item{Kind: kindText, Text: "Done: the program says hello."})
+	s := show(t, tab, uitest.Themes()[0], gui.Size{Width: 760, Height: 360})
+	uitest.MatchesGolden(s.ts, "rewind_button")
+	tab.askRewind(tab.tr.items[0])
+	s.sync()
+	uitest.MatchesGolden(s.ts, "rewind_question")
 }

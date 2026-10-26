@@ -225,3 +225,63 @@ func TestEditedDocument(t *testing.T) {
 		t.Error("a settings input edits no document")
 	}
 }
+
+func TestADiffInputThatReviewsAProposalIsNeverDirtySavedOrSplit(t *testing.T) {
+	orig := document.New(document.VirtualURI("/proposed/1/original/a.go"), "old\n", document.NewOptions())
+	mod := document.New(document.VirtualURI("/proposed/1/proposed/a.go"), "new\n", document.NewOptions())
+	var answers []bool
+	in := NewDiffInput(orig, mod, TextInputOpts{})
+	in.SetProposal(NewDiffProposal("a.go (proposed)", func(accepted bool) { answers = append(answers, accepted) }))
+	if in.Proposal() == nil || in.Name() != "a.go (proposed)" || in.Title() != "a.go (proposed)" || in.Description() != "" {
+		t.Errorf("name %q title %q description %q", in.Name(), in.Title(), in.Description())
+	}
+	if _, err := mod.Edit([]document.Edit{{Text: "x"}}, document.EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if !mod.Dirty() {
+		t.Fatal("the edit should make the proposed text differ from the one it started with")
+	}
+	in.Refresh()
+	if in.Dirty() {
+		t.Error("an edited proposal is dirty, closing it would ask to save")
+	}
+	if doc := EditedDocument(in); doc != nil {
+		t.Error("a proposal edits a document for saving")
+	}
+	if _, ok := in.Serialize(); ok {
+		t.Error("a proposal is saved with the window")
+	}
+	if in.Capabilities().Has(CapCanSplit) {
+		t.Error("a proposal can be split")
+	}
+	in.Dispose()
+	in.Dispose()
+	if len(answers) != 1 || answers[0] {
+		t.Errorf("disposing answered %v, want one rejection", answers)
+	}
+}
+
+func TestADiffProposalIsSettledOnce(t *testing.T) {
+	tests := []struct {
+		name  string
+		steps func(p *DiffProposal) []bool // what each step reported
+		want  []bool                       // the answers the function got
+	}{
+		{"accept then reject", func(p *DiffProposal) []bool { return []bool{p.Settle(true), p.Settle(false)} }, []bool{true}},
+		{"reject then accept", func(p *DiffProposal) []bool { return []bool{p.Settle(false), p.Settle(true)} }, []bool{false}},
+		{"cancel then settle", func(p *DiffProposal) []bool { return []bool{p.Cancel(), p.Settle(true), p.Cancel()} }, nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []bool
+			p := NewDiffProposal("t", func(a bool) { got = append(got, a) })
+			reported := tc.steps(p)
+			if reported[0] != true || slices.Contains(reported[1:], true) {
+				t.Errorf("only the first step settles: %v", reported)
+			}
+			if !slices.Equal(got, tc.want) || !p.Settled() {
+				t.Errorf("answers %v settled %v, want %v", got, p.Settled(), tc.want)
+			}
+		})
+	}
+}

@@ -32,6 +32,8 @@ type Session struct {
 	hctx       context.Context
 	cancelAll  context.CancelFunc
 	reqCounter atomic.Uint64
+	// toolSeq numbers the can_use_tool requests as they come in (ToolRequest.Seq).
+	toolSeq atomic.Uint64
 
 	writeMu      sync.Mutex
 	stdinClosed  bool

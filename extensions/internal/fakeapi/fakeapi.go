@@ -44,6 +44,7 @@ type API struct {
 	windowKindID      string
 	windowTab         *WindowTab
 	tabs              []*Tab
+	proposals         []*Proposal
 	fileViews         map[string]extension.FileViewProvider
 	fileViewOpens     []FileViewOpen
 	tokenizer         func(languageID, text string) ([][]extension.Token, error)
@@ -58,6 +59,9 @@ type API struct {
 // Note is a notification the extension showed.
 type Note struct {
 	Severity, Message string
+	// Actions are the labels of the buttons of the notification; RunNoteAction presses one.
+	Actions []string
+	run     []func()
 }
 
 // Shown is a call of Documents().Show.
@@ -335,15 +339,40 @@ func (a *API) SetSetting(key string, value any) {
 
 type notifications struct{ a *API }
 
-func (n notifications) add(sev, msg string) {
+func (n notifications) add(sev, msg string, actions []extension.NotificationAction) {
+	note := Note{Severity: sev, Message: msg}
+	for _, a := range actions {
+		note.Actions = append(note.Actions, a.Label)
+		note.run = append(note.run, a.Run)
+	}
 	n.a.mu.Lock()
-	n.a.notes = append(n.a.notes, Note{Severity: sev, Message: msg})
+	n.a.notes = append(n.a.notes, note)
 	n.a.mu.Unlock()
 }
-func (n notifications) Info(m string, _ ...extension.NotificationAction) { n.add("info", m) }
-func (n notifications) Warn(m string, _ ...extension.NotificationAction) { n.add("warn", m) }
-func (n notifications) Error(m string, _ ...extension.NotificationAction) {
-	n.add("error", m)
+func (n notifications) Info(m string, a ...extension.NotificationAction) { n.add("info", m, a) }
+func (n notifications) Warn(m string, a ...extension.NotificationAction) { n.add("warn", m, a) }
+func (n notifications) Error(m string, a ...extension.NotificationAction) {
+	n.add("error", m, a)
+}
+
+// RunNoteAction presses the button with the label on the notification with the index, as the user does; it fails the test
+// when there is no such button.
+func (a *API) RunNoteAction(note int, label string) {
+	a.t.Helper()
+	a.mu.Lock()
+	var run func()
+	if note >= 0 && note < len(a.notes) {
+		for i, l := range a.notes[note].Actions {
+			if l == label {
+				run = a.notes[note].run[i]
+			}
+		}
+	}
+	a.mu.Unlock()
+	if run == nil {
+		a.t.Fatalf("notification %d has no button %q", note, label)
+	}
+	run()
 }
 
 // Notes are the notifications shown so far.

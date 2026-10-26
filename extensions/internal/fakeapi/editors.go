@@ -1,6 +1,7 @@
 package fakeapi
 
 import (
+	"context"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -144,6 +145,69 @@ func (e editors) Tabs(kindID string) []extension.EditorTab {
 		}
 	}
 	return out
+}
+
+// Proposal is a proposed change the extension asked the user to review (Editors().OpenProposedChange). The call blocks until
+// the test answers it with Accept, Reject or Close, as the user does in the diff editor, or until its context ends.
+type Proposal struct {
+	// Change is what the extension asked for.
+	Change extension.ProposedChange
+
+	mu        sync.Mutex
+	answer    chan extension.ProposedResult
+	cancelled bool
+	done      bool
+}
+
+// Accept answers the call as the user does with Accept: text is the text of the right side when it is accepted.
+func (p *Proposal) Accept(text string) {
+	p.send(extension.ProposedResult{Accepted: true, Text: text, Edited: text != p.Change.Proposed})
+}
+
+// Reject answers the call as the user does with Reject.
+func (p *Proposal) Reject() { p.send(extension.ProposedResult{}) }
+
+// Close answers the call as closing the tab does, which is a rejection.
+func (p *Proposal) Close() { p.send(extension.ProposedResult{}) }
+
+func (p *Proposal) send(r extension.ProposedResult) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.done {
+		return
+	}
+	p.done = true
+	p.answer <- r
+}
+
+// Cancelled tells whether the call ended because its context did, and so closed the tab.
+func (p *Proposal) Cancelled() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.cancelled }
+
+// OpenProposedChange implements extension.Editors: the call is recorded (Proposals) and waits for the test.
+func (e editors) OpenProposedChange(ctx context.Context, change extension.ProposedChange) (extension.ProposedResult, error) {
+	if change.URI == "" {
+		return extension.ProposedResult{}, errors.New("FakeProposedChangeInvalid", "a proposed change needs the URI of its file")
+	}
+	p := &Proposal{Change: change, answer: make(chan extension.ProposedResult, 1)}
+	e.a.mu.Lock()
+	e.a.proposals = append(e.a.proposals, p)
+	e.a.mu.Unlock()
+	select {
+	case r := <-p.answer:
+		return r, nil
+	case <-ctx.Done():
+		p.mu.Lock()
+		p.cancelled, p.done = true, true
+		p.mu.Unlock()
+		return extension.ProposedResult{}, errors.NewErr("FakeProposedChangeCancelled", ctx.Err())
+	}
+}
+
+// Proposals are the proposed changes the extension has asked for, in order.
+func (a *API) Proposals() []*Proposal {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.proposals)
 }
 
 // makeTab makes a tab of a kind with the state and keeps it; id is empty for a new tab.

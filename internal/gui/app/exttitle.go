@@ -4,6 +4,7 @@ import (
 	"math"
 	"path/filepath"
 
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/ui"
@@ -50,12 +51,13 @@ func (s *shellState) groupContext(win *Workspace, group *editorgroup.Group) cont
 // titleActions makes the function that gives the title actions of a group as a widget for the right end of its strip, for the
 // width of the strip: nil when there are none.
 func (s *shellState) titleActions(win *Workspace, group *editorgroup.Group) func(width float64) widgets.Widget {
-	scope := win.Extensions()
-	if scope == nil {
-		return nil
+	var actions []exthost.EditorAction
+	if scope := win.Extensions(); scope != nil {
+		actions = scope.EditorActions(s.groupContext(win, group))
 	}
-	actions := scope.EditorActions(s.groupContext(win, group))
-	if len(actions) == 0 {
+	// Accept and Reject of a proposed change come first and are never folded into the "..." menu
+	proposal := s.proposalButtons(group)
+	if len(actions) == 0 && len(proposal) == 0 {
 		return nil
 	}
 	args := map[string]any{"groupId": float64(group.ID())}
@@ -70,6 +72,9 @@ func (s *shellState) titleActions(win *Workspace, group *editorgroup.Group) func
 			shown, rest = actions[:capacity-1], actions[capacity-1:]
 		}
 		var buttons []widgets.Widget
+		for _, b := range proposal {
+			buttons = append(buttons, b, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}))
+		}
 		for _, a := range shown {
 			buttons = append(buttons, kit.NewIconButton(a.Icon, kit.IconButtonOpts{
 				Tooltip: a.Tooltip, OnPressed: func() { s.runTitleAction(win, a.Command, args) },
@@ -91,7 +96,7 @@ func (s *shellState) titleActions(win *Workspace, group *editorgroup.Group) func
 				},
 			}), &v.overflow))
 		}
-		return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, 0, 4, 0), widgets.NewRow(buttons, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin}))
+		return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, 0, 4, 0), widgets.NewRow(buttons, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))
 	}
 }
 

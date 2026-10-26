@@ -362,3 +362,63 @@ func (fakeRename) PrepareRename(context.Context, extension.TextDocument, extensi
 func (fakeRename) ProvideRename(context.Context, extension.TextDocument, extension.Position, string) (*extension.WorkspaceEdit, error) {
 	return nil, nil
 }
+
+func TestTheFakeShowsProposedChangesAndAnswersThemAsTheUserDoes(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "w", Folder: t.TempDir()})
+	_, err := a.Editors().OpenProposedChange(context.Background(), extension.ProposedChange{Proposed: "x"})
+	route(t, err, "editors.OpenProposedChange.FakeProposedChangeInvalid")
+
+	tests := []struct {
+		name   string
+		answer func(p *Proposal)
+		want   extension.ProposedResult
+	}{
+		{"accept", func(p *Proposal) { p.Accept("new\n") }, extension.ProposedResult{Accepted: true, Text: "new\n"}},
+		{"accept with an edit", func(p *Proposal) { p.Accept("newer\n") }, extension.ProposedResult{Accepted: true, Text: "newer\n", Edited: true}},
+		{"reject", func(p *Proposal) { p.Reject() }, extension.ProposedResult{}},
+		{"close", func(p *Proposal) { p.Close(); p.Accept("late") }, extension.ProposedResult{}},
+	}
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			done := make(chan extension.ProposedResult, 1)
+			go func() {
+				res, err := a.Editors().OpenProposedChange(context.Background(), extension.ProposedChange{URI: "file:///w/a.go", Original: "old\n", Proposed: "new\n"})
+				if err != nil {
+					t.Error(err)
+				}
+				done <- res
+			}()
+			a.WaitFor("the proposed change", func() bool { return len(a.Proposals()) == i+1 })
+			tc.answer(a.Proposals()[i])
+			if got := <-done; got != tc.want {
+				t.Errorf("the call returned %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errc := make(chan error, 1)
+	go func() {
+		_, err := a.Editors().OpenProposedChange(ctx, extension.ProposedChange{URI: "file:///w/b.go"})
+		errc <- err
+	}()
+	a.WaitFor("the fifth proposed change", func() bool { return len(a.Proposals()) == len(tests)+1 })
+	cancel()
+	route(t, <-errc, "editors.OpenProposedChange.FakeProposedChangeCancelled")
+	if p := a.Proposals()[len(tests)]; !p.Cancelled() {
+		t.Error("a cancelled call is not marked")
+	}
+}
+
+func TestTheFakeKeepsTheButtonsOfNotifications(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "w", Folder: t.TempDir()})
+	pressed := 0
+	a.Notifications().Info("done", extension.NotificationAction{Label: "Show", Run: func() { pressed++ }})
+	if notes := a.Notes(); len(notes) != 1 || !slices.Equal(notes[0].Actions, []string{"Show"}) {
+		t.Fatalf("notes = %+v", notes)
+	}
+	a.RunNoteAction(0, "Show")
+	if pressed != 1 {
+		t.Errorf("the button was pressed %d times", pressed)
+	}
+}

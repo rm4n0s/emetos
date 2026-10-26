@@ -1,6 +1,7 @@
 package extension
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/rm4n0s/glutter/widgets"
@@ -138,6 +139,42 @@ type Editors interface {
 	Open(kindID string, state any, opts EditorOpenOptions) (EditorTab, error)
 	// Tabs are the open tabs of the kind that have their content, in the order they were made.
 	Tabs(kindID string) []EditorTab
+	// OpenProposedChange shows a change that is proposed to a file in the diff editor and waits for the user's answer (SPEC
+	// §10.16 "As built (step 13.3)"). The tab has the current text of the file on the left, read-only, and the proposed
+	// text on the right, which the user may edit; its title has Accept and Reject. The call returns when the user accepts
+	// or rejects, or closes the tab, which is a rejection, and gives the text of the right side then. Nothing is written
+	// to a file: the right side is a document of its own, and what happens to the file is up to the caller. It
+	// blocks, so it is called from a goroutine of the extension and never from the UI thread. When ctx ends, or the
+	// extension is deactivated, the tab is closed and the call fails with the error of the context
+	// (ExtensionProposedChangeCancelled); it fails with ExtensionProposedChangeInvalid for a change with no URI,
+	// ExtensionDeactivated and ExtensionEditorsUnavailable (the scope has no editor area).
+	OpenProposedChange(ctx context.Context, change ProposedChange) (ProposedResult, error)
+}
+
+// ProposedChange is a change to a file that an extension asks the user to review (Editors.OpenProposedChange).
+type ProposedChange struct {
+	// URI is the URI of the file (file:///path/to/file); its name and language come from it. It is required.
+	URI string
+	// Original is the current text of the file, shown on the left; empty for a file that does not exist yet.
+	Original string
+	// Proposed is the text the change would give, shown on the right.
+	Proposed string
+	// Title is the title of the tab; "<file name> (proposed)" when empty.
+	Title string
+	// Language is the name or id of the language of both sides when the file name does not say it (a name that
+	// Languages().Resolve knows); empty takes the language from the name of the file.
+	Language string
+}
+
+// ProposedResult is the user's answer to a ProposedChange.
+type ProposedResult struct {
+	// Accepted is true when the user pressed Accept, and false for Reject and for closing the tab.
+	Accepted bool
+	// Text is the text of the right side at the time of the answer: the proposed text, or what the user made of it. It is
+	// empty for a rejection.
+	Text string
+	// Edited tells that the user changed the proposed text before accepting.
+	Edited bool
 }
 
 // TextEdit replaces a range of a document with text. Lines and columns count from 0 and a column counts the bytes of the

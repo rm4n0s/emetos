@@ -158,6 +158,11 @@ type agents struct {
 	loginState atomic.Int32
 
 	editor lastEditor
+	// out is the Output channel "Agents" and status the item of the status bar (status.go).
+	out    extension.OutputChannel
+	status extension.StatusHandle
+	// statusKey is what the status item shows now ("" when it is hidden).
+	statusKey string
 	// closers waits for the programs that were told to end, so that a test can see that none is left.
 	closers sync.WaitGroup
 }
@@ -178,6 +183,13 @@ func (a *agents) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	var err error
+	if a.out, err = api.Output().Channel(OutputChannel); err != nil {
+		return err
+	}
+	if a.status, err = api.StatusBar().Add(extension.StatusItem{ID: StatusID, Name: "Agents", Alignment: extension.StatusLeft, Priority: 40}); err != nil {
+		return err
+	}
+	a.status.SetVisible(false)
 	a.handle, err = api.Views().Provide(ViewID, extension.ViewContent{Build: a.build, SaveState: a.saveState, RestoreState: a.restoreState})
 	if err != nil {
 		return err
@@ -226,7 +238,7 @@ func (a *agents) adapter() *claude.Adapter {
 	if path != "" && strings.Contains(path, "/") && !filepath.IsAbs(path) && folder != "" {
 		path = filepath.Join(folder, path)
 	}
-	return &claude.Adapter{Path: path, Dir: folder, Logger: a.api.Log()}
+	return &claude.Adapter{Path: path, Dir: folder, Logger: a.logger()}
 }
 
 // attachActiveFile reads the setting agents.attachActiveFile.

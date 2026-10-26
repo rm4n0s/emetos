@@ -1,6 +1,7 @@
 package exthost
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -39,6 +40,13 @@ type EditorHost interface {
 	GroupOf(in *editorgroup.ExtensionTabInput) int
 	// OpenFileView shows the document with the URI in the file view, in the active group or the group on its side.
 	OpenFileView(uri, viewID string, side bool, group int) error
+	// OpenProposed shows the diff editor of a proposed change (SPEC §10.16 "As built (step 13.3)") in the group beside the
+	// active one:
+	// the original text on the left, read-only, and the proposed text on the right, which can be edited, with Accept and
+	// Reject in the title. answer is called once, on the UI thread, when the user accepts (with the text of the right
+	// side), rejects, or closes the tab (a rejection). The function it returns closes the tab and the answer is never
+	// called after that; it does nothing once the user answered.
+	OpenProposed(change extension.ProposedChange, answer func(extension.ProposedResult)) (closeTab func(), err error)
 }
 
 // LanguageSource is what the window offers of its languages: the grammar of a language, for highlighting.
@@ -635,6 +643,67 @@ func (e editorsAPI) Tabs(kindID string) []extension.EditorTab {
 		out[i] = t
 	}
 	return out
+}
+
+// OpenProposedChange implements extension.Editors.
+func (e editorsAPI) OpenProposedChange(ctx context.Context, change extension.ProposedChange) (extension.ProposedResult, error) {
+	in := e.inst
+	if in.isDead() {
+		return extension.ProposedResult{}, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	s := in.scope
+	host := s.opts.Editors
+	if host == nil {
+		return extension.ProposedResult{}, errors.New("ExtensionEditorsUnavailable", "the scope has no editor area", "extension", in.id)
+	}
+	if change.URI == "" {
+		return extension.ProposedResult{}, errors.New("ExtensionProposedChangeInvalid", "a proposed change needs the URI of its file", "extension", in.id)
+	}
+	type opened struct {
+		closeTab func()
+		err      error
+	}
+	answered := make(chan extension.ProposedResult, 1)
+	openedCh := make(chan opened, 1)
+	s.post(func() {
+		if in.isDead() {
+			openedCh <- opened{err: errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)}
+			return
+		}
+		closeTab, err := host.OpenProposed(change, func(r extension.ProposedResult) { answered <- r })
+		openedCh <- opened{closeTab: closeTab, err: err}
+	})
+	var closeTab func()
+	select {
+	case o := <-openedCh:
+		if o.err != nil {
+			return extension.ProposedResult{}, o.err
+		}
+		closeTab = o.closeTab
+	case <-ctx.Done():
+	case <-in.ctx.Done():
+	}
+	if closeTab == nil {
+		// cancelled while the tab was being opened: it is closed as soon as it is there
+		go func() {
+			if o := <-openedCh; o.closeTab != nil {
+				s.post(o.closeTab)
+			}
+		}()
+	} else {
+		select {
+		case r := <-answered:
+			return r, nil
+		case <-ctx.Done():
+		case <-in.ctx.Done():
+		}
+		s.post(closeTab)
+	}
+	cause := ctx.Err()
+	if cause == nil {
+		cause = in.ctx.Err()
+	}
+	return extension.ProposedResult{}, errors.NewErr("ExtensionProposedChangeCancelled", cause).SetMetadata("extension", in.id, "uri", change.URI)
 }
 
 // ---- file views ----

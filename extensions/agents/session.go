@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 
@@ -109,6 +110,14 @@ type sessionTab struct {
 	// replay says that the tab shows a recorded stream and starts no program (the dev command).
 	replay bool
 
+	// perms are the permission requests that wait for the user, the first being the one that is asked (permissions.go).
+	perms []*permission
+	// visible says that the widget of the tab is on screen (tabview.go); a tab that is not is told about by notifications.
+	visible bool
+	// rewinding is the message whose button asks "Restore the files?" and restoring says that a rewind is under way (rewind.go).
+	rewinding *item
+	restoring bool
+
 	qmu         sync.Mutex
 	queue       []queued
 	flushPosted bool
@@ -176,7 +185,9 @@ func (t *sessionTab) retitle() {
 // changed shows what changed: the busy mark and a new build of the tab.
 func (t *sessionTab) changed() {
 	t.tab.SetBusy(t.busy)
+	t.tab.SetDirty(t.waiting()) // the dot of a tab that waits for the user
 	t.tab.Refresh()
+	t.ext.refreshStatus()
 }
 
 // close ends the tab: the program is told to end and the tab forgets itself. The conversation is kept in the index.
@@ -204,12 +215,16 @@ func (t *sessionTab) close() {
 	t.stopProgram()
 	t.input.Dispose()
 	t.pending = nil
+	a.refreshStatus()
 }
 
 // stopProgram ends the program of the tab, if there is one, without waiting: a goroutine closes the session (its standard
 // input first, then the signals) and the extension can wait for it.
 func (t *sessionTab) stopProgram() {
 	t.gen++ // whatever the old program says now is not for this tab
+	for _, p := range slices.Clone(t.perms) {
+		t.withdraw(p) // the requests of the program that ends are not answered
+	}
 	if t.cancel != nil {
 		t.cancel()
 		t.cancel = nil
@@ -256,7 +271,10 @@ func (t *sessionTab) ensureStarted() {
 		CanUseTool: func(ctx context.Context, req claude.ToolRequest) (claude.Decision, error) {
 			return t.canUseTool(ctx, gen, req)
 		},
-		Stderr: func(line string) { a.api.Log().Debug("agent stderr", "session", t.id, "line", line) },
+		Stderr: func(line string) {
+			a.api.Log().Debug("agent stderr", "session", t.id, "line", line)
+			a.logf("[%s] stderr: %s", shortID(t.id), line)
+		},
 	}
 	if t.used {
 		opts.Resume = t.id
@@ -479,11 +497,15 @@ func (t *sessionTab) result(m *claude.ResultMessage) {
 			t.tr.add(&item{Kind: kindError, Text: "The turn failed (" + m.Subtype + ")."})
 		}
 	}
+	stopped := t.interrupting
 	t.interrupting = false
 	t.busy = t.turns > 0
 	if !t.busy {
 		t.tr.partials.Reset()
 		t.tr.finishTools()
+		if !stopped {
+			t.notifyDone(m.IsError)
+		}
 	}
 	t.ext.touch(t)
 	t.ext.remember(t)
@@ -506,16 +528,6 @@ func (t *sessionTab) exited(m *claude.ExitEvent) {
 	if m.Err != nil {
 		t.tr.add(&item{Kind: kindError, Text: "The program ended unexpectedly: " + errorText(m.Err)})
 	}
-}
-
-// canUseTool answers a permission request of the program. It runs on a goroutine of the adapter. The dialogs, the proposed
-// edits and the plans are step 13.3's; until then every request is denied, and the conversation says so (in order with the
-// events of the program).
-func (t *sessionTab) canUseTool(_ context.Context, gen int, req claude.ToolRequest) (claude.Decision, error) {
-	// TODO(step 13.3): ask the user (a dialog in the tab, the diff editor for an edit) and answer allow or deny here.
-	const message = "Emetos can't answer this permission request yet."
-	t.enqueue(queued{gen: gen, notice: message + " The use of " + req.ToolName + " was denied."})
-	return claude.Decision{Allow: false, Message: message}, nil
 }
 
 // ---- sending ----

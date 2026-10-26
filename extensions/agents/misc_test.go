@@ -321,8 +321,8 @@ func TestReplayFailsWithTagsForABadFixture(t *testing.T) {
 	if err != nil || len(events) != 1 {
 		t.Errorf("events = %v, err = %v", events, err)
 	}
-	if _, ok := events[0].(*claude.ResultMessage); !ok {
-		t.Errorf("event = %T", events[0])
+	if _, ok := events[0].msg.(*claude.ResultMessage); !ok {
+		t.Errorf("event = %T", events[0].msg)
 	}
 }
 

@@ -73,6 +73,8 @@ type Workspace struct {
 	Keys *contextkey.Scope
 	// Documents are the documents open in the window.
 	Documents *Documents
+	// proposals numbers the proposed changes extensions asked to review (exproposed.go).
+	proposals atomic.Int64
 	// Keybindings resolve key presses in the window.
 	Keybindings *keybinding.Resolver
 	// Dispatcher turns key presses into commands: it keeps the chords of a sequence that

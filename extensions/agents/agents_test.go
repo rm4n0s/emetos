@@ -281,25 +281,6 @@ func TestAResultThatFailedShowsWhy(t *testing.T) {
 	}
 }
 
-func TestAPermissionRequestIsDeniedWithAMessageUntilStep133(t *testing.T) {
-	r := newRig(t, "permission.jsonl")
-	tab := r.open()
-	r.ready(tab)
-	r.send(tab, "remove the build")
-	r.idle(tab)
-	got := texts(tab)
-	if len(got) != 3 || !strings.Contains(got[1], "Emetos can't answer this permission request yet") || !strings.Contains(got[1], "Bash") || got[2] != "text:I could not run that." {
-		t.Fatalf("the conversation is %q", got)
-	}
-	log, err := os.ReadFile(r.log)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(log), `"behavior":"deny"`) || !strings.Contains(string(log), "Emetos can't answer this permission request yet") {
-		t.Errorf("the program was not told that the request is denied:\n%s", log)
-	}
-}
-
 func TestADeadProgramIsShownAndTheNextMessageStartsAgain(t *testing.T) {
 	r := newRig(t, "crash.jsonl")
 	tab := r.open()

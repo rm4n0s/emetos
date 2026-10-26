@@ -2210,3 +2210,59 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - the transcript copy is bounded (400 items, 256 KiB per tab);
   - the login panel stays on its result, because the contract has no call to hide a view;
   - banners name the setting, because the contract has no call to open the settings page.
+
+## 13.3 Permissions, proposed edits, plans and checkpoints
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-13.3-agent-permissions
+- **Summary:** SPEC §10.16, §9.11, §10.15.
+  - **`Editors().OpenProposedChange`** is new in `extension/`. It takes `ProposedChange{URI, Original, Proposed, Title, Language}` and returns `ProposedResult{Accepted, Text, Edited}`. It blocks and takes a `ctx`; cancelling closes the tab.
+    - The diff opens beside the active group, with an editable right side made of virtual documents that are never dirty, saved or backed up. Accept and Reject are in its title, and closing it in any way rejects.
+    - Emetos never writes the proposed text; the program applies the edit after `allow`.
+  - **Edits:**
+    - `Edit`: `old_string` is replaced in the file's text, with `replace_all` and CRLF handled. Impossible edits are denied at once with the reason.
+    - `Write`: the new content against the current file, or an empty one.
+    - `NotebookEdit`: the cell's source.
+    - An edited Accept sends `updatedInput`. For `Edit`, that is a minimal unique `old_string`/`new_string` that reproduces the user's text exactly.
+    - Files outside the folder, excluded by a deny rule or unreadable go to the dialog.
+  - **The panel above the input:**
+    - the tool dialog (the command, the URL or the input, and the reason), with Allow once, Allow for this session (the request's suggestions with the `session` destination), and Deny with a message;
+    - `ExitPlanMode` (the plan as Markdown, with Approve, which returns the mode to Manual, and Keep Planning);
+    - `AskUserQuestion` (options, an own answer, Answer or Skip).
+
+    Requests queue in order (the adapter adds `ToolRequest.Seq`), and a request the program withdraws closes its dialog or diff without an answer.
+  - **Rewind code to here:** under each user message while the program runs and is idle. It asks for confirmation first, then shows the result or the program's reason.
+  - **Hidden tabs:** a notification with "Show" appears when a turn ends, or a request waits, in a hidden tab. A waiting tab gets the dot.
+  - **Status item** `agents.status`: "N waiting, M working"; a click goes to the session.
+  - **Output channel "Agents":** the adapter's log, the program's stderr, and the extension's decisions.
+  - **Replay:** `dev.agents.replay` now shows the requests of a recording.
+  - **New error tags:** 15, all route-tested.
+- **Main files:** `extensions/agents/{permissions,permview,edits,rewind,status,session,tabview,dev}.go`, `extension/editors.go`, `internal/gui/exthost/editors.go`, `internal/gui/app/{exproposed,exttitle}.go`, `internal/core/editorgroup/diffinput.go`, `extensions/agents/claude/{control,session}.go`, `extensions/internal/fakeapi/`, `testdata/proof/13.3/`, `docs/SPEC.md` §10.16.
+- **Tests:** run with the fake program, plus the host and app tests.
+  - Edits: Accept, an edited Accept (applying `updatedInput` gives the user's text), Reject, close, a reason typed, an impossible edit, and the dialog fallback; Write.
+  - Dialogs: the Bash dialog's three answers through taps; a plan approved and kept; a question answered and skipped.
+  - Requests: queued requests, withdrawn requests, and a closing tab.
+  - Rewind: confirm, cancel, the result, and a refusal.
+  - The notification, mark, status item and Output channel.
+  - Host and app: the host API (open, accept, edited, reject, close, cancel, deactivation, several at once); in the app, the file stays untouched in every case, plus CRLF and a new file.
+  - Changed: the 13.2 test of the denial seam is removed with its fixture.
+- **Goldens:** new `permission_bash_{dark,light}`, `permission_plan_dark`, `permission_question_dark`, `permission_edit_dark`, `rewind_button`, `rewind_question`. The agent viewed them all; I viewed the Bash dialog and the proof. No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** `docs/implemented-proof-images/13.3-proposed-edit.png`, made with the plan's command:
+  ```
+  scripts/proof.sh docs/implemented-proof-images/13.3-proposed-edit.png --config testdata/proof/13.3/config --commands '[["agents.newSession"],["dev.agents.replay",{"fixture":"testdata/proof/13.3/edit.jsonl"}]]' -- testdata/proof/13.3/project
+  ```
+  It shows the session tab with the Edit review panel, beside the diff of `main.go (proposed)` with Accept and Reject in its title, and "1 waiting" in the status bar.
+
+  ![13.3 proposed edit](implemented-proof-images/13.3-proposed-edit.png)
+- **Manual checks:** none new.
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.16 "As built (step 13.3)" lists the decisions:
+  - `OpenProposedChange` takes `Original` and a `ctx`;
+  - the diff opens beside the active group;
+  - the minimal Edit as `updatedInput`;
+  - notebook cells diffed by source;
+  - no "Allow for this session" on edits (Accept Edits mode does that);
+  - rewind confirms, and only while the program runs.
+
+  Not built: `MultiEdit` as a diff, keys for Accept and Reject, and answering from the notification. The agent fixed a flaky ordering test of its own (50 runs, and 20 with `-race`).

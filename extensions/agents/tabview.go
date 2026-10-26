@@ -41,9 +41,39 @@ func (t *sessionTab) build(bc widgets.BuildContext) widgets.Widget {
 	if banner := t.banner(bc, colors); banner != nil {
 		children = append(children, banner)
 	}
+	if panel := t.permissionPanel(bc, colors); panel != nil {
+		children = append(children, panel)
+	}
 	children = append(children, t.inputArea(bc, colors))
-	return widgets.NewColoredBox(colors.EditorBackground, widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}))
+	return newOnScreen(t, widgets.NewColoredBox(colors.EditorBackground, widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})))
 }
+
+// onScreen is the widget that tells the tab that it is on screen: the tab is shown while the widget is in the tree, and a tab
+// that is not the active one of its group, or whose window tab is not in front, has no widget (notifications.go).
+type onScreen struct {
+	widgets.StatefulWidget
+	tab   *sessionTab
+	child widgets.Widget
+}
+
+// newOnScreen wraps the widget of a tab.
+func newOnScreen(t *sessionTab, child widgets.Widget) *onScreen {
+	return &onScreen{StatefulWidget: widgets.NewStatefulWidgetBase(widgets.WidgetOpts{}), tab: t, child: child}
+}
+
+// CreateState implements widgets.StatefulWidget.
+func (o *onScreen) CreateState() widgets.State { return &onScreenState{} }
+
+type onScreenState struct{ widgets.StateOf[*onScreen] }
+
+// InitState marks the tab as shown.
+func (s *onScreenState) InitState() { s.Widget().tab.visible = true }
+
+// Dispose marks it as hidden.
+func (s *onScreenState) Dispose() { s.Widget().tab.visible = false }
+
+// Build implements widgets.State.
+func (s *onScreenState) Build(widgets.BuildContext) widgets.Widget { return s.Widget().child }
 
 // column puts a widget in the centered column of the conversation.
 func column(child widgets.Widget) widgets.Widget {
@@ -99,7 +129,7 @@ func (t *sessionTab) conversation(bc widgets.BuildContext, colors ui.Colors) wid
 func (t *sessionTab) itemWidget(bc widgets.BuildContext, colors ui.Colors, it *item) widgets.Widget {
 	switch it.Kind {
 	case kindUser:
-		return widgets.NewContainer(
+		box := widgets.NewContainer(
 			widgets.NewPadding(painting.NewEdgeInsetsSymmetric(7, 10), widgets.NewText(it.Text, widgets.TextOpts{
 				Style: ui.TextStyle(bc, fontSize, colors.InputForeground).CopyWith(painting.TextStyleOpts{Height: foundation.Some(1.5)}),
 			})),
@@ -107,6 +137,10 @@ func (t *sessionTab) itemWidget(bc widgets.BuildContext, colors ui.Colors, it *i
 				Color: foundation.Some(colors.InputBackground), BorderRadius: painting.NewBorderRadiusCircular(5),
 				Border: painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(colors.InputBorder), Width: foundation.Some(1.0)}),
 			})})
+		if rewind := t.rewindRow(bc, colors, it); rewind != nil {
+			return widgets.NewColumn([]widgets.Widget{box, gap(4), rewind}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+		}
+		return box
 	case kindText:
 		return markdown.NewView(it.Text, markdown.Options{Flow: true, Tokenize: t.tokenize, OnLink: t.openLink})
 	case kindThinking:
@@ -123,6 +157,25 @@ func (t *sessionTab) itemWidget(bc widgets.BuildContext, colors ui.Colors, it *i
 		ui.Icon("info", 14, colors.DescriptionForeground), hgap(6),
 		widgets.NewExpanded(widgets.NewText(it.Text, widgets.TextOpts{Style: ui.TextStyle(bc, fontSize, colors.DescriptionForeground)})),
 	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart})
+}
+
+// rewindRow is the line under a message of the user that offers "Rewind code to here"; nil when the message cannot be rewound
+// to. Pressing the button asks whether to restore the files, because it overwrites them.
+func (t *sessionTab) rewindRow(bc widgets.BuildContext, colors ui.Colors, it *item) widgets.Widget {
+	if !t.canRewind(it) {
+		return nil
+	}
+	if t.rewinding != it {
+		return widgets.NewAlign(ui.NewButton("Rewind code to here", ui.ButtonOpts{
+			Small: true, Secondary: true, Icon: iconCode("discard"), OnPressed: func() { t.askRewind(it) },
+			Tooltip: "Restore the files the agent changed since this message",
+		}), widgets.AlignOpts{Alignment: painting.AlignmentCenterRight})
+	}
+	return widgets.NewRow([]widgets.Widget{
+		widgets.NewExpanded(widgets.NewText("Restore the files the agent changed since this message? This overwrites them.", widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.Foreground)})),
+		hgap(8), ui.NewButton("Rewind", ui.ButtonOpts{Small: true, OnPressed: func() { t.rewind(it) }}),
+		hgap(6), ui.NewButton("Cancel", ui.ButtonOpts{Small: true, Secondary: true, OnPressed: t.cancelRewind}),
+	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 }
 
 // toggle is the widget that unfolds and folds an item on a click.

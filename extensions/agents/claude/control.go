@@ -72,8 +72,10 @@ func (u PermissionUpdate) WithDestination(destination string) PermissionUpdate {
 
 // ToolRequest is a can_use_tool request: the program asks whether it may use a tool.
 type ToolRequest struct {
-	// RequestID is the ID of the control request.
+	// RequestID is the ID of the control request and Seq the order the requests of the session came in (1, 2, ...): the
+	// handlers run on goroutines of their own, so a handler that queues requests puts them in the order of Seq.
 	RequestID string
+	Seq       uint64
 	// ToolName is "Bash", "Edit", "Write", "NotebookEdit", "WebFetch", "ExitPlanMode", "AskUserQuestion", ...; Input is the
 	// input of the tool as JSON.
 	ToolName string
@@ -100,6 +102,45 @@ type toolRequestJSON struct {
 	Title          string             `json:"title"`
 	DisplayName    string             `json:"display_name"`
 	Description    string             `json:"description"`
+}
+
+// request is the ToolRequest of the wire form.
+func (w toolRequestJSON) request(id string) ToolRequest {
+	return ToolRequest{
+		RequestID: id, ToolName: w.ToolName, Input: w.Input, ToolUseID: w.ToolUseID, AgentID: w.AgentID,
+		Suggestions: w.Suggestions, BlockedPath: w.BlockedPath, DecisionReason: w.DecisionReason, Title: w.Title,
+		DisplayName: w.DisplayName, Description: w.Description,
+	}
+}
+
+// ParseToolRequest reads a line of a recording that is a can_use_tool request (a control_request line): ok is false for
+// any other line. It is how the dev command dev.agents.replay shows a permission request without a program. It fails with
+// the tags MalformedLine, MessageInvalid and ToolRequestInvalid (no tool_name).
+func ParseToolRequest(line []byte) (req ToolRequest, ok bool, err error) {
+	env, err := parseEnvelope(line)
+	if err != nil {
+		return ToolRequest{}, false, err
+	}
+	if env.Type != "control_request" || len(bytes.TrimSpace(env.Request)) == 0 {
+		return ToolRequest{}, false, nil
+	}
+	var head struct {
+		Subtype string `json:"subtype"`
+	}
+	if err := decode(env.Request, &head, "control_request"); err != nil {
+		return ToolRequest{}, false, err
+	}
+	if head.Subtype != "can_use_tool" {
+		return ToolRequest{}, false, nil
+	}
+	var w toolRequestJSON
+	if err := decode(env.Request, &w, "can_use_tool"); err != nil {
+		return ToolRequest{}, false, err
+	}
+	if w.ToolName == "" {
+		return ToolRequest{}, false, errors.New("ToolRequestInvalid", "a can_use_tool request has no tool_name", "id", env.RequestID)
+	}
+	return w.request(env.RequestID), true, nil
 }
 
 // Decision is the answer to a ToolRequest.
@@ -403,11 +444,8 @@ func (s *Session) handleControlRequest(env envelope) error {
 		s.respondError(env.RequestID, "the can_use_tool request has no tool_name")
 		return errors.New("ToolRequestInvalid", "a can_use_tool request has no tool_name", "id", env.RequestID)
 	}
-	req := ToolRequest{
-		RequestID: env.RequestID, ToolName: w.ToolName, Input: w.Input, ToolUseID: w.ToolUseID, AgentID: w.AgentID,
-		Suggestions: w.Suggestions, BlockedPath: w.BlockedPath, DecisionReason: w.DecisionReason, Title: w.Title,
-		DisplayName: w.DisplayName, Description: w.Description,
-	}
+	req := w.request(env.RequestID)
+	req.Seq = s.toolSeq.Add(1)
 	ctx, cancel := context.WithCancel(s.hctx)
 	s.mu.Lock()
 	s.handlers[env.RequestID] = cancel
