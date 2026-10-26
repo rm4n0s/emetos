@@ -1,12 +1,16 @@
 package editor
 
 import (
+	"context"
 	"strings"
 	"time"
+
+	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 )
 
 // Ported from VS Code: src/vs/editor/contrib/wordHighlighter/browser/wordHighlighter.ts and
@@ -19,10 +23,13 @@ const (
 	selectionHighlightOwner = 5
 )
 
-// The classes of the decorations of the highlights.
+// The classes of the decorations of the highlights: the occurrences of a symbol have the class of their kind, the way VS Code
+// names them (read is "wordHighlight", write "wordHighlightStrong", and a textual occurrence "wordHighlightText").
 const (
-	classWordHighlight      = "wordHighlight"
-	classSelectionHighlight = "selectionHighlight"
+	classWordHighlight       = "wordHighlight"
+	classWordHighlightStrong = "wordHighlightStrong"
+	classWordHighlightText   = "wordHighlightText"
+	classSelectionHighlight  = "selectionHighlight"
 )
 
 // selectionHighlightDelay is how long the selection highlight waits after an edit.
@@ -32,6 +39,11 @@ const selectionHighlightDelay = 300 * time.Millisecond
 // that equals the selection: the decorations that mark them and the timers that make them.
 type highlightLink struct {
 	wordIDs, selectionIDs []int
+	// peekIDs are the marks of the references in the editor of a peek view.
+	peekIDs []int
+	// askGen numbers the requests of the highlights of the providers, and cancelAsk ends the one in flight.
+	askGen    int
+	cancelAsk context.CancelFunc
 	// seenVersion is the version of the document at the last move of the cursors; a move over a
 	// newer version is the result of typing.
 	seenVersion     int
@@ -56,8 +68,10 @@ func (vm *ViewModel) DisposeHighlights() {
 		h.cancelSelection()
 		h.cancelSelection = nil
 	}
+	vm.cancelHighlightRequest()
 	vm.setHighlights(wordHighlightOwner, &h.wordIDs, nil)
 	vm.setHighlights(selectionHighlightOwner, &h.selectionIDs, nil)
+	vm.setHighlights(peekMatchOwner, &h.peekIDs, nil)
 }
 
 // highlightsEnabled tells whether highlights are computed at all: not in large file mode.
@@ -65,17 +79,35 @@ func (vm *ViewModel) highlightsEnabled() bool { return !vm.doc.LargeFile() }
 
 // setHighlights replaces the decorations of an owner by marks of the ranges.
 func (vm *ViewModel) setHighlights(owner int, ids *[]int, ranges []buffer.Range) {
-	if len(*ids) == 0 && len(ranges) == 0 {
+	class := classWordHighlightText
+	switch owner {
+	case selectionHighlightOwner:
+		class = classSelectionHighlight
+	case peekMatchOwner:
+		class = classPeekMatch
+	}
+	items := make([]highlightItem, len(ranges))
+	for i, r := range ranges {
+		items[i] = highlightItem{rng: r, class: class}
+	}
+	vm.setHighlightItems(owner, ids, items)
+}
+
+// highlightItem is a range to mark and the class of its decoration.
+type highlightItem struct {
+	rng   buffer.Range
+	class string
+}
+
+// setHighlightItems replaces the decorations of an owner by marks of the items.
+func (vm *ViewModel) setHighlightItems(owner int, ids *[]int, items []highlightItem) {
+	if len(*ids) == 0 && len(items) == 0 {
 		return
 	}
-	class := classWordHighlight
-	if owner == selectionHighlightOwner {
-		class = classSelectionHighlight
-	}
-	add := make([]document.NewDecoration, len(ranges))
-	for i, r := range ranges {
-		add[i] = document.NewDecoration{Range: r, Options: document.DecorationOptions{
-			Stickiness: document.NeverGrowsWhenTypingAtEdges, ClassName: class,
+	add := make([]document.NewDecoration, len(items))
+	for i, it := range items {
+		add[i] = document.NewDecoration{Range: it.rng, Options: document.DecorationOptions{
+			Stickiness: document.NeverGrowsWhenTypingAtEdges, ClassName: it.class,
 		}}
 	}
 	*ids = vm.doc.DeltaDecorations(vm.owner(owner), *ids, add)
@@ -122,6 +154,7 @@ func (vm *ViewModel) stopWordHighlight() {
 		h.cancelWord()
 		h.cancelWord = nil
 	}
+	vm.cancelHighlightRequest()
 	vm.setHighlights(wordHighlightOwner, &h.wordIDs, nil)
 }
 
@@ -154,9 +187,12 @@ func (vm *ViewModel) updateWordHighlight(typed bool) {
 		if vm.doc.Version() != version {
 			return
 		}
-		ranges := vm.commands().Occurrences(query)
-		// the word at the cursor is one of them, whatever the search says
-		vm.setHighlights(wordHighlightOwner, &h.wordIDs, withRange(ranges, word))
+		if f := vm.hoverFeatures(); f != nil && f.Has(vm.langDocument(), langfeatures.FeatureDocumentHighlights) {
+			// a provider decides; the word is marked when it has nothing to say
+			vm.askHighlights(primary.Active, func() { vm.textualHighlights(query, word) })
+			return
+		}
+		vm.textualHighlights(query, word)
 	}
 	delay := time.Duration(max(vm.opts.OccurrencesHighlightDelay, 0)) * time.Millisecond
 	if delay == 0 || vm.afterTimer == nil {
@@ -164,6 +200,75 @@ func (vm *ViewModel) updateWordHighlight(typed bool) {
 		return
 	}
 	h.cancelWord = vm.afterTimer(delay, run)
+}
+
+// textualHighlights marks the occurrences of the word at the cursor by searching the text.
+func (vm *ViewModel) textualHighlights(query edit.OccurrenceQuery, word buffer.Range) {
+	ranges := vm.commands().Occurrences(query)
+	// the word at the cursor is one of them, whatever the search says
+	vm.setHighlights(wordHighlightOwner, &vm.hl.wordIDs, withRange(ranges, word))
+}
+
+// cancelHighlightRequest ends the request for the highlights of the providers that is in flight; its answer is dropped.
+func (vm *ViewModel) cancelHighlightRequest() {
+	h := &vm.hl
+	h.askGen++
+	if h.cancelAsk != nil {
+		h.cancelAsk()
+		h.cancelAsk = nil
+	}
+}
+
+// askHighlights asks the document highlight providers for the occurrences of the symbol at a position, off the UI thread, and
+// marks them by kind (read, write, text). When they answer nothing, or fail, fallback runs. An answer for a document that
+// changed or for a request that was replaced is dropped.
+//
+// Ported from VS Code: wordHighlighter.ts (WordHighlighter._run, computeOccurencesAtPosition) and
+// src/vs/editor/contrib/wordHighlighter/browser/highlightDecorations.ts
+func (vm *ViewModel) askHighlights(pos buffer.Position, fallback func()) {
+	h := &vm.hl
+	vm.cancelHighlightRequest()
+	f := vm.hoverFeatures()
+	doc := vm.langDocument()
+	ctx := context.Background()
+	if host := vm.sg.host; host != nil && host.Ctx != nil {
+		ctx = host.Ctx
+	}
+	ctx, h.cancelAsk = context.WithCancel(ctx)
+	gen := h.askGen
+	go func() {
+		hls, errs := f.DocumentHighlights(ctx, doc, pos)
+		vm.post(func() {
+			if vm.hl.askGen != gen || vm.doc.Version() != doc.Version {
+				return
+			}
+			vm.hl.cancelAsk = nil
+			if host := vm.sg.host; host != nil && host.Log != nil {
+				for _, e := range errs {
+					if !errors.Is(e.Err, context.Canceled) {
+						host.Log("highlight provider "+e.Owner+" failed", e.Err)
+					}
+				}
+			}
+			if len(hls) == 0 {
+				fallback()
+				return
+			}
+			snap := vm.doc.Snapshot()
+			items := make([]highlightItem, len(hls))
+			for i, hl := range hls {
+				class := classWordHighlightText
+				switch hl.Kind {
+				case langfeatures.HighlightRead:
+					class = classWordHighlight
+				case langfeatures.HighlightWrite:
+					class = classWordHighlightStrong
+				}
+				items[i] = highlightItem{rng: snap.ValidateRange(hl.Range), class: class}
+			}
+			vm.setHighlightItems(wordHighlightOwner, &vm.hl.wordIDs, items)
+		})
+	}()
 }
 
 // withRange is the ranges with r among them.
@@ -240,6 +345,8 @@ func (vm *ViewModel) occurrencesIn(owner, firstRow, lastRow int) []document.Deco
 	switch owner {
 	case wordHighlightOwner:
 		ids = vm.hl.wordIDs
+	case peekMatchOwner:
+		ids = vm.hl.peekIDs
 	default:
 		ids = vm.hl.selectionIDs
 	}

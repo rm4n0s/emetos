@@ -10,10 +10,12 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 )
 
-// Ported from VS Code: src/vs/workbench/browser/parts/editor/breadcrumbsModel.ts (the file path part)
+// Ported from VS Code: src/vs/workbench/browser/parts/editor/breadcrumbsModel.ts (the file path part) and
+// breadcrumbsControl.ts, src/vs/workbench/browser/parts/editor/breadcrumbsPicker.ts (the symbol part, in breadcrumbs_widget.go)
 
 // BreadcrumbsOptions are the settings of the breadcrumbs bar.
 type BreadcrumbsOptions struct {
@@ -24,15 +26,29 @@ type BreadcrumbsOptions struct {
 	FilePath string
 	// Icons is breadcrumbs.icons: whether the items have icons.
 	Icons bool
+	// SymbolPath is breadcrumbs.symbolPath: "on" shows the symbols that hold the cursor after the file, "last" only the
+	// innermost, "off" none (also when empty).
+	SymbolPath string
+	// SymbolSortOrder is breadcrumbs.symbolSortOrder ("position", "name" or "type"): the order of the symbols in the picker of a
+	// symbol.
+	SymbolSortOrder string
+	// HiddenKinds are the symbol kinds the settings breadcrumbs.showXxx turn off, indexed by the LSP's SymbolKind.
+	HiddenKinds [langfeatures.SymbolKindCount + 1]bool
 }
 
 // BreadcrumbsOptionsFromSettings reads the breadcrumbs settings.
 func BreadcrumbsOptionsFromSettings(store *settings.Store) BreadcrumbsOptions {
-	return BreadcrumbsOptions{
-		Enabled:  settings.Get[bool](store, "breadcrumbs.enabled", ""),
-		FilePath: settings.Get[string](store, "breadcrumbs.filePath", ""),
-		Icons:    settings.Get[bool](store, "breadcrumbs.icons", ""),
+	o := BreadcrumbsOptions{
+		Enabled:         settings.Get[bool](store, "breadcrumbs.enabled", ""),
+		FilePath:        settings.Get[string](store, "breadcrumbs.filePath", ""),
+		Icons:           settings.Get[bool](store, "breadcrumbs.icons", ""),
+		SymbolPath:      settings.Get[string](store, "breadcrumbs.symbolPath", ""),
+		SymbolSortOrder: settings.Get[string](store, "breadcrumbs.symbolSortOrder", ""),
 	}
+	for kind := 1; kind <= langfeatures.SymbolKindCount; kind++ {
+		o.HiddenKinds[kind] = !settings.Get[bool](store, "breadcrumbs.show"+langfeatures.SymbolKindSetting(kind), "")
+	}
+	return o
 }
 
 // BreadcrumbItem is one segment of the path of a file: a folder or the file.

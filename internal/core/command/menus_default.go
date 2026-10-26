@@ -19,6 +19,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerSelectionMenu(r)
 	registerViewMenu(r)
 	registerGoMenu(r)
+	registerNavigationMenus(r)
 	registerEditorGroupMenus(r)
 	registerEditorContext(r)
 	registerEditorTitleContext(r)

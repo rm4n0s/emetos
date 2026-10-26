@@ -20,6 +20,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerButtonColors(r)
 	registerKitColors(r)
 	registerSuggestColors(r)
+	registerNavigationColors(r)
 	registerMenuColors(r)
 	registerInputKitColors(r)
 	registerQuickInputColors(r)
@@ -1214,4 +1215,43 @@ func registerSuggestColors(r *ColorRegistry) {
 		r.MustRegister(ColorContribution{ID: "symbolIcon." + ic.name + "Foreground", Defaults: def,
 			Description: "The foreground color for " + ic.kind + " symbols. These symbols appear in the outline, breadcrumb, and suggest widget."})
 	}
+}
+
+// registerNavigationColors registers the colors of the peek view and of the link that Ctrl+hover draws on a word (step 12.7).
+//
+// Ported from VS Code: src/vs/editor/contrib/peekView/browser/peekView.ts (the colors) and
+// src/vs/editor/common/core/editorColorRegistry.ts (editorLink.activeForeground, editor.symbolHighlightBackground)
+func registerNavigationColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editorLink.activeForeground", Defaults: dflt(Hex("#4E94CE"), Hex("#0000FF"), Hex("#00FFFF"), Hex("#292929")),
+			Description: "Color of active links."},
+		ColorContribution{ID: "peekViewTitle.background", Defaults: dflt(Hex("#252526"), Hex("#F3F3F3"), Hex("#000000"), Hex("#FFFFFF")),
+			Description: "Background color of the peek view title area."},
+		ColorContribution{ID: "peekViewTitleLabel.foreground", Defaults: dflt(Hex("#FFFFFF"), Hex("#000000"), Hex("#FFFFFF"), Ref("editor.foreground")),
+			Description: "Color of the peek view title."},
+		ColorContribution{ID: "peekViewTitleDescription.foreground", Defaults: dflt(Hex("#ccccccb3"), Hex("#616161"), Hex("#FFFFFF99"), Hex("#292929")),
+			Description: "Color of the peek view title info."},
+		ColorContribution{ID: "peekView.border", Defaults: dflt(Ref("editorInfo.foreground"), Ref("editorInfo.foreground"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Color of the peek view borders and arrow."},
+		ColorContribution{ID: "peekViewResult.background", Defaults: dflt(Hex("#252526"), Hex("#F3F3F3"), Hex("#000000"), Hex("#FFFFFF")),
+			Description: "Background color of the peek view result list."},
+		ColorContribution{ID: "peekViewResult.lineForeground", Defaults: dflt(Hex("#bbbbbb"), Hex("#646465"), Hex("#FFFFFF"), Ref("editor.foreground")),
+			Description: "Foreground color for line nodes in the peek view result list."},
+		ColorContribution{ID: "peekViewResult.fileForeground", Defaults: dflt(Hex("#FFFFFF"), Hex("#1E1E1E"), Hex("#FFFFFF"), Ref("editor.foreground")),
+			Description: "Foreground color for file nodes in the peek view result list."},
+		ColorContribution{ID: "peekViewResult.selectionBackground", NeedsTransparency: true, Defaults: dflt(Hex("#3399ff33"), Hex("#3399ff33"), nil, nil),
+			Description: "Background color of the selected entry in the peek view result list."},
+		ColorContribution{ID: "peekViewResult.selectionForeground", Defaults: dflt(Hex("#FFFFFF"), Hex("#6C6C6C"), Hex("#FFFFFF"), Ref("editor.foreground")),
+			Description: "Foreground color of the selected entry in the peek view result list."},
+		ColorContribution{ID: "peekViewEditor.background", Defaults: dflt(Hex("#001F33"), Hex("#F2F8FC"), Hex("#000000"), Hex("#FFFFFF")),
+			Description: "Background color of the peek view editor."},
+		ColorContribution{ID: "peekViewEditorGutter.background", Defaults: AllThemes(Ref("peekViewEditor.background")),
+			Description: "Background color of the gutter in the peek view editor."},
+		ColorContribution{ID: "peekViewResult.matchHighlightBackground", NeedsTransparency: true, Defaults: dflt(Hex("#ea5c004d"), Hex("#ea5c004d"), nil, nil),
+			Description: "Match highlight color in the peek view result list."},
+		ColorContribution{ID: "peekViewEditor.matchHighlightBackground", NeedsTransparency: true, Defaults: dflt(Hex("#ff8f0099"), Hex("#f5d802de"), nil, nil),
+			Description: "Match highlight color in the peek view editor."},
+		ColorContribution{ID: "peekViewEditor.matchHighlightBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
+			Description: "Match highlight border in the peek view editor."},
+	)
 }

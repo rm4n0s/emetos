@@ -32,7 +32,9 @@ func (w *Workspace) suggestHost() *editor.SuggestHost {
 	}
 	if scope := w.Extensions(); scope != nil {
 		h.Features = scope.Features()
+		h.Symbols = w.symbolCache(h.Features)
 	}
+	w.navigationHost(h)
 	return h
 }
 

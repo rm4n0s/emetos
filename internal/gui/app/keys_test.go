@@ -566,7 +566,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				problemsState(a, command.ViewMarkers, false), problemsState(a, "", true), folderState(a),
 				filesExplorerState(a, true, false), filesExplorerState(a, false, false), filesExplorerState(a, true, true),
 				quickInputState(a), historyState(a), editorPickerState(a), suggestState(a, true), suggestState(a, false),
-				hoverState(a, false, false), hoverState(a, true, false), hoverState(a, true, true), signatureState(a, 1), signatureState(a, 3),
+				hoverState(a, false, false), hoverState(a, true, false), hoverState(a, true, true), signatureState(a, 1), signatureState(a, 3), navigationState(a), peekState(a),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
 				zenModeState(a), diffEditorState(a), mergeEditorState(a))
 			for _, state := range states {
@@ -579,6 +579,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				}
 				a.vm.HideHover() // only the state of the hover of a problem shows one
 				a.vm.SignatureCancel()
+				a.vm.PeekClose()
 				a.win.Keys.Set("inZenMode", false)
 				a.win.Keys.Set("textCompareEditorVisible", false)
 				a.win.Keys.Reset("isMergeEditor")

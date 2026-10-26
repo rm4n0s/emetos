@@ -33,6 +33,8 @@ type textEditor struct {
 	stopBrackets, stopGuides, stopFolding, unsubscribe func()
 	// stopDiagnostics stops following the markers of the file and takes the squiggles away (diagnostics.go).
 	stopDiagnostics func()
+	// stopFeatures stops listening to the language servers that start and stop (navhost.go).
+	stopFeatures func()
 	// done is closed when the editor is disposed; it ends the background loop of the tokenizer.
 	done     chan struct{}
 	disposed bool
@@ -118,6 +120,7 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 	})
 	e.unsubscribe = func() { stopSettings(); stopZen() }
 	s.watchSelection(e)
+	s.followFeatures(binding, e, win)
 	e.stopDiagnostics = s.followDiagnostics(binding, e)
 	s.followEditorState(e)
 	s.autoSaveTrack(doc)
@@ -257,6 +260,14 @@ func (e *textEditor) dispose() {
 		e.stopDiagnostics()
 		e.stopDiagnostics = nil
 	}
+	if e.stopFeatures != nil {
+		e.stopFeatures()
+		e.stopFeatures = nil
+	}
+	e.view.PeekClose()
+	e.view.CancelGoTo()
+	e.view.LinkClear()
+	e.view.DisposeSymbols()
 	e.view.DisposeFind()
 	e.view.DisposeWrap()
 	e.view.DisposeZones()

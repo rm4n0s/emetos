@@ -1,6 +1,10 @@
 package kit
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/rm4n0s/glutter/ui"
+)
 
 // ListItem is one row of a list: its label, an optional description shown after it and an
 // optional Codicon.
@@ -11,6 +15,8 @@ type ListItem struct {
 	Description string
 	// Icon is the code point of a Codicon shown before the label; 0 shows none.
 	Icon int
+	// IconColor is the color of the icon; the color of the text when it has no alpha (a symbol icon has its own).
+	IconColor ui.Color
 	// Disabled rows are shown dimmed, are skipped by the keyboard and cannot be chosen.
 	Disabled bool
 }

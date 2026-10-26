@@ -732,6 +732,8 @@ var quickInputCommands = map[string]bool{
 	"workbench.action.showCommands": true, "workbench.action.quickOpen": true, "workbench.action.gotoLine": true,
 	"workbench.action.gotoOffset": true, "workbench.action.openView": true, "workbench.action.quickOpenView": true,
 	"workbench.action.clearCommandHistory": true, "workbench.action.closeQuickOpen": true,
+	// the symbol pickers (step 12.7)
+	"workbench.action.gotoSymbol": true, "workbench.action.showAllSymbols": true,
 }
 
 // historyCommands are the commands of the history of locations and of the editor picker, which the app binds

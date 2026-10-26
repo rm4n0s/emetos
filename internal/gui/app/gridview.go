@@ -199,6 +199,7 @@ func (s *shellState) editorColumn(bc widgets.BuildContext, win *Workspace, group
 		crumbs = editor.NewBreadcrumbs(win.ctx, uri.Path, editor.BreadcrumbsOptionsFromSettings(win.Settings), editor.BreadcrumbsOpts{
 			Root:   win.Folder,
 			OnOpen: func(path string) { s.openPathIn(binding, group, path) },
+			View:   ed.view,
 		})
 	}
 	if len(views) > 0 {

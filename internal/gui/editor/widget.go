@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -293,8 +294,10 @@ type editorState struct {
 	metricsHandle   foundation.ListenerHandle
 	// hoverHandle and hoverScrollHandle follow the hover of the view model and the scroll that moves it.
 	hoverHandle, hoverScrollHandle foundation.ListenerHandle
-	// suggestHandle follows the suggest widget of the view model.
+	// suggestHandle follows the suggest widget of the view model, peekHandle the peek view and linkKey the keys that make a link.
 	suggestHandle foundation.ListenerHandle
+	peekHandle    foundation.ListenerHandle
+	linkKey       services.KeyHandlerHandle
 	// signatureHandle follows the parameter hints of the view model; hoverScroll scrolls the box of the hover.
 	signatureHandle foundation.ListenerHandle
 	hoverScroll     *widgets.ScrollControllerBase
@@ -335,6 +338,7 @@ func (s *editorState) InitState() {
 	s.signatureScroll = widgets.NewScrollController(widgets.ScrollControllerOpts{KeepScrollOffset: foundation.Some(false)})
 	vm.SetHoverScroller(s.scrollHoverBox)
 	s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
+	s.peekHandle = vm.AddPeekListener(s.hoverChanged)
 	s.scroll = newEditorScroll(vm, s.controller)
 	vm.SetScroller(s.scrollTo)
 
@@ -352,6 +356,7 @@ func (s *editorState) InitState() {
 	vm.SetFramer(s.runPerFrame)
 	vm.SetZoom(opts.Zoom)
 	vm.SetInputMode(opts.InputMode)
+	s.linkKey = s.binding.Keyboard().AddHandler(s.linkKeyEvent)
 
 	// The focus: the editor's node, with the scope of its context keys.
 	s.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Editor"})
@@ -584,6 +589,15 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("parameterHintsVisible", pk.Visible)
 		s.scope.Set("parameterHintsMultipleSignatures", pk.Multiple)
 		s.scope.Set("editorHasSignatureHelpProvider", pk.HasProvider)
+		s.scope.Set("referenceSearchVisible", vm.PeekVisible())
+		s.scope.Set("editorHasDefinitionProvider", vm.HasNavigation(GoDefinition))
+		s.scope.Set("editorHasDeclarationProvider", vm.HasNavigation(GoDeclaration))
+		s.scope.Set("editorHasTypeDefinitionProvider", vm.HasNavigation(GoTypeDefinition))
+		s.scope.Set("editorHasImplementationProvider", vm.HasNavigation(GoImplementation))
+		s.scope.Set("editorHasReferenceProvider", vm.HasNavigation(GoReferences))
+		s.scope.Set("editorHasDocumentSymbolProvider", vm.hasFeature(langfeatures.FeatureDocumentSymbols))
+		s.scope.Set("editorHasDocumentHighlightProvider", vm.hasFeature(langfeatures.FeatureDocumentHighlights))
+		s.scope.Set("isInEmbeddedEditor", vm.IsEmbedded())
 		s.scope.Set("findWidgetVisible", vm.FindRevealed())
 		state := vm.SnippetState()
 		s.scope.Set("inSnippetMode", state.InSnippet)
@@ -625,6 +639,9 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.RemoveHoverListener(s.hoverHandle)
 		old.vm.RemoveSuggestListener(s.suggestHandle)
 		old.vm.RemoveSignatureListener(s.signatureHandle)
+		old.vm.RemovePeekListener(s.peekHandle)
+		old.vm.PeekClose()
+		old.vm.LinkClear()
 		old.vm.SetHoverScroller(nil)
 		old.vm.suggestCancel()
 		old.vm.SignatureCancel()
@@ -645,6 +662,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		s.hoverHandle = vm.AddHoverListener(s.hoverChanged)
 		s.suggestHandle = vm.AddSuggestListener(s.hoverChanged)
 		s.signatureHandle = vm.AddSignatureListener(s.hoverChanged)
+		s.peekHandle = vm.AddPeekListener(s.hoverChanged)
 		vm.SetHoverScroller(s.scrollHoverBox)
 		s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
@@ -703,6 +721,10 @@ func (s *editorState) Dispose() {
 	vm.RemoveHoverListener(s.hoverHandle)
 	vm.RemoveSuggestListener(s.suggestHandle)
 	vm.RemoveSignatureListener(s.signatureHandle)
+	vm.RemovePeekListener(s.peekHandle)
+	vm.PeekClose()
+	vm.LinkClear()
+	s.binding.Keyboard().RemoveHandler(s.linkKey)
 	vm.SetHoverScroller(nil)
 	vm.RemoveScrollListener(s.hoverScrollHandle)
 	vm.HideHover()
@@ -772,6 +794,10 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		SnippetTabstop: colors.EditorSnippetTabstopHighlightBackground, SnippetTabstopBorder: colors.EditorSnippetTabstopHighlightBorder,
 		SnippetFinalTabstop: colors.EditorSnippetFinalTabstopHighlightBackground, SnippetFinalTabstopBorder: colors.EditorSnippetFinalTabstopHighlightBorder,
 		WordHighlight: colors.EditorWordHighlightTextBackground, WordHighlightBorder: colors.EditorWordHighlightTextBorder,
+		WordHighlightRead: colors.EditorWordHighlightBackground, WordHighlightReadBorder: colors.EditorWordHighlightBorder,
+		WordHighlightWrite: colors.EditorWordHighlightStrongBackground, WordHighlightWriteBorder: colors.EditorWordHighlightStrongBorder,
+		PeekMatch: colors.PeekViewEditorMatchHighlightBackground, PeekMatchBorder: colors.PeekViewEditorMatchHighlightBorder,
+		Link: colors.EditorLinkActiveForeground,
 		Diagnostics: DiagnosticColors{
 			Error: colors.EditorErrorForeground, Warning: colors.EditorWarningForeground, Info: colors.EditorInfoForeground, Hint: colors.EditorHintForeground,
 			ErrorBorder: colors.EditorErrorBorder, WarningBorder: colors.EditorWarningBorder, InfoBorder: colors.EditorInfoBorder, HintBorder: colors.EditorHintBorder,
@@ -797,7 +823,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 				newZoneLayer(vm, offset),
 			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{
 				Cursor: mouseCursor(s.mouseStyle(vm)), OnHover: s.hoverPointer,
-				OnExit: func(*gestures.PointerExitEvent) { vm.HoverPointerLeft() },
+				OnExit: func(*gestures.PointerExitEvent) { vm.HoverPointerLeft(); vm.LinkPointerLeft() },
 			})),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)
 	}, widgets.ScrollableOpts{
@@ -991,11 +1017,18 @@ func (s *editorState) hoverPointer(e *gestures.PointerHoverEvent) {
 		return
 	}
 	local := e.LocalPosition()
+	if _, inZone := s.textRO.ZoneAt(local); inZone {
+		vm.HoverPointerLeft()
+		vm.LinkPointerLeft()
+		return
+	}
 	pos := s.textRO.PositionAt(local)
 	if local.Dx > s.textRO.RectOf(vm.lineEndOf(pos)).Left {
 		vm.HoverPointerLeft()
+		vm.LinkPointerLeft()
 		return
 	}
+	vm.LinkPointerMoved(pos, s.modifiers())
 	vm.HoverPointerMoved(pos)
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/indent"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
@@ -151,6 +152,10 @@ type Workspace struct {
 	extScope atomic.Pointer[exthost.Scope]
 	// suggest is what the editors of the tab share about the suggest widget (suggest.go); UI thread only.
 	suggest *editor.SuggestShared
+	// symbols is the cache of the document symbols that the editors, the Outline and the pickers of the tab share, made for
+	// the registry symbolsReg (navhost.go); UI thread only.
+	symbols    *langfeatures.SymbolCache
+	symbolsReg *langfeatures.Registry
 	// coreEv publishes the core events of the extension bus (coreevents.go); UI thread only.
 	coreEv *coreEvents
 	// profileMu guards profile and profileListeners: the file watchers and the other windows read the profile from

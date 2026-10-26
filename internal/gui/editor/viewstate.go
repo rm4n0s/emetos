@@ -30,6 +30,20 @@ func (vm *ViewModel) RevealPositionInCenter(p buffer.Position) {
 	vm.scroller(max(proj.RowTop(row)+proj.RowHeight(row)/2-vm.viewport/2, 0))
 }
 
+// RevealPositionInCenterIfOutsideViewport scrolls a position into the middle of the editor only when it is not on screen; a
+// position in view stays where it is (a jump of the same file: VS Code's revealRangeInCenterIfOutsideViewport).
+func (vm *ViewModel) RevealPositionInCenterIfOutsideViewport(p buffer.Position) {
+	if vm.scroller == nil || vm.viewport <= 0 {
+		return
+	}
+	proj := vm.Projection()
+	row := vm.RowOfPosition(p)
+	if top := proj.RowTop(row); top >= vm.scrollTop && top+proj.RowHeight(row) <= vm.scrollTop+vm.viewport {
+		return
+	}
+	vm.RevealPositionInCenter(p)
+}
+
 // GoToPosition puts a single cursor at a position, scrolls it into the middle of the editor and
 // makes the range highlight go away.
 func (vm *ViewModel) GoToPosition(p buffer.Position) {

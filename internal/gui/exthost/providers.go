@@ -352,6 +352,11 @@ type definitionAdapter struct {
 	p extension.DefinitionProvider
 }
 
+// Offers implements langfeatures' featureOffers: a definition provider of an extension offers Go to Definition only.
+func (a definitionAdapter) Offers(f langfeatures.Feature) bool {
+	return f == langfeatures.FeatureDefinition
+}
+
 func (a definitionAdapter) ProvideLocations(ctx context.Context, doc langfeatures.Document, pos langfeatures.Position, kind langfeatures.NavKind) (res []langfeatures.LocationLink, err error) {
 	if kind != langfeatures.NavDefinition {
 		return nil, nil

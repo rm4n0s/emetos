@@ -53,6 +53,8 @@ func DefaultViews() *ViewRegistry {
 			When: contextkey.Equals("workbenchState", "empty")},
 		View{ID: ViewExplorerFolders, Name: "Folders", Container: ViewContainerExplorer, Order: 1,
 			When: contextkey.NotEquals("workbenchState", "empty")},
+		// the Outline starts folded, below the folder (step 12.7)
+		View{ID: ViewOutline, Name: "Outline", Container: ViewContainerExplorer, Order: 2, Collapsed: true},
 	)
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerMarkers, Title: "Problems", Icon: codiconWarning, Order: 0, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})

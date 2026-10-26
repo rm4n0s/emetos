@@ -377,3 +377,140 @@ func TestGoplsAnswersHoverAndSignatureHelp(t *testing.T) {
 	r.host.WaitServers()
 	requireGone(t, "gopls", status.PID)
 }
+
+// TestGoplsNavigatesAGoProject runs the real gopls on the fixture of step 12.7 and checks the definition, the references, the
+// document symbols, the highlights and the workspace symbols of a function used in two files (SPEC §9.12 "Navigation").
+func TestGoplsNavigatesAGoProject(t *testing.T) {
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls is not installed")
+	}
+	folder := t.TempDir()
+	fixture := filepath.Join(testRoot(t), "testdata", "proof", "12.7", "project")
+	for _, name := range []string{"go.mod", "greet.go", "main.go", "greet_test.go"} {
+		text, err := os.ReadFile(filepath.Join(fixture, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(folder, name), text, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := manifest("gopls.pack")
+	m.Contributes.LanguageServers = []extension.LanguageServerSpec{{
+		ID: "gopls", Name: "gopls", Languages: []string{"go", "go.mod", "go.work"}, Program: "gopls",
+		PathSetting: "go.goplsPath", ConfigurationSection: "go.gopls",
+	}}
+	f, _ := factory(m, nil)
+	r := newRig(t, f)
+	r.folders["one"] = folder
+	t.Cleanup(func() { r.host.Shutdown() })
+	tb := r.newTab("one")
+	tb.deferred = true
+	tb.scope.Start()
+
+	opts := document.NewOptions()
+	opts.LanguageID = "go"
+	mainPath := filepath.Join(folder, "main.go")
+	src, err := os.ReadFile(mainPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := document.New(document.FileURI(mainPath), string(src), opts)
+	tb.lsp.open(doc)
+	tb.pump()
+	waitFor(t, tb, "gopls to run", func() bool {
+		s, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+		return s.State == ServerRunning
+	})
+	status, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+
+	// the servers read the text of other files through the UI thread of the tab, which the test drives while it waits
+	pumped := func(f func()) {
+		done := make(chan struct{})
+		go func() { defer close(done); f() }()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				tb.pump()
+				time.Sleep(5 * time.Millisecond)
+			}
+		}
+	}
+	d := langfeatures.Document{URI: doc.URI(), LanguageID: "go", Version: doc.Version(), Text: doc.Snapshot()}
+	reg := tb.scope.Features()
+	lines := strings.Split(string(src), "\n")
+	use := -1
+	for i, l := range lines {
+		if strings.Contains(l, "fmt.Println(Greet(n))") {
+			use = i
+		}
+	}
+	if use < 0 {
+		t.Fatal("the fixture has no use of Greet")
+	}
+	pos := langfeatures.Position{Line: use, Col: strings.Index(lines[use], "Greet") + 1}
+
+	// the definition: gopls needs its workspace loaded first
+	var links []langfeatures.LocationLink
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) && len(links) == 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		pumped(func() { links, _ = reg.Locations(ctx, d, pos, langfeatures.NavDefinition) })
+		cancel()
+		if len(links) == 0 {
+			tb.pump()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if len(links) != 1 || !strings.HasSuffix(links[0].Target.URI.Path, "greet.go") || links[0].Target.Range.Start.Line != 5 {
+		t.Fatalf("definition = %+v\nOutput:\n%s", links, strings.Join(tb.channels.Lines("gopls"), "\n"))
+	}
+
+	// the references: the declaration, the uses in main.go, greet.go and the test
+	var refs []langfeatures.Location
+	var errs []langfeatures.ProviderError
+	pumped(func() { refs, errs = reg.References(context.Background(), d, pos, true) })
+	if len(errs) != 0 {
+		t.Errorf("errors = %v", errs)
+	}
+	files := map[string]int{}
+	for _, l := range refs {
+		files[filepath.Base(l.URI.Path)]++
+	}
+	if files["main.go"] != 2 || files["greet.go"] != 2 || files["greet_test.go"] != 1 {
+		t.Errorf("references by file = %v", files)
+	}
+
+	// the symbols of a file and the highlights of an identifier
+	var syms []langfeatures.DocumentSymbol
+	pumped(func() { syms, _ = reg.DocumentSymbols(context.Background(), d) })
+	if len(syms) != 1 || syms[0].Name != "main" || syms[0].Kind != 12 {
+		t.Errorf("symbols = %+v", syms)
+	}
+	var hls []langfeatures.DocumentHighlight
+	pumped(func() { hls, _ = reg.DocumentHighlights(context.Background(), d, pos) })
+	if len(hls) < 2 {
+		t.Errorf("highlights = %+v", hls)
+	}
+
+	// the workspace symbols
+	var ws []langfeatures.WorkspaceSymbol
+	for time.Now().Before(deadline) && len(ws) == 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		pumped(func() { ws, _ = reg.WorkspaceSymbols(ctx, "Shout") })
+		cancel()
+		if len(ws) == 0 {
+			tb.pump()
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if len(ws) == 0 || ws[0].Name != "Shout" || !strings.HasSuffix(ws[0].Location.URI.Path, "greet.go") {
+		t.Errorf("workspace symbols = %+v", ws)
+	}
+
+	tb.scope.Close()
+	r.host.WaitServers()
+	requireGone(t, "gopls", status.PID)
+}

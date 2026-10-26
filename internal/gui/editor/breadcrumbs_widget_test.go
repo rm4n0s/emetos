@@ -18,6 +18,8 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -392,4 +394,72 @@ func TestProofStickyBreadcrumbs(t *testing.T) {
 	}
 	noErrors(t, ts)
 	testutil.Proof(t, ts, "5.7-sticky-breadcrumbs.png")
+}
+
+// symbolCrumbs is the breadcrumbs of a file whose editor has symbols (step 12.7): the symbols that hold the cursor follow the
+// path, and a symbol opens a picker of the symbols of its level.
+func symbolCrumbs(t *testing.T, options BreadcrumbsOptions, line, col int) (*crumbsRig, *symbolRig, *[]buffer.Position) {
+	t.Helper()
+	sr := newSymbolRig(t, true)
+	sr.settle()
+	var jumped []buffer.Position
+	sr.vm.sg.host.JumpTo = func(_ *ViewModel, p buffer.Position) { jumped = append(jumped, p) }
+	cursorAt(sr.vm, line, col)
+	opts := crumbsOpts()
+	opts.View = sr.vm
+	options.Enabled, options.FilePath = true, "last"
+	r := newCrumbsRig(t, "/home/me/proj/src/main.go", options, opts)
+	r.settle()
+	return r, sr, &jumped
+}
+
+func TestBreadcrumbsShowTheSymbolsThatHoldTheCursor(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		options BreadcrumbsOptions
+		shown   []string
+		hidden  []string
+	}{
+		{"on", BreadcrumbsOptions{SymbolPath: "on"}, []string{"main.go", "Outer", "loop"}, nil},
+		{"last", BreadcrumbsOptions{SymbolPath: "last"}, []string{"main.go", "loop"}, []string{"Outer"}},
+		{"off", BreadcrumbsOptions{SymbolPath: "off"}, []string{"main.go"}, []string{"Outer", "loop"}},
+		{"a hidden kind", BreadcrumbsOptions{SymbolPath: "on", HiddenKinds: func() (h [langfeatures.SymbolKindCount + 1]bool) { h[13] = true; return }()}, []string{"Outer"}, []string{"loop"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _, _ := symbolCrumbs(t, tc.options, 10, 4)
+			for _, s := range tc.shown {
+				if !r.text(s) {
+					t.Errorf("%q is not shown", s)
+				}
+			}
+			for _, s := range tc.hidden {
+				if r.text(s) {
+					t.Errorf("%q is shown", s)
+				}
+			}
+			if errs := r.ts.TakeErrors(); len(errs) != 0 {
+				t.Errorf("errors: %v", errs)
+			}
+		})
+	}
+}
+
+func TestBreadcrumbsFollowTheCursorAndThePickerGoesToASymbol(t *testing.T) {
+	r, sr, jumped := symbolCrumbs(t, BreadcrumbsOptions{SymbolPath: "on", SymbolSortOrder: "name"}, 10, 4)
+	cursorAt(sr.vm, 52, 7)
+	sr.vm.SelectionsChanged()
+	r.settle()
+	if !r.text("Other") || r.text("loop") {
+		t.Fatalf("after moving to Other: Other %v, loop %v", r.text("Other"), r.text("loop"))
+	}
+	r.ts.Tap(gluttertest.ByText("Other"))
+	r.waitFor(t, "Outer")
+	r.ts.Tap(gluttertest.ByText("Outer"))
+	r.settle()
+	if len(*jumped) != 1 || (*jumped)[0] != positionOf(2, 5) {
+		t.Errorf("jumped = %v", *jumped)
+	}
+	if errs := r.ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
 }

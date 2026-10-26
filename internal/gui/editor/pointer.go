@@ -148,7 +148,11 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 	if s.pressOnZone(e, hasPrimary(buttons)) {
 		return
 	}
+	vm.PeekClose() // a press in the editor outside the peek view closes it
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
+	if !middle && !ev.OnLineNumbers && e.Kind() != ui.PointerDeviceKindTouch && s.linkPress(e, ev, gutterWidth) {
+		return
+	}
 	if s.startsFoldPress(e, ev, middle, gutterWidth) {
 		return
 	}
@@ -269,6 +273,9 @@ func (s *editorState) mouseStyle(vm *ViewModel) string {
 	if s.dragStyle != "" {
 		return s.dragStyle
 	}
+	if vm.Link() != nil {
+		return "pointer"
+	}
 	return vm.Options().MouseStyle
 }
 
@@ -330,6 +337,8 @@ func mouseCursor(style string) services.MouseCursor {
 		return services.SystemMouseCursors.Basic
 	case "copy":
 		return services.SystemMouseCursors.Copy
+	case "pointer":
+		return services.SystemMouseCursors.Click
 	}
 	return services.SystemMouseCursors.Text
 }
@@ -437,4 +446,36 @@ func (s *editorState) pressOnZone(e *gestures.PointerDownEvent, primary bool) bo
 		vm.zones.press(hit)
 	}
 	return true
+}
+
+// linkPress handles a press of the primary button with the modifier of the link held (Ctrl+click): it goes to the definition of
+// the word under the pointer and does not move the cursors as a click does. A press that is not on a word of a language that has
+// a definition provider is an ordinary one.
+func (s *editorState) linkPress(e *gestures.PointerDownEvent, ev MouseEvent, gutterWidth float64) bool {
+	if e.Buttons()&gestures.PrimaryButton == 0 || e.LocalPosition().Dx < gutterWidth || !s.overText(e.LocalPosition(), gutterWidth, ev.Position) {
+		return false
+	}
+	return s.Widget().vm.LinkClick(ev.Position, s.modifiers())
+}
+
+// linkKeyEvent follows the keys that make a link while the pointer rests on the text: the link comes when the modifier goes
+// down and goes when it comes up. It never uses the key.
+func (s *editorState) linkKeyEvent(k services.KeyEvent) bool {
+	vm := s.Widget().vm
+	key := k.LogicalKey()
+	var down bool
+	switch k.(type) {
+	case *services.KeyDownEvent:
+		down = true
+	case *services.KeyUpEvent:
+		down = false
+	default:
+		return false
+	}
+	switch {
+	case vm.Options().MultiCursorModifier != "ctrlCmd" && (key == services.LogicalKeyboardKeyControlLeft || key == services.LogicalKeyboardKeyControlRight),
+		vm.Options().MultiCursorModifier == "ctrlCmd" && (key == services.LogicalKeyboardKeyAltLeft || key == services.LogicalKeyboardKeyAltRight):
+		vm.LinkModifierChanged(down)
+	}
+	return false
 }

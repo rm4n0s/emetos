@@ -1105,7 +1105,7 @@ func TestDropOneFileOpensItAndAsksBeforeReplacing(t *testing.T) {
 		a.pump()
 	}
 	// onto the empty part of the tree: the folder of the window, where main.go is
-	drop(ui.Offset{Dx: 100, Dy: 560})
+	drop(ui.Offset{Dx: 100, Dy: 500})
 	if !a.text("A file or folder with the name 'main.go' already exists in the destination folder. Do you want to replace it?") {
 		t.Fatal("no question")
 	}
@@ -1115,7 +1115,7 @@ func TestDropOneFileOpensItAndAsksBeforeReplacing(t *testing.T) {
 	if strings.Contains(a.read("main.go"), "dropped") {
 		t.Error("Cancel replaced the file")
 	}
-	drop(ui.Offset{Dx: 100, Dy: 560})
+	drop(ui.Offset{Dx: 100, Dy: 500})
 	a.answer("Replace")
 	a.waitFor("the replace", func() bool { return strings.Contains(a.read("main.go"), "dropped") })
 	a.pump()
@@ -1262,7 +1262,7 @@ func TestTheContextMenuOfTheExplorer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			a := newFileApp(t, projectFiles)
 			tt.setup(a)
-			at := ui.Offset{Dx: 100, Dy: 560}
+			at := ui.Offset{Dx: 100, Dy: 500}
 			if tt.on != "" {
 				at = a.rowCenter(tt.on)
 			}

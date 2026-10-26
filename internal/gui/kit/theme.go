@@ -303,6 +303,21 @@ type Colors struct {
 	EditorSuggestWidgetStatusForeground                                                     ui.Color
 	// SymbolIcons are the colors of the symbol icons, in the order of SymbolIconNames; SymbolIconColor finds one by name.
 	SymbolIcons [33]ui.Color
+	// EditorLinkActiveForeground is the color of the link that Ctrl+hover draws under a word. The highlights of the
+	// occurrences of a symbol in the colors of their kind: EditorWordHighlightBackground (read), the Strong one (write); the
+	// Text one is EditorWordHighlightTextBackground.
+	EditorLinkActiveForeground                                           ui.Color
+	EditorWordHighlightBackground, EditorWordHighlightBorder             ui.Color
+	EditorWordHighlightStrongBackground, EditorWordHighlightStrongBorder ui.Color
+	// The colors of the peek view (peekView*): the border and the arrow, the title area with its label and description, the
+	// list of results with its lines, files, selection and match highlight, and the editor with its gutter and match highlight.
+	PeekViewBorder                                                                            ui.Color
+	PeekViewTitleBackground, PeekViewTitleLabelForeground, PeekViewTitleDescriptionForeground ui.Color
+	PeekViewResultBackground, PeekViewResultLineForeground, PeekViewResultFileForeground      ui.Color
+	PeekViewResultSelectionBackground, PeekViewResultSelectionForeground                      ui.Color
+	PeekViewResultMatchHighlightBackground                                                    ui.Color
+	PeekViewEditorBackground, PeekViewEditorGutterBackground                                  ui.Color
+	PeekViewEditorMatchHighlightBackground, PeekViewEditorMatchHighlightBorder                ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -542,6 +557,25 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorSuggestWidgetFocusHighlightForeground: color("editorSuggestWidget.focusHighlightForeground"),
 		EditorSuggestWidgetStatusForeground:         color("editorSuggestWidgetStatus.foreground"),
 		SymbolIcons:                                 symbolIconColors(color),
+		EditorLinkActiveForeground:                  color("editorLink.activeForeground"),
+		EditorWordHighlightBackground:               color("editor.wordHighlightBackground"),
+		EditorWordHighlightBorder:                   color("editor.wordHighlightBorder"),
+		EditorWordHighlightStrongBackground:         color("editor.wordHighlightStrongBackground"),
+		EditorWordHighlightStrongBorder:             color("editor.wordHighlightStrongBorder"),
+		PeekViewBorder:                              color("peekView.border"),
+		PeekViewTitleBackground:                     color("peekViewTitle.background"),
+		PeekViewTitleLabelForeground:                color("peekViewTitleLabel.foreground"),
+		PeekViewTitleDescriptionForeground:          color("peekViewTitleDescription.foreground"),
+		PeekViewResultBackground:                    color("peekViewResult.background"),
+		PeekViewResultLineForeground:                color("peekViewResult.lineForeground"),
+		PeekViewResultFileForeground:                color("peekViewResult.fileForeground"),
+		PeekViewResultSelectionBackground:           color("peekViewResult.selectionBackground"),
+		PeekViewResultSelectionForeground:           color("peekViewResult.selectionForeground"),
+		PeekViewResultMatchHighlightBackground:      color("peekViewResult.matchHighlightBackground"),
+		PeekViewEditorBackground:                    color("peekViewEditor.background"),
+		PeekViewEditorGutterBackground:              color("peekViewEditorGutter.background"),
+		PeekViewEditorMatchHighlightBackground:      color("peekViewEditor.matchHighlightBackground"),
+		PeekViewEditorMatchHighlightBorder:          color("peekViewEditor.matchHighlightBorder"),
 	}
 }
 

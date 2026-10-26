@@ -47,6 +47,8 @@ const (
 	PanelPositionMenu = "PanelPositionMenu"
 	// EditorContext is the context menu of the editor.
 	EditorContext = "EditorContext"
+	// EditorContextPeek is the Peek submenu of the context menu of the editor.
+	EditorContextPeek = "EditorContextPeek"
 	// EditorTitleContext is the context menu of a tab of the editor.
 	EditorTitleContext = "EditorTitleContext"
 	// EditorSplitMoveSubmenu is the Split & Move submenu of the context menu of a tab.

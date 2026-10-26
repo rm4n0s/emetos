@@ -351,3 +351,65 @@ func TestServerProviderTellsItsSignatureCharacters(t *testing.T) {
 		t.Errorf("a provider without a server has characters %q %q", tr, re)
 	}
 }
+
+func TestServerProviderWorkspaceSymbolsAndResolve(t *testing.T) {
+	ctx := context.Background()
+	c := connect(t, `{"workspaceSymbolProvider":{"resolveProvider":true},"definitionProvider":true}`, map[string]lsptest.Response{
+		lsp.MethodWorkspaceSymbol: result(`[
+			{"name":"Greet","kind":12,"containerName":"main","location":{"uri":"file:///work/a.go","range":` + emojiRange + `}},
+			{"name":"Lazy","kind":12,"tags":[1],"location":{"uri":"file:///work/b.go"}},
+			{"name":"Odd","kind":12,"location":{"uri":"http://example.com/x"}}]`),
+		lsp.MethodWorkspaceSymbolResolve: result(`{"name":"Lazy","kind":12,"location":{"uri":"file:///work/b.go","range":` + emojiRange + `}}`),
+	})
+	reg := NewRegistry()
+	remove := c.sp.Register(reg, "emetos.test", Selector{Languages: []string{"go"}})
+	defer remove()
+	syms, errs := reg.WorkspaceSymbols(ctx, "gre")
+	if len(errs) != 0 || len(syms) != 2 {
+		t.Fatalf("symbols = %+v, errors %v (the symbol of a web page is left out)", syms, errs)
+	}
+	greet, lazy := syms[0], syms[1]
+	if greet.Name != "Greet" || greet.ContainerName != "main" || greet.Location.URI.Path != "/work/a.go" || greet.Unresolved || greet.Owner != "emetos.test" {
+		t.Errorf("greet = %+v", greet)
+	}
+	if !lazy.Unresolved || !lazy.Deprecated {
+		t.Errorf("lazy = %+v", lazy)
+	}
+	if reqs := c.requests(lsp.MethodWorkspaceSymbol); len(reqs) != 1 || string(reqs[0]) != `{"query":"gre"}` {
+		t.Errorf("requests = %s", reqs)
+	}
+	if reg.CanResolveWorkspaceSymbol(greet) != true || !reg.CanResolveWorkspaceSymbol(lazy) {
+		t.Error("the server can resolve")
+	}
+	got, err := reg.ResolveWorkspaceSymbol(ctx, lazy)
+	if err != nil || got.Unresolved || got.Location.Range != rng(0, 3, 0, 4) || got.Owner != "emetos.test" {
+		t.Errorf("resolved = %+v, %v", got, err)
+	}
+	// a symbol that has its range is not sent back
+	if got, err := reg.ResolveWorkspaceSymbol(ctx, greet); err != nil || got.Location != greet.Location || len(c.requests(lsp.MethodWorkspaceSymbolResolve)) != 1 {
+		t.Errorf("resolve of a located symbol = %+v, %v", got, err)
+	}
+}
+
+func TestServerProviderOffersWhatItsCapabilitiesSay(t *testing.T) {
+	c := connect(t, `{"definitionProvider":true,"referencesProvider":false,"documentSymbolProvider":true}`, nil)
+	reg := NewRegistry()
+	c.sp.Register(reg, "emetos.test", Selector{Languages: []string{"go"}})
+	doc := docOf("go", "/work/a.go", "x")
+	for f, want := range map[Feature]bool{
+		FeatureDefinition: true, FeatureDeclaration: false, FeatureTypeDefinition: false, FeatureImplementation: false,
+		FeatureReferences: false, FeatureDocumentSymbols: true, FeatureDocumentHighlights: false, FeatureWorkspaceSymbols: false,
+	} {
+		if got := reg.Has(doc, f); got != want {
+			t.Errorf("Has(%d) = %v, want %v", f, got, want)
+		}
+	}
+	if reg.Has(docOf("rust", "/work/a.rs", "x"), FeatureDefinition) {
+		t.Error("a document of another language has a definition provider")
+	}
+	// a server that is not running offers nothing
+	none := &ServerProvider{Name: "n"}
+	if none.Offers(FeatureDefinition) {
+		t.Error("no client offers a feature")
+	}
+}

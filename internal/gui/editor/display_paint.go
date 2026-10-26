@@ -32,22 +32,36 @@ func (v overlayView) paintRulers() {
 }
 
 // paintOccurrences draws the text that equals the selection and the other occurrences of the word
-// at the cursor, under the find matches.
+// at the cursor, under the find matches. The occurrences of a symbol that a provider answered have the colors of their
+// kind (read, write, text), and the references of a peek view their own.
 func (v overlayView) paintOccurrences() {
 	vm := v.geo.vm
 	for _, c := range []struct {
-		owner              int
-		background, border ui.Color
-	}{
-		{selectionHighlightOwner, v.colors.SelectionHighlight, v.colors.SelectionHighlightBorder},
-		{wordHighlightOwner, v.colors.WordHighlight, v.colors.WordHighlightBorder},
-	} {
+		owner int
+	}{{selectionHighlightOwner}, {wordHighlightOwner}, {peekMatchOwner}} {
 		for _, d := range vm.occurrencesIn(c.owner, v.first, v.last) {
-			if _, _, hidden := vm.HiddenSpan(d.Range.Start.Line); !hidden {
-				v.paintMatch(d.Range, c.background, c.border)
+			if _, _, hidden := vm.HiddenSpan(d.Range.Start.Line); hidden {
+				continue
 			}
+			bg, border := v.occurrenceColors(c.owner, d.Options.ClassName)
+			v.paintMatch(d.Range, bg, border)
 		}
 	}
+}
+
+// occurrenceColors are the colors of a mark of an owner with a class.
+func (v overlayView) occurrenceColors(owner int, class string) (background, border ui.Color) {
+	switch {
+	case owner == selectionHighlightOwner:
+		return v.colors.SelectionHighlight, v.colors.SelectionHighlightBorder
+	case owner == peekMatchOwner:
+		return v.colors.PeekMatch, v.colors.PeekMatchBorder
+	case class == classWordHighlight:
+		return v.colors.WordHighlightRead, v.colors.WordHighlightReadBorder
+	case class == classWordHighlightStrong:
+		return v.colors.WordHighlightWrite, v.colors.WordHighlightWriteBorder
+	}
+	return v.colors.WordHighlight, v.colors.WordHighlightBorder
 }
 
 // paintSnippetPlaceholders draws the tab stops of the snippet that is being filled in: the final

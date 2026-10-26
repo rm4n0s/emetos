@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
@@ -37,12 +38,15 @@ type BreadcrumbsOpts struct {
 	// ReadDir lists a folder for a picker; the default is ReadSiblings. The workbench replaces it
 	// with one that applies files.exclude.
 	ReadDir func(ctx context.Context, dir string) ([]BreadcrumbEntry, error)
+	// View is the editor whose symbols the bar shows after the path of the file: the chain of symbols that hold its cursor,
+	// each opening a picker of its siblings. Without it the bar has the path only.
+	View *ViewModel
 }
 
 // Breadcrumbs is the bar above an editor with the path of its file. Each segment opens a picker
 // of its siblings: a folder in the picker is entered, a file is opened through OnOpen. The folders
-// are read in the background with the ctx the bar is made with. The symbol part of the bar comes
-// with area 3.
+// are read in the background with the ctx the bar is made with. After the path it shows the symbols that hold the cursor of its
+// View (breadcrumbs.symbolPath); a symbol opens a picker of the symbols of its level, and choosing one goes to it.
 type Breadcrumbs struct {
 	widgets.StatefulWidget
 	ctx     context.Context
@@ -84,6 +88,20 @@ type picker struct {
 	// rows are the entries it lists, with ".." first when it is below its start.
 	rows   []BreadcrumbEntry
 	loaded bool
+	// sym says that the picker lists symbols: symRows are the symbols of one level, in the order of the setting, and symFocus
+	// the one that holds the cursor.
+	sym      bool
+	symRows  []langfeatures.DocumentSymbol
+	symFocus int
+}
+
+// crumb is a segment of the bar: a part of the path of the file, or a symbol that holds the cursor.
+type crumb struct {
+	name string
+	file *BreadcrumbItem
+	// symbol is the symbol and siblings the symbols of its level (the picker lists them).
+	symbol   *langfeatures.DocumentSymbol
+	siblings []langfeatures.DocumentSymbol
 }
 
 type breadcrumbsState struct {
@@ -96,16 +114,50 @@ type breadcrumbsState struct {
 	// gen counts the reads of folders; the answer of an old read is dropped.
 	gen    int
 	cancel context.CancelFunc
+	// view is the editor whose symbols the bar follows, with the handles of the listeners.
+	view      *ViewModel
+	selHandle foundation.ListenerHandle
+	symHandle foundation.ListenerHandle
 }
 
 // InitState prepares the state.
 func (s *breadcrumbsState) InitState() {
 	s.binding = widgets.WidgetsBindingOf(s.Context())
 	s.hover, s.open = -1, -1
+	s.follow()
+}
+
+// follow listens to the cursor and the symbols of the editor of the bar: the symbol part changes with them.
+func (s *breadcrumbsState) follow() {
+	s.unfollow()
+	vm := s.Widget().opts.View
+	if vm == nil {
+		return
+	}
+	s.view = vm
+	// the editor moves its cursor while its widgets build: the bar is built again after that
+	refresh := func() {
+		s.binding.Post(func() {
+			if s.Mounted() {
+				s.SetState(func() {})
+			}
+		})
+	}
+	s.selHandle = vm.AddSelectionListener(refresh)
+	s.symHandle = vm.AddSymbolsListener(refresh)
+}
+
+func (s *breadcrumbsState) unfollow() {
+	if s.view != nil {
+		s.view.RemoveSelectionListener(s.selHandle)
+		s.view.RemoveSymbolsListener(s.symHandle)
+		s.view = nil
+	}
 }
 
 // Dispose stops the read that is running.
 func (s *breadcrumbsState) Dispose() {
+	s.unfollow()
 	if s.cancel != nil {
 		s.cancel()
 	}
@@ -113,6 +165,9 @@ func (s *breadcrumbsState) Dispose() {
 
 // DidUpdateWidget closes the picker when the file is another.
 func (s *breadcrumbsState) DidUpdateWidget(old *Breadcrumbs) {
+	if old.opts.View != s.Widget().opts.View {
+		s.follow()
+	}
 	if old.file != s.Widget().file && s.open >= 0 {
 		// the portals cannot be hidden while the tree is built: the builder of the picker shows
 		// nothing for a segment that is not open, and the next close hides them
@@ -127,18 +182,91 @@ func (s *breadcrumbsState) readDir() func(context.Context, string) ([]Breadcrumb
 	return ReadSiblings
 }
 
+// crumbs are the segments of the bar: the path of the file, then the symbols that hold the cursor (breadcrumbs.symbolPath).
+func (s *breadcrumbsState) crumbs() []crumb {
+	b := s.Widget()
+	var out []crumb
+	for _, it := range b.Items() {
+		out = append(out, crumb{name: it.Name, file: &it})
+	}
+	if !b.options.Enabled || b.opts.View == nil || b.options.SymbolPath == "off" || b.options.SymbolPath == "" {
+		return out
+	}
+	syms, ok := b.opts.View.Symbols()
+	if !ok {
+		return out
+	}
+	pos := b.opts.View.Cursors().Primary().Position()
+	chain := langfeatures.SymbolPathAt(syms, pos, nil)
+	var syc []crumb
+	for d, sym := range chain {
+		if kind := sym.Kind; kind >= 1 && kind < len(b.options.HiddenKinds) && b.options.HiddenKinds[kind] {
+			continue
+		}
+		level := syms
+		if d > 0 {
+			level = chain[d-1].Children
+		}
+		syc = append(syc, crumb{name: sym.Name, symbol: sym, siblings: level})
+	}
+	if b.options.SymbolPath == "last" && len(syc) > 1 {
+		syc = syc[len(syc)-1:]
+	}
+	return append(out, syc...)
+}
+
 // toggle opens the picker of a segment, or closes it when it is the open one.
-func (s *breadcrumbsState) toggle(items []BreadcrumbItem, i int) {
+func (s *breadcrumbsState) toggle(items []crumb, i int) {
 	if s.open == i {
 		s.close()
 		return
 	}
 	s.close()
 	s.open = i
-	dir := filepath.Dir(items[i].Path)
-	s.picker = picker{start: dir, dir: dir, focus: items[i].Name}
+	if c := items[i]; c.symbol != nil {
+		s.openSymbols(c)
+		s.SetState(func() {})
+		if i < len(s.controllers) {
+			s.controllers[i].Show()
+		}
+		return
+	}
+	dir := filepath.Dir(items[i].file.Path)
+	s.picker = picker{start: dir, dir: dir, focus: items[i].name}
 	s.load(dir)
 	s.SetState(func() {})
+}
+
+// openSymbols fills the picker of a symbol segment: the symbols of its level without the kinds the settings hide, in the order
+// of breadcrumbs.symbolSortOrder, with the symbol itself focused.
+func (s *breadcrumbsState) openSymbols(c crumb) {
+	b := s.Widget()
+	var rows []langfeatures.DocumentSymbol
+	for _, sym := range langfeatures.SortSymbols(c.siblings, langfeatures.SymbolSortOrder(b.options.SymbolSortOrder)) {
+		if kind := sym.Kind; kind >= 1 && kind < len(b.options.HiddenKinds) && b.options.HiddenKinds[kind] {
+			continue
+		}
+		rows = append(rows, sym)
+	}
+	focus := 0
+	for i, r := range rows {
+		if r.SelectionRange == c.symbol.SelectionRange && r.Name == c.symbol.Name {
+			focus = i
+		}
+	}
+	s.picker = picker{sym: true, loaded: true, symRows: rows, symFocus: focus}
+}
+
+// chooseSymbol handles the symbol of the picker that the user chose: the cursor goes to it.
+func (s *breadcrumbsState) chooseSymbol(index int) {
+	if index < 0 || index >= len(s.picker.symRows) {
+		return
+	}
+	sym := s.picker.symRows[index]
+	s.close()
+	if s.view != nil {
+		s.view.RevealSymbol(&sym)
+	}
 }
 
 // load reads a folder in the background; when it is read the picker shows it.
@@ -228,8 +356,8 @@ func (s *breadcrumbsState) choose(index int) {
 // Build implements widgets.State.
 func (s *breadcrumbsState) Build(bc widgets.BuildContext) widgets.Widget {
 	b := s.Widget()
-	items := b.Items()
-	if len(items) == 0 {
+	items := s.crumbs()
+	if len(items) == 0 || !b.options.Enabled {
 		return widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(0.0)})
 	}
 	for len(s.controllers) < len(items) {
@@ -253,7 +381,7 @@ func (s *breadcrumbsState) Build(bc widgets.BuildContext) widgets.Widget {
 }
 
 // item is one segment: its icon and name, the click that opens its picker, and the picker.
-func (s *breadcrumbsState) item(bc widgets.BuildContext, colors kit.Colors, items []BreadcrumbItem, i int) widgets.Widget {
+func (s *breadcrumbsState) item(bc widgets.BuildContext, colors kit.Colors, items []crumb, i int) widgets.Widget {
 	it := items[i]
 	fg := colors.BreadcrumbForeground
 	switch {
@@ -264,14 +392,17 @@ func (s *breadcrumbsState) item(bc widgets.BuildContext, colors kit.Colors, item
 	}
 	var parts []widgets.Widget
 	if s.Widget().options.Icons {
-		code := fonts.CodiconSymbolFile
-		if it.Dir {
+		code, iconColor := fonts.CodiconSymbolFile, fg
+		switch {
+		case it.symbol != nil:
+			code, iconColor = SymbolIcon(colors, it.symbol.Kind)
+		case it.file.Dir:
 			code = fonts.CodiconFolder
 		}
-		parts = append(parts, widgets.NewIcon(fonts.CodiconIcon(code), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(fg)}),
+		parts = append(parts, widgets.NewIcon(fonts.CodiconIcon(code), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(iconColor)}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(2.0)}))
 	}
-	parts = append(parts, widgets.NewFlexible(widgets.NewText(it.Name, widgets.TextOpts{
+	parts = append(parts, widgets.NewFlexible(widgets.NewText(it.name, widgets.TextOpts{
 		Style: kit.TextStyleOf(bc, breadcrumbsFont, fg), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis,
 	})))
 	body := widgets.NewMouseRegion(
@@ -315,6 +446,9 @@ func (s *breadcrumbsState) pickerBuilder(i int) widgets.OverlayChildLayoutBuilde
 // pickerList is the list of the open picker.
 func (s *breadcrumbsState) pickerList(colors kit.Colors) widgets.Widget {
 	p := s.picker
+	if p.sym {
+		return s.symbolList(colors)
+	}
 	items := make([]kit.ListItem, len(p.rows))
 	focused := foundation.None[int]()
 	for i, r := range p.rows {
@@ -335,6 +469,23 @@ func (s *breadcrumbsState) pickerList(colors kit.Colors) widgets.Widget {
 		Filterable: true, Rows: pickerRows, Width: foundation.Some(pickerWidth), Focused: focused,
 		Background: foundation.Some(colors.BreadcrumbPickerBackground),
 		OnSelect:   s.choose,
+		OnDismiss:  s.close,
+	})
+}
+
+// symbolList is the list of the open picker of a symbol segment.
+func (s *breadcrumbsState) symbolList(colors kit.Colors) widgets.Widget {
+	p := s.picker
+	items := make([]kit.ListItem, len(p.symRows))
+	for i, r := range p.symRows {
+		code, color := SymbolIcon(colors, r.Kind)
+		items[i] = kit.ListItem{Label: r.Name, Description: r.Detail, Icon: code, IconColor: color}
+	}
+	return kit.NewListOverlay(items, kit.ListOverlayOpts{
+		Key: foundation.NewValueKey("symbols"), TapGroup: s,
+		Filterable: true, Rows: pickerRows, Width: foundation.Some(pickerWidth), Focused: foundation.Some(p.symFocus),
+		Background: foundation.Some(colors.BreadcrumbPickerBackground),
+		OnSelect:   s.chooseSymbol,
 		OnDismiss:  s.close,
 	})
 }

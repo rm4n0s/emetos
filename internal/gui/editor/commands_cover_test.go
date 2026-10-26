@@ -54,6 +54,8 @@ var appCommands = map[string]bool{
 	// Go to Next Problem and the like go through the files of the window (step 12.4, gui/app/diagnostics.go)
 	"editor.action.marker.next": true, "editor.action.marker.prev": true,
 	"editor.action.marker.nextInFiles": true, "editor.action.marker.prevInFiles": true,
+	// the Outline view of the Explorer (step 12.7, gui/app/outline.go)
+	"outline.focus": true, "outline.collapse": true, "outline.followCursor": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

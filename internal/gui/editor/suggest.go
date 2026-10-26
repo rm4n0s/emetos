@@ -13,6 +13,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
@@ -130,6 +131,24 @@ type SuggestHost struct {
 	// Tokenize gives the tokens of a code block of a language, named as a fence names it ("go"); false when the language has no
 	// grammar. The hover and the parameter hints use it (and the registry above) to color the code of their Markdown.
 	Tokenize func(language, text string) ([][]extension.Token, bool)
+
+	// The means of navigation (step 12.7).
+	//
+	// Symbols is the cache of the document symbols that the editors of the window share; an editor shows no symbols without it.
+	Symbols *langfeatures.SymbolCache
+	// Open shows a location in an editor of the window, as a jump of the navigation history (OpenLocation says how).
+	Open func(loc langfeatures.Location, o OpenLocation)
+	// Embedded makes the editor that a peek view shows a file in, without a tab: done is called on the UI thread with its view
+	// model and the function that lets go of it (or the error). The view model has no navigation host of its own.
+	Embedded func(ctx context.Context, uri document.URI, done func(vm *ViewModel, release func(), err error))
+	// Texts reads the text of a document that is not this editor's, for the rows of the peek view.
+	Texts langfeatures.TextSource
+	// DirLabel is how the peek view writes the folder of a file: relative to the folder of the window, with the home folder as
+	// "~"; without it the absolute folder.
+	DirLabel func(dir string) string
+	// JumpTo moves the cursor of an editor to a position as a navigation of the history (choosing a symbol of the outline or of
+	// a picker); without it the cursor just moves.
+	JumpTo func(vm *ViewModel, p buffer.Position)
 }
 
 // SetSuggest gives the editor the means to complete (SPEC §9.12): without a host the editor has no suggest widget.
@@ -139,6 +158,7 @@ func (vm *ViewModel) SetSuggest(h *SuggestHost) {
 		h.Shared = NewSuggestShared()
 	}
 	vm.sg.host = h
+	vm.symbolsHostChanged()
 	vm.sel.NotifyListeners()
 }
 
@@ -819,3 +839,9 @@ func (vm *ViewModel) selectItem(items []*langfeatures.SuggestItem) int {
 
 // timeMillis is d milliseconds.
 func timeMillis(d int) time.Duration { return time.Duration(d) * time.Millisecond }
+
+// hasFeature tells whether a provider offers a feature for the document (the keys editorHasDocumentSymbolProvider and its kin).
+func (vm *ViewModel) hasFeature(f langfeatures.Feature) bool {
+	reg := vm.hoverFeatures()
+	return reg != nil && reg.Has(vm.langDocument(), f)
+}

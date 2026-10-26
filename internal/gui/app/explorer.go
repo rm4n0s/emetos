@@ -18,6 +18,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/views/explorer"
+	outlineview "github.com/rm4n0s/emetos/internal/gui/views/outline"
 )
 
 // The Explorer of the window (SPEC §10.8): the tree of the folder, the Open Editors, and the welcome
@@ -78,6 +79,8 @@ type explorerState struct {
 	// view is the tree of the folder, nil while the window has no folder; editors is the Open Editors.
 	view    *explorer.View
 	editors *explorer.OpenEditors
+	// outline is the model of the Outline view (outline.go).
+	outline *outlineview.Outline
 	// focus tells which views of the Explorer have the keyboard focus.
 	focus map[string]bool
 	// revealedFor is the file of the active editor that was last revealed, and wasVisible whether the
@@ -123,6 +126,7 @@ func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
 		},
 	})
 	s.makeExplorerView(binding)
+	s.initOutline(binding)
 	ex.stops = append(ex.stops,
 		win.OnFolderChange(func() { s.folderChanged(binding) }),
 		win.OnFileEvents(func(events []workspace.Event) {
@@ -342,6 +346,8 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 		return explorer.NewWelcome(explorer.WelcomeOpts{HasEditors: replaces && s.editorCount() > 0, OnOpenFolder: s.pickFolder})
 	case command.ViewOpenEditors:
 		return explorer.NewOpenEditorsBody(ex.editors)
+	case command.ViewOutline:
+		return outlineview.NewBody(ex.outline)
 	}
 	// a view an extension declared is the box of its content
 	if scope := PeekWorkspace(s.Context()).Extensions(); scope != nil {
@@ -390,13 +396,14 @@ func (s *shellState) viewFocused(viewID string, has bool) {
 	}
 	ex.focus[viewID] = has
 	any := false
-	for _, id := range []string{command.ViewExplorerFolders, command.ViewExplorerEmpty, command.ViewOpenEditors} {
+	for _, id := range []string{command.ViewExplorerFolders, command.ViewExplorerEmpty, command.ViewOpenEditors, command.ViewOutline} {
 		any = any || ex.focus[id]
 	}
 	win.Keys.Batch(func() {
 		win.Keys.Set("explorerViewletFocus", any)
 		win.Keys.Set("filesExplorerFocus", ex.focus[command.ViewExplorerFolders])
 		win.Keys.Set("openEditorsFocus", ex.focus[command.ViewOpenEditors])
+		win.Keys.Set("outlineFocus", ex.focus[command.ViewOutline])
 	})
 	// the tree takes undo and redo for the file operations while it has the focus
 	if viewID == command.ViewExplorerFolders {
@@ -517,6 +524,7 @@ func (s *shellState) bindExplorerCommands(binding *widgets.WidgetsBinding) {
 	}
 	s.bindFileOpsCommands(binding)
 	s.bindRecentCommands(binding)
+	s.bindOutlineCommands(binding)
 }
 
 // chooseFolder shows the folder dialog of the desktop (a file chooser portal that picks folders) and waits for

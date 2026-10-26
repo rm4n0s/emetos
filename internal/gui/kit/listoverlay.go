@@ -296,7 +296,7 @@ func (s *listOverlayState) row(bc widgets.BuildContext, colors Colors, it ListIt
 	var parts []widgets.Widget
 	if it.Icon != 0 {
 		parts = append(parts,
-			widgets.NewIcon(fonts.CodiconIcon(it.Icon), widgets.IconOpts{Size: foundation.Some(iconSize), Color: foundation.Some(fg)}),
+			widgets.NewIcon(fonts.CodiconIcon(it.Icon), widgets.IconOpts{Size: foundation.Some(iconSize), Color: foundation.Some(iconColor(it, fg))}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(listIconGap)}))
 	}
 	label := widgets.NewText(it.Label, widgets.TextOpts{Style: TextStyleOf(bc, listFontSize, fg), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})
@@ -320,4 +320,12 @@ func (s *listOverlayState) row(bc widgets.BuildContext, colors Colors, it ListIt
 	return widgets.NewContainer(
 		widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, listPadding), widgets.NewRow(parts, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})),
 		widgets.ContainerOpts{Height: foundation.Some(listRowHeight), Decoration: deco})
+}
+
+// iconColor is the color of the icon of a row: its own when it has one, else the color of the text.
+func iconColor(it ListItem, fg ui.Color) ui.Color {
+	if it.IconColor.Alpha() != 0 && !it.Disabled {
+		return it.IconColor
+	}
+	return fg
 }

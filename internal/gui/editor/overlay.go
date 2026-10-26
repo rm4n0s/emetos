@@ -53,6 +53,13 @@ type OverlayColors struct {
 	// and its border the other occurrences of the word at the cursor.
 	SelectionHighlight, SelectionHighlightBorder ui.Color
 	WordHighlight, WordHighlightBorder           ui.Color
+	// WordHighlightRead and WordHighlightWrite, with their borders, color the occurrences a provider says are read and written.
+	WordHighlightRead, WordHighlightReadBorder   ui.Color
+	WordHighlightWrite, WordHighlightWriteBorder ui.Color
+	// PeekMatch and its border color the references in the editor of a peek view, and Link the underline of the link that
+	// Ctrl+hover draws.
+	PeekMatch, PeekMatchBorder ui.Color
+	Link                       ui.Color
 	// SnippetTabstop and its border color the tab stops of a snippet that is being filled in,
 	// SnippetFinalTabstop and its border the final one.
 	SnippetTabstop, SnippetTabstopBorder           ui.Color
@@ -224,6 +231,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 		view.paintWhitespace()
 		view.paintMatchingBrackets()
 		view.paintDiagnostics()
+		view.paintLink()
 	} else {
 		// the unused and the deprecated text, then the boxes of control characters, which cover what the font draws for them
 		view.paintDiagnosticText()

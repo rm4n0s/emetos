@@ -184,6 +184,8 @@ type Options struct {
 	Minimap MinimapOptions
 	// StickyScroll are the settings of sticky scroll (editor.stickyScroll.*).
 	StickyScroll StickyScrollOptions
+	// GotoLocation are the settings of go to definition and its kin (editor.gotoLocation.*).
+	GotoLocation GotoLocationOptions
 }
 
 // ColumnRuler is a vertical line drawn after a number of characters (editor.rulers).
@@ -247,6 +249,13 @@ type ViewModel struct {
 	// sg is the suggest widget (suggest.go) and sig the parameter hints (signature.go).
 	sg  suggestState
 	sig signatureModel
+	// sym are the document symbols (symbols.go), nav the navigation that is being asked for (navigation.go), peek the peek view
+	// (peek.go) and link the link that Ctrl+hover draws (link.go); embedded says that the editor is the one of a peek view.
+	sym      symbolState
+	nav      goState
+	peek     peekModel
+	link     linkState
+	embedded bool
 	// viewProblem is what "View Problem" of the hover does (SetViewProblem); openURI and openAt are what its links open
 	// (SetOpeners).
 	viewProblem func(buffer.Position)
@@ -363,7 +372,7 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 9
+	ownerSlots   = 10
 	snippetOwner = 6
 	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
 	suggestOwner = 9
@@ -397,6 +406,9 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		hover:          newHoverModel(),
 		sg:             newSuggestState(),
 		sig:            newSignatureModel(),
+		sym:            newSymbolState(),
+		peek:           newPeekModel(),
+		link:           newLinkState(),
 	}
 	vm.zoomHandle = vm.zoom.AddListener(vm.zoomChanged)
 	vm.inputModeHandle = vm.inputMode.AddListener(vm.inputModeChanged)

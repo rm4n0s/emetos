@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 )
@@ -83,5 +84,56 @@ func signatureState(a *keyApp, signatures int) func() {
 		if a.vm.SignatureHints() == nil {
 			panic("the parameter hints did not show")
 		}
+	}
+}
+
+// keysNav answers every navigation request with a place in the document and every reference request with two.
+type keysNav struct{ uri document.URI }
+
+func (k keysNav) ProvideLocations(context.Context, langfeatures.Document, langfeatures.Position, langfeatures.NavKind) ([]langfeatures.LocationLink, error) {
+	return []langfeatures.LocationLink{{Target: langfeatures.Location{URI: k.uri, Range: buffer.Range{Start: buffer.Position{Line: 2}, End: buffer.Position{Line: 2, Col: 3}}}}}, nil
+}
+
+func (k keysNav) ProvideReferences(context.Context, langfeatures.Document, langfeatures.Position, bool) ([]langfeatures.Location, error) {
+	return []langfeatures.Location{
+		{URI: k.uri, Range: buffer.Range{Start: buffer.Position{Line: 0}, End: buffer.Position{Line: 0, Col: 3}}},
+		{URI: k.uri, Range: buffer.Range{Start: buffer.Position{Line: 2}, End: buffer.Position{Line: 2, Col: 3}}},
+	}, nil
+}
+
+// navigationHost is a host of the editor with the navigation providers of these tests (they match any language).
+func navigationHost(a *keyApp) *editor.SuggestHost {
+	reg := langfeatures.NewRegistry()
+	nav := keysNav{uri: a.vm.Document().URI()}
+	reg.RegisterNavigation("keys", langfeatures.Selector{}, nav)
+	reg.RegisterReferences("keys", langfeatures.Selector{}, nav)
+	return &editor.SuggestHost{Ctx: context.Background(), Features: reg, Shared: editor.NewSuggestShared()}
+}
+
+// navigationState is the state of an editor whose language has the navigation providers (the keys editorHasDefinitionProvider
+// and its kin), for the keys of go to definition and its kin.
+func navigationState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.endSnippet()
+		a.focusEditor()
+		a.vm.SetSuggest(navigationHost(a))
+		a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 2)})
+	}
+}
+
+// peekState is the state of an editor with a peek view of two references open, for the keys that go through it.
+func peekState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.endSnippet()
+		a.focusEditor()
+		a.vm.SetSuggest(navigationHost(a))
+		a.vm.Cursors().SetSelections([]buffer.Selection{cursorAt(1, 2)})
+		uri := a.vm.Document().URI()
+		a.vm.OpenPeek(editor.GoReferences, []editor.NavTarget{
+			{URI: uri, Range: buffer.Range{Start: buffer.Position{Line: 0}, End: buffer.Position{Line: 0, Col: 3}}},
+			{URI: uri, Range: buffer.Range{Start: buffer.Position{Line: 2}, End: buffer.Position{Line: 2, Col: 3}}},
+		})
 	}
 }

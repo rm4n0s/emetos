@@ -504,6 +504,7 @@ func buildActions() map[string]action {
 	suggestActions(a)
 	hoverActions(a)
 	signatureActions(a)
+	navigationActions(a)
 	emmetActions(a)
 	wrapActions(a)
 	devActions(a)

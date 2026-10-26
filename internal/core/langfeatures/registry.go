@@ -128,6 +128,19 @@ func (l *list[P]) ordered(doc Document) []Registered[P] {
 	return out
 }
 
+// all lists the providers whatever the document is, in the order of ordered with equal scores: the newer registration first.
+func (l *list[P]) all() []Registered[P] {
+	l.mu.RLock()
+	es := slices.Clone(l.entries)
+	l.mu.RUnlock()
+	sort.SliceStable(es, func(i, j int) bool { return es[i].seq > es[j].seq })
+	out := make([]Registered[P], len(es))
+	for i, e := range es {
+		out[i] = Registered[P]{Owner: e.owner, Provider: e.p, Score: scoreAll, Triggers: e.triggers}
+	}
+	return out
+}
+
 // groups is ordered split into runs of equal score: the providers of the first run are asked together, and the next run only
 // when they had nothing to say.
 func (l *list[P]) groups(doc Document) [][]Registered[P] {
@@ -156,6 +169,44 @@ type Registry struct {
 	codeActions list[CodeActionProvider]
 	formatting  list[FormattingProvider]
 	rename      list[RenameProvider]
+
+	workspaceSymbols list[WorkspaceSymbolProvider]
+
+	changeMu  sync.Mutex
+	listeners map[int]func()
+	nextID    int
+}
+
+// OnChange calls fn when what the providers offer changed without a registration changing: a language server that started or
+// stopped (Changed). The editors ask for the symbols and the highlights again then. fn runs on the goroutine that called
+// Changed. The function that stops the listener is returned.
+func (r *Registry) OnChange(fn func()) (stop func()) {
+	r.changeMu.Lock()
+	defer r.changeMu.Unlock()
+	if r.listeners == nil {
+		r.listeners = map[int]func(){}
+	}
+	r.nextID++
+	id := r.nextID
+	r.listeners[id] = fn
+	return func() {
+		r.changeMu.Lock()
+		defer r.changeMu.Unlock()
+		delete(r.listeners, id)
+	}
+}
+
+// Changed tells the listeners of OnChange that what the providers offer changed.
+func (r *Registry) Changed() {
+	r.changeMu.Lock()
+	fns := make([]func(), 0, len(r.listeners))
+	for _, fn := range r.listeners {
+		fns = append(fns, fn)
+	}
+	r.changeMu.Unlock()
+	for _, fn := range fns {
+		fn()
+	}
 }
 
 // NewRegistry makes an empty registry.

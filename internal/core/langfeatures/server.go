@@ -52,6 +52,7 @@ func (sp *ServerProvider) Register(r *Registry, owner string, sel Selector) (rem
 		r.RegisterCodeActions(owner, sel, sp),
 		r.RegisterFormatting(owner, sel, sp),
 		r.RegisterRename(owner, sel, sp),
+		r.RegisterWorkspaceSymbols(owner, sp),
 	}
 	return func() {
 		for _, rm := range removers {
@@ -406,4 +407,76 @@ func (sp *ServerProvider) SignatureTriggers() []string {
 		return append(append([]string(nil), o.TriggerCharacters...), o.RetriggerCharacters...)
 	}
 	return nil
+}
+
+// Offers implements featureOffers: whether the server offers a feature, by its capabilities or a registration. The editor
+// asks it for the keys editorHasDefinitionProvider and its kin, so a server that cannot find references does not enable
+// Go to References.
+func (sp *ServerProvider) Offers(f Feature) bool {
+	c := sp.server()
+	if c == nil {
+		return false
+	}
+	caps := c.Capabilities()
+	switch f {
+	case FeatureDefinition:
+		return offers(c, caps.DefinitionProvider.Enabled, lsp.MethodDefinition)
+	case FeatureDeclaration:
+		return offers(c, caps.DeclarationProvider.Enabled, lsp.MethodDeclaration)
+	case FeatureTypeDefinition:
+		return offers(c, caps.TypeDefinitionProvider.Enabled, lsp.MethodTypeDefinition)
+	case FeatureImplementation:
+		return offers(c, caps.ImplementationProvider.Enabled, lsp.MethodImplementation)
+	case FeatureReferences:
+		return offers(c, caps.ReferencesProvider.Enabled, lsp.MethodReferences)
+	case FeatureDocumentSymbols:
+		return offers(c, caps.DocumentSymbolProvider.Enabled, lsp.MethodDocumentSymbol)
+	case FeatureDocumentHighlights:
+		return offers(c, caps.DocumentHighlightProvider.Enabled, lsp.MethodDocumentHighlight)
+	case FeatureWorkspaceSymbols:
+		return offers(c, caps.WorkspaceSymbolProvider.Enabled, lsp.MethodWorkspaceSymbol)
+	}
+	return false
+}
+
+// ProvideWorkspaceSymbols implements WorkspaceSymbolProvider (workspace/symbol). A symbol whose location has no range is
+// left for workspaceSymbol/resolve (ResolveWorkspaceSymbol).
+func (sp *ServerProvider) ProvideWorkspaceSymbols(ctx context.Context, query string) ([]WorkspaceSymbol, error) {
+	c := sp.server()
+	if c == nil || !offers(c, c.Capabilities().WorkspaceSymbolProvider.Enabled, lsp.MethodWorkspaceSymbol) {
+		return nil, nil
+	}
+	var syms []lsp.WorkspaceSymbol
+	if err := c.Call(ctx, lsp.MethodWorkspaceSymbol, lsp.WorkspaceSymbolParams{Query: query}, &syms); err != nil {
+		return nil, err
+	}
+	return WorkspaceSymbolsFromLSP(ctx, c.Encoding(), sp.Texts, syms), nil
+}
+
+// CanResolveSymbol implements WorkspaceSymbolResolver: the server offers workspaceSymbol/resolve and sent the symbol.
+func (sp *ServerProvider) CanResolveSymbol(sym WorkspaceSymbol) bool {
+	c := sp.server()
+	if c == nil || sym.server == nil {
+		return false
+	}
+	return c.Capabilities().WorkspaceSymbolProvider.Bool("resolveProvider") || len(c.Registered(lsp.MethodWorkspaceSymbolResolve)) > 0
+}
+
+// ResolveWorkspaceSymbol implements WorkspaceSymbolResolver: the symbol goes back to the server, which fills in the range.
+func (sp *ServerProvider) ResolveWorkspaceSymbol(ctx context.Context, sym WorkspaceSymbol) (WorkspaceSymbol, error) {
+	c := sp.server()
+	if c == nil || !sp.CanResolveSymbol(sym) {
+		return sym, nil
+	}
+	var resolved lsp.WorkspaceSymbol
+	if err := c.Call(ctx, lsp.MethodWorkspaceSymbolResolve, *sym.server, &resolved); err != nil {
+		return sym, err
+	}
+	out := WorkspaceSymbolsFromLSP(ctx, c.Encoding(), sp.Texts, []lsp.WorkspaceSymbol{resolved})
+	if len(out) == 0 {
+		return sym, nil
+	}
+	got := out[0]
+	got.Owner, got.source = sym.Owner, sym.source
+	return got, nil
 }

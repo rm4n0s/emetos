@@ -2,12 +2,14 @@ package editor
 
 import (
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/folding"
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 )
 
 // Ported from VS Code: src/vs/editor/contrib/stickyScroll/browser/stickyScrollProvider.ts,
@@ -22,6 +24,10 @@ type StickyScrollOptions struct {
 	// ScrollWithEditor is editor.stickyScroll.scrollWithEditor: the lines follow the horizontal
 	// scroll of the text.
 	ScrollWithEditor bool
+	// DefaultModel is editor.stickyScroll.defaultModel: "outlineModel" (also when empty) builds the scopes from the document
+	// symbols when there are any and else from the folding regions; "foldingProviderModel" and "indentationModel" use the
+	// folding regions (Emetos has one folding model).
+	DefaultModel string
 }
 
 // stickyCandidate is a line that can stick to the top of the editor: the first line of a scope, the
@@ -32,17 +38,19 @@ type stickyCandidate struct {
 	Top, Height float64
 }
 
-// stickyTree is the scopes of a document as a tree, made from the folding regions: the regions
-// are sorted and nested, and a scope is a region of two lines or more.
+// stickyTree is the scopes of a document as a tree, made from the document symbols or from the folding regions: the scopes
+// are sorted and nested, and a scope is a range of two lines or more.
 type stickyTree struct {
-	regions *folding.Regions
-	kids    [][]int32
-	roots   []int32
+	start, end []int
+	kids       [][]int32
+	roots      []int32
 }
 
+// newStickyTree makes the tree of the folding regions.
 func newStickyTree(r *folding.Regions) *stickyTree {
-	t := &stickyTree{regions: r, kids: make([][]int32, r.Len())}
+	t := &stickyTree{start: make([]int, r.Len()), end: make([]int, r.Len()), kids: make([][]int32, r.Len())}
 	for i := range r.Len() {
+		t.start[i], t.end[i] = r.Start(i), r.End(i)
 		if p := r.Parent(i); p >= 0 {
 			t.kids[p] = append(t.kids[p], int32(i))
 		} else {
@@ -50,6 +58,62 @@ func newStickyTree(r *folding.Regions) *stickyTree {
 		}
 	}
 	return t
+}
+
+// newSymbolStickyTree makes the tree of the document symbols: a symbol is a scope from the line of its name to the end of its
+// range, the symbols of one level in the order of their lines, and a child that starts on the line of its parent is replaced by
+// its own children. Single-line children are left out and so are symbols past the end of the text (the symbols may be for an
+// older version of the document).
+//
+// Ported from VS Code: src/vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider.ts
+// (_stickyModelFromOutlineModel, _stickyModelFromOutlineElement)
+func newSymbolStickyTree(symbols []langfeatures.DocumentSymbol, lines int) *stickyTree {
+	t := &stickyTree{}
+	var add func(s langfeatures.DocumentSymbol, parentStart int, parent int32) int32
+	var addChildren func(children []langfeatures.DocumentSymbol, parentStart int, parent int32)
+	addChildren = func(children []langfeatures.DocumentSymbol, parentStart int, parent int32) {
+		for _, c := range sortSymbolsForSticky(children) {
+			if c.SelectionRange.Start.Line == c.Range.End.Line {
+				continue
+			}
+			if c.SelectionRange.Start.Line != parentStart {
+				add(c, c.SelectionRange.Start.Line, parent)
+				continue
+			}
+			addChildren(c.Children, c.SelectionRange.Start.Line, parent)
+		}
+	}
+	add = func(s langfeatures.DocumentSymbol, start int, parent int32) int32 {
+		end := min(s.Range.End.Line, lines-1)
+		if start >= lines || end < start {
+			return -1
+		}
+		idx := int32(len(t.start))
+		t.start, t.end, t.kids = append(t.start, start), append(t.end, end), append(t.kids, nil)
+		if parent >= 0 {
+			t.kids[parent] = append(t.kids[parent], idx)
+		} else {
+			t.roots = append(t.roots, idx)
+		}
+		addChildren(s.Children, start, idx)
+		return idx
+	}
+	for _, s := range sortSymbolsForSticky(symbols) {
+		add(s, s.SelectionRange.Start.Line, -1)
+	}
+	return t
+}
+
+// sortSymbolsForSticky orders symbols by the line they start on, the longer first.
+func sortSymbolsForSticky(symbols []langfeatures.DocumentSymbol) []langfeatures.DocumentSymbol {
+	out := slices.Clone(symbols)
+	slices.SortStableFunc(out, func(a, b langfeatures.DocumentSymbol) int {
+		if a.Range.Start.Line != b.Range.Start.Line {
+			return a.Range.Start.Line - b.Range.Start.Line
+		}
+		return b.Range.End.Line - a.Range.End.Line
+	})
+	return out
 }
 
 // candidates are the lines that can stick when the lines between two lines (0-based, inclusive)
@@ -69,8 +133,8 @@ func (t *stickyTree) collect(kids []int32, visFirst, visLast int, lineHeight, to
 	}
 	// the last child that starts at or before a line, or the first when none does
 	bound := func(line int) int {
-		i := sort.Search(len(kids), func(i int) bool { return t.regions.Start(int(kids[i])) >= line })
-		if i < len(kids) && t.regions.Start(int(kids[i])) == line {
+		i := sort.Search(len(kids), func(i int) bool { return t.start[kids[i]] >= line })
+		if i < len(kids) && t.start[kids[i]] == line {
 			return i
 		}
 		return max(i-1, 0)
@@ -79,7 +143,7 @@ func (t *stickyTree) collect(kids []int32, visFirst, visLast int, lineHeight, to
 	last := lastStart
 	for i := lower; i <= upper; i++ {
 		k := int(kids[i])
-		start, end := t.regions.Start(k), t.regions.End(k)
+		start, end := t.start[k], t.end[k]
 		if end > start && visFirst <= end+2 && start <= visLast+1 && start != last {
 			last = start
 			*out = append(*out, stickyCandidate{Start: start, End: end, Top: top, Height: lineHeight})
@@ -108,32 +172,60 @@ func (s stickyLines) Height(rowHeight float64) float64 {
 
 // stickyState is what the view model knows of sticky scroll.
 type stickyState struct {
-	tree     *stickyTree
-	treeFor  *folding.Regions
-	treeVer  int
-	treeSize int
+	tree *stickyTree
+	// treeRegions and treeSymbols are what the tree was made from; treeVer the version of the document and treeSize the number
+	// of regions then.
+	treeRegions *folding.Regions
+	treeSymbols []langfeatures.DocumentSymbol
+	treeFromSym bool
+	treeVer     int
+	treeSize    int
 	// hover says that the pointer is over the widget, line which of its lines (from 0, -1 for none).
 	hover   bool
 	line    int
 	changed *foundation.ChangeNotifier
 }
 
-// stickyTreeNow is the tree of scopes of the document, made again when the regions or the
-// document changed.
+// stickyUsesSymbols tells whether the scopes come from the document symbols: editor.stickyScroll.defaultModel is the outline
+// model (the default) and a provider answered with symbols.
+func (vm *ViewModel) stickyUsesSymbols() bool {
+	m := vm.opts.StickyScroll.DefaultModel
+	if m != "" && m != "outlineModel" {
+		return false
+	}
+	syms, ok := vm.Symbols()
+	return ok && len(syms) > 0
+}
+
+// stickyTreeNow is the tree of scopes of the document, made again when the symbols, the regions or the document changed.
 func (vm *ViewModel) stickyTreeNow() *stickyTree {
+	s := &vm.sticky
+	if vm.stickyUsesSymbols() {
+		syms, _ := vm.Symbols()
+		if s.tree == nil || !s.treeFromSym || s.treeVer != vm.doc.Version() || !sameSymbols(s.treeSymbols, syms) {
+			s.tree, s.treeFromSym, s.treeSymbols, s.treeVer = newSymbolStickyTree(syms, vm.doc.Snapshot().LineCount()), true, syms, vm.doc.Version()
+			s.treeRegions = nil
+		}
+		return s.tree
+	}
 	m := vm.fold.model
 	if m == nil {
 		return nil
 	}
 	r := m.Regions()
-	s := &vm.sticky
 	if r == nil {
 		return nil
 	}
-	if s.tree == nil || s.treeFor != r || s.treeVer != vm.doc.Version() || s.treeSize != r.Len() {
-		s.tree, s.treeFor, s.treeVer, s.treeSize = newStickyTree(r), r, vm.doc.Version(), r.Len()
+	if s.tree == nil || s.treeFromSym || s.treeRegions != r || s.treeVer != vm.doc.Version() || s.treeSize != r.Len() {
+		s.tree, s.treeFromSym, s.treeRegions, s.treeVer, s.treeSize = newStickyTree(r), false, r, vm.doc.Version(), r.Len()
+		s.treeSymbols = nil
 	}
 	return s.tree
+}
+
+// sameSymbols tells whether two slices are the same answer (the cache hands out one slice per version).
+func sameSymbols(a, b []langfeatures.DocumentSymbol) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }
 
 // maxStickyLines is how many lines can stick: the setting, and no more than a quarter of the

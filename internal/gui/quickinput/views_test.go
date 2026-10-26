@@ -43,6 +43,7 @@ func TestViewsModeListsContainersViewsAndChannels(t *testing.T) {
 		"|Output",
 		"Side Bar / Explorer|Open Editors",
 		"|Folders",
+		"|Outline",
 		"Panel / Problems|Problems",
 		"Panel / Output|Output",
 		"|Emetos",
@@ -66,7 +67,7 @@ func TestViewsModeFiltersAndOpens(t *testing.T) {
 		open   string
 	}{
 		{"by label, with the group", "prob", contextkey.MapContext{}, []string{"Panel|Problems", "Panel / Problems|Problems"}, "container workbench.panel.markers"},
-		{"by the container", "explorer", contextkey.MapContext{"workbenchState": "folder"}, []string{"Side Bar|Explorer", "Side Bar / Explorer|Open Editors", "|Folders"}, "container workbench.view.explorer"},
+		{"by the container", "explorer", contextkey.MapContext{"workbenchState": "folder"}, []string{"Side Bar|Explorer", "Side Bar / Explorer|Open Editors", "|Folders", "|Outline"}, "container workbench.view.explorer"},
 		{"the empty folder view shows without a folder", "no fold", contextkey.MapContext{"workbenchState": "empty"}, []string{"Explorer|No Folder Opened"}, "view workbench.explorer.emptyView"},
 		{"a channel", "tasks", contextkey.MapContext{}, []string{"Output|Tasks"}, "channel Tasks"},
 		{"no match", "zzz", contextkey.MapContext{}, []string{"|No matching views"}, ""},

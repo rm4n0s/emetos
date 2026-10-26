@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 )
 
 func TestBreadcrumbItems(t *testing.T) {
@@ -169,15 +171,25 @@ func TestReadSiblingsErrors(t *testing.T) {
 	}
 }
 
+// hidden is the hidden kinds of the options with the given kinds hidden.
+func hidden(kinds ...int) (h [langfeatures.SymbolKindCount + 1]bool) {
+	for _, k := range kinds {
+		h[k] = true
+	}
+	return h
+}
+
 func TestBreadcrumbsOptionsFromSettings(t *testing.T) {
 	cases := []struct {
 		name  string
 		extra map[string]any
 		want  BreadcrumbsOptions
 	}{
-		{"the defaults", nil, BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true}},
-		{"off", map[string]any{"breadcrumbs.enabled": false}, BreadcrumbsOptions{FilePath: "on", Icons: true}},
-		{"last, no icons", map[string]any{"breadcrumbs.filePath": "last", "breadcrumbs.icons": false}, BreadcrumbsOptions{Enabled: true, FilePath: "last"}},
+		{"the defaults", nil, BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true, SymbolPath: "on", SymbolSortOrder: "position"}},
+		{"off", map[string]any{"breadcrumbs.enabled": false}, BreadcrumbsOptions{FilePath: "on", Icons: true, SymbolPath: "on", SymbolSortOrder: "position"}},
+		{"last, no icons", map[string]any{"breadcrumbs.filePath": "last", "breadcrumbs.icons": false}, BreadcrumbsOptions{Enabled: true, FilePath: "last", SymbolPath: "on", SymbolSortOrder: "position"}},
+		{"symbols: last, by name, no functions", map[string]any{"breadcrumbs.symbolPath": "last", "breadcrumbs.symbolSortOrder": "name", "breadcrumbs.showFunctions": false},
+			BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true, SymbolPath: "last", SymbolSortOrder: "name", HiddenKinds: hidden(12)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

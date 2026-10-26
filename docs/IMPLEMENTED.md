@@ -1975,3 +1975,48 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** SPEC §9.12 "As built (step 12.6)" lists the 12 decisions and what is not built: the verbosity commands, the definition preview, the glyph-margin hover, the copy button, `command:` links, resizing either widget, hiding the hover on any key, the 100 ms fade-in, focusing the hints. The agent's first full race run had one failing test, the editor options defaults it had not yet updated. It fixed that test and re-ran the package; I then ran the whole suite.
+
+## 12.7 Navigation and symbols
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-12.7-navigation
+- **Summary:** SPEC §9.12 "Navigation" and "Symbols", §9.6, §9.7, §10.9.
+  - **Go-to commands:** definition (F12, Ctrl+K F12 aside), Peek Definition (Alt+F12), declaration, type definition, implementation (Ctrl+F12, peek Ctrl+Shift+F12), references (Shift+F12) and Peek References (Shift+Alt+F12), each needing its `editorHas<Kind>Provider` key. They are in the Go menu and the editor context menu (with a Peek submenu). One result jumps and records history, as a preview editor for another file. Several results follow `editor.gotoLocation.multiple*` (default `peek`). The alternative command runs when the cursor is already on the only result, and no result shows "No definition found".
+  - **Links:** Ctrl+hover underlines a word with a definition in `editorLink.activeForeground` with a hand cursor. Ctrl+click goes to the definition, or peeks with `editor.definitionLinkOpensInPeek`; Ctrl+Alt+click opens to the side.
+  - **Peek view:** an inline zone with a title bar, an embedded editor (flex 7) and the grouped location list (flex 3). The embedded editor shares an open document or reads the file from disk without a tab, and is coloured by its grammar. Keys: F4/Shift+F4, Up/Down, Enter, Ctrl+Enter, Escape. A peek view's editor never opens another.
+  - **Highlights:** document highlights by kind (read, write, text) replace the word occurrences when a provider answers.
+  - **Symbols:** a `SymbolCache` per window tab and document version (single flight, at most 64 documents), asked 300 ms after a change and again when a server starts. The Outline view (new `views/outline`, in the Explorer under the folders: follows the cursor, kind filters), breadcrumbs symbols with their level picker (`breadcrumbs.symbolPath`/`symbolSortOrder`/`show<Kind>`), sticky scroll from symbols (`editor.stickyScroll.defaultModel` = `outlineModel`, folding regions otherwise) and Go to Symbol in Editor (Ctrl+Shift+O, `@`, `@:` grouped by kind) all read it.
+  - **Workspace symbols:** Ctrl+T, `#`, asked 200 ms after the last key, with `workspaceSymbol/resolve`.
+  - **Fixed on the way:** the breadcrumbs' picker never showed, because its overlay was not shown.
+  - **New error tag:** `PeekFileUnsupported`.
+- **Main files:**
+  - core: `internal/core/langfeatures/{symbols,workspacesymbols,registry,server,convert}.go`, `internal/core/{settings,command,keybinding}/navigation.go`, `internal/core/lsp/methods.go`;
+  - editor: `internal/gui/editor/{navigation,peek,peek_widget,link,symbols,symbolicons,breadcrumbs,breadcrumbs_widget,sticky,highlights}.go`;
+  - views and app: `internal/gui/views/outline/`, `internal/gui/app/{navhost,outline,symbolpick}.go`;
+  - other: `testdata/proof/12.7/`, `docs/SPEC.md` §9.12, §5.2.
+- **Tests:**
+  - added: `langfeatures/symbols_test.go`; `editor/{navigation,peek_widget,symbols}_test.go` with symbol cases in the breadcrumbs widget tests; `views/outline/outline_test.go`; `app/navhost_test.go` (preview and Back, pinned, beside, same file, missing file, embedded editors and their tokens, the tag route, `@` and `@:`, the Outline following the editor). The keys test gets two new states, `navigationState` and `peekState`. `TestGoplsNavigatesAGoProject` runs the real `gopls` (definition, references in three files, symbols, highlights, workspace symbols).
+  - changed: the menus and views lists, the Views picker, the workbench bindings, one tap position in `fileops_test.go` (the Outline header now sits at the bottom of the side bar), and the options and command coverage lists.
+- **Goldens:**
+  - new: `editor/peek_view_{dark,light}` (with Go colours) and `views/outline/outline_{dark,light,message_dark}`.
+  - changed: 67 app goldens and 4 quickinput goldens. The app goldens differ only by the collapsed OUTLINE header at the bottom of the side bar; the quickinput ones by the Views list and a scroll thumb.
+  - The agent viewed them all; I viewed the peek goldens and a changed app golden.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** two images, both with the real `gopls`.
+  - `docs/implemented-proof-images/12.7-peek.png` shows the peek of the 5 references of `Greet` across three files. Made with `scripts/proof.sh docs/implemented-proof-images/12.7-peek.png --after 9s --commands '[["dev.openFile",{"path":"testdata/proof/12.7/project/greet.go","line":6,"column":8}],["sleep","6s"],["editor.action.goToReferences"],["sleep","4s"]]' -- testdata/proof/12.7/project`.
+
+    ![12.7 peek](implemented-proof-images/12.7-peek.png)
+  - `docs/implemented-proof-images/12.7-outline.png` shows the Outline following the cursor. Made with `scripts/proof.sh docs/implemented-proof-images/12.7-outline.png --after 9s --commands '[["dev.openFile",{"path":"testdata/proof/12.7/project/greet.go","line":12,"column":10}],["sleep","6s"],["outline.focus"],["sleep","3s"]]' -- testdata/proof/12.7/project`.
+
+    ![12.7 outline](implemented-proof-images/12.7-outline.png)
+- **Manual checks:** none
+- **Glutter issues:** one new entry: `TextOverflowEllipsis` on a one-line text with no place to break shows only the ellipsis. The workaround is in the peek's location rows.
+- **Deviations and follow-ups:** SPEC §9.12 "As built (step 12.7)" lists the decisions and what is not built:
+  - the Outline filter box and sort buttons;
+  - the references view;
+  - a live preview in `@`;
+  - resizing the peek view;
+  - `outline.problems.*` and `editor.peekWidgetDefaultFocus`;
+  - `multiFile` occurrences, which act as `singleFile`.
+
+  My review sent the agent back for two fixes. The peek's embedded editor had lost its token theme, because the peek's `kit.NewTheme` dropped it; the golden now shows the colours. The peek golden's fixture had a range off by one. The agent also fixed a test-only race in a peek test.

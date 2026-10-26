@@ -91,7 +91,11 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 			ShowIcons: true, ShowInlineDetails: true, ShowDeprecated: true, MatchOnWordStartOnly: true, SelectionMode: "always",
 		},
 		Minimap:      MinimapOptions{Enabled: true, Side: "right", Size: "proportional", ShowSlider: "mouseover", Scale: 1, MaxColumn: 120},
-		StickyScroll: StickyScrollOptions{Enabled: true, MaxLineCount: 5, ScrollWithEditor: true},
+		StickyScroll: StickyScrollOptions{Enabled: true, MaxLineCount: 5, ScrollWithEditor: true, DefaultModel: "outlineModel"},
+		GotoLocation: GotoLocationOptions{
+			Multiple:    [goKinds]string{"peek", "peek", "peek", "peek", "peek"},
+			Alternative: [goKinds]string{"editor.action.goToReferences", "editor.action.goToReferences", "editor.action.goToReferences", "", ""},
+		},
 	}
 	if !sameOptions(got, want) {
 		t.Errorf("got %+v\nwant %+v", got, want)
@@ -228,7 +232,7 @@ func TestOptionsFromSettingsValues(t *testing.T) {
 	if want := (MinimapOptions{Side: "left", Size: "fit", ShowSlider: "always", Scale: 2, MaxColumn: 80}); got.Minimap != want {
 		t.Errorf("minimap options: %+v, want %+v", got.Minimap, want)
 	}
-	if want := (StickyScrollOptions{MaxLineCount: 3}); got.StickyScroll != want {
+	if want := (StickyScrollOptions{MaxLineCount: 3, DefaultModel: "outlineModel"}); got.StickyScroll != want {
 		t.Errorf("sticky scroll options: %+v, want %+v", got.StickyScroll, want)
 	}
 	if got.FontFeatures != nil {

@@ -379,3 +379,29 @@ func CodeActionsFromLSP(enc lsp.Encoding, doc Document, owner string, actions ls
 	}
 	return out
 }
+
+// WorkspaceSymbolsFromLSP converts the answer to a workspace/symbol request. The positions are converted with the text of the
+// file the symbol is in (texts). A symbol of a URI the editor has no documents for is left out; one whose location has no range
+// is Unresolved, at the start of its file.
+func WorkspaceSymbolsFromLSP(ctx context.Context, enc lsp.Encoding, texts TextSource, syms []lsp.WorkspaceSymbol) []WorkspaceSymbol {
+	c := newConverter(ctx, enc, Document{}, texts)
+	out := make([]WorkspaceSymbol, 0, len(syms))
+	for i := range syms {
+		s := &syms[i]
+		uri, err := lsp.ParseDocumentURI(s.Location.URI)
+		if err != nil {
+			continue
+		}
+		sym := WorkspaceSymbol{Name: s.Name, ContainerName: s.ContainerName, Kind: s.Kind, Location: Location{URI: uri}, server: s}
+		for _, t := range s.Tags {
+			sym.Deprecated = sym.Deprecated || t == 1
+		}
+		if s.Location.Range == nil {
+			sym.Unresolved = true
+		} else {
+			sym.Location.Range = c.rng(uri, *s.Location.Range)
+		}
+		out = append(out, sym)
+	}
+	return out
+}

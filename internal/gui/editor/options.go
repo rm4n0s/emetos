@@ -116,7 +116,9 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 			Enabled:          settings.Get[bool](store, "editor.stickyScroll.enabled", languageID),
 			MaxLineCount:     int(settings.Get[float64](store, "editor.stickyScroll.maxLineCount", languageID)),
 			ScrollWithEditor: settings.Get[bool](store, "editor.stickyScroll.scrollWithEditor", languageID),
+			DefaultModel:     settings.Get[string](store, "editor.stickyScroll.defaultModel", languageID),
 		},
+		GotoLocation: gotoLocationOptions(store, languageID),
 		Minimap: MinimapOptions{
 			Enabled: settings.Get[bool](store, "editor.minimap.enabled", languageID), Side: settings.Get[string](store, "editor.minimap.side", languageID),
 			Size: settings.Get[string](store, "editor.minimap.size", languageID), ShowSlider: settings.Get[string](store, "editor.minimap.showSlider", languageID),
@@ -323,6 +325,20 @@ func suggestOptions(store *settings.Store, languageID string) SuggestOptions {
 				o.HiddenKinds[kind] = true
 			}
 		}
+	}
+	return o
+}
+
+// gotoLocationOptions reads editor.gotoLocation.* and editor.definitionLinkOpensInPeek.
+func gotoLocationOptions(store *settings.Store, languageID string) GotoLocationOptions {
+	o := GotoLocationOptions{DefinitionLinkOpensInPeek: settings.Get[bool](store, "editor.definitionLinkOpensInPeek", languageID)}
+	for i, name := range [goKinds]string{"Definition", "Declaration", "TypeDefinition", "Implementation", "Reference"} {
+		multiple := name + "s"
+		if name == "Reference" {
+			multiple = "References"
+		}
+		o.Multiple[i] = settings.Get[string](store, "editor.gotoLocation.multiple"+multiple, languageID)
+		o.Alternative[i] = settings.Get[string](store, "editor.gotoLocation.alternative"+name+"Command", languageID)
 	}
 	return o
 }

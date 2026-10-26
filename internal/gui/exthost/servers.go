@@ -517,6 +517,7 @@ func (c *serverCtl) started(gen int, proc *lsp.Process, client *lsp.Client, err 
 	for _, doc := range c.wanted {
 		c.attach(doc)
 	}
+	c.s.features.Changed()
 	// not counted by the host: it lives as long as the server does
 	go func() {
 		<-client.Done()
@@ -543,6 +544,7 @@ func (c *serverCtl) exited(gen int, client *lsp.Client, proc *lsp.Process) {
 	c.mu.Lock()
 	c.client, c.proc = nil, nil
 	c.mu.Unlock()
+	c.s.features.Changed()
 	c.clearMarkers()
 	c.crashed(gen)
 }
@@ -617,6 +619,7 @@ func (c *serverCtl) detach() {
 	c.gen++
 	c.progress = nil
 	c.mu.Unlock()
+	c.s.features.Changed()
 	c.clearMarkers()
 	if client != nil {
 		c.shutdown(client, proc)

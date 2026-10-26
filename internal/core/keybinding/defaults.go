@@ -61,6 +61,7 @@ func DefaultRegistry() *Registry {
 	registerSuggestKeys(r)
 	registerHoverKeys(r)
 	registerParameterHintsKeys(r)
+	registerNavigationKeys(r)
 	registerWordWrapKeys(r)
 	registerMultiCursorKeys(r)
 	registerMarkerKeys(r)

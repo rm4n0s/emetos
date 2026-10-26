@@ -48,6 +48,7 @@ const (
 	MethodDocumentDiagnostic  = "textDocument/diagnostic"
 
 	MethodWorkspaceSymbol        = "workspace/symbol"
+	MethodWorkspaceSymbolResolve = "workspaceSymbol/resolve"
 	MethodExecuteCommand         = "workspace/executeCommand"
 	MethodApplyEdit              = "workspace/applyEdit"
 	MethodConfiguration          = "workspace/configuration"

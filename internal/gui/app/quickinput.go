@@ -112,6 +112,7 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 		}),
 	}
 	providers = append(providers, s.editorProviders()...)
+	providers = append(providers, s.symbolProviders()...)
 	for _, p := range providers {
 		if err := reg.Register(p); err != nil {
 			win.Process.Logger.Error("cannot register a quick access provider", "err", err)
@@ -227,11 +228,13 @@ func (s *shellState) bindQuickInputCommands() {
 		return func(command.Context, any) error { ctl.Show(prefix, quickinput.ShowOptions{}); return nil }
 	}
 	handlers := map[string]command.Handler{
-		quickinput.ShowCommandsCommand:  show(quickinput.CommandsPrefix),
-		quickinput.GoToLineCommand:      show(quickinput.GoToLinePrefix),
-		quickinput.GoToOffsetCommand:    show(quickinput.GoToOffsetPrefix),
-		quickinput.OpenViewCommand:      show(quickinput.ViewsPrefix),
-		quickinput.QuickOpenViewCommand: show(quickinput.ViewsPrefix),
+		quickinput.ShowCommandsCommand:    show(quickinput.CommandsPrefix),
+		quickinput.GoToLineCommand:        show(quickinput.GoToLinePrefix),
+		quickinput.GoToOffsetCommand:      show(quickinput.GoToOffsetPrefix),
+		quickinput.OpenViewCommand:        show(quickinput.ViewsPrefix),
+		"workbench.action.gotoSymbol":     show(symbolPrefix),
+		"workbench.action.showAllSymbols": show(workspaceSymbolPrefix),
+		quickinput.QuickOpenViewCommand:   show(quickinput.ViewsPrefix),
 		// the argument is the text to start with, as a string or as {"value": "..."}: it is taken as it is
 		"workbench.action.quickOpen": func(_ command.Context, args any) error {
 			value, given := args.(string)
