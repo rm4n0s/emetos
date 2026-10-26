@@ -105,6 +105,30 @@ func NewHover(child widgets.Widget, opts ...HoverOpts) *Hover { return kit.NewHo
 // NewProgressBar makes a progress bar.
 func NewProgressBar(opts ...ProgressBarOpts) *ProgressBar { return kit.NewProgressBar(opts...) }
 
+// Select boxes and scrolling.
+type (
+	// Dropdown is a select box: a field that shows the chosen option and opens a list of the options.
+	Dropdown = kit.Dropdown
+	// DropdownOpts are the options of NewDropdown.
+	DropdownOpts = kit.DropdownOpts
+	// DropdownOption is one choice of a Dropdown.
+	DropdownOption = kit.DropdownOption
+	// ScrollHandle moves and measures the content of a ScrollView from outside.
+	ScrollHandle = kit.ScrollHandle
+)
+
+// NewDropdown makes a select box of options.
+func NewDropdown(options []DropdownOption, opts ...DropdownOpts) *Dropdown {
+	return kit.NewDropdown(options, opts...)
+}
+
+// NewScrollView scrolls a child vertically, with the overlay scrollbar of the editor's lists and the mouse wheel. The
+// handle, when it is not nil, reads and sets the position (ScrollTo clamps to the content, so a very large top scrolls to the
+// end; MaxPosition says how far that is).
+func NewScrollView(child widgets.Widget, handle *ScrollHandle) widgets.Widget {
+	return kit.NewScrollableElement(child, kit.ScrollableElementOpts{Axes: kit.ScrollAxisVertical, Handle: handle})
+}
+
 // Lists and trees.
 type (
 	// List is a virtualized list of rows with a keyboard.

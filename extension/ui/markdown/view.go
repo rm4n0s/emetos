@@ -36,6 +36,10 @@ type Options struct {
 	// height (no scrolling, no page background), 13 px text with a 19 px line in the colors of the editor hover, 8 px between
 	// the blocks, and code blocks without a background of their own.
 	Hover bool
+	// Flow lays the text out as one part of a longer page that something else scrolls, such as a message in a conversation: the
+	// blocks one under the other at their natural height (no scrolling, no page background), 13 px text with the colors of the
+	// editor, 8 px between the blocks, and code blocks on their own background.
+	Flow bool
 }
 
 // Controller moves a View: it scrolls to the block that a line of the source belongs to.
@@ -159,6 +163,8 @@ func (s *viewState) Build(bc widgets.BuildContext) widgets.Widget {
 	if v.opts.Hover {
 		r.colors.EditorForeground, r.colors.EditorBackground = r.colors.EditorHoverWidgetForeground, r.colors.EditorHoverWidgetBackground
 		size, lineHeight = hoverSize, hoverLineHeight
+	} else if v.opts.Flow {
+		size, lineHeight = flowSize, flowLineHeight
 	} else if v.opts.Compact {
 		// a pane of the suggest widget: its colors stand where the editor's would
 		r.colors.EditorForeground, r.colors.EditorBackground = r.colors.EditorSuggestWidgetForeground, r.colors.EditorSuggestWidgetBackground
@@ -186,7 +192,7 @@ func (s *viewState) Build(bc widgets.BuildContext) widgets.Widget {
 			}
 		})
 	}
-	if v.opts.Hover {
+	if v.opts.Hover || v.opts.Flow {
 		return widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch, MainAxisSize: rendering.MainAxisSizeMin})
 	}
 	column := widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
@@ -209,6 +215,9 @@ const (
 	compactSize       = 13.0
 	compactLineHeight = 1.4
 	compactPadding    = 8.0
+	// the flow look (Options.Flow)
+	flowSize       = 13.0
+	flowLineHeight = 1.5
 	// the hover look (Options.Hover)
 	hoverSize       = 13.0
 	hoverLineHeight = 19.0 / 13.0
@@ -260,7 +269,7 @@ func (r *renderer) block(b Block, first bool) widgets.Widget {
 	top := 0.0
 	if !first {
 		top = 10
-		if r.opts.Hover {
+		if r.opts.Hover || r.opts.Flow {
 			top = hoverBlockGap
 		}
 	}

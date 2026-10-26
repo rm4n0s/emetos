@@ -187,6 +187,15 @@ func (h *ScrollHandle) Position() (left, top float64) {
 	return m.Left, m.Top
 }
 
+// MaxPosition is the farthest the content can be scrolled from the left and from the top (0 while the content fits
+// or no element has the handle).
+func (h *ScrollHandle) MaxPosition() (left, top float64) {
+	if h == nil || h.state == nil || !h.state.Mounted() {
+		return 0, 0
+	}
+	return maxScroll(h.state.model.Metrics())
+}
+
 // ScrollTo scrolls to a position at once, within the content.
 func (h *ScrollHandle) ScrollTo(left, top float64) {
 	if h == nil || h.state == nil || !h.state.Mounted() {

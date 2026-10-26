@@ -21,6 +21,8 @@ const (
 	EnvPidfile = "FAKECLAUDE_PIDFILE"
 	// EnvAuth selects what `auth status` does: in, out, garbage, crash or hang.
 	EnvAuth = "FAKECLAUDE_AUTH"
+	// EnvAuthFile names a file that `auth login` writes "in" to on success, and that makes `auth status` say it is logged in.
+	EnvAuthFile = "FAKECLAUDE_AUTHFILE"
 )
 
 // Build builds the fake program into dir, as the file "claude", and returns its path. It runs the Go tool and fails with

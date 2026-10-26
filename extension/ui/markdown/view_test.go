@@ -11,6 +11,7 @@ import (
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
+	"github.com/rm4n0s/glutter/painting"
 	gui "github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -227,5 +228,20 @@ func TestANewTextKeepsTheScrollPosition(t *testing.T) {
 	_, after := ctl.scroll.Position()
 	if before <= 0 || after != before {
 		t.Errorf("the scroll position went from %v to %v", before, after)
+	}
+}
+
+func TestFlowIsAtItsNaturalHeightWithCodeOnItsOwnBackground(t *testing.T) {
+	src := "Some text\n\n```go\nx := 1\n```\n\nmore"
+	for _, th := range uitest.Themes() {
+		t.Run(th.Name, func(t *testing.T) {
+			ts := uitest.Pump(t, th, gui.Size{Width: 400, Height: 400}, widgets.NewAlign(NewView(src, Options{Flow: true}), widgets.AlignOpts{Alignment: painting.AlignmentTopLeft}))
+			ts.Pump()
+			// no scrolling: the view is as high as its blocks, not the window
+			if h := ts.Size(gluttertest.ByType[*view]()).Height; h <= 0 || h >= 300 {
+				t.Errorf("height = %v", h)
+			}
+			uitest.MatchesGolden(ts, "flow_"+th.Name)
+		})
 	}
 }

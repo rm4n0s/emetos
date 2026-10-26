@@ -2156,3 +2156,57 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - `CLAUDECODE` is passed through unchanged; the Python SDK removes it (decision 74).
   - Rewind is offered on every session Emetos started, because no capability names it, and a refusal shows the program's reason. Step 13.3's tasks and tests now say so.
   - No streams recorded from the real program: that needs the user's account, so the fixtures are written from the documented shapes.
+
+## 13.2 Sessions: the side bar view, the session tab and the title action
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-13.2-agent-sessions
+- **Summary:** SPEC §10.16, §10.15. The `agents` extension, registered in `extensions/all.go`.
+  - **Side bar:** an "Agents" container with a Sessions view. Its index is the view's state, per workspace. Rows are newest first, with the name or the first message and how long ago. A row can be renamed inline, deleted (its tabs and program close too) or clicked to open or resume the session, and there is a New Session button.
+  - **Session tab:**
+    - the conversation, streamed: events are applied once per frame, and the view follows the end only while you are there;
+    - thinking folded, tool calls as rows whose results unfold, sub-agent calls indented, Markdown with coloured code;
+    - the input box: Enter sends, Shift+Enter makes a new line, `/` completes the handshake's commands, `@` completes files;
+    - Stop, and the permission mode and model pickers.
+  - **Title action:** the `hubot` icon, "New Session (runs Claude Code)".
+  - **Add Selection to Agent:** Alt+K and the editor context menu insert `@path#Lstart-end`. `agents.attachActiveFile` adds the open file to each message. A built-in deny list (`.env`, keys) and the project's `.claude/settings*.json` `Read(...)` deny rules apply; the user's home files are never read.
+  - **Log in:** `claude auth login` in a pseudo-terminal panel, "Agents: Log in". The missing, logged-out and failed states are banners with a button, and a tab waiting for login starts once it succeeds.
+  - **Restore:** session tabs restore with their conversation, pickers and handshake, and start no program until the next message, then use `--resume`. A closed session keeps the last 48 KiB of its conversation for the 20 most recent sessions.
+  - **Permissions:** every `can_use_tool` request is denied with "Emetos can't answer this permission request yet." until step 13.3 (the seam is `sessionTab.canUseTool`).
+  - **New in the shared packages:** `ui.Dropdown`, `ui.ScrollView`, `ui.ScrollHandle`, `markdown.Options.Flow`, and `claude.ParseLine`; the fake program has an `auth login` mode.
+  - **Dev command:** `dev.agents.replay` replays a recorded conversation with no program, in debug builds only.
+  - **New error tags:** 11, all route-tested.
+- **Main files:** `extensions/agents/{agents,list,session,transcript,tabview,completion,context,login,pty,dev}.go`, `extensions/agents/claude/{messages.go,internal/fakeclaude/main.go,claudetest/claudetest.go}`, `extension/ui/{ui.go,markdown/view.go}`, `internal/gui/kit/scrollable_element.go`, `extensions/all.go`, `testdata/proof/13.2/`, `docs/SPEC.md` §10.16, §15.2.
+- **Tests:** these run the real adapter against the fake program, and every test that starts a program checks from the fake's log that its process group is gone. Covered:
+  - a new session streams into the tab; the list renames, resumes and deletes;
+  - two tabs at once; Stop; `/` and `@` completion, unit and through the keys;
+  - Add Selection with its deny rules, and the attached file;
+  - the missing and logged-out states and the login flow;
+  - restore without a start, then `--resume`;
+  - a dead program; the denied permission; replay; the pty.
+
+  No existing test or golden changed.
+- **Goldens:**
+  - `extensions/agents`: `session_{dark,light}`, `session_working`, `banner_{missing,loggedout,failed}`, `completion_commands`;
+  - `extension/ui/markdown`: `flow_{dark,light}`.
+
+  The agent viewed them all; I viewed the missing banner, the completion and the proof.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** `docs/implemented-proof-images/13.2-agents.png`, made with:
+  ```
+  scripts/proof.sh docs/implemented-proof-images/13.2-agents.png --config testdata/proof/13.2/config --commands '[["workbench.view.extension.agents.container"],["agents.newSession"],["dev.agents.replay",{"fixture":"testdata/proof/13.2/session.jsonl"}]]' -- testdata/proof/13.2/project
+  ```
+  It shows the Agents side bar with the session, and a replayed conversation (thinking, tool rows, Markdown, code, the input with its pickers) with the agent icon in the tab strip. No program runs: the fixture config points `agents.claude.path` at a path that does not exist. The plan's command gained the first entry, which opens the Agents view.
+
+  ![13.2 agents](implemented-proof-images/13.2-agents.png)
+- **Manual checks:** none new (13.1's covers the real program).
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.16 "As built (step 13.2)" lists the decisions:
+  - the extension id is `agents`;
+  - activation is `onFile:**` (`onStartup` broke the `cmd/emetos` tests);
+  - a new session starts its program at once;
+  - `auth status` runs once per scope while it says logged in;
+  - a relative `agents.claude.path` is resolved against the workspace folder;
+  - the transcript copy is bounded (400 items, 256 KiB per tab);
+  - the login panel stays on its result, because the contract has no call to hide a view;
+  - banners name the setting, because the contract has no call to open the settings page.

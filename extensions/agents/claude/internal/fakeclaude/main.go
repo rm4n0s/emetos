@@ -5,6 +5,9 @@
 // Environment: FAKECLAUDE_SCRIPT is the path of the script, a JSONL file; FAKECLAUDE_LOG, when set, is a JSONL file the
 // program appends to (its command line, its process group, its working folder, the variables it got whose names start
 // with CLAUDE or ANTHROPIC, and every line it reads); FAKECLAUDE_AUTH is what `fakeclaude auth status` does.
+// `fakeclaude auth login` prints a login prompt and reads a line from the terminal: the line "code" ends it with a success
+// (and, when FAKECLAUDE_AUTHFILE names a file, writes "in" to it, which makes `auth status` say it is logged in), any other
+// line fails it with exit status 1; "hang" never ends. It is what the Log in view of the session tab (step 13.2) runs.
 //
 // A line of the script is written to the standard output as it is, unless it is an object with a "$" key, which is a
 // directive:
@@ -65,6 +68,16 @@ func main() {
 func auth(args []string) {
 	lg := openLog()
 	lg.write(map[string]any{"kind": "auth", "argv": args})
+	if len(args) > 1 && args[1] == "login" {
+		login(lg)
+		return
+	}
+	if f := os.Getenv("FAKECLAUDE_AUTHFILE"); f != "" {
+		if b, err := os.ReadFile(f); err == nil && strings.TrimSpace(string(b)) == "in" {
+			fmt.Println(`{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty","email":"user@example.invalid"}`)
+			return
+		}
+	}
 	switch os.Getenv("FAKECLAUDE_AUTH") {
 	case "out":
 		fmt.Println(`{"loggedIn":false,"authMethod":"none","apiProvider":"firstParty"}`)
@@ -79,6 +92,30 @@ func auth(args []string) {
 	default:
 		fmt.Println(`{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty","email":"user@example.invalid","orgName":"Example","subscriptionType":"max","configDirectory":"/nonexistent/config"}`)
 	}
+}
+
+// login is `fakeclaude auth login`: a prompt on the terminal, then a line from it.
+func login(lg *logFile) {
+	fmt.Println("Opening the browser to sign in. If it does not open, visit https://login.example.invalid/authorize")
+	fmt.Print("Paste the code here > ")
+	if os.Getenv("FAKECLAUDE_AUTH") == "hang" {
+		time.Sleep(time.Minute)
+	}
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	line = strings.TrimSpace(line)
+	// the code is not logged: only that a line came
+	lg.write(map[string]any{"kind": "login-input", "bytes": len(line), "ok": line == "code"})
+	if line != "code" {
+		fmt.Println("\nLogin failed.")
+		os.Exit(1)
+	}
+	if f := os.Getenv("FAKECLAUDE_AUTHFILE"); f != "" {
+		if err := os.WriteFile(f, []byte("in"), 0o600); err != nil {
+			fmt.Fprintln(os.Stderr, "fakeclaude: authfile:", err)
+			os.Exit(4)
+		}
+	}
+	fmt.Println("\nLogin successful.")
 }
 
 // logFile appends JSONL records to FAKECLAUDE_LOG; with no log it does nothing.

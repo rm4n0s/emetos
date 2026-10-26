@@ -2,6 +2,7 @@ package extensions
 
 import (
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/agents"
 	"github.com/rm4n0s/emetos/extensions/cpp"
 	"github.com/rm4n0s/emetos/extensions/css"
 	"github.com/rm4n0s/emetos/extensions/diff"
@@ -40,12 +41,12 @@ import (
 // order for the tests, and a test in cmd/emetos keeps the two the same. The test extension of the contract is
 // extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the TODOs view
 // (extensions/todo), the Tasks tab of the panel (extensions/tasks), the notes (extensions/notes) and the window tab Scratchpad
-// (extensions/scratchpad).
+// (extensions/scratchpad), then the Agents extension (extensions/agents).
 func All() []extension.Factory {
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
-		todo.New, tasks.New, notes.New, scratchpad.New,
+		todo.New, tasks.New, notes.New, scratchpad.New, agents.New,
 	}
 }

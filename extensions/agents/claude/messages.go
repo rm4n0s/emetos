@@ -269,6 +269,12 @@ type envelope struct {
 	Response  json.RawMessage `json:"response"`
 }
 
+// ParseLine turns one line of the program's output into a Message: it is how a recorded stream (a fixture written from the
+// program's output) is read without a program, as the dev command dev.agents.replay does. A control message (a line
+// of type control_request, control_response or control_cancel_request) is not a Message and comes back as an
+// UnknownMessage. It fails with the tags MalformedLine and MessageInvalid.
+func ParseLine(line []byte) (Message, error) { return parseLine(line) }
+
 // parseLine turns a line of the program's output that is not a control message into a Message. It fails with the tags
 // MalformedLine (not a JSON object) and MessageInvalid (a known type of the wrong shape, from decode).
 func parseLine(line []byte) (Message, error) {
