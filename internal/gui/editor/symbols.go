@@ -223,5 +223,6 @@ func (vm *ViewModel) FeaturesChanged() {
 		vm.symbolsSchedule(0)
 	}
 	vm.updateWordHighlight(false)
+	vm.codeActionsDiagnosticsChanged()
 	vm.sel.NotifyListeners()
 }

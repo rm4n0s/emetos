@@ -27,6 +27,7 @@ func DefaultRegistry() *Registry {
 	registerHoverCommands(r)
 	registerParameterHintsCommands(r)
 	registerNavigationCommands(r)
+	registerCodeActionCommands(r)
 	registerEmmetCommands(r)
 	registerWordWrapCommands(r)
 	registerClipboardCommands(r)

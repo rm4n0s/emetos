@@ -111,7 +111,18 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		ParameterHints: ParameterHintsOptions{
 			Enabled: settings.Get[bool](store, "editor.parameterHints.enabled", languageID), Cycle: settings.Get[bool](store, "editor.parameterHints.cycle", languageID),
 		},
-		Suggest: suggestOptions(store, languageID),
+		CodeActions: CodeActionOptions{
+			Lightbulb:               settings.Get[string](store, "editor.lightbulb.enabled", languageID),
+			ShowHeaders:             settings.Get[bool](store, "editor.codeActionWidget.showHeaders", languageID),
+			IncludeNearbyQuickFixes: settings.Get[bool](store, "editor.codeActionWidget.includeNearbyQuickFixes", languageID),
+		},
+		Format: FormatOptions{
+			OnType:           settings.Get[bool](store, "editor.formatOnType", languageID),
+			OnPaste:          settings.Get[bool](store, "editor.formatOnPaste", languageID),
+			DefaultFormatter: settings.Get[string](store, "editor.defaultFormatter", languageID),
+		},
+		RenamePreview: settings.Get[bool](store, "editor.rename.enablePreview", languageID),
+		Suggest:       suggestOptions(store, languageID),
 		StickyScroll: StickyScrollOptions{
 			Enabled:          settings.Get[bool](store, "editor.stickyScroll.enabled", languageID),
 			MaxLineCount:     int(settings.Get[float64](store, "editor.stickyScroll.maxLineCount", languageID)),

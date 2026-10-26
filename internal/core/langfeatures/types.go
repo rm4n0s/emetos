@@ -306,6 +306,11 @@ type CodeAction struct {
 	Edit        *WorkspaceEdit
 	Command     *Command
 	Owner       string
+
+	// source is the provider that answered with the action, which resolves it; server is the action as the language server
+	// sent it, which the server gets back to resolve it.
+	source CodeActionProvider
+	server *lsp.CodeAction
 }
 
 // FormattingOptions are the options of a formatting request.

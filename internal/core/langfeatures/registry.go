@@ -169,6 +169,7 @@ type Registry struct {
 	codeActions list[CodeActionProvider]
 	formatting  list[FormattingProvider]
 	rename      list[RenameProvider]
+	onType      list[OnTypeFormattingProvider]
 
 	workspaceSymbols list[WorkspaceSymbolProvider]
 
@@ -269,6 +270,11 @@ type RangeFormattingProvider interface {
 type RenameProvider interface {
 	PrepareRename(ctx context.Context, doc Document, pos Position) (*PrepareRename, error)
 	ProvideRename(ctx context.Context, doc Document, pos Position, newName string) (*WorkspaceEdit, error)
+}
+
+// RegisterOnTypeFormatting adds a provider of the formatting that follows a typed character.
+func (r *Registry) RegisterOnTypeFormatting(owner string, sel Selector, p OnTypeFormattingProvider) (remove func()) {
+	return r.onType.add(owner, sel, p)
 }
 
 // RegisterCompletion adds a completion provider; triggers are the characters that start a request when typed.
@@ -387,4 +393,11 @@ func triggersOf[P any](regs []Registered[P], own func(P) []string) []string {
 		}
 	}
 	return out
+}
+
+// OnTypeFormattingProvider formats the text around a position after a character was typed (textDocument/onTypeFormatting).
+type OnTypeFormattingProvider interface {
+	// OnTypeTriggers are the characters that ask for the formatting.
+	OnTypeTriggers() []string
+	ProvideOnTypeFormatting(ctx context.Context, doc Document, pos Position, ch string, opts FormattingOptions) ([]TextEdit, error)
 }

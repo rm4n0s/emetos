@@ -76,9 +76,12 @@ type HoverPart struct {
 	Loading bool
 	// Range is what the part is about.
 	Range buffer.Range
-	// Actions are the links below the part. The diagnostics have "View Problem"; step 12.8 adds "Quick Fix..." and the quick
-	// fixes of the diagnostic here.
+	// Actions are the links below the part. The diagnostics have "View Problem" and, when a provider has quick fixes for them,
+	// "Quick Fix..." (step 12.8).
 	Actions []HoverAction
+	// Status is the text after the links of a diagnostic: "Checking for quick fixes..." while the providers are asked, and "No
+	// quick fixes available" when they have none.
+	Status string
 	// order sorts the parts in the box.
 	order [2]int
 }
@@ -444,12 +447,14 @@ func (vm *ViewModel) hoverTriggerSync(op *hoverOp) {
 	if vm.hover.op != op {
 		return
 	}
-	op.results = append(op.results, diagnosticHover(vm, op.anchor.pos)...)
+	diags := diagnosticHover(vm, op.anchor.pos)
+	op.results = append(op.results, diags...)
 	op.state = hoverWaitingAsync
 	if op.asyncDone {
 		op.state = hoverIdle
 	}
 	vm.hoverFire(op)
+	vm.hoverQuickFixes(op, diags)
 }
 
 // hoverTriggerLoading adds the message "Loading..." when an answer is still to come after three times the delay.
@@ -697,4 +702,73 @@ func hoverActions(a map[string]action) {
 	a["editor.action.pageDownHover"] = scroll(HoverScrollPageDown)
 	a["editor.action.goToTopHover"] = scroll(HoverScrollTop)
 	a["editor.action.goToBottomHover"] = scroll(HoverScrollBottom)
+}
+
+// hoverQuickFixes asks the code action providers for the quick fixes of each diagnostic of the hover and puts "Quick Fix..." in
+// the links of the ones that have some, "No quick fixes available" in the others. "Checking for quick fixes..." shows when the
+// answer is later than 200 ms.
+//
+// Ported from VS Code: markerHoverParticipant.ts (renderMarkerHover, getCodeActions)
+func (vm *ViewModel) hoverQuickFixes(op *hoverOp, diags []HoverPart) {
+	_, reg, ok := vm.codeActionsHost()
+	if !ok || len(diags) == 0 {
+		return
+	}
+	all := vm.allDiagnostics()
+	doc := vm.langDocument()
+	ctx, cancel := context.WithCancel(vm.hostCtx())
+	prev := op.cancelRequests
+	op.cancelRequests = func() {
+		cancel()
+		if prev != nil {
+			prev()
+		}
+	}
+	gen := op.gen
+	// set puts the status and the link in the part of the diagnostic, wherever it is in the results now
+	set := func(d Diagnostic, update func(*HoverPart)) {
+		if vm.hover.op != op || op.gen != gen || vm.doc.Version() != doc.Version {
+			return
+		}
+		for i := range op.results {
+			p := &op.results[i]
+			if p.Kind == HoverPartDiagnostic && p.Diagnostic.Range == d.Range && p.Diagnostic.Message == d.Message {
+				update(p)
+				vm.hoverFire(op)
+				return
+			}
+		}
+	}
+	for _, part := range diags {
+		d := part.Diagnostic
+		if vm.afterTimer != nil {
+			vm.afterTimer(200*time.Millisecond, func() {
+				set(d, func(p *HoverPart) {
+					if p.Status == "" && len(p.Actions) < 2 {
+						p.Status = "Checking for quick fixes..."
+					}
+				})
+			})
+		}
+		trig := langfeatures.CodeActionTrigger{
+			Type: langfeatures.TriggerInvokedAction, Source: langfeatures.SourceQuickFixHover,
+			Filter: langfeatures.CodeActionFilter{Include: langfeatures.Kind(langfeatures.KindQuickFix)},
+		}
+		req := langfeatures.CodeActionRequest{Range: d.Range, Diagnostics: diagnosticsTouching(all, d.Range)}
+		go func() {
+			set0, errs := reg.GetCodeActions(ctx, doc, req, trig)
+			vm.post(func() {
+				vm.logProviderErrors("code action provider", errs)
+				set(d, func(p *HoverPart) {
+					if len(set0.Valid) == 0 {
+						p.Status = "No quick fixes available"
+						return
+					}
+					p.Status = ""
+					at := d.Range.Start
+					p.Actions = append(p.Actions, HoverAction{Label: "Quick Fix...", Run: func() { vm.showCodeActionList(set0, at, false, false) }})
+				})
+			})
+		}()
+	}
 }

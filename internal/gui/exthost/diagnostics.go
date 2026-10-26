@@ -221,7 +221,7 @@ func (c *serverCtl) markersFrom(uri document.URI, text lsp.Lines, ds []lsp.Diagn
 		r := ds[i].Range
 		m := problems.Marker{
 			Severity: markerSeverityOf(d.Severity), Code: d.Code, CodeHref: d.CodeHref, Source: d.Source, Message: d.Message,
-			Unnecessary: d.Unnecessary, Deprecated: d.Deprecated,
+			Unnecessary: d.Unnecessary, Deprecated: d.Deprecated, Data: d.Raw,
 			StartLine: r.Start.Line + 1, StartColumn: utf16Column(enc, text, r.Start) + 1,
 			EndLine: r.End.Line + 1, EndColumn: utf16Column(enc, text, r.End) + 1,
 		}

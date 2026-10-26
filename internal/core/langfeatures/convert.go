@@ -361,10 +361,11 @@ func TextEditsFromLSP(enc lsp.Encoding, doc Document, edits []lsp.TextEdit) []Te
 // the commands of the actions are run through.
 func CodeActionsFromLSP(enc lsp.Encoding, doc Document, owner string, actions lsp.CodeActions) []CodeAction {
 	out := make([]CodeAction, 0, len(actions))
-	for _, a := range actions {
+	for i := range actions {
+		a := actions[i]
 		act := CodeAction{
 			Title: a.Title, Kind: a.Kind, Preferred: a.IsPreferred, Diagnostics: DiagnosticsFromLSP(enc, doc, a.Diagnostics),
-			Command: commandFromLSP(a.Command, owner),
+			Command: commandFromLSP(a.Command, owner), server: &actions[i],
 		}
 		if a.Disabled != nil {
 			act.Disabled = a.Disabled.Reason

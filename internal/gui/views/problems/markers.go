@@ -1,6 +1,7 @@
 package problems
 
 import (
+	"encoding/json"
 	"slices"
 	"sort"
 	"sync"
@@ -102,6 +103,9 @@ type Marker struct {
 	Unnecessary, Deprecated bool
 	// Related are the places that are part of the problem.
 	Related []RelatedInformation
+	// Data is what the producer wants back with the diagnostic when it is asked for the code actions of a place: a language
+	// server's diagnostic as JSON (step 12.8); may be empty.
+	Data json.RawMessage
 }
 
 // sanitize makes the range of a marker valid, as the marker service of VS Code does: positions

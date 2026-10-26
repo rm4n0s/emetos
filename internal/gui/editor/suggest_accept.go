@@ -250,8 +250,8 @@ func (vm *ViewModel) trackSelections(sels []buffer.Selection) (current func() []
 	ids := make([][2]int, len(sels))
 	opts := document.DecorationOptions{Stickiness: document.NeverGrowsWhenTypingAtEdges}
 	for i, s := range sels {
-		ids[i][0] = vm.doc.AddDecoration(vm.owner(suggestOwner), buffer.Range{Start: s.Anchor, End: s.Anchor}, opts)
-		ids[i][1] = vm.doc.AddDecoration(vm.owner(suggestOwner), buffer.Range{Start: s.Active, End: s.Active}, opts)
+		ids[i][0] = vm.doc.AddDecoration(vm.owner(trackOwner), buffer.Range{Start: s.Anchor, End: s.Anchor}, opts)
+		ids[i][1] = vm.doc.AddDecoration(vm.owner(trackOwner), buffer.Range{Start: s.Active, End: s.Active}, opts)
 	}
 	return func() []buffer.Selection {
 		out := make([]buffer.Selection, len(sels))

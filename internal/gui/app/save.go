@@ -75,6 +75,8 @@ type saveRequest struct {
 	overwrite bool
 	// ignoreConflict saves although another program changed the file.
 	ignoreConflict bool
+	// prepared says that the code actions and the formatter of the language features already ran for this save (saveformat.go).
+	prepared bool
 }
 
 // saveRun is a save that is going on for a document: a request that comes meanwhile waits for it.
@@ -268,6 +270,24 @@ func (s *shellState) saveDocument(doc *document.Document, req saveRequest, done 
 		if done != nil {
 			run.waiters = append(run.waiters, done)
 		}
+		return
+	}
+	if plan := s.savePlanFor(doc, req); plan != nil {
+		// the code actions and the formatter take a while: a request that comes meanwhile waits like it does for a write
+		run := &saveRun{}
+		if done != nil {
+			run.waiters = append(run.waiters, done)
+		}
+		s.saves.running[doc] = run
+		req.prepared = true
+		plan.run(func() {
+			delete(s.saves.running, doc)
+			s.saveDocument(doc, req, func(ok bool) {
+				for _, w := range run.waiters {
+					w(ok)
+				}
+			})
+		})
 		return
 	}
 	job, err := doc.BeginSave(s.saveOptions(doc, req))
@@ -542,6 +562,11 @@ func (s *shellState) saveAsPath(doc *document.Document, path string, req saveReq
 	again := func(r saveRequest) { s.saveAsPath(doc, path, r, nil) }
 	if err := checkSaveAsTarget(win, doc, path); err != nil {
 		s.saveFailed(saveFailure{doc: doc, err: err, req: req, again: again}, finish)
+		return
+	}
+	if plan := s.savePlanFor(doc, req); plan != nil {
+		req.prepared = true
+		plan.run(func() { s.saveAsPath(doc, path, req, finish) })
 		return
 	}
 	job, err := doc.BeginSaveAs(path, s.saveOptions(doc, req))

@@ -149,6 +149,15 @@ type SuggestHost struct {
 	// JumpTo moves the cursor of an editor to a position as a navigation of the history (choosing a symbol of the outline or of
 	// a picker); without it the cursor just moves.
 	JumpTo func(vm *ViewModel, p buffer.Position)
+
+	// The means of the changes the language features make (step 12.8).
+	//
+	// ApplyEdit makes a workspace edit (a code action's, a rename's) on the UI thread, with the cursors of the editors following
+	// the text, and fails with the reason; the window applies it with langfeatures.Apply.
+	ApplyEdit func(ctx context.Context, we *langfeatures.WorkspaceEdit) error
+	// KeyLabel gives the label of the key of a command ("Ctrl+."), or empty when it has none: the tooltip of the light bulb and
+	// the keys in the list of actions show them.
+	KeyLabel func(command string) string
 }
 
 // SetSuggest gives the editor the means to complete (SPEC §9.12): without a host the editor has no suggest widget.

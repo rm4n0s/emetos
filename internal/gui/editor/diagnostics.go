@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 
@@ -74,6 +75,9 @@ type Diagnostic struct {
 	Owner string
 	// Related are the places that are part of the problem.
 	Related []DiagnosticRelated
+	// Data is the diagnostic as its producer wants it back with a request for code actions (a language server's diagnostic as
+	// JSON); may be empty.
+	Data json.RawMessage
 }
 
 // diagnosticState is what the view model keeps for its diagnostics.
@@ -103,6 +107,7 @@ func (vm *ViewModel) SetDiagnostics(ds []Diagnostic) {
 	st.ids = vm.doc.DeltaDecorations(vm.owner(diagnosticsOwner), st.ids, add)
 	st.generation++
 	vm.NotifyListeners()
+	vm.codeActionsDiagnosticsChanged()
 }
 
 // DisposeDiagnostics takes the diagnostics off the document.

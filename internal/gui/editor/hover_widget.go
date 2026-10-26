@@ -133,7 +133,7 @@ func estimateHoverSize(h *Hover, viewport float64) (width, height float64) {
 				width = math.Max(width, float64(len(d.Source)+len(d.Code)+2)*hoverCharWidth+2*hoverPadH)
 			}
 			height += float64(len(d.Related)) * hoverLineHeight
-			if len(p.Actions) > 0 {
+			if len(p.Actions) > 0 || p.Status != "" {
 				height += hoverActionsRow
 			}
 		}
@@ -286,7 +286,7 @@ func hoverDiagnostic(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors, 
 	}
 	body := widgets.NewPadding(painting.NewEdgeInsetsSymmetric(hoverPadV, hoverPadH),
 		widgets.NewColumn(rows, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart, MainAxisSize: rendering.MainAxisSizeMin}))
-	if len(p.Actions) == 0 {
+	if len(p.Actions) == 0 && p.Status == "" {
 		return body
 	}
 	var actions []widgets.Widget
@@ -301,6 +301,12 @@ func hoverDiagnostic(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors, 
 				a.Run()
 			}
 		}))
+	}
+	if p.Status != "" {
+		if len(actions) > 0 {
+			actions = append(actions, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(8.0)}))
+		}
+		actions = append(actions, hoverText(bc, p.Status, hoverActionsSize, fg))
 	}
 	bar := widgets.NewSizedBox(widgets.NewColoredBox(colors.EditorHoverWidgetStatusBarBackground,
 		widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, hoverPadH),

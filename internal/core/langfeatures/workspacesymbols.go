@@ -110,6 +110,15 @@ const (
 	FeatureDocumentSymbols
 	FeatureDocumentHighlights
 	FeatureWorkspaceSymbols
+	// FeatureCodeActions is textDocument/codeAction.
+	FeatureCodeActions
+	// FeatureFormatting is formatting the document, FeatureRangeFormatting formatting a range and FeatureOnTypeFormatting
+	// formatting after a character was typed.
+	FeatureFormatting
+	FeatureRangeFormatting
+	FeatureOnTypeFormatting
+	// FeatureRename is rename (prepareRename is part of it).
+	FeatureRename
 )
 
 // featureOffers is implemented by a provider that serves several features and may not offer all of them: a language server
@@ -138,6 +147,18 @@ func (r *Registry) Has(doc Document, f Feature) bool {
 		return slices.ContainsFunc(r.highlights.ordered(doc), func(reg Registered[HighlightProvider]) bool { return offered(reg.Provider, f) })
 	case FeatureWorkspaceSymbols:
 		return slices.ContainsFunc(r.workspaceSymbols.all(), func(reg Registered[WorkspaceSymbolProvider]) bool { return offered(reg.Provider, f) })
+	case FeatureCodeActions:
+		return slices.ContainsFunc(r.codeActions.ordered(doc), func(reg Registered[CodeActionProvider]) bool { return offered(reg.Provider, f) })
+	case FeatureFormatting:
+		return slices.ContainsFunc(r.formatting.ordered(doc), func(reg Registered[FormattingProvider]) bool {
+			return offered(reg.Provider, f) || canRange(reg.Provider)
+		})
+	case FeatureRangeFormatting:
+		return slices.ContainsFunc(r.formatting.ordered(doc), func(reg Registered[FormattingProvider]) bool { return canRange(reg.Provider) })
+	case FeatureOnTypeFormatting:
+		return slices.ContainsFunc(r.onType.ordered(doc), func(reg Registered[OnTypeFormattingProvider]) bool { return offered(reg.Provider, f) })
+	case FeatureRename:
+		return slices.ContainsFunc(r.rename.ordered(doc), func(reg Registered[RenameProvider]) bool { return offered(reg.Provider, f) })
 	}
 	return false
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 )
 
@@ -285,22 +286,27 @@ func (r *Registry) CodeActions(ctx context.Context, doc Document, req CodeAction
 			if a.Owner == "" {
 				a.Owner = res.owner
 			}
+			a.source, _ = res.provider.(CodeActionProvider)
 			out = append(out, a)
 		}
 	}
 	return out, errorsOf(rs)
 }
 
-// Formatters lists the formatters of the document in the order of the providers.
+// Formatters lists the formatters of the document in the order of the providers: those that format a document, or, as VS Code
+// does, only a range (they format the whole document as a range).
 func (r *Registry) Formatters(doc Document) []Registered[FormattingProvider] {
-	return r.formatting.ordered(doc)
+	all := r.formatting.ordered(doc)
+	return slices.DeleteFunc(all, func(f Registered[FormattingProvider]) bool {
+		return !offered(f.Provider, FeatureFormatting) && !canRange(f.Provider)
+	})
 }
 
 // PickFormatter chooses the formatter for the document: the one registered by defaultFormatter (editor.defaultFormatter,
 // the id of an extension) when there is one, else the first of the order. ok is false when the document has no formatter;
 // others says how many more there are, which a caller may tell the user (VS Code asks them to choose a default).
 func (r *Registry) PickFormatter(doc Document, defaultFormatter string) (reg Registered[FormattingProvider], others int, ok bool) {
-	all := r.formatting.ordered(doc)
+	all := r.Formatters(doc)
 	if len(all) == 0 {
 		return reg, 0, false
 	}
@@ -313,13 +319,26 @@ func (r *Registry) PickFormatter(doc Document, defaultFormatter string) (reg Reg
 }
 
 // FormatDocument formats the document with the formatter PickFormatter chooses. It fails with NoFormatter when the document
-// has none; the formatter's own error is returned as it is.
+// has none; the formatter's own error is returned as it is. A formatter that only formats ranges formats the whole document
+// as one range (VS Code's synthetic document formatter).
 func (r *Registry) FormatDocument(ctx context.Context, doc Document, opts FormattingOptions, defaultFormatter string) ([]TextEdit, error) {
 	reg, _, ok := r.PickFormatter(doc, defaultFormatter)
 	if !ok {
 		return nil, errors.New("NoFormatter", "there is no formatter for the document", "uri", doc.URI.String(), "language", doc.LanguageID)
 	}
+	if !offered(reg.Provider, FeatureFormatting) {
+		if rf, ok := reg.Provider.(RangeFormattingProvider); ok {
+			return rf.ProvideRangeFormatting(ctx, doc, FullRange(doc.Text), opts)
+		}
+	}
 	return reg.Provider.ProvideFormatting(ctx, doc, opts)
+}
+
+// FullRange is the range of the whole text.
+func FullRange(snap buffer.Snapshot) Range {
+	last := snap.LineCount() - 1
+	n, _ := snap.LineLength(last)
+	return Range{End: Position{Line: last, Col: n}}
 }
 
 // FormatRange formats a range of the document with the formatter PickFormatter chooses among those that format ranges. It
@@ -327,7 +346,7 @@ func (r *Registry) FormatDocument(ctx context.Context, doc Document, opts Format
 func (r *Registry) FormatRange(ctx context.Context, doc Document, rng Range, opts FormattingOptions, defaultFormatter string) ([]TextEdit, error) {
 	var capable []Registered[RangeFormattingProvider]
 	for _, f := range r.formatting.ordered(doc) {
-		if rf, ok := f.Provider.(RangeFormattingProvider); ok {
+		if rf, ok := f.Provider.(RangeFormattingProvider); ok && canRange(f.Provider) {
 			capable = append(capable, Registered[RangeFormattingProvider]{Owner: f.Owner, Provider: rf, Score: f.Score})
 		}
 	}
@@ -342,6 +361,12 @@ func (r *Registry) FormatRange(ctx context.Context, doc Document, rng Range, opt
 		}
 	}
 	return pick.Provider.ProvideRangeFormatting(ctx, doc, rng, opts)
+}
+
+// canRange tells whether the provider formats ranges.
+func canRange(p any) bool {
+	_, ok := p.(RangeFormattingProvider)
+	return ok && offered(p, FeatureRangeFormatting)
 }
 
 // PrepareRename asks the rename providers in order and answers with the first that has an answer; an error of a provider is

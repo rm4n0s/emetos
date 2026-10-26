@@ -256,7 +256,11 @@ func (vm *ViewModel) PasteText(text string) error {
 		}
 		// The pasted text goes from where the selection began to where the cursor is now.
 		after := vm.cursors.Selections()
-		return vm.autoIndentPasted(buffer.Range{Start: before[0].Start(), End: after[0].Start()})
+		if err := vm.autoIndentPasted(buffer.Range{Start: before[0].Start(), End: after[0].Start()}); err != nil {
+			return err
+		}
+		vm.formatPasted(buffer.Range{Start: before[0].Start(), End: vm.cursors.Primary().Selection.Start()})
+		return nil
 	}, nil)
 }
 

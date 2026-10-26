@@ -84,6 +84,8 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		ShowUnused: true, ShowDeprecated: true,
 		Hover:          HoverOptions{Enabled: "on", Delay: 300, Sticky: true, HidingDelay: 300, Above: true},
 		ParameterHints: ParameterHintsOptions{Enabled: true, Cycle: true},
+		CodeActions:    CodeActionOptions{Lightbulb: "onCode", ShowHeaders: true, IncludeNearbyQuickFixes: true},
+		RenamePreview:  true,
 		Suggest: SuggestOptions{
 			QuickSuggestions: QuickSuggestions{Other: "offWhenInlineCompletions", Comments: "off", Strings: "off"}, QuickSuggestionsDelay: 10,
 			SuggestOnTriggerCharacters: true, AcceptSuggestionOnEnter: "on", AcceptSuggestionOnCommitCharacter: true, SuggestSelection: "first",

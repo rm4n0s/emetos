@@ -35,7 +35,27 @@ func (w *Workspace) suggestHost() *editor.SuggestHost {
 		h.Symbols = w.symbolCache(h.Features)
 	}
 	w.navigationHost(h)
+	h.ApplyEdit = w.applyWorkspaceEdit
+	h.KeyLabel = w.keyLabel
 	return h
+}
+
+// applyWorkspaceEdit makes the edit of a code action or a rename (UI thread). A refusal is returned for the editor to show.
+func (w *Workspace) applyWorkspaceEdit(ctx context.Context, we *langfeatures.WorkspaceEdit) error {
+	_, err := langfeatures.Apply(ctx, workspaceEdits{w}, we)
+	return err
+}
+
+// keyLabel is the label of the primary key of a command in the context of the editor, or "".
+func (w *Workspace) keyLabel(id string) string {
+	s := w.liveShell()
+	if s == nil || w.Keybindings == nil {
+		return ""
+	}
+	if kb, ok := w.Keybindings.LookupPrimaryKeybinding(id, s.editorMenuContext(), false); ok && kb.Keybinding != nil {
+		return kb.Keybinding.Label()
+	}
+	return ""
 }
 
 // tokenizeBlock colors the code of a Markdown block of the hover: the language is named as a fence names it, and the grammar

@@ -178,6 +178,15 @@ type Options struct {
 	Hover HoverOptions
 	// ParameterHints are the settings of the parameter hints (editor.parameterHints.*).
 	ParameterHints ParameterHintsOptions
+	// CodeActions are the settings of the light bulb and of the list of code actions (editor.lightbulb.enabled,
+	// editor.codeActionWidget.*).
+	CodeActions CodeActionOptions
+	// Format are the settings of the formatting that follows typing and pasting (editor.formatOnType, editor.formatOnPaste,
+	// editor.defaultFormatter).
+	Format FormatOptions
+	// RenamePreview is editor.rename.enablePreview: the rename box and the list of actions can show the changes before they are
+	// made.
+	RenamePreview bool
 	// Suggest are the settings of the suggest widget (editor.suggest.* and the options around it).
 	Suggest SuggestOptions
 	// Minimap are the settings of the minimap (editor.minimap.*).
@@ -249,6 +258,14 @@ type ViewModel struct {
 	// sg is the suggest widget (suggest.go) and sig the parameter hints (signature.go).
 	sg  suggestState
 	sig signatureModel
+	// ca is the state of the code actions (codeaction.go), rn that of rename (rename.go), pv that of the preview of a
+	// refactoring (refactor_preview.go) and fm that of the formatting (format.go).
+	ca codeActionState
+	rn renameState
+	pv previewState
+	fm formatState
+	// quietKeys holds back the notice of the listeners of the selection while the widgets of the editor are disposed.
+	quietKeys bool
 	// sym are the document symbols (symbols.go), nav the navigation that is being asked for (navigation.go), peek the peek view
 	// (peek.go) and link the link that Ctrl+hover draws (link.go); embedded says that the editor is the one of a peek view.
 	sym      symbolState
@@ -372,10 +389,12 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 10
+	ownerSlots   = 11
 	snippetOwner = 6
 	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
 	suggestOwner = 9
+	// trackOwner is the slot of the markers that follow the cursors through the edits of a formatter, a code action or a rename.
+	trackOwner = 11
 )
 
 // owner is the document owner of a slot of this view model.
@@ -406,6 +425,9 @@ func NewViewModel(doc *document.Document, opts Options, cache *ParagraphCache) *
 		hover:          newHoverModel(),
 		sg:             newSuggestState(),
 		sig:            newSignatureModel(),
+		ca:             newCodeActionState(),
+		rn:             newRenameState(),
+		pv:             newPreviewState(),
 		sym:            newSymbolState(),
 		peek:           newPeekModel(),
 		link:           newLinkState(),

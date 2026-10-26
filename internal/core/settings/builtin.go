@@ -46,6 +46,7 @@ func DefaultRegistry() *Registry {
 	registerDiffEditor(r)
 	registerExtensions(r)
 	registerNavigation(r)
+	registerCodeActions(r)
 	return r
 }
 

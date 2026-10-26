@@ -311,6 +311,8 @@ type editorState struct {
 	findFocused           bool
 	focusReported         bool
 	findHandle            foundation.ListenerHandle
+	// aux holds the rename box and the preview of a refactoring, which take the keyboard from the editor like the find widget.
+	aux auxUI
 	// windowFocused and editorFocused make the focus of the view model: the editor has it
 	// when it has the focus of the window's tree and the window has the keyboard.
 	windowFocused, editorFocused bool
@@ -370,6 +372,7 @@ func (s *editorState) InitState() {
 		}
 	}
 	s.initFind(vm)
+	s.initAuxUI(vm)
 	s.input = &textInput{state: s}
 	s.selHandle = vm.AddSelectionListener(s.selectionChanged)
 	s.metricsHandle = vm.AddMetricsListener(s.metricsChanged)
@@ -598,6 +601,15 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorHasDocumentSymbolProvider", vm.hasFeature(langfeatures.FeatureDocumentSymbols))
 		s.scope.Set("editorHasDocumentHighlightProvider", vm.hasFeature(langfeatures.FeatureDocumentHighlights))
 		s.scope.Set("isInEmbeddedEditor", vm.IsEmbedded())
+		s.scope.Set("editorHasCodeActionsProvider", vm.CodeActionsHasProvider())
+		s.scope.Set("supportedCodeAction", vm.SupportedCodeActions())
+		s.scope.Set("codeActionMenuVisible", vm.CodeActionMenuVisible())
+		s.scope.Set("editorHasDocumentFormattingProvider", vm.HasDocumentFormatter())
+		s.scope.Set("editorHasDocumentSelectionFormattingProvider", vm.HasRangeFormatter())
+		s.scope.Set("editorHasRenameProvider", vm.HasRenameProvider())
+		s.scope.Set("renameInputVisible", vm.RenameVisible())
+		s.scope.Set("refactorPreview.visible", vm.RefactorPreview() != nil)
+		s.scope.Set("config.editor.rename.enablePreview", vm.Options().RenamePreview)
 		s.scope.Set("findWidgetVisible", vm.FindRevealed())
 		state := vm.SnippetState()
 		s.scope.Set("inSnippetMode", state.InSnippet)
@@ -635,6 +647,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 			s.unbindCommands = nil
 		}
 		s.releaseFind(old.vm)
+		s.releaseAuxUI(old.vm)
 		old.vm.RemoveListener(s.vmHandle)
 		old.vm.RemoveHoverListener(s.hoverHandle)
 		old.vm.RemoveSuggestListener(s.suggestHandle)
@@ -678,6 +691,7 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		vm.SetInputMode(s.Widget().opts.InputMode)
 		s.refreshCommands()
 		s.useFind(vm)
+		s.useAuxUI(vm)
 		s.applyFocus()
 	}
 }
@@ -693,6 +707,7 @@ func (s *editorState) Dispose() {
 	s.reportFocus()
 	s.endPress()
 	s.disposeFind()
+	s.disposeAuxUI()
 	if s.unbindCommands != nil {
 		s.unbindCommands()
 	}
@@ -761,8 +776,20 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	if suggest := s.suggestLayer(bc, vm, colors); suggest != nil {
 		layers = append(layers, suggest)
 	}
+	if bulb := s.lightBulbLayer(vm, colors); bulb != nil {
+		layers = append(layers, bulb)
+	}
 	if hover := s.hoverLayer(bc, vm, colors); hover != nil {
 		layers = append(layers, hover)
+	}
+	if list := s.actionListLayer(bc, vm, colors); list != nil {
+		layers = append(layers, list)
+	}
+	if rename := s.renameLayer(bc, vm, colors); rename != nil {
+		layers = append(layers, rename)
+	}
+	if preview := s.previewLayer(bc, vm, colors); preview != nil {
+		layers = append(layers, preview)
 	}
 	return widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }

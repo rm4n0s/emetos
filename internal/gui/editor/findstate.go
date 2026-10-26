@@ -98,7 +98,7 @@ func (s *editorState) focusInput(replace bool) {
 // keys and makes the editor's commands work while an input has the focus.
 func (s *editorState) findFocusChanged() {
 	findIn, replaceIn := s.findNode.HasFocus(), s.replaceNode.HasFocus()
-	s.findFocused = findIn || replaceIn
+	s.findFocused = findIn || replaceIn || s.aux.renameFocused || s.aux.previewFocused
 	if s.findScope != nil {
 		s.findScope.Batch(func() {
 			s.findScope.Set("findInputFocussed", findIn)

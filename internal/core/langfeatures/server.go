@@ -52,6 +52,7 @@ func (sp *ServerProvider) Register(r *Registry, owner string, sel Selector) (rem
 		r.RegisterCodeActions(owner, sel, sp),
 		r.RegisterFormatting(owner, sel, sp),
 		r.RegisterRename(owner, sel, sp),
+		r.RegisterOnTypeFormatting(owner, sel, sp),
 		r.RegisterWorkspaceSymbols(owner, sp),
 	}
 	return func() {
@@ -291,10 +292,16 @@ func (sp *ServerProvider) ProvideCodeActions(ctx context.Context, doc Document, 
 	for _, d := range req.Diagnostics {
 		var ld lsp.Diagnostic
 		if len(d.Raw) > 0 && json.Unmarshal(d.Raw, &ld) == nil {
+			// the diagnostic as the server sent it, at the place it is now
+			ld.Range = enc.RangeToLSP(doc.Text, d.Range)
 			cx.Diagnostics = append(cx.Diagnostics, ld)
 			continue
 		}
-		cx.Diagnostics = append(cx.Diagnostics, lsp.Diagnostic{Range: enc.RangeToLSP(doc.Text, d.Range), Message: d.Message, Source: d.Source, Severity: int(d.Severity) + 1})
+		ld = lsp.Diagnostic{Range: enc.RangeToLSP(doc.Text, d.Range), Message: d.Message, Source: d.Source, Severity: int(d.Severity) + 1}
+		if d.Code != "" {
+			ld.Code, _ = json.Marshal(d.Code)
+		}
+		cx.Diagnostics = append(cx.Diagnostics, ld)
 	}
 	params := lsp.CodeActionParams{TextDocument: textDocument(doc), Range: enc.RangeToLSP(doc.Text, req.Range), Context: cx}
 	var actions lsp.CodeActions
@@ -302,6 +309,39 @@ func (sp *ServerProvider) ProvideCodeActions(ctx context.Context, doc Document, 
 		return nil, err
 	}
 	return CodeActionsFromLSP(enc, doc, sp.Name, actions), nil
+}
+
+// CodeActionKinds implements CodeActionKinds: the kinds the server declared.
+func (sp *ServerProvider) CodeActionKinds() []string {
+	if c := sp.server(); c != nil {
+		return slices.Clone(c.Capabilities().CodeActionProvider.Strings("codeActionKinds"))
+	}
+	return nil
+}
+
+// CanResolveAction implements CodeActionResolver: the server offers codeAction/resolve and sent the action.
+func (sp *ServerProvider) CanResolveAction(a CodeAction) bool {
+	c := sp.server()
+	if c == nil || a.server == nil {
+		return false
+	}
+	return c.Capabilities().CodeActionProvider.Bool("resolveProvider") || len(c.Registered(lsp.MethodCodeActionResolve)) > 0
+}
+
+// ResolveCodeAction implements CodeActionResolver: the action goes back to the server, which fills in its edit.
+func (sp *ServerProvider) ResolveCodeAction(ctx context.Context, a CodeAction) (CodeAction, error) {
+	c := sp.server()
+	if c == nil || !sp.CanResolveAction(a) {
+		return a, nil
+	}
+	var resolved lsp.CodeAction
+	if err := c.Call(ctx, lsp.MethodCodeActionResolve, *a.server, &resolved); err != nil {
+		return a, err
+	}
+	if resolved.Edit != nil {
+		a.Edit = FromLSPEdit(c.Encoding(), *resolved.Edit)
+	}
+	return a, nil
 }
 
 // formattingOptions are the options of the protocol for ours.
@@ -333,6 +373,34 @@ func (sp *ServerProvider) ProvideRangeFormatting(ctx context.Context, doc Docume
 	var edits []lsp.TextEdit
 	params := lsp.DocumentRangeFormattingParams{TextDocument: textDocument(doc), Range: enc.RangeToLSP(doc.Text, r), Options: formattingOptions(opts)}
 	if err := c.Call(ctx, lsp.MethodRangeFormatting, params, &edits); err != nil {
+		return nil, err
+	}
+	return TextEditsFromLSP(enc, doc, edits), nil
+}
+
+// OnTypeTriggers implements OnTypeFormattingProvider: the first trigger character the server declared and the others.
+func (sp *ServerProvider) OnTypeTriggers() []string {
+	c := sp.server()
+	if c == nil {
+		return nil
+	}
+	o := c.Capabilities().DocumentOnTypeFormattingProvider
+	if o == nil {
+		return nil
+	}
+	return append([]string{o.FirstTriggerCharacter}, o.MoreTriggerCharacter...)
+}
+
+// ProvideOnTypeFormatting implements OnTypeFormattingProvider.
+func (sp *ServerProvider) ProvideOnTypeFormatting(ctx context.Context, doc Document, pos Position, ch string, opts FormattingOptions) ([]TextEdit, error) {
+	c := sp.server()
+	if c == nil || !sp.Offers(FeatureOnTypeFormatting) {
+		return nil, nil
+	}
+	enc := c.Encoding()
+	var edits []lsp.TextEdit
+	params := lsp.DocumentOnTypeFormattingParams{TextDocument: textDocument(doc), Position: enc.PositionToLSP(doc.Text, pos), Ch: ch, Options: formattingOptions(opts)}
+	if err := c.Call(ctx, lsp.MethodOnTypeFormatting, params, &edits); err != nil {
 		return nil, err
 	}
 	return TextEditsFromLSP(enc, doc, edits), nil
@@ -435,6 +503,16 @@ func (sp *ServerProvider) Offers(f Feature) bool {
 		return offers(c, caps.DocumentHighlightProvider.Enabled, lsp.MethodDocumentHighlight)
 	case FeatureWorkspaceSymbols:
 		return offers(c, caps.WorkspaceSymbolProvider.Enabled, lsp.MethodWorkspaceSymbol)
+	case FeatureCodeActions:
+		return offers(c, caps.CodeActionProvider.Enabled, lsp.MethodCodeAction)
+	case FeatureFormatting:
+		return offers(c, caps.DocumentFormattingProvider.Enabled, lsp.MethodFormatting)
+	case FeatureRangeFormatting:
+		return offers(c, caps.DocumentRangeFormattingProvider.Enabled, lsp.MethodRangeFormatting)
+	case FeatureOnTypeFormatting:
+		return caps.DocumentOnTypeFormattingProvider != nil || len(c.Registered(lsp.MethodOnTypeFormatting)) > 0
+	case FeatureRename:
+		return offers(c, caps.RenameProvider.Enabled, lsp.MethodRename)
 	}
 	return false
 }

@@ -2020,3 +2020,42 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - `multiFile` occurrences, which act as `singleFile`.
 
   My review sent the agent back for two fixes. The peek's embedded editor had lost its token theme, because the peek's `kit.NewTheme` dropped it; the golden now shows the colours. The peek golden's fixture had a range off by one. The agent also fixed a test-only race in a peek test.
+
+## 12.8 Code actions, formatting and rename
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-12.8-code-actions
+- **Summary:** SPEC §9.12 "Code actions", "Formatting", "Rename", §10.11.
+  - **Code actions:** VS Code's `getCodeActions` (hierarchical kinds, include, exclude and preferred filters, the `source.*` gate, VS Code's order, disabled actions kept apart).
+    - **Light bulb:** asked 250 ms after the cursor rests or the diagnostics change, with the server's raw diagnostic (`Marker.Data`); it follows `editor.lightbulb.enabled` and uses the auto-fix icon for a preferred fix.
+    - **List:** Ctrl+., Ctrl+Shift+R, Shift+Alt+O, Shift+Alt+. and the context menu, with headers, Show Disabled, key hints and Ctrl+Enter to preview. Quick Fix also asks at the nearest diagnostic of the line, and the diagnostic hover has "Quick Fix...".
+    - **Applying:** resolve when needed, then the edit through `langfeatures.Apply` with every editor's cursors following and one undo step, then the command.
+  - **Save participants:** they run before the write, in VS Code's order: trim, `editor.codeActionsOnSave` (`source.fixAll` first, `explicit`/`always`/`never` and the legacy forms), format on save, then the final newline. Each participant is bounded by `editor.codeActionsOnSaveTimeout`/`formatOnSaveTimeout` (750 ms); a timeout shows a silent notification and the save goes on. The participants' edits are one undo step. Auto save skips them, and Save without Formatting skips all. A save with no participants does no extra work.
+  - **Formatting:** Format Document (Ctrl+Shift+I) and Format Selection (Ctrl+K Ctrl+F); a range-only formatter serves Format Document. VS Code's `computeMoreMinimalEdits` makes one undo step. Format on type and on paste, `editor.defaultFormatter`, and format on save in modes `file`, `modifications` and `modificationsIfAvailable`. The `modifications` modes compare with the file on disk, since there is no SCM.
+  - **Rename:** F2 asks `prepareRename`, and a refusal shows its message. The box over the symbol takes Enter to apply across files and Ctrl+Enter for the refactor preview: a panel with a check box per file and per change, which applies only what is checked.
+  - **Fixed on the way:** disposing an editor with a widget open notified a listener on an inactive element.
+- **Main files:**
+  - core: `internal/core/langfeatures/{codeaction,format,edit,merge,registry,server}.go`, `internal/core/{settings,command,keybinding}/codeactions.go`;
+  - editor: `internal/gui/editor/{codeaction,codeaction_widget,format,rename,rename_widget,refactor_preview,saveparticipants}.go`;
+  - app and exthost: `internal/gui/app/{saveformat,save,lsphost}.go`, `internal/gui/exthost/diagnostics.go`;
+  - other: `testdata/proof/12.8/`, `docs/SPEC.md` §9.12, §6.3.
+- **Tests:**
+  - added: `langfeatures/codeaction_test.go`; `editor/codeaction_test.go` (light bulb, a multi-file edit plus a command in one undo step, resolve, stale answers, every formatting mode in one step each, the on-type cancel, rename refused, applied, previewed and partly accepted); `editor/codeaction_widget_test.go`; `app/saveformat_test.go` (organize imports before format in one step, both timeouts, auto save, the setting forms, `modifications` mode, no server asked without participants); the keys test's new states. The real `gopls` test resolves and applies a quick fix, organizes imports, formats and renames across 3 files.
+  - changed: the menus test, the editor options defaults, and the keys test.
+- **Goldens:**
+  - new: `code_actions_{dark,light}`, `light_bulb_dark`, `rename_box_{dark,light}`, `refactor_preview_{dark,light}`.
+  - changed: `settings_top_{dark,light}`, which shows the new Formatting category.
+  - The agent viewed them all; I viewed the refactor preview and both proofs.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** two images, both with the real `gopls`.
+  - `docs/implemented-proof-images/12.8-code-actions.png` shows the quick fix list on the undeclared `total`, with the light bulb and "Create variable total". Made with `scripts/proof.sh docs/implemented-proof-images/12.8-code-actions.png --after 9s --commands '[["dev.openFile",{"path":"testdata/proof/12.8/project/main.go","line":11,"column":44}],["sleep","6s"],["editor.action.quickFix"],["sleep","4s"]]' -- testdata/proof/12.8/project`.
+
+    ![12.8 code actions](implemented-proof-images/12.8-code-actions.png)
+  - `docs/implemented-proof-images/12.8-rename.png` shows the rename box over `Greet`. Made with the same command, at line 10, column 18, with `["editor.action.rename"]` and `["sleep","3s"]`.
+
+    ![12.8 rename](implemented-proof-images/12.8-rename.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §9.12 "As built (step 12.8)" lists the decisions and what is not built.
+  - Decisions: the preview key is Ctrl+Enter; the first formatter is used when several exist and no default is set; the `modifications` baseline is the file on disk; there are two per-participant timeouts; the first valid action of each kind is applied on save; the preview is an overlay panel.
+  - Not built: Format Document With..., rename suggestions, a diff in the preview, the AI bulb, `triggerOnFocusChange`.

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -508,6 +509,227 @@ func TestGoplsNavigatesAGoProject(t *testing.T) {
 	}
 	if len(ws) == 0 || ws[0].Name != "Shout" || !strings.HasSuffix(ws[0].Location.URI.Path, "greet.go") {
 		t.Errorf("workspace symbols = %+v", ws)
+	}
+
+	tb.scope.Close()
+	r.host.WaitServers()
+	requireGone(t, "gopls", status.PID)
+}
+
+// TestGoplsFixesFormatsAndRenamesAGoProject runs the real gopls on a project with an undeclared name, an unused import and an
+// unformatted function (SPEC §9.12 "Code actions", "Formatting", "Rename"): the quick fix and organize imports come back as
+// edits that are made (the quick fix is resolved first, as gopls leaves its edit to codeAction/resolve), the
+// formatter's edits make the file the one gofmt writes, and a rename of a function changes three files.
+func TestGoplsFixesFormatsAndRenamesAGoProject(t *testing.T) {
+	if _, err := exec.LookPath("gopls"); err != nil {
+		t.Skip("gopls is not installed")
+	}
+	folder := t.TempDir()
+	fixture := filepath.Join(testRoot(t), "testdata", "proof", "12.8", "project")
+	texts := map[string]string{}
+	for _, name := range []string{"go.mod", "greet.go", "main.go", "greet_test.go"} {
+		text, err := os.ReadFile(filepath.Join(fixture, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		texts[name] = string(text)
+		if err := os.WriteFile(filepath.Join(folder, name), text, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	m := manifest("gopls.pack")
+	m.Contributes.LanguageServers = []extension.LanguageServerSpec{{
+		ID: "gopls", Name: "gopls", Languages: []string{"go", "go.mod", "go.work"}, Program: "gopls",
+		PathSetting: "go.goplsPath", ConfigurationSection: "go.gopls",
+	}}
+	f, _ := factory(m, nil)
+	r := newRig(t, f)
+	r.folders["one"] = folder
+	t.Cleanup(func() { r.host.Shutdown() })
+	tb := r.newTab("one")
+	tb.deferred = true
+	tb.scope.Start()
+
+	opts := document.NewOptions()
+	opts.LanguageID = "go"
+	docs := map[string]*document.Document{}
+	for _, name := range []string{"main.go", "greet.go", "greet_test.go"} {
+		docs[name] = document.New(document.FileURI(filepath.Join(folder, name)), texts[name], opts)
+		tb.lsp.open(docs[name])
+	}
+	tb.pump()
+	waitFor(t, tb, "gopls to run", func() bool {
+		s, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+		return s.State == ServerRunning
+	})
+	status, _ := tb.scope.ServerStatus("gopls.pack", "gopls")
+	pumped := func(f func()) {
+		done := make(chan struct{})
+		go func() { defer close(done); f() }()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				tb.pump()
+				time.Sleep(5 * time.Millisecond)
+			}
+		}
+	}
+	reg := tb.scope.Features()
+	langDoc := func(name string) langfeatures.Document {
+		d := docs[name]
+		return langfeatures.Document{URI: d.URI(), LanguageID: "go", Version: d.Version(), Text: d.Snapshot()}
+	}
+	apply := func(we *langfeatures.WorkspaceEdit) {
+		t.Helper()
+		var err error
+		pumped(func() {})
+		if _, err = langfeatures.Apply(context.Background(), tb.lsp.edits, we); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+		tb.pump()
+	}
+
+	// the quick fix of the undeclared name: the diagnostic goes back to the server as it sent it
+	mainPath := filepath.Join(folder, "main.go")
+	var unused problems.Marker
+	waitFor(t, tb, "the diagnostic of the undeclared name", func() bool {
+		for _, mk := range tb.markers.Read(problems.ReadFilter{Owner: "gopls.pack.gopls", Resource: mainPath}) {
+			if strings.Contains(mk.Message, "undefined: total") || strings.Contains(mk.Message, "undeclared name: total") {
+				unused = mk
+				return true
+			}
+		}
+		return false
+	})
+	rng := langfeatures.Range{
+		Start: langfeatures.Position{Line: unused.StartLine - 1, Col: unused.StartColumn - 1},
+		End:   langfeatures.Position{Line: unused.EndLine - 1, Col: unused.EndColumn - 1},
+	}
+	diag := langfeatures.Diagnostic{Range: rng, Message: unused.Message, Source: unused.Source, Code: unused.Code, Raw: unused.Data}
+	var set langfeatures.CodeActionSet
+	var errs []langfeatures.ProviderError
+	pumped(func() {
+		set, errs = reg.GetCodeActions(context.Background(), langDoc("main.go"),
+			langfeatures.CodeActionRequest{Range: rng, Diagnostics: []langfeatures.Diagnostic{diag}},
+			langfeatures.CodeActionTrigger{Type: langfeatures.TriggerInvokedAction, Source: langfeatures.SourceQuickFix, Filter: langfeatures.CodeActionFilter{Include: langfeatures.Kind(langfeatures.KindQuickFix)}})
+	})
+	if len(errs) != 0 {
+		t.Errorf("errors = %v", errs)
+	}
+	var fix *langfeatures.CodeAction
+	for i, a := range set.Valid {
+		t.Logf("quick fix %q kind=%q edit=%v", a.Title, a.Kind, a.Edit != nil)
+		if fix == nil && strings.Contains(a.Title, "total") {
+			fix = &set.Valid[i]
+		}
+	}
+	if fix == nil {
+		t.Fatalf("no quick fix for the undeclared name in %+v\nOutput:\n%s", set.Valid, strings.Join(tb.channels.Lines("gopls"), "\n"))
+	}
+	if fix.Edit == nil {
+		pumped(func() {
+			resolved, err := reg.ResolveCodeAction(context.Background(), *fix)
+			if err != nil {
+				t.Errorf("resolve: %v", err)
+			}
+			*fix = resolved
+		})
+	}
+	if fix.Edit == nil {
+		t.Fatalf("the quick fix has no edit: %+v", *fix)
+	}
+	apply(fix.Edit)
+	if got := docs["main.go"].Text(); !strings.Contains(got, "total") || strings.Count(got, "total") < 2 {
+		t.Errorf("main.go after the quick fix:\n%s", got)
+	}
+
+	// organize imports: the imports are put in the wrong order, and the action sorts them again and drops the unused one
+	mainText := docs["main.go"].Text()
+	if _, err := docs["main.go"].Edit([]document.Edit{{
+		Range: buffer.Range{End: buffer.Position{Line: strings.Count(mainText, "\n"), Col: 0}},
+		Text:  strings.Replace(mainText, "\t\"fmt\"\n\t\"strings\"\n", "\t\"strings\"\n\t\"fmt\"\n", 1),
+	}}, document.EditOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	tb.pump()
+	var organize langfeatures.CodeActionSet
+	pumped(func() {
+		d := langDoc("main.go")
+		organize, _ = reg.GetCodeActions(context.Background(), d,
+			langfeatures.CodeActionRequest{Range: langfeatures.FullRange(d.Text)},
+			langfeatures.CodeActionTrigger{Type: langfeatures.TriggerAutomatic, Source: langfeatures.SourceOnSave,
+				Filter: langfeatures.CodeActionFilter{Include: langfeatures.Kind(langfeatures.KindSourceOrganize), IncludeSourceActions: true}})
+	})
+	if len(organize.Valid) == 0 {
+		t.Fatalf("no organize imports action\nOutput:\n%s", strings.Join(tb.channels.Lines("gopls"), "\n"))
+	}
+	org := organize.Valid[0]
+	if org.Edit == nil {
+		pumped(func() { org, _ = reg.ResolveCodeAction(context.Background(), org) })
+	}
+	if org.Edit != nil {
+		apply(org.Edit)
+	}
+	if got := docs["main.go"].Text(); strings.Contains(got, "\"os\"") || strings.Index(got, "\"fmt\"") < 0 || strings.Index(got, "\"fmt\"") > strings.Index(got, "\"strings\"") {
+		t.Errorf("main.go after organize imports:\n%s", got)
+	}
+
+	// the formatter: the edits make the text the one gofmt writes, and as few as the difference needs
+	var edits []langfeatures.TextEdit
+	pumped(func() {
+		edits, _ = reg.FormatDocument(context.Background(), langDoc("greet.go"), langfeatures.FormattingOptions{TabSize: 4}, "")
+	})
+	if len(edits) == 0 {
+		t.Fatal("the formatter changed nothing in an unformatted file")
+	}
+	min := langfeatures.MinimalEdits(docs["greet.go"].Snapshot(), edits)
+	v := docs["greet.go"].Version()
+	apply(&langfeatures.WorkspaceEdit{Changes: []langfeatures.Change{{URI: docs["greet.go"].URI(), Version: &v, Edits: min}}})
+	want := "package main\n\n// Greet says hello to a name.\nfunc Greet(name string) string {\n\treturn \"Hello, \" + name\n}\n"
+	if got := docs["greet.go"].Text(); got != want {
+		t.Errorf("greet.go after formatting:\n%s\nwant:\n%s", got, want)
+	}
+
+	// rename: prepareRename says where the name is, and the edit changes the three files
+	lines := strings.Split(docs["main.go"].Text(), "\n")
+	use := -1
+	for i, l := range lines {
+		if strings.Contains(l, "Greet(\"world\")") {
+			use = i
+		}
+	}
+	if use < 0 {
+		t.Fatalf("main.go has no use of Greet:\n%s", docs["main.go"].Text())
+	}
+	pos := langfeatures.Position{Line: use, Col: strings.Index(lines[use], "Greet") + 2}
+	var prep *langfeatures.PrepareRename
+	var err error
+	pumped(func() { prep, err = reg.PrepareRename(context.Background(), langDoc("main.go"), pos) })
+	if err != nil || prep == nil || prep.Placeholder != "Greet" && !prep.DefaultBehavior {
+		t.Errorf("prepareRename = %+v, %v", prep, err)
+	}
+	var we *langfeatures.WorkspaceEdit
+	pumped(func() { we, err = reg.Rename(context.Background(), langDoc("main.go"), pos, "Hello") })
+	if err != nil || we == nil {
+		t.Fatalf("rename = %+v, %v", we, err)
+	}
+	apply(we)
+	for name, doc := range docs {
+		if name == "go.mod" {
+			continue
+		}
+		if got := doc.Text(); strings.Contains(got, "Greet(") && !strings.Contains(got, "TestGreet(") || !strings.Contains(got, "Hello(") {
+			t.Errorf("%s after the rename:\n%s", name, got)
+		}
+	}
+	// a name that is not an identifier is refused by the server
+	pumped(func() {
+		_, err = reg.PrepareRename(context.Background(), langDoc("main.go"), langfeatures.Position{Line: 0, Col: 2})
+	})
+	if err == nil {
+		t.Log("prepareRename on the package clause did not refuse")
 	}
 
 	tb.scope.Close()

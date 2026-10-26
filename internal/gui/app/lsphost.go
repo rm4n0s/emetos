@@ -69,6 +69,26 @@ func (l workspaceLSP) Edits() langfeatures.EditHost { return workspaceEdits(l) }
 // workspaceEdits is the langfeatures.EditHost of a workspace. Its methods belong to the UI thread.
 type workspaceEdits struct{ w *Workspace }
 
+// BeginEdit implements langfeatures.EditTracker: the cursors of the editors follow the text while the edit is made, and the
+// ones of the editors that show a document the edit changed are kept where they were relative to the text.
+func (e workspaceEdits) BeginEdit() (end func()) {
+	s := e.w.liveShell()
+	if s == nil {
+		return func() {}
+	}
+	var restore []func()
+	for _, ed := range s.group.editors {
+		if ed.view != nil {
+			restore = append(restore, ed.view.TrackCursors())
+		}
+	}
+	return func() {
+		for _, r := range restore {
+			r()
+		}
+	}
+}
+
 // Document implements langfeatures.EditHost.
 func (e workspaceEdits) Document(uri document.URI) (*document.Document, bool) {
 	return e.w.Documents.Get(uri)

@@ -84,6 +84,20 @@ type EditHost interface {
 	DeleteFile(ctx context.Context, path string, opts FileOptions) error
 }
 
+// EditTracker is an EditHost that wants to know when the changes of an edit start and end: the window keeps the cursors of its
+// editors in their places in the text while the documents change. BeginEdit is called before the first change, on the goroutine
+// that owns the documents, and the function it returns after the last (also after a failure).
+type EditTracker interface {
+	BeginEdit() (end func())
+}
+
+// ApplyOptions are the options of ApplyWith.
+type ApplyOptions struct {
+	// JoinUndo makes the text changes part of the undo group that is open in each document, instead of a step of their own: the
+	// participants of a save make one step together.
+	JoinUndo bool
+}
+
 // ApplyResult says what Apply did.
 type ApplyResult struct {
 	// Applied is true when every change was made.
@@ -99,7 +113,7 @@ type textRun struct {
 	first   int
 	changes []Change
 	// resolve turns the edits of the change (by index in changes) into document edits for a snapshot.
-	resolve []func(buffer.Snapshot) ([]document.Edit, error)
+	resolve []func(lsp.Lines) ([]document.Edit, error)
 }
 
 // plan is a WorkspaceEdit split into text runs and file operations in order.
@@ -123,7 +137,15 @@ type step struct {
 // with the tags of lsp.ParseDocumentURI. The error has the tags WorkspaceEditInvalid, WorkspaceEditDocumentUnavailable, WorkspaceEditStale, WorkspaceEditReadOnly,
 // WorkspaceEditOverlap and WorkspaceEditFileFailed; ApplyResult.FailedChange says which change.
 func Apply(ctx context.Context, host EditHost, we *WorkspaceEdit) (ApplyResult, error) {
+	return ApplyWith(ctx, host, we, ApplyOptions{})
+}
+
+// ApplyWith is Apply with options.
+func ApplyWith(ctx context.Context, host EditHost, we *WorkspaceEdit, opts ApplyOptions) (ApplyResult, error) {
 	res := ApplyResult{FailedChange: -1}
+	if t, ok := host.(EditTracker); ok {
+		defer t.BeginEdit()()
+	}
 	pl, err := planOf(we)
 	if err != nil {
 		return res, err
@@ -137,7 +159,7 @@ func Apply(ctx context.Context, host EditHost, we *WorkspaceEdit) (ApplyResult, 
 			}
 			continue
 		}
-		docs, err := applyRun(ctx, host, st.run)
+		docs, err := applyRun(ctx, host, st.run, opts)
 		for _, d := range docs {
 			if !seen[d] {
 				seen[d] = true
@@ -160,7 +182,7 @@ func planOf(we *WorkspaceEdit) (plan, error) {
 	}
 	var pl plan
 	var cur *textRun
-	add := func(i int, c Change, resolve func(buffer.Snapshot) ([]document.Edit, error)) {
+	add := func(i int, c Change, resolve func(lsp.Lines) ([]document.Edit, error)) {
 		if c.Kind != ChangeText {
 			cur = nil
 			pl.fileOps = true
@@ -182,7 +204,7 @@ func planOf(we *WorkspaceEdit) (plan, error) {
 	}
 	for i, c := range we.Changes {
 		edits := c.Edits
-		add(i, c, func(buffer.Snapshot) ([]document.Edit, error) {
+		add(i, c, func(lsp.Lines) ([]document.Edit, error) {
 			out := make([]document.Edit, len(edits))
 			for k, e := range edits {
 				out[k] = document.Edit{Range: e.Range, Text: e.Text}
@@ -195,12 +217,16 @@ func planOf(we *WorkspaceEdit) (plan, error) {
 
 // planServerEdit adds the changes of an edit of a language server. documentChanges win over changes (the protocol says
 // so); changes are made in the order of their URIs, which the map does not keep, so they are sorted.
-func planServerEdit(se *serverEdit, add func(int, Change, func(buffer.Snapshot) ([]document.Edit, error))) error {
+func planServerEdit(se *serverEdit, add func(int, Change, func(lsp.Lines) ([]document.Edit, error))) error {
 	enc := se.enc
-	convert := func(edits []lsp.TextEdit) func(buffer.Snapshot) ([]document.Edit, error) {
-		return func(snap buffer.Snapshot) ([]document.Edit, error) {
+	convert := func(edits []lsp.TextEdit) func(lsp.Lines) ([]document.Edit, error) {
+		return func(snap lsp.Lines) ([]document.Edit, error) {
 			out := make([]document.Edit, len(edits))
 			for k, e := range edits {
+				if snap == nil {
+					out[k] = document.Edit{Range: buffer.NewRange(Position{Line: e.Range.Start.Line, Col: e.Range.Start.Character}, Position{Line: e.Range.End.Line, Col: e.Range.End.Character}), Text: e.NewText}
+					continue
+				}
 				out[k] = document.Edit{Range: enc.RangeFromLSP(snap, e.Range), Text: e.NewText}
 			}
 			return out, nil
@@ -260,7 +286,7 @@ type target struct {
 }
 
 // applyRun edits the documents of a run: they are found (closed files are opened), checked, and then changed.
-func applyRun(ctx context.Context, host EditHost, run *textRun) ([]*document.Document, error) {
+func applyRun(ctx context.Context, host EditHost, run *textRun, opts ApplyOptions) ([]*document.Document, error) {
 	var order []document.URI
 	byURI := map[document.URI]*target{}
 	for i, c := range run.changes {
@@ -295,11 +321,15 @@ func applyRun(ctx context.Context, host EditHost, run *textRun) ([]*document.Doc
 	var done []*document.Document
 	for _, u := range order {
 		t := byURI[u]
-		t.doc.PushStackElement()
-		if _, err := t.doc.Edit(t.edits, document.EditOptions{Kind: document.KindOther}); err != nil {
+		if !opts.JoinUndo {
+			t.doc.PushStackElement()
+		}
+		if _, err := t.doc.Edit(t.edits, document.EditOptions{Kind: document.KindOther, Join: opts.JoinUndo}); err != nil {
 			return done, err
 		}
-		t.doc.PushStackElement()
+		if !opts.JoinUndo {
+			t.doc.PushStackElement()
+		}
 		done = append(done, t.doc)
 	}
 	return done, nil
@@ -367,4 +397,73 @@ func applyFile(ctx context.Context, host EditHost, c Change) error {
 		return err
 	}
 	return errors.NewErr("WorkspaceEditFileFailed", err).SetMetadata("uri", c.URI.String())
+}
+
+// ExpandEdit makes the edit of a language server into the changes it is made of, with the ranges of every edit counted in bytes
+// of the document they are in (the text of the document comes from texts), so that the edits can be listed, previewed and
+// chosen one by one. The changes are those of the edit in order; a text change names the version the server gave it. An edit
+// whose documents cannot be read fails with WorkspaceEditDocumentUnavailable.
+func ExpandEdit(ctx context.Context, we *WorkspaceEdit, texts TextSource) (*WorkspaceEdit, error) {
+	pl, err := planOf(we)
+	if err != nil {
+		return nil, err
+	}
+	out := &WorkspaceEdit{Label: we.Label}
+	for _, st := range pl.steps {
+		if st.file != nil {
+			out.Changes = append(out.Changes, *st.file)
+			continue
+		}
+		for i, c := range st.run.changes {
+			var lines lsp.Lines // nil: the columns are taken as they are
+			if texts != nil {
+				l, err := texts(ctx, c.URI)
+				if err != nil {
+					if _, ok := errors.FromError(err); ok {
+						return nil, err
+					}
+					return nil, errors.NewErr("WorkspaceEditDocumentUnavailable", err).SetMetadata("uri", c.URI.String())
+				}
+				lines = l
+			}
+			edits, err := st.run.resolve[i](lines)
+			if err != nil {
+				return nil, err
+			}
+			c.Edits = make([]TextEdit, len(edits))
+			for k, e := range edits {
+				c.Edits[k] = TextEdit{Range: e.Range, Text: e.Text}
+			}
+			out.Changes = append(out.Changes, c)
+		}
+	}
+	return out, nil
+}
+
+// FilterEdit keeps the changes of an expanded edit that keep says yes to: keep is called with the index of the change and, for
+// the edits of a text change, with the index of the edit; for a file operation (and for the change as a whole) the edit index is
+// -1. A text change with no edit left is left out.
+func FilterEdit(we *WorkspaceEdit, keep func(change, edit int) bool) *WorkspaceEdit {
+	out := &WorkspaceEdit{Label: we.Label}
+	for i, c := range we.Changes {
+		if !keep(i, -1) {
+			continue
+		}
+		if c.Kind != ChangeText {
+			out.Changes = append(out.Changes, c)
+			continue
+		}
+		var edits []TextEdit
+		for k, e := range c.Edits {
+			if keep(i, k) {
+				edits = append(edits, e)
+			}
+		}
+		if len(edits) == 0 {
+			continue
+		}
+		c.Edits = edits
+		out.Changes = append(out.Changes, c)
+	}
+	return out
 }

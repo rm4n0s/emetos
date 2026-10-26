@@ -235,6 +235,8 @@ func (vm *ViewModel) cursorsChanged() {
 	vm.revealCursors()
 	vm.highlightsCursorsChanged()
 	vm.snippetCursorsChanged()
+	vm.codeActionsCursorsChanged()
+	vm.renameCursorsChanged()
 }
 
 // ToggleFoldAt folds or unfolds the region that starts on a line, as a click on its control

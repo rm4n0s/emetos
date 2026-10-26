@@ -110,7 +110,7 @@ func diagnosticsFor(svc *problems.Service, doc *document.Document) []editor.Diag
 		d := editor.Diagnostic{
 			Range: buffer.Range{Start: start, End: end}, Severity: editor.DiagnosticSeverity(m.Severity),
 			Message: m.Message, Source: m.Source, Code: m.Code, CodeHref: m.CodeHref,
-			Unnecessary: m.Unnecessary, Deprecated: m.Deprecated, Owner: m.Owner,
+			Unnecessary: m.Unnecessary, Deprecated: m.Deprecated, Owner: m.Owner, Data: m.Data,
 		}
 		for _, r := range m.Related {
 			d.Related = append(d.Related, editor.DiagnosticRelated{Resource: r.Resource, Message: r.Message, Line: r.StartLine, Column: r.StartColumn})

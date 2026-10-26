@@ -21,6 +21,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerKitColors(r)
 	registerSuggestColors(r)
 	registerNavigationColors(r)
+	registerCodeActionColors(r)
 	registerMenuColors(r)
 	registerInputKitColors(r)
 	registerQuickInputColors(r)
@@ -1253,5 +1254,19 @@ func registerNavigationColors(r *ColorRegistry) {
 			Description: "Match highlight color in the peek view editor."},
 		ColorContribution{ID: "peekViewEditor.matchHighlightBorder", Defaults: dflt(nil, nil, Ref("contrastActiveBorder"), Ref("contrastActiveBorder")),
 			Description: "Match highlight border in the peek view editor."},
+	)
+}
+
+// registerCodeActionColors registers the colors of the light bulb of the code actions (step 12.8).
+//
+// Ported from VS Code: src/vs/platform/theme/common/colors/editorColors.ts (editorLightBulb)
+func registerCodeActionColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editorLightBulb.foreground", Defaults: dflt(Hex("#FFCC00"), Hex("#DDB100"), Hex("#FFCC00"), Hex("#007ACC")),
+			Description: "The color used for the lightbulb actions icon."},
+		ColorContribution{ID: "editorLightBulbAutoFix.foreground", Defaults: dflt(Hex("#75BEFF"), Hex("#007ACC"), Hex("#75BEFF"), Hex("#007ACC")),
+			Description: "The color used for the lightbulb auto fix actions icon."},
+		ColorContribution{ID: "editorLightBulbAi.foreground", Defaults: AllThemes(Ref("editorLightBulb.foreground")),
+			Description: "The color used for the lightbulb AI icon."},
 	)
 }
