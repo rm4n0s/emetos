@@ -1865,3 +1865,16 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** decisions in `docs/DECISIONS-TO-REVIEW.md` entries 62–63. M11 is complete.
+
+## 12.1 Plan area 3
+
+- **Date:** 2026-10-26
+- **Branch:** feat/step-12.1-plan-area3
+- **Summary:** SPEC §3 area 3, D5, §10.15. The area 3 sections of the SPEC: §9.12 "Language intelligence" (the client `core/lsp`, the features model `core/langfeatures`, language servers as extension contributions with their lifetime, Go providers in `extension/`, and each feature as the user sees it: diagnostics, completion, hover, signature help, navigation with the peek view, symbols, code actions, formatting, rename, code lens, inlay hints, semantic tokens, folding and selection ranges; the first server `gopls`; the fake server for tests; what is not built), D20, the M12 row of §18; the steps 12.2–12.9 in this file; step 14.1 adjusted to build on 12.3.
+- **Main files:** `docs/SPEC.md` §3, §4 (D20), §9.12, §18; `docs/IMPLEMENTATION.md` M12, 14.1.
+- **Tests:** none (a plan).
+- **Checks:** documentation only; no code changed.
+- **Proof:** the step asks for none.
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** the step's review by the user was decided by me (`docs/DECISIONS-TO-REVIEW.md` entry 64).

@@ -117,7 +117,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M9b One window: workspace tabs and the tray | 9b.1, 9b.1b, 9b.2–9b.5 |
 | M10 Release of areas 1–2 | 10.1–10.2 |
 | M11 Extensions | 11.1–11.7 |
-| M12 Language intelligence (area 3) | 12.1 (more steps after it) |
+| M12 Language intelligence (area 3) | 12.1–12.9 |
 | M13 The Agents extension | 13.1–13.3 |
 | M14 The Go extension | 14.1–14.3 |
 | M15 Remote control of a workspace | 15.1–15.4 |
@@ -1225,6 +1225,59 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Goal:** a specification and steps for the LSP client and its UI, with `extensions/golang` and `gopls` as the first user (SPEC §3 area 3, D5, §10.15).
 **Tasks:** write the area 3 sections of the SPEC (the LSP client, the providers API of `extension/`, completion, hover, signature help, definition and references, diagnostics, code actions, formatting, rename, the Go pack's server; the rest of the Go extension is M14, SPEC §10.17, whose steps use what these steps build) and the steps that build them into this file; **ask the user** to review them before any of them is built.
 
+### 12.2 The JSON-RPC and LSP client core
+**Goal:** a tested LSP client with no UI (SPEC §9.12 "The client").
+**Read:** SPEC §9.12, D5, D6, D20; the LSP 3.17 specification (online, microsoft.github.io/language-server-protocol); VS Code's `vscode-languageclient` as a reference for behavior (in `reference/` if present, else online; do not copy).
+**Tasks:** `internal/core/lsp`: the framing (`Content-Length`, a size limit per message), JSON-RPC requests/responses/notifications with ids, cancellation from `ctx`, the server-to-client requests of §9.12 as handlers, `initialize` with Emetos's client capabilities (only what area 3 builds), the position encoding negotiation and conversion (byte columns ⇄ UTF-16/UTF-8), document sync (open, incremental or full change, will save, did save, close) from the document model's change events with versions, `shutdown`/`exit`; the typed messages of area 3 (a hand-written subset of the protocol types, no code generator); `internal/core/lsp/lsptest`: the fake server program (scripted answers from JSON, traffic recorded, crash and stall on command) and a harness; add `core/lsp`, `core/lsp/lsptest` and `core/langfeatures` to SPEC §5.2.
+**Tests:** framing (partial reads, several messages in one read, a wrong header, a message over the limit), request/response matching, cancellation sends `$/cancelRequest`, server requests answered, the initialize handshake, position conversion (table with ASCII, 2-, 3- and 4-byte characters, line ends), incremental and full sync against a fake server for a sequence of edits (the server's copy equals the document), shutdown, a server that dies mid-request (route-tested errors).
+
+### 12.3 Language server contributions and their lifetime
+**Goal:** servers declared by extensions, started per workspace tab, with their Output channel and status (SPEC §9.12 "Servers and their lifetime", §10.15).
+**Read:** SPEC §9.12, §10.15 (and its "As built" notes), §10.13.
+**Tasks:** `Contributes.LanguageServers` in `extension/`; the host starts a server per tab and id on the first document of its languages or at activation, in its own process group, restarts it after a crash (5 in 3 minutes, then a notification with Restart and Show Output), stops it with a grace period on tab close or disable; the Output channel with `<id>.trace.server`; the status bar item from `$/progress`; `window/showMessage` and `showMessageRequest` as notifications with their actions; `workspace/configuration` from the settings section; `workspace/didChangeWatchedFiles` from the watcher; `<extension id>.restartServer`; `core/langfeatures` (the provider registry, merging, LSP to Emetos conversions, `WorkspaceEdit` application) and the Go provider API of `extension/` (`api.Languages().Register...Provider`) with its containment; `extensions/golang` declares `gopls`.
+**Tests:** with the fake server: start on first document, one per tab, settings served, a crash and the restarts and the final notification, stop on close (no process left), trace levels in the Output channel, progress in the status bar, show message requests answered by the user's choice; a Go provider and a server merged; a panic in a Go provider fails only that extension in that tab (route-tested); `WorkspaceEdit` with edits in open and closed files and file operations, one undo per document. A test with the real `gopls` (build tag `emetos_gopls`) starts it and opens a Go file.
+
+### 12.4 Diagnostics
+**Goal:** the server's problems in Problems and in the editor (SPEC §9.12 "Diagnostics").
+**Read:** SPEC §9.12, §9.4, §10.13.
+**Tasks:** `publishDiagnostics` and pull diagnostics to Problems markers owned by the server; squiggles by severity and tags (`unnecessary` faded, `deprecated` struck), the hover on a squiggle with source, code and link; F8/Shift+F8 through the editor; the overview ruler and minimap marks; markers kept per version and cleared on close as VS Code does.
+**Tests:** markers appear and update by version, squiggle goldens (each severity and tag, Dark Modern and Light Modern), the hover's content, F8 order across files, clearing on close and server stop.
+**Proof:** method B with the fake server or `gopls`: a Go file with an error squiggle, its hover, and the Problems panel.
+
+### 12.5 Completion
+**Goal:** the suggest widget (SPEC §9.12 "Completion").
+**Read:** SPEC §9.12, §9.9, §10.6 (the fuzzy scorer).
+**Tasks:** triggers (typing with `editor.quickSuggestions`, trigger characters, Ctrl+Space, re-filter while typing, incomplete lists re-requested), the widget (kind icons, label details, detail, the details pane with Markdown, sizes and placement as VS Code's, keyboard and mouse), filtering and sorting with VS Code's rules, accepting (Enter/Tab per setting, insert/replace ranges, snippets through `core/snippet`, `additionalTextEdits`, the item's command, commit characters), `completionItem/resolve`, word-based suggestions, user snippets as rows.
+**Tests:** the scorer and sort table (ported cases from VS Code's `completionModel.test.ts`), each trigger, incomplete lists, accept with each edit kind and a snippet, additional edits in one undo step, resolve of the focused row only, commit characters, word-based fallback, widget goldens (list, details pane, Dark and Light).
+**Proof:** method B: the suggest widget open on a Go file with the details pane.
+
+### 12.6 Hover and signature help
+**Goal:** the hover and the parameter hints (SPEC §9.12).
+**Read:** SPEC §9.12.
+**Tasks:** hover after the delay and with Ctrl+K Ctrl+I, sticky hover, Markdown with colored code, several providers stacked, the diagnostics part (12.4) in the same hover; signature help on triggers and Ctrl+Shift+Space with the active parameter, overload switching, re-trigger and close rules.
+**Tests:** delay with the fake clock, sticky behavior, stacking, signature help triggers, active parameter highlighting, overloads, goldens of both widgets.
+
+### 12.7 Navigation and symbols
+**Goal:** go to definition and friends, the peek view, references, document highlights, outline, symbol pickers (SPEC §9.12 "Navigation", "Symbols").
+**Read:** SPEC §9.12, §9.6, §9.7, §10.9.
+**Tasks:** definition, declaration, type definition, implementation, references with their keys and menu entries; Ctrl+hover link and Ctrl+click; the peek view (an inline zone with the location list and an embedded editor) for several results and Peek Definition; navigation history entries; document highlights replacing word occurrences; the Outline view in the Explorer; breadcrumbs symbols and their picker; sticky scroll from symbols; Go to Symbol in Editor and in Workspace with their quick open prefixes.
+**Tests:** one result jumps and records history; several open the peek view (golden), Enter opens, Escape closes; Ctrl+hover underline; highlights by kind; the outline tree follows the cursor; breadcrumbs and sticky scroll use symbols when present and fall back without them; both symbol pickers filter and open.
+**Proof:** method B: the peek view of references on a Go identifier.
+
+### 12.8 Code actions, formatting and rename
+**Goal:** changes made by the server (SPEC §9.12 "Code actions", "Formatting", "Rename").
+**Read:** SPEC §9.12, §10.11 (saving).
+**Tasks:** the light bulb and the action list (Ctrl+., Quick Fix, Refactor, Source Action), applying edits and commands, `workspace/applyEdit` from the server; `editor.codeActionsOnSave`; Format Document/Selection, format on save (both modes), on type and on paste, `editor.defaultFormatter`, the save timeout; rename with `prepareRename`, the input box, apply and preview.
+**Tests:** the light bulb appears for a diagnostic and opens the list; applying an action with a multi-file edit and a command; organize imports on save before formatting; formatting modes with one undo step each; the timeout path; rename refused by `prepareRename`, applied across files, previewed and partly accepted; goldens of the action list and the rename box.
+**Proof:** method B: the code action list on a Go diagnostic.
+
+### 12.9 Code lens, inlay hints, semantic tokens, folding and selection ranges
+**Goal:** the remaining editor features of area 3 (SPEC §9.12).
+**Read:** SPEC §9.12, §8.6, §9.2.
+**Tasks:** code lenses (request, resolve on view, layout as a line above, click runs the command); inlay hints (the four modes, layout between characters without changing the text, hover and click); semantic tokens (full and delta, the legend, theme rules, drawn over TextMate colors, refresh); folding ranges from the server replacing the indentation provider; selection ranges for Expand/Shrink Selection.
+**Tests:** lens layout and click; inlay hints do not change the text, cursor movement over them, the modes with Ctrl+Alt; semantic token decoding (delta edits) and colors (golden); server folding ranges used and the fallback; selection range expansion table; with the real `gopls` (build tag) hints and semantic tokens on a Go file.
+**Proof:** method B with `gopls` installed (else the fake server): a Go file with inlay hints, semantic colors and a code lens.
+
 ---
 
 ## M13: The Agents extension
@@ -1256,7 +1309,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 ### 14.1 gopls, the status bar and the tools
 **Goal:** Go's language features through `gopls` (SPEC §10.17 and the area 3 sections written in step 12.1).
 **Read:** SPEC §10.17, the area 3 sections, §10.15.
-**Tasks:** `extensions/golang` starts `gopls` through the area 3 client (per workspace, `go.goplsPath`, the `go.gopls` settings, restart), formatting and organize imports on save, the status bar item (Go version from `go env GOVERSION`, the state of `gopls`, its menu), "Go: Install/Update Tools" (a panel view with the `go install` output) and the notification for a missing tool, "Go: Show Go Environment".
+**Tasks:** `extensions/golang` (which declares `gopls` since step 12.3) adds the Go settings of `gopls` under `go.gopls`, "Go: Restart Language Server", formatting and organize imports on save, the status bar item (Go version from `go env GOVERSION`, the state of `gopls`, its menu), "Go: Install/Update Tools" (a panel view with the `go install` output) and the notification for a missing tool, "Go: Show Go Environment".
 **Tests:** with a fake server (the area 3 test server): start, restart, state in the status bar, settings passed; format and organize imports on save; the tools panel runs a fake `go`; missing-tool notification. A test against the real `gopls` carries the build tag `emetos_gopls` and is skipped when it is not installed.
 **Proof:** method B with `gopls` installed (else a fake server and a note in the entry): a Go file with a hover, a completion list and the Go status item.
 
