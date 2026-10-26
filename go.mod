@@ -6,7 +6,7 @@ require (
 	github.com/dlclark/regexp2 v1.12.0
 	github.com/go-text/typesetting v0.3.4
 	github.com/rm4n0s/errors v0.2.0
-	github.com/rm4n0s/glutter v1.8.1
+	github.com/rm4n0s/glutter v1.8.3
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0

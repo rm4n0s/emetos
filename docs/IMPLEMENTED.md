@@ -2059,3 +2059,18 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
 - **Deviations and follow-ups:** SPEC §9.12 "As built (step 12.8)" lists the decisions and what is not built.
   - Decisions: the preview key is Ctrl+Enter; the first formatter is used when several exist and no default is set; the `modifications` baseline is the file on disk; there are two per-participant timeouts; the first valid action of each kind is applied on save; the preview is an overlay panel.
   - Not built: Format Document With..., rename suggestions, a diff in the preview, the AI bulb, `triggerOnFocusChange`.
+
+## Fix: Glutter 1.8.3
+
+- **Date:** 2026-10-26
+- **Branch:** fix/glutter-1.8.3 (not a step of the plan)
+- **Summary:** Emetos moves to Glutter v1.8.3, which fixes the last two entries of `docs/GLUTTER-ISSUES.md`, so the file is deleted.
+  - **Title bar:** since 1.8.2 (28.21), `WindowDecoration` gives its `Leading` widgets the room left in the bar. The workspace strip is a loose `Flexible` there, and the `ConstrainedBox` with the copied gap and button widths is gone.
+  - **Ellipsis:** since 1.8.3 (28.22), a line cut with an ellipsis keeps every character that fits. The peek view's location rows use a plain ellipsis again: no special case for lines without spaces, and soft wrap is no longer turned off. The text before the match is still cut short, as VS Code's `FilePreview` does.
+- **Main files:** `go.mod`, `internal/gui/workbench/titlebar.go`, `internal/gui/editor/peek_widget.go`, `docs/SPEC.md` (the title bar row), `docs/GLUTTER-ISSUES.md` (deleted).
+- **Tests:** no test changed.
+- **Goldens:** two sets changed, both from the ellipsis; I viewed all four. `peek_view_{dark,light}` now read "func Greet(name string) str…", and `save_error_{dark,light}` show "Source: Eme…" instead of "Source:…". No title bar golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · display tests none.
+- **Proof:** a run of the 12.7 peek proof command (kept in the scratchpad): every location row keeps its characters and ends with the ellipsis.
+- **Manual checks:** none
+- **Glutter issues:** both entries removed, and the file is deleted.

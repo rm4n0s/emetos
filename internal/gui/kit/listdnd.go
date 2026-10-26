@@ -4,7 +4,7 @@ package kit
 // drag, the scrolling near the edges), src/vs/base/browser/ui/list/list.ts (IListDragAndDrop) and
 // src/vs/base/browser/ui/tree/abstractTree.ts (TreeNodeListDragAndDrop: expanding a folder that a drag rests
 // on for 500 ms). Not ported: dragging to other applications and windows, and drops from other applications
-// (a Glutter DragTarget does that, see docs/GLUTTER-ISSUES.md), the drag image of a custom renderer.
+// (a Glutter DragTarget does that), the drag image of a custom renderer.
 
 import (
 	"fmt"

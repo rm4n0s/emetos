@@ -169,3 +169,7 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 ## 2026-10-26: Glutter 1.8.1 (decided by me)
 
 72. **Emetos uses Glutter v1.8.1 and drops the workarounds it makes unneeded**: the controls font (Glutter's font fallback replaces it), the tree rebuild (nodes now update in place), and `ui.NewBuilder`/`ui.BoxScope`, which are removed from the extension UI package. A `widgets.ErrorBoundary` around each extension view replaces them; an extension can no longer guard its own subtrees, because the whole view fails as one. The workspace tabs are WindowDecoration `Leading` widgets, so dragging them no longer moves the window; the width they may take is worked out from Glutter's private gap and button sizes (`docs/GLUTTER-ISSUES.md`). Headless proofs and perf runs use the GLES renderer by default.
+
+## 2026-10-26: Glutter 1.8.3 (decided by me)
+
+73. **Emetos uses Glutter v1.8.3, and `docs/GLUTTER-ISSUES.md` is deleted** because no entry is left. The workspace tabs are a loose `Flexible` `Leading` widget; Glutter 1.8.2 gives them the room in the bar. The peek view's rows use a plain ellipsis, which 1.8.3 cuts at a character.

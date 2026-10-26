@@ -3,7 +3,6 @@ package editor
 import (
 	"math"
 	"strconv"
-	"strings"
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
@@ -217,10 +216,7 @@ func (s *peekState) refRow(bc widgets.BuildContext, colors kit.Colors, v *PeekVi
 			painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(ref.Before)}),
 			painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(ref.Match), Style: match}),
 			painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(ref.After)}),
-			// Glutter: with TextOverflowEllipsis a line that is too wide and has no place to break (a call such as fmt.Println(Greet(n)))
-			// shows only the ellipsis, where Flutter keeps the characters that fit; such a line is clipped instead. No soft wrap: the
-			// ellipsis character that starts a cut line is a place to break, and the one line would show only it.
-		}}), widgets.RichTextOpts{MaxLines: foundation.Some(1), SoftWrap: foundation.Some(false), Overflow: peekOverflow(ref)})
+		}}), widgets.RichTextOpts{MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})
 	} else {
 		label = widgets.NewText(itoa(ref.Range.Start.Line+1)+":"+itoa(ref.Range.Start.Col+1), widgets.TextOpts{Style: base, MaxLines: foundation.Some(1)})
 	}
@@ -239,12 +235,3 @@ func (s *peekState) refRow(bc widgets.BuildContext, colors kit.Colors, v *PeekVi
 
 // itoa writes a number.
 func itoa(n int) string { return strconv.Itoa(n) }
-
-// peekOverflow is how the row of a location handles a line that is too wide: with an ellipsis when the text has spaces to break at,
-// else clipped (see the Glutter note in refRow).
-func peekOverflow(ref PeekRef) painting.TextOverflow {
-	if strings.ContainsAny(ref.Before+ref.Match+ref.After, " \t") {
-		return painting.TextOverflowEllipsis
-	}
-	return painting.TextOverflowClip
-}

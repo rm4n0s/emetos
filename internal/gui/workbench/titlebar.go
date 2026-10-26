@@ -32,24 +32,7 @@ const (
 	plusButtonGap  = 4.0
 	// menuGap is the space between the menu and the first tab.
 	menuGap = 8.0
-	// titleBarGap is the space WindowDecoration leaves before the first widget of the bar and titleBarButtonWidth the
-	// width of a button of the window (both Glutter's WindowDecoration, 28.18).
-	titleBarGap         = 12.0
-	titleBarButtonWidth = 46.0
 )
-
-// windowButtonsWidth is the width of the buttons WindowDecoration draws for a window with the capabilities: close
-// always, minimize and maximize when the window can.
-func windowButtonsWidth(c ui.WindowCapabilities) float64 {
-	n := 1
-	if c.Minimize {
-		n++
-	}
-	if c.Maximize {
-		n++
-	}
-	return float64(n) * titleBarButtonWidth
-}
 
 // WorkspaceTab is the look of one workspace tab of the title bar.
 type WorkspaceTab struct {
@@ -203,16 +186,8 @@ func (s *titleBarState) Build(bc widgets.BuildContext) widgets.Widget {
 	if titleBarRowShown(c.zen) && c.bar != nil {
 		leading = append(leading, widgets.NewFlexible(newWorkspaceStrip(c.bar, !info.Activated), widgets.FlexibleOpts{Fit: rendering.FlexFitLoose}))
 	}
-	// The leading widgets are as wide as they are, no wider than the bar leaves room for: the window buttons stay. The
-	// rest of the bar is the title, the empty part that moves the window.
-	//
-	// Glutter: a Leading widget gets no limit of its width, and a Flexible one shares the row with the title (half of the
-	// bar at most). The limit is worked out here from what WindowDecoration keeps (its gap and its buttons: private
-	// constants of Glutter 1.8). Glutter should give Leading the room that is left (docs/GLUTTER-ISSUES.md).
-	limit := widgets.MediaQuerySizeOf(bc).Width - titleBarGap - windowButtonsWidth(info.Capabilities)
-	leading = []widgets.Widget{widgets.NewConstrainedBox(
-		rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(max(limit, 0.0))}),
-		widgets.NewRow(leading, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))}
+	// WindowDecoration (Glutter 1.8.2) gives the leading widgets the room the bar leaves after its gap and the window
+	// buttons: the loose tabs take what they need, the title (the empty part that moves the window) the rest.
 	bg, fg := colors.TitleBarActiveBackground, colors.TitleBarActiveForeground
 	if !info.Activated && colors.TitleBarInactiveBackground.Alpha() != 0 {
 		// the inactive color is often a see-through one: it lies over the workbench's own background
