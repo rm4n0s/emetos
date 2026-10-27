@@ -14,7 +14,8 @@
 # and shown in the 15.2 proof). Everything stays on 127.0.0.1 (A listens on every interface, the default of the product, but
 # only the loopback address is used).
 #
-# PROOF_TIMEOUT (seconds, default 120) stops a run that hangs. Needs sway: sudo dnf install sway
+# PROOF_TIMEOUT (seconds, default 120) stops a run that hangs. PROOF_RW_PROJECT and PROOF_RW_LOCAL (absolute folders) replace the
+# two workspaces. Needs sway: sudo dnf install sway
 set -euo pipefail
 
 usage() {
@@ -45,8 +46,10 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-project="$root/testdata/proof/15.4/project"
-local_folder="$root/testdata/proof/15.4/local"
+# PROOF_RW_PROJECT and PROOF_RW_LOCAL name other folders for A's workspace and B's own (scripts/screenshots.sh uses copies
+# under a neutral path, so that no path of a home folder shows).
+project="${PROOF_RW_PROJECT:-$root/testdata/proof/15.4/project}"
+local_folder="${PROOF_RW_LOCAL:-$root/testdata/proof/15.4/local}"
 
 echo "proof: building"
 go build -o "$tmp/emetos" ./cmd/emetos

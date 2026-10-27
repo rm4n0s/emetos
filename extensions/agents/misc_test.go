@@ -346,3 +346,27 @@ type stubEditors struct{ extension.Editors }
 func (stubEditors) Open(string, any, extension.EditorOpenOptions) (extension.EditorTab, error) {
 	return &fakeapi.Tab{}, nil
 }
+
+func TestSendCommandSendsAMessageInTheSessionInFront(t *testing.T) {
+	r := newRig(t, "chat.jsonl")
+	tab := r.open()
+	r.ready(tab)
+	if err := r.api.Run(SendCommand, map[string]any{"text": "What is main.go?"}); err != nil {
+		t.Fatal(err)
+	}
+	r.idle(tab)
+	got := texts(tab)
+	if len(got) != 5 || got[0] != "user:What is main.go?" || got[4] != "text:It is a Go file." {
+		t.Errorf("the conversation is %q", got)
+	}
+}
+
+func TestSendCommandFailsWithTags(t *testing.T) {
+	r := newRig(t, "")
+	err := r.api.Run(SendCommand, map[string]any{"text": "  "})
+	route(t, err, "sendCommand.SendTextInvalid")
+	err = r.api.Run(SendCommand, nil)
+	route(t, err, "sendCommand.SendTextInvalid")
+	err = r.api.Run(SendCommand, map[string]any{"text": "hello"})
+	route(t, err, "sendCommand.SendNoSession")
+}

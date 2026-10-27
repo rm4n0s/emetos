@@ -25,11 +25,13 @@ Copy this block, fill it in, and keep every heading. Write "none" where somethin
 
 ---
 
-## Coverage of areas 1 and 2
+## Coverage of areas 1, 2, 3 and 11
 
-Written for the release (step 10.2). Every row of SPEC §3.1 (area 1) and §3.2 (area 2), the steps that built it, the main tests that cover it (packages under `internal/`, the test files in them, `golden` for the golden images), and its status: **done** (every behavior of the row exists and is tested), **partial** (with what is missing) or **not done**. Each row was checked against the code and the tests, not only against the entries below. Totals: 35 rows, 35 done, 0 partial, 0 not done (the Editing row was partial, for overtype mode, until the end of step 10.2). Things that SPEC §2 leaves out, and things the rows say come later (symbols in the breadcrumbs with area 3, the problems that language servers report), are not counted as missing.
+The rows of areas 1 and 2 were written for the release (step 10.2); the rows of areas 3 and 11, and of the extensions built on them, were added by step 17.1 and follow the same rules. Every row of SPEC §3.1 (area 1) and §3.2 (area 2), the steps that built it, the main tests that cover it (packages under `internal/`, the test files in them, `golden` for the golden images), and its status: **done** (every behavior of the row exists and is tested), **partial** (with what is missing) or **not done**. Each row was checked against the code and the tests, not only against the entries below. Totals for areas 1 and 2: 35 rows, 35 done, 0 partial, 0 not done (the Editing row was partial, for overtype mode, until the end of step 10.2). Things that SPEC §2 leaves out, and things the rows say come later (symbols in the breadcrumbs with area 3, the problems that language servers report), are not counted as missing.
 
 "Done" means the tests pass; six things need a real desktop, which the headless tests cannot show, and wait for the user in `docs/MANUAL-CHECKS.md`: the input method (3.6), the performance numbers with the GPU (3.11, 10.1), the portal's folder dialog (6.14), Ctrl+Tab and the history keys on a real keyboard (6.19), full screen and zoom on a real compositor (8.5) and the tray (9b.4). They are named in the rows they touch.
+
+Totals for area 3: 13 rows, 13 done, 0 partial, 0 not done. Totals for area 11 and the bundled extensions: 13 rows, 13 done, 0 partial, 0 not done. Two things there need the user and wait in `docs/MANUAL-CHECKS.md`: the adapter against the real `claude` program (13.1) and the QR scan with a real camera (15.5).
 
 ### Area 1: the editor (SPEC §3.1)
 
@@ -76,9 +78,49 @@ Written for the release (step 10.2). Every row of SPEC §3.1 (area 1) and §3.2 
 | Keybindings | 2.4, 2.5, 3.5, 8.3 | `core/contextkey`; `core/keybinding`: `resolver_test`, `userfile_test`, `model_test`, `editing_test`, `dispatch_test`; `gui/keybindingsui`: `editor_test`, `golden_test`; `gui/app`: `keybindings_test`, `keys_test` | done (the sort by precedence, "Show Default/User Keybindings" and completion in the when box are not built and not in the row) |
 | Profiles | 8.6, 8.6b | `core/storage`: `profiles_test`, `profileexport_test`; `gui/app`: `profiles_test`, `profilecommands_test`, `profilecommands_golden_test` | done |
 
+### Area 3: language intelligence (SPEC §3, §9.12)
+
+Written for step 17.1. The rows are the bullets of SPEC §9.12 "Features" and its client and providers; "Not built" notes of that section are listed in the row they touch and are not counted as missing. The real-server tests (`gui/exthost`: `gopls_test`, and `extensions/golang`) carry the build tag `emetos_gopls` and run when `gopls` is installed; the others use a fake server (`core/lsp/lsptest`).
+
+| Row | Steps | Main tests | Status |
+|---|---|---|---|
+| The LSP client | 12.2 | `core/lsp`: `frame_test`, `conn_test`, `client_test`, `client_internal_test`, `sync_test`, `sync_property_test`, `position_test`, `types_test`, `uri_test`, `process_test` | done (stdio only: TCP and socket transports are not built, as SPEC says) |
+| Language servers and providers in Go | 12.3 | `core/langfeatures`: `registry_test`, `server_test`, `convert_test`, `edit_test`; `gui/exthost`: `servers_test`, `serverapi_test`, `providers_test`, `languages_test`; `gui/app`: `lsphost_test` | done (the server is started per tab and server id, restarted up to 5 times in 3 minutes; code lens, hint, semantic and folding providers written in Go are not in the extension API) |
+| Diagnostics | 12.4 | `gui/editor`: `diagnostics_test`; `gui/exthost`: `diagnostics_test`; `gui/app`: `diagnostics_test`; `gui/views/problems`: `markers_test`, `navigation_test`; goldens of the squiggles | done (not built, and not in the row: diagnostics of `untitled:` documents, workspace (pull) diagnostics, `problems.decorations.enabled`, related information in Problems) |
+| Completion | 12.5 | `core/langfeatures`: `completion_test`, `suggest_test`; `core/fuzzy`; `gui/editor`: `suggest_test`, `suggest_widget_test` (goldens); `gui/exthost`: `completion_test`; `gui/app`: `suggest_test`; `gui/exthost`: `gopls_test` (real server) | done (the settings `editor.suggest.localityBonus`, `shareSuggestSelections` and `preview` are read and have no effect; the widget has no saved size; not in the row) |
+| Hover | 12.6 | `gui/editor`: `hover_test`, `hover_providers_test`, `hover_markdown_widget_test`; `gui/app`: `keys_hover_test`; `gui/exthost`: `gopls_test` (real server) | done (the verbosity commands and the copy button are not built and not in the row; `onKeyboardModifier` acts as `on`) |
+| Signature help | 12.6 | `gui/editor`: `signature_test`; `gui/app`: `keys_hover_test` | done |
+| Navigation and peek | 12.7 | `gui/editor`: `navigation_test`, `peek_widget_test`; `gui/app`: `navigation_test`, `navhost_test`; `gui/exthost`: `gopls_test` (real server) | done (the References view of the side bar and resizing the peek view are not built and not in the row) |
+| Symbols and Outline | 12.7 | `core/langfeatures`: `symbols_test`; `gui/editor`: `symbols_test`; `gui/views/outline`: `outline_test`; `gui/exthost`: `gopls_test` (real server) | done |
+| Code actions and the light bulb | 12.8 | `core/langfeatures`: `codeaction_test`; `gui/editor`: `codeaction_test`, `codeaction_widget_test`; `gui/app`: `keys_codeactions_test`; `gui/exthost`: `servercommands_test` | done |
+| Formatting | 12.8 | `gui/editor`: `codeaction_test`; `gui/app`: `saveformat_test` (format on save, code actions on save); `gui/exthost`: `gopls_test` | done (Format Document With... and the formatter picker are not built and not in the row) |
+| Rename | 12.8 | `gui/editor`: `codeaction_test`, `codeaction_widget_test` (the box and the preview); `gui/exthost`: `gopls_test` | done (rename suggestions are not built and not in the row) |
+| Code lens, inlay hints, semantic tokens | 12.9 | `core/langfeatures`: `lens_test`, `semantic_test`; `gui/editor`: `codelens_test`, `inlay_test`, `semantic_test` | done (a theme-specific block of `semanticTokenColorCustomizations` and a double click on an inlay hint are not built and not in the row) |
+| Folding and selection ranges | 12.9 | `gui/editor`: `folding_test`, `folding_widget_test`, `ranges129_test` | done |
+
+### Area 11: extensions and the bundled extensions (SPEC §3, §10.15 to §10.19)
+
+Written for step 17.1. Area 11 is "compiled-in extensions" (D18), not VS Code extensions. The rows are the parts of §10.15 and the bundled extensions of §10.16 to §10.19. The tests of the extensions run against the fake extension API (`extensions/internal/fakeapi`), against the host (`gui/exthost`, `gui/app`) and, for the two-computer extensions, between real hubs and clients on loopback. A row with a manual check says so.
+
+| Row | Steps | Main tests | Status |
+|---|---|---|---|
+| The contract, the host and the Extensions page | 11.1 | `extension`: `extension_test`; `gui/exthost`: `host_test`, `scope_test`, `api_test`; `gui/app`: `extensions_test`, `extensions_golden_test`; `internal/archtest` (the import rules) | done (a failure in an extension is caught at the boundary and shown) |
+| Events | 11.2 | `gui/exthost`: `events_test` | done |
+| Event sharing between window tabs | 11.3 | `core/storage`: `sharing_test`, `sharing_internal_test`; `gui/exthost`: `sharing_test`; `gui/app`: `eventsharing_test`, `eventsharing_golden_test` | done (a link is only made by the permission UI) |
+| Language packs as extensions | 11.4 | `cmd/emetos`: `languagepacks_test`; `core/language`: `bundled_test`, `oracle_test`, `systems_test` | done |
+| Side bar views, panel views and the built-in parts | 11.5 | `gui/exthost`: `views_test`, `builtin_test`, `banners_test`; `gui/app`: `extensions_test` | done |
+| Editor tabs, editor title actions and file views | 11.6 | `gui/exthost`: `editors_test`, `editors_rig_test`; `gui/app`: `exttab_test`; `core/editorgroup` | done |
+| Window tab extensions | 11.7 | `gui/exthost`: `windowtabs_test`; `gui/app`: `exttab_test` | done |
+| TODOs, Tasks, Notes, Scratchpad, Markdown preview | 11.5, 11.6, 11.7 | `extensions/todo`: `scan_test`, `todo_test`, `golden_test`; `extensions/tasks`: `tasks_test`, `output_test`, `golden_test`; `extensions/notes`: `notes_test`; `extensions/scratchpad`: `scratchpad_test`; `extensions/markdown`: `markdown_test` | done (the Tasks extension runs the command lines of a setting; VS Code's `tasks.json` is area 8, not built) |
+| The Agents extension | 13.1, 13.2, 13.3 | `extensions/agents/claude`: `session_test`, `messages_test`, `lines_test`, `partial_test`, `auth_test`, `command_test` (all against the fake program); `extensions/agents`: `agents_test`, `permissions_test`, `edits_test`, `rewind_test`, `render_test`, `list_test`, `context_test` | done (images in messages and other agents are not built; the adapter against the real `claude` is manual check 13.1, pending) |
+| The Go extension | 14.1, 14.2, 14.3 | `extensions/golang`: `golang_test`, `tools_test`, `commands_test`, `gentest_test`, `tags_test`, `testrun_test`, `testpanel_test`, `testjson_test`, `testfuncs_test`, `diagnostics_test`, `status_test`; `gui/exthost`: `gopls_test` (real `gopls`) | done (debugging with `dlv` is area 6, not built) |
+| Remote Work | 15.1 to 15.5 | `extensions/remotework`: `hub_test`, `config_test`, `page_test`, `tab_test`, `tab_session_test`, `tab_form_test`, `hostview_test`, `transport_test`; `remotework/protocol`: `protocol_test`, `fuzz_test`; `remotework/tiles`; `remotework/transport` (QUIC, the fallback, a lossy link); `extensions/internal/sshlogin`; `extensions/internal/statefile`; `gui/app`: `headless_test`, `headless_golden_test`, `remotework_test` | done (sound, drag and drop, several workspaces for a session and a device pixel ratio above 1 are not built; Scan QR Code against a real camera is manual check 15.5, pending) |
+| Relay | 16.1, 16.2, 16.3 | `internal/core/confine`: `confine_test`; `gui/exthost`: `core_test`, `relay_test`; `extensions/relay`: `host_test`, `session_test`, `flow_test`, `config_test`, `client_test`, `clientstate_test`, `eventlog_test`, `tab_test`, `client_golden_test`; `relay/protocol`: `protocol_test`, `fuzz_test`; `relay/client` | done (a client that answers requests of the host, recording and replaying are not built) |
+| Public keys by QR code | 15.5 | `extensions/internal/keyqr`: `qr_test`, `scanner_test`, `capture_test`, `v4l2_test`, `frames_test`; `extensions/remotework`: `scanqr_test`, `tab_qr_test` | done with the fake camera; the real camera is manual check 15.5, pending |
+
 ### What is partial
 
-Nothing. (Overtype mode, the one partial row of the first audit, was finished in step 10.2.)
+Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit, was finished in step 10.2.) The rows above say what is not built inside each row; none of it is part of a row's definition.
 
 ---
 
@@ -2926,3 +2968,45 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - a refused command is not sent by the client.
 
   Not built: copying a value, searching inside an expanded value, keeping a log per workspace. M16 is complete with this step.
+
+## 17.1 Update the README
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-17.1-readme
+- **Summary:** `README.md` describes Emetos after M0–M16 (the user's request of 2026-10-26).
+  - **Status:** v0.1.0 (areas 1–2) is the last release, and `main` is ahead of it with no new version invented. M0–M16 are built. Remote Work and Relay are marked experimental (tested on one machine and on a simulated lossy link; the remote picture is not HiDPI-sharp). What is planned and not built is listed.
+  - **Install:** `@main` (with a note that `@latest` is v0.1.0). Optional requirements are listed:
+    - `gopls` and the Go tools;
+    - Claude Code's `claude` program;
+    - the ports, 47123 TCP+UDP and 47124 TCP;
+    - a V4L2 camera for Scan QR Code.
+  - **Features:** a Language intelligence group (M12).
+  - **New section, Extensions:**
+    - the seven kinds of contribution;
+    - event sharing;
+    - the bundled extensions;
+    - subsections for Agents and Go.
+  - **New section, Remote Work and Relay,** with the security notes of SPEC §10.18 and §10.19:
+    - a listed key gives your power in the workspace;
+    - Watch only still sees all document text;
+    - compare the fingerprint the first time;
+    - use a VPN over the internet.
+  - **Where things are:** the new state files and the two host keys, with their modes, and the refusal of files others can write.
+  - **Privacy:** what uses the network now (your `claude`, Remote Work and Relay when on, language servers and tools). Still no telemetry, crash reports or update checks.
+  - **License:** the linked modules.
+  - **Screenshots** (`scripts/screenshots.sh`, which now works from a copy of the fixtures in `/tmp/emetos-shots`, so no home path shows):
+    - all six old ones are remade;
+    - new: `todos-tasks`, `agents` (the fake program, never the real `claude`), `go-hover` (real `gopls`, skipped with a message when it is missing), `remote-work` and `relay` (two instances on 127.0.0.1, keys made at run time).
+  - **`TestREADMELinksResolve`** (`internal/archtest`): every relative link and image of the README exists, stays in the repository, decodes if it is a PNG, and every anchor matches a heading of its target. It runs in `go test ./...`.
+  - **The coverage table** gains tables for area 3 and for area 11 with the bundled extensions.
+  - **Dev command:** `dev.agents.send` (debug and `emetos_dev` builds only), with 2 route-tested tags.
+  - **My correction:** the security notes said "Emetos keeps no private key". They now say it keeps no private key of yours, and that its only private keys are its own two host keys.
+- **Tests:** the README link check (parser, slugs, checker, all table-driven); `dev.agents.send` against the fake program.
+- **Goldens:** none.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude` and `emetos_camera`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · display tests none.
+- **Proof:** the README's 11 screenshots in `docs/screenshots/`, made with `scripts/screenshots.sh`.
+  - I viewed `agents`, `go-hover`, `relay`, `todos-tasks` and `switch-picker`; the agent viewed all of them.
+  - The agent also checked the PNG bytes for `/home`.
+- **Manual checks:** none new; 13.1 and 15.5 remain pending in docs/MANUAL-CHECKS.md.
+- **Glutter issues:** none
+- **Deviations and follow-ups:** `emetos --help` called `-n` "new window" where the README and SPEC say a new tab; I fixed the help text in `cmd/emetos/main.go` (its tests re-run with and without `-race`). This is the last step of `docs/IMPLEMENTATION.md`; M17 is complete with it.

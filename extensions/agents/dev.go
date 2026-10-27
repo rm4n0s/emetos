@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
@@ -20,10 +21,32 @@ func (a *agents) registerDev() error {
 	if !foundation.DebugMode && !devBuild {
 		return nil
 	}
-	return a.api.Commands().Register(extension.CommandSpec{
+	if err := a.api.Commands().Register(extension.CommandSpec{
 		ID:          ReplayCommand,
 		Description: `Play a recorded stream of the agent's program into a session tab, with no program. Arguments: {"fixture": path}.`,
-	}, a.replayCommand)
+	}, a.replayCommand); err != nil {
+		return err
+	}
+	return a.api.Commands().Register(extension.CommandSpec{
+		ID:          SendCommand,
+		Description: `Send a message in the session tab in front, as the Send button does (a program starts if the session has none). Arguments: {"text": message}.`,
+	}, a.sendCommand)
+}
+
+// sendCommand is dev.agents.send {"text": message}: the text is sent as a message in the session in front, the same way the
+// input box sends it, so a proof can drive a real session with the fake program (internal/fakeclaude) and show its conversation.
+func (a *agents) sendCommand(_ context.Context, args any) error {
+	m, _ := args.(map[string]any)
+	text, _ := m["text"].(string)
+	if strings.TrimSpace(text) == "" {
+		return errors.New("SendTextInvalid", `dev.agents.send needs {"text": message}`)
+	}
+	t := a.target()
+	if t == nil {
+		return errors.New("SendNoSession", "there is no session tab to send the message in")
+	}
+	t.submit(text)
+	return nil
 }
 
 // replayCommand is dev.agents.replay {"fixture": path}: the lines of the file (the output of the program, one JSON message per

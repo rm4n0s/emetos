@@ -1,0 +1,3 @@
+#!/bin/sh
+# TODO: build for arm64 too
+go build ./...

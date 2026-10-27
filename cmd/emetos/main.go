@@ -43,7 +43,7 @@ Options:
   -d, --diff a b                  compare two files
   -m, --merge p1 p2 base result   merge two versions of a file with their base into the result
   -w, --wait                      end only when the files that were opened are closed (for git commit)
-  -n, --new-window                open in a new window
+  -n, --new-window                open in a new tab
   -r, --reuse-window              open in the existing window
       --profile name              use the profile (made empty when it does not exist)
       --log level                 log level: debug, info, warn or error (default info)

@@ -53,6 +53,8 @@ const (
 	DeleteSessionCommand = "agents.deleteSession"
 	// ReplayCommand is the dev command of the proofs: it plays a recorded stream into a session tab, with no program.
 	ReplayCommand = "dev.agents.replay"
+	// SendCommand is the dev command that sends a message in the session in front.
+	SendCommand = "dev.agents.send"
 
 	// PathSetting is the program to run and AttachSetting says whether the path of the active file goes with each message.
 	PathSetting   = "agents.claude.path"

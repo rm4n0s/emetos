@@ -1,0 +1,7 @@
+{
+	// scripts/screenshots.sh replaces @CLAUDE@ with the fake program it builds (extensions/agents/claude/internal/fakeclaude);
+	// the user's own claude is never run
+	"agents.claude.path": "@CLAUDE@",
+	"workbench.colorTheme": "Dark Modern",
+	"editor.minimap.enabled": false
+}
