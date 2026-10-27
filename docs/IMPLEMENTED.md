@@ -3010,3 +3010,44 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Manual checks:** none new; 13.1 and 15.5 remain pending in docs/MANUAL-CHECKS.md.
 - **Glutter issues:** none
 - **Deviations and follow-ups:** `emetos --help` called `-n` "new window" where the README and SPEC say a new tab; I fixed the help text in `cmd/emetos/main.go` (its tests re-run with and without `-race`). This is the last step of `docs/IMPLEMENTATION.md`; M17 is complete with it.
+
+## Fix: Glutter 1.9.1
+
+- **Date:** 2026-10-27
+- **Branch:** fix/glutter-1.9.1 (not a step of the plan)
+- **Summary:** Emetos moves to Glutter v1.9.1. That fixes the 15.1 entry of `docs/GLUTTER-ISSUES.md`, "No public way to draw a view off screen and to read its pixels".
+  - **The headless view runs on `offscreen.View`.**
+    - The hand-made binding, the `PlatformHost`, the `gluttertest.Tester` used as a rasterizer and `headlessPaceFactor` are gone (`headless_engine.go` is deleted).
+    - Frames are paced by `MaxFrameRate` (30), and are drawn on the view's goroutine, redrawing only the damage.
+    - `gluttertest` is no longer in the editor binary.
+    - The extension API is unchanged.
+  - **The view's clipboard:** the view keeps a clipboard of its own, through a parent binding that never draws (DECISIONS-TO-REVIEW 94). Without it, Glutter's view would have reached the host's desktop clipboard.
+  - **Numbers at 1280x800:**
+    - a typed character takes 4.7 ms of the UI thread (82 ms with 1.8.3) and reaches `OnFrame` about 20 ms after the key;
+    - the view takes at most about 14% of the UI thread;
+    - the binary is 88.3 MB with the release tag (88.6 MB before).
+  - **The tile differ** does not use the damage yet (DECISIONS-TO-REVIEW 95).
+  - **The view's caret** stays solid.
+- **Main files:** `go.mod`, `internal/gui/app/headless.go`, `headless_clipboard.go` (new), `headless_engine.go`, `race_test.go` and `norace_test.go` (deleted), `docs/SPEC.md` (§10.18 "As built (Glutter 1.9.1)"), `docs/GLUTTER-ISSUES.md`.
+- **Tests:**
+  - **clipboard:** the find and quick input boxes of a view never read or write the host's clipboard or primary selection; the paste is the client's text and copies reach `OnCopy`. Removing the fix makes these tests fail with the host's sentinel text.
+  - **main window:** its boxes keep the desktop clipboard.
+  - **view clipboard:** the formats and selections of the view's clipboard.
+  - **pictures:** a picture made before `OnFrame` was set is handed over.
+  - **benchmark:** `BenchmarkHeadlessFrame` has typed, scroll and window-only cases.
+  - **race:** the headless golden now runs under `-race` too, and the headless tests passed with `-race -count=5`.
+  - **rig fix:** the Remote Work test rig closes its views before stopping the host (a goroutine leak the race run found).
+- **Goldens:** none changed. The three headless goldens match, as does every other golden on 1.9.1.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude` and `emetos_camera`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · display tests none.
+- **Proof:** `docs/implemented-proof-images/glutter-1.9.1-remote-tab.png`, made with `scripts/proof-remotework.sh docs/implemented-proof-images/glutter-1.9.1-remote-tab.png`: the Remote Work tab on B showing A's workspace, now drawn by `offscreen.View`.
+
+  ![Glutter 1.9.1 remote tab](implemented-proof-images/glutter-1.9.1-remote-tab.png)
+- **Manual checks:** none
+- **Glutter issues:**
+  - removed: the 15.1 entry;
+  - new:
+    - an `offscreen.View` has no clipboard of its own (worked around, see above);
+    - it starts with a default platform configuration and a blank window, and `SetSize` blanks the window again;
+    - `testing` is linked into every Glutter program, through `internal/platform/linux/dl/layout.go`.
+
+  The reverse-list entry of 16.3 stays: 1.9.x does not change it.

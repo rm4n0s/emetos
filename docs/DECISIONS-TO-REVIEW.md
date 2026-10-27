@@ -217,3 +217,8 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 91. **A client's saved hosts and Send history are the Relay tab's own state**, and `relay-hosts.json` holds only the pinned host keys (the SPEC text said the hosts were in that file too; corrected). Removing a host keeps its pin. Restored hosts start disconnected.
 92. **The Events panel shows only the requests this client makes**, because the event bus does not forward other clients' requests. Pause holds new rows (bounded) instead of dropping them.
 93. **`loginui` moved to `extensions/internal/loginui`** and the key choice of the connect forms to `extensions/internal/keyform`, shared by Remote Work and Relay (one extension may not import another).
+
+## 2026-10-27: Glutter 1.9.1 (decided by the agent and accepted by me)
+
+94. **The Remote Work view keeps a clipboard of its own.** Glutter 1.9.1's offscreen view uses its parent's clipboard, which would have let a client read and replace the host's desktop clipboard (also from the find and quick input boxes). Emetos gives the view a parent binding of its own that never draws and whose clipboard is the view's (`clipboardParent`); copies go to the client through `OnCopy`. A Glutter option for the view's clipboard would remove it (`docs/GLUTTER-ISSUES.md`).
+95. **The tile differ does not use Glutter's damage rectangles yet**: in 1.9.1 a typed character or a scroll damages the whole picture, so passing the rectangles would save little (at most a third of 0.5 ms). The view's caret stays solid, so an idle view sends nothing.

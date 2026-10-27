@@ -110,8 +110,8 @@ type ViewNotification struct {
 // HeadlessView is a second view of the workspace, drawn off screen at a size of its own: a workbench with its own
 // focus, cursors and scroll positions, its own side bar, panel and quick input, over the same documents, so that an edit in
 // one view shows in the other. Emetos draws it with Glutter's software renderer when something in it changes (at most 30
-// times a second, and no more often than a third of the UI thread allows: a picture of 1280x800 takes about 85 ms) and hands
-// the pictures to the extension; the extension hands the input of its user back. Remote Work
+// times a second; the UI thread only builds and paints it, the drawing is on a goroutine of the view) and hands the pictures
+// to the extension; the extension hands the input of its user back. Remote Work
 // (SPEC §10.18) is made of it.
 //
 // A view keeps the commands of the workspace but not the contributions of the extensions to it (their views, menu
@@ -121,9 +121,9 @@ type HeadlessView interface {
 	// Size is the size of the view in pixels.
 	Size() Size
 	// OnFrame sets the function that gets the pictures of the view: one when the view is made, and one each time the view
-	// changed and the previous picture was handed over. fn runs on a goroutine of the view, never on the UI thread and
-	// never twice at once, so it may encode and send; a view whose pictures are not taken fast enough drops the ones in
-	// between, the latest is always the next. The image belongs to fn. It is called until Close.
+	// changed. fn runs on a goroutine of the view, never on the UI thread and never twice at once, so it may encode and
+	// send; a view whose pictures are not taken fast enough drops the ones in between, the latest is always the next. The
+	// image belongs to fn. It is called until Close.
 	OnFrame(fn func(frame *image.RGBA))
 	// Refresh draws the view again, even if nothing changed, and hands the picture over: the client lost its picture.
 	Refresh()

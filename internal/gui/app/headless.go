@@ -5,9 +5,11 @@ import (
 	"image"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/offscreen"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -18,55 +20,70 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/notify"
 )
 
-// The headless view of a workspace (SPEC §10.18 "As built (step 15.1)"; extension.HeadlessView): a second workbench of the
-// same workspace, drawn off screen at a size of its own. It is a workspace of its own over the documents of the parent
-// (newViewWorkspace) whose shell runs in a second Glutter binding (headlessEngine), so it has its own focus, cursors,
-// scroll positions, side bar, panel, quick input and dialogs, and an edit in one view is in the other. Input goes in through
-// the dispatcher of the binding, as the platform delivers it, and the pictures come out of the software renderer.
+// The headless view of a workspace (SPEC §10.18 "As built (Glutter 1.9.1)"; extension.HeadlessView): a second workbench of
+// the same workspace, drawn off screen at a size of its own. It is a workspace of its own over the documents of the parent
+// (newViewWorkspace) whose shell runs in an offscreen.View of Glutter, so it has its own focus, cursors, scroll positions,
+// side bar, panel, quick input and dialogs, and an edit in one view is in the other. The UI thread of the application
+// builds, lays out and paints the tree; the view draws the scene on a goroutine of its own and hands the pixels to the
+// function of OnFrame. Input goes in through the dispatcher of the binding of the view, as the platform delivers it.
+
+// headlessFrameRate is the most frames a headless view makes in a second (SPEC §10.18).
+const headlessFrameRate = 30
 
 // headlessView is the extension.HeadlessView of one view.
 type headlessView struct {
 	parent *Workspace
 	ws     *Workspace
-	eng    *headlessEngine
+	ov     *offscreen.View
 	cancel context.CancelFunc
 	// main is the binding of the application, whose UI thread runs the view.
 	main *widgets.WidgetsBinding
+	// start is when the view was made: the clock of the time stamps of its input.
+	start time.Time
+	// clip is the clipboard of the view.
+	clip *viewClipboard
 
 	// ptr is the state of the pointer; UI thread only
 	ptr headlessPointer
 	// stopNotify stops the follow of the notifications of the workspace (OnNotification); UI thread only
 	stopNotify func()
+	// ended is set when the view is closed, and read by the input; UI thread only
+	ended bool
+	once  sync.Once
+	done  chan struct{}
 
-	// pictures hands the pictures to the goroutine that delivers them; it holds the latest only.
-	pictures chan *image.RGBA
-	quit     chan struct{}
-	done     chan struct{}
-	once     sync.Once
+	// frames counts the pictures the view made.
+	frames atomic.Int64
 
-	mu      sync.Mutex
-	size    extension.Size
+	// callMu is held while a picture is handed to the function of OnFrame, so that it is never called twice at once and a
+	// Refresh cannot hand over an older picture than a frame that is on its way.
+	callMu sync.Mutex
+	mu     sync.Mutex
+	size   extension.Size
+	// onFrame is the function of OnFrame; last is the latest picture (what Refresh hands over again, and what waits for a
+	// function that is not set yet); both are guarded by mu
 	onFrame func(*image.RGBA)
-	pending *image.RGBA
-	raster  *rasterizer
-	// closed is set when the view ended; the goroutine of the pictures reads it under mu
-	closed bool
+	last    *image.RGBA
+	waiting bool
+	closed  bool
 }
 
 // newHeadlessView makes a headless view of the workspace: the workspace of the view, its shell with the editors the parent
-// shows, and the engine. It runs on the UI thread. It is the NewHeadlessView of the scope of the workspace.
+// shows, and the offscreen view. It runs on the UI thread. It is the NewHeadlessView of the scope of the workspace.
 //
 // The error has the tag ExtensionHeadlessUnavailable.
 func (w *Workspace) newHeadlessView(size extension.Size) (extension.HeadlessView, error) {
-	v, err := w.makeHeadlessView(size, headlessPacing{interval: headlessFrameInterval, factor: headlessPaceFactor})
+	v, err := w.makeHeadlessView(size, headlessFrameRate)
 	if err != nil {
 		return nil, err // not a *headlessView in an interface that would be non-nil
 	}
 	return v, nil
 }
 
-// makeHeadlessView is newHeadlessView with the pacing of the frames given: the tests make frames at once.
-func (w *Workspace) makeHeadlessView(size extension.Size, pacing headlessPacing) (*headlessView, error) {
+// makeHeadlessView is newHeadlessView with the most frames a second given: the tests make them as fast as they can.
+//
+// The error has the tag ExtensionHeadlessUnavailable, or one of offscreen.NewView (ViewSizeInvalid for a size it cannot draw).
+func (w *Workspace) makeHeadlessView(size extension.Size, frameRate int) (*headlessView, error) {
 	s := w.shell
 	if w.isView() || w.ext != nil || s == nil || !s.Mounted() {
 		return nil, errors.New("ExtensionHeadlessUnavailable", "the workspace is not on screen, so it has nothing to show in a second view", "folder", w.Folder)
@@ -74,21 +91,89 @@ func (w *Workspace) makeHeadlessView(size extension.Size, pacing headlessPacing)
 	main := widgets.WidgetsBindingOf(s.Context())
 	ctx, cancel := context.WithCancel(w.ctx)
 	v := &headlessView{
-		parent: w, main: main, cancel: cancel, size: size,
-		pictures: make(chan *image.RGBA, 1), quit: make(chan struct{}), done: make(chan struct{}),
+		parent: w, main: main, cancel: cancel, size: size, start: time.Now(), done: make(chan struct{}),
+		clip: newViewClipboard(main),
 	}
 	v.ws = w.newViewWorkspace(ctx)
-	v.raster = &rasterizer{log: w.Process.Logger}
-	v.eng = newHeadlessEngine(ctx, main, w.Process.Logger, ui.Size{Width: float64(size.Width), Height: float64(size.Height)}, pacing, nil)
-	v.eng.onScene = v.draw
 	docs := s.openDocuments()
-	v.eng.attach(newAppWithPage(v.ws, func() widgets.Widget { return newShell(ctx, docs, nil) }))
+	root := newViewSetup(v.configure, newAppWithPage(v.ws, func() widgets.Widget { return newShell(ctx, docs, nil) }))
+	ov, err := offscreen.NewView(newClipboardParent(ctx, main, v.clip), ui.Size{Width: float64(size.Width), Height: float64(size.Height)}, root, v.frame,
+		offscreen.ViewOpts{DevicePixelRatio: 1, MaxFrameRate: frameRate})
+	if err != nil {
+		cancel()
+		v.ws.releaseView()
+		return nil, err // an error of Glutter's own package: its tag and route stay
+	}
+	v.ov = ov
 	w.views = append(w.views, v)
 	// the view goes with the folder it shows
 	stop := w.OnFolderChange(func() { v.Close() })
 	v.ws.stops = append(v.ws.stops, stop)
-	go v.deliverLoop()
 	return v, nil
+}
+
+// viewSetup is the root of a headless view. Glutter mounts the tree as the view is made, so what the shell reads when it
+// starts (the fonts, the window it is in) is set by the state of this widget, which starts first.
+type viewSetup struct {
+	widgets.StatefulWidget
+	configure func(*ui.PlatformDispatcher)
+	child     widgets.Widget
+}
+
+func newViewSetup(configure func(*ui.PlatformDispatcher), child widgets.Widget) *viewSetup {
+	return &viewSetup{StatefulWidget: widgets.NewStatefulWidgetBase(), configure: configure, child: child}
+}
+
+// CreateState implements widgets.StatefulWidget.
+func (*viewSetup) CreateState() widgets.State { return &viewSetupState{} }
+
+type viewSetupState struct{ widgets.StateOf[*viewSetup] }
+
+// InitState implements widgets.State.
+func (s *viewSetupState) InitState() {
+	s.Widget().configure(widgets.WidgetsBindingOf(s.Context()).PlatformDispatcher())
+}
+
+// Build implements widgets.State.
+func (s *viewSetupState) Build(widgets.BuildContext) widgets.Widget { return s.Widget().child }
+
+// configure gives the dispatcher of the view the configuration of the application, so that a headless view looks like the
+// window: the fonts, the locale, the text scale and the brightness; and the window it is in. It runs on the UI thread, when
+// the tree of the view is mounted.
+//
+// Glutter: an offscreen.View starts with the default platform configuration and a window that is not activated, and
+// View.SetSize replaces the window with a blank one again (windowInfo is applied again after it). Glutter should copy the
+// parent's platform configuration and take the window of the view in ViewOpts (docs/GLUTTER-ISSUES.md).
+func (v *headlessView) configure(d *ui.PlatformDispatcher) {
+	md := v.main.PlatformDispatcher()
+	uiFamily, uiSize := md.UIFont()
+	monoFamily, monoSize := md.MonospaceFont()
+	d.UpdatePlatformConfiguration(ui.PlatformConfiguration{
+		Locales: md.Locales(), TextScaleFactor: md.TextScaleFactor(), PlatformBrightness: md.PlatformBrightness(),
+		UIFontFamily: uiFamily, UIFontSize: uiSize, MonospaceFontFamily: monoFamily, MonospaceFontSize: monoSize,
+		// the caret of a text field of a headless view does not blink: a blink is a picture twice a second for a client that
+		// sees none of it (the caret of the editors is solid too, see editors.go)
+		CaretBlinkTime: ui.CaretBlinkNever,
+	})
+	v.applyWindow(d)
+}
+
+// applyWindow tells the view that it is a window without a title bar that is maximized and has the focus: nothing can move,
+// minimize or close it, and the menu bar has a row of its own. It runs on the UI thread.
+func (v *headlessView) applyWindow(d *ui.PlatformDispatcher) {
+	view := d.ImplicitView()
+	if view == nil {
+		return
+	}
+	d.UpdateViewConfiguration(ui.ImplicitViewID, ui.ViewConfiguration{
+		PhysicalSize: view.PhysicalSize(), DevicePixelRatio: 1,
+		Window: ui.WindowInfo{Decoration: ui.DecorationNone, Activated: true, Maximized: true},
+	})
+}
+
+// dispatcher is the dispatcher of the binding of the view, the way in of its input. UI thread only.
+func (v *headlessView) dispatcher() *ui.PlatformDispatcher {
+	return v.ov.Binding().PlatformDispatcher()
 }
 
 // openDocuments are the documents the editors of the active group show, the one in front first: what a headless view starts
@@ -112,46 +197,31 @@ func (s *shellState) openDocuments() []*document.Document {
 	return docs
 }
 
-// draw turns the scene of a frame into a picture and hands it to the goroutine that delivers it, in place of one it has not
-// taken yet. It runs on the UI thread: the paragraphs of a scene are laid out by the text engine of the application, whose
-// caches only the UI thread may use, and the software renderer asks them for the glyphs.
-func (v *headlessView) draw(scene *ui.Scene, width, height int) {
-	img, err := v.raster.render(scene, width, height)
-	if err != nil {
-		v.parent.Process.Logger.Warn("a headless view cannot draw", "err", err)
+// frame is the function of the offscreen view, called on the goroutine of the view with the pixels of each frame that changed
+// some. The pixels are the view's own and are drawn into again when the call returns, so the picture is copied; the function of
+// OnFrame gets the copy. A function that is slow keeps the view from drawing the next frame, which it replaces by a newer one:
+// the view drops the pictures in between.
+func (v *headlessView) frame(f offscreen.Frame) {
+	v.mu.Lock()
+	closed := v.closed
+	v.mu.Unlock()
+	if closed {
 		return
 	}
-	for {
-		select {
-		case v.pictures <- img:
-			return
-		default:
-		}
-		select {
-		case <-v.pictures: // the older picture is not wanted any more
-		default:
-		}
+	img := &image.RGBA{Pix: slices.Clone(f.Image.Pix), Stride: f.Image.Stride, Rect: f.Image.Rect}
+	v.frames.Add(1)
+	v.callMu.Lock()
+	defer v.callMu.Unlock()
+	v.mu.Lock()
+	fn, closed := v.onFrame, v.closed
+	if closed {
+		v.mu.Unlock()
+		return
 	}
-}
-
-// deliverLoop hands the pictures to the function of OnFrame, one at a time, off the UI thread: the function encodes and
-// sends them, and a slow one costs the view its in-between pictures, never time on the UI thread.
-func (v *headlessView) deliverLoop() {
-	for {
-		select {
-		case <-v.quit:
-			return
-		case img := <-v.pictures:
-			v.mu.Lock()
-			fn, closed := v.onFrame, v.closed
-			if fn == nil && !closed {
-				v.pending = img
-			}
-			v.mu.Unlock()
-			if fn != nil && !closed {
-				fn(img)
-			}
-		}
+	v.last, v.waiting = img, fn == nil
+	v.mu.Unlock()
+	if fn != nil {
+		fn(img)
 	}
 }
 
@@ -176,20 +246,32 @@ func (v *headlessView) Size() extension.Size {
 func (v *headlessView) OnFrame(fn func(*image.RGBA)) {
 	v.mu.Lock()
 	v.onFrame = fn
-	pending := v.pending
-	if fn != nil {
-		v.pending = nil
-	}
+	waiting := fn != nil && v.waiting
 	v.mu.Unlock()
-	if fn != nil && pending != nil {
-		go fn(pending)
+	if waiting {
+		go v.handOver(false)
 	}
 }
 
-// Refresh implements extension.HeadlessView.
-func (v *headlessView) Refresh() {
-	v.onUI(func() { v.eng.resend() })
+// handOver gives the latest picture to the function of OnFrame, on the goroutine that calls it. A picture is handed over by
+// the frame that made it, so this one is for the picture that waited for the function and for Refresh (again = true).
+func (v *headlessView) handOver(again bool) {
+	v.callMu.Lock()
+	defer v.callMu.Unlock()
+	v.mu.Lock()
+	fn, img, closed := v.onFrame, v.last, v.closed
+	if !again && !v.waiting {
+		img = nil // a frame handed it over meanwhile
+	}
+	v.waiting = false
+	v.mu.Unlock()
+	if fn != nil && img != nil && !closed {
+		fn(img)
+	}
 }
+
+// Refresh implements extension.HeadlessView: the latest picture is handed over again (nothing changed since it was made).
+func (v *headlessView) Refresh() { go v.handOver(true) }
 
 // Resize implements extension.HeadlessView.
 func (v *headlessView) Resize(size extension.Size) error {
@@ -203,7 +285,16 @@ func (v *headlessView) Resize(size extension.Size) error {
 	v.size = size
 	v.mu.Unlock()
 	if changed {
-		v.onUI(func() { v.eng.resize(ui.Size{Width: float64(size.Width), Height: float64(size.Height)}) })
+		v.onUI(func() {
+			if v.ended {
+				return
+			}
+			if err := v.ov.SetSize(ui.Size{Width: float64(size.Width), Height: float64(size.Height)}); err != nil {
+				v.parent.Process.Logger.Warn("a headless view cannot change its size", "err", err)
+				return
+			}
+			v.applyWindow(v.dispatcher()) // SetSize replaced the window with a blank one
+		})
 	}
 	return nil
 }
@@ -212,7 +303,7 @@ func (v *headlessView) Resize(size extension.Size) error {
 // event does, so the focus decides who takes it: the shortcuts of the workspace, the editor, a menu, a dialog or a text field.
 func (v *headlessView) SendKey(e extension.KeyEvent) {
 	v.onUI(func() {
-		if v.eng.closed {
+		if v.ended {
 			return
 		}
 		typ := ui.KeyEventTypeDown
@@ -222,57 +313,43 @@ func (v *headlessView) SendKey(e extension.KeyEvent) {
 		case extension.KeyRepeat:
 			typ = ui.KeyEventTypeRepeat
 		}
-		data := ui.KeyData{TimeStamp: time.Since(v.eng.start), Type: typ, Physical: e.Physical, Logical: e.Logical}
+		data := ui.KeyData{TimeStamp: time.Since(v.start), Type: typ, Physical: e.Physical, Logical: e.Logical}
 		if typ != ui.KeyEventTypeUp {
 			data.Character = e.Text
 		}
-		v.eng.disp.DispatchKeyData(data)
-		v.eng.host.runPosted()
-		v.eng.wake()
+		v.dispatcher().DispatchKeyData(data)
 	})
 }
 
 // SendPointer implements extension.HeadlessView.
 func (v *headlessView) SendPointer(e extension.PointerEvent) {
-	v.onUI(func() { v.dispatchPointer(v.ptr.pointer(v.eng.sinceStart(), e)) })
+	v.onUI(func() { v.dispatchPointer(v.ptr.pointer(time.Since(v.start), e)) })
 }
 
 // SendScroll implements extension.HeadlessView.
 func (v *headlessView) SendScroll(e extension.ScrollEvent) {
-	v.onUI(func() { v.dispatchPointer(v.ptr.scroll(v.eng.sinceStart(), e)) })
+	v.onUI(func() { v.dispatchPointer(v.ptr.scroll(time.Since(v.start), e)) })
 }
 
 // dispatchPointer gives the platform's pointer data to the binding of the view.
 func (v *headlessView) dispatchPointer(data []ui.PointerData) {
-	if v.eng.closed || len(data) == 0 {
+	if v.ended || len(data) == 0 {
 		return
 	}
-	v.eng.disp.DispatchPointerDataPacket(ui.PointerDataPacket{Data: data})
-	v.eng.host.runPosted()
-	v.eng.wake()
+	v.dispatcher().DispatchPointerDataPacket(ui.PointerDataPacket{Data: data})
 }
 
 // SetClipboard implements extension.HeadlessView.
-func (v *headlessView) SetClipboard(text string) {
-	h := v.eng.host
-	h.mu.Lock()
-	h.clipboard, h.hasClip = text, true
-	h.mu.Unlock()
-}
+func (v *headlessView) SetClipboard(text string) { v.clip.setText(text) }
 
 // OnCopy implements extension.HeadlessView.
-func (v *headlessView) OnCopy(fn func(text string)) {
-	h := v.eng.host
-	h.mu.Lock()
-	h.onCopy = fn
-	h.mu.Unlock()
-}
+func (v *headlessView) OnCopy(fn func(text string)) { v.clip.setCopyHandler(fn) }
 
 // OnNotification implements extension.HeadlessView: the notifications that the workspace raises are handed to fn, and the view
 // makes no toast of them while it is set (the toasts of the view are in its pictures, and its client shows them its own way).
 func (v *headlessView) OnNotification(fn func(extension.ViewNotification)) {
 	v.onUI(func() {
-		if v.eng.closed {
+		if v.ended {
 			return
 		}
 		if v.stopNotify != nil {
@@ -299,7 +376,7 @@ func (v *headlessView) OnNotification(fn func(extension.ViewNotification)) {
 				n.Actions = append(n.Actions, a.Label)
 			}
 			v.onUI(func() {
-				if !v.eng.closed {
+				if !v.ended {
 					fn(n)
 				}
 			})
@@ -310,15 +387,13 @@ func (v *headlessView) OnNotification(fn func(extension.ViewNotification)) {
 // RunNotificationAction implements extension.HeadlessView: the button is pressed as the toast's would be, in the workspace.
 func (v *headlessView) RunNotificationAction(id uint64, action int) {
 	v.onUI(func() {
-		if v.eng.closed {
+		if v.ended {
 			return
 		}
 		ws := v.ws
 		ws.Notify.RunAction(id, action, func(cmd string, args any) error {
 			return ws.Commands.Run(command.Context{Ctx: ws.ctx, Keys: ws.Keys, Source: command.SourceAPI}, cmd, args)
 		})
-		v.eng.host.runPosted()
-		v.eng.wake()
 	})
 }
 
@@ -331,16 +406,15 @@ func (v *headlessView) Close() {
 	v.once.Do(func() {
 		v.mu.Lock()
 		v.closed = true
-		v.onFrame, v.pending = nil, nil
+		v.onFrame, v.last = nil, nil
 		v.mu.Unlock()
-		close(v.quit)
 		v.onUI(func() {
+			v.ended = true
 			if v.stopNotify != nil {
 				v.stopNotify()
 				v.stopNotify = nil
 			}
-			v.eng.close()
-			v.raster.reset()
+			v.ov.Close()
 			v.cancel()
 			v.ws.releaseView()
 			v.parent.views = slices.DeleteFunc(v.parent.views, func(x *headlessView) bool { return x == v })

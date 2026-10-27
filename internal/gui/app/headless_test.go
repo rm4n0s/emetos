@@ -5,9 +5,9 @@ import (
 	"image"
 	"image/color"
 	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -26,6 +26,9 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
+// rigFrameRate is the most frames a second the views of the tests make: a test waits for the picture, so it is high.
+const rigFrameRate = 1000
+
 // viewRig is a keyApp with a headless view of its workspace.
 type viewRig struct {
 	*keyApp
@@ -34,14 +37,14 @@ type viewRig struct {
 }
 
 // newViewRig makes a window with a document and a headless view of it of the size, whose pictures are kept in frames (the
-// latest only, as the view itself keeps the latest). The least time between two frames of the view is 0: a test pumps the
-// window and the frame is there.
+// latest only, as the view itself keeps the latest). The view makes frames as fast as it can (rigFrameRate): a test pumps the
+// window until the picture is there.
 func newViewRig(t *testing.T, text string, size extension.Size) *viewRig {
 	t.Helper()
 	a := newKeyApp(t, text)
 	// the font of the interface is the test font, as in the other pictures of the tests; the view takes it from the window
 	a.ts.SetPlatformConfiguration(func(c *ui.PlatformConfiguration) { c.UIFontFamily, c.UIFontSize = testutil.MonoFamily, 12 })
-	v, err := a.win.makeHeadlessView(size, headlessPacing{})
+	v, err := a.win.makeHeadlessView(size, rigFrameRate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +81,23 @@ func (r *viewRig) frame(t testing.TB) *image.RGBA {
 	}
 	t.Fatal("the view drew nothing")
 	return nil
+}
+
+// settle pumps until the view has been quiet for a while (the explorer has listed the folder, the editor has the focus, the
+// background work of the file has come in) and returns the latest picture.
+func (r *viewRig) settle(t testing.TB) *image.RGBA {
+	t.Helper()
+	img := r.frame(t)
+	quiet := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(quiet) {
+		r.ts.Pump(20 * time.Millisecond)
+		select {
+		case img = <-r.frames:
+			quiet = time.Now().Add(300 * time.Millisecond)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	return img
 }
 
 // key sends a key to the view the way a client's keyboard does.
@@ -318,7 +338,7 @@ func newProjectRig(t testing.TB, size extension.Size, theme string) *viewRig {
 	ts.PumpWidget(newApp(context.Background(), win, doc, nil))
 	ts.Pump(10 * time.Millisecond)
 	a := &keyApp{win: win, ts: ts}
-	v, err := win.makeHeadlessView(size, headlessPacing{})
+	v, err := win.makeHeadlessView(size, rigFrameRate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -522,7 +542,7 @@ func TestACommandThatActsOnEmetosItselfIsNotBoundInTheView(t *testing.T) {
 	if got := r.win.Process.Workspaces.Count(); got != tabs {
 		t.Errorf("the view changed the tabs of the window: %d, was %d", got, tabs)
 	}
-	if r.ts.ExitRequests() != 0 || r.view.eng.host.exits != 0 {
+	if r.ts.ExitRequests() != 0 {
 		t.Errorf("the view asked the application to exit")
 	}
 }
@@ -554,54 +574,17 @@ func TestSaveAsInAViewAsksForThePathInTheQuickInput(t *testing.T) {
 	}
 }
 
-func TestTheRasterizerIsMadeAgainBeforeItKeepsManyScenes(t *testing.T) {
-	r := newViewRig(t, "alpha\n", extension.Size{Width: 320, Height: 200})
-	scene := func() *ui.Scene {
-		r.frame(t)
-		return r.view.eng.lastScene
-	}
-	s := scene()
-	rast := &rasterizer{log: slog.Default()}
-	t.Cleanup(rast.reset)
-	var first *gluttertest.Tester
-	for i := range 3 * rasterRecycle {
-		img, err := rast.render(s, 320, 200)
-		if err != nil || img.Rect.Dx() != 320 {
-			t.Fatalf("render %d: %v", i, err)
-		}
-		if i == 0 {
-			first = rast.tester
-		}
-		if i == rasterRecycle && rast.tester == first {
-			t.Error("the tester was not replaced after rasterRecycle frames")
-		}
-		if rast.n > rasterRecycle {
-			t.Fatalf("the rasterizer holds %d scenes", rast.n)
-		}
-	}
-}
-
 func TestAViewNobodyTypesInMakesNoFrames(t *testing.T) {
 	r := newViewRig(t, "alpha\n", extension.Size{Width: 640, Height: 400})
-	r.frame(t)
-	r.pump()
-	frames := r.view.eng.frames
+	r.settle(t)
+	frames := r.view.frames.Load()
 	end := time.Now().Add(1200 * time.Millisecond) // a blink would come twice
 	for time.Now().Before(end) {
 		r.ts.Pump(20 * time.Millisecond)
 		time.Sleep(20 * time.Millisecond)
 	}
-	if got := r.view.eng.frames; got != frames {
+	if got := r.view.frames.Load(); got != frames {
 		t.Errorf("an idle view made %d frames in 1.2 s", got-frames)
-	}
-}
-
-func TestTheRasterizerRefusesAScenelessFrame(t *testing.T) {
-	rast := &rasterizer{log: slog.Default()}
-	t.Cleanup(rast.reset)
-	_, err := rast.render(nil, 16, 16)
-	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("rasterizer.render.HeadlessRasterFailed") {
-		t.Errorf("unexpected failure path: %v", err)
 	}
 }
 
@@ -674,5 +657,249 @@ func TestTextAnInputMethodCommittedInTheClientIsTypedAsAKeyWithNoPhysicalKey(t *
 	}
 	if got := r.viewText(); got != "é日本x" {
 		t.Errorf("the document holds %q", got)
+	}
+}
+
+func TestTheClipboardOfTheViewIsNotTheClipboardOfTheHost(t *testing.T) {
+	r := newViewRig(t, "alpha beta\n", extension.Size{Width: 800, Height: 500})
+	r.frame(t)
+	r.ts.SetClipboardText("the host's secret")
+	copied := make(chan string, 4)
+	r.view.OnCopy(func(text string) { copied <- text })
+	// a copy in the view goes to its client, and the clipboard of the host is as it was
+	r.chord(keybinding.Chord{Ctrl: true, Key: keybinding.KeyA})
+	r.chord(keybinding.Chord{Ctrl: true, Key: keybinding.KeyC})
+	select {
+	case got := <-copied:
+		if got != "alpha beta\n" {
+			t.Errorf("the copy sent %q", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("a copy in the view did not reach OnCopy")
+	}
+	if got, _ := r.ts.ClipboardText(); got != "the host's secret" {
+		t.Errorf("the copy in the view replaced the clipboard of the host: %q", got)
+	}
+	// a paste in the view takes the clipboard of the client, and never the host's
+	r.view.SetClipboard("from the client")
+	r.chord(keybinding.Chord{Ctrl: true, Key: keybinding.KeyV})
+	if got := r.viewText(); got != "from the client" {
+		t.Errorf("the paste gave %q", got)
+	}
+	if got, _ := r.ts.ClipboardText(); got != "the host's secret" {
+		t.Errorf("the clipboard of the host changed: %q", got)
+	}
+}
+
+func TestTheClipboardOfAViewKeepsTheFormatsAndTheSelectionsApart(t *testing.T) {
+	ts := testutil.New(t, ui.Size{Width: 100, Height: 100})
+	main := ts.Binding
+	tests := []struct {
+		name string
+		put  func(c *viewClipboard)
+		kind ui.ClipboardKind
+		get  string
+		want ui.ClipboardContent
+		copy string // the text OnCopy got
+	}{
+		{"text", func(c *viewClipboard) { c.SetClipboardText(t.Context(), "abc", nil) }, ui.ClipboardKindSystem, ui.ClipboardFormatText, ui.ClipboardContent{Text: "abc", HasText: true}, "abc"},
+		{"the text of the client is not a copy", func(c *viewClipboard) { c.setText("abc") }, ui.ClipboardKindSystem, ui.ClipboardFormatText, ui.ClipboardContent{Text: "abc", HasText: true}, ""},
+		{"the primary selection is not the clipboard", func(c *viewClipboard) {
+			c.SetClipboard(t.Context(), ui.ClipboardKindPrimary, ui.ClipboardContent{Text: "sel", HasText: true}, nil)
+		}, ui.ClipboardKindSystem, ui.ClipboardFormatText, ui.ClipboardContent{}, ""},
+		{"the primary selection", func(c *viewClipboard) {
+			c.SetClipboard(t.Context(), ui.ClipboardKindPrimary, ui.ClipboardContent{Text: "sel", HasText: true}, nil)
+		}, ui.ClipboardKindPrimary, ui.ClipboardFormatText, ui.ClipboardContent{Text: "sel", HasText: true}, ""},
+		{"files", func(c *viewClipboard) {
+			c.SetClipboard(t.Context(), ui.ClipboardKindSystem, ui.ClipboardContent{URIs: []string{"file:///a"}}, nil)
+		}, ui.ClipboardKindSystem, ui.ClipboardFormatURIList, ui.ClipboardContent{URIs: []string{"file:///a"}}, ""},
+		{"a format that is not there", func(c *viewClipboard) { c.setText("abc") }, ui.ClipboardKindSystem, ui.ClipboardFormatPNG, ui.ClipboardContent{}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newViewClipboard(main)
+			var copied string
+			c.setCopyHandler(func(text string) { copied = text })
+			tt.put(c)
+			var got *ui.ClipboardContent
+			c.GetClipboard(t.Context(), tt.kind, tt.get, func(content ui.ClipboardContent, err error) {
+				if err != nil {
+					t.Error(err)
+				}
+				got = &content
+			})
+			if got != nil {
+				t.Error("the result came before the call returned")
+			}
+			ts.Pump(10 * time.Millisecond)
+			if got == nil || got.Text != tt.want.Text || got.HasText != tt.want.HasText || len(got.URIs) != len(tt.want.URIs) {
+				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+			if copied != tt.copy {
+				t.Errorf("OnCopy got %q, want %q", copied, tt.copy)
+			}
+		})
+	}
+}
+
+func TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver(t *testing.T) {
+	a := newKeyApp(t, "alpha\n")
+	a.ts.SetPlatformConfiguration(func(c *ui.PlatformConfiguration) { c.UIFontFamily, c.UIFontSize = testutil.MonoFamily, 12 })
+	v, err := a.win.makeHeadlessView(extension.Size{Width: 640, Height: 400}, rigFrameRate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(v.Close)
+	// the function is set after the first picture was made: it gets that picture, once
+	deadline := time.Now().Add(20 * time.Second)
+	for v.frames.Load() == 0 && time.Now().Before(deadline) {
+		a.ts.Pump(20 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
+	}
+	if v.frames.Load() == 0 {
+		t.Fatal("the view drew nothing")
+	}
+	got := make(chan *image.RGBA, 8)
+	v.OnFrame(func(img *image.RGBA) { got <- img })
+	var first *image.RGBA
+	select {
+	case first = <-got:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the picture that waited was not handed over")
+	}
+	if first.Rect.Dx() != 640 || first.Rect.Dy() != 400 {
+		t.Errorf("the picture is %v", first.Rect)
+	}
+	// Refresh hands the same picture over again; the picture is not changed by the view as it draws on
+	v.Refresh()
+	select {
+	case again := <-got:
+		if differs(first, again) {
+			t.Error("Refresh handed over another picture")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Refresh handed nothing over")
+	}
+	// after Close nothing is handed over
+	v.Close()
+	a.ts.Pump(20 * time.Millisecond)
+	v.Refresh()
+	select {
+	case <-got:
+		t.Error("a picture was handed over after Close")
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// The input boxes of a view (the quick input, the find widget) are Glutter's EditableText: copy, cut, paste, the primary selection and
+// the check whether there is anything to paste all go through the clipboard of the parent of the view. A client of another machine must
+// never read the clipboard or the primary selection of the host through them, nor replace them.
+func TestTheInputBoxesOfAViewNeverTouchTheClipboardOfTheHost(t *testing.T) {
+	const hostClipboard, hostPrimary = "HOST-CLIPBOARD-SECRET", "HOST-PRIMARY-SECRET"
+	boxes := []struct {
+		name  string
+		open  keybinding.Chord
+		value func(r *viewRig) string
+	}{
+		{"the quick input", keybinding.Chord{Ctrl: true, Shift: true, Key: keybinding.KeyP}, func(r *viewRig) string { return r.view.ws.QuickInput.Picker().Value() }},
+		{"the find widget", keybinding.Chord{Ctrl: true, Key: keybinding.KeyF}, func(r *viewRig) string { return r.view.ws.shell.activeEditor().view.FindState().SearchString() }},
+	}
+	pastes := []struct {
+		name  string
+		chord keybinding.Chord
+	}{
+		{"ctrl+v", keybinding.Chord{Ctrl: true, Key: keybinding.KeyV}},
+		{"shift+insert", keybinding.Chord{Shift: true, Key: keybinding.Insert}},
+	}
+	for _, box := range boxes {
+		for _, paste := range pastes {
+			t.Run(box.name+" "+paste.name, func(t *testing.T) {
+				r := newViewRig(t, "alpha beta\n", extension.Size{Width: 900, Height: 560})
+				r.frame(t)
+				r.ts.SetClipboardText(hostClipboard)
+				r.ts.SetPrimaryText(hostPrimary)
+				copied := make(chan string, 4)
+				r.view.OnCopy(func(text string) { copied <- text })
+				r.chord(box.open)
+				selectAll := func() { // the caret to the end of the box, and the selection back to its start
+					r.chord(keybinding.Chord{Key: keybinding.End})
+					r.chord(keybinding.Chord{Shift: true, Key: keybinding.Home})
+				}
+				selectAll()
+				r.pump()
+				untouched := func(what string) {
+					t.Helper()
+					if got, _ := r.ts.ClipboardText(); got != hostClipboard {
+						t.Errorf("%s: the clipboard of the host is %q", what, got)
+					}
+					if got, _ := r.ts.PrimaryText(); got != hostPrimary {
+						t.Errorf("%s: the primary selection of the host is %q", what, got)
+					}
+				}
+				// a paste with nothing on the clipboard of the view pastes nothing, and certainly not what the host has
+				r.chord(paste.chord)
+				if got := box.value(r); strings.Contains(got, "HOST") {
+					t.Fatalf("a paste read the host: %q", got)
+				}
+				// a paste takes what the client sent
+				r.view.SetClipboard("client text")
+				selectAll()
+				r.chord(paste.chord)
+				if got := box.value(r); got != "client text" {
+					t.Fatalf("the paste gave %q", got)
+				}
+				untouched("after the paste")
+				// copy and cut reach OnCopy, never the host
+				selectAll()
+				r.pump()
+				r.chord(keybinding.Chord{Ctrl: true, Key: keybinding.KeyC})
+				select {
+				case got := <-copied:
+					if got != "client text" {
+						t.Errorf("the copy sent %q", got)
+					}
+				case <-time.After(3 * time.Second):
+					t.Fatal("a copy in the box did not reach OnCopy")
+				}
+				untouched("after the copy")
+				r.chord(keybinding.Chord{Ctrl: true, Key: keybinding.KeyX})
+				select {
+				case got := <-copied:
+					if got != "client text" {
+						t.Errorf("the cut sent %q", got)
+					}
+				case <-time.After(3 * time.Second):
+					t.Fatal("a cut in the box did not reach OnCopy")
+				}
+				if got := box.value(r); got != "" {
+					t.Errorf("the cut left %q", got)
+				}
+				untouched("after the cut")
+			})
+		}
+	}
+}
+
+func TestTheInputBoxesOfTheWindowKeepTheClipboardOfTheDesktop(t *testing.T) {
+	a := newKeyApp(t, "alpha\n")
+	a.ts.SetClipboardText("from the desktop")
+	a.press(t, "ctrl+shift+p")
+	if !a.win.QuickInput.Visible() {
+		t.Fatal("the quick input did not open")
+	}
+	a.press(t, "ctrl+a")
+	a.press(t, "ctrl+v")
+	if got := a.win.QuickInput.Picker().Value(); got != ">from the desktop" {
+		t.Fatalf("the paste in the window gave %q", got)
+	}
+	// a copy goes to the clipboard of the desktop, and the selection to its primary selection
+	a.ts.SetClipboardText("old")
+	a.press(t, "shift+home")
+	a.press(t, "ctrl+c")
+	if got, _ := a.ts.ClipboardText(); got != ">from the desktop" {
+		t.Errorf("the copy in the window left %q on the clipboard of the desktop", got)
+	}
+	if got, _ := a.ts.PrimaryText(); got != ">from the desktop" {
+		t.Errorf("the selection in the window left %q on the primary selection", got)
 	}
 }

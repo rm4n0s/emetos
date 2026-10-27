@@ -74,7 +74,7 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 			o.LineNumbers = editor.LineNumbersOff
 		}
 		if win.isView() {
-			o.CursorBlinking = "solid" // a blink is a picture twice a second (headless_engine.go)
+			o.CursorBlinking = "solid" // a blink is a picture twice a second (SPEC §10.18 "As built (Glutter 1.9.1)")
 		}
 		if adjust != nil {
 			o = adjust(o)

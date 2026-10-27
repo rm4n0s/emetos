@@ -98,6 +98,14 @@ func newRWPair(t *testing.T) *rwPair {
 	p.a.ts.SetViewSize(rwSize)
 	p.a.settle()
 	p.wsA = p.a.m.Active()
+	// A view ends on the UI thread of A (Glutter's offscreen.View.Close), so what ends the sessions is followed by pumps of A until its
+	// views are closed; this cleanup runs before the window of A is taken down
+	t.Cleanup(func() {
+		p.hubA.Close()
+		for deadline := time.Now().Add(10 * time.Second); len(p.wsA.views) > 0 && time.Now().Before(deadline); {
+			p.a.settle()
+		}
+	})
 	if err := p.a.command(p.wsA, "dev.openFile", map[string]any{"path": p.file}); err != nil {
 		t.Fatal(err)
 	}
