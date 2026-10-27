@@ -75,12 +75,12 @@ func TestAppIconPNGs(t *testing.T) {
 	}
 }
 
-// checkAppIconPixels checks what any size of the icon must have: transparent corners, an opaque body, a mark that is
-// white, and indigo around it.
+// checkAppIconPixels checks what any size of the icon must have: transparent corners, an opaque body, teal around the
+// hairball, grey-brown fur in the middle, and a few light pixels of the highlight.
 func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 	t.Helper()
 	size := img.Bounds().Dx()
-	opaque, white, transparent := 0, 0, 0
+	opaque, fur, transparent := 0, 0, 0
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			c := img.RGBAAt(x, y)
@@ -89,8 +89,9 @@ func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 				transparent++
 			case c.A == 255:
 				opaque++
-				if c.R > 240 && c.G > 240 && c.B > 240 {
-					white++
+				// fur is brown: red above green above blue, and not teal
+				if c.R > c.G && c.G > c.B && c.R < 235 {
+					fur++
 				}
 			}
 		}
@@ -99,8 +100,8 @@ func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 	if opaque < total/2 {
 		t.Errorf("only %d of %d pixels are opaque", opaque, total)
 	}
-	if white < total/20 {
-		t.Errorf("only %d of %d pixels belong to the white mark", white, total)
+	if fur < total/10 {
+		t.Errorf("only %d of %d pixels are fur", fur, total)
 	}
 	if transparent == 0 {
 		t.Errorf("no pixel is transparent: the corners are not rounded")
@@ -108,10 +109,14 @@ func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 	if c := img.RGBAAt(0, 0); c.A >= 32 {
 		t.Errorf("the top left corner is %v, want transparent", c)
 	}
-	// the body just inside the left edge, half way down, is the indigo of the body (the mark is farther in)
-	x, y := max(1, size/20), size/2
-	if c := img.RGBAAt(x, y); c.A != 255 || c.B < c.R || c.B < 150 {
-		t.Errorf("the body at (%d,%d) is %v, want an opaque indigo", x, y, c)
+	// the backdrop just inside the top edge, half way across, is teal (the hairball is lower)
+	x, y := size/2, max(2, size/16)
+	if c := img.RGBAAt(x, y); c.A != 255 || c.G < c.R+40 || c.B < c.R+40 {
+		t.Errorf("the backdrop at (%d,%d) is %v, want an opaque teal", x, y, c)
+	}
+	// the middle of the picture is on the hairball, not on the backdrop
+	if c := img.RGBAAt(size/2, size/2); c.A != 255 || c.R <= c.B {
+		t.Errorf("the middle at (%d,%d) is %v, want brown fur", size/2, size/2, c)
 	}
 }
 

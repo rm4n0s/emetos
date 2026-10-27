@@ -17,18 +17,18 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
-// opaquePixels counts the pixels of a window icon picture that are not transparent, and the ones that are white (the
-// mark).
-func opaquePixels(img ui.WindowIconImage) (opaque, white int) {
+// opaquePixels counts the pixels of a window icon picture that are not transparent, and the ones that are fur brown
+// (red above green above blue: the hairball; the teal backdrop has more green and blue than red).
+func opaquePixels(img ui.WindowIconImage) (opaque, fur int) {
 	for i := 0; i < len(img.RGBA); i += 4 {
 		if img.RGBA[i+3] > 0 {
 			opaque++
 		}
-		if img.RGBA[i+3] == 255 && img.RGBA[i] > 240 && img.RGBA[i+1] > 240 && img.RGBA[i+2] > 240 {
-			white++
+		if img.RGBA[i+3] == 255 && img.RGBA[i] > img.RGBA[i+1] && img.RGBA[i+1] > img.RGBA[i+2] {
+			fur++
 		}
 	}
-	return opaque, white
+	return opaque, fur
 }
 
 func TestTheIconsOfTheTrayAndTheWindowAreTheEmbeddedPictures(t *testing.T) {
@@ -51,9 +51,9 @@ func TestTheIconsOfTheTrayAndTheWindowAreTheEmbeddedPictures(t *testing.T) {
 			var sizes []int
 			for _, img := range icon.Images {
 				sizes = append(sizes, img.Size)
-				opaque, white := opaquePixels(img)
-				if opaque < img.Size*img.Size/2 || white == 0 {
-					t.Errorf("the picture of %d px has %d opaque and %d white pixels", img.Size, opaque, white)
+				opaque, fur := opaquePixels(img)
+				if opaque < img.Size*img.Size/2 || fur == 0 {
+					t.Errorf("the picture of %d px has %d opaque and %d fur pixels", img.Size, opaque, fur)
 				}
 			}
 			if !slices.Equal(sizes, tc.sizes) {
@@ -99,8 +99,8 @@ func TestTheTrayCanScaleTheBiggestPictureToo(t *testing.T) {
 		t.Errorf("%d pictures, want %d", len(scaled.Images), len(trayIconSizes))
 	}
 	for _, img := range scaled.Images {
-		if opaque, white := opaquePixels(img); opaque == 0 || white == 0 {
-			t.Errorf("the scaled picture of %d px is empty (%d opaque, %d white)", img.Size, opaque, white)
+		if opaque, fur := opaquePixels(img); opaque == 0 || fur == 0 {
+			t.Errorf("the scaled picture of %d px is empty (%d opaque, %d fur)", img.Size, opaque, fur)
 		}
 	}
 }

@@ -3201,3 +3201,16 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
     - the gesture arena resolves on the next loop turn, and the mouse always has pointer id 0;
     - the keyboard logs `no_keymap` at error level;
     - the renderers flatten the whole scene every frame.
+
+## Change: the hairball icon
+
+- **Date:** 2026-10-28
+- **Branch:** feat/hairball-icon (not a step of the plan)
+- **Summary:** The application icon is now a cat's hairball. The user asked: "can you change the icon of emetos to hairball, the ones that cats throw up?" ("emetos" is Greek for vomiting.) `kit.AppIconPainter` draws a lumpy, grey-brown sausage of matted fur with stray hairs and a damp highlight, over a small puddle, on a teal rounded square. Its detail drops with the size: no hairs below 32 px, all of them from 64 px.
+- **Main files:** `internal/gui/kit/appicon.go`, `appicon_test.go`, `internal/gui/app/appicon_test.go`, `assets/icons/emetos-*.png`, `docs/SPEC.md` (§10.14 "As built (step 9b.4)"), `docs/MANUAL-CHECKS.md`, `docs/DECISIONS-TO-REVIEW.md` (item 28).
+- **Tests:** the pixel checks of the icon now look for the teal backdrop and the fur instead of the white `</>`.
+- **Goldens:** none changed (no golden shows the icon); the nine PNGs were viewed.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ (kit, assets) · the tests of `kit`, `assets` and the icon and tray tests of `app` ✅ · CGO_ENABLED=0 build ✅; the full runs come with the next step's checks.
+- **Proof:** `assets/icons/emetos-512.png`.
+- **Manual checks:** none
+- **Glutter issues:** none
