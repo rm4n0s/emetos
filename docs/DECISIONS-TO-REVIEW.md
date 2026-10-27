@@ -241,3 +241,9 @@ Entries 97 to 102 are **withdrawn**: the user removed the Agents extension inste
 106. **Typing in a host's terminal needs a new permission, "Allow terminals"**, off by default, per key and workspace, under "Watch and send"; Watch and send alone could already run tasks, but a shell is everything you can do on that computer, so it gets its own switch and warning.
 107. **Not built in the first version:** terminals in editor tabs, restoring terminals after a restart, shell integration (command marks and history), and running tasks in terminals (the Tasks extension keeps its output view).
 
+
+## 2026-10-27: step 17b.1 (real input; decided by the agent and accepted by me)
+
+108. **Passphrase boxes show `*` instead of bullets.** Glutter places the caret of a hidden field by byte offsets, and the bullet takes three bytes, so the caret was drawn far to the left. With `*` it is in the right place. When Glutter fixes it, the bullets come back.
+109. **Ctrl+A, Ctrl+Z and Ctrl+Y act on the input box that has the focus**, not on the open document, as in VS Code. So Ctrl+A then Ctrl+V in the command palette also replaces the `>`.
+110. **A test socket for the tests (`EMETOS_DEV_SOCKET`)** exists only in debug and `emetos_dev` builds, never in a release build; it answers read-only questions such as "what text is in each input box".

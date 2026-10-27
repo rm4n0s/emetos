@@ -616,6 +616,12 @@ func (s *shellState) tryFocus(binding *widgets.WidgetsBinding, attempt int) {
 			s.group.focusAsked = false
 			return
 		}
+		// A quick input that opened since the request keeps the focus (the keys of the shortcut that opened it already went
+		// to it; taking the focus now would close it).
+		if q := PeekWorkspace(s.Context()).QuickInput; q != nil && q.Visible() {
+			s.group.focusAsked = false
+			return
+		}
 		if s.focusGroup(s.activeGroup()) || attempt >= focusTries {
 			s.group.focusAsked = false
 			return

@@ -304,3 +304,68 @@ func TestHostRemoveFromRecentlyUsedButton(t *testing.T) {
 		t.Errorf("history %d first %q visible %v", r.history.Peek("workbench.action.gotoLine"), r.ctl.Picker().Rows()[0].Item.ID, r.ctl.Visible())
 	}
 }
+
+// TestHostTakesTheKeysTypedBeforeItsFirstFrame is the regression test of the keys that went to the editor after Ctrl+P: the
+// input box is built in the frame after the quick input is shown, and a key that comes first went to the editor, which had
+// the focus. The keys go to the quick input from the moment it is shown, through the platform's key path (a key with its
+// character), and are in the input box when it appears.
+func TestHostTakesTheKeysTypedBeforeItsFirstFrame(t *testing.T) {
+	typeKey := func(r *rig, c rune) {
+		logical := services.LogicalKeyboardKey(c)
+		r.ts.SendKeyDownEvent(logical, gluttertest.KeyOpts{Character: string(c)})
+		r.ts.SendKeyUpEvent(logical)
+	}
+	for _, tc := range []struct {
+		name  string
+		start string
+		keys  func(r *rig)
+		want  string
+	}{
+		{"characters", "", func(r *rig) {
+			for _, c := range "app.go" {
+				typeKey(r, c)
+			}
+		}, "app.go"},
+		{"after a prefix", ">", func(r *rig) {
+			for _, c := range "abc" {
+				typeKey(r, c)
+			}
+			r.ts.SendKeyEvent(services.LogicalKeyboardKeyBackspace)
+		}, ">ab"},
+		{"backspace on an empty value", "", func(r *rig) {
+			r.ts.SendKeyEvent(services.LogicalKeyboardKeyBackspace)
+			typeKey(r, 'x')
+		}, "x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRig(t, ui.Size{Width: 800, Height: 500}, kit.DarkModern())
+			r.ctl.Show(tc.start, ShowOptions{})
+			// no frame has run and no microtask: the input box does not exist, and the focus change has not been applied
+			tc.keys(r)
+			if got := r.ctl.Picker().Value(); got != tc.want {
+				t.Errorf("before the first frame the value is %q, want %q", got, tc.want)
+			}
+			r.settle()
+			if got := r.ctl.Picker().Value(); got != tc.want {
+				t.Errorf("after the frames the value is %q, want %q", got, tc.want)
+			}
+			if !r.inputField().FocusNode().HasPrimaryFocus() {
+				t.Errorf("the input box has no focus after the frames")
+			}
+			if got := r.inputField().Controller().Text(); got != tc.want {
+				t.Errorf("the input box shows %q, want %q", got, tc.want)
+			}
+			// typing goes on in the input box
+			typeKey(r, 'z')
+			r.settle()
+			if got := r.inputField().Controller().Text(); got != tc.want+"z" {
+				t.Errorf("typing after the frames: the input box shows %q, want %q", got, tc.want+"z")
+			}
+		})
+	}
+}
+
+// inputField is the text field of the quick input that is on screen.
+func (r *rig) inputField() *widgets.EditableText {
+	return r.ts.Widget(gluttertest.ByType[*widgets.EditableText]()).(*widgets.EditableText)
+}

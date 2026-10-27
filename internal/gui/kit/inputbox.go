@@ -167,10 +167,16 @@ type inputBoxState struct {
 	portal    *widgets.OverlayPortalController
 	// ctrl is the controller the state is attached to.
 	ctrl *InputBoxController
+	// editable is the key of the EditableText, to open its input connection when a click finds the focus without one.
+	editable *widgets.GlobalKey[*widgets.EditableTextState]
+	// undo is the undo history of the text of the box (editKey).
+	undo *widgets.UndoHistoryController
 }
 
 // InitState follows the text, to show the placeholder only while it is empty, and takes the keys.
 func (s *inputBoxState) InitState() {
+	s.editable = widgets.NewGlobalKey[*widgets.EditableTextState]()
+	s.undo = widgets.NewUndoHistoryController()
 	s.pickText()
 	s.pickNode()
 	s.attach()
@@ -261,6 +267,7 @@ func (s *inputBoxState) Dispose() {
 	}
 	s.releaseText()
 	s.releaseNode()
+	s.undo.Dispose()
 }
 
 func (s *inputBoxState) focusChanged(has bool) {
@@ -445,6 +452,9 @@ func (s *inputBoxState) ownKey(e services.KeyEvent) widgets.KeyEventResult {
 		return widgets.KeyEventResultIgnored
 	}
 	kb := widgets.WidgetsBindingOf(s.Context()).Keyboard()
+	if kb.IsControlPressed() && !kb.IsAltPressed() && !kb.IsMetaPressed() && s.editKey(e, kb.IsShiftPressed()) {
+		return widgets.KeyEventResultHandled
+	}
 	switch e.LogicalKey() {
 	case services.LogicalKeyboardKeyEnter, services.LogicalKeyboardKeyNumpadEnter:
 		if kb.IsShiftPressed() || kb.IsAltPressed() || kb.IsMetaPressed() || (o.MultiLine && !kb.IsControlPressed()) || (!o.MultiLine && kb.IsControlPressed()) {
@@ -513,13 +523,19 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	style := TextStyleOf(bc, inputBoxFontSize, fg)
 	opts := widgets.EditableTextOpts{
-		ReadOnly:         o.Disabled,
-		ObscureText:      o.Obscure && !o.MultiLine,
-		Autofocus:        o.Autofocus && !o.Disabled,
-		SelectAllOnFocus: o.SelectAllOnFocus,
-		OnChanged:        s.changed,
-		SelectionColor:   foundation.Some(colors.EditorSelectionBackground),
-		MouseCursor:      services.SystemMouseCursors.Text,
+		ReadOnly:    o.Disabled,
+		ObscureText: o.Obscure && !o.MultiLine,
+		// Glutter: the caret of an obscured field is placed by the byte offset of the real text in the string of obscuring
+		// characters, so the three-byte default bullet puts it three times too far left (docs/GLUTTER-ISSUES.md); a one-byte
+		// character keeps the offsets right.
+		ObscuringCharacter: "*",
+		Autofocus:          o.Autofocus && !o.Disabled,
+		SelectAllOnFocus:   o.SelectAllOnFocus,
+		Key:                s.editable,
+		UndoController:     s.undo,
+		OnChanged:          s.changed,
+		SelectionColor:     foundation.Some(colors.EditorSelectionBackground),
+		MouseCursor:        services.SystemMouseCursors.Text,
 		// The window's key dispatcher handles Enter and the other keys of the find widget before
 		// the text sees them; a click elsewhere in the window moves the focus on its own.
 		OnTapOutside: func(*gestures.PointerDownEvent) {},
@@ -548,21 +564,31 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	} else {
 		body = widgets.NewAlign(text, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})
 	}
+	// The tree is the same whether the placeholder shows or not (SPEC §10.2 "As built (step 17b.1)"): the hint is
+	// always the second child of the Stack and is an empty box once there is text. Taking the Stack away at the
+	// first key mounted the EditableText again, with the focus already on its node, and Glutter (like Flutter)
+	// opens the input connection only when the focus changes, so the box kept the focus but lost every later key.
+	var hint widgets.Widget = widgets.NewSizedBox(nil)
 	if s.text.Text() == "" && o.Placeholder != "" {
 		hintStyle := TextStyleOf(bc, inputBoxFontSize, colors.InputPlaceholderForeground)
-		var hint widgets.Widget = widgets.NewText(o.Placeholder, widgets.TextOpts{Style: hintStyle, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowClip})
+		hint = widgets.NewText(o.Placeholder, widgets.TextOpts{Style: hintStyle, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowClip})
 		if o.MultiLine {
 			hint = widgets.NewPadding(painting.NewEdgeInsetsSymmetric(inputBoxMultiPadV+(inputBoxLineHeight-inputBoxFontSize)/2, 0), hint)
 			hint = widgets.NewAlign(hint, widgets.AlignOpts{Alignment: painting.AlignmentTopLeft})
 		} else {
 			hint = widgets.NewAlign(hint, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})
 		}
-		fit := rendering.StackFitExpand
-		if o.MultiLine {
-			fit = rendering.StackFitPassthrough
-		}
-		body = widgets.NewStack([]widgets.Widget{body, widgets.NewIgnorePointer(hint)}, widgets.StackOpts{Fit: fit})
 	}
+	fit := rendering.StackFitExpand
+	if o.MultiLine {
+		fit = rendering.StackFitPassthrough
+	}
+	body = widgets.NewStack([]widgets.Widget{body, widgets.NewIgnorePointer(hint)}, widgets.StackOpts{Fit: fit})
+	// A click in a box that has the focus but no input connection opens one: Glutter opens the connection only when the focus
+	// changes, so a box that was mounted again with the focus already on its node (or whose connection the platform closed)
+	// would otherwise take no key until the focus left it and came back.
+	// Glutter: the raw EditableText has no pointer handling that opens the input connection (docs/GLUTTER-ISSUES.md); Flutter's TextField does it with a tap.
+	body = widgets.NewListener(body, widgets.ListenerOpts{OnPointerDown: s.pointerDown})
 	row := []widgets.Widget{widgets.NewExpanded(widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, inputBoxPadding), body))}
 	trailing := o.Trailing
 	if o.MultiLine {
@@ -585,6 +611,40 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	box := widgets.NewContainer(widgets.NewRow(row, widgets.RowOpts{CrossAxisAlignment: crossAxis}), cOpts)
 	focus := widgets.NewFocus(box, widgets.FocusOpts{OnFocusChange: s.focusChanged, CanRequestFocus: foundation.Some(false), SkipTraversal: foundation.Some(true)})
 	return widgets.NewOverlayPortalOverlayChildLayoutBuilder(s.portal, s.buildMessage, focus)
+}
+
+// editKey runs Ctrl+A (select all), Ctrl+Z (undo), Ctrl+Y and Ctrl+Shift+Z (redo) on the text of the box, and tells whether
+// the key was one of them. The window binds these keys to the commands of the editor (editor.action.selectAll, undo, redo),
+// which would otherwise take them from a box and act on a document; the box has them first (desktop test, step 17b.1).
+func (s *inputBoxState) editKey(e services.KeyEvent, shift bool) bool {
+	switch e.LogicalKey() {
+	case services.LogicalKeyboardKeyKeyA:
+		if st, ok := s.editable.CurrentState(); ok && st != nil && !shift {
+			st.SelectAll(services.SelectionChangedCauseKeyboard)
+		}
+		return !shift
+	case services.LogicalKeyboardKeyKeyZ:
+		if shift {
+			s.undo.Redo()
+		} else {
+			s.undo.Undo()
+		}
+		return true
+	case services.LogicalKeyboardKeyKeyY:
+		s.undo.Redo()
+		return true
+	}
+	return false
+}
+
+// pointerDown reconnects the input method when a click lands in the box that has the focus (see Build).
+func (s *inputBoxState) pointerDown(*gestures.PointerDownEvent) {
+	if s.Widget().opts.Disabled || !s.node.HasPrimaryFocus() {
+		return
+	}
+	if st, ok := s.editable.CurrentState(); ok && st != nil {
+		st.RequestKeyboard()
+	}
 }
 
 // multiLineMaxLines is the number of lines past which a multi-line box scrolls.

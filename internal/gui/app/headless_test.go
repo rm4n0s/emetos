@@ -887,19 +887,20 @@ func TestTheInputBoxesOfTheWindowKeepTheClipboardOfTheDesktop(t *testing.T) {
 	if !a.win.QuickInput.Visible() {
 		t.Fatal("the quick input did not open")
 	}
+	// Ctrl+A selects the whole text of the box, the ">" too (as in VS Code), and the paste replaces it
 	a.press(t, "ctrl+a")
 	a.press(t, "ctrl+v")
-	if got := a.win.QuickInput.Picker().Value(); got != ">from the desktop" {
+	if got := a.win.QuickInput.Picker().Value(); got != "from the desktop" {
 		t.Fatalf("the paste in the window gave %q", got)
 	}
 	// a copy goes to the clipboard of the desktop, and the selection to its primary selection
 	a.ts.SetClipboardText("old")
 	a.press(t, "shift+home")
 	a.press(t, "ctrl+c")
-	if got, _ := a.ts.ClipboardText(); got != ">from the desktop" {
+	if got, _ := a.ts.ClipboardText(); got != "from the desktop" {
 		t.Errorf("the copy in the window left %q on the clipboard of the desktop", got)
 	}
-	if got, _ := a.ts.PrimaryText(); got != ">from the desktop" {
+	if got, _ := a.ts.PrimaryText(); got != "from the desktop" {
 		t.Errorf("the selection in the window left %q on the primary selection", got)
 	}
 }

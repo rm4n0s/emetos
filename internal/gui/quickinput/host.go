@@ -2,6 +2,7 @@ package quickinput
 
 import (
 	"time"
+	"unicode/utf8"
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
@@ -81,6 +82,9 @@ type hostState struct {
 	input *kit.InputBoxController
 	// frame is the focus node around the widget: it tells when the focus leaves it.
 	frame *widgets.FocusNode
+	// keys is the focus node that takes the arrows, Enter and Escape from the moment the quick input is shown until the
+	// input box is built and has the focus (typeAhead takes the typed text).
+	keys  *widgets.FocusNode
 	scope *contextkey.Scope
 
 	picker       *Picker
@@ -126,6 +130,8 @@ func (s *hostState) InitState() {
 	s.input.FocusNode().SetOnKeyEvent(s.handleKey)
 	s.frame = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "QuickInput", SkipTraversal: true})
 	s.frame.SetCanRequestFocus(false)
+	s.keys = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "QuickInputKeys", SkipTraversal: true})
+	s.keys.SetOnKeyEvent(s.handleKey)
 	s.maxList = MaxListHeight
 	s.hover = -1
 	if o.Keys != nil {
@@ -171,6 +177,7 @@ func (s *hostState) Dispose() {
 		s.scope.Dispose()
 	}
 	s.frame.Dispose()
+	s.keys.Dispose()
 	s.input.Dispose()
 }
 
@@ -198,6 +205,9 @@ func (s *hostState) controllerChanged() {
 	switch {
 	case visible && !s.wasVisible:
 		s.restore = s.binding().FocusManager().PrimaryFocus()
+		// The input box is built in the next frame; the keys that come before it must not go to the editor that still has the
+		// focus, so the focus moves at once to a node that is always in the tree (SPEC §10.6 "As built (step 17b.1)").
+		s.keys.RequestFocus()
 		s.scroll, s.hadFocus = 0, false
 		s.syncKeys(true)
 		s.syncInput(true)
@@ -350,6 +360,9 @@ func modifierOf(k services.LogicalKeyboardKey) Modifier {
 // the modifier is not held means that the release was missed (the focus was somewhere else when it came):
 // the switcher stops waiting and works as any picker. It never uses the event.
 func (s *hostState) hardwareKey(e services.KeyEvent) bool {
+	if s.Mounted() && s.ctl.Visible() && !s.input.HasFocus() && !s.ctl.QuickNavigating() {
+		return s.typeAhead(e)
+	}
 	if !s.Mounted() || !s.ctl.QuickNavigating() {
 		return false
 	}
@@ -378,6 +391,62 @@ func (s *hostState) windowFocusChanged(focused bool) {
 	if s.closeOnFocusLost() {
 		s.ctl.Hide()
 	}
+}
+
+// typeAhead is the keyboard of the quick input in the time between its showing and the focus of its input box, which the next
+// frame brings: a handler of the hardware keyboard, so that it does not wait for a focus change, which is applied a moment
+// after the request (the keys that follow the shortcut in the same batch of events come first). The typed characters and
+// Backspace change the value of the picker, which the input box shows when it is built, so that nothing typed right after
+// the key that opened the quick input is lost or goes to the editor. It reports whether it took the key; the arrows, Enter and
+// Escape are left to handleKey, which the node of the keys (focused at once) and then the input box run.
+func (s *hostState) typeAhead(e services.KeyEvent) bool {
+	switch e.(type) {
+	case *services.KeyDownEvent, *services.KeyRepeatEvent:
+	default:
+		return false
+	}
+	kb := s.binding().Keyboard()
+	if kb.IsControlPressed() || kb.IsAltPressed() || kb.IsMetaPressed() {
+		return false
+	}
+	value := s.picker.Value()
+	start, end := len(value), len(value)
+	if a, b, ok := s.picker.ValueSelection(); ok && a <= b && b <= len(value) {
+		start, end = a, b
+	}
+	var next string
+	switch {
+	case e.LogicalKey() == services.LogicalKeyboardKeyBackspace:
+		switch {
+		case start != end:
+			next = value[:start] + value[end:]
+		case value == "":
+			return true
+		default:
+			_, size := utf8.DecodeLastRuneInString(value)
+			next = value[:len(value)-size]
+		}
+	case typedText(e.Character()):
+		next = value[:start] + e.Character() + value[end:]
+	default:
+		return false
+	}
+	s.picker.ClearValueSelection()
+	s.ctl.SetValue(next)
+	return true
+}
+
+// typedText tells whether a key's character is text to insert: it is not empty and has no control character.
+func typedText(text string) bool {
+	if text == "" {
+		return false
+	}
+	for _, r := range text {
+		if r < 0x20 || (r >= 0x7f && r < 0xa0) {
+			return false
+		}
+	}
+	return true
 }
 
 // handleKey is the keyboard of the quick input; the input box sees Enter first.
@@ -482,7 +551,10 @@ func (s *hostState) setHover(i int) {
 // Build implements widgets.State.
 func (s *hostState) Build(bc widgets.BuildContext) widgets.Widget {
 	h := s.Widget()
-	children := []widgets.Widget{h.child}
+	// the node of the keys is always the second child, so that the children after it keep their places
+	children := []widgets.Widget{h.child, widgets.NewPositioned(
+		widgets.NewFocus(widgets.NewSizedBox(nil), widgets.FocusOpts{FocusNode: s.keys}),
+		widgets.PositionedOpts{Left: foundation.Some(0.0), Top: foundation.Some(0.0), Width: foundation.Some(0.0), Height: foundation.Some(0.0)})}
 	if s.ctl.Visible() {
 		children = append(children, widgets.NewPositioned(
 			widgets.NewLayoutBuilder(func(bc widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget { return s.layout(bc, c) }),

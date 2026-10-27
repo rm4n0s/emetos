@@ -487,6 +487,7 @@ func (m *Workspaces) bind(binding *widgets.WidgetsBinding) {
 	}
 	if m.watch {
 		m.watchSignal(m.ctx, binding)
+		m.startDevServer()
 	}
 	// the close button of the window reaches the manager as a close request of the window, not as a request to exit
 	binding.WindowingOwner().SetImplicitWindowDelegate(closeDelegate{m})

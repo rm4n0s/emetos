@@ -60,6 +60,8 @@ type editState struct {
 	ctl      *kit.InputBoxController
 	// selection is the state of the F2 key in a rename: the name without its extension, all of it, the extension.
 	selection int
+	// ahead takes the keys typed before the input is built (focusEdit).
+	ahead *kit.TypeAhead
 }
 
 // newEditKey is the key of the row of a new item below a folder; no path has the NUL byte.
@@ -144,6 +146,10 @@ func (v *View) StartRename(path string) {
 // focusEdit gives the input the keyboard focus once its row is on screen: the autofocus of a text field does
 // nothing while the tree has the focus.
 func (v *View) focusEdit(e *editState) {
+	if b := v.opts.Binding; b != nil {
+		// the keys typed until the row is built and the input has the focus go into it, over the selected part of the name
+		e.ahead = kit.StartTypeAhead(b, e.ctl.TextController(), e.ctl.FocusNode())
+	}
 	after := v.opts.AfterFrame
 	if after == nil {
 		after = v.opts.Post
@@ -287,6 +293,9 @@ func (v *View) finishEdit(cancel bool) {
 func (v *View) leaveEdit(e *editState, cancel bool) {
 	if v.edit != e {
 		return
+	}
+	if e.ahead != nil {
+		e.ahead.Stop()
 	}
 	text := e.ctl.Value()
 	v.edit = nil

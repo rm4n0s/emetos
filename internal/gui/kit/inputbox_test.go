@@ -567,3 +567,126 @@ func TestInputBoxObscure(t *testing.T) {
 		t.Error("a multi-line box was obscured")
 	}
 }
+
+// typeKeys types the text key by key, as the Linux platform delivers a keyboard: a key down with the
+// character it produces and a key up. The framework hands a key that nothing handled to the attached input
+// client (services.TextInput.HandleUnhandledKey), so the text reaches the box only when it holds a connection.
+// gluttertest's EnterText and the controller's setters skip that path.
+func (r *inputRig) typeKeys(text string) {
+	r.t.Helper()
+	for _, c := range text {
+		logical := services.LogicalKeyboardKey(c)
+		r.ts.SendKeyDownEvent(logical, gluttertest.KeyOpts{Character: string(c)})
+		r.ts.SendKeyUpEvent(logical)
+		r.ts.Pump(time.Millisecond)
+	}
+}
+
+// TestInputBoxTypedKeysReachTheBox is the regression test of the desktop bug of 2026-10-27: a box that starts
+// empty with a placeholder took the first key only, because the first key removed the placeholder's Stack
+// and mounted the text again, with the focus already on its node and no input connection.
+func TestInputBoxTypedKeysReachTheBox(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		placeholder string
+		multiLine   bool
+		start       string
+	}{
+		{name: "placeholder", placeholder: "Search"},
+		{name: "no placeholder"},
+		{name: "multi-line placeholder", placeholder: "Take a note", multiLine: true},
+		{name: "text already there", placeholder: "Search", start: "x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newInputRig(t, DarkModern(), inputSize, func(r *inputRig, o *InputBoxOpts) {
+				o.Placeholder, o.MultiLine = tc.placeholder, tc.multiLine
+			})
+			if tc.start != "" {
+				r.ctrl.SetValue(tc.start)
+			}
+			r.focusBox()
+			r.ctrl.Select(len(tc.start), len(tc.start))
+			r.typeKeys("abc")
+			if got, want := r.ctrl.Value(), tc.start+"abc"; got != want {
+				t.Errorf("after typing abc the box holds %q, want %q", got, want)
+			}
+			r.noErrors()
+		})
+	}
+}
+
+// remountKey is a key the test changes to mount the box again over the same controller.
+type remountKey struct{ n int }
+
+// TestInputBoxClickReconnectsAFocusedBoxWithoutAConnection: a box mounted again while its node has the focus has no input
+// connection (Glutter opens one when the focus changes), and takes no key. A click in it opens one.
+func TestInputBoxClickReconnectsAFocusedBoxWithoutAConnection(t *testing.T) {
+	ctrl := NewInputBoxController("")
+	t.Cleanup(ctrl.Dispose)
+	generation := 0
+	var rebuild widgets.StateSetter
+	page := widgets.NewStatefulBuilder(func(_ widgets.BuildContext, setState widgets.StateSetter) widgets.Widget {
+		rebuild = setState
+		b := NewInputBox(nil, nil, InputBoxOpts{Controller: ctrl, Placeholder: "Search", Width: foundation.Some(220.0)})
+		return widgets.NewKeyedSubtree(b, widgets.WidgetOpts{Key: foundation.NewValueKey(remountKey{generation})})
+	})
+	r := &inputRig{t: t, ctrl: ctrl, ts: pumpThemed(t, DarkModern(), inputSize, padded(page))}
+	r.focusBox()
+	r.typeKeys("ab")
+	generation++
+	rebuild(func() {})
+	r.ts.Pump(time.Millisecond)
+	if !ctrl.HasFocus() {
+		t.Fatal("the focus did not survive the new mount")
+	}
+	r.typeKeys("c")
+	if got := ctrl.Value(); got != "ab" {
+		t.Fatalf("the box mounted again has no connection yet and takes no key, but holds %q", got)
+	}
+	r.ts.Tap(gluttertest.ByType[*InputBox]())
+	r.ts.Pump(time.Millisecond)
+	r.typeKeys("de")
+	if got := ctrl.Value(); got != "abde" {
+		t.Errorf("after a click the box holds %q, want abde", got)
+	}
+	r.noErrors()
+}
+
+// TestInputBoxEditShortcuts: Ctrl+A, Ctrl+Z and Ctrl+Y act on the text of the box. The window binds them to the commands of the
+// editor; the box takes them first (found by the display tests of step 17b.1: Ctrl+A in a box selected nothing).
+func TestInputBoxEditShortcuts(t *testing.T) {
+	r := newInputRig(t, DarkModern(), inputSize, func(_ *inputRig, o *InputBoxOpts) { o.Placeholder = "Search" })
+	r.focusBox()
+	r.typeKeys("abc")
+	r.ts.Pump(time.Second) // the undo history groups typing that comes in quick succession
+	withCtrl := func(k services.LogicalKeyboardKey, shift bool) {
+		r.ts.SendKeyDownEvent(services.LogicalKeyboardKeyControl)
+		if shift {
+			r.ts.SendKeyDownEvent(services.LogicalKeyboardKeyShift)
+		}
+		r.ts.SendKeyEvent(k)
+		if shift {
+			r.ts.SendKeyUpEvent(services.LogicalKeyboardKeyShift)
+		}
+		r.ts.SendKeyUpEvent(services.LogicalKeyboardKeyControl)
+		r.ts.Pump(time.Millisecond)
+	}
+	withCtrl(services.LogicalKeyboardKeyKeyA, false)
+	if s, e, _ := r.ctrl.Selection(); s != 0 || e != 3 {
+		t.Errorf("after Ctrl+A the selection is %d..%d, want 0..3", s, e)
+	}
+	r.typeKeys("x")
+	if got := r.ctrl.Value(); got != "x" {
+		t.Fatalf("typing over the selection gives %q, want x", got)
+	}
+	r.ts.Pump(time.Second)
+	withCtrl(services.LogicalKeyboardKeyKeyZ, false)
+	if got := r.ctrl.Value(); got != "abc" {
+		t.Errorf("after Ctrl+Z the box holds %q, want abc", got)
+	}
+	withCtrl(services.LogicalKeyboardKeyKeyY, false)
+	if got := r.ctrl.Value(); got != "x" {
+		t.Errorf("after Ctrl+Y the box holds %q, want x", got)
+	}
+	r.noErrors()
+}

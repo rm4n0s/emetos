@@ -208,6 +208,11 @@ func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode
 	if w.capturesKey(chord) {
 		return false
 	}
+	// Select All, Undo and Redo are bound to the commands of the editor with no condition; in a text field (an input box, the
+	// find box) they are the field's own, which its handler runs when the key is left alone (desktop test, step 17b.1).
+	if isTextEditChord(chord) && textFieldHasFocus(focus) {
+		return false
+	}
 	// the settings are keys too, "config.<setting>" as in VS Code (menuContext)
 	var keys contextkey.Context = menuContext{base: w.Scopes.ScopeOf(focus, w.Keys), settings: w.Settings}
 	out := w.Dispatcher.Dispatch(keys, chord)
@@ -224,6 +229,30 @@ func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode
 		}
 	}
 	return out.Handled
+}
+
+// isTextEditChord tells whether a chord is Ctrl+A, Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z.
+func isTextEditChord(c keybinding.Chord) bool {
+	if !c.Ctrl || c.Alt || c.Meta {
+		return false
+	}
+	switch c.Key {
+	case keybinding.KeyA, keybinding.KeyZ:
+		return true
+	case keybinding.KeyY:
+		return !c.Shift
+	}
+	return false
+}
+
+// textFieldHasFocus tells whether the focus is on a text field of the UI (a widgets.EditableText), not on the editor, whose
+// text is not one.
+func textFieldHasFocus(focus *widgets.FocusNode) bool {
+	if focus == nil || focus.Context() == nil {
+		return false
+	}
+	_, ok := widgets.FindAncestorWidgetOfExactType[*widgets.EditableText](focus.Context())
+	return ok
 }
 
 // windowCommandPrefixes and windowCommands are the commands that act on the window itself, not on a workspace: the tabs of

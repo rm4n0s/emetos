@@ -1,6 +1,8 @@
 package explorer
 
 import (
+	"github.com/rm4n0s/glutter/widgets"
+
 	"context"
 	"log/slog"
 	"path/filepath"
@@ -75,6 +77,9 @@ type ViewOpts struct {
 	OnLoadFailed func(path string, err error)
 	// Logger gets what has nobody to tell; slog.Default() when nil.
 	Logger *slog.Logger
+	// Binding is the application's binding. With it, the keys typed right after the key that opens the inline input (F2, the
+	// new file) go into the input before it is built (kit.TypeAhead). Nil in the tests that have no window.
+	Binding *widgets.WidgetsBinding
 	// AfterFrame runs a function after the next frame; the view uses it to see where the focus went after a
 	// click. Without it the function is posted to the UI thread.
 	AfterFrame func(func())

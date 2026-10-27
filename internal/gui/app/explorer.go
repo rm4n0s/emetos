@@ -221,7 +221,7 @@ func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
 		return
 	}
 	ex.view = explorer.NewView(win.ctx, win.Workspace, explorer.ViewOpts{
-		Post: binding.Post, Keys: win.Keys, Icons: win.FileIcons, Language: win.languageOf,
+		Post: binding.Post, Binding: binding, Keys: win.Keys, Icons: win.FileIcons, Language: win.languageOf,
 		OnOpen: func(path string, pinned bool) { s.openPath(binding, nil, path, !pinned) },
 		OnLoadFailed: func(path string, err error) {
 			win.Notify.Error("Emetos", "Cannot read the folder "+path+": "+describe(err))

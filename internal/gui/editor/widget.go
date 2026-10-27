@@ -305,6 +305,8 @@ type editorState struct {
 	// The find widget: the focus nodes and the text of its inputs, the scope its inputs have their
 	// keys in, and whether one of the inputs has the focus.
 	findNode, replaceNode *widgets.FocusNode
+	// findAhead takes the keys typed until the input of the find widget has the focus (focusInput).
+	findAhead             *kit.TypeAhead
 	findText, replaceText *widgets.TextEditingController
 	findScope             *contextkey.Scope
 	unregisterFind        []func()
@@ -767,29 +769,35 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 		widgets.NewPositioned(widgets.NewAlign(findWidget, widgets.AlignOpts{Alignment: painting.AlignmentTopRight}),
 			widgets.PositionedOpts{Top: foundation.Some(findWidgetTop), Left: foundation.Some(0.0), Right: foundation.Some(findWidgetRight)}),
 	}
+	// The layers come and go while the user types, and the rename box (an input with the focus) is one of them: each is keyed,
+	// so that one appearing before another does not move it to a new place in the stack, which would mount its input again
+	// (SPEC §10.2 "As built (step 17b.1)").
+	keyed := func(name string, layer widgets.Widget) {
+		layers = append(layers, widgets.NewKeyedSubtree(layer, widgets.WidgetOpts{Key: foundation.NewValueKey(name)}))
+	}
 	if p := vm.SnippetPicker(); p != nil {
-		layers = append(layers, s.snippetPicker(vm, p))
+		keyed("snippets", s.snippetPicker(vm, p))
 	}
 	if hints := s.signatureLayer(bc, vm, colors); hints != nil {
-		layers = append(layers, hints)
+		keyed("signature", hints)
 	}
 	if suggest := s.suggestLayer(bc, vm, colors); suggest != nil {
-		layers = append(layers, suggest)
+		keyed("suggest", suggest)
 	}
 	if bulb := s.lightBulbLayer(vm, colors); bulb != nil {
-		layers = append(layers, bulb)
+		keyed("lightbulb", bulb)
 	}
 	if hover := s.hoverLayer(bc, vm, colors); hover != nil {
-		layers = append(layers, hover)
+		keyed("hover", hover)
 	}
 	if list := s.actionListLayer(bc, vm, colors); list != nil {
-		layers = append(layers, list)
+		keyed("actions", list)
 	}
 	if rename := s.renameLayer(bc, vm, colors); rename != nil {
-		layers = append(layers, rename)
+		keyed("rename", rename)
 	}
 	if preview := s.previewLayer(bc, vm, colors); preview != nil {
-		layers = append(layers, preview)
+		keyed("preview", preview)
 	}
 	return widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }

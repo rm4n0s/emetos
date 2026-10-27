@@ -3051,3 +3051,40 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
     - `testing` is linked into every Glutter program, through `internal/platform/linux/dl/layout.go`.
 
   The reverse-list entry of 16.3 stays: 1.9.x does not change it.
+
+## Step 17b.1: Real input, and typing reaches every input box
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-17b.1-real-input
+- **Summary:** Emetos is now tested with real keyboard and pointer events (a Wayland virtual keyboard and pointer in sway). Every input box keeps taking keys after the first one, which fixes the desktop bug "the keyboard stopped working until I clicked again the input box".
+- **Cause:** `kit.InputBox` removed the placeholder's `Stack` at the first key. That mounted the `EditableText` again with the focus already on its node, and Glutter opens the input connection only on a focus change, so every later key was dropped.
+- **Fix:**
+  - the input box's tree is the same with or without the placeholder;
+  - a click in a focused box with no connection reconnects it (`RequestKeyboard`);
+  - the quick input takes typed keys from the moment it is shown, and a focus node takes the arrows, Enter and Escape at once;
+  - `kit.TypeAhead` (new) does the same for Find, Replace, the rename box and the explorer's inline input;
+  - the editor's `Stack` layers are keyed, so a layer that appears no longer remounts the rename box.
+- **Also found by real input and fixed:**
+  - Ctrl+A, Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z in an input box went to the editor's commands; the box now runs them on its own text;
+  - a group's focus retry could take the focus from a quick input opened just after it and close it.
+- **Harness:**
+  - `internal/testenv/realinput`: the Wayland client, with one keyboard and one pointer for the whole run, plus sway IPC;
+  - `internal/testenv/display`: starts an isolated debug Emetos, sends real input, reads state through the dev socket, takes screenshots;
+  - dev server `EMETOS_DEV_SOCKET`, with the read-only `dev.inputs` and `dev.editor` (SPEC §15.2);
+  - `scripts/realinput.sh [--desktop]`: runs under the headless sway, or in a nested sway window on the desktop.
+- **Main files:** `internal/gui/kit/inputbox.go`, `kit/typeahead.go` (new), `internal/gui/quickinput/host.go`, `internal/gui/editor/{widget,findstate,rename_widget}.go`, `internal/gui/views/explorer/{edit,view}.go`, `internal/gui/app/{keys,group,devserver,devquery}.go`, `internal/testenv/`, `cmd/emetos/realinput_display_test.go`, `scripts/realinput.sh`, `docs/SPEC.md` (§10.2, §10.6, §15.1, §15.2 "As built (step 17b.1)").
+- **Tests:**
+  - 12 real-input display tests: Quick Open, Find, settings search, keybindings search, explorer rename, Notes, Problems filter, scratchpad, edit shortcuts, command palette, Go to Line, and the proofs. Before the fix, ten of them failed (`app.go` gave `"p"`, `hello world` gave `"h"`); the command palette and Go to Line tests passed and are kept as regression tests;
+  - unit tests through the platform's key path: `TestInputBoxTypedKeysReachTheBox`, the click reconnect, the edit shortcuts, `TestHostTakesTheKeysTypedBeforeItsFirstFrame` and `TestEditChordsInATextFieldAreTheFields` all failed before the fix;
+  - `TypeAhead`, dev server and `realinput` tests, with route tests for every new tag;
+  - `TestTheInputBoxesOfTheWindowKeepTheClipboardOfTheDesktop` changed: Ctrl+A then Ctrl+V in the command palette now replaces the `>` too, as in VS Code.
+- **Goldens:** `keybindings_recording_{dark,light}`, `dialog_passphrase_dark` (asterisks, and the caret in the right place) and agents `completion_commands`; viewed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_display`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ (`internal/gui/app` was killed once for lack of memory while other programs filled the swap, and passed when run alone) · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `scripts/realinput.sh` (headless sway, race, 12 tests) ✅.
+- **Proof:** `docs/implemented-proof-images/17b.1-quickopen.png` (Quick Open with `app.go` typed by the virtual keyboard) and `17b.1-note.png` (a note whose title and two-line body were typed the same way), made with `scripts/realinput.sh --shots docs/implemented-proof-images`.
+
+  ![Quick Open](implemented-proof-images/17b.1-quickopen.png)
+  ![Note](implemented-proof-images/17b.1-note.png)
+- **Manual checks:** none; the manager's desktop pass is step 17b.5.
+- **Glutter issues:** new:
+  - an `EditableText` mounted again with the focus on its node gets no input connection;
+  - the caret of an obscured field is placed by byte offsets into the bullet string.

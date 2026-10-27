@@ -40,7 +40,9 @@ type auxUI struct {
 	renameScope, previewScope     *contextkey.Scope
 	unregister                    []func()
 	renameFocused, previewFocused bool
-	caHandle, rnHandle, pvHandle  foundation.ListenerHandle
+	// renameAhead takes the keys typed until the input of the rename box has the focus (focusRename).
+	renameAhead                  *kit.TypeAhead
+	caHandle, rnHandle, pvHandle foundation.ListenerHandle
 }
 
 // initAuxUI makes the nodes and the scopes of the rename box and of the preview.
@@ -109,6 +111,9 @@ func (s *editorState) disposeAuxUI() {
 		unregister()
 	}
 	a.unregister = nil
+	if a.renameAhead != nil {
+		a.renameAhead.Stop()
+	}
 	a.renameNode.Dispose()
 	a.previewNode.Dispose()
 	a.renameText.Dispose()
@@ -135,14 +140,15 @@ func (s *editorState) focusRename() {
 	if b := vm.RenameBox(); b != nil {
 		a.renameText.SetText(b.Input)
 	}
-	scheduler := s.binding.Scheduler()
-	scheduler.ScheduleFrame()
-	scheduler.AddPostFrameCallback(func(time.Duration) {
-		if s.Mounted() && vm.RenameVisible() {
-			a.renameNode.RequestFocus()
-			a.renameText.SetSelection(services.NewTextSelection(0, len(a.renameText.Text())))
-		}
-	})
+	if !vm.RenameVisible() {
+		return
+	}
+	// the focus is requested now, and the keys typed before the input is built go into it (kit.TypeAhead), replacing the name
+	if a.renameAhead != nil {
+		a.renameAhead.Stop()
+	}
+	a.renameText.SetSelection(services.NewTextSelection(0, len(a.renameText.Text())))
+	a.renameAhead = kit.StartTypeAhead(s.binding, a.renameText, a.renameNode)
 }
 
 // focusPreview gives the focus to the preview when it is on screen.

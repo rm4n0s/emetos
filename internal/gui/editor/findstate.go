@@ -1,10 +1,10 @@
 package editor
 
 import (
-	"time"
-
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
 // initFind makes what the editor needs to show a find widget: the focus nodes and the text of
@@ -64,6 +64,9 @@ func (s *editorState) disposeFind() {
 		unregister()
 	}
 	s.unregisterFind = nil
+	if s.findAhead != nil {
+		s.findAhead.Stop()
+	}
 	s.findNode.Dispose()
 	s.replaceNode.Dispose()
 	s.findText.Dispose()
@@ -85,13 +88,16 @@ func (s *editorState) focusInput(replace bool) {
 		text.SetSelection(services.NewTextSelection(0, len(text.Text())))
 		return
 	}
-	scheduler := s.binding.Scheduler()
-	scheduler.ScheduleFrame()
-	scheduler.AddPostFrameCallback(func(time.Duration) {
-		if s.Mounted() && s.Widget().vm.FindRevealed() {
-			node.RequestFocus()
-		}
-	})
+	if !s.Widget().vm.FindRevealed() {
+		return
+	}
+	// The input is built in the next frame, which can be a while away; the focus is requested now and the keys typed until
+	// the input has it go into it (kit.TypeAhead), not into the document.
+	if s.findAhead != nil {
+		s.findAhead.Stop()
+	}
+	text.SetSelection(services.NewTextSelection(0, len(text.Text())))
+	s.findAhead = kit.StartTypeAhead(s.binding, text, node)
 }
 
 // findFocusChanged follows the focus of the inputs of the find widget: it sets the context

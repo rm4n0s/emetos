@@ -247,6 +247,29 @@ func TestProofUsage(t *testing.T) {
 	}
 }
 
+// scripts/realinput.sh finds a usage mistake before it starts a compositor, and --desktop without a Wayland session is refused.
+func TestRealInputScriptUsage(t *testing.T) {
+	tests := []struct {
+		name string
+		env  []string
+		args []string
+		want int
+	}{
+		{"an unknown option", nil, []string{"--nope"}, 64},
+		{"size without a value", nil, []string{"--size"}, 64},
+		{"shots without a value", nil, []string{"--shots"}, 64},
+		{"desktop without a session", []string{"WAYLAND_DISPLAY="}, []string{"--desktop"}, 64},
+		{"desktop with a socket that is not there", []string{"WAYLAND_DISPLAY=/nonexistent-real/wayland-9"}, []string{"--desktop"}, 64},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, stderr, status := runScript(t, tt.env, "realinput.sh", tt.args...); status != tt.want {
+				t.Errorf("status = %d, want %d (stderr: %s)", status, tt.want, stderr)
+			}
+		})
+	}
+}
+
 // scripts/error-tags.sh lists the Tags, and with --untested prints nothing when every Tag has a route test
 // (CLAUDE.md "Definition of done").
 func TestErrorTagsScript(t *testing.T) {
