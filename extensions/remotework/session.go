@@ -27,6 +27,7 @@ const (
 	reasonOff             = protocol.ReasonOff
 	reasonReplaced        = protocol.ReasonReplaced
 	reasonWorkspaceClosed = protocol.ReasonWorkspaceClosed
+	reasonProtocol        = protocol.ReasonProtocol
 	reasonClosed          = protocol.ReasonClosed
 )
 
@@ -270,6 +271,14 @@ func (h *Hub) serve(ss *sshlogin.Session) {
 	h.log.Info("Remote Work session", "remote", s.Remote, "key", s.Key.Fingerprint(), "comment", s.Key.Comment, "workspace", s.Workspace)
 	h.showSession(chosen, s)
 	h.changed()
+	// the view of the workspace for the client, until the session ends
+	viewDone := make(chan struct{})
+	go func() {
+		defer close(viewDone)
+		if !h.opts.NoView {
+			h.runView(chosen, s)
+		}
+	}()
 	if h.opts.OnSession != nil {
 		h.opts.OnSession(s)
 	}
@@ -279,6 +288,7 @@ func (h *Hub) serve(ss *sshlogin.Session) {
 	case <-s.endCh:
 	}
 	<-s.closed
+	<-viewDone
 }
 
 // showSession shows the banner and the notification of a login in the workspace.

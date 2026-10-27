@@ -16,6 +16,8 @@ type HeadlessView struct {
 	size      extension.Size
 	frame     func(*image.RGBA)
 	copied    func(string)
+	notified  func(extension.ViewNotification)
+	pressed   []NotificationPress
 	keys      []extension.KeyEvent
 	pointers  []extension.PointerEvent
 	scrolls   []extension.ScrollEvent
@@ -28,6 +30,12 @@ type HeadlessView struct {
 // NewHeadlessView implements extension.Workspace: the view is a fake that a test finds with HeadlessViews. Like the real
 // one it refuses a size that is not allowed.
 func (w workspace) NewHeadlessView(size extension.Size) (extension.HeadlessView, error) {
+	w.a.mu.Lock()
+	failure := w.a.headlessErr
+	w.a.mu.Unlock()
+	if failure != nil {
+		return nil, failure
+	}
 	if size.Width <= 0 || size.Height <= 0 || size.Width > extension.MaxHeadlessSide || size.Height > extension.MaxHeadlessSide ||
 		size.Width*size.Height > extension.MaxHeadlessPixels {
 		return nil, errors.New("ExtensionHeadlessSize", "a headless view is at most extension.MaxHeadlessSide a side and extension.MaxHeadlessPixels in all",
@@ -38,6 +46,13 @@ func (w workspace) NewHeadlessView(size extension.Size) (extension.HeadlessView,
 	v := &HeadlessView{size: size, done: make(chan struct{})}
 	w.a.headless = append(w.a.headless, v)
 	return v, nil
+}
+
+// FailHeadlessViews makes NewHeadlessView fail with err from now on; nil makes it work again.
+func (a *API) FailHeadlessViews(err error) {
+	a.mu.Lock()
+	a.headlessErr = err
+	a.mu.Unlock()
 }
 
 // HeadlessViews are the views the extension made, in order.
@@ -114,6 +129,47 @@ func (v *HeadlessView) OnCopy(fn func(string)) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.copied = fn
+}
+
+// NotificationPress is a call of RunNotificationAction.
+type NotificationPress struct {
+	// ID and Action are the notification and the place of the button.
+	ID     uint64
+	Action int
+}
+
+// OnNotification implements extension.HeadlessView.
+func (v *HeadlessView) OnNotification(fn func(extension.ViewNotification)) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.notified = fn
+}
+
+// RunNotificationAction implements extension.HeadlessView: the call is kept (Presses).
+func (v *HeadlessView) RunNotificationAction(id uint64, action int) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.pressed = append(v.pressed, NotificationPress{ID: id, Action: action})
+}
+
+// Notify tells the function of OnNotification that the workspace raised a notification; false when there is none or the view
+// is closed.
+func (v *HeadlessView) Notify(n extension.ViewNotification) bool {
+	v.mu.Lock()
+	fn, closed := v.notified, v.closed
+	v.mu.Unlock()
+	if fn == nil || closed {
+		return false
+	}
+	fn(n)
+	return true
+}
+
+// Presses are the calls of RunNotificationAction, in order.
+func (v *HeadlessView) Presses() []NotificationPress {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return append([]NotificationPress(nil), v.pressed...)
 }
 
 // Done implements extension.HeadlessView.

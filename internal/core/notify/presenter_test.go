@@ -397,3 +397,27 @@ func TestPurgeTimeoutOfSeverities(t *testing.T) {
 		t.Error("VS Code's timeouts are 10, 12 and 15 seconds")
 	}
 }
+
+func TestAMutedPresenterMakesNoToastAndMakesThemAgainWhenItIsNot(t *testing.T) {
+	p, svc, _ := newPresenter(t)
+	svc.Info("", "before")
+	if !p.ToastsVisible() {
+		t.Fatal("no toast before the mute")
+	}
+	p.Mute(true)
+	if p.ToastsVisible() {
+		t.Error("a toast stays after Mute")
+	}
+	id := svc.Warn("", "during")
+	if p.ToastsVisible() {
+		t.Error("a muted presenter made a toast")
+	}
+	if _, ok := svc.Get(id); !ok {
+		t.Error("the notification is not in the service")
+	}
+	p.Mute(false)
+	svc.Info("", "after")
+	if got := len(p.Toasts()); got != 1 {
+		t.Errorf("%d toasts after the mute ended, want the one made after", got)
+	}
+}

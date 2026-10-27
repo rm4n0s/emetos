@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/gluttertest"
@@ -20,6 +21,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -600,5 +602,77 @@ func TestTheRasterizerRefusesAScenelessFrame(t *testing.T) {
 	_, err := rast.render(nil, 16, 16)
 	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("rasterizer.render.HeadlessRasterFailed") {
 		t.Errorf("unexpected failure path: %v", err)
+	}
+}
+
+func TestTheNotificationsOfTheWorkspaceGoToTheClientOfTheViewAndItsButtonsRunInTheWorkspace(t *testing.T) {
+	r := newViewRig(t, "alpha\n", extension.Size{Width: 640, Height: 400})
+	r.frame(t)
+	got := make(chan extension.ViewNotification, 8)
+	r.view.OnNotification(func(n extension.ViewNotification) { got <- n })
+	r.pump()
+	pressed := make(chan string, 4)
+	id := r.win.Notify.Warn("Git", "pull failed", notify.Action{Label: "Retry", Run: func() { pressed <- "retry" }}, notify.Action{Label: "Keep", KeepOpen: true, Run: func() { pressed <- "keep" }})
+	r.win.Notify.Notify(notify.Notification{Message: "quiet", Silent: true})
+	r.pump()
+	var n extension.ViewNotification
+	select {
+	case n = <-got:
+	case <-time.After(3 * time.Second):
+		t.Fatal("the notification did not reach the client")
+	}
+	if n.ID != id || n.Severity != extension.NotificationWarning || n.Source != "Git" || n.Message != "pull failed" || len(n.Actions) != 2 || n.Actions[0] != "Retry" || n.Actions[1] != "Keep" {
+		t.Errorf("the notification = %+v", n)
+	}
+	select {
+	case n := <-got:
+		t.Errorf("a silent notification reached the client: %+v", n)
+	default:
+	}
+	// the view draws no toast of it
+	if toasts := r.view.ws.Notifications.Toasts(); len(toasts) != 0 {
+		t.Errorf("the view shows %d toasts while its client shows them", len(toasts))
+	}
+	// the buttons run in the workspace; a button that keeps the notification open leaves it, the other closes it
+	r.view.RunNotificationAction(id, 1)
+	r.pump()
+	if got := <-pressed; got != "keep" {
+		t.Errorf("pressed %q", got)
+	}
+	if _, ok := r.win.Notify.Get(id); !ok {
+		t.Error("a button that keeps the notification open closed it")
+	}
+	r.view.RunNotificationAction(id, 0)
+	r.pump()
+	if got := <-pressed; got != "retry" {
+		t.Errorf("pressed %q", got)
+	}
+	if _, ok := r.win.Notify.Get(id); ok {
+		t.Error("the notification is still there after its button ran")
+	}
+	r.view.RunNotificationAction(id, 0) // gone: nothing happens
+	r.view.RunNotificationAction(999, 0)
+	// without a client the view draws the toasts again
+	r.view.OnNotification(nil)
+	r.pump()
+	r.win.Notify.Info("Git", "again")
+	r.pump()
+	if toasts := r.view.ws.Notifications.Toasts(); len(toasts) != 1 {
+		t.Errorf("the view shows %d toasts after the client let go", len(toasts))
+	}
+}
+
+func TestTextAnInputMethodCommittedInTheClientIsTypedAsAKeyWithNoPhysicalKey(t *testing.T) {
+	r := newViewRig(t, "", extension.Size{Width: 640, Height: 400})
+	r.frame(t)
+	// what the Remote Work tab sends for the text of an input method: a key of the character, with the text and no key of the keyboard
+	for _, text := range []string{"é", "日本", "x"} {
+		first, _ := utf8.DecodeRuneInString(text)
+		r.view.SendKey(extension.KeyEvent{Kind: extension.KeyDown, Logical: uint64(first), Text: text})
+		r.view.SendKey(extension.KeyEvent{Kind: extension.KeyUp, Logical: uint64(first)})
+		r.pump()
+	}
+	if got := r.viewText(); got != "é日本x" {
+		t.Errorf("the document holds %q", got)
 	}
 }

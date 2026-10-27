@@ -51,6 +51,9 @@ type extTab struct {
 	state json.RawMessage
 	// saveStop cancels the write of the state that waits (StateChanged).
 	saveStop func()
+	// captureKeys says that the content takes the keys: the shortcuts that do not act on the window itself leave them to it
+	// (WindowTab.CaptureKeys). UI thread only.
+	captureKeys bool
 }
 
 // displayTitle is the name on the tab of the strip.
@@ -169,6 +172,9 @@ func (h extTabHost) StateChanged() {
 	}
 	e.saveStop = m.binding.Gestures().NewTimer(stateSnapshotDelay, save).Cancel
 }
+
+// CaptureKeys implements exthost.WindowTabHost.
+func (h extTabHost) CaptureKeys(capture bool) { h.w.ext.captureKeys = capture }
 
 // Close implements exthost.WindowTabHost: the tab closes without a question.
 func (h extTabHost) Close() {

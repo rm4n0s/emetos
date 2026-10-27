@@ -6,6 +6,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/rm4n0s/errors"
 )
 
 // Severity is how serious a notification is.
@@ -272,6 +274,34 @@ func (s *Service) Warn(source, message string, actions ...Action) uint64 {
 // Error sends an error.
 func (s *Service) Error(source, message string, actions ...Action) uint64 {
 	return s.Notify(Notification{Severity: Error, Source: source, Message: message, Actions: actions})
+}
+
+// RunAction presses the button of an item as its user does: the action's Run is called, then its command through
+// runCommand (when the action has one and runCommand is not nil; a command that fails is reported with Error, as "Cannot
+// run <command>: <why>"), and the item is dismissed unless the action keeps it open. It reports whether the item and the
+// button were there. Call it on the UI thread, where actions run.
+func (s *Service) RunAction(id uint64, index int, runCommand func(command string, args any) error) bool {
+	item, ok := s.Get(id)
+	if !ok || index < 0 || index >= len(item.Actions) {
+		return false
+	}
+	a := item.Actions[index]
+	if a.Run != nil {
+		a.Run()
+	}
+	if a.Command != "" && runCommand != nil {
+		if err := runCommand(a.Command, a.Args); err != nil {
+			msg := err.Error()
+			if appErr, ok := errors.FromError(err); ok {
+				msg = appErr.Message
+			}
+			s.Error("Emetos", "Cannot run "+a.Command+": "+msg)
+		}
+	}
+	if !a.KeepOpen {
+		s.Dismiss(id)
+	}
+	return true
 }
 
 // Dismiss removes an item and reports whether it was there.

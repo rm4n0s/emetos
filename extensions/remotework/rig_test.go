@@ -145,7 +145,10 @@ type rigOptions struct {
 	// so that the SSH channel is theirs.
 	transport bool
 	noQUIC    bool
-	hubTweak  func(*HubOptions)
+	// view lets the hub serve the session with a headless view, as it does in the editor; the tests of the transport read the
+	// messages of the session themselves.
+	view     bool
+	hubTweak func(*HubOptions)
 }
 
 func newRig(t *testing.T, opts ...rigOptions) *rig {
@@ -164,7 +167,7 @@ func newRig(t *testing.T, opts ...rigOptions) *rig {
 		cert = func() []byte { return r.certFP }
 	}
 	ho := HubOptions{
-		NoTransport: !o.transport, NoQUIC: o.noQUIC,
+		NoTransport: !o.transport, NoQUIC: o.noQUIC, NoView: !o.view,
 		ListenUDP: func(port int) (net.PacketConn, error) {
 			return net.ListenPacket("udp", "127.0.0.1:"+strconv.Itoa(port))
 		},

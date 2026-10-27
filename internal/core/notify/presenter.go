@@ -52,6 +52,8 @@ type Presenter struct {
 
 	toasts []*toast // oldest first
 	center bool
+	// muted makes no toast: someone else shows the notifications (a headless view whose client does).
+	muted bool
 
 	spamStart time.Time
 	spamCount int
@@ -118,7 +120,7 @@ func (p *Presenter) Handle(e Event) {
 // addToast makes a toast for an item, unless the center is open, the item is silent or too many toasts
 // were made lately.
 func (p *Presenter) addToast(item Item) {
-	if p.center || item.Silent || p.findToast(item.ID) >= 0 {
+	if p.center || p.muted || item.Silent || p.findToast(item.ID) >= 0 {
 		return
 	}
 	if item.Time.Sub(p.spamStart) > SpamInterval || p.spamCount == 0 {
@@ -180,6 +182,20 @@ func (p *Presenter) stopToasts() {
 		}
 	}
 	p.toasts = nil
+}
+
+// Mute stops the presenter from making toasts, and takes away those that show, or lets it make them again. The notifications
+// stay in the service and in the center. A headless view whose client shows the notifications in its own way is muted
+// (SPEC §10.18 "As built (step 15.4)").
+func (p *Presenter) Mute(muted bool) {
+	if p.muted == muted {
+		return
+	}
+	p.muted = muted
+	if muted {
+		p.stopToasts()
+	}
+	p.changed()
 }
 
 // Toasts lists the toasts that show, the newest first: at most MaxToasts, the newest ones. A toast that

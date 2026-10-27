@@ -17,17 +17,19 @@ type stubView struct {
 	done   chan struct{}
 }
 
-func (v *stubView) Size() extension.Size               { return v.size }
-func (v *stubView) OnFrame(func(*image.RGBA))          {}
-func (v *stubView) Refresh()                           {}
-func (v *stubView) Resize(extension.Size) error        { return nil }
-func (v *stubView) SendKey(extension.KeyEvent)         {}
-func (v *stubView) SendPointer(extension.PointerEvent) {}
-func (v *stubView) SendScroll(extension.ScrollEvent)   {}
-func (v *stubView) SetClipboard(string)                {}
-func (v *stubView) OnCopy(func(string))                {}
-func (v *stubView) Done() <-chan struct{}              { return v.done }
-func (v *stubView) Close()                             { v.closed++ }
+func (v *stubView) Size() extension.Size                            { return v.size }
+func (v *stubView) OnFrame(func(*image.RGBA))                       {}
+func (v *stubView) Refresh()                                        {}
+func (v *stubView) Resize(extension.Size) error                     { return nil }
+func (v *stubView) SendKey(extension.KeyEvent)                      {}
+func (v *stubView) SendPointer(extension.PointerEvent)              {}
+func (v *stubView) SendScroll(extension.ScrollEvent)                {}
+func (v *stubView) SetClipboard(string)                             {}
+func (v *stubView) OnCopy(func(string))                             {}
+func (v *stubView) OnNotification(func(extension.ViewNotification)) {}
+func (v *stubView) RunNotificationAction(uint64, int)               {}
+func (v *stubView) Done() <-chan struct{}                           { return v.done }
+func (v *stubView) Close()                                          { v.closed++ }
 
 func TestNewHeadlessViewChecksTheSizeAndAsksTheWindow(t *testing.T) {
 	var made []*stubView

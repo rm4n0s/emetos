@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rm4n0s/errors"
 )
 
 func newTestService(buf *bytes.Buffer) (*Service, *time.Time) {
@@ -302,5 +304,58 @@ func TestActionsAreKept(t *testing.T) {
 	item.Actions[0].Run()
 	if ran != 1 || !item.Actions[0].KeepOpen {
 		t.Errorf("the action is not as given: ran %d", ran)
+	}
+}
+
+func TestRunActionRunsTheButtonThenItsCommandAndDismissesUnlessItKeepsTheItemOpen(t *testing.T) {
+	var buf bytes.Buffer
+	s, _ := newTestService(&buf)
+	var ran []string
+	run := func(command string, args any) error {
+		ran = append(ran, command)
+		if command == "bad" {
+			return errors.New("CommandBad", "it cannot")
+		}
+		return nil
+	}
+	cases := []struct {
+		name      string
+		action    Action
+		index     int
+		ran       []string
+		wantOpen  bool
+		wantFound bool
+		wantError string
+	}{
+		{"run and command close the item", Action{Label: "Go", Command: "do", Run: func() { ran = append(ran, "run") }}, 0, []string{"run", "do"}, false, true, ""},
+		{"keep open", Action{Label: "Go", KeepOpen: true, Run: func() { ran = append(ran, "run") }}, 0, []string{"run"}, true, true, ""},
+		{"a command that fails is told", Action{Label: "Go", Command: "bad"}, 0, []string{"bad"}, false, true, "Cannot run bad: it cannot"},
+		{"a button that is not there", Action{Label: "Go", Run: func() { ran = append(ran, "run") }}, 3, nil, true, false, ""},
+		{"a negative place", Action{Label: "Go"}, -1, nil, true, false, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ran = nil
+			id := s.Warn("Git", tc.name, tc.action)
+			if got := s.RunAction(id, tc.index, run); got != tc.wantFound {
+				t.Errorf("RunAction = %v, want %v", got, tc.wantFound)
+			}
+			if !slices.Equal(ran, tc.ran) {
+				t.Errorf("ran %v, want %v", ran, tc.ran)
+			}
+			if _, open := s.Get(id); open != tc.wantOpen {
+				t.Errorf("open = %v, want %v", open, tc.wantOpen)
+			}
+			if tc.wantError != "" {
+				last := s.Items()[len(s.Items())-1]
+				if last.Severity != Error || last.Message != tc.wantError {
+					t.Errorf("last notification = %+v", last)
+				}
+			}
+			s.ClearAll()
+		})
+	}
+	if s.RunAction(99, 0, run) {
+		t.Error("RunAction found an item that does not exist")
 	}
 }

@@ -185,3 +185,10 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 
 75. **A QUIC certificate that does not match the fingerprint sent over SSH ends the connection attempt; it does not fall back to the SSH channel.** A mismatch means something on the UDP port is not what the host started, and the user should see that rather than get a working session that hides it. Falling back instead would be safe (the SSH channel is authenticated) and is a small change.
 76. **The protocol keeps version 1 after adding message type 14 (`Missing`, a request for lost tiles)**, because no version was ever released. From the first release on, a change to the message types bumps the version.
+
+## 2026-10-27: step 15.4 (the remote tab; decided by the agent and accepted by me)
+
+77. **Test files under `internal/gui/` may import `extensions/...`** (`internal/archtest`, SPEC §5.3), so that one test can run two whole Emetos instances with the Remote Work extension. Non-test code still may not.
+78. **The remote picture is in logical pixels at scale 1**: on a HiDPI screen on B it is stretched, not sharp, because the protocol has no pixel ratio. Sharp HiDPI would need a ratio in Resize and pictures twice as large.
+79. **A restored remote tab does not reconnect by itself**: it shows its connection form, filled in, and waits for Connect. During a session, a dropped connection (including A's SSH connection ending) is retried automatically with backoff.
+80. **Keys that stay on B in a remote tab**: switching and closing window and workspace tabs, new window, quit, switch window and full screen, as bound on B. Every other key goes to A, including the command palette and Ctrl+S.

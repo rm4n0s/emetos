@@ -82,6 +82,31 @@ type ScrollEvent struct {
 	DX, DY float64
 }
 
+// NotificationSeverity is how serious a notification of the workspace is.
+type NotificationSeverity uint8
+
+// The severities of ViewNotification.
+const (
+	// NotificationInfo is for news the user may like to know.
+	NotificationInfo NotificationSeverity = iota
+	// NotificationWarning is for something that may not work as the user expects.
+	NotificationWarning
+	// NotificationError is for a failure.
+	NotificationError
+)
+
+// ViewNotification is a notification of the workspace as a headless view hands it over to its client (OnNotification).
+type ViewNotification struct {
+	// ID identifies the notification for RunNotificationAction; it is not the same in another run of Emetos.
+	ID uint64
+	// Severity says how serious it is, Source which part of Emetos raised it ("Git") and Message what it says.
+	Severity NotificationSeverity
+	Source   string
+	Message  string
+	// Actions are the labels of the buttons, in order; RunNotificationAction takes the place in this list.
+	Actions []string
+}
+
 // HeadlessView is a second view of the workspace, drawn off screen at a size of its own: a workbench with its own
 // focus, cursors and scroll positions, its own side bar, panel and quick input, over the same documents, so that an edit in
 // one view shows in the other. Emetos draws it with Glutter's software renderer when something in it changes (at most 30
@@ -115,6 +140,16 @@ type HeadlessView interface {
 	// OnCopy sets the function that gets the text the user copies or cuts in the view. It runs on the UI thread: hand the
 	// text to a goroutine and return.
 	OnCopy(fn func(text string))
+	// OnNotification sets the function that gets the notifications the workspace raises from now on (the ones that would
+	// show as a toast: a silent one, made while do not disturb is on, is left out). While a function is set the view draws
+	// no toast for them, so the client shows them in its own way, and the buttons they carry are pressed with
+	// RunNotificationAction. fn runs on the UI thread: hand the notification to a goroutine and return. nil takes the
+	// function away, and the view draws the toasts again.
+	OnNotification(fn func(n ViewNotification))
+	// RunNotificationAction presses the button of a notification as its user would in the view: the action runs, in the
+	// workspace, and the notification closes unless the action keeps it open. It does nothing for a notification that is gone
+	// or a button that is not there.
+	RunNotificationAction(id uint64, action int)
 	// Done is closed when the view ended, whether the extension closed it or Emetos did (the workspace closed, or it opened
 	// another folder): its widgets are gone and it holds no document. Pictures stop coming before that.
 	Done() <-chan struct{}

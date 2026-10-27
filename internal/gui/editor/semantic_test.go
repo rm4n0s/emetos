@@ -442,13 +442,18 @@ func TestTheCostOfAKeyIsBounded(t *testing.T) {
 			tk.Tokens = append(tk.Tokens, langfeatures.SemanticToken{Line: l, Col: i * 6, Len: 4})
 		}
 	}
-	start := time.Now()
-	const keys = 200
-	for i := range keys {
-		line := 10 + i%10
-		moveTokensBy(tk, change(rg(line, 3, line, 3), rg(line, 3, line+1, 0), "\n")) // the worst key: a line break near the top
+	// The cost is the fastest of several batches: a batch that shares the machine with every other package (the race run)
+	// measures the load, not the code.
+	const batches, keys = 5, 40
+	per := time.Duration(1<<63 - 1)
+	for b := range batches {
+		start := time.Now()
+		for i := range keys {
+			line := 10 + (b*keys+i)%10
+			moveTokensBy(tk, change(rg(line, 3, line, 3), rg(line, 3, line+1, 0), "\n")) // the worst key: a line break near the top
+		}
+		per = min(per, time.Since(start)/keys)
 	}
-	per := time.Since(start) / keys
 	// a line break moves every token below it: a pass over the slice, well under a frame (the budget here is generous for a race build)
 	if per > 8*time.Millisecond {
 		t.Errorf("a line break near the top of %d tokens costs %v", len(tk.Tokens), per)

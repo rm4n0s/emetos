@@ -40,6 +40,11 @@ type HubOptions struct {
 	// NoTransport leaves the SSH channel to the caller: no transport is attached to a session and nothing reads the channel (the
 	// tests of the login use it).
 	NoTransport bool
+	// NoView leaves the messages of a session to the caller: no headless view is made for it and nothing reads its transport (the
+	// tests of the transport read the host's side themselves).
+	NoView bool
+	// Tab are the knobs of the remote window tab (step 15.4); every field has a default.
+	Tab TabOptions
 	// NoQUIC makes the transport use the SSH channel only: the hub opens no UDP socket and the grant has no fingerprint.
 	NoQUIC bool
 	// ListenUDP opens the UDP socket of QUIC on the port the SSH listener got; the default listens on every interface. When it

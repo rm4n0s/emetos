@@ -769,3 +769,64 @@ func TestGoldenThePlusMenuWithAnExtensionEntry(t *testing.T) {
 		})
 	}
 }
+
+func TestAWindowTabThatCapturesTheKeysKeepsOnlyTheShortcutsOfTheWindow(t *testing.T) {
+	p := &wtxProbe{}
+	env := newMultiEnv(t, nil)
+	a := env.runExt(p, Options{Folder: env.folder("one", "a.go")})
+	tab := a.openExt()
+	w := tab.Workspace()
+	host := extTabHost{w: w}
+	focusView := func(on bool) {
+		if on {
+			w.Keys.Set("focusedView", exthost.WindowTabViewID)
+		} else {
+			w.Keys.Reset("focusedView")
+		}
+	}
+	palette := keybinding.Chord{Ctrl: true, Shift: true, Key: keybinding.KeyP}
+	cases := []struct {
+		name    string
+		capture bool
+		focused bool
+		chord   keybinding.Chord
+		want    bool
+	}{
+		{"the tab does not capture", false, true, palette, false},
+		{"the content has no focus", true, false, palette, false},
+		{"a shortcut of the editor is the content's", true, true, palette, true},
+		{"a plain key is the content's", true, true, keybinding.Chord{Key: keybinding.KeyA}, true},
+		{"next tab stays with the window", true, true, keybinding.Chord{Ctrl: true, Alt: true, Key: keybinding.PageDown}, false},
+		{"tab number 3 stays with the window", true, true, keybinding.Chord{Ctrl: true, Alt: true, Key: keybinding.Digit3}, false},
+		{"close the tab stays with the window", true, true, keybinding.Chord{Ctrl: true, Shift: true, Key: keybinding.KeyW}, false},
+		{"quit stays with the window", true, true, keybinding.Chord{Ctrl: true, Key: keybinding.KeyQ}, false},
+		{"full screen stays with the window", true, true, keybinding.Chord{Key: keybinding.F11}, false},
+		{"a modifier alone is left to the dispatcher", true, true, keybinding.Chord{Ctrl: true, Key: keybinding.Ctrl}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			host.CaptureKeys(tc.capture)
+			focusView(tc.focused)
+			if got := w.capturesKey(tc.chord); got != tc.want {
+				t.Errorf("capturesKey(%s) = %v, want %v", tc.chord.Label(), got, tc.want)
+			}
+		})
+	}
+	// the dispatch itself: a captured key runs nothing and is not used, a window shortcut runs its command
+	host.CaptureKeys(true)
+	focusView(true)
+	ran := ""
+	for _, id := range []string{"workbench.action.showCommands", "emetos.workspaceTab.next"} {
+		remove, err := w.Commands.SetHandler(id, func(command.Context, any) error { ran += id + ";"; return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer remove()
+	}
+	if w.DispatchKey(palette, nil) || ran != "" {
+		t.Errorf("a captured key was used: ran %q", ran)
+	}
+	if !w.DispatchKey(keybinding.Chord{Ctrl: true, Alt: true, Key: keybinding.PageDown}, nil) || ran != "emetos.workspaceTab.next;" {
+		t.Errorf("the window shortcut did not run: %q", ran)
+	}
+}

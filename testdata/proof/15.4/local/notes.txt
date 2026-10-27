@@ -1,0 +1,1 @@
+The local workspace of the client instance (B).

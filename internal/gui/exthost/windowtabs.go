@@ -17,8 +17,12 @@ import (
 // the viewDecl of the scope (views.go) with the box, the saved state and the failure of a view; this file adds the kind,
 // the API of the extension and the calls the window makes.
 
-// windowTabViewID is the id of the view declaration that stands for the one tab of a window tab scope.
+// windowTabViewID is the id of the view declaration that stands for the one tab of a window tab scope; it is the value of
+// the context key focusedView while the content of the tab has the keyboard focus (WindowTabViewID).
 const windowTabViewID = "windowTab"
+
+// WindowTabViewID is the value of the context key focusedView while the content of a window tab has the keyboard focus.
+const WindowTabViewID = windowTabViewID
 
 // WindowTabHost is what the window offers the extension of a window tab: the strip's view of the tab.
 type WindowTabHost interface {
@@ -27,6 +31,8 @@ type WindowTabHost interface {
 	SetHint(hint string)
 	// StateChanged asks the window to write the state of the tab soon.
 	StateChanged()
+	// CaptureKeys sets whether the shortcuts of the tab leave the keys to its content (extension.WindowTab.CaptureKeys).
+	CaptureKeys(capture bool)
 	// Close closes the tab without asking.
 	Close()
 }
@@ -225,6 +231,13 @@ func (t *windowTab) SetHint(hint string) {
 func (t *windowTab) StateChanged() {
 	if h := t.scope.opts.WindowTab; h != nil && t.live() {
 		h.StateChanged()
+	}
+}
+
+// CaptureKeys implements extension.WindowTab.
+func (t *windowTab) CaptureKeys(capture bool) {
+	if h := t.scope.opts.WindowTab; h != nil && t.live() {
+		h.CaptureKeys(capture)
 	}
 }
 

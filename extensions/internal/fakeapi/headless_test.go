@@ -29,6 +29,15 @@ func TestTheFakeHeadlessViewKeepsTheInputAndHandsOutThePictures(t *testing.T) {
 	if !fake.Copy("text") || len(copied) != 1 || copied[0] != "text" {
 		t.Errorf("copied %v", copied)
 	}
+	var notes []extension.ViewNotification
+	view.OnNotification(func(n extension.ViewNotification) { notes = append(notes, n) })
+	if !fake.Notify(extension.ViewNotification{ID: 7, Message: "hi", Actions: []string{"Open"}}) || len(notes) != 1 || notes[0].ID != 7 {
+		t.Errorf("notified %v", notes)
+	}
+	view.RunNotificationAction(7, 0)
+	if p := fake.Presses(); len(p) != 1 || p[0] != (NotificationPress{ID: 7, Action: 0}) {
+		t.Errorf("presses %v", p)
+	}
 	view.SendKey(extension.KeyEvent{Kind: extension.KeyDown, Text: "a"})
 	view.SendPointer(extension.PointerEvent{Kind: extension.PointerDown, X: 1, Y: 2})
 	view.SendScroll(extension.ScrollEvent{DY: 3})
@@ -49,7 +58,7 @@ func TestTheFakeHeadlessViewKeepsTheInputAndHandsOutThePictures(t *testing.T) {
 	view.Close()
 	view.Close()
 	<-view.Done()
-	if !fake.Closed() || fake.Emit(image.NewRGBA(image.Rect(0, 0, 1, 1))) || fake.Copy("x") {
+	if !fake.Closed() || fake.Emit(image.NewRGBA(image.Rect(0, 0, 1, 1))) || fake.Copy("x") || fake.Notify(extension.ViewNotification{}) {
 		t.Error("a closed view still delivers")
 	}
 }

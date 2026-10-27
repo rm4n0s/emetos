@@ -18,6 +18,8 @@ type WindowTab struct {
 	title, hint string
 	// Refreshs, Changes and Closes count the calls of Refresh, StateChanged and Close.
 	Refreshs, Changes, Closes int
+	// Capturing is what the extension last set with CaptureKeys.
+	Capturing bool
 	// Content is what the extension made the tab of.
 	Content extension.WindowTabContent
 }
@@ -36,6 +38,9 @@ func (t *WindowTab) SetHint(hint string) { t.mu.Lock(); t.hint = hint; t.mu.Unlo
 
 // StateChanged implements extension.WindowTab.
 func (t *WindowTab) StateChanged() { t.mu.Lock(); t.Changes++; t.mu.Unlock() }
+
+// CaptureKeys implements extension.WindowTab: the value is kept (Capturing).
+func (t *WindowTab) CaptureKeys(capture bool) { t.mu.Lock(); t.Capturing = capture; t.mu.Unlock() }
 
 // Refresh implements extension.WindowTab.
 func (t *WindowTab) Refresh() { t.mu.Lock(); t.Refreshs++; t.mu.Unlock() }

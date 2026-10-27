@@ -87,7 +87,9 @@ const (
 	// internal/gui/testutil. extension/ui is the one bridge of the contract to the widgets of the editor (SPEC §10.15).
 	RuleExtensionUIImportsInternal Rule = "ExtensionUIImportsInternal"
 	// RuleExtensionsImportedByInternal: a package under internal/ imports extensions/...; only cmd/ lists the extensions, so
-	// the editor has no special case for a bundled one.
+	// the editor has no special case for a bundled one. The test files of internal/gui/ are the exception: a test of the
+	// window that runs a real extension in it (step 15.4: Remote Work on two windows) imports that one extension; the
+	// editor's own code never does.
 	RuleExtensionsImportedByInternal Rule = "ExtensionsImportedByInternal"
 )
 
@@ -221,7 +223,7 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 		if inCore && (isOrUnder(path, glutterModule) || isOrUnder(path, guiPackage)) {
 			add(imp.Pos(), RuleCoreImportsUI, path)
 		}
-		if inInternal && isOrUnder(path, emetosModule+"extensions") {
+		if inInternal && isOrUnder(path, emetosModule+"extensions") && (!strings.HasSuffix(rel, "_test.go") || !strings.HasPrefix(rel, "internal/gui/")) {
 			add(imp.Pos(), RuleExtensionsImportedByInternal, path)
 		}
 		if inExtensions {

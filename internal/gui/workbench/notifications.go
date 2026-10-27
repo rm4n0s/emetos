@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
@@ -259,29 +258,17 @@ func (s *notificationsHostState) focusToasts() {
 // closed unless the action keeps it open.
 func (s *notificationsHostState) runAction(item notify.Item, index int) {
 	o := s.Widget().opts
-	if index < 0 || index >= len(item.Actions) {
-		return
-	}
-	a := item.Actions[index]
-	if a.Run != nil {
-		a.Run()
-	}
-	if a.Command != "" && o.Commands != nil {
+	var run func(string, any) error
+	if o.Commands != nil {
 		ctx := o.Context
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		if err := o.Commands.Run(command.Context{Ctx: ctx, Keys: o.Keys, Source: command.SourceAPI}, a.Command, a.Args); err != nil {
-			msg := err.Error()
-			if appErr, ok := errors.FromError(err); ok {
-				msg = appErr.Message
-			}
-			s.presenter.Service().Error("Emetos", "Cannot run "+a.Command+": "+msg)
+		run = func(id string, args any) error {
+			return o.Commands.Run(command.Context{Ctx: ctx, Keys: o.Keys, Source: command.SourceAPI}, id, args)
 		}
 	}
-	if !a.KeepOpen {
-		s.presenter.Service().Dismiss(item.ID)
-	}
+	s.presenter.Service().RunAction(item.ID, index, run)
 }
 
 // row makes the row of an item.

@@ -67,6 +67,7 @@ type API struct {
 	actionHandler     func(CodeActionCall) (string, error)
 	actionCalls       []CodeActionCall
 	headless          []*HeadlessView
+	headlessErr       error
 	banners           []*FakeBanner
 	chooserCalls      []ChooserCall
 	chooserAnswers    []*chooserAnswer

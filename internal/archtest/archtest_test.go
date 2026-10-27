@@ -89,6 +89,7 @@ func TestCheck(t *testing.T) {
 			{"extension/ui/uitest/bad.go", 3, RuleExtensionUIImportsInternal, "github.com/rm4n0s/emetos/internal/gui/app"},
 		}},
 		{"the editor imports the extensions", "extensions_imported_by_internal", []want{
+			{"internal/core/language/bad_test.go", 3, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions/golang"},
 			{"internal/gui/app/bad.go", 4, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions"},
 			{"internal/gui/app/bad.go", 5, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions/golang"},
 		}},

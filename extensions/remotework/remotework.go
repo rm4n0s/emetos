@@ -20,8 +20,11 @@ const (
 // NewFactory makes the Factory of the extension: the instances it makes, one for each workspace, share one Hub made here,
 // which holds the listener, the sessions and remote-work.json. extensions.All calls it once; a test passes the options of its
 // own (a loopback listener, a clock).
-func NewFactory(opts HubOptions) extension.Factory {
-	hub := NewHub(opts)
+func NewFactory(opts HubOptions) extension.Factory { return FactoryOf(NewHub(opts)) }
+
+// FactoryOf makes the Factory of the extension over a hub the caller made and keeps (the tests of two windows on loopback turn
+// Remote Work on and read the address from it).
+func FactoryOf(hub *Hub) extension.Factory {
 	return func() extension.Extension { return &remoteWork{hub: hub} }
 }
 
@@ -29,6 +32,9 @@ func NewFactory(opts HubOptions) extension.Factory {
 type remoteWork struct {
 	hub *Hub
 	api extension.API
+	ctx context.Context
+	// tabs are the window tabs this instance made (a scope of a window tab has one); the tests look at them.
+	tabs []*remoteTab
 }
 
 // Manifest implements extension.Extension.
@@ -44,13 +50,18 @@ func (*remoteWork) Manifest() extension.Manifest {
 				Description: "Opens the Remote Work page: turn it on for this workspace, set the port and the keys that may log in.",
 			}},
 			EditorKinds: []extension.EditorKindSpec{{ID: KindID, Name: "Remote Work", Icon: "remote"}},
+			// the window tab "Remote Work..." of the "+" menu: the machine that uses another one's workspace (step 15.4)
+			WindowTabKinds: []extension.WindowTabKindSpec{{ID: TabKindID, Title: "Remote Work", Icon: "remote", PlusMenuLabel: "Remote Work..."}},
 		},
 	}
 }
 
 // Activate implements extension.Extension. In a workspace it tells the hub the workspace is there, and provides the page.
 func (r *remoteWork) Activate(ctx context.Context, api extension.API) error {
-	r.api = api
+	r.api, r.ctx = api, ctx
+	if api.Scope().Kind == extension.ScopeWindowTab {
+		return r.activateTab()
+	}
 	if err := api.Editors().Provide(KindID, extension.EditorKind{Create: r.createPage}); err != nil {
 		return err
 	}
@@ -80,4 +91,12 @@ func (r *remoteWork) createPage(tab extension.EditorTab, _ json.RawMessage) (ext
 	tab.SetTitle("Remote Work")
 	p := newPage(r.hub, r.api, tab, filepath.Clean(r.api.Scope().Folder))
 	return extension.EditorTabContent{Build: p.build, OnClose: p.close}, nil
+}
+
+// activateTab provides the window tab "Remote Work..." in the scope of a tab, and in debug builds its dev command.
+func (r *remoteWork) activateTab() error {
+	if err := r.api.WindowTabs().Provide(TabKindID, extension.WindowTabKind{Create: r.createTab}); err != nil {
+		return err
+	}
+	return r.registerDev()
 }

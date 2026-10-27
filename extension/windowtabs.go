@@ -39,6 +39,11 @@ type WindowTab interface {
 	StateChanged()
 	// Refresh builds the widget of the tab again.
 	Refresh()
+	// CaptureKeys says that the content takes the keyboard: while it is true and the content has the keyboard focus, the
+	// shortcuts of the window tab do not act, except the ones that act on the window itself (switching, opening and closing
+	// the tabs, quitting, full screen), so every other key reaches the content as a key event. A tab that shows another
+	// computer's screen sets it; it is false when a tab opens.
+	CaptureKeys(capture bool)
 	// Close closes the tab, without asking: an extension keeps its data in the state it saves.
 	Close()
 }

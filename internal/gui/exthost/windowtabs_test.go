@@ -30,12 +30,14 @@ type fakeHost struct {
 	title, hint string
 	changed     int
 	closed      int
+	capture     bool
 }
 
 func (f *fakeHost) SetTitle(title string) { f.title = title }
 func (f *fakeHost) SetHint(hint string)   { f.hint = hint }
 func (f *fakeHost) StateChanged()         { f.changed++ }
 func (f *fakeHost) Close()                { f.closed++ }
+func (f *fakeHost) CaptureKeys(c bool)    { f.capture = c }
 
 // wtManifest declares the window tab kind wt.tab.
 func wtManifest() extension.Manifest {
@@ -198,10 +200,15 @@ func TestAWindowTabScopeHoldsItsOwnerOnlyAndMakesTheContentFromTheSavedState(t *
 	contents[0].tab.Refresh()
 	contents[0].tab.StateChanged()
 	contents[0].tab.SetTitle("Renamed")
+	contents[0].tab.CaptureKeys(true)
 	contents[0].tab.Close()
 	tb.pump()
-	if host.changed != 1 || host.closed != 1 || host.title != "Renamed" {
-		t.Errorf("the host heard: changed %d, closed %d, title %q", host.changed, host.closed, host.title)
+	if host.changed != 1 || host.closed != 1 || host.title != "Renamed" || !host.capture {
+		t.Errorf("the host heard: changed %d, closed %d, title %q, capture %v", host.changed, host.closed, host.title, host.capture)
+	}
+	contents[0].tab.CaptureKeys(false)
+	if host.capture {
+		t.Error("CaptureKeys(false) did not reach the host")
 	}
 }
 

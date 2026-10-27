@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/widgets"
@@ -8,6 +10,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/gui/exthost"
 )
 
 // physicalKeys names a key by its place on a US keyboard, as VS Code's `keyboard.dispatch:
@@ -202,6 +205,9 @@ func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode
 	if w.Dialogs != nil && w.Dialogs.IsShowing() {
 		return false
 	}
+	if w.capturesKey(chord) {
+		return false
+	}
 	// the settings are keys too, "config.<setting>" as in VS Code (menuContext)
 	var keys contextkey.Context = menuContext{base: w.Scopes.ScopeOf(focus, w.Keys), settings: w.Settings}
 	out := w.Dispatcher.Dispatch(keys, chord)
@@ -218,4 +224,47 @@ func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode
 		}
 	}
 	return out.Handled
+}
+
+// windowCommandPrefixes and windowCommands are the commands that act on the window itself, not on a workspace: the tabs of
+// the window (switching, opening, moving, closing), quitting and full screen. They are the shortcuts a window tab that
+// captures the keys keeps (SPEC §10.18 "As built (step 15.4)"), and the commands the registry of a headless view refuses.
+var (
+	windowCommandPrefixes = []string{"emetos.workspaceTab.", "emetos.windowTab."}
+	windowCommands        = map[string]bool{
+		"workbench.action.closeWindow": true, "workbench.action.newWindow": true, "workbench.action.quit": true,
+		"workbench.action.switchWindow": true, "workbench.action.toggleFullScreen": true,
+	}
+)
+
+// isWindowCommand tells whether a command acts on the window itself.
+func isWindowCommand(id string) bool {
+	if windowCommands[id] {
+		return true
+	}
+	for _, p := range windowCommandPrefixes {
+		if strings.HasPrefix(id, p) {
+			return true
+		}
+	}
+	return false
+}
+
+// capturesKey tells whether the key is left to the content of the window tab of an extension: the tab asked to capture the
+// keys, its content has the keyboard focus, and the key is not a shortcut of a command that acts on the window (and no chord
+// is pending, which the dispatcher finishes).
+func (w *Workspace) capturesKey(chord keybinding.Chord) bool {
+	if w.ext == nil || !w.ext.captureKeys || w.Keys.Get("focusedView") != exthost.WindowTabViewID || w.Dispatcher.InChordMode() {
+		return false
+	}
+	dispatch := chord.Dispatch()
+	if dispatch == "" {
+		return false // a modifier alone is the content's: it needs it for the chords it will press
+	}
+	for _, it := range w.Keybindings.Keybindings() {
+		if len(it.Chords) == 1 && it.Chords[0] == dispatch && isWindowCommand(it.Command) {
+			return false
+		}
+	}
+	return true
 }

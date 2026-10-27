@@ -12,8 +12,10 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
+	"github.com/rm4n0s/emetos/internal/core/notify"
 )
 
 // The headless view of a workspace (SPEC §10.18 "As built (step 15.1)"; extension.HeadlessView): a second workbench of the
@@ -33,6 +35,8 @@ type headlessView struct {
 
 	// ptr is the state of the pointer; UI thread only
 	ptr headlessPointer
+	// stopNotify stops the follow of the notifications of the workspace (OnNotification); UI thread only
+	stopNotify func()
 
 	// pictures hands the pictures to the goroutine that delivers them; it holds the latest only.
 	pictures chan *image.RGBA
@@ -264,6 +268,60 @@ func (v *headlessView) OnCopy(fn func(text string)) {
 	h.mu.Unlock()
 }
 
+// OnNotification implements extension.HeadlessView: the notifications that the workspace raises are handed to fn, and the view
+// makes no toast of them while it is set (the toasts of the view are in its pictures, and its client shows them its own way).
+func (v *headlessView) OnNotification(fn func(extension.ViewNotification)) {
+	v.onUI(func() {
+		if v.eng.closed {
+			return
+		}
+		if v.stopNotify != nil {
+			v.stopNotify()
+			v.stopNotify = nil
+		}
+		v.ws.Notifications.Mute(fn != nil)
+		if fn == nil {
+			return
+		}
+		v.stopNotify = v.ws.Notify.OnChange(func(e notify.Event) {
+			// a silent one goes to the center only, as in the window
+			if e.Kind != notify.Added || e.Item.Silent {
+				return
+			}
+			n := extension.ViewNotification{ID: e.Item.ID, Source: e.Item.Source, Message: e.Item.Message}
+			switch e.Item.Severity {
+			case notify.Warning:
+				n.Severity = extension.NotificationWarning
+			case notify.Error:
+				n.Severity = extension.NotificationError
+			}
+			for _, a := range e.Item.Actions {
+				n.Actions = append(n.Actions, a.Label)
+			}
+			v.onUI(func() {
+				if !v.eng.closed {
+					fn(n)
+				}
+			})
+		})
+	})
+}
+
+// RunNotificationAction implements extension.HeadlessView: the button is pressed as the toast's would be, in the workspace.
+func (v *headlessView) RunNotificationAction(id uint64, action int) {
+	v.onUI(func() {
+		if v.eng.closed {
+			return
+		}
+		ws := v.ws
+		ws.Notify.RunAction(id, action, func(cmd string, args any) error {
+			return ws.Commands.Run(command.Context{Ctx: ws.ctx, Keys: ws.Keys, Source: command.SourceAPI}, cmd, args)
+		})
+		v.eng.host.runPosted()
+		v.eng.wake()
+	})
+}
+
 // Done implements extension.HeadlessView: it is closed once the widgets of the view are gone and its documents released.
 func (v *headlessView) Done() <-chan struct{} { return v.done }
 
@@ -277,6 +335,10 @@ func (v *headlessView) Close() {
 		v.mu.Unlock()
 		close(v.quit)
 		v.onUI(func() {
+			if v.stopNotify != nil {
+				v.stopNotify()
+				v.stopNotify = nil
+			}
 			v.eng.close()
 			v.raster.reset()
 			v.cancel()
