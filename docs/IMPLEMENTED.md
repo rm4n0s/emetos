@@ -3166,3 +3166,38 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Proof:** the real-input tests above, which type with a virtual keyboard and read the document through `dev.editor`; the step asks for no image.
 - **Manual checks:** none
 - **Glutter issues:** none
+
+## Step 17b.4: The Glutter issues and the cost of an idle window
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-17b.4-glutter-idle
+- **Summary:** Glutter's bugs from the desktop test are written down with the fix Glutter should make. The crash of the gesture arena is avoided in Emetos, and Emetos's own share of what an idle window allocates is almost halved. What is left is Glutter's renderer.
+- **Gesture arena (crash):**
+  - *What triggers it:* every tap target is the lone member of an arena that a mouse moving away rejects. Slow frames batch the pointer events, and Linux gives the mouse pointer id 0, so the posted `resolveByDefault` takes a member of an old, empty arena and panics.
+  - *Workaround:* `fixGestureArena` (`internal/gui/app/arenafix.go`, `// Glutter:`) gives the binding an arena manager whose microtasks run before the next pointer event, as Flutter's do. It is installed at the window root and in each headless view.
+- **Idle cost:**
+  - **Emetos's share:** the cursors layer read the text of every visible row on every blink to find control characters. `controlCache` (`internal/gui/editor/display_paint.go`) now keeps them per row until the document changes.
+  - **Glutter's share:** 99% of what an idle frame allocates is Glutter's renderer, which flattens the whole scene every frame (new `GLUTTER-ISSUES.md` entry). It is garbage, not a leak: the live heap stays flat.
+
+  | Case | Before | After |
+  |---|---|---|
+  | Emetos's share, per blink frame, 10,000-line Go file (headless) | 17.0 KB, 283 allocations | 10.5 KB, 132 allocations |
+  | Same, with the Markdown preview | 24.3 KB | 13.1 KB |
+  | Whole frame, Go file | 1.94 MB | 1.87 MB |
+  | Whole frame, preview | 8.4 MB | 8.5 MB |
+- **Main files:** `internal/gui/app/arenafix.go` (new), `tray.go`, `headless.go`, `internal/gui/editor/display_paint.go`, `overlay.go`, `docs/GLUTTER-ISSUES.md`, `docs/PERFORMANCE.md` ("Idle allocation"), `docs/SPEC.md` (§14 "As built (step 17b.4)").
+- **Tests:**
+  - `TestGestureArenaSurvivesPointerIDReuseInOneTurn` (Glutter alone panics with `index out of range [0] with length 0`);
+  - `TestTheArenaIsFixedInTheApplicationAndInTheView` (fails if either call is removed);
+  - `controlcache_test.go` (an unchanged frame allocates nothing);
+  - `TestIdleBlinkFrameAllocationStaysInBudget`: 10,000-line Go file, budget 6 KB and 120 allocations per blink frame. It measured 8.0 KB and 147 allocations before the fix, 4.6 KB and 92 after.
+- **Goldens:** none changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also `emetos_display`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `scripts/realinput.sh` ✅ (my full run, exit 0; the agent's two runs had timing failures while the machine was at load 50, each passing alone).
+- **Proof:** the tests above; the step asks for no image.
+- **Manual checks:** none
+- **Glutter issues:**
+  - completed: the renderer draws shapes outside the clip and hashes every path every frame;
+  - new:
+    - the gesture arena resolves on the next loop turn, and the mouse always has pointer id 0;
+    - the keyboard logs `no_keymap` at error level;
+    - the renderers flatten the whole scene every frame.

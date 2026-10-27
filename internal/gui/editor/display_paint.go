@@ -183,11 +183,11 @@ func (v overlayView) paintControlCharacters() {
 	if !vm.Options().RenderControlCharacters {
 		return
 	}
-	for row := v.first; row <= v.last; row++ {
-		text, start := v.geo.rowText(row)
-		for _, m := range controlMarks(text) {
-			left := v.origin.Dx + v.geo.x(row, start+m.Col)
-			right := v.origin.Dx + v.geo.x(row, start+m.Col+m.Len)
+	for i, r := range v.controls.update(v.geo, v.first, v.last) {
+		row := v.first + i
+		for _, m := range r.marks {
+			left := v.origin.Dx + v.geo.x(row, r.start+m.Col)
+			right := v.origin.Dx + v.geo.x(row, r.start+m.Col+m.Len)
 			if right-left < minControlWidth {
 				right = left + minControlWidth
 			}
@@ -206,4 +206,44 @@ func (v overlayView) paintControlCharacters() {
 			v.canvas.Restore()
 		}
 	}
+}
+
+// controlRow is the control characters of a row the cache has seen: the line, the byte columns of the line that the row
+// shows (RowSpan), the byte column its shown text starts at, and the marks in it.
+type controlRow struct {
+	line, from, to int
+	start          int
+	marks          []ctrlMark
+}
+
+// controlCache keeps the control characters of the rows that the layer drew last, so that the blink of the cursor (a
+// frame every half second, which repaints the layer above the text) does not read the text of every visible row and scan
+// it again: that was 57 allocations and 3.4 KB a frame in a 10,000-line file (step 17b.4). A row is read again when the
+// document changed, when editor.stopRenderingLineAfter changed, or when the row shows other text (a scroll, a fold, a
+// change of the wrapping). The two slices are swapped, so that a frame that changes nothing allocates nothing.
+type controlCache struct {
+	version, stopAfter int
+	first              int
+	rows, spare        []controlRow
+}
+
+// update gives the control characters of the rows first to last, in order.
+func (c *controlCache) update(geo geometry, first, last int) []controlRow {
+	version, stopAfter := geo.vm.Document().Version(), geo.vm.opts.StopRenderingLineAfter
+	same := c.version == version && c.stopAfter == stopAfter
+	next := c.spare[:0]
+	for row := first; row <= last; row++ {
+		line, from, to := geo.proj.RowSpan(row)
+		if j := row - c.first; same && j >= 0 && j < len(c.rows) {
+			if old := c.rows[j]; old.line == line && old.from == from && old.to == to {
+				next = append(next, old)
+				continue
+			}
+		}
+		text, start := geo.rowText(row)
+		next = append(next, controlRow{line: line, from: from, to: to, start: start, marks: controlMarks(text)})
+	}
+	c.spare = c.rows[:0]
+	c.rows, c.first, c.version, c.stopAfter = next, first, version, stopAfter
+	return next
 }

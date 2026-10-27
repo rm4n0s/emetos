@@ -104,6 +104,9 @@ type RenderEditorOverlay struct {
 	selHandle    foundation.ListenerHandle
 	blinkHandle  foundation.ListenerHandle
 	attached     bool
+
+	// controls is what the layer above the text knows of the control characters of its rows (display_paint.go).
+	controls controlCache
 }
 
 // NewRenderEditorOverlay makes the layer of a kind for a view model.
@@ -126,6 +129,9 @@ func (r *RenderEditorOverlay) Update(vm *ViewModel, offset rendering.ViewportOff
 			r.offset = offset
 			r.offsetHandle = offset.AddListener(r.MarkNeedsPaint)
 		}
+	}
+	if vm != r.vm {
+		r.controls = controlCache{} // another document: the versions mean nothing
 	}
 	r.vm, r.offset, r.factory = vm, offset, factory
 	if !reflect.DeepEqual(colors, r.colors) {
@@ -215,6 +221,7 @@ func (r *RenderEditorOverlay) Paint(context *rendering.PaintingContext, offset u
 		canvas: canvas, geo: newGeometry(r.vm, r.factory), colors: r.colors, factory: r.factory,
 		origin: ui.Offset{Dx: offset.Dx - r.vm.ScrollLeft(), Dy: offset.Dy - top}, width: size.Width,
 		first: first, last: last, bounds: ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height),
+		controls: &r.controls,
 	}
 	if r.kind == overlayUnder {
 		view.paintBackgroundMarks()
@@ -254,6 +261,8 @@ type overlayView struct {
 	first, last int
 	// bounds is the layer on the canvas.
 	bounds ui.Rect
+	// controls is the layer's cache of control characters.
+	controls *controlCache
 }
 
 func fill(c ui.Color) *ui.Paint {

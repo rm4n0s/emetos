@@ -131,6 +131,7 @@ type viewSetupState struct{ widgets.StateOf[*viewSetup] }
 
 // InitState implements widgets.State.
 func (s *viewSetupState) InitState() {
+	fixGestureArena(widgets.WidgetsBindingOf(s.Context()))
 	s.Widget().configure(widgets.WidgetsBindingOf(s.Context()).PlatformDispatcher())
 }
 
