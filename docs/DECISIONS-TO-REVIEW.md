@@ -211,3 +211,9 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 88. **A slow client loses events, not the host's time.** Each client has a queue of 1,024 events or 8 MiB; when it is full, new events are dropped and counted, and one `emetos.relay.dropped {count}` event stands for the run. A client that takes nothing for 60 s is disconnected (`stalled`). Replies are never dropped. Event values over 1 MiB are sent as `truncated`, with their size.
 89. **Workspace IDs given to clients are random and change each time a workspace is shared again.** A workspace that is not granted, not shared or does not exist gives the same error, so a client cannot probe which ones exist.
 90. **`EMETOS_DEV_RELAY_BIND`** (read only by debug and `emetos_dev` builds) binds the listener to one address. The proof uses it to listen on 127.0.0.1 only. Release builds listen on every interface, as Remote Work does.
+
+## 2026-10-27: step 16.3 (the Relay client; decided by the agent and accepted by me)
+
+91. **A client's saved hosts and Send history are the Relay tab's own state**, and `relay-hosts.json` holds only the pinned host keys (the SPEC text said the hosts were in that file too; corrected). Removing a host keeps its pin. Restored hosts start disconnected.
+92. **The Events panel shows only the requests this client makes**, because the event bus does not forward other clients' requests. Pause holds new rows (bounded) instead of dropping them.
+93. **`loginui` moved to `extensions/internal/loginui`** and the key choice of the connect forms to `extensions/internal/keyform`, shared by Remote Work and Relay (one extension may not import another).

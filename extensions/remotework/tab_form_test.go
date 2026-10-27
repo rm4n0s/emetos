@@ -100,7 +100,7 @@ func TestTheKeyFileCanBeChosenWithTheDialogOfTheDesktop(t *testing.T) {
 	r.settle()
 	r.b.AnswerFileChooser(r.file, nil)
 	r.ts.Tap(gluttertest.ByText("Choose..."))
-	r.until("the key file", func() bool { return r.tr.form.keyFile.Value() == r.file })
+	r.until("the key file", func() bool { return r.tr.form.keys.KeyFile.Value() == r.file })
 	if calls := r.b.FileChooserCalls(); len(calls) != 1 || calls[0].Options.Title == "" {
 		t.Errorf("chooser calls = %+v", calls)
 	}
@@ -115,15 +115,15 @@ func TestTheAgentCanBeChosenAndItsKeysAreListed(t *testing.T) {
 	r.tr = nil
 	st := r.connectState()
 	r.open(uitest.Themes()[0], tabState{Host: st.Host, Port: st.Port, Key: keyAgent})
-	r.until("the keys of the agent", func() bool { return !r.tr.form.agentLoading && len(r.tr.form.agent) == 2 })
-	if r.tr.form.agent[0].Fingerprint != other.fingerprint() || r.tr.form.agent[1].Fingerprint != r.key.fingerprint() {
-		t.Errorf("the agent's keys = %+v", r.tr.form.agent)
+	r.until("the keys of the agent", func() bool { return !r.tr.form.keys.AgentLoading && len(r.tr.form.keys.Agent) == 2 })
+	if r.tr.form.keys.Agent[0].Fingerprint != other.fingerprint() || r.tr.form.keys.Agent[1].Fingerprint != r.key.fingerprint() {
+		t.Errorf("the agent's keys = %+v", r.tr.form.keys.Agent)
 	}
 	if !r.has("Any key of the agent") {
 		t.Error("the choice of the agent's key is not on screen")
 	}
 	// pick the listed key; the choice is the state the tab saves
-	r.tr.form.fingerprint = r.key.fingerprint()
+	r.tr.form.keys.Fingerprint = r.key.fingerprint()
 	r.tr.stateChanged()
 	r.tr.connect()
 	r.until("the connection through the agent", func() bool { return r.tr.phase == phaseConnected })
@@ -134,9 +134,9 @@ func TestTheAgentCanBeChosenAndItsKeysAreListed(t *testing.T) {
 	// with no agent behind the socket the dialog says so
 	r2 := newTabRig(t, true)
 	r2.open(uitest.Themes()[0], tabState{Host: "h", Port: DefaultPort, Key: keyAgent})
-	r2.until("the note", func() bool { return r2.tr.form.agentNote != "" })
+	r2.until("the note", func() bool { return r2.tr.form.keys.AgentNote != "" })
 	if !r2.has("no ssh-agent") && !r2.has("There is no ssh-agent") {
-		t.Errorf("the dialog does not say there is no agent (note %q)", r2.tr.form.agentNote)
+		t.Errorf("the dialog does not say there is no agent (note %q)", r2.tr.form.keys.AgentNote)
 	}
 }
 
@@ -197,7 +197,7 @@ func TestGoldensOfTheTab(t *testing.T) {
 			socket := fakeAgent(t, seededKey(t, 5))
 			r.hub.opts.Tab.AgentSocket = func() string { return socket }
 			r.open(th, tabState{Host: "laptop.local", Port: DefaultPort, Key: keyAgent})
-			r.until("the keys", func() bool { return !r.tr.form.agentLoading && len(r.tr.form.agent) == 1 })
+			r.until("the keys", func() bool { return !r.tr.form.keys.AgentLoading && len(r.tr.form.keys.Agent) == 1 })
 			uitest.MatchesGolden(r.ts, "tab_form_agent_"+th.Name)
 		})
 		t.Run("connecting "+th.Name, func(t *testing.T) {

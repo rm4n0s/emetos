@@ -2850,3 +2850,79 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - the request timeout is 10 s by default and 60 s at most.
 
   16.3 builds the Hosts section, the Events and Send panels, and `relay-hosts.json`.
+
+## 16.3 The Relay client
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-16.3-relay-client
+- **Summary:** SPEC §10.19 "The tab".
+  - **Hosts section** of the Relay tab:
+    - **Add Host:** address, port 47124, an optional name, a key file or the SSH agent, and Show My Public Key as QR Code.
+    - **Saved hosts:** each shows its state (disconnected, connecting, connected with its permission, connection lost with the attempt, ended with a reason), with Connect, Disconnect and Remove. A connected host lists its workspaces.
+    - **Several hosts at once**, one goroutine each.
+    - **Host key pinning** in `relay-hosts.json`: first use asks, and a changed key is refused, with "Forget the Old Key".
+    - **Reconnection:** 1 s doubling to 30 s after a drop. Host decisions and refused keys are not retried. An unlocked key file is kept in memory only, until Disconnect.
+  - **Events panel:**
+    - a virtualized reverse `ListView`, with JSON built only when a row is expanded;
+    - batches with their count, and the host's dropped markers;
+    - this client's requests with reply or error and duration;
+    - a filter (text or `*` pattern), Pause (holds rows) and Clear;
+    - a cap of 10,000 rows, 16 MiB, and 4 KiB per value;
+    - events reach the UI thread in drains (one timer and one `Post`).
+  - **Send panel** (hidden for Watch only):
+    - a topic and JSON value with Publish and Request;
+    - Run Command, with the host's commands from `emetos.commands.list` (refused ones dimmed) and JSON arguments;
+    - the reply or the error with its tag;
+    - a history of 50 items, none over 8 KiB, kept in the tab state.
+  - **Saved state:** hosts, selection (host and workspace name) and history; never a passphrase (tested).
+  - **Shared code:** `extensions/internal/loginui` (moved from Remote Work, with Relay's wording) and `extensions/internal/keyform` (the key choice of both connect forms; Remote Work's goldens are pixel-identical).
+  - **Fix in the 16.2 host:** a lock-order deadlock (`Hub.forward` held the hub lock while asking sessions; `Session.applyGrants` held a session lock while asking the hub).
+    - Found when this step's race run hung; the goroutine dump showed the cycle.
+    - Both sides now copy what they need and release the first lock before taking the second, and the lock order is documented on `Hub`.
+    - Regression test `TestForwardingAndGrantChangesRunTogetherWithoutDeadlock`: it hung on the old code and passes with `-race -count=20`.
+  - **Fix in the 16.2 tab:** it disposed its input boxes off the UI thread on close (a data race); it now does so in `OnClose`.
+  - **New error tags:** 7, all route-tested.
+- **Tests:**
+  - **Tab** (fake API, real hosts on loopback behind a proxy that can drop the link):
+    - first use, a refused first use, a changed key and Forget;
+    - events, filter, Pause, Clear, the 10,000 cap, expanding a row, a burst of 5,000 events as one drain, the dropped marker;
+    - Send, Run Command, the history bound;
+    - Watch only has no Send panel;
+    - reconnection, the passphrase asked once and never saved, the agent, several hosts, the end reasons, Remove;
+    - closing the tab with a goroutine leak check;
+    - state save and restore.
+  - **End to end** with two real windows (`internal/gui/app/relayclient_test.go`):
+    - `emetos.document.changed` arrives while the host edits;
+    - `files.list`, document open, read and edit, a stale version refused, save;
+    - an extension's command and topic;
+    - refusals outside the workspace;
+    - Watch only;
+    - reconnection, two hosts, pinning.
+
+  The agent ran the new tests and touched packages with `-race -count=3` before its later fixes, and `extensions/relay` with `-race -count=10` after them; they passed.
+- **Goldens:**
+  - new: `client_{events,send,watchonly,hosts}_{dark,light}`;
+  - changed: the six 16.2 `tab_*`, which gain the Hosts section above Be a Host;
+  - viewed: I viewed `client_events_light` and the proof; the agent viewed all.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude` and `emetos_camera`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · the deadlock test `-race -count=10` ✅ · `FuzzDecode` (Relay protocol) 30 s ✅ · display tests none.
+  - The agent's first two full race runs failed: the archtest import rule and the tab-close race, then the deadlock. Both were fixed.
+- **Proof:** `docs/implemented-proof-images/16.3-relay-client.png`, made with:
+  ```
+  scripts/proof-relay-client.sh docs/implemented-proof-images/16.3-relay-client.png
+  ```
+  Two isolated instances on loopback. The host listens on 127.0.0.1 only. Keys are made at run time in a temp folder that is removed, and the host key is pre-pinned in the client's isolated `relay-hosts.json` (tests cover the first-use dialog).
+
+  The client's Relay tab shows:
+  - "Office laptop" connected, with `notes` (watch only) and `server` (watch and send);
+  - the Events panel with the host's `emetos.document.changed` and the client's requests;
+  - the Send panel with the `emetos.files.list` reply.
+
+  ![16.3 relay client](implemented-proof-images/16.3-relay-client.png)
+- **Manual checks:** none
+- **Glutter issues:** new in `docs/GLUTTER-ISSUES.md`: a reverse `ListView` does not keep the reader's place when items are added at its start. The workaround is `keepPlace` in `extensions/relay/clienttab.go`.
+- **Deviations and follow-ups:** SPEC §10.19 "As built (step 16.3)" (DECISIONS-TO-REVIEW 91–93). Also:
+  - the same `host:port` twice is refused, and a tab holds at most 64 hosts;
+  - selecting another workspace starts a new log;
+  - a refused command is not sent by the client.
+
+  Not built: copying a value, searching inside an expanded value, keeping a log per workspace. M16 is complete with this step.

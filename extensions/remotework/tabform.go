@@ -2,7 +2,6 @@ package remotework
 
 import (
 	"context"
-	"os"
 	"strconv"
 	"strings"
 
@@ -11,61 +10,37 @@ import (
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/widgets"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
+	"github.com/rm4n0s/emetos/extensions/internal/keyform"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr/qrui"
 	"github.com/rm4n0s/emetos/extensions/internal/pageui"
-	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 )
-
-// agentKey is a key of the ssh-agent the form offers.
-type agentKey struct {
-	// Fingerprint is its SHA256:... fingerprint and Label what the form shows ("ssh-ed25519  SHA256:...").
-	Fingerprint, Label string
-	// Line is the public key as an authorized_keys line (the agent tells no comment), which Show My Public Key as QR Code draws.
-	Line string
-}
 
 // tabForm is the connect dialog: the host, the port, and the key (a file, or one of the keys of the ssh-agent). Its boxes keep
 // what the user typed when the tab is shown again, and the state of the tab is what they hold.
 type tabForm struct {
 	t *remoteTab
 
-	host, port, keyFile *ui.InputBoxController
-	// source is keyFile or keyAgent.
-	source string
-	// fingerprint is the agent key chosen; empty offers every key of the agent.
-	fingerprint string
-
-	// agent are the keys of the ssh-agent, listed when the form is shown with the agent chosen and when it is chosen; agentNote says
-	// why there are none, and agentLoading that the list is being read.
-	agent        []agentKey
-	agentNote    string
-	agentLoading bool
-	agentStop    context.CancelFunc
+	host, port *ui.InputBoxController
+	// keys is the choice of the key, shared with Relay (extensions/internal/keyform).
+	keys *keyform.Form
 }
 
 func newTabForm(t *remoteTab, st tabState) *tabForm {
-	f := &tabForm{
-		t: t, source: st.Key, fingerprint: st.Fingerprint,
-		host: ui.NewInputBoxController(st.Host), port: ui.NewInputBoxController(strconv.Itoa(st.Port)), keyFile: ui.NewInputBoxController(st.KeyFile),
-	}
-	if f.source == keyAgent {
-		f.listAgent()
-	}
+	f := &tabForm{t: t, host: ui.NewInputBoxController(st.Host), port: ui.NewInputBoxController(strconv.Itoa(st.Port))}
+	f.keys = keyform.New(keyform.Env{
+		Spawn: t.spawn, Post: t.api.Post, Refresh: func() { t.tab.Refresh() }, AgentSocket: t.opts.agentSocket, Changed: t.stateChanged,
+	}, st.Key, st.KeyFile, st.Fingerprint)
 	return f
 }
 
 // dispose lets go of the boxes and stops the read of the agent.
 func (f *tabForm) dispose() {
-	if f.agentStop != nil {
-		f.agentStop()
-	}
+	f.keys.Dispose()
 	f.host.Dispose()
 	f.port.Dispose()
-	f.keyFile.Dispose()
 }
 
 // state is the form as the user filled it.
@@ -74,7 +49,7 @@ func (f *tabForm) state() tabState {
 	if err != nil {
 		port = 0 // checked when the user presses Connect; a state with a port of 0 comes back as the default
 	}
-	return tabState{Host: strings.TrimSpace(f.host.Value()), Port: port, Key: f.source, KeyFile: strings.TrimSpace(f.keyFile.Value()), Fingerprint: f.fingerprint}
+	return tabState{Host: strings.TrimSpace(f.host.Value()), Port: port, Key: f.keys.Source, KeyFile: f.keys.Path(), Fingerprint: f.keys.Fingerprint}
 }
 
 // address is host:port as typed, for the messages.
@@ -90,46 +65,7 @@ func (f *tabForm) address() string {
 func (f *tabForm) set(st tabState) {
 	f.host.SetValue(st.Host)
 	f.port.SetValue(strconv.Itoa(st.Port))
-	f.keyFile.SetValue(st.KeyFile)
-	f.source, f.fingerprint = st.Key, st.Fingerprint
-	if f.source == keyAgent {
-		f.listAgent()
-	}
-}
-
-// listAgent reads the keys of the ssh-agent off the UI thread.
-func (f *tabForm) listAgent() {
-	if f.agentStop != nil {
-		f.agentStop()
-	}
-	t := f.t
-	ctx, cancel := context.WithCancel(context.Background())
-	f.agentStop = cancel
-	f.agentLoading, f.agentNote = true, ""
-	socket := t.opts.agentSocket()
-	if !t.spawn(func() {
-		keys, err := sshlogin.AgentKeys(ctx, socket)
-		if ctx.Err() != nil {
-			return
-		}
-		t.api.Post(func() {
-			f.agentLoading = false
-			f.agent = f.agent[:0]
-			switch {
-			case err != nil:
-				f.agentNote = describeError("the ssh-agent", err).title
-			case len(keys) == 0:
-				f.agentNote = "The ssh-agent has no key. Add one with ssh-add."
-			}
-			for _, k := range keys {
-				f.agent = append(f.agent, agentKey{Fingerprint: ssh.FingerprintSHA256(k), Label: k.Type() + "  " + ssh.FingerprintSHA256(k), Line: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(k)))})
-			}
-			t.tab.Refresh()
-		})
-	}) {
-		cancel()
-		f.agentLoading = false
-	}
+	f.keys.Set(st.Key, st.KeyFile, st.Fingerprint)
 }
 
 // formView is the connect dialog.
@@ -156,28 +92,8 @@ func (t *remoteTab) formView(bc widgets.BuildContext, colors ui.Colors) widgets.
 			field("Port", f.port, 110, strconv.Itoa(DefaultPort)),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart}),
 		gap(16),
-		widgets.NewText("Key", widgets.TextOpts{Style: label}), gap(4),
-		ui.NewDropdown([]ui.DropdownOption{{Label: "Private key file"}, {Label: "SSH agent"}}, ui.DropdownOpts{
-			Selected: map[string]int{keyFile: 0, keyAgent: 1}[f.source], Disabled: connecting, Width: foundation.Some(220.0),
-			OnChanged: func(i int) {
-				f.source = []string{keyFile, keyAgent}[i]
-				if f.source == keyAgent {
-					f.listAgent()
-				}
-				t.stateChanged()
-				t.tab.Refresh()
-			},
-		}),
-		gap(8),
 	}
-	if f.source == keyAgent {
-		items = append(items, f.agentRow(bc, colors, connecting))
-	} else {
-		items = append(items, widgets.NewRow([]widgets.Widget{
-			widgets.NewExpanded(ui.NewInputBox(nil, nil, ui.InputBoxOpts{Controller: f.keyFile, Disabled: connecting, Placeholder: "/path/to/id_ed25519", OnSubmit: submit, OnChanged: func(string) { t.stateChanged() }})),
-			hgap(8), ui.NewButton("Choose...", ui.ButtonOpts{Secondary: true, Disabled: connecting, OnPressed: t.chooseKeyFile}),
-		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))
-	}
+	items = append(items, f.keys.Rows(bc, colors, keyform.RowOptions{Disabled: connecting, Submit: submit, Choose: t.chooseKeyFile})...)
 	items = append(items, gap(8), widgets.NewText("The private key never leaves this computer, and a passphrase is asked for when it is needed and is not kept.", widgets.TextOpts{Style: dim}))
 	if qr := t.keyQRSlot(bc); qr != nil {
 		items = append(items, gap(10), qr)
@@ -200,12 +116,8 @@ func (t *remoteTab) formView(bc widgets.BuildContext, colors ui.Colors) widgets.
 
 // keyQRSlot is the Show My Public Key as QR Code button under the choice of the key, with what it is for.
 func (t *remoteTab) keyQRSlot(bc widgets.BuildContext) widgets.Widget {
-	colors := ui.Theme(bc)
 	busy := t.phase == phaseConnecting || t.phase == phasePicker
-	return widgets.NewRow([]widgets.Widget{
-		ui.NewButton("Show My Public Key as QR Code", ui.ButtonOpts{Secondary: true, Disabled: busy, OnPressed: t.showMyKey}), hgap(10),
-		widgets.NewExpanded(widgets.NewText("to scan with the Scan QR Code of the other computer, where it is added to the keys that may log in", widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.DescriptionForeground)})),
-	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+	return keyform.QRSlot(bc, t.showMyKey, busy)
 }
 
 // showMyKey shows the public half of the key that is chosen as a QR code: the .pub file next to the key file, or the public key read
@@ -213,9 +125,9 @@ func (t *remoteTab) keyQRSlot(bc widgets.BuildContext) widgets.Widget {
 // passphrase it needs), or the key of the ssh-agent that is chosen. The private key is never drawn, kept or sent: only the public
 // key is given to the dialog, which refuses anything else.
 func (t *remoteTab) showMyKey() {
-	f := t.form
-	if f.source == keyAgent {
-		line, problem := f.agentLine()
+	f := t.form.keys
+	if f.Source == keyform.Agent {
+		line, problem := f.AgentLine()
 		if problem != "" {
 			t.note = pageui.Bad(problem)
 			t.tab.Refresh()
@@ -224,14 +136,14 @@ func (t *remoteTab) showMyKey() {
 		t.showQR(line)
 		return
 	}
-	path := strings.TrimSpace(f.keyFile.Value())
+	path := f.Path()
 	if path == "" {
 		t.note = pageui.Bad("Choose the private key file first: its public key is what is shown.")
 		t.tab.Refresh()
 		return
 	}
 	t.spawn(func() {
-		line, err := publicLineOfKeyFile(path, t.prompter.Passphrase(path))
+		line, err := keyform.PublicLineOfKeyFile(path, t.prompter.Passphrase(path))
 		t.api.Post(func() {
 			if err != nil {
 				t.failForm(err)
@@ -253,79 +165,6 @@ func (t *remoteTab) showQR(line string) {
 	t.tab.Refresh()
 }
 
-// publicLineOfKeyFile is the line of the public key of a private key file: the .pub file beside it when there is one, else the public
-// key read from the key file. The .pub file is the user's own record of the key, with its comment. It fails with the tags of
-// sshlogin.ReadPublicKeyFile for a .pub file that cannot be used, and of sshlogin.PublicKeyOfKeyFile for the key file.
-func publicLineOfKeyFile(path string, ask sshlogin.PassphraseFunc) (string, error) {
-	line, err := sshlogin.ReadPublicKeyFile(path + ".pub")
-	if err == nil {
-		return line, nil
-	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-	pub, err := sshlogin.PublicKeyOfKeyFile(path, ask)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pub))), nil
-}
-
-// agentLine is the line of the key of the ssh-agent the form has chosen, or what is in the way: the keys are being read, the agent
-// has none, or it has several and none is chosen.
-func (f *tabForm) agentLine() (line, problem string) {
-	switch {
-	case f.agentLoading:
-		return "", "The keys of the ssh-agent are still being read."
-	case len(f.agent) == 0:
-		if f.agentNote != "" {
-			return "", f.agentNote
-		}
-		return "", "The ssh-agent has no key. Add one with ssh-add."
-	case f.fingerprint != "":
-		for _, k := range f.agent {
-			if k.Fingerprint == f.fingerprint {
-				return k.Line, ""
-			}
-		}
-		return "", "That key is not in the ssh-agent any more."
-	case len(f.agent) == 1:
-		return f.agent[0].Line, ""
-	}
-	return "", "The ssh-agent has several keys: choose the one to show."
-}
-
-// agentRow is the choice among the keys of the ssh-agent.
-func (f *tabForm) agentRow(bc widgets.BuildContext, colors ui.Colors, disabled bool) widgets.Widget {
-	dim := ui.TextStyle(bc, bodySize, colors.DescriptionForeground)
-	options := []ui.DropdownOption{{Label: "Any key of the agent"}}
-	selected := 0
-	for i, k := range f.agent {
-		options = append(options, ui.DropdownOption{Label: k.Label})
-		if k.Fingerprint == f.fingerprint {
-			selected = i + 1
-		}
-	}
-	rows := []widgets.Widget{ui.NewDropdown(options, ui.DropdownOpts{
-		Selected: selected, Disabled: disabled || f.agentLoading || len(f.agent) == 0 && f.agentNote != "", Width: foundation.Some(520.0),
-		OnChanged: func(i int) {
-			f.fingerprint = ""
-			if i > 0 {
-				f.fingerprint = f.agent[i-1].Fingerprint
-			}
-			f.t.stateChanged()
-			f.t.tab.Refresh()
-		},
-	})}
-	switch {
-	case f.agentLoading:
-		rows = append(rows, gap(6), widgets.NewText("Reading the keys of the ssh-agent...", widgets.TextOpts{Style: dim}))
-	case f.agentNote != "":
-		rows = append(rows, gap(6), widgets.NewText(f.agentNote, widgets.TextOpts{Style: ui.TextStyle(bc, bodySize, colors.ErrorForeground)}))
-	}
-	return widgets.NewColumn(rows, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart})
-}
-
 // chooseKeyFile asks for the private key file with the dialog of the desktop.
 func (t *remoteTab) chooseKeyFile() {
 	t.spawn(func() {
@@ -335,7 +174,7 @@ func (t *remoteTab) chooseKeyFile() {
 			case err != nil:
 				t.note = pageui.Bad(err.Error())
 			case path != "":
-				t.form.keyFile.SetValue(path)
+				t.form.keys.KeyFile.SetValue(path)
 				t.note = note{}
 				t.stateChanged()
 			}

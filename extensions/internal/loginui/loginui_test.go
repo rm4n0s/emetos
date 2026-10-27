@@ -301,3 +301,45 @@ func wantRoute(t *testing.T, err error, route string) {
 		t.Errorf("route = %s, want %s", appErr.Route(), route)
 	}
 }
+
+func TestTheWordingNamesTheProduct(t *testing.T) {
+	relay := Wording{Product: "Relay", Where: "the Be a Host section of the Relay tab"}
+	for _, tc := range []struct {
+		name         string
+		words        *Wording
+		first, moved string
+	}{
+		{"remote work by default", nil, "Open the Remote Work page on that computer", "or Remote Work was set up again there"},
+		{"relay", &relay, "Open the Be a Host section of the Relay tab on that computer", "or Relay was set up again there"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newScreen(t, uitest.Themes()[0])
+			if tc.words != nil {
+				s.pr.SetWording(*tc.words)
+			}
+			go func() {
+				_, _ = s.pr.ConfirmHost()(context.Background(), sshlogin.FirstUse{Address: "h:1", Fingerprint: "SHA256:x"})
+			}()
+			s.waitFor("the question", s.pr.Showing)
+			s.pump()
+			if !s.has(tc.first) {
+				t.Errorf("the first-use question does not say %q", tc.first)
+			}
+			s.pr.Close()
+			s2 := newScreen(t, uitest.Themes()[0])
+			if tc.words != nil {
+				s2.pr.SetWording(*tc.words)
+			}
+			err := errors.New("SSHLoginHostKeyChanged", "changed", "address", "h:1", "pinned", "SHA256:OLD", "presented", "SHA256:NEW")
+			s2.ts.Pump()
+			if !s2.pr.ShowChanged(err, func(ChangedHost) {}) {
+				t.Fatal("no warning shown")
+			}
+			s2.pump()
+			if !s2.has(tc.moved) {
+				t.Errorf("the warning does not say %q", tc.moved)
+			}
+			s2.pr.Close()
+		})
+	}
+}

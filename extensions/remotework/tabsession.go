@@ -8,10 +8,10 @@ import (
 	"github.com/rm4n0s/glutter/services"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/loginui"
 	"github.com/rm4n0s/emetos/extensions/internal/pageui"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
-	"github.com/rm4n0s/emetos/extensions/remotework/loginui"
 	"github.com/rm4n0s/emetos/extensions/remotework/protocol"
 	"github.com/rm4n0s/emetos/extensions/remotework/transport"
 )

@@ -20,7 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr/qrui"
-	"github.com/rm4n0s/emetos/extensions/remotework/loginui"
+	"github.com/rm4n0s/emetos/extensions/internal/loginui"
 	"github.com/rm4n0s/emetos/extensions/remotework/protocol"
 	"github.com/rm4n0s/emetos/extensions/remotework/transport"
 )

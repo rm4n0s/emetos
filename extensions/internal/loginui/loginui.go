@@ -23,10 +23,38 @@ import (
 type Prompter struct {
 	post    func(func())
 	refresh func()
+	words   Wording
 
 	mu      sync.Mutex
 	current *question
 	closed  bool
+}
+
+// Wording is how the dialogs name the product they ask for, so that the same dialogs serve Remote Work and Relay.
+type Wording struct {
+	// Product is the name of the feature the other computer set up ("Remote Work", "Relay"), and Where the place on that computer
+	// that shows its host key fingerprint ("the Remote Work page", "the Be a Host section of the Relay tab").
+	Product, Where string
+}
+
+// RemoteWorkWording is the wording of a Prompter that has none set.
+var RemoteWorkWording = Wording{Product: "Remote Work", Where: "the Remote Work page"}
+
+// SetWording sets how the dialogs name the product; a Prompter says Remote Work until then. Call it before the first question.
+func (p *Prompter) SetWording(w Wording) {
+	p.mu.Lock()
+	p.words = w
+	p.mu.Unlock()
+}
+
+// wording is the wording in force.
+func (p *Prompter) wording() Wording {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.words.Product == "" {
+		return RemoteWorkWording
+	}
+	return p.words
 }
 
 // question is the dialog that is showing.
@@ -208,15 +236,16 @@ func passphraseCard(bc widgets.BuildContext, keyFile string, attempt int, box *u
 // ---- a host that is met for the first time ----
 
 // ConfirmHost returns the ConfirmHostFunc: it shows the fingerprint of the host and asks whether to trust it, and the answer is
-// true only when the user presses Trust. The question says to compare the fingerprint with the one the Remote Work page shows on
-// the other computer.
+// true only when the user presses Trust. The question says to compare the fingerprint with the one the other computer shows (on the
+// Remote Work page, or as the wording says).
 func (p *Prompter) ConfirmHost() sshlogin.ConfirmHostFunc {
 	return func(ctx context.Context, host sshlogin.FirstUse) (bool, error) {
+		words := p.wording()
 		return p.ask(ctx, func(reply func(bool)) *question {
 			return &question{
 				cancel: func() { reply(false) },
 				build: func(bc widgets.BuildContext, done func()) widgets.Widget {
-					return FirstUseCard(bc, host, func() { reply(true) }, func() { reply(false) })
+					return FirstUseCardWith(bc, host, words, func() { reply(true) }, func() { reply(false) })
 				},
 			}
 		})
@@ -226,11 +255,16 @@ func (p *Prompter) ConfirmHost() sshlogin.ConfirmHostFunc {
 // FirstUseCard is the dialog of a host that is met for the first time: its address and fingerprint, and the instruction to
 // compare it with the one on the page of the other computer.
 func FirstUseCard(bc widgets.BuildContext, host sshlogin.FirstUse, trust, cancel func()) widgets.Widget {
+	return FirstUseCardWith(bc, host, RemoteWorkWording, trust, cancel)
+}
+
+// FirstUseCardWith is FirstUseCard in the wording of a product.
+func FirstUseCardWith(bc widgets.BuildContext, host sshlogin.FirstUse, words Wording, trust, cancel func()) widgets.Widget {
 	colors := ui.Theme(bc)
 	return column([]widgets.Widget{
 		title(bc, colors, "Trust this computer?"),
 		gap(8),
-		text(bc, colors, "This is the first time you connect to "+host.Address+". Open the Remote Work page on that computer and compare its host key fingerprint with this one. Trust it only if they are the same: a different one means somebody else may be answering.", false),
+		text(bc, colors, "This is the first time you connect to "+host.Address+". Open "+words.Where+" on that computer and compare its host key fingerprint with this one. Trust it only if they are the same: a different one means somebody else may be answering.", false),
 		gap(12),
 		text(bc, colors, host.Type, false),
 		mono(bc, colors, host.Fingerprint),
@@ -261,11 +295,16 @@ func ChangedFromError(err error) (ChangedHost, bool) {
 // ChangedKeyCard is the warning that the key of a host changed: the connection was refused and nothing was sent. The only ways on
 // are to close it, or to forget the pinned key (so that the next connection is a first use again, compared by the user).
 func ChangedKeyCard(bc widgets.BuildContext, host ChangedHost, forget, closeIt func()) widgets.Widget {
+	return ChangedKeyCardWith(bc, host, RemoteWorkWording, forget, closeIt)
+}
+
+// ChangedKeyCardWith is ChangedKeyCard in the wording of a product.
+func ChangedKeyCardWith(bc widgets.BuildContext, host ChangedHost, words Wording, forget, closeIt func()) widgets.Widget {
 	colors := ui.Theme(bc)
 	return column([]widgets.Widget{
 		widgets.NewRow([]widgets.Widget{ui.Icon("warning", 18, colors.NotificationsWarningIconForeground), gap2(8), title(bc, colors, "The key of this computer changed")}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}),
 		gap(8),
-		text(bc, colors, "The connection to "+host.Address+" was refused and nothing was sent. Somebody may be answering in place of that computer, or Remote Work was set up again there.", false),
+		text(bc, colors, "The connection to "+host.Address+" was refused and nothing was sent. Somebody may be answering in place of that computer, or "+words.Product+" was set up again there.", false),
 		gap(12),
 		text(bc, colors, "Trusted before", false), mono(bc, colors, host.Pinned),
 		gap(6),
@@ -285,10 +324,11 @@ func (p *Prompter) ShowChanged(err error, forget func(ChangedHost)) bool {
 	if !ok {
 		return false
 	}
+	words := p.wording()
 	q := &question{
 		cancel: func() {},
 		build: func(bc widgets.BuildContext, done func()) widgets.Widget {
-			return ChangedKeyCard(bc, host, func() { forget(host); done() }, done)
+			return ChangedKeyCardWith(bc, host, words, func() { forget(host); done() }, done)
 		},
 	}
 	p.show(q)

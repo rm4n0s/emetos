@@ -154,7 +154,7 @@ func TestShowMyPublicKeyOfTheAgent(t *testing.T) {
 		socket := fakeAgent(t, keys...)
 		r.hub.opts.Tab.AgentSocket = func() string { return socket }
 		r.open(uitest.Themes()[0], tabState{Host: "h", Port: DefaultPort, Key: keyAgent})
-		r.until("the keys of the agent", func() bool { return !r.tr.form.agentLoading && len(r.tr.form.agent) == len(keys) })
+		r.until("the keys of the agent", func() bool { return !r.tr.form.keys.AgentLoading && len(r.tr.form.keys.Agent) == len(keys) })
 		return r
 	}
 	t.Run("one key", func(t *testing.T) {
@@ -172,7 +172,7 @@ func TestShowMyPublicKeyOfTheAgent(t *testing.T) {
 		if r.tr.qr != nil {
 			t.Error("a dialog opened though the agent has several keys")
 		}
-		r.tr.form.fingerprint = k2.fingerprint()
+		r.tr.form.keys.Fingerprint = k2.fingerprint()
 		r.ts.Tap(gluttertest.ByText(showButton))
 		r.until("the dialog", func() bool { return r.tr.qr != nil })
 		if got := r.shownCode(); got != k2.line("") {
@@ -181,7 +181,7 @@ func TestShowMyPublicKeyOfTheAgent(t *testing.T) {
 	})
 	t.Run("a chosen key the agent no longer has", func(t *testing.T) {
 		r := open(t, k1)
-		r.tr.form.fingerprint = k2.fingerprint()
+		r.tr.form.keys.Fingerprint = k2.fingerprint()
 		r.ts.Tap(gluttertest.ByText(showButton))
 		r.until("the note", func() bool { return r.has("not in the ssh-agent any more") })
 	})
@@ -190,21 +190,21 @@ func TestShowMyPublicKeyOfTheAgent(t *testing.T) {
 		socket := fakeAgent(t)
 		r.hub.opts.Tab.AgentSocket = func() string { return socket }
 		r.open(uitest.Themes()[0], tabState{Host: "h", Port: DefaultPort, Key: keyAgent})
-		r.until("the note", func() bool { return !r.tr.form.agentLoading && r.tr.form.agentNote != "" })
+		r.until("the note", func() bool { return !r.tr.form.keys.AgentLoading && r.tr.form.keys.AgentNote != "" })
 		r.ts.Tap(gluttertest.ByText(showButton))
 		r.until("the note", func() bool { return r.has("no key") })
 	})
 	t.Run("no agent", func(t *testing.T) {
 		r := newTabRig(t, true) // SSH_AUTH_SOCK is empty
 		r.open(uitest.Themes()[0], tabState{Host: "h", Port: DefaultPort, Key: keyAgent})
-		r.until("the note", func() bool { return !r.tr.form.agentLoading && r.tr.form.agentNote != "" })
+		r.until("the note", func() bool { return !r.tr.form.keys.AgentLoading && r.tr.form.keys.AgentNote != "" })
 		r.ts.Tap(gluttertest.ByText(showButton))
 		r.until("the note", func() bool { return r.has("no ssh-agent") })
 	})
 	t.Run("the keys are still being read", func(t *testing.T) {
 		r := newTabRig(t, true)
 		r.open(uitest.Themes()[0], tabState{Host: "h", Port: DefaultPort, Key: keyAgent})
-		r.tr.form.agentLoading = true
+		r.tr.form.keys.AgentLoading = true
 		r.ts.Tap(gluttertest.ByText(showButton))
 		r.until("the note", func() bool { return r.has("still being read") })
 	})
@@ -219,7 +219,7 @@ func TestShowMyPublicKeySaysWhatIsInTheWay(t *testing.T) {
 	r.ts.Tap(gluttertest.ByText(showButton))
 	r.until("the note", func() bool { return r.has("Choose the private key file first") })
 	// a key file that is not there, and no .pub beside it
-	r.tr.form.keyFile.SetValue(filepath.Join(t.TempDir(), "missing"))
+	r.tr.form.keys.KeyFile.SetValue(filepath.Join(t.TempDir(), "missing"))
 	r.ts.Tap(gluttertest.ByText(showButton))
 	r.until("the note", func() bool { return r.has("no such file") })
 	if r.tr.qr != nil {
@@ -234,7 +234,7 @@ func TestShowMyPublicKeySaysWhatIsInTheWay(t *testing.T) {
 	if err := os.WriteFile(path+".pub", []byte("this is not a public key"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r.tr.form.keyFile.SetValue(path)
+	r.tr.form.keys.KeyFile.SetValue(path)
 	r.ts.Tap(gluttertest.ByText(showButton))
 	r.until("the note", func() bool { return r.has("not a public key") })
 	if r.tr.qr != nil {
@@ -269,27 +269,6 @@ func TestTheButtonDoesNothingWhileTheTabConnects(t *testing.T) {
 	}
 }
 
-func TestThePublicLineOfAKeyFileHasTheTagsOfItsParts(t *testing.T) {
-	dir := t.TempDir()
-	// a .pub that is a folder: it exists, so the key is not read from the key file, and it cannot be used
-	asDir := filepath.Join(dir, "id_dir")
-	if err := os.MkdirAll(asDir+".pub", 0o755); err != nil {
-		t.Fatal(err)
-	}
-	_, err := publicLineOfKeyFile(asDir, nil)
-	wantRoute(t, err, "publicLineOfKeyFile->ReadPublicKeyFile.SSHLoginPubFileInvalid")
-	// nothing there at all
-	_, err = publicLineOfKeyFile(filepath.Join(dir, "missing"), nil)
-	wantRoute(t, err, "publicLineOfKeyFile->PublicKeyOfKeyFile.SSHLoginKeyFileUnreadable")
-	// a key file that is not a key
-	junk := filepath.Join(dir, "junk")
-	if err := os.WriteFile(junk, []byte("junk"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	_, err = publicLineOfKeyFile(junk, nil)
-	wantRoute(t, err, "publicLineOfKeyFile->PublicKeyOfKeyFile->KeyFileAuth.SSHLoginKeyFileInvalid")
-}
-
 func TestGoldensOfShowMyPublicKey(t *testing.T) {
 	for _, th := range uitest.Themes() {
 		t.Run(th.Name, func(t *testing.T) {
@@ -300,7 +279,7 @@ func TestGoldensOfShowMyPublicKey(t *testing.T) {
 			r.hub.opts.Tab.AgentSocket = func() string { return socket }
 			r.size = gui.Size{Width: 640, Height: 900}
 			r.open(th, tabState{Host: "laptop.local", Port: DefaultPort, Key: keyAgent})
-			r.until("the keys of the agent", func() bool { return !r.tr.form.agentLoading && len(r.tr.form.agent) == 1 })
+			r.until("the keys of the agent", func() bool { return !r.tr.form.keys.AgentLoading && len(r.tr.form.keys.Agent) == 1 })
 			r.ts.Tap(gluttertest.ByText(showButton))
 			r.until("the dialog", func() bool { return r.tr.qr != nil })
 			uitest.MatchesGolden(r.ts, "tab_show_key_"+th.Name)
