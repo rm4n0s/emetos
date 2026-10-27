@@ -332,6 +332,47 @@ func TestSignatureHelpDropsAnAnswerAboutTextThatChanged(t *testing.T) {
 	if r.hintsVisible() {
 		t.Error("the answer about the old text shows")
 	}
+	if r.vm.sig.state != sigDefault {
+		t.Errorf("state %v after an answer about text that changed, want the model not to wait for another", r.vm.sig.state)
+	}
+}
+
+// TestSignatureHelpClosesWhenTheCursorLeavesTheArguments: the model asks again at every move of the cursor while the hints show
+// (VS Code's onCursorChange), and the answer that has no signature, as a server's outside a call, closes them.
+func TestSignatureHelpClosesWhenTheCursorLeavesTheArguments(t *testing.T) {
+	r, f := signatureRig(t, sampleHelp())
+	r.typeChars("(")
+	r.clock.advance(120 * time.Millisecond)
+	r.waitFor("the hints", r.hintsVisible)
+	// the cursor moves inside the arguments: the hints stay
+	if err := r.vm.RunCommand("cursorLeft", nil); err != nil {
+		t.Fatal(err)
+	}
+	r.clock.advance(120 * time.Millisecond)
+	r.waitFor("the second request", func() bool { return f.count() == 2 })
+	if got := f.last(); got.Kind != langfeatures.SignatureContentChange || !got.IsRetrigger {
+		t.Errorf("context = %+v, want a retrigger for the move of the cursor", got)
+	}
+	r.waitFor("the hints", r.hintsVisible)
+	// the cursor leaves the call and the server has no signature there
+	f.mu.Lock()
+	f.help = nil
+	f.mu.Unlock()
+	if err := r.vm.RunCommand("cursorRight", nil); err != nil {
+		t.Fatal(err)
+	}
+	r.clock.advance(120 * time.Millisecond)
+	r.waitFor("the hints to close", func() bool { return !r.hintsVisible() })
+	// and they are not asked for again by the moves that follow
+	before := f.count()
+	if err := r.vm.RunCommand("cursorLeft", nil); err != nil {
+		t.Fatal(err)
+	}
+	r.clock.advance(120 * time.Millisecond)
+	r.settle()
+	if f.count() != before {
+		t.Errorf("the hints were asked for again after they closed: %d requests, want %d", f.count(), before)
+	}
 }
 
 func TestSignatureHelpPendingRetriggerKeepsThePreviousActiveHelp(t *testing.T) {

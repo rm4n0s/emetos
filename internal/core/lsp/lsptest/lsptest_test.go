@@ -195,3 +195,38 @@ func TestCommandsStallAndCrash(t *testing.T) {
 		}
 	})
 }
+
+func TestInsideParensAnswersOnlyInsideACall(t *testing.T) {
+	h := Start(t, Options{Script: Script{
+		Capabilities: json.RawMessage(`{"textDocumentSync":1}`),
+		Responses:    map[string]Response{"x/sig": {Result: json.RawMessage(`"hints"`), InsideParens: true}},
+	}})
+	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+	defer cancel()
+	text := "f(a)\ng(b,\n"
+	if err := h.Client.Notify(lsp.MethodDidOpen, lsp.DidOpenTextDocumentParams{TextDocument: lsp.TextDocumentItem{URI: "file:///a", LanguageID: "go", Version: 1, Text: text}}); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		pos  lsp.Position
+		uri  string
+		want string
+	}{
+		{"inside the first call", lsp.Position{Line: 0, Character: 2}, "file:///a", `"hints"`},
+		{"after the first call", lsp.Position{Line: 0, Character: 4}, "file:///a", `null`},
+		{"inside the open call", lsp.Position{Line: 1, Character: 4}, "file:///a", `"hints"`},
+		{"a position that is not in the text", lsp.Position{Line: 9}, "file:///a", `null`},
+		{"a document the server does not have", lsp.Position{Line: 0, Character: 2}, "file:///b", `null`},
+	}
+	for _, tt := range tests {
+		var got json.RawMessage
+		params := map[string]any{"textDocument": map[string]string{"uri": tt.uri}, "position": tt.pos}
+		if err := h.Client.Call(ctx, "x/sig", params, &got); err != nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		if g := string(got); g != tt.want && (g != "" || tt.want != "null") {
+			t.Errorf("%s: got %q, want %s", tt.name, got, tt.want)
+		}
+	}
+}

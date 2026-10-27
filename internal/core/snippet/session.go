@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
@@ -32,6 +33,10 @@ type Editor struct {
 	// Owner is the owner of the decorations of the tab stops; DecorationOwner when 0. Editors
 	// that show the same document need different owners.
 	Owner int
+	// AutoClosing gives the auto-closing pairs of the language of the document, and OnAutoClosed is told the pairs whose closing
+	// character the user may type over after a snippet was inserted (edit.SnippetAutoClosed). Both may be nil.
+	AutoClosing  func() *autoclose.Language
+	OnAutoClosed func([]edit.AutoClosed)
 }
 
 // owner is the owner of the decorations of the tab stops.
@@ -797,6 +802,7 @@ func (s *Session) run(p pending, selections func(ends []buffer.Position) ([]buff
 	}
 
 	var failure error
+	var closed []edit.AutoClosed
 	finish := func() []buffer.Selection {
 		after := doc.Snapshot()
 		ends := make([]buffer.Position, len(p.edits))
@@ -805,6 +811,13 @@ func (s *Session) run(p pending, selections func(ends []buffer.Position) ([]buff
 				p.snippets[i].offset = starts[i]
 			}
 			ends[i] = after.PositionAt(starts[i] + len(p.edits[i].Text))
+		}
+		if s.ed.AutoClosing != nil && s.ed.OnAutoClosed != nil {
+			texts := make([]string, len(p.edits))
+			for i, e := range p.edits {
+				texts[i] = e.Text
+			}
+			closed = edit.SnippetAutoClosed(after, s.ed.AutoClosing(), texts, starts)
 		}
 		sels, err := selections(ends)
 		failure = err
@@ -828,6 +841,11 @@ func (s *Session) run(p pending, selections func(ends []buffer.Position) ([]buff
 	}
 	if len(sels) > 0 {
 		s.ed.Cursors.SetSelections(sels)
+	}
+	// The cursors are where the tab stop put them: the closing characters the snippet inserted are tracked from now on (VS Code
+	// does it for every edit of the source "snippet").
+	if len(closed) > 0 {
+		s.ed.OnAutoClosed(closed)
 	}
 	return nil
 }

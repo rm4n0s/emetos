@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"github.com/rm4n0s/glutter/services"
@@ -186,6 +187,23 @@ func (t *textInput) apply(v services.TextEditingValue) {
 	t.sync()
 }
 
+// editedStretch is the stretch of the old text that the new one replaced, and what replaced it. Where the input method's
+// selection is, a text that fits there is a typing at the selection (VS Code's TextAreaState.deduceInput starts from the
+// selection too): typing a character that is the same as the one after the cursor (a ")" before a ")") is a typing, which
+// the auto-closing of brackets may type over, and not the replacement of that character by itself, as the first and last
+// characters that differ (alignedAffixes) would say. Any other change is what alignedAffixes finds.
+func editedStretch(was services.TextEditingValue, now string) (from, to int, replacement string) {
+	s, e := was.Selection.Start(), was.Selection.End()
+	old := was.Text
+	if s >= 0 && s <= e && e <= len(old) {
+		tail := old[e:]
+		if len(now) >= s+len(tail) && strings.HasPrefix(now, old[:s]) && strings.HasSuffix(now, tail) {
+			return s, e, now[s : len(now)-len(tail)]
+		}
+	}
+	return alignedAffixes(old, now)
+}
+
 // alignedAffixes is how a text turned into another by replacing one stretch: the byte range
 // [from, to) of the old text and what replaced it, with the ends moved to characters.
 func alignedAffixes(old, now string) (from, to int, replacement string) {
@@ -214,7 +232,7 @@ func alignedAffixes(old, now string) (from, to int, replacement string) {
 // Ported from VS Code: src/vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput.ts
 // (the difference between two texts as typing, deleting and replacing)
 func (vm *ViewModel) typeInput(was services.TextEditingValue, now string) error {
-	from, to, text := alignedAffixes(was.Text, now)
+	from, to, text := editedStretch(was, now)
 	pre := vm.suggestBefore()
 	vm.suggestWillType(text)
 	s, e := was.Selection.Start(), was.Selection.End()

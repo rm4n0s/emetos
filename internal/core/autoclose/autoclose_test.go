@@ -246,3 +246,39 @@ func TestRegistryLanguages(t *testing.T) {
 		t.Error("plain text closes nothing")
 	}
 }
+
+func TestSingleCloseOpen(t *testing.T) {
+	l := NewLanguage(&language.Configuration{AutoClosingPairs: []language.AutoClosingPair{
+		{Pair: language.Pair{Open: "(", Close: ")"}}, {Pair: language.Pair{Open: "[", Close: "]"}},
+		{Pair: language.Pair{Open: "{", Close: "}"}}, {Pair: language.Pair{Open: "<", Close: ">"}}, {Pair: language.Pair{Open: "<<", Close: ">"}},
+		{Pair: language.Pair{Open: "begin", Close: "end"}}, {Pair: language.Pair{Open: "'", Close: "'"}},
+	}})
+	tests := []struct {
+		ch, want string
+		ok       bool
+	}{
+		{")", "(", true},
+		{"]", "[", true},
+		{"'", "'", true},
+		{">", "<", true}, // "<<" is not a pair of single characters, so ">" has one candidate
+		{"}", "{", true},
+		{"d", "", false},
+		{"x", "", false},
+	}
+	for _, tt := range tests {
+		if got, ok := l.SingleCloseOpen(tt.ch); got != tt.want || ok != tt.ok {
+			t.Errorf("SingleCloseOpen(%q) = %q, %v; want %q, %v", tt.ch, got, ok, tt.want, tt.ok)
+		}
+	}
+	// two pairs of single characters with the same closing character have no single candidate
+	twice := NewLanguage(&language.Configuration{AutoClosingPairs: []language.AutoClosingPair{
+		{Pair: language.Pair{Open: "(", Close: ")"}}, {Pair: language.Pair{Open: "{", Close: ")"}},
+	}})
+	if got, ok := twice.SingleCloseOpen(")"); ok {
+		t.Errorf("two candidates gave %q", got)
+	}
+	var none *Language
+	if got, ok := none.SingleCloseOpen(")"); ok {
+		t.Errorf("a nil language gave %q", got)
+	}
+}

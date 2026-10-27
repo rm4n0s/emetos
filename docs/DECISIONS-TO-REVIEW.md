@@ -253,3 +253,7 @@ Entries 97 to 102 are **withdrawn**: the user removed the Agents extension inste
 111. **The preview updates 300 ms after the last change at most** (a throttle, as VS Code's preview), not after a pause in typing.
 112. **Images in the preview are decoded at the size they are shown**, at most 800 px wide; 64 MB of decoded images are kept, and the least recently seen are dropped first.
 113. **Code blocks in the preview are still colored on the UI thread**, once per block, because the tokenizer is not safe to share between threads yet; a jump to a far place can take one slow frame.
+
+## 2026-10-27: step 17b.3 (brackets and snippets; decided by the agent and accepted by me)
+
+114. **A closing character at the very start of a snippet is not typed over**; VS Code finds a pair there by an accident of its search, which Emetos does not copy.

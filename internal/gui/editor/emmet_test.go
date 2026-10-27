@@ -132,3 +132,26 @@ func TestExpandEmmetInReadOnlyDocument(t *testing.T) {
 		t.Errorf("expected DocumentReadOnly, got %v", err)
 	}
 }
+
+// TestExpandEmmetSessionEndsAtTheFinalTabStop: the expansion of `ul>li` has one tab stop (${1}, in the li) and the final one at
+// the end; the session ends when Tab reaches the final one and no tab stop is left on the document to grow with the typing
+// after it (SPEC §9.9).
+func TestExpandEmmetSessionEndsAtTheFinalTabStop(t *testing.T) {
+	vm := emmetVM(t, "html", "ul>li", nil, cur(0, 5))
+	if err := vm.RunCommand(expand, nil); err != nil {
+		t.Fatal(err)
+	}
+	if st := vm.DevState(); !st.InSnippet || st.TabStops != 2 {
+		t.Errorf("session %v with %d tab stops, want one with 2", st.InSnippet, st.TabStops)
+	}
+	if err := vm.RunCommand("jumpToNextSnippetPlaceholder", nil); err != nil {
+		t.Fatal(err)
+	}
+	if st := vm.DevState(); st.InSnippet || st.TabStops != 0 {
+		t.Errorf("at the final tab stop: session %v with %d tab stops, want none", st.InSnippet, st.TabStops)
+	}
+	typeKeys(t, vm, "abc")
+	if st := vm.DevState(); st.InSnippet || st.TabStops != 0 {
+		t.Errorf("after typing: session %v with %d tab stops, want none", st.InSnippet, st.TabStops)
+	}
+}

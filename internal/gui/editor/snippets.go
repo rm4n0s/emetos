@@ -7,6 +7,7 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
@@ -69,7 +70,11 @@ func (vm *ViewModel) SetSnippetWorkspace(w snippet.WorkspaceResolver) { vm.snip.
 // snippets is the controller of the editor's snippet session, made when first needed.
 func (vm *ViewModel) snippets() *snippet.Controller {
 	if vm.snip.ctrl == nil {
-		vm.snip.ctrl = snippet.NewController(snippet.Editor{Doc: vm.doc, Cursors: vm.cursors, Owner: vm.owner(snippetOwner)}, vm.snippetEnv, vm.snippetStateChanged)
+		vm.snip.ctrl = snippet.NewController(snippet.Editor{
+			Doc: vm.doc, Cursors: vm.cursors, Owner: vm.owner(snippetOwner),
+			AutoClosing:  func() *autoclose.Language { return vm.autoClosing },
+			OnAutoClosed: func(closed []edit.AutoClosed) { vm.autoClosed.Add(closed) },
+		}, vm.snippetEnv, vm.snippetStateChanged)
 		vm.snip.ctrl.OnChoice(vm.showChoices)
 	}
 	return vm.snip.ctrl

@@ -33,6 +33,10 @@ type Response struct {
 	Error *lsp.ResponseError `json:"error,omitempty"`
 	// DelayMS waits before answering.
 	DelayMS int `json:"delayMs,omitempty"`
+	// InsideParens answers null unless the position of the request (the "position" of its params, in the "textDocument" the
+	// server has a copy of) is inside a "(" that is not closed yet: the answer of a server for signature help, which has none
+	// outside the arguments of a call. Parentheses in strings and comments are counted too.
+	InsideParens bool `json:"insideParens,omitempty"`
 	// Sequence, when set, replaces the members above: the nth request of the method gets the nth
 	// response, and the last one is repeated.
 	Sequence []Response `json:"sequence,omitempty"`

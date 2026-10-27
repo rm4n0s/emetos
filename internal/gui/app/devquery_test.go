@@ -83,6 +83,9 @@ func TestDevQueriesAnswer(t *testing.T) {
 	if ed.Path != sampleFile(t) || ed.Text != doc.Text() || ed.Line != 1 || ed.Column != 1 || ed.Dirty {
 		t.Errorf("dev.editor = %+v", ed)
 	}
+	if ed.InSnippet || ed.TabStops != 0 || ed.SuggestVisible || ed.SignatureVisible {
+		t.Errorf("dev.editor reports a mode on an editor with none: %+v", ed)
+	}
 
 	// an input box on screen is listed with its text and focus
 	ctrl := kit.NewInputBoxController("hello")

@@ -196,10 +196,17 @@ func (vm *ViewModel) signatureLastActive() *langfeatures.SignatureHelp {
 	return nil
 }
 
-// signatureResult takes the answer of a request. An answer to an older request, or about a text that changed, is dropped.
+// signatureResult takes the answer of a request. An answer to an older request is dropped, and one about a text that changed
+// closes the hints.
 func (vm *ViewModel) signatureResult(id, version int, help *langfeatures.SignatureHelp, errs []langfeatures.ProviderError) {
 	m := &vm.sig
-	if m.id != id || m.state != sigPending || vm.doc.Version() != version {
+	if m.id != id || m.state != sigPending {
+		return
+	}
+	if vm.doc.Version() != version {
+		// The text changed with no trigger after it (nothing asks again): the answer is about text that is gone. The hints close
+		// instead of staying as they were, and the model does not wait for an answer that never comes.
+		vm.SignatureCancel()
 		return
 	}
 	for _, e := range errs {

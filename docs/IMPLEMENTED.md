@@ -3133,3 +3133,36 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Glutter issues:** new:
   - `SliverList` lays out every item between its first one and the offset of a jump;
   - the Vulkan renderer draws shapes outside the clip (the 17b.4 item; the preview keeps a small cache margin because of it).
+
+## Step 17b.3: Brackets, snippets and signature help as in VS Code
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-17b.3-overtype-snippets
+- **Summary:** Typing `)` before a `)` that the user typed inserts a new one, as VS Code does. The closing `)` of a completion is typed over and no longer stays in a growing tab stop. The signature help closes when its answer is stale.
+- **Causes and fixes:**
+  - **Typing over the user's `)`**
+    - *Cause:* the input method hands the editor the whole line, and the change was worked out from the first and last differing characters. `// z)` → `// z))` read as "a `)` replaced by itself", so it took the composition path, which skips typing-over and auto-closing.
+    - *Fix:* `editedStretch` (`internal/gui/editor/input.go`) starts from the input method's selection, as VS Code's `TextAreaState.deduceInput` does.
+  - **The closing `)` of a completion**
+    - *Cause:* gopls sends `Println(${1:})`. VS Code tracks the closing character at the end of a snippet as auto-closed (`cursor.ts` `_findAutoClosingPairs`); Emetos did not, so a typed `)` went into the empty `$1`, which grew.
+    - *Fix:* ported as `edit.SnippetPairs` / `SnippetAutoClosed`, through a new `snippet.Editor.OnAutoClosed` hook (completions, `insertSnippet` and Emmet).
+  - **Signature help**
+    - *Cause:* an answer about changed text was dropped, but the request stayed pending, so the old hints stayed on screen.
+    - *Fix:* it now cancels the request. Closing on cursor moves and on Escape already matched VS Code.
+  - **A snippet with only `$0`** (`Sprintf($0)`) already ended its session at once. Regression tests were added; they passed before the fix.
+- **Main files:** `internal/gui/editor/{input,snippets,signature,dev}.go`, `internal/core/edit/snippetclosed.go` (new), `internal/core/snippet/session.go`, `internal/core/autoclose/autoclose.go`, `internal/core/lsp/lsptest/` (an `insideParens` answer, as gopls does for signature help), `internal/gui/app/devquery.go` (`dev.editor` gives `inSnippet`, `tabStops`, `suggestVisible` and `signatureVisible`), `cmd/emetos/editing_display_test.go` (new), `docs/SPEC.md` (§8.6.4, §9.9.2, §9.12, §15.1 "As built (step 17b.3)").
+- **Tests:**
+  - `TestSnippetPairs` (17 cases) and `TestSnippetAutoClosed`, from `_findAutoClosingPairs`;
+  - `TestEditedStretch` (15) and `TestKeysTypeOver...` (6; 3 failed before the fix);
+  - snippet, controller, signature, Emmet and `dev.editor` tests;
+  - VS Code's 10 `autoClosingOvertype` cases, already ported, still pass.
+  - **Real input**, with a fake language server, and how each did on the unfixed code:
+    - `TestRealInputTypingOverAClosingBracketTheUserTyped` failed, giving `// z)`;
+    - `TestRealInputCompletionWithAFinalTabStopEndsTheSnippet` (Enter and Tab) failed, giving `fmt.Sprintf(("x")`, with the signature help still open;
+    - `TestRealInputTypingOverTheClosingBracketOfACompletion` failed with the snippet fix removed, giving `fmt.Println("x"))`;
+    - `TestRealInputSignatureHelpClosesWhenTheCursorLeavesTheArguments` passed before the fix; it is a guard.
+- **Goldens:** none changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also `emetos_display`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ (100 packages) · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `scripts/realinput.sh` ✅ (19 tests).
+- **Proof:** the real-input tests above, which type with a virtual keyboard and read the document through `dev.editor`; the step asks for no image.
+- **Manual checks:** none
+- **Glutter issues:** none

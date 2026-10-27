@@ -41,6 +41,13 @@ type DevEditor struct {
 	// Line and Column are the primary cursor, counted from 1.
 	Line   int `json:"line"`
 	Column int `json:"column"`
+	// InSnippet tells whether a snippet session runs, and TabStops how many tab stops of it the document holds (they are drawn
+	// as gray boxes).
+	InSnippet bool `json:"inSnippet"`
+	TabStops  int  `json:"tabStops"`
+	// SuggestVisible and SignatureVisible tell whether the suggest widget and the signature help show.
+	SuggestVisible   bool `json:"suggestVisible"`
+	SignatureVisible bool `json:"signatureVisible"`
 }
 
 // DevMarkdown is one Markdown preview on screen, as dev.markdown reports it.
@@ -157,6 +164,8 @@ func devEditor(p *Process, ctx command.Context) error {
 	if e := shell.activeEditor(); e != nil && e.view != nil {
 		pos := e.view.Cursors().Primary().Position()
 		out.Line, out.Column = pos.Line+1, pos.Col+1
+		st := e.view.DevState()
+		out.InSnippet, out.TabStops, out.SuggestVisible, out.SignatureVisible = st.InSnippet, st.TabStops, st.SuggestVisible, st.SignatureVisible
 	}
 	setDevAnswer(ctx.Ctx, out)
 	return nil

@@ -17,6 +17,24 @@ type framer func(step func() bool)
 // commands that type and scroll use to spread their work over frames.
 func (vm *ViewModel) SetFramer(f framer) { vm.framer = f }
 
+// DevState is what the editor shows of the modes that live in the view model, for the dev server (dev.editor).
+type DevState struct {
+	// InSnippet is the context key inSnippetMode, TabStops the tab stops of the session that are decorations of the document
+	// (0 when no session runs: nothing is drawn then).
+	InSnippet bool
+	TabStops  int
+	// SuggestVisible and SignatureVisible tell whether the suggest widget and the parameter hints show.
+	SuggestVisible, SignatureVisible bool
+}
+
+// DevState reads the modes of the editor.
+func (vm *ViewModel) DevState() DevState {
+	st := DevState{InSnippet: vm.SnippetState().InSnippet, SuggestVisible: vm.SuggestVisible(), SignatureVisible: vm.sig.shown != nil}
+	whole := buffer.Range{End: buffer.Position{Line: vm.doc.Snapshot().LineCount()}}
+	st.TabStops = len(vm.doc.DecorationsIn(whole, vm.owner(snippetOwner)))
+	return st
+}
+
 // devActions are the editor's side of the dev commands (SPEC §15.2): they are bound only where
 // the registry has them, which is in debug builds and in builds with the emetos_dev tag.
 func devActions(a map[string]action) {

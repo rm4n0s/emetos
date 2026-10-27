@@ -346,6 +346,15 @@ func (l *Language) CloseByEnd(ch string) []*Pair {
 // IsCloseSingleChar reports whether ch is the closing of a pair of two single characters.
 func (l *Language) IsCloseSingleChar(ch string) bool { return l != nil && len(l.singleClose[ch]) > 0 }
 
+// SingleCloseOpen is the opening of the one pair of two single characters that closes with ch; false when no pair, or more
+// than one, does (VS Code's autoClosingPairsCloseSingleChar with exactly one candidate).
+func (l *Language) SingleCloseOpen(ch string) (string, bool) {
+	if l == nil || len(l.singleClose[ch]) != 1 {
+		return "", false
+	}
+	return l.singleClose[ch][0].Open, true
+}
+
 // SurroundingClose is the closing of the surrounding pair that opens with ch.
 func (l *Language) SurroundingClose(ch string) (string, bool) {
 	if l == nil {

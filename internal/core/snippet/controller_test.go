@@ -1,10 +1,14 @@
 package snippet
 
 import (
+	"slices"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/core/autoclose"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/edit"
+	"github.com/rm4n0s/emetos/internal/core/language"
 	"github.com/rm4n0s/errors"
 )
 
@@ -289,6 +293,81 @@ func TestControllerJoinUndoMakesTheInsertionPartOfTheOpenGroup(t *testing.T) {
 			}
 			if steps != tt.undos || r.value() != "x" {
 				t.Errorf("undone in %d steps to %q, want %d steps to x", steps, r.value(), tt.undos)
+			}
+		})
+	}
+}
+
+// TestControllerTheFinalTabStopOnlyEndsTheSessionAtOnce: a snippet whose only tab stop is the final one has no session
+// (VS Code's SnippetController2 _updateState: isAtLastPlaceholder), no decoration is left to grow with the typing that follows,
+// and the cursor stays where $0 put it.
+//
+// Ported from VS Code: snippetController2.test.ts ('insert, insert plain text -> no snippet mode', 'insert, insert -> tab, tab,
+// done' after the last tab stop)
+func TestControllerTheFinalTabStopOnlyEndsTheSessionAtOnce(t *testing.T) {
+	tests := []struct {
+		name, template, typed, want string
+	}{
+		{"in parentheses", "Sprintf($0)", "abc\ndef", "Sprintf(abc\ndef)"},
+		{"alone", "$0", "abc", "abc"},
+		{"between texts", "a$0b", "x", "axb"},
+		{"with a default", "f(${0:x})", "y", "f(y)"},
+		{"with no tab stop", "plain()", "y", "plain()y"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newCtlRig(t, "", sel(1, 1, 1, 1))
+			r.insert(tt.template)
+			if r.c.IsInSnippet() || r.c.State() != (State{}) {
+				t.Fatalf("state %+v after the insertion", r.c.State())
+			}
+			whole := rng(1, 1, 99, 1)
+			if left := r.doc.DecorationsIn(whole, DecorationOwner); len(left) != 0 {
+				t.Errorf("%d decorations of the tab stops are left", len(left))
+			}
+			r.typeText(tt.typed)
+			if r.value() != tt.want {
+				t.Errorf("text %q, want %q", r.value(), tt.want)
+			}
+			if r.c.IsInSnippet() {
+				t.Error("the session came back")
+			}
+			if left := r.doc.DecorationsIn(whole, DecorationOwner); len(left) != 0 {
+				t.Errorf("%d decorations of the tab stops after typing", len(left))
+			}
+		})
+	}
+}
+
+// TestEditorTellsTheClosingCharactersOfASnippet: an inserted snippet that ends with a pair tells the editor which closing
+// character the user may type over, only when the cursor stays inside (VS Code's executeEdits with the source "snippet").
+func TestEditorTellsTheClosingCharactersOfASnippet(t *testing.T) {
+	tests := []struct {
+		name, text, template string
+		sels                 []buffer.Selection
+		want                 []edit.AutoClosed
+	}{
+		{"a call", "fmt.", "Sprintf($0)", []buffer.Selection{sel(1, 5, 1, 5)}, []edit.AutoClosed{{
+			Character: rng(1, 13, 1, 14), Enclosing: rng(1, 12, 1, 14)}}},
+		{"a call with a tab stop", "fmt.", "Sprint(${1:})", []buffer.Selection{sel(1, 5, 1, 5)}, []edit.AutoClosed{{
+			Character: rng(1, 12, 1, 13), Enclosing: rng(1, 11, 1, 13)}}},
+		{"a call at every cursor", "a.\nb.", "f($0)", []buffer.Selection{sel(1, 3, 1, 3), sel(2, 3, 2, 3)}, []edit.AutoClosed{
+			{Character: rng(1, 5, 1, 6), Enclosing: rng(1, 4, 1, 6)}, {Character: rng(2, 5, 2, 6), Enclosing: rng(2, 4, 2, 6)}}},
+		{"a text with no pair", "fmt.", "Println", []buffer.Selection{sel(1, 5, 1, 5)}, nil},
+		{"a snippet of lines", "", "if x {\n\t$0\n}", []buffer.Selection{sel(1, 1, 1, 1)}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newCtlRig(t, tt.text, tt.sels...)
+			var got []edit.AutoClosed
+			r.ed.AutoClosing = func() *autoclose.Language {
+				return autoclose.NewLanguage(&language.Configuration{Brackets: []language.Pair{{Open: "(", Close: ")"}, {Open: "{", Close: "}"}}})
+			}
+			r.ed.OnAutoClosed = func(c []edit.AutoClosed) { got = append(got, c...) }
+			c := NewController(r.ed, func() Env { return r.env }, nil)
+			must(t, c.Insert(tt.template, DefaultInsertOptions()))
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("told %v, want %v", got, tt.want)
 			}
 		})
 	}

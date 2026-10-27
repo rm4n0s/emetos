@@ -380,13 +380,52 @@ func (s *Server) scripted(m incoming, n int) {
 		s.respond(m, nil, &lsp.ResponseError{Code: lsp.CodeMethodNotFound, Message: "the fake server has no answer for " + m.Method})
 		return
 	}
+	inside := r.InsideParens
 	if len(r.Sequence) > 0 {
 		r = r.Sequence[min(n, len(r.Sequence)-1)]
+	}
+	if (inside || r.InsideParens) && !s.insideParens(m.Params) {
+		s.respond(m, nil, nil)
+		return
 	}
 	if r.DelayMS > 0 {
 		time.Sleep(time.Duration(r.DelayMS) * time.Millisecond)
 	}
 	s.respond(m, r.Result, r.Error)
+}
+
+// insideParens tells whether the position of a request is inside a "(" of the server's copy of the document that is not
+// closed before the position.
+func (s *Server) insideParens(params json.RawMessage) bool {
+	var p struct {
+		TextDocument struct {
+			URI string `json:"uri"`
+		} `json:"textDocument"`
+		Position lsp.Position `json:"position"`
+	}
+	if json.Unmarshal(params, &p) != nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.docs[p.TextDocument.URI]
+	if !ok {
+		return false
+	}
+	at, ok := s.offset(d.Text, p.Position)
+	if !ok {
+		return false
+	}
+	open := 0
+	for _, c := range d.Text[:at] {
+		switch c {
+		case '(':
+			open++
+		case ')':
+			open = max(open-1, 0)
+		}
+	}
+	return open > 0
 }
 
 // notification handles a notification of the client.
