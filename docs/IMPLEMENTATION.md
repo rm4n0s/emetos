@@ -129,7 +129,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M17 Wrap-up | 17.1 |
 | M17b Bugs found on the desktop | 17b.1–17b.5 |
 | M17c Remove the Agents extension | 17c.1 |
-| M17d The terminal | 17d.1–17d.4 |
+| M17d The terminal | 17d.1–17d.7 |
 | M18 Containers | 18.1–18.4 |
 | M19 SQL databases | 19.1–19.3 |
 | M20 MongoDB | 20.1–20.2 |
@@ -1491,7 +1491,7 @@ The user, on 2026-10-27: "Remove claude code extension. I don't want to read any
 
 ## M17d: The terminal
 
-The user, on 2026-10-27: "Put a new extension to run terminal and working with events for the relay extension." VS Code's integrated terminal as an extension, its emulator ported from xterm.js, and its terminals as events and requests that Relay shows to a client (SPEC §10.25, D27).
+The user, on 2026-10-27: "Put a new extension to run terminal and working with events for the relay extension." and on 2026-10-28: "make the terminal extension work like in vscode". VS Code's integrated terminal as an extension, its emulator ported from xterm.js, its terminals as events and requests that Relay shows to a client, and what VS Code's terminal does by default: shell integration, IntelliSense, terminals in the editor area and persistent sessions (SPEC §10.25, D27).
 
 ### 17d.1 The emulator
 **Goal:** a terminal emulator with no UI that behaves as xterm.js does (SPEC §10.25 "The emulator").
@@ -1518,6 +1518,27 @@ The user, on 2026-10-27: "Put a new extension to run terminal and working with e
 **Tasks:** the events and requests of §10.25 in `extensions/terminal` (batched output with `seq`, the snapshot through serialization, `create` with a confined folder, `write`, `run`, `kill`); in `extensions/relay`: the host's **Allow terminals** per key and workspace in Be a Host (stored in `relay.json`, off by default, with its warning), the refusal `RelayTerminalRefused`, the "Relay: <key comment>" mark on a terminal a client typed in and in the banner; the client's **Terminals** panel (the list, the emulator fed by snapshot and events with a new snapshot on a gap, read-only or taking keys and paste, New Terminal and Kill); the README (the terminal, and its place in Relay's security notes); SPEC §10.25 "As built".
 **Tests:** the topics and requests (fake API, table-driven, every tag's route); the snapshot plus events give the host's cells on the client (seeded random output, with a gap); the permission (refused without Allow terminals, allowed with it, never for Watch only); two Emetos processes on this machine, host and client, through the real SSH login on `127.0.0.1` with test keys (as the tests of 16.2 and 16.3): the client's panel shows the host's terminal, and with Allow terminals **real input** typed in the client's panel (`echo from-client` and Enter) appears in the host's terminal; goldens of the Terminals panel and of the Be a Host section with the new checkbox.
 **Proof:** method C, two windows: a host's terminal and the client's Terminals panel showing the same output typed from the client (`17d.4-relay-terminal.png`).
+
+### 17d.5 Shell integration
+**Goal:** the shell tells the terminal where each command is, as in VS Code (SPEC §10.25 "Shell integration").
+**Read:** SPEC §10.25; `reference/vscode/src/vs/workbench/contrib/terminal/common/scripts/` (the scripts, MIT), `reference/vscode/src/vs/platform/terminal/node/terminalEnvironment.ts` (`getShellIntegrationInjection`), `reference/vscode/src/vs/platform/terminal/common/capabilities/` (the command detection, the cwd detection), `reference/vscode/src/vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon.ts` and `decorationAddon.ts`, `.../terminalContrib/stickyScroll/`, `.../terminalContrib/quickFix/` (the built-in fixes), `.../terminalContrib/history/`.
+**Tasks:** the scripts bundled through `scripts/update-assets.sh` (their license in `third_party/` and `NOTICE`); their injection into bash, zsh, fish and pwsh as VS Code does; OSC 633, 133 and 1337 read by the emulator into commands (prompt, command line, output, exit code) and the working folder, kept as markers that move with the scrollback and survive reflow; the decorations and their menu; the navigation and selection commands; sticky scroll; Run Recent Command and Go to Recent Directory with the history in the extension's state; the inherited folder for splits and new terminals; the quick fixes. The settings, commands and keys with VS Code's ids and defaults.
+**Tests:** the injection (arguments and environment per shell, table-driven, ported from VS Code's `terminalEnvironment.test.ts`); the command detection with recorded output of each script (ported cases of the capability tests where they need no TypeScript harness); markers across scrollback trimming and reflow; each quick fix's matcher (ported cases); the commands; **real input** with the test's own `bash` (skipped when bash is missing) in an isolated `HOME`: `true`, `false` and Enter give a blue and a red decoration, Ctrl+Up scrolls to the first command, Ctrl+Alt+R runs `echo again` from the history, a long output keeps its command at the top (sticky scroll), `cd /tmp` and a split starts in `/tmp`.
+**Proof:** method C with real input: a terminal with decorations of a passed and a failed command and sticky scroll (`17d.5-shell-integration.png`).
+
+### 17d.6 Terminal IntelliSense
+**Goal:** completions while a command line is typed, as VS Code's terminal suggest (SPEC §10.25 "Terminal IntelliSense").
+**Read:** SPEC §10.25, §9.12 (the suggest widget); `reference/vscode/src/vs/workbench/contrib/terminalContrib/suggest/` (the widget in the terminal, the cursor tracking of the command line, `terminalSuggestConfiguration.ts`), `reference/vscode/extensions/terminal-suggest/` (the providers: commands in `PATH`, built-ins, files and folders, the completion specs).
+**Tasks:** the prompt input model (what the user typed since the prompt, from shell integration, and where the cursor is in it); the providers (commands, built-ins per shell, files and folders, history, the specs converted to JSON by `scripts/update-assets.sh`, their license in `third_party/`); the suggest widget of the editor reused in the terminal; accepting writes the rest of the word to the shell; the settings and the trigger command.
+**Tests:** the input model with recorded output (typing, Backspace, cursor keys, a wrapped line); each provider (table-driven, with a temporary `PATH` and folder); the conversion of the specs (a sample of specs round-trips); **real input** with bash: typing `gi` offers `git`, Tab completes it; `git che` offers `checkout`; `cat ` lists the files of the folder; Escape closes the list.
+**Proof:** method C with real input: the suggest list over `git che` (`17d.6-suggest.png`).
+
+### 17d.7 Terminals in the editor area, the tabs list and persistent sessions
+**Goal:** the rest of VS Code's terminal (SPEC §10.25 "Terminals in the editor area", "The rest of the tabs list", "Persistent sessions").
+**Read:** SPEC §10.25, §10.1 (editor tabs and drag and drop), §12 (the saved state); `reference/vscode/src/vs/workbench/contrib/terminal/browser/terminalEditor*.ts`, `terminalTabsList.ts`, `terminalIcons.ts`, `.../platform/terminal/common/terminalProcess.ts` and `terminalRecorder.ts` (what is saved), `.../terminal/browser/terminalProcessManager.ts` (the revive).
+**Tasks:** the terminal editor (an editor input of the extension, its tab title and icon, moving between panel and editor and back with the same process and content, drag from the tabs list to the editor area, `defaultLocation`); icons and colors; drag to reorder; join, unsplit, kill all, new with a profile or a folder, size to content width; the tab's hover and the process name title; persistent sessions (save at exit with the serializer, restore at start before the first frame of the panel, the restored content and the new shell, the setting to turn it off).
+**Tests:** moving a terminal keeps its process and content (the same pid, the same cells); the saved state and its restore (a goldens pair: before exit and after start); every command; **real input**: drag a terminal from the tabs list onto the editor area, type in it, move it back to the panel; quit Emetos with two terminals (one split) and start it again: both come back with their content and a working shell in the same folder; Change Color makes the tab red.
+**Proof:** method C with real input: a terminal in an editor tab beside a file, and a restored terminal in the panel (`17d.7-terminal-editor.png`).
 
 ---
 

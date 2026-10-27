@@ -239,7 +239,7 @@ Entries 97 to 102 are **withdrawn**: the user removed the Agents extension inste
 104. **The terminal is a bundled extension** (`emetos.terminal`), as asked, with VS Code's command ids, keys, settings and colors, and an emulator ported from xterm.js (MIT), the library VS Code's terminal uses; nothing of VS Code itself is needed for it.
 105. **Relay gets the terminal through events only**, as Relay carries nothing else: the output as events, a snapshot request for a client that joins late, and requests to type, run, create and kill.
 106. **Typing in a host's terminal needs a new permission, "Allow terminals"**, off by default, per key and workspace, under "Watch and send"; Watch and send alone could already run tasks, but a shell is everything you can do on that computer, so it gets its own switch and warning.
-107. **Not built in the first version:** terminals in editor tabs, restoring terminals after a restart, shell integration (command marks and history), and running tasks in terminals (the Tasks extension keeps its output view).
+107. *(Replaced by 115 on 2026-10-28.)* **Not built in the first version:** terminals in editor tabs, restoring terminals after a restart, shell integration (command marks and history), and running tasks in terminals (the Tasks extension keeps its output view).
 
 
 ## 2026-10-27: step 17b.1 (real input; decided by the agent and accepted by me)
@@ -257,3 +257,9 @@ Entries 97 to 102 are **withdrawn**: the user removed the Agents extension inste
 ## 2026-10-27: step 17b.3 (brackets and snippets; decided by the agent and accepted by me)
 
 114. **A closing character at the very start of a snippet is not typed over**; VS Code finds a pair there by an accident of its search, which Emetos does not copy.
+
+## 2026-10-28: the terminal as in VS Code (decided by me after the user's request "make the terminal extension work like in vscode")
+
+115. **What VS Code's terminal does by default on Linux is built** (three more steps, 17d.5 to 17d.7): shell integration with VS Code's own scripts (command marks, Ctrl+Up/Down between commands, sticky scroll, recent commands and folders, quick fixes), terminal IntelliSense (commands, files, history, and the completion specs VS Code bundles), terminals in editor tabs, icons and colors, and terminals that come back after a restart with their last 100 lines and a new shell.
+116. **Still not built:** local echo (VS Code uses it only for slow remote terminals), moving terminals between windows, the accessibility and chat features of the terminal, and running tasks and debugging in terminals (those areas come later and will use this terminal).
+117. **A completion spec that needs to run a command to find its suggestions** (for example the branches of `git checkout`) is not built in the first version; the fixed subcommands and options are.
