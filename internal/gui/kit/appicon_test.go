@@ -75,12 +75,16 @@ func TestAppIconPNGs(t *testing.T) {
 	}
 }
 
+// isAppIconFur tells whether a pixel is the fur of the hairball: opaque and light red (orange, apricot, cream or
+// white); the teal backdrop has a red channel far below that.
+func isAppIconFur(c color.RGBA) bool { return c.A == 255 && c.R >= 200 && c.R >= c.B }
+
 // checkAppIconPixels checks what any size of the icon must have: transparent corners, an opaque body, teal around the
-// hairball, grey-brown fur in the middle, and a few light pixels of the highlight.
+// hairball, orange and white fur in the middle, and some orange and some white pixels.
 func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 	t.Helper()
 	size := img.Bounds().Dx()
-	opaque, fur, transparent := 0, 0, 0
+	opaque, fur, orange, white, transparent := 0, 0, 0, 0, 0
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			c := img.RGBAAt(x, y)
@@ -89,9 +93,14 @@ func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 				transparent++
 			case c.A == 255:
 				opaque++
-				// fur is brown: red above green above blue, and not teal
-				if c.R > c.G && c.G > c.B && c.R < 235 {
+				if isAppIconFur(c) {
 					fur++
+					if c.B < 140 && c.G < c.R-40 {
+						orange++
+					}
+					if c.G >= 235 && c.B >= 225 {
+						white++
+					}
 				}
 			}
 		}
@@ -100,8 +109,14 @@ func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 	if opaque < total/2 {
 		t.Errorf("only %d of %d pixels are opaque", opaque, total)
 	}
-	if fur < total/10 {
+	if fur < total/20 {
 		t.Errorf("only %d of %d pixels are fur", fur, total)
+	}
+	if orange == 0 {
+		t.Errorf("no pixel is orange")
+	}
+	if white == 0 {
+		t.Errorf("no pixel is white")
 	}
 	if transparent == 0 {
 		t.Errorf("no pixel is transparent: the corners are not rounded")
@@ -109,14 +124,14 @@ func checkAppIconPixels(t *testing.T, img *image.RGBA) {
 	if c := img.RGBAAt(0, 0); c.A >= 32 {
 		t.Errorf("the top left corner is %v, want transparent", c)
 	}
-	// the backdrop just inside the top edge, half way across, is teal (the hairball is lower)
-	x, y := size/2, max(2, size/16)
+	// the backdrop at the left of the ball, level with its middle, is teal
+	x, y := size*11/100, size*62/100
 	if c := img.RGBAAt(x, y); c.A != 255 || c.G < c.R+40 || c.B < c.R+40 {
 		t.Errorf("the backdrop at (%d,%d) is %v, want an opaque teal", x, y, c)
 	}
 	// the middle of the picture is on the hairball, not on the backdrop
-	if c := img.RGBAAt(size/2, size/2); c.A != 255 || c.R <= c.B {
-		t.Errorf("the middle at (%d,%d) is %v, want brown fur", size/2, size/2, c)
+	if c := img.RGBAAt(size/2, size/2+size/16); !isAppIconFur(c) {
+		t.Errorf("the middle at (%d,%d) is %v, want orange or white fur", size/2, size/2+size/16, c)
 	}
 }
 

@@ -17,14 +17,14 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
-// opaquePixels counts the pixels of a window icon picture that are not transparent, and the ones that are fur brown
-// (red above green above blue: the hairball; the teal backdrop has more green and blue than red).
+// opaquePixels counts the pixels of a window icon picture that are not transparent, and the ones that are fur (opaque
+// with a red channel of 200 or more: the orange and white hairball; the teal backdrop has far less red).
 func opaquePixels(img ui.WindowIconImage) (opaque, fur int) {
 	for i := 0; i < len(img.RGBA); i += 4 {
 		if img.RGBA[i+3] > 0 {
 			opaque++
 		}
-		if img.RGBA[i+3] == 255 && img.RGBA[i] > img.RGBA[i+1] && img.RGBA[i+1] > img.RGBA[i+2] {
+		if img.RGBA[i+3] == 255 && img.RGBA[i] >= 200 {
 			fur++
 		}
 	}
