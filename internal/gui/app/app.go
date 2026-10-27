@@ -300,6 +300,10 @@ func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.binding, s.win = binding, PeekWorkspace(s.Context())
 	s.win.shell = s
+	if s.win.isView() {
+		s.initView(binding) // the shell of a headless view has the parts of a workbench and none of the window's own
+		return
+	}
 	s.win.Process.Workspaces.register(s.win) // a workspace that no tab holds (the test of one) is adopted
 	if s.win.ext != nil {
 		s.initExtTab(binding) // the page of the tab of an extension has none of the parts below
@@ -413,6 +417,10 @@ func (s *shellState) Dispose() {
 		s.disposeExtTab()
 		return
 	}
+	if s.win != nil && s.win.isView() {
+		s.disposeView()
+		return
+	}
 	s.disposeLaunch() // before the documents close: a wait ends with the window
 	if s.removeOpenDiff != nil {
 		s.removeOpenDiff()
@@ -456,6 +464,10 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	s.syncTitle(bc, win)
 	s.syncActiveFile(widgets.WidgetsBindingOf(bc))
 	s.syncExplorer(widgets.WidgetsBindingOf(bc), win)
+	var titleBar *workbench.TitleBarOptions // the tabs of the window are the host's: a view has the menu and no strip
+	if !win.isView() {
+		titleBar = s.titleBarOptions(win)
+	}
 	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, QuickInput: win.QuickInput, Context: win.ctx,
@@ -463,7 +475,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		FullScreen: win.IsFullScreen(),
 		StatusBar:  s.statusBarOptions(win),
 		NoFolder:   win.Folder == "",
-		Menus:      s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar, TitleBar: s.titleBarOptions(win),
+		Menus:      s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar, TitleBar: titleBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 		ViewBody: s.viewBody, ViewName: s.viewName, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
 		OnViewFocus: s.viewFocused,

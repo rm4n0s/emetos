@@ -56,6 +56,9 @@ func (w *Workspace) defaultZoomLevel() float64 {
 // zoomPerWindow is window.zoomPerWindow: whether the zoom commands change the zoom of this window only (the default) or of
 // every window, through window.zoomLevel.
 func (w *Workspace) zoomPerWindow() bool {
+	if w.isView() {
+		return true // a view never changes the zoom of the windows of the host
+	}
 	return settings.Get[bool](w.Settings, "window.zoomPerWindow", "")
 }
 

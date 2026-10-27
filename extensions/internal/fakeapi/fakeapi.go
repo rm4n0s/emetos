@@ -66,6 +66,7 @@ type API struct {
 	commandHandler    func(ServerCall) error
 	actionHandler     func(CodeActionCall) (string, error)
 	actionCalls       []CodeActionCall
+	headless          []*HeadlessView
 }
 
 // Note is a notification the extension showed.

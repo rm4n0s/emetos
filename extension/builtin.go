@@ -95,4 +95,10 @@ type Workspace interface {
 	// OpenURI opens a URI with the desktop (the OpenURI portal): a web address in the browser, a mail address in the mail
 	// program. It fails with ExtensionOpenURIUnavailable when the scope cannot, and returns the portal's error otherwise.
 	OpenURI(ctx context.Context, uri string) error
+	// NewHeadlessView makes a second, off-screen view of the workspace, size pixels large (HeadlessView). The view starts
+	// with the editors the workspace has open in front of the user. It fails with ExtensionHeadlessSize for a size that is
+	// not allowed (positive, at most MaxHeadlessSide a side and MaxHeadlessPixels in all), ExtensionHeadlessUnavailable in
+	// a scope that has no workspace to show (a window tab of an extension, a workspace that is not on screen yet) and
+	// ExtensionDeactivated after the activation ended. Call it on the UI thread.
+	NewHeadlessView(size Size) (HeadlessView, error)
 }

@@ -73,6 +73,9 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 		if win.zenHidesLineNumbers() {
 			o.LineNumbers = editor.LineNumbersOff
 		}
+		if win.isView() {
+			o.CursorBlinking = "solid" // a blink is a picture twice a second (headless_engine.go)
+		}
 		if adjust != nil {
 			o = adjust(o)
 		}
@@ -198,6 +201,9 @@ func (s *shellState) languageChanged(binding *widgets.WidgetsBinding, e *textEdi
 	o := editor.OptionsFromSettings(win.Settings, e.doc.LanguageID(), desktop, tabSize)
 	if win.zenHidesLineNumbers() {
 		o.LineNumbers = editor.LineNumbersOff
+	}
+	if win.isView() {
+		o.CursorBlinking = "solid"
 	}
 	e.view.SetOptions(o)
 }

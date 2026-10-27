@@ -135,6 +135,7 @@ func (w *Workspace) startExtensions() {
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
+		NewHeadlessView: w.newHeadlessView,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -157,6 +158,7 @@ func (w *Workspace) startExtensions() {
 // stopExtensions closes the scope of the workspace: the extensions are deactivated and what they contributed is removed.
 // The state their views saved is kept for the state file of the window, which may be written after this.
 func (w *Workspace) stopExtensions() {
+	w.closeHeadlessViews()
 	w.stopCoreEvents()
 	if scope := w.extScope.Swap(nil); scope != nil {
 		if w.ext != nil {

@@ -56,6 +56,13 @@
 // their own (Contributes.Settings: go.gopls), API.QuickPick shows a list to choose from, such as the menu of a status bar item,
 // and API.InputBox asks for a line of text.
 //
+// # A second view of the workspace
+//
+// API.Workspace().NewHeadlessView makes a second view of the workspace that is drawn off screen: a workbench with its own
+// focus, cursors and scroll positions over the same documents, whose pictures the extension receives (HeadlessView.OnFrame)
+// and whose input it sends (SendKey, SendPointer, SendScroll). Remote Work (SPEC §10.18) shows the workspace to another
+// machine with it.
+//
 // # An example
 //
 //	package hello

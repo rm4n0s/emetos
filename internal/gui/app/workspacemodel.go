@@ -178,6 +178,11 @@ type Workspace struct {
 	keyNode *widgets.FocusNode
 	// shell is the state of the shell that shows the window; nil until it is made and after it is gone.
 	shell *shellState
+	// viewOf is the workspace this one is a headless view of (headless.go): it shares its documents, settings and folder and
+	// has everything that is the user's own at the screen of its own. Nil for a workspace of a tab.
+	viewOf *Workspace
+	// views are the headless views other workspaces' users hold of this one; UI thread only.
+	views []*headlessView
 	// settingsDocs lets the settings store read and edit the settings files that are open in an editor.
 	settingsDocs *settingsDocs
 	// uiModel is the model of the settings editor (SettingsModel).

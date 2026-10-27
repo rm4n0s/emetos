@@ -363,6 +363,31 @@ func (w workspaceAPI) OpenURI(ctx context.Context, uri string) error {
 	return open(ctx, uri)
 }
 
+// NewHeadlessView implements extension.Workspace. The view is closed when the activation ends.
+func (w workspaceAPI) NewHeadlessView(size extension.Size) (extension.HeadlessView, error) {
+	in := w.inst
+	if in.isDead() {
+		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	if size.Width <= 0 || size.Height <= 0 || size.Width > extension.MaxHeadlessSide || size.Height > extension.MaxHeadlessSide ||
+		size.Width*size.Height > extension.MaxHeadlessPixels {
+		return nil, errors.New("ExtensionHeadlessSize", "a headless view is at most extension.MaxHeadlessSide a side and extension.MaxHeadlessPixels in all",
+			"extension", in.id, "width", size.Width, "height", size.Height)
+	}
+	mk := in.scope.opts.NewHeadlessView
+	if mk == nil {
+		return nil, errors.New("ExtensionHeadlessUnavailable", "the scope has no workspace to show in a second view", "extension", in.id)
+	}
+	view, err := mk(size)
+	if err != nil {
+		return nil, err
+	}
+	if !in.track(view.Close) {
+		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	return view, nil
+}
+
 // Files implements extension.Workspace.
 func (w workspaceAPI) Files() (extension.FileList, error) {
 	in := w.inst

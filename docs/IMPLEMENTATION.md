@@ -72,18 +72,22 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
     ```sh
     git add -A && git commit -m "Step 1.1: Add the piece tree"
     ```
-14. **Publish every finished step to `main`, right away.**
-    - A step counts as finished only when its commit is on `origin/main`.
-    - Publish before you start the next step. Never collect several steps into one publish, and never leave a finished step only on its branch.
-    - Publish only after rules 10–13 are complete: checks green, proof verified, `IMPLEMENTED.md` entry committed.
+14. **Merge every finished step into `main`; publish to GitHub once per milestone.**
+    - Merge a step only after rules 10–13 are complete: checks green, proof verified, `IMPLEMENTED.md` entry committed. Never collect several steps into one merge, and never leave a finished step only on its branch.
+    - A step counts as finished when its commit is on the local `main` and tagged `step-<id>`; start the next step from there.
     ```sh
-    git switch main && git pull --ff-only
+    git switch main
     git merge --ff-only feat/step-1.1-piece-tree
-    git push origin main
+    git tag step-1.1
     git branch -d feat/step-1.1-piece-tree
     ```
-    If `--ff-only` fails, rebase the step branch onto `main`, run the standard checks again, and retry. If the push is rejected or fails (authentication, network), stop and tell the user. Don't start the next step until the push succeeded.
-15. **Report to the user.** Give the step id, a two-line summary, the check results, the proof image paths, new `docs/GLUTTER-ISSUES.md` entries, new manual checks, and the commit hash now on `main`. Then start the next step.
+    - **Publish a milestone.** When the last step of a milestone (a `## M<n>` section below) is merged, push `main` and the tags of its steps. The milestone counts as published when that commit is on `origin/main`.
+    ```sh
+    git push origin main
+    git push origin --tags
+    ```
+    If `--ff-only` fails, rebase the step branch onto `main`, run the standard checks again, and retry. If a push is rejected or fails (authentication, network), retry a few times; if it keeps failing, stop and tell the user. Don't start the next milestone's first step until the milestone's push succeeded.
+15. **Report to the user.** Give the step id, a two-line summary, the check results, the proof image paths, new `docs/GLUTTER-ISSUES.md` entries, new manual checks, and the commit hash now on `main` (and, at the end of a milestone, that it is on `origin/main`). Then start the next step.
 
 **Default "Done when".** A step without a **Done when** line is done when its Tasks are complete, its **Tests** are written and passing, its **Display tests** pass, its **Proof** images are verified, and the standard checks pass.
 

@@ -144,6 +144,9 @@ type ScopeOptions struct {
 	Editors        EditorHost
 	Languages      LanguageSource
 	EditorsChanged func()
+	// NewHeadlessView makes a second, off-screen view of the workspace of the scope for Workspace().NewHeadlessView, on the UI
+	// thread; nil leaves it unavailable (the scope has no workspace to show). The size was checked already.
+	NewHeadlessView func(size extension.Size) (extension.HeadlessView, error)
 	// ShowLog is the command the "Show Log" button of the failure notification runs; the Output panel by default.
 	ShowLog string
 	// Only, when it is not empty, is the id of the only extension the scope has: the scope of a window tab of an extension

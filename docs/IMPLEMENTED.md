@@ -2415,3 +2415,48 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - a new run stops the old one.
 
   Not built: Test All Packages, Subtest At Cursor, coverage, `go.testTags`/`go.buildFlags`, `go.testOnSave`, debug (area 6). M14 is complete with this step.
+
+## 15.1 The protocol and the headless view
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-15.1-remotework
+- **Summary:** SPEC §10.18.
+  - **Protocol** (`extensions/remotework/protocol`, version 1, magic `EMRW`): a message is `type:1 | length:4 | payload`, and each of the 13 types (Hello, Tile, FrameConfirm, Refresh, Key, Mouse, Scroll, Clipboard, Notification, NotificationAction, Resize, Ping, Disconnect) has its own limit. The largest is 1 MiB.
+    - The length is checked against the type's limit before anything is read or allocated. An unknown type is refused, not skipped.
+    - Payloads must match their sizes exactly, and fields are strictly validated (enums, UTF-8, finite floats, nonzero sizes), so the format is canonical: decoding then encoding gives the same bytes.
+    - Encoding allocates nothing.
+  - **Tile differ** (`extensions/remotework/tiles`): 64x64 tiles changed since the confirmed frame, each deflated alone at `flate.DefaultCompression`.
+    - The host keeps only `maphash` hashes of the last 16 unconfirmed frames: 33 KB at 1280x800.
+    - It does a full picture on request (Refresh), on an unknown confirm, and periodically.
+    - The client's `Canvas` drops stale tiles and says when to confirm.
+    - At 1280x800, a whole picture is 260 tiles, 113 KB and 7.8 ms; one typed character is 7 tiles and 6 KB.
+  - **Headless view:** `api.Workspace().NewHeadlessView(size)` in `extension/headless.go`, implemented in `internal/gui/app`.
+    - It is a second Glutter binding on the application's UI thread, with a window-less platform host and a workbench of its own.
+    - The view has its own commands, focus, layout, dialogs, quick input, status bar and zoom. It shares documents, settings, theme, notifications, problems and file operations with the main window.
+    - Pictures are rasterized with Glutter's software renderer and handed to `OnFrame` on a delivery goroutine, at most one frame per `max(33 ms, 2 x the last raster cost)`.
+    - Keys, pointer, scroll and clipboard go in. `Resize` re-lays out the view; `Close`, deactivation, a folder change or the workspace closing end it.
+    - The view's editors don't blink, so an idle view makes no frames.
+    - Commands that act on Emetos itself (quit, tabs, new window) are not bound. Save As uses the quick input. Opening a link does nothing.
+  - **Exthost:** the size is checked, the scope is asked (`ScopeOptions.NewHeadlessView`), and the view closes with the activation. `fakeapi` has a fake view.
+  - **New error tags:** 23, all route-tested.
+- **Tests:**
+  - protocol: table round trips of every message, malformed and oversized input with routes, an allocation test, 20,000 seeded random inputs (the canonical property), and `FuzzDecode`.
+  - tiles: round trips, a lossy-link simulation, stale tiles and confirms, refresh and reset, measurements on real editor pictures.
+  - exthost and fakeapi: the size table, unavailable, closed with the activation.
+  - app: about 20 tests (an edit in the main view shows in the headless view, typing, shortcuts, mouse, scroll, quick input, dialogs, zoom, resize, close on a folder change, an idle view makes no frames), and a benchmark.
+- **Goldens:** new `headless_editor`, `headless_typed` and `headless_scrolled`. I viewed all three. They are skipped under `-race` (the software renderer is about 100 times slower there) and run in the normal and cgo-free runs. No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `FuzzDecode` 30 s (`-parallel=1`, `GOMEMLIMIT=2GiB`) ✅ with no crashers · display tests none.
+- **Proof:** the step has no UI of its own (the Remote Work tab is 15.4), so the proof is the `headless_typed` golden: the headless view of a workspace after `x` was typed into it. `docs/implemented-proof-images/15.1-headless-typed.png`.
+
+  ![15.1 headless view](implemented-proof-images/15.1-headless-typed.png)
+- **Manual checks:** none
+- **Glutter issues:** new in `docs/GLUTTER-ISSUES.md`: "No public way to draw a view off screen and to read its pixels". The workaround in `internal/gui/app/headless_engine.go` uses a `gluttertest.Tester` as the rasterizer, on the UI thread (rendering on another goroutine races in the text engine's shape cache), and replaces it every 8 frames. This puts `gluttertest` and `testing` in the editor binary (+0.7 MB; it registers no flags) and makes a 1280x800 picture cost about 85 ms of the UI thread.
+- **Deviations and follow-ups:** SPEC §10.18 "As built (step 15.1)" holds the wire table and the decisions:
+  - fixed 4-byte lengths;
+  - versions must be equal;
+  - frames are relative to the confirmed picture;
+  - the host keeps hashes, not pictures;
+  - no caret blink in a view;
+  - `NewHeadlessView` is not privilege-restricted (16.1's privileges cover events and commands only).
+
+  Not built: extension contributions in the view, damage-limited rendering (needs Glutter), a view of a workspace that is not on screen. `TestHoverShowHoverCommandShowsFocusesAndHides` (editor) failed once under `-race` in a loaded full run and passed on every rerun; it is watched as a possible flake.
