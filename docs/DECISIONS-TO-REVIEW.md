@@ -223,7 +223,7 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 94. **The Remote Work view keeps a clipboard of its own.** Glutter 1.9.1's offscreen view uses its parent's clipboard, which would have let a client read and replace the host's desktop clipboard (also from the find and quick input boxes). Emetos gives the view a parent binding of its own that never draws and whose clipboard is the view's (`clipboardParent`); copies go to the client through `OnCopy`. A Glutter option for the view's clipboard would remove it (`docs/GLUTTER-ISSUES.md`).
 95. **The tile differ does not use Glutter's damage rectangles yet**: in 1.9.1 a typed character or a scroll damages the whole picture, so passing the rectangles would save little (at most a third of 0.5 ms). The view's caret stays solid, so an idle view sends nothing.
 
-## 2026-10-27: Desktop bugs first, and Claude Code as in VS Code (decided by me after the user's request)
+## 2026-10-27: Desktop bugs first; Claude Code removed; the terminal (decided by me after the user's requests)
 
 96. **New milestones M17b and M17c go before the six extensions**, which keep their numbers (M18 to M22) and wait. The lettered numbers follow M9b's precedent, so nothing already planned was renumbered.
 97. **Emetos downloads Claude Code instead of bundling it** (D26). VS Code's extension carries the binary in its package, but Anthropic's terms (https://code.claude.com/docs/en/legal-and-compliance) give no right to redistribute it, and running it "as published by Anthropic" is what they ask. Emetos therefore downloads the unmodified file from `downloads.claude.ai` on first use, after the user agrees once. Please read that legal page yourself: it also says that offering Claude Code inside a product requires agreeing to Anthropic's Commercial Terms, and Emetos is a product you publish.
@@ -233,3 +233,11 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 101. **Not copied from VS Code's extension:** its code is proprietary, so only its documented behavior is matched. Its sign-in inside the chat (control requests `claudeAuthenticate`) is not built; Emetos keeps `claude auth login` in its panel, which is Anthropic's own flow. `CLAUDE_CODE_ENTRYPOINT` is not set (VS Code sets `claude-vscode`; Emetos is not VS Code).
 102. **A setting `agents.claude.source`** (`download` by default, or `path`) keeps the old behavior for users who installed `claude` themselves, and for the tests.
 103. **Real-input tests run in a headless sway** (the same Wayland keyboard path as a real keyboard, through a virtual keyboard); the desktop is used for the manager's pass at the end of each milestone that changes the UI, in a nested sway window you can watch.
+
+Entries 97 to 102 are **withdrawn**: the user removed the Agents extension instead ("Remove claude code extension. I don't want to read any conditions or accept any terms"), so Emetos neither runs nor downloads Claude Code (D26, step 17c.1). Entry 96 still holds, with M17c now the removal and M17d the terminal.
+
+104. **The terminal is a bundled extension** (`emetos.terminal`), as asked, with VS Code's command ids, keys, settings and colors, and an emulator ported from xterm.js (MIT), the library VS Code's terminal uses; nothing of VS Code itself is needed for it.
+105. **Relay gets the terminal through events only**, as Relay carries nothing else: the output as events, a snapshot request for a client that joins late, and requests to type, run, create and kill.
+106. **Typing in a host's terminal needs a new permission, "Allow terminals"**, off by default, per key and workspace, under "Watch and send"; Watch and send alone could already run tasks, but a shell is everything you can do on that computer, so it gets its own switch and warning.
+107. **Not built in the first version:** terminals in editor tabs, restoring terminals after a restart, shell integration (command marks and history), and running tasks in terminals (the Tasks extension keeps its output view).
+
