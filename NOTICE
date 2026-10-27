@@ -123,9 +123,10 @@ Go modules linked into the binary (their source and LICENSE files come with the
 module; `go list -m -f '{{.Dir}}' <module>` shows them):
 
 12. github.com/rm4n0s/glutter (BSD-3-Clause), github.com/rm4n0s/errors (MIT),
-    github.com/dlclark/regexp2 (MIT), github.com/go-text/typesetting
-    (Unlicense or BSD-3-Clause), golang.org/x/image, golang.org/x/sys and
-    golang.org/x/text (BSD-3-Clause, The Go Authors), github.com/ebitengine/purego
+    github.com/dlclark/regexp2 (MIT), github.com/quic-go/quic-go (MIT, QUIC for
+    Remote Work), github.com/go-text/typesetting (Unlicense or BSD-3-Clause),
+    golang.org/x/crypto, golang.org/x/image, golang.org/x/net, golang.org/x/sys
+    and golang.org/x/text (BSD-3-Clause, The Go Authors), github.com/ebitengine/purego
     (Apache-2.0) and github.com/godbus/dbus/v5 (BSD-2-Clause). Versions are in
     go.mod.
 

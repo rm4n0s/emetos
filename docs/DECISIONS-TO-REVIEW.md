@@ -180,3 +180,8 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
     - It keeps `CLAUDECODE`, which Anthropic's Python SDK removes. As a result, an Emetos started from a terminal inside a `claude` session may find the program refusing to run nested; removing that one variable is a one-line change if you prefer the SDK's behaviour.
     - **"Rewind code to here" is offered on every session Emetos started**, because the documentation names no capability for file checkpoints, and a program that cannot restore shows its reason.
     - The fixtures of the tests are written from the documented shapes, not recorded from your account. The manual check of 13.1 runs the adapter once against your real `claude`.
+
+## 2026-10-27: step 15.3 (QUIC transport; decided by the agent and accepted by me)
+
+75. **A QUIC certificate that does not match the fingerprint sent over SSH ends the connection attempt; it does not fall back to the SSH channel.** A mismatch means something on the UDP port is not what the host started, and the user should see that rather than get a working session that hides it. Falling back instead would be safe (the SSH channel is authenticated) and is a small change.
+76. **The protocol keeps version 1 after adding message type 14 (`Missing`, a request for lost tiles)**, because no version was ever released. From the first release on, a change to the message types bumps the version.

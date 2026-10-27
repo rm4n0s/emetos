@@ -687,3 +687,118 @@ func (m *Disconnect) decode(r *reader) error {
 	m.Text, err = r.str16(MaxReasonText)
 	return err
 }
+
+// ---- Missing ----
+
+// MaxFrameTiles is the most tiles one picture sends: the datagram layer of the transports numbers the tiles of a picture
+// with a u16, and a Missing lists them in a bitmap of at most MaxFrameTiles/8 bytes. A picture of the largest size
+// (MaxPixels) has 2,040 tiles at most.
+const MaxFrameTiles = 4096
+
+// missingHeaderSize is the size of the fields of Missing before its bitmap.
+const missingHeaderSize = 8 + 4
+
+// Missing is how a client asks the host for the tiles of the newest picture that did not arrive on the datagrams (step
+// 15.3; the SSH channel loses nothing and never sends it). The tiles of a picture are numbered from 0 in the order the
+// host sent them; the bitmap has one bit for each, set (bit i % 8 of byte i / 8) for the ones the client lacks. Fields:
+// Frame (8 bytes), Total (4) and Bitmap, which fills the rest of the payload and is exactly (Total+7)/8 bytes.
+type Missing struct {
+	// Frame is the picture, counted from 1 as in Tile.
+	Frame uint64
+	// Total is the number of tiles of the picture (Tile.Total), at least 1 and at most MaxFrameTiles.
+	Total uint32
+	// Bitmap has a bit set for each tile the client lacks: at least one, and none past Total.
+	Bitmap []byte
+}
+
+// Type implements Message.
+func (*Missing) Type() Type { return TypeMissing }
+
+// NewMissing makes the Missing of a picture from what the client has: have[i] says whether tile i arrived. It returns nil
+// when nothing is missing or the picture has no tiles or too many.
+func NewMissing(frame uint64, have []bool) *Missing {
+	if len(have) == 0 || len(have) > MaxFrameTiles {
+		return nil
+	}
+	m := &Missing{Frame: frame, Total: uint32(len(have)), Bitmap: make([]byte, (len(have)+7)/8)}
+	any := false
+	for i, ok := range have {
+		if !ok {
+			m.Bitmap[i/8] |= 1 << (i % 8)
+			any = true
+		}
+	}
+	if !any {
+		return nil
+	}
+	return m
+}
+
+// Lacks says whether the client lacks tile i.
+func (m *Missing) Lacks(i int) bool {
+	return i >= 0 && i < int(m.Total) && i/8 < len(m.Bitmap) && m.Bitmap[i/8]&(1<<(i%8)) != 0
+}
+
+// Indexes lists the tiles the client lacks, in order.
+func (m *Missing) Indexes() []int {
+	var out []int
+	for i := 0; i < int(m.Total); i++ {
+		if m.Lacks(i) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// check reports why the message cannot be sent, or "".
+func (m *Missing) check() string {
+	switch {
+	case m.Frame == 0:
+		return "the frame is 0"
+	case m.Total == 0 || m.Total > MaxFrameTiles:
+		return "the number of tiles is not possible"
+	case len(m.Bitmap) != (int(m.Total)+7)/8:
+		return "the bitmap is not the size of the number of tiles"
+	}
+	if rest := int(m.Total) % 8; rest != 0 && m.Bitmap[len(m.Bitmap)-1]>>rest != 0 {
+		return "a bit past the last tile is set"
+	}
+	for _, b := range m.Bitmap {
+		if b != 0 {
+			return ""
+		}
+	}
+	return "no tile is missing"
+}
+
+func (m *Missing) encode(w *writer) error {
+	if len(m.Bitmap) > (MaxFrameTiles+7)/8 {
+		return errors.New("RemoteWorkEncodeTooLarge", "the bitmap is larger than its limit", "length", len(m.Bitmap))
+	}
+	if what := m.check(); what != "" {
+		return errors.New("RemoteWorkEncodeInvalid", what, "type", "Missing")
+	}
+	w.u64(m.Frame)
+	w.u32(m.Total)
+	w.b = append(w.b, m.Bitmap...)
+	return nil
+}
+
+func (m *Missing) decode(r *reader) error {
+	var err error
+	if m.Frame, err = r.u64(); err != nil {
+		return err
+	}
+	if m.Total, err = r.u32(); err != nil {
+		return err
+	}
+	bitmap, err := r.take(len(r.b))
+	if err != nil {
+		return err
+	}
+	m.Bitmap = append([]byte(nil), bitmap...)
+	if what := m.check(); what != "" {
+		return errors.New("RemoteWorkBadValue", what, "type", "Missing")
+	}
+	return nil
+}

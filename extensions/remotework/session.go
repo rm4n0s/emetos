@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
 	"github.com/rm4n0s/emetos/extensions/remotework/protocol"
+	"github.com/rm4n0s/emetos/extensions/remotework/transport"
 )
 
 // Reason is why a session ends, as the Disconnect message says it to the client.
@@ -44,6 +45,8 @@ type Session struct {
 	folder string
 	token  [login.TokenSize]byte
 	ssh    *sshlogin.Session
+	// conn is the transport of the session (nil when the hub has none), made before the session is visible to anyone.
+	conn *transport.HostConn
 
 	// over is true from the moment the session is asked to end; the token is not valid from then on.
 	over atomic.Bool
@@ -62,9 +65,24 @@ type Session struct {
 // Token is a copy of the session token: 256 random bits, in memory only, valid until the session ends.
 func (s *Session) Token() []byte { return append([]byte(nil), s.token[:]...) }
 
-// Channel is the SSH channel of the session. After the grant it carries the messages of package protocol (the TCP fallback of
-// step 15.3); the hub writes the Disconnect message on it when it ends the session.
+// Channel is the SSH channel of the session. After the grant it carries the messages of package protocol when the session runs over
+// SSH (the TCP fallback); the transport reads and writes it, and the hub writes the Disconnect message on it when it ends the
+// session. A session with a transport is used through Conn, not this.
 func (s *Session) Channel() ssh.Channel { return s.ssh.Channel }
+
+// Conn is the transport of the session: what the headless view of step 15.4 sends and receives the messages of package
+// protocol through, over QUIC or the SSH channel. It is nil when the hub was made with HubOptions.NoTransport. It ends with the
+// session.
+func (s *Session) Conn() *transport.HostConn { return s.conn }
+
+// hostSession is the Session as the transport sees it.
+type hostSession struct{ s *Session }
+
+func (h hostSession) Token() []byte                      { return h.s.Token() }
+func (h hostSession) Channel() io.ReadWriteCloser        { return h.s.ssh.Channel }
+func (h hostSession) Touch()                             { h.s.Touch() }
+func (h hostSession) End(r protocol.Reason, text string) { h.s.End(r, text) }
+func (h hostSession) Done() <-chan struct{}              { return h.s.endCh }
 
 // Done is closed when the session is over: it was asked to end, or its connection closed.
 func (s *Session) Done() <-chan struct{} { return s.endCh }
@@ -127,6 +145,10 @@ func (s *Session) End(reason Reason, text string) {
 		go func() {
 			defer close(sent)
 			// the client is told why; a client that does not read must not hold the end of the session
+			if s.conn != nil {
+				s.conn.Shutdown(reason, text) // says it on the SSH channel and by closing QUIC, without breaking a message in flight
+				return
+			}
 			_ = protocol.NewWriter(s.ssh.Channel).Write(&protocol.Disconnect{Reason: reason, Text: text})
 		}()
 		select {
@@ -206,6 +228,11 @@ func (h *Hub) serve(ss *sshlogin.Session) {
 		return
 	}
 	s.token = token
+	host := h.host
+	if host != nil {
+		// before the session is visible: the transport must know it by the time the client presents the token
+		s.conn = host.Attach(hostSession{s})
+	}
 	var replaced []*Session
 	for old := range h.sessions {
 		if old.folder == s.folder {
@@ -220,8 +247,11 @@ func (h *Hub) serve(ss *sshlogin.Session) {
 	defer h.sessionOver(s)
 
 	var cert []byte
-	if h.opts.Cert != nil {
+	switch {
+	case h.opts.Cert != nil:
 		cert = h.opts.Cert()
+	case host != nil:
+		cert = host.Fingerprint()
 	}
 	grant := login.Grant{Status: login.StatusOK, Workspace: s.Workspace, Token: s.Token(), CertSHA256: cert}
 	if err := login.WriteGrant(ss.Channel, grant); err != nil {
@@ -229,6 +259,9 @@ func (h *Hub) serve(ss *sshlogin.Session) {
 		s.End(reasonClosed, "")
 		<-s.closed
 		return
+	}
+	if s.conn != nil {
+		s.conn.Start()
 	}
 	d := h.idleTimeout()
 	s.mu.Lock()

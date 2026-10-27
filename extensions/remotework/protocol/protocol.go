@@ -50,6 +50,8 @@ const (
 	TypePing
 	// TypeDisconnect ends the session with a reason.
 	TypeDisconnect
+	// TypeMissing lists the tiles of the newest picture that a client lost on the datagrams (step 15.3).
+	TypeMissing
 
 	typeEnd // not a type
 )
@@ -57,7 +59,7 @@ const (
 var typeNames = [...]string{
 	TypeHello: "Hello", TypeTile: "Tile", TypeFrameConfirm: "FrameConfirm", TypeRefresh: "Refresh", TypeKey: "Key",
 	TypeMouse: "Mouse", TypeScroll: "Scroll", TypeClipboard: "Clipboard", TypeNotification: "Notification",
-	TypeNotificationAction: "NotificationAction", TypeResize: "Resize", TypePing: "Ping", TypeDisconnect: "Disconnect",
+	TypeNotificationAction: "NotificationAction", TypeResize: "Resize", TypePing: "Ping", TypeDisconnect: "Disconnect", TypeMissing: "Missing",
 }
 
 // String is the name of the type.
@@ -82,6 +84,7 @@ const (
 	maxResize             = 8
 	maxPing               = 16
 	maxDisconnect         = 512
+	maxMissing            = missingHeaderSize + (MaxFrameTiles+7)/8
 )
 
 // MaxPayload is the limit of the payload of a type, and false for a byte that is no type.
@@ -113,6 +116,8 @@ func MaxPayload(t Type) (int, bool) {
 		return maxPing, true
 	case TypeDisconnect:
 		return maxDisconnect, true
+	case TypeMissing:
+		return maxMissing, true
 	}
 	return 0, false
 }
@@ -160,6 +165,8 @@ func encodeMessage(w *writer, m Message) error {
 		return m.encode(w)
 	case *Disconnect:
 		return m.encode(w)
+	case *Missing:
+		return m.encode(w)
 	}
 	return errors.New("RemoteWorkNilMessage", "there is no message to encode")
 }
@@ -205,6 +212,9 @@ func decodeMessage(t Type, r *reader) (Message, error) {
 		return m, m.decode(r)
 	case TypeDisconnect:
 		m := &Disconnect{}
+		return m, m.decode(r)
+	case TypeMissing:
+		m := &Missing{}
 		return m, m.decode(r)
 	}
 	return nil, errors.New("RemoteWorkUnknownType", "the message has a type the protocol does not have", "type", int(t))

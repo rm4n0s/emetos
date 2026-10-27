@@ -2526,3 +2526,64 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - the user's own key file permissions are not checked.
 
   15.3 plugs in through `HubOptions.Cert` and `HubOptions.OnSession`. Not built: QUIC (15.3), the B tab and reconnection (15.4), Scan QR Code (15.5).
+
+## 15.3 QUIC transport and the TCP fallback
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-15.3-quic
+- **Summary:** SPEC §10.18.
+  - **Dependency:** `github.com/quic-go/quic-go` v0.64.1 (MIT), which adds `golang.org/x/net` v0.60.0 as an indirect dependency. `NOTICE` lists quic-go, plus `x/crypto` and `x/net`, which were missing.
+  - **`extensions/remotework/transport`:** one `Conn` interface for both links.
+    - `Send` is reliable and bounded (512 messages, 8 MiB). `SendTiles` is best effort, latest wins. `Next` gives messages, completed tiles and the peer's Disconnect. `Close` takes a reason.
+    - `HostConn` is A's side and `ClientConn` is B's.
+    - `Presenter` (A: the differ, at most 2 pictures in flight, a retry, the 5 s full refresh over QUIC only) and `Screen` (B: canvas, confirm, refresh request) carry the picture flow.
+  - **Host (A):** QUIC on the UDP port with the SSH port's number, with a self-signed P-256 certificate made in memory at start.
+    - The certificate's SHA-256 goes into the 15.2 grant. A hub whose UDP port cannot open runs over SSH.
+    - B's first stream must be a Hello, checked by its header before the payload (at most 133 bytes before the token is known). The token is compared in constant time and looked up with `Hub.SessionByToken`.
+    - A connection that stays silent for 5 s is closed, and at most 32 connections may wait for their Hello.
+  - **Client (B):** TLS 1.3 only, with ALPN `emetos-remotework/1`. `VerifyConnection` accepts exactly one certificate whose SHA-256 matches, in constant time, and never consults system roots. A mismatch is fatal and does not fall back to SSH (DECISIONS-TO-REVIEW 75).
+  - **Tiles as datagrams:** an encoded `Tile` is split into chunks of 1,100 bytes behind a 14-byte header (frame, index, total, fragment, fragments), and is counted only when every fragment has arrived.
+    - At 1280x800, 86% of a whole picture's tiles fit one datagram, the median tile is 128 bytes, and the largest is 3 KB.
+    - B follows only the newest picture. Reassembly is bounded to 256 partial tiles and 2 MiB.
+    - After a quiet time, B asks for what is missing with a new message, **`Missing` (type 14)**: frame, total and a bitmap. It backs off and asks at most 8 times without progress. The protocol stays at version 1 (DECISIONS-TO-REVIEW 76).
+  - **Reliable stream:** one bidirectional QUIC stream. A write stalled for 15 s drops the link.
+  - **Resume:** a dropped QUIC connection is redialled with the token (3 tries of 3 s), queued messages survive, and Refresh goes first.
+  - **Fallback:** no QUIC handshake within 3 s, a grant without a fingerprint, or a failed resume moves the session to the SSH channel, with the same messages (tiles latest-wins). A session with no transport after 20 s ends.
+  - **Idle timeout:** `Session.Touch` is called on every message A receives (not on tiles sent or keep-alives). The QUIC idle timeout is 15 s with a 5 s keep-alive.
+  - **New error tags:** 15 `Transport*`, plus the protocol tags reused for `Missing`, all route-tested.
+- **Tests:** all on loopback:
+  - a session over QUIC with the real differ, presenter and screen;
+  - refused: a wrong or expired token, a wrong certificate, bad Hellos (type, version, magic, a lying length, silence), another ALPN, the pending limit;
+  - tiles of every size, stale tiles dropped, lost tiles asked for and resent;
+  - the fallback with UDP blocked (a dropping proxy and a fake clock);
+  - resume, and resume falling back to SSH;
+  - bounded queues and malformed datagrams;
+  - the hub end to end with the real 15.2 login, the idle timeout, turning Remote Work off freeing the UDP port;
+  - `Missing` round trips and refusals.
+
+  The agent ran the transport and hub tests with `-count=5 -race`; they passed.
+- **Lossy-link measurement** (`TestLossyLinkMeasurement`: a UDP proxy with 50 ms each way, the real differ on the 1280x800 fixtures, 4 s of typing at 10 pictures a second). The agent's run:
+
+  | Link | First picture (260 tiles) | Typing: shown / complete per s | Typing latency median / p95 | Scroll (132 tiles, 129 KB) |
+  |---|---|---|---|---|
+  | no loss, no delay | 17 ms | 10.0 / 10.0 | 2 / 2 ms | 14 ms |
+  | no loss, 50 ms each way | 197 ms | 6.8 / 6.8 | 54 / 58 ms | 278 ms |
+  | 5% loss, 50 ms each way | 1.45 s | 6.2 / 5.0 | 55 / 221 ms | 3.6 s |
+
+  Over 6 seeds of the lossy link: first picture 0.78–1.41 s, typing 6.0–7.3 pictures shown a second, scroll 3.4–4.6 s.
+
+  My run: first picture 1.43 s; typing 5.5 shown and 5.0 complete a second, latency median 55 ms and p95 343 ms; scroll 2.6 s, and 3.4 s back; 80 of 1,537 packets dropped and 7 requests for lost tiles.
+- **Goldens:** none (no UI in this step).
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · `FuzzDecode` 30 s (`-parallel=1`, `GOMEMLIMIT=2GiB`) ✅ · display tests none.
+- **Proof:** none (no UI; the lossy-link measurement above is the step's evidence).
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.18 "As built (step 15.3)" holds the decisions:
+  - the datagram fragments and the `Missing` repair;
+  - the refresh and the retry live in `Presenter`;
+  - a window of 2 pictures, a 400 ms hold, a retry 600 ms after a picture is out, a 5 s refresh;
+  - a mismatched certificate is fatal;
+  - the SSH Hello is the fallback signal;
+  - 3 resume tries.
+
+  No forward error correction. 15.4 feeds the headless view to `Presenter.Present` and the tab to `Screen`.

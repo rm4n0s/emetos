@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -140,6 +141,11 @@ type rig struct {
 
 type rigOptions struct {
 	cert func() []byte
+	// transport gives the hub its transport (step 15.3), with QUIC on the loopback unless noQUIC; the tests of the login leave it off
+	// so that the SSH channel is theirs.
+	transport bool
+	noQUIC    bool
+	hubTweak  func(*HubOptions)
 }
 
 func newRig(t *testing.T, opts ...rigOptions) *rig {
@@ -157,7 +163,11 @@ func newRig(t *testing.T, opts ...rigOptions) *rig {
 	if cert == nil {
 		cert = func() []byte { return r.certFP }
 	}
-	r.hub = NewHub(HubOptions{
+	ho := HubOptions{
+		NoTransport: !o.transport, NoQUIC: o.noQUIC,
+		ListenUDP: func(port int) (net.PacketConn, error) {
+			return net.ListenPacket("udp", "127.0.0.1:"+strconv.Itoa(port))
+		},
 		Listen: func(port int) (net.Listener, error) {
 			r.mu.Lock()
 			r.listens = append(r.listens, port)
@@ -168,11 +178,18 @@ func newRig(t *testing.T, opts ...rigOptions) *rig {
 			}
 			return net.Listen("tcp", "127.0.0.1:0")
 		},
-		Cert: cert, OnSession: func(s *Session) { r.sess <- s },
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: r.clock.Now, After: r.clock.After,
+		OnSession: func(s *Session) { r.sess <- s },
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)), Now: r.clock.Now, After: r.clock.After,
 		Limiter:          sshlogin.NewLimiter(sshlogin.LimiterOptions{Now: r.clock.Now}),
 		HandshakeTimeout: 5 * time.Second, ChannelTimeout: 5 * time.Second,
-	})
+	}
+	if !o.transport || o.cert != nil {
+		ho.Cert = cert
+	}
+	if o.hubTweak != nil {
+		o.hubTweak(&ho)
+	}
+	r.hub = NewHub(ho)
 	t.Cleanup(r.hub.Close)
 	return r
 }

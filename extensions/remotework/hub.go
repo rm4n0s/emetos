@@ -1,6 +1,7 @@
 package remotework
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
+	"github.com/rm4n0s/emetos/extensions/remotework/transport"
 )
 
 // HubOptions are what NewHub takes; every field has a default, so the editor passes none and the tests pass their own.
@@ -28,12 +30,23 @@ type HubOptions struct {
 	// Listen opens the TCP listener of the SSH server on the port; the default listens on every interface. Tests listen on the
 	// loopback with an ephemeral port.
 	Listen func(port int) (net.Listener, error)
-	// Cert gives the SHA-256 fingerprint of the QUIC certificate of the host, which the grant carries (step 15.3 fills it); nil,
-	// or a result that is empty, means there is no QUIC and the session runs over the SSH channel.
+	// Cert overrides the SHA-256 fingerprint of the QUIC certificate that the grant carries. The default is the fingerprint of the
+	// certificate the hub's transport made at start, empty when the hub has no QUIC (the session then runs over the SSH channel).
+	// A test gives a stand-in.
 	Cert func() []byte
-	// OnSession is called, on the goroutine that serves the SSH channel, after the grant was sent: step 15.3 starts the session's
-	// transport here. It must not block; the session ends with the channel.
+	// OnSession is called, on the goroutine that serves the SSH channel, after the grant was sent. Session.Conn is the session's
+	// transport, to which the headless view is attached (step 15.4). It must not block; the session ends with the channel.
 	OnSession func(*Session)
+	// NoTransport leaves the SSH channel to the caller: no transport is attached to a session and nothing reads the channel (the
+	// tests of the login use it).
+	NoTransport bool
+	// NoQUIC makes the transport use the SSH channel only: the hub opens no UDP socket and the grant has no fingerprint.
+	NoQUIC bool
+	// ListenUDP opens the UDP socket of QUIC on the port the SSH listener got; the default listens on every interface. When it
+	// fails the hub logs it and runs without QUIC.
+	ListenUDP func(port int) (net.PacketConn, error)
+	// Transport, if not nil, changes the options of the hub's transport host before it starts (tests shorten its timeouts).
+	Transport func(*transport.HostOptions)
 	// Limiter counts the failed attempts of each address; the default is 5 a minute.
 	Limiter *sshlogin.Limiter
 	// Logger is the log of the hub; slog.Default() when nil.
@@ -73,6 +86,7 @@ type Hub struct {
 	workspaces map[string][]*workspaceHost
 	sessions   map[*Session]struct{}
 	srv        *sshlogin.Server
+	host       *transport.Host
 	srvPort    int
 	addr       net.Addr
 	listenErr  error
@@ -92,6 +106,9 @@ func NewHub(opts HubOptions) *Hub {
 	}
 	if h.opts.Listen == nil {
 		h.opts.Listen = func(port int) (net.Listener, error) { return net.Listen("tcp", ":"+strconv.Itoa(port)) }
+	}
+	if h.opts.ListenUDP == nil {
+		h.opts.ListenUDP = func(port int) (net.PacketConn, error) { return net.ListenPacket("udp", ":"+strconv.Itoa(port)) }
 	}
 	if h.opts.Now == nil {
 		h.opts.Now = time.Now
@@ -317,10 +334,16 @@ func (h *Hub) startListening(port int) {
 		fail(errors.NewErr("RemoteWorkListenFailed", err).SetMetadata("port", port))
 		return
 	}
+	host, err := h.startTransport(ln)
+	if err != nil {
+		_ = ln.Close() // the listener never served
+		fail(err)
+		return
+	}
 	h.mu.Lock()
-	h.srv, h.srvPort, h.addr, h.listenErr = srv, port, ln.Addr(), nil
+	h.srv, h.host, h.srvPort, h.addr, h.listenErr = srv, host, port, ln.Addr(), nil
 	h.mu.Unlock()
-	h.log.Info("Remote Work listens", "addr", ln.Addr().String())
+	h.log.Info("Remote Work listens", "addr", ln.Addr().String(), "quic", host != nil && host.Addr() != nil)
 	go func() {
 		if err := srv.Serve(ln); err != nil {
 			h.log.Error("Remote Work stopped listening", "err", err)
@@ -328,11 +351,54 @@ func (h *Hub) startListening(port int) {
 	}()
 }
 
+// startTransport starts the transport of the sessions next to the SSH listener: QUIC on the UDP port of the same number, which
+// the hub gives up (and logs) if it cannot open, leaving the SSH channel to carry the sessions. It returns nil when the hub is
+// made without a transport.
+func (h *Hub) startTransport(ln net.Listener) (*transport.Host, error) {
+	if h.opts.NoTransport {
+		return nil, nil
+	}
+	var pc net.PacketConn
+	if tcp, ok := ln.Addr().(*net.TCPAddr); ok && !h.opts.NoQUIC {
+		var err error
+		if pc, err = h.opts.ListenUDP(tcp.Port); err != nil {
+			h.log.Warn("Remote Work: QUIC is not available, sessions will run over the SSH channel", "port", tcp.Port, "err", err)
+			pc = nil
+		}
+	}
+	o := transport.HostOptions{
+		PacketConn: pc, Lookup: h.lookupConn, Clock: transport.FuncClock{NowFunc: h.opts.Now, After: h.opts.After}, Logger: h.log,
+		OnRefused: func(kind transport.Kind, remote string, err error) {
+			h.log.Warn("Remote Work: a transport connection was refused", "kind", kind.String(), "remote", remote, "err", err)
+		},
+	}
+	if h.opts.Transport != nil {
+		h.opts.Transport(&o)
+	}
+	host, err := transport.NewHost(context.Background(), o)
+	if err != nil {
+		if pc != nil {
+			_ = pc.Close() // the host never took it
+		}
+		return nil, err
+	}
+	return host, nil
+}
+
+// lookupConn is the transport's way to find the session of a token.
+func (h *Hub) lookupConn(token []byte) (*transport.HostConn, bool) {
+	s, ok := h.SessionByToken(token)
+	if !ok || s.conn == nil {
+		return nil, false
+	}
+	return s.conn, true
+}
+
 // stopListening ends every session with the reason, then closes the listener and what is left of the connections.
 func (h *Hub) stopListening(reason Reason, text string) {
 	h.mu.Lock()
-	srv := h.srv
-	h.srv, h.addr = nil, nil
+	srv, host := h.srv, h.host
+	h.srv, h.host, h.addr = nil, nil, nil
 	ended := make([]*Session, 0, len(h.sessions))
 	for s := range h.sessions {
 		ended = append(ended, s)
@@ -346,6 +412,9 @@ func (h *Hub) stopListening(reason Reason, text string) {
 		case <-s.closed:
 		case <-time.After(3 * time.Second):
 		}
+	}
+	if host != nil {
+		host.Close()
 	}
 	if srv != nil {
 		srv.Close()

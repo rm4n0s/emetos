@@ -44,6 +44,9 @@ func samples() []Message {
 		&Disconnect{Reason: ReasonHost, Text: "bye"},
 		&Disconnect{Reason: ReasonWorkspaceClosed, Text: strings.Repeat("t", MaxReasonText)},
 		&Disconnect{},
+		&Missing{Frame: 3, Total: 1, Bitmap: []byte{1}},
+		&Missing{Frame: 9, Total: 12, Bitmap: []byte{0x81, 0x08}},
+		&Missing{Frame: 1, Total: MaxFrameTiles, Bitmap: append(make([]byte, MaxFrameTiles/8-1), 0x80)},
 	}
 }
 
@@ -123,7 +126,7 @@ func TestAStreamOfMessagesRoundTripsThroughReaderAndWriter(t *testing.T) {
 
 func TestTheTypeBytesAreStable(t *testing.T) {
 	// the numbers are on the wire: changing one is a new version of the protocol
-	want := map[Type]uint8{TypeHello: 1, TypeTile: 2, TypeFrameConfirm: 3, TypeRefresh: 4, TypeKey: 5, TypeMouse: 6, TypeScroll: 7, TypeClipboard: 8, TypeNotification: 9, TypeNotificationAction: 10, TypeResize: 11, TypePing: 12, TypeDisconnect: 13}
+	want := map[Type]uint8{TypeHello: 1, TypeTile: 2, TypeFrameConfirm: 3, TypeRefresh: 4, TypeKey: 5, TypeMouse: 6, TypeScroll: 7, TypeClipboard: 8, TypeNotification: 9, TypeNotificationAction: 10, TypeResize: 11, TypePing: 12, TypeDisconnect: 13, TypeMissing: 14}
 	for typ, n := range want {
 		if uint8(typ) != n {
 			t.Errorf("%v is %d, want %d", typ, typ, n)
@@ -214,6 +217,14 @@ func TestMalformedInputIsRefusedWithItsRoute(t *testing.T) {
 		{"ping with a flag of 2", frame(TypePing, 9, append(make([]byte, 8), 2)...), "flag.RemoteWorkBadValue"},
 		{"disconnect with an unknown reason", frame(TypeDisconnect, 3, 99, 0, 0), "enum.RemoteWorkBadValue"},
 		{"disconnect text over the limit", frame(TypeDisconnect, 3, 0, 0xff, 0xff), "str16.RemoteWorkTooLarge"},
+		{"missing of frame 0", frame(TypeMissing, 13, append(make([]byte, 11), 1, 1)...), "Missing.decode.RemoteWorkBadValue"},
+		{"missing of 0 tiles", frame(TypeMissing, 12, append([]byte{0, 0, 0, 0, 0, 0, 0, 1}, 0, 0, 0, 0)...), "Missing.decode.RemoteWorkBadValue"},
+		{"missing of too many tiles", frame(TypeMissing, 12+512, append(append([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0x10, 1}, make([]byte, 511)...), 1)...), "Missing.decode.RemoteWorkBadValue"},
+		{"missing with a bitmap of the wrong size", frame(TypeMissing, 14, append([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 17}, 1, 1)...), "Missing.decode.RemoteWorkBadValue"},
+		{"missing with a bit past the last tile", frame(TypeMissing, 13, append([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3}, 0x08)...), "Missing.decode.RemoteWorkBadValue"},
+		{"missing with nothing missing", frame(TypeMissing, 13, append([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3}, 0)...), "Missing.decode.RemoteWorkBadValue"},
+		{"missing that is cut", frame(TypeMissing, 5, 0, 0, 0, 0, 1), "take.RemoteWorkTruncated"},
+		{"missing over its limit", frame(TypeMissing, 12+513, make([]byte, 12+513)...), "parseHeader.RemoteWorkTooLarge"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -272,6 +283,10 @@ func TestTheEncoderRefusesWhatTheDecoderWould(t *testing.T) {
 		{"notification action out of range", &NotificationAction{Action: MaxActions}, "enum.RemoteWorkEncodeInvalid"},
 		{"resize of 0", &Resize{}, "Resize.encode.RemoteWorkEncodeInvalid"},
 		{"disconnect of an unknown reason", &Disconnect{Reason: 99}, "enum.RemoteWorkEncodeInvalid"},
+		{"missing of frame 0", &Missing{Total: 1, Bitmap: []byte{1}}, "Missing.encode.RemoteWorkEncodeInvalid"},
+		{"missing with nothing missing", &Missing{Frame: 1, Total: 8, Bitmap: []byte{0}}, "Missing.encode.RemoteWorkEncodeInvalid"},
+		{"missing with a bit past the last tile", &Missing{Frame: 1, Total: 3, Bitmap: []byte{0x0c}}, "Missing.encode.RemoteWorkEncodeInvalid"},
+		{"missing with a bitmap over the limit", &Missing{Frame: 1, Total: 8, Bitmap: make([]byte, MaxFrameTiles/8+1)}, "Missing.encode.RemoteWorkEncodeTooLarge"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -439,5 +454,40 @@ func TestSeededRandomInputNeverPanicsAndAcceptedInputIsCanonical(t *testing.T) {
 	}
 	if accepted == 0 {
 		t.Error("the random input never made a valid message; the test checks nothing")
+	}
+}
+
+func TestMissingHelpers(t *testing.T) {
+	if m := NewMissing(1, []bool{true, true}); m != nil {
+		t.Errorf("nothing is missing, got %+v", m)
+	}
+	if m := NewMissing(1, nil); m != nil {
+		t.Errorf("no tiles, got %+v", m)
+	}
+	if m := NewMissing(1, make([]bool, MaxFrameTiles+1)); m != nil {
+		t.Error("too many tiles")
+	}
+	have := make([]bool, 19)
+	for i := range have {
+		have[i] = i%3 != 0
+	}
+	m := NewMissing(7, have)
+	if m == nil || m.Frame != 7 || m.Total != 19 || len(m.Bitmap) != 3 {
+		t.Fatalf("got %+v", m)
+	}
+	want := []int{0, 3, 6, 9, 12, 15, 18}
+	if got := m.Indexes(); !reflect.DeepEqual(got, want) {
+		t.Errorf("indexes = %v, want %v", got, want)
+	}
+	if m.Lacks(-1) || m.Lacks(19) || m.Lacks(1) || !m.Lacks(18) {
+		t.Error("Lacks is wrong at the edges")
+	}
+	b, err := Append(nil, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Decode(b)
+	if err != nil || !reflect.DeepEqual(got, m) {
+		t.Errorf("round trip = %+v, %v", got, err)
 	}
 }
