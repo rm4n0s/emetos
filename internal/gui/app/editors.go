@@ -27,6 +27,9 @@ type textEditor struct {
 	view  *editor.ViewModel
 	// focus gives the editor the keyboard focus while its widget is on screen.
 	focus *editor.EditorFocus
+	// noAutofocus turns off the focus the editor takes when it is first shown: a file that a click in the Explorer showed does
+	// not take the keyboard focus from the tree (openOptions.PreserveFocus).
+	noAutofocus bool
 	// tokenizer keeps the tokens of the document the editor shows.
 	tokenizer *tokens.Tokenizer
 	// stopBrackets stops the bracket pairs of the document following it, stopGuides the indentation

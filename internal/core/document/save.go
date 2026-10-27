@@ -166,6 +166,10 @@ func (d *Document) BeginSaveAs(path string, opts SaveOptions) (*SaveJob, error) 
 }
 
 func (d *Document) begin(path string, as bool, opts SaveOptions) (*SaveJob, error) {
+	// the edits so far are a step of their own, so that one Undo brings back the saved text
+	//
+	// Ported from VS Code: src/vs/workbench/services/textfile/common/textFileEditorModel.ts (doSave: pushStackElement)
+	d.PushStackElement()
 	if opts.Participate != nil {
 		if err := opts.Participate(d, opts.Reason); err != nil {
 			if _, ok := errors.FromError(err); ok {

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
@@ -165,7 +166,7 @@ func (s *shellState) groupWidget(bc widgets.BuildContext, group *editorgroup.Gro
 func (s *shellState) editorColumn(bc widgets.BuildContext, win *Workspace, group *editorgroup.Group, ed *textEditor, active bool) widgets.Widget {
 	binding := widgets.WidgetsBindingOf(bc)
 	text := editor.NewEditor(ed.view, editor.EditorOpts{
-		Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: active, Context: win.ctx, ClipboardMemory: win.Clipboard,
+		Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Autofocus: active && !ed.noAutofocus, Context: win.ctx, ClipboardMemory: win.Clipboard,
 		FindMemory: win.Find, Zoom: win.Zoom, InputMode: win.InputMode, Focus: ed.focus,
 		OnFocus: func(has bool) { s.editorFocus(group, ed, has) },
 	})
@@ -223,6 +224,17 @@ func (s *shellState) editorFocus(group *editorgroup.Group, ed *textEditor, has b
 	if has {
 		s.group.focused[ed] = true
 		s.focusMoved(group)
+		if ex := &s.explorer; ex.view != nil && time.Now().Before(ex.refocusUntil) {
+			// the editor that took over after a delete from the tree gives the focus back (refocusTree)
+			ex.refocusUntil = time.Time{}
+			binding := widgets.WidgetsBindingOf(s.Context())
+			binding.Scheduler().ScheduleFrame()
+			binding.Scheduler().AddPostFrameCallback(func(time.Duration) {
+				if s.Mounted() && ex.view != nil {
+					ex.view.Focus()
+				}
+			})
+		}
 		return
 	}
 	delete(s.group.focused, ed)

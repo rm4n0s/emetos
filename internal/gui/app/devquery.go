@@ -48,6 +48,8 @@ type DevEditor struct {
 	// SuggestVisible and SignatureVisible tell whether the suggest widget and the signature help show.
 	SuggestVisible   bool `json:"suggestVisible"`
 	SignatureVisible bool `json:"signatureVisible"`
+	// HoverVisible tells whether the hover box shows.
+	HoverVisible bool `json:"hoverVisible"`
 }
 
 // DevMarkdown is one Markdown preview on screen, as dev.markdown reports it.
@@ -161,11 +163,19 @@ func devEditor(p *Process, ctx command.Context) error {
 	if uri := doc.URI(); uri.Scheme == document.SchemeFile {
 		out.Path = uri.Path
 	}
-	if e := shell.activeEditor(); e != nil && e.view != nil {
+	e := shell.activeEditor()
+	if e == nil {
+		// a diff editor: the cursor and the modes are those of its modified side
+		if p, ok := shell.group.panes[shell.activeGroup().Model.ActiveEditor()].(*diffPane); ok {
+			e = p.sides[1]
+		}
+	}
+	if e != nil && e.view != nil {
 		pos := e.view.Cursors().Primary().Position()
 		out.Line, out.Column = pos.Line+1, pos.Col+1
 		st := e.view.DevState()
 		out.InSnippet, out.TabStops, out.SuggestVisible, out.SignatureVisible = st.InSnippet, st.TabStops, st.SuggestVisible, st.SignatureVisible
+		out.HoverVisible = st.HoverVisible
 	}
 	setDevAnswer(ctx.Ctx, out)
 	return nil

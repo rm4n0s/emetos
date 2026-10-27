@@ -608,3 +608,40 @@ func TestSaveInANewEncodingWritesTheMark(t *testing.T) {
 		t.Errorf("file = %q", got)
 	}
 }
+
+// TestSaveClosesTheUndoGroup: typing before a save and typing after it are two undo steps, so that one Undo brings back the
+// saved text (VS Code's textFileEditorModel.doSave pushes a stack element "so that the user has a chance to Ctrl+Z back to the
+// saved version"). Typing after a save joined the typing before it, and one Undo went past the saved text.
+func TestSaveClosesTheUndoGroup(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		save func(d *Document) error
+	}{
+		{"save", func(d *Document) error { _, err := d.Save(context.Background(), SaveOptions{}); return err }},
+		{"save as to the same file", func(d *Document) error {
+			_, err := d.SaveAs(context.Background(), d.URI().Path, SaveOptions{})
+			return err
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "a.txt")
+			writeFile(t, path, "one\n", 0o644)
+			d := openFile(t, path)
+			edit(t, d, []Edit{ins(0, 3, "a")}, EditOptions{Kind: KindTyping})
+			if err := tt.save(d); err != nil {
+				t.Fatal(err)
+			}
+			saved := d.Text()
+			edit(t, d, []Edit{ins(0, 4, "b")}, EditOptions{Kind: KindTyping})
+			if _, err := d.Undo(); err != nil {
+				t.Fatal(err)
+			}
+			if got := d.Text(); got != saved {
+				t.Errorf("after one undo the text is %q, want the saved %q", got, saved)
+			}
+			if d.Dirty() {
+				t.Error("the document is dirty at the saved text")
+			}
+		})
+	}
+}

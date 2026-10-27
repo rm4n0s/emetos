@@ -13,7 +13,9 @@
 #   --desktop       run in a nested sway window on the desktop (needs WAYLAND_DISPLAY)
 #   --size WxH      the size of the output of the compositor, 1280x800 by default
 #   --shots <dir>   EMETOS_PROOF_DIR for the tests: where the proof images go (cmd/emetos TestRealInputProofs)
-#   -- args         go test arguments; ./cmd/emetos -run TestRealInput -v when none are given
+#   -- args         go test arguments; ./cmd/emetos -run 'TestRealInput|TestDesktop' -v when none are given (step 17b.5 added the
+#                   TestDesktop tests; the real gopls test of that step is under the tag emetos_gopls: `-- -tags 'emetos_display
+#                   emetos_gopls' ./cmd/emetos -run Gopls -v`)
 #
 # The go test runs with the race detector unless EMETOS_REALINPUT_RACE=0. A GPU renderer can be asked for with
 # GLUTTER_RENDERER=auto (the tests use gles, which needs no GPU, unless it is set).
@@ -52,7 +54,7 @@ while [[ $# -gt 0 ]]; do
 done
 args=("$@")
 if [[ ${#args[@]} -eq 0 ]]; then
-  args=(./cmd/emetos -run TestRealInput -v)
+  args=(./cmd/emetos -run 'TestRealInput|TestDesktop' -v)
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

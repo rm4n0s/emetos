@@ -259,6 +259,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	registerDevLog(p.Commands, p.Channels)
 	registerDevMarkers(p.Commands)
 	registerDevQueries(p)
+	registerDevWorkbench(p)
 	p.loadUserThemes()
 	return p
 }

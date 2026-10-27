@@ -25,11 +25,13 @@ type DevState struct {
 	TabStops  int
 	// SuggestVisible and SignatureVisible tell whether the suggest widget and the parameter hints show.
 	SuggestVisible, SignatureVisible bool
+	// HoverVisible tells whether the hover box shows.
+	HoverVisible bool
 }
 
 // DevState reads the modes of the editor.
 func (vm *ViewModel) DevState() DevState {
-	st := DevState{InSnippet: vm.SnippetState().InSnippet, SuggestVisible: vm.SuggestVisible(), SignatureVisible: vm.sig.shown != nil}
+	st := DevState{InSnippet: vm.SnippetState().InSnippet, SuggestVisible: vm.SuggestVisible(), SignatureVisible: vm.sig.shown != nil, HoverVisible: vm.hover.shown != nil}
 	whole := buffer.Range{End: buffer.Position{Line: vm.doc.Snapshot().LineCount()}}
 	st.TabStops = len(vm.doc.DecorationsIn(whole, vm.owner(snippetOwner)))
 	return st

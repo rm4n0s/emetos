@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rm4n0s/glutter/desktop"
 	"github.com/rm4n0s/glutter/foundation"
@@ -456,6 +457,8 @@ func (s *shellState) deleteInExplorer(binding *widgets.WidgetsBinding, useTrash 
 // deleteItems asks what has to be asked and deletes.
 func (s *shellState) deleteItems(binding *widgets.WidgetsBinding, items []*workspace.Item, useTrash, skipConfirm bool) {
 	win := PeekWorkspace(s.Context())
+	// the tree has the focus now and the dialog takes it; the tree gets it back when the items are gone (doDelete)
+	s.explorer.refocus = s.explorer.view != nil && s.explorer.view.HasFocus()
 	paths := distinctPaths(items)
 	byPath := map[string]*workspace.Item{}
 	for _, it := range items {
@@ -590,6 +593,31 @@ func (s *shellState) deleteConfirmed(binding *widgets.WidgetsBinding, items []*w
 		})
 }
 
+// refocusTree gives the keyboard focus back to the Explorer's tree after a delete that was asked for from it: the editors of the
+// deleted files close and the one that becomes the active editor of its group is mounted with the focus (autofocus), which would
+// take the focus from the tree, so that Ctrl+Z no longer undoes the delete. VS Code keeps the focus in the Explorer.
+func (s *shellState) refocusTree(binding *widgets.WidgetsBinding) {
+	ex := &s.explorer
+	if !ex.refocus {
+		return
+	}
+	ex.refocus = false
+	// the editor of the group may be mounted later than the frames below, when the machine is slow: the first one that takes the
+	// focus in the next second gives it back (editorFocus)
+	ex.refocusUntil = time.Now().Add(time.Second)
+	scheduler := binding.Scheduler()
+	scheduler.ScheduleFrame()
+	// the editors close in this frame and the next one mounts the new active editor: the tree takes the focus after that
+	scheduler.AddPostFrameCallback(func(time.Duration) {
+		scheduler.ScheduleFrame()
+		scheduler.AddPostFrameCallback(func(time.Duration) {
+			if s.Mounted() && ex.view != nil {
+				ex.view.Focus()
+			}
+		})
+	})
+}
+
 // doDelete deletes the paths. A trash that cannot take them asks whether to delete for good.
 func (s *shellState) doDelete(binding *widgets.WidgetsBinding, items []*workspace.Item, paths []string, useTrash bool) {
 	win := PeekWorkspace(s.Context())
@@ -601,6 +629,7 @@ func (s *shellState) doDelete(binding *widgets.WidgetsBinding, items []*workspac
 		return ops.Delete(ctx, paths)
 	}, func(o opsRun) {
 		if o.err == nil {
+			s.refocusTree(binding)
 			return
 		}
 		win.Process.Logger.Warn("delete failed", "err", o.err)

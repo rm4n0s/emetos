@@ -81,6 +81,11 @@ type explorerState struct {
 	editors *explorer.OpenEditors
 	// outline is the model of the Outline view (outline.go).
 	outline *outlineview.Outline
+	// refocus is set when a delete was asked for from the tree, which takes the focus back when it is done (refocusTree).
+	refocus bool
+	// refocusUntil is how long after a delete the first editor that takes the keyboard focus gives it back to the tree
+	// (refocusTree); the zero time when no delete waits.
+	refocusUntil time.Time
 	// focus tells which views of the Explorer have the keyboard focus.
 	focus map[string]bool
 	// revealedFor is the file of the active editor that was last revealed, and wasVisible whether the
@@ -222,7 +227,10 @@ func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
 	}
 	ex.view = explorer.NewView(win.ctx, win.Workspace, explorer.ViewOpts{
 		Post: binding.Post, Binding: binding, Keys: win.Keys, Icons: win.FileIcons, Language: win.languageOf,
-		OnOpen: func(path string, pinned bool) { s.openPath(binding, nil, path, !pinned) },
+		// a click or an arrow key shows the file as a preview and the tree keeps the focus; Enter and a double click take it
+		OnOpen: func(path string, pinned bool) {
+			s.openPathAt(binding, path, 0, 0, openOptions{Preview: !pinned, PreserveFocus: !pinned, TakeFocus: pinned})
+		},
 		OnLoadFailed: func(path string, err error) {
 			win.Notify.Error("Emetos", "Cannot read the folder "+path+": "+describe(err))
 		},

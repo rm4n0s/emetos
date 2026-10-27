@@ -40,6 +40,11 @@ type groupState struct {
 	// focusAsked is whether a request to give the active group the keyboard focus waits for the next
 	// frame.
 	focusAsked bool
+	// holding is true while an open keeps the keyboard focus where it is (a click in the Explorer shows the file as a preview
+	// and the tree keeps the focus, as VS Code's preserveFocus): askFocus does nothing (holdFocus). holdGen tells the holds
+	// apart, so that the end of an earlier one does not end a later one.
+	holding bool
+	holdGen int
 	// drag is the drag of a tab that goes on, or nil; dragFeed tells the layer that shows it to build
 	// again (tabdrag.go).
 	drag     *tabDrag
@@ -72,6 +77,11 @@ type openOptions struct {
 	// Inactive opens the editor without making it the active one, and its group without making it the active group: the
 	// editors a refactoring opened for the files it changed (VS Code leaves those inactive too).
 	Inactive bool
+	// PreserveFocus keeps the keyboard focus where it is: the editor is shown, but it does not take the focus (VS Code's
+	// preserveFocus option of a click or an arrow key in the Explorer).
+	PreserveFocus bool
+	// TakeFocus gives the keyboard focus to the editor, also when it is shown already (Enter and a double click in the Explorer).
+	TakeFocus bool
 	// FileView, when set, is the id of the file view the editor shows (an editor that is open already is switched to it);
 	// otherwise a new editor gets the view workbench.editor.defaultFileViews names for its file.
 	FileView string
@@ -240,6 +250,13 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 		group = s.activeGroup()
 	}
 	defer win.Documents.Release(doc)
+	if opts.PreserveFocus {
+		s.holdFocus(binding)
+	} else if opts.TakeFocus {
+		// Enter or a double click in the Explorer: the click before it kept the focus, this one gives it to the editor
+		s.group.holding = false
+		s.group.holdGen++
+	}
 	preview := opts.Preview && settings.Get[bool](win.Settings, "workbench.editor.enablePreview", "") && !doc.Dirty()
 	if path, ok := filePath(doc.URI().Scheme, doc.URI().Path); ok {
 		win.AddRecentFile(path) // the quick open shows the files that were opened first
@@ -262,6 +279,10 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 		}
 	}
 	e := s.group.editors[shown]
+	if e != nil && opts.PreserveFocus && isNew {
+		// the editor is mounted in a later frame, and its autofocus is read then
+		e.noAutofocus = true
+	}
 	if e != nil {
 		switch {
 		case opts.FileView != "":
@@ -280,6 +301,9 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 	}
 	if e != nil && opts.Place != nil {
 		opts.Place(e)
+	}
+	if opts.TakeFocus && !opts.Inactive {
+		s.askFocus(binding)
 	}
 	s.nav.hold--
 	s.syncNav()
@@ -598,11 +622,29 @@ func (s *shellState) openFile(ctx context.Context, path string) (*document.Docum
 // request is tried after each frame until it is taken (a new group is built a frame after the grid
 // changed) or it has been tried a few times. While it waits, the focus is not followed (focusMoved).
 func (s *shellState) askFocus(binding *widgets.WidgetsBinding) {
-	if s.group.focusAsked {
+	if s.group.focusAsked || s.group.holding {
 		return
 	}
 	s.group.focusAsked = true
 	s.tryFocus(binding, 0)
+}
+
+// holdFocus keeps the keyboard focus where it is while the editor that is being opened is built: for two frames askFocus does
+// nothing (the editor's own autofocus is turned off with textEditor.noAutofocus).
+func (s *shellState) holdFocus(binding *widgets.WidgetsBinding) {
+	s.group.holding = true
+	s.group.holdGen++
+	gen := s.group.holdGen
+	scheduler := binding.Scheduler()
+	scheduler.ScheduleFrame()
+	scheduler.AddPostFrameCallback(func(time.Duration) {
+		scheduler.ScheduleFrame()
+		scheduler.AddPostFrameCallback(func(time.Duration) {
+			if s.group.holdGen == gen {
+				s.group.holding = false
+			}
+		})
+	})
 }
 
 // focusTries is how many frames a request for the focus of a group waits for its widgets.

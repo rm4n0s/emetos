@@ -44,6 +44,8 @@ func TestDevQueryErrorRoutes(t *testing.T) {
 		{"dev.inputs", "devInputs.DevInputsNoWindow"},
 		{"dev.editor", "devEditor.DevEditorNoWorkspace"},
 		{"dev.markdown", "devMarkdown.DevMarkdownNoWindow"},
+		{"dev.texts", "devTexts.DevTextsNoWindow"},
+		{"dev.workbench", "devWorkbench.DevWorkbenchNoWorkspace"},
 	} {
 		_, err := runQuery(t, p, tt.id)
 		appErr, ok := errors.FromError(err)
@@ -85,6 +87,34 @@ func TestDevQueriesAnswer(t *testing.T) {
 	}
 	if ed.InSnippet || ed.TabStops != 0 || ed.SuggestVisible || ed.SignatureVisible {
 		t.Errorf("dev.editor reports a mode on an editor with none: %+v", ed)
+	}
+
+	// the workbench lists the groups with their tabs, and the texts on screen include the label of the tab
+	raw, err = runQuery(t, win.Process, "dev.workbench")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var bench DevWorkbench
+	if err := json.Unmarshal(raw, &bench); err != nil {
+		t.Fatal(err)
+	}
+	if len(bench.Groups) != 1 || !bench.Groups[0].Active || len(bench.Groups[0].Tabs) != 1 || bench.Groups[0].Tabs[0].Name != filepath.Base(sampleFile(t)) {
+		t.Errorf("dev.workbench = %+v", bench)
+	}
+	raw, err = runQuery(t, win.Process, "dev.texts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var texts []DevText
+	if err := json.Unmarshal(raw, &texts); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, tx := range texts {
+		found = found || (tx.Text == filepath.Base(sampleFile(t)) && tx.Height > 0)
+	}
+	if !found {
+		t.Errorf("dev.texts has no label of the tab %q: %+v", filepath.Base(sampleFile(t)), texts)
 	}
 
 	// an input box on screen is listed with its text and focus

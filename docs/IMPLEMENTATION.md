@@ -127,7 +127,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M15 Remote Work | 15.1–15.5 |
 | M16 Relay | 16.1–16.3 |
 | M17 Wrap-up | 17.1 |
-| M17b Bugs found on the desktop | 17b.1–17b.5 |
+| M17b Bugs found on the desktop | 17b.1–17b.6 |
 | M17c Remove the Agents extension | 17c.1 |
 | M17d The terminal | 17d.1–17d.7 |
 | M18 Containers | 18.1–18.4 |
@@ -1468,7 +1468,19 @@ Rules for this milestone: every step has display tests that type and click throu
 **Goal:** Emetos is used through everything it offers with real input, and what is broken is fixed or planned.
 **Read:** SPEC §3 (the rows built), §15.1 "Real input"; `docs/IMPLEMENTED.md` (the coverage tables).
 **Tasks:** display tests with real input (17b.1's harness) for a session as a user has it: open a folder; the explorer (expand, open with a click, new file and folder, rename, delete to the trash, undo, drag); edit a Go file (typing, auto-closing, completion and hover with a fake language server, and with `gopls` under the tag `emetos_gopls`), save, undo and redo; Quick Open, the command palette, Go to Line and Go to Symbol; Find and Replace in a file and in the Search view; the settings editor (search, change a setting by typing and with a check box), the keybindings editor (record a key), the theme picker; the diff editor and the merge editor; split groups and drag a tab; workspace tabs; the panel (Problems, Output); Notes, TODOs, Tasks; the Markdown preview; a second launch handing a file over. Each test checks its effect and takes a screenshot that is viewed. `docs/DESKTOP-PASS.md` lists every finding with its status. A bug of Emetos that is fixable in this step is fixed with a real-input regression test; a larger one is reported to the manager, who adds a step to this milestone; a Glutter one gets its `GLUTTER-ISSUES.md` entry.
-**Done when:** every finding of `docs/DESKTOP-PASS.md` is fixed, or is a planned step or a Glutter issue; then the manager repeats the pass on the user's desktop (a nested sway window, `scripts/realinput.sh --desktop`), views the screenshots, measures the preview and the idle window with the GPU (§14), adds what it finds, and only then merges the step and publishes the milestone.
+**Done when:** every finding of `docs/DESKTOP-PASS.md` is fixed, or is a planned step or a Glutter issue. *(As built: the findings it could not fix in the step became step 17b.6, and the manager's pass on the user's desktop moved to the end of 17b.6, the last step of M17b.)*
+### 17b.6 The findings of the desktop pass
+**Goal:** the findings of `docs/DESKTOP-PASS.md` that 17b.5 reported (D4, D5, D6, D10, D11), and D12, are fixed, and the manager's pass on the user's desktop finds nothing left.
+**Read:** `docs/DESKTOP-PASS.md`; SPEC §10.1 (the panel's title), §10.5, §10.6, §9.8, §15.1 (with its "As built (step 17b.5)"); VS Code's `reference/vscode/src/vs/workbench/browser/parts/compositeBar.ts` and `paneCompositeBar.ts` (the overflow of the panel's tabs), the welcome views (`viewsWelcome`, `reference/vscode/src/vs/workbench/browser/parts/views/viewPane.ts`), the hover's hide on a context menu (`reference/vscode/src/vs/editor/contrib/hover/browser/contentHoverController.ts`).
+**Tasks:**
+- **D5, keys typed fast** (the most important): a user who types fast, a held key repeating (25 and 50 keys a second), or keys that arrive in one batch must never lose a key or send it to the wrong place. Find why three keys 10 ms apart in the Find box leave the editor's cursor behind the match (the model alone is right at that speed), and why a letter typed in the frame after F2 starts the explorer's own find box; fix the cause (a key handled against a state that is half built), not the test's delay.
+- **D4, the panel's tabs:** the view's actions (the filter box, the buttons) shrink first and never take more than the room left after the tabs; tabs that still do not fit go into a `...` button whose menu lists them, as VS Code's composite bar does; a tab's title is never cut mid-word.
+- **D6:** the editor's hover hides when a context menu opens.
+- **D10:** the empty Notes view shows a welcome text with a "New Note" button, as VS Code's welcome views.
+- **D11:** a window tab's label is cut only when the strip has no room for it.
+- **D12:** `TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver` (`internal/gui/app/headless_test.go`) fails about 3 times in 30 ("a picture was handed over after Close"), with or without cgo: find whether a Remote Work view really hands a picture to its client after `Close` (a race between the frame callback and `Close`) or the test is wrong, and fix the cause; the test passes 200 times in a row; the same for `TestTheCoreTopicsDriveARealWorkspace`, which fails about once in 20 runs under `-race`.
+**Tests:** each finding gets a real-input regression test (D12: the test run 200 times), seen failing before its fix; for D5, the tests of 17b.1 and 17b.5 that type also run with a 10 ms key delay and with all keys in one batch (Find, F2 rename, new file, Quick Open, the command palette, settings search, Notes), and a held key repeats into the editor and into an input box without a lost or doubled character; for D4, the panel with Problems, Output, Tasks and the extensions' tabs with badges at 1280 and 1024 px wide, no tab text cut.
+**Done when:** every finding of `docs/DESKTOP-PASS.md` is fixed, or is a planned step or a Glutter issue; then the manager does the pass on the user's desktop (moved here from 17b.5): a nested sway window there with `scripts/realinput.sh --desktop`, every screenshot viewed, the Markdown preview and an idle window measured with the GPU (§14), anything new added to `docs/DESKTOP-PASS.md` and fixed or planned; only then the step is merged and M17b is published.
 
 ---
 

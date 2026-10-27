@@ -348,6 +348,9 @@ func (v *View) CollapseAll() {
 // Focus gives the keyboard focus to the tree.
 func (v *View) Focus() { v.ctl.Focus() }
 
+// HasFocus tells whether the tree has the keyboard focus.
+func (v *View) HasFocus() bool { return v.ctl.HasFocus() }
+
 // RevealMode says what revealing a file does.
 type RevealMode int
 

@@ -3225,3 +3225,45 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Goldens:** none changed (no golden shows the icon); the nine PNGs were viewed.
 - **Manual checks:** none
 - **Glutter issues:** none
+
+## Step 17b.5: A desktop pass
+
+- **Date:** 2026-10-28
+- **Branch:** feat/step-17b.5-desktop-pass
+- **Summary:** Emetos was used with real keyboard and mouse input (a Wayland virtual keyboard and pointer in sway) through everything it offers. Three bugs were fixed. Five more findings are planned in step 17b.6, and the manager's pass on the user's desktop moved to the end of that step. Every finding is in `docs/DESKTOP-PASS.md`.
+- **Fixed:**
+  - **D1, a click in the explorer moved the focus to the editor,** so F2, Delete and typed letters went to the file. A click now opens the file without taking the focus (`PreserveFocus`, as VS Code); Enter and a double click take it.
+  - **D2, Ctrl+Z after Move to Trash did not undo the delete,** because the focus went to the next editor. The tree takes the focus back.
+  - **D3, typing after a save joined the undo step from before the save,** so one Undo went past the saved text. A save now closes the undo group, as VS Code's `doSave` does.
+- **Planned (17b.6):**
+  - D4: the panel's tab names are cut under the view's actions;
+  - D5: keys 10 ms apart race the Find box, and a letter right after F2 opens the tree's find box;
+  - D6: the hover stays beside a context menu;
+  - D10: the empty Notes view has no New Note button;
+  - D11: a window tab's label is cut with room to spare.
+- **Not bugs:**
+  - D7: there is no Search view yet (SPEC §3 area 4, later);
+  - D8: Open Folder needs the session bus, which the test has not;
+  - D9: the preview does not scroll its source (SPEC).
+- **Main files:**
+  - `cmd/emetos/desktop_*_display_test.go` (new: explorer, editing, navigation, settings, diff and merge, layout, extensions, session, and real gopls under `emetos_gopls`);
+  - `internal/testenv/display/app.go` (find and click text on screen, a second launch);
+  - `internal/gui/app/devworkbench.go` (new `dev.texts` and `dev.workbench`);
+  - `internal/gui/app/{group,editors,gridview,explorer,fileops}.go`, `internal/gui/views/explorer/view.go`, `internal/core/document/save.go`;
+  - `scripts/realinput.sh` (it now runs `TestRealInput|TestDesktop`);
+  - `docs/DESKTOP-PASS.md` (new);
+  - `docs/SPEC.md` (§7.1, §10.5, §15.1, §15.2).
+- **Tests:**
+  - `TestDesktopExplorerClickKeepsTheFocus` and `TestDesktopExplorer/rename`, before the fix: "timed out waiting for the find box of the tree to show zz", with the typed text in the file;
+  - `TestDesktopExplorer/delete_to_the_trash_and_undo`, before the fix: the file did not come back;
+  - `TestSaveClosesTheUndoGroup` and `TestDesktopEditGoFile/undo_and_redo`, before the fix: one undo gave "one\n", not the saved "onea\n";
+  - the other `TestDesktop*` tests cover the areas that passed;
+  - the gopls test passed with real gopls.
+- **Flaky tests:**
+  - `TestGoldenOfAHeadlessView` failed under load at the commit before the step too; its quiet time went from 300 ms to 1 s.
+  - `TestTheCoreTopicsDriveARealWorkspace` fails about once in 20 runs under `-race`, also before this step; it is not changed.
+- **Goldens:** none changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also `emetos_display` and `emetos_gopls`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ (my run after the rebase, with the hairball icon: 100 packages, exit 0) · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ except `TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver` ("a picture was handed over after Close"), which fails 3 times in 30 alone, also before this step; it is finding D12, planned in 17b.6 · `scripts/realinput.sh` ✅ (my run: 58 tests, exit 0).
+- **Proof:** the 77 screenshots of the last full run, viewed by the agent; I viewed a sample (completion with gopls, Problems, the merge editor). The step asks for no proof image of its own.
+- **Manual checks:** none; the manager's pass on the user's desktop is at the end of step 17b.6.
+- **Glutter issues:** none

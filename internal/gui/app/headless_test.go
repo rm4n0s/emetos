@@ -83,17 +83,22 @@ func (r *viewRig) frame(t testing.TB) *image.RGBA {
 	return nil
 }
 
+// settleQuiet is how long the view has to be quiet before it counts as settled: the explorer lists the folder on a goroutine,
+// which the race detector on a loaded machine delays by more than the 300 ms this was before (step 17b.5 found the golden test
+// failing on a loaded machine with the folder not listed yet, with and without the changes of the step).
+const settleQuiet = time.Second
+
 // settle pumps until the view has been quiet for a while (the explorer has listed the folder, the editor has the focus, the
 // background work of the file has come in) and returns the latest picture.
 func (r *viewRig) settle(t testing.TB) *image.RGBA {
 	t.Helper()
 	img := r.frame(t)
-	quiet := time.Now().Add(300 * time.Millisecond)
+	quiet := time.Now().Add(settleQuiet)
 	for time.Now().Before(quiet) {
 		r.ts.Pump(20 * time.Millisecond)
 		select {
 		case img = <-r.frames:
-			quiet = time.Now().Add(300 * time.Millisecond)
+			quiet = time.Now().Add(settleQuiet)
 		case <-time.After(10 * time.Millisecond):
 		}
 	}

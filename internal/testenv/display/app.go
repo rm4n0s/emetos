@@ -52,6 +52,8 @@ type App struct {
 	Input *realinput.Client
 	// Env are the variables of the process, which the helpers (grim) share for the socket of the compositor.
 	root    string
+	bin     string
+	env     []string
 	devPath string
 	logPath string
 	wayland string
@@ -209,9 +211,10 @@ func Start(t *testing.T, opts Options) *App {
 	if err != nil {
 		t.Fatal(err)
 	}
+	a.bin = bin
 	cmd := exec.Command(bin, opts.Args...)
 	cmd.Dir = a.Project
-	cmd.Env = append([]string{
+	a.env = append([]string{
 		"PATH=" + os.Getenv("PATH"),
 		"HOME=" + filepath.Join(root, "home"),
 		"XDG_CONFIG_HOME=" + filepath.Join(root, "config"),
@@ -224,8 +227,8 @@ func Start(t *testing.T, opts Options) *App {
 		// nothing of the user's session: no session bus (keyring, tray, portals), no X server
 		"DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/bus",
 		"LANG=C.UTF-8",
-		app.DevSocketEnv + "=" + a.devPath,
 	}, opts.Env...)
+	cmd.Env = append(append([]string(nil), a.env...), app.DevSocketEnv+"="+a.devPath)
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	// its own process group, so that the whole group can be stopped
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -323,6 +326,25 @@ func (a *App) stop() {
 		_ = syscall.Kill(-pgid, syscall.SIGKILL)
 		<-a.done
 	}
+}
+
+// Launch runs the editor a second time with arguments, in the same isolated environment and the same folder (a user's second
+// `emetos file`), and returns what it printed. The second process finds the first one through its socket, hands the files over
+// and ends. It has no dev socket of its own. The test fails when it does not end within 30 seconds.
+func (a *App) Launch(args ...string) string {
+	a.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, a.bin, args...)
+	cmd.Dir = a.Project
+	cmd.Env = append([]string(nil), a.env...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		a.t.Fatalf("the second launch %v: %v\n%s", args, err, out)
+	}
+	return string(out)
 }
 
 // Pid is the process id of the editor.
@@ -470,6 +492,116 @@ func (a *App) Editor() app.DevEditor {
 	return ed
 }
 
+// Texts lists the runs of text drawn on screen with their places (dev.texts).
+func (a *App) Texts() []app.DevText {
+	a.t.Helper()
+	resp := a.Dev("dev.texts", nil)
+	var list []app.DevText
+	if err := json.Unmarshal(resp.Result, &list); err != nil {
+		a.t.Fatalf("dev.texts: %v", err)
+	}
+	return list
+}
+
+// Text is the run of text on screen that is exactly text, or false when there is none. When several are (a label shown twice),
+// the first from the top is returned.
+func (a *App) Text(text string) (app.DevText, bool) {
+	a.t.Helper()
+	var best app.DevText
+	found := false
+	for _, tx := range a.Texts() {
+		if tx.Text == text && (!found || tx.Y < best.Y || (tx.Y == best.Y && tx.X < best.X)) {
+			best, found = tx, true
+		}
+	}
+	return best, found
+}
+
+// ClickText clicks the middle of the run of text on screen that is exactly text; the test fails when there is none.
+func (a *App) ClickText(text string) {
+	a.t.Helper()
+	tx, ok := a.Text(text)
+	if !ok {
+		a.t.Fatalf("no text %q on screen; on screen: %s", text, a.shown())
+	}
+	a.Click(tx.X+tx.Width/2, tx.Y+tx.Height/2)
+}
+
+// RightClickText right-clicks the middle of the run of text that is exactly text.
+func (a *App) RightClickText(text string) {
+	a.t.Helper()
+	tx, ok := a.Text(text)
+	if !ok {
+		a.t.Fatalf("no text %q on screen; on screen: %s", text, a.shown())
+	}
+	a.RightClick(tx.X+tx.Width/2, tx.Y+tx.Height/2)
+}
+
+// Dump lists the texts on screen with their places, for the message of a test that did not find what it looked for.
+func (a *App) Dump() string {
+	var b strings.Builder
+	for _, tx := range a.Texts() {
+		b.WriteString(quote(tx.Text) + " " + itoa(int(tx.X)) + "," + itoa(int(tx.Y)) + "\n")
+	}
+	return b.String()
+}
+
+// shown lists the texts on screen, for the message of a test that did not find one.
+func (a *App) shown() string {
+	var b strings.Builder
+	for _, tx := range a.Texts() {
+		b.WriteString(quote(tx.Text))
+		b.WriteByte(' ')
+	}
+	return b.String()
+}
+
+// WaitText waits until a run of text that is exactly text is on screen, and returns it.
+func (a *App) WaitText(text string) app.DevText {
+	a.t.Helper()
+	var found app.DevText
+	a.Eventually("the text "+quote(text)+" on screen", func() (bool, string) {
+		tx, ok := a.Text(text)
+		found = tx
+		return ok, a.shown()
+	})
+	return found
+}
+
+// WaitNoText waits until no run of text on screen is exactly text.
+func (a *App) WaitNoText(text string) {
+	a.t.Helper()
+	a.Eventually("the text "+quote(text)+" to leave the screen", func() (bool, string) {
+		_, ok := a.Text(text)
+		return !ok, a.shown()
+	})
+}
+
+// Workbench is the state of the workbench of the active tab (dev.workbench).
+func (a *App) Workbench() app.DevWorkbench {
+	a.t.Helper()
+	resp := a.Dev("dev.workbench", nil)
+	var w app.DevWorkbench
+	if err := json.Unmarshal(resp.Result, &w); err != nil {
+		a.t.Fatalf("dev.workbench: %v", err)
+	}
+	return w
+}
+
+// TryWorkbench is Workbench for a moment when the workspace may be gone (a folder is being opened): false when there is none.
+func (a *App) TryWorkbench() (app.DevWorkbench, bool) {
+	a.t.Helper()
+	resp, err := a.Request("dev.workbench", nil)
+	if err != nil {
+		a.t.Fatalf("dev.workbench: %v", err)
+	}
+	var w app.DevWorkbench
+	if !resp.OK || json.Unmarshal(resp.Result, &w) != nil {
+		return app.DevWorkbench{}, false
+	}
+	return w, true
+}
+
 // Settle waits until what was sent to the compositor has reached the editor and been drawn: the compositor's round trip, a
 // pause, and a dev command, which the UI thread runs after the frames of the events it has read.
 func (a *App) Settle() {
@@ -487,7 +619,13 @@ func (a *App) Settle() {
 // test waits for what real input does in the editor, which handles the events a moment after the compositor sent them.
 func (a *App) Eventually(what string, check func() (bool, string)) {
 	a.t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
+	a.EventuallyFor(5*time.Second, what, check)
+}
+
+// EventuallyFor is Eventually with the time to wait, for what a program outside the editor does (a language server that loads).
+func (a *App) EventuallyFor(wait time.Duration, what string, check func() (bool, string)) {
+	a.t.Helper()
+	deadline := time.Now().Add(wait)
 	for {
 		ok, state := check()
 		if ok {
