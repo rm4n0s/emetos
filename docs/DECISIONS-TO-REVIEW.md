@@ -204,3 +204,10 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 84. **An extension other than `emetos.relay` that declares a privilege is not installed at all** (not installed without the privilege). The Extensions page lists it under "Left out" with the reason.
 85. **File topics are confined with Go's `os.Root`** (`openat2` with `RESOLVE_BENEATH` on Linux). It refuses `..`, absolute paths, and links that lead out, and even absolute links that point inside the folder. `emetos.document.open` checks the file, then opens it through the normal reader, so a link swapped in between those two moments is not covered.
 86. **Commands refused to Relay clients** are window and workspace tabs, quit, close window, new and switch window, opening or closing folders and recent lists, profiles, user settings, keybindings and themes, event sharing, and the Relay and Remote Work commands themselves. Workspace settings commands stay allowed.
+
+## 2026-10-27: step 16.2 (the Relay host; decided by the agent and accepted by me)
+
+87. **Relay has its own SSH host key** (`relay-host-key`), so its fingerprint differs from Remote Work's.
+88. **A slow client loses events, not the host's time.** Each client has a queue of 1,024 events or 8 MiB; when it is full, new events are dropped and counted, and one `emetos.relay.dropped {count}` event stands for the run. A client that takes nothing for 60 s is disconnected (`stalled`). Replies are never dropped. Event values over 1 MiB are sent as `truncated`, with their size.
+89. **Workspace IDs given to clients are random and change each time a workspace is shared again.** A workspace that is not granted, not shared or does not exist gives the same error, so a client cannot probe which ones exist.
+90. **`EMETOS_DEV_RELAY_BIND`** (read only by debug and `emetos_dev` builds) binds the listener to one address. The proof uses it to listen on 127.0.0.1 only. Release builds listen on every interface, as Remote Work does.

@@ -97,3 +97,18 @@ func Read(path string, limit int64, forbid fs.FileMode) ([]byte, error) {
 
 // Missing tells whether err is the error of Read for a file that does not exist.
 func Missing(err error) bool { return errors.Is(err, fs.ErrNotExist) }
+
+// DirFromEnv is $XDG_STATE_HOME/emetos, or ~/.local/state/emetos when the variable is unset or not absolute: the folder where
+// the extensions keep their state files (the default profile's; an extension has no profile). It reads the environment each
+// time it is called. The error has the tag StateFileDirUnknown.
+func DirFromEnv() (string, error) {
+	base := os.Getenv("XDG_STATE_HOME")
+	if !filepath.IsAbs(base) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", errors.NewErr("StateFileDirUnknown", err)
+		}
+		base = filepath.Join(home, ".local", "state")
+	}
+	return filepath.Join(filepath.Clean(base), "emetos"), nil
+}

@@ -2779,3 +2779,74 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - `document.read` works on any open document;
   - `emetos.commands` is a reserved extension ID;
   - `NewHeadlessView` stays unprivileged.
+
+## 16.2 The Relay host
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-16.2-relay-host
+- **Summary:** SPEC §10.19.
+  - **`extensions/relay`** (`emetos.relay`, granted `events.publishAny` and `commands.execute`): the Relay window tab kind ("Relay" in the `+` menu) and its Be a Host section.
+    - A listen switch and port (47124).
+    - The workspace tabs with a share checkbox each.
+    - The allowed keys, added by pasting, by a `.pub` file or by Scan QR Code. Each key has No access, Watch only or Watch and send per shared workspace (Watch only by default).
+    - The host fingerprint and the security notes.
+  - **`relay.json`** (0600, written only by the tab) and its own host key (DECISIONS-TO-REVIEW 87). The listener runs only while the switch is on.
+  - **Protocol** (`extensions/relay/protocol`, version 1, magic `EMPA`): `type:1 | length:4 | JSON`, with Hello (with the granted workspaces), Subscribe, Event, Publish, Request, Execute, Reply/Result and Disconnect.
+    - A per-type limit is checked before reading (1 MiB values, 16 MiB replies).
+    - Unknown types and wrong directions are refused.
+    - Strict JSON: UTF-8, depth at most 64, unknown fields refused, nothing after the object.
+  - **Hub and sessions:**
+    - events of each granted workspace are forwarded through a bounded queue per client (DECISIONS-TO-REVIEW 88);
+    - with Watch and send, publish, request and execute run in that workspace's scope only, through the 16.1 topics;
+    - Watch only refuses sends (`RelayWatchOnly`);
+    - permissions are checked when a message is read and again on the UI thread;
+    - at most 16 operations per client and 32 sessions;
+    - opaque workspace IDs (DECISIONS-TO-REVIEW 89);
+    - a new Hello when grants change; removing a key or turning hosting off ends its sessions.
+  - **Banner** "Relay: <comment> connected (watch only | watch and send)" with Disconnect, notifications (refused logins throttled per address), and logs without event text or arguments.
+  - **`extensions/relay/client`** (and `clienttest`, a host double) for 16.3.
+  - **Shared code moved out of Remote Work:** `extensions/internal/pageui`, `statefile.DirFromEnv`, `sshlogin.ReadPublicKeyFile`, `HostOf`, `RefusalWords` and `Throttle`. Three Remote Work tags became shared `SSHLogin*`/`StateFile*` tags (SPEC §10.18 updated).
+  - **Dev knob:** `EMETOS_DEV_RELAY_BIND` (DECISIONS-TO-REVIEW 90).
+  - **New error tags:** about 40 `Relay*`, plus 3 shared ones, all route-tested.
+- **Tests:**
+  - protocol: round trips, every limit, malformed input, the seeded random test, `FuzzDecode`;
+  - config modes and read policy;
+  - the hub on loopback with real SSH clients:
+    - listed and unlisted keys, passwords, the rate limit, one channel type;
+    - forwarding to granted workspaces only;
+    - Watch only against Watch and send;
+    - core error tags reaching the client;
+    - permission changes and unsharing mid-session;
+    - key removal and hosting off;
+    - banner and Disconnect;
+    - several clients;
+    - protocol violations, operation limits, drop counting, the stall watchdog.
+  - the tab's controls and Scan QR Code;
+  - the client package;
+  - the privilege registration through `extensions.All()`;
+  - 4 end-to-end tests over real windows in `internal/gui/app`.
+
+  The agent ran the end-to-end, relay, protocol and client tests with `-race -count=3`; they passed.
+- **Goldens:** new `tab_{on,off,port_taken}_{dark,light}`. I viewed `tab_port_taken_light` and the proof; the agent viewed all six. No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude` and `emetos_camera`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · `FuzzDecode` 30 s (`-parallel=1`, `GOMEMLIMIT=2GiB`) ✅ · display tests none.
+- **Proof:** `docs/implemented-proof-images/16.2-relay-host.png`, made with:
+  ```
+  scripts/proof-relay.sh docs/implemented-proof-images/16.2-relay-host.png
+  ```
+  The script fills `testdata/proof/16.2/state/relay.json.template` (public keys only) with the checkout path and a free port, and listens on 127.0.0.1 only.
+
+  The tab shows hosting on and two shared workspaces, `notes` and `server`:
+  - alice@laptop has Watch only in notes and Watch and send in server;
+  - bob@desktop has Watch only in notes and No access to server.
+
+  The script prints a failed `--launch` at the end, which also happens with the existing 9b.3 proof; the image is complete.
+
+  ![16.2 relay host](implemented-proof-images/16.2-relay-host.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.19 "As built (step 16.2)" lists the decisions:
+  - only an open workspace with a folder can be shared, and two tabs of one folder share the first;
+  - a listen failure is shown, and the switch stays on;
+  - the request timeout is 10 s by default and 60 s at most.
+
+  16.3 builds the Hosts section, the Events and Send panels, and `relay-hosts.json`.

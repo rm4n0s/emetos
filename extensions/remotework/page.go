@@ -2,21 +2,18 @@ package remotework
 
 import (
 	"context"
-	"io"
-	"os"
 	"strconv"
 	"strings"
 
-	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
-	gui "github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr/qrui"
+	"github.com/rm4n0s/emetos/extensions/internal/pageui"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 )
 
@@ -59,10 +56,7 @@ type page struct {
 }
 
 // note is a line under a control: what an action answered.
-type note struct {
-	text string
-	bad  bool
-}
+type note = pageui.Note
 
 func newPage(ctx context.Context, h *Hub, api extension.API, tab extension.EditorTab, folder string) *page {
 	p := &page{hub: h, api: api, tab: tab, folder: folder}
@@ -113,7 +107,7 @@ func (p *page) toggle(on bool) {
 		p.api.Post(func() {
 			p.switchNote = note{}
 			if err != nil {
-				p.switchNote = note{err.Error(), true}
+				p.switchNote = pageui.Bad(err.Error())
 			}
 			p.refresh()
 		})
@@ -124,33 +118,33 @@ func (p *page) toggle(on bool) {
 func (p *page) applySettings() {
 	port, err := strconv.Atoi(strings.TrimSpace(p.port.Value()))
 	if err != nil {
-		p.settingsNote = note{"The port is a number from 1 to 65535.", true}
+		p.settingsNote = pageui.Bad("The port is a number from 1 to 65535.")
 		p.refresh()
 		return
 	}
 	minutes, err := strconv.Atoi(strings.TrimSpace(p.idle.Value()))
 	if err != nil {
-		p.settingsNote = note{"The idle timeout is a number of minutes, from 1 to 1440.", true}
+		p.settingsNote = pageui.Bad("The idle timeout is a number of minutes, from 1 to 1440.")
 		p.refresh()
 		return
 	}
 	snap := p.hub.Snapshot(p.folder)
 	switch {
 	case CheckPort(port) != nil:
-		p.settingsNote = note{"The port is a number from 1 to 65535.", true}
+		p.settingsNote = pageui.Bad("The port is a number from 1 to 65535.")
 	case CheckIdle(minutes) != nil:
-		p.settingsNote = note{"The idle timeout is from 1 minute to 24 hours (1440).", true}
+		p.settingsNote = pageui.Bad("The idle timeout is from 1 minute to 24 hours (1440).")
 	default:
 		go func() {
-			result := note{"Saved.", false}
+			result := pageui.Fine("Saved.")
 			if port != snap.Config.Port {
 				if err := p.hub.SetPort(port); err != nil {
-					result = note{err.Error(), true}
+					result = pageui.Bad(err.Error())
 				}
 			}
-			if minutes != snap.Config.IdleMinutes && !result.bad {
+			if minutes != snap.Config.IdleMinutes && !result.Bad {
 				if err := p.hub.SetIdleMinutes(minutes); err != nil {
-					result = note{err.Error(), true}
+					result = pageui.Bad(err.Error())
 				}
 			}
 			p.api.Post(func() {
@@ -167,9 +161,9 @@ func (p *page) applySettings() {
 func (p *page) addKey(line string) {
 	key, err := p.hub.AddKey(line)
 	if err != nil {
-		p.keyNote = note{err.Error(), true}
+		p.keyNote = pageui.Bad(err.Error())
 	} else {
-		p.keyNote = note{"Added " + key.Name() + ".", false}
+		p.keyNote = pageui.Fine("Added " + key.Name() + ".")
 		p.key.SetValue("")
 	}
 	p.refresh()
@@ -184,7 +178,7 @@ func (p *page) chooseKeyFile() {
 		})
 		if err == nil && path != "" {
 			var line string
-			line, err = readPublicKeyFile(path)
+			line, err = sshlogin.ReadPublicKeyFile(path)
 			if err == nil {
 				p.api.Post(func() { p.addKey(line) })
 				return
@@ -192,36 +186,11 @@ func (p *page) chooseKeyFile() {
 		}
 		if err != nil {
 			p.api.Post(func() {
-				p.keyNote = note{err.Error(), true}
+				p.keyNote = pageui.Bad(err.Error())
 				p.refresh()
 			})
 		}
 	}()
-}
-
-// maxPublicKeyFile is the largest .pub file that is read.
-const maxPublicKeyFile = 16 << 10
-
-// readPublicKeyFile reads the line of a public key file. It fails with RemoteWorkKeyFileInvalid for a file that is not a small
-// regular file, and with the error of the file system.
-func readPublicKeyFile(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", errors.NewErr("RemoteWorkKeyFileUnreadable", err).SetMetadata("path", path)
-	}
-	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil {
-		return "", errors.NewErr("RemoteWorkKeyFileUnreadable", err).SetMetadata("path", path)
-	}
-	if !info.Mode().IsRegular() || info.Size() > maxPublicKeyFile {
-		return "", errors.New("RemoteWorkKeyFileInvalid", "a public key file is a small regular file", "path", path)
-	}
-	data, err := io.ReadAll(io.LimitReader(f, maxPublicKeyFile))
-	if err != nil {
-		return "", errors.NewErr("RemoteWorkKeyFileUnreadable", err).SetMetadata("path", path)
-	}
-	return string(data), nil
 }
 
 // ---- Scan QR Code ----
@@ -291,60 +260,30 @@ func (p *page) scanReason(bc widgets.BuildContext, colors ui.Colors) widgets.Wid
 
 // ---- widgets ----
 
-func gap(h float64) widgets.Widget {
-	return widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(h)})
-}
+func gap(h float64) widgets.Widget  { return pageui.Gap(h) }
+func hgap(w float64) widgets.Widget { return pageui.HGap(w) }
 
-func hgap(w float64) widgets.Widget {
-	return widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(w)})
-}
+func monoFamily(bc widgets.BuildContext) string { return pageui.MonoFamily(bc) }
 
-func monoFamily(bc widgets.BuildContext) string {
-	family, _ := widgets.WidgetsBindingOf(bc).PlatformDispatcher().MonospaceFont()
-	if family == "" {
-		return "monospace"
-	}
-	return family
-}
+func bold(s *painting.TextStyle) *painting.TextStyle { return pageui.Bold(s) }
 
-func bold(s *painting.TextStyle) *painting.TextStyle {
-	return s.CopyWith(painting.TextStyleOpts{FontWeight: gui.FontWeightW600})
-}
-
-func (p *page) paragraph(bc widgets.BuildContext, text string, style *painting.TextStyle) widgets.Widget {
-	return widgets.NewText(text, widgets.TextOpts{Style: style})
+func (p *page) paragraph(_ widgets.BuildContext, text string, style *painting.TextStyle) widgets.Widget {
+	return pageui.Paragraph(text, style)
 }
 
 // section is a heading over its rows, with a line above it.
 func (p *page) section(bc widgets.BuildContext, colors ui.Colors, title string, rows ...widgets.Widget) widgets.Widget {
-	head := widgets.NewText(title, widgets.TextOpts{Style: bold(ui.TextStyle(bc, 15, colors.Foreground))})
-	line := widgets.NewColoredBox(colors.PanelBorder, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(1.0)}))
-	children := []widgets.Widget{gap(18), line, gap(14), head, gap(10)}
-	children = append(children, rows...)
-	return widgets.NewColumn(children, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+	return pageui.Section(bc, colors, title, rows...)
 }
 
 // noteLine shows an answer under a control.
 func (p *page) noteLine(bc widgets.BuildContext, colors ui.Colors, n note) widgets.Widget {
-	if n.text == "" {
-		return widgets.NewSizedBox(nil, widgets.SizedBoxOpts{})
-	}
-	color := colors.DescriptionForeground
-	if n.bad {
-		color = colors.ErrorForeground
-	}
-	return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, 6, 0, 0), widgets.NewText(n.text, widgets.TextOpts{Style: ui.TextStyle(bc, 12, color)}))
+	return pageui.NoteLine(bc, colors, n)
 }
 
 // field is a labelled input box of a width.
 func (p *page) field(bc widgets.BuildContext, colors ui.Colors, label string, c *ui.InputBoxController, width float64, disabled bool) widgets.Widget {
-	return widgets.NewColumn([]widgets.Widget{
-		widgets.NewText(label, widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.DescriptionForeground)}),
-		gap(4),
-		widgets.NewSizedBox(ui.NewInputBox(nil, nil, ui.InputBoxOpts{
-			Controller: c, Disabled: disabled, OnSubmit: func(string) { p.applySettings() },
-		}), widgetsWidth(width)),
-	}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart})
+	return pageui.Field(bc, colors, label, c, width, disabled, p.applySettings)
 }
 
 func widgetsWidth(w float64) widgets.SizedBoxOpts {
@@ -396,8 +335,7 @@ func (p *page) build(bc widgets.BuildContext) widgets.Widget {
 
 // problem is a message in a box with the color of an error.
 func (p *page) problem(bc widgets.BuildContext, colors ui.Colors, msg string) widgets.Widget {
-	return widgets.NewColoredBox(colors.InputValidationErrorBackground, widgets.NewPadding(painting.NewEdgeInsetsAll(10),
-		widgets.NewText(msg, widgets.TextOpts{Style: ui.TextStyle(bc, bodySize, colors.InputValidationErrorForeground)})))
+	return pageui.Problem(bc, colors, msg)
 }
 
 // workspaceSection is the switch of this workspace, what the listener does, and the connected clients.
@@ -493,9 +431,9 @@ func (p *page) keysSection(bc widgets.BuildContext, colors ui.Colors, snap Snaps
 // removeKey takes a key out of the list.
 func (p *page) removeKey(k sshlogin.AllowedKey) {
 	if err := p.hub.RemoveKey(k.Fingerprint()); err != nil {
-		p.keyNote = note{err.Error(), true}
+		p.keyNote = pageui.Bad(err.Error())
 	} else {
-		p.keyNote = note{"Removed " + k.Name() + ".", false}
+		p.keyNote = pageui.Fine("Removed " + k.Name() + ".")
 	}
 	p.refresh()
 }

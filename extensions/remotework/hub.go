@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -20,6 +19,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
+	"github.com/rm4n0s/emetos/extensions/internal/statefile"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
 	"github.com/rm4n0s/emetos/extensions/remotework/transport"
 )
@@ -100,7 +100,7 @@ type Hub struct {
 	srvPort    int
 	addr       net.Addr
 	listenErr  error
-	notified   map[string]time.Time
+	notices    sshlogin.Throttle
 	listeners  map[int]func()
 	nextID     int
 
@@ -110,7 +110,7 @@ type Hub struct {
 
 // NewHub makes a hub that listens on nothing until a workspace has Remote Work on.
 func NewHub(opts HubOptions) *Hub {
-	h := &Hub{opts: opts, camera: opts.Camera, log: opts.Logger, workspaces: map[string][]*workspaceHost{}, sessions: map[*Session]struct{}{}, notified: map[string]time.Time{}, listeners: map[int]func(){}}
+	h := &Hub{opts: opts, camera: opts.Camera, log: opts.Logger, workspaces: map[string][]*workspaceHost{}, sessions: map[*Session]struct{}{}, listeners: map[int]func(){}}
 	if h.log == nil {
 		h.log = slog.Default()
 	}
@@ -139,17 +139,7 @@ func NewHub(opts HubOptions) *Hub {
 }
 
 // stateDirFromEnv is $XDG_STATE_HOME/emetos, or ~/.local/state/emetos when the variable is unset or not absolute.
-func stateDirFromEnv() (string, error) {
-	base := os.Getenv("XDG_STATE_HOME")
-	if !filepath.IsAbs(base) {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", errors.NewErr("RemoteWorkStateDirUnknown", err)
-		}
-		base = filepath.Join(home, ".local", "state")
-	}
-	return filepath.Join(filepath.Clean(base), "emetos"), nil
-}
+func stateDirFromEnv() (string, error) { return statefile.DirFromEnv() }
 
 // HostsPath is the file where a client pins host keys (remote-work-hosts.json), for the tab of step 15.4.
 func (h *Hub) HostsPath() (string, error) {

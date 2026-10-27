@@ -2,7 +2,6 @@ package remotework
 
 import (
 	"io"
-	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -326,73 +325,18 @@ func (h *Hub) sessionOver(s *Session) {
 }
 
 // hostOf is the IP of a host:port address.
-func hostOf(addr string) string {
-	if host, _, err := net.SplitHostPort(addr); err == nil {
-		return host
-	}
-	return addr
-}
-
-// refusalWords say a refusal to the user.
-func refusalWords(r sshlogin.Refusal) string {
-	switch r.Reason {
-	case sshlogin.ReasonKeyNotListed:
-		return "its key is not in the list (" + r.KeyFingerprint + ")"
-	case sshlogin.ReasonKeyRefused:
-		return "its key was refused"
-	case sshlogin.ReasonPasswordRefused:
-		return "it tried a password, which is never accepted"
-	case sshlogin.ReasonMethodRefused:
-		return "it tried a way of logging in that is not accepted (" + r.Method + ")"
-	case sshlogin.ReasonRateLimited:
-		return "too many attempts from this address failed; it is blocked for a minute"
-	case sshlogin.ReasonChannelType:
-		return "it asked for a channel of type " + r.Detail
-	case sshlogin.ReasonRequest:
-		return "it sent a request (" + r.Detail + ") that is never served"
-	case sshlogin.ReasonNoChannel:
-		return "it logged in and opened nothing"
-	}
-	return r.Reason
-}
-
-// notifyThrottle is how often one address may raise a notification of a refused attempt.
-const notifyThrottle = time.Minute
+func hostOf(addr string) string { return sshlogin.HostOf(addr) }
 
 // refused is told by the SSH server of every refusal (it logged it already): the workspaces that have Remote Work on get one
 // notification for each address a minute, for a login attempt that was refused (not for one that never began).
 func (h *Hub) refused(r sshlogin.Refusal) {
-	// A connection that ends before it tries to log in is also what a client does on first use, while its user compares the
-	// fingerprint: it is in the log and counts for the rate limit, but it is not a refused attempt to tell the user about.
-	if r.Reason == sshlogin.ReasonHandshakeFailed {
+	if !h.notices.Notice(r, h.opts.Now()) {
 		return
-	}
-	now := h.opts.Now()
-	// the block of an address is told on its own, whatever else the address raised a moment before
-	key := r.Address
-	if r.Reason == sshlogin.ReasonRateLimited {
-		key += "|blocked"
 	}
 	h.mu.Lock()
-	if last, ok := h.notified[key]; ok && now.Sub(last) < notifyThrottle {
-		h.mu.Unlock()
-		return
-	}
-	if len(h.notified) >= 256 {
-		for k, t := range h.notified {
-			if now.Sub(t) >= notifyThrottle {
-				delete(h.notified, k)
-			}
-		}
-		if len(h.notified) >= 256 {
-			h.mu.Unlock()
-			return
-		}
-	}
-	h.notified[key] = now
 	on := h.onWorkspaces()
 	h.mu.Unlock()
-	msg := "Remote Work refused a login from " + hostOf(r.Remote) + ": " + refusalWords(r) + "."
+	msg := "Remote Work refused a login from " + hostOf(r.Remote) + ": " + sshlogin.RefusalWords(r) + "."
 	for _, w := range on {
 		w := w
 		w.api.Post(func() { w.api.Notifications().Warn(msg) })

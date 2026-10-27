@@ -589,7 +589,7 @@ func TestStateDirFromEnv(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_STATE_HOME", "")
 	_, err = stateDirFromEnv()
-	wantRoute(t, err, "stateDirFromEnv.RemoteWorkStateDirUnknown")
+	wantRoute(t, err, "stateDirFromEnv->DirFromEnv.StateFileDirUnknown")
 
 	h := NewHub(HubOptions{StateDir: func() (string, error) { return "/nowhere", nil }})
 	if p, err := h.HostsPath(); err != nil || p != "/nowhere/remote-work-hosts.json" {

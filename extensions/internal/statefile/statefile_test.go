@@ -130,3 +130,20 @@ func TestWriteErrors(t *testing.T) {
 		t.Errorf("the failed write left %d entries", len(entries))
 	}
 }
+
+func TestDirFromEnv(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	if got, err := DirFromEnv(); err != nil || got != filepath.Join(root, "state", "emetos") {
+		t.Errorf("DirFromEnv = %q, %v", got, err)
+	}
+	t.Setenv("XDG_STATE_HOME", "relative/state") // not absolute: the default
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	if got, err := DirFromEnv(); err != nil || got != filepath.Join(root, "home", ".local", "state", "emetos") {
+		t.Errorf("DirFromEnv = %q, %v", got, err)
+	}
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_STATE_HOME", "")
+	_, err := DirFromEnv()
+	wantRoute(t, err, "DirFromEnv.StateFileDirUnknown")
+}

@@ -277,7 +277,7 @@ func TestThePublicLineOfAKeyFileHasTheTagsOfItsParts(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := publicLineOfKeyFile(asDir, nil)
-	wantRoute(t, err, "publicLineOfKeyFile->readPublicKeyFile.RemoteWorkKeyFileInvalid")
+	wantRoute(t, err, "publicLineOfKeyFile->ReadPublicKeyFile.SSHLoginPubFileInvalid")
 	// nothing there at all
 	_, err = publicLineOfKeyFile(filepath.Join(dir, "missing"), nil)
 	wantRoute(t, err, "publicLineOfKeyFile->PublicKeyOfKeyFile.SSHLoginKeyFileUnreadable")

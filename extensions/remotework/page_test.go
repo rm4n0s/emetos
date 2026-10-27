@@ -441,24 +441,3 @@ func TestManifest(t *testing.T) {
 		t.Error("the instances must be two and share one hub")
 	}
 }
-
-func TestReadPublicKeyFile(t *testing.T) {
-	dir := t.TempDir()
-	good := filepath.Join(dir, "a.pub")
-	if err := os.WriteFile(good, []byte("ssh-ed25519 AAAA x\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	big := filepath.Join(dir, "big.pub")
-	if err := os.WriteFile(big, make([]byte, maxPublicKeyFile+1), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if got, err := readPublicKeyFile(good); err != nil || got != "ssh-ed25519 AAAA x\n" {
-		t.Errorf("readPublicKeyFile = %q, %v", got, err)
-	}
-	_, err := readPublicKeyFile(filepath.Join(dir, "none"))
-	wantRoute(t, err, "readPublicKeyFile.RemoteWorkKeyFileUnreadable")
-	_, err = readPublicKeyFile(big)
-	wantRoute(t, err, "readPublicKeyFile.RemoteWorkKeyFileInvalid")
-	_, err = readPublicKeyFile(dir)
-	wantRoute(t, err, "readPublicKeyFile.RemoteWorkKeyFileInvalid")
-}

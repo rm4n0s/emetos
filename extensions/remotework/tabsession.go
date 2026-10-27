@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/services"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/pageui"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
 	"github.com/rm4n0s/emetos/extensions/remotework/loginui"
@@ -82,7 +83,7 @@ func (t *remoteTab) begin(p connectParams) {
 func (t *remoteTab) disconnect() {
 	t.stopSession()
 	t.gen++
-	t.phase, t.note, t.live = phaseForm, note{"Disconnected.", false}, nil
+	t.phase, t.note, t.live = phaseForm, pageui.Fine("Disconnected."), nil
 	t.picture.SetValue(nil)
 	t.tab.CaptureKeys(false)
 	t.in.release()

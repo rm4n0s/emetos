@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr/qrui"
+	"github.com/rm4n0s/emetos/extensions/internal/pageui"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 )
 
@@ -184,12 +185,12 @@ func (t *remoteTab) formView(bc widgets.BuildContext, colors ui.Colors) widgets.
 	items = append(items, gap(18), widgets.NewRow([]widgets.Widget{
 		ui.NewButton("Connect", ui.ButtonOpts{Disabled: connecting, OnPressed: t.connect}),
 	}, widgets.RowOpts{}))
-	if t.note.text != "" {
+	if t.note.Text != "" {
 		color := colors.DescriptionForeground
-		if t.note.bad {
+		if t.note.Bad {
 			color = colors.ErrorForeground
 		}
-		items = append(items, gap(10), widgets.NewText(t.note.text, widgets.TextOpts{Style: ui.TextStyle(bc, bodySize, color)}))
+		items = append(items, gap(10), widgets.NewText(t.note.Text, widgets.TextOpts{Style: ui.TextStyle(bc, bodySize, color)}))
 	}
 	return widgets.NewColoredBox(colors.EditorBackground, ui.NewScrollView(widgets.NewAlign(
 		widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(columnWidth)}),
@@ -216,7 +217,7 @@ func (t *remoteTab) showMyKey() {
 	if f.source == keyAgent {
 		line, problem := f.agentLine()
 		if problem != "" {
-			t.note = note{problem, true}
+			t.note = pageui.Bad(problem)
 			t.tab.Refresh()
 			return
 		}
@@ -225,7 +226,7 @@ func (t *remoteTab) showMyKey() {
 	}
 	path := strings.TrimSpace(f.keyFile.Value())
 	if path == "" {
-		t.note = note{"Choose the private key file first: its public key is what is shown.", true}
+		t.note = pageui.Bad("Choose the private key file first: its public key is what is shown.")
 		t.tab.Refresh()
 		return
 	}
@@ -254,9 +255,9 @@ func (t *remoteTab) showQR(line string) {
 
 // publicLineOfKeyFile is the line of the public key of a private key file: the .pub file beside it when there is one, else the public
 // key read from the key file. The .pub file is the user's own record of the key, with its comment. It fails with the tags of
-// readPublicKeyFile for a .pub file that cannot be used, and of sshlogin.PublicKeyOfKeyFile for the key file.
+// sshlogin.ReadPublicKeyFile for a .pub file that cannot be used, and of sshlogin.PublicKeyOfKeyFile for the key file.
 func publicLineOfKeyFile(path string, ask sshlogin.PassphraseFunc) (string, error) {
-	line, err := readPublicKeyFile(path + ".pub")
+	line, err := sshlogin.ReadPublicKeyFile(path + ".pub")
 	if err == nil {
 		return line, nil
 	}
@@ -332,7 +333,7 @@ func (t *remoteTab) chooseKeyFile() {
 		t.api.Post(func() {
 			switch {
 			case err != nil:
-				t.note = note{err.Error(), true}
+				t.note = pageui.Bad(err.Error())
 			case path != "":
 				t.form.keyFile.SetValue(path)
 				t.note = note{}
@@ -357,6 +358,6 @@ func (t *remoteTab) failForm(err error) {
 	if appErr, ok := errors.FromError(err); ok {
 		msg = appErr.Message
 	}
-	t.note = note{msg, true}
+	t.note = pageui.Bad(msg)
 	t.tab.Refresh()
 }
