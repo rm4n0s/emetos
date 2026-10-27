@@ -16,6 +16,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
+	"github.com/rm4n0s/emetos/extensions/internal/keyqr/qrui"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 )
 
@@ -45,6 +46,13 @@ type page struct {
 	port, idle, key *ui.InputBoxController
 	scroll          ui.ScrollHandle
 
+	// ctx ends when the page closes or the extension does: the look for cameras and the dialog of Scan QR Code end with it. scan is the
+	// Scan QR Code dialog while it is open; cameras is what the last look for cameras found (step 15.5).
+	ctx     context.Context
+	cancel  context.CancelFunc
+	scan    *qrui.ScanDialog
+	cameras cameraCheck
+
 	// notes are the last answers of the actions: the switch, the connection settings and the key box; an error shows in red.
 	switchNote, settingsNote, keyNote note
 	hostKeyErr                        string
@@ -56,8 +64,12 @@ type note struct {
 	bad  bool
 }
 
-func newPage(h *Hub, api extension.API, tab extension.EditorTab, folder string) *page {
+func newPage(ctx context.Context, h *Hub, api extension.API, tab extension.EditorTab, folder string) *page {
 	p := &page{hub: h, api: api, tab: tab, folder: folder}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	p.ctx, p.cancel = context.WithCancel(ctx)
 	snap := h.Snapshot(folder)
 	p.port = ui.NewInputBoxController(strconv.Itoa(snap.Config.Port))
 	p.idle = ui.NewInputBoxController(strconv.Itoa(snap.Config.IdleMinutes))
@@ -69,11 +81,16 @@ func newPage(h *Hub, api extension.API, tab extension.EditorTab, folder string) 
 		}
 	}
 	p.stop = h.OnChange(func() { api.Post(tab.Refresh) })
+	p.lookForCameras()
 	return p
 }
 
 // close lets go of the hub and the boxes when the tab closes.
 func (p *page) close() {
+	if p.scan != nil {
+		p.scan.Close() // the camera is let go
+	}
+	p.cancel()
 	p.stop()
 	p.port.Dispose()
 	p.idle.Dispose()
@@ -207,8 +224,70 @@ func readPublicKeyFile(path string) (string, error) {
 	return string(data), nil
 }
 
-// scanQRButton is the place of the "Scan QR Code" button of step 15.5, next to the ways of adding a key; there is none yet.
-func (p *page) scanQRButton() widgets.Widget { return nil }
+// ---- Scan QR Code ----
+
+// cameraCheck is what the look for cameras found: it is running, or it found a camera (reason is empty), or it found none and
+// reason says why, which the disabled button shows.
+type cameraCheck struct {
+	looking bool
+	reason  string
+}
+
+// lookForCameras asks the Source for the cameras off the UI thread, so that the button knows whether there is one. It opens each
+// device for a moment to ask what it is, and starts nothing.
+func (p *page) lookForCameras() {
+	src := p.hub.Cameras()
+	if src == nil {
+		p.cameras = cameraCheck{reason: qrui.NoSourceReason}
+		return
+	}
+	p.cameras = cameraCheck{looking: true}
+	go func() {
+		cams, err := src.Cameras(p.ctx)
+		if p.ctx.Err() != nil {
+			return
+		}
+		reason := qrui.NoCameraReason(cams, err)
+		p.api.Post(func() {
+			if p.ctx.Err() != nil {
+				return
+			}
+			p.cameras = cameraCheck{reason: reason}
+			p.refresh()
+		})
+	}()
+}
+
+// openScan opens the Scan QR Code dialog. The camera is opened by the dialog and released when it closes.
+func (p *page) openScan() {
+	if p.scan != nil {
+		return
+	}
+	p.scan = qrui.NewScanDialog(qrui.ScanOptions{
+		Context: p.ctx, Source: p.hub.Cameras(), Post: p.api.Post, Refresh: p.refresh,
+		Add:   func(key sshlogin.AllowedKey) { p.addKey(key.Line()) },
+		Close: func() { p.scan = nil; p.refresh() },
+	})
+	p.refresh()
+}
+
+// scanQRButton is the Scan QR Code button next to the ways of adding a key, and the reason under it when there is no camera: it is
+// disabled while the look for cameras runs and when it found none.
+func (p *page) scanQRButton(locked bool) widgets.Widget {
+	return ui.NewButton("Scan QR Code...", ui.ButtonOpts{Secondary: true, Disabled: locked || p.cameras.looking || p.cameras.reason != "", OnPressed: p.openScan})
+}
+
+// scanReason is the line under the buttons that says why Scan QR Code cannot be used; nothing when it can.
+func (p *page) scanReason(bc widgets.BuildContext, colors ui.Colors) widgets.Widget {
+	text := p.cameras.reason
+	if p.cameras.looking {
+		text = "Looking for cameras..."
+	}
+	if text == "" {
+		return widgets.NewSizedBox(nil, widgets.SizedBoxOpts{})
+	}
+	return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, 6, 0, 0), widgets.NewText("Scan QR Code is not available: "+text, widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.DescriptionForeground)}))
+}
 
 // ---- widgets ----
 
@@ -307,7 +386,12 @@ func (p *page) build(bc widgets.BuildContext) widgets.Widget {
 		widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(columnWidth)}),
 			widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(24, 20, 24, 0), widgets.NewColumn(items, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}))),
 		widgets.AlignOpts{Alignment: painting.AlignmentTopCenter})
-	return widgets.NewColoredBox(colors.EditorBackground, ui.NewScrollView(body, &p.scroll))
+	page := widgets.NewColoredBox(colors.EditorBackground, ui.NewScrollView(body, &p.scroll))
+	if p.scan == nil {
+		return page
+	}
+	// the dialog of Scan QR Code over the page, on a veil that keeps the pointer from it
+	return widgets.NewStack([]widgets.Widget{page, p.scan.Build(bc)}, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
 
 // problem is a message in a box with the color of an error.
@@ -401,10 +485,8 @@ func (p *page) keysSection(bc widgets.BuildContext, colors ui.Colors, snap Snaps
 		hgap(8), ui.NewButton("Add", ui.ButtonOpts{Disabled: locked, OnPressed: func() { p.addKey(p.key.Value()) }}),
 		hgap(8), ui.NewButton("Choose .pub File...", ui.ButtonOpts{Secondary: true, Disabled: locked, OnPressed: p.chooseKeyFile}),
 	}
-	if scan := p.scanQRButton(); scan != nil {
-		buttons = append(buttons, hgap(8), scan)
-	}
-	rows = append(rows, gap(6), widgets.NewRow(buttons, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}), p.noteLine(bc, colors, p.keyNote))
+	buttons = append(buttons, hgap(8), p.scanQRButton(locked))
+	rows = append(rows, gap(6), widgets.NewRow(buttons, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}), p.scanReason(bc, colors), p.noteLine(bc, colors, p.keyNote))
 	return p.section(bc, colors, "Allowed keys", rows...)
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/gomod"
 	"github.com/rm4n0s/emetos/extensions/html"
 	"github.com/rm4n0s/emetos/extensions/ini"
+	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
 	"github.com/rm4n0s/emetos/extensions/javascript"
 	"github.com/rm4n0s/emetos/extensions/json"
 	"github.com/rm4n0s/emetos/extensions/less"
@@ -43,12 +44,12 @@ import (
 // extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the TODOs view
 // (extensions/todo), the Tasks tab of the panel (extensions/tasks), the notes (extensions/notes) and the window tab Scratchpad
 // (extensions/scratchpad), then the Agents extension (extensions/agents) and Remote Work (extensions/remotework, whose instances share
-// one hub made here).
+// one hub made here, with the Source of the real cameras, which opens no device before the Scan QR Code dialog does).
 func All() []extension.Factory {
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
-		todo.New, tasks.New, notes.New, scratchpad.New, agents.New, remotework.NewFactory(remotework.HubOptions{}),
+		todo.New, tasks.New, notes.New, scratchpad.New, agents.New, remotework.NewFactory(remotework.HubOptions{Camera: keyqr.NewV4L2()}),
 	}
 }

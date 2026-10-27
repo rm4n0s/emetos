@@ -150,3 +150,15 @@ Ported code:
     comments; no file of them is bundled). The license texts are in
     third_party/gomodifytags/ (LICENSE, LICENSE-structtag, LICENSE-camelcase.md). gopls runs
     the same algorithm in its command gopls.modify_tags; the extension uses gopls when it has it.
+
+Linked Go module:
+
+15. github.com/makiuchi-d/gozxing (QR codes for Remote Work and Relay)
+    Source:  https://github.com/makiuchi-d/gozxing (version in go.mod), linked into the program
+    License: MIT (Copyright (c) 2018 Daisuke MAKIUCHI). It is a Go port of ZXing
+             (https://github.com/zxing/zxing, Apache-2.0, Copyright ZXing authors), so the
+             Apache-2.0 text is kept too.
+    Added by step 15.5 (extensions/internal/keyqr: scanning a public key from the camera and
+    showing one's own as a QR code). The license texts are in third_party/gozxing/ (LICENSE,
+    LICENSE-zxing-apache-2.0). Its one dependency, golang.org/x/xerrors (BSD-3-Clause, The Go
+    Authors), comes with it.

@@ -45,6 +45,8 @@ type tabRig struct {
 	ts     *gluttertest.Tester
 	key    testKey
 	file   string
+	// size is the size of the window of open; shownSize when it is zero.
+	size gui.Size
 
 	built   int
 	rebuild func()
@@ -147,7 +149,11 @@ func (r *tabRig) open(th uitest.Theme, state any) {
 		r.rebuild = func() { set(func() {}) }
 		return r.wt.Content.Build(bc)
 	})
-	r.ts = uitest.Pump(r.t, th, shownSize, host)
+	size := shownSize
+	if r.size.Width > 0 {
+		size = r.size
+	}
+	r.ts = uitest.Pump(r.t, th, size, host)
 	r.built = r.wt.Refreshs
 	r.t.Cleanup(func() {
 		if r.wt.Content.OnClose != nil {

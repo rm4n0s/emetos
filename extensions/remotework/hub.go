@@ -18,6 +18,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
 	"github.com/rm4n0s/emetos/extensions/remotework/transport"
@@ -45,6 +46,10 @@ type HubOptions struct {
 	NoView bool
 	// Tab are the knobs of the remote window tab (step 15.4); every field has a default.
 	Tab TabOptions
+	// Camera finds and opens the cameras that Scan QR Code reads (step 15.5). The editor passes the Source of the real cameras
+	// (extensions.All); nil means there is no way to read a camera, and the button says so. A test passes a keyqr.FakeSource: nothing
+	// in the tests of this package opens a real camera.
+	Camera keyqr.Source
 	// NoQUIC makes the transport use the SSH channel only: the hub opens no UDP socket and the grant has no fingerprint.
 	NoQUIC bool
 	// ListenUDP opens the UDP socket of QUIC on the port the SSH listener got; the default listens on every interface. When it
@@ -98,11 +103,14 @@ type Hub struct {
 	notified   map[string]time.Time
 	listeners  map[int]func()
 	nextID     int
+
+	camMu  sync.Mutex
+	camera keyqr.Source
 }
 
 // NewHub makes a hub that listens on nothing until a workspace has Remote Work on.
 func NewHub(opts HubOptions) *Hub {
-	h := &Hub{opts: opts, log: opts.Logger, workspaces: map[string][]*workspaceHost{}, sessions: map[*Session]struct{}{}, notified: map[string]time.Time{}, listeners: map[int]func(){}}
+	h := &Hub{opts: opts, camera: opts.Camera, log: opts.Logger, workspaces: map[string][]*workspaceHost{}, sessions: map[*Session]struct{}{}, notified: map[string]time.Time{}, listeners: map[int]func(){}}
 	if h.log == nil {
 		h.log = slog.Default()
 	}

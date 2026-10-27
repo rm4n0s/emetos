@@ -19,6 +19,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
+	"github.com/rm4n0s/emetos/extensions/internal/keyqr/qrui"
 	"github.com/rm4n0s/emetos/extensions/remotework/loginui"
 	"github.com/rm4n0s/emetos/extensions/remotework/protocol"
 	"github.com/rm4n0s/emetos/extensions/remotework/transport"
@@ -60,7 +61,9 @@ type remoteTab struct {
 
 	prompter *loginui.Prompter
 	form     *tabForm
-	in       *inputSurface
+	// qr is the Show My Public Key as QR Code dialog while it is open (UI thread only).
+	qr *qrui.ShowDialog
+	in *inputSurface
 
 	// UI thread only.
 	phase    phase
@@ -146,6 +149,7 @@ func (t *remoteTab) close() {
 		return
 	}
 	t.disposed = true
+	t.qr = nil
 	t.in.stop()
 	t.form.dispose()
 }
@@ -210,6 +214,9 @@ func (t *remoteTab) build(bc widgets.BuildContext) widgets.Widget {
 			body = t.formView(bc, colors)
 		}
 		children := []widgets.Widget{widgets.NewColoredBox(colors.EditorBackground, widgets.NewSizedBox(nil)), body}
+		if t.qr != nil {
+			children = append(children, t.qr.Build(bc))
+		}
 		if d := t.prompter.Build(bc); d != nil {
 			children = append(children, d)
 		}

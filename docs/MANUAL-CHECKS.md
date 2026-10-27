@@ -126,3 +126,20 @@ go test -tags emetos_claude -run TestRealClaude -v -timeout 5m ./extensions/agen
 3. Afterwards `pgrep -a claude` must show only the program your own editor or terminal runs, none started by the test.
 
 Say what you saw, and the version of the program (`claude --version`).
+
+## 15.5 Public keys by QR code: the real camera
+
+The tests read a camera only through fakes (the V4L2 ioctls, the mapping and the poll are checked by the sizes and numbers of the kernel, never against a device). This runs the real layer once on your camera. You need a camera (a laptop's or a USB one) that you may use (your user in the `video` group), and a QR code of a public key on another screen or on paper: for example the code that "Show My Public Key as QR Code" of the "Remote Work..." dialog shows in another Emetos, or any QR code made from the line of an `id_ed25519.pub`. Nothing is written or sent; the test opens the first camera it finds (`EMETOS_CAMERA=/dev/video2` chooses another), shows its name, and waits 60 seconds for the code:
+
+```
+go test -tags emetos_camera -run TestRealCamera -v ./extensions/internal/keyqr
+```
+
+1. Does it list your camera (`camera /dev/video0: ...`) and not its metadata node?
+2. Hold the QR code of a public key in front of the camera. Does it print `read a public key: type ..., fingerprint SHA256:..., comment ...`, and does the fingerprint match the key's (`ssh-keygen -lf <file>.pub`)?
+3. What size and rate does it print (`N frames of (W,H) in ...`)? Is the camera's light off after the test ends?
+
+Then, in the editor, open the Remote Work page (`scripts/isolated.sh -- go run ./cmd/emetos`, command "Remote Work: Manage") and press "Scan QR Code...": is the picture of your camera shown, does the dialog turn into the confirmation of the key when you hold the code up, and does the camera's light go out when it closes?
+
+Say what you saw: the camera, the format (MJPEG or YUYV, if you know it), whether a large RSA 4096 code was read, and any error text.
+

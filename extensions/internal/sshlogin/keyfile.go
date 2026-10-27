@@ -1,7 +1,10 @@
 package sshlogin
 
 import (
+	"bytes"
 	"crypto/x509"
+	"encoding/binary"
+	"encoding/pem"
 	"io"
 	"os"
 
@@ -102,4 +105,85 @@ func wipe(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
+}
+
+// PublicKeyOfKeyFile reads the public half of the private key at path, for the user to show (Show My Public Key as QR Code). A
+// key in OpenSSH format keeps its public key in the clear in front of the private part, so the public key is read from there and
+// no passphrase is needed, whether the key has one or not; the private part of the file is not parsed. Another format (PEM) has
+// no public part to read: the key is parsed as KeyFileAuth parses it, asking ask for the passphrase when it has one, and only
+// the public key is kept. The file is read with the limits of KeyFileAuth (at most 64 KiB) and its bytes are overwritten when
+// done. It fails with the tags of KeyFileAuth (SSHLoginKeyFileUnreadable, SSHLoginKeyFileInvalid, SSHLoginPassphraseRequired,
+// SSHLoginPassphraseCancelled, SSHLoginWrongPassphrase).
+func PublicKeyOfKeyFile(path string, ask PassphraseFunc) (ssh.PublicKey, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, errors.NewErr("SSHLoginKeyFileUnreadable", err).SetMetadata("path", path)
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, maxKeyFile+1))
+	if err != nil {
+		return nil, errors.NewErr("SSHLoginKeyFileUnreadable", err).SetMetadata("path", path)
+	}
+	defer wipe(data)
+	if len(data) > maxKeyFile {
+		return nil, errors.New("SSHLoginKeyFileInvalid", "the key file is too large to be a private key", "path", path)
+	}
+	if block, _ := pem.Decode(data); block != nil && block.Type == "OPENSSH PRIVATE KEY" {
+		defer wipe(block.Bytes)
+		pub, problem := openSSHPublicKey(block.Bytes)
+		if problem != "" {
+			return nil, errors.New("SSHLoginKeyFileInvalid", problem, "path", path)
+		}
+		return pub, nil
+	}
+	auth, err := KeyFileAuth(path, ask)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = auth.Close() }()
+	return auth.PublicKey, nil
+}
+
+// opensshMagic starts the body of an OpenSSH private key (PROTOCOL.key of OpenSSH): the magic, then the cipher name, the kdf
+// name, the kdf options, the number of keys, the public key of each, and the private part.
+const opensshMagic = "openssh-key-v1\x00"
+
+// openSSHPublicKey returns the first public key of the body of an OpenSSH private key, reading nothing of the private part; when
+// the body is not one it returns what is wrong with it.
+func openSSHPublicKey(body []byte) (key ssh.PublicKey, problem string) {
+	if !bytes.HasPrefix(body, []byte(opensshMagic)) {
+		return nil, "this is not an OpenSSH private key"
+	}
+	rest := body[len(opensshMagic):]
+	str := func() ([]byte, bool) {
+		if len(rest) < 4 {
+			return nil, false
+		}
+		n := binary.BigEndian.Uint32(rest)
+		if uint64(n) > uint64(len(rest)-4) {
+			return nil, false
+		}
+		out := rest[4 : 4+n]
+		rest = rest[4+n:]
+		return out, true
+	}
+	for range 3 { // the cipher, the kdf and its options
+		if _, ok := str(); !ok {
+			return nil, "the OpenSSH private key is cut short"
+		}
+	}
+	if len(rest) < 4 || binary.BigEndian.Uint32(rest) == 0 {
+		return nil, "the OpenSSH private key holds no key"
+	}
+	rest = rest[4:]
+	blob, ok := str()
+	if !ok {
+		return nil, "the OpenSSH private key is cut short"
+	}
+	// the key parsed keeps pieces of the blob, and the blob is part of the file that the caller overwrites
+	pub, err := ssh.ParsePublicKey(bytes.Clone(blob))
+	if err != nil {
+		return nil, "the public key in the OpenSSH private key cannot be read: " + err.Error()
+	}
+	return pub, ""
 }

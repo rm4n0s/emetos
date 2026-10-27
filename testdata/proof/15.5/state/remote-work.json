@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "port": 47123,
+  "idleMinutes": 30,
+  "workspaces": [],
+  "keys": [
+    {
+      "line": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMIFqbvEREWgEzKZTS6V5UqPSAyZBRdnIGoVbSCPDLZt laptop B (work)",
+      "added": "2026-10-27T09:00:00Z"
+    },
+    {
+      "line": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOrrhdjkbCo5hvFPbE1bi//881eeMVbuLKpWBGdLlde4 tablet",
+      "added": "2026-10-27T09:00:00Z"
+    }
+  ]
+}

@@ -192,3 +192,9 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 78. **The remote picture is in logical pixels at scale 1**: on a HiDPI screen on B it is stretched, not sharp, because the protocol has no pixel ratio. Sharp HiDPI would need a ratio in Resize and pictures twice as large.
 79. **A restored remote tab does not reconnect by itself**: it shows its connection form, filled in, and waits for Connect. During a session, a dropped connection (including A's SSH connection ending) is retried automatically with backoff.
 80. **Keys that stay on B in a remote tab**: switching and closing window and workspace tabs, new window, quit, switch window and full screen, as bound on B. Every other key goes to A, including the command palette and Ctrl+S.
+
+## 2026-10-27: step 15.5 (keys by QR code; decided by the agent and accepted by me)
+
+81. **Opening the Remote Work page opens each `/dev/video*` for a moment** (a `QUERYCAP`, which starts no capture and does not light the camera), so that the Scan QR Code button can say whether there is a camera. The camera itself is streamed only while the scan dialog is open.
+82. **The camera is asked for 1280x720 in MJPEG (640x480 in YUYV)**, because the QR code of an RSA 4096 key is too dense to read reliably at 640x480.
+83. **"Show My Public Key as QR Code" reads the public key from the clear header of an OpenSSH private key** when there is no `.pub` beside it, so no passphrase is asked; a PEM key still asks for it.

@@ -35,6 +35,8 @@ type remoteWork struct {
 	ctx context.Context
 	// tabs are the window tabs this instance made (a scope of a window tab has one); the tests look at them.
 	tabs []*remoteTab
+	// pages are the pages this instance made, which the dev command of the Scan QR Code proof and the tests look at.
+	pages []*page
 }
 
 // Manifest implements extension.Extension.
@@ -71,6 +73,9 @@ func (r *remoteWork) Activate(ctx context.Context, api extension.API) error {
 	if api.Scope().Kind != extension.ScopeWorkspace {
 		return nil
 	}
+	if err := r.registerDevWorkspace(); err != nil {
+		return err
+	}
 	unregister := r.hub.Register(api)
 	context.AfterFunc(ctx, unregister)
 	return nil
@@ -89,8 +94,9 @@ func (r *remoteWork) manage(context.Context, any) error {
 // createPage makes the content of the tab of the page; the page keeps no state of its own.
 func (r *remoteWork) createPage(tab extension.EditorTab, _ json.RawMessage) (extension.EditorTabContent, error) {
 	tab.SetTitle("Remote Work")
-	p := newPage(r.hub, r.api, tab, filepath.Clean(r.api.Scope().Folder))
-	return extension.EditorTabContent{Build: p.build, OnClose: p.close}, nil
+	p := newPage(r.ctx, r.hub, r.api, tab, filepath.Clean(r.api.Scope().Folder))
+	r.pages = append(r.pages, p)
+	return extension.EditorTabContent{Build: p.build, OnClose: func() { p.close(); r.dropPage(p) }}, nil
 }
 
 // activateTab provides the window tab "Remote Work..." in the scope of a tab, and in debug builds its dev command.
@@ -99,4 +105,14 @@ func (r *remoteWork) activateTab() error {
 		return err
 	}
 	return r.registerDev()
+}
+
+// dropPage forgets a page that closed.
+func (r *remoteWork) dropPage(p *page) {
+	for i, q := range r.pages {
+		if q == p {
+			r.pages = append(r.pages[:i], r.pages[i+1:]...)
+			return
+		}
+	}
 }

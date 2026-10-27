@@ -2663,3 +2663,61 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - A's `ReasonClosed` is treated as a drop.
 
   Not built: the QR code (15.5), device pixel ratios above 1, showing an input method's pre-edit text on A, sound, drag and drop.
+
+## 15.5 Public keys by QR code
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-15.5-key-qr
+- **Summary:** SPEC §10.18 "Public keys by QR code", §12.
+  - **Dependency:** `github.com/makiuchi-d/gozxing` v0.1.1, which brings in `golang.org/x/xerrors`.
+    - Its license is MIT, not Apache-2.0 as the step said; the step's text is corrected.
+    - `third_party/gozxing/` holds its MIT license and the Apache-2.0 license of ZXing, which it ports. `NOTICE` entry 15.
+  - **`extensions/internal/keyqr`:**
+    - **V4L2 through ioctls** with `golang.org/x/sys/unix`, without cgo, for 64-bit amd64 and arm64. Struct sizes, offsets and ioctl numbers are tested against the kernel's.
+      - Capture devices only. MJPEG at 1280x720 is preferred, else YUYV at 640x480.
+      - Four mmap buffers; the newest frame wins.
+      - A poll in 50 ms slices, so a cancel or `Close` is answered quickly.
+      - Errnos become tags (busy, denied, gone).
+    - **Frames:** MJPEG with the standard Huffman tables inserted when missing, and YUYV to `image.YCbCr`. Dimensions are checked before decoding, and frames over 1920x1080 or 16 MiB are refused.
+    - **QR decoding** with gozxing (TRY_HARDER, also at 2/3 and 1/2 scale), off the UI thread, one frame every 100 ms. The text is parsed with the 15.2 authorized-key rules.
+    - **QR encoding** of a public line only: level M, else L, up to 452 px with whole pixels per module.
+  - **`ui.Picture` and `ui.Image`** (`extension/ui`, `internal/gui/kit/image.go`).
+  - **Scan QR Code** on the Remote Work page:
+    - the button is disabled, with the reason, when there is no camera or no permission;
+    - a live preview with a camera picker;
+    - the first valid key stops the camera and shows its type, fingerprint and comment (Cancel, Scan Again, Add Key);
+    - other QR codes say "not a public key";
+    - no frame is kept.
+  - **Show My Public Key as QR Code** in the "Remote Work..." form shows the public half only. It comes from the `.pub`, or from the clear header of an OpenSSH key, or from the agent key; a PEM key asks for its passphrase.
+  - **Dev commands:** `dev.keyqr.fakeCamera` and `dev.remotework.scanQR` (debug and `emetos_dev` builds only).
+  - **New error tags:** 22, all route-tested.
+- **Tests:**
+  - QR round trips for Ed25519, ECDSA and RSA 4096: plain, rotated (5, 15, -30, 45 degrees), blurred, with noise, and all of these at once, at 1280x720 and 640x480. Ed25519 reads 54/54 frames; ECDSA 53/54; RSA 4096 40/54 at 1280x720 and 22/54 at 640x480.
+  - Text that is not a key is refused.
+  - V4L2 against a fake driver: format choice, YUYV, buffer cycling, newest frame, cancel and close.
+  - The dialogs with a fake camera playing frames: they close on the first key, ignore other codes, and release the camera.
+  - The image widget.
+  - The real-camera test (tag `emetos_camera`) is a manual check.
+- **Goldens:**
+  - new: 10 in `keyqr/qrui`, 6 in `remotework`, and the image widget's;
+  - changed: 14 Remote Work page and tab goldens gain the Scan QR Code button (disabled, with its reason) or the Show My Public Key row;
+  - viewed: I viewed `page_off_light`, `tab_form_light` and both proofs; the agent viewed all new ones and 10 of the 14 changed ones.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude` and `emetos_camera`, the latter vet only) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · display tests none. No real camera was opened by any test, proof or check.
+- **Proof:** `docs/implemented-proof-images/15.5-scan-qr.png` (the confirmation of a scanned key) and `15.5-scan-qr-preview.png` (the live preview with the camera picker), with a fake camera fed a key generated at run time:
+  ```
+  scripts/proof.sh docs/implemented-proof-images/15.5-scan-qr.png --config testdata/proof/15.5/config --state testdata/proof/15.5/state --commands '[["sleep","1s"],["dev.keyqr.fakeCamera",{"comment":"alice@laptop"}],["emetos.remotework.manage",null],["sleep","1s"],["dev.remotework.scanQR",null],["sleep","4s"]]' --after 3s -- testdata/proof/15.5/project
+  ```
+  The preview uses `{"nothing":true,"cameras":2}` in the fake-camera step and a 2 s final sleep.
+
+  ![15.5 scan confirmation](implemented-proof-images/15.5-scan-qr.png)
+  ![15.5 scan preview](implemented-proof-images/15.5-scan-qr-preview.png)
+- **Manual checks:** pending, see docs/MANUAL-CHECKS.md: `go test -tags emetos_camera -run TestRealCamera -v ./extensions/internal/keyqr`, then Scan QR Code in the editor.
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.18 "As built (step 15.5)" holds the decisions (DECISIONS-TO-REVIEW 81–83):
+  - the page asks each `/dev/video*` what it is;
+  - 1280x720 MJPEG;
+  - the public key is read from the OpenSSH header;
+  - the confirmation shows no frame;
+  - `HubOptions.Camera` is nil unless `extensions.All` gives the real source.
+
+  Not built: camera controls, a mirrored preview, multi-planar and H.264 cameras, 32-bit machines, Escape in the dialogs. M15 is complete with this step.

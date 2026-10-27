@@ -20,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/extension/ui/uitest"
 	"github.com/rm4n0s/emetos/extensions/internal/fakeapi"
+	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
 )
 
 // seededKey is a key that is the same in every run, for goldens.
@@ -44,9 +45,18 @@ type pageRig struct {
 
 // newPageRig activates the extension over the fake API of a workspace and runs Manage. With seeded the host key and the two keys
 // listed are the same in every run.
-func newPageRig(t *testing.T, seeded bool) *pageRig {
+func newPageRig(t *testing.T, seeded bool) *pageRig { return newPageRigWith(t, seeded, nil) }
+
+// newPageRigWith is newPageRig with the cameras of the hub: the Source that Scan QR Code reads, or none when it is nil. No test reads
+// a real camera.
+func newPageRigWith(t *testing.T, seeded bool, cameras keyqr.Source, tweak ...func(*HubOptions)) *pageRig {
 	t.Helper()
-	r := newRig(t)
+	r := newRig(t, rigOptions{hubTweak: func(h *HubOptions) {
+		h.Camera = cameras
+		for _, f := range tweak {
+			f(h)
+		}
+	}})
 	if seeded {
 		block, err := ssh.MarshalPrivateKey(seededKey(t, 1).priv, "host")
 		if err != nil {

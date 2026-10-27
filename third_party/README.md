@@ -20,3 +20,5 @@ ported (`// Ported from vscode-textmate` comments); no file of it is bundled. Th
 into the program come with their sources (`go list -m -f '{{.Dir}}' <module>`) and are listed in `NOTICE`.
 
 `third_party/gomodifytags/` holds the licenses of gomodifytags and its two small libraries, `fatih/structtag` and `fatih/camelcase`, whose algorithms are ported into `extensions/golang/tags.go` (`// Ported from` comments); they are copied from the Go module cache of those modules, not from `reference/`, and no file of them is bundled.
+
+`third_party/gozxing/` holds the license of gozxing (MIT) and the Apache-2.0 text of ZXing, which it ports; both are copied from the Go module cache (`LICENSE` of `github.com/makiuchi-d/gozxing`, and the generic Apache-2.0 text from another module of the cache), and no file of them is bundled: the module is linked in (step 15.5).

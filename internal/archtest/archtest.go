@@ -263,7 +263,7 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 // under extensions/ may import: the dependencies CLAUDE.md allows. regexp2 is left to RuleRegexp2Outside.
 var allowedExtensionModules = []string{
 	errorsModule, glutterModule, "golang.org/x/text", "golang.org/x/image", "golang.org/x/sys",
-	"github.com/go-text/typesetting", "golang.org/x/crypto", "github.com/quic-go/quic-go",
+	"github.com/go-text/typesetting", "golang.org/x/crypto", "github.com/quic-go/quic-go", "github.com/makiuchi-d/gozxing",
 }
 
 // extensionImportRule applies the rules of SPEC §10.15 to one import of a file under extensions/ (rel is its path

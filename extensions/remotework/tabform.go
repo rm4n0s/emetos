@@ -2,6 +2,7 @@ package remotework
 
 import (
 	"context"
+	"os"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
+	"github.com/rm4n0s/emetos/extensions/internal/keyqr/qrui"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 )
 
@@ -21,6 +23,8 @@ import (
 type agentKey struct {
 	// Fingerprint is its SHA256:... fingerprint and Label what the form shows ("ssh-ed25519  SHA256:...").
 	Fingerprint, Label string
+	// Line is the public key as an authorized_keys line (the agent tells no comment), which Show My Public Key as QR Code draws.
+	Line string
 }
 
 // tabForm is the connect dialog: the host, the port, and the key (a file, or one of the keys of the ssh-agent). Its boxes keep
@@ -117,7 +121,7 @@ func (f *tabForm) listAgent() {
 				f.agentNote = "The ssh-agent has no key. Add one with ssh-add."
 			}
 			for _, k := range keys {
-				f.agent = append(f.agent, agentKey{Fingerprint: ssh.FingerprintSHA256(k), Label: k.Type() + "  " + ssh.FingerprintSHA256(k)})
+				f.agent = append(f.agent, agentKey{Fingerprint: ssh.FingerprintSHA256(k), Label: k.Type() + "  " + ssh.FingerprintSHA256(k), Line: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(k)))})
 			}
 			t.tab.Refresh()
 		})
@@ -193,8 +197,102 @@ func (t *remoteTab) formView(bc widgets.BuildContext, colors ui.Colors) widgets.
 		widgets.AlignOpts{Alignment: painting.AlignmentTopCenter}), &t.scroll))
 }
 
-// keyQRSlot is the place of the "Show My Public Key as QR Code" button of step 15.5, under the choice of the key; there is none yet.
-func (t *remoteTab) keyQRSlot(widgets.BuildContext) widgets.Widget { return nil }
+// keyQRSlot is the Show My Public Key as QR Code button under the choice of the key, with what it is for.
+func (t *remoteTab) keyQRSlot(bc widgets.BuildContext) widgets.Widget {
+	colors := ui.Theme(bc)
+	busy := t.phase == phaseConnecting || t.phase == phasePicker
+	return widgets.NewRow([]widgets.Widget{
+		ui.NewButton("Show My Public Key as QR Code", ui.ButtonOpts{Secondary: true, Disabled: busy, OnPressed: t.showMyKey}), hgap(10),
+		widgets.NewExpanded(widgets.NewText("to scan with the Scan QR Code of the other computer, where it is added to the keys that may log in", widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.DescriptionForeground)})),
+	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+}
+
+// showMyKey shows the public half of the key that is chosen as a QR code: the .pub file next to the key file, or the public key read
+// out of the key file itself (an OpenSSH key keeps it in the clear, so no passphrase is asked for; another format is asked for the
+// passphrase it needs), or the key of the ssh-agent that is chosen. The private key is never drawn, kept or sent: only the public
+// key is given to the dialog, which refuses anything else.
+func (t *remoteTab) showMyKey() {
+	f := t.form
+	if f.source == keyAgent {
+		line, problem := f.agentLine()
+		if problem != "" {
+			t.note = note{problem, true}
+			t.tab.Refresh()
+			return
+		}
+		t.showQR(line)
+		return
+	}
+	path := strings.TrimSpace(f.keyFile.Value())
+	if path == "" {
+		t.note = note{"Choose the private key file first: its public key is what is shown.", true}
+		t.tab.Refresh()
+		return
+	}
+	t.spawn(func() {
+		line, err := publicLineOfKeyFile(path, t.prompter.Passphrase(path))
+		t.api.Post(func() {
+			if err != nil {
+				t.failForm(err)
+				return
+			}
+			t.showQR(line)
+		})
+	})
+}
+
+// showQR opens the dialog with the QR code of the line of a public key. The UI thread.
+func (t *remoteTab) showQR(line string) {
+	d, err := qrui.NewShowDialog(qrui.ShowOptions{Line: line, Close: func() { t.qr = nil; t.tab.Refresh() }})
+	if err != nil {
+		t.failForm(err)
+		return
+	}
+	t.qr, t.note = d, note{}
+	t.tab.Refresh()
+}
+
+// publicLineOfKeyFile is the line of the public key of a private key file: the .pub file beside it when there is one, else the public
+// key read from the key file. The .pub file is the user's own record of the key, with its comment. It fails with the tags of
+// readPublicKeyFile for a .pub file that cannot be used, and of sshlogin.PublicKeyOfKeyFile for the key file.
+func publicLineOfKeyFile(path string, ask sshlogin.PassphraseFunc) (string, error) {
+	line, err := readPublicKeyFile(path + ".pub")
+	if err == nil {
+		return line, nil
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	pub, err := sshlogin.PublicKeyOfKeyFile(path, ask)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pub))), nil
+}
+
+// agentLine is the line of the key of the ssh-agent the form has chosen, or what is in the way: the keys are being read, the agent
+// has none, or it has several and none is chosen.
+func (f *tabForm) agentLine() (line, problem string) {
+	switch {
+	case f.agentLoading:
+		return "", "The keys of the ssh-agent are still being read."
+	case len(f.agent) == 0:
+		if f.agentNote != "" {
+			return "", f.agentNote
+		}
+		return "", "The ssh-agent has no key. Add one with ssh-add."
+	case f.fingerprint != "":
+		for _, k := range f.agent {
+			if k.Fingerprint == f.fingerprint {
+				return k.Line, ""
+			}
+		}
+		return "", "That key is not in the ssh-agent any more."
+	case len(f.agent) == 1:
+		return f.agent[0].Line, ""
+	}
+	return "", "The ssh-agent has several keys: choose the one to show."
+}
 
 // agentRow is the choice among the keys of the ssh-agent.
 func (f *tabForm) agentRow(bc widgets.BuildContext, colors ui.Colors, disabled bool) widgets.Widget {

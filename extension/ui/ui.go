@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"image"
+
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/ui"
@@ -73,6 +75,29 @@ type (
 	// ProgressBarOpts are the options of NewProgressBar.
 	ProgressBarOpts = kit.ProgressBarOpts
 )
+
+// Images.
+type (
+	// Picture is an image ready to be drawn, with its own copy of the pixels. Make one with NewPicture and keep it: making one
+	// copies every pixel.
+	Picture = kit.Picture
+	// Image is the widget that draws a Picture scaled to fit its space.
+	Image = kit.Image
+	// ImageOpts are the options of NewImage.
+	ImageOpts = kit.ImageOpts
+)
+
+// MaxPictureSide is the largest width or height, in pixels, of an image NewPicture takes.
+const MaxPictureSide = kit.MaxPictureSide
+
+// NewPicture copies the pixels of an image into a Picture; it may be called from any goroutine (a goroutine that gets the
+// frames of a camera makes the Picture, and hands it to the UI thread). It fails with PictureInvalid for a nil or empty image
+// and PictureTooLarge for one with a side over MaxPictureSide.
+func NewPicture(img image.Image) (*Picture, error) { return kit.NewPicture(img) }
+
+// NewImage makes a widget that draws a picture, scaled down to fit the box it is given (up too with ImageOpts.Upscale),
+// keeping its proportions, in the middle of the box. A nil picture draws nothing.
+func NewImage(pic *Picture, opts ...ImageOpts) *Image { return kit.NewImage(pic, opts...) }
 
 // NewButton makes a text button.
 func NewButton(label string, opts ...ButtonOpts) *Button { return kit.NewButton(label, opts...) }
