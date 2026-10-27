@@ -10,12 +10,11 @@ import (
 )
 
 // The application icon (SPEC §10.14, §17): a cat's hairball, the thing a cat throws up ("emetos" is Greek for
-// vomiting), drawn as a round ball of ginger-and-white hair, like a basketball, on a cat-head silhouette in soft teal
-// (a rounded square with two ears: one shape with one gradient and one border). The ball is a sphere seen from the
+// vomiting), drawn as a round ball of ginger-and-white hair, like a basketball, on a cat-head silhouette in soft teal (a
+// rounded square with two ears: one shape with one gradient and one border). The ball is a sphere seen from the
 // front. About ninety curved hair strokes wrap around it, following its roundness like yarn on a ball of wool, in six
 // colors from deep orange to white: the ones facing the light at the top left are pale, the ones turned away at the
-// bottom right are deep orange. Over them run three deeper orange seams, one across the middle and one arc on each
-// side, as on a basketball, and a few light hairs cross the seams. A soft gradient shades the ball under the hair, and
+// bottom right are deep orange. A soft gradient shades the ball under the hair, and
 // a small glossy highlight at the top left makes it look damp. Its edge is fuzzy, not outlined: short hairs stick out
 // all around it, and a few longer strands stray. It is drawn with Glutter's canvas, with paths and gradients only (no
 // font, no bitmap), so the picture is the same on every machine; the strokes come from a generator with a fixed seed.
@@ -45,8 +44,6 @@ var (
 		ui.NewColor(0xFFFFEBCE), // cream
 		ui.NewColor(0xFFFFFFFF), // white
 	}
-	// appIconSeam is the deeper orange of the basketball seams.
-	appIconSeam = ui.NewColor(0xFFC85A0E)
 )
 
 // The geometry of the icon in a square of 512 units.
@@ -193,22 +190,6 @@ var appIconStrands = func() []appIconStrand {
 	return out
 }()
 
-// appIconSeams are the circles of the three basketball seams: the axis and the angle from it. The first runs across the
-// middle, a little tilted; the other two are the arcs on the left and the right side.
-var appIconSeams = []struct {
-	n   appIconUnit3
-	phi float64
-}{
-	{appIconUnit3{0.10, 1, 0.26}, math.Pi / 2},
-	{appIconUnit3{-0.85, 0.05, 0.5}, 1.0},
-	{appIconUnit3{0.85, 0.05, 0.5}, 1.0},
-}
-
-// appIconSeamPoints are the points of the seam i, front side only, resampled.
-func appIconSeamPoints(i int) []appIconUnit3 {
-	return appIconResample(appIconCircle(appIconSeams[i].n, appIconSeams[i].phi, 0, 2*math.Pi, 0, 1, 0), 26)
-}
-
 // appIconFuzz is a hair at the edge of the ball: it starts inside the edge at the angle ang and sticks out len units
 // (of 512), bent by curl; color indexes appIconFurColors; level is the detail level that first shows it.
 type appIconFuzz struct {
@@ -243,7 +224,7 @@ var appIconFuzzes = func() []appIconFuzz {
 	return out
 }()
 
-// appIconDetail gives the detail level for a size in pixels: 0 below 32 px (twenty thick hairs, the seams and the
+// appIconDetail gives the detail level for a size in pixels: 0 below 32 px (twenty thick hairs and the
 // highlight on a disc, no fuzz), 1 up to 63 px (about fifty hairs, every third short hair, the strays), 2 from 64 px
 // (all of them).
 func appIconDetail(s float64) int {
@@ -405,8 +386,7 @@ func paintAppIconHead(canvas *ui.Canvas, s, u float64) {
 	canvas.Restore()
 }
 
-// paintAppIconBall draws the ball: the shaded disc, the hairs wrapped around it, the seams, a few hairs across the
-// seams, the fuzz at the edge and the highlight.
+// paintAppIconBall draws the ball: the shaded disc, the hairs wrapped around it, the fuzz at the edge and the highlight.
 func paintAppIconBall(canvas *ui.Canvas, s, u float64) {
 	detail := appIconDetail(s)
 	// the small sizes get thicker hairs, so that they fill the few pixels there are
@@ -442,29 +422,6 @@ func paintAppIconBall(canvas *ui.Canvas, s, u float64) {
 		stroke.SetColor(appIconFurColors[st.color])
 		stroke.SetStrokeWidth(max(1, st.width*widen*u))
 		canvas.DrawPath(appIconSpherePath(st.pts, u), stroke)
-	}
-
-	// the seams of the basketball, in a deeper orange
-	stroke.SetColor(appIconSeam.WithOpacity(0.9))
-	stroke.SetStrokeWidth(max(1, 8*widen*0.8*u))
-	for i := range appIconSeams {
-		canvas.DrawPath(appIconSpherePath(appIconSeamPoints(i), u), stroke)
-	}
-	if detail == 2 {
-		// a few pale hairs across the seams, so that the seams are made of the same stuff
-		r := appIconRand(777)
-		for i := 0; i < 14; i++ {
-			n := appIconUnit3{r.span(-1, 1), r.span(-1, 1), r.span(0, 1)}
-			t0 := r.span(0, 2*math.Pi)
-			pts := appIconCircle(n, r.span(0.6, 1.4), t0, t0+2*math.Pi, 0.01, 9, r.span(0, 6))
-			if len(pts) < 16 {
-				continue
-			}
-			pts = appIconResample(pts[:len(pts)/2], appIconSteps)
-			stroke.SetColor(appIconFurColors[3+i%3])
-			stroke.SetStrokeWidth(max(1, r.span(3, 5)*u))
-			canvas.DrawPath(appIconSpherePath(pts, u), stroke)
-		}
 	}
 
 	// the highlight: a small glossy oval at the top left of the ball, and a dot
