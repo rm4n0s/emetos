@@ -206,6 +206,8 @@ if [[ $mode == main ]]; then
     gobench -tags glutter_release ./internal/gui/editor -bench 'TypeCharacter10kLines$|ScrollPage100kLines$|Open10MB$' -benchtime 30x
     # every operation tokenizes lines nobody has: a long -benchtime grows the tokens kept
     gobench -tags glutter_release ./internal/gui/editor -bench 'TypeCharacter10kLinesHighlighted$|ScrollPage100kLinesHighlighted$' -benchtime 50x
+    # the Markdown preview of the 700 KB document with 150 images (step 17b.2)
+    gobench -tags glutter_release ./extension/ui/markdown -bench 'Preview' -benchtime 50x
     gobench ./internal/core/fuzzy -bench 'Search100k$' -benchtime 20x
     gobench ./internal/core/workspace -bench 'QuickOpen100k$' -benchtime 3x
     gobench ./internal/core/language -bench 'Bundled$|FirstLine' -benchtime 10x
@@ -472,6 +474,7 @@ if [[ "$PERF_GO" -eq 1 ]]; then
   bench_rows="| UI thread alone (Go benchmarks, the fake platform): typing a character in a 10,000-line file | < 4 ms | $(bench_cell '^BenchmarkTypeCharacter10kLines-'); highlighted: $(bench_cell '^BenchmarkTypeCharacter10kLinesHighlighted-') |
 | UI thread alone: scrolling a page of a 100,000-line file | none over 8 ms | $(bench_cell '^BenchmarkScrollPage100kLines-'); highlighted, lines nobody tokenized: $(bench_cell '^BenchmarkScrollPage100kLinesHighlighted-') |
 | UI thread alone: opening a 10 MB file (read, buffer, first layout) | < 300 ms | $(bench_cell '^BenchmarkOpen10MB-') |
+| UI thread alone: the Markdown preview of a 700 KB document with 150 images (step 17b.2) | no frame over 16 ms | first frame $(bench_metric '^BenchmarkPreviewFirstFrame-' first-frame-ms) ms, then parse and first blocks $(bench_metric '^BenchmarkPreviewFirstFrame-' parse-and-blocks-ms) ms; a jump to a place never shown $(bench_cell '^BenchmarkPreviewJump-'); a step of the wheel $(bench_cell '^BenchmarkPreviewWheelStep-'); the parse, off the UI thread, $(bench_cell '^BenchmarkPreviewParse-') |
 | Fuzzy file search over 100,000 paths, per keystroke, off the UI thread | < 30 ms | the scorer alone and sorted: $(bench_cell '^BenchmarkSearch100k/'); the quick open end to end on one goroutine: $(bench_cell '^BenchmarkQuickOpen100k/one_goroutine/'), on all of them: $(bench_cell '^BenchmarkQuickOpen100k/parallel/') |
 | Making the registry of the languages (at the start, before the window) | part of the cold start | $(bench_cell '^BenchmarkBundled-') |
 | The first file of a language: the grammar (UI thread) and the first line (compiles the patterns) | part of the open of a file | Go $(bench_metric '^BenchmarkFirstLine/go-' grammar-ms) + $(bench_metric '^BenchmarkFirstLine/go-' line-ms) ms, Python $(bench_metric '^BenchmarkFirstLine/python-' grammar-ms) + $(bench_metric '^BenchmarkFirstLine/python-' line-ms) ms, TypeScript $(bench_metric '^BenchmarkFirstLine/typescript-' grammar-ms) + $(bench_metric '^BenchmarkFirstLine/typescript-' line-ms) ms, HTML $(bench_metric '^BenchmarkFirstLine/html-' grammar-ms) + $(bench_metric '^BenchmarkFirstLine/html-' line-ms) ms, Markdown $(bench_metric '^BenchmarkFirstLine/markdown-' grammar-ms) + $(bench_metric '^BenchmarkFirstLine/markdown-' line-ms) ms |

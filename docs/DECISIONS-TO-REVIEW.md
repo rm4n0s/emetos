@@ -247,3 +247,9 @@ Entries 97 to 102 are **withdrawn**: the user removed the Agents extension inste
 108. **Passphrase boxes show `*` instead of bullets.** Glutter places the caret of a hidden field by byte offsets, and the bullet takes three bytes, so the caret was drawn far to the left. With `*` it is in the right place. When Glutter fixes it, the bullets come back.
 109. **Ctrl+A, Ctrl+Z and Ctrl+Y act on the input box that has the focus**, not on the open document, as in VS Code. So Ctrl+A then Ctrl+V in the command palette also replaces the `>`.
 110. **A test socket for the tests (`EMETOS_DEV_SOCKET`)** exists only in debug and `emetos_dev` builds, never in a release build; it answers read-only questions such as "what text is in each input box".
+
+## 2026-10-27: step 17b.2 (the Markdown preview; decided by the agent and accepted by me)
+
+111. **The preview updates 300 ms after the last change at most** (a throttle, as VS Code's preview), not after a pause in typing.
+112. **Images in the preview are decoded at the size they are shown**, at most 800 px wide; 64 MB of decoded images are kept, and the least recently seen are dropped first.
+113. **Code blocks in the preview are still colored on the UI thread**, once per block, because the tokenizer is not safe to share between threads yet; a jump to a far place can take one slow frame.

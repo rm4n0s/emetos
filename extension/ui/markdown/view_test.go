@@ -110,11 +110,14 @@ func isWord(c byte) bool { return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' }
 func TestGoldenThePreviewOfEveryElement(t *testing.T) {
 	for _, th := range uitest.Themes() {
 		t.Run(th.Name, func(t *testing.T) {
-			v := NewView(sample(t), Options{Tokenize: tokenize, ResolveImage: banner(t)})
+			cache := NewImageCache(0)
+			t.Cleanup(cache.Close)
+			v := NewView(sample(t), Options{Tokenize: tokenize, ResolveImage: banner(t), Images: cache})
 			ts := uitest.Pump(t, th, gui.Size{Width: 560, Height: 1100}, v)
 			for range 4 {
 				ts.Pump()
 			}
+			waitImages(t, ts, cache) // the banner is decoded on a goroutine
 			uitest.MatchesGolden(ts, "preview_"+th.Name)
 		})
 	}

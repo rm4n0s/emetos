@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -30,6 +31,9 @@ type Options struct {
 	// Project are files of the project folder the editor runs in (it is its working directory): the relative path and the text.
 	// A nil map leaves the folder empty.
 	Project map[string]string
+	// Prepare, when set, is called with the project folder after Project is written and before the editor starts, to make
+	// files that are not text (images) or are too many for a map.
+	Prepare func(projectDir string)
 	// State are files for the state folder ($XDG_STATE_HOME/emetos), with the modes Emetos wants (0600, folders 0700).
 	State map[string]string
 	// Env are more variables for the process (NAME=value).
@@ -170,6 +174,9 @@ func Start(t *testing.T, opts Options) *App {
 		}
 	}
 	writeFiles(t, a.Project, opts.Project)
+	if opts.Prepare != nil {
+		opts.Prepare(a.Project)
+	}
 	writeFiles(t, filepath.Join(root, "config", "emetos"), opts.Config)
 	writeFiles(t, filepath.Join(root, "state", "emetos"), opts.State)
 
@@ -318,6 +325,54 @@ func (a *App) stop() {
 	}
 }
 
+// Pid is the process id of the editor.
+func (a *App) Pid() int { return a.cmd.Process.Pid }
+
+// ResidentBytes is the resident memory of the editor (VmRSS of /proc/<pid>/status).
+func (a *App) ResidentBytes() int64 {
+	a.t.Helper()
+	data, err := os.ReadFile("/proc/" + itoa(a.Pid()) + "/status")
+	if err != nil {
+		a.t.Fatalf("reading the memory of the editor: %v", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if rest, ok := strings.CutPrefix(line, "VmRSS:"); ok {
+			fields := strings.Fields(rest)
+			if len(fields) == 0 {
+				break
+			}
+			kb, err := strconv.ParseInt(fields[0], 10, 64)
+			if err != nil {
+				a.t.Fatalf("reading VmRSS %q: %v", rest, err)
+			}
+			return kb << 10
+		}
+	}
+	a.t.Fatalf("no VmRSS in /proc/%d/status", a.Pid())
+	return 0
+}
+
+// MainLog is the editor's own log file (state/emetos/logs/*/main.log of the run), where Glutter's statistics go.
+func (a *App) MainLog() string {
+	files, err := filepath.Glob(filepath.Join(a.root, "state", "emetos", "logs", "*", "main.log"))
+	if err != nil {
+		return ""
+	}
+	var all strings.Builder
+	for _, f := range files {
+		if data, err := os.ReadFile(f); err == nil {
+			all.Write(data)
+		}
+	}
+	return all.String()
+}
+
+// FirstFrame is the time of the first frame the editor presented, from its log.
+func (a *App) FirstFrame() (FirstFrame, bool) { return ParseFirstFrame(a.MainLog()) }
+
+// FrameWindows are the "frames" lines the editor logged so far, when it runs with GLUTTER_FRAME_STATS=1.
+func (a *App) FrameWindows() []FrameWindow { return ParseFrameStats(a.MainLog()) }
+
 // Log is what the editor wrote to its output and error so far.
 func (a *App) Log() string {
 	data, err := os.ReadFile(a.logPath)
@@ -391,6 +446,17 @@ func (a *App) Focused() (app.DevInput, bool) {
 		}
 	}
 	return app.DevInput{}, false
+}
+
+// Previews lists the Markdown previews on screen (dev.markdown).
+func (a *App) Previews() []app.DevMarkdown {
+	a.t.Helper()
+	resp := a.Dev("dev.markdown", nil)
+	var list []app.DevMarkdown
+	if err := json.Unmarshal(resp.Result, &list); err != nil {
+		a.t.Fatalf("dev.markdown: %v", err)
+	}
+	return list
 }
 
 // Editor is the document of the active editor and its cursor (dev.editor).
@@ -510,6 +576,29 @@ func (a *App) pointer(what string, f func(ctx context.Context) error) {
 	}
 	// A tap is decided when the button is released and the recognizers have had their say, a moment after the compositor sent
 	// it; a user's next key comes much later than that.
+	a.Settle()
+}
+
+// MoveTo moves the pointer to a position of the window, without a button.
+func (a *App) MoveTo(x, y float64) {
+	a.t.Helper()
+	a.pointer("move", func(ctx context.Context) error { return a.Input.MoveTo(ctx, realinput.Point{X: x, Y: y}) })
+}
+
+// ClickScrollbar clicks a track of a scroll bar that fades away: a click on it is ignored unless the bar was shown by a move
+// of the content a moment before, so a turn of the wheel at the same place comes first.
+func (a *App) ClickScrollbar(x, y float64) {
+	a.t.Helper()
+	a.RefreshWindow()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	at := realinput.Point{X: x, Y: y}
+	if err := a.Input.Scroll(ctx, at, 0, 1); err != nil {
+		a.t.Fatalf("scroll: %v", err)
+	}
+	if err := a.Input.Click(ctx, at); err != nil {
+		a.t.Fatalf("click: %v", err)
+	}
 	a.Settle()
 }
 

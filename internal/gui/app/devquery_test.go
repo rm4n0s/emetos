@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension/ui/markdown"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
@@ -42,6 +43,7 @@ func TestDevQueryErrorRoutes(t *testing.T) {
 	for _, tt := range []struct{ id, route string }{
 		{"dev.inputs", "devInputs.DevInputsNoWindow"},
 		{"dev.editor", "devEditor.DevEditorNoWorkspace"},
+		{"dev.markdown", "devMarkdown.DevMarkdownNoWindow"},
 	} {
 		_, err := runQuery(t, p, tt.id)
 		appErr, ok := errors.FromError(err)
@@ -101,6 +103,30 @@ func TestDevQueriesAnswer(t *testing.T) {
 	}
 	if len(inputs) != 1 || inputs[0].Text != "hello" || !inputs[0].Focused || inputs[0].Width <= 0 {
 		t.Errorf("dev.inputs = %+v", inputs)
+	}
+}
+
+func TestDevMarkdownListsThePreviewsOnScreen(t *testing.T) {
+	win := newTestWorkspace(t, "")
+	ctl := markdown.NewController()
+	ts := pumpPage(t, win, func(widgets.BuildContext) widgets.Widget {
+		return markdown.NewView("# Title\n\nA paragraph.\n\n- one\n- two\n", markdown.Options{Controller: ctl})
+	})
+	win.Process.Workspaces.binding = ts.Binding
+	ts.Pump(1)
+	raw, err := runQuery(t, win.Process, "dev.markdown")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var previews []DevMarkdown
+	if err := json.Unmarshal(raw, &previews); err != nil {
+		t.Fatal(err)
+	}
+	if len(previews) != 1 || previews[0].Blocks != 3 || previews[0].Built != 3 || previews[0].Width <= 0 || previews[0].Height <= 0 {
+		t.Errorf("dev.markdown = %+v", previews)
+	}
+	if st, ok := ctl.Stats(); !ok || st.Blocks != previews[0].Blocks {
+		t.Errorf("the controller says %+v (%v)", st, ok)
 	}
 }
 

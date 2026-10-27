@@ -3088,3 +3088,48 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Glutter issues:** new:
   - an `EditableText` mounted again with the focus on its node gets no input connection;
   - the caret of an obscured field is placed by byte offsets into the bullet string.
+
+## Step 17b.2: A fast Markdown preview
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-17b.2-markdown-preview
+- **Summary:** The preview of a large document opens at once and stays light. The preview of a document of 700 KB with 150 images (the size of this file) used to freeze the window and take 2 GB.
+- **Changes:**
+  - **Lazy list:** the page preview (`markdown.NewView`) builds only the blocks within 250 px of the viewport. Their heights are estimated, then measured, in a Fenwick tree, and positions are anchored to the block at the top, so an image that loads above the viewport moves nothing on screen. `ScrollToLine`, `TopLine` and the editor's scroll sync work as before. Hover, Flow and Compact keep the column.
+  - **Images:** `markdown.ImageCache` decodes off the UI thread, two at a time, at the size shown on screen. Its budget is 64 MB, with least recently used images dropped first. Failures are cached and keep the alt text.
+  - **Updates:** a change is parsed after a 300 ms throttle (as VS Code's `preview.ts`). A text over 16 KB is parsed off the UI thread. Blocks are keyed by their content, so an edit builds only its block.
+  - **Highlighting:** done once per block, from a cache of the last 256 code blocks.
+  - **Start:** a restored session with the preview of a large file draws its first frame without waiting for the parse.
+  - **Dev command:** `dev.markdown` returns the preview's statistics.
+- **Also fixed:** the README's link to SPEC §10.16, which the M17c plan had broken.
+- **Main files:** `extension/ui/markdown/{preview,controller,heights,estimate,keys,images,imageview,tokens,render,view}.go`, `extensions/markdown/markdown.go`, `extension/ui/uitest/mdfixture/` (the generated fixture), `internal/testenv/display/framestats.go`, `internal/gui/app/devquery.go`, `cmd/emetos/preview_display_test.go`, `scripts/perf.sh`, `docs/SPEC.md` (§10.15 "As built (step 17b.2)", §14, §15.2), `docs/PERFORMANCE.md`.
+- **Tests:**
+  - only the visible blocks are built;
+  - the wheel and the scroll bar, and `ScrollToLine`/`TopLine` over estimated and measured heights;
+  - scrolling before the parse ends;
+  - an edit rebuilds only its block, after the delay, and the view stays at its block;
+  - the image cache: sizes, budget, eviction, failures, abandoned decodes, with route tests for its tags;
+  - `BenchmarkPreview*`;
+  - real-input display tests: `TestRealInputBigPreviewOpensAndScrolls`, its proof, and `...StartDoesNotWaitForThePreview`;
+  - before the fix, the display scenario took 9.2 s to answer, used 2,096 MB more, and drew every frame in over 16 ms.
+- **Numbers** (headless, llvmpipe, 1280x800):
+
+  | Metric | Before | After |
+  |---|---|---|
+  | Open to first blocks | 9.1–9.6 s | 157–259 ms |
+  | Memory over the file as text | +2,090–2,290 MB | +116–129 MB |
+  | Blocks built | 3,224 | 7–11 |
+  | Raster per frame, average | 786 ms | 12.6–18 ms |
+
+  - The worst UI-thread frame, 40–69 ms, is the first frame after a jump, which highlights code on the UI thread.
+  - The GPU numbers come from the desktop pass, step 17b.5.
+- **Goldens:** none changed; `preview_dark.png` viewed.
+- **Checks:** gofmt ✅ · go vet ✅ (also `emetos_display`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ (my full run: 100 packages, exit 0) · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `scripts/realinput.sh` ✅.
+  - `TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver` (`internal/gui/app`) failed in the agent's run while the machine was short of memory, also on main. It passed 3 times out of 3 when run again; it is timing-sensitive under load.
+- **Proof:** `docs/implemented-proof-images/17b.2-preview.png`, made through the real-input harness: the preview of the fixture scrolled to its middle.
+
+  ![Preview](implemented-proof-images/17b.2-preview.png)
+- **Manual checks:** none; the GPU numbers are part of step 17b.5.
+- **Glutter issues:** new:
+  - `SliverList` lays out every item between its first one and the offset of a jump;
+  - the Vulkan renderer draws shapes outside the clip (the 17b.4 item; the preview keeps a small cache margin because of it).

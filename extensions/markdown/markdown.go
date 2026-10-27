@@ -34,7 +34,7 @@ var assets embed.FS
 
 // New is the Factory of the extension.
 func New() extension.Extension {
-	return &md{pack: langpack.New(langpack.Spec{
+	return &md{images: markdown.NewImageCache(markdown.DefaultImageBudget), pack: langpack.New(langpack.Spec{
 		ID: ID, Name: "Markdown Language Basics", Description: "Syntax highlighting and language configuration for Markdown, with the languages of fenced code blocks, and a preview of Markdown files.",
 		Assets: assets,
 	})}
@@ -44,6 +44,8 @@ func New() extension.Extension {
 type md struct {
 	pack extension.Extension
 	api  extension.API
+	// images decodes and keeps the images of every preview of the window (SPEC §10.15 "As built (step 17b.2)").
+	images *markdown.ImageCache
 }
 
 // Manifest implements extension.Extension: the pack's, with the preview.
@@ -88,6 +90,7 @@ func (m *md) open(doc extension.DocumentHandle, tab extension.FileViewTab) (exte
 		Tokenize:     m.tokenize,
 		OnLink:       func(dest string) { m.openLink(doc, dest) },
 		ResolveImage: func(dest string) string { return localImage(doc, dest) },
+		Images:       m.images,
 	}
 	return extension.FileViewContent{
 		Build: func(widgets.BuildContext) widgets.Widget { return markdown.NewView(doc.Text(), opts) },

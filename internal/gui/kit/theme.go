@@ -697,22 +697,31 @@ type TokenLook struct {
 // the fallback color is used when the theme gives none or there is no token theme. It rebuilds the caller when the theme
 // changes.
 func TokenLookOf(bc widgets.BuildContext, scopes []string, fallback ui.Color) TokenLook {
-	look := TokenLook{Color: fallback}
+	return TokenLookerOf(bc)(scopes, fallback)
+}
+
+// TokenLookerOf returns the function TokenLookOf is for the token theme of the nearest Theme above bc as it is now, for code
+// that draws tokens later than the build that has bc (a widget built while a list is laid out). It rebuilds the caller when
+// the theme changes.
+func TokenLookerOf(bc widgets.BuildContext) func(scopes []string, fallback ui.Color) TokenLook {
 	t := TokenThemeOf(bc)
-	if t == nil {
+	return func(scopes []string, fallback ui.Color) TokenLook {
+		look := TokenLook{Color: fallback}
+		if t == nil {
+			return look
+		}
+		style := t.Resolve(scopes)
+		if c, ok := theme.ParseColor(t.Color(style.Foreground)); ok {
+			look.Color = ui.NewColor(c.ARGB())
+		}
+		if style.FontStyle > 0 {
+			look.Bold = style.FontStyle&theme.FontStyleBold != 0
+			look.Italic = style.FontStyle&theme.FontStyleItalic != 0
+			look.Underline = style.FontStyle&theme.FontStyleUnderline != 0
+			look.Strikethrough = style.FontStyle&theme.FontStyleStrikethrough != 0
+		}
 		return look
 	}
-	style := t.Resolve(scopes)
-	if c, ok := theme.ParseColor(t.Color(style.Foreground)); ok {
-		look.Color = ui.NewColor(c.ARGB())
-	}
-	if style.FontStyle > 0 {
-		look.Bold = style.FontStyle&theme.FontStyleBold != 0
-		look.Italic = style.FontStyle&theme.FontStyleItalic != 0
-		look.Underline = style.FontStyle&theme.FontStyleUnderline != 0
-		look.Strikethrough = style.FontStyle&theme.FontStyleStrikethrough != 0
-	}
-	return look
 }
 
 // SymbolIconNames are the names of the symbolIcon.<name>Foreground colors, in the order of Colors.SymbolIcons.

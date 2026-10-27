@@ -191,6 +191,37 @@ What made it fast, and what to keep in mind:
 - The `e` query allocates the most (225,000 allocations): every path that matches makes the slices of its matches during the scan. A scorer that only returns the score would halve it; not needed for the target.
 - The walk keeps one string for each file. The ignore rules are checked for every entry (`glob.Ignore.Check`: a few regular expressions of the files that apply); the benchmark has two patterns and one ignore file, so a tree with dozens of ignore files in the path of every file costs more.
 
+## Markdown preview of a big document (step 17b.2, headless)
+
+The document is `extension/ui/uitest/mdfixture`: 700 KB, 3224 blocks, 150 images of 960 x 540 (the size of `docs/IMPLEMENTED.md` in October 2026), generated in a temporary folder. The app numbers come from the display tests `TestRealInputBigPreview*` of `cmd/emetos` (`scripts/realinput.sh`: a headless sway of 1280 x 800, Mesa llvmpipe, a debug build with `GLUTTER_FRAME_STATS=1`, real wheel and pointer events; the editor shows the file as text, then the preview opens in the group on its side, 466 x 686 px). The memory is `VmRSS` of the editor. The UI-thread numbers are Go benchmarks with the fake platform. The machine was busy with other programs during every run. The GPU numbers (the row of SPEC §14 is decided by them) wait for the manager's pass on the desktop.
+
+| Metric | Target (SPEC §14) | Before (`main`, step 17b.1) | After |
+|---|---|---|---|
+| The command to the first frame with blocks | the first frame of the preview within 300 ms | 9.1 to 9.6 s until the editor answered again (one frame of 3.2 s of UI thread, then 1 s of raster per frame) | 157 to 259 ms until the first blocks were built (the parse is 11 ms off the UI thread; the first frame is drawn before it) |
+| Start with the big preview as the first view (`workbench.editor.defaultFileViews`, as a restored session) | a first frame that does not wait for the preview | not measured (the first frame builds all 3224 blocks: seconds) | the same first frame as with a preview of a small file (4.86 s against 5.38 s since `Run` under load, the headless start of the window itself, 25 to 500 ms apart in the runs) |
+| Resident memory over the file open as text | at most 200 MB more | +2090 to +2290 MB (453 MB to 2.5 to 2.7 GB) | +116 to +129 MB (449 to 582 MB) |
+| Blocks built | the visible ones | 3224 | 7 to 11 of 3224 |
+| UI thread per frame while scrolling (30 notches of 3, a jump by the scroll bar) | no frame over 16 ms | 38 frames: 2.9 ms on average, 12.8 ms at worst (the first frame: 3.2 s) | 417 to 529 frames: 0.7 to 1.0 ms on average; the worst frame is 40 to 69 ms, the one that builds a window after the jump (it highlights the code blocks of the window with the Go grammar) |
+| Renderer per frame while scrolling (software, no GPU) | no frame over 16 ms with the GPU | 786 ms on average, 1.37 s at worst, every frame over 16 ms | 12.6 to 18.0 ms on average, 29 to 119 ms at worst; 83 to 264 of 417 to 529 frames over 16 ms (the load of the machine decides) (the full window is drawn by llvmpipe at 13 ms a frame: the GPU decides) |
+
+Go benchmarks (`go test -tags glutter_release ./extension/ui/markdown -run xxx -bench Preview -benchmem`, the UI thread alone, 700 KB, 150 images):
+
+| Benchmark | Measures | Result (100 runs) |
+|---|---|---|
+| `BenchmarkPreviewParse` | the parse and the block keys, off the UI thread | 8.8 ms (82 MB/s), 152,000 allocations |
+| `BenchmarkPreviewFirstFrame` | the first frame (no blocks yet, it does not wait for the parse), then the parse and the frame with the first blocks | 16.2 ms (the harness's window and theme included), then 13.6 ms |
+| `BenchmarkPreviewJump` | a jump to a place never shown: the window is chosen from estimates, built and laid out (no highlighting) | 1.6 ms, 3.9 MB, 7,700 allocations |
+| `BenchmarkPreviewWheelStep` | a step of the wheel (12 px) | 58 µs, 24 KB |
+
+
+What made it fast, and what to keep in mind:
+
+- Only the blocks within 250 px of the viewport exist as widgets (`Stats.Built`); a jump chooses its window from estimates and positions it from an anchor block, so it costs one window (a `SliverList` would lay out every block on the way: `docs/GLUTTER-ISSUES.md`). A step of the wheel builds nothing that is built already: the widgets of the window are kept by block key.
+- The images are decoded at the size they are shown at, off the UI thread, two at a time, and held within 64 MB with the least recently used dropped first: the 2.1 GB were 150 full-size decodes (and their textures) held for as long as their widgets were mounted.
+- The text is parsed off the UI thread when it is over 16 KB (11 ms for 700 KB: the parse was never the cost, the 3224 mounted blocks were); a typed character shows 300 ms later, as in VS Code, and builds the widgets of its block only.
+- The highlighting of a code block is on the UI thread, when its block is built: the frame that builds a whole window of new blocks (a jump) takes 40 ms headless with two or three Go blocks in it. Moving it off the thread needs a thread-safe `Languages().Tokenize` in the extension API.
+- The raster time headless is llvmpipe drawing the whole window (13 ms a frame whatever the preview holds); with the Vulkan renderer every shape that is built is drawn, also off screen, which is why the margin is 250 px.
+
 ## Pending
 
 `scripts/perf.sh --session` with the GPU for every row of the table of step 10.1, in `docs/MANUAL-CHECKS.md` (3.11 and 10.1). The decisions proposed above for the targets still missed wait for its numbers and for yours.
