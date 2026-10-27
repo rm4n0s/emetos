@@ -2,11 +2,13 @@
 # Runs a command so that it can't touch the user's real Emetos configuration,
 # state, cache, trash or socket (SPEC §15.1).
 #
-# Usage: scripts/isolated.sh [--config <dir>] -- <command> [args...]
+# Usage: scripts/isolated.sh [--config <dir>] [--state <dir>] -- <command> [args...]
 #
 # HOME and the XDG folders point into a fresh temporary folder, which is removed
 # when the command ends. --config copies <dir> into $XDG_CONFIG_HOME/emetos/, so
-# a proof can start from a prepared settings.json or keybindings.json.
+# a proof can start from a prepared settings.json or keybindings.json. --state does the same for $XDG_STATE_HOME/emetos/
+# (a proof of remote-work.json, say); the files are made readable and writable by their owner only, folders by theirs only,
+# because Emetos refuses state files that others can change and a checkout does not keep the modes.
 #
 # Two things stay reachable. Go keeps its caches (GOCACHE, GOMODCACHE and GOPATH
 # are fixed before the folders move), so `go run` and `go build` still work. A
@@ -21,16 +23,21 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 [--config <dir>] -- <command> [args...]" >&2
+  echo "usage: $0 [--config <dir>] [--state <dir>] -- <command> [args...]" >&2
   exit 64
 }
 
-config=""
+config="" state=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
       [[ $# -ge 2 ]] || usage
       config="$2"
+      shift 2
+      ;;
+    --state)
+      [[ $# -ge 2 ]] || usage
+      state="$2"
       shift 2
       ;;
     --)
@@ -48,6 +55,14 @@ if [[ -n "$config" ]]; then
     exit 64
   fi
   config="$(cd "$config" && pwd)"
+fi
+
+if [[ -n "$state" ]]; then
+  if [[ ! -d "$state" ]]; then
+    echo "error: --state $state is not a folder" >&2
+    exit 64
+  fi
+  state="$(cd "$state" && pwd)"
 fi
 
 # Go's folders, while the real ones are still in force.
@@ -69,6 +84,13 @@ chmod 700 "$tmp/run"
 if [[ -n "$config" ]]; then
   mkdir -p "$tmp/config/emetos"
   cp -a "$config/." "$tmp/config/emetos/"
+fi
+
+if [[ -n "$state" ]]; then
+  mkdir -p "$tmp/state/emetos"
+  cp -a "$state/." "$tmp/state/emetos/"
+  find "$tmp/state" -type d -exec chmod 700 {} +
+  find "$tmp/state" -type f -exec chmod 600 {} +
 fi
 
 # Keep the Wayland compositor reachable through the private runtime folder.

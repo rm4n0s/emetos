@@ -94,6 +94,9 @@ type InputBoxOpts struct {
 	MaxHeight foundation.Opt[float64]
 	// Disabled makes the box not take the focus or the keyboard and shows its text dimmed.
 	Disabled bool
+	// Obscure shows a dot for each character, as a password box does: the text cannot be copied or read back from the screen. A
+	// multi-line box cannot be obscured.
+	Obscure bool
 	// Autofocus asks for the focus when the box is shown.
 	Autofocus bool
 	// SelectAllOnFocus selects the text when the box gets the focus; the default is Glutter's (on, on
@@ -115,7 +118,7 @@ type InputBoxOpts struct {
 //
 // Ported from VS Code: src/vs/base/browser/ui/inputbox/inputBox.ts (InputBox, HistoryInputBox),
 // inputBox.css and src/vs/platform/history/browser/contextScopedHistoryWidget.ts (the keys). Not
-// ported: the actions in the box (use Trailing), the password type, the tooltip and the screen reader
+// ported: the actions in the box (use Trailing), the tooltip and the screen reader
 // announcements.
 type InputBox struct {
 	widgets.StatefulWidget
@@ -511,6 +514,7 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	style := TextStyleOf(bc, inputBoxFontSize, fg)
 	opts := widgets.EditableTextOpts{
 		ReadOnly:         o.Disabled,
+		ObscureText:      o.Obscure && !o.MultiLine,
 		Autofocus:        o.Autofocus && !o.Disabled,
 		SelectAllOnFocus: o.SelectAllOnFocus,
 		OnChanged:        s.changed,

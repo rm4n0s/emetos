@@ -542,3 +542,28 @@ func TestInputBoxOwnsWhatItMakes(t *testing.T) {
 		t.Errorf("errors: %v", errs)
 	}
 }
+
+// An obscured box is a password box: the controller holds the text and the screen shows dots in its place. A multi-line box is
+// never obscured.
+func TestInputBoxObscure(t *testing.T) {
+	shot := func(obscure, multi bool) *inputRig {
+		r := newInputRig(t, DarkModern(), ui.Size{Width: 300, Height: 120}, func(_ *inputRig, o *InputBoxOpts) { o.Obscure, o.MultiLine = obscure, multi })
+		r.ts.EnterText(gluttertest.ByType[*InputBox](), "hunter2")
+		r.ts.Pump(time.Millisecond)
+		if r.ctrl.Value() != "hunter2" {
+			t.Fatalf("Value = %q", r.ctrl.Value())
+		}
+		r.noErrors()
+		return r
+	}
+	same := func(a, b *inputRig) bool {
+		x, y := a.ts.Screenshot(), b.ts.Screenshot()
+		return string(x.Pix) == string(y.Pix)
+	}
+	if same(shot(false, false), shot(true, false)) {
+		t.Error("an obscured box looks like a plain one")
+	}
+	if !same(shot(false, true), shot(true, true)) {
+		t.Error("a multi-line box was obscured")
+	}
+}

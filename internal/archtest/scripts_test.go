@@ -135,6 +135,38 @@ func TestIsolatedCopiesTheConfig(t *testing.T) {
 	}
 }
 
+func TestIsolatedCopiesTheStateWithPrivateModes(t *testing.T) {
+	fixture := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(fixture, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"remote-work.json", "sub/other.json"} {
+		if err := os.WriteFile(filepath.Join(fixture, name), []byte(`{"version":1}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stdout, stderr, status := runScript(t, nil, "isolated.sh", "--state", fixture, "--", "sh", "-c",
+		`cd "$XDG_STATE_HOME/emetos" && cat remote-work.json && stat -c '%a %n' . remote-work.json sub sub/other.json`)
+	if status != 0 {
+		t.Fatalf("status %d: %s", status, stderr)
+	}
+	for _, want := range []string{`{"version":1}`, "700 .", "600 remote-work.json", "700 sub", "600 sub/other.json"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("the state is missing %q:\n%s", want, stdout)
+		}
+	}
+	// the fixture keeps its own modes
+	if info, err := os.Stat(filepath.Join(fixture, "remote-work.json")); err != nil || info.Mode().Perm() != 0o644 {
+		t.Errorf("the fixture was changed: %v, %v", info, err)
+	}
+	if _, _, status := runScript(t, nil, "isolated.sh", "--state", "/nonexistent-real/state", "--", "true"); status != 64 {
+		t.Errorf("a state that is not a folder: status %d, want 64", status)
+	}
+	if _, _, status := runScript(t, nil, "isolated.sh", "--state"); status != 64 {
+		t.Errorf("state without a value: status %d, want 64", status)
+	}
+}
+
 func TestIsolatedExitStatusAndUsage(t *testing.T) {
 	tests := []struct {
 		name   string

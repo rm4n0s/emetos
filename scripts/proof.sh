@@ -2,7 +2,7 @@
 # Makes a proof screenshot of Emetos (proof methods B and C in
 # docs/IMPLEMENTATION.md).
 #
-# Usage: scripts/proof.sh <out.png> [--config <dir>] [--after <duration>]
+# Usage: scripts/proof.sh <out.png> [--config <dir>] [--state <dir>] [--after <duration>]
 #                         [--commands '<json>'] [--launch '<args>']... [--output] [-- emetos args...]
 #
 # It builds a debug binary (so the dev commands work) into a temporary folder,
@@ -12,6 +12,8 @@
 #
 #   --config <dir>      copied into the configuration folder of the run
 #                       (testdata/proof/<step id>/ holds the fixtures)
+#   --state <dir>       copied into the state folder of the run ($XDG_STATE_HOME/emetos, modes 0600 and 0700;
+#                       scripts/isolated.sh), for a proof that starts from a prepared state file
 #   --after <duration>  how long Glutter waits before it captures (GLUTTER_SCREENSHOT_AFTER,
 #                       such as 500ms or 2s). With --commands it is 1s unless given
 #   --commands <json>   EMETOS_DEV_COMMANDS: a JSON array of ["command id", args]
@@ -39,7 +41,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <out.png> [--config <dir>] [--after <duration>] [--commands '<json>'] [--launch '<args>']... [--output] [-- emetos args...]" >&2
+  echo "usage: $0 <out.png> [--config <dir>] [--state <dir>] [--after <duration>] [--commands '<json>'] [--launch '<args>']... [--output] [-- emetos args...]" >&2
   exit 64
 }
 
@@ -48,12 +50,17 @@ out="$1"
 shift
 [[ "$out" == *.png ]] || usage
 
-config="" after="" commands="" output=0 launches=()
+config="" state="" after="" commands="" output=0 launches=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --config)
       [[ $# -ge 2 ]] || usage
       config="$2"
+      shift 2
+      ;;
+    --state)
+      [[ $# -ge 2 ]] || usage
+      state="$2"
       shift 2
       ;;
     --after)
@@ -92,6 +99,11 @@ if [[ -n "$config" ]]; then
   config="$(cd "$config" && pwd)"
 fi
 
+if [[ -n "$state" ]]; then
+  [[ -d "$state" ]] || { echo "error: --state $state is not a folder" >&2; exit 64; }
+  state="$(cd "$state" && pwd)"
+fi
+
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
@@ -126,6 +138,7 @@ run+=(GLUTTER_RENDERER="${GLUTTER_RENDERER:-gles}")
 [[ -n "$commands" ]] && run+=(EMETOS_DEV_COMMANDS="$commands")
 isolated=("$root/scripts/isolated.sh")
 [[ -n "$config" ]] && isolated+=(--config "$config")
+[[ -n "$state" ]] && isolated+=(--state "$state")
 
 # The command that runs inside the compositor: the editor, or the editor with its launches handed over to it.
 editor=("$tmp/emetos" "${args[@]}")

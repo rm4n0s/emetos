@@ -471,6 +471,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	bench := workbench.New(workbench.Options{
 		Layout: win.Layout, Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, QuickInput: win.QuickInput, Context: win.ctx,
+		Banners:    win.Banners,
 		Editor:     s.editorArea(bc),
 		FullScreen: win.IsFullScreen(),
 		StatusBar:  s.statusBarOptions(win),

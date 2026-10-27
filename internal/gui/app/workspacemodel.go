@@ -105,6 +105,9 @@ type Workspace struct {
 	// Views is which view container the side bar of the window shows and which views are collapsed
 	// (SPEC §10.4).
 	Views *workbench.Views
+	// Banners are the banners the extensions show across the top of the workbench of the tab (Banners().Show); the headless view of a
+	// workspace has none.
+	Banners *workbench.Banners
 	// Notifications is what the window shows of the notifications of the process: the toasts, the
 	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
 	// thread.
@@ -407,6 +410,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		InputMode:      p.InputMode,
 		Layout:         layout,
 		Views:          workbench.NewViews(p.Views.Fork(), layout), // the views its extensions add are its own
+		Banners:        workbench.NewBanners(),
 		Dialogs:        kit.NewDialogController(),
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),

@@ -183,6 +183,12 @@ type tab struct {
 	picks []QuickPickRequest
 	// inputs are the input boxes the tab was asked to show (InputBox().Show), the first first.
 	inputs []InputBoxRequest
+	// banners is the model of the banners of the tab, and chooser the file dialogs the tab was asked to show, which answer chooserPath
+	// and chooserErr.
+	banners     *workbench.Banners
+	chooser     []extension.FileChooserOptions
+	chooserPath string
+	chooserErr  error
 
 	// asked are the questions the tab was asked about links, and answers the functions that answer them (askSharing).
 	asked   []SharingAsk
@@ -204,6 +210,8 @@ type rig struct {
 	noPick map[string]bool
 	// noInput and noLSP name tabs that cannot show an input box and tabs that have no language workspace (no way to edit documents).
 	noInput, noLSP map[string]bool
+	// noBanners and noChooser name tabs that have no banners and no file dialog.
+	noBanners, noChooser map[string]bool
 	// folders gives a tab a real folder instead of /work/<name>.
 	folders map[string]string
 }
@@ -233,7 +241,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, folders: map[string]string{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -264,12 +272,24 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	if !r.noInput[name] {
 		input = func(req InputBoxRequest) { tb.inputs = append(tb.inputs, req) }
 	}
+	var banners *workbench.Banners
+	if !r.noBanners[name] {
+		banners = workbench.NewBanners()
+		tb.banners = banners
+	}
+	var chooser func(context.Context, extension.FileChooserOptions) (string, error)
+	if !r.noChooser[name] {
+		chooser = func(_ context.Context, o extension.FileChooserOptions) (string, error) {
+			tb.chooser = append(tb.chooser, o)
+			return tb.chooserPath, tb.chooserErr
+		}
+	}
 	var lspw LanguageWorkspace = tb.lsp
 	if r.noLSP[name] {
 		lspw = nil
 	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		LSP: lspw, QuickPick: pick, InputBox: input,
+		LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI: func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		Info:    extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},

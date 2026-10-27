@@ -51,6 +51,10 @@ type API interface {
 	QuickPick() QuickPick
 	// InputBox asks the user for a line of text, the way the rename and the Save As of the window do.
 	InputBox() InputBox
+	// Banners shows banners across the top of the window tab of the scope.
+	Banners() Banners
+	// FileChooser asks the user for a file with the file dialog of the desktop.
+	FileChooser() FileChooser
 	// WindowTabs gives the content of the window tabs of the kinds the manifest declares; it works in the scope of such a
 	// tab only.
 	WindowTabs() WindowTabs

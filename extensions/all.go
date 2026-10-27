@@ -19,6 +19,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/markdown"
 	"github.com/rm4n0s/emetos/extensions/notes"
 	"github.com/rm4n0s/emetos/extensions/python"
+	"github.com/rm4n0s/emetos/extensions/remotework"
 	"github.com/rm4n0s/emetos/extensions/rust"
 	"github.com/rm4n0s/emetos/extensions/scratchpad"
 	"github.com/rm4n0s/emetos/extensions/scss"
@@ -41,12 +42,13 @@ import (
 // order for the tests, and a test in cmd/emetos keeps the two the same. The test extension of the contract is
 // extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the TODOs view
 // (extensions/todo), the Tasks tab of the panel (extensions/tasks), the notes (extensions/notes) and the window tab Scratchpad
-// (extensions/scratchpad), then the Agents extension (extensions/agents).
+// (extensions/scratchpad), then the Agents extension (extensions/agents) and Remote Work (extensions/remotework, whose instances share
+// one hub made here).
 func All() []extension.Factory {
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
-		todo.New, tasks.New, notes.New, scratchpad.New, agents.New,
+		todo.New, tasks.New, notes.New, scratchpad.New, agents.New, remotework.NewFactory(remotework.HubOptions{}),
 	}
 }

@@ -2460,3 +2460,69 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - `NewHeadlessView` is not privilege-restricted (16.1's privileges cover events and commands only).
 
   Not built: extension contributions in the view, damage-limited rendering (needs Glutter), a view of a workspace that is not on screen. `TestHoverShowHoverCommandShowsFocusesAndHides` (editor) failed once under `-race` in a loaded full run and passed on every rerun; it is watched as a possible flake.
+
+## 15.2 Login over SSH and the Remote Work page
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-15.2-ssh-login
+- **Summary:** SPEC §10.18.
+  - **Dependency:** `golang.org/x/crypto` v0.58.0 (`ssh`, `ssh/agent`), which brings in `golang.org/x/term` v0.47.0.
+  - **`extensions/internal/sshlogin`** (shared with Relay):
+    - **Server on A:** public keys only (no password, keyboard-interactive or none), checked against the list at every attempt and again after the signature is verified. The host key is Ed25519 only, and there are at most 5 tries per connection.
+    - **Channels and requests:** one channel of the given type (`emetos-remotework`). Any other channel type, any channel request (shell, exec, pty, env, subsystem, forwarding) and any global request is refused.
+    - **Deadlines:** 10 s to log in, 10 s to open the channel, at most 16 connections logging in at once.
+    - **Rate limit:** 5 failures per sliding minute per address (an IPv6 address counts as its /64), checked at accept and bounded to 4096 addresses.
+    - **Client on B:** an OpenSSH or PEM key file with up to 3 passphrase tries (bytes wiped after parsing), or an `ssh-agent` socket passed in by the caller.
+    - **Host key pinning:** in `remote-work-hosts.json`. First use is asked with no connection open; a changed key is refused (`SSHLoginHostKeyChanged`) and sends nothing.
+  - **`extensions/internal/statefile`:** atomic 0600 writes in a 0700 folder, and a checked read: a regular file within its size, not group- or world-writable, and a private key not readable by others.
+  - **The hub** (`extensions/remotework`):
+    - one SSH listener while any open workspace with a folder has Remote Work on;
+    - one session per workspace, where a new login replaces the old one;
+    - a 256-bit token in memory, and the grant carries the QUIC certificate fingerprint (empty until 15.3, meaning "SSH only");
+    - the idle timeout;
+    - the banner "Remote Work: <comment> connected" with Disconnect;
+    - notifications for logins and refused attempts, at most one per address per minute.
+  - **Login on B:** `extensions/remotework/login` (the request and grant over the channel, `Connect`) and `loginui` (the passphrase, first-use and changed-key dialogs for the 15.4 tab).
+  - **The page "Remote Work"** (`emetos.remotework.manage`):
+    - the per-workspace switch with the listener status and connected clients;
+    - the port (47123) and the idle timeout (1–1440 minutes) with Apply;
+    - the allowed keys with Remove, paste, "Choose .pub File...", and a place for 15.5's Scan QR Code;
+    - the host fingerprint;
+    - the security notes.
+
+    An unsafe `remote-work.json` locks the page and leaves Remote Work off.
+  - **New APIs:** `api.Banners()`, `api.FileChooser()`, and `InputBoxOpts.Obscure`, each with a fake.
+  - **Scripts:** `scripts/isolated.sh` and `scripts/proof.sh` take `--state <dir>`.
+  - **New error tags:** about 50 (`SSHLogin*`, `StateFile*`, `RemoteWork*`, `LoginUICancelled`, `ExtensionBanner*`, `ExtensionFileChooser*`), all route-tested.
+- **Tests:** all on loopback with ephemeral ports and isolated `XDG_*` folders:
+  - a listed key logs in;
+  - refused: an unlisted key, passwords and keyboard-interactive, other channel types, shell and exec, a second channel, silence, too many connections logging in;
+  - an in-process agent on a temp socket;
+  - a wrong passphrase;
+  - first-use pinning, a changed key, and `Forget`;
+  - the rate limit (fake clock);
+  - turning Remote Work off closes the listener and ends sessions;
+  - a port change, the idle timeout, replace-on-relogin;
+  - state file modes and the read policy (fifo, symlink, permissions);
+  - the page, the dialogs and the banner in `gluttertest`.
+- **Goldens:** new `page_{off,on_error}_{dark,light}`, `dialog_{passphrase,first_use,changed_key}_dark` and `banner_{dark,light}`. I viewed the changed-key and first-use dialogs, `banner_light`, `page_on_error_light` and the proof; the agent viewed all of them. No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · display tests none.
+- **Proof:** `docs/implemented-proof-images/15.2-remote-work-page.png`, made with:
+  ```
+  scripts/proof.sh docs/implemented-proof-images/15.2-remote-work-page.png --config testdata/proof/15.2/config --state testdata/proof/15.2/state --commands '[["emetos.remotework.manage", null]]' --after 2s -- testdata/proof/15.2/project
+  ```
+  The page with two listed keys, the host fingerprint (the host key is made by the page; the fixture holds no private key) and the security notes; zoom -1 so it fits.
+
+  ![15.2 remote work page](implemented-proof-images/15.2-remote-work-page.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.18 "As built (step 15.2)" lists the decisions:
+  - the host key is made when the page opens or Remote Work is first turned on;
+  - one session per workspace, and a relogin replaces the old one;
+  - a workspace is named by its folder name (the whole path when two share one), and a client names one when several are on;
+  - `authorized_keys` options, certificates, DSA and RSA under 2048 bits are refused;
+  - no "never" idle timeout;
+  - the state folder is the default profile's;
+  - the user's own key file permissions are not checked.
+
+  15.3 plugs in through `HubOptions.Cert` and `HubOptions.OnSession`. Not built: QUIC (15.3), the B tab and reconnection (15.4), Scan QR Code (15.5).

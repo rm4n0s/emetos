@@ -67,6 +67,9 @@ type API struct {
 	actionHandler     func(CodeActionCall) (string, error)
 	actionCalls       []CodeActionCall
 	headless          []*HeadlessView
+	banners           []*FakeBanner
+	chooserCalls      []ChooserCall
+	chooserAnswers    []*chooserAnswer
 }
 
 // Note is a notification the extension showed.

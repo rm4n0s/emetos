@@ -135,7 +135,7 @@ func (w *Workspace) startExtensions() {
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
-		NewHeadlessView: w.newHeadlessView,
+		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, FileChooser: w.extensionFileChooser,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -429,6 +429,27 @@ func (w *Workspace) openURI(ctx context.Context, uri string) error {
 		return errors.New("ExtOpenURIUnavailable", "the window tab is not on screen", "uri", uri)
 	}
 	return open(ctx, s.Context(), uri)
+}
+
+// extensionFileChooser shows the open dialog of the desktop (the file chooser portal) for an extension and waits for the user. It is
+// called on a goroutine of the extension. A dialog that is closed without a choice gives "" and no error.
+func (w *Workspace) extensionFileChooser(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
+	s := w.shell
+	if s == nil || !s.Mounted() {
+		return "", errors.New("ExtensionFileChooserUnavailable", "the window tab is not on screen")
+	}
+	filters := make([]desktop.FileFilter, len(opts.Filters))
+	for i, f := range opts.Filters {
+		filters[i] = desktop.FileFilter{Name: f.Name, Patterns: f.Patterns}
+	}
+	res, err := desktop.OpenFiles(ctx, s.Context(), desktop.OpenFilesOpts{Title: opts.Title, AcceptLabel: opts.AcceptLabel, Filters: filters, CurrentFolder: opts.Folder})
+	if err != nil {
+		return "", errors.NewErr("ExtensionFileChooserFailed", err)
+	}
+	if res.Cancelled || len(res.Paths) == 0 {
+		return "", nil
+	}
+	return res.Paths[0], nil
 }
 
 // extensionQuickPick shows the list of QuickPick().Show in the quick input of the window. The icon of an item is the codicon its

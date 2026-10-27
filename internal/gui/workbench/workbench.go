@@ -117,6 +117,9 @@ type Options struct {
 	// from the left end, the right ones to the right end. A click on an item runs its command with the
 	// registry of Commands.
 	StatusBar *StatusBarOptions
+	// Banners, when set, shows the banners of the window tab in a column across the top of the workbench, under the title bar
+	// (SPEC §10.15 "As built (step 15.2)").
+	Banners *Banners
 	// StatusLeft and StatusRight are more widgets at the two ends of the status bar, outside the registry.
 	// NoFolder gives the bar the colors of a window with no folder.
 	StatusLeft, StatusRight []widgets.Widget
@@ -190,6 +193,7 @@ type workbenchState struct {
 	stopFollow     func()
 	removeSettings func()
 	removeViews    func()
+	removeBanners  func()
 	removeCommands []func()
 	unregister     []func()
 }
@@ -255,6 +259,16 @@ func (s *workbenchState) InitState() {
 			}
 		})
 	}
+	if o.Banners != nil {
+		s.removeBanners = o.Banners.OnChange(func() {
+			// a banner is added from the goroutines of the extensions' hosts; the build belongs to the UI thread
+			s.binding.Post(func() {
+				if s.Mounted() {
+					s.SetState(func() {})
+				}
+			})
+		})
+	}
 	s.syncKeys()
 	s.bindCommands()
 }
@@ -278,6 +292,9 @@ func (s *workbenchState) Dispose() {
 	}
 	if s.removeViews != nil {
 		s.removeViews()
+	}
+	if s.removeBanners != nil {
+		s.removeBanners()
 	}
 	for _, n := range s.nodes {
 		n.Dispose()
@@ -369,6 +386,11 @@ func (s *workbenchState) Build(bc widgets.BuildContext) widgets.Widget {
 		center = s.main(colors)
 	}
 	rows := []widgets.Widget{widgets.NewExpanded(center)}
+	if o.Banners != nil {
+		if items := o.Banners.Items(); len(items) > 0 {
+			rows = append([]widgets.Widget{bannerBar(bc, colors, items)}, rows...)
+		}
+	}
 	if st.StatusBarVisible {
 		rows = append(rows, s.statusBar(bc, colors))
 	}

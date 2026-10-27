@@ -163,6 +163,12 @@ type ScopeOptions struct {
 	QuickPick func(QuickPickRequest)
 	// InputBox shows an input box for an extension (InputBox().Show); nil leaves it unavailable.
 	InputBox func(InputBoxRequest)
+	// Banners is the model of the banners of the window tab, shown across the top of its workbench; nil leaves them unavailable
+	// (Banners().Show fails with ExtensionBannersUnavailable).
+	Banners *workbench.Banners
+	// FileChooser shows the file dialog of the desktop for FileChooser().Open, called on a goroutine of the extension, and gives
+	// the path chosen ("" for a dialog that was closed); nil leaves it unavailable.
+	FileChooser func(ctx context.Context, opts extension.FileChooserOptions) (string, error)
 }
 
 // slot is an extension in a scope.
