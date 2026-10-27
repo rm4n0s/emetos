@@ -127,6 +127,12 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M15 Remote Work | 15.1–15.5 |
 | M16 Relay | 16.1–16.3 |
 | M17 Wrap-up | 17.1 |
+| M17b Bugs found on the desktop | 17b.1–17b.5 |
+| M18 Containers | 18.1–18.4 |
+| M19 SQL databases | 19.1–19.3 |
+| M20 MongoDB | 20.1–20.2 |
+| M21 Redis | 21.1–21.2 |
+| M22 Wrap-up of M18–M21 | 22.1–22.2 |
 
 ---
 
@@ -1401,3 +1407,172 @@ Every **Proof** item gives its exact command. A state no existing command reache
 **Tests:** a check that every relative link and image of the README resolves (a test or a script run in the checks).
 **Proof:** the README's screenshots, viewed.
 
+
+---
+
+## M17b: Bugs found on the desktop
+
+On 2026-10-27 the user tried Emetos on their desktop and found it slow and broken ("it is very slow and freezes", "when I was adding a note the keyboard stopped working until I clicked again the input box"). A test with a real keyboard and mouse (a Wayland virtual keyboard in a nested sway window on their desktop) confirmed the bugs below; none of the tests caught them, because widget tests type through the fake platform and the proofs never typed. The user asked to fix these before anything else ("postpone the extensions I requested. Prioritize the bugs."). **Glutter is not upgraded in this milestone** (the user will say when): Glutter's bugs get an entry in `docs/GLUTTER-ISSUES.md` and a workaround in Emetos where one is possible.
+
+What the desktop test found (screenshots and logs were in the session's scratch folder; the facts are here):
+- **Every input box that starts empty with a placeholder takes only the first key** (Notes title and body, Quick Open, Find, settings search). `kit.InputBox.Build` wraps the text in a `Stack` with the placeholder only while the text is empty (`internal/gui/kit/inputbox.go`); the first key removes the `Stack`, so the `EditableText` is mounted again with a node that already has the focus, and Glutter's `EditableText` (like Flutter's) opens a text input connection only when the focus changes. The box still shows the focus; the keys are lost. A click in the box did not bring them back.
+- **Keys typed right after Ctrl+P can go into the document**: the quick input focuses its box in a post-frame callback (`internal/gui/quickinput/host.go` `focusInputLater`), so the keys of a slow frame go to the editor.
+- **The Markdown preview of a large document freezes the window and takes 2 GB**: `docs/IMPLEMENTED.md` (690 KB, about 150 images) made the resident memory go from 450 MB to 2.0–2.1 GB, frames took 1.2–1.65 s (almost all of it raster) and scrolling ran at 1 to 3 frames a second. The preview is one `Column` of every block in a scroll view (`extension/ui/markdown/view.go`), images are decoded at full size (`NewImageFile`), every change rebuilds the whole preview (`extensions/markdown/markdown.go` `Build`), and code blocks are highlighted (regexp2) on each build. A restored session with that preview made Emetos look frozen from its start.
+- **Typing `)` types over a `)` the user typed**: `// z)`, Left, `)` gives `// z)` (VS Code: `// z))`), and `fmt.Sprintf(("x")` lost a parenthesis after a completion. SPEC §8.6.4 "Typing over" says `auto` types over only the closing characters the editor typed.
+- **A completion that inserts a snippet with only `$0` never ends its session**: the gray tab stop grows over the following lines and the signature help stays open until Escape. SPEC §9.9 says the mode ends when the final tab stop is reached.
+- **Glutter** (v1.9.1): (1) a panic `index out of range [0] with length 0` in `gestures/arena.go:309` (`resolveByDefault`, called from the posted `tryToResolveArena`, `internal/platform/linux/loop.go:301`): Glutter's `scheduleMicrotask` posts to the loop, so a new arena for the same pointer can exist when it runs, and the old state, now with no members, passes the `m.arenas[pointer]` check (Flutter asserts `_arenas[pointer] == state`); (2) the Vulkan renderer (`internal/gpu/explicit`, `frameBuilder.draw`) skips a draw only when its clip is empty, never when the shape is outside the clip, so every path of the scene is fingerprinted (`ui.Path.Fingerprint`, hashing all its points: 18% of the CPU) and masked on every frame, off screen too (85% of the raster time of the preview); (3) `wayland/keyboard.go:126` logs at error level the `no_keymap` format (0) that a compositor sends when the last keyboard goes, which is legal (keys work again when a keyboard comes back).
+- **Idle**: with only the cursor blinking (2 frames a second), the Go heap grows by about 11 MB a second (2.5 to 5 MB per frame) until a collection; who allocates is not known yet.
+
+Rules for this milestone: every step has display tests that type and click through the compositor (**real input**, SPEC §15.1, step 17b.1), each one seen failing before its fix (say so in `IMPLEMENTED.md`); the milestone is published only after the manager's own pass on the user's desktop (step 17b.5).
+
+### 17b.1 Real input, and typing reaches every input box
+**Goal:** text from a real keyboard reaches every input box of Emetos, and a harness proves it the way a keyboard does (SPEC §15.1 "Real input").
+**Read:** SPEC §15.1, §10.2 (the input box of the kit), §10.6 (the quick input); Glutter's `widgets/editable_text_state.go` and `editable_text_input.go` (`openOrCloseInputConnectionIfNeeded`, `RequestKeyboard`, `handleSelectionChanged`), its Wayland keyboard and text input (`internal/platform/linux/wayland/keyboard.go`, `textinput*.go`); the protocols `virtual-keyboard-unstable-v1` and `wlr-virtual-pointer-unstable-v1`, online.
+**Tasks:**
+- **The harness** `internal/testenv/realinput` (standard library only, no cgo): a Wayland client that makes **one** virtual keyboard (a US xkb keymap in a sealed temporary file; one keyboard for the whole test, never removed while the app runs, because a compositor then sends `no_keymap`) and a virtual pointer; type text (shift for capitals and symbols), press combinations (`ctrl+p`, `Escape`, `F2`), move, click, double-click and scroll at window coordinates (the window's position from sway's IPC, `swaymsg -t get_tree`); a wait for the compositor's round trip after each key. A display-test helper (tag `emetos_display`, under `scripts/headless-wayland.sh`) starts a debug build of Emetos isolated (§15.1), waits for its first frame, sends real input, runs dev commands (§15.2) to read state, takes a screenshot (`grim`), and stops everything in `t.Cleanup`. `scripts/realinput.sh` runs the same against a nested sway window on the user's desktop for the manager's passes (`--desktop`), never on the user's own session directly.
+- **The fix:** `kit.InputBox` builds the same tree whether the placeholder shows or not (the hint stays in the `Stack`, hidden when there is text), so its `EditableText` is never mounted again while it is typed in. Audit every widget of `internal/gui` and `extension/ui` that holds an `EditableText` or the editor's text input client under a condition that can change while it has the focus (grep the builds), and make each one stable. A click in a box that has the focus but no input connection opens one (`RequestKeyboard`). The quick input takes the focus when it opens, not after the next frame, so keys typed right after Ctrl+P go into it; the same for every input that a key opens (Find, Replace, rename, the explorer's new file, the settings search; audit the post-frame focus calls).
+- A `gluttertest` guard: find the path of the fake platform that delivers text to the attached input client the way the Linux platform does (not `EnterText` on the controller), and write a kit test that types three characters into an empty box with a placeholder through it; it fails before the fix.
+**Tests:** the kit test above; the audit's cases; display tests with real input that type `hello world` into: Quick Open, the command palette (after deleting `>`), Find and Replace, the Search view, the settings editor's search, the keybindings editor's search, an explorer rename and new file, a Notes title and body, the Agents message box (the fake program), and every other input box the audit lists; each checks the whole text arrived (through a dev command or its effect); Ctrl+P followed at once by `app.go` puts all of it in the quick input and nothing in the editor; a click in a focused box keeps typing working. Each was seen failing before the fix.
+**Proof:** method C with real input: Quick Open with `app.go` typed (`17b.1-quickopen.png`) and a note with a whole title and body (`17b.1-note.png`), both through the harness.
+
+### 17b.2 A fast Markdown preview
+**Goal:** the preview of a large document opens at once, scrolls at the refresh rate and stays light (SPEC §14 "Markdown preview").
+**Read:** SPEC §10.15 "As built (step 11.6)" (the renderer), §14; `extension/ui/markdown`, `extensions/markdown`; Glutter's lazy lists (`ListView` builders, slivers) and its image decoding and cache (`painting`, `NewImageFile`); VS Code's preview update delay in `reference/vscode/extensions/markdown-language-features`.
+**Tasks:**
+- **Virtualized:** the preview is a lazily built list of blocks (estimated heights, measured when laid out), not a `Column`; `Controller.ScrollToLine` and `TopLine` and the editor's scroll sync keep working; `Options.Hover` and `Compact` (small contents) may keep the column.
+- **Images:** decoded off the UI thread at the size they are shown (box width × device pixel ratio), only for blocks near the viewport, cached by path, size and modification time within a byte budget with eviction; the alt text while loading; errors as today.
+- **Updates:** a change of the document parses off the UI thread after VS Code's delay, and keeps the widgets of the blocks that did not change (keyed by their content), so a typed character does not rebuild the preview.
+- **Highlighting:** code blocks are highlighted when built, cached per block.
+- **Start:** a restored session with the preview of a large file draws its first frame without waiting for the preview.
+- The rows of `docs/PERFORMANCE.md` for the preview (before and after, headless and with the GPU).
+**Tests:** only the visible blocks are built (a count); `ScrollToLine`/`TopLine` across estimated and measured heights; the existing goldens (any change reviewed); the image cache (size, budget, eviction, errors); an edit rebuilds only its block; a benchmark with a generated 700 KB document with 150 images; a display test with real input: open the preview of that fixture, scroll it with the wheel, and check the frame stats (`GLUTTER_FRAME_STATS`) and the resident memory against §14 (headless numbers recorded; the GPU numbers come from the manager's desktop pass).
+**Proof:** method B: the preview of the fixture scrolled to its middle (`17b.2-preview.png`).
+
+### 17b.3 Brackets, snippets and signature help as in VS Code
+**Goal:** typing over closing characters, the end of a snippet session and the signature help behave as SPEC §8.6.4 "Typing over", §9.9 "Session" and §9.12 (signature help) say.
+**Read:** SPEC §8.6.4, §9.9, §9.12; `reference/vscode/src/vs/editor/common/cursor/cursorTypeEditOperations.ts` (`AutoClosingOvertypeOperation`, the auto-closed ranges), `reference/vscode/src/vs/editor/contrib/snippet/browser/snippetController2.ts` and `snippetSession.ts`, `reference/vscode/src/vs/editor/contrib/parameterHints/browser/parameterHintsModel.ts`.
+**Tasks:** find why `auto` types over a closing character the user typed (the ranges of the auto-closed characters, when they are added and dropped) and match VS Code; a snippet whose only tab stop is the final one ends its session as soon as it is inserted (by a completion, `editor.action.insertSnippet` or Emmet), and the final tab stop does not grow with typing; the signature help closes when the cursor leaves the arguments (VS Code's retrigger on cursor moves and its close when the server has no signature) and on Escape.
+**Tests:** the ported cases of `cursor.test.ts` (autoClosingOvertype), `snippetController2.test.ts` (the final tab stop) and `parameterHintsModel.test.ts` that need no TypeScript harness; real-input display tests: `// z)`, Left, `)` gives `// z))`; with a fake language server, accepting `Sprintf` (`Sprintf($0)`) and typing `("x")` gives `fmt.Sprintf(("x"))`, no tab stop is drawn after it, and the signature help is gone after Enter.
+
+### 17b.4 The Glutter issues and the cost of an idle window
+**Goal:** Glutter's bugs are written down with Emetos's workarounds, and an idle window allocates little (SPEC §14 "Idle").
+**Read:** CLAUDE.md "Glutter"; Glutter's `gestures/arena.go`, `internal/gpu/explicit/frame.go`, `ui/path.go`, `internal/platform/linux/wayland/keyboard.go`; Flutter's `gestures/arena.dart` (`_resolveByDefault`).
+**Tasks:**
+- `docs/GLUTTER-ISSUES.md` entries for the three Glutter bugs of this milestone's list, each with what breaks, where, the fix Glutter should make (the arena: check that the arena is still `state` and has a member; the renderer: cull a draw by the bounds of its shape before building its mask, and cache a path's fingerprint; the keyboard: treat `no_keymap` as "no keyboard" at debug level), and the workaround. For the arena, find what Emetos does that triggers it (a recognizer disposed while its arena waits, a pointer id reused by a second click within one loop turn: make a `gluttertest` or real-input reproduction) and avoid it in Emetos, marked `// Glutter:`; if nothing in Emetos can avoid it, say so in the entry.
+- The idle cost: profile an idle window (release build with `emetos_dev`, `EMETOS_PROFILE_DIR`, SIGUSR1 for the heap) with a 10,000-line Go file, and with the preview of 17b.2 open; find what each blink frame allocates; fix what is Emetos's (widgets rebuilt by the blink, paragraphs laid out again, per-frame slices); write down what is Glutter's.
+**Tests:** a test that bounds what one idle blink frame allocates in the workbench with a file open (pumped with the fake clock, measured with `runtime.ReadMemStats` or `testing.AllocsPerRun`), at a budget set from the measurement after the fixes; the reproduction of the arena panic, passing with the workaround (or, if Emetos cannot avoid it, a test of Emetos's own part with the reason in the entry).
+
+### 17b.5 A desktop pass
+**Goal:** Emetos is used through everything it offers with real input, and what is broken is fixed or planned.
+**Read:** SPEC §3 (the rows built), §15.1 "Real input"; `docs/IMPLEMENTED.md` (the coverage tables).
+**Tasks:** display tests with real input (17b.1's harness) for a session as a user has it: open a folder; the explorer (expand, open with a click, new file and folder, rename, delete to the trash, undo, drag); edit a Go file (typing, auto-closing, completion and hover with a fake language server, and with `gopls` under the tag `emetos_gopls`), save, undo and redo; Quick Open, the command palette, Go to Line and Go to Symbol; Find and Replace in a file and in the Search view; the settings editor (search, change a setting by typing and with a check box), the keybindings editor (record a key), the theme picker; the diff editor and the merge editor; split groups and drag a tab; workspace tabs; the panel (Problems, Output); Notes, TODOs, Tasks; the Agents extension with the fake program (send a message, accept an edit); the Markdown preview; a second launch handing a file over. Each test checks its effect and takes a screenshot that is viewed. `docs/DESKTOP-PASS.md` lists every finding with its status. A bug of Emetos that is fixable in this step is fixed with a real-input regression test; a larger one is reported to the manager, who adds a step to this milestone; a Glutter one gets its `GLUTTER-ISSUES.md` entry.
+**Done when:** every finding of `docs/DESKTOP-PASS.md` is fixed, or is a planned step or a Glutter issue; then the manager repeats the pass on the user's desktop (a nested sway window, `scripts/realinput.sh --desktop`), views the screenshots, measures the preview and the idle window with the GPU (§14), adds what it finds, and only then merges the step and publishes the milestone.
+
+---
+
+## M18: Containers (Docker and Podman)
+
+**On hold until M17b and M17c are done** (the user, 2026-10-27: "postpone the extensions I requested. Prioritize the bugs." and "When you finish with the above requirements, then work on the extensions."). M18 to M22 follow in order after them.
+
+Requested by the user on 2026-10-27, with access to their Docker and Podman for tests behind the build tags `emetos_docker` and `emetos_podman` (CLAUDE.md "Testing notes"). VS Code's Container Tools (`microsoft/vscode-containers` v2.5.3, MIT, pinned in `scripts/reference-versions.txt`) may be ported: its texts, command ids, templates and design, each ported file saying so.
+
+### 18.1 The engine client and the container test harness
+**Goal:** one client for the Docker and Podman APIs, and safe tests against the real engines (SPEC §10.20 "The engine client", "Which engine").
+**Read:** SPEC §10.20, D22; CLAUDE.md "Testing notes"; the Docker Engine API reference (v1.41+) and Podman's libpod API reference (v4+), online.
+**Tasks:** `scripts/fetch-reference.sh` (the new pin) and `NOTICE`/`third_party/` for vscode-containers; `extensions/internal/containerapi`: the transport (HTTP over a Unix socket; `tcp://` with TLS), version negotiation, containers, images, networks, volumes, pods (libpod), events, logs (the multiplexed stream), exec, `system df`, errors with the engine's message, bounded bodies, every call under a `ctx`; finding the engine (settings, `DOCKER_HOST`/`CONTAINER_HOST`, Docker contexts, the default sockets, and for Podman its own `podman system service` on a private socket when none answers, stopped with Emetos); `containerapitest`: a fake engine server (both APIs) for the default tests; the real-engine harness (pinned images in one place, `emetos-test-*` names, the label `dev.emetos.test=1`, `127.0.0.1` ports, cleanup in `t.Cleanup`) and `scripts/container-test-cleanup.sh` (labelled things only).
+**Tests:** every call against the fake (table-driven, with the engine's errors and route tests); the log stream demultiplexer (seeded random frames); events with cancel; the engine search order (isolated `HOME`, `XDG_*` and environment); the Podman service started and stopped (a fake `podman` on `PATH`); tagged `emetos_docker` and `emetos_podman`: run a labelled container of a pinned small image, logs, exec, inspect, events, stop, remove, against the real engines, and nothing labelled left afterwards.
+
+### 18.2 The Docker extension: the explorer and its actions
+**Goal:** see and manage Docker's containers, images, networks, volumes and contexts (SPEC §10.20 "The side bar view", "Container actions", "Image actions", "Safety").
+**Read:** SPEC §10.20, §10.15; vscode-containers' tree views and commands.
+**Tasks:** `extensions/internal/containerui` (shared with Podman): the side bar view and its sections (grouped containers, images by repository, networks, volumes), the filter, refresh from the event stream; `extensions/containers` (`emetos.containers`): the Contexts section and picker, container actions (start, stop, restart, pause, kill, remove, View Logs in a panel tab, Inspect, Open in Browser, Copy ID, Run Command, Explore Files), image actions (Run with its form, Pull, Tag, Remove, Inspect, History), networks and volumes (create, remove, inspect, prune), confirmations with counts and sizes, the missing-engine view, the events of §10.20, the first-run note about the Docker socket.
+**Tests:** the views and actions against the fake engine in `gluttertest` (goldens dark and light: the explorer with every section, the logs tab, a confirmation, the missing engine); tagged `emetos_docker`: the explorer shows a labelled test container, start/stop/remove through the view, logs follow.
+**Proof:** method B with `emetos_dev` pointing the extension at a fake engine (or at the real Docker with labelled test containers only): the explorer with containers grouped by Compose project, images and a logs tab.
+
+### 18.3 Docker: build, Compose, run, push, scaffolding and language servers
+**Goal:** the workflows around files (SPEC §10.20 "Image actions" Build, "Compose", "Scaffolding", "Language support", Open Shell).
+**Read:** SPEC §10.20; vscode-containers' build, compose and scaffolding code and templates.
+**Tasks:** Build Image (the CLI, streamed into a panel tab, errors into Problems); Compose Up, Up selected services, Down, Restart, Logs (explorer and editor context menus, the Compose group); Push and Run Interactive through the CLI; Open Shell in the user's terminal emulator; "Add Docker Files to Workspace" with the ported templates; the Dockerfile and Compose language servers declared when found on `PATH`.
+**Tests:** command lines built for build, compose, push and shell (table-driven, a fake `docker` on `PATH`); build output parsing into Problems; the scaffolding (each template, no overwrite without confirmation); the language server declaration; tagged `emetos_docker`: build a tiny Dockerfile into a labelled image and remove it, `compose up`/`down` of a labelled one-service project.
+**Proof:** method B: a build streamed into its panel tab, and the Compose group in the explorer.
+
+### 18.4 The Podman extension
+**Goal:** the same for Podman, plus pods, Kube and Quadlet (SPEC §10.20 "Podman only").
+**Read:** SPEC §10.20, D22; Podman's libpod API and `podman kube`, `podman generate` and Quadlet documentation.
+**Tasks:** `extensions/podman` (`emetos.podman`) on `containerapi` and `containerui`: the libpod API, its own service when no socket answers, the Pods section (containers grouped under their pod; create from selected containers, start, stop, restart, remove, inspect), Connections (rootless and rootful), Generate Kube YAML, Play Kube and Kube Down, Generate Quadlet (an untitled `.container` unit), build, push, Compose (`podman compose` or `podman-compose`) and Open Shell through the `podman` CLI; its own activity bar icon and events.
+**Tests:** the libpod calls and the pod views against the fake engine; the Quadlet generator (table-driven from inspect JSON); the service start with a fake `podman`; goldens of the Podman view (dark and light); tagged `emetos_podman`: a labelled pod with a container, kube generate and play down, nothing labelled left.
+**Proof:** method B: the Podman view with a pod and its containers, and a generated Kube YAML.
+
+---
+
+## M19: SQL databases
+
+### 19.1 Connections, the keyring and the results grid
+**Goal:** what the three database extensions share (SPEC §10.21 "Connections", §10.24, D24).
+**Read:** SPEC §10.21–§10.24, D24; the Secret Service API (freedesktop.org), online.
+**Tasks:** `go get github.com/godbus/dbus/v5` as a direct dependency (already brought in by Glutter); `extensions/internal/dbconn`: the connection model and `db-connections.json` (0600, user or workspace scope), the connection form (engine-specific fields given by each extension), passwords in the Secret Service keyring (store, look up, delete; locked keyrings unlocked through the service's prompt), in memory otherwise, `${env:…}`; the "Databases" side bar view whose roots the database extensions add, with connection states; `extensions/internal/resultgrid`: the virtualized grid (columns, resize, client sort, selection, copy as text and TSV, NULL, cut long values, hex binary), paging, export to CSV and JSON.
+**Tests:** the connection file (modes, read policy, no password ever written); the keyring against a fake Secret Service on a private D-Bus connection (or an interface fake), and a manual check with the real keyring (`docs/MANUAL-CHECKS.md`); the form; the grid (goldens dark and light, 100,000 rows built lazily, copy and export formats).
+
+### 19.2 SQL: drivers, dialects and the schema explorer
+**Goal:** connect to the four engines and browse their schema (SPEC §10.21 "Drivers", "The explorer").
+**Read:** SPEC §10.21, D23.
+**Tasks:** `go get` the four drivers; `extensions/sql` (`emetos.sql`) with `extensions/sql/dialect` for PostgreSQL, MySQL/MariaDB, SQLite and SQL Server (catalog queries, quoting, cancel, read-only session); connect and disconnect with TLS and read-only; the explorer tree (databases, schemas, tables, views, functions and procedures, columns with keys, indexes), lazy and cached, the filter, Refresh; the context menus (New Query, Select Top 1000, Copy Name, Generate statements, Drop as text).
+**Tests:** each dialect's catalog queries and generated statements (table-driven); SQLite end to end in the default tests (it is a file); the explorer in `gluttertest` (goldens); tagged `emetos_docker`: PostgreSQL, MySQL, MariaDB and SQL Server in labelled containers of pinned images, each with a fixture schema, connected and browsed.
+
+### 19.3 SQL query editors and the results panel
+**Goal:** run SQL and see the results (SPEC §10.21 "Query editors", "The results panel", "Safety").
+**Read:** SPEC §10.21, §9.12 (completion providers).
+**Tasks:** `.sql` editors bound to a connection and database (the status bar item and picker; bindings of workspace files kept in the workspace state); Run (selection or the statement under the cursor, split by each dialect's rules), Run All, Cancel; autocommit with Begin, Commit and Rollback and the open transaction shown; the results panel on `resultgrid` (result sets as tabs, row limit and Fetch More, rows affected, messages, errors with their position in the editor, history of 10 runs per editor, export); read-only enforcement and the destructive-statement confirmation; completion of keywords, schemas, tables and columns; the events of §10.21.
+**Tests:** statement splitting for every dialect (strings, comments, dollar quotes, `DELIMITER`, `GO`; seeded random inputs); classification of reads and destructive statements; cancel; transactions; the panel (goldens dark and light: a result grid, rows affected, an error); end to end on SQLite in the default tests; tagged `emetos_docker`: the same on PostgreSQL, MySQL and SQL Server, including cancel of a long statement.
+**Proof:** method B: the explorer of a SQLite fixture database, a query editor and its results in the panel.
+
+---
+
+## M20: MongoDB
+
+### 20.1 Connections, the explorer and the playground language
+**Goal:** connect to MongoDB, browse it, and parse playgrounds (SPEC §10.22 "Connections", "The explorer", "Playgrounds").
+**Read:** SPEC §10.22, D23.
+**Tasks:** `go get go.mongodb.org/mongo-driver/v2`; `extensions/mongodb` (`emetos.mongodb`): connections on `dbconn` (connection strings, the password moved to the keyring), the explorer (databases, collections with counts, indexes, the sampled schema), context menus; the `.mongodb` language (a TextMate grammar) and its parser in `extensions/mongodb/playground`: statements and relaxed JavaScript literals with the shell helpers, everything else refused with a position.
+**Tests:** the parser (table-driven: every statement form and literal, errors with positions; seeded random inputs and a fuzz target run as CLAUDE.md says); the explorer against a fake (an interface over the driver); goldens of the explorer; tagged `emetos_docker`: a labelled `mongo` container of a pinned image with fixture data, connected and browsed.
+
+### 20.2 Running playgrounds, results and editing documents
+**Goal:** run playgrounds and see and edit documents (SPEC §10.22 "Playgrounds" Run, "Results", "Editing a document", "Safety").
+**Read:** SPEC §10.22.
+**Tasks:** Run and Run All with the connection and database in the status bar; the statements executed with the driver (find with its chain, aggregate, writes, commands, `show`), cursors fetched in pages; results in the shared panel (Tree, JSON and Table views, write results, errors with codes); a document opened as Extended JSON and saved with `replaceOne` after a confirmation of the changed fields; Delete Document; the destructive confirmations; read-only; the events of §10.22.
+**Tests:** the translation of parsed statements to driver calls (table-driven against a fake); paging; the confirmations; the panel views (goldens dark and light); tagged `emetos_docker`: playground statements against the real server, editing and deleting a document.
+**Proof:** method B: the MongoDB explorer, a playground and its results in Tree view.
+
+---
+
+## M21: Redis
+
+### 21.1 Connections, the explorer and the key editor
+**Goal:** browse keys and view and edit values (SPEC §10.23 "Connections", "The explorer", "The key editor").
+**Read:** SPEC §10.23, D23.
+**Tasks:** `go get github.com/redis/go-redis/v9`; `extensions/redis` (`emetos.redis`): connections on `dbconn` (URLs, ACL, TLS, database, separator, Sentinel and Cluster, read-only); the explorer (databases with key counts, the key tree by separator from `SCAN` in pages, the pattern filter, TTL); the key editor for strings, hashes, lists, sets, sorted sets, streams and ReJSON values, paged with the `*SCAN` commands and `LRANGE`/`XRANGE`, big strings cut; key actions (rename, TTL, persist, delete, new key).
+**Tests:** the key tree from scanned keys (table-driven, separators, very many keys built lazily); each value type's editor against a fake (an interface over the client); goldens dark and light; tagged `emetos_docker`: a labelled `redis` container of a pinned image with fixture keys of every type, browsed and edited; Cluster scanning against a labelled small cluster if practical, otherwise a fake.
+
+### 21.2 The console, Pub/Sub, Monitor and server info
+**Goal:** run commands and watch the server (SPEC §10.23 "The console", "Safety").
+**Read:** SPEC §10.23.
+**Tasks:** the console panel tab and `.redis` files (a command line with history, `redis-cli` quoting, completion from `COMMAND DOCS`, replies formatted by type); Pub/Sub (Subscribe, PSubscribe, Publish) and Monitor tabs, bounded, with pause and clear; the server info tab (`INFO`, `SLOWLOG`, `CLIENT LIST`, `MEMORY STATS`); the dangerous-command confirmations and the read-only refusal (from `COMMAND INFO` flags); the events of §10.23.
+**Tests:** the quoting parser (table-driven, seeded random inputs); reply formatting for RESP2 and RESP3 types; the confirmations and read-only refusal; the console and Pub/Sub tabs (goldens dark and light); tagged `emetos_docker`: commands, Pub/Sub and Monitor against the labelled server.
+**Proof:** method B: the Redis explorer with a hash open in the key editor, and the console with replies.
+
+---
+
+## M22: Wrap-up of M18–M21
+
+### 22.1 A container's database, and the Relay refusal
+**Goal:** connect from a container to its database, and keep Relay confined (SPEC §10.24, D25).
+**Read:** SPEC §10.24, §10.19, D25.
+**Tasks:** Connect to Database on containers of known database images in both container extensions (`emetos.containers.connectDatabase`, prefilled from the published port and the image's environment, never a password); each database extension opening its form from that event; the class `outside` in `command.ClientRefusal` with `containers.*`, `podman.*`, `sql.*`, `mongodb.*` and `redis.*`, and its marking in `emetos.commands.list`.
+**Tests:** the prefill for every known image (table-driven from inspect JSON); the event to form flow between two extensions; the refusal class (every new command id refused to a Relay client, the existing scan of risky commands extended); tagged `emetos_docker`: a labelled `postgres` container connected through Connect to Database.
+
+### 22.2 Update the README
+**Goal:** `README.md` describes the six new extensions.
+**Read:** `README.md`, `docs/IMPLEMENTED.md` (the entries of M18–M22), SPEC §10.20–§10.24, §12.
+**Tasks:** the status (M18–M22 built), the features and the bundled list (Containers, Podman, SQL, MongoDB, Redis), the requirements (Docker or Podman; nothing to install for the databases), the security notes (the Docker socket is power over the computer; passwords in the keyring), where things are (`db-connections.json`), privacy (the engines and databases the user configured); fresh screenshots with `scripts/screenshots.sh` (the Docker explorer with logs, a SQL query with results, a MongoDB playground, the Redis key editor) from fixtures, with fake engines or labelled test containers only; the coverage table rows; every link resolves (`TestREADMELinksResolve`).
+**Tests:** `TestREADMELinksResolve`.
+**Proof:** the README's screenshots, viewed.
