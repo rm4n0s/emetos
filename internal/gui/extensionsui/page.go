@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
@@ -28,6 +29,7 @@ const (
 	titleText    = "Extensions"
 	introText    = "Extensions are compiled into Emetos and are activated in a workspace tab when something they wait for happens there. Turning one off takes it out of every tab; extensions.disabled keeps the choice."
 	emptyText    = "No extensions are compiled into this build."
+	problemsText = "Left out: these extensions were refused when Emetos started and are not installed."
 	enableLabel  = "Enable"
 	disableLabel = "Disable"
 )
@@ -42,6 +44,42 @@ func RowKey(extensionID string) foundation.Key {
 	return foundation.NewValueKey("extensions:row:" + extensionID)
 }
 
+// ProblemKey is the key of the line of a problem, which a test finds it by.
+func ProblemKey(tag, extensionID string) foundation.Key {
+	return foundation.NewValueKey("extensions:problem:" + tag + ":" + extensionID)
+}
+
+// ProblemTag is the tag of the error of a problem, or "" for an error that has none.
+func ProblemTag(err error) string {
+	if appErr, ok := errors.FromError(err); ok {
+		return appErr.Tag
+	}
+	return ""
+}
+
+// ProblemID is the id of the extension a problem is about (the "id" of its metadata), or "".
+func ProblemID(err error) string {
+	if appErr, ok := errors.FromError(err); ok {
+		if id, ok := appErr.Metadata["id"].(string); ok {
+			return id
+		}
+	}
+	return ""
+}
+
+// ProblemText says what was wrong with an extension that was left out: its id, the tag of the failure and the message.
+func ProblemText(err error) string {
+	appErr, ok := errors.FromError(err)
+	if !ok {
+		return err.Error()
+	}
+	text := appErr.Message
+	if id := ProblemID(err); id != "" {
+		text = id + ": " + text
+	}
+	return text + " (" + appErr.Tag + ")"
+}
+
 // Options are the options of NewPage.
 type Options struct {
 	// Rows gives the extensions with their state; it is called at every build.
@@ -50,6 +88,10 @@ type Options struct {
 	Subscribe func(fn func()) (unsubscribe func())
 	// OnToggle is called when the user presses Enable (enable true) or Disable on an extension.
 	OnToggle func(extensionID string, enable bool)
+	// Problems gives the extensions the host left out and why (exthost.Host.Problems): an invalid manifest, a topic that is
+	// another extension's, a privilege that is not the extension's to declare. They are listed above the extensions; nothing is
+	// shown when there are none. Nil is none.
+	Problems func() []error
 	// OnManageSharing is called when the user presses Event Sharing..., which opens the page of the links between window
 	// tabs; without it the button is not shown.
 	OnManageSharing func()
@@ -135,6 +177,16 @@ func (s *pageState) Build(bc widgets.BuildContext) widgets.Widget {
 				widgets.AlignOpts{Alignment: painting.AlignmentTopLeft}))
 	}
 	children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(14.0)}))
+	if o.Problems != nil {
+		if problems := o.Problems(); len(problems) > 0 {
+			children = append(children, text(problemsText, style(nameSize, ui.FontWeightW600, colors.ErrorForeground)))
+			for _, p := range problems {
+				children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(rowLineGap)}),
+					widgets.NewKeyedSubtree(text(ProblemText(p), style(detailSize, ui.FontWeightW400, colors.ErrorForeground)), widgets.WidgetOpts{Key: ProblemKey(ProblemTag(p), ProblemID(p))}))
+			}
+			children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(14.0)}))
+		}
+	}
 	if len(rows) == 0 {
 		children = append(children, text(emptyText, style(nameSize, ui.FontWeightW400, colors.DescriptionForeground)))
 	}

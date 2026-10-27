@@ -198,3 +198,9 @@ Decisions taken on the user's behalf while the steps run, newest last, with thei
 81. **Opening the Remote Work page opens each `/dev/video*` for a moment** (a `QUERYCAP`, which starts no capture and does not light the camera), so that the Scan QR Code button can say whether there is a camera. The camera itself is streamed only while the scan dialog is open.
 82. **The camera is asked for 1280x720 in MJPEG (640x480 in YUYV)**, because the QR code of an RSA 4096 key is too dense to read reliably at 640x480.
 83. **"Show My Public Key as QR Code" reads the public key from the clear header of an OpenSSH private key** when there is no `.pub` beside it, so no passphrase is asked; a PEM key still asks for it.
+
+## 2026-10-27: step 16.1 (Relay core topics; decided by the agent and accepted by me)
+
+84. **An extension other than `emetos.relay` that declares a privilege is not installed at all** (not installed without the privilege). The Extensions page lists it under "Left out" with the reason.
+85. **File topics are confined with Go's `os.Root`** (`openat2` with `RESOLVE_BENEATH` on Linux). It refuses `..`, absolute paths, and links that lead out, and even absolute links that point inside the folder. `emetos.document.open` checks the file, then opens it through the normal reader, so a link swapped in between those two moments is not covered.
+86. **Commands refused to Relay clients** are window and workspace tabs, quit, close window, new and switch window, opening or closing folders and recent lists, profiles, user settings, keybindings and themes, event sharing, and the Relay and Remote Work commands themselves. Workspace settings commands stay allowed.

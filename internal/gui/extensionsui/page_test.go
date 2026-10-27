@@ -1,7 +1,10 @@
 package extensionsui
 
 import (
+	"os"
 	"testing"
+
+	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
 )
@@ -31,6 +34,33 @@ func TestStatusText(t *testing.T) {
 			got, failure := StatusText(tt.row)
 			if got != tt.want || failure != tt.failure {
 				t.Errorf("StatusText = %q, %v; want %q, %v", got, failure, tt.want, tt.failure)
+			}
+		})
+	}
+}
+
+func TestProblemText(t *testing.T) {
+	tests := []struct {
+		name          string
+		err           error
+		text, tag, id string
+	}{
+		{"a privilege refused", errors.New("ExtensionPrivilegeRefused", "only emetos.relay may declare privileges", "id", "ext.sneaky"),
+			"ext.sneaky: only emetos.relay may declare privileges (ExtensionPrivilegeRefused)", "ExtensionPrivilegeRefused", "ext.sneaky"},
+		{"an error with no id", errors.New("ExtensionFactoryNil", "an extension factory is nil", "index", 3),
+			"an extension factory is nil (ExtensionFactoryNil)", "ExtensionFactoryNil", ""},
+		{"an error of another package", os.ErrNotExist, os.ErrNotExist.Error(), "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ProblemText(tt.err); got != tt.text {
+				t.Errorf("ProblemText = %q, want %q", got, tt.text)
+			}
+			if got := ProblemTag(tt.err); got != tt.tag {
+				t.Errorf("ProblemTag = %q, want %q", got, tt.tag)
+			}
+			if got := ProblemID(tt.err); got != tt.id {
+				t.Errorf("ProblemID = %q, want %q", got, tt.id)
 			}
 		})
 	}

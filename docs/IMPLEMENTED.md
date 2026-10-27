@@ -2721,3 +2721,61 @@ Nothing. (Overtype mode, the one partial row of the first audit, was finished in
   - `HubOptions.Camera` is nil unless `extensions.All` gives the real source.
 
   Not built: camera controls, a mirrored preview, multi-planar and H.264 cameras, 32-bit machines, Escape in the dialogs. M15 is complete with this step.
+
+## 16.1 Core request topics, privileges and confinement
+
+- **Date:** 2026-10-27
+- **Branch:** feat/step-16.1-relay-core
+- **Summary:** SPEC §10.19, §10.15.
+  - **Core request topics**, answered by the requester's own workspace scope (a window tab scope gets `EventNoHandler`), with payload types in `extension/core.go`:
+
+    | Topic | Notes |
+    |---|---|
+    | `emetos.commands.list` | Refused commands are marked with `refused`, `refusedClass` and `reason`. |
+    | `emetos.commands.execute` | Needs the `commands.execute` privilege. |
+    | `emetos.files.list` | Depth at most 16, at most 5000 entries a page, a folder of at most 100,000 entries. |
+    | `emetos.files.stat` | |
+    | `emetos.files.read` | UTF-8, at most 2 MiB, refused rather than truncated. |
+    | `emetos.document.open` | |
+    | `emetos.document.read` | At most 8 MiB. |
+    | `emetos.document.edit` | One undo step, a stale version refused, at most 10,000 edits and 4 MiB. |
+    | `emetos.document.save` | Through the normal save path: participants and format on save. |
+    | `emetos.document.close` | A dirty document needs `discard`. |
+    | `emetos.editor.reveal` | |
+
+    File requests run off the UI thread in at most 4 slots per scope; documents and commands run on it.
+  - **`Manifest.Privileges`** (`events.publishAny`, `commands.execute`) is granted only to `emetos.relay`. Another extension declaring one is not installed and shows under "Left out" on the Extensions page (DECISIONS-TO-REVIEW 84). The page shows host problems for the first time.
+  - **Commands refused to clients** are defined once, in `command.ClientRefusal`, with classes `windowTab`, `quit`, `window`, `folder`, `profile`, `settings` and `remote` (DECISIONS-TO-REVIEW 86). Each command a client runs is logged.
+  - **Confinement** (`internal/core/confine`):
+    - `os.Root` with kernel-side resolution beneath the folder (DECISIONS-TO-REVIEW 85);
+    - fifos opened non-blocking and refused;
+    - the opened file compared with the one that was checked;
+    - document topics checked with `confine.Contains`.
+  - **`fakeapi`:** `OnRequest` and `OnRequestValue` doubles, `Requests()`, `PublishedEvents()`, and `Ask`, for 16.2 and 16.3.
+  - **New error tags:** about 40 (`ExtensionPrivilege*`, `RelayCommandRefused`, `RelayStaleVersion`, `Core*`, `Confine*`, `ExtDocument*`), all route-tested.
+- **Tests:**
+  - `confine`: `..`, absolute paths, links out (relative and absolute), a link loop, a fifo, a folder reached through a link, paging, caps, cancellation, a file swapped while reading.
+  - `command`: every refused class with real command ids, plus a scan for risky commands that are neither refused nor allowed.
+  - `exthost`:
+    - privileges given to Relay and refused to others;
+    - `publishAny`;
+    - every refused class, and a check that a refused command did not run;
+    - the error table;
+    - two tabs, so a command run in one does not reach the other;
+    - every file topic through requests;
+    - the document topics: stale version, bad and overlapping edits, limits, one undo step, read-only, dirty close.
+  - `app`: the topics on a real workspace (open, edit, save to disk, reveal, a real core command, a refused one), and the page problem.
+- **Goldens:** new `extensions_page_problem_{dark,light}`. I viewed the dark one; the agent viewed both. No existing golden changed.
+- **Checks:** gofmt ✅ · go vet ✅ (also with `emetos_claude` and `emetos_camera`) · golangci-lint ✅ · error-tags --untested ✅ · go test -race ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · `emetos_gopls` tests ✅ · `go mod tidy -diff` clean · display tests none.
+- **Proof:** none (the step has no proof item; the Extensions page golden shows the refused privilege).
+
+  ![16.1 refused privilege](../internal/gui/app/testdata/goldens/extensions_page_problem_dark.png)
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** SPEC §10.19 "As built (step 16.1)":
+  - `os.Root` instead of `EvalSymlinks` and a check, because it closes the race;
+  - an escape is recognized by the text of `os.Root`'s error (if that text ever changes, the path is still refused, under a generic tag);
+  - `commands.execute` replies `{result:null}`;
+  - `document.read` works on any open document;
+  - `emetos.commands` is a reserved extension ID;
+  - `NewHeadlessView` stays unprivileged.

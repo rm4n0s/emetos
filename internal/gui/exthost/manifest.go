@@ -1,6 +1,7 @@
 package exthost
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/rm4n0s/errors"
@@ -8,14 +9,24 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 )
 
-// validateManifest checks a manifest (extension.CheckManifest, whose error is returned as it is) and that no extension
-// of the host has its id already (seen). The duplicate fails with the tag ExtensionIDDuplicate.
+// privilegedExtensions is the fixed allowlist of the extensions that may declare privileges (SPEC §10.19 "Privileges"). It
+// is read-only: nothing, no setting and no manifest, adds to it.
+var privilegedExtensions = []string{extension.RelayID}
+
+// validateManifest checks a manifest (extension.CheckManifest, whose error is returned as it is), that no extension of the
+// host has its id already (seen), and that the privileges it declares are its to declare. The duplicate fails with the tag
+// ExtensionIDDuplicate and a privilege of an extension that is not on the allowlist with ExtensionPrivilegeRefused: the
+// extension is left out as a whole (it is not installed and never activated), and the host lists it in Problems, which the
+// Extensions page shows.
 func validateManifest(m extension.Manifest, seen map[string]bool) error {
 	if err := extension.CheckManifest(m); err != nil {
 		return err
 	}
 	if seen[m.ID] {
 		return errors.New("ExtensionIDDuplicate", "two extensions have the same id", "id", m.ID)
+	}
+	if len(m.Privileges) > 0 && !slices.Contains(privilegedExtensions, m.ID) {
+		return errors.New("ExtensionPrivilegeRefused", "only emetos.relay may declare privileges", "id", m.ID, "privileges", slices.Clone(m.Privileges))
 	}
 	return nil
 }

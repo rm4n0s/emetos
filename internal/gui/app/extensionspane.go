@@ -43,6 +43,7 @@ func (p *extensionsPane) build(bc widgets.BuildContext, group *editorgroup.Group
 	win := PeekWorkspace(bc)
 	return p.wrap(p.s, group, extensionsui.NewPage(extensionsui.Options{
 		Rows:            func() []exthost.Row { return win.Process.Extensions.Rows(win.disabledExtensions()) },
+		Problems:        win.Process.Extensions.Problems,
 		Subscribe:       win.Process.Extensions.OnChange,
 		OnManageSharing: p.s.openEventSharingPage,
 		OnToggle: func(id string, enable bool) {

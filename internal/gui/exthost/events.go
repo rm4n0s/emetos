@@ -27,8 +27,16 @@ func (in *instance) owns(topic string, declared func(extension.EventDecl) []stri
 	return strings.HasPrefix(topic, in.id+".") || slices.Contains(declared(in.slot.info.Manifest.Events), topic)
 }
 
+// hasPrivilege tells whether the extension was granted a privilege: the host kept its manifest only when it is on the
+// allowlist or declares none (validateManifest), and the manifest it reads is the one of the host, not the one the
+// extension returns later.
+func (in *instance) hasPrivilege(privilege string) bool {
+	return in.slot.info.Manifest.HasPrivilege(privilege)
+}
+
 // Publish implements extension.Events. It fails with ExtensionDeactivated, the tags of extension.CheckTopic
-// (EventTopicInvalid), EventTopicNotOwned and EventValueInvalid.
+// (EventTopicInvalid), EventTopicNotOwned and EventValueInvalid. An extension with the privilege events.publishAny
+// (emetos.relay) may publish any topic in its scope; the Publisher of the event is still the extension.
 func (e eventsAPI) Publish(topic string, value any) error {
 	in := e.inst
 	if in.isDead() {
@@ -49,7 +57,7 @@ func (e eventsAPI) Publish(topic string, value any) error {
 			topics[i] = spec.Topic
 		}
 		return topics
-	}) {
+	}) && !in.hasPrivilege(extension.PrivilegeEventsPublishAny) {
 		return errors.New("EventTopicNotOwned", "an extension publishes only the topics under its id and the ones its manifest declares", "extension", in.id, "topic", topic)
 	}
 	data, err := json.Marshal(value)

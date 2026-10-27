@@ -190,6 +190,9 @@ type tab struct {
 	chooserPath string
 	chooserErr  error
 
+	// coreDocs is the CoreDocuments of the tab over its documents (core_test.go).
+	coreDocs *fakeCoreDocs
+
 	// asked are the questions the tab was asked about links, and answers the functions that answer them (askSharing).
 	asked   []SharingAsk
 	answers []func(SharingAnswer)
@@ -214,6 +217,9 @@ type rig struct {
 	noBanners, noChooser map[string]bool
 	// folders gives a tab a real folder instead of /work/<name>.
 	folders map[string]string
+	// noCommands and noCoreDocs name tabs that have no registry of commands and tabs whose documents cannot be edited (the
+	// core topics, core_test.go).
+	noCommands, noCoreDocs map[string]bool
 }
 
 // folderOf is the folder of the tab named name.
@@ -241,7 +247,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -288,13 +294,22 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	if r.noLSP[name] {
 		lspw = nil
 	}
+	tb.coreDocs = newFakeCoreDocs(tb.docs)
+	var docs DocumentSource = tb.coreDocs
+	if r.noCoreDocs[name] {
+		docs = tb.docs
+	}
+	registry := commands
+	if r.noCommands[name] {
+		registry = nil
+	}
 	tb.scope = r.host.NewScope(ScopeOptions{
 		LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI: func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		Info:    extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
-		Ctx:     context.Background(), Commands: commands, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
-		Notify: tb.notify, StatusBar: tb.bar, Documents: tb.docs,
+		Ctx:     context.Background(), Commands: registry, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
+		Notify: tb.notify, StatusBar: tb.bar, Documents: docs,
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
 		Post: tb.post, AskSharing: r.askFunc(tb, name),
 		Views: tb.views, Keys: tb.ctxKeys, Markers: tb.markers, Channels: tb.channels,

@@ -41,6 +41,11 @@ type Manifest struct {
 	Contributes Contributes
 	// Events are the event topics the extension declares (SPEC §10.15 "Events").
 	Events EventDecl
+	// Privileges are the privileges the extension asks for (SPEC §10.19 "Privileges"): PrivilegeEventsPublishAny and
+	// PrivilegeCommandsExecute. The host grants them only to the extensions on its fixed allowlist (emetos.relay); an
+	// extension that declares one and is not on it is refused with a problem on the Extensions page (ExtensionPrivilegeRefused)
+	// and is not installed. CheckManifest refuses a name that is none of the two (ExtensionPrivilegeUnknown).
+	Privileges []string
 }
 
 // Contributes are the contributions a Manifest declares. Emetos installs them in a scope when the extension is enabled

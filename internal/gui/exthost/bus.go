@@ -405,6 +405,10 @@ func (b *bus) start(r *request, ctx context.Context, topic string, data json.Raw
 		b.startCross(r, ctx, topic)
 		return
 	}
+	if fn := coreHandlerFor(topic); fn != nil && b.s.opts.Info.Kind == extension.ScopeWorkspace {
+		b.startCore(r, ctx, topic, fn)
+		return
+	}
 	h := b.s.bus.handlerOf(topic)
 	if h == nil || h.inst.isDead() {
 		if b.settle(r) {

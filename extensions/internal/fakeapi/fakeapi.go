@@ -71,6 +71,10 @@ type API struct {
 	banners           []*FakeBanner
 	chooserCalls      []ChooserCall
 	chooserAnswers    []*chooserAnswer
+	published         []Published
+	requests          []RequestCall
+	requestDoubles    map[string]RequestDouble
+	handlers2         map[string]RequestDouble
 }
 
 // Note is a notification the extension showed.
@@ -97,7 +101,7 @@ func New(t testing.TB, m extension.Manifest, info extension.ScopeInfo) *API {
 		t: t, info: info, manifest: m, logger: slog.Default(), complete: true,
 		handlers: map[string]extension.CommandHandler{}, specs: map[string]extension.SettingSpec{}, values: map[string]any{},
 		keys: map[string]any{}, status: map[string]*StatusItem{}, views: map[string]*View{}, channels: map[string]*Channel{},
-		markers: map[string]map[string][]extension.Marker{},
+		markers: map[string]map[string][]extension.Marker{}, requestDoubles: map[string]RequestDouble{}, handlers2: map[string]RequestDouble{},
 	}
 	for _, spec := range m.Contributes.Settings {
 		a.specs[spec.Key] = spec
@@ -498,8 +502,20 @@ type subscription struct {
 
 type events struct{ a *API }
 
+// Publish implements extension.Events: the event is recorded (Published) and delivered to the subscribers at once, as Emit does,
+// with the extension's own id as publisher.
 func (e events) Publish(topic string, value any) error {
-	e.a.Emit(topic, value)
+	if err := extension.CheckTopic(topic); err != nil {
+		return err
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return errors.NewErr("FakeEventValueInvalid", err).SetMetadata("topic", topic)
+	}
+	e.a.mu.Lock()
+	e.a.published = append(e.a.published, Published{Topic: topic, Data: data})
+	e.a.mu.Unlock()
+	e.a.emit(e.a.manifest.ID, e.a.info, topic, value)
 	return nil
 }
 
@@ -518,24 +534,86 @@ func (e events) Subscribe(pattern string, fn func(extension.Event), opts ...exte
 	return func() { e.a.mu.Lock(); s.off = true; e.a.mu.Unlock() }, nil
 }
 
-func (e events) Request(context.Context, string, any, func(extension.Event, error), ...extension.RequestOption) error {
-	return errors.New("FakeRequestUnsupported", "the fake has no requests")
+// Request implements extension.Events: the request is recorded (Requests) and answered, later, on Pump, by the double the test
+// set for the topic with OnRequest (the core topics of SPEC §10.19 are faked this way), else by the handler the extension
+// itself set with Handle or HandleAsync, else with EventNoHandler. A request with a topic that is not valid fails at once.
+func (e events) Request(ctx context.Context, topic string, value any, reply func(extension.Event, error), _ ...extension.RequestOption) error {
+	if err := extension.CheckTopic(topic); err != nil {
+		return err
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return errors.NewErr("FakeEventValueInvalid", err).SetMetadata("topic", topic)
+	}
+	a := e.a
+	a.mu.Lock()
+	a.requests = append(a.requests, RequestCall{Topic: topic, Data: data})
+	double, own := a.requestDoubles[topic], a.handlers2[topic]
+	a.mu.Unlock()
+	if reply == nil {
+		reply = func(extension.Event, error) {}
+	}
+	ev := extension.Event{Topic: topic, Publisher: a.manifest.ID, Scope: a.info, Data: data}
+	answer := func(v any, err error) {
+		a.Post(func() {
+			if err != nil {
+				reply(extension.Event{}, err)
+				return
+			}
+			out, merr := json.Marshal(v)
+			if merr != nil {
+				reply(extension.Event{}, errors.NewErr("FakeEventValueInvalid", merr).SetMetadata("topic", topic))
+				return
+			}
+			reply(extension.Event{Topic: topic, Publisher: extension.CorePublisher, Scope: a.info, Data: out}, nil)
+		})
+	}
+	switch {
+	case double != nil:
+		double(ctx, ev, answer)
+	case own != nil:
+		own(ctx, ev, answer)
+	default:
+		answer(nil, errors.New("EventNoHandler", "the fake has no double or handler for this topic", "topic", topic))
+	}
+	return nil
 }
-func (e events) Handle(string, extension.EventHandler) error { return nil }
-func (e events) HandleAsync(string, extension.AsyncEventHandler) error {
+
+// Handle implements extension.Events: fn answers the requests of the topic that the extension makes itself, and the ones a test
+// makes with Ask.
+func (e events) Handle(topic string, fn extension.EventHandler) error {
+	return e.HandleAsync(topic, func(ctx context.Context, ev extension.Event, reply extension.EventReply) {
+		v, err := fn(ctx, ev)
+		reply(v, err)
+	})
+}
+
+// HandleAsync implements extension.Events.
+func (e events) HandleAsync(topic string, fn extension.AsyncEventHandler) error {
+	if err := extension.CheckTopic(topic); err != nil {
+		return err
+	}
+	e.a.mu.Lock()
+	defer e.a.mu.Unlock()
+	if _, taken := e.a.handlers2[topic]; taken {
+		return errors.New("EventHandlerTaken", "a handler for this topic is set already", "topic", topic)
+	}
+	e.a.handlers2[topic] = func(ctx context.Context, ev extension.Event, reply func(any, error)) { fn(ctx, ev, reply) }
 	return nil
 }
 
 // Emit delivers an event to the subscribers whose pattern matches, at once, on the caller's goroutine (a test calls it on
 // its own, which stands for the UI thread).
-func (a *API) Emit(topic string, value any) { a.emit(a.info, topic, value) }
+func (a *API) Emit(topic string, value any) { a.emit(extension.CorePublisher, a.info, topic, value) }
 
 // EmitFrom delivers an event as if the scope published it: to the subscribers of the topic that listen to other window tabs
 // (extension.FromOtherScopes), the way a link that the user allowed does.
-func (a *API) EmitFrom(from extension.ScopeInfo, topic string, value any) { a.emit(from, topic, value) }
+func (a *API) EmitFrom(from extension.ScopeInfo, topic string, value any) {
+	a.emit(extension.CorePublisher, from, topic, value)
+}
 
 // emit delivers an event published in a scope.
-func (a *API) emit(from extension.ScopeInfo, topic string, value any) {
+func (a *API) emit(publisher string, from extension.ScopeInfo, topic string, value any) {
 	data, err := json.Marshal(value)
 	if err != nil {
 		a.t.Fatalf("event value: %v", err)
@@ -550,7 +628,7 @@ func (a *API) emit(from extension.ScopeInfo, topic string, value any) {
 	}
 	a.mu.Unlock()
 	for _, fn := range fns {
-		fn(extension.Event{Topic: topic, Publisher: extension.CorePublisher, Scope: from, Data: data})
+		fn(extension.Event{Topic: topic, Publisher: publisher, Scope: from, Data: data})
 	}
 }
 

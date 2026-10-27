@@ -56,7 +56,7 @@ func TestTheFakeRefusesWhatTheHostRefuses(t *testing.T) {
 		{"a setting that is not registered", func() error { _, e := a.Settings().Get("fk.missing"); return e }(), "settings.Get.FakeSettingUnknown"},
 		{"a setting of another id", a.Settings().Register(extension.SettingSpec{Key: "other.x"}), "settings.Register.FakeSettingKeyForeign"},
 		{"a status item twice", func() error { _, e := a.StatusBar().Add(extension.StatusItem{ID: "s"}); return e }(), "statusBar.Add.FakeStatusItemTaken"},
-		{"a request", a.Events().Request(context.Background(), "t", nil, nil), "events.Request.FakeRequestUnsupported"},
+		{"a request with a topic that is not valid", a.Events().Request(context.Background(), "t..x", nil, nil), "events.Request->CheckTopic.EventTopicInvalid"},
 		{"a view that is not declared", func() error {
 			_, e := a.Views().Provide("fk.other", extension.ViewContent{Build: func(widgets.BuildContext) widgets.Widget { return nil }})
 			return e

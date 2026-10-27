@@ -468,5 +468,5 @@ func MatchTopic(pattern, topic string) bool {
 // them).
 var reservedIDs = map[string]bool{
 	"emetos": true, "emetos.document": true, "emetos.editor": true, "emetos.workspace": true,
-	"emetos.sharing": true, "emetos.files": true,
+	"emetos.sharing": true, "emetos.files": true, "emetos.commands": true,
 }

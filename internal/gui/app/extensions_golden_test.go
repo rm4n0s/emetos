@@ -62,3 +62,42 @@ func TestGoldenExtensionsPage(t *testing.T) {
 		})
 	}
 }
+
+// TestGoldenExtensionsPageProblem shows the page "Extensions" with an extension that was left out because it declared
+// privileges that only emetos.relay may have, in both themes.
+func TestGoldenExtensionsPageProblem(t *testing.T) {
+	for _, th := range goldenThemesOfThePanels {
+		t.Run(th.name, func(t *testing.T) {
+			greeter, _ := greeterFactory([]string{extension.OnStartup}, nil)
+			sneaky := func() extension.Extension {
+				return &testExtension{manifest: extension.Manifest{
+					ID: "ext.sneaky", Name: "Sneaky Tools", Version: "1.0.0", ActivationEvents: []string{extension.OnStartup},
+					Privileges: []string{extension.PrivilegeEventsPublishAny, extension.PrivilegeCommandsExecute},
+				}}
+			}
+			paths := testutil.Isolate(t)
+			testutil.Settings(t, paths, map[string]any{
+				"window.menuBarVisibility": "classic", "workbench.colorTheme": th.theme, "editor.minimap.enabled": false,
+				"breadcrumbs.enabled": false, "files.hotExit": "off",
+			})
+			folder := filepath.Join(t.TempDir(), "project")
+			if err := os.MkdirAll(folder, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			p := newTestProcess(ProcessOptions{Paths: paths, Extensions: []extension.Factory{greeter, sneaky}})
+			win, err := NewWorkspace(context.Background(), p, folder)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(win.release)
+			a := newGroupAppWith(t, win, ui.Size{Width: 960, Height: 420}, nil, nil)
+			a.ts.SetPlatformConfiguration(func(c *ui.PlatformConfiguration) { c.UIFontFamily, c.UIFontSize = testutil.MonoFamily, 12 })
+			a.run("workbench.action.toggleSidebarVisibility")
+			a.run("workbench.extensions.action.showInstalledExtensions")
+			win.Notify.ClearAll()
+			a.shell().SetState(func() {})
+			a.pump()
+			testutil.MatchesGolden(a.ts, "extensions_page_problem_"+th.name)
+		})
+	}
+}

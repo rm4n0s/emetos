@@ -30,6 +30,9 @@ func TestCheckManifest(t *testing.T) {
 		{"onStartup with an argument", Manifest{ID: "a", Name: "N", ActivationEvents: []string{"onStartup:x"}}, "CheckManifest.ExtensionEventInvalid"},
 		{"the id of Emetos", Manifest{ID: "emetos", Name: "N"}, "CheckManifest.ExtensionIDReserved"},
 		{"an id under which Emetos publishes", Manifest{ID: "emetos.document", Name: "N"}, "CheckManifest.ExtensionIDReserved"},
+		{"an id under which Emetos answers requests", Manifest{ID: "emetos.commands", Name: "N"}, "CheckManifest.ExtensionIDReserved"},
+		{"both privileges", Manifest{ID: "a", Name: "N", Privileges: []string{PrivilegeEventsPublishAny, PrivilegeCommandsExecute}}, ""},
+		{"a privilege that does not exist", Manifest{ID: "a", Name: "N", Privileges: []string{"files.deleteAll"}}, "CheckManifest->checkPrivileges.ExtensionPrivilegeUnknown"},
 		{"declared topics", Manifest{ID: "a", Name: "N", Events: EventDecl{
 			Publishes: []EventSpec{{Topic: "a.x", Fast: true}, {Topic: "shared.y"}}, Handles: []string{"shared.req"}, Subscribes: []string{"emetos.document.*", "**"},
 		}}, ""},
