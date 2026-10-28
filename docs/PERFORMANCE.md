@@ -270,6 +270,65 @@ Glutter's step 29.15 makes the flattener skip the layers the raster cache holds,
 
 The renderer's part fell 11 times with the Go file and 16 times with the preview; Emetos's own part is where it was (the same figures within the noise of a sampled profile). What is left in the renderer is the glyphs of the visible rows (`paragraph.paintGlyphs`: 50% of the bytes with the preview, 36% with the Go file), the arguments of the GL calls (`vertexAttribPointer`, 33% of both) and the paints; it still grows with the text on screen, but not with the text of the document. `TestIdleBlinkFrameAllocationStaysInBudget` is unchanged.
 
+## Desktop pass (step 17b.6)
+
+The manager's pass on the user's desktop, 2026-10-28: Radeon 8060S (RADV STRIX_HALO), Vulkan (`GLUTTER_RENDERER=auto`), in the session of the caller for `scripts/perf.sh`, in a nested sway for the display tests (`scripts/realinput.sh --desktop`).
+
+### The GPU numbers of SPEC §14
+
+`scripts/perf.sh --session -n 3 -s 15 --no-go --no-huge` (a release build with `emetos_dev`; the 200 MB open and the Go benchmarks were left out of this run). Targets are SPEC §14's and are unchanged.
+
+| Metric (SPEC §14) | Target | Measured | |
+|---|---|---|---|
+| Typing in a 10,000-line file: build time of the frames (average, worst of 136 frames) | < 4 ms | 2.33 ms, 6.96 ms (renderer 2.31 ms on average, 4.63 ms worst; 0 frames over 16 ms) | met |
+| Scrolling a 100,000-line file: frames | the refresh rate, none over 8 ms | 268 frames; build 1.48 ms on average, **8.24 ms worst**; renderer 2.18 ms on average, 4.75 ms worst; 0 over 16 ms | **missed** (average met, the worst frame is 0.24 ms over) |
+| Opening a 10 MB file: first frame | < 300 ms | **410 ms** from the start of the process (150 ms more than the empty window; 43 ms of it before the window is made); build of the first frame 10.06 ms | **missed** |
+| Cold start, no folder, to the first frame (median of 3), both shader caches warm | < 400 ms | 260 ms (Glutter's counter, same run: 350 ms); Emetos before the window is made: 27 ms; build of its first frame 10.5 ms | met |
+| Cold start, the driver's cache warm and Glutter's empty | < 400 ms | 270 ms (the counter: 330 ms); before the window 19 ms; first build 9.27 ms | met |
+| Cold start, both caches empty (the first start on a machine) | < 400 ms | 560 ms (the counter: 370 ms); before the window 25 ms; first build 8.70 ms | missed, a first start only |
+| Cold start with the workbench and the session restored (four tabs, three files in each; median of 3), both caches warm | < 400 ms | **570 ms**; Emetos before the window is made 54 ms; build of its first frame 38.2 ms; resident memory 410 MB | **missed** |
+| Idle, focused, cursor blinking (15 s) | < 1% of a core | 0.47% with the renderer threads, 0.47% without them (30 frames; the counter: 0.00%) | met |
+| Idle, without the focus (15 s, another window has it) | no frames at all | 0 frames, 0.00% of a core | met |
+| Resident memory, one 10,000-line file | the counter + 50 MB | 184 MB (peak 206 MB; 91 MB anonymous, Go 88 MB of it); Glutter's counter 135 MB (47 MB anonymous, Go 44 MB): +49 MB | met |
+
+The parts of the first draw of the last start (the editor with no folder), in ms:
+
+| Part of the first draw | Both caches empty | The driver's warm | Both warm |
+|---|---|---|---|
+| Renderers tried that failed | 0 | 0 | 0 |
+| GPU context or device | 160.8 | 180.6 | 175.0 |
+| Shaders (4 built, 0 from the cache in each) | 305.0 | 0.3 | 0.1 |
+| The frame itself | 13.6 | 4.4 | 4.0 |
+| First draw, all of it | 479.0 | 185.0 | 179.0 |
+| From the start of Run to the first frame | 542 | 261 | 270 |
+
+Missed, to decide (`docs/MANUAL-CHECKS.md` 3.11 and 10.1): the 10 MB open (410 ms against 300 ms), the restored start (570 ms against 400 ms), the worst frame of the scroll (8.24 ms against 8 ms). The decisions proposed in "Proposed decisions for the targets still missed" above wait for the 200 MB open and the Go benchmarks, which this run left out.
+
+### The big preview with the GPU, and what D13 was
+
+`TestRealInputBigPreviewOpensAndScrolls` (the 700 KB document with 150 images, the preview to the side, 30 notches of the wheel and a jump by the scroll bar) with the GPU and headless, debug and release builds. "Scrolling and jumping" is measured from the window of frame statistics after the open (D13 of `docs/DESKTOP-PASS.md`: before, it also counted the first frame of the editor's window, which is why the test failed 4 of 4 on the desktop).
+
+| Run | Frames | UI thread per frame | Renderer per frame | Over 16 ms | Resident over the file as text |
+|---|---|---|---|---|---|
+| Desktop, Vulkan, debug build (2 runs) | 471 | 0.78 to 0.89 ms on average, 11.1 to 11.6 ms worst | 2.4 to 2.6 ms, 5.4 to 6.3 ms worst | 0 | +42 to +43 MB |
+| Desktop, Vulkan, release build (2 runs) | 471 | 0.53 to 0.55 ms, 4.4 to 5.2 ms worst | 2.8 ms, 5.7 to 6.0 ms worst | 0 | +48 MB |
+| Headless, llvmpipe, debug build (3 runs) | 473 to 475 | 0.69 to 0.76 ms, 8.9 to 12.0 ms worst | 9.2 to 9.4 ms, 20.8 to 24.9 ms worst | 28 to 42 | +112 to +124 MB |
+| Headless, llvmpipe, release build (2 runs) | 472 to 475 | 0.48 to 0.49 ms, 3.4 to 3.8 ms worst | 8.6 to 9.0 ms, 20.9 to 21.7 ms worst | 18 to 29 | +112 to +131 MB |
+
+The worst frame of the scroll was 40 to 69 ms (after 17b.2) and 45 ms (after Glutter 1.9.2) in the notes above. That was the frame that opens the preview (it fell in the same one-second window as the scroll), not the jump: the jump's worst frame is 9 to 12 ms in the debug build and 3.4 to 5.2 ms in the release build.
+
+The three costs of the start and the open, which the test used to mix:
+
+| Cost | Debug build (what the display tests run) | Release build | Whose |
+|---|---|---|---|
+| UI thread, first frame of the editor's window (the workbench with the 700 KB file open as text) | 100 to 114 ms (GPU and headless alike) | 10 to 20 ms (one run 48 ms) | Glutter's debug checks (`docs/GLUTTER-ISSUES.md`: `AssertCurrent` is 63 of about 150 ms in a profile); not the preview |
+| UI thread, the frame that builds the first blocks of the preview | 42 to 47 ms (also on the second and third open in one process: 47 and 49 ms, so no first use) | 8 to 9 ms (under 16 ms: not a slow frame on the GPU) | the same; Emetos's Markdown code in the profile is 4 ms |
+| Renderer, the first frame of the editor's window | llvmpipe: 4.0 to 5.2 s with no Mesa cache (the second frame, the first with text, 0.65 to 0.8 s more); GPU: 865 to 900 ms | llvmpipe, Mesa cache warm: 0.29 s; GPU, either cache warm: 570 to 620 ms, both warm: 546 to 598 ms | the driver's first compile; Glutter's device creation |
+
+The renderer's first frame, with `GLUTTER_FRAME_STATS=1` (the `startup` lines of the log), on the GPU: GPU context or device 571 ms (590 ms warm), shaders 287 ms with no cache and 0.1 ms with the pipeline cache Glutter keeps (6 pipelines; `pipeline_cache_bytes=156340`), the frame itself 7 to 14 ms. A warm cache makes only the shaders go away: on a second start the first draw is about 600 ms in the nested sway, of which the device is all but 10 ms; in the user's own session the device took 160 to 180 ms (the table above). The caches are either one: Mesa's (`MESA_SHADER_CACHE_DIR`, `$XDG_CACHE_HOME/mesa_shader_cache` by default) or Glutter's (`$XDG_CACHE_HOME/glutter`) was enough on the GPU. With llvmpipe only Mesa's counts (4.06 s with Glutter's warm and Mesa's empty, 0.29 s the other way round; one run each, both warm gave 1.8 s in a run on a loaded machine). The preview makes no pipeline and no shader of its own: its open and its images cost no frame over 16 ms of the renderer on the GPU, and the three opens of one process cost the same. Glutter's part of the cold start is the device creation (it is not cached and is the same on a second start); the shaders are the driver's compile, which Glutter's pipeline cache already avoids, so there is no `GLUTTER-ISSUES.md` entry for the renderer.
+
+`display.Start` gives every run a fresh `XDG_CACHE_HOME`, so every display test is a first start for the driver: the start of the window costs 4 to 5 s on llvmpipe in each test, and the numbers of "first frame" in `TestRealInputBigPreviewStartDoesNotWaitForThePreview` (4.0 s since `Run` in the notes above) are that. They are not the preview's.
+
 ## Pending
 
-`scripts/perf.sh --session` with the GPU for every row of the table of step 10.1, in `docs/MANUAL-CHECKS.md` (3.11 and 10.1). The decisions proposed above for the targets still missed wait for its numbers and for yours.
+`scripts/perf.sh --session` with the GPU was run for the table of step 10.1 on 2026-10-28 by the manager (see "Desktop pass (step 17b.6)"), except the 200 MB open and the Go benchmarks. What is left is in `docs/MANUAL-CHECKS.md` (3.11 and 10.1): those two, and the decision on the targets still missed.

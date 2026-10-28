@@ -108,3 +108,40 @@ func ParseFirstFrame(log string) (FirstFrame, bool) {
 	}
 	return FirstFrame{}, false
 }
+
+// A SlowFrame is one "slow frame" line of Glutter's log (GLUTTER_FRAME_STATS=1): a frame whose build and raster took over 16 ms
+// together.
+type SlowFrame struct {
+	// Time is when the frame ended (the time of the log line), on the clock of the test's machine.
+	Time time.Time
+	// Build is the time of the UI thread (build, layout and paint), Raster the time of the renderer.
+	Build, Raster time.Duration
+}
+
+// ParseSlowFrames reads the "slow frame" lines of the log of an editor that ran with GLUTTER_FRAME_STATS=1. A line with no
+// readable time (the console format) has the zero Time.
+func ParseSlowFrames(log string) []SlowFrame {
+	var out []SlowFrame
+	for _, line := range strings.Split(log, "\n") {
+		if !strings.Contains(line, "slow frame") {
+			continue
+		}
+		var f SlowFrame
+		for _, field := range strings.Fields(line) {
+			key, value, ok := strings.Cut(field, "=")
+			if !ok {
+				continue
+			}
+			switch key {
+			case "time":
+				f.Time, _ = time.Parse(time.RFC3339Nano, value)
+			case "build":
+				f.Build, _ = time.ParseDuration(value)
+			case "raster":
+				f.Raster, _ = time.ParseDuration(value)
+			}
+		}
+		out = append(out, f)
+	}
+	return out
+}

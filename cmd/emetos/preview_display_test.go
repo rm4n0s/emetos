@@ -23,6 +23,10 @@ const (
 	previewOpenBudget = 300 * time.Millisecond
 	// previewMemoryBudget is "resident memory at most 200 MB more than with the file open as text".
 	previewMemoryBudget = 200 << 20
+	// previewFirstFrameBudget is the most the UI thread spends on one frame of the open of the preview, in the debug build the
+	// display tests run (Glutter's checks make a frame about five times as slow as in the release build: 47 to 55 ms against
+	// 9 ms for the frame that builds the first blocks; SPEC §14's 16 ms is the release build's, see docs/PERFORMANCE.md).
+	previewFirstFrameBudget = 100 * time.Millisecond
 	// builtBudget is the most blocks a window of the preview builds (the viewport and the margin around it, with the headings,
 	// paragraphs and images of the fixture, are about 20).
 	builtBudget = 60
@@ -69,6 +73,7 @@ func openBigPreview(t *testing.T, a *display.App) time.Duration {
 
 func TestRealInputBigPreviewOpensAndScrolls(t *testing.T) {
 	a, asText := startBigPreview(t)
+	commanded := time.Now()
 	opened := openBigPreview(t, a)
 	t.Logf("the first blocks of the preview were built %v after the command", opened)
 	if opened > previewOpenBudget+100*time.Millisecond {
@@ -80,9 +85,28 @@ func TestRealInputBigPreviewOpensAndScrolls(t *testing.T) {
 	}
 	t.Logf("the preview: %+v", p)
 
+	// Glutter logs a window of frame statistics once a second, and the first window begins with the first frame of the editor: the
+	// window that is logged next holds the start of the window (the first draw, which makes the pipelines and the shaders: 4 to 5 s
+	// of the renderer on llvmpipe with no shader cache, 0.9 s with the GPU) and the open of the preview. The scrolling is measured
+	// from the window after it (D13 of docs/DESKTOP-PASS.md), and the open by the frames that were logged between the command
+	// and here.
+	before := a.WaitFrameWindow()
+	if first, ok := a.FirstFrame(); ok {
+		t.Logf("the first frame of the editor came %v after the start of Run", first.SinceRun)
+	}
+	var openBuild time.Duration
+	for _, f := range a.SlowFrames() {
+		if !f.Time.Before(commanded) {
+			openBuild = max(openBuild, f.Build)
+		}
+	}
+	t.Logf("the UI thread took at most %v for a frame of the open of the preview (frames over 16 ms only)", openBuild)
+	if openBuild > previewFirstFrameBudget {
+		t.Errorf("a frame of the open of the preview took %v of the UI thread, want at most %v", openBuild, previewFirstFrameBudget)
+	}
+
 	// scroll with the wheel over the preview
 	x, y := p.X+p.Width/2, p.Y+p.Height/2
-	before := len(a.FrameWindows())
 	top0 := p.ScrollTop
 	for range 30 {
 		a.Scroll(x, y, 0, 3)

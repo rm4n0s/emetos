@@ -18,6 +18,8 @@ Say what you saw, and which input method and compositor you used.
 
 ## 3.11 and 10.1 Performance with the GPU
 
+**Measured on 2026-10-28 by the manager, in the user's session** (Radeon 8060S, Vulkan): `scripts/perf.sh --session -n 3 -s 15 --no-go --no-huge`; its two tables are in `docs/PERFORMANCE.md`, "Desktop pass (step 17b.6)". Met: idle focused 0.47% of a core, unfocused 0 frames, typing 2.3 ms, the cold starts with the empty window, memory (+49 MB). Missed: the 10 MB open 410 ms against 300 ms, the restored start 570 ms against 400 ms, the worst frame of the scroll 8.24 ms against 8 ms. **What is left for you:** (1) the 200 MB open (< 3 s) and the Go benchmarks, which that run left out (`scripts/perf.sh --session` as below, without `--no-huge` and `--no-go`; about 2 GB of memory); (2) the decision on the three targets still missed: keep them and fix the code, or change SPEC §14 (the proposals are in `docs/PERFORMANCE.md`, "Proposed decisions for the targets still missed"). The targets were not changed.
+
 The targets of SPEC §14 are decided by the numbers in your desktop session, with its GPU; the headless ones are in `docs/PERFORMANCE.md`. Close other heavy programs, then run it from a terminal in your desktop session (it builds the editor, makes its test files in a temporary folder, opens and closes a few dozen editor windows one after the other and one counter window to take the focus away, and runs a few Go benchmarks; it reads nothing of your configuration, and takes about 10 minutes; it needs about 2 GB of memory for the 200 MB file):
 
 ```

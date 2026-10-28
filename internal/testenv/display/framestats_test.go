@@ -40,3 +40,36 @@ time=2026-10-27T10:00:01.000Z level=INFO msg=frames fps=10
 		t.Error("a log with no first frame has one")
 	}
 }
+
+func TestParseSlowFrames(t *testing.T) {
+	log := `time=2026-10-28T05:15:04.746+02:00 level=INFO msg="slow frame" build=103.82ms raster=4.32915s
+time=2026-10-28T05:15:05.515+02:00 level=INFO msg=frames fps=10 build_avg=2ms
+2026/10/28 05:15:06 INFO slow frame build=9.07ms raster=699.89ms
+time=2026-10-28T05:15:07.706+02:00 level=INFO msg="slow frame" build=20µs raster=19.03ms
+`
+	at := time.Date(2026, 10, 28, 5, 15, 4, 746_000_000, time.FixedZone("", 2*3600))
+	tests := []struct {
+		name  string
+		index int
+		want  SlowFrame
+	}{
+		{"the first frame of the window", 0, SlowFrame{Time: at, Build: 103820 * time.Microsecond, Raster: 4329150 * time.Microsecond}},
+		{"the console format has no time", 1, SlowFrame{Build: 9070 * time.Microsecond, Raster: 699890 * time.Microsecond}},
+		{"microseconds", 2, SlowFrame{Time: at.Add(2960 * time.Millisecond), Build: 20 * time.Microsecond, Raster: 19030 * time.Microsecond}},
+	}
+	got := ParseSlowFrames(log)
+	if len(got) != len(tests) {
+		t.Fatalf("%d slow frames, want %d: %+v", len(got), len(tests), got)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := got[tt.index]
+			if !g.Time.Equal(tt.want.Time) || g.Build != tt.want.Build || g.Raster != tt.want.Raster {
+				t.Errorf("slow frame %d: %+v, want %+v", tt.index, g, tt.want)
+			}
+		})
+	}
+	if len(ParseSlowFrames("nothing\n")) != 0 {
+		t.Error("a log with no slow frame has one")
+	}
+}

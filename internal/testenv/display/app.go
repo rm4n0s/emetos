@@ -396,6 +396,25 @@ func (a *App) FirstFrame() (FirstFrame, bool) { return ParseFirstFrame(a.MainLog
 // FrameWindows are the "frames" lines the editor logged so far, when it runs with GLUTTER_FRAME_STATS=1.
 func (a *App) FrameWindows() []FrameWindow { return ParseFrameStats(a.MainLog()) }
 
+// SlowFrames are the frames over 16 ms the editor logged so far, when it runs with GLUTTER_FRAME_STATS=1.
+func (a *App) SlowFrames() []SlowFrame { return ParseSlowFrames(a.MainLog()) }
+
+// WaitFrameWindow waits until the editor logs one more window of frame statistics, and returns the number of windows logged then.
+// Glutter logs a window when a frame comes at least a second after the window began, and the first window begins with the first
+// frame of the editor, so the window that is logged next holds every frame up to now: what a test wants to leave out of a
+// measurement (the start of the window, the open of a view) is in the windows before the number it returns. The editor must keep
+// drawing for a window to end (a blinking cursor does).
+func (a *App) WaitFrameWindow() int {
+	a.t.Helper()
+	n := len(a.FrameWindows())
+	got := n
+	a.EventuallyFor(20*time.Second, "the next window of frame statistics", func() (bool, string) {
+		got = len(a.FrameWindows())
+		return got > n, "no new window after the " + itoa(n) + " logged"
+	})
+	return got
+}
+
 // Log is what the editor wrote to its output and error so far.
 func (a *App) Log() string {
 	data, err := os.ReadFile(a.logPath)
