@@ -3291,3 +3291,56 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Proof:** none
 - **Manual checks:** none
 - **Glutter issues:** none left; `docs/GLUTTER-ISSUES.md` is deleted.
+
+## Step 17b.6: The findings of the desktop pass
+
+- **Date:** 2026-10-28
+- **Branch:** feat/step-17b.6-desktop-findings (rebased onto the Glutter 1.9.2 fix)
+- **Summary:** the findings that 17b.5 planned (D4, D5, D6, D10, D11) and the two flaky tests (D12) are fixed, each with a regression test that failed before its fix. Every finding of `docs/DESKTOP-PASS.md` is now fixed or not a bug. The manager's pass on the user's desktop is below.
+- **Fixed:**
+  - **D5, keys typed fast.** The cause was a key that arrived before its input was built and was handled by the old widgets.
+    - `kit.TypeAhead` put the keys it took into the input but never told the input's owner, so the find widget did not search.
+    - A handler of the hardware keyboard cannot keep the focus tree from seeing a key. So the letter after F2 also started the tree's find, and Enter made a new line.
+    - After Ctrl+, no node had the focus for a few frames.
+    - The fix: `TypeAhead` takes the key with a hardware handler and claims it from the focus tree with an early handler. It tells the owner through `onChange`, and keeps Enter, the arrows, Home, End and Delete, in order, until the input has the focus. `StartTypeAheadLater` waits for an input that is not built yet (the settings and keybindings editors' search).
+  - **D4, the panel's tabs** (`workbench/paneloverflow.go`). The tabs get their room first. The view's actions get what is left and hide under 130 px. Tabs that do not fit go into a `...` menu, and the active tab always shows. A tab is never cut.
+  - **D6:** a right click hides the editor's hover (`secondaryDown` calls `HideHover`).
+  - **D10:** the empty Notes view shows "No notes yet." over a "New Note" button.
+  - **D11:** a window tab is 1 px wider than its measured label (`tabLabelSlack`), so a label is never cut when there is room. `dev.texts` reports `cut` paragraphs.
+  - **D12, two flaky tests, both wrong in the test:**
+    - `TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver` read pictures queued before `Close`. It also showed a real window: `headlessView.Close` now waits up to 250 ms for a call of the frame function that is running.
+    - `TestTheCoreTopicsDriveARealWorkspace` read the tab strip before the frames that build it.
+    - Each now passes 200 runs in a row.
+- **Harness:** `realinput.NoKeyDelay`, `TypeBatch`, `PressBatch`, `Hold` and `TextCombos`. `display.App` gets `SetKeyRepeat` (sway's repeat rate) and `ResizeWindow`. The 25 ms delays of the older desktop tests are gone; they type at 10 ms.
+- **Main files:**
+  - `internal/gui/kit/{typeahead,tabs}.go`, `internal/gui/editor/{findstate,rename_widget,pointer}.go`, `internal/gui/views/explorer/edit.go`;
+  - `internal/gui/{settingsui,keybindingsui}/editor.go`, `internal/gui/app/{settingspane,keybindingspane,devworkbench,headless}.go`;
+  - `internal/gui/workbench/{paneloverflow,workbench}.go`, `extensions/notes/notes.go`, `extension/headless.go`;
+  - `internal/testenv/{display/app.go,realinput/*}`;
+  - `docs/DESKTOP-PASS.md`, `docs/SPEC.md` (§15.1 "Real input as built (step 17b.6)"), `docs/GLUTTER-ISSUES.md`.
+- **Tests:**
+  - `TestDesktopFastKeys{Find,Rename,NewFile,QuickOpen,CommandPalette,SettingsSearch,KeybindingsSearch,Notes}` each run at 10 ms, with no delay, and in one batch. Before the fix:
+    - Find: "timed out waiting for the cursor on the end of the first match";
+    - Rename: the input was left with "f";
+    - Settings search: `last state: ""`.
+  - `TestDesktopFastKeysHeld` holds a key at 25 and 50 repeats a second, in the editor and in the find box.
+  - `TestFastKeysAfterCtrlFSearch`, `TestKeysTypedRightAfterTheKeyThatOpensTheInputGoToIt` and three `TypeAhead` tests fail when the claim is removed.
+  - `TestDesktopPanelTabsAreWholeAndOverflow` checks the tabs at 1280, 1024 and 760 px. `TestPanelTabsAreWholeAndOverflowIntoAMenu` and `TestPanelOverflowMenuListsTheHiddenTabs` also cover D4.
+  - `TestDesktopHoverHidesWhenTheContextMenuOpens`, `TestDesktopEmptyNotesViewHasAWelcomeButton`, `TestDesktopWindowTabLabelIsNotCutWhenThereIsRoom`.
+  - `TestCloseWaitsForTheCallOfOnFrameThatIsRunning` and `TestAFunctionOfOnFrameMayCloseTheView`.
+- **Goldens:** 66 changed in `internal/gui/app` and `internal/gui/workbench`. The window tab is 1 px wider, and only the title bar's tab strip moves. The agent looked at every one, old beside new.
+- **Checks:** gofmt ✅ · go vet ✅ (also `emetos_display` and `emetos_gopls`) · golangci-lint ✅ (also `--build-tags emetos_display`) · error-tags --untested ✅ · go test -race ✅ (my run on the final code, 100 packages, exit 0) · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ (my run, 100 packages, exit 0) · `scripts/realinput.sh` ✅ (my headless run after the rebase onto Glutter 1.9.2: 101 tests and subtests, exit 0; the D13 agent's run after its change: exit 0).
+- **Proof:** the 83 screenshots of the agent's last run, viewed by the agent; I viewed the panel tabs at 1024 px and with the menu, and the Notes welcome.
+- **The manager's desktop pass** (`scripts/realinput.sh --desktop` in a nested sway on the user's desktop, Radeon 8060S, Vulkan, `EMETOS_REALINPUT_RACE=0`). I viewed all 83 screenshots and found nothing new in them. Every test passed except `TestRealInputBigPreviewOpensAndScrolls` (4 of 4 runs), which is finding **D13**:
+  - the test counted the editor window's first draw as scrolling, because frame statistics are logged once a second and the first window had not been flushed;
+  - that first draw is 0.9 s on the GPU and 4 to 5 s on llvmpipe with an empty Mesa shader cache. Every display test starts with one, because `XDG_CACHE_HOME` is fresh. With a warm cache it is 0.29 s;
+  - the 100 to 120 ms of UI thread is the debug build's `AssertCurrent` (`runtime.Stack`); the release build takes 10 to 20 ms;
+  - the fix: the scrolling is measured from the next stats window (`App.WaitFrameWindow`), and the open's frames have their own budget (`previewFirstFrameBudget`, `App.SlowFrames`);
+  - afterwards it passed 2 of 2 on the desktop: 43 to 45 ms for the open's slowest frame (debug build), 0 frames over 16 ms while scrolling, 2.0 to 2.2 ms of renderer per frame.
+  - **GPU numbers** (`scripts/perf.sh --session --no-go --no-huge`, `docs/PERFORMANCE.md` "Desktop pass (step 17b.6)"):
+    - met: idle with the focus 0.47% of a core, without it 0 frames; typing 2.3 ms a frame; the start with no folder 260 ms;
+    - missed: the 10 MB open 410 ms (target 300), the restored start 570 ms (target 400), the worst scrolling build 8.24 ms (target 8).
+    - `docs/MANUAL-CHECKS.md` 3.11/10.1 now leaves only the 200 MB open, the Go benchmarks and the decision on the missed targets to the user.
+- **Manual checks:** none
+- **Glutter issues:** two new entries. The first: still present in 1.9.2 (its keyboard and focus code is unchanged from 1.9.1). A handler of the hardware keyboard cannot keep the focus tree from seeing a key, and early key handlers do not run while no node has the focus. The workaround is in `kit/typeahead.go`.
+  The second (D13): in a debug build, `UIThread.AssertCurrent` calls `runtime.Stack` on every mark-dirty call; there is no workaround in Emetos.
