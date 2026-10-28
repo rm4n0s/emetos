@@ -24,9 +24,9 @@ const (
 	// previewMemoryBudget is "resident memory at most 200 MB more than with the file open as text".
 	previewMemoryBudget = 200 << 20
 	// previewFirstFrameBudget is the most the UI thread spends on one frame of the open of the preview, in the debug build the
-	// display tests run (Glutter's checks make a frame about five times as slow as in the release build: 47 to 55 ms against
-	// 9 ms for the frame that builds the first blocks; SPEC §14's 16 ms is the release build's, see docs/PERFORMANCE.md).
-	previewFirstFrameBudget = 100 * time.Millisecond
+	// display tests run: 8.3 to 9.1 ms with Glutter 1.9.4 (47 to 55 ms before 1.9.3, when Glutter's checks of the UI thread
+	// read the goroutine number from runtime.Stack; the release build takes 9 ms; docs/PERFORMANCE.md "After Glutter 1.9.3").
+	previewFirstFrameBudget = 20 * time.Millisecond
 	// builtBudget is the most blocks a window of the preview builds (the viewport and the margin around it, with the headings,
 	// paragraphs and images of the fixture, are about 20).
 	builtBudget = 60

@@ -27,8 +27,13 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
-// rigFrameRate is the most frames a second the views of the tests make: a test waits for the picture, so it is high.
-const rigFrameRate = 1000
+// rigFrameRate is the most frames a second the views of the tests make: a test waits for the picture, so it is high. It must be so
+// high that the pacing never holds a frame back: the view paces its frames with the real clock (offscreen.View has no way to give
+// it another), while a test drives the window with Pump on a fake clock, so a few Pumps take microseconds of real time. With 1000
+// (a gap of 1 ms) the view's frame was often still waiting for its timer when the test sent the next key, and the key met the
+// layout of the text before the last edit (End after a paste went to the end of the old text). It showed when Glutter 1.9.3 made
+// UIThread.IsCurrent fast (and stays with 1.9.4): 1.9.2 spent enough real time in it for the timer to fire before the next key.
+const rigFrameRate = 1_000_000
 
 // viewRig is a keyApp with a headless view of its workspace.
 type viewRig struct {
