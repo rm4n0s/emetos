@@ -95,9 +95,7 @@ func TestTheExtensionIsActiveFromTheStartAndHandlesTheRequests(t *testing.T) {
 }
 
 // TestTheEventsOfATerminalFromItsStartToItsEnd runs the test shell with --tty-echo: it leaves the terminal's ECHO on, so what
-// is typed is not hidden (decision 185) at any moment. Without the argument the shell turns ECHO off as soon as it has started
-// (raw mode, as a shell with a line editor does), and the first input event was Hidden or not by whether the test typed before
-// or after that: a race that the load decided. TestInputToAShellThatTurnedEchoOffIsHidden holds the other half.
+// is typed is not hidden (decision 185) at any moment. TestInputIsHiddenOnlyAtAPasswordPrompt holds the other modes.
 func TestTheEventsOfATerminalFromItsStartToItsEnd(t *testing.T) {
 	r := newExtRig(t, "", "--tty-echo")
 	r.ext.outputInterval = 5 * time.Millisecond
@@ -190,25 +188,89 @@ func TestTheEventsOfATerminalFromItsStartToItsEnd(t *testing.T) {
 	}
 }
 
-// TestInputToAShellThatTurnedEchoOffIsHidden holds that the input events of a terminal whose program turned ECHO off carry no
-// text: the test waits for the "ready" of the test shell, which it says after it did that, so it does not depend on timing.
-func TestInputToAShellThatTurnedEchoOffIsHidden(t *testing.T) {
-	r := newExtRig(t, "")
+// TestInputIsHiddenOnlyAtAPasswordPrompt holds decision 185 with real pseudo-terminals: the test shell waits for the "ready" it
+// says after it set the mode of its terminal, so the test does not depend on timing. A line editor (raw mode, ECHO off or on)
+// has its input published; a password prompt (ECHO off, ICANON on) has it hidden, for the user and for a client of Relay.
+func TestInputIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
+	tests := []struct {
+		name       string
+		arg        string
+		by         string
+		wantHidden bool
+	}{
+		{"raw mode with ECHO off, the default of the test shell (a line editor)", "", ByUser, false},
+		{"raw mode with ECHO on", "--tty-echo", ByUser, false},
+		{"canonical with ECHO off (a password prompt) typed by the user", "--password", ByUser, true},
+		{"canonical with ECHO off (a password prompt) typed by a client", "--password", "relay:alice", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var args []string
+			if tt.arg != "" {
+				args = append(args, tt.arg)
+			}
+			r := newExtRig(t, "", args...)
+			log := r.listen()
+			r.run(CmdNew, nil)
+			e := r.ext.activeEntry()
+			waitText(t, e.term, "ready")
+			var err error
+			if tt.by == ByUser {
+				e.term.Type([]byte("hunter2\r"), ByUser)
+			} else {
+				err = r.ask(extension.RelayID, TopicWrite, map[string]any{"id": e.term.ID(), "data": "hunter2\r", "by": tt.by}, nil)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs := log.topic(TopicInput)
+			if len(inputs) != 1 {
+				t.Fatalf("input events: %d", len(inputs))
+			}
+			var in inputEvent
+			if err := json.Unmarshal(inputs[0].Data, &in); err != nil {
+				t.Fatal(err)
+			}
+			wantData := "hunter2\r"
+			if tt.wantHidden {
+				wantData = ""
+			}
+			if in.Hidden != tt.wantHidden || in.Data != wantData || in.By != tt.by {
+				t.Errorf("input = %+v, want hidden %v, data %q, by %q", in, tt.wantHidden, wantData, tt.by)
+			}
+			if tt.wantHidden {
+				// nothing a client or a log can read has the secret: not the input event, not the output (the prompt did not echo)
+				waitText(t, e.term, "password received (7 bytes)")
+				r.eventually("the output", func() bool { return len(log.topic(TopicOutput)) > 0 })
+				log.mu.Lock()
+				defer log.mu.Unlock()
+				for _, ev := range log.events {
+					if strings.Contains(string(ev.Data), "hunter2") {
+						t.Errorf("the secret is in %s: %s", ev.Topic, ev.Data)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestInputToARealBashAtItsPromptIsPublished holds that readline, which turns ECHO and ICANON off, does not make ordinary typing
+// secret: what is typed at the prompt of bash reaches the events.
+func TestInputToARealBashAtItsPromptIsPublished(t *testing.T) {
+	r := bashExt(t)
 	log := r.listen()
-	r.run(CmdNew, nil)
-	e := r.ext.activeEntry()
-	waitText(t, e.term, "ready")
-	e.term.Type([]byte("echo secret\r"), ByUser)
+	e := r.openBash()
+	e.term.Type([]byte("echo hi\r"), "relay:alice")
 	inputs := log.topic(TopicInput)
 	if len(inputs) != 1 {
 		t.Fatalf("input events: %d", len(inputs))
 	}
 	var in inputEvent
-	if err := inputs[0].Decode(&in); err != nil {
+	if err := json.Unmarshal(inputs[0].Data, &in); err != nil {
 		t.Fatal(err)
 	}
-	if !in.Hidden || in.Data != "" || in.By != ByUser {
-		t.Errorf("input = %+v, want hidden and without data", in)
+	if in.Hidden || in.Data != "echo hi\r" || in.By != "relay:alice" {
+		t.Errorf("input = %+v, want the text, not hidden", in)
 	}
 }
 

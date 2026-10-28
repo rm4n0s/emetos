@@ -40,8 +40,23 @@ type observer struct {
 // ByUser is the `by` of the input the person at the keyboard typed.
 const ByUser = "user"
 
-// echoer is a process that can tell whether its terminal echoes (*pty.Process).
-type echoer interface{ EchoOn() bool }
+// lineModer is a process that can tell the line mode of its terminal (*pty.Process).
+type lineModer interface {
+	LineMode() (echo, canonical bool, err error)
+}
+
+// secretInput tells whether what is typed now is a secret: the terminal is in canonical mode and does not echo, which is how
+// getpass, sudo, ssh, passwd and read -s read a password (decision 185). A line editor or a full-screen program turns ICANON
+// off and draws what it wants itself, which the output events carry, so its input is published. When the mode cannot be read
+// the input counts as secret.
+func secretInput(p any) bool {
+	m, ok := p.(lineModer)
+	if !ok {
+		return false
+	}
+	echo, canonical, err := m.LineMode()
+	return err != nil || (!echo && canonical)
+}
 
 // feed gives the output of the program to the emulator and, when the terminal has an observer, to the stream of pieces: both
 // under outMu, so that a snapshot taken under it is the screen after exactly the pieces published so far.
@@ -157,10 +172,7 @@ func (t *Terminal) Type(p []byte, by string) {
 	if t.obs == nil || t.obs.input == nil {
 		return
 	}
-	hidden := false
-	if e, ok := t.proc.(echoer); ok {
-		hidden = !e.EchoOn()
-	}
+	hidden := secretInput(t.proc)
 	for len(p) > 0 {
 		n := min(len(p), inputPieceBytes)
 		piece, held := emulator.AppendValidUTF8(nil, p[:n], n == len(p))

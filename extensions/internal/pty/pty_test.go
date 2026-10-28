@@ -262,31 +262,50 @@ func TestForegroundPidIsTheProgramAndThenWhatItRuns(t *testing.T) {
 	route(t, err, "Process.ForegroundPid.PtyForegroundFailed")
 }
 
-func TestEchoOnFollowsTheEchoFlagOfTheTerminal(t *testing.T) {
-	// the terminal echoes by default; stty -echo, as a program that asks for a password does, turns it off
-	p := shell(t, Options{}, `printf ready; stty -echo; printf off; sleep 60`)
-	if !p.EchoOn() {
-		t.Error("EchoOn = false for a terminal with the default settings")
+func TestLineModeReadsEchoAndCanonicalFlagsOfTheTerminal(t *testing.T) {
+	// stty sets the modes the way the programs do: getpass, sudo and read -s turn ECHO off and keep ICANON; a line editor or a
+	// full-screen program turns ICANON off, with ECHO on or off
+	tests := []struct {
+		name          string
+		script        string
+		echo, canonic bool
+	}{
+		{"a terminal with the default settings (cat)", `printf ready; sleep 60`, true, true},
+		{"a password prompt: no echo, canonical", `stty -echo; printf ready; sleep 60`, false, true},
+		{"a line editor: no echo, not canonical", `stty -echo -icanon; printf ready; sleep 60`, false, false},
+		{"raw with echo: echo, not canonical", `stty -icanon; printf ready; sleep 60`, true, false},
 	}
-	buf := make([]byte, 64)
-	var got string
-	deadline := time.Now().Add(10 * time.Second)
-	for !strings.Contains(got, "readyoff") && time.Now().Before(deadline) {
-		n, err := p.Read(buf)
-		got += string(buf[:n])
-		if err != nil {
-			break
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := shell(t, Options{}, tt.script)
+			buf := make([]byte, 64)
+			var got string
+			deadline := time.Now().Add(10 * time.Second)
+			for !strings.Contains(got, "ready") && time.Now().Before(deadline) {
+				n, err := p.Read(buf)
+				got += string(buf[:n])
+				if err != nil {
+					break
+				}
+			}
+			if !strings.Contains(got, "ready") {
+				t.Fatalf("the script printed %q", got)
+			}
+			echo, canonical, err := p.LineMode()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if echo != tt.echo || canonical != tt.canonic {
+				t.Errorf("LineMode = echo %v, canonical %v; want echo %v, canonical %v", echo, canonical, tt.echo, tt.canonic)
+			}
+		})
 	}
-	if !strings.Contains(got, "readyoff") {
-		t.Fatalf("the script printed %q", got)
-	}
-	if p.EchoOn() {
-		t.Error("EchoOn = true after stty -echo")
-	}
+}
+
+func TestLineModeOfAClosedTerminalFails(t *testing.T) {
+	p := shell(t, Options{}, `sleep 60`)
 	p.Close()
 	<-p.Done()
-	if p.EchoOn() {
-		t.Error("EchoOn = true for a terminal that is closed; what is typed there must count as secret")
-	}
+	_, _, err := p.LineMode()
+	route(t, err, "Process.LineMode.PtyLineModeFailed")
 }

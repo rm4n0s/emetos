@@ -1,9 +1,10 @@
 // Command testshell is the shell the tests of the terminal extension run in a pseudo-terminal (SPEC §10.25 "Tests"): a small
 // program that echoes what is typed, runs a few commands that draw with escape sequences, uses the alternate screen, tracks the
 // mouse and reports the size of its terminal. It reads the terminal in raw mode, so every byte a test types arrives as it is.
-// Raw mode turns the terminal's ECHO off and the shell echoes what is typed itself, as a shell with a line editor does; with
-// the argument --tty-echo the shell leaves ECHO on and lets the terminal echo, as a program that reads its input in cooked
-// mode does (a terminal that echoes is one whose input is not hidden, decision 185).
+// Raw mode turns the terminal's ECHO and ICANON off and the shell echoes what is typed itself, as a shell with a line editor
+// does (its input is published, decision 185). With the argument --tty-echo the shell leaves ECHO on and lets the terminal
+// echo. With --password it only turns ECHO off and keeps ICANON, as getpass, sudo and ssh do at a password prompt (its input
+// is hidden, decision 185); the terminal then hands the program a line at a time, and the program only says how long it was.
 package main
 
 import (
@@ -18,8 +19,13 @@ import (
 
 func main() {
 	ttyEcho := len(os.Args) > 1 && os.Args[1] == "--tty-echo"
+	password := len(os.Args) > 1 && os.Args[1] == "--password"
 	fd := int(os.Stdin.Fd())
-	if old, err := unix.IoctlGetTermios(fd, unix.TCGETS); err == nil {
+	if old, err := unix.IoctlGetTermios(fd, unix.TCGETS); err == nil && password {
+		quiet := *old
+		quiet.Lflag &^= unix.ECHO
+		_ = unix.IoctlSetTermios(fd, unix.TCSETS, &quiet)
+	} else if err == nil {
 		raw := *old
 		raw.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
 		raw.Oflag &^= unix.OPOST
@@ -57,6 +63,11 @@ func main() {
 		for _, b := range buf[:n] {
 			switch b {
 			case '\r', '\n':
+				if password {
+					say("password received (%d bytes)\r\n$ ", len(line))
+					line = line[:0]
+					continue
+				}
 				say("\r\n")
 				cmd := strings.TrimSpace(string(line))
 				line = line[:0]
@@ -119,7 +130,7 @@ func main() {
 				return
 			default:
 				line = append(line, b)
-				if !ttyEcho {
+				if !ttyEcho && !password {
 					_, _ = out.Write([]byte{b})
 				}
 			}

@@ -263,20 +263,27 @@ func (p *Process) ForegroundPid() (int, error) {
 	return pgrp, nil
 }
 
-// EchoOn tells whether the terminal echoes what is written to it (the ECHO flag of its settings): a shell at its prompt leaves
-// it on, a program that asks for a password turns it off. A terminal that cannot be asked, because it is closed, is taken to
-// echo nothing, so that the caller treats what is typed as secret.
-func (p *Process) EchoOn() bool {
+// LineMode reads the ECHO and ICANON flags of the terminal's settings with one TCGETS. A shell with a line editor (bash's
+// readline, zsh, fish) and a full-screen program (vim, less, htop) leave ICANON off and echo by themselves, whatever ECHO is. A
+// program that asks for a password (getpass, sudo, ssh, passwd, read -s) turns ECHO off and keeps ICANON on. It fails with the
+// tag PtyLineModeFailed when the terminal cannot be asked, because it is closed.
+func (p *Process) LineMode() (echo, canonical bool, err error) {
 	sc, err := p.master.SyscallConn()
 	if err != nil {
-		return false
+		return false, false, errors.NewErr("PtyLineModeFailed", err).SetMetadata("step", "syscall conn")
 	}
-	on := false
+	var ioErr error
 	if err := sc.Control(func(fd uintptr) {
-		t, ioErr := unix.IoctlGetTermios(int(fd), unix.TCGETS)
-		on = ioErr == nil && t.Lflag&unix.ECHO != 0
+		var t *unix.Termios
+		t, ioErr = unix.IoctlGetTermios(int(fd), unix.TCGETS)
+		if ioErr == nil {
+			echo, canonical = t.Lflag&unix.ECHO != 0, t.Lflag&unix.ICANON != 0
+		}
 	}); err != nil {
-		return false
+		return false, false, errors.NewErr("PtyLineModeFailed", err).SetMetadata("step", "control")
 	}
-	return on
+	if ioErr != nil {
+		return false, false, errors.NewErr("PtyLineModeFailed", ioErr).SetMetadata("step", "ioctl")
+	}
+	return echo, canonical, nil
 }

@@ -10,6 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/rm4n0s/errors"
+
 	"github.com/rm4n0s/emetos/extensions/internal/pty"
 	"github.com/rm4n0s/emetos/extensions/terminal/emulator"
 )
@@ -385,27 +387,60 @@ func TestTypedInputIsPublishedWithWhoTypedItAndNotEchoedSecrets(t *testing.T) {
 	if got := proc.input(); got != "echo hi\ra reply of the emulator\xff caf\xc3" {
 		t.Errorf("the program got %q", got)
 	}
-	// a terminal that does not echo (a password prompt): the text is left out
-	hidden := &echoOff{fakeProcess: newFakeProcess()}
-	hlog := &pieceLog{}
-	hterm, err := newTerminal(t.Context(), terminalOpts{id: 2, profile: profile{name: "fake", path: "fake"}, scrollback: 10, obs: hlog.observer(time.Hour),
-		start: func(context.Context, pty.Options) (process, error) { return hidden, nil }})
-	if err != nil {
-		t.Fatal(err)
+}
+
+// TestWhatIsTypedIsHiddenOnlyAtAPasswordPrompt holds decision 185: the data of an input event is left out when the terminal
+// does not echo and is canonical (how getpass, sudo, ssh and read -s read a password), or when the mode cannot be read. A line
+// editor or a full-screen program turns ICANON off and echoes by itself, so its input is published.
+func TestWhatIsTypedIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
+	tests := []struct {
+		name        string
+		echo, canon bool
+		err         error
+		wantHidden  bool
+	}{
+		{"echo on, canonical (cat)", true, true, nil, false},
+		{"echo off, canonical (a password prompt)", false, true, nil, true},
+		{"echo off, raw (a line editor)", false, false, nil, false},
+		{"echo on, raw", true, false, nil, false},
+		{"the mode cannot be read", true, true, errors.New("TestIoctlFailed", "the terminal was closed"), true},
 	}
-	t.Cleanup(func() { hterm.Kill(); hterm.Wait() })
-	hterm.Type([]byte("s3cret\r"), ByUser)
-	hlog.mu.Lock()
-	defer hlog.mu.Unlock()
-	if len(hlog.inputs) != 1 || hlog.inputs[0].Data != "" || !hlog.inputs[0].Hidden {
-		t.Errorf("the input of a terminal that does not echo = %+v", hlog.inputs)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proc := &lineMode{fakeProcess: newFakeProcess(), echo: tt.echo, canon: tt.canon, err: tt.err}
+			log := &pieceLog{}
+			term, err := newTerminal(t.Context(), terminalOpts{id: 2, profile: profile{name: "fake", path: "fake"}, scrollback: 10, obs: log.observer(time.Hour),
+				start: func(context.Context, pty.Options) (process, error) { return proc, nil }})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { term.Kill(); term.Wait() })
+			term.Type([]byte("s3cret\r"), "relay:alice")
+			log.mu.Lock()
+			defer log.mu.Unlock()
+			if len(log.inputs) != 1 {
+				t.Fatalf("inputs = %+v", log.inputs)
+			}
+			in := log.inputs[0]
+			wantData := "s3cret\r"
+			if tt.wantHidden {
+				wantData = ""
+			}
+			if in.Hidden != tt.wantHidden || in.Data != wantData || in.By != "relay:alice" {
+				t.Errorf("input = %+v, want hidden %v and data %q", in, tt.wantHidden, wantData)
+			}
+		})
 	}
 }
 
-// echoOff is a program whose terminal does not echo.
-type echoOff struct{ *fakeProcess }
+// lineMode is a program whose terminal has the given mode, or cannot be asked.
+type lineMode struct {
+	*fakeProcess
+	echo, canon bool
+	err         error
+}
 
-func (e *echoOff) EchoOn() bool { return false }
+func (l *lineMode) LineMode() (bool, bool, error) { return l.echo, l.canon, l.err }
 
 func TestASnapshotKeepsToTheSizeLimitByLeavingTheOldestLinesOut(t *testing.T) {
 	f := newFakeProcess()
