@@ -55,6 +55,7 @@ func TestTheFakeRefusesWhatTheHostRefuses(t *testing.T) {
 		{"a command that is taken", a.Commands().Register(extension.CommandSpec{ID: "fk.dyn"}, nil), "commands.Register.FakeCommandTaken"},
 		{"a setting that is not registered", func() error { _, e := a.Settings().Get("fk.missing"); return e }(), "settings.Get.FakeSettingUnknown"},
 		{"a setting of another id", a.Settings().Register(extension.SettingSpec{Key: "other.x"}), "settings.Register.FakeSettingKeyForeign"},
+		{"updating a setting that is not the extension's", a.Settings().Update("editor.tabSize", 2), "settings.Update.FakeSettingNotOwned"},
 		{"a status item twice", func() error { _, e := a.StatusBar().Add(extension.StatusItem{ID: "s"}); return e }(), "statusBar.Add.FakeStatusItemTaken"},
 		{"a request with a topic that is not valid", a.Events().Request(context.Background(), "t..x", nil, nil), "events.Request->CheckTopic.EventTopicInvalid"},
 		{"a view that is not declared", func() error {
@@ -116,6 +117,15 @@ func TestTheFakeDoesWhatTheHostDoes(t *testing.T) {
 	a.SetSetting("fk.list", []string{"b", "c"})
 	if v, _ := extension.SettingValue[[]string](a.Settings(), "fk.list"); !slices.Equal(v, []string{"b", "c"}) || changes != 1 {
 		t.Errorf("value = %v, %d changes", v, changes)
+	}
+	if err := a.Settings().Update("fk.list", []string{"d"}); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := extension.SettingValue[[]string](a.Settings(), "fk.list"); !slices.Equal(v, []string{"d"}) || changes != 2 {
+		t.Errorf("value after Update = %v, %d changes", v, changes)
+	}
+	if ups := a.SettingUpdates(); len(ups) != 1 || ups[0].Key != "fk.list" {
+		t.Errorf("updates = %+v", ups)
 	}
 	// events
 	var got []string

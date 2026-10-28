@@ -50,6 +50,7 @@ const (
 	settingTabStopWidth   = "terminal.integrated.tabStopWidth"
 	settingTextBlinking   = "terminal.integrated.textBlinking"
 	settingBellDuration   = "terminal.integrated.bellDuration"
+	settingLinkSchemes    = "terminal.integrated.allowedLinkSchemes"
 )
 
 // weightEnum are the suggestions VS Code gives for a font weight.
@@ -116,6 +117,9 @@ func settingSpecs() []extension.SettingSpec {
 			Description: "Controls how terminal reacts to right click. default: show the context menu; copyPaste: copy when there is a selection, otherwise paste; paste: paste on right click; selectWord: select the word under the cursor and show the context menu; nothing: do nothing and pass event to terminal."},
 		{Key: settingMiddleClick, Type: "string", Default: "default", Enum: []any{"default", "paste"}, Category: cat,
 			Description: "Controls how terminal reacts to middle click. default: the platform default to focus the terminal, on Linux this will also paste the selection; paste: paste on middle click."},
+		{Key: settingLinkSchemes, Type: "array", Category: cat,
+			Default:     []any{"file", "http", "https", "mailto", "vscode", "vscode-insiders"},
+			Description: "An array of strings containing the URI schemes that the terminal is allowed to open links for. By default, only a small subset of possible schemes are allowed for security reasons."},
 		{Key: settingSkipShell, Type: "array", Default: []any{}, Category: cat,
 			Description: "A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by Emetos. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open. Many commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell."},
 		{Key: settingSendKeys, Type: "boolean", Default: false, Category: cat,

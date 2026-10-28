@@ -43,6 +43,11 @@ func TestTheWidgetsAreTheKitsAndUseTheTheme(t *testing.T) {
 		ui.NewButton("Press me", ui.ButtonOpts{OnPressed: func() { pressed++ }}),
 		ui.NewIconButton("play", ui.IconButtonOpts{Tooltip: "Play", OnPressed: func() { pressed += 10 }}),
 		ui.NewBadge(7),
+		ui.NewToggle("regex", ui.ToggleOpts{Tooltip: "Use Regular Expression", OnChanged: func(on bool) {
+			if on {
+				pressed += 100
+			}
+		}}),
 		ui.NewCheckbox("Check"),
 		widgets.NewSizedBox(ui.NewList(list), widgets.SizedBoxOpts{Height: foundation.Some(60.0)}),
 		widgets.NewSizedBox(ui.NewTree(tree), widgets.SizedBoxOpts{Height: foundation.Some(60.0)}),
@@ -59,6 +64,10 @@ func TestTheWidgetsAreTheKitsAndUseTheTheme(t *testing.T) {
 	ts.Tap(gluttertest.ByText("Press me"))
 	if pressed != 1 {
 		t.Errorf("the button was pressed %d times", pressed)
+	}
+	ts.Tap(gluttertest.ByType[*ui.Toggle]())
+	if pressed != 101 {
+		t.Errorf("after the toggle was tapped, pressed = %d", pressed)
 	}
 }
 

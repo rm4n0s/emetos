@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/rm4n0s/glutter/rendering"
@@ -118,6 +119,17 @@ type devState struct {
 	CellW   float64 `json:"cellW"`
 	CellH   float64 `json:"cellH"`
 	PadLeft float64 `json:"padLeft"`
+	// FindVisible tells that the find widget is shown, FindText is what it searches for, Matches how many matches there are and
+	// Current the number of the current one (from 1; 0 for none).
+	FindVisible bool   `json:"findVisible"`
+	FindText    string `json:"findText"`
+	Matches     int    `json:"matches"`
+	Current     int    `json:"current"`
+	// Link is the link under the pointer ("" for none): the address, or the path of a file with :line:col; LinkCells says how
+	// many cells it covers and Tooltip tells that its tooltip is shown.
+	Link      string `json:"link"`
+	LinkCells int    `json:"linkCells"`
+	Tooltip   bool   `json:"tooltip"`
 }
 
 // DevTerminal answers dev.terminals for the app: the state of the terminal this render object draws.
@@ -130,6 +142,26 @@ func (r *renderGrid) DevTerminal() any {
 	if pv.factory != nil {
 		a, _ := pv.atlases()
 		st.CellW, st.CellH = a.m.w, a.m.h
+	}
+	st.FindVisible, st.FindText, st.Matches = pv.find.visible, pv.find.query.text, len(pv.find.matches)
+	if pv.find.cur >= 0 && pv.find.visible {
+		st.Current = pv.find.cur + 1
+	}
+	if l := pv.hover.link; l != nil {
+		st.Link = l.url
+		if l.kind == linkFile {
+			st.Link = l.path
+			if l.row != none {
+				st.Link += ":" + strconv.Itoa(l.row)
+				if l.col != none {
+					st.Link += ":" + strconv.Itoa(l.col)
+				}
+			}
+		}
+		for _, s := range l.segs {
+			st.LinkCells += s.x1 - s.x0
+		}
+		st.Tooltip = pv.hover.tip
 	}
 	if f := pv.shown; f != nil {
 		rows := make([]string, f.Rows)

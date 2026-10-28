@@ -518,6 +518,15 @@ type TerminalState struct {
 	CellW   float64 `json:"cellW"`
 	CellH   float64 `json:"cellH"`
 	PadLeft float64 `json:"padLeft"`
+	// FindVisible, FindText, Matches and Current are the find widget (Current counts from 1, 0 for none); Link, LinkCells and
+	// Tooltip the link under the pointer.
+	FindVisible bool   `json:"findVisible"`
+	FindText    string `json:"findText"`
+	Matches     int    `json:"matches"`
+	Current     int    `json:"current"`
+	Link        string `json:"link"`
+	LinkCells   int    `json:"linkCells"`
+	Tooltip     bool   `json:"tooltip"`
 }
 
 // Terminal is a terminal on screen: its place in window coordinates and its state.
@@ -894,6 +903,14 @@ func (a *App) Click(x, y float64) {
 func (a *App) ClickInput(in app.DevInput) {
 	a.t.Helper()
 	a.Click(in.X+in.Width/2, in.Y+in.Height/2)
+}
+
+// CtrlClick clicks the left button at a position of the window while the Ctrl key is held.
+func (a *App) CtrlClick(x, y float64) {
+	a.t.Helper()
+	a.pointer("ctrl click", func(ctx context.Context) error {
+		return a.Input.ClickHolding(ctx, realinput.Point{X: x, Y: y}, "ctrl")
+	})
 }
 
 // DoubleClick double-clicks at a position of the window.

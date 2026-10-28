@@ -99,7 +99,7 @@ func NewPicture(img image.Image) (*Picture, error) { return kit.NewPicture(img) 
 // keeping its proportions, in the middle of the box. A nil picture draws nothing.
 func NewImage(pic *Picture, opts ...ImageOpts) *Image { return kit.NewImage(pic, opts...) }
 
-// Toggle and its options (the switches in the find input of the editor and of the Search view).
+// Toggle and its options (the switches in the find input of the editor, of the Search view and of the terminal).
 type (
 	// Toggle is VS Code's icon toggle: a Codicon in a box that has a border and a tinted background while it is on.
 	Toggle = kit.Toggle

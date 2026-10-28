@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -661,6 +662,46 @@ func (c *Client) clickAt(ctx context.Context, p Point, b Button, count int) erro
 		return err
 	}
 	return c.click(ctx, b, count)
+}
+
+// ClickHolding moves the pointer to a position of the window and clicks the left button while a modifier key ("ctrl", "alt",
+// "shift") is held, which is released after the click. It fails with RealInputComboInvalid for a name that is not a modifier.
+func (c *Client) ClickHolding(ctx context.Context, p Point, modifier string) error {
+	m, ok := modifierKeys[strings.ToLower(modifier)]
+	if !ok {
+		return errors.New("RealInputComboInvalid", "a click holds a modifier that does not exist", "modifier", modifier)
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err := c.alive(); err != nil {
+		return err
+	}
+	held := combo{mask: m.mask, code: m.code}
+	if err := c.moveTo(p); err != nil {
+		return err
+	}
+	if err := c.roundTrip(ctx, nil); err != nil {
+		return err
+	}
+	// the application takes the enter of the pointer before the press
+	if err := c.pause(ctx, 20*time.Millisecond); err != nil {
+		return err
+	}
+	if err := c.sendEach(c.downRequests(held)); err != nil {
+		return err
+	}
+	if err := c.roundTrip(ctx, nil); err != nil {
+		return err
+	}
+	clicked := c.click(ctx, ButtonLeft, 1)
+	// the key is released also when the click failed, so that it does not stay down
+	if err := c.sendEach(c.upRequests(held)); err != nil {
+		return err
+	}
+	if err := c.roundTrip(context.WithoutCancel(ctx), nil); err != nil {
+		return err
+	}
+	return clicked
 }
 
 // Drag presses the left button at one position, moves to another in steps, and releases it there.

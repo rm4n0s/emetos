@@ -44,6 +44,19 @@ type paneEnv struct {
 	// screen.
 	mounted    func(pv *paneView)
 	altChanged func(pv *paneView)
+	// ctx is the context of the extension: the searches stop with it. A nil one is the background context.
+	ctx context.Context
+	// findChanged tells that the find widget of a pane was shown or hidden, or its input got or lost the focus.
+	findChanged func(pv *paneView)
+	// folder is the folder of the workspace, which file links are confined to ("" for none); home is the home folder.
+	folder func() string
+	home   string
+	// altClick says that a click with the Alt key follows a link (editor.multiCursorModifier is ctrlCmd) and not one with Ctrl.
+	altClick func() bool
+	// openFile opens a file of the workspace at a line and column (none for no position); openLink opens an address or the
+	// target of a hyperlink the program set.
+	openFile func(path string, row, col int)
+	openLink func(target string, fromProgram bool)
 }
 
 // paneView is the view of one terminal in a pane: what the widget draws, the keyboard, the pointer, the selection and the
@@ -94,8 +107,9 @@ type paneView struct {
 	barUntil  time.Duration
 	// preedit is the text an input method composes, shown at the cursor
 	preedit string
-	// marks are ranges to draw over the backgrounds (the find matches of step 17d.3)
-	marks []mark
+	// marks and links are the ranges drawn in this frame over the backgrounds (the find matches) and underlined (the link under
+	// the pointer); the slices are kept to be filled again
+	marks, links []mark
 	// alt is whether the alternate screen was shown when the extension was last told.
 	alt bool
 	// appliedTh is the theme the emulator was given, and themed whether it was given one.
@@ -103,10 +117,21 @@ type paneView struct {
 	themed    bool
 	// paints counts the frames the pane painted, for the tests of "an idle terminal draws nothing".
 	paints uint64
+
+	// find is the find widget of the pane; hover the link under the pointer; linkCache what was found about the files of lines of
+	// text; linkFrame is a frame for reading lines; bufGen counts the changes of the screen.
+	find      findBox
+	hover     hoverState
+	linkCache map[string]*lineLinks
+	linkFrame emulator.Frame
+	bufGen    uint64
+	// setState builds the widget of the pane again (the find widget and the tooltip are part of it).
+	setState func(func())
 }
 
 func newPaneView(env *paneEnv, term *Terminal) *paneView {
-	pv := &paneView{env: env, term: term, painter: newGridPainter(), blinkOn: true}
+	pv := &paneView{env: env, term: term, painter: newGridPainter(), blinkOn: true, linkCache: map[string]*lineLinks{}}
+	pv.initFind()
 	pv.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Terminal"})
 	pv.ime = &imeClient{pv: pv}
 	term.SetOnFrame(func() { env.post(pv.frameChanged) })
@@ -115,6 +140,8 @@ func newPaneView(env *paneEnv, term *Terminal) *paneView {
 
 // frameChanged is told, on the UI thread, that the screen of the terminal changed.
 func (pv *paneView) frameChanged() {
+	pv.bufGen++
+	pv.scheduleFindRefresh()
 	if alt := pv.term.Emulator().Modes().AltScreen; alt != pv.alt {
 		pv.alt = alt
 		if pv.env.altChanged != nil {
@@ -244,9 +271,11 @@ func (pv *paneView) paint(cv *gui.Canvas, off gui.Offset, size gui.Size) {
 	pv.shown = f
 	cols := min(pv.cols, f.Cols)
 	rows := min(pv.rows, f.Rows)
+	pv.marks = pv.findMarks(f.Top, rows, cols, pv.marks[:0])
+	pv.links = pv.underlines(f.Top, rows, pv.links[:0])
 	s := shown{
 		f: f, rows: rows, cols: cols, originX: off.Dx + padLeft, originY: off.Dy, th: &pv.th, cfg: cfg,
-		focused: pv.focused, blinkOn: pv.blinkOn, sel: pv.sel, cursorOn: pv.scroll == 0, marks: pv.marks,
+		focused: pv.focused, blinkOn: pv.blinkOn, sel: pv.sel, cursorOn: pv.scroll == 0, marks: pv.marks, links: pv.links,
 	}
 	pv.painter.build(a, d, s)
 	pv.drawPreedit(a, d, s)
@@ -384,6 +413,13 @@ func (pv *paneView) configChanged() {
 // dispose lets go of the pane when its terminal is gone.
 func (pv *paneView) dispose() {
 	pv.stopBlink()
+	pv.stopTip()
+	pv.stopFindTimer()
+	if pv.find.cancel != nil {
+		pv.find.cancel()
+		pv.find.cancel = nil
+	}
+	pv.find.gen++
 	pv.ime.detach()
 	pv.term.SetOnFrame(nil)
 	pv.term.SetOnMeta(nil)

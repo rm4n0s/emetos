@@ -21,8 +21,12 @@ const (
 	PrivilegeCommandsExecute = "commands.execute"
 )
 
-// RelayID is the id of the extension that the host grants the privileges to.
+// RelayID is the id of the extension that the host grants both privileges to.
 const RelayID = "emetos.relay"
+
+// TerminalID is the id of the Terminal extension, which the host grants PrivilegeCommandsExecute (and no other privilege),
+// for the commands of VS Code's terminal that run a command of another extension (workbench.action.terminal.searchWorkspace).
+const TerminalID = "emetos.terminal"
 
 // HasPrivilege tells whether the manifest declares the privilege. Declaring is not being granted: the host refuses an
 // extension that is not on its allowlist and declares one, so an extension that runs has what it declared.

@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/settings"
 )
 
 // withAPI activates an extension named id in a new tab and gives the test its API.
@@ -151,6 +152,42 @@ func TestSettingsAreRegisteredAndRead(t *testing.T) {
 	}
 	if len(tb.posted) == 0 {
 		t.Errorf("the listener was not handed over with Post")
+	}
+}
+
+func TestSettingsUpdateWritesTheUsersFileForTheSettingsOfTheExtensionOnly(t *testing.T) {
+	api, _, tb := withAPI(t, "emetos.upd")
+	if err := api.Settings().Register(extension.SettingSpec{Key: "emetos.upd.name", Type: "string", Default: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := api.Settings().Update("emetos.upd.name", "b"); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := extension.SettingValue[string](api.Settings(), "emetos.upd.name"); v != "b" {
+		t.Errorf("the setting after Update = %q", v)
+	}
+	if got := settings.Get[string](tb.store, "emetos.upd.name", ""); got != "b" {
+		t.Errorf("the store has %v", got)
+	}
+	tests := []struct {
+		name  string
+		call  func() error
+		route string
+	}{
+		{"a setting of the editor", func() error { return api.Settings().Update("editor.tabSize", 2) }, "settingsAPI.Update.ExtensionSettingNotOwned"},
+		{"a setting that does not exist", func() error { return api.Settings().Update("emetos.upd.none", 1) }, "settingsAPI.Update.ExtensionSettingNotOwned"},
+		{"a value that does not fit", func() error { return api.Settings().Update("emetos.upd.name", 12) }, "SettingValueInvalid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appErr, ok := errors.FromError(tt.call())
+			if !ok {
+				t.Fatalf("expected *errors.Error")
+			}
+			if !appErr.HasRoute(tt.route) {
+				t.Errorf("unexpected failure path: %s", appErr.Route())
+			}
+		})
 	}
 }
 

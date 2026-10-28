@@ -68,6 +68,23 @@ func (pv *paneView) userInput(b []byte) {
 	}
 }
 
+// sendText sends text to the program as if it was typed or pasted (VS Code's sendText): line breaks are Enter, bracketed asks for
+// the paste to be bracketed when the program turned that on, and execute adds Enter at the end. The view goes to the bottom.
+func (pv *paneView) sendText(text string, execute, bracketed bool) {
+	var b []byte
+	if bracketed {
+		b = pv.term.Emulator().EncodePaste(text, nil)
+	} else {
+		b = []byte(strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\r"), "\n", "\r"))
+	}
+	if execute && !strings.HasSuffix(string(b), "\r") {
+		b = append(b, '\r')
+	}
+	if len(b) > 0 {
+		pv.userInput(b)
+	}
+}
+
 // typeText sends text an input method committed.
 func (pv *paneView) typeText(text string) {
 	if text == "" || !utf8.ValidString(text) {
@@ -298,6 +315,10 @@ func (pv *paneView) leftDown(e *gestures.PointerDownEvent, col, row int) {
 	}
 	pv.lastDown, pv.lastAt = e.TimeStamp(), local
 	p := pv.posOf(col, row)
+	// a click with the key of links held follows the link under it
+	if pv.modsOf()&pv.linkModifier() != 0 && pv.tryFollowLink(p) {
+		return
+	}
 	pv.pressed = true
 	switch {
 	case pv.clicks == 1 && pv.modsOf()&emulator.ModShift != 0 && pv.sel.active:
@@ -410,6 +431,11 @@ func (pv *paneView) onPointerHover(e *gestures.PointerHoverEvent) {
 		col, row := pv.cellAt(local)
 		pv.report(emulator.MouseEvent{Button: emulator.MouseNoButton, Action: emulator.MouseMove, Mods: pv.modsOf(), X: col, Y: row})
 	}
+	if pv.reportsMouse() {
+		pv.leaveHover() // the program has the pointer: it has no links
+		return
+	}
+	pv.hoverAt(local)
 }
 
 // onPointerUp is the end of a press.

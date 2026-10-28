@@ -44,8 +44,8 @@ type shown struct {
 	blinkOn  bool
 	sel      selection
 	cursorOn bool // the cursor is on the rows shown (the view is at the bottom)
-	// findings and links to highlight, by absolute line
-	marks []mark
+	// marks are the find matches to color, links the cells of the link under the pointer to underline; both by absolute line
+	marks, links []mark
 }
 
 // mark is a range of cells of a line to draw over its background (the find matches of step 17d.3 use it).
@@ -153,6 +153,15 @@ func (g *gridPainter) build(a *atlas, d *decor, s shown) {
 		for _, mk := range s.marks {
 			if mk.line == abs && mk.x1 > mk.x0 {
 				g.run(d, &d.block, s, min(mk.x0, cols), min(mk.x1, cols)-min(mk.x0, cols), y, mk.color)
+			}
+		}
+		// the link under the pointer is underlined
+		for _, lk := range s.links {
+			if lk.line == abs && lk.x1 > lk.x0 {
+				base := y + float64(m.ch-2*m.lineThick)/m.dpr
+				for x := lk.x0; x < min(lk.x1, cols); x++ {
+					g.decorAdd(d.line[0], scale, s.originX+float64(x)*m.w, base, s.th.fg)
+				}
 			}
 		}
 		// decorations and glyphs

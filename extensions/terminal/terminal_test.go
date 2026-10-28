@@ -96,10 +96,25 @@ func TestTheManifestDeclaresWhatItNeeds(t *testing.T) {
 			t.Errorf("the key %s runs %q, want %s", key, keys[key], command)
 		}
 	}
-	// the commands of step 17d.3 are not registered yet
-	for _, later := range []string{"runSelectedText", "runActiveFile", "sendSequence", "rename", "selectDefaultShell", "focusFind"} {
-		if declared["workbench.action.terminal."+later] {
-			t.Errorf("the command %s is step 17d.3's", later)
+	// the commands of step 17d.3 are there, with the keys of VS Code
+	for _, c := range []string{"runSelectedText", "runActiveFile", "sendSequence", "rename", "renameWithArgs", "selectDefaultShell", "focusFind",
+		"hideFind", "findNext", "findPrevious", "toggleFindRegex", "toggleFindWholeWord", "toggleFindCaseSensitive", "focusAtIndex1", "focusAtIndex9"} {
+		if !declared["workbench.action.terminal."+c] {
+			t.Errorf("the command %s is not declared", c)
+		}
+	}
+	// Search Workspace needs the privilege to run the command of the Search extension, and a selection to act on
+	if !m.HasPrivilege(extension.PrivilegeCommandsExecute) || len(m.Privileges) != 1 {
+		t.Errorf("privileges = %v", m.Privileges)
+	}
+	for _, kb := range m.Contributes.Keybindings {
+		if kb.Command == CmdSearchWorkspace && (kb.Key != "ctrl+shift+f" || kb.When != keyFocus+" && "+keyTextSelected) {
+			t.Errorf("the key of searchWorkspace is %+v", kb)
+		}
+	}
+	for key, command := range map[string]string{"ctrl+f": CmdFocusFind, "f3": CmdFindNext, "shift+f3": CmdFindPrevious, "alt+r": CmdToggleFindRegex} {
+		if keys[key] != command {
+			t.Errorf("the key %s runs %q, want %s", key, keys[key], command)
 		}
 	}
 	// the context keys of the manifest are the ones of the keys and the when-clauses

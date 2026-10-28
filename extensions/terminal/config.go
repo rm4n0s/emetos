@@ -31,6 +31,7 @@ type config struct {
 	middleClick         string
 
 	skip           skipSet
+	linkSchemes    []string
 	sendKeys       bool
 	allowChords    bool
 	multiLinePaste string
@@ -101,6 +102,9 @@ func readConfig(s extension.Settings) config {
 	c.scrollback = min(max(c.scrollback, 0), 1000000)
 	if c.lineHeight <= 0 {
 		c.lineHeight = 1
+	}
+	if v, err := extension.SettingValue[[]string](s, settingLinkSchemes); err == nil {
+		c.linkSchemes = v
 	}
 	user, _ := extension.SettingValue[[]string](s, settingSkipShell)
 	c.skip = newSkipSet(user)

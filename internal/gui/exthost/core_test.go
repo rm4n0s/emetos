@@ -64,6 +64,36 @@ func TestPrivilegesAreRefusedToEveryExtensionButRelay(t *testing.T) {
 	}
 }
 
+func TestTheTerminalMayDeclareOnlyCommandsExecute(t *testing.T) {
+	mk := func(id string, privileges []string) extension.Factory {
+		m := manifest(id)
+		m.Privileges = privileges
+		f, _ := factory(m, nil)
+		return f
+	}
+	r := newRig(t,
+		mk(extension.TerminalID, []string{extension.PrivilegeCommandsExecute}),
+		mk("emetos.terminal2", []string{extension.PrivilegeCommandsExecute}),
+	)
+	var ids []string
+	for _, m := range r.host.Manifests() {
+		ids = append(ids, m.ID)
+	}
+	if !slices.Equal(ids, []string{extension.TerminalID}) {
+		t.Errorf("the extensions kept are %v", ids)
+	}
+	if problems := r.host.Problems(); len(problems) != 1 {
+		t.Errorf("problems: %v", problems)
+	} else {
+		wantRoute(t, problems[0], "validateManifest.ExtensionPrivilegeRefused")
+	}
+	// events.publishAny is not the terminal's: the extension is left out as a whole
+	r = newRig(t, mk(extension.TerminalID, []string{extension.PrivilegeCommandsExecute, extension.PrivilegeEventsPublishAny}))
+	if len(r.host.Manifests()) != 0 || len(r.host.Problems()) != 1 {
+		t.Errorf("manifests %v, problems %v", r.host.Manifests(), r.host.Problems())
+	}
+}
+
 func TestOnlyAPrivilegedExtensionPublishesAnyTopic(t *testing.T) {
 	c := newCoreHarness(t, nil)
 	heard := c.subscribe(plain, "**")

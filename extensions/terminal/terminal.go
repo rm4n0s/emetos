@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -17,7 +18,7 @@ func commandSpecs() []extension.CommandSpec {
 	c := func(id, title string) extension.CommandSpec {
 		return extension.CommandSpec{ID: id, Title: title, Category: "Terminal"}
 	}
-	return []extension.CommandSpec{
+	specs := []extension.CommandSpec{
 		{ID: CmdToggle, Title: "Toggle Terminal", Category: "View"},
 		c(CmdNew, "Create New Terminal"), c(CmdNewWithProfile, "Create New Terminal (With Profile)..."),
 		c(CmdSplit, "Split Terminal"), c(CmdKill, "Kill the Active Terminal Instance"), c(CmdFocus, "Focus Terminal"),
@@ -30,7 +31,17 @@ func commandSpecs() []extension.CommandSpec {
 		c(CmdClearSelection, "Clear Selection"), c(CmdScrollUp, "Scroll Up (Line)"), c(CmdScrollDown, "Scroll Down (Line)"),
 		c(CmdScrollUpPage, "Scroll Up (Page)"), c(CmdScrollDownPage, "Scroll Down (Page)"), c(CmdScrollToTop, "Scroll to Top"),
 		c(CmdScrollToBottom, "Scroll to Bottom"),
+		c(CmdFocusFind, "Focus Find"), c(CmdHideFind, "Hide Find"), c(CmdFindNext, "Find Next"), c(CmdFindPrevious, "Find Previous"),
+		c(CmdToggleFindRegex, "Toggle Find Using Regex"), c(CmdToggleFindWholeWord, "Toggle Find Using Whole Word"),
+		c(CmdToggleFindCaseSens, "Toggle Find Using Case Sensitive"),
+		c(CmdRunSelectedText, "Run Selected Text In Active Terminal"), c(CmdRunActiveFile, "Run Active File In Active Terminal"),
+		c(CmdSendSequence, "Send Sequence"), c(CmdRename, "Rename..."), c(CmdRenameWithArgs, "Rename the Currently Active Terminal"),
+		c(CmdSelectDefaultProfile, "Select Default Profile"), c(CmdSearchWorkspace, "Search Workspace"),
 	}
+	for i := 1; i <= 9; i++ {
+		specs = append(specs, c(focusAtIndex(i), "Focus Terminal "+string(rune('0'+i))))
+	}
+	return specs
 }
 
 // keybindings are the default keys of VS Code on Linux, with its when-clauses (terminalActions.ts and the clipboard
@@ -60,6 +71,21 @@ func keybindings() []extension.Keybinding {
 		{Command: CmdScrollDownPage, Key: "shift+pagedown", When: normal},
 		{Command: CmdScrollToTop, Key: "shift+home", When: normal},
 		{Command: CmdScrollToBottom, Key: "shift+end", When: normal},
+		// find (terminalContrib/find/browser/terminal.find.contribution.ts): Enter in the input goes to the previous match and
+		// Shift+Enter to the next, as VS Code's table has them
+		{Command: CmdFocusFind, Key: "ctrl+f", When: keyFindFocus + " || " + keyFocusInAny},
+		{Command: CmdHideFind, Key: "escape", When: keyFocusInAny + " && " + keyFindVisible},
+		{Command: CmdHideFind, Key: "shift+escape", When: keyFocusInAny + " && " + keyFindVisible},
+		{Command: CmdToggleFindRegex, Key: "alt+r", When: keyFindVisible},
+		{Command: CmdToggleFindWholeWord, Key: "alt+w", When: keyFindVisible},
+		{Command: CmdToggleFindCaseSens, Key: "alt+c", When: keyFindVisible},
+		{Command: CmdFindNext, Key: "f3", When: keyFocusInAny + " || " + keyFindFocus},
+		{Command: CmdFindNext, Key: "shift+enter", When: keyFindInputFocus},
+		{Command: CmdFindPrevious, Key: "shift+f3", When: keyFocusInAny + " || " + keyFindFocus},
+		{Command: CmdFindPrevious, Key: "enter", When: keyFindInputFocus},
+		// Ctrl+Shift+F with text selected searches the workspace for it (the Search view's own Ctrl+Shift+F has no when-clause;
+		// this one is more specific and the later of the two)
+		{Command: CmdSearchWorkspace, Key: "ctrl+shift+f", When: inTerminal + " && " + keyTextSelected},
 	}
 }
 
@@ -68,12 +94,16 @@ func (*terminals) Manifest() extension.Manifest {
 	return extension.Manifest{
 		ID: ID, Name: "Terminal", Version: termVersion,
 		Description: "Shells in the panel: VS Code's integrated terminal, with Emetos's own emulator.",
+		// commands.execute: Search Workspace runs the Search extension's Find in Files (SPEC §10.19 "Privileges")
+		Privileges: []string{extension.PrivilegeCommandsExecute},
+		Events:     extension.EventDecl{Subscribes: []string{extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentClosed}},
 		Contributes: extension.Contributes{
 			Commands:    commandSpecs(),
 			Keybindings: keybindings(),
 			Settings:    settingSpecs(),
 			ContextKeys: contextKeys,
 			PanelViews:  []extension.PanelViewSpec{{ID: ViewID, Title: "Terminal", Icon: "terminal", Order: 3}},
+			// (the events below are what the extension follows to know the editor in front)
 			ViewActions: []extension.ViewActionSpec{
 				{View: ViewID, Command: CmdNew, Icon: "add", Tooltip: "New Terminal", Order: 1},
 				{View: ViewID, Command: CmdNewWithProfile, Icon: "chevron-down", Tooltip: "Launch Profile...", Order: 2},
@@ -92,6 +122,11 @@ func (*terminals) Manifest() extension.Manifest {
 // turned off ends every shell.
 func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	t.api, t.ctx, t.folder = api, ctx, api.Scope().Folder
+	if t.folder != "" {
+		if real, err := filepath.EvalSymlinks(t.folder); err == nil {
+			t.folder = real // links are confined to the folder as it really is
+		}
+	}
 	if t.env.lookPath == nil {
 		t.env = osEnviron()
 	}
@@ -111,6 +146,11 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	api.Settings().OnChange(t.settingsChanged)
+	for _, pattern := range []string{"emetos.editor.*", extension.TopicDocumentClosed} {
+		if _, err := api.Events().Subscribe(pattern, t.editorEvent); err != nil {
+			return err
+		}
+	}
 	for id, h := range t.handlers() {
 		if err := api.Commands().Handle(id, h); err != nil {
 			return err
@@ -151,7 +191,7 @@ func (t *terminals) handlers() map[string]extension.CommandHandler {
 			return nil
 		}
 	}
-	return map[string]extension.CommandHandler{
+	handlers := map[string]extension.CommandHandler{
 		CmdToggle:         func(context.Context, any) error { t.toggle(); return nil },
 		CmdNew:            func(_ context.Context, args any) error { t.newTerminal(args); return nil },
 		CmdNewWithProfile: func(context.Context, any) error { t.pickProfile(); return nil },
@@ -200,7 +240,26 @@ func (t *terminals) handlers() map[string]extension.CommandHandler {
 		CmdScrollDownPage: onPane(func(pv *paneView) { pv.scrollBy(-max(pv.rows-1, 1)) }),
 		CmdScrollToTop:    onPane(func(pv *paneView) { pv.scrollTo(pv.frame.Scrollback) }),
 		CmdScrollToBottom: onPane(func(pv *paneView) { pv.scrollTo(0) }),
+
+		CmdFocusFind:            func(context.Context, any) error { t.onFind(func(pv *paneView) { pv.showFind() }); return nil },
+		CmdHideFind:             func(context.Context, any) error { t.onFind(func(pv *paneView) { pv.hideFind() }); return nil },
+		CmdFindNext:             func(context.Context, any) error { t.onFind(func(pv *paneView) { pv.moveFind(false) }); return nil },
+		CmdFindPrevious:         func(context.Context, any) error { t.onFind(func(pv *paneView) { pv.moveFind(true) }); return nil },
+		CmdToggleFindRegex:      func(context.Context, any) error { t.onFind(func(pv *paneView) { pv.toggleFind("regex") }); return nil },
+		CmdToggleFindWholeWord:  func(context.Context, any) error { t.onFind(func(pv *paneView) { pv.toggleFind("word") }); return nil },
+		CmdToggleFindCaseSens:   func(context.Context, any) error { t.onFind(func(pv *paneView) { pv.toggleFind("case") }); return nil },
+		CmdRunSelectedText:      func(ctx context.Context, _ any) error { t.runSelectedText(ctx); return nil },
+		CmdRunActiveFile:        func(context.Context, any) error { t.runActiveFile(); return nil },
+		CmdSendSequence:         func(ctx context.Context, args any) error { t.sendSequence(ctx, args); return nil },
+		CmdRename:               func(context.Context, any) error { t.rename(); return nil },
+		CmdRenameWithArgs:       func(_ context.Context, args any) error { t.renameWithArgs(args); return nil },
+		CmdSelectDefaultProfile: func(context.Context, any) error { t.selectDefaultProfile(); return nil },
+		CmdSearchWorkspace:      func(ctx context.Context, _ any) error { t.searchWorkspace(ctx); return nil },
 	}
+	for i := 1; i <= 9; i++ {
+		handlers[focusAtIndex(i)] = func(context.Context, any) error { t.focusTerminalAt(i - 1); return nil }
+	}
+	return handlers
 }
 
 // toggle shows the terminal with the keyboard focus in it, or hides the panel when the terminal has the focus (Ctrl+`).

@@ -83,6 +83,7 @@ type API struct {
 	clipboardErr      error
 	locationAnswers   map[string]func(uri string, pos extension.Position) ([]extension.Location, error)
 	locationRequests  []LocationRequest
+	updates           []SettingUpdate
 }
 
 // Note is a notification the extension showed.
@@ -367,6 +368,36 @@ func (s settings) OnChange(fn func()) func() {
 	s.a.changeFn = append(s.a.changeFn, fn)
 	s.a.mu.Unlock()
 	return func() {}
+}
+
+// Update implements extension.Settings: a setting the extension declares (or registered) takes the value and the listeners are
+// told, as they are when the user's file changes; the call is recorded (SettingUpdates). Any other key fails with
+// FakeSettingNotOwned.
+func (s settings) Update(key string, value any) error {
+	s.a.mu.Lock()
+	_, ok := s.a.specs[key]
+	s.a.mu.Unlock()
+	if !ok {
+		return errors.New("FakeSettingNotOwned", "an extension writes only the settings it declares or registered", "key", key)
+	}
+	s.a.mu.Lock()
+	s.a.updates = append(s.a.updates, SettingUpdate{Key: key, Value: roundTrip(value)})
+	s.a.mu.Unlock()
+	s.a.SetSetting(key, value)
+	return nil
+}
+
+// SettingUpdate is a call of Settings().Update.
+type SettingUpdate struct {
+	Key   string
+	Value any
+}
+
+// SettingUpdates are the calls of Settings().Update.
+func (a *API) SettingUpdates() []SettingUpdate {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]SettingUpdate(nil), a.updates...)
 }
 
 // roundTrip turns a Go value into what the JSON of the settings file reads: a []string is a []any.

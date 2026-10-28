@@ -218,6 +218,26 @@ func (s settingsAPI) OnChange(fn func()) (cancel func()) {
 	return stop
 }
 
+// Update implements extension.Settings. It fails with ExtensionSettingNotOwned for a setting that the extension neither declares
+// in its manifest nor registered, and returns the store's error (SettingValueInvalid and the others of core/settings) when the
+// value is refused.
+func (s settingsAPI) Update(key string, value any) error {
+	in := s.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	in.mu.Lock()
+	owned := in.settingKeys[key]
+	in.mu.Unlock()
+	for _, spec := range in.slot.info.Manifest.Contributes.Settings {
+		owned = owned || spec.Key == key
+	}
+	if !owned {
+		return errors.New("ExtensionSettingNotOwned", "an extension writes only the settings it declares or registered", "extension", in.id, "key", key)
+	}
+	return in.scope.opts.Settings.Update(in.ctx, key, value, settings.TargetUser)
+}
+
 // ---- notifications ----
 
 type notificationsAPI struct{ inst *instance }

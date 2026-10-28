@@ -47,8 +47,9 @@ func (s recSettings) Register(spec extension.SettingSpec) error {
 	s.r.settings = append(s.r.settings, spec.Key)
 	return nil
 }
-func (s recSettings) Get(string) (any, error) { return "Howdy", nil }
-func (s recSettings) OnChange(func()) func()  { return func() {} }
+func (s recSettings) Get(string) (any, error)  { return "Howdy", nil }
+func (s recSettings) Update(string, any) error { return nil }
+func (s recSettings) OnChange(func()) func()   { return func() {} }
 
 type recNotes struct{ r *recorder }
 

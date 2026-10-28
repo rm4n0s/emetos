@@ -67,6 +67,8 @@ type terminals struct {
 	menu    *ui.ContextMenuController
 	ask     *pasteAsk
 	failure string
+	// editor is the text editor in front, which the commands that run its text and file follow.
+	editor editorState
 	// opening says that a terminal is being made for a view that is shown with none; suppressOpen that the last terminal just
 	// ended and the panel is on its way to hide, so the view must not make another.
 	opening      bool
@@ -89,6 +91,8 @@ func (t *terminals) newEnv() *paneEnv {
 		focusChanged: t.paneFocusChanged, selectionChanged: func(*paneView) { t.syncKeys() },
 		menu: t.showMenu, confirmPaste: t.confirmPaste, clipboardCtx: clipboardContext(t.ctx),
 		mounted: t.paneMounted, altChanged: func(*paneView) { t.syncKeys() },
+		ctx: t.ctx, findChanged: func(*paneView) { t.syncKeys() }, folder: func() string { return t.folder }, home: t.env.home,
+		altClick: t.altClick, openFile: t.openFile, openLink: t.openLink,
 	}
 }
 
@@ -399,10 +403,19 @@ func (t *terminals) syncKeys() {
 		alt = e.term.Emulator().Modes().AltScreen
 	}
 	split := g != nil && len(g.entries) > 1
+	// the find widget: shown in the pane of the active terminal; its input may have the keyboard
+	findVisible, findInput := false, false
+	if e != nil {
+		findVisible = e.pv.find.visible
+	}
+	for _, x := range t.all() {
+		findInput = findInput || x.pv.find.inputFocused
+	}
 	vals := map[string]any{
-		keyFocus: focused != nil, keyFocusInAny: focused != nil, keyIsOpen: t.count() > 0, keyCount: float64(t.count()),
+		keyFocus: focused != nil, keyFocusInAny: focused != nil || findInput, keyIsOpen: t.count() > 0, keyCount: float64(t.count()),
 		keyGroupCount: float64(len(t.groups)), keyProcessSupported: true, keyTextSelected: selectedAny,
-		keyTextSelectedInFocused: selectedHere, keyFindVisible: false, keySplitTerminal: split,
+		keyTextSelectedInFocused: selectedHere, keyFindVisible: findVisible, keyFindFocus: findInput, keyFindInputFocus: findInput,
+		keySplitTerminal:   split,
 		keySplitPaneActive: split && focused != nil, keyHasBeenCreated: t.created, keyAltBuffer: alt,
 		keyTabsFocus: t.tabsFocus, keyEditorFocus: false,
 	}

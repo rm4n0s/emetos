@@ -162,6 +162,36 @@ func TestPointer(t *testing.T) {
 	}
 }
 
+func TestClickHoldingPressesTheModifierAroundTheClick(t *testing.T) {
+	c, f := connectFake(t, allGlobals)
+	c.SetWindow(Point{100, 50}, Rect{0, 0, 1280, 800})
+	ctx := context.Background()
+	if err := c.ClickHolding(ctx, Point{10, 20}, "Ctrl"); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, r := range f.taken() {
+		switch {
+		case r.device == "keyboard" && r.name == "key":
+			sign := "-"
+			if r.args[2] == 1 {
+				sign = "+"
+			}
+			got = append(got, sign+itoa(r.args[1]))
+		case r.device == "keyboard" && r.name == "modifiers":
+			got = append(got, "mods="+itoa(r.args[0]))
+		case r.name == "button":
+			got = append(got, "button "+itoa(r.args[2]))
+		}
+	}
+	// the key goes down and the mask is told before the button, and both are released after it
+	want := []string{"mods=4", "+29", "button 1", "button 0", "-29", "mods=0"}
+	if !slices.Equal(got, want) {
+		t.Errorf("events = %v, want %v", got, want)
+	}
+	requireRoute(t, c.ClickHolding(ctx, Point{1, 1}, "hyper"), "Client.ClickHolding.RealInputComboInvalid")
+}
+
 func TestDragMovesInSteps(t *testing.T) {
 	c, f := connectFake(t, allGlobals)
 	c.SetWindow(Point{}, Rect{0, 0, 100, 100})

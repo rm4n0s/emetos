@@ -36,7 +36,32 @@ const (
 	CmdScrollDownPage  = "workbench.action.terminal.scrollDownPage"
 	CmdScrollToTop     = "workbench.action.terminal.scrollToTop"
 	CmdScrollToBottom  = "workbench.action.terminal.scrollToBottom"
+
+	// The commands of step 17d.3: find, and running text in the terminal.
+	CmdFocusFind            = "workbench.action.terminal.focusFind"
+	CmdHideFind             = "workbench.action.terminal.hideFind"
+	CmdFindNext             = "workbench.action.terminal.findNext"
+	CmdFindPrevious         = "workbench.action.terminal.findPrevious"
+	CmdToggleFindRegex      = "workbench.action.terminal.toggleFindRegex"
+	CmdToggleFindWholeWord  = "workbench.action.terminal.toggleFindWholeWord"
+	CmdToggleFindCaseSens   = "workbench.action.terminal.toggleFindCaseSensitive"
+	CmdRunSelectedText      = "workbench.action.terminal.runSelectedText"
+	CmdRunActiveFile        = "workbench.action.terminal.runActiveFile"
+	CmdSendSequence         = "workbench.action.terminal.sendSequence"
+	CmdRename               = "workbench.action.terminal.rename"
+	CmdRenameWithArgs       = "workbench.action.terminal.renameWithArgs"
+	CmdSelectDefaultProfile = "workbench.action.terminal.selectDefaultShell"
+	CmdSearchWorkspace      = "workbench.action.terminal.searchWorkspace"
 )
+
+// findInFilesCommand is the id of the command of the Search extension that searchWorkspace runs (VS Code's
+// workbench.action.findInFiles).
+const findInFilesCommand = "workbench.action.findInFiles"
+
+// focusAtIndex is the id of the command that focuses the n-th terminal (1 to 9).
+func focusAtIndex(n int) string {
+	return "workbench.action.terminal.focusAtIndex" + string(rune('0'+n))
+}
 
 // The context keys the extension sets (VS Code's TerminalContextKeyStrings). The host accepts them because the manifest
 // declares them (Contributes.ContextKeys).
@@ -50,6 +75,8 @@ const (
 	keyTextSelected          = "terminalTextSelected"
 	keyTextSelectedInFocused = "terminalTextSelectedInFocused"
 	keyFindVisible           = "terminalFindVisible"
+	keyFindFocus             = "terminalFindFocused"
+	keyFindInputFocus        = "terminalFindInputFocused"
 	keySplitTerminal         = "terminalSplitTerminal"
 	keySplitPaneActive       = "terminalSplitPaneActive"
 	keyHasBeenCreated        = "terminalHasBeenCreated"
@@ -61,5 +88,5 @@ const (
 // contextKeys lists them for the manifest.
 var contextKeys = []string{
 	keyFocus, keyFocusInAny, keyIsOpen, keyCount, keyGroupCount, keyProcessSupported, keyTextSelected, keyTextSelectedInFocused,
-	keyFindVisible, keySplitTerminal, keySplitPaneActive, keyHasBeenCreated, keyAltBuffer, keyTabsFocus, keyEditorFocus,
+	keyFindVisible, keyFindFocus, keyFindInputFocus, keySplitTerminal, keySplitPaneActive, keyHasBeenCreated, keyAltBuffer, keyTabsFocus, keyEditorFocus,
 }

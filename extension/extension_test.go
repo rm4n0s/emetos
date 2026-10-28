@@ -159,7 +159,8 @@ func (v valueSettings) Get(key string) (any, error) {
 	}
 	return nil, errors.New("Unknown", "no such setting", "key", key)
 }
-func (v valueSettings) OnChange(func()) func() { return func() {} }
+func (v valueSettings) Update(string, any) error { return nil }
+func (v valueSettings) OnChange(func()) func()   { return func() {} }
 
 func TestSettingValue(t *testing.T) {
 	s := valueSettings{values: map[string]any{
