@@ -343,7 +343,6 @@ type trayHostState struct {
 
 // InitState connects the manager to the state and follows the tabs.
 func (s *trayHostState) InitState() {
-	fixGestureArena(widgets.WidgetsBindingOf(s.Context()))
 	m := s.Widget().m
 	m.tray.host = s
 	s.stop = m.OnChange(s.refresh)

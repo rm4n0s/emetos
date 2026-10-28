@@ -523,19 +523,15 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	style := TextStyleOf(bc, inputBoxFontSize, fg)
 	opts := widgets.EditableTextOpts{
-		ReadOnly:    o.Disabled,
-		ObscureText: o.Obscure && !o.MultiLine,
-		// Glutter: the caret of an obscured field is placed by the byte offset of the real text in the string of obscuring
-		// characters, so the three-byte default bullet puts it three times too far left (docs/GLUTTER-ISSUES.md); a one-byte
-		// character keeps the offsets right.
-		ObscuringCharacter: "*",
-		Autofocus:          o.Autofocus && !o.Disabled,
-		SelectAllOnFocus:   o.SelectAllOnFocus,
-		Key:                s.editable,
-		UndoController:     s.undo,
-		OnChanged:          s.changed,
-		SelectionColor:     foundation.Some(colors.EditorSelectionBackground),
-		MouseCursor:        services.SystemMouseCursors.Text,
+		ReadOnly:         o.Disabled,
+		ObscureText:      o.Obscure && !o.MultiLine,
+		Autofocus:        o.Autofocus && !o.Disabled,
+		SelectAllOnFocus: o.SelectAllOnFocus,
+		Key:              s.editable,
+		UndoController:   s.undo,
+		OnChanged:        s.changed,
+		SelectionColor:   foundation.Some(colors.EditorSelectionBackground),
+		MouseCursor:      services.SystemMouseCursors.Text,
 		// The window's key dispatcher handles Enter and the other keys of the find widget before
 		// the text sees them; a click elsewhere in the window moves the focus on its own.
 		OnTapOutside: func(*gestures.PointerDownEvent) {},
@@ -565,9 +561,9 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 		body = widgets.NewAlign(text, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})
 	}
 	// The tree is the same whether the placeholder shows or not (SPEC §10.2 "As built (step 17b.1)"): the hint is
-	// always the second child of the Stack and is an empty box once there is text. Taking the Stack away at the
-	// first key mounted the EditableText again, with the focus already on its node, and Glutter (like Flutter)
-	// opens the input connection only when the focus changes, so the box kept the focus but lost every later key.
+	// always the second child of the Stack and is an empty box once there is text, so the EditableText is not mounted
+	// again at the first key. (Glutter 1.9.2 opens the input connection of a field that is mounted with the focus on its
+	// node, so a box that is mounted again keeps taking keys; see TestInputBoxMountedAgainWithTheFocusTakesKeys.)
 	var hint widgets.Widget = widgets.NewSizedBox(nil)
 	if s.text.Text() == "" && o.Placeholder != "" {
 		hintStyle := TextStyleOf(bc, inputBoxFontSize, colors.InputPlaceholderForeground)
@@ -584,11 +580,6 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 		fit = rendering.StackFitPassthrough
 	}
 	body = widgets.NewStack([]widgets.Widget{body, widgets.NewIgnorePointer(hint)}, widgets.StackOpts{Fit: fit})
-	// A click in a box that has the focus but no input connection opens one: Glutter opens the connection only when the focus
-	// changes, so a box that was mounted again with the focus already on its node (or whose connection the platform closed)
-	// would otherwise take no key until the focus left it and came back.
-	// Glutter: the raw EditableText has no pointer handling that opens the input connection (docs/GLUTTER-ISSUES.md); Flutter's TextField does it with a tap.
-	body = widgets.NewListener(body, widgets.ListenerOpts{OnPointerDown: s.pointerDown})
 	row := []widgets.Widget{widgets.NewExpanded(widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, inputBoxPadding), body))}
 	trailing := o.Trailing
 	if o.MultiLine {
@@ -635,16 +626,6 @@ func (s *inputBoxState) editKey(e services.KeyEvent, shift bool) bool {
 		return true
 	}
 	return false
-}
-
-// pointerDown reconnects the input method when a click lands in the box that has the focus (see Build).
-func (s *inputBoxState) pointerDown(*gestures.PointerDownEvent) {
-	if s.Widget().opts.Disabled || !s.node.HasPrimaryFocus() {
-		return
-	}
-	if st, ok := s.editable.CurrentState(); ok && st != nil {
-		st.RequestKeyboard()
-	}
 }
 
 // multiLineMaxLines is the number of lines past which a multi-line box scrolls.

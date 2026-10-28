@@ -1,7 +1,6 @@
 package app
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -40,16 +39,14 @@ func slowFrameClicks(ts *gluttertest.Tester, at ui.Offset) (panicked any) {
 }
 
 // TestGestureArenaSurvivesPointerIDReuseInOneTurn reproduces the crash of the desktop test of 2026-10-27 (Glutter 1.9.1:
-// `index out of range [0] with length 0` in gestures/arena.go:309). Without fixGestureArena the process panics in the turn
-// of the loop; with it nothing happens, and the target still takes the clicks that follow.
+// `index out of range [0] with length 0` in gestures/arena.go:309). Emetos worked around it in fixGestureArena; Glutter 1.9.2
+// (steps 29.11, 29.12 and 29.17) fixes it, so the test passes with Glutter alone: the turn of the loop does not panic, and the
+// target still takes the clicks that follow.
 func TestGestureArenaSurvivesPointerIDReuseInOneTurn(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		fix       bool
-		wantPanic bool
+		name string
 	}{
-		{name: "Glutter alone panics", fix: false, wantPanic: true},
-		{name: "with the workaround", fix: true, wantPanic: false},
+		{name: "Glutter alone"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ts := testutil.New(t, ui.Size{Width: 200, Height: 100})
@@ -57,19 +54,10 @@ func TestGestureArenaSurvivesPointerIDReuseInOneTurn(t *testing.T) {
 			ts.PumpWidget(widgets.NewGestureDetector(widgets.NewSizedBoxExpand(nil), widgets.GestureDetectorOpts{
 				Behavior: rendering.HitTestBehaviorOpaque, OnTap: func() { taps++ },
 			}))
-			if tc.fix {
-				fixGestureArena(ts.Binding)
-			}
 			at := ui.Offset{Dx: 50, Dy: 50}
 			got := slowFrameClicks(ts, at)
-			if (got != nil) != tc.wantPanic {
-				t.Fatalf("panic = %v, want a panic: %v", got, tc.wantPanic)
-			}
-			if tc.wantPanic {
-				if msg := fmt.Sprint(got); msg != "runtime error: index out of range [0] with length 0" {
-					t.Errorf("panic = %q, want the index error of arena.go:309", msg)
-				}
-				return
+			if got != nil {
+				t.Fatalf("the turn of the loop panicked: %v", got)
 			}
 			// the second press is still down: release it, and then click again
 			g := ts.Binding.Gestures()
@@ -125,15 +113,15 @@ func reusePointerBeforeTheTurn(g *gestures.GestureBinding, flush func()) (panick
 	return nil, second.accepted
 }
 
-// TestTheArenaIsFixedInTheApplicationAndInTheView pins that the two roots of Emetos's bindings (the application's, under
-// the tray, and each headless view's) install fixGestureArena: with Glutter's own arena the sequence panics.
-func TestTheArenaIsFixedInTheApplicationAndInTheView(t *testing.T) {
-	t.Run("a binding without the workaround panics", func(t *testing.T) {
+// TestTheArenaSurvivesInTheApplicationAndInTheView pins that the two kinds of Emetos's bindings (the application's, under
+// the tray, and each headless view's) survive the sequence with Glutter's own arena.
+func TestTheArenaSurvivesInTheApplicationAndInTheView(t *testing.T) {
+	t.Run("a plain binding", func(t *testing.T) {
 		ts := testutil.New(t, ui.Size{Width: 100, Height: 100})
 		ts.PumpWidget(widgets.NewSizedBoxExpand(nil))
-		got, _ := reusePointerBeforeTheTurn(ts.Binding.Gestures(), ts.FlushPosted)
-		if got == nil {
-			t.Fatal("Glutter's arena did not panic: the workaround may no longer be needed (docs/GLUTTER-ISSUES.md)")
+		got, accepted := reusePointerBeforeTheTurn(ts.Binding.Gestures(), ts.FlushPosted)
+		if got != nil || accepted != 1 {
+			t.Errorf("panic = %v, accepted = %d, want no panic and 1", got, accepted)
 		}
 	})
 	t.Run("the application", func(t *testing.T) {

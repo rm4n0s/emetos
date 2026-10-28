@@ -618,38 +618,46 @@ func TestInputBoxTypedKeysReachTheBox(t *testing.T) {
 // remountKey is a key the test changes to mount the box again over the same controller.
 type remountKey struct{ n int }
 
-// TestInputBoxClickReconnectsAFocusedBoxWithoutAConnection: a box mounted again while its node has the focus has no input
-// connection (Glutter opens one when the focus changes), and takes no key. A click in it opens one.
-func TestInputBoxClickReconnectsAFocusedBoxWithoutAConnection(t *testing.T) {
-	ctrl := NewInputBoxController("")
-	t.Cleanup(ctrl.Dispose)
-	generation := 0
-	var rebuild widgets.StateSetter
-	page := widgets.NewStatefulBuilder(func(_ widgets.BuildContext, setState widgets.StateSetter) widgets.Widget {
-		rebuild = setState
-		b := NewInputBox(nil, nil, InputBoxOpts{Controller: ctrl, Placeholder: "Search", Width: foundation.Some(220.0)})
-		return widgets.NewKeyedSubtree(b, widgets.WidgetOpts{Key: foundation.NewValueKey(remountKey{generation})})
-	})
-	r := &inputRig{t: t, ctrl: ctrl, ts: pumpThemed(t, DarkModern(), inputSize, padded(page))}
-	r.focusBox()
-	r.typeKeys("ab")
-	generation++
-	rebuild(func() {})
-	r.ts.Pump(time.Millisecond)
-	if !ctrl.HasFocus() {
-		t.Fatal("the focus did not survive the new mount")
+// TestInputBoxMountedAgainWithTheFocusTakesKeys: a box mounted again while its node has the focus takes keys at once. In
+// Glutter 1.9.1 it had no input connection until the focus left it and came back, and Emetos worked around it with a click
+// handler; Glutter 1.9.2 (step 29.18) opens the connection of a field that is mounted with the focus.
+func TestInputBoxMountedAgainWithTheFocusTakesKeys(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		placeholder string
+		start       string
+		want        string
+	}{
+		{name: "placeholder", placeholder: "Search", start: "ab", want: "abcde"},
+		{name: "no placeholder", start: "ab", want: "abcde"},
+		{name: "empty with a placeholder", placeholder: "Search", want: "cde"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := NewInputBoxController("")
+			t.Cleanup(ctrl.Dispose)
+			generation := 0
+			var rebuild widgets.StateSetter
+			page := widgets.NewStatefulBuilder(func(_ widgets.BuildContext, setState widgets.StateSetter) widgets.Widget {
+				rebuild = setState
+				b := NewInputBox(nil, nil, InputBoxOpts{Controller: ctrl, Placeholder: tc.placeholder, Width: foundation.Some(220.0)})
+				return widgets.NewKeyedSubtree(b, widgets.WidgetOpts{Key: foundation.NewValueKey(remountKey{generation})})
+			})
+			r := &inputRig{t: t, ctrl: ctrl, ts: pumpThemed(t, DarkModern(), inputSize, padded(page))}
+			r.focusBox()
+			r.typeKeys(tc.start)
+			generation++
+			rebuild(func() {})
+			r.ts.Pump(time.Millisecond)
+			if !ctrl.HasFocus() {
+				t.Fatal("the focus did not survive the new mount")
+			}
+			r.typeKeys("cde")
+			if got := ctrl.Value(); got != tc.want {
+				t.Errorf("the box mounted again holds %q, want %q", got, tc.want)
+			}
+			r.noErrors()
+		})
 	}
-	r.typeKeys("c")
-	if got := ctrl.Value(); got != "ab" {
-		t.Fatalf("the box mounted again has no connection yet and takes no key, but holds %q", got)
-	}
-	r.ts.Tap(gluttertest.ByType[*InputBox]())
-	r.ts.Pump(time.Millisecond)
-	r.typeKeys("de")
-	if got := ctrl.Value(); got != "abde" {
-		t.Errorf("after a click the box holds %q, want abde", got)
-	}
-	r.noErrors()
 }
 
 // TestInputBoxEditShortcuts: Ctrl+A, Ctrl+Z and Ctrl+Y act on the text of the box. The window binds them to the commands of the

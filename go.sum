@@ -16,8 +16,8 @@ github.com/quic-go/quic-go v0.64.1 h1:BCNTP+6x6++OPKrGST2FR3f1tycx8O3QOA3QQv09g7
 github.com/quic-go/quic-go v0.64.1/go.mod h1:RAro2j2yN9a9EiPACLHT9IB2NXCvGQmmo/alT0yYI0w=
 github.com/rm4n0s/errors v0.2.0 h1:IM8Ug6x0ylxcWaH1P0vl79qiTM6pJb3DTe+9lBT83+0=
 github.com/rm4n0s/errors v0.2.0/go.mod h1:i/xNeA3IMMgyVwttn7tC4nny2Vqgff18R0rKevqSx8E=
-github.com/rm4n0s/glutter v1.9.1 h1:TDx6VF4pxC7HeV0Luv8jpGSSbYjUX96hdsu9lQmsx7c=
-github.com/rm4n0s/glutter v1.9.1/go.mod h1:7qG+8cWByltX/yOzrOYXK+APoZsWi7BId3ZIQt4o74w=
+github.com/rm4n0s/glutter v1.9.2 h1:0c+Gom+kUChfrldfvxvaaBzXFm2dj1oPIgKzMl/dhhw=
+github.com/rm4n0s/glutter v1.9.2/go.mod h1:7qG+8cWByltX/yOzrOYXK+APoZsWi7BId3ZIQt4o74w=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 go.uber.org/mock v0.5.2 h1:LbtPTcP8A5k9WPXj54PPPbjcI4Y6lhyOZXn+VS7wNko=

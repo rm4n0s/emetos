@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/offscreen"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
@@ -96,9 +97,12 @@ func (w *Workspace) makeHeadlessView(size extension.Size, frameRate int) (*headl
 	}
 	v.ws = w.newViewWorkspace(ctx)
 	docs := s.openDocuments()
-	root := newViewSetup(v.configure, newAppWithPage(v.ws, func() widgets.Widget { return newShell(ctx, docs, nil) }))
-	ov, err := offscreen.NewView(newClipboardParent(ctx, main, v.clip), ui.Size{Width: float64(size.Width), Height: float64(size.Height)}, root, v.frame,
-		offscreen.ViewOpts{DevicePixelRatio: 1, MaxFrameRate: frameRate})
+	root := newAppWithPage(v.ws, func() widgets.Widget { return newShell(ctx, docs, nil) })
+	ov, err := offscreen.NewView(main, ui.Size{Width: float64(size.Width), Height: float64(size.Height)}, root, v.frame,
+		offscreen.ViewOpts{
+			DevicePixelRatio: 1, MaxFrameRate: frameRate, Clipboard: v.clip,
+			PlatformConfiguration: foundation.Some(v.platformConfiguration()), Window: viewWindow,
+		})
 	if err != nil {
 		cancel()
 		v.ws.releaseView()
@@ -112,64 +116,24 @@ func (w *Workspace) makeHeadlessView(size extension.Size, frameRate int) (*headl
 	return v, nil
 }
 
-// viewSetup is the root of a headless view. Glutter mounts the tree as the view is made, so what the shell reads when it
-// starts (the fonts, the window it is in) is set by the state of this widget, which starts first.
-type viewSetup struct {
-	widgets.StatefulWidget
-	configure func(*ui.PlatformDispatcher)
-	child     widgets.Widget
-}
+// viewWindow is the window of a headless view: a window without a title bar that is maximized and has the focus. Nothing can
+// move, minimize or close it, and the menu bar has a row of its own.
+var viewWindow = ui.WindowInfo{Decoration: ui.DecorationNone, Activated: true, Maximized: true}
 
-func newViewSetup(configure func(*ui.PlatformDispatcher), child widgets.Widget) *viewSetup {
-	return &viewSetup{StatefulWidget: widgets.NewStatefulWidgetBase(), configure: configure, child: child}
-}
-
-// CreateState implements widgets.StatefulWidget.
-func (*viewSetup) CreateState() widgets.State { return &viewSetupState{} }
-
-type viewSetupState struct{ widgets.StateOf[*viewSetup] }
-
-// InitState implements widgets.State.
-func (s *viewSetupState) InitState() {
-	fixGestureArena(widgets.WidgetsBindingOf(s.Context()))
-	s.Widget().configure(widgets.WidgetsBindingOf(s.Context()).PlatformDispatcher())
-}
-
-// Build implements widgets.State.
-func (s *viewSetupState) Build(widgets.BuildContext) widgets.Widget { return s.Widget().child }
-
-// configure gives the dispatcher of the view the configuration of the application, so that a headless view looks like the
-// window: the fonts, the locale, the text scale and the brightness; and the window it is in. It runs on the UI thread, when
-// the tree of the view is mounted.
-//
-// Glutter: an offscreen.View starts with the default platform configuration and a window that is not activated, and
-// View.SetSize replaces the window with a blank one again (windowInfo is applied again after it). Glutter should copy the
-// parent's platform configuration and take the window of the view in ViewOpts (docs/GLUTTER-ISSUES.md).
-func (v *headlessView) configure(d *ui.PlatformDispatcher) {
+// platformConfiguration is the configuration a headless view starts with, which looks like the window of the application: the
+// fonts, the locale, the text scale and the brightness. It is fixed (offscreen.ViewOpts.PlatformConfiguration): the view does
+// not follow the application, because its carets must not blink (see below), which the view would undo at its next frame.
+func (v *headlessView) platformConfiguration() ui.PlatformConfiguration {
 	md := v.main.PlatformDispatcher()
 	uiFamily, uiSize := md.UIFont()
 	monoFamily, monoSize := md.MonospaceFont()
-	d.UpdatePlatformConfiguration(ui.PlatformConfiguration{
+	return ui.PlatformConfiguration{
 		Locales: md.Locales(), TextScaleFactor: md.TextScaleFactor(), PlatformBrightness: md.PlatformBrightness(),
 		UIFontFamily: uiFamily, UIFontSize: uiSize, MonospaceFontFamily: monoFamily, MonospaceFontSize: monoSize,
 		// the caret of a text field of a headless view does not blink: a blink is a picture twice a second for a client that
 		// sees none of it (the caret of the editors is solid too, see editors.go)
 		CaretBlinkTime: ui.CaretBlinkNever,
-	})
-	v.applyWindow(d)
-}
-
-// applyWindow tells the view that it is a window without a title bar that is maximized and has the focus: nothing can move,
-// minimize or close it, and the menu bar has a row of its own. It runs on the UI thread.
-func (v *headlessView) applyWindow(d *ui.PlatformDispatcher) {
-	view := d.ImplicitView()
-	if view == nil {
-		return
 	}
-	d.UpdateViewConfiguration(ui.ImplicitViewID, ui.ViewConfiguration{
-		PhysicalSize: view.PhysicalSize(), DevicePixelRatio: 1,
-		Window: ui.WindowInfo{Decoration: ui.DecorationNone, Activated: true, Maximized: true},
-	})
 }
 
 // dispatcher is the dispatcher of the binding of the view, the way in of its input. UI thread only.
@@ -292,9 +256,7 @@ func (v *headlessView) Resize(size extension.Size) error {
 			}
 			if err := v.ov.SetSize(ui.Size{Width: float64(size.Width), Height: float64(size.Height)}); err != nil {
 				v.parent.Process.Logger.Warn("a headless view cannot change its size", "err", err)
-				return
 			}
-			v.applyWindow(v.dispatcher()) // SetSize replaced the window with a blank one
 		})
 	}
 	return nil

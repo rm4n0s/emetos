@@ -26,9 +26,8 @@ const (
 	// to another goroutine.
 	syncParseLimit = 16 << 10
 	// cacheMargin is how far beyond the viewport blocks are built, in logical pixels (Flutter's default cache extent is 250).
-	// Glutter: the Vulkan renderer draws (fingerprints and masks) every shape of the scene, also the ones outside the clip, so a
-	// block that is built off screen costs on every frame; the margin is kept small until the renderer skips what is outside the
-	// clip (docs/GLUTTER-ISSUES.md).
+	// Glutter 1.9.2 skips the shapes outside the clip before it makes their mask (its step 29.13), so a block built off screen
+	// costs much less than before; the margin stays at Flutter's default, which a jump and a scroll by a wheel step both need.
 	cacheMargin = 250.0
 	// coverFactor shrinks the estimates of the blocks that were never measured when the window is chosen, so that an estimate
 	// that is too high does not leave a gap at the bottom of the viewport.
@@ -78,13 +77,14 @@ type builtBlock struct {
 	taps []gestures.GestureRecognizer
 }
 
-// previewState is the state of the preview of a document. Glutter: it is not a ListView, because a SliverList lays out every
+// previewState is the state of the preview of a document. It is not a ListView: it was made when a SliverList laid out every
 // item between the first one it has and the offset it is given, so a jump (the scroll bar, a line) into a document of thousands
-// of blocks builds and measures all the blocks on the way (docs/GLUTTER-ISSUES.md); here a jump chooses the blocks to build from
-// estimates and positions them from an anchor. The blocks are rows of a list that knows their heights as far as
-// they were laid out, and estimates for the others; the part of it near the viewport is built, and positioned from an anchor,
-// a block whose place is known, so that the content does not move when a block above it turns out taller or shorter than it
-// was estimated (an image that has loaded).
+// of blocks built and measured all the blocks on the way. Glutter 1.9.2 has ListViewOpts.EstimateItemOffsets for that (its step
+// 29.20), and the preview could be written on it, but it is kept: a jump chooses the blocks to build from estimates and
+// positions them from an anchor. The blocks are rows of a list that knows their heights as far as they were laid out, and
+// estimates for the others; the part of it near the viewport is built, and positioned from an anchor, a block whose place is
+// known, so that the content does not move when a block above it turns out taller or shorter than it was estimated (an image
+// that has loaded).
 type previewState struct {
 	widgets.StateOf[*preview]
 	binding *widgets.WidgetsBinding

@@ -3267,3 +3267,27 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Proof:** the 77 screenshots of the last full run, viewed by the agent; I viewed a sample (completion with gopls, Problems, the merge editor). The step asks for no proof image of its own.
 - **Manual checks:** none; the manager's pass on the user's desktop is at the end of step 17b.6.
 - **Glutter issues:** none
+
+## Fix: Glutter 1.9.2
+
+- **Date:** 2026-10-28
+- **Branch:** fix/glutter-1.9.2 (not a step of the plan)
+- **Summary:** Emetos moves to Glutter v1.9.2, a release made for it (its steps 29.8 to 29.21). All eleven entries of `docs/GLUTTER-ISSUES.md` are fixed, so every `// Glutter:` workaround is removed and the file is deleted. No new indirect dependency came in (`go.mod` changes the Glutter version only).
+  - **The Events panel keeps what the user reads (29.8):** `extensions/relay` drops `keepPlace`; the log's `ListView` has `MaintainVisibleContentPosition`, a key on each row (its number in the log) and `FindChildIndexCallback` (`eventLog.indexFromNewest`); `pushedShown` is gone.
+  - **The headless view (29.9, 29.10):** `offscreen.ViewOpts.Clipboard`, `PlatformConfiguration` and `Window` replace `clipboardParent`/`clipboardHost`, the `viewSetup` root, `configure` and `applyWindow`; the view's parent is the application's binding.
+  - **The gesture arena (29.11, 29.12, 29.17):** `fixGestureArena` (`arenafix.go`) is deleted and no longer installed by the tray host.
+  - **Input boxes (29.18, 29.19):** the click handler that reconnected the input method and the `*` obscuring character are gone; passphrase boxes show bullets again, with the caret after the right one.
+  - **The Markdown preview (29.13, 29.20):** its own list is kept (decision: Glutter's `EstimateItemOffsets` makes a rewrite on `SliverList` possible, but it is not needed, and the anchor-based list never moves what is on screen); only the `// Glutter:` comments are replaced by plain ones. `cacheMargin` stays at Flutter's 250 px (a jump or a wheel step does not need more).
+  - **Not Emetos's code (29.14, 29.15, 29.16):** the "no keymap" log, the flatten of the whole scene on each frame and `testing` in the binary are fixed in Glutter (`go list -deps ./cmd/emetos | grep -x testing` prints nothing).
+- **Numbers** (`docs/PERFORMANCE.md`, "After Glutter 1.9.2", headless): an idle blink frame on the UI thread, renderer included, 164 KB and 2,100 allocations with the 10,000-line Go file (1.87 MB and 7,200 before), 549 KB and 5,900 with the Markdown preview (8.54 MB and 30,600 before). Emetos's own part is unchanged (about 11 KB, 190 allocations). The preview: first blocks 141 ms, +113 to +119 MB resident, `BenchmarkPreviewJump` 1.0 ms, UI thread 0.86 ms a frame while scrolling.
+- **Main files:** `go.mod`, `go.sum`, `extensions/relay/{eventsview,eventlog,clienttab}.go`, `internal/gui/app/{headless,headless_clipboard,tray}.go`, `internal/gui/kit/inputbox.go`, `extension/ui/markdown/preview.go`, `docs/SPEC.md` (§10.18, §10.19, §10.x preview, §14), `docs/PERFORMANCE.md`, `docs/GLUTTER-ISSUES.md` (deleted).
+- **Tests:**
+  - `TestTheListStaysWhereTheUserLeftItWhenRowsComeInAtTheEnd` now asserts that the row on screen does not move (it fails without the option).
+  - `TestGestureArenaSurvivesPointerIDReuseInOneTurn` and `TestTheArenaSurvivesInTheApplicationAndInTheView` (in `arena_test.go`) pass with Glutter alone.
+  - The headless view's clipboard, configuration and window tests pass unchanged on `ViewOpts`.
+  - `TestInputBoxMountedAgainWithTheFocusTakesKeys` replaces the click test: a box mounted again with the focus takes keys with no help.
+- **Goldens:** one changed, `extensions/internal/loginui/testdata/goldens/dialog_passphrase_dark.png`: the passphrase is bullets again (it was asterisks) and the caret is after the sixth bullet, as it should be. Looked at.
+- **Checks:** gofmt ✅ · go vet ✅ (also `-tags emetos_display`) · golangci-lint ✅ · error-tags --untested ✅ (nothing) · go test -race -p 1 ✅ · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ · go mod tidy -diff clean · `scripts/realinput.sh` ✅ · the real gopls test ✅.
+- **Proof:** none
+- **Manual checks:** none
+- **Glutter issues:** none left; `docs/GLUTTER-ISSUES.md` is deleted.

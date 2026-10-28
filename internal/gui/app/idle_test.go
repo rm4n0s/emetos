@@ -81,9 +81,9 @@ func TestStartWarmsTheGrammarOfTheFilesOfTheCommandLine(t *testing.T) {
 // of rows read again, or a widget tree built, on every blink) does not pass. The rest is Glutter's scene builder, which adds
 // every retained layer to the scene again.
 //
-// What the renderer allocates for the same frame is Glutter's (about 2 MB a frame headless, docs/GLUTTER-ISSUES.md "The
-// renderers flatten the whole scene every frame"); no widget test sees it, because the tester has no renderer: it is
-// measured by scripts/perf.sh --profile and recorded in docs/PERFORMANCE.md.
+// What the renderer allocates for the same frame is Glutter's (about 2 MB a frame headless with Glutter 1.9.1, 160 KB with
+// 1.9.2); no widget test sees it, because the tester has no renderer: it is measured by scripts/perf.sh --profile and
+// recorded in docs/PERFORMANCE.md.
 const (
 	idleBlinkFrameBytes  = 6 << 10
 	idleBlinkFrameAllocs = 120

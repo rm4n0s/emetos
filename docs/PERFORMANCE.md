@@ -216,11 +216,31 @@ Go benchmarks (`go test -tags glutter_release ./extension/ui/markdown -run xxx -
 
 What made it fast, and what to keep in mind:
 
-- Only the blocks within 250 px of the viewport exist as widgets (`Stats.Built`); a jump chooses its window from estimates and positions it from an anchor block, so it costs one window (a `SliverList` would lay out every block on the way: `docs/GLUTTER-ISSUES.md`). A step of the wheel builds nothing that is built already: the widgets of the window are kept by block key.
+- Only the blocks within 250 px of the viewport exist as widgets (`Stats.Built`); a jump chooses its window from estimates and positions it from an anchor block, so it costs one window (a `SliverList` of Glutter 1.9.1 laid out every block on the way; Glutter 1.9.2 has `EstimateItemOffsets` for that, and the preview keeps its own list). A step of the wheel builds nothing that is built already: the widgets of the window are kept by block key.
 - The images are decoded at the size they are shown at, off the UI thread, two at a time, and held within 64 MB with the least recently used dropped first: the 2.1 GB were 150 full-size decodes (and their textures) held for as long as their widgets were mounted.
 - The text is parsed off the UI thread when it is over 16 KB (11 ms for 700 KB: the parse was never the cost, the 3224 mounted blocks were); a typed character shows 300 ms later, as in VS Code, and builds the widgets of its block only.
 - The highlighting of a code block is on the UI thread, when its block is built: the frame that builds a whole window of new blocks (a jump) takes 40 ms headless with two or three Go blocks in it. Moving it off the thread needs a thread-safe `Languages().Tokenize` in the extension API.
-- The raster time headless is llvmpipe drawing the whole window (13 ms a frame whatever the preview holds); with the Vulkan renderer every shape that is built is drawn, also off screen, which is why the margin is 250 px.
+- The raster time headless is llvmpipe drawing the whole window (13 ms a frame whatever the preview holds); with the Vulkan renderer of Glutter 1.9.1 every shape that is built was drawn, also off screen, which is why the margin is 250 px (Glutter 1.9.2 skips what is outside the clip; the margin stays at Flutter's default).
+
+### After Glutter 1.9.2 (headless)
+
+The same document (`docs/IMPLEMENTED.md` of the branch, 714 KB, with its images), the same tests and benchmarks, on a machine that was running another agent's tests at the same time. Glutter 1.9.2 skips the shapes outside the clip before it makes their mask (its step 29.13) and `EstimateItemOffsets` makes a jump into a long `SliverList` cost one window (29.20); Emetos's own list of the preview is kept, with the same 250 px margin.
+
+| Metric | After 17b.2 (Glutter 1.9.1) | Glutter 1.9.2 |
+|---|---|---|
+| The command to the first blocks | 157 to 259 ms | 141 ms |
+| Resident memory over the file open as text | +116 to +129 MB | +113 to +119 MB (446 to 447 MB as text, 561 to 566 MB with the preview) |
+| Blocks built | 7 to 11 of 3224 | 10 of 3224 |
+| UI thread per frame while scrolling and jumping | 0.7 to 1.0 ms on average, the worst 40 to 69 ms | 0.86 ms on average, the worst 45 ms (480 frames) |
+| Renderer per frame while scrolling (software) | 12.6 to 18.0 ms on average, 29 to 119 ms at worst, 83 to 264 of 417 to 529 frames over 16 ms | 9.2 ms on average, 24.5 ms at worst, 36 of 480 frames over 16 ms (the first of two runs, with the machine busier, had many frames at 17 to 20 ms) |
+| First frame with the big preview as the first view | the same as with a small one | 4.0 s since `Run` with the small preview, 4.1 s with the big one |
+
+| Benchmark (100 runs) | After 17b.2 | Glutter 1.9.2 |
+|---|---|---|
+| `BenchmarkPreviewParse` | 8.8 ms, 152,000 allocations | 9.2 ms, 152,361 allocations |
+| `BenchmarkPreviewFirstFrame` | 16.2 ms, then 13.6 ms | 14.5 ms, then 11.2 ms (26.3 ms in all) |
+| `BenchmarkPreviewJump` | 1.6 ms, 3.9 MB, 7,700 allocations | 1.0 ms, 3.6 MB, 7,757 allocations |
+| `BenchmarkPreviewWheelStep` | 58 µs, 24 KB | 35 µs, 24 KB |
 
 ## Idle allocation (step 17b.4, headless)
 
@@ -233,9 +253,22 @@ The cursor blinks twice a second and nothing else happens (SPEC §14 "Idle alloc
 | Markdown file with its preview, before | 48 | 8.44 MB, 30,100 allocations | 24.3 KB, 277 allocations | 16.8 MB/s | 80 to 147 MB |
 | Markdown file with its preview, after | 48 | 8.54 MB, 30,600 allocations | 13.1 KB, 157 allocations | 17.1 MB/s | 82 to 147 MB |
 
-Who allocates: under `drawScene` of the GLES renderer (Vulkan: `explicit`), which is Glutter's: 99% of the first column. For the Go file: `gpu.flattener.emit` 40%, `text/layout.paragraph.paintGlyphs` 12% (cumulative with `textdraw.Expand`: 49%), `gles.shapeContext.paintWith` 9%, `gles.frame.add` 6%, `ui.Matrix4.Clone` 6%, `gpu.PaintAccess` 4%, `gpu.ShapeOf` 1%. `gpu.Flatten` walks and expands every picture of the scene on every frame, also inside the layers its raster cache holds and then drops (`docs/GLUTTER-ISSUES.md`, "The renderers flatten the whole scene every frame"); a blink adds one picture of three operations to the scene (checked by walking the scenes in a test), so the cost is the glyphs on screen, paid for nothing. Emetos's part before the step: the layer of the cursors (a repaint boundary of its own, so a blink repaints only it) read the text of every visible row, 57 allocations and 3.4 KB a frame, to look for control characters (`editor.renderControlCharacters` is on by default, as in VS Code), then the style of the text (fingerprint string), the geometry, the blink timers; now a cache keeps the control characters of the rows (`controlCache`, read again when the document, `editor.stopRenderingLineAfter` or the text of a row changes). What is left of the non-renderer part is the framework's scene builder, which adds every retained layer to the scene again, the blink timers (Glutter's `NewTimer`), the platform's events and the frame statistics.
+Who allocates: under `drawScene` of the GLES renderer (Vulkan: `explicit`), which is Glutter's: 99% of the first column. For the Go file: `gpu.flattener.emit` 40%, `text/layout.paragraph.paintGlyphs` 12% (cumulative with `textdraw.Expand`: 49%), `gles.shapeContext.paintWith` 9%, `gles.frame.add` 6%, `ui.Matrix4.Clone` 6%, `gpu.PaintAccess` 4%, `gpu.ShapeOf` 1%. `gpu.Flatten` walks and expands every picture of the scene on every frame, also inside the layers its raster cache holds and then drops (fixed in Glutter 1.9.2, step 29.15: see "After Glutter 1.9.2" below); a blink adds one picture of three operations to the scene (checked by walking the scenes in a test), so the cost is the glyphs on screen, paid for nothing. Emetos's part before the step: the layer of the cursors (a repaint boundary of its own, so a blink repaints only it) read the text of every visible row, 57 allocations and 3.4 KB a frame, to look for control characters (`editor.renderControlCharacters` is on by default, as in VS Code), then the style of the text (fingerprint string), the geometry, the blink timers; now a cache keeps the control characters of the rows (`controlCache`, read again when the document, `editor.stopRenderingLineAfter` or the text of a row changes). What is left of the non-renderer part is the framework's scene builder, which adds every retained layer to the scene again, the blink timers (Glutter's `NewTimer`), the platform's events and the frame statistics.
 
 The test with the fake platform (no renderer, so Emetos's part and the framework's alone), `TestIdleBlinkFrameAllocationStaysInBudget`, 10,000-line Go file, highlighted, editor focused: before 8.0 KB and 147 allocations a frame, after 4.6 KB and 92 (4.8 KB and 94 under `-race`); the budget is 6 KB and 120. The CPU profile of 20 of those seconds: 1.7% of a core (the profiler's sampling of allocations included): the statistics of the headless frames say the build takes 0.15 to 0.3 ms and the raster (llvmpipe) 12 to 90 ms.
+
+### After Glutter 1.9.2 (headless)
+
+Glutter's step 29.15 makes the flattener skip the layers the raster cache holds, expand only the rows of a paragraph that reach the clip, and copy less. The same method as above (the 10,000-line Go file, and `docs/IMPLEMENTED.md`, 714 KB, with its preview to the side; a release build with `emetos_dev`, a headless sway of 1280 x 800 at scale 1, GLES on llvmpipe, 24 s of idle after 12 s of settling, `GODEBUG=memprofilerate=4096`), one run each:
+
+| Run (24 s of idle) | Frames | The UI thread a frame, all | of it, not the renderer | Rate | Live heap between collections |
+|---|---|---|---|---|---|
+| 10,000-line Go file, Glutter 1.9.1 (after 17b.4) | 47 | 1.87 MB, 7,200 allocations | 10.5 KB, 132 allocations | 3.7 MB/s | 34 to 62 MB |
+| 10,000-line Go file, **Glutter 1.9.2** | 56 | 164 KB, 2,119 allocations | 11.3 KB, 199 allocations | 0.38 MB/s | 47 to 57 MB |
+| Markdown file with its preview, Glutter 1.9.1 (after 17b.4) | 48 | 8.54 MB, 30,600 allocations | 13.1 KB, 157 allocations | 17.1 MB/s | 82 to 147 MB |
+| Markdown file with its preview, **Glutter 1.9.2** | 56 | 549 KB, 5,947 allocations | 11.5 KB, 191 allocations | 1.28 MB/s | 98 to 128 MB |
+
+The renderer's part fell 11 times with the Go file and 16 times with the preview; Emetos's own part is where it was (the same figures within the noise of a sampled profile). What is left in the renderer is the glyphs of the visible rows (`paragraph.paintGlyphs`: 50% of the bytes with the preview, 36% with the Go file), the arguments of the GL calls (`vertexAttribPointer`, 33% of both) and the paints; it still grows with the text on screen, but not with the text of the document. `TestIdleBlinkFrameAllocationStaysInBudget` is unchanged.
 
 ## Pending
 
