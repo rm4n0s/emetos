@@ -80,7 +80,7 @@ func TestCheck(t *testing.T) {
 			{"extensions/golang/bad.go", 6, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/internal/gui/kit"},
 			{"extensions/golang/cmd.go", 3, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/cmd/emetos"},
 		}},
-		{"an extension imports another extension, but not its own subpackages or extensions/internal", "extension_imports_extension", []want{
+		{"an extension imports another extension, but not its own subpackages, extensions/internal or the terminal emulator", "extension_imports_extension", []want{
 			{"extensions/golang/bad.go", 7, RuleExtensionImportsExtension, "github.com/rm4n0s/emetos/extensions/markdown"},
 		}},
 		{"an extension imports a module nobody allowed", "extension_forbidden_dependency", []want{

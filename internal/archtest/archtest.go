@@ -44,7 +44,7 @@ const (
 	// extensionUIPrefix is the package that gives extensions the widgets of the editor, the one place of the contract that may
 	// import internal packages (SPEC §10.15 "As built (step 11.5)").
 	extensionUIPrefix = "extension/ui"
-	// emulatorFolder is the terminal emulator (SPEC §10.25), which has no UI.
+	// emulatorFolder is the terminal emulator (SPEC §10.25), which has no UI and which any extension may import.
 	emulatorFolder = "extensions/terminal/emulator"
 )
 
@@ -75,7 +75,8 @@ const (
 	// subpackage of its own or one under extensions/internal (internal/..., cmd/...). The public package extension is the
 	// only bridge to the editor (SPEC §10.15).
 	RuleExtensionImportsInternal Rule = "ExtensionImportsInternal"
-	// RuleExtensionImportsExtension: a package under extensions/<name>/ imports another extension, extensions/<other>/...
+	// RuleExtensionImportsExtension: a package under extensions/<name>/ imports another extension, extensions/<other>/... (the terminal
+	// emulator, extensions/terminal/emulator, is a library that every extension may import).
 	RuleExtensionImportsExtension Rule = "ExtensionImportsExtension"
 	// RuleExtensionImportsForbidden: a package under extensions/ imports a module that neither the standard library nor the
 	// dependencies CLAUDE.md allows are, or a package inside Glutter's internal folders.
@@ -324,6 +325,11 @@ func extensionImportRule(rel, path string) (Rule, bool) {
 		}
 		target := strings.SplitN(strings.TrimPrefix(strings.TrimPrefix(inside, "extensions"), "/"), "/", 2)[0]
 		if target == "" || target == own[0] || target == "internal" {
+			return "", false
+		}
+		if isOrUnder(path, emetosModule+emulatorFolder) {
+			// the terminal emulator is a library with no UI and no Emetos (RuleEmulatorImportsUI): the Terminals panel of Relay
+			// draws a host's terminal with it (SPEC §10.25 "Relay", D27)
 			return "", false
 		}
 		return RuleExtensionImportsExtension, true

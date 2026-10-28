@@ -70,6 +70,12 @@ func (a *API) PublishedEvents() []Published {
 // returns the reply or the error. The handler runs on the caller's goroutine, which stands for the UI thread. It fails with
 // EventNoHandler when the extension handles no such topic.
 func (a *API) Ask(ctx context.Context, topic string, value any) (extension.Event, error) {
+	return a.AskAs(ctx, "test", topic, value)
+}
+
+// AskAs is Ask for a request made by the extension with the id publisher, which the handler reads in Event.Publisher (the terminal
+// reads who asked from it: Relay's word about its client counts, any other extension is what the bus says it is).
+func (a *API) AskAs(ctx context.Context, publisher, topic string, value any) (extension.Event, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return extension.Event{}, err
@@ -85,7 +91,7 @@ func (a *API) Ask(ctx context.Context, topic string, value any) (extension.Event
 		err error
 	}
 	ch := make(chan result, 1)
-	h(ctx, extension.Event{Topic: topic, Publisher: "test", Scope: a.info, Data: data}, func(v any, err error) { ch <- result{v, err} })
+	h(ctx, extension.Event{Topic: topic, Publisher: publisher, Scope: a.info, Data: data}, func(v any, err error) { ch <- result{v, err} })
 	for {
 		select {
 		case r := <-ch:

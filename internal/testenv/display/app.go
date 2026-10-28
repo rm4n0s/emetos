@@ -527,6 +527,13 @@ type TerminalState struct {
 	Link        string `json:"link"`
 	LinkCells   int    `json:"linkCells"`
 	Tooltip     bool   `json:"tooltip"`
+	// Remote, ID, CanType, State and Seq describe a terminal of another computer that Relay's Terminals panel shows (step 17d.4):
+	// its number there, whether the panel sends the keys, and how far its screen is ("none", "loading", "ready", "failed").
+	Remote  bool   `json:"remote"`
+	ID      int    `json:"id"`
+	CanType bool   `json:"canType"`
+	State   string `json:"state"`
+	Seq     uint64 `json:"seq"`
 }
 
 // Terminal is a terminal on screen: its place in window coordinates and its state.
@@ -851,6 +858,18 @@ func (a *App) ResizeWindow(width, height int) {
 	time.Sleep(300 * time.Millisecond)
 	a.RefreshWindow()
 	a.Settle()
+}
+
+// Focus gives the keyboard focus to the window of this editor (a test that runs two editors in one compositor types in one of
+// them at a time) and refreshes where the window is.
+func (a *App) Focus() {
+	a.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := realinput.SwayCommand(ctx, "[pid="+itoa(a.cmd.Process.Pid)+"] focus"); err != nil {
+		a.t.Fatalf("focusing the window: %v", err)
+	}
+	a.RefreshWindow()
 }
 
 // Window is the window as sway last reported it.

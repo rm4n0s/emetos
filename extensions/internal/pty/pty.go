@@ -262,3 +262,21 @@ func (p *Process) ForegroundPid() (int, error) {
 	}
 	return pgrp, nil
 }
+
+// EchoOn tells whether the terminal echoes what is written to it (the ECHO flag of its settings): a shell at its prompt leaves
+// it on, a program that asks for a password turns it off. A terminal that cannot be asked, because it is closed, is taken to
+// echo nothing, so that the caller treats what is typed as secret.
+func (p *Process) EchoOn() bool {
+	sc, err := p.master.SyscallConn()
+	if err != nil {
+		return false
+	}
+	on := false
+	if err := sc.Control(func(fd uintptr) {
+		t, ioErr := unix.IoctlGetTermios(int(fd), unix.TCGETS)
+		on = ioErr == nil && t.Lflag&unix.ECHO != 0
+	}); err != nil {
+		return false
+	}
+	return on
+}

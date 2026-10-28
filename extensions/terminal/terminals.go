@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rm4n0s/errors"
+
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
 )
@@ -22,6 +24,8 @@ type entry struct {
 	pv   *paneView
 	// ended says that the user or the extension ended the terminal, so that its exit is not reported.
 	ended bool
+	// clients are the comments of the keys of the Relay clients that typed in the terminal and are still connected.
+	clients []string
 }
 
 // group is a tab of the tabs list: terminals side by side.
@@ -43,6 +47,9 @@ type terminals struct {
 	env    environ
 	// start starts the programs; nil is a real pseudo-terminal. The tests replace it.
 	start starter
+	// outputInterval is how long the output of a terminal is gathered before it is published; 0 is outputInterval. The tests
+	// shorten it.
+	outputInterval time.Duration
 
 	cfg   *config
 	fonts fontCache
@@ -163,6 +170,11 @@ type openOpts struct {
 	split bool
 	// name is the name the user gave it.
 	name string
+	// quiet makes the terminal without showing the panel, giving it the keyboard or making it the active tab: a terminal a
+	// client of Relay asked for does not take the screen of the person at the computer.
+	quiet bool
+	// by is who asked for the terminal (ByUser, a client of Relay or an extension); empty is the user.
+	by string
 }
 
 // open makes a terminal, shows it and gives it the focus. A failure is shown to the user and returned.
@@ -194,6 +206,7 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	term, err := newTerminal(t.ctx, terminalOpts{
 		id: t.nextID, profile: prof, dir: dir, env: buildEnv(t.env.vars, settingEnvVars, prof.env, locale, termVersion),
 		rows: rows, cols: cols, scrollback: t.cfg.scrollback, version: termVersion, start: t.start, log: t.api.Log(),
+		obs: t.observerFor(t.nextID), interval: t.outputInterval,
 	})
 	if err != nil {
 		t.failure = "The terminal process " + prof.path + " failed to launch: " + err.Error()
@@ -215,13 +228,20 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 		g.sizes = append(g.sizes, g.meanSize())
 		g.active = len(g.entries) - 1
 	} else {
+		first := len(t.groups) == 0
 		t.nextGr++
 		t.groups = append(t.groups, &group{id: t.nextGr, entries: []*entry{e}, sizes: []float64{1000}, split: ui.NewSplitViewController()})
-		t.cur = len(t.groups) - 1
+		if !o.quiet || first {
+			t.cur = len(t.groups) - 1
+		}
 	}
+	t.typedBy(e, o.by)
+	t.publish(TopicCreated, createdEvent{ID: term.ID(), Name: t.nameOf(e), Profile: prof.name, Cwd: term.Cwd()})
 	t.syncKeys()
 	t.handle.Refresh()
-	t.focusEntry(e, true)
+	if !o.quiet {
+		t.focusEntry(e, true)
+	}
 	return e, nil
 }
 
@@ -264,6 +284,7 @@ func (t *terminals) exited(e *entry) {
 		return
 	}
 	code, _ := e.term.ExitCode()
+	t.publish(TopicExited, exitedEvent{ID: e.term.ID(), Code: code})
 	if !e.ended && code != 0 && code != 130 && code != 129 && code != 143 && code != -1 {
 		t.api.Notifications().Warn("The terminal process \"" + e.term.Profile().path + "\" terminated with exit code: " + strconv.Itoa(code) + ".")
 	}
@@ -277,6 +298,7 @@ func (t *terminals) kill(e *entry) {
 	}
 	e.ended = true
 	e.term.Kill()
+	e.term.flushOutput(true)
 	t.remove(e)
 }
 
@@ -305,6 +327,7 @@ func (t *terminals) remove(e *entry) {
 		t.paneFocus = nil
 	}
 	e.pv.dispose()
+	t.publish(TopicClosed, closedEvent{ID: e.term.ID()})
 	t.syncKeys()
 	t.handle.Refresh()
 	switch {
@@ -428,6 +451,13 @@ func (t *terminals) syncKeys() {
 		}
 		t.keys[k] = v
 		if err := t.api.Context().Set(k, v); err != nil {
+			// The extension is active from the start of the window (SPEC §10.25: the terminals are events and requests), also in a
+			// scope that has no context keys; that is not a problem of the terminal.
+			if appErr, ok := errors.FromError(err); ok && appErr.Tag == "ExtensionContextUnavailable" {
+				t.api.Log().Debug("a context key cannot be set here", "key", k)
+				delete(t.keys, k) // tried again at the next change
+				continue
+			}
 			t.api.Log().Warn("a context key cannot be set", "key", k, "err", err)
 		}
 	}

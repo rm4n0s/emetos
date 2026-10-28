@@ -192,12 +192,15 @@ Two extensions that let one Emetos be used from another computer. **Both are new
 
 **Relay** ([SPEC §10.19](docs/SPEC.md#1019-relay-event-control-of-a-workspace-from-another-machine-extensionsrelay)) is event control, not a picture: nothing but events, requests and commands cross the network. In the **Relay** tab, *Be a Host* turns listening on (port **47124**, TCP), picks the workspaces to share and lists the keys, each **Watch only** (the default) or **Watch and send**. *Hosts* connects to other computers and shows an **Events** panel (a live log of a shared workspace) and, for Watch and send, a **Send** panel (publish an event, make a request, run a command). A client only acts in the workspace it was given, and commands that reach outside it (window tabs, quitting, other folders, profiles, user settings) are refused.
 
+The **Terminals** panel of the client shows the terminals of the host's workspace, drawn with Emetos's own terminal emulator: you see what they print, live, with their scrollback. It is read-only until the host also checks **Allow terminals** for your key and that workspace (off by default, and never for Watch only); then it takes your keys and pastes, and has New Terminal and Kill. A terminal you typed in shows "Relay: your key's comment" on the host until you disconnect.
+
 ![The Relay tab: a connected host, the Events panel and the Send panel](docs/screenshots/relay.png)
 
 ### Security notes
 
 Read these before you turn either extension on ([SPEC §10.18](docs/SPEC.md#1018-remote-work-remote-control-of-a-workspace-extensionsremotework) and [§10.19](docs/SPEC.md#1019-relay-event-control-of-a-workspace-from-another-machine-extensionsrelay) have the whole design):
 - **A listed key gives that person your power in the workspace**: they can edit and delete files and run tasks (Remote Work, and Relay's Watch and send). List only keys you would trust with your account.
+- **Allow terminals gives a client a shell as you.** It is off by default, for every key and every workspace, and you turn it on in *Be a Host* under a key with Watch and send. A client that can type in a terminal can do anything you can do on this computer, and nothing in Emetos limits what a shell does. Relay's Watch only, even without it, sees what your terminals print and the scrollback they hold (not what you type at a prompt that does not echo, such as a password).
 - **Relay's Watch only still sees all document text**: every event of the workspace, including the text and the edits of your documents.
 - **Compare the fingerprint the first time.** The first connection shows the host's key fingerprint; compare it with the one on the host's page before you trust it. A connection is only as safe as that comparison. A changed host key is refused with a warning.
 - **Over the internet, use a VPN.** The login is as safe as SSH with key-only login, and a VPN is better still. Do not expose the ports to the internet without one. Failed logins are limited to 5 a minute for each address, but that is not a defense by itself.

@@ -154,7 +154,12 @@ func (w *serializer) run(scrollback int) {
 		} else {
 			w.cup(main.y, main.x)
 		}
+		// DECSET 1049 saves the pen with the cursor, and leaving the alternate screen puts it back
+		if main.saved.valid {
+			w.setStyle(main.saved.pen)
+		}
 		w.str("\x1b[?1049h")
+		w.resetPen()
 		cur = e.altScr
 		for y := 0; y < cur.rows; y++ {
 			l := cur.row(y)

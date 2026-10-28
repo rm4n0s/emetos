@@ -64,7 +64,7 @@ func TestTheFakeRoutesRequestsToTheHandlersOfTheExtension(t *testing.T) {
 		t.Errorf("Ask = %s, %v", ev.Data, err)
 	}
 	_, err = a.Ask(context.Background(), "fake.none", nil)
-	route(t, err, "API.Ask.EventNoHandler")
+	route(t, err, "API.AskAs.EventNoHandler")
 	// the extension's own request reaches its own handler
 	var reply string
 	if err := a.Events().Request(context.Background(), "fake.echo", 5, func(ev extension.Event, err error) { reply = string(ev.Data) }); err != nil {

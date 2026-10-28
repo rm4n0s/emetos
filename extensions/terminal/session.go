@@ -72,6 +72,12 @@ type terminalOpts struct {
 	log        *slog.Logger
 	// grace is how long a program has to end after SIGHUP before it is killed; 0 is 5 seconds.
 	grace time.Duration
+	// obs receives the events of the terminal (SPEC §10.25 "Events and requests"); nil is none.
+	obs *observer
+	// interval is how long the output is gathered before it is published; 0 is outputInterval.
+	interval time.Duration
+	// snapshotLimit is the most a snapshot's data may be; 0 is maxSnapshotBytes.
+	snapshotLimit int
 }
 
 // Terminal is one terminal: the program in its pseudo-terminal, the emulator that turns its output into a screen, and what a
@@ -120,6 +126,16 @@ type Terminal struct {
 	// exitedCh is closed when the program is gone and its last output was parsed.
 	exitedCh chan struct{}
 	wg       sync.WaitGroup
+
+	// the stream of the output for the observer (stream.go): outMu holds the parser's write and the bytes that wait to be
+	// published together, so that a snapshot is the screen after exactly the output of the events up to its seq.
+	obs      *observer
+	snapMax  int
+	outMu    sync.Mutex
+	outBuf   []byte
+	outTail  []byte
+	outSeq   uint64
+	outTimer *time.Timer
 }
 
 // chunk is a piece of the program's output.
@@ -143,8 +159,14 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 	if o.log == nil {
 		o.log = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
+	if o.obs != nil && o.interval > 0 {
+		o.obs.interval = o.interval
+	}
+	if o.snapshotLimit <= 0 {
+		o.snapshotLimit = maxSnapshotBytes
+	}
 	t := &Terminal{id: o.id, log: o.log.With("terminal", o.id), prof: o.profile, dir: o.dir, rows: o.rows, cols: o.cols,
-		inWake: make(chan struct{}, 1), exitedCh: make(chan struct{}), icon: o.profile.icon}
+		inWake: make(chan struct{}, 1), exitedCh: make(chan struct{}), icon: o.profile.icon, obs: o.obs, snapMax: o.snapshotLimit}
 	t.flowCond = sync.NewCond(&t.flowMu)
 	t.em = emulator.New(o.rows, o.cols, emulator.Options{
 		Scrollback: o.scrollback, Name: "Emetos", Version: o.version,
@@ -155,6 +177,9 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 				t.title = s
 				t.mu.Unlock()
 				t.fireMeta()
+				if t.obs != nil && t.obs.title != nil {
+					t.obs.title(s)
+				}
 			},
 			Bell: func() {
 				t.mu.Lock()
@@ -281,9 +306,7 @@ func (t *Terminal) readLoop(chunks chan<- chunk) {
 func (t *Terminal) parseLoop(chunks <-chan chunk) {
 	defer t.wg.Done()
 	for c := range chunks {
-		if _, err := t.em.Write(c.buf); err != nil {
-			t.log.Debug("the emulator refused output", "err", err)
-		}
+		t.feed(c.buf)
 		n := len(c.buf)
 		full := c.buf[:cap(c.buf)]
 		chunkPool.Put(&full)
@@ -307,6 +330,7 @@ func (t *Terminal) finish() {
 		t.proc.Close()
 		<-t.proc.Done()
 	}
+	t.flushOutput(true)
 	t.mu.Lock()
 	t.exited, t.exitCode = true, t.proc.ExitCode()
 	t.mu.Unlock()
@@ -416,7 +440,7 @@ func (t *Terminal) Resize(cols, rows int) {
 	if same {
 		return
 	}
-	t.em.Resize(rows, cols)
+	t.resizeEmulator(rows, cols)
 	if !exited {
 		if err := t.proc.Resize(rows, cols); err != nil {
 			t.log.Debug("the terminal cannot be resized", "err", err)

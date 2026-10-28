@@ -261,3 +261,32 @@ func TestForegroundPidIsTheProgramAndThenWhatItRuns(t *testing.T) {
 	_, err = p.ForegroundPid()
 	route(t, err, "Process.ForegroundPid.PtyForegroundFailed")
 }
+
+func TestEchoOnFollowsTheEchoFlagOfTheTerminal(t *testing.T) {
+	// the terminal echoes by default; stty -echo, as a program that asks for a password does, turns it off
+	p := shell(t, Options{}, `printf ready; stty -echo; printf off; sleep 60`)
+	if !p.EchoOn() {
+		t.Error("EchoOn = false for a terminal with the default settings")
+	}
+	buf := make([]byte, 64)
+	var got string
+	deadline := time.Now().Add(10 * time.Second)
+	for !strings.Contains(got, "readyoff") && time.Now().Before(deadline) {
+		n, err := p.Read(buf)
+		got += string(buf[:n])
+		if err != nil {
+			break
+		}
+	}
+	if !strings.Contains(got, "readyoff") {
+		t.Fatalf("the script printed %q", got)
+	}
+	if p.EchoOn() {
+		t.Error("EchoOn = true after stty -echo")
+	}
+	p.Close()
+	<-p.Done()
+	if p.EchoOn() {
+		t.Error("EchoOn = true for a terminal that is closed; what is typed there must count as secret")
+	}
+}

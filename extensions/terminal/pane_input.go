@@ -58,7 +58,7 @@ func (pv *paneView) onKey(_ *widgets.FocusNode, e services.KeyEvent) widgets.Key
 
 // userInput sends what the user typed: the view goes to the bottom and the selection ends.
 func (pv *paneView) userInput(b []byte) {
-	pv.term.Send(b)
+	pv.term.Type(b, ByUser)
 	pv.scrollTo(0)
 	if pv.sel.active {
 		pv.setSelection(selection{})
