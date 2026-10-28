@@ -124,3 +124,5 @@ Each of these worked with real input, and its screenshot was looked at.
 | Second launch | `TestDesktopSecondLaunchHandsAFileOver` | `emetos late.txt` opens in the running instance, no second window tab, `--goto file:6:3` puts the cursor there |
 
 Skipped by the step: the Agents extension (removed in M17c). Removed later: Notes, TODOs and Scratchpad (step 17e.1).
+
+- **Update (2026-10-28):** `TestRealInputBigPreviewStartDoesNotWaitForThePreview` (17b.2), which compared two cold starts, failed now and then by 241 to 672 ms on the loaded machine: every start paid the Mesa shader compile of a fresh `XDG_CACHE_HOME` (4 to 5 s, about ±500 ms of noise). It now gives all its starts one `MESA_SHADER_CACHE_DIR`, warmed by throwaway starts until a first frame is under 1 s, and compares the fastest of three alternating small and big starts against the same 150 ms (after: +2 to +40 ms in five runs; a 300 ms sleep in the preview's open still fails it).

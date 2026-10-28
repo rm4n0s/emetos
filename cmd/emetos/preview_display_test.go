@@ -4,6 +4,7 @@ package main
 
 import (
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -166,12 +167,12 @@ func TestRealInputBigPreviewProof(t *testing.T) {
 }
 
 // startWithPreview starts the editor on one Markdown file that opens in its preview (workbench.editor.defaultFileViews), as a
-// restored session does, and returns the time of its first frame.
-func startWithPreview(t *testing.T, big bool) (*display.App, display.FirstFrame) {
+// restored session does, and returns the time of its first frame. The driver keeps its compiled shaders in mesaCache.
+func startWithPreview(t *testing.T, big bool, mesaCache string) (*display.App, display.FirstFrame) {
 	t.Helper()
 	opts := display.Options{
 		Args:   []string{".", mdfixture.DocName},
-		Env:    []string{"GLUTTER_FRAME_STATS=1"},
+		Env:    []string{"GLUTTER_FRAME_STATS=1", "MESA_SHADER_CACHE_DIR=" + mesaCache},
 		Config: map[string]string{"settings.json": `{"workbench.editor.defaultFileViews": {"*.md": "emetos.markdown.preview"}}`},
 	}
 	if big {
@@ -188,20 +189,84 @@ func startWithPreview(t *testing.T, big bool) (*display.App, display.FirstFrame)
 	return a, first
 }
 
+// startBudget is the most the first frame of an editor that starts with the preview of the big document may come after
+// the first frame of one that starts with the preview of a small one (SPEC §14, the Markdown preview row).
+const startBudget = 150 * time.Millisecond
+
+// warmStart is the time under which the first frame of a start is one with no compile of shaders in it (0.45 s warm, 2 to 5 s
+// not), and maxWarmStarts the starts that fill the shader cache before the test gives up.
+const (
+	warmStart     = time.Second
+	maxWarmStarts = 4
+)
+
+// startRounds is the number of starts of each kind that are measured.
+const startRounds = 3
+
 // TestRealInputBigPreviewStartDoesNotWaitForThePreview: an editor that starts with the preview of the big document (what a
 // restored session does) draws its first frame as fast as one that starts with the preview of a small one.
+//
+// Every start of the display harness has a new XDG_CACHE_HOME, so every start is a first start for the driver, and on llvmpipe
+// the compile of the shaders takes 4 to 5 s of the first frame, with about 500 ms of noise between two starts: more than the
+// whole budget. The starts of this test share one Mesa shader cache (MESA_SHADER_CACHE_DIR) in a folder of the test, which a
+// first start that is not measured fills, so the driver's compile is out of every measured start (the first frame takes about
+// 0.3 s then). The starts alternate between the two kinds, and the kinds are compared by their fastest start, so that a start
+// that the machine slowed down does not count.
 func TestRealInputBigPreviewStartDoesNotWaitForThePreview(t *testing.T) {
-	_, small := startWithPreview(t, false)
-	a, big := startWithPreview(t, true)
-	t.Logf("first frame: %v since Run (%v since the process started) with the small preview, %v (%v) with the big one", small.SinceRun, small.SinceProcessStart, big.SinceRun, big.SinceProcessStart)
-	if extra := big.SinceRun - small.SinceRun; extra > 150*time.Millisecond {
-		t.Errorf("the first frame with the big preview took %v more than with the small one", extra)
+	mesaCache := t.TempDir()
+	// The first start fills the cache only in part (the first start after it still takes about 2 s, the ones after it 0.45 s),
+	// so the cache is filled until a start is fast.
+	for attempt := 1; ; attempt++ {
+		var warm bool
+		t.Run("warm the shader cache "+strconv.Itoa(attempt), func(t *testing.T) {
+			_, first := startWithPreview(t, false, mesaCache)
+			t.Logf("first frame of a start that fills the cache: %v since Run", first.SinceRun)
+			warm = first.SinceRun < warmStart
+		})
+		if warm {
+			break
+		}
+		if attempt == maxWarmStarts {
+			t.Fatalf("the first frame still took more than %v after %d starts with the same shader cache", warmStart, attempt)
+		}
 	}
-	a.Eventually("the preview to build its first blocks", func() (bool, string) {
-		list := a.Previews()
-		return len(list) == 1 && list[0].Built > 0, "no blocks yet"
-	})
-	if p := preview(t, a); p.Blocks < 1000 || p.Built > builtBudget {
-		t.Errorf("the preview: %+v", p)
+	var small, bigTimes []time.Duration
+	for round := range startRounds {
+		// the order alternates, so that neither kind always runs second (on a machine that warms up or slows down)
+		order := []bool{false, true}
+		if round%2 == 1 {
+			order = []bool{true, false}
+		}
+		for _, big := range order {
+			name := "small preview"
+			if big {
+				name = "big preview"
+			}
+			t.Run(name+" "+strconv.Itoa(round+1), func(t *testing.T) {
+				a, first := startWithPreview(t, big, mesaCache)
+				t.Logf("first frame: %v since Run (%v since the process started)", first.SinceRun, first.SinceProcessStart)
+				if !big {
+					small = append(small, first.SinceRun)
+					return
+				}
+				bigTimes = append(bigTimes, first.SinceRun)
+				a.Eventually("the preview to build its first blocks", func() (bool, string) {
+					list := a.Previews()
+					return len(list) == 1 && list[0].Built > 0, "no blocks yet"
+				})
+				if p := preview(t, a); p.Blocks < 1000 || p.Built > builtBudget {
+					t.Errorf("the preview: %+v", p)
+				}
+			})
+		}
+	}
+	if len(small) != startRounds || len(bigTimes) != startRounds {
+		t.Fatalf("%d starts with the small preview and %d with the big one were measured, want %d of each", len(small), len(bigTimes), startRounds)
+	}
+	fastestSmall, fastestBig := slices.Min(small), slices.Min(bigTimes)
+	t.Logf("first frames with the small preview: %v, with the big one: %v", small, bigTimes)
+	if extra := fastestBig - fastestSmall; extra > startBudget {
+		t.Errorf("the fastest first frame with the big preview took %v (%v) more than the fastest with the small one (%v), want at most %v",
+			extra, fastestBig, fastestSmall, startBudget)
 	}
 }
