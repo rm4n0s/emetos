@@ -47,10 +47,20 @@ func (*remoteWork) Manifest() extension.Manifest {
 		// The listener must be open as soon as a workspace that has Remote Work on is open, so the extension is active from the start.
 		ActivationEvents: []string{extension.OnStartup},
 		Contributes: extension.Contributes{
-			Commands: []extension.CommandSpec{{
-				ID: ManageCommand, Title: "Manage", Category: "Remote Work",
-				Description: "Opens the Remote Work page: turn it on for this workspace, set the port and the keys that may log in.",
-			}},
+			Commands: []extension.CommandSpec{
+				{
+					ID: ManageCommand, Title: "Manage", Category: "Remote Work",
+					Description: "Opens the Remote Work page: turn it on for this workspace, set the port and the keys that may log in.",
+				},
+				{
+					ID: HostCommand, Title: "Host This Workspace", Category: "Remote Work",
+					Description: "Lets the computers with an allowed key use this workspace. With no key listed it opens the page at the guide.",
+				},
+				{
+					ID: StopCommand, Title: "Stop Hosting This Workspace", Category: "Remote Work",
+					Description: "Turns Remote Work off for this workspace and ends its sessions.",
+				},
+			},
 			EditorKinds: []extension.EditorKindSpec{{ID: KindID, Name: "Remote Work", Icon: "remote"}},
 			// the window tab "Remote Work..." of the "+" menu: the machine that uses another one's workspace (step 15.4)
 			WindowTabKinds: []extension.WindowTabKindSpec{{ID: TabKindID, Title: "Remote Work", Icon: "remote", PlusMenuLabel: "Remote Work..."}},
@@ -68,6 +78,12 @@ func (r *remoteWork) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	if err := api.Commands().Handle(ManageCommand, r.manage); err != nil {
+		return err
+	}
+	if err := api.Commands().Handle(HostCommand, r.host); err != nil {
+		return err
+	}
+	if err := api.Commands().Handle(StopCommand, r.stopHosting); err != nil {
 		return err
 	}
 	if api.Scope().Kind != extension.ScopeWorkspace {
@@ -89,6 +105,55 @@ func (r *remoteWork) manage(context.Context, any) error {
 	}
 	_, err := r.api.Editors().Open(KindID, nil, extension.EditorOpenOptions{})
 	return err
+}
+
+// host is the command Host This Workspace. A window with no folder cannot be hosted, and a machine with no allowed key would get a
+// switch that does nothing, so there the page opens at its guide; otherwise Remote Work is turned on for the workspace.
+func (r *remoteWork) host(context.Context, any) error {
+	if r.api.Scope().Folder == "" {
+		r.api.Notifications().Warn("This workspace has no folder, so it cannot be hosted. Open a folder first.")
+		return nil
+	}
+	folder := filepath.Clean(r.api.Scope().Folder)
+	snap := r.hub.Snapshot(folder)
+	if snap.LoadErr != "" || len(snap.Keys) == 0 {
+		return r.manage(r.ctx, nil)
+	}
+	if snap.On {
+		r.api.Notifications().Info("Remote Work already hosts this workspace.")
+		return nil
+	}
+	go func() {
+		err := r.hub.SetWorkspace(folder, true)
+		r.api.Post(func() {
+			if err != nil {
+				r.api.Notifications().Error("Remote Work cannot host this workspace: " + err.Error())
+				return
+			}
+			r.api.Notifications().Info("Hosting this workspace with Remote Work.")
+		})
+	}()
+	return nil
+}
+
+// stopHosting is the command Stop Hosting This Workspace.
+func (r *remoteWork) stopHosting(context.Context, any) error {
+	if r.api.Scope().Folder == "" || !r.hub.Snapshot(filepath.Clean(r.api.Scope().Folder)).On {
+		r.api.Notifications().Info("Remote Work does not host this workspace.")
+		return nil
+	}
+	folder := filepath.Clean(r.api.Scope().Folder)
+	go func() {
+		err := r.hub.SetWorkspace(folder, false)
+		r.api.Post(func() {
+			if err != nil {
+				r.api.Notifications().Error("Remote Work cannot stop hosting: " + err.Error())
+				return
+			}
+			r.api.Notifications().Info("Stopped hosting this workspace with Remote Work.")
+		})
+	}()
+	return nil
 }
 
 // createPage makes the content of the tab of the page; the page keeps no state of its own.

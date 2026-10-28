@@ -307,10 +307,13 @@ func (p *page) build(bc widgets.BuildContext) widgets.Widget {
 	if locked {
 		items = append(items, gap(12), p.problem(bc, colors, "remote-work.json cannot be used, so Remote Work stays off and nothing here can be changed until it is fixed: "+snap.LoadErr))
 	}
+	if msg := snap.HostKeyErr + p.hostKeyErr; msg != "" {
+		items = append(items, gap(12), p.problem(bc, colors, "The host key cannot be used: "+msg))
+	}
 	items = append(items, p.workspaceSection(bc, colors, snap, text, dim, locked))
-	items = append(items, p.connectionSection(bc, colors, snap, locked))
+	items = append(items, gap(14), p.guide(bc, colors, snap))
 	items = append(items, p.keysSection(bc, colors, snap, text, dim, mono, locked))
-	items = append(items, p.hostSection(bc, colors, snap, text, dim, mono))
+	items = append(items, p.connectionSection(bc, colors, snap, locked))
 	notes := make([]widgets.Widget, 0, 2*len(securityNotes))
 	for _, n := range securityNotes {
 		notes = append(notes, widgets.NewRow([]widgets.Widget{
@@ -338,34 +341,27 @@ func (p *page) problem(bc widgets.BuildContext, colors ui.Colors, msg string) wi
 	return pageui.Problem(bc, colors, msg)
 }
 
-// workspaceSection is the switch of this workspace, what the listener does, and the connected clients.
+// workspaceSection is the first thing of the page: the switch "Host this workspace" with its plain line and the Stop Hosting button, and the connected
+// clients.
 func (p *page) workspaceSection(bc widgets.BuildContext, colors ui.Colors, snap Snapshot, text, dim *painting.TextStyle, locked bool) widgets.Widget {
-	name := p.api.Scope().Name
 	var rows []widgets.Widget
 	switch {
 	case !p.hasFolder():
-		rows = append(rows, p.paragraph(bc, "This workspace has no folder, so it cannot be shared. Open a folder to turn Remote Work on for it.", dim))
+		rows = append(rows, p.paragraph(bc, "This workspace has no folder, so it cannot be hosted. Open a folder to host it.", dim))
 	default:
-		rows = append(rows,
-			ui.NewCheckbox("Allow other computers to use "+name, ui.CheckboxOpts{Checked: snap.On, Disabled: locked, OnChanged: p.toggle}),
-			gap(4),
-			p.paragraph(bc, p.folder, dim))
-		status, bad := "Off. Nothing listens for Remote Work.", false
-		switch {
-		case snap.On && snap.ListenErr != "":
-			status, bad = "On, but it cannot listen: "+snap.ListenErr, true
-		case snap.On && snap.Listening:
-			status = "On. Listening on " + portOf(snap.Addr, snap.Config.Port) + ", for the keys below."
-		case snap.On:
-			status = "On. Starting to listen."
-		case snap.Listening:
-			status = "Off for this workspace. Another workspace has it on, so the port is open for that one."
-		}
+		line, bad := p.hostLine(snap)
 		style := dim
 		if bad {
 			style = ui.TextStyle(bc, bodySize, colors.ErrorForeground)
 		}
-		rows = append(rows, gap(8), p.paragraph(bc, status, style), p.noteLine(bc, colors, p.switchNote))
+		buttons := []widgets.Widget{ui.NewCheckbox("Host this workspace", ui.CheckboxOpts{Checked: snap.On, Disabled: locked, OnChanged: p.toggle})}
+		if snap.On {
+			buttons = append(buttons, hgap(16), ui.NewButton("Stop Hosting", ui.ButtonOpts{Small: true, Secondary: true, Disabled: locked, OnPressed: func() { p.toggle(false) }}))
+		}
+		rows = append(rows,
+			widgets.NewRow(buttons, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}),
+			gap(4), p.paragraph(bc, p.folder, dim),
+			gap(8), p.paragraph(bc, line, style), p.noteLine(bc, colors, p.switchNote))
 		for _, s := range snap.Sessions {
 			s := s
 			rows = append(rows, gap(10), widgets.NewRow([]widgets.Widget{
@@ -375,7 +371,57 @@ func (p *page) workspaceSection(bc widgets.BuildContext, colors ui.Colors, snap 
 			}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))
 		}
 	}
-	return p.section(bc, colors, "This workspace", rows...)
+	return p.section(bc, colors, "Hosting", rows...)
+}
+
+// hostLine is the plain line under the switch (SPEC §10.29) and whether it is an error.
+func (p *page) hostLine(snap Snapshot) (string, bool) {
+	switch {
+	case snap.On && snap.ListenErr != "":
+		return "On, but it cannot listen: " + snap.ListenErr, true
+	case snap.On && snap.Listening:
+		return "On. Computers with an allowed key can connect to " + p.firstAddress(snap) + ".", false
+	case snap.On:
+		return "On. Starting to listen.", false
+	case snap.Listening:
+		return "Off for this workspace. Another workspace is hosted, so the port is open for that one.", false
+	}
+	return "Off. No other computer can connect.", false
+}
+
+// firstAddress is the address the plain line names: the first non-loopback address of this computer with the port, else the port.
+func (p *page) firstAddress(snap Snapshot) string {
+	if list := p.hub.Addresses(); len(list) > 0 {
+		return list[0]
+	}
+	return "this computer on " + portOf(snap.Addr, snap.Config.Port)
+}
+
+// guide is the first-time guide (SPEC §10.29 "The first time"): three steps, each with a check mark when it is done, the last one
+// with the addresses to connect to and the fingerprint to compare.
+func (p *page) guide(bc widgets.BuildContext, colors ui.Colors, snap Snapshot) widgets.Widget {
+	copyText := pageui.Copier(p.ctx, bc)
+	var extra []widgets.Widget
+	for _, a := range p.hub.Addresses() {
+		extra = append(extra, pageui.CopyRow(bc, colors, a, copyText))
+	}
+	detail := "Open the Remote Work tab (the + menu) on that computer, type one of these addresses and choose its key."
+	if len(extra) == 0 {
+		detail = "This computer shows no network address. Connect it to a network, then type its address and the port " + strconv.Itoa(snap.Config.Port) + " on the other computer."
+	}
+	if snap.HostFingerprint != "" {
+		extra = append(extra, widgets.NewRow([]widgets.Widget{
+			ui.Icon("lock", 14, colors.DescriptionForeground), hgap(8),
+			widgets.NewExpanded(widgets.NewText("Host key fingerprint, to compare when it asks:  "+snap.HostFingerprint, widgets.TextOpts{
+				Style: ui.TextStyle(bc, 12, colors.DescriptionForeground).CopyWith(painting.TextStyleOpts{FontFamily: monoFamily(bc)}),
+			})),
+		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))
+	}
+	return pageui.Guide(bc, colors, "How to host this workspace", []pageui.GuideStep{
+		{Done: len(snap.Keys) > 0, Title: "Add the public key of the computer that will connect.", Detail: "Paste the key, choose a .pub file, or Scan QR Code, under Allowed keys below."},
+		{Done: snap.On && snap.ListenErr == "", Title: "Turn hosting on.", Detail: "Use Host this workspace above. Stop Hosting turns it off again."},
+		{Done: snap.On && snap.ListenErr == "" && len(snap.Keys) > 0, Title: "On the other computer, connect to:", Detail: detail, Extra: extra},
+	})
 }
 
 // portOf is the port the listener is on, from its address, or the configured one.
@@ -436,24 +482,4 @@ func (p *page) removeKey(k sshlogin.AllowedKey) {
 		p.keyNote = pageui.Fine("Removed " + k.Name() + ".")
 	}
 	p.refresh()
-}
-
-// hostSection shows the fingerprint of the host key.
-func (p *page) hostSection(bc widgets.BuildContext, colors ui.Colors, snap Snapshot, text, dim, mono *painting.TextStyle) widgets.Widget {
-	var rows []widgets.Widget
-	switch {
-	case snap.HostFingerprint != "":
-		rows = append(rows,
-			p.paragraph(bc, "The other computer shows this fingerprint the first time it connects. Log in only if it is the same.", dim), gap(8),
-			widgets.NewRow([]widgets.Widget{ui.Icon("lock", 16, colors.Foreground), hgap(8), widgets.NewText("ssh-ed25519  "+snap.HostFingerprint, widgets.TextOpts{Style: mono})}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))
-	case snap.HostKeyErr != "" || p.hostKeyErr != "":
-		msg := snap.HostKeyErr
-		if msg == "" {
-			msg = p.hostKeyErr
-		}
-		rows = append(rows, p.problem(bc, colors, "The host key cannot be used: "+msg))
-	default:
-		rows = append(rows, p.paragraph(bc, "The host key is made the first time Remote Work is turned on.", dim))
-	}
-	return p.section(bc, colors, "Host key of this computer", rows...)
 }

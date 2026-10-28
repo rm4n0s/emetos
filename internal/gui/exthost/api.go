@@ -337,6 +337,9 @@ func (h *statusHandle) entry(item extension.StatusItem) workbench.StatusEntry {
 		name = h.inst.name
 	}
 	e := workbench.StatusEntry{Name: name, Text: item.Text, AriaLabel: item.Text, Tooltip: item.Tooltip, Command: item.Command, Args: item.Args}
+	if item.Kind == extension.StatusRemote {
+		e.Kind = workbench.StatusRemote
+	}
 	if item.OnClick != nil {
 		e.Command, e.Args = h.commandID, nil
 	}

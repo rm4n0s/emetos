@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"image"
 	"math"
+	"os"
 	"strings"
 
 	"github.com/rm4n0s/errors"
@@ -13,7 +14,27 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
+	"github.com/rm4n0s/emetos/extensions/internal/sharing"
 )
+
+// DevBindEnv is the environment variable that makes the listeners of a debug build (or a build with the emetos_dev tag) listen on one
+// address instead of every interface: the real-input tests of step 17e.4 set it to 127.0.0.1 so that nothing is exposed on the
+// network (SPEC §15.2). A release build never reads it: its listeners are always on every interface.
+const DevBindEnv = "EMETOS_DEV_REMOTEWORK_BIND"
+
+// DevInterfacesEnv is the environment variable that replaces the network interfaces of this computer by a list (debug and emetos_dev
+// builds only; see sharing.DevInterfacesEnv): the real-input tests set it so that no address of the machine they run on is on a
+// screenshot.
+const DevInterfacesEnv = sharing.DevInterfacesEnv
+
+// bindHost is the host the listeners bind: the value of DevBindEnv in a debug or emetos_dev build, empty (every interface) in any
+// other and when the variable is not set.
+func bindHost() string {
+	if !foundation.DebugMode && !devBuild {
+		return ""
+	}
+	return os.Getenv(DevBindEnv)
+}
 
 // The dev commands of step 15.5, registered in a workspace in debug builds and builds with the emetos_dev tag (SPEC §15.2).
 const (

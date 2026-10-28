@@ -19,6 +19,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/fakeapi"
+	"github.com/rm4n0s/emetos/extensions/internal/sharing"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
 	"github.com/rm4n0s/emetos/extensions/remotework/protocol"
@@ -181,8 +182,8 @@ func newRig(t *testing.T, opts ...rigOptions) *rig {
 			}
 			return net.Listen("tcp", "127.0.0.1:0")
 		},
-		OnSession: func(s *Session) { r.sess <- s },
-		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)), Now: r.clock.Now, After: r.clock.After,
+		OnSession: func(s *Session) { r.sess <- s }, Interfaces: testInterfaces,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: r.clock.Now, After: r.clock.After,
 		Limiter:          sshlogin.NewLimiter(sshlogin.LimiterOptions{Now: r.clock.Now}),
 		HandshakeTimeout: 5 * time.Second, ChannelTimeout: 5 * time.Second,
 	}
@@ -298,4 +299,29 @@ func wantRoute(t *testing.T, err error, route string) {
 	if !appErr.HasRoute(route) {
 		t.Errorf("route = %s, want %s", appErr.Route(), route)
 	}
+}
+
+// sessionBanners are the banners of the sessions on a workspace (the ones with Disconnect): ShownBanners without the hosting banner
+// that says the workspace is shared (SPEC §10.29), which has its own test.
+func sessionBanners(api *fakeapi.API) []*fakeapi.FakeBanner {
+	var out []*fakeapi.FakeBanner
+	for _, b := range api.ShownBanners() {
+		if b.Banner().Icon != "broadcast" {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// testInterfaces is the list of network interfaces of the tests: the same on every machine, so that the addresses the guide shows
+// and the goldens do not change. Loopback, a link-local address and an interface that is down are on it to be left out.
+func testInterfaces() ([]sharing.Interface, error) {
+	return []sharing.Interface{
+		{Name: "lo", Up: true, Loopback: true, Addrs: []net.Addr{&net.IPNet{IP: net.ParseIP("127.0.0.1"), Mask: net.CIDRMask(8, 32)}}},
+		{Name: "eth0", Up: true, Addrs: []net.Addr{
+			&net.IPNet{IP: net.ParseIP("192.168.1.5"), Mask: net.CIDRMask(24, 32)},
+			&net.IPNet{IP: net.ParseIP("fe80::1"), Mask: net.CIDRMask(64, 128)},
+		}},
+		{Name: "wlan0", Up: false, Addrs: []net.Addr{&net.IPNet{IP: net.ParseIP("10.0.0.7"), Mask: net.CIDRMask(8, 32)}}},
+	}, nil
 }

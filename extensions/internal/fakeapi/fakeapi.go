@@ -39,6 +39,7 @@ type API struct {
 	shown             []Shown
 	views             map[string]*View
 	openedURIs        []string
+	openedTabs        []string
 	fileViewRefreshes int
 	kinds             map[string]extension.EditorKind
 	windowKind        *extension.WindowTabKind
@@ -913,6 +914,21 @@ func (w workspace) OpenURI(_ context.Context, uri string) error {
 	w.a.openedURIs = append(w.a.openedURIs, uri)
 	w.a.mu.Unlock()
 	return nil
+}
+
+// OpenWindowTab implements extension.Workspace: the call is recorded (OpenedWindowTabs).
+func (w workspace) OpenWindowTab(kindID string) error {
+	w.a.mu.Lock()
+	w.a.openedTabs = append(w.a.openedTabs, kindID)
+	w.a.mu.Unlock()
+	return nil
+}
+
+// OpenedWindowTabs are the kinds the extension opened with Workspace().OpenWindowTab.
+func (a *API) OpenedWindowTabs() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.openedTabs...)
 }
 
 // OpenedURIs are the URIs the extension opened with Workspace().OpenURI.

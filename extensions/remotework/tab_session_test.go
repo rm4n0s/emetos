@@ -41,7 +41,7 @@ func TestTheHostEndingTheSessionShowsItsReasonOnTheTab(t *testing.T) {
 	}{
 		{"the user of A presses Disconnect", func(r *tabRig) {
 			r.a.Pump()
-			b := r.a.ShownBanners()
+			b := sessionBanners(r.a)
 			if len(b) != 1 || b[0].Banner().Text != "Remote Work: laptop B connected" {
 				r.t.Fatalf("the banners on A = %+v", b)
 			}
@@ -54,7 +54,7 @@ func TestTheHostEndingTheSessionShowsItsReasonOnTheTab(t *testing.T) {
 			if err := r.hub.SetWorkspace(r.folder, false); err != nil {
 				r.t.Fatal(err)
 			}
-		}, "Remote Work was turned off on 127.0.0.1", ""},
+		}, "The host stopped sharing this workspace.", "Remote Work was turned off on 127.0.0.1"},
 		{"another client takes the session", func(r *tabRig) {
 			c := r.client(r.key)
 			c.pin(r.rig)
@@ -344,7 +344,7 @@ func TestClosingTheTabEndsTheSessionAndEveryGoroutine(t *testing.T) {
 	if !view.Closed() {
 		t.Error("the view of A was not closed")
 	}
-	if got := r.a.ShownBanners(); len(got) != 0 {
+	if got := sessionBanners(r.a); len(got) != 0 {
 		t.Errorf("the banner of the session is still on A: %d", len(got))
 	}
 }

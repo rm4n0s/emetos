@@ -69,8 +69,8 @@ func TestLoginGrantsASession(t *testing.T) {
 	}
 
 	// the banner and the notification of the login are shown in the workspace
-	api.WaitFor("the banner", func() bool { return len(api.ShownBanners()) == 1 })
-	banner := api.ShownBanners()[0]
+	api.WaitFor("the banner", func() bool { return len(sessionBanners(api)) == 1 })
+	banner := sessionBanners(api)[0]
 	if b := banner.Banner(); b.Text != "Remote Work: laptop B connected" || b.Icon != "remote" || len(b.Actions) != 1 || b.Actions[0].Label != "Disconnect" {
 		t.Errorf("banner = %+v", b)
 	}
@@ -87,7 +87,7 @@ func TestLoginGrantsASession(t *testing.T) {
 		t.Fatalf("message = %#v, want a Disconnect from the host", m)
 	}
 	waitFor(t, "the token to expire", func() bool { _, ok := r.hub.SessionByToken(g.Token); return !ok })
-	api.WaitFor("the banner to go", func() bool { return len(api.ShownBanners()) == 0 })
+	api.WaitFor("the banner to go", func() bool { return len(sessionBanners(api)) == 0 })
 	if reason, _, ended := s.Reason(); !ended || reason != protocol.ReasonHost {
 		t.Errorf("Reason = %v, %v", reason, ended)
 	}
@@ -166,7 +166,7 @@ func TestListensOnlyWhileAWorkspaceHasItOn(t *testing.T) {
 		_ = c.Close()
 		t.Error("the port still accepts connections")
 	}
-	api.WaitFor("the banner to go", func() bool { return len(api.ShownBanners()) == 0 })
+	api.WaitFor("the banner to go", func() bool { return len(sessionBanners(api)) == 0 })
 	if _, ok := r.hub.SessionByToken(conn.Grant.Token); ok {
 		t.Error("the token is still valid")
 	}
@@ -481,11 +481,11 @@ func TestSessionsEndWhenTheClientLeaves(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := r.nextSession()
-	api.WaitFor("the banner", func() bool { return len(api.ShownBanners()) == 1 })
+	api.WaitFor("the banner", func() bool { return len(sessionBanners(api)) == 1 })
 	_ = conn.Close()
 	<-s.Done()
 	waitFor(t, "the session to be forgotten", func() bool { return len(r.hub.Sessions()) == 0 })
-	api.WaitFor("the banner to go", func() bool { return len(api.ShownBanners()) == 0 })
+	api.WaitFor("the banner to go", func() bool { return len(sessionBanners(api)) == 0 })
 	if reason, _, ended := s.Reason(); !ended || reason != protocol.ReasonClosed {
 		t.Errorf("Reason = %v, %v", reason, ended)
 	}

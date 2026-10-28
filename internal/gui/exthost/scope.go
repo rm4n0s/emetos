@@ -140,7 +140,9 @@ type ScopeOptions struct {
 	// may be nil (the scope then has no editor area, or no grammars). EditorsChanged is called, on the UI thread, when the
 	// title actions, the file views or the tabs of the extensions changed (an extension came, went or failed).
 	// OpenURI opens a URI with the desktop; nil leaves it unavailable.
-	OpenURI        func(ctx context.Context, uri string) error
+	OpenURI func(ctx context.Context, uri string) error
+	// OpenWindowTab opens the window tab of a kind, or shows the one that is open, on the UI thread; nil leaves it unavailable.
+	OpenWindowTab  func(kindID string) error
 	Editors        EditorHost
 	Languages      LanguageSource
 	EditorsChanged func()

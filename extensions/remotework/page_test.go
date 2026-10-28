@@ -228,19 +228,27 @@ func TestTheSwitchTurnsRemoteWorkOnAndOff(t *testing.T) {
 	p := newPageRig(t, true)
 	s := p.show(t, uitest.Themes()[0], pageSize)
 	s.settle()
-	if !s.has("Off. Nothing listens") {
+	if !s.has("Off. No other computer can connect.") {
 		t.Error("the page does not say it is off")
 	}
-	s.tap("Allow other computers to use project")
-	s.until("it to be on", func() bool { return p.hub.Snapshot(p.folder).On && s.has("Listening on port") })
+	s.tap("Host this workspace")
+	s.until("it to be on", func() bool {
+		return p.hub.Snapshot(p.folder).On && s.has("On. Computers with an allowed key can connect to 192.168.1.5:")
+	})
 	if p.hub.Addr() == nil {
 		t.Error("nothing listens")
 	}
-	if !s.has("Listening on port " + portOf(p.hub.Addr().String(), 0)[5:]) {
-		t.Error("the page does not show the port")
+	if !s.has("On. Computers with an allowed key can connect to 192.168.1.5:" + portOf(p.hub.Addr().String(), 0)[5:] + ".") {
+		t.Error("the page does not show the address and the port")
 	}
-	s.tap("Allow other computers to use project")
-	s.until("it to be off", func() bool { return !p.hub.Snapshot(p.folder).On && s.has("Off. Nothing listens") })
+	if !s.ts.Exists(gluttertest.ByText("Stop Hosting")) {
+		t.Error("the page has no Stop Hosting button while it is on")
+	}
+	s.tap("Host this workspace")
+	s.until("it to be off", func() bool { return !p.hub.Snapshot(p.folder).On && s.has("Off. No other computer can connect.") })
+	if s.ts.Exists(gluttertest.ByText("Stop Hosting")) {
+		t.Error("the page has a Stop Hosting button while it is off")
+	}
 	if p.hub.Addr() != nil {
 		t.Error("it still listens")
 	}
@@ -254,8 +262,8 @@ func TestAddingAndRemovingKeys(t *testing.T) {
 		t.Error("the empty list is not explained")
 	}
 	line := seededKey(t, 2).line("laptop B (work)")
-	// the key boxes are, in order: the port, the idle timeout and the line of the key
-	s.enter(2, line)
+	// the boxes are, in order: the line of the key, the port and the idle timeout
+	s.enter(0, line)
 	s.tap("Add")
 	if !s.has("laptop B (work)") || !s.has("Added laptop B (work).") {
 		t.Fatal("the key is not on the page")
@@ -269,7 +277,7 @@ func TestAddingAndRemovingKeys(t *testing.T) {
 		{"hello world", "not a public key"},
 		{`command="x" ` + line, "options"},
 	} {
-		s.enter(2, tc.line)
+		s.enter(0, tc.line)
 		s.tap("Add")
 		if !s.has(tc.want) {
 			t.Errorf("no answer containing %q for %q", tc.want, tc.line)
@@ -331,15 +339,15 @@ func TestTheConnectionSettings(t *testing.T) {
 		{"47123", "0", "from 1 minute to 24 hours"},
 		{"47123", "5000", "from 1 minute to 24 hours"},
 	} {
-		s.enter(0, tc.port)
-		s.enter(1, tc.idle)
+		s.enter(1, tc.port)
+		s.enter(2, tc.idle)
 		s.tap("Apply")
 		if !s.has(tc.want) {
 			t.Errorf("port %q idle %q: no answer containing %q", tc.port, tc.idle, tc.want)
 		}
 	}
-	s.enter(0, "50123")
-	s.enter(1, "45")
+	s.enter(1, "50123")
+	s.enter(2, "45")
 	s.tap("Apply")
 	s.until("it to be saved", func() bool { return s.has("Saved.") })
 	if c := p.hub.Snapshot(p.folder).Config; c.Port != 50123 || c.IdleMinutes != 45 {
@@ -432,7 +440,7 @@ func TestManifest(t *testing.T) {
 	if err := extension.CheckManifest(m); err != nil {
 		t.Fatal(err)
 	}
-	if m.ID != "emetos.remotework" || m.Name != "Remote Work" || len(m.Contributes.Commands) != 1 || m.Contributes.Commands[0].ID != "emetos.remotework.manage" {
+	if m.ID != "emetos.remotework" || m.Name != "Remote Work" || len(m.Contributes.Commands) != 3 || m.Contributes.Commands[0].ID != "emetos.remotework.manage" || m.Contributes.Commands[1].ID != HostCommand || m.Contributes.Commands[2].ID != StopCommand {
 		t.Errorf("manifest = %+v", m)
 	}
 	f := NewFactory(HubOptions{})

@@ -246,6 +246,18 @@ const (
 	StatusRight
 )
 
+// StatusKind is the look of a status bar item.
+type StatusKind int
+
+// The looks of an item.
+const (
+	// StatusStandard is an item in the colors of the bar.
+	StatusStandard StatusKind = iota
+	// StatusRemote is an item on statusBarItem.remoteBackground, the color VS Code gives its remote indicator: an item that says
+	// the workspace is shared with, or driven from, another computer (the Sharing item, SPEC §10.29).
+	StatusRemote
+)
+
 // StatusItem is an item of the status bar.
 type StatusItem struct {
 	// ID identifies the item among the items of the extension.
@@ -258,6 +270,8 @@ type StatusItem struct {
 	Tooltip string
 	// Alignment is the side of the bar.
 	Alignment StatusAlignment
+	// Kind is the look of the item; StatusStandard when not set.
+	Kind StatusKind
 	// Priority orders the items of a side: the higher it is, the closer to the left end of the bar.
 	Priority float64
 	// Command is the id of the command a click runs, with Args; used when OnClick is nil.

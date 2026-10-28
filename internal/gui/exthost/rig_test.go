@@ -174,7 +174,9 @@ type tab struct {
 	editors   *fakeEditors
 	languages *fakeLanguages
 	uris      []string
-	changed   int
+	// tabs are the kinds of window tab it was asked to open (OpenWindowTab).
+	tabs    []string
+	changed int
 
 	// lsp is the window's side of the language servers (servers_rig_test.go).
 	lsp *fakeLSP
@@ -322,9 +324,10 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	tb.scope = r.host.NewScope(ScopeOptions{
 		Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
-		OpenURI: func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
-		Info:    extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
-		Ctx:     context.Background(), Commands: registry, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
+		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
+		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },
+		Info:          extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
+		Ctx:           context.Background(), Commands: registry, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
 		Notify: tb.notify, StatusBar: tb.bar, Documents: docs,
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
 		Post: tb.post, AskSharing: r.askFunc(tb, name),

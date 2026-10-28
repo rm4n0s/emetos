@@ -95,6 +95,11 @@ type Workspace interface {
 	// OpenURI opens a URI with the desktop (the OpenURI portal): a web address in the browser, a mail address in the mail
 	// program. It fails with ExtensionOpenURIUnavailable when the scope cannot, and returns the portal's error otherwise.
 	OpenURI(ctx context.Context, uri string) error
+	// OpenWindowTab opens the window tab of a kind of window tab (the id of a kind in a manifest's WindowTabKinds, this
+	// extension's or another one's) and makes it the active one; when a tab of the kind is open already it is shown instead of a
+	// second one (SPEC §10.29: Relay's open command). It fails with ExtensionOpenWindowTabUnavailable when the scope cannot, and
+	// returns the window's error for a kind that is unknown or turned off. Call it on the UI thread.
+	OpenWindowTab(kindID string) error
 	// NewHeadlessView makes a second, off-screen view of the workspace, size pixels large (HeadlessView). The view starts
 	// with the editors the workspace has open in front of the user. It fails with ExtensionHeadlessSize for a size that is
 	// not allowed (positive, at most MaxHeadlessSide a side and MaxHeadlessPixels in all), ExtensionHeadlessUnavailable in

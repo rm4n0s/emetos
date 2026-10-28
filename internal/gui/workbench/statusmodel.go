@@ -23,7 +23,7 @@ const (
 // StatusKind is the look of an item: the colors it has in place of the bar's.
 type StatusKind int
 
-// The kinds of item (VS Code's StatusbarEntryKind, without the remote and offline kinds).
+// The kinds of item (VS Code's StatusbarEntryKind, with the remote kind and without the offline one).
 const (
 	// StatusStandard is an item in the colors of the bar.
 	StatusStandard StatusKind = iota
@@ -33,6 +33,9 @@ const (
 	StatusError
 	// StatusProminent is an item on statusBarItem.prominentBackground.
 	StatusProminent
+	// StatusRemote is an item on statusBarItem.remoteBackground, VS Code's remote indicator (step 17e.4: the Sharing item while the
+	// workspace is hosted).
+	StatusRemote
 )
 
 // StatusEntry is what an item of the status bar shows and does (VS Code's IStatusbarEntry).

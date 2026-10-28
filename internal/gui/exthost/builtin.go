@@ -402,6 +402,19 @@ func (w workspaceAPI) OpenURI(ctx context.Context, uri string) error {
 	return open(ctx, uri)
 }
 
+// OpenWindowTab implements extension.Workspace.
+func (w workspaceAPI) OpenWindowTab(kindID string) error {
+	in := w.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	open := in.scope.opts.OpenWindowTab
+	if open == nil {
+		return errors.New("ExtensionOpenWindowTabUnavailable", "the scope cannot open a window tab", "extension", in.id, "kind", kindID)
+	}
+	return open(kindID)
+}
+
 // NewHeadlessView implements extension.Workspace. The view is closed when the activation ends.
 func (w workspaceAPI) NewHeadlessView(size extension.Size) (extension.HeadlessView, error) {
 	in := w.inst

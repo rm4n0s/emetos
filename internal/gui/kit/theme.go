@@ -223,6 +223,8 @@ type Colors struct {
 	StatusBarItemErrorHoverForeground, StatusBarItemErrorHoverBackground                      ui.Color
 	StatusBarItemWarningForeground, StatusBarItemWarningBackground                            ui.Color
 	StatusBarItemWarningHoverForeground, StatusBarItemWarningHoverBackground                  ui.Color
+	StatusBarItemRemoteForeground, StatusBarItemRemoteBackground                              ui.Color
+	StatusBarItemRemoteHoverForeground, StatusBarItemRemoteHoverBackground                    ui.Color
 	ActivityBarBackground, ActivityBarBorder                                                  ui.Color
 	// The icons of the activity bar: the active one, the others, the line beside the active one (and
 	// its focus outline), and the background of the active one. The header of a view in the side
@@ -529,7 +531,9 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		StatusBarItemWarningForeground: color("statusBarItem.warningForeground"), StatusBarItemWarningBackground: color("statusBarItem.warningBackground"),
 		StatusBarItemWarningHoverForeground: color("statusBarItem.warningHoverForeground"),
 		StatusBarItemWarningHoverBackground: color("statusBarItem.warningHoverBackground"),
-		ActivityBarBackground:               color("activityBar.background"), ActivityBarBorder: color("activityBar.border"),
+		StatusBarItemRemoteForeground:       color("statusBarItem.remoteForeground"), StatusBarItemRemoteBackground: color("statusBarItem.remoteBackground"),
+		StatusBarItemRemoteHoverForeground: color("statusBarItem.remoteHoverForeground"), StatusBarItemRemoteHoverBackground: color("statusBarItem.remoteHoverBackground"),
+		ActivityBarBackground: color("activityBar.background"), ActivityBarBorder: color("activityBar.border"),
 		ActivityBarForeground: color("activityBar.foreground"), ActivityBarInactiveForeground: color("activityBar.inactiveForeground"),
 		ActivityBarActiveBorder: color("activityBar.activeBorder"), ActivityBarActiveFocusBorder: color("activityBar.activeFocusBorder"),
 		ActivityBarActiveBackground:    color("activityBar.activeBackground"),

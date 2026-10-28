@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
 
 // withAPI activates an extension named id in a new tab and gives the test its API.
@@ -280,6 +281,26 @@ func TestStatusBarItemsUpdateAndDispose(t *testing.T) {
 	// the id can be used again
 	if _, err := api.StatusBar().Add(extension.StatusItem{ID: "n", Text: "again"}); err != nil {
 		t.Errorf("an id that was disposed cannot be added again: %v", err)
+	}
+}
+
+func TestStatusBarItemKinds(t *testing.T) {
+	api, _, tb := withAPI(t, "emetos.kind")
+	h, err := api.StatusBar().Add(extension.StatusItem{ID: "k", Text: "plain"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		kind extension.StatusKind
+		want workbench.StatusKind
+	}{
+		{extension.StatusRemote, workbench.StatusRemote},
+		{extension.StatusStandard, workbench.StatusStandard},
+	} {
+		h.Update(extension.StatusItem{ID: "k", Text: "x", Kind: tc.kind})
+		if got := tb.bar.Items(0)[0].Entry.Kind; got != tc.want {
+			t.Errorf("kind %d is drawn as %d, want %d", tc.kind, got, tc.want)
+		}
 	}
 }
 

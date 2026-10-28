@@ -35,6 +35,13 @@ func TestClientRefusal(t *testing.T) {
 		{"emetos.extensions.manageEventSharing", extension.RefusedSettings},
 		{"emetos.relay.listen", extension.RefusedRemote},
 		{"emetos.remotework.manage", extension.RefusedRemote},
+		// the commands that host a workspace (step 17e.4): a client may not start or stop hosting, or open the menu that does
+		{"emetos.remotework.host", extension.RefusedRemote},
+		{"emetos.remotework.stopHosting", extension.RefusedRemote},
+		{"emetos.relay.host", extension.RefusedRemote},
+		{"emetos.relay.stopHosting", extension.RefusedRemote},
+		{"emetos.relay.open", extension.RefusedRemote},
+		{"emetos.hosting.menu", extension.RefusedRemote},
 		{"workbench.action.terminal.new", extension.RefusedTerminal},
 		{"workbench.action.terminal.sendSequence", extension.RefusedTerminal},
 		// allowed: the workspace settings, editing, saving, extensions' commands
@@ -68,7 +75,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 		have[m.ID] = true
 	}
 	// the extensions' commands are not in the registry of Emetos
-	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "workbench.action.terminal."}
+	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting.", "workbench.action.terminal."}
 	extensionIDs := []string{"workbench.action.createTerminalEditor"} // the terminal extension's
 	for _, id := range RefusedExactIDs() {
 		if !have[id] && !slices.Contains(extensionIDs, id) {

@@ -225,6 +225,9 @@ func statusItemColors(colors kit.Colors, kind StatusKind, clickable, hover, pres
 	case StatusProminent:
 		fg, bg = colors.StatusBarItemProminentForeground, colors.StatusBarItemProminentBackground
 		hoverFg, hoverBg = colors.StatusBarItemProminentHoverForeground, colors.StatusBarItemProminentHoverBackground
+	case StatusRemote:
+		fg, bg = colors.StatusBarItemRemoteForeground, colors.StatusBarItemRemoteBackground
+		hoverFg, hoverBg = colors.StatusBarItemRemoteHoverForeground, colors.StatusBarItemRemoteHoverBackground
 	case StatusStandard:
 	}
 	hasBg = kind != StatusStandard

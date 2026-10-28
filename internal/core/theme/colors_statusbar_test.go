@@ -24,6 +24,13 @@ func TestStatusBarItemColors(t *testing.T) {
 		{"hover foreground follows the status bar's", colorTheme(TypeDark, map[string]string{"statusBar.foreground": "#cccccc"}, r), "statusBarItem.hoverForeground", "#cccccc"},
 		{"a theme sets the hover", colorTheme(TypeDark, map[string]string{"statusBarItem.hoverBackground": "#F1F1F133"}, r), "statusBarItem.hoverBackground", "rgba(241, 241, 241, 0.2)"},
 		{"error hover follows the hover", colorTheme(TypeDark, nil, r), "statusBarItem.errorHoverBackground", "rgba(255, 255, 255, 0.12)"},
+		{"remote background follows the badge", colorTheme(TypeDark, nil, r), "statusBarItem.remoteBackground", "#007acc"},
+		{"remote background of high contrast dark", colorTheme(TypeHCDark, nil, r), "statusBarItem.remoteBackground", "#000000"},
+		{"a theme sets the badge, the remote follows", colorTheme(TypeDark, map[string]string{"activityBarBadge.background": "#112233"}, r), "statusBarItem.remoteBackground", "#112233"},
+		{"remote foreground is white", colorTheme(TypeLight, nil, r), "statusBarItem.remoteForeground", "#ffffff"},
+		{"remote hover", colorTheme(TypeDark, nil, r), "statusBarItem.remoteHoverBackground", "rgba(255, 255, 255, 0.12)"},
+		{"remote hover is unset in high contrast light", colorTheme(TypeHCLight, nil, r), "statusBarItem.remoteHoverBackground", ""},
+		{"remote hover foreground follows the hover's", colorTheme(TypeDark, map[string]string{"statusBar.foreground": "#cccccc"}, r), "statusBarItem.remoteHoverForeground", "#cccccc"},
 		{"error foreground of messages", colorTheme(TypeLight, nil, r), "errorForeground", "#e51400"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

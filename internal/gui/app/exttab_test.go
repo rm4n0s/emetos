@@ -839,3 +839,39 @@ func TestAWindowTabThatCapturesTheKeysKeepsOnlyTheShortcutsOfTheWindow(t *testin
 		t.Errorf("the window shortcut did not run: %q", ran)
 	}
 }
+
+// TestAnExtensionOpensItsWindowTabOnceAndShowsTheOpenOne is the OpenWindowTab of the API (step 17e.4: Relay's open command): the
+// first call opens the tab, the next ones show it, also from another tab, and a kind nobody has fails with the window's error.
+func TestAnExtensionOpensItsWindowTabOnceAndShowsTheOpenOne(t *testing.T) {
+	p := &wtxProbe{}
+	env := newMultiEnv(t, nil)
+	one := env.folder("one", "a.go")
+	a := env.runExt(p, Options{Folder: one})
+	first := a.m.ActiveTab()
+	ws := first.Workspace()
+	if err := ws.openWindowTab(wtxKind); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	tab := a.m.ActiveTab()
+	if a.m.Count() != 2 || tab == first || tab.KindID() != wtxKind {
+		t.Fatalf("after the first call: %d tabs, the active one is the kind %q", a.m.Count(), tab.KindID())
+	}
+	// back on the first tab, the second call shows the tab that is open and makes no other
+	a.m.Activate(first)
+	a.settle()
+	if err := ws.openWindowTab(wtxKind); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	if a.m.Count() != 2 || a.m.ActiveTab() != tab {
+		t.Errorf("after the second call: %d tabs, the extension's tab is active: %v", a.m.Count(), a.m.ActiveTab() == tab)
+	}
+	err := ws.openWindowTab("nobody.tab")
+	if err == nil {
+		t.Fatal("a kind nobody has opened a tab")
+	}
+	if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "WindowTabKindUnknown" {
+		t.Errorf("error = %v, want the tag WindowTabKindUnknown", err)
+	}
+}

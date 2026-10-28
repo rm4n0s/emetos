@@ -133,7 +133,7 @@ func (w *Workspace) startExtensions() {
 		Logger: p.Logger, AskSharing: w.askSharing,
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
-		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
+		OpenURI: w.openURI, OpenWindowTab: w.openWindowTab, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
 		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
 	})
@@ -475,6 +475,19 @@ func (w *Workspace) openURI(ctx context.Context, uri string) error {
 		return errors.New("ExtOpenURIUnavailable", "the window tab is not on screen", "uri", uri)
 	}
 	return open(ctx, s.Context(), uri)
+}
+
+// openWindowTab is the OpenWindowTab of the scope: it shows the window tab of the kind when one is open, else opens one.
+func (w *Workspace) openWindowTab(kindID string) error {
+	m := w.Process.Workspaces
+	for _, t := range m.Tabs() {
+		if t.KindID() == kindID {
+			m.Activate(t)
+			return nil
+		}
+	}
+	_, err := m.OpenExtensionTab(kindID, nil)
+	return err
 }
 
 // extensionFileChooser shows the open dialog of the desktop (the file chooser portal) for an extension and waits for the user. It is

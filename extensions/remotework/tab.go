@@ -467,7 +467,8 @@ func describeDisconnect(host string, d *protocol.Disconnect) endInfo {
 		info.title = "The session was idle for too long"
 		info.detail = host + " ends a session that sends nothing for its idle timeout."
 	case protocol.ReasonOff:
-		info.title = "Remote Work was turned off on " + host
+		info.title = "The host stopped sharing this workspace."
+		info.detail = "Remote Work was turned off on " + host + "."
 	case protocol.ReasonProtocol:
 		info.title, info.bad = "Protocol error", true
 	case protocol.ReasonVersion:

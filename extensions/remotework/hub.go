@@ -18,6 +18,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
+	"github.com/rm4n0s/emetos/extensions/internal/sharing"
 	"github.com/rm4n0s/emetos/extensions/internal/sshlogin"
 	"github.com/rm4n0s/emetos/extensions/internal/statefile"
 	"github.com/rm4n0s/emetos/extensions/remotework/login"
@@ -44,6 +45,9 @@ type HubOptions struct {
 	// NoView leaves the messages of a session to the caller: no headless view is made for it and nothing reads its transport (the
 	// tests of the transport read the host's side themselves).
 	NoView bool
+	// Interfaces lists the network interfaces whose addresses the guide of the page shows as the places to connect to (SPEC §10.29);
+	// the default reads the operating system's. Tests pass a fake list, so that they are the same on every machine.
+	Interfaces sharing.Interfaces
 	// Tab are the knobs of the remote window tab (step 15.4); every field has a default.
 	Tab TabOptions
 	// Camera finds and opens the cameras that Scan QR Code reads (step 15.5). The editor passes the Source of the real cameras
@@ -75,6 +79,8 @@ type HubOptions struct {
 type workspaceHost struct {
 	folder string
 	api    extension.API
+	// banner is the banner that says the workspace is hosted (hosting.go); only the UI thread of the workspace touches it.
+	banner extension.BannerHandle
 }
 
 // Hub is what the instances of the extension share: remote-work.json, the host key, the listener, the sessions. It is made once
@@ -118,10 +124,14 @@ func NewHub(opts HubOptions) *Hub {
 		h.opts.StateDir = stateDirFromEnv
 	}
 	if h.opts.Listen == nil {
-		h.opts.Listen = func(port int) (net.Listener, error) { return net.Listen("tcp", ":"+strconv.Itoa(port)) }
+		h.opts.Listen = func(port int) (net.Listener, error) {
+			return net.Listen("tcp", net.JoinHostPort(bindHost(), strconv.Itoa(port)))
+		}
 	}
 	if h.opts.ListenUDP == nil {
-		h.opts.ListenUDP = func(port int) (net.PacketConn, error) { return net.ListenPacket("udp", ":"+strconv.Itoa(port)) }
+		h.opts.ListenUDP = func(port int) (net.PacketConn, error) {
+			return net.ListenPacket("udp", net.JoinHostPort(bindHost(), strconv.Itoa(port)))
+		}
 	}
 	if h.opts.Now == nil {
 		h.opts.Now = time.Now
@@ -187,6 +197,7 @@ func (h *Hub) Register(api extension.API) (unregister func()) {
 	h.workspaces[folder] = append(h.workspaces[folder], w)
 	h.mu.Unlock()
 	h.reconcile()
+	h.syncBanners()
 	var once sync.Once
 	return func() {
 		once.Do(func() {
@@ -238,6 +249,7 @@ func (h *Hub) OnChange(fn func()) (stop func()) {
 }
 
 func (h *Hub) changed() {
+	h.syncBanners()
 	h.mu.Lock()
 	fns := make([]func(), 0, len(h.listeners))
 	for _, f := range h.listeners {

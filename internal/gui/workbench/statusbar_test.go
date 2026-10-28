@@ -280,6 +280,8 @@ func TestStatusItemColors(t *testing.T) {
 			{"error hover", StatusError, true, true, false, c.StatusBarItemErrorHoverForeground, c.StatusBarItemErrorHoverBackground, true},
 			{"prominent", StatusProminent, false, false, false, c.StatusBarItemProminentForeground, c.StatusBarItemProminentBackground, true},
 			{"prominent hover", StatusProminent, true, true, false, c.StatusBarItemProminentHoverForeground, c.StatusBarItemProminentHoverBackground, true},
+			{"remote", StatusRemote, true, false, false, c.StatusBarItemRemoteForeground, c.StatusBarItemRemoteBackground, true},
+			{"remote hover", StatusRemote, true, true, false, c.StatusBarItemRemoteHoverForeground, c.StatusBarItemRemoteHoverBackground, true},
 		}
 		for _, tt := range tests {
 			t.Run(th.name+" "+tt.name, func(t *testing.T) {
@@ -394,6 +396,11 @@ func TestGoldenStatusBar(t *testing.T) {
 		b.Add("kind.warning", StatusLeft, 30, StatusEntry{Text: "$(warning) Warning", Kind: StatusWarning, Command: "test.click"})
 		b.Add("kind.prominent", StatusLeft, 20, StatusEntry{Text: "Tab Moves Focus", Kind: StatusProminent, Command: "test.click"})
 	}
+	// the Sharing item of step 17e.4 while the workspace is hosted: the remote look, at the left end before the problems item
+	hosting := func(b *StatusBar) {
+		fill(b)
+		b.Add("extension.emetos.hosting.status", StatusLeft, 100, StatusEntry{Text: "$(broadcast) Hosting · 2", Kind: StatusRemote, Command: "test.click"})
+	}
 	cases := []struct {
 		name     string
 		fill     func(*StatusBar)
@@ -401,6 +408,7 @@ func TestGoldenStatusBar(t *testing.T) {
 		hover    string
 	}{
 		{"items", fill, false, ""},
+		{"hosting", hosting, false, ""},
 		{"no_folder", fill, true, ""},
 		{"kinds", kinds, false, ""},
 		{"hover", fill, false, "status.editor.encoding"},

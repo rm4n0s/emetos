@@ -126,3 +126,86 @@ Each of these worked with real input, and its screenshot was looked at.
 Skipped by the step: the Agents extension (removed in M17c). Removed later: Notes, TODOs and Scratchpad (step 17e.1).
 
 - **Update (2026-10-28):** `TestRealInputBigPreviewStartDoesNotWaitForThePreview` (17b.2), which compared two cold starts, failed now and then by 241 to 672 ms on the loaded machine: every start paid the Mesa shader compile of a fresh `XDG_CACHE_HOME` (4 to 5 s, about ±500 ms of noise). It now gives all its starts one `MESA_SHADER_CACHE_DIR`, warmed by throwaway starts until a first frame is under 1 s, and compares the fastest of three alternating small and big starts against the same 150 ms (after: +2 to +40 ms in five runs; a 300 ms sleep in the preview's open still fails it).
+
+## The hosting pass (step 17e.4)
+
+The user, on 2026-10-28: "remote work and relay are not clear on how one workspace can become host and how to disable it." Before §10.29 was built, Remote Work and Relay were used as a new user would use them: two Emetos processes in one headless sway on 127.0.0.1, a fresh state for the host, test keys made for the run, and the keys and the pointer of the compositor (`internal/testenv/realinput`) for everything. The host looked for a way to host, found the Remote Work page and the Relay tab, turned hosting on, added the key of the other computer, let that computer connect, and then looked for a way to stop. The screenshots of the old interface were made in a scratch folder of the run and looked at; they are not kept, and the findings below say what each showed.
+
+The fixes are tested by `TestRealInputHostWithRemoteWorkFromTheStatusItem` and `TestRealInputHostWithRelayFromTheStatusItem` (`cmd/emetos/hosting_display_test.go`, the same two runs with the new interface; `scripts/realinput.sh --shots <dir> -- ./cmd/emetos -run TestRealInputHostWith -v`) and by the tests named in each finding.
+
+### H1. A hosted workspace shows nothing
+- **Did:** turned Remote Work on in the page, and Relay on in its tab, then closed both and looked at the workspace.
+- **Happened:** nothing in the workspace says it is hosted: the status bar, the title and the tabs are the same as before. The only sign is a banner "Remote Work: alice@laptop connected" while a computer is connected; with nobody connected a hosted workspace and one that is not look the same. The tab of Relay shows "Listening on port ..." only while it is open.
+- **Should:** a status bar item, as VS Code's remote indicator, that says at once whether the workspace is hosted, by what, and with how many computers.
+- **Whose:** Emetos.
+- **Status:** **fixed.** The Sharing item (`extensions/hosting`): the icon alone when not hosted, "Hosting" with the number of computers (a blue background, `statusBarItem.remoteBackground`) when hosted, and a tooltip with the port and the computers. Tests: `TestTheStatusItemShowsWhatHostsTheWorkspace`, `TestTheItemFollowsTheHostsWhileItIsOnScreen`, the golden `statusbar_hosting_*`, and the real-input tests.
+
+### H2. There is no command to host a workspace or to stop hosting it
+- **Did:** opened the Command Palette and typed "host", then "remote", then "relay".
+- **Happened:** "host" found "No matching commands". "remote" found only "Remote Work: Manage". "relay" found nothing: Relay has no command at all, only an entry of the `+` menu that opens a tab.
+- **Should:** "Host This Workspace" and "Stop Hosting This Workspace" for each extension, and a way to open the Relay tab.
+- **Whose:** Emetos.
+- **Status:** **fixed.** `emetos.remotework.host` and `.stopHosting`, `emetos.relay.host`, `.stopHosting` and `.open`, and `emetos.hosting.menu` (the menu of the item); a Relay client may not run any of them (`command.ClientRefusal`). Tests: `TestTheHostCommandsStartAndStopHosting` (both extensions), `TestClientRefusal` (the five commands and the menu).
+
+### H3. Hosting can be turned on with no key, and nothing says a key is needed
+- **Did:** on a fresh machine, opened the page and turned the switch on.
+- **Happened:** "On. Listening on port 34489, for the keys below." Two screens further down: "No key is listed, so nobody can log in." Nothing connects the two lines, and the switch is on with a port open that nobody can use.
+- **Should:** the first thing a new user does is add the key of the computer that will connect; the page says so before it offers a switch, and Host with no key opens the page at that step.
+- **Whose:** Emetos (UX).
+- **Status:** **fixed.** The first-time guide: three steps with a check mark when each is done ("Add the public key of the computer that will connect", "Turn hosting on", "On the other computer, connect to:"); Host with no key opens the page or the tab and does not turn anything on; the keys come first on the page. Tests: `TestTheGuideShowsWhatIsDone` (both), `TestTheHostCommandsStartAndStopHosting` ("host with no key opens the page at the guide").
+
+### H4. Nothing says where to connect
+- **Did:** turned Remote Work on and went to the other computer's "Remote Work..." tab.
+- **Happened:** its form asks for a host ("laptop.local or 192.168.1.20") and a port; the host's page names only the port. The user has to find the address of the host elsewhere.
+- **Should:** the page lists the addresses of this computer, with a button to copy each, and the plain line under the switch names one.
+- **Whose:** Emetos.
+- **Status:** **fixed.** Step 3 of the guide lists each non-loopback address of the up interfaces with the port and a Copy button (`sharing.Addresses`), and the line under the switch says "On. Computers with an allowed key can connect to 192.168.1.5:47123." Tests: `TestAddressesAreTheOnesAnotherComputerCanConnectTo` (a fake list of interfaces), `TestTheAddressesAreTheNonLoopbackOnesOfThisComputer` (both), `TestTheSwitchTurnsRemoteWorkOnAndOff`, `TestThePlainLineUnderTheSwitch`.
+
+### H5. The fingerprint to compare is at the bottom of the page
+- **Did:** looked for the fingerprint that the other computer asks to compare the first time.
+- **Happened:** it is under "Host key of this computer", below Connection, Allowed keys and the start of Security; with the page at its normal size it is out of view, and nothing near the switch points to it.
+- **Should:** next to the address, in the step that says what to do on the other computer.
+- **Whose:** Emetos.
+- **Status:** **fixed.** Step 3 of the guide shows "Host key fingerprint, to compare when it asks:" under the addresses; the old section is gone. Tests: `TestTheGuideShowsWhatIsDone`.
+
+### H6. Relay has two switches for one idea, and listening alone does nothing
+- **Did:** turned on "Listen for other computers" in the Be a Host section of the Relay tab.
+- **Happened:** "Listening on port 34413, for the keys below." Nothing is shared yet: the workspaces to share are a block of checkboxes further down. The first computer that connects is given no workspace. Nothing connects the two.
+- **Should:** one idea, "host", in the words of the page: the switch says what it does, and the line under it says when it has nothing to host.
+- **Whose:** Emetos (UX).
+- **Status:** **fixed.** The switch is "Host the shared workspaces"; its line says "On, but no workspace is shared yet. Check one under Workspaces to share." until a workspace is checked; Host this workspace (the command and the item) checks the workspace and turns listening on in one step. Tests: `TestThePlainLineUnderTheSwitch`, `TestHostWorkspaceSharesAndListens`.
+
+### H7. Nothing says "stop", and stopping needs the right control
+- **Did:** with a computer connected, looked for a way to stop hosting.
+- **Happened:** the word "stop" is nowhere. In Remote Work the way is to open the page again (only the palette's "Remote Work: Manage" opens it) and uncheck "Allow other computers to use project". In Relay, unchecking the workspace leaves the port open ("Listening on port ...") and unchecking "Listen for other computers" stops every workspace; the two look alike.
+- **Should:** a Stop Hosting button beside the switch, a command, an entry in the menu of the status item, and a button on the banner.
+- **Whose:** Emetos.
+- **Status:** **fixed.** Stop Hosting: the button beside the switch (shown while it is on), `emetos.remotework.stopHosting` and `emetos.relay.stopHosting`, "Stop Hosting with ..." in the menu of the item, and the button of the banner of Remote Work. Relay turns listening off when no workspace is shared any more, and ends at once the sessions of the clients that were given only that workspace. Tests: `TestStopHostingStopsOneWorkspaceAndListeningWhenNoneIsLeft`, `TestStopHostingTellsTheClientThatOnlyHadThatWorkspace`, `TestStopHostingEndsTheSessionsAndTheClientIsTold`, `TestTheHostingBannerFollowsTheState`, the real-input tests.
+
+### H8. The three words for the same thing
+- **Did:** read the two pages one after the other.
+- **Happened:** Remote Work says "Allow other computers to use project", Relay says "Listen for other computers" and "Workspaces to share", the status line says "Listening", the banner says "connected". Four words for one state.
+- **Should:** one word: host.
+- **Whose:** Emetos (UX).
+- **Status:** **fixed.** "Host this workspace" (Remote Work), "Host the shared workspaces" (Relay), "Hosting" (the item and the messages), "Stop Hosting" (every button, command and menu entry), "How to host" (the guides and the README).
+
+### H9. The client of Remote Work is told twice, in the host's words, that something was turned off
+- **Did:** stopped Remote Work on the host while the other computer was connected.
+- **Happened:** the client's card says "Remote Work was turned off on 127.0.0.1:34489" and under it "Remote Work was turned off for the workspace".
+- **Should:** one clear sentence: "The host stopped sharing this workspace."
+- **Whose:** Emetos.
+- **Status:** **fixed.** Title "The host stopped sharing this workspace." with the line "Remote Work was turned off on <host>." Test: `TestTheHostEndingTheSessionShowsItsReasonOnTheTab` (the case "Remote Work is turned off").
+
+### H10. The client of Relay is told in lower case, twice
+- **Did:** the same with Relay.
+- **Happened:** the Hosts section of the client shows "Ended: Hosting was turned off on 127.0.0.1:36355" and, under it, "hosting was turned off" in lower case.
+- **Should:** the same sentence as Remote Work.
+- **Whose:** Emetos.
+- **Status:** **fixed.** The same title, and the reason of the host as a sentence under it ("Hosting was turned off.", "The port changed."). Tests: `TestTheClientIsToldWhyInWords`, `TestAHostThatEndsTheConversationIsNotConnectedAgain`, `TestStopHostingTellsTheClientThatOnlyHadThatWorkspace`.
+
+### H11. The host banner of Remote Work appears only when a computer is connected
+- **Did:** turned Remote Work on and waited with nobody connected.
+- **Happened:** no banner; the first one is the banner of a session. Relay is the same.
+- **Should:** while the workspace is hosted, the workspace says so, and the banner has the way to stop.
+- **Whose:** Emetos.
+- **Status:** **fixed for Remote Work** ("This workspace is shared with Remote Work (1 computer connected)" with Stop Hosting, from the moment hosting is on; the banners of the sessions stay, with their Disconnect). **Not for Relay, by decision 200 (`docs/DECISIONS-TO-REVIEW.md`):** its sessions keep their banners, and the Sharing item says that the workspace is hosted. Test: `TestTheHostingBannerFollowsTheState`.

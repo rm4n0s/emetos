@@ -64,7 +64,7 @@ var clientRules = []refusedRule{
 	},
 	{
 		class: extension.RefusedRemote, reason: "a client may not drive the extensions that share a workspace or control another one",
-		prefixes: []string{extension.RelayID + ".", "emetos.remotework."},
+		prefixes: []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting."},
 	},
 	{
 		class: extension.RefusedTerminal, reason: "a terminal runs programs on the computer of the host: a client uses the terminal requests, which the host allows per key (Allow terminals)",
