@@ -14,6 +14,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 - Test one package: `go test ./internal/core/buffer -run TestName -v`
 - Tests that need a real display/GPU: `go test -race -tags emetos_display ./...`
 - Update golden images: `go test ./... -run Golden -update-goldens`, then review every changed PNG
+- Heavy commands (full test runs, lint, release builds, display tests, measurements): through `scripts/heavy.sh` (`--alone` for display tests and measurements), see "Memory (OOM)"
 - Vet: `go vet ./...`
 - Lint: `golangci-lint run`
 - Format: `gofmt -w cmd internal assets extension extensions` (not `.`: `reference/` holds VS Code's Go test files)
@@ -124,7 +125,7 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
 
 ## Memory (OOM)
 A run that uses too much memory is killed by the OS (exit 137) and takes the session with it. Be careful:
-- Run the race tests with `GOMEMLIMIT=3GiB go test -race -p 2 ./...`. At most two heavy test or build commands run at the same time on this machine (30 GB, 32 CPUs), counting those of every agent; real-input display tests, `scripts/realinput.sh`, `scripts/perf.sh` and other timing measurements run alone
+- Run the race tests with `GOMEMLIMIT=3GiB go test -race -p 2 ./...`. At most two heavy test or build commands run at the same time on this machine (30 GB, 32 CPUs), counting those of every agent; real-input display tests, `scripts/realinput.sh`, `scripts/perf.sh` and other timing measurements run alone. `scripts/heavy.sh -- <command>` enforces it: it waits for one of two machine-wide slots, and `scripts/heavy.sh --alone -- <command>` takes both. Run every full test run (`./...`), `golangci-lint run`, release build and display or timing run through it
 - Never run Go fuzzing (`-fuzz`) without `-parallel=1`, a short `-fuzztime` (30s at most) and a memory limit (`GOMEMLIMIT=2GiB`, `ulimit -v`); each fuzz worker grows its own memory. Prefer the seed corpus and seeded random tests
 - Run the tests of one package (`go test ./internal/core/snippet`) while working; run `./...` only for the final checks
 - Tests, proofs and scripts that start compositors, editors or language servers run under `timeout -k`, and a test that builds big inputs (large files, millions of lines) keeps them bounded
