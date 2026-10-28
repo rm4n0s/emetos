@@ -28,8 +28,7 @@ func TestDesktopRealGopls(t *testing.T) {
 			"main.go": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hi\")\n}\n",
 		},
 		// the editor runs with a temporary HOME: nothing may be fetched, and the local toolchain is the one used
-		Env:      []string{"GOTOOLCHAIN=local", "GOPROXY=off", "GOFLAGS=-mod=mod", "GOCACHE=" + t.TempDir(), "GOPATH=" + t.TempDir()},
-		KeyDelay: 25 * time.Millisecond,
+		Env: []string{"GOTOOLCHAIN=local", "GOPROXY=off", "GOFLAGS=-mod=mod", "GOCACHE=" + t.TempDir(), "GOPATH=" + t.TempDir()},
 	})
 	a.Settle()
 	// completion: gopls takes a while to load the package, so ask until it answers

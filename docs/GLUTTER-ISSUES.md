@@ -1,0 +1,9 @@
+# Glutter issues
+
+Things Glutter is missing or gets wrong, found while building Emetos. Each entry says what is wrong, where Emetos works around it (if it does), and what the fix in Glutter would be. An entry is removed when the fix is in the Glutter version Emetos uses.
+
+## A key that a hardware handler took still goes to the focus tree, and a key that comes while no node has the focus reaches no early handler (Glutter 1.9.1 and 1.9.2)
+
+- **What:** `HardwareKeyboard.HandleKeyData` gives every key to the message handler of the focus system "also those the handlers handled" (as Flutter does), so a handler of the hardware keyboard that takes a key cannot keep the focused widget from acting on it (a letter typed after F2 started the find of the Explorer's tree, Enter made a new line in the editor). An early handler of the `FocusManager` that returns `Handled` does keep it away, but `highlightModeManager.handleKeyMessage` returns before the early handlers when `primaryFocus` is nil, which is the case for a few frames when the editor that had the focus goes away with its tab (the settings editor opens in its place): the keys of that time reach the hardware handlers and nothing else. Found by the keys typed at 10 ms after Ctrl+, (D5, step 17b.6); it is not one of the bugs of Glutter 1.9.2's steps 29.17 to 29.19.
+- **Where the workaround is:** `internal/gui/kit/typeahead.go` (`TypeAhead`, with the `// Glutter:` comment): the keys are taken by a hardware handler (it sees them all the time), and an early handler of the focus manager claims the key that was just taken, so that no focus node sees it.
+- **What Glutter could provide:** a way for a hardware handler to say that the focus tree must not see the event (a result that is not only "handled"), or early handlers that also run when no node has the focus.

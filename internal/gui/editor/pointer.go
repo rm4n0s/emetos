@@ -109,8 +109,12 @@ func (s *editorState) eventAt(local ui.Offset, gutterWidth float64) MouseEvent {
 // a selection holds that place, so that Cut and Copy act on what the user pointed at.
 //
 // Ported from VS Code: src/vs/editor/contrib/contextmenu/browser/contextmenu.ts (_onContextMenu)
+//
+// It also hides the hover and cancels the one that is on its way, as a press of the primary button does (VS Code's hover hides
+// on a mouse press), so that no hover comes beside the menu while it is open (step 17b.6, D6).
 func (s *editorState) secondaryDown(e *gestures.PointerDownEvent, gutterWidth float64) {
 	s.node.RequestFocus()
+	s.Widget().vm.HideHover()
 	if s.pressOnZone(e, false) {
 		return
 	}

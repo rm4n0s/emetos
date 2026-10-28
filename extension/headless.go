@@ -123,7 +123,9 @@ type HeadlessView interface {
 	// OnFrame sets the function that gets the pictures of the view: one when the view is made, and one each time the view
 	// changed. fn runs on a goroutine of the view, never on the UI thread and never twice at once, so it may encode and
 	// send; a view whose pictures are not taken fast enough drops the ones in between, the latest is always the next. The
-	// image belongs to fn. It is called until Close.
+	// image belongs to fn. It is called until Close: a call that is running when Close is called finishes (Close waits for it,
+	// at most a quarter of a second, so that a function that closes the view itself does not wait for itself), and none starts
+	// after Close has returned.
 	OnFrame(fn func(frame *image.RGBA))
 	// Refresh draws the view again, even if nothing changed, and hands the picture over: the client lost its picture.
 	Refresh()

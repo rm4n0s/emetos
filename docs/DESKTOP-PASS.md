@@ -32,21 +32,21 @@ Emetos was used the way a user uses it, through the compositor, with a real keyb
 - **Happened:** with a count badge on Problems and Tasks the tabs are wider, the filter box and the buttons take the room after them (with no badge all seven tabs fit, `desktop-panel-problems-empty.png`), the strip of tabs scrolls inside what is left and the last tab shows cut in the middle of a word ("GO T") with nothing that says there are more (`desktop-problems-opened.png`, `desktop-tasks-problem.png`, `desktop-gopls-problems.png`).
 - **Should:** VS Code's panel title keeps its tabs whole and puts what does not fit in a "..." menu, and the view's actions shrink first.
 - **Whose:** Emetos (`gui/workbench` `panel`: `panelTitleReserved`, the strip is a horizontal scroll view).
-- **Status:** **planned** (step 17b.6; a small step: give the actions of the view a smaller maximum, and show an overflow button with the hidden tabs; the Agents tab goes in M17c, which makes it one tab less).
+- **Status:** **fixed** (step 17b.6). The title strip of the panel (`workbench/paneloverflow.go`) measures its tabs: the tabs and the buttons that maximize and hide the panel get the room first, the actions of the view what is left (and none when that is under 130 px), and tabs that do not fit go into the menu of a "..." button (the active tab always shows, a tab is shown whole or not at all). Regression tests: `TestDesktopPanelTabsAreWholeAndOverflow` (real input: 1280 and 1024 px, no tab cut, then 760 px with the menu), `TestPanelTabsAreWholeAndOverflowIntoAMenu` and `TestPanelOverflowMenuListsTheHiddenTabs`.
 
 ### D5. Keys that arrive 10 ms apart race the Find box and the Explorer's new input
 - **Did:** pressed Ctrl+F and typed `one` with the harness's default key delay of 10 ms; and pressed F2 in the tree and typed at once.
 - **Happened:** (a) with the 10 ms delay the cursor of the editor did not move to the first match while typing, so the first Enter selected the first match instead of the second; at 25 ms per key it moves as it should; the model alone (`EnterText`, or three `FindState.Change` calls in a row) is right. (b) A letter typed in the frame after F2 was seen by the tree as the start of its find box while the rename input was not built yet (an empty find box stayed open under the tree).
 - **Should:** a person types a key every 50 to 150 ms, so both cannot be seen by one; but keys a frame apart (key repeat, IME, a fast typist) should not be lost to a half built state.
 - **Whose:** Emetos (not found in the model; a race between the key events and the widgets built a frame later; not reproduced with the model alone).
-- **Status:** **planned** (step 17b.6; not fixed: not reproduced below 25 ms; the tests of this pass type with 25 ms where the effect of a key depends on the key before it, and wait after F2, and say so).
+- **Status:** **fixed** (step 17b.6). The cause was not the model: a key that came before the input was built was handled against the state of the old widgets. (a) `kit.TypeAhead` put what it took into the text of the input and never told the owner, so the find box held the text and the editor never searched; (b) a hardware handler cannot keep the focus tree from seeing a key, so the first letter after F2 also started the find of the Explorer's tree, Enter made a new line or was lost, and the keys typed after Ctrl+, while the editor went away reached nothing (Glutter's early handlers are not called while no node has the focus, `docs/GLUTTER-ISSUES.md`). `TypeAhead` now claims the keys it takes from the focus tree, tells the owner (`onChange`), keeps Enter, the arrows, Home, End and Delete and sends them to the input once it has the focus, in order, and `StartTypeAheadLater` does it for an editor that is still to be built (the settings and keybindings editors). The harness got `NoKeyDelay`, `TypeBatch`, `PressBatch`, `Hold`, `TextCombos`, `SetKeyRepeat`. Regression tests: `TestDesktopFastKeys{Find,Rename,NewFile,QuickOpen,CommandPalette,SettingsSearch,KeybindingsSearch,Notes}` (each at 10 ms a key, with no delay and in one batch), `TestDesktopFastKeysHeld` (a key held for 1.6 s at 25 and 50 a second, in the editor and in the find box), `TestFastKeysAfterCtrlFSearch`, `TestKeysTypedRightAfterTheKeyThatOpensTheInputGoToIt`, and the `TypeAhead` tests of `kit`.
 
 ### D6. The hover box stays beside an open context menu
 - **Did:** right-clicked a word of the Go file while the pointer rested on it.
 - **Happened:** the hover of the word showed (after the delay) next to the context menu and stayed while the menu was open (`desktop-mouse-menu.png`).
 - **Should:** VS Code hides the hover on a mouse press and does not show one while a menu is open.
 - **Whose:** Emetos (the hover timer of `gui/editor/hover.go` does not know the menu).
-- **Status:** **planned** (step 17b.6).
+- **Status:** **fixed** (step 17b.6): `secondaryDown` hides the hover and cancels the one on its way (the right button is pressed within the hover delay of the pointer's arrival; the hover then came after the menu). Regression test: `TestDesktopHoverHidesWhenTheContextMenuOpens`.
 
 ### D7. Find in Files (the Search view) is not built
 - SPEC §3, area 4 "Project-wide search and replace: later". Not tested. **by spec.**
@@ -66,25 +66,25 @@ Emetos was used the way a user uses it, through the compositor, with a real keyb
 - **Did:** opened the Notes view (empty): "No notes yet. Use New Note to make one."
 - **Happened:** the `+` that makes a note shows only while the pointer is over the header (as in VS Code), so the text points to a button that is not drawn.
 - **Whose:** Emetos (UX; the same as VS Code's behavior, but VS Code's empty views have a "welcome" button).
-- **Status:** **planned** (step 17b.6; minor: a welcome content with a button for the empty Notes view).
+- **Status:** **fixed** (step 17b.6): the empty Notes view shows "No notes yet." over a "New Note" button. Regression test: `TestDesktopEmptyNotesViewHasAWelcomeButton`.
 
 ### D11. The label of a window tab is cut early
 - **Did:** opened a Scratchpad window tab.
 - **Happened:** the tab shows "Scratchp..." although the strip has room for the whole word (`desktop-wtabs-scratchpad.png`).
 - **Should:** the label is cut only when the strip is full.
 - **Whose:** Emetos (the width of a window tab; minor).
-- **Status:** **planned** (step 17b.6).
+- **Status:** **fixed** (step 17b.6). The width of a workspace tab was the measured width of its label, a fraction of a pixel narrower than the drawn paragraph ("Scratchpad" 69.27 px drawn, 69 measured), so the paragraph showed an ellipsis; `tabNaturalWidth` adds `tabLabelSlack` (1 px). `dev.texts` reports `cut` for a paragraph narrower than its text, which the test reads. Regression test: `TestDesktopWindowTabLabelIsNotCutWhenThereIsRoom`.
 
 ### D12. Two tests fail now and then, with or without load
 - **Did:** the manager's check runs of the step: `CGO_ENABLED=0 go test ./internal/gui/app -run TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver -count=30` at a load of 5, and the race runs below.
 - **Happened:** "a picture was handed over after Close" 3 times in 30; `TestTheCoreTopicsDriveARealWorkspace` fails about once in 20 runs under `-race`. Both did so before this step too.
 - **Should:** a Remote Work view hands nothing to its client after `Close`; both tests pass every time.
-- **Whose:** Emetos (a race in the code or in the tests, to be found).
-- **Status:** **planned** (step 17b.6).
+- **Whose:** both tests were wrong, and the first one pointed at a window in the code.
+- **Status:** **fixed** (step 17b.6). `TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver`: the view keeps drawing (the caret blinks), so pictures made before `Close` waited in the buffered channel the test read after it ("queued before Close: 1"); the test now counts the calls that start after `Close` has returned. The code had a real but narrow window as well: a frame that had passed the check of `closed` could call the function a moment after `Close` returned, so `Close` now waits (at most 250 ms, for a function that closes the view itself) for the call that is running (`headlessView.waitCalls`; `extension.HeadlessView.OnFrame` says so). Regression tests: `TestCloseWaitsForTheCallOfOnFrameThatIsRunning`, `TestAFunctionOfOnFrameMayCloseTheView`; the first test passes 200 times in a row without cgo. `TestTheCoreTopicsDriveARealWorkspace`: the reply of `emetos.document.open` comes from the UI thread as soon as the model has changed, and the test read the tab strip, a widget the next frames build, right after the reply; `ask` now pumps the frames first (200 runs in a row under `-race`).
 
 ## Tests of the packages that failed on a loaded machine
 
-Not findings of the pass, but seen while checking it (the machine was shared and its load was 10 to 25): `TestGoldenOfAHeadlessView` (`internal/gui/app`) failed under `-race` with the folder not listed yet, with the changes of the step and with the commit before them (it settled after 300 ms of quiet; `settleQuiet` is now one second, and the test passed three times in a row under `-race`); `TestTheCoreTopicsDriveARealWorkspace` fails once in 12 to 20 runs under `-race` with and without the changes of the step (the same runs of the commit before the step failed 3 times in 60: a race of the test, not changed here); `TestDesktopFindAndReplace` and `TestDesktopExplorer` failed once each on the loaded machine and not on later runs (the first one now types one key at a time, D5; the second one has the second way back of D2).
+Not findings of the pass, but seen while checking it (the machine was shared and its load was 10 to 25): `TestGoldenOfAHeadlessView` (`internal/gui/app`) failed under `-race` with the folder not listed yet, with the changes of the step and with the commit before them (it settled after 300 ms of quiet; `settleQuiet` is now one second, and the test passed three times in a row under `-race`); `TestTheCoreTopicsDriveARealWorkspace` fails once in 12 to 20 runs under `-race` with and without the changes of the step (the same runs of the commit before the step failed 3 times in 60: a race of the test, not changed here); `TestDesktopFindAndReplace` and `TestDesktopExplorer` failed once each on the loaded machine and not on later runs (the first one types at the pace of the harness since D5 was fixed; the second one has the second way back of D2).
 
 ## Passed
 

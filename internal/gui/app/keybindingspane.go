@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/keybindingsui"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
@@ -179,8 +180,23 @@ func (s *shellState) openKeybindingsEditor(query string) {
 		}
 	}
 	win := PeekWorkspace(s.Context())
+	// the search box takes the focus when the editor is built, some frames away; the keys typed until then go into it
+	// (kit.TypeAhead), not into the editor that has the focus now
+	typeAhead := func(input *editorgroup.KeybindingsInput) {
+		kit.StartTypeAheadLater(widgets.WidgetsBindingOf(s.Context()), func() (*widgets.TextEditingController, *widgets.FocusNode) {
+			if kp, ok := s.group.panes[input].(*keybindingsPane); ok {
+				return kp.ctl.SearchInput()
+			}
+			return nil, nil
+		}, func(text string) {
+			if kp, ok := s.group.panes[input].(*keybindingsPane); ok {
+				kp.ctl.SearchTyped(text)
+			}
+		})
+	}
 	if input == nil {
 		input, group = editorgroup.NewKeybindingsInput(editorgroup.KeybindingsViewState{Query: query}), s.activeGroup()
+		typeAhead(input)
 		s.SetState(func() {
 			s.nav.hold++
 			group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: true, Active: true})
@@ -193,6 +209,7 @@ func (s *shellState) openKeybindingsEditor(query string) {
 		s.refreshKeys()
 		return
 	}
+	typeAhead(input)
 	s.SetState(func() {
 		group.Model.SetActive(input)
 		if err := s.group.grid.Activate(group); err != nil {

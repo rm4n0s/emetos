@@ -129,3 +129,41 @@ func parseCombo(text string) (combo, error) {
 	}
 	return c, nil
 }
+
+// TextCombos are the key combinations that type the text on the US layout, one for each character ("shift+a" for "A", "enter"
+// for a new line), to be pressed with Press or PressBatch after or before other keys. A character that has no key on the
+// layout fails with the tag RealInputKeyUnknown.
+func TextCombos(text string) ([]string, error) {
+	var out []string
+	for _, r := range text {
+		k, ok := usKeys[r]
+		if !ok {
+			return nil, errors.New("RealInputKeyUnknown", "the character has no key on the US layout", "character", string(r))
+		}
+		var name string
+		for n, code := range namedKeys {
+			if code == k.code && (n == "enter" || n == "tab" || n == "space") {
+				name = n
+			}
+		}
+		if name == "" {
+			// the key of the character without Shift: the plain character of the same key
+			name = plainOf(k.code)
+		}
+		if k.shift {
+			name = "shift+" + name
+		}
+		out = append(out, name)
+	}
+	return out, nil
+}
+
+// plainOf is the character the key types without Shift.
+func plainOf(code int) string {
+	for r, k := range usKeys {
+		if k.code == code && !k.shift {
+			return string(r)
+		}
+	}
+	return ""
+}

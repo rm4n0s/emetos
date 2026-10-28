@@ -148,7 +148,10 @@ func (v *View) StartRename(path string) {
 func (v *View) focusEdit(e *editState) {
 	if b := v.opts.Binding; b != nil {
 		// the keys typed until the row is built and the input has the focus go into it, over the selected part of the name
-		e.ahead = kit.StartTypeAhead(b, e.ctl.TextController(), e.ctl.FocusNode())
+		e.ahead = kit.StartTypeAhead(b, e.ctl.TextController(), e.ctl.FocusNode(), func(string) {
+			e.ctl.Validate()
+			v.notify()
+		})
 	}
 	after := v.opts.AfterFrame
 	if after == nil {

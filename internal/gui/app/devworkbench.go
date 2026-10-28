@@ -1,6 +1,7 @@
 package app
 
 import (
+	"math"
 	"path/filepath"
 
 	"github.com/rm4n0s/errors"
@@ -21,6 +22,8 @@ type DevText struct {
 	Y      float64 `json:"y"`
 	Width  float64 `json:"width"`
 	Height float64 `json:"height"`
+	// Cut tells that the paragraph is narrower than its text: an ellipsis or a clip hides the end of it (step 17b.6).
+	Cut bool `json:"cut"`
 }
 
 // DevTab is one editor tab of a group, as dev.workbench reports it.
@@ -100,7 +103,8 @@ func devTexts(p *Process, ctx command.Context) error {
 			if text := painting.InlineSpanToPlainText(r.Text(), painting.ToPlainTextOpts{ExcludeSemanticsLabels: true, ExcludePlaceholders: true}); text != "" {
 				at := r.LocalToGlobal(zeroOffset, nil)
 				size := r.Size()
-				list = append(list, DevText{Text: text, X: at.Dx, Y: at.Dy, Width: size.Width, Height: size.Height})
+				cut := size.Width+0.01 < r.ComputeMaxIntrinsicWidth(math.Inf(1))
+				list = append(list, DevText{Text: text, X: at.Dx, Y: at.Dy, Width: size.Width, Height: size.Height, Cut: cut})
 			}
 		}
 		el.DebugVisitOnstageChildren(visit)

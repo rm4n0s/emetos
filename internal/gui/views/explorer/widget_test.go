@@ -597,3 +597,47 @@ func TestOpenEditorsWidget(t *testing.T) {
 		t.Errorf("errors: %v", errs)
 	}
 }
+
+// TestKeysTypedRightAfterTheKeyThatOpensTheInputGoToIt: the keys that come in the frame after F2, before the row's input is
+// built, go into the input and not to the tree (a letter started the find box of the tree), and Enter right after them commits
+// the name, in whichever order the keys come in the frames.
+func TestKeysTypedRightAfterTheKeyThatOpensTheInputGoToIt(t *testing.T) {
+	tests := []struct {
+		name string
+		// pumps are the frames pumped before each of the keys z, y, Enter
+		pumps []int
+	}{
+		{"in one burst", []int{0, 0, 0}},
+		{"a frame between", []int{0, 1, 1}},
+		{"a frame, then a burst", []int{1, 0, 0}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWRig(t, kit.DarkModern(), size, "main.go", "go.mod")
+			w.view.opts.Binding = widgets.WidgetsBindingOf(w.ts.Element(gluttertest.ByType[*kit.Tree]()))
+			var committed []EditResult
+			w.view.opts.OnCommitEdit = func(r EditResult) { committed = append(committed, r) }
+			w.tapRow(0)
+			w.view.StartRename(w.path("go.mod"))
+			keys := []struct {
+				k services.LogicalKeyboardKey
+				c string
+			}{{services.LogicalKeyboardKey('z'), "z"}, {services.LogicalKeyboardKey('y'), "y"}, {services.LogicalKeyboardKeyEnter, ""}}
+			for i, k := range keys {
+				for range tt.pumps[i] {
+					w.settle()
+				}
+				w.ts.SendKeyDownEvent(k.k, gluttertest.KeyOpts{Character: k.c})
+				w.ts.SendKeyUpEvent(k.k)
+			}
+			w.settle()
+			if st := w.view.Tree().Find(); st.Open {
+				t.Errorf("the find box of the tree opened with %q", st.Pattern)
+			}
+			if len(committed) != 1 || committed[0].Kind != EditRename || committed[0].Name != "zy.mod" {
+				t.Errorf("committed %+v, want one rename to zy.mod (the name up to its dot is replaced)", committed)
+			}
+			w.noErrors()
+		})
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -765,7 +766,18 @@ func TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver(t *testing.T) {
 		t.Fatal("the view drew nothing")
 	}
 	got := make(chan *image.RGBA, 8)
-	v.OnFrame(func(img *image.RGBA) { got <- img })
+	// closed is set when Close has returned: a picture handed over by a call that starts after that is the failure. The view
+	// draws on while the test runs (the cursor blinks), so pictures made before Close wait in got, and are not.
+	var closed, late atomic.Int32
+	v.OnFrame(func(img *image.RGBA) {
+		if closed.Load() != 0 {
+			late.Add(1)
+		}
+		select {
+		case got <- img:
+		default:
+		}
+	})
 	var first *image.RGBA
 	select {
 	case first = <-got:
@@ -785,14 +797,98 @@ func TestAPictureThatWaitedForOnFrameAndARefreshAreHandedOver(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Refresh handed nothing over")
 	}
-	// after Close nothing is handed over
+	// after Close nothing is handed over: no call of the function starts once Close has returned (one that is running finishes)
 	v.Close()
+	closed.Store(1)
 	a.ts.Pump(20 * time.Millisecond)
 	v.Refresh()
+	time.Sleep(100 * time.Millisecond)
+	if n := late.Load(); n != 0 {
+		t.Errorf("%d pictures were handed over after Close", n)
+	}
+}
+
+// headlessViewRig makes a headless view that has drawn its first picture, as the test above does.
+func headlessViewRig(t *testing.T) (*keyApp, *headlessView) {
+	t.Helper()
+	a := newKeyApp(t, "alpha\n")
+	a.ts.SetPlatformConfiguration(func(c *ui.PlatformConfiguration) { c.UIFontFamily, c.UIFontSize = testutil.MonoFamily, 12 })
+	v, err := a.win.makeHeadlessView(extension.Size{Width: 640, Height: 400}, rigFrameRate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(v.Close)
+	deadline := time.Now().Add(20 * time.Second)
+	for v.frames.Load() == 0 && time.Now().Before(deadline) {
+		a.ts.Pump(20 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
+	}
+	if v.frames.Load() == 0 {
+		t.Fatal("the view drew nothing")
+	}
+	return a, v
+}
+
+// Close does not return while the function of OnFrame is being called, and no call starts after it has returned: a picture that
+// was on its way when the client let go of the view (a frame that had passed the check of closed) was handed over after Close.
+func TestCloseWaitsForTheCallOfOnFrameThatIsRunning(t *testing.T) {
+	a, v := headlessViewRig(t)
+	entered, release := make(chan struct{}, 1), make(chan struct{})
+	var calls atomic.Int32
+	v.OnFrame(func(*image.RGBA) {
+		calls.Add(1)
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-release
+	})
 	select {
-	case <-got:
-		t.Error("a picture was handed over after Close")
-	case <-time.After(100 * time.Millisecond):
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the picture that waited was not handed over")
+	}
+	closed := make(chan struct{})
+	go func() { v.Close(); close(closed) }()
+	select {
+	case <-closed:
+		t.Fatal("Close returned while the function was running")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-closed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close did not return after the function did")
+	}
+	before := calls.Load()
+	a.ts.Pump(20 * time.Millisecond)
+	v.Refresh()
+	time.Sleep(100 * time.Millisecond)
+	if n := calls.Load(); n != before {
+		t.Errorf("the function was called %d times after Close", n-before)
+	}
+}
+
+// A function of OnFrame that closes the view must not wait for itself for ever.
+func TestAFunctionOfOnFrameMayCloseTheView(t *testing.T) {
+	_, v := headlessViewRig(t)
+	returned := make(chan time.Duration, 1)
+	v.OnFrame(func(*image.RGBA) {
+		start := time.Now()
+		v.Close()
+		select {
+		case returned <- time.Since(start):
+		default:
+		}
+	})
+	select {
+	case took := <-returned:
+		if took > 5*time.Second {
+			t.Errorf("Close took %v", took)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Close called from the function did not return")
 	}
 }
 

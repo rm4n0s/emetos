@@ -60,12 +60,27 @@ func (w *wireConn) newID() uint32 {
 	return id
 }
 
-// send writes one request. fd, when it is not negative, is sent along with it.
-func (w *wireConn) send(obj uint32, opcode uint16, args []byte, fd int) error {
+// encode makes the bytes of one request.
+func encode(obj uint32, opcode uint16, args []byte) []byte {
 	msg := make([]byte, 8+len(args))
 	binary.LittleEndian.PutUint32(msg[0:], obj)
 	binary.LittleEndian.PutUint32(msg[4:], uint32(len(msg))<<16|uint32(opcode))
 	copy(msg[8:], args)
+	return msg
+}
+
+// send writes one request. fd, when it is not negative, is sent along with it.
+func (w *wireConn) send(obj uint32, opcode uint16, args []byte, fd int) error {
+	return w.write(encode(obj, opcode, args), fd, obj, opcode)
+}
+
+// sendBatch writes several requests with one write, so that the compositor reads them together.
+func (w *wireConn) sendBatch(requests [][]byte) error {
+	return w.write(cat(requests...), -1, 0, 0)
+}
+
+// write writes bytes to the socket, with a file descriptor when fd is not negative; obj and opcode name the request in an error.
+func (w *wireConn) write(msg []byte, fd int, obj uint32, opcode uint16) error {
 	var oob []byte
 	if fd >= 0 {
 		oob = syscall.UnixRights(fd)
@@ -96,7 +111,9 @@ func (w *wireConn) read(ctx context.Context) (event, error) {
 		return event{}, errors.NewErr("RealInputReadFailed", err)
 	}
 	// a canceled context closes the wait at once
-	stop := context.AfterFunc(ctx, func() { _ = w.conn.SetReadDeadline(time.Unix(1, 0)) })
+	// the function holds the connection itself: Close sets w.conn to nil, possibly while the function is about to run
+	conn := w.conn
+	stop := context.AfterFunc(ctx, func() { _ = conn.SetReadDeadline(time.Unix(1, 0)) })
 	defer stop()
 	header := make([]byte, 8)
 	if _, err := io.ReadFull(w.conn, header); err != nil {

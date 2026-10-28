@@ -371,6 +371,7 @@ func (v *headlessView) Close() {
 		v.closed = true
 		v.onFrame, v.last = nil, nil
 		v.mu.Unlock()
+		v.waitCalls()
 		v.onUI(func() {
 			v.ended = true
 			if v.stopNotify != nil {
@@ -384,6 +385,25 @@ func (v *headlessView) Close() {
 			close(v.done)
 		})
 	})
+}
+
+// callWait is how long Close waits for the call of the function of OnFrame that is running.
+const callWait = 250 * time.Millisecond
+
+// waitCalls waits until the call of the function of OnFrame that is running has ended, so that no call starts after Close
+// returns: a frame that passed the check of closed before it was set would hand its picture over a moment after Close, to a
+// client that has let go of the view. Every call holds callMu and looks at closed after it has it, so once the mutex is free
+// after closed is set, no call comes. A function that closes the view itself is the call Close would wait for, so the wait ends
+// after callWait.
+func (v *headlessView) waitCalls() {
+	deadline := time.Now().Add(callWait)
+	for !v.callMu.TryLock() {
+		if time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	v.callMu.Unlock()
 }
 
 // closeHeadlessViews closes the views of the workspace; the workspace calls it as it goes. UI thread only.

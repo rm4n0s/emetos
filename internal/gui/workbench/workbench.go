@@ -3,6 +3,7 @@ package workbench
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -672,23 +673,22 @@ func (s *workbenchState) panel(colors kit.Colors) widgets.Widget {
 	}
 	maximized := s.layout.PanelMaximized()
 	title := widgets.NewLayoutBuilder(func(bc widgets.BuildContext, cons rendering.BoxConstraints) widgets.Widget {
-		tabs := make([]widgets.Widget, 0, len(o.PanelTabs))
-		for _, tab := range o.PanelTabs {
-			tabs = append(tabs, s.panelTab(bc, colors, tab, tab.ID == o.ActivePanel))
-		}
+		// What the title strip holds, in the order it gives up room (step 17b.6, D4; VS Code's composite bar): the tabs and the
+		// buttons that maximize and hide the panel first, the actions of the view get what is left, and tabs that do not fit
+		// go into the "..." button's menu, as whole tabs, never cut.
+		shownMeasured, hiddenMeasured := s.fitPanelTabs(bc, o.PanelTabs, cons.MaxWidth-panelTitleLead-panelButtonsWidth)
 		maximizeIcon, maximizeTip := fonts.CodiconChevronUp, "Maximize Panel"
 		if maximized {
 			maximizeIcon, maximizeTip = fonts.CodiconChevronDown, "Restore Panel"
 		}
 		var viewActions []widgets.Widget
-		// the actions of the view take what the tabs and the buttons leave, and are left out when that is
-		// too little to be of use
-		room := cons.MaxWidth - panelTitleReserved
+		// the actions of the view take what the tabs and the buttons leave, and are left out when that is too little to be of use
+		room := cons.MaxWidth - panelTitleLead - panelButtonsWidth - s.panelTabsWidth(bc, shownMeasured, len(hiddenMeasured) > 0) - panelActionsGap
 		if o.PanelActions != nil {
 			if room >= panelActionsMinWidth {
 				viewActions = append(viewActions,
 					widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(room)}), o.PanelActions),
-					widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(4.0)}))
+					widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(panelActionsGap)}))
 			}
 		}
 		actions := widgets.NewRow(append(viewActions, []widgets.Widget{
@@ -697,13 +697,24 @@ func (s *workbenchState) panel(colors kit.Colors) widgets.Widget {
 			kit.NewIconButton(fonts.CodiconClose, kit.IconButtonOpts{Tooltip: "Hide Panel", OnPressed: func() { s.layout.SetPanelVisible(false) }}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(8.0)}),
 		}...), widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
-		// the tabs that do not fit are scrolled, not cut: a narrow panel at a side has little room
-		strip := widgets.NewSingleChildScrollView(
-			widgets.NewRow(tabs, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}),
-			widgets.SingleChildScrollViewOpts{ScrollDirection: painting.AxisHorizontal, Primary: foundation.Some(false)})
+		// the tabs are fitted to the room the strip really has, which only its layout knows
+		strip := widgets.NewLayoutBuilder(func(bc widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+			shown, hidden := s.fitPanelTabs(bc, o.PanelTabs, c.MaxWidth)
+			tabs := make([]widgets.Widget, 0, len(shown)+1)
+			for _, tab := range shown {
+				tabs = append(tabs, s.panelTab(bc, colors, tab, tab.ID == o.ActivePanel))
+			}
+			if len(hidden) > 0 {
+				tabs = append(tabs, newPanelOverflow(hidden, o.ActivePanel, o.OnSelectPanel))
+			}
+			// a fraction of a pixel of rounding may make the tabs a little wider than the room: it is clipped, not drawn as an overflow
+			return widgets.NewClipRect(widgets.NewOverflowBox(
+				widgets.NewRow(tabs, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}),
+				widgets.OverflowBoxOpts{Alignment: painting.AlignmentCenterLeft, MaxWidth: foundation.Some(math.Inf(1))}))
+		})
 		row := widgets.NewRow([]widgets.Widget{
-			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(8.0)}),
-			widgets.NewExpanded(strip), actions,
+			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(panelTitleLead)}),
+			widgets.NewExpanded(widgets.NewAlign(strip, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})), actions,
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 		return bordered(colors.PanelBackground, colors.PanelTitleBorder, sideBottom, row)
 	})
@@ -715,8 +726,18 @@ func (s *workbenchState) panel(colors kit.Colors) widgets.Widget {
 // What the title strip of the panel keeps for the tabs (at least) and the buttons that maximize and hide
 // the panel, which the actions of the view are not given, and the least width the actions are shown in.
 const (
-	panelTitleReserved   = 8 + 60 + 150
+	panelTitleLead       = 8.0
+	panelButtonsWidth    = 22 + 2 + 22 + 8
+	panelActionsGap      = 4.0
 	panelActionsMinWidth = 130.0
+	// panelOverflowWidth is the width of the "..." button that lists the tabs that do not fit.
+	panelOverflowWidth = 28.0
+	// panelTabPadding is the space a tab has on each side of its title.
+	panelTabPadding = 10.0
+	// panelFitSlack is what the tabs may be wider than the room before one goes into the menu (a fraction of a pixel of rounding).
+	panelFitSlack = 1.0
+	// panelBadgeGap is the space between the title of a tab and its count.
+	panelBadgeGap = 6.0
 )
 
 // panelTab is the title of a view in the title strip of the panel: uppercase 11 px text, with a line

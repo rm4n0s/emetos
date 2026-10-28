@@ -66,6 +66,9 @@ func TestTheCoreTopicsDriveARealWorkspace(t *testing.T) {
 			t.Fatal(err)
 		}
 		a.waitFor("the reply to "+topic, func() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.done })
+		// the reply comes from the UI thread as soon as the model has changed (the editor is shown, the cursor is moved), and the
+		// tabs and the editor are widgets that the next frames build: the test reads them, so it lets them be built first
+		a.pump()
 		return r.ev, r.err
 	}
 	aURI := document.FileURI(filepath.Join(folder, "a.go")).String()

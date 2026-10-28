@@ -33,13 +33,18 @@ const (
 	ButtonMiddle Button = 0x112
 )
 
+// NoKeyDelay as Options.KeyDelay means no wait between keys.
+const NoKeyDelay time.Duration = -1
+
 // Options configure Connect.
 type Options struct {
 	// Socket is the Wayland socket of the compositor: a path, or a name in XDG_RUNTIME_DIR. WAYLAND_DISPLAY (and
 	// XDG_RUNTIME_DIR) when empty.
 	Socket string
-	// KeyDelay is how long the client waits after each key, so that the application sees the keys at the pace of a fast
-	// typist rather than in one burst; 10 ms when zero.
+	// KeyDelay is how long the client waits after each key (and after its round trip), so that the application sees the
+	// keys at the pace of a fast typist rather than in one burst; 10 ms when zero, and a negative value (NoKeyDelay) is no
+	// wait at all: the next key follows as soon as the compositor has passed the last one on. Zero is therefore not "all keys
+	// in one batch"; TypeBatch and PressBatch send keys in one batch.
 	KeyDelay time.Duration
 	// Timeout bounds every wait for the compositor (a round trip, a write); 5 s when zero.
 	Timeout time.Duration
@@ -301,50 +306,79 @@ const (
 	opModifiers = 2
 )
 
-func (c *Client) key(code int, down bool) error {
+// keyRequest makes the request of one key event of the virtual keyboard.
+func (c *Client) keyRequest(code int, down bool) []byte {
 	state := uint32(0)
 	if down {
 		state = 1
 	}
-	return c.w.send(c.keyboard, opKey, cat(u32(c.now()), u32(uint32(code)), u32(state)), -1)
+	return encode(c.keyboard, opKey, cat(u32(c.now()), u32(uint32(code)), u32(state)))
 }
 
-func (c *Client) modifiers(mask int) error {
-	return c.w.send(c.keyboard, opModifiers, cat(u32(uint32(mask)), u32(0), u32(0), u32(0)), -1)
+// modifiersRequest makes the request that tells the compositor the modifiers held.
+func (c *Client) modifiersRequest(mask int) []byte {
+	return encode(c.keyboard, opModifiers, cat(u32(uint32(mask)), u32(0), u32(0), u32(0)))
+}
+
+// downRequests are the requests that press a key with its modifiers held: the modifier keys, their mask, the key.
+func (c *Client) downRequests(k combo) [][]byte {
+	var reqs [][]byte
+	for _, m := range k.mods {
+		reqs = append(reqs, c.keyRequest(m, true))
+	}
+	if k.mask != 0 {
+		reqs = append(reqs, c.modifiersRequest(k.mask))
+	}
+	return append(reqs, c.keyRequest(k.code, true))
+}
+
+// upRequests are the requests that release a key and its modifiers.
+func (c *Client) upRequests(k combo) [][]byte {
+	reqs := [][]byte{c.keyRequest(k.code, false)}
+	for i := len(k.mods) - 1; i >= 0; i-- {
+		reqs = append(reqs, c.keyRequest(k.mods[i], false))
+	}
+	if k.mask != 0 {
+		reqs = append(reqs, c.modifiersRequest(0))
+	}
+	return reqs
+}
+
+// tapRequests are the requests that press and release one key with the modifiers held.
+func (c *Client) tapRequests(k combo) [][]byte { return append(c.downRequests(k), c.upRequests(k)...) }
+
+// sendEach writes the requests one at a time.
+func (c *Client) sendEach(reqs [][]byte) error {
+	for _, r := range reqs {
+		if err := c.w.write(r, -1, c.keyboard, 0); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // tap presses and releases one key with the modifiers held, then waits for the compositor and the key delay.
 func (c *Client) tap(ctx context.Context, k combo) error {
-	for _, m := range k.mods {
-		if err := c.key(m, true); err != nil {
-			return err
-		}
-	}
-	if k.mask != 0 {
-		if err := c.modifiers(k.mask); err != nil {
-			return err
-		}
-	}
-	if err := c.key(k.code, true); err != nil {
+	if err := c.sendEach(c.tapRequests(k)); err != nil {
 		return err
-	}
-	if err := c.key(k.code, false); err != nil {
-		return err
-	}
-	for i := len(k.mods) - 1; i >= 0; i-- {
-		if err := c.key(k.mods[i], false); err != nil {
-			return err
-		}
-	}
-	if k.mask != 0 {
-		if err := c.modifiers(0); err != nil {
-			return err
-		}
 	}
 	if err := c.roundTrip(ctx, nil); err != nil {
 		return err
 	}
 	return c.pause(ctx, c.opts.KeyDelay)
+}
+
+// tapBatch presses and releases keys one after the other with one write for all of them, as an input method that hands the
+// application several keys at once, then waits for the compositor.
+func (c *Client) tapBatch(ctx context.Context, keys []combo) error {
+	var reqs [][]byte
+	for _, k := range keys {
+		reqs = append(reqs, c.tapRequests(k)...)
+	}
+	if err := c.w.sendBatch(reqs); err != nil {
+		return err
+	}
+	return c.roundTrip(ctx, nil)
 }
 
 // pause waits, and ends early with the error of ctx.
@@ -362,33 +396,70 @@ func (c *Client) pause(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// strokes turns text into the keys that type it on the US layout.
+func strokes(text string) ([]combo, error) {
+	var out []combo
+	for _, r := range text {
+		k, ok := usKeys[r]
+		if !ok {
+			return nil, errors.New("RealInputKeyUnknown", "the character has no key on the US layout", "character", string(r))
+		}
+		stroke := combo{code: k.code}
+		if k.shift {
+			stroke.mods, stroke.mask = []int{keyLeftShift}, modShift
+		}
+		out = append(out, stroke)
+	}
+	return out, nil
+}
+
 // Type types the text on the US layout, a character at a time, with Shift for capitals and symbols; a new line is Enter
 // and a tab is Tab. A character that has no key on the layout fails with the tag RealInputKeyUnknown, before anything is
 // typed.
 func (c *Client) Type(ctx context.Context, text string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	var strokes []combo
-	for _, r := range text {
-		k, ok := usKeys[r]
-		if !ok {
-			return errors.New("RealInputKeyUnknown", "the character has no key on the US layout", "character", string(r))
-		}
-		stroke := combo{code: k.code}
-		if k.shift {
-			stroke.mods, stroke.mask = []int{keyLeftShift}, modShift
-		}
-		strokes = append(strokes, stroke)
+	keys, err := strokes(text)
+	if err != nil {
+		return err
 	}
 	if err := c.alive(); err != nil {
 		return err
 	}
-	for _, s := range strokes {
-		if err := c.tap(ctx, s); err != nil {
+	for _, k := range keys {
+		if err := c.tap(ctx, k); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// TypeBatch types the text as Type does, but all its keys are written to the compositor at once, with no round trip or wait
+// between them: the application gets them in one read, as when an input method or a fast burst delivers several keys together.
+func (c *Client) TypeBatch(ctx context.Context, text string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	keys, err := strokes(text)
+	if err != nil {
+		return err
+	}
+	if err := c.alive(); err != nil {
+		return err
+	}
+	return c.tapBatch(ctx, keys)
+}
+
+// parseCombos reads key combinations.
+func parseCombos(combos []string) ([]combo, error) {
+	parsed := make([]combo, 0, len(combos))
+	for _, text := range combos {
+		k, err := parseCombo(text)
+		if err != nil {
+			return nil, err
+		}
+		parsed = append(parsed, k)
+	}
+	return parsed, nil
 }
 
 // Press presses key combinations one after the other: "ctrl+p", "Escape", "alt+Left", "ctrl+shift+v", "f2", "enter". A
@@ -396,13 +467,9 @@ func (c *Client) Type(ctx context.Context, text string) error {
 func (c *Client) Press(ctx context.Context, combos ...string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	parsed := make([]combo, 0, len(combos))
-	for _, text := range combos {
-		k, err := parseCombo(text)
-		if err != nil {
-			return err
-		}
-		parsed = append(parsed, k)
+	parsed, err := parseCombos(combos)
+	if err != nil {
+		return err
 	}
 	if err := c.alive(); err != nil {
 		return err
@@ -413,6 +480,51 @@ func (c *Client) Press(ctx context.Context, combos ...string) error {
 		}
 	}
 	return nil
+}
+
+// PressBatch presses key combinations as Press does, with all the keys written to the compositor at once (see TypeBatch).
+func (c *Client) PressBatch(ctx context.Context, combos ...string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	parsed, err := parseCombos(combos)
+	if err != nil {
+		return err
+	}
+	if err := c.alive(); err != nil {
+		return err
+	}
+	return c.tapBatch(ctx, parsed)
+}
+
+// Hold holds a key down for a time and releases it. The compositor sends no repeats (in Wayland the client makes them, from
+// the repeat rate and delay of wl_keyboard.repeat_info, 25 a second after 600 ms unless the compositor says otherwise), so a
+// key held long enough repeats in the application as it does for a user.
+func (c *Client) Hold(ctx context.Context, combo string, d time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	k, err := parseCombo(combo)
+	if err != nil {
+		return err
+	}
+	if err := c.alive(); err != nil {
+		return err
+	}
+	if err := c.sendEach(c.downRequests(k)); err != nil {
+		return err
+	}
+	if err := c.roundTrip(ctx, nil); err != nil {
+		return err
+	}
+	held := c.pause(ctx, d)
+	// the key is released also when the wait was canceled, so that it does not stay down
+	if err := c.sendEach(c.upRequests(k)); err != nil {
+		return err
+	}
+	// the compositor has the release when this returns, also after a canceled wait
+	if err := c.roundTrip(context.WithoutCancel(ctx), nil); err != nil {
+		return err
+	}
+	return held
 }
 
 // alive tells whether the client is connected.

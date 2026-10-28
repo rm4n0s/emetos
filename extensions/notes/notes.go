@@ -162,8 +162,19 @@ func (m *notes) sync() {
 func (m *notes) build(bc widgets.BuildContext) widgets.Widget {
 	colors := ui.Theme(bc)
 	if len(m.list) == 0 {
-		return widgets.NewPadding(painting.NewEdgeInsetsAll(12), widgets.NewText(
-			"No notes yet. Use New Note to make one.", widgets.TextOpts{Style: ui.TextStyle(bc, 13, colors.DescriptionForeground)}))
+		// the welcome content of an empty view, as VS Code's: a text and the button that does what the text says (the button of
+		// the header shows only while the pointer is over it)
+		return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(20, 8, 20, 0), widgets.NewColumn([]widgets.Widget{
+			widgets.NewText("No notes yet.", widgets.TextOpts{Style: ui.TextStyle(bc, 13, colors.DescriptionForeground)}),
+			widgets.NewPadding(painting.NewEdgeInsetsSymmetric(8, 0), ui.NewButton("New Note", ui.ButtonOpts{
+				Expand: true,
+				OnPressed: func() {
+					if err := m.newNote(context.Background(), nil); err != nil {
+						m.api.Notifications().Warn("Cannot make the note: " + err.Error())
+					}
+				},
+			})),
+		}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}))
 	}
 	open := func(row ui.ListViewRow) {
 		if n, ok := row.Data.(*note); ok {

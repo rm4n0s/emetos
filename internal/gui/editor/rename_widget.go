@@ -148,7 +148,7 @@ func (s *editorState) focusRename() {
 		a.renameAhead.Stop()
 	}
 	a.renameText.SetSelection(services.NewTextSelection(0, len(a.renameText.Text())))
-	a.renameAhead = kit.StartTypeAhead(s.binding, a.renameText, a.renameNode)
+	a.renameAhead = kit.StartTypeAhead(s.binding, a.renameText, a.renameNode, vm.RenameSetInput)
 }
 
 // focusPreview gives the focus to the preview when it is on screen.

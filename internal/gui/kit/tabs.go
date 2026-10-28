@@ -350,8 +350,12 @@ func (t *Tabs) buildTitleBar(bc widgets.BuildContext) widgets.Widget {
 
 // tabNaturalWidth is the width a workspace tab wants: the space before the label, the icon, the name and the description
 // and the box of the close button.
+//
+// The label is drawn in the text style the tab inherits and measured in the style the tab gives it, so what is measured can be
+// a fraction of a pixel narrower than what is drawn ("Scratchpad" 69.27 px drawn, 69 measured), and a paragraph that is
+// narrower than its text shows an ellipsis ("Scratchp..."): the width has tabLabelSlack more than the measure (step 17b.6, D11).
 func tabNaturalWidth(bc widgets.BuildContext, it TabItem) float64 {
-	w := tabPaddingStart + tabActionWidth + tabLabelWidth(bc, it.Name, tabFontSize)
+	w := tabPaddingStart + tabActionWidth + tabLabelSlack + tabLabelWidth(bc, it.Name, tabFontSize)
 	if it.Icon != nil {
 		w += tabIconSize + tabIconGap
 	}
@@ -361,19 +365,32 @@ func tabNaturalWidth(bc widgets.BuildContext, it TabItem) float64 {
 	return w
 }
 
+// tabLabelSlack is the width a workspace tab has over its measured label.
+const tabLabelSlack = 1.0
+
 // tabLabelWidth is how wide a text is in the font of the tabs.
 func tabLabelWidth(bc widgets.BuildContext, text string, size float64) float64 {
+	return math.Ceil(MeasureText(bc, text, tabTextStyle(bc, size, ui.Color{}, false, false)))
+}
+
+// MeasureText is how wide a line of text is in a style, as the text engine of the window lays it out; a
+// window with no text engine (a bare test) gets an estimate.
+func MeasureText(bc widgets.BuildContext, text string, style *painting.TextStyle) float64 {
 	engine := widgets.WidgetsBindingOf(bc).PlatformDispatcher().TextEngine()
 	if engine == nil {
+		size := 14.0
+		if fs, ok := style.FontSize.Get(); ok {
+			size = fs
+		}
 		return float64(utf8.RuneCountInString(text)) * size * 0.55
 	}
 	painter := painting.NewTextPainter(painting.TextPainterOpts{
-		TextEngine: engine, Text: painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(text), Style: tabTextStyle(bc, size, ui.Color{}, false, false)}),
+		TextEngine: engine, Text: painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(text), Style: style}),
 		TextDirection: ui.TextDirectionLTR, MaxLines: foundation.Some(1),
 	})
 	defer painter.Dispose()
 	painter.Layout(0, math.Inf(1))
-	return math.Ceil(painter.MaxIntrinsicWidth())
+	return painter.MaxIntrinsicWidth()
 }
 
 // compactLetter is what a compact pinned tab without an icon shows: the first letter of the name.

@@ -38,7 +38,8 @@ type Options struct {
 	State map[string]string
 	// Env are more variables for the process (NAME=value).
 	Env []string
-	// KeyDelay is the pause after each key; 10 ms when zero.
+	// KeyDelay is the pause after each key; 10 ms when zero, realinput.NoKeyDelay for none (keys follow each other as fast as
+	// the compositor passes them on).
 	KeyDelay time.Duration
 }
 
@@ -683,6 +684,69 @@ func (a *App) Press(combos ...string) {
 	}
 }
 
+// TypeBatch types the text with all its keys written to the compositor at once (an input method, or a burst).
+func (a *App) TypeBatch(text string) {
+	a.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := a.Input.TypeBatch(ctx, text); err != nil {
+		a.t.Fatalf("typing %q in one batch: %v", text, err)
+	}
+}
+
+// PressBatch presses key combinations with all the keys written to the compositor at once.
+func (a *App) PressBatch(combos ...string) {
+	a.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := a.Input.PressBatch(ctx, combos...); err != nil {
+		a.t.Fatalf("pressing %v in one batch: %v", combos, err)
+	}
+}
+
+// SetKeyRepeat sets how fast a held key repeats, as the compositor tells its clients (wl_keyboard.repeat_info, sway's
+// `input type:keyboard repeat_rate` and `repeat_delay`): keys a second, after a delay in milliseconds. The compositor of the
+// run is shared by its tests, so the default of sway (25 a second after 600 ms) comes back when the test ends.
+func (a *App) SetKeyRepeat(rate int, delay time.Duration) {
+	a.t.Helper()
+	set := func(rate int, delay time.Duration) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return realinput.SwayCommand(ctx, "input type:keyboard repeat_rate "+itoa(rate)+"; input type:keyboard repeat_delay "+itoa(int(delay.Milliseconds())))
+	}
+	if err := set(rate, delay); err != nil {
+		a.t.Fatalf("setting the key repeat: %v", err)
+	}
+	a.t.Cleanup(func() {
+		if err := set(25, 600*time.Millisecond); err != nil {
+			a.t.Errorf("putting the key repeat back: %v", err)
+		}
+	})
+	// the compositor tells the application, which takes it a moment
+	time.Sleep(100 * time.Millisecond)
+}
+
+// Keys presses key combinations, written to the compositor one after the other when batch is false (Press) and all at once when
+// it is true (PressBatch); the typed text of a test is TextCombos.
+func (a *App) Keys(batch bool, combos ...string) {
+	a.t.Helper()
+	if batch {
+		a.PressBatch(combos...)
+	} else {
+		a.Press(combos...)
+	}
+}
+
+// Hold holds a key down for a time, so that the application repeats it, and releases it.
+func (a *App) Hold(combo string, d time.Duration) {
+	a.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), d+30*time.Second)
+	defer cancel()
+	if err := a.Input.Hold(ctx, combo, d); err != nil {
+		a.t.Fatalf("holding %q: %v", combo, err)
+	}
+}
+
 // RefreshWindow reads where the window is from sway and tells the pointer, since a window can move.
 func (a *App) RefreshWindow() {
 	a.t.Helper()
@@ -698,6 +762,20 @@ func (a *App) RefreshWindow() {
 	}
 	a.window = w
 	a.Input.SetWindow(realinput.Point{X: w.Content.X, Y: w.Content.Y}, layout)
+}
+
+// ResizeWindow gives the window another size (a floating window of sway, as the compositor of the run opens them) and waits for
+// the editor to have drawn at it.
+func (a *App) ResizeWindow(width, height int) {
+	a.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := realinput.SwayCommand(ctx, "[pid="+itoa(a.cmd.Process.Pid)+"] resize set width "+itoa(width)+" px height "+itoa(height)+" px"); err != nil {
+		a.t.Fatalf("resizing the window: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	a.RefreshWindow()
+	a.Settle()
 }
 
 // Window is the window as sway last reported it.

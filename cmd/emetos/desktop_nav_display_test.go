@@ -5,7 +5,6 @@ package main
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/rm4n0s/emetos/internal/testenv/display"
 )
@@ -91,16 +90,11 @@ func TestDesktopGoToLineAndSymbol(t *testing.T) {
 }
 
 func TestDesktopFindAndReplace(t *testing.T) {
-	// a person types a key every 100 ms or so; the 10 ms of the harness races the find box (docs/DESKTOP-PASS.md, "keys 10 ms apart")
-	a := display.Start(t, display.Options{Args: []string{".", "words.txt"}, Project: navProject, KeyDelay: 25 * time.Millisecond})
+	a := display.Start(t, display.Options{Args: []string{".", "words.txt"}, Project: navProject})
 	a.Settle()
+	// the word follows the shortcut at the pace of the harness (10 ms a key): the keys of a fast typist (D5 of docs/DESKTOP-PASS.md)
 	a.Press("ctrl+f")
-	// one key at a time, each handled before the next (D5 of docs/DESKTOP-PASS.md: keys a frame apart race the find box, most of
-	// all on a loaded machine)
-	for _, c := range "one" {
-		a.Type(string(c))
-		a.Settle()
-	}
+	a.Type("one")
 	a.WaitFocusedText("one")
 	a.WaitText("1 of 3")
 	a.Eventually("the cursor to be on the first match", func() (bool, string) { return a.Editor().Column == 4, itoa(a.Editor().Column) })

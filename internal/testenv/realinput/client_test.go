@@ -239,12 +239,17 @@ func TestErrorRoutes(t *testing.T) {
 	})
 	t.Run("a character with no key", func(t *testing.T) {
 		c, _ := connectFake(t, allGlobals)
-		requireRoute(t, c.Type(ctx, "é"), "Client.Type.RealInputKeyUnknown")
+		requireRoute(t, c.Type(ctx, "é"), "Client.Type->strokes.RealInputKeyUnknown")
+		requireRoute(t, c.TypeBatch(ctx, "é"), "Client.TypeBatch->strokes.RealInputKeyUnknown")
+		_, err := TextCombos("é")
+		requireRoute(t, err, "TextCombos.RealInputKeyUnknown")
 	})
 	t.Run("a combination that is wrong", func(t *testing.T) {
 		c, f := connectFake(t, allGlobals)
 		for _, combo := range []string{"hyper+p", "ctrl+nonsense", "ctrl+é"} {
-			requireRoute(t, c.Press(ctx, "a", combo), "Client.Press->parseCombo.RealInputComboInvalid")
+			requireRoute(t, c.Press(ctx, "a", combo), "Client.Press->parseCombos->parseCombo.RealInputComboInvalid")
+			requireRoute(t, c.PressBatch(ctx, "a", combo), "Client.PressBatch->parseCombos->parseCombo.RealInputComboInvalid")
+			requireRoute(t, c.Hold(ctx, combo, time.Millisecond), "Client.Hold->parseCombo.RealInputComboInvalid")
 		}
 		if got := keyEvents(f.taken()); len(got) != 0 {
 			t.Errorf("a wrong combination still pressed %v", got)
@@ -260,6 +265,9 @@ func TestErrorRoutes(t *testing.T) {
 			t.Fatal(err)
 		}
 		requireRoute(t, c.Type(ctx, "a"), "Client.Type->Client.alive.RealInputClosed")
+		requireRoute(t, c.TypeBatch(ctx, "a"), "Client.TypeBatch->Client.alive.RealInputClosed")
+		requireRoute(t, c.PressBatch(ctx, "a"), "Client.PressBatch->Client.alive.RealInputClosed")
+		requireRoute(t, c.Hold(ctx, "a", time.Millisecond), "Client.Hold->Client.alive.RealInputClosed")
 	})
 	t.Run("a canceled wait", func(t *testing.T) {
 		c, _ := connectFake(t, allGlobals)
@@ -293,10 +301,126 @@ func TestErrorRoutes(t *testing.T) {
 		_ = f.listener.Close()
 		_ = c.w.conn.Close()
 		requireRoute(t, c.Type(ctx, "a"), "RealInputWriteFailed")
+		requireRoute(t, c.TypeBatch(ctx, "a"), "wireConn.write.RealInputWriteFailed")
+		requireRoute(t, c.Hold(ctx, "a", time.Millisecond), "wireConn.write.RealInputWriteFailed")
 	})
 }
 
 func toStrings(v any) []string {
 	s, _ := v.([]string)
 	return s
+}
+
+func TestTypeBatchAndPressBatchSendTheSameKeysAsTypeAndPress(t *testing.T) {
+	tests := []struct {
+		name  string
+		batch func(ctx context.Context, c *Client) error
+		each  func(ctx context.Context, c *Client) error
+	}{
+		{"typed text", func(ctx context.Context, c *Client) error { return c.TypeBatch(ctx, "aB (\n") },
+			func(ctx context.Context, c *Client) error { return c.Type(ctx, "aB (\n") }},
+		{"combinations", func(ctx context.Context, c *Client) error { return c.PressBatch(ctx, "ctrl+f", "Escape", "shift+a") },
+			func(ctx context.Context, c *Client) error { return c.Press(ctx, "ctrl+f", "Escape", "shift+a") }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c1, f1 := connectFake(t, allGlobals)
+			if err := tt.each(context.Background(), c1); err != nil {
+				t.Fatal(err)
+			}
+			want := keyEvents(f1.taken())
+			c2, f2 := connectFake(t, allGlobals)
+			if err := tt.batch(context.Background(), c2); err != nil {
+				t.Fatal(err)
+			}
+			if got := keyEvents(f2.taken()); !slices.Equal(got, want) || len(got) == 0 {
+				t.Errorf("batch events = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// a negative key delay is no wait at all, and the default (zero) is 10 ms
+func TestKeyDelay(t *testing.T) {
+	tests := []struct {
+		name  string
+		delay time.Duration
+		want  time.Duration
+	}{
+		{"default", 0, 10 * time.Millisecond}, {"none", NoKeyDelay, NoKeyDelay}, {"set", 3 * time.Millisecond, 3 * time.Millisecond},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFakeCompositor(t, allGlobals)
+			c, err := Connect(context.Background(), Options{Socket: f.socket, Timeout: 2 * time.Second, KeyDelay: tt.delay})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = c.Close() })
+			if c.opts.KeyDelay != tt.want {
+				t.Errorf("KeyDelay = %v, want %v", c.opts.KeyDelay, tt.want)
+			}
+		})
+	}
+	// with no delay forty keys take far less than forty default delays
+	f := newFakeCompositor(t, allGlobals)
+	c, err := Connect(context.Background(), Options{Socket: f.socket, Timeout: 2 * time.Second, KeyDelay: NoKeyDelay})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	start := time.Now()
+	if err := c.Type(context.Background(), strings.Repeat("a", 40)); err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(start); took > 300*time.Millisecond {
+		t.Errorf("40 keys with no delay took %v", took)
+	}
+}
+
+func TestHoldKeepsTheKeyDownAndReleasesIt(t *testing.T) {
+	c, f := connectFake(t, allGlobals)
+	start := time.Now()
+	if err := c.Hold(context.Background(), "ctrl+x", 150*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(start); took < 150*time.Millisecond {
+		t.Errorf("the key was held for %v, want 150 ms", took)
+	}
+	want := []string{"+29", "mods=4", "+45", "-45", "-29", "mods=0"}
+	if got := keyEvents(f.taken()); !slices.Equal(got, want) {
+		t.Errorf("events = %v, want %v", got, want)
+	}
+	// a hold that is canceled still lets go of the key
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	requireRoute(t, c.Hold(ctx, "x", time.Minute), "Client.Hold->Client.pause.RealInputCanceled")
+	if got := keyEvents(f.taken()); !slices.Equal(got, []string{"+45", "-45"}) {
+		t.Errorf("after a canceled hold the events are %v", got)
+	}
+}
+
+func TestTextCombosTypeTheText(t *testing.T) {
+	for _, text := range []string{"one", "Hello, World!", "a_b-c=d+e", "line\nbreak\ttab and space", "{[(<>)]}\\|/?;:'\"`~@#$%^&*"} {
+		combos, err := TextCombos(text)
+		if err != nil {
+			t.Fatalf("TextCombos(%q): %v", text, err)
+		}
+		strokes, err := strokes(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(combos) != len(strokes) {
+			t.Fatalf("%q: %d combinations for %d keys", text, len(combos), len(strokes))
+		}
+		for i, c := range combos {
+			got, err := parseCombo(c)
+			if err != nil {
+				t.Fatalf("%q: combination %q: %v", text, c, err)
+			}
+			if got.code != strokes[i].code || got.mask != strokes[i].mask {
+				t.Errorf("%q: %q presses code %d mask %d, typing presses code %d mask %d", text, c, got.code, got.mask, strokes[i].code, strokes[i].mask)
+			}
+		}
+	}
 }

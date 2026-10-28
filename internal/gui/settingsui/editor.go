@@ -113,6 +113,23 @@ func (c *Controller) SelectCategory(id string) {
 	}
 }
 
+// SearchInput is the text and the focus node of the search box, nil while the editor is not built; with SearchTyped it is what
+// kit.StartTypeAheadLater needs to type the keys that came before the box was there.
+func (c *Controller) SearchInput() (*widgets.TextEditingController, *widgets.FocusNode) {
+	if c.state == nil {
+		return nil, nil
+	}
+	return c.state.search.TextController(), c.state.search.FocusNode()
+}
+
+// SearchTyped is told that the text of the search box was changed other than by typing in it (a type-ahead put keys there):
+// the list is filtered by it, as it is by the keys the box takes itself.
+func (c *Controller) SearchTyped(text string) {
+	if c.state != nil {
+		c.state.queryChanged(text)
+	}
+}
+
 // FocusSearch gives the search box the focus.
 func (c *Controller) FocusSearch() {
 	if c.state != nil {

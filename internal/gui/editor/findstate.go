@@ -4,6 +4,7 @@ import (
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/find"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -97,7 +98,18 @@ func (s *editorState) focusInput(replace bool) {
 		s.findAhead.Stop()
 	}
 	text.SetSelection(services.NewTextSelection(0, len(text.Text())))
-	s.findAhead = kit.StartTypeAhead(s.binding, text, node)
+	s.findAhead = kit.StartTypeAhead(s.binding, text, node, func(typed string) { s.inputTyped(replace, typed) })
+}
+
+// inputTyped is what the input box does with a change of its text, for the keys that the type-ahead took before the box was
+// built: the find box searches (and the cursor goes to the match), the replace box keeps its string.
+func (s *editorState) inputTyped(replace bool, text string) {
+	st := s.Widget().vm.FindState()
+	if replace {
+		st.Change(find.NewState{ReplaceString: find.Some(text)}, false, true)
+		return
+	}
+	st.Change(find.NewState{SearchString: find.Some(text)}, true, true)
 }
 
 // findFocusChanged follows the focus of the inputs of the find widget: it sets the context

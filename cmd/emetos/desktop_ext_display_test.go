@@ -4,7 +4,6 @@ package main
 
 import (
 	"testing"
-	"time"
 
 	"github.com/rm4n0s/emetos/internal/testenv/display"
 )
@@ -14,10 +13,10 @@ import (
 var extProject = map[string]string{"todo.go": "package main\n\n// TODO: fix the thing\nfunc main() {\n\t// FIXME: and this\n}\n"}
 
 func TestDesktopNotes(t *testing.T) {
-	a := display.Start(t, display.Options{Args: []string{".", "todo.go"}, Project: extProject, KeyDelay: 25 * time.Millisecond})
+	a := display.Start(t, display.Options{Args: []string{".", "todo.go"}, Project: extProject})
 	a.Settle()
 	a.Click(24, 155) // the Notes icon of the activity bar
-	a.WaitText("No notes yet. Use New Note to make one.")
+	a.WaitText("No notes yet.")
 	// the action of the header shows while the pointer is over it
 	a.MoveTo(200, 81)
 	a.Click(329, 81)
@@ -67,7 +66,7 @@ func TestDesktopTodos(t *testing.T) {
 
 func TestDesktopTasks(t *testing.T) {
 	a := display.Start(t, display.Options{
-		Args: []string{".", "todo.go"}, Project: extProject, KeyDelay: 25 * time.Millisecond,
+		Args: []string{".", "todo.go"}, Project: extProject,
 		Config: map[string]string{"settings.json": `{"emetos.tasks.commands": ["echo todo.go:3:6: boom"]}`},
 	})
 	a.Settle()

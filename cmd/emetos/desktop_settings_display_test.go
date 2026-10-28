@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/rm4n0s/emetos/internal/gui/app"
 	"github.com/rm4n0s/emetos/internal/testenv/display"
@@ -81,7 +80,7 @@ func TestDesktopSettingsEditor(t *testing.T) {
 }
 
 func TestDesktopKeybindingsEditor(t *testing.T) {
-	a := display.Start(t, display.Options{Args: []string{".", "app.go"}, Project: navProject, KeyDelay: 25 * time.Millisecond})
+	a := display.Start(t, display.Options{Args: []string{".", "app.go"}, Project: navProject})
 	a.Settle()
 	a.Press("ctrl+k", "ctrl+s")
 	a.Settle()

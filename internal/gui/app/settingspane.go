@@ -15,6 +15,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/settingsui"
 )
@@ -111,9 +112,24 @@ func (s *shellState) openSettingsEditor(target editorgroup.SettingsTarget, query
 	if target == editorgroup.SettingsWorkspace && win.Folder == "" {
 		target = ""
 	}
+	// the search box takes the focus when the editor is built, some frames away; the keys typed until then go into it
+	// (kit.TypeAhead), not into the editor that has the focus now
+	typeAhead := func(input *editorgroup.SettingsInput) {
+		kit.StartTypeAheadLater(widgets.WidgetsBindingOf(s.Context()), func() (*widgets.TextEditingController, *widgets.FocusNode) {
+			if sp, ok := s.group.panes[input].(*settingsPane); ok {
+				return sp.ctl.SearchInput()
+			}
+			return nil, nil
+		}, func(text string) {
+			if sp, ok := s.group.panes[input].(*settingsPane); ok {
+				sp.ctl.SearchTyped(text)
+			}
+		})
+	}
 	if input == nil {
 		st := editorgroup.SettingsViewState{Target: target, Query: query}
 		input, group = editorgroup.NewSettingsInput(st), s.activeGroup()
+		typeAhead(input)
 		s.SetState(func() {
 			s.nav.hold++
 			group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: true, Active: true})
@@ -126,6 +142,7 @@ func (s *shellState) openSettingsEditor(target editorgroup.SettingsTarget, query
 		s.refreshKeys()
 		return
 	}
+	typeAhead(input)
 	s.SetState(func() {
 		group.Model.SetActive(input)
 		if err := s.group.grid.Activate(group); err != nil {
