@@ -14,7 +14,7 @@ import (
 )
 
 // The editor in front, for the commands that act on the cursor (SPEC §10.17 "As built (step 14.2)"): the extension follows the
-// events of the editor, as the Agents extension does, and reads the text of the document when a command runs.
+// events of the editor and reads the text of the document when a command runs.
 
 // lastEditor is the text editor the user looked at last: the file and its selection.
 type lastEditor struct {

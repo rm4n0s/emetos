@@ -1,9 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -625,4 +627,117 @@ func TestLanguagesGiveTokensWithTheirScopes(t *testing.T) {
 	}
 	_, err = l.Tokenize("go", strings.Repeat("// a\n", maxTokenizeBytes/4))
 	appRoute(t, err, "extLanguages.Tokenize.ExtensionTokenizeTooLong")
+}
+
+// syncBuffer is a bytes.Buffer that the log of a window may write from any goroutine.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+// infoLines are the log lines of level info that mention a text.
+func (b *syncBuffer) infoLines(text string) []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var out []string
+	for _, line := range strings.Split(b.buf.String(), "\n") {
+		if strings.Contains(line, `"level":"INFO"`) && strings.Contains(line, text) {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// TestTabsOfAnExtensionThatEmetosNoLongerHasAreDropped is the old state of step 17c.1: the last session of a window had tabs
+// of the Agents extension (agents.session), which was removed, and the state of its views (the agents.container view and the
+// agents.login panel). The window starts without an error dialog, the tabs of the extensions that remain come back, one line
+// of the log at info level says what was dropped, and the saved state of the views is left as it was.
+func TestTabsOfAnExtensionThatEmetosNoLongerHasAreDropped(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		dropped  []*editorgroup.ExtensionTabInput
+		wantTabs []string
+		wantLog  []string
+	}{
+		{
+			name: "two sessions of the removed extension",
+			dropped: []*editorgroup.ExtensionTabInput{
+				editorgroup.NewExtensionTabInput("agents", "agents.session", "s1", "Session", "hubot"),
+				editorgroup.NewExtensionTabInput("agents", "agents.session", "s2", "Fix the bug", "hubot"),
+			},
+			wantTabs: []string{"1!: Card c1*"},
+			wantLog:  []string{"agents/agents.session"},
+		},
+		{
+			name:     "a kind that the extension no longer declares",
+			dropped:  []*editorgroup.ExtensionTabInput{editorgroup.NewExtensionTabInput("ex", "ex.gone", "g1", "Gone", "note")},
+			wantTabs: []string{"1!: Card c1*"},
+			wantLog:  []string{"ex/ex.gone"},
+		},
+		{
+			name:     "nothing to drop",
+			wantTabs: []string{"1!: Card c1*"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			env, st := exEnv(t, nil)
+			first := env.startEx(st)
+			first.command("ex.newCard", nil)
+			g := first.shell().group.grid.Active()
+			for _, in := range tt.dropped {
+				g.Model.OpenEditor(in, editorgroup.OpenOptions{Pinned: true, Active: false})
+			}
+			agentsView := json.RawMessage(`{"sessions":[{"id":"s1","title":"hello"}]}`)
+			first.win.Extensions().SetViewStates(map[string]json.RawMessage{"agents.sessions": agentsView, "agents.login": json.RawMessage(`null`)})
+			first.pump()
+			if got := len(g.Model.Editors(editorgroup.Sequential, false)); got != 1+len(tt.dropped) {
+				t.Fatalf("%d tabs in the first window, want %d: %v", got, 1+len(tt.dropped), first.layout())
+			}
+			first.close()
+
+			// the next run has the extension ex only: Emetos has no extension "agents"
+			logs := &syncBuffer{}
+			logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+			second := env.startWith(env.root, ProcessOptions{Extensions: []extension.Factory{exFactory(&exState{})}, Logger: logger})
+			if got := second.layout(); !slices.Equal(got, tt.wantTabs) {
+				t.Errorf("tabs after the restore = %v, want %v", got, tt.wantTabs)
+			}
+			if errs := second.ts.TakeErrors(); len(errs) != 0 {
+				t.Errorf("errors: %v", errs)
+			}
+			if n := len(second.win.Notify.Items()); n != 0 {
+				t.Errorf("%d notifications (no dialog and no message for tabs that are gone)", n)
+			}
+			lines := logs.infoLines("saved tabs of extensions")
+			if len(tt.wantLog) == 0 {
+				if len(lines) != 0 {
+					t.Errorf("a log line without a dropped tab: %v", lines)
+				}
+			} else {
+				if len(lines) != 1 {
+					t.Fatalf("%d log lines about dropped tabs, want 1: %v", len(lines), lines)
+				}
+				for _, want := range tt.wantLog {
+					if !strings.Contains(lines[0], want) {
+						t.Errorf("the log line %s does not name %s", lines[0], want)
+					}
+				}
+			}
+			// the state of the views of the removed extension is not deleted: it stays in the state of the window
+			second.close()
+			saved, ok := env.savedWindow(env.root)
+			if !ok {
+				t.Fatal("no saved state after the second run")
+			}
+			if got := saved.Views["agents.sessions"]; string(got) != string(agentsView) {
+				t.Errorf("the saved state of agents.sessions = %s, want it kept as %s", got, agentsView)
+			}
+		})
+	}
 }

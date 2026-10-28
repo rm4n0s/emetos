@@ -14,7 +14,7 @@ What is built (milestones M0 to M16 of [SPEC §18](docs/SPEC.md#18-milestones)):
 - **The editor and the workbench** (areas 1 and 2, M0 to M10). [The coverage table](docs/IMPLEMENTED.md#coverage-of-areas-1-2-3-and-11) lists every row of areas 1, 2, 3 and 11 with its tests and what is partial.
 - **Extensions** compiled into Emetos, events between them, and event sharing between window tabs (M11, [SPEC §10.15](docs/SPEC.md#1015-extensions-extension-extensions)).
 - **Language intelligence through LSP** (area 3, M12, [SPEC §9.12](docs/SPEC.md#912-language-intelligence-area-3-corelsp-corelangfeatures-guieditor-guiviews-extension)).
-- **The Agents, Go, Remote Work and Relay extensions** (M13 to M16).
+- **The Go, Remote Work and Relay extensions** (M14 to M16).
 
 Experimental: **Remote Work and Relay are new** and have been tested on one machine (instances on loopback, and a simulated lossy link), not yet on real networks. Remote Work's picture is not sharp on a HiDPI screen. Read [their security notes](#remote-work-and-relay) before you turn either on.
 
@@ -51,7 +51,7 @@ go run ./cmd/emetos .                    # build and run a debug build in one go
 go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@main
 ```
 
-This builds `main`, which is what this README describes; `@latest` gives the release **v0.1.0**, which has only areas 1 and 2 (no language servers, no extensions, no Agents, Remote Work or Relay). From a checkout, `go install -tags glutter_release ./cmd/emetos` does the same. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
+This builds `main`, which is what this README describes; `@latest` gives the release **v0.1.0**, which has only areas 1 and 2 (no language servers, no extensions, no Remote Work or Relay). From a checkout, `go install -tags glutter_release ./cmd/emetos` does the same. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
 
 ### Update
 
@@ -71,7 +71,6 @@ go build -tags glutter_release -o emetos ./cmd/emetos
 - Optional: **xdg-desktop-portal** (with a backend for your desktop) for the Open Folder, Open File and Save As dialogs and for opening links. Without it, Emetos asks for the path in its own input box.
 - Optional, for the **tray icon**: a StatusNotifier host. KDE Plasma and most panels have one. **GNOME shows no tray icons by itself**: install the AppIndicator extension (for example "AppIndicator and KStatusNotifierItem Support"). Without a tray, the close button of the window quits Emetos instead of hiding it.
 - Optional, for the **Go** extension: **`gopls`** on your `PATH` (or its path in `go.goplsPath`), and the Go toolchain. The extension also uses `staticcheck` (lint) and `dlv` (for the debugger, which is not built yet). "Go: Install/Update Tools" in the command palette runs `go install` for them, only when you ask. Without `gopls`, Go files still have syntax highlighting, but no completion, hover or diagnostics.
-- Optional, for the **Agents** extension: the **`claude` program** of Claude Code, installed and logged in by you (found on `PATH`, or set `agents.claude.path`). Emetos runs your own `claude`; it never reads or stores your login. Without it the Agents view says that the program was not found.
 - Optional, for **Remote Work** and **Relay**: when you turn them on, they listen on a port, so a firewall must let the other computer reach it: **Remote Work 47123 over TCP and UDP**, **Relay 47124 over TCP** (both can be changed on their pages). Nothing listens until you turn it on. Both need SSH public keys; see [the security notes](#remote-work-and-relay).
 - Optional, for **Scan QR Code** (adding a public key with a camera): a camera that Linux shows as a V4L2 device (`/dev/video*`) that your user may open. Without one the button is disabled.
 
@@ -139,10 +138,10 @@ Emetos's extensions are **Go packages compiled into the program** ([SPEC §10.15
 
 An extension contributes any mix of **seven kinds of contribution**, each drawn inside the box Emetos gives it:
 - **Window tab**: a tab in the strip beside the workspaces (a scratchpad, Remote Work, Relay).
-- **Side bar view**: an activity bar icon with views (TODOs, Notes, Agents' sessions).
+- **Side bar view**: an activity bar icon with views (TODOs, Notes).
 - **Panel view**: a tab of the bottom panel beside Problems and Output (Tasks, Go Tests).
-- **Editor tab**: a tab in the editor area that is not a file (a note, an agent session).
-- **Editor title action**: a small icon at the right end of a tab strip (New Note, New Session).
+- **Editor tab**: a tab in the editor area that is not a file (a note).
+- **Editor title action**: a small icon at the right end of a tab strip (New Note).
 - **File view**: micro-tabs inside a file's tab for the files an extension declares (the Markdown preview next to Text).
 - **Contributions to the built-in parts**: Output channels, Problems markers, status bar items and notifications.
 
@@ -155,15 +154,9 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 - **Markdown preview**: a Preview micro-tab for Markdown files, and Open Preview to the Side.
 - **Notes**: notes for the workspace, with a list in the side bar and a note in an editor tab.
 - **Scratchpad**: a window tab with notes that stay across restarts and a feed of the edits made in the other tabs (it shows them once you allow the link).
-- **Agents**, **Go**, **Remote Work** and **Relay**, below.
+- **Go**, **Remote Work** and **Relay**, below.
 
 ![The TODOs view, the Tasks tab of the panel with the problems go vet found, and squiggles from gopls](docs/screenshots/todos-tasks.png)
-
-### Agents
-
-The **Agents** extension ([SPEC §10.16](docs/SPEC.md#1016-the-agents-extension-removed)) runs Claude Code's `claude` program, the one you installed and logged in to, and draws the conversation itself: a side bar list of sessions, a session in an editor tab (Markdown answers, thinking, tool calls), Manual, Accept Edits and Plan modes, a model picker, `/` commands and `@` file references, and Add Selection to Agent (Alt+K). The edits the agent proposes open in the diff editor, and you Accept or Reject them. "Rewind code to here" restores the files from a checkpoint. Several sessions can run at once. If you are not logged in, **Log in** runs `claude auth login` in a panel. Emetos never touches your login. Not built: images in messages and other agents.
-
-![An Agents session in an editor tab, with the sessions in the side bar (made with a stand-in program, not a real agent)](docs/screenshots/agents.png)
 
 ### Go
 
@@ -184,7 +177,7 @@ Two extensions that let one Emetos be used from another computer. **Both are new
 ### Security notes
 
 Read these before you turn either extension on ([SPEC §10.18](docs/SPEC.md#1018-remote-work-remote-control-of-a-workspace-extensionsremotework) and [§10.19](docs/SPEC.md#1019-relay-event-control-of-a-workspace-from-another-machine-extensionsrelay) have the whole design):
-- **A listed key gives that person your power in the workspace**: they can edit and delete files and run tasks (Remote Work, and Relay's Watch and send; through Relay's commands they can also drive the Agents extension). List only keys you would trust with your account.
+- **A listed key gives that person your power in the workspace**: they can edit and delete files and run tasks (Remote Work, and Relay's Watch and send). List only keys you would trust with your account.
 - **Relay's Watch only still sees all document text**: every event of the workspace, including the text and the edits of your documents.
 - **Compare the fingerprint the first time.** The first connection shows the host's key fingerprint; compare it with the one on the host's page before you trust it. A connection is only as safe as that comparison. A changed host key is refused with a warning.
 - **Over the internet, use a VPN.** The login is as safe as SSH with key-only login, and a VPN is better still. Do not expose the ports to the internet without one. Failed logins are limited to 5 a minute for each address, but that is not a defense by itself.
@@ -244,7 +237,6 @@ The files are JSON with comments, in VS Code's formats. "Preferences: Open User 
 ## Privacy
 
 Emetos sends nothing about you anywhere: **no telemetry, no crash reports and no update checks.** It uses the network only for what you ask of a feature, and these are the things that do:
-- **The Agents extension**: your own `claude` program talks to its service as it does in a terminal. Emetos starts it, reads its output and never sees your login.
 - **Remote Work and Relay**: only while you have turned them on, and only with the computers whose keys you listed or whose hosts you saved.
 - **Language servers and tools you install**: `gopls` and the `go` command may download modules as your Go settings say; "Go: Install/Update Tools" runs `go install` when you click it.
 - **Links**: a link in a notification opens in your browser only when you click it.
@@ -253,7 +245,7 @@ Logs stay on your disk (`$XDG_STATE_HOME/emetos/logs`) and are shown in the Outp
 
 ## Screenshots
 
-Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `scripts/proof.sh` in a headless compositor, with isolated settings and state, from the fixtures in `testdata/screenshots/`; the Agents shot runs a stand-in for the agent's program, and the Remote Work and Relay shots run two instances on `127.0.0.1`). The rest:
+Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `scripts/proof.sh` in a headless compositor, with isolated settings and state, from the fixtures in `testdata/screenshots/`; the Remote Work and Relay shots run two instances on `127.0.0.1`). The rest:
 
 ![The side by side diff editor](docs/screenshots/diff.png)
 

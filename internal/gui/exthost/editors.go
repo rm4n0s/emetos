@@ -272,6 +272,26 @@ func notice(text string) widgets.Widget {
 	})
 }
 
+// DeclaresEditorKind tells whether an extension of the scope declares the editor kind in its manifest, whether the extension
+// is on or off. The window asks it when it restores a saved tab: a tab of an extension that Emetos no longer has, or of a kind
+// the extension no longer declares, can never get its content, so the window drops it. A tab of an extension that is only
+// switched off is kept, waiting for the extension.
+func (s *Scope) DeclaresEditorKind(extensionID, kindID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sl := range s.slots {
+		if sl.info.Manifest.ID != extensionID {
+			continue
+		}
+		for _, k := range sl.info.Manifest.Contributes.EditorKinds {
+			if k.ID == kindID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // RegisterTab makes the scope know the tab of an input (the window calls it when it makes the editor of a restored or a
 // copied tab, before the tab is on screen), so that the extension can be told of it when it is activated.
 func (s *Scope) RegisterTab(in *editorgroup.ExtensionTabInput) { s.registerTab(in) }

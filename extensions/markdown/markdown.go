@@ -1,7 +1,7 @@
 // Package markdown is the Markdown extension (SPEC §8.1, §10.15): the language pack of Markdown, with the languages of fenced
 // code blocks, and the preview file view of a Markdown file, with the editor title action "Open Preview to the Side". The
 // grammars and language configurations are in assets/, copied by scripts/update-assets.sh; the licenses are in
-// third_party/ and NOTICE. The preview is drawn by extension/ui/markdown, which the Agents extension uses too (step 13.2).
+// third_party/ and NOTICE. The preview is drawn by extension/ui/markdown.
 package markdown
 
 import (

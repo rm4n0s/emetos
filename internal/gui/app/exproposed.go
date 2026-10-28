@@ -106,7 +106,7 @@ func (h extEditorHost) OpenProposed(change extension.ProposedChange, answer func
 
 // proposalGroup is the group a proposed change opens in: the one that shows another open proposal (so that several do not
 // each make a group), else the group on the side of the active group, made when there is none, so that the editor that
-// asked (the session of an agent) stays on screen beside the diff; the active group when no side group can be made.
+// asked (a tab of the extension that asked) stays on screen beside the diff; the active group when no side group can be made.
 func (s *shellState) proposalGroup() *editorgroup.Group {
 	for _, g := range s.group.grid.Groups(editorgroup.GridAppearance) {
 		for _, e := range g.Model.Editors(editorgroup.Sequential, false) {

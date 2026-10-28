@@ -1,4 +1,0 @@
-{"$":"reply","subtype":"initialize","response":{"commands":[{"name":"compact","description":"Compact the conversation","argumentHint":"[instructions]"},{"name":"review","description":"Review a pull request","argumentHint":"","aliases":["rv"]}],"models":[{"value":"sonnet","displayName":"Sonnet","description":"Everyday tasks"},{"value":"opus","displayName":"Opus","description":"Hard tasks"}],"account":{"subscriptionType":"max"},"output_style":"default","agents":[]}}
-{"$":"reply","subtype":"rewind_files","response":{"canRewind":true,"filesChanged":["a.go","b.go"],"insertions":3,"deletions":1}}
-{"$":"fail","subtype":"set_model","error":"unknown model"}
-{"$":"wait","for":"any"}

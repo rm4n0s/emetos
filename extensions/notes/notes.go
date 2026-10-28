@@ -1,5 +1,5 @@
 // Package notes is the extension that keeps the notes of a workspace (SPEC §10.15 "As built (step 11.6)"). It is the pattern
-// of an agent extension that needs no network: a side bar view that lists its items (kept in the state of the view, which
+// of an extension that needs no network: a side bar view that lists its items (kept in the state of the view, which
 // the window saves per workspace), an editor tab kind that shows one item and of which several are open at once, and an
 // editor title action that makes a new one in the group whose tab strip the icon is in.
 package notes

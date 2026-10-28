@@ -1,5 +1,0 @@
-{"$":"reply","subtype":"initialize","response":{"commands":[{"name":"compact","description":"Summarize the conversation","argumentHint":"[instructions]"},{"name":"review","description":"Review the changes of the branch","argumentHint":""},{"name":"init","description":"Write a CLAUDE.md for the project","argumentHint":""}],"models":[{"value":"sonnet","displayName":"Sonnet","description":"Everyday tasks"},{"value":"opus","displayName":"Opus","description":"Hard tasks"}],"account":{}}}
-{"type":"system","subtype":"init","uuid":"00000000-0000-4000-8000-000000000001","session_id":"11111111-2222-4333-8444-555555555555","cwd":"/work","model":"claude-sonnet","permissionMode":"default","tools":["Read","Edit","Bash"],"slash_commands":["compact","review","init"],"skills":[],"apiKeySource":"none","output_style":"default","mcp_servers":[],"capabilities":["interrupt_receipt_v1"],"claude_code_version":"0.0.0-fixture"}
-{"$":"wait","for":"user"}
-{"$":"stderr","line":"fakeclaude: out of memory"}
-{"$":"exit","code":3}

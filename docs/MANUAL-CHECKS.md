@@ -115,20 +115,6 @@ scripts/install-desktop.sh
 
 Say what you saw, and which desktop and icon theme you used.
 
-## 13.1 The `claude` adapter against the real program
-
-The tests of the adapter use a fake program and never reach the user's own `claude`; this check runs the adapter once against the real one, with your own login. It runs `claude auth status`, starts one session in an empty temporary folder in Plan mode, sends one short message ("Reply with the single word: ok. Do not use any tool.") and ends. That is one small request on your account (a few cents at most on a key, a small part of a subscription's limit). It reads none of the program's files and sets no variable of its own but `CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING`. It is skipped when `claude` is not installed or not logged in:
-
-```
-go test -tags emetos_claude -run TestRealClaude -v -timeout 5m ./extensions/agents/claude
-```
-
-1. Does it print `logged in: true` with your login method, and does it end with `result: success`? Paste the lines it logs (`init: capabilities [...]`, `commands: N, models: M`, `assistant: "ok" (streamed: "ok")`, `result: ...`).
-2. If it fails, paste the whole output: a failure shows how the real program's stream differs from the documented shapes the adapter was written from (`protocol error:` lines name the line that did not fit).
-3. Afterwards `pgrep -a claude` must show only the program your own editor or terminal runs, none started by the test.
-
-Say what you saw, and the version of the program (`claude --version`).
-
 ## 15.5 Public keys by QR code: the real camera
 
 The tests read a camera only through fakes (the V4L2 ioctls, the mapping and the poll are checked by the sizes and numbers of the kernel, never against a device). This runs the real layer once on your camera. You need a camera (a laptop's or a USB one) that you may use (your user in the `video` group), and a QR code of a public key on another screen or on paper: for example the code that "Show My Public Key as QR Code" of the "Remote Work..." dialog shows in another Emetos, or any QR code made from the line of an `id_ed25519.pub`. Nothing is written or sent; the test opens the first camera it finds (`EMETOS_CAMERA=/dev/video2` chooses another), shows its name, and waits 60 seconds for the code:

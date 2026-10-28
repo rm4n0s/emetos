@@ -88,7 +88,7 @@ func TestDesktopMarkdownPreview(t *testing.T) {
 			actions = append(actions, tx)
 		}
 	}
-	if len(actions) < 3 {
+	if len(actions) < 2 {
 		t.Fatalf("%d editor actions, want the preview's among them: %s", len(actions), a.Dump())
 	}
 	first := actions[0]

@@ -694,3 +694,30 @@ func TestLanguagesAndOpenURIGoToTheWindow(t *testing.T) {
 		t.Error("a scope with no languages resolved one")
 	}
 }
+
+func TestTheScopeSaysWhichExtensionDeclaresAnEditorKind(t *testing.T) {
+	tb := edTab(t, &thingKind{}, nil)
+	for _, tt := range []struct {
+		name, ext, kind string
+		off             bool
+		want            bool
+	}{
+		{"a declared kind", "ed", "ed.thing", false, true},
+		{"an extension that is switched off still declares it", "ed", "ed.thing", true, true},
+		{"a kind the extension does not declare", "ed", "ed.gone", false, false},
+		{"an extension Emetos does not have", "agents", "agents.session", false, false},
+		{"a kind of another extension", "other", "ed.thing", false, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tb.disabled = nil
+			if tt.off {
+				tb.disabled = []string{"ed"}
+			}
+			tb.scope.Refresh()
+			tb.pump()
+			if got := tb.scope.DeclaresEditorKind(tt.ext, tt.kind); got != tt.want {
+				t.Errorf("DeclaresEditorKind(%q, %q) = %v, want %v", tt.ext, tt.kind, got, tt.want)
+			}
+		})
+	}
+}

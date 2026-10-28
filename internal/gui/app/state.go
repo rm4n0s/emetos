@@ -655,12 +655,20 @@ func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 	}
 	used := map[string]bool{}
 	viewStates := map[editorgroup.EditorInput]json.RawMessage{}
+	var goneTabs []string
 	grid, err := editorgroup.RestoreGridWith(*r.state.Grid, s.gridOptions(), func(in editorgroup.SerializedInput) (editorgroup.EditorInput, bool) {
 		if in.TypeID == editorgroup.DiffInputTypeID {
 			return s.restoreDiff(r, in.Value, used)
 		}
 		if in.TypeID == editorgroup.MergeInputTypeID {
 			return s.restoreMerge(r, in.Value, used)
+		}
+		if in.TypeID == editorgroup.ExtensionTabInputTypeID {
+			input, ok, gone := s.restoreExtensionTab(in.Value)
+			if gone != "" {
+				goneTabs = append(goneTabs, gone)
+			}
+			return input, ok
 		}
 		if in.TypeID != editorgroup.TextInputTypeID {
 			// an editor that is not text comes back through the restore of its kind (panes.go)
@@ -680,6 +688,10 @@ func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 		}
 		return input, true
 	})
+	if len(goneTabs) > 0 {
+		// no dialog: the extension is gone, and so is the thing the tab showed; its saved state is kept as it is
+		win.Process.Logger.Info("saved tabs of extensions that Emetos no longer has were dropped", "tabs", goneTabs)
+	}
 	if err != nil {
 		win.Process.Logger.Warn("the saved editors cannot be restored; the window starts with none", "err", err)
 		used = map[string]bool{}
@@ -703,6 +715,20 @@ func (s *shellState) restoreGrid(r *restoredWindow) *editorgroup.Grid {
 	}
 	s.state.viewStates = viewStates
 	return grid
+}
+
+// restoreExtensionTab makes the input of a saved tab of an extension. A tab whose extension is not in Emetos any more, or
+// whose editor kind the extension no longer declares, could never get its content: it is not restored (ok is false) and gone
+// names it ("<extension>/<kind>") for the one log line of the restore. A window without an extension host keeps every tab.
+func (s *shellState) restoreExtensionTab(value string) (input editorgroup.EditorInput, ok bool, gone string) {
+	tab, err := editorgroup.ParseExtensionTabInput(value)
+	if err != nil {
+		return nil, false, ""
+	}
+	if scope := s.win.Extensions(); scope != nil && !scope.DeclaresEditorKind(tab.Extension(), tab.Kind()) {
+		return nil, false, tab.Extension() + "/" + tab.Kind()
+	}
+	return tab, true, ""
 }
 
 // restoreEditors makes the editors of the inputs of a restored grid and gives them their view states

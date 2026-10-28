@@ -7,11 +7,9 @@
 # not exist; it is removed at the end), and every run opens the copies there.
 #
 # Usage: scripts/screenshots.sh [name...]
-#   names: editor workspace-tabs switch-picker diff merge settings todos agents go-hover remote-work relay
+#   names: editor workspace-tabs switch-picker diff merge settings todos go-hover remote-work relay
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
-#   agents      a Go toolchain: it builds the fake program of the Agents tests (extensions/agents/claude/internal/fakeclaude) and
-#               runs the session against it; the user's own claude is never run
 #   go-hover    gopls on PATH (it is skipped, with a message, when gopls is missing; this script never installs it)
 #   remote-work, relay   two Emetos instances on 127.0.0.1, with keys made on the run (nothing secret is kept)
 #
@@ -22,7 +20,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings todos agents go-hover remote-work relay)
+all=(editor workspace-tabs switch-picker diff merge settings todos go-hover remote-work relay)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -84,18 +82,6 @@ shoot() {
       PROOF_TIMEOUT=240 scripts/proof.sh docs/screenshots/todos-tasks.png --config "$s/tools/config" --after 8s \
         --commands '[["workbench.view.extension.emetos.todo.container"],["sleep","800ms"],["dev.openFile",{"path":"'$p'/tools/main.go","line":13,"column":20}],["emetos.tasks.run"],["sleep","4s"]]' \
         -- "$p/tools"
-      ;;
-    agents)
-      # a live session against the fake program, which answers from a script: no real claude is run, and the settings point at
-      # the fake, so that nothing else can be found either
-      mkdir -p "$s/agents/bin" "$s/agents/config"
-      (cd "$root" && CGO_ENABLED=0 go build -o "$s/agents/bin/claude" ./extensions/agents/claude/internal/fakeclaude)
-      sed "s|@CLAUDE@|$s/agents/bin/claude|" "$s/agents/settings.json" >"$s/agents/config/settings.json"
-      sed "s|@WORK@|$w|g" "$s/agents/session.jsonl" >"$s/agents/session-work.jsonl"
-      FAKECLAUDE_SCRIPT="$s/agents/session-work.jsonl" scripts/proof.sh docs/screenshots/agents.png \
-        --config "$s/agents/config" --after 8s \
-        --commands '[["workbench.view.extension.agents.container"],["agents.newSession"],["sleep","1500ms"],["dev.agents.send",{"text":"What does main.go do, and is the Health handler used?"}],["sleep","3s"]]' \
-        -- "$p/api"
       ;;
     go-hover)
       if ! command -v gopls >/dev/null 2>&1; then

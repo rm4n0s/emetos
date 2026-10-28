@@ -1,7 +1,0 @@
-{"$":"wait","for":"user"}
-{"$":"raw","line":"{this is not json"}
-{"type":"assistant","message":"this should be an object"}
-{"$":"large","bytes":5000}
-{"type":"assistant","uuid":"a1","session_id":"s","parent_tool_use_id":null,"message":{"id":"m1","model":"m","content":[{"type":"text","text":"After the bad lines."}]}}
-{"type":"rate_limit_event","uuid":"x1","session_id":"s","rate_limit_info":{"status":"allowed"}}
-{"type":"result","subtype":"success","uuid":"r1","session_id":"s","is_error":false,"duration_ms":1,"duration_api_ms":1,"num_turns":1,"result":"After the bad lines.","total_cost_usd":0}

@@ -1,3 +1,0 @@
-# greeter
-
-Prints a greeting.
