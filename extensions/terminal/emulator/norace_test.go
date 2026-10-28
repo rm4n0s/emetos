@@ -1,0 +1,6 @@
+//go:build !race
+
+package emulator
+
+// raceEnabled is true when the tests run under the race detector (see race_test.go).
+const raceEnabled = false

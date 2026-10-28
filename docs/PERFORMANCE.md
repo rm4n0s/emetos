@@ -329,6 +329,32 @@ The renderer's first frame, with `GLUTTER_FRAME_STATS=1` (the `startup` lines of
 
 `display.Start` gives every run a fresh `XDG_CACHE_HOME`, so every display test is a first start for the driver: the start of the window costs 4 to 5 s on llvmpipe in each test, and the numbers of "first frame" in `TestRealInputBigPreviewStartDoesNotWaitForThePreview` (4.0 s since `Run` in the notes above) are that. They are not the preview's.
 
+## Terminal emulator (step 17d.1)
+
+The emulator alone (`extensions/terminal/emulator`, no UI), on the machine above, on 2026-10-28, with the machine otherwise used by the developer's session (single numbers move by 10% to 20%; the cursor motion by more). The budgets are those of SPEC §14 "Terminal throughput" and "Terminal memory"; `TestThroughputBudgets` fails when the best of five runs of 8 MiB is under them (it is skipped under `-race` and `-short`), and `TestScrollbackMemory` and `TestSnapshotAllocations` hold the memory and the allocations.
+
+Method: a terminal of 160x45 cells with 10,000 lines of scrollback is fed 8 MiB (made by a seeded generator) in chunks of 64 KiB, as the pseudo-terminal's reads arrive; MB/s counts 10^6 input bytes, escape sequences included. Repeat with `go test ./extensions/terminal/emulator -run XXX -bench . -benchmem -benchtime 20x -count 3` (the numbers below are the medians of three runs) and `go test ./extensions/terminal/emulator -run 'Budgets|ScrollbackMemory' -v`.
+
+| Input | Budget | Measured (median) | Allocations per 8 MiB |
+|---|---|---|---|
+| Plain ASCII: text lines of 20 to 140 characters, CR LF | 400 MB/s | 790 MB/s (751 to 829) | 8 (the 64 KiB-page growth of the first pass) |
+| A color change every 8 characters: 256-color, 16-color with bold, and true color from a theme of 64 colors, a reset at the end of each line | 100 MB/s | 228 MB/s (223 to 232) | 9 |
+| UTF-8 of CJK, emoji and some Latin, 100 columns a line | 150 MB/s | 356 MB/s (354 to 357) | 8 |
+| Scrolling in a region (`CSI 2;44 r`, then line feeds at its bottom) | none; floor of the test 200 MB/s | 306 MB/s | 0 |
+| Cursor motion: `CSI r;c H`, `C`, `B`, `D`, `A` with one character each | none; floor 60 MB/s | 186 MB/s (144 to 208) | 0 |
+| The worst case of the style table: a new true color every 8 characters, never repeated | none; floor 40 MB/s | 101 MB/s (86 to 103) | 2,420 (the compactions of the table) |
+
+| Memory and allocation | Budget | Measured |
+|---|---|---|
+| 10,000 lines of scrollback at 160 columns (heap after the collection, 11,000 lines written) | 16 MB | 13.4 MB |
+| Snapshot of a terminal with nothing changed | 0 allocations | 0 allocations, 11 ns |
+| One write that changes a row, then a snapshot (reused `Frame`) | 0 allocations | 0 allocations |
+| A write of 64 KiB that scrolls the whole screen, then a snapshot (all 45 rows copied, 57 KB) | no budget | 77 microseconds, 0 allocations |
+
+What made the numbers: the ASCII run is found by a scan and written to the cells in one loop (the first version, which tested each byte in the writing loop, did 320 to 420 MB/s); a new line takes the oldest line of the ring and clears it with `clear` (a loop that stored a cell value was 15% of the time); the pen's style is looked up in the table once, at the first character after an SGR; the parameters of a sequence are in a fixed array. The worst case of the style table is bounded on purpose: compaction (a scan of the 1.6 million cells of the scrollback and a new map) runs at most once per 65,535 refused styles, because a table full of live styles rebuilt every 8,192 refused styles took 16 MB/s; between compactions a new 24-bit color is rounded to the 6x6x6 cube. `REP` and the other sequences that ask for much work with few bytes are held to the size of the screen (`TestAmplification`: 64 KiB of `CSI 99999999 b` takes 90 ms).
+
+The flow of the whole terminal (the process, the UI thread, the glyph atlas and `cat` of a 100 MB file against `foot`) is step 17d.2's to measure.
+
 ## Pending
 
 `scripts/perf.sh --session` with the GPU was run for the table of step 10.1 on 2026-10-28 by the manager (see "Desktop pass (step 17b.6)"), except the 200 MB open and the Go benchmarks. What is left is in `docs/MANUAL-CHECKS.md` (3.11 and 10.1): those two, and the decision on the targets still missed.

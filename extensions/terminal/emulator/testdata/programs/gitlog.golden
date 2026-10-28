@@ -1,0 +1,48 @@
+size 80x24 cursor (0,23) alt=false
+--- text
+ 0||
+ 1||     third commit with a longer message
+ 2||
+ 3||  f.txt | 1 +
+ 4||  1 file changed, 1 insertion(+)
+ 5||
+ 6|* commit eca663b4a047e37bb1891d36dd76322ffc0e861f (feature)
+ 7|| Author: A U Thor <a@example.com>
+ 8|| Date:   2024-01-02
+ 9||
+10||     second commit
+11||
+12||  f.txt | 1 +
+13||  1 file changed, 1 insertion(+)
+14||
+15|* commit d0ee875ffd300828e49f3fd1d8a3ea3ab2617a08
+16|  Author: A U Thor <a@example.com>
+17|  Date:   2024-01-01
+18|
+19|      first commit
+20|
+21|   f.txt | 1 +
+22|   1 file changed, 1 insertion(+)
+23|
+--- styles
+ 0 0-0 fg=1
+ 1 0-0 fg=1
+ 2 0-0 fg=1
+ 3 0-0 fg=1
+ 3 13-13 fg=2
+ 4 0-0 fg=1
+ 5 0-0 fg=1
+ 6 2-50 fg=3
+ 6 51-57 fg=2 bold
+ 6 58-58 fg=3
+ 7 0-0 fg=1
+ 8 0-0 fg=1
+ 9 0-0 fg=1
+10 0-0 fg=1
+11 0-0 fg=1
+12 0-0 fg=1
+12 13-13 fg=2
+13 0-0 fg=1
+14 0-0 fg=1
+15 2-48 fg=3
+21 13-13 fg=2

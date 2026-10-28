@@ -1,0 +1,26 @@
+* [33mcommit 64ee9992a9d3519adf66278c3ca2330bb155e3bf[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mv1[m[33m)[m
+[31m|[m Author: A U Thor <a@example.com>
+[31m|[m Date:   2024-01-03
+[31m|[m 
+[31m|[m     third commit with a longer message
+[31m|[m 
+[31m|[m  f.txt | 1 [32m+[m
+[31m|[m  1 file changed, 1 insertion(+)
+[31m|[m 
+* [33mcommit eca663b4a047e37bb1891d36dd76322ffc0e861f[m[33m ([m[1;32mfeature[m[33m)[m
+[31m|[m Author: A U Thor <a@example.com>
+[31m|[m Date:   2024-01-02
+[31m|[m 
+[31m|[m     second commit
+[31m|[m 
+[31m|[m  f.txt | 1 [32m+[m
+[31m|[m  1 file changed, 1 insertion(+)
+[31m|[m 
+* [33mcommit d0ee875ffd300828e49f3fd1d8a3ea3ab2617a08[m
+  Author: A U Thor <a@example.com>
+  Date:   2024-01-01
+  
+      first commit
+  
+   f.txt | 1 [32m+[m
+   1 file changed, 1 insertion(+)

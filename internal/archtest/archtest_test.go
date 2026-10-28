@@ -67,6 +67,14 @@ func TestCheck(t *testing.T) {
 			{"internal/core/regex/bad.go", 18, RuleNonLiteralTag, "errors.NewErr(failTag, ...)"},
 			{"internal/core/regex/bad.go", 23, RuleNonLiteralTag, "errors.New(tagConst, ...)"},
 		}},
+		{"the terminal emulator imports a UI, a package of Emetos or another module", "emulator_imports_ui", []want{
+			{"extensions/terminal/emulator/bad.go", 6, RuleEmulatorImportsUI, "github.com/rm4n0s/emetos/extension"},
+			{"extensions/terminal/emulator/bad.go", 7, RuleEmulatorImportsUI, "github.com/rm4n0s/emetos/extensions/internal/pty"},
+			{"extensions/terminal/emulator/bad.go", 8, RuleEmulatorImportsUI, "github.com/rm4n0s/glutter/widgets"},
+			{"extensions/terminal/emulator/bad.go", 9, RuleEmulatorImportsUI, "golang.org/x/sys/unix"},
+			{"extensions/terminal/emulator/bad_test.go", 5, RuleEmulatorImportsUI, "github.com/rm4n0s/emetos/internal/gui/kit"},
+			{"extensions/terminal/emulator/bad_test.go", 5, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/internal/gui/kit"},
+		}},
 		{"an extension imports the editor", "extension_imports_internal", []want{
 			{"extensions/golang/bad.go", 5, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/internal/core/buffer"},
 			{"extensions/golang/bad.go", 6, RuleExtensionImportsInternal, "github.com/rm4n0s/emetos/internal/gui/kit"},

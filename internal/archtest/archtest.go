@@ -44,6 +44,8 @@ const (
 	// extensionUIPrefix is the package that gives extensions the widgets of the editor, the one place of the contract that may
 	// import internal packages (SPEC §10.15 "As built (step 11.5)").
 	extensionUIPrefix = "extension/ui"
+	// emulatorFolder is the terminal emulator (SPEC §10.25), which has no UI.
+	emulatorFolder = "extensions/terminal/emulator"
 )
 
 // Rule names a boundary rule of SPEC §5.3.
@@ -91,6 +93,11 @@ const (
 	// window that runs a real extension in it (step 15.4: Remote Work on two windows) imports that one extension; the
 	// editor's own code never does.
 	RuleExtensionsImportedByInternal Rule = "ExtensionsImportedByInternal"
+	// RuleEmulatorImportsUI: a package of the terminal emulator, extensions/terminal/emulator, imports Glutter, a package of
+	// Emetos or a module other than the standard library and golang.org/x/text. The emulator has no user interface and is
+	// tested without one (SPEC §10.25 "The emulator"); its tests may also import the pseudo-terminal package
+	// extensions/internal/pty, to record real programs.
+	RuleEmulatorImportsUI Rule = "EmulatorImportsUI"
 )
 
 // Violation is one broken rule at one place.
@@ -192,6 +199,7 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 	inInternal := strings.HasPrefix(rel, "internal/")
 	inExtensions := strings.HasPrefix(rel, extensionsPrefix)
 	inContract := strings.HasPrefix(rel, extensionPackage+"/")
+	inEmulator := rel == emulatorFolder || strings.HasPrefix(rel, emulatorFolder+"/")
 	fmtNames := map[string]bool{}
 	errorsName := ""
 	for _, imp := range file.Imports {
@@ -226,6 +234,9 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 		if inInternal && isOrUnder(path, emetosModule+"extensions") && (!strings.HasSuffix(rel, "_test.go") || !strings.HasPrefix(rel, "internal/gui/")) {
 			add(imp.Pos(), RuleExtensionsImportedByInternal, path)
 		}
+		if inEmulator && emulatorImportBad(rel, path) {
+			add(imp.Pos(), RuleEmulatorImportsUI, path)
+		}
 		if inExtensions {
 			if rule, bad := extensionImportRule(rel, path); bad {
 				add(imp.Pos(), rule, path)
@@ -257,6 +268,18 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 		found = append(found, checkErrorRules(fset, rel, file, errorsName)...)
 	}
 	return found
+}
+
+// emulatorImportBad reports whether an import of a file of the terminal emulator is not allowed: only the standard library
+// and golang.org/x/text, and in test files also the pseudo-terminal package.
+func emulatorImportBad(rel, path string) bool {
+	if !strings.Contains(strings.SplitN(path, "/", 2)[0], ".") {
+		return false // the standard library
+	}
+	if isOrUnder(path, "golang.org/x/text") {
+		return false
+	}
+	return !strings.HasSuffix(rel, "_test.go") || path != emetosModule+"extensions/internal/pty"
 }
 
 // allowedExtensionModules are the modules, besides the standard library and Emetos's own public packages, that a package

@@ -1,0 +1,60 @@
+size 80x24 cursor (1,23) alt=true
+--- text
+ 0|     60 line 60 of the file with some text to read
+ 1|     61 line 61 of the file with some text to read
+ 2|     62 line 62 of the file with some text to read
+ 3|     63 line 63 of the file with some text to read
+ 4|     64 line 64 of the file with some text to read
+ 5|     65 line 65 of the file with some text to read
+ 6|     66 line 66 of the file with some text to read
+ 7|     67 line 67 of the file with some text to read
+ 8|     68 line 68 of the file with some text to read
+ 9|     69 line 69 of the file with some text to read
+10|     70 line 70 of the file with some text to read
+11|     71 line 71 of the file with some text to read
+12|     72 line 72 of the file with some text to read
+13|     73 line 73 of the file with some text to read
+14|     74 line 74 of the file with some text to read
+15|     75 line 75 of the file with some text to read
+16|     76 line 76 of the file with some text to read
+17|     77 line 77 of the file with some text to read
+18|     78 line 78 of the file with some text to read
+19|     79 line 79 of the file with some text to read
+20|     80 line 80 of the file with some text to read
+21|     81 line 81 of the file with some text to read
+22|     82 line 82 of the file with some text to read
+23|:
+--- styles
+ 0 5-6 bold
+ 0 8-14 inverse
+ 1 5-6 bold
+ 1 8-14 inverse
+ 2 5-6 bold
+ 2 8-14 inverse
+ 3 5-6 bold
+ 3 8-14 inverse
+ 4 5-6 bold
+ 4 8-14 inverse
+ 5 5-6 bold
+ 5 8-14 inverse
+ 6 5-6 bold
+ 6 8-14 inverse
+ 7 5-6 bold
+ 7 8-14 inverse
+ 8 5-6 bold
+ 8 8-14 inverse
+ 9 5-6 bold
+ 9 8-14 inverse
+10 5-6 bold
+11 5-6 bold
+12 5-6 bold
+13 5-6 bold
+14 5-6 bold
+15 5-6 bold
+16 5-6 bold
+17 5-6 bold
+18 5-6 bold
+19 5-6 bold
+20 5-6 bold
+21 5-6 bold
+22 5-6 bold
