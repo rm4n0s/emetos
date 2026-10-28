@@ -371,6 +371,10 @@ func (s *shellState) viewName(viewID string) string {
 			return ws.Name()
 		}
 	}
+	// the title an extension gave its view with ViewHandle.SetTitle (SPEC §10.28)
+	if scope := PeekWorkspace(s.Context()).Extensions(); scope != nil {
+		return scope.ViewTitle(viewID)
+	}
 	return ""
 }
 

@@ -1,6 +1,7 @@
 package fakeapi
 
 import (
+	"context"
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -114,4 +115,68 @@ func (a *API) CodeLensRefreshes() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.lensRefreshes
+}
+
+// LocationRequest is a call of Languages().References or Implementations.
+type LocationRequest struct {
+	// Feature is references or implementations.
+	Feature string
+	// URI and Position are what the extension asked about.
+	URI      string
+	Position extension.Position
+}
+
+// AnswerLocations sets what Languages().References (feature "references") or Implementations ("implementations") answers: fn
+// is called on the goroutine of the request with the URI and the position, and its answer reaches the extension's done function
+// on the next Pump, as the window hands it over on the UI thread. Without it the feature fails with ExtensionNoProvider, as a
+// language with no server does.
+func (a *API) AnswerLocations(feature string, fn func(uri string, pos extension.Position) ([]extension.Location, error)) {
+	a.mu.Lock()
+	if a.locationAnswers == nil {
+		a.locationAnswers = map[string]func(string, extension.Position) ([]extension.Location, error){}
+	}
+	a.locationAnswers[feature] = fn
+	a.mu.Unlock()
+}
+
+// LocationRequests are the calls of References and Implementations so far, the first first.
+func (a *API) LocationRequests() []LocationRequest {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]LocationRequest(nil), a.locationRequests...)
+}
+
+// References implements extension.Languages.
+func (l languages) References(ctx context.Context, uri string, pos extension.Position, done func([]extension.Location, error)) error {
+	return l.locations(ctx, "references", uri, pos, done)
+}
+
+// Implementations implements extension.Languages.
+func (l languages) Implementations(ctx context.Context, uri string, pos extension.Position, done func([]extension.Location, error)) error {
+	return l.locations(ctx, "implementations", uri, pos, done)
+}
+
+func (l languages) locations(ctx context.Context, feature, uri string, pos extension.Position, done func([]extension.Location, error)) error {
+	if done == nil {
+		return errors.New("FakeRequestInvalid", "a request for locations needs a function to call with the answer", "feature", feature)
+	}
+	a := l.a
+	a.mu.Lock()
+	a.locationRequests = append(a.locationRequests, LocationRequest{Feature: feature, URI: uri, Position: pos})
+	fn := a.locationAnswers[feature]
+	a.mu.Unlock()
+	go func() {
+		var locs []extension.Location
+		var err error
+		switch {
+		case fn == nil:
+			err = errors.New("ExtensionNoProvider", "the fake has no answer for this feature", "feature", feature)
+		case ctx.Err() != nil:
+			err = ctx.Err()
+		default:
+			locs, err = fn(uri, pos)
+		}
+		a.Post(func() { done(locs, err) })
+	}()
+	return nil
 }

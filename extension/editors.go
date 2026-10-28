@@ -284,6 +284,18 @@ type Languages interface {
 	// tokenization of the text, so a caller keeps the answer.
 	Tokenize(languageID, text string) ([][]Token, error)
 
+	// References asks the language servers and the providers for the places that use the symbol at the position of the open
+	// document with the URI, the declaration included (VS Code's vscode.executeReferenceProvider), and calls done, on the UI
+	// thread, with the locations or the error. The request runs off the UI thread and ends when ctx does (done then gets
+	// the error of the context). It fails at once, without calling done, with ExtensionDeactivated, ExtensionDocumentUnavailable
+	// (the document is not open in the scope, or the scope has no language features) and the tags of document.ParseURI for a
+	// bad URI; done is called with ExtensionNoProvider when nothing offers the feature for the document, and with the error of
+	// the provider when every provider that answered failed. The locations are in the order of the providers, without the same
+	// place twice. Call it on the UI thread.
+	References(ctx context.Context, uri string, pos Position, done func([]Location, error)) error
+	// Implementations is References for the implementations of the symbol (vscode.executeImplementationProvider).
+	Implementations(ctx context.Context, uri string, pos Position, done func([]Location, error)) error
+
 	// RegisterCompletionProvider adds a provider of completion items for the documents the selector matches;
 	// triggerCharacters are the characters that start a request when typed. Each Register method returns the function
 	// that takes the provider away; it also goes with the activation. They fail with ExtensionDeactivated and

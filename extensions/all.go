@@ -19,6 +19,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/markdown"
 	"github.com/rm4n0s/emetos/extensions/relay"
 	"github.com/rm4n0s/emetos/extensions/python"
+	"github.com/rm4n0s/emetos/extensions/references"
 	"github.com/rm4n0s/emetos/extensions/remotework"
 	"github.com/rm4n0s/emetos/extensions/rust"
 	"github.com/rm4n0s/emetos/extensions/scss"
@@ -44,6 +45,8 @@ import (
 // one hub made here, with the Source of the real cameras, which opens no device before the Scan QR Code dialog does) and Relay
 // (extensions/relay, the only extension the host grants the privileges events.publishAny and commands.execute; its instances
 // share one hub made here too, with the Source of the real cameras).
+//
+// The References view (extensions/references) is last: it adds a view to the side bar and asks the language servers the packs start.
 func All() []extension.Factory {
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
@@ -51,5 +54,6 @@ func All() []extension.Factory {
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
 		tasks.New, terminal.New, remotework.NewFactory(remotework.HubOptions{Camera: keyqr.NewV4L2()}),
 		relay.NewFactory(relay.HubOptions{Camera: keyqr.NewV4L2()}),
+		references.New,
 	}
 }

@@ -135,7 +135,7 @@ func (w *Workspace) startExtensions() {
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
-		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, FileChooser: w.extensionFileChooser,
+		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -360,6 +360,26 @@ func (d extensionDocuments) Open() []string {
 	return out
 }
 
+// Active implements exthost.ActiveDocumentSource: the text editor in front of the active group, with its selections now.
+func (d extensionDocuments) Active() (extension.ActiveDocument, bool) {
+	s := d.w.shell
+	if s == nil || !s.Mounted() {
+		return extension.ActiveDocument{}, false
+	}
+	e := s.activeEditor()
+	if e == nil || e.disposed {
+		return extension.ActiveDocument{}, false
+	}
+	sels := e.view.Cursors().Selections()
+	out := extension.ActiveDocument{
+		URI: e.doc.URI().String(), LanguageID: e.doc.LanguageID(), Version: e.doc.Version(), Selections: make([]extension.Selection, len(sels)),
+	}
+	for i, sel := range sels {
+		out.Selections[i] = extension.Selection{Anchor: eventPosition(sel.Anchor), Active: eventPosition(sel.Active)}
+	}
+	return out, true
+}
+
 // Show implements exthost.DocumentShower: the file opens in the active group, as a click on a problem opens it.
 func (d extensionDocuments) Show(uri string, line, column int, preview bool) error {
 	u, err := document.ParseURI(uri)
@@ -500,4 +520,14 @@ func splitLabelIcon(label string) (string, int) {
 		return label, 0
 	}
 	return strings.TrimSpace(after), code
+}
+
+// extensionClipboard puts a text of an extension on the clipboard of the desktop; a clipboard that fails is reported to the user.
+func (w *Workspace) extensionClipboard(text string) error {
+	s := w.shell
+	if s == nil || !s.Mounted() {
+		return errors.New("ExtClipboardUnavailable", "the window tab is not on screen")
+	}
+	s.copyText(text)
+	return nil
 }

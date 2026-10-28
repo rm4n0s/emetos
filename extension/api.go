@@ -55,6 +55,8 @@ type API interface {
 	Banners() Banners
 	// FileChooser asks the user for a file with the file dialog of the desktop.
 	FileChooser() FileChooser
+	// Clipboard writes text to the clipboard of the desktop.
+	Clipboard() Clipboard
 	// WindowTabs gives the content of the window tabs of the kinds the manifest declares; it works in the scope of such a
 	// tab only.
 	WindowTabs() WindowTabs
@@ -282,6 +284,12 @@ type Documents interface {
 	Read(ctx context.Context, uri string, opts ...ReadOption) (string, error)
 	// Open lists the URIs of the documents open in the scope, in the order they were opened.
 	Open() []string
+	// Active describes the text editor that is in front in the scope (the one that has the focus, or had it last, in the
+	// active editor group), with its selections as they are now; false when none is (the group is empty, or its tab shows
+	// something other than a text). It is the answer TopicEditorActiveChanged and TopicEditorSelectionChanged give, for an
+	// extension that is activated after them and needs it at once (a command that works on the cursor). Call it on the UI
+	// thread.
+	Active() (ActiveDocument, bool)
 	// Show opens the file with the URI (or shows the open document) in the active editor group, with the cursor at the
 	// line and column (counted from 1; a column counts UTF-16 units), as a click on a problem does; a click opens a
 	// preview, preview false keeps the editor. It fails with ExtensionDocumentUnavailable when the scope cannot show
@@ -295,4 +303,25 @@ type Documents interface {
 	// with ExtensionDocumentUnavailable when the scope cannot edit documents, with ExtensionDeactivated after the activation
 	// ended, and returns the window's error when a change fails (an earlier change stays). Call it on the UI thread.
 	Apply(ctx context.Context, edit WorkspaceEdit) error
+}
+
+// ActiveDocument is the text editor in front, as Documents().Active describes it (SPEC §10.28).
+type ActiveDocument struct {
+	// URI is the document: file:///path/to/file, untitled:1.
+	URI string
+	// LanguageID is the language of the document.
+	LanguageID string
+	// Version is the version of the text the selections are in.
+	Version int
+	// Selections are all the selections of the editor, the primary one first; an empty one is a cursor. Positions are those of
+	// the core events: zero-based lines and columns in bytes of the UTF-8 line.
+	Selections []Selection
+}
+
+// Clipboard writes to the clipboard of the desktop. An extension cannot read it.
+type Clipboard interface {
+	// WriteText puts the text on the clipboard. It returns at once; a clipboard that fails is reported to the user by Emetos. It
+	// fails with ExtensionDeactivated after the activation ended and with ExtensionClipboardUnavailable in a scope that has
+	// no clipboard (a window tab that is not on screen). Call it on the UI thread.
+	WriteText(text string) error
 }

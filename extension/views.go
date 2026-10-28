@@ -111,6 +111,10 @@ type ViewHandle interface {
 	// SetBadge puts a count on the tab of a panel view, in the pill the Problems tab has; 0 takes it away. tooltip is
 	// the hover of the pill. It does nothing for a side bar view.
 	SetBadge(count int, tooltip string)
+	// SetTitle sets the title in the header of a side bar view (the name the manifest gave it, until this is called), as VS
+	// Code's TreeView.title does: the references view says "References" or "Implementations" by what it lists. An empty title
+	// goes back to the name. It does nothing for a panel view, whose tab has the title of its spec.
+	SetTitle(title string)
 	// Reveal shows the view: the container of a side bar view is opened (and the side bar shown), the tab of a panel
 	// view is selected (and the panel shown). With focus the keyboard focus goes into it.
 	Reveal(focus bool)

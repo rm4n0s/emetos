@@ -33,6 +33,8 @@ type viewDecl struct {
 	panel     bool
 	container string
 	name      string
+	// title is the title the extension set with ViewHandle.SetTitle; empty is the name. It is guarded by the mutex of the scope.
+	title string
 	// actions are the title actions, with their `when` parsed.
 	actions []viewAction
 
@@ -297,6 +299,17 @@ func (s *Scope) ViewAllowsCommand(viewID, commandID string) (allowed bool) {
 		}
 	}()
 	return f(commandID)
+}
+
+// ViewTitle is the title the extension gave a view of the side bar with ViewHandle.SetTitle; empty when it gave none (the
+// workbench then shows the name of the view).
+func (s *Scope) ViewTitle(viewID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if d := s.viewDecls[viewID]; d != nil && !d.panel {
+		return d.title
+	}
+	return ""
 }
 
 // PanelBadge is the count and the tooltip that the extension put on the tab of a panel view; 0 for none.

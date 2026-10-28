@@ -179,6 +179,10 @@ type tab struct {
 	// lsp is the window's side of the language servers (servers_rig_test.go).
 	lsp *fakeLSP
 
+	// clips are the texts put on the clipboard of the tab, the first first, and clipErr is the error the clipboard answers.
+	clips   []string
+	clipErr error
+
 	// picks are the lists the tab was asked to show (QuickPick().Show), the first first.
 	picks []QuickPickRequest
 	// inputs are the input boxes the tab was asked to show (InputBox().Show), the first first.
@@ -220,6 +224,8 @@ type rig struct {
 	// noCommands and noCoreDocs name tabs that have no registry of commands and tabs whose documents cannot be edited (the
 	// core topics, core_test.go).
 	noCommands, noCoreDocs map[string]bool
+	// noClip names tabs that have no clipboard (references_test.go).
+	noClip map[string]bool
 }
 
 // folderOf is the folder of the tab named name.
@@ -303,8 +309,18 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	if r.noCommands[name] {
 		registry = nil
 	}
+	var clip func(string) error
+	if !r.noClip[name] {
+		clip = func(text string) error {
+			if tb.clipErr != nil {
+				return tb.clipErr
+			}
+			tb.clips = append(tb.clips, text)
+			return nil
+		}
+	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI: func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		Info:    extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},

@@ -76,6 +76,11 @@ type API struct {
 	requests          []RequestCall
 	requestDoubles    map[string]RequestDouble
 	handlers2         map[string]RequestDouble
+	active            *extension.ActiveDocument
+	clipboard         []string
+	clipboardErr      error
+	locationAnswers   map[string]func(uri string, pos extension.Position) ([]extension.Location, error)
+	locationRequests  []LocationRequest
 }
 
 // Note is a notification the extension showed.
@@ -217,6 +222,35 @@ func (a *API) Documents() extension.Documents { return documents{a} }
 
 // Events implements extension.API.
 func (a *API) Events() extension.Events { return events{a} }
+
+// Clipboard implements extension.API: the text is recorded (ClipboardTexts).
+func (a *API) Clipboard() extension.Clipboard { return clipboard{a} }
+
+type clipboard struct{ a *API }
+
+func (c clipboard) WriteText(text string) error {
+	c.a.mu.Lock()
+	defer c.a.mu.Unlock()
+	if c.a.clipboardErr != nil {
+		return c.a.clipboardErr
+	}
+	c.a.clipboard = append(c.a.clipboard, text)
+	return nil
+}
+
+// ClipboardTexts are the texts the extension wrote to the clipboard, the first first.
+func (a *API) ClipboardTexts() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.clipboard...)
+}
+
+// FailClipboard makes the clipboard fail with err from now on; nil makes it work again.
+func (a *API) FailClipboard(err error) {
+	a.mu.Lock()
+	a.clipboardErr = err
+	a.mu.Unlock()
+}
 
 // Views implements extension.API.
 func (a *API) Views() extension.Views { return views{a} }
@@ -477,6 +511,25 @@ func (d documents) Open() []string {
 	sort.Strings(uris)
 	return uris
 }
+
+// Active implements extension.Documents: the editor a test set with SetActive.
+func (d documents) Active() (extension.ActiveDocument, bool) {
+	d.a.mu.Lock()
+	defer d.a.mu.Unlock()
+	if d.a.active == nil {
+		return extension.ActiveDocument{}, false
+	}
+	return *d.a.active, true
+}
+
+// SetActive makes the document the active text editor with the selections, as the window reports it (Documents().Active); nil
+// for none.
+func (a *API) SetActive(doc *extension.ActiveDocument) {
+	a.mu.Lock()
+	a.active = doc
+	a.mu.Unlock()
+}
+
 func (d documents) Show(uri string, line, column int, preview bool) error {
 	d.a.mu.Lock()
 	d.a.shown = append(d.a.shown, Shown{URI: uri, Line: line, Column: column, Preview: preview})
@@ -644,7 +697,9 @@ type View struct {
 	Refreshs int
 	Badge    int
 	BadgeTip string
-	Reveals  []bool
+	// Title is the title the extension set with SetTitle.
+	Title   string
+	Reveals []bool
 	// Hides counts the calls of Hide.
 	Hides    int
 	Disposed bool
@@ -674,6 +729,9 @@ func (v views) Provide(id string, c extension.ViewContent) (extension.ViewHandle
 }
 
 type viewHandle struct{ v *View }
+
+// SetTitle implements extension.ViewHandle.
+func (h viewHandle) SetTitle(title string) { h.v.mu.Lock(); h.v.Title = title; h.v.mu.Unlock() }
 
 func (h viewHandle) Refresh() { h.v.mu.Lock(); h.v.Refreshs++; h.v.mu.Unlock() }
 func (h viewHandle) SetBadge(n int, tip string) {

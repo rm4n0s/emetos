@@ -116,6 +116,7 @@ The feature list of [SPEC §3](docs/SPEC.md#3-areas), in short. The first two gr
 - Diagnostics as squiggles and in the Problems panel, with F8 and Shift+F8 to step through them.
 - Completion (the suggest widget with its details pane and snippets), hover, and signature help.
 - Go to Definition, Type Definition, Implementations and References (F12, Shift+F12), with the peek view; document highlights.
+- Find All References and Find All Implementations (Shift+Alt+F12, and the right-click menu of a method or a variable): the results fill a References view in the side bar, by file, with F4 and Shift+F4 to walk them and a history of the searches ([SPEC §10.28](docs/SPEC.md#1028-references-extensionsreferences)).
 - Symbols: the Outline view, symbols in the breadcrumbs and sticky scroll, Go to Symbol in the file (Ctrl+Shift+O) and in the workspace (Ctrl+T).
 - Code actions (the light bulb, Ctrl+.), formatting (on demand, on save, on type and on paste), organize imports on save, and rename (F2) across files, with a preview.
 - Code lens, inlay hints, semantic tokens, folding ranges and selection ranges from the server.
@@ -152,6 +153,7 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 - **Language packs**: the 22 languages of [SPEC §8.1](docs/SPEC.md#81-languages-corelanguage) (Go, JSON, YAML, Markdown, Python, JavaScript, TypeScript, HTML, CSS, SCSS, Less, XML, SQL, shell, Makefile, Dockerfile, INI, C and C++, Rust, diff, git files and Go modules).
 - **Terminal**: shells in the panel, below.
 - **Tasks**: a panel tab that runs the command lines you list in `emetos.tasks.commands` in the folder, shows their output and puts their errors in Problems. (It is not VS Code's `tasks.json`.)
+- **References**: VS Code's references view. Find All References and Find All Implementations list the places a language server finds, by file, in a side bar view with a history of the searches.
 - **Markdown preview**: a Preview micro-tab for Markdown files, and Open Preview to the Side.
 - **Go**, **Remote Work** and **Relay**, below.
 

@@ -116,6 +116,24 @@ func (h *viewHandle) SetBadge(count int, tooltip string) {
 	})
 }
 
+// SetTitle implements extension.ViewHandle.
+func (h *viewHandle) SetTitle(title string) {
+	in := h.inst
+	if in.isDead() || h.decl.panel {
+		return
+	}
+	s := in.scope
+	s.post(func() {
+		s.mu.Lock()
+		changed := h.decl.title != title
+		h.decl.title = title
+		s.mu.Unlock()
+		if changed && s.opts.Views != nil {
+			s.opts.Views.Changed()
+		}
+	})
+}
+
 // Reveal implements extension.ViewHandle.
 func (h *viewHandle) Reveal(focus bool) {
 	in := h.inst
@@ -175,7 +193,7 @@ func (h *viewHandle) release() {
 	s.mu.Lock()
 	if h.decl.inst == h.inst {
 		h.decl.content, h.decl.inst, h.decl.provided = nil, nil, false
-		h.decl.badge, h.decl.badgeTip = 0, ""
+		h.decl.badge, h.decl.badgeTip, h.decl.title = 0, "", ""
 	}
 	s.mu.Unlock()
 	if s.opts.Views != nil {

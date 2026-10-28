@@ -169,6 +169,9 @@ type ScopeOptions struct {
 	// FileChooser shows the file dialog of the desktop for FileChooser().Open, called on a goroutine of the extension, and gives
 	// the path chosen ("" for a dialog that was closed); nil leaves it unavailable.
 	FileChooser func(ctx context.Context, opts extension.FileChooserOptions) (string, error)
+	// Clipboard puts a text on the clipboard of the desktop, on the UI thread, for Clipboard().WriteText; the window reports a
+	// clipboard that fails to the user. Nil leaves it unavailable.
+	Clipboard func(text string) error
 }
 
 // slot is an extension in a scope.
