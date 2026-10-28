@@ -179,3 +179,15 @@ Linked Go module:
     to the cache folder of Emetos when a shell starts). The license is in
     third_party/vscode-shell-integration/ (LICENSE.txt and VS Code's cgmanifest.json for the scripts).
     The PSReadLine modules that VS Code ships next to them are not bundled.
+
+17. Completion specs of the integrated terminal (terminal IntelliSense)
+    Source:  https://github.com/microsoft/vscode, extensions/terminal-suggest/src/completions/ and src/shell/
+             (zshBuiltinsCache.ts, fishBuiltinsCache.ts). The completion specs come from
+             https://github.com/withfig/autocomplete (MIT, Copyright (c) 2021 Hercules Labs Inc. (Fig)) and some from
+             https://github.com/aws/amazon-q-developer-cli (MIT, Copyright (c) 2024 Amazon.com, Inc. or its affiliates),
+             as VS Code's cgmanifest.json and ThirdPartyNotices.txt of the extension say.
+    License: MIT (Copyright (c) 2015 - present Microsoft Corporation for VS Code's own files).
+    Added by step 17d.6 (extensions/terminal/suggestdata/, embedded in the program). They are TypeScript data that
+    scripts/specs2json converts to JSON (49 specs of the 115, 444 KB; the code of a spec, its generators, is left out);
+    the builtins of bash are made from the machine's own bash. The licenses and the notices are in
+    third_party/vscode-terminal-suggest/ (LICENSE.txt, cgmanifest.json, ThirdPartyNotices.txt).

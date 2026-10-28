@@ -86,6 +86,11 @@ type terminals struct {
 	suppressOpen bool
 	// metaPosted says that a refresh for a change of a tab is waiting for the UI thread.
 	metaPosted atomic.Bool
+	// sugg computes the suggestions of terminal IntelliSense.
+	sugg *suggester
+	// histLimit is terminal.integrated.shellIntegration.history for the goroutines that write the history, which must not read
+	// t.cfg (the UI thread replaces it when a setting changes).
+	histLimit atomic.Int64
 }
 
 // pasteAsk is the question about pasting several lines (enableMultiLinePasteWarning), shown over the terminal.
@@ -105,6 +110,7 @@ func (t *terminals) newEnv() *paneEnv {
 		ctx: t.ctx, findChanged: func(*paneView) { t.syncKeys() }, folder: func() string { return t.folder }, home: t.env.home,
 		altClick: t.altClick, openFile: t.openFile, openLink: t.openLink,
 		fixes: t.fixesOf, runFix: t.runFix, commandMenu: t.showCommandMenu, stickyMenu: t.showStickyMenu,
+		suggester: t.sugg, suggestEnv: t.suggestEnvOf, suggestChanged: func(*paneView) { t.syncKeys() },
 	}
 }
 
@@ -453,6 +459,8 @@ func (t *terminals) syncKeys() {
 		keySplitTerminal:   split,
 		keySplitPaneActive: split && focused != nil, keyHasBeenCreated: t.created, keyAltBuffer: alt,
 		keyTabsFocus: t.tabsFocus, keyEditorFocus: false, keyShellIntegration: shellActive,
+		keySuggestVisible: focused != nil && focused.pv.suggestVisible(),
+		keySuggestEnabled: e != nil && !alt && shellActive && t.cfg.sugEnabled && t.cfg.shellInteg,
 	}
 	if t.keys == nil {
 		t.keys = map[string]any{}
@@ -535,6 +543,7 @@ func (t *terminals) settingsChanged() {
 	c := readConfig(t.api.Settings())
 	old := t.cfg
 	t.cfg = &c
+	t.histLimit.Store(int64(c.historyLimit))
 	if old == nil || old.scrollback != c.scrollback {
 		for _, e := range t.all() {
 			e.term.Emulator().SetScrollback(c.scrollback)
@@ -543,5 +552,6 @@ func (t *terminals) settingsChanged() {
 	for _, e := range t.all() {
 		e.pv.configChanged()
 	}
+	t.syncKeys() // (terminalSuggestEnabled follows terminal.integrated.suggest.enabled)
 	t.handle.Refresh()
 }

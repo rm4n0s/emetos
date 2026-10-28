@@ -310,3 +310,40 @@ func NewContextMenuController() *ContextMenuController { return kit.NewContextMe
 
 // SeparatorItem is the separator for a list of menu items.
 func SeparatorItem() MenuItem { return kit.SeparatorItem() }
+
+// The suggest list (step 17d.6): the list of the editor's suggest widget (SPEC §9.12), for an extension that offers
+// completions where it draws them itself, as the terminal does (SPEC §10.25 "Terminal IntelliSense").
+type (
+	// SuggestRow is a row of the suggest list: the label with the characters that matched, the details and the icon.
+	SuggestRow = kit.SuggestRow
+	// SuggestListOpts are the options of NewSuggestList: the rows shown, the focused one, the fonts and the callbacks.
+	SuggestListOpts = kit.SuggestListOpts
+)
+
+// SuggestWidth is the width of the suggest list, and SuggestVerticalPadding the room it keeps from the edge of its place.
+const (
+	SuggestWidth           = kit.SuggestWidth
+	SuggestVerticalPadding = kit.SuggestVerticalPadding
+)
+
+// NewSuggestList builds the suggest list in the colors of the theme of bc. The caller places it (a Positioned in a Stack).
+func NewSuggestList(bc widgets.BuildContext, opts SuggestListOpts) widgets.Widget {
+	return kit.NewSuggestList(kit.ThemeOf(bc), opts)
+}
+
+// NewSuggestMessage builds the suggest box with a message instead of rows ("No suggestions.").
+func NewSuggestMessage(bc widgets.BuildContext, text string, opts SuggestListOpts) widgets.Widget {
+	return kit.NewSuggestMessage(kit.ThemeOf(bc), text, opts)
+}
+
+// SuggestMatcher matches typed words against labels as the suggest widgets filter. Its zero value is ready; it keeps tables
+// between calls (so score many labels with one matcher) and is for one goroutine at a time. Match(word, label) returns the score
+// (higher is better) and the positions (in runes) of the characters of the label that matched; ok is false when the word does not
+// match, and an empty word matches everything.
+type SuggestMatcher = kit.SuggestMatcher
+
+// NewSuggestBox puts a widget in the frame of the suggest widget (the background, border, rounded corners and shadow), for a pane
+// that stands beside the list, such as its details.
+func NewSuggestBox(bc widgets.BuildContext, child widgets.Widget, width, height float64) widgets.Widget {
+	return kit.SuggestBox(kit.ThemeOf(bc), child, width, height)
+}

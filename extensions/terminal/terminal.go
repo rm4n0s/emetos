@@ -45,6 +45,11 @@ func commandSpecs() []extension.CommandSpec {
 		c(CmdCopyLastCommand, "Copy Last Command"), c(CmdCopyLastOutput, "Copy Last Command Output"),
 		c(CmdCopyLastCommandOutput, "Copy Last Command and Output"),
 		c(CmdToggleStickyScroll, "Toggle Sticky Scroll"), c(CmdShowQuickFixes, "Show Terminal Quick Fixes"),
+		c(CmdTriggerSuggest, "Trigger Suggest"), c(CmdHideSuggest, "Hide Suggest Widget"),
+		c(CmdSelectNextSuggest, "Select the Next Suggestion"), c(CmdSelectPrevSuggest, "Select the Previous Suggestion"),
+		c(CmdSelectNextPageSuggest, "Select the Next Page Suggestion"), c(CmdSelectPrevPageSuggest, "Select the Previous Page Suggestion"),
+		c(CmdAcceptSuggest, "Accept Selected Suggestion"), c(CmdAcceptSuggestEnter, "Accept Selected Suggestion (Enter)"),
+		c(CmdToggleSuggestDetails, "Toggle Suggestion Details"),
 	}
 	for i := 1; i <= 9; i++ {
 		specs = append(specs, c(focusAtIndex(i), "Focus Terminal "+string(rune('0'+i))))
@@ -103,6 +108,17 @@ func keybindings() []extension.Keybinding {
 		// Ctrl+Shift+F with text selected searches the workspace for it (the Search view's own Ctrl+Shift+F has no when-clause;
 		// this one is more specific and the later of the two)
 		{Command: CmdSearchWorkspace, Key: "ctrl+shift+f", When: inTerminal + " && " + keyTextSelected},
+		// terminal IntelliSense (terminalContrib/suggest): Ctrl+Space opens the list, and while it is open the keys move in it,
+		// accept and close it; they are the last of the table so that they win over Escape of the selection and the like
+		{Command: CmdTriggerSuggest, Key: "ctrl+space", When: inTerminal + " && " + keySuggestEnabled + " && !" + keySuggestVisible},
+		{Command: CmdToggleSuggestDetails, Key: "ctrl+space", When: inTerminal + " && " + keySuggestVisible},
+		{Command: CmdHideSuggest, Key: "escape", When: inTerminal + " && " + keySuggestVisible},
+		{Command: CmdSelectNextSuggest, Key: "down", When: inTerminal + " && " + keySuggestVisible},
+		{Command: CmdSelectPrevSuggest, Key: "up", When: inTerminal + " && " + keySuggestVisible},
+		{Command: CmdSelectNextPageSuggest, Key: "pagedown", When: inTerminal + " && " + keySuggestVisible},
+		{Command: CmdSelectPrevPageSuggest, Key: "pageup", When: inTerminal + " && " + keySuggestVisible},
+		{Command: CmdAcceptSuggest, Key: "tab", When: inTerminal + " && " + keySuggestVisible},
+		{Command: CmdAcceptSuggestEnter, Key: "enter", When: inTerminal + " && " + keySuggestVisible},
 	}
 }
 
@@ -154,7 +170,9 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	}
 	c := readConfig(api.Settings())
 	t.cfg = &c
-	t.hist = newHistoryStore(t.stateDir, func() int { return t.cfg.historyLimit })
+	t.histLimit.Store(int64(c.historyLimit))
+	t.hist = newHistoryStore(t.stateDir, func() int { return int(t.histLimit.Load()) })
+	t.sugg = newSuggester(api.Log())
 	t.menu = ui.NewContextMenuController()
 	var err error
 	t.handle, err = api.Views().Provide(ViewID, extension.ViewContent{
@@ -296,6 +314,16 @@ func (t *terminals) handlers() map[string]extension.CommandHandler {
 		CmdCopyLastCommandOutput: func(context.Context, any) error { t.copyLast(true, true); return nil },
 		CmdToggleStickyScroll:    func(context.Context, any) error { t.toggleStickyScroll(); return nil },
 		CmdShowQuickFixes:        func(context.Context, any) error { t.showQuickFixes(); return nil },
+
+		CmdTriggerSuggest:        onPane(func(pv *paneView) { pv.suggestTrigger() }),
+		CmdHideSuggest:           onPane(func(pv *paneView) { pv.suggestHide() }),
+		CmdSelectNextSuggest:     onPane(func(pv *paneView) { pv.suggestMove(1) }),
+		CmdSelectPrevSuggest:     onPane(func(pv *paneView) { pv.suggestUp() }),
+		CmdSelectNextPageSuggest: onPane(func(pv *paneView) { pv.suggestMove(suggestPageRows) }),
+		CmdSelectPrevPageSuggest: onPane(func(pv *paneView) { pv.suggestMove(-suggestPageRows) }),
+		CmdAcceptSuggest:         onPane(func(pv *paneView) { pv.suggestAcceptFocused(false) }),
+		CmdAcceptSuggestEnter:    onPane(func(pv *paneView) { pv.suggestAcceptFocused(true) }),
+		CmdToggleSuggestDetails:  onPane(func(pv *paneView) { pv.suggestToggleDetails() }),
 	}
 	for i := 1; i <= 9; i++ {
 		handlers[focusAtIndex(i)] = func(context.Context, any) error { t.focusTerminalAt(i - 1); return nil }

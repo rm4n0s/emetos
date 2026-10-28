@@ -68,6 +68,17 @@ const (
 	CmdCopyLastCommandOutput = "workbench.action.terminal.copyLastCommandAndLastCommandOutput"
 	CmdToggleStickyScroll    = "workbench.action.terminal.toggleStickyScroll"
 	CmdShowQuickFixes        = "workbench.action.terminal.showQuickFixes"
+
+	// The commands of step 17d.6: terminal IntelliSense (terminalContrib/suggest, VS Code's ids).
+	CmdTriggerSuggest        = "workbench.action.terminal.triggerSuggest"
+	CmdHideSuggest           = "workbench.action.terminal.hideSuggestWidget"
+	CmdSelectNextSuggest     = "workbench.action.terminal.selectNextSuggestion"
+	CmdSelectPrevSuggest     = "workbench.action.terminal.selectPrevSuggestion"
+	CmdSelectNextPageSuggest = "workbench.action.terminal.selectNextPageSuggestion"
+	CmdSelectPrevPageSuggest = "workbench.action.terminal.selectPrevPageSuggestion"
+	CmdAcceptSuggest         = "workbench.action.terminal.acceptSelectedSuggestion"
+	CmdAcceptSuggestEnter    = "workbench.action.terminal.acceptSelectedSuggestionEnter"
+	CmdToggleSuggestDetails  = "workbench.action.terminal.toggleSuggestionDetails"
 )
 
 // findInFilesCommand is the id of the command of the Search extension that searchWorkspace runs (VS Code's
@@ -102,11 +113,16 @@ const (
 	// keyShellIntegration is true while the shell of the active terminal sends the sequences of shell integration (Emetos's own
 	// key: VS Code has none; it keeps Ctrl+Shift+Up and Down scrolling a terminal that has no commands to select).
 	keyShellIntegration = "terminalShellIntegrationActive"
+	// keySuggestVisible is true while the suggest list is shown in the active terminal (VS Code's terminalSuggestWidgetVisible);
+	// keySuggestEnabled while terminal IntelliSense is on and the shell of the active terminal sends the sequences it needs
+	// (Emetos's own key, for Ctrl+Space).
+	keySuggestVisible = "terminalSuggestWidgetVisible"
+	keySuggestEnabled = "terminalSuggestEnabled"
 )
 
 // contextKeys lists them for the manifest.
 var contextKeys = []string{
 	keyFocus, keyFocusInAny, keyIsOpen, keyCount, keyGroupCount, keyProcessSupported, keyTextSelected, keyTextSelectedInFocused,
 	keyFindVisible, keyFindFocus, keyFindInputFocus, keySplitTerminal, keySplitPaneActive, keyHasBeenCreated, keyAltBuffer, keyTabsFocus, keyEditorFocus,
-	keyShellIntegration,
+	keyShellIntegration, keySuggestVisible, keySuggestEnabled,
 }

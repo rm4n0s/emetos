@@ -139,6 +139,16 @@ type devState struct {
 	Sticky           bool          `json:"sticky"`
 	StickyRows       []string      `json:"stickyRows"`
 	Cwd              string        `json:"cwd"`
+	// Suggest says that the suggest list is shown, SuggestRows are the labels of the rows it shows, SuggestFocus the row that is
+	// selected (-1 for none), SuggestTotal how many items there are, SuggestDetails that the details pane is open, and SuggestX
+	// and SuggestY where the list is, in the pixels of the terminal's widget (step 17d.6).
+	Suggest        bool     `json:"suggest"`
+	SuggestRows    []string `json:"suggestRows"`
+	SuggestFocus   int      `json:"suggestFocus"`
+	SuggestTotal   int      `json:"suggestTotal"`
+	SuggestDetails bool     `json:"suggestDetails"`
+	SuggestX       float64  `json:"suggestX"`
+	SuggestY       float64  `json:"suggestY"`
 }
 
 // devDecoMark is a decoration of the gutter for dev.terminals.
@@ -191,6 +201,14 @@ func (r *renderGrid) DevTerminal() any {
 				st.StickyRows = append(st.StickyRows, pv.sticky.frame.RowText(y))
 			}
 		}
+	}
+	if sess := pv.sug.sess; sess != nil && len(sess.items) > 0 {
+		st.Suggest, st.SuggestFocus, st.SuggestTotal, st.SuggestDetails = true, sess.focus, len(sess.items), sess.details
+		st.SuggestX, st.SuggestY = sess.x, sess.y
+		for _, it := range sess.items[min(sess.top, len(sess.items)):min(sess.top+sess.rows, len(sess.items))] {
+			st.SuggestRows = append(st.SuggestRows, it.label)
+		}
+		st.SuggestFocus = sess.focus - sess.top
 	}
 	if f := pv.shown; f != nil {
 		rows := make([]string, f.Rows)

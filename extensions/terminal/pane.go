@@ -64,6 +64,11 @@ type paneEnv struct {
 	commandMenu func(pv *paneView, items []ui.MenuItem, at gui.Offset)
 	// stickyMenu opens the menu of the sticky scroll overlay.
 	stickyMenu func(pv *paneView, at gui.Offset)
+	// suggester computes the suggestions of terminal IntelliSense (nil for none), suggestEnv tells it about the terminal of a pane
+	// and suggestChanged that the list was shown or closed (step 17d.6).
+	suggester      *suggester
+	suggestEnv     func(pv *paneView) suggestEnv
+	suggestChanged func(pv *paneView)
 }
 
 // paneView is the view of one terminal in a pane: what the widget draws, the keyboard, the pointer, the selection and the
@@ -144,6 +149,9 @@ type paneView struct {
 	selNav *selNavState
 	// shellOn is whether the shell integration was active when the extension was last told.
 	shellOn bool
+
+	// sug is the suggest list (suggest_pane.go).
+	sug suggestState
 }
 
 func newPaneView(env *paneEnv, term *Terminal) *paneView {
@@ -158,6 +166,7 @@ func newPaneView(env *paneEnv, term *Terminal) *paneView {
 // frameChanged is told, on the UI thread, that the screen of the terminal changed.
 func (pv *paneView) frameChanged() {
 	pv.bufGen++
+	pv.suggestFrame()
 	pv.scheduleFindRefresh()
 	alt, shellOn := pv.term.Emulator().Modes().AltScreen, pv.shellActive()
 	if alt != pv.alt || shellOn != pv.shellOn {
@@ -259,6 +268,7 @@ func (pv *paneView) layout(size gui.Size) {
 	cols, rows = max(cols, 1), max(rows, 1)
 	if cols != pv.cols || rows != pv.rows {
 		pv.cols, pv.rows = cols, rows
+		pv.suggestHide()
 		pv.term.Resize(cols, rows)
 	}
 }
@@ -385,6 +395,9 @@ func (pv *paneView) scrollTo(lines int) {
 	if lines == pv.scroll {
 		return
 	}
+	if lines > 0 {
+		pv.suggestHide()
+	}
 	pv.scroll = lines
 	if pv.render != nil {
 		pv.render.MarkNeedsPaint()
@@ -400,6 +413,9 @@ func (pv *paneView) focusChanged(has bool) {
 	}
 	pv.focused = has
 	pv.blinkOn = true
+	if !has {
+		pv.suggestHide()
+	}
 	if has {
 		if pv.binding != nil {
 			pv.ime.attach(pv.binding)
@@ -425,6 +441,9 @@ func (pv *paneView) requestFocus() { pv.node.RequestFocus() }
 
 // configChanged follows a change of the settings: the font may be another, so the grid is laid out and painted again.
 func (pv *paneView) configChanged() {
+	if !pv.suggestOn() {
+		pv.suggestHide()
+	}
 	if pv.render != nil {
 		pv.render.MarkNeedsLayout()
 		pv.render.MarkNeedsPaint()
@@ -433,6 +452,7 @@ func (pv *paneView) configChanged() {
 
 // dispose lets go of the pane when its terminal is gone.
 func (pv *paneView) dispose() {
+	pv.suggestHide()
 	pv.stopBlink()
 	pv.stopTip()
 	pv.stopFindTimer()

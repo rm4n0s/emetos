@@ -111,3 +111,57 @@ func TestADropdownChoosesAnOption(t *testing.T) {
 		t.Errorf("chosen = %d", chosen)
 	}
 }
+
+func TestTheSuggestListShowsItsRowsAndTapsAccept(t *testing.T) {
+	th := uitest.Themes()[0]
+	accepted, toggled, scrolled := -1, 0, 0
+	rows := []ui.SuggestRow{
+		{Label: "checkout", Positions: []int{0, 1, 2}, LabelDescription: "Switch branches", Icon: "symbol-method", IconColor: "method", CanExpand: true},
+		{Label: "cherry-pick", Positions: []int{0, 1, 2}, LabelDetail: " <commit>", Kind: 2},
+		{Label: "archive", Kind: 17},
+	}
+	opts := ui.SuggestListOpts{
+		Rows: rows, Focus: 0, Total: 3, Width: ui.SuggestWidth, RowHeight: 20, FontSize: 13, ShowIcons: true, ShowInlineDetails: true,
+		OnAccept: func(i int) { accepted = i }, OnToggleDetails: func() { toggled++ }, OnScroll: func(n int) { scrolled += n },
+	}
+	body := widgets.NewStack([]widgets.Widget{
+		widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget { return ui.NewSuggestList(bc, opts) }),
+	}, widgets.StackOpts{})
+	ts := uitest.Pump(t, th, gui.Size{Width: 500, Height: 200}, body)
+	for _, text := range []string{"Switch branches"} {
+		if !ts.Exists(gluttertest.ByText(text)) {
+			t.Errorf("%q is not drawn", text)
+		}
+	}
+	// the rows are rich text: tap the third by its place
+	ts.TapAt(gui.Offset{Dx: 100, Dy: 1 + 2*20 + 10})
+	if accepted != 2 {
+		t.Errorf("tapping the third row accepted %d", accepted)
+	}
+	ts.TapAt(gui.Offset{Dx: 100, Dy: 10})
+	if accepted != 0 {
+		t.Errorf("tapping the first row accepted %d", accepted)
+	}
+	// a message has the box and its text
+	msgTs := uitest.Pump(t, th, gui.Size{Width: 500, Height: 100}, widgets.NewStack([]widgets.Widget{
+		widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget { return ui.NewSuggestMessage(bc, "No suggestions.", opts) }),
+	}, widgets.StackOpts{}))
+	if !msgTs.Exists(gluttertest.ByText("No suggestions.")) {
+		t.Errorf("the message is not drawn")
+	}
+	_ = toggled
+	_ = scrolled
+}
+
+func TestTheSuggestMatcherScoresAndKeepsItsTables(t *testing.T) {
+	var m ui.SuggestMatcher
+	if _, pos, ok := m.Match("che", "checkout"); !ok || len(pos) != 3 {
+		t.Errorf("che matches checkout with positions %v, %v", pos, ok)
+	}
+	if _, _, ok := m.Match("zzz", "checkout"); ok {
+		t.Errorf("zzz matches checkout")
+	}
+	if n := testing.AllocsPerRun(20, func() { m.Match("che", "checkout") }); n > 10 {
+		t.Errorf("a match allocates %v times", n)
+	}
+}

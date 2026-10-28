@@ -49,6 +49,17 @@ type config struct {
 	stickyIgnored []string
 	splitCwd      string
 
+	// terminal IntelliSense (step 17d.6)
+	sugEnabled       bool
+	sugQuick         quickSettings
+	sugTriggerChars  bool
+	sugRunOnEnter    string
+	sugSelection     string
+	sugProviders     map[string]bool
+	sugCdPath        string
+	sugTrailingSpace bool
+	sugUpHistory     bool
+
 	tabsEnabled  bool
 	tabsLocation string
 	tabsHide     string
@@ -116,6 +127,14 @@ func readConfig(s extension.Settings) config {
 		stickyMax:       min(max(int(num(settingStickyMaxLines, 5)), 1), 10),
 		splitCwd:        str(settingSplitCwd, "inherited"),
 	}
+	c.sugEnabled, c.sugTriggerChars = flag(settingSugEnabled, true), flag(settingSugTrigger, false)
+	c.sugRunOnEnter, c.sugSelection = str(settingSugRunEnter, "never"), str(settingSugSelect, "partial")
+	c.sugCdPath, c.sugTrailingSpace, c.sugUpHistory = str(settingSugCdPath, "absolute"), flag(settingSugSpace, false), flag(settingSugUpArrow, true)
+	c.sugQuick = readQuickSuggestions(s)
+	c.sugProviders = map[string]bool{}
+	if v, err := extension.SettingValue[map[string]bool](s, settingSugProvider); err == nil {
+		c.sugProviders = v
+	}
 	c.stickyIgnored = []string{"clear", "cls", "clear-host", "agent", "agy", "copilot", "claude", "codex", "gemini"}
 	if v, err := extension.SettingValue[[]string](s, settingStickyIgnored); err == nil {
 		c.stickyIgnored = v
@@ -148,4 +167,18 @@ func fontFamilies(value string) []string {
 		}
 	}
 	return out
+}
+
+// readQuickSuggestions reads terminal.integrated.suggest.quickSuggestions: an object with commands, arguments and unknown, each
+// "on" or "off" (VS Code's default is all three off), or a boolean, which VS Code reads as commands and arguments on and unknown
+// off (normalizeQuickSuggestionsConfig).
+func readQuickSuggestions(s extension.Settings) quickSettings {
+	if b, err := extension.SettingValue[bool](s, settingSugQuick); err == nil {
+		return quickSettings{commands: b, arguments: b}
+	}
+	m, err := extension.SettingValue[map[string]string](s, settingSugQuick)
+	if err != nil {
+		return quickSettings{}
+	}
+	return quickSettings{commands: m["commands"] == "on", arguments: m["arguments"] == "on", unknown: m["unknown"] == "on"}
 }

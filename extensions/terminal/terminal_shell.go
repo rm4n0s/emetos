@@ -441,3 +441,44 @@ func (t *terminals) stateDir() (string, error) {
 	}
 	return filepath.Join(filepath.Clean(base), "emetos"), nil
 }
+
+// suggestEnvOf tells the providers of terminal IntelliSense about the terminal of a pane: its shell, the folder it is in, its
+// environment and the settings of the providers. The command lines of the history are read when the request runs.
+func (t *terminals) suggestEnvOf(pv *paneView) suggestEnv {
+	env := suggestEnv{
+		shell: pv.term.ShellName(), cwd: pv.term.SpeculativeCwd(), home: t.env.home, environ: pv.term.Environ(),
+		cdPath: t.cfg.sugCdPath, providers: t.cfg.sugProviders,
+	}
+	env.loadHistory = func() []string { return t.historyOf(pv.term) }
+	return env
+}
+
+// historyOf lists the command lines the user can be offered for a terminal, the most recent first: the ones of this session, of
+// the earlier sessions and of the history file of the shell. It reads files and runs off the UI thread.
+func (t *terminals) historyOf(term *Terminal) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(c string) {
+		c = strings.TrimSpace(c)
+		if c != "" && !seen[c] {
+			seen[c] = true
+			out = append(out, c)
+		}
+	}
+	cmds := term.si.Commands()
+	for i := len(cmds) - 1; i >= 0; i-- {
+		add(cmds[i].text)
+	}
+	shell := term.ShellName()
+	if old, _, err := t.hist.snapshot(shell); err == nil {
+		for _, c := range old {
+			add(c)
+		}
+	}
+	if sh := shellHistoryFile(shell, t.env.home, t.env.get("XDG_DATA_HOME")); sh != nil {
+		for i := len(sh.commands) - 1; i >= max(len(sh.commands)-500, 0); i-- {
+			add(sh.commands[i])
+		}
+	}
+	return out
+}

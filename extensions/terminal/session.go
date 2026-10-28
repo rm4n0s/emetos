@@ -136,6 +136,8 @@ type Terminal struct {
 	si        *shellState
 	injected  bool
 	shellName string
+	// environ is the environment the shell was started with (PATH and CDPATH are what terminal IntelliSense reads from it).
+	environ []string
 
 	// the stream of the output for the observer (stream.go): outMu holds the parser's write and the bytes that wait to be
 	// published together, so that a snapshot is the screen after exactly the output of the events up to its seq.
@@ -177,7 +179,7 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 	}
 	t := &Terminal{id: o.id, log: o.log.With("terminal", o.id), prof: o.profile, dir: o.dir, rows: o.rows, cols: o.cols,
 		inWake: make(chan struct{}, 1), exitedCh: make(chan struct{}), icon: o.profile.icon, obs: o.obs, snapMax: o.snapshotLimit,
-		injected: o.injected, shellName: shellNameOf(o.profile.path)}
+		injected: o.injected, shellName: shellNameOf(o.profile.path), environ: o.env}
 	t.flowCond = sync.NewCond(&t.flowMu)
 	t.em = emulator.New(o.rows, o.cols, emulator.Options{
 		Scrollback: o.scrollback, Name: "Emetos", Version: o.version, MarkCodes: shellOSCCodes,
@@ -235,6 +237,9 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 
 // ShellIntegration is the state of the shell integration of the terminal (shellint.go).
 func (t *Terminal) ShellIntegration() *shellState { return t.si }
+
+// Environ is the environment the shell was started with, as NAME=value strings. The slice is not to be changed.
+func (t *Terminal) Environ() []string { return t.environ }
 
 // ShellName is the kind of shell of the terminal: the base name of its program ("bash", "zsh", "fish", "pwsh", "sh"...).
 func (t *Terminal) ShellName() string { return t.shellName }

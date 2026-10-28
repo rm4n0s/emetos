@@ -58,6 +58,7 @@ func (pv *paneView) onKey(_ *widgets.FocusNode, e services.KeyEvent) widgets.Key
 
 // userInput sends what the user typed: the view goes to the bottom and the selection ends.
 func (pv *paneView) userInput(b []byte) {
+	pv.suggestTyped(b)
 	pv.term.Type(b, ByUser)
 	pv.scrollTo(0)
 	if pv.sel.active {
@@ -276,6 +277,7 @@ func buttonOf(buttons int) (emulator.MouseButton, bool) {
 
 // onPointerDown is a press in the pane.
 func (pv *paneView) onPointerDown(e *gestures.PointerDownEvent) {
+	pv.suggestHide()
 	pv.node.RequestFocus()
 	local := e.LocalPosition()
 	if pv.hitBar(local) {

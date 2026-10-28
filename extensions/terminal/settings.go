@@ -61,6 +61,17 @@ const (
 	settingStickyMaxLines = "terminal.integrated.stickyScroll.maxLineCount"
 	settingStickyIgnored  = "terminal.integrated.stickyScroll.ignoredCommands"
 	settingSplitCwd       = "terminal.integrated.splitCwd"
+
+	// Step 17d.6: terminal IntelliSense.
+	settingSugEnabled  = "terminal.integrated.suggest.enabled"
+	settingSugQuick    = "terminal.integrated.suggest.quickSuggestions"
+	settingSugTrigger  = "terminal.integrated.suggest.suggestOnTriggerCharacters"
+	settingSugRunEnter = "terminal.integrated.suggest.runOnEnter"
+	settingSugSelect   = "terminal.integrated.suggest.selectionMode"
+	settingSugProvider = "terminal.integrated.suggest.providers"
+	settingSugCdPath   = "terminal.integrated.suggest.cdPath"
+	settingSugSpace    = "terminal.integrated.suggest.insertTrailingSpace"
+	settingSugUpArrow  = "terminal.integrated.suggest.upArrowNavigatesHistory"
 )
 
 // defaultStickyIgnored are the commands that do not show sticky scroll (VS Code's default of
@@ -184,6 +195,25 @@ func settingSpecs() []extension.SettingSpec {
 			Description: "A list of commands that should not trigger sticky scroll. When a command from this list is detected, the sticky scroll overlay will be hidden."},
 		{Key: settingSplitCwd, Type: "string", Default: "inherited", Enum: []any{"workspaceRoot", "initial", "inherited"}, Category: cat,
 			Description: "Controls the working directory a split terminal starts with. workspaceRoot: a new split terminal will use the workspace root as the working directory; initial: a new split terminal will use the working directory that the parent terminal started with; inherited: a new split terminal will use the working directory of the parent terminal."},
+		// terminal IntelliSense (terminalSuggestConfiguration.ts): the settings Emetos has a use for
+		{Key: settingSugEnabled, Type: "boolean", Default: true, Category: cat,
+			Description: "Enables terminal IntelliSense suggestions (also known as autocomplete) for supported shells (bash, zsh, fish, pwsh). This requires terminal.integrated.shellIntegration.enabled to be enabled and working."},
+		{Key: settingSugQuick, Type: "object", Category: cat, Default: map[string]any{"commands": "off", "arguments": "off", "unknown": "off"},
+			Description: "Controls whether suggestions should automatically show up while typing. commands: for the first word of a command line; arguments: for anything after the first word; unknown: when it is unclear what the best suggestion is, files and folders are suggested as a fallback. Each is \"on\" or \"off\". Also be aware of terminal.integrated.suggest.suggestOnTriggerCharacters, which controls if suggestions are triggered by special characters."},
+		{Key: settingSugTrigger, Type: "boolean", Default: false, Category: cat,
+			Description: "Controls whether suggestions should automatically show up when typing trigger characters (the slash of a path)."},
+		{Key: settingSugRunEnter, Type: "string", Default: "never", Enum: []any{"never", "exactMatch", "exactMatchIgnoreExtension", "always"}, Category: cat,
+			Description: "Controls whether suggestions should run immediately when Enter (not Tab) is used to accept the result. never: never run on Enter; exactMatch: run on Enter when the suggestion is typed in its entirety; exactMatchIgnoreExtension: run on Enter when the suggestion is typed in its entirety or when a file is typed without its extension included; always: always run on Enter."},
+		{Key: settingSugSelect, Type: "string", Default: "partial", Enum: []any{"partial", "always", "never"}, Category: cat,
+			Description: "Controls how suggestion selection works in the integrated terminal. partial: partially select a suggestion when automatically triggering IntelliSense; Tab can be used to accept the first suggestion, only after navigating the suggestions via Down will Enter also accept the active suggestion; always: always select a suggestion when automatically triggering IntelliSense, Enter or Tab can be used to accept the first suggestion; never: never select a suggestion when automatically triggering IntelliSense, the list must be navigated via Down before Enter or Tab can be used to accept the active suggestion."},
+		{Key: settingSugProvider, Type: "object", Category: cat, Default: map[string]any{providerCommands: true, providerFiles: true, providerHistory: true},
+			Description: "Controls which suggestions show up. Providers are enabled by default; omit them by setting the id of the provider to false. terminal-suggest: the commands, the builtins of the shell and the completion specs; path: files and folders; history: lines of the command history."},
+		{Key: settingSugCdPath, Type: "string", Default: "absolute", Enum: []any{"off", "relative", "absolute"}, Category: cat,
+			Description: "Controls whether to enable $CDPATH support which exposes children of the folders in the $CDPATH variable regardless of the current working directory. off: disable the feature; relative: enable the feature and use relative paths; absolute: enable the feature and use absolute paths."},
+		{Key: settingSugSpace, Type: "boolean", Default: false, Category: cat,
+			Description: "Controls whether a space is automatically inserted after accepting a suggestion and re-trigger suggestions. Folders will never have a trailing space added."},
+		{Key: settingSugUpArrow, Type: "boolean", Default: true, Category: cat,
+			Description: "Determines whether the up arrow key navigates the command history when focus is on the first suggestion and navigation has not yet occurred. When set to false, the up arrow will move focus to the last suggestion instead."},
 	}
 }
 

@@ -544,6 +544,16 @@ type TerminalState struct {
 	StickyRows       []string           `json:"stickyRows"`
 	// Cwd is the folder the shell reported.
 	Cwd string `json:"cwd"`
+	// Suggest says that the suggest list of terminal IntelliSense is shown (step 17d.6), SuggestRows are the labels of its rows,
+	// SuggestFocus the selected row among them (-1 for none), SuggestTotal how many items there are, SuggestDetails that the
+	// details pane is open, and SuggestX and SuggestY where the list is, in the pixels of the terminal's widget.
+	Suggest        bool     `json:"suggest"`
+	SuggestRows    []string `json:"suggestRows"`
+	SuggestFocus   int      `json:"suggestFocus"`
+	SuggestTotal   int      `json:"suggestTotal"`
+	SuggestDetails bool     `json:"suggestDetails"`
+	SuggestX       float64  `json:"suggestX"`
+	SuggestY       float64  `json:"suggestY"`
 }
 
 // TerminalDecoMark is one decoration of the gutter of a terminal on screen.

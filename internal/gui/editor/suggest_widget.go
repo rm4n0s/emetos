@@ -6,17 +6,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/rm4n0s/glutter/foundation"
-	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
-	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension/ui/markdown"
-	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
-	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 // The suggest widget (SPEC §9.12 "As built (step 12.5)"): the list of items below the word being completed, above it when
@@ -25,33 +21,13 @@ import (
 // Ported from VS Code: src/vs/editor/contrib/suggest/browser/suggestWidget.ts, suggestWidgetRenderer.ts, suggestWidgetDetails.ts
 // and media/suggest.css
 
-// Metrics of the widget (suggest.css, suggestWidget.ts getLayoutInfo).
+// Metrics of the widget (suggest.css, suggestWidget.ts getLayoutInfo); the ones of the list are in kit.
 const (
-	suggestWidth           = 430.0
+	suggestWidth           = kit.SuggestWidth
 	suggestDetailsWidth    = 330.0
 	suggestDetailsMinWidth = 220.0
-	suggestVerticalPadding = 22.0
-	suggestIconSize        = 16.0
-	suggestRowPadLeft      = 2.0
-	suggestRowPadRight     = 10.0
-	suggestRadius          = 4.0
-	suggestShadowBlur      = 8.0
-	suggestMessageIndent   = 22.0
-	// suggestDetailLabelRatio is the share of a row the detail may take (max-width: 70%).
-	suggestDetailLabelRatio = 0.7
+	suggestVerticalPadding = kit.SuggestVerticalPadding
 )
-
-// suggestCodicons maps a kind of item (the LSP numbers) to the codepoint of its icon and the name of its color.
-var suggestCodicons = map[langfeatures.CompletionKind]struct {
-	code  int
-	color string
-}{
-	1: {0xEA93, "text"}, 2: {0xEA8C, "method"}, 3: {0xEA8C, "function"}, 4: {0xEA8C, "constructor"}, 5: {0xEB5F, "field"},
-	6: {0xEA88, "variable"}, 7: {0xEB5B, "class"}, 8: {0xEB61, "interface"}, 9: {0xEA8B, "module"}, 10: {0xEB65, "property"},
-	11: {0xEA96, "unit"}, 12: {0xEA95, "enumerator"}, 13: {0xEA95, "enumerator"}, 14: {0xEB62, "keyword"}, 15: {0xEB66, "snippet"},
-	16: {0xEB5C, "color"}, 17: {0xEA7B, "file"}, 18: {0xEA94, "reference"}, 19: {0xEA83, "folder"}, 20: {0xEB5E, "enumeratorMember"},
-	21: {0xEB5D, "constant"}, 22: {0xEA91, "struct"}, 23: {0xEA86, "event"}, 24: {0xEB64, "operator"}, 25: {0xEA92, "typeParameter"},
-}
 
 // suggestRowHeight is the height of a row: editor.suggestLineHeight, else the line height of the editor (at least 8).
 func (vm *ViewModel) suggestRowHeight() float64 {
@@ -70,21 +46,16 @@ func (vm *ViewModel) suggestFontSize() float64 {
 	return vm.opts.FontSize
 }
 
+// suggestOpts are the options of the list of the widget: the fonts and the heights of the editor.
+func (vm *ViewModel) suggestOpts() kit.SuggestListOpts {
+	return kit.SuggestListOpts{
+		RowHeight: vm.suggestRowHeight(), FontSize: vm.suggestFontSize(), FontFamilies: vm.opts.FontFamilies, FontWeight: vm.opts.FontWeight,
+	}
+}
+
 // suggestStyle is the text style of the widget: the font of the editor at the size of the widget.
 func (vm *ViewModel) suggestStyle(color ui.Color, size float64) *painting.TextStyle {
-	families := vm.opts.FontFamilies
-	family, fallback := "monospace", []string(nil)
-	if len(families) > 0 {
-		family, fallback = families[0], families[1:]
-	}
-	opts := painting.TextStyleOpts{
-		FontFamily: family, FontFamilyFallback: fallback, FontSize: foundation.Some(size), Color: foundation.Some(color),
-		Height: foundation.Some(vm.suggestRowHeight() / size),
-	}
-	if w := vm.opts.FontWeight; w > 0 {
-		opts.FontWeight = ui.FontWeight(w)
-	}
-	return painting.NewTextStyle(opts)
+	return kit.SuggestTextStyle(vm.suggestOpts(), color, size)
 }
 
 // suggestLayer is the widget over the text, or nil while there is none: the list below the word being completed (above it
@@ -146,210 +117,34 @@ func (s *editorState) suggestLayer(bc widgets.BuildContext, vm *ViewModel, color
 	return widgets.NewStack(children, widgets.StackOpts{Fit: rendering.StackFitExpand})
 }
 
-// suggestBox is a widget in the frame of the suggest widget.
-func suggestBox(colors kit.Colors, child widgets.Widget, width, height float64) widgets.Widget {
-	return widgets.NewContainer(widgets.NewClipRRect(child, widgets.ClipRRectOpts{BorderRadius: painting.NewBorderRadiusCircular(suggestRadius)}),
-		widgets.ContainerOpts{
-			Width: foundation.Some(width), Height: foundation.Some(height),
-			Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
-				Color:        foundation.Some(colors.EditorSuggestWidgetBackground),
-				Border:       painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(colors.EditorSuggestWidgetBorder), Width: foundation.Some(1.0)}),
-				BorderRadius: painting.NewBorderRadiusCircular(suggestRadius),
-				BoxShadow:    []painting.BoxShadow{painting.NewBoxShadow(painting.BoxShadowOpts{Color: foundation.Some(colors.WidgetShadow), BlurRadius: suggestShadowBlur})},
-			}),
-		})
-}
-
 // suggestList is the box with the rows, or with the message of a state that has no rows.
 func (s *editorState) suggestList(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors, v *SuggestView, rows int, width float64) widgets.Widget {
-	rowH := vm.suggestRowHeight()
-	size := vm.suggestFontSize()
-	fg := colors.EditorSuggestWidgetForeground
+	o := vm.suggestOpts()
+	o.Width = width
 	if v.State == SuggestLoading || v.State == SuggestEmpty {
 		text := "Loading..."
 		if v.State == SuggestEmpty {
 			text = "No suggestions."
 		}
-		msg := widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(suggestMessageIndent, 0, 0, 0),
-			widgets.NewAlign(widgets.NewText(text, widgets.TextOpts{Style: vm.suggestStyle(fg, size), MaxLines: foundation.Some(1)}),
-				widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft}))
-		return suggestBox(colors, msg, width, rowH+2)
+		return kit.NewSuggestMessage(colors, text, o)
 	}
 	top := min(max(v.Top, 0), max(len(v.Items)-rows, 0))
-	var children []widgets.Widget
-	for i := top; i < min(top+rows, len(v.Items)); i++ {
-		children = append(children, s.suggestRow(bc, vm, colors, v, i, width-2))
+	end := min(top+rows, len(v.Items))
+	o.Rows = make([]kit.SuggestRow, 0, end-top)
+	for i := top; i < end; i++ {
+		it := v.Items[i]
+		o.Rows = append(o.Rows, kit.SuggestRow{
+			Label: it.Label, Positions: it.Score.Positions, LabelDetail: it.LabelDetail, LabelDescription: it.LabelDescription,
+			Detail: it.Detail, Kind: int(it.Kind), Deprecated: it.Deprecated, CanExpand: canExpand(it),
+		})
 	}
-	list := widgets.NewColumn(children, widgets.ColumnOpts{MainAxisSize: rendering.MainAxisSizeMin})
-	var body widgets.Widget = list
-	if len(v.Items) > rows {
-		body = widgets.NewStack([]widgets.Widget{list, suggestScrollbar(colors, len(v.Items), rows, top, rowH*float64(rows))},
-			widgets.StackOpts{Fit: rendering.StackFitPassthrough})
-	}
-	box := suggestBox(colors, body, width, float64(rows)*rowH+2)
-	return widgets.NewMouseRegion(
-		widgets.NewListener(box, widgets.ListenerOpts{OnPointerSignal: func(ev gestures.PointerSignalEvent) {
-			if scroll, ok := ev.(*gestures.PointerScrollEvent); ok && scroll.ScrollDelta().Dy != 0 {
-				step := 1
-				if scroll.ScrollDelta().Dy < 0 {
-					step = -1
-				}
-				vm.SuggestScroll(step * 3)
-			}
-		}}),
-		widgets.MouseRegionOpts{Cursor: services.SystemMouseCursors.Basic})
-}
-
-// suggestScrollbar is the thumb at the right edge of the list, when the list has more rows than it shows.
-func suggestScrollbar(colors kit.Colors, total, rows, top int, height float64) widgets.Widget {
-	const w = 6.0
-	thumbH := math.Max(height*float64(rows)/float64(total), 12)
-	y := (height - thumbH) * float64(top) / float64(max(total-rows, 1))
-	return widgets.NewPositioned(
-		widgets.NewSizedBox(widgets.NewColoredBox(colors.ScrollbarSliderBackground, nil), widgets.SizedBoxOpts{Width: foundation.Some(w), Height: foundation.Some(thumbH)}),
-		widgets.PositionedOpts{Right: foundation.Some(0.0), Top: foundation.Some(y)})
-}
-
-// symbolIcon is the icon of the kind of an item and its color.
-func symbolIcon(colors kit.Colors, kind langfeatures.CompletionKind) (code int, color ui.Color) {
-	ic, ok := suggestCodicons[kind]
-	if !ok {
-		ic = suggestCodicons[10] // a kind without an icon is a property
-	}
-	return ic.code, colors.SymbolIconColor(ic.color)
-}
-
-// suggestRow is the row of the item i: its icon, its label with the characters that matched in bold, the signature after it
-// and the detail at the right.
-func (s *editorState) suggestRow(bc widgets.BuildContext, vm *ViewModel, colors kit.Colors, v *SuggestView, i int, width float64) widgets.Widget {
-	it := v.Items[i]
-	focused := i == v.Focus
-	rowH := vm.suggestRowHeight()
-	size := vm.suggestFontSize()
-	fg, hl := colors.EditorSuggestWidgetForeground, colors.EditorSuggestWidgetHighlightForeground
-	bg := ui.Color{}
-	outline := ui.Color{}
-	_, iconFg := symbolIcon(colors, it.Kind)
-	if focused {
-		fg, hl, bg, outline = colors.EditorSuggestWidgetSelectedForeground, colors.EditorSuggestWidgetFocusHighlightForeground, colors.EditorSuggestWidgetSelectedBackground, colors.EditorSuggestWidgetFocusOutline
-		iconFg = colors.EditorSuggestWidgetSelectedIconForeground
-	}
-	base := vm.suggestStyle(fg, size)
-	var spans []painting.InlineSpan
-	label := it.Label
-	if it.Deprecated {
-		base = base.CopyWith(painting.TextStyleOpts{Decoration: foundation.Some(ui.TextDecorationLineThrough), Color: foundation.Some(fg.WithOpacity(fg.Opacity() * 0.66))})
-		spans = append(spans, painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(label)}))
-	} else {
-		spans = append(spans, labelSpans(label, it.Score.Positions, base, hl, v.State != SuggestFrozen)...)
-	}
-	if it.LabelDetail != "" {
-		spans = append(spans, painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(stripNewLines(it.LabelDetail)),
-			Style: base.CopyWith(painting.TextStyleOpts{Color: foundation.Some(fg.WithOpacity(fg.Opacity() * 0.6))})}))
-	}
-	left := widgets.NewRichText(painting.NewTextSpan(painting.TextSpanOpts{Style: base, Children: spans}),
-		widgets.RichTextOpts{MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})
-
-	// the detail at the right: the description of the label details, always; the detail of an item with a plain label, on the
-	// focused row while the details pane is closed
-	stringLabel := it.LabelDetail == "" && it.LabelDescription == ""
-	detail := stripNewLines(it.LabelDescription)
-	if stringLabel {
-		detail = ""
-		if focused && v.Details == nil {
-			detail = stripNewLines(it.Detail)
-		}
-	}
-	if !v.Options.ShowInlineDetails {
-		detail = ""
-	}
-	parts := []widgets.Widget{widgets.NewSizedBox(nil, widgetsWidth(suggestRowPadLeft))}
-	if v.Options.ShowIcons {
-		code, _ := symbolIcon(colors, it.Kind)
-		parts = append(parts,
-			widgets.NewSizedBox(widgets.NewCenter(widgets.NewIcon(fonts.CodiconIcon(code), widgets.IconOpts{Size: foundation.Some(suggestIconSize), Color: foundation.Some(iconFg)}), widgets.CenterOpts{}),
-				widgets.SizedBoxOpts{Width: foundation.Some(rowH), Height: foundation.Some(rowH)}),
-			widgets.NewSizedBox(nil, widgetsWidth(4)))
-	}
-	parts = append(parts, widgets.NewExpanded(left))
-	if detail != "" {
-		dstyle := vm.suggestStyle(fg, size*0.85)
-		parts = append(parts, widgets.NewSizedBox(nil, widgetsWidth(size*1.1)),
-			widgets.NewConstrainedBox(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MaxWidth: foundation.Some(width * suggestDetailLabelRatio)}),
-				widgets.NewText(detail, widgets.TextOpts{Style: dstyle, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})))
-	}
-	if focused && v.Details == nil && canExpand(it) {
-		parts = append(parts, widgets.NewMouseRegion(
-			widgets.NewGestureDetector(widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconInfo), widgets.IconOpts{Size: foundation.Some(14.0), Color: foundation.Some(fg)}),
-				widgets.GestureDetectorOpts{Behavior: rendering.HitTestBehaviorOpaque, OnTap: vm.SuggestToggleDetails}),
-			widgets.MouseRegionOpts{Cursor: services.SystemMouseCursors.Click}))
-	}
-	parts = append(parts, widgets.NewSizedBox(nil, widgetsWidth(suggestRowPadRight)))
-	row := widgets.NewContainer(
-		widgets.NewRow(parts, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}),
-		widgets.ContainerOpts{Width: foundation.Some(width), Height: foundation.Some(rowH),
-			Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{Color: foundation.Some(bg)}),
-			// the outline is painted over the row, not around it: a border would take 2 px of the line and clip the descenders
-			ForegroundDecoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
-				Border: painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(outline), Width: foundation.Some(1.0)}),
-			})})
-	return widgets.NewMouseRegion(
-		widgets.NewGestureDetector(row, widgets.GestureDetectorOpts{Behavior: rendering.HitTestBehaviorOpaque, OnTap: func() { vm.SuggestAccept(i) }}),
-		widgets.MouseRegionOpts{Cursor: services.SystemMouseCursors.Click, OnEnter: func(*gestures.PointerEnterEvent) {}})
-}
-
-func widgetsWidth(w float64) widgets.SizedBoxOpts {
-	return widgets.SizedBoxOpts{Width: foundation.Some(w)}
-}
-
-// stripNewLines joins the lines of a text.
-func stripNewLines(s string) string {
-	if !strings.ContainsAny(s, "\r\n") {
-		return s
-	}
-	return strings.NewReplacer("\r\n", "", "\r", "", "\n", "").Replace(s)
-}
-
-// labelSpans splits the label into the runs of characters the filter matched (bold, in the highlight color) and the rest.
-func labelSpans(label string, positions []int, base *painting.TextStyle, hl ui.Color, bold bool) []painting.InlineSpan {
-	if len(positions) == 0 {
-		return []painting.InlineSpan{painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(label)})}
-	}
-	opts := painting.TextStyleOpts{Color: foundation.Some(hl)}
-	if bold {
-		opts.FontWeight = ui.FontWeightBold
-	}
-	marked := base.CopyWith(opts)
-	matched := make(map[int]bool, len(positions))
-	for _, p := range positions {
-		matched[p] = true
-	}
-	var spans []painting.InlineSpan
-	var run strings.Builder
-	runMarked := false
-	flush := func() {
-		if run.Len() == 0 {
-			return
-		}
-		o := painting.TextSpanOpts{Text: foundation.Some(run.String())}
-		if runMarked {
-			o.Style = marked
-		}
-		spans = append(spans, painting.NewTextSpan(o))
-		run.Reset()
-	}
-	i := 0
-	for off := 0; off < len(label); i++ {
-		r, w := utf8.DecodeRuneInString(label[off:])
-		if m := matched[i]; m != runMarked {
-			flush()
-			runMarked = m
-		}
-		run.WriteRune(r)
-		off += w
-	}
-	flush()
-	return spans
+	o.Focus = v.Focus - top
+	o.Total, o.Top = len(v.Items), top
+	o.ShowIcons, o.ShowInlineDetails, o.DetailsOpen, o.Frozen = v.Options.ShowIcons, v.Options.ShowInlineDetails, v.Details != nil, v.State == SuggestFrozen
+	o.OnAccept = func(i int) { vm.SuggestAccept(top + i) }
+	o.OnToggleDetails = vm.SuggestToggleDetails
+	o.OnScroll = vm.SuggestScroll
+	return kit.NewSuggestList(colors, o)
 }
 
 // suggestDetailsPane is the pane with the detail and the documentation of the focused item. It stands at the right of the list,
@@ -413,7 +208,7 @@ func (s *editorState) suggestDetailsPane(bc widgets.BuildContext, vm *ViewModel,
 	}
 	height = math.Min(math.Max(height, 2*rowH), math.Max(maxH, listHeight))
 	column := widgets.NewColumn(children, widgetsColumnStretch())
-	pane := suggestBox(colors, column, paneW, height)
+	pane := kit.SuggestBox(colors, column, paneW, height)
 	pos := widgets.PositionedOpts{Left: foundation.Some(math.Max(x, 0))}
 	if above {
 		pos.Top = foundation.Some(math.Max(top+listHeight-height, 0))

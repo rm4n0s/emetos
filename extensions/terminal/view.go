@@ -40,6 +40,7 @@ func paneWidget(pv *paneView) widgets.Widget {
 				widgets.NewKeyedSubtree(pv.findWidget(bc), widgets.WidgetOpts{Key: foundation.NewValueKey("find")}),
 				widgets.PositionedOpts{Top: foundation.Some(4.0), Right: foundation.Some(scrollbarW + 4)}))
 		}
+		layers = append(layers, pv.suggestLayers(bc)...)
 		if tip := pv.tooltip(bc); tip != nil {
 			layers = append(layers, tip)
 		}

@@ -244,4 +244,26 @@ for f in shellIntegration-bash.sh shellIntegration-env.zsh shellIntegration-logi
 done
 copy_license vscode-shell-integration vscode/LICENSE.txt "$shellint_src/cgmanifest.json"
 
+# Step 17d.6: the completion specs of VS Code's terminal-suggest extension (MIT; SPEC §10.25 "Terminal IntelliSense"), which come
+# from withfig/autocomplete (MIT), and the builtins of zsh and fish from the same extension. They are TypeScript data; the Go tool
+# scripts/specs2json converts only the data (a generator that runs a shell command is code and is left out, nothing of Node is
+# used) to the JSON that extensions/terminal/suggestdata embeds. The builtins of bash come from the bash on this machine
+# (`compgen -b` and `help -d`). The list of specs is a choice of the commands a developer types most; the extension has about 115 specs and
+# the choice is 49 of them, 444 KB.
+sugg_src="$ref/vscode/extensions/terminal-suggest/src"
+sugg_out="$root/extensions/terminal/suggestdata"
+rm -rf "$sugg_out/specs" "$sugg_out/builtins"
+sugg_files=()
+for n in git npm npx code cd; do sugg_files+=("$sugg_src/completions/$n.ts"); done
+for n in go ls cat cp mv rm mkdir rmdir touch chmod chown ln grep find head tail sort echo kill killall ps tar curl ssh \
+  node python3 sed wc diff du df uniq cut xargs sudo which tree more date env export source clear pwd; do
+  sugg_files+=("$sugg_src/completions/upstream/$n.ts")
+done
+(cd "$root" && go run ./scripts/specs2json specs "$sugg_out/specs" "${sugg_files[@]}")
+(cd "$root" && go run ./scripts/specs2json builtins "$sugg_src/shell/zshBuiltinsCache.ts" "$sugg_out/builtins/zsh.json")
+(cd "$root" && go run ./scripts/specs2json builtins "$sugg_src/shell/fishBuiltinsCache.ts" "$sugg_out/builtins/fish.json")
+(cd "$root" && go run ./scripts/specs2json bash "$sugg_out/builtins/bash.json")
+copy_license vscode-terminal-suggest vscode/LICENSE.txt vscode/extensions/terminal-suggest/cgmanifest.json \
+  vscode/extensions/terminal-suggest/ThirdPartyNotices.txt
+
 echo "update-assets: done"
