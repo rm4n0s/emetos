@@ -101,4 +101,30 @@ type Workspace interface {
 	// a scope that has no workspace to show (a window tab of an extension, a workspace that is not on screen yet) and
 	// ExtensionDeactivated after the activation ended. Call it on the UI thread.
 	NewHeadlessView(size Size) (HeadlessView, error)
+	// FindTextInFiles searches the files of the folder for the query and calls onFile with the matches of each file that has
+	// some, as the search goes on (SPEC §10.27). The goroutine rules:
+	//   - It blocks until the search is over, so it is called from a goroutine of the extension and never from the UI
+	//     thread (it asks the UI thread for the text of the editors that have unsaved changes and would wait for itself).
+	//   - onFile is called on goroutines of the search, not on the UI thread, and never at the same time as itself; it must
+	//     not touch widgets, and hands what it gets to the UI thread with API.Post (once a frame at most, for a long list).
+	//     It must not block for long. A panic in it is not caught.
+	//   - When ctx ends the search stops and the call returns the error of the context (the tag SearchCancelled); onFile is
+	//     not called after the call returned. The matches are in the order of the text in each file, and the files in no
+	//     fixed order.
+	// It fails with ExtensionNoFolder in a scope with no folder, ExtensionDeactivated after the activation ended,
+	// SearchPatternEmpty for an empty pattern, and the error of the regular expression (RegexUnbalancedParen, RegexUnterminatedClass, ...)
+	// for one that does not compile.
+	FindTextInFiles(ctx context.Context, query TextSearchQuery, opts TextSearchOptions, onFile func(TextSearchFile)) (TextSearchSummary, error)
+	// NewTextReplacer makes the replacer of a search: the replacement for a match, as VS Code's search makes it. For a regular
+	// expression the replacement may have $1 and $&, \n and \t and the case operations \u \U \l \L; for a plain text it is
+	// used as it is; preserveCase makes it follow the case of the text it replaces. It may be called from any goroutine. It
+	// fails as FindTextInFiles does for the query.
+	NewTextReplacer(query TextSearchQuery, replacement string, preserveCase bool) (TextReplacer, error)
+	// ReplaceInFiles makes replacements in files of the folder that no editor has open (those of an open editor are made
+	// with Documents().Apply, which is one undo step of the document). Each file is read as the editor reads it, changed,
+	// and written again with the same encoding, byte order mark and line ending, atomically; a replacement whose range no
+	// longer has the expected text is skipped. A file that cannot be changed is listed in the report and left as it was; the
+	// others are still done. It fails with ExtensionNoFolder, ExtensionDeactivated and ExtensionFilePathInvalid (a path that
+	// leaves the folder), and with the error of ctx. It may be called from any goroutine.
+	ReplaceInFiles(ctx context.Context, files []FileReplacement) (ReplaceReport, error)
 }

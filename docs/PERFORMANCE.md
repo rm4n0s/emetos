@@ -377,6 +377,34 @@ What made the numbers, and what to keep in mind:
 - The first frames after the panel is maximized or the font changes take 0.3 to 0.7 s of raster each on llvmpipe (new pipelines and a new atlas image); they are outside the numbers above (the test waits for them) and Glutter's (`docs/PERFORMANCE.md` "Desktop pass").
 - The measurement of the "frames while it runs" is Glutter's once-a-second statistics (`GLUTTER_FRAME_STATS=1`), so a window can hold a second of idle frames before or after the run; the table has the windows of the run and the one that follows it.
 
+## Search (step 17e.2)
+
+The engine alone (`internal/core/search`, no UI), on the machine above, on 2026-10-28, run alone (`scripts/heavy.sh --alone`), warm file cache, one goroutine lists the folders and a worker per CPU (at most 8) reads and matches. The tree is made once per test binary by `speed_test.go` (a seeded generator, removed when the binary ends): 20,000 files of about 25 KB (500 MB in all) in 200 folders (`dNNN/src/`), made of lines of random words, with 1,000 of the files (one in twenty) holding the word `quokka` once; the search runs with the ignore files and the default `files.exclude` and `search.exclude` on, and symbolic links followed. The budget is that of SPEC section 14 "Search": the first results within 100 ms. `TestSpeedFirstResults` fails above it (ten times that under `-race`), and writes the times with `-v`; the same word is searched with GNU `grep -rF` (and `-rFi`) over the same tree, in the same test, for the comparison.
+
+| What | Budget | Measured |
+|---|---|---|
+| First result, case sensitive literal | 100 ms | 0.78 ms |
+| First result, ignoring case | 100 ms | 0.59 ms |
+| The whole search (20,000 files, 500 MB, 1,000 files with a match), case sensitive | none | 57 ms |
+| The whole search, ignoring case | none | 50 ms |
+| `grep -rF` over the same tree (GNU grep, 1 thread) | none | 310 ms |
+| `grep -rFi` over the same tree | none | 344 ms |
+
+The same tree, measured while other builds of the repository ran on the machine: the whole search took 94 to 158 ms and `grep` 344 to 361 ms, so the ratio is about the same (5 to 6 times faster than `grep`, which has one thread).
+
+The Go benchmark (`go test ./internal/core/search -run xxx -bench .`, 5 iterations):
+
+| Benchmark | Time per search | Allocations |
+|---|---|---|
+| A literal over 20,000 files | 53.6 ms | 169,405 (16 MB) |
+| A literal ignoring case over 20,000 files | 55.0 ms | 169,381 (16 MB) |
+| A regular expression (`qu+okk?a\b`) over one folder of 100 files | 20.3 ms | 66,998 (4.7 MB) |
+| A multiline regular expression (`quokka \w+\n`) over the same folder | 10.4 ms | 67,048 (9.9 MB) |
+
+What made the numbers: a literal is found with `bytes.Index` (ignoring case: the vectorized `IndexByte` of both cases of the first byte, then a fold-compare of the rest), so most files cost one read and one scan; a file is read whole and a literal is searched in all of it (no line splitting), and the line of a match is found by a locator that only moves forward; the walk lists on its own goroutine, so the workers start on the first file at once.
+
+The UI thread (`extensions/search/frames_test.go`, under the fake platform): with 20,000 matches in 2,000 files streaming into the view, the longest turn of the UI thread (the take of a batch of files, or the frame that shows it) was 10.7 ms, under the 16 ms of the budget; the results reach the UI thread at most every 30 ms (decision 158).
+
 ## Pending
 
 `scripts/perf.sh --session` with the GPU was run for the table of step 10.1 on 2026-10-28 by the manager (see "Desktop pass (step 17b.6)"), except the 200 MB open and the Go benchmarks. What is left is in `docs/MANUAL-CHECKS.md` (3.11 and 10.1): those two, and the decision on the targets still missed.

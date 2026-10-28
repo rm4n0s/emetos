@@ -99,6 +99,38 @@ func NewPicture(img image.Image) (*Picture, error) { return kit.NewPicture(img) 
 // keeping its proportions, in the middle of the box. A nil picture draws nothing.
 func NewImage(pic *Picture, opts ...ImageOpts) *Image { return kit.NewImage(pic, opts...) }
 
+// Toggle and its options (the switches in the find input of the editor and of the Search view).
+type (
+	// Toggle is VS Code's icon toggle: a Codicon in a box that has a border and a tinted background while it is on.
+	Toggle = kit.Toggle
+	// ToggleOpts are the options of NewToggle.
+	ToggleOpts = kit.ToggleOpts
+)
+
+// NewToggle makes a toggle that shows the Codicon of the name ("case-sensitive", "whole-word", "regex"); an unknown name makes
+// a toggle with no icon.
+func NewToggle(name string, opts ...ToggleOpts) *Toggle {
+	code, _ := fonts.CodiconByName(name)
+	return kit.NewToggle(code, opts...)
+}
+
+// History is the list of earlier values of an input box, which Up and Down go through (VS Code's HistoryInputBox).
+type History = kit.History
+
+// NewHistory makes a history with the values, the oldest first, keeping at most limit of them (a default when not given).
+func NewHistory(values []string, limit ...int) *History { return kit.NewHistory(values, limit...) }
+
+// InputMessage is a message shown below an input box while it has the focus.
+type InputMessage = kit.InputMessage
+
+// The severities of an InputMessage.
+const (
+	// ValidationInfo, ValidationWarning and ValidationError are the severities of a message.
+	ValidationInfo    = kit.ValidationInfo
+	ValidationWarning = kit.ValidationWarning
+	ValidationError   = kit.ValidationError
+)
+
 // NewButton makes a text button.
 func NewButton(label string, opts ...ButtonOpts) *Button { return kit.NewButton(label, opts...) }
 

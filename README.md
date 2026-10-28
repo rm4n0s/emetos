@@ -18,7 +18,7 @@ What is built (milestones M0 to M16 of [SPEC §18](docs/SPEC.md#18-milestones)):
 
 Experimental: **Remote Work and Relay are new** and have been tested on one machine (instances on loopback, and a simulated lossy link), not yet on real networks. Remote Work's picture is not sharp on a HiDPI screen. Read [their security notes](#remote-work-and-relay) before you turn either on.
 
-Planned, not built: project-wide search and replace, source control, run and debug through debug adapters (the Go extension has no debugger yet), the integrated terminal, VS Code's `tasks.json` tasks (the Tasks extension runs command lines you list), remote development (SSH remotes and containers), notebooks, the testing UI, multi-root workspaces and settings sync. Language servers other than `gopls` are not bundled (an extension can declare one). The `opencode` agent is not built.
+Planned, not built: source control, run and debug through debug adapters (the Go extension has no debugger yet), VS Code's `tasks.json` tasks (the Tasks extension runs command lines you list), remote development (SSH remotes and containers), notebooks, the testing UI, multi-root workspaces and settings sync. Language servers other than `gopls` are not bundled (an extension can declare one). The `opencode` agent is not built.
 
 ## Build and install
 
@@ -112,6 +112,12 @@ The feature list of [SPEC §3](docs/SPEC.md#3-areas), in short. The first two gr
 - A settings editor (Ctrl+,) and a keyboard shortcuts editor (Ctrl+K Ctrl+S), both editing the JSON files and keeping your comments, and profiles (named sets of settings, keybindings and snippets).
 - The window comes back as you left it: layout, editors with their cursors, scroll positions and folds, and the open folders.
 
+**Search** ([SPEC §10.27](docs/SPEC.md#1027-search-internalcoresearch-extensionssearch))
+- Find and replace in the files of the folder, as VS Code's Search view does: Ctrl+Shift+F (seeded with your selection) and Ctrl+Shift+H, with Match Case (Alt+C), Match Whole Word (Alt+W), regular expressions (Alt+R) and Preserve Case (Alt+P), and the boxes "files to include" and "files to exclude".
+- The results show while you type, as a list or a tree of folders (`search.defaultViewMode`), with F4 and Shift+F4 to open the next and the previous match. `files.exclude`, `search.exclude` and your `.gitignore` files are honored, and the text of an editor with unsaved changes is searched instead of its file.
+- Replace one match, one file or everything (Ctrl+Alt+Enter, after a question); an open file changes in one undo step, and a click on a match while the replace box has text shows the file with its replacements in the diff editor. Find in Folder... is in the Explorer's context menu.
+- The engine is Emetos's own Go code (no `rg`), and it searches a generated tree of 20,000 files and 500 MB faster than `grep -rF` ([docs/PERFORMANCE.md](docs/PERFORMANCE.md)). Extensions reach it with `api.Workspace().FindTextInFiles`.
+
 **Language intelligence** ([SPEC §9.12](docs/SPEC.md#912-language-intelligence-area-3-corelsp-corelangfeatures-guieditor-guiviews-extension)), from language servers over LSP 3.17 and from providers that an extension writes in Go. VS Code's commands, keys and settings:
 - Diagnostics as squiggles and in the Problems panel, with F8 and Shift+F8 to step through them.
 - Completion (the suggest widget with its details pane and snippets), hover, and signature help.
@@ -140,7 +146,7 @@ Emetos's extensions are **Go packages compiled into the program** ([SPEC §10.15
 
 An extension contributes any mix of **seven kinds of contribution**, each drawn inside the box Emetos gives it:
 - **Window tab**: a tab in the strip beside the workspaces (Remote Work, Relay).
-- **Side bar view**: an activity bar icon with views.
+- **Side bar view**: an activity bar icon with views (Search, References).
 - **Panel view**: a tab of the bottom panel beside Problems and Output (Tasks, Go Tests).
 - **Editor tab**: a tab in the editor area that is not a file (the Remote Work page).
 - **Editor title action**: a small icon at the right end of a tab strip (Open Preview to the Side).
@@ -151,6 +157,7 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 
 **What is bundled:**
 - **Language packs**: the 22 languages of [SPEC §8.1](docs/SPEC.md#81-languages-corelanguage) (Go, JSON, YAML, Markdown, Python, JavaScript, TypeScript, HTML, CSS, SCSS, Less, XML, SQL, shell, Makefile, Dockerfile, INI, C and C++, Rust, diff, git files and Go modules).
+- **Search**: VS Code's Search view, find and replace in the files of the folder, above.
 - **Terminal**: shells in the panel, below.
 - **Tasks**: a panel tab that runs the command lines you list in `emetos.tasks.commands` in the folder, shows their output and puts their errors in Problems. (It is not VS Code's `tasks.json`.)
 - **References**: VS Code's references view. Find All References and Find All Implementations list the places a language server finds, by file, in a side bar view with a history of the searches.

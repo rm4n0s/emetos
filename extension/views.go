@@ -138,7 +138,8 @@ type Views interface {
 // and its keybindings read.
 type ContextKeys interface {
 	// Set gives the key a value: a bool, a string or a number. The key starts with the id of the extension and a dot
-	// (emetos.tasks.running), else it fails with ExtensionContextKeyForeign. The keys the activation set go when it ends.
+	// (emetos.tasks.running) or is one of Contributes.ContextKeys, else it fails with ExtensionContextKeyForeign. The keys the
+	// activation set go when it ends.
 	Set(key string, value any) error
 	// Reset takes the key away.
 	Reset(key string)

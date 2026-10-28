@@ -61,6 +61,8 @@ type API struct {
 	ranCommands       []RanCommand
 	docs              map[string]string
 	applied           []extension.WorkspaceEdit
+	searches          []SearchCall
+	replaceCalls      [][]extension.FileReplacement
 	inputs            []*Input
 	serverCalls       []ServerCall
 	serverCommands    map[string][]string

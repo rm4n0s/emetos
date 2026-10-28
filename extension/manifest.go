@@ -16,7 +16,7 @@ var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$`)
 // event that takes an argument without one), and EventTopicInvalid or EventPatternInvalid for a topic or pattern the
 // manifest declares that is malformed, and ExtensionWindowTabIDForeign, ExtensionWindowTabDuplicate and
 // ExtensionWindowTabInvalid for the window tab kinds, and ExtensionServerInvalid and ExtensionServerDuplicate for the language servers, and ExtensionSettingDeclInvalid and
-// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two.
+// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not one word or is declared twice.
 func CheckManifest(m Manifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return errors.New("ExtensionIDInvalid", "the id of an extension is lowercase, dotted and not empty (emetos.markdown)", "id", m.ID)

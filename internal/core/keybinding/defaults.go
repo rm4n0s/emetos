@@ -555,6 +555,7 @@ func registerExplorerFileKeys(r *Registry) {
 		Rule{Command: "filesExplorer.cancelCut", Weight: weight, When: mustWhen(whenFilesExplorerFocus, "explorerResourceCut"), Primary: "escape"},
 		Rule{Command: "explorer.openToSide", Weight: WeightWorkbenchContrib, When: mustWhen(whenExplorerFocus), Primary: "ctrl+enter"},
 		Rule{Command: "revealFileInOS", Weight: WeightWorkbenchContrib, When: mustWhen("!" + whenEditorFocus), Primary: "ctrl+alt+r"},
+		Rule{Command: "filesExplorer.findInFolder", Weight: WeightWorkbenchContrib, When: mustWhen(whenFilesExplorerFocus, "explorerResourceIsFolder"), Primary: "shift+alt+f"},
 	)
 }
 

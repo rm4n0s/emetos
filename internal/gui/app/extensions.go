@@ -380,6 +380,32 @@ func (d extensionDocuments) Active() (extension.ActiveDocument, bool) {
 	return out, true
 }
 
+// Unsaved implements exthost.UnsavedSource: the text of the open files that have unsaved changes, for the search across files,
+// which reads it instead of the file on disk (step 17e.2).
+func (d extensionDocuments) Unsaved() map[string]string {
+	var out map[string]string
+	for _, doc := range d.w.Documents.All() {
+		if u := doc.URI(); u.Scheme == document.SchemeFile && doc.Dirty() {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[u.Path] = doc.Text()
+		}
+	}
+	return out
+}
+
+// OpenFiles implements exthost.UnsavedSource: the paths of the open documents that are files.
+func (d extensionDocuments) OpenFiles() []string {
+	var out []string
+	for _, doc := range d.w.Documents.All() {
+		if u := doc.URI(); u.Scheme == document.SchemeFile {
+			out = append(out, u.Path)
+		}
+	}
+	return out
+}
+
 // Show implements exthost.DocumentShower: the file opens in the active group, as a click on a problem opens it.
 func (d extensionDocuments) Show(uri string, line, column int, preview bool) error {
 	u, err := document.ParseURI(uri)

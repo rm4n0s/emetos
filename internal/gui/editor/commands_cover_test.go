@@ -17,7 +17,7 @@ var appCommands = map[string]bool{
 	"copyFilePath":                           true, "copyRelativeFilePath": true, "revealInExplorer": true,
 	// the file operations of the Explorer (gui/app/fileops.go)
 	"explorer.newFile": true, "explorer.newFolder": true, "renameFile": true, "moveFileToTrash": true, "deleteFile": true,
-	"filesExplorer.cut": true, "filesExplorer.copy": true, "filesExplorer.paste": true, "filesExplorer.cancelCut": true,
+	"filesExplorer.cut": true, "filesExplorer.copy": true, "filesExplorer.paste": true, "filesExplorer.cancelCut": true, "filesExplorer.findInFolder": true,
 	"explorer.openToSide": true, "revealFileInOS": true,
 	// the indentation picker of the status bar (gui/app/statuspickers.go)
 	"changeEditorIndentation": true,

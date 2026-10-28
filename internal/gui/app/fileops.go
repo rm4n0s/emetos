@@ -260,15 +260,16 @@ func (s *shellState) bindFileOpsCommands(binding *widgets.WidgetsBinding) {
 	handlers := map[string]command.Handler{
 		"explorer.newFile": newFile, "workbench.files.action.createFileFromExplorer": newFile,
 		"explorer.newFolder": newFolder, "workbench.files.action.createFolderFromExplorer": newFolder,
-		"renameFile":              run(func() { s.renameInExplorer() }),
-		"moveFileToTrash":         run(func() { s.deleteInExplorer(binding, true) }),
-		"deleteFile":              run(func() { s.deleteInExplorer(binding, false) }),
-		"filesExplorer.cut":       run(func() { s.copyInExplorer(true) }),
-		"filesExplorer.copy":      run(func() { s.copyInExplorer(false) }),
-		"filesExplorer.paste":     run(func() { s.pasteInExplorer(binding) }),
-		"filesExplorer.cancelCut": run(func() { s.clearFileClip() }),
-		"explorer.openToSide":     func(_ command.Context, args any) error { s.openToSide(binding, args); return nil },
-		"revealFileInOS":          func(_ command.Context, args any) error { s.revealInOS(binding, args); return nil },
+		"renameFile":                 run(func() { s.renameInExplorer() }),
+		"moveFileToTrash":            run(func() { s.deleteInExplorer(binding, true) }),
+		"deleteFile":                 run(func() { s.deleteInExplorer(binding, false) }),
+		"filesExplorer.cut":          run(func() { s.copyInExplorer(true) }),
+		"filesExplorer.copy":         run(func() { s.copyInExplorer(false) }),
+		"filesExplorer.paste":        run(func() { s.pasteInExplorer(binding) }),
+		"filesExplorer.cancelCut":    run(func() { s.clearFileClip() }),
+		"explorer.openToSide":        func(_ command.Context, args any) error { s.openToSide(binding, args); return nil },
+		"revealFileInOS":             func(_ command.Context, args any) error { s.revealInOS(binding, args); return nil },
+		"filesExplorer.findInFolder": func(_ command.Context, args any) error { s.findInFolder(args); return nil },
 	}
 	for id, h := range handlers {
 		remove, err := win.Commands.SetHandler(id, h)
@@ -276,6 +277,36 @@ func (s *shellState) bindFileOpsCommands(binding *widgets.WidgetsBinding) {
 			panic(err) // the commands are registered by the program itself: a missing one is a broken build
 		}
 		ex.removeCommands = append(ex.removeCommands, remove)
+	}
+}
+
+// findInFolder is Find in Folder...: the Search view opens with its "files to include" box set to the folder (the folder of the
+// item, for a file), so that it searches only there (step 17e.2, SPEC §10.27). The Search view is the extension emetos.search:
+// the command runs its workbench.action.findInFiles, and says so when the extension is off.
+//
+// Ported from VS Code: src/vs/workbench/contrib/search/browser/searchActionsFind.ts (FindInFolderAction)
+func (s *shellState) findInFolder(args any) {
+	win := PeekWorkspace(s.Context())
+	var include []string
+	for _, p := range s.commandPaths(args) {
+		dir := p
+		if !isDir(p) {
+			dir = filepath.Dir(p)
+		}
+		rel, err := filepath.Rel(win.Folder, dir)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		if rel == "." {
+			include = nil // the folder of the workspace is the whole search
+			break
+		}
+		include = append(include, "./"+filepath.ToSlash(rel))
+	}
+	err := win.runCommand("workbench.action.findInFiles", map[string]any{"filesToInclude": strings.Join(include, ", "), "onlyOpenEditors": false})
+	if err != nil {
+		win.Process.Logger.Warn("Find in Folder cannot open the Search view", "err", err)
+		win.Notify.Error("Emetos", "Cannot open the Search view: "+describe(err))
 	}
 }
 

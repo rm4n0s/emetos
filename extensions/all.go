@@ -23,6 +23,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/remotework"
 	"github.com/rm4n0s/emetos/extensions/rust"
 	"github.com/rm4n0s/emetos/extensions/scss"
+	"github.com/rm4n0s/emetos/extensions/search"
 	"github.com/rm4n0s/emetos/extensions/shellscript"
 	"github.com/rm4n0s/emetos/extensions/sql"
 	"github.com/rm4n0s/emetos/extensions/tasks"
@@ -52,6 +53,7 @@ func All() []extension.Factory {
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
+		search.New,
 		tasks.New, terminal.New, remotework.NewFactory(remotework.HubOptions{Camera: keyqr.NewV4L2()}),
 		relay.NewFactory(relay.HubOptions{Camera: keyqr.NewV4L2()}),
 		references.New,

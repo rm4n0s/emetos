@@ -728,6 +728,7 @@ func registerExplorerFileCommands(r *Registry) {
 		Meta{ID: "filesExplorer.cancelCut", Title: "Cancel Cut"},
 		Meta{ID: "explorer.openToSide", Title: "Open to the Side"},
 		Meta{ID: "revealFileInOS", Title: "Open Containing Folder"},
+		Meta{ID: "filesExplorer.findInFolder", Title: "Find in Folder..."},
 	)
 }
 

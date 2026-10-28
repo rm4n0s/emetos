@@ -109,6 +109,8 @@ func TestNoRiskyCommandIsForgotten(t *testing.T) {
 		"workbench.action.quickOpenPreviousRecentlyUsedEditor": true, "workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup": true,
 		"workbench.action.showAllEditorsByMostRecentlyUsed": true, "workbench.action.showEditorsInActiveGroup": true,
 		"workbench.action.openPreviousEditorFromHistory": true,
+		// Find in Folder... opens the Search view, which searches only the folder of the workspace (SPEC §10.27)
+		"filesExplorer.findInFolder": true,
 	}
 	for _, m := range DefaultRegistry().All() {
 		lower := strings.ToLower(m.ID)

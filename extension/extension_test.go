@@ -33,6 +33,8 @@ func TestCheckManifest(t *testing.T) {
 		{"an id under which Emetos answers requests", Manifest{ID: "emetos.commands", Name: "N"}, "CheckManifest.ExtensionIDReserved"},
 		{"both privileges", Manifest{ID: "a", Name: "N", Privileges: []string{PrivilegeEventsPublishAny, PrivilegeCommandsExecute}}, ""},
 		{"a privilege that does not exist", Manifest{ID: "a", Name: "N", Privileges: []string{"files.deleteAll"}}, "CheckManifest->checkPrivileges.ExtensionPrivilegeUnknown"},
+		{"a context key with a dot", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"search.visible"}}}, "CheckManifest->checkContextKeys.ExtensionContextKeyDeclInvalid"},
+		{"a context key declared twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"hasSearchResult", "hasSearchResult"}}}, "CheckManifest->checkContextKeys.ExtensionContextKeyDeclDuplicate"},
 		{"declared topics", Manifest{ID: "a", Name: "N", Events: EventDecl{
 			Publishes: []EventSpec{{Topic: "a.x", Fast: true}, {Topic: "shared.y"}}, Handles: []string{"shared.req"}, Subscribes: []string{"emetos.document.*", "**"},
 		}}, ""},

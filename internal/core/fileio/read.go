@@ -298,6 +298,11 @@ func detectByZeroBytes(data []byte) (encoding string, binary bool) {
 	return "", true
 }
 
+// Decode turns bytes in the encoding with the id (files.encoding: "utf8", "utf16le", "windows1252", ...) into UTF-8 text,
+// with no byte order mark handling and no change of line endings; bytes that do not decode become U+FFFD. The search
+// of step 17e.2 reads files with it. It fails with EncodingUnknown and FileReadFailed.
+func Decode(id string, data []byte) (string, error) { return decode(id, data) }
+
 // decode turns bytes in the given encoding into UTF-8. Bytes that don't decode
 // become U+FFFD.
 func decode(id string, data []byte) (string, error) {

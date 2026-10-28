@@ -342,7 +342,7 @@ func registerEditorTitleContext(r *MenuRegistry) {
 // order. The "Delete" row has the "Delete Permanently" row as its alternative, which VS Code shows while
 // Shift is held; here the permanent delete shows where the trash cannot be used, and has the key
 // Shift+Delete. The comparisons are the group 3_compare (step 9.6). Not here: the rows for a root folder of a
-// workspace, Open With, Find in Folder, the terminal and the upload and download rows of the web.
+// workspace, Open With, the terminal and the upload and download rows of the web.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.contribution.ts and
 // src/vs/workbench/contrib/files/electron-browser/fileActions.contribution.ts
@@ -364,6 +364,10 @@ func registerExplorerContext(r *MenuRegistry) {
 			When: when("!explorerResourceIsFolder && resourceScheme && !listDoubleSelection")},
 		MenuItem{Menu: ExplorerContext, Command: "compareSelected", Title: "Compare Selected", Group: "3_compare", Order: 30,
 			When: when("!explorerResourceIsFolder && resourceScheme && listDoubleSelection")},
+
+		// Find in Folder... (step 17e.2): the Search view of the extension emetos.search, searching the folder
+		MenuItem{Menu: ExplorerContext, Command: "filesExplorer.findInFolder", Title: "Find in Folder...", Group: "4_search", Order: 10,
+			When: contextkey.Has("explorerResourceIsFolder")},
 
 		MenuItem{Menu: ExplorerContext, Command: "filesExplorer.cut", Title: "Cut", Group: "5_cutcopypaste", Order: 8,
 			When: when("!explorerResourceIsRoot && !explorerResourceReadonly")},
