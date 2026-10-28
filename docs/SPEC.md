@@ -122,6 +122,10 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | D25 | The commands of the container and database extensions are refused to Relay clients (`command.ClientRefusal` class `outside`): they reach beyond the workspace, and the Docker socket is power over the computer | Relay's confinement (D21) stays true |
 | D26 | **No Claude Code in Emetos.** The Agents extension (§10.16, M13) was removed by step 17c.1 at the user's request of 2026-10-27 ("Remove claude code extension. I don't want to read any conditions or accept any terms"); Emetos neither runs nor downloads the Claude Code program. Its pseudo-terminal code moved to `extensions/internal/pty` for the terminal (§10.25) | no third-party terms to accept to publish Emetos |
 | D27 | **The terminal is an extension** (`emetos.terminal`, §10.25): VS Code's integrated terminal with Emetos's own emulator, written in Go from the published descriptions of the terminal's sequences (no xterm.js: the user, 2026-10-28), whose terminals are events and requests, so Relay (§10.19) shows them to clients and lets a client type only where the host checked **Allow terminals** (off by default) | the user's request of 2026-10-27; a terminal is the most powerful thing a client can reach, so it has its own permission |
+| D28 | **No Notes, TODOs or Scratchpad** (§10.26). The user removed the three extensions on 2026-10-28 ("remove extensions for Notes and TODO", "also remove ScratchPad"); step 17e.1 deletes them, and what a user wrote in a note or a Scratchpad is first written to Markdown files, once | the user's request; never lose what the user wrote |
+| D29 | **Search across files** (§10.27): the engine is in the editor core (`internal/core/search`, Emetos's own Go code, no `rg` program) and reaches extensions through `api.Workspace().FindTextInFiles`, as VS Code's `workspace.findTextInFiles`; the Search view is the extension `emetos.search` with VS Code's ids, keys and settings | the user asked for an extension; extensions cannot import the core's regular expressions, and Emetos bundles no program |
+| D30 | **Find All References and Find All Implementations** (§10.28) are the extension `emetos.references`, VS Code's built-in references-view with its ids, menus and view, over a new `api.Languages().References` and `Implementations` | the user's request of 2026-10-28; in VS Code they come from a built-in extension too |
+| D31 | **Hosting is shown, started and stopped in one place** (§10.29): a status bar item of every workspace says whether Remote Work or Relay hosts it, and its menu starts and stops both, with a first-time guide | the user, 2026-10-28: "remote work and relay are not clear on how one workspace can become host and how to disable it" |
 
 ## 5. Architecture
 
@@ -1901,6 +1905,129 @@ VS Code's integrated terminal, built as an extension (`emetos.terminal`, D27): s
   - **Tests.** Table-driven from the documents (every sequence above with its defaults and limits, the parser's states, input cut at every byte, C1 controls, invalid UTF-8, the key and mouse tables of ctlseqs, reflow, the replies), `FuzzParser` with its seed corpus (`GOMEMLIMIT=2GiB go test ./extensions/terminal/emulator -run xxx -fuzz FuzzParser -parallel=1 -fuzztime=30s`), the invariants (`checkInvariants`) after every random and fuzzed input, budgets (`TestThroughputBudgets`, skipped with `-race` and `-short`), and `vim`, `less`, `htop`, `tmux` and `git log --color` recorded in a pseudo-terminal of the test, in a temporary home, under `timeout --foreground`, with a golden of the cells in `testdata/programs/` (`-update-goldens` rewrites it and the recorded bytes, `*.raw`, which `TestReplayRecordings` replays, whole and cut in several ways, without the program; `htop` changes every second, so only its layout and colors are checked).
 - **Not built:** local echo (VS Code uses it only for remote terminals with latency), the GPU renderer settings, profiles of other platforms, moving a terminal to another window and attaching to a terminal of another window, the accessible buffer and the other accessibility commands, the chat and voice features, running tasks and debugging in terminals (areas 6 and 8 are later; when they come, they run in this terminal), an API of Go calls for other extensions (they use the requests).
 
+### 10.26 Removed: Notes, TODOs and Scratchpad
+
+Removed by step 17e.1 at the user's request of 2026-10-28 (D28): "remove extensions for Notes and TODO", "also remove ScratchPad". `extensions/notes`, `extensions/todo` and `extensions/scratchpad` are deleted. Their As built parts in §10.15 (steps 11.5 to 11.7) stay as history. The extension API they exercised stays, and the tests that used them as examples use `extensions/internal/testext` or another extension instead.
+
+- **What the user wrote is kept.** A note's text and a Scratchpad tab's text live in the state Emetos saved: the state of a view, of an editor tab and of a window tab. They are not in files of their own.
+  - At the first start after 17e.1, Emetos writes each note that has a title or a text, and each Scratchpad tab with text, to a Markdown file in `$XDG_DATA_HOME/emetos/saved-notes/`. A note becomes `<title>.md` (`Untitled Note.md` for an empty title). A Scratchpad tab becomes `Scratchpad <tab title>.md`. A clash gets ` 2`, ` 3` and so on.
+  - The files have mode 0600 and the folder 0700.
+  - This happens once: a marker file in the folder records it, so a second start writes nothing.
+  - Then one information notification says "Your notes and Scratchpad text were saved as files in <folder>.", with the action **Open Folder**, which opens the folder in a new workspace tab.
+  - When there is nothing to save, nothing is written and nothing is shown.
+  - The saved state itself is never deleted.
+- **Old state.** A restored editor tab of `emetos.notes.note` is dropped with one info log line and no dialog, as in step 17c.1. So is a window tab of `emetos.scratchpad.tab`: from now on, a window tab whose kind no extension declares gets the same rule as such an editor tab. The saved state of their views is left alone.
+- **Gone with them:**
+  - from TODOs: the view, its status item and `emetos.todo.tags`;
+  - from Notes: the view container, `emetos.notes.newNote`, `emetos.notes.deleteNote` and the editor title action;
+  - from Scratchpad: the "+" entry.
+- **What stays.** The cross-tab question (`Events.CrossTab`, §10.15) stays as API with its tests, even if no extension that remains uses it.
+
+### 10.27 Search (`internal/core/search`, `extensions/search`)
+
+VS Code's Search view, asked for by the user on 2026-10-28: "add extension to find string in files like the search button in vscode". It is built in two parts (D29):
+
+- **The engine** is in the editor core (`internal/core/search`, no UI). It can use Emetos's regular expressions (`internal/core/regex`), globs and the workspace's file index.
+- **The view** is the extension `emetos.search` (`extensions/search`). It reaches the engine through `extension/` with `api.Workspace().FindTextInFiles(ctx, query, options, onResult)`, after VS Code's `workspace.findTextInFiles` API, so other extensions (and Relay, later) can search too.
+
+VS Code's ids, keys, settings and defaults are used (`reference/vscode/src/vs/workbench/contrib/search/`, `.../services/search/`), with the Linux keys.
+
+- **The view.**
+  - **The container:** `workbench.view.search` in the activity bar, with icon `search`, right after the Explorer.
+  - **Opening it:**
+    - `workbench.action.findInFiles` (Ctrl+Shift+F) seeds the query with the selection, or with the word at the cursor when `search.seedWithNearestWord` is on.
+    - `workbench.action.replaceInFiles` (Ctrl+Shift+H) opens it with the replace box.
+    - Both take VS Code's arguments: `query`, `replace`, `isRegex`, `isCaseSensitive`, `matchWholeWord`, `preserveCase`, `filesToInclude`, `filesToExclude`, `triggerSearch`.
+  - **The search box** has Match Case (Alt+C), Match Whole Word (Alt+W) and Use Regular Expression (Alt+R).
+  - **The replace box** opens and closes with the chevron at the left. It has Preserve Case (Alt+P) and Replace All (Ctrl+Alt+Enter).
+  - **"files to include" and "files to exclude":** globs separated by commas, with `./` relative to the folder. "Use Exclude Settings and Ignore Files" and "Search Only in Open Editors" are toggles in these boxes.
+  - **The message** reads "N results in M files", or "No results found. Review your settings for configured exclusions and check your gitignore files - Open Settings - Learn More" without the Learn More link. Hitting `search.maxResults` gets VS Code's message too.
+  - **The results** are a list or a tree by folder (`search.defaultViewMode`, default `list`):
+    - each file shows its match count, and each match shows its line with the match highlighted;
+    - Replace and Dismiss appear on hover, per match and per file;
+    - a click opens the file at the match in a preview tab;
+    - in replace mode, a click opens the replace preview in the diff editor (§9.11).
+  - **The title actions:** Refresh, Clear Search Results, Collapse All / Expand All, and View as Tree / View as List.
+- **Commands, keys and menus:**
+  - Next and previous result: `search.action.focusNextSearchResult` (F4) and `search.action.focusPreviousSearchResult` (Shift+F4).
+  - Replace: `search.action.replace`, `search.action.replaceAllInFile`, `search.action.replaceAll`.
+  - Dismiss: `search.action.remove`.
+  - Copy: `search.action.copyMatch`, `search.action.copyPath`, `search.action.copyAll`.
+  - The view's actions: `search.action.refreshSearchResults`, `search.action.clearSearchResults`, `search.action.collapseSearchResults`, `search.action.expandSearchResults`.
+  - The toggles: `toggleSearchCaseSensitive`, `toggleSearchWholeWord`, `toggleSearchRegex` and `toggleSearchPreserveCase`.
+  - The Explorer's context menu **Find in Folder...** (Shift+Alt+F) on a folder.
+  - VS Code's context keys of Search: `searchViewletVisible`, `searchViewletFocus`, `hasSearchResult`, `searchInputBoxFocus`, `replaceInputBoxFocus`, `replaceActive`, `fileMatchOrMatchFocus` and the others its keys use.
+- **Settings**, with VS Code's defaults:
+  - **Excludes and ignore files:** `search.exclude` (merged with `files.exclude`), `search.useIgnoreFiles` (true: `.gitignore` and `.ignore`), `search.useGlobalIgnoreFiles` (false), `search.useParentIgnoreFiles` (false), `search.followSymlinks` (true).
+  - **Matching:** `search.smartCase` (false), `search.maxResults` (20000).
+  - **Searching while typing:** `search.searchOnType` (true), `search.searchOnTypeDebouncePeriod` (300).
+  - **Seeding:** `search.seedWithNearestWord` (false), `search.seedOnFocus` (false).
+  - **Showing results:** `search.collapseResults` (`alwaysExpand`), `search.showLineNumbers` (false), `search.defaultViewMode` (`list`), `search.sortOrder` (`default`), `search.decorations.colors` and `search.decorations.badges` (true).
+- **The engine:**
+  - **Walking the folder:** it walks on goroutines, a worker per CPU and at most 8. It honors the excludes and the ignore files: `.gitignore` with its whole syntax, nested ones too, `.ignore` and `.git/info/exclude`. It follows symlinks without loops. It skips binary files (a NUL in the first 8 KiB).
+  - **Encoding:** files are read as `files.encoding` says, and a BOM decides.
+  - **Matching:** a literal is found with a fast byte search, with ASCII case folding and Unicode folding when needed. A regular expression uses `internal/core/regex`, which has JavaScript's syntax as in VS Code. It runs over several lines when the pattern contains `\n`. Smart case and whole word work as in VS Code.
+  - **Open editors:** the text of an open editor, with its unsaved changes, is searched instead of the file on disk, as VS Code does.
+  - **Streaming and cancelling:** results stream to the view in batches as they are found, at most one batch per frame. A new query, Escape or closing the view cancels the old search through its `ctx`.
+  - **Replace:** it asks first ("Replace N occurrences across M files with 'x'?"), as VS Code. It edits open documents through their buffers and other files through the workspace's edit path, with one undo step per file.
+- **Speed** (§14 "Search"): the search never blocks the UI thread, and its first results show within 100 ms. The time is recorded beside GNU `grep -rF` on the same tree. (`rg` is not installed on the development machine, and the shell's `rg` must never be run.)
+- **Not built:** the Search Editor (`search.searchEditor.*`), Quick Search (`workbench.action.quickTextSearch`), AI and notebook search, and `search.quickOpen.*`.
+
+### 10.28 References (`extensions/references`)
+
+VS Code's built-in extension "references-view" (`reference/vscode/extensions/references-view/`, MIT), as the extension `emetos.references` (D30), asked for by the user on 2026-10-28: "Right click on a method or variable should have two button 'Find all references' and 'Find all implementations'".
+
+- **The commands:**
+  - `references-view.findReferences`, "Find All References", Shift+Alt+F12;
+  - `references-view.findImplementations`, "Find All Implementations".
+  - Both are in the editor's context menu, in VS Code's group and order (`0_navigation@1` and `0_navigation@2`), when the language has the provider (`editorHasReferenceProvider`, `editorHasImplementationProvider`). They are also in the Command Palette, with the category "References".
+  - They ask the language server (§9.12, `core/langfeatures`) for the symbol at the cursor, through a new call of `extension/`: `api.Languages().References` and `Implementations`.
+  - The existing peek commands (`editor.action.goToReferences`, `editor.action.goToImplementation`, `editor.action.referenceSearch.trigger`) stay as they are.
+- **The view:**
+  - **Where:** the side bar view container `references-view` (icon `references`), with the view `references-view.tree` titled "References" (or "Implementations"). The view opens and gets the focus when a search starts.
+  - **The results:** a tree by file, with the count per file and each location's line, the symbol highlighted. A click opens the location, and F4 and Shift+F4 (`references-view.next`, `references-view.prev`) walk the locations.
+  - **The message:** "N results in M files", or "No results." with the symbol's name.
+  - **History:** the last searches are kept in a history (VS Code's `references-view.showHistory`). The view's empty state lists them, and choosing one runs it again.
+  - **Title actions:** Refresh (`references-view.refresh`), Clear (`references-view.clear`), Collapse All and history.
+  - **Each item:** Dismiss (`references-view.removeReferenceItem`), Copy (`references-view.copy`), Copy All (`references-view.copyAll`) and Copy Path (`references-view.copyPath`).
+- **Not built:** Show Call Hierarchy and Show Type Hierarchy, the other two features of references-view, which need call and type hierarchy in the language client.
+
+### 10.29 Hosting a workspace: one place to start and stop
+
+The user, on 2026-10-28: "remote work and relay are not clear on how one workspace can become host and how to disable it." Until step 17e.4, a workspace was hosted in two different ways:
+- **Remote Work:** the Remote Work page turned it on, and only the Command Palette opened that page ("Remote Work: Manage").
+- **Relay:** a switch "Listen for other computers" in the Be a Host section of the Relay window tab turned it on, together with a checkbox for each workspace.
+
+Nothing in the workspace showed that it was hosted. From step 17e.4 (D31):
+
+- **The Sharing status item.** Every workspace has a status bar item on the left, VS Code-style (`emetos.sharing.status`, before the problems item).
+  - **When not hosted:** it shows only the icon `broadcast`, with the tooltip "This workspace is not shared. Click to host it."
+  - **When hosted:** it shows `broadcast` and the word **Hosting**, plus the number of connected computers when there are any ("Hosting · 2"). Its background is `statusBarItem.remoteBackground`, and its tooltip says by what and on which port ("Remote Work on port 47123: 1 computer connected (laptop). Relay on port 47124: nobody connected").
+  - **A click** opens a quick pick with these entries, each with a line that says what it means:
+    - **Host with Remote Work** ("Allowed computers see this window and control it") or **Stop Hosting with Remote Work**;
+    - **Host with Relay** ("Allowed computers watch this workspace's events and, if you allow it, send commands") or **Stop Hosting with Relay**;
+    - **Disconnect <key comment>** for each connected computer;
+    - **Remote Work Settings...** and **Relay Settings...**, which open the page and the tab.
+- **The commands** (also in the Command Palette):
+  - Remote Work: `emetos.remotework.host` ("Remote Work: Host This Workspace") and `emetos.remotework.stopHosting` ("Remote Work: Stop Hosting This Workspace");
+  - Relay: `emetos.relay.host` and `emetos.relay.stopHosting`;
+  - Relay's window tab: `emetos.relay.open` opens the Relay tab.
+  - Hosting a workspace with Relay checks its box and turns listening on if it was off. Stopping it unchecks the box, and turns listening off when no workspace is shared any more.
+  - Stopping ends the sessions of that workspace at once. The clients see "The host stopped sharing this workspace."
+- **The first time.** If no allowed key is listed, Host opens the page (or tab) at a short guide instead of a switch that would do nothing:
+  1. "Add the public key of the computer that will connect." Paste the key, choose a `.pub` file, or Scan QR Code.
+  2. "Turn hosting on."
+  3. "On the other computer, connect to:" this computer's addresses (each non-loopback interface) and the port, with Copy buttons, and the host key's fingerprint to compare.
+
+  Each step shows a check mark when it is done.
+- **The page and the tab.** The Remote Work page and Relay's Be a Host section start with a switch labelled "Host this workspace" ("Host the shared workspaces" in Relay), with a line under it in plain words:
+  - On: "On. Computers with an allowed key can connect to 192.168.1.5:47123."
+  - Off: "Off. No other computer can connect."
+
+  When the switch is on, a **Stop Hosting** button sits beside it.
+- **While hosted,** the workspace also shows the banner of §10.19 for Remote Work as for Relay: "This workspace is shared with Remote Work (1 computer connected)", with the action **Stop Hosting**.
+- **README.** Its Remote Work and Relay sections start with "How to host a workspace" and "How to stop", each in three lines.
+
 ## 11. Configuration
 
 ### 11.1 Settings (`core/jsonc`, `core/settings`)
@@ -2020,6 +2147,7 @@ Measured on release builds (`-tags glutter_release,emetos_dev`, so dev commands 
 | Terminal frame: a full screen of 160×45 cells that all changed (`htop`, `vim` scrolling) | UI thread 3 ms or less, raster 4 ms or less with the GPU | 17d.2 |
 | Terminal typing: a key at a shell prompt | the UI thread's part of the echo under 2 ms; the echo drawn in the first frame after the shell's output arrives | 17d.2 |
 | Terminal memory: 10,000 lines of scrollback at 160 columns | 16 MB or less; an idle terminal allocates nothing per frame | 17d.1 |
+| Search: a literal in a generated tree of 20,000 files and 500 MB (warm cache, the ignore files and excludes on) | the first results within 100 ms; no frame of the UI thread over 16 ms while it runs; the whole search timed beside GNU `grep -rF` on the same tree, in `docs/PERFORMANCE.md` | 17e.2 |
 
 **As built (step 17b.4).**
 
@@ -2104,6 +2232,7 @@ Emetos is MIT-licensed (`LICENSE`). The reference sources are pinned in `scripts
 | M17b | Bugs found on the desktop: input boxes that kept only the first key, a Markdown preview that froze the window, typing over and snippets as in VS Code, Glutter's bugs and the idle cost, a pass with real input (§15.1 "Real input") |
 | M17c | Removal of the Agents extension (D26) |
 | M17d | The terminal: Emetos's own emulator, the Terminal panel with VS Code's commands and settings, its events and requests, the Relay client's Terminals panel with the host's Allow terminals, shell integration, terminal IntelliSense, terminals in the editor area and persistent sessions (§10.25, D27) |
+| M17e | What the user asked for on 2026-10-28: Notes, TODOs and Scratchpad removed (their text saved to files), Search across files, Find All References and Implementations, and one place to start and stop hosting (§10.26–§10.29, D28–D31) |
 | M18 | Containers: the Docker and Podman engine client, the Docker extension in the spirit of Container Tools, Compose, build and scaffolding, the Podman extension with pods and Kube (§10.20, D22) |
 | M19 | SQL databases: connections and the keyring, the results grid, the schema explorer for PostgreSQL, MySQL/MariaDB, SQLite and SQL Server, query editors and the results panel (§10.21, D23, D24) |
 | M20 | MongoDB: the explorer, playgrounds in a subset of the mongosh syntax, results and document editing (§10.22) |

@@ -130,6 +130,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M17b Bugs found on the desktop | 17b.1–17b.6 |
 | M17c Remove the Agents extension | 17c.1 |
 | M17d The terminal | 17d.1–17d.7 |
+| M17e What the user asked for on 2026-10-28 | 17e.1–17e.4 |
 | M18 Containers | 18.1–18.4 |
 | M19 SQL databases | 19.1–19.3 |
 | M20 MongoDB | 20.1–20.2 |
@@ -1551,6 +1552,122 @@ The user, on 2026-10-27: "Put a new extension to run terminal and working with e
 **Tasks:** the terminal editor (an editor input of the extension, its tab title and icon, moving between panel and editor and back with the same process and content, drag from the tabs list to the editor area, `defaultLocation`); icons and colors; drag to reorder; join, unsplit, kill all, new with a profile or a folder, size to content width; the tab's hover and the process name title; persistent sessions (save at exit with the serializer, restore at start before the first frame of the panel, the restored content and the new shell, the setting to turn it off).
 **Tests:** moving a terminal keeps its process and content (the same pid, the same cells); the saved state and its restore (a goldens pair: before exit and after start); every command; **real input**: drag a terminal from the tabs list onto the editor area, type in it, move it back to the panel; quit Emetos with two terminals (one split) and start it again: both come back with their content and a working shell in the same folder; Change Color makes the tab red.
 **Proof:** method C with real input: a terminal in an editor tab beside a file, and a restored terminal in the panel (`17d.7-terminal-editor.png`).
+
+---
+
+## M17e: What the user asked for on 2026-10-28
+
+The user, on 2026-10-28, while M17d was being built: "Some steps for the future: remove extensions for Notes and TODO; add extension to find string in files like the search button in vscode; Right click on a method or variable should have two button "Find all references" and "Find all implementations"; remote work and relay are not clear on how one workspace can become host and how to disable it", and "also remove ScratchPad" (SPEC §10.26 to §10.29, D28 to D31). The milestone comes after M17d and before M18, and each step tests with real input (17b.1), as M17b did.
+
+### 17e.1 Remove Notes, TODOs and Scratchpad
+**Goal:** Emetos has none of the three extensions, and a user who had notes or Scratchpad text finds it in files (SPEC §10.26, D28).
+**Read:** SPEC §10.26, §10.15 (the As built parts of 11.5 to 11.7, how a window restores tabs, views and window tabs), §10.16 and the 17c.1 entry of `docs/IMPLEMENTED.md` (the same kind of removal); `git grep -n -i -e notes -e todo -e scratchpad` (every hit about these extensions is in scope; TODO comments in code are not).
+**Tasks:**
+- Delete `extensions/notes`, `extensions/todo` and `extensions/scratchpad` and their lines in `extensions/all.go`, and their parts of `scripts/` (`scripts/screenshots.sh`, proof fixtures used only by them).
+- Remove or retarget their uses elsewhere. Every test that used one of them as an example of the contract moves to `extensions/internal/testext` or to another extension, with no coverage lost. This covers:
+  - the display tests of 17b.5 and 17b.6 (the Notes fast keys, the Notes welcome of D10);
+  - `internal/core/command/clientpolicy_test.go`;
+  - Relay's and the window tab's tests;
+  - goldens.
+- Keep the user's text, as SPEC §10.26 "What the user wrote is kept" says:
+  - the export to `$XDG_DATA_HOME/emetos/saved-notes/`, once, with its marker;
+  - the notification with **Open Folder**.
+  - The code reads the saved formats of the removed extensions (documented in §10.15's As built parts and the old code in git) and lives in `internal/gui/app`, with a comment that names D28.
+- A restored window tab whose kind no extension declares is dropped, as the editor tabs of 17c.1 are, with one info log line.
+- Update the docs:
+  - README (features, screenshots: `todos-tasks.png` becomes a Tasks screenshot or goes);
+  - SPEC: §3's package list, §10.26 As built, the milestone table;
+  - the coverage rows of `docs/IMPLEMENTED.md`, marked removed;
+  - `docs/MANUAL-CHECKS.md`;
+  - `docs/DESKTOP-PASS.md` (D10 now notes the removal).
+**Tests:**
+- The export, table-driven over an isolated `XDG_*`:
+  - notes with and without titles, two notes with one title, a Scratchpad with and without text;
+  - nothing to save (nothing written, no notification);
+  - a second start (nothing written again);
+  - an unreadable state (one warning log and the window starts);
+  - each error Tag's route.
+- The window tab drop.
+- **Real input:** a session saved with a note tab, a TODOs view and a Scratchpad tab, started again, gives the notification. Open Folder opens the folder with the files, and no dialog shows.
+- `git grep` shows no use left.
+
+### 17e.2 Search across files
+**Goal:** VS Code's Search view: find and replace a string in the files of the workspace (SPEC §10.27, D29).
+**Read:**
+- SPEC §10.27, §14 "Search", §10.15, §9.11 (the diff editor), §10.5 (the Explorer's context menu);
+- `reference/vscode/src/vs/workbench/contrib/search/` (`search.contribution.ts`, `searchView.ts`, `searchWidget.ts`, `searchActions*.ts`, `searchIcons.ts`, `replace*.ts`, `searchMessage.ts`);
+- `reference/vscode/src/vs/workbench/services/search/` (the query, the ignore files, the excludes, `textSearchManager.ts`, the ripgrep arguments for what is matched);
+- `internal/core/regex`, `internal/core/glob`, the file index of `internal/core/workspace`.
+**Tasks:**
+- `internal/core/search`: the engine of §10.27, with no UI.
+- `extension/`: `api.Workspace().FindTextInFiles`, and the replace path, if the API has none that fits.
+- `extensions/search`: the view, the commands, keys, context keys, menus, settings and colors of §10.27, with VS Code's ids and defaults, and Find in Folder... in the Explorer.
+- README: a Search section.
+- SPEC: §10.27 As built, and the §14 row measured.
+**Tests:**
+- The engine, table-driven:
+  - literal, case, whole word, smart case, regular expressions (one line and several lines);
+  - include and exclude globs;
+  - `files.exclude` and `search.exclude`;
+  - `.gitignore` cases (nested, negation, directories, anchored), ported where VS Code's search tests have them;
+  - binary files, encodings, BOM, symlinks with a loop;
+  - open editors with unsaved text, the limit, and cancellation (no goroutine left).
+- Replace: preserve case (VS Code's cases), regex groups, one undo step per file, the confirmation.
+- Goldens of the view (dark and light): the results as a list and as a tree, the replace box, the messages.
+- **Speed:** a test holds the first results within 100 ms and the UI thread under 16 ms per frame while 20,000 generated files are searched. The time beside GNU `grep -rF` goes in `docs/PERFORMANCE.md`.
+- **Real input:**
+  - Ctrl+Shift+F, type a word: results show while typing;
+  - F4 opens the next match;
+  - Alt+C narrows the results;
+  - Ctrl+Shift+H with a replacement, then Replace All and confirm: the files change, and Ctrl+Z in an open file undoes its part;
+  - Find in Folder... from the Explorer.
+**Proof:** method C with real input: the Search view with results and the replace box (`17e.2-search.png`).
+
+### 17e.3 Find All References and Find All Implementations
+**Goal:** a right click on a method or a variable offers Find All References and Find All Implementations, and their results fill a References view, as VS Code's references-view does (SPEC §10.28, D30).
+**Read:** SPEC §10.28, §9.12 (the language client, the peek of references), §10.15; `reference/vscode/extensions/references-view/` (`package.json`, `src/references/`, `src/tree.ts`, `src/navigation.ts`, `src/highlights.ts`, `src/utils.ts`; MIT).
+**Tasks:**
+- `extension/`: `api.Languages().References` and `Implementations` (positions in, locations out, with the `ctx`).
+- `extensions/references`: the commands, the context menu entries, the keys, the view, the history and the item actions of §10.28, with VS Code's ids.
+- README: a line in the language features.
+- SPEC: §10.28 As built.
+**Tests:**
+- The commands with a fake language server: results by file, the counts, the message, no result.
+- The context menu shows the entries only with the provider, in VS Code's order.
+- The history; F4 and Shift+F4; Dismiss and Copy; goldens of the view (dark and light).
+- **Real input with `gopls`** (build tag `emetos_gopls`, skipped when gopls is missing): in a Go module of the test,
+  - right click on a method → Find All References: the view lists the calls in two files, and a click opens one;
+  - right click on an interface method → Find All Implementations lists the types that implement it;
+  - Shift+Alt+F12 on a variable.
+**Proof:** method C with real input: the context menu with the two entries, and the References view (`17e.3-references.png`).
+
+### 17e.4 Hosting a workspace: one place to start and stop
+**Goal:** a user can see at a glance whether a workspace is hosted by Remote Work or Relay, start hosting it, and stop it, from one status bar item (SPEC §10.29, D31).
+**Read:** SPEC §10.29, §10.18 and §10.19 (all, with their As built parts), §10.7 (notifications and banners); `extensions/remotework`, `extensions/relay`, `extensions/internal/pageui`.
+**Tasks:**
+- **First, find what is unclear.** Use both extensions as a new user would, with real input, two Emetos processes on this machine and test keys (as the tests of 15.x and 16.x). Take screenshots of each step of hosting and stopping. Write in `docs/DESKTOP-PASS.md` (new findings H1, H2...) what a user cannot find or understand.
+- **Then build §10.29:**
+  - the Sharing status item and its quick pick;
+  - the commands;
+  - the first-time guide with the addresses and the fingerprint;
+  - the "Host this workspace" switch and its plain line;
+  - Stop Hosting;
+  - the banner for Remote Work;
+  - "The host stopped sharing this workspace." on the client;
+  - the README's "How to host a workspace" and "How to stop".
+  - Fix every finding H*, or explain why it is not a bug.
+**Tests:**
+- The status item's states and tooltip, and the quick pick's entries for each state, table-driven: off; Remote Work on; Relay on; both; with connected computers.
+- Host and Stop for each extension, with the listener's state and `relay.json` checked.
+- The first-time guide (no key, a key, on).
+- Goldens: the status item, the pick, the guide, the page, the tab's section, the banner, dark and light.
+- **Real input:** from a fresh state,
+  1. click the status item and choose Host with Remote Work, follow the guide (paste a test key), and turn it on;
+  2. a second Emetos connects with that key;
+  3. the item says "Hosting · 1";
+  4. Stop Hosting from the item ends the client's session with the message.
+  Then the same with Relay, with "Disconnect <key>".
+**Proof:** method C with real input: the status item's menu while hosted, and the first-time guide (`17e.4-hosting.png`).
 
 ---
 
