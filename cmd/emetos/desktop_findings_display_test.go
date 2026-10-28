@@ -30,8 +30,8 @@ func TestDesktopWindowTabLabelIsNotCutWhenThereIsRoom(t *testing.T) {
 	a := display.Start(t, display.Options{Args: []string{".", "a.txt"}, Project: diffProject})
 	a.Settle()
 	a.Click(186, 18) // the plus button
-	a.WaitText("Scratchpad")
-	a.ClickText("Scratchpad")
+	a.WaitText("Relay")
+	a.ClickText("Relay")
 	a.Eventually("a second window tab", func() (bool, string) {
 		w := a.Workbench().WindowTabs
 		return len(w) == 2 && w[1].Active, a.Dump()
@@ -58,24 +58,6 @@ func TestDesktopHoverHidesWhenTheContextMenuOpens(t *testing.T) {
 	if a.Editor().HoverVisible {
 		t.Error("the hover came back while the context menu is open")
 	}
-}
-
-// TestDesktopEmptyNotesViewHasAWelcomeButton (D10): the empty Notes view shows a "New Note" button (VS Code's welcome content of an
-// empty view) that makes a note, without the pointer over the header.
-func TestDesktopEmptyNotesViewHasAWelcomeButton(t *testing.T) {
-	a := display.Start(t, display.Options{Args: []string{".", "todo.go"}, Project: extProject})
-	a.Settle()
-	a.Click(24, 155) // the Notes icon of the activity bar
-	a.WaitText("No notes yet.")
-	a.WaitText("New Note")
-	shot(t, a, "notes-welcome")
-	a.ClickText("New Note")
-	a.Eventually("a note to open", func() (bool, string) {
-		_, ok := a.Focused()
-		return ok, joinNames(tabNames(a))
-	})
-	a.Type("From the welcome button")
-	a.WaitFocusedText("From the welcome button")
 }
 
 // TestDesktopPanelTabsAreWholeAndOverflow (D4): the title of the panel keeps its tabs whole at 1280 and 1024 px, with a count on

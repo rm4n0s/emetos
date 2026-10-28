@@ -11,7 +11,7 @@ import (
 // "+" button, opens a tab of it when the entry is chosen, and brings it back when Emetos restarts, with the state the
 // extension saved. The extension gives the kind its content with WindowTabs().Provide, in the scope of the tab.
 type WindowTabKindSpec struct {
-	// ID identifies the kind. It starts with the id of the extension and a dot (emetos.scratchpad.tab).
+	// ID identifies the kind. It starts with the id of the extension and a dot (emetos.relay.tab).
 	ID string
 	// Title is the title of a tab that has not set one, and the name the Extensions page and the log call the tab.
 	Title string

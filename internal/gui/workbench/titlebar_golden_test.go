@@ -100,7 +100,7 @@ func extensionTabs() []WorkspaceTab {
 	note, _ := fonts.CodiconByName("note")
 	return []WorkspaceTab{
 		{ID: "t1", Name: "emetos", Tooltip: "/home/me/emetos", Folder: true},
-		{ID: "t2", Name: "Scratchpad", Tooltip: "Scratchpad", IconCode: note},
+		{ID: "t2", Name: "Relay", Tooltip: "Relay", IconCode: note},
 	}
 }
 
@@ -121,7 +121,7 @@ func TestGoldenTitleBarOfAWindowTabOfAnExtension(t *testing.T) {
 		t.Run(th.name+" new menu", func(t *testing.T) {
 			r := newStripRigIn(t, ui.Size{Width: 960, Height: 300}, th.colors(), extensionTabs(), 0, nil, func(o *Options) { o.EditorOnly = true })
 			r.bar.NewItems = func() []kit.MenuItem {
-				return []kit.MenuItem{{ID: "emetos.workspaceTab.openFolder", Label: "Workspace..."}, {ID: "emetos.windowTab.open", Label: "Scratchpad"}}
+				return []kit.MenuItem{{ID: "emetos.workspaceTab.openFolder", Label: "Workspace..."}, {ID: "emetos.windowTab.open", Label: "Relay"}}
 			}
 			r.ts.TapAt(r.ts.Center(gluttertest.ByIcon(codiconAdd())), r.mouse())
 			r.settle()

@@ -7,7 +7,7 @@ import (
 )
 
 func TestExtensionTabInput(t *testing.T) {
-	in := NewExtensionTabInput("emetos.notes", "emetos.notes.note", "t1", "Groceries", "note")
+	in := NewExtensionTabInput("emetos.remotework", "emetos.remotework.page", "t1", "Groceries", "note")
 	var events []InputEventKind
 	in.Subscribe(func(e InputEvent) { events = append(events, e.Kind) })
 	if in.TypeID() != ExtensionTabInputTypeID || in.Name() != "Groceries" || in.Title() != "Groceries" || in.Dirty() || in.Busy() {

@@ -7,7 +7,7 @@
 # not exist; it is removed at the end), and every run opens the copies there.
 #
 # Usage: scripts/screenshots.sh [name...]
-#   names: editor workspace-tabs switch-picker diff merge settings todos go-hover terminal remote-work relay
+#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work relay
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
 #   go-hover    gopls on PATH (it is skipped, with a message, when gopls is missing; this script never installs it)
@@ -20,7 +20,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings todos go-hover terminal remote-work relay)
+all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work relay)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -77,10 +77,10 @@ shoot() {
       scripts/proof.sh docs/screenshots/settings.png --config "$s/settings/config" \
         --commands '[["workbench.action.openSettings","font"]]' --
       ;;
-    todos)
-      # the TODOs view, and the Tasks tab of the panel after "go vet ./..." (the problems it finds are in the folder on purpose)
-      PROOF_TIMEOUT=240 scripts/proof.sh docs/screenshots/todos-tasks.png --config "$s/tools/config" --after 8s \
-        --commands '[["workbench.view.extension.emetos.todo.container"],["sleep","800ms"],["dev.openFile",{"path":"'$p'/tools/main.go","line":13,"column":20}],["emetos.tasks.run"],["sleep","4s"]]' \
+    tasks)
+      # the Tasks tab of the panel after "go vet ./..." (the problems it finds are in the folder on purpose)
+      PROOF_TIMEOUT=240 scripts/proof.sh docs/screenshots/tasks.png --config "$s/tools/config" --after 8s \
+        --commands '[["dev.openFile",{"path":"'$p'/tools/main.go","line":13,"column":20}],["emetos.tasks.run"],["sleep","4s"]]' \
         -- "$p/tools"
       ;;
     go-hover)

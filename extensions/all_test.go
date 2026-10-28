@@ -14,7 +14,7 @@ import (
 // TestEveryFactoryMakesAValidExtension holds the factories of All, and the test extension, to the contract: a valid
 // manifest, an id no other has, and a new extension at each call.
 func TestEveryFactoryMakesAValidExtension(t *testing.T) {
-	factories := append(All(), testext.New)
+	factories := append(All(), testext.New, testext.NewTabs)
 	seen := map[string]bool{}
 	for i, f := range factories {
 		a, b := f(), f()
@@ -45,8 +45,8 @@ func TestAllMakesANewSliceEachTime(t *testing.T) {
 
 func TestTheTestExtensionIsNotCompiledIn(t *testing.T) {
 	for _, f := range All() {
-		if f().Manifest().ID == testext.ID {
-			t.Errorf("extensions.All lists the test extension")
+		if id := f().Manifest().ID; id == testext.ID || id == testext.TabsID {
+			t.Errorf("extensions.All lists the test extension %s", id)
 		}
 	}
 }
@@ -60,7 +60,7 @@ func TestEveryPackHasItsFiles(t *testing.T) {
 		m := f().Manifest()
 		fsys := m.Contributes.Languages
 		if fsys == nil {
-			continue // an extension of the workbench (the TODOs view, the Tasks tab), not a language pack
+			continue // an extension of the workbench (the Tasks tab), not a language pack
 		}
 		packs++
 		data, err := fs.ReadFile(fsys, "package.json")

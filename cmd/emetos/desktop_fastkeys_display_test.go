@@ -149,12 +149,17 @@ func TestDesktopFastKeysKeybindingsSearch(t *testing.T) {
 	})
 }
 
-// TestDesktopFastKeysNotes: a new note's title is typed at once.
-func TestDesktopFastKeysNotes(t *testing.T) {
+// TestDesktopFastKeysThemePicker: Ctrl+K Ctrl+T and the name of a theme at once (it replaced the test that typed the title of a new
+// note, which went with the Notes extension in step 17e.1).
+func TestDesktopFastKeysThemePicker(t *testing.T) {
 	forEachKeyMode(t, display.Options{Args: []string{".", "app.go"}, Project: navProject}, func(t *testing.T, a *display.App, m keyMode) {
-		a.Dev("emetos.notes.newNote", nil)
-		a.Keys(m.batch, keys(t, nil, "Shopping list")...)
-		a.WaitFocusedText("Shopping list")
+		a.Keys(m.batch, keys(t, []string{"ctrl+k", "ctrl+t"}, "light modern")...)
+		a.WaitFocusedText("light modern")
+		a.Settle()
+		a.WaitText("Light Modern Default Light")
+		if got := editorText(a); got != goApp {
+			t.Errorf("the document changed to %q", got)
+		}
 	})
 }
 

@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "folder": "/work/project",
+  "grid": {
+    "orientation": 0,
+    "root": [
+      {
+        "size": 1,
+        "model": {
+          "id": 1,
+          "editors": [
+            {
+              "id": "emetos.extensionTab",
+              "value": "{\"ext\":\"emetos.notes\",\"kind\":\"emetos.notes.note\",\"id\":\"ab12cd34ef56\",\"title\":\"Groceries\",\"icon\":\"note\"}"
+            },
+            {
+              "id": "emetos.extensionTab",
+              "value": "{\"ext\":\"emetos.remotework\",\"kind\":\"emetos.remotework.page\",\"id\":\"ff00ff00ff00\",\"title\":\"Remote Work\",\"icon\":\"note\"}"
+            }
+          ],
+          "mru": [
+            0,
+            1
+          ]
+        }
+      }
+    ],
+    "active": 1,
+    "mru": [
+      1
+    ],
+    "nextId": 2
+  },
+  "views": {
+    "editor:ab12cd34ef56": {
+      "note": {
+        "id": "n2",
+        "text": "a second list with the same title",
+        "title": "Groceries"
+      }
+    },
+    "editor:ff00ff00ff00": {
+      "page": "x"
+    },
+    "emetos.notes.list": {
+      "notes": [
+        {
+          "id": "n1",
+          "title": "Groceries",
+          "text": "milk\neggs\nbread"
+        },
+        {
+          "id": "n2",
+          "title": "Groceries",
+          "text": "a second list with the same title"
+        },
+        {
+          "id": "n3",
+          "title": "",
+          "text": "a note with a text and no title"
+        },
+        {
+          "id": "n4",
+          "title": "Empty idea",
+          "text": ""
+        },
+        {
+          "id": "n5",
+          "title": "",
+          "text": ""
+        },
+        {
+          "id": "n6",
+          "title": "Plans/2026: \"big\" ones",
+          "text": "title with characters a file name cannot hold"
+        }
+      ]
+    },
+    "emetos.tasks.panel": {
+      "command": "go test ./..."
+    },
+    "emetos.todo.list": {
+      "expanded": [
+        "main.go"
+      ]
+    }
+  }
+}

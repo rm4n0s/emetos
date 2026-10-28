@@ -165,29 +165,6 @@ func TestRealInputExplorerRenameAndNewFile(t *testing.T) {
 	a.Press("Escape")
 }
 
-func TestRealInputNotesTitleAndBody(t *testing.T) {
-	a := startProject(t)
-	a.Dev("emetos.notes.newNote", nil)
-	a.Settle()
-	a.Eventually("the title of the note to have the focus", func() (bool, string) {
-		_, ok := a.Focused()
-		return ok, "no text field has the focus"
-	})
-	a.Type(hello)
-	a.WaitFocusedText(hello)
-	// the body: a click in the second box
-	inputs := sortedInputs(a)
-	if len(inputs) < 2 {
-		t.Fatalf("the note has %d text fields, want a title and a body: %+v", len(inputs), inputs)
-	}
-	a.ClickInput(inputs[1])
-	a.Type("first line\nsecond " + hello)
-	a.WaitFocusedText("first line\nsecond " + hello)
-	if got := sortedInputs(a)[0].Text; got != hello {
-		t.Errorf("the title holds %q", got)
-	}
-}
-
 func TestRealInputProblemsFilter(t *testing.T) {
 	a := startProject(t)
 	a.Press("ctrl+shift+m")
@@ -198,17 +175,26 @@ func TestRealInputProblemsFilter(t *testing.T) {
 	a.WaitFocusedText(hello)
 }
 
-func TestRealInputScratchpad(t *testing.T) {
+// TestRealInputRemoteWorkTabForm: the window tab of Remote Work has two boxes, the host and the port; each takes what is typed
+// into it. It replaced the tests of the Notes and Scratchpad boxes, which went with those extensions (step 17e.1).
+func TestRealInputRemoteWorkTabForm(t *testing.T) {
 	a := startProject(t)
-	a.Dev("dev.openWindowTab", map[string]any{"kind": "emetos.scratchpad.tab"})
+	a.Dev("dev.openWindowTab", map[string]any{"kind": "emetos.remotework.tab"})
 	a.Settle()
-	inputs := a.Inputs()
-	if len(inputs) == 0 {
-		t.Fatal("the scratchpad has no text field")
+	inputs := sortedInputs(a)
+	if len(inputs) < 2 {
+		t.Fatalf("the tab has %d text fields, want the host and the port: %+v", len(inputs), inputs)
 	}
 	a.ClickInput(inputs[0])
 	a.Type(hello)
 	a.WaitFocusedText(hello)
+	a.ClickInput(inputs[1])
+	a.Press("ctrl+a")
+	a.Type("2222")
+	a.WaitFocusedText("2222")
+	if got := sortedInputs(a)[0].Text; got != hello {
+		t.Errorf("the host holds %q", got)
+	}
 }
 
 // proofDir returns where the proof images go when EMETOS_PROOF_DIR is set, else a folder of the test.
@@ -228,19 +214,6 @@ func TestRealInputProofs(t *testing.T) {
 		a.WaitFocusedText("app.go")
 		a.Settle()
 		a.Screenshot(filepath.Join(dir, "17b.1-quickopen.png"))
-	})
-	t.Run("note", func(t *testing.T) {
-		a := startProject(t)
-		a.Dev("emetos.notes.newNote", nil)
-		a.Settle()
-		a.Type("Shopping list")
-		a.WaitFocusedText("Shopping list")
-		inputs := sortedInputs(a)
-		a.ClickInput(inputs[1])
-		a.Type("milk, eggs and bread\nand a bag for all of it")
-		a.WaitFocusedText("milk, eggs and bread\nand a bag for all of it")
-		a.Settle()
-		a.Screenshot(filepath.Join(dir, "17b.1-note.png"))
 	})
 }
 

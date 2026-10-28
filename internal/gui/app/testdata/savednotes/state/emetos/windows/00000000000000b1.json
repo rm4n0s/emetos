@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "grid": {
+    "orientation": 0,
+    "root": [
+      {
+        "size": 1,
+        "model": {
+          "id": 1,
+          "editors": [
+            {
+              "id": "emetos.extensionTab",
+              "value": "{\"ext\":\"emetos.notes\",\"kind\":\"emetos.notes.note\",\"id\":\"0a0b0c0d0e0f\",\"title\":\"Plans\",\"icon\":\"note\"}"
+            }
+          ],
+          "mru": [
+            0
+          ]
+        }
+      }
+    ],
+    "active": 1,
+    "mru": [
+      1
+    ],
+    "nextId": 2
+  },
+  "views": {
+    "editor:0a0b0c0d0e0f": {
+      "note": {
+        "id": "n6",
+        "text": "title with characters a file name cannot hold",
+        "title": "Plans/2026: \"big\" ones"
+      }
+    }
+  }
+}

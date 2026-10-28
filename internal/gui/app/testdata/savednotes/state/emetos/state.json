@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "emptyWindowId": "00000000000000b1",
+  "lastWindow": {
+    "folder": "/work/project"
+  },
+  "workspaceTabs": [
+    {
+      "id": "1111111111111111",
+      "stateId": "65d80d2c48b3d23b",
+      "folder": "/work/project"
+    },
+    {
+      "id": "2222222222222222",
+      "kind": "emetos.scratchpad.tab",
+      "state": {
+        "notes": "Ideas for the release\n- the window tabs\n- the remote control"
+      }
+    },
+    {
+      "id": "3333333333333333",
+      "kind": "emetos.scratchpad.tab",
+      "title": "Ideas",
+      "state": {
+        "notes": "Ideas for the release\n- the window tabs\n- the remote control"
+      }
+    },
+    {
+      "id": "4444444444444444",
+      "kind": "emetos.scratchpad.tab",
+      "title": "Empty",
+      "state": {
+        "notes": ""
+      }
+    },
+    {
+      "id": "5555555555555555",
+      "stateId": "00000000000000b1"
+    }
+  ],
+  "activeWorkspaceTab": "2222222222222222",
+  "recent": {
+    "folders": null,
+    "files": null
+  }
+}

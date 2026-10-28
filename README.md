@@ -138,11 +138,11 @@ Emetos has one window. Every folder you open is a **workspace tab** in the strip
 Emetos's extensions are **Go packages compiled into the program** ([SPEC §10.15](docs/SPEC.md#1015-extensions-extension-extensions)). There is no plugin loading, no marketplace and no Node.js host, and VS Code extensions do not run in Emetos. Adding one is adding its folder under `extensions/` and one line to `extensions/all.go`, and building Emetos again. An extension that fails (an error or a panic) is switched off for that tab, with a notification and a log entry; the rest of Emetos goes on. The page **Extensions** (Ctrl+Shift+X) lists them, with their state and a Disable button (`extensions.disabled`).
 
 An extension contributes any mix of **seven kinds of contribution**, each drawn inside the box Emetos gives it:
-- **Window tab**: a tab in the strip beside the workspaces (a scratchpad, Remote Work, Relay).
-- **Side bar view**: an activity bar icon with views (TODOs, Notes).
+- **Window tab**: a tab in the strip beside the workspaces (Remote Work, Relay).
+- **Side bar view**: an activity bar icon with views.
 - **Panel view**: a tab of the bottom panel beside Problems and Output (Tasks, Go Tests).
-- **Editor tab**: a tab in the editor area that is not a file (a note).
-- **Editor title action**: a small icon at the right end of a tab strip (New Note).
+- **Editor tab**: a tab in the editor area that is not a file (the Remote Work page).
+- **Editor title action**: a small icon at the right end of a tab strip (Open Preview to the Side).
 - **File view**: micro-tabs inside a file's tab for the files an extension declares (the Markdown preview next to Text).
 - **Contributions to the built-in parts**: Output channels, Problems markers, status bar items and notifications.
 
@@ -150,15 +150,14 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 
 **What is bundled:**
 - **Language packs**: the 22 languages of [SPEC §8.1](docs/SPEC.md#81-languages-corelanguage) (Go, JSON, YAML, Markdown, Python, JavaScript, TypeScript, HTML, CSS, SCSS, Less, XML, SQL, shell, Makefile, Dockerfile, INI, C and C++, Rust, diff, git files and Go modules).
-- **TODOs**: a side bar view that lists the `TODO` and `FIXME` comments of the folder and opens them.
 - **Terminal**: shells in the panel, below.
 - **Tasks**: a panel tab that runs the command lines you list in `emetos.tasks.commands` in the folder, shows their output and puts their errors in Problems. (It is not VS Code's `tasks.json`.)
 - **Markdown preview**: a Preview micro-tab for Markdown files, and Open Preview to the Side.
-- **Notes**: notes for the workspace, with a list in the side bar and a note in an editor tab.
-- **Scratchpad**: a window tab with notes that stay across restarts and a feed of the edits made in the other tabs (it shows them once you allow the link).
 - **Go**, **Remote Work** and **Relay**, below.
 
-![The TODOs view, the Tasks tab of the panel with the problems go vet found, and squiggles from gopls](docs/screenshots/todos-tasks.png)
+![The Tasks tab of the panel with the problems go vet found, and squiggles from gopls](docs/screenshots/tasks.png)
+
+The Notes, TODOs and Scratchpad extensions of earlier versions are gone. What you wrote in a note or in the Scratchpad is saved once, at the first start, as Markdown files in `$XDG_DATA_HOME/emetos/saved-notes/` (`~/.local/share/emetos/saved-notes/` by default), and a notification offers **Open Folder** ([SPEC §10.26](docs/SPEC.md#1026-removed-notes-todos-and-scratchpad)).
 
 ### Terminal
 

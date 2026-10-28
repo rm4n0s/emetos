@@ -352,8 +352,8 @@ func (t *Tabs) buildTitleBar(bc widgets.BuildContext) widgets.Widget {
 // and the box of the close button.
 //
 // The label is drawn in the text style the tab inherits and measured in the style the tab gives it, so what is measured can be
-// a fraction of a pixel narrower than what is drawn ("Scratchpad" 69.27 px drawn, 69 measured), and a paragraph that is
-// narrower than its text shows an ellipsis ("Scratchp..."): the width has tabLabelSlack more than the measure (step 17b.6, D11).
+// a fraction of a pixel narrower than what is drawn (a label drawn 69.27 px wide measured 69), and a paragraph that is
+// narrower than its text shows an ellipsis ("Labe..."): the width has tabLabelSlack more than the measure (step 17b.6, D11).
 func tabNaturalWidth(bc widgets.BuildContext, it TabItem) float64 {
 	w := tabPaddingStart + tabActionWidth + tabLabelSlack + tabLabelWidth(bc, it.Name, tabFontSize)
 	if it.Icon != nil {

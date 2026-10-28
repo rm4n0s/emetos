@@ -81,14 +81,14 @@ func TestDesktopMarkdownPreview(t *testing.T) {
 		Prepare: func(dir string) { mdfixture.Generate(t, dir) },
 	})
 	a.Settle()
-	// the action in the title of the editor, left of the others
+	// the action in the title of the editor, left of the others (the Notes extension had one too until step 17e.1)
 	var actions []app.DevText
 	for _, tx := range a.Texts() {
 		if tx.Y > 36 && tx.Y < 70 && tx.X > 1100 && len([]rune(tx.Text)) == 1 {
 			actions = append(actions, tx)
 		}
 	}
-	if len(actions) < 2 {
+	if len(actions) < 1 {
 		t.Fatalf("%d editor actions, want the preview's among them: %s", len(actions), a.Dump())
 	}
 	first := actions[0]

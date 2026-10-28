@@ -91,9 +91,15 @@ func Run(ctx context.Context, opts Options) error {
 	}
 	m := process.Workspaces
 	m.ctx, m.watch = ctx, true
+	// the text of the removed Notes and Scratchpad extensions is read before the tabs are made: the tabs write the state again
+	// (SPEC §10.26, D28)
+	saved := process.loadSavedNotes(ctx)
 	first, err := m.start(ctx, opts)
 	if err != nil {
 		return err
+	}
+	if saved != nil {
+		m.savedNotes = &savedNotesRun{texts: saved, notify: first.ws.Notify}
 	}
 	defer func() {
 		// what is left to write (the recently opened list changed after the window closed)

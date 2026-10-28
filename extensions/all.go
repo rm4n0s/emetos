@@ -17,18 +17,15 @@ import (
 	"github.com/rm4n0s/emetos/extensions/less"
 	"github.com/rm4n0s/emetos/extensions/makefile"
 	"github.com/rm4n0s/emetos/extensions/markdown"
-	"github.com/rm4n0s/emetos/extensions/notes"
 	"github.com/rm4n0s/emetos/extensions/relay"
 	"github.com/rm4n0s/emetos/extensions/python"
 	"github.com/rm4n0s/emetos/extensions/remotework"
 	"github.com/rm4n0s/emetos/extensions/rust"
-	"github.com/rm4n0s/emetos/extensions/scratchpad"
 	"github.com/rm4n0s/emetos/extensions/scss"
 	"github.com/rm4n0s/emetos/extensions/shellscript"
 	"github.com/rm4n0s/emetos/extensions/sql"
 	"github.com/rm4n0s/emetos/extensions/tasks"
 	"github.com/rm4n0s/emetos/extensions/terminal"
-	"github.com/rm4n0s/emetos/extensions/todo"
 	"github.com/rm4n0s/emetos/extensions/typescript"
 	"github.com/rm4n0s/emetos/extensions/xml"
 	"github.com/rm4n0s/emetos/extensions/yaml"
@@ -42,9 +39,8 @@ import (
 // Python, JavaScript and TypeScript, then the rest): the order of the list is the order of registration, which decides
 // which language wins when two claim the same file name. internal/core/language/packfs lists the same packs in the same
 // order for the tests, and a test in cmd/emetos keeps the two the same. The test extension of the contract is
-// extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the TODOs view
-// (extensions/todo), the Tasks tab of the panel (extensions/tasks), the Terminal tab of the panel (extensions/terminal), the notes (extensions/notes) and the window tab Scratchpad
-// (extensions/scratchpad), then Remote Work (extensions/remotework, whose instances share
+// extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the Tasks tab of
+// the panel (extensions/tasks) and the Terminal tab of the panel (extensions/terminal), then Remote Work (extensions/remotework, whose instances share
 // one hub made here, with the Source of the real cameras, which opens no device before the Scan QR Code dialog does) and Relay
 // (extensions/relay, the only extension the host grants the privileges events.publishAny and commands.execute; its instances
 // share one hub made here too, with the Source of the real cameras).
@@ -53,7 +49,7 @@ func All() []extension.Factory {
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
-		todo.New, tasks.New, terminal.New, notes.New, scratchpad.New, remotework.NewFactory(remotework.HubOptions{Camera: keyqr.NewV4L2()}),
+		tasks.New, terminal.New, remotework.NewFactory(remotework.HubOptions{Camera: keyqr.NewV4L2()}),
 		relay.NewFactory(relay.HubOptions{Camera: keyqr.NewV4L2()}),
 	}
 }

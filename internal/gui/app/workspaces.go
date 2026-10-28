@@ -91,7 +91,7 @@ func (t *WindowTab) ID() string { return t.id }
 // Kind is what the tab holds.
 func (t *WindowTab) Kind() TabKind { return t.kind }
 
-// KindID is the id of the kind of the window tab of an extension (emetos.scratchpad.tab); empty for a workspace.
+// KindID is the id of the kind of the window tab of an extension (emetos.relay.tab); empty for a workspace.
 func (t *WindowTab) KindID() string {
 	if t.ws != nil && t.ws.ext != nil {
 		return t.ws.ext.kind.Spec.ID
@@ -122,7 +122,9 @@ type Workspaces struct {
 	host *tabsHostState
 	// quitting is true from the first question of a quit until it is cancelled or the application ends.
 	quitting bool
-	observer *workspacesObserver
+	// savedNotes is the export of the text of the removed extensions, until the application is bound (savednotes.go).
+	savedNotes *savedNotesRun
+	observer   *workspacesObserver
 	// watch is true when the cancellation of ctx is the signal that ends the program (Run).
 	watch bool
 	// listeners are told when the tabs change: opened, closed, moved, activated or renamed.
@@ -480,6 +482,7 @@ func (m *Workspaces) bind(binding *widgets.WidgetsBinding) {
 		return
 	}
 	m.binding = binding
+	m.startSavedNotes(binding.Post)
 	m.observer = &workspacesObserver{m: m}
 	binding.AddObserver(m.observer)
 	if l := m.p.Launcher; l != nil {

@@ -11,7 +11,7 @@ import (
 // (SPEC §10.15 "Editor tab"). The extension gives the kind its content with Editors().Provide and opens tabs of it with
 // Editors().Open; the tabs come back when Emetos restarts, with the state they saved.
 type EditorKindSpec struct {
-	// ID identifies the kind. It starts with the id of the extension and a dot (emetos.notes.note).
+	// ID identifies the kind. It starts with the id of the extension and a dot (emetos.remotework.page).
 	ID string
 	// Name is the name of the kind, the title of a tab that has not set one.
 	Name string
@@ -22,7 +22,7 @@ type EditorKindSpec struct {
 // EditorActionSpec declares an editor title action: a micro icon at the right end of the tab strip of every editor group
 // (SPEC §10.15 "Editor title action"). The icons are ordered by extension (in the order of activation) and Order; those
 // that do not fit go into a "..." menu. The command is run with the argument {"groupId": n}, the group whose strip the
-// icon is in (GroupOfArgs reads it), so that "New Note" opens its tab in that group.
+// icon is in (GroupOfArgs reads it), so that an action such as Open Preview to the Side opens its tab in that group.
 type EditorActionSpec struct {
 	// Command is the id of the command the icon runs: a command of the extension or of the editor.
 	Command string

@@ -76,7 +76,7 @@ type LastWindow struct {
 const TabKindWorkspace = "workspace"
 
 // tabKindPattern is the form of the id of a kind of window tab of an extension: the id of the extension, a dot and a name
-// (emetos.scratchpad.tab), so that it never is TabKindWorkspace.
+// (emetos.relay.tab), so that it never is TabKindWorkspace.
 var tabKindPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`)
 
 // ValidTabKind tells whether kind can be the kind of the window tab of an extension.

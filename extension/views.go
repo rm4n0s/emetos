@@ -10,7 +10,7 @@ import (
 // extension's container shows when the user clicks the icon, or runs the command ShowViewCommand(ID).
 type ViewContainerSpec struct {
 	// ID identifies the container among the containers of Emetos. It starts with the id of the extension and a dot
-	// (emetos.todo.container).
+	// (acme.build.container).
 	ID string
 	// Title is the name in the title of the side bar and the tooltip of the icon.
 	Title string

@@ -308,10 +308,19 @@ func TestAnExtensionTabThatNoExtensionHasAnyMoreIsLeftOut(t *testing.T) {
 	a.openExt()
 	a.m.Active().RequestClose(CloseReasonQuit)
 	a.waitFor("the quit", func() bool { return a.quits == 1 })
-	b := env.run(Options{}) // an Emetos without the extension
+	logger, logged := savedNotesLog()
+	b := env.runWith(Options{}, ProcessOptions{Logger: logger}) // an Emetos without the extension
 	b.settle()
 	if b.m.Count() != 1 || b.m.Tabs()[0].Kind() != TabWorkspace {
 		t.Errorf("%d tabs, the first of kind %v", b.m.Count(), b.m.Tabs()[0].Kind())
+	}
+	// step 17e.1 (SPEC §10.26): the tab of a removed extension (Scratchpad was one) is dropped with one information line, no dialog
+	if lines := strings.Count(logged.String(), "a window tab of an extension is left out"); lines != 1 ||
+		!strings.Contains(logged.String(), "level=INFO") || !strings.Contains(logged.String(), "kind="+wtxKind) {
+		t.Errorf("the log has %d lines about the tab:\n%s", lines, logged.String())
+	}
+	if items := b.m.Active().Notify.Items(); len(items) != 0 {
+		t.Errorf("the tab that was left out told the user: %+v", items)
 	}
 	if errs := b.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)

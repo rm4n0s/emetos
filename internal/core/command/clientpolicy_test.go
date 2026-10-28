@@ -42,7 +42,7 @@ func TestClientRefusal(t *testing.T) {
 		{"workbench.action.openWorkspaceSettings", ""},
 		{"workbench.action.files.save", ""},
 		{"editor.action.formatDocument", ""},
-		{"emetos.notes.newNote", ""},
+		{"emetos.tasks.run", ""},
 		{"emetos.relayfoo", ""}, // a prefix needs its dot
 		{"", ""},
 	}
