@@ -44,6 +44,7 @@ func TestDevQueryErrorRoutes(t *testing.T) {
 		{"dev.inputs", "devInputs.DevInputsNoWindow"},
 		{"dev.editor", "devEditor.DevEditorNoWorkspace"},
 		{"dev.markdown", "devMarkdown.DevMarkdownNoWindow"},
+		{"dev.terminals", "devTerminals.DevTerminalsNoWindow"},
 		{"dev.texts", "devTexts.DevTextsNoWindow"},
 		{"dev.workbench", "devWorkbench.DevWorkbenchNoWorkspace"},
 	} {

@@ -68,6 +68,9 @@ func TestCheckManifest(t *testing.T) {
 		{"an editor kind with no name", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorKinds: []EditorKindSpec{{ID: "a.note"}}}}, "checkEditors.ExtensionEditorInvalid"},
 		{"a file view that selects nothing", Manifest{ID: "a", Name: "N", Contributes: Contributes{FileViews: []FileViewSpec{{ID: "a.v", Name: "V"}}}}, "checkEditors.ExtensionEditorInvalid"},
 		{"an editor action with no icon", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorActions: []EditorActionSpec{{Command: "a.c"}}}}, "checkEditors.ExtensionEditorActionInvalid"},
+		{"context keys of VS Code's names", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"terminalFocus", "terminalCount"}}}, ""},
+		{"a context key that is not a word", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"terminal.focus"}}}, "checkContextKeys.ExtensionContextKeyDeclInvalid"},
+		{"a context key listed twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"terminalFocus", "terminalFocus"}}}, "checkContextKeys.ExtensionContextKeyDeclDuplicate"},
 		{"window tab kinds", Manifest{ID: "a", Name: "N", ActivationEvents: []string{OnWindowTab("a.tab")}, Contributes: Contributes{
 			WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab", Title: "Tab", Icon: "note", PlusMenuLabel: "Tab..."}, {ID: "a.other", Title: "Other"}}}}, ""},
 		{"a window tab kind of another extension's id", Manifest{ID: "a", Name: "N", Contributes: Contributes{WindowTabKinds: []WindowTabKindSpec{{ID: "b.tab", Title: "Tab"}}}}, "checkWindowTabs.ExtensionWindowTabIDForeign"},

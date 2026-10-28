@@ -7,7 +7,7 @@
 # not exist; it is removed at the end), and every run opens the copies there.
 #
 # Usage: scripts/screenshots.sh [name...]
-#   names: editor workspace-tabs switch-picker diff merge settings todos go-hover remote-work relay
+#   names: editor workspace-tabs switch-picker diff merge settings todos go-hover terminal remote-work relay
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
 #   go-hover    gopls on PATH (it is skipped, with a message, when gopls is missing; this script never installs it)
@@ -20,7 +20,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings todos go-hover remote-work relay)
+all=(editor workspace-tabs switch-picker diff merge settings todos go-hover terminal remote-work relay)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -90,6 +90,12 @@ shoot() {
       fi
       scripts/proof.sh docs/screenshots/go-hover.png --after 9s \
         --commands '[["dev.openFile",{"path":"'$p'/api/main.go","line":15,"column":20}],["sleep","6s"],["dev.showHover",{"line":15,"column":20}],["sleep","2s"]]' \
+        -- "$p/api"
+      ;;
+    terminal)
+      # two terminals side by side in the panel: the shell of the profile lists the folder in color and stays open
+      scripts/proof.sh docs/screenshots/terminal.png --config "$s/terminal/config" --after 6s \
+        --commands '[["dev.openFile",{"path":"'$p'/api/main.go"}],["workbench.action.terminal.new"],["sleep","1500ms"],["workbench.action.terminal.split"],["sleep","2s"]]' \
         -- "$p/api"
       ;;
     remote-work)

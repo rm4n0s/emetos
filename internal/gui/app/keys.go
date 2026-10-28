@@ -216,6 +216,9 @@ func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode
 	// the settings are keys too, "config.<setting>" as in VS Code (menuContext)
 	var keys contextkey.Context = menuContext{base: w.Scopes.ScopeOf(focus, w.Keys), settings: w.Settings}
 	out := w.Dispatcher.Dispatch(keys, chord)
+	if out.Command != "" && !w.viewAllowsCommand(out.Command) {
+		return false // the view that has the focus (a terminal) keeps the key
+	}
 	if out.Status != "" || out.ClearStatus {
 		w.chordStatus(out.Status, out.ClearStatus)
 	}
@@ -229,6 +232,21 @@ func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode
 		}
 	}
 	return out.Handled
+}
+
+// viewAllowsCommand tells whether the view of an extension that has the keyboard focus lets the window run the command of a
+// key press (ViewContent.AllowCommand); true when no such view has the focus.
+func (w *Workspace) viewAllowsCommand(commandID string) bool {
+	scope := w.Extensions()
+	if scope == nil {
+		return true
+	}
+	view := w.Keys.Get("focusedView")
+	if view == nil {
+		return true
+	}
+	id, ok := view.(string)
+	return !ok || scope.ViewAllowsCommand(id, commandID)
 }
 
 // isTextEditChord tells whether a chord is Ctrl+A, Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z.

@@ -244,3 +244,20 @@ func TestCloseMakesAWaitingReadReturnEOF(t *testing.T) {
 		t.Fatal("Close did not end the read")
 	}
 }
+
+func TestForegroundPidIsTheProgramAndThenWhatItRuns(t *testing.T) {
+	// a shell with job control would make a group per command; this one runs the program as the leader and then sleeps in it
+	p := shell(t, Options{NoEcho: true}, `sleep 60`)
+	time.Sleep(100 * time.Millisecond)
+	pid, err := p.ForegroundPid()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pid != p.Pid() {
+		t.Errorf("foreground group = %d, want the leader %d", pid, p.Pid())
+	}
+	p.Close()
+	<-p.Done()
+	_, err = p.ForegroundPid()
+	route(t, err, "Process.ForegroundPid.PtyForegroundFailed")
+}

@@ -244,3 +244,21 @@ func (p *Process) end(sig syscall.Signal) {
 		}
 	}()
 }
+
+// ForegroundPid is the process ID of the foreground process group of the terminal: the shell at its prompt, the program it
+// runs while one runs (tcgetpgrp on the master). It fails with the tag PtyForegroundFailed when the terminal is closed.
+func (p *Process) ForegroundPid() (int, error) {
+	sc, err := p.master.SyscallConn()
+	if err != nil {
+		return 0, errors.NewErr("PtyForegroundFailed", err).SetMetadata("step", "syscall conn")
+	}
+	var pgrp int
+	var ioErr error
+	if err := sc.Control(func(fd uintptr) { pgrp, ioErr = unix.IoctlGetInt(int(fd), unix.TIOCGPGRP) }); err != nil {
+		return 0, errors.NewErr("PtyForegroundFailed", err).SetMetadata("step", "control")
+	}
+	if ioErr != nil {
+		return 0, errors.NewErr("PtyForegroundFailed", ioErr).SetMetadata("step", "ioctl")
+	}
+	return pgrp, nil
+}

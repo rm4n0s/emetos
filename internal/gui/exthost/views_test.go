@@ -763,3 +763,49 @@ func TestTheStateIsSavedWhenTheExtensionIsTurnedOffButNotWhenItFailed(t *testing
 		t.Errorf("a failed extension was asked for its state: %v", vt2.log.saved)
 	}
 }
+
+func TestAPanicInAllowCommandFailsTheExtensionAndLetsTheKeyRun(t *testing.T) {
+	tests := []struct {
+		name  string
+		allow func(string) bool
+		want  bool
+		fails bool
+	}{
+		{"it says no", func(string) bool { return false }, false, false},
+		{"it says yes", func(string) bool { return true }, true, false},
+		{"it panics", func(string) bool { panic("allow boom") }, true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, _ := factory(viewsManifest(), func(f *fake) {
+				f.activate = func(_ context.Context, api extension.API) error {
+					_, err := api.Views().Provide("vx.list", extension.ViewContent{
+						Build:        func(widgets.BuildContext) widgets.Widget { return widgets.NewSizedBox(nil) },
+						AllowCommand: tt.allow,
+					})
+					return err
+				}
+			})
+			r := newRig(t, f)
+			tb := r.newTab("one")
+			tb.deferred = true
+			tb.scope.Start()
+			v := &viewTab{rig: r, tab: tb}
+			v.show("vx.list")
+			if got := tb.scope.ViewAllowsCommand("vx.list", "some.command"); got != tt.want {
+				t.Errorf("ViewAllowsCommand = %v, want %v", got, tt.want)
+			}
+			tb.pump()
+			if failed := tb.scope.State("vx") == StateFailed; failed != tt.fails {
+				t.Fatalf("failed = %v, want %v", failed, tt.fails)
+			}
+			if tt.fails {
+				route(t, tb.scope.Failure("vx").Err, "Scope.ViewAllowsCommand.func1.ExtensionViewAllowCommandPanicked")
+			}
+			// a view that is not an extension's, or has no function, lets every key run
+			if !tb.scope.ViewAllowsCommand("workbench.panel.markers.view", "x") {
+				t.Error("a view of Emetos refused a key")
+			}
+		})
+	}
+}

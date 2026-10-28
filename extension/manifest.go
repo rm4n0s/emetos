@@ -57,6 +57,9 @@ func CheckManifest(m Manifest) error {
 	if err := checkSettings(m); err != nil {
 		return err
 	}
+	if err := checkContextKeys(m); err != nil {
+		return err
+	}
 	if err := checkPrivileges(m); err != nil {
 		return err
 	}
@@ -197,6 +200,24 @@ func checkWindowTabs(m Manifest) error {
 			return errors.New("ExtensionWindowTabInvalid", "a window tab kind needs a title", "id", m.ID, "kind", k.ID)
 		}
 		seen[k.ID] = true
+	}
+	return nil
+}
+
+// contextKeyPattern is the name of a context key an extension declares without its id: a word of letters and digits.
+var contextKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+
+// checkContextKeys checks the context keys a manifest declares: every name is a word and none is listed twice.
+func checkContextKeys(m Manifest) error {
+	seen := map[string]bool{}
+	for _, key := range m.Contributes.ContextKeys {
+		switch {
+		case !contextKeyPattern.MatchString(key):
+			return errors.New("ExtensionContextKeyDeclInvalid", "a context key that an extension declares is a word of letters and digits", "id", m.ID, "key", key)
+		case seen[key]:
+			return errors.New("ExtensionContextKeyDeclDuplicate", "two context keys of the extension have the same name", "id", m.ID, "key", key)
+		}
+		seen[key] = true
 	}
 	return nil
 }

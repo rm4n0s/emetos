@@ -66,6 +66,11 @@ var clientRules = []refusedRule{
 		class: extension.RefusedRemote, reason: "a client may not drive the extensions that share a workspace or control another one",
 		prefixes: []string{extension.RelayID + ".", "emetos.remotework."},
 	},
+	{
+		class: extension.RefusedTerminal, reason: "a terminal runs programs on the computer of the host: a client uses the terminal requests, which the host allows per key (Allow terminals)",
+		ids:      []string{"workbench.action.createTerminalEditor"},
+		prefixes: []string{"workbench.action.terminal."},
+	},
 }
 
 // ClientRefusal tells whether a client may not run the command, and why. The id is the command's, case as it is.

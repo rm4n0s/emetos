@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -644,6 +645,8 @@ type View struct {
 	Badge    int
 	BadgeTip string
 	Reveals  []bool
+	// Hides counts the calls of Hide.
+	Hides    int
 	Disposed bool
 }
 
@@ -683,6 +686,7 @@ func (h viewHandle) Reveal(focus bool) {
 	h.v.Reveals = append(h.v.Reveals, focus)
 	h.v.mu.Unlock()
 }
+func (h viewHandle) Hide()    { h.v.mu.Lock(); h.v.Hides++; h.v.mu.Unlock() }
 func (h viewHandle) Dispose() { h.v.mu.Lock(); h.v.Disposed = true; h.v.mu.Unlock() }
 
 // View returns the view the extension provided with the id, or nil.
@@ -858,7 +862,7 @@ func (w workspace) ReadFile(ctx context.Context, path string) (string, error) {
 type contextKeys struct{ a *API }
 
 func (c contextKeys) Set(key string, value any) error {
-	if !strings.HasPrefix(key, c.a.manifest.ID+".") {
+	if !strings.HasPrefix(key, c.a.manifest.ID+".") && !slices.Contains(c.a.manifest.Contributes.ContextKeys, key) {
 		return errors.New("FakeContextKeyForeign", "the key is not under the id of the extension", "key", key)
 	}
 	c.a.mu.Lock()

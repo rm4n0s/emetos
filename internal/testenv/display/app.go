@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -498,6 +499,52 @@ func (a *App) Previews() []app.DevMarkdown {
 	if err := json.Unmarshal(resp.Result, &list); err != nil {
 		a.t.Fatalf("dev.markdown: %v", err)
 	}
+	return list
+}
+
+// TerminalState is what dev.terminals reports about a terminal on screen (the extension's own type, decoded here by its JSON
+// names).
+type TerminalState struct {
+	Text       string `json:"text"`
+	Selected   string `json:"selected"`
+	Scroll     int    `json:"scroll"`
+	Scrollback int    `json:"scrollback"`
+	Cols       int    `json:"cols"`
+	Rows       int    `json:"rows"`
+	Focused    bool   `json:"focused"`
+	Alt        bool   `json:"alt"`
+	Pid        int    `json:"pid"`
+	// CellW, CellH and PadLeft are the size of a cell and the space left of the first column, in logical pixels.
+	CellW   float64 `json:"cellW"`
+	CellH   float64 `json:"cellH"`
+	PadLeft float64 `json:"padLeft"`
+}
+
+// Terminal is a terminal on screen: its place in window coordinates and its state.
+type Terminal struct {
+	X, Y, Width, Height float64
+	TerminalState
+}
+
+// Terminals lists the terminals on screen (dev.terminals), from the left.
+func (a *App) Terminals() []Terminal {
+	a.t.Helper()
+	resp := a.Dev("dev.terminals", nil)
+	var raw []struct {
+		X      float64       `json:"x"`
+		Y      float64       `json:"y"`
+		Width  float64       `json:"width"`
+		Height float64       `json:"height"`
+		State  TerminalState `json:"state"`
+	}
+	if err := json.Unmarshal(resp.Result, &raw); err != nil {
+		a.t.Fatalf("dev.terminals: %v", err)
+	}
+	list := make([]Terminal, len(raw))
+	for i, r := range raw {
+		list[i] = Terminal{X: r.X, Y: r.Y, Width: r.Width, Height: r.Height, TerminalState: r.State}
+	}
+	sort.SliceStable(list, func(i, j int) bool { return list[i].X < list[j].X })
 	return list
 }
 

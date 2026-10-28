@@ -1,0 +1,188 @@
+package terminal
+
+import (
+	"strings"
+
+	"github.com/rm4n0s/emetos/extension"
+)
+
+// The keys of the settings of the terminal (VS Code's terminal.integrated.*, with its defaults on Linux).
+const (
+	settingDefaultProfile = "terminal.integrated.defaultProfile.linux"
+	settingProfiles       = "terminal.integrated.profiles.linux"
+	settingCwd            = "terminal.integrated.cwd"
+	settingEnv            = "terminal.integrated.env.linux"
+	settingScrollback     = "terminal.integrated.scrollback"
+	settingFontFamily     = "terminal.integrated.fontFamily"
+	settingFontSize       = "terminal.integrated.fontSize"
+	settingLineHeight     = "terminal.integrated.lineHeight"
+	settingLetterSpacing  = "terminal.integrated.letterSpacing"
+	settingFontWeight     = "terminal.integrated.fontWeight"
+	settingFontWeightBold = "terminal.integrated.fontWeightBold"
+	settingCursorStyle    = "terminal.integrated.cursorStyle"
+	settingCursorBlink    = "terminal.integrated.cursorBlinking"
+	settingCursorWidth    = "terminal.integrated.cursorWidth"
+	settingCursorInactive = "terminal.integrated.cursorStyleInactive"
+	settingBoldBright     = "terminal.integrated.drawBoldTextInBrightColors"
+	settingMinContrast    = "terminal.integrated.minimumContrastRatio"
+	settingWheelSens      = "terminal.integrated.mouseWheelScrollSensitivity"
+	settingFastSens       = "terminal.integrated.fastScrollSensitivity"
+	settingWordSeps       = "terminal.integrated.wordSeparators"
+	settingCopyOnSelect   = "terminal.integrated.copyOnSelection"
+	settingRightClick     = "terminal.integrated.rightClickBehavior"
+	settingMiddleClick    = "terminal.integrated.middleClickBehavior"
+	settingSkipShell      = "terminal.integrated.commandsToSkipShell"
+	settingSendKeys       = "terminal.integrated.sendKeybindingsToShell"
+	settingAllowChords    = "terminal.integrated.allowChords"
+	settingMultiLinePaste = "terminal.integrated.enableMultiLinePasteWarning"
+	settingIgnoreBracket  = "terminal.integrated.ignoreBracketedPasteMode"
+	settingEnableBell     = "terminal.integrated.enableBell"
+	settingVisualBell     = "terminal.integrated.enableVisualBell"
+	settingConfirmOnKill  = "terminal.integrated.confirmOnKill"
+	settingConfirmOnExit  = "terminal.integrated.confirmOnExit"
+	settingTabsEnabled    = "terminal.integrated.tabs.enabled"
+	settingTabsLocation   = "terminal.integrated.tabs.location"
+	settingTabsHide       = "terminal.integrated.tabs.hideCondition"
+	settingTabsTitle      = "terminal.integrated.tabs.title"
+	settingTabsDefaultIco = "terminal.integrated.tabs.defaultIcon"
+	settingDetectLocale   = "terminal.integrated.detectLocale"
+	settingSmoothScroll   = "terminal.integrated.smoothScrolling"
+	settingTabStopWidth   = "terminal.integrated.tabStopWidth"
+	settingTextBlinking   = "terminal.integrated.textBlinking"
+	settingBellDuration   = "terminal.integrated.bellDuration"
+)
+
+// weightEnum are the suggestions VS Code gives for a font weight.
+var weightEnum = []any{"normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"}
+
+// settingSpecs are the settings the extension declares, with the ids, types, defaults and descriptions of VS Code's
+// terminalConfiguration.ts (the defaults of Linux).
+//
+// Ported from VS Code: src/vs/workbench/contrib/terminal/common/terminalConfiguration.ts
+func settingSpecs() []extension.SettingSpec {
+	f := func(v float64) *float64 { return &v }
+	const cat = "Terminal"
+	return []extension.SettingSpec{
+		{Key: settingDefaultProfile, Type: "string", Default: "", Category: cat,
+			Description: "The default terminal profile on Linux: the name of one of terminal.integrated.profiles.linux. Empty uses the shell of the user ($SHELL)."},
+		{Key: settingProfiles, Type: "object", Category: cat, Default: map[string]any{
+			"bash": map[string]any{"path": "bash", "icon": "terminal-bash"},
+			"zsh":  map[string]any{"path": "zsh"},
+			"fish": map[string]any{"path": "fish"},
+			"tmux": map[string]any{"path": "tmux", "icon": "terminal-tmux"},
+			"pwsh": map[string]any{"path": "pwsh", "icon": "terminal-powershell"},
+		}, Description: "The terminal profiles to show on Linux: each has a name and an object with the path of the shell (a program found on the PATH or an absolute path), its args, env and icon. A profile whose program is not found is not offered."},
+		{Key: settingCwd, Type: "string", Default: "", Category: cat,
+			Description: "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."},
+		{Key: settingEnv, Type: "object", Default: map[string]any{}, Category: cat,
+			Description: "Object with environment variables that will be added to the Emetos process to be used by the terminal on Linux. Set to `null` to delete the environment variable."},
+		{Key: settingScrollback, Type: "number", Default: 1000.0, Minimum: f(0), Maximum: f(1000000), Category: cat,
+			Description: "Controls the maximum number of lines the terminal keeps in its buffer."},
+		{Key: settingFontFamily, Type: "string", Default: "", Category: cat,
+			Description: "Controls the font family of the terminal. Defaults to editor.fontFamily's value."},
+		{Key: settingFontSize, Type: "number", Default: 14.0, Minimum: f(6), Maximum: f(100), Category: cat,
+			Description: "Controls the font size in pixels of the terminal."},
+		{Key: settingLetterSpacing, Type: "number", Default: 0.0, Category: cat,
+			Description: "Controls the letter spacing of the terminal. This is an integer value which represents the number of additional pixels to add between characters."},
+		{Key: settingLineHeight, Type: "number", Default: 1.0, Category: cat,
+			Description: "Controls the line height of the terminal. This number is multiplied by the terminal font size to get the actual line-height in pixels."},
+		{Key: settingFontWeight, Type: "string", Default: "normal", Enum: weightEnum, Category: cat,
+			Description: "The font weight to use within the terminal for non-bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."},
+		{Key: settingFontWeightBold, Type: "string", Default: "bold", Enum: weightEnum, Category: cat,
+			Description: "The font weight to use within the terminal for bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."},
+		{Key: settingCursorBlink, Type: "boolean", Default: false, Category: cat, Description: "Controls whether the terminal cursor blinks."},
+		{Key: settingTextBlinking, Type: "boolean", Default: false, Category: cat, Description: "Controls whether text blinking is enabled in the terminal."},
+		{Key: settingCursorStyle, Type: "string", Default: "block", Enum: []any{"block", "line", "underline"}, Category: cat,
+			Description: "Controls the style of terminal cursor when the terminal is focused."},
+		{Key: settingCursorInactive, Type: "string", Default: "outline", Enum: []any{"outline", "block", "line", "underline", "none"}, Category: cat,
+			Description: "Controls the style of terminal cursor when the terminal is not focused."},
+		{Key: settingCursorWidth, Type: "number", Default: 1.0, Category: cat,
+			Description: "Controls the width of the cursor when terminal.integrated.cursorStyle is set to `line`."},
+		{Key: settingBoldBright, Type: "boolean", Default: true, Category: cat,
+			Description: "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."},
+		{Key: settingMinContrast, Type: "number", Default: 4.5, Category: cat,
+			Description: "When set, the foreground color of each cell will change to try meet the contrast ratio specified. Example values: 1: do nothing and use the standard theme colors; 4.5: WCAG AA compliance (minimum, default); 7: WCAG AAA compliance (enhanced); 21: white on black or black on white."},
+		{Key: settingWheelSens, Type: "number", Default: 1.0, Category: cat,
+			Description: "A multiplier to be used on the `deltaY` of mouse wheel scroll events."},
+		{Key: settingFastSens, Type: "number", Default: 5.0, Category: cat,
+			Description: "Scrolling speed multiplier when pressing `Alt`."},
+		{Key: settingSmoothScroll, Type: "boolean", Default: false, Category: cat,
+			Description: "Controls whether the terminal will scroll using an animation."},
+		{Key: settingWordSeps, Type: "string", Default: " ()[]{}',\"`─‘’“”|", Category: cat,
+			Description: "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection."},
+		{Key: settingCopyOnSelect, Type: "boolean", Default: false, Category: cat,
+			Description: "Controls whether text selected in the terminal will be copied to the clipboard."},
+		{Key: settingRightClick, Type: "string", Default: "default", Enum: []any{"default", "copyPaste", "paste", "selectWord", "nothing"}, Category: cat,
+			Description: "Controls how terminal reacts to right click. default: show the context menu; copyPaste: copy when there is a selection, otherwise paste; paste: paste on right click; selectWord: select the word under the cursor and show the context menu; nothing: do nothing and pass event to terminal."},
+		{Key: settingMiddleClick, Type: "string", Default: "default", Enum: []any{"default", "paste"}, Category: cat,
+			Description: "Controls how terminal reacts to middle click. default: the platform default to focus the terminal, on Linux this will also paste the selection; paste: paste on middle click."},
+		{Key: settingSkipShell, Type: "array", Default: []any{}, Category: cat,
+			Description: "A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by Emetos. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open. Many commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell."},
+		{Key: settingSendKeys, Type: "boolean", Default: false, Category: cat,
+			Description: "Dispatches most keybindings to the terminal instead of the workbench, overriding terminal.integrated.commandsToSkipShell, which can be used alternatively for fine tuning."},
+		{Key: settingAllowChords, Type: "boolean", Default: true, Category: cat,
+			Description: "Whether or not to allow chord keybindings in the terminal. Note that when this is true and the keystroke results in a chord it will bypass terminal.integrated.commandsToSkipShell, setting this to false is particularly useful when you want ctrl+k to go to your shell (not Emetos)."},
+		{Key: settingMultiLinePaste, Type: "string", Default: "auto", Enum: []any{"auto", "always", "never"}, Category: cat,
+			Description: "Controls whether to show a warning dialog when pasting multiple lines into the terminal. auto: enable the warning but do not show it when bracketed paste mode is enabled (the shell supports multi-line paste natively); always: always show the warning if the text contains a new line; never: never show the warning."},
+		{Key: settingIgnoreBracket, Type: "boolean", Default: false, Category: cat,
+			Description: "Controls whether the terminal will ignore bracketed paste mode even if the terminal was put into the mode, omitting the `\\x1b[200~` and `\\x1b[201~` sequences when pasting."},
+		{Key: settingEnableBell, Type: "boolean", Default: false, Category: cat,
+			Description: "This is now deprecated. Instead use the `terminal.integrated.enableVisualBell` setting."},
+		{Key: settingVisualBell, Type: "boolean", Default: false, Category: cat,
+			Description: "Controls whether the visual terminal bell is enabled. This shows up next to the terminal's name."},
+		{Key: settingBellDuration, Type: "number", Default: 1000.0, Category: cat,
+			Description: "The number of milliseconds to show the bell within a terminal tab when triggered."},
+		{Key: settingConfirmOnKill, Type: "string", Default: "editor", Enum: []any{"never", "editor", "panel", "always"}, Category: cat,
+			Description: "Controls whether to confirm killing terminals when they have child processes. never: never confirm; editor: confirm if the terminal is in the editor; panel: confirm if the terminal is in the panel; always: confirm if the terminal is either in the editor or panel."},
+		{Key: settingConfirmOnExit, Type: "string", Default: "never", Enum: []any{"never", "always", "hasChildProcesses"}, Category: cat,
+			Description: "Controls whether to confirm when the window closes if there are active terminal sessions. never: never confirm; always: always confirm if there are terminals; hasChildProcesses: confirm if there are any terminals that have child processes."},
+		{Key: settingTabsEnabled, Type: "boolean", Default: true, Category: cat,
+			Description: "Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead."},
+		{Key: settingTabsLocation, Type: "string", Default: "right", Enum: []any{"left", "right"}, Category: cat,
+			Description: "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s)."},
+		{Key: settingTabsHide, Type: "string", Default: "singleTerminal", Enum: []any{"never", "singleTerminal", "singleGroup"}, Category: cat,
+			Description: "Controls whether the terminal tabs view will hide under certain conditions. never: never hide the terminal tabs view; singleTerminal: hide the terminal tabs view when there is only a single terminal opened; singleGroup: hide the terminal tabs view when there is only a single terminal group opened."},
+		{Key: settingTabsTitle, Type: "string", Default: "${process}", Category: cat,
+			Description: "Controls the terminal title. Variables: ${cwd} the terminal's current working directory, ${cwdFolder} the terminal's current working directory name, ${process} the name of the foreground process of the terminal (its shell), ${sequence} the name provided to the terminal by the process, ${local} indicates a local terminal."},
+		{Key: settingTabsDefaultIco, Type: "string", Default: "terminal", Category: cat,
+			Description: "A codicon ID to associate with terminal icons by default."},
+		{Key: settingDetectLocale, Type: "string", Default: "auto", Enum: []any{"auto", "off", "on"}, Category: cat,
+			Description: "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since the terminal only supports UTF-8 encoded data coming from the shell. auto: set `$LANG` if the existing variable does not exist or it does not end in `.UTF-8`; off: do not set it; on: always set it."},
+		{Key: settingTabStopWidth, Type: "number", Default: 8.0, Minimum: f(1), Category: cat,
+			Description: "The number of cells in a tab stop."},
+	}
+}
+
+// profileSetting is one entry of terminal.integrated.profiles.linux.
+type profileSetting struct {
+	Path any    `json:"path"`
+	Args any    `json:"args"`
+	Env  any    `json:"env"`
+	Icon string `json:"icon"`
+	// Overrides the name of the profile in the lists when set.
+	Title string `json:"title"`
+}
+
+// weightOf reads a font weight setting: "normal", "bold" or a number from 1 to 1000; def when it is none of them.
+func weightOf(v string, def int) int {
+	switch strings.TrimSpace(v) {
+	case "normal":
+		return 400
+	case "bold":
+		return 700
+	}
+	n := 0
+	for _, r := range strings.TrimSpace(v) {
+		if r < '0' || r > '9' {
+			return def
+		}
+		n = n*10 + int(r-'0')
+		if n > 1000 {
+			return def
+		}
+	}
+	if n < 1 {
+		return def
+	}
+	return n
+}

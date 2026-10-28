@@ -103,6 +103,7 @@ func (e *Emulator) eraseInDisplay(mode int) {
 		}
 		e.eraseCells(s.y, 0, s.x+1)
 	case 2:
+		e.pushScreenToScrollback()
 		for y := 0; y < s.rows; y++ {
 			e.eraseCells(y, 0, s.cols)
 		}
@@ -113,6 +114,38 @@ func (e *Emulator) eraseInDisplay(mode int) {
 			e.allDirty, e.changed = true, true
 		}
 	}
+}
+
+// pushScreenToScrollback scrolls the lines of the main screen, from the top to the last one that shows something, into the
+// scrollback before ED 2 clears the screen, so that what Ctrl+L (CSI H CSI 2 J) clears can still be scrolled back to, as in
+// VS Code's terminal, VTE and foot (decision 121). The alternate screen keeps nothing. The caller clears the screen.
+func (e *Emulator) pushScreenToScrollback() {
+	s := e.scr
+	if s.alt {
+		return
+	}
+	last := -1
+	for y := s.rows - 1; y >= 0; y-- {
+		l := s.row(y)
+		for _, c := range l.cells {
+			if !c.isPlainBlank() {
+				last = y
+				break
+			}
+		}
+		if last >= 0 {
+			break
+		}
+	}
+	if last < 0 {
+		return
+	}
+	s.row(last).wrapped = false
+	bce := e.bce()
+	for i := 0; i <= last; i++ {
+		s.ring.push(bce)
+	}
+	e.allDirty, e.changed = true, true
 }
 
 // insertLines is IL (ECMA-48 8.3.67): it has no effect outside the scroll region. The cursor goes to the first column

@@ -112,6 +112,9 @@ const (
 	RefusedSettings = "settings"
 	// RefusedRemote: the commands of the extensions that share a workspace or control another one.
 	RefusedRemote = "remote"
+	// RefusedTerminal: the commands of the terminal (workbench.action.terminal.*): a terminal runs programs on the computer of
+	// the host, so a client uses the requests of the terminal and the host's permission for them instead (SPEC §10.25).
+	RefusedTerminal = "terminal"
 )
 
 // CommandInfo is one command in the reply of TopicCommandsList.

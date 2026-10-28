@@ -107,6 +107,7 @@ The feature list of [SPEC §3](docs/SPEC.md#3-areas), in short. The first two gr
 - Explorer with file watching, `files.exclude`, new, rename, delete to the trash, cut, copy, paste, drag and drop (also from your file manager), and an Open Editors section.
 - Command palette (Ctrl+Shift+P), quick open (Ctrl+P) with fuzzy search, go to line (Ctrl+G), back and forward through your edit locations, reopen closed editor.
 - Notifications, and the Output and Problems panels (Problems shows what language servers and tools report).
+- An integrated terminal in the panel, as VS Code's: see [Terminal](#terminal).
 - Color themes (the six VS Code defaults, your own in `themes/`, and following the desktop's dark or light mode) and the Seti file icon theme.
 - A settings editor (Ctrl+,) and a keyboard shortcuts editor (Ctrl+K Ctrl+S), both editing the JSON files and keeping your comments, and profiles (named sets of settings, keybindings and snippets).
 - The window comes back as you left it: layout, editors with their cursors, scroll positions and folds, and the open folders.
@@ -150,6 +151,7 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 **What is bundled:**
 - **Language packs**: the 22 languages of [SPEC §8.1](docs/SPEC.md#81-languages-corelanguage) (Go, JSON, YAML, Markdown, Python, JavaScript, TypeScript, HTML, CSS, SCSS, Less, XML, SQL, shell, Makefile, Dockerfile, INI, C and C++, Rust, diff, git files and Go modules).
 - **TODOs**: a side bar view that lists the `TODO` and `FIXME` comments of the folder and opens them.
+- **Terminal**: shells in the panel, below.
 - **Tasks**: a panel tab that runs the command lines you list in `emetos.tasks.commands` in the folder, shows their output and puts their errors in Problems. (It is not VS Code's `tasks.json`.)
 - **Markdown preview**: a Preview micro-tab for Markdown files, and Open Preview to the Side.
 - **Notes**: notes for the workspace, with a list in the side bar and a note in an editor tab.
@@ -157,6 +159,15 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 - **Go**, **Remote Work** and **Relay**, below.
 
 ![The TODOs view, the Tasks tab of the panel with the problems go vet found, and squiggles from gopls](docs/screenshots/todos-tasks.png)
+
+### Terminal
+
+The **Terminal** tab of the panel (Ctrl+` shows it, and hides the panel again while the terminal has the keyboard) runs your shell in a pseudo-terminal, with VS Code's commands, keys, settings (`terminal.integrated.*`) and colors (`terminal.*`). It is Emetos's own: an emulator written in Go and a grid drawn from a glyph atlas with two draw calls (no web view, and nothing of xterm.js), so that `cat` of a 100 MB file takes about as long as in a fast native terminal (`docs/PERFORMANCE.md`).
+- **Several terminals.** Ctrl+Shift+` makes another, Ctrl+Shift+5 **splits** the one you are in (side by side, with a draggable divider), and the **tabs list** at the right shows when there are two or more (`terminal.integrated.tabs.*`): click a row to switch, middle-click or the trash button to kill, the secondary button for the menu. The shell starts in the folder of the workspace (`terminal.integrated.cwd`), from `terminal.integrated.defaultProfile.linux` or your `$SHELL`; the profiles are listed under the chevron.
+- **Keys.** Every key goes to the program, except the commands of `terminal.integrated.commandsToSkipShell` (VS Code's list: Ctrl+P, Ctrl+Shift+P, Ctrl+Tab, F5 and so on stay Emetos's; add or take away with a `-`). Ctrl+Shift+C copies the selection, Ctrl+Shift+V pastes (as a bracketed paste when the program asked for it, with VS Code's warning for several lines), Shift+Insert pastes the primary selection, Shift+PageUp, Shift+Home and the mouse wheel scroll back, a double click selects a word and a triple click a line. Programs that track the mouse get it; hold Alt or Shift to select anyway.
+- **Looks.** The font follows `editor.fontFamily` or `terminal.integrated.fontFamily`, true color, bold, italic, underline styles, wide characters and emoji, box-drawing and block characters drawn to fill the cell, the cursor styles, the scrollbar, and the colors of the theme.
+
+![Two terminals side by side in the panel, with the tabs list at the right](docs/screenshots/terminal.png)
 
 ### Go
 

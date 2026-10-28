@@ -5,12 +5,14 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
@@ -136,6 +138,25 @@ func (h *viewHandle) Reveal(focus bool) {
 		}
 		if focus && s.opts.FocusView != nil {
 			s.opts.FocusView(d.id)
+		}
+	})
+}
+
+// Hide implements extension.ViewHandle.
+func (h *viewHandle) Hide() {
+	in := h.inst
+	if in.isDead() {
+		return
+	}
+	s := in.scope
+	d := h.decl
+	s.post(func() {
+		if !d.panel || s.opts.Views == nil || !s.opts.Views.ClosePanel(d.container) {
+			return
+		}
+		ctx := command.Context{Ctx: s.ctx, Source: command.SourceMenu}
+		if err := s.opts.Commands.Run(ctx, "workbench.action.focusActiveEditorGroup", nil); err != nil {
+			s.log.Debug("the editor cannot take the focus after a view hid the panel", "err", err)
 		}
 	})
 }
@@ -441,6 +462,15 @@ func (w workspaceAPI) ReadFile(ctx context.Context, path string) (string, error)
 
 // ---- context keys ----
 
+// ownsContextKey tells whether the extension may set the context key: it is under the id of the extension and a dot, or the
+// manifest declares it (Contributes.ContextKeys).
+func (in *instance) ownsContextKey(key string) bool {
+	if strings.HasPrefix(key, in.id+".") && len(key) > len(in.id)+1 {
+		return true
+	}
+	return slices.Contains(in.slot.info.Manifest.Contributes.ContextKeys, key)
+}
+
 type contextAPI struct{ inst *instance }
 
 // Set implements extension.ContextKeys.
@@ -449,8 +479,8 @@ func (c contextAPI) Set(key string, value any) error {
 	if in.isDead() {
 		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
 	}
-	if !strings.HasPrefix(key, in.id+".") || len(key) == len(in.id)+1 {
-		return errors.New("ExtensionContextKeyForeign", "the key of a context key starts with the id of the extension and a dot", "extension", in.id, "key", key)
+	if !in.ownsContextKey(key) {
+		return errors.New("ExtensionContextKeyForeign", "the key of a context key starts with the id of the extension and a dot, or is one the extension declares", "extension", in.id, "key", key)
 	}
 	s := in.scope
 	if s.opts.Keys == nil {
@@ -476,7 +506,7 @@ func (c contextAPI) Set(key string, value any) error {
 func (c contextAPI) Reset(key string) {
 	in := c.inst
 	s := in.scope
-	if in.isDead() || s.opts.Keys == nil || !strings.HasPrefix(key, in.id+".") {
+	if in.isDead() || s.opts.Keys == nil || !in.ownsContextKey(key) {
 		return
 	}
 	s.post(func() {

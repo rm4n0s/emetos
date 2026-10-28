@@ -1,0 +1,318 @@
+package terminal
+
+import (
+	"context"
+	"strings"
+
+	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extension/ui"
+)
+
+// New is the Factory of the extension.
+func New() extension.Extension { return &terminals{} }
+
+// commandSpecs are the commands the extension declares: VS Code's ids and titles (terminalActions.ts). They have no When, so
+// that running one in a window tab where the extension is not active yet activates it.
+func commandSpecs() []extension.CommandSpec {
+	c := func(id, title string) extension.CommandSpec {
+		return extension.CommandSpec{ID: id, Title: title, Category: "Terminal"}
+	}
+	return []extension.CommandSpec{
+		{ID: CmdToggle, Title: "Toggle Terminal", Category: "View"},
+		c(CmdNew, "Create New Terminal"), c(CmdNewWithProfile, "Create New Terminal (With Profile)..."),
+		c(CmdSplit, "Split Terminal"), c(CmdKill, "Kill the Active Terminal Instance"), c(CmdFocus, "Focus Terminal"),
+		c(CmdFocusNext, "Focus Next Terminal Group"), c(CmdFocusPrevious, "Focus Previous Terminal Group"),
+		c(CmdFocusNextPane, "Focus Next Terminal in Terminal Group"), c(CmdFocusPrevPane, "Focus Previous Terminal in Terminal Group"),
+		c(CmdResizePaneLeft, "Resize Terminal Left"), c(CmdResizePaneRight, "Resize Terminal Right"),
+		c(CmdResizePaneUp, "Resize Terminal Up"), c(CmdResizePaneDown, "Resize Terminal Down"),
+		c(CmdCopySelection, "Copy Selection"), c(CmdPaste, "Paste into Active Terminal"),
+		c(CmdPasteSelection, "Paste Selection into Active Terminal"), c(CmdSelectAll, "Select All"), c(CmdClear, "Clear"),
+		c(CmdClearSelection, "Clear Selection"), c(CmdScrollUp, "Scroll Up (Line)"), c(CmdScrollDown, "Scroll Down (Line)"),
+		c(CmdScrollUpPage, "Scroll Up (Page)"), c(CmdScrollDownPage, "Scroll Down (Page)"), c(CmdScrollToTop, "Scroll to Top"),
+		c(CmdScrollToBottom, "Scroll to Bottom"),
+	}
+}
+
+// keybindings are the default keys of VS Code on Linux, with its when-clauses (terminalActions.ts and the clipboard
+// contribution).
+func keybindings() []extension.Keybinding {
+	const inTerminal = keyFocus
+	const normal = keyFocusInAny + " && !" + keyAltBuffer
+	return []extension.Keybinding{
+		{Command: CmdToggle, Key: "ctrl+`"},
+		{Command: CmdNew, Key: "ctrl+shift+`"},
+		{Command: CmdSplit, Key: "ctrl+shift+5", When: inTerminal},
+		{Command: CmdFocusPrevPane, Key: "alt+left", When: inTerminal + " && " + keySplitPaneActive},
+		{Command: CmdFocusPrevPane, Key: "alt+up", When: inTerminal + " && " + keySplitPaneActive},
+		{Command: CmdFocusNextPane, Key: "alt+right", When: inTerminal + " && " + keySplitPaneActive},
+		{Command: CmdFocusNextPane, Key: "alt+down", When: inTerminal + " && " + keySplitPaneActive},
+		{Command: CmdResizePaneLeft, Key: "ctrl+shift+left", When: inTerminal},
+		{Command: CmdResizePaneRight, Key: "ctrl+shift+right", When: inTerminal},
+		{Command: CmdFocusNext, Key: "ctrl+pagedown", When: inTerminal + " && !" + keyEditorFocus},
+		{Command: CmdFocusPrevious, Key: "ctrl+pageup", When: inTerminal + " && !" + keyEditorFocus},
+		{Command: CmdCopySelection, Key: "ctrl+shift+c", When: keyTextSelected + " && " + inTerminal + " || " + keyTextSelectedInFocused},
+		{Command: CmdPaste, Key: "ctrl+shift+v", When: inTerminal},
+		{Command: CmdPasteSelection, Key: "shift+insert", When: inTerminal},
+		{Command: CmdClearSelection, Key: "escape", When: keyFocusInAny + " && " + keyTextSelected + " && !" + keyFindVisible},
+		{Command: CmdScrollUp, Key: "ctrl+shift+up", When: normal},
+		{Command: CmdScrollDown, Key: "ctrl+shift+down", When: normal},
+		{Command: CmdScrollUpPage, Key: "shift+pageup", When: normal},
+		{Command: CmdScrollDownPage, Key: "shift+pagedown", When: normal},
+		{Command: CmdScrollToTop, Key: "shift+home", When: normal},
+		{Command: CmdScrollToBottom, Key: "shift+end", When: normal},
+	}
+}
+
+// Manifest implements extension.Extension.
+func (*terminals) Manifest() extension.Manifest {
+	return extension.Manifest{
+		ID: ID, Name: "Terminal", Version: termVersion,
+		Description: "Shells in the panel: VS Code's integrated terminal, with Emetos's own emulator.",
+		Contributes: extension.Contributes{
+			Commands:    commandSpecs(),
+			Keybindings: keybindings(),
+			Settings:    settingSpecs(),
+			ContextKeys: contextKeys,
+			PanelViews:  []extension.PanelViewSpec{{ID: ViewID, Title: "Terminal", Icon: "terminal", Order: 3}},
+			ViewActions: []extension.ViewActionSpec{
+				{View: ViewID, Command: CmdNew, Icon: "add", Tooltip: "New Terminal", Order: 1},
+				{View: ViewID, Command: CmdNewWithProfile, Icon: "chevron-down", Tooltip: "Launch Profile...", Order: 2},
+				{View: ViewID, Command: CmdSplit, Icon: "split-horizontal", Tooltip: "Split Terminal", Order: 3},
+				{View: ViewID, Command: CmdKill, Icon: "trash", Tooltip: "Kill Terminal", Order: 4},
+			},
+			Menus: []extension.MenuItem{
+				{Menu: extension.MenuTerminal, Command: CmdNew, Title: "New Terminal", Group: "1_create", Order: 1},
+				{Menu: extension.MenuTerminal, Command: CmdSplit, Title: "Split Terminal", Group: "1_create", Order: 2},
+			},
+		},
+	}
+}
+
+// Activate implements extension.Extension. The terminals end with the context: the window tab closing or the extension being
+// turned off ends every shell.
+func (t *terminals) Activate(ctx context.Context, api extension.API) error {
+	t.api, t.ctx, t.folder = api, ctx, api.Scope().Folder
+	if t.env.lookPath == nil {
+		t.env = osEnviron()
+	}
+	c := readConfig(api.Settings())
+	t.cfg = &c
+	t.menu = ui.NewContextMenuController()
+	var err error
+	t.handle, err = api.Views().Provide(ViewID, extension.ViewContent{
+		Build:        t.build,
+		AllowCommand: t.allowCommand,
+		SaveState: func() (any, error) {
+			t.visible, t.suppressOpen = false, false
+			return nil, nil
+		},
+	})
+	if err != nil {
+		return err
+	}
+	api.Settings().OnChange(t.settingsChanged)
+	for id, h := range t.handlers() {
+		if err := api.Commands().Handle(id, h); err != nil {
+			return err
+		}
+	}
+	t.syncKeys()
+	return nil
+}
+
+// allowCommand says whether a key bound to a command is run by the window while a terminal has the focus: the commands of
+// terminal.integrated.commandsToSkipShell are; every other key goes to the shell (Ctrl+W, Ctrl+B, Ctrl+R...). With
+// terminal.integrated.sendKeybindingsToShell nothing but the terminal's own toggle is skipped.
+func (t *terminals) allowCommand(commandID string) bool {
+	if t.paneFocus == nil {
+		return true // the focus is in the tabs list or the question about a paste
+	}
+	if t.cfg.sendKeys {
+		return commandID == CmdToggle
+	}
+	return t.cfg.skip.has(commandID)
+}
+
+// target is the terminal a command acts on: the one with the keyboard focus, else the active one.
+func (t *terminals) target() *entry {
+	if t.paneFocus != nil {
+		return t.paneFocus
+	}
+	return t.activeEntry()
+}
+
+// handlers are the handlers of the commands.
+func (t *terminals) handlers() map[string]extension.CommandHandler {
+	onPane := func(f func(pv *paneView)) extension.CommandHandler {
+		return func(context.Context, any) error {
+			if e := t.target(); e != nil {
+				f(e.pv)
+			}
+			return nil
+		}
+	}
+	return map[string]extension.CommandHandler{
+		CmdToggle:         func(context.Context, any) error { t.toggle(); return nil },
+		CmdNew:            func(_ context.Context, args any) error { t.newTerminal(args); return nil },
+		CmdNewWithProfile: func(context.Context, any) error { t.pickProfile(); return nil },
+		CmdSplit: func(context.Context, any) error {
+			if t.activeEntry() == nil {
+				t.newTerminal(nil)
+				return nil
+			}
+			if _, err := t.open(openOpts{split: true}); err != nil {
+				t.api.Log().Warn("the terminal cannot be split", "err", err)
+			}
+			return nil
+		},
+		CmdKill: func(context.Context, any) error {
+			if e := t.target(); e != nil {
+				t.kill(e)
+			}
+			return nil
+		},
+		CmdFocus: func(context.Context, any) error {
+			if e := t.activeEntry(); e != nil {
+				t.focusEntry(e, true)
+			} else {
+				t.handle.Reveal(true)
+			}
+			return nil
+		},
+		CmdFocusNext:       func(context.Context, any) error { t.moveGroup(1); return nil },
+		CmdFocusPrevious:   func(context.Context, any) error { t.moveGroup(-1); return nil },
+		CmdFocusNextPane:   func(context.Context, any) error { t.movePane(1); return nil },
+		CmdFocusPrevPane:   func(context.Context, any) error { t.movePane(-1); return nil },
+		CmdResizePaneLeft:  func(context.Context, any) error { t.resizePane(-1); return nil },
+		CmdResizePaneRight: func(context.Context, any) error { t.resizePane(1); return nil },
+		// the terminals sit side by side, so there is no height to give or take
+		CmdResizePaneUp:   func(context.Context, any) error { return nil },
+		CmdResizePaneDown: func(context.Context, any) error { return nil },
+		CmdCopySelection:  onPane(func(pv *paneView) { pv.copySelection() }),
+		CmdPaste:          onPane(func(pv *paneView) { pv.pasteClipboard() }),
+		CmdPasteSelection: onPane(func(pv *paneView) { pv.pastePrimary() }),
+		CmdSelectAll:      onPane(func(pv *paneView) { pv.selectAll() }),
+		CmdClear:          onPane(func(pv *paneView) { pv.clear() }),
+		CmdClearSelection: onPane(func(pv *paneView) { pv.setSelection(selection{}) }),
+		CmdScrollUp:       onPane(func(pv *paneView) { pv.scrollBy(1) }),
+		CmdScrollDown:     onPane(func(pv *paneView) { pv.scrollBy(-1) }),
+		CmdScrollUpPage:   onPane(func(pv *paneView) { pv.scrollBy(max(pv.rows-1, 1)) }),
+		CmdScrollDownPage: onPane(func(pv *paneView) { pv.scrollBy(-max(pv.rows-1, 1)) }),
+		CmdScrollToTop:    onPane(func(pv *paneView) { pv.scrollTo(pv.frame.Scrollback) }),
+		CmdScrollToBottom: onPane(func(pv *paneView) { pv.scrollTo(0) }),
+	}
+}
+
+// toggle shows the terminal with the keyboard focus in it, or hides the panel when the terminal has the focus (Ctrl+`).
+func (t *terminals) toggle() {
+	if t.paneFocus != nil {
+		t.handle.Hide()
+		return
+	}
+	if e := t.activeEntry(); e != nil {
+		t.focusEntry(e, true)
+		return
+	}
+	t.handle.Reveal(true) // the view makes the first terminal when it is shown
+}
+
+// newTerminal is the command Create New Terminal. The argument may be the name of a profile or an object with profileName,
+// cwd and name, as VS Code's.
+func (t *terminals) newTerminal(args any) {
+	o := openOpts{}
+	switch a := args.(type) {
+	case string:
+		o.profile = t.profileNamed(a)
+	case map[string]any:
+		if n, _ := a["profileName"].(string); n != "" {
+			o.profile = t.profileNamed(n)
+		}
+		o.dir, _ = a["cwd"].(string)
+		o.name, _ = a["name"].(string)
+	}
+	if _, err := t.open(o); err != nil {
+		t.api.Log().Warn("the terminal cannot be started", "err", err)
+	}
+}
+
+// profileNamed finds a profile by its name; nil when there is none.
+func (t *terminals) profileNamed(name string) *profile {
+	for _, p := range t.profiles() {
+		if strings.EqualFold(p.name, name) {
+			p := p
+			return &p
+		}
+	}
+	return nil
+}
+
+// pickProfile is the command Create New Terminal (With Profile): the profiles in a quick pick.
+func (t *terminals) pickProfile() {
+	profiles := t.profiles()
+	if len(profiles) == 0 {
+		t.newTerminal(nil)
+		return
+	}
+	def := t.defaultProfile()
+	items := make([]extension.QuickPickItem, len(profiles))
+	for i, p := range profiles {
+		icon := p.icon
+		if _, ok := ui.CodiconCode(icon); !ok {
+			icon = "terminal"
+		}
+		items[i] = extension.QuickPickItem{Label: "$(" + icon + ") " + p.name, Description: p.path}
+		if p.name == def.name {
+			items[i].Detail = "default"
+		}
+	}
+	err := t.api.QuickPick().Show(extension.QuickPickOptions{Placeholder: "Select the terminal profile to create", Items: items, MatchOnDescription: true}, func(i int) {
+		if i < 0 || i >= len(profiles) {
+			return
+		}
+		if _, err := t.open(openOpts{profile: &profiles[i]}); err != nil {
+			t.api.Log().Warn("the terminal cannot be started", "err", err)
+		}
+	})
+	if err != nil {
+		t.api.Log().Warn("the profiles cannot be listed", "err", err)
+	}
+}
+
+// moveGroup focuses the terminal of the next (or previous) tab of the list, around.
+func (t *terminals) moveGroup(delta int) {
+	n := len(t.groups)
+	if n == 0 {
+		return
+	}
+	g := t.groups[((t.cur+delta)%n+n)%n]
+	t.focusEntry(g.entries[min(g.active, len(g.entries)-1)], false)
+}
+
+// movePane focuses the next (or previous) terminal of the active tab, around.
+func (t *terminals) movePane(delta int) {
+	g := t.activeGroup()
+	if g == nil || len(g.entries) < 2 {
+		return
+	}
+	n := len(g.entries)
+	t.focusEntry(g.entries[((g.active+delta)%n+n)%n], false)
+}
+
+// resizePane moves the sash of the active pane by a step: toward the right with a positive delta. The last pane has its sash
+// at the left, so the same key moves it the other way, as the key names the direction the sash goes.
+func (t *terminals) resizePane(delta int) {
+	g := t.activeGroup()
+	if g == nil || len(g.entries) < 2 {
+		return
+	}
+	sizes := g.split.Sizes()
+	i := min(g.active, len(sizes)-1)
+	if i < 0 {
+		return
+	}
+	step := 20.0 * float64(delta)
+	if i == len(sizes)-1 {
+		step = -step
+	}
+	g.split.SetSize(i, sizes[i]+step)
+}

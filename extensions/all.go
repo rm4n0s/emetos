@@ -27,6 +27,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/shellscript"
 	"github.com/rm4n0s/emetos/extensions/sql"
 	"github.com/rm4n0s/emetos/extensions/tasks"
+	"github.com/rm4n0s/emetos/extensions/terminal"
 	"github.com/rm4n0s/emetos/extensions/todo"
 	"github.com/rm4n0s/emetos/extensions/typescript"
 	"github.com/rm4n0s/emetos/extensions/xml"
@@ -42,7 +43,7 @@ import (
 // which language wins when two claim the same file name. internal/core/language/packfs lists the same packs in the same
 // order for the tests, and a test in cmd/emetos keeps the two the same. The test extension of the contract is
 // extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the TODOs view
-// (extensions/todo), the Tasks tab of the panel (extensions/tasks), the notes (extensions/notes) and the window tab Scratchpad
+// (extensions/todo), the Tasks tab of the panel (extensions/tasks), the Terminal tab of the panel (extensions/terminal), the notes (extensions/notes) and the window tab Scratchpad
 // (extensions/scratchpad), then Remote Work (extensions/remotework, whose instances share
 // one hub made here, with the Source of the real cameras, which opens no device before the Scan QR Code dialog does) and Relay
 // (extensions/relay, the only extension the host grants the privileges events.publishAny and commands.execute; its instances
@@ -52,7 +53,7 @@ func All() []extension.Factory {
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
-		todo.New, tasks.New, notes.New, scratchpad.New, remotework.NewFactory(remotework.HubOptions{Camera: keyqr.NewV4L2()}),
+		todo.New, tasks.New, terminal.New, notes.New, scratchpad.New, remotework.NewFactory(remotework.HubOptions{Camera: keyqr.NewV4L2()}),
 		relay.NewFactory(relay.HubOptions{Camera: keyqr.NewV4L2()}),
 	}
 }

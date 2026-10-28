@@ -353,7 +353,27 @@ Method: a terminal of 160x45 cells with 10,000 lines of scrollback is fed 8 MiB 
 
 What made the numbers: the ASCII run is found by a scan and written to the cells in one loop (the first version, which tested each byte in the writing loop, did 320 to 420 MB/s); a new line takes the oldest line of the ring and clears it with `clear` (a loop that stored a cell value was 15% of the time); the pen's style is looked up in the table once, at the first character after an SGR; the parameters of a sequence are in a fixed array. The worst case of the style table is bounded on purpose: compaction (a scan of the 1.6 million cells of the scrollback and a new map) runs at most once per 65,535 refused styles, because a table full of live styles rebuilt every 8,192 refused styles took 16 MB/s; between compactions a new 24-bit color is rounded to the 6x6x6 cube. `REP` and the other sequences that ask for much work with few bytes are held to the size of the screen (`TestAmplification`: 64 KiB of `CSI 99999999 b` takes 90 ms).
 
-The flow of the whole terminal (the process, the UI thread, the glyph atlas and `cat` of a 100 MB file against `foot`) is step 17d.2's to measure.
+The flow of the whole terminal (the process, the UI thread, the glyph atlas and `cat` of a 100 MB file against `foot`) was measured in step 17d.2, below.
+
+## Terminal panel (step 17d.2)
+
+The whole terminal, with real input through the compositor, in a **release build** (`-tags glutter_release,emetos_dev`), on the machine above, on 2026-10-28, headless (sway at 1920x1080, Mesa llvmpipe, the software renderer: the raster numbers are not the GPU's). The terminal is the panel maximized with the side bar hidden, 231 x 52 cells (larger than the 160 x 45 of the budgets, so every frame holds 1.6 times the cells). Command: `scripts/terminal-perf.sh` (it builds the release binary, runs `TestPerfTerminal*` of `cmd/emetos` with `scripts/realinput.sh`, and prints the lines that start with `PERF`); `scripts/terminal-perf.sh --desktop` runs the same in a nested sway window on the desktop with the GPU, which is the manager's run. The shells are bash with `--norc --noprofile` in a home folder of the run. `foot` is run in the same compositor with the same file (`--window-size-chars` 160x45 and 231x52, the size confirmed with `stty size`). **Ghostty is not installed on this machine**, so there is no number for it. Three runs; each cell is the three values.
+
+| Budget (SPEC §14) | Target | Emetos | foot |
+|---|---|---|---|
+| Terminal output: `cat` of a 100 MB file (the shell's clock, `date` before and after) | under 1.5 s | **661, 623, 655 ms** at 231 x 52 | 651, 466, 660 ms at 160 x 45; 575, 479, 493 ms at 231 x 52 |
+| Terminal output: frames while it runs | no frame (UI thread and raster) over 16 ms | 82 to 84 frames, **0 over 16 ms**; UI thread 0.33 to 0.39 ms on average, 1.5 to 2.4 ms at worst; software raster 7.1 to 7.3 ms on average, 13.7 to 14.5 ms at worst | |
+| Terminal frame: a stream of full screens of 160 x 45 cells that all change (6,000 screens, 50 MB, in 525 to 537 ms) | UI thread 3 ms or less, raster 4 ms or less with the GPU | UI thread **0.52 to 0.56 ms** on average, 1.55 to 1.97 ms at worst, 0 frames over 16 ms; software raster 7.6 to 7.8 ms on average, 13.8 to 14.4 ms at worst (the 4 ms is for the GPU: the desktop run decides) | |
+| Terminal typing: 300 characters typed at 10 ms | the UI thread's part of the echo under 2 ms; the echo in the first frame after the shell's output | UI thread **0.35 ms** on average, 1.1 to 1.7 ms at worst; the last character is on screen 63 to 65 ms after the typing ended (the harness polls every 50 ms) | |
+
+The Go benchmarks of the UI thread alone, without the renderer (`go test ./extensions/terminal -run xxx -bench 'FullScreen|EchoFrame' -benchmem`, the fake platform): a frame of 160 x 45 cells that all changed 0.29 ms (475 KB, 56 allocations), the frame of one typed character 0.11 ms (183 KB, 86 allocations). An idle terminal paints nothing (`TestAPaneThatDoesNotChangeDrawsNothingMore`: no paint in 40 frames).
+
+What made the numbers, and what to keep in mind:
+
+- The cost of a frame does not depend on the text: the dirty rows are copied under one short lock, the styles are resolved once per run, and two `DrawAtlas` calls draw the glyphs and the backgrounds. The software renderer's 7 ms is the whole window drawn by llvmpipe (Glutter's raster cache keeps the picture of what did not change).
+- The flow control is what keeps `cat` of 100 MB bounded: the reader pauses above 100,000 unparsed bytes, so the parser (about 700 MB/s alone, §14 "Terminal throughput") is the pace and the memory stays flat; Emetos takes 1.0 to 1.4 times foot's time at the same size. The time is the pipe of the pseudo-terminal, the emulator and the 64 KiB reads, not the drawing (the UI thread idles most of the time).
+- The first frames after the panel is maximized or the font changes take 0.3 to 0.7 s of raster each on llvmpipe (new pipelines and a new atlas image); they are outside the numbers above (the test waits for them) and Glutter's (`docs/PERFORMANCE.md` "Desktop pass").
+- The measurement of the "frames while it runs" is Glutter's once-a-second statistics (`GLUTTER_FRAME_STATS=1`), so a window can hold a second of idle frames before or after the run; the table has the windows of the run and the one that follows it.
 
 ## Pending
 

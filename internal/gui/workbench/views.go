@@ -122,6 +122,16 @@ func (v *Views) TogglePanel(id string) (shown bool) {
 	return v.activePanel == id
 }
 
+// ClosePanel hides the panel when it shows the tab of the container; it does nothing otherwise. It reports whether the panel was
+// hidden.
+func (v *Views) ClosePanel(id string) (hidden bool) {
+	if v.layout != nil && v.layout.State().PanelVisible && v.activePanel == id {
+		v.layout.SetPanelVisible(false)
+		return true
+	}
+	return false
+}
+
 // Toggle is a click on an icon of the activity bar: the container of the icon opens, and the one that
 // is open closes the side bar.
 func (v *Views) Toggle(id string) {

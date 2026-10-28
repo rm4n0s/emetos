@@ -326,6 +326,17 @@ type Colors struct {
 	PeekViewResultMatchHighlightBackground                                                    ui.Color
 	PeekViewEditorBackground, PeekViewEditorGutterBackground                                  ui.Color
 	PeekViewEditorMatchHighlightBackground, PeekViewEditorMatchHighlightBorder                ui.Color
+	// The colors of the terminal (step 17d.2, terminal.*): its background (transparent when the theme sets none: the panel's)
+	// and foreground, the cursor, the selection when the terminal has the focus and when it has not, the border between split
+	// panes, the border of the active tab of the tabs list, the find matches, the highlight under a link the pointer is on, the
+	// decorations of the commands of the shell integration and the sixteen ANSI colors in the order of the palette.
+	TerminalBackground, TerminalForeground, TerminalCursorForeground, TerminalCursorBackground    ui.Color
+	TerminalSelectionBackground, TerminalSelectionForeground, TerminalInactiveSelectionBackground ui.Color
+	TerminalBorder, TerminalTabActiveBorder, TerminalHoverHighlightBackground                     ui.Color
+	TerminalFindMatchBackground, TerminalFindMatchBorder                                          ui.Color
+	TerminalFindMatchHighlightBackground, TerminalFindMatchHighlightBorder                        ui.Color
+	TerminalDecorationDefault, TerminalDecorationSuccess, TerminalDecorationError                 ui.Color
+	TerminalAnsi                                                                                  [16]ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -339,7 +350,25 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		}
 		return ui.NewColor(c.ARGB())
 	}
+	var ansi [16]ui.Color
+	for i, id := range theme.TerminalANSIColorIDs() {
+		ansi[i] = color(id)
+	}
 	return Colors{
+		TerminalBackground: color("terminal.background"), TerminalForeground: color("terminal.foreground"),
+		TerminalCursorForeground: color("terminalCursor.foreground"), TerminalCursorBackground: color("terminalCursor.background"),
+		TerminalSelectionBackground: color("terminal.selectionBackground"), TerminalSelectionForeground: color("terminal.selectionForeground"),
+		TerminalInactiveSelectionBackground: color("terminal.inactiveSelectionBackground"),
+		TerminalBorder:                      color("terminal.border"), TerminalTabActiveBorder: color("terminal.tab.activeBorder"),
+		TerminalHoverHighlightBackground: color("terminal.hoverHighlightBackground"),
+		TerminalFindMatchBackground:      color("terminal.findMatchBackground"), TerminalFindMatchBorder: color("terminal.findMatchBorder"),
+		TerminalFindMatchHighlightBackground: color("terminal.findMatchHighlightBackground"),
+		TerminalFindMatchHighlightBorder:     color("terminal.findMatchHighlightBorder"),
+		TerminalDecorationDefault:            color("terminalCommandDecoration.defaultBackground"),
+		TerminalDecorationSuccess:            color("terminalCommandDecoration.successBackground"),
+		TerminalDecorationError:              color("terminalCommandDecoration.errorBackground"),
+		TerminalAnsi:                         ansi,
+
 		Type:                                   ct.Type(),
 		EditorBackground:                       color("editor.background"),
 		EditorForeground:                       color("editor.foreground"),

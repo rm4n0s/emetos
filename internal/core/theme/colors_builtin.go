@@ -34,6 +34,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerKeybindingsEditorColors(r)
 	registerDiffEditorColors(r)
 	registerMergeEditorColors(r)
+	registerTerminalColors(r)
 	return r
 }
 

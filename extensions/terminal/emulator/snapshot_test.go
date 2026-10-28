@@ -273,3 +273,39 @@ func TestConcurrentUse(t *testing.T) {
 	}()
 	wg.Wait()
 }
+
+// TestTextRange: the text of a selection, from absolute line numbers that survive the scrollback dropping lines.
+func TestTextRange(t *testing.T) {
+	r := newRigSB(3, 10, 5)
+	r.feed("alpha\r\nbeta\r\ngamma\r\ndelta\r\nepsilon wrapped!!")
+	// the screen holds "delta", "epsilon wr" and "apped!!"; the scrollback "alpha", "beta", "gamma"
+	first := r.FirstLine()
+	for _, tc := range []struct {
+		name string
+		l0   int64
+		c0   int
+		l1   int64
+		c1   int
+		want string
+	}{
+		{"one row", first, 1, first, 4, "lph"},
+		{"two rows", first, 2, first + 1, 2, "pha\nbe"},
+		{"spaces at the end of a row go", first, 0, first + 1, 10, "alpha\nbeta"},
+		{"wrapped rows are joined", first + 4, 0, first + 5, 7, "epsilon wrapped!!"},
+		{"backwards is empty", first + 1, 3, first, 0, ""},
+		{"empty", first, 2, first, 2, ""},
+		{"before the buffer", first - 10, 0, first - 5, 3, ""},
+		{"past the end", first + 100, 0, first + 101, 3, ""},
+		{"starts before the buffer", first - 3, 0, first, 3, "alp"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assertEq(t, "text", r.TextRange(tc.l0, tc.c0, tc.l1, tc.c1), tc.want)
+		})
+	}
+	// lines dropped from the scrollback move FirstLine, not the numbers of the others
+	r.feed("\r\none\r\ntwo\r\nthree")
+	if got := r.FirstLine(); got <= first {
+		t.Fatalf("FirstLine = %d after the scrollback dropped lines, was %d", got, first)
+	}
+	assertEq(t, "a line that is still there", r.TextRange(first+4, 0, first+5, 7), "epsilon wrapped!!")
+}

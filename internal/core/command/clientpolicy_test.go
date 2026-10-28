@@ -35,6 +35,8 @@ func TestClientRefusal(t *testing.T) {
 		{"emetos.extensions.manageEventSharing", extension.RefusedSettings},
 		{"emetos.relay.listen", extension.RefusedRemote},
 		{"emetos.remotework.manage", extension.RefusedRemote},
+		{"workbench.action.terminal.new", extension.RefusedTerminal},
+		{"workbench.action.terminal.sendSequence", extension.RefusedTerminal},
 		// allowed: the workspace settings, editing, saving, extensions' commands
 		{"workbench.action.openWorkspaceSettingsFile", ""},
 		{"workbench.action.openWorkspaceSettings", ""},
@@ -66,9 +68,10 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 		have[m.ID] = true
 	}
 	// the extensions' commands are not in the registry of Emetos
-	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework."}
+	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "workbench.action.terminal."}
+	extensionIDs := []string{"workbench.action.createTerminalEditor"} // the terminal extension's
 	for _, id := range RefusedExactIDs() {
-		if !have[id] {
+		if !have[id] && !slices.Contains(extensionIDs, id) {
 			t.Errorf("the rule names %q, which is not a command", id)
 		}
 	}
@@ -83,7 +86,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 	classes := RefusedClasses()
 	for _, want := range []string{
 		extension.RefusedWindowTab, extension.RefusedQuit, extension.RefusedWindow, extension.RefusedFolder,
-		extension.RefusedProfile, extension.RefusedSettings, extension.RefusedRemote,
+		extension.RefusedProfile, extension.RefusedSettings, extension.RefusedRemote, extension.RefusedTerminal,
 	} {
 		if !slices.Contains(classes, want) {
 			t.Errorf("class %q has no rule", want)

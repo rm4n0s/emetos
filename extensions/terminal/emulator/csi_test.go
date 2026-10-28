@@ -268,6 +268,43 @@ func TestScrollback(t *testing.T) {
 		assertEq(t, "after", r.Scrollback(), 0)
 		assertEq(t, "screen kept", r.screenString(), "3\n4\n5")
 	})
+	t.Run("ED 2 keeps the screen in the scrollback", func(t *testing.T) {
+		// decision 121: Ctrl+L in bash sends CSI H CSI 2 J, and what it clears can be scrolled back to.
+		for _, c := range []struct {
+			name, in  string
+			wantLines []string // the whole buffer, scrollback first
+			screen    string
+			sb        int
+		}{
+			{"three lines", "one\r\ntwo\r\nthree\x1b[H\x1b[2J", []string{"one", "two", "three", "", "", ""}, "", 3},
+			{"stops at the last non-blank line", "one\r\n\r\ntwo\x1b[H\x1b[2J\x1b[Hnew", []string{"one", "", "two", "new", "", ""}, "new", 3},
+			{"an empty screen pushes nothing", "\x1b[H\x1b[2J", []string{"", "", ""}, "", 0},
+			{"twice", "a\x1b[H\x1b[2Jb\x1b[H\x1b[2J", []string{"a", "b", "", "", ""}, "", 2},
+		} {
+			r := newRigSB(3, 10, 10)
+			r.feed(c.in)
+			assertEq(t, c.name+": scrollback", r.Scrollback(), c.sb)
+			assertEq(t, c.name+": screen", r.screenString(), c.screen)
+			for i, want := range c.wantLines {
+				if i >= r.LineCount() {
+					break
+				}
+				got, _ := r.LineText(i)
+				assertEq(t, c.name+": line "+itoa(i), got, want)
+			}
+		}
+	})
+	t.Run("ED 2 on the alternate screen keeps nothing", func(t *testing.T) {
+		r := newRigSB(3, 10, 10)
+		r.feed("main\x1b[?1049hone\r\ntwo\x1b[H\x1b[2J\x1b[?1049l")
+		assertEq(t, "scrollback", r.Scrollback(), 0)
+		assertEq(t, "screen", r.screenString(), "main")
+	})
+	t.Run("ED 3 after ED 2 clears the scrollback", func(t *testing.T) {
+		r := newRigSB(3, 10, 10)
+		r.feed("one\r\ntwo\x1b[H\x1b[2J\x1b[3J")
+		assertEq(t, "scrollback", r.Scrollback(), 0)
+	})
 	t.Run("a region scroll keeps nothing", func(t *testing.T) {
 		r := newRigSB(5, 10, 10)
 		r.feed(fiveRows + "\x1b[2;4r\x1b[4;1H\n\n\n")

@@ -1,0 +1,7 @@
+{
+	"terminal.integrated.defaultProfile.linux": "bash",
+	"terminal.integrated.profiles.linux": {
+		"bash": {"path": "bash", "args": ["--norc", "--noprofile", "-c", "ls -F --color=always; echo; go version; exec bash --norc --noprofile"]}
+	},
+	"terminal.integrated.env.linux": {"PS1": "$ ", "HISTFILE": "/dev/null"}
+}

@@ -123,6 +123,8 @@ const (
 	MenuView      = "MenubarViewMenu"
 	MenuGo        = "MenubarGoMenu"
 	MenuHelp      = "MenubarHelpMenu"
+	// MenuTerminal is the Terminal menu of the menu bar, which has an item only when an extension adds one.
+	MenuTerminal = "MenubarTerminalMenu"
 	// MenuManage is the Manage menu: the gear at the bottom of the activity bar.
 	MenuManage = "GlobalActivity"
 	// MenuEditorContext is the context menu of the text editor.

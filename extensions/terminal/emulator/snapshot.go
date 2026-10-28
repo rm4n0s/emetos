@@ -294,3 +294,52 @@ func trimSpaceRight(b []byte) []byte {
 	}
 	return b
 }
+
+// FirstLine is the absolute number of the oldest line of the current buffer (see OSCEvent.Line and Frame.Top): the lines
+// before it were dropped from the scrollback. The lines FirstLine to FirstLine+LineCount()-1 can be read.
+func (e *Emulator) FirstLine() int64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.scr.ring.trimmed
+}
+
+// TextRange returns the text of the cells from column startCol of the line with the absolute number startLine up to, but
+// not including, column endCol of line endLine (the numbers of Frame.Top, which do not change when the scrollback drops
+// lines). Rows that autowrap joined are joined, the others are separated by a newline, and the spaces at the end of a row that
+// did not wrap are removed. Lines that are no longer in the buffer are skipped; a range that is empty or backwards gives "".
+// It is what copying a selection reads.
+func (e *Emulator) TextRange(startLine int64, startCol int, endLine int64, endCol int) string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	s := e.scr
+	if endLine < startLine || (endLine == startLine && endCol <= startCol) {
+		return ""
+	}
+	first, last := startLine-s.ring.trimmed, endLine-s.ring.trimmed
+	if last < 0 || first >= int64(s.ring.n) {
+		return ""
+	}
+	var out []byte
+	for i := max(first, 0); i <= last && i < int64(s.ring.n); i++ {
+		l := s.ring.at(int(i))
+		from, to := 0, len(l.cells)
+		if i == first {
+			from = min(max(startCol, 0), to)
+		}
+		if i == last {
+			to = min(max(endCol, 0), to)
+		}
+		if from > to {
+			from = to
+		}
+		row := l.text(nil, from, to)
+		if !l.wrapped {
+			row = trimSpaceRight(row)
+		}
+		out = append(out, row...)
+		if !l.wrapped && i < last {
+			out = append(out, '\n')
+		}
+	}
+	return string(out)
+}

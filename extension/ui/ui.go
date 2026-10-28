@@ -229,3 +229,52 @@ func NewTreeController() *TreeController { return kit.NewTreeController() }
 func NewHighlightedLabel(bc widgets.BuildContext, text string, st RowState) widgets.Widget {
 	return kit.NewHighlightedLabel(bc, text, st)
 }
+
+// Split views and context menus.
+type (
+	// SplitView lays out panes side by side or one above the other with a sash between each two that the user drags.
+	SplitView = kit.SplitView
+	// SplitPane is a pane of a SplitView: its widget and its starting size.
+	SplitPane = kit.SplitPane
+	// SplitViewOpts are the options of NewSplitView.
+	SplitViewOpts = kit.SplitViewOpts
+	// SplitViewController reads and changes the sizes of a SplitView.
+	SplitViewController = kit.SplitViewController
+	// SplitOrientation is the axis of a SplitView.
+	SplitOrientation = kit.SplitOrientation
+	// MenuItem is an item of a context menu.
+	MenuItem = kit.MenuItem
+	// ContextMenu hosts a context menu around a child; a ContextMenuController opens it at a position.
+	ContextMenu = kit.ContextMenu
+	// ContextMenuOpts are the options of NewContextMenu.
+	ContextMenuOpts = kit.ContextMenuOpts
+	// ContextMenuController shows and hides the menu of a ContextMenu.
+	ContextMenuController = kit.ContextMenuController
+)
+
+// The axes of a SplitView.
+const (
+	// SplitVertical stacks the panes from top to bottom.
+	SplitVertical = kit.SplitVertical
+	// SplitHorizontal puts the panes side by side.
+	SplitHorizontal = kit.SplitHorizontal
+)
+
+// NewSplitView makes a split view of panes.
+func NewSplitView(panes []SplitPane, opts ...SplitViewOpts) *SplitView {
+	return kit.NewSplitView(panes, opts...)
+}
+
+// NewSplitViewController makes a controller for a split view.
+func NewSplitViewController() *SplitViewController { return kit.NewSplitViewController() }
+
+// NewContextMenu makes the host of a context menu around a child.
+func NewContextMenu(child widgets.Widget, opts ...ContextMenuOpts) *ContextMenu {
+	return kit.NewContextMenu(child, opts...)
+}
+
+// NewContextMenuController makes a controller for a context menu.
+func NewContextMenuController() *ContextMenuController { return kit.NewContextMenuController() }
+
+// SeparatorItem is the separator for a list of menu items.
+func SeparatorItem() MenuItem { return kit.SeparatorItem() }

@@ -272,6 +272,33 @@ func (s *Scope) ViewActions(viewID string, keys contextkey.Context, run func(com
 	return widgets.NewRow(buttons, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin})
 }
 
+// ViewAllowsCommand tells whether a key press bound to the command is run by the window while the keyboard focus is in the
+// view: false when the extension that provided the view has an AllowCommand that says no, so that the key goes to the
+// focused widget of the view (a terminal, which takes every key but those of the commands that skip the shell). It is true for
+// a view that is not an extension's, one without the function, and one whose extension failed. A panic in the function fails
+// the extension with ExtensionViewAllowCommandPanicked. UI thread.
+func (s *Scope) ViewAllowsCommand(viewID, commandID string) (allowed bool) {
+	s.mu.Lock()
+	d := s.viewDecls[viewID]
+	if d == nil || d.content == nil || d.content.AllowCommand == nil || d.inst == nil || d.slot.state == StateFailed {
+		s.mu.Unlock()
+		return true
+	}
+	f, inst := d.content.AllowCommand, d.inst
+	s.mu.Unlock()
+	if inst.isDead() {
+		return true
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			failure := errors.NewErrf("ExtensionViewAllowCommandPanicked", "it panicked in AllowCommand of the view %s: %v", d.id, r).SetMetadata("extension", inst.id, "view", d.id, "scope", s.opts.Info.Name)
+			s.post(func() { s.fail(d.slot, failure, "view "+d.id+" AllowCommand") })
+			allowed = true
+		}
+	}()
+	return f(commandID)
+}
+
 // PanelBadge is the count and the tooltip that the extension put on the tab of a panel view; 0 for none.
 func (s *Scope) PanelBadge(containerID string) (count int, tooltip string) {
 	s.mu.Lock()

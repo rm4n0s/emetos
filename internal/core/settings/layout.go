@@ -48,7 +48,7 @@ var commonlyUsed = []string{
 const extensionsID = "extensions"
 
 // DefaultTOC is VS Code's table of contents for the groups Emetos can have settings in. The groups of
-// VS Code that no setting of Emetos can belong to (Chat, Notebook, Terminal, Debug and so on) are
+// VS Code that no setting of Emetos can belong to (Chat, Notebook, Debug and so on) are
 // left out until a setting needs one.
 func DefaultTOC() []TOCEntry {
 	return []TOCEntry{
@@ -88,6 +88,7 @@ func DefaultTOC() []TOCEntry {
 			Children: []TOCEntry{
 				{ID: "features/explorer", Label: "Explorer", Patterns: []string{"explorer.*", "outline.*"}},
 				{ID: "features/search", Label: "Search", Patterns: []string{"search.*"}},
+				{ID: "features/terminal", Label: "Terminal", Patterns: []string{"terminal.integrated.*"}},
 				{ID: "features/problems", Label: "Problems", Patterns: []string{"problems.*"}},
 				{ID: "features/output", Label: "Output", Patterns: []string{"output.*"}},
 				{ID: "features/mergeEditor", Label: "Merge Editor", Patterns: []string{"mergeEditor.*"}},

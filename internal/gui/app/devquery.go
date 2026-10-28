@@ -68,11 +68,12 @@ type DevMarkdown struct {
 func registerDevQueries(p *Process) {
 	inputs := command.Meta{ID: "dev.inputs", Description: "Report every text field on screen: its text, selection, focus and place. Read-only; the dev server answers with the list."}
 	editor := command.Meta{ID: "dev.editor", Description: "Report the document of the active editor: its path, text and cursor. Read-only; the dev server answers with it."}
+	terminals := command.Meta{ID: "dev.terminals", Description: "Report every terminal on screen: its place, the text of its rows, the selection, the scrolling and the focus. Read-only; the dev server answers with the list."}
 	preview := command.Meta{ID: "dev.markdown", Description: "Report every Markdown preview on screen: its blocks, the blocks built, the top line, the scroll position and the image cache. Read-only; the dev server answers with the list."}
 	for _, q := range []struct {
 		meta command.Meta
 		run  func(p *Process, ctx command.Context) error
-	}{{inputs, devInputs}, {editor, devEditor}, {preview, devMarkdown}} {
+	}{{inputs, devInputs}, {editor, devEditor}, {preview, devMarkdown}, {terminals, devTerminals}} {
 		err := RegisterDev(p.Commands, q.meta, func(ctx command.Context, _ any) error { return q.run(p, ctx) })
 		if err != nil {
 			// the ids are fixed, new and start with dev., so a failure is a mistake here
@@ -121,6 +122,48 @@ func devMarkdown(p *Process, ctx command.Context) error {
 				}
 				list = append(list, m)
 			}
+		}
+		el.DebugVisitOnstageChildren(visit)
+	}
+	binding.RootElement().DebugVisitOnstageChildren(visit)
+	setDevAnswer(ctx.Ctx, list)
+	return nil
+}
+
+// DevTerminal is one terminal on screen, as dev.terminals reports it. State is what the terminal's render object says about it
+// (the terminal extension's own type, which the app does not import).
+type DevTerminal struct {
+	// X, Y, Width and Height are the place of the terminal in window coordinates (logical pixels).
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+	// State is the terminal's report: text, selected, scroll, scrollback, cols, rows, focused, alt.
+	State any `json:"state"`
+}
+
+// terminalInspector is a render object that draws a terminal and reports it.
+type terminalInspector interface{ DevTerminal() any }
+
+// devTerminals answers dev.terminals.
+func devTerminals(p *Process, ctx command.Context) error {
+	binding := p.Workspaces.binding
+	if binding == nil || binding.RootElement() == nil {
+		return errors.New("DevTerminalsNoWindow", "the window is not up yet")
+	}
+	list := []DevTerminal{}
+	seen := map[terminalInspector]bool{}
+	var visit func(el widgets.Element)
+	visit = func(el widgets.Element) {
+		if ro, ok := el.RenderObject().(terminalInspector); ok && !seen[ro] {
+			seen[ro] = true
+			t := DevTerminal{State: ro.DevTerminal()}
+			if r, ok := el.RenderObject().(rendering.Box); ok && r != nil && r.HasSize() {
+				at := r.LocalToGlobal(zeroOffset, nil)
+				size := r.Size()
+				t.X, t.Y, t.Width, t.Height = at.Dx, at.Dy, size.Width, size.Height
+			}
+			list = append(list, t)
 		}
 		el.DebugVisitOnstageChildren(visit)
 	}

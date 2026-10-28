@@ -54,7 +54,7 @@ while [[ $# -gt 0 ]]; do
 done
 args=("$@")
 if [[ ${#args[@]} -eq 0 ]]; then
-  args=(./cmd/emetos -run 'TestRealInput|TestDesktop' -v)
+  args=(./cmd/emetos -run 'TestRealInput|TestDesktop' -v -timeout 40m)
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

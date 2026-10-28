@@ -96,6 +96,12 @@ type ViewContent struct {
 	// RestoreState gives the view the JSON of the state that SaveState returned, before the first Build after the view
 	// was provided and whenever the box is made again. It is not called when nothing was saved.
 	RestoreState func(state json.RawMessage) error
+	// AllowCommand, when set, is asked while the keyboard focus is in the view and a key press is bound to a command: with
+	// true the window runs the command as it always does, with false the window leaves the key to the focused widget of the
+	// view, which is how a terminal gets Ctrl+W or Ctrl+P unless the command is one that skips the shell (SPEC §10.25 "Commands,
+	// keys and context keys"). A key bound to no command, and a key that starts a chord, are not asked about. It is called on
+	// the UI thread; a panic in it deactivates the extension.
+	AllowCommand func(commandID string) bool
 }
 
 // ViewHandle controls a view that was provided.
@@ -108,6 +114,9 @@ type ViewHandle interface {
 	// Reveal shows the view: the container of a side bar view is opened (and the side bar shown), the tab of a panel
 	// view is selected (and the panel shown). With focus the keyboard focus goes into it.
 	Reveal(focus bool)
+	// Hide hides the panel when the view is a panel view and its tab is the one that is open (it does nothing otherwise), and
+	// gives the keyboard focus to the editor area: the last terminal ending uses it. The view stays declared.
+	Hide()
 	// Dispose takes the content away; the view stays declared and shows nothing.
 	Dispose()
 }
