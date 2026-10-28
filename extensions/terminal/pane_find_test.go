@@ -12,16 +12,19 @@ import (
 	"github.com/rm4n0s/emetos/extension/ui/uitest"
 )
 
-// waitSearched pumps the frames until the search of the pane has answered.
+// waitSearched waits until the search of the pane has answered, then runs the frames. The search runs on a goroutine of its own
+// and hands its answer over by Post, so the wait is in real time and hands the posted answers to the UI thread without drawing
+// a frame: a frame advances the fake clock, and the number of frames that a wait drew depended on how long the goroutine took,
+// that is on the load of the machine, which moved the fake clock to a different phase of the input's blinking caret (30
+// pixels of the golden images).
 func (r *paneRig) waitSearched(t *testing.T) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
-	for !r.pv.find.searched {
+	for r.ts.FlushPosted(); !r.pv.find.searched; r.ts.FlushPosted() {
 		if time.Now().After(deadline) {
 			t.Fatalf("the search did not answer; find = %+v", r.pv.find)
 		}
-		time.Sleep(2 * time.Millisecond)
-		r.settle()
+		time.Sleep(time.Millisecond)
 	}
 	r.settle()
 }

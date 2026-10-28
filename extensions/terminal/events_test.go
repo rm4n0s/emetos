@@ -94,13 +94,18 @@ func TestTheExtensionIsActiveFromTheStartAndHandlesTheRequests(t *testing.T) {
 	}
 }
 
+// TestTheEventsOfATerminalFromItsStartToItsEnd runs the test shell with --tty-echo: it leaves the terminal's ECHO on, so what
+// is typed is not hidden (decision 185) at any moment. Without the argument the shell turns ECHO off as soon as it has started
+// (raw mode, as a shell with a line editor does), and the first input event was Hidden or not by whether the test typed before
+// or after that: a race that the load decided. TestInputToAShellThatTurnedEchoOffIsHidden holds the other half.
 func TestTheEventsOfATerminalFromItsStartToItsEnd(t *testing.T) {
-	r := newExtRig(t, "")
+	r := newExtRig(t, "", "--tty-echo")
 	r.ext.outputInterval = 5 * time.Millisecond
 	log := r.listen()
 	r.run(CmdNew, map[string]any{"name": "builder"})
 	e := r.ext.activeEntry()
 	id := e.term.ID()
+	waitText(t, e.term, "ready") // the shell is running and has set up the terminal (it says "ready" after that)
 
 	created := log.topic(TopicCreated)
 	if len(created) != 1 {
@@ -182,6 +187,28 @@ func TestTheEventsOfATerminalFromItsStartToItsEnd(t *testing.T) {
 	log.mu.Unlock()
 	if order[TopicOutput] >= order[TopicExited] || order[TopicExited] >= order[TopicClosed] {
 		t.Errorf("the last indexes: output %d, exited %d, closed %d", order[TopicOutput], order[TopicExited], order[TopicClosed])
+	}
+}
+
+// TestInputToAShellThatTurnedEchoOffIsHidden holds that the input events of a terminal whose program turned ECHO off carry no
+// text: the test waits for the "ready" of the test shell, which it says after it did that, so it does not depend on timing.
+func TestInputToAShellThatTurnedEchoOffIsHidden(t *testing.T) {
+	r := newExtRig(t, "")
+	log := r.listen()
+	r.run(CmdNew, nil)
+	e := r.ext.activeEntry()
+	waitText(t, e.term, "ready")
+	e.term.Type([]byte("echo secret\r"), ByUser)
+	inputs := log.topic(TopicInput)
+	if len(inputs) != 1 {
+		t.Fatalf("input events: %d", len(inputs))
+	}
+	var in inputEvent
+	if err := inputs[0].Decode(&in); err != nil {
+		t.Fatal(err)
+	}
+	if !in.Hidden || in.Data != "" || in.By != ByUser {
+		t.Errorf("input = %+v, want hidden and without data", in)
 	}
 }
 

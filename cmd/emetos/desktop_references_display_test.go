@@ -158,19 +158,28 @@ func TestDesktopFindAllReferences(t *testing.T) {
 	a.WaitText("4 results in 3 files")
 	a.WaitNoText("IMPLEMENTATIONS")
 
-	// a click on a file opens it in the view, a click on a location opens the file there
-	var tx app.DevText
-	for attempt := 0; ; attempt++ {
-		a.ClickText("extra.go")
-		time.Sleep(1500 * time.Millisecond)
-		var ok bool
-		if tx, ok = textContaining(a, "Greet(\"extra\")"); ok {
-			break
-		}
-		if attempt == 3 {
-			t.Fatalf("the file did not open in the view:\n%s", a.Dump())
-		}
+	// a click on a file row toggles it, a click on a location opens the file there. The row of extra.go is open already: a result
+	// keeps the files that were open in the one before it (Find All Implementations opened it, as the file nearest to the
+	// cursor), so the first click closes it, and the second, after the time in which two clicks on a row are one double click
+	// (400 ms; a double click opens the row and toggles nothing), opens it again. The test used to click up to three times with a
+	// pause, taking the first click for one that had not opened the row.
+	extraPlace := func() (app.DevText, bool) { return textContaining(a, "Greet(\"extra\")") }
+	if _, ok := extraPlace(); !ok {
+		t.Fatalf("the file extra.go is not open in the view, as the result before this one left it:\n%s", a.Dump())
 	}
+	a.ClickText("extra.go")
+	a.Eventually("a click to close the file extra.go in the view", func() (bool, string) {
+		_, ok := extraPlace()
+		return !ok, a.Dump()
+	})
+	time.Sleep(500 * time.Millisecond)
+	a.ClickText("extra.go")
+	var tx app.DevText
+	a.Eventually("a click to open the file extra.go in the view", func() (bool, string) {
+		var ok bool
+		tx, ok = extraPlace()
+		return ok, a.Dump()
+	})
 	a.Click(tx.X+tx.Width/2, tx.Y+tx.Height/2)
 	a.Eventually("extra.go to open at the place", func() (bool, string) {
 		return activeTab(a) == "extra.go" && a.Editor().Line == 3, activeTab(a) + " " + itoa(a.Editor().Line)

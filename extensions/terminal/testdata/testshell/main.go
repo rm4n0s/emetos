@@ -1,6 +1,9 @@
 // Command testshell is the shell the tests of the terminal extension run in a pseudo-terminal (SPEC §10.25 "Tests"): a small
 // program that echoes what is typed, runs a few commands that draw with escape sequences, uses the alternate screen, tracks the
 // mouse and reports the size of its terminal. It reads the terminal in raw mode, so every byte a test types arrives as it is.
+// Raw mode turns the terminal's ECHO off and the shell echoes what is typed itself, as a shell with a line editor does; with
+// the argument --tty-echo the shell leaves ECHO on and lets the terminal echo, as a program that reads its input in cooked
+// mode does (a terminal that echoes is one whose input is not hidden, decision 185).
 package main
 
 import (
@@ -14,12 +17,16 @@ import (
 )
 
 func main() {
+	ttyEcho := len(os.Args) > 1 && os.Args[1] == "--tty-echo"
 	fd := int(os.Stdin.Fd())
 	if old, err := unix.IoctlGetTermios(fd, unix.TCGETS); err == nil {
 		raw := *old
 		raw.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
 		raw.Oflag &^= unix.OPOST
-		raw.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+		raw.Lflag &^= unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+		if !ttyEcho {
+			raw.Lflag &^= unix.ECHO
+		}
 		raw.Cc[unix.VMIN], raw.Cc[unix.VTIME] = 1, 0
 		_ = unix.IoctlSetTermios(fd, unix.TCSETS, &raw)
 	}
@@ -104,13 +111,17 @@ func main() {
 			case 0x7f:
 				if len(line) > 0 {
 					line = line[:len(line)-1]
-					say("\b \b")
+					if !ttyEcho {
+						say("\b \b")
+					}
 				}
 			case 0x04:
 				return
 			default:
 				line = append(line, b)
-				_, _ = out.Write([]byte{b})
+				if !ttyEcho {
+					_, _ = out.Write([]byte{b})
+				}
 			}
 		}
 	}
