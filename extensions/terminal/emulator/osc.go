@@ -2,6 +2,7 @@ package emulator
 
 import (
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -78,9 +79,11 @@ func (e *Emulator) oscEnd() {
 		e.colorsChanged()
 	default:
 		s := e.scr
-		e.events = append(e.events, event{kind: evOSC, osc: OSCEvent{
-			Code: n, Data: rest, Line: s.absLine(s.y), Col: s.x, Alt: e.scr.alt,
-		}})
+		ev := OSCEvent{Code: n, Data: rest, Line: s.absLine(s.y), Col: s.x, Alt: e.scr.alt}
+		if slices.Contains(e.markCodes, n) {
+			ev.Marker = e.addMarkerLocked()
+		}
+		e.events = append(e.events, event{kind: evOSC, osc: ev})
 	}
 }
 

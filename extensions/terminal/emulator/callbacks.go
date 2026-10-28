@@ -37,6 +37,9 @@ type OSCEvent struct {
 	Col  int
 	// Alt says that the alternate screen was active.
 	Alt bool
+	// Marker is a marker at the line of the cursor, for the codes of Options.MarkCodes on the main screen (0 for the others).
+	// The host removes it with RemoveMarker when it has no use for it.
+	Marker MarkerID
 }
 
 type eventKind uint8

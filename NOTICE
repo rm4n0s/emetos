@@ -168,3 +168,14 @@ Linked Go module:
     showing one's own as a QR code). The license texts are in third_party/gozxing/ (LICENSE,
     LICENSE-zxing-apache-2.0). Its one dependency, golang.org/x/xerrors (BSD-3-Clause, The Go
     Authors), comes with it.
+
+16. Shell integration scripts of the integrated terminal (bash, zsh, fish and PowerShell)
+    Source:  https://github.com/microsoft/vscode, src/vs/workbench/contrib/terminal/common/scripts/
+             (shellIntegration-bash.sh, shellIntegration-env.zsh, shellIntegration-login.zsh,
+             shellIntegration-profile.zsh, shellIntegration-rc.zsh, shellIntegration.fish, shellIntegration.ps1)
+    License: MIT (Copyright (c) 2015 - present Microsoft Corporation). The PowerShell script carries
+             the license text of posh-git (MIT, Keith Dahlby and contributors) that its header names.
+    Added by step 17d.5 (extensions/terminal/shellintegration/, embedded in the program and written
+    to the cache folder of Emetos when a shell starts). The license is in
+    third_party/vscode-shell-integration/ (LICENSE.txt and VS Code's cgmanifest.json for the scripts).
+    The PSReadLine modules that VS Code ships next to them are not bundled.

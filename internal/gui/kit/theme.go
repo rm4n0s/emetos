@@ -336,7 +336,10 @@ type Colors struct {
 	TerminalFindMatchBackground, TerminalFindMatchBorder                                          ui.Color
 	TerminalFindMatchHighlightBackground, TerminalFindMatchHighlightBorder                        ui.Color
 	TerminalDecorationDefault, TerminalDecorationSuccess, TerminalDecorationError                 ui.Color
-	TerminalAnsi                                                                                  [16]ui.Color
+	// The sticky scroll overlay of the terminal (step 17d.5): its background (transparent: the terminal's), the background under
+	// the pointer and its border (transparent in the themes that have none).
+	TerminalStickyScrollBackground, TerminalStickyScrollHoverBackground, TerminalStickyScrollBorder ui.Color
+	TerminalAnsi                                                                                    [16]ui.Color
 }
 
 // ColorsOf gives the colors of a theme: for each field, the color the theme sets or else the
@@ -367,6 +370,9 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		TerminalDecorationDefault:            color("terminalCommandDecoration.defaultBackground"),
 		TerminalDecorationSuccess:            color("terminalCommandDecoration.successBackground"),
 		TerminalDecorationError:              color("terminalCommandDecoration.errorBackground"),
+		TerminalStickyScrollBackground:       color("terminalStickyScroll.background"),
+		TerminalStickyScrollHoverBackground:  color("terminalStickyScrollHover.background"),
+		TerminalStickyScrollBorder:           color("terminalStickyScroll.border"),
 		TerminalAnsi:                         ansi,
 
 		Type:                                   ct.Type(),

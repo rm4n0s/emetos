@@ -86,7 +86,10 @@ func TestTheManifestDeclaresWhatItNeeds(t *testing.T) {
 		if !declared[kb.Command] {
 			t.Errorf("the key %s binds %s, which the manifest does not declare", kb.Key, kb.Command)
 		}
-		keys[kb.Key] = kb.Command
+		// a key two commands share (Ctrl+Shift+Up, step 17d.5) is checked for the first
+		if _, ok := keys[kb.Key]; !ok {
+			keys[kb.Key] = kb.Command
+		}
 	}
 	for key, command := range map[string]string{
 		"ctrl+`": CmdToggle, "ctrl+shift+`": CmdNew, "ctrl+shift+5": CmdSplit, "ctrl+shift+c": CmdCopySelection,

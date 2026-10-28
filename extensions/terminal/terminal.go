@@ -37,6 +37,14 @@ func commandSpecs() []extension.CommandSpec {
 		c(CmdRunSelectedText, "Run Selected Text In Active Terminal"), c(CmdRunActiveFile, "Run Active File In Active Terminal"),
 		c(CmdSendSequence, "Send Sequence"), c(CmdRename, "Rename..."), c(CmdRenameWithArgs, "Rename the Currently Active Terminal"),
 		c(CmdSelectDefaultProfile, "Select Default Profile"), c(CmdSearchWorkspace, "Search Workspace"),
+		c(CmdScrollToPrevCommand, "Scroll to Previous Command"), c(CmdScrollToNextCommand, "Scroll to Next Command"),
+		c(CmdSelectToPrevCommand, "Select to Previous Command"), c(CmdSelectToNextCommand, "Select to Next Command"),
+		c(CmdSelectToPrevLine, "Select to Previous Line"), c(CmdSelectToNextLine, "Select to Next Line"),
+		c(CmdRunRecentCommand, "Run Recent Command..."), c(CmdGoToRecentDirectory, "Go to Recent Directory..."),
+		c(CmdClearPreviousHistory, "Clear Previous Session History"),
+		c(CmdCopyLastCommand, "Copy Last Command"), c(CmdCopyLastOutput, "Copy Last Command Output"),
+		c(CmdCopyLastCommandOutput, "Copy Last Command and Output"),
+		c(CmdToggleStickyScroll, "Toggle Sticky Scroll"), c(CmdShowQuickFixes, "Show Terminal Quick Fixes"),
 	}
 	for i := 1; i <= 9; i++ {
 		specs = append(specs, c(focusAtIndex(i), "Focus Terminal "+string(rune('0'+i))))
@@ -65,12 +73,21 @@ func keybindings() []extension.Keybinding {
 		{Command: CmdPaste, Key: "ctrl+shift+v", When: inTerminal},
 		{Command: CmdPasteSelection, Key: "shift+insert", When: inTerminal},
 		{Command: CmdClearSelection, Key: "escape", When: keyFocusInAny + " && " + keyTextSelected + " && !" + keyFindVisible},
-		{Command: CmdScrollUp, Key: "ctrl+shift+up", When: normal},
-		{Command: CmdScrollDown, Key: "ctrl+shift+down", When: normal},
+		{Command: CmdScrollUp, Key: "ctrl+shift+up", When: normal + " && !" + keyShellIntegration},
+		{Command: CmdScrollDown, Key: "ctrl+shift+down", When: normal + " && !" + keyShellIntegration},
 		{Command: CmdScrollUpPage, Key: "shift+pageup", When: normal},
 		{Command: CmdScrollDownPage, Key: "shift+pagedown", When: normal},
 		{Command: CmdScrollToTop, Key: "shift+home", When: normal},
 		{Command: CmdScrollToBottom, Key: "shift+end", When: normal},
+		// shell integration (terminalActions.ts, terminalContrib/history, terminalContrib/quickFix): VS Code binds Ctrl+Shift+Up and
+		// Down to both the line scroll and the selection of commands; here the commands win when the shell sends sequences
+		{Command: CmdScrollToPrevCommand, Key: "ctrl+up", When: inTerminal},
+		{Command: CmdScrollToNextCommand, Key: "ctrl+down", When: inTerminal},
+		{Command: CmdSelectToPrevCommand, Key: "ctrl+shift+up", When: inTerminal + " && " + keyShellIntegration},
+		{Command: CmdSelectToNextCommand, Key: "ctrl+shift+down", When: inTerminal + " && " + keyShellIntegration},
+		{Command: CmdRunRecentCommand, Key: "ctrl+alt+r", When: inTerminal},
+		{Command: CmdGoToRecentDirectory, Key: "ctrl+g", When: inTerminal},
+		{Command: CmdShowQuickFixes, Key: "ctrl+.", When: inTerminal},
 		// find (terminalContrib/find/browser/terminal.find.contribution.ts): Enter in the input goes to the previous match and
 		// Shift+Enter to the next, as VS Code's table has them
 		{Command: CmdFocusFind, Key: "ctrl+f", When: keyFindFocus + " || " + keyFocusInAny},
@@ -137,6 +154,7 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	}
 	c := readConfig(api.Settings())
 	t.cfg = &c
+	t.hist = newHistoryStore(t.stateDir, func() int { return t.cfg.historyLimit })
 	t.menu = ui.NewContextMenuController()
 	var err error
 	t.handle, err = api.Views().Provide(ViewID, extension.ViewContent{
@@ -263,6 +281,21 @@ func (t *terminals) handlers() map[string]extension.CommandHandler {
 		CmdRenameWithArgs:       func(_ context.Context, args any) error { t.renameWithArgs(args); return nil },
 		CmdSelectDefaultProfile: func(context.Context, any) error { t.selectDefaultProfile(); return nil },
 		CmdSearchWorkspace:      func(ctx context.Context, _ any) error { t.searchWorkspace(ctx); return nil },
+
+		CmdScrollToPrevCommand:   onPane(func(pv *paneView) { pv.scrollToCommand(true) }),
+		CmdScrollToNextCommand:   onPane(func(pv *paneView) { pv.scrollToCommand(false) }),
+		CmdSelectToPrevCommand:   onPane(func(pv *paneView) { pv.selectToCommand(true) }),
+		CmdSelectToNextCommand:   onPane(func(pv *paneView) { pv.selectToCommand(false) }),
+		CmdSelectToPrevLine:      onPane(func(pv *paneView) { pv.selectLine(true) }),
+		CmdSelectToNextLine:      onPane(func(pv *paneView) { pv.selectLine(false) }),
+		CmdRunRecentCommand:      func(context.Context, any) error { t.runRecentCommand(); return nil },
+		CmdGoToRecentDirectory:   func(context.Context, any) error { t.goToRecentDirectory(); return nil },
+		CmdClearPreviousHistory:  func(context.Context, any) error { t.clearPreviousSessionHistory(); return nil },
+		CmdCopyLastCommand:       func(context.Context, any) error { t.copyLast(true, false); return nil },
+		CmdCopyLastOutput:        func(context.Context, any) error { t.copyLast(false, true); return nil },
+		CmdCopyLastCommandOutput: func(context.Context, any) error { t.copyLast(true, true); return nil },
+		CmdToggleStickyScroll:    func(context.Context, any) error { t.toggleStickyScroll(); return nil },
+		CmdShowQuickFixes:        func(context.Context, any) error { t.showQuickFixes(); return nil },
 	}
 	for i := 1; i <= 9; i++ {
 		handlers[focusAtIndex(i)] = func(context.Context, any) error { t.focusTerminalAt(i - 1); return nil }

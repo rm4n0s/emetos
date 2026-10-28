@@ -287,6 +287,9 @@ func (pv *paneView) onPointerDown(e *gestures.PointerDownEvent) {
 	if !ok {
 		return
 	}
+	if !pv.reportsMouse() && pv.shellPointerDown(e, btn, local) {
+		return
+	}
 	if pv.reportsMouse() {
 		pv.reporting = true
 		pv.report(emulator.MouseEvent{Button: btn, Action: emulator.MousePress, Mods: pv.modsOf(), X: col, Y: row})
@@ -420,6 +423,7 @@ func (pv *paneView) onPointerMove(e *gestures.PointerMoveEvent) {
 // onPointerHover is the pointer moving with no button down.
 func (pv *paneView) onPointerHover(e *gestures.PointerHoverEvent) {
 	local := e.LocalPosition()
+	pv.stickyHover(local)
 	over := pv.hitBar(local)
 	if over != pv.hoverBar {
 		pv.hoverBar = over

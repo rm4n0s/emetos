@@ -145,6 +145,8 @@ func testConfig() *config {
 		wheelSens: 1, fastSens: 5, wordSeparators: " ()[]{}',\"`─‘’“”|", rightClick: "default", middleClick: "default",
 		skip: newSkipSet(nil), allowChords: true, multiLinePaste: "auto", tabsEnabled: true, tabsLocation: "right",
 		tabsHide: "singleTerminal", tabsTitle: "${process}", defaultIcon: "terminal",
+		shellInteg: true, decorations: "both", quickFix: true, historyLimit: 100, stickyOn: true, stickyMax: 5, splitCwd: "inherited",
+		stickyIgnored: []string{"clear", "cls", "clear-host"},
 	}
 }
 

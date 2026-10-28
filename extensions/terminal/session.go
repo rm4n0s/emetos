@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -78,6 +79,10 @@ type terminalOpts struct {
 	interval time.Duration
 	// snapshotLimit is the most a snapshot's data may be; 0 is maxSnapshotBytes.
 	snapshotLimit int
+	// nonce is the secret the shell integration scripts print with the command line (inject.go); "" believes no command line.
+	nonce string
+	// injected says that the shell integration scripts were injected into the shell (the tab's hover says so).
+	injected bool
 }
 
 // Terminal is one terminal: the program in its pseudo-terminal, the emulator that turns its output into a screen, and what a
@@ -127,6 +132,11 @@ type Terminal struct {
 	exitedCh chan struct{}
 	wg       sync.WaitGroup
 
+	// si follows the shell integration (shellint.go); injected says the scripts were injected, shellName is the kind of shell
+	si        *shellState
+	injected  bool
+	shellName string
+
 	// the stream of the output for the observer (stream.go): outMu holds the parser's write and the bytes that wait to be
 	// published together, so that a snapshot is the screen after exactly the output of the events up to its seq.
 	obs      *observer
@@ -166,11 +176,13 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 		o.snapshotLimit = maxSnapshotBytes
 	}
 	t := &Terminal{id: o.id, log: o.log.With("terminal", o.id), prof: o.profile, dir: o.dir, rows: o.rows, cols: o.cols,
-		inWake: make(chan struct{}, 1), exitedCh: make(chan struct{}), icon: o.profile.icon, obs: o.obs, snapMax: o.snapshotLimit}
+		inWake: make(chan struct{}, 1), exitedCh: make(chan struct{}), icon: o.profile.icon, obs: o.obs, snapMax: o.snapshotLimit,
+		injected: o.injected, shellName: shellNameOf(o.profile.path)}
 	t.flowCond = sync.NewCond(&t.flowMu)
 	t.em = emulator.New(o.rows, o.cols, emulator.Options{
-		Scrollback: o.scrollback, Name: "Emetos", Version: o.version,
+		Scrollback: o.scrollback, Name: "Emetos", Version: o.version, MarkCodes: shellOSCCodes,
 		Callbacks: emulator.Callbacks{
+			OSC:   func(ev emulator.OSCEvent) { t.si.handle(ev) },
 			Reply: func(p []byte) { t.Send(p) },
 			Title: func(s string) {
 				t.mu.Lock()
@@ -196,6 +208,14 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 			PaletteChanged: func() { t.markChanged() },
 		},
 	})
+	t.si = newShellState(t.em, o.nonce)
+	t.si.onCwd = func(dir string) {
+		t.mu.Lock()
+		t.cwd = dir
+		t.mu.Unlock()
+		t.fireMeta()
+	}
+	t.si.onChange = t.markChanged
 	grace := o.grace
 	proc, err := o.start(ctx, pty.Options{
 		Program: o.profile.path, Args: o.profile.args, Dir: o.dir, Env: o.env, Rows: o.rows, Cols: o.cols, Grace: grace,
@@ -211,6 +231,21 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 	go t.writeLoop()
 	go t.watchProcessName()
 	return t, nil
+}
+
+// ShellIntegration is the state of the shell integration of the terminal (shellint.go).
+func (t *Terminal) ShellIntegration() *shellState { return t.si }
+
+// ShellName is the kind of shell of the terminal: the base name of its program ("bash", "zsh", "fish", "pwsh", "sh"...).
+func (t *Terminal) ShellName() string { return t.shellName }
+
+// shellNameOf is the kind of shell of a program: its base name in lower case, without ".exe"; Windows PowerShell counts as pwsh.
+func shellNameOf(path string) string {
+	name := strings.TrimSuffix(strings.ToLower(filepath.Base(path)), ".exe")
+	if name == "powershell" {
+		return shellPwsh
+	}
+	return name
 }
 
 // ID is the number of the terminal in its window tab; the first is 1.
@@ -520,6 +555,38 @@ func (t *Terminal) Cwd() string {
 		return t.cwd
 	}
 	return t.dir
+}
+
+// InitialDir is the folder the terminal started in.
+func (t *Terminal) InitialDir() string { return t.dir }
+
+// SpeculativeCwd is the folder the shell is in as well as can be known: the one it reported (OSC 7, shell integration), else
+// the one the system says its process is in (/proc/<pid>/cwd), else the one it started in (VS Code's getSpeculativeCwd).
+func (t *Terminal) SpeculativeCwd() string {
+	t.mu.Lock()
+	reported := t.cwd
+	t.mu.Unlock()
+	if reported != "" {
+		return reported
+	}
+	if pid := t.Pid(); pid > 0 {
+		if dir, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd"); err == nil && filepath.IsAbs(dir) {
+			return dir
+		}
+	}
+	return t.dir
+}
+
+// splitDir is the folder a split terminal starts in (terminal.integrated.splitCwd): "inherited" the folder of the terminal it
+// is split from, "initial" the folder that one started in, "workspaceRoot" none (the start folder of the settings).
+func splitDir(mode string, from *Terminal) string {
+	switch mode {
+	case "workspaceRoot":
+		return ""
+	case "initial":
+		return from.InitialDir()
+	}
+	return from.SpeculativeCwd()
 }
 
 // Profile is the profile the terminal started with.

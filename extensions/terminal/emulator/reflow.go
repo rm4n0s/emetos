@@ -40,6 +40,7 @@ func (e *Emulator) resizeRows(s *screen, rows int) {
 		s.y -= shift
 		s.ring.setMax(rows + e.scrollback)
 	}
+	e.marks.dropFrom(s.ring.trimmed + int64(s.ring.n))
 	s.rows = rows
 	s.top, s.bottom = 0, rows-1
 	s.y = min(max(s.y, 0), rows-1)
@@ -77,14 +78,34 @@ func (e *Emulator) reflowMain(rows, cols int) {
 	var clus []string
 	curRow, curCol := -1, 0
 	curWrap := false
+	// The markers follow their rows: a marker on row i of a logical line goes to the new row that holds the cell at the
+	// offset where row i began in the stream (the end of the line if there is none).
+	oldMarks := e.marks.list
+	newMarks := make([]marker, 0, len(oldMarks))
+	mi := 0
+	for mi < len(oldMarks) && oldMarks[mi].line < old.trimmed {
+		mi++
+	}
+	type pendingMark struct {
+		id  MarkerID
+		off int
+	}
+	var pend []pendingMark
 	i := 0
 	for i <= last {
 		// Gather the logical line that starts at row i.
 		stream = stream[:0]
 		clus = clus[:0]
 		curOff := -1
+		pend = pend[:0]
 		for {
 			l := old.at(i)
+			for mi < len(oldMarks) && oldMarks[mi].line-old.trimmed <= int64(i) {
+				if oldMarks[mi].line-old.trimmed == int64(i) {
+					pend = append(pend, pendingMark{oldMarks[mi].id, len(stream)})
+				}
+				mi++
+			}
 			end := len(l.cells)
 			if !l.wrapped || i == last {
 				for end > 0 && l.cells[end-1].isPlainBlank() {
@@ -128,6 +149,7 @@ func (e *Emulator) reflowMain(rows, cols int) {
 		// Lay it out at the new width.
 		out := nr.push(0)
 		outIdx := nr.n - 1 + int(nr.trimmed-old.trimmed)
+		firstOut := outIdx
 		x := 0
 		place := func(k int) (row, col int) {
 			c := stream[k]
@@ -158,11 +180,23 @@ func (e *Emulator) reflowMain(rows, cols int) {
 			x += w
 			return row, col
 		}
+		pi := 0
 		for k := range stream {
 			row, col := place(k)
 			if k == curOff {
 				curRow, curCol, curWrap = row, col, false
 			}
+			for pi < len(pend) && pend[pi].off <= k {
+				newMarks = append(newMarks, marker{pend[pi].id, old.trimmed + int64(row)})
+				pi++
+			}
+		}
+		for ; pi < len(pend); pi++ {
+			row := outIdx
+			if len(stream) == 0 {
+				row = firstOut
+			}
+			newMarks = append(newMarks, marker{pend[pi].id, old.trimmed + int64(row)})
 		}
 		if curOff >= 0 && curOff >= len(stream) {
 			curRow, curCol, curWrap = outIdx, x, false
@@ -185,6 +219,9 @@ func (e *Emulator) reflowMain(rows, cols int) {
 		nr.popBack()
 	}
 	s.ring = nr
+	e.marks.list = newMarks
+	e.marks.dropBefore(nr.trimmed)
+	e.marks.dropFrom(nr.trimmed + int64(nr.n))
 	s.cols = cols
 	s.rows = rows
 	s.y = min(max(curRow-(nr.n-rows), 0), rows-1)

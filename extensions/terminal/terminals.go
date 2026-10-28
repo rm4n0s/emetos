@@ -26,6 +26,8 @@ type entry struct {
 	ended bool
 	// clients are the comments of the keys of the Relay clients that typed in the terminal and are still connected.
 	clients []string
+	// fixes are the quick fixes of the last command that ended (shell integration).
+	fixes *fixSet
 }
 
 // group is a tab of the tabs list: terminals side by side.
@@ -76,6 +78,8 @@ type terminals struct {
 	failure string
 	// editor is the text editor in front, which the commands that run its text and file follow.
 	editor editorState
+	// hist is the history of commands and folders of the terminals of all the window tabs (terminal-history.json).
+	hist *historyStore
 	// opening says that a terminal is being made for a view that is shown with none; suppressOpen that the last terminal just
 	// ended and the panel is on its way to hide, so the view must not make another.
 	opening      bool
@@ -100,6 +104,7 @@ func (t *terminals) newEnv() *paneEnv {
 		mounted: t.paneMounted, altChanged: func(*paneView) { t.syncKeys() },
 		ctx: t.ctx, findChanged: func(*paneView) { t.syncKeys() }, folder: func() string { return t.folder }, home: t.env.home,
 		altClick: t.altClick, openFile: t.openFile, openLink: t.openLink,
+		fixes: t.fixesOf, runFix: t.runFix, commandMenu: t.showCommandMenu, stickyMenu: t.showStickyMenu,
 	}
 }
 
@@ -188,7 +193,7 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	if dir == "" {
 		if o.split {
 			if cur := t.activeEntry(); cur != nil {
-				dir = cur.term.Cwd()
+				dir = splitDir(t.cfg.splitCwd, cur.term)
 			}
 		}
 		if dir == "" {
@@ -203,10 +208,15 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 		cols, rows = cur.term.Size()
 	}
 	t.nextID++
+	env := buildEnv(t.env.vars, settingEnvVars, prof.env, locale, termVersion)
+	prof, injected, nonce, ok := t.shellIntegration(prof)
+	if ok {
+		env = setEnv(env, injected)
+	}
 	term, err := newTerminal(t.ctx, terminalOpts{
-		id: t.nextID, profile: prof, dir: dir, env: buildEnv(t.env.vars, settingEnvVars, prof.env, locale, termVersion),
+		id: t.nextID, profile: prof, dir: dir, env: env,
 		rows: rows, cols: cols, scrollback: t.cfg.scrollback, version: termVersion, start: t.start, log: t.api.Log(),
-		obs: t.observerFor(t.nextID), interval: t.outputInterval,
+		obs: t.observerFor(t.nextID), interval: t.outputInterval, nonce: nonce, injected: ok,
 	})
 	if err != nil {
 		t.failure = "The terminal process " + prof.path + " failed to launch: " + err.Error()
@@ -221,6 +231,7 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	}
 	e := &entry{term: term}
 	e.pv = newPaneView(t.newEnv(), term)
+	t.hookShell(e)
 	term.SetOnMeta(t.metaChanged)
 	go t.watch(e)
 	if g := t.activeGroup(); o.split && g != nil {
@@ -421,9 +432,10 @@ func (t *terminals) syncKeys() {
 			selectedAny = true
 		}
 	}
-	alt := false
+	alt, shellActive := false, false
 	if e != nil {
 		alt = e.term.Emulator().Modes().AltScreen
+		shellActive = e.term.si.Active()
 	}
 	split := g != nil && len(g.entries) > 1
 	// the find widget: shown in the pane of the active terminal; its input may have the keyboard
@@ -440,7 +452,7 @@ func (t *terminals) syncKeys() {
 		keyTextSelectedInFocused: selectedHere, keyFindVisible: findVisible, keyFindFocus: findInput, keyFindInputFocus: findInput,
 		keySplitTerminal:   split,
 		keySplitPaneActive: split && focused != nil, keyHasBeenCreated: t.created, keyAltBuffer: alt,
-		keyTabsFocus: t.tabsFocus, keyEditorFocus: false,
+		keyTabsFocus: t.tabsFocus, keyEditorFocus: false, keyShellIntegration: shellActive,
 	}
 	if t.keys == nil {
 		t.keys = map[string]any{}

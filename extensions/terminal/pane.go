@@ -57,6 +57,13 @@ type paneEnv struct {
 	// target of a hyperlink the program set.
 	openFile func(path string, row, col int)
 	openLink func(target string, fromProgram bool)
+	// fixes are the quick fixes of the last command of a terminal (nil for none), runFix runs one, and commandMenu opens the
+	// menu of a decoration with its items at a place of the window (shell integration, step 17d.5).
+	fixes       func(pv *paneView) *fixSet
+	runFix      func(pv *paneView, f quickFix)
+	commandMenu func(pv *paneView, items []ui.MenuItem, at gui.Offset)
+	// stickyMenu opens the menu of the sticky scroll overlay.
+	stickyMenu func(pv *paneView, at gui.Offset)
 }
 
 // paneView is the view of one terminal in a pane: what the widget draws, the keyboard, the pointer, the selection and the
@@ -127,10 +134,20 @@ type paneView struct {
 	bufGen    uint64
 	// setState builds the widget of the pane again (the find widget and the tooltip are part of it).
 	setState func(func())
+
+	// shell integration (shell_pane.go): the commands with their lines, the decorations of the last frame, the sticky scroll
+	// overlay, where the navigation by commands stands and the selection it made.
+	shell  shellCache
+	decos  []decorated
+	sticky stickyState
+	nav    navState
+	selNav *selNavState
+	// shellOn is whether the shell integration was active when the extension was last told.
+	shellOn bool
 }
 
 func newPaneView(env *paneEnv, term *Terminal) *paneView {
-	pv := &paneView{env: env, term: term, painter: newGridPainter(), blinkOn: true, linkCache: map[string]*lineLinks{}}
+	pv := &paneView{env: env, term: term, painter: newGridPainter(), blinkOn: true, linkCache: map[string]*lineLinks{}, nav: navState{line: -1}}
 	pv.initFind()
 	pv.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Terminal"})
 	pv.ime = &imeClient{pv: pv}
@@ -142,8 +159,9 @@ func newPaneView(env *paneEnv, term *Terminal) *paneView {
 func (pv *paneView) frameChanged() {
 	pv.bufGen++
 	pv.scheduleFindRefresh()
-	if alt := pv.term.Emulator().Modes().AltScreen; alt != pv.alt {
-		pv.alt = alt
+	alt, shellOn := pv.term.Emulator().Modes().AltScreen, pv.shellActive()
+	if alt != pv.alt || shellOn != pv.shellOn {
+		pv.alt, pv.shellOn = alt, shellOn
 		if pv.env.altChanged != nil {
 			pv.env.altChanged(pv)
 		}
@@ -287,6 +305,9 @@ func (pv *paneView) paint(cv *gui.Canvas, off gui.Offset, size gui.Size) {
 	bg.SetColor(gui.NewColor(pv.th.bg))
 	cv.DrawRect(gui.NewRectFromLTWH(off.Dx, off.Dy, size.Width, size.Height), bg)
 	pv.painter.draw(cv, a, d)
+	pv.decos = pv.gutterDecorations(f.Top, rows, pv.decos)
+	pv.drawGutter(cv, off, a, pv.decos)
+	pv.drawSticky(cv, off, size, a, d)
 	pv.drawScrollbar(cv, off, size)
 	cv.Restore()
 	pv.scheduleBlink(cfg, f)

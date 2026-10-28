@@ -16,7 +16,7 @@ func paneWidget(pv *paneView) widgets.Widget {
 		pv.setState = setState
 		pv.setContext(bc)
 		cursor := services.SystemMouseCursors.Text
-		if pv.hover.link != nil && pv.hover.modDown {
+		if pv.hover.link != nil && pv.hover.modDown || pv.sticky.hover {
 			cursor = services.SystemMouseCursors.Click
 		}
 		grid := widgets.NewMouseRegion(

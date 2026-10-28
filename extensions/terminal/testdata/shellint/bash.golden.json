@@ -1,0 +1,42 @@
+[
+  {
+    "text": "echo hello",
+    "exit": 0,
+    "hasExit": true,
+    "output": "hello\n",
+    "cwd": "/work",
+    "confidence": "high"
+  },
+  {
+    "text": "false",
+    "exit": 1,
+    "hasExit": true,
+    "output": "",
+    "cwd": "/work",
+    "confidence": "high"
+  },
+  {
+    "text": "printf 'two\\nlines\\n'",
+    "exit": 0,
+    "hasExit": true,
+    "output": "two\nlines\n",
+    "cwd": "/work",
+    "confidence": "high"
+  },
+  {
+    "text": "cd /tmp",
+    "exit": 0,
+    "hasExit": true,
+    "output": "",
+    "cwd": "/work",
+    "confidence": "high"
+  },
+  {
+    "text": "echo 'semi;colon' \\\\ back",
+    "exit": 0,
+    "hasExit": true,
+    "output": "semi;colon \\ back\n",
+    "cwd": "/tmp",
+    "confidence": "high"
+  }
+]

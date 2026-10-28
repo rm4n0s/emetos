@@ -52,6 +52,22 @@ const (
 	CmdRenameWithArgs       = "workbench.action.terminal.renameWithArgs"
 	CmdSelectDefaultProfile = "workbench.action.terminal.selectDefaultShell"
 	CmdSearchWorkspace      = "workbench.action.terminal.searchWorkspace"
+
+	// The commands of step 17d.5: shell integration. Navigation, the history, the last command, sticky scroll and the quick fixes.
+	CmdScrollToPrevCommand   = "workbench.action.terminal.scrollToPreviousCommand"
+	CmdScrollToNextCommand   = "workbench.action.terminal.scrollToNextCommand"
+	CmdSelectToPrevCommand   = "workbench.action.terminal.selectToPreviousCommand"
+	CmdSelectToNextCommand   = "workbench.action.terminal.selectToNextCommand"
+	CmdSelectToPrevLine      = "workbench.action.terminal.selectToPreviousLine"
+	CmdSelectToNextLine      = "workbench.action.terminal.selectToNextLine"
+	CmdRunRecentCommand      = "workbench.action.terminal.runRecentCommand"
+	CmdGoToRecentDirectory   = "workbench.action.terminal.goToRecentDirectory"
+	CmdClearPreviousHistory  = "workbench.action.terminal.clearPreviousSessionHistory"
+	CmdCopyLastCommand       = "workbench.action.terminal.copyLastCommand"
+	CmdCopyLastOutput        = "workbench.action.terminal.copyLastCommandOutput"
+	CmdCopyLastCommandOutput = "workbench.action.terminal.copyLastCommandAndLastCommandOutput"
+	CmdToggleStickyScroll    = "workbench.action.terminal.toggleStickyScroll"
+	CmdShowQuickFixes        = "workbench.action.terminal.showQuickFixes"
 )
 
 // findInFilesCommand is the id of the command of the Search extension that searchWorkspace runs (VS Code's
@@ -83,10 +99,14 @@ const (
 	keyAltBuffer             = "terminalAltBufferActive"
 	keyTabsFocus             = "terminalTabsFocus"
 	keyEditorFocus           = "terminalEditorFocus"
+	// keyShellIntegration is true while the shell of the active terminal sends the sequences of shell integration (Emetos's own
+	// key: VS Code has none; it keeps Ctrl+Shift+Up and Down scrolling a terminal that has no commands to select).
+	keyShellIntegration = "terminalShellIntegrationActive"
 )
 
 // contextKeys lists them for the manifest.
 var contextKeys = []string{
 	keyFocus, keyFocusInAny, keyIsOpen, keyCount, keyGroupCount, keyProcessSupported, keyTextSelected, keyTextSelectedInFocused,
 	keyFindVisible, keyFindFocus, keyFindInputFocus, keySplitTerminal, keySplitPaneActive, keyHasBeenCreated, keyAltBuffer, keyTabsFocus, keyEditorFocus,
+	keyShellIntegration,
 }

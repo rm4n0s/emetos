@@ -48,6 +48,12 @@ func registerTerminalColors(r *ColorRegistry) {
 			Description: "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."},
 		ColorContribution{ID: "terminal.tab.activeBorder", Defaults: AllThemes(Ref("tab.activeBorder")),
 			Description: "Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder."},
+		ColorContribution{ID: "terminalStickyScroll.background", Defaults: AllThemes(nil),
+			Description: "The background color of the sticky scroll overlay in the terminal."},
+		ColorContribution{ID: "terminalStickyScrollHover.background", Defaults: dflt(Hex("#2A2D2E"), Hex("#F0F0F0"), Hex("#E48B39"), Hex("#0f4a85")),
+			Description: "The background color of the sticky scroll overlay in the terminal when hovered."},
+		ColorContribution{ID: "terminalStickyScroll.border", Defaults: dflt(nil, nil, Hex("#6fc3df"), Hex("#0f4a85")),
+			Description: "The border of the sticky scroll overlay in the terminal."},
 		ColorContribution{ID: "terminal.initialHintForeground", Defaults: dflt(Hex("#ffffff56"), Hex("#0007"), nil, nil),
 			Description: "Foreground color of the terminal initial hint."},
 	)

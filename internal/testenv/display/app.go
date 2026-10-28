@@ -534,6 +534,22 @@ type TerminalState struct {
 	CanType bool   `json:"canType"`
 	State   string `json:"state"`
 	Seq     uint64 `json:"seq"`
+	// ShellIntegration says that the shell sent the sequences of shell integration (step 17d.5); Commands is how many commands
+	// ended; Decorations are the marks in the gutter on screen (a row and its kind: "success", "error", "running" or "fix");
+	// Sticky says that the sticky scroll overlay is shown, StickyRows its rows of text and StickyShift how far it was pushed up.
+	ShellIntegration bool               `json:"shellIntegration"`
+	Commands         int                `json:"commands"`
+	Decorations      []TerminalDecoMark `json:"decorations"`
+	Sticky           bool               `json:"sticky"`
+	StickyRows       []string           `json:"stickyRows"`
+	// Cwd is the folder the shell reported.
+	Cwd string `json:"cwd"`
+}
+
+// TerminalDecoMark is one decoration of the gutter of a terminal on screen.
+type TerminalDecoMark struct {
+	Row  int    `json:"row"`
+	Kind string `json:"kind"`
 }
 
 // Terminal is a terminal on screen: its place in window coordinates and its state.

@@ -1,0 +1,11 @@
+]633;P;HasRichCommandDetection=True]633;P;Cwd=/work[?2004h]633;A$ ]633;Becho hello
+[?2004l]633;E;echo hello;testnonce]633;Chello
+]633;D;0]633;P;Cwd=/work[?2004h]633;A$ ]633;Bfalse
+[?2004l]633;E;false;testnonce]633;C]633;D;1]633;P;Cwd=/work[?2004h]633;A$ ]633;B
+[?2004l]633;E;;testnonce]633;C]633;D]633;P;Cwd=/work[?2004h]633;A$ ]633;Bprintf 'two\nlines\n'
+[?2004l]633;E;printf 'two\\nlines\\n';testnonce]633;Ctwo
+lines
+]633;D;0]633;P;Cwd=/work[?2004h]633;A$ ]633;Bcd /tmp
+[?2004l]633;E;cd /tmp;testnonce]633;C]633;D;0]633;P;Cwd=/tmp[?2004h]633;A$ ]633;Becho 'semi;colon' \\ back
+[?2004l]633;E;echo 'semi\x3bcolon' \\\\ back;testnonce]633;Csemi;colon \ back
+]633;D;0]633;P;Cwd=/tmp[?2004h]633;A$ ]633;B

@@ -1,6 +1,7 @@
 package emulator
 
 import (
+	"slices"
 	"sync"
 	"unicode/utf8"
 )
@@ -23,6 +24,10 @@ type Options struct {
 	Callbacks Callbacks
 	// Name and Version answer the program's XTVERSION query (ctlseqs: CSI > Ps q); empty is "Emetos".
 	Name, Version string
+	// MarkCodes are the numbers of the OSC strings that get a marker: the OSCEvent of such a string on the main screen carries
+	// a marker (OSCEvent.Marker) at the line the cursor was on, which follows its line through the scrollback, scrolls and
+	// reflows (marks.go). The shell integration of step 17d.5 asks for 133, 633 and 1337.
+	MarkCodes []int
 }
 
 // Emulator is a terminal: a parser for the program's output, the two buffers (main with its scrollback, and alternate), the
@@ -93,6 +98,10 @@ type Emulator struct {
 
 	name, version string
 
+	// marks are the markers of the main buffer, markCodes the OSC codes that make one.
+	marks     *markSet
+	markCodes []int
+
 	// output of this Write: bytes for the program and events for the callbacks.
 	reply  []byte
 	events []event
@@ -116,12 +125,14 @@ func New(rows, cols int, opts Options) *Emulator {
 	if sb > MaxScrollback {
 		sb = MaxScrollback
 	}
-	e := &Emulator{cb: opts.Callbacks, rows: rows, cols: cols, scrollback: sb, st: newStyleTable(), name: opts.Name, version: opts.Version}
+	e := &Emulator{cb: opts.Callbacks, rows: rows, cols: cols, scrollback: sb, st: newStyleTable(), name: opts.Name, version: opts.Version,
+		marks: &markSet{}, markCodes: slices.Clone(opts.MarkCodes)}
 	if e.name == "" {
 		e.name = "Emetos"
 	}
 	e.initPalette()
 	e.mainScr = newScreen(rows, cols, sb, false)
+	e.mainScr.marks = e.marks
 	e.altScr = newScreen(rows, cols, 0, true)
 	e.scr = e.mainScr
 	e.resetModes()
@@ -321,6 +332,7 @@ func (e *Emulator) Reset() {
 // fullReset is RIS (VT510 RIS; ctlseqs: ESC c). The scrollback is kept.
 func (e *Emulator) fullReset() {
 	e.scr = e.mainScr
+	e.marks.list = e.marks.list[:0]
 	for _, s := range []*screen{e.mainScr, e.altScr} {
 		for y := 0; y < s.rows; y++ {
 			clearLine(s.row(y), 0)

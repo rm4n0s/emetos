@@ -13,3 +13,9 @@ Things Glutter is missing or gets wrong, found while building Emetos. Each entry
 - **What:** when a widget that has the keyboard focus is unmounted (the terminal's pane of a tab that another tab replaces), the `Focus` widget's `OnFocusChange` is not called with false, so a widget that keeps its own "focused" flag (the terminal draws a filled cursor while it has the focus and an outline otherwise) stays in the state it had. Flutter's `Focus` calls `onFocusChange` from the node's listener, and the node leaves the scope without notifying when it is detached with the tree.
 - **Where the workaround is:** `paneView.unmounted` in `extensions/terminal/pane.go` clears the flag itself.
 - **What Glutter could provide:** the focus node notifies its listeners with `hasFocus` false when it is detached from the focus tree while it has the focus.
+
+## The clipboard carries plain text only (Glutter 1.9.4)
+
+- **What:** `services.Clipboard` reads and writes one string (`text/plain`); there is no way to put a second representation such as `text/html` on the clipboard. The terminal's **Copy Output as HTML** (step 17d.5, `workbench.action.terminal.copyLastCommandOutput` and the decoration's menu) is meant to give a rich editor formatted text with the colors of the terminal; with plain text only, the HTML markup itself is what is pasted.
+- **Where the workaround is:** `paneView.outputHTML` and `paneView.copyText` in `extensions/terminal/shell_pane.go` (the markup is copied as text, with a `// Glutter:` comment).
+- **What Glutter could provide:** `Clipboard.SetData(map[mimeType][]byte)` (and a matching read), with the Wayland data offer and the X11 selection offering every type.

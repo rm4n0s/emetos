@@ -232,4 +232,16 @@ copy_file vscode/extensions/theme-seti/icons/vs-seti-icon-theme.json internal/co
 # (core/textmate, core/theme; "Ported from vscode-textmate" comments). No file of it is bundled.
 copy_license vscode-textmate vscode-textmate/LICENSE.md
 
+# Step 17d.5: the shell integration scripts of VS Code's terminal (MIT; SPEC §10.25 "Shell integration"): bash, zsh (the four
+# files it sources), fish and PowerShell. extensions/terminal embeds them and writes them to the cache folder of Emetos when a
+# shell starts. The PSReadLine modules VS Code ships for its screen reader mode (Windows binaries) are not bundled. The license
+# is VS Code's, and the cgmanifest.json names posh-git, whose license the PowerShell script carries.
+shellint_src=vscode/src/vs/workbench/contrib/terminal/common/scripts
+rm -rf "$root/extensions/terminal/shellintegration"
+for f in shellIntegration-bash.sh shellIntegration-env.zsh shellIntegration-login.zsh shellIntegration-profile.zsh \
+  shellIntegration-rc.zsh shellIntegration.fish shellIntegration.ps1; do
+  copy_file "$shellint_src/$f" "extensions/terminal/shellintegration/$f"
+done
+copy_license vscode-shell-integration vscode/LICENSE.txt "$shellint_src/cgmanifest.json"
+
 echo "update-assets: done"

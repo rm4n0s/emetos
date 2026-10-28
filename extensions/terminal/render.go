@@ -130,6 +130,21 @@ type devState struct {
 	Link      string `json:"link"`
 	LinkCells int    `json:"linkCells"`
 	Tooltip   bool   `json:"tooltip"`
+	// ShellIntegration says that the shell sent the sequences of shell integration, Commands is how many commands ended,
+	// Decorations are the marks of the gutter on screen, Sticky says that the sticky scroll overlay is shown with StickyRows
+	// its rows, and Cwd is the folder the shell reported (step 17d.5).
+	ShellIntegration bool          `json:"shellIntegration"`
+	Commands         int           `json:"commands"`
+	Decorations      []devDecoMark `json:"decorations"`
+	Sticky           bool          `json:"sticky"`
+	StickyRows       []string      `json:"stickyRows"`
+	Cwd              string        `json:"cwd"`
+}
+
+// devDecoMark is a decoration of the gutter for dev.terminals.
+type devDecoMark struct {
+	Row  int    `json:"row"`
+	Kind string `json:"kind"`
 }
 
 // DevTerminal answers dev.terminals for the app: the state of the terminal this render object draws.
@@ -162,6 +177,20 @@ func (r *renderGrid) DevTerminal() any {
 			st.LinkCells += s.x1 - s.x0
 		}
 		st.Tooltip = pv.hover.tip
+	}
+	if si := pv.term.si; si != nil {
+		st.ShellIntegration, st.Cwd = si.Active(), si.Cwd()
+		st.Commands = len(si.Commands())
+		for _, d := range pv.decos {
+			kind := map[decorationKind]string{decoDefault: "running", decoSuccess: "success", decoError: "error", decoFix: "fix"}[d.kind]
+			st.Decorations = append(st.Decorations, devDecoMark{Row: d.row, Kind: kind})
+		}
+		if pv.sticky.shown {
+			st.Sticky = true
+			for y := 0; y < pv.sticky.frame.Rows; y++ {
+				st.StickyRows = append(st.StickyRows, pv.sticky.frame.RowText(y))
+			}
+		}
 	}
 	if f := pv.shown; f != nil {
 		rows := make([]string, f.Rows)

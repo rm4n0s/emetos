@@ -51,7 +51,21 @@ const (
 	settingTextBlinking   = "terminal.integrated.textBlinking"
 	settingBellDuration   = "terminal.integrated.bellDuration"
 	settingLinkSchemes    = "terminal.integrated.allowedLinkSchemes"
+
+	// Step 17d.5: shell integration, sticky scroll and the folder of a split.
+	settingShellInteg     = "terminal.integrated.shellIntegration.enabled"
+	settingDecorations    = "terminal.integrated.shellIntegration.decorationsEnabled"
+	settingQuickFix       = "terminal.integrated.shellIntegration.quickFixEnabled"
+	settingHistory        = "terminal.integrated.shellIntegration.history"
+	settingStickyEnabled  = "terminal.integrated.stickyScroll.enabled"
+	settingStickyMaxLines = "terminal.integrated.stickyScroll.maxLineCount"
+	settingStickyIgnored  = "terminal.integrated.stickyScroll.ignoredCommands"
+	settingSplitCwd       = "terminal.integrated.splitCwd"
 )
+
+// defaultStickyIgnored are the commands that do not show sticky scroll (VS Code's default of
+// terminal.integrated.stickyScroll.ignoredCommands).
+var defaultStickyIgnored = []any{"clear", "cls", "clear-host", "agent", "agy", "copilot", "claude", "codex", "gemini"}
 
 // weightEnum are the suggestions VS Code gives for a font weight.
 var weightEnum = []any{"normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"}
@@ -154,6 +168,22 @@ func settingSpecs() []extension.SettingSpec {
 			Description: "Controls whether to detect and set the `$LANG` environment variable to a UTF-8 compliant option since the terminal only supports UTF-8 encoded data coming from the shell. auto: set `$LANG` if the existing variable does not exist or it does not end in `.UTF-8`; off: do not set it; on: always set it."},
 		{Key: settingTabStopWidth, Type: "number", Default: 8.0, Minimum: f(1), Category: cat,
 			Description: "The number of cells in a tab stop."},
+		{Key: settingShellInteg, Type: "boolean", Default: true, Category: cat,
+			Description: "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. Shell integration works by injecting the shell with a startup script. The script gives Emetos insight into what is happening within the terminal. Supported shells: bash, fish, pwsh, zsh. This setting applies only when terminals are created, so you will need to restart your terminals for it to take effect. Note that the script injection may not work if you have custom arguments defined in the terminal profile, have a complex bash `PROMPT_COMMAND`, or other unsupported setup. To disable decorations, see terminal.integrated.shellIntegration.decorationsEnabled."},
+		{Key: settingDecorations, Type: "string", Default: "both", Enum: []any{"both", "gutter", "overviewRuler", "never"}, Category: cat,
+			Description: "When shell integration is enabled, adds a decoration for each command. both: show decorations in the gutter (left) and overview ruler (right); gutter: show gutter decorations to the left of the terminal; overviewRuler: show overview ruler decorations to the right of the terminal (Emetos has no overview ruler in the terminal, so this shows none); never: do not show decorations."},
+		{Key: settingQuickFix, Type: "boolean", Default: true, Category: cat,
+			Description: "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb to the left of the prompt."},
+		{Key: settingHistory, Type: "number", Default: 100.0, Category: cat,
+			Description: "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."},
+		{Key: settingStickyEnabled, Type: "boolean", Default: true, Category: cat,
+			Description: "Shows the current command at the top of the terminal. This feature requires shell integration to be activated. See terminal.integrated.shellIntegration.enabled."},
+		{Key: settingStickyMaxLines, Type: "number", Default: 5.0, Minimum: f(1), Maximum: f(10), Category: cat,
+			Description: "Defines the maximum number of sticky lines to show. Sticky scroll lines will never exceed 40% of the viewport regardless of this setting."},
+		{Key: settingStickyIgnored, Type: "array", Default: defaultStickyIgnored, Category: cat,
+			Description: "A list of commands that should not trigger sticky scroll. When a command from this list is detected, the sticky scroll overlay will be hidden."},
+		{Key: settingSplitCwd, Type: "string", Default: "inherited", Enum: []any{"workspaceRoot", "initial", "inherited"}, Category: cat,
+			Description: "Controls the working directory a split terminal starts with. workspaceRoot: a new split terminal will use the workspace root as the working directory; initial: a new split terminal will use the working directory that the parent terminal started with; inherited: a new split terminal will use the working directory of the parent terminal."},
 	}
 }
 

@@ -39,6 +39,16 @@ type config struct {
 	visualBell     bool
 	bellDuration   float64
 
+	// shell integration (step 17d.5)
+	shellInteg    bool
+	decorations   string
+	quickFix      bool
+	historyLimit  int
+	stickyOn      bool
+	stickyMax     int
+	stickyIgnored []string
+	splitCwd      string
+
 	tabsEnabled  bool
 	tabsLocation string
 	tabsHide     string
@@ -98,6 +108,17 @@ func readConfig(s extension.Settings) config {
 		tabsHide:        str(settingTabsHide, "singleTerminal"),
 		tabsTitle:       str(settingTabsTitle, "${process}"),
 		defaultIcon:     str(settingTabsDefaultIco, "terminal"),
+		shellInteg:      flag(settingShellInteg, true),
+		decorations:     str(settingDecorations, "both"),
+		quickFix:        flag(settingQuickFix, true),
+		historyLimit:    int(num(settingHistory, 100)),
+		stickyOn:        flag(settingStickyEnabled, true),
+		stickyMax:       min(max(int(num(settingStickyMaxLines, 5)), 1), 10),
+		splitCwd:        str(settingSplitCwd, "inherited"),
+	}
+	c.stickyIgnored = []string{"clear", "cls", "clear-host", "agent", "agy", "copilot", "claude", "codex", "gemini"}
+	if v, err := extension.SettingValue[[]string](s, settingStickyIgnored); err == nil {
+		c.stickyIgnored = v
 	}
 	c.scrollback = min(max(c.scrollback, 0), 1000000)
 	if c.lineHeight <= 0 {

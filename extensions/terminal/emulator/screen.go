@@ -275,6 +275,8 @@ type screen struct {
 	saved       savedCursor
 	alt         bool
 	tmp         []line
+	// marks are the markers of the main buffer (nil on the alternate screen): a scroll of part of the screen moves them.
+	marks *markSet
 }
 
 func newScreen(rows, cols, scrollback int, alt bool) *screen {
@@ -344,6 +346,10 @@ func (s *screen) rotate(top, bottom, n int, bce uint16) {
 	k := n
 	if k < 0 {
 		k = -k
+	}
+	if s.marks != nil {
+		first := s.absLine(0)
+		s.marks.rotate(first+int64(top), first+int64(bottom), n)
 	}
 	if cap(s.tmp) < k {
 		s.tmp = make([]line, k)
