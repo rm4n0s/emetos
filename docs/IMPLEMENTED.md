@@ -3384,3 +3384,54 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Proof:** none (the emulator has no UI; the goldens of the recorded programs are its proof).
 - **Manual checks:** none
 - **Glutter issues:** none new.
+
+## Step 17d.2: The Terminal panel
+
+- **Date:** 2026-10-28
+- **Branch:** feat/step-17d.2-terminal-panel
+- **Summary:** terminals in the panel, as VS Code has them. Ctrl+\` opens a shell in a pseudo-terminal, drawn by Emetos's own emulator (17d.1) with a glyph atlas, with several terminals, splits, the tabs list, selection, copy and paste, the scrollback, the context menu and VS Code's commands, keys, context keys, settings and colors. Nothing of xterm.js or of another terminal was used, read or copied; `foot` was only run, as a program, for the comparison.
+- **The emulator's ED 2:** on the normal screen, `CSI 2 J` now moves the lines up to the last non-blank one into the scrollback before it clears, as VS Code shows after Ctrl+L in bash (decision 121 updated). ED 3 still clears the scrollback.
+- **Structure** (`extensions/terminal`):
+  - `Terminal` (`session.go`) is the model and does not know where it is shown. It holds the process, the emulator, and reader, parser and writer goroutines, with flow control (64 KiB reads, a pause above 100,000 bytes, a resume below 5,000).
+  - The pane (`pane.go`, `pane_input.go`) handles keys, the mouse, selection, the wheel, the scrollbar, the input method and bracketed paste with VS Code's multi-line warning (a bar, not a dialog).
+  - The widget (`atlas.go`, `grid.go`, `render.go`, `shapes.go`, `decor.go`) draws the cells with two `DrawAtlas` calls. Box-drawing, block, braille and Powerline characters are drawn as shapes. A frame with no change paints nothing.
+  - `terminals.go`, `panel.go` and `terminal.go` hold the groups, the tabs list, the splits, the commands and the manifest.
+- **New in the extension API:**
+  - `Contributes.ContextKeys`;
+  - `ViewContent.AllowCommand` (VS Code's `commandsToSkipShell`);
+  - `ViewHandle.Hide`;
+  - `extension.MenuTerminal`;
+  - the refusal class `terminal` for Relay clients;
+  - `ui.SplitView` and `ui.ContextMenu`.
+  - Also: `pty.ForegroundPid`, and the dev query `dev.terminals`.
+- **Registered** with VS Code's ids and Linux keys:
+  - toggle, new, split, kill, focus, next and previous, pane focus and resize, copy, paste, select all, clear and the scroll commands;
+  - the 15 context keys, the `terminal.integrated.*` settings and every `terminal.*` color.
+  - Left for 17d.3: find, links, `runSelectedText`, `runActiveFile`, `sendSequence`, `rename` and `selectDefaultShell`.
+  - Declared but not acted on yet: `confirmOnKill`, `confirmOnExit`, `smoothScrolling`, `enableBell` (decisions 127 to 136).
+- **Speed** (the agent's runs: release build, headless sway, llvmpipe; `docs/PERFORMANCE.md` "Terminal panel (step 17d.2)"):
+
+  | Target | Budget | Emetos | foot |
+  |---|---|---|---|
+  | `cat` of 100 MB | under 1.5 s | 623 to 661 ms (231×52) | 466 to 660 ms (160×45), 479 to 575 ms (231×52) |
+  | Frames during the `cat` | none over 16 ms | none | |
+  | A full screen that all changed (UI thread) | 3 ms or less | 1.55 to 1.97 ms worst (0.52 to 0.56 average) | |
+  | Typing (UI thread) | under 2 ms | 1.1 to 1.7 ms worst | |
+
+  **The manager's GPU run** (`scripts/terminal-perf.sh --desktop`, nested sway on the user's desktop, Radeon 8060S, Vulkan): the `cat` of 100 MB took 624 ms by the shell's clock (foot: 768 ms at 160×45 and 681 ms at 231×52), with the end on the screen 968 ms after the command, and no frame over 16 ms (the renderer 1.22 ms on average and 2.41 ms at worst); 6,000 full screens of 160×45 in 434 ms, the UI thread 2.18 ms and the renderer 3.53 ms at worst (budgets 3 and 4 ms); typing, the UI thread 1.12 ms and the renderer 1.97 ms at worst. Every terminal budget of SPEC §14 is met on the GPU.
+- **Tests:**
+  - **The model:** with a test shell, `/bin/sh` and a fake process.
+  - **The extension over the fake API:** commands, split, focus, kill, exit, a failed start, `AllowCommand`, the settings.
+  - **The pane:** keys, mouse, selection, paste, wheel, scrollbar, the alternate screen, idle frames.
+  - **Settings and profiles.**
+  - **Benchmarks of a full frame and of an echo.**
+  - **Route tests** of the new tags.
+  - **Goldens**, dark and light: a prompt with colors and shapes, a selection, the alternate screen, the cursor styles, and the tabs list with a split. They showed that default-colored text was nearly invisible in the light theme; the emulator now gets the theme's colors.
+  - **Real input** (`cmd/emetos/terminal_display_test.go`; every shell is `bash --norc --noprofile` in an isolated `HOME`): Ctrl+\` and `echo hello`; Ctrl+Shift+C and V; wheel scrollback; Ctrl+L keeps the scrollback; a second terminal and a split; Ctrl+P from a terminal; `exit`.
+- **Proof:** `docs/implemented-proof-images/17d.2-terminal.png` (a colored `ls`, a split and the tabs list). I looked at it. Also `docs/screenshots/terminal.png` for the README.
+- **Other:** `scripts/realinput.sh` defaults to `-timeout 40m`; `scripts/terminal-perf.sh` measures the terminal's budgets (`--desktop` for the GPU).
+- **Checks:** gofmt ✅ · go vet ✅ (also `emetos_display` and `emetos_gopls`) · golangci-lint ✅ (also `--build-tags emetos_display`) · error-tags --untested ✅ · `go mod tidy -diff` clean · go test -race ✅ (my run after the rebase, 100 packages, exit 0) · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ (my run, 100 packages, exit 0) · `scripts/realinput.sh` (my run, whole suite): one failure, `TestRealInputBigPreviewStartDoesNotWaitForThePreview` (+410 ms over its 150 ms margin). Run alone 3 times it gave −190, +471 and −44 ms: the test compares two cold starts of 4.5 s whose noise is ±500 ms, and it failed the same way before this step (17c.1). Every terminal test passed. The test is being fixed on its own branch (`fix/preview-start-test-noise`).
+- **Manual checks:** none
+- **Glutter issues:** two new entries:
+  - There is no way to rasterize one glyph into an image, so the atlas draws paragraphs and reads them back with the software rasterizer.
+  - A focused pane that leaves the tree is not told that it lost the focus. `paneView.unmounted` works around it.
