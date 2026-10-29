@@ -20,7 +20,7 @@ type fontEntry struct {
 const maxFonts = 4
 
 // get returns the atlas and the decoration atlas of a font, making them the first time.
-func (c *fontCache) get(factory gui.ParagraphFactory, fs fontSpec) (*atlas, *decor) {
+func (c *fontCache) get(pd *gui.PlatformDispatcher, fs fontSpec) (*atlas, *decor) {
 	for i, e := range c.atlases {
 		if e.spec == fs {
 			if i != 0 {
@@ -29,7 +29,7 @@ func (c *fontCache) get(factory gui.ParagraphFactory, fs fontSpec) (*atlas, *dec
 			return e.atlas, e.decor
 		}
 	}
-	a := newAtlas(factory, fs)
+	a := newAtlas(pd, fs)
 	e := &fontEntry{spec: fs, atlas: a, decor: newDecor(a.m)}
 	c.atlases = append([]*fontEntry{e}, c.atlases...)
 	if len(c.atlases) > maxFonts {

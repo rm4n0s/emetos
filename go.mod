@@ -13,7 +13,7 @@ require (
 	github.com/quic-go/quic-go v0.64.1
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/rm4n0s/errors v0.2.0
-	github.com/rm4n0s/glutter v1.9.4
+	github.com/rm4n0s/glutter v1.9.5
 	go.mongodb.org/mongo-driver/v2 v2.9.2
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.47.0

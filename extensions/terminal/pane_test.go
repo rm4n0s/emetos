@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	gui "github.com/rm4n0s/glutter/ui"
+	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension/ui/uitest"
 )
@@ -96,6 +97,49 @@ func TestApplicationCursorKeysAndFocusEvents(t *testing.T) {
 	r.waitInput(t, "\x1b[I") // the focus event the program asked for
 	r.key(services.LogicalKeyboardKeyArrowUp)
 	r.waitInput(t, "\x1bOA")
+}
+
+// A tab that replaces the pane of the terminal takes the pane's widget out of the tree with the focus: the Focus widget's
+// OnFocusChange is not called then (Glutter 1.9.5), and the pane learns it from its own focus node.
+func TestAPaneThatLeavesTheTreeWithTheFocusLosesIt(t *testing.T) {
+	tests := []struct {
+		name    string
+		focused bool
+		// told is how the extension is told about the focus, in order
+		told []bool
+	}{
+		{"the pane has the focus", true, []bool{true, false}},
+		{"the pane has not", false, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newFakePane(t, uitest.Themes()[0], paneSize, nil)
+			var told []bool
+			r.env.focusChanged = func(_ *paneView, has bool) { told = append(told, has) }
+			if tt.focused {
+				r.focus()
+				if !r.pv.focused {
+					t.Fatal("the pane did not take the focus")
+				}
+			}
+			r.ts.PumpWidget(widgets.NewSizedBox(nil))
+			r.settle()
+			if r.pv.render != nil {
+				t.Errorf("the pane is still mounted")
+			}
+			if r.pv.focused {
+				t.Errorf("the pane still thinks it has the focus")
+			}
+			if len(told) != len(tt.told) {
+				t.Fatalf("the extension was told %v, want %v", told, tt.told)
+			}
+			for i := range told {
+				if told[i] != tt.told[i] {
+					t.Errorf("the extension was told %v, want %v", told, tt.told)
+				}
+			}
+		})
+	}
 }
 
 func TestMouseSelectsAndCopies(t *testing.T) {

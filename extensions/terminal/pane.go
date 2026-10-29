@@ -164,6 +164,7 @@ func newPaneView(env *paneEnv, term *Terminal) *paneView {
 	pv := &paneView{env: env, term: term, painter: newGridPainter(), blinkOn: true, linkCache: map[string]*lineLinks{}, nav: navState{line: -1}}
 	pv.initFind()
 	pv.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Terminal"})
+	pv.node.AddListener(pv.nodeChanged)
 	pv.ime = &imeClient{pv: pv}
 	term.SetOnFrame(func() { env.post(pv.frameChanged) })
 	return pv
@@ -240,13 +241,15 @@ func (pv *paneView) unmounted(r *renderGrid) {
 	pv.render = nil
 	pv.stopBlink()
 	pv.ime.detach()
-	// Glutter: a focus node that leaves the tree with the focus does not tell OnFocusChange, so the pane says it itself
-	// (docs/GLUTTER-ISSUES.md).
-	if pv.focused {
-		pv.focused = false
-		if pv.env.focusChanged != nil {
-			pv.env.focusChanged(pv, false)
-		}
+}
+
+// nodeChanged is told by the pane's own focus node that its focus changed. A pane whose widget leaves the tree with the focus (a
+// tab that another tab replaces) is not told by the Focus widget's OnFocusChange, since the widget is gone; the node tells its
+// listeners once, at the next focus update, that it lost the focus (Glutter 1.9.5, its SPEC §11.7). A node that is back in a
+// tree with the focus, or that has it, says nothing the pane does not know.
+func (pv *paneView) nodeChanged() {
+	if !pv.node.HasFocus() && pv.focused {
+		pv.focusChanged(false)
 	}
 }
 
@@ -273,7 +276,9 @@ func (pv *paneView) spec() fontSpec {
 }
 
 // atlases returns the glyph atlas and the decoration atlas of the font of the pane.
-func (pv *paneView) atlases() (*atlas, *decor) { return pv.env.fonts.get(pv.factory, pv.spec()) }
+func (pv *paneView) atlases() (*atlas, *decor) {
+	return pv.env.fonts.get(pv.binding.PlatformDispatcher(), pv.spec())
+}
 
 // layout is called by the render object with its size: the terminal gets as many columns and rows as fit.
 func (pv *paneView) layout(size gui.Size) {

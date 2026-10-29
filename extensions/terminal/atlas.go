@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"log/slog"
 	"math"
 	"unicode/utf8"
 
@@ -82,7 +83,7 @@ const pageSize = 512
 type atlas struct {
 	fs      fontSpec
 	m       metrics
-	factory gui.ParagraphFactory
+	pd      *gui.PlatformDispatcher
 	pages   []*page
 	ascii   [4][128]slot
 	runes   map[runeKey]*slot
@@ -90,12 +91,16 @@ type atlas struct {
 	waiting []pending
 	// the slots are pointers into slabs so that a slot made before a flush is the one the flush fills
 	slabs [][]slot
+	// baselines are the baseline of a cell for each look of the font (bold and italic), in device pixels below the top of the
+	// cell; haveBase says which were measured.
+	baselines [4]int
+	haveBase  [4]bool
 }
 
 // newAtlas makes an empty atlas for the font. The cell size comes from measuring the font with the text engine.
-func newAtlas(factory gui.ParagraphFactory, fs fontSpec) *atlas {
-	a := &atlas{fs: fs, factory: factory, runes: map[runeKey]*slot{}, cluster: map[clusterKey]*slot{}}
-	a.m = measureCell(factory, fs)
+func newAtlas(pd *gui.PlatformDispatcher, fs fontSpec) *atlas {
+	a := &atlas{fs: fs, pd: pd, runes: map[runeKey]*slot{}, cluster: map[clusterKey]*slot{}}
+	a.m = measureCell(pd, fs)
 	return a
 }
 
@@ -133,16 +138,14 @@ func (fs fontSpec) styleOf(attrs uint8) (gui.FontWeight, gui.FontStyle) {
 	return weight, style
 }
 
-// paragraph builds the paragraph of a text in the look of attrs, white, laid out on one line. heightMul is the line height as a
-// multiple of the font size (0 for the font's own).
-func (fs fontSpec) paragraph(factory gui.ParagraphFactory, text string, attrs uint8, heightMul float64) *gui.Paragraph {
+// textStyle is the text style of a look, white. heightMul is the line height as a multiple of the font size (0 for the font's own).
+func (fs fontSpec) textStyle(attrs uint8, heightMul float64) *gui.TextStyle {
 	family, fallback := "", []string(nil)
 	if fams := splitFamilies(fs.families); len(fams) > 0 {
 		family, fallback = fams[0], fams[1:]
 	}
 	size := fs.size
 	weight, style := fs.styleOf(attrs)
-	pstyle := gui.NewParagraphStyle(gui.ParagraphStyleOpts{TextDirection: gui.TextDirectionLTR, FontFamily: family, FontSize: &size})
 	white := gui.NewColor(0xFFFFFFFF)
 	opts := gui.TextStyleOpts{
 		Color: &white, FontFamily: family, FontFamilyFallback: fallback, FontSize: &size, FontWeight: weight, FontStyle: style,
@@ -155,12 +158,7 @@ func (fs fontSpec) paragraph(factory gui.ParagraphFactory, text string, attrs ui
 		ls := fs.letterSpacing
 		opts.LetterSpacing = &ls
 	}
-	b := gui.NewParagraphBuilder(factory, pstyle)
-	b.PushStyle(gui.NewTextStyle(opts))
-	b.AddText(text)
-	p := b.Build()
-	p.Layout(gui.NewParagraphConstraints(math.Inf(1)))
-	return p
+	return gui.NewTextStyle(opts)
 }
 
 // splitFamilies splits the families of a fontSpec.
@@ -179,25 +177,38 @@ func splitFamilies(s string) []string {
 }
 
 // measureCell measures a cell: the width of a character of the font and the height of its line, in whole device pixels.
-func measureCell(factory gui.ParagraphFactory, fs fontSpec) metrics {
+func measureCell(pd *gui.PlatformDispatcher, fs fontSpec) metrics {
 	dpr := fs.dpr
 	if dpr <= 0 {
 		dpr = 1
 	}
-	const n = 32
-	ms := make([]byte, n)
-	for i := range ms {
-		ms[i] = 'M'
-	}
-	wide := fs.paragraph(factory, string(ms), 0, 0)
-	adv := wide.LongestLine() / n
-	nat := wide.Height()
-	if adv <= 0 || nat <= 0 {
-		adv, nat = fs.size*0.6, fs.size*1.2
+	adv, nat := fs.size*0.6, fs.size*1.2
+	fm, err := pd.FontMetrics(fs.textStyle(0, 0))
+	if err != nil {
+		slog.Warn("the text engine cannot measure the font of the terminal; the cell size is a guess", "err", err)
+	} else if fm.ZeroAdvance > 0 && fm.Height > 0 {
+		adv, nat = fm.ZeroAdvance, fm.Height
 	}
 	cw := max(int(math.Round(adv*dpr)), 1)
 	ch := max(int(math.Ceil(nat*dpr*fs.lineHeight-1e-6)), 1)
 	return metrics{cw: cw, ch: ch, w: float64(cw) / dpr, h: float64(ch) / dpr, dpr: dpr, lineThick: max(int(math.Round(dpr)), 1)}
+}
+
+// baseline is how far below the top of a cell the baseline of a look is, in device pixels: the ascent of the line of the font,
+// with the line height of the cell, the way a paragraph of that line places it.
+func (a *atlas) baseline(attrs uint8) int {
+	k := attrs & (attrBold | attrItalic)
+	if !a.haveBase[k] {
+		a.haveBase[k] = true
+		fm, err := a.pd.FontMetrics(a.fs.textStyle(k, a.m.h/a.fs.size))
+		if err != nil {
+			slog.Warn("the text engine cannot measure the font of the terminal; the baseline is a guess", "err", err)
+			a.baselines[k] = int(math.Round(a.m.h * a.m.dpr * 0.8))
+		} else {
+			a.baselines[k] = int(math.Round(fm.Ascent * a.m.dpr))
+		}
+	}
+	return a.baselines[k]
 }
 
 // blockWidth is the width of the block of a glyph in pixels: one cell, or two for a wide character.
@@ -338,55 +349,58 @@ func (a *atlas) store(s *slot, bw int, px func(x, y int) (r, g, b, al uint8)) {
 	s.blank = !ink
 }
 
-// rasterize draws the glyphs on a sheet with the text engine, rasterizes the sheet with the software renderer and copies each
-// glyph into its place in the atlas. A glyph whose pixels are not gray (an emoji) is marked colored.
-//
-// Glutter: there is no call that rasterizes glyphs of a font into an image, so the sheet is a recording of paragraphs drawn
-// in white and read back with the software rasterizer (docs/GLUTTER-ISSUES.md). Glutter could give a glyph rasterizer or the
-// sheets of its own text atlas.
+// rasterize asks Glutter for a sheet of the glyphs of each look (offscreen.NewGlyphSheet: the same fonts, fallback and outlines as
+// a paragraph, drawn by the software renderer) and copies each glyph into its block of the atlas, placed on the baseline of the
+// cell and clipped to the block. A glyph with colors of its own (an emoji) is marked colored.
 func (a *atlas) rasterize(list []pending) {
-	cw, ch := a.m.cw, a.m.ch
-	cols := min(len(list), 32)
-	rows := (len(list) + cols - 1) / cols
-	bw := 2 * cw
-	sw, sh := cols*bw, rows*ch
-	heightMul := a.m.h / a.fs.size
-	rec := gui.NewPictureRecorder()
-	cv := gui.NewCanvas(rec)
-	cv.Scale(a.m.dpr, a.m.dpr)
-	for i, w := range list {
-		p := a.fs.paragraph(a.factory, w.text, w.attrs, heightMul)
-		x := float64((i%cols)*bw) / a.m.dpr
-		y := float64((i/cols)*ch) / a.m.dpr
-		cv.Save()
-		cv.ClipRect(gui.NewRectFromLTWH(x, y, float64(a.blockWidth(w.attrs))/a.m.dpr, a.m.h))
-		cv.DrawParagraph(p, gui.Offset{Dx: x, Dy: y})
-		cv.Restore()
+	const looks = attrBold | attrItalic
+	for k := uint8(0); k <= looks; k++ {
+		var group []pending
+		for _, w := range list {
+			if w.attrs&looks == k {
+				group = append(group, w)
+			}
+		}
+		if len(group) > 0 {
+			a.rasterizeLook(group, k)
+		}
 	}
-	img, err := rec.EndRecording().ToImage(sw, sh, gui.ToImageOpts{Rasterizer: offscreen.NewRasterizer()})
+}
+
+// rasterizeLook is rasterize for glyphs that have the same bold and italic.
+func (a *atlas) rasterizeLook(list []pending, look uint8) {
+	clusters := make([]string, len(list))
+	for i, w := range list {
+		clusters[i] = w.text
+	}
+	sheet, err := offscreen.NewGlyphSheet(a.pd.TextEngine(), a.fs.textStyle(look, a.m.h/a.fs.size), a.m.dpr, clusters)
 	if err != nil {
 		// the sheet could not be drawn: the glyphs stay blank rather than failing the frame
+		slog.Error("the glyph sheet of the terminal could not be drawn", "err", err)
 		for _, w := range list {
 			w.slot.blank = true
 		}
 		return
 	}
-	pix := img.Pixels()
+	defer sheet.Image.Dispose()
+	pix := sheet.Image.Pixels()
+	sw := sheet.Image.Width()
+	base := a.baseline(look)
 	for i, w := range list {
-		bx, by := (i%cols)*bw, (i/cols)*ch
+		g := sheet.Glyphs[i]
 		wb := a.blockWidth(w.attrs)
-		colored := false
-		a.store(w.slot, wb, func(x, y int) (r, g, b, al uint8) {
-			o := ((by+y)*sw + bx + x) * 4
-			r, g, b, al = pix[o], pix[o+1], pix[o+2], pix[o+3]
-			if al != 0 {
-				// an emoji has color; the text engine's glyphs are white with their coverage as alpha
-				if d := int(max(r, g, b)) - int(min(r, g, b)); d > 24 {
-					colored = true
-				}
+		// the glyph's pixels are at (ox, oy) of the block and come from the rect of the sheet
+		ox, oy := int(math.Round(g.Offset.Dx)), base+int(math.Round(g.Offset.Dy))
+		rx, ry := int(g.Rect.Left), int(g.Rect.Top)
+		rw, rh := int(g.Rect.Width()), int(g.Rect.Height())
+		a.store(w.slot, wb, func(x, y int) (r, gr, b, al uint8) {
+			sx, sy := x-ox, y-oy
+			if sx < 0 || sy < 0 || sx >= rw || sy >= rh {
+				return 0, 0, 0, 0
 			}
-			return
+			o := ((ry+sy)*sw + rx + sx) * 4
+			return pix[o], pix[o+1], pix[o+2], pix[o+3]
 		})
-		w.slot.colored = colored
+		w.slot.colored = g.Colored && !w.slot.blank
 	}
 }
