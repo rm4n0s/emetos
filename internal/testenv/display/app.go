@@ -225,6 +225,10 @@ func Start(t *testing.T, opts Options) *App {
 		// nothing of the user's session: no session bus (keyring, tray, portals), no X server
 		"DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/bus",
 		"LANG=C.UTF-8",
+		// Mesa keeps its compiled shaders in XDG_CACHE_HOME, which is new for every test: each start compiled them again (8 s
+		// for the first frame on an AMD GPU). A folder of this harness, shared by the tests, keeps them; it holds nothing of
+		// the user's and nothing of Emetos's.
+		"MESA_SHADER_CACHE_DIR=" + envOr("MESA_SHADER_CACHE_DIR", filepath.Join(os.TempDir(), "emetos-display-mesa-cache")),
 	}, opts.Env...)
 	a.spawn(opts.Args)
 	t.Cleanup(a.stop)

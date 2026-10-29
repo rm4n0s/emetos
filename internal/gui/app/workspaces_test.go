@@ -571,6 +571,9 @@ func TestOpeningAFolderRestoresItsSavedState(t *testing.T) {
 	if err := first.command(first.workspaceOf(other), "workbench.action.files.save", nil); err != nil {
 		t.Fatal(err)
 	}
+	// the save writes off the UI thread: a close that comes while the file is still dirty asks about it
+	saved, _ := first.workspaceOf(other).Documents.Get(document.FileURI(filepath.Join(other, "d.go")))
+	first.waitFor("the save", func() bool { return !saved.Dirty() })
 	first.workspaceOf(other).RequestClose(CloseReasonQuit)
 	first.waitFor("the quit", func() bool { return first.quits == 1 })
 	// a run in the first folder opens the second in the same window: its editors come back
