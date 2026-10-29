@@ -30,8 +30,9 @@ func ParseKey(text string) (sshlogin.AllowedKey, error) {
 var decodeScales = [...][2]int{{1, 1}, {2, 3}, {1, 2}}
 
 // DecodeQR reads the QR code in an image and returns its text. It looks in the whole image and tries harder than a quick
-// scan, in any orientation, so a code that is turned, small or a little blurred is found; when nothing is found it looks again
-// at the image reduced to two thirds and to a half. It fails with KeyQRNoCode when there is no readable code (the normal
+// scan, in any orientation, so a code that is turned, small or a little blurred is found, and reads an image that is nothing
+// but a code (as EncodeQR draws it) also when the detector misses it; when nothing is found it looks again at the image reduced
+// to two thirds and to a half. It fails with KeyQRNoCode when there is no readable code (the normal
 // answer for most frames of a camera). It takes time in proportion to the size of the image (20 ms for noise of 1920x1080, the
 // largest frame) and has no way to be interrupted: the caller bounds the size.
 func DecodeQR(img image.Image) (string, error) {
@@ -81,7 +82,13 @@ func decodeLuminance(lum []byte, w, h, stride int) (string, error) {
 	}
 	result, err := qrcode.NewQRCodeReader().Decode(bitmap, hints)
 	if err != nil {
-		return "", errors.NewErr("KeyQRNoCode", err)
+		// The detector misreads some sharp codes of whole-pixel modules (about 1 in 250 version 7 codes of EncodeQR at 3 pixels
+		// a module or more: a ChecksumException or nothing found), which the same bitmap read as a code that fills the picture
+		// gives at once. A camera frame is never such a picture, so this fails quickly there.
+		result, err = qrcode.NewQRCodeReader().Decode(bitmap, map[gozxing.DecodeHintType]interface{}{gozxing.DecodeHintType_PURE_BARCODE: true})
+		if err != nil {
+			return "", errors.NewErr("KeyQRNoCode", err)
+		}
 	}
 	return result.GetText(), nil
 }

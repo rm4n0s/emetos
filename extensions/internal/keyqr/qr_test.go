@@ -1,14 +1,17 @@
 package keyqr
 
 import (
+	"crypto/ed25519"
 	"image"
 	"math/rand"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/makiuchi-d/gozxing/qrcode/decoder"
 	"github.com/rm4n0s/errors"
+	"golang.org/x/crypto/ssh"
 )
 
 func TestEveryKindOfKeyRoundTripsThroughItsQRCode(t *testing.T) {
@@ -325,5 +328,48 @@ func TestADecodedImageMayStartAwayFromTheOrigin(t *testing.T) {
 	}
 	if text, err := DecodeQR(rgba); err != nil || text != line {
 		t.Errorf("an RGBA picture: %q, %v", text, err)
+	}
+}
+
+func TestDecodeQRReadsEveryCodeEncodeQRDraws(t *testing.T) {
+	// The detector of gozxing misreads some sharp codes of whole-pixel modules (about 1 in 250 keys); these were read wrong at
+	// their side before DecodeQR read the picture as a code that fills it.
+	tests := []struct {
+		name string
+		line string
+		side int
+	}{
+		{name: "a ChecksumException at 240 pixels", line: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDZwXsx0hbiZEClu3WkVqV7a9fm4H1vLF/Bd7Lpbk0w+", side: 240},
+		{name: "no code at 240 pixels", line: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG6010B2OkZzvgEYp5LxsUqpdlBCi1XnahJOVPM4rPFF", side: 240},
+		{name: "a wrong dimension at 240 pixels", line: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEGdD+F95s6R5SiyTclXWGato1ojkFasVatd8aRcCsj2", side: 240},
+		{name: "a ChecksumException at the side of the dialog", line: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJVkfjcpF9Y1kiZn3OH35pEeq8Ka6igZc73jEI7ND8Eo", side: 452},
+		{name: "no code at the side of the dialog", line: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFwu3FXmmXTE0NW6HvBi4vu14f2N5cgVbJbNdC/eAAM8", side: 452},
+	}
+	// and keys of a seed at both sides
+	rng := rand.New(rand.NewSource(7))
+	for i := 0; i < 100; i++ {
+		seed := make([]byte, ed25519.SeedSize)
+		rng.Read(seed)
+		pub, err := ssh.NewPublicKey(ed25519.NewKeyFromSeed(seed).Public())
+		if err != nil {
+			t.Fatal(err)
+		}
+		line := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(pub)))
+		for _, side := range []int{240, 452} {
+			tests = append(tests, struct {
+				name string
+				line string
+				side int
+			}{name: "key " + strconv.Itoa(i) + " at " + strconv.Itoa(side) + " pixels", line: line, side: side})
+		}
+	}
+	for _, tt := range tests {
+		img, err := EncodeQR(tt.line, tt.side)
+		if err != nil {
+			t.Fatalf("%s: %v", tt.name, err)
+		}
+		if text, err := DecodeQR(img); err != nil || text != tt.line {
+			t.Errorf("%s: DecodeQR(EncodeQR(%q)) = %q, %v", tt.name, tt.line, text, err)
+		}
 	}
 }
