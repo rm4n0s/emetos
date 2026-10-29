@@ -3668,3 +3668,11 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Manual checks:** none
 - **Glutter issues:** none new.
 - **The manager's runs after the rebase onto 17d.6:** `go vet ./...` ✅; `CGO_ENABLED=0 go test` of `extensions/internal/pty`, `extensions/terminal/...` and `extensions/relay/...` ✅; `go test -race -count=2` of the same: the first run printed one `FAIL` whose package and test were cut off by the summary of the log, then two runs of pty and the terminal package and ten runs of the new tests with `-race` all passed. The full race run of the milestone's final check covers them again.
+
+## Fix: the architecture test refused the emulator's CPU clock
+
+- **Date:** 2026-10-29
+- **Branch:** fix/archtest-emulator-test-imports
+- **Summary:** "Make four tests measure their subject instead of the machine's load" made `extensions/terminal/emulator/bench_test.go` time the emulator by the CPU clock of its thread, with `golang.org/x/sys/unix`, which the rule `EmulatorImportsUI` refused, so `internal/archtest` `TestRepository` failed on `main`. The manager had merged that fix after testing only the packages it changed; the agent of step 18.1 found the failure in its full run. The rule now lets the emulator's tests import `golang.org/x/sys/unix` too (a non-test file still may not), with a fixture (`good_test.go`) that the rule must not report.
+- **Checks:** gofmt ✅ · `go test ./internal/archtest/` ✅. The full checks of `main` run next, before the milestone's desktop pass.
+- **Lesson:** a fix that changes imports gets the full suite before it is merged, not only its packages.

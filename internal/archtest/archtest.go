@@ -97,7 +97,7 @@ const (
 	// RuleEmulatorImportsUI: a package of the terminal emulator, extensions/terminal/emulator, imports Glutter, a package of
 	// Emetos or a module other than the standard library and golang.org/x/text. The emulator has no user interface and is
 	// tested without one (SPEC §10.25 "The emulator"); its tests may also import the pseudo-terminal package
-	// extensions/internal/pty, to record real programs.
+	// extensions/internal/pty, to record real programs, and golang.org/x/sys/unix, to time the emulator by the CPU clock.
 	RuleEmulatorImportsUI Rule = "EmulatorImportsUI"
 )
 
@@ -280,7 +280,11 @@ func emulatorImportBad(rel, path string) bool {
 	if isOrUnder(path, "golang.org/x/text") {
 		return false
 	}
-	return !strings.HasSuffix(rel, "_test.go") || path != emetosModule+"extensions/internal/pty"
+	if !strings.HasSuffix(rel, "_test.go") {
+		return true
+	}
+	// a test may record real programs in a pseudo-terminal, and time the emulator by the CPU clock of its thread
+	return path != emetosModule+"extensions/internal/pty" && path != "golang.org/x/sys/unix"
 }
 
 // allowedExtensionModules are the modules, besides the standard library and Emetos's own public packages, that a package
