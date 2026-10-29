@@ -98,10 +98,11 @@ type Terminal struct {
 	em   *emulator.Emulator
 	proc process
 
-	// flow control: unparsed bytes were read and wait for the parser.
+	// flow control: unparsed bytes were read and wait for the parser; parsed counts the bytes the parser has taken in all.
 	flowMu   sync.Mutex
 	flowCond *sync.Cond
 	unparsed int
+	parsed   int64
 
 	// input waits to be written to the program.
 	inMu   sync.Mutex
@@ -352,6 +353,7 @@ func (t *Terminal) parseLoop(chunks <-chan chunk) {
 		chunkPool.Put(&full)
 		t.flowMu.Lock()
 		t.unparsed -= n
+		t.parsed += int64(n)
 		if t.unparsed < lowWater {
 			t.flowCond.Broadcast()
 		}
@@ -597,9 +599,9 @@ func splitDir(mode string, from *Terminal) string {
 // Profile is the profile the terminal started with.
 func (t *Terminal) Profile() profile { return t.prof }
 
-// unparsedNow is the number of bytes read and not parsed yet.
-func (t *Terminal) unparsedNow() int {
+// parsedNow is the number of bytes the parser has taken since the terminal started.
+func (t *Terminal) parsedNow() int64 {
 	t.flowMu.Lock()
 	defer t.flowMu.Unlock()
-	return t.unparsed
+	return t.parsed
 }

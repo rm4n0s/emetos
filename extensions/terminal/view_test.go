@@ -20,6 +20,8 @@ type paneRig struct {
 	proc *fakeProcess
 	cfg  *config
 	env  *paneEnv
+	// sent is the number of bytes feed has given the program to write, all of them parsed when feed returns.
+	sent int64
 }
 
 // newFakePane shows a terminal whose program is a fake one: the test writes its output with write.
@@ -67,8 +69,11 @@ func (r *paneRig) writeB(t testing.TB, text string) {
 func (r *paneRig) feed(t testing.TB, text string) {
 	t.Helper()
 	r.proc.out <- []byte(text)
+	r.sent += int64(len(text))
+	// the bytes are parsed when the parser has taken all that was sent, not when nothing waits for it: the reader may not
+	// have taken the bytes from the program yet
 	deadline := time.Now().Add(5 * time.Second)
-	for r.term.unparsedNow() != 0 {
+	for r.term.parsedNow() < r.sent {
 		if time.Now().After(deadline) {
 			t.Fatal("the output was not parsed")
 		}
