@@ -3708,7 +3708,7 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
   - `internal/archtest` `TestRepository` fails on the base `1371e64` because of `extensions/terminal/emulator/bench_test.go` (it imports `golang.org/x/sys/unix`, which `EmulatorImportsUI` refuses); that comes from the commit "Make four tests measure their subject instead of the machine's load", not from this step.
   - Left for 18.2 to 18.4: every view and command, the CLI calls (build, push, Compose, Kube, shell), and the archive endpoint of Explore Files.
 
-## 19.1 Connections, the keyring and the results grid
+## Step 19.1: Connections, the keyring and the results grid
 
 - **Date:** 2026-10-29
 - **Branch:** feat/step-19.1-connections
@@ -3720,3 +3720,4 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Manual checks:** pending, see docs/MANUAL-CHECKS.md (19.1: the real keyring, `go test -tags emetos_keyring ./extensions/internal/dbconn -run TestRealKeyring -v -count=1`).
 - **Glutter issues:** none.
 - **Deviations and follow-ups:** the SQL `INSERT` export and the save dialog go to step 19.3; cell editing is not built (§10.21 "Not built"); the form prefilled from a container's `connectDatabase` is not built (decision 259); the prefix of the Relay refusal and `extension/core.go` may conflict with step 18.1 (decision 255). The base commit has an unrelated archtest failure: `extensions/terminal/emulator/bench_test.go:11` (`EmulatorImportsUI`: `golang.org/x/sys/unix`).
+- **The manager's checks after the rebase onto 18.1** (they are the record): gofmt ✅ · go vet ✅ (also `emetos_display` and `emetos_gopls`) · golangci-lint ✅ (also `--build-tags emetos_display`) · error-tags --untested ✅ · `go mod tidy -diff` clean · go test -race ✅ (107 packages, exit 0) · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ (107 packages, exit 0) · `scripts/realinput.sh` ✅ (the whole suite, exit 0). The `internal/gui/app` failures the agent saw came from its `GOTMPDIR` under the home folder (longer paths in goldens and breadcrumbs), not from the code; that folder was removed.
