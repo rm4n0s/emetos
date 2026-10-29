@@ -99,6 +99,8 @@ type InputBoxOpts struct {
 	Obscure bool
 	// Autofocus asks for the focus when the box is shown.
 	Autofocus bool
+	// Monospace sets the text in the desktop's monospace font instead of the UI font: a box that holds code, JSON or a hex dump.
+	Monospace bool
 	// SelectAllOnFocus selects the text when the box gets the focus; the default is Glutter's (on, on
 	// the desktop, for a single-line box). A box whose owner chooses the selection turns it off.
 	SelectAllOnFocus foundation.Opt[bool]
@@ -589,6 +591,9 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 		opts.TextInputAction = services.TextInputActionNewline
 		crossAxis, height = rendering.CrossAxisAlignmentStart, foundation.None[float64]()
 		constraints = foundation.Some(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MinHeight: foundation.Some(inputBoxHeight)}))
+	}
+	if o.Monospace {
+		style = style.CopyWith(painting.TextStyleOpts{FontFamily: MonoFontOf(bc)})
 	}
 	text := widgets.NewEditableText(s.text, s.node, style, fg, colors.InputForeground.WithAlpha(0x80), opts)
 	if o.MultiLine {

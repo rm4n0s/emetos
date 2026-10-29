@@ -292,6 +292,7 @@ func emulatorImportBad(rel, path string) bool {
 var allowedExtensionModules = []string{
 	errorsModule, glutterModule, "golang.org/x/text", "golang.org/x/image", "golang.org/x/sys",
 	"github.com/go-text/typesetting", "golang.org/x/crypto", "github.com/quic-go/quic-go", "github.com/makiuchi-d/gozxing",
+	"github.com/redis/go-redis/v9",
 	"github.com/godbus/dbus/v5",
 	// the drivers of the SQL extension (SPEC §10.21, D23)
 	"github.com/jackc/pgx/v5", "github.com/go-sql-driver/mysql", "modernc.org/sqlite", "github.com/microsoft/go-mssqldb",

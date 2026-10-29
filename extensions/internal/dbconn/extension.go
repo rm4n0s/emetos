@@ -115,9 +115,11 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 		}
 	}
 	stop := e.hub.Subscribe(func() { api.Post(e.view.rebuild) })
+	stopReload := e.hub.SubscribeReload(func(id string) { api.Post(func() { e.view.reloadConnection(id) }) })
 	go func() {
 		<-ctx.Done()
 		stop()
+		stopReload()
 	}()
 	return nil
 }

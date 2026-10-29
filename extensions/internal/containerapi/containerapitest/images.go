@@ -20,10 +20,13 @@ const (
 	// ImageMongoDB is MongoDB 7.0.14, the server of the tests of the MongoDB extension (extensions/mongodb, SPEC §10.22): 7.0 has
 	// time series collections and the $sample stage, and its image starts a server with a root user from the environment.
 	ImageMongoDB = "docker.io/library/mongo:7.0.14"
+	// ImageRedis is Redis 8.2.2, the server of the tests of the Redis extension (extensions/redis, SPEC §10.23). Redis 8 has the JSON
+	// module in its image.
+	ImageRedis = "docker.io/library/redis:8.2.2"
 )
 
 // PinnedImages lists every image the real-engine tests may pull.
-var PinnedImages = []string{ImageBusyBox, ImagePostgres, ImageMySQL, ImageMariaDB, ImageMongoDB}
+var PinnedImages = []string{ImageBusyBox, ImagePostgres, ImageMySQL, ImageMariaDB, ImageMongoDB, ImageRedis}
 
 // IsPinned reports whether ref is one of PinnedImages.
 func IsPinned(ref string) bool {

@@ -24,6 +24,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/relay"
 	"github.com/rm4n0s/emetos/extensions/podman"
 	"github.com/rm4n0s/emetos/extensions/python"
+	"github.com/rm4n0s/emetos/extensions/redis"
 	"github.com/rm4n0s/emetos/extensions/references"
 	"github.com/rm4n0s/emetos/extensions/remotework"
 	"github.com/rm4n0s/emetos/extensions/rust"
@@ -54,9 +55,10 @@ import (
 // which reads how the two hubs host the workspace, and the extension "Databases" (extensions/internal/dbconn, step 19.1), the
 // connections and their view that the SQL, MongoDB and Redis extensions of M19 to M21 share: they register their engines in the one
 // hub made here, which reads nothing (not even the connection file) until a view of it is shown. The SQL extension (extensions/sql, step
-// 19.2) is a language pack in the list of the packs and the driver of its engines in that hub: its instances share one sql.Hub made here. The MongoDB extension
+// 19.2) is a language pack in the list of the packs and the driver of its engines in that hub: its instances share one sql.Hub made here. The MongoDB
 // (extensions/mongodb, step 20.1) is listed with the language packs, after them, because it contributes a language, the
 // playgrounds (.mongodb), and the order of the languages is the order of registration; it registers its engine in the same hub.
+// Redis (extensions/redis, step 21.1) follows the hub, and adds its engine to it when the view is shown.
 //
 // The Containers view of Docker (extensions/containers, step 18.2) follows the Search view: it adds a view container to the side bar, a
 // tab to the panel (the logs) and two kinds of editor tab, and starts nothing until a view of it is shown. The Podman extension
@@ -75,7 +77,7 @@ func All() []extension.Factory {
 		search.New, containers.New, podman.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw), relay.FactoryOf(ps),
 		hosting.NewFactory(rw.Hosting(), ps.Hosting()),
-		dbconn.Factory(db),
+		dbconn.Factory(db), redis.Factory(db),
 		references.New,
 	}
 }

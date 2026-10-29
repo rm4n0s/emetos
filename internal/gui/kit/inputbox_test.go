@@ -758,3 +758,32 @@ func TestInputBoxSetValueScrollsBack(t *testing.T) {
 		})
 	}
 }
+
+func TestInputBoxMonospace(t *testing.T) {
+	cases := []struct {
+		name      string
+		multiLine bool
+		mono      bool
+	}{
+		{"a line in the UI font", false, false},
+		{"a line in the monospace font", false, true},
+		{"a text area in the UI font", true, false},
+		{"a text area in the monospace font", true, true},
+	}
+	var uiFamily string
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newInputRig(t, DarkModern(), inputSize, func(_ *inputRig, o *InputBoxOpts) { o.MultiLine, o.Monospace = tc.multiLine, tc.mono })
+			style := r.ts.Widget(gluttertest.ByType[*widgets.EditableText]()).(*widgets.EditableText).Style()
+			family := style.FontFamily
+			if !tc.mono {
+				uiFamily = family
+				return
+			}
+			if uiFamily == "" || family == uiFamily {
+				t.Errorf("monospace family %q, UI family %q", family, uiFamily)
+			}
+			r.noErrors()
+		})
+	}
+}

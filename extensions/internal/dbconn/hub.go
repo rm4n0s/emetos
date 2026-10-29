@@ -69,6 +69,9 @@ type Hub struct {
 	subs    map[int]func()
 	nextSub int
 	nextDrv int
+
+	// reloadSubs are those who asked to hear of Reload (hooks.go).
+	reloadSubs reloads
 }
 
 // driverEntry is a registered driver and the token that removes it.

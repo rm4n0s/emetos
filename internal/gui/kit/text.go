@@ -19,6 +19,14 @@ func UIFontOf(bc widgets.BuildContext) string {
 	return "sans-serif"
 }
 
+// MonoFontOf is the family of the desktop's monospace font, else the generic "monospace".
+func MonoFontOf(bc widgets.BuildContext) string {
+	if family, _ := widgets.WidgetsBindingOf(bc).PlatformDispatcher().MonospaceFont(); family != "" {
+		return family
+	}
+	return "monospace"
+}
+
 // TextStyleOf is a text style in the UI font of the workbench.
 func TextStyleOf(bc widgets.BuildContext, size float64, color ui.Color) *painting.TextStyle {
 	return painting.NewTextStyle(painting.TextStyleOpts{

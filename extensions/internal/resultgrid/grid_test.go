@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	gui "github.com/rm4n0s/glutter/ui"
+	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension/ui/uitest"
 )
@@ -394,6 +395,26 @@ func TestGoldenTheGrid(t *testing.T) {
 			r.click(r.at(4, 5))
 			r.ts.SendKeyUpEvent(services.LogicalKeyboardKeyShiftLeft)
 			uitest.MatchesGolden(r.ts, "grid_"+th.Name)
+		})
+	}
+}
+
+// TestTheTextOfASelectionThatLostTheFocusStaysVisible: the themes define no list.inactiveSelectionForeground, so the text of a
+// selected cell must keep its own color when the grid is not focused (a button next to the grid takes the focus).
+func TestTheTextOfASelectionThatLostTheFocusStaysVisible(t *testing.T) {
+	for _, th := range uitest.Themes() {
+		t.Run(th.Name, func(t *testing.T) {
+			r := newGridRig(t, th, gui.Size{Width: 700, Height: 200}, people())
+			r.click(r.at(1, 1))
+			r.g.focus.Unfocus()
+			r.pump()
+			if r.g.model.Selection().Kind != SelCells {
+				t.Fatal("the selection was lost")
+			}
+			text := r.ts.Widget(gluttertest.ByText("Alice")).(*widgets.Text)
+			if c := text.Style().Color.OrElse(gui.Color{}); c.Alpha() == 0 {
+				t.Errorf("the text of the selected cell is transparent: %v", c)
+			}
 		})
 	}
 }

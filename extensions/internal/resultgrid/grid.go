@@ -328,7 +328,10 @@ func (b *builder) cell(r, c int, v Value, focused bool) widgets.Widget {
 	case selected && b.active:
 		style = ui.TextStyle(b.bc, fontSize, b.colors.ListActiveSelectionForeground)
 	case selected:
-		style = ui.TextStyle(b.bc, fontSize, b.colors.ListInactiveSelectionForeground)
+		// list.inactiveSelectionForeground has no default in the themes: the text keeps its color then, as in a tree (kit/tree.go).
+		if fg := b.colors.ListInactiveSelectionForeground; fg.Alpha() != 0 {
+			style = ui.TextStyle(b.bc, fontSize, fg)
+		}
 	case v.IsNull():
 		style = style.CopyWith(painting.TextStyleOpts{Color: foundation.Some(b.colors.DescriptionForeground), FontStyle: gui.FontStyleItalic})
 	}

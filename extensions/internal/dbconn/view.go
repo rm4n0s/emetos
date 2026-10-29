@@ -163,6 +163,7 @@ func (v *view) load(key string, data any) {
 // refreshAll drops what was listed and lists it again where the rows are open.
 func (v *view) refreshAll() {
 	v.gen++
+	v.e.hub.RefreshDrivers()
 	for key := range v.children {
 		v.forget(key)
 	}
@@ -175,6 +176,15 @@ func (v *view) refreshAll() {
 	}
 	v.rebuild()
 	v.e.hub.changed()
+}
+
+// reloadConnection lists the open rows of one connection again. The driver changed what it lists and answers from what it holds
+// (Hub.Reload), so nothing is asked of the database that the driver does not ask.
+func (v *view) reloadConnection(connID string) {
+	key := connKey(connID)
+	v.gen++
+	v.forget(key)
+	v.rebuild()
 }
 
 // collapseAll folds the tree.
@@ -263,7 +273,11 @@ func (v *view) render(bc widgets.BuildContext, node ui.TreeNode, st ui.RowState)
 		if n.Description != "" {
 			row = append(row, gap(8), widgets.NewFlexible(text(n.Description, colors.DescriptionForeground)))
 		}
-		return widgets.NewRow(row, widgets.RowOpts{CrossAxisAlignment: center})
+		var out widgets.Widget = widgets.NewRow(row, widgets.RowOpts{CrossAxisAlignment: center})
+		if n.Tooltip != "" {
+			out = ui.NewHover(out, ui.HoverOpts{Text: n.Tooltip, Compact: true})
+		}
+		return out
 	}
 	return text("", st.Foreground)
 }
@@ -291,10 +305,16 @@ func hexByte(c byte) uint8 {
 	return c - 'A' + 10
 }
 
-// onOpen is Enter or a double click: a connection that is closed is opened.
+// onOpen is Enter or a double click: a connection that is closed is opened, and a node is opened by the driver that listed it
+// (Opener).
 func (v *view) onOpen(node ui.TreeNode) {
-	if d, ok := node.Data.(connRow); ok && v.e.hub.State(d.conn.ID).Status != Connected {
-		v.e.connect(d.conn)
+	switch d := node.Data.(type) {
+	case connRow:
+		if v.e.hub.State(d.conn.ID).Status != Connected {
+			v.e.connect(d.conn)
+		}
+	case nodeRow:
+		v.e.hub.Open(d.connID, d.node)
 	}
 }
 

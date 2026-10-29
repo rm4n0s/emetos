@@ -224,3 +224,10 @@ Linked Go modules:
     Added by step 20.1 (extensions/mongodb). What it brings in: github.com/klauspost/compress (BSD-3-Clause,
     with parts under MIT and Apache-2.0), github.com/xdg-go/pbkdf2, scram and stringprep (Apache-2.0) and
     github.com/youmark/pkcs8 (MIT). The license text of each is in its module.
+
+21. github.com/redis/go-redis/v9 (the Redis client of the Redis extension)
+    Source:  https://github.com/redis/go-redis (version in go.mod), linked into the program
+    License: BSD-2-Clause (Copyright (c) 2013 The github.com/redis/go-redis Authors). Its
+             dependencies github.com/cespare/xxhash/v2 and go.uber.org/atomic are MIT.
+    Added by step 21.1 (extensions/redis). The license texts come with the modules
+    (`go list -m -f '{{.Dir}}' github.com/redis/go-redis/v9`).
