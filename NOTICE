@@ -191,3 +191,12 @@ Linked Go module:
     scripts/specs2json converts to JSON (49 specs of the 115, 444 KB; the code of a spec, its generators, is left out);
     the builtins of bash are made from the machine's own bash. The licenses and the notices are in
     third_party/vscode-terminal-suggest/ (LICENSE.txt, cgmanifest.json, ThirdPartyNotices.txt).
+
+18. Container Tools for Visual Studio Code (microsoft/vscode-containers)
+    Source:  https://github.com/microsoft/vscode-containers (v2.5.3, pinned in scripts/reference-versions.txt)
+    License: MIT (Copyright (c) Microsoft Corporation)
+    Added by step 18.1 for the Docker and Podman extensions (SPEC §10.20): their design, texts,
+    templates and command ids may be ported from it, and each ported file says so in a "Ported from
+    vscode-containers: <path>" line. Step 18.1 itself ported nothing: the engine client is written
+    against the Docker Engine API and Podman's libpod API. The license is in
+    third_party/vscode-containers/LICENSE.md (copied by scripts/update-assets.sh).

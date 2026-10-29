@@ -265,5 +265,9 @@ done
 (cd "$root" && go run ./scripts/specs2json bash "$sugg_out/builtins/bash.json")
 copy_license vscode-terminal-suggest vscode/LICENSE.txt vscode/extensions/terminal-suggest/cgmanifest.json \
   vscode/extensions/terminal-suggest/ThirdPartyNotices.txt
+# Step 18.1: the license of Container Tools for Visual Studio Code (microsoft/vscode-containers, MIT; SPEC §10.20), whose design,
+# texts, templates and command ids the Docker and Podman extensions may port (each ported file says so with a "Ported from
+# vscode-containers" line). No file of it is bundled by this step.
+copy_license vscode-containers vscode-containers/LICENSE.md
 
 echo "update-assets: done"
