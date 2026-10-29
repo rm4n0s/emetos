@@ -92,11 +92,17 @@ type ext struct {
 	docs          *documents
 	runs          *runForms
 	events        *eventBatch
+
+	// the workflows of step 18.3: how Compose is run (found once), the tag last given to each Dockerfile, and the services last
+	// chosen for each Compose file
+	composeBase []string
+	tags        map[string]string
+	subsets     map[string][]string
 }
 
 // New returns the Factory-made extension of a Config.
 func New(cfg Config) extension.Extension {
-	return &ext{cfg: cfg, views: map[string]*sectionView{}}
+	return &ext{cfg: cfg, views: map[string]*sectionView{}, tags: map[string]string{}, subsets: map[string][]string{}}
 }
 
 // Manifest implements extension.Extension.

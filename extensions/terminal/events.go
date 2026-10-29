@@ -115,6 +115,9 @@ type createRequest struct {
 	Cwd     string `json:"cwd"`
 	Name    string `json:"name"`
 	By      string `json:"by"`
+	// Show makes the terminal the active one, shows the panel and gives it the keyboard, as the person at the computer opening a
+	// terminal does (Open Shell of the Containers extension). A client of Relay never gets that: its Show is ignored.
+	Show bool `json:"show"`
 }
 
 type createReply struct {
@@ -267,13 +270,14 @@ func (t *terminals) handleSnapshot(_ context.Context, ev extension.Event) (any, 
 }
 
 // handleCreate answers emetos.terminal.create: a terminal in the profile and the folder asked for, which is a folder under the
-// folder of the workspace; it is made without taking the keyboard or the panel from the user.
+// folder of the workspace; it is made without taking the keyboard or the panel from the user, unless an extension (not Relay)
+// asks for `show`.
 func (t *terminals) handleCreate(_ context.Context, ev extension.Event) (any, error) {
 	req, err := decodeRequest[createRequest](ev)
 	if err != nil {
 		return nil, err
 	}
-	o := openOpts{name: req.Name, quiet: true, by: byOf(ev, req.By)}
+	o := openOpts{name: req.Name, quiet: !req.Show || ev.Publisher == extension.RelayID, by: byOf(ev, req.By)}
 	if req.Profile != "" {
 		if o.profile = t.profileNamed(req.Profile); o.profile == nil {
 			return nil, errors.New("TerminalProfileUnknown", "there is no such profile", "profile", req.Profile)

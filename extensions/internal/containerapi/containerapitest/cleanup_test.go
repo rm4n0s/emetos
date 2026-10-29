@@ -104,6 +104,20 @@ func fakeCLI(args []string) int {
 				return die(err)
 			}
 		}
+	case len(words) >= 2 && words[0] == "image" && words[1] == "ls":
+		list, err := client.ListImages(ctx, containerapi.ListImagesOptions{Filters: filters})
+		if err != nil {
+			return die(err)
+		}
+		for _, im := range list {
+			print(containerapi.ShortID(im.ID))
+		}
+	case len(words) >= 2 && words[0] == "image" && words[1] == "rm":
+		for _, id := range words[2:] {
+			if _, err := client.RemoveImage(ctx, id, containerapi.RemoveImageOptions{Force: has("--force")}); err != nil {
+				return die(err)
+			}
+		}
 	case len(words) >= 2 && words[0] == "network" && words[1] == "ls":
 		list, err := client.ListNetworks(ctx, filters)
 		if err != nil {
@@ -236,6 +250,17 @@ func (s *cleanupSetup) names(t *testing.T, kind containerapi.Kind) []string {
 	for _, x := range vs {
 		out = append(out, "volume "+x.Name)
 	}
+	ims, err := c.ListImages(ctx, containerapi.ListImagesOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range ims {
+		name := containerapi.ShortID(x.ID)
+		if len(x.RepoTags) > 0 {
+			name = x.RepoTags[0]
+		}
+		out = append(out, "image "+name)
+	}
 	if kind == containerapi.KindPodman {
 		ps, err := c.ListPods(ctx, nil)
 		if err != nil {
@@ -257,6 +282,9 @@ func (s *cleanupSetup) populate(t *testing.T, kind containerapi.Kind) {
 	s.fake.AddContainer("emetos-test-bbb", "busybox", label, "exited")
 	s.fake.AddContainer("my-database", "postgres", nil, "running")
 	s.fake.AddContainer("my-stopped-one", "alpine", map[string]string{"owner": "me"}, "exited")
+	s.fake.AddLabelledImage(1000, label, "emetos-test-built:latest", "emetos-test-built:other") // one image, two names
+	s.fake.AddLabelledImage(1000, map[string]string{"owner": "me"}, "my-app:1.0")
+	s.fake.AddImage(1000, "busybox:1.37.0")
 	c := s.fake.Client()
 	defer c.Close()
 	ctx := context.Background()
@@ -303,7 +331,7 @@ func TestCleanupScriptRemovesOnlyLabelledThings(t *testing.T) {
 			if status != 0 {
 				t.Fatalf("the script exited with %d:\n%s", status, out)
 			}
-			want := []string{"container my-database", "container my-stopped-one", "network bridge", "network my-network", "volume my-data"}
+			want := []string{"container my-database", "container my-stopped-one", "network bridge", "network my-network", "volume my-data", "image my-app:1.0", "image busybox:1.37.0"}
 			if kind == containerapi.KindPodman {
 				want = append(want, "pod my-pod")
 			}

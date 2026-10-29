@@ -411,6 +411,46 @@ func TestCreateMakesATerminalInAConfinedFolderWithoutTakingTheScreen(t *testing.
 	}
 }
 
+func TestCreateWithShowOpensTheTerminalForAnExtensionButNeverForRelay(t *testing.T) {
+	r := newExtRig(t, "")
+	r.run(CmdNew, nil)
+	view := r.api.View(ViewID)
+	tests := []struct {
+		name      string
+		publisher string
+		payload   map[string]any
+		shown     bool
+	}{
+		{"an extension that asks to show it", "emetos.containers", map[string]any{"name": "Shell", "show": true}, true},
+		{"an extension that does not", "emetos.containers", map[string]any{"name": "Shell"}, false},
+		{"Relay that asks to show it", extension.RelayID, map[string]any{"name": "Shell", "show": true, "by": "relay:alice"}, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			before := r.ext.activeEntry()
+			reveals := len(view.Reveals)
+			var made createReply
+			if err := r.ask(tc.publisher, TopicCreate, tc.payload, &made); err != nil {
+				t.Fatal(err)
+			}
+			r.api.Pump()
+			e := r.ext.entryByID(made.ID)
+			if e == nil {
+				t.Fatalf("no terminal %d", made.ID)
+			}
+			if got := r.ext.activeEntry() == e; got != tc.shown {
+				t.Errorf("the new terminal is active = %v, want %v", got, tc.shown)
+			}
+			if got := len(view.Reveals) > reveals; got != tc.shown {
+				t.Errorf("the panel was revealed = %v, want %v", got, tc.shown)
+			}
+			if !tc.shown && r.ext.activeEntry() != before {
+				t.Error("the active terminal changed")
+			}
+		})
+	}
+}
+
 func TestWriteAndRunTypeInATerminalAndSayWhoDid(t *testing.T) {
 	// a shell whose terminal echoes, as a real shell's does (the test shell reads in raw mode, with no echo)
 	r := newExtRig(t, "/bin/sh")

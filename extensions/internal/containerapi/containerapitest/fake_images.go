@@ -54,6 +54,15 @@ func (f *Fake) AddImage(size int64, tags ...string) string {
 	return im.id
 }
 
+// AddLabelledImage is AddImage for an image with labels (a test image has the label of the tests).
+func (f *Fake) AddLabelledImage(size int64, labels map[string]string, tags ...string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	im := &fakeImage{id: f.newID("image/" + strings.Join(tags, ",")), tags: tags, created: time.Now().Add(-time.Hour), size: size, labels: labels}
+	f.images = append(f.images, im)
+	return im.id
+}
+
 // findImageLocked finds an image by name or id.
 func (f *Fake) findImageLocked(ref string) *fakeImage {
 	for _, im := range f.images {

@@ -131,7 +131,9 @@ const (
 	MenuManage = "GlobalActivity"
 	// MenuEditorContext is the context menu of the text editor.
 	MenuEditorContext = "EditorContext"
-	// MenuExplorerContext is the context menu of the Explorer.
+	// MenuExplorerContext is the context menu of the Explorer. An item of an extension in it runs its command with
+	// the arguments ExplorerArgs describes (ResourceURIs reads them), and its when-clause can use resourceLangId,
+	// resourceFilename, resourceExtname and resourcePath of the row that was pressed.
 	MenuExplorerContext = "ExplorerContext"
 )
 

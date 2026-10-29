@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Removes what the tests against a real Docker or Podman left behind (CLAUDE.md "Testing notes", step 18.1): the containers,
-# networks, volumes and, for Podman, pods that carry the label dev.emetos.test=1, and nothing else. Every list is asked with
+# Removes what the tests against a real Docker or Podman left behind (CLAUDE.md "Testing notes", steps 18.1 and 18.3): the containers,
+# networks, volumes, images (the ones the tests of Build Image make) and, for Podman, pods that carry the label dev.emetos.test=1, and
+# nothing else. Every list is asked with
 # --filter label=dev.emetos.test=1, so the engine's own filter decides, and a list that fails ends the script before anything
 # is removed. It never prunes, never runs "system prune" and never stops or removes anything it did not find by the label.
 #
@@ -78,7 +79,8 @@ remove() {
   ids=$(list "$cli" "${listcmd[@]}") || return 1
   local -a arr=()
   while IFS= read -r line; do
-    [[ -n "$line" ]] && arr+=("$line")
+    # an image with two names is listed twice
+    [[ -n "$line" && " ${arr[*]:-} " != *" $line "* ]] && arr+=("$line")
   done <<<"$ids"
   if [[ ${#arr[@]} -eq 0 ]]; then
     echo "$cli: no labelled $what"
@@ -101,6 +103,8 @@ clean() {
     remove "$cli" pods pod ps -- pod rm --force || return 1
   fi
   remove "$cli" containers ps --all -- rm --force --volumes || return 1
+  # images after the containers that use them; only labelled ones, and never --all or prune
+  remove "$cli" images image ls -- image rm --force || return 1
   remove "$cli" networks network ls -- network rm || return 1
   remove "$cli" volumes volume ls -- volume rm --force || return 1
 }

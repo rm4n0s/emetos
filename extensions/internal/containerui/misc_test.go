@@ -51,7 +51,7 @@ func TestTheManifestIsConsistent(t *testing.T) {
 		if got := cmds[cfg.Command("contexts.use")]; got != withContexts {
 			t.Errorf("contexts %v, the Use command %v", withContexts, got)
 		}
-		if len(m.Contributes.EditorKinds) != 2 || len(m.Contributes.PanelViews) != 1 || len(m.Contributes.Settings) != 1 {
+		if len(m.Contributes.EditorKinds) != 2 || len(m.Contributes.PanelViews) != 1 || len(m.Contributes.Settings) != 4 {
 			t.Errorf("the contributions: %d kinds, %d panels, %d settings", len(m.Contributes.EditorKinds), len(m.Contributes.PanelViews), len(m.Contributes.Settings))
 		}
 	}

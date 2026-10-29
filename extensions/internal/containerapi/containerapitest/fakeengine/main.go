@@ -3,7 +3,10 @@
 // extension at it with the setting containers.host, so that the screenshot never shows the containers of the machine it was made
 // on. It is a tool for proofs and never part of Emetos.
 //
-//	fakeengine -socket /tmp/ce/engine.sock -ids /tmp/ce/ids.json
+//	fakeengine -socket /tmp/ce/engine.sock -ids /tmp/ce/ids.json [-project /path/of/the/compose/project]
+//
+// -project is the folder the Compose projects of the scenario were started in: their containers carry the labels
+// com.docker.compose.project.working_dir and config_files that the Compose group commands of step 18.3 read.
 //
 // -ids names a file that gets the ids of the containers of the scenario as JSON ({"shop-web-1": "..."}) and the keys of the rows of
 // its images ({"image:postgres:16": "i:..."}), so that a proof can run a command on one of them.
@@ -33,6 +36,7 @@ func main() {
 func run() error {
 	sock := flag.String("socket", "", "the Unix socket to listen on")
 	ids := flag.String("ids", "", "a file that gets the ids of the containers as JSON")
+	project := flag.String("project", "/home/user/shop", "the folder the Compose projects were started in")
 	flag.Parse()
 	if *sock == "" {
 		flag.Usage()
@@ -43,7 +47,7 @@ func run() error {
 		return err
 	}
 	defer fake.Close()
-	byName, err := scenario(fake)
+	byName, err := scenario(fake, *project)
 	if err != nil {
 		return err
 	}
@@ -63,11 +67,12 @@ func run() error {
 }
 
 // scenario fills the engine: two Compose projects and a lone container, with logs, images, a network and volumes.
-func scenario(f *containerapitest.Fake) (map[string]string, error) {
+func scenario(f *containerapitest.Fake, project string) (map[string]string, error) {
 	ctx := context.Background()
 	c := f.Client()
-	compose := func(project, service string) map[string]string {
-		return map[string]string{containerapi.LabelCompose: project, containerapi.LabelComposeService: service}
+	compose := func(name, service string) map[string]string {
+		return map[string]string{containerapi.LabelCompose: name, containerapi.LabelComposeService: service,
+			"com.docker.compose.project.working_dir": project, "com.docker.compose.project.config_files": project + "/compose.yaml"}
 	}
 	f.AddImage(187_000_000, "nginx:1.27", "nginx:latest")
 	f.AddImage(432_000_000, "postgres:16")

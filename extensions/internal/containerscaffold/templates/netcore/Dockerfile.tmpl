@@ -1,0 +1,37 @@
+FROM {{ .NetCoreRuntimeBaseImage }} AS base
+WORKDIR /app
+{{ range .Ports -}}
+EXPOSE {{ . }}
+{{ end }}
+{{ if and (eq .Platform "ASP.NET Core") .Ports -}}
+ENV ASPNETCORE_URLS=http://+:{{ index .Ports 0 }}
+
+{{ end -}}
+{{ if not (isRootPort .Ports) -}}
+{{ if .NetCoreBaseImageDefaultUser -}}
+USER {{ .NetCoreBaseImageDefaultUser }}
+{{ else -}}
+# Creates a non-root user with an explicit UID and adds permission to access the /app folder
+# For more info, please refer to https://aka.ms/vscode-docker-dotnet-configure-containers
+RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
+
+{{ end -}}
+{{ end -}}
+FROM --platform=$BUILDPLATFORM {{ .NetCoreSdkBaseImage }} AS build
+ARG configuration=Release
+WORKDIR /src
+COPY ["{{ workspaceRelative .Artifact }}", "{{ dirname (workspaceRelative .Artifact) }}/"]
+RUN dotnet restore "{{ workspaceRelative .Artifact }}"
+COPY . .
+WORKDIR "/src/{{ dirname (workspaceRelative .Artifact) }}"
+RUN dotnet build "{{ basename .Artifact }}" -c $configuration -o /app/build
+
+FROM build AS publish
+ARG configuration=Release
+RUN dotnet publish "{{ basename .Artifact }}" -c $configuration -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "{{ .NetCoreAssemblyName }}"]

@@ -732,3 +732,17 @@ func TestTheScopeSaysWhichExtensionDeclaresAnEditorKind(t *testing.T) {
 		})
 	}
 }
+
+func TestIsExtensionCommandKnowsTheCommandsOfLiveExtensionsOnly(t *testing.T) {
+	tb := edTab(t, nil, nil)
+	for id, want := range map[string]bool{"ed.new": true, "ed.other": true, "ed.nothing": false, "explorer.newFile": false, "": false} {
+		if got := tb.scope.IsExtensionCommand(id); got != want {
+			t.Errorf("IsExtensionCommand(%q) = %v, want %v", id, got, want)
+		}
+	}
+	tb.disabled = []string{"ed"}
+	tb.scope.Refresh()
+	if tb.scope.IsExtensionCommand("ed.new") {
+		t.Error("a command of an extension that is turned off counts")
+	}
+}

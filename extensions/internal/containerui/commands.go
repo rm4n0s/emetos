@@ -145,6 +145,7 @@ func commandTable(cfg Config) []cmdDef {
 		{name: "logs.clear", title: "Clear Logs", handler: simple(func(e *ext) { e.logs.clear() })},
 		{name: "logs.close", title: "Close Logs Tab", handler: simple(func(e *ext) { e.logs.closeActive() })},
 	}
+	t = append(t, workflowCommands(cfg)...)
 	if cfg.Contexts {
 		t = append(t,
 			cmdDef{name: "contexts.use", title: "Use", handler: withArgs(func(e *ext, a any) {

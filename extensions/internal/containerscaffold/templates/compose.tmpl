@@ -1,0 +1,20 @@
+{{ if eq .Platform "ASP.NET Core" -}}
+# Please refer https://aka.ms/HTTPSinContainer on how to setup an https developer certificate for your ASP.NET Core service.
+
+{{ end -}}
+services:
+  {{ .ServiceName }}:
+    image: {{ .ServiceName }}
+    build:
+      context: {{ workspaceRelative .BuildContext }}
+      dockerfile: {{ contextRelative .DockerfileDir }}/{{ .DockerfileName }}
+{{- if eq .Platform "Node.js" }}
+    environment:
+      NODE_ENV: production
+{{- end }}
+{{- if .Ports }}
+    ports:
+{{- range .Ports }}
+      - {{ . }}:{{ . }}
+{{- end }}
+{{- end }}

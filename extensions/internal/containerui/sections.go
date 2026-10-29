@@ -192,6 +192,15 @@ func (s *containersSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 	}
 	run := func(op containerOp) func() { return func() { e.runContainerOp(op, ids) } }
 	var items []ui.MenuItem
+	if project := composeGroupOf(keys); project != "" {
+		items = append(items,
+			ui.MenuItem{Label: "Compose Logs", OnRun: func() { e.composeGroup(project, groupLogs) }},
+			ui.MenuItem{Label: "Compose Start", OnRun: func() { e.composeGroup(project, groupStart) }},
+			ui.MenuItem{Label: "Compose Stop", OnRun: func() { e.composeGroup(project, groupStop) }},
+			ui.MenuItem{Label: "Compose Restart", OnRun: func() { e.composeGroup(project, groupRestart) }},
+			ui.MenuItem{Label: "Compose Down...", OnRun: func() { e.composeGroup(project, groupDown) }},
+			ui.SeparatorItem())
+	}
 	one := len(cs) == 1 && !hasGroup(e, keys)
 	if one {
 		c := cs[0]
@@ -201,7 +210,8 @@ func (s *containersSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 			items = append(items, ui.MenuItem{Label: "Open in Browser", OnRun: func() { e.openInBrowser(c) }})
 		}
 		if c.Running() {
-			items = append(items, ui.MenuItem{Label: "Run Command...", OnRun: func() { e.runCommandIn(c.ID) }},
+			items = append(items, ui.MenuItem{Label: "Open Shell", OnRun: func() { e.openShell(c) }},
+				ui.MenuItem{Label: "Run Command...", OnRun: func() { e.runCommandIn(c.ID) }},
 				ui.MenuItem{Label: "Explore Files", OnRun: func() { e.exploreFiles(c.ID) }})
 		}
 		items = append(items, ui.MenuItem{Label: "Copy ID", OnRun: func() { e.copyIDs(ids) }}, ui.SeparatorItem())
@@ -224,6 +234,19 @@ func (s *containersSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 	}
 	items = append(items, ui.SeparatorItem(), ui.MenuItem{Label: "Remove...", OnRun: func() { e.askRemoveContainers(ids) }})
 	return items
+}
+
+// composeGroupOf returns the Compose project when the keys are one group of containers of a project (the Compose group of the view),
+// else "".
+func composeGroupOf(keys []string) string {
+	if len(keys) != 1 {
+		return ""
+	}
+	name, ok := strings.CutPrefix(keys[0], keyGroup)
+	if !ok || name == "" || name == otherGroup || strings.HasPrefix(name, "image:") {
+		return ""
+	}
+	return name
 }
 
 // hasGroup tells whether the keys name a group of containers.
@@ -340,10 +363,12 @@ func (s *imagesSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 	r := rows[0]
 	items := []ui.MenuItem{
 		{Label: "Run...", OnRun: func() { e.runImage(r) }},
+		{Label: "Run Interactive", OnRun: func() { e.runImageInteractive(r) }},
 		{Label: "Inspect", OnRun: func() { e.inspectImage(r) }},
 		{Label: "History", OnRun: func() { e.imageHistory(r) }},
 		{Label: "Pull", OnRun: func() { e.pullImage(r.ref) }, Disabled: r.ref == ""},
 		{Label: "Tag...", OnRun: func() { e.tagImage(r) }},
+		{Label: "Push...", OnRun: func() { e.pushImage(r) }, Disabled: r.ref == ""},
 		{Label: "Copy Full Tag", OnRun: func() { e.copyText(r.ref) }, Disabled: r.ref == ""},
 		ui.SeparatorItem(), remove,
 	}

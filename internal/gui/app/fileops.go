@@ -1302,6 +1302,11 @@ func (s *shellState) explorerMenuContext(path string) contextkey.Context {
 		"fileCopied":                      len(ex.clip.paths) > 0,
 		"resourceScheme":                  "file",
 		"isFileSystemResource":            true,
+		// the row that was pressed, for the when-clauses of the items of extensions (resourceLangId == dockerfile)
+		"resourcePath":     s.explorerResourcePath(path),
+		"resourceFilename": filepath.Base(s.explorerResourcePath(path)),
+		"resourceExtname":  filepath.Ext(s.explorerResourcePath(path)),
+		"resourceLangId":   s.explorerResourceLang(path, folder),
 		// two rows are selected and the pressed one is one of them: Compare Selected (VS Code's listDoubleSelection)
 		"listDoubleSelection": ex.view != nil && len(ex.view.Context(true)) == 2,
 	}
@@ -1312,7 +1317,80 @@ func (s *shellState) explorerMenuContext(path string) contextkey.Context {
 // empty).
 func (s *shellState) explorerMenuItems(path string) []kit.MenuItem {
 	items := s.menus.Items(command.ExplorerContext, s.explorerMenuContext(path))
+	if scope := PeekWorkspace(s.Context()).Extensions(); scope != nil {
+		items = withExplorerArgs(items, scope.IsExtensionCommand, s.explorerMenuArgs(path))
+	}
 	return items
+}
+
+// explorerResourcePath is the path of the row that was pressed: the folder of the window for the empty part of the tree.
+func (s *shellState) explorerResourcePath(path string) string {
+	if path == "" {
+		return PeekWorkspace(s.Context()).Folder
+	}
+	return path
+}
+
+// explorerResourceLang is the language id of a file that was pressed (what the editor would give it); "" for a folder.
+func (s *shellState) explorerResourceLang(path string, folder bool) string {
+	if path == "" || folder {
+		return ""
+	}
+	return PeekWorkspace(s.Context()).Process.Languages.Detect(path, "")
+}
+
+// explorerMenuArgs are the arguments the commands of extensions get from the context menu of the Explorer (extension.ExplorerArgs):
+// the pressed row, and the rows the command works on (the selection when the pressed row is part of it).
+func (s *shellState) explorerMenuArgs(path string) map[string]any {
+	pressed := s.explorerResourcePath(path)
+	uris := []string{explorerURI(pressed)}
+	if ex := &s.explorer; ex.view != nil && path != "" {
+		for _, it := range ex.view.Context(true) {
+			if u := explorerURI(it.Path()); !slices.Contains(uris, u) {
+				uris = append(uris, u)
+			}
+		}
+	}
+	list := make([]any, len(uris))
+	for i, u := range uris {
+		list[i] = u
+	}
+	return map[string]any{"uri": uris[0], "uris": list}
+}
+
+// explorerURI is the URI of a path of the Explorer.
+func explorerURI(path string) string { return "file://" + filepath.ToSlash(path) }
+
+// withExplorerArgs gives the items whose command is an extension's (isExt) the arguments of the Explorer's menu, added to the
+// arguments the item has when they are an object; items of the editor's own commands, and items with other arguments, are as they
+// were.
+func withExplorerArgs(items []kit.MenuItem, isExt func(id string) bool, args map[string]any) []kit.MenuItem {
+	out := make([]kit.MenuItem, len(items))
+	for i, it := range items {
+		switch {
+		case it.Submenu:
+			it.Items = withExplorerArgs(it.Items, isExt, args)
+		case it.Separator || it.ID == "" || !isExt(it.ID):
+		default:
+			merged := map[string]any{}
+			switch own := it.Data.(type) {
+			case nil:
+			case map[string]any:
+				for k, v := range own {
+					merged[k] = v
+				}
+			default:
+				out[i] = it
+				continue
+			}
+			for k, v := range args {
+				merged[k] = v
+			}
+			it.Data = merged
+		}
+		out[i] = it
+	}
+	return out
 }
 
 // openExplorerMenu shows the context menu of the Explorer at a position of the window.

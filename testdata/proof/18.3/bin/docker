@@ -1,0 +1,49 @@
+#!/bin/sh
+# The fake docker program of the proof of step 18.3 (scripts/proof-containers-workflows.sh): `docker build` prints the log of a
+# BuildKit build after a moment and ends well; `docker compose version` answers; everything else does nothing. It reads and
+# writes nothing and never talks to an engine.
+case "$1" in
+build)
+  sleep 0.3
+  cat <<'LOG'
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 213B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:lts-alpine
+#2 DONE 0.9s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/5] FROM docker.io/library/node:lts-alpine@sha256:7e2c9a1b
+#4 resolve docker.io/library/node:lts-alpine@sha256:7e2c9a1b done
+#4 CACHED
+
+#5 [2/5] WORKDIR /usr/src/app
+#5 CACHED
+
+#6 [3/5] COPY [package.json, package-lock.json*, ./]
+#6 DONE 0.1s
+
+#7 [4/5] RUN npm install --production --silent
+#7 DONE 6.4s
+
+#8 [5/5] COPY . .
+#8 DONE 0.2s
+
+#9 exporting to image
+#9 exporting layers 0.3s done
+#9 writing image sha256:5c0b1d7e4a done
+#9 naming to docker.io/library/shop-web:1.0 done
+#9 DONE 0.3s
+LOG
+  ;;
+compose)
+  exit 0
+  ;;
+esac
+exit 0

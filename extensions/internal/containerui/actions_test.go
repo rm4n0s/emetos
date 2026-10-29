@@ -436,10 +436,11 @@ func TestTheMenusOfTheRows(t *testing.T) {
 		want    []string
 	}{
 		{"a running container", secContainers, []string{keyOfContainer(r.id("shop-web-1"))},
-			[]string{"View Logs", "Inspect", "Open in Browser", "Run Command...", "Explore Files", "Copy ID", "Stop", "Restart", "Pause", "Kill", "Remove..."}},
+			[]string{"View Logs", "Inspect", "Open in Browser", "Open Shell", "Run Command...", "Explore Files", "Copy ID", "Stop", "Restart", "Pause", "Kill", "Remove..."}},
 		{"a stopped container", secContainers, []string{keyOfContainer(r.id("scratch"))}, []string{"View Logs", "Inspect", "Copy ID", "Start", "Remove..."}},
 		{"two containers", secContainers, []string{keyOfContainer(r.id("scratch")), keyOfContainer(r.id("shop-web-1"))}, []string{"Copy ID", "Stop", "Remove..."}},
-		{"a Compose project", secContainers, []string{keyGroup + "shop"}, []string{"Copy ID", "Stop", "Restart", "Pause", "Kill", "Remove..."}},
+		{"a Compose project", secContainers, []string{keyGroup + "shop"},
+			[]string{"Compose Logs", "Compose Start", "Compose Stop", "Compose Restart", "Compose Down...", "Copy ID", "Stop", "Restart", "Pause", "Kill", "Remove..."}},
 		{"a volume", secVolumes, []string{keyVolume + "pgdata"}, []string{"Inspect", "Remove..."}},
 	}
 	for _, tc := range tests {
@@ -452,7 +453,7 @@ func TestTheMenusOfTheRows(t *testing.T) {
 	if len(row) != 1 {
 		t.Fatalf("rows %v", row)
 	}
-	if got := labels(secImages, keyImage+img.ID+":"+img.RepoTags[0]); !reflect.DeepEqual(got, []string{"Run...", "Inspect", "History", "Pull", "Tag...", "Copy Full Tag", "Remove..."}) {
+	if got := labels(secImages, keyImage+img.ID+":"+img.RepoTags[0]); !reflect.DeepEqual(got, []string{"Run...", "Run Interactive", "Inspect", "History", "Pull", "Tag...", "Push...", "Copy Full Tag", "Remove..."}) {
 		t.Errorf("an image: %v", got)
 	}
 }

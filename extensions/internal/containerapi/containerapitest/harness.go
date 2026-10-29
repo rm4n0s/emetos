@@ -223,6 +223,41 @@ func (h *Harness) removeContainer(id string) {
 	}
 }
 
+// ImageName returns emetos-test-<random>:latest, the name of an image a test builds with the CLI. The image has to carry the label
+// in its Dockerfile (LABEL dev.emetos.test=1); RemoveImageAtEnd removes it by that name when the test ends, after looking at the label.
+func (h *Harness) ImageName() string {
+	h.T.Helper()
+	return RandomName(h.T) + ":latest"
+}
+
+// RemoveImageAtEnd registers the removal of an image the test builds, by its name, for when the test ends (also when it fails). The
+// image is looked at first and is removed only when it carries the label: a name that is the user's own is refused.
+func (h *Harness) RemoveImageAtEnd(name string) {
+	h.T.Helper()
+	if !strings.HasPrefix(name, NamePrefix) {
+		h.T.Fatalf("an image of a test is named %s...: %q", NamePrefix, name)
+	}
+	h.T.Cleanup(func() {
+		ctx, cancel := cleanupContext()
+		defer cancel()
+		info, err := h.Client.InspectImage(ctx, name)
+		if err != nil {
+			if appErr, ok := errors.FromError(err); ok && appErr.Tag == "ContainerAPINotFound" {
+				return // removed by the test already, or never built
+			}
+			h.T.Errorf("cleanup: looking at the image %s: %v", name, err)
+			return
+		}
+		if info.Labels[LabelKey] != LabelValue {
+			h.T.Errorf("cleanup: refusing to remove the image %s: it has no %s label", name, LabelKey)
+			return
+		}
+		if _, err := h.Client.RemoveImage(ctx, info.ID, containerapi.RemoveImageOptions{Force: true}); err != nil {
+			h.T.Errorf("cleanup: removing the image %s: %v", name, err)
+		}
+	})
+}
+
 // Network makes a labelled network and removes it when the test ends. It returns its name.
 func (h *Harness) Network(ctx context.Context) string {
 	h.T.Helper()
@@ -310,7 +345,7 @@ func (h *Harness) Pod(ctx context.Context) string {
 	return name
 }
 
-// Leftovers lists the labelled containers, networks, volumes and pods that exist now, as "container emetos-test-ab12".
+// Leftovers lists the labelled containers, networks, volumes, images and pods that exist now, as "container emetos-test-ab12".
 // Only the label filter is used to list, so nothing of the user's is looked at.
 func (h *Harness) Leftovers(ctx context.Context) ([]string, error) {
 	var out []string
@@ -335,6 +370,17 @@ func (h *Harness) Leftovers(ctx context.Context) ([]string, error) {
 	}
 	for _, v := range vs {
 		out = append(out, "volume "+v.Name)
+	}
+	ims, err := h.Client.ListImages(ctx, containerapi.ListImagesOptions{All: true, Filters: filter})
+	if err != nil {
+		return nil, err
+	}
+	for _, im := range ims {
+		name := containerapi.ShortID(im.ID)
+		if len(im.RepoTags) > 0 {
+			name = im.RepoTags[0]
+		}
+		out = append(out, "image "+name)
 	}
 	if h.Kind == containerapi.KindPodman {
 		ps, err := h.Client.ListPods(ctx, filter)

@@ -36,6 +36,20 @@ type Config struct {
 	// ListFilters narrow what the views list: the engine does the filtering, so the extension never sees the rest. A test against the
 	// user's own engine lists only what it made itself (the label dev.emetos.test=1); a normal extension has none.
 	ListFilters ListFilters
+	// CLI is the command line program that Build Image, Push and Compose run (docker, podman); empty is the one of Kind.
+	CLI string
+	// ComposeFallback is the stand-alone Compose program used when CLI has no compose command (docker-compose, podman-compose);
+	// empty is the one of Kind.
+	ComposeFallback string
+	// LanguageServers declares the language servers of the Dockerfile and Compose languages (step 18.3) when they are found on
+	// PATH. DockerfileServer and ComposeServer are their programs (docker-langserver, docker-compose-langserver) and are only
+	// changed by tests.
+	LanguageServers                 bool
+	DockerfileServer, ComposeServer string
+	// LookPath finds a program on PATH; nil is exec.LookPath. A test gives one that finds its fake programs.
+	LookPath func(name string) (string, error)
+	// Environ is the environment the programs run in; nil is os.Environ().
+	Environ func() []string
 	// Dial finds the engine; nil is containerapi.Find.
 	Dial DialFunc
 	// Getenv reads the environment for Find; nil is os.Getenv. A test passes a map.

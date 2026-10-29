@@ -28,7 +28,7 @@ func Config() containerui.Config {
 	return containerui.Config{
 		Kind: containerapi.KindDocker, ID: ID, Name: "Containers", Engine: "Docker",
 		Description: "Containers, images, networks, volumes and contexts of Docker, with their logs and actions",
-		Prefix:      "containers", Icon: "package", Order: 60, Contexts: true, FirstRunNote: FirstRunNote,
+		Prefix:      "containers", Icon: "package", Order: 60, Contexts: true, FirstRunNote: FirstRunNote, LanguageServers: true,
 	}
 }
 

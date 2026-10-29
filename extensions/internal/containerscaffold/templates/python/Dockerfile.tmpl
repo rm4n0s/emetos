@@ -1,0 +1,37 @@
+# For more information, please refer to https://aka.ms/vscode-docker-python
+FROM python:3-slim
+
+{{ if isRootPort .Ports -}}
+# Warning: A port below 1024 has been exposed. This requires the image to run as a root user which is not a best practice.
+# For more information, please refer to https://aka.ms/vscode-docker-python-user-rights`
+{{ end -}}
+{{ if .Ports -}}
+{{ range .Ports -}}
+EXPOSE {{ . }}
+{{ end }}
+{{ end -}}
+# Keeps Python from generating .pyc files in the container
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Turns off buffering for easier container logging
+ENV PYTHONUNBUFFERED=1
+
+# Install pip requirements
+COPY requirements.txt .
+RUN python -m pip install -r requirements.txt
+
+WORKDIR /app
+COPY . /app
+
+{{ if not (isRootPort .Ports) -}}
+# Creates a non-root user with an explicit UID and adds permission to access the /app folder
+# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
+RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
+
+{{ end -}}
+# During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
+{{ if .WsgiComment -}}
+{{ .WsgiComment }}
+{{ end -}}
+CMD {{ toQuotedArray .PythonCmdParts }}

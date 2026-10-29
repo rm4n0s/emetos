@@ -1,0 +1,11 @@
+services:
+  memyapi:
+    image: memyapi
+    build:
+      context: api
+      dockerfile: ./Dockerfile
+    environment:
+      NODE_ENV: production
+    ports:
+      - 3000:3000
+      - 9229:9229

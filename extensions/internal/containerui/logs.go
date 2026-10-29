@@ -38,6 +38,8 @@ type logLine struct {
 const (
 	sessionLogs = iota
 	sessionExec
+	// sessionCLI is a program of the command line (a build, a push, Compose) whose output is streamed into the tab.
+	sessionCLI
 )
 
 // logSession is a tab of the panel. The fields before mu belong to the UI thread; mu guards the lines that the goroutine of the
@@ -208,6 +210,51 @@ func (p *logsPanel) runExec(c containerapi.Container, command string) {
 			p.drain(s)
 			if p.active == s {
 				p.handle.Refresh()
+			}
+		})
+	}()
+}
+
+// runCLI runs programs of the command line one after the other (the next only when the last ended with 0) and streams their output
+// into a new tab: stdout in the color of text, stderr in the color of errors. Closing the tab stops the program. done is called on
+// the UI thread when the run ended, also when the tab was closed (res.canceled).
+func (p *logsPanel) runCLI(title string, jobs []cliJob, done func(res cliResult)) {
+	p.seq++
+	s := p.newSession(sessionCLI, "cli:"+strconv.Itoa(p.seq), "", title)
+	ctx, cancel := context.WithCancel(p.e.ctx)
+	s.cancel, s.status = cancel, "Running. Close the tab to stop it."
+	for _, j := range jobs {
+		p.add(s, logLine{text: "$ " + j.text()})
+	}
+	p.handle.Reveal(false)
+	go func() {
+		res := runJobs(ctx, jobs, func(stderr bool, line string) { p.add(s, logLine{stderr: stderr, text: line}) })
+		cancel()
+		p.e.api.Post(func() {
+			closed := s.cancel == nil // the tab was closed: the run was stopped by that
+			s.ended = true
+			switch {
+			case closed || res.canceled:
+				s.status = "Stopped"
+				res.canceled = true
+			case res.err != nil:
+				s.status = "Cannot run it: " + reasonOf(res.err)
+			case res.ok:
+				s.status = "Finished"
+			default:
+				s.status = "Exited with status " + strconv.Itoa(res.exit)
+			}
+			if !closed {
+				if res.err != nil {
+					p.add(s, logLine{stderr: true, text: reasonOf(res.err)})
+				}
+				p.drain(s)
+				if p.active == s {
+					p.handle.Refresh()
+				}
+			}
+			if done != nil {
+				done(res)
 			}
 		})
 	}()

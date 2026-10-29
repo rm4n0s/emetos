@@ -41,6 +41,8 @@ func Manifest(cfg Config) extension.Manifest {
 		}
 	}
 
+	menus = append(menus, workflowMenus(cfg)...)
+
 	view := func(section, name string, collapsed bool, when string, order int) extension.ViewSpec {
 		return extension.ViewSpec{ID: cfg.ViewID(section), Name: name, Container: cfg.ContainerID(), When: when, Order: order, Collapsed: collapsed}
 	}
@@ -106,11 +108,12 @@ func Manifest(cfg Config) extension.Manifest {
 				{ID: cfg.DocumentKind(), Name: cfg.Name, Icon: "file-code"},
 				{ID: cfg.RunKind(), Name: "Run " + cfg.Engine + " Image", Icon: "play"},
 			},
-			Settings: []extension.SettingSpec{{
+			Settings: append([]extension.SettingSpec{{
 				Key: cfg.HostSetting(), Type: "string", Default: "",
 				Description: "The address of the " + cfg.Engine + " engine: a socket (`unix:///run/user/1000/" + cfg.Prefix + ".sock`) or `tcp://host:2376`. Empty looks for the engine the way the " + cfg.Engine + " command line does.",
 				Category:    cfg.Name,
-			}},
+			}}, workflowSettings(cfg)...),
+			LanguageServers: workflowServers(cfg),
 		},
 	}
 }
