@@ -698,3 +698,63 @@ func TestInputBoxEditShortcuts(t *testing.T) {
 	}
 	r.noErrors()
 }
+
+// TestInputBoxSetValueScrollsBack checks the scroll offset of a focused box whose long text, scrolled to its end, is
+// replaced by a shorter one: a text that fits is shown from its first character at once, and one that does not fit
+// shows its end with the caret.
+func TestInputBoxSetValueScrollsBack(t *testing.T) {
+	const long = "/var/tmp/gotmp-x/TestGoldenSaving/001/some/deep/folder/main.go"
+	cases := []struct {
+		name    string
+		next    string
+		settle  time.Duration // pumped time between the long text and the new one
+		fits    bool
+		visible bool // the caret is inside the box
+	}{
+		{"fits, after the scroll to the end", "/no/such/folder/new.go", 500 * time.Millisecond, true, true},
+		{"fits, while the scroll to the end runs", "/no/such/folder/new.go", 32 * time.Millisecond, true, true},
+		{"empty", "", 500 * time.Millisecond, true, true},
+		{"shorter, still does not fit", "/var/tmp/gotmp-x/TestGoldenSaving/001/some/deep", 500 * time.Millisecond, false, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newInputRig(t, DarkModern(), inputSize, nil)
+			finder := gluttertest.ByType[*InputBox]()
+			r.ts.Tap(finder)
+			r.ts.Pump(time.Millisecond)
+			r.ts.EnterText(finder, long)
+			for elapsed := time.Duration(0); elapsed < tc.settle; elapsed += 16 * time.Millisecond {
+				r.ts.Pump(16 * time.Millisecond)
+			}
+			st := r.ctrl.state
+			if tc.settle >= 300*time.Millisecond && st.scroll.Offset() < 100 {
+				t.Fatalf("the long text did not scroll to its end: offset %v", st.scroll.Offset())
+			}
+			r.ctrl.SetValue(tc.next)
+			// two frames, then a long wait: the offset is right after the frames and stays right
+			for _, wait := range []int{1, 1, 60} {
+				for range wait {
+					r.ts.Pump(16 * time.Millisecond)
+				}
+				es, ok := st.editable.CurrentState()
+				if !ok {
+					t.Fatal("no EditableText")
+				}
+				re := es.RenderEditable()
+				offset, max := st.scroll.Offset(), st.scroll.Position().MaxScrollExtent()
+				// the rects of the caret are in the coordinates of the box, the scroll offset already applied
+				first := re.GetLocalRectForCaret(ui.NewTextPosition(0)).Left
+				end := re.GetLocalRectForCaret(ui.NewTextPosition(len(tc.next)))
+				switch {
+				case tc.fits && (offset != 0 || first != 0):
+					t.Fatalf("after %d frames: offset %v, first character at %v; want both 0", wait, offset, first)
+				case !tc.fits && (max <= 0 || offset <= 0 || offset > max):
+					t.Fatalf("after %d frames: offset %v of %v; want the text scrolled", wait, offset, max)
+				case tc.visible && (end.Right > re.Size().Width+0.5 || end.Left < -0.5):
+					t.Fatalf("after %d frames: the caret at %v..%v is outside the box of width %v (offset %v)", wait, end.Left, end.Right, re.Size().Width, offset)
+				}
+			}
+			r.noErrors()
+		})
+	}
+}

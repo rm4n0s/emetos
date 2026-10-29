@@ -171,12 +171,15 @@ type inputBoxState struct {
 	editable *widgets.GlobalKey[*widgets.EditableTextState]
 	// undo is the undo history of the text of the box (editKey).
 	undo *widgets.UndoHistoryController
+	// scroll is the scroll controller of the text; the box owns it to bring the offset back after a change of the text.
+	scroll *widgets.ScrollControllerBase
 }
 
 // InitState follows the text, to show the placeholder only while it is empty, and takes the keys.
 func (s *inputBoxState) InitState() {
 	s.editable = widgets.NewGlobalKey[*widgets.EditableTextState]()
 	s.undo = widgets.NewUndoHistoryController()
+	s.scroll = widgets.NewScrollController()
 	s.pickText()
 	s.pickNode()
 	s.attach()
@@ -268,6 +271,7 @@ func (s *inputBoxState) Dispose() {
 	s.releaseText()
 	s.releaseNode()
 	s.undo.Dispose()
+	s.scroll.Dispose()
 }
 
 func (s *inputBoxState) focusChanged(has bool) {
@@ -342,7 +346,38 @@ func (s *inputBoxState) setValue(text string) {
 	s.text.SetValue(services.NewTextEditingValue(services.TextEditingValueOpts{
 		Text: text, Selection: foundation.Some(services.NewTextSelectionCollapsed(len(text))),
 	}))
+	s.settleScroll(len(text))
 	s.changed(text)
+}
+
+// settleScroll brings the scroll offset of the text back into its range once the layout has the new extent, after
+// the text was replaced (setValue), and shows the caret at the offset caret when the box has the focus.
+//
+// Glutter: when the text gets shorter, the scroll extent shrinks and the position is out of range. Glutter, as
+// Flutter, brings it back with a ballistic spring that takes about a second, so a text that fits stays scrolled
+// (its start is cut off) for that time; and a caret animation that was in flight keeps running toward its old
+// target. Glutter should snap a position of an EditableText back into its range at the layout, and stop the caret
+// animation when the text is replaced. The jump here stops both.
+func (s *inputBoxState) settleScroll(caret int) {
+	if !s.Mounted() {
+		return
+	}
+	scheduler := widgets.WidgetsBindingOf(s.Context()).Scheduler()
+	scheduler.ScheduleFrame()
+	scheduler.AddPostFrameCallback(func(time.Duration) {
+		if !s.Mounted() || !s.scroll.HasClients() {
+			return
+		}
+		if s.node.HasFocus() {
+			if es, ok := s.editable.CurrentState(); ok && es != nil {
+				es.BringIntoView(ui.NewTextPosition(caret))
+			}
+		}
+		pos := s.scroll.Position()
+		if off := s.scroll.Offset(); off < pos.MinScrollExtent() || off > pos.MaxScrollExtent() {
+			s.scroll.JumpTo(min(max(off, pos.MinScrollExtent()), pos.MaxScrollExtent()))
+		}
+	})
 }
 
 // addToHistory adds the text to the history unless it is empty or is the value the history is at
@@ -529,6 +564,7 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 		SelectAllOnFocus: o.SelectAllOnFocus,
 		Key:              s.editable,
 		UndoController:   s.undo,
+		ScrollController: s.scroll,
 		OnChanged:        s.changed,
 		SelectionColor:   foundation.Some(colors.EditorSelectionBackground),
 		MouseCursor:      services.SystemMouseCursors.Text,
