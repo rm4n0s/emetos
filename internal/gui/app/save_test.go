@@ -926,9 +926,11 @@ func TestSaveWithEncoding(t *testing.T) {
 		t.Fatalf("placeholder %q", got)
 	}
 	a.pickRow("UTF-16 LE")
-	a.waitFor("the save", func() bool { return a.doc("a.txt").Encoding() == "utf16le" && !a.doc("a.txt").Dirty() })
-	if got := readFile(t, a.files["a.txt"]); got != "\xFF\xFEc\x00a\x00f\x00\xe9\x00\n\x00" {
-		t.Errorf("file = %q", got)
+	// the document is not dirty before the save either (a new encoding changes no text), so the test waits for the file
+	want := "\xFF\xFEc\x00a\x00f\x00\xe9\x00\n\x00"
+	a.waitFor("the save", func() bool { return readFileIf(a.files["a.txt"]) == want })
+	if got := a.doc("a.txt").Encoding(); got != "utf16le" || a.doc("a.txt").Dirty() {
+		t.Errorf("encoding %q, dirty %v", got, a.doc("a.txt").Dirty())
 	}
 	if got := a.statusText("status.editor.encoding"); got != "UTF-16 LE" {
 		t.Errorf("encoding item %q", got)

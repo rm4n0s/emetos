@@ -260,7 +260,8 @@ func TestCodeActionsOnSaveTimeout(t *testing.T) {
 }
 
 func TestAutoSaveRunsNoParticipantOfTheLanguageFeatures(t *testing.T) {
-	a, f := saveFeaturesApp(t, map[string]any{"editor.codeActionsOnSave": map[string]any{"source.organizeImports": "always"}}, "imports\n")
+	// the light bulb asks the server for the actions at the cursor after typing, on its own clock: off, so that any request is the save's
+	a, f := saveFeaturesApp(t, map[string]any{"editor.codeActionsOnSave": map[string]any{"source.organizeImports": "always"}, "editor.lightbulb.enabled": "off"}, "imports\n")
 	a.typeText("x")
 	done := false
 	a.shell().saveDocument(a.doc("a.go"), saveRequest{reason: document.SaveAuto}, func(bool) { done = true })
@@ -310,7 +311,8 @@ func TestCodeActionsOnSaveSettingForms(t *testing.T) {
 }
 
 func TestSaveWithoutFormattingSkipsTheLanguageFeatures(t *testing.T) {
-	a, f := saveFeaturesApp(t, map[string]any{"editor.codeActionsOnSave": map[string]any{"source.organizeImports": "explicit"}}, "imports\n")
+	// the light bulb asks the server for the actions at the cursor after typing, on its own clock: off, so that any request is the save's
+	a, f := saveFeaturesApp(t, map[string]any{"editor.codeActionsOnSave": map[string]any{"source.organizeImports": "explicit"}, "editor.lightbulb.enabled": "off"}, "imports\n")
 	a.typeText("x")
 	a.press("ctrl+k s")
 	a.waitFor("the save", func() bool { return !a.doc("a.go").Dirty() })
@@ -323,7 +325,8 @@ func TestSaveWithoutFormattingSkipsTheLanguageFeatures(t *testing.T) {
 }
 
 func TestSaveWithoutParticipantsAsksNoServer(t *testing.T) {
-	a, f := saveFeaturesApp(t, map[string]any{"editor.formatOnSave": false}, "one\n")
+	// the light bulb asks the server for the actions at the cursor after typing, on its own clock: off, so that any request is the save's
+	a, f := saveFeaturesApp(t, map[string]any{"editor.formatOnSave": false, "editor.lightbulb.enabled": "off"}, "one\n")
 	a.typeText("x")
 	a.press("ctrl+s")
 	a.waitFor("the save", func() bool { return !a.doc("a.go").Dirty() })
