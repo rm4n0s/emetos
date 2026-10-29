@@ -125,10 +125,13 @@ const (
 	noRepository = "<none>"
 )
 
-// containerGroup is a Compose project and its containers.
+// containerGroup is a Compose project (or, for Podman, a pod) and its containers.
 type containerGroup struct {
 	name       string
 	containers []containerapi.Container
+	// pod says that the group is a pod, podID is its id.
+	pod   bool
+	podID string
 }
 
 // sortedContainers returns the containers by name.
@@ -139,30 +142,48 @@ func sortedContainers(cs []containerapi.Container) []containerapi.Container {
 }
 
 // groupContainers groups the containers by Compose project, the projects by name and the containers that belong to none last. With
-// no project at all the result is one unnamed group: the list is flat.
-func groupContainers(cs []containerapi.Container) []containerGroup {
+// no project at all the result is one unnamed group: the list is flat. With byPod (Podman) the containers of a pod are grouped under
+// it, before the projects; a container that a Compose project made stays in its project even when podman-compose put it in a pod, so
+// that the Compose commands of the group keep working (the pod is in the Pods section).
+func groupContainers(cs []containerapi.Container, byPod bool) []containerGroup {
 	by := map[string][]containerapi.Container{}
-	var names []string
+	pods := map[string][]containerapi.Container{}
+	podIDs := map[string]string{}
+	var names, podNames []string
 	var other []containerapi.Container
 	for _, c := range sortedContainers(cs) {
-		p := c.ComposeProject()
-		if p == "" {
-			other = append(other, c)
+		if p := c.ComposeProject(); p != "" {
+			if _, ok := by[p]; !ok {
+				names = append(names, p)
+			}
+			by[p] = append(by[p], c)
 			continue
 		}
-		if _, ok := by[p]; !ok {
-			names = append(names, p)
+		if byPod && c.PodName != "" {
+			if _, ok := pods[c.PodName]; !ok {
+				podNames = append(podNames, c.PodName)
+				podIDs[c.PodName] = c.Pod
+			}
+			pods[c.PodName] = append(pods[c.PodName], c)
+			continue
 		}
-		by[p] = append(by[p], c)
+		other = append(other, c)
 	}
-	if len(names) == 0 {
+	if len(names) == 0 && len(podNames) == 0 {
 		if len(other) == 0 {
 			return nil
 		}
 		return []containerGroup{{containers: other}}
 	}
-	sort.Slice(names, func(i, j int) bool { return strings.ToLower(names[i]) < strings.ToLower(names[j]) })
-	out := make([]containerGroup, 0, len(names)+1)
+	byName := func(ns []string) {
+		sort.Slice(ns, func(i, j int) bool { return strings.ToLower(ns[i]) < strings.ToLower(ns[j]) })
+	}
+	byName(names)
+	byName(podNames)
+	out := make([]containerGroup, 0, len(names)+len(podNames)+1)
+	for _, n := range podNames {
+		out = append(out, containerGroup{name: n, containers: pods[n], pod: true, podID: podIDs[n]})
+	}
 	for _, n := range names {
 		out = append(out, containerGroup{name: n, containers: by[n]})
 	}

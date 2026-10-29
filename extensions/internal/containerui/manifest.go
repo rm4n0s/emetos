@@ -2,6 +2,7 @@ package containerui
 
 import (
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/containerapi"
 )
 
 // Manifest declares what the extension of a Config contributes: the view container with its sections, the panel view for the
@@ -42,18 +43,24 @@ func Manifest(cfg Config) extension.Manifest {
 	}
 
 	menus = append(menus, workflowMenus(cfg)...)
+	menus = append(menus, podMenus(cfg)...)
 
 	view := func(section, name string, collapsed bool, when string, order int) extension.ViewSpec {
 		return extension.ViewSpec{ID: cfg.ViewID(section), Name: name, Container: cfg.ContainerID(), When: when, Order: order, Collapsed: collapsed}
 	}
-	views := []extension.ViewSpec{
-		view(secContainers, "Containers", false, "", 1),
-		view(secImages, "Images", false, cfg.keyConnected(), 2),
-		view(secNetworks, "Networks", true, cfg.keyConnected(), 3),
-		view(secVolumes, "Volumes", true, cfg.keyConnected(), 4),
+	views := []extension.ViewSpec{view(secContainers, "Containers", false, "", 1)}
+	if cfg.Pods {
+		views = append(views, view(secPods, "Pods", false, cfg.keyConnected(), 2))
 	}
+	views = append(views,
+		view(secImages, "Images", false, cfg.keyConnected(), 3),
+		view(secNetworks, "Networks", true, cfg.keyConnected(), 4),
+		view(secVolumes, "Volumes", true, cfg.keyConnected(), 5))
 	if cfg.Contexts {
-		views = append(views, view(secContexts, "Contexts", true, "", 5))
+		views = append(views, view(secContexts, "Contexts", true, "", 6))
+	}
+	if cfg.Connections {
+		views = append(views, view(secConnections, "Connections", true, "", 6))
 	}
 	act := func(section, name, icon, tooltip, when string, order float64) extension.ViewActionSpec {
 		return extension.ViewActionSpec{View: cfg.ViewID(section), Command: cmdID(name), Icon: icon, Tooltip: tooltip, When: when, Order: order}
@@ -83,6 +90,7 @@ func Manifest(cfg Config) extension.Manifest {
 			act(secContexts, "contexts.use", "vm-connect", "Pick a Context...", "", 1),
 			act(secContexts, "contexts.refresh", "refresh", "Refresh", "", 9))
 	}
+	actions = append(actions, podViewActions(cfg)...)
 	logsView := cfg.LogsViewID()
 	actions = append(actions,
 		extension.ViewActionSpec{View: logsView, Command: cmdID("logs.pause"), Icon: "debug-pause", Tooltip: "Pause", When: cfg.keyLogs() + " && !" + cfg.keyLogsPaused(), Order: 1},
@@ -93,8 +101,7 @@ func Manifest(cfg Config) extension.Manifest {
 
 	return extension.Manifest{
 		ID: cfg.ID, Name: cfg.Name, Version: "0.1.0", Description: cfg.Description,
-		ActivationEvents: []string{extension.OnView(cfg.ViewID(secContainers)), extension.OnView(cfg.ViewID(secImages)), extension.OnView(cfg.ViewID(secNetworks)),
-			extension.OnView(cfg.ViewID(secVolumes))},
+		ActivationEvents: activationEvents(cfg),
 		Contributes: extension.Contributes{
 			Commands: cmds,
 			Menus:    menus,
@@ -110,10 +117,27 @@ func Manifest(cfg Config) extension.Manifest {
 			},
 			Settings: append([]extension.SettingSpec{{
 				Key: cfg.HostSetting(), Type: "string", Default: "",
-				Description: "The address of the " + cfg.Engine + " engine: a socket (`unix:///run/user/1000/" + cfg.Prefix + ".sock`) or `tcp://host:2376`. Empty looks for the engine the way the " + cfg.Engine + " command line does.",
+				Description: "The address of the " + cfg.Engine + " engine: a socket (`unix://" + hostExample(cfg) + "`) or `tcp://host:2376`. Empty looks for the engine the way the " + cfg.Engine + " command line does.",
 				Category:    cfg.Name,
 			}}, workflowSettings(cfg)...),
 			LanguageServers: workflowServers(cfg),
 		},
 	}
+}
+
+// hostExample is the path of a socket, for the description of the host setting.
+func hostExample(cfg Config) string {
+	if cfg.Kind == containerapi.KindPodman {
+		return "/run/user/1000/podman/podman.sock"
+	}
+	return "/run/user/1000/" + cfg.Prefix + ".sock"
+}
+
+// activationEvents are the views whose first showing activates the extension.
+func activationEvents(cfg Config) []string {
+	ev := []string{extension.OnView(cfg.ViewID(secContainers))}
+	if cfg.Pods {
+		ev = append(ev, extension.OnView(cfg.ViewID(secPods)))
+	}
+	return append(ev, extension.OnView(cfg.ViewID(secImages)), extension.OnView(cfg.ViewID(secNetworks)), extension.OnView(cfg.ViewID(secVolumes)))
 }

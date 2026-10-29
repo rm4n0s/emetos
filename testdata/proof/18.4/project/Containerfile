@@ -1,0 +1,2 @@
+FROM docker.io/library/nginx:1.27
+COPY . /usr/share/nginx/html

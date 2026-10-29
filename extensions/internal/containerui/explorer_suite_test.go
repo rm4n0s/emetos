@@ -26,15 +26,18 @@ func explorerSuite(t *testing.T, h *containerapitest.Harness) {
 	})
 	cfg.Kind = h.Kind
 	if h.Kind == containerapi.KindPodman {
-		cfg.ID, cfg.Name, cfg.Engine, cfg.Prefix, cfg.Contexts = "emetos.podman", "Podman", "Podman", "podman", false
+		// the Pods section too, listing only the pods of the test; not the Connections, which read the user's own configuration
+		cfg.ID, cfg.Name, cfg.Engine, cfg.Prefix, cfg.Contexts, cfg.Pods = "emetos.podman", "Podman", "Podman", "podman", false, true
 	}
 	cfg.ListFilters = ListFilters{
 		Containers: containerapitest.LabelFilter(), Networks: containerapitest.LabelFilter(), Volumes: containerapitest.LabelFilter(),
-		Images: containerapi.Filters{"reference": {containerapitest.ImageBusyBox}},
+		Images: containerapi.Filters{"reference": {containerapitest.ImageBusyBox}}, Pods: containerapitest.LabelFilter(),
 	}
 	cfg.Debounce, cfg.EventsRetry = 20*time.Millisecond, 50*time.Millisecond
 	r := startRig(t, nil, cfg)
-	r.wait("the first lists", func() bool { return r.ext.status == statusConnected && r.ext.loads[resContainers].loaded })
+	r.wait("the first lists", func() bool {
+		return r.ext.status == statusConnected && r.ext.loads[resContainers].loaded && (!cfg.Pods || r.ext.loads[resPods].loaded)
+	})
 
 	state := func() string {
 		cs, err := h.Client.ListContainers(ctx, containerapi.ListContainersOptions{All: true, Filters: containerapitest.LabelFilter()})

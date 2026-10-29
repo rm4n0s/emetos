@@ -10,7 +10,8 @@ import (
 
 // fakeCLI is a fake docker program on a temporary PATH: a shell script that records the folder it runs in and its arguments in
 // calls.log, one run to a line (a tab before each argument), and answers as the test said for the verb of the command (build, push,
-// run, exec, compose_up, compose_down, compose_config, compose_logs, compose_start, compose_version ...): the lines of
+// run, exec, compose_up, compose_down, compose_config, compose_logs, compose_start, compose_version, kube_generate, kube_play,
+// kube_down, system_connection ...): the lines of
 // <verb>.out on stdout, those of <verb>.err on stderr, the status in <verb>.code, and a wait of <verb>.sleep seconds (to be stopped).
 // It is what the extension runs, through exec.LookPath, as the real docker.
 type fakeCLI struct {
@@ -23,6 +24,8 @@ d="$FAKE_CLI_DIR"
 name="$(basename "$0")"
 { printf 'cwd=%s' "$(pwd)"; [ "$name" = docker-compose ] && printf '\t%s' "(docker-compose)"; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$d/calls.log"
 key="$1"
+[ "$1" = kube ] && key="kube_$2"
+[ "$1" = system ] && key="system_$2"
 case "$name" in docker-compose|podman-compose) set -- compose "$@";; esac
 if [ "$1" = compose ]; then
   key=compose

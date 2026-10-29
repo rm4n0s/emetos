@@ -47,7 +47,7 @@ func (e *ext) resolveCompose(ctx context.Context) ([]string, error) {
 	if cliErr == nil {
 		ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
-		code, err := runProcess(ctx, cliJob{argv: []string{cli, "compose", "version"}, env: e.cfg.environ()}, func(bool, string) {})
+		code, err := runProcess(ctx, cliJob{argv: []string{cli, "compose", "version"}, env: e.cliEnviron()}, func(bool, string) {})
 		if err == nil && code == 0 {
 			return []string{cli, "compose"}, nil
 		}
@@ -86,7 +86,7 @@ func (e *ext) composeJob(base []string, t composeTarget, dir string, verb ...str
 	if len(base) == 1 {
 		name = e.cfg.composeFallbackName()
 	}
-	return cliJob{argv: argv, dir: dir, env: e.cfg.environ(), name: name}
+	return cliJob{argv: argv, dir: dir, env: e.cliEnviron(), name: name}
 }
 
 // composeOnFiles is a Compose command run on a Compose file (the Explorer's menu, the editor's menu, the palette).
@@ -364,7 +364,7 @@ func (e *ext) composeProjects() []string {
 // selection; "" when there is none.
 func (e *ext) projectOfArgs(args any) string {
 	for _, k := range e.views[secContainers].keysFor(args) {
-		if name, ok := strings.CutPrefix(k, keyGroup); ok && name != otherGroup && !strings.HasPrefix(name, "image:") {
+		if name, ok := strings.CutPrefix(k, keyGroup); ok && isComposeGroup(name) {
 			return name
 		}
 		if id, ok := strings.CutPrefix(k, keyContainer); ok {

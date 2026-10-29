@@ -1,6 +1,8 @@
 package containerui
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -45,6 +47,10 @@ ERROR: failed to solve: dockerfile parse error on line 3: unknown instruction: F
 			{line: 1, message: "FromAsCasing: 'as' and 'FROM' keywords' casing do not match", warning: true},
 			{line: 4, message: `LegacyKeyValueFormat: "ENV key=value" should be used instead of legacy "ENV key value" format`, warning: true},
 		}},
+		{"Buildah: a failed instruction has no line", "STEP 1/2: FROM busybox\nSTEP 2/2: RUN false\nError: building at STEP \"RUN false\": while running runtime: exit status 1\n",
+			[]buildProblem{{step: "RUN false", message: `the step "RUN false" failed: while running runtime: exit status 1`}}},
+		{"Podman: a parse error of the Containerfile", "Error: parsing Containerfile: dockerfile parse error on line 4: unknown instruction: FRM\n",
+			[]buildProblem{{line: 4, message: "unknown instruction: FRM"}}},
 		{"an error with no position is no problem", "ERROR: failed to solve: failed to read dockerfile: open Dockerfile: no such file or directory\n", nil},
 		{"a time and a path are not a position", "12:30\nsome text\nDone: 5\n", nil},
 		{"a position with no block after it", "main.go:12\nsomething else\n", nil},
@@ -96,6 +102,33 @@ func TestLineEndColumn(t *testing.T) {
 		}
 	}
 	if got := lineEndColumn(p+"x", 1); got != 2 {
+		t.Errorf("a file that is not there: %d", got)
+	}
+}
+
+// TestLineOfInstruction finds the line of the instruction a builder named, in the way a Dockerfile can be written.
+func TestLineOfInstruction(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "Containerfile")
+	text := "# a comment\nFROM busybox\n\nRUN echo  one \\\n    && echo two\nCOPY a   b /\nRUN false\nRUN false\n"
+	if err := os.WriteFile(file, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		step string
+		want int
+	}{
+		{"FROM busybox", 2},
+		{"RUN echo one && echo two", 4}, // the instruction goes over two lines: its first line
+		{"COPY a b /", 6},
+		{"RUN false", 7}, // the first of two that are the same
+		{"RUN nothing", 0},
+		{"# a comment", 0},
+	} {
+		if got := lineOfInstruction(file, tc.step); got != tc.want {
+			t.Errorf("%q: line %d, want %d", tc.step, got, tc.want)
+		}
+	}
+	if got := lineOfInstruction(filepath.Join(t.TempDir(), "none"), "RUN x"); got != 0 {
 		t.Errorf("a file that is not there: %d", got)
 	}
 }

@@ -25,6 +25,14 @@ func (e *ext) connect() {
 	ctx, cancel := context.WithCancel(e.ctx)
 	e.engineCancel = cancel
 	opts := containerapi.FindOptions{Kind: e.cfg.Kind, Host: e.lastHost, Context: e.picked, Getenv: e.cfg.Getenv}
+	if e.cfg.Connections {
+		// a connection picked in the view wins over the setting, as a Docker context does; a Podman has no contexts
+		opts.Context = ""
+		if e.pickedHost != "" {
+			opts.Host = e.pickedHost
+		}
+		e.loadConnections()
+	}
 	dial := e.cfg.dial()
 	go func() {
 		found, err := dial(ctx, opts)
@@ -71,8 +79,10 @@ func (e *ext) lose(err error) {
 	e.reason = reasonOf(err)
 	e.status = statusMissing
 	e.client = nil
-	e.containers, e.images, e.networks, e.volumes = nil, nil, nil, nil
+	e.containers, e.images, e.networks, e.volumes, e.pods = nil, nil, nil, nil, nil
+	connections := e.loads[resConnections] // the connections are read from the command line, not from the engine
 	e.loads = [resCount]loadState{}
+	e.loads[resConnections] = connections
 	e.confirm = nil
 	e.setKey(e.cfg.keyConnected(), false)
 	e.api.Log().Info("no container engine", "engine", e.cfg.Engine, "err", err)
@@ -93,6 +103,9 @@ func (e *ext) retry() { e.connect() }
 // reloadAll lists everything again.
 func (e *ext) reloadAll() {
 	e.reload(resContainers, resImages, resNetworks, resVolumes)
+	if e.cfg.Pods {
+		e.reload(resPods)
+	}
 	if e.cfg.Contexts {
 		e.loadContexts()
 	}
@@ -148,6 +161,11 @@ func (e *ext) load(r resource) {
 			vs, err = client.ListVolumes(ctx, filters.Volumes)
 			sort.SliceStable(vs, func(i, j int) bool { return strings.ToLower(vs[i].Name) < strings.ToLower(vs[j].Name) })
 			apply = func() { e.volumes = vs }
+		case resPods:
+			var ps []containerapi.Pod
+			ps, err = client.ListPods(ctx, filters.Pods)
+			sort.SliceStable(ps, func(i, j int) bool { return strings.ToLower(ps[i].Name) < strings.ToLower(ps[j].Name) })
+			apply = func() { e.pods = ps }
 		}
 		e.api.Post(func() {
 			l.busy = false
@@ -242,6 +260,9 @@ func (b *eventBatch) note(ev containerapi.Event, gen int) {
 	rs := resourcesOfEvent(ev)
 	if len(rs) == 0 {
 		return
+	}
+	if b.e.cfg.Pods && (ev.Type == "container" || ev.Type == "pod") {
+		rs = append(rs, resPods) // the state of a pod follows its containers
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()

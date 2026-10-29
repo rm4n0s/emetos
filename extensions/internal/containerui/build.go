@@ -85,7 +85,7 @@ func (e *ext) startBuild(cli, folder, dockerfile, contextDir, tag string) {
 	job := cliJob{
 		argv: buildArgv(cli, relOrAbs(folder, dockerfile), tag, relOrAbs(folder, contextDir)),
 		dir:  folder,
-		env:  append(e.cfg.environ(), "BUILDKIT_PROGRESS=plain"),
+		env:  append(e.cliEnviron(), "BUILDKIT_PROGRESS=plain"),
 		name: e.cfg.cliName(),
 	}
 	e.api.Problems().Clear(e.cfg.buildProblemsOwner())
@@ -129,6 +129,12 @@ func (e *ext) putBuildProblems(folder, dockerfile, contextDir string, found []bu
 		if p.file != "" {
 			path = resolveBuildFile(p.file, dockerfile, contextDir, folder)
 		}
+		if p.line == 0 && p.step != "" {
+			p.line = lineOfInstruction(path, p.step)
+		}
+		if p.line == 0 {
+			continue // an instruction that is not in the file: nothing to mark
+		}
 		key := path + ":" + strconv.Itoa(p.line) + ":" + p.message
 		if seen[key] {
 			continue
@@ -153,6 +159,27 @@ func (e *ext) putBuildProblems(folder, dockerfile, contextDir string, found []bu
 		}
 	}
 	return len(seen)
+}
+
+// lineOfInstruction finds the line (counted from 1) of an instruction in a Dockerfile: the first line that starts the instruction the
+// builder named (the whitespace of both is made one space, a line that goes on with a backslash is its own first part). 0 when the
+// file cannot be read or has no such line.
+func lineOfInstruction(path, step string) int {
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) > extension.MaxReadFileSize {
+		return 0
+	}
+	want := strings.Join(strings.Fields(step), " ")
+	for i, line := range strings.Split(string(data), "\n") {
+		text := strings.Join(strings.Fields(strings.TrimSuffix(strings.TrimRight(line, " \t\r"), "\\")), " ")
+		if text == "" || strings.HasPrefix(text, "#") {
+			continue
+		}
+		if text == want || strings.HasPrefix(want, text+" ") {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 // resolveBuildFile finds the file a build message names: an absolute path as it is, else relative to the folder of the Dockerfile,

@@ -48,8 +48,16 @@ func workflowCommands(cfg Config) []cmdDef {
 // file (VS Code's explorer/context and editor/context groups "containers").
 func workflowMenus(cfg Config) []extension.MenuItem {
 	var items []extension.MenuItem
+	titles := map[string]string{}
+	for _, def := range workflowCommands(cfg) {
+		titles[def.name] = def.title
+	}
 	add := func(menu, when, command string, order float64) {
-		items = append(items, extension.MenuItem{Menu: menu, Command: cfg.Command(command), Group: "containers", Order: order, When: when})
+		item := extension.MenuItem{Menu: menu, Command: cfg.Command(command), Group: "containers", Order: order, When: when}
+		if cfg.MenuTitlePrefix != "" {
+			item.Title = cfg.MenuTitlePrefix + titles[command]
+		}
+		items = append(items, item)
 	}
 	for _, m := range []struct{ menu, dockerfile, compose string }{
 		{extension.MenuExplorerContext, "resourceLangId == dockerfile", "resourceLangId == dockercompose"},

@@ -1,0 +1,10 @@
+{
+  "Id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "Created": "2026-10-29T09:00:00Z",
+  "State": {"Status": "created", "Running": false, "ExitCode": 0, "StartedAt": "0001-01-01T00:00:00Z", "FinishedAt": "0001-01-01T00:00:00Z"},
+  "ImageName": "docker.io/library/busybox:1.37.0",
+  "Name": "job",
+  "NetworkSettings": {"Ports": {}, "Networks": {"podman": {}}},
+  "Config": {"Hostname": "aaaaaaaaaaaa", "Env": ["PATH=/usr/bin"], "Cmd": ["sleep", "1d"], "Image": "docker.io/library/busybox:1.37.0", "WorkingDir": "/", "Entrypoint": "", "Labels": {}},
+  "HostConfig": {"RestartPolicy": {"Name": "on-failure", "MaximumRetryCount": 3}, "NetworkMode": "bridge"}
+}

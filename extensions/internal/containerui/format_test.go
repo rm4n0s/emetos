@@ -151,7 +151,7 @@ func TestGroupContainers(t *testing.T) {
 		{"only projects", []containerapi.Container{mk("a", "p")}, []string{"p"}, map[string][]string{"p": {"a"}}},
 	}
 	for _, tc := range tests {
-		gs := groupContainers(tc.in)
+		gs := groupContainers(tc.in, false)
 		var got []string
 		for _, g := range gs {
 			got = append(got, g.name)

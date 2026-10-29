@@ -206,6 +206,20 @@ func TestSmallHelpers(t *testing.T) {
 	if c.Name() != "0123456789ab" || c.ComposeProject() != "proj" || !c.Running() {
 		t.Errorf("Container helpers: %q %q %v", c.Name(), c.ComposeProject(), c.Running())
 	}
+	for _, tt := range []struct {
+		name   string
+		labels map[string]string
+		want   string
+	}{
+		{"docker's label", map[string]string{LabelCompose: "shop"}, "shop"},
+		{"podman-compose's label", map[string]string{LabelPodmanCompose: "blog"}, "blog"},
+		{"both: docker's wins", map[string]string{LabelCompose: "shop", LabelPodmanCompose: "blog"}, "shop"},
+		{"none", map[string]string{"a": "b"}, ""},
+	} {
+		if got := (Container{Labels: tt.labels}).ComposeProject(); got != tt.want {
+			t.Errorf("%s: ComposeProject = %q, want %q", tt.name, got, tt.want)
+		}
+	}
 	if (Container{State: "exited"}).Running() {
 		t.Error("an exited container is not running")
 	}

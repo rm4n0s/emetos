@@ -28,6 +28,9 @@ type (
 		count int
 		// compose says that the group is a Compose project; a repository group is not.
 		compose bool
+		// pod says that the group is a Podman pod, podID is its id.
+		pod   bool
+		podID string
 	}
 	// containerNode is a container.
 	containerNode struct{ c containerapi.Container }
@@ -89,15 +92,19 @@ func (s *containersSection) items(e *ext) ([]ui.TreeItem, string) {
 		return nil, "No containers found."
 	}
 	var items []ui.TreeItem
-	for _, g := range groupContainers(shown) {
+	for _, g := range groupContainers(shown, e.cfg.Pods) {
 		if g.name == "" {
 			for _, c := range g.containers {
 				items = append(items, e.containerItem(c))
 			}
 			continue
 		}
-		node := ui.TreeItem{Key: keyGroup + g.name, Label: g.name,
-			Data: groupNode{name: g.name, count: len(g.containers), compose: g.name != otherGroup}}
+		key := keyGroup + g.name
+		if g.pod {
+			key = keyGroup + podGroup + g.name
+		}
+		node := ui.TreeItem{Key: key, Label: g.name,
+			Data: groupNode{name: g.name, count: len(g.containers), compose: g.name != otherGroup && !g.pod, pod: g.pod, podID: g.podID}}
 		for _, c := range g.containers {
 			node.Children = append(node.Children, e.containerItem(c))
 		}
@@ -146,8 +153,11 @@ func (s *containersSection) render(bc widgets.BuildContext, v *sectionView, node
 	switch d := node.Data.(type) {
 	case groupNode:
 		icon := "folder"
-		if d.compose {
+		switch {
+		case d.compose:
 			icon = "layers"
+		case d.pod:
+			icon = "symbol-namespace"
 		}
 		row := []widgets.Widget{ui.Icon(icon, 16, st.Foreground), gap(6), text(bc, d.name, 13, st.Foreground),
 			widgets.NewSpacer(), ui.NewBadge(d.count), gap(4)}
@@ -183,6 +193,12 @@ func (s *containersSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 		return e.fileMenu(keys)
 	}
 	ids := idsOf(cs)
+	if ps := e.podGroupsOf(keys); len(ps) > 0 {
+		// a group of a pod: the actions on the pod, and under them those on its containers
+		items := e.podMenu(ps)
+		items = append(items, ui.SeparatorItem(), ui.MenuItem{Label: "Copy Container IDs", OnRun: func() { e.copyIDs(ids) }})
+		return items
+	}
 	allRunning, anyRunning, allStopped, anyPaused := true, false, true, false
 	for _, c := range cs {
 		allRunning = allRunning && c.State == "running"
@@ -206,6 +222,10 @@ func (s *containersSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 		c := cs[0]
 		items = append(items, ui.MenuItem{Label: "View Logs", OnRun: func() { e.viewLogs(c.ID) }},
 			ui.MenuItem{Label: "Inspect", OnRun: func() { e.inspectContainer(c.ID) }})
+		if e.cfg.Pods {
+			items = append(items, ui.MenuItem{Label: "Generate Kube YAML", OnRun: func() { e.generateKube(kubeSubjectsOfContainers(cs)) }},
+				ui.MenuItem{Label: "Generate Quadlet...", OnRun: func() { e.generateQuadletFor(c) }})
+		}
 		if _, _, ok := publishedHTTP(c); ok && c.Running() {
 			items = append(items, ui.MenuItem{Label: "Open in Browser", OnRun: func() { e.openInBrowser(c) }})
 		}
@@ -232,6 +252,12 @@ func (s *containersSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 	if anyPaused && len(cs) == 1 {
 		items = append(items, ui.MenuItem{Label: "Unpause", OnRun: run(opUnpause)})
 	}
+	if e.cfg.Pods && !hasGroup(e, keys) {
+		items = append(items, ui.SeparatorItem(), ui.MenuItem{Label: "Create Pod from Selected Containers...", OnRun: func() { e.createPodFrom(ids) }})
+		if len(cs) > 1 {
+			items = append(items, ui.MenuItem{Label: "Generate Kube YAML", OnRun: func() { e.generateKube(kubeSubjectsOfContainers(cs)) }})
+		}
+	}
 	items = append(items, ui.SeparatorItem(), ui.MenuItem{Label: "Remove...", OnRun: func() { e.askRemoveContainers(ids) }})
 	return items
 }
@@ -243,10 +269,29 @@ func composeGroupOf(keys []string) string {
 		return ""
 	}
 	name, ok := strings.CutPrefix(keys[0], keyGroup)
-	if !ok || name == "" || name == otherGroup || strings.HasPrefix(name, "image:") {
+	if !ok || !isComposeGroup(name) {
 		return ""
 	}
 	return name
+}
+
+// isComposeGroup tells whether the name of a group (the key without keyGroup) is a Compose project: not the containers of no
+// project, a repository of the Images section or a pod.
+func isComposeGroup(name string) bool {
+	return name != "" && name != otherGroup && !strings.HasPrefix(name, "image:") && !strings.HasPrefix(name, podGroup)
+}
+
+// podGroupsOf returns the pods when the keys are only groups of pods of the Containers section, else none.
+func (e *ext) podGroupsOf(keys []string) []containerapi.Pod {
+	if len(keys) == 0 {
+		return nil
+	}
+	for _, k := range keys {
+		if !strings.HasPrefix(k, keyGroup+podGroup) {
+			return nil
+		}
+	}
+	return e.podsOfKeys(keys)
 }
 
 // hasGroup tells whether the keys name a group of containers.
@@ -604,8 +649,17 @@ func (e *ext) containersOfKeys(keys []string) []containerapi.Container {
 			want[strings.TrimPrefix(k, keyContainer)] = true
 		case strings.HasPrefix(k, keyGroup):
 			name := strings.TrimPrefix(k, keyGroup)
+			if pod, ok := strings.CutPrefix(name, podGroup); ok {
+				for _, c := range e.containers {
+					if c.ComposeProject() == "" && c.PodName == pod {
+						want[c.ID] = true
+					}
+				}
+				continue
+			}
 			for _, c := range e.containers {
-				if p := c.ComposeProject(); p == name || (p == "" && name == otherGroup) {
+				p := c.ComposeProject()
+				if p == name || (p == "" && name == otherGroup && (!e.cfg.Pods || c.PodName == "")) {
 					want[c.ID] = true
 				}
 			}

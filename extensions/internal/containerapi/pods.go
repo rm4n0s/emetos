@@ -111,6 +111,9 @@ func (c *Client) CreatePod(ctx context.Context, spec PodSpec) (string, error) {
 	if len(spec.Labels) > 0 {
 		body["labels"] = spec.Labels
 	}
+	if len(spec.Ports) > 0 {
+		body["portmappings"] = portMappingsBody(spec.Ports)
+	}
 	var out struct {
 		ID string `json:"Id"`
 	}

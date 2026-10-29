@@ -21,12 +21,14 @@ const (
 	resNetworks
 	resVolumes
 	resContexts
+	resPods
+	resConnections
 	resCount
 )
 
 // sectionOf is the section name of a resource.
 func sectionOf(r resource) string {
-	return [...]string{secContainers, secImages, secNetworks, secVolumes, secContexts}[r]
+	return [...]string{secContainers, secImages, secNetworks, secVolumes, secContexts, secPods, secConnections}[r]
 }
 
 // connStatus says how the connection to the engine is.
@@ -65,8 +67,9 @@ type ext struct {
 	found        *containerapi.Found
 	client       *containerapi.Client
 	engineCancel context.CancelFunc
-	// picked is the Docker context chosen in the view; empty is the one the Docker CLI uses.
-	picked string
+	// picked is the Docker context chosen in the view (empty is the one the Docker CLI uses), or for Podman the name of the connection
+	// chosen in the view (empty is the automatic search) and pickedHost the address of that connection.
+	picked, pickedHost string
 	// lastHost is the value of the host setting the connection was made with.
 	lastHost string
 
@@ -76,6 +79,8 @@ type ext struct {
 	networks     []containerapi.Network
 	volumes      []containerapi.Volume
 	contexts     []containerapi.DockerContext
+	pods         []containerapi.Pod
+	connections  []connection
 	current      string
 	loads        [resCount]loadState
 	showDangling bool
@@ -182,9 +187,16 @@ func (e *ext) setKey(key string, value any) {
 
 // sections are the sections the Config has, in the order of the side bar.
 func (e *ext) sections() []section {
-	secs := []section{&containersSection{}, &imagesSection{}, &networksSection{}, &volumesSection{}}
+	secs := []section{&containersSection{}}
+	if e.cfg.Pods {
+		secs = append(secs, &podsSection{})
+	}
+	secs = append(secs, &imagesSection{}, &networksSection{}, &volumesSection{})
 	if e.cfg.Contexts {
 		secs = append(secs, &contextsSection{})
+	}
+	if e.cfg.Connections {
+		secs = append(secs, &connectionsSection{})
 	}
 	return secs
 }
@@ -195,6 +207,9 @@ type viewState struct {
 	NoteSeen bool `json:"noteSeen,omitempty"`
 	// Context is the Docker context picked in the view.
 	Context string `json:"context,omitempty"`
+	// Connection and ConnectionHost are the Podman connection picked in the view and its address.
+	Connection     string `json:"connection,omitempty"`
+	ConnectionHost string `json:"connectionHost,omitempty"`
 	// HideDangling hides the images that have no name.
 	HideDangling bool `json:"hideDangling,omitempty"`
 }
@@ -202,6 +217,9 @@ type viewState struct {
 // saveState returns the state the Containers view keeps.
 func (e *ext) saveState() (any, error) {
 	st := viewState{NoteSeen: e.note.seen, Context: e.picked, HideDangling: !e.showDangling}
+	if e.cfg.Connections {
+		st.Context, st.Connection, st.ConnectionHost = "", e.picked, e.pickedHost
+	}
 	if st == (viewState{}) {
 		return nil, nil
 	}
@@ -219,8 +237,12 @@ func (e *ext) restoreState(raw json.RawMessage) error {
 		e.showDangling = !st.HideDangling
 		e.setKey(e.cfg.keyDanglingShown(), e.showDangling)
 	}
-	if st.Context != e.picked {
-		e.picked = st.Context
+	picked, host := st.Context, ""
+	if e.cfg.Connections {
+		picked, host = st.Connection, st.ConnectionHost
+	}
+	if picked != e.picked || host != e.pickedHost {
+		e.picked, e.pickedHost = picked, host
 		if e.status != statusIdle {
 			e.connect()
 		}

@@ -807,7 +807,14 @@ func (f *Fake) podsRoute(w http.ResponseWriter, r *http.Request, rest string, bo
 		var reports []map[string]any
 		for id, p := range f.pods {
 			if f.podStatusLocked(p) != "Running" {
+				// the pod goes with its containers, and the engine says so (pod prune of Podman does the same)
+				for _, c := range f.containers {
+					if c.pod == id {
+						f.deleteContainerLocked(c)
+					}
+				}
 				delete(f.pods, id)
+				f.emitLocked("pod", "remove", id, map[string]string{"name": p.name})
 				reports = append(reports, map[string]any{"Id": id, "Err": nil})
 			}
 		}

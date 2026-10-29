@@ -1,0 +1,23 @@
+{
+  "Id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "Created": "2026-10-29T09:00:00Z",
+  "State": {"Status": "exited", "Running": false, "ExitCode": 0, "StartedAt": "0001-01-01T00:00:00Z", "FinishedAt": "0001-01-01T00:00:00Z"},
+  "Image": "9999999999999999999999999999999999999999999999999999999999999999",
+  "ImageName": "registry.example.com:5000/team/app:2.0",
+  "Name": "my app/1",
+  "Pod": "4f5e6d7c8b9a",
+  "Mounts": [{"Type": "bind", "Source": "/data/with space", "Destination": "/in", "RW": true}],
+  "NetworkSettings": {"Ports": {"8443/tcp": [{"HostIp": "0.0.0.0", "HostPort": "443"}], "9000/tcp": [{"HostIp": "::1", "HostPort": ""}]}, "Networks": {"podman": {}}},
+  "Config": {
+    "Hostname": "app.internal",
+    "User": "1000:1000",
+    "Env": ["EMPTY=", "QUOTE=say \"hi\"", "PERCENT=50%", "BACKSLASH=C:\\dir", "MULTI=line1\nline2"],
+    "Cmd": ["sh", "-c", "echo $HOME; exit 0", "a;b", ";", "", "100%", "it's"],
+    "Image": "registry.example.com:5000/team/app:2.0",
+    "WorkingDir": "/srv/app",
+    "Entrypoint": "/bin/tini --",
+    "Labels": {"b": "2", "a": "1 one"},
+    "Tty": true
+  },
+  "HostConfig": {"RestartPolicy": {"Name": "unless-stopped", "MaximumRetryCount": 0}, "NetworkMode": "host"}
+}

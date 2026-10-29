@@ -1,0 +1,15 @@
+{
+  "Id": "ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12cd34ef56ab12",
+  "RepoTags": ["docker.io/library/nginx:1.27"],
+  "Created": "2026-10-01T00:00:00Z",
+  "Size": 187000000,
+  "Architecture": "amd64",
+  "Os": "linux",
+  "Config": {
+    "Env": ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NGINX_VERSION=1.27.0"],
+    "Cmd": ["nginx", "-g", "daemon off;"],
+    "Entrypoint": ["/docker-entrypoint.sh"],
+    "Labels": {"maintainer": "NGINX Docker Maintainers"},
+    "ExposedPorts": {"80/tcp": {}}
+  }
+}

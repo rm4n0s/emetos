@@ -30,6 +30,13 @@ type Config struct {
 	Order int
 	// Contexts adds the Contexts section and the context picker (Docker).
 	Contexts bool
+	// Pods adds what only Podman has (step 18.4): the Pods section, the containers grouped under their pod, the commands on pods,
+	// Generate Kube YAML, Play Kube, Kube Down and Generate Quadlet. Connections adds the Connections section and its picker
+	// (`podman system connection list`).
+	Pods, Connections bool
+	// MenuTitlePrefix starts the title of the items this extension adds to the Explorer and editor menus ("Podman: "), so that two
+	// container extensions that offer the same command on a Dockerfile can be told apart in the menu. Empty adds nothing.
+	MenuTitlePrefix string
 	// FirstRunNote is the note at the top of the Containers section until the user dismisses it: what the access to the engine
 	// means.
 	FirstRunNote string
@@ -64,8 +71,8 @@ type Config struct {
 
 // ListFilters are the filters of the lists of the four sections.
 type ListFilters struct {
-	// Containers, Images, Networks and Volumes are the filters in the form the engines take (containerapi.Filters).
-	Containers, Images, Networks, Volumes containerapi.Filters
+	// Containers, Images, Networks, Volumes and Pods are the filters in the form the engines take (containerapi.Filters).
+	Containers, Images, Networks, Volumes, Pods containerapi.Filters
 }
 
 // debounce returns the refresh delay.
@@ -107,6 +114,9 @@ const (
 	secNetworks   = "networks"
 	secVolumes    = "volumes"
 	secContexts   = "contexts"
+	// secPods and secConnections are the sections only Podman has.
+	secPods        = "pods"
+	secConnections = "connections"
 )
 
 // ContainerID is the id of the view container of the side bar.

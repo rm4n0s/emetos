@@ -3,7 +3,10 @@
 // extension at it with the setting containers.host, so that the screenshot never shows the containers of the machine it was made
 // on. It is a tool for proofs and never part of Emetos.
 //
-//	fakeengine -socket /tmp/ce/engine.sock -ids /tmp/ce/ids.json [-project /path/of/the/compose/project]
+//	fakeengine -socket /tmp/ce/engine.sock -ids /tmp/ce/ids.json [-project /path/of/the/compose/project] [-kind docker|podman]
+//
+// -kind podman serves the fake Podman of the proof of step 18.4 (scripts/proof-podman.sh): two pods with their containers, images, a
+// network and a volume; the ids file also has the keys of the rows of the pods ({"pod:web": "p:..."}).
 //
 // -project is the folder the Compose projects of the scenario were started in: their containers carry the labels
 // com.docker.compose.project.working_dir and config_files that the Compose group commands of step 18.3 read.
@@ -37,17 +40,32 @@ func run() error {
 	sock := flag.String("socket", "", "the Unix socket to listen on")
 	ids := flag.String("ids", "", "a file that gets the ids of the containers as JSON")
 	project := flag.String("project", "/home/user/shop", "the folder the Compose projects were started in")
+	kind := flag.String("kind", "docker", "the engine to serve: docker or podman")
 	flag.Parse()
 	if *sock == "" {
 		flag.Usage()
 		os.Exit(64)
 	}
-	fake, err := containerapitest.ServeUnix(containerapi.KindDocker, containerapitest.FakeOptions{}, *sock)
+	var engine containerapi.Kind
+	switch *kind {
+	case "docker":
+		engine = containerapi.KindDocker
+	case "podman":
+		engine = containerapi.KindPodman
+	default:
+		fmt.Fprintf(os.Stderr, "fakeengine: -kind is docker or podman, not %q\n", *kind)
+		os.Exit(64)
+	}
+	fake, err := containerapitest.ServeUnix(engine, containerapitest.FakeOptions{}, *sock)
 	if err != nil {
 		return err
 	}
 	defer fake.Close()
-	byName, err := scenario(fake, *project)
+	build := scenario
+	if engine == containerapi.KindPodman {
+		build = podmanScenario
+	}
+	byName, err := build(fake, *project)
 	if err != nil {
 		return err
 	}
@@ -126,5 +144,65 @@ func scenario(f *containerapitest.Fake, project string) (map[string]string, erro
 		}
 		f.SetVolumeSize(name, size)
 	}
+	return ids, nil
+}
+
+// podmanScenario fills a Podman: the pod web (nginx and redis, running, publishing 8080) and the pod batch (made, with no container
+// yet), with logs, images, a network and a volume. It is small so that the side bar shows the pod web with its containers.
+func podmanScenario(f *containerapitest.Fake, _ string) (map[string]string, error) {
+	ctx := context.Background()
+	c := f.Client()
+	f.AddImage(187_000_000, "docker.io/library/nginx:1.27")
+	f.AddImage(60_000_000, "docker.io/library/redis:7")
+	f.AddImage(5_000_000, "docker.io/library/busybox:1.37.0")
+	f.AddImage(90_000_000)
+	ids := map[string]string{}
+	for _, p := range []containerapi.PodSpec{
+		{Name: "web", Ports: []containerapi.PortMapping{{HostIP: "127.0.0.1", HostPort: 8080, ContainerPort: 80}}},
+		{Name: "batch"},
+	} {
+		id, err := c.CreatePod(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		ids["pod:"+p.Name] = "p:" + id
+	}
+	member := func(name, image, pod string, stop bool) error {
+		res, err := c.CreateContainer(ctx, containerapi.ContainerSpec{Name: name, Image: image, Pod: pod, Env: []string{"MODE=prod"}})
+		if err != nil {
+			return err
+		}
+		ids[name] = res.ID
+		if err := c.StartContainer(ctx, res.ID); err != nil {
+			return err
+		}
+		if stop {
+			return c.StopContainer(ctx, res.ID, 0)
+		}
+		return nil
+	}
+	if err := member("web-nginx", "docker.io/library/nginx:1.27", "web", false); err != nil {
+		return nil, err
+	}
+	if err := member("web-redis", "docker.io/library/redis:7", "web", false); err != nil {
+		return nil, err
+	}
+	for _, l := range []struct {
+		stream containerapi.Stream
+		text   string
+	}{
+		{containerapi.StreamStdout, "/docker-entrypoint.sh: Configuration complete; ready for start up"},
+		{containerapi.StreamStdout, `10.88.0.1 - - [29/Oct/2026:11:58:02 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/8.9.1"`},
+		{containerapi.StreamStderr, "2026/10/29 11:58:09 [error] 29#29: *3 open() \"/usr/share/nginx/html/favicon.ico\" failed (2: No such file or directory)"},
+	} {
+		f.Log(ids["web-nginx"], l.stream, l.text)
+	}
+	if _, err := c.CreateNetwork(ctx, containerapi.NetworkSpec{Name: "podman"}); err != nil {
+		return nil, err
+	}
+	if _, err := c.CreateVolume(ctx, containerapi.VolumeSpec{Name: "webdata"}); err != nil {
+		return nil, err
+	}
+	f.SetVolumeSize("webdata", 38_000_000)
 	return ids, nil
 }

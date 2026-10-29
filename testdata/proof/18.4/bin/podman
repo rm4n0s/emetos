@@ -1,0 +1,48 @@
+#!/bin/sh
+# The fake podman program of the proof of step 18.4 (scripts/proof-podman.sh): `podman kube generate` prints the YAML Podman writes for
+# the pod "web", `podman system connection list` lists the connections of a Podman machine and a socket of the user, everything else
+# does nothing. It reads and writes nothing and never talks to an engine.
+case "$1 $2" in
+"kube generate")
+  cat <<'YAML'
+# Save the output of this file and use kubectl create -f to import
+# it into Kubernetes.
+#
+# Created with podman-5.8.0
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: "2026-10-29T11:58:00Z"
+  labels:
+    app: web
+  name: web
+spec:
+  containers:
+  - args:
+    - nginx
+    - -g
+    - daemon off;
+    env:
+    - name: MODE
+      value: prod
+    image: docker.io/library/nginx:1.27
+    name: nginx
+    ports:
+    - containerPort: 80
+      hostIP: 127.0.0.1
+      hostPort: 8080
+  - image: docker.io/library/redis:7
+    name: redis
+YAML
+  ;;
+"system connection")
+  cat <<'JSON'
+[
+ {"Name":"podman-machine-default","URI":"ssh://core@127.0.0.1:44571/run/user/1000/podman/podman.sock","Identity":"/home/user/.local/share/containers/podman/machine/machine","IsMachine":true,"Default":true,"ReadWrite":true},
+ {"Name":"podman-machine-default-root","URI":"ssh://root@127.0.0.1:44571/run/podman/podman.sock","Identity":"/home/user/.local/share/containers/podman/machine/machine","IsMachine":true,"Default":false,"ReadWrite":true},
+ {"Name":"local","URI":"unix:///run/user/1000/podman/podman.sock","Identity":"","IsMachine":false,"Default":false,"ReadWrite":true}
+]
+JSON
+  ;;
+esac
+exit 0

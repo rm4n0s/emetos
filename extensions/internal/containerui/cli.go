@@ -57,6 +57,39 @@ func (c Config) environ() []string {
 	return os.Environ()
 }
 
+// explicitHost is the address of the engine when the user named one (the connection picked in the view, else the setting), for the
+// engines whose command line can be pointed at an address (Podman: CONTAINER_HOST, --url). "" when the program may find the engine
+// itself.
+func (e *ext) explicitHost() string {
+	if e.cfg.Kind != containerapi.KindPodman {
+		return ""
+	}
+	if e.pickedHost != "" {
+		return e.pickedHost
+	}
+	return e.lastHost
+}
+
+// cliEnviron is the environment the programs of the CLI run in: the environment of Emetos, and for Podman CONTAINER_HOST when the
+// user named the engine, so that the program talks to the engine the view shows.
+func (e *ext) cliEnviron() []string {
+	env := e.cfg.environ()
+	if host := e.explicitHost(); host != "" {
+		env = append(env[:len(env):len(env)], "CONTAINER_HOST="+host)
+	}
+	return env
+}
+
+// withEngineURL puts `--url <host>` after the program in a command line that the user's own terminal runs, when the user named the
+// engine: a shell does not have the environment of the programs Emetos starts.
+func (e *ext) withEngineURL(argv []string) []string {
+	host := e.explicitHost()
+	if host == "" || len(argv) == 0 {
+		return argv
+	}
+	return append([]string{argv[0], "--url", host}, argv[1:]...)
+}
+
 // scaffoldFileName is the name of the file that describes an image: Dockerfile, or Containerfile for Podman.
 func (c Config) scaffoldFileName() string {
 	if c.Kind == containerapi.KindPodman {

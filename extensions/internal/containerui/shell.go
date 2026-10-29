@@ -85,7 +85,7 @@ func (e *ext) openShell(c containerapi.Container) {
 			shell = "bash"
 		}
 		e.api.Post(func() {
-			line := shellJoin(attachShellArgv(e.cfg.cliName(), containerapi.ShortID(c.ID), shell))
+			line := shellJoin(e.withEngineURL(attachShellArgv(e.cfg.cliName(), containerapi.ShortID(c.ID), shell)))
 			e.inTerminal("Shell: "+c.Name(), line)
 		})
 	}()
@@ -111,7 +111,7 @@ func (e *ext) runImageInteractive(r imageRow) {
 			e.api.Log().Warn("the ports of the image cannot be read", "image", r.target(), "err", err)
 		}
 		e.api.Post(func() {
-			e.inTerminal("Run: "+r.target(), shellJoin(runInteractiveArgv(e.cfg.cliName(), exposed, r.target())))
+			e.inTerminal("Run: "+r.target(), shellJoin(e.withEngineURL(runInteractiveArgv(e.cfg.cliName(), exposed, r.target()))))
 		})
 	}()
 }
@@ -141,7 +141,7 @@ func (e *ext) pushImage(r imageRow) {
 		}
 		ref = strings.TrimSpace(ref)
 		start := func() {
-			job := cliJob{argv: pushArgv(cli, ref), dir: e.folder(), env: e.cfg.environ(), name: e.cfg.cliName()}
+			job := cliJob{argv: pushArgv(cli, ref), dir: e.folder(), env: e.cliEnviron(), name: e.cfg.cliName()}
 			e.logs.runCLI("Push "+ref, []cliJob{job}, func(res cliResult) {
 				switch {
 				case res.canceled:

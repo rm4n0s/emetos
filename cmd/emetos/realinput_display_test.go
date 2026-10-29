@@ -167,6 +167,11 @@ func TestRealInputExplorerRenameAndNewFile(t *testing.T) {
 
 func TestRealInputProblemsFilter(t *testing.T) {
 	a := startProject(t)
+	// The tabs of the panel get the room first and the actions of the view what they leave (paneloverflow.go): with the tabs of the
+	// Go, Redis, Containers and Podman extensions the filter of Problems has no room at 1280 px beside the side bar (the compositor
+	// does not make the window wider than its output), so the side bar is closed.
+	a.Press("ctrl+b")
+	a.Settle()
 	a.Press("ctrl+shift+m")
 	a.Settle()
 	a.Dev("problems.action.focusFilter", nil)

@@ -21,6 +21,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/makefile"
 	"github.com/rm4n0s/emetos/extensions/markdown"
 	"github.com/rm4n0s/emetos/extensions/relay"
+	"github.com/rm4n0s/emetos/extensions/podman"
 	"github.com/rm4n0s/emetos/extensions/python"
 	"github.com/rm4n0s/emetos/extensions/references"
 	"github.com/rm4n0s/emetos/extensions/remotework"
@@ -55,7 +56,8 @@ import (
 // 19.2) is a language pack in the list of the packs and the driver of its engines in that hub: its instances share one sql.Hub made here.
 //
 // The Containers view of Docker (extensions/containers, step 18.2) follows the Search view: it adds a view container to the side bar, a
-// tab to the panel (the logs) and two kinds of editor tab, and starts nothing until a view of it is shown.
+// tab to the panel (the logs) and two kinds of editor tab, and starts nothing until a view of it is shown. The Podman extension
+// (extensions/podman, step 18.4) follows it and does the same for Podman.
 //
 // The References view (extensions/references) is last: it adds a view to the side bar and asks the language servers the packs start.
 func All() []extension.Factory {
@@ -67,7 +69,7 @@ func All() []extension.Factory {
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.FactoryOf(sqlHub), shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
-		search.New, containers.New,
+		search.New, containers.New, podman.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw), relay.FactoryOf(ps),
 		hosting.NewFactory(rw.Hosting(), ps.Hosting()),
 		dbconn.Factory(db),

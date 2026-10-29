@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/containers"
 	"github.com/rm4n0s/emetos/extensions/internal/testext"
+	"github.com/rm4n0s/emetos/extensions/podman"
 )
 
 // TestEveryFactoryMakesAValidExtension holds the factories of All, and the test extension, to the contract: a valid
@@ -104,5 +106,54 @@ func TestEveryPackHasItsFiles(t *testing.T) {
 	}
 	if packs < 20 {
 		t.Errorf("only %d language packs", packs)
+	}
+}
+
+// TestPodmanAndDockerShareNothingTheyMustNotShare holds that the two extensions can be on at once: none of their ids (commands, views,
+// view container, editor kinds, panel views, settings) is the same.
+func TestPodmanAndDockerShareNothingTheyMustNotShare(t *testing.T) {
+	ids := func(m extension.Manifest) map[string]bool {
+		out := map[string]bool{}
+		for _, c := range m.Contributes.Commands {
+			out[c.ID] = true
+		}
+		for _, v := range m.Contributes.Views {
+			out[v.ID] = true
+		}
+		for _, v := range m.Contributes.ViewContainers {
+			out[v.ID] = true
+		}
+		for _, v := range m.Contributes.PanelViews {
+			out[v.ID] = true
+		}
+		for _, v := range m.Contributes.EditorKinds {
+			out[v.ID] = true
+		}
+		for _, v := range m.Contributes.Settings {
+			out[v.Key] = true
+		}
+		return out
+	}
+	docker, pod := ids(containers.New().Manifest()), ids(podman.New().Manifest())
+	for id := range pod {
+		if docker[id] {
+			t.Errorf("%s is in both", id)
+		}
+	}
+	// the two add different icons to the activity bar, and their menu items on a Dockerfile are told apart by the title
+	var dockerIcon, podmanIcon string
+	for _, v := range containers.New().Manifest().Contributes.ViewContainers {
+		dockerIcon = v.Icon
+	}
+	for _, v := range podman.New().Manifest().Contributes.ViewContainers {
+		podmanIcon = v.Icon
+	}
+	if dockerIcon == "" || podmanIcon == "" || dockerIcon == podmanIcon {
+		t.Errorf("icons %q and %q", dockerIcon, podmanIcon)
+	}
+	for _, it := range podman.New().Manifest().Contributes.Menus {
+		if (it.Menu == extension.MenuExplorerContext || it.Menu == extension.MenuEditorContext) && !strings.HasPrefix(it.Title, "Podman: ") {
+			t.Errorf("the item %s of the menu %s is titled %q", it.Command, it.Menu, it.Title)
+		}
 	}
 }

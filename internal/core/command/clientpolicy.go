@@ -75,6 +75,10 @@ var clientRules = []refusedRule{
 		class: extension.RefusedOutside, reason: "a database or a container engine is outside the workspace: a client may not connect to what the host's connections name (SPEC §10.24)",
 		prefixes: []string{"emetos.databases.", "emetos.sql."},
 	},
+	{
+		class: extension.RefusedOutside, reason: "the socket of a container engine is power over the computer: a client may not drive the host's Docker or Podman (SPEC §10.20 \"Safety\", §10.24)",
+		prefixes: []string{"containers.", "podman."},
+	},
 }
 
 // ClientRefusal tells whether a client may not run the command, and why. The id is the command's, case as it is.
@@ -87,11 +91,13 @@ func ClientRefusal(id string) (Refusal, bool) {
 	return Refusal{}, false
 }
 
-// RefusedClasses lists the classes of ClientRefusal, in the order of the rules.
+// RefusedClasses lists the classes of ClientRefusal, in the order of the rules, each once (a class may have several rules).
 func RefusedClasses() []string {
-	out := make([]string, len(clientRules))
-	for i, rule := range clientRules {
-		out[i] = rule.class
+	var out []string
+	for _, rule := range clientRules {
+		if !slices.Contains(out, rule.class) {
+			out = append(out, rule.class)
+		}
 	}
 	return out
 }

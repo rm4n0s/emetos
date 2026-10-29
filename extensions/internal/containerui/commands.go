@@ -146,6 +146,8 @@ func commandTable(cfg Config) []cmdDef {
 		{name: "logs.close", title: "Close Logs Tab", handler: simple(func(e *ext) { e.logs.closeActive() })},
 	}
 	t = append(t, workflowCommands(cfg)...)
+	t = append(t, podCommands(cfg)...)
+	t = append(t, connectionCommands(cfg)...)
 	if cfg.Contexts {
 		t = append(t,
 			cmdDef{name: "contexts.use", title: "Use", handler: withArgs(func(e *ext, a any) {
@@ -353,6 +355,9 @@ func (e *ext) refreshAll() {
 		return
 	}
 	e.files.forget()
+	if e.cfg.Connections {
+		e.loadConnections()
+	}
 	e.reloadAll()
 }
 

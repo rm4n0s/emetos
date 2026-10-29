@@ -1,0 +1,10 @@
+services:
+  web:
+    image: shop-web
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - 3000:3000
+  db:
+    image: postgres:16

@@ -25,6 +25,10 @@ const (
 	LabelComposeService = "com.docker.compose.service"
 )
 
+// LabelPodmanCompose is the label that podman-compose puts on the containers of a project, next to the one of Docker's Compose when
+// its version sets that too (SPEC §10.20 "Podman only").
+const LabelPodmanCompose = "io.podman.compose.project"
+
 // Filters are the filters of a list or prune call, as the engines take them: a name and the values that match, for
 // example {"label": {"dev.emetos.test=1"}}.
 type Filters map[string][]string
@@ -92,8 +96,14 @@ func (c Container) Name() string {
 	return ShortID(c.ID)
 }
 
-// ComposeProject returns the Compose project of the container, or "" when it was not made by Compose.
-func (c Container) ComposeProject() string { return c.Labels[LabelCompose] }
+// ComposeProject returns the Compose project of the container, or "" when it was not made by Compose (Docker's label, else the one
+// of podman-compose).
+func (c Container) ComposeProject() string {
+	if p := c.Labels[LabelCompose]; p != "" {
+		return p
+	}
+	return c.Labels[LabelPodmanCompose]
+}
 
 // Running reports whether the container is running (or paused or restarting, which still hold a process).
 func (c Container) Running() bool {
@@ -435,6 +445,8 @@ type PodSpec struct {
 	Name string
 	// Labels are put on the pod.
 	Labels map[string]string
+	// Ports are published by the pod: the containers of a pod share one network, so a container cannot publish a port of its own.
+	Ports []PortMapping
 }
 
 // Event is an event of the engine's event stream.

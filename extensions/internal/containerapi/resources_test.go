@@ -353,6 +353,25 @@ func TestVolumes(t *testing.T) {
 	}
 }
 
+// TestAPodPublishesThePortsOfItsContainers holds that the ports of a PodSpec go to libpod as "portmappings" of the pod (the containers
+// of a pod share one network, so the pod publishes them).
+func TestAPodPublishesThePortsOfItsContainers(t *testing.T) {
+	f, c := engine(t, containerapi.KindPodman)
+	if _, err := c.CreatePod(bg, containerapi.PodSpec{Name: "web", Ports: []containerapi.PortMapping{
+		{HostIP: "127.0.0.1", HostPort: 8080, ContainerPort: 80}, {ContainerPort: 53, Protocol: "udp"}}}); err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := jsonUnmarshal(lastRequest(t, f, http.MethodPost, "/pods/create").Body, &body); err != nil {
+		t.Fatal(err)
+	}
+	pm, _ := body["portmappings"].([]any)
+	if len(pm) != 2 || !reflect.DeepEqual(pm[0], map[string]any{"container_port": 80.0, "host_port": 8080.0, "host_ip": "127.0.0.1", "protocol": "tcp"}) ||
+		!reflect.DeepEqual(pm[1], map[string]any{"container_port": 53.0, "protocol": "udp"}) {
+		t.Errorf("portmappings = %v", pm)
+	}
+}
+
 func TestPods(t *testing.T) {
 	f, c := engine(t, containerapi.KindPodman)
 	id, err := c.CreatePod(bg, containerapi.PodSpec{Name: "stack", Labels: map[string]string{"dev.emetos.test": "1"}})
@@ -440,9 +459,19 @@ func TestPods(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := c.CreateContainer(bg, containerapi.ContainerSpec{Name: "inmate", Image: containerapitest.ImageBusyBox, Pod: "two"}); err != nil {
+		t.Fatal(err)
+	}
 	res, err := c.PrunePods(bg)
 	if err != nil || len(res.Deleted) != 2 {
 		t.Errorf("PrunePods = %+v, %v", res, err)
+	}
+	// the containers of a pod that was pruned go with it, as with a real Podman
+	cs, err := c.ListContainers(bg, containerapi.ListContainersOptions{All: true})
+	for _, ct := range cs {
+		if ct.Name() == "inmate" {
+			t.Errorf("a container of a pod that was pruned is still there: %+v (%v)", ct, err)
+		}
 	}
 }
 

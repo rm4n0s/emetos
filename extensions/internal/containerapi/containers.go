@@ -318,22 +318,7 @@ func libpodSpec(s ContainerSpec) map[string]any {
 		body["stdin"] = true
 	}
 	if len(s.Ports) > 0 {
-		var maps []map[string]any
-		for _, p := range s.Ports {
-			proto := p.Protocol
-			if proto == "" {
-				proto = "tcp"
-			}
-			m := map[string]any{"container_port": p.ContainerPort, "protocol": proto}
-			if p.HostIP != "" {
-				m["host_ip"] = p.HostIP
-			}
-			if p.HostPort != 0 {
-				m["host_port"] = p.HostPort
-			}
-			maps = append(maps, m)
-		}
-		body["portmappings"] = maps
+		body["portmappings"] = portMappingsBody(s.Ports)
 	}
 	var mounts []map[string]any
 	var volumes []map[string]any
@@ -457,4 +442,24 @@ func (c *Client) PruneContainers(ctx context.Context, filters Filters) (PruneRes
 		return PruneResult{}, err
 	}
 	return decodePrune(raw, "ContainersDeleted")
+}
+
+// portMappingsBody writes published ports as libpod's SpecGenerator (and the pod's) takes them: "portmappings".
+func portMappingsBody(ports []PortMapping) []map[string]any {
+	var maps []map[string]any
+	for _, p := range ports {
+		proto := p.Protocol
+		if proto == "" {
+			proto = "tcp"
+		}
+		m := map[string]any{"container_port": p.ContainerPort, "protocol": proto}
+		if p.HostIP != "" {
+			m["host_ip"] = p.HostIP
+		}
+		if p.HostPort != 0 {
+			m["host_port"] = p.HostPort
+		}
+		maps = append(maps, m)
+	}
+	return maps
 }
