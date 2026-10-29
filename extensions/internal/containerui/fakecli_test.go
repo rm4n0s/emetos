@@ -9,7 +9,7 @@ import (
 )
 
 // fakeCLI is a fake docker program on a temporary PATH: a shell script that records the folder it runs in and its arguments in
-// calls.log, one run to a line (a tab before each argument), and answers as the test said for the verb of the command (build, push,
+// calls.log, one run to a line written with one write (a tab before each argument), and answers as the test said for the verb of the command (build, push,
 // run, exec, compose_up, compose_down, compose_config, compose_logs, compose_start, compose_version, kube_generate, kube_play,
 // kube_down, system_connection ...): the lines of
 // <verb>.out on stdout, those of <verb>.err on stderr, the status in <verb>.code, and a wait of <verb>.sleep seconds (to be stopped).
@@ -22,7 +22,10 @@ type fakeCLI struct {
 const fakeCLIScript = `#!/bin/sh
 d="$FAKE_CLI_DIR"
 name="$(basename "$0")"
-{ printf 'cwd=%s' "$(pwd)"; [ "$name" = docker-compose ] && printf '\t%s' "(docker-compose)"; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$d/calls.log"
+line="cwd=$(pwd)"
+[ "$name" = docker-compose ] && line="$line$(printf '\t%s' "(docker-compose)")"
+for a in "$@"; do line="$line$(printf '\t%s' "$a")"; done
+printf '%s\n' "$line" >> "$d/calls.log"
 key="$1"
 [ "$1" = kube ] && key="kube_$2"
 [ "$1" = system ] && key="system_$2"
@@ -118,8 +121,16 @@ func (f *fakeCLI) calls() []fakeCall {
 	if err != nil {
 		f.t.Fatal(err)
 	}
+	// a run writes its line with one write, but a line without its end is one being written: it is not a call yet
+	text := string(data)
+	if i := strings.LastIndexByte(text, '\n'); i < len(text)-1 {
+		text = text[:i+1]
+	}
+	if text == "" {
+		return nil
+	}
 	var out []fakeCall
-	for _, line := range strings.Split(strings.TrimSuffix(string(data), "\n"), "\n") {
+	for _, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
 		parts := strings.Split(line, "\t")
 		out = append(out, fakeCall{cwd: strings.TrimPrefix(parts[0], "cwd="), args: parts[1:]})
 	}
