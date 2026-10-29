@@ -216,19 +216,18 @@ func (r *rig) connected(name string) Connection {
 func TestTheNodesOfAConnectionAreListedWhenOpened(t *testing.T) {
 	r := newRig(t, pgDriver())
 	c := r.connected("prod")
-	v := r.ext.view
 	if got := r.rows(); !slices.Equal(got, []string{"0:prod"}) {
 		t.Fatalf("rows = %v", got)
 	}
 	if len(r.drv.listedCalls()) != 0 {
 		t.Fatal("the driver listed before the row was opened")
 	}
-	v.tree.Expand(connKey(c.ID))
+	r.expand(connKey(c.ID))
 	r.api.WaitFor("the databases", func() bool { return len(r.rows()) == 3 })
 	if got := r.rows(); !slices.Equal(got, []string{"0:prod", "1:app", "1:postgres"}) {
 		t.Fatalf("rows = %v", got)
 	}
-	v.tree.Expand(childKey(connKey(c.ID), "db:app"))
+	r.expand(childKey(connKey(c.ID), "db:app"))
 	r.api.WaitFor("the tables", func() bool { return len(r.rows()) == 5 })
 	if got := r.rows(); !slices.Equal(got, []string{"0:prod", "1:app", "2:users", "2:orders", "1:postgres"}) {
 		t.Fatalf("rows = %v", got)
@@ -261,7 +260,7 @@ func TestANodeThatCannotBeListed(t *testing.T) {
 	d.childErr = errors.New("DriverFake", "permission denied")
 	r := newRig(t, d)
 	c := r.connected("prod")
-	r.ext.view.tree.Expand(connKey(c.ID))
+	r.expand(connKey(c.ID))
 	r.api.WaitFor("the warning", func() bool {
 		for _, n := range r.api.Notes() {
 			if n.Severity == "warn" && strings.Contains(n.Message, "permission denied") {
@@ -430,9 +429,9 @@ func TestTheFilterShowsTheMatchingNodesAndTheOnesAboveThem(t *testing.T) {
 	prod := r.save(conn, PasswordChange{})
 	r.run(Connect, prod.ID)
 	r.api.WaitFor("the connection", func() bool { return r.hub.State(prod.ID).Status == Connected })
-	r.ext.view.tree.Expand(connKey(prod.ID))
+	r.expand(connKey(prod.ID))
 	r.api.WaitFor("the databases", func() bool { return len(r.rows()) == 3 })
-	r.ext.view.tree.Expand(childKey(connKey(prod.ID), "db:app"))
+	r.expand(childKey(connKey(prod.ID), "db:app"))
 	r.api.WaitFor("the tables", func() bool { return len(r.rows()) == 5 })
 
 	tree := r.ext.view.tree

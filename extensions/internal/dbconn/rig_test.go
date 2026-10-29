@@ -187,6 +187,21 @@ func (r *rig) run(id string, args any) {
 	r.api.Pump()
 }
 
+// expand opens a row once the view shows it as expandable, as a user can only open a row that shows its chevron: the state of a
+// connection changes in the hub first, and the view makes its rows from it in a later turn of the UI thread.
+func (r *rig) expand(key string) {
+	r.t.Helper()
+	r.api.WaitFor("the row "+key+" to be expandable", func() bool {
+		for _, n := range r.ext.view.tree.Rows() {
+			if n.Key == key {
+				return n.Expandable
+			}
+		}
+		return false
+	})
+	r.ext.view.tree.Expand(key)
+}
+
 // rows are the labels of the rows of the tree, indented by depth.
 func (r *rig) rows() []string {
 	var out []string

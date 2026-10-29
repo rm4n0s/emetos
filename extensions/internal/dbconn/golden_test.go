@@ -22,9 +22,9 @@ func goldenView(t *testing.T) *rig {
 	prod := r.save(conn, PasswordChange{})
 	r.run(Connect, prod.ID)
 	r.api.WaitFor("the connection", func() bool { return r.hub.State(prod.ID).Status == Connected })
-	r.ext.view.tree.Expand(connKey(prod.ID))
+	r.expand(connKey(prod.ID))
 	r.api.WaitFor("the databases", func() bool { return len(r.rows()) == 3 })
-	r.ext.view.tree.Expand(childKey(connKey(prod.ID), "db:app"))
+	r.expand(childKey(connKey(prod.ID), "db:app"))
 	r.api.WaitFor("the tables", func() bool { return len(r.rows()) == 5 })
 
 	staging := pgConn("Staging (read-only)")
