@@ -368,9 +368,11 @@ func tabNaturalWidth(bc widgets.BuildContext, it TabItem) float64 {
 // tabLabelSlack is the width a workspace tab has over its measured label.
 const tabLabelSlack = 1.0
 
-// tabLabelWidth is how wide a text is in the font of the tabs.
+// tabLabelWidth is how wide a text is in the font of the tabs, in the style its Text draws it with: the tab's style merged
+// into the default text style it inherits, as widgets.Text does.
 func tabLabelWidth(bc widgets.BuildContext, text string, size float64) float64 {
-	return math.Ceil(MeasureText(bc, text, tabTextStyle(bc, size, ui.Color{}, false, false)))
+	style := widgets.DefaultTextStyleOf(bc).Style().Merge(tabTextStyle(bc, size, ui.Color{}, false, false))
+	return math.Ceil(MeasureText(bc, text, style))
 }
 
 // MeasureText is how wide a line of text is in a style, as the text engine of the window lays it out; a
