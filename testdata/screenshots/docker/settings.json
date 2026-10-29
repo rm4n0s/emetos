@@ -1,0 +1,5 @@
+{
+	"workbench.colorTheme": "Dark Modern",
+	"editor.minimap.enabled": false,
+	"containers.host": "unix://@SOCKET@"
+}

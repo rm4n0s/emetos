@@ -1,0 +1,6 @@
+{
+	"workbench.colorTheme": "Dark Modern",
+	"editor.minimap.enabled": false,
+	"editor.quickSuggestions": {"other": "off", "comments": "off", "strings": "off"},
+	"editor.suggestOnTriggerCharacters": false
+}

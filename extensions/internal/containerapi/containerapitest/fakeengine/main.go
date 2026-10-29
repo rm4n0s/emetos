@@ -116,10 +116,10 @@ func scenario(f *containerapitest.Fake, project string) (map[string]string, erro
 		text   string
 	}{
 		{containerapi.StreamStdout, "/docker-entrypoint.sh: Configuration complete; ready for start up"},
-		{containerapi.StreamStdout, `172.18.0.1 - - [29/Oct/2026:11:58:02 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/8.9.1"`},
-		{containerapi.StreamStdout, `172.18.0.1 - - [29/Oct/2026:11:58:07 +0000] "GET /app.css HTTP/1.1" 200 4103 "-" "Mozilla/5.0"`},
+		{containerapi.StreamStdout, `203.0.113.7 - - [29/Oct/2026:11:58:02 +0000] "GET / HTTP/1.1" 200 615 "-" "curl/8.9.1"`},
+		{containerapi.StreamStdout, `203.0.113.7 - - [29/Oct/2026:11:58:07 +0000] "GET /app.css HTTP/1.1" 200 4103 "-" "Mozilla/5.0"`},
 		{containerapi.StreamStderr, "2026/10/29 11:58:09 [error] 29#29: *3 open() \"/usr/share/nginx/html/favicon.ico\" failed (2: No such file or directory)"},
-		{containerapi.StreamStdout, `172.18.0.1 - - [29/Oct/2026:11:58:09 +0000] "GET /favicon.ico HTTP/1.1" 404 555 "-" "Mozilla/5.0"`},
+		{containerapi.StreamStdout, `203.0.113.7 - - [29/Oct/2026:11:58:09 +0000] "GET /favicon.ico HTTP/1.1" 404 555 "-" "Mozilla/5.0"`},
 	} {
 		f.Log(web.ID, l.stream, l.text)
 	}

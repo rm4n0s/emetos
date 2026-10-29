@@ -1,0 +1,7 @@
+HSET user:42:profile name Ada mail ada@example.com role admin plan team
+SET greeting "hello world"
+RPUSH queue:jobs build test deploy
+SADD user:42:tags go redis ui
+SET user:7:name Bob
+ZADD scores 7.5 carol 9.25 alice
+SET config:app '{"debug":true}' EX 3600
