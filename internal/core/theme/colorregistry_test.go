@@ -395,6 +395,11 @@ func TestDefaultInputKitColors(t *testing.T) {
 		{"problemsErrorIcon.foreground", "#f14c4c", "#e51400", "#f48771", "#b5200d"},
 		{"problemsWarningIcon.foreground", "#cca700", "#bf8803", "#ffd370", "#895503"},
 		{"problemsInfoIcon.foreground", "#59a4f9", "#0063d3", "#59a4f9", "#0063d3"},
+		// the state icons of the container views (step 18.2), VS Code's debugColors.ts
+		{"debugIcon.startForeground", "#89d185", "#388a34", "#89d185", "#388a34"},
+		{"debugIcon.pauseForeground", "#75beff", "#007acc", "#75beff", "#007acc"},
+		{"debugIcon.stopForeground", "#f48771", "#a1260d", "#f48771", "#a1260d"},
+		{"debugIcon.restartForeground", "#89d185", "#388a34", "#89d185", "#388a34"},
 	}
 	registry := DefaultColorRegistry()
 	for _, tc := range cases {

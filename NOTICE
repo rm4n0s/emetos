@@ -197,6 +197,8 @@ Linked Go module:
     License: MIT (Copyright (c) Microsoft Corporation)
     Added by step 18.1 for the Docker and Podman extensions (SPEC §10.20): their design, texts,
     templates and command ids may be ported from it, and each ported file says so in a "Ported from
-    vscode-containers: <path>" line. Step 18.1 itself ported nothing: the engine client is written
-    against the Docker Engine API and Podman's libpod API. The license is in
+    vscode-containers: <path>" line. Step 18.1 ported nothing: the engine client is written
+    against the Docker Engine API and Podman's libpod API. Step 18.2 ported the command ids and titles,
+    the sections and menus of the view, the labels and state icons of the tree items and the
+    confirmations (extensions/internal/containerui). The license is in
     third_party/vscode-containers/LICENSE.md (copied by scripts/update-assets.sh).

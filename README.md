@@ -160,6 +160,7 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 - **Search**: VS Code's Search view, find and replace in the files of the folder, above.
 - **Terminal**: shells in the panel, below.
 - **Tasks**: a panel tab that runs the command lines you list in `emetos.tasks.commands` in the folder, shows their output and puts their errors in Problems. (It is not VS Code's `tasks.json`.)
+- **Containers** (Docker): a side bar view of your Docker containers (grouped by Compose project), images, networks, volumes and contexts, with Start, Stop, Restart, Pause, Kill, View Logs (in the panel), Inspect, Open in Browser, Run Command, Explore Files, Run, Pull, Tag and Remove. It talks to the engine's socket (`containers.host`, `DOCKER_HOST`, your Docker context). **Access to the Docker socket is power over the computer** (whoever can use it can read and change any file as root), and Emetos asks first, with the count and the size, before it removes or prunes anything. [SPEC §10.20](docs/SPEC.md#1020-containers-docker-and-podman-extensionscontainers-extensionspodman).
 - **References**: VS Code's references view. Find All References and Find All Implementations list the places a language server finds, by file, in a side bar view with a history of the searches.
 - **Markdown preview**: a Preview micro-tab for Markdown files, and Open Preview to the Side.
 - **Go**, **Remote Work** and **Relay**, below.

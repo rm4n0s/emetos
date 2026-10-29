@@ -28,6 +28,16 @@ func TextStyle(bc widgets.BuildContext, size float64, color ui.Color) *painting.
 	return kit.TextStyleOf(bc, size, color)
 }
 
+// TokenLook is how the token theme draws a token: its color and font styles.
+type TokenLook = kit.TokenLook
+
+// TokenLooker returns the function that says how the token theme of the window draws a token with the scopes of a Token
+// (outermost first); the fallback color is used when the theme gives none. It rebuilds the caller when the theme changes. Call
+// it in Build and keep the function for the rows that are built later.
+func TokenLooker(bc widgets.BuildContext) func(scopes []string, fallback ui.Color) TokenLook {
+	return kit.TokenLookerOf(bc)
+}
+
 // Icons.
 
 // CodiconCode returns the code point of the Codicon with a short name ("checklist", "play"); false when there is none.

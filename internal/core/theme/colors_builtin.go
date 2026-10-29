@@ -664,6 +664,15 @@ func registerInputKitColors(r *ColorRegistry) {
 			Description: "The color used for the problems warning icon."},
 		ColorContribution{ID: "problemsInfoIcon.foreground", Defaults: AllThemes(Ref("editorInfo.foreground")),
 			Description: "The color used for the problems info icon."},
+		// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugColors.ts (the state icons of the container views, step 18.2)
+		ColorContribution{ID: "debugIcon.startForeground", Defaults: dflt(Hex("#89D185"), Hex("#388A34"), Hex("#89D185"), Hex("#388A34")),
+			Description: "Debug toolbar icon for start debugging."},
+		ColorContribution{ID: "debugIcon.pauseForeground", Defaults: dflt(Hex("#75BEFF"), Hex("#007ACC"), Hex("#75BEFF"), Hex("#007ACC")),
+			Description: "Debug toolbar icon for pause."},
+		ColorContribution{ID: "debugIcon.stopForeground", Defaults: dflt(Hex("#F48771"), Hex("#A1260D"), Hex("#F48771"), Hex("#A1260D")),
+			Description: "Debug toolbar icon for stop."},
+		ColorContribution{ID: "debugIcon.restartForeground", Defaults: dflt(Hex("#89D185"), Hex("#388A34"), Hex("#89D185"), Hex("#388A34")),
+			Description: "Debug toolbar icon for restart."},
 	)
 }
 

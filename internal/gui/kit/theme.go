@@ -192,6 +192,10 @@ type Colors struct {
 	BadgeBackground, BadgeForeground, ProgressBarBackground ui.Color
 	// The colors of the icon of a dialog by type (error, warning, information).
 	ProblemsErrorIconForeground, ProblemsWarningIconForeground, ProblemsInfoIconForeground ui.Color
+	// DebugIconStartForeground, DebugIconPauseForeground, DebugIconStopForeground and DebugIconRestartForeground are the colors of
+	// the state icons of a running, paused, stopped and restarting container (VS Code's debug toolbar icons, which Container Tools
+	// uses).
+	DebugIconStartForeground, DebugIconPauseForeground, DebugIconStopForeground, DebugIconRestartForeground ui.Color
 	// TextLinkForeground is the color of a link in text, and ErrorForeground that of an error message.
 	TextLinkForeground, ErrorForeground ui.Color
 	// The colors of rendered text (the Markdown preview): the active link, a separator, preformatted text (its
@@ -506,7 +510,9 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		BadgeBackground: color("badge.background"), BadgeForeground: color("badge.foreground"), ProgressBarBackground: color("progressBar.background"),
 		ProblemsErrorIconForeground: color("problemsErrorIcon.foreground"), ProblemsWarningIconForeground: color("problemsWarningIcon.foreground"),
 		ProblemsInfoIconForeground: color("problemsInfoIcon.foreground"),
-		TextLinkForeground:         color("textLink.foreground"), ErrorForeground: color("errorForeground"),
+		DebugIconStartForeground:   color("debugIcon.startForeground"), DebugIconPauseForeground: color("debugIcon.pauseForeground"),
+		DebugIconStopForeground: color("debugIcon.stopForeground"), DebugIconRestartForeground: color("debugIcon.restartForeground"),
+		TextLinkForeground: color("textLink.foreground"), ErrorForeground: color("errorForeground"),
 		TextLinkActiveForeground: color("textLink.activeForeground"), TextSeparatorForeground: color("textSeparator.foreground"),
 		TextPreformatForeground: color("textPreformat.foreground"), TextPreformatBackground: color("textPreformat.background"),
 		TextBlockQuoteBackground: color("textBlockQuote.background"), TextBlockQuoteBorder: color("textBlockQuote.border"),

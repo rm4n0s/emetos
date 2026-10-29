@@ -185,6 +185,13 @@ func (f *Fake) removeImageLocked(w http.ResponseWriter, r *http.Request, im *fak
 			}
 		}
 	}
+	// the engines tell what went (step 18.2: the view of an extension follows these events)
+	for _, u := range untagged {
+		f.emitLocked("image", "untag", f.imageIDOf(im), map[string]string{"name": u})
+	}
+	for _, d := range deleted {
+		f.emitLocked("image", "delete", d, map[string]string{"name": d})
+	}
 	if f.kind == containerapi.KindPodman {
 		writeJSON(w, http.StatusOK, map[string]any{"Untagged": untagged, "Deleted": deleted, "Errors": []string{}, "ExitCode": 0})
 		return

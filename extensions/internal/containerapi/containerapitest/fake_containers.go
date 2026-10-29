@@ -61,6 +61,9 @@ func (f *Fake) AddContainer(name, image string, labels map[string]string, state 
 	if state == "running" {
 		c.started = time.Now()
 	}
+	if state == "exited" {
+		c.finished = time.Now() // as if it had just ended: its status is not "Exited ... 15 billion years ago"
+	}
 	return c.id
 }
 
