@@ -210,7 +210,7 @@ func (v *view) build(bc widgets.BuildContext) widgets.Widget {
 	case len(conns) == 0:
 		note("There are no connections.", colors.DescriptionForeground)
 		children = append(children, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(12, 4, 12, 8),
-			ui.NewButton("New Connection...", ui.ButtonOpts{OnPressed: func() { v.e.newConnection("") }})))
+			ui.NewButton("New Connection...", ui.ButtonOpts{OnPressed: func() { v.e.newConnection(Prefill{}) }})))
 	}
 	children = append(children, widgets.NewExpanded(ui.NewTree(v.tree, ui.TreeOpts{
 		Controller: v.ctl, Render: v.render, OnOpen: v.onOpen, OnContextMenu: v.onContextMenu,
@@ -321,7 +321,7 @@ func (v *view) onOpen(node ui.TreeNode) {
 // onContextMenu opens the menu of a row at the place of the click.
 func (v *view) onContextMenu(key string, at gui.Offset) {
 	if key == "" {
-		v.menu.Show(at, []ui.MenuItem{{Label: "New Connection...", OnRun: func() { v.e.newConnection("") }}})
+		v.menu.Show(at, []ui.MenuItem{{Label: "New Connection...", OnRun: func() { v.e.newConnection(Prefill{}) }}})
 		return
 	}
 	node, ok := v.tree.Node(key)

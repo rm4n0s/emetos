@@ -54,8 +54,10 @@ type Extension struct {
 func (*Extension) Manifest() extension.Manifest {
 	return extension.Manifest{
 		ID: ID, Name: "Databases", Version: "0.1.0",
-		Description:      "The connections to databases, and the view of them in the side bar, shared by the SQL, MongoDB and Redis extensions.",
-		ActivationEvents: []string{extension.OnView(ViewID)},
+		Description: "The connections to databases, and the view of them in the side bar, shared by the SQL, MongoDB and Redis extensions.",
+		// onStartup: the form is also opened by a request of the database extensions (Connect to Database, TopicOpenForm), which no view
+		// or command of this extension starts. Activating reads nothing: the connection file is read when a view is first shown.
+		ActivationEvents: []string{extension.OnStartup},
 		Contributes: extension.Contributes{
 			Commands: []extension.CommandSpec{
 				{ID: NewConnection, Title: "New Connection...", Category: "Databases"},
@@ -89,7 +91,7 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	handlers := map[string]extension.CommandHandler{
-		NewConnection: func(_ context.Context, args any) error { e.newConnection(engineArg(args)); return nil },
+		NewConnection: func(_ context.Context, args any) error { e.newConnection(PrefillOfArgs(args)); return nil },
 		EditConnection: func(_ context.Context, args any) error {
 			e.withConnection(args, "Edit which connection?", e.editConnection)
 			return nil
@@ -114,6 +116,9 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 			return err
 		}
 	}
+	if err := api.Events().Handle(TopicOpenForm, e.handleOpenForm); err != nil {
+		return err
+	}
 	stop := e.hub.Subscribe(func() { api.Post(e.view.rebuild) })
 	stopReload := e.hub.SubscribeReload(func(id string) { api.Post(func() { e.view.reloadConnection(id) }) })
 	go func() {
@@ -126,19 +131,6 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 
 // folder is the folder of the workspace, or empty.
 func (e *Extension) folder() string { return e.api.Scope().Folder }
-
-// engineArg reads the engine a command was given: a string, or {"engine": "postgres"} (the command of another extension that
-// opens the form prefilled uses the second form).
-func engineArg(args any) string {
-	switch a := args.(type) {
-	case string:
-		return a
-	case map[string]any:
-		s, _ := a["engine"].(string)
-		return s
-	}
-	return ""
-}
 
 // connectionArg reads the ID of a connection a command was given: a string, or {"id": "..."}.
 func connectionArg(args any) string {
@@ -202,25 +194,27 @@ func describe(c Connection) string {
 	return c.Host
 }
 
-// newConnection opens the form of a new connection of the engine; with no engine it asks which.
-func (e *Extension) newConnection(engineID string) {
+// newConnection opens the form of a new connection of the engine the prefill names, starting from what it knows; with no engine it
+// asks which.
+func (e *Extension) newConnection(p Prefill) {
 	engines := e.hub.Engines()
-	if engineID != "" {
-		for _, eng := range engines {
-			if eng.ID == engineID {
-				e.openForm(formOpen{Draft: NewFormModel(eng, e.folder()).Draft()})
-				return
-			}
+	if p.Engine != "" {
+		if err := e.openPrefilled(p); err != nil {
+			e.api.Notifications().Warn("No extension is active for the engine " + p.Engine + ".")
 		}
-		e.api.Notifications().Warn("No extension is active for the engine " + engineID + ".")
 		return
+	}
+	open := func(eng Engine) {
+		m := NewFormModel(eng, e.folder())
+		p.Apply(m)
+		e.openForm(formOpen{Draft: m.Draft()})
 	}
 	switch len(engines) {
 	case 0:
 		e.api.Notifications().Info("No database extension is installed yet: there is no engine to connect to.")
 		return
 	case 1:
-		e.openForm(formOpen{Draft: NewFormModel(engines[0], e.folder()).Draft()})
+		open(engines[0])
 		return
 	}
 	items := make([]extension.QuickPickItem, len(engines))
@@ -229,7 +223,7 @@ func (e *Extension) newConnection(engineID string) {
 	}
 	err := e.api.QuickPick().Show(extension.QuickPickOptions{Placeholder: "Which kind of database?", Items: items}, func(i int) {
 		if i >= 0 && i < len(engines) {
-			e.openForm(formOpen{Draft: NewFormModel(engines[i], e.folder()).Draft()})
+			open(engines[i])
 		}
 	})
 	if err != nil {

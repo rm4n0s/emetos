@@ -188,7 +188,11 @@ func TestCommandsExecuteRefusesEveryClass(t *testing.T) {
 		extension.RefusedSettings:  {"workbench.action.openSettingsJson", "workbench.action.toggleAutoSave", "workbench.action.selectTheme", "emetos.extensions.manageEventSharing"},
 		extension.RefusedRemote:    {"emetos.relay.listen", "emetos.remotework.manage"},
 		extension.RefusedTerminal:  {"workbench.action.terminal.new", "workbench.action.terminal.sendSequence", "workbench.action.createTerminalEditor"},
-		extension.RefusedOutside:   {"emetos.databases.newConnection", "emetos.databases.connect", "emetos.sql.newQuery"},
+		extension.RefusedOutside: {
+			"emetos.databases.newConnection", "emetos.databases.connect", "emetos.sql.newQuery",
+			// the commands of the container and database extensions that reach outside the workspace (step 22.1)
+			"containers.containers.connectDatabase", "podman.pods.remove", "mongodb.run", "emetos.redis.run", "emetos.redis.openKey",
+		},
 	}
 	if len(examples) != len(command.RefusedClasses()) {
 		t.Fatalf("%d classes have an example, the policy has %d", len(examples), len(command.RefusedClasses()))
@@ -276,6 +280,10 @@ func mustParse(t *testing.T, when string) contextkey.Expr {
 func TestCommandsListMarksTheRefusedOnes(t *testing.T) {
 	c := newCoreHarness(t, nil)
 	c.register("test.hello", func(command.Context, any) error { return nil })
+	outside := []string{"containers.containers.connectDatabase", "podman.containers.connectDatabase", "emetos.sql.run", "mongodb.run", "emetos.redis.run", "emetos.databases.newConnection"}
+	for _, id := range outside {
+		c.register(id, func(command.Context, any) error { return nil })
+	}
 	for _, from := range []string{privileged, plain} { // no privilege is needed to list
 		ev, err := c.ask(from, extension.TopicCommandsList, nil)
 		if err != nil {
@@ -299,6 +307,11 @@ func TestCommandsListMarksTheRefusedOnes(t *testing.T) {
 			info := byID[id]
 			if !info.Refused || info.RefusedClass != class || info.Reason == "" {
 				t.Errorf("%s: %+v", id, info)
+			}
+		}
+		for _, id := range outside {
+			if info := byID[id]; !info.Refused || info.RefusedClass != extension.RefusedOutside || info.Reason == "" || !info.Enabled {
+				t.Errorf("%s is listed as %+v: a command that reaches outside the workspace is marked class outside", id, info)
 			}
 		}
 		if h := byID["test.hello"]; h.Refused || !h.Enabled || h.Title != "test.hello" || h.RefusedClass != "" {

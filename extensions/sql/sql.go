@@ -112,6 +112,7 @@ func (e *Extension) Manifest() extension.Manifest {
 			Description: "Ask before running DROP, TRUNCATE, ALTER, and a DELETE or UPDATE without WHERE."},
 	}
 	m.Contributes.ContextKeys = nil
+	m.Events.Subscribes = append(m.Events.Subscribes, dbconn.ContainerTopics()...)
 	return m
 }
 
@@ -151,6 +152,10 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 	e.hub.mu.Lock()
 	e.hub.tabs[api.Scope()] = q
 	e.hub.mu.Unlock()
+	// Connect to Database on a container of PostgreSQL, MySQL, MariaDB or SQL Server (SPEC §10.24)
+	if err := dbconn.HandleContainerDatabase(ctx, api, "postgres", "mysql", "sqlserver"); err != nil {
+		return err
+	}
 	unregister := e.hub.db.RegisterDriver(e.hub.drv)
 	stop := e.hub.svc.Subscribe(func(id string, open bool) {
 		topic := TopicDisconnected

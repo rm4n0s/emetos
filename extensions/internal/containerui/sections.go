@@ -233,6 +233,9 @@ func (s *containersSection) menu(v *sectionView, keys []string) []ui.MenuItem {
 			items = append(items, ui.MenuItem{Label: "Open Shell", OnRun: func() { e.openShell(c) }},
 				ui.MenuItem{Label: "Run Command...", OnRun: func() { e.runCommandIn(c.ID) }},
 				ui.MenuItem{Label: "Explore Files", OnRun: func() { e.exploreFiles(c.ID) }})
+			if IsDatabaseImage(c.Image) {
+				items = append(items, ui.MenuItem{Label: "Connect to Database", OnRun: func() { e.connectDatabase(c) }})
+			}
 		}
 		items = append(items, ui.MenuItem{Label: "Copy ID", OnRun: func() { e.copyIDs(ids) }}, ui.SeparatorItem())
 	} else {

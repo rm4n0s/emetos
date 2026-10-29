@@ -86,13 +86,16 @@ func (*Extension) Manifest() extension.Manifest {
 		ID: ID, Name: "Redis", Version: "0.2.0",
 		Description: "Browse the keys of Redis, Valkey and compatible servers, edit their values, run commands, watch Pub/Sub and MONITOR, and read the server information.",
 		ActivationEvents: []string{
+			// onStartup: Connect to Database on a container of Redis or Valkey (SPEC §10.24) is an event that no view or command of this
+			// extension starts, and an extension that is not active would miss it.
+			extension.OnStartup,
 			extension.OnView(dbconn.ViewID), extension.OnCommand(dbconn.NewConnection),
 			extension.OnEditor(KeyKindID), extension.OnEditor(NewKeyKindID), extension.OnEditor(InfoKindID),
 			extension.OnLanguage(RedisLanguageID),
 		},
 		Events: extension.EventDecl{
 			Publishes:  []extension.EventSpec{{Topic: TopicConnected}, {Topic: TopicDisconnected}, {Topic: TopicCommandFinished}},
-			Subscribes: []string{extension.TopicEditorActiveChanged},
+			Subscribes: append([]string{extension.TopicEditorActiveChanged}, dbconn.ContainerTopics()...),
 		},
 		Contributes: extension.Contributes{
 			Languages: langs,
@@ -162,6 +165,10 @@ func (x *Extension) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	if err := x.activateTabs(); err != nil {
+		return err
+	}
+	// Connect to Database on a container of Redis or Valkey (SPEC §10.24)
+	if err := dbconn.HandleContainerDatabase(ctx, api, EngineID); err != nil {
 		return err
 	}
 	unregister := x.hub.RegisterDriver(x.drv)

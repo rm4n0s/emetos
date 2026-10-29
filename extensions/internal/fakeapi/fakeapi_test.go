@@ -502,3 +502,16 @@ func TestTheFakeEditorsDragsIconsViewStatesAndFailedOpens(t *testing.T) {
 		t.Errorf("restored %q, state %s", restored, a.View("fk.view").State())
 	}
 }
+
+func TestTheFakeEmitsAnEventAsAnotherExtension(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Name: "me", ID: "fk:t1"})
+	var publishers []string
+	if _, err := a.Events().Subscribe("other.ping", func(e extension.Event) { publishers = append(publishers, e.Publisher) }); err != nil {
+		t.Fatal(err)
+	}
+	a.EmitAs("emetos.containers", "other.ping", 1)
+	a.Emit("other.ping", 2)
+	if !slices.Equal(publishers, []string{"emetos.containers", extension.CorePublisher}) {
+		t.Errorf("publishers = %q", publishers)
+	}
+}

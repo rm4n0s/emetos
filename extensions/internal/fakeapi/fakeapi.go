@@ -736,6 +736,11 @@ func (e events) HandleAsync(topic string, fn extension.AsyncEventHandler) error 
 // its own, which stands for the UI thread).
 func (a *API) Emit(topic string, value any) { a.emit(extension.CorePublisher, a.info, topic, value) }
 
+// EmitAs delivers an event to the subscribers whose pattern matches, at once, as if the extension with the id publisher had published
+// it in this scope (Emit says the core did). It is how a test plays the other extension that publishes the events this one listens
+// to, and checks that the subscriber reads Event.Publisher.
+func (a *API) EmitAs(publisher, topic string, value any) { a.emit(publisher, a.info, topic, value) }
+
 // EmitFrom delivers an event as if the scope published it: to the subscribers of the topic that listen to other window tabs
 // (extension.FromOtherScopes), the way a link that the user allowed does.
 func (a *API) EmitFrom(from extension.ScopeInfo, topic string, value any) {

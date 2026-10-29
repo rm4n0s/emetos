@@ -51,8 +51,20 @@ func TestClientRefusal(t *testing.T) {
 		{"containers.containers.remove", extension.RefusedOutside},
 		{"podman.pods.remove", extension.RefusedOutside},
 		{"podman.kube.play", extension.RefusedOutside},
-		// MongoDB (step 20.1)
+		// MongoDB (step 20.1), Redis (steps 21.1, 21.2), and Connect to Database (step 22.1) of the container extensions
 		{"mongodb.newPlayground", extension.RefusedOutside},
+		{"mongodb.run", extension.RefusedOutside},
+		{"emetos.redis.run", extension.RefusedOutside},
+		{"emetos.redis.openKey", extension.RefusedOutside},
+		{"emetos.sql.run", extension.RefusedOutside},
+		{"sql.run", extension.RefusedOutside},
+		{"redis.run", extension.RefusedOutside},
+		{"emetos.mongodb.run", extension.RefusedOutside},
+		{"containers.containers.connectDatabase", extension.RefusedOutside},
+		{"podman.containers.connectDatabase", extension.RefusedOutside},
+		{"emetos.containers.connectDatabase", extension.RefusedOutside},
+		{"emetos.podman.connectDatabase", extension.RefusedOutside},
+		{"emetos.databases.openForm", extension.RefusedOutside},
 		{"workbench.action.terminal.new", extension.RefusedTerminal},
 		{"workbench.action.terminal.sendSequence", extension.RefusedTerminal},
 		// allowed: the workspace settings, editing, saving, extensions' commands
@@ -62,6 +74,8 @@ func TestClientRefusal(t *testing.T) {
 		{"editor.action.formatDocument", ""},
 		{"emetos.tasks.run", ""},
 		{"emetos.relayfoo", ""}, // a prefix needs its dot
+		{"redisfoo.run", ""},
+		{"containersfoo.run", ""},
 		{"", ""},
 	}
 	for _, tt := range tests {
@@ -86,7 +100,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 		have[m.ID] = true
 	}
 	// the extensions' commands are not in the registry of Emetos
-	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting.", "workbench.action.terminal.", "emetos.databases.", "emetos.sql.", "mongodb.", "containers.", "podman."}
+	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting.", "workbench.action.terminal.", "emetos.databases.", "emetos.sql.", "sql.", "emetos.mongodb.", "mongodb.", "emetos.redis.", "redis.", "containers.", "emetos.containers.", "podman.", "emetos.podman."}
 	extensionIDs := []string{"workbench.action.createTerminalEditor"} // the terminal extension's
 	for _, id := range RefusedExactIDs() {
 		if !have[id] && !slices.Contains(extensionIDs, id) {

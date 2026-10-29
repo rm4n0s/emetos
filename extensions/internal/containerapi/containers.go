@@ -173,6 +173,21 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (*ContainerIns
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return nil, errors.NewErr("ContainerAPIDecodeFailed", err).SetMetadata("method", "GET", "path", "/containers/"+id+"/json")
 	}
+	return inspectOf(&w, raw), nil
+}
+
+// ParseInspect reads the JSON an engine answers to the inspect of a container (Docker's or Podman's) into a ContainerInspect with the
+// JSON in Raw. It fails with ContainerAPIInspectInvalid.
+func ParseInspect(raw []byte) (*ContainerInspect, error) {
+	var w wireInspect
+	if err := json.Unmarshal(raw, &w); err != nil {
+		return nil, errors.NewErr("ContainerAPIInspectInvalid", err)
+	}
+	return inspectOf(&w, raw), nil
+}
+
+// inspectOf makes the ContainerInspect of a decoded answer.
+func inspectOf(w *wireInspect, raw json.RawMessage) *ContainerInspect {
 	out := &ContainerInspect{
 		ID: w.ID, Name: trimSlash(w.Name), Image: w.Image, ImageName: w.ImageName, Created: w.Created.Time, Pod: w.Pod,
 		State: ContainerState{
@@ -197,7 +212,7 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (*ContainerIns
 	for _, m := range w.Mounts {
 		out.Mounts = append(out.Mounts, Mount{Type: m.Type, Name: m.Name, Source: m.Source, Destination: m.Destination, RW: m.RW})
 	}
-	return out, nil
+	return out
 }
 
 // CreateContainer makes a container from spec, without starting it. The image has to be there; create does not pull it.

@@ -81,6 +81,10 @@ func commandTable(cfg Config) []cmdDef {
 		{name: "containers.exploreFiles", title: "Explore Files", needsEngine: true, handler: withArgs(func(e *ext, a any) {
 			e.withContainers(a, "explore the files of", containerapi.Container.Running, func(cs []containerapi.Container) { e.exploreFiles(cs[0].ID) })
 		})},
+		{name: "containers.connectDatabase", title: "Connect to Database", needsEngine: true, handler: withArgs(func(e *ext, a any) {
+			e.withContainers(a, "connect to the database of", func(c containerapi.Container) bool { return c.Running() && IsDatabaseImage(c.Image) },
+				func(cs []containerapi.Container) { e.connectDatabase(cs[0]) })
+		})},
 		{name: "containers.prune", title: "Prune...", needsEngine: true, handler: simple((*ext).askPruneContainers)},
 		{name: "containers.filter", title: "Filter...", needsEngine: true, handler: simple(func(e *ext) { e.askFilter(resContainers) })},
 		{name: "containers.clearFilter", title: "Clear Filter", needsEngine: true, handler: simple(func(e *ext) { e.setFilter(resContainers, "") })},

@@ -178,6 +178,7 @@ func (*Extension) Manifest() extension.Manifest {
 		ID: ID, Name: "MongoDB", Version: "0.1.0",
 		Description:      "Connect to MongoDB, browse its databases, collections, indexes and schema, and write playgrounds.",
 		ActivationEvents: []string{extension.OnStartup},
+		Events:           extension.EventDecl{Subscribes: dbconn.ContainerTopics()},
 		Contributes: extension.Contributes{
 			Commands:  commands(),
 			Languages: langs,
@@ -250,6 +251,10 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 	e.mgr.mu.Lock()
 	e.mgr.tabs[api.Scope()] = pg
 	e.mgr.mu.Unlock()
+	// Connect to Database on a container of MongoDB (SPEC §10.24)
+	if err := dbconn.HandleContainerDatabase(ctx, api, EngineID); err != nil {
+		return err
+	}
 	e.drv = &driver{e: e}
 	unregister := e.hub.RegisterDriver(e.drv)
 	go func() {
