@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/fakeapi"
 )
 
 func newHub(t *testing.T, drivers ...Driver) (*Hub, *MemoryKeyring) {
@@ -292,6 +295,85 @@ func TestARemovedDriverClosesItsConnections(t *testing.T) {
 	stop() // twice is once
 	if h.State(c.ID) != (State{}) || len(d.closes) != 1 || len(h.Engines()) != 0 {
 		t.Errorf("state %+v, closes %v, engines %v", h.State(c.ID), d.closes, h.Engines())
+	}
+}
+
+// apiDriver is a fakeDriver whose entries need the API of the window tab.
+type apiDriver struct {
+	*fakeDriver
+	seen []extension.API
+}
+
+// ActionsIn implements APIDriver: the entry is named after the tab it was made for.
+func (d *apiDriver) ActionsIn(api extension.API, c Connection, _ *Node) []Action {
+	d.seen = append(d.seen, api)
+	return []Action{{Title: "in " + api.Scope().Name + " for " + c.Name}}
+}
+
+func TestAnAPIDriverIsGivenTheAPIOfTheTabTheMenuWasOpenedIn(t *testing.T) {
+	d := &apiDriver{fakeDriver: pgDriver()}
+	d.actions = func(Connection, *Node) []Action { return []Action{{Title: "without an API"}} }
+	h, _ := newHub(t, d)
+	c, _, err := h.Save(t.Context(), pgConn("a"), PasswordChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	api := fakeapi.New(t, extension.Manifest{ID: "emetos.x", Name: "X", Version: "1"}, extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "tab two"})
+	if acts := h.ActionsIn(api, c.ID, nil); len(acts) != 1 || acts[0].Title != "in tab two for a" {
+		t.Errorf("ActionsIn = %+v", acts)
+	}
+	if acts := h.Actions(c.ID, nil); len(acts) != 1 || acts[0].Title != "without an API" {
+		t.Errorf("Actions = %+v", acts)
+	}
+	// a driver that is not an APIDriver answers as Actions does
+	plain := pgDriver()
+	plain.actions = func(Connection, *Node) []Action { return []Action{{Title: "plain"}} }
+	h2, _ := newHub(t, plain)
+	c2, _, err := h2.Save(t.Context(), pgConn("b"), PasswordChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acts := h2.ActionsIn(api, c2.ID, nil); len(acts) != 1 || acts[0].Title != "plain" {
+		t.Errorf("ActionsIn of a plain driver = %+v", acts)
+	}
+	if h.ActionsIn(api, "gone", nil) != nil {
+		t.Error("actions of a connection that is not there")
+	}
+	orphan := pgConn("o")
+	orphan.Engine = "mysql"
+	o, err := h.Store().Save(orphan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.ActionsIn(api, o.ID, nil) != nil {
+		t.Error("actions of an engine nobody serves")
+	}
+}
+
+func TestADriverRegisteredByTwoTabsKeepsItsConnectionsUntilTheLastTabGoes(t *testing.T) {
+	d := pgDriver()
+	h, _ := newHub(t)
+	stopFirst := h.RegisterDriver(d)
+	stopSecond := h.RegisterDriver(d)
+	ctx := context.Background()
+	c, _, err := h.Save(ctx, pgConn("a"), PasswordChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := h.Prepare(ctx, c.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Connect(ctx, p, false); err != nil {
+		t.Fatal(err)
+	}
+	stopFirst()
+	if h.State(c.ID).Status != Connected || len(d.closes) != 0 || len(h.Engines()) != 1 {
+		t.Errorf("after the first tab: state %+v, closes %v, engines %d", h.State(c.ID), d.closes, len(h.Engines()))
+	}
+	stopSecond()
+	if h.State(c.ID) != (State{}) || len(d.closes) != 1 || len(h.Engines()) != 0 {
+		t.Errorf("after the second tab: state %+v, closes %v, engines %d", h.State(c.ID), d.closes, len(h.Engines()))
 	}
 }
 

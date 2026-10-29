@@ -453,6 +453,25 @@ type DocumentShower interface {
 	Show(uri string, line, column int, preview bool) error
 }
 
+// DocumentOpener is the optional part of a DocumentSource that opens an untitled document with a text.
+type DocumentOpener interface {
+	// OpenUntitled opens a new untitled document in the active editor group with the text, in the language, and returns its URI.
+	OpenUntitled(languageID, text string) (string, error)
+}
+
+// OpenUntitled implements extension.Documents. The window's error is returned as it is.
+func (d documentsAPI) OpenUntitled(languageID, text string) (string, error) {
+	in := d.inst
+	if in.isDead() {
+		return "", errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	opener, ok := in.scope.opts.Documents.(DocumentOpener)
+	if !ok {
+		return "", errors.New("ExtensionDocumentUnavailable", "the scope cannot open documents", "extension", in.id)
+	}
+	return opener.OpenUntitled(languageID, text)
+}
+
 // Apply implements extension.Documents: the edit is applied with langfeatures.Apply over the edit host of the window, as the
 // edit of a rename is. An error of the host is returned as it is.
 func (d documentsAPI) Apply(ctx context.Context, edit extension.WorkspaceEdit) error {

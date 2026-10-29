@@ -202,3 +202,18 @@ Linked Go module:
     the sections and menus of the view, the labels and state icons of the tree items and the
     confirmations (extensions/internal/containerui). The license is in
     third_party/vscode-containers/LICENSE.md (copied by scripts/update-assets.sh).
+
+Linked Go modules:
+
+19. The SQL database drivers (PostgreSQL, MySQL and MariaDB, SQLite, SQL Server)
+    Source:  github.com/jackc/pgx/v5 (MIT), github.com/go-sql-driver/mysql (MPL-2.0), modernc.org/sqlite
+             (BSD-3-Clause; it carries SQLite, which is in the public domain), github.com/microsoft/go-mssqldb
+             (BSD-3-Clause), linked into the program (versions in go.mod)
+    License: as listed. The Mozilla Public License 2.0 of go-sql-driver/mysql applies to its own files, which are
+             linked unchanged: their source is the module's (`go list -m -f '{{.Dir}}' github.com/go-sql-driver/mysql`).
+    Added by step 19.2 (extensions/sql). What they bring in: github.com/jackc/pgpassfile, pgservicefile and
+    puddle/v2 (MIT), modernc.org/libc, memory and mathutil (BSD-3-Clause), github.com/golang-sql/civil
+    (Apache-2.0) and sqlexp (BSD-3-Clause), github.com/google/uuid and github.com/remyoudompheng/bigfft
+    (BSD-3-Clause), github.com/shopspring/decimal, github.com/dustin/go-humanize, github.com/ncruces/go-strftime
+    and github.com/mattn/go-isatty (MIT), and filippo.io/edwards25519 (BSD-3-Clause). The license text of each is
+    in its module.

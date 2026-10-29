@@ -3,6 +3,7 @@ package fakeapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -37,6 +38,8 @@ type API struct {
 	status            map[string]*StatusItem
 	notes             []Note
 	shown             []Shown
+	untitled          []Untitled
+	failUntitled      error
 	views             map[string]*View
 	openedURIs        []string
 	openedTabs        []string
@@ -561,6 +564,42 @@ func (d documents) Active() (extension.ActiveDocument, bool) {
 func (a *API) SetActive(doc *extension.ActiveDocument) {
 	a.mu.Lock()
 	a.active = doc
+	a.mu.Unlock()
+}
+
+// OpenUntitled implements extension.Documents: the document is added to the open ones with the text, as untitled:N, and recorded
+// (Untitled).
+func (d documents) OpenUntitled(languageID, text string) (string, error) {
+	d.a.mu.Lock()
+	defer d.a.mu.Unlock()
+	if d.a.failUntitled != nil {
+		return "", d.a.failUntitled
+	}
+	uri := fmt.Sprintf("untitled:Untitled-%d", len(d.a.untitled)+1)
+	d.a.untitled = append(d.a.untitled, Untitled{URI: uri, LanguageID: languageID, Text: text})
+	if d.a.docs == nil {
+		d.a.docs = map[string]string{}
+	}
+	d.a.docs[uri] = text
+	return uri, nil
+}
+
+// Untitled is a call of Documents().OpenUntitled.
+type Untitled struct {
+	URI, LanguageID, Text string
+}
+
+// UntitledDocuments are the calls of Documents().OpenUntitled, in order.
+func (a *API) UntitledDocuments() []Untitled {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]Untitled(nil), a.untitled...)
+}
+
+// FailUntitled makes Documents().OpenUntitled fail with err; nil makes it work again.
+func (a *API) FailUntitled(err error) {
+	a.mu.Lock()
+	a.failUntitled = err
 	a.mu.Unlock()
 }
 

@@ -386,6 +386,32 @@ func TestADocumentIsShownThroughTheWindow(t *testing.T) {
 	}
 }
 
+// openingDocs is a window that can open untitled documents.
+type openingDocs struct {
+	docSource
+	opened []string
+}
+
+func (d *openingDocs) OpenUntitled(languageID, text string) (string, error) {
+	d.opened = append(d.opened, languageID+": "+text)
+	return "untitled:Untitled-" + string(rune('0'+len(d.opened))), nil
+}
+
+func TestAnUntitledDocumentIsOpenedThroughTheWindow(t *testing.T) {
+	_, tb, api := grabAPI(t, "ext", nil)
+	_, err := api.Documents().OpenUntitled("sql", "SELECT 1;")
+	mustRoute(t, err, "documentsAPI.OpenUntitled.ExtensionDocumentUnavailable")
+	docs := &openingDocs{}
+	tb.scope.opts.Documents = docs
+	uri, err := api.Documents().OpenUntitled("sql", "SELECT 1;")
+	if err != nil || uri != "untitled:Untitled-1" || !slices.Equal(docs.opened, []string{"sql: SELECT 1;"}) {
+		t.Errorf("uri = %q, err = %v, opened = %v", uri, err, docs.opened)
+	}
+	tb.scope.Close()
+	_, err = api.Documents().OpenUntitled("sql", "x")
+	mustRoute(t, err, "documentsAPI.OpenUntitled.ExtensionDeactivated")
+}
+
 func TestViewsAndOutputAreUnavailableWithoutTheirServices(t *testing.T) {
 	var api extension.API
 	f, _ := factory(manifest("ext"), func(f *fake) {

@@ -46,6 +46,7 @@ func TestClientRefusal(t *testing.T) {
 		{"emetos.databases.newConnection", extension.RefusedOutside},
 		{"emetos.databases.connect", extension.RefusedOutside},
 		{"emetos.databases.deleteConnection", extension.RefusedOutside},
+		{"emetos.sql.newQuery", extension.RefusedOutside},
 		{"workbench.action.terminal.new", extension.RefusedTerminal},
 		{"workbench.action.terminal.sendSequence", extension.RefusedTerminal},
 		// allowed: the workspace settings, editing, saving, extensions' commands
@@ -79,7 +80,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 		have[m.ID] = true
 	}
 	// the extensions' commands are not in the registry of Emetos
-	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting.", "workbench.action.terminal.", "emetos.databases."}
+	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting.", "workbench.action.terminal.", "emetos.databases.", "emetos.sql."}
 	extensionIDs := []string{"workbench.action.createTerminalEditor"} // the terminal extension's
 	for _, id := range RefusedExactIDs() {
 		if !have[id] && !slices.Contains(extensionIDs, id) {

@@ -188,7 +188,7 @@ func TestCommandsExecuteRefusesEveryClass(t *testing.T) {
 		extension.RefusedSettings:  {"workbench.action.openSettingsJson", "workbench.action.toggleAutoSave", "workbench.action.selectTheme", "emetos.extensions.manageEventSharing"},
 		extension.RefusedRemote:    {"emetos.relay.listen", "emetos.remotework.manage"},
 		extension.RefusedTerminal:  {"workbench.action.terminal.new", "workbench.action.terminal.sendSequence", "workbench.action.createTerminalEditor"},
-		extension.RefusedOutside:   {"emetos.databases.newConnection", "emetos.databases.connect"},
+		extension.RefusedOutside:   {"emetos.databases.newConnection", "emetos.databases.connect", "emetos.sql.newQuery"},
 	}
 	if len(examples) != len(command.RefusedClasses()) {
 		t.Fatalf("%d classes have an example, the policy has %d", len(examples), len(command.RefusedClasses()))

@@ -193,3 +193,30 @@ func TestTheSuggestMatcherScoresAndKeepsItsTables(t *testing.T) {
 		t.Errorf("a match allocates %v times", n)
 	}
 }
+
+func TestATreeCanFilterWhatIsTyped(t *testing.T) {
+	m := ui.NewTreeModel(ui.TreeModelOpts{FindMode: ui.FindModeFilter})
+	err := m.SetItems([]ui.TreeItem{
+		{Key: "a", Label: "alpha", Children: []ui.TreeItem{{Key: "a1", Label: "apple"}, {Key: "a2", Label: "banana"}}},
+		{Key: "b", Label: "beta"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ExpandAll()
+	m.OpenFind()
+	m.SetFindPattern("ban")
+	var got []string
+	for _, row := range m.Rows() {
+		got = append(got, row.Label)
+	}
+	if want := []string{"alpha", "banana"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Errorf("rows = %v, want %v", got, want)
+	}
+	if m.Find().Mode != ui.FindModeFilter {
+		t.Errorf("mode = %v", m.Find().Mode)
+	}
+	if ui.FindMode(0) == ui.FindModeFilter {
+		t.Error("the default mode filters")
+	}
+}

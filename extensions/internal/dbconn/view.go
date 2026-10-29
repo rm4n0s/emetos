@@ -49,7 +49,7 @@ type view struct {
 func newView(e *Extension) *view {
 	v := &view{e: e, ctl: ui.NewTreeController(), menu: ui.NewContextMenuController(),
 		children: map[string][]Node{}, loading: map[string]context.CancelFunc{}}
-	v.tree = ui.NewTreeModel(ui.TreeModelOpts{LoadChildren: v.load})
+	v.tree = ui.NewTreeModel(ui.TreeModelOpts{LoadChildren: v.load, FindMode: ui.FindModeFilter})
 	return v
 }
 
@@ -335,7 +335,7 @@ func (v *view) onContextMenu(key string, at gui.Offset) {
 
 // driverItems are the entries of the menu that the extension of the engine adds, with a separator between its groups.
 func (v *view) driverItems(connID string, n *Node) []ui.MenuItem {
-	actions := v.e.hub.Actions(connID, n)
+	actions := v.e.hub.ActionsIn(v.e.api, connID, n)
 	var items []ui.MenuItem
 	lastGroup := ""
 	for i, a := range actions {

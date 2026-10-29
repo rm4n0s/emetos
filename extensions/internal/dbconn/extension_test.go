@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extension/ui"
 )
 
 func TestTheManifestIsValid(t *testing.T) {
@@ -419,6 +420,35 @@ func TestTheStoreErrorIsShown(t *testing.T) {
 	if !hasText(ts, "cannot be used") {
 		t.Error("the view does not say that the file is unusable")
 	}
+}
+
+func TestTheFilterShowsTheMatchingNodesAndTheOnesAboveThem(t *testing.T) {
+	r := newRig(t, pgDriver())
+	r.env["PW"] = "x"
+	conn := pgConn("prod")
+	conn.PasswordEnv = "${env:PW}"
+	prod := r.save(conn, PasswordChange{})
+	r.run(Connect, prod.ID)
+	r.api.WaitFor("the connection", func() bool { return r.hub.State(prod.ID).Status == Connected })
+	r.ext.view.tree.Expand(connKey(prod.ID))
+	r.api.WaitFor("the databases", func() bool { return len(r.rows()) == 3 })
+	r.ext.view.tree.Expand(childKey(connKey(prod.ID), "db:app"))
+	r.api.WaitFor("the tables", func() bool { return len(r.rows()) == 5 })
+
+	tree := r.ext.view.tree
+	tree.OpenFind()
+	tree.SetFindPattern("ord")
+	if got, want := r.rows(), []string{"0:prod", "1:app", "2:orders"}; !slices.Equal(got, want) {
+		t.Errorf("filtered rows = %v, want %v", got, want)
+	}
+	if st := tree.Find(); st.Mode != ui.FindModeFilter {
+		t.Errorf("the find does not filter: %+v", st)
+	}
+	tree.SetFindPattern("")
+	if len(r.rows()) != 5 {
+		t.Errorf("rows after the filter = %v", r.rows())
+	}
+	tree.CloseFind()
 }
 
 var _ = context.Background

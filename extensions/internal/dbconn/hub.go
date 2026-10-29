@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/extension"
 )
 
 // Status is the state of a connection in the view.
@@ -145,7 +147,8 @@ func (h *Hub) changed() {
 
 // RegisterDriver adds the driver of a database extension; its engines show in the new-connection list, and its connections can be
 // connected. It returns the function that removes the driver (the extension was deactivated), which closes the connections that
-// were open through it. Two drivers may not serve one engine: the first one registered keeps it.
+// were open through it, except those of an engine that another registration still serves (the window tabs of Emetos each register
+// the one driver of an extension). Two drivers may not serve one engine: the first one registered keeps it.
 func (h *Hub) RegisterDriver(d Driver) (unregister func()) {
 	h.mu.Lock()
 	token := h.nextDrv
@@ -158,6 +161,13 @@ func (h *Hub) RegisterDriver(d Driver) (unregister func()) {
 		once.Do(func() {
 			engines := d.Engines()
 			h.mu.Lock()
+			// an engine another registration still serves keeps its connections: the window tabs of Emetos each register the one
+			// driver of an extension, and closing one tab must not close what the others use
+			engines = slices.DeleteFunc(slices.Clone(engines), func(e Engine) bool {
+				return slices.ContainsFunc(h.drivers, func(o driverEntry) bool {
+					return o.token != token && slices.ContainsFunc(o.driver.Engines(), func(oe Engine) bool { return oe.ID == e.ID })
+				})
+			})
 			var open []string
 			for id, st := range h.states {
 				if st.Status == Connected {
@@ -426,6 +436,23 @@ func (h *Hub) Actions(id string, n *Node) []Action {
 	_, drv, ok := h.Engine(c.Engine)
 	if !ok {
 		return nil
+	}
+	return drv.Actions(c, n)
+}
+
+// ActionsIn is Actions for the window tab of api: a driver that is an APIDriver is given the API, so that its entries open editors
+// in that tab; any other driver answers as Actions does.
+func (h *Hub) ActionsIn(api extension.API, id string, n *Node) []Action {
+	c, ok := h.Store().Get(id)
+	if !ok {
+		return nil
+	}
+	_, drv, ok := h.Engine(c.Engine)
+	if !ok {
+		return nil
+	}
+	if ad, ok := drv.(APIDriver); ok {
+		return ad.ActionsIn(api, c, n)
 	}
 	return drv.Actions(c, n)
 }

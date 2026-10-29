@@ -318,6 +318,13 @@ type Documents interface {
 	// preview, preview false keeps the editor. It fails with ExtensionDocumentUnavailable when the scope cannot show
 	// documents and returns the window's error for a file that cannot be opened. Call it on the UI thread.
 	Show(uri string, line, column int, preview bool) error
+	// OpenUntitled opens a new untitled document in the active editor group, kept (not a preview), in the language with the text
+	// (the language of files.defaultLanguage when languageID is empty, plain text when the language does not exist), and returns
+	// its URI. The text is the first state of the document: its undo history is empty, so that undoing never takes it away, and,
+	// as with every untitled document that has a text, closing it asks to save. It fails with ExtensionDocumentUnavailable when
+	// the scope cannot open documents, with ExtensionDeactivated after the activation ended, and returns the window's error when
+	// the window tab is not on screen. Call it on the UI thread.
+	OpenUntitled(languageID, text string) (uri string, err error)
 	// Apply applies the edit to the documents and files of the scope, the way the rename of the editor applies its edit: the
 	// changes are made in order, the edits of one document in a run of changes are one step of its undo history, a document
 	// that is not open is opened in the scope (it stays open, with its changes unsaved), the cursors of the editors keep their

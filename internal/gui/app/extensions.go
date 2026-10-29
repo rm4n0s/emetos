@@ -423,6 +423,26 @@ func (d extensionDocuments) Show(uri string, line, column int, preview bool) err
 	return nil
 }
 
+// OpenUntitled implements exthost.DocumentOpener: an untitled document with the text, in the language, opens in the active group as
+// New File does. The text is its first state (Document.SetText): there is nothing to undo into.
+func (d extensionDocuments) OpenUntitled(languageID, text string) (string, error) {
+	s := d.w.shell
+	if s == nil || !s.Mounted() {
+		return "", errors.New("ExtDocumentShowUnavailable", "the window tab is not on screen")
+	}
+	active := ""
+	if e := s.activeEditor(); e != nil {
+		active = e.doc.LanguageID()
+	}
+	doc := d.w.NewUntitled(languageID, active)
+	if text != "" {
+		doc.SetText(text)
+	}
+	d.w.Documents.Retain(doc)
+	s.show(widgets.WidgetsBindingOf(s.Context()), doc, openOptions{})
+	return doc.URI().String(), nil
+}
+
 // setExtensionEnabled turns an extension on or off by writing extensions.disabled in the settings.json of the user. Every
 // workspace follows the file, so the extension goes (or comes) in all the tabs of the profile.
 func (w *Workspace) setExtensionEnabled(id string, enable bool) error {

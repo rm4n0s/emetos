@@ -51,7 +51,8 @@ import (
 // share one hub made here too, with the Source of the real cameras), then the Sharing status item (extensions/hosting, step 17e.4),
 // which reads how the two hubs host the workspace, and the extension "Databases" (extensions/internal/dbconn, step 19.1), the
 // connections and their view that the SQL, MongoDB and Redis extensions of M19 to M21 share: they register their engines in the one
-// hub made here, which reads nothing (not even the connection file) until a view of it is shown.
+// hub made here, which reads nothing (not even the connection file) until a view of it is shown. The SQL extension (extensions/sql, step
+// 19.2) is a language pack in the list of the packs and the driver of its engines in that hub: its instances share one sql.Hub made here.
 //
 // The Containers view of Docker (extensions/containers, step 18.2) follows the Search view: it adds a view container to the side bar, a
 // tab to the panel (the logs) and two kinds of editor tab, and starts nothing until a view of it is shown.
@@ -61,9 +62,10 @@ func All() []extension.Factory {
 	rw := remotework.NewHub(remotework.HubOptions{Camera: keyqr.NewV4L2()})
 	ps := relay.NewHub(relay.HubOptions{Camera: keyqr.NewV4L2()})
 	db := dbconn.NewHub(dbconn.HubOptions{})
+	sqlHub := sql.NewHub(db)
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
-		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
+		html.New, css.New, scss.New, less.New, xml.New, sql.FactoryOf(sqlHub), shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New,
 		search.New, containers.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw), relay.FactoryOf(ps),

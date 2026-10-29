@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/extension"
 )
 
 // FieldKind is the kind of a field of the connection form.
@@ -236,4 +238,13 @@ type Driver interface {
 	Children(ctx context.Context, c Connection, parent *Node) ([]Node, error)
 	// Actions are the entries of the context menu of a node (nil for the connection itself).
 	Actions(c Connection, n *Node) []Action
+}
+
+// APIDriver is a Driver that serves every window tab of Emetos with one object, so that the entries it adds to a context menu need
+// the API of the window tab the menu was opened in (to open an editor there). The view calls ActionsIn instead of Actions for such
+// a driver.
+type APIDriver interface {
+	Driver
+	// ActionsIn is Actions for the window tab of api. It runs on the UI thread.
+	ActionsIn(api extension.API, c Connection, n *Node) []Action
 }

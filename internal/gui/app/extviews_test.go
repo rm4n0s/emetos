@@ -22,6 +22,7 @@ import (
 	extui "github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
@@ -638,5 +639,58 @@ func TestShowingADocumentFailsWhenItCannotBeShown(t *testing.T) {
 				t.Errorf("got %v, want the route %s", err, tt.route)
 			}
 		})
+	}
+}
+
+func TestAnExtensionOpensAnUntitledDocumentWithATextOfItsOwn(t *testing.T) {
+	a := newVxApp(t, "")
+	docs := extensionDocuments{w: a.win}
+	tests := []struct {
+		name, language, text, wantLanguage string
+	}{
+		{"a statement", "sql", "SELECT 1;\n", "sql"},
+		{"no text", "sql", "", "sql"},
+		{"a language that does not exist", "no-such-language", "x\n", "plaintext"},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uri, err := docs.OpenUntitled(tt.language, tt.text)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var e *textEditor
+			for range 40 { // the editor is made on the next frame
+				a.pump()
+				if e = a.shell().activeEditor(); e != nil && e.doc.URI().String() == uri {
+					break
+				}
+			}
+			if e == nil || e.doc.URI().String() != uri {
+				t.Fatalf("the active editor is not the new document %s", uri)
+			}
+			if e.doc.Text() != tt.text || e.doc.LanguageID() != tt.wantLanguage || e.doc.URI().Scheme != document.SchemeUntitled {
+				t.Errorf("document = %q in %q (%s), want %q in %q", e.doc.Text(), e.doc.LanguageID(), e.doc.URI(), tt.text, tt.wantLanguage)
+			}
+			// the text is the first state of the document: an untitled document with a text counts as changed, as in VS Code, and
+			// there is nothing to undo into
+			if e.doc.Dirty() != (tt.text != "") || e.doc.CanUndo() {
+				t.Errorf("dirty = %v, can undo = %v", e.doc.Dirty(), e.doc.CanUndo())
+			}
+			if got, err := docs.Read(context.Background(), uri); err != nil || got != tt.text {
+				t.Errorf("Read = %q, %v", got, err)
+			}
+			if got := len(docs.Open()); got < i+1 {
+				t.Errorf("open documents = %d", got)
+			}
+		})
+	}
+}
+
+func TestAnUntitledDocumentCannotBeOpenedInAWindowTabThatIsNotOnScreen(t *testing.T) {
+	docs := extensionDocuments{w: newTestWorkspace(t, "")}
+	_, err := docs.OpenUntitled("sql", "SELECT 1;")
+	appErr, ok := errors.FromError(err)
+	if !ok || !appErr.HasRoute("extensionDocuments.OpenUntitled.ExtDocumentShowUnavailable") {
+		t.Errorf("got %v", err)
 	}
 }

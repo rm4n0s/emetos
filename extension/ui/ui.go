@@ -262,6 +262,13 @@ func NewTree(model *TreeModel, opts ...TreeOpts) *Tree { return kit.NewTree(mode
 // NewTreeModel makes the model of a tree.
 func NewTreeModel(opts ...TreeModelOpts) *TreeModel { return kit.NewTreeModel(opts...) }
 
+// FindMode is what a pattern typed into a tree does to its rows (TreeModelOpts.FindMode): the rows that match are highlighted, which
+// is the default, or the rows that do not match are hidden.
+type FindMode = kit.FindMode
+
+// FindModeFilter hides the rows that do not match the pattern, keeping the nodes above a match (the Explorer's "Filter" mode).
+const FindModeFilter = kit.FindModeFilter
+
 // TreeAction is a key command of a tree, and TreeResult what it did.
 type (
 	TreeAction = kit.TreeAction

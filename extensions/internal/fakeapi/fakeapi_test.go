@@ -196,6 +196,18 @@ func TestTheFakeDoesWhatTheHostDoes(t *testing.T) {
 	if s := a.ShownDocuments(); len(s) != 1 || s[0].Column != 2 {
 		t.Errorf("shown = %+v", s)
 	}
+	uri, err := a.Documents().OpenUntitled("sql", "SELECT 1;")
+	if u := a.UntitledDocuments(); err != nil || len(u) != 1 || u[0].URI != uri || u[0].LanguageID != "sql" || u[0].Text != "SELECT 1;" {
+		t.Errorf("untitled = %+v, %v", u, err)
+	}
+	if text, err := a.Documents().Read(context.Background(), uri); err != nil || text != "SELECT 1;" {
+		t.Errorf("an untitled document is read back: %q, %v", text, err)
+	}
+	a.FailUntitled(errors.New("FakeOpen", "no window"))
+	if _, err := a.Documents().OpenUntitled("sql", "x"); err == nil || len(a.UntitledDocuments()) != 1 {
+		t.Errorf("a failing window: %v", err)
+	}
+	a.FailUntitled(nil)
 	if _, err := a.Documents().Read(context.Background(), "file://"+filepath.Join(folder, "sub", "a.txt")); err != nil {
 		t.Error(err)
 	}
