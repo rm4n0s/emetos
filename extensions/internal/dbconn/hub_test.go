@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -374,6 +375,39 @@ func TestADriverRegisteredByTwoTabsKeepsItsConnectionsUntilTheLastTabGoes(t *tes
 	stopSecond()
 	if h.State(c.ID) != (State{}) || len(d.closes) != 1 || len(h.Engines()) != 0 {
 		t.Errorf("after the second tab: state %+v, closes %v, engines %d", h.State(c.ID), d.closes, len(h.Engines()))
+	}
+}
+
+// TestTwoTabsThatCloseAtOnceCloseTheConnections closes the two registrations of a driver at the same time, many times: the
+// old unregister looked at the other registrations and removed its own in two locked sections, so two tabs that closed at
+// once could each see the other still there, and neither closed the connection.
+func TestTwoTabsThatCloseAtOnceCloseTheConnections(t *testing.T) {
+	ctx := context.Background()
+	for i := range 300 {
+		d := pgDriver()
+		h, _ := newHub(t)
+		stops := []func(){h.RegisterDriver(d), h.RegisterDriver(d)}
+		c, _, err := h.Save(ctx, pgConn("a"), PasswordChange{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := h.Prepare(ctx, c.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Connect(ctx, p, false); err != nil {
+			t.Fatal(err)
+		}
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for _, stop := range stops {
+			wg.Go(func() { <-start; stop() })
+		}
+		close(start)
+		wg.Wait()
+		if h.State(c.ID) != (State{}) || len(d.closes) != 1 || len(h.Engines()) != 0 {
+			t.Fatalf("run %d, after both tabs: state %+v, closes %v, engines %d", i, h.State(c.ID), d.closes, len(h.Engines()))
+		}
 	}
 }
 

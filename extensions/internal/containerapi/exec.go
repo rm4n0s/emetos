@@ -103,6 +103,10 @@ func (c *Client) Exec(ctx context.Context, id string, opts ExecOptions) (ExecRes
 			ExitCode int  `json:"ExitCode"`
 		}
 		if err := c.call(ctx, request{method: http.MethodGet, path: "/exec/" + url.PathEscape(created.ID) + "/json"}, &st); err != nil {
+			if ctx.Err() != nil {
+				// the wait was cancelled while it asked the engine, which is a cancelled wait, not a failed request
+				return ExecResult{}, errors.NewErr("ContainerAPIExecCancelled", ctx.Err()).SetMetadata("id", id)
+			}
 			return ExecResult{}, err
 		}
 		if !st.Running {

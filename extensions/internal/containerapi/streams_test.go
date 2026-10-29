@@ -562,18 +562,21 @@ func TestExecLimitsAndWaits(t *testing.T) {
 		f, c := engine(t, containerapi.KindDocker)
 		res, _ := c.CreateContainer(bg, containerapi.ContainerSpec{Name: "x", Image: containerapitest.ImageBusyBox})
 		_ = c.StartContainer(bg, res.ID)
+		// The wait is cancelled once it has begun (the first look at the exec), not after a fixed time: a timer could
+		// fire while the exec is still being created on a loaded machine, and that is a failed request, not a wait.
+		ctx, cancel := context.WithCancel(bg)
+		defer cancel()
 		f.Override(http.MethodGet, "/json", func(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(r.URL.Path, "/exec/") {
 				_, _ = w.Write([]byte(`{"Running":true}`))
+				cancel()
 				return
 			}
 			http.NotFound(w, r)
 		})
-		ctx, cancel := context.WithTimeout(bg, 150*time.Millisecond)
-		defer cancel()
 		_, err := c.Exec(ctx, res.ID, containerapi.ExecOptions{Cmd: []string{"sleep"}, Wait: time.Minute})
 		wantRoute(t, err, "Client.Exec.ContainerAPIExecCancelled")
-		if !errors.Is(err, context.DeadlineExceeded) {
+		if !errors.Is(err, context.Canceled) {
 			t.Errorf("the context error is lost: %v", err)
 		}
 	})

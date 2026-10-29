@@ -159,11 +159,13 @@ func (h *Hub) RegisterDriver(d Driver) (unregister func()) {
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			engines := d.Engines()
 			h.mu.Lock()
+			// the registration goes first, in the same locked section that looks at the others: two tabs that close at once
+			// would otherwise each see the other still there, and neither would close the connections
+			h.drivers = slices.DeleteFunc(h.drivers, func(e driverEntry) bool { return e.token == token })
 			// an engine another registration still serves keeps its connections: the window tabs of Emetos each register the one
 			// driver of an extension, and closing one tab must not close what the others use
-			engines = slices.DeleteFunc(slices.Clone(engines), func(e Engine) bool {
+			engines := slices.DeleteFunc(slices.Clone(d.Engines()), func(e Engine) bool {
 				return slices.ContainsFunc(h.drivers, func(o driverEntry) bool {
 					return o.token != token && slices.ContainsFunc(o.driver.Engines(), func(oe Engine) bool { return oe.ID == e.ID })
 				})
@@ -185,9 +187,6 @@ func (h *Hub) RegisterDriver(d Driver) (unregister func()) {
 				}
 				h.setState(id, State{})
 			}
-			h.mu.Lock()
-			h.drivers = slices.DeleteFunc(h.drivers, func(e driverEntry) bool { return e.token == token })
-			h.mu.Unlock()
 			h.changed()
 		})
 	}
