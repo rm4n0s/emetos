@@ -59,6 +59,10 @@ func TestDesktopDiffEditor(t *testing.T) {
 func TestDesktopMergeEditor(t *testing.T) {
 	a := display.Start(t, display.Options{Args: []string{".", "conflict.txt"}, Project: diffProject})
 	a.Settle()
+	// The offer is a notification with the button. Its toast hides after 10 s, which a slow start of the editor may
+	// use up, so the button is taken from the list of notifications, which keeps it.
+	a.Dev("notifications.showList", nil)
+	a.WaitText("Resolve in Merge Editor")
 	a.ClickText("Resolve in Merge Editor")
 	a.WaitText("Accept Incoming")
 	shot(t, a, "merge-editor")
