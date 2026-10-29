@@ -23,6 +23,17 @@ type fakeServer struct {
 	fail map[string]error
 	// batch, when above zero, limits how many keys one SCAN call returns, whatever COUNT says.
 	batch int
+
+	// The console (step 21.2); see fake_console_test.go.
+	resp3         bool
+	noCommandInfo bool
+	subs          []*fakeSub
+	mons          []*fakeMon
+	slow          []Reply
+	// refuse makes Do answer an error reply (this text) to the command with this name.
+	refuse map[string]string
+	// now is the clock of the messages; time.Now when nil.
+	now func() time.Time
 }
 
 type fakeKey struct {

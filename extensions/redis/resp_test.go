@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +35,12 @@ type respServer struct {
 	failing map[string]bool
 	// zscore writes a score for ZSCAN; FormatScore when nil.
 	zscore func(float64) string
+	// resp3 makes the server answer HELLO 3 and speak RESP3 on the connections that asked for it.
+	resp3 bool
+
+	// the connections in Pub/Sub or Monitor mode
+	subs []*respConn
+	mons []*respConn
 }
 
 func newRESPServer(t testing.TB, store *fakeServer, password string) *respServer {
@@ -81,7 +88,8 @@ func (s *respServer) accept() {
 
 func (s *respServer) serve(c net.Conn) {
 	r := bufio.NewReader(c)
-	conn := &respConn{db: 0, authed: s.password == ""}
+	conn := &respConn{db: 0, authed: s.password == "", conn: c}
+	defer s.forget(conn)
 	for {
 		args, err := readCommand(r)
 		if err != nil {
@@ -90,16 +98,173 @@ func (s *respServer) serve(c net.Conn) {
 		s.mu.Lock()
 		s.cmds = append(s.cmds, strings.Join(args, " "))
 		s.mu.Unlock()
+		if s.special(conn, r, args) {
+			continue
+		}
+		if len(args) > 0 && strings.EqualFold(args[0], "TEST.DROP") {
+			return // the connection breaks
+		}
 		reply := s.handle(conn, args)
-		if _, err := io.WriteString(c, reply); err != nil {
+		if err := conn.write(reply); err != nil {
 			return
 		}
+		if conn.dead {
+			return
+		}
+		s.broadcastMonitor(conn, args)
 	}
 }
 
 type respConn struct {
 	db     int
 	authed bool
+	conn   net.Conn
+	resp3  bool
+	dead   bool
+
+	wmu sync.Mutex
+	// channels and patterns this connection listens to; mon says it is in MONITOR mode
+	channels, patterns map[string]bool
+	mon                bool
+}
+
+// write sends a reply; the writes of the goroutines that publish and of the loop of the connection do not interleave.
+func (c *respConn) write(reply string) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	_, err := io.WriteString(c.conn, reply)
+	return err
+}
+
+// forget takes a connection out of the Pub/Sub and Monitor lists.
+func (s *respServer) forget(c *respConn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, o := range s.subs {
+		if o == c {
+			s.subs = append(s.subs[:i], s.subs[i+1:]...)
+			break
+		}
+	}
+	for i, o := range s.mons {
+		if o == c {
+			s.mons = append(s.mons[:i], s.mons[i+1:]...)
+			break
+		}
+	}
+}
+
+// special handles the commands that need the connection itself: BLPOP (it waits until the client goes away), SUBSCRIBE and the like, and
+// MONITOR. It reports whether it answered.
+func (s *respServer) special(c *respConn, r *bufio.Reader, args []string) bool {
+	name := strings.ToUpper(args[0])
+	if !c.authed && name != "AUTH" && name != "HELLO" {
+		return false
+	}
+	switch name {
+	case "BLPOP":
+		_, _ = r.Peek(1) // returns when the client closes the connection: nothing else is sent
+		return true
+	case "SUBSCRIBE", "PSUBSCRIBE":
+		s.mu.Lock()
+		if c.channels == nil {
+			c.channels, c.patterns = map[string]bool{}, map[string]bool{}
+			s.subs = append(s.subs, c)
+		}
+		s.mu.Unlock()
+		for _, n := range args[1:] {
+			s.mu.Lock()
+			if name == "SUBSCRIBE" {
+				c.channels[n] = true
+			} else {
+				c.patterns[n] = true
+			}
+			count := len(c.channels) + len(c.patterns)
+			s.mu.Unlock()
+			if err := c.write(rArray(rBulk(strings.ToLower(name)), rBulk(n), rInt(int64(count)))); err != nil {
+				return true
+			}
+		}
+		return true
+	case "UNSUBSCRIBE", "PUNSUBSCRIBE":
+		s.mu.Lock()
+		for _, n := range args[1:] {
+			if name == "UNSUBSCRIBE" {
+				delete(c.channels, n)
+			} else {
+				delete(c.patterns, n)
+			}
+		}
+		count := len(c.channels) + len(c.patterns)
+		s.mu.Unlock()
+		for _, n := range args[1:] {
+			if err := c.write(rArray(rBulk(strings.ToLower(name)), rBulk(n), rInt(int64(count)))); err != nil {
+				return true
+			}
+		}
+		return true
+	case "MONITOR":
+		s.mu.Lock()
+		s.mons = append(s.mons, c)
+		c.mon = true
+		s.mu.Unlock()
+		_ = c.write(rStatus("OK")) // a failed write ends the loop at the next read
+		return true
+	case "PUBLISH":
+		if len(args) == 3 {
+			n := s.publish(args[1], args[2])
+			_ = c.write(rInt(int64(n)))
+			s.broadcastMonitor(c, args)
+			return true
+		}
+	}
+	return false
+}
+
+// publish delivers a message to the connections that listen to the channel or a pattern that matches, and returns how many received.
+func (s *respServer) publish(channel, payload string) int {
+	s.mu.Lock()
+	subs := append([]*respConn(nil), s.subs...)
+	s.mu.Unlock()
+	n := 0
+	for _, c := range subs {
+		s.mu.Lock()
+		hit := c.channels[channel]
+		var pats []string
+		for p := range c.patterns {
+			if globMatch(p, channel) {
+				pats = append(pats, p)
+			}
+		}
+		s.mu.Unlock()
+		if hit {
+			n++
+			_ = c.write(rArray(rBulk("message"), rBulk(channel), rBulk(payload))) // a client that went away is dropped by its loop
+		}
+		for _, p := range pats {
+			n++
+			_ = c.write(rArray(rBulk("pmessage"), rBulk(p), rBulk(channel), rBulk(payload)))
+		}
+	}
+	return n
+}
+
+// broadcastMonitor writes a command to the connections in MONITOR mode, as the server does for the commands of the other clients.
+func (s *respServer) broadcastMonitor(from *respConn, args []string) {
+	s.mu.Lock()
+	mons := append([]*respConn(nil), s.mons...)
+	s.mu.Unlock()
+	if len(mons) == 0 || from.mon || strings.EqualFold(args[0], "AUTH") || strings.EqualFold(args[0], "HELLO") {
+		return
+	}
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = strconv.Quote(a)
+	}
+	line := fmt.Sprintf("%.6f [%d %s] %s", 1700000000.25, from.db, from.conn.RemoteAddr(), strings.Join(quoted, " "))
+	for _, c := range mons {
+		_ = c.write(rStatus(line)) // a client that went away is dropped by its loop
+	}
 }
 
 func readCommand(r *bufio.Reader) ([]string, error) {
@@ -152,6 +317,19 @@ func (s *respServer) handle(c *respConn, args []string) string {
 	name := strings.ToUpper(args[0])
 	switch name {
 	case "HELLO":
+		if s.resp3 && len(args) > 1 && args[1] == "3" {
+			if s.password != "" {
+				if i := slices.Index(args, "AUTH"); i < 0 || args[len(args)-1] != s.password {
+					return rErr("WRONGPASS invalid username-password pair or user is disabled.")
+				}
+				c.authed = true
+			}
+			c.resp3 = true
+			return "%2\r\n" + rBulk("server") + rBulk("redis") + rBulk("proto") + rInt(3)
+		}
+		if s.resp3 && len(args) == 1 {
+			return "%2\r\n" + rBulk("server") + rBulk("redis") + rBulk("proto") + rInt(3)
+		}
 		return rErr("ERR unknown command 'HELLO'")
 	case "AUTH":
 		pass := args[len(args)-1]
@@ -423,7 +601,82 @@ func (s *respServer) handle(c *respConn, args []string) string {
 		}
 		return rInt(n)
 	}
-	return rErr("ERR unknown command '" + args[0] + "'")
+	return s.handleDo(c, fdb, args)
+}
+
+// handleDo answers the commands of the console with the reply the fake gives, written as RESP2 or RESP3.
+func (s *respServer) handleDo(c *respConn, fdb *fakeDB, args []string) string {
+	if strings.EqualFold(args[0], "TEST.TYPES") {
+		return testTypesReply(c.resp3)
+	}
+	rep, err := fdb.Do(context.Background(), args)
+	if err != nil {
+		return rErr("ERR " + err.Error())
+	}
+	return encodeReply(rep, c.resp3)
+}
+
+// encodeReply writes a reply on the wire. In RESP2 the types RESP3 added are written as the server writes them to a RESP2 client.
+func encodeReply(r Reply, resp3 bool) string {
+	switch r.Kind {
+	case ReplyNil:
+		if resp3 {
+			return "_\r\n"
+		}
+		return "$-1\r\n"
+	case ReplyStatus:
+		return rStatus(r.Str)
+	case ReplyError:
+		return rErr(r.Str)
+	case ReplyInt:
+		return rInt(r.Int)
+	case ReplyString:
+		return rBulk(r.Str)
+	case ReplyDouble:
+		if resp3 {
+			return "," + strconv.FormatFloat(r.Float, 'g', -1, 64) + "\r\n"
+		}
+		return rBulk(strconv.FormatFloat(r.Float, 'g', -1, 64))
+	case ReplyBool:
+		if resp3 {
+			return map[bool]string{true: "#t\r\n", false: "#f\r\n"}[r.Bool]
+		}
+		return rInt(map[bool]int64{true: 1, false: 0}[r.Bool])
+	case ReplyBigNumber:
+		if resp3 {
+			return "(" + r.Str + "\r\n"
+		}
+		return rBulk(r.Str)
+	case ReplyArray, ReplySet:
+		parts := make([]string, len(r.Items))
+		for i, it := range r.Items {
+			parts[i] = encodeReply(it, resp3)
+		}
+		if r.Kind == ReplySet && resp3 {
+			return "~" + strconv.Itoa(len(parts)) + "\r\n" + strings.Join(parts, "")
+		}
+		return rArray(parts...)
+	case ReplyMap:
+		var parts []string
+		for _, p := range r.Pairs {
+			parts = append(parts, encodeReply(p.Key, resp3), encodeReply(p.Value, resp3))
+		}
+		if resp3 {
+			return "%" + strconv.Itoa(len(r.Pairs)) + "\r\n" + strings.Join(parts, "")
+		}
+		return rArray(parts...)
+	}
+	return rErr("ERR the test server cannot write this reply")
+}
+
+// testTypesReply is an array with one value of each type RESP3 has (what RESP2 has, in RESP2).
+func testTypesReply(resp3 bool) string {
+	if !resp3 {
+		return rArray("$-1\r\n", rInt(7), rBulk("text"), rBulk("1.5"), rInt(1), rBulk("123456789012345678901234567890"), rArray(rBulk("k"), rBulk("v")), rArray(rBulk("m")),
+			rErr("WRONGTYPE inside"))
+	}
+	return "*10\r\n_\r\n" + rInt(7) + rBulk("text") + ",1.5\r\n#t\r\n(123456789012345678901234567890\r\n" + "%1\r\n" + rBulk("k") + rBulk("v") +
+		"~1\r\n" + rBulk("m") + "=15\r\ntxt:hello world\r\n" + rErr("WRONGTYPE inside")
 }
 
 // failCommand makes a command fail from now on.

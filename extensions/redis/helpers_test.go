@@ -41,3 +41,8 @@ func asTagged(err error) (*errors.Error, bool) { return errors.FromError(err) }
 
 // extension_CheckManifest checks a manifest the way the host does.
 func extension_CheckManifest(m extension.Manifest) error { return extension.CheckManifest(m) }
+
+// errBoom is a plain error that is not tagged.
+type errBoom struct{}
+
+func (errBoom) Error() string { return "boom" }

@@ -2,8 +2,11 @@ package redis
 
 import (
 	"context"
+	"embed"
+	"io/fs"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -27,6 +30,9 @@ const (
 // opTimeout bounds one operation of the key editor and of the explorer's actions.
 const opTimeout = 30 * time.Second
 
+//go:embed all:assets
+var assets embed.FS
+
 // Factory makes the Factory of the extension over the hub that the database extensions share (extensions.All makes one hub and gives
 // it to each).
 func Factory(h *dbconn.Hub) extension.Factory {
@@ -45,27 +51,96 @@ type Extension struct {
 	// keyTabs and newKeyTabs are the tabs this instance made, which are on the UI thread only; the tests look at them.
 	keyTabs    []*keyTab
 	newKeyTabs []*newKeyTab
+
+	// The console, Pub/Sub, Monitor and the server information (step 21.2). They belong to the UI thread; cmds is guarded for the
+	// goroutine of the completion provider.
+	consoles map[string]*console
+	pubsubs  map[string]*pubsubTab
+	monitors map[string]*monitorTab
+	infoTabs []*infoTab
+	// target is the connection the tabs of the panel show; fileConn the connection chosen for each .redis file.
+	target   string
+	fileConn map[string]string
+	// zone is the time zone of the times in the tabs; nil is the desktop's. A test sets it.
+	zone  *time.Location
+	cmds  *commandIndex
+	views struct{ panel extension.ViewHandle }
+	// panelTab is the page of the Redis tab that shows: ConsoleViewID (also when empty), PubSubViewID or MonitorViewID
+	panelTab string
+	status   extension.StatusHandle
+
+	// closers are the connections of Pub/Sub and Monitor that are open, closed when the activation ends.
+	closeMu sync.Mutex
+	closers map[closer]struct{}
 }
 
 // Manifest implements extension.Extension.
 func (*Extension) Manifest() extension.Manifest {
 	minCount, maxCount := 10.0, 10000.0
+	langs, err := fs.Sub(assets, "assets")
+	if err != nil {
+		langs = nil // cannot happen: "assets" is the embedded folder; the pack is then left out
+	}
+	const whenFile = "editorTextFocus && editorLangId == redis"
 	return extension.Manifest{
-		ID: ID, Name: "Redis", Version: "0.1.0",
-		Description: "Browse the keys of Redis, Valkey and compatible servers and edit their values.",
+		ID: ID, Name: "Redis", Version: "0.2.0",
+		Description: "Browse the keys of Redis, Valkey and compatible servers, edit their values, run commands, watch Pub/Sub and MONITOR, and read the server information.",
 		ActivationEvents: []string{
 			extension.OnView(dbconn.ViewID), extension.OnCommand(dbconn.NewConnection),
-			extension.OnEditor(KeyKindID), extension.OnEditor(NewKeyKindID),
+			extension.OnEditor(KeyKindID), extension.OnEditor(NewKeyKindID), extension.OnEditor(InfoKindID),
+			extension.OnLanguage(RedisLanguageID),
+		},
+		Events: extension.EventDecl{
+			Publishes:  []extension.EventSpec{{Topic: TopicConnected}, {Topic: TopicDisconnected}, {Topic: TopicCommandFinished}},
+			Subscribes: []string{extension.TopicEditorActiveChanged},
 		},
 		Contributes: extension.Contributes{
+			Languages: langs,
 			Settings: []extension.SettingSpec{{
 				Key: SettingScanCount, Type: "integer", Default: float64(DefaultScanCount), Minimum: &minCount, Maximum: &maxCount,
 				Description: "The number of keys the Redis explorer asks for in each page (the COUNT of SCAN, and the keys one page shows). The explorer never uses KEYS.",
 				Category:    "Redis",
+			}, {
+				Key: SettingConfirmDangerous, Type: "boolean", Default: true, Category: "Redis",
+				Description: "Ask before the console runs FLUSHDB, FLUSHALL, SHUTDOWN, CONFIG SET, DEBUG, KEYS, SCRIPT FLUSH, CLIENT KILL or DEL of several keys, and before MONITOR starts.",
 			}},
 			EditorKinds: []extension.EditorKindSpec{
 				{ID: KeyKindID, Name: "Redis Key", Icon: "key"},
 				{ID: NewKeyKindID, Name: "New Redis Key", Icon: "add"},
+				{ID: InfoKindID, Name: "Redis Server Information", Icon: "pulse"},
+			},
+			PanelViews: []extension.PanelViewSpec{
+				{ID: PanelViewID, Title: "Redis", Icon: "database", Order: 60},
+			},
+			EditorActions: []extension.EditorActionSpec{
+				{Command: CmdRun, Icon: "play", Tooltip: "Run the Selected Commands", When: "resourceLangId == redis", Order: 1},
+				{Command: CmdRunAll, Icon: "run-all", Tooltip: "Run All Commands", When: "resourceLangId == redis", Order: 2},
+			},
+			Commands: []extension.CommandSpec{
+				{ID: CmdOpenConsole, Title: "Open Console", Category: "Redis", Description: "Shows the Redis Console of a connection."},
+				{ID: CmdClearConsole, Title: "Clear Console", Category: "Redis"},
+				{ID: CmdCancel, Title: "Cancel the Running Command", Category: "Redis"},
+				{ID: CmdRun, Title: "Run the Selected Commands", Category: "Redis", When: "editorLangId == redis", Description: "Runs the selected lines, or the line of the cursor, of a .redis file in the console."},
+				{ID: CmdRunAll, Title: "Run All Commands", Category: "Redis", When: "editorLangId == redis", Description: "Runs every command of a .redis file in the console."},
+				{ID: CmdSelectConn, Title: "Select Connection for This File", Category: "Redis", When: "editorLangId == redis"},
+				{ID: CmdOpenPubSub, Title: "Open Pub/Sub", Category: "Redis"},
+				{ID: CmdSubscribe, Title: "Subscribe to a Channel", Category: "Redis"},
+				{ID: CmdPSubscribe, Title: "Subscribe to a Pattern", Category: "Redis"},
+				{ID: CmdPublish, Title: "Publish a Message", Category: "Redis"},
+				{ID: CmdOpenMonitor, Title: "Open Monitor", Category: "Redis"},
+				{ID: CmdStartMonitor, Title: "Start Monitor", Category: "Redis"},
+				{ID: CmdStopMonitor, Title: "Stop Monitor", Category: "Redis"},
+				{ID: CmdOpenKey, Title: "Open Key...", Category: "Redis", Description: "Opens a key of the open connection in the key editor. With the arguments {connection, db, key} it opens that key."},
+				{ID: CmdServerInfo, Title: "Show Server Information", Category: "Redis", Description: "Opens INFO, the slow log, the clients and the memory of a server."},
+				{ID: CmdCopyLastReply, Title: "Copy the Last Reply of the Console", Category: "Redis"},
+			},
+			Menus: []extension.MenuItem{
+				{Menu: extension.MenuEditorContext, Command: CmdRun, Title: "Redis: Run the Selected Commands", Group: "Redis group 1", Order: 1, When: whenFile},
+				{Menu: extension.MenuEditorContext, Command: CmdRunAll, Title: "Redis: Run All Commands", Group: "Redis group 1", Order: 2, When: whenFile},
+			},
+			Keybindings: []extension.Keybinding{
+				{Command: CmdRun, Key: "ctrl+enter", When: whenFile},
+				{Command: CmdRunAll, Key: "ctrl+shift+enter", When: whenFile},
 			},
 		},
 	}
@@ -75,18 +150,57 @@ func (*Extension) Manifest() extension.Manifest {
 func (x *Extension) Activate(ctx context.Context, api extension.API) error {
 	x.api, x.ctx = api, ctx
 	x.drv = newDriver(x, x.dialer)
+	x.consoles, x.pubsubs, x.monitors = map[string]*console{}, map[string]*pubsubTab{}, map[string]*monitorTab{}
+	x.fileConn, x.cmds, x.closers = map[string]string{}, newCommandIndex(), map[closer]struct{}{}
 	if err := api.Editors().Provide(KeyKindID, extension.EditorKind{Create: x.createKeyTab}); err != nil {
 		return err
 	}
 	if err := api.Editors().Provide(NewKeyKindID, extension.EditorKind{Create: x.createNewKeyTab}); err != nil {
 		return err
 	}
+	if err := api.Editors().Provide(InfoKindID, extension.EditorKind{Create: x.createInfoTab}); err != nil {
+		return err
+	}
+	if err := x.activateTabs(); err != nil {
+		return err
+	}
 	unregister := x.hub.RegisterDriver(x.drv)
 	go func() {
 		<-ctx.Done()
 		unregister()
+		x.closeAll()
 	}()
 	return nil
+}
+
+// closer is a Pub/Sub or Monitor connection.
+type closer interface{ Close() }
+
+// closeAll closes the Pub/Sub and Monitor connections that are open. It may be called from any goroutine.
+func (x *Extension) closeAll() {
+	x.closeMu.Lock()
+	cs := make([]closer, 0, len(x.closers))
+	for c := range x.closers {
+		cs = append(cs, c)
+	}
+	x.closers = map[closer]struct{}{}
+	x.closeMu.Unlock()
+	for _, c := range cs {
+		c.Close()
+	}
+}
+
+// track remembers a connection to close it when the activation ends; untrack forgets it.
+func (x *Extension) track(c closer) {
+	x.closeMu.Lock()
+	x.closers[c] = struct{}{}
+	x.closeMu.Unlock()
+}
+
+func (x *Extension) untrack(c closer) {
+	x.closeMu.Lock()
+	delete(x.closers, c)
+	x.closeMu.Unlock()
 }
 
 // Driver is the driver the extension registered, for the tests.

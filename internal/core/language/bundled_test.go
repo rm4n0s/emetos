@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"path"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/language/packfs"
@@ -92,6 +93,7 @@ func TestBundledRegistry(t *testing.T) {
 		{"app.dockerfile", "", "dockerfile"},
 		{"Containerfile", "", "dockerfile"},
 		{"settings.ini", "", "ini"},
+		{"session.redis", "", "redis"},
 		{"app.properties", "", "properties"},
 		{"main.c", "", "c"},
 		{"defs.h", "", "cpp"}, // as in VS Code, .h is C++
@@ -134,7 +136,7 @@ func TestBundledRegistry(t *testing.T) {
 		t.Errorf("a line over the limit is one token: %+v", res.Tokens)
 	}
 	// Every language with a grammar makes a tokenizer.
-	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact", "html", "css", "scss", "less", "xml", "xsl", "sql", "shellscript", "makefile", "dockerfile", "ini", "properties", "c", "cpp", "cuda-cpp", "rust", "diff", "git-commit", "git-rebase", "ignore", "go.mod", "go.work", "go.sum", "mongodb"} {
+	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact", "html", "css", "scss", "less", "xml", "xsl", "sql", "shellscript", "makefile", "dockerfile", "ini", "properties", "c", "cpp", "cuda-cpp", "rust", "diff", "git-commit", "git-rebase", "ignore", "go.mod", "go.work", "go.sum", "mongodb", "redis"} {
 		if _, err := r.NewGrammar(id, nil); err != nil {
 			t.Errorf("NewGrammar(%q): %v", id, err)
 		}
@@ -233,5 +235,48 @@ func walkGrammars(t *testing.T, assets fs.FS, pack string, cache *regex.Cache, f
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestTheRedisGrammarScopesACommandFile tokenizes the lines of a .redis file (step 21.2): the command, the quoted arguments, the
+// options, the numbers and the comments.
+func TestTheRedisGrammarScopesACommandFile(t *testing.T) {
+	r, err := Bundled()
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := r.NewGrammar("redis", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		line string
+		want []string // text|last scope
+	}{
+		{`# a comment`, []string{"#|punctuation.definition.comment.redis", " a comment|comment.line.number-sign.redis"}},
+		{`SET greeting "hello \"you\"" EX 60`, []string{
+			"SET|entity.name.function.command.redis", `"|punctuation.definition.string.begin.redis`, `hello |string.quoted.double.redis`,
+			`\"|constant.character.escape.redis`, `you|string.quoted.double.redis`, `\"|constant.character.escape.redis`,
+			`"|punctuation.definition.string.end.redis`, "EX|constant.language.option.redis", "60|constant.numeric.redis"}},
+		{`  zadd scores 1.5 'a b' NX`, []string{
+			"zadd|entity.name.function.command.redis", "1.5|constant.numeric.redis", "'|punctuation.definition.string.begin.redis",
+			"a b|string.quoted.single.redis", "'|punctuation.definition.string.end.redis", "NX|constant.language.option.redis"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.line, func(t *testing.T) {
+			var got []string
+			res := g.TokenizeLine(tc.line, nil, 0)
+			for _, tok := range res.Tokens {
+				names := tok.Scopes.Names()
+				text := tc.line[tok.Start:tok.End]
+				if names[len(names)-1] == "source.redis" {
+					continue // text the grammar does not scope: the key and white space
+				}
+				got = append(got, text+"|"+names[len(names)-1])
+			}
+			if strings.Join(got, "\n") != strings.Join(tc.want, "\n") {
+				t.Errorf("tokens\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tc.want, "\n"))
+			}
+		})
 	}
 }

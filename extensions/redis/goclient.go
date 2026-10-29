@@ -1,8 +1,13 @@
 package redis
 
 import (
+	"bufio"
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
+	"log/slog"
+	"net"
 	"sort"
 	"strconv"
 	"strings"
@@ -64,35 +69,45 @@ func (s *goServer) DB(index int) (DB, error) {
 	if s.spec.Mode == ModeCluster && index != 0 {
 		return nil, errors.New("RedisClusterDatabaseUnavailable", "a cluster has only database 0", "db", index)
 	}
-	db := &goDB{idx: index}
-	switch s.spec.Mode {
-	case ModeCluster:
-		cc := goredis.NewClusterClient(&goredis.ClusterOptions{
-			Addrs: s.spec.Addrs, Username: s.spec.Username, Password: s.spec.Password, TLSConfig: s.spec.TLS,
-			DialTimeout: dialTimeout(s.spec), ContextTimeoutEnabled: true, PoolSize: 4, DisableIdentity: true,
-			MaintNotificationsConfig: &maintnotifications.Config{Mode: maintnotifications.ModeDisabled},
-		})
-		db.c = cc
-		db.nodes = func(ctx context.Context) ([]nodeScanner, error) { return clusterMasters(ctx, cc) }
-	case ModeSentinel:
-		c := goredis.NewFailoverClient(&goredis.FailoverOptions{
-			MasterName: s.spec.MasterName, SentinelAddrs: s.spec.Addrs, Username: s.spec.Username, Password: s.spec.Password,
-			DB: index, TLSConfig: s.spec.TLS, DialTimeout: dialTimeout(s.spec), ContextTimeoutEnabled: true, PoolSize: 4,
-			DisableIdentity: true,
-		})
-		db.c = c
-		db.nodes = single(c)
-	default:
-		c := goredis.NewClient(&goredis.Options{
-			Addr: s.spec.Addrs[0], Username: s.spec.Username, Password: s.spec.Password, DB: index, TLSConfig: s.spec.TLS,
-			DialTimeout: dialTimeout(s.spec), ContextTimeoutEnabled: true, PoolSize: 4, DisableIdentity: true,
-			MaintNotificationsConfig: &maintnotifications.Config{Mode: maintnotifications.ModeDisabled},
-		})
-		db.c = c
+	db := &goDB{idx: index, spec: s.spec}
+	db.c = newClient(s.spec, index, false)
+	switch c := db.c.(type) {
+	case *goredis.ClusterClient:
+		db.nodes = func(ctx context.Context) ([]nodeScanner, error) { return clusterMasters(ctx, c) }
+	case *goredis.Client:
 		db.nodes = single(c)
 	}
 	s.dbs[index] = db
 	return db, nil
+}
+
+// newClient makes the go-redis client of a database for the mode of the spec: a pool of four connections, or for the console (one
+// command, thrown away after it) a pool of one with no read timeout, so that a blocking command waits for as long as the user lets it
+// and closing the client ends it.
+func newClient(spec Spec, index int, console bool) goredis.UniversalClient {
+	pool, readTimeout := 4, time.Duration(0)
+	if console {
+		pool, readTimeout = 1, -1 // -1: no read timeout (go-redis)
+	}
+	switch spec.Mode {
+	case ModeCluster:
+		return goredis.NewClusterClient(&goredis.ClusterOptions{
+			Addrs: spec.Addrs, Username: spec.Username, Password: spec.Password, TLSConfig: spec.TLS,
+			DialTimeout: dialTimeout(spec), ReadTimeout: readTimeout, WriteTimeout: readTimeout, ContextTimeoutEnabled: true, PoolSize: pool,
+			DisableIdentity: true, MaintNotificationsConfig: &maintnotifications.Config{Mode: maintnotifications.ModeDisabled},
+		})
+	case ModeSentinel:
+		return goredis.NewFailoverClient(&goredis.FailoverOptions{
+			MasterName: spec.MasterName, SentinelAddrs: spec.Addrs, Username: spec.Username, Password: spec.Password,
+			DB: index, TLSConfig: spec.TLS, DialTimeout: dialTimeout(spec), ReadTimeout: readTimeout, WriteTimeout: readTimeout,
+			ContextTimeoutEnabled: true, PoolSize: pool, DisableIdentity: true,
+		})
+	}
+	return goredis.NewClient(&goredis.Options{
+		Addr: spec.Addrs[0], Username: spec.Username, Password: spec.Password, DB: index, TLSConfig: spec.TLS,
+		DialTimeout: dialTimeout(spec), ReadTimeout: readTimeout, WriteTimeout: readTimeout, ContextTimeoutEnabled: true, PoolSize: pool,
+		DisableIdentity: true, MaintNotificationsConfig: &maintnotifications.Config{Mode: maintnotifications.ModeDisabled},
+	})
 }
 
 func dialTimeout(spec Spec) time.Duration {
@@ -239,6 +254,12 @@ func scanNodes(ctx context.Context, nodes []nodeScanner, cur Cursor, match strin
 type goDB struct {
 	idx int
 	c   goredis.UniversalClient
+	// spec is how to reach the server, for the clients of the console's commands.
+	spec Spec
+
+	protoMu sync.Mutex
+	// resp3 is 0 until the protocol is known, then 1 for RESP2 and 2 for RESP3.
+	resp3 int
 
 	mu    sync.Mutex
 	nodes func(ctx context.Context) ([]nodeScanner, error)
@@ -667,4 +688,312 @@ func (d *goDB) Del(ctx context.Context, keys ...string) (int64, error) {
 		return 0, errors.NewErr("RedisDelFailed", err)
 	}
 	return n, nil
+}
+
+// ---- the console's commands ----
+
+// Do implements DB. The command runs on a client of its own, made for it and closed after it, with no read timeout: when ctx ends the
+// client is closed, which is the only way to stop a read that waits for the server (go-redis stops a read only at a deadline, not when
+// a context is cancelled).
+func (d *goDB) Do(ctx context.Context, args []string) (Reply, error) {
+	if len(args) == 0 {
+		return Reply{}, errors.New("RedisCommandEmpty", "there is no command to send")
+	}
+	iargs := make([]interface{}, len(args))
+	for i, a := range args {
+		iargs[i] = a
+	}
+	client := newClient(d.spec, d.idx, true)
+	finished := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = client.Close() // closing is what ends the read; its error says nothing more
+		case <-finished:
+		}
+	}()
+	cmd := client.Do(ctx, iargs...)
+	close(finished)
+	_ = client.Close() // the client is thrown away after one command; a second close after a cancel is refused, and that is fine
+	v, err := cmd.Result()
+	switch {
+	case err == nil:
+		resp3 := false
+		if setCommands[strings.ToUpper(args[0])] {
+			resp3 = d.isRESP3(ctx)
+		}
+		return ConvertReply(args, v, resp3), nil
+	case errors.Is(err, goredis.Nil):
+		return Reply{Kind: ReplyNil}, nil
+	}
+	var serverErr goredis.Error
+	if errors.As(err, &serverErr) {
+		return Reply{Kind: ReplyError, Str: err.Error()}, nil
+	}
+	return Reply{}, errors.NewErr("RedisDoFailed", err).SetMetadata("command", strings.ToUpper(args[0]))
+}
+
+// isRESP3 tells whether the connections of the database speak RESP3: HELLO with no argument answers a map in RESP3 and a flat array in
+// RESP2 (and an error before Redis 6). The answer is kept.
+func (d *goDB) isRESP3(ctx context.Context) bool {
+	d.protoMu.Lock()
+	defer d.protoMu.Unlock()
+	if d.resp3 == 0 {
+		d.resp3 = 1
+		if v, err := d.c.Do(ctx, "HELLO").Result(); err == nil {
+			if _, ok := v.(map[interface{}]interface{}); ok {
+				d.resp3 = 2
+			}
+		}
+	}
+	return d.resp3 == 2
+}
+
+// ---- Pub/Sub ----
+
+// PubSub implements Server.
+func (s *goServer) PubSub(ctx context.Context) (Subscription, error) {
+	db, err := s.DB(s.spec.DB)
+	if err != nil {
+		return nil, err
+	}
+	ps := db.(*goDB).c.Subscribe(ctx)
+	sub := &goSub{ps: ps, out: make(chan PubSubMessage, 256)}
+	var loopCtx context.Context
+	loopCtx, sub.cancel = context.WithCancel(context.Background())
+	go sub.run(loopCtx)
+	return sub, nil
+}
+
+// goSub is a Subscription over a go-redis PubSub.
+type goSub struct {
+	ps     *goredis.PubSub
+	out    chan PubSubMessage
+	cancel context.CancelFunc
+
+	mu     sync.Mutex
+	err    error
+	closed bool
+}
+
+var _ Subscription = (*goSub)(nil)
+
+// run reads the messages until the connection fails or the subscription is closed.
+func (s *goSub) run(ctx context.Context) {
+	defer close(s.out)
+	for {
+		msg, err := s.ps.ReceiveMessage(ctx)
+		if err != nil {
+			s.mu.Lock()
+			if !s.closed {
+				s.err = errors.NewErr("RedisPubSubFailed", err)
+			}
+			s.mu.Unlock()
+			return
+		}
+		select {
+		case s.out <- PubSubMessage{Time: time.Now(), Pattern: msg.Pattern, Channel: msg.Channel, Payload: msg.Payload}:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// Messages implements Subscription.
+func (s *goSub) Messages() <-chan PubSubMessage { return s.out }
+
+// Subscribe implements Subscription.
+func (s *goSub) Subscribe(ctx context.Context, channels ...string) error {
+	if err := s.ps.Subscribe(ctx, channels...); err != nil {
+		return errors.NewErr("RedisSubscribeFailed", err)
+	}
+	return nil
+}
+
+// PSubscribe implements Subscription.
+func (s *goSub) PSubscribe(ctx context.Context, patterns ...string) error {
+	if err := s.ps.PSubscribe(ctx, patterns...); err != nil {
+		return errors.NewErr("RedisPSubscribeFailed", err)
+	}
+	return nil
+}
+
+// Unsubscribe implements Subscription.
+func (s *goSub) Unsubscribe(ctx context.Context, channels ...string) error {
+	if err := s.ps.Unsubscribe(ctx, channels...); err != nil {
+		return errors.NewErr("RedisUnsubscribeFailed", err)
+	}
+	return nil
+}
+
+// PUnsubscribe implements Subscription.
+func (s *goSub) PUnsubscribe(ctx context.Context, patterns ...string) error {
+	if err := s.ps.PUnsubscribe(ctx, patterns...); err != nil {
+		return errors.NewErr("RedisPUnsubscribeFailed", err)
+	}
+	return nil
+}
+
+// Err implements Subscription.
+func (s *goSub) Err() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.err
+}
+
+// Close implements Subscription.
+func (s *goSub) Close() {
+	s.mu.Lock()
+	already := s.closed
+	s.closed = true
+	s.mu.Unlock()
+	if already {
+		return
+	}
+	s.cancel()
+	if err := s.ps.Close(); err != nil {
+		slog.Warn("a Pub/Sub connection did not close", "err", err)
+	}
+}
+
+// ---- Monitor ----
+
+// Monitor implements Server. go-redis's MonitorCmd cannot be stopped while the server is quiet, so MONITOR runs on a connection of
+// its own that this file opens and reads: the server's address, the TLS settings, the user and the password are the Spec's. A Sentinel
+// or a cluster has no monitor.
+func (s *goServer) Monitor(ctx context.Context) (Monitor, error) {
+	if s.spec.Mode != ModeStandalone {
+		return nil, errors.New("RedisMonitorUnsupported", "MONITOR is available on a standalone server only: a Sentinel or a cluster has more than one node", "mode", s.spec.Mode)
+	}
+	dialer := &net.Dialer{Timeout: dialTimeout(s.spec)}
+	var conn net.Conn
+	var err error
+	if s.spec.TLS != nil {
+		conn, err = (&tls.Dialer{NetDialer: dialer, Config: s.spec.TLS.Clone()}).DialContext(ctx, "tcp", s.spec.Addrs[0])
+	} else {
+		conn, err = dialer.DialContext(ctx, "tcp", s.spec.Addrs[0])
+	}
+	if err != nil {
+		return nil, errors.NewErr("RedisMonitorDialFailed", err)
+	}
+	m := &goMonitor{conn: conn, out: make(chan string, 256)}
+	r := bufio.NewReader(conn)
+	if s.spec.Password != "" {
+		auth := []string{"AUTH", s.spec.Password}
+		if s.spec.Username != "" {
+			auth = []string{"AUTH", s.spec.Username, s.spec.Password}
+		}
+		if err := roundTrip(ctx, conn, r, auth); err != nil {
+			_ = conn.Close() // the connection is of no use; the error above is the one to report
+			return nil, err
+		}
+	}
+	if err := roundTrip(ctx, conn, r, []string{"MONITOR"}); err != nil {
+		_ = conn.Close() // the connection is of no use; the error above is the one to report
+		return nil, err
+	}
+	go m.run(r)
+	return m, nil
+}
+
+// roundTrip sends a command and reads its one-line answer; a reply that is not +OK fails. The error holds neither the password nor
+// the line the server sent back, which may repeat it.
+func roundTrip(ctx context.Context, conn net.Conn, r *bufio.Reader, args []string) error {
+	if dl, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(dl); err != nil {
+			return errors.NewErr("RedisMonitorFailed", err)
+		}
+	} else if err := conn.SetDeadline(time.Now().Add(defaultDialTimeout)); err != nil {
+		return errors.NewErr("RedisMonitorFailed", err)
+	}
+	var b strings.Builder
+	b.WriteString("*" + strconv.Itoa(len(args)) + "\r\n")
+	for _, a := range args {
+		b.WriteString("$" + strconv.Itoa(len(a)) + "\r\n" + a + "\r\n")
+	}
+	if _, err := io.WriteString(conn, b.String()); err != nil {
+		return errors.NewErr("RedisMonitorFailed", err)
+	}
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return errors.NewErr("RedisMonitorFailed", err)
+	}
+	if !strings.HasPrefix(line, "+OK") {
+		if strings.HasPrefix(line, "-") {
+			return errors.New("RedisMonitorRefused", "the server refused the command", "command", args[0], "reply", firstWord(strings.TrimPrefix(line, "-")))
+		}
+		return errors.New("RedisMonitorFailed", "the server sent something other than OK", "command", args[0])
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		return errors.NewErr("RedisMonitorFailed", err)
+	}
+	return nil
+}
+
+// firstWord is the kind of an error reply (ERR, NOPERM, WRONGPASS), which names the failure without the text that may repeat an
+// argument.
+func firstWord(s string) string {
+	w, _, _ := strings.Cut(strings.TrimSpace(s), " ")
+	return w
+}
+
+// goMonitor is a Monitor over a connection of its own.
+type goMonitor struct {
+	conn net.Conn
+	out  chan string
+
+	mu     sync.Mutex
+	err    error
+	closed bool
+}
+
+var _ Monitor = (*goMonitor)(nil)
+
+// run reads the lines the server sends: simple strings, one for each command it runs.
+func (m *goMonitor) run(r *bufio.Reader) {
+	defer close(m.out)
+	for {
+		line, err := r.ReadString('\n')
+		if err != nil {
+			m.mu.Lock()
+			if !m.closed {
+				m.err = errors.NewErr("RedisMonitorFailed", err)
+			}
+			m.mu.Unlock()
+			return
+		}
+		line = strings.TrimRight(line, "\r\n")
+		if strings.HasPrefix(line, "+") || strings.HasPrefix(line, "-") {
+			line = line[1:]
+		}
+		m.out <- line
+	}
+}
+
+// Lines implements Monitor.
+func (m *goMonitor) Lines() <-chan string { return m.out }
+
+// Err implements Monitor.
+func (m *goMonitor) Err() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.err
+}
+
+// Close implements Monitor. A reader that waits for a full channel is let go: it drains what is left.
+func (m *goMonitor) Close() {
+	m.mu.Lock()
+	already := m.closed
+	m.closed = true
+	m.mu.Unlock()
+	if already {
+		return
+	}
+	if err := m.conn.Close(); err != nil {
+		slog.Warn("a monitor connection did not close", "err", err)
+	}
+	go func() {
+		for range m.out {
+		}
+	}()
 }

@@ -21,7 +21,7 @@ import (
 var names = []string{
 	"golang", "json", "yaml", "markdown", "python", "javascript", "typescript",
 	"html", "css", "scss", "less", "xml", "sql", "shellscript", "makefile", "docker", "ini",
-	"cpp", "rust", "diff", "git", "gomod", "mongodb",
+	"cpp", "rust", "diff", "git", "gomod", "mongodb", "redis",
 }
 
 // Names gives the folders of the language packs under extensions/, in the order they are registered. The slice is a copy.

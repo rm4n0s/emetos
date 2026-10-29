@@ -2,6 +2,8 @@ package redis
 
 import (
 	"context"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -9,9 +11,14 @@ import (
 
 // ReadOnly wraps a server so that none of its databases changes anything: every method that writes fails with RedisReadOnly before
 // a command is sent (SPEC §10.23 "Connections": read-only). It is the last guard; the editors also hide their buttons.
-func ReadOnly(s Server) Server { return &readOnlyServer{Server: s} }
+func ReadOnly(s Server) Server {
+	return &readOnlyServer{Server: s, guard: &commandGuard{flags: map[string]flagsEntry{}}}
+}
 
-type readOnlyServer struct{ Server }
+type readOnlyServer struct {
+	Server
+	guard *commandGuard
+}
 
 // DB implements Server.
 func (s *readOnlyServer) DB(index int) (DB, error) {
@@ -19,11 +26,107 @@ func (s *readOnlyServer) DB(index int) (DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &readOnlyDB{DB: db}, nil
+	return &readOnlyDB{DB: db, guard: s.guard}, nil
 }
 
 // readOnlyDB is a database that refuses to write. The methods that read come from the database it wraps.
-type readOnlyDB struct{ DB }
+type readOnlyDB struct {
+	DB
+	guard *commandGuard
+}
+
+// Do implements DB: the console's commands pass the guard, which refuses the commands the server flags as "write" (COMMAND INFO), and
+// those of the built-in lists (RefusedByBuiltinList), before anything is sent. PUBLISH is refused too: it changes what other clients
+// receive.
+func (d *readOnlyDB) Do(ctx context.Context, args []string) (Reply, error) {
+	if len(args) == 0 {
+		return d.DB.Do(ctx, args)
+	}
+	refused, err := d.guard.refuses(ctx, d.DB, args)
+	if err != nil {
+		return Reply{}, err
+	}
+	if refused {
+		name, sub := commandWords(args)
+		if sub != "" && commandHasSubs(name) {
+			name += " " + sub
+		}
+		err := errors.New("RedisReadOnly", readOnlyMessage, "command", name)
+		return Reply{}, err
+	}
+	return d.DB.Do(ctx, args)
+}
+
+// flagsEntry is what the guard learned of a command from the server.
+type flagsEntry struct {
+	// known says that the server described the command; write says that it flagged it as a write.
+	known, write bool
+}
+
+// commandGuard decides whether a read-only connection may send a command. It asks the server once for each command (COMMAND INFO) and
+// keeps the answer for the life of the connection.
+type commandGuard struct {
+	mu    sync.Mutex
+	flags map[string]flagsEntry
+}
+
+// commandHasSubs tells whether the command is one that has subcommands, which COMMAND INFO describes as name|sub.
+func commandHasSubs(name string) bool {
+	switch name {
+	case "CONFIG", "CLIENT", "SCRIPT", "FUNCTION", "ACL", "MODULE", "XGROUP", "XINFO", "OBJECT", "MEMORY", "SLOWLOG", "LATENCY", "CLUSTER", "COMMAND", "PUBSUB", "DEBUG":
+		return true
+	}
+	return false
+}
+
+// refuses tells whether the command is refused on a read-only connection. The server's flags decide first (a command it flags as
+// "write"); a command it does not describe, or a server that cannot say (COMMAND INFO fails), falls back on the built-in lists, which
+// also add the commands that are not writes to the server but that change the server (EVAL, CONFIG SET, PUBLISH).
+func (g *commandGuard) refuses(ctx context.Context, db DB, args []string) (bool, error) {
+	if RefusedByBuiltinList(args) {
+		return true, nil
+	}
+	name, sub := commandWords(args)
+	full := strings.ToLower(name)
+	if sub != "" && commandHasSubs(name) {
+		full += "|" + strings.ToLower(sub)
+	}
+	g.mu.Lock()
+	e, ok := g.flags[full]
+	g.mu.Unlock()
+	if !ok {
+		rep, err := db.Do(ctx, []string{"COMMAND", "INFO", full})
+		if err != nil {
+			// a connection that fails is the caller's error: the command is not sent
+			return false, err
+		}
+		e = flagsOf(rep)
+		g.mu.Lock()
+		g.flags[full] = e
+		g.mu.Unlock()
+	}
+	return e.known && e.write, nil
+}
+
+// flagsOf reads the reply of COMMAND INFO of one command: an array holding nil for a command the server does not know, else
+// [name, arity, [flags...], ...].
+func flagsOf(r Reply) flagsEntry {
+	if r.Kind != ReplyArray || len(r.Items) == 0 {
+		return flagsEntry{}
+	}
+	info := r.Items[0]
+	if info.Kind != ReplyArray || len(info.Items) < 3 {
+		return flagsEntry{}
+	}
+	flags := info.Items[2]
+	e := flagsEntry{known: true}
+	for _, f := range flags.Items {
+		if strings.EqualFold(f.Str, "write") {
+			e.write = true
+		}
+	}
+	return e
+}
 
 const readOnlyMessage = "the connection is read-only"
 

@@ -1,0 +1,25 @@
+{
+  "name": "redis",
+  "displayName": "Redis",
+  "description": "Redis command files (.redis), written for Emetos",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "contributes": {
+    "languages": [
+      {
+        "id": "redis",
+        "extensions": [".redis"],
+        "aliases": ["Redis", "redis"],
+        "configuration": "./redis.language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "redis",
+        "scopeName": "source.redis",
+        "path": "./syntaxes/redis.tmLanguage.json"
+      }
+    ]
+  }
+}

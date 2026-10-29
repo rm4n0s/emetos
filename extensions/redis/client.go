@@ -73,8 +73,52 @@ type Server interface {
 	Databases(ctx context.Context) ([]DBInfo, error)
 	// DB returns the handle of a database; it opens nothing until it is used. A cluster has only database 0.
 	DB(index int) (DB, error)
+	// PubSub opens a connection for Pub/Sub; nothing is subscribed until Subscribe or PSubscribe. It is a connection of its own,
+	// not one of the pool, and stays open until Close.
+	PubSub(ctx context.Context) (Subscription, error)
+	// Monitor opens a connection of its own and sends MONITOR on it. A cluster has no monitor (it would see one node): it fails
+	// with RedisMonitorUnsupported.
+	Monitor(ctx context.Context) (Monitor, error)
 	// Close closes every connection.
 	Close() error
+}
+
+// PubSubMessage is a message a Pub/Sub connection received.
+type PubSubMessage struct {
+	// Time is when the message arrived.
+	Time time.Time
+	// Pattern is the pattern that matched, empty for a message of a channel that was subscribed by name.
+	Pattern string
+	// Channel and Payload are the channel and the text of the message.
+	Channel, Payload string
+}
+
+// Subscription is a Pub/Sub connection: the channels and patterns it listens to, and the messages that come.
+type Subscription interface {
+	// Messages delivers the messages in order. The channel is closed when the subscription ends (Close, or a connection that
+	// fails: Err says which).
+	Messages() <-chan PubSubMessage
+	// Subscribe and PSubscribe listen to channels by name and by pattern; Unsubscribe and PUnsubscribe stop.
+	Subscribe(ctx context.Context, channels ...string) error
+	PSubscribe(ctx context.Context, patterns ...string) error
+	Unsubscribe(ctx context.Context, channels ...string) error
+	PUnsubscribe(ctx context.Context, patterns ...string) error
+	// Err is why Messages was closed; nil after Close.
+	Err() error
+	// Close ends the subscription and its connection. A connection that does not close well has nothing for the caller to do: the
+	// implementation logs it.
+	Close()
+}
+
+// Monitor is a connection that shows every command the server runs (MONITOR).
+type Monitor interface {
+	// Lines delivers the lines the server sent, as they are: `1339518083.107412 [0 127.0.0.1:60866] "keys" "*"`. The channel is
+	// closed when the monitor ends.
+	Lines() <-chan string
+	// Err is why Lines was closed; nil after Close.
+	Err() error
+	// Close ends MONITOR and its connection (see Subscription.Close for its errors).
+	Close()
 }
 
 // Cursor is where a scan of the keys stands. The zero Cursor is the start. In a cluster a scan goes through the masters one after
@@ -196,4 +240,10 @@ type DB interface {
 	Persist(ctx context.Context, key string) (bool, error)
 	// Del deletes keys and tells how many existed.
 	Del(ctx context.Context, keys ...string) (int64, error)
+
+	// Do sends one command as the console does and returns the reply with its RESP type. An error reply of the server is a Reply
+	// of kind ReplyError and a nil error; the error is for a command that could not be sent or read (a closed connection, a
+	// cancelled context, a read-only connection that refuses a command: RedisReadOnly). There is no read timeout of its own: a
+	// blocking command (BLPOP key 0) waits until ctx ends.
+	Do(ctx context.Context, args []string) (Reply, error)
 }

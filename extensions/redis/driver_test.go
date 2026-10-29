@@ -21,7 +21,8 @@ func TestTheManifestIsValid(t *testing.T) {
 	if m.ID != "emetos.redis" {
 		t.Errorf("id = %q", m.ID)
 	}
-	if len(m.Contributes.EditorKinds) != 2 || len(m.Contributes.Settings) != 1 || m.Contributes.Settings[0].Key != "redis.scanCount" {
+	if len(m.Contributes.EditorKinds) != 3 || len(m.Contributes.Settings) != 2 || m.Contributes.Settings[0].Key != "redis.scanCount" ||
+		m.Contributes.Settings[1].Key != "redis.confirmDangerous" || len(m.Contributes.PanelViews) != 1 {
 		t.Errorf("contributes = %+v", m.Contributes)
 	}
 }
@@ -447,8 +448,8 @@ func TestTheMenuOfEachKindOfNode(t *testing.T) {
 		node *dbconn.Node
 		want []string
 	}{
-		{"a connection", nil, nil},
-		{"a database", &db0, []string{"New Key...", "Filter Keys...", "Refresh Keys"}},
+		{"a connection", nil, []string{"Open Console", "Open Pub/Sub", "Open Monitor", "Server Information"}},
+		{"a database", &db0, []string{"Open Console", "New Key...", "Filter Keys...", "Refresh Keys"}},
 		{"a folder", &user, []string{"New Key Here...", "Copy Prefix"}},
 		{"a key with no TTL", &events, []string{"Open", "Copy Key", "Rename...", "Set TTL...", "Delete..."}},
 		{"a key with a TTL", &cfg, []string{"Open", "Copy Key", "Rename...", "Set TTL...", "Persist", "Delete..."}},
@@ -474,7 +475,7 @@ func TestAReadOnlyConnectionHasNoMenuEntryThatWrites(t *testing.T) {
 	db0 := r.children(nil)[0]
 	top := r.children(&db0)
 	user, cfg := find(t, top, "user"), r.children(&top[0])[0]
-	if got := r.actionTitles(&db0); !slices.Equal(got, []string{"Filter Keys...", "Refresh Keys"}) {
+	if got := r.actionTitles(&db0); !slices.Equal(got, []string{"Open Console", "Filter Keys...", "Refresh Keys"}) {
 		t.Errorf("database menu = %q", got)
 	}
 	if got := r.actionTitles(&user); !slices.Equal(got, []string{"Copy Prefix"}) {

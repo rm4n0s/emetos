@@ -113,6 +113,7 @@ func (d *Driver) Connect(ctx context.Context, c dbconn.Connection, password stri
 			slog.Warn("a connection that was replaced did not close", "connection", c.Name, "err", err)
 		}
 	}
+	d.x.opened(c)
 	return nil
 }
 
@@ -125,6 +126,7 @@ func (d *Driver) Disconnect(c dbconn.Connection) error {
 	if s == nil {
 		return nil
 	}
+	d.x.closed(c)
 	return s.server.Close()
 }
 
@@ -301,7 +303,7 @@ func (d *Driver) Open(c dbconn.Connection, n dbconn.Node) {
 // Actions implements dbconn.Driver.
 func (d *Driver) Actions(c dbconn.Connection, n *dbconn.Node) []dbconn.Action {
 	if n == nil {
-		return nil
+		return d.connectionActions(c)
 	}
 	data, ok := n.Data.(nodeData)
 	if !ok {
@@ -316,6 +318,7 @@ func (d *Driver) Actions(c dbconn.Connection, n *dbconn.Node) []dbconn.Action {
 	}
 	switch data.Kind {
 	case kindDB:
+		add("Open Console", "0", func() { x.openConsoleOn(c.ID, data.DB) })
 		if write {
 			add("New Key...", "1", func() { x.newKey(c.ID, data.DB, "") })
 		}
@@ -344,4 +347,19 @@ func (d *Driver) Actions(c dbconn.Connection, n *dbconn.Node) []dbconn.Action {
 		add("Load More", "1", func() { x.loadMore(c.ID, data.DB) })
 	}
 	return out
+}
+
+// connectionActions are the entries of the menu of a connection that is open: the console, Pub/Sub, Monitor and the server information
+// (SPEC §10.23).
+func (d *Driver) connectionActions(c dbconn.Connection) []dbconn.Action {
+	if !d.Connected(c.ID) {
+		return nil
+	}
+	x := d.x
+	return []dbconn.Action{
+		{Title: "Open Console", Group: "0", Run: func() { x.openConsoleOn(c.ID, -1) }},
+		{Title: "Open Pub/Sub", Group: "0", Run: func() { x.openPanel(PubSubViewID, c.ID) }},
+		{Title: "Open Monitor", Group: "0", Run: func() { x.openPanel(MonitorViewID, c.ID) }},
+		{Title: "Server Information", Group: "0", Run: func() { x.openServerInfo(c.ID) }},
+	}
 }
