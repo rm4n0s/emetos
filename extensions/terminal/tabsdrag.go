@@ -43,22 +43,14 @@ func (t *terminals) tabPointerDown(ev *gestures.PointerDownEvent, e *entry, inde
 	}
 	origin := gui.Offset{Dx: ev.Position().Dx - ev.LocalPosition().Dx, Dy: ev.Position().Dy - ev.LocalPosition().Dy}
 	rows := []float64{0}
-	for _, x := range t.panelEntries() {
-		rows = append(rows, rows[len(rows)-1]+tabRowH+t.markHeight(x))
+	for range t.panelEntries() {
+		rows = append(rows, rows[len(rows)-1]+tabRowH)
 	}
 	top := origin.Dy - rows[min(index, len(rows)-1)]
 	t.tabDrag = &tabDrag{
 		e: e, pointer: ev.Pointer(), start: ev.Position(), last: ev.Position(), rows: rows,
 		list: gui.NewRectFromLTWH(origin.Dx, top, tabsWidth, rows[len(rows)-1]),
 	}
-}
-
-// markHeight is the extra height of the row of a terminal that Relay clients typed in.
-func (t *terminals) markHeight(e *entry) float64 {
-	if clientMark(e) != "" {
-		return markH
-	}
-	return 0
 }
 
 // tabPointerMove follows the pointer of a press on a tab.

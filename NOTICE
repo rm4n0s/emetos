@@ -159,7 +159,7 @@ Ported code:
 
 Linked Go module:
 
-15. github.com/makiuchi-d/gozxing (QR codes for Remote Work and Relay)
+15. github.com/makiuchi-d/gozxing (QR codes for Remote Work)
     Source:  https://github.com/makiuchi-d/gozxing (version in go.mod), linked into the program
     License: MIT (Copyright (c) 2018 Daisuke MAKIUCHI). It is a Go port of ZXing
              (https://github.com/zxing/zxing, Apache-2.0, Copyright ZXing authors), so the

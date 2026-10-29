@@ -318,7 +318,7 @@ func TestConnectFailures(t *testing.T) {
 		wantRoute(t, err, "ReadGrant.RemoteWorkGrantInvalid")
 	})
 	t.Run("another channel type", func(t *testing.T) {
-		h := startHost(t, "emetos-relay", func(s *sshlogin.Session) {})
+		h := startHost(t, "emetos-other-channel", func(s *sshlogin.Session) {})
 		_, err := Connect(context.Background(), h.options())
 		wantRoute(t, err, "OpenChannel.SSHLoginChannelRefused")
 	})

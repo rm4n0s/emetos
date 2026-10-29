@@ -1,4 +1,4 @@
-// Package sshlogin is the login that Remote Work (SPEC §10.18) and Relay (SPEC §10.19) share: an SSH server for the
+// Package sshlogin is the login that Remote Work (SPEC §10.18) uses: an SSH server for the
 // machine that is controlled (A), and an SSH client for the machine that controls (B), built on golang.org/x/crypto/ssh.
 //
 // The server lets in the public keys of a list and nothing else: there is no password, no keyboard-interactive and no

@@ -47,7 +47,7 @@ const (
 	HostChanged
 )
 
-// HostStore keeps the pinned host keys of a client in a JSON file (remote-work-hosts.json, relay-hosts.json), as
+// HostStore keeps the pinned host keys of a client in a JSON file (remote-work-hosts.json), as
 // known_hosts does. The file is written atomically with mode 0600 and read only when nobody else can change it. Every call
 // reads the file again, so the store never trusts a copy in memory; the calls of one store are serialized (two processes
 // that pin at the same moment may lose one pin, which the next connection makes again). Safe for concurrent use.

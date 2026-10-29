@@ -19,8 +19,8 @@ import (
 
 // The core request topics, the privileges and the confinement (step 16.1, SPEC §10.19 "As built (step 16.1)").
 
-func TestPrivilegesAreRefusedToEveryExtensionButRelay(t *testing.T) {
-	priv := []string{extension.PrivilegeEventsPublishAny}
+func TestPrivilegesAreRefusedToEveryExtensionButTheTerminal(t *testing.T) {
+	priv := []string{extension.PrivilegeCommandsExecute}
 	mk := func(id string, privileges []string) extension.Factory {
 		m := manifest(id)
 		m.Privileges = privileges
@@ -28,9 +28,9 @@ func TestPrivilegesAreRefusedToEveryExtensionButRelay(t *testing.T) {
 		return f
 	}
 	r := newRig(t,
-		mk(extension.RelayID, append(priv, extension.PrivilegeCommandsExecute)),
+		mk(extension.TerminalID, priv),
 		mk("ext.sneaky", priv),
-		mk("emetos.relay2", []string{extension.PrivilegeCommandsExecute}),
+		mk("emetos.terminal2", priv),
 		mk("ext.typo", []string{"files.deleteAll"}),
 		mk("ext.fine", nil),
 	)
@@ -38,7 +38,7 @@ func TestPrivilegesAreRefusedToEveryExtensionButRelay(t *testing.T) {
 	for _, m := range r.host.Manifests() {
 		ids = append(ids, m.ID)
 	}
-	if !slices.Equal(ids, []string{extension.RelayID, "ext.fine"}) {
+	if !slices.Equal(ids, []string{extension.TerminalID, "ext.fine"}) {
 		t.Errorf("the extensions kept are %v", ids)
 	}
 	problems := r.host.Problems()
@@ -55,7 +55,7 @@ func TestPrivilegesAreRefusedToEveryExtensionButRelay(t *testing.T) {
 	tb := r.newTab("one")
 	tb.scope.Start()
 	for _, row := range r.host.Rows(nil) {
-		if row.Manifest.ID == "ext.sneaky" || row.Manifest.ID == "emetos.relay2" {
+		if row.Manifest.ID == "ext.sneaky" || row.Manifest.ID == "emetos.terminal2" {
 			t.Errorf("%s is listed", row.Manifest.ID)
 		}
 	}
@@ -86,46 +86,6 @@ func TestTheTerminalMayDeclareOnlyCommandsExecute(t *testing.T) {
 		t.Errorf("problems: %v", problems)
 	} else {
 		wantRoute(t, problems[0], "validateManifest.ExtensionPrivilegeRefused")
-	}
-	// events.publishAny is not the terminal's: the extension is left out as a whole
-	r = newRig(t, mk(extension.TerminalID, []string{extension.PrivilegeCommandsExecute, extension.PrivilegeEventsPublishAny}))
-	if len(r.host.Manifests()) != 0 || len(r.host.Problems()) != 1 {
-		t.Errorf("manifests %v, problems %v", r.host.Manifests(), r.host.Problems())
-	}
-}
-
-func TestOnlyAPrivilegedExtensionPublishesAnyTopic(t *testing.T) {
-	c := newCoreHarness(t, nil)
-	heard := c.subscribe(plain, "**")
-	for _, tt := range []struct {
-		from, topic string
-		route       string
-	}{
-		{privileged, "ext.plain.thing", ""},
-		{privileged, "emetos.document.changed", ""},
-		{privileged, "anything.at.all", ""},
-		{plain, "ext.plain.thing", ""},
-		{plain, "emetos.relay.x", "eventsAPI.Publish.EventTopicNotOwned"},
-		{plain, "anything.at.all", "eventsAPI.Publish.EventTopicNotOwned"},
-		{plain, "emetos.document.changed", "eventsAPI.Publish.EventTopicNotOwned"},
-		{privileged, "bad..topic", "CheckTopic.EventTopicInvalid"},
-	} {
-		err := c.events(tt.from).Publish(tt.topic, map[string]int{"n": 1})
-		if tt.route == "" {
-			if err != nil {
-				t.Errorf("%s publishes %s: %v", tt.from, tt.topic, err)
-			}
-			continue
-		}
-		wantRoute(t, err, tt.route)
-	}
-	c.tb.pump()
-	got := map[string]string{}
-	for _, ev := range heard.all() {
-		got[ev.Topic] = ev.Publisher
-	}
-	if got["emetos.document.changed"] != privileged || got["anything.at.all"] != privileged || got["ext.plain.thing"] == "" {
-		t.Errorf("heard %v: the publisher of a privileged event is the extension, never emetos", got)
 	}
 }
 
@@ -186,7 +146,7 @@ func TestCommandsExecuteRefusesEveryClass(t *testing.T) {
 		extension.RefusedFolder:    {"workbench.action.files.openFolder", "workbench.action.closeFolder", "workbench.action.openRecent", "openRecentFolder", "openRecentFile"},
 		extension.RefusedProfile:   {"workbench.profiles.actions.switchProfile", "workbench.profiles.actions.createProfile"},
 		extension.RefusedSettings:  {"workbench.action.openSettingsJson", "workbench.action.toggleAutoSave", "workbench.action.selectTheme", "emetos.extensions.manageEventSharing"},
-		extension.RefusedRemote:    {"emetos.relay.listen", "emetos.remotework.manage"},
+		extension.RefusedRemote:    {"emetos.remotework.manage", "emetos.remotework.host", "emetos.hosting.menu"},
 		extension.RefusedTerminal:  {"workbench.action.terminal.new", "workbench.action.terminal.sendSequence", "workbench.action.createTerminalEditor"},
 		extension.RefusedOutside: {
 			"emetos.databases.newConnection", "emetos.databases.connect", "emetos.sql.newQuery",
@@ -202,7 +162,7 @@ func TestCommandsExecuteRefusesEveryClass(t *testing.T) {
 			t.Run(id, func(t *testing.T) {
 				c.register(id, func(command.Context, any) error { c.counters[id]++; return nil })
 				_, err := c.ask(privileged, extension.TopicCommandsExecute, extension.CommandsExecuteRequest{ID: id})
-				wantRoute(t, err, "Scope.coreCommandsExecute.RelayCommandRefused")
+				wantRoute(t, err, "Scope.coreCommandsExecute.CoreCommandRefused")
 				appErr, _ := errors.FromError(err)
 				if appErr.Metadata["class"] != class || appErr.Metadata["command"] != id {
 					t.Errorf("metadata %v, want class %s", appErr.Metadata, class)
@@ -593,13 +553,13 @@ func TestDocumentTopics(t *testing.T) {
 	t.Run("a stale version is refused", func(t *testing.T) {
 		v := a.Version()
 		_, err := edit(aURI, v-1, extension.TextChange{Range: rng(0, 0, 0, 1), Text: "X"})
-		wantRoute(t, err, "ApplyTextEdits.RelayStaleVersion")
+		wantRoute(t, err, "ApplyTextEdits.CoreDocumentVersionStale")
 		appErr, _ := errors.FromError(err)
 		if appErr.Metadata["current"] != v || appErr.Metadata["version"] != v-1 {
 			t.Errorf("metadata %v", appErr.Metadata)
 		}
 		_, err = edit(aURI, v+5, extension.TextChange{Range: rng(0, 0, 0, 1), Text: "X"})
-		wantRoute(t, err, "ApplyTextEdits.RelayStaleVersion")
+		wantRoute(t, err, "ApplyTextEdits.CoreDocumentVersionStale")
 		if a.Text() != "hello\nwörld\n" || a.Version() != v {
 			t.Error("a refused edit changed the document")
 		}
@@ -610,7 +570,7 @@ func TestDocumentTopics(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err := edit(aURI, v, extension.TextChange{Range: rng(0, 0, 0, 1), Text: "K"})
-		wantRoute(t, err, "ApplyTextEdits.RelayStaleVersion")
+		wantRoute(t, err, "ApplyTextEdits.CoreDocumentVersionStale")
 		if _, err := a.Undo(); err != nil {
 			t.Fatal(err)
 		}

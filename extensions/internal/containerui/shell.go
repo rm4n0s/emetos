@@ -18,7 +18,7 @@ import (
 // images/pushImage/pushImage.ts.
 
 // The requests of the Terminal extension (SPEC §10.25 "Events and requests"). The topics are written here, not imported, so that the
-// extensions stay apart (the Relay extension does the same).
+// extensions stay apart.
 const (
 	terminalCreate = "emetos.terminal.create"
 	terminalRun    = "emetos.terminal.run"

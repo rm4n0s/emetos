@@ -12,7 +12,7 @@ import (
 
 func TestTheFakeAnswersRequestsWithDoublesAndRecordsThem(t *testing.T) {
 	m := manifest()
-	m.Privileges = []string{extension.PrivilegeCommandsExecute, extension.PrivilegeEventsPublishAny}
+	m.Privileges = []string{extension.PrivilegeCommandsExecute}
 	a := New(t, m, extension.ScopeInfo{Kind: extension.ScopeWorkspace, Folder: t.TempDir()})
 	OnRequestValue(a, extension.TopicFilesRead, func(_ context.Context, p extension.FilesPathRequest) (any, error) {
 		if p.Path == "../x" {

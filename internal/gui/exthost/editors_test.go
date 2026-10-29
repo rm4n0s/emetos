@@ -741,11 +741,11 @@ func TestOpenWindowTabGoesToTheWindow(t *testing.T) {
 	tb := edTab(t, nil, nil)
 	tb.activate2()
 	a := apiOf(tb)
-	if err := a.Workspace().OpenWindowTab("emetos.relay.tab"); err != nil || !slices.Equal(tb.tabs, []string{"emetos.relay.tab"}) {
+	if err := a.Workspace().OpenWindowTab("emetos.remotework.tab"); err != nil || !slices.Equal(tb.tabs, []string{"emetos.remotework.tab"}) {
 		t.Errorf("OpenWindowTab: %v, %v", err, tb.tabs)
 	}
 	tb.scope.opts.OpenWindowTab = nil
-	route(t, a.Workspace().OpenWindowTab("emetos.relay.tab"), "workspaceAPI.OpenWindowTab.ExtensionOpenWindowTabUnavailable")
+	route(t, a.Workspace().OpenWindowTab("emetos.remotework.tab"), "workspaceAPI.OpenWindowTab.ExtensionOpenWindowTabUnavailable")
 }
 
 func TestTheScopeSaysWhichExtensionDeclaresAnEditorKind(t *testing.T) {

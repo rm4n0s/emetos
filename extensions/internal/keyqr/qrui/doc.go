@@ -1,5 +1,5 @@
-// Package qrui is the part of Public keys by QR code (SPEC §10.18, step 15.5) that the user sees, shared by Remote Work and
-// Relay: the Scan QR Code dialog, with the live picture of a camera, a picker when there are several and the confirmation of
+// Package qrui is the part of Public keys by QR code (SPEC §10.18, step 15.5) that the user sees, used by Remote Work:
+// the Scan QR Code dialog, with the live picture of a camera, a picker when there are several and the confirmation of
 // the key that was read, and the Show My Public Key as QR Code dialog.
 //
 // A dialog is not a window of its own: it is a widget that its owner (a page, a window tab) stacks over its content with Build

@@ -146,7 +146,6 @@ func TestOpenFormRequestFailures(t *testing.T) {
 	}{
 		{"an engine no active extension has", "emetos.redis", Prefill{Engine: "redis"}, "Extension.openPrefilled.DatabasesEngineNotActive"},
 		{"no engine", "emetos.sql", Prefill{Host: "h"}, "Extension.openPrefilled.DatabasesEngineNotActive"},
-		{"a client of a shared workspace", extension.RelayID, Prefill{Engine: "postgres"}, "Extension.handleOpenForm.DatabasesOpenFormRefused"},
 		{"a payload that is no object", "emetos.sql", "postgres", "Event.Decode.EventValueInvalid"},
 	}
 	for _, tt := range tests {
@@ -199,7 +198,6 @@ func TestHandleContainerDatabase(t *testing.T) {
 		{"Podman's event", "emetos.podman", TopicPodmanConnectDatabase, map[string]any{"engine": "mysql", "port": 13306}, []Prefill{{Engine: "mysql", Port: 13306}}},
 		{"an engine of another extension", "emetos.containers", TopicContainersConnectDatabase, map[string]any{"engine": "redis", "port": 6379}, nil},
 		{"no engine", "emetos.containers", TopicContainersConnectDatabase, map[string]any{"port": 6379}, nil},
-		{"a client of a shared workspace that publishes the topic", extension.RelayID, TopicContainersConnectDatabase, target, nil},
 		{"the wrong extension on the topic", "emetos.podman", TopicContainersConnectDatabase, target, nil},
 		{"any other extension", "emetos.sql", TopicPodmanConnectDatabase, target, nil},
 		{"the core", extension.CorePublisher, TopicContainersConnectDatabase, target, nil},

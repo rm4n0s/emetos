@@ -30,8 +30,8 @@ func TestDesktopWindowTabLabelIsNotCutWhenThereIsRoom(t *testing.T) {
 	a := display.Start(t, display.Options{Args: []string{".", "a.txt"}, Project: diffProject})
 	a.Settle()
 	a.Click(186, 18) // the plus button
-	a.WaitText("Relay")
-	a.ClickText("Relay")
+	a.WaitText("Remote Work...")
+	a.ClickText("Remote Work...")
 	a.Eventually("a second window tab", func() (bool, string) {
 		w := a.Workbench().WindowTabs
 		return len(w) == 2 && w[1].Active, a.Dump()

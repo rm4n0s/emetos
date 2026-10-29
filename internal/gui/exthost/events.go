@@ -35,8 +35,7 @@ func (in *instance) hasPrivilege(privilege string) bool {
 }
 
 // Publish implements extension.Events. It fails with ExtensionDeactivated, the tags of extension.CheckTopic
-// (EventTopicInvalid), EventTopicNotOwned and EventValueInvalid. An extension with the privilege events.publishAny
-// (emetos.relay) may publish any topic in its scope; the Publisher of the event is still the extension.
+// (EventTopicInvalid), EventTopicNotOwned and EventValueInvalid.
 func (e eventsAPI) Publish(topic string, value any) error {
 	in := e.inst
 	if in.isDead() {
@@ -57,7 +56,7 @@ func (e eventsAPI) Publish(topic string, value any) error {
 			topics[i] = spec.Topic
 		}
 		return topics
-	}) && !in.hasPrivilege(extension.PrivilegeEventsPublishAny) {
+	}) {
 		return errors.New("EventTopicNotOwned", "an extension publishes only the topics under its id and the ones its manifest declares", "extension", in.id, "topic", topic)
 	}
 	data, err := json.Marshal(value)

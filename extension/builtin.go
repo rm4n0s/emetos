@@ -97,7 +97,7 @@ type Workspace interface {
 	OpenURI(ctx context.Context, uri string) error
 	// OpenWindowTab opens the window tab of a kind of window tab (the id of a kind in a manifest's WindowTabKinds, this
 	// extension's or another one's) and makes it the active one; when a tab of the kind is open already it is shown instead of a
-	// second one (SPEC §10.29: Relay's open command). It fails with ExtensionOpenWindowTabUnavailable when the scope cannot, and
+	// second one (SPEC §10.29: the open command of Remote Work). It fails with ExtensionOpenWindowTabUnavailable when the scope cannot, and
 	// returns the window's error for a kind that is unknown or turned off. Call it on the UI thread.
 	OpenWindowTab(kindID string) error
 	// NewHeadlessView makes a second, off-screen view of the workspace, size pixels large (HeadlessView). The view starts

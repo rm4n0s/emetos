@@ -1,4 +1,4 @@
-// Package keyqr is what Remote Work and Relay share to carry a public key by QR code (SPEC §10.18 "Public keys by QR code",
+// Package keyqr is what Remote Work uses to carry a public key by QR code (SPEC §10.18 "Public keys by QR code",
 // step 15.5): the camera of the computer, read straight through Linux's V4L2 interface (golang.org/x/sys/unix, no cgo); the
 // frames it gives (MJPEG and YUYV) turned into images; the QR codes in them (github.com/makiuchi-d/gozxing), read off the UI
 // thread; the text of a code parsed as the line of a public key under the rules of the login (extensions/internal/sshlogin);

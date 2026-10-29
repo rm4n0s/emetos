@@ -1,6 +1,6 @@
-// Package pageui holds the small widgets that the pages and the tabs of Remote Work and Relay share: the gaps, the section
+// Package pageui holds the small widgets that the pages and the tabs of Remote Work use: the gaps, the section
 // with its heading and the line above it, the line under a control that tells what its action answered, and the box of a
-// problem (SPEC §10.18 "As built (step 15.2)", §10.19 "As built (step 16.2)"). They are built on extension/ui only.
+// problem (SPEC §10.18 "As built (step 15.2)"). They are built on extension/ui only.
 package pageui
 
 import (

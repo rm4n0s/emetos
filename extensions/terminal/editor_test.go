@@ -186,11 +186,11 @@ func TestWhereANewTerminalGoes(t *testing.T) {
 	}
 }
 
-func TestATerminalMadeForAClientGoesToThePanelWhateverTheSetting(t *testing.T) {
+func TestATerminalMadeWithoutShowGoesToThePanelWhateverTheSetting(t *testing.T) {
 	r := newExtRig(t, "")
 	r.api.SetSetting(settingDefaultLocation, "editor")
 	var reply createReply
-	if err := r.ask(extension.RelayID, TopicCreate, createRequest{}, &reply); err != nil {
+	if err := r.ask("emetos.other", TopicCreate, createRequest{}, &reply); err != nil {
 		t.Fatal(err)
 	}
 	e := r.ext.entryByID(reply.ID)

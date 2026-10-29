@@ -17,7 +17,7 @@ import (
 // scope of every workspace window tab, for every extension. A request whose topic is one of them never reaches the handlers
 // of the extensions (an extension cannot own a topic under emetos., except under its own id). The answer is made by the
 // Scope the request is made in, so it acts in that window tab and in no other. Their errors reach the requester as they are:
-// the tag is the failure's (RelayCommandRefused, ConfineOutside, RelayStaleVersion), not EventHandlerFailed.
+// the tag is the failure's (CoreCommandRefused, ConfineOutside, CoreDocumentVersionStale), not EventHandlerFailed.
 
 // FileOpSlots is how many file requests (list, stat, read) a scope works on at once; the others wait for a slot, within
 // their deadline. It bounds the memory the reads of a client can hold.
@@ -159,7 +159,7 @@ func (s *Scope) coreCommandsList(c *coreCall) {
 
 // coreCommandsExecute answers emetos.commands.execute: it runs a command of the window tab's registry (its commands and
 // those of its extensions), never another tab's. It fails with ExtensionPrivilegeMissing for an extension without the
-// privilege commands.execute, RelayCommandRefused for a command a client may not run, CoreCommandNotFound,
+// privilege commands.execute, CoreCommandRefused for a command a client may not run, CoreCommandNotFound,
 // CoreCommandDisabled (no handler, or its precondition does not hold), CorePayloadInvalid for arguments that are not JSON,
 // and CoreCommandFailed for the error of the command when it is not an *errors.Error already (those are returned as they
 // are).
@@ -175,7 +175,7 @@ func (s *Scope) coreCommandsExecute(c *coreCall) {
 		return
 	}
 	if ref, refused := command.ClientRefusal(req.ID); refused {
-		c.reply(nil, errors.New("RelayCommandRefused", ref.Reason, "command", req.ID, "class", ref.Class, "extension", c.inst.id))
+		c.reply(nil, errors.New("CoreCommandRefused", ref.Reason, "command", req.ID, "class", ref.Class, "extension", c.inst.id))
 		return
 	}
 	reg := s.opts.Commands

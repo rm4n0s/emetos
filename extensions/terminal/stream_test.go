@@ -372,12 +372,12 @@ func TestTypedInputIsPublishedWithWhoTypedItAndNotEchoedSecrets(t *testing.T) {
 	term, proc := fakeTerminal(t, 24, 80, log.observer(time.Hour))
 	term.Type([]byte("echo hi\r"), ByUser)
 	term.Send([]byte("a reply of the emulator"))
-	term.Type([]byte("\xff caf\xc3"), "relay:alice")
+	term.Type([]byte("\xff caf\xc3"), "emetos.other")
 	term.Type(nil, ByUser)
 	log.mu.Lock()
 	inputs := append([]inputEvent(nil), log.inputs...)
 	log.mu.Unlock()
-	if len(inputs) != 2 || inputs[0].Data != "echo hi\r" || inputs[0].By != ByUser || inputs[1].By != "relay:alice" || inputs[1].Data != "� caf�" {
+	if len(inputs) != 2 || inputs[0].Data != "echo hi\r" || inputs[0].By != ByUser || inputs[1].By != "emetos.other" || inputs[1].Data != "� caf�" {
 		t.Errorf("inputs = %+v", inputs)
 	}
 	deadline := time.Now().Add(5 * time.Second)
@@ -415,7 +415,7 @@ func TestWhatIsTypedIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { term.Kill(); term.Wait() })
-			term.Type([]byte("s3cret\r"), "relay:alice")
+			term.Type([]byte("s3cret\r"), "emetos.other")
 			log.mu.Lock()
 			defer log.mu.Unlock()
 			if len(log.inputs) != 1 {
@@ -426,7 +426,7 @@ func TestWhatIsTypedIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
 			if tt.wantHidden {
 				wantData = ""
 			}
-			if in.Hidden != tt.wantHidden || in.Data != wantData || in.By != "relay:alice" {
+			if in.Hidden != tt.wantHidden || in.Data != wantData || in.By != "emetos.other" {
 				t.Errorf("input = %+v, want hidden %v and data %q", in, tt.wantHidden, wantData)
 			}
 		})

@@ -139,11 +139,11 @@ func (*terminals) Manifest() extension.Manifest {
 		Description: "Shells in the panel: VS Code's integrated terminal, with Emetos's own emulator.",
 		// commands.execute: Search Workspace runs the Search extension's Find in Files (SPEC §10.19 "Privileges")
 		Privileges: []string{extension.PrivilegeCommandsExecute},
-		// The terminals are events and requests (SPEC §10.25), so the extension is there from the start: a client of Relay asks
+		// The terminals are events and requests (SPEC §10.25), so the extension is there from the start: another extension asks
 		// for the list of terminals of a workspace whose panel was never opened.
 		ActivationEvents: []string{extension.OnStartup},
 		Events: extension.EventDecl{
-			Subscribes: []string{extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentClosed, TopicClientGone},
+			Subscribes: []string{extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentClosed},
 		},
 		Contributes: extension.Contributes{
 			Commands:    commandSpecs(),

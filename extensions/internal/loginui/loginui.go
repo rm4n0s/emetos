@@ -30,10 +30,10 @@ type Prompter struct {
 	closed  bool
 }
 
-// Wording is how the dialogs name the product they ask for, so that the same dialogs serve Remote Work and Relay.
+// Wording is how the dialogs name the product they ask for, so that the same dialogs serve any feature that logs in this way (Remote Work).
 type Wording struct {
-	// Product is the name of the feature the other computer set up ("Remote Work", "Relay"), and Where the place on that computer
-	// that shows its host key fingerprint ("the Remote Work page", "the Be a Host section of the Relay tab").
+	// Product is the name of the feature the other computer set up ("Remote Work"), and Where the place on that computer
+	// that shows its host key fingerprint ("the Remote Work page").
 	Product, Where string
 }
 

@@ -11,10 +11,8 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
-	gui "github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/extension"
-	"github.com/rm4n0s/emetos/extension/ui/uitest"
 	"github.com/rm4n0s/emetos/extensions/internal/pty"
 )
 
@@ -190,7 +188,7 @@ func TestTheEventsOfATerminalFromItsStartToItsEnd(t *testing.T) {
 
 // TestInputIsHiddenOnlyAtAPasswordPrompt holds decision 185 with real pseudo-terminals: the test shell waits for the "ready" it
 // says after it set the mode of its terminal, so the test does not depend on timing. A line editor (raw mode, ECHO off or on)
-// has its input published; a password prompt (ECHO off, ICANON on) has it hidden, for the user and for a client of Relay.
+// has its input published; a password prompt (ECHO off, ICANON on) has it hidden, for the user and for an extension.
 func TestInputIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -201,7 +199,7 @@ func TestInputIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
 		{"raw mode with ECHO off, the default of the test shell (a line editor)", "", ByUser, false},
 		{"raw mode with ECHO on", "--tty-echo", ByUser, false},
 		{"canonical with ECHO off (a password prompt) typed by the user", "--password", ByUser, true},
-		{"canonical with ECHO off (a password prompt) typed by a client", "--password", "relay:alice", true},
+		{"canonical with ECHO off (a password prompt) typed by an extension", "--password", "emetos.other", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -218,7 +216,7 @@ func TestInputIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
 			if tt.by == ByUser {
 				e.term.Type([]byte("hunter2\r"), ByUser)
 			} else {
-				err = r.ask(extension.RelayID, TopicWrite, map[string]any{"id": e.term.ID(), "data": "hunter2\r", "by": tt.by}, nil)
+				err = r.ask(tt.by, TopicWrite, map[string]any{"id": e.term.ID(), "data": "hunter2\r"}, nil)
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -239,7 +237,7 @@ func TestInputIsHiddenOnlyAtAPasswordPrompt(t *testing.T) {
 				t.Errorf("input = %+v, want hidden %v, data %q, by %q", in, tt.wantHidden, wantData, tt.by)
 			}
 			if tt.wantHidden {
-				// nothing a client or a log can read has the secret: not the input event, not the output (the prompt did not echo)
+				// nothing an extension or a log can read has the secret: not the input event, not the output (the prompt did not echo)
 				waitText(t, e.term, "password received (7 bytes)")
 				r.eventually("the output", func() bool { return len(log.topic(TopicOutput)) > 0 })
 				log.mu.Lock()
@@ -260,7 +258,7 @@ func TestInputToARealBashAtItsPromptIsPublished(t *testing.T) {
 	r := bashExt(t)
 	log := r.listen()
 	e := r.openBash()
-	e.term.Type([]byte("echo hi\r"), "relay:alice")
+	e.term.Type([]byte("echo hi\r"), "emetos.other")
 	inputs := log.topic(TopicInput)
 	if len(inputs) != 1 {
 		t.Fatalf("input events: %d", len(inputs))
@@ -269,7 +267,7 @@ func TestInputToARealBashAtItsPromptIsPublished(t *testing.T) {
 	if err := json.Unmarshal(inputs[0].Data, &in); err != nil {
 		t.Fatal(err)
 	}
-	if in.Hidden || in.Data != "echo hi\r" || in.By != "relay:alice" {
+	if in.Hidden || in.Data != "echo hi\r" || in.By != "emetos.other" {
 		t.Errorf("input = %+v, want the text, not hidden", in)
 	}
 }
@@ -382,7 +380,7 @@ func TestCreateMakesATerminalInAConfinedFolderWithoutTakingTheScreen(t *testing.
 		t.Fatal(err)
 	}
 	var made createReply
-	if err := r.ask(extension.RelayID, TopicCreate, map[string]any{"cwd": "a/b", "name": "from afar", "by": "relay:alice"}, &made); err != nil {
+	if err := r.ask("emetos.other", TopicCreate, map[string]any{"cwd": "a/b", "name": "from afar"}, &made); err != nil {
 		t.Fatal(err)
 	}
 	r.api.Pump()
@@ -397,10 +395,7 @@ func TestCreateMakesATerminalInAConfinedFolderWithoutTakingTheScreen(t *testing.
 		t.Error("the new terminal became the active one")
 	}
 	if len(view.Reveals) != reveals {
-		t.Error("the panel was revealed for a terminal a client made")
-	}
-	if got := clientMark(e); got != "Relay: alice" {
-		t.Errorf("the mark of the terminal a client made = %q", got)
+		t.Error("the panel was revealed for a terminal an extension made")
 	}
 	// "." is the folder itself
 	if err := r.ask("test", TopicCreate, map[string]any{"cwd": "."}, &made); err != nil {
@@ -411,7 +406,7 @@ func TestCreateMakesATerminalInAConfinedFolderWithoutTakingTheScreen(t *testing.
 	}
 }
 
-func TestCreateWithShowOpensTheTerminalForAnExtensionButNeverForRelay(t *testing.T) {
+func TestCreateWithShowOpensTheTerminalForAnExtension(t *testing.T) {
 	r := newExtRig(t, "")
 	r.run(CmdNew, nil)
 	view := r.api.View(ViewID)
@@ -423,7 +418,6 @@ func TestCreateWithShowOpensTheTerminalForAnExtensionButNeverForRelay(t *testing
 	}{
 		{"an extension that asks to show it", "emetos.containers", map[string]any{"name": "Shell", "show": true}, true},
 		{"an extension that does not", "emetos.containers", map[string]any{"name": "Shell"}, false},
-		{"Relay that asks to show it", extension.RelayID, map[string]any{"name": "Shell", "show": true, "by": "relay:alice"}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -459,46 +453,28 @@ func TestWriteAndRunTypeInATerminalAndSayWhoDid(t *testing.T) {
 	e := r.ext.activeEntry()
 	log := r.listen()
 
-	// a client of Relay: its word about the key counts
-	if err := r.ask(extension.RelayID, TopicWrite, map[string]any{"id": e.term.ID(), "data": "echo from-client\r", "by": "relay:alice"}, nil); err != nil {
+	// an extension: the bus says who it is, and its payload cannot say another
+	if err := r.ask("emetos.other", TopicWrite, map[string]any{"id": e.term.ID(), "data": "echo from-extension\r", "by": "user"}, nil); err != nil {
 		t.Fatal(err)
 	}
-	waitText(t, e.term, "from-client")
+	waitText(t, e.term, "from-extension")
 	inputs := log.topic(TopicInput)
 	var in inputEvent
-	if len(inputs) != 1 || inputs[0].Decode(&in) != nil || in.By != "relay:alice" || in.Data != "echo from-client\r" {
+	if len(inputs) != 1 || inputs[0].Decode(&in) != nil || in.By != "emetos.other" || in.Data != "echo from-extension\r" {
 		t.Fatalf("input events = %+v", inputs)
 	}
-	if got := clientMark(e); got != "Relay: alice" {
-		t.Errorf("mark = %q", got)
-	}
-	// another extension cannot claim to be a client of Relay, nor a user
-	if err := r.ask("emetos.other", TopicWrite, map[string]any{"id": e.term.ID(), "data": "echo x\r", "by": "relay:mallory"}, nil); err != nil {
-		t.Fatal(err)
-	}
-	inputs = log.topic(TopicInput)
-	if len(inputs) != 2 {
-		t.Fatalf("input events = %d", len(inputs))
-	}
-	_ = inputs[1].Decode(&in)
-	if in.By != "emetos.other" || clientMark(e) != "Relay: alice" {
-		t.Errorf("the extension was taken for %q; the mark is %q", in.By, clientMark(e))
-	}
-	// a second key joins, and the first goes
-	if err := r.ask(extension.RelayID, TopicRun, map[string]any{"text": "echo second", "by": "relay:bob"}, nil); err != nil {
+	// run says who did it, too
+	if err := r.ask("emetos.second", TopicRun, map[string]any{"text": "echo second"}, nil); err != nil {
 		t.Fatal(err)
 	}
 	waitText(t, e.term, "second")
-	if got := clientMark(e); got != "Relay: alice, bob" {
-		t.Errorf("mark = %q", got)
+	inputs = log.topic(TopicInput)
+	if len(inputs) < 2 {
+		t.Fatalf("input events = %d", len(inputs))
 	}
-	r.api.Emit(TopicClientGone, map[string]any{"by": "relay:alice"})
-	if got := clientMark(e); got != "Relay: bob" {
-		t.Errorf("mark after alice left = %q", got)
-	}
-	r.api.Emit(TopicClientGone, map[string]any{"by": "relay:bob"})
-	if got := clientMark(e); got != "" {
-		t.Errorf("mark after both left = %q", got)
+	_ = inputs[len(inputs)-1].Decode(&in)
+	if in.By != "emetos.second" {
+		t.Errorf("run was taken for %q", in.By)
 	}
 	// "run" with a new line inside becomes Enter, and ends with one
 	if err := r.ask("test", TopicRun, map[string]any{"id": e.term.ID(), "text": "echo a\necho b"}, nil); err != nil {
@@ -593,25 +569,4 @@ type stuckProcess struct {
 func (s *stuckProcess) Write(p []byte) (int, error) {
 	<-s.stuck
 	return len(p), nil
-}
-
-func TestGoldenTheTabsListSaysWhichClientTypedInATerminal(t *testing.T) {
-	for _, th := range uitest.Themes() {
-		t.Run(th.Name, func(t *testing.T) {
-			r := newPanelRig(t, th, gui.Size{Width: 900, Height: 240})
-			r.waitShows(t, "ready")
-			r.run(CmdNew, nil)
-			r.waitShows(t, "ready")
-			for i, name := range []string{"build", "server"} {
-				r.ext.all()[i].term.SetName(name)
-			}
-			r.ext.typedBy(r.ext.all()[1], ByRelayPrefix+"alice@laptop")
-			r.settle()
-			r.ts.Screenshot()
-			if got := clientMark(r.ext.all()[1]); got != "Relay: alice@laptop" {
-				t.Errorf("mark = %q", got)
-			}
-			uitest.MatchesGolden(r.ts, "panel_tabs_client_"+th.Name)
-		})
-	}
 }

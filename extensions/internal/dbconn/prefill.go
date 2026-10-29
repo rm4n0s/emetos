@@ -25,7 +25,7 @@ const (
 )
 
 // containerTopics maps the topics of Connect to Database to the id of the extension that owns them: an event on one of them is
-// believed only when that extension published it (a client of Relay may publish any topic, but under its own id).
+// believed only when that extension published it (any other extension may publish a topic, but under its own id).
 var containerTopics = map[string]string{
 	TopicContainersConnectDatabase: "emetos.containers",
 	TopicPodmanConnectDatabase:     "emetos.podman",
@@ -129,11 +129,8 @@ func (e *Extension) openPrefilled(p Prefill) error {
 	return errors.New("DatabasesEngineNotActive", "no extension that is active has the engine "+p.Engine, "engine", p.Engine)
 }
 
-// handleOpenForm answers TopicOpenForm. A request of a client of Relay is refused: a form is the host's to open.
+// handleOpenForm answers TopicOpenForm.
 func (e *Extension) handleOpenForm(_ context.Context, ev extension.Event) (any, error) {
-	if ev.Publisher == extension.RelayID {
-		return nil, errors.New("DatabasesOpenFormRefused", "a client of a shared workspace may not open the connection form", "publisher", ev.Publisher)
-	}
 	var raw map[string]any
 	if err := ev.Decode(&raw); err != nil {
 		return nil, err

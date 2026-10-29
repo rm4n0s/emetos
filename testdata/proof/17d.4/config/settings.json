@@ -1,7 +1,0 @@
-{
-	"editor.minimap.enabled": false,
-	"workbench.colorTheme": "Dark Modern",
-	"terminal.integrated.defaultProfile.linux": "bash",
-	"terminal.integrated.profiles.linux": {"bash": {"path": "bash", "args": ["--norc", "--noprofile"]}},
-	"terminal.integrated.env.linux": {"PS1": "$ ", "HISTFILE": "/dev/null"}
-}

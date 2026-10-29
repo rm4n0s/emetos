@@ -151,7 +151,7 @@ func (s *Scope) coreDocumentRead(c *coreCall) {
 }
 
 // coreDocumentEdit answers emetos.document.edit: the edits are made against the version the request names, as one step of
-// the undo history (ApplyTextEdits). A version that is not the document's current one fails with RelayStaleVersion.
+// the undo history (ApplyTextEdits). A version that is not the document's current one fails with CoreDocumentVersionStale.
 func (s *Scope) coreDocumentEdit(c *coreCall) {
 	var req extension.DocumentEditRequest
 	err := decodeCore(c, &req)
@@ -177,11 +177,11 @@ func (s *Scope) coreDocumentEdit(c *coreCall) {
 // ApplyTextEdits makes the edits of a client in the document: they are in the text of the version given, which must be the
 // document's current one; they are checked as a whole (ranges inside the text, on character boundaries, not overlapping, at
 // most extension.MaxDocumentEdits and extension.MaxDocumentEditBytes of text) before the first is made; and they are one
-// step of the undo history, as the edits of a rename are. It fails with RelayStaleVersion, CoreDocumentReadOnly,
+// step of the undo history, as the edits of a rename are. It fails with CoreDocumentVersionStale, CoreDocumentReadOnly,
 // CoreEditTooLarge and CoreEditInvalid.
 func ApplyTextEdits(doc *document.Document, version int, edits []extension.TextChange) (extension.DocumentEditReply, error) {
 	if doc.Version() != version {
-		return extension.DocumentEditReply{}, errors.New("RelayStaleVersion", "the document changed since the version the edit was made against", "uri", doc.URI().String(), "version", version, "current", doc.Version())
+		return extension.DocumentEditReply{}, errors.New("CoreDocumentVersionStale", "the document changed since the version the edit was made against", "uri", doc.URI().String(), "version", version, "current", doc.Version())
 	}
 	if doc.ReadOnly() {
 		return extension.DocumentEditReply{}, errors.New("CoreDocumentReadOnly", "the document is read-only", "uri", doc.URI().String())

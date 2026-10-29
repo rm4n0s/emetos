@@ -578,13 +578,6 @@ type TerminalState struct {
 	Link        string `json:"link"`
 	LinkCells   int    `json:"linkCells"`
 	Tooltip     bool   `json:"tooltip"`
-	// Remote, ID, CanType, State and Seq describe a terminal of another computer that Relay's Terminals panel shows (step 17d.4):
-	// its number there, whether the panel sends the keys, and how far its screen is ("none", "loading", "ready", "failed").
-	Remote  bool   `json:"remote"`
-	ID      int    `json:"id"`
-	CanType bool   `json:"canType"`
-	State   string `json:"state"`
-	Seq     uint64 `json:"seq"`
 	// ShellIntegration says that the shell sent the sequences of shell integration (step 17d.5); Commands is how many commands
 	// ended; Decorations are the marks in the gutter on screen (a row and its kind: "success", "error", "running" or "fix");
 	// Sticky says that the sticky scroll overlay is shown, StickyRows its rows of text and StickyShift how far it was pushed up.

@@ -1,3 +1,0 @@
-# Notes
-
-Things to remember.

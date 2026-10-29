@@ -11,11 +11,11 @@ import (
 )
 
 // outsideExtensions are the extensions whose commands reach outside the workspace: the container engines and the databases (SPEC
-// §10.24, D25). A client of Relay may run none of their commands.
+// §10.24, D25). A client of a shared workspace may run none of their commands.
 var outsideExtensions = []string{"emetos.containers", "emetos.podman", "emetos.databases", "emetos.sql", "emetos.mongodb", "emetos.redis"}
 
 // Every command the container and database extensions declare is refused to a client with the class outside, so a command added to
-// one of them without a thought for Relay fails here. (None of them adds a command at run time with Commands().Register.)
+// one of them without a thought for the clients of a shared workspace fails here. (None of them adds a command at run time with Commands().Register.)
 func TestEveryCommandOfTheContainerAndDatabaseExtensionsIsRefusedToClients(t *testing.T) {
 	seen := map[string]int{}
 	for _, f := range extensions.All() {

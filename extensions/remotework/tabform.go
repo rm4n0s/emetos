@@ -24,7 +24,7 @@ type tabForm struct {
 	t *remoteTab
 
 	host, port *ui.InputBoxController
-	// keys is the choice of the key, shared with Relay (extensions/internal/keyform).
+	// keys is the choice of the key (extensions/internal/keyform).
 	keys *keyform.Form
 }
 

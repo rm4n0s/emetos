@@ -12,7 +12,6 @@ import (
 // privilegedExtensions is the fixed allowlist of the extensions that may declare privileges, and which ones each may declare
 // (SPEC §10.19 "Privileges"). It is read-only: nothing, no setting and no manifest, adds to it.
 var privilegedExtensions = map[string][]string{
-	extension.RelayID: {extension.PrivilegeEventsPublishAny, extension.PrivilegeCommandsExecute},
 	extension.TerminalID: {extension.PrivilegeCommandsExecute},
 }
 
@@ -35,7 +34,7 @@ func validateManifest(m extension.Manifest, seen map[string]bool) error {
 		if _, listed := privilegedExtensions[m.ID]; listed {
 			return errors.New("ExtensionPrivilegeRefused", "this extension may declare only the privileges the host lists for it (emetos.terminal: commands.execute)", "id", m.ID, "privileges", slices.Clone(m.Privileges))
 		}
-		return errors.New("ExtensionPrivilegeRefused", "only emetos.relay may declare privileges", "id", m.ID, "privileges", slices.Clone(m.Privileges))
+		return errors.New("ExtensionPrivilegeRefused", "only emetos.terminal may declare privileges", "id", m.ID, "privileges", slices.Clone(m.Privileges))
 	}
 	return nil
 }

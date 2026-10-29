@@ -17,9 +17,7 @@ import (
 const (
 	tabsWidth = 180.0
 	tabRowH   = 22.0
-	// markH is the height of the second line that names the Relay clients that typed in a terminal.
-	markH    = 14.0
-	minPaneW = 80.0
+	minPaneW  = 80.0
 )
 
 // build makes the widget of the view: the terminals of the active tab side by side, the tabs list beside them when there are
@@ -220,19 +218,8 @@ func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entr
 				ui.NewIconButton("trash", ui.IconButtonOpts{Tooltip: "Kill Terminal", OnPressed: func() { t.kill(e) }}))
 		}
 		line := widgets.Widget(widgets.NewRow(cells, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))
-		height := tabRowH
-		if mark := clientMark(e); mark != "" {
-			// a Relay client typed in this terminal: a second line says which (SPEC §10.25 "Relay")
-			height += markH
-			line = widgets.NewColumn([]widgets.Widget{
-				widgets.NewSizedBox(line, widgets.SizedBoxOpts{Height: foundation.Some(tabRowH)}),
-				widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(20, 0, 0, 0), widgets.NewText(mark, widgets.TextOpts{
-					Style: ui.TextStyle(bc, 11, colors.NotificationsWarningIconForeground), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis,
-				})),
-			}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
-		}
 		row := widgets.Widget(widgets.NewContainer(line, widgets.ContainerOpts{
-			Height: foundation.Some(height), Padding: painting.NewEdgeInsetsSymmetric(0, 8), Color: foundation.Some(bg),
+			Height: foundation.Some(tabRowH), Padding: painting.NewEdgeInsetsSymmetric(0, 8), Color: foundation.Some(bg),
 		}))
 		row = t.dropMark(colors, row, e)
 		set := func(v bool) {

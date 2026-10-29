@@ -32,16 +32,16 @@ type coreReply struct {
 
 func TestTheCoreTopicsDriveARealWorkspace(t *testing.T) {
 	var api extension.API
-	relay := func() extension.Extension {
+	privileged := func() extension.Extension {
 		return &testExtension{
 			manifest: extension.Manifest{
-				ID: extension.RelayID, Name: "Relay", ActivationEvents: []string{extension.OnStartup},
-				Privileges: []string{extension.PrivilegeEventsPublishAny, extension.PrivilegeCommandsExecute},
+				ID: extension.TerminalID, Name: "Terminal", ActivationEvents: []string{extension.OnStartup},
+				Privileges: []string{extension.PrivilegeCommandsExecute},
 			},
 			activate: func(_ context.Context, a extension.API) error { api = a; return nil },
 		}
 	}
-	p := extensionProcess(t, relay)
+	p := extensionProcess(t, privileged)
 	folder := t.TempDir()
 	for name, text := range map[string]string{"a.go": "package a\n// a\n", "b.go": "package b\n"} {
 		if err := os.WriteFile(filepath.Join(folder, name), []byte(text), 0o644); err != nil {
@@ -111,7 +111,7 @@ func TestTheCoreTopicsDriveARealWorkspace(t *testing.T) {
 	}
 	// the version it was made against is stale now
 	_, err = ask(extension.TopicDocumentEdit, extension.DocumentEditRequest{URI: aURI, Version: content.Version, Edits: nil})
-	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("ApplyTextEdits.RelayStaleVersion") {
+	if appErr, ok := errors.FromError(err); !ok || !appErr.HasRoute("ApplyTextEdits.CoreDocumentVersionStale") {
 		t.Errorf("a stale edit: %v", err)
 	}
 	// closing a dirty document needs discard
@@ -166,7 +166,7 @@ func TestTheCoreTopicsDriveARealWorkspace(t *testing.T) {
 	}
 	// and one that reaches outside it does not
 	_, err = ask(extension.TopicCommandsExecute, extension.CommandsExecuteRequest{ID: "workbench.action.closeWindow"})
-	if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "RelayCommandRefused" {
+	if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "CoreCommandRefused" {
 		t.Errorf("close window: %v", err)
 	}
 	ev, err = ask(extension.TopicCommandsList, nil)
@@ -280,7 +280,7 @@ func TestTheCoreDocumentTopicsOfAWorkspaceThatIsNotOnScreen(t *testing.T) {
 	}
 }
 
-// An extension that declares privileges and is not emetos.relay is refused: it is left out and the Extensions page says so.
+// An extension that declares privileges and is not emetos.terminal is refused: it is left out and the Extensions page says so.
 func TestTheExtensionsPageShowsTheExtensionsThatDeclaredPrivileges(t *testing.T) {
 	sneaky := func() extension.Extension {
 		return &testExtension{manifest: extension.Manifest{
@@ -302,7 +302,7 @@ func TestTheExtensionsPageShowsTheExtensionsThatDeclaredPrivileges(t *testing.T)
 	if !a.ts.Exists(gluttertest.ByKey(extensionsui.ProblemKey("ExtensionPrivilegeRefused", "ext.sneaky"))) {
 		t.Error("the page does not show the problem of ext.sneaky")
 	}
-	if !a.ts.Exists(gluttertest.ByTextContaining("ext.sneaky: only emetos.relay may declare privileges (ExtensionPrivilegeRefused)")) {
+	if !a.ts.Exists(gluttertest.ByTextContaining("ext.sneaky: only emetos.terminal may declare privileges (ExtensionPrivilegeRefused)")) {
 		t.Error("the page does not say why")
 	}
 	if a.ts.Exists(gluttertest.ByKey(extensionsui.RowKey("ext.sneaky"))) {

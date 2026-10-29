@@ -91,7 +91,7 @@ func (t *WindowTab) ID() string { return t.id }
 // Kind is what the tab holds.
 func (t *WindowTab) Kind() TabKind { return t.kind }
 
-// KindID is the id of the kind of the window tab of an extension (emetos.relay.tab); empty for a workspace.
+// KindID is the id of the kind of the window tab of an extension (emetos.remotework.tab); empty for a workspace.
 func (t *WindowTab) KindID() string {
 	if t.ws != nil && t.ws.ext != nil {
 		return t.ws.ext.kind.Spec.ID

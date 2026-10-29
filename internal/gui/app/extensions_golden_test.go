@@ -64,7 +64,7 @@ func TestGoldenExtensionsPage(t *testing.T) {
 }
 
 // TestGoldenExtensionsPageProblem shows the page "Extensions" with an extension that was left out because it declared
-// privileges that only emetos.relay may have, in both themes.
+// privileges that only emetos.terminal may have, in both themes.
 func TestGoldenExtensionsPageProblem(t *testing.T) {
 	for _, th := range goldenThemesOfThePanels {
 		t.Run(th.name, func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestGoldenExtensionsPageProblem(t *testing.T) {
 			sneaky := func() extension.Extension {
 				return &testExtension{manifest: extension.Manifest{
 					ID: "ext.sneaky", Name: "Sneaky Tools", Version: "1.0.0", ActivationEvents: []string{extension.OnStartup},
-					Privileges: []string{extension.PrivilegeEventsPublishAny, extension.PrivilegeCommandsExecute},
+					Privileges: []string{extension.PrivilegeCommandsExecute},
 				}}
 			}
 			paths := testutil.Isolate(t)

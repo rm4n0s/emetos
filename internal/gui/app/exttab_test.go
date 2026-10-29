@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
+	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -324,6 +326,90 @@ func TestAnExtensionTabThatNoExtensionHasAnyMoreIsLeftOut(t *testing.T) {
 	}
 	if errs := b.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
+	}
+}
+
+// removedExtensionWord is the name of the extension of M16 that step 23.1 removed (D32), built here from its rot13 form so that the
+// repository never holds it as a word.
+func removedExtensionWord() string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z':
+			return 'a' + (r-'a'+13)%26
+		case r >= 'A' && r <= 'Z':
+			return 'A' + (r-'A'+13)%26
+		}
+		return r
+	}, "cnenfvgr")
+}
+
+// TestTheSavedStateOfTheRemovedEventControlExtensionIsLeftOutAndItsFilesStay is the old state of step 23.1: the last session had a
+// window tab of the extension that was removed, with the state it saved, and the extension kept state files of its own. The window
+// starts without a dialog, the tab is left out with one line at information level, and nothing on disk is deleted or changed.
+// The ids of the extension are built from parts, so that this file does not hold its name.
+func TestTheSavedStateOfTheRemovedEventControlExtensionIsLeftOutAndItsFilesStay(t *testing.T) {
+	word := removedExtensionWord()
+	kind := "emetos." + word + ".tab"
+	env := newMultiEnv(t, nil)
+	folder := env.folder("one", "a.go")
+	state, err := env.paths.StateDir(storage.DefaultProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// the files of the extension, as it left them in the state folder of Emetos: they are the user's, and they stay
+	files := map[string]string{
+		word + ".json":       `{"version":1,"listening":true,"port":47124,"workspaces":[],"keys":[]}`,
+		word + "-hosts.json": `{"version":1,"hosts":{}}`,
+		word + "-host-key":   "-----BEGIN OPENSSH PRIVATE KEY-----\nnot a real key\n-----END OPENSSH PRIVATE KEY-----\n",
+	}
+	for name, text := range files {
+		if err := os.WriteFile(filepath.Join(state, name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	global, err := json.Marshal(map[string]any{
+		"version": 1, "activeWorkspaceTab": "fedcba9876543210",
+		"workspaceTabs": []any{
+			map[string]any{"id": "0123456789abcdef", "folder": folder},
+			map[string]any{"id": "fedcba9876543210", "kind": kind, "title": "Old tab", "state": map[string]any{"draft": "kept in the file"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	globalPath, err := env.paths.GlobalStatePath(storage.DefaultProfile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(globalPath, global, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	logger, logged := savedNotesLog()
+	a := env.runWith(Options{}, ProcessOptions{Logger: logger})
+	a.settle()
+	if a.m.Count() != 1 || a.m.Tabs()[0].Kind() != TabWorkspace {
+		t.Errorf("%d tabs, the first of kind %v", a.m.Count(), a.m.Tabs()[0].Kind())
+	}
+	if lines := strings.Count(logged.String(), "a window tab of an extension is left out"); lines != 1 || !strings.Contains(logged.String(), "level=INFO") {
+		t.Errorf("the log has %d lines about the tab:\n%s", lines, logged.String())
+	}
+	if items := a.m.Active().Notify.Items(); len(items) != 0 {
+		t.Errorf("the tab that was left out told the user: %+v", items)
+	}
+	if errs := a.ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
+	a.m.Active().RequestClose(CloseReasonQuit)
+	a.waitFor("the quit", func() bool { return a.quits == 1 })
+	for name, want := range files {
+		got, err := os.ReadFile(filepath.Join(state, name))
+		if err != nil || string(got) != want {
+			t.Errorf("%s = %q (%v), want it left as it was", name, got, err)
+		}
 	}
 }
 
@@ -840,7 +926,7 @@ func TestAWindowTabThatCapturesTheKeysKeepsOnlyTheShortcutsOfTheWindow(t *testin
 	}
 }
 
-// TestAnExtensionOpensItsWindowTabOnceAndShowsTheOpenOne is the OpenWindowTab of the API (step 17e.4: Relay's open command): the
+// TestAnExtensionOpensItsWindowTabOnceAndShowsTheOpenOne is the OpenWindowTab of the API (step 17e.4: the open command of Remote Work): the
 // first call opens the tab, the next ones show it, also from another tab, and a kind nobody has fails with the window's error.
 func TestAnExtensionOpensItsWindowTabOnceAndShowsTheOpenOne(t *testing.T) {
 	p := &wtxProbe{}

@@ -337,8 +337,8 @@ func extensionImportRule(rel, path string) (Rule, bool) {
 			return "", false
 		}
 		if isOrUnder(path, emetosModule+emulatorFolder) {
-			// the terminal emulator is a library with no UI and no Emetos (RuleEmulatorImportsUI): the Terminals panel of Relay
-			// draws a host's terminal with it (SPEC §10.25 "Relay", D27)
+			// the terminal emulator is a library with no UI and no Emetos (RuleEmulatorImportsUI): any extension may import it
+			// (SPEC §10.25)
 			return "", false
 		}
 		return RuleExtensionImportsExtension, true

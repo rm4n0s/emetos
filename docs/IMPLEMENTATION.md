@@ -125,7 +125,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M13 The Agents extension | 13.1–13.3 |
 | M14 The Go extension | 14.1–14.3 |
 | M15 Remote Work | 15.1–15.5 |
-| M16 Relay | 16.1–16.3 |
+| M16 Core request topics, privileges and confinement | 16.1 |
 | M17 Wrap-up | 17.1 |
 | M17b Bugs found on the desktop | 17b.1–17b.6 |
 | M17c Remove the Agents extension | 17c.1 |
@@ -136,6 +136,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M20 MongoDB | 20.1–20.2 |
 | M21 Redis | 21.1–21.2 |
 | M22 Wrap-up of M18–M21 | 22.1–22.2 |
+| M23 Remove an extension the user no longer wanted | 23.1 |
 
 ---
 
@@ -1353,7 +1354,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 ### 15.2 Login over SSH and the Remote Work page
 **Goal:** A lets listed keys in; B logs in with its key (SPEC §10.18).
 **Read:** SPEC §10.18, §12.
-**Tasks:** `go get golang.org/x/crypto@<latest>`; `extensions/internal/sshlogin` (shared with Relay, M16): the server on A (public-key only against the listed keys, the `emetos-remotework` channel and nothing else, rate limit, logging), the host key made and kept with mode 0600, the client on B (key file with the passphrase dialog, or `ssh-agent` from `SSH_AUTH_SOCK`), host key pinning in `remote-work-hosts.json` (first-use fingerprint dialog, changed key refused); the session token and the QUIC certificate fingerprint sent over the channel; `remote-work.json` (mode 0600) and the page "Remote Work" (per-workspace switch, port, idle timeout, keys added by pasting a line or choosing a `.pub` file, the host fingerprint shown, the security notes of §10.18); A listens only while a workspace has it on; the connected banner with Disconnect; notifications for logins and refused attempts.
+**Tasks:** `go get golang.org/x/crypto@<latest>`; `extensions/internal/sshlogin` : the server on A (public-key only against the listed keys, the `emetos-remotework` channel and nothing else, rate limit, logging), the host key made and kept with mode 0600, the client on B (key file with the passphrase dialog, or `ssh-agent` from `SSH_AUTH_SOCK`), host key pinning in `remote-work-hosts.json` (first-use fingerprint dialog, changed key refused); the session token and the QUIC certificate fingerprint sent over the channel; `remote-work.json` (mode 0600) and the page "Remote Work" (per-workspace switch, port, idle timeout, keys added by pasting a line or choosing a `.pub` file, the host fingerprint shown, the security notes of §10.18); A listens only while a workspace has it on; the connected banner with Disconnect; notifications for logins and refused attempts.
 **Tests:** login with a listed key, refusal of an unlisted key, of passwords, of other channel types and of shells; the agent path (an in-process agent); a wrong passphrase; first-use pinning and a changed host key; the rate limit; turning remote control off closes the listener and ends sessions; the state files' modes; all on loopback with ephemeral ports.
 
 ### 15.3 QUIC transport and the TCP fallback
@@ -1378,26 +1379,13 @@ Every **Proof** item gives its exact command. A state no existing command reache
 
 ---
 
-## M16: Relay (event control of a workspace)
+## M16: Core request topics, privileges and confinement
 
 ### 16.1 Core request topics, privileges and confinement
-**Goal:** what lets an extension drive a workspace through events, confined to it (SPEC §10.19 "Privileges", "Core request topics", "Confinement").
+**Goal:** what lets an extension drive a workspace through requests, confined to it (SPEC §10.19 "Privileges", "Core request topics", "Confinement"). Steps 16.2 and 16.3 of the first plan built an extension on top of it; the user had it removed on 2026-10-29 (D32, step 23.1), and only this step stays.
 **Read:** SPEC §10.19, §10.15 (events, ownership, containment, the "As built" notes), §10.11 (commands that act on windows and folders).
-**Tasks:** the core request topics of §10.19 answered by every workspace scope (`emetos.commands.list`/`execute`, `emetos.files.list`/`stat`/`read`, `emetos.document.open`/`read`/`edit`/`save`/`close`, `emetos.editor.reveal`), with their payload types in `extension/`; `Manifest.Privileges` (`events.publishAny`, `commands.execute`) granted by the host only to `emetos.relay` (others refused with a problem on the Extensions page); `commands.execute` running core and extension commands in the requester's scope; the list of commands refused to clients (window tabs, quit, close window, open or replace a folder, new windows, profiles, user and profile settings) and its marking in `emetos.commands.list`.
-**Tests:** each topic's payloads and errors (route-tested), file reads confined to the folder (`..`, absolute paths, symlinks out), an edit with a stale version refused, a privileged and an unprivileged extension (publishing another's topic and executing a command refused for the latter), every refused command class, a command run in one tab does not reach another.
-
-### 16.2 The Relay host
-**Goal:** sharing workspaces' events with keys, watch-only or watch and send (SPEC §10.19 "The host side", "Login and transport", "State").
-**Read:** SPEC §10.19, §10.18 (the login of Remote Work), §12.
-**Tasks:** `extensions/relay`: the Relay window tab kind and its "Be a Host" section (listen switch, port, shared workspaces, keys with Watch only or Watch and send per workspace, added by pasting, a `.pub` file or Scan QR Code from `extensions/internal/keyqr`, step 15.5); `relay.json`; the SSH listener with `extensions/internal/sshlogin` (built in 15.2; if 15.2 is not done, build it here and let 15.2 use it), the `emetos-relay` channel and the message protocol (versioned, length-prefixed, a size limit on each message); the host's Relay active in each shared workspace forwarding every event to the connected clients granted that workspace, and for Watch and send publishing, requesting and executing in that scope only; the banner with Disconnect, logs, notifications and the rate limit.
-**Tests:** on loopback: a listed key connects and gets only its granted workspaces; an unlisted key and a password are refused; watch-only receives events but its sends are refused (`RelayWatchOnly`); watch and send publishes, requests and runs a command in the right workspace only; a refused command class; a workspace unshared mid-session stops its events; the protocol's malformed, truncated and oversized messages refused (seeded random inputs and a short fuzz target as CLAUDE.md says); the state file's mode.
-
-### 16.3 The Relay client
-**Goal:** connect to hosts and watch and drive their workspaces (SPEC §10.19 "The tab").
-**Read:** SPEC §10.19, §10.15.
-**Tasks:** the "Hosts" section (Add Host with address, port, key file or agent, name, and Show My Public Key as QR Code (step 15.5); host key pinning in `relay-hosts.json` with the first-use fingerprint dialog; connect, disconnect, remove; several hosts at once; reconnection); the Events panel (live log with time, topic, publisher, collapsible JSON, batches as one row, requests with replies and durations, filter, Pause, Clear, 10,000-row cap); the Send panel (topic and JSON with Publish and Request, Run Command with the host's command picker and JSON arguments, results and errors, history in the tab's state; hidden for watch-only); the tab's state saved (hosts, selection, history; never a passphrase).
-**Tests:** two Emetos instances in one test process on loopback: the client connects, sees the host's `emetos.document.changed` while a file is edited on the host, lists files with `emetos.files.list`, opens and edits a file with the document topics, runs a command and an extension's command, sends a request to an extension's handled topic, is refused outside its workspace; watch-only shows no Send panel; reconnection after a drop; goldens of the tab (dark and light).
-**Proof:** method B: two isolated Emetos instances on loopback started by the step's proof script, the client's Relay tab with a connected host, the Events panel showing the host's events and the Send panel with a reply.
+**Tasks:** the core request topics of §10.19 answered by every workspace scope (`emetos.commands.list`/`execute`, `emetos.files.list`/`stat`/`read`, `emetos.document.open`/`read`/`edit`/`save`/`close`, `emetos.editor.reveal`), with their payload types in `extension/`; `Manifest.Privileges` (`commands.execute`) granted by the host only to the extensions on its fixed allowlist (`emetos.terminal`; others refused with a problem on the Extensions page); `commands.execute` running core and extension commands in the requester's scope; the list of commands refused to clients (window tabs, quit, close window, open or replace a folder, new windows, profiles, user and profile settings) and its marking in `emetos.commands.list`.
+**Tests:** each topic's payloads and errors (route-tested), file reads confined to the folder (`..`, absolute paths, symlinks out), an edit with a stale version refused, a privileged and an unprivileged extension (executing a command refused for the latter), every refused command class, a command run in one tab does not reach another.
 
 ---
 
@@ -1406,7 +1394,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 ### 17.1 Update the README
 **Goal:** `README.md` describes Emetos as it is after every other step (the user's request of 2026-10-26).
 **Read:** `README.md`, `docs/IMPLEMENTED.md` (the entries after 10.2 and the coverage table), SPEC §1, §3, §10.15–§10.18, §16, §18.
-**Tasks:** bring every section of the README up to date: the status and version (the areas and milestones now built, what is still planned), the feature lists (extensions and their seven kinds of contribution, event sharing, the bundled extensions such as TODOs, Tasks, the Markdown preview, notes, scratchpad, Agents, Go, Remote Work, Relay, and the language intelligence of M12), install and requirements (the `claude` program, `gopls` and the tools, the Remote Work and Relay ports and keys, with the security notes of SPEC §10.18 and §10.19), where the new state files live (`event-sharing.json`, `remote-work.json`, `remote-work-hosts.json`, `relay.json`, `relay-hosts.json`), privacy (what talks to the network now: the agent's own program, remote control, language servers; still no telemetry), the command line, and fresh screenshots made with `scripts/screenshots.sh` (add the new ones: an extension view, a session of the Agents extension, a Go file with hovers or completion, a remote tab); every link and image resolves; the coverage table in `docs/IMPLEMENTED.md` gets the rows of the areas built since 10.2.
+**Tasks:** bring every section of the README up to date: the status and version (the areas and milestones now built, what is still planned), the feature lists (extensions and their seven kinds of contribution, event sharing, the bundled extensions such as TODOs, Tasks, the Markdown preview, notes, scratchpad, Agents, Go, Remote Work, and the language intelligence of M12), install and requirements (the `claude` program, `gopls` and the tools, the Remote Work port and keys, with the security notes of SPEC §10.18), where the new state files live (`event-sharing.json`, `remote-work.json`, `remote-work-hosts.json`), privacy (what talks to the network now: the agent's own program, remote control, language servers; still no telemetry), the command line, and fresh screenshots made with `scripts/screenshots.sh` (add the new ones: an extension view, a session of the Agents extension, a Go file with hovers or completion, a remote tab); every link and image resolves; the coverage table in `docs/IMPLEMENTED.md` gets the rows of the areas built since 10.2.
 **Tests:** a check that every relative link and image of the README resolves (a test or a script run in the checks).
 **Proof:** the README's screenshots, viewed.
 
@@ -1504,7 +1492,7 @@ The user, on 2026-10-27: "Remove claude code extension. I don't want to read any
 
 ## M17d: The terminal
 
-The user, on 2026-10-27: "Put a new extension to run terminal and working with events for the relay extension." and on 2026-10-28: "make the terminal extension work like in vscode". VS Code's integrated terminal as an extension, with an emulator of its own (no xterm.js: the user, 2026-10-28, "dont use xterm.js !!!"), its terminals as events and requests that Relay shows to a client, and what VS Code's terminal does by default: shell integration, IntelliSense, terminals in the editor area and persistent sessions (SPEC §10.25, D27). **Rule for every step of M17d:** nothing of xterm.js is used, read, fetched, ported or copied (code, tests or assets), and it is not added to `reference/`; VS Code's own code may be read for the behavior to match, but where it is built on xterm.js (its `browser/xterm/` folder, its xterm addons) only the visible behavior is matched.
+The user, on 2026-10-27: "Put a new extension to run terminal and working with events ..." and on 2026-10-28: "make the terminal extension work like in vscode". VS Code's integrated terminal as an extension, with an emulator of its own (no xterm.js: the user, 2026-10-28, "dont use xterm.js !!!"), its terminals as events and requests that other extensions use, and what VS Code's terminal does by default: shell integration, IntelliSense, terminals in the editor area and persistent sessions (SPEC §10.25, D27). **Rule for every step of M17d:** nothing of xterm.js is used, read, fetched, ported or copied (code, tests or assets), and it is not added to `reference/`; VS Code's own code may be read for the behavior to match, but where it is built on xterm.js (its `browser/xterm/` folder, its xterm addons) only the visible behavior is matched.
 
 ### 17d.1 The emulator
 **Goal:** Emetos's own terminal emulator with no UI, written in Go from the published descriptions of the terminal (SPEC §10.25 "The emulator"). **Nothing of xterm.js** is read, fetched, ported or copied, code or tests.
@@ -1515,7 +1503,7 @@ The user, on 2026-10-27: "Put a new extension to run terminal and working with e
 ### 17d.2 The Terminal panel
 **Goal:** terminals in the panel that a user works in as in VS Code (SPEC §10.25 "The process", "The UI", "Commands, keys and context keys").
 **Read:** SPEC §10.25, §10.15 (panel views, commands, keybindings, settings, colors of extensions), §9.3, §14; VS Code's `reference/vscode/src/vs/workbench/contrib/terminal/` (the commands, settings and their defaults, `terminalConfiguration.ts`, `terminalColorRegistry.ts`, the default `commandsToSkipShell`, flow control constants).
-**Tasks:** `extensions/terminal` (`emetos.terminal`): profiles and the shell, the environment, the working folder, the pseudo-terminal (`extensions/internal/pty`) with flow control, resize, close and kill; the widget (drawn as SPEC §10.25 "Speed" says: the glyph atlas and one `DrawAtlas` for the glyphs and one for the backgrounds and decorations, box-drawing and block characters drawn as shapes, a frame with no change reuses its picture, the cursor, colors and fonts, the scrollbar and the wheel, selection, copy and paste, the context menu, keys through the encoder and `commandsToSkipShell`, the input method, the bell), several terminals with the tabs list and splits; every command, key, context key, setting and color of §10.25 registered with VS Code's ids and defaults (find, links, `runSelectedText`, `runActiveFile`, `sendSequence`, `rename` and `selectDefaultShell` are 17d.3's); the refusal class `terminal` for Relay clients.
+**Tasks:** `extensions/terminal` (`emetos.terminal`): profiles and the shell, the environment, the working folder, the pseudo-terminal (`extensions/internal/pty`) with flow control, resize, close and kill; the widget (drawn as SPEC §10.25 "Speed" says: the glyph atlas and one `DrawAtlas` for the glyphs and one for the backgrounds and decorations, box-drawing and block characters drawn as shapes, a frame with no change reuses its picture, the cursor, colors and fonts, the scrollbar and the wheel, selection, copy and paste, the context menu, keys through the encoder and `commandsToSkipShell`, the input method, the bell), several terminals with the tabs list and splits; every command, key, context key, setting and color of §10.25 registered with VS Code's ids and defaults (find, links, `runSelectedText`, `runActiveFile`, `sendSequence`, `rename` and `selectDefaultShell` are 17d.3's); the refusal class `terminal` for clients of a hosted workspace.
 **Tests:** the processes with a test shell (a small Go program built by the test that echoes, draws with sequences, uses the alternate screen and tracks the mouse) and with `/bin/sh`; flow control (a flood keeps frames under the budget of §14, measured with the fake clock); the widget's goldens (dark and light: a prompt, colors, a selection, the alternate screen, splits and the tabs list); **real input** (17b.1): Ctrl+\` opens a terminal, typing `echo hello` and Enter shows `hello`, Ctrl+Shift+C and V copy and paste, the wheel scrolls back, a second terminal and a split, Ctrl+P still opens Quick Open from a terminal, `exit` ends it; the budgets of §14 "Terminal output", "Terminal frame" and "Terminal typing" measured with real input in a release build (headless, and with the GPU in the manager's desktop pass), with `foot` (and Ghostty if installed) run on the same 100 MB file in the same headless compositor for comparison, all recorded in `docs/PERFORMANCE.md`; a budget missed because of Glutter gets its `docs/GLUTTER-ISSUES.md` entry and is reported to the manager.
 **Proof:** method C with real input: a terminal with a colored listing and a split (`17d.2-terminal.png`).
 
@@ -1525,12 +1513,12 @@ The user, on 2026-10-27: "Put a new extension to run terminal and working with e
 **Tasks:** find in the terminal over the scrollback (case, whole word, regular expression, highlights, next and previous); links (web, files with `:line:col` under the folder opened in an editor, OSC 8), Ctrl+click and the hover; `runSelectedText`, `runActiveFile`, `sendSequence`, `rename`, `selectDefaultShell`.
 **Tests:** the link detectors (ported cases), find over wrapped lines and the scrollback, each command; real input: Ctrl+F finds a word in the output, Ctrl+click on `main.go:3:1` printed by the shell opens the file at that line, "Run Selected Text" from an editor.
 
-### 17d.4 The terminal's events and Relay
-**Goal:** a Relay client watches a host's terminals and, where the host allows it, types in them (SPEC §10.25 "Events and requests", "Relay", §10.19, D27).
-**Read:** SPEC §10.25, §10.19 (all, with the As built parts of 16.1 to 16.3), §10.15 (events and requests); `extensions/relay`.
-**Tasks:** the events and requests of §10.25 in `extensions/terminal` (batched output with `seq`, the snapshot through serialization, `create` with a confined folder, `write`, `run`, `kill`); in `extensions/relay`: the host's **Allow terminals** per key and workspace in Be a Host (stored in `relay.json`, off by default, with its warning), the refusal `RelayTerminalRefused`, the "Relay: <key comment>" mark on a terminal a client typed in and in the banner; the client's **Terminals** panel (the list, the emulator fed by snapshot and events with a new snapshot on a gap, read-only or taking keys and paste, New Terminal and Kill); the README (the terminal, and its place in Relay's security notes); SPEC §10.25 "As built".
-**Tests:** the topics and requests (fake API, table-driven, every tag's route); the snapshot plus events give the host's cells on the client (seeded random output, with a gap); the permission (refused without Allow terminals, allowed with it, never for Watch only); two Emetos processes on this machine, host and client, through the real SSH login on `127.0.0.1` with test keys (as the tests of 16.2 and 16.3): the client's panel shows the host's terminal, and with Allow terminals **real input** typed in the client's panel (`echo from-client` and Enter) appears in the host's terminal; goldens of the Terminals panel and of the Be a Host section with the new checkbox.
-**Proof:** method C, two windows: a host's terminal and the client's Terminals panel showing the same output typed from the client (`17d.4-relay-terminal.png`).
+### 17d.4 The terminal's events and requests
+**Goal:** other extensions can watch a terminal's output and write to it (SPEC §10.25 "Events and requests", D27). The first plan had a client of a hosted workspace watch a host's terminals; that extension was removed in step 23.1 (D32) and what only it used went with it.
+**Read:** SPEC §10.25, §10.19, §10.15 (events and requests).
+**Tasks:** the events and requests of §10.25 in `extensions/terminal` (batched output with `seq`, the snapshot through serialization, `create` with a confined folder, `write`, `run`, `kill`); the README (the terminal); SPEC §10.25 "As built".
+**Tests:** the topics and requests (fake API, table-driven, every tag's route); the snapshot plus events give the terminal's cells (seeded random output, with a gap).
+**Proof:** none that stays (the proof image of this step showed the removed extension and was deleted in step 23.1).
 
 ### 17d.5 Shell integration
 **Goal:** the shell tells the terminal where each command is, as in VS Code (SPEC §10.25 "Shell integration").
@@ -1557,7 +1545,7 @@ The user, on 2026-10-27: "Put a new extension to run terminal and working with e
 
 ## M17e: What the user asked for on 2026-10-28
 
-The user, on 2026-10-28, while M17d was being built: "Some steps for the future: remove extensions for Notes and TODO; add extension to find string in files like the search button in vscode; Right click on a method or variable should have two button "Find all references" and "Find all implementations"; remote work and relay are not clear on how one workspace can become host and how to disable it", and "also remove ScratchPad" (SPEC §10.26 to §10.29, D28 to D31). The milestone comes after M17d and before M18, and each step tests with real input (17b.1), as M17b did.
+The user, on 2026-10-28, while M17d was being built: "Some steps for the future: remove extensions for Notes and TODO; add extension to find string in files like the search button in vscode; Right click on a method or variable should have two button "Find all references" and "Find all implementations"; remote work and ... are not clear on how one workspace can become host and how to disable it", and "also remove ScratchPad" (SPEC §10.26 to §10.29, D28 to D31). The milestone comes after M17d and before M18, and each step tests with real input (17b.1), as M17b did.
 
 ### 17e.1 Remove Notes, TODOs and Scratchpad
 **Goal:** Emetos has none of the three extensions, and a user who had notes or Scratchpad text finds it in files (SPEC §10.26, D28).
@@ -1567,7 +1555,7 @@ The user, on 2026-10-28, while M17d was being built: "Some steps for the future:
 - Remove or retarget their uses elsewhere. Every test that used one of them as an example of the contract moves to `extensions/internal/testext` or to another extension, with no coverage lost. This covers:
   - the display tests of 17b.5 and 17b.6 (the Notes fast keys, the Notes welcome of D10);
   - `internal/core/command/clientpolicy_test.go`;
-  - Relay's and the window tab's tests;
+  - the window tab's tests;
   - goldens.
 - Keep the user's text, as SPEC §10.26 "What the user wrote is kept" says:
   - the export to `$XDG_DATA_HOME/emetos/saved-notes/`, once, with its marker;
@@ -1642,10 +1630,10 @@ The user, on 2026-10-28, while M17d was being built: "Some steps for the future:
 **Proof:** method C with real input: the context menu with the two entries, and the References view (`17e.3-references.png`).
 
 ### 17e.4 Hosting a workspace: one place to start and stop
-**Goal:** a user can see at a glance whether a workspace is hosted by Remote Work or Relay, start hosting it, and stop it, from one status bar item (SPEC §10.29, D31).
-**Read:** SPEC §10.29, §10.18 and §10.19 (all, with their As built parts), §10.7 (notifications and banners); `extensions/remotework`, `extensions/relay`, `extensions/internal/pageui`.
+**Goal:** a user can see at a glance whether a workspace is hosted by Remote Work, start hosting it, and stop it, from one status bar item (SPEC §10.29, D31).
+**Read:** SPEC §10.29, §10.18 (all, with its As built parts), §10.7 (notifications and banners); `extensions/remotework`, `extensions/internal/pageui`.
 **Tasks:**
-- **First, find what is unclear.** Use both extensions as a new user would, with real input, two Emetos processes on this machine and test keys (as the tests of 15.x and 16.x). Take screenshots of each step of hosting and stopping. Write in `docs/DESKTOP-PASS.md` (new findings H1, H2...) what a user cannot find or understand.
+- **First, find what is unclear.** Use Remote Work as a new user would, with real input, two Emetos processes on this machine and test keys (as the tests of 15.x). Take screenshots of each step of hosting and stopping. Write in `docs/DESKTOP-PASS.md` (new findings H1, H2...) what a user cannot find or understand.
 - **Then build §10.29:**
   - the Sharing status item and its quick pick;
   - the commands;
@@ -1657,8 +1645,8 @@ The user, on 2026-10-28, while M17d was being built: "Some steps for the future:
   - the README's "How to host a workspace" and "How to stop".
   - Fix every finding H*, or explain why it is not a bug.
 **Tests:**
-- The status item's states and tooltip, and the quick pick's entries for each state, table-driven: off; Remote Work on; Relay on; both; with connected computers.
-- Host and Stop for each extension, with the listener's state and `relay.json` checked.
+- The status item's states and tooltip, and the quick pick's entries for each state, table-driven: off; Remote Work on; with connected computers.
+- Host and Stop, with the listener's state checked.
 - The first-time guide (no key, a key, on).
 - Goldens: the status item, the pick, the guide, the page, the tab's section, the banner, dark and light.
 - **Real input:** from a fresh state,
@@ -1666,7 +1654,6 @@ The user, on 2026-10-28, while M17d was being built: "Some steps for the future:
   2. a second Emetos connects with that key;
   3. the item says "Hosting · 1";
   4. Stop Hosting from the item ends the client's session with the message.
-  Then the same with Relay, with "Disconnect <key>".
 **Proof:** method C with real input: the status item's menu while hosted, and the first-time guide (`17e.4-hosting.png`).
 
 ---
@@ -1765,11 +1752,11 @@ Requested by the user on 2026-10-27, with access to their Docker and Podman for 
 
 ## M22: Wrap-up of M18–M21
 
-### 22.1 A container's database, and the Relay refusal
-**Goal:** connect from a container to its database, and keep Relay confined (SPEC §10.24, D25).
+### 22.1 A container's database, and the refusal to clients
+**Goal:** connect from a container to its database, and keep clients of a hosted workspace confined (SPEC §10.24, D25).
 **Read:** SPEC §10.24, §10.19, D25.
 **Tasks:** Connect to Database on containers of known database images in both container extensions (`emetos.containers.connectDatabase`, prefilled from the published port and the image's environment, never a password); each database extension opening its form from that event; the class `outside` in `command.ClientRefusal` with `containers.*`, `podman.*`, `sql.*`, `mongodb.*` and `redis.*`, and its marking in `emetos.commands.list`.
-**Tests:** the prefill for every known image (table-driven from inspect JSON); the event to form flow between two extensions; the refusal class (every new command id refused to a Relay client, the existing scan of risky commands extended); tagged `emetos_docker`: a labelled `postgres` container connected through Connect to Database.
+**Tests:** the prefill for every known image (table-driven from inspect JSON); the event to form flow between two extensions; the refusal class (every new command id refused to a client, the existing scan of risky commands extended); tagged `emetos_docker`: a labelled `postgres` container connected through Connect to Database.
 
 ### 22.2 Update the README
 **Goal:** `README.md` describes the six new extensions.
@@ -1777,3 +1764,21 @@ Requested by the user on 2026-10-27, with access to their Docker and Podman for 
 **Tasks:** the status (M18–M22 built), the features and the bundled list (Containers, Podman, SQL, MongoDB, Redis), the requirements (Docker or Podman; nothing to install for the databases), the security notes (the Docker socket is power over the computer; passwords in the keyring), where things are (`db-connections.json`), privacy (the engines and databases the user configured); fresh screenshots with `scripts/screenshots.sh` (the Docker explorer with logs, a SQL query with results, a MongoDB playground, the Redis key editor) from fixtures, with fake engines or labelled test containers only; the coverage table rows; every link resolves (`TestREADMELinksResolve`).
 **Tests:** `TestREADMELinksResolve`.
 **Proof:** the README's screenshots, viewed.
+
+---
+
+## M23: Remove an extension the user no longer wanted
+
+The user, on 2026-10-29, asked to remove the extension of M16 that controlled a workspace from another machine through its events (the one built by steps 16.2 and 16.3 and extended by 17d.4 and 17e.4), and then to remove every mention of it from every document, because it would scare users off (SPEC D32). After this milestone the repository does not name it anywhere; what other extensions use stays, described in neutral words. The check is `scripts/check-removed-name.sh` (it builds the word from its rot13 form, so the script does not hold it either).
+
+### 23.1 Remove the event-control extension and every mention of it
+**Goal:** Emetos has no event-control extension, nothing that hosts or joins such a session, and a user whose last session had its tabs starts cleanly; `scripts/check-removed-name.sh` prints nothing and exits 0 (SPEC D32). Remote Work, the terminal, the Sharing status item and the extensions that use the core request topics work as before.
+**Read:** SPEC §10.19 (the core request topics, privileges and confinement), §10.15 (how a window restores tabs and views of extensions), §10.18 (Remote Work, which keeps the login, the keys, the QR codes and the Sharing item), §10.24 and D25 (the class `outside` of `command.ClientRefusal`), §10.25 (the terminal's events and requests); step 17c.1 (how the Agents extension was removed); `scripts/check-removed-name.sh` (every hit is in scope).
+**Tasks:**
+- Delete the extension's folder under `extensions/` (with its `client`, `client/clienttest`, `protocol` and `testdata`) and its line in `extensions/all.go`; its manifest, settings, commands, keybindings, menu items, views, panel and editor tabs, dev commands, state-file code and tests; its id constant in `extension/` and its entry in the privileges table of `internal/gui/exthost/manifest.go` (the privileges mechanism stays: the terminal has `commands.execute`); its scripts and their fixtures (`scripts/proof-*` for it, `testdata/proof/16.2`, `16.3` and `17d.4`, `testdata/screenshots/` for it) and its shot in `scripts/screenshots.sh` with its image in `docs/screenshots/`; its proof images in `docs/implemented-proof-images/` (every file whose name or picture is about it, and the proof image that shows the Sharing menu with its entries, made again).
+- **Keep** what other extensions use, with its tests, renamed where a name or comment names the extension: the core request topics of step 16.1, `Manifest.Privileges` (`commands.execute`), `command.ClientRefusal` and its classes ("clients" are the clients of a hosted workspace), `extensions/internal/sshlogin`, `keyqr`, `keyform`, `loginui`, `sharing`, `statefile`, `pageui`, and the terminal's events and requests. Remove only what the extension alone used and nothing else needs, and say what in the report. Error Tags that named it are renamed (`CoreCommandRefused`, `CoreDocumentVersionStale`) and their routes tested again.
+- **The Sharing status item** (`extensions/hosting`) shows and starts Remote Work only.
+- **Old state:** a restored window whose state has the removed extension's tabs, views or panels drops them without an error dialog (one line at info level); its state files and keys on disk are left where they are (never delete the user's data). A test restores such a state; its ids are built from the rot13 form of the name at run time so that the repository stays free of it.
+- **Every document, with no mention left:** `README.md` (features, requirements, security, privacy, screenshots, where things are), `CLAUDE.md`, `NOTICE`, `docs/SPEC.md` (§10.19 is the short section on the core request topics, privileges and confinement; D21 is withdrawn and D32 records this decision), `docs/IMPLEMENTATION.md` (M16 keeps 16.1 only), `docs/IMPLEMENTED.md`, `docs/DECISIONS-TO-REVIEW.md`, `docs/DESKTOP-PASS.md`, and anything else the script finds.
+- Git history (commit messages, tags) is not rewritten by this step.
+**Tests:** the restore test above; the Remote Work, terminal, Sharing item and client refusal tests pass (their cases about the removed extension are gone); `scripts/check-removed-name.sh` prints nothing and exits 0, and the step's entry says so; `TestREADMELinksResolve`; the standard checks.

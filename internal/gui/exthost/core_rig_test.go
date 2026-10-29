@@ -102,7 +102,7 @@ func (f *fakeCoreDocs) BeginEdit() func() {
 	return func() { f.mu.Lock(); f.end++; f.mu.Unlock() }
 }
 
-// coreHarness is a host with the extension emetos.relay (both privileges) and ext.plain (none) active in a tab "one" over
+// coreHarness is a host with the extension emetos.terminal (the privilege commands.execute) and ext.plain (none) active in a tab "one" over
 // a real folder.
 type coreHarness struct {
 	*harness
@@ -115,7 +115,7 @@ type coreHarness struct {
 }
 
 const (
-	privileged = extension.RelayID
+	privileged = extension.TerminalID
 	plain      = "ext.plain"
 )
 
@@ -155,7 +155,7 @@ func newCoreHarness(t *testing.T, setup func(*rig)) *coreHarness {
 	for _, id := range []string{privileged, plain} {
 		m := manifest(id)
 		if id == privileged {
-			m.Privileges = []string{extension.PrivilegeEventsPublishAny, extension.PrivilegeCommandsExecute}
+			m.Privileges = []string{extension.PrivilegeCommandsExecute}
 		}
 		f, _ := factory(m, func(f *fake) {
 			f.activate = func(_ context.Context, api extension.API) error { c.api[id] = api; return nil }

@@ -1,5 +1,5 @@
-// Package sharing is what Remote Work, Relay and the Sharing status item (extensions/sharing) have in common (SPEC §10.29): the
-// state of hosting a workspace as the item shows it, the interface the two hosting extensions implement for it, and the addresses
+// Package sharing is what Remote Work and the Sharing status item (extensions/hosting) have in common (SPEC §10.29): the
+// state of hosting a workspace as the item shows it, the interface a hosting extension implements for it, and the addresses
 // of this computer that another computer connects to.
 package sharing
 
@@ -32,10 +32,10 @@ type State struct {
 	Computers []Computer
 }
 
-// Host is an extension that hosts workspaces, as the Sharing item sees it. The two implementations are made by the hubs of Remote
-// Work and Relay (Hub.Hosting).
+// Host is an extension that hosts workspaces, as the Sharing item sees it. The implementation is made by the hub of Remote
+// Work (Hub.Hosting).
 type Host interface {
-	// Name is how the item calls it: "Remote Work" or "Relay".
+	// Name is how the item calls it: "Remote Work".
 	Name() string
 	// Description is the line under its Host entry in the pick of the item.
 	Description() string

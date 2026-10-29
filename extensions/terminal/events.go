@@ -14,7 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 )
 
-// The terminal as events and requests (SPEC §10.25 "Events and requests"), for any extension and for Relay (§10.19). The
+// The terminal as events and requests (SPEC §10.25 "Events and requests"), for any extension. The
 // events are published for every terminal; the requests are answered on the UI thread. Positions and sizes are in cells.
 
 // The topics of the extension.
@@ -37,13 +37,7 @@ const (
 	TopicWrite    = "emetos.terminal.write"
 	TopicRun      = "emetos.terminal.run"
 	TopicKill     = "emetos.terminal.kill"
-	// TopicClientGone is published by Relay when a client is gone (payload `by`, as the terminals saw it): the mark "Relay:
-	// <key comment>" on the terminals it typed in goes.
-	TopicClientGone = "emetos.relay.disconnected"
 )
-
-// ByRelayPrefix starts the `by` of what a Relay client typed: "relay:" and the comment of its key.
-const ByRelayPrefix = "relay:"
 
 type createdEvent struct {
 	ID      int    `json:"id"`
@@ -118,9 +112,8 @@ type createRequest struct {
 	Profile string `json:"profile"`
 	Cwd     string `json:"cwd"`
 	Name    string `json:"name"`
-	By      string `json:"by"`
 	// Show makes the terminal the active one, shows the panel and gives it the keyboard, as the person at the computer opening a
-	// terminal does (Open Shell of the Containers extension). A client of Relay never gets that: its Show is ignored.
+	// terminal does (Open Shell of the Containers extension).
 	Show bool `json:"show"`
 }
 
@@ -131,22 +124,15 @@ type createReply struct {
 type writeRequest struct {
 	ID   int    `json:"id"`
 	Data string `json:"data"`
-	By   string `json:"by"`
 }
 
 type runRequest struct {
 	ID   *int   `json:"id"`
 	Text string `json:"text"`
-	By   string `json:"by"`
 }
 
 type killRequest struct {
-	ID int    `json:"id"`
-	By string `json:"by"`
-}
-
-type clientGoneEvent struct {
-	By string `json:"by"`
+	ID int `json:"id"`
 }
 
 // publish publishes an event of the extension; an extension that is gone publishes nothing.
@@ -169,7 +155,7 @@ func (t *terminals) observerFor(id int) *observer {
 	}
 }
 
-// registerRequests sets the handlers of the requests and the subscription that removes the marks of the clients that are gone.
+// registerRequests sets the handlers of the requests.
 func (t *terminals) registerRequests() error {
 	handlers := map[string]extension.EventHandler{
 		TopicList: t.handleList, TopicSnapshot: t.handleSnapshot, TopicCreate: t.handleCreate, TopicWrite: t.handleWrite,
@@ -180,12 +166,7 @@ func (t *terminals) registerRequests() error {
 			return err
 		}
 	}
-	_, err := t.api.Events().Subscribe(TopicClientGone, func(ev extension.Event) {
-		if g, err := extension.EventValue[clientGoneEvent](ev); err == nil {
-			t.clientGone(g.By)
-		}
-	})
-	return err
+	return nil
 }
 
 // decodeRequest reads the payload of a request into a T; a payload that is not a JSON object of the request's type is
@@ -200,33 +181,6 @@ func decodeRequest[T any](ev extension.Event) (T, error) {
 		return v, errors.NewErr("TerminalPayloadInvalid", err).SetMetadata("topic", ev.Topic)
 	}
 	return v, nil
-}
-
-// byOf is who made a request: Relay names the key of its client in `by`, which only Relay's word counts for; any other
-// extension is what the bus says it is.
-func byOf(ev extension.Event, claimed string) string {
-	if ev.Publisher == extension.RelayID {
-		if strings.HasPrefix(claimed, ByRelayPrefix) {
-			return cleanBy(claimed)
-		}
-		return ByRelayPrefix
-	}
-	return ev.Publisher
-}
-
-// cleanBy keeps a `by` short and free of control characters.
-func cleanBy(by string) string {
-	var b strings.Builder
-	for _, r := range by {
-		if r < ' ' || r == 0x7f {
-			continue
-		}
-		if b.Len()+len(string(r)) > 120 {
-			break
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
 }
 
 // entryByID finds a terminal by its number; nil when there is none.
@@ -278,14 +232,13 @@ func (t *terminals) handleSnapshot(_ context.Context, ev extension.Event) (any, 
 }
 
 // handleCreate answers emetos.terminal.create: a terminal in the profile and the folder asked for, which is a folder under the
-// folder of the workspace; it is made without taking the keyboard or the panel from the user, unless an extension (not Relay)
-// asks for `show`.
+// folder of the workspace; it is made without taking the keyboard or the panel from the user, unless the requester asks for `show`.
 func (t *terminals) handleCreate(_ context.Context, ev extension.Event) (any, error) {
 	req, err := decodeRequest[createRequest](ev)
 	if err != nil {
 		return nil, err
 	}
-	o := openOpts{name: req.Name, quiet: !req.Show || ev.Publisher == extension.RelayID, by: byOf(ev, req.By)}
+	o := openOpts{name: req.Name, quiet: !req.Show}
 	if req.Profile != "" {
 		if o.profile = t.profileNamed(req.Profile); o.profile == nil {
 			return nil, errors.New("TerminalProfileUnknown", "there is no such profile", "profile", req.Profile)
@@ -354,9 +307,7 @@ func (t *terminals) handleWrite(_ context.Context, ev extension.Event) (any, err
 	if e.term.pendingInput() > maxPendingInput {
 		return nil, errors.New("TerminalInputFull", "the program does not read its terminal; wait", "id", req.ID)
 	}
-	by := byOf(ev, req.By)
-	t.typedBy(e, by)
-	e.term.Type([]byte(req.Data), by)
+	e.term.Type([]byte(req.Data), ev.Publisher)
 	return struct{}{}, nil
 }
 
@@ -367,14 +318,13 @@ func (t *terminals) handleRun(_ context.Context, ev extension.Event) (any, error
 	if err != nil {
 		return nil, err
 	}
-	by := byOf(ev, req.By)
 	var e *entry
 	if req.ID != nil {
 		if e = t.entryByID(*req.ID); e == nil {
 			return nil, errors.New("TerminalNotFound", "there is no terminal with this number", "id", *req.ID)
 		}
 	} else if e = t.activeEntry(); e == nil {
-		if e, err = t.open(openOpts{quiet: true, by: by}); err != nil {
+		if e, err = t.open(openOpts{quiet: true}); err != nil {
 			return nil, err
 		}
 	}
@@ -388,8 +338,7 @@ func (t *terminals) handleRun(_ context.Context, ev extension.Event) (any, error
 	if !strings.HasSuffix(text, "\r") {
 		text += "\r"
 	}
-	t.typedBy(e, by)
-	e.term.Type([]byte(text), by)
+	e.term.Type([]byte(text), ev.Publisher)
 	return createReply{ID: e.term.ID()}, nil
 }
 
@@ -405,42 +354,4 @@ func (t *terminals) handleKill(_ context.Context, ev extension.Event) (any, erro
 	}
 	t.kill(e)
 	return struct{}{}, nil
-}
-
-// ---- the marks of the clients ----
-
-// typedBy records that a Relay client typed in a terminal, so that its tab says so until the client is gone.
-func (t *terminals) typedBy(e *entry, by string) {
-	comment, ok := strings.CutPrefix(by, ByRelayPrefix)
-	if !ok || slices.Contains(e.clients, comment) {
-		return
-	}
-	e.clients = append(e.clients, comment)
-	t.handle.Refresh()
-}
-
-// clientGone takes the mark of a client from every terminal.
-func (t *terminals) clientGone(by string) {
-	comment, ok := strings.CutPrefix(by, ByRelayPrefix)
-	if !ok {
-		return
-	}
-	changed := false
-	for _, e := range t.all() {
-		if i := slices.Index(e.clients, comment); i >= 0 {
-			e.clients = slices.Delete(e.clients, i, i+1)
-			changed = true
-		}
-	}
-	if changed {
-		t.handle.Refresh()
-	}
-}
-
-// clientMark is the text a tab shows for the clients that typed in the terminal: "Relay: alice".
-func clientMark(e *entry) string {
-	if len(e.clients) == 0 {
-		return ""
-	}
-	return "Relay: " + strings.Join(e.clients, ", ")
 }

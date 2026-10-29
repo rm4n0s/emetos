@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Makes the screenshots of README.md in docs/screenshots/ with scripts/proof.sh (and, for the two shots of two computers,
-# scripts/proof-remotework.sh and scripts/proof-relay-client.sh): isolated from the user's configuration, in a headless Wayland
+# Makes the screenshots of README.md in docs/screenshots/ with scripts/proof.sh (and, for the shot of two computers,
+# scripts/proof-remotework.sh): isolated from the user's configuration, in a headless Wayland
 # compositor, from the fixtures in testdata/screenshots/. Every image is made again, so look at them afterwards.
 #
 # No image may show a path of a home folder: the fixtures are copied to a neutral folder, ${TMPDIR:-/tmp}/emetos-shots (which must
 # not exist; it is removed at the end), and every run opens the copies there.
 #
 # Usage: scripts/screenshots.sh [name...]
-#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work relay
+#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work
 #          docker sql mongodb redis
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
 #   go-hover    gopls on PATH (it is skipped, with a message, when gopls is missing; this script never installs it)
-#   remote-work, relay   two Emetos instances on 127.0.0.1, with keys made on the run (nothing secret is kept)
+#   remote-work   two Emetos instances on 127.0.0.1, with keys made on the run (nothing secret is kept)
 #   docker      nothing: a fake Docker engine (the fakeengine of extensions/internal/containerapi/containerapitest) on a Unix
 #               socket; the Docker of the computer is never asked
 #   sql         nothing: a SQLite database made on the run from testdata/screenshots/sql/library.sql
@@ -29,7 +29,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work relay docker sql mongodb redis)
+all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work docker sql mongodb redis)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -155,10 +155,6 @@ shoot() {
       ;;
     remote-work)
       PROOF_RW_PROJECT="$s/remote/project" PROOF_RW_LOCAL="$s/remote/local" scripts/proof-remotework.sh docs/screenshots/remote-work.png
-      ;;
-    relay)
-      PROOF_PC_SERVER="$s/relay/server" PROOF_PC_NOTES="$s/relay/notes" PROOF_PC_LOCAL="$s/relay/local" \
-        PROOF_PC_CONFIG="$s/relay/config" scripts/proof-relay-client.sh docs/screenshots/relay.png
       ;;
     docker)
       # the Containers view over a fake Docker engine, and the logs of a container in the panel

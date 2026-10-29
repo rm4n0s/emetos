@@ -74,7 +74,7 @@ func (a *API) Ask(ctx context.Context, topic string, value any) (extension.Event
 }
 
 // AskAs is Ask for a request made by the extension with the id publisher, which the handler reads in Event.Publisher (the terminal
-// reads who asked from it: Relay's word about its client counts, any other extension is what the bus says it is).
+// reads who asked from it: any extension is what the bus says it is).
 func (a *API) AskAs(ctx context.Context, publisher, topic string, value any) (extension.Event, error) {
 	data, err := json.Marshal(value)
 	if err != nil {

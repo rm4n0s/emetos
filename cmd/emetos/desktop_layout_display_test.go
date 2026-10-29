@@ -89,14 +89,14 @@ func TestDesktopWorkspaceTabs(t *testing.T) {
 	}
 	// the plus button opens the menu of the kinds of tabs
 	a.Click(186, 18)
-	a.WaitText("Relay")
+	a.WaitText("Remote Work...")
 	shot(t, a, "wtabs-menu")
-	a.ClickText("Relay")
+	a.ClickText("Remote Work...")
 	a.Eventually("a second window tab", func() (bool, string) {
 		w := a.Workbench().WindowTabs
 		return len(w) == 2 && w[1].Active, a.Dump()
 	})
-	shot(t, a, "wtabs-relay")
+	shot(t, a, "wtabs-remotework")
 	// the first tab again: its folder, its editor
 	a.Click(100, 18)
 	a.Eventually("the first tab active", func() (bool, string) {
@@ -111,7 +111,7 @@ func TestDesktopWorkspaceTabs(t *testing.T) {
 	a.Press("ctrl+alt+pagedown")
 	a.Eventually("the next tab with the keys", func() (bool, string) { return a.Workbench().WindowTabs[1].Active, "" })
 	shot(t, a, "wtabs-keys")
-	// close the Relay tab with its button
+	// close the Remote Work tab with its button
 	var closes []app.DevText
 	for _, tx := range a.Texts() {
 		if tx.Text == "\uea76" && tx.Y < 36 && tx.X > 100 && tx.X < 400 {
@@ -128,7 +128,7 @@ func TestDesktopWorkspaceTabs(t *testing.T) {
 		}
 	}
 	a.Click(last.X+8, last.Y+8)
-	a.Eventually("the Relay tab to close", func() (bool, string) {
+	a.Eventually("the Remote Work tab to close", func() (bool, string) {
 		w := a.Workbench().WindowTabs
 		return len(w) == 1 && w[0].Active, a.Dump()
 	})

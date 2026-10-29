@@ -45,8 +45,8 @@ func TestProblemText(t *testing.T) {
 		err           error
 		text, tag, id string
 	}{
-		{"a privilege refused", errors.New("ExtensionPrivilegeRefused", "only emetos.relay may declare privileges", "id", "ext.sneaky"),
-			"ext.sneaky: only emetos.relay may declare privileges (ExtensionPrivilegeRefused)", "ExtensionPrivilegeRefused", "ext.sneaky"},
+		{"a privilege refused", errors.New("ExtensionPrivilegeRefused", "only emetos.terminal may declare privileges", "id", "ext.sneaky"),
+			"ext.sneaky: only emetos.terminal may declare privileges (ExtensionPrivilegeRefused)", "ExtensionPrivilegeRefused", "ext.sneaky"},
 		{"an error with no id", errors.New("ExtensionFactoryNil", "an extension factory is nil", "index", 3),
 			"an extension factory is nil (ExtensionFactoryNil)", "ExtensionFactoryNil", ""},
 		{"an error of another package", os.ErrNotExist, os.ErrNotExist.Error(), "", ""},

@@ -14,10 +14,10 @@ What is built (milestones M0 to M22 of [SPEC §18](docs/SPEC.md#18-milestones)):
 - **The editor and the workbench** (areas 1 and 2, M0 to M10). [The coverage table](docs/IMPLEMENTED.md#coverage-of-areas-1-2-3-and-11) lists every row of areas 1, 2, 3 and 11 with its tests and what is partial.
 - **Extensions** compiled into Emetos, events between them, and event sharing between window tabs (M11, [SPEC §10.15](docs/SPEC.md#1015-extensions-extension-extensions)).
 - **Language intelligence through LSP** (area 3, M12, [SPEC §9.12](docs/SPEC.md#912-language-intelligence-area-3-corelsp-corelangfeatures-guieditor-guiviews-extension)).
-- **The Go, Remote Work and Relay extensions** (M14 to M16).
-- **Containers and databases** (M18 to M22): the **Containers** (Docker) and **Podman** extensions ([SPEC §10.20](docs/SPEC.md#1020-containers-docker-and-podman-extensionscontainers-extensionspodman)), and the database extensions **SQL** (PostgreSQL, MySQL, MariaDB, SQLite and SQL Server, [SPEC §10.21](docs/SPEC.md#1021-sql-databases-extensionssql)), **MongoDB** ([§10.22](docs/SPEC.md#1022-mongodb-extensionsmongodb)) and **Redis** ([§10.23](docs/SPEC.md#1023-redis-extensionsredis)), which share the **Databases** view of the activity bar ([§10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-relay)). **Connect to Database** on a container opens the connection form of its database, and Relay clients cannot run the commands of these six extensions.
+- **The Go and Remote Work extensions** (M14, M15).
+- **Containers and databases** (M18 to M22): the **Containers** (Docker) and **Podman** extensions ([SPEC §10.20](docs/SPEC.md#1020-containers-docker-and-podman-extensionscontainers-extensionspodman)), and the database extensions **SQL** (PostgreSQL, MySQL, MariaDB, SQLite and SQL Server, [SPEC §10.21](docs/SPEC.md#1021-sql-databases-extensionssql)), **MongoDB** ([§10.22](docs/SPEC.md#1022-mongodb-extensionsmongodb)) and **Redis** ([§10.23](docs/SPEC.md#1023-redis-extensionsredis)), which share the **Databases** view of the activity bar ([§10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-the-clients-of-a-hosted-workspace)). **Connect to Database** on a container opens the connection form of its database, and clients of a hosted workspace cannot run the commands of these six extensions.
 
-Experimental: **Remote Work and Relay are new** and have been tested on one machine (instances on loopback, and a simulated lossy link), not yet on real networks. Remote Work's picture is not sharp on a HiDPI screen. Read [their security notes](#remote-work-and-relay) before you turn either on.
+Experimental: **Remote Work is new** and has been tested on one machine (instances on loopback, and a simulated lossy link), not yet on real networks. Remote Work's picture is not sharp on a HiDPI screen. Read [its security notes](#remote-work) before you turn it on.
 
 Also new: **the container and database extensions** have been tested against fake engines and servers and, one engine at a time, against Docker, Podman and throwaway PostgreSQL, MySQL, MariaDB, MongoDB and Redis servers (SQL Server only against fakes), not against every version of each. Read [their security notes](#containers-and-databases) before you connect them to anything that matters.
 
@@ -54,7 +54,7 @@ go run ./cmd/emetos .                    # build and run a debug build in one go
 go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@main
 ```
 
-This builds `main`, which is what this README describes; `@latest` gives the release **v0.1.0**, which has only areas 1 and 2 (no language servers, no extensions, no Remote Work or Relay). From a checkout, `go install -tags glutter_release ./cmd/emetos` does the same. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
+This builds `main`, which is what this README describes; `@latest` gives the release **v0.1.0**, which has only areas 1 and 2 (no language servers, no extensions, no Remote Work). From a checkout, `go install -tags glutter_release ./cmd/emetos` does the same. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
 
 ### Update
 
@@ -76,7 +76,7 @@ go build -tags glutter_release -o emetos ./cmd/emetos
 - Optional, for the **Go** extension: **`gopls`** on your `PATH` (or its path in `go.goplsPath`), and the Go toolchain. The extension also uses `staticcheck` (lint) and `dlv` (for the debugger, which is not built yet). "Go: Install/Update Tools" in the command palette runs `go install` for them, only when you ask. Without `gopls`, Go files still have syntax highlighting, but no completion, hover or diagnostics.
 - Optional, for the **Containers** extension: **Docker** (its engine running and its socket reachable by your user, or `containers.host` / `DOCKER_HOST` / a Docker context pointing at an engine), and the `docker` program for Build, Push, Compose and Open Shell. Optional, for **Podman**: **`podman`** on your `PATH` (Emetos asks a running Podman socket first and otherwise starts `podman system service` itself, on a private socket, nothing to enable in systemd). Without an engine the views say so and do nothing else.
 - For the **databases** there is **nothing to install**: the drivers for PostgreSQL, MySQL, MariaDB, SQLite and SQL Server, and the MongoDB and Redis clients, are part of the program (pure Go, no C library). You need a server to connect to (SQLite only a file). Optional: a **Secret Service** keyring (GNOME Keyring, KWallet or another that implements `org.freedesktop.secrets`) to keep a database password between sessions; without one the password is asked when you connect.
-- Optional, for **Remote Work** and **Relay**: when you turn them on, they listen on a port, so a firewall must let the other computer reach it: **Remote Work 47123 over TCP and UDP**, **Relay 47124 over TCP** (both can be changed on their pages). Nothing listens until you turn it on. Both need SSH public keys; see [the security notes](#remote-work-and-relay).
+- Optional, for **Remote Work**: when you turn it on, it listens on a port, so a firewall must let the other computer reach it: **47123 over TCP and UDP** (it can be changed on its page). Nothing listens until you turn it on. It needs SSH public keys; see [the security notes](#remote-work).
 - Optional, for **Scan QR Code** (adding a public key with a camera): a camera that Linux shows as a V4L2 device (`/dev/video*`) that your user may open. Without one the button is disabled.
 
 ### Launcher entry and icon
@@ -155,7 +155,7 @@ Emetos has one window. Every folder you open is a **workspace tab** in the strip
 Emetos's extensions are **Go packages compiled into the program** ([SPEC §10.15](docs/SPEC.md#1015-extensions-extension-extensions)). There is no plugin loading, no marketplace and no Node.js host, and VS Code extensions do not run in Emetos. Adding one is adding its folder under `extensions/` and one line to `extensions/all.go`, and building Emetos again. An extension that fails (an error or a panic) is switched off for that tab, with a notification and a log entry; the rest of Emetos goes on. The page **Extensions** (Ctrl+Shift+X) lists them, with their state and a Disable button (`extensions.disabled`).
 
 An extension contributes any mix of **seven kinds of contribution**, each drawn inside the box Emetos gives it:
-- **Window tab**: a tab in the strip beside the workspaces (Remote Work, Relay).
+- **Window tab**: a tab in the strip beside the workspaces (Remote Work).
 - **Side bar view**: an activity bar icon with views (Search, References, Containers, Podman, Databases).
 - **Panel view**: a tab of the bottom panel beside Problems and Output (Tasks, Go Tests, the container logs, the SQL and MongoDB results, the Redis console).
 - **Editor tab**: a tab in the editor area that is not a file (the Remote Work page, a database connection form, a Redis key).
@@ -174,8 +174,8 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 - **Podman**: the same view and actions for Podman (the extension "Podman", its own icon in the activity bar), with what only Podman has: **pods** (the containers grouped under their pod, a Pods view with Start, Stop, Restart, Pause, Remove and Prune, Create Pod, and Create Pod from Selected Containers), **connections** (`podman system connection list`, rootless and rootful, and a pick of the engine to use), **Generate Kube YAML** (`podman kube generate`, opened as an untitled YAML editor), **Play Kube** and **Kube Down** (`podman kube play` and `down`, which asks first), and **Generate Quadlet** (a `.container` unit for systemd opened as an untitled editor: Emetos writes nothing to `~/.config/containers/systemd` and never runs `systemctl`). Build, Push, Compose (`podman compose` or `podman-compose`) and Open Shell go through your `podman` program. When no Podman socket answers, Emetos starts a `podman system service` of its own on a private socket and stops it when it ends, so nothing has to be enabled in systemd. [SPEC §10.20](docs/SPEC.md#1020-containers-docker-and-podman-extensionscontainers-extensionspodman).
 - **References**: VS Code's references view. Find All References and Find All Implementations list the places a language server finds, by file, in a side bar view with a history of the searches.
 - **Markdown preview**: a Preview micro-tab for Markdown files, and Open Preview to the Side.
-- **Go**, **Remote Work** and **Relay**, below.
-- **Databases**: the shared part of the three database extensions: the **Databases** view (an activity bar icon) with the connections of every engine, the connection form, `db-connections.json` and the results grid. [SPEC §10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-relay).
+- **Go** and **Remote Work**, below.
+- **Databases**: the shared part of the three database extensions: the **Databases** view (an activity bar icon) with the connections of every engine, the connection form, `db-connections.json` and the results grid. [SPEC §10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-the-clients-of-a-hosted-workspace).
 - **SQL**: PostgreSQL, MySQL, MariaDB, SQLite and SQL Server (pure Go drivers, nothing to install), their schema in the Databases view, SQL editors and a results panel, below.
 - **MongoDB**: MongoDB connections, a browser for databases, collections, indexes and schemas, and **playgrounds** (`.mongodb` files), below.
 - **Redis** (and Valkey and compatible servers): connections (URL, ACL user, TLS, Sentinel, Cluster, a database number, read-only), a browser for the keys, a key editor, a console, Pub/Sub, Monitor and server information, below.
@@ -204,7 +204,7 @@ The **Go** extension ([SPEC §10.17](docs/SPEC.md#1017-the-go-extension-extensio
 
 ## Containers and databases
 
-Six extensions ([SPEC §10.20](docs/SPEC.md#1020-containers-docker-and-podman-extensionscontainers-extensionspodman) to [§10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-relay)) for the things a project runs next to its code. Each talks only to what **you** configured: a container engine, or the databases of your connections.
+Six extensions ([SPEC §10.20](docs/SPEC.md#1020-containers-docker-and-podman-extensionscontainers-extensionspodman) to [§10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-the-clients-of-a-hosted-workspace)) for the things a project runs next to its code. Each talks only to what **you** configured: a container engine, or the databases of your connections.
 
 ### Docker and Podman
 
@@ -249,46 +249,38 @@ On a container of a database image the extensions know (`postgres`, `mysql`, `ma
 - **Access to the Docker socket is power over the computer.** Whoever can use it can read and change any file as root. Emetos only uses the engine you point it at, shows a note about this in the view, and asks, with the count and the size, before it removes or prunes anything. **Podman's rootless socket gives only your own power**, but a rootful socket is the same as Docker's.
 - **Database passwords are in the desktop keyring or in memory, never in a file of Emetos**, and no connection file with a password in it is accepted. A password never appears in an error or a log, and neither do query text or values: the logs and events carry none. Without a keyring the password is asked, and a warning says so when you asked to save it.
 - **A database is power over its data.** Use **read-only** connections (and a database user that can only read) for what you only look at, and read what a statement does before you run it. Emetos asks before the destructive ones, but it does not know what your triggers and procedures do. Do not connect to a server over an untrusted network without TLS.
-- **Relay clients cannot run these commands.** The commands of the six extensions reach outside the workspace folder, so [Relay](#remote-work-and-relay) refuses them to a client, with the rest of the commands that leave the workspace.
+- **Clients of a hosted workspace cannot run these commands.** The commands of the six extensions reach outside the workspace folder, so they are on the list of commands refused to a client ([SPEC §10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-the-clients-of-a-hosted-workspace)), with the rest of the commands that leave the workspace.
 
-## Remote Work and Relay
+## Remote Work
 
-Two extensions that let one Emetos be used from another computer. **Both are new and experimental**, and both are **off until you turn them on**. Both log in over **SSH with public keys only** (no passwords): the computer that is used lists the keys that may log in.
+An extension that lets one Emetos be used from another computer. **It is new and experimental**, and **off until you turn it on**. It logs in over **SSH with public keys only** (no passwords): the computer that is used lists the keys that may log in.
 
 **Remote Work** ([SPEC §10.18](docs/SPEC.md#1018-remote-work-remote-control-of-a-workspace-extensionsremotework)) shows **one workspace of computer A as a window tab on computer B**, and B works in it with its keyboard and mouse. A runs a second view of the workspace, so both see the same documents. On A, the page **Remote Work** (open it with **Remote Work Settings...** in the Sharing menu) turns it on for a workspace, sets the port (**47123**, TCP and UDP), the idle timeout (30 minutes) and the allowed keys. On B, the `+` menu has **Remote Work...**: host, port and a private key file or the SSH agent. The picture travels over QUIC (UDP) and falls back to SSH over TCP when UDP does not get through. Not built: sound, drag and drop between the computers, more than one workspace per session, and a sharp picture on a HiDPI screen (it is drawn at logical pixels).
 
 ![A Remote Work tab: the workspace of another computer, shown in a tab of this window (here both on one machine)](docs/screenshots/remote-work.png)
 
-**Relay** ([SPEC §10.19](docs/SPEC.md#1019-relay-event-control-of-a-workspace-from-another-machine-extensionsrelay)) is event control, not a picture: nothing but events, requests and commands cross the network. In the **Relay** tab (**Relay Settings...** in the Sharing menu), *Be a Host* turns hosting on (port **47124**, TCP), picks the workspaces to share and lists the keys, each **Watch only** (the default) or **Watch and send**. *Hosts* connects to other computers and shows an **Events** panel (a live log of a shared workspace) and, for Watch and send, a **Send** panel (publish an event, make a request, run a command). A client only acts in the workspace it was given, and commands that reach outside it (window tabs, quitting, other folders, profiles, user settings, and the commands of the container and database extensions) are refused.
-
-The **Terminals** panel of the client shows the terminals of the host's workspace, drawn with Emetos's own terminal emulator: you see what they print, live, with their scrollback. It is read-only until the host also checks **Allow terminals** for your key and that workspace (off by default, and never for Watch only); then it takes your keys and pastes, and has New Terminal and Kill. A terminal you typed in shows "Relay: your key's comment" on the host until you disconnect.
-
-![The Relay tab: a connected host, the Events panel and the Send panel](docs/screenshots/relay.png)
-
 ### How to host a workspace
 
-The **Sharing** item at the left end of the status bar (the broadcast icon) says whether Remote Work or Relay hosts the workspace: the icon alone when it is not, **Hosting** (with the number of computers connected, "Hosting · 2") on a blue background when it is. Click it to host or to stop.
+The **Sharing** item at the left end of the status bar (the broadcast icon) says whether Remote Work hosts the workspace: the icon alone when it is not, **Hosting** (with the number of computers connected, "Hosting · 2") on a blue background when it is. Click it to host or to stop.
 
-1. **Add the key.** Click the item, choose **Host with Remote Work** (or **Host with Relay**). With no key listed, the page (or the tab) opens at its guide: paste the public key of the computer that will connect (the contents of its `id_ed25519.pub`), choose the `.pub` file, or Scan QR Code.
+1. **Add the key.** Click the item, choose **Host with Remote Work**. With no key listed, the page opens at its guide: paste the public key of the computer that will connect (the contents of its `id_ed25519.pub`), choose the `.pub` file, or Scan QR Code.
 2. **Turn it on.** Choose **Host with ...** again (or check **Host this workspace** on the page). The guide gets a check mark for each step, and the item says Hosting.
-3. **Connect from the other computer.** The guide lists the addresses of this computer with the port, each with a Copy button, and the fingerprint of the host key to compare the first time. On the other computer, the `+` menu has **Remote Work...** and **Relay**.
+3. **Connect from the other computer.** The guide lists the addresses of this computer with the port, each with a Copy button, and the fingerprint of the host key to compare the first time. On the other computer, the `+` menu has **Remote Work...**.
 
-The commands are also in the Command Palette: **Remote Work: Host This Workspace**, **Relay: Host This Workspace**, **Sharing: Show Hosting Menu**.
+The commands are also in the Command Palette: **Remote Work: Host This Workspace**, **Sharing: Show Hosting Menu**.
 
 ### How to stop
 
-Click the Sharing item and choose **Stop Hosting with Remote Work** (or **with Relay**): the sessions of the workspace end at once, and the other computer reads "The host stopped sharing this workspace." The same is **Stop Hosting** on the banner of Remote Work, the **Stop Hosting** button beside the switch on the page or the tab, and the commands **Stop Hosting This Workspace**. **Disconnect <key>** in the same menu ends one computer's session and leaves hosting on. Nothing listens once nothing is hosted.
+Click the Sharing item and choose **Stop Hosting with Remote Work**: the sessions of the workspace end at once, and the other computer reads "The host stopped sharing this workspace." The same is **Stop Hosting** on the banner of Remote Work, the **Stop Hosting** button beside the switch on the page, and the commands **Stop Hosting This Workspace**. **Disconnect <key>** in the same menu ends one computer's session and leaves hosting on. Nothing listens once nothing is hosted.
 
 ### Security notes
 
-Read these before you turn either extension on ([SPEC §10.18](docs/SPEC.md#1018-remote-work-remote-control-of-a-workspace-extensionsremotework) and [§10.19](docs/SPEC.md#1019-relay-event-control-of-a-workspace-from-another-machine-extensionsrelay) have the whole design):
-- **A listed key gives that person your power in the workspace**: they can edit and delete files and run tasks (Remote Work, and Relay's Watch and send). List only keys you would trust with your account.
-- **Allow terminals gives a client a shell as you.** It is off by default, for every key and every workspace, and you turn it on in *Be a Host* under a key with Watch and send. A client that can type in a terminal can do anything you can do on this computer, and nothing in Emetos limits what a shell does. Relay's Watch only, even without it, sees what your terminals print and the scrollback they hold (not what you type at a password prompt, where the terminal reads a line without echoing it, as `sudo` and `ssh` do; what you type at the prompt of a shell is shown, because the screen shows it as well).
-- **Relay's Watch only still sees all document text**: every event of the workspace, including the text and the edits of your documents.
+Read these before you turn the extension on ([SPEC §10.18](docs/SPEC.md#1018-remote-work-remote-control-of-a-workspace-extensionsremotework) has the whole design):
+- **A listed key gives that person your power in the workspace**: they can edit and delete files and run tasks (Remote Work). List only keys you would trust with your account.
 - **Compare the fingerprint the first time.** The first connection shows the host's key fingerprint; compare it with the one on the host's page before you trust it. A connection is only as safe as that comparison. A changed host key is refused with a warning.
 - **Over the internet, use a VPN.** The login is as safe as SSH with key-only login, and a VPN is better still. Do not expose the ports to the internet without one. Failed logins are limited to 5 a minute for each address, but that is not a defense by itself.
 - You see every login: a banner in the workspace (with Disconnect), a notification, and a log entry. Turning the feature off or removing a key ends the sessions it logged in, and a Remote Work session also ends after its idle timeout.
-- No settings file can turn either one on or add a key: only their own pages do. Emetos keeps no private key of yours: it remembers the path of your key file, reads the file when you connect, and asks a passphrase in a dialog without keeping it. The only private keys it keeps are its own host keys (`remote-work-host-key` and `relay-host-key`, mode 0600, see [Where things are](#where-things-are)).
+- No settings file can turn it on or add a key: only its own page does. Emetos keeps no private key of yours: it remembers the path of your key file, reads the file when you connect, and asks a passphrase in a dialog without keeping it. The only private key it keeps is its own host key (`remote-work-host-key`, mode 0600, see [Where things are](#where-things-are)).
 
 ## Command line
 
@@ -332,21 +324,18 @@ Emetos follows the XDG base directories. `$XDG_CONFIG_HOME` is `~/.config` and `
 | Remote Work, host side: its settings and allowed keys | `$XDG_STATE_HOME/emetos/remote-work.json` (mode 0600) |
 | Remote Work, host side: this computer's SSH host key | `$XDG_STATE_HOME/emetos/remote-work-host-key` (mode 0600, made when its page first opens) |
 | Remote Work, client side: the host keys you trusted | `$XDG_STATE_HOME/emetos/remote-work-hosts.json` (mode 0600) |
-| Relay, host side: its settings, shared workspaces, allowed keys and their permissions | `$XDG_STATE_HOME/emetos/relay.json` (mode 0600) |
-| Relay, host side: this computer's SSH host key (not Remote Work's) | `$XDG_STATE_HOME/emetos/relay-host-key` (mode 0600) |
-| Relay, client side: the host keys you trusted | `$XDG_STATE_HOME/emetos/relay-hosts.json` (mode 0600) |
 | Database connections (SQL, MongoDB, Redis), of every workspace or of one folder: name, engine, host, port, user, options, never a password | `$XDG_STATE_HOME/emetos/db-connections.json` (mode 0600) |
 | Database passwords you chose to keep | the desktop keyring (Secret Service), labelled "Emetos: <connection>"; never a file |
 | The socket of the Podman service Emetos starts when none answers | `$XDG_RUNTIME_DIR/emetos/` (Emetos stops that service when it ends) |
 
-The files of the Event sharing, Remote Work, Relay and database connection rows are in the state folder of Emetos and are the same for every profile; the folder has mode 0700. Only their own pages write them, and **Emetos refuses a file that other users can write** (a private key also one they can read): it does not use it and does not replace it. The saved hosts of the Relay tab and the host and key file of a Remote Work tab are part of the window state. Deleting `remote-work-host-key` or `relay-host-key` makes a new identity, and every client must trust it again.
+The files of the Event sharing, Remote Work and database connection rows are in the state folder of Emetos and are the same for every profile; the folder has mode 0700. Only their own pages write them, and **Emetos refuses a file that other users can write** (a private key also one they can read): it does not use it and does not replace it. The host and key file of a Remote Work tab are part of the window state. Deleting `remote-work-host-key` makes a new identity, and every client must trust it again.
 
 The files are JSON with comments, in VS Code's formats. "Preferences: Open User Settings (JSON)" and "Open Keyboard Shortcuts (JSON)" open them in Emetos.
 
 ## Privacy
 
 Emetos sends nothing about you anywhere: **no telemetry, no crash reports and no update checks.** It uses the network only for what you ask of a feature, and these are the things that do:
-- **Remote Work and Relay**: only while you have turned them on, and only with the computers whose keys you listed or whose hosts you saved.
+- **Remote Work**: only while you have turned it on, and only with the computers whose keys you listed or whose hosts you saved.
 - **Containers and Podman**: only the container engine you configured or that your Docker context, `DOCKER_HOST` or `CONTAINER_HOST` names (a Unix socket on this computer unless you named a `tcp://` address), and the registries your own `docker` or `podman` program contacts when you pull or push.
 - **Databases** (SQL, MongoDB and Redis): only the servers of the connections you added, when you connect to them (and, for a keyring, the Secret Service on your own session bus). Result values and query text are never logged and no event carries them.
 - **Language servers and tools you install**: `gopls` and the `go` command may download modules as your Go settings say; "Go: Install/Update Tools" runs `go install` when you click it.
@@ -356,7 +345,7 @@ Logs stay on your disk (`$XDG_STATE_HOME/emetos/logs`) and are shown in the Outp
 
 ## Screenshots
 
-Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `scripts/proof.sh` in a headless compositor, with isolated settings and state, from the fixtures in `testdata/screenshots/`; the Remote Work and Relay shots run two instances on `127.0.0.1`; the Containers shot runs over a fake Docker engine, and the MongoDB and Redis shots over throwaway servers in labelled containers on `127.0.0.1` that are removed afterwards). The rest:
+Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `scripts/proof.sh` in a headless compositor, with isolated settings and state, from the fixtures in `testdata/screenshots/`; the Remote Work shot runs two instances on `127.0.0.1`; the Containers shot runs over a fake Docker engine, and the MongoDB and Redis shots over throwaway servers in labelled containers on `127.0.0.1` that are removed afterwards). The rest:
 
 ![The side by side diff editor](docs/screenshots/diff.png)
 

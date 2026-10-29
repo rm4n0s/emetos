@@ -9,20 +9,13 @@ import (
 )
 
 // The privileges of a Manifest (SPEC §10.19 "Privileges"). The host grants them only to the extensions on its fixed
-// allowlist (emetos.relay); they lift a rule inside the extension's own scope and never reach another scope.
+// allowlist (emetos.terminal); they lift a rule inside the extension's own scope and never reach another scope.
 const (
-	// PrivilegeEventsPublishAny lets the extension publish any topic in its scope, not only the topics under its id and
-	// the ones its manifest declares. The Publisher of such an event is still the extension, so a receiver tells it from a
-	// core event (whose Publisher is CorePublisher).
-	PrivilegeEventsPublishAny = "events.publishAny"
 	// PrivilegeCommandsExecute lets the extension run commands, those of Emetos and those of every extension, in its
 	// scope, with the core request topic TopicCommandsExecute. The commands that reach outside the workspace stay refused
-	// (RelayCommandRefused).
+	// (CoreCommandRefused).
 	PrivilegeCommandsExecute = "commands.execute"
 )
-
-// RelayID is the id of the extension that the host grants both privileges to.
-const RelayID = "emetos.relay"
 
 // TerminalID is the id of the Terminal extension, which the host grants PrivilegeCommandsExecute (and no other privilege),
 // for the commands of VS Code's terminal that run a command of another extension (workbench.action.terminal.searchWorkspace).
@@ -37,8 +30,8 @@ func (m Manifest) HasPrivilege(privilege string) bool {
 // checkPrivileges checks the names in Manifest.Privileges. The error has the tag ExtensionPrivilegeUnknown.
 func checkPrivileges(m Manifest) error {
 	for _, p := range m.Privileges {
-		if p != PrivilegeEventsPublishAny && p != PrivilegeCommandsExecute {
-			return errors.New("ExtensionPrivilegeUnknown", "a privilege is events.publishAny or commands.execute", "id", m.ID, "privilege", p)
+		if p != PrivilegeCommandsExecute {
+			return errors.New("ExtensionPrivilegeUnknown", "the only privilege is commands.execute", "id", m.ID, "privilege", p)
 		}
 	}
 	return nil
@@ -133,7 +126,7 @@ type CommandInfo struct {
 	Description string `json:"description,omitempty"`
 	// Enabled tells whether the command has a handler in the workspace and its precondition holds now.
 	Enabled bool `json:"enabled"`
-	// Refused is true for a command that clients may not run (TopicCommandsExecute fails with RelayCommandRefused);
+	// Refused is true for a command that clients may not run (TopicCommandsExecute fails with CoreCommandRefused);
 	// RefusedClass is one of the Refused constants and Reason says why in words.
 	Refused      bool   `json:"refused,omitempty"`
 	RefusedClass string `json:"refusedClass,omitempty"`
@@ -242,7 +235,7 @@ type DocumentContent struct {
 
 // DocumentEditRequest is the payload of TopicDocumentEdit: replacements of ranges of the document, made against the text
 // of version Version. The ranges are in that text, as in DocumentChange; they must not overlap. The edits are one step of
-// the undo history. A Version that is not the document's current one fails with RelayStaleVersion.
+// the undo history. A Version that is not the document's current one fails with CoreDocumentVersionStale.
 type DocumentEditRequest struct {
 	URI     string       `json:"uri"`
 	Version int          `json:"version"`

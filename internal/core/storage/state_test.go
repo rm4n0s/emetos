@@ -265,7 +265,7 @@ func TestWindowStateRoundTrip(t *testing.T) {
 		Grid:     ptr(sampleGrid(t)),
 		Explorer: &storage.ExplorerState{Expanded: []string{"internal", "internal/core", "docs"}},
 		Recent:   []string{"/work/project/main.go", "/work/project/go.mod"},
-		Views:    map[string]json.RawMessage{"emetos.relay.hosts": json.RawMessage(`{"expanded":["main.go"]}`), "emetos.tasks.panel": json.RawMessage(`{"command":"go test ./..."}`)},
+		Views:    map[string]json.RawMessage{"emetos.remotework.hosts": json.RawMessage(`{"expanded":["main.go"]}`), "emetos.tasks.panel": json.RawMessage(`{"command":"go test ./..."}`)},
 	}
 	if err := s.SaveWindow(id, want); err != nil {
 		t.Fatal(err)
@@ -799,7 +799,7 @@ func TestAnExtensionTabKeepsItsKindTitleAndStateInTheGlobalState(t *testing.T) {
 	s, clock, paths := newStore(t, nil)
 	list := []storage.WorkspaceTab{
 		{ID: "0123456789abcdef", StateID: "aaaaaaaaaaaaaaaa"},
-		{ID: "fedcba9876543210", Kind: "emetos.relay.tab", Title: "Relay", State: json.RawMessage(`{"draft":"remember"}`)},
+		{ID: "fedcba9876543210", Kind: "emetos.remotework.tab", Title: "Remote Work", State: json.RawMessage(`{"draft":"remember"}`)},
 	}
 	err := s.UpdateGlobal(t.Context(), func(g *storage.GlobalState) bool {
 		g.WorkspaceTabs, g.ActiveWorkspaceTab = list, "fedcba9876543210"
@@ -824,7 +824,7 @@ func TestAnExtensionTabKeepsItsKindTitleAndStateInTheGlobalState(t *testing.T) {
 		kind string
 		want bool
 	}{
-		{"emetos.relay.tab", true}, {"a.b", true}, {"remote-control.tab", true},
+		{"emetos.remotework.tab", true}, {"a.b", true}, {"remote-control.tab", true},
 		{"workspace", false}, {"", false}, {"Upper.case", false}, {"a..b", false}, {".a", false}, {"a.", false}, {"a b.c", false},
 	}
 	for _, tt := range tests {
@@ -851,7 +851,7 @@ func TestTheWorkspaceTabsOfAFileAreCleanedWhenRead(t *testing.T) {
 		{"id": "1111111111111111", "kind": "browser"},
 		{"id": "2222222222222222", "kind": "workspace", "stateId": "../escape"},
 		{"id": "00000000000000aa", "stateId": "00000000000000bb", "profile": "bad/name"},
-		{"id": "3333333333333333", "kind": "emetos.relay.tab", "title": "Relay", "state": {"draft": "x"}, "folder": "/ignored", "stateId": "1", "profile": "Work"},
+		{"id": "3333333333333333", "kind": "emetos.remotework.tab", "title": "Remote Work", "state": {"draft": "x"}, "folder": "/ignored", "stateId": "1", "profile": "Work"},
 		{"id": "4444444444444444", "kind": "Bad.Kind", "title": "dropped"},
 		{"id": "5555555555555555", "kind": "workspace", "title": "not an extension", "state": 1}]}`
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
@@ -869,7 +869,7 @@ func TestTheWorkspaceTabsOfAFileAreCleanedWhenRead(t *testing.T) {
 	want := []storage.WorkspaceTab{
 		{ID: "0123456789abcdef", StateID: c, Folder: "/a/c"}, {ID: "2222222222222222"}, {ID: "00000000000000aa", StateID: "00000000000000bb"},
 		// the tab of an extension keeps its kind, title and state, and has no folder, state id or profile
-		{ID: "3333333333333333", Kind: "emetos.relay.tab", Title: "Relay", State: json.RawMessage(`{"draft": "x"}`)},
+		{ID: "3333333333333333", Kind: "emetos.remotework.tab", Title: "Remote Work", State: json.RawMessage(`{"draft": "x"}`)},
 		{ID: "5555555555555555"},
 	}
 	if !reflect.DeepEqual(g.WorkspaceTabs, want) {

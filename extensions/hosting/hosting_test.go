@@ -13,7 +13,8 @@ import (
 	common "github.com/rm4n0s/emetos/extensions/internal/sharing"
 )
 
-// fakeHost is an extension that hosts workspaces, with a state the test sets.
+// fakeHost is an extension that hosts workspaces, with a state the test sets. The item lists the hosts it is given, so the tests
+// give it two: Remote Work and a second host of the test.
 type fakeHost struct {
 	name, description, host, stop, settings string
 	mu                                      sync.Mutex
@@ -54,34 +55,34 @@ func (f *fakeHost) set(s common.State) {
 	}
 }
 
-func newHosts() (rw, ps *fakeHost) {
+func newHosts() (rw, other *fakeHost) {
 	rw = &fakeHost{name: "Remote Work", description: "Allowed computers see this window and control it", host: "emetos.remotework.host", stop: "emetos.remotework.stopHosting", settings: "emetos.remotework.manage"}
-	ps = &fakeHost{name: "Relay", description: "Allowed computers watch this workspace's events and, if you allow it, send commands", host: "emetos.relay.host", stop: "emetos.relay.stopHosting", settings: "emetos.relay.open"}
-	return rw, ps
+	other = &fakeHost{name: "Other Host", description: "Another way to host the workspace", host: "other.host", stop: "other.stopHosting", settings: "other.open"}
+	return rw, other
 }
 
 // rig activates the extension over the hosts in a workspace.
 type rig struct {
-	api    *fakeapi.API
-	rw, ps *fakeHost
-	folder string
+	api       *fakeapi.API
+	rw, other *fakeHost
+	folder    string
 }
 
 func newRig(t *testing.T, withFolder bool) *rig {
 	t.Helper()
-	rw, ps := newHosts()
+	rw, other := newHosts()
 	folder := ""
 	if withFolder {
 		folder = filepath.Join(t.TempDir(), "project")
 	}
-	e := NewFactory(rw, ps)()
+	e := NewFactory(rw, other)()
 	api := fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "project", Folder: folder, ID: folder})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	if err := e.Activate(ctx, api); err != nil {
 		t.Fatal(err)
 	}
-	return &rig{api: api, rw: rw, ps: ps, folder: folder}
+	return &rig{api: api, rw: rw, other: other, folder: folder}
 }
 
 func (r *rig) item(t *testing.T) fakeapi.StatusItem {
@@ -104,24 +105,24 @@ func computers(names ...string) []common.Computer {
 
 func TestTheStatusItemShowsWhatHostsTheWorkspace(t *testing.T) {
 	tests := []struct {
-		name     string
-		folder   bool
-		rw, ps   common.State
-		wantText string
-		wantTip  string
-		kind     extension.StatusKind
+		name      string
+		folder    bool
+		rw, other common.State
+		wantText  string
+		wantTip   string
+		kind      extension.StatusKind
 	}{
 		{"not hosted", true, common.State{}, common.State{}, "$(broadcast)", "This workspace is not shared. Click to host it.", extension.StatusStandard},
 		{"no folder", false, common.State{}, common.State{}, "$(broadcast)", "This workspace has no folder, so it cannot be shared. Open a folder first.", extension.StatusStandard},
 		{"Remote Work on, nobody connected", true, common.State{On: true, Port: 47123}, common.State{}, "$(broadcast) Hosting", "Remote Work on port 47123: nobody connected.", extension.StatusRemote},
-		{"Relay on, nobody connected", true, common.State{}, common.State{On: true, Port: 47124}, "$(broadcast) Hosting", "Relay on port 47124: nobody connected.", extension.StatusRemote},
+		{"Other Host on, nobody connected", true, common.State{}, common.State{On: true, Port: 47124}, "$(broadcast) Hosting", "Other Host on port 47124: nobody connected.", extension.StatusRemote},
 		{"Remote Work with a computer", true, common.State{On: true, Port: 47123, Computers: computers("laptop")}, common.State{}, "$(broadcast) Hosting · 1", "Remote Work on port 47123: 1 computer connected (laptop).", extension.StatusRemote},
 		{"both, with computers", true,
 			common.State{On: true, Port: 47123, Computers: computers("laptop")}, common.State{On: true, Port: 47124, Computers: computers("tablet", "phone")},
-			"$(broadcast) Hosting · 3", "Remote Work on port 47123: 1 computer connected (laptop). Relay on port 47124: 2 computers connected (tablet, phone).", extension.StatusRemote},
+			"$(broadcast) Hosting · 3", "Remote Work on port 47123: 1 computer connected (laptop). Other Host on port 47124: 2 computers connected (tablet, phone).", extension.StatusRemote},
 		{"both, one with nobody", true,
 			common.State{On: true, Port: 47123, Computers: computers("laptop")}, common.State{On: true, Port: 47124},
-			"$(broadcast) Hosting · 1", "Remote Work on port 47123: 1 computer connected (laptop). Relay on port 47124: nobody connected.", extension.StatusRemote},
+			"$(broadcast) Hosting · 1", "Remote Work on port 47123: 1 computer connected (laptop). Other Host on port 47124: nobody connected.", extension.StatusRemote},
 		{"cannot listen", true, common.State{On: true, Problem: "address already in use"}, common.State{}, "$(broadcast) Hosting", "Remote Work cannot listen: address already in use.", extension.StatusRemote},
 		{"starting", true, common.State{On: true}, common.State{}, "$(broadcast) Hosting", "Remote Work is starting to listen.", extension.StatusRemote},
 	}
@@ -129,7 +130,7 @@ func TestTheStatusItemShowsWhatHostsTheWorkspace(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newRig(t, tc.folder)
 			r.rw.set(tc.rw)
-			r.ps.set(tc.ps)
+			r.other.set(tc.other)
 			it := r.item(t)
 			if it.Text != tc.wantText || it.Tooltip != tc.wantTip || it.Kind != tc.kind {
 				t.Errorf("item = %q / %q / kind %d, want %q / %q / kind %d", it.Text, it.Tooltip, it.Kind, tc.wantText, tc.wantTip, tc.kind)
@@ -162,24 +163,24 @@ func TestTheItemFollowsTheHostsWhileItIsOnScreen(t *testing.T) {
 
 func TestTheMenuListsWhatTheStateAllows(t *testing.T) {
 	tests := []struct {
-		name   string
-		rw, ps common.State
-		want   []string
+		name      string
+		rw, other common.State
+		want      []string
 	}{
 		{"off", common.State{}, common.State{}, []string{
-			"Host with Remote Work", "Host with Relay", "Remote Work Settings...", "Relay Settings..."}},
+			"Host with Remote Work", "Host with Other Host", "Remote Work Settings...", "Other Host Settings..."}},
 		{"Remote Work on", common.State{On: true, Port: 1}, common.State{}, []string{
-			"Stop Hosting with Remote Work", "Host with Relay", "Remote Work Settings...", "Relay Settings..."}},
-		{"Relay on", common.State{}, common.State{On: true, Port: 1}, []string{
-			"Host with Remote Work", "Stop Hosting with Relay", "Remote Work Settings...", "Relay Settings..."}},
+			"Stop Hosting with Remote Work", "Host with Other Host", "Remote Work Settings...", "Other Host Settings..."}},
+		{"Other Host on", common.State{}, common.State{On: true, Port: 1}, []string{
+			"Host with Remote Work", "Stop Hosting with Other Host", "Remote Work Settings...", "Other Host Settings..."}},
 		{"both on, with computers", common.State{On: true, Port: 1, Computers: computers("laptop")}, common.State{On: true, Port: 2, Computers: computers("tablet", "phone")}, []string{
-			"Stop Hosting with Remote Work", "Stop Hosting with Relay", "Disconnect laptop", "Disconnect tablet", "Disconnect phone", "Remote Work Settings...", "Relay Settings..."}},
+			"Stop Hosting with Remote Work", "Stop Hosting with Other Host", "Disconnect laptop", "Disconnect tablet", "Disconnect phone", "Remote Work Settings...", "Other Host Settings..."}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newRig(t, true)
 			r.rw.set(tc.rw)
-			r.ps.set(tc.ps)
+			r.other.set(tc.other)
 			r.item(t)
 			r.api.StatusItem(ItemID).OnClick()
 			pick := r.api.LastPick()
@@ -211,13 +212,13 @@ func TestChoosingARowRunsItsCommandOrDisconnects(t *testing.T) {
 		wantDisc    string
 	}{
 		{"host with Remote Work", false, "Host with Remote Work", "emetos.remotework.host", ""},
-		{"host with Relay", false, "Host with Relay", "emetos.relay.host", ""},
+		{"host with Other Host", false, "Host with Other Host", "other.host", ""},
 		{"stop with Remote Work", true, "Stop Hosting with Remote Work", "emetos.remotework.stopHosting", ""},
-		{"stop with Relay", true, "Stop Hosting with Relay", "emetos.relay.stopHosting", ""},
+		{"stop with Other Host", true, "Stop Hosting with Other Host", "other.stopHosting", ""},
 		{"disconnect the first computer", true, "Disconnect laptop", "", "laptop"},
 		{"disconnect the second computer", true, "Disconnect tablet", "", "tablet"},
 		{"Remote Work settings", true, "Remote Work Settings...", "emetos.remotework.manage", ""},
-		{"Relay settings", false, "Relay Settings...", "emetos.relay.open", ""},
+		{"Other Host settings", false, "Other Host Settings...", "other.open", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -229,7 +230,7 @@ func TestChoosingARowRunsItsCommandOrDisconnects(t *testing.T) {
 			r := newRig(t, true)
 			if tc.on {
 				r.rw.set(common.State{On: true, Port: 1, Computers: []common.Computer{disc("laptop")}})
-				r.ps.set(common.State{On: true, Port: 2, Computers: []common.Computer{disc("tablet")}})
+				r.other.set(common.State{On: true, Port: 2, Computers: []common.Computer{disc("tablet")}})
 			}
 			r.api.Pump()
 			r.api.StatusItem(ItemID).OnClick()
@@ -281,9 +282,9 @@ func TestTheMenuCommandOpensTheMenuAndAWorkspaceWithNoFolderSaysWhy(t *testing.T
 }
 
 func TestTheExtensionHasNoItemInAWindowTab(t *testing.T) {
-	rw, ps := newHosts()
-	e := NewFactory(rw, ps)()
-	api := fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWindowTab, Name: "Relay", ID: "tab"})
+	rw, other := newHosts()
+	e := NewFactory(rw, other)()
+	api := fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWindowTab, Name: "Other Host", ID: "tab"})
 	if err := e.Activate(context.Background(), api); err != nil {
 		t.Fatal(err)
 	}

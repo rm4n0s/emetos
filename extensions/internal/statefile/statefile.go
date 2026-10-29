@@ -1,4 +1,4 @@
-// Package statefile reads and writes the small state files that the Remote Work and Relay extensions keep in
+// Package statefile reads and writes the small state files that the Remote Work extension keeps in
 // $XDG_STATE_HOME/emetos (remote-work.json, remote-work-hosts.json, the host key; SPEC §10.18 "As built (step 15.2)").
 // The files decide who may log in and which host a client trusts, so they are written atomically (a temporary file in the
 // same folder, then a rename) with mode 0600 in a folder of mode 0700, and they are read only when they are what the

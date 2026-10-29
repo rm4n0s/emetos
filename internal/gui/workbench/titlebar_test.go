@@ -410,7 +410,7 @@ func TestTheTabOfAnExtensionHasTheIconOfItsKind(t *testing.T) {
 		t.Fatal("no codicon note")
 	}
 	tabs := []WorkspaceTab{
-		{ID: "t1", Name: "emetos", Folder: true}, {ID: "t2", Name: "No folder"}, {ID: "t3", Name: "Relay", IconCode: note, Folder: true},
+		{ID: "t1", Name: "emetos", Folder: true}, {ID: "t2", Name: "No folder"}, {ID: "t3", Name: "Remote Work", IconCode: note, Folder: true},
 	}
 	r := newStripRig(t, tabs, 2, nil, nil)
 	for _, c := range []struct {

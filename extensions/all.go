@@ -21,7 +21,6 @@ import (
 	"github.com/rm4n0s/emetos/extensions/makefile"
 	"github.com/rm4n0s/emetos/extensions/markdown"
 	"github.com/rm4n0s/emetos/extensions/mongodb"
-	"github.com/rm4n0s/emetos/extensions/relay"
 	"github.com/rm4n0s/emetos/extensions/podman"
 	"github.com/rm4n0s/emetos/extensions/python"
 	"github.com/rm4n0s/emetos/extensions/redis"
@@ -49,10 +48,8 @@ import (
 // order for the tests, and a test in cmd/emetos keeps the two the same. The test extension of the contract is
 // extensions/internal/testext; it is never in the list. The extensions of the workbench follow the packs: the Tasks tab of
 // the panel (extensions/tasks) and the Terminal tab of the panel (extensions/terminal), then Remote Work (extensions/remotework, whose instances share
-// one hub made here, with the Source of the real cameras, which opens no device before the Scan QR Code dialog does) and Relay
-// (extensions/relay, the only extension the host grants the privileges events.publishAny and commands.execute; its instances
-// share one hub made here too, with the Source of the real cameras), then the Sharing status item (extensions/hosting, step 17e.4),
-// which reads how the two hubs host the workspace, and the extension "Databases" (extensions/internal/dbconn, step 19.1), the
+// one hub made here, with the Source of the real cameras, which opens no device before the Scan QR Code dialog does), then the Sharing status item
+// (extensions/hosting, step 17e.4), which reads how the hub of Remote Work hosts the workspace, and the extension "Databases" (extensions/internal/dbconn, step 19.1), the
 // connections and their view that the SQL, MongoDB and Redis extensions of M19 to M21 share: they register their engines in the one
 // hub made here, which reads nothing (not even the connection file) until a view of it is shown. The SQL extension (extensions/sql, step
 // 19.2) is a language pack in the list of the packs and the driver of its engines in that hub: its instances share one sql.Hub made here. The MongoDB
@@ -67,7 +64,6 @@ import (
 // The References view (extensions/references) is last: it adds a view to the side bar and asks the language servers the packs start.
 func All() []extension.Factory {
 	rw := remotework.NewHub(remotework.HubOptions{Camera: keyqr.NewV4L2()})
-	ps := relay.NewHub(relay.HubOptions{Camera: keyqr.NewV4L2()})
 	db := dbconn.NewHub(dbconn.HubOptions{})
 	sqlHub := sql.NewHub(db)
 	return []extension.Factory{
@@ -75,8 +71,8 @@ func All() []extension.Factory {
 		html.New, css.New, scss.New, less.New, xml.New, sql.FactoryOf(sqlHub), shellscript.New, makefile.New, docker.New, ini.New,
 		cpp.New, rust.New, diff.New, git.New, gomod.New, mongodb.FactoryOf(db),
 		search.New, containers.New, podman.New,
-		tasks.New, terminal.New, remotework.FactoryOf(rw), relay.FactoryOf(ps),
-		hosting.NewFactory(rw.Hosting(), ps.Hosting()),
+		tasks.New, terminal.New, remotework.FactoryOf(rw),
+		hosting.NewFactory(rw.Hosting()),
 		dbconn.Factory(db), redis.Factory(db),
 		references.New,
 	}

@@ -7,7 +7,7 @@
 //
 //   - A Terminal is the model and is not tied to the panel: it owns the process (a pseudo-terminal), the emulator and the
 //     goroutines that read, parse and write, and tells whoever shows it that it changed. The panel shows it today; the editor
-//     area (step 17d.7) and the events of Relay (step 17d.4) read the same model.
+//     area (step 17d.7) and the events (step 17d.4) read the same model.
 //   - A Group is a tab of the tabs list: one or more terminals side by side (a split).
 //   - The widget (view.go, render.go, atlas.go) draws one terminal and turns the keyboard, the pointer and the input method
 //     into bytes for it.

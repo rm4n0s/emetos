@@ -303,14 +303,14 @@ func wantRoute(t *testing.T, err error, route string) {
 }
 
 func TestTheWordingNamesTheProduct(t *testing.T) {
-	relay := Wording{Product: "Relay", Where: "the Be a Host section of the Relay tab"}
+	other := Wording{Product: "Other Host", Where: "the Hosting section of the Other Host tab"}
 	for _, tc := range []struct {
 		name         string
 		words        *Wording
 		first, moved string
 	}{
 		{"remote work by default", nil, "Open the Remote Work page on that computer", "or Remote Work was set up again there"},
-		{"relay", &relay, "Open the Be a Host section of the Relay tab on that computer", "or Relay was set up again there"},
+		{"another product", &other, "Open the Hosting section of the Other Host tab on that computer", "or Other Host was set up again there"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := newScreen(t, uitest.Themes()[0])

@@ -20,14 +20,12 @@ import (
 const termVersion = "0.1.0"
 
 // entry is one terminal of a window tab and the pane that shows it. The terminal does not know the pane (it can move to an
-// editor tab later, and Relay reads it through events).
+// editor tab later, and other extensions read it through events).
 type entry struct {
 	term *Terminal
 	pv   *paneView
 	// ended says that the user or the extension ended the terminal, so that its exit is not reported.
 	ended bool
-	// clients are the comments of the keys of the Relay clients that typed in the terminal and are still connected.
-	clients []string
 	// fixes are the quick fixes of the last command that ended (shell integration).
 	fixes *fixSet
 	// tab is the editor tab that shows the terminal, nil while it is in the panel (SPEC §10.25 "Terminals in the editor
@@ -230,11 +228,9 @@ type openOpts struct {
 	split bool
 	// name is the name the user gave it.
 	name string
-	// quiet makes the terminal without showing the panel, giving it the keyboard or making it the active tab: a terminal a
-	// client of Relay asked for does not take the screen of the person at the computer.
+	// quiet makes the terminal without showing the panel, giving it the keyboard or making it the active tab: a terminal an
+	// extension asked for without `show` does not take the screen of the person at the computer.
 	quiet bool
-	// by is who asked for the terminal (ByUser, a client of Relay or an extension); empty is the user.
-	by string
 	// location is where the terminal goes: "view" the panel, "editor" an editor tab, empty the setting
 	// terminal.integrated.defaultLocation (the panel for a quiet terminal).
 	location string
@@ -259,7 +255,6 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	if loc == locView {
 		t.placeInPanel(e, o)
 	}
-	t.typedBy(e, o.by)
 	t.publishCreated(e)
 	t.syncKeys()
 	t.handle.Refresh()

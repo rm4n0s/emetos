@@ -10,7 +10,7 @@ import (
 // maxPublicKeyFile is the largest .pub file that is read.
 const maxPublicKeyFile = 16 << 10
 
-// ReadPublicKeyFile reads the text of a public key file (the "Choose .pub File" of Remote Work and Relay): a small regular
+// ReadPublicKeyFile reads the text of a public key file (the "Choose .pub File" of Remote Work): a small regular
 // file. The line still has to be parsed with ParseAuthorizedKey, which refuses what is not a single public key. The errors have
 // the tags SSHLoginPubFileUnreadable (the cause is kept) and SSHLoginPubFileInvalid (not a regular file, or larger than 16 KiB).
 func ReadPublicKeyFile(path string) (string, error) {

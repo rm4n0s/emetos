@@ -16,7 +16,7 @@ const (
 	ID = "emetos.hosting"
 	// ItemID is the id of its status bar item among the items of the extension; the bar knows it as "extension.emetos.hosting.status".
 	ItemID = "status"
-	// MenuCommand opens the menu of the item from the Command Palette. A Relay client may not run it (it starts with "emetos.hosting.").
+	// MenuCommand opens the menu of the item from the Command Palette. A client of a shared workspace may not run it (it starts with "emetos.hosting.").
 	MenuCommand = "emetos.hosting.menu"
 )
 
@@ -50,13 +50,13 @@ type hostingExt struct {
 func (*hostingExt) Manifest() extension.Manifest {
 	return extension.Manifest{
 		ID: ID, Name: "Sharing", Version: "0.1.0",
-		Description: "Shows in the status bar whether Remote Work or Relay hosts the workspace, and starts and stops both from one menu.",
+		Description: "Shows in the status bar whether Remote Work hosts the workspace, and starts and stops it from one menu.",
 		// the item must be there from the start: it says that the workspace is shared
 		ActivationEvents: []string{extension.OnStartup},
 		Contributes: extension.Contributes{
 			Commands: []extension.CommandSpec{{
 				ID: MenuCommand, Title: "Show Hosting Menu", Category: "Sharing",
-				Description: "Opens the menu of the Sharing status item: host this workspace with Remote Work or Relay, stop, disconnect a computer.",
+				Description: "Opens the menu of the Sharing status item: host this workspace with Remote Work, stop, disconnect a computer.",
 			}},
 		},
 	}

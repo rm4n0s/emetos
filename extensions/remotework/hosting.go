@@ -9,7 +9,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/internal/sharing"
 )
 
-// The ids of the commands that host a workspace (SPEC §10.29). They start with "emetos.remotework.", so a Relay client may not run
+// The ids of the commands that host a workspace (SPEC §10.29). They start with "emetos.remotework.", so a client of a shared workspace may not run
 // them (command.ClientRefusal).
 const (
 	// HostCommand turns Remote Work on for the workspace of the window, or opens the page at the guide when no key is listed.
