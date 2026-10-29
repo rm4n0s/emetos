@@ -191,7 +191,7 @@ func (s indentTokens) LineTokens(line int) []tokens.Token {
 	if tok == nil || !tok.Active() {
 		return nil
 	}
-	tok.Ensure(line, tokenBudget)
+	s.vm.ensureOwn(line, tokenBudget)
 	return tok.Line(line)
 }
 
@@ -201,7 +201,7 @@ func (s indentTokens) Language() int { return s.vm.languageCode }
 // of the line (edit.InsertionTypes).
 func (s indentTokens) TypeIfInserting(line, col int, ch string) (textmate.TokenType, bool) {
 	tok := s.vm.tok.tokenizer
-	if tok == nil || !tok.Active() || !tok.Ensure(line, tokenBudget) {
+	if tok == nil || !tok.Active() || !s.vm.ensureOwn(line, tokenBudget) {
 		return textmate.TokenOther, false
 	}
 	return tok.TypeIfInserting(line, col, ch)
@@ -209,7 +209,7 @@ func (s indentTokens) TypeIfInserting(line, col int, ch string) (textmate.TokenT
 
 func (s indentTokens) CheapToTokenize(line int) bool {
 	tok := s.vm.tok.tokenizer
-	return tok == nil || !tok.Active() || tok.Ensure(line, tokenBudget)
+	return tok == nil || !tok.Active() || s.vm.ensureOwn(line, tokenBudget)
 }
 
 // autoIndent is editor.autoIndent; a value that is not a level is "full".

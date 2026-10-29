@@ -2,6 +2,7 @@ package editor
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rm4n0s/emetos/internal/core/tokens"
@@ -19,6 +20,11 @@ const tokenBudget = 4 * time.Millisecond
 type tokenLink struct {
 	tokenizer   *tokens.Tokenizer
 	unsubscribe func()
+	// subID is the id of the view model's subscription to the tokenizer (Tokenizer.OnChangeCause).
+	subID int
+	// editing is above zero while the view model applies an edit of its own: the tokenizer tells, on the same goroutine, that
+	// the edited line lost its tokens, and the view model repaints for the edit itself.
+	editing atomic.Int32
 	// post runs a function on the UI thread; the widget gives the binding's Post.
 	post func(func())
 
@@ -81,6 +87,13 @@ func (vm *ViewModel) spendFrameBudget(d time.Duration) {
 	vm.tok.mu.Unlock()
 }
 
+// ensureOwn tokenizes, as Tokenizer.Ensure does, lines this view model is about to read: it is not told about them, as it would
+// repaint for lines it draws in the frame it is in (a frame of the software renderer costs more than the period of a key that
+// repeats); the other listeners and the other views of the document are.
+func (vm *ViewModel) ensureOwn(line int, budget time.Duration) bool {
+	return vm.tok.tokenizer.EnsureFor(vm.tok.subID, line, budget)
+}
+
 // ensureWithin tokenizes up to a line within the frame's budget, at most max, and says how it went as
 // Tokenizer.Ensure does; it does nothing once the frame has spent its budget.
 func (vm *ViewModel) ensureWithin(line int, max time.Duration) {
@@ -89,7 +102,7 @@ func (vm *ViewModel) ensureWithin(line int, max time.Duration) {
 		return
 	}
 	t0 := time.Now()
-	vm.tok.tokenizer.Ensure(line, budget)
+	vm.ensureOwn(line, budget)
 	vm.spendFrameBudget(time.Since(t0))
 }
 
@@ -104,7 +117,7 @@ func (vm *ViewModel) SetTokenizer(t *tokens.Tokenizer) {
 	}
 	vm.tok.tokenizer = t
 	if t != nil {
-		vm.tok.unsubscribe = t.OnChange(vm.tokensChanged)
+		vm.tok.subID, vm.tok.unsubscribe = t.OnChangeCause(vm.tokensChangedBy)
 	}
 	vm.NotifyListeners()
 }
@@ -164,6 +177,15 @@ func (vm *ViewModel) ensureMinimapTokens(first, last int) {
 	if vm.tok.tokenizer != nil {
 		vm.ensureWithin(last, minimapTokenBudget)
 	}
+}
+
+// tokensChangedBy is tokensChanged with the cause the tokenizer gives. The loss of the tokens of the line an edit of the view
+// model itself changed needs no repaint of its own: the edit repaints.
+func (vm *ViewModel) tokensChangedBy(from, to int, cause tokens.Cause) {
+	if cause == tokens.CauseEdit && vm.tok.editing.Load() > 0 {
+		return
+	}
+	vm.tokensChanged(from, to)
 }
 
 // tokensChanged is told by the tokenizer, on its goroutine, that lines [from, to] were

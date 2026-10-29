@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"math/rand"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -585,4 +586,87 @@ func TestEnsureDoesNotWaitForTheRulesOfTheGrammar(t *testing.T) {
 	if !tok.Ensure(2, time.Second) || tok.Line(2) == nil {
 		t.Error("Ensure does not tokenize once the rules are made")
 	}
+}
+
+type causedChange struct {
+	from, to int
+	cause    Cause
+}
+
+// The listeners are told the cause of a change, and EnsureFor leaves out the subscriber that asks for the lines.
+func TestChangesTellTheirCauseAndEnsureForSkipsTheCaller(t *testing.T) {
+	var text strings.Builder
+	for range 50 {
+		text.WriteString("func f() { return }\n")
+	}
+	tests := []struct {
+		name string
+		// act does the change, with the ids of the two subscribers.
+		act func(tok *Tokenizer, doc *document.Document, a, b int)
+		// wantA and wantB are what the subscribers are told.
+		wantA, wantB []causedChange
+	}{
+		{
+			name:  "Ensure tells both",
+			act:   func(tok *Tokenizer, _ *document.Document, _, _ int) { tok.Ensure(4, time.Second) },
+			wantA: []causedChange{{0, 4, CauseEnsure}}, wantB: []causedChange{{0, 4, CauseEnsure}},
+		},
+		{
+			name:  "EnsureFor does not tell the caller",
+			act:   func(tok *Tokenizer, _ *document.Document, a, _ int) { tok.EnsureFor(a, 4, time.Second) },
+			wantA: nil, wantB: []causedChange{{0, 4, CauseEnsure}},
+		},
+		{
+			name: "an edit tells both",
+			act: func(tok *Tokenizer, doc *document.Document, _, _ int) {
+				tok.Ensure(49, time.Minute)
+				if _, err := doc.Edit([]document.Edit{{Range: buffer.NewRange(buffer.Position{Line: 3}, buffer.Position{Line: 3}), Text: "x"}}, document.EditOptions{}); err != nil {
+					panic(err)
+				}
+			},
+			wantA: []causedChange{{0, 49, CauseEnsure}, {3, 3, CauseEdit}}, wantB: []causedChange{{0, 49, CauseEnsure}, {3, 3, CauseEdit}},
+		},
+		{
+			name:  "the background tells both",
+			act:   func(tok *Tokenizer, _ *document.Document, _, _ int) { tok.Settle() },
+			wantA: []causedChange{{0, 50, CauseBackground}}, wantB: []causedChange{{0, 50, CauseBackground}},
+		},
+		{
+			name:  "a new grammar tells both",
+			act:   func(tok *Tokenizer, _ *document.Document, _, _ int) { tok.SetGrammar(nil) },
+			wantA: []causedChange{{0, 50, CauseReset}}, wantB: []causedChange{{0, 50, CauseReset}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := newDoc(text.String())
+			tok := New(doc, grammarFor(t, "go"), Options{})
+			defer tok.Close()
+			var gotA, gotB []causedChange
+			a, _ := tok.OnChangeCause(func(from, to int, c Cause) { gotA = append(gotA, causedChange{from, to, c}) })
+			b, _ := tok.OnChangeCause(func(from, to int, c Cause) { gotB = append(gotB, causedChange{from, to, c}) })
+			tt.act(tok, doc, a, b)
+			gotA, gotB = joinSlices(gotA), joinSlices(gotB)
+			if !reflect.DeepEqual(gotA, tt.wantA) {
+				t.Errorf("first subscriber: %v, want %v", gotA, tt.wantA)
+			}
+			if !reflect.DeepEqual(gotB, tt.wantB) {
+				t.Errorf("second subscriber: %v, want %v", gotB, tt.wantB)
+			}
+		})
+	}
+}
+
+// joinSlices joins the changes of consecutive slices of the background (the slices of a run are as long as the machine lets
+// them be) into one change.
+func joinSlices(in []causedChange) []causedChange {
+	var out []causedChange
+	for _, c := range in {
+		if n := len(out); n > 0 && c.cause == CauseBackground && out[n-1].cause == CauseBackground && c.from == out[n-1].to+1 {
+			out[n-1].to = c.to
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
 }

@@ -200,8 +200,8 @@ func (r *RenderLinesView) Paint(context *rendering.PaintingContext, offset ui.Of
 	}
 	first, last := r.opts.FirstLine, r.opts.FirstLine+r.opts.Count-1
 	snap := src.Document().Snapshot()
-	if tok := src.Tokenizer(); tok != nil {
-		tok.Ensure(last, tokenBudget)
+	if src.Tokenizer() != nil {
+		src.ensureOwn(last, tokenBudget)
 	}
 	style := newTextStyle(r.factory, src.Options(), r.color)
 	geo := newGeometry(src, r.factory)

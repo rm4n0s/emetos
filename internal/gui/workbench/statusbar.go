@@ -90,7 +90,7 @@ func (s *statusItemsState) follow() {
 	}
 	s.remove = s.Widget().opts.Bar.OnChange(func() {
 		// the items change from any goroutine; the widgets only on the UI thread
-		s.binding.Post(func() {
+		kit.RebuildSoon(s.binding, func() {
 			if s.Mounted() {
 				s.SetState(func() {})
 			}

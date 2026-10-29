@@ -71,7 +71,7 @@ type Tokenizer struct {
 	snap        buffer.Snapshot // the latest text
 	lines       []lineInfo
 	invalidFrom int // the first line that is not done; len(lines) when all are
-	listeners   map[int]func(from, to int)
+	listeners   map[int]func(from, to int, cause Cause)
 	nextID      int
 	slices      int
 	wake        chan struct{}
@@ -95,7 +95,7 @@ func New(doc *document.Document, grammar *textmate.Grammar, opts Options) *Token
 		enabled:   !doc.LargeFile(),
 		grammar:   grammar,
 		snap:      doc.Snapshot(),
-		listeners: map[int]func(int, int){},
+		listeners: map[int]func(int, int, Cause){},
 		wake:      make(chan struct{}, 1),
 	}
 	t.lines = make([]lineInfo, t.snap.LineCount())
@@ -126,15 +126,36 @@ func (t *Tokenizer) Slices() int {
 	return t.slices
 }
 
+// Cause is why the tokens of some lines changed.
+type Cause int
+
+const (
+	// CauseReset is a change of everything: the grammar or the whole text was replaced.
+	CauseReset Cause = iota
+	// CauseEdit is an edit of the document: the tokens of the edited line are gone. It comes on the goroutine that edited.
+	CauseEdit
+	// CauseEnsure is the tokenizing of lines by Ensure, on the goroutine of its caller, for lines that caller is about to draw.
+	CauseEnsure
+	// CauseBackground is the tokenizing of the background loop, or of Settle.
+	CauseBackground
+)
+
 // OnChange calls fn with the lines [from, to] (zero-based, inclusive) whose tokens changed, on
 // the goroutine that tokenized them. It gives a function that stops the calls.
 func (t *Tokenizer) OnChange(fn func(from, to int)) (unsubscribe func()) {
+	_, unsubscribe = t.OnChangeCause(func(from, to int, _ Cause) { fn(from, to) })
+	return unsubscribe
+}
+
+// OnChangeCause is OnChange with the cause of the change. It also gives the id of the subscription, which EnsureFor takes to
+// leave the subscriber out of the calls for the lines it tokenizes itself.
+func (t *Tokenizer) OnChangeCause(fn func(from, to int, cause Cause)) (id int, unsubscribe func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	id := t.nextID
+	id = t.nextID
 	t.nextID++
 	t.listeners[id] = fn
-	return func() {
+	return id, func() {
 		t.mu.Lock()
 		defer t.mu.Unlock()
 		delete(t.listeners, id)
@@ -142,15 +163,20 @@ func (t *Tokenizer) OnChange(fn func(from, to int)) (unsubscribe func()) {
 }
 
 // notify tells the listeners that lines changed.
-func (t *Tokenizer) notify(from, to int) {
+func (t *Tokenizer) notify(from, to int, cause Cause) { t.notifyExcept(-1, from, to, cause) }
+
+// notifyExcept tells the listeners but the one with the id that lines changed.
+func (t *Tokenizer) notifyExcept(skip, from, to int, cause Cause) {
 	t.mu.Lock()
-	listeners := make([]func(int, int), 0, len(t.listeners))
-	for _, fn := range t.listeners {
-		listeners = append(listeners, fn)
+	listeners := make([]func(int, int, Cause), 0, len(t.listeners))
+	for id, fn := range t.listeners {
+		if id != skip {
+			listeners = append(listeners, fn)
+		}
 	}
 	t.mu.Unlock()
 	for _, fn := range listeners {
-		fn(from, to)
+		fn(from, to, cause)
 	}
 }
 
@@ -175,7 +201,7 @@ func (t *Tokenizer) SetGrammar(g *textmate.Grammar) {
 	n := len(t.lines)
 	t.mu.Unlock()
 	t.wakeUp()
-	t.notify(0, n-1)
+	t.notify(0, n-1, CauseReset)
 }
 
 // Line gives the tokens of a line, or nil when the line has none yet (it is not tokenized, or
@@ -192,7 +218,11 @@ func (t *Tokenizer) Line(line int) []Token {
 // Ensure tokenizes, on the caller, the lines up to a line (zero-based), as far as the budget
 // allows, so that the lines about to be painted have their colors. It reports whether the line
 // is tokenized.
-func (t *Tokenizer) Ensure(line int, budget time.Duration) bool {
+func (t *Tokenizer) Ensure(line int, budget time.Duration) bool { return t.EnsureFor(-1, line, budget) }
+
+// EnsureFor is Ensure for the subscriber with the id (OnChangeCause): the other listeners are told about the lines it
+// tokenized, the subscriber is not, as it is about to draw them and has nothing to learn from the call.
+func (t *Tokenizer) EnsureFor(skip, line int, budget time.Duration) bool {
 	t.mu.Lock()
 	if !t.activeLocked() || line < 0 || line >= len(t.lines) {
 		t.mu.Unlock()
@@ -230,7 +260,7 @@ func (t *Tokenizer) Ensure(line int, budget time.Duration) bool {
 	ok := t.invalidFrom > line
 	t.mu.Unlock()
 	if last >= from {
-		t.notify(from, last)
+		t.notifyExcept(skip, from, last, CauseEnsure)
 	}
 	if !ok {
 		t.wakeUp()
@@ -299,7 +329,7 @@ func (t *Tokenizer) documentChanged(ev document.ChangeEvent) {
 		n := len(t.lines)
 		t.mu.Unlock()
 		t.wakeUp()
-		t.notify(0, n-1)
+		t.notify(0, n-1, CauseReset)
 		return
 	}
 	// The changes are in order of position and apply to the text before the batch, so going from
@@ -327,7 +357,7 @@ func (t *Tokenizer) documentChanged(ev document.ChangeEvent) {
 		t.wakeUp()
 	}
 	if first < n {
-		t.notify(first, first)
+		t.notify(first, first, CauseEdit)
 	}
 }
 
@@ -399,7 +429,7 @@ func (t *Tokenizer) slice() bool {
 		if t.gen != gen {
 			t.mu.Unlock()
 			if last >= from {
-				t.notify(from, last)
+				t.notify(from, last, CauseBackground)
 			}
 			return true // stale: what was tokenized is dropped, and the next slice starts again
 		}
@@ -417,7 +447,7 @@ func (t *Tokenizer) slice() bool {
 		i, state = next, res.State
 	}
 	if last >= from {
-		t.notify(from, last)
+		t.notify(from, last, CauseBackground)
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()

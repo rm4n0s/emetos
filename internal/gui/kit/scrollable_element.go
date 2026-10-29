@@ -302,6 +302,11 @@ type scrollableElementState struct {
 	lastMetrics ScrollMetrics
 	pending     bool
 	smooth      smoothScroll
+	// drawn is what the last Build drew from the metrics, and built whether there was a Build; the element rebuilds after a
+	// frame only when the metrics would draw something else.
+	drawn  scrollDrawn
+	built  bool
+	builds int
 }
 
 // InitState starts listening to the model.
@@ -398,11 +403,40 @@ func (s *scrollableElementState) modelChanged() {
 		m := s.model.Metrics()
 		moved := m.Left != s.lastMetrics.Left || m.Top != s.lastMetrics.Top
 		s.lastMetrics = m
-		s.SetState(func() {})
+		// A change of the content that draws the same scrollbars and shadows (a character typed in a line that fits, a held key
+		// repeating) needs no frame of its own: with a software renderer that frame costs more than the repeat period of a key.
+		if !s.built || s.drawnFor(m) != s.drawn {
+			s.SetState(func() {})
+		}
 		if moved {
 			s.reveal()
 		}
 	})
+}
+
+// scrollDrawn is what the scrollbars and the shadows draw from the metrics: the state of each scrollbar and whether the shadows
+// at the top and the left are drawn. Two metrics with the same value draw the same pixels.
+type scrollDrawn struct {
+	vertical, horizontal  scrollbarDrawn
+	shadowTop, shadowLeft bool
+}
+
+// scrollbarDrawn is the geometry of one scrollbar.
+type scrollbarDrawn struct {
+	needed                                                    bool
+	arrow, position, large, small, sliderSize, sliderPosition float64
+}
+
+// drawnFor is what Build draws for the metrics.
+func (s *scrollableElementState) drawnFor(m ScrollMetrics) scrollDrawn {
+	v, h := s.states(m)
+	of := func(st *ScrollbarState) scrollbarDrawn {
+		return scrollbarDrawn{
+			needed: st.IsNeeded(), arrow: st.ArrowSize(), position: st.ScrollPosition(), large: st.RectangleLargeSize(),
+			small: st.RectangleSmallSize(), sliderSize: st.SliderSize(), sliderPosition: st.SliderPosition(),
+		}
+	}
+	return scrollDrawn{vertical: of(v), horizontal: of(h), shadowTop: m.Top > 0, shadowLeft: m.Left > 0}
 }
 
 // reveal shows the scrollbars and schedules their hiding.
@@ -691,6 +725,8 @@ func (s *scrollableElementState) Build(bc widgets.BuildContext) widgets.Widget {
 	w := s.Widget()
 	colors := ThemeOf(bc)
 	m := s.model.Metrics()
+	s.drawn, s.built = s.drawnFor(m), true
+	s.builds++
 	vState, hState := s.states(m)
 	children := []widgets.Widget{s.content(w.child)}
 	if w.opts.UseShadows {

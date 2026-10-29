@@ -175,10 +175,12 @@ func (vm *ViewModel) apply(res edit.Result) error {
 			return err
 		}
 		after := res.Selections
+		vm.tok.editing.Add(1)
 		_, err := vm.doc.Edit(res.Edits, document.EditOptions{
 			Kind: res.Kind, Before: before,
 			After: func([]document.Edit) []buffer.Selection { return after },
 		})
+		vm.tok.editing.Add(-1)
 		if err != nil {
 			return err
 		}

@@ -804,3 +804,38 @@ func TestElementPanZoomScrolls(t *testing.T) {
 		t.Errorf("fingers moving up scroll the content down by 40: %v", got)
 	}
 }
+
+// A change of the content that draws the same scrollbars and shadows (a character typed in a line that fits, a held key
+// repeating) does not rebuild the element, so that it does not cost a frame of its own; one that draws something else does.
+func TestElementRebuildsOnlyWhenTheScrollbarsChange(t *testing.T) {
+	fits := ScrollMetrics{ViewportWidth: 400, ViewportHeight: 300, ContentWidth: 100, ContentHeight: 100}
+	tests := []struct {
+		name    string
+		change  func(m *ScrollMetrics)
+		rebuilt bool
+	}{
+		{"content grows but still fits", func(m *ScrollMetrics) { m.ContentWidth, m.ContentHeight = 300, 200 }, false},
+		{"content gets longer than the viewport", func(m *ScrollMetrics) { m.ContentHeight = 1200 }, true},
+		{"content gets wider than the viewport", func(m *ScrollMetrics) { m.ContentWidth = 1600 }, true},
+		{"the viewport gets shorter, so do the tracks", func(m *ScrollMetrics) { m.ViewportHeight = 150 }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := newFakeModel(fits)
+			handle := &ScrollHandle{}
+			ts := pumpElement(t, model, ScrollableElementOpts{Handle: handle})
+			state := handle.state
+			if state == nil || !state.built {
+				t.Fatalf("the element has not been built: %+v", state)
+			}
+			before := state.builds
+			tt.change(&model.m)
+			model.NotifyListeners()
+			ts.Pump(time.Millisecond)
+			ts.Pump(time.Millisecond)
+			if rebuilt := state.builds > before; rebuilt != tt.rebuilt {
+				t.Errorf("rebuilt = %v, want %v", rebuilt, tt.rebuilt)
+			}
+		})
+	}
+}

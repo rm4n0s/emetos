@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/rm4n0s/glutter/scheduler"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -246,10 +247,20 @@ func (w *Workspace) extensionFrame(f func()) {
 			f()
 			return
 		}
-		scheduler := widgets.WidgetsBindingOf(s.Context()).Scheduler()
-		scheduler.ScheduleFrame()
-		scheduler.AddPostFrameCallback(func(time.Duration) { f() })
+		afterNextFrame(widgets.WidgetsBindingOf(s.Context()).Scheduler(), f)
 	})
+}
+
+// afterNextFrame runs f at the end of the frame that is scheduled; when none is, f runs at once, on the UI thread. An event of
+// a key that is typed comes while the frame that handles the key is built, and this runs after that frame: asking for another
+// frame to deliver it would draw the whole window a second time for every key (a held key repeats faster than a software
+// renderer draws two frames), and the events have nothing to draw.
+func afterNextFrame(sched *scheduler.SchedulerBinding, f func()) {
+	if !sched.HasScheduledFrame() {
+		f()
+		return
+	}
+	sched.AddPostFrameCallback(func(time.Duration) { f() })
 }
 
 // extensionAfter calls f after d: with the timers of the window while it is on screen, else with a timer of the standard

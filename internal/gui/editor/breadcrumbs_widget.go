@@ -151,7 +151,7 @@ func (s *breadcrumbsState) follow() {
 	s.view = vm
 	// the editor moves its cursor while its widgets build: the bar is built again after that
 	refresh := func() {
-		s.binding.Post(func() {
+		kit.RebuildSoon(s.binding, func() {
 			if s.Mounted() {
 				s.SetState(func() {})
 			}
