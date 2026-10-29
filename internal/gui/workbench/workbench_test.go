@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
-	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
-	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -880,9 +878,6 @@ func TestAWorkbenchWithoutTheCommandsReportsTheMistake(t *testing.T) {
 func TestPanelTabBadgeAndViewActions(t *testing.T) {
 	st := DefaultLayoutState()
 	st.PanelVisible = true
-	actions := func(width float64) Widget {
-		return widgets.NewSizedBox(widgets.NewText("view actions"), widgets.SizedBoxOpts{Width: foundation.Some(width), Height: foundation.Some(22.0)})
-	}
 	cases := []struct {
 		name        string
 		size        ui.Size
@@ -900,7 +895,7 @@ func TestPanelTabBadgeAndViewActions(t *testing.T) {
 			h := newHarness(t, tc.size, kit.DarkModern(), st, nil, func(o *Options) {
 				o.PanelTabs = []PanelTab{{ID: "problems", Title: "Problems", Badge: tc.badge, BadgeTooltip: "Total problems"}, {ID: "output", Title: "Output"}}
 				o.ActivePanel = "problems"
-				o.PanelActions = actions(200)
+				o.PanelActions = newTestActions(200, 200)
 			})
 			badge := h.ts.Exists(gluttertest.ByKey(PanelBadgeKey("problems")))
 			if badge != (tc.wantBadge != "") {
@@ -927,8 +922,8 @@ func TestPanelTabBadgeAndViewActions(t *testing.T) {
 func TestPanelViewActionsWithATextFieldLeaveAndComeBack(t *testing.T) {
 	st := DefaultLayoutState()
 	st.PanelVisible = true
-	field := widgets.NewSizedBox(kit.NewInputBox(nil, nil, kit.InputBoxOpts{Placeholder: "filter text"}),
-		widgets.SizedBoxOpts{Width: foundation.Some(200.0), Height: foundation.Some(22.0)})
+	field := newTestActions(200, 200)
+	field.child = kit.NewInputBox(nil, nil, kit.InputBoxOpts{Placeholder: "filter text"})
 	h := newHarness(t, testSize, kit.DarkModern(), st, nil, func(o *Options) {
 		o.PanelTabs = []PanelTab{{ID: "problems", Title: "Problems"}, {ID: "output", Title: "Output"}}
 		o.ActivePanel = "problems"

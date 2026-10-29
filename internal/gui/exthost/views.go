@@ -241,8 +241,8 @@ func (s *Scope) ViewBody(viewID string) widgets.Widget {
 
 // ViewActions are the title actions of a view of an extension as icon buttons for the header of the view; keys is where
 // their `when` is read and run runs the command of a button. It is nil when the view is not an extension's or has no
-// action that holds.
-func (s *Scope) ViewActions(viewID string, keys contextkey.Context, run func(commandID string)) widgets.Widget {
+// action that holds. The row is a kit.TitleActions: the title strip of the panel asks how wide it is and keeps that room for it.
+func (s *Scope) ViewActions(viewID string, keys contextkey.Context, run func(commandID string)) kit.TitleActions {
 	d := s.decl(viewID)
 	if d == nil {
 		return nil
@@ -254,7 +254,7 @@ func (s *Scope) ViewActions(viewID string, keys contextkey.Context, run func(com
 	if failed {
 		return nil
 	}
-	var buttons []widgets.Widget
+	var buttons []*kit.IconButton
 	for _, a := range actions {
 		if a.when != nil && keys != nil && !a.when.Evaluate(keys) {
 			continue
@@ -271,7 +271,7 @@ func (s *Scope) ViewActions(viewID string, keys contextkey.Context, run func(com
 	if len(buttons) == 0 {
 		return nil
 	}
-	return widgets.NewRow(buttons, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin})
+	return kit.NewIconButtonRow(buttons)
 }
 
 // ViewAllowsCommand tells whether a key press bound to the command is run by the window while the keyboard focus is in the

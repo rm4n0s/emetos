@@ -488,14 +488,30 @@ func (s *actionsState) InitState() {
 // Dispose stops following the view.
 func (s *actionsState) Dispose() { s.stop() }
 
-// Widths of the actions: the filter box at most filterWidth and at least filterMinWidth wide, and
-// what the buttons after it take (four switches of 22 px, the 2 px before the collapse button and the
+// Widths of the actions: the filter box at most filterWidth and at least filterMinWidth wide (VS Code's 200 and 150 pixels for the
+// filter of a panel), and what the buttons after it take (four switches of 22 px, the 2 px before the collapse button and the
 // button, and the 6 px between the box and the switches).
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/views/media/views.css (`.panel > .title .viewpane-filter-container`)
 const (
-	filterWidth    = 240.0
-	filterMinWidth = 80.0
+	filterWidth    = 200.0
+	filterMinWidth = 150.0
 	buttonsWidth   = 4*22.0 + 2 + 22 + 6
+	// switchesWidth is what the buttons take with no filter box (no gap before them).
+	switchesWidth = buttonsWidth - 6
 )
+
+// TitleActionsWidth implements kit.TitleActions: the filter box and the buttons take up to filterWidth + buttonsWidth and keep at
+// least filterMinWidth for the box; with less room the box is left out, and under the width of the buttons nothing shows.
+func (a *Actions) TitleActionsWidth(room float64) float64 {
+	switch {
+	case room >= buttonsWidth+filterMinWidth:
+		return min(room, buttonsWidth+filterWidth)
+	case room >= switchesWidth:
+		return switchesWidth
+	}
+	return 0
+}
 
 // Build implements widgets.State.
 func (s *actionsState) Build(widgets.BuildContext) widgets.Widget {
@@ -504,8 +520,8 @@ func (s *actionsState) Build(widgets.BuildContext) widgets.Widget {
 	})
 }
 
-// actions are the actions in the room there is: with little room the filter box shrinks, and under
-// its least width it is left out.
+// actions are the actions in the room there is, which TitleActionsWidth decides: with little room the filter box shrinks, and
+// under its least width it is left out.
 func (s *actionsState) actions(room float64) widgets.Widget {
 	v := s.Widget().view
 	o := v.model.Options()

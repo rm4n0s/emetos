@@ -128,7 +128,22 @@ const (
 	channelsWidth    = 160.0
 	channelsMinWidth = 60.0
 	buttonsWidth     = 6 + 2*22.0
+	// buttonsOnlyWidth is what the two buttons take with no dropdown (no gap before them).
+	buttonsOnlyWidth = buttonsWidth - 6
 )
+
+// TitleActionsWidth implements kit.TitleActions: the dropdown and the buttons take up to channelsWidth + buttonsWidth and keep at
+// least channelsMinWidth for the dropdown; with less room the dropdown is left out, and under the width of the two buttons
+// nothing shows.
+func (a *Actions) TitleActionsWidth(room float64) float64 {
+	switch {
+	case room >= buttonsWidth+channelsMinWidth:
+		return min(room, buttonsWidth+channelsWidth)
+	case room >= buttonsOnlyWidth:
+		return buttonsOnlyWidth
+	}
+	return 0
+}
 
 // Build implements widgets.State.
 func (s *actionsState) Build(widgets.BuildContext) widgets.Widget {
@@ -137,8 +152,8 @@ func (s *actionsState) Build(widgets.BuildContext) widgets.Widget {
 	})
 }
 
-// actions are the actions in the room there is: with little room the dropdown shrinks, and under its
-// least width it is left out.
+// actions are the actions in the room there is, which TitleActionsWidth decides: with little room the dropdown shrinks, and under
+// its least width it is left out.
 func (s *actionsState) actions(room float64) widgets.Widget {
 	v := s.Widget().view
 	names := v.Channels()

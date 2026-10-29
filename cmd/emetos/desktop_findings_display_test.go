@@ -61,7 +61,8 @@ func TestDesktopHoverHidesWhenTheContextMenuOpens(t *testing.T) {
 }
 
 // TestDesktopPanelTabsAreWholeAndOverflow (D4): the title of the panel keeps its tabs whole at 1280 and 1024 px, with a count on
-// Problems, and at a width where they do not all fit the ones that do not go into the menu of a "..." button, which lists them.
+// Problems, the filter of the Problems keeps its room beside them (the actions of a view are measured first, decision 370), and
+// the tabs that do not fit go into the menu of a "..." button, which lists them.
 func TestDesktopPanelTabsAreWholeAndOverflow(t *testing.T) {
 	a := startGoApp(t, goplsOptions{Diagnostics: true})
 	a.Press("ctrl+shift+m")
@@ -99,13 +100,32 @@ func TestDesktopPanelTabsAreWholeAndOverflow(t *testing.T) {
 		if len(cut) != 0 {
 			t.Errorf("at %d px these texts of the panel's title are cut: %+v", width, cut)
 		}
-		// 1024 px is narrower than the tabs of every extension that adds a panel view (Go, Redis...): there some go into the menu,
-		// and what matters is that the ones that show are whole (checked above)
-		if overflow && width > 1024 {
-			t.Errorf("at %d px the tabs %v do not all fit: the \"...\" button shows", width, tabs)
+		// The actions of the view keep their room and the tabs get what is left (decision 370): with the tabs of every extension
+		// that adds a panel view (Go, Redis, Containers, Podman...) some go into the "..." menu, which is expected; what matters is
+		// that the ones that show are whole (checked above), that the active tab is one of them and that the filter of the Problems
+		// has the room VS Code gives it (150 px at least) on the row of the tabs, clear of them.
+		if len(tabs) < 1 || !contains(tabs, "PROBLEMS") {
+			t.Errorf("at %d px the tabs are %v: the active tab PROBLEMS must show", width, tabs)
 		}
-		if len(tabs) < 3 {
-			t.Errorf("at %d px the tabs are %v", width, tabs)
+		y, _ := tabRow()
+		var filter *app.DevInput
+		for _, in := range a.Inputs() {
+			if in.Y > y-18 && in.Y < y+18 {
+				filter = &in
+				break
+			}
+		}
+		if filter == nil {
+			t.Errorf("at %d px the filter of the Problems is not in the title strip (tabs %v, overflow %v)", width, tabs, overflow)
+			continue
+		}
+		if filter.Width < 150 {
+			t.Errorf("at %d px the filter is %.1f px wide, VS Code gives it 150 at least", width, filter.Width)
+		}
+		for _, tx := range a.Texts() {
+			if tx.Y > y-6 && tx.Y < y+6 && tx.X >= 348 && tx.X < filter.X && tx.X+tx.Width > filter.X+0.5 {
+				t.Errorf("at %d px the text %q (%.1f to %.1f) runs over the filter that starts at %.1f", width, tx.Text, tx.X, tx.X+tx.Width, filter.X)
+			}
 		}
 	}
 	// a narrow window: some tabs go into the menu, those that show are whole

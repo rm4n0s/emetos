@@ -14,7 +14,8 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
-// The tabs of the panel that do not fit in its title strip (step 17b.6, D4).
+// The tabs of the panel that do not fit in its title strip (step 17b.6, D4). The actions of the open view keep their room and the
+// tabs get what is left (decision 370, SPEC §10.13 "The title strip of the panel").
 //
 // Ported from VS Code: src/vs/workbench/browser/parts/compositeBar.ts and paneCompositeBar.ts (the overflow of the composite
 // bar: the items that do not fit go into the "..." action's menu, the active one stays in the bar)
@@ -46,12 +47,31 @@ func (s *workbenchState) panelTabsWidth(bc widgets.BuildContext, shown []PanelTa
 	return total
 }
 
+// panelTabsLeast is the least room the tabs are left with when the actions of the view take what they ask for: panelTabsMinWidth
+// (VS Code's), or the room for the active tab with the "..." button when that is more, so that the active tab shows whole.
+func (s *workbenchState) panelTabsLeast(bc widgets.BuildContext, tabs []PanelTab, active string) float64 {
+	least := panelTabsMinWidth
+	for _, t := range tabs {
+		if t.ID != active {
+			continue
+		}
+		w := s.panelTabWidth(bc, t)
+		if len(tabs) > 1 {
+			w += panelOverflowWidth
+		}
+		least = max(least, w)
+	}
+	return least
+}
+
 // fitPanelTabs splits the tabs into those that are shown and those that go into the menu of the "..." button, for a strip
-// that has room for them. The tabs get the room first (the actions of the view are given what they leave): all of them when they fit
-// with the buttons that maximize and hide the panel, else as many from the left as fit with the "..." button, and the active tab
-// always shows, in the place of the last one when it would be hidden. A tab is shown whole or not at all.
+// that has room for them (what the buttons that maximize and hide the panel and the actions of the view leave, at least
+// panelTabsMinWidth, as VS Code lays out its composite bar): all of them when they fit, else as many from the left as fit with
+// the "..." button, and the active tab always shows, in the place of the last one when it would be hidden. A tab is shown whole
+// or not at all.
 func (s *workbenchState) fitPanelTabs(bc widgets.BuildContext, tabs []PanelTab, room float64) (shown, hidden []PanelTab) {
-	if math.IsInf(room, 1) || room <= 0 || s.panelTabsWidth(bc, tabs, false) <= room+panelFitSlack {
+	room = max(room, panelTabsMinWidth)
+	if math.IsInf(room, 1) || s.panelTabsWidth(bc, tabs, false) <= room+panelFitSlack {
 		return tabs, nil
 	}
 	room -= panelOverflowWidth

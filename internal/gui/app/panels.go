@@ -15,6 +15,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/views/output"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
@@ -209,7 +210,7 @@ func (s *shellState) panelBody(win *Workspace) widgets.Widget {
 }
 
 // panelActions are the actions of the tab that is open, in the title strip of the panel.
-func (s *shellState) panelActions(win *Workspace) widgets.Widget {
+func (s *shellState) panelActions(win *Workspace) kit.TitleActions {
 	switch win.Views.ActivePanel() {
 	case command.ViewContainerMarkers:
 		return problems.NewActions(s.panels.problems)
@@ -220,7 +221,7 @@ func (s *shellState) panelActions(win *Workspace) widgets.Widget {
 }
 
 // extensionViewActions are the title actions of a view an extension declared, or nil.
-func (s *shellState) extensionViewActions(win *Workspace, viewID string) widgets.Widget {
+func (s *shellState) extensionViewActions(win *Workspace, viewID string) kit.TitleActions {
 	scope := win.Extensions()
 	if scope == nil {
 		return nil
