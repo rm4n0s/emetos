@@ -274,6 +274,10 @@ type StatusItem struct {
 	Alignment StatusAlignment
 	// Kind is the look of the item; StatusStandard when not set.
 	Kind StatusKind
+	// Color, when it is "#rrggbb" (or "#rgb"), is the background of the item, with a text color that reads on it (white or black).
+	// It takes the place of Kind's background. It is how the SQL extension tints the item of a connection with the connection's
+	// color; any other text is ignored.
+	Color string
 	// Priority orders the items of a side: the higher it is, the closer to the left end of the bar.
 	Priority float64
 	// Command is the id of the command a click runs, with Args; used when OnClick is nil.

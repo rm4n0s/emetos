@@ -510,8 +510,8 @@ func (w *Workspace) openWindowTab(kindID string) error {
 	return err
 }
 
-// extensionFileChooser shows the open dialog of the desktop (the file chooser portal) for an extension and waits for the user. It is
-// called on a goroutine of the extension. A dialog that is closed without a choice gives "" and no error.
+// extensionFileChooser shows the open dialog of the desktop (the file chooser portal), or the save dialog when opts.Save is set, for an
+// extension and waits for the user. It is called on a goroutine of the extension. A dialog that is closed without a choice gives "" and no error.
 func (w *Workspace) extensionFileChooser(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
 	s := w.shell
 	if s == nil || !s.Mounted() {
@@ -521,7 +521,13 @@ func (w *Workspace) extensionFileChooser(ctx context.Context, opts extension.Fil
 	for i, f := range opts.Filters {
 		filters[i] = desktop.FileFilter{Name: f.Name, Patterns: f.Patterns}
 	}
-	res, err := desktop.OpenFiles(ctx, s.Context(), desktop.OpenFilesOpts{Title: opts.Title, AcceptLabel: opts.AcceptLabel, Filters: filters, CurrentFolder: opts.Folder})
+	var res desktop.FilesResult
+	var err error
+	if opts.Save {
+		res, err = desktop.SaveFile(ctx, s.Context(), desktop.SaveFileOpts{Title: opts.Title, AcceptLabel: opts.AcceptLabel, Filters: filters, CurrentName: opts.Name, CurrentFolder: opts.Folder})
+	} else {
+		res, err = desktop.OpenFiles(ctx, s.Context(), desktop.OpenFilesOpts{Title: opts.Title, AcceptLabel: opts.AcceptLabel, Filters: filters, CurrentFolder: opts.Folder})
+	}
 	if err != nil {
 		return "", errors.NewErr("ExtensionFileChooserFailed", err)
 	}

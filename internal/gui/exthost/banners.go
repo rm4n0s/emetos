@@ -110,6 +110,18 @@ func (a *api) FileChooser() extension.FileChooser { return fileChooserAPI{a.inst
 
 // Open implements extension.FileChooser.
 func (c fileChooserAPI) Open(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
+	opts.Save = false
+	return c.choose(ctx, opts)
+}
+
+// Save implements extension.FileChooser.
+func (c fileChooserAPI) Save(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
+	opts.Save = true
+	return c.choose(ctx, opts)
+}
+
+// choose asks the scope's dialog, an open one or a save one by opts.Save.
+func (c fileChooserAPI) choose(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
 	in := c.inst
 	if in.isDead() {
 		return "", errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)

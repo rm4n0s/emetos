@@ -13,6 +13,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
@@ -240,6 +241,24 @@ func statusItemColors(colors kit.Colors, kind StatusKind, clickable, hover, pres
 	return fg, bg, hasBg
 }
 
+// ownColor is the background an extension gave an item, and the text color that reads on it.
+type ownColor struct{ bg, fg ui.Color }
+
+// ownStatusColor reads StatusEntry.Color: #rgb or #rrggbb gives the background, and white or black the text, by the lightness of
+// the background (the same threshold VS Code uses for the foreground of its own colored badges).
+func ownStatusColor(text string) (ownColor, bool) {
+	c, ok := theme.ParseColor(text)
+	if !ok {
+		return ownColor{}, false
+	}
+	r, g, b, _ := c.RGBA()
+	fg := ui.NewColor(0xFFFFFFFF)
+	if 0.299*float64(r)+0.587*float64(g)+0.114*float64(b) > 150 {
+		fg = ui.NewColor(0xFF000000)
+	}
+	return ownColor{bg: ui.NewColor(0xFF000000 | uint32(r)<<16 | uint32(g)<<8 | uint32(b)), fg: fg}, true
+}
+
 // run runs the command of the item.
 func (s *statusItemState) run() {
 	w := s.Widget()
@@ -260,9 +279,13 @@ func (s *statusItemState) Build(bc widgets.BuildContext) widgets.Widget {
 	colors := kit.ThemeOf(bc)
 	clickable := e.Command != ""
 	fg, bg, hasBg := statusItemColors(colors, e.Kind, clickable, s.hover, s.pressed)
+	own := false
+	if c, ok := ownStatusColor(e.Color); ok {
+		fg, bg, hasBg, own = c.fg, c.bg, true, true
+	}
 	label := statusLabel(bc, e, fg)
 	margin, padding := statusItemMargin, statusItemPadding
-	if w.edge || e.Kind != StatusStandard {
+	if w.edge || e.Kind != StatusStandard || own {
 		margin, padding = 0, statusEdgePadding
 	}
 	fill := foundation.None[ui.Color]()

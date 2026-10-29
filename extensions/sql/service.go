@@ -25,6 +25,10 @@ type Service struct {
 	conns map[string]*openConn
 	subs  map[int]func(id string, open bool)
 	next  int
+	// catalogs are the completion caches of the open connections; runners are the runners of the query editors, which the Databases
+	// view asks about before it disconnects.
+	catalogs map[string]*Catalog
+	runners  map[*Runner]struct{}
 }
 
 // NewService makes a service with no connection open.
@@ -93,6 +97,7 @@ func (s *Service) Open(ctx context.Context, c dbconn.Connection, password string
 	s.mu.Lock()
 	old := s.conns[c.ID]
 	s.conns[c.ID] = oc
+	delete(s.catalogs, c.ID)
 	s.mu.Unlock()
 	if old != nil {
 		if err := old.close(); err != nil {
@@ -108,6 +113,7 @@ func (s *Service) Close(connID string) error {
 	s.mu.Lock()
 	oc := s.conns[connID]
 	delete(s.conns, connID)
+	delete(s.catalogs, connID)
 	s.mu.Unlock()
 	if oc == nil {
 		return nil

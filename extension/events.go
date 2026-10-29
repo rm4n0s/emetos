@@ -301,6 +301,8 @@ type WorkspaceInfo struct {
 	WindowTab string `json:"windowTab,omitempty"`
 	// ID names the scope in the links between window tabs (ScopeInfo.ID); empty for a tab that has no folder.
 	ID string `json:"id,omitempty"`
+	// Instance is ScopeInfo.Instance; it is not part of the payload (the conversion from a ScopeInfo needs the same fields).
+	Instance int `json:"-"`
 }
 
 // The reasons of a SharingRevoked.

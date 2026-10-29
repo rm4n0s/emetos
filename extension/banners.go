@@ -48,6 +48,11 @@ type FileChooserOptions struct {
 	Filters []FileFilter
 	// Folder is the folder the dialog opens in; the desktop's own when empty.
 	Folder string
+	// Name is, for FileChooser().Save, the file name the dialog starts with ("result.csv"); Open ignores it.
+	Name string
+	// Save is set by FileChooser().Save for the host: the dialog asks for a file to write, not to read. An extension leaves it
+	// alone.
+	Save bool
 }
 
 // FileFilter is a kind of file a file dialog shows ("Public keys", "*.pub").
@@ -67,4 +72,10 @@ type FileChooser interface {
 	// chooser portal, a scope that is not on screen), ExtensionDeactivated after the activation ended, and with the error of the
 	// desktop otherwise. When ctx ends the call returns its error.
 	Open(ctx context.Context, opts FileChooserOptions) (string, error)
+	// Save shows the dialog of the desktop that asks where to write a file (SPEC §10.21: the export of a result), with
+	// opts.Name as the name it starts with. The rules are those of Open: it returns the path chosen, or an empty path and no error
+	// when the dialog was closed without a choice; it blocks, so it is called from a goroutine of the extension; it fails with
+	// ExtensionFileChooserUnavailable, ExtensionDeactivated and the error of the desktop. The desktop's dialog asks about
+	// overwriting a file; the extension writes the file it is given.
+	Save(ctx context.Context, opts FileChooserOptions) (string, error)
 }

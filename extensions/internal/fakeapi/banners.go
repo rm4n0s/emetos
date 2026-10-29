@@ -97,7 +97,7 @@ func (a *API) ShownBanners() []*FakeBanner {
 	return out
 }
 
-// ChooserCall is a call of FileChooser().Open.
+// ChooserCall is a call of FileChooser().Open or Save (Options.Save tells which).
 type ChooserCall struct {
 	Options extension.FileChooserOptions
 }
@@ -110,6 +110,17 @@ type fileChooser struct{ a *API }
 // Open implements extension.FileChooser: it answers with the oldest answer a test queued with AnswerFileChooser, and with
 // "" (a dialog that was closed) when there is none.
 func (c fileChooser) Open(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
+	opts.Save = false
+	return c.ask(ctx, opts)
+}
+
+// Save implements extension.FileChooser: it is recorded like Open, with Options.Save set, and answered the same way.
+func (c fileChooser) Save(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
+	opts.Save = true
+	return c.ask(ctx, opts)
+}
+
+func (c fileChooser) ask(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
 	c.a.mu.Lock()
 	c.a.chooserCalls = append(c.a.chooserCalls, ChooserCall{Options: opts})
 	var ans *chooserAnswer

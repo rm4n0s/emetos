@@ -99,13 +99,33 @@ func TestFileChooserAsksForAFile(t *testing.T) {
 	wantRoute(t, err, "PortalFailed")
 }
 
+func TestFileChooserAsksWhereToSave(t *testing.T) {
+	st := newServerTest(t, simple(), nil)
+	tb := st.startTab("one")
+	tb.chooserPath = "/home/user/result.csv"
+	path, err := st.api.FileChooser().Save(context.Background(), extension.FileChooserOptions{Title: "Export", Name: "result.csv", Save: false})
+	if err != nil || path != "/home/user/result.csv" {
+		t.Fatalf("Save = %q, %v", path, err)
+	}
+	if _, err := st.api.FileChooser().Open(context.Background(), extension.FileChooserOptions{Save: true}); err != nil {
+		t.Fatal(err)
+	}
+	// Save asks for a file to write whatever the options say, and Open for one to read
+	if len(tb.chooser) != 2 || !tb.chooser[0].Save || tb.chooser[0].Name != "result.csv" || tb.chooser[1].Save {
+		t.Errorf("options = %+v", tb.chooser)
+	}
+	st.rig.host.Shutdown()
+	_, err = st.api.FileChooser().Save(context.Background(), extension.FileChooserOptions{})
+	wantRoute(t, err, "fileChooserAPI.choose.ExtensionDeactivated")
+}
+
 func TestFileChooserRefusals(t *testing.T) {
 	st := newServerTest(t, simple(), nil)
 	st.rig.noChooser["one"] = true
 	st.startTab("one")
 	_, err := st.api.FileChooser().Open(context.Background(), extension.FileChooserOptions{})
-	wantRoute(t, err, "fileChooserAPI.Open.ExtensionFileChooserUnavailable")
+	wantRoute(t, err, "fileChooserAPI.Open->fileChooserAPI.choose.ExtensionFileChooserUnavailable")
 	st.rig.host.Shutdown()
 	_, err = st.api.FileChooser().Open(context.Background(), extension.FileChooserOptions{})
-	wantRoute(t, err, "fileChooserAPI.Open.ExtensionDeactivated")
+	wantRoute(t, err, "fileChooserAPI.Open->fileChooserAPI.choose.ExtensionDeactivated")
 }

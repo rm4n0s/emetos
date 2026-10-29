@@ -340,6 +340,7 @@ func (h *statusHandle) entry(item extension.StatusItem) workbench.StatusEntry {
 	if item.Kind == extension.StatusRemote {
 		e.Kind = workbench.StatusRemote
 	}
+	e.Color = item.Color
 	if item.OnClick != nil {
 		e.Command, e.Args = h.commandID, nil
 	}

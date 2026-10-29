@@ -171,4 +171,9 @@ type ScopeInfo struct {
 	// a workspace, "<extension id>:<tab id>" for the tab of an extension. It is empty for a scope that cannot be named
 	// in a link, such as a workspace tab with no folder: it sends nothing to other tabs and receives nothing from them.
 	ID string
+	// Instance numbers the scope among the scopes the host has opened: every extension of one scope sees the same number and no
+	// two open scopes have the same. It is how an extension finds the part of another extension that runs in its own window tab
+	// (the menu of the Databases view opens query editors of the SQL extension in the tab of the menu). It is 0 where the host
+	// does not number its scopes (the fake API of the tests).
+	Instance int
 }

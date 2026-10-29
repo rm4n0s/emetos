@@ -240,6 +240,13 @@ type Driver interface {
 	Actions(c Connection, n *Node) []Action
 }
 
+// DisconnectGuard is a Driver that has work to lose when a connection is closed (an open transaction): the view asks the user
+// before it disconnects.
+type DisconnectGuard interface {
+	// OpenWork says in a sentence what disconnecting the connection would lose; empty when nothing.
+	OpenWork(c Connection) string
+}
+
 // APIDriver is a Driver that serves every window tab of Emetos with one object, so that the entries it adds to a context menu need
 // the API of the window tab the menu was opened in (to open an editor there). The view calls ActionsIn instead of Actions for such
 // a driver.

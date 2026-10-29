@@ -51,6 +51,8 @@ type Host struct {
 
 	mu     sync.Mutex
 	scopes []*Scope
+	// scopeSeq numbers the scopes (extension.ScopeInfo.Instance).
+	scopeSeq int
 	// listeners are told when the state of an extension in a scope changes or a scope opens or closes.
 	listeners []*func()
 	// owners tells who registered each setting key of the extensions and how many scopes hold it: a setting is registered

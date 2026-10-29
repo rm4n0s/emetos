@@ -452,3 +452,49 @@ func TestTheFilterShowsTheMatchingNodesAndTheOnesAboveThem(t *testing.T) {
 }
 
 var _ = context.Background
+
+// guardedDriver is a driver that has work open on its connections.
+type guardedDriver struct {
+	*fakeDriver
+	work string
+}
+
+func (g *guardedDriver) OpenWork(Connection) string { return g.work }
+
+func TestADriverWithOpenWorkIsAskedAboutBeforeItDisconnects(t *testing.T) {
+	g := &guardedDriver{fakeDriver: pgDriver(), work: "An editor has a transaction open."}
+	r := newRig(t)
+	t.Cleanup(r.hub.RegisterDriver(g))
+	c := r.save(pgConn("prod"), PasswordChange{})
+	r.hub.Passwords().Remember(c.ID, "pw")
+	r.run(Connect, c.ID)
+	r.api.WaitFor("the connection", func() bool { return r.hub.State(c.ID).Status == Connected })
+
+	r.run(Disconnect, c.ID)
+	pick := r.api.LastPick()
+	if pick == nil || pick.Options().Placeholder != g.work || len(pick.Labels()) != 2 {
+		t.Fatalf("pick = %+v", pick)
+	}
+	if r.hub.State(c.ID).Status != Connected {
+		t.Fatal("it disconnected before the answer")
+	}
+	pick.Choose(1) // Cancel
+	if r.hub.State(c.ID).Status != Connected || len(g.closedIDs()) != 0 {
+		t.Error("Cancel disconnected")
+	}
+	r.run(Disconnect, c.ID)
+	r.api.LastPick().Choose(0)
+	if r.hub.State(c.ID).Status != Disconnected || len(g.closedIDs()) != 1 {
+		t.Errorf("state %v, closed %v", r.hub.State(c.ID), g.closedIDs())
+	}
+	// nothing open: no question
+	g.work = ""
+	r.hub.Passwords().Remember(c.ID, "pw")
+	r.run(Connect, c.ID)
+	r.api.WaitFor("the connection again", func() bool { return r.hub.State(c.ID).Status == Connected })
+	picks := len(r.api.Picks())
+	r.run(Disconnect, c.ID)
+	if len(r.api.Picks()) != picks || r.hub.State(c.ID).Status != Disconnected {
+		t.Error("a driver with nothing open asked")
+	}
+}

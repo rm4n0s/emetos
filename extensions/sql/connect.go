@@ -187,6 +187,10 @@ func postgresConfig(c dbconn.Connection, w where, password, database string) (*p
 	if err != nil {
 		return nil, errors.NewErr("SQLConnectionSettingsInvalid", scrubbed{msg: "the connection settings are not valid", password: password, err: err}).SetMetadata("connection", c.Name, "engine", c.Engine)
 	}
+	// A query editor runs whatever the user types, and the user changes the tables between two runs of a SELECT: pgx's default keeps
+	// a prepared statement for each text and then fails with "cached plan must not change result type". Without the cache every
+	// statement is parsed anew, which costs nothing a person types.
+	cfg.DefaultQueryExecMode = pgx.QueryExecModeExec
 	// pgx closes the connection when a context ends unless it is told to send a cancel request first
 	cfg.BuildContextWatcherHandler = func(pc *pgconn.PgConn) ctxwatch.Handler {
 		return &pgconn.CancelRequestContextWatcherHandler{Conn: pc, DeadlineDelay: 5 * time.Second}

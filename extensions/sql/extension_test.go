@@ -25,8 +25,31 @@ func TestTheManifestIsALanguagePackWithACommand(t *testing.T) {
 	if len(m.ActivationEvents) != 1 || m.ActivationEvents[0] != extension.OnStartup {
 		t.Errorf("activation = %v", m.ActivationEvents)
 	}
-	if len(m.Contributes.Commands) != 1 || m.Contributes.Commands[0].ID != NewQuery {
-		t.Errorf("commands = %+v", m.Contributes.Commands)
+	var ids []string
+	for _, c := range m.Contributes.Commands {
+		ids = append(ids, c.ID)
+	}
+	wantIDs := []string{NewQuery, RunQuery, RunAllQueries, CancelQuery, BeginTransaction, CommitTransaction, RollbackTransaction, ChooseConnection, ExportResult}
+	if !slices.Equal(ids, wantIDs) {
+		t.Errorf("commands = %v, want %v", ids, wantIDs)
+	}
+	// Ctrl+Enter and Ctrl+Shift+Enter run, only in an SQL editor
+	keys := map[string]string{}
+	for _, k := range m.Contributes.Keybindings {
+		keys[k.Command] = k.Key + " when " + k.When
+	}
+	if keys[RunQuery] != "ctrl+enter when editorTextFocus && editorLangId == sql" || !strings.HasPrefix(keys[RunAllQueries], "ctrl+shift+enter when ") {
+		t.Errorf("keybindings = %v", keys)
+	}
+	if len(m.Contributes.PanelViews) != 1 || m.Contributes.PanelViews[0].ID != ViewID || m.Contributes.PanelViews[0].Title != "Query Results" {
+		t.Errorf("panel views = %+v", m.Contributes.PanelViews)
+	}
+	settings := map[string]any{}
+	for _, st := range m.Contributes.Settings {
+		settings[st.Key] = st.Default
+	}
+	if settings[SettingMaxRows] != DefaultMaxRows || settings[SettingConfirmDestructive] != true {
+		t.Errorf("settings = %v", settings)
 	}
 	f := FactoryOf(NewHub(dbconn.NewHub(dbconn.HubOptions{NoKeyring: true})))
 	if f() == f() {
@@ -319,6 +342,22 @@ func TestNewQueryAsksWhichConnectionWhenThereAreSeveral(t *testing.T) {
 	}
 }
 
+func TestTheMenuOfTheDatabasesViewOpensTheEditorInTheTabOfTheQueriesNotInItsOwnAPI(t *testing.T) {
+	// the extension "Databases" has an API of its own in the tab: the entries it asks for are found by the scope, not by the API
+	r := newRig(t)
+	c := r.save(sqliteConn(makeFixture(t)))
+	r.connect(c)
+	databases := fakeapi.New(t, (&dbconn.Extension{}).Manifest(), r.api.Scope())
+	run(t, r.db.ActionsIn(databases, c.ID, r.node(c, "main", "Tables", "books")), "Select Top 1000")
+	if len(r.api.UntitledDocuments()) != 1 || len(databases.UntitledDocuments()) != 0 {
+		t.Errorf("documents: the tab of the queries %d, the API of the view %d", len(r.api.UntitledDocuments()), len(databases.UntitledDocuments()))
+	}
+	waitUntil(t, "the editor to be bound", func() bool {
+		it := r.api.StatusItem("sql.connection")
+		return it != nil && strings.Contains(it.Text, c.Name)
+	})
+}
+
 func TestTwoWindowTabsShareTheConnectionsAndEachOpensEditorsInItsOwn(t *testing.T) {
 	r := newRig(t)
 	c := r.save(sqliteConn(makeFixture(t)))
@@ -339,7 +378,13 @@ func TestTwoWindowTabsShareTheConnectionsAndEachOpensEditorsInItsOwn(t *testing.
 	}
 	// closing the first tab keeps the engines and the open connection for the second
 	r.stop()
-	waitUntil(t, "the first tab to be gone", func() bool { return len(r.db.Engines()) == 4 && r.hub.Service().IsOpen(c.ID) })
+	// the tab is gone when its driver is unregistered and it left the hub; closing both tabs at the same moment would leave each
+	// believing the other still serves the engines
+	waitUntil(t, "the first tab to be gone", func() bool {
+		r.hub.mu.Lock()
+		defer r.hub.mu.Unlock()
+		return len(r.hub.tabs) == 1 && len(r.db.Engines()) == 4 && r.hub.Service().IsOpen(c.ID)
+	})
 	if r.db.State(c.ID).Status != dbconn.Connected {
 		t.Errorf("state = %+v", r.db.State(c.ID))
 	}

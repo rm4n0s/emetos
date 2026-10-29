@@ -189,3 +189,40 @@ func TestAnExportDoesNotFollowTheModelAfterwards(t *testing.T) {
 		t.Errorf("rows %d, output %q", ex.Rows(), buf.String())
 	}
 }
+
+func TestEachGivesTheRowsAsShown(t *testing.T) {
+	tbl := people()
+	m := NewModel(ModelOptions{})
+	m.SetSource(tbl)
+	m.SortBy(0, SortDesc)
+	ex := m.Export()
+	if cols := ex.Columns(); len(cols) != len(tbl.Columns()) {
+		t.Errorf("columns = %v", cols)
+	}
+	var ids []int64
+	if err := ex.Each(t.Context(), func(row []Value) error { ids = append(ids, row[0].I); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 4 || ids[0] <= ids[len(ids)-1] {
+		t.Errorf("ids = %v, want them from the largest", ids)
+	}
+	// the error of fn stops it and comes back as it is
+	stop := errors.New("Stop", "enough")
+	n := 0
+	err := ex.Each(t.Context(), func([]Value) error { n++; return stop })
+	if err != stop || n != 1 {
+		t.Errorf("err = %v after %d rows", err, n)
+	}
+}
+
+func TestEachStopsWhenItsContextEnds(t *testing.T) {
+	m := NewModel(ModelOptions{})
+	m.SetSource(numbered(5000))
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := m.Export().Each(cancelled, func([]Value) error { return nil })
+	wantRoute(t, err, "Export.Each.ResultExportCancelled")
+	if !errors.Is(err, context.Canceled) {
+		t.Error("the cause of the cancellation is lost")
+	}
+}

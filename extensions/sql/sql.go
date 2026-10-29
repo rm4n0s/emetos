@@ -6,12 +6,15 @@
 //
 // The pieces are a Hub (made once by extensions.All, shared by the window tabs: the Service that holds the open connections and the
 // dbconn.Driver registered with the Databases hub) and the Extension of each window tab (the command and the events of the tab).
-// Step 19.3 adds the query editors and the results panel on the Service.
+// The query editors, the results panel and the safety checks (SPEC §10.21 "Query editors", "The results panel", "Safety") are the
+// queries of each window tab (queries.go, panel.go, complete.go, export.go): a Runner (run.go) keeps a session of the connection for
+// each SQL editor, and dialect.Split and dialect.Classify cut a script into statements and say which only read.
 package sql
 
 import (
 	"context"
 	"embed"
+	"sync"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
@@ -40,15 +43,27 @@ type Hub struct {
 	db  *dbconn.Hub
 	svc *Service
 	drv *catalogDriver
+
+	mu   sync.Mutex
+	tabs map[extension.ScopeInfo]*queries
 }
 
 // NewHub makes the hub over the hub of the Databases extension. It opens nothing.
 func NewHub(db *dbconn.Hub) *Hub {
 	svc := NewService()
-	return &Hub{db: db, svc: svc, drv: &catalogDriver{svc: svc}}
+	h := &Hub{db: db, svc: svc, tabs: map[extension.ScopeInfo]*queries{}}
+	h.drv = &catalogDriver{svc: svc, hub: h}
+	return h
 }
 
-// Service is where the open connections are; the query editors of step 19.3 use it.
+// queriesOf returns the query editors of the window tab of the API; nil for a tab that has none.
+func (h *Hub) queriesOf(api extension.API) *queries {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.tabs[api.Scope()]
+}
+
+// Service is where the open connections are; the explorer and the query editors use it.
 func (h *Hub) Service() *Service { return h.svc }
 
 // FactoryOf makes the Factory of the extension over the hub. Every call makes an extension of its own.
@@ -66,6 +81,7 @@ type Extension struct {
 	hub  *Hub
 	pack extension.Extension
 	api  extension.API
+	q    *queries
 }
 
 // Manifest implements extension.Extension: the language pack's, with the command.
@@ -73,19 +89,68 @@ func (e *Extension) Manifest() extension.Manifest {
 	m := e.pack.Manifest()
 	m.Name = "SQL Databases"
 	m.Description = "SQL: syntax highlighting, connections to PostgreSQL, MySQL and MariaDB, SQLite and SQL Server, and the explorer of their schema."
-	m.Contributes.Commands = []extension.CommandSpec{{ID: NewQuery, Title: "New Query", Category: "SQL", Description: "Open a new SQL editor for an open connection."}}
+	m.Contributes.Commands = commands()
+	m.Contributes.Keybindings = []extension.Keybinding{
+		{Command: RunQuery, Key: "ctrl+enter", When: "editorTextFocus && editorLangId == sql"},
+		{Command: RunAllQueries, Key: "ctrl+shift+enter", When: "editorTextFocus && editorLangId == sql"},
+		{Command: CancelQuery, Key: "escape", When: "editorTextFocus && editorLangId == sql && " + RunningKey},
+	}
+	m.Contributes.Menus = []extension.MenuItem{
+		{Menu: extension.MenuEditorContext, Command: RunQuery, Group: "1_sql", Order: 1, When: "editorLangId == sql"},
+		{Menu: extension.MenuEditorContext, Command: RunAllQueries, Group: "1_sql", Order: 2, When: "editorLangId == sql"},
+		{Menu: extension.MenuEditorContext, Command: ChooseConnection, Group: "1_sql", Order: 3, When: "editorLangId == sql"},
+	}
+	m.Contributes.PanelViews = []extension.PanelViewSpec{{ID: ViewID, Title: "Query Results", Icon: "table", Order: 4}}
+	m.Contributes.ViewActions = []extension.ViewActionSpec{
+		{View: ViewID, Command: CancelQuery, Icon: "debug-stop", Tooltip: "Cancel Query", When: RunningKey, Order: 1},
+		{View: ViewID, Command: RunQuery, Icon: "play", Tooltip: "Run Query", When: "!" + RunningKey, Order: 1},
+	}
+	m.Contributes.Settings = []extension.SettingSpec{
+		{Key: SettingMaxRows, Type: "integer", Default: DefaultMaxRows, Minimum: ptr(1.0), Maximum: ptr(1000000.0), Category: "SQL",
+			Description: "The rows a result reads at first and each time Fetch More is pressed."},
+		{Key: SettingConfirmDestructive, Type: "boolean", Default: true, Category: "SQL",
+			Description: "Ask before running DROP, TRUNCATE, ALTER, and a DELETE or UPDATE without WHERE."},
+	}
+	m.Contributes.ContextKeys = nil
 	return m
 }
 
-// Activate implements extension.Extension: it gives the engines to the Databases view, and publishes the events of the connections.
+// ptr returns a pointer to a copy of v.
+func ptr[T any](v T) *T { return &v }
+
+// commands are the commands of the extension.
+func commands() []extension.CommandSpec {
+	return []extension.CommandSpec{
+		{ID: NewQuery, Title: "New Query", Category: "SQL", Description: "Open a new SQL editor for an open connection."},
+		{ID: RunQuery, Title: "Run Query", Category: "SQL", Description: "Run the selection, or the statement under the cursor.", When: "editorLangId == sql"},
+		{ID: RunAllQueries, Title: "Run All Queries", Category: "SQL", Description: "Run every statement of the editor.", When: "editorLangId == sql"},
+		{ID: CancelQuery, Title: "Cancel Query", Category: "SQL", Description: "Stop the statement that is running.", When: RunningKey},
+		{ID: BeginTransaction, Title: "Begin Transaction", Category: "SQL", Description: "Start a transaction in the session of this editor.", When: "editorLangId == sql"},
+		{ID: CommitTransaction, Title: "Commit Transaction", Category: "SQL", Description: "Commit the transaction of this editor.", When: InTransactionKey},
+		{ID: RollbackTransaction, Title: "Rollback Transaction", Category: "SQL", Description: "Roll back the transaction of this editor.", When: InTransactionKey},
+		{ID: ChooseConnection, Title: "Select Connection for This Editor", Category: "SQL", Description: "Choose the connection and the database this editor runs on.", When: "editorLangId == sql"},
+		{ID: ExportResult, Title: "Export Result", Category: "SQL", Description: "Write the result that is shown to a CSV or JSON file, or as SQL INSERT statements."},
+	}
+}
+
+// Activate implements extension.Extension: it gives the engines to the Databases view, starts the query editors of the tab, and
+// publishes the events of the connections.
 func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 	if err := e.pack.Activate(ctx, api); err != nil {
 		return err
 	}
 	e.api = api
-	if err := api.Commands().Handle(NewQuery, func(_ context.Context, args any) error { e.newQuery(args); return nil }); err != nil {
+	q := newQueries(e.hub, api)
+	e.q = q
+	if err := api.Commands().Handle(NewQuery, func(_ context.Context, args any) error { q.newQuery(args); return nil }); err != nil {
 		return err
 	}
+	if err := q.start(); err != nil {
+		return err
+	}
+	e.hub.mu.Lock()
+	e.hub.tabs[api.Scope()] = q
+	e.hub.mu.Unlock()
 	unregister := e.hub.db.RegisterDriver(e.hub.drv)
 	stop := e.hub.svc.Subscribe(func(id string, open bool) {
 		topic := TopicDisconnected
@@ -96,51 +161,19 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 			if err := api.Events().Publish(topic, map[string]string{"connection": id}); err != nil {
 				api.Log().Warn("an event of a connection cannot be published", "topic", topic, "err", err)
 			}
+			q.connectionChanged(id)
 		})
 	})
 	go func() {
 		<-ctx.Done()
 		stop()
 		unregister()
+		e.hub.mu.Lock()
+		delete(e.hub.tabs, api.Scope())
+		e.hub.mu.Unlock()
+		q.stop()
 	}()
 	return nil
-}
-
-// newQuery opens a query editor for the connection the command names, or for the one the user picks among the open ones.
-func (e *Extension) newQuery(args any) {
-	id := ""
-	switch a := args.(type) {
-	case string:
-		id = a
-	case map[string]any:
-		id, _ = a["connection"].(string)
-	}
-	if id != "" {
-		openText(e.api, "")
-		return
-	}
-	var open []dbconn.Connection
-	for _, c := range e.hub.db.Store().List(e.api.Scope().Folder) {
-		if _, drv, ok := e.hub.db.Engine(c.Engine); ok && drv == dbconn.Driver(e.hub.drv) && e.hub.svc.IsOpen(c.ID) {
-			open = append(open, c)
-		}
-	}
-	if len(open) == 0 {
-		e.api.Notifications().Info("There is no open SQL connection. Connect to a database in the Databases view first.")
-		return
-	}
-	items := make([]extension.QuickPickItem, len(open))
-	for i, c := range open {
-		items[i] = extension.QuickPickItem{Label: "$(database) " + c.Name, Description: describeConnection(c)}
-	}
-	err := e.api.QuickPick().Show(extension.QuickPickOptions{Placeholder: "Which connection is the query for?", Items: items}, func(i int) {
-		if i >= 0 && i < len(open) {
-			openText(e.api, "") // TODO(step 19.3): bind the editor to the connection and its database
-		}
-	})
-	if err != nil {
-		e.api.Log().Warn("the list of connections cannot be shown", "err", err)
-	}
 }
 
 // describeConnection is the short text after the name of a connection in a list.

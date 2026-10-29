@@ -294,6 +294,39 @@ func TestStatusItemColors(t *testing.T) {
 	}
 }
 
+func TestAnItemsOwnColor(t *testing.T) {
+	tests := []struct {
+		color   string
+		ok      bool
+		wantBg  ui.Color
+		whiteFg bool
+	}{
+		{"#4a90d9", true, ui.NewColor(0xFF4A90D9), true},
+		{"#d9534f", true, ui.NewColor(0xFFD9534F), true},
+		{"#fff", true, ui.NewColor(0xFFFFFFFF), false},
+		{"#ffeb3b", true, ui.NewColor(0xFFFFEB3B), false},
+		{"#000", true, ui.NewColor(0xFF000000), true},
+		{"", false, ui.NewColor(0), false},
+		{"red", false, ui.NewColor(0), false},
+		{"#12345", false, ui.NewColor(0), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.color, func(t *testing.T) {
+			got, ok := ownStatusColor(tt.color)
+			if ok != tt.ok {
+				t.Fatalf("ok = %v, want %v", ok, tt.ok)
+			}
+			if !ok {
+				return
+			}
+			white := got.fg == ui.NewColor(0xFFFFFFFF)
+			if got.bg != tt.wantBg || white != tt.whiteFg {
+				t.Errorf("got bg %v, white text %v; want %v, %v", got.bg, white, tt.wantBg, tt.whiteFg)
+			}
+		})
+	}
+}
+
 func TestHoverAndPressChangeTheBackgroundOfAnItem(t *testing.T) {
 	sh := newStatusHarness(t, testSize960, kit.DarkModern(), false, func(b *StatusBar) {
 		b.Add("x", StatusLeft, 1, StatusEntry{Text: "hover me", Command: "test.click"})

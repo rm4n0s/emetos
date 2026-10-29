@@ -89,6 +89,11 @@ type CancelPlan struct {
 	Kill func(sessionID string) string
 }
 
+// TxStatements are the statements of a transaction.
+type TxStatements struct {
+	Begin, Commit, Rollback string
+}
+
 // Dialect is one engine.
 type Dialect interface {
 	// ID is the id of the engine, the Engine.ID of the connection: "postgres", "mysql", "sqlite", "sqlserver".
@@ -135,6 +140,16 @@ type Dialect interface {
 	SelectTop(r Ref, n int) string
 	// Cancel says how a running statement is cancelled.
 	Cancel() CancelPlan
+	// Syntax says how the engine's SQL is written: the quotes, the comments and the blocks that splitting a script and reading a
+	// statement need to know about (Split, Classify).
+	Syntax() Syntax
+	// Transaction gives the statements that begin, commit and roll back a transaction in a session.
+	Transaction() TxStatements
+	// UseDatabase returns the statement that makes a session work in the database, or "" when the engine has no such statement or
+	// reaches the database another way (PostgreSQL and SQLite).
+	UseDatabase(database string) string
+	// Keywords lists the keywords of the engine's SQL in capitals, for completion.
+	Keywords() []string
 	// ReadOnlySession lists the statements that make a session read-only, run on each new connection of a read-only connection;
 	// the engine's other ways (SQLite's mode=ro, SQL Server's ApplicationIntent) are in the connection string the extension builds.
 	ReadOnlySession() []string

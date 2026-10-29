@@ -55,6 +55,9 @@ type StatusEntry struct {
 	Args    any
 	// Kind is the look of the item.
 	Kind StatusKind
+	// Color, when it is "#rrggbb" or "#rgb", is the background of the item (an extension's own color); the text is white or black,
+	// whichever reads better on it.
+	Color string
 	// ShowProgress puts a loading icon before the text.
 	ShowProgress bool
 }
@@ -62,7 +65,7 @@ type StatusEntry struct {
 // equal tells whether two entries are the same.
 func (e StatusEntry) equal(o StatusEntry) bool {
 	return e.Name == o.Name && e.Text == o.Text && e.AriaLabel == o.AriaLabel && e.Tooltip == o.Tooltip &&
-		e.Command == o.Command && e.Kind == o.Kind && e.ShowProgress == o.ShowProgress && reflect.DeepEqual(e.Args, o.Args)
+		e.Command == o.Command && e.Kind == o.Kind && e.Color == o.Color && e.ShowProgress == o.ShowProgress && reflect.DeepEqual(e.Args, o.Args)
 }
 
 // StatusItem is an item of the bar as the widget shows it.

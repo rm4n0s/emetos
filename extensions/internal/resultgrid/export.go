@@ -44,6 +44,28 @@ func (e *Export) row(r int, dst []Value) {
 	e.src.Row(i, dst)
 }
 
+// Columns are the columns of the result.
+func (e *Export) Columns() []Column { return e.cols }
+
+// Each calls fn with each row in the order shown, for a writer of another format (the SQL INSERTs of the SQL extension). The slice
+// is reused for the next row: fn copies what it keeps. It stops with the error fn returns, and when ctx ends, with the tag
+// ResultExportCancelled.
+func (e *Export) Each(ctx context.Context, fn func(row []Value) error) error {
+	buf := make([]Value, len(e.cols))
+	for r := range e.n {
+		if r%exportCheckEvery == 0 {
+			if err := ctx.Err(); err != nil {
+				return errors.NewErr("ResultExportCancelled", err).SetMetadata("format", "each", "rows", r)
+			}
+		}
+		e.row(r, buf)
+		if err := fn(buf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CSVOptions configure WriteCSV.
 type CSVOptions struct {
 	// NoHeader leaves out the line of the titles of the columns.

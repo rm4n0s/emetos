@@ -324,8 +324,35 @@ func (e *Extension) open(c Connection, p Prepared, typed bool) {
 	}()
 }
 
-// disconnect closes a connection.
+// disconnect closes a connection. A driver that has work to lose (DisconnectGuard) is asked first, and the user is too.
 func (e *Extension) disconnect(c Connection) {
+	if _, drv, ok := e.hub.Engine(c.Engine); ok {
+		if guard, isGuard := drv.(DisconnectGuard); isGuard {
+			if work := guard.OpenWork(c); work != "" {
+				err := e.api.QuickPick().Show(extension.QuickPickOptions{
+					Placeholder: work,
+					Items: []extension.QuickPickItem{
+						{Label: "$(debug-disconnect) Disconnect", Description: "roll back and close \"" + c.Name + "\""},
+						{Label: "$(close) Cancel", Description: "stay connected"},
+					},
+				}, func(i int) {
+					if i == 0 {
+						e.closeConnection(c)
+					}
+				})
+				if err != nil {
+					e.api.Log().Warn("the question about the open work cannot be shown", "err", err)
+					e.api.Notifications().Warn(work + " Nothing was disconnected.")
+				}
+				return
+			}
+		}
+	}
+	e.closeConnection(c)
+}
+
+// closeConnection closes a connection.
+func (e *Extension) closeConnection(c Connection) {
 	if err := e.hub.Disconnect(c.ID); err != nil {
 		e.api.Log().Warn("a connection did not close cleanly", "connection", c.Name, "err", err)
 		e.api.Notifications().Warn("The connection \"" + c.Name + "\" did not close cleanly: " + err.Error())

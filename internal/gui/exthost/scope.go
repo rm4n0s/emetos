@@ -243,6 +243,10 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	if opts.ShowLog == "" {
 		opts.ShowLog = "workbench.panel.output.focus"
 	}
+	h.mu.Lock()
+	h.scopeSeq++
+	opts.Info.Instance = h.scopeSeq
+	h.mu.Unlock()
 	s := &Scope{h: h, opts: opts, log: opts.Logger, fired: map[string]bool{}, features: langfeatures.NewRegistry(), fileSlots: make(chan struct{}, FileOpSlots)}
 	s.ctx, s.cancel = context.WithCancel(opts.Ctx)
 	s.bus = newBus(s)

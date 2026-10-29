@@ -304,6 +304,21 @@ func TestStatusBarItemKinds(t *testing.T) {
 	}
 }
 
+func TestStatusBarItemColor(t *testing.T) {
+	api, _, tb := withAPI(t, "emetos.color")
+	h, err := api.StatusBar().Add(extension.StatusItem{ID: "c", Text: "tinted", Color: "#4a90d9"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := tb.bar.Items(0)[0].Entry.Color; got != "#4a90d9" {
+		t.Errorf("color = %q", got)
+	}
+	h.Update(extension.StatusItem{ID: "c", Text: "plain"})
+	if got := tb.bar.Items(0)[0].Entry.Color; got != "" {
+		t.Errorf("color after the update = %q", got)
+	}
+}
+
 func TestNotificationsHaveTheNameOfTheExtensionAsSource(t *testing.T) {
 	api, _, tb := withAPI(t, "emetos.nt")
 	ran := 0
