@@ -186,6 +186,19 @@ func NewScrollView(child widgets.Widget, handle *ScrollHandle) widgets.Widget {
 	return kit.NewScrollableElement(child, kit.ScrollableElementOpts{Axes: kit.ScrollAxisVertical, Handle: handle})
 }
 
+// ScrollableOpts are the options of NewScrollable. They are the options of the element that puts the overlay scrollbars of
+// the editor over a child: with a Controller (and a HorizontalController) it draws the scrollbars of Glutter scroll views
+// that use those controllers, which is how a grid scrolls rows that are built only when they come into view; with neither
+// it scrolls a child of its own in the directions of Axes.
+type ScrollableOpts = kit.ScrollableElementOpts
+
+// NewScrollable puts the overlay scrollbars of the editor over a child. A grid whose rows are made by a sliver builder passes
+// the controllers of its scroll views in the options, so that the scrollbars follow them and the rows off screen are never
+// laid out. (NewScrollView is the same for a child that is small enough to be laid out whole.)
+func NewScrollable(child widgets.Widget, opts ScrollableOpts) widgets.Widget {
+	return kit.NewScrollableElement(child, opts)
+}
+
 // Lists and trees.
 type (
 	// List is a virtualized list of rows with a keyboard.

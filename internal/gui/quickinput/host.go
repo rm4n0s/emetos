@@ -587,6 +587,7 @@ func (s *hostState) widget(bc widgets.BuildContext, width float64) widgets.Widge
 		Placeholder:      pk.Placeholder(),
 		Message:          message,
 		SelectAllOnFocus: foundation.Some(false),
+		Obscure:          pk.Obscure,
 		OnChanged:        func(text string) { s.ctl.SetValue(text) },
 		OnSubmit:         func(string) { s.ctl.Accept(s.mods()) },
 	})

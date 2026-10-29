@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/hosting"
 	"github.com/rm4n0s/emetos/extensions/html"
 	"github.com/rm4n0s/emetos/extensions/ini"
+	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
 	"github.com/rm4n0s/emetos/extensions/javascript"
 	"github.com/rm4n0s/emetos/extensions/json"
@@ -47,12 +48,15 @@ import (
 // one hub made here, with the Source of the real cameras, which opens no device before the Scan QR Code dialog does) and Relay
 // (extensions/relay, the only extension the host grants the privileges events.publishAny and commands.execute; its instances
 // share one hub made here too, with the Source of the real cameras), then the Sharing status item (extensions/hosting, step 17e.4),
-// which reads how the two hubs host the workspace.
+// which reads how the two hubs host the workspace, and the extension "Databases" (extensions/internal/dbconn, step 19.1), the
+// connections and their view that the SQL, MongoDB and Redis extensions of M19 to M21 share: they register their engines in the one
+// hub made here, which reads nothing (not even the connection file) until a view of it is shown.
 //
 // The References view (extensions/references) is last: it adds a view to the side bar and asks the language servers the packs start.
 func All() []extension.Factory {
 	rw := remotework.NewHub(remotework.HubOptions{Camera: keyqr.NewV4L2()})
 	ps := relay.NewHub(relay.HubOptions{Camera: keyqr.NewV4L2()})
+	db := dbconn.NewHub(dbconn.HubOptions{})
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.New, shellscript.New, makefile.New, docker.New, ini.New,
@@ -60,6 +64,7 @@ func All() []extension.Factory {
 		search.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw), relay.FactoryOf(ps),
 		hosting.NewFactory(rw.Hosting(), ps.Hosting()),
+		dbconn.Factory(db),
 		references.New,
 	}
 }

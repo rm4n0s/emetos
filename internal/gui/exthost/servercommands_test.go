@@ -376,12 +376,23 @@ func TestInputBoxAsksForALineOfText(t *testing.T) {
 		t.Error("a box with no validation got one")
 	}
 	tb.inputs[1].Hidden()
+	if tb.inputs[1].Password || !tb.inputs[0].Password == false {
+		t.Errorf("Password = %v, %v: only a box that asks for it is a password box", tb.inputs[0].Password, tb.inputs[1].Password)
+	}
+	// a password box
+	if err := st.api.InputBox().Show(extension.InputBoxOptions{Prompt: "Password", Password: true}, done); err != nil {
+		t.Fatal(err)
+	}
+	if !tb.inputs[2].Password {
+		t.Error("the request of a password box is not one")
+	}
+	tb.inputs[2].Hidden()
 	// no function to call is fine
 	if err := st.api.InputBox().Show(extension.InputBoxOptions{}, nil); err != nil {
 		t.Fatal(err)
 	}
-	tb.inputs[2].Accepted("x")
-	if !slices.Equal(answers, []answer{{"xml", true}, {"", false}}) {
+	tb.inputs[3].Accepted("x")
+	if !slices.Equal(answers, []answer{{"xml", true}, {"", false}, {"", false}}) {
 		t.Errorf("answers = %v", answers)
 	}
 }

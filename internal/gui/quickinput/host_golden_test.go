@@ -46,6 +46,11 @@ func TestGoldenQuickInput(t *testing.T) {
 			r.ctl.SetValue("/home/me/missing/Untitled-1.go")
 			r.settle()
 		}},
+		{"prompt_password", func(r *rig) {
+			r.ctl.Prompt(PromptOptions{Placeholder: "Password for \"prod\" (Enter for none)", Password: true})
+			r.ctl.SetValue("hunter2-secret")
+			r.settle()
+		}},
 		{"pick_with_separators", func(r *rig) {
 			r.ctl.Pick(PickOptions{
 				Placeholder: "Select a snippet", MatchOnDetail: true,

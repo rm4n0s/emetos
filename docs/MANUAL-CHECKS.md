@@ -131,3 +131,17 @@ Then, in the editor, open the Remote Work page (`scripts/isolated.sh -- go run .
 
 Say what you saw: the camera, the format (MJPEG or YUYV, if you know it), whether a large RSA 4096 code was read, and any error text.
 
+
+## 19.1 The real keyring (Secret Service)
+
+The tests of the keyring run against a fake Secret Service on a private D-Bus that the test starts; they never touch your session bus. This runs the real client once against **your** keyring (GNOME Keyring, KWallet's Secret Service, KeePassXC...). You need a desktop session with a Secret Service on the session bus. The test stores a secret under the label "Emetos: manual check" with the attributes `application=emetos`, `kind=database-connection` and a random `connection` id (`emetos-manual-check-...`), reads it back, replaces it, deletes it and checks that it is gone. It does nothing else and lists nothing else. If your keyring is locked, it asks you to unlock it (a prompt of the keyring, not of Emetos):
+
+```
+go test -tags emetos_keyring ./extensions/internal/dbconn -run TestRealKeyring -v -count=1
+```
+
+1. Does it pass (`--- PASS: TestRealKeyring`), and does a prompt of the keyring appear first when the keyring is locked? Which keyring is it (GNOME Keyring, KWallet, KeePassXC)?
+2. Afterwards open your keyring manager (Seahorse or KWalletManager): is there no "Emetos: manual check" item left?
+3. In the editor (`scripts/isolated.sh -- go run ./cmd/emetos`) run "Databases: New Connection", fill the form of any engine that is listed (the engines come with the next steps; until one is, the form only shows when the command is given an engine), type a password, keep "Save the password in the keyring" on and Save. Is an item "Emetos: <name>" in your keyring, and does `grep -r <the password> ~/.config/emetos ~/.local/state/emetos` (with the isolated folders of the script) find nothing?
+
+Say what you saw: the keyring and any error text.

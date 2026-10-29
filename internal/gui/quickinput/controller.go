@@ -118,6 +118,8 @@ type PromptOptions struct {
 	Placeholder string
 	// Value is the text the input starts with; the caret is at its end.
 	Value string
+	// Password shows a dot for each character typed, as a password box does (VS Code's password option).
+	Password bool
 	// Validate, when set, checks the text on every change and when it is accepted: a message that is not empty is
 	// shown under the input (as an error) and the text is not accepted (VS Code's validateInput).
 	Validate func(value string) string
@@ -453,6 +455,7 @@ func (c *Controller) Prompt(opts PromptOptions) {
 	c.provider, c.handler, c.session = nil, nil, nil
 	c.picker = NewPicker()
 	c.picker.SetPlaceholder(opts.Placeholder)
+	c.picker.Obscure = opts.Password
 	c.picker.SetValue(opts.Value)
 	c.picker.SetValueSelection(len(opts.Value), len(opts.Value))
 	p := &prompt{opts: opts}

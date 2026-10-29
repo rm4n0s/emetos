@@ -24,6 +24,8 @@ type Picker struct {
 	MatchOnLabel, MatchOnDescription, MatchOnDetail, SortByLabel bool
 	// HideInput hides the input of the picker, which keeps the keyboard: the switcher that Ctrl+Tab opens.
 	HideInput bool
+	// Obscure shows a dot for each character typed in the input, as a password box does: an input box that asks for a password.
+	Obscure bool
 	// KeepScrollPosition keeps the first row in view when the items change instead of showing the
 	// top of the list.
 	KeepScrollPosition bool

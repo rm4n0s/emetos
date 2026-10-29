@@ -42,6 +42,10 @@ func TestClientRefusal(t *testing.T) {
 		{"emetos.relay.stopHosting", extension.RefusedRemote},
 		{"emetos.relay.open", extension.RefusedRemote},
 		{"emetos.hosting.menu", extension.RefusedRemote},
+		// the connections to databases (step 19.1): a client may not open, edit or connect to what the host's connections name
+		{"emetos.databases.newConnection", extension.RefusedOutside},
+		{"emetos.databases.connect", extension.RefusedOutside},
+		{"emetos.databases.deleteConnection", extension.RefusedOutside},
 		{"workbench.action.terminal.new", extension.RefusedTerminal},
 		{"workbench.action.terminal.sendSequence", extension.RefusedTerminal},
 		// allowed: the workspace settings, editing, saving, extensions' commands
@@ -75,7 +79,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 		have[m.ID] = true
 	}
 	// the extensions' commands are not in the registry of Emetos
-	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting.", "workbench.action.terminal."}
+	extensionPrefixes := []string{extension.RelayID + ".", "emetos.remotework.", "emetos.hosting.", "workbench.action.terminal.", "emetos.databases."}
 	extensionIDs := []string{"workbench.action.createTerminalEditor"} // the terminal extension's
 	for _, id := range RefusedExactIDs() {
 		if !have[id] && !slices.Contains(extensionIDs, id) {
@@ -93,7 +97,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 	classes := RefusedClasses()
 	for _, want := range []string{
 		extension.RefusedWindowTab, extension.RefusedQuit, extension.RefusedWindow, extension.RefusedFolder,
-		extension.RefusedProfile, extension.RefusedSettings, extension.RefusedRemote, extension.RefusedTerminal,
+		extension.RefusedProfile, extension.RefusedSettings, extension.RefusedRemote, extension.RefusedTerminal, extension.RefusedOutside,
 	} {
 		if !slices.Contains(classes, want) {
 			t.Errorf("class %q has no rule", want)

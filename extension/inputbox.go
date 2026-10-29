@@ -6,6 +6,9 @@ type InputBoxOptions struct {
 	Prompt string
 	// Value is the text the input starts with; the caret is at its end.
 	Value string
+	// Password shows a dot for each character typed, as a password box does (VS Code's password option): the text cannot be
+	// read from the screen or copied. The text still reaches done as typed.
+	Password bool
 	// Validate, when set, checks the text on every change and when it is accepted: a message that is not empty is shown under
 	// the input as an error and the text is not accepted (VS Code's validateInput). It is called on the UI thread.
 	Validate func(value string) string

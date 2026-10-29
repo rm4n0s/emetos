@@ -405,6 +405,21 @@ What made the numbers: a literal is found with `bytes.Index` (ignoring case: the
 
 The UI thread (`extensions/search/frames_test.go`, under the fake platform): with 20,000 matches in 2,000 files streaming into the view, the longest turn of the UI thread (the take of a batch of files, or the frame that shows it) was 10.7 ms, under the 16 ms of the budget; the results reach the UI thread at most every 30 ms (decision 158).
 
+## Result grid (step 19.1)
+
+`extensions/internal/resultgrid`, under the fake platform of `gluttertest` (software renderer, no GPU), on the machine above (AMD RYZEN AI MAX+ 395), on 2026-10-29, run alone (`scripts/heavy.sh --alone`), with a result of 100,000 rows of 8 columns (numbers, text, a NULL now and then, a date, binary data) read lazily by a `FuncSource` (the rows are made when the grid asks for them). The grid builds only the rows in view and a few around them (a sliver list with one row height), so a scroll does not depend on the size of the result. `budget_test.go` times the UI-thread work by the CPU clock of its OS thread (`CLOCK_THREAD_CPUTIME_ID`), runs a case several times, takes the best run and scales the budget by how much slower a piece of reference work was than on a quiet machine (the way `extensions/search/frames_test.go` does); under `-race` the budgets are ten times as large.
+
+| What | Budget | Measured (budget test) | Go benchmark (`-bench . -benchtime 1s`) |
+|---|---|---|---|
+| Longest frame of 200 wheel scrolls through 100,000 rows | 16 ms | 1.58 ms | 0.70 ms per frame (5 rows built per frame, 5,500 allocations) |
+| First frame of a result of 100,000 rows | 100 ms | 18.7 ms | 18.8 ms |
+| Sort 100,000 rows by a column (client side) | 1 s | 26 ms | 19.2 ms |
+| Copy all 100,000 rows as TSV | 2 s | 17 ms | 23.5 ms |
+| Export 100,000 rows as CSV | none | | 15.8 ms |
+| Export 100,000 rows as JSON | none | | 85.4 ms |
+
+The rows built per frame (5 of 100,000) is also asserted by a test (`TestScrollingBuildsOnlyTheRowsInView`: at most 8 times the rows that fit in the view), so a change that lays out the rows off screen fails it on every machine, without a clock. The first frame is the sizing of the columns from the first rows plus the first build; the sort is the precomputation of one key per row and a stable sort; the export and the copy read a snapshot (`Model.Export`) and write row by row.
+
 ## Pending
 
 `scripts/perf.sh --session` with the GPU was run for the table of step 10.1 on 2026-10-28 by the manager (see "Desktop pass (step 17b.6)"), except the 200 MB open and the Go benchmarks. What is left is in `docs/MANUAL-CHECKS.md` (3.11 and 10.1): those two, and the decision on the targets still missed.

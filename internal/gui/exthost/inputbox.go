@@ -13,9 +13,11 @@ import (
 // hidden; Hidden is called once when the box ends without one (closed, or replaced by another quick input).
 type InputBoxRequest struct {
 	Prompt, Value string
-	Validate      func(value string) string
-	Accepted      func(value string)
-	Hidden        func()
+	// Password shows a dot for each character typed.
+	Password bool
+	Validate func(value string) string
+	Accepted func(value string)
+	Hidden   func()
 }
 
 // inputBoxAPI is the extension.InputBox of one activation.
@@ -45,7 +47,7 @@ func (b inputBoxAPI) Show(opts extension.InputBoxOptions, done func(value string
 		})
 	}
 	req := InputBoxRequest{
-		Prompt: opts.Prompt, Value: opts.Value,
+		Prompt: opts.Prompt, Value: opts.Value, Password: opts.Password,
 		Accepted: func(value string) { finish(value, true) },
 		Hidden:   func() { finish("", false) },
 	}

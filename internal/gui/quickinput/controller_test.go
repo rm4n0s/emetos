@@ -536,3 +536,32 @@ func TestControllerPickHooks(t *testing.T) {
 		})
 	}
 }
+
+// TestAPasswordPromptHidesWhatIsTyped: an input box that asks for a password obscures its input; the text is still what the user
+// typed when it is accepted.
+func TestAPasswordPromptHidesWhatIsTyped(t *testing.T) {
+	tests := []struct {
+		name     string
+		password bool
+	}{{"a password box", true}, {"a plain box", false}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _, _ := newRecorderController()
+			var got []string
+			c.Prompt(PromptOptions{Placeholder: "Password", Password: tt.password, OnAccept: func(v string) { got = append(got, v) }})
+			if c.Picker().Obscure != tt.password {
+				t.Errorf("Obscure = %v, want %v", c.Picker().Obscure, tt.password)
+			}
+			c.SetValue("hunter2")
+			c.Accept(KeyMods{})
+			if len(got) != 1 || got[0] != "hunter2" {
+				t.Errorf("accepted = %q", got)
+			}
+			// the next box is not a password box
+			c.Prompt(PromptOptions{Placeholder: "Name"})
+			if c.Picker().Obscure {
+				t.Error("the next input box is obscured")
+			}
+		})
+	}
+}

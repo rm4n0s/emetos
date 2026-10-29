@@ -119,6 +119,9 @@ const (
 	// RefusedTerminal: the commands of the terminal (workbench.action.terminal.*): a terminal runs programs on the computer of
 	// the host, so a client uses the requests of the terminal and the host's permission for them instead (SPEC §10.25).
 	RefusedTerminal = "terminal"
+	// RefusedOutside: the commands of the extensions that reach outside the workspace: the databases a connection names, and (the
+	// container extensions, M18) the engine's socket. A client has no say in what the host connects to (SPEC §10.24).
+	RefusedOutside = "outside"
 )
 
 // CommandInfo is one command in the reply of TopicCommandsList.

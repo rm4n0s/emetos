@@ -292,6 +292,7 @@ func emulatorImportBad(rel, path string) bool {
 var allowedExtensionModules = []string{
 	errorsModule, glutterModule, "golang.org/x/text", "golang.org/x/image", "golang.org/x/sys",
 	"github.com/go-text/typesetting", "golang.org/x/crypto", "github.com/quic-go/quic-go", "github.com/makiuchi-d/gozxing",
+	"github.com/godbus/dbus/v5",
 }
 
 // extensionImportRule applies the rules of SPEC §10.15 to one import of a file under extensions/ (rel is its path

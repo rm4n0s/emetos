@@ -123,3 +123,21 @@ func TestAnExtensionInputBoxIsShownInTheQuickInput(t *testing.T) {
 		})
 	}
 }
+
+// TestAnExtensionPasswordBoxHidesWhatIsTyped: the input box of an extension that asks for a password obscures its input.
+func TestAnExtensionPasswordBoxHidesWhatIsTyped(t *testing.T) {
+	for _, password := range []bool{true, false} {
+		w := settingsWindow(t, nil)
+		t.Cleanup(w.release)
+		var accepted []string
+		w.extensionInputBox(exthost.InputBoxRequest{Prompt: "Password", Password: password, Accepted: func(v string) { accepted = append(accepted, v) }, Hidden: func() {}})
+		if got := w.QuickInput.Picker().Obscure; got != password {
+			t.Errorf("Password %v: the input is obscured: %v", password, got)
+		}
+		w.QuickInput.SetValue("hunter2")
+		w.QuickInput.Accept(quickinput.KeyMods{})
+		if len(accepted) != 1 || accepted[0] != "hunter2" {
+			t.Errorf("accepted = %q", accepted)
+		}
+	}
+}

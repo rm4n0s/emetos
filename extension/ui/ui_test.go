@@ -6,6 +6,7 @@ import (
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
+	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/services"
 	gui "github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
@@ -89,6 +90,33 @@ func TestAScrollViewScrollsAndTheHandleMeasuresIt(t *testing.T) {
 	handle.ScrollTo(0, 1e9) // past the end: clamped to it
 	if _, top := handle.Position(); top != max {
 		t.Errorf("top = %v, want %v", top, max)
+	}
+}
+
+// TestAScrollableFollowsTheControllersOfItsViews holds NewScrollable: the scrollbars of the element follow Glutter scroll views that
+// use its controllers, and a list of rows made by a builder builds only the rows in view.
+func TestAScrollableFollowsTheControllersOfItsViews(t *testing.T) {
+	vertical, horizontal := widgets.NewScrollController(), widgets.NewScrollController()
+	built := map[int]bool{}
+	sliver := widgets.NewSliverFixedExtentListBuilder(func(_ widgets.BuildContext, i int) widgets.Widget {
+		built[i] = true
+		return widgets.NewSizedBox(widgets.NewText("row"), widgets.SizedBoxOpts{Height: foundation.Some(20.0)})
+	}, 20, widgets.SliverBuilderOpts{ItemCount: foundation.Some(10_000)})
+	list := widgets.NewCustomScrollView([]widgets.Widget{sliver}, widgets.ScrollViewOpts{Controller: vertical})
+	wide := widgets.NewSingleChildScrollView(widgets.NewSizedBox(list, widgets.SizedBoxOpts{Width: foundation.Some(600.0)}),
+		widgets.SingleChildScrollViewOpts{ScrollDirection: painting.AxisHorizontal, Controller: horizontal})
+	ts := uitest.Pump(t, uitest.Themes()[0], gui.Size{Width: 300, Height: 200}, ui.NewScrollable(wide, ui.ScrollableOpts{Controller: vertical, HorizontalController: horizontal}))
+	ts.Pump()
+	if len(built) == 0 || len(built) > 30 {
+		t.Errorf("%d of 10,000 rows were built for a view of 10", len(built))
+	}
+	ts.ScrollAt(gui.Offset{Dx: 100, Dy: 100}, gui.Offset{Dy: 530})
+	ts.Pump(200 * time.Millisecond)
+	if vertical.Offset() <= 0 {
+		t.Error("the wheel did not scroll the rows")
+	}
+	if got := horizontal.Position().MaxScrollExtent(); got != 300 {
+		t.Errorf("the content is 300 px wider than the view, MaxScrollExtent = %v", got)
 	}
 }
 

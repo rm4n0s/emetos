@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "connections": [
+    {"id": "aaa", "name": "Local PostgreSQL", "engine": "postgres", "scope": "user", "host": "localhost", "port": 5432, "user": "me", "database": "app", "tls": "prefer", "color": "#336699", "savePassword": true},
+    {"id": "bbb", "name": "Cache", "engine": "redis", "scope": "workspace", "workspace": "/work/one", "host": "localhost", "port": 6379, "passwordEnv": "${env:REDIS_PW}", "options": {"keySeparator": ":"}}
+  ]
+}

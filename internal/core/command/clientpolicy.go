@@ -71,6 +71,10 @@ var clientRules = []refusedRule{
 		ids:      []string{"workbench.action.createTerminalEditor"},
 		prefixes: []string{"workbench.action.terminal."},
 	},
+	{
+		class: extension.RefusedOutside, reason: "a database or a container engine is outside the workspace: a client may not connect to what the host's connections name (SPEC §10.24)",
+		prefixes: []string{"emetos.databases."},
+	},
 }
 
 // ClientRefusal tells whether a client may not run the command, and why. The id is the command's, case as it is.
