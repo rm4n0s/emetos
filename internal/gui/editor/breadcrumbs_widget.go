@@ -3,6 +3,8 @@ package editor
 import (
 	"context"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
@@ -24,8 +26,11 @@ const (
 	breadcrumbsFont   = 13.0
 	breadcrumbsInset  = 8.0
 	breadcrumbsPad    = 3.0
-	pickerWidth       = 280.0
-	pickerRows        = 12
+	// breadcrumbsScrollbar is the height of the horizontal scrollbar of a long path (VS Code's
+	// workbench.editor.titleScrollbarSizing "default").
+	breadcrumbsScrollbar = 3.0
+	pickerWidth          = 280.0
+	pickerRows           = 12
 )
 
 // BreadcrumbsOpts are the options of NewBreadcrumbs.
@@ -108,6 +113,15 @@ type breadcrumbsState struct {
 	widgets.StateOf[*Breadcrumbs]
 	binding     *widgets.WidgetsBinding
 	controllers []*widgets.OverlayPortalController
+	// scroll scrolls the bar; content and bounds tell where the row of segments and each segment are, which is how the
+	// bar finds the left edge of the last segment.
+	scroll  kit.ScrollHandle
+	content kit.Bounds
+	bounds  []*kit.Bounds
+	// key is what the segments say, and width how wide the bar was, when the last segment was last revealed: it is revealed
+	// again when either changes.
+	key   string
+	width float64
 	// hover is the segment under the pointer, open the one whose picker is open; -1 for none.
 	hover, open int
 	picker      picker
@@ -362,22 +376,62 @@ func (s *breadcrumbsState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	for len(s.controllers) < len(items) {
 		s.controllers = append(s.controllers, widgets.NewOverlayPortalController())
+		s.bounds = append(s.bounds, &kit.Bounds{})
 	}
 	colors := kit.ThemeOf(bc)
 	row := []widgets.Widget{widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(breadcrumbsInset)})}
+	names := make([]string, len(items))
 	for i := range items {
+		names[i] = items[i].name
 		if i > 0 {
 			row = append(row, widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconChevronRight), widgets.IconOpts{
 				Size: foundation.Some(16.0), Color: foundation.Some(colors.BreadcrumbForeground),
 			}))
 		}
-		row = append(row, widgets.NewFlexible(s.item(bc, colors, items, i)))
+		row = append(row, kit.NewBoundsProbe(s.item(bc, colors, items, i), s.bounds[i]))
 	}
-	return widgets.NewContainer(
-		widgets.NewRow(row, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}),
-		widgets.ContainerOpts{Height: foundation.Some(BreadcrumbsHeight), Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
-			Color: foundation.Some(colors.BreadcrumbBackground),
-		})})
+	key := strings.Join(names, "\x00")
+	// The segments are as wide as their names and the bar scrolls sideways when they do not fit, with the last segment (the
+	// file, or the symbol) in view, as VS Code's breadcrumbs do.
+	// Ported from VS Code: src/vs/base/browser/ui/breadcrumbs/breadcrumbsWidget.ts (`flex: 0 1 auto` items in a DomScrollableElement,
+	// revealLast), breadcrumbsWidget.css
+	strip := kit.NewScrollableElement(
+		kit.NewBoundsProbe(widgets.NewRow(row, widgets.RowOpts{
+			MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter,
+		}), &s.content),
+		kit.ScrollableElementOpts{
+			Axes: kit.ScrollAxisHorizontal, HorizontalSize: foundation.Some(breadcrumbsScrollbar), ScrollYToX: true,
+			Handle: &s.scroll,
+		})
+	return widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+		if key != s.key || c.MaxWidth != s.width {
+			s.key, s.width = key, c.MaxWidth
+			s.revealLast(len(items) - 1)
+		}
+		return widgets.NewContainer(strip, widgets.ContainerOpts{
+			Height: foundation.Some(BreadcrumbsHeight), Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
+				Color: foundation.Some(colors.BreadcrumbBackground),
+			})})
+	})
+}
+
+// revealLast scrolls the bar, after the frame, so that the last segment is in view: its left edge goes to the left edge of the
+// bar, as far as the content allows, so a short last segment ends at the right edge and a longer one than the bar starts at
+// the left edge (VS Code's `_revealNode`, which sets `scrollLeft` to the `offsetLeft` of the segment).
+func (s *breadcrumbsState) revealLast(last int) {
+	scheduler := s.binding.Scheduler()
+	scheduler.ScheduleFrame()
+	scheduler.AddPostFrameCallback(func(time.Duration) {
+		if !s.Mounted() || last < 0 || last >= len(s.bounds) {
+			return
+		}
+		row, ok := s.content.Rect()
+		item, ok2 := s.bounds[last].Rect()
+		if !ok || !ok2 {
+			return
+		}
+		s.scroll.ScrollTo(item.Left-row.Left, 0)
+	})
 }
 
 // item is one segment: its icon and name, the click that opens its picker, and the picker.
@@ -402,9 +456,9 @@ func (s *breadcrumbsState) item(bc widgets.BuildContext, colors kit.Colors, item
 		parts = append(parts, widgets.NewIcon(fonts.CodiconIcon(code), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(iconColor)}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(2.0)}))
 	}
-	parts = append(parts, widgets.NewFlexible(widgets.NewText(it.name, widgets.TextOpts{
-		Style: kit.TextStyleOf(bc, breadcrumbsFont, fg), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis,
-	})))
+	parts = append(parts, widgets.NewText(it.name, widgets.TextOpts{
+		Style: kit.TextStyleOf(bc, breadcrumbsFont, fg), MaxLines: foundation.Some(1), SoftWrap: foundation.Some(false),
+	}))
 	body := widgets.NewMouseRegion(
 		widgets.NewGestureDetector(
 			widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, breadcrumbsPad), widgets.NewRow(parts, widgets.RowOpts{
