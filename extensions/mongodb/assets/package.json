@@ -1,0 +1,26 @@
+{
+  "name": "mongodb",
+  "displayName": "MongoDB Playgrounds",
+  "description": "Syntax highlighting and language configuration for MongoDB playgrounds (.mongodb files).",
+  "version": "0.1.0",
+  "publisher": "emetos",
+  "license": "MIT",
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "mongodb",
+        "aliases": ["MongoDB", "MongoDB Playground", "mongodb"],
+        "extensions": [".mongodb"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mongodb",
+        "scopeName": "source.mongodb",
+        "path": "./syntaxes/mongodb.tmLanguage.json"
+      }
+    ]
+  }
+}

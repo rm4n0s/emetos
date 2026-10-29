@@ -112,6 +112,7 @@ func TestBundledRegistry(t *testing.T) {
 		{"go.mod", "", "go.mod"},
 		{"go.work", "", "go.work"},
 		{"go.sum", "", "go.sum"},
+		{"orders.mongodb", "", "mongodb"},
 		{"notes.txt", "", "plaintext"},
 	}
 	for _, tc := range cases {
@@ -133,7 +134,7 @@ func TestBundledRegistry(t *testing.T) {
 		t.Errorf("a line over the limit is one token: %+v", res.Tokens)
 	}
 	// Every language with a grammar makes a tokenizer.
-	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact", "html", "css", "scss", "less", "xml", "xsl", "sql", "shellscript", "makefile", "dockerfile", "ini", "properties", "c", "cpp", "cuda-cpp", "rust", "diff", "git-commit", "git-rebase", "ignore", "go.mod", "go.work", "go.sum"} {
+	for _, id := range []string{"go", "json", "jsonc", "jsonl", "snippets", "yaml", "markdown", "python", "javascript", "javascriptreact", "typescript", "typescriptreact", "html", "css", "scss", "less", "xml", "xsl", "sql", "shellscript", "makefile", "dockerfile", "ini", "properties", "c", "cpp", "cuda-cpp", "rust", "diff", "git-commit", "git-rebase", "ignore", "go.mod", "go.work", "go.sum", "mongodb"} {
 		if _, err := r.NewGrammar(id, nil); err != nil {
 			t.Errorf("NewGrammar(%q): %v", id, err)
 		}

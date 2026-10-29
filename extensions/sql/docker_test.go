@@ -2,7 +2,7 @@
 
 package sql
 
-// Tests against real servers: PostgreSQL, MySQL and MariaDB, each in a throwaway container of a pinned image (extensions/sql/sqltest,
+// Tests against real servers: PostgreSQL, MySQL and MariaDB, each in a throwaway container of a pinned image (extensions/internal/dbtest,
 // over the harness of extensions/internal/containerapi/containerapitest). They make containers named emetos-test-<random> with the
 // label dev.emetos.test=1, publish their ports on 127.0.0.1 only, and remove them when the test ends. There is no SQL Server here:
 // its image starts only when the license terms are accepted, which a test must not do for the user; its driver and dialect are
@@ -21,16 +21,16 @@ import (
 
 	"github.com/rm4n0s/emetos/extensions/internal/containerapi/containerapitest"
 	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
+	"github.com/rm4n0s/emetos/extensions/internal/dbtest"
 	"github.com/rm4n0s/emetos/extensions/sql/dialect"
-	"github.com/rm4n0s/emetos/extensions/sql/sqltest"
 )
 
 // server is what a test knows about one engine's container and fixture.
 type server struct {
 	name string
 	// spec makes the container; connection the connection to it; password is the random one of this run.
-	spec       func(password string) sqltest.Spec
-	connection func(srv sqltest.Server) dbconn.Connection
+	spec       func(password string) dbtest.Spec
+	connection func(srv dbtest.Server) dbconn.Connection
 	// setup are the statements of the fixture, each run on its own.
 	setup []string
 	// rootToTables is the path from the connection to the Tables folder; databases are the databases of the connection.
@@ -46,10 +46,10 @@ type server struct {
 var servers = []server{
 	{
 		name: "postgres",
-		spec: func(pw string) sqltest.Spec {
-			return sqltest.Spec{Image: containerapitest.ImagePostgres, Port: 5432, Env: map[string]string{"POSTGRES_PASSWORD": pw, "POSTGRES_DB": "shop"}}
+		spec: func(pw string) dbtest.Spec {
+			return dbtest.Spec{Image: containerapitest.ImagePostgres, Port: 5432, Env: map[string]string{"POSTGRES_PASSWORD": pw, "POSTGRES_DB": "shop"}}
 		},
-		connection: func(srv sqltest.Server) dbconn.Connection {
+		connection: func(srv dbtest.Server) dbconn.Connection {
 			return dbconn.Connection{ID: "pg", Name: "pg", Engine: "postgres", Scope: dbconn.ScopeUser, Host: srv.Host, Port: srv.Port, User: "postgres", Database: "shop"}
 		},
 		setup: []string{
@@ -70,10 +70,10 @@ var servers = []server{
 	},
 	{
 		name: "mysql",
-		spec: func(pw string) sqltest.Spec {
-			return sqltest.Spec{Image: containerapitest.ImageMySQL, Port: 3306, Env: map[string]string{"MYSQL_ROOT_PASSWORD": pw}}
+		spec: func(pw string) dbtest.Spec {
+			return dbtest.Spec{Image: containerapitest.ImageMySQL, Port: 3306, Env: map[string]string{"MYSQL_ROOT_PASSWORD": pw}}
 		},
-		connection: func(srv sqltest.Server) dbconn.Connection {
+		connection: func(srv dbtest.Server) dbconn.Connection {
 			return dbconn.Connection{ID: "my", Name: "my", Engine: "mysql", Scope: dbconn.ScopeUser, Host: srv.Host, Port: srv.Port, User: "root"}
 		},
 		setup:        mysqlSetup,
@@ -82,10 +82,10 @@ var servers = []server{
 	},
 	{
 		name: "mariadb",
-		spec: func(pw string) sqltest.Spec {
-			return sqltest.Spec{Image: containerapitest.ImageMariaDB, Port: 3306, Env: map[string]string{"MARIADB_ROOT_PASSWORD": pw}}
+		spec: func(pw string) dbtest.Spec {
+			return dbtest.Spec{Image: containerapitest.ImageMariaDB, Port: 3306, Env: map[string]string{"MARIADB_ROOT_PASSWORD": pw}}
 		},
-		connection: func(srv sqltest.Server) dbconn.Connection {
+		connection: func(srv dbtest.Server) dbconn.Connection {
 			return dbconn.Connection{ID: "ma", Name: "ma", Engine: "mysql", Scope: dbconn.ScopeUser, Host: srv.Host, Port: srv.Port, User: "root"}
 		},
 		setup:        mysqlSetup,
@@ -142,8 +142,8 @@ func (s server) runSetup(t *testing.T, svc *Service, c dbconn.Connection) {
 func TestRealServers(t *testing.T) {
 	for _, s := range servers {
 		t.Run(s.name, func(t *testing.T) {
-			password := sqltest.RandomPassword(t)
-			srv := sqltest.Docker().Start(t, s.spec(password))
+			password := dbtest.RandomPassword(t)
+			srv := dbtest.Docker().Start(t, s.spec(password))
 			c := s.connection(srv)
 			svc := NewService()
 			openWhenReady(t, svc, c, password)

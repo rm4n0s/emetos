@@ -73,7 +73,7 @@ var clientRules = []refusedRule{
 	},
 	{
 		class: extension.RefusedOutside, reason: "a database or a container engine is outside the workspace: a client may not connect to what the host's connections name (SPEC §10.24)",
-		prefixes: []string{"emetos.databases.", "emetos.sql."},
+		prefixes: []string{"emetos.databases.", "emetos.sql.", "mongodb."},
 	},
 	{
 		class: extension.RefusedOutside, reason: "the socket of a container engine is power over the computer: a client may not drive the host's Docker or Podman (SPEC §10.20 \"Safety\", §10.24)",

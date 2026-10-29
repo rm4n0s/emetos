@@ -1,0 +1,151 @@
+{
+	"$comment": "The grammar of MongoDB playgrounds (.mongodb files), written for Emetos: the subset of the mongosh syntax that extensions/mongodb/playground reads (SPEC 10.22).",
+	"name": "MongoDB Playground",
+	"scopeName": "source.mongodb",
+	"patterns": [
+		{ "include": "#comments" },
+		{ "include": "#shell-commands" },
+		{ "include": "#expression" }
+	],
+	"repository": {
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.block.mongodb",
+					"begin": "/\\*",
+					"end": "\\*/",
+					"beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.mongodb" } },
+					"endCaptures": { "0": { "name": "punctuation.definition.comment.end.mongodb" } }
+				},
+				{
+					"name": "comment.line.double-slash.mongodb",
+					"match": "(//).*$",
+					"captures": { "1": { "name": "punctuation.definition.comment.mongodb" } }
+				}
+			]
+		},
+		"shell-commands": {
+			"patterns": [
+				{
+					"comment": "use <database>",
+					"match": "^\\s*(use)(?=\\s)\\s+([^\\s;\"'(]+)",
+					"captures": {
+						"1": { "name": "keyword.control.use.mongodb" },
+						"2": { "name": "entity.name.type.database.mongodb" }
+					}
+				},
+				{
+					"comment": "show dbs, show collections",
+					"match": "^\\s*(show)\\s+(dbs|databases|collections|tables)\\b",
+					"captures": {
+						"1": { "name": "keyword.control.show.mongodb" },
+						"2": { "name": "constant.language.show.mongodb" }
+					}
+				}
+			]
+		},
+		"expression": {
+			"patterns": [
+				{ "include": "#comments" },
+				{ "include": "#strings" },
+				{ "include": "#regex" },
+				{ "include": "#numbers" },
+				{ "include": "#constants" },
+				{ "include": "#new" },
+				{ "include": "#helpers" },
+				{ "include": "#db" },
+				{ "include": "#collection" },
+				{ "include": "#operators-in-keys" },
+				{ "include": "#keys" },
+				{ "include": "#method-calls" },
+				{ "include": "#punctuation" }
+			]
+		},
+		"strings": {
+			"patterns": [
+				{
+					"name": "string.quoted.double.mongodb",
+					"begin": "\"",
+					"end": "\"|(?=$)",
+					"beginCaptures": { "0": { "name": "punctuation.definition.string.begin.mongodb" } },
+					"endCaptures": { "0": { "name": "punctuation.definition.string.end.mongodb" } },
+					"patterns": [{ "include": "#string-escapes" }]
+				},
+				{
+					"name": "string.quoted.single.mongodb",
+					"begin": "'",
+					"end": "'|(?=$)",
+					"beginCaptures": { "0": { "name": "punctuation.definition.string.begin.mongodb" } },
+					"endCaptures": { "0": { "name": "punctuation.definition.string.end.mongodb" } },
+					"patterns": [{ "include": "#string-escapes" }]
+				}
+			]
+		},
+		"string-escapes": {
+			"name": "constant.character.escape.mongodb",
+			"match": "\\\\(x[0-9A-Fa-f]{2}|u[0-9A-Fa-f]{4}|u\\{[0-9A-Fa-f]+\\}|.|$)"
+		},
+		"regex": {
+			"name": "string.regexp.mongodb",
+			"match": "(?<![\\w$)\\]])/(?![/*])(?:\\\\.|\\[(?:\\\\.|[^\\]\\\\\\n])*\\]|[^/\\\\\\n\\[])+/[imsxu]*"
+		},
+		"numbers": {
+			"patterns": [
+				{ "name": "constant.numeric.hex.mongodb", "match": "\\b0[xX][0-9a-fA-F]+\\b" },
+				{ "name": "constant.numeric.decimal.mongodb", "match": "(?<![\\w$])-?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?(?![\\w$])" }
+			]
+		},
+		"constants": {
+			"name": "constant.language.mongodb",
+			"match": "\\b(true|false|null|undefined|NaN|Infinity)\\b"
+		},
+		"new": {
+			"name": "keyword.operator.new.mongodb",
+			"match": "\\bnew\\b"
+		},
+		"helpers": {
+			"patterns": [
+				{
+					"name": "support.function.helper.mongodb",
+					"match": "\\b(ObjectId|ISODate|Date|NumberLong|NumberInt|NumberDecimal|UUID|BinData|Timestamp)\\b(?=\\s*\\()"
+				},
+				{
+					"name": "support.function.helper.mongodb",
+					"match": "\\b(MinKey|MaxKey)\\b"
+				}
+			]
+		},
+		"db": {
+			"name": "variable.language.db.mongodb",
+			"match": "(?<![\\w$.])db\\b"
+		},
+		"collection": {
+			"comment": "the name after db. that is not itself called: db.orders.find",
+			"name": "entity.name.type.collection.mongodb",
+			"match": "(?<=\\bdb\\.)[A-Za-z_$][\\w$]*(?!\\s*\\()(?=\\s*[.\\[]|\\s*$)"
+		},
+		"operators-in-keys": {
+			"name": "support.type.operator.mongodb",
+			"match": "\\$[A-Za-z_][\\w]*"
+		},
+		"keys": {
+			"match": "(?<![\\w$.])([A-Za-z_$][\\w$]*)(?=\\s*:)",
+			"captures": { "1": { "name": "variable.other.property.mongodb" } }
+		},
+		"method-calls": {
+			"match": "(?<=\\.)\\s*([A-Za-z_$][\\w$]*)(?=\\s*\\()",
+			"captures": { "1": { "name": "entity.name.function.mongodb" } }
+		},
+		"punctuation": {
+			"patterns": [
+				{ "name": "punctuation.separator.comma.mongodb", "match": "," },
+				{ "name": "punctuation.terminator.statement.mongodb", "match": ";" },
+				{ "name": "punctuation.separator.key-value.mongodb", "match": ":" },
+				{ "name": "punctuation.accessor.mongodb", "match": "\\." },
+				{ "name": "meta.brace.curly.mongodb", "match": "[{}]" },
+				{ "name": "meta.brace.square.mongodb", "match": "[\\[\\]]" },
+				{ "name": "meta.brace.round.mongodb", "match": "[()]" }
+			]
+		}
+	}
+}

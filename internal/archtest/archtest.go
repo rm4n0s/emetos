@@ -295,6 +295,7 @@ var allowedExtensionModules = []string{
 	"github.com/godbus/dbus/v5",
 	// the drivers of the SQL extension (SPEC §10.21, D23)
 	"github.com/jackc/pgx/v5", "github.com/go-sql-driver/mysql", "modernc.org/sqlite", "github.com/microsoft/go-mssqldb",
+	"go.mongodb.org/mongo-driver/v2",
 }
 
 // extensionImportRule applies the rules of SPEC §10.15 to one import of a file under extensions/ (rel is its path

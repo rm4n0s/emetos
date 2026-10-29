@@ -1,5 +1,6 @@
-// Package sqltest runs throwaway database servers in containers for the tests of the SQL extension that need a real server
-// (build tag emetos_docker, CLAUDE.md "Testing notes"). The containers are made through the harness of the container engine client
+// Package dbtest runs throwaway database servers in containers for the tests of the database extensions (SQL, MongoDB, Redis) that
+// need a real server (build tag emetos_docker, CLAUDE.md "Testing notes"); it was extensions/sql/sqltest until step 20.1, which
+// moved it here because an extension may not import another one. The containers are made through the harness of the container engine client
 // (extensions/internal/containerapi/containerapitest), which keeps the rules of those tests:
 //
 //   - only the pinned images of containerapitest/images.go are pulled, never "latest";
@@ -16,7 +17,7 @@
 //
 // The containers are started through the Runner interface: Docker and Podman run them on the user's engine, OnHarness on any
 // harness (a fake engine in the tests of this package).
-package sqltest
+package dbtest
 
 import (
 	"context"

@@ -165,6 +165,7 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 - **References**: VS Code's references view. Find All References and Find All Implementations list the places a language server finds, by file, in a side bar view with a history of the searches.
 - **Markdown preview**: a Preview micro-tab for Markdown files, and Open Preview to the Side.
 - **Go**, **Remote Work** and **Relay**, below.
+- **MongoDB**: connect to MongoDB from the **Databases** view, browse its databases, collections, indexes and the fields of a collection, and write **playgrounds** (`.mongodb` files), below.
 
 ![The Tasks tab of the panel with the problems go vet found, and squiggles from gopls](docs/screenshots/tasks.png)
 
@@ -187,6 +188,12 @@ The **Terminal** tab of the panel (Ctrl+` shows it, and hides the panel again wh
 ### Go
 
 The **Go** extension ([SPEC §10.17](docs/SPEC.md#1017-the-go-extension-extensionsgolang)) starts `gopls` for each Go workspace (settings under `go.gopls`, **Go: Restart Language Server**) and adds: Go commands (add or remove struct tags, fill a struct, generate unit tests, toggle the test file, run), tests with run test lenses above test functions and a Go Tests panel, `go vet` and `staticcheck` or `golangci-lint` on save into Problems, and a status bar item with the Go version and the state of `gopls`. Debugging is not built.
+
+### MongoDB
+
+The **MongoDB** extension ([SPEC §10.22](docs/SPEC.md#1022-mongodb-extensionsmongodb)) adds the engine MongoDB to the **Databases** view (the cylinder in the activity bar): *New Connection...* asks for a host and a port or a connection string (`mongodb://`, `mongodb+srv://`), the user, TLS and, as you need them, the auth source and mechanism (SCRAM or an X.509 certificate), the replica set, a direct connection and the read preference. **A password is never written to a file of Emetos**: it is kept in the desktop's keyring when you ask, otherwise it is asked when you connect and forgotten when you disconnect, and a password pasted inside a connection string moves to the keyring. Below a connection the view lists the databases (with their size), the collections (with how many documents they have, from the server's metadata), the **indexes** of a collection and its **schema**: the fields and their types, found in a sample of up to `mongodb.schemaSampleSize` documents (100).
+
+A **playground** is a `.mongodb` file with statements in the syntax of `mongosh` (`use shop`, `show collections`, `db.orders.find({status: "open"}).sort({total: -1}).limit(20)`, `db.runCommand({ping: 1})`); Emetos reads them itself, without JavaScript, and says where a statement it does not understand is. **New Playground** in the menu of a connection, a database or a collection opens one with the first lines written; **Create Collection**, **Create Index**, **Drop Collection**, **Drop Index** and **Drop Database** open a playground with the statement written for you to read and run: the menu never changes the server. Running playgrounds and showing their results come with the next step.
 
 ## Remote Work and Relay
 
@@ -282,6 +289,7 @@ The files are JSON with comments, in VS Code's formats. "Preferences: Open User 
 Emetos sends nothing about you anywhere: **no telemetry, no crash reports and no update checks.** It uses the network only for what you ask of a feature, and these are the things that do:
 - **Remote Work and Relay**: only while you have turned them on, and only with the computers whose keys you listed or whose hosts you saved.
 - **Language servers and tools you install**: `gopls` and the `go` command may download modules as your Go settings say; "Go: Install/Update Tools" runs `go install` when you click it.
+- **Databases**: the MongoDB extension (and the other database extensions) connects only to the servers of the connections you add.
 - **Links**: a link in a notification opens in your browser only when you click it.
 
 Logs stay on your disk (`$XDG_STATE_HOME/emetos/logs`) and are shown in the Output panel. The camera is read only while the Scan QR Code dialog is open, and no picture of it is kept or sent.

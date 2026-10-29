@@ -217,3 +217,10 @@ Linked Go modules:
     (BSD-3-Clause), github.com/shopspring/decimal, github.com/dustin/go-humanize, github.com/ncruces/go-strftime
     and github.com/mattn/go-isatty (MIT), and filippo.io/edwards25519 (BSD-3-Clause). The license text of each is
     in its module.
+
+20. The MongoDB driver
+    Source:  go.mongodb.org/mongo-driver/v2 (Apache-2.0), linked into the program (version in go.mod)
+    License: Apache-2.0 (the license text is in the module)
+    Added by step 20.1 (extensions/mongodb). What it brings in: github.com/klauspost/compress (BSD-3-Clause,
+    with parts under MIT and Apache-2.0), github.com/xdg-go/pbkdf2, scram and stringprep (Apache-2.0) and
+    github.com/youmark/pkcs8 (MIT). The license text of each is in its module.

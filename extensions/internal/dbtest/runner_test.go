@@ -1,4 +1,4 @@
-package sqltest_test
+package dbtest_test
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extensions/internal/containerapi"
 	"github.com/rm4n0s/emetos/extensions/internal/containerapi/containerapitest"
-	"github.com/rm4n0s/emetos/extensions/sql/sqltest"
+	"github.com/rm4n0s/emetos/extensions/internal/dbtest"
 )
 
 func TestTheImagesAreFullyPinnedAndHaveNoSQLServer(t *testing.T) {
@@ -28,8 +28,8 @@ func TestTheImagesAreFullyPinnedAndHaveNoSQLServer(t *testing.T) {
 }
 
 func TestTheContainerSpecFollowsTheRulesOfTheTests(t *testing.T) {
-	spec := sqltest.Spec{Image: containerapitest.ImageMySQL, Port: 3306, Env: map[string]string{"MYSQL_ROOT_PASSWORD": "hunter2", "A_FIRST": "x"}, Args: []string{"--character-set-server=utf8mb4"}}
-	got := sqltest.ContainerSpec(spec)
+	spec := dbtest.Spec{Image: containerapitest.ImageMySQL, Port: 3306, Env: map[string]string{"MYSQL_ROOT_PASSWORD": "hunter2", "A_FIRST": "x"}, Args: []string{"--character-set-server=utf8mb4"}}
+	got := dbtest.ContainerSpec(spec)
 	if got.Image != spec.Image || len(got.Cmd) != 1 || got.Cmd[0] != "--character-set-server=utf8mb4" {
 		t.Errorf("image and arguments: %+v", got)
 	}
@@ -45,11 +45,11 @@ func TestTheContainerSpecFollowsTheRulesOfTheTests(t *testing.T) {
 }
 
 func TestNamesAndPasswordsAreRandom(t *testing.T) {
-	a, b := sqltest.RandomName(t), sqltest.RandomName(t)
+	a, b := dbtest.RandomName(t), dbtest.RandomName(t)
 	if a == b || !strings.HasPrefix(a, containerapitest.NamePrefix) || len(a) != len(containerapitest.NamePrefix)+12 {
 		t.Errorf("names = %q %q", a, b)
 	}
-	p, q := sqltest.RandomPassword(t), sqltest.RandomPassword(t)
+	p, q := dbtest.RandomPassword(t), dbtest.RandomPassword(t)
 	if p == q || len(p) != 24 || !strings.HasSuffix(p, "aZ9_") {
 		t.Errorf("passwords = %q %q", p, q)
 	}
@@ -60,7 +60,7 @@ func TestAServerStartsOnTheHarness(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			// the harness removes the container when this test ends and fails the test when something labelled is left
 			h := containerapitest.NewFakeHarness(t, kind)
-			srv := sqltest.OnHarness(h).Start(t, sqltest.Spec{
+			srv := dbtest.OnHarness(h).Start(t, dbtest.Spec{
 				Image: containerapitest.ImagePostgres, Port: 5432, Env: map[string]string{"POSTGRES_PASSWORD": "secret-for-the-test"},
 			})
 			if !strings.HasPrefix(srv.Name, containerapitest.NamePrefix) || srv.Host != containerapitest.Loopback || srv.Port == 0 {

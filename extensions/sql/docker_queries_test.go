@@ -3,7 +3,7 @@
 package sql
 
 // The query editors against real servers (step 19.3): PostgreSQL, MySQL and MariaDB, each in a throwaway container of a pinned image
-// (extensions/sql/sqltest on the harness of step 18.1, the rules of docker_test.go). SQL Server is not here and is never started in a
+// (extensions/internal/dbtest on the harness of step 18.1, the rules of docker_test.go). SQL Server is not here and is never started in a
 // test: its image needs ACCEPT_EULA=Y, which would accept Microsoft's licence terms on the user's behalf. Its splitting (GO), its classification and its
 // execution are tested against fakes (run_fake_test.go, dialect/split_test.go).
 //
@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/emetos/extensions/internal/dbtest"
 	"github.com/rm4n0s/emetos/extensions/internal/resultgrid"
 	"github.com/rm4n0s/emetos/extensions/sql/dialect"
-	"github.com/rm4n0s/emetos/extensions/sql/sqltest"
 )
 
 // typesTable is the statement that makes a table with one column of each kind the grid shows, and what to read back.
@@ -43,8 +43,8 @@ func (s server) typesTable() (create, insert string, wantKinds []resultgrid.Kind
 func TestRealServerQueries(t *testing.T) {
 	for _, s := range servers {
 		t.Run(s.name, func(t *testing.T) {
-			password := sqltest.RandomPassword(t)
-			srv := sqltest.Docker().Start(t, s.spec(password))
+			password := dbtest.RandomPassword(t)
+			srv := dbtest.Docker().Start(t, s.spec(password))
 			c := s.connection(srv)
 			svc := NewService()
 			openWhenReady(t, svc, c, password)

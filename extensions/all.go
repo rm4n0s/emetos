@@ -20,6 +20,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/less"
 	"github.com/rm4n0s/emetos/extensions/makefile"
 	"github.com/rm4n0s/emetos/extensions/markdown"
+	"github.com/rm4n0s/emetos/extensions/mongodb"
 	"github.com/rm4n0s/emetos/extensions/relay"
 	"github.com/rm4n0s/emetos/extensions/podman"
 	"github.com/rm4n0s/emetos/extensions/python"
@@ -53,7 +54,9 @@ import (
 // which reads how the two hubs host the workspace, and the extension "Databases" (extensions/internal/dbconn, step 19.1), the
 // connections and their view that the SQL, MongoDB and Redis extensions of M19 to M21 share: they register their engines in the one
 // hub made here, which reads nothing (not even the connection file) until a view of it is shown. The SQL extension (extensions/sql, step
-// 19.2) is a language pack in the list of the packs and the driver of its engines in that hub: its instances share one sql.Hub made here.
+// 19.2) is a language pack in the list of the packs and the driver of its engines in that hub: its instances share one sql.Hub made here. The MongoDB extension
+// (extensions/mongodb, step 20.1) is listed with the language packs, after them, because it contributes a language, the
+// playgrounds (.mongodb), and the order of the languages is the order of registration; it registers its engine in the same hub.
 //
 // The Containers view of Docker (extensions/containers, step 18.2) follows the Search view: it adds a view container to the side bar, a
 // tab to the panel (the logs) and two kinds of editor tab, and starts nothing until a view of it is shown. The Podman extension
@@ -68,7 +71,7 @@ func All() []extension.Factory {
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.FactoryOf(sqlHub), shellscript.New, makefile.New, docker.New, ini.New,
-		cpp.New, rust.New, diff.New, git.New, gomod.New,
+		cpp.New, rust.New, diff.New, git.New, gomod.New, mongodb.FactoryOf(db),
 		search.New, containers.New, podman.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw), relay.FactoryOf(ps),
 		hosting.NewFactory(rw.Hosting(), ps.Hosting()),
