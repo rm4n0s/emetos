@@ -48,6 +48,7 @@ func (d *driver) Connect(ctx context.Context, c dbconn.Connection, password stri
 		return err
 	}
 	d.e.publish(ConnectedTopic, map[string]any{"connection": c.ID})
+	d.e.mgr.changed()
 	return nil
 }
 
@@ -55,6 +56,7 @@ func (d *driver) Connect(ctx context.Context, c dbconn.Connection, password stri
 func (d *driver) Disconnect(c dbconn.Connection) error {
 	d.e.mgr.close(c)
 	d.e.publish(DisconnectedTopic, map[string]any{"connection": c.ID})
+	d.e.mgr.changed()
 	return nil
 }
 

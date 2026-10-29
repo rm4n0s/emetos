@@ -44,8 +44,8 @@ func TestTheContextMenuOfEachNode(t *testing.T) {
 	}{
 		{"the connection", nil, []string{"New Playground (1-open)"}},
 		{"a database", ptrTo(nodes["database"]), []string{"New Playground (1-open)", "Create Collection (2-create)", "Drop Database (3-drop)"}},
-		{"a collection", ptrTo(nodes["collection"]), []string{"New Playground (1-open)", "Create Index (2-create)", "Drop Collection (3-drop)"}},
-		{"a view", ptrTo(nodes["view"]), []string{"New Playground (1-open)", "Drop Collection (3-drop)"}},
+		{"a collection", ptrTo(nodes["collection"]), []string{"Open Collection (1-open)", "New Playground (1-open)", "Create Index (2-create)", "Drop Collection (3-drop)"}},
+		{"a view", ptrTo(nodes["view"]), []string{"Open Collection (1-open)", "New Playground (1-open)", "Drop Collection (3-drop)"}},
 		{"the indexes of a collection", ptrTo(nodes["indexes"]), []string{"Create Index (2-create)"}},
 		{"an index", ptrTo(nodes["index"]), []string{"Drop Index (3-drop)"}},
 		{"the index of _id", ptrTo(nodes["idindex"]), nil},

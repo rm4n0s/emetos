@@ -38,8 +38,31 @@ func TestTheManifestIsValid(t *testing.T) {
 	if !found {
 		t.Errorf("settings = %+v", m.Contributes.Settings)
 	}
-	if len(m.Contributes.Commands) != 1 || m.Contributes.Commands[0].ID != NewPlaygroundCommand || m.Contributes.Commands[0].Title == "" {
-		t.Errorf("commands = %+v", m.Contributes.Commands)
+	var ids []string
+	for _, c := range m.Contributes.Commands {
+		if c.Title == "" {
+			t.Errorf("the command %s has no title", c.ID)
+		}
+		ids = append(ids, c.ID)
+	}
+	want := []string{NewPlaygroundCommand, RunCommand, RunAllCommand, CancelCommand, SelectConnectionCommand, OpenCollectionCommand,
+		EditDocumentCommand, DeleteDocumentCommand, SaveDocumentCommand, CopyDocumentCommand}
+	if strings.Join(ids, " ") != strings.Join(want, " ") {
+		t.Errorf("commands = %v, want %v", ids, want)
+	}
+	// the settings of step 20.2
+	byKey := map[string]extension.SettingSpec{}
+	for _, s := range m.Contributes.Settings {
+		byKey[s.Key] = s
+	}
+	if s := byKey[PageSizeSetting]; s.Type != "integer" || s.Default != 20 || *s.Minimum != 1 || *s.Maximum != 1000 {
+		t.Errorf("%s = %+v", PageSizeSetting, s)
+	}
+	if s := byKey[ConfirmDestructiveSetting]; s.Type != "boolean" || s.Default != true {
+		t.Errorf("%s = %+v", ConfirmDestructiveSetting, s)
+	}
+	if len(m.Contributes.PanelViews) != 1 || m.Contributes.PanelViews[0].ID != ViewID {
+		t.Errorf("panel views = %+v", m.Contributes.PanelViews)
 	}
 }
 

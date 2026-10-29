@@ -66,10 +66,12 @@ type manager struct {
 	// trials are the servers of a Test Connection of a connection that is open: Hub.Test connects and disconnects with the ID of the
 	// connection, and must not take the open server away.
 	trials map[string][]Backend
+	// tabs are the playgrounds of the window tabs, by scope.
+	tabs map[extension.ScopeInfo]*playgrounds
 }
 
 func newManager(d Dialer) *manager {
-	return &manager{dialer: d, servers: map[string]Backend{}, trials: map[string][]Backend{}}
+	return &manager{dialer: d, servers: map[string]Backend{}, trials: map[string][]Backend{}, tabs: map[extension.ScopeInfo]*playgrounds{}}
 }
 
 // open dials the server and keeps it. The hub never connects a connection that is open, so a connect for an ID that is open is a
@@ -134,6 +136,26 @@ func closeBackend(b Backend, name string) {
 	}
 }
 
+// changed tells the window tabs that a connection was opened or closed.
+func (m *manager) changed() {
+	m.mu.Lock()
+	tabs := make([]*playgrounds, 0, len(m.tabs))
+	for _, pg := range m.tabs {
+		tabs = append(tabs, pg)
+	}
+	m.mu.Unlock()
+	for _, pg := range tabs {
+		pg.api.Post(pg.connectionChanged)
+	}
+}
+
+// playgroundsOf returns the playgrounds of the window tab of the API; nil for a tab that has none.
+func (m *manager) playgroundsOf(api extension.API) *playgrounds {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.tabs[api.Scope()]
+}
+
 // Extension is the MongoDB extension in one window tab.
 type Extension struct {
 	hub *dbconn.Hub
@@ -143,6 +165,7 @@ type Extension struct {
 	// sample is the value of mongodb.schemaSampleSize, read on the UI thread and used by the goroutines that list a schema.
 	sample atomic.Int64
 	drv    *driver
+	pg     *playgrounds
 }
 
 // Manifest implements extension.Extension.
@@ -156,16 +179,52 @@ func (*Extension) Manifest() extension.Manifest {
 		Description:      "Connect to MongoDB, browse its databases, collections, indexes and schema, and write playgrounds.",
 		ActivationEvents: []string{extension.OnStartup},
 		Contributes: extension.Contributes{
-			Commands: []extension.CommandSpec{
-				{ID: NewPlaygroundCommand, Title: "New Playground", Category: "MongoDB", Description: "Opens a new MongoDB playground (a .mongodb file that is not saved yet)."},
-			},
+			Commands:  commands(),
 			Languages: langs,
+			Keybindings: []extension.Keybinding{
+				{Command: RunCommand, Key: "ctrl+enter", When: "editorTextFocus && editorLangId == " + LanguageID},
+				{Command: RunAllCommand, Key: "ctrl+shift+enter", When: "editorTextFocus && editorLangId == " + LanguageID},
+				{Command: CancelCommand, Key: "escape", When: "editorTextFocus && editorLangId == " + LanguageID + " && " + RunningKey},
+				{Command: SaveDocumentCommand, Key: "ctrl+s", When: "editorTextFocus && " + EditingKey},
+			},
+			Menus: []extension.MenuItem{
+				{Menu: extension.MenuEditorContext, Command: RunCommand, Group: "1_mongodb", Order: 1, When: "editorLangId == " + LanguageID},
+				{Menu: extension.MenuEditorContext, Command: RunAllCommand, Group: "1_mongodb", Order: 2, When: "editorLangId == " + LanguageID},
+				{Menu: extension.MenuEditorContext, Command: SelectConnectionCommand, Group: "1_mongodb", Order: 3, When: "editorLangId == " + LanguageID},
+				{Menu: extension.MenuEditorContext, Command: SaveDocumentCommand, Group: "1_mongodb", Order: 4, When: EditingKey},
+			},
+			PanelViews: []extension.PanelViewSpec{{ID: ViewID, Title: "MongoDB Results", Icon: "table", Order: 5}},
+			ViewActions: []extension.ViewActionSpec{
+				{View: ViewID, Command: CancelCommand, Icon: "debug-stop", Tooltip: "Cancel Statement", When: RunningKey, Order: 1},
+				{View: ViewID, Command: RunCommand, Icon: "play", Tooltip: "Run Statement", When: "!" + RunningKey, Order: 1},
+			},
 			Settings: []extension.SettingSpec{
 				{Key: SchemaSampleSizeSetting, Type: "integer", Default: defaultSampleSize, Category: "MongoDB",
 					Minimum: ptr(1.0), Maximum: ptr(10000.0),
 					Description: "How many documents are read from a collection to show the fields it has and their types (the Schema of a collection in the Databases view)."},
+				{Key: PageSizeSetting, Type: "integer", Default: defaultPageSize, Category: "MongoDB", Minimum: ptr(1.0), Maximum: ptr(1000.0),
+					Description: "How many documents a cursor gives at first and each time More is pressed in the results."},
+				{Key: ConfirmDestructiveSetting, Type: "boolean", Default: true, Category: "MongoDB",
+					Description: "Ask before running drop, dropDatabase, deleteMany({}) and updateMany({}, ...)."},
 			},
 		},
+	}
+}
+
+// commands are the commands of the extension.
+func commands() []extension.CommandSpec {
+	inPlayground := "editorLangId == " + LanguageID
+	return []extension.CommandSpec{
+		{ID: NewPlaygroundCommand, Title: "New Playground", Category: "MongoDB", Description: "Opens a new MongoDB playground (a .mongodb file that is not saved yet)."},
+		{ID: RunCommand, Title: "Run Statement", Category: "MongoDB", Description: "Run the selection, or the statement under the cursor, of the playground.", When: inPlayground},
+		{ID: RunAllCommand, Title: "Run All Statements", Category: "MongoDB", Description: "Run every statement of the playground, in order.", When: inPlayground},
+		{ID: CancelCommand, Title: "Cancel Statement", Category: "MongoDB", Description: "Stop the statement that is running.", When: RunningKey},
+		{ID: SelectConnectionCommand, Title: "Select Connection for This Playground", Category: "MongoDB", Description: "Choose the connection and the database this playground runs on.", When: inPlayground},
+		{ID: OpenCollectionCommand, Title: "Open Collection", Category: "MongoDB", Description: "Show the first documents of a collection in the results; the argument is {connection, database, collection}."},
+		{ID: EditDocumentCommand, Title: "Edit Document", Category: "MongoDB", Description: "Open the selected document of the results as Extended JSON."},
+		{ID: DeleteDocumentCommand, Title: "Delete Document", Category: "MongoDB", Description: "Delete the selected document of the results from its collection, after asking."},
+		{ID: SaveDocumentCommand, Title: "Save Document to the Server", Category: "MongoDB", Description: "Replace the document on the server with the text of this editor, after showing the fields that changed.", When: EditingKey},
+		{ID: CopyDocumentCommand, Title: "Copy Document", Category: "MongoDB", Description: "Copy the selected document of the results, or all of them, as Extended JSON."},
 	}
 }
 
@@ -183,11 +242,23 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 	}); err != nil {
 		return err
 	}
+	pg := newPlaygrounds(e, api)
+	e.pg = pg
+	if err := pg.start(); err != nil {
+		return err
+	}
+	e.mgr.mu.Lock()
+	e.mgr.tabs[api.Scope()] = pg
+	e.mgr.mu.Unlock()
 	e.drv = &driver{e: e}
 	unregister := e.hub.RegisterDriver(e.drv)
 	go func() {
 		<-ctx.Done()
 		unregister()
+		e.mgr.mu.Lock()
+		delete(e.mgr.tabs, api.Scope())
+		e.mgr.mu.Unlock()
+		pg.stop()
 	}()
 	return nil
 }
@@ -218,19 +289,25 @@ func (e *Extension) publish(topic string, data any) {
 // newPlaygroundCommand runs mongodb.newPlayground.
 func (e *Extension) newPlaygroundCommand(args any) {
 	var connName, database, collection string
+	var conn dbconn.Connection
 	if m, ok := args.(map[string]any); ok {
 		database, _ = m["database"].(string)
 		collection, _ = m["collection"].(string)
 		if id, _ := m["connection"].(string); id != "" {
 			if c, found := e.hub.Store().Get(id); found {
-				connName = c.Name
+				conn, connName = c, c.Name
 				if database == "" {
 					database = c.Database
 				}
 			}
 		}
 	}
-	openPlayground(e.api, playgroundText(connName, database, collection))
+	text := playgroundText(connName, database, collection)
+	if conn.ID != "" && e.pg != nil {
+		e.pg.openPlayground(conn, database, text)
+		return
+	}
+	openPlayground(e.api, text)
 }
 
 // openPlayground opens an untitled playground with the text in the window tab of api.

@@ -60,6 +60,10 @@ type Backend interface {
 	Indexes(ctx context.Context, database, collection string) ([]IndexInfo, error)
 	// Sample reads up to n documents chosen at random from a collection or a view.
 	Sample(ctx context.Context, database, collection string, n int) ([]bson.D, error)
+	// Exec runs a call of a playground (SPEC §10.22 "Playgrounds"). A call that reads with a cursor answers with its first page of at
+	// most pageSize documents and the cursor that reads the rest, if there is a rest; any other call answers with all of its
+	// documents. A failure of the server has the code and the name of the code in the metadata of its error (ServerError).
+	Exec(ctx context.Context, call Call, pageSize int) (Reply, error)
 	// Close ends the connection to the server.
 	Close(ctx context.Context) error
 }

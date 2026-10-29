@@ -33,6 +33,16 @@ type fakeBackend struct {
 	calls       []string
 	sampleSizes []int
 	closed      int
+
+	// exec, when set, answers Exec; execs records the calls and page sizes it received.
+	exec  func(c Call, pageSize int) (Reply, error)
+	execs []execCall
+}
+
+// execCall is a call Exec received.
+type execCall struct {
+	Call     Call
+	PageSize int
 }
 
 func key(db, coll string) string { return db + "." + coll }
@@ -90,6 +100,70 @@ func (f *fakeBackend) Sample(_ context.Context, db, coll string, n int) ([]bson.
 	f.sampleSizes = append(f.sampleSizes, n)
 	f.mu.Unlock()
 	return append([]bson.D(nil), f.samples[key(db, coll)]...), nil
+}
+
+func (f *fakeBackend) Exec(ctx context.Context, c Call, pageSize int) (Reply, error) {
+	if err := f.note("exec " + string(c.Kind)); err != nil {
+		return Reply{}, err
+	}
+	f.mu.Lock()
+	f.execs = append(f.execs, execCall{c, pageSize})
+	fn := f.exec
+	f.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return Reply{}, err
+	}
+	if fn == nil {
+		return Reply{}, nil
+	}
+	return fn(c, pageSize)
+}
+
+// execList returns the calls Exec received.
+func (f *fakeBackend) execList() []execCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]execCall(nil), f.execs...)
+}
+
+// fakeCursor is a cursor over documents in memory.
+type fakeCursor struct {
+	mu     sync.Mutex
+	docs   []bson.D
+	closed bool
+	reads  []int
+	err    error
+}
+
+func (c *fakeCursor) Next(_ context.Context, n int) ([]bson.D, bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.reads = append(c.reads, n)
+	if c.err != nil {
+		c.closed = true
+		return nil, true, c.err
+	}
+	n = min(n, len(c.docs))
+	out := c.docs[:n]
+	c.docs = c.docs[n:]
+	if len(c.docs) == 0 {
+		c.closed = true
+		return out, true, nil
+	}
+	return out, false, nil
+}
+
+func (c *fakeCursor) Close(context.Context) error {
+	c.mu.Lock()
+	c.closed = true
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *fakeCursor) isClosed() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closed
 }
 
 func (f *fakeBackend) Close(context.Context) error {

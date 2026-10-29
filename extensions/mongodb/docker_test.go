@@ -12,6 +12,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/rm4n0s/emetos/extension"
+
 	"github.com/rm4n0s/emetos/extensions/internal/containerapi/containerapitest"
 	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
 	"github.com/rm4n0s/emetos/extensions/internal/dbtest"
@@ -186,5 +188,274 @@ func TestAWrongPasswordIsRefusedByARealServer(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(err.Error()), "auth") {
 		t.Errorf("the message does not say what happened: %v", err)
+	}
+}
+
+// realPlayRig connects the extension to the real server (seeded) and puts a playground with the script in front, bound to the
+// database shop.
+func realPlayRig(t *testing.T, script string) *playRig {
+	t.Helper()
+	conn, password := mongoServer(t, dbtest.Docker())
+	seed(t, conn, password)
+	r := newRig(t)
+	r.ext.mgr.dialer = driverDialer{timeout: 10 * time.Second}
+	conn.ID = ""
+	conn.PasswordEnv = "${env:MONGO_TEST_PASSWORD}"
+	r.env["MONGO_TEST_PASSWORD"] = password
+	saved := r.save(conn)
+	r.connect(saved)
+	r.dbAPI.Pump()
+	uri, err := r.mgAPI.Documents().OpenUntitled(LanguageID, script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := &playRig{rig: r, conn: saved, uri: uri}
+	r.ext.pg.bindEditor(uri, binding{Connection: saved.ID, Database: "shop"})
+	p.activate(nil)
+	return p
+}
+
+// TestPlaygroundStatementsAgainstARealServer runs every kind of statement on the real server: reads with chains and pages, writes with
+// their answers, commands, show, the error of a duplicate key with its code, and the destructive confirmation.
+func TestPlaygroundStatementsAgainstARealServer(t *testing.T) {
+	script := `use shop
+db.orders.find({qty: {$gte: 2}}, {sku: 1, qty: 1}).sort({qty: -1}).skip(1).limit(2)
+db.orders.findOne({sku: "SA"})
+db.orders.aggregate([{$group: {_id: null, total: {$sum: "$qty"}}}])
+db.orders.countDocuments({qty: {$gt: 1}})
+db.orders.estimatedDocumentCount()
+db.orders.distinct("sku")
+db.orders.insertOne({_id: "extra", sku: "ZZ", qty: 9})
+db.orders.insertMany([{_id: "m1", sku: "M1", qty: 1}, {_id: "m2", sku: "M2", qty: 1}])
+db.orders.updateOne({_id: "extra"}, {$set: {qty: 10}})
+db.orders.updateMany({qty: 1}, {$inc: {qty: 100}})
+db.orders.replaceOne({_id: "extra"}, {sku: "ZZ", qty: 11})
+db.orders.bulkWrite([{insertOne: {document: {_id: "b1", sku: "B1"}}}, {updateOne: {filter: {_id: "b1"}, update: {$set: {x: 1}}}}, {deleteOne: {filter: {_id: "b1"}}}])
+db.orders.createIndex({qty: 1}, {name: "qty_1"})
+db.orders.getIndexes()
+db.orders.dropIndex("qty_1")
+db.orders.deleteOne({_id: "extra"})
+db.orders.deleteMany({_id: {$in: ["m1", "m2"]}})
+db.runCommand({ping: 1})
+db.adminCommand({listDatabases: 1, nameOnly: true})
+show dbs
+show collections
+`
+	p := realPlayRig(t, script)
+	rec := p.run(RunAllCommand)
+	if rec.failed() || len(rec.steps) != 22 {
+		for _, st := range rec.steps {
+			if st.res.Err != nil {
+				t.Errorf("%s: %s", st.res.Item.Text, st.res.Err.Text())
+			}
+		}
+		t.Fatalf("record = %d steps, refused %q", len(rec.steps), rec.refused)
+	}
+	msg := func(i int) string { return rec.steps[i].res.Message }
+	// find with the whole chain: qty >= 2 sorted descending, skip one, limit two: qty 4 and 3 of the 5 (5, 4, 3, 2)
+	find := rec.steps[1].res.Sets[0]
+	if len(find.Docs) != 2 || fieldOf(find.Docs[0], "qty") != int32(4) || fieldOf(find.Docs[1], "qty") != int32(3) || find.Editable || find.More() {
+		t.Errorf("find = %v editable %v more %v", find.Docs, find.Editable, find.More())
+	}
+	if len(find.Docs[0]) != 3 { // _id, sku, qty
+		t.Errorf("the projection gave %v", find.Docs[0])
+	}
+	if one := rec.steps[2].res.Sets[0]; len(one.Docs) != 1 || fieldOf(one.Docs[0], "sku") != "SA" || !one.Editable {
+		t.Errorf("findOne = %v editable %v", one.Docs, one.Editable)
+	}
+	if agg := rec.steps[3].res.Sets[0]; fieldOf(agg.Docs[0], "total") != int32(15) {
+		t.Errorf("aggregate = %v", agg.Docs)
+	}
+	if got := rec.steps[4].res.Sets[0].Docs[0]; fieldOf(got, "count") != int64(4) {
+		t.Errorf("countDocuments = %v", got)
+	}
+	if got := rec.steps[5].res.Sets[0].Docs[0]; fieldOf(got, "count") != int64(5) {
+		t.Errorf("estimatedDocumentCount = %v", got)
+	}
+	if got := rec.steps[6].res.Sets[0]; len(got.Docs) != 5 {
+		t.Errorf("distinct = %v", got.Docs)
+	}
+	for i, want := range map[int]string{7: "1 inserted", 8: "2 inserted", 9: "1 matched, 1 modified", 10: "3 matched, 3 modified", 11: "1 matched, 1 modified"} {
+		if msg(i) != want {
+			t.Errorf("step %d = %q, want %q", i, msg(i), want)
+		}
+	}
+	if w := rec.steps[12].res.Write; w == nil || w.Inserted != 1 || w.Matched != 1 || w.Deleted != 1 {
+		t.Errorf("bulkWrite = %+v", w)
+	}
+	if got := rec.steps[13].res.Sets[0].Docs[0]; fieldOf(got, "ok") == nil {
+		t.Errorf("createIndex = %v", got)
+	}
+	var names []string
+	for _, d := range rec.steps[14].res.Sets[0].Docs {
+		names = append(names, fieldOf(d, "name").(string))
+	}
+	if strings.Join(names, ",") != "_id_,sku_1_created_-1,created_ttl,qty_1" {
+		t.Errorf("getIndexes = %v", names)
+	}
+	if msg(16) != "1 deleted" || msg(17) != "2 deleted" {
+		t.Errorf("deletes = %q %q", msg(16), msg(17))
+	}
+	if got := rec.steps[19].res.Sets[0].Docs[0]; fieldOf(got, "databases") == nil {
+		t.Errorf("adminCommand = %v", got)
+	}
+	var dbs, colls []string
+	for _, d := range rec.steps[20].res.Sets[0].Docs {
+		dbs = append(dbs, fieldOf(d, "name").(string))
+	}
+	for _, d := range rec.steps[21].res.Sets[0].Docs {
+		colls = append(colls, fieldOf(d, "name").(string))
+	}
+	if !strings.Contains(strings.Join(dbs, ","), "shop") || !strings.HasPrefix(strings.Join(colls, ","), "big_orders,empty,events,orders") {
+		t.Errorf("show: %v / %v", dbs, colls)
+	}
+	// the 5 documents of a find with a page of 2 come in pages, and nothing beyond the page is read
+	p.mgAPI.SetSetting(PageSizeSetting, 2)
+	p.mgAPI.SetDocument(p.uri, "db.orders.find({}).sort({qty: 1})")
+	rec = p.run(RunAllCommand)
+	set := rec.sets[0].set
+	if len(set.Docs) != 2 || !set.More() || !set.Editable {
+		t.Fatalf("first page = %d more %v", len(set.Docs), set.More())
+	}
+	for i := 0; i < 2; i++ {
+		p.ext.pg.fetchMore(p.editor(), rec, rec.sets[0])
+		want := 4 + (i * 1)
+		p.mgAPI.WaitFor("a page", func() bool { return !rec.fetching && len(set.Docs) >= min(want, 5) })
+	}
+	if len(set.Docs) != 5 || set.More() {
+		t.Errorf("after the pages: %d docs, more %v", len(set.Docs), set.More())
+	}
+	// a duplicate key: the code of the server
+	p.mgAPI.SetDocument(p.uri, "db.orders.insertOne({_id: \"dup\"})\ndb.orders.insertOne({_id: \"dup\"})\ndb.orders.find()")
+	rec = p.run(RunAllCommand)
+	if !rec.failed() || len(rec.steps) != 2 || rec.skipped != 1 {
+		t.Fatalf("record = %+v", rec)
+	}
+	if e := rec.steps[1].res.Err; e.Code != 11000 || e.CodeName != "DuplicateKey" || !strings.HasPrefix(e.Text(), "Error 11000 (DuplicateKey): ") {
+		t.Errorf("err = %+v", e)
+	}
+	// a statement the server refuses by its own rules
+	p.mgAPI.SetDocument(p.uri, "db.orders.find({$nope: 1})")
+	rec = p.run(RunAllCommand)
+	if e := rec.steps[0].res.Err; e == nil || e.Code == 0 || !strings.Contains(e.Message, "$nope") {
+		t.Errorf("err = %+v", e)
+	}
+	// deleteMany({}) asks first, and on a real server nothing is lost when the answer is Cancel
+	p.mgAPI.SetDocument(p.uri, "db.empty.insertOne({a: 1})\ndb.empty.deleteMany({})\ndb.empty.find()")
+	if err := p.mgAPI.Run(RunAllCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	pick := p.mgAPI.LastPick()
+	if pick == nil || !strings.Contains(pick.Options().Placeholder, "deleteMany({}) can lose data") {
+		t.Fatalf("pick = %+v", pick)
+	}
+	pick.Choose(1)
+	// and a drop, then a view of the collections after it
+	p.mgAPI.SetDocument(p.uri, "db.empty.drop()\nshow collections")
+	if err := p.mgAPI.Run(RunAllCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	p.mgAPI.LastPick().Choose(0)
+	rec = p.wait()
+	var left []string
+	for _, d := range rec.steps[1].res.Sets[0].Docs {
+		left = append(left, fieldOf(d, "name").(string))
+	}
+	if strings.Contains(strings.Join(left, ","), "empty") || rec.failed() {
+		t.Errorf("collections after the drop = %v", left)
+	}
+}
+
+// TestEditingAndDeletingADocumentOnARealServer opens a document from a find, changes it in the editor, saves it with the confirmation
+// of the changed fields, and deletes another.
+func TestEditingAndDeletingADocumentOnARealServer(t *testing.T) {
+	p := realPlayRig(t, `db.orders.find({sku: "SB"})`)
+	rec := p.run(RunCommand)
+	if rec.failed() || len(rec.sets[0].set.Docs) != 1 {
+		t.Fatalf("record = %+v", rec)
+	}
+	sr := rec.sets[0]
+	sr.selected = 0
+	before := sr.set.Docs[0]
+	if err := p.mgAPI.Run(EditDocumentCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	docs := p.mgAPI.UntitledDocuments()
+	uri := docs[len(docs)-1].URI
+	p.mgAPI.SetActive(&extension.ActiveDocument{URI: uri, LanguageID: "json"})
+	p.mgAPI.Emit(extension.TopicEditorActiveChanged, extension.ActiveEditor{URI: uri, LanguageID: "json"})
+	p.mgAPI.Pump()
+	text, _ := p.mgAPI.DocumentText(uri)
+	if !strings.Contains(text, `"sku": "SB"`) || !strings.Contains(text, `"$date"`) {
+		t.Fatalf("text = %s", text)
+	}
+	p.mgAPI.SetDocument(uri, strings.Replace(strings.Replace(text, `"qty": 2`, `"qty": 20`, 1), `"name": "Ann"`, `"name": "Bea"`, 1))
+	if err := p.mgAPI.Run(SaveDocumentCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	pick := p.mgAPI.LastPick()
+	if pick == nil || !strings.Contains(pick.Options().Placeholder, "2 fields changed: qty, customer.name") {
+		t.Fatalf("pick = %+v", pick)
+	}
+	pick.Choose(0)
+	p.mgAPI.WaitFor("the save", func() bool { return strings.HasPrefix(p.lastNote(), "info: Saved the document") })
+	// read it back through the server, not through the results
+	p.activate(nil)
+	p.mgAPI.SetDocument(p.uri, `db.orders.find({sku: "SB"})`)
+	rec = p.run(RunCommand)
+	after := rec.sets[0].set.Docs[0]
+	if fieldOf(after, "qty") != int32(20) || fieldOf(after, "created") != fieldOf(before, "created") {
+		t.Errorf("after = %v", after)
+	}
+	if c, _ := fieldOf(after, "customer").(bson.D); fieldOf(c, "name") != "Bea" {
+		t.Errorf("customer = %v", fieldOf(after, "customer"))
+	}
+	// delete another document: Cancel keeps it, Delete removes it
+	p.mgAPI.SetDocument(p.uri, `db.orders.find({sku: "SC"})`)
+	rec = p.run(RunCommand)
+	rec.sets[0].selected = 0
+	if err := p.mgAPI.Run(DeleteDocumentCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	p.mgAPI.LastPick().Choose(1)
+	p.mgAPI.SetDocument(p.uri, `db.orders.countDocuments({sku: "SC"})`)
+	cnt := p.run(RunCommand)
+	if cnt.failed() || len(cnt.sets) != 1 {
+		t.Fatalf("count = %+v %+v", cnt, cnt.steps[0].res.Err)
+	}
+	if got := fieldOf(cnt.sets[0].set.Docs[0], "count"); got != int64(1) {
+		t.Fatalf("Cancel deleted: count = %v (%v)", got, cnt.sets[0].set.Docs)
+	}
+	p.mgAPI.SetDocument(p.uri, `db.orders.find({sku: "SC"})`)
+	rec = p.run(RunCommand)
+	rec.sets[0].selected = 0
+	if err := p.mgAPI.Run(DeleteDocumentCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	p.mgAPI.LastPick().Choose(0)
+	p.mgAPI.WaitFor("the delete", func() bool { return strings.HasPrefix(p.lastNote(), "info: Deleted the document") })
+	p.mgAPI.SetDocument(p.uri, `db.orders.countDocuments({sku: "SC"})`)
+	if got := fieldOf(p.run(RunCommand).sets[0].set.Docs[0], "count"); got != int64(0) {
+		t.Errorf("after Delete: count = %v", got)
+	}
+}
+
+// TestAReadOnlyConnectionOfARealServerWritesNothing refuses the statements that write before anything reaches the server.
+func TestAReadOnlyConnectionOfARealServerWritesNothing(t *testing.T) {
+	p := realPlayRig(t, "db.orders.insertOne({_id: \"nope\"})")
+	c := p.conn
+	c.ReadOnly = true
+	if _, _, err := p.hub.Save(context.Background(), c, dbconn.PasswordChange{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.mgAPI.Run(RunCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.lastNote(); !strings.Contains(got, "is read-only") {
+		t.Errorf("note = %q", got)
+	}
+	p.mgAPI.SetDocument(p.uri, `db.orders.countDocuments({_id: "nope"})`)
+	if got := fieldOf(p.run(RunCommand).sets[0].set.Docs[0], "count"); got != int64(0) {
+		t.Errorf("count = %v", got)
 	}
 }

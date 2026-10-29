@@ -34,6 +34,9 @@ type wireServer struct {
 	counts      map[string]int64    // by "db.coll": the n of $collStats
 	docs        map[string][]bson.D // by "db.coll": what $sample returns
 	failList    string              // a command name that is answered with an error
+	finds       map[string][]bson.D // by "db.coll": what find and aggregate return
+	cursors     map[int64][]bson.D  // the documents a cursor of find has left, by its id
+	distinct    bson.A              // the values distinct returns
 }
 
 func newWireServer(t *testing.T) *wireServer {
@@ -112,8 +115,31 @@ func (s *wireServer) serve(c net.Conn) {
 			if rest[0] != 0 {
 				return
 			}
-			if err := bson.Unmarshal(rest[1:], &cmd); err != nil {
+			size := int(binary.LittleEndian.Uint32(rest[1:5]))
+			if err := bson.Unmarshal(rest[1:1+size], &cmd); err != nil {
 				return
+			}
+			// document sequences (kind 1): the documents of a write become an array of the command
+			for tail := rest[1+size:]; len(tail) > 5 && tail[0] == 1; {
+				n := int(binary.LittleEndian.Uint32(tail[1:5]))
+				seq := tail[5 : 1+n]
+				i := 0
+				for seq[i] != 0 {
+					i++
+				}
+				name, docs := string(seq[:i]), seq[i+1:]
+				arr := bson.A{}
+				for len(docs) >= 5 {
+					dl := int(binary.LittleEndian.Uint32(docs[0:4]))
+					var d bson.D
+					if err := bson.Unmarshal(docs[:dl], &d); err != nil {
+						return
+					}
+					arr = append(arr, d)
+					docs = docs[dl:]
+				}
+				cmd = append(cmd, bson.E{Key: name, Value: arr})
+				tail = tail[1+n:]
 			}
 			reply := s.answer(cmd)
 			s.replyMsg(c, requestID, reply)
@@ -178,6 +204,11 @@ func get(d bson.D, key string) (any, bool) {
 
 func ok(fields ...bson.E) bson.D { return append(bson.D{{Key: "ok", Value: 1.0}}, fields...) }
 
+// cursorReplyID is the reply of a command that opens or reads a cursor: batchKey is firstBatch or nextBatch.
+func cursorReplyID(ns string, id int64, batchKey string, docs []bson.D) bson.D {
+	return ok(bson.E{Key: "cursor", Value: bson.D{{Key: "id", Value: id}, {Key: "ns", Value: ns}, {Key: batchKey, Value: docsToA(docs)}}})
+}
+
 func cursorReply(ns string, docs []bson.D) bson.D {
 	batch := bson.A{}
 	for _, d := range docs {
@@ -240,10 +271,75 @@ func (s *wireServer) answer(cmd bson.D) bson.D {
 				}
 			}
 		}
-		return cursorReply(dbName+"."+coll, nil)
+		return cursorReply(dbName+"."+coll, s.finds[dbName+"."+coll])
 	case "count":
 		coll, _ := cmd[0].Value.(string)
 		return ok(bson.E{Key: "n", Value: s.counts[dbName+"."+coll]})
+	case "find":
+		coll, _ := cmd[0].Value.(string)
+		docs := s.finds[dbName+"."+coll]
+		if v, found := get(cmd, "limit"); found {
+			if n, isNum := toInt64(v); isNum && n > 0 && int(n) < len(docs) {
+				docs = docs[:n]
+			}
+		}
+		batch := len(docs)
+		if v, found := get(cmd, "batchSize"); found {
+			if n, isNum := toInt64(v); isNum && n > 0 && int(n) < batch {
+				batch = int(n)
+			}
+		}
+		var id int64
+		if batch < len(docs) {
+			id = 77
+			if s.cursors == nil {
+				s.cursors = map[int64][]bson.D{}
+			}
+			s.cursors[id] = docs[batch:]
+		}
+		return cursorReplyID(dbName+"."+coll, id, "firstBatch", docs[:batch])
+	case "getMore":
+		id, _ := cmd[0].Value.(int64)
+		coll, _ := get(cmd, "collection")
+		name, _ := coll.(string)
+		left := s.cursors[id]
+		batch := len(left)
+		if v, found := get(cmd, "batchSize"); found {
+			if n, isNum := toInt64(v); isNum && n > 0 && int(n) < batch {
+				batch = int(n)
+			}
+		}
+		next := id
+		if batch == len(left) {
+			next = 0
+		}
+		s.cursors[id] = left[batch:]
+		return cursorReplyID(dbName+"."+name, next, "nextBatch", left[:batch])
+	case "insert":
+		docs, _ := get(cmd, "documents")
+		a, _ := docs.(bson.A)
+		return ok(bson.E{Key: "n", Value: int32(len(a))})
+	case "update":
+		ups, _ := get(cmd, "updates")
+		a, _ := ups.(bson.A)
+		reply := ok(bson.E{Key: "n", Value: int32(len(a))}, bson.E{Key: "nModified", Value: int32(len(a))})
+		for i, u := range a {
+			if d, isDoc := u.(bson.D); isDoc {
+				if up, found := get(d, "upsert"); found && up == true {
+					reply = append(reply, bson.E{Key: "upserted", Value: bson.A{bson.D{{Key: "index", Value: int32(i)}, {Key: "_id", Value: "new-id"}}}})
+					reply[1].Value, reply[2].Value = int32(1), int32(0)
+				}
+			}
+		}
+		return reply
+	case "delete":
+		dels, _ := get(cmd, "deletes")
+		a, _ := dels.(bson.A)
+		return ok(bson.E{Key: "n", Value: int32(len(a) * 3)})
+	case "distinct":
+		return ok(bson.E{Key: "values", Value: s.distinct})
+	case "create", "createIndexes", "dropIndexes", "drop":
+		return ok(bson.E{Key: "nIndexesWas", Value: int32(2)})
 	}
 	return bson.D{{Key: "ok", Value: 0.0}, {Key: "errmsg", Value: "no such command: " + name}, {Key: "code", Value: int32(59)}, {Key: "codeName", Value: "CommandNotFound"}}
 }
