@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -91,7 +92,10 @@ func startServer(t *testing.T, opts Options, h Handler) (*Server, <-chan error) 
 	t.Cleanup(func() {
 		cancel()
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				t.Errorf("Serve = %v", err)
+			}
 		case <-time.After(wait):
 			t.Error("Serve did not return")
 		}
@@ -127,17 +131,20 @@ func TestLocations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wantSocket, wantLock := tt.socket, tt.lock
+			uid := 1000
 			if tt.useTemp {
+				// the folder is made and checked for real, so it has to belong to the user who runs the test
+				uid = os.Getuid()
 				tmp, err := os.MkdirTemp("", "emt")
 				if err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() { _ = os.RemoveAll(tmp) })
 				t.Setenv("TMPDIR", tmp)
-				wantSocket = filepath.Join(tmp, "emetos-1000", "emetos.sock")
-				wantLock = filepath.Join(tmp, "emetos-1000", "emetos.lock")
+				wantSocket = filepath.Join(tmp, "emetos-"+strconv.Itoa(uid), "emetos.sock")
+				wantLock = filepath.Join(tmp, "emetos-"+strconv.Itoa(uid), "emetos.lock")
 			}
-			loc, err := Locations(tt.paths, 1000)
+			loc, err := Locations(tt.paths, uid)
 			if tt.tag != "" {
 				appErr, ok := errors.FromError(err)
 				if !ok || appErr.Tag != tt.tag {

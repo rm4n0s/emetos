@@ -288,7 +288,9 @@ func TestHandOver(t *testing.T) {
 			}()
 			defer func() {
 				cancel()
-				<-served
+				if err := <-served; err != nil {
+					t.Errorf("Serve = %v", err)
+				}
 			}()
 			_, client, err := ipc.Join(ctx, ipc.Options{Location: loc})
 			if err != nil || client == nil {
@@ -340,7 +342,9 @@ func TestHandOverWithoutAnInstance(t *testing.T) {
 	defer func() { _ = client.Close() }()
 	te := newTestEnv(t, "/work")
 	status := handOver(context.Background(), client, launch{cwd: "/work"}, te.env)
-	<-served
+	if err := <-served; err != nil {
+		t.Errorf("Serve = %v", err)
+	}
 	// the instance may answer while it shuts down; either way the client ends without hanging
 	if status != 0 && !strings.Contains(te.stderr.String(), "emetos:") {
 		t.Errorf("status %d, stderr %q", status, te.stderr.String())

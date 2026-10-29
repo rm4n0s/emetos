@@ -53,7 +53,9 @@ func (e *multiEnv) runSocket(opts Options) *socketApp {
 	e.t.Cleanup(func() {
 		launcher.Close()
 		cancel()
-		<-served
+		if err := <-served; err != nil {
+			e.t.Errorf("Serve = %v", err)
+		}
 	})
 	return &socketApp{multiApp: a, loc: loc}
 }
