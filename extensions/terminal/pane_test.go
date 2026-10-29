@@ -341,3 +341,81 @@ func TestTheMenuOffersWhatVSCodeOffers(t *testing.T) {
 		t.Error("the secondary button did not ask for the menu")
 	}
 }
+
+func TestSizeToContentWidthMakesTheTerminalAsWideAsItsLongestLine(t *testing.T) {
+	long := strings.Repeat("0123456789", 12) // 120 columns on a pane of about 55
+	tests := []struct {
+		name     string
+		output   string
+		toggles  int
+		wantCols func(paneCols int) int // the columns the terminal has after the toggles
+		wantFix  bool
+	}{
+		{"a long line makes the terminal that wide", long + "\r\n", 1, func(int) int { return 120 }, true},
+		{"a long line that wrapped counts whole", long, 1, func(int) int { return 120 }, true},
+		{"content that fits changes nothing", "short\r\n", 1, func(c int) int { return c }, false},
+		{"the second toggle goes back to the width of the pane", long + "\r\n", 2, func(c int) int { return c }, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newFakePane(t, uitest.Themes()[0], paneSize, nil)
+			paneCols := r.pv.cols
+			r.write(t, tt.output)
+			r.settle()
+			for range tt.toggles {
+				r.pv.toggleSizeToContent()
+				r.settle()
+			}
+			if got, want := r.pv.cols, tt.wantCols(paneCols); got != want {
+				t.Errorf("the terminal has %d columns, want %d", got, want)
+			}
+			if (r.pv.fixedCols > 0) != tt.wantFix {
+				t.Errorf("fixedCols = %d, want fixed %v", r.pv.fixedCols, tt.wantFix)
+			}
+			if cols, _ := r.pv.term.Size(); cols != r.pv.cols {
+				t.Errorf("the process is told %d columns, the pane has %d", cols, r.pv.cols)
+			}
+		})
+	}
+}
+
+func TestAWidePaneScrollsSidewaysAndStaysInsideItsContent(t *testing.T) {
+	r := newFakePane(t, uitest.Themes()[0], paneSize, nil)
+	r.write(t, strings.Repeat("0123456789", 12)+"\r\n")
+	r.settle()
+	r.pv.toggleSizeToContent()
+	r.settle()
+	a, _ := r.pv.atlases()
+	over := padLeft + float64(r.pv.fixedCols)*a.m.w + scrollbarW - paneSize.Width
+	if over <= 0 {
+		t.Fatalf("the content is not wider than the pane: %v", over)
+	}
+	tests := []struct {
+		name string
+		by   float64
+		want float64
+	}{
+		{"scrolls right", 40, 40},
+		{"does not go past the end", 100000, over},
+		{"scrolls back left", -30, over - 30},
+		{"does not go before the start", -100000, 0},
+	}
+	for _, tt := range tests {
+		r.pv.scrollX(tt.by)
+		if r.pv.hscroll < tt.want-0.01 || r.pv.hscroll > tt.want+0.01 {
+			t.Errorf("%s: hscroll = %v, want %v", tt.name, r.pv.hscroll, tt.want)
+		}
+	}
+	// a click at the left of the view, when it is scrolled by n columns, is in the cell n columns further
+	r.pv.scrollX(a.m.w * 10)
+	if col, _ := r.pv.cellAt(gui.Offset{Dx: padLeft + a.m.w/2, Dy: 4}); col != 10 {
+		t.Errorf("the first visible column after a scroll of 10 columns is %d", col)
+	}
+	// a pane that is not wide does not scroll
+	r.pv.toggleSizeToContent()
+	r.settle()
+	r.pv.scrollX(50)
+	if r.pv.hscroll != 0 {
+		t.Errorf("a narrow pane scrolled sideways by %v", r.pv.hscroll)
+	}
+}

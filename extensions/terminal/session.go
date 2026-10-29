@@ -83,6 +83,9 @@ type terminalOpts struct {
 	nonce string
 	// injected says that the shell integration scripts were injected into the shell (the tab's hover says so).
 	injected bool
+	// initial is written to the emulator before the program starts: the text of a session that was restored (SPEC §10.25
+	// "Persistent sessions"). It is not published as output.
+	initial []byte
 }
 
 // Terminal is one terminal: the program in its pseudo-terminal, the emulator that turns its output into a screen, and what a
@@ -219,6 +222,11 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 		t.fireMeta()
 	}
 	t.si.onChange = t.markChanged
+	if len(o.initial) > 0 {
+		if _, err := t.em.Write(o.initial); err != nil {
+			o.log.Warn("the text of the restored session cannot be shown", "err", err)
+		}
+	}
 	grace := o.grace
 	proc, err := o.start(ctx, pty.Options{
 		Program: o.profile.path, Args: o.profile.args, Dir: o.dir, Env: o.env, Rows: o.rows, Cols: o.cols, Grace: grace,
@@ -534,6 +542,25 @@ func (t *Terminal) Name() string {
 func (t *Terminal) SetName(name string) {
 	t.mu.Lock()
 	t.name = name
+	t.mu.Unlock()
+	t.fireMeta()
+}
+
+// SetIcon sets the Codicon of the terminal's tab; an empty name goes back to the icon of its profile.
+func (t *Terminal) SetIcon(icon string) {
+	if icon == "" {
+		icon = t.prof.icon
+	}
+	t.mu.Lock()
+	t.icon = icon
+	t.mu.Unlock()
+	t.fireMeta()
+}
+
+// SetColor sets the color of the terminal's icon: the id of one of the terminal.ansi* colors, or empty for none.
+func (t *Terminal) SetColor(color string) {
+	t.mu.Lock()
+	t.color = color
 	t.mu.Unlock()
 	t.fireMeta()
 }

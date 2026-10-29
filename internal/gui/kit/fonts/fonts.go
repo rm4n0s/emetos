@@ -2,6 +2,7 @@ package fonts
 
 import (
 	_ "embed" // the font files below
+	"sort"
 
 	"github.com/rm4n0s/glutter/widgets"
 )
@@ -43,4 +44,14 @@ func CodiconIcon(code int) widgets.IconData {
 func CodiconByName(name string) (int, bool) {
 	code, ok := codiconCodes[name]
 	return code, ok
+}
+
+// CodiconNames lists the short names of the codicons, sorted: the icons a picker offers.
+func CodiconNames() []string {
+	names := make([]string, 0, len(codiconCodes))
+	for name := range codiconCodes {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

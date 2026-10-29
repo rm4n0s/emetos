@@ -21,6 +21,7 @@ type ExtensionTabInput struct {
 	ext, kind, id string
 	title, hint   string
 	icon          string
+	iconColor     string
 	dirty, busy   bool
 	copier        func() *ExtensionTabInput
 }
@@ -38,6 +39,7 @@ type extensionTabValue struct {
 	ID    string `json:"id"`
 	Title string `json:"title,omitempty"`
 	Icon  string `json:"icon,omitempty"`
+	Color string `json:"color,omitempty"`
 }
 
 // ParseExtensionTabInput makes the input again from the value Serialize gave. The error has the tag
@@ -50,7 +52,9 @@ func ParseExtensionTabInput(value string) (*ExtensionTabInput, error) {
 	if v.Ext == "" || v.Kind == "" || v.ID == "" {
 		return nil, errors.New("ExtensionTabInputInvalid", "a saved extension tab needs its extension, kind and id", "value", value)
 	}
-	return NewExtensionTabInput(v.Ext, v.Kind, v.ID, v.Title, v.Icon), nil
+	in := NewExtensionTabInput(v.Ext, v.Kind, v.ID, v.Title, v.Icon)
+	in.iconColor = v.Color
+	return in, nil
 }
 
 // Extension is the id of the extension the tab belongs to, Kind the id of its kind and ID the instance.
@@ -64,6 +68,9 @@ func (e *ExtensionTabInput) ID() string { return e.id }
 
 // Icon is the name of the Codicon of the tab; empty for none.
 func (e *ExtensionTabInput) Icon() string { return e.icon }
+
+// IconColor is the id of the theme color of the icon of the tab; empty for the color of the text.
+func (e *ExtensionTabInput) IconColor() string { return e.iconColor }
 
 // Busy tells whether the extension marked the tab as busy.
 func (e *ExtensionTabInput) Busy() bool { return e.busy }
@@ -89,6 +96,14 @@ func (e *ExtensionTabInput) SetDirty(dirty bool) {
 	if e.dirty != dirty {
 		e.dirty = dirty
 		e.Emit(InputDirty)
+	}
+}
+
+// SetIcon sets the Codicon of the tab and the id of the theme color of its icon (empty for the color of the text).
+func (e *ExtensionTabInput) SetIcon(icon, color string) {
+	if e.icon != icon || e.iconColor != color {
+		e.icon, e.iconColor = icon, color
+		e.Emit(InputLabel)
 	}
 }
 
@@ -143,7 +158,7 @@ func (e *ExtensionTabInput) Capabilities() Capabilities { return CapCanSplit }
 
 // Serialize implements EditorInput.
 func (e *ExtensionTabInput) Serialize() (string, bool) {
-	data, err := json.Marshal(extensionTabValue{Ext: e.ext, Kind: e.kind, ID: e.id, Title: e.title, Icon: e.icon})
+	data, err := json.Marshal(extensionTabValue{Ext: e.ext, Kind: e.kind, ID: e.id, Title: e.title, Icon: e.icon, Color: e.iconColor})
 	if err != nil {
 		return "", false
 	}

@@ -288,3 +288,105 @@ func randomTerminal(seed int64) (string, *Emulator) {
 	}
 	return sb.String(), e
 }
+
+// lineCells describes the lines of the main buffer, from line first, as text with the styles of the cells, without the empty
+// cells at the end of a line: what SerializeText promises to carry over.
+func lineCells(e *Emulator, first int) []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	var out []string
+	for i := first; i < e.mainScr.ring.n; i++ {
+		l := e.mainScr.ring.at(i)
+		end := len(l.cells)
+		for end > 0 && l.cells[end-1].isPlainBlank() {
+			end--
+		}
+		var sb strings.Builder
+		for _, c := range l.cells[:end] {
+			if c.Flags&CellTail != 0 {
+				sb.WriteString("_")
+				continue
+			}
+			st := e.st.styles[c.Style]
+			link := e.st.links[st.Link]
+			st.Link = 0
+			txt := " "
+			switch {
+			case c.Flags&CellCluster != 0:
+				txt = l.clusterString(c)
+			case c.Rune != 0:
+				txt = string(rune(c.Rune))
+			}
+			fmt.Fprintf(&sb, "<%s|%+v|%v>", txt, st, link)
+		}
+		out = append(out, sb.String())
+	}
+	return out
+}
+
+func TestSerializeTextCarriesTheLinesAndNothingElse(t *testing.T) {
+	tests := []struct {
+		name       string
+		rows, cols int
+		in         string
+		scrollback int
+		// wantLines is how many lines (scrollback and screen, down to the last that holds something) are written; -1 for none
+		wantLines int
+	}{
+		{"plain text", 5, 20, "hello\r\nworld", 100, 2},
+		{"colors and attributes", 5, 30, "\x1b[1;31mred\x1b[0m \x1b[38;2;1;2;3;48;5;100mmix\x1b[0m \x1b[4:3;58;2;1;2;3mcurly\x1b[0m", 100, 1},
+		{"wide characters and clusters", 5, 20, "日本語 😀 éx", 100, 1},
+		{"a wrapped line", 5, 10, strings.Repeat("0123456789", 3), 100, 3},
+		{"blank lines between", 6, 10, "a\r\n\r\n\r\nb", 100, 4},
+		{"hyperlinks", 5, 30, "\x1b]8;;http://a\x1b\\link\x1b]8;;\x1b\\ plain", 100, 1},
+		{"only the last lines of the scrollback", 4, 10, "1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9", 2, 6},
+		{"all the scrollback", 4, 10, "1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9", -1, 9},
+		{"no scrollback", 4, 10, "1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n9", 0, 4},
+		{"the cursor below the text", 6, 10, "text\r\n\r\n", 100, 3},
+		{"the alternate screen is not written", 5, 20, "main text\r\nmore\x1b[?1049h\x1b[2;2Halt screen", 100, 2},
+		{"modes and metadata are not written", 5, 20, "\x1b[?1h\x1b=\x1b[?2004h\x1b[?1000h\x1b]2;title\x07\x1b]7;file://h/dir\x07\x1b]4;1;#112233\x07shown", 100, 1},
+		{"nothing on the screen", 5, 20, "", 100, -1},
+		{"only blank lines", 5, 20, "   \r\n  ", 100, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := New(tt.rows, tt.cols, Options{Scrollback: 100})
+			if _, err := a.Write([]byte(tt.in)); err != nil {
+				t.Fatal(err)
+			}
+			out := a.SerializeText(tt.scrollback)
+			if tt.wantLines < 0 {
+				if len(out) != 0 {
+					t.Fatalf("wrote %q for nothing", out)
+				}
+				return
+			}
+			b := New(tt.rows, tt.cols, Options{Scrollback: 100})
+			if _, err := b.Write(out); err != nil {
+				t.Fatal(err)
+			}
+			got := lineCells(b, 0)
+			// the lines of a that were written: the last wantLines of the ones down to the last that holds something
+			all := lineCells(a, 0)
+			last := len(all)
+			for last > 0 && all[last-1] == "" {
+				last--
+			}
+			if cur := a.mainScr.ring.n - a.mainScr.rows + a.mainScr.y + 1; cur > last {
+				last = cur
+			}
+			from := max(last-tt.wantLines, 0)
+			want := all[from:last]
+			if len(got) < len(want) || strings.Join(got[:len(want)], "\n") != strings.Join(want, "\n") {
+				t.Errorf("the lines are not the same:\n got  %q\n want %q\n wrote %q", got, want, out)
+			}
+			// nothing but the cells: the modes, the title and the folder of the program are not carried over
+			if m := b.Modes(); m.AppCursorKeys || m.BracketedPaste || m.Mouse != MouseNone || m.AltScreen {
+				t.Errorf("modes carried over: %+v", m)
+			}
+			if b.title != "" || b.cwd != "" || b.palette[1] != b.defPalette[1] {
+				t.Errorf("title %q, folder %q or palette carried over", b.title, b.cwd)
+			}
+		})
+	}
+}

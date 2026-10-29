@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -442,5 +443,62 @@ func TestTheFakeKeepsTheButtonsOfNotifications(t *testing.T) {
 	a.RunNoteAction(0, "Show")
 	if pressed != 1 {
 		t.Errorf("the button was pressed %d times", pressed)
+	}
+}
+
+func TestTheFakeEditorsDragsIconsViewStatesAndFailedOpens(t *testing.T) {
+	m := manifest()
+	m.Contributes.EditorKinds = []extension.EditorKindSpec{{ID: "fk.card", Name: "Card"}}
+	m.Contributes.Views = []extension.ViewSpec{{ID: "fk.view", Name: "View", Container: "workbench.view.explorer"}}
+	a := New(t, m, extension.ScopeInfo{})
+	closed := 0
+	create := func(tab extension.EditorTab, _ json.RawMessage) (extension.EditorTabContent, error) {
+		tab.SetIcon("rocket", "terminal.ansiRed")
+		return extension.EditorTabContent{OnClose: func() { closed++ }, SaveState: func() (any, error) { return "s", nil }}, nil
+	}
+	if err := a.Editors().Provide("fk.card", extension.EditorKind{Create: create}); err != nil {
+		t.Fatal(err)
+	}
+	// a drag that is dropped opens the tab with the state; one that is refused or cancelled opens none
+	_, err := a.Editors().BeginDrag("fk.nope", "x", nil)
+	route(t, err, "editors.BeginDrag.FakeEditorKindNotProvided")
+	_, err = a.Editors().BeginDrag("fk.card", "x", make(chan int))
+	route(t, err, "editors.BeginDrag.FakeEditorStateInvalid")
+	drag, err := a.Editors().BeginDrag("fk.card", "Card", "dragged")
+	if err != nil {
+		t.Fatal(err)
+	}
+	drag.Move(ui.Offset{Dx: 1, Dy: 2})
+	if opened, err := drag.End(ui.Offset{}, true); !opened || err != nil {
+		t.Fatalf("End = %v, %v", opened, err)
+	}
+	d := a.Drags()[0]
+	if !d.Ended || !d.Dropped || d.Tab == nil || d.Tab.Icon() != "rocket" || d.Tab.IconColor() != "terminal.ansiRed" || string(d.State) != `"dragged"` || len(d.Moves) != 1 {
+		t.Errorf("the drag = %+v", d)
+	}
+	refused, _ := a.Editors().BeginDrag("fk.card", "Card", nil)
+	a.Drags()[1].Refuse = true
+	if opened, _ := refused.End(ui.Offset{}, true); opened || a.Drags()[1].Dropped {
+		t.Error("a refused drop opened a tab")
+	}
+	// a window that cannot show the tab: the content is closed again and the call fails
+	a.FailEditorOpen(true)
+	_, err = a.Editors().Open("fk.card", nil, extension.EditorOpenOptions{})
+	route(t, err, "editors.Open.FakeEditorOpenFailed")
+	if closed != 1 {
+		t.Errorf("OnClose ran %d times for the tab that could not be shown", closed)
+	}
+	// the state a view saved in an earlier session is given to RestoreState when it is provided, and State reads it back
+	var restored string
+	a.SetViewState("fk.view", json.RawMessage(`"old"`))
+	if _, err := a.Views().Provide("fk.view", extension.ViewContent{
+		Build:        func(widgets.BuildContext) widgets.Widget { return nil },
+		RestoreState: func(raw json.RawMessage) error { restored = string(raw); return nil },
+		SaveState:    func() (any, error) { return "new", nil },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if restored != `"old"` || string(a.View("fk.view").State()) != `"new"` {
+		t.Errorf("restored %q, state %s", restored, a.View("fk.view").State())
 	}
 }

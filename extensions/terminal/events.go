@@ -50,6 +50,8 @@ type createdEvent struct {
 	Name    string `json:"name"`
 	Profile string `json:"profile"`
 	Cwd     string `json:"cwd"`
+	// Location is "editor" for a terminal made in an editor tab; empty for one in the panel.
+	Location string `json:"location,omitempty"`
 }
 
 type titleEvent struct {
@@ -97,6 +99,8 @@ type listItem struct {
 	Cols   int    `json:"cols"`
 	Rows   int    `json:"rows"`
 	Exited bool   `json:"exited"`
+	// Location is "editor" for a terminal in an editor tab; empty for one in the panel.
+	Location string `json:"location,omitempty"`
 }
 
 type idRequest struct {
@@ -241,7 +245,11 @@ func (t *terminals) handleList(_ context.Context, _ extension.Event) (any, error
 	for _, e := range t.all() {
 		cols, rows := e.term.Size()
 		_, exited := e.term.ExitCode()
-		out.Terminals = append(out.Terminals, listItem{ID: e.term.ID(), Name: t.nameOf(e), Title: t.title(e), Cols: cols, Rows: rows, Exited: exited})
+		item := listItem{ID: e.term.ID(), Name: t.nameOf(e), Title: t.title(e), Cols: cols, Rows: rows, Exited: exited}
+		if e.inEditor() {
+			item.Location = locEditor
+		}
+		out.Terminals = append(out.Terminals, item)
 	}
 	slices.SortFunc(out.Terminals, func(a, b listItem) int { return a.ID - b.ID })
 	return out, nil

@@ -72,6 +72,12 @@ const (
 	settingSugCdPath   = "terminal.integrated.suggest.cdPath"
 	settingSugSpace    = "terminal.integrated.suggest.insertTrailingSpace"
 	settingSugUpArrow  = "terminal.integrated.suggest.upArrowNavigatesHistory"
+
+	// Step 17d.7: where a terminal opens, and the sessions that are kept across a restart.
+	settingDefaultLocation   = "terminal.integrated.defaultLocation"
+	settingPersistent        = "terminal.integrated.enablePersistentSessions"
+	settingReviveProcess     = "terminal.integrated.persistentSessionReviveProcess"
+	settingPersistScrollback = "terminal.integrated.persistentSessionScrollback"
 )
 
 // defaultStickyIgnored are the commands that do not show sticky scroll (VS Code's default of
@@ -193,6 +199,14 @@ func settingSpecs() []extension.SettingSpec {
 			Description: "Defines the maximum number of sticky lines to show. Sticky scroll lines will never exceed 40% of the viewport regardless of this setting."},
 		{Key: settingStickyIgnored, Type: "array", Default: defaultStickyIgnored, Category: cat,
 			Description: "A list of commands that should not trigger sticky scroll. When a command from this list is detected, the sticky scroll overlay will be hidden."},
+		{Key: settingDefaultLocation, Type: "string", Default: "view", Enum: []any{"editor", "view"}, Category: cat,
+			Description: "Controls where newly created terminals will appear. editor: create terminals in the editor; view: create terminals in the terminal view."},
+		{Key: settingPersistent, Type: "boolean", Default: true, Category: cat,
+			Description: "Persist terminal sessions/history for the workspace across restarts of Emetos: the last lines of each terminal are saved when Emetos ends and come back, with a new shell in the same folder, at the next start."},
+		{Key: settingReviveProcess, Type: "string", Default: "onExit", Enum: []any{"onExit", "onExitAndWindowClose", "never"}, Category: cat,
+			Description: "When the terminal process must be shut down (for example on window or application close), this determines when the previous terminal session contents/history should be restored and processes be recreated when the workspace is next opened. onExit and onExitAndWindowClose both revive the sessions when Emetos ends or the window is closed (Emetos has one process for all its windows); never: never restore the terminal buffers or recreate the process."},
+		{Key: settingPersistScrollback, Type: "number", Default: 100.0, Minimum: f(0), Maximum: f(1000), Category: cat,
+			Description: "Controls the maximum amount of lines that will be restored when reconnecting to a persistent terminal session. Increasing this will restore more lines of scrollback at the cost of more memory and increase the time it takes to connect to terminals."},
 		{Key: settingSplitCwd, Type: "string", Default: "inherited", Enum: []any{"workspaceRoot", "initial", "inherited"}, Category: cat,
 			Description: "Controls the working directory a split terminal starts with. workspaceRoot: a new split terminal will use the workspace root as the working directory; initial: a new split terminal will use the working directory that the parent terminal started with; inherited: a new split terminal will use the working directory of the parent terminal."},
 		// terminal IntelliSense (terminalSuggestConfiguration.ts): the settings Emetos has a use for

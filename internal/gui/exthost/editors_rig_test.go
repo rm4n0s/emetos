@@ -3,6 +3,8 @@ package exthost
 import (
 	"strings"
 
+	"github.com/rm4n0s/glutter/ui"
+
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 )
@@ -15,6 +17,10 @@ type fakeEditors struct {
 	revealed []*editorgroup.ExtensionTabInput
 	fileOpen []fileOpen
 	failOpen error
+	// indexes are the places OpenTabAt was asked for, drags the drags begun and failDrag makes BeginDrag fail.
+	indexes  []int
+	drags    []*fakeDrag
+	failDrag error
 	// proposals are the proposed changes the extensions asked to show.
 	proposals   []*fakeProposal
 	failPropose error
@@ -71,6 +77,43 @@ func (f *fakeEditors) OpenTab(in *editorgroup.ExtensionTabInput, group int, _ bo
 	f.opened = append(f.opened, in)
 	f.groups[in] = group
 	return nil
+}
+
+func (f *fakeEditors) OpenTabAt(in *editorgroup.ExtensionTabInput, group, index int) error {
+	f.indexes = append(f.indexes, index)
+	return f.OpenTab(in, group, false)
+}
+
+// fakeDrag is a drag the window shows: it records the pointer, and a drop opens a tab in the group and at the index the test
+// chose (nowhere when dropNone is set).
+type fakeDrag struct {
+	label                string
+	moves                []ui.Offset
+	dropGroup, dropIndex int
+	dropNone             bool
+	ended                bool
+}
+
+func (d *fakeDrag) Move(at ui.Offset) { d.moves = append(d.moves, at) }
+
+func (d *fakeDrag) End(_ ui.Offset, drop bool, open func(group, index int) error) (bool, error) {
+	d.ended = true
+	if !drop || d.dropNone {
+		return false, nil
+	}
+	if err := open(d.dropGroup, d.dropIndex); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (f *fakeEditors) BeginDrag(label string) (DragSession, error) {
+	if f.failDrag != nil {
+		return nil, f.failDrag
+	}
+	d := &fakeDrag{label: label, dropGroup: 2, dropIndex: 1}
+	f.drags = append(f.drags, d)
+	return d, nil
 }
 
 func (f *fakeEditors) CloseTab(in *editorgroup.ExtensionTabInput) { f.closed = append(f.closed, in) }

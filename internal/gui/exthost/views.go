@@ -333,17 +333,31 @@ func (s *Scope) ViewShown(viewID string) {
 }
 
 // SetViewStates gives the scope the state that the views saved in an earlier session (the window state keeps it); the
-// views get it back when their content is provided and shown.
+// views get it back when their content is provided and shown. A view whose content was provided already (an extension that
+// the start activated before the window state was read) gets it at once, on the UI thread's next turn: RestoreState is
+// called, as the box calls it when it is built.
 func (s *Scope) SetViewStates(states map[string]json.RawMessage) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.viewStates == nil {
 		s.viewStates = map[string]json.RawMessage{}
 	}
+	var late []*viewDecl
 	for id, raw := range states {
-		if _, taken := s.viewStates[id]; !taken {
-			s.viewStates[id] = raw
+		if _, taken := s.viewStates[id]; taken {
+			continue
 		}
+		s.viewStates[id] = raw
+		if d := s.viewDecls[id]; d != nil && d.provided && d.content != nil && d.content.RestoreState != nil && len(raw) > 0 {
+			late = append(late, d)
+		}
+	}
+	s.mu.Unlock()
+	if len(late) > 0 {
+		s.post(func() {
+			for _, d := range late {
+				s.restoreView(d)
+			}
+		})
 	}
 }
 

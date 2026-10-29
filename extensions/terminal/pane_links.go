@@ -389,7 +389,7 @@ func (pv *paneView) tooltip(bc widgets.BuildContext) widgets.Widget {
 	a, _ := pv.atlases()
 	seg := h.link.segs[0]
 	row := float64(seg.line - pv.shown.Top)
-	x := padLeft + float64(seg.x0)*a.m.w
+	x := padLeft - pv.hscroll + float64(seg.x0)*a.m.w
 	// above the link, as VS Code shows it, and below it for a link on the first row
 	y := row*a.m.h - 26
 	if y < 0 {

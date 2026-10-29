@@ -249,6 +249,48 @@ func TestTheStateOfATabIsKeptWithTheWindowAndGivenBackOnRestore(t *testing.T) {
 	}
 }
 
+func TestARestoredTabGetsItsContentWhenTheExtensionIsActiveAlready(t *testing.T) {
+	// the start activated the extension, and the window restores its saved tabs after: the kind is provided before the tab is known
+	k := &thingKind{}
+	tb := edTab(t, k, nil)
+	tb.activate()
+	a := apiOf(tb)
+	if _, err := a.Editors().Open("ed.thing", "kept", extension.EditorOpenOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	in := tb.editors.opened[0]
+	k.created[0].state = "kept-later"
+	states := tb.scope.ViewStates()
+	value, _ := in.Serialize()
+	for _, how := range []string{"RegisterTab", "TabBody"} {
+		t.Run(how, func(t *testing.T) {
+			restored, err := editorgroup.ParseExtensionTabInput(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			k2 := &thingKind{}
+			tb2 := edTab(t, k2, nil)
+			tb2.activate()
+			tb2.scope.SetViewStates(states)
+			if how == "RegisterTab" {
+				tb2.scope.RegisterTab(restored)
+			} else {
+				tb2.scope.TabBody(restored)
+			}
+			tb2.pump()
+			if !slices.Equal(k2.states, []string{"kept-later"}) {
+				t.Errorf("Create got %v", k2.states)
+			}
+			// the tab is asked for its body again: the content is made once
+			tb2.scope.TabBody(restored)
+			tb2.scope.RegisterTab(restored)
+			if len(k2.created) != 1 {
+				t.Errorf("%d contents were made", len(k2.created))
+			}
+		})
+	}
+}
+
 func TestClosingATabTellsTheExtensionAndDropsItsState(t *testing.T) {
 	k := &thingKind{}
 	tb := edTab(t, k, nil)
@@ -744,5 +786,177 @@ func TestIsExtensionCommandKnowsTheCommandsOfLiveExtensionsOnly(t *testing.T) {
 	tb.scope.Refresh()
 	if tb.scope.IsExtensionCommand("ed.new") {
 		t.Error("a command of an extension that is turned off counts")
+	}
+}
+
+func TestAnEditorTabChangesItsIconAndColorAndKeepsThemInItsSavedInput(t *testing.T) {
+	k := &thingKind{}
+	tb := edTab(t, k, nil)
+	tb.activate()
+	opened, err := apiOf(tb).Editors().Open("ed.thing", "x", extension.EditorOpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := tb.editors.opened[0]
+	if in.Icon() != "note" || in.IconColor() != "" {
+		t.Fatalf("a new tab has icon %q color %q", in.Icon(), in.IconColor())
+	}
+	opened.SetIcon("rocket", "terminal.ansiRed")
+	if in.Icon() != "rocket" || in.IconColor() != "terminal.ansiRed" {
+		t.Errorf("after SetIcon: icon %q color %q", in.Icon(), in.IconColor())
+	}
+	// the window saves the input with its icon and color, and a restored tab has them
+	value, ok := in.Serialize()
+	if !ok {
+		t.Fatal("the input is not saved")
+	}
+	back, err := editorgroup.ParseExtensionTabInput(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Icon() != "rocket" || back.IconColor() != "terminal.ansiRed" {
+		t.Errorf("the restored input has icon %q color %q", back.Icon(), back.IconColor())
+	}
+	// a tab of an extension that is gone does not change
+	tb.scope.mu.Lock()
+	tb.scope.tabs[in.ID()].inst = nil
+	tb.scope.mu.Unlock()
+	opened.SetIcon("bug", "")
+	if in.Icon() != "rocket" {
+		t.Errorf("a tab with no extension changed its icon to %q", in.Icon())
+	}
+}
+
+func TestTheKeysOfAnEditorTabAreAskedOfItsExtension(t *testing.T) {
+	asked := []string{}
+	kind := extension.EditorKind{Create: func(tab extension.EditorTab, _ json.RawMessage) (extension.EditorTabContent, error) {
+		return extension.EditorTabContent{
+			Build:        func(widgets.BuildContext) widgets.Widget { return widgets.NewSizedBox(nil) },
+			AllowCommand: func(id string) bool { asked = append(asked, id); return id == "ed.allowed" },
+		}, nil
+	}}
+	tb := edTab(t, nil, func(api extension.API) error { return api.Editors().Provide("ed.thing", kind) })
+	tb.activate()
+	tab, err := apiOf(tb).Editors().Open("ed.thing", nil, extension.EditorOpenOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := tabKey(tab.ID())
+	if !tb.scope.ViewAllowsCommand(view, "ed.allowed") || tb.scope.ViewAllowsCommand(view, "ed.other") {
+		t.Error("the answer of the tab is not the one of its AllowCommand")
+	}
+	if !slices.Equal(asked, []string{"ed.allowed", "ed.other"}) {
+		t.Errorf("asked about %v", asked)
+	}
+}
+
+func TestADragOfTheExtensionOpensItsTabWhereTheWindowSaysAndOnlyThen(t *testing.T) {
+	tests := []struct {
+		name       string
+		drop       bool
+		dropNone   bool
+		wantOpened bool
+	}{
+		{"dropped on a place that takes a tab", true, false, true},
+		{"dropped where nothing takes it", true, true, false},
+		{"cancelled", false, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &thingKind{}
+			tb := edTab(t, k, nil)
+			tb.activate()
+			a := apiOf(tb)
+			drag, err := a.Editors().BeginDrag("ed.thing", "A thing", "dragged")
+			if err != nil {
+				t.Fatal(err)
+			}
+			session := tb.editors.drags[0]
+			session.dropNone = tt.dropNone
+			if session.label != "A thing" {
+				t.Errorf("the window shows %q", session.label)
+			}
+			if len(k.created) != 0 {
+				t.Fatalf("a tab was made when the drag began")
+			}
+			drag.Move(gui.Offset{Dx: 5, Dy: 6})
+			opened, err := drag.End(gui.Offset{Dx: 7, Dy: 8}, tt.drop)
+			if err != nil || opened != tt.wantOpened {
+				t.Fatalf("End = %v, %v; want %v", opened, err, tt.wantOpened)
+			}
+			if !session.ended || !slices.Equal(session.moves, []gui.Offset{{Dx: 5, Dy: 6}}) {
+				t.Errorf("the window saw ended %v, moves %v", session.ended, session.moves)
+			}
+			if tt.wantOpened {
+				if len(tb.editors.opened) != 1 || tb.editors.groups[tb.editors.opened[0]] != 2 || !slices.Equal(tb.editors.indexes, []int{1}) {
+					t.Errorf("opened %d tabs, groups %v, indexes %v", len(tb.editors.opened), tb.editors.groups, tb.editors.indexes)
+				}
+				if !slices.Equal(k.states, []string{"dragged"}) {
+					t.Errorf("Create got %v", k.states)
+				}
+			} else if len(tb.editors.opened) != 0 || len(k.created) != 0 {
+				t.Errorf("a tab was made: opened %d, created %d", len(tb.editors.opened), len(k.created))
+			}
+			// a drag ends once
+			if again, err := drag.End(gui.Offset{}, true); again || err != nil {
+				t.Errorf("a second End = %v, %v", again, err)
+			}
+		})
+	}
+}
+
+func TestADragThatTheWindowCannotShowOpenTellsTheTabItsClosed(t *testing.T) {
+	k := &thingKind{}
+	closed := 0
+	kind := k.kind()
+	create := kind.Create
+	kind.Create = func(tab extension.EditorTab, state json.RawMessage) (extension.EditorTabContent, error) {
+		c, err := create(tab, state)
+		c.OnClose = func() { closed++ }
+		return c, err
+	}
+	tb := edTab(t, nil, func(api extension.API) error { return api.Editors().Provide("ed.thing", kind) })
+	tb.activate()
+	drag, err := apiOf(tb).Editors().BeginDrag("ed.thing", "A thing", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tb.editors.failOpen = apperrors.New("NoRoom", "no room")
+	opened, err := drag.End(gui.Offset{}, true)
+	if opened || err == nil {
+		t.Fatalf("End = %v, %v", opened, err)
+	}
+	if closed != 1 || len(apiOf(tb).Editors().Tabs("ed.thing")) != 0 {
+		t.Errorf("OnClose ran %d times, %d tabs are known", closed, len(apiOf(tb).Editors().Tabs("ed.thing")))
+	}
+}
+
+func TestBeginDragErrorsHaveRoutes(t *testing.T) {
+	k := &thingKind{}
+	tb := edTab(t, k, nil)
+	tb.activate()
+	a := apiOf(tb)
+	cases := []struct {
+		name  string
+		err   func() error
+		route string
+	}{
+		{"not provided", func() error { _, err := a.Editors().BeginDrag("ed.nope", "x", nil); return err }, "editorsAPI.BeginDrag.ExtensionEditorKindNotProvided"},
+		{"state that is not JSON", func() error { _, err := a.Editors().BeginDrag("ed.thing", "x", make(chan int)); return err }, "editorsAPI.BeginDrag.ExtensionEditorStateInvalid"},
+		{"no editor area", func() error {
+			tb.scope.opts.Editors = nil
+			defer func() { tb.scope.opts.Editors = tb.editors }()
+			_, err := a.Editors().BeginDrag("ed.thing", "x", nil)
+			return err
+		}, "editorsAPI.BeginDrag.ExtensionEditorsUnavailable"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { route(t, tc.err(), tc.route) })
+	}
+	// the error of the window, another drag going on, is the extension's own
+	refusal := apperrors.New("DragBusy", "busy")
+	tb.editors.failDrag = refusal
+	if _, err := a.Editors().BeginDrag("ed.thing", "x", nil); err != refusal {
+		t.Errorf("the window refused with %v, the extension got %v", refusal, err)
 	}
 }

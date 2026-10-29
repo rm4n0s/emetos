@@ -295,7 +295,7 @@ func (t *terminals) sendSequence(ctx context.Context, args any) {
 			n, _ := strconv.ParseUint(m[2:], 16, 8)
 			return string(rune(n))
 		})
-		if _, _, _, found := t.find(e); found {
+		if t.alive(e) {
 			e.pv.sendText(t.resolveVariables(ctx, value), false, false)
 		}
 	})
@@ -368,8 +368,10 @@ func (t *terminals) resolveVariables(ctx context.Context, text string) string {
 }
 
 // rename is the command Rename...: it asks for the name of the active terminal, which the tab then shows.
-func (t *terminals) rename() {
-	e := t.target()
+func (t *terminals) rename() { t.renameEntry(t.target()) }
+
+// renameEntry asks for the name of a terminal.
+func (t *terminals) renameEntry(e *entry) {
 	if e == nil {
 		return
 	}
@@ -377,7 +379,7 @@ func (t *terminals) rename() {
 		if !ok || strings.TrimSpace(value) == "" {
 			return
 		}
-		if _, _, _, found := t.find(e); found {
+		if t.alive(e) {
 			e.term.SetName(value)
 		}
 	})

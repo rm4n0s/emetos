@@ -180,3 +180,45 @@ func TestEveryKindHasAnIconThatExists(t *testing.T) {
 		}
 	}
 }
+
+// A drag over the text with the list open closes the list at the press and goes on selecting: the list does not take the rest of
+// the drag (the widget is built again when it closes), also when the terminal scrolls sideways (step 17d.7).
+func TestADragWithTheListOpenStillSelects(t *testing.T) {
+	var s session
+	s.prompt("$ ").run("echo alpha beta gamma", "alpha beta gamma\r\n", 0).prompt("$ ")
+	r, _ := suggestPane(t, uitest.Themes()[0], paneSize, s.String()+"git che", nil)
+	r.openList(t)
+	// the first row is the output of the command: a drag from the "b" of beta to the last "a" of gamma
+	row := 0
+	for i := 0; i < r.pv.rows; i++ {
+		if strings.HasPrefix(r.pv.frame.RowText(i), "alpha") {
+			row = i
+		}
+	}
+	from, to := r.cell(6, row), r.cell(15, row)
+	r.ts.DragFrom(from, to.Sub(from))
+	r.settle()
+	if got := r.pv.selectedText(); got != "beta gamma" {
+		t.Errorf("the selection is %q after a drag with the list open", got)
+	}
+	if r.pv.suggestVisible() {
+		t.Errorf("the list is still shown after the press")
+	}
+}
+
+func TestTheListFollowsTheSidewaysScroll(t *testing.T) {
+	var s session
+	s.prompt("$ ")
+	r, _ := suggestPane(t, uitest.Themes()[0], paneSize, s.String()+"git che", func(c *config) {})
+	r.pv.fixedCols = 200 // Toggle Size to Content Width on a terminal wider than its pane
+	r.pv.render.MarkNeedsLayout()
+	r.settle()
+	r.write(t, "")
+	r.openList(t)
+	x := r.pv.sug.sess.x
+	r.pv.scrollX(10)
+	r.settle()
+	if got := r.pv.sug.sess; got == nil || got.x != x-10 {
+		t.Errorf("the list is at %+v after the text scrolled 10 pixels sideways from x=%v: it moves with the text", got, x)
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/painting"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -31,6 +32,12 @@ type EditorHost interface {
 	// OpenTab shows the input in the group with the id (the active group when 0 or gone), making it the active tab
 	// unless inactive.
 	OpenTab(in *editorgroup.ExtensionTabInput, group int, inactive bool) error
+	// OpenTabAt shows the input in the group with the id at an index of its tab strip (the end when index is negative),
+	// making it the active tab and the group the active group.
+	OpenTabAt(in *editorgroup.ExtensionTabInput, group, index int) error
+	// BeginDrag starts the drag of something that becomes a tab when it is dropped (EditorDrag): the window shows label at
+	// the pointer and where a tab would go. It fails when another drag is going on.
+	BeginDrag(label string) (DragSession, error)
 	// CloseTab closes the tab without asking.
 	CloseTab(in *editorgroup.ExtensionTabInput)
 	// RevealTab makes the tab the active tab of its group, and the group the active group; with focus the keyboard focus
@@ -47,6 +54,16 @@ type EditorHost interface {
 	// side), rejects, or closes the tab (a rejection). The function it returns closes the tab and the answer is never
 	// called after that; it does nothing once the user answered.
 	OpenProposed(change extension.ProposedChange, answer func(extension.ProposedResult)) (closeTab func(), err error)
+}
+
+// DragSession is a drag of the window that an extension began (EditorHost.BeginDrag).
+type DragSession interface {
+	// Move follows the pointer, at a position of the window.
+	Move(at ui.Offset)
+	// End ends the drag with the pointer at a position. With drop, and the pointer over the tab strip or the editor area of a
+	// group, open is called with the group where the tab goes (a new group beside the one under the pointer at the edges of
+	// its area) and the index among its tabs (negative for the end), and End reports true when open returned no error.
+	End(at ui.Offset, drop bool, open func(group, index int) error) (bool, error)
 }
 
 // LanguageSource is what the window offers of its languages: the grammar of a language, for highlighting.
@@ -243,6 +260,7 @@ func (s *Scope) EditorActions(keys contextkey.Context) []EditorAction {
 // extension is activated when its box is on screen.
 func (s *Scope) TabBody(in *editorgroup.ExtensionTabInput) widgets.Widget {
 	t := s.registerTab(in)
+	s.ensureContent(t)
 	s.mu.Lock()
 	sl := t.decl.slot
 	state := StateInactive
@@ -294,7 +312,25 @@ func (s *Scope) DeclaresEditorKind(extensionID, kindID string) bool {
 
 // RegisterTab makes the scope know the tab of an input (the window calls it when it makes the editor of a restored or a
 // copied tab, before the tab is on screen), so that the extension can be told of it when it is activated.
-func (s *Scope) RegisterTab(in *editorgroup.ExtensionTabInput) { s.registerTab(in) }
+func (s *Scope) RegisterTab(in *editorgroup.ExtensionTabInput) { s.ensureContent(s.registerTab(in)) }
+
+// ensureContent makes the content of a tab that is known to the scope when its kind is provided already and the tab has none: a
+// tab restored from the window state, whose extension the start activated before the window read its state. A tab whose
+// kind is not provided yet gets its content when the kind is.
+func (s *Scope) ensureContent(t *editorTab) {
+	s.mu.Lock()
+	kd := s.kindDecls[t.input.Kind()]
+	ok := t.decl.content == nil && t.inst == nil && kd != nil && kd.provided != nil && kd.inst != nil && !kd.inst.isDead() && kd.slot == t.decl.slot
+	raw := slices.Clone(s.viewStates[t.decl.id])
+	s.mu.Unlock()
+	if !ok {
+		return
+	}
+	if err := s.makeContent(t, kd, raw); err != nil {
+		kd.inst.log.Warn("an editor tab could not be restored", "kind", t.input.Kind(), "tab", t.input.ID(), "err", err)
+		s.showTabError(t, err)
+	}
+}
 
 // registerTab makes the tab of an input known to the scope, once; the content comes when the extension provides the kind.
 func (s *Scope) registerTab(in *editorgroup.ExtensionTabInput) *editorTab {
@@ -415,7 +451,7 @@ func (s *Scope) makeContent(t *editorTab, kd *kindDecl, raw json.RawMessage) (er
 	s.mu.Lock()
 	t.inst = inst
 	t.onClose = content.OnClose
-	t.decl.content = &extension.ViewContent{Build: content.Build, SaveState: content.SaveState}
+	t.decl.content = &extension.ViewContent{Build: content.Build, SaveState: content.SaveState, AllowCommand: content.AllowCommand}
 	t.decl.inst = inst
 	t.decl.provided = true
 	s.mu.Unlock()
@@ -459,6 +495,13 @@ func (t *editorTab) SetHint(hint string) {
 func (t *editorTab) SetDirty(dirty bool) {
 	if t.live() {
 		t.input.SetDirty(dirty)
+	}
+}
+
+// SetIcon implements extension.EditorTab.
+func (t *editorTab) SetIcon(icon, color string) {
+	if t.live() {
+		t.input.SetIcon(icon, color)
 	}
 }
 
@@ -637,13 +680,105 @@ func (e editorsAPI) Open(kindID string, state any, opts extension.EditorOpenOpti
 	return t, nil
 }
 
+// BeginDrag implements extension.Editors.
+func (e editorsAPI) BeginDrag(kindID, label string, state any) (extension.EditorDrag, error) {
+	in := e.inst
+	if in.isDead() {
+		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	s := in.scope
+	host := s.opts.Editors
+	if host == nil {
+		return nil, errors.New("ExtensionEditorsUnavailable", "the scope has no editor area", "extension", in.id)
+	}
+	s.mu.Lock()
+	kd := s.kindDecls[kindID]
+	ok := kd != nil && kd.slot == in.slot && kd.provided != nil && kd.inst == in
+	s.mu.Unlock()
+	if !ok {
+		return nil, errors.New("ExtensionEditorKindNotProvided", "the activation did not provide this editor kind", "extension", in.id, "kind", kindID)
+	}
+	var raw json.RawMessage
+	if state != nil {
+		data, err := json.Marshal(state)
+		if err != nil {
+			return nil, errors.NewErr("ExtensionEditorStateInvalid", err).SetMetadata("extension", in.id, "kind", kindID)
+		}
+		raw = data
+	}
+	session, err := host.BeginDrag(label)
+	if err != nil {
+		return nil, err
+	}
+	return &editorDrag{inst: in, kd: kd, session: session, raw: raw}, nil
+}
+
+// editorDrag is the extension.EditorDrag of a drag the window shows.
+type editorDrag struct {
+	inst    *instance
+	kd      *kindDecl
+	session DragSession
+	raw     json.RawMessage
+	done    bool
+}
+
+// Move implements extension.EditorDrag.
+func (d *editorDrag) Move(pos ui.Offset) {
+	if !d.done {
+		d.session.Move(pos)
+	}
+}
+
+// End implements extension.EditorDrag.
+func (d *editorDrag) End(pos ui.Offset, drop bool) (bool, error) {
+	if d.done {
+		return false, nil
+	}
+	d.done = true
+	s := d.inst.scope
+	return d.session.End(pos, drop && !d.inst.isDead(), func(group, index int) error {
+		return s.openMade(d.inst, d.kd, d.raw, group, index)
+	})
+}
+
+// openMade makes a tab of the kind with the state and shows it in a group at an index.
+func (s *Scope) openMade(in *instance, kd *kindDecl, raw json.RawMessage, group, index int) error {
+	host := s.opts.Editors
+	input := editorgroup.NewExtensionTabInput(in.id, kd.spec.ID, newTabID(), kd.spec.Name, kd.spec.Icon)
+	t := s.registerTab(input)
+	if len(raw) > 0 {
+		s.mu.Lock()
+		if s.viewStates == nil {
+			s.viewStates = map[string]json.RawMessage{}
+		}
+		s.viewStates[t.decl.id] = slices.Clone(raw)
+		s.mu.Unlock()
+	}
+	if err := s.makeContent(t, kd, raw); err != nil {
+		s.dropTab(t)
+		return err
+	}
+	if err := host.OpenTabAt(input, group, index); err != nil {
+		s.dropTab(t)
+		return err
+	}
+	return nil
+}
+
 // dropTab forgets a tab that was never shown.
 func (s *Scope) dropTab(t *editorTab) {
 	s.mu.Lock()
 	delete(s.tabs, t.input.ID())
 	delete(s.viewDecls, t.decl.id)
 	delete(s.viewStates, t.decl.id)
+	onClose, inst := t.onClose, t.inst
+	t.onClose = nil
 	s.mu.Unlock()
+	// a tab whose content was made and that could not be shown is closed for good: the extension that took something into it
+	// (a terminal moved to an editor) is told
+	if onClose != nil && inst != nil && !inst.isDead() {
+		s.runTabCallback(inst, t, "OnClose", onClose)
+	}
 }
 
 // Tabs implements extension.Editors.

@@ -194,7 +194,7 @@ func (pv *paneView) scheduleInputGeometry(a *atlas, off gui.Offset) {
 	r := pv.render
 	conn := pv.ime.conn
 	cur := pv.frame.Cursor
-	rect := gui.NewRectFromLTWH(padLeft+float64(cur.X)*a.m.w, float64(cur.Y)*a.m.h, a.m.w, a.m.h)
+	rect := gui.NewRectFromLTWH(padLeft-pv.hscroll+float64(cur.X)*a.m.w, float64(cur.Y)*a.m.h, a.m.w, a.m.h)
 	scheduler := pv.binding.Scheduler()
 	scheduler.AddPostFrameCallback(func(time.Duration) {
 		if !conn.Attached() || !r.Attached() {
@@ -240,7 +240,7 @@ func (pv *paneView) blinkTick() {
 // cellAt is the cell under a point of the pane, clamped to the grid.
 func (pv *paneView) cellAt(p gui.Offset) (col, row int) {
 	a, _ := pv.atlases()
-	col = int((p.Dx - padLeft) / a.m.w)
+	col = int((p.Dx - padLeft + pv.hscroll) / a.m.w)
 	row = int(p.Dy / a.m.h)
 	return min(max(col, 0), max(pv.cols-1, 0)), min(max(row, 0), max(pv.rows-1, 0))
 }
@@ -494,7 +494,15 @@ func (pv *paneView) onPointerSignal(e gestures.PointerSignalEvent) {
 		return
 	}
 	dy := scroll.ScrollDelta().Dy
+	if dx := scroll.ScrollDelta().Dx; dx != 0 && pv.fixedCols > 0 {
+		pv.binding.Gestures().PointerSignalResolver.Register(e, func(gestures.PointerSignalEvent) { pv.scrollX(dx) })
+		return
+	}
 	if dy == 0 {
+		return
+	}
+	if pv.fixedCols > 0 && pv.modsOf()&emulator.ModShift != 0 {
+		pv.binding.Gestures().PointerSignalResolver.Register(e, func(gestures.PointerSignalEvent) { pv.scrollX(dy) })
 		return
 	}
 	pv.binding.Gestures().PointerSignalResolver.Register(e, func(gestures.PointerSignalEvent) { pv.wheel(scroll, dy) })

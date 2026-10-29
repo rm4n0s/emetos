@@ -21,13 +21,21 @@ type extRig struct {
 	api *fakeapi.API
 	ext *terminals
 	dir string
+	// cancel ends the context of the activation.
+	cancel context.CancelFunc
 }
 
 // newExtRig activates the extension in a folder; profile is the program of the default profile ("" is the test shell) and
 // args its arguments. The shells see the isolated environment of the tests.
 func newExtRig(t *testing.T, profile string, args ...string) *extRig {
 	t.Helper()
-	dir := t.TempDir()
+	return newExtRigAt(t, t.TempDir(), nil, profile, args...)
+}
+
+// newExtRigAt is newExtRig in a folder that may have been used before; before is called on the fake API before the extension
+// is activated (to give it the state of an earlier session, say).
+func newExtRigAt(t *testing.T, dir string, before func(*fakeapi.API), profile string, args ...string) *extRig {
+	t.Helper()
 	if profile == "" {
 		profile = testShell(t)
 	}
@@ -35,12 +43,15 @@ func newExtRig(t *testing.T, profile string, args ...string) *extRig {
 	api := fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "project", Folder: dir, ID: dir})
 	api.SetSetting(settingProfiles, map[string]any{"test": map[string]any{"path": profile, "args": args}})
 	api.SetSetting(settingDefaultProfile, "test")
+	if before != nil {
+		before(api)
+	}
 	e.env = environ{vars: isolatedEnv(t), lookPath: exec.LookPath, home: dir}
 	ctx, cancel := context.WithCancel(context.Background())
 	if err := e.Activate(ctx, api); err != nil {
 		t.Fatal(err)
 	}
-	r := &extRig{t: t, api: api, ext: e, dir: dir}
+	r := &extRig{t: t, api: api, ext: e, dir: dir, cancel: cancel}
 	t.Cleanup(func() {
 		cancel()
 		for _, en := range e.all() {

@@ -20,6 +20,51 @@ func (e *Emulator) Serialize(scrollback int) []byte {
 	return w.out
 }
 
+// SerializeText writes the text of the main buffer, the last scrollback lines of it and the lines of the screen down to the
+// cursor or the last line that holds something, with their styles, wide characters, clusters, hyperlinks and the wrapping of
+// long lines, and nothing of the modes, the cursor look, the scroll region, the tab stops, the title or the colors a program
+// set, and never the alternate screen: it is what a terminal shows of a session that is over, to be written to a new
+// terminal before a new program starts (SPEC §10.25 "Persistent sessions"). The cursor ends after the last character
+// written. scrollback is the number of scrollback lines (all of them when negative). A terminal with nothing on it gives
+// an empty result.
+func (e *Emulator) SerializeText(scrollback int) []byte {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	w := &serializer{e: e}
+	main := e.mainScr
+	last := -1
+	for i := main.ring.n - 1; i >= 0; i-- {
+		if !lineBlank(main.ring.at(i)) {
+			last = i
+			break
+		}
+	}
+	if cur := main.ring.n - main.rows + main.y; cur > last {
+		last = cur
+	}
+	first := 0
+	if sb := main.scrollbackLen(); scrollback >= 0 && sb > scrollback {
+		first = sb - scrollback
+	}
+	if last < first || (last == first && lineBlank(main.ring.at(first))) {
+		return nil
+	}
+	for i := first; i <= last; i++ {
+		l := main.ring.at(i)
+		var next *line
+		if i+1 <= last {
+			next = main.ring.at(i + 1)
+		}
+		w.writeLine(l, next)
+		if i < last && !continues(l, next) {
+			w.resetPen()
+			w.str("\r\n")
+		}
+	}
+	w.resetPen()
+	return w.out
+}
+
 type serializer struct {
 	e   *Emulator
 	out []byte

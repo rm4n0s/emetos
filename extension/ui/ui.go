@@ -43,6 +43,9 @@ func TokenLooker(bc widgets.BuildContext) func(scopes []string, fallback ui.Colo
 // CodiconCode returns the code point of the Codicon with a short name ("checklist", "play"); false when there is none.
 func CodiconCode(name string) (int, bool) { return fonts.CodiconByName(name) }
 
+// CodiconNames lists the short names of every Codicon, sorted, for a picker of icons.
+func CodiconNames() []string { return fonts.CodiconNames() }
+
 // Icon is the Codicon with the name as a widget of a size and a color. An unknown name shows nothing.
 func Icon(name string, size float64, color ui.Color) widgets.Widget {
 	code, ok := fonts.CodiconByName(name)

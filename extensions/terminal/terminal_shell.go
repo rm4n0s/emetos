@@ -142,7 +142,7 @@ func (t *terminals) hookShell(e *entry) {
 
 // commandFinished takes the quick fixes of the command that ended, replacing the ones of the one before.
 func (t *terminals) commandFinished(e *entry, start emulator.MarkerID, fixes []quickFix) {
-	if _, _, _, ok := t.find(e); !ok {
+	if !t.alive(e) {
 		return
 	}
 	if len(fixes) == 0 {

@@ -450,6 +450,27 @@ func TestTheStateSurvivesARestart(t *testing.T) {
 	vt.pump()
 }
 
+func TestAStateThatComesAfterTheViewWasProvidedIsHandedToIt(t *testing.T) {
+	// the extension is activated by the start, and the window state is read after it: the content that was provided gets the
+	// state at once, once
+	vt := newViewTab(t, nil)
+	vt.scope.Start()
+	vt.show("vx.list")
+	vt.state = ""
+	vt.log.restore = nil
+	vt.scope.SetViewStates(map[string]json.RawMessage{"vx.list": json.RawMessage(`{"filter":"late"}`)})
+	vt.pump()
+	if !slices.Equal(vt.log.restore, []string{"late"}) || vt.state != "late" {
+		t.Errorf("restored = %v, state %q", vt.log.restore, vt.state)
+	}
+	// a second state for the same view is not taken: the first one stays
+	vt.scope.SetViewStates(map[string]json.RawMessage{"vx.list": json.RawMessage(`{"filter":"other"}`)})
+	vt.pump()
+	if !slices.Equal(vt.log.restore, []string{"late"}) {
+		t.Errorf("restored = %v after a second state", vt.log.restore)
+	}
+}
+
 func TestAViewThatSavesNothingKeepsNoState(t *testing.T) {
 	f, _ := factory(viewsManifest(), func(f *fake) {
 		f.activate = func(_ context.Context, api extension.API) error {

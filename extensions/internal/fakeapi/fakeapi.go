@@ -49,6 +49,9 @@ type API struct {
 	windowKindID      string
 	windowTab         *WindowTab
 	tabs              []*Tab
+	drags             []*Drag
+	failEditorOpen    bool
+	viewStates        map[string]json.RawMessage
 	proposals         []*Proposal
 	fileViews         map[string]extension.FileViewProvider
 	fileViewOpens     []FileViewOpen
@@ -797,8 +800,38 @@ func (v views) Provide(id string, c extension.ViewContent) (extension.ViewHandle
 	view := &View{ID: id, Content: c}
 	v.a.mu.Lock()
 	v.a.views[id] = view
+	saved := v.a.viewStates[id]
 	v.a.mu.Unlock()
+	// the host gives the content the state it saved in the session before, as soon as it is provided
+	if len(saved) > 0 && c.RestoreState != nil {
+		if err := c.RestoreState(append(json.RawMessage(nil), saved...)); err != nil {
+			v.a.logger.Warn("a view could not restore its state", "view", id, "err", err)
+		}
+	}
 	return viewHandle{view}, nil
+}
+
+// SetViewState gives a view the state it saved in an earlier session: Provide hands it to RestoreState, as the host does.
+func (a *API) SetViewState(viewID string, raw json.RawMessage) {
+	a.mu.Lock()
+	if a.viewStates == nil {
+		a.viewStates = map[string]json.RawMessage{}
+	}
+	a.viewStates[viewID] = raw
+	a.mu.Unlock()
+}
+
+// State asks the content of the view for the state it saves, as JSON (nil for none).
+func (v *View) State() json.RawMessage {
+	if v.Content.SaveState == nil {
+		return nil
+	}
+	val, err := v.Content.SaveState()
+	if err != nil || val == nil {
+		return nil
+	}
+	data, _ := json.Marshal(val)
+	return data
 }
 
 type viewHandle struct{ v *View }

@@ -55,6 +55,7 @@ type App struct {
 	// Env are the variables of the process, which the helpers (grim) share for the socket of the compositor.
 	root    string
 	bin     string
+	args    []string
 	env     []string
 	devPath string
 	logPath string
@@ -209,13 +210,8 @@ func Start(t *testing.T, opts Options) *App {
 
 	a.devPath = filepath.Join(root, "run", "dev.sock")
 	a.logPath = filepath.Join(root, "emetos.log")
-	logFile, err := os.Create(a.logPath)
-	if err != nil {
-		t.Fatal(err)
-	}
 	a.bin = bin
-	cmd := exec.Command(bin, opts.Args...)
-	cmd.Dir = a.Project
+	a.args = opts.Args
 	a.env = append([]string{
 		"PATH=" + os.Getenv("PATH"),
 		"HOME=" + filepath.Join(root, "home"),
@@ -230,19 +226,7 @@ func Start(t *testing.T, opts Options) *App {
 		"DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent/bus",
 		"LANG=C.UTF-8",
 	}, opts.Env...)
-	cmd.Env = append(append([]string(nil), a.env...), app.DevSocketEnv+"="+a.devPath)
-	cmd.Stdout, cmd.Stderr = logFile, logFile
-	// its own process group, so that the whole group can be stopped
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("starting emetos: %v", err)
-	}
-	a.cmd = cmd
-	go func() {
-		_ = cmd.Wait()
-		_ = logFile.Close()
-		close(a.done)
-	}()
+	a.spawn(opts.Args)
 	t.Cleanup(a.stop)
 	t.Cleanup(func() {
 		if t.Failed() {
@@ -252,6 +236,69 @@ func Start(t *testing.T, opts Options) *App {
 
 	a.waitUp(ctx)
 	return a
+}
+
+// spawn starts the editor process with the arguments, in its own process group, and keeps its output in the log (the log of an
+// earlier run of the same App stays, and the new one follows it).
+func (a *App) spawn(args []string) {
+	t := a.t
+	t.Helper()
+	logFile, err := os.OpenFile(a.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Remove(a.devPath) // the socket of an earlier run
+	cmd := exec.Command(a.bin, args...)
+	cmd.Dir = a.Project
+	cmd.Env = append(append([]string(nil), a.env...), app.DevSocketEnv+"="+a.devPath)
+	cmd.Stdout, cmd.Stderr = logFile, logFile
+	// its own process group, so that the whole group can be stopped
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("starting emetos: %v", err)
+	}
+	done := make(chan struct{})
+	a.cmd, a.done = cmd, done
+	go func() {
+		_ = cmd.Wait()
+		_ = logFile.Close()
+		close(done)
+	}()
+}
+
+// Quit closes the window of the editor as the user does, with the window manager's own command, and waits until the process
+// has ended: the state of the window is written by then. The test fails when the editor does not end within 20 seconds.
+func (a *App) Quit() {
+	a.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := realinput.SwayCommand(ctx, "[pid="+itoa(a.cmd.Process.Pid)+"] kill"); err != nil {
+		a.t.Fatalf("closing the window: %v", err)
+	}
+	select {
+	case <-a.done:
+	case <-ctx.Done():
+		a.t.Fatalf("emetos did not end after its window was closed:\n%s", a.Log())
+	}
+	a.mu.Lock()
+	if a.dev != nil {
+		_ = a.dev.Close()
+	}
+	a.dev, a.reader = nil, nil
+	a.mu.Unlock()
+}
+
+// Restart starts the editor again after Quit, in the same folders, with the arguments of the first start (or args when given):
+// a user who quit and started Emetos again.
+func (a *App) Restart(args ...string) {
+	a.t.Helper()
+	if len(args) == 0 {
+		args = a.args
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	a.spawn(args)
+	a.waitUp(ctx)
 }
 
 func envOr(name, fallback string) string {
@@ -554,6 +601,13 @@ type TerminalState struct {
 	SuggestDetails bool     `json:"suggestDetails"`
 	SuggestX       float64  `json:"suggestX"`
 	SuggestY       float64  `json:"suggestY"`
+
+	// Location is "view" for a terminal in the panel and "editor" for one in a tab of the editor area; Title, Icon and IconColor
+	// are its tab's (step 17d.7).
+	Location  string `json:"location"`
+	Title     string `json:"title"`
+	Icon      string `json:"icon"`
+	IconColor string `json:"iconColor"`
 }
 
 // TerminalDecoMark is one decoration of the gutter of a terminal on screen.

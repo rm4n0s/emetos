@@ -122,6 +122,7 @@ func (t *terminals) groupWidget(g *group, colors ui.Colors) widgets.Widget {
 // box-drawing lines VS Code draws before their names.
 func (t *terminals) tabsWidget(bc widgets.BuildContext, colors ui.Colors) widgets.Widget {
 	var rows []widgets.Widget
+	index := 0
 	for gi, g := range t.groups {
 		for ei, e := range g.entries {
 			prefix := ""
@@ -135,7 +136,8 @@ func (t *terminals) tabsWidget(bc widgets.BuildContext, colors ui.Colors) widget
 					prefix = "├ "
 				}
 			}
-			rows = append(rows, t.tabRow(colors, gi == t.cur && ei == g.active, prefix, e))
+			rows = append(rows, t.tabRow(colors, gi == t.cur && ei == g.active, prefix, e, index))
+			index++
 		}
 	}
 	list := widgets.NewColumn(rows, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
@@ -151,7 +153,7 @@ func (t *terminals) tabsWidget(bc widgets.BuildContext, colors ui.Colors) widget
 // tabRow is the row of a terminal in the tabs list: its icon, its title, and, while the pointer is over the row, the buttons
 // that split and kill it. A click selects the terminal, a click with the middle button kills it and the secondary button opens
 // the context menu.
-func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entry) widgets.Widget {
+func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entry, index int) widgets.Widget {
 	hovered := false
 	return widgets.NewStatefulBuilder(func(bc widgets.BuildContext, setState widgets.StateSetter) widgets.Widget {
 		fg := colors.Foreground
@@ -165,15 +167,12 @@ func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entr
 		case hovered:
 			bg = colors.ListHoverBackground
 		}
-		icon := e.term.Meta().icon
-		if icon == "" {
-			icon = t.cfg.defaultIcon
-		}
-		if _, ok := ui.CodiconCode(icon); !ok {
-			icon = "terminal"
+		iconColor := fg
+		if c, ok := ansiColor(colors, e.term.Meta().color); ok {
+			iconColor = c
 		}
 		cells := []widgets.Widget{
-			ui.Icon(icon, 14, fg),
+			ui.Icon(t.tabIconOf(e), 14, iconColor),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(6.0)}),
 			widgets.NewExpanded(widgets.NewText(prefix+t.title(e), widgets.TextOpts{
 				Style: ui.TextStyle(bc, 13, fg), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis,
@@ -199,21 +198,28 @@ func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entr
 				})),
 			}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 		}
-		row := widgets.NewContainer(line, widgets.ContainerOpts{
+		row := widgets.Widget(widgets.NewContainer(line, widgets.ContainerOpts{
 			Height: foundation.Some(height), Padding: painting.NewEdgeInsetsSymmetric(0, 8), Color: foundation.Some(bg),
-		})
+		}))
+		row = t.dropMark(colors, row, e)
 		set := func(v bool) {
 			if hovered != v {
 				setState(func() { hovered = v })
 			}
 		}
-		return widgets.NewMouseRegion(widgets.NewGestureDetector(row, widgets.GestureDetectorOpts{
+		tracked := widgets.NewListener(widgets.NewGestureDetector(row, widgets.GestureDetectorOpts{
 			OnTap:              func() { t.focusEntry(e, false) },
 			OnSecondaryTapDown: func(d gestures.TapDownDetails) { t.focusEntry(e, false); t.showMenuAt(e, d.GlobalPosition) },
 			OnTertiaryTapDown:  func(gestures.TapDownDetails) { t.kill(e) },
-		}), widgets.MouseRegionOpts{
-			OnEnter: func(*gestures.PointerEnterEvent) { set(true) }, OnHover: func(*gestures.PointerHoverEvent) { set(true) }, OnExit: func(*gestures.PointerExitEvent) { set(false) },
+		}), widgets.ListenerOpts{
+			OnPointerDown:   func(ev *gestures.PointerDownEvent) { t.tabPointerDown(ev, e, index) },
+			OnPointerMove:   t.tabPointerMove,
+			OnPointerUp:     t.tabPointerUp,
+			OnPointerCancel: t.tabPointerCancel,
 		})
+		return ui.NewHover(widgets.NewMouseRegion(tracked, widgets.MouseRegionOpts{
+			OnEnter: func(*gestures.PointerEnterEvent) { set(true) }, OnHover: func(*gestures.PointerHoverEvent) { set(true) }, OnExit: func(*gestures.PointerExitEvent) { set(false) },
+		}), ui.HoverOpts{Text: t.hoverText(e), Compact: true})
 	})
 }
 
@@ -229,11 +235,12 @@ func (t *terminals) showMenu(pv *paneView, at gui.Offset) {
 	}
 }
 
-// showMenuAt opens the context menu of a terminal at a place of the window: Copy, Paste, Select All, Clear, Split and Kill
-// (SPEC §10.25 "The UI").
+// showMenuAt opens the context menu of a terminal at a place of the window: Copy, Paste, Select All, Clear, then what the tab
+// of the terminal offers (Split, Unsplit, Move into the editor area or back into the panel, Rename, Change Icon, Change Color)
+// and Kill (SPEC §10.25 "The UI", "The rest of the tabs list").
 func (t *terminals) showMenuAt(e *entry, at gui.Offset) {
 	pv := e.pv
-	t.menu.Show(at, []ui.MenuItem{
+	items := []ui.MenuItem{
 		{ID: "copy", Label: "Copy", Keybinding: "Ctrl+Shift+C", Disabled: !pv.hasSelection(), OnRun: pv.copySelection},
 		{ID: "paste", Label: "Paste", Keybinding: "Ctrl+Shift+V", OnRun: pv.pasteClipboard},
 		{ID: "selectAll", Label: "Select All", OnRun: pv.selectAll},
@@ -241,14 +248,33 @@ func (t *terminals) showMenuAt(e *entry, at gui.Offset) {
 		{ID: "clear", Label: "Clear", OnRun: pv.clear},
 		ui.SeparatorItem(),
 		{ID: "split", Label: "Split Terminal", Keybinding: "Ctrl+Shift+5", OnRun: func() { t.splitFrom(e) }},
-		{ID: "kill", Label: "Kill Terminal", OnRun: func() { t.kill(e) }},
-	})
+	}
+	if g := groupOf(t, e); g != nil && len(g.entries) > 1 {
+		items = append(items, ui.MenuItem{ID: "unsplit", Label: "Unsplit Terminal", OnRun: func() { t.unsplit(e) }})
+	}
+	if e.inEditor() {
+		items = append(items, ui.MenuItem{ID: "moveToPanel", Label: "Move Terminal into Panel", OnRun: func() { t.moveToPanel(e) }})
+	} else {
+		items = append(items, ui.MenuItem{ID: "moveToEditor", Label: "Move Terminal into Editor Area", OnRun: func() { t.moveToEditor(e) }})
+	}
+	items = append(items,
+		ui.SeparatorItem(),
+		ui.MenuItem{ID: "rename", Label: "Rename...", OnRun: func() { t.renameEntry(e) }},
+		ui.MenuItem{ID: "changeIcon", Label: "Change Icon...", OnRun: func() { t.changeIcon(e) }},
+		ui.MenuItem{ID: "changeColor", Label: "Change Color...", OnRun: func() { t.changeColor(e) }},
+		ui.SeparatorItem(),
+		ui.MenuItem{ID: "kill", Label: "Kill Terminal", OnRun: func() { t.kill(e) }})
+	t.menu.Show(at, items)
 }
 
 // splitFrom puts a new terminal beside one, in its tab.
 func (t *terminals) splitFrom(e *entry) {
 	t.focusEntry(e, false)
-	if _, err := t.open(openOpts{split: true}); err != nil {
+	o := openOpts{split: true}
+	if e.inEditor() {
+		o.location = locEditor
+	}
+	if _, err := t.open(o); err != nil {
 		t.api.Log().Warn("the terminal cannot be split", "err", err)
 	}
 }

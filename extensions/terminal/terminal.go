@@ -50,6 +50,13 @@ func commandSpecs() []extension.CommandSpec {
 		c(CmdSelectNextPageSuggest, "Select the Next Page Suggestion"), c(CmdSelectPrevPageSuggest, "Select the Previous Page Suggestion"),
 		c(CmdAcceptSuggest, "Accept Selected Suggestion"), c(CmdAcceptSuggestEnter, "Accept Selected Suggestion (Enter)"),
 		c(CmdToggleSuggestDetails, "Toggle Suggestion Details"),
+		// terminals in the editor area and the rest of the tabs list (step 17d.7)
+		c(CmdCreateEditor, "Create New Terminal in Editor Area"), c(CmdMoveToEditor, "Move Terminal into Editor Area"),
+		c(CmdMoveToPanel, "Move Terminal into Panel"), c(CmdKillEditor, "Kill the Active Terminal in Editor Area"),
+		c(CmdChangeIcon, "Change Icon..."), c(CmdChangeColor, "Change Color..."), c(CmdJoin, "Join Terminals..."),
+		c(CmdUnsplit, "Unsplit Terminal"), c(CmdKillAll, "Kill All Terminals"),
+		c(CmdNewWithCwd, "Create New Terminal Starting in a Custom Working Directory"),
+		c(CmdSizeToContentWid, "Toggle Size to Content Width"),
 	}
 	for i := 1; i <= 9; i++ {
 		specs = append(specs, c(focusAtIndex(i), "Focus Terminal "+string(rune('0'+i))))
@@ -66,6 +73,9 @@ func keybindings() []extension.Keybinding {
 		{Command: CmdToggle, Key: "ctrl+`"},
 		{Command: CmdNew, Key: "ctrl+shift+`"},
 		{Command: CmdSplit, Key: "ctrl+shift+5", When: inTerminal},
+		// terminals in the editor area (terminalActions.ts: killEditor, sizeToContentWidth)
+		{Command: CmdKillEditor, Key: "ctrl+w", When: inTerminal + " && " + keyEditorFocus},
+		{Command: CmdSizeToContentWid, Key: "alt+z", When: inTerminal},
 		{Command: CmdFocusPrevPane, Key: "alt+left", When: inTerminal + " && " + keySplitPaneActive},
 		{Command: CmdFocusPrevPane, Key: "alt+up", When: inTerminal + " && " + keySplitPaneActive},
 		{Command: CmdFocusNextPane, Key: "alt+right", When: inTerminal + " && " + keySplitPaneActive},
@@ -141,6 +151,7 @@ func (*terminals) Manifest() extension.Manifest {
 			Settings:    settingSpecs(),
 			ContextKeys: contextKeys,
 			PanelViews:  []extension.PanelViewSpec{{ID: ViewID, Title: "Terminal", Icon: "terminal", Order: 3}},
+			EditorKinds: []extension.EditorKindSpec{editorKind()},
 			// (the events below are what the extension follows to know the editor in front)
 			ViewActions: []extension.ViewActionSpec{
 				{View: ViewID, Command: CmdNew, Icon: "add", Tooltip: "New Terminal", Order: 1},
@@ -178,12 +189,13 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	t.handle, err = api.Views().Provide(ViewID, extension.ViewContent{
 		Build:        t.build,
 		AllowCommand: t.allowCommand,
-		SaveState: func() (any, error) {
-			t.visible, t.suppressOpen = false, false
-			return nil, nil
-		},
+		SaveState:    t.viewState,
+		RestoreState: t.viewRestore,
 	})
 	if err != nil {
+		return err
+	}
+	if err := api.Editors().Provide(EditorKindID, extension.EditorKind{Create: t.createTab}); err != nil {
 		return err
 	}
 	api.Settings().OnChange(t.settingsChanged)
@@ -200,6 +212,12 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	if err := t.registerRequests(); err != nil {
 		return err
 	}
+	// the terminals of the session before come back before the first frame of the panel
+	if t.saved != nil {
+		t.restoreSession(t.saved)
+		t.saved = nil
+	}
+	t.activated = true
 	t.syncKeys()
 	return nil
 }
@@ -222,6 +240,9 @@ func (t *terminals) target() *entry {
 	if t.paneFocus != nil {
 		return t.paneFocus
 	}
+	if t.lastEditor != nil && t.alive(t.lastEditor) {
+		return t.lastEditor
+	}
 	return t.activeEntry()
 }
 
@@ -240,11 +261,17 @@ func (t *terminals) handlers() map[string]extension.CommandHandler {
 		CmdNew:            func(_ context.Context, args any) error { t.newTerminal(args); return nil },
 		CmdNewWithProfile: func(context.Context, any) error { t.pickProfile(); return nil },
 		CmdSplit: func(context.Context, any) error {
-			if t.activeEntry() == nil {
+			cur := t.target()
+			if cur == nil {
 				t.newTerminal(nil)
 				return nil
 			}
-			if _, err := t.open(openOpts{split: true}); err != nil {
+			o := openOpts{split: true}
+			if cur.inEditor() {
+				// the split of a terminal in an editor tab is another terminal in an editor tab
+				o.location = locEditor
+			}
+			if _, err := t.open(o); err != nil {
 				t.api.Log().Warn("the terminal cannot be split", "err", err)
 			}
 			return nil
@@ -263,12 +290,23 @@ func (t *terminals) handlers() map[string]extension.CommandHandler {
 			}
 			return nil
 		},
-		CmdFocusNext:       func(context.Context, any) error { t.moveGroup(1); return nil },
-		CmdFocusPrevious:   func(context.Context, any) error { t.moveGroup(-1); return nil },
-		CmdFocusNextPane:   func(context.Context, any) error { t.movePane(1); return nil },
-		CmdFocusPrevPane:   func(context.Context, any) error { t.movePane(-1); return nil },
-		CmdResizePaneLeft:  func(context.Context, any) error { t.resizePane(-1); return nil },
-		CmdResizePaneRight: func(context.Context, any) error { t.resizePane(1); return nil },
+		CmdCreateEditor:     func(_ context.Context, args any) error { t.createEditor(args); return nil },
+		CmdMoveToEditor:     t.onTarget(t.moveToEditor),
+		CmdMoveToPanel:      t.onTarget(t.moveToPanel),
+		CmdKillEditor:       t.onTarget(func(e *entry) { t.kill(e) }),
+		CmdChangeIcon:       t.onTarget(t.changeIcon),
+		CmdChangeColor:      t.onTarget(t.changeColor),
+		CmdJoin:             func(context.Context, any) error { t.joinPick(); return nil },
+		CmdUnsplit:          t.onTarget(t.unsplit),
+		CmdKillAll:          func(context.Context, any) error { t.killAll(); return nil },
+		CmdNewWithCwd:       func(_ context.Context, args any) error { t.newWithCwd(args); return nil },
+		CmdSizeToContentWid: t.onTarget(t.toggleSizeToContent),
+		CmdFocusNext:        func(context.Context, any) error { t.moveGroup(1); return nil },
+		CmdFocusPrevious:    func(context.Context, any) error { t.moveGroup(-1); return nil },
+		CmdFocusNextPane:    func(context.Context, any) error { t.movePane(1); return nil },
+		CmdFocusPrevPane:    func(context.Context, any) error { t.movePane(-1); return nil },
+		CmdResizePaneLeft:   func(context.Context, any) error { t.resizePane(-1); return nil },
+		CmdResizePaneRight:  func(context.Context, any) error { t.resizePane(1); return nil },
 		// the terminals sit side by side, so there is no height to give or take
 		CmdResizePaneUp:   func(context.Context, any) error { return nil },
 		CmdResizePaneDown: func(context.Context, any) error { return nil },

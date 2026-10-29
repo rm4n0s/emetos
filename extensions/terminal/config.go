@@ -60,6 +60,12 @@ type config struct {
 	sugTrailingSpace bool
 	sugUpHistory     bool
 
+	// step 17d.7: where a new terminal goes, and the persistent sessions
+	defaultLocation string
+	persistent      bool
+	reviveProcess   string
+	persistLines    int
+
 	tabsEnabled  bool
 	tabsLocation string
 	tabsHide     string
@@ -126,6 +132,11 @@ func readConfig(s extension.Settings) config {
 		stickyOn:        flag(settingStickyEnabled, true),
 		stickyMax:       min(max(int(num(settingStickyMaxLines, 5)), 1), 10),
 		splitCwd:        str(settingSplitCwd, "inherited"),
+
+		defaultLocation: str(settingDefaultLocation, "view"),
+		persistent:      flag(settingPersistent, true),
+		reviveProcess:   str(settingReviveProcess, "onExit"),
+		persistLines:    min(max(int(num(settingPersistScrollback, 100)), 0), 1000),
 	}
 	c.sugEnabled, c.sugTriggerChars = flag(settingSugEnabled, true), flag(settingSugTrigger, false)
 	c.sugRunOnEnter, c.sugSelection = str(settingSugRunEnter, "never"), str(settingSugSelect, "partial")

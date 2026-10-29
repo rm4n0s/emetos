@@ -2,7 +2,9 @@ package terminal
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -28,7 +30,18 @@ type entry struct {
 	clients []string
 	// fixes are the quick fixes of the last command that ended (shell integration).
 	fixes *fixSet
+	// tab is the editor tab that shows the terminal, nil while it is in the panel (SPEC §10.25 "Terminals in the editor
+	// area"); bind is the link between the two while they are joined.
+	tab  extension.EditorTab
+	bind *tabBinding
+	// adopting says that a tab is being made for the terminal, which stays alive if that fails (placeInEditor).
+	adopting bool
+	// gone says that the terminal ended and was taken out of its place for good: nothing puts it back.
+	gone bool
 }
+
+// inEditor says that the terminal is shown in an editor tab.
+func (e *entry) inEditor() bool { return e.tab != nil }
 
 // group is a tab of the tabs list: terminals side by side.
 type group struct {
@@ -58,6 +71,10 @@ type terminals struct {
 
 	handle extension.ViewHandle
 	groups []*group
+	// editors are the terminals shown in editor tabs, in the order they were made (editor.go).
+	editors []*entry
+	// parked holds a terminal that is in no place while the tab that adopts it is made.
+	parked map[int]*entry
 	cur    int
 	nextID int
 	nextGr int
@@ -65,10 +82,15 @@ type terminals struct {
 	created bool
 	// visible says that the view is on screen.
 	visible bool
+	// activated says that Activate is done: a saved session that comes after it is restored when it comes.
+	activated bool
 
 	// paneFocus is the entry whose pane has the keyboard focus; tabsFocus that the tabs list has it.
 	paneFocus *entry
 	tabsFocus bool
+	// lastEditor is the terminal of an editor tab that had the keyboard last: the commands without a focus act on it when the
+	// editor tab is the one in front.
+	lastEditor *entry
 	// wantFocus is the pane that gets the keyboard focus as soon as it is on screen.
 	wantFocus *paneView
 
@@ -84,6 +106,17 @@ type terminals struct {
 	// ended and the panel is on its way to hide, so the view must not make another.
 	opening      bool
 	suppressOpen bool
+	// tabDrag is the press on a tab of the list that may be a drag, dragOver the terminal whose row a drag in the list is over
+	// and dragEnd that it is below the last row (tabsdrag.go).
+	tabDrag  *tabDrag
+	dragOver *entry
+	dragEnd  bool
+	// leaving is the state of the panel when a terminal left it for an editor tab (createTab), until finishLeaving.
+	leaving *leave
+	// saved is the state the view saved in the session before (ViewContent.RestoreState); restoredOnce says it was taken, so that
+	// the box being made again does not restore twice.
+	saved        json.RawMessage
+	restoredOnce bool
 	// metaPosted says that a refresh for a change of a tab is waiting for the UI thread.
 	metaPosted atomic.Bool
 	// sugg computes the suggestions of terminal IntelliSense.
@@ -109,15 +142,15 @@ func (t *terminals) newEnv() *paneEnv {
 		mounted: t.paneMounted, altChanged: func(*paneView) { t.syncKeys() },
 		ctx: t.ctx, findChanged: func(*paneView) { t.syncKeys() }, folder: func() string { return t.folder }, home: t.env.home,
 		altClick: t.altClick, openFile: t.openFile, openLink: t.openLink,
-		fixes: t.fixesOf, runFix: t.runFix, commandMenu: t.showCommandMenu, stickyMenu: t.showStickyMenu,
+		fixes: t.fixesOf, runFix: t.runFix, commandMenu: t.showCommandMenu, stickyMenu: t.showStickyMenu, info: t.infoOf,
 		suggester: t.sugg, suggestEnv: t.suggestEnvOf, suggestChanged: func(*paneView) { t.syncKeys() },
 	}
 }
 
 // ---- the terminals ----
 
-// all lists the entries of every group.
-func (t *terminals) all() []*entry {
+// panelEntries lists the entries of every group of the panel.
+func (t *terminals) panelEntries() []*entry {
 	var out []*entry
 	for _, g := range t.groups {
 		out = append(out, g.entries...)
@@ -125,13 +158,29 @@ func (t *terminals) all() []*entry {
 	return out
 }
 
-// count is the number of terminals.
-func (t *terminals) count() int {
+// all lists every terminal: the ones of the panel, then the ones in editor tabs.
+func (t *terminals) all() []*entry {
+	return append(t.panelEntries(), t.editors...)
+}
+
+// panelCount is the number of terminals in the panel.
+func (t *terminals) panelCount() int {
 	n := 0
 	for _, g := range t.groups {
 		n += len(g.entries)
 	}
 	return n
+}
+
+// count is the number of terminals, in the panel and in editor tabs.
+func (t *terminals) count() int { return t.panelCount() + len(t.editors) }
+
+// alive says that a terminal is in the panel or in an editor tab.
+func (t *terminals) alive(e *entry) bool {
+	if _, _, _, ok := t.find(e); ok {
+		return true
+	}
+	return slices.Contains(t.editors, e)
 }
 
 // activeGroup is the group of the tab that is selected, nil when there is none.
@@ -186,10 +235,42 @@ type openOpts struct {
 	quiet bool
 	// by is who asked for the terminal (ByUser, a client of Relay or an extension); empty is the user.
 	by string
+	// location is where the terminal goes: "view" the panel, "editor" an editor tab, empty the setting
+	// terminal.integrated.defaultLocation (the panel for a quiet terminal).
+	location string
+	// restore makes the terminal of a session that was saved (persist.go): its profile, folder, name, icon, color and the text
+	// it showed.
+	restore *termState
 }
 
 // open makes a terminal, shows it and gives it the focus. A failure is shown to the user and returned.
 func (t *terminals) open(o openOpts) (*entry, error) {
+	e, err := t.makeEntry(o)
+	if err != nil {
+		return nil, err
+	}
+	loc := t.locationFor(o)
+	if loc == locEditor {
+		if err := t.placeInEditor(e, extension.EditorOpenOptions{}); err != nil {
+			t.api.Log().Warn("the terminal cannot be shown in an editor tab, it goes to the panel", "err", err)
+			loc = locView
+		}
+	}
+	if loc == locView {
+		t.placeInPanel(e, o)
+	}
+	t.typedBy(e, o.by)
+	t.publishCreated(e)
+	t.syncKeys()
+	t.handle.Refresh()
+	if !o.quiet {
+		t.focusEntry(e, true)
+	}
+	return e, nil
+}
+
+// makeEntry makes a terminal and the pane that shows it, and does not place them anywhere.
+func (t *terminals) makeEntry(o openOpts) (*entry, error) {
 	prof := t.defaultProfile()
 	if o.profile != nil {
 		prof = *o.profile
@@ -198,7 +279,7 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	home := t.env.home
 	if dir == "" {
 		if o.split {
-			if cur := t.activeEntry(); cur != nil {
+			if cur := t.target(); cur != nil {
 				dir = splitDir(t.cfg.splitCwd, cur.term)
 			}
 		}
@@ -210,8 +291,12 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	settingEnvVars, _ := extension.SettingValue[map[string]*string](t.api.Settings(), settingEnv)
 	locale, _ := extension.SettingValue[string](t.api.Settings(), settingDetectLocale)
 	rows, cols := 24, 80
-	if cur := t.activeEntry(); cur != nil {
+	if cur := t.target(); cur != nil {
 		cols, rows = cur.term.Size()
+	}
+	var initial []byte
+	if r := o.restore; r != nil {
+		prof, dir, rows, cols, initial = t.restoreParts(r, prof, dir, rows, cols)
 	}
 	t.nextID++
 	env := buildEnv(t.env.vars, settingEnvVars, prof.env, locale, termVersion)
@@ -222,12 +307,14 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	term, err := newTerminal(t.ctx, terminalOpts{
 		id: t.nextID, profile: prof, dir: dir, env: env,
 		rows: rows, cols: cols, scrollback: t.cfg.scrollback, version: termVersion, start: t.start, log: t.api.Log(),
-		obs: t.observerFor(t.nextID), interval: t.outputInterval, nonce: nonce, injected: ok,
+		obs: t.observerFor(t.nextID), interval: t.outputInterval, nonce: nonce, injected: ok, initial: initial,
 	})
 	if err != nil {
 		t.failure = "The terminal process " + prof.path + " failed to launch: " + err.Error()
 		t.api.Notifications().Error(t.failure)
-		t.handle.Refresh()
+		if t.handle != nil {
+			t.handle.Refresh()
+		}
 		return nil, err
 	}
 	t.failure = ""
@@ -235,31 +322,47 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	if o.name != "" {
 		term.SetName(o.name)
 	}
+	if r := o.restore; r != nil {
+		if r.Name != "" {
+			term.SetName(r.Name)
+		}
+		if r.Icon != "" {
+			term.SetIcon(r.Icon)
+		}
+		term.SetColor(r.Color)
+	}
 	e := &entry{term: term}
 	e.pv = newPaneView(t.newEnv(), term)
 	t.hookShell(e)
 	term.SetOnMeta(t.metaChanged)
 	go t.watch(e)
+	return e, nil
+}
+
+// placeInPanel puts a terminal in the tabs list of the panel: in a tab of its own, or beside the active terminal of the tab
+// for a split.
+func (t *terminals) placeInPanel(e *entry, o openOpts) {
 	if g := t.activeGroup(); o.split && g != nil {
 		g.entries = append(g.entries, e)
 		g.sizes = append(g.sizes, g.meanSize())
 		g.active = len(g.entries) - 1
-	} else {
-		first := len(t.groups) == 0
-		t.nextGr++
-		t.groups = append(t.groups, &group{id: t.nextGr, entries: []*entry{e}, sizes: []float64{1000}, split: ui.NewSplitViewController()})
-		if !o.quiet || first {
-			t.cur = len(t.groups) - 1
-		}
+		return
 	}
-	t.typedBy(e, o.by)
-	t.publish(TopicCreated, createdEvent{ID: term.ID(), Name: t.nameOf(e), Profile: prof.name, Cwd: term.Cwd()})
-	t.syncKeys()
-	t.handle.Refresh()
-	if !o.quiet {
-		t.focusEntry(e, true)
+	first := len(t.groups) == 0
+	t.nextGr++
+	t.groups = append(t.groups, &group{id: t.nextGr, entries: []*entry{e}, sizes: []float64{1000}, split: ui.NewSplitViewController()})
+	if !o.quiet || first {
+		t.cur = len(t.groups) - 1
 	}
-	return e, nil
+}
+
+// publishCreated tells the world that a terminal was made.
+func (t *terminals) publishCreated(e *entry) {
+	ev := createdEvent{ID: e.term.ID(), Name: t.nameOf(e), Profile: e.term.Profile().name, Cwd: e.term.Cwd()}
+	if e.inEditor() {
+		ev.Location = locEditor
+	}
+	t.publish(TopicCreated, ev)
 }
 
 // meanSize is the size a new pane starts with in a split.
@@ -290,6 +393,9 @@ func (t *terminals) metaChanged() {
 	if t.metaPosted.CompareAndSwap(false, true) {
 		t.api.Post(func() {
 			t.metaPosted.Store(false)
+			for _, e := range t.editors {
+				t.syncTab(e)
+			}
 			t.handle.Refresh()
 		})
 	}
@@ -297,7 +403,7 @@ func (t *terminals) metaChanged() {
 
 // exited is the program of a terminal ending by itself: the terminal goes (VS Code closes it); a failure status is reported.
 func (t *terminals) exited(e *entry) {
-	if _, _, _, ok := t.find(e); !ok {
+	if !t.alive(e) {
 		return
 	}
 	code, _ := e.term.ExitCode()
@@ -310,7 +416,7 @@ func (t *terminals) exited(e *entry) {
 
 // kill ends a terminal and takes it away.
 func (t *terminals) kill(e *entry) {
-	if _, _, _, ok := t.find(e); !ok {
+	if !t.alive(e) {
 		return
 	}
 	e.ended = true
@@ -322,11 +428,29 @@ func (t *terminals) kill(e *entry) {
 // remove takes a terminal out of its group and the group out of the list when it is empty; the last terminal gone hides the
 // panel.
 func (t *terminals) remove(e *entry) {
-	g, gi, ei, ok := t.find(e)
+	if e.inEditor() {
+		t.removeEditor(e)
+		return
+	}
+	hadFocus, ok := t.unlink(e)
 	if !ok {
 		return
 	}
-	hadFocus := t.paneFocus == e
+	e.gone = true
+	e.pv.dispose()
+	t.publish(TopicClosed, closedEvent{ID: e.term.ID()})
+	t.afterLeaving(hadFocus)
+}
+
+// unlink takes a terminal out of its group, and the group out of the list when it is empty, and tells whether the terminal had
+// the keyboard focus. It ends nothing: the callers end the terminal or move it.
+func (t *terminals) unlink(e *entry) (hadFocus, ok bool) {
+	g, gi, ei, ok := t.find(e)
+	if !ok {
+		return false, false
+	}
+	hadFocus = t.paneFocus == e
+	e.pv.moving()
 	g.entries = append(g.entries[:ei:ei], g.entries[ei+1:]...)
 	if ei < len(g.sizes) {
 		g.sizes = append(g.sizes[:ei:ei], g.sizes[ei+1:]...)
@@ -343,8 +467,12 @@ func (t *terminals) remove(e *entry) {
 	if hadFocus {
 		t.paneFocus = nil
 	}
-	e.pv.dispose()
-	t.publish(TopicClosed, closedEvent{ID: e.term.ID()})
+	return hadFocus, true
+}
+
+// afterLeaving is what the panel does when a terminal left it: the keys and the view follow, the last terminal gone hides the
+// panel (and the view makes no new one), and the focus goes to the terminal that is now active.
+func (t *terminals) afterLeaving(hadFocus bool) {
 	t.syncKeys()
 	t.handle.Refresh()
 	switch {
@@ -359,9 +487,13 @@ func (t *terminals) remove(e *entry) {
 // ---- the focus ----
 
 // focusEntry makes a terminal the active one of its group and tab and gives its pane the keyboard focus; reveal also shows the
-// view.
+// view (or the editor tab).
 func (t *terminals) focusEntry(e *entry, reveal bool) {
 	if e == nil {
+		return
+	}
+	if e.inEditor() {
+		t.focusEditor(e, reveal)
 		return
 	}
 	g, gi, ei, ok := t.find(e)
@@ -370,6 +502,7 @@ func (t *terminals) focusEntry(e *entry, reveal bool) {
 	}
 	changed := t.cur != gi || g.active != ei
 	t.cur, g.active = gi, ei
+	t.lastEditor = nil
 	if reveal {
 		t.handle.Reveal(true)
 	}
@@ -414,6 +547,10 @@ func (t *terminals) paneFocusChanged(pv *paneView, has bool) {
 			if g, gi, ei, ok := t.find(e); ok {
 				t.cur, g.active = gi, ei
 			}
+			t.lastEditor = nil
+			if e.inEditor() {
+				t.lastEditor = e
+			}
 		case t.paneFocus == e:
 			t.paneFocus = nil
 		}
@@ -428,7 +565,12 @@ func (t *terminals) paneFocusChanged(pv *paneView, has bool) {
 
 // syncKeys gives the context keys their values; only the ones that changed are set.
 func (t *terminals) syncKeys() {
+	// the terminal the keys describe is the one with the keyboard, also when it is in an editor tab (the panel's active one
+	// is not the terminal the user types in then): the shell, the screen and the find widget are its.
 	e := t.activeEntry()
+	if t.paneFocus != nil {
+		e = t.paneFocus
+	}
 	g := t.activeGroup()
 	focused := t.paneFocus
 	selectedHere := focused != nil && focused.pv.hasSelection()
@@ -458,7 +600,7 @@ func (t *terminals) syncKeys() {
 		keyTextSelectedInFocused: selectedHere, keyFindVisible: findVisible, keyFindFocus: findInput, keyFindInputFocus: findInput,
 		keySplitTerminal:   split,
 		keySplitPaneActive: split && focused != nil, keyHasBeenCreated: t.created, keyAltBuffer: alt,
-		keyTabsFocus: t.tabsFocus, keyEditorFocus: false, keyShellIntegration: shellActive,
+		keyTabsFocus: t.tabsFocus, keyEditorFocus: focused != nil && focused.inEditor(), keyShellIntegration: shellActive,
 		keySuggestVisible: focused != nil && focused.pv.suggestVisible(),
 		keySuggestEnabled: e != nil && !alt && shellActive && t.cfg.sugEnabled && t.cfg.shellInteg,
 	}
@@ -528,11 +670,11 @@ func (t *terminals) showTabs() bool {
 	}
 	switch t.cfg.tabsHide {
 	case "never":
-		return t.count() > 0
+		return t.panelCount() > 0
 	case "singleGroup":
 		return len(t.groups) > 1
 	default:
-		return t.count() > 1
+		return t.panelCount() > 1
 	}
 }
 
@@ -554,4 +696,18 @@ func (t *terminals) settingsChanged() {
 	}
 	t.syncKeys() // (terminalSuggestEnabled follows terminal.integrated.suggest.enabled)
 	t.handle.Refresh()
+}
+
+// infoOf tells where the terminal of a pane is shown and what its tab looks like, for dev.terminals.
+func (t *terminals) infoOf(pv *paneView) (location, title, icon, iconColor string) {
+	for _, e := range t.all() {
+		if e.pv == pv {
+			location = locView
+			if e.inEditor() {
+				location = locEditor
+			}
+			return location, t.title(e), t.tabIconOf(e), e.term.Meta().color
+		}
+	}
+	return locView, "", "", ""
 }

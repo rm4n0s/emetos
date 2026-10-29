@@ -149,6 +149,12 @@ type devState struct {
 	SuggestDetails bool     `json:"suggestDetails"`
 	SuggestX       float64  `json:"suggestX"`
 	SuggestY       float64  `json:"suggestY"`
+
+	// Location is where the terminal is shown, "view" (the panel) or "editor" (a tab of the editor area); Icon and IconColor are
+	// the icon of its tab and the color of it (step 17d.7).
+	Location  string `json:"location"`
+	Icon      string `json:"icon"`
+	IconColor string `json:"iconColor"`
 }
 
 // devDecoMark is a decoration of the gutter for dev.terminals.
@@ -167,6 +173,10 @@ func (r *renderGrid) DevTerminal() any {
 	if pv.factory != nil {
 		a, _ := pv.atlases()
 		st.CellW, st.CellH = a.m.w, a.m.h
+	}
+	st.Location, st.Title, st.Icon, st.IconColor = locView, "", "", ""
+	if pv.env.info != nil {
+		st.Location, st.Title, st.Icon, st.IconColor = pv.env.info(pv)
 	}
 	st.FindVisible, st.FindText, st.Matches = pv.find.visible, pv.find.query.text, len(pv.find.matches)
 	if pv.find.cur >= 0 && pv.find.visible {

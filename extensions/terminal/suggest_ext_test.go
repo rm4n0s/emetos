@@ -396,3 +396,64 @@ func TestAFolderOpensTheListAgainWhenTheUserOpenedIt(t *testing.T) {
 	r.waitLine(e, "cat ./sub/c.go")
 	r.waitNoList(e)
 }
+
+// A terminal in an editor tab has terminal IntelliSense like one in the panel (steps 17d.6 and 17d.7): the context keys describe
+// the terminal that has the keyboard, not the panel's active one, so the keys of the list work in the tab.
+func TestIntelliSenseWorksInATerminalOfAnEditorTab(t *testing.T) {
+	r, e := suggestRigWith(t, quickOn)
+	// a second terminal stays in the panel and is its active one, with another state: it is not the one typed in
+	r.run(CmdNew, nil)
+	other := r.ext.activeEntry()
+	r.waitFor("the prompt of the second terminal", func() bool { return other.term.si.Current() != nil })
+	r.ext.focusEntry(e, true)
+	r.run(CmdMoveToEditor, nil)
+	if !e.inEditor() {
+		t.Fatal("the terminal did not move to an editor tab")
+	}
+	if r.ext.activeEntry() != other {
+		t.Fatalf("the panel's active terminal is not the one that stayed")
+	}
+	e.pv.focused = true
+	r.ext.paneFocus = e
+	r.ext.syncKeys()
+	if v := r.api.ContextKey(keySuggestEnabled); v != true {
+		t.Fatalf("%s = %v in the editor tab", keySuggestEnabled, v)
+	}
+	if v := r.api.ContextKey(keyEditorFocus); v != true {
+		t.Errorf("%s = %v in the editor tab", keyEditorFocus, v)
+	}
+	// the panel's terminal is on its alternate screen, where IntelliSense is off: the key still follows the tab's terminal
+	other.term.Send([]byte("printf '\\033[?1049h'\r"))
+	r.waitFor("the alternate screen of the second terminal", func() bool { return other.term.Emulator().Modes().AltScreen })
+	r.ext.syncKeys()
+	if v := r.api.ContextKey(keySuggestEnabled); v != true {
+		t.Fatalf("%s = %v: it follows the panel's terminal, not the tab's", keySuggestEnabled, v)
+	}
+
+	r.keys(e, "gi")
+	s := r.waitList(e, "the list for gi", func(s *sugSession) bool { return s.lc.cur.text == "gi" && len(s.items) > 0 })
+	if got := labelsIn(s); got[0] != "git" || !slices.Contains(got, "gitk") {
+		t.Fatalf("items = %q", got)
+	}
+	if v := r.api.ContextKey(keySuggestVisible); v != true {
+		t.Errorf("%s = %v with the list open in the tab", keySuggestVisible, v)
+	}
+	if other.pv.suggestVisible() {
+		t.Errorf("the list of the tab opened in the other terminal")
+	}
+	// the commands of the keys act on the tab's terminal
+	r.run(CmdAcceptSuggest, nil)
+	r.waitLine(e, "git")
+	r.waitNoList(e)
+	// and the list goes when the terminal moves back to the panel
+	r.keys(e, " ")
+	r.run(CmdTriggerSuggest, nil)
+	r.waitList(e, "the list for the arguments", func(s *sugSession) bool { return len(s.items) > 0 })
+	r.run(CmdMoveToPanel, nil)
+	if e.inEditor() {
+		t.Fatal("the terminal did not move back")
+	}
+	if e.pv.suggestVisible() {
+		t.Errorf("the list is still shown after the terminal moved")
+	}
+}

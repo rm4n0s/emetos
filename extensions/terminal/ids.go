@@ -81,6 +81,21 @@ const (
 	CmdToggleSuggestDetails  = "workbench.action.terminal.toggleSuggestionDetails"
 )
 
+// The commands of step 17d.7: terminals in the editor area, and the rest of the tabs list.
+const (
+	CmdCreateEditor     = "workbench.action.createTerminalEditor"
+	CmdMoveToEditor     = "workbench.action.terminal.moveToEditor"
+	CmdMoveToPanel      = "workbench.action.terminal.moveToTerminalPanel"
+	CmdKillEditor       = "workbench.action.terminal.killEditor"
+	CmdChangeIcon       = "workbench.action.terminal.changeIcon"
+	CmdChangeColor      = "workbench.action.terminal.changeColor"
+	CmdJoin             = "workbench.action.terminal.join"
+	CmdUnsplit          = "workbench.action.terminal.unsplit"
+	CmdKillAll          = "workbench.action.terminal.killAll"
+	CmdNewWithCwd       = "workbench.action.terminal.newWithCwd"
+	CmdSizeToContentWid = "workbench.action.terminal.sizeToContentWidth"
+)
+
 // findInFilesCommand is the id of the command of the Search extension that searchWorkspace runs (VS Code's
 // workbench.action.findInFiles).
 const findInFilesCommand = "workbench.action.findInFiles"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 )
 
@@ -83,6 +84,11 @@ type EditorTab interface {
 	// nothing else: closing a dirty tab asks nothing, so an extension keeps its data in the state it saves.
 	SetDirty(dirty bool)
 	SetBusy(busy bool)
+	// SetIcon changes the Codicon of the tab (a name such as "terminal-bash"; an unknown name or "" takes the icon of the
+	// kind) and the color of the icon: the id of a color of the theme, of which Emetos paints the sixteen terminal.ansi*
+	// ones (terminal.ansiRed); "" is the color of the tab's text. The icon and its color are kept in the state of the
+	// window with the tab.
+	SetIcon(icon, color string)
 	// Refresh builds the widget of the tab again.
 	Refresh()
 	// Reveal makes the tab the active tab of its group (and the group the active group); with focus the keyboard focus
@@ -107,6 +113,10 @@ type EditorTabContent struct {
 	// OnClose is called when the tab is closed for good (not when it moves to another group, nor when the extension is
 	// deactivated); the state of the tab is dropped after it.
 	OnClose func()
+	// AllowCommand, when set, is asked while the keyboard focus is in the tab and a key press is bound to a command; false
+	// leaves the key to the focused widget of the tab (ViewContent.AllowCommand has the details). A terminal in an editor
+	// tab uses it as the terminal in the panel does.
+	AllowCommand func(commandID string) bool
 }
 
 // EditorKind is how an extension makes the content of the tabs of one kind.
@@ -139,6 +149,14 @@ type Editors interface {
 	Open(kindID string, state any, opts EditorOpenOptions) (EditorTab, error)
 	// Tabs are the open tabs of the kind that have their content, in the order they were made.
 	Tabs(kindID string) []EditorTab
+	// BeginDrag starts the drag of something of the extension (a terminal of its list, say) toward the editor area: a
+	// press on the widget of the extension that moves past a few pixels calls it, then the widget's pointer events call
+	// Move and End on the returned EditorDrag, with the positions of the window. The window shows the label at the pointer
+	// and highlights where a tab would go, as it does for the drag of a tab; when the pointer is released over the tab strip
+	// or the editor area of a group, a tab of the kind is opened there (in a new group beside it at the edges of the area)
+	// whose Create gets state, as Open's does. It fails with ExtensionDeactivated, ExtensionEditorsUnavailable,
+	// ExtensionEditorKindNotProvided, ExtensionEditorStateInvalid and the window's ExtEditorsDragBusy (another drag is going on).
+	BeginDrag(kindID, label string, state any) (EditorDrag, error)
 	// OpenProposedChange shows a change that is proposed to a file in the diff editor and waits for the user's answer (SPEC
 	// §10.16 "As built (step 13.3)"). The tab has the current text of the file on the left, read-only, and the proposed
 	// text on the right, which the user may edit; its title has Accept and Reject. The call returns when the user accepts
@@ -149,6 +167,17 @@ type Editors interface {
 	// (ExtensionProposedChangeCancelled); it fails with ExtensionProposedChangeInvalid for a change with no URI,
 	// ExtensionDeactivated and ExtensionEditorsUnavailable (the scope has no editor area).
 	OpenProposedChange(ctx context.Context, change ProposedChange) (ProposedResult, error)
+}
+
+// EditorDrag is the drag that Editors().BeginDrag started. Its methods run on the UI thread.
+type EditorDrag interface {
+	// Move tells the window that the pointer is at pos, in the coordinates of the window (what a pointer event of Glutter
+	// gives as its position).
+	Move(pos ui.Offset)
+	// End ends the drag with the pointer at pos. With drop set the tab is opened where the pointer is, if that is a place a
+	// tab can go, and End reports whether it was; without it (the drag was cancelled) nothing is opened. The error is that of
+	// Create or of the window failing to show the tab.
+	End(pos ui.Offset, drop bool) (opened bool, err error)
 }
 
 // ProposedChange is a change to a file that an extension asks the user to review (Editors.OpenProposedChange).

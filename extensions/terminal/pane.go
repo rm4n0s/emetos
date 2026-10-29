@@ -69,6 +69,8 @@ type paneEnv struct {
 	suggester      *suggester
 	suggestEnv     func(pv *paneView) suggestEnv
 	suggestChanged func(pv *paneView)
+	// info tells where the terminal of a pane is shown and what its tab looks like (dev.terminals).
+	info func(pv *paneView) (location, title, icon, iconColor string)
 }
 
 // paneView is the view of one terminal in a pane: what the widget draws, the keyboard, the pointer, the selection and the
@@ -152,6 +154,10 @@ type paneView struct {
 
 	// sug is the suggest list (suggest_pane.go).
 	sug suggestState
+	// fixedCols, when not 0, is the width of the terminal in columns, wider than the pane (Toggle Size to Content Width); the
+	// pane then scrolls sideways by hscroll logical pixels.
+	fixedCols int
+	hscroll   float64
 }
 
 func newPaneView(env *paneEnv, term *Terminal) *paneView {
@@ -219,15 +225,19 @@ func (pv *paneView) applyTheme() {
 func (pv *paneView) mounted(r *renderGrid) {
 	pv.render = r
 	pv.term.SetOnFrame(func() { pv.env.post(pv.frameChanged) })
+	pv.env.post(pv.syncFocus)
 	if pv.env.mounted != nil {
 		pv.env.mounted(pv)
 	}
 }
 
 func (pv *paneView) unmounted(r *renderGrid) {
-	if pv.render == r {
-		pv.render = nil
+	if pv.render != nil && pv.render != r {
+		// the pane already came on screen in another place (a terminal that moved between the panel and an editor tab mounts there
+		// before the place it left lets go): what the old place says is of no interest
+		return
 	}
+	pv.render = nil
 	pv.stopBlink()
 	pv.ime.detach()
 	// Glutter: a focus node that leaves the tree with the focus does not tell OnFocusChange, so the pane says it itself
@@ -238,6 +248,14 @@ func (pv *paneView) unmounted(r *renderGrid) {
 			pv.env.focusChanged(pv, false)
 		}
 	}
+}
+
+// moving says that the terminal of the pane leaves its place for another one: the render object it has is the old place's, which
+// goes at the next frame, so the pane is not on screen until it mounts in the new place and asks for the focus there.
+func (pv *paneView) moving() {
+	pv.render = nil
+	// the list is placed in the old widget; the new place draws it again when the line is typed in
+	pv.suggestHide()
 }
 
 // spec is the font the pane draws with.
@@ -266,12 +284,81 @@ func (pv *paneView) layout(size gui.Size) {
 	cols := int((size.Width - padLeft - scrollbarW) / a.m.w)
 	rows := int(size.Height / a.m.h)
 	cols, rows = max(cols, 1), max(rows, 1)
+	if pv.fixedCols > 0 {
+		cols = pv.fixedCols
+	}
+	pv.clampScrollX(size.Width, a.m.w)
 	if cols != pv.cols || rows != pv.rows {
 		pv.cols, pv.rows = cols, rows
 		pv.suggestHide()
 		pv.term.Resize(cols, rows)
 	}
 }
+
+// clampScrollX keeps the sideways scroll of a pane that is wider than its view inside the content.
+func (pv *paneView) clampScrollX(width, cellW float64) {
+	if pv.fixedCols == 0 {
+		pv.hscroll = 0
+		return
+	}
+	over := padLeft + float64(pv.fixedCols)*cellW + scrollbarW - width
+	pv.hscroll = min(max(pv.hscroll, 0), max(over, 0))
+}
+
+// scrollX scrolls a pane that is wider than its view sideways by dx logical pixels.
+func (pv *paneView) scrollX(dx float64) {
+	if pv.fixedCols == 0 || pv.render == nil {
+		return
+	}
+	a, _ := pv.atlases()
+	pv.hscroll += dx
+	pv.clampScrollX(pv.render.Size().Width, a.m.w)
+	pv.render.MarkNeedsPaint()
+	if pv.suggestVisible() {
+		pv.rebuild() // the list is a widget at the word, which moved
+	}
+}
+
+// longestLine is the length in columns of the longest line of the screen, a line that wrapped counted whole and without the
+// empty cells at its end (VS Code's getLongestViewportWrappedLineLength).
+func (pv *paneView) longestLine() int {
+	f := &pv.frame
+	longest, run := 0, 0
+	for y := 0; y < f.Rows; y++ {
+		cells := f.Row(y)
+		end := len(cells)
+		for end > 0 && cells[end-1].Rune == 0 && cells[end-1].Flags&emulator.CellCluster == 0 {
+			end--
+		}
+		if y < len(f.Wrapped) && f.Wrapped[y] {
+			run += len(cells)
+			continue
+		}
+		longest = max(longest, run+end)
+		run = 0
+	}
+	return max(longest, run)
+}
+
+// toggleSizeToContent is Toggle Size to Content Width: a terminal gets the width of its longest line, which scrolls sideways
+// when it is wider than the pane, or goes back to the width of the pane. A terminal whose content fits keeps its width.
+func (pv *paneView) toggleSizeToContent() {
+	switch {
+	case pv.fixedCols > 0:
+		pv.fixedCols, pv.hscroll = 0, 0
+	case pv.longestLine() > pv.cols:
+		pv.fixedCols = min(pv.longestLine(), maxFixedCols)
+	default:
+		return
+	}
+	if pv.render != nil {
+		pv.render.MarkNeedsLayout()
+		pv.render.MarkNeedsPaint()
+	}
+}
+
+// maxFixedCols is the widest a terminal is made by Toggle Size to Content Width.
+const maxFixedCols = 1000
 
 // paint takes the snapshot of the terminal and draws it.
 func (pv *paneView) paint(cv *gui.Canvas, off gui.Offset, size gui.Size) {
@@ -302,7 +389,7 @@ func (pv *paneView) paint(cv *gui.Canvas, off gui.Offset, size gui.Size) {
 	pv.marks = pv.findMarks(f.Top, rows, cols, pv.marks[:0])
 	pv.links = pv.underlines(f.Top, rows, pv.links[:0])
 	s := shown{
-		f: f, rows: rows, cols: cols, originX: off.Dx + padLeft, originY: off.Dy, th: &pv.th, cfg: cfg,
+		f: f, rows: rows, cols: cols, originX: off.Dx + padLeft - pv.hscroll, originY: off.Dy, th: &pv.th, cfg: cfg,
 		focused: pv.focused, blinkOn: pv.blinkOn, sel: pv.sel, cursorOn: pv.scroll == 0, marks: pv.marks, links: pv.links,
 	}
 	pv.painter.build(a, d, s)
@@ -353,8 +440,21 @@ func (pv *paneView) drawPreedit(a *atlas, d *decor, s shown) {
 	}
 }
 
-// drawScrollbar draws the scrollbar at the right edge while the pointer is near it, the view scrolls or it is dragged.
+// drawScrollbar draws the scrollbar at the right edge while the pointer is near it, the view scrolls or it is dragged; a pane
+// that is wider than its view (Toggle Size to Content Width) has one along the bottom.
 func (pv *paneView) drawScrollbar(cv *gui.Canvas, off gui.Offset, size gui.Size) {
+	if pv.fixedCols > 0 {
+		if a, _ := pv.atlases(); a != nil {
+			content := padLeft + float64(pv.fixedCols)*a.m.w + scrollbarW
+			if content > size.Width {
+				w := size.Width * size.Width / content
+				x := (size.Width - w) * pv.hscroll / (content - size.Width)
+				p := gui.NewPaint()
+				p.SetColor(pv.colors.ScrollbarSliderBackground)
+				cv.DrawRect(gui.NewRectFromLTWH(off.Dx+x, off.Dy+size.Height-scrollbarW/2, w, scrollbarW/2), p)
+			}
+		}
+	}
 	top, h, ok := pv.thumb(size)
 	if !ok || (!pv.hoverBar && !pv.dragBar && pv.scroll <= 0) {
 		return
@@ -438,6 +538,18 @@ func (pv *paneView) focusChanged(has bool) {
 
 // requestFocus gives the pane the keyboard focus.
 func (pv *paneView) requestFocus() { pv.node.RequestFocus() }
+
+// syncFocus makes what the pane thinks of the keyboard focus agree with its node. A terminal that moves between the panel and an
+// editor tab keeps the focus through the move, and the Focus widget it is mounted in next does not tell a focus that was there
+// before it, so the pane asks.
+func (pv *paneView) syncFocus() {
+	if pv.render == nil {
+		return
+	}
+	if has := pv.node.HasPrimaryFocus(); has != pv.focused {
+		pv.focusChanged(has)
+	}
+}
 
 // configChanged follows a change of the settings: the font may be another, so the grid is laid out and painted again.
 func (pv *paneView) configChanged() {

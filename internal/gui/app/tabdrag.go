@@ -68,6 +68,9 @@ type tabDrag struct {
 	// copied is whether Ctrl is held: the tab is copied, not moved.
 	copied bool
 	target dropTarget
+	// external says that the drag is of something an extension began, which becomes a tab when it is dropped (source and editor
+	// are empty).
+	external bool
 	// hovered is the tab of a strip that the pointer is over, which was revealed when the pointer came to
 	// it; -1 for none.
 	hovered int
@@ -224,7 +227,7 @@ func (s *shellState) dropTargetAt(d *tabDrag, win *Workspace, alt bool) (dropTar
 		if strip, ok := v.tabs.Bounds(); ok && g.Model.Count() > 0 {
 			area = ui.NewRectFromLTRB(area.Left, strip.Bottom, area.Right, area.Bottom)
 		}
-		if !area.Contains(d.at) || !editorgroup.DropAllowed(d.source, g, d.copied) {
+		if !area.Contains(d.at) || (!d.external && !editorgroup.DropAllowed(d.source, g, d.copied)) {
 			return dropTarget{}, -1
 		}
 		zone := editorgroup.ZoneAt(d.at.Dx-area.Left, d.at.Dy-area.Top, area.Width(), area.Height(), opts)

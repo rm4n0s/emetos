@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/extension"
 )
@@ -19,6 +20,7 @@ type Tab struct {
 	mu               sync.Mutex
 	id, kind         string
 	title, hint      string
+	icon, iconColor  string
 	dirty, busy      bool
 	Refreshs         int
 	Closed, Revealed bool
@@ -44,6 +46,19 @@ func (t *Tab) SetDirty(dirty bool) { t.mu.Lock(); t.dirty = dirty; t.mu.Unlock()
 
 // SetBusy implements extension.EditorTab.
 func (t *Tab) SetBusy(busy bool) { t.mu.Lock(); t.busy = busy; t.mu.Unlock() }
+
+// SetIcon implements extension.EditorTab.
+func (t *Tab) SetIcon(icon, color string) {
+	t.mu.Lock()
+	t.icon, t.iconColor = icon, color
+	t.mu.Unlock()
+}
+
+// Icon is the icon the extension set with SetIcon, and IconColor its color.
+func (t *Tab) Icon() string { t.mu.Lock(); defer t.mu.Unlock(); return t.icon }
+
+// IconColor is the color of the icon the extension set with SetIcon.
+func (t *Tab) IconColor() string { t.mu.Lock(); defer t.mu.Unlock(); return t.iconColor }
 
 // Refresh implements extension.EditorTab.
 func (t *Tab) Refresh() { t.mu.Lock(); t.Refreshs++; t.mu.Unlock() }
@@ -130,8 +145,23 @@ func (e editors) Open(kindID string, state any, opts extension.EditorOpenOptions
 	if err != nil {
 		return nil, err
 	}
+	e.a.mu.Lock()
+	fail := e.a.failEditorOpen
+	e.a.mu.Unlock()
+	if fail {
+		// the window could not show the tab: the content that was made is dropped and told it is closed for good, as the host does
+		t.Close()
+		return nil, errors.New("FakeEditorOpenFailed", "the window could not show the tab", "kind", kindID)
+	}
 	t.Group_ = opts.Group
 	return t, nil
+}
+
+// FailEditorOpen makes Editors().Open fail after the content of the tab was made, as when the window cannot show the tab.
+func (a *API) FailEditorOpen(fail bool) {
+	a.mu.Lock()
+	a.failEditorOpen = fail
+	a.mu.Unlock()
 }
 
 // Tabs implements extension.Editors.
@@ -145,6 +175,69 @@ func (e editors) Tabs(kindID string) []extension.EditorTab {
 		}
 	}
 	return out
+}
+
+// Drag is a drag the extension began with Editors().BeginDrag: the fake records the pointer and, when the extension ends it
+// with a drop, opens the tab as a window that accepts the drop would (a test makes the window refuse with Refuse).
+type Drag struct {
+	// Kind, Label and State are what BeginDrag was given.
+	Kind, Label string
+	State       json.RawMessage
+	// Moves are the positions Move was called with; Ended and Dropped say how the drag ended.
+	Moves          []ui.Offset
+	Ended, Dropped bool
+	// Tab is the tab that was opened by the drop.
+	Tab *Tab
+	// Refuse makes the drop open nothing, as a drop over something that takes no tab does.
+	Refuse bool
+	a      *API
+}
+
+// Move implements extension.EditorDrag.
+func (d *Drag) Move(pos ui.Offset) { d.Moves = append(d.Moves, pos) }
+
+// End implements extension.EditorDrag.
+func (d *Drag) End(_ ui.Offset, drop bool) (bool, error) {
+	d.Ended = true
+	if !drop || d.Refuse {
+		return false, nil
+	}
+	t, err := d.a.makeTab(d.Kind, "", d.State)
+	if err != nil {
+		return false, err
+	}
+	d.Dropped, d.Tab = true, t
+	return true, nil
+}
+
+// BeginDrag implements extension.Editors: the drag is recorded (Drags).
+func (e editors) BeginDrag(kindID, label string, state any) (extension.EditorDrag, error) {
+	var raw json.RawMessage
+	if state != nil {
+		data, err := json.Marshal(state)
+		if err != nil {
+			return nil, errors.NewErr("FakeEditorStateInvalid", err)
+		}
+		raw = data
+	}
+	e.a.mu.Lock()
+	_, ok := e.a.kinds[kindID]
+	e.a.mu.Unlock()
+	if !ok {
+		return nil, errors.New("FakeEditorKindNotProvided", "the extension did not provide the editor kind", "kind", kindID)
+	}
+	d := &Drag{Kind: kindID, Label: label, State: raw, a: e.a}
+	e.a.mu.Lock()
+	e.a.drags = append(e.a.drags, d)
+	e.a.mu.Unlock()
+	return d, nil
+}
+
+// Drags are the drags the extension began, in order.
+func (a *API) Drags() []*Drag {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.drags)
 }
 
 // Proposal is a proposed change the extension asked the user to review (Editors().OpenProposedChange). The call blocks until

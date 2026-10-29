@@ -105,7 +105,7 @@ func (pv *paneView) suggestLayers(bc widgets.BuildContext) []widgets.Widget {
 	opts.OnToggleDetails = pv.suggestToggleDetails
 	opts.OnScroll = pv.suggestScroll
 
-	x := padLeft + float64(col)*cw
+	x := padLeft - pv.hscroll + float64(col)*cw
 	x = math.Max(math.Min(x, size.Width-scrollbarW-ui.SuggestWidth), 0)
 	y := cursorBottom
 	if placeAbove {
