@@ -307,10 +307,7 @@ func TestTheNewWorkspaceTabItemOpensATabWithoutAFolderAndShowsTheWindow(t *testi
 func TestQuitInTheMenuQuits(t *testing.T) {
 	r := runTray(t, nil, "one", "two")
 	r.fd.ClickTrayMenuItem("Quit")
-	r.settle()
-	if r.quits != 1 {
-		t.Errorf("%d quits", r.quits)
-	}
+	r.waitFor("the quit", func() bool { return r.quits == 1 })
 }
 
 func TestQuitFromTheTrayBacksUpWithHotExitWithoutShowingTheWindow(t *testing.T) {
@@ -514,7 +511,7 @@ func TestTheCloseButtonQuitsWhenNoTrayIsShown(t *testing.T) {
 		t.Errorf("the user was told: %v", items)
 	}
 	closes := a.ts.RequestWindowClose(ui.ImplicitViewID)
-	a.settle()
+	a.waitFor("the quit", func() bool { return a.quits == 1 })
 	if closes || a.ts.WindowHidden(ui.ImplicitViewID) || a.quits != 1 {
 		t.Errorf("closes %v, hidden %v, %d quits: the close button must quit", closes, a.ts.WindowHidden(ui.ImplicitViewID), a.quits)
 	}

@@ -572,10 +572,7 @@ func TestOpeningAFolderRestoresItsSavedState(t *testing.T) {
 		t.Fatal(err)
 	}
 	first.workspaceOf(other).RequestClose(CloseReasonQuit)
-	first.settle()
-	if first.quits != 1 {
-		t.Fatalf("quit %d times", first.quits)
-	}
+	first.waitFor("the quit", func() bool { return first.quits == 1 })
 	// a run in the first folder opens the second in the same window: its editors come back
 	a := env.run(Options{Folder: one})
 	old := a.workspaceOf(one)

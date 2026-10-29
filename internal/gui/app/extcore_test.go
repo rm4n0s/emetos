@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/gluttertest"
@@ -58,7 +59,11 @@ func TestTheCoreTopicsDriveARealWorkspace(t *testing.T) {
 	ask := func(topic string, payload any) (extension.Event, error) {
 		t.Helper()
 		r := &coreReply{}
-		if err := api.Events().Request(context.Background(), topic, payload, func(ev extension.Event, err error) {
+		// a deadline of the wall clock: without one the request ends after DefaultRequestTimeout of the fake clock, which the
+		// pumps below run several times faster than the wall clock, and a save under the race detector takes a while
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := api.Events().Request(ctx, topic, payload, func(ev extension.Event, err error) {
 			r.mu.Lock()
 			r.done, r.ev, r.err = true, ev, err
 			r.mu.Unlock()

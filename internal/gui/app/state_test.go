@@ -176,10 +176,8 @@ func (r *stateRun) close() {
 	r.env.t.Helper()
 	before := r.quits
 	r.win.RequestClose(CloseReasonQuit)
-	r.pump()
-	if r.quits != before+1 {
-		r.env.t.Fatalf("the window did not close: %d quits", r.quits)
-	}
+	// the close writes the state of the window off the UI thread first: it ends when the disk has it
+	r.waitFor("the window to close", func() bool { return r.quits == before+1 })
 	// the window is gone: its widgets are unmounted, as they are when the program ends
 	r.ts.PumpWidget(widgets.NewSizedBox(nil, widgets.SizedBoxOpts{}))
 }
