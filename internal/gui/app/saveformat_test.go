@@ -58,6 +58,11 @@ func (f *saveFeatures) wait(ctx context.Context) error {
 }
 
 func (f *saveFeatures) ProvideCodeActions(ctx context.Context, doc langfeatures.Document, req langfeatures.CodeActionRequest) ([]langfeatures.CodeAction, error) {
+	if req.Automatic && len(req.Only) == 0 {
+		// the light bulb asks by itself after the typing, at a time a loaded machine decides: not a request of the save,
+		// whose participants always name the kind they want
+		return nil, nil
+	}
 	f.mu.Lock()
 	f.kinds = append(f.kinds, strings.Join(req.Only, ","))
 	f.mu.Unlock()
