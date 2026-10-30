@@ -56,6 +56,8 @@ var appCommands = map[string]bool{
 	"editor.action.marker.nextInFiles": true, "editor.action.marker.prevInFiles": true,
 	// the Outline view of the Explorer (step 12.7, gui/app/outline.go)
 	"outline.focus": true, "outline.collapse": true, "outline.followCursor": true,
+	// Select the Active Repository picks one of the source controls of the window (step 24.2, gui/app/scm.go)
+	"scm.setActiveProvider": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

@@ -834,13 +834,24 @@ var diffAppCommands = map[string]bool{
 	"workbench.files.action.compareWithClipboard": true,
 }
 
+// scmAppCommands are the view mode and sort commands of Source Control, which the app binds since the model of the source
+// controls is the window's (step 24.2, gui/app/scm.go).
+var scmAppCommands = map[string]bool{
+	"workbench.scm.action.setListViewMode": true, "workbench.scm.action.setTreeViewMode": true,
+	"workbench.scm.action.setSortKey.name": true, "workbench.scm.action.setSortKey.path": true,
+	"workbench.scm.action.setSortKey.status":                     true,
+	"workbench.scm.action.repositories.setSortKey.discoveryTime": true, "workbench.scm.action.repositories.setSortKey.name": true,
+	"workbench.scm.action.repositories.setSortKey.path":         true,
+	"workbench.scm.action.repositories.setSelectionMode.single": true, "workbench.scm.action.repositories.setSelectionMode.multiple": true,
+}
+
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	// the commands that open the views of the panel are the workbench's when it has the views
 	h := newHarness(t, testSize, kit.DarkModern(), DefaultLayoutState(), nil, func(o *Options) { o.Views = NewViews(command.DefaultViews(), nil) })
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] || extensionsAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] || extensionsAppCommands[meta.ID] || scmAppCommands[meta.ID] {
 			continue
 		}
 		n++
