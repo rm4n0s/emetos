@@ -115,6 +115,8 @@ func streamHugeSearch(t *testing.T) (worst time.Duration, what string, turns int
 	t.Helper()
 	const files, perFile = 2000, 10 // 20,000 matches: search.maxResults
 	r := newRig(t, project)
+	// No search on type: its search of the project, 300 ms after the box is set, would replace the stream of a slow run.
+	r.api.SetSetting(settingSearchOnType, false)
 	ts := uitest.Pump(t, uitest.Themes()[0], gui.Size{Width: 340, Height: 400}, widgetOf(r))
 	r.ext.searchBox.SetValue("needle")
 	r.ext.status = searchStatus{running: true}
