@@ -87,9 +87,12 @@ func (vm *ViewModel) spendFrameBudget(d time.Duration) {
 	vm.tok.mu.Unlock()
 }
 
-// ensureOwn tokenizes, as Tokenizer.Ensure does, lines this view model is about to read: it is not told about them, as it would
-// repaint for lines it draws in the frame it is in (a frame of the software renderer costs more than the period of a key that
-// repeats); the other listeners and the other views of the document are.
+// ensureOwn tokenizes, as Tokenizer.Ensure does, the lines the text layer or the minimap of this view model draws in the frame it
+// is in, before it draws them: it is not told about them, as it would repaint for lines it has drawn already (a frame of the
+// software renderer costs more than the period of a key that repeats); the other listeners and the other views of the document
+// are. Only a caller that draws the lines it ensures, in this frame, may use it: a lines view of a zone draws the lines of this
+// view model but is told by its listeners, so it uses Ensure. When the budget ends before the line the view model is told (see
+// Tokenizer.EnsureFor), so that the next frame goes on from there.
 func (vm *ViewModel) ensureOwn(line int, budget time.Duration) bool {
 	return vm.tok.tokenizer.EnsureFor(vm.tok.subID, line, budget)
 }

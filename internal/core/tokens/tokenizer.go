@@ -221,7 +221,9 @@ func (t *Tokenizer) Line(line int) []Token {
 func (t *Tokenizer) Ensure(line int, budget time.Duration) bool { return t.EnsureFor(-1, line, budget) }
 
 // EnsureFor is Ensure for the subscriber with the id (OnChangeCause): the other listeners are told about the lines it
-// tokenized, the subscriber is not, as it is about to draw them and has nothing to learn from the call.
+// tokenized, the subscriber is not, as it is about to draw them and has nothing to learn from the call. When the budget ends
+// before the line it is told too (it draws what was tokenized, and a frame has to go on with the rest); when nothing could be
+// tokenized (no grammar, the rules are being made) nobody is told.
 func (t *Tokenizer) EnsureFor(skip, line int, budget time.Duration) bool {
 	t.mu.Lock()
 	if !t.activeLocked() || line < 0 || line >= len(t.lines) {
@@ -260,6 +262,10 @@ func (t *Tokenizer) EnsureFor(skip, line int, budget time.Duration) bool {
 	ok := t.invalidFrom > line
 	t.mu.Unlock()
 	if last >= from {
+		if !ok {
+			// the budget ended before the line: the caller draws the lines it got now and needs a frame to go on with the rest
+			skip = -1
+		}
 		t.notifyExcept(skip, from, last, CauseEnsure)
 	}
 	if !ok {

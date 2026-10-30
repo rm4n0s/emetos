@@ -5,9 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/gluttertest"
+	"github.com/rm4n0s/glutter/ui"
+	"github.com/rm4n0s/glutter/widgets"
+
+	"github.com/rm4n0s/emetos/internal/core/tokens"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
-	"github.com/rm4n0s/glutter/ui"
 )
 
 // A repaint is a call of the view model's listeners: the editor sets its state, which is a frame. A keystroke in a tokenized line is
@@ -96,4 +101,98 @@ func typeX(t *testing.T, vm *ViewModel) {
 	if err := vm.RunCommand("type", "x"); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// tokenizedPrefix is how many lines from the first have tokens.
+func tokenizedPrefix(vm *ViewModel, n int) int {
+	for i := 0; i < n; i++ {
+		if vm.lineTokens(i) == nil {
+			return i
+		}
+	}
+	return n
+}
+
+// The lines a frame could not tokenize within its budget are tokenized by the frames that follow, each repainting for the next,
+// when no background loop runs (it does in the application, and tells the view model what it tokenized). This holds for the lines
+// the editor draws, and for the lines a zone draws from the view model of another document, which the zone is told about by the
+// listeners of that view model: the frame that ensures them is not the only one that needs to know.
+func TestLinesLeftByTheBudgetOfAFrameAreTokenizedByTheNext(t *testing.T) {
+	var text strings.Builder
+	for range 3000 {
+		text.WriteString("var x = 1 // a line\n")
+	}
+	tests := []struct {
+		name string
+		// show puts the lines on the screen.
+		show func(t *testing.T, ts *gluttertest.Tester, vm *ViewModel)
+		// reach is how many lines the frames go on tokenizing up to; complete says they must get there (the lines of the editor are
+		// few), else it is enough that every few frames tokenize more (400 lines take longer than a test should wait under the
+		// race detector).
+		reach    int
+		complete bool
+	}{
+		{
+			name: "the lines of the editor",
+			show: func(t *testing.T, ts *gluttertest.Tester, vm *ViewModel) {
+				vm.tok.budget = time.Microsecond
+				pumpHighlighted(t, ts, vm, kit.DarkModern(), darkModernTokens(t))
+			},
+			reach: 6, complete: true,
+		},
+		{
+			name: "the lines of a zone",
+			show: func(t *testing.T, ts *gluttertest.Tester, vm *ViewModel) {
+				vm.SetPoster(ts.Binding.Post)
+				ts.PumpWidget(kit.NewTheme(kit.DarkModern(), widgets.NewDirectionality(ui.TextDirectionLTR,
+					widgets.NewSizedBox(NewLinesView(LinesViewOpts{Source: vm, FirstLine: 400, Count: 5}), widgets.SizedBoxOpts{
+						Width: foundation.Some(400.0), Height: foundation.Some(100.0),
+					})), kit.ThemeOpts{Tokens: darkModernTokens(t)}))
+			},
+			reach: 405,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vm, _ := highlighted(t, text.String())
+			ts := testutil.New(t, ui.Size{Width: 500, Height: 300})
+			tt.show(t, ts, vm)
+			ts.Pump(16 * time.Millisecond)
+			early := tokenizedPrefix(vm, tt.reach)
+			for range 150 {
+				ts.Pump(16 * time.Millisecond)
+				if tokenizedPrefix(vm, tt.reach) >= tt.reach {
+					break
+				}
+			}
+			if got := tokenizedPrefix(vm, tt.reach); got <= early || (tt.complete && got < tt.reach) {
+				t.Errorf("%d lines have tokens after the first frames and %d after more of them, want more (up to %d)", early, got, tt.reach)
+			}
+			noErrors(t, ts)
+		})
+	}
+}
+
+// A document with no grammar has nothing to tokenize: its frames ask for no repaint (an editor of plain text that repainted for
+// the lines it could not tokenize would draw frames for ever).
+func TestAnEditorWithNoGrammarDoesNotRepaintForItsTokens(t *testing.T) {
+	doc := newTestDoc("one\ntwo\nthree\n")
+	tok := tokens.New(doc, nil, tokens.Options{})
+	t.Cleanup(tok.Close)
+	vm := NewViewModel(doc, goOptions(), nil)
+	vm.SetTokenizer(tok)
+	ts := testutil.New(t, ui.Size{Width: 400, Height: 200})
+	pumpHighlighted(t, ts, vm, kit.DarkModern(), darkModernTokens(t))
+	for range 3 {
+		ts.Pump(16 * time.Millisecond)
+	}
+	repaints := 0
+	vm.AddListener(func() { repaints++ })
+	for range 20 {
+		ts.Pump(16 * time.Millisecond)
+	}
+	if repaints != 0 {
+		t.Errorf("the editor repainted %d times with nothing to tokenize", repaints)
+	}
+	noErrors(t, ts)
 }

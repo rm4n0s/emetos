@@ -617,6 +617,19 @@ func TestChangesTellTheirCauseAndEnsureForSkipsTheCaller(t *testing.T) {
 			wantA: nil, wantB: []causedChange{{0, 4, CauseEnsure}},
 		},
 		{
+			name:  "EnsureFor tells the caller too when the budget ends first",
+			act:   func(tok *Tokenizer, _ *document.Document, a, _ int) { tok.EnsureFor(a, 49, time.Nanosecond) },
+			wantA: []causedChange{{0, 0, CauseEnsure}}, wantB: []causedChange{{0, 0, CauseEnsure}},
+		},
+		{
+			name: "EnsureFor tells nobody when nothing could be tokenized",
+			act: func(tok *Tokenizer, _ *document.Document, a, _ int) {
+				tok.SetGrammar(nil)
+				tok.EnsureFor(a, 4, time.Second)
+			},
+			wantA: []causedChange{{0, 50, CauseReset}}, wantB: []causedChange{{0, 50, CauseReset}},
+		},
+		{
 			name: "an edit tells both",
 			act: func(tok *Tokenizer, doc *document.Document, _, _ int) {
 				tok.Ensure(49, time.Minute)
