@@ -72,6 +72,9 @@ func startWatching(t *testing.T, opts WatcherOptions, target Target, entries ...
 			t.Error("the watcher did not stop")
 		}
 	})
+	if !opts.ForcePolling && opts.inotifyInit == nil {
+		skipWithoutInotify(t, a.w)
+	}
 	if target.Path == "" {
 		target.Path = root
 	}
@@ -126,6 +129,16 @@ func (a *watched) must(err error) {
 	a.t.Helper()
 	if err != nil {
 		a.t.Fatal(err)
+	}
+}
+
+// skipWithoutInotify skips a test of inotify when the watcher could not get an inotify instance: the limit of the
+// user (fs.inotify.max_user_instances) is shared with every program they run, so a desktop with many of them leaves
+// none for the tests. The polling half of the tests still runs.
+func skipWithoutInotify(t *testing.T, w *Watcher) {
+	t.Helper()
+	if w.Polling() {
+		t.Skip("inotify is not available on this machine (fs.inotify.max_user_instances is used up), the watcher polls")
 	}
 }
 
@@ -541,6 +554,7 @@ func TestWatchAddFailed(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	w := NewWatcher(ctx, WatcherOptions{})
 	t.Cleanup(func() { cancel(); <-w.Done() })
+	skipWithoutInotify(t, w) // a polled folder is not added to inotify
 	_, err := w.Watch(context.Background(), Target{Path: locked})
 	appErr, ok := errors.FromError(err)
 	if !ok {

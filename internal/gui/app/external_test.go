@@ -866,6 +866,11 @@ func newWatchedApp(t *testing.T, texts map[string]string, open ...string) (*extA
 	case <-time.After(5 * time.Second):
 		t.Fatal("the watcher was not ready")
 	}
+	if w := win.Watcher(); w != nil && w.Polling() {
+		// the user's other programs can use up fs.inotify.max_user_instances; the watcher then polls and says so in a
+		// notification, which these tests of inotify's events do not expect
+		t.Skip("inotify is not available on this machine, the watcher polls")
+	}
 	a.ts = testutil.New(t, testWindowSize)
 	a.fd = a.ts.FakeDesktop()
 	a.ts.PumpWidget(newAppDocs(ctx, win, docs, nil, ""))

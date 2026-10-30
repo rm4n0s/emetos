@@ -238,6 +238,14 @@ func NewWatcher(ctx context.Context, opts WatcherOptions) *Watcher {
 	return w
 }
 
+// Polling reports whether the watcher polls every folder: polling was forced, or inotify could not be used when the
+// watcher started (the user's fs.inotify.max_user_instances can be used up by other programs).
+func (w *Watcher) Polling() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.ino == nil
+}
+
 // Done is closed when the watcher has stopped and all its goroutines are gone.
 func (w *Watcher) Done() <-chan struct{} { return w.done }
 
