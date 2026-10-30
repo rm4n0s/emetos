@@ -142,7 +142,11 @@ EOF
       echo 'for_window [title=".*"] floating enable' >>"$runtime/sway.conf"
       echo 'for_window [app_id=".*"] floating enable' >>"$runtime/sway.conf"
     fi
-    WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_RENDERER="${WLR_RENDERER:-pixman}" \
+    # The user's home stays out too: libxkbcommon also reads keymaps from ~/.config/xkb and ~/.xkb, which would change
+    # the keys of the tests.
+    mkdir -p "$runtime/home"
+    HOME="$runtime/home" XDG_CONFIG_HOME="$runtime/home/.config" \
+      WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_RENDERER="${WLR_RENDERER:-pixman}" \
       sway -c "$runtime/sway.conf" >"$log" 2>&1 &
     pid=$!
     ;;
