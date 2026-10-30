@@ -136,7 +136,7 @@ func (m menusAPI) Add(item extension.MenuItem) error {
 	if in.isDead() {
 		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
 	}
-	remove, err := in.scope.addMenu(item)
+	remove, err := in.scope.addMenu(item, in.slot.info.Manifest.Contributes.Submenus)
 	if err != nil {
 		return err
 	}

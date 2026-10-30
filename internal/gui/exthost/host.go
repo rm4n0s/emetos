@@ -110,13 +110,16 @@ func NewHost(opts HostOptions) *Host {
 		seen[m.ID] = true
 		h.infos = append(h.infos, &Info{Manifest: m, factory: f})
 	}
-	// the topics an extension declares must not be another's: checked once every id is known
+	// the topics, context keys and submenus an extension declares must not be another's: checked once every id is known
 	ids := make([]string, len(h.infos))
 	for i, in := range h.infos {
 		ids[i] = in.Manifest.ID
 	}
 	h.infos = slices.DeleteFunc(h.infos, func(in *Info) bool {
 		err := checkTopicOwnership(in.Manifest, ids)
+		if err == nil {
+			err = checkDeclOwnership(in.Manifest, ids)
+		}
 		if err != nil {
 			h.problems = append(h.problems, err)
 			h.log.Warn("an extension is left out", "err", err)

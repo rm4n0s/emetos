@@ -67,6 +67,36 @@ const (
 	CommandPalette = "CommandPalette"
 	// GlobalActivity is the Manage menu: the gear at the bottom of the activity bar.
 	GlobalActivity = "GlobalActivity"
+	// SCMTitle is the title bar of the Source Control view and of each repository header (scm/title) (step 24.2, SPEC §10.30).
+	SCMTitle = "SCMTitle"
+	// SCMSourceControlInline is the actions inline in the header of a repository (scm/repository).
+	SCMSourceControlInline = "SCMSourceControlInline"
+	// SCMSourceControl is the context menu of a repository (scm/sourceControl).
+	SCMSourceControl = "SCMSourceControl"
+	// SCMResourceGroupContext is the actions and the context menu of a group of resources (scm/resourceGroup/context).
+	SCMResourceGroupContext = "SCMResourceGroupContext"
+	// SCMResourceContext is the actions and the context menu of a resource (scm/resourceState/context).
+	SCMResourceContext = "SCMResourceContext"
+	// SCMResourceFolderContext is the actions and the context menu of a folder of the tree view (scm/resourceFolder/context).
+	SCMResourceFolderContext = "SCMResourceFolderContext"
+	// SCMChangeContext is the title bar of the peek of a change (scm/change/title).
+	SCMChangeContext = "SCMChangeContext"
+	// SCMHistoryTitle is the title bar of the Graph view (scm/history/title).
+	SCMHistoryTitle = "SCMHistoryTitle"
+	// SCMHistoryItemContext is the context menu of a commit of the Graph (scm/historyItem/context).
+	SCMHistoryItemContext = "SCMHistoryItemContext"
+	// SCMHistoryItemRefContext is the context menu of a branch or tag badge of the Graph (scm/historyItemRef/context).
+	SCMHistoryItemRefContext = "SCMHistoryItemRefContext"
+	// TimelineItemContext is the context menu of an item of the Timeline view (timeline/item/context).
+	TimelineItemContext = "TimelineItemContext"
+	// EditorContent is the prominent buttons over the content of an editor (editor/content).
+	EditorContent = "EditorContent"
+	// EditorTitle is the actions in the title bar of an editor (editor/title).
+	EditorTitle = "EditorTitle"
+	// DiffEditorHunkToolbar is the toolbar in the gutter of a hunk of the diff editor (diffEditor/gutter/hunk).
+	DiffEditorHunkToolbar = "DiffEditorHunkToolbar"
+	// DiffEditorSelectionToolbar is the toolbar in the gutter of a selection of the diff editor (diffEditor/gutter/selection).
+	DiffEditorSelectionToolbar = "DiffEditorSelectionToolbar"
 )
 
 // MenuItem is a row of a menu: a command, or a submenu that another menu is shown as. Exactly one of

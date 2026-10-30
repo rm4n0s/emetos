@@ -19,6 +19,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
+	"github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
@@ -174,6 +175,9 @@ type ScopeOptions struct {
 	// Clipboard puts a text on the clipboard of the desktop, on the UI thread, for Clipboard().WriteText; the window reports a
 	// clipboard that fails to the user. Nil leaves it unavailable.
 	Clipboard func(text string) error
+	// SCM is the model of the Source Control view of the window tab, which SourceControl().Create adds to; nil leaves it
+	// unavailable (Create fails with ExtensionSCMUnavailable).
+	SCM *scm.Model
 }
 
 // slot is an extension in a scope.
@@ -585,7 +589,7 @@ func (s *Scope) install(sl *slot) {
 		removers = append(removers, func() { removeHandler(); s.opts.Commands.Unregister(id) })
 	}
 	for _, item := range menus {
-		remove, err := s.addMenu(item)
+		remove, err := s.addMenu(item, m.Contributes.Submenus)
 		if err != nil {
 			s.log.Warn("a menu item of an extension is left out", "extension", m.ID, "menu", item.Menu, "command", item.Command, "err", err)
 			continue
@@ -649,14 +653,24 @@ func parseWhen(text string) (contextkey.Expr, error) {
 	return contextkey.Parse(text)
 }
 
-// addMenu adds a menu item and returns the function that removes it.
-func (s *Scope) addMenu(item extension.MenuItem) (remove func(), err error) {
+// addMenu adds a menu item and returns the function that removes it. An item that opens a submenu (VS Code's {"submenu": id}
+// entry) is a row with the label of the submenu, which submenus declares; a submenu the extension does not declare fails with
+// ExtensionSubmenuUnknown.
+func (s *Scope) addMenu(item extension.MenuItem, submenus []extension.SubmenuSpec) (remove func(), err error) {
 	when, err := parseWhen(item.When)
 	if err != nil {
 		return nil, err
 	}
+	title := item.Title
+	if item.Submenu != "" && title == "" {
+		i := slices.IndexFunc(submenus, func(sm extension.SubmenuSpec) bool { return sm.ID == item.Submenu })
+		if i < 0 {
+			return nil, errors.New("ExtensionSubmenuUnknown", "the menu item opens a submenu that the extension does not declare", "menu", item.Menu, "submenu", item.Submenu)
+		}
+		title = submenus[i].Label
+	}
 	return s.opts.Menus.AddRemovable(command.MenuItem{
-		Menu: item.Menu, Command: item.Command, Title: item.Title, Group: item.Group, Order: item.Order, When: when, Args: item.Args,
+		Menu: item.Menu, Command: item.Command, Submenu: item.Submenu, Title: title, Group: item.Group, Order: item.Order, When: when, Args: item.Args,
 	})
 }
 

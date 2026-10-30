@@ -17,6 +17,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/language"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
+	"github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
@@ -196,6 +197,9 @@ type tab struct {
 	chooserPath string
 	chooserErr  error
 
+	// scm is the model of the Source Control view of the tab (scm_test.go).
+	scm *scm.Model
+
 	// coreDocs is the CoreDocuments of the tab over its documents (core_test.go).
 	coreDocs *fakeCoreDocs
 
@@ -228,6 +232,8 @@ type rig struct {
 	noCommands, noCoreDocs map[string]bool
 	// noClip names tabs that have no clipboard (references_test.go).
 	noClip map[string]bool
+	// noSCM names tabs that have no Source Control model (scm_test.go).
+	noSCM map[string]bool
 }
 
 // folderOf is the folder of the tab named name.
@@ -255,7 +261,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -302,6 +308,11 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	if r.noLSP[name] {
 		lspw = nil
 	}
+	var model *scm.Model
+	if !r.noSCM[name] {
+		model = scm.NewModel(scm.DefaultConfig())
+		tb.scm = model
+	}
 	tb.coreDocs = newFakeCoreDocs(tb.docs)
 	var docs DocumentSource = tb.coreDocs
 	if r.noCoreDocs[name] {
@@ -322,7 +333,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		}
 	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		SCM: model, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },

@@ -91,6 +91,7 @@ type API struct {
 	locationAnswers   map[string]func(uri string, pos extension.Position) ([]extension.Location, error)
 	locationRequests  []LocationRequest
 	updates           []SettingUpdate
+	scm               scmState
 }
 
 // Note is a notification the extension showed.

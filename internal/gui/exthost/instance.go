@@ -39,6 +39,8 @@ type instance struct {
 	// (serverapi.go).
 	servers    []*serverCtl
 	serverSubs []*serverSub
+	// scmKeys are the source controls of the activation by id and root (scm.go), to refuse a second one of the same.
+	scmKeys map[string]bool
 }
 
 // isDead tells whether the activation ended. It is safe for concurrent use.

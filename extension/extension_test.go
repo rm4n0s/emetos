@@ -34,7 +34,7 @@ func TestCheckManifest(t *testing.T) {
 		{"the privilege", Manifest{ID: "a", Name: "N", Privileges: []string{PrivilegeCommandsExecute}}, ""},
 		{"a privilege that was removed", Manifest{ID: "a", Name: "N", Privileges: []string{"events.publishAny"}}, "CheckManifest->checkPrivileges.ExtensionPrivilegeUnknown"},
 		{"a privilege that does not exist", Manifest{ID: "a", Name: "N", Privileges: []string{"files.deleteAll"}}, "CheckManifest->checkPrivileges.ExtensionPrivilegeUnknown"},
-		{"a context key with a dot", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"search.visible"}}}, "CheckManifest->checkContextKeys.ExtensionContextKeyDeclInvalid"},
+		{"a context key with an empty segment", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"search..visible"}}}, "CheckManifest->checkContextKeys.ExtensionContextKeyDeclInvalid"},
 		{"a context key declared twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"hasSearchResult", "hasSearchResult"}}}, "CheckManifest->checkContextKeys.ExtensionContextKeyDeclDuplicate"},
 		{"declared topics", Manifest{ID: "a", Name: "N", Events: EventDecl{
 			Publishes: []EventSpec{{Topic: "a.x", Fast: true}, {Topic: "shared.y"}}, Handles: []string{"shared.req"}, Subscribes: []string{"emetos.document.*", "**"},
@@ -72,7 +72,22 @@ func TestCheckManifest(t *testing.T) {
 		{"a file view that selects nothing", Manifest{ID: "a", Name: "N", Contributes: Contributes{FileViews: []FileViewSpec{{ID: "a.v", Name: "V"}}}}, "checkEditors.ExtensionEditorInvalid"},
 		{"an editor action with no icon", Manifest{ID: "a", Name: "N", Contributes: Contributes{EditorActions: []EditorActionSpec{{Command: "a.c"}}}}, "checkEditors.ExtensionEditorActionInvalid"},
 		{"context keys of VS Code's names", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"terminalFocus", "terminalCount"}}}, ""},
-		{"a context key that is not a word", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"terminal.focus"}}}, "checkContextKeys.ExtensionContextKeyDeclInvalid"},
+		{"a dotted context key", Manifest{ID: "emetos.gitscm", Name: "N", Contributes: Contributes{ContextKeys: []string{"git.state", "git.timeline.selectedForCompare", "gitOpenRepositoryCount"}}}, ""},
+		{"a context key under emetos. and the own id", Manifest{ID: "emetos.gitscm", Name: "N", Contributes: Contributes{ContextKeys: []string{"emetos.gitscm.busy"}}}, ""},
+		{"a context key under emetos. and another id", Manifest{ID: "emetos.gitscm", Name: "N", Contributes: Contributes{ContextKeys: []string{"emetos.terminal.count"}}}, "checkContextKeys.ExtensionContextKeyDeclForeign"},
+		{"a context key that ends with a dot", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"git."}}}, "checkContextKeys.ExtensionContextKeyDeclInvalid"},
+		{"a context key with a hyphen", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"git.is-open"}}}, "checkContextKeys.ExtensionContextKeyDeclInvalid"},
+		{"a context key that starts with a digit", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"1git"}}}, "checkContextKeys.ExtensionContextKeyDeclInvalid"},
+		{"submenus and the items that open them", Manifest{ID: "emetos.gitscm", Name: "N", Contributes: Contributes{
+			Submenus: []SubmenuSpec{{ID: "git.commit", Label: "Commit"}, {ID: "git.pullpush", Label: "Pull/Push"}},
+			Menus:    []MenuItem{{Menu: MenuSCMTitle, Submenu: "git.commit", Group: "1_commit"}, {Menu: "git.commit", Command: "git.commit"}}}}, ""},
+		{"a submenu with no label", Manifest{ID: "a", Name: "N", Contributes: Contributes{Submenus: []SubmenuSpec{{ID: "git.commit"}}}}, "checkSubmenus.ExtensionSubmenuInvalid"},
+		{"a submenu with a bad id", Manifest{ID: "a", Name: "N", Contributes: Contributes{Submenus: []SubmenuSpec{{ID: "git commit", Label: "Commit"}}}}, "checkSubmenus.ExtensionSubmenuInvalid"},
+		{"a submenu under emetos. and another id", Manifest{ID: "emetos.gitscm", Name: "N", Contributes: Contributes{Submenus: []SubmenuSpec{{ID: "emetos.terminal.more", Label: "More"}}}}, "checkSubmenus.ExtensionSubmenuInvalid"},
+		{"a submenu declared twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{Submenus: []SubmenuSpec{{ID: "g.c", Label: "C"}, {ID: "g.c", Label: "D"}}}}, "checkSubmenus.ExtensionSubmenuDuplicate"},
+		{"an item that opens a submenu that is not declared", Manifest{ID: "a", Name: "N", Contributes: Contributes{Menus: []MenuItem{{Menu: MenuSCMTitle, Submenu: "g.c"}}}}, "checkSubmenus.ExtensionMenuItemInvalid"},
+		{"an item with a command and a submenu", Manifest{ID: "a", Name: "N", Contributes: Contributes{
+			Submenus: []SubmenuSpec{{ID: "g.c", Label: "C"}}, Menus: []MenuItem{{Menu: MenuSCMTitle, Command: "a.x", Submenu: "g.c"}}}}, "checkSubmenus.ExtensionMenuItemInvalid"},
 		{"a context key listed twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"terminalFocus", "terminalFocus"}}}, "checkContextKeys.ExtensionContextKeyDeclDuplicate"},
 		{"window tab kinds", Manifest{ID: "a", Name: "N", ActivationEvents: []string{OnWindowTab("a.tab")}, Contributes: Contributes{
 			WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab", Title: "Tab", Icon: "note", PlusMenuLabel: "Tab..."}, {ID: "a.other", Title: "Other"}}}}, ""},

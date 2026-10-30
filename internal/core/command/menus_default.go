@@ -33,6 +33,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerProfileMenus(r)
 	registerWorkspaceTabMenus(r)
 	registerExtensionsMenus(r)
+	registerSourceControlMenus(r)
 	return r
 }
 
@@ -537,4 +538,20 @@ func registerExtensionsMenus(r *MenuRegistry) {
 		MenuItem{Menu: MenubarPreferencesMenu, Command: id, Title: "Extensions", MnemonicTitle: "&&Extensions", Group: "2_configuration", Order: 3},
 		MenuItem{Menu: GlobalActivity, Command: id, Title: "Extensions", Group: "2_configuration", Order: 3},
 	)
+}
+
+// registerSourceControlMenus hides the commands of the Source Control model from the palette, as VS Code does (f1: false, or
+// no metadata for scm.setActiveProvider). The rows of the Source Control view's own menus come with the view (step 24.3).
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmViewPane.ts
+func registerSourceControlMenus(r *MenuRegistry) {
+	for _, id := range []string{
+		"workbench.scm.action.setListViewMode", "workbench.scm.action.setTreeViewMode",
+		"workbench.scm.action.setSortKey.name", "workbench.scm.action.setSortKey.path", "workbench.scm.action.setSortKey.status",
+		"workbench.scm.action.repositories.setSortKey.discoveryTime", "workbench.scm.action.repositories.setSortKey.name",
+		"workbench.scm.action.repositories.setSortKey.path",
+		"workbench.scm.action.repositories.setSelectionMode.single", "workbench.scm.action.repositories.setSelectionMode.multiple",
+	} {
+		r.MustAdd(MenuItem{Menu: CommandPalette, Command: id, When: contextkey.False()})
+	}
 }

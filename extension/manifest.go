@@ -16,7 +16,7 @@ var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$`)
 // event that takes an argument without one), and EventTopicInvalid or EventPatternInvalid for a topic or pattern the
 // manifest declares that is malformed, and ExtensionWindowTabIDForeign, ExtensionWindowTabDuplicate and
 // ExtensionWindowTabInvalid for the window tab kinds, and ExtensionServerInvalid and ExtensionServerDuplicate for the language servers, and ExtensionSettingDeclInvalid and
-// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not one word or is declared twice.
+// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not a word or words joined by dots or is declared twice, and ExtensionContextKeyDeclForeign for one under emetos. that is not under its own id, and ExtensionSubmenuInvalid, ExtensionSubmenuDuplicate and ExtensionMenuItemInvalid for the submenus and the menu items that open one.
 func CheckManifest(m Manifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return errors.New("ExtensionIDInvalid", "the id of an extension is lowercase, dotted and not empty (emetos.markdown)", "id", m.ID)
@@ -58,6 +58,9 @@ func CheckManifest(m Manifest) error {
 		return err
 	}
 	if err := checkContextKeys(m); err != nil {
+		return err
+	}
+	if err := checkSubmenus(m); err != nil {
 		return err
 	}
 	if err := checkPrivileges(m); err != nil {
@@ -204,20 +207,58 @@ func checkWindowTabs(m Manifest) error {
 	return nil
 }
 
-// contextKeyPattern is the name of a context key an extension declares without its id: a word of letters and digits.
-var contextKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+// contextKeyPattern is the name of a context key an extension declares without its id: a word of letters and digits, or words
+// joined by dots (git.state).
+var contextKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9]*)*$`)
 
-// checkContextKeys checks the context keys a manifest declares: every name is a word and none is listed twice.
+// checkContextKeys checks the context keys a manifest declares: every name is a word or words joined by dots, none is listed
+// twice, and none is under emetos. unless it is under the id of the extension. Whether a name is under the id of another
+// extension is for the host to check, which knows them (exthost's checkContextKeyOwnership).
 func checkContextKeys(m Manifest) error {
 	seen := map[string]bool{}
 	for _, key := range m.Contributes.ContextKeys {
 		switch {
 		case !contextKeyPattern.MatchString(key):
-			return errors.New("ExtensionContextKeyDeclInvalid", "a context key that an extension declares is a word of letters and digits", "id", m.ID, "key", key)
+			return errors.New("ExtensionContextKeyDeclInvalid", "a context key that an extension declares is a word of letters and digits, or such words joined by dots", "id", m.ID, "key", key)
+		case strings.HasPrefix(key, "emetos.") && !strings.HasPrefix(key, m.ID+"."):
+			return errors.New("ExtensionContextKeyDeclForeign", "a context key under emetos. belongs to the extension of that id", "id", m.ID, "key", key)
 		case seen[key]:
 			return errors.New("ExtensionContextKeyDeclDuplicate", "two context keys of the extension have the same name", "id", m.ID, "key", key)
 		}
 		seen[key] = true
+	}
+	return nil
+}
+
+// submenuPattern is the id of a submenu: letters, digits, dots, hyphens and underscores, starting with a letter.
+var submenuPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]*$`)
+
+// checkSubmenus checks the submenus a manifest declares (every id is well formed, new, and not under emetos. unless under the id
+// of the extension, and every submenu has a label) and the menu items that open one (they name a declared submenu and no
+// command).
+func checkSubmenus(m Manifest) error {
+	declared := map[string]bool{}
+	for _, s := range m.Contributes.Submenus {
+		switch {
+		case !submenuPattern.MatchString(s.ID) || strings.TrimSpace(s.Label) == "":
+			return errors.New("ExtensionSubmenuInvalid", "a submenu needs an id of letters, digits, dots, hyphens and underscores, and a label", "id", m.ID, "submenu", s.ID)
+		case strings.HasPrefix(s.ID, "emetos.") && !strings.HasPrefix(s.ID, m.ID+"."):
+			return errors.New("ExtensionSubmenuInvalid", "a submenu under emetos. belongs to the extension of that id", "id", m.ID, "submenu", s.ID)
+		case declared[s.ID]:
+			return errors.New("ExtensionSubmenuDuplicate", "two submenus of the extension have the same id", "id", m.ID, "submenu", s.ID)
+		}
+		declared[s.ID] = true
+	}
+	for _, item := range m.Contributes.Menus {
+		if item.Submenu == "" {
+			continue
+		}
+		if item.Command != "" {
+			return errors.New("ExtensionMenuItemInvalid", "a menu item has either a command or a submenu", "id", m.ID, "menu", item.Menu, "command", item.Command, "submenu", item.Submenu)
+		}
+		if !declared[item.Submenu] {
+			return errors.New("ExtensionMenuItemInvalid", "a menu item opens a submenu that the extension does not declare", "id", m.ID, "menu", item.Menu, "submenu", item.Submenu)
+		}
 	}
 	return nil
 }

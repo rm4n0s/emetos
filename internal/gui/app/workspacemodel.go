@@ -22,6 +22,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/notify"
+	"github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -108,6 +109,9 @@ type Workspace struct {
 	// Banners are the banners the extensions show across the top of the workbench of the tab (Banners().Show); the headless view of a
 	// workspace has none.
 	Banners *workbench.Banners
+	// SCM is the model of the Source Control view of the window: the source controls the extensions create, which repositories are
+	// shown, the active one, and the view mode of the Changes view (SPEC §10.30). The headless view of a workspace has none.
+	SCM *scm.Model
 	// Notifications is what the window shows of the notifications of the process: the toasts, the
 	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
 	// thread.
@@ -411,6 +415,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		Layout:         layout,
 		Views:          workbench.NewViews(p.Views.Fork(), layout), // the views its extensions add are its own
 		Banners:        workbench.NewBanners(),
+		SCM:            scm.NewModel(scmConfig(store)),
 		Dialogs:        kit.NewDialogController(),
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
@@ -432,6 +437,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	w.Layout.OnChange(w.syncLayoutKeys)
 	w.followZen()
 	w.registerWindowCommands()
+	w.startSCM()
 	w.settingsDocs = newSettingsDocs(w)
 	if err := w.Snippets.Reload(ctx); err != nil {
 		p.Logger.Warn("snippets", "err", err)

@@ -62,6 +62,9 @@ type API interface {
 	WindowTabs() WindowTabs
 	// Events publishes and subscribes to events and sends requests to the other extensions of the scope.
 	Events() Events
+	// SourceControl creates source controls: the repositories, groups of changes and commit input of the Source Control view
+	// (SPEC §10.30).
+	SourceControl() SourceControls
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the
 	// editor. fn is not run when the extension was deactivated before its turn comes, and a panic in it deactivates the
 	// extension. Activate, command handlers, the callbacks of the API and the event handlers run on the UI thread already.
@@ -139,10 +142,15 @@ const (
 
 // MenuItem is an item of a menu.
 type MenuItem struct {
-	// Menu is the id of the menu, one of the Menu constants.
+	// Menu is the id of the menu, one of the Menu constants or the ID of a submenu the extension declares
+	// (Contributes.Submenus).
 	Menu string
 	// Command is the id of the command the item runs. An item whose command does not exist is not shown.
 	Command string
+	// Submenu, instead of Command, makes the item open the submenu with this ID, which Contributes.Submenus declares (VS Code's
+	// {"submenu": "git.commit"} entry); its title is the label of the submenu unless Title is set. CheckManifest refuses an item
+	// that has both, and a submenu that is not declared.
+	Submenu string
 	// Title replaces the title of the command in this menu; empty keeps it.
 	Title string
 	// Group is the group of the item; the groups of a menu are ordered by name and separated by a line.

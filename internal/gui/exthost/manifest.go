@@ -63,3 +63,25 @@ func checkTopicOwnership(m extension.Manifest, ids []string) error {
 	}
 	return nil
 }
+
+// checkDeclOwnership checks that the context keys and the submenus an extension declares are not under the id of another
+// extension (ids, with a dot after it): a name under an id is that extension's. The failures have the tags
+// ExtensionContextKeyDeclTaken and ExtensionSubmenuTaken. The rule that a name under emetos. is under the extension's own id is
+// extension.CheckManifest's.
+func checkDeclOwnership(m extension.Manifest, ids []string) error {
+	for _, key := range m.Contributes.ContextKeys {
+		for _, id := range ids {
+			if id != m.ID && strings.HasPrefix(key, id+".") && !strings.HasPrefix(key, m.ID+".") {
+				return errors.New("ExtensionContextKeyDeclTaken", "a context key under the id of another extension is that extension's", "id", m.ID, "key", key, "owner", id)
+			}
+		}
+	}
+	for _, sm := range m.Contributes.Submenus {
+		for _, id := range ids {
+			if id != m.ID && strings.HasPrefix(sm.ID, id+".") && !strings.HasPrefix(sm.ID, m.ID+".") {
+				return errors.New("ExtensionSubmenuTaken", "a submenu under the id of another extension is that extension's", "id", m.ID, "submenu", sm.ID, "owner", id)
+			}
+		}
+	}
+	return nil
+}

@@ -96,10 +96,14 @@ type Contributes struct {
 	// type that is not a JSON type are refused by CheckManifest.
 	Settings []SettingSpec
 	// ContextKeys are the context keys the extension sets whose names do not start with its id, because VS Code's name for the
-	// same thing is read by the keybindings and the `when` clauses of users (terminalFocus). Context().Set accepts them as it
-	// does the keys under the id of the extension. A name is a word of letters and digits, not under the id of another
-	// extension and not one of the editor's; CheckManifest refuses a name that is not a word or is listed twice.
+	// same thing is read by the keybindings and the `when` clauses of users (terminalFocus, git.state). Context().Set accepts
+	// them as it does the keys under the id of the extension. A name is a word of letters and digits, or such words joined by
+	// dots, not under the id of another extension (the host refuses it) and not one of the editor's; CheckManifest refuses a
+	// name that is neither or is listed twice, and one under emetos. unless it is under the id of the extension itself.
 	ContextKeys []string
+	// Submenus are the submenus the extension adds (VS Code's contributes.submenus): menus that its menu items can be put in
+	// and that a menu item opens with MenuItem.Submenu.
+	Submenus []SubmenuSpec
 }
 
 // The activation events of a Manifest.

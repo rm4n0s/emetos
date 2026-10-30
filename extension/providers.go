@@ -59,11 +59,20 @@ type Location struct {
 	Range Range
 }
 
-// Command is a command of the editor (not of a server) with its arguments, that an item asks to run.
+// Command is a command of the editor (not of a server) with its arguments, that an item asks to run: the command of a code lens, and
+// the click on a resource, Ctrl+Enter in the input and the buttons of the Source Control view (VS Code's Command).
 type Command struct {
-	Title     string
-	ID        string
+	// Title is the text of the lens, the button or the menu row.
+	Title string
+	// ID is the id of the command: one of the extension, or of the editor.
+	ID string
+	// Arguments are the arguments of a command of the language providers, as JSON values.
 	Arguments []json.RawMessage
+	// Tooltip is the text of the hover (the Source Control view).
+	Tooltip string
+	// Args are the JSON-compatible argument the Source Control view runs the command with (one value, or nil); a command has
+	// Args or Arguments, and Args is used when it is not nil.
+	Args any
 }
 
 // CompletionKind is the kind of a completion item or a symbol; the numbers are those of the LSP (CompletionItemKind and
