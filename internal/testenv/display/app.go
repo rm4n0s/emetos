@@ -347,6 +347,12 @@ func (a *App) waitUp(ctx context.Context) {
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
+	// when the host has no inotify instance left, the warning about polling would take the next Escape of the test
+	if !inotifyAvailable() {
+		if dismissWatchWarning(a, 4*time.Second) {
+			a.t.Logf("the host's inotify instances are used up (fs.inotify.max_user_instances): the editor polls, and its warning toast was dismissed")
+		}
+	}
 	// the window is focused by the compositor when it maps; make sure, since the keys go to the focused window
 	if err := realinput.SwayCommand(ctx, "[pid="+itoa(a.cmd.Process.Pid)+"] focus"); err != nil {
 		a.t.Fatalf("focusing the window: %v", err)
