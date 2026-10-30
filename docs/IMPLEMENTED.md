@@ -3901,6 +3901,21 @@ quick ✅ · nocgo ✅ · race: TestAnExtensionExecutesACommandOfItsServer once 
 ### 23.1 (d4702ce)
 quick ✅ · realinput ✅ (the whole suite, exit 0) · race and nocgo: TestDevOpenFileAddsATab only, a test bug that the name of the worktree (step-23.1) set off (it replaced the first "3.1" of the path); fixed in d4702ce. `git grep -i` for the name of the removed extension prints nothing.
 
+### The Escape failures of 22.2: the inotify warning (54989e5, a8a9094, faae8d4)
+The machine change was the user's desktop programs using up `fs.inotify.max_user_instances` (128): every editor of a test fell back to polling and showed the warning "Emetos cannot watch files for changes", whose toast took the test's Escape (`notifications.hideToasts`, as in VS Code). The headless sway now gets a private HOME (54989e5); `internal/testenv/display` dismisses that one toast through the new `dev.toasts` and `dev.dismissNotification` when the host has no inotify instance left (a8a9094); the tests of inotify itself skip through the new `Watcher.Polling` (faae8d4; one of them dereferenced a nil `ino`). With them the six Escape tests pass 6/6.
+
+### The headless golden and the references menu (2595069, 35fc448)
+quick ✅ · nocgo and race: only the inotify tests above · realinput: only the six Escape tests above · TestANodeWithATooltipHasAHover failed once under load, 3/3 alone ✅.
+
+### 24.1 (beaac54, d1c6b56, 594d74d)
+quick ✅ · race, nocgo, realinput: only the inotify tests above (run before they were fixed). The manager added `gittest.Trust`'s refusal of a state folder outside the temporary folder (d1c6b56), and then accepted GOTMPDIR, where `t.TempDir` puts its folders under `scripts/checks.sh` (594d74d).
+
+### 24.2 (4bb5003, 3b7b939)
+quick ✅ · realinput ✅ · race and nocgo: `TestEveryEditorCommandHasAHandler` and `TestEveryWorkbenchCommandHasAHandler` (the 11 Source Control commands, bound by the app, were not in the lists of app commands) and the settings goldens (`scm.*` fell in Extensions > SCM): fixed in 3b7b939, which puts `scm.*` under Features > Source Control as VS Code's `settingsLayout.ts` does (the four goldens looked at).
+
+### Glutter 1.9.7 (b40fca5)
+quick ✅ · race and nocgo: `TestTrustFollowsTheProcessStateHome` (fixed in 594d74d) and `TestTheGoLanguageDefaultsOrganizeImportsAndFormatOnSave` once (40/40 alone; the fake counted the light bulb's own request, fixed in 73bf915) · realinput: the two timing tests of the big preview under load, 2/2 alone ✅; `TestDesktopFastKeysHeld` passes at the full window size.
+
 ## 24.2 The Source Control API and its model
 
 - **Date:** 2026-10-30
