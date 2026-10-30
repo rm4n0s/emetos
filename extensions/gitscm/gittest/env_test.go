@@ -215,6 +215,38 @@ func TestTrustFollowsTheProcessStateHome(t *testing.T) {
 	}
 }
 
+func TestTrustRefusesAStateHomeThatIsNotIsolated(t *testing.T) {
+	e := NewEnv(t)
+	r := e.Init("repo")
+	tests := []struct {
+		name  string
+		state string
+	}{
+		{"not set", ""},
+		{"outside the temporary folder", filepath.Join(filepath.Dir(os.TempDir()), "not-temp", "state")},
+		{"the temporary folder itself", os.TempDir()},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("XDG_STATE_HOME", tc.state)
+			fake := &recordingTB{TB: t}
+			func() {
+				defer func() {
+					if recover() == nil || !strings.Contains(fake.message, "XDG_STATE_HOME") {
+						t.Errorf("Trust did not refuse %q: %q", tc.state, fake.message)
+					}
+				}()
+				Trust(fake, r.Dir)
+			}()
+			if tc.state != "" {
+				if _, err := os.Stat(filepath.Join(tc.state, "emetos", "git-trust.json")); err == nil {
+					t.Errorf("a trust file was written under %s", tc.state)
+				}
+			}
+		})
+	}
+}
+
 func TestEnvDatesAreFixedAndEachCommitGetsTheNextMinute(t *testing.T) {
 	r := New(t)
 	r.Write("a.txt", "a\n")

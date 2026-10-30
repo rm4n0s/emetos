@@ -372,12 +372,17 @@ func (e *Env) Trust(path string) {
 }
 
 // Trust writes the real path of the repository at path into the trust file under $XDG_STATE_HOME, which the test must have
-// isolated first (the helper of internal/core/storage does it). The test fails when XDG_STATE_HOME is not set.
+// isolated first (the helper of internal/core/storage does it). The test fails when XDG_STATE_HOME is not set or is not inside
+// the temporary folder, so that a test that forgot to isolate its folders never writes into the user's real state.
 func Trust(t TB, path string) {
 	t.Helper()
 	state := os.Getenv("XDG_STATE_HOME")
 	if state == "" {
 		t.Fatalf("gittest.Trust: XDG_STATE_HOME is not set; isolate the test's folders first")
+		return
+	}
+	if rel, err := filepath.Rel(os.TempDir(), state); err != nil || rel == "." || !filepath.IsLocal(rel) {
+		t.Fatalf("gittest.Trust: XDG_STATE_HOME %s is not inside the temporary folder %s; isolate the test's folders first", state, os.TempDir())
 		return
 	}
 	trustIn(t, state, path)
