@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/glutter/ui"
+	"golang.org/x/sys/unix"
 
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -26,6 +27,7 @@ func goldenSharing(t *testing.T, theme string, height float64, prepare func(stor
 	paths := testutil.Isolate(t)
 	// the page and the question show the folders, so the folders have a fixed name: a golden cannot hold a random one
 	root := goldenSharingRoot
+	lockGoldenSharingRoot(t)
 	if err := os.RemoveAll(root); err != nil {
 		t.Fatal(err)
 	}
@@ -50,6 +52,24 @@ func goldenSharing(t *testing.T, theme string, height float64, prepare func(stor
 	a.ts.PumpWidget(newAppDocs(context.Background(), w.office, nil, nil, ""))
 	a.pump()
 	return w, a
+}
+
+// lockGoldenSharingRoot holds a lock beside the fixed folder until the test ends, so that two test processes (two worktrees
+// checked at once) do not remove each other's folders.
+func lockGoldenSharingRoot(t *testing.T) {
+	t.Helper()
+	f, err := os.OpenFile(goldenSharingRoot+".lock", os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := f.Close(); err != nil { // closing releases the lock
+			t.Errorf("closing the lock: %v", err)
+		}
+	})
 }
 
 func TestGoldenEventSharingPage(t *testing.T) {
