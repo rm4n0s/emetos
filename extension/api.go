@@ -83,6 +83,9 @@ type CommandSpec struct {
 	Description string
 	// When is the condition, a when-clause over the context keys, under which the command is enabled; empty is always.
 	When string
+	// Icon is the name of the Codicon ("add", "discard") the command shows as where a menu draws icons in place of titles: the
+	// inline actions and the title actions of the Source Control view (VS Code's command icon). Empty for none.
+	Icon string
 }
 
 // CommandHandler runs a command. ctx is cancelled when the command's work is no longer wanted, and args is a

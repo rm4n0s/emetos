@@ -53,7 +53,10 @@ func TestTheUIHasTheColorsOfTheTheme(t *testing.T) {
 		t.Errorf("the default theme is Dark Modern: %v", got)
 	}
 	colors := ts.Widget(gluttertest.ByType[*kit.Theme]()).(*kit.Theme).Colors()
-	if colors != kit.DarkModern() {
+	// the window's theme service made its own theme object: the colors are compared without the pointer to it
+	want := kit.DarkModern()
+	colors.ByID, want.ByID = nil, nil
+	if colors != want {
 		t.Error("the colors are those of the Dark Modern theme")
 	}
 	noErrors(t, ts)

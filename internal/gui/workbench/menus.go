@@ -92,6 +92,28 @@ func (m *MenuSource) Items(menu string, ctx contextkey.Context) []kit.MenuItem {
 	return m.convert(m.o.Menus.Items(menu, ctx), ctx)
 }
 
+// ItemsWithout is Items with the entries of the top level that drop says yes to left out (the context menu of a row of the Source
+// Control view leaves out the group of its inline buttons); the separators that are left at an end or in a row go too.
+func (m *MenuSource) ItemsWithout(menu string, ctx contextkey.Context, drop func(command.MenuEntry) bool) []kit.MenuItem {
+	if ctx == nil {
+		ctx = m.o.Context()
+	}
+	var entries []command.MenuEntry
+	for _, e := range m.o.Menus.Items(menu, ctx) {
+		if !e.Separator && drop(e) {
+			continue
+		}
+		if e.Separator && (len(entries) == 0 || entries[len(entries)-1].Separator) {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	if n := len(entries); n > 0 && entries[n-1].Separator {
+		entries = entries[:n-1]
+	}
+	return m.convert(entries, ctx)
+}
+
 // ManageItems are the items of the Manage menu, the gear of the activity bar. A menu with nothing in
 // it has one dimmed item, as an empty submenu does.
 func (m *MenuSource) ManageItems() []kit.MenuItem {

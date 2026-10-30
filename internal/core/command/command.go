@@ -60,6 +60,9 @@ type Meta struct {
 	Precondition contextkey.Expr
 	// Description says what the command does, for the keybindings UI; may be empty.
 	Description string
+	// Icon is the name of the Codicon the command shows as where a menu draws an icon in place of the title (the inline
+	// actions and the title actions of a view: VS Code's command icon); empty for none.
+	Icon string
 }
 
 // entry is a registered command: its Meta and the stack of handlers, the last wins.

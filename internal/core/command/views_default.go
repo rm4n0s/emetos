@@ -12,6 +12,12 @@ const (
 	ViewExplorerEmpty = "workbench.explorer.emptyView"
 	// ViewOpenEditors is the Open Editors view of the Explorer.
 	ViewOpenEditors = "workbench.explorer.openEditorsView"
+	// ViewContainerSCM is the Source Control container (step 24.3, SPEC §10.30).
+	ViewContainerSCM = "workbench.view.scm"
+	// ViewSCMRepositories is the Repositories view of Source Control and ViewSCM its Changes view.
+	ViewSCMRepositories = "workbench.scm.repositories"
+	// ViewSCM is the Changes view of Source Control (VS Code's VIEW_PANE_ID).
+	ViewSCM = "workbench.scm"
 	// ViewContainerMarkers is the Problems tab of the panel.
 	ViewContainerMarkers = "workbench.panel.markers"
 	// ViewMarkers is the view of the Problems tab.
@@ -24,6 +30,9 @@ const (
 
 // codiconFiles is the code point of the Codicon "files" (fonts.CodiconFiles in gui/kit/fonts).
 const codiconFiles = 0xEAF0
+
+// codiconSourceControl is the code point of the Codicon "source-control".
+const codiconSourceControl = 0xEA68
 
 // codiconWarning and codiconOutput are the code points of the Codicons "warning" and "output".
 const (
@@ -40,7 +49,7 @@ const (
 // Terminal add theirs), each with the one view that VS Code registers in it.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/explorerViewlet.ts,
-// src/vs/workbench/contrib/markers/browser/markers.contribution.ts and
+// src/vs/workbench/contrib/scm/browser/scm.contribution.ts, src/vs/workbench/contrib/markers/browser/markers.contribution.ts and
 // src/vs/workbench/contrib/output/browser/output.contribution.ts
 func DefaultViews() *ViewRegistry {
 	r := NewViewRegistry()
@@ -55,6 +64,14 @@ func DefaultViews() *ViewRegistry {
 			When: contextkey.NotEquals("workbenchState", "empty")},
 		// the Outline starts folded, below the folder (step 12.7)
 		View{ID: ViewOutline, Name: "Outline", Container: ViewContainerExplorer, Order: 2, Collapsed: true},
+	)
+	// Source Control (order 2, after Search): the Repositories view is hidden until it is shown, and the Changes view is always
+	// there (its welcome content says why it is empty). The Graph (step 24.20) comes later.
+	r.MustRegisterContainer(ViewContainer{ID: ViewContainerSCM, Title: "Source Control", Icon: codiconSourceControl, Order: 2})
+	r.MustRegisterViews(
+		View{ID: ViewSCMRepositories, Name: "Repositories", Container: ViewContainerSCM, Order: 0, HideByDefault: true,
+			When: when("scm.providerCount && scm.providerCount != 0")},
+		View{ID: ViewSCM, Name: "Changes", Container: ViewContainerSCM, Order: 1},
 	)
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerMarkers, Title: "Problems", Icon: codiconWarning, Order: 0, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})

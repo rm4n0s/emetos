@@ -224,6 +224,8 @@ type Scope struct {
 	// viewDecls are the views the extensions of the scope declare, by id, and viewStates the state they saved (views.go).
 	viewDecls  map[string]*viewDecl
 	viewStates map[string]json.RawMessage
+	// welcomes are the pieces of welcome content of the views (viewwelcome.go).
+	welcomes []*welcomeDecl
 	// kindDecls are the editor kinds by id, tabs the editor tabs by instance id and fileViewInstances the file views that
 	// are open in editor tabs (editors.go).
 	kindDecls         map[string]*kindDecl
@@ -608,6 +610,7 @@ func (s *Scope) install(sl *slot) {
 	removers = append(removers, s.installServers(sl)...)
 	registry, others := s.installViews(sl)
 	removers = append(removers, others...)
+	removers = append(removers, s.installViewWelcome(sl)...)
 	removers = append(removers, s.installEditors(sl))
 	s.mu.Lock()
 	sl.installed = removers
@@ -642,7 +645,7 @@ func commandMeta(spec extension.CommandSpec) (command.Meta, error) {
 	if err != nil {
 		return command.Meta{}, err
 	}
-	return command.Meta{ID: spec.ID, Title: spec.Title, Category: spec.Category, Description: spec.Description, Precondition: when}, nil
+	return command.Meta{ID: spec.ID, Title: spec.Title, Category: spec.Category, Description: spec.Description, Icon: spec.Icon, Precondition: when}, nil
 }
 
 // parseWhen parses a when-clause; empty is none. The registry's error is returned as it is.

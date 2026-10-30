@@ -55,6 +55,9 @@ type ListOpts struct {
 	// RowPadding is the room before the contents of a row; the default is 8 px. A table whose rows paint a
 	// background across the whole row sets 0.
 	RowPadding foundation.Opt[float64]
+	// ForceHover is the key of a row drawn as the one under the pointer whatever the pointer does; a proof image and a test use it
+	// to show a hovered row (empty for none).
+	ForceHover string
 	// OnSelectionChange is called when the user changed the selected rows (a click, Ctrl+click, Shift+click, a
 	// key), with their keys and indexes in the order of the rows. It is not called for changes the program
 	// makes.
@@ -495,7 +498,11 @@ func (s *listState) buildRow(bc widgets.BuildContext, i int) widgets.Widget {
 	row := m.Row(i)
 	height := m.RowHeightAt(i)
 	colors := ThemeOf(bc)
-	st := rowStateOf(colors, &m.rowNav, row.Key, s.hover, s.hasFocus)
+	hover := s.hover
+	if l.opts.ForceHover != "" {
+		hover = l.opts.ForceHover
+	}
+	st := rowStateOf(colors, &m.rowNav, row.Key, hover, s.hasFocus)
 	background, foreground, outline := rowLook(colors, st)
 	st.Foreground = foreground
 	inside, before, after := s.drag.rowDrop(row.Key)

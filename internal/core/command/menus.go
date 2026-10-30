@@ -67,6 +67,11 @@ const (
 	CommandPalette = "CommandPalette"
 	// GlobalActivity is the Manage menu: the gear at the bottom of the activity bar.
 	GlobalActivity = "GlobalActivity"
+	// SCMViewSort is the menu "View & Sort" of the Source Control view: the view mode and the sort key (VS Code's SCMViewSort).
+	SCMViewSort = "SCMViewSort"
+	// SCMRepositories is the menu "Repositories" of the Source Control view: the order and the selection mode of the repositories,
+	// and one row for each repository that shows or hides it (VS Code's SCMRepositories).
+	SCMRepositories = "SCMRepositories"
 	// SCMTitle is the title bar of the Source Control view and of each repository header (scm/title) (step 24.2, SPEC §10.30).
 	SCMTitle = "SCMTitle"
 	// SCMSourceControlInline is the actions inline in the header of a repository (scm/repository).
@@ -148,6 +153,10 @@ type MenuEntry struct {
 	Command string
 	// Args are the arguments of the command.
 	Args any
+	// Icon is the name of the Codicon of the command (Meta.Icon), for a toolbar that draws icons.
+	Icon string
+	// Group is the group of the item in its menu (MenuItem.Group): a toolbar shows the items of one group as buttons.
+	Group string
 	// Title is the text of the entry; MnemonicTitle is the text with "&&" marking the mnemonic, as
 	// the menu bar wants it (see MnemonicMenuLabel).
 	Title, MnemonicTitle string
@@ -383,7 +392,7 @@ func (r *MenuRegistry) entry(it MenuItem, title string, ctx contextkey.Context, 
 		if mnemonic == "" {
 			mnemonic = title
 		}
-		return MenuEntry{Submenu: it.Submenu, Title: title, MnemonicTitle: mnemonic, Items: items}, true
+		return MenuEntry{Submenu: it.Submenu, Title: title, MnemonicTitle: mnemonic, Items: items, Group: it.Group}, true
 	}
 	meta, ok := r.commands.Lookup(it.Command)
 	if !ok || title == "" {
@@ -393,7 +402,7 @@ func (r *MenuRegistry) entry(it MenuItem, title string, ctx contextkey.Context, 
 	if pre == nil {
 		pre = meta.Precondition
 	}
-	e := MenuEntry{Command: it.Command, Args: it.Args, Title: title, MnemonicTitle: it.MnemonicTitle,
+	e := MenuEntry{Command: it.Command, Args: it.Args, Title: title, MnemonicTitle: it.MnemonicTitle, Icon: meta.Icon, Group: it.Group,
 		Disabled: pre != nil && !pre.Evaluate(ctx)}
 	if e.MnemonicTitle == "" {
 		e.MnemonicTitle = title

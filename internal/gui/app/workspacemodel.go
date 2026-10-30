@@ -219,6 +219,10 @@ type Workspace struct {
 	restored        *restoredWindow
 	pendingExpanded []string
 	flushState      func()
+	// pendingSCMView is the saved state of the Source Control view (the folds), until the shell makes the view; scmDecorations are
+	// the decorations of the files that the view draws (scmview.go).
+	pendingSCMView json.RawMessage
+	scmDecorations scmFileDecorations
 	// extViewMu guards extViewStates, the state the views of the extensions saved before the scope closed (stopExtensions).
 	extViewMu     sync.Mutex
 	extViewStates map[string]json.RawMessage

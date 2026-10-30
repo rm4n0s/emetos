@@ -240,6 +240,8 @@ type shellState struct {
 	panels panelsState
 	// explorer is the Explorer: the tree of the folder and the Open Editors.
 	explorer explorerState
+	// scm is the Source Control container: the Changes and Repositories views (scmview.go).
+	scm scmState
 	// blocked is the path of the file that looks binary and that a notice offers to open anyway,
 	// while there is no editor.
 	blocked string
@@ -324,6 +326,7 @@ func (s *shellState) InitState() {
 	s.bindGroupCommands()
 	s.initPanels(binding)
 	s.initExplorer(binding)
+	s.initSCM(binding)
 	// the watcher of the folder, of the configuration and of the open files outside the folder
 	PeekWorkspace(s.Context()).StartWatching(s.Lifetime())
 	s.initQuickInput(binding)
@@ -455,8 +458,10 @@ func (s *shellState) Dispose() {
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()
+	s.disposeSCM()
 	s.disposeExplorer()
 	s.disposePanels()
+	s.resetSCMParts()
 	s.disposeGroup()
 }
 
@@ -470,6 +475,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 	s.syncTitle(bc, win)
 	s.syncActiveFile(widgets.WidgetsBindingOf(bc))
 	s.syncExplorer(widgets.WidgetsBindingOf(bc), win)
+	s.syncSCM(widgets.WidgetsBindingOf(bc), win)
 	var titleBar *workbench.TitleBarOptions // the tabs of the window are the host's: a view has the menu and no strip
 	if !win.isView() {
 		titleBar = s.titleBarOptions(win)

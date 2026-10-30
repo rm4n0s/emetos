@@ -144,3 +144,25 @@ type ContextKeys interface {
 	// Reset takes the key away.
 	Reset(key string)
 }
+
+// ViewWelcomeSpec is a piece of welcome content of a view (VS Code's contributes.viewsWelcome entry, SPEC §10.30): what a view
+// that is empty shows in place of its rows. A view shows the pieces whose When holds, one below the other, in the order of the
+// manifests; the Source Control view and the Explorer show theirs when they have nothing else to show. Several extensions may
+// add to one view.
+type ViewWelcomeSpec struct {
+	// View is the id of the view the content is for; it need not be one of the extension.
+	View string
+	// Contents is the content in Markdown, as a view's welcome content has it: paragraphs of text, **bold** and `code` spans,
+	// links ([Learn more](https://example.com) opens the address, [Open](command:ext.command) runs a command) and buttons: a
+	// link that is alone in its paragraph is drawn as a button. A command link may carry arguments after a "?" as JSON
+	// (command:ext.cmd?%5B1%5D, URL-encoded).
+	Contents string
+	// When is a when-clause under which the content is shown; empty is always.
+	When string
+	// Group orders the pieces of a view: the pieces of the group "navigation" come first, then the others by group name, then
+	// those without a group (VS Code's group, written "navigation@1" with the place after the "@").
+	Group string
+	// Enablement is a when-clause under which the buttons of the content are enabled; empty is always. A button whose condition
+	// does not hold is drawn dimmed and does nothing.
+	Enablement string
+}

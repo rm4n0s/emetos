@@ -1061,20 +1061,25 @@ func registerParameterHintsCommands(r *Registry) {
 	)
 }
 
-// registerSourceControlCommands registers the commands of the Source Control model that need no widget (step 24.2, SPEC §10.30):
-// the active repository, the view mode and sort key of the Changes view, and the order and the selection mode of the
-// repositories. The handlers change the state of the model (internal/gui/app/scm.go). VS Code lists none of them in the palette
-// (f1: false, or no metadata at all for scm.setActiveProvider), which registerSourceControlMenus says.
+// registerSourceControlCommands registers the commands of the Source Control view (steps 24.2 and 24.3, SPEC §10.30): showing and
+// focusing the view, the active repository, the view mode and sort key of the Changes view, the order, the selection mode and
+// the visibility of the repositories, and the collapsing of the repositories and of a group. The handlers are in
+// internal/gui/app/scm.go. VS Code lists none of them in the palette (f1: false, or no metadata at all for scm.setActiveProvider),
+// which registerSourceControlMenus says.
 //
 // Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmViewPane.ts (SetListViewModeAction, SetTreeViewModeAction,
-// SetSortKeyAction, RepositorySortAction, RepositorySelectionModeAction) and src/vs/workbench/contrib/scm/browser/scm.contribution.ts
-// (scm.setActiveProvider)
+// SetSortKeyAction, RepositorySortAction, RepositorySelectionModeAction, CollapseAllRepositoriesAction, ExpandAllRepositoriesAction,
+// CollapseAllAction, RepositoryVisibilityAction), src/vs/workbench/contrib/scm/browser/scm.contribution.ts (scm.setActiveProvider,
+// the open command of the container) and src/vs/workbench/browser/parts/views/viewPane.ts (the focus command of a view)
 func registerSourceControlCommands(r *Registry) {
 	list := contextkey.Equals("scmViewMode", "list")
 	r.MustRegister(
+		Meta{ID: "workbench.view.scm", Title: "Show Source Control", Category: "View"},
+		Meta{ID: "workbench.scm.focus", Title: "Focus on Changes View", Category: "View"},
+		Meta{ID: "workbench.scm.repositories.focus", Title: "Focus on Repositories View", Category: "View"},
 		Meta{ID: "scm.setActiveProvider"},
-		Meta{ID: "workbench.scm.action.setListViewMode", Title: "View as List"},
-		Meta{ID: "workbench.scm.action.setTreeViewMode", Title: "View as Tree"},
+		Meta{ID: "workbench.scm.action.setListViewMode", Title: "View as List", Icon: "list-tree"},
+		Meta{ID: "workbench.scm.action.setTreeViewMode", Title: "View as Tree", Icon: "list-flat"},
 		Meta{ID: "workbench.scm.action.setSortKey.name", Title: "Sort Changes by Name", Precondition: list},
 		Meta{ID: "workbench.scm.action.setSortKey.path", Title: "Sort Changes by Path", Precondition: list},
 		Meta{ID: "workbench.scm.action.setSortKey.status", Title: "Sort Changes by Status", Precondition: list},
@@ -1083,5 +1088,11 @@ func registerSourceControlCommands(r *Registry) {
 		Meta{ID: "workbench.scm.action.repositories.setSortKey.path", Title: "Sort by Path"},
 		Meta{ID: "workbench.scm.action.repositories.setSelectionMode.single", Title: "Select Single Repository"},
 		Meta{ID: "workbench.scm.action.repositories.setSelectionMode.multiple", Title: "Select Multiple Repositories"},
+		Meta{ID: "workbench.scm.action.collapseAllRepositories", Title: "Collapse All Repositories", Icon: "collapse-all"},
+		Meta{ID: "workbench.scm.action.expandAllRepositories", Title: "Expand All Repositories", Icon: "expand-all"},
+		Meta{ID: "workbench.scm.action.collapseAll", Title: "Collapse All", Icon: "collapse-all"},
+		// VS Code makes one of these for each repository, named by its provider id; Emetos has one that takes the repository as an
+		// argument (decision 447)
+		Meta{ID: "workbench.scm.action.toggleRepositoryVisibility", Title: "Toggle Repository Visibility"},
 	)
 }

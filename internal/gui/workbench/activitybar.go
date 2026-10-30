@@ -1,6 +1,8 @@
 package workbench
 
 import (
+	"strconv"
+
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
@@ -40,6 +42,8 @@ type activityItem struct {
 	widgets.StatefulWidget
 	icon    int
 	tooltip string
+	// badge is the number on the icon, 0 for none.
+	badge   int
 	active  bool
 	onPress func()
 	node    *widgets.FocusNode
@@ -146,6 +150,9 @@ func (s *activityItemState) Build(bc widgets.BuildContext) widgets.Widget {
 				widgets.NewSizedBox(nil))),
 			widgets.PositionedOpts{Left: foundation.Some(1.0), Top: foundation.Some(1.0), Right: foundation.Some(1.0), Bottom: foundation.Some(1.0)}))
 	}
+	if a.badge > 0 {
+		children = append(children, activityBadge(bc, colors, a.badge))
+	}
 	var body widgets.Widget = widgets.NewSizedBox(
 		widgets.NewStack(children, widgets.StackOpts{Fit: rendering.StackFitExpand}),
 		widgets.SizedBoxOpts{Width: foundation.Some(activityItemSize), Height: foundation.Some(activityItemSize)})
@@ -170,6 +177,40 @@ func (s *activityItemState) Build(bc widgets.BuildContext) widgets.Widget {
 		body = kit.NewHover(body, kit.HoverOpts{Text: a.tooltip, Compact: true, Position: kit.HoverRight})
 	}
 	return body
+}
+
+// Metrics of the badge on an icon of the activity bar, from VS Code's activitybarpart.css (`.badge .badge-content`): a pill of 16 px
+// by at least 16 px, 9 px semi-bold text, 24 px from the top and 8 px from the right of the 48 px square.
+const (
+	activityBadgeHeight = 16.0
+	activityBadgeTop    = 24.0
+	activityBadgeRight  = 8.0
+	activityBadgeFont   = 9.0
+)
+
+// activityBadge is the pill with the number of an icon of the activity bar, in activityBarBadge.background and .foreground. A count
+// above 99 is written 99+.
+//
+// Ported from VS Code: src/vs/workbench/browser/parts/compositeBarActions.ts (BaseActionViewItem.updateBadge) and
+// src/vs/workbench/browser/parts/activitybar/media/activitybarpart.css
+func activityBadge(bc widgets.BuildContext, colors kit.Colors, count int) widgets.Widget {
+	text := strconv.Itoa(count)
+	if count > 99 {
+		text = "99+"
+	}
+	style := painting.NewTextStyle(painting.TextStyleOpts{
+		FontFamily: kit.UIFontOf(bc), FontFamilyFallback: []string{"sans-serif"},
+		FontSize: foundation.Some(activityBadgeFont), FontWeight: ui.FontWeightW600, Color: foundation.Some(colors.ActivityBarBadgeForeground),
+		Height: foundation.Some(1.0),
+	})
+	pill := widgets.NewConstrainedBox(
+		rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MinWidth: foundation.Some(activityBadgeHeight), MinHeight: foundation.Some(activityBadgeHeight)}),
+		widgets.NewDecoratedBox(
+			painting.NewBoxDecoration(painting.BoxDecorationOpts{Color: foundation.Some(colors.ActivityBarBadgeBackground),
+				BorderRadius: painting.NewBorderRadiusCircular(activityBadgeHeight / 2)}),
+			widgets.NewPadding(painting.NewEdgeInsetsSymmetric(0, 4), widgets.NewCenter(widgets.NewText(text, widgets.TextOpts{Style: style, MaxLines: foundation.Some(1)})))))
+	return widgets.NewPositioned(widgets.NewIgnorePointer(pill),
+		widgets.PositionedOpts{Top: foundation.Some(activityBadgeTop), Right: foundation.Some(activityBadgeRight)})
 }
 
 // ActivityIcons is the top of the activity bar: an icon for each view container of the side bar, in
@@ -246,7 +287,14 @@ func (s *activityIconsState) Build(widgets.BuildContext) widgets.Widget {
 	var items []widgets.Widget
 	for _, c := range w.views.Registry().Containers(command.ViewLocationSideBar) {
 		id := c.ID
-		items = append(items, newActivityItem(ActivityItemKey(id), c.Icon, c.Title, visible && w.views.Active() == id, nil, func() { w.views.Toggle(id) }))
+		item := newActivityItem(ActivityItemKey(id), c.Icon, c.Title, visible && w.views.Active() == id, nil, func() { w.views.Toggle(id) })
+		if b, ok := w.views.Badge(id); ok {
+			item.badge = b.Count
+			if b.Tooltip != "" {
+				item.tooltip = c.Title + " - " + b.Tooltip
+			}
+		}
+		items = append(items, item)
 	}
 	return widgets.NewColumn(items, widgets.ColumnOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 }

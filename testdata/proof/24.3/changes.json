@@ -1,0 +1,36 @@
+{
+  "sourceControls": [
+    {
+      "id": "git", "label": "Git", "root": ".",
+      "status": [
+        {"text": "$(git-branch-conflicts) main*+!", "tooltip": "main, Checkout Branch/Tag...", "command": "dev.scm.checkout"},
+        {"text": "$(sync) 1↓ 2↑", "tooltip": "Synchronize Changes", "command": "dev.scm.sync"}
+      ],
+      "groups": [
+        {"id": "merge", "label": "Merge Changes", "resources": [
+          {"path": "src/loader.go", "letter": "U", "tooltip": "Conflict: Both Modified", "color": "gitDecoration.conflictingResourceForeground"}
+        ]},
+        {"id": "index", "label": "Staged Changes", "resources": [
+          {"path": "src/loader_test.go", "letter": "M", "tooltip": "Index Modified", "color": "gitDecoration.stageModifiedResourceForeground"},
+          {"path": "docs/notes.md", "letter": "A", "tooltip": "Index Added", "color": "gitDecoration.addedResourceForeground"}
+        ]},
+        {"id": "workingTree", "label": "Changes", "resources": [
+          {"path": "src/config.go", "letter": "M", "tooltip": "Modified", "color": "gitDecoration.modifiedResourceForeground"},
+          {"path": "README.md", "letter": "M", "tooltip": "Modified", "color": "gitDecoration.modifiedResourceForeground"},
+          {"path": "old/legacy.go", "letter": "D", "tooltip": "Deleted", "color": "gitDecoration.deletedResourceForeground", "strikeThrough": true},
+          {"path": "notes.txt", "letter": "U", "tooltip": "Untracked", "color": "gitDecoration.untrackedResourceForeground"}
+        ]}
+      ]
+    },
+    {
+      "id": "git", "label": "Git", "root": "docs-site",
+      "status": [{"text": "$(git-branch) gh-pages", "tooltip": "gh-pages, Checkout Branch/Tag...", "command": "dev.scm.checkout"}],
+      "groups": [
+        {"id": "workingTree", "label": "Changes", "resources": [
+          {"path": "index.md", "letter": "M", "tooltip": "Modified", "color": "gitDecoration.modifiedResourceForeground"}
+        ]}
+      ]
+    }
+  ],
+  "hover": "src/config.go"
+}

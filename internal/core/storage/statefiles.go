@@ -63,6 +63,9 @@ type WindowState struct {
 	// Views is the state the views of extensions saved (SPEC §10.15 "As built (step 11.5)"): the JSON each view's
 	// SaveState gave, by view id; the store does not look into it.
 	Views map[string]json.RawMessage `json:"views,omitempty"`
+	// SCM is the state of the Source Control view (SPEC §10.30): the repositories that are shown and in what order, the view mode
+	// and what is folded, as the host encoded them; the store does not look into it.
+	SCM json.RawMessage `json:"scm,omitempty"`
 }
 
 // LastWindow is the window the user last had open, which an empty command line opens again.

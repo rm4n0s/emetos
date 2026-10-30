@@ -835,7 +835,7 @@ var diffAppCommands = map[string]bool{
 }
 
 // scmAppCommands are the view mode and sort commands of Source Control, which the app binds since the model of the source
-// controls is the window's (step 24.2, gui/app/scm.go).
+// controls is the window's (step 24.2, gui/app/scm.go), and the commands of the view (step 24.3).
 var scmAppCommands = map[string]bool{
 	"workbench.scm.action.setListViewMode": true, "workbench.scm.action.setTreeViewMode": true,
 	"workbench.scm.action.setSortKey.name": true, "workbench.scm.action.setSortKey.path": true,
@@ -843,6 +843,10 @@ var scmAppCommands = map[string]bool{
 	"workbench.scm.action.repositories.setSortKey.discoveryTime": true, "workbench.scm.action.repositories.setSortKey.name": true,
 	"workbench.scm.action.repositories.setSortKey.path":         true,
 	"workbench.scm.action.repositories.setSelectionMode.single": true, "workbench.scm.action.repositories.setSelectionMode.multiple": true,
+	// the Source Control view of the window (step 24.3, gui/app/scmview.go)
+	"workbench.view.scm": true, "workbench.scm.focus": true, "workbench.scm.repositories.focus": true,
+	"workbench.scm.action.collapseAllRepositories": true, "workbench.scm.action.expandAllRepositories": true,
+	"workbench.scm.action.collapseAll": true, "workbench.scm.action.toggleRepositoryVisibility": true,
 }
 
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {

@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"sync"
+
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -10,6 +12,9 @@ import (
 // Colors are the workbench colors the widgets read, named as VS Code names them in a color
 // theme's "colors". ColorsOf takes them from a theme of the theme service.
 type Colors struct {
+	// ByID looks a color up by its id, for a color that an extension names (a file decoration's, VS Code's ThemeColor); it is the
+	// theme, a pointer so that Colors stays comparable, and is nil for Colors that did not come from a theme. See Colors.Named.
+	ByID *theme.ColorTheme
 	// Type is the type of the theme the colors come from (dark, light, high contrast); the file icons
 	// choose their light and high contrast variants by it.
 	Type                              theme.Type
@@ -230,6 +235,8 @@ type Colors struct {
 	StatusBarItemRemoteForeground, StatusBarItemRemoteBackground                              ui.Color
 	StatusBarItemRemoteHoverForeground, StatusBarItemRemoteHoverBackground                    ui.Color
 	ActivityBarBackground, ActivityBarBorder                                                  ui.Color
+	// The badge on an icon of the activity bar (the count of the Source Control icon).
+	ActivityBarBadgeBackground, ActivityBarBadgeForeground ui.Color
 	// The icons of the activity bar: the active one, the others, the line beside the active one (and
 	// its focus outline), and the background of the active one. The header of a view in the side
 	// bar: background, text and the line above it.
@@ -364,6 +371,8 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		ansi[i] = color(id)
 	}
 	return Colors{
+		ByID:                       ct,
+		ActivityBarBadgeBackground: color("activityBarBadge.background"), ActivityBarBadgeForeground: color("activityBarBadge.foreground"),
 		TerminalBackground: color("terminal.background"), TerminalForeground: color("terminal.foreground"),
 		TerminalCursorForeground: color("terminalCursor.foreground"), TerminalCursorBackground: color("terminalCursor.background"),
 		TerminalSelectionBackground: color("terminal.selectionBackground"), TerminalSelectionForeground: color("terminal.selectionForeground"),
@@ -640,10 +649,16 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 
 // DarkModern are the colors of the bundled Dark Modern theme, which a widget shown on its own
 // (with no Theme above it) uses.
-func DarkModern() Colors { return bundledColors(theme.DefaultDark) }
+func DarkModern() Colors { return darkModern() }
 
 // LightModern are the colors of the bundled Light Modern theme.
-func LightModern() Colors { return bundledColors(theme.DefaultLight) }
+func LightModern() Colors { return lightModern() }
+
+// The bundled themes are made once: their Colors compare equal, which the theme widget's change check relies on.
+var (
+	darkModern  = sync.OnceValue(func() Colors { return bundledColors(theme.DefaultDark) })
+	lightModern = sync.OnceValue(func() Colors { return bundledColors(theme.DefaultLight) })
+)
 
 func bundledColors(name string) Colors {
 	t, err := theme.LoadBundled(name)
@@ -794,4 +809,17 @@ func symbolIconColors(color func(string) ui.Color) [33]ui.Color {
 		out[i] = color("symbolIcon." + n + "Foreground")
 	}
 	return out
+}
+
+// Named is the color of the theme with the id ("gitDecoration.modifiedResourceForeground"); false for an id the theme and the
+// registry do not know, or for Colors that came from no theme.
+func (c Colors) Named(id string) (ui.Color, bool) {
+	if c.ByID == nil || id == "" {
+		return ui.Color{}, false
+	}
+	col, ok := c.ByID.Color(id)
+	if !ok {
+		return ui.Color{}, false
+	}
+	return ui.NewColor(col.ARGB()), true
 }

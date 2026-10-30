@@ -88,6 +88,10 @@ func TestCheckManifest(t *testing.T) {
 		{"an item that opens a submenu that is not declared", Manifest{ID: "a", Name: "N", Contributes: Contributes{Menus: []MenuItem{{Menu: MenuSCMTitle, Submenu: "g.c"}}}}, "checkSubmenus.ExtensionMenuItemInvalid"},
 		{"an item with a command and a submenu", Manifest{ID: "a", Name: "N", Contributes: Contributes{
 			Submenus: []SubmenuSpec{{ID: "g.c", Label: "C"}}, Menus: []MenuItem{{Menu: MenuSCMTitle, Command: "a.x", Submenu: "g.c"}}}}, "checkSubmenus.ExtensionMenuItemInvalid"},
+		{"welcome content of a view", Manifest{ID: "a", Name: "N", Contributes: Contributes{ViewWelcome: []ViewWelcomeSpec{
+			{View: "workbench.scm", Contents: "No repository.\n[Initialize](command:git.init)", When: "git.state == initialized", Group: "navigation@1"}}}}, ""},
+		{"welcome content with no view", Manifest{ID: "a", Name: "N", Contributes: Contributes{ViewWelcome: []ViewWelcomeSpec{{Contents: "x"}}}}, "checkViewWelcome.ExtensionViewWelcomeInvalid"},
+		{"welcome content with no contents", Manifest{ID: "a", Name: "N", Contributes: Contributes{ViewWelcome: []ViewWelcomeSpec{{View: "workbench.scm", Contents: "  "}}}}, "checkViewWelcome.ExtensionViewWelcomeInvalid"},
 		{"a context key listed twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{ContextKeys: []string{"terminalFocus", "terminalFocus"}}}, "checkContextKeys.ExtensionContextKeyDeclDuplicate"},
 		{"window tab kinds", Manifest{ID: "a", Name: "N", ActivationEvents: []string{OnWindowTab("a.tab")}, Contributes: Contributes{
 			WindowTabKinds: []WindowTabKindSpec{{ID: "a.tab", Title: "Tab", Icon: "note", PlusMenuLabel: "Tab..."}, {ID: "a.other", Title: "Other"}}}}, ""},

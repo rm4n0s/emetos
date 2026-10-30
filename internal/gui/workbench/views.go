@@ -21,8 +21,45 @@ type Views struct {
 	// collapsed has the views the user collapsed or expanded; the others start as their View says.
 	collapsed map[string]bool
 	// hidden has the views the user (or a command) hid or showed; the others start as their View says.
-	hidden    map[string]bool
+	hidden map[string]bool
+	// badges are the counts on the icons of the activity bar, by container.
+	badges    map[string]ActivityBadge
 	listeners []*func()
+}
+
+// ActivityBadge is the number on the icon of a view container in the activity bar (VS Code's NumberBadge of the activity
+// service, SPEC §10.4): a pill with a count, and the text of its tooltip.
+type ActivityBadge struct {
+	// Count is the number; a badge of 0 is not drawn.
+	Count int
+	// Tooltip is the text of the hover of the icon while the badge shows ("3 pending changes"); the title of the container when empty.
+	Tooltip string
+}
+
+// SetBadge sets the badge of the icon of a view container; a count of 0 takes it away.
+func (v *Views) SetBadge(container string, b ActivityBadge) {
+	if b.Count <= 0 {
+		if _, had := v.badges[container]; !had {
+			return
+		}
+		delete(v.badges, container)
+		v.notify()
+		return
+	}
+	if v.badges == nil {
+		v.badges = map[string]ActivityBadge{}
+	}
+	if v.badges[container] == b {
+		return
+	}
+	v.badges[container] = b
+	v.notify()
+}
+
+// Badge is the badge of the icon of a view container; false when there is none.
+func (v *Views) Badge(container string) (ActivityBadge, bool) {
+	b, ok := v.badges[container]
+	return b, ok
 }
 
 // NewViews makes the views of a window over a registry. The side bar shows the first container of the

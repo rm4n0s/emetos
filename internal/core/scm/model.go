@@ -162,14 +162,18 @@ type Model struct {
 	viewSortKey  SortKey
 	storedSort   SortKey
 	hasStoredKey bool
+
+	// the saved state (state.go)
+	restored    *State
+	restoreOpen bool // source controls that are added are matched with restored
+	didSelect   bool // a repository that restored shows came: the others are not shown
 }
 
 type subscriber struct{ fn func(Event) }
 
 // NewModel makes an empty model with a configuration.
 //
-// TODO(step 24.3): remember the repositories that are shown, their order and the view mode in the state of the workspace, as
-// SCMViewService does with scm:view:visibleRepositories and the SCM view does with scm.viewMode.
+// The repositories that are shown, their order and the view mode are the state of the window: Restore and State (state.go).
 func NewModel(cfg Config) *Model {
 	m := &Model{cfg: normalizeConfig(cfg)}
 	m.sortKey = ParseRepositorySortOrder(m.cfg.RepositoriesSortOrder)
@@ -283,7 +287,9 @@ type SourceSpec struct {
 }
 
 // Add adds a source control. Which repositories are shown follows scmViewService: with several selected allowed the new one is
-// selected, with a single one only when nothing is.
+// selected, with a single one only when nothing is. While the saved state is being restored (Restore, until FinishRestore) a
+// source control that the state does not know shows every repository, one that it shows replaces what was shown before it, and
+// one that it hides is shown only until a repository the state shows comes.
 func (m *Model) Add(spec SourceSpec) *Source {
 	m.mu.Lock()
 	m.handles++
@@ -297,6 +303,13 @@ func (m *Model) Add(spec SourceSpec) *Source {
 	}
 	s.input = &Input{src: s, enabled: true, visible: true}
 	events := []Event{}
+	if m.restored != nil && m.restoreOpen {
+		if done := m.addRestoredLocked(s, &events); done {
+			m.mu.Unlock()
+			m.notify(events...)
+			return s
+		}
+	}
 	if m.cfg.SelectionMode == SelectMultiple || !m.anySelectedLocked() {
 		s.selection = m.maxSelectionLocked() + 1
 	}
@@ -308,6 +321,44 @@ func (m *Model) Add(spec SourceSpec) *Source {
 	m.mu.Unlock()
 	m.notify(events...)
 	return s
+}
+
+// addRestoredLocked is the part of Add that follows the saved state; it reports whether it added the source control.
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmViewService.ts (onDidAddRepository)
+func (m *Model) addRestoredLocked(s *Source, events *[]Event) (done bool) {
+	i := slices.Index(m.restored.All, s.StorageKey())
+	if i < 0 {
+		// not in the saved state: closed before, or new; every repository is shown
+		m.insertLocked(s)
+		if m.cfg.SelectionMode == SelectMultiple || !m.anySelectedLocked() {
+			for n, o := range m.sources {
+				o.selection = n
+			}
+		}
+		m.didSelect = false
+		*events = append(*events, Event{Kind: SourceAdded, Source: s}, Event{Kind: ViewChanged})
+		if m.focusedLocked() == nil {
+			m.setFocusLocked(m.sources[0])
+		}
+		return true
+	}
+	if !slices.Contains(m.restored.Visible, i) {
+		if m.didSelect {
+			m.insertLocked(s)
+			*events = append(*events, Event{Kind: SourceAdded, Source: s})
+			return true
+		}
+		return false
+	}
+	if !m.didSelect {
+		for _, o := range m.sources {
+			o.selection, o.focused = -1, false
+		}
+		m.didSelect = true
+		*events = append(*events, Event{Kind: ViewChanged})
+	}
+	return false
 }
 
 // Remove takes a source control away, with its groups. It does nothing for one that was removed.

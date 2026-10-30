@@ -128,8 +128,11 @@ func TestViewRegistryErrors(t *testing.T) {
 func TestDefaultViews(t *testing.T) {
 	r := DefaultViews()
 	containers := r.Containers(ViewLocationSideBar)
-	if len(containers) != 1 || containers[0].ID != ViewContainerExplorer || containers[0].Title != "Explorer" || containers[0].Icon != 0xEAF0 {
+	if len(containers) != 2 || containers[0].ID != ViewContainerExplorer || containers[0].Title != "Explorer" || containers[0].Icon != 0xEAF0 {
 		t.Fatalf("containers: %+v", containers)
+	}
+	if c := containers[1]; c.ID != ViewContainerSCM || c.Title != "Source Control" || c.Icon != 0xEA68 || c.Order != 2 {
+		t.Errorf("the Source Control container: %+v", c)
 	}
 	for _, tc := range []struct {
 		name  string
@@ -148,6 +151,34 @@ func TestDefaultViews(t *testing.T) {
 	}
 	if v, _ := r.View(ViewOpenEditors); !v.HideByDefault {
 		t.Error("Open Editors starts hidden")
+	}
+}
+
+// TestDefaultSourceControlViews checks the views of the Source Control container: the Changes view is always there, the Repositories
+// view only once a source control exists, and it is hidden until it is shown (scm.contribution.ts).
+func TestDefaultSourceControlViews(t *testing.T) {
+	r := DefaultViews()
+	for _, tc := range []struct {
+		name  string
+		count any
+		want  []string
+	}{
+		{"no source control", 0.0, []string{ViewSCM}},
+		{"one", 1.0, []string{ViewSCMRepositories, ViewSCM}},
+		{"three", 3.0, []string{ViewSCMRepositories, ViewSCM}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := viewIDs(r.Views(ViewContainerSCM, contextkey.MapContext{"scm.providerCount": tc.count}))
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("views: %v, want %v", got, tc.want)
+			}
+		})
+	}
+	if v, _ := r.View(ViewSCMRepositories); !v.HideByDefault || v.Name != "Repositories" {
+		t.Errorf("the Repositories view: %+v", v)
+	}
+	if v, _ := r.View(ViewSCM); v.HideByDefault || v.Name != "Changes" {
+		t.Errorf("the Changes view: %+v", v)
 	}
 }
 

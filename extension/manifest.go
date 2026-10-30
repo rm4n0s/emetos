@@ -16,7 +16,7 @@ var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$`)
 // event that takes an argument without one), and EventTopicInvalid or EventPatternInvalid for a topic or pattern the
 // manifest declares that is malformed, and ExtensionWindowTabIDForeign, ExtensionWindowTabDuplicate and
 // ExtensionWindowTabInvalid for the window tab kinds, and ExtensionServerInvalid and ExtensionServerDuplicate for the language servers, and ExtensionSettingDeclInvalid and
-// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not a word or words joined by dots or is declared twice, and ExtensionContextKeyDeclForeign for one under emetos. that is not under its own id, and ExtensionSubmenuInvalid, ExtensionSubmenuDuplicate and ExtensionMenuItemInvalid for the submenus and the menu items that open one.
+// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not a word or words joined by dots or is declared twice, and ExtensionContextKeyDeclForeign for one under emetos. that is not under its own id, and ExtensionSubmenuInvalid, ExtensionSubmenuDuplicate and ExtensionMenuItemInvalid for the submenus and the menu items that open one, and ExtensionViewWelcomeInvalid for welcome content that names no view or has no contents.
 func CheckManifest(m Manifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return errors.New("ExtensionIDInvalid", "the id of an extension is lowercase, dotted and not empty (emetos.markdown)", "id", m.ID)
@@ -61,6 +61,9 @@ func CheckManifest(m Manifest) error {
 		return err
 	}
 	if err := checkSubmenus(m); err != nil {
+		return err
+	}
+	if err := checkViewWelcome(m); err != nil {
 		return err
 	}
 	if err := checkPrivileges(m); err != nil {
@@ -283,6 +286,17 @@ func checkSettings(m Manifest) error {
 			return errors.New("ExtensionSettingDeclDuplicate", "two settings of the extension have the same key", "id", m.ID, "key", key)
 		}
 		seen[key] = true
+	}
+	return nil
+}
+
+// checkViewWelcome checks the welcome content a manifest declares: it names a view and has contents. The when-clauses are
+// parsed by the host, which logs the piece it cannot parse and leaves it out, as it does for a view's.
+func checkViewWelcome(m Manifest) error {
+	for i, w := range m.Contributes.ViewWelcome {
+		if strings.TrimSpace(w.View) == "" || strings.TrimSpace(w.Contents) == "" {
+			return errors.New("ExtensionViewWelcomeInvalid", "welcome content needs a view and contents", "id", m.ID, "index", i, "view", w.View)
+		}
 	}
 	return nil
 }

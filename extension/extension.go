@@ -101,6 +101,9 @@ type Contributes struct {
 	// dots, not under the id of another extension (the host refuses it) and not one of the editor's; CheckManifest refuses a
 	// name that is neither or is listed twice, and one under emetos. unless it is under the id of the extension itself.
 	ContextKeys []string
+	// ViewWelcome is the welcome content of views (VS Code's contributes.viewsWelcome): the text, links and buttons a view shows
+	// while it has nothing else to show. The view may be one of Emetos (workbench.scm, workbench.explorer.emptyView) or any other.
+	ViewWelcome []ViewWelcomeSpec
 	// Submenus are the submenus the extension adds (VS Code's contributes.submenus): menus that its menu items can be put in
 	// and that a menu item opens with MenuItem.Submenu.
 	Submenus []SubmenuSpec

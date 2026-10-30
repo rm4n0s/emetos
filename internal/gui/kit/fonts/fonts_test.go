@@ -78,6 +78,8 @@ func TestCodiconByName(t *testing.T) {
 		{"bell-dot", CodiconBellDot, true},
 		{"bell-slash-dot", CodiconBellSlashDot, true},
 		{"error", CodiconError, true},
+		{"git-branch", 0xEC6F, true},
+		{"git-branch-create", 0xEC6F, true},
 		{"not-an-icon", 0, false},
 		{"", 0, false},
 		{"Bell", 0, false},

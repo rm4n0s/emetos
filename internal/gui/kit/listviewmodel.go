@@ -142,15 +142,15 @@ func (m *ListViewModel) RowHeight() float64 { return m.fixed }
 // there. An item without a key, or two with the same key, are refused (ListItemKeyEmpty, ListItemKeyDuplicated)
 // and nothing changes.
 func (m *ListViewModel) SetItems(items []ListViewItem) error {
-	seen := make(map[string]bool, len(items))
-	for _, it := range items {
-		switch {
-		case it.Key == "":
+	byKey := make(map[string]int, len(items))
+	for i, it := range items {
+		if it.Key == "" {
 			return errors.New("ListItemKeyEmpty", "a list item has no key")
-		case seen[it.Key]:
+		}
+		if _, dup := byKey[it.Key]; dup {
 			return errors.New("ListItemKeyDuplicated", "two list items have the same key", "key", it.Key)
 		}
-		seen[it.Key] = true
+		byKey[it.Key] = i
 	}
 	m.items = append(m.items[:0], items...)
 	for i := range m.items {
@@ -160,10 +160,8 @@ func (m *ListViewModel) SetItems(items []ListViewItem) error {
 			}
 		}
 	}
-	clear(m.byKey)
-	for i, it := range m.items {
-		m.byKey[it.Key] = i
-	}
+	// one map for the check and the lookup: a list of 100,000 items (the Source Control view) is made in one pass
+	m.byKey = byKey
 	m.makeRows()
 	return nil
 }

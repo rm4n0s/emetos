@@ -75,6 +75,41 @@ func (t *Tree) add(r *Resource) {
 	}
 }
 
+// NodeOf is the node of a resource, or nil when the tree has none for it. A resource that replaced another of its path has the
+// node of both.
+func (t *Tree) NodeOf(r *Resource) *Node {
+	rest := r.Path
+	if rel, ok := relativePath(t.base, r.Path); ok {
+		rest = rel
+	}
+	node := t.root
+	for {
+		rest = strings.TrimLeft(rest, "/")
+		name, after, more := strings.Cut(rest, "/")
+		if name == "" && !more {
+			return nil
+		}
+		node = node.index[name]
+		if node == nil {
+			return nil
+		}
+		if !more || strings.TrimLeft(after, "/") == "" {
+			return node
+		}
+		rest = after
+	}
+}
+
+// Ancestors are the folders that hold the node, the outermost first, without the root.
+func (n *Node) Ancestors() []*Node {
+	var out []*Node
+	for p := n.parent; p != nil && p.parent != nil; p = p.parent {
+		out = append(out, p)
+	}
+	slices.Reverse(out)
+	return out
+}
+
 // Root is the root of the tree: the folder "/", which is not shown.
 func (t *Tree) Root() *Node { return t.root }
 

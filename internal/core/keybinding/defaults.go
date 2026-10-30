@@ -503,6 +503,8 @@ func registerPanelViewKeys(r *Registry) {
 func registerExplorerKeys(r *Registry) {
 	r.MustRegister(
 		Rule{Command: "workbench.view.explorer", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+e"},
+		// Source Control (step 24.3): scm.contribution.ts gives the container's open command Ctrl+Shift+G (Ctrl+Cmd+Shift+G on a Mac)
+		Rule{Command: "workbench.view.scm", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+g"},
 		Rule{Command: "workbench.files.action.focusOpenEditorsView", Weight: WeightWorkbenchContrib, Primary: "ctrl+k e"},
 		Rule{Command: "workbench.action.files.openFolder", Weight: WeightWorkbenchContrib, Primary: "ctrl+k ctrl+o"},
 		Rule{Command: "workbench.action.closeFolder", Weight: WeightWorkbenchContrib, When: mustWhen("workbenchState != 'empty'"), Primary: "ctrl+k f"},

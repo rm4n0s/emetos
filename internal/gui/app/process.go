@@ -258,6 +258,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	registerDevNotify(p.Commands, p.Notify, logger)
 	registerDevLog(p.Commands, p.Channels)
 	registerDevMarkers(p.Commands)
+	registerDevSCM(p.Commands)
 	registerDevQueries(p)
 	registerDevWorkbench(p)
 	registerDevToasts(p)

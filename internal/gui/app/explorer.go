@@ -356,6 +356,14 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 		return explorer.NewOpenEditorsBody(ex.editors)
 	case command.ViewOutline:
 		return outlineview.NewBody(ex.outline)
+	case command.ViewSCM:
+		if s.scm.view != nil {
+			return s.scmBody()
+		}
+	case command.ViewSCMRepositories:
+		if s.scm.repos != nil {
+			return s.scmRepositoriesBody()
+		}
 	}
 	// a view an extension declared is the box of its content
 	if scope := PeekWorkspace(s.Context()).Extensions(); scope != nil {
@@ -381,6 +389,16 @@ func (s *shellState) viewName(viewID string) string {
 // viewActions are the buttons in the header of the folder view.
 func (s *shellState) viewActions(_ widgets.BuildContext, viewID string) widgets.Widget {
 	win := PeekWorkspace(s.Context())
+	switch viewID {
+	case command.ViewSCM:
+		if s.scm.view != nil {
+			return s.scmViewActions(win)
+		}
+	case command.ViewSCMRepositories:
+		if s.scm.view != nil {
+			return s.scmRepositoriesActions(win)
+		}
+	}
 	if viewID != command.ViewExplorerFolders {
 		return s.extensionViewActions(win, viewID)
 	}
@@ -404,6 +422,10 @@ func (s *shellState) viewFocused(viewID string, has bool) {
 	win := PeekWorkspace(s.Context())
 	ex := &s.explorer
 	if ex.focus == nil {
+		return
+	}
+	if viewID == command.ViewSCM || viewID == command.ViewSCMRepositories {
+		s.scmViewFocused(viewID, has)
 		return
 	}
 	ex.focus[viewID] = has

@@ -739,8 +739,8 @@ func TestViewMenuHasThePanelViews(t *testing.T) {
 		titles = append(titles, e.Title)
 	}
 	// the panel views come in their own group, between the group of Editor Layout and Workspace Tabs and Word Wrap's; the group of
-	// the command palette comes first; the Extensions page (step 11.1) has the group of the views
-	want := []string{"Command Palette...", "Open View...", "-", "Appearance", "Editor Layout", "Workspace Tabs", "-", "Extensions", "-", "Problems", "Output", "-", "Word Wrap"}
+	// the command palette comes first; Source Control (step 24.3) and the Extensions page (step 11.1) have the group of the views
+	want := []string{"Command Palette...", "Open View...", "-", "Appearance", "Editor Layout", "Workspace Tabs", "-", "Source Control", "Extensions", "-", "Problems", "Output", "-", "Word Wrap"}
 	if !reflect.DeepEqual(titles, want) {
 		t.Errorf("got %v, want %v", titles, want)
 	}

@@ -540,10 +540,13 @@ func registerExtensionsMenus(r *MenuRegistry) {
 	)
 }
 
-// registerSourceControlMenus hides the commands of the Source Control model from the palette, as VS Code does (f1: false, or
-// no metadata for scm.setActiveProvider). The rows of the Source Control view's own menus come with the view (step 24.3).
+// registerSourceControlMenus hides the commands of the Source Control view from the palette, as VS Code does (f1: false, or no
+// metadata for scm.setActiveProvider), and adds the host's own rows to the menus of the view: the title of the Changes view
+// (collapse and expand the repositories, View & Sort), the menu View & Sort (view mode, sort key, Repositories) and the menu
+// Repositories (the order of the repositories and how many are shown; the row of each repository is added by the window). The rows
+// that Git adds are the extension's (step 24.5). The Source Control row of the View menu is here too.
 //
-// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmViewPane.ts
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmViewPane.ts and scm.contribution.ts
 func registerSourceControlMenus(r *MenuRegistry) {
 	for _, id := range []string{
 		"workbench.scm.action.setListViewMode", "workbench.scm.action.setTreeViewMode",
@@ -551,7 +554,33 @@ func registerSourceControlMenus(r *MenuRegistry) {
 		"workbench.scm.action.repositories.setSortKey.discoveryTime", "workbench.scm.action.repositories.setSortKey.name",
 		"workbench.scm.action.repositories.setSortKey.path",
 		"workbench.scm.action.repositories.setSelectionMode.single", "workbench.scm.action.repositories.setSelectionMode.multiple",
+		"workbench.scm.action.collapseAllRepositories", "workbench.scm.action.expandAllRepositories", "workbench.scm.action.collapseAll",
+		"workbench.scm.action.toggleRepositoryVisibility", "workbench.scm.focus", "workbench.scm.repositories.focus",
 	} {
 		r.MustAdd(MenuItem{Menu: CommandPalette, Command: id, When: contextkey.False()})
 	}
+	inView := when("view == 'workbench.scm'")
+	r.MustAdd(
+		MenuItem{Menu: MenubarViewMenu, Command: "workbench.view.scm", Title: "Source Control", MnemonicTitle: "Source &&Control", Group: "3_views", Order: 3},
+		MenuItem{Menu: SCMTitle, Command: "workbench.scm.action.collapseAllRepositories", Group: "navigation",
+			When: contextkey.And(inView, when("scmViewIsAnyRepositoryCollapsible == true"), when("scmViewAreAllRepositoriesCollapsed == false"))},
+		MenuItem{Menu: SCMTitle, Command: "workbench.scm.action.expandAllRepositories", Group: "navigation",
+			When: contextkey.And(inView, when("scmViewIsAnyRepositoryCollapsible == true"), when("scmViewAreAllRepositoriesCollapsed == true"))},
+		MenuItem{Menu: SCMTitle, Submenu: SCMViewSort, Title: "View & Sort", Group: "0_view&sort", Order: 1,
+			When: contextkey.And(inView, when("scmRepositoryCount != 0"))},
+		MenuItem{Menu: SCMViewSort, Submenu: SCMRepositories, Title: "Repositories", Group: "0_repositories", When: when("scmRepositoryCount > 1")},
+		MenuItem{Menu: SCMViewSort, Command: "workbench.scm.action.setListViewMode", Group: "1_viewmode", Toggled: when("scmViewMode == 'list'")},
+		MenuItem{Menu: SCMViewSort, Command: "workbench.scm.action.setTreeViewMode", Group: "1_viewmode", Toggled: when("scmViewMode == 'tree'")},
+		MenuItem{Menu: SCMViewSort, Command: "workbench.scm.action.setSortKey.name", Group: "2_sort", Toggled: when("scmViewSortKey == 'name'")},
+		MenuItem{Menu: SCMViewSort, Command: "workbench.scm.action.setSortKey.path", Group: "2_sort", Toggled: when("scmViewSortKey == 'path'")},
+		MenuItem{Menu: SCMViewSort, Command: "workbench.scm.action.setSortKey.status", Group: "2_sort", Toggled: when("scmViewSortKey == 'status'")},
+		MenuItem{Menu: SCMRepositories, Command: "workbench.scm.action.repositories.setSortKey.discoveryTime", Group: "1_sort", Toggled: when("scmRepositorySortKey == 'discoveryTime'")},
+		MenuItem{Menu: SCMRepositories, Command: "workbench.scm.action.repositories.setSortKey.name", Group: "1_sort", Toggled: when("scmRepositorySortKey == 'name'")},
+		MenuItem{Menu: SCMRepositories, Command: "workbench.scm.action.repositories.setSortKey.path", Group: "1_sort", Toggled: when("scmRepositorySortKey == 'path'")},
+		MenuItem{Menu: SCMRepositories, Command: "workbench.scm.action.repositories.setSelectionMode.single", Group: "2_selectionMode", Order: 1,
+			Toggled: when("scmRepositorySelectionMode == 'single'"), When: when("scm.providerCount > 1")},
+		MenuItem{Menu: SCMRepositories, Command: "workbench.scm.action.repositories.setSelectionMode.multiple", Group: "2_selectionMode", Order: 2,
+			Toggled: when("scmRepositorySelectionMode == 'multiple'"), When: when("scm.providerCount > 1")},
+		MenuItem{Menu: SCMResourceGroupContext, Command: "workbench.scm.action.collapseAll", Group: "9_collapse", When: when("scmViewMode == 'tree'")},
+	)
 }
