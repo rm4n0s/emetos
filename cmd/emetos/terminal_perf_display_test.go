@@ -264,6 +264,7 @@ func TestPerfTerminalFoot(t *testing.T) {
 		cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + home, "XDG_CONFIG_HOME=" + filepath.Join(home, "config"),
 			"XDG_CACHE_HOME=" + filepath.Join(home, "cache"), "XDG_RUNTIME_DIR=" + os.Getenv("XDG_RUNTIME_DIR"),
 			"WAYLAND_DISPLAY=" + os.Getenv("WAYLAND_DISPLAY"), "LANG=C.UTF-8", "TERM=xterm-256color"}
+		cmd.Env = append(cmd.Env, display.GPUEnv()...) // never the NVIDIA card
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)

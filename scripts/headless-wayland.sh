@@ -35,6 +35,8 @@
 # Exit status: the command's own; 2 when no compositor is installed; 3 when the
 # compositor did not start; 64 for a usage mistake.
 set -euo pipefail
+# never the NVIDIA card: EGL, GLX and Vulkan of the compositor and of everything it runs
+source "$(dirname "${BASH_SOURCE[0]}")/gpu-env.sh"
 
 usage() {
   echo "usage: $0 -- <command> [args...]" >&2

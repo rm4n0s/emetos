@@ -58,6 +58,7 @@ if [[ ${#args[@]} -eq 0 ]]; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$root/scripts/gpu-env.sh" # never the NVIDIA card, also for the nested sway of --desktop
 cd "$root"
 command -v sway >/dev/null 2>&1 || { echo "error: sway is not installed (sudo dnf install sway grim)" >&2; exit 2; }
 command -v grim >/dev/null 2>&1 || { echo "error: grim is not installed (sudo dnf install sway grim)" >&2; exit 2; }

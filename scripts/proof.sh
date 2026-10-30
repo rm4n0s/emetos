@@ -105,6 +105,7 @@ if [[ -n "$state" ]]; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$root/scripts/gpu-env.sh" # never the NVIDIA card
 cd "$root"
 
 for tool in go sway; do
