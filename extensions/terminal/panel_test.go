@@ -19,6 +19,8 @@ type panelRig struct {
 	ts      *gluttertest.Tester
 	rebuild func()
 	seen    int
+	// gone takes the view off the screen (the panel hid), and false puts it back.
+	gone bool
 }
 
 // newPanelRig activates the extension with the test shell and shows its view in a window of the tests.
@@ -34,6 +36,9 @@ func newPanelRigAt(t *testing.T, th uitest.Theme, size gui.Size, dir string, bef
 	r := &panelRig{extRig: newExtRigAt(t, dir, before, "")}
 	root := widgets.NewStatefulBuilder(func(bc widgets.BuildContext, set widgets.StateSetter) widgets.Widget {
 		r.rebuild = func() { set(func() {}) }
+		if r.gone {
+			return widgets.NewSizedBox(nil, widgets.SizedBoxOpts{})
+		}
 		return r.ext.build(bc)
 	})
 	r.ts = uitest.Pump(t, th, size, root)
@@ -92,6 +97,42 @@ func TestAViewThatHasNoTerminalMakesOne(t *testing.T) {
 	}
 	if reveals := r.api.View(ViewID).Reveals; len(reveals) == 0 || !reveals[len(reveals)-1] {
 		t.Errorf("the first terminal did not take the focus: %v", reveals)
+	}
+}
+
+// TestTheLastTerminalEndingMakesNoNewOneWhenTheWorkspaceSavesItsState pins the flake of the display test
+// TestRealInputTerminalExitEndsIt: the workspace saves its state 250 ms after the panel opened (SaveState is called while the view
+// stays on screen), which came just after the last terminal ended and before the panel was hidden; it made the view forget that
+// it must not make a terminal, and the next frame made one.
+func TestTheLastTerminalEndingMakesNoNewOneWhenTheWorkspaceSavesItsState(t *testing.T) {
+	r := newPanelRig(t, uitest.Themes()[0], gui.Size{Width: 900, Height: 300})
+	r.waitShows(t, "ready")
+	r.run(CmdKill, nil)
+	if r.ext.count() != 0 || !r.ext.suppressOpen {
+		t.Fatalf("after the last Kill: %d terminals, suppressOpen %v", r.ext.count(), r.ext.suppressOpen)
+	}
+	// the state is saved while the view is still on screen, and the view is built again
+	if _, err := r.api.View(ViewID).Content.SaveState(); err != nil {
+		t.Fatal(err)
+	}
+	r.rebuild()
+	r.settle()
+	if n := r.ext.count(); n != 0 {
+		t.Fatalf("%d terminals after the state was saved with the view on screen, want none", n)
+	}
+	// the panel hid: the view is off screen, and comes back later with a terminal of its own
+	r.gone = true
+	r.rebuild()
+	r.settle()
+	if r.ext.suppressOpen || r.ext.visible {
+		t.Errorf("the view is off screen: suppressOpen %v, visible %v", r.ext.suppressOpen, r.ext.visible)
+	}
+	r.gone = false
+	r.rebuild()
+	r.settle()
+	r.waitShows(t, "ready")
+	if n := r.ext.count(); n != 1 {
+		t.Errorf("%d terminals after the view came back, want 1", n)
 	}
 }
 

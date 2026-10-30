@@ -54,7 +54,40 @@ func (t *terminals) build(bc widgets.BuildContext) widgets.Widget {
 		}))
 	}
 	body := widgets.NewColoredBox(bg, widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand}))
-	return ui.NewContextMenu(body, ui.ContextMenuOpts{Controller: t.menu})
+	return newViewLife(t, ui.NewContextMenu(body, ui.ContextMenuOpts{Controller: t.menu}))
+}
+
+// viewLife is the widget at the root of the view. It tells the extension when the view goes off screen (its box is taken out of
+// the tree: the panel hides, or shows another tab). ViewContent.SaveState is called then too, but also whenever the workspace
+// saves its state while the view stays on screen, so it cannot tell the two apart.
+type viewLife struct {
+	widgets.StatefulWidget
+	t     *terminals
+	child widgets.Widget
+}
+
+// newViewLife makes the root of the view around its content.
+func newViewLife(t *terminals, child widgets.Widget) widgets.Widget {
+	return &viewLife{StatefulWidget: widgets.NewStatefulWidgetBase(), t: t, child: child}
+}
+
+// CreateState implements widgets.StatefulWidget.
+func (v *viewLife) CreateState() widgets.State { return &viewLifeState{} }
+
+type viewLifeState struct {
+	widgets.StateOf[*viewLife]
+}
+
+// Build implements widgets.State: the content.
+func (s *viewLifeState) Build(widgets.BuildContext) widgets.Widget { return s.Widget().child }
+
+// Dispose tells the extension that the view is off screen.
+func (s *viewLifeState) Dispose() { s.Widget().t.viewGone() }
+
+// viewGone is the view going off screen: a view that comes back with no terminal makes one, also after the last terminal ended
+// and the panel hid (suppressOpen), and a terminal that was on its way to be made for it is not made.
+func (t *terminals) viewGone() {
+	t.visible, t.suppressOpen = false, false
 }
 
 // openIfNone makes a terminal for a view that is shown with none (the first time the panel opens, or after the last terminal

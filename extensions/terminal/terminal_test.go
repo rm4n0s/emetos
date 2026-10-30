@@ -206,10 +206,15 @@ func TestCommandsMakeFocusSplitAndKillTerminals(t *testing.T) {
 	if !r.ext.suppressOpen {
 		t.Error("the view would make a new terminal while the panel hides")
 	}
-	// the view comes back later: it may make a terminal again
+	// the state is saved while the view is still on screen: the view still makes none
 	if _, err := view.Content.SaveState(); err != nil {
 		t.Fatal(err)
 	}
+	if !r.ext.suppressOpen {
+		t.Error("saving the state of a view that is on screen made it forget that the panel hides")
+	}
+	// the view goes off screen and comes back later: it may make a terminal again
+	r.ext.viewGone()
 	if r.ext.suppressOpen {
 		t.Error("the panel was hidden and the view still refuses to make a terminal")
 	}

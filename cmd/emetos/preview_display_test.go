@@ -28,6 +28,14 @@ const (
 	// display tests run: 8.3 to 9.1 ms with Glutter 1.9.4 (47 to 55 ms before 1.9.3, when Glutter's checks of the UI thread
 	// read the goroutine number from runtime.Stack; the release build takes 9 ms; docs/PERFORMANCE.md "After Glutter 1.9.3").
 	previewFirstFrameBudget = 20 * time.Millisecond
+	// previewColdFrameBudget is the most the UI thread spends on one frame of the very first open of a preview in a process. That
+	// frame also lays out text in faces the editor has not used yet: in the first layout the heading of the first block took 10 ms
+	// and the code block 5 ms against 0.3 ms in every later layout, so the ten blocks took 17 to 20 ms against 2 ms the next time
+	// and the frame 17 to 43 ms (on the headless machine, which is shared with other work). That is Glutter loading a
+	// font, not the work of the preview, and no code of Emetos can move it off the UI thread. This bound is for what goes wrong in
+	// the preview itself in such a frame (the seconds of the first version of 17b.2, the 100 ms before Glutter 1.9.3): twice the
+	// worst of those runs.
+	previewColdFrameBudget = 100 * time.Millisecond
 	// builtBudget is the most blocks a window of the preview builds (the viewport and the margin around it, with the headings,
 	// paragraphs and images of the fixture, are about 20).
 	builtBudget = 60
@@ -72,6 +80,18 @@ func openBigPreview(t *testing.T, a *display.App) time.Duration {
 	return opened
 }
 
+// slowestFrameSince is the most the UI thread took for a frame that Glutter logged as slow (over 16 ms with the renderer) at or
+// after the time; it is zero when there was none.
+func slowestFrameSince(a *display.App, since time.Time) time.Duration {
+	var worst time.Duration
+	for _, f := range a.SlowFrames() {
+		if !f.Time.Before(since) {
+			worst = max(worst, f.Build)
+		}
+	}
+	return worst
+}
+
 func TestRealInputBigPreviewOpensAndScrolls(t *testing.T) {
 	a, asText := startBigPreview(t)
 	commanded := time.Now()
@@ -89,22 +109,37 @@ func TestRealInputBigPreviewOpensAndScrolls(t *testing.T) {
 	// Glutter logs a window of frame statistics once a second, and the first window begins with the first frame of the editor: the
 	// window that is logged next holds the start of the window (the first draw, which makes the pipelines and the shaders: 4 to 5 s
 	// of the renderer on llvmpipe with no shader cache, 0.9 s with the GPU) and the open of the preview. The scrolling is measured
-	// from the window after it (D13 of docs/DESKTOP-PASS.md), and the open by the frames that were logged between the command
-	// and here.
-	before := a.WaitFrameWindow()
+	// from the window after the second open below (D13 of docs/DESKTOP-PASS.md), and the opens by the frames that were logged between their
+	// command and the wait for the window.
+	a.WaitFrameWindow()
 	if first, ok := a.FirstFrame(); ok {
 		t.Logf("the first frame of the editor came %v after the start of Run", first.SinceRun)
 	}
-	var openBuild time.Duration
-	for _, f := range a.SlowFrames() {
-		if !f.Time.Before(commanded) {
-			openBuild = max(openBuild, f.Build)
-		}
+	cold := slowestFrameSince(a, commanded)
+	t.Logf("the UI thread took at most %v for a frame of the first open of the preview (frames over 16 ms only)", cold)
+	if cold > previewColdFrameBudget {
+		t.Errorf("a frame of the first open of the preview took %v of the UI thread, want at most %v", cold, previewColdFrameBudget)
 	}
-	t.Logf("the UI thread took at most %v for a frame of the open of the preview (frames over 16 ms only)", openBuild)
-	if openBuild > previewFirstFrameBudget {
-		t.Errorf("a frame of the open of the preview took %v of the UI thread, want at most %v", openBuild, previewFirstFrameBudget)
+
+	// The budget of the preview's own work is held to an open after the first: the fonts and the caches the first open filled are
+	// warm then, as they are for every preview a user opens after the first. SPEC §14 asks for the first frame within 300 ms, which
+	// both opens are held to, and for no frame of a scroll over 16 ms; it has no number for the frame of an open.
+	a.Dev("workbench.action.closeActiveEditor", nil)
+	a.Eventually("the preview to close", func() (bool, string) { return len(a.Previews()) == 0, "the preview is still on screen" })
+	a.Settle()
+	reopened := time.Now()
+	again := openBigPreview(t, a)
+	t.Logf("the first blocks of the preview were built %v after the command, the second time", again)
+	if again > previewOpenBudget+100*time.Millisecond {
+		t.Errorf("the second open took %v to show its first blocks, want at most %v (and the 100 ms of the test's own polling)", again, previewOpenBudget)
 	}
+	before := a.WaitFrameWindow()
+	warm := slowestFrameSince(a, reopened)
+	t.Logf("the UI thread took at most %v for a frame of the second open of the preview (frames over 16 ms only)", warm)
+	if warm > previewFirstFrameBudget {
+		t.Errorf("a frame of the second open of the preview took %v of the UI thread, want at most %v", warm, previewFirstFrameBudget)
+	}
+	p = preview(t, a)
 
 	// scroll with the wheel over the preview
 	x, y := p.X+p.Width/2, p.Y+p.Height/2

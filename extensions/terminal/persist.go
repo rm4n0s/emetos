@@ -176,9 +176,10 @@ func (t *terminals) restoreSession(raw json.RawMessage) {
 
 // ---- the state of the extension API ----
 
-// viewState is what the view saves (ViewContent.SaveState): the session, or nothing.
+// viewState is what the view saves (ViewContent.SaveState): the session, or nothing. It is called when the view goes off screen
+// and also while it stays (the workspace saves its state some time after a change of the layout), so it changes nothing: the
+// view going off screen is viewLife's.
 func (t *terminals) viewState() (any, error) {
-	t.visible, t.suppressOpen = false, false
 	if st := t.sessionState(); st != nil {
 		return st, nil
 	}
