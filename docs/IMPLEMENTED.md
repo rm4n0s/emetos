@@ -3834,3 +3834,36 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Glutter issues:** none.
 - **Deviations and follow-ups:** see DECISIONS-TO-REVIEW 410 to 419. `command.ClientRefusal` is now read only by `emetos.commands.list` and `emetos.commands.execute` (411). `TestDesktopWindowTabLabelIsNotCutWhenThereIsRoom` (D11) now opens Remote Work, whose label "Remote Work" is longer than the labels it opened before; it showed that a window tab measured its label in another style than its `Text` draws it with ("Remote Wo..." with room to spare), which the manager fixed on the line of fixes merged before this step ("Measure the label of a window tab in the style its Text draws it with"); the test passes.
 
+
+## Manager's checks of the merges since step 21.1
+
+
+### Fix line (ffdf761 and below, merged before 21.1)
+gofmt ✅ · go vet ✅ (also emetos_display, emetos_gopls) · golangci-lint ✅ (also --build-tags emetos_display) · error-tags --untested ✅ · go mod tidy -diff clean · go test -race ✅ (-p 2, exit 0) · CGO_ENABLED=0 build and test ✅ · scripts/realinput.sh: two timing failures (TestRealInputBigPreviewOpensAndScrolls, a frame of 22 ms over the 20 ms bound; TestRealInputTerminalExitEndsIt, the wait for the end). Rerun alone: the terminal test 3/3; the preview bound fails also on the commit before the key-repeat change (25.4 and 23.9 ms in 5 runs), so it is an older flake of the bound on this machine (follow-up).
+
+### 21.1 (76b62f7)
+gofmt ✅ · go vet ✅ (also emetos_display, emetos_gopls) · golangci-lint ✅ (also --build-tags emetos_display) · error-tags --untested ✅ · go mod tidy -diff clean · go test -race ✅ (-p 2, exit 0) · CGO_ENABLED=0 build and test ✅ · scripts/realinput.sh ✅ (the whole suite, exit 0).
+
+### 21.2 (3254fc6)
+gofmt ✅ · go vet ✅ · golangci-lint ✅ · error-tags ✅ · tidy ✅ · CGO_ENABLED=0 build and test ✅ · go test -race: three failures under load (TestTheDevCommandsPutAFakeCameraInPlaceOfTheRealOnes in remotework, TestWatcherPollingDetectsChanges in workspace, TestShowMyPublicKeySaysWhatIsInTheWay); the three packages rerun alone with -race ✅ · scripts/realinput.sh: TestRealInputTerminalExitEndsIt only (an older flake, also on the fix line; it fails 1 in 3 alone too; a fix branch follows).
+
+### Panel fix (1176885, fix/panel-actions-keep-room)
+quick checks ✅ · race: TestScanLooksAtAboutTenFramesASecond (keyqr) under load, rerun alone ✅ · nocgo: the terminals golden of the removed extension (its event list had its rows already; rerun ✅) and the camera dev commands under load (rerun ✅) · realinput: TestRealInputReferencesProof under load (alone 3/3 ✅).
+
+### 20.2 (17a830c)
+quick ✅ · race ✅ · nocgo: TestGoldenEventSharingQuestion only (a fixed folder in /tmp that the other check run removed at the same time; the folder is locked from fix/terminal-exit-and-preview-bound on) · realinput: the two older flakes (the preview bound, the terminal exit), fixed on fix/terminal-exit-and-preview-bound.
+
+### 22.1 (0341fe5)
+quick ✅ · nocgo ✅ · realinput ✅ · race: TestGoldenOfAHeadlessView (headless_scrolled stops short); an older flake: 5 of 10 fail with -count=10 on b3cb0ec (before the key-repeat change) and on main alike.
+
+### Flakes fix (9832c53 and below, fix/terminal-exit-and-preview-bound)
+quick ✅ · nocgo ✅ · race and realinput run while another project's three race runs held the machine (load 42 to 49 on 32 cores): the timing tests failed (keyqr scan rate, semantic key cost, the preview bounds, references); rerun alone at load 12 ✅ (keyqr, search, editor, TestDesktopFindAllReferences, TestRealInputReferencesProof, TestRealInputBigPreviewOpensAndScrolls). The stream test of the Search view was a real flake (search on type replaced the stream of a slow run), fixed in 9832c53. Left: TestGoldenOfAHeadlessView (older, fix/headless-golden-scroll), TestDesktopFastKeysHeld (the Glutter input-flush frame, docs/GLUTTER-ISSUES.md), TestRealInputReferencesProof 1 in 6 to 8 alone (a context menu without the editor's entries; fix/references-menu-race). No process opened the NVIDIA card (watcher over /proc).
+
+### Glutter 1.9.5 (bbe0aac)
+quick ✅ · nocgo ✅ · race: the same timing tests under the same load, rerun alone ✅; TestGoldenOfAHeadlessView as above · realinput: TestDesktopFastKeysHeld/50_a_second/editor (as above), the references proof (4/4 alone afterwards ✅, the same race as above).
+
+### 22.2 (84e15df)
+quick ✅ · nocgo ✅ · race: TestAnExtensionExecutesACommandOfItsServer once under load, rerun alone 3/3 ✅ · realinput: six tests that press Escape (TestDesktopFindAndReplace, TestDesktopExplorerClickKeepsTheFocus and four more) fail from 21:12 on, on every commit (22.1, the Glutter upgrade, 23.1 alike), after the whole suite passed on 23.1 at 21:04 to 21:12: a change of the machine, under investigation.
+
+### 23.1 (d4702ce)
+quick ✅ · realinput ✅ (the whole suite, exit 0) · race and nocgo: TestDevOpenFileAddsATab only, a test bug that the name of the worktree (step-23.1) set off (it replaced the first "3.1" of the path); fixed in d4702ce. `git grep -i` for the name of the removed extension prints nothing.
