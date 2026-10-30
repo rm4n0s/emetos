@@ -3856,6 +3856,17 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
   - *Names.* `HTTPBackend` and `Trust(env)` are methods of `gittest.Env`; `Trust(t, path)` (package function) follows the `XDG_STATE_HOME` of the process for a test that isolated its folders with the storage helper.
   - *Fixture `many`* with 100,000 files: built in 12 min 27 s of wall time, almost all of it the wait for a `scripts/heavy.sh` slot (the program used 4.8 s of user and 6.4 s of system time), 406 MB on disk, and `git status --porcelain` lists 100,000 changed files in it..
 
+## Fix: Glutter 1.9.7
+
+- **Date:** 2026-10-31
+- **Branch:** fix/glutter-1.9.7 (not a step of the plan)
+- **Summary:** Emetos moves to Glutter v1.9.7 (its steps 29.33 to 29.37). It fixes all four entries of `docs/GLUTTER-ISSUES.md`, so the three `// Glutter:` workarounds are removed and the file is deleted. `go.mod` changes the Glutter version only.
+  - **The frame after input (29.33) and the key repeat rate (29.34):** `TestDesktopFastKeysHeld` draws the normal 1280x800 window again (the `// Glutter:` constant of 640x400 and the two `ResizeWindow` calls are gone). Measured with `scripts/realinput.sh -- ./cmd/emetos -run TestDesktopFastKeysHeld -count=3 -v` under the headless sway: 3 of 3 runs pass at 25 and 50 repeats a second, in the editor and in an input box, within the test's tolerance of a quarter of the rate (50 a second: 38 to 64 characters; before 1.9.7 the full window gave about 31).
+  - **HTML on the clipboard (29.35):** `paneView.copyHTML` puts the markup of Copy Output as HTML on the clipboard as `text/html` (`services.ClipboardData{Text, HTML}`), with the output as its plain text (what Copy Output copies). The extension reaches Glutter's clipboard through the pane's binding, so the extension API did not change. D197 is amended.
+  - **A scrolled text field (29.36):** `inputBoxState.settleScroll` is deleted, with its post-frame callback; Glutter corrects the position in the layout, and the caret stays in view. `TestInputBoxSetValueScrollsBack` (4 cases) passes unchanged.
+- **Main files:** `go.mod`, `go.sum`, `cmd/emetos/desktop_fastkeys_display_test.go`, `extensions/terminal/{shell_pane.go,shell_pane_test.go}`, `internal/gui/kit/inputbox.go`, `docs/SPEC.md` (§10.x terminal decorations), `docs/DECISIONS-TO-REVIEW.md` (197), `docs/GLUTTER-ISSUES.md` (deleted).
+- **Tests:** `TestCopyOutputAsHTMLOffersBothRepresentations` (new, table-driven: the HTML item puts `text/html` and the plain output; Copy Output leaves no HTML; no item for a command without output); the three tests named above.
+- **Glutter issues:** four removed, none new; the file is deleted.
 
 ## Manager's checks of the merges since step 21.1
 

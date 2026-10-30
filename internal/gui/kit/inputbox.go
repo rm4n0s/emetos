@@ -348,38 +348,7 @@ func (s *inputBoxState) setValue(text string) {
 	s.text.SetValue(services.NewTextEditingValue(services.TextEditingValueOpts{
 		Text: text, Selection: foundation.Some(services.NewTextSelectionCollapsed(len(text))),
 	}))
-	s.settleScroll(len(text))
 	s.changed(text)
-}
-
-// settleScroll brings the scroll offset of the text back into its range once the layout has the new extent, after
-// the text was replaced (setValue), and shows the caret at the offset caret when the box has the focus.
-//
-// Glutter: when the text gets shorter, the scroll extent shrinks and the position is out of range. Glutter, as
-// Flutter, brings it back with a ballistic spring that takes about a second, so a text that fits stays scrolled
-// (its start is cut off) for that time; and a caret animation that was in flight keeps running toward its old
-// target. Glutter should snap a position of an EditableText back into its range at the layout, and stop the caret
-// animation when the text is replaced. The jump here stops both.
-func (s *inputBoxState) settleScroll(caret int) {
-	if !s.Mounted() {
-		return
-	}
-	scheduler := widgets.WidgetsBindingOf(s.Context()).Scheduler()
-	scheduler.ScheduleFrame()
-	scheduler.AddPostFrameCallback(func(time.Duration) {
-		if !s.Mounted() || !s.scroll.HasClients() {
-			return
-		}
-		if s.node.HasFocus() {
-			if es, ok := s.editable.CurrentState(); ok && es != nil {
-				es.BringIntoView(ui.NewTextPosition(caret))
-			}
-		}
-		pos := s.scroll.Position()
-		if off := s.scroll.Offset(); off < pos.MinScrollExtent() || off > pos.MaxScrollExtent() {
-			s.scroll.JumpTo(min(max(off, pos.MinScrollExtent()), pos.MaxScrollExtent()))
-		}
-	})
 }
 
 // addToHistory adds the text to the history unless it is empty or is the value the history is at

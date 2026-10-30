@@ -199,7 +199,7 @@ func (pv *paneView) commandMenu(v cmdView) []ui.MenuItem {
 		ui.MenuItem{ID: "rerun", Label: "Rerun Command", Disabled: v.text == "", OnRun: func() { pv.rerun(v) }},
 		ui.MenuItem{ID: "copyCommand", Label: "Copy Command", Disabled: v.text == "", OnRun: func() { pv.copyText(v.text) }},
 		ui.MenuItem{ID: "copyOutput", Label: "Copy Output", Disabled: !hasOutput, OnRun: func() { pv.copyText(pv.term.si.output(v)) }},
-		ui.MenuItem{ID: "copyHtml", Label: "Copy Output as HTML", Disabled: !hasOutput, OnRun: func() { pv.copyText(pv.outputHTML(v)) }},
+		ui.MenuItem{ID: "copyHtml", Label: "Copy Output as HTML", Disabled: !hasOutput, OnRun: func() { pv.copyHTML(pv.outputHTML(v), pv.term.si.output(v)) }},
 	)
 	return items
 }
@@ -220,6 +220,15 @@ func (pv *paneView) copyText(text string) {
 	pv.binding.Clipboard().SetData(pv.env.clipboardCtx, services.NewClipboardData(text), func(error) {})
 }
 
+// copyHTML puts a fragment of HTML on the clipboard as text/html, next to text as its plain-text representation, so that a rich
+// editor pastes the formatted output and a plain one pastes the text.
+func (pv *paneView) copyHTML(html, text string) {
+	if html == "" || pv.binding == nil {
+		return
+	}
+	pv.binding.Clipboard().SetData(pv.env.clipboardCtx, services.ClipboardData{Text: text, HTML: html}, func(error) {})
+}
+
 // openCommandMenu opens the menu of a decoration at a point of the window.
 func (pv *paneView) openCommandMenu(d decorated, at gui.Offset) {
 	cmds, cur := pv.shellState()
@@ -238,10 +247,7 @@ func (pv *paneView) openCommandMenu(d decorated, at gui.Offset) {
 }
 
 // outputHTML is the output of a command as HTML: a <pre> with the text, in the foreground and background colors of the terminal,
-// with the cells that have a color or a style in spans. It is what Copy Output as HTML puts on the clipboard.
-//
-// Glutter: the clipboard carries plain text only, so the markup is copied as text and not offered as text/html; Glutter should
-// provide a clipboard with more than one representation (docs/GLUTTER-ISSUES.md).
+// with the cells that have a color or a style in spans. It is what Copy Output as HTML puts on the clipboard as text/html.
 func (pv *paneView) outputHTML(v cmdView) string {
 	if !v.hasOutput() {
 		return ""

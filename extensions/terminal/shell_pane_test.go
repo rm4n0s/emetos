@@ -120,6 +120,60 @@ func TestClickOnADecorationOpensItsMenu(t *testing.T) {
 	}
 }
 
+// TestCopyOutputAsHTMLOffersBothRepresentations checks the menu item: the clipboard has the markup as text/html and the output
+// as plain text, not the markup as text.
+func TestCopyOutputAsHTMLOffersBothRepresentations(t *testing.T) {
+	var s session
+	s.prompt("$ ").run("ls", "\x1b[1;34msrc\x1b[0m a<b & \x1b[31mred\x1b[0m\r\nplain\r\n", 0).prompt("$ ").
+		run("true", "", 0).prompt("$ ")
+	r := shellPane(t, uitest.Themes()[0], paneSize, nil, s.String())
+	cmds, _ := r.pv.shellState()
+	if len(cmds) != 2 {
+		t.Fatalf("%d commands", len(cmds))
+	}
+	cases := []struct {
+		name     string
+		cmd      int
+		id       string
+		wantText string
+		wantHTML bool
+	}{
+		{"as HTML", 0, "copyHtml", "src a<b & red\nplain\n", true},
+		{"as text", 0, "copyOutput", "src a<b & red\nplain\n", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r.ts.SetClipboardText("before")
+			r.ts.SetClipboardHTML("")
+			for _, it := range r.pv.commandMenu(cmds[tc.cmd]) {
+				if it.ID == tc.id {
+					it.OnRun()
+				}
+			}
+			r.settle()
+			if text, _ := r.ts.ClipboardText(); text != tc.wantText {
+				t.Errorf("plain text = %q, want %q", text, tc.wantText)
+			}
+			html := r.ts.ClipboardHTML()
+			if tc.wantHTML {
+				for _, want := range []string{"<pre ", "</pre>", "font-weight:bold", "a&lt;b &amp; "} {
+					if !strings.Contains(html, want) {
+						t.Errorf("html lacks %q:\n%s", want, html)
+					}
+				}
+			} else if html != "" {
+				t.Errorf("html = %q, want none", html)
+			}
+		})
+	}
+	// a command with no output offers nothing to copy
+	for _, it := range r.pv.commandMenu(cmds[1]) {
+		if it.ID == "copyHtml" && !it.Disabled {
+			t.Error("Copy Output as HTML is enabled for a command with no output")
+		}
+	}
+}
+
 func TestCommandOutputAsHTML(t *testing.T) {
 	var s session
 	s.prompt("$ ").run("ls", "\x1b[1;34msrc\x1b[0m a<b & \x1b[31mred\x1b[0m\r\nplain\r\n", 0).prompt("$ ")
