@@ -381,11 +381,25 @@ func Trust(t TB, path string) {
 		t.Fatalf("gittest.Trust: XDG_STATE_HOME is not set; isolate the test's folders first")
 		return
 	}
-	if rel, err := filepath.Rel(os.TempDir(), state); err != nil || rel == "." || !filepath.IsLocal(rel) {
+	if !insideTemp(state) {
 		t.Fatalf("gittest.Trust: XDG_STATE_HOME %s is not inside the temporary folder %s; isolate the test's folders first", state, os.TempDir())
 		return
 	}
 	trustIn(t, state, path)
+}
+
+// insideTemp tells whether path is strictly inside the temporary folder or inside GOTMPDIR, where t.TempDir puts its
+// folders when GOTMPDIR is set (scripts/checks.sh sets it).
+func insideTemp(path string) bool {
+	for _, root := range []string{os.TempDir(), os.Getenv("GOTMPDIR")} {
+		if root == "" {
+			continue
+		}
+		if rel, err := filepath.Rel(root, path); err == nil && rel != "." && filepath.IsLocal(rel) {
+			return true
+		}
+	}
+	return false
 }
 
 // trustFileContent is the shape of git-trust.json.

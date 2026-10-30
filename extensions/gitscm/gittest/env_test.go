@@ -228,6 +228,7 @@ func TestTrustRefusesAStateHomeThatIsNotIsolated(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GOTMPDIR", "")
 			t.Setenv("XDG_STATE_HOME", tc.state)
 			fake := &recordingTB{TB: t}
 			func() {
@@ -242,6 +243,30 @@ func TestTrustRefusesAStateHomeThatIsNotIsolated(t *testing.T) {
 				if _, err := os.Stat(filepath.Join(tc.state, "emetos", "git-trust.json")); err == nil {
 					t.Errorf("a trust file was written under %s", tc.state)
 				}
+			}
+		})
+	}
+}
+
+func TestInsideTempAcceptsTheTemporaryFolderAndGOTMPDIR(t *testing.T) {
+	gotmp := filepath.Join(filepath.Dir(os.TempDir()), "a-gotmpdir")
+	t.Setenv("GOTMPDIR", gotmp)
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{"inside the temporary folder", filepath.Join(os.TempDir(), "x", "state"), true},
+		{"inside GOTMPDIR", filepath.Join(gotmp, "x", "state"), true},
+		{"the temporary folder itself", os.TempDir(), false},
+		{"GOTMPDIR itself", gotmp, false},
+		{"elsewhere", filepath.Join(filepath.Dir(os.TempDir()), "home", "state"), false},
+		{"a way out of the temporary folder", filepath.Join(os.TempDir(), "..", "state"), false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := insideTemp(tc.path); got != tc.want {
+				t.Errorf("insideTemp(%s) = %v, want %v", tc.path, got, tc.want)
 			}
 		})
 	}
