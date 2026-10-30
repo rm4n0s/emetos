@@ -43,8 +43,10 @@ func (c menuContext) Value(key string) any {
 
 // editorKeys are the context keys of the editor the window shows, for the menus: an editor is open and
 // can wrap its text, whether it does, and whether it is read-only.
-func (s *shellState) editorKeys() map[string]any {
-	active := s.activeEditor()
+func (s *shellState) editorKeys() map[string]any { return editorKeysOf(s.activeEditor()) }
+
+// editorKeysOf is editorKeys for one editor.
+func editorKeysOf(active *textEditor) map[string]any {
 	if active == nil {
 		return nil
 	}
@@ -62,17 +64,31 @@ func (s *shellState) menuContext() contextkey.Context {
 	return menuContext{base: win.Keys, settings: win.Settings, extra: s.editorKeys()}
 }
 
-// editorMenuContext is the context of the context menu of the editor: the keys of the widget that has
-// the focus, which is the editor when it was clicked.
-func (s *shellState) editorMenuContext() contextkey.Context {
+// editorMenuContextOf is the context of the context menu of an editor: the keys of that editor's own scope, as VS Code
+// evaluates the menu in the context key service of the editor that was clicked. The widget that has the focus is not
+// asked: the press that opens the menu asks for the focus for the editor, which only takes effect in a microtask, so
+// the menu is often asked for while the previous widget (a view of the side bar or the panel) still has the focus and its
+// scope lacks the keys of the editor (editorHasReferenceProvider, ...). With no editor (ed is nil) the focus decides.
+func (s *shellState) editorMenuContextOf(ed *textEditor) contextkey.Context {
 	win := PeekWorkspace(s.Context())
+	if ed != nil {
+		if node := ed.focus.Node(); node != nil {
+			extra := editorKeysOf(ed)
+			// the press that opens the menu gives the editor the focus, so the menu is made as if it had it already
+			extra["editorTextFocus"], extra["editorFocus"], extra["textInputFocus"] = true, true, true
+			return menuContext{base: win.Scopes.ScopeOf(node, win.Keys), settings: win.Settings, extra: extra}
+		}
+	}
 	focus := widgets.WidgetsBindingOf(s.Context()).FocusManager().PrimaryFocus()
 	return menuContext{base: win.Scopes.ScopeOf(focus, win.Keys), settings: win.Settings, extra: s.editorKeys()}
 }
 
-// editorMenuItems are the items of the context menu of the editor, asked for when it opens.
-func (s *shellState) editorMenuItems() []kit.MenuItem {
-	return s.menus.Items(command.EditorContext, s.editorMenuContext())
+// editorMenuContext is the context of the widget that has the focus (the editor, usually).
+func (s *shellState) editorMenuContext() contextkey.Context { return s.editorMenuContextOf(nil) }
+
+// editorMenuItems are the items of the context menu of an editor, asked for when it opens.
+func (s *shellState) editorMenuItems(ed *textEditor) []kit.MenuItem {
+	return s.menus.Items(command.EditorContext, s.editorMenuContextOf(ed))
 }
 
 // initMenus makes the source of the menus of the window and the controllers that open them from
@@ -161,7 +177,7 @@ func (s *shellState) devOpenMenu(args any) error {
 	case id == command.GlobalActivity:
 		s.manage.Open()
 	case id == command.EditorContext:
-		s.editorMenu.Show(at, s.editorMenuItems())
+		s.editorMenu.Show(at, s.editorMenuItems(s.activeEditor()))
 	default:
 		return errors.New("DevOpenMenuUnknown", "no menu of the menu bar, the Manage menu or the editor has this id", "id", id)
 	}

@@ -242,6 +242,15 @@ func (f *EditorFocus) Request() bool {
 	return true
 }
 
+// Node is the focus node of the editor, or nil while the editor is not on screen. It tells which context key scope belongs to
+// the editor (kit.FocusScopes) whatever has the focus.
+func (f *EditorFocus) Node() *widgets.FocusNode {
+	if f == nil {
+		return nil
+	}
+	return f.node
+}
+
 // HasFocus tells whether the editor has the focus.
 func (f *EditorFocus) HasFocus() bool { return f != nil && f.node != nil && f.node.HasFocus() }
 

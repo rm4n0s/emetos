@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
+	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -239,6 +240,93 @@ func TestTheEditorContextMenu(t *testing.T) {
 	}
 	if errs := a.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
+	}
+}
+
+// The context menu of an editor is evaluated in the scope of the editor that was clicked, not in the scope of the widget that
+// had the focus before: the press asks the editor for the focus, which takes effect in a microtask, after the menu was asked for
+// its items (Find All References was missing from the menu when a view held the focus, about one run of seven).
+func TestTheEditorContextMenuIsEvaluatedInTheScopeOfTheEditorWhateverHasTheFocus(t *testing.T) {
+	const probe = "editor.action.selectAll"
+	tests := []struct {
+		name string
+		// viaFocus asks for the menu in the scope of the widget that has the focus, which is not the editor
+		viaFocus bool
+		want     int
+	}{
+		{"the editor that was clicked", false, 2},
+		{"the widget that has the focus lacks the keys of the editor", true, 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := newKeyApp(t, "alpha beta\ngamma delta\n")
+			// an item that only the scope of the editor can satisfy (it is the editor that sets editorLangId), as
+			// Find All References needs editorHasReferenceProvider
+			when, err := contextkey.Parse("editorLangId == plaintext")
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.win.Menus.MustAdd(command.MenuItem{Menu: command.EditorContext, Command: probe, Group: "z_probe", Order: 1, When: when})
+			// another widget has the focus, as the References view has it when the editor is right clicked
+			other := widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "References view"})
+			a.ts.Binding.FocusManager().RootScope().RequestFocus(other)
+			a.pump()
+			if a.ts.Binding.FocusManager().PrimaryFocus() != other {
+				t.Fatal("the other widget does not have the focus")
+			}
+			ed := a.win.shell.activeEditor()
+			if ed == nil {
+				t.Fatal("no active editor")
+			}
+			var items []kit.MenuItem
+			if tt.viaFocus {
+				items = a.win.shell.menus.Items(command.EditorContext, a.win.shell.editorMenuContext())
+			} else {
+				items = a.win.shell.editorMenuItems(ed)
+			}
+			n := 0
+			for _, it := range items {
+				if it.ID == probe {
+					n++
+				}
+			}
+			if n != tt.want {
+				t.Errorf("%d entries of %s, want %d", n, probe, tt.want)
+			}
+		})
+	}
+}
+
+// The same through a right click, with the focus on another widget (the test pointer applies the focus change before the menu is asked
+// for its items, so this one checks the wiring; the order that fails is the one of the window, see the display test of the
+// References view).
+func TestARightClickOnTheEditorOpensItsMenuWhileAnotherWidgetHasTheFocus(t *testing.T) {
+	const probe = "editor.action.selectAll"
+	a := newKeyApp(t, "alpha beta\ngamma delta\n")
+	when, err := contextkey.Parse("editorLangId == plaintext")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.win.Menus.MustAdd(command.MenuItem{Menu: command.EditorContext, Command: probe, Group: "z_probe", Order: 1, When: when})
+	other := widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "References view"})
+	a.ts.Binding.FocusManager().RootScope().RequestFocus(other)
+	a.pump()
+	if a.ts.Binding.FocusManager().PrimaryFocus() != other {
+		t.Fatal("the other widget does not have the focus")
+	}
+	right := gluttertest.GestureOpts{Kind: ui.PointerDeviceKindMouse, Buttons: foundation.Some(gestures.SecondaryButton)}
+	at := a.ts.TopLeft(gluttertest.ByType[*kit.ContextMenuRegion]())
+	size := a.ts.Size(gluttertest.ByType[*kit.ContextMenuRegion]())
+	a.ts.TapAt(ui.Offset{Dx: at.Dx + 120, Dy: at.Dy + size.Height/3}, right)
+	a.pump()
+	n := 0
+	for _, it := range a.openMenuItems(t) {
+		if it.ID == probe {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("%d entries of %s in the menu, want 2", n, probe)
 	}
 }
 
