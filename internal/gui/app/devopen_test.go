@@ -124,7 +124,7 @@ func TestDevOpenFileAddsATab(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other := strings.Replace(sampleFile(t), "3.1", "4.9", 1)
+	other := strings.Replace(sampleFile(t), "/proof/3.1/", "/proof/4.9/", 1) // not the first "3.1": a worktree can be named after a step
 	args, err := json.Marshal([][]any{{"dev.openFile", other}})
 	if err != nil {
 		t.Fatal(err)
