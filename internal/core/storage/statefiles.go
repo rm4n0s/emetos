@@ -66,6 +66,9 @@ type WindowState struct {
 	// SCM is the state of the Source Control view (SPEC §10.30): the repositories that are shown and in what order, the view mode
 	// and what is folded, as the host encoded them; the store does not look into it.
 	SCM json.RawMessage `json:"scm,omitempty"`
+	// Timeline is the state of the Timeline view (SPEC §10.30): the sources the user filtered out, as the host encoded it; the store
+	// does not look into it.
+	Timeline json.RawMessage `json:"timeline,omitempty"`
 }
 
 // LastWindow is the window the user last had open, which an empty command line opens again.

@@ -62,6 +62,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 
 	x.cfg.load(api)
 	x.syncHelperSettings()
+	x.loadTimelineSettings()
 	api.Settings().OnChange(x.settingsChanged)
 
 	if err := x.registerCommands(); err != nil {
@@ -188,6 +189,7 @@ func (x *gitscm) settingsChanged() {
 	old := x.cfg
 	x.cfg.load(x.api)
 	x.syncHelperSettings()
+	x.loadTimelineSettings()
 	switch {
 	case old.enabled && !x.cfg.enabled:
 		for _, r := range append([]*repository(nil), x.model.order...) {

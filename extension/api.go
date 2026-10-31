@@ -67,6 +67,8 @@ type API interface {
 	SourceControl() SourceControls
 	// Decorations registers the providers of the colors and badges of files (SPEC §10.30 "File decorations and the Explorer").
 	Decorations() Decorations
+	// Timeline registers the providers of the history of files that the Timeline view lists (SPEC §10.30 "The Timeline view").
+	Timeline() Timelines
 	// Dialogs asks the user a question in a modal dialog.
 	Dialogs() Dialogs
 	// EditorDecorations draws texts after the end of lines in the editors (SPEC §10.30 "Blame").

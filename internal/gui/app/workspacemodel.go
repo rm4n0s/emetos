@@ -29,6 +29,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/core/timeline"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
@@ -120,6 +121,9 @@ type Workspace struct {
 	// Annotations are the texts that extensions put after the end of lines (Git's blame): the editors read the annotations of their
 	// document from it (SPEC §10.30 "Blame"). The headless view of a workspace shares its workspace's.
 	Annotations *annotations.Store
+	// Timeline is the timeline service of the window: the providers of the history of a file that extensions register, which the Timeline
+	// view of the Explorer lists (SPEC §10.30). The headless view of a workspace has none.
+	Timeline *timeline.Service
 	// Notifications is what the window shows of the notifications of the process: the toasts, the
 	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
 	// thread.
@@ -233,6 +237,8 @@ type Workspace struct {
 	flushState      func()
 	// pendingSCMView is the saved state of the Source Control view (the folds), until the shell makes the view.
 	pendingSCMView json.RawMessage
+	// pendingTimeline is the saved state of the Timeline view (the filter of the sources), until the shell makes the view.
+	pendingTimeline json.RawMessage
 	// devDecos are the file decorations that dev.scm.fake gives (devscm.go).
 	devDecos *devDecorations
 	// extViewMu guards extViewStates, the state the views of the extensions saved before the scope closed (stopExtensions).
@@ -434,6 +440,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		SCM:            scm.NewModel(scmConfig(store)),
 		Decorations:    decorations.New(decorations.Options{Logger: p.Logger}),
 		Annotations:    annotations.New(),
+		Timeline:       timeline.New(),
 		Dialogs:        kit.NewDialogController(),
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),

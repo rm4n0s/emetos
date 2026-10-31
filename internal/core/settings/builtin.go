@@ -49,6 +49,7 @@ func DefaultRegistry() *Registry {
 	registerCodeActions(r)
 	registerLens(r)
 	registerSourceControl(r)
+	registerTimeline(r)
 	return r
 }
 

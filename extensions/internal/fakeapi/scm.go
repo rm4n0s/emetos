@@ -130,6 +130,10 @@ func (a *API) Deactivate() {
 		f.disposed = true
 	}
 	a.decorations.providers = nil
+	for _, f := range a.timeline.providers {
+		f.disposed = true
+	}
+	a.timeline.providers = nil
 	for _, f := range a.content.providers {
 		f.disposed = true
 	}

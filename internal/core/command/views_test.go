@@ -139,8 +139,8 @@ func TestDefaultViews(t *testing.T) {
 		state string
 		want  []string
 	}{
-		{"a folder", "folder", []string{ViewOpenEditors, ViewExplorerFolders, ViewOutline}},
-		{"no folder", "empty", []string{ViewOpenEditors, ViewExplorerEmpty, ViewOutline}},
+		{"a folder", "folder", []string{ViewOpenEditors, ViewExplorerFolders, ViewOutline, ViewTimeline}},
+		{"no folder", "empty", []string{ViewOpenEditors, ViewExplorerEmpty, ViewOutline, ViewTimeline}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got := viewIDs(r.Views(ViewContainerExplorer, contextkey.MapContext{"workbenchState": tc.state}))

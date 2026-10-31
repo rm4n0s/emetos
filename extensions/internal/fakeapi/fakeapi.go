@@ -95,6 +95,7 @@ type API struct {
 	updates           []SettingUpdate
 	scm               scmState
 	decorations       decorationsState
+	timeline          timelineState
 	content           contentState
 	revealed          []Revealed
 	watches           []*FakeWatch

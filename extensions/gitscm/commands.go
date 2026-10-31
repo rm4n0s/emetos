@@ -105,6 +105,9 @@ func (x *gitscm) registerCommands() error {
 		CommandTrustRepository:                x.cmdTrustRepository,
 		CommandManageTrusted:                  x.cmdManageTrusted,
 	}
+	for id, h := range x.timelineHandlers() {
+		own[id] = h
+	}
 	for _, spec := range append(append([]extension.CommandSpec(nil), commandSpecs...), trustCommands...) {
 		h := own[spec.ID]
 		if h == nil {

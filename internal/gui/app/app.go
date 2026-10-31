@@ -277,6 +277,8 @@ type shellState struct {
 	explorer explorerState
 	// scm is the Source Control container: the Changes and Repositories views (scmview.go).
 	scm scmState
+	// timeline is what the shell keeps of the Timeline view (timelineview.go).
+	timeline timelineState
 	// blocked is the path of the file that looks binary and that a notice offers to open anyway,
 	// while there is no editor.
 	blocked string
@@ -362,6 +364,7 @@ func (s *shellState) InitState() {
 	s.initPanels(binding)
 	s.initExplorer(binding)
 	s.initSCM(binding)
+	s.initTimeline(binding)
 	// the watcher of the folder, of the configuration and of the open files outside the folder
 	PeekWorkspace(s.Context()).StartWatching(s.Lifetime())
 	s.initQuickInput(binding)
@@ -495,6 +498,7 @@ func (s *shellState) Dispose() {
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()
+	s.disposeTimeline()
 	s.disposeSCM()
 	s.disposeExplorer()
 	s.disposePanels()
@@ -527,7 +531,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		NoFolder:   win.Folder == "",
 		Menus:      s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar, TitleBar: titleBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
-		ViewBody: s.viewBody, ViewName: s.viewName, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
+		ViewBody: s.viewBody, ViewName: s.viewName, ViewDescription: s.viewDescription, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
 		OnViewFocus: s.viewFocused,
 		PanelTabs:   s.panelTabs(win), ActivePanel: win.Views.ActivePanel(), Panel: s.panelBody(win),
 		PanelActions: s.panelActions(win), FocusPanelView: s.focusPanelView,

@@ -37,6 +37,9 @@ type SideBarViewsOpts struct {
 	// Name gives the title of a view when it is not the name the registry has (the Explorer shows the
 	// name of the folder); empty keeps the name.
 	Name func(viewID string) string
+	// Description gives the text that follows the title of a view in a lighter style (the name of the file a Timeline shows, with
+	// "(pinned)"); empty has none.
+	Description func(viewID string) string
 	// Actions builds the buttons at the right end of the header of a view (the title actions); nil or a
 	// nil widget has none. They are shown while the pointer is over the view or the focus is in it, as
 	// VS Code shows them.
@@ -222,8 +225,19 @@ func (s *sideBarViewsState) header(bc widgets.BuildContext, colors kit.Colors, v
 	cells := []widgets.Widget{
 		widgets.NewIcon(fonts.CodiconIcon(chevron), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(fg)}),
 		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(2.0)}),
-		widgets.NewExpanded(widgets.NewText(strings.ToUpper(name), widgets.TextOpts{Style: style, Overflow: painting.TextOverflowEllipsis, MaxLines: foundation.Some(1)})),
 	}
+	var title widgets.Widget = widgets.NewText(strings.ToUpper(name), widgets.TextOpts{Style: style, Overflow: painting.TextOverflowEllipsis, MaxLines: foundation.Some(1)})
+	if f := s.Widget().opts.Description; f != nil && !collapsed {
+		if d := f(viewID); d != "" {
+			// `.pane-header .description`: the text after the title, not in capitals, in a normal weight and 60% of the color
+			desc := kit.TextStyleOf(bc, 11, fg.WithOpacity(0.6))
+			title = widgets.NewRichText(painting.NewTextSpan(painting.TextSpanOpts{Children: []painting.InlineSpan{
+				painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some(strings.ToUpper(name)), Style: style}),
+				painting.NewTextSpan(painting.TextSpanOpts{Text: foundation.Some("  " + d), Style: desc}),
+			}}), widgets.RichTextOpts{Overflow: painting.TextOverflowEllipsis, MaxLines: foundation.Some(1)})
+		}
+	}
+	cells = append(cells, widgets.NewExpanded(title))
 	// the title actions show while the pointer is over the view or the focus is in it, and not in a
 	// view that is folded
 	if f := s.Widget().opts.Actions; f != nil && !collapsed && (s.hover == viewID || s.focused[viewID]) {

@@ -109,6 +109,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, multiDiffMenus()...)
 	menus = append(menus, editorMenus()...)
 	menus = append(menus, stashMenus()...)
+	menus = append(menus, timelineMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -183,6 +184,8 @@ type gitscm struct {
 
 	// stash is what the stash editors need (stash.go).
 	stash stashState
+	// tl is what the Timeline needs (timeline.go).
+	tl timelineState
 
 	// ignores is the provider of the file decorations of the files git ignores (decorations.go).
 	ignores *ignoreProvider

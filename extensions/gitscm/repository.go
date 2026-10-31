@@ -174,6 +174,7 @@ func (r *repository) opened(repo *git.Repo, err error) {
 	r.src.SetActiveRepositoryName("")
 	r.readRemotes()
 	r.m.opened(r)
+	x.ensureTimeline()
 	r.refresh()
 	r.startWatching()
 }
@@ -219,6 +220,7 @@ func (r *repository) untrust() {
 	r.ctx, r.cancel = context.WithCancel(r.m.x.ctx)
 	r.gen++
 	r.m.x.content.repos.remove(r.id)
+	r.timelineGone()
 	r.trusted, r.repo, r.refreshing, r.again, r.refreshed = false, nil, false, false, false
 	r.res, r.head, r.refs, r.ops = groups{}, head{}, nil, operations{}
 	r.setBusy(false)
@@ -236,6 +238,7 @@ func (r *repository) dispose() {
 	}
 	r.disposed = true
 	r.m.x.content.repos.remove(r.id)
+	r.timelineGone()
 	r.multiGone()
 	r.m.x.stashGone(r.id)
 	r.stopWatching()
@@ -398,6 +401,7 @@ func (r *repository) applySnapshot(snap snapshot) {
 	if snap.head.commit != headBefore {
 		x.blame.headMoved(r)
 	}
+	r.timelineSync(snap.head.commit != headBefore)
 	x.updateActiveResource()
 	r.publish()
 }

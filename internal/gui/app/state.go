@@ -199,6 +199,7 @@ func (w *Workspace) restoreUIState(ctx context.Context, r *restoredWindow) (geom
 	w.geometry = st.Geometry
 	w.restoreExtensionViews(st.Views)
 	w.restoreSCM(st.SCM)
+	w.pendingTimeline = st.Timeline
 	r.state = st
 	if st.Grid != nil {
 		w.openSavedEditors(ctx, r)
@@ -518,6 +519,7 @@ func (s *shellState) windowState() storage.WindowState {
 	st.Grid = &grid
 	st.Views = win.extensionViewStates()
 	st.SCM = s.scmWindowState()
+	st.Timeline = s.timelineWindowState()
 	if ex := s.explorer.view; ex != nil && win.Folder != "" {
 		st.Explorer = &storage.ExplorerState{Expanded: storage.ExpandedRelative(win.Folder, ex.Tree().ExpandedKeys())}
 	}

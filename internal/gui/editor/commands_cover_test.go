@@ -64,6 +64,8 @@ var appCommands = map[string]bool{
 	// the commands of the commit message box of the Source Control view (step 24.4, gui/app/scmview.go)
 	"scm.acceptInput": true, "scm.clearInput": true, "scm.clearValidation": true,
 	"scm.viewNextCommit": true, "scm.viewPreviousCommit": true, "scm.forceViewNextCommit": true, "scm.forceViewPreviousCommit": true,
+	// the commands of the Timeline view (step 24.21, gui/app/timelineview.go)
+	"files.openTimeline": true, "timeline.focus": true, "timeline.refresh": true, "timeline.toggleFollowActiveEditor": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

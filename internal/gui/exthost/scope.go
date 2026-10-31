@@ -23,6 +23,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/core/timeline"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
@@ -196,6 +197,9 @@ type ScopeOptions struct {
 	// EditorDecorations is the store of the line annotations of the window tab, which EditorDecorations().Set adds to and the editors
 	// read; nil leaves it unavailable (Set fails with ExtensionEditorDecorationsUnavailable).
 	EditorDecorations *annotations.Store
+	// Timeline is the timeline service of the window tab, which Timeline().RegisterProvider adds to; nil leaves it unavailable
+	// (RegisterProvider fails with ExtensionTimelineUnavailable).
+	Timeline *timeline.Service
 }
 
 // slot is an extension in a scope.

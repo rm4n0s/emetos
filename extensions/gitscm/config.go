@@ -42,6 +42,9 @@ type config struct {
 	// blame* are the settings of the blame text (blame.go).
 	blameEditor, blameStatusBar, blameDisableHover, blameIgnoreWhitespace bool
 	blameEditorTemplate, blameStatusBarTemplate                           string
+	timelineDate                                                          string // "committed" or "authored"
+	timelineShowAuthor                                                    bool
+	timelineShowUncommitted                                               bool
 }
 
 // read gets a setting as a Go type, the default when it cannot be read (the manifest declares every key, so that is a bug of the
@@ -119,6 +122,9 @@ func (c *config) load(api extension.API) {
 	c.blameStatusBar = read(api, "git.blame.statusBarItem.enabled", true)
 	c.blameStatusBarTemplate = read(api, "git.blame.statusBarItem.template", "${authorName} (${authorDateAgo})")
 	c.blameIgnoreWhitespace = read(api, "git.blame.ignoreWhitespace", false)
+	c.timelineDate = read(api, "git.timeline.date", "committed")
+	c.timelineShowAuthor = read(api, "git.timeline.showAuthor", true)
+	c.timelineShowUncommitted = read(api, "git.timeline.showUncommitted", false)
 }
 
 // statusOptions are the options of git status for the settings (git.untrackedChanges, git.statusLimit, git.similarityThreshold,

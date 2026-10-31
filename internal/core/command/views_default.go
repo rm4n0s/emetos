@@ -64,6 +64,8 @@ func DefaultViews() *ViewRegistry {
 			When: contextkey.NotEquals("workbenchState", "empty")},
 		// the Outline starts folded, below the folder (step 12.7)
 		View{ID: ViewOutline, Name: "Outline", Container: ViewContainerExplorer, Order: 2, Collapsed: true},
+		// the Timeline starts folded, below the Outline (step 24.21)
+		View{ID: ViewTimeline, Name: "Timeline", Container: ViewContainerExplorer, Order: 3, Collapsed: true},
 	)
 	// Source Control (order 2, after Search): the Repositories view is hidden until it is shown, and the Changes view is always
 	// there (its welcome content says why it is empty). The Graph (step 24.20) comes later.

@@ -428,6 +428,7 @@ func (s *shellState) gridChanged(binding *widgets.WidgetsBinding, e editorgroup.
 	s.refreshKeys()
 	s.refreshStatus()
 	s.syncOutline()
+	s.syncTimeline()
 	s.coreActiveChanged()
 	if s.Mounted() {
 		binding.Post(func() {

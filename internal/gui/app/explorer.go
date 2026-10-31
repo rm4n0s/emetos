@@ -368,6 +368,8 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 		return explorer.NewOpenEditorsBody(ex.editors)
 	case command.ViewOutline:
 		return outlineview.NewBody(ex.outline)
+	case command.ViewTimeline:
+		return s.timelineBody()
 	case command.ViewSCM:
 		if s.scm.view != nil {
 			return s.scmBody()
@@ -402,6 +404,8 @@ func (s *shellState) viewName(viewID string) string {
 func (s *shellState) viewActions(_ widgets.BuildContext, viewID string) widgets.Widget {
 	win := PeekWorkspace(s.Context())
 	switch viewID {
+	case command.ViewTimeline:
+		return s.timelineViewActions()
 	case command.ViewSCM:
 		if s.scm.view != nil {
 			return s.scmViewActions(win)
@@ -441,8 +445,11 @@ func (s *shellState) viewFocused(viewID string, has bool) {
 		return
 	}
 	ex.focus[viewID] = has
+	if viewID == command.ViewTimeline {
+		s.timelineFocused(has)
+	}
 	any := false
-	for _, id := range []string{command.ViewExplorerFolders, command.ViewExplorerEmpty, command.ViewOpenEditors, command.ViewOutline} {
+	for _, id := range []string{command.ViewExplorerFolders, command.ViewExplorerEmpty, command.ViewOpenEditors, command.ViewOutline, command.ViewTimeline} {
 		any = any || ex.focus[id]
 	}
 	win.Keys.Batch(func() {
