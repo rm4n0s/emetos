@@ -40,8 +40,10 @@ type sugSession struct {
 	navigated, explicit bool
 	// details says that the details pane is open.
 	details bool
-	// x and y are where the list was put in the pane's widget, in logical pixels (for the tests).
-	x, y float64
+	// x and y are where the list was put in the pane's widget, in logical pixels (for the tests); placed says that the
+	// list was built, so that x and y hold.
+	x, y   float64
+	placed bool
 }
 
 // suggestState is the IntelliSense state of a pane. It lives on the UI thread.

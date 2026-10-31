@@ -212,7 +212,8 @@ func (r *renderGrid) DevTerminal() any {
 			}
 		}
 	}
-	if sess := pv.sug.sess; sess != nil && len(sess.items) > 0 {
+	// a list that was not built yet is not on the screen, and its place is not known
+	if sess := pv.sug.sess; sess != nil && len(sess.items) > 0 && sess.placed {
 		st.Suggest, st.SuggestFocus, st.SuggestTotal, st.SuggestDetails = true, sess.focus, len(sess.items), sess.details
 		st.SuggestX, st.SuggestY = sess.x, sess.y
 		for _, it := range sess.items[min(sess.top, len(sess.items)):min(sess.top+sess.rows, len(sess.items))] {

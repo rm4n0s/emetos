@@ -112,7 +112,7 @@ func (pv *paneView) suggestLayers(bc widgets.BuildContext) []widgets.Widget {
 		y = cursorTop - need
 	}
 	y = math.Max(y, 0)
-	s.x, s.y = x, y
+	s.x, s.y, s.placed = x, y, true
 	layers := []widgets.Widget{widgets.NewPositioned(ui.NewSuggestList(bc, opts), widgets.PositionedOpts{Left: foundation.Some(x), Top: foundation.Some(y)})}
 	if s.details && s.focus >= 0 && s.focus < len(s.items) {
 		if pane := pv.suggestDetails(bc, s.items[s.focus], opts, x, y, size.Width); pane != nil {
