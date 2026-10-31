@@ -233,8 +233,10 @@ type QuickPickRequest struct {
 	Placeholder        string
 	Items              []QuickPickEntry
 	MatchOnDescription bool
-	Chosen             func(index int)
-	Hidden             func()
+	// IgnoreFocusOut keeps the list open when the focus leaves it.
+	IgnoreFocusOut bool
+	Chosen         func(index int)
+	Hidden         func()
 }
 
 // quickPickAPI is the extension.QuickPick of one activation.
@@ -274,7 +276,7 @@ func (q quickPickAPI) Show(opts extension.QuickPickOptions, done func(index int)
 		})
 	}
 	show(QuickPickRequest{
-		Placeholder: opts.Placeholder, Items: entries, MatchOnDescription: opts.MatchOnDescription,
+		Placeholder: opts.Placeholder, Items: entries, MatchOnDescription: opts.MatchOnDescription, IgnoreFocusOut: opts.IgnoreFocusOut,
 		Chosen: func(i int) {
 			if i < 0 || i >= len(index) || in.isDead() {
 				finish(-1)

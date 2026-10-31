@@ -20,6 +20,9 @@ type QuickPickOptions struct {
 	Items []QuickPickItem
 	// MatchOnDescription lets the filter look at the descriptions too.
 	MatchOnDescription bool
+	// IgnoreFocusOut keeps the list open when the user clicks elsewhere or the window loses the focus, as VS Code's ignoreFocusOut does:
+	// only a choice and Escape end it. A question that a running program waits for (ssh's host key) sets it.
+	IgnoreFocusOut bool
 }
 
 // QuickPick shows a list over the editor to choose one item from, as the command palette does (SPEC §10.3).

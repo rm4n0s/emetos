@@ -47,6 +47,11 @@ type Config struct {
 	// Extra are variables added to the environment of every command: the askpass and editor variables (GIT_ASKPASS,
 	// SSH_ASKPASS, SSH_ASKPASS_REQUIRE, GIT_EDITOR, EMETOS_GIT_SOCKET, EMETOS_GIT_TOKEN) that the extension gives.
 	Extra []string
+	// ExtraFor, when set, gives more variables for a command: it is called, from the goroutine of the command, with the git command
+	// ("fetch") and whether it is a background command, and its entries follow Extra. The extension starts the server of the askpass
+	// and editor programs on the first command that can ask something, and gives it the socket and the token here (SPEC §10.30 "Passwords
+	// and editors"); a background command never prompts and gets nothing.
+	ExtraFor func(name string, background bool) []string
 	// Logger gets the Git channel's lines; may be nil.
 	Logger Logger
 	// CommandsToLog lists the commands (git.commandsToLog) whose standard output is logged too, besides the command line and

@@ -29,6 +29,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	x.home = homeDir(x.opts)
 	x.model = newModel(x)
 	x.handlers = map[string]extension.CommandHandler{}
+	x.editors = map[string]*editorWait{}
 
 	ch, err := api.Output().Channel(ChannelName)
 	if err != nil {
@@ -42,6 +43,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 			return err
 		}
 	}
+	x.stateDir = stateDir
 	store, err := trust.Open(trust.Path(stateDir))
 	if err != nil {
 		// the file is ignored and the question is asked: one warning (SPEC §10.30)
@@ -59,6 +61,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	}
 
 	x.cfg.load(api)
+	x.syncHelperSettings()
 	api.Settings().OnChange(x.settingsChanged)
 
 	if err := x.registerCommands(); err != nil {
@@ -68,6 +71,12 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	if _, err := api.Events().Subscribe(extension.TopicDocumentSaved, x.onSaved); err != nil {
+		return err
+	}
+	if _, err := api.Events().Subscribe(extension.TopicWorkspaceClosed, x.stopHelper); err != nil {
+		return err
+	}
+	if _, err := api.Events().Subscribe(extension.TopicDocumentClosed, x.onClosed); err != nil {
 		return err
 	}
 	if _, err := api.Events().Subscribe(extension.TopicFilesChanged, x.onFiles); err != nil {
@@ -83,6 +92,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 		<-ctx.Done()
 		x.stopped.Store(true)
 	}()
+	x.registerDev()
 	x.startDecorations()
 	x.provideContent()
 	x.provideMultiDiff()
@@ -132,6 +142,7 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 	x.logLine("Using git " + inst.Version.String() + " from " + inst.Path)
 	x.runner = git.NewRunner(git.Config{
 		Path: inst.Path, Version: inst.Version, Env: x.opts.Env, Logger: x.logLine, CommandsToLog: x.cfg.commandsToLog, Trust: git.TrustedBy(x.trust),
+		ExtraFor: x.helperEnv,
 	})
 	x.model.scan()
 	// repositories made before git was found (a setting that turned Git on) start now
@@ -140,6 +151,12 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 			r.start()
 		}
 	}
+}
+
+// syncHelperSettings gives the goroutines of the commands the two settings that decide the variables of git's programs.
+func (x *gitscm) syncHelperSettings() {
+	x.askpassOn.Store(x.cfg.useIntegratedAskPass)
+	x.editorOn.Store(x.cfg.useEditorAsCommitInput)
 }
 
 // logLine writes a line to the Git channel; it may be called from any goroutine.
@@ -169,6 +186,7 @@ func (x *gitscm) saveSetting(key string, value any) {
 func (x *gitscm) settingsChanged() {
 	old := x.cfg
 	x.cfg.load(x.api)
+	x.syncHelperSettings()
 	switch {
 	case old.enabled && !x.cfg.enabled:
 		for _, r := range append([]*repository(nil), x.model.order...) {
@@ -238,6 +256,7 @@ func (x *gitscm) onSaved(ev extension.Event) {
 		return
 	}
 	if path, ok := uriPath(saved.URI); ok {
+		x.editorSaved(path)
 		if isIgnoreFile(path) {
 			x.ignoresChanged()
 		}

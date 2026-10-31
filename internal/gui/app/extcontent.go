@@ -341,8 +341,9 @@ func (d extensionDocuments) Tabs() []extension.DocumentTab {
 	return out
 }
 
-// CloseTabs implements exthost.ContentHost: the tabs close as the close button closes them, with the question about unsaved changes.
-func (d extensionDocuments) CloseTabs(tabs []extension.DocumentTab) int {
+// CloseTabs implements exthost.ContentHost: the tabs close as the close button closes them, with the question about unsaved changes
+// (TabCloseAsk), after the documents were saved (TabCloseSave: a document that does not save keeps its tab), or at once (TabCloseDiscard).
+func (d extensionDocuments) CloseTabs(tabs []extension.DocumentTab, how extension.TabClose) int {
 	s := d.w.shell
 	if s == nil || !s.Mounted() || s.group.grid == nil {
 		return 0
@@ -365,7 +366,15 @@ func (d extensionDocuments) CloseTabs(tabs []extension.DocumentTab) int {
 			targets = append(targets, editorgroup.CloseTarget{Group: g, Editors: closing})
 		}
 	}
-	if len(targets) > 0 {
+	if len(targets) == 0 {
+		return found
+	}
+	switch how {
+	case extension.TabCloseDiscard:
+		s.closeNow(targets)
+	case extension.TabCloseSave:
+		s.closeSaved(targets)
+	default:
 		s.closeConfirmed(targets, nil)
 	}
 	return found

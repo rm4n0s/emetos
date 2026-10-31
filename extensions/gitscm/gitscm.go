@@ -19,11 +19,13 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/gitscm/git"
+	"github.com/rm4n0s/emetos/extensions/gitscm/helper"
 	"github.com/rm4n0s/emetos/extensions/gitscm/trust"
 )
 
@@ -69,6 +71,12 @@ type Options struct {
 	// DevTrust is the folder EMETOS_DEV_GIT_TRUST names: every repository below it is trusted for the session (debug and emetos_dev builds).
 	// Empty reads the variable in those builds.
 	DevTrust string
+	// RuntimeDir is $XDG_RUNTIME_DIR, where the server of git's askpass and editor programs keeps its socket
+	// ($XDG_RUNTIME_DIR/emetos/git-<pid>/); read from the environment when empty. The tests give a folder of their own.
+	RuntimeDir string
+	// HelperBinary is the program the askpass and editor scripts start (emetos --git-askpass); the running executable when empty. The tests
+	// give the test binary, which answers the three flags in its TestMain.
+	HelperBinary string
 }
 
 // New is the Factory of the extension.
@@ -99,6 +107,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, diffMenus()...)
 	menus = append(menus, stageMenus()...)
 	menus = append(menus, multiDiffMenus()...)
+	menus = append(menus, editorMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -106,8 +115,8 @@ func (*gitscm) Manifest() extension.Manifest {
 		Events: extension.EventDecl{
 			Publishes: []extension.EventSpec{{Topic: TopicRepositoryChanged}},
 			Handles:   nil,
-			Subscribes: []string{extension.TopicWindowFocusChanged, extension.TopicDocumentSaved, extension.TopicEditorActiveChanged,
-				extension.TopicEditorSelectionChanged, extension.TopicDocumentChanged},
+			Subscribes: []string{extension.TopicWindowFocusChanged, extension.TopicDocumentSaved, extension.TopicDocumentClosed, extension.TopicWorkspaceClosed,
+				extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentChanged},
 		},
 		Contributes: extension.Contributes{
 			Commands:    cmds,
@@ -175,6 +184,18 @@ type gitscm struct {
 
 	// blame is the blame text of the editor and the status bar (blame.go).
 	blame *blameController
+	// stateDir is the folder of Emetos's state ($XDG_STATE_HOME/emetos), where the socket of the helper goes when there is no runtime folder.
+	stateDir string
+	// askpassOn and editorOn follow git.useIntegratedAskPass and git.useEditorAsCommitInput for the goroutines of the commands.
+	askpassOn, editorOn atomic.Bool
+	// helperMu guards the server of git's programs, which the first command that may ask starts (askpass.go).
+	helperMu     sync.Mutex
+	helperSrv    *helper.Server
+	helperFailed bool
+	// prompts, prompting and editors are the questions waiting for the user and the files git waits for; the UI thread only.
+	prompts   []promptJob
+	prompting bool
+	editors   map[string]*editorWait
 }
 
 // homeDir is the home folder of the user, "" when it is not known.

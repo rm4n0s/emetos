@@ -398,6 +398,10 @@ type Documents interface {
 	// CloseTabs closes the tabs, the way the close button does: a tab with unsaved changes asks first. It returns the number of
 	// tabs that were found (a tab that is gone is skipped). Call it on the UI thread.
 	CloseTabs(tabs ...DocumentTab) int
+	// CloseTabsAs closes the tabs the way how says: asking (CloseTabs), saving first, or dropping the unsaved changes. A save is
+	// not finished when it returns: the tabs close when their documents are written, and the count is that of the tabs that were found.
+	// Call it on the UI thread.
+	CloseTabsAs(how TabClose, tabs ...DocumentTab) int
 }
 
 // ActiveDocument is the text editor in front, as Documents().Active describes it (SPEC §10.28).

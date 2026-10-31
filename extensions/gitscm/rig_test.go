@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -101,6 +102,8 @@ type rigOptions struct {
 	extraEnv []string
 	// logger is the logger the extension is given; the default one of the fake when nil.
 	logger *slog.Logger
+	// dropEnv names variables of the world that git must not have (GIT_SEQUENCE_EDITOR, which the harness sets to true).
+	dropEnv []string
 }
 
 // newRig activates the extension in a world of gittest. The world's trust file is the extension's: the repositories the harness made
@@ -114,7 +117,25 @@ func newRig(t *testing.T, env *gittest.Env, o rigOptions) *rig {
 		o.home = env.Home
 	}
 	clock := &fakeClock{}
-	e := NewWith(Options{Clock: clock, StateDir: filepath.Join(env.StateHome, "emetos"), Home: o.home, Env: append(env.Vars(), o.extraEnv...), DevTrust: o.devTrust}).(*gitscm)
+	runtime, err := os.MkdirTemp("", "gr") // short: a Unix socket path is limited to about 100 bytes
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runtime) })
+	gitEnv := append(env.Vars(), o.extraEnv...)
+	for _, drop := range o.dropEnv {
+		kept := gitEnv[:0:0]
+		for _, kv := range gitEnv {
+			if !strings.HasPrefix(kv, drop+"=") {
+				kept = append(kept, kv)
+			}
+		}
+		gitEnv = kept
+	}
+	e := NewWith(Options{
+		Clock: clock, StateDir: filepath.Join(env.StateHome, "emetos"), Home: o.home, Env: gitEnv, DevTrust: o.devTrust,
+		RuntimeDir: runtime, HelperBinary: os.Args[0],
+	}).(*gitscm)
 	api := fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: filepath.Base(o.folder), Folder: o.folder, ID: o.folder})
 	switch {
 	case o.noGit:

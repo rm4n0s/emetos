@@ -95,6 +95,9 @@ type PickOptions struct {
 	Items []Item
 	// MatchOnDescription and MatchOnDetail let the filter look at those texts too.
 	MatchOnDescription, MatchOnDetail bool
+	// IgnoreFocusOut keeps the picker open when the user clicks elsewhere or the window loses the focus (VS Code's
+	// ignoreFocusOut): a choice and Escape end it.
+	IgnoreFocusOut bool
 	// ActiveID, when it is the ID of one of the items, makes that item the active one when the picker opens
 	// (VS Code's activeItem: the current end of line sequence, the current tab size).
 	ActiveID string
@@ -120,6 +123,11 @@ type PromptOptions struct {
 	Value string
 	// Password shows a dot for each character typed, as a password box does (VS Code's password option).
 	Password bool
+	// Message is a line shown under the input while the text is valid (VS Code's prompt; Placeholder is its placeHolder).
+	Message string
+	// IgnoreFocusOut keeps the input open when the user clicks elsewhere or the window loses the focus (VS Code's
+	// ignoreFocusOut): Enter and Escape end it.
+	IgnoreFocusOut bool
 	// Validate, when set, checks the text on every change and when it is accepted: a message that is not empty is
 	// shown under the input (as an error) and the text is not accepted (VS Code's validateInput).
 	Validate func(value string) string
@@ -404,6 +412,7 @@ func (c *Controller) Pick(opts PickOptions) {
 	c.provider, c.handler, c.session = nil, nil, nil
 	c.picker = NewPicker()
 	c.picker.MatchOnDescription, c.picker.MatchOnDetail = opts.MatchOnDescription, opts.MatchOnDetail
+	c.picker.IgnoreFocusOut = opts.IgnoreFocusOut
 	c.picker.SetPlaceholder(opts.Placeholder)
 	c.picker.SetItems(opts.Items)
 	if opts.ActiveID != "" {
@@ -456,6 +465,8 @@ func (c *Controller) Prompt(opts PromptOptions) {
 	c.picker = NewPicker()
 	c.picker.SetPlaceholder(opts.Placeholder)
 	c.picker.Obscure = opts.Password
+	c.picker.IgnoreFocusOut = opts.IgnoreFocusOut
+	c.picker.SetInfo(opts.Message)
 	c.picker.SetValue(opts.Value)
 	c.picker.SetValueSelection(len(opts.Value), len(opts.Value))
 	p := &prompt{opts: opts}

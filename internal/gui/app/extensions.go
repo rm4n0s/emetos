@@ -615,7 +615,7 @@ func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 		}
 	}
 	w.QuickInput.Pick(quickinput.PickOptions{
-		Placeholder: req.Placeholder, Items: items, MatchOnDescription: req.MatchOnDescription,
+		Placeholder: req.Placeholder, Items: items, MatchOnDescription: req.MatchOnDescription, IgnoreFocusOut: req.IgnoreFocusOut,
 		OnHide: func(accepted bool) {
 			if !accepted {
 				req.Hidden()
@@ -628,7 +628,7 @@ func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 // the quick input validates the text as the user types.
 func (w *Workspace) extensionInputBox(req exthost.InputBoxRequest) {
 	w.QuickInput.Prompt(quickinput.PromptOptions{
-		Placeholder: req.Prompt, Value: req.Value, Password: req.Password, Validate: req.Validate,
+		Placeholder: req.Prompt, Value: req.Value, Password: req.Password, Message: req.Message, IgnoreFocusOut: req.IgnoreFocusOut, Validate: req.Validate,
 		OnAccept: req.Accepted, OnCancel: req.Hidden,
 	})
 }

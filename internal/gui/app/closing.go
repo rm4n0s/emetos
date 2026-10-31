@@ -266,6 +266,23 @@ func (s *shellState) closeConfirmed(targets []editorgroup.CloseTarget, done func
 	})
 }
 
+// closeSaved saves the documents that the editors of the targets would lose and closes the editors when they are written: a
+// document that fails to save (or whose Save As is cancelled) keeps its editors open, and the window says why, as it does for any save.
+func (s *shellState) closeSaved(targets []editorgroup.CloseTarget) {
+	targets = s.liveTargets(targets)
+	var docs []*document.Document
+	for _, u := range editorgroup.PlanClose(s.group.grid, targets) {
+		if doc := editorgroup.EditedDocument(u.Input); doc != nil && !slices.Contains(docs, doc) {
+			docs = append(docs, doc)
+		}
+	}
+	s.saveInOrder(docs, func(saved bool) {
+		if saved && s.Mounted() {
+			s.closeNow(s.liveTargets(targets))
+		}
+	})
+}
+
 // liveTargets are the targets as the groups have them now: the inputs the groups hold (a target may name a
 // matching input), only the groups that are still in the grid, and each editor once.
 func (s *shellState) liveTargets(targets []editorgroup.CloseTarget) []editorgroup.CloseTarget {

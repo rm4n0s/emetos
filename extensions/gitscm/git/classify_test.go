@@ -377,6 +377,9 @@ func TestTheMessagesOfOlderAndNewerGitAreBothKnown(t *testing.T) {
 		{"fatal: Not a git repository\n", "NotAGitRepository"},
 		{"fatal: Authentication failed for 'https://x/'\n", "AuthenticationFailed"},
 		{"remote: Authentication failed\n", "AuthenticationFailed"},
+		// the askpass program answered with an exit status (Escape in the box of Emetos): the text of git 2.56
+		{"error: unable to read askpass response from '/run/user/1000/emetos/git-1/askpass.sh'\nfatal: could not read Password for 'http://ada@127.0.0.1:37619': terminal prompts disabled\n", "AuthenticationFailed"},
+		{"fatal: could not read Username for 'https://example.com': terminal prompts disabled\n", "AuthenticationFailed"},
 	} {
 		wantRoute(t, classify("fetch", []string{"fetch"}, 128, "", tc.stderr), "classify."+tc.want)
 	}

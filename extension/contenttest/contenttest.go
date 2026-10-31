@@ -222,6 +222,11 @@ func testDeactivate(t *testing.T, h *Harness) {
 	if n := docs.CloseTabs(extension.DocumentTab{ID: "1:a"}); n != 0 {
 		t.Errorf("closed %d", n)
 	}
+	for _, how := range []extension.TabClose{extension.TabCloseAsk, extension.TabCloseSave, extension.TabCloseDiscard} {
+		if n := docs.CloseTabsAs(how, extension.DocumentTab{ID: "1:a"}); n != 0 {
+			t.Errorf("closed %d as %d", n, how)
+		}
+	}
 }
 
 func testPanic(t *testing.T, h *Harness) {

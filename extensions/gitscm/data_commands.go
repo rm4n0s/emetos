@@ -68,7 +68,7 @@ var commandSpecs = []extension.CommandSpec{
 	{ID: "git.commitAllNoVerify", Title: "Commit All (No Verify)", Category: "Git"},
 	{ID: "git.commitAllSignedNoVerify", Title: "Commit All (Signed Off, No Verify)", Category: "Git"},
 	{ID: "git.commitAllAmendNoVerify", Title: "Commit All (Amend, No Verify)", Category: "Git"},
-	{ID: "git.commitMessageAccept", Title: "Commit", Category: "Git"},
+	{ID: "git.commitMessageAccept", Title: "Commit", Category: "Git", Icon: "check"},
 	{ID: "git.commitMessageDiscard", Title: "Cancel", Category: "Git", Icon: "close"},
 	{ID: "git.restoreCommitTemplate", Title: "Restore Commit Template", Category: "Git"},
 	{ID: "git.undoCommit", Title: "Undo Last Commit", Category: "Git"},

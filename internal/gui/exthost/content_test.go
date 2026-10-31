@@ -22,6 +22,7 @@ type contentHost struct {
 	docs      []extension.OpenSpec
 	tabs      []extension.DocumentTab
 	closed    []string
+	closedHow []extension.TabClose
 	revealed  []string
 }
 
@@ -143,7 +144,7 @@ func (h *contentHost) Tabs() []extension.DocumentTab {
 	return slices.Clone(h.tabs)
 }
 
-func (h *contentHost) CloseTabs(tabs []extension.DocumentTab) int {
+func (h *contentHost) CloseTabs(tabs []extension.DocumentTab, how extension.TabClose) int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	n := 0
@@ -151,6 +152,7 @@ func (h *contentHost) CloseTabs(tabs []extension.DocumentTab) int {
 		if i := slices.IndexFunc(h.tabs, func(x extension.DocumentTab) bool { return x.ID == t.ID }); i >= 0 {
 			h.tabs = slices.Delete(h.tabs, i, i+1)
 			h.closed = append(h.closed, t.ID)
+			h.closedHow = append(h.closedHow, how)
 			n++
 		}
 	}
@@ -255,6 +257,19 @@ func TestTheTabsAndTheRevealOfAFileReachTheWindow(t *testing.T) {
 	}
 	if n := docs.CloseTabs(extension.DocumentTab{ID: "1:a"}); n != 1 || len(docs.Tabs()) != 1 {
 		t.Errorf("closed %d", n)
+	}
+	host.tabs = append(host.tabs, extension.DocumentTab{ID: "1:c", Kind: "text"}, extension.DocumentTab{ID: "1:d", Kind: "text"})
+	if n := docs.CloseTabsAs(extension.TabCloseSave, extension.DocumentTab{ID: "1:c"}); n != 1 {
+		t.Errorf("closed %d as TabCloseSave", n)
+	}
+	if n := docs.CloseTabsAs(extension.TabCloseDiscard, extension.DocumentTab{ID: "1:d"}, extension.DocumentTab{ID: "1:gone"}); n != 1 {
+		t.Errorf("closed %d as TabCloseDiscard", n)
+	}
+	if n := docs.CloseTabsAs(extension.TabCloseDiscard); n != 0 {
+		t.Errorf("closed %d with nothing to close", n)
+	}
+	if want := []extension.TabClose{extension.TabCloseAsk, extension.TabCloseSave, extension.TabCloseDiscard}; !slices.Equal(host.closedHow, want) {
+		t.Errorf("the tabs were closed %v, want %v", host.closedHow, want)
 	}
 	if err := h.API.Workspace().RevealFile("file:///work/../work/a.go", false); err != nil {
 		t.Fatal(err)

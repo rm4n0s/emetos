@@ -708,6 +708,9 @@ func (d failingContentDocs) Tabs() []extension.DocumentTab { return d.API.Docume
 func (d failingContentDocs) CloseTabs(t ...extension.DocumentTab) int {
 	return d.API.Documents().CloseTabs(t...)
 }
+func (d failingContentDocs) CloseTabsAs(how extension.TabClose, t ...extension.DocumentTab) int {
+	return d.API.Documents().CloseTabsAs(how, t...)
+}
 
 // TestAScopeThatCannotShowDocumentsIsNotWarnedAbout keeps a scope that cannot show documents (a host without a workbench) out of the log,
 // and warns about every other failure of ProvideContent.

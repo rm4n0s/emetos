@@ -1019,6 +1019,8 @@ func (m *Workspaces) exitApplication(from *Workspace) {
 	}
 	for _, w := range m.All() {
 		if w.exit != nil {
+			// the extensions end with the application on this way out too: the Git extension removes its socket and its folder (SPEC §10.30)
+			m.p.Extensions.Shutdown()
 			w.exit()
 			return
 		}

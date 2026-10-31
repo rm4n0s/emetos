@@ -403,7 +403,7 @@ func (r *repository) discarded(out discardOutcome, tracked, untracked []resource
 		r.closeDiffEditors([]string{}, all, false)
 	}
 	if out.err != nil {
-		x.commandFailed("clean", r, out.err)
+		x.commandFailed("clean", r, out.err, nil)
 	}
 	if out.undo != nil {
 		x.notifyTrashed(r, out.trashed, out.undo)

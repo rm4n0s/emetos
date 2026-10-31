@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -464,5 +465,44 @@ func TestTheEditorTitleMenuShowsIconsAndAnOverflowAndRunsWithTheResource(t *test
 	// the strip draws them: a button for the icon
 	if fn := s.titleActions(r.win, group); fn == nil {
 		t.Error("the group has no title actions")
+	}
+}
+
+func TestCloseTabsAsSavesOrDiscardsTheUnsavedChanges(t *testing.T) {
+	tests := []struct {
+		name      string
+		how       extension.TabClose
+		wantTabs  int
+		wantSaved bool
+	}{
+		{name: "discard drops the changes without asking", how: extension.TabCloseDiscard, wantTabs: 0},
+		{name: "save writes the file and closes the tab", how: extension.TabCloseSave, wantTabs: 0, wantSaved: true},
+		{name: "ask keeps a dirty tab open", how: extension.TabCloseAsk, wantTabs: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newContentRig(t, "b.go")
+			before, err := os.ReadFile(r.files["b.go"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.show("b.go", false)
+			r.edit("b.go")
+			tabs := r.api.Documents().Tabs()
+			if len(tabs) != 1 || !tabs[0].Dirty {
+				t.Fatalf("tabs %+v", tabs)
+			}
+			if n := r.api.Documents().CloseTabsAs(tc.how, tabs[0]); n != 1 {
+				t.Fatalf("found %d tabs, want 1", n)
+			}
+			waitFor(t, r.ts, "the tabs to be what the way of closing leaves", func() bool { return len(r.tabs()) == tc.wantTabs })
+			after, err := os.ReadFile(r.files["b.go"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if saved := string(after) != string(before); saved != tc.wantSaved {
+				t.Errorf("the file was saved = %v, want %v (%q)", saved, tc.wantSaved, after)
+			}
+		})
 	}
 }

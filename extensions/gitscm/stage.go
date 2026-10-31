@@ -34,6 +34,8 @@ type mutation struct {
 	run func(ctx context.Context, repo *git.Repo) error
 	// after runs on the UI thread when run succeeded.
 	after func()
+	// retry, when set, runs the command again: the notification of an authentication failure offers it as Retry.
+	retry func()
 }
 
 // mutate runs a mutation on the repository.
@@ -57,7 +59,7 @@ func (r *repository) mutate(m mutation) {
 				m.after()
 			}
 			if err != nil {
-				x.commandFailed(m.name, r, err)
+				x.commandFailed(m.name, r, err, m.retry)
 			}
 			r.endOwn()
 		})
@@ -65,14 +67,51 @@ func (r *repository) mutate(m mutation) {
 }
 
 // commandFailed shows the failure of a command of the user: a notification with the message of git and a button for the Git output. A
-// command that was cancelled (the repository was untrusted or closed, the extension ended) says nothing.
-func (x *gitscm) commandFailed(what string, r *repository, err error) {
-	if appErr, ok := errors.FromError(err); ok && (appErr.Tag == "GitCancelled" || appErr.Tag == "GitQueueCancelled") {
+// command that was cancelled (the repository was untrusted or closed, the extension ended) says nothing. A failure to authenticate (the
+// user pressed Escape in the box that asked for a password, or the password was wrong) says so, with the remote when git named it, and
+// offers Retry when the caller can run the command again (SPEC §10.30 "Passwords and editors"). The texts are cleared of the user
+// information of URLs first.
+//
+// Ported from VS Code: extensions/git/src/commands.ts (createCommand: the catch of AuthenticationFailed).
+func (x *gitscm) commandFailed(what string, r *repository, err error, retry func()) {
+	appErr, isApp := errors.FromError(err)
+	if isApp && (appErr.Tag == "GitCancelled" || appErr.Tag == "GitQueueCancelled") {
 		return
 	}
-	x.logLine("git " + what + " failed in " + r.root + ": " + describe(err))
-	x.api.Notifications().Error("Git: "+describe(err), extension.NotificationAction{Label: "Show Git Output", Run: func() { x.channel.Show(false) }})
+	text := git.MaskURLs(describe(err))
+	x.logLine("git " + what + " failed in " + r.root + ": " + text)
+	showOutput := extension.NotificationAction{Label: "Show Git Output", Run: func() { x.channel.Show(false) }}
+	if isApp && appErr.Tag == "AuthenticationFailed" {
+		message := "Failed to authenticate to git remote."
+		if remote := authRemote(appErr); remote != "" {
+			message = "Failed to authenticate to git remote: " + remote
+		}
+		actions := []extension.NotificationAction{showOutput}
+		if retry != nil {
+			actions = append([]extension.NotificationAction{{Label: "Retry", Run: retry}}, actions...)
+		}
+		x.api.Notifications().Error(message, actions...)
+		return
+	}
+	x.api.Notifications().Error("Git: "+text, showOutput)
 }
+
+// authRemote is the remote an authentication failure names: the URL in "Authentication failed for '...'" or in "could not read Password for
+// '...'", without the user information, "" when git named none.
+func authRemote(err *errors.Error) string {
+	stderr, _ := err.Metadata["stderr"].(string)
+	if m := reAuthRemote.FindStringSubmatch(stderr); m != nil {
+		return reUserinfo.ReplaceAllString(m[1], "${1}")
+	}
+	return ""
+}
+
+// reUserinfo is the user information of a URL, which the notification leaves out (the user name is not a secret; a password never is in
+// the text of a prompt, and one in a URL is not shown either).
+var reUserinfo = regexp.MustCompile(`^([a-z][a-z0-9+.-]*://)[^/@]*@`)
+
+// reAuthRemote finds the remote in the error output of a command that could not authenticate.
+var reAuthRemote = regexp.MustCompile(`(?i)(?:Authentication failed for|could not read (?:Username|Password) for) '([^']*)'`)
 
 // ask shows a modal question and calls done with the answer. A scope that cannot show a dialog (a host with no workbench) or an
 // extension that ended answers nothing: no log line, nothing happens.

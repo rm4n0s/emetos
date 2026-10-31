@@ -387,12 +387,20 @@ func TestInputBoxAsksForALineOfText(t *testing.T) {
 		t.Error("the request of a password box is not one")
 	}
 	tb.inputs[2].Hidden()
+	// the line under the input and the focus rule reach the window
+	if err := st.api.InputBox().Show(extension.InputBoxOptions{Prompt: "Password for 'http://ada@h'", Message: "Git: http://h", IgnoreFocusOut: true, Password: true}, done); err != nil {
+		t.Fatal(err)
+	}
+	if got := tb.inputs[3]; got.Message != "Git: http://h" || !got.IgnoreFocusOut || got.Prompt != "Password for 'http://ada@h'" || tb.inputs[2].IgnoreFocusOut {
+		t.Errorf("request = %+v", got)
+	}
+	tb.inputs[3].Hidden()
 	// no function to call is fine
 	if err := st.api.InputBox().Show(extension.InputBoxOptions{}, nil); err != nil {
 		t.Fatal(err)
 	}
-	tb.inputs[3].Accepted("x")
-	if !slices.Equal(answers, []answer{{"xml", true}, {"", false}, {"", false}}) {
+	tb.inputs[4].Accepted("x")
+	if !slices.Equal(answers, []answer{{"xml", true}, {"", false}, {"", false}, {"", false}}) {
 		t.Errorf("answers = %v", answers)
 	}
 }

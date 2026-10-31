@@ -12,8 +12,11 @@ import (
 // getGitErrorCode and the catch blocks of the commands) plus the messages of the git of 2023 to 2026, which differ from the
 // older ones in their case and wording (checked against a real git in the tests, where the failure can be provoked).
 var (
-	reLocked           = regexp.MustCompile(`Another git process seems to be running in this repository|If no other git process is currently running`)
-	reAuthFailed       = regexp.MustCompile(`(?i)Authentication failed`)
+	reLocked = regexp.MustCompile(`Another git process seems to be running in this repository|If no other git process is currently running`)
+	// reAuthFailed also reads the failure of a prompt: the askpass program that answers with an exit status (the user pressed Escape in the
+	// box) makes git say "could not read Password for 'https://host': terminal prompts disabled" and no more, and the same when the
+	// integrated askpass is off and git may not ask on a terminal.
+	reAuthFailed       = regexp.MustCompile(`(?i)Authentication failed|could not read (?:Username|Password) for`)
 	reNotARepository   = regexp.MustCompile(`(?i)Not a git repository`)
 	reCantCreatePipe   = regexp.MustCompile(`cannot make pipe for command substitution|cannot create standard input pipe`)
 	reRepoNotFound     = regexp.MustCompile(`(?i)Repository not found|repository '[^']*' (?:not found|does not exist)`)

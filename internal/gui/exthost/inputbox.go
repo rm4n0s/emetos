@@ -13,6 +13,9 @@ import (
 // hidden; Hidden is called once when the box ends without one (closed, or replaced by another quick input).
 type InputBoxRequest struct {
 	Prompt, Value string
+	// Message is the line under the input while the text is valid; IgnoreFocusOut keeps the box open when the focus leaves it.
+	Message        string
+	IgnoreFocusOut bool
 	// Password shows a dot for each character typed.
 	Password bool
 	Validate func(value string) string
@@ -47,7 +50,7 @@ func (b inputBoxAPI) Show(opts extension.InputBoxOptions, done func(value string
 		})
 	}
 	req := InputBoxRequest{
-		Prompt: opts.Prompt, Value: opts.Value, Password: opts.Password,
+		Prompt: opts.Prompt, Value: opts.Value, Password: opts.Password, Message: opts.Message, IgnoreFocusOut: opts.IgnoreFocusOut,
 		Accepted: func(value string) { finish(value, true) },
 		Hidden:   func() { finish("", false) },
 	}

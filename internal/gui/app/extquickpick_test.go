@@ -124,6 +124,25 @@ func TestAnExtensionInputBoxIsShownInTheQuickInput(t *testing.T) {
 	}
 }
 
+// TestAnExtensionQuestionThatIgnoresFocusOutStaysOpen: the Message, the focus rule of an input box and the focus rule of a list reach the
+// quick input of the window.
+func TestAnExtensionQuestionThatIgnoresFocusOutStaysOpen(t *testing.T) {
+	w := settingsWindow(t, nil)
+	t.Cleanup(w.release)
+	w.extensionInputBox(exthost.InputBoxRequest{Prompt: "Password", Message: "Git: http://h", IgnoreFocusOut: true, Password: true, Accepted: func(string) {}, Hidden: func() {}})
+	if p := w.QuickInput.Picker(); p.Info() != "Git: http://h" || !p.IgnoreFocusOut {
+		t.Errorf("the input box: info %q, ignore focus out %v", p.Info(), p.IgnoreFocusOut)
+	}
+	w.extensionInputBox(exthost.InputBoxRequest{Prompt: "Name", Accepted: func(string) {}, Hidden: func() {}})
+	if p := w.QuickInput.Picker(); p.Info() != "" || p.IgnoreFocusOut {
+		t.Errorf("the next input box: info %q, ignore focus out %v", p.Info(), p.IgnoreFocusOut)
+	}
+	w.extensionQuickPick(exthost.QuickPickRequest{Placeholder: "Sure?", IgnoreFocusOut: true, Items: []exthost.QuickPickEntry{{Label: "Yes"}}, Chosen: func(int) {}, Hidden: func() {}})
+	if !w.QuickInput.Picker().IgnoreFocusOut {
+		t.Error("the list does not ignore the focus leaving it")
+	}
+}
+
 // TestAnExtensionPasswordBoxHidesWhatIsTyped: the input box of an extension that asks for a password obscures its input.
 func TestAnExtensionPasswordBoxHidesWhatIsTyped(t *testing.T) {
 	for _, password := range []bool{true, false} {

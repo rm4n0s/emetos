@@ -6,6 +6,12 @@ type InputBoxOptions struct {
 	Prompt string
 	// Value is the text the input starts with; the caret is at its end.
 	Value string
+	// Message is a line of text under the input while the text is valid (VS Code's prompt; Prompt is its placeHolder): "Git: https://host"
+	// over the password that git asks for. A message from Validate takes its place while there is one.
+	Message string
+	// IgnoreFocusOut keeps the box open when the user clicks elsewhere or the window loses the focus, as VS Code's ignoreFocusOut does:
+	// only Enter and Escape end it. A question that a running program waits for (the password git asks) sets it.
+	IgnoreFocusOut bool
 	// Password shows a dot for each character typed, as a password box does (VS Code's password option): the text cannot be
 	// read from the screen or copied. The text still reaches done as typed.
 	Password bool

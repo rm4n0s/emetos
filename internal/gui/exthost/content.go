@@ -28,7 +28,7 @@ type ContentHost interface {
 	// Tabs lists the tabs of the text editors and diff editors, in the order of the groups.
 	Tabs() []extension.DocumentTab
 	// CloseTabs closes the tabs and returns how many were found.
-	CloseTabs(tabs []extension.DocumentTab) int
+	CloseTabs(tabs []extension.DocumentTab, how extension.TabClose) int
 	// ProvideMultiDiff registers the provider of a kind of sets of the multi-file diff editor; the function of the provider is
 	// contained already. It fails with the tag ExtMultiDiffKindTaken when the window tab has the kind.
 	ProvideMultiDiff(owner string, p extension.MultiDiffProvider) (extension.MultiDiffRegistration, error)
@@ -186,9 +186,14 @@ func (d documentsAPI) Tabs() []extension.DocumentTab {
 
 // CloseTabs implements extension.Documents.
 func (d documentsAPI) CloseTabs(tabs ...extension.DocumentTab) int {
+	return d.CloseTabsAs(extension.TabCloseAsk, tabs...)
+}
+
+// CloseTabsAs implements extension.Documents.
+func (d documentsAPI) CloseTabsAs(how extension.TabClose, tabs ...extension.DocumentTab) int {
 	host, err := d.contentHost("close tabs")
 	if err != nil || len(tabs) == 0 {
 		return 0
 	}
-	return host.CloseTabs(tabs)
+	return host.CloseTabs(tabs, how)
 }

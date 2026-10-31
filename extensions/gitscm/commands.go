@@ -86,6 +86,9 @@ func (x *gitscm) registerCommands() error {
 		"git.delete":                          x.cmdDelete,
 		"git.blame.toggleEditorDecoration":    x.cmdToggleBlameEditor,
 		"git.blame.toggleStatusBarItem":       x.cmdToggleBlameStatusBar,
+		"git.commitMessageAccept":             x.cmdCommitMessageAccept,
+		"git.commitMessageDiscard":            x.cmdCommitMessageDiscard,
+		"git.fetch":                           x.cmdFetch,
 		CommandTrustRepository:                x.cmdTrustRepository,
 		CommandManageTrusted:                  x.cmdManageTrusted,
 	}

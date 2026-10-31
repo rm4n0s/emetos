@@ -94,6 +94,20 @@ type OpenSpec struct {
 	PreserveFocus bool
 }
 
+// TabClose says what CloseTabsAs does with the unsaved changes of the tabs it closes.
+type TabClose int
+
+// The ways to close tabs.
+const (
+	// TabCloseAsk closes the tabs the way the close button does: a tab with unsaved changes asks first (CloseTabs).
+	TabCloseAsk TabClose = iota
+	// TabCloseSave saves the documents that have unsaved changes and closes the tabs; a document that cannot be saved (the save fails or
+	// is cancelled) keeps its tab, and the window says why, as it does for any save.
+	TabCloseSave
+	// TabCloseDiscard closes the tabs without asking and without saving: the unsaved changes are dropped, as a revert drops them.
+	TabCloseDiscard
+)
+
 // DocumentTab is a tab of a text editor or of a diff editor, as Documents().Tabs lists it.
 type DocumentTab struct {
 	// ID identifies the tab to CloseTabs for as long as it is open.

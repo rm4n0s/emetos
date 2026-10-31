@@ -317,6 +317,9 @@ func (s *hostState) syncKeys(visible bool) {
 
 // closeOnFocusLost is workbench.quickOpen.closeOnFocusLost.
 func (s *hostState) closeOnFocusLost() bool {
+	if s.picker != nil && s.picker.IgnoreFocusOut {
+		return false
+	}
 	st := s.Widget().opts.Settings
 	if st == nil {
 		return true
@@ -581,6 +584,8 @@ func (s *hostState) widget(bc widgets.BuildContext, width float64) widgets.Widge
 	var message *kit.InputMessage
 	if m := pk.Message(); m != "" {
 		message = &kit.InputMessage{Content: m, Type: kit.ValidationError}
+	} else if m := pk.Info(); m != "" {
+		message = &kit.InputMessage{Content: m, Type: kit.ValidationInfo}
 	}
 	input := kit.NewInputBox(nil, nil, kit.InputBoxOpts{
 		Controller:       s.input,

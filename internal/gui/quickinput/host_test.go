@@ -2,6 +2,7 @@ package quickinput
 
 import (
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/rm4n0s/glutter/gluttertest"
@@ -178,6 +179,69 @@ func TestHostClickOutsideAndFocusLossHide(t *testing.T) {
 		r.settle()
 		if r.ctl.Visible() {
 			t.Errorf("still visible")
+		}
+	})
+}
+
+// TestHostIgnoreFocusOutKeepsAQuestionOfAProgramOpen: the password git asks for must not vanish when the user clicks elsewhere or the
+// focus moves (VS Code's ignoreFocusOut); Escape still ends it, and the message under the input is on screen.
+func TestHostIgnoreFocusOutKeepsAQuestionOfAProgramOpen(t *testing.T) {
+	type opener func(r *rig, ignore bool)
+	prompt := func(r *rig, ignore bool) {
+		r.ctl.Prompt(PromptOptions{Placeholder: "Password for 'http://ada@127.0.0.1:41233'", Message: "Git: http://127.0.0.1:41233", Password: true, IgnoreFocusOut: ignore})
+		r.settle()
+	}
+	pick := func(r *rig, ignore bool) {
+		r.ctl.Pick(PickOptions{Placeholder: "Are you sure you want to continue connecting?", IgnoreFocusOut: ignore,
+			Items: []Item{{ID: "yes", Label: "Yes", Accept: func(KeyMods) {}}, {ID: "no", Label: "No", Accept: func(KeyMods) {}}}})
+		r.settle()
+	}
+	for _, kind := range []struct {
+		name string
+		open opener
+	}{{"an input box", prompt}, {"a list", pick}} {
+		for _, ignore := range []bool{true, false} {
+			for _, how := range []string{"a click outside", "the focus moving away"} {
+				t.Run(kind.name+" ignoring="+strconv.FormatBool(ignore)+", "+how, func(t *testing.T) {
+					r := newRig(t, ui.Size{Width: 800, Height: 500}, kit.DarkModern())
+					kind.open(r, ignore)
+					if how == "a click outside" {
+						r.ts.TapAt(ui.Offset{Dx: 40, Dy: 400})
+					} else {
+						r.editor.RequestFocus()
+					}
+					r.settle()
+					if r.ctl.Visible() != ignore {
+						t.Errorf("visible = %v, want %v", r.ctl.Visible(), ignore)
+					}
+					if ignore && how == "a click outside" {
+						r.press(services.LogicalKeyboardKeyEscape)
+						if r.ctl.Visible() {
+							t.Error("Escape did not close it")
+						}
+					}
+				})
+			}
+		}
+	}
+	t.Run("the message is under the input and a validation message takes its place", func(t *testing.T) {
+		r := newRig(t, ui.Size{Width: 800, Height: 500}, kit.DarkModern())
+		r.ctl.Prompt(PromptOptions{Placeholder: "Name", Message: "Git: http://127.0.0.1:41233", Validate: func(v string) string {
+			if v == "bad" {
+				return "not that"
+			}
+			return ""
+		}})
+		r.settle()
+		find := func(text string) bool {
+			return r.ts.Exists(gluttertest.ByText(text, gluttertest.FindOpts{FindRichText: true}))
+		}
+		if !find("Git: http://127.0.0.1:41233") {
+			t.Error("the message is not on screen")
+		}
+		r.typeText("bad")
+		if find("Git: http://127.0.0.1:41233") || !find("not that") {
+			t.Error("the validation message did not take the place of the message")
 		}
 	})
 }

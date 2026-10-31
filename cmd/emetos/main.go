@@ -27,6 +27,7 @@ import (
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extensions"
+	"github.com/rm4n0s/emetos/extensions/gitscm/helper"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -56,7 +57,21 @@ Exit status: 0 on success, 1 on failure, 2 for a wrong command line.
 `
 
 func main() {
+	// The programs git runs for passwords and editors are this binary with a flag of their own (SPEC §10.30 "Passwords and editors"): they
+	// answer before anything else is done, with no window, no look for a running Emetos and no toolkit.
+	if code, handled := helperMain(os.Args[1:], os.Environ(), os.Stdin, os.Stdout, os.Stderr); handled {
+		os.Exit(code)
+	}
 	os.Exit(run(os.Args[1:], defaultEnv()))
+}
+
+// helperMain runs the helper of git (extensions/gitscm/helper) when the first argument is one of its flags (--git-askpass,
+// --git-ssh-askpass, --git-editor) and says so; any other command line is left to run.
+func helperMain(args, environ []string, stdin io.Reader, stdout, stderr io.Writer) (code int, handled bool) {
+	if len(args) == 0 || !helper.IsHelperFlag(args[0]) {
+		return 0, false
+	}
+	return helper.Main(args, environ, stdin, stdout, stderr), true
 }
 
 // Exit statuses.

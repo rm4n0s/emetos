@@ -32,7 +32,11 @@ type Picker struct {
 
 	placeholder string
 	message     string
-	value       string
+	info        string
+	// IgnoreFocusOut keeps the picker open when the focus leaves it (VS Code's ignoreFocusOut); the controller sets it for a pick or a
+	// prompt that asked for it.
+	IgnoreFocusOut bool
+	value          string
 	// prefixLen is how much of the value the filter leaves out (the prefix of the provider).
 	prefixLen int
 	items     []Item
@@ -105,6 +109,18 @@ func (p *Picker) RawFilter() string {
 func (p *Picker) SetPrefixLen(n int) {
 	p.prefixLen = max(n, 0)
 	p.applyFilter()
+}
+
+// Info is the line shown under the input of a prompt while it has no validation message (PromptOptions.Message, VS Code's prompt).
+func (p *Picker) Info() string { return p.info }
+
+// SetInfo sets the line under the input; "" takes it away.
+func (p *Picker) SetInfo(m string) {
+	if p.info == m {
+		return
+	}
+	p.info = m
+	p.fireChanged()
 }
 
 // Message is the validation message shown under the input of a prompt (Controller.Prompt), or "".

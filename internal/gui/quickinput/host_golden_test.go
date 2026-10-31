@@ -51,6 +51,19 @@ func TestGoldenQuickInput(t *testing.T) {
 			r.ctl.SetValue("hunter2-secret")
 			r.settle()
 		}},
+		{"prompt_git_password", func(r *rig) {
+			r.ctl.Prompt(PromptOptions{Placeholder: "Password for 'http://ada@127.0.0.1:41233'", Message: "Git: http://127.0.0.1:41233", Password: true, IgnoreFocusOut: true})
+			r.ctl.SetValue("hunter2-secret")
+			r.settle()
+		}},
+		{"pick_host_key", func(r *rig) {
+			detail := `"github.com (140.82.121.4)" has fingerprint "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU"`
+			r.ctl.Pick(PickOptions{
+				Placeholder: "Are you sure you want to continue connecting?", IgnoreFocusOut: true,
+				Items: []Item{{Label: "Yes", Detail: detail, Accept: func(KeyMods) {}}, {Label: "No", Detail: detail, Accept: func(KeyMods) {}}},
+			})
+			r.settle()
+		}},
 		{"pick_with_separators", func(r *rig) {
 			r.ctl.Pick(PickOptions{
 				Placeholder: "Select a snippet", MatchOnDetail: true,

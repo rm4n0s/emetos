@@ -24,6 +24,7 @@ type contentState struct {
 	opened     []extension.OpenSpec
 	tabs       []extension.DocumentTab
 	closed     []string
+	closedHow  []extension.TabClose
 	// failOpen makes OpenDiff and OpenDocument return this error.
 	failOpen error
 }
@@ -230,6 +231,12 @@ func (a *API) SetTabs(tabs ...extension.DocumentTab) {
 
 // CloseTabs implements extension.Documents: the tabs that are in the list close (they leave it, and ClosedTabs records their ids).
 func (d documents) CloseTabs(tabs ...extension.DocumentTab) int {
+	return d.CloseTabsAs(extension.TabCloseAsk, tabs...)
+}
+
+// CloseTabsAs implements extension.Documents like CloseTabs; ClosedHow records how each tab was closed. The fake saves nothing: a test
+// that wants the document written does it itself.
+func (d documents) CloseTabsAs(how extension.TabClose, tabs ...extension.DocumentTab) int {
 	a := d.a
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -241,9 +248,17 @@ func (d documents) CloseTabs(tabs ...extension.DocumentTab) int {
 		}
 		a.content.tabs = slices.Delete(a.content.tabs, at, at+1)
 		a.content.closed = append(a.content.closed, t.ID)
+		a.content.closedHow = append(a.content.closedHow, how)
 		n++
 	}
 	return n
+}
+
+// ClosedHow is the TabClose each closed tab was closed with, in the order of ClosedTabs.
+func (a *API) ClosedHow() []extension.TabClose {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.content.closedHow)
 }
 
 // ClosedTabs are the ids of the tabs CloseTabs closed, in order.

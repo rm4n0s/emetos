@@ -259,6 +259,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	registerDevLog(p.Commands, p.Channels)
 	registerDevMarkers(p.Commands)
 	registerDevSCM(p.Commands)
+	registerDevQuickInput(p)
 	registerDevQueries(p)
 	registerDevWorkbench(p)
 	registerDevToasts(p)
