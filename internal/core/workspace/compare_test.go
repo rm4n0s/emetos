@@ -82,3 +82,55 @@ func sign(n int) int {
 	}
 	return 0
 }
+
+// TestNumbersWorthZeroSortFirst keeps the order of Intl.Collator for numbers whose value is zero, which the numeric collation of
+// x/text puts after the others when text follows them.
+func TestNumbersWorthZeroSortFirst(t *testing.T) {
+	tests := []struct {
+		name  string
+		cmp   NameComparer
+		names []string
+		want  []string
+	}{
+		{"two digits", CompareFileNamesDefault,
+			[]string{"file11.txt", "file10.txt", "file01.txt", "file00.txt"},
+			[]string{"file00.txt", "file01.txt", "file10.txt", "file11.txt"}},
+		{"one digit", CompareFileNamesDefault,
+			[]string{"file1.txt", "file0.txt", "file9.txt"},
+			[]string{"file0.txt", "file1.txt", "file9.txt"}},
+		{"zeros of different lengths keep the shorter first", CompareFileNamesDefault,
+			[]string{"x000y", "x1y", "x00y", "x0y"},
+			[]string{"x0y", "x00y", "x000y", "x1y"}},
+		{"a zero number before a name without one", CompareFileNamesDefault,
+			[]string{"v1-0-final", "v1-0-beta", "v0-9", "v1-10"},
+			[]string{"v0-9", "v1-0-beta", "v1-0-final", "v1-10"}},
+		{"nines carry", CompareFileNamesDefault,
+			[]string{"a10b", "a9b", "a0b", "a99b", "a100b"},
+			[]string{"a0b", "a9b", "a10b", "a99b", "a100b"}},
+		{"upper first", CompareFileNamesUpper,
+			[]string{"b1.txt", "B0.txt", "a0.txt", "A1.txt", "A0.txt"},
+			[]string{"A0.txt", "A1.txt", "B0.txt", "a0.txt", "b1.txt"}},
+		{"by extension", CompareFileExtensionsDefault,
+			[]string{"f1.t0x", "f0.t1x", "f0.t0x"},
+			[]string{"f0.t0x", "f1.t0x", "f0.t1x"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := slices.Clone(tc.names)
+			slices.SortFunc(got, tc.cmp)
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("sorted\n got %q\nwant %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIncrementNumbers(t *testing.T) {
+	for in, want := range map[string]string{
+		"": "", "abc": "abc", "0": "1", "00": "1", "009": "10", "file99.txt": "file100.txt", "a0b19c": "a1b20c", "é0": "é1",
+	} {
+		if got := incrementNumbers(in); got != want {
+			t.Errorf("incrementNumbers(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

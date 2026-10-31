@@ -29,10 +29,70 @@ func newCollator(opts ...collate.Option) *collator {
 }
 
 func (c *collator) compare(a, b string) int {
+	// x/text: a number whose value is zero ("0", "00") gets a length element of primary weight
+	// zero, which the primary level ignores, so "file0.txt" sorts after "file1.txt" (and
+	// "file00.txt" after "file11.txt"). Adding one to every number of both names keeps the order of
+	// the values and leaves no zero; x/text should give a zero-valued number a nonzero length.
+	if hasZeroNumber(a) || hasZeroNumber(b) {
+		a, b = incrementNumbers(a), incrementNumbers(b)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.c.CompareString(a, b)
 }
+
+// hasZeroNumber tells whether s has a run of ASCII digits that are all "0".
+func hasZeroNumber(s string) bool {
+	for i := 0; i < len(s); {
+		if !isASCIIDigit(s[i]) {
+			i++
+			continue
+		}
+		zero := true
+		for ; i < len(s) && isASCIIDigit(s[i]); i++ {
+			zero = zero && s[i] == '0'
+		}
+		if zero {
+			return true
+		}
+	}
+	return false
+}
+
+// incrementNumbers adds one to every run of ASCII digits of s, without its leading zeros:
+// "file009.txt" is "file10.txt". The numeric collation drops leading zeros anyway.
+func incrementNumbers(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 1)
+	for i := 0; i < len(s); {
+		if !isASCIIDigit(s[i]) {
+			b.WriteByte(s[i])
+			i++
+			continue
+		}
+		start := i
+		for i < len(s) && isASCIIDigit(s[i]) {
+			i++
+		}
+		digits := []byte(strings.TrimLeft(s[start:i], "0"))
+		carry := true
+		for k := len(digits) - 1; k >= 0 && carry; k-- {
+			if digits[k] == '9' {
+				digits[k] = '0'
+			} else {
+				digits[k]++
+				carry = false
+			}
+		}
+		if carry {
+			b.WriteByte('1')
+		}
+		b.Write(digits)
+	}
+	return b.String()
+}
+
+func isASCIIDigit(c byte) bool { return '0' <= c && c <= '9' }
 
 var (
 	// collatorNumeric has numeric sorting ("file2" before "file10"), and tells upper case from
