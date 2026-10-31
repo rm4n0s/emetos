@@ -187,7 +187,7 @@ func buildOpen(o options, cwd string, stat func(string) (fs.FileInfo, error)) (i
 // runLaunch is launch for the real process: it joins the running Emetos, or becomes it. A socket that cannot be used
 // (no safe folder, a path in the way) does not stop the editor: it runs without single-instance and says so.
 func runLaunch(l launch, e env) int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalContext(context.Background())
 	defer stop()
 	paths, err := storage.ResolvePaths()
 	if err != nil {
@@ -211,6 +211,18 @@ func runLaunch(l launch, e env) int {
 		return exitFailure
 	}
 	return exitOK
+}
+
+// signalContext is a context that ends with the first SIGINT or SIGTERM: Emetos then ends as a quit without questions
+// (SPEC §10.3). The handler is taken away at once, so that a second signal while the application is still ending finds
+// the default action and ends the process.
+func signalContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	return ctx, stop
 }
 
 // handOver sends the command line to the running Emetos and returns the status of its reply: with --wait that

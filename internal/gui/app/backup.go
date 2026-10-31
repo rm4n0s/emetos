@@ -282,17 +282,15 @@ func (s *shellState) showRestoredConflicts() {
 }
 
 // backupOnSignal writes the backups of the unsaved documents when the signal that ends the program arrives (it does
-// not go through the question about unsaved changes), so that the next start restores them. The writes are
-// waited for, but not for long.
-func (s *shellState) backupOnSignal() {
+// not go through the question about unsaved changes), so that the next start restores them. It runs on the UI thread
+// and waits for the writes until ctx ends. A failure is logged and the program ends anyway.
+func (s *shellState) backupOnSignal(ctx context.Context) {
 	win := s.win
 	t := win.Backups()
 	if t == nil || !t.Enabled() {
 		return
 	}
 	t.Pause() // the documents close with the program: their backups stay
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(win.ctx), backupExitTimeout)
-	defer cancel()
 	if err := t.BackupAll(ctx, win.Documents.All()); err != nil {
 		win.Process.Logger.Warn("the unsaved documents cannot be backed up", "err", err)
 		return

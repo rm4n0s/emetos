@@ -101,14 +101,19 @@ func Run(ctx context.Context, opts Options) error {
 	if saved != nil {
 		m.savedNotes = &savedNotesRun{texts: saved, notify: first.ws.Notify}
 	}
+	runCtx, endRun := runContext(ctx, signalQuitGrace, process.Logger)
+	defer endRun()
 	defer func() {
-		// what is left to write (the recently opened list changed after the window closed)
-		if err := process.flushStates(context.WithoutCancel(ctx)); err != nil {
+		// what is left to write (the recently opened list changed after the window closed); a stuck write does not keep
+		// the process alive for ever
+		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), backupExitTimeout)
+		defer cancel()
+		if err := process.flushStates(flushCtx); err != nil {
 			process.Logger.Warn("the UI state cannot be written", "err", err)
 		}
 	}()
 	first.steps = devSteps(process, opts.DevCommands)
-	return widgets.RunApp(m.rootWidget(), widgets.RunAppOpts{
+	return widgets.RunAppContext(runCtx, m.rootWidget(), widgets.RunAppOpts{
 		AppID:  AppID,
 		Window: startupWindowConfig(first.ws, first.geometry),
 		Fonts:  fonts.Sources(),
@@ -116,6 +121,36 @@ func Run(ctx context.Context, opts Options) error {
 		// the errors that say the tray is not shown are noted (the close button quits), logged once and not reported
 		ErrorReporter: m.errorReporter(widgets.DefaultErrorReporter(opts.Logger)),
 	})
+}
+
+// signalQuitGrace is how long the application has to end after ctx of Run ended (the signal that ends the program),
+// before the event loop is ended from outside: the quit that the signal asks for writes the backups (bounded by
+// backupExitTimeout) and then ends the application itself.
+const signalQuitGrace = backupExitTimeout + 10*time.Second
+
+// runContext makes the context the event loop runs on (widgets.RunAppContext). Glutter ends the run as soon as the
+// context it gets ends, without asking anybody, so it cannot be ctx itself: the quit that a signal asks for
+// (Workspaces.watchSignal) writes the backups of the unsaved documents on the UI thread first and then ends the run
+// by itself. The context ends when the returned function is called (Run does it when the loop returned), or as the last
+// resort grace after ctx ended, when that quit did not come (the UI thread is stuck, or has not started).
+func runContext(ctx context.Context, grace time.Duration, logger *slog.Logger) (context.Context, context.CancelFunc) {
+	runCtx, end := context.WithCancel(context.WithoutCancel(ctx))
+	go func() {
+		select {
+		case <-runCtx.Done():
+			return
+		case <-ctx.Done():
+		}
+		timer := time.NewTimer(grace)
+		defer timer.Stop()
+		select {
+		case <-runCtx.Done():
+		case <-timer.C:
+			logger.Warn("the application did not end after the signal; the event loop is ended without waiting", "grace", grace)
+			end()
+		}
+	}()
+	return runCtx, end
 }
 
 // Texts of the notices about files that are not shown as usual.
@@ -363,7 +398,9 @@ func (s *shellState) InitState() {
 					// the signal that ends the program does not go through the question about unsaved changes, but
 					// the UI state is still written
 					if s.Mounted() {
-						s.backupOnSignal()
+						bctx, cancel := context.WithTimeout(context.WithoutCancel(s.Widget().ctx), backupExitTimeout)
+						defer cancel()
+						s.backupOnSignal(bctx)
 						s.flushState()
 					}
 					binding.ExitApplication(ui.AppExitTypeRequired)

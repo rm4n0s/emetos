@@ -284,12 +284,34 @@ func (a *App) Quit() {
 	case <-ctx.Done():
 		a.t.Fatalf("emetos did not end after its window was closed:\n%s", a.Log())
 	}
+	a.closeDev()
+}
+
+// Signal sends the signal to the editor process (not to its group) as a terminal does with Ctrl+C (SIGINT) or the system with
+// SIGTERM, and waits until the process has ended by itself: it never sends SIGKILL. It returns the exit status of the process,
+// and fails the test when the editor does not end within the time (the SIGKILL fallback of stop then ends it).
+func (a *App) Signal(sig syscall.Signal, within time.Duration) int {
+	a.t.Helper()
+	if err := syscall.Kill(a.cmd.Process.Pid, sig); err != nil {
+		a.t.Fatalf("sending %v to emetos: %v", sig, err)
+	}
+	select {
+	case <-a.done:
+	case <-time.After(within):
+		a.t.Fatalf("emetos did not end within %v of %v:\n%s", within, sig, a.Log())
+	}
+	a.closeDev()
+	return a.cmd.ProcessState.ExitCode()
+}
+
+// closeDev drops the connection to the dev server of a process that ended.
+func (a *App) closeDev() {
 	a.mu.Lock()
+	defer a.mu.Unlock()
 	if a.dev != nil {
 		_ = a.dev.Close()
 	}
 	a.dev, a.reader = nil, nil
-	a.mu.Unlock()
 }
 
 // Restart starts the editor again after Quit, in the same folders, with the arguments of the first start (or args when given):

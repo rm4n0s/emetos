@@ -37,6 +37,8 @@ type multiEnv struct {
 	// realBus makes runRoot leave the desktop to the session bus named by DBUS_SESSION_BUS_ADDRESS (a test points it
 	// at nothing) instead of installing a fake one.
 	realBus bool
+	// signal, when set, is the context of Run that a signal ends: the manager watches it (Workspaces.watchSignal).
+	signal context.Context
 }
 
 func newMultiEnv(t *testing.T, extra map[string]any) *multiEnv {
@@ -95,9 +97,12 @@ func (e *multiEnv) runRoot(opts Options, po ProcessOptions, tray bool) (*multiAp
 		po.StateAfter = e.clock.AfterFunc
 	}
 	ctx := e.t.Context()
+	if e.signal != nil {
+		ctx = e.signal
+	}
 	p := newTestProcess(po)
 	a := &multiApp{t: e.t, env: e, p: p, m: p.Workspaces, ctx: ctx}
-	a.m.ctx = ctx
+	a.m.ctx, a.m.watch = ctx, e.signal != nil
 	a.m.Quit = func() { a.quits++ }
 	shown, err := a.m.start(ctx, opts)
 	if err != nil {

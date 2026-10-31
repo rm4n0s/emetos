@@ -654,6 +654,19 @@ func (b *syncBuffer) infoLines(text string) []string {
 	return out
 }
 
+// warnLines are the log lines of level warn that mention a text.
+func (b *syncBuffer) warnLines(text string) []string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	var out []string
+	for _, line := range strings.Split(b.buf.String(), "\n") {
+		if strings.Contains(line, `"level":"WARN"`) && strings.Contains(line, text) {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
 // TestTabsOfAnExtensionThatEmetosNoLongerHasAreDropped is the old state of step 17c.1: the last session of a window had tabs
 // of the Agents extension (agents.session), which was removed, and the state of its views (the agents.container view and the
 // agents.login panel). The window starts without an error dialog, the tabs of the extensions that remain come back, one line

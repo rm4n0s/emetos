@@ -3868,6 +3868,19 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Tests:** `TestCopyOutputAsHTMLOffersBothRepresentations` (new, table-driven: the HTML item puts `text/html` and the plain output; Copy Output leaves no HTML; no item for a command without output); the three tests named above.
 - **Glutter issues:** four removed, none new; the file is deleted.
 
+## Fix: Glutter 1.9.8
+
+- **Date:** 2026-10-31
+- **Branch:** fix/glutter-1.9.8 (not a step of the plan)
+- **Summary:** Emetos moves to Glutter v1.9.8 (`RunAppContext`) and uses it, so that SIGINT and SIGTERM end Emetos as a Quit without a dialog, with status 0 (decision 459, SPEC §10.3 "Quitting on a signal"). `go.mod` and `go.sum` change the Glutter version only (`go mod verify` passes).
+  - **The run:** `Run` calls `widgets.RunAppContext` with `runContext`, a context of its own. Glutter ends a run whose context ends at once and asks nobody, so the signal context itself would end the loop before the backups were written. The quit that the signal asks for was already built (`Workspaces.watchSignal`, step 9b.1: backups of every tab, state, `ExitApplication`) and worked; the new context ends the loop only when it returned, or 40 s after the signal (the 30 s of the backups and 10 s more), so a stuck UI thread cannot keep the process alive.
+  - **The bounds:** the backups of all the tabs share one deadline of 30 s (before, each tab had its own); the last write of the state files after the loop is bounded by 30 s too; the failure of a backup is logged and the exit goes on.
+  - **A second signal:** `signalContext` (`cmd/emetos`) takes Emetos's handler away at the first signal, so a second one ends the process with the default action.
+  - **The harness:** `display.App.Signal(sig, within)` sends a signal to the editor and returns its exit status, with no SIGKILL; `stop` keeps its SIGTERM then SIGKILL.
+- **Main files:** `go.mod`, `go.sum`, `cmd/emetos/main.go`, `internal/gui/app/{app.go,backup.go,workspaces.go}`, `internal/testenv/display/app.go`, `docs/SPEC.md` (§10.3), `docs/DECISIONS-TO-REVIEW.md` (459).
+- **Tests:** `TestTheSignalQuitBacksUpEveryTabAndEndsWithoutAsking` (two tabs, backups of both, one exit request, no dialog), `TestABackupThatFailsOnTheSignalIsLoggedAndTheQuitEnds`, `TestRunContext` (3 cases), `TestSignalContext` (SIGTERM and SIGINT: the first signal ends the context, the second kills a stuck process), and the display test `TestRealInputSignalEndsAsAQuit` (SIGTERM and SIGINT: the editor with an unsaved edit ends by itself with status 0 and the next start restores the text). The display test also passes on the code before this change: the quit on the signal worked already; `RunAppContext` is the safety net.
+- **Glutter issues:** none new.
+
 ## Manager's checks of the merges since step 21.1
 
 

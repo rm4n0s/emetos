@@ -503,15 +503,21 @@ func (m *Workspaces) bind(binding *widgets.WidgetsBinding) {
 	}
 }
 
-// watchSignal turns the cancellation of the context of Run (the signal that ends the program) into an exit that
-// writes the backups and the state of every tab first, without the questions about unsaved changes.
+// watchSignal turns the cancellation of the context of Run (the signal that ends the program) into a quit without
+// questions: the backups of the unsaved documents of every tab are written (all together within backupExitTimeout;
+// a backup that fails is logged and the quit goes on), the state of every tab is written, and the application is ended
+// as a quit that was agreed to ends it. Run ends the event loop on its own only when this does not come in time
+// (runContext).
 func (m *Workspaces) watchSignal(ctx context.Context, binding *widgets.WidgetsBinding) {
 	go func() {
 		<-ctx.Done()
 		binding.Post(func() {
+			m.quitting = true // a quit that asks is not started now
+			bctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), backupExitTimeout)
+			defer cancel()
 			for _, w := range m.All() {
 				if s := w.shell; s != nil && s.Mounted() && w.ext == nil {
-					s.backupOnSignal()
+					s.backupOnSignal(bctx)
 					s.flushState()
 				}
 			}
