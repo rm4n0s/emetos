@@ -83,6 +83,7 @@ func DefaultRegistry() *Registry {
 	registerQuickInputKeys(r)
 	registerStatusBarKeys(r)
 	registerDiffEditorKeys(r)
+	registerMultiDiffEditorKeys(r)
 	registerMergeEditorKeys(r)
 	return r
 }
@@ -693,6 +694,18 @@ func registerDiffEditorKeys(r *Registry) {
 		// the commands that open a diff (step 9.6)
 		Rule{Command: "workbench.files.action.compareWithSaved", Weight: WeightWorkbenchContrib, Primary: "ctrl+k d"},
 		Rule{Command: "workbench.files.action.compareWithClipboard", Weight: WeightWorkbenchContrib, Primary: "ctrl+k c"},
+	)
+}
+
+// registerMultiDiffEditorKeys registers the keys of the multi-file diff editor (step 24.17): Alt+F5 and Shift+Alt+F5 go to the next and
+// the previous change while it is the active editor (the diff editor's commands have the same keys while a text compare editor is
+// visible, and a multi-file diff editor is none).
+//
+// Ported from VS Code: src/vs/workbench/contrib/multiDiffEditor/browser/actions.ts
+func registerMultiDiffEditorKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "multiDiffEditor.goToNextChange", Weight: WeightEditorContrib, When: mustWhen("activeEditor == 'emetos.multiDiff'"), Primary: "alt+f5"},
+		Rule{Command: "multiDiffEditor.goToPreviousChange", Weight: WeightEditorContrib, When: mustWhen("activeEditor == 'emetos.multiDiff'"), Primary: "shift+alt+f5"},
 	)
 }
 

@@ -34,6 +34,10 @@ func TestMergeEditorColors(t *testing.T) {
 		{"no merge border in dark", colorTheme(TypeDark, nil, r), "merge.border", ""},
 		{"merge border in high contrast dark", colorTheme(TypeHCDark, nil, r), "merge.border", "#c3df6f"},
 		{"merge border in high contrast light", colorTheme(TypeHCLight, nil, r), "merge.border", "#007acc"},
+		{"multi-file diff header in dark", colorTheme(TypeDark, nil, r), "multiDiffEditor.headerBackground", "#262626"},
+		{"multi-file diff header in light follows the inactive tab", colorTheme(TypeLight, nil, r), "multiDiffEditor.headerBackground", "#ececec"},
+		{"multi-file diff background follows the editor", colorTheme(TypeDark, nil, r), "multiDiffEditor.background", "#1e1e1e"},
+		{"multi-file diff border in light", colorTheme(TypeLight, nil, r), "multiDiffEditor.border", "#cccccc"},
 		{"a theme sets a border", colorTheme(TypeDark, map[string]string{"mergeEditor.conflict.unhandledFocused.border": "#ff0000"}, r), "mergeEditor.conflict.unhandledFocused.border", "#ff0000"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

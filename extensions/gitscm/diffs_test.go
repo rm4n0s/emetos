@@ -507,67 +507,6 @@ func TestEveryResourceOfTheViewRunsTheOpenResourceCommand(t *testing.T) {
 	}
 }
 
-func TestOpenAllChangesOpensKeptDiffsAndAsksAboveTen(t *testing.T) {
-	e := gittest.NewEnv(t)
-	repo := e.Init("many")
-	for i := range 12 {
-		repo.Write("f"+string(rune('a'+i))+".txt", "one\n")
-	}
-	repo.Write("gone.txt", "gone\n")
-	repo.Git("add", "-A")
-	repo.Commit("files")
-	for i := range 12 {
-		repo.Write("f"+string(rune('a'+i))+".txt", "two\n")
-	}
-	repo.Remove("gone.txt")
-	r := newRig(t, e, rigOptions{folder: repo.Dir})
-	r.settle()
-	rp := r.repo(repo.Dir)
-	srcArg := []any{map[string]any{extension.SCMArgSourceControl: rp.handle}}
-	// 12 changes and a deleted file: asks, and Cancel opens nothing
-	if err := r.api.Run("git.openAllChanges", srcArg); err != nil {
-		t.Fatal(err)
-	}
-	dialogs := r.api.OpenDialogs()
-	if len(dialogs) != 1 || !strings.Contains(dialogs[0].Spec().Message, "12 changes") {
-		t.Fatalf("dialogs %+v", dialogs)
-	}
-	dialogs[0].Press("Cancel")
-	r.api.Pump()
-	if n := len(r.api.OpenedDiffs()); n != 0 {
-		t.Fatalf("%d diffs after Cancel", n)
-	}
-	if err := r.api.Run("git.openAllChanges", srcArg); err != nil {
-		t.Fatal(err)
-	}
-	r.api.OpenDialogs()[0].Press("Open Changes")
-	r.api.Pump()
-	diffs := r.api.OpenedDiffs()
-	if len(diffs) != 12 {
-		t.Fatalf("%d diffs, want 12 (the deleted file has none)", len(diffs))
-	}
-	for _, d := range diffs {
-		if d.Preview || !d.PreserveFocus || !strings.HasSuffix(d.Title, " (Working Tree)") {
-			t.Errorf("diff %+v", d)
-		}
-	}
-}
-
-func TestOpenAllChangesOfAGroupOfTenDoesNotAsk(t *testing.T) {
-	r, _, rp := diffRig(t)
-	if err := r.api.Run("git.openAllChanges", []any{map[string]any{extension.SCMArgSourceControl: rp.handle, extension.SCMArgGroup: groupIndex}}); err != nil {
-		t.Fatal(err)
-	}
-	if n := len(r.api.OpenDialogs()); n != 0 {
-		t.Errorf("%d dialogs", n)
-	}
-	// every staged change opens (a staged deletion shows the file it deletes), a diff or a document
-	opened := len(r.api.OpenedDiffs()) + len(r.api.OpenedDocuments())
-	if opened != len(rp.res.index) || opened != 7 {
-		t.Errorf("%d opened of %d staged", opened, len(rp.res.index))
-	}
-}
-
 func TestRevealOpensTheExplorerAndTheFileManager(t *testing.T) {
 	r, _, rp := diffRig(t)
 	arg := []any{resourceArg(rp, groupWorking, "unstaged_mod.txt")}
@@ -758,6 +697,12 @@ func (d failingContentDocs) OpenDiff(s extension.DiffSpec) error {
 }
 func (d failingContentDocs) OpenDocument(s extension.OpenSpec) error {
 	return d.API.Documents().OpenDocument(s)
+}
+func (d failingContentDocs) ProvideMultiDiff(extension.MultiDiffProvider) (extension.MultiDiffRegistration, error) {
+	return nil, errors.New(d.tag, "the multi-file provider is refused")
+}
+func (d failingContentDocs) OpenMultiDiff(s extension.MultiDiffSpec) error {
+	return d.API.Documents().OpenMultiDiff(s)
 }
 func (d failingContentDocs) Tabs() []extension.DocumentTab { return d.API.Documents().Tabs() }
 func (d failingContentDocs) CloseTabs(t ...extension.DocumentTab) int {

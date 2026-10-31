@@ -46,7 +46,7 @@ func TestTheSCMMenuIDs(t *testing.T) {
 		"MenuSCMHistoryTitle": MenuSCMHistoryTitle, "MenuSCMHistoryItemContext": MenuSCMHistoryItemContext,
 		"MenuSCMHistoryItemRefContext": MenuSCMHistoryItemRefContext, "MenuTimelineItemContext": MenuTimelineItemContext,
 		"MenuEditorContent": MenuEditorContent, "MenuEditorTitle": MenuEditorTitle, "MenuDiffEditorGutterHunk": MenuDiffEditorGutterHunk,
-		"MenuDiffEditorGutterSelection": MenuDiffEditorGutterSelection,
+		"MenuDiffEditorGutterSelection": MenuDiffEditorGutterSelection, "MenuMultiDiffFileToolbar": MenuMultiDiffFileToolbar,
 	}
 	want := map[string]string{
 		"MenuSCMTitle": "SCMTitle", "MenuSCMRepository": "SCMSourceControlInline", "MenuSCMSourceControl": "SCMSourceControl",
@@ -55,7 +55,7 @@ func TestTheSCMMenuIDs(t *testing.T) {
 		"MenuSCMHistoryTitle": "SCMHistoryTitle", "MenuSCMHistoryItemContext": "SCMHistoryItemContext",
 		"MenuSCMHistoryItemRefContext": "SCMHistoryItemRefContext", "MenuTimelineItemContext": "TimelineItemContext",
 		"MenuEditorContent": "EditorContent", "MenuEditorTitle": "EditorTitle", "MenuDiffEditorGutterHunk": "DiffEditorHunkToolbar",
-		"MenuDiffEditorGutterSelection": "DiffEditorSelectionToolbar",
+		"MenuDiffEditorGutterSelection": "DiffEditorSelectionToolbar", "MenuMultiDiffFileToolbar": "MultiDiffEditorFileToolbar",
 	}
 	if !reflect.DeepEqual(ids, want) {
 		t.Errorf("menu ids = %v\nwant %v", ids, want)

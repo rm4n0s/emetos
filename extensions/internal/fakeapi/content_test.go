@@ -22,6 +22,13 @@ func TestContentConformance(t *testing.T) {
 				return nil
 			},
 			Deactivate: a.Deactivate, Failed: a.Failed, Pump: func() { a.Pump() },
+			MultiFiles: a.MultiDiffFiles, MultiOpened: a.OpenedMultiDiffs,
+			MultiChanged: func() [][]string {
+				if f := a.MultiDiffProviderFor("tst.changes"); f != nil {
+					return f.MultiDiffChanges()
+				}
+				return nil
+			},
 		}
 	})
 }
@@ -60,6 +67,38 @@ func TestAPanicInAFakeProviderIsAnErrorWithItsRoute(t *testing.T) {
 	}
 	_, err = a.ContentText(context.Background(), extension.ContentURI("tst", "x"))
 	route(t, err, "API.safeText.func1.ExtensionContentPanicked")
+	if !a.Failed() {
+		t.Error("the fake is on after a panic")
+	}
+}
+
+func TestTheFakeMultiDiffRefusalsHaveTheirRoutes(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Folder: t.TempDir()})
+	docs := a.Documents()
+	files := func(context.Context, string) ([]extension.MultiDiffResource, error) { return nil, nil }
+	if _, err := docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst.changes", Resources: files}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst.changes", Resources: files})
+	route(t, err, "documents.ProvideMultiDiff.ExtMultiDiffKindTaken")
+	_, err = docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "9 no", Resources: files})
+	route(t, err, "documents.ProvideMultiDiff.ExtensionMultiDiffInvalid")
+	_, err = docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst.other"})
+	route(t, err, "documents.ProvideMultiDiff.ExtensionMultiDiffInvalid")
+	route(t, docs.OpenMultiDiff(extension.MultiDiffSpec{}), "documents.OpenMultiDiff.ExtensionMultiDiffInvalid")
+	route(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Resources: []extension.MultiDiffResource{{Path: "a"}}}), "documents.OpenMultiDiff.ExtensionMultiDiffInvalid")
+}
+
+func TestAPanicInAFakeMultiDiffProviderIsAnErrorWithItsRoute(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Folder: t.TempDir()})
+	_, err := a.Documents().ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst.changes", Resources: func(context.Context, string) ([]extension.MultiDiffResource, error) {
+		panic("files")
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = a.MultiDiffFiles(context.Background(), "tst.changes", "k")
+	route(t, err, "API.MultiDiffFiles.func1.ExtensionMultiDiffPanicked")
 	if !a.Failed() {
 		t.Error("the fake is on after a panic")
 	}

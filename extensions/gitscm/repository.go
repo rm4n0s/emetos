@@ -235,6 +235,7 @@ func (r *repository) dispose() {
 	}
 	r.disposed = true
 	r.m.x.content.repos.remove(r.id)
+	r.multiGone()
 	r.stopWatching()
 	r.dropDecorations()
 	r.cancel()
@@ -391,6 +392,7 @@ func (r *repository) applySnapshot(snap snapshot) {
 	r.updateStatusBar()
 	r.m.updateContext()
 	r.contentChanged(snap.head.commit != headBefore)
+	r.multiChanged()
 	x.updateActiveResource()
 	r.publish()
 }

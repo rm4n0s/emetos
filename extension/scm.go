@@ -220,6 +220,9 @@ const (
 	MenuEditorContent = "EditorContent"
 	// MenuEditorTitle is the actions in the title bar of an editor (editor/title).
 	MenuEditorTitle = "EditorTitle"
+	// MenuMultiDiffFileToolbar is the actions in the header of a file of the multi-file diff editor (multiDiffEditor/resource/title);
+	// they are read with the Context of the MultiDiffResource and run with its Args.
+	MenuMultiDiffFileToolbar = "MultiDiffEditorFileToolbar"
 	// MenuDiffEditorGutterHunk is the toolbar in the gutter of a hunk of the diff editor (diffEditor/gutter/hunk).
 	MenuDiffEditorGutterHunk = "DiffEditorHunkToolbar"
 	// MenuDiffEditorGutterSelection is the toolbar in the gutter of a selection of the diff editor (diffEditor/gutter/selection).

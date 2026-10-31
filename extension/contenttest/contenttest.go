@@ -1,5 +1,5 @@
 // Package contenttest is the conformance suite of the provided documents of the extension contract (Documents().ProvideContent,
-// OpenDiff, OpenDocument, Tabs and CloseTabs): the host runs it over a window tab, and the fake of the tests of the extensions runs it
+// OpenDiff, OpenDocument, Tabs and CloseTabs, and ProvideMultiDiff and OpenMultiDiff of the multi-file diff editor): the host runs it over a window tab, and the fake of the tests of the extensions runs it
 // too, so that an extension that passes its tests against the fake meets the same rules in the window.
 package contenttest
 
@@ -31,6 +31,12 @@ type Harness struct {
 	Failed func() bool
 	// Pump lets the work posted to the UI thread run.
 	Pump func()
+	// MultiFiles asks the window for the files of a set of the multi-file diff editor, as it does when it opens the set, from any
+	// goroutine; the error has the tag ExtMultiDiffKindUnknown when no provider has the kind. MultiOpened and MultiChanged are the
+	// editors the window was asked to open and what the provider said changed, since the start.
+	MultiFiles   func(ctx context.Context, kind, key string) ([]extension.MultiDiffResource, error)
+	MultiOpened  func() []extension.MultiDiffSpec
+	MultiChanged func() [][]string
 }
 
 // Run runs the suite: newHarness makes a fresh harness for each test.
@@ -51,6 +57,22 @@ func Run(t *testing.T, newHarness func(t *testing.T) *Harness) {
 		{"a panic in Text is an error for the caller and takes the extension off", testPanic},
 	}
 	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) { tc.run(t, newHarness(t)) })
+	}
+	multi := []struct {
+		name string
+		run  func(t *testing.T, h *Harness)
+	}{
+		{"the multi-file diff provider makes the files of a set", testMultiProvide},
+		{"the same kind twice is refused, and Dispose frees it", testMultiKindTaken},
+		{"a kind that is not a word, and a provider with no Resources, are refused", testMultiInvalidProvider},
+		{"OpenMultiDiff hands the window what it was given", testMultiOpen},
+		{"OpenMultiDiff refuses what cannot open", testMultiOpenInvalid},
+		{"Changed tells the window the keys", testMultiChanged},
+		{"the end of the activation takes the multi-file diff provider away", testMultiDeactivate},
+		{"a panic in Resources is an error for the caller and takes the extension off", testMultiPanic},
+	}
+	for _, tc := range multi {
 		t.Run(tc.name, func(t *testing.T) { tc.run(t, newHarness(t)) })
 	}
 }
@@ -210,6 +232,133 @@ func testPanic(t *testing.T, h *Harness) {
 	}
 	_, err := h.Text(context.Background(), extension.ContentURI("tst", "x"))
 	wantTag(t, err, "ExtensionContentPanicked")
+	h.Pump()
+	if !h.Failed() {
+		t.Error("the extension is still on after a panic in its provider")
+	}
+}
+
+func multiProvider(kind string) extension.MultiDiffProvider {
+	return extension.MultiDiffProvider{Kind: kind, Resources: func(_ context.Context, key string) ([]extension.MultiDiffResource, error) {
+		return []extension.MultiDiffResource{{Original: "file:///" + key + "/a", Modified: "file:///" + key + "/b", Path: "src/a.go", Letter: "M"}}, nil
+	}}
+}
+
+func testMultiProvide(t *testing.T, h *Harness) {
+	if _, err := h.API.Documents().ProvideMultiDiff(multiProvider("tst.changes")); err != nil {
+		t.Fatal(err)
+	}
+	files, err := h.MultiFiles(context.Background(), "tst.changes", "k1")
+	if err != nil || len(files) != 1 || files[0].Original != "file:///k1/a" || files[0].FileName() != "a.go" || files[0].Folder() != "src" {
+		t.Errorf("files %+v %v", files, err)
+	}
+	_, err = h.MultiFiles(context.Background(), "other", "k1")
+	wantTag(t, err, "ExtMultiDiffKindUnknown")
+}
+
+func testMultiKindTaken(t *testing.T, h *Harness) {
+	docs := h.API.Documents()
+	reg, err := docs.ProvideMultiDiff(multiProvider("tst.changes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = docs.ProvideMultiDiff(multiProvider("tst.changes"))
+	wantTag(t, err, "ExtMultiDiffKindTaken")
+	reg.Dispose()
+	reg.Dispose()
+	if _, err := h.MultiFiles(context.Background(), "tst.changes", "k"); err == nil {
+		t.Error("a disposed provider still answers")
+	}
+	if _, err := docs.ProvideMultiDiff(multiProvider("tst.changes")); err != nil {
+		t.Errorf("the kind is not free after Dispose: %v", err)
+	}
+}
+
+func testMultiInvalidProvider(t *testing.T, h *Harness) {
+	docs := h.API.Documents()
+	for _, kind := range []string{"", "1a", "a b", "a_b", "a/b", ".a"} {
+		_, err := docs.ProvideMultiDiff(multiProvider(kind))
+		wantTag(t, err, "ExtensionMultiDiffInvalid")
+	}
+	_, err := docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst"})
+	wantTag(t, err, "ExtensionMultiDiffInvalid")
+	if _, err := docs.ProvideMultiDiff(multiProvider("Tst.a-b2")); err != nil {
+		t.Errorf("Tst.a-b2: %v", err)
+	}
+}
+
+func testMultiOpen(t *testing.T, h *Harness) {
+	docs := h.API.Documents()
+	if _, err := docs.ProvideMultiDiff(multiProvider("tst.changes")); err != nil {
+		t.Fatal(err)
+	}
+	set := extension.MultiDiffSpec{Title: "Git: Changes", Kind: "tst.changes", Key: "k1", Reveal: "file:///k1/b", Preview: true}
+	fixed := extension.MultiDiffSpec{Title: "Two files", Resources: []extension.MultiDiffResource{{Original: "file:///a", Modified: "file:///b", Path: "b"}, {Modified: "file:///c", Path: "c"}}}
+	for _, spec := range []extension.MultiDiffSpec{set, fixed} {
+		if err := docs.OpenMultiDiff(spec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.Pump()
+	got := h.MultiOpened()
+	if len(got) != 2 || got[0].Key != "k1" || got[0].Title != "Git: Changes" || len(got[1].Resources) != 2 {
+		t.Errorf("opened %+v", got)
+	}
+}
+
+func testMultiOpenInvalid(t *testing.T, h *Harness) {
+	docs := h.API.Documents()
+	one := []extension.MultiDiffResource{{Modified: "file:///a", Path: "a"}}
+	wantTag(t, docs.OpenMultiDiff(extension.MultiDiffSpec{}), "ExtensionMultiDiffInvalid")
+	wantTag(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Kind: "tst"}), "ExtensionMultiDiffInvalid")
+	wantTag(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Key: "k", Resources: one}), "ExtensionMultiDiffInvalid")
+	wantTag(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Kind: "tst", Key: "k", Resources: one}), "ExtensionMultiDiffInvalid")
+	wantTag(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Resources: []extension.MultiDiffResource{{Path: "a"}}}), "ExtensionMultiDiffInvalid")
+	wantTag(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Kind: "none", Key: "k"}), "ExtMultiDiffKindUnknown")
+	if n := len(h.MultiOpened()); n != 0 {
+		t.Errorf("%d editors opened", n)
+	}
+}
+
+func testMultiChanged(t *testing.T, h *Harness) {
+	reg, err := h.API.Documents().ProvideMultiDiff(multiProvider("tst.changes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg.Changed("k1", "k2")
+	reg.Changed()
+	h.Pump()
+	got := h.MultiChanged()
+	if len(got) < 1 || len(got[0]) != 2 || got[0][0] != "k1" || got[0][1] != "k2" {
+		t.Errorf("changed %v", got)
+	}
+}
+
+func testMultiDeactivate(t *testing.T, h *Harness) {
+	docs := h.API.Documents()
+	reg, err := docs.ProvideMultiDiff(multiProvider("tst.changes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.Deactivate()
+	if _, err := h.MultiFiles(context.Background(), "tst.changes", "k"); err == nil {
+		t.Error("the provider answers after the end of the activation")
+	}
+	reg.Changed("k") // nothing happens
+	reg.Dispose()
+	_, err = docs.ProvideMultiDiff(multiProvider("tst.other"))
+	wantTag(t, err, "ExtensionDeactivated")
+	wantTag(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Kind: "tst.changes", Key: "k"}), "ExtensionDeactivated")
+}
+
+func testMultiPanic(t *testing.T, h *Harness) {
+	p := multiProvider("tst.changes")
+	p.Resources = func(context.Context, string) ([]extension.MultiDiffResource, error) { panic("on purpose") }
+	if _, err := h.API.Documents().ProvideMultiDiff(p); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.MultiFiles(context.Background(), "tst.changes", "k")
+	wantTag(t, err, "ExtensionMultiDiffPanicked")
 	h.Pump()
 	if !h.Failed() {
 		t.Error("the extension is still on after a panic in its provider")

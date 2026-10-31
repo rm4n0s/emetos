@@ -58,6 +58,12 @@ type diffPane struct {
 
 // newDiffPane makes the pane of an input and starts the first diff.
 func newDiffPane(s *shellState, input *editorgroup.DiffInput) *diffPane {
+	return newDiffPaneWith(s, input, diffeditor.AdjustOptions)
+}
+
+// newDiffPaneWith is newDiffPane with the function that gives the options of the editor of each side: the multi-file diff editor's
+// sections have editors that are read-only and show the whole text (multidiffpane.go).
+func newDiffPaneWith(s *shellState, input *editorgroup.DiffInput, adjust func(editor.Options, diffeditor.Side) editor.Options) *diffPane {
 	win := PeekWorkspace(s.Context())
 	binding := widgets.WidgetsBindingOf(s.Context())
 	p := &diffPane{s: s, input: input}
@@ -65,7 +71,7 @@ func newDiffPane(s *shellState, input *editorgroup.DiffInput) *diffPane {
 	for i, side := range []diffeditor.Side{diffeditor.Original, diffeditor.Modified} {
 		win.Documents.Retain(docs[i])
 		p.inputs[i] = editorgroup.NewTextInput(docs[i], s.inputOptions())
-		p.sides[i] = s.newTextEditorWith(binding, p.inputs[i], func(o editor.Options) editor.Options { return diffeditor.AdjustOptions(o, side) })
+		p.sides[i] = s.newTextEditorWith(binding, p.inputs[i], func(o editor.Options) editor.Options { return adjust(o, side) })
 	}
 	p.model = diffeditor.NewModel(diffeditor.ModelOpts{
 		Original: p.sides[0].view, Modified: p.sides[1].view, Settings: win.Settings,
@@ -87,6 +93,12 @@ func (p *diffPane) Model() *diffeditor.Model { return p.model }
 
 // build implements pane.
 func (p *diffPane) build(bc widgets.BuildContext, group *editorgroup.Group, active bool) widgets.Widget {
+	return p.wrap(p.s, group, p.editorWidget(bc, group, active))
+}
+
+// editorWidget is the diff editor of the pane: the two editors, in the group they are in; the modified one takes the keyboard when
+// active.
+func (p *diffPane) editorWidget(bc widgets.BuildContext, group *editorgroup.Group, active bool) widgets.Widget {
 	win := PeekWorkspace(bc)
 	opts := func(ed *textEditor, autofocus bool) editor.EditorOpts {
 		return editor.EditorOpts{
@@ -95,9 +107,9 @@ func (p *diffPane) build(bc widgets.BuildContext, group *editorgroup.Group, acti
 			OnFocus: func(has bool) { p.s.editorFocus(group, ed, has) },
 		}
 	}
-	return p.wrap(p.s, group, diffeditor.NewWidget(p.model, diffeditor.WidgetOpts{
+	return diffeditor.NewWidget(p.model, diffeditor.WidgetOpts{
 		Original: opts(p.sides[0], false), Modified: opts(p.sides[1], active),
-	}))
+	})
 }
 
 // focus implements pane: the modified editor takes the focus, as VS Code's compare editor does.

@@ -3,7 +3,6 @@ package gitscm
 import (
 	"context"
 	"path/filepath"
-	"strconv"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/gitscm/git"
@@ -21,9 +20,6 @@ import (
 // or, with git.openDiffOnClick off, the file. The view gives it the resource ({"sourceControl", "group", "uri"}) and how the click
 // opens it ("preserveFocus", "pinned").
 const CommandOpenResource = "git.openResource"
-
-// maxOpenWithoutAsking is the number of diffs Open All Changes opens without asking.
-const maxOpenWithoutAsking = 10
 
 // openCommand is the command every resource of the view runs on a click. It has no arguments of its own: the view adds the resource.
 var openCommand = &extension.Command{ID: CommandOpenResource, Title: "Open"}
@@ -99,6 +95,11 @@ func (x *gitscm) uriArg(args any) string {
 	switch v := args.(type) {
 	case string:
 		return v
+	case []any:
+		// the argument of a file's action in the multi-file diff editor has the shape of SCMArgs: a list of one object
+		if len(v) > 0 {
+			return x.uriArg(v[0])
+		}
 	case map[string]any:
 		if s, _ := v["uri"].(string); s != "" {
 			return s
@@ -295,70 +296,59 @@ func (x *gitscm) cmdOpenHEADFile(_ context.Context, args any) error {
 	return nil
 }
 
-// cmdOpenAllChanges opens the diff editors of the changes of a group, kept and behind the active editor, after asking when there are
-// more than ten. The group is the one of the argument; for a repository the changes of the work tree and the untracked files. A
-// deleted file has no diff of its own and is left out, as VS Code leaves it out.
+// cmdOpenAllChanges opens the changes of a group in the multi-file diff editor (VS Code opens the files; the SPEC of step 24.17 opens the
+// editor in place of many diff editors, so there is nothing to ask about): the group of the argument, and for a repository the
+// changes of the work tree and the untracked files.
 func (x *gitscm) cmdOpenAllChanges(_ context.Context, args any) error {
-	var list []target
+	type set struct {
+		r     *repository
+		group string
+	}
+	var sets []set
 	for _, a := range extension.SCMArgs(args) {
 		switch {
 		case a.IsGroup():
 			if r := x.model.byHandle(a.SourceControl); r != nil {
-				for _, res := range r.groupResources(a.Group) {
-					list = append(list, target{repo: r, group: a.Group, res: res})
-				}
+				sets = append(sets, set{r, a.Group})
 			}
 		case a.IsSourceControl():
 			if r := x.model.byHandle(a.SourceControl); r != nil {
-				list = append(list, workTreeTargets(r)...)
+				sets = append(sets, set{r, groupAll})
 			}
 		}
 	}
-	if len(list) == 0 {
-		x.target(args, true, func(r *repository) { list = workTreeTargets(r) })
+	if len(sets) == 0 {
+		x.target(args, true, func(r *repository) { sets = append(sets, set{r, groupAll}) })
 	}
-	var open []target
-	for _, t := range list {
-		switch t.res.status {
-		case git.StatusDeleted, git.StatusDeletedByThem, git.StatusDeletedByUs, git.StatusBothDeleted:
-			continue
-		}
-		open = append(open, t)
+	for _, s := range sets {
+		x.openGroupChanges(s.r, s.group)
 	}
-	if len(open) == 0 {
-		return nil
-	}
-	run := func() {
-		for _, t := range open {
-			x.openChange(t, openOptions{preserveFocus: true})
-		}
-	}
-	if len(open) <= maxOpenWithoutAsking {
-		run()
-		return nil
-	}
-	return x.api.Dialogs().Ask(extension.DialogSpec{
-		Type:    extension.DialogQuestion,
-		Message: "Are you sure you want to open " + strconv.Itoa(len(open)) + " changes?",
-		Detail:  "Each change opens in a diff editor of its own.",
-		Buttons: []extension.DialogButton{{Label: "Open Changes"}, {Label: "Cancel", Cancel: true}},
-	}, func(res extension.DialogResult) {
-		if !res.Cancelled && res.Button == 0 {
-			run()
-		}
-	})
+	return nil
 }
 
-// workTreeTargets are the changes of the work tree and the untracked files of a repository.
-func workTreeTargets(r *repository) []target {
-	var out []target
-	for _, res := range r.res.working {
-		out = append(out, target{repo: r, group: groupWorking, res: res})
+// groupLabels are the titles of the groups.
+var groupLabels = map[string]string{groupMerge: "Merge Changes", groupIndex: "Staged Changes", groupWorking: "Changes", groupUntracked: "Untracked Changes", groupAll: "Changes"}
+
+// multiTitle is the title of the editor of a set of a repository: "<source control>: <group>", with the name of the repository for the
+// source control when there are several, so that two repositories do not have the same title.
+func (x *gitscm) multiTitle(r *repository, label string) string {
+	who := "Git"
+	if len(x.model.openRepos()) > 1 {
+		who = r.name
 	}
-	for _, res := range r.res.untracked {
-		out = append(out, target{repo: r, group: groupUntracked, res: res})
+	return who + ": " + label
+}
+
+// openGroupChanges opens the multi-file diff editor of a group of a repository; a group with no change opens nothing.
+func (x *gitscm) openGroupChanges(r *repository, group string) {
+	if list, _ := groupOf(r.res, group); len(list) == 0 {
+		return
 	}
-	return out
+	spec := extension.MultiDiffSpec{Title: x.multiTitle(r, groupLabels[group]), Kind: MultiDiffKind, Key: groupKey(r.id, group)}
+	if err := x.api.Documents().OpenMultiDiff(spec); err != nil {
+		x.log.Warn("cannot open the changes of a group", "group", group, "err", err)
+		x.api.Notifications().Error("Cannot open the changes: " + err.Error())
+	}
 }
 
 // cmdRevealInExplorer is Reveal in Explorer View, for the first resource of the menu.

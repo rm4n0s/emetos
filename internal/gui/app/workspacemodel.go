@@ -191,6 +191,8 @@ type Workspace struct {
 	shell *shellState
 	// virtual is the registry of the virtual documents of this tab: the providers of extensions (extcontent.go), over the process's.
 	virtual *document.VirtualRegistry
+	// multi are the providers of the multi-file diff editor of this tab (multidiffhost.go).
+	multi multiDiffs
 	// viewOf is the workspace this one is a headless view of (headless.go): it shares its documents, settings and folder and
 	// has everything that is the user's own at the screen of its own. Nil for a workspace of a tab.
 	viewOf *Workspace

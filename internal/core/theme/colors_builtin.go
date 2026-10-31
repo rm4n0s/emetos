@@ -1120,6 +1120,12 @@ func registerDiffEditorColors(r *ColorRegistry) {
 			Description: "Border color between the two text editors."},
 		ColorContribution{ID: "diffEditor.diagonalFill", Defaults: dflt(Hex("#CCCCCC33"), Hex("#22222233"), nil, nil),
 			Description: "Color of the diff editor's diagonal fill. The diagonal fill is used in side-by-side diff views."},
+		ColorContribution{ID: "multiDiffEditor.headerBackground", Defaults: dflt(Hex("#262626"), Ref("tab.inactiveBackground"), Ref("tab.inactiveBackground"), Ref("tab.inactiveBackground")),
+			Description: "The background color of the diff editor's header"},
+		ColorContribution{ID: "multiDiffEditor.background", Defaults: AllThemes(Ref("editor.background")),
+			Description: "The background color of the multi file diff editor"},
+		ColorContribution{ID: "multiDiffEditor.border", Defaults: dflt(Ref("sideBarSectionHeader.border"), Hex("#cccccc"), Ref("sideBarSectionHeader.border"), Hex("#cccccc")),
+			Description: "The border color of the multi file diff editor"},
 	)
 }
 

@@ -29,6 +29,12 @@ type ContentHost interface {
 	Tabs() []extension.DocumentTab
 	// CloseTabs closes the tabs and returns how many were found.
 	CloseTabs(tabs []extension.DocumentTab) int
+	// ProvideMultiDiff registers the provider of a kind of sets of the multi-file diff editor; the function of the provider is
+	// contained already. It fails with the tag ExtMultiDiffKindTaken when the window tab has the kind.
+	ProvideMultiDiff(owner string, p extension.MultiDiffProvider) (extension.MultiDiffRegistration, error)
+	// OpenMultiDiff opens the multi-file diff editor of a set, asking the provider for its files off the UI thread. It fails with
+	// the tag ExtMultiDiffKindUnknown for a kind no provider has.
+	OpenMultiDiff(spec extension.MultiDiffSpec) error
 }
 
 // contentHost is the ContentHost of the scope's documents, or nil with the error to return.

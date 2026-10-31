@@ -98,6 +98,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, extraMenus...)
 	menus = append(menus, diffMenus()...)
 	menus = append(menus, stageMenus()...)
+	menus = append(menus, multiDiffMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -164,6 +165,9 @@ type gitscm struct {
 
 	// content is what the provided documents of the versions of files need (content.go).
 	content contentState
+
+	// multi is what the multi-file diff editor needs (multidiff.go).
+	multi multiState
 
 	// ignores is the provider of the file decorations of the files git ignores (decorations.go).
 	ignores *ignoreProvider

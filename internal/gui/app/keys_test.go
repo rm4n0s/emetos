@@ -437,6 +437,15 @@ func diffEditorState(a *keyApp) func() {
 	}
 }
 
+// multiDiffEditorState is the state of a window whose active editor is a multi-file diff editor, for the keys that go to its next and
+// previous change (step 24.17); activeEditor goes back to what the window had when the state before it runs (see the loop of the test).
+func multiDiffEditorState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Set("activeEditor", "emetos.multiDiff")
+	}
+}
+
 // mergeEditorState is the state of a window that shows a merge editor, for the key that completes the merge (step 9.8).
 func mergeEditorState(a *keyApp) func() {
 	return func() {
@@ -568,6 +577,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	ran, restore := a.spyOnCommands(t)
 	defer func() { restore() }()
 	var tried int
+	activeEditor := a.win.Keys.Get("activeEditor")
 	for _, item := range a.win.Process.Keymap.Defaults() {
 		if item.Command == "" || strings.HasPrefix(item.Command, "-") || len(item.Keybinding) == 0 {
 			continue
@@ -587,7 +597,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				hoverState(a, false, false), hoverState(a, true, false), hoverState(a, true, true), signatureState(a, 1), signatureState(a, 3), navigationState(a), peekState(a),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
 				scmInputState(a, true, true, false), scmInputState(a, true, true, true),
-				zenModeState(a), diffEditorState(a), mergeEditorState(a))
+				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
@@ -606,6 +616,11 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				a.vm.RenameCancel()
 				a.vm.PreviewDiscard()
 				a.win.Keys.Set("inZenMode", false)
+				if activeEditor == nil {
+					a.win.Keys.Reset("activeEditor")
+				} else {
+					a.win.Keys.Set("activeEditor", activeEditor)
+				}
 				a.win.Keys.Set("textCompareEditorVisible", false)
 				a.win.Keys.Reset("isMergeEditor")
 				a.win.Keys.Set("activeEditorIsPinned", false)

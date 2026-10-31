@@ -378,6 +378,19 @@ type Documents interface {
 	// off the UI thread as OpenDiff does. It fails as OpenDiff does, with ExtensionDocumentInvalid for the URI. Call it on the UI
 	// thread.
 	OpenDocument(spec OpenSpec) error
+	// ProvideMultiDiff registers the provider of the sets of files of the multi-file diff editor of a kind (SPEC §10.30; VS Code's
+	// IMultiDiffSourceResolver). The window asks it for the files of a set when the set is opened, when the provider says it changed,
+	// and when a saved editor of the set comes back after a restart. It fails with ExtensionMultiDiffInvalid for a kind that is not a
+	// word or a provider with no Resources, ExtMultiDiffKindTaken when the window tab has the kind already,
+	// ExtensionDocumentUnavailable when the scope cannot show documents, and ExtensionDeactivated after the activation ended.
+	ProvideMultiDiff(p MultiDiffProvider) (MultiDiffRegistration, error)
+	// OpenMultiDiff opens the multi-file diff editor of a set (VS Code's _workbench.openMultiDiffEditor): one scrolling editor with a
+	// section for each file. The editor opens at once and fills in when the provider has made the files off the UI thread; the same
+	// set that is open is shown again, in its tab. It fails with ExtensionMultiDiffInvalid for a spec with a provider's set and a
+	// fixed one, or with neither, ExtMultiDiffKindUnknown for a kind no provider has, ExtensionDocumentUnavailable when the scope
+	// cannot open documents, ExtensionDeactivated, and returns ExtDocumentShowUnavailable when the window tab is not on screen. Call it
+	// on the UI thread.
+	OpenMultiDiff(spec MultiDiffSpec) error
 	// Tabs lists the tabs of the text editors and diff editors of the window tab, group by group, in the order of the groups.
 	Tabs() []DocumentTab
 	// CloseTabs closes the tabs, the way the close button does: a tab with unsaved changes asks first. It returns the number of

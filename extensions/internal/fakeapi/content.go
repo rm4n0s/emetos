@@ -17,10 +17,13 @@ import (
 // contentState is the state of the fake for provided documents; the API's mutex guards it.
 type contentState struct {
 	providers map[string]*FakeContent
-	diffs     []extension.DiffSpec
-	opened    []extension.OpenSpec
-	tabs      []extension.DocumentTab
-	closed    []string
+	// multiDiffs are the providers of the multi-file diff editor by kind, and multi the editors the extension opened.
+	multiDiffs map[string]*FakeMultiDiff
+	multi      []extension.MultiDiffSpec
+	diffs      []extension.DiffSpec
+	opened     []extension.OpenSpec
+	tabs       []extension.DocumentTab
+	closed     []string
 	// failOpen makes OpenDiff and OpenDocument return this error.
 	failOpen error
 }

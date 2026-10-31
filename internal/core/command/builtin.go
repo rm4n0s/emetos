@@ -49,6 +49,7 @@ func DefaultRegistry() *Registry {
 	registerQuickInputCommands(r)
 	registerStatusBarCommands(r)
 	registerDiffEditorCommands(r)
+	registerMultiDiffEditorCommands(r)
 	registerMergeEditorCommands(r)
 	registerExtensionsCommands(r)
 	registerSourceControlCommands(r)
@@ -950,6 +951,22 @@ func registerDiffEditorCommands(r *Registry) {
 		Meta{ID: "selectForCompare"},
 		Meta{ID: "compareFiles"},
 		Meta{ID: "compareSelected"},
+	)
+}
+
+// registerMultiDiffEditorCommands registers the commands of the multi-file diff editor (step 24.17): Go to Next Change and Go to
+// Previous Change (they cross from file to file, Alt+F5 and Shift+Alt+F5 while it is the active editor), and Collapse All Diffs and
+// Expand All Diffs, which are in the title of the editor in turn. VS Code's Open File of the header of a file, its layout
+// debug command and the experimental file list are not built.
+//
+// Ported from VS Code: src/vs/workbench/contrib/multiDiffEditor/browser/actions.ts
+func registerMultiDiffEditorCommands(r *Registry) {
+	active := contextkey.Equals("activeEditor", "emetos.multiDiff")
+	r.MustRegister(
+		Meta{ID: "multiDiffEditor.goToNextChange", Title: "Go to Next Change", Category: "Multi-File Diff Editor", Icon: "arrow-down", Precondition: active},
+		Meta{ID: "multiDiffEditor.goToPreviousChange", Title: "Go to Previous Change", Category: "Multi-File Diff Editor", Icon: "arrow-up", Precondition: active},
+		Meta{ID: "multiDiffEditor.collapseAll", Title: "Collapse All Diffs", Category: "Multi-File Diff Editor", Icon: "collapse-all", Precondition: active},
+		Meta{ID: "multiDiffEditor.expandAll", Title: "Expand All Diffs", Category: "Multi-File Diff Editor", Icon: "expand-all", Precondition: active},
 	)
 }
 

@@ -31,6 +31,9 @@ var appCommands = map[string]bool{
 	"toggle.diff.renderSideBySide": true, "diffEditor.toggleUseInlineViewWhenSpaceIsLimited": true,
 	"diffEditor.setViewMode.inline": true, "diffEditor.setViewMode.sideBySide": true, "diffEditor.setViewMode.automatic": true,
 	"selectForCompare": true, "compareFiles": true, "compareSelected": true,
+	// the commands of the multi-file diff editor (step 24.17, gui/app/multidiffpane.go)
+	"multiDiffEditor.goToNextChange": true, "multiDiffEditor.goToPreviousChange": true,
+	"multiDiffEditor.collapseAll": true, "multiDiffEditor.expandAll": true,
 	// the commands of the merge editor (gui/app/mergepane.go)
 	"merge.goToNextUnhandledConflict": true, "merge.goToPreviousUnhandledConflict": true,
 	"git.openMergeEditor": true, "_open.mergeEditor": true,

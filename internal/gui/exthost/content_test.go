@@ -15,6 +15,8 @@ import (
 // contentHost is the ContentHost the rig gives its scopes: it keeps what the extensions ask of the window.
 type contentHost struct {
 	mu        sync.Mutex
+	multi     map[string]*multiReg
+	multiOpen []extension.MultiDiffSpec
 	providers map[string]*contentReg
 	diffs     []extension.DiffSpec
 	docs      []extension.OpenSpec
@@ -57,6 +59,52 @@ func (h *contentHost) ProvideContent(owner string, p extension.ContentProvider) 
 	r := &contentReg{h: h, p: p}
 	h.providers[p.Scheme] = r
 	return r, nil
+}
+
+type multiReg struct {
+	h        *contentHost
+	p        extension.MultiDiffProvider
+	changed  [][]string
+	disposed bool
+}
+
+func (m *multiReg) Changed(keys ...string) {
+	m.h.mu.Lock()
+	defer m.h.mu.Unlock()
+	m.changed = append(m.changed, slices.Clone(keys))
+}
+
+func (m *multiReg) Dispose() {
+	m.h.mu.Lock()
+	defer m.h.mu.Unlock()
+	m.disposed = true
+	if m.h.multi[m.p.Kind] == m {
+		delete(m.h.multi, m.p.Kind)
+	}
+}
+
+func (h *contentHost) ProvideMultiDiff(owner string, p extension.MultiDiffProvider) (extension.MultiDiffRegistration, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.multi == nil {
+		h.multi = map[string]*multiReg{}
+	}
+	if h.multi[p.Kind] != nil {
+		return nil, errors.New("ExtMultiDiffKindTaken", "the kind is taken")
+	}
+	r := &multiReg{h: h, p: p}
+	h.multi[p.Kind] = r
+	return r, nil
+}
+
+func (h *contentHost) OpenMultiDiff(spec extension.MultiDiffSpec) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if spec.Kind != "" && h.multi[spec.Kind] == nil {
+		return errors.New("ExtMultiDiffKindUnknown", "no provider makes the sets of this kind", "kind", spec.Kind)
+	}
+	h.multiOpen = append(h.multiOpen, spec)
+	return nil
 }
 
 func (h *contentHost) unknown(uri string) error {
@@ -164,6 +212,28 @@ func contentHarness(t *testing.T) (*contenttest.Harness, *contentHost, *tab) {
 		Deactivate: func() { tb.disabled = []string{"emetos.contenttest"}; tb.scope.Refresh() },
 		Failed:     func() bool { return tb.scope.State("emetos.contenttest") == StateFailed },
 		Pump:       tb.pump,
+		MultiFiles: func(ctx context.Context, kind, key string) ([]extension.MultiDiffResource, error) {
+			host.mu.Lock()
+			r := host.multi[kind]
+			host.mu.Unlock()
+			if r == nil {
+				return nil, errors.New("ExtMultiDiffKindUnknown", "no provider makes the sets of this kind", "kind", kind)
+			}
+			return r.p.Resources(ctx, key)
+		},
+		MultiOpened: func() []extension.MultiDiffSpec {
+			host.mu.Lock()
+			defer host.mu.Unlock()
+			return slices.Clone(host.multiOpen)
+		},
+		MultiChanged: func() [][]string {
+			host.mu.Lock()
+			defer host.mu.Unlock()
+			if r := host.multi["tst.changes"]; r != nil {
+				return slices.Clone(r.changed)
+			}
+			return nil
+		},
 	}
 	return h, host, tb
 }
@@ -213,6 +283,9 @@ func TestAScopeThatCannotShowDocumentsFailsWithTheirTags(t *testing.T) {
 	mustRoute(t, err, "documentsAPI.contentHost.ExtensionDocumentUnavailable")
 	mustRoute(t, docs.OpenDiff(extension.DiffSpec{Left: "file:///a", Right: "file:///b"}), "documentsAPI.contentHost.ExtensionDocumentUnavailable")
 	mustRoute(t, docs.OpenDocument(extension.OpenSpec{URI: "file:///a"}), "documentsAPI.contentHost.ExtensionDocumentUnavailable")
+	_, err = docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst", Resources: func(context.Context, string) ([]extension.MultiDiffResource, error) { return nil, nil }})
+	mustRoute(t, err, "documentsAPI.contentHost.ExtensionDocumentUnavailable")
+	mustRoute(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Kind: "tst", Key: "k"}), "documentsAPI.contentHost.ExtensionDocumentUnavailable")
 	if got := docs.Tabs(); len(got) != 0 {
 		t.Errorf("tabs %v", got)
 	}
@@ -237,6 +310,30 @@ func TestAPanicInAProviderIsAnErrorWithItsRouteForTheCaller(t *testing.T) {
 	if got := h.Label(extension.ContentURI("tst", "x")); got != "" {
 		t.Errorf("label %q after a panic", got)
 	}
+	tb.pump()
+	if !h.Failed() {
+		t.Error("the extension is on after a panic")
+	}
+}
+
+func TestMultiDiffRefusalsAndPanicsHaveTheirRoutes(t *testing.T) {
+	h, _, tb := contentHarness(t)
+	docs := h.API.Documents()
+	files := func(context.Context, string) ([]extension.MultiDiffResource, error) { return nil, nil }
+	_, err := docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "9 no", Resources: files})
+	mustRoute(t, err, "documentsAPI.ProvideMultiDiff.ExtensionMultiDiffInvalid")
+	_, err = docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst.other"})
+	mustRoute(t, err, "documentsAPI.ProvideMultiDiff.ExtensionMultiDiffInvalid")
+	mustRoute(t, docs.OpenMultiDiff(extension.MultiDiffSpec{}), "documentsAPI.OpenMultiDiff.ExtensionMultiDiffInvalid")
+	mustRoute(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Resources: []extension.MultiDiffResource{{Path: "a"}}}), "documentsAPI.OpenMultiDiff.ExtensionMultiDiffInvalid")
+	_, err = docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst.changes", Resources: func(context.Context, string) ([]extension.MultiDiffResource, error) {
+		panic("files")
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.MultiFiles(context.Background(), "tst.changes", "k")
+	mustRoute(t, err, "documentsAPI.containMultiDiff.func1.1.ExtensionMultiDiffPanicked")
 	tb.pump()
 	if !h.Failed() {
 		t.Error("the extension is on after a panic")

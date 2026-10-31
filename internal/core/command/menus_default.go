@@ -26,6 +26,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerEditorTitleContext(r)
 	registerExplorerContext(r)
 	registerDiffEditorMenus(r)
+	registerMultiDiffEditorMenus(r)
 	registerQuickInputMenus(r)
 	registerSettingsMenus(r)
 	registerKeybindingsEditorMenus(r)
@@ -421,6 +422,20 @@ func registerDiffEditorMenus(r *MenuRegistry) {
 	r.MustAdd(
 		MenuItem{Menu: CommandPalette, Command: "toggle.diff.renderSideBySide", When: contextkey.Has("textCompareEditorActive")},
 		MenuItem{Menu: CommandPalette, Command: "diffEditor.toggleUseInlineViewWhenSpaceIsLimited", When: contextkey.False()},
+	)
+}
+
+// registerMultiDiffEditorMenus adds the icons of the multi-file diff editor to the title of its editor (step 24.17): Go to Previous
+// Change and Go to Next Change, then Collapse All Diffs, which Expand All Diffs replaces while every file is collapsed.
+//
+// Ported from VS Code: src/vs/workbench/contrib/multiDiffEditor/browser/actions.ts
+func registerMultiDiffEditorMenus(r *MenuRegistry) {
+	multi := "activeEditor == 'emetos.multiDiff'"
+	r.MustAdd(
+		MenuItem{Menu: EditorTitle, Command: "multiDiffEditor.goToPreviousChange", Group: "navigation", Order: 1, When: when(multi)},
+		MenuItem{Menu: EditorTitle, Command: "multiDiffEditor.goToNextChange", Group: "navigation", Order: 2, When: when(multi)},
+		MenuItem{Menu: EditorTitle, Command: "multiDiffEditor.collapseAll", Group: "navigation", Order: 3, When: when(multi + " && !multiDiffEditorAllCollapsed")},
+		MenuItem{Menu: EditorTitle, Command: "multiDiffEditor.expandAll", Group: "navigation", Order: 3, When: when(multi + " && multiDiffEditorAllCollapsed")},
 	)
 }
 

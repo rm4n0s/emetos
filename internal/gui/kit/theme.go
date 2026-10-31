@@ -299,6 +299,8 @@ type Colors struct {
 	DiffInsertedTextBackground, DiffRemovedTextBackground, DiffInsertedLineBackground, DiffRemovedLineBackground ui.Color
 	DiffInsertedLineGutter, DiffRemovedLineGutter, DiffOverviewInserted, DiffOverviewRemoved                     ui.Color
 	DiffInsertedTextBorder, DiffRemovedTextBorder, DiffBorder, DiffDiagonalFill                                  ui.Color
+	// MultiDiffHeaderBackground, MultiDiffBackground and MultiDiffBorder are the colors of the multi-file diff editor (step 24.17).
+	MultiDiffHeaderBackground, MultiDiffBackground, MultiDiffBorder ui.Color
 	// The colors of the merge editor (step 9.7): the backgrounds of the changed lines and characters of the inputs,
 	// the borders of the conflicts (unhandled or handled, focused or not) and the backgrounds of the conflicts in the
 	// inputs of the simplified decorations (input 1 is the incoming side, input 2 the current side).
@@ -601,7 +603,9 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		DiffOverviewInserted: color("diffEditorOverview.insertedForeground"), DiffOverviewRemoved: color("diffEditorOverview.removedForeground"),
 		DiffInsertedTextBorder: color("diffEditor.insertedTextBorder"), DiffRemovedTextBorder: color("diffEditor.removedTextBorder"),
 		DiffBorder: color("diffEditor.border"), DiffDiagonalFill: color("diffEditor.diagonalFill"),
-		MergeChange: color("mergeEditor.change.background"), MergeChangeWord: color("mergeEditor.change.word.background"),
+		MultiDiffHeaderBackground: color("multiDiffEditor.headerBackground"), MultiDiffBackground: color("multiDiffEditor.background"),
+		MultiDiffBorder: color("multiDiffEditor.border"),
+		MergeChange:     color("mergeEditor.change.background"), MergeChangeWord: color("mergeEditor.change.word.background"),
 		MergeUnhandledUnfocusedBorder: color("mergeEditor.conflict.unhandledUnfocused.border"),
 		MergeUnhandledFocusedBorder:   color("mergeEditor.conflict.unhandledFocused.border"),
 		MergeHandledUnfocusedBorder:   color("mergeEditor.conflict.handledUnfocused.border"),

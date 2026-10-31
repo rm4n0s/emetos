@@ -85,6 +85,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	}()
 	x.startDecorations()
 	x.provideContent()
+	x.provideMultiDiff()
 	x.model.updateContext()
 	if x.cfg.enabled {
 		x.start()

@@ -515,6 +515,7 @@ func (s *shellState) refreshKeys() {
 		compareVisible, compareActive := s.diffKeys()
 		win.Keys.Set("textCompareEditorVisible", compareVisible)
 		win.Keys.Set("textCompareEditorActive", compareActive)
+		win.Keys.Set("multiDiffEditorAllCollapsed", s.multiDiffAllCollapsed())
 		if merging, result := s.mergeKeys(); merging {
 			win.Keys.Set("isMergeEditor", true)
 			win.Keys.Set("mergeEditorResultUri", result)
@@ -572,7 +573,7 @@ func (s *shellState) disposeGroup() {
 	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
 		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically",
 		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies", "textCompareEditorVisible", "textCompareEditorActive",
-		"isMergeEditor", "mergeEditorResultUri", "mergeEditorLayout", "resourceSelectedForCompare"}, navKeys...) {
+		"multiDiffEditorAllCollapsed", "isMergeEditor", "mergeEditorResultUri", "mergeEditorLayout", "resourceSelectedForCompare"}, navKeys...) {
 		win.Keys.Reset(key)
 	}
 }

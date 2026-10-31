@@ -134,6 +134,10 @@ func (a *API) Deactivate() {
 		f.disposed = true
 	}
 	a.content.providers = nil
+	for _, f := range a.content.multiDiffs {
+		f.disposed = true
+	}
+	a.content.multiDiffs = nil
 }
 
 // Failed tells whether the fake took the extension off because of a panic in one of its callbacks, as the host does

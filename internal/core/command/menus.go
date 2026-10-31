@@ -98,6 +98,8 @@ const (
 	EditorContent = "EditorContent"
 	// EditorTitle is the actions in the title bar of an editor (editor/title).
 	EditorTitle = "EditorTitle"
+	// MultiDiffEditorFileToolbar is the actions in the header of a file of the multi-file diff editor (multiDiffEditor/resource/title).
+	MultiDiffEditorFileToolbar = "MultiDiffEditorFileToolbar"
 	// DiffEditorHunkToolbar is the toolbar in the gutter of a hunk of the diff editor (diffEditor/gutter/hunk).
 	DiffEditorHunkToolbar = "DiffEditorHunkToolbar"
 	// DiffEditorSelectionToolbar is the toolbar in the gutter of a selection of the diff editor (diffEditor/gutter/selection).
