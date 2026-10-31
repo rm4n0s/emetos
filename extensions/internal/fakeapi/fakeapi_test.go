@@ -223,6 +223,49 @@ func TestTheFakeDoesWhatTheHostDoes(t *testing.T) {
 	_ = a.RunCtx
 }
 
+func TestTheFakeReadsAndShowsTheProblemsAsTheHostDoes(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{})
+	uri := "file:///a.go"
+	_ = a.Problems().Set("lint", uri, []extension.Marker{
+		{Severity: extension.SeverityWarning, Message: "w", StartLine: 2},
+		{Message: "e2", StartLine: 9},
+		{Message: "e1", StartLine: 4, StartColumn: 7},
+		{Message: "e0", StartLine: 4, StartColumn: 2},
+	})
+	_ = a.Problems().Set("vet", uri, []extension.Marker{{Severity: extension.SeverityInfo, Message: "i"}})
+	got, err := a.Problems().Read(uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var order []string
+	for _, m := range got {
+		order = append(order, m.Message)
+	}
+	if want := []string{"e0", "e1", "e2", "w", "i"}; !slices.Equal(order, want) {
+		t.Errorf("Read gave %v, want %v", order, want)
+	}
+	if none, err := a.Problems().Read("file:///other.go"); err != nil || len(none) != 0 {
+		t.Errorf("a file with no marker: %v, %v", none, err)
+	}
+	_, err = a.Problems().Read("untitled:1")
+	route(t, err, "problems.Read.ExtensionProblemsURIInvalid")
+	if err := a.Problems().Show(); err != nil || a.ProblemsShown() != 1 {
+		t.Errorf("Show: %v, shown %d", err, a.ProblemsShown())
+	}
+	// a scope with no panel
+	a.SetProblemsUnavailable(true)
+	_, err = a.Problems().Read(uri)
+	route(t, err, "problems.Read.ExtensionProblemsUnavailable")
+	route(t, a.Problems().Show(), "problems.Show.ExtensionProblemsUnavailable")
+	route(t, a.Problems().Set("lint", uri, nil), "problems.Set.ExtensionProblemsUnavailable")
+	// an ended activation
+	a.SetProblemsUnavailable(false)
+	a.Deactivate()
+	_, err = a.Problems().Read(uri)
+	route(t, err, "problems.Read.ExtensionDeactivated")
+	route(t, a.Problems().Show(), "problems.Show.ExtensionDeactivated")
+}
+
 func TestTheFakeEditorsRefuseWhatTheHostRefuses(t *testing.T) {
 	m := manifest()
 	m.Contributes.EditorKinds = []extension.EditorKindSpec{{ID: "fk.card", Name: "Card"}}

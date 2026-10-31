@@ -993,7 +993,7 @@ func TestTheTitleActionsOfTheStashEditor(t *testing.T) {
 
 func TestTheStashMenus(t *testing.T) {
 	m := (&gitscm{}).Manifest()
-	if len(m.Contributes.Submenus) != 1 || m.Contributes.Submenus[0].ID != "git.stash" || m.Contributes.Submenus[0].Label != "Stash" {
+	if len(m.Contributes.Submenus) < 1 || m.Contributes.Submenus[0].ID != "git.stash" || m.Contributes.Submenus[0].Label != "Stash" {
 		t.Errorf("submenus %+v", m.Contributes.Submenus)
 	}
 	if err := extension.CheckManifest(m); err != nil {

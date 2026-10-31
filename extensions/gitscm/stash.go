@@ -394,8 +394,10 @@ func (x *gitscm) askStashMessage(r *repository, includeUntracked, staged bool, a
 	}
 	value := ""
 	if read(x.api, "git.useCommitInputAsStashMessage", false) {
-		// TODO(step 24.10): VS Code leaves the commit box alone while it holds the commit template; the template is read there.
-		value = r.src.Input().Value()
+		// VS Code leaves the commit box alone while it holds the commit template: that text is not a message of the user's
+		if v := r.src.Input().Value(); r.template == "" || v != r.template {
+			value = v
+		}
 	}
 	err := x.api.InputBox().Show(extension.InputBoxOptions{Prompt: "Optionally provide a stash message", Value: value}, func(msg string, ok bool) {
 		if ok {

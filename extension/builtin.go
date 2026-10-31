@@ -67,6 +67,16 @@ type Problems interface {
 	Set(owner, uri string, markers []Marker) error
 	// Clear removes every marker of the owner.
 	Clear(owner string)
+	// Read returns the markers that every owner (language servers, tasks and extensions, this one included) has for the file with the
+	// URI (file:///path/to/file), most serious first, then by position (VS Code's languages.getDiagnostics). A marker has the Source
+	// its owner gave it, which is empty for a language server's diagnostic that names none. It fails with ExtensionProblemsURIInvalid
+	// for a URI that is not a file, ExtensionProblemsUnavailable in a scope with no Problems panel and ExtensionDeactivated after the
+	// activation ended. It may be called from any goroutine.
+	Read(uri string) ([]Marker, error)
+	// Show opens the Problems panel and gives it the keyboard (VS Code's workbench.panel.markers.view.focus). It fails with
+	// ExtensionProblemsUnavailable in a scope with no Problems panel and ExtensionDeactivated after the activation ended. Call it on
+	// the UI thread.
+	Show() error
 }
 
 // FileList is the files of the folder of the workspace.

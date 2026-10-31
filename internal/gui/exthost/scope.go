@@ -138,6 +138,8 @@ type ScopeOptions struct {
 	// Both may be nil.
 	ShowChannel func(name string, preserveFocus bool)
 	FocusView   func(viewID string)
+	// ShowProblems opens the Problems panel and gives it the keyboard; nil leaves Problems().Show unavailable.
+	ShowProblems func()
 	// FilesComplete tells whether the walk of the folder has finished (Files lists what it found so far); nil is always.
 	FilesComplete func() bool
 	// Editors shows the tabs and file views of the extensions in the editor area, and Languages gives the grammars; both

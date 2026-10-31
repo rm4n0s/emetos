@@ -204,6 +204,78 @@ func TestProblemsMarkersAreTheExtensionsAndGoWithIt(t *testing.T) {
 	}
 }
 
+func TestProblemsReadGivesTheMarkersOfEveryOwner(t *testing.T) {
+	var other extension.API
+	g, _ := factory(manifest("other"), func(f *fake) {
+		f.activate = func(_ context.Context, a extension.API) error { other = a; return nil }
+	})
+	var api extension.API
+	f, _ := factory(manifest("ext"), func(f *fake) {
+		f.activate = func(_ context.Context, a extension.API) error { api = a; return nil }
+	})
+	r := newRig(t, f, g)
+	tb := r.newTab("one")
+	tb.scope.Start()
+	uri := "file:///work/one/a.go"
+	if err := api.Problems().Set("lint", uri, []extension.Marker{
+		{Severity: extension.SeverityWarning, Message: "careful", Source: "mylint", Code: "W1", StartLine: 5, StartColumn: 2, EndLine: 5, EndColumn: 9},
+		{Message: "plain", StartLine: 3, StartColumn: 4},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := other.Problems().Set("vet", uri, []extension.Marker{{Severity: extension.SeverityHint, Message: "hint", Source: "vet", StartLine: 1, StartColumn: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := api.Problems().Set("lint", "file:///work/one/b.go", []extension.Marker{{Message: "elsewhere"}}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := api.Problems().Read(uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the markers of both owners, the most serious first; a marker with no source of its own has the name of its extension
+	want := []extension.Marker{
+		{Severity: extension.SeverityError, Message: "plain", Source: "Ext ext", StartLine: 3, StartColumn: 4, EndLine: 3, EndColumn: 4},
+		{Severity: extension.SeverityWarning, Message: "careful", Source: "mylint", Code: "W1", StartLine: 5, StartColumn: 2, EndLine: 5, EndColumn: 9},
+		{Severity: extension.SeverityHint, Message: "hint", Source: "vet", StartLine: 1, StartColumn: 1, EndLine: 1, EndColumn: 1},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("Read = %+v\nwant %+v", got, want)
+	}
+	if none, err := api.Problems().Read("file:///work/one/none.go"); err != nil || len(none) != 0 {
+		t.Errorf("a file with no marker: %v, %v", none, err)
+	}
+}
+
+func TestProblemsReadErrors(t *testing.T) {
+	_, _, api := grabAPI(t, "ext", nil)
+	tests := []struct {
+		name, uri, route string
+	}{
+		{"a URI that is not one", "a.go", "problemsAPI.Read->ParseURI.URIInvalid"},
+		{"an untitled document", "untitled:1", "problemsAPI.Read.ExtensionProblemsURIInvalid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := api.Problems().Read(tt.uri)
+			mustRoute(t, err, tt.route)
+		})
+	}
+}
+
+func TestProblemsShowAsksTheWindowForThePanel(t *testing.T) {
+	_, tb, api := grabAPI(t, "ext", nil)
+	if err := api.Problems().Show(); err != nil {
+		t.Fatal(err)
+	}
+	if tb.shownProblems != 1 {
+		t.Errorf("the panel was shown %d times", tb.shownProblems)
+	}
+	// a window that cannot show the panel says so
+	_, _, bare := grabAPI(t, "ext2", func(r *rig) { r.noProblemsPanel["one"] = true })
+	mustRoute(t, bare.Problems().Show(), "problemsAPI.Show.ExtensionProblemsUnavailable")
+}
+
 func TestProblemsErrors(t *testing.T) {
 	_, _, api := grabAPI(t, "ext", nil)
 	tests := []struct {

@@ -295,8 +295,9 @@ func (m *model) updateContext() {
 		return
 	}
 	open := m.openRepos()
-	var merge, rebase, cherry, fresh bool
+	var merge, rebase, cherry, fresh, committing bool
 	for _, r := range open {
+		committing = committing || r.committing
 		merge = merge || r.ops.merge
 		rebase = rebase || r.ops.rebase
 		cherry = cherry || r.ops.cherryPick
@@ -319,7 +320,7 @@ func (m *model) updateContext() {
 	set("gitRebaseInProgress", rebase)
 	set("gitCherryPickInProgress", cherry)
 	set("gitFreshRepository", fresh)
-	set("git.commitInProgress", false)
+	set("git.commitInProgress", committing)
 	set("gitVersion235", x.install.Version.AtLeast(2, 35))
 }
 

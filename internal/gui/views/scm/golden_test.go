@@ -185,6 +185,54 @@ func TestGoldenInput(t *testing.T) {
 	}
 }
 
+// TestGoldenCommitStates looks at the states the Git extension gives the box and the button (step 24.10): a commit that waits for the
+// resolved conflicts of a merge (Continue, disabled), a branch to publish, a protected branch whose commits ask (the lock), and a subject
+// that is too long for git.inputValidation (the warning under the box, which the box keeps while it has no keyboard).
+func TestGoldenCommitStates(t *testing.T) {
+	cmds := func(icon string) [][]scmcore.Command {
+		return [][]scmcore.Command{
+			{{ID: "git.commit", Title: icon + " Commit"}, {ID: "git.commitAmend", Title: icon + " Commit (Amend)"}},
+			{{ID: "git.commit", Title: icon + " Commit & Push"}, {ID: "git.commit", Title: icon + " Commit & Sync"}},
+		}
+	}
+	tests := []struct {
+		name   string
+		text   string
+		button scmcore.ActionButton
+		warn   string
+	}{
+		{"continue", "Merge branch 'other'", scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(check) Continue", Tooltip: "Continue Merge"}}, ""},
+		{"publish", "", scmcore.ActionButton{Command: scmcore.Command{ID: "git.publish", Title: "$(cloud-upload) Publish Branch", Tooltip: "Publish Branch \"main\""}, Enabled: true}, ""},
+		{"protected", "Fix the cache key", scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(lock) Commit"}, Enabled: true, Secondary: cmds("$(lock)")}, ""},
+		{"overlength", "Fix the cache key of the loader so that the scheme is part of it", scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(check) Commit"}, Enabled: true},
+			"13 characters over 50 in current line"},
+	}
+	for _, th := range goldenThemes {
+		for _, tt := range tests {
+			t.Run(tt.name+" "+th.name, func(t *testing.T) {
+				r := newBoxRig(t)
+				src := r.repoWithBox("project", gitGroups()...)
+				src.SetActionButton(&tt.button)
+				if tt.warn != "" {
+					src.Input().SetValidation(func(string) *scmcore.Validation {
+						return &scmcore.Validation{Message: tt.warn, Level: scmcore.ValidationWarning}
+					})
+				}
+				if tt.text != "" {
+					src.Input().SetValue(tt.text)
+				}
+				r.show(th.colors, ui.Size{Width: 320, Height: 400})
+				if tt.warn != "" {
+					r.view.inputs[src].ctl.Focus()
+				}
+				r.settle()
+				testutil.MatchesGolden(r.ts, "commit_"+tt.name+"_"+th.name)
+				r.noErrors()
+			})
+		}
+	}
+}
+
 // TestGoldenInputValidation looks at the box with the keyboard and a validation message under it, for each level, and at the box
 // that kept the color of a level after Escape took the message away.
 func TestGoldenInputValidation(t *testing.T) {

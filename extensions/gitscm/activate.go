@@ -229,6 +229,11 @@ func (x *gitscm) settingsChanged() {
 		if old.alwaysShowStagedGroup != x.cfg.alwaysShowStagedGroup && r.groups.index != nil {
 			r.groups.index.SetHideWhenEmpty(!x.cfg.alwaysShowStagedGroup)
 		}
+		r.updateCommitUI()
+		if old.inputValidation != x.cfg.inputValidation || old.inputValidationLength != x.cfg.inputValidationLength ||
+			old.inputValidationSubjectLength != x.cfg.inputValidationSubjectLength {
+			r.revalidate()
+		}
 		if statusChanged {
 			r.refresh()
 		}

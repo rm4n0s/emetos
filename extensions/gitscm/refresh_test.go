@@ -338,7 +338,7 @@ func TestAheadBehindAndTheUpstreamFromALocalRemote(t *testing.T) {
 	if items[0].Text != "$(git-branch) main" || items[0].Command != "git.checkout" || items[0].Tooltip != "main, Checkout Branch/Tag..." {
 		t.Errorf("branch item = %+v", items[0])
 	}
-	if items[1].Text != "$(sync) 2↓ 1↑" || items[1].Command != "git.sync" || items[1].Tooltip != "Pull 2 and push 1 commits from/to origin/main" {
+	if items[1].Text != "$(sync) 2↓ 1↑" || items[1].Command != "git.sync" || items[1].Tooltip != "Pull 2 and push 1 commits between origin/main" {
 		t.Errorf("sync item = %+v", items[1])
 	}
 	st := r.repo(repo.Dir).state()

@@ -377,6 +377,61 @@ func (p problemsAPI) Clear(owner string) {
 	service.Remove(ownerOf(in.id, owner))
 }
 
+// Read implements extension.Problems: the markers of every owner for a file, as the panel has them.
+func (p problemsAPI) Read(uri string) ([]extension.Marker, error) {
+	in := p.inst
+	if in.isDead() {
+		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	service := in.scope.opts.Markers
+	if service == nil {
+		return nil, errors.New("ExtensionProblemsUnavailable", "the scope has no Problems panel", "extension", in.id)
+	}
+	u, err := document.ParseURI(uri)
+	if err != nil {
+		return nil, err
+	}
+	if u.Scheme != document.SchemeFile {
+		return nil, errors.New("ExtensionProblemsURIInvalid", "markers belong to files: the URI is file:///path", "extension", in.id, "uri", uri)
+	}
+	list := service.Read(problems.ReadFilter{Resource: u.Path})
+	out := make([]extension.Marker, 0, len(list))
+	for _, m := range list {
+		out = append(out, extension.Marker{
+			Severity: contractSeverity(m.Severity), Message: m.Message, Source: m.Source, Code: m.Code,
+			StartLine: m.StartLine, StartColumn: m.StartColumn, EndLine: m.EndLine, EndColumn: m.EndColumn,
+		})
+	}
+	return out, nil
+}
+
+// Show implements extension.Problems.
+func (p problemsAPI) Show() error {
+	in := p.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	show := in.scope.opts.ShowProblems
+	if in.scope.opts.Markers == nil || show == nil {
+		return errors.New("ExtensionProblemsUnavailable", "the scope has no Problems panel", "extension", in.id)
+	}
+	show()
+	return nil
+}
+
+// contractSeverity maps the severity of the panel to the contract's.
+func contractSeverity(s problems.Severity) extension.Severity {
+	switch s {
+	case problems.SeverityWarning:
+		return extension.SeverityWarning
+	case problems.SeverityInfo:
+		return extension.SeverityInfo
+	case problems.SeverityHint:
+		return extension.SeverityHint
+	}
+	return extension.SeverityError
+}
+
 // markerSeverity maps the severity of the contract to the panel's.
 func markerSeverity(s extension.Severity) problems.Severity {
 	switch s {

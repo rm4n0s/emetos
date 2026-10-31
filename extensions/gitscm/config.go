@@ -39,6 +39,17 @@ type config struct {
 	closeDiffOnOperation    bool
 	discardToTrash          bool
 	confirmCommittedDelete  bool
+	// the settings of the commit (commit.go, commitui.go)
+	enableSmartCommit, suggestSmartCommit, enableCommitSigning, alwaysSignOff, verboseCommit bool
+	confirmEmptyCommits, requireGitUserConfig, allowNoVerifyCommit, confirmNoVerifyCommit    bool
+	smartCommitChanges, promptToSaveFilesBeforeCommit, branchProtectionPrompt                string
+	branchProtection                                                                         []string
+	diagnosticsHook                                                                          bool
+	diagnosticsSources                                                                       map[string]string
+	postCommitCommand                                                                        string
+	rememberPostCommitCommand, showCommitInput, inputValidation                              bool
+	inputValidationLength, inputValidationSubjectLength                                      int
+	showActionButton                                                                         actionButtonSettings
 	// blame* are the settings of the blame text (blame.go).
 	blameEditor, blameStatusBar, blameDisableHover, blameIgnoreWhitespace bool
 	blameEditorTemplate, blameStatusBarTemplate                           string
@@ -116,6 +127,37 @@ func (c *config) load(api extension.API) {
 	c.closeDiffOnOperation = read(api, "git.closeDiffOnOperation", false)
 	c.discardToTrash = read(api, "git.discardUntrackedChangesToTrash", true)
 	c.confirmCommittedDelete = read(api, "git.confirmCommittedDelete", true)
+	c.enableSmartCommit = read(api, "git.enableSmartCommit", false)
+	c.suggestSmartCommit = read(api, "git.suggestSmartCommit", true)
+	c.smartCommitChanges = read(api, "git.smartCommitChanges", "all")
+	c.enableCommitSigning = read(api, "git.enableCommitSigning", false)
+	c.alwaysSignOff = read(api, "git.alwaysSignOff", false)
+	c.verboseCommit = read(api, "git.verboseCommit", false)
+	c.confirmEmptyCommits = read(api, "git.confirmEmptyCommits", true)
+	c.requireGitUserConfig = read(api, "git.requireGitUserConfig", true)
+	c.allowNoVerifyCommit = read(api, "git.allowNoVerifyCommit", false)
+	c.confirmNoVerifyCommit = read(api, "git.confirmNoVerifyCommit", true)
+	c.promptToSaveFilesBeforeCommit = read(api, "git.promptToSaveFilesBeforeCommit", "always")
+	c.branchProtection = read(api, "git.branchProtection", []string(nil))
+	c.branchProtectionPrompt = read(api, "git.branchProtectionPrompt", "alwaysPrompt")
+	c.diagnosticsHook = read(api, "git.diagnosticsCommitHook.enabled", false)
+	c.diagnosticsSources = read(api, "git.diagnosticsCommitHook.sources", map[string]string{"*": "error"})
+	c.postCommitCommand = read(api, "git.postCommitCommand", "none")
+	c.rememberPostCommitCommand = read(api, "git.rememberPostCommitCommand", false)
+	c.showCommitInput = read(api, "git.showCommitInput", true)
+	c.inputValidation = read(api, "git.inputValidation", false)
+	c.inputValidationLength = read(api, "git.inputValidationLength", 72)
+	// null inherits git.inputValidationLength
+	c.inputValidationSubjectLength = c.inputValidationLength
+	if v, err := api.Settings().Get("git.inputValidationSubjectLength"); err == nil {
+		if n, ok := v.(float64); ok {
+			c.inputValidationSubjectLength = int(n)
+		}
+	}
+	// a member that the object leaves out stays on, as the objects of the settings merge with their default
+	shown := read(api, "git.showActionButton", map[string]bool{})
+	on := func(key string) bool { v, ok := shown[key]; return !ok || v }
+	c.showActionButton = actionButtonSettings{Commit: on("commit"), Publish: on("publish"), Sync: on("sync")}
 	c.blameEditor = read(api, "git.blame.editorDecoration.enabled", false)
 	c.blameEditorTemplate = read(api, "git.blame.editorDecoration.template", "${subject}, ${authorName} (${authorDateAgo})")
 	c.blameDisableHover = read(api, "git.blame.editorDecoration.disableHover", false)

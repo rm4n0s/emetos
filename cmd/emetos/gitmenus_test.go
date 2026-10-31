@@ -255,3 +255,72 @@ func TestTheStashMenusHoldInTheStatesOfVSCode(t *testing.T) {
 		}
 	})
 }
+
+// TestTheCommitMenusHoldInTheStatesOfVSCode checks the check mark in the title of the view, the Commit submenu of the "..." menus and its
+// entries (the no-verify ones only with git.allowNoVerifyCommit), and the palette (step 24.10).
+func TestTheCommitMenusHoldInTheStatesOfVSCode(t *testing.T) {
+	m := gitManifest(t)
+	commit := func(it extension.MenuItem) bool {
+		return strings.HasPrefix(it.Command, "git.commit") || it.Command == "git.undoCommit" || it.Submenu == "git.commit"
+	}
+	keys := func(allow bool) map[string]any {
+		return map[string]any{"scmProvider": "git", "config.git.allowNoVerifyCommit": allow}
+	}
+	t.Run("the title of the view has the check mark and the submenu", func(t *testing.T) {
+		got := holds(t, m, extension.MenuSCMTitle, keys(false), commit)
+		if !slices.Equal(got, []string{"navigation git.commit", "2_main submenu git.commit"}) {
+			t.Errorf("%v", got)
+		}
+		if got := holds(t, m, extension.MenuSCMTitle, map[string]any{"scmProvider": "other"}, commit); len(got) != 0 {
+			t.Errorf("another provider: %v", got)
+		}
+	})
+	t.Run("a repository has the submenu", func(t *testing.T) {
+		if got := holds(t, m, extension.MenuSCMRepository, keys(false), commit); !slices.Equal(got, []string{"2_main submenu git.commit"}) {
+			t.Errorf("%v", got)
+		}
+	})
+	t.Run("the entries of the submenu", func(t *testing.T) {
+		plain := []string{
+			"1_commit git.commit", "1_commit git.commitStaged", "1_commit git.commitAll", "1_commit git.undoCommit",
+			"3_amend git.commitAmend", "3_amend git.commitStagedAmend", "3_amend git.commitAllAmend",
+			"5_signoff git.commitSigned", "5_signoff git.commitStagedSigned", "5_signoff git.commitAllSigned",
+		}
+		if got := holds(t, m, "git.commit", keys(false), commit); !slices.Equal(got, plain) {
+			t.Errorf("without no-verify: %v", got)
+		}
+		withNoVerify := append(slices.Clone(plain),
+			"2_commit_noverify git.commitNoVerify", "2_commit_noverify git.commitStagedNoVerify", "2_commit_noverify git.commitAllNoVerify",
+			"4_amend_noverify git.commitAmendNoVerify", "4_amend_noverify git.commitStagedAmendNoVerify", "4_amend_noverify git.commitAllAmendNoVerify",
+			"6_signoff_noverify git.commitSignedNoVerify", "6_signoff_noverify git.commitStagedSignedNoVerify", "6_signoff_noverify git.commitAllSignedNoVerify")
+		got := holds(t, m, "git.commit", keys(true), commit)
+		slices.Sort(got)
+		slices.Sort(withNoVerify)
+		if !slices.Equal(got, withNoVerify) {
+			t.Errorf("with no-verify:\n%v\nwant\n%v", got, withNoVerify)
+		}
+	})
+	t.Run("the palette", func(t *testing.T) {
+		palette := map[string]string{}
+		for _, it := range m.Contributes.Menus {
+			if it.Menu == extension.MenuCommandPalette && (commit(it) || it.Command == "git.restoreCommitTemplate") {
+				palette[it.Command] = it.When
+			}
+		}
+		for _, id := range []string{"git.commit", "git.commitAmend", "git.commitSigned", "git.commitStaged", "git.commitEmpty", "git.commitAll", "git.undoCommit"} {
+			if when := palette[id]; !strings.Contains(when, "gitOpenRepositoryCount != 0") || strings.Contains(when, "allowNoVerifyCommit") {
+				t.Errorf("%s: palette condition %q", id, when)
+			}
+		}
+		for id, when := range palette {
+			if strings.HasSuffix(id, "NoVerify") && !strings.Contains(when, "config.git.allowNoVerifyCommit") {
+				t.Errorf("%s: palette condition %q", id, when)
+			}
+		}
+		for _, id := range []string{"git.commitMessageAccept", "git.commitMessageDiscard", "git.restoreCommitTemplate"} {
+			if palette[id] != "false" {
+				t.Errorf("%s is in the palette: %q", id, palette[id])
+			}
+		}
+	})
+}

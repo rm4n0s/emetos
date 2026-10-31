@@ -134,7 +134,7 @@ func (w *Workspace) startExtensions() {
 		Disabled: w.disabledExtensions, Files: w.extensionFiles, Post: w.onUI, Frame: w.extensionFrame, After: w.extensionAfter,
 		Logger: p.Logger, AskSharing: w.askSharing,
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
-		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, FilesComplete: w.extensionFilesComplete,
+		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, ShowProblems: w.showProblems, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, OpenWindowTab: w.openWindowTab, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
 		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, Decorations: w.Decorations, Timeline: w.Timeline, EditorDecorations: w.Annotations, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
@@ -203,6 +203,9 @@ func (w *Workspace) showChannel(name string, preserveFocus bool) {
 		w.runLogged("workbench.action.focusPanel")
 	}
 }
+
+// showProblems opens the Problems panel and gives it the keyboard, for an extension that sends the user to the problems it found.
+func (w *Workspace) showProblems() { w.runLogged("workbench.panel.markers.view.focus") }
 
 // focusExtensionView gives the keyboard focus to the part a view of an extension is in.
 func (w *Workspace) focusExtensionView(viewID string) {

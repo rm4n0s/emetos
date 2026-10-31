@@ -77,6 +77,9 @@ type repository struct {
 	published  *RepositoryState
 	// gen counts the times the repository was untrusted, so that the result of a command that was cancelled by it is dropped.
 	gen int
+
+	// commitUI is the commit box, the action button and the commit that runs (commitui.go, commit.go).
+	commitUI
 }
 
 // kind is the kind of the repository.
@@ -135,6 +138,8 @@ func (r *repository) clearGroups() {
 	r.src.SetCount(-1)
 	r.src.SetStatusBarCommands(nil)
 	r.src.SetBusy(false)
+	r.src.SetActionButton(nil)
+	r.shownButton, r.shownPlaceholder, r.shownEnabled, r.shownVisible = nil, "", nil, nil
 }
 
 // start opens the repository with git (rev-parse) now that it is trusted, and when that worked, runs the first status.
@@ -172,6 +177,7 @@ func (r *repository) opened(repo *git.Repo, err error) {
 		return
 	}
 	r.src.SetActiveRepositoryName("")
+	r.initCommitUI()
 	r.readRemotes()
 	r.m.opened(r)
 	x.ensureTimeline()
@@ -222,6 +228,7 @@ func (r *repository) untrust() {
 	r.m.x.content.repos.remove(r.id)
 	r.timelineGone()
 	r.trusted, r.repo, r.refreshing, r.again, r.refreshed = false, nil, false, false, false
+	r.committing, r.commitQueue, r.waiters, r.templateKey = false, nil, nil, ""
 	r.res, r.head, r.refs, r.ops = groups{}, head{}, nil, operations{}
 	r.setBusy(false)
 	r.clearGroups()
@@ -270,6 +277,9 @@ type snapshot struct {
 	submodules []string
 	// timings are the times of the parts of the refresh, for the measurements.
 	timings Timings
+	// template is the text the commit box starts with, read when templateKey is not the one the last status read it for.
+	template, templateKey string
+	templateRead          bool
 }
 
 // Timings are the times of the parts of the last refresh of a repository: git's status command with the parse of its output, the
@@ -300,8 +310,9 @@ func (r *repository) refresh() {
 	ctx, gen := r.ctx, r.gen
 	root, mode, kind, decorate := r.root, x.cfg.untrackedChanges, r.kind(), x.cfg.decorationsEnabled
 	prevDecos, prevGen := r.decorationState()
+	prevKey, home := r.templateKey, x.home
 	go func() {
-		snap := compute(ctx, repo, opts, gitDir, commonDir)
+		snap := compute(ctx, repo, opts, gitDir, commonDir, prevKey, home)
 		if snap.err == nil {
 			start := time.Now()
 			snap.groups = splitStatus(root, snap.status.Entries, mode)
@@ -319,7 +330,7 @@ func (r *repository) refresh() {
 }
 
 // compute runs the commands of a refresh: git status and git for-each-ref in parallel, and the files of the git directory.
-func compute(ctx context.Context, repo *git.Repo, opts git.StatusOptions, gitDir, commonDir string) snapshot {
+func compute(ctx context.Context, repo *git.Repo, opts git.StatusOptions, gitDir, commonDir, prevTemplateKey, home string) snapshot {
 	var snap snapshot
 	var wg sync.WaitGroup
 	var statusErr, refsErr error
@@ -345,6 +356,11 @@ func compute(ctx context.Context, repo *git.Repo, opts git.StatusOptions, gitDir
 	snap.head = headFrom(gitDir, snap.refs)
 	snap.stashes = stashCount(commonDir)
 	snap.fresh = snap.head.commit == ""
+	// the commit template is read when the commit or the state of a merge or a rebase is not the one it was read for (the box starts with
+	// the message git prepared for a merge, or the template)
+	if key := templateKeyOf(snap.head.commit, snap.ops); key != prevTemplateKey && ctx.Err() == nil {
+		snap.template, snap.templateKey, snap.templateRead = repo.InputTemplate(ctx, home), key, true
+	}
 	return snap
 }
 
@@ -368,6 +384,7 @@ func (r *repository) applySnapshot(snap snapshot) {
 			return
 		}
 		r.setBusy(false)
+		r.flushWaiters()
 	}()
 	if snap.err != nil {
 		if r.ctx.Err() == nil {
@@ -395,6 +412,16 @@ func (r *repository) applySnapshot(snap snapshot) {
 		r.syncDecorations()
 	}
 	r.updateStatusBar()
+	if snap.templateRead {
+		r.templateKey = snap.templateKey
+		r.applyTemplate(snap.template)
+	}
+	hugeBefore := r.shownHuge
+	r.shownHuge = r.hugeLimit
+	if hugeBefore != r.hugeLimit {
+		r.revalidate()
+	}
+	r.updateCommitUI()
 	r.m.updateContext()
 	r.contentChanged(snap.head.commit != headBefore)
 	r.multiChanged()
@@ -521,10 +548,15 @@ func (r *repository) syncTooltip() string {
 	if h.name == "" || h.commit == "" || h.upstream == nil || (h.ahead == 0 && h.behind == 0) {
 		return "Synchronize Changes"
 	}
-	if rem := r.remoteNamed(h.remote); rem != nil && rem.ReadOnly {
-		return "Pull " + strconv.Itoa(h.behind) + " commits from " + h.upstream.Remote + "/" + h.upstream.Name
+	from := h.upstream.Remote + "/" + h.upstream.Name
+	rem := r.remoteNamed(h.remote)
+	switch {
+	case (rem != nil && rem.ReadOnly) || h.ahead == 0:
+		return "Pull " + strconv.Itoa(h.behind) + " commits from " + from
+	case h.behind == 0:
+		return "Push " + strconv.Itoa(h.ahead) + " commits to " + from
 	}
-	return "Pull " + strconv.Itoa(h.behind) + " and push " + strconv.Itoa(h.ahead) + " commits from/to " + h.upstream.Remote + "/" + h.upstream.Name
+	return "Pull " + strconv.Itoa(h.behind) + " and push " + strconv.Itoa(h.ahead) + " commits between " + from
 }
 
 func (r *repository) remoteNamed(name string) *git.Remote {

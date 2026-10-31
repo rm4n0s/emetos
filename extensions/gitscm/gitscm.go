@@ -110,6 +110,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, editorMenus()...)
 	menus = append(menus, stashMenus()...)
 	menus = append(menus, timelineMenus()...)
+	menus = append(menus, commitMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -123,7 +124,7 @@ func (*gitscm) Manifest() extension.Manifest {
 		Contributes: extension.Contributes{
 			Commands:    cmds,
 			Menus:       menus,
-			Submenus:    []extension.SubmenuSpec{{ID: stashSubmenu, Label: "Stash"}},
+			Submenus:    []extension.SubmenuSpec{{ID: stashSubmenu, Label: "Stash"}, {ID: commitSubmenu, Label: "Commit"}},
 			Settings:    settingSpecs,
 			ContextKeys: contextKeys,
 			ViewWelcome: welcomePieces(),

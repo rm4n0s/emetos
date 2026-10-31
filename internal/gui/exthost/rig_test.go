@@ -165,6 +165,9 @@ type tab struct {
 	frames   []func()
 	clock    *fakeClock
 
+	// shownProblems counts the calls of ShowProblems.
+	shownProblems int
+
 	// views, ctxKeys, markers and channels are the views model, the context keys, the Problems and the Output store of the
 	// tab; shownChannels records the calls of ShowChannel and folder is the real folder of the tab when a test gives it one.
 	views         *workbench.Views
@@ -270,6 +273,8 @@ type rig struct {
 	noDialog, noWatch map[string]bool
 	// noTrash names tabs that have no trash.
 	noTrash map[string]bool
+	// noProblemsPanel names tabs that cannot show the Problems panel.
+	noProblemsPanel map[string]bool
 }
 
 // folderOf is the folder of the tab named name.
@@ -297,7 +302,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}, noProblemsPanel: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -411,8 +416,12 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 			return func(context.Context) error { tb.undone++; return nil }, nil
 		}
 	}
+	var showProblems func()
+	if !r.noProblemsPanel[name] {
+		showProblems = func() { tb.shownProblems++ }
+	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },

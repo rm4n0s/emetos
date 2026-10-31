@@ -62,6 +62,8 @@ type API struct {
 	lensRefreshes     int
 	channels          map[string]*Channel
 	markers           map[string]map[string][]extension.Marker
+	problemsShown     int
+	problemsOff       bool
 	files             []string
 	complete          bool
 	manifest          extension.Manifest
@@ -953,6 +955,9 @@ type problems struct{ a *API }
 func (p problems) Set(owner, uri string, markers []extension.Marker) error {
 	p.a.mu.Lock()
 	defer p.a.mu.Unlock()
+	if p.a.problemsOff {
+		return errors.New("ExtensionProblemsUnavailable", "the scope has no Problems panel")
+	}
 	if p.a.markers[owner] == nil {
 		p.a.markers[owner] = map[string][]extension.Marker{}
 	}
@@ -962,6 +967,62 @@ func (p problems) Set(owner, uri string, markers []extension.Marker) error {
 	}
 	p.a.markers[owner][uri] = append([]extension.Marker(nil), markers...)
 	return nil
+}
+
+// Read implements extension.Problems: the markers of every owner for the file, most serious first, then by position.
+func (p problems) Read(uri string) ([]extension.Marker, error) {
+	p.a.mu.Lock()
+	defer p.a.mu.Unlock()
+	switch {
+	case p.a.scm.dead:
+		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated")
+	case p.a.problemsOff:
+		return nil, errors.New("ExtensionProblemsUnavailable", "the scope has no Problems panel")
+	case !strings.HasPrefix(uri, "file:///"):
+		return nil, errors.New("ExtensionProblemsURIInvalid", "markers belong to files: the URI is file:///path", "uri", uri)
+	}
+	var out []extension.Marker
+	for _, byURI := range p.a.markers {
+		out = append(out, byURI[uri]...)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Severity != out[j].Severity {
+			return out[i].Severity < out[j].Severity
+		}
+		if out[i].StartLine != out[j].StartLine {
+			return out[i].StartLine < out[j].StartLine
+		}
+		return out[i].StartColumn < out[j].StartColumn
+	})
+	return out, nil
+}
+
+// Show implements extension.Problems: the call is recorded (ProblemsShown).
+func (p problems) Show() error {
+	p.a.mu.Lock()
+	defer p.a.mu.Unlock()
+	if p.a.scm.dead {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated")
+	}
+	if p.a.problemsOff {
+		return errors.New("ExtensionProblemsUnavailable", "the scope has no Problems panel")
+	}
+	p.a.problemsShown++
+	return nil
+}
+
+// SetProblemsUnavailable makes Problems().Set, Read and Show fail as a scope with no Problems panel does (a headless host).
+func (a *API) SetProblemsUnavailable(off bool) {
+	a.mu.Lock()
+	a.problemsOff = off
+	a.mu.Unlock()
+}
+
+// ProblemsShown is how many times the extension asked for the Problems panel.
+func (a *API) ProblemsShown() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.problemsShown
 }
 
 func (p problems) Clear(owner string) {
