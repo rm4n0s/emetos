@@ -3881,6 +3881,18 @@ Nothing in areas 1 and 2. (Overtype mode, the one partial row of the first audit
 - **Tests:** `TestTheSignalQuitBacksUpEveryTabAndEndsWithoutAsking` (two tabs, backups of both, one exit request, no dialog), `TestABackupThatFailsOnTheSignalIsLoggedAndTheQuitEnds`, `TestRunContext` (3 cases), `TestSignalContext` (SIGTERM and SIGINT: the first signal ends the context, the second kills a stuck process), and the display test `TestRealInputSignalEndsAsAQuit` (SIGTERM and SIGINT: the editor with an unsaved edit ends by itself with status 0 and the next start restores the text). The display test also passes on the code before this change: the quit on the signal worked already; `RunAppContext` is the safety net.
 - **Glutter issues:** none new.
 
+## Fix: Glutter 1.9.9
+
+- **Date:** 2026-10-31
+- **Branch:** feat/glutter-1.9.9 (not a step of the plan)
+- **Summary:** Emetos moves to Glutter v1.9.9 (its steps 29.40 and 29.41), which fixes the only entry of `docs/GLUTTER-ISSUES.md`, "`SliverVariedExtentList` is linear in the number of rows". `kit/sliverrows.go` (`sliverRows`, `renderSliverRows`, `exactExtentDelegate`) and its `// Glutter:` comment are deleted, and the file is deleted. Only sliver files changed between 1.9.8 and 1.9.9, with no change of API.
+  - **`kit.List`:** with `HeightOf` it builds a `SliverVariedExtentList` whose extent builder is the model's `RowHeightAt` (none past the last row, so that the scroll extent is exact). The rule of 1.9.9 (the builder does not change until the widget is built again) holds because every change of the model sets the state of the list, which makes a new builder (decision 609).
+  - **Tests:** `TestListJumpToTheEndOfAHundredThousandRows` (new; 100,000 rows of six heights; jumps to the end, the top, the end, the middle and the end again, one frame each: the offset is exact, the last row is built and ends where the content ends, the frame is bounded), `TestListRowsFollowTheHeightsWhenTheyChange` (new; a row taller, rows removed, rows added: the rows are at the new tops, and the end of the view is the end of the content; it fails when the builder is kept across builds), and `TestHugeChanges` of the Source Control view now jumps to the exact end of its content (twice) and checks it. `TestListRowsOfDifferentHeights` and `...AtTheEnd` are unchanged. No golden changed.
+  - **Measured** (`TestHugeChanges`, 100,000 files, a jump to the exact end, processor time of the UI thread): 9 to 10 ms before, 10 to 13 ms after (the same, within the noise; the machine was shared). The kit list of 100,000 rows: 2 to 3 ms a jump, before and after.
+- **Checks:** gofmt ✅ · go vet ✅ · golangci-lint ✅ · go test -race ✅ (`./...`; `TestGoToRecentDirectory` failed once at the removal of its temporary folder ("directory not empty", a file written by a background goroutine of the terminal extension while the folder was removed), and `extensions/terminal` passed three more runs with `-count=3`) · `scripts/error-tags.sh --untested` prints nothing · CGO_ENABLED=0 build ✅ · CGO_ENABLED=0 test ✅ (`./...`) · no golden changed · `scripts/perf.sh` has no case for long lists, so it was not run.
+- **Main files:** `go.mod`, `go.sum`, `internal/gui/kit/{list.go,listembedded_test.go}`, `internal/gui/kit/sliverrows.go` (deleted), `internal/gui/views/scm/huge_test.go`, `docs/{SPEC.md,DECISIONS-TO-REVIEW.md}` (609, 462 amended), `docs/GLUTTER-ISSUES.md` (deleted).
+- **Glutter issues:** one removed, none new; the file is deleted.
+
 ## Manager's checks of the merges since step 21.1
 
 

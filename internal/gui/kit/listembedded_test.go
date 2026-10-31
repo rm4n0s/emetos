@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
@@ -231,5 +232,123 @@ func TestListRowsOfDifferentHeightsAtTheEnd(t *testing.T) {
 	if i := r.m.RowAt(100000 + 130); !r.ts.Exists(gluttertest.ByText(fmt.Sprintf("row %d", i))) {
 		t.Errorf("row %d, in the middle of the view, is not built", i)
 	}
+	r.noErrors()
+}
+
+// TestListJumpToTheEndOfAHundredThousandRows: a frame that jumps to the end of 100,000 rows of different heights lays out the last
+// row at its exact offset (Glutter keeps the sums of the extents and knows the scroll extent, so the jump is not cut short by an
+// estimate) and takes a bounded time, which adding up the heights of the rows before each row did not.
+func TestListJumpToTheEndOfAHundredThousandRows(t *testing.T) {
+	if testing.Short() {
+		t.Skip("a big model")
+	}
+	const n = 100_000
+	height := func(i int) float64 { return []float64{22, 22, 36, 22, 44, 22}[i%6] }
+	r := newListViewRig(t, listViewRigOpts{items: manyItems(n), size: ui.Size{Width: 300, Height: 260}, model: ListViewModelOpts{HeightOf: height}})
+	total := r.m.ContentHeight()
+	view := r.ctrl.ViewportHeight()
+	for _, tc := range []struct {
+		name   string
+		offset float64
+	}{
+		{"the end", total},
+		{"the top", 0},
+		{"the end again", total},
+		{"the middle", total / 2},
+		{"the end from the middle", total},
+	} {
+		start := time.Now()
+		r.ctrl.ScrollTo(tc.offset)
+		r.ts.Pump(16 * time.Millisecond)
+		took := time.Since(start)
+		want := min(tc.offset, total-view)
+		if got := r.ctrl.ScrollOffset(); got != want {
+			t.Errorf("%s: scrolled to %v, want %v (the content is %v high)", tc.name, got, want, total)
+		}
+		if took > 2*time.Second {
+			t.Errorf("%s: the frame took %v", tc.name, took)
+		}
+		t.Logf("%s: the frame took %v", tc.name, took)
+		if tc.offset != total {
+			continue
+		}
+		// the last row is built and ends where the content ends
+		last := gluttertest.ByText(fmt.Sprintf("row %d", n-1))
+		if !r.ts.Exists(last) {
+			t.Fatalf("%s: the last row is not built", tc.name)
+		}
+		top := r.ts.TopLeft(last).Dy
+		rowTop := r.m.RowTop(n-1) - r.ctrl.ScrollOffset()
+		if top < rowTop || top > rowTop+height(n-1) {
+			t.Errorf("%s: the last row is drawn at %v, the model has its top at %v", tc.name, top, rowTop)
+		}
+		if end := rowTop + height(n-1); end != view {
+			t.Errorf("%s: the last row ends at %v, the view is %v high", tc.name, end, view)
+		}
+	}
+	r.noErrors()
+}
+
+// TestListRowsFollowTheHeightsWhenTheyChange: Glutter keeps the extents it was given until the list is built again, so a change of
+// the heights (rows added and removed, a row taller) must give it a new builder: the rows are placed at the new tops, and the
+// scroll extent is the new height of the content.
+func TestListRowsFollowTheHeightsWhenTheyChange(t *testing.T) {
+	tall := map[int]float64{}
+	height := func(i int) float64 {
+		if h, ok := tall[i]; ok {
+			return h
+		}
+		return 22
+	}
+	r := newListViewRig(t, listViewRigOpts{items: manyItems(1000), size: ui.Size{Width: 300, Height: 260}, model: ListViewModelOpts{HeightOf: height}})
+	check := func(name string, rows int) {
+		t.Helper()
+		r.settle()
+		if got := r.m.ContentHeight(); got < float64(rows)*22 {
+			t.Fatalf("%s: content height %v", name, got)
+		}
+		// at the end the view ends where the content ends, and the last row is where the model has it; at the top so is the first
+		for _, tc := range []struct {
+			at, row int
+		}{{rows, rows - 1}, {0, 0}} {
+			offset := 0.0
+			if tc.at != 0 {
+				offset = r.m.ContentHeight()
+			}
+			r.ctrl.ScrollTo(offset)
+			r.settle()
+			r.settle()
+			if tc.at != 0 {
+				if end := r.ctrl.ScrollOffset() + r.ctrl.ViewportHeight(); end != r.m.ContentHeight() {
+					t.Errorf("%s: scrolled to the end, the view ends at %v, the content at %v", name, end, r.m.ContentHeight())
+				}
+			}
+			el := gluttertest.ByText(fmt.Sprintf("row %d", tc.row))
+			if !r.ts.Exists(el) {
+				t.Errorf("%s: row %d is not built", name, tc.row)
+				continue
+			}
+			top := r.ts.TopLeft(el).Dy
+			rowTop := r.m.RowTop(tc.row) - r.ctrl.ScrollOffset()
+			if top < rowTop || top > rowTop+height(tc.row) {
+				t.Errorf("%s: row %d is drawn at %v, the model has its top at %v", name, tc.row, top, rowTop)
+			}
+		}
+	}
+	check("at first", 1000)
+	// a row grows and the model is told
+	tall[999], tall[998] = 120, 80
+	r.m.RefreshHeights()
+	check("rows taller", 1000)
+	// rows are removed and added
+	if err := r.m.SetItems(manyItems(300)); err != nil {
+		t.Fatal(err)
+	}
+	check("fewer rows", 300)
+	tall[299] = 60
+	if err := r.m.SetItems(manyItems(5000)); err != nil {
+		t.Fatal(err)
+	}
+	check("more rows", 5000)
 	r.noErrors()
 }

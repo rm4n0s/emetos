@@ -489,8 +489,17 @@ func (s *listState) Build(bc widgets.BuildContext) widgets.Widget {
 		sliver = widgets.NewSliverFixedExtentListBuilder(builder, m.RowHeight(),
 			widgets.SliverBuilderOpts{ItemCount: foundation.Some(count), AddAutomaticKeepAlives: foundation.Some(false)})
 	} else {
-		sliver = newSliverRows(exactExtentDelegate{widgets.NewSliverChildBuilderDelegate(builder, widgets.SliverChildBuilderDelegateOpts{
-			ChildCount: foundation.Some(count), AddAutomaticKeepAlives: foundation.Some(false)}), m.ContentHeight()}, m.tops)
+		// The extents are those of the model, the same until the model changes; every change of the model sets the state
+		// and so gives Glutter a new builder, which drops the sums it keeps of the extents (Glutter 1.9.9, SPEC §12.10).
+		// A row past the end gives none, so that the scroll extent is exact.
+		extent := func(i int, _ rendering.SliverLayoutDimensions) foundation.Opt[float64] {
+			if i < 0 || i >= count {
+				return foundation.None[float64]()
+			}
+			return foundation.Some(m.RowHeightAt(i))
+		}
+		sliver = widgets.NewSliverVariedExtentListBuilder(builder, extent,
+			widgets.SliverBuilderOpts{ItemCount: foundation.Some(count), AddAutomaticKeepAlives: foundation.Some(false)})
 	}
 	view := widgets.NewCustomScrollView([]widgets.Widget{sliver}, widgets.ScrollViewOpts{Controller: s.scroll})
 	element := NewScrollableElement(view, ScrollableElementOpts{Controller: s.scroll})
