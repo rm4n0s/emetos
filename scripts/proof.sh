@@ -137,6 +137,9 @@ run=(env -u WAYLAND_DISPLAY -u DISPLAY)
 # environment of the caller wins (GLUTTER_RENDERER=auto, or vulkan, for a proof of the renderer itself).
 run+=(GLUTTER_RENDERER="${GLUTTER_RENDERER:-gles}")
 [[ -n "$commands" ]] && run+=(EMETOS_DEV_COMMANDS="$commands")
+# A proof shows the feature, not the host: when other programs have used up the user's inotify instances, the editor
+# polls for file changes and would show a warning about it in every image (SPEC §15.2).
+run+=(EMETOS_DEV_QUIET_WATCH_WARNING=1)
 isolated=("$root/scripts/isolated.sh")
 [[ -n "$config" ]] && isolated+=(--config "$config")
 [[ -n "$state" ]] && isolated+=(--state "$state")

@@ -177,6 +177,15 @@ func (w *Workspace) followWorkspaceSettings() {
 	})
 }
 
+// watchNotice tells the user what the watcher says: a warning, unless it is the fallback to polling and the dev knob
+// DevQuietWatchWarningEnv keeps that one out of the notifications (it is logged by the watcher either way).
+func (w *Workspace) watchNotice(n workspace.Notice) {
+	if n.Kind == workspace.NoticePollingFallback && DevCommandsEnabled() && os.Getenv(DevQuietWatchWarningEnv) == "1" {
+		return
+	}
+	w.Notify.Warn("Emetos", n.Message)
+}
+
 // StartWatching starts the watcher of the window: the folder (recursively), the user's
 // configuration folder (settings and snippets are read again when their files change), and the
 // files that are open outside the folder. It stops with ctx. The targets are added on a goroutine
@@ -196,7 +205,7 @@ func (w *Workspace) StartWatching(ctx context.Context) (ready <-chan struct{}) {
 	st.ctx = ctx
 	st.watcher = workspace.NewWatcher(ctx, workspace.WatcherOptions{
 		OnEvents: func(events []workspace.Event) { w.onFileEvents(ctx, events) },
-		OnNotice: func(n workspace.Notice) { w.Notify.Warn("Emetos", n.Message) },
+		OnNotice: w.watchNotice,
 		Logger:   w.Process.Logger,
 	})
 	st.mu.Unlock()

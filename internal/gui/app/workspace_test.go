@@ -325,3 +325,31 @@ func TestBreadcrumbsAndSnippetsUseTheFolder(t *testing.T) {
 		t.Errorf("the framework reported errors: %v", errs)
 	}
 }
+
+func TestTheDevKnobKeepsOnlyThePollingWarningOutOfTheNotifications(t *testing.T) {
+	if !DevCommandsEnabled() {
+		t.Skip("the dev knob is read only in builds that run dev commands")
+	}
+	tests := []struct {
+		name  string
+		knob  string
+		kind  workspace.NoticeKind
+		shown bool
+	}{
+		{"the fallback to polling without the knob", "", workspace.NoticePollingFallback, true},
+		{"the fallback to polling with the knob", "1", workspace.NoticePollingFallback, false},
+		{"the fallback to polling with another value", "yes", workspace.NoticePollingFallback, true},
+		{"another notice with the knob", "1", workspace.NoticePollingFallback + 1, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(DevQuietWatchWarningEnv, tc.knob)
+			win := newTestWorkspace(t, "")
+			before := len(win.Notify.Items())
+			win.watchNotice(workspace.Notice{Kind: tc.kind, Message: "the watcher says something"})
+			if shown := len(win.Notify.Items()) > before; shown != tc.shown {
+				t.Errorf("shown %v, want %v", shown, tc.shown)
+			}
+		})
+	}
+}

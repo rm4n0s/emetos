@@ -15,6 +15,12 @@ import (
 // DevCommandsEnv is the environment variable that holds the dev commands (SPEC §15.2).
 const DevCommandsEnv = "EMETOS_DEV_COMMANDS"
 
+// DevQuietWatchWarningEnv is the dev knob that keeps the warning about polling for file changes out of the
+// notifications ("1"; SPEC §15.2): the warning comes from the host (its inotify instances used up by other programs), not
+// from what a proof shows, so scripts/proof.sh sets it. The fallback is still logged. Read only in builds that run dev
+// commands.
+const DevQuietWatchWarningEnv = "EMETOS_DEV_QUIET_WATCH_WARNING"
+
 // DevCommandsEnabled tells whether this build runs dev commands: debug builds and builds
 // with the emetos_dev tag do, release builds never (SPEC D15).
 func DevCommandsEnabled() bool { return foundation.DebugMode || devBuild }
