@@ -144,7 +144,10 @@ type ScopeOptions struct {
 	// OpenURI opens a URI with the desktop; nil leaves it unavailable.
 	OpenURI func(ctx context.Context, uri string) error
 	// OpenWindowTab opens the window tab of a kind, or shows the one that is open, on the UI thread; nil leaves it unavailable.
-	OpenWindowTab  func(kindID string) error
+	OpenWindowTab func(kindID string) error
+	// TrashFiles moves files (absolute paths) to the trash as one operation and returns the function that takes it back; nil leaves
+	// Workspace().TrashFiles unavailable. It is called from the goroutine of the extension.
+	TrashFiles     func(ctx context.Context, paths []string) (undo func(ctx context.Context) error, err error)
 	Editors        EditorHost
 	Languages      LanguageSource
 	EditorsChanged func()

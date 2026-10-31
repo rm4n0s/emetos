@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -705,10 +706,28 @@ func copyFile(ctx context.Context, src, dst string, info fs.FileInfo) error {
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/fileActions.ts (deleteFiles)
 func (o *FileOps) Trash(ctx context.Context, paths []string) (OpResult, error) {
+	res, _, err := o.trash(ctx, paths)
+	return res, err
+}
+
+// TrashUndoable is Trash for a caller that is not the Explorer (an extension's discard of untracked files, SPEC §10.30): it also
+// returns a function that takes back exactly this operation, whatever was done after it, and drops it from the history that Undo
+// walks. The function is nil when nothing was trashed. It fails with FileOpNothingToUndo when the operation is gone from the history
+// (it was undone already, or the history is cleared or too long), and with the tags of the steps (FileOpDestinationExists...).
+func (o *FileOps) TrashUndoable(ctx context.Context, paths []string) (OpResult, func(ctx context.Context) (OpResult, error), error) {
+	res, rec, err := o.trash(ctx, paths)
+	if rec == nil || len(rec.actions) == 0 {
+		return res, nil, err
+	}
+	return res, func(ctx context.Context) (OpResult, error) { return o.undoRecord(ctx, rec) }, err
+}
+
+// trash moves the items to the trash and records the operation.
+func (o *FileOps) trash(ctx context.Context, paths []string) (OpResult, *record, error) {
 	o.run.Lock()
 	defer o.run.Unlock()
 	if o.opts.Trash == nil {
-		return OpResult{}, errors.New("FileOpTrashUnavailable", "there is no trash to move items to")
+		return OpResult{}, nil, errors.New("FileOpTrashUnavailable", "there is no trash to move items to")
 	}
 	label := "Delete " + describeSources(paths)
 	rec := &record{label: label}
@@ -729,7 +748,34 @@ func (o *FileOps) Trash(ctx context.Context, paths []string) (OpResult, error) {
 		res.Removed = append(res.Removed, p)
 	}
 	o.push(rec)
-	return res, firstErr
+	return res, rec, firstErr
+}
+
+// undoRecord takes back one operation of the history, wherever it is in it.
+func (o *FileOps) undoRecord(ctx context.Context, rec *record) (OpResult, error) {
+	o.run.Lock()
+	defer o.run.Unlock()
+	o.mu.Lock()
+	at := slices.Index(o.undo, rec)
+	if at < 0 {
+		o.mu.Unlock()
+		return OpResult{}, errors.New("FileOpNothingToUndo", "the operation is not in the history any more", "label", rec.label)
+	}
+	o.mu.Unlock()
+	res := OpResult{Label: "Undo " + rec.label}
+	for i := len(rec.actions) - 1; i >= 0; i-- {
+		r, err := o.undoAction(ctx, rec.actions[i])
+		res.merge(r)
+		if err != nil {
+			return res, err
+		}
+	}
+	o.mu.Lock()
+	if at = slices.Index(o.undo, rec); at >= 0 {
+		o.undo = slices.Delete(o.undo, at, at+1)
+	}
+	o.mu.Unlock()
+	return res, nil
 }
 
 // Delete removes items for good. It cannot be undone. It fails with the tags of fileio.Delete.

@@ -64,6 +64,22 @@ func (x *gitscm) registerCommands() error {
 		"git.closeAllUnmodifiedEditors":       x.cmdCloseAllUnmodifiedEditors,
 		"git.revealInExplorer":                x.cmdRevealInExplorer,
 		"git.revealFileInOS.linux":            x.cmdRevealFileInOS,
+		"git.stage":                           x.cmdStage,
+		"git.stageAll":                        x.cmdStageAll,
+		"git.stageAllTracked":                 x.cmdStageAllTracked,
+		"git.stageAllUntracked":               x.cmdStageAllUntracked,
+		"git.stageAllMerge":                   x.cmdStageAllMerge,
+		"git.stageFile":                       x.cmdStageFile,
+		"git.unstage":                         x.cmdUnstage,
+		"git.unstageAll":                      x.cmdUnstageAll,
+		"git.unstageFile":                     x.cmdUnstageFile,
+		"git.clean":                           x.cmdClean,
+		"git.cleanAll":                        x.cmdCleanAll,
+		"git.cleanAllTracked":                 x.cmdCleanAllTracked,
+		"git.cleanAllUntracked":               x.cmdCleanAllUntracked,
+		"git.ignore":                          x.cmdIgnore,
+		"git.rename":                          x.cmdRename,
+		"git.delete":                          x.cmdDelete,
 		CommandTrustRepository:                x.cmdTrustRepository,
 		CommandManageTrusted:                  x.cmdManageTrusted,
 	}
@@ -82,7 +98,7 @@ func (x *gitscm) registerCommands() error {
 
 // placeholder is the handler of a command a later step implements.
 //
-// TODO(step 24.8 to 24.23): each step replaces the handlers of its commands.
+// TODO(step 24.9 to 24.23): each step replaces the handlers of its commands.
 func placeholder(x *gitscm, title string) extension.CommandHandler {
 	return func(context.Context, any) error {
 		x.api.Notifications().Info(title + " is not available yet.")

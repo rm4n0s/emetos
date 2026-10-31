@@ -100,6 +100,17 @@ type Workspace interface {
 	// ExtensionFilePathInvalid for a URI that is not a file, ExtensionRevealUnavailable when the scope cannot, and ExtensionDeactivated
 	// after the activation ended. Call it on the UI thread.
 	RevealFile(uri string, inOS bool) error
+	// TrashFiles moves the files and folders with the URIs (file:///path) to the trash of the user (SPEC §6.3, the trash the Explorer's
+	// Delete uses), as one operation of the file operations history, and returns the function that takes exactly this operation back
+	// (the files are restored where they were, whatever the user did after it). The function fails with the tags of the file
+	// operations when something is at an old path now or when the operation is gone from the history (it was undone from the Explorer
+	// already); it may be called from any goroutine, once. Open editors of the files follow as they do for a deletion in the Explorer.
+	// It blocks while the files are moved, so call it from a goroutine of the extension. It fails with ExtensionFilePathInvalid for a
+	// URI that is not a clean absolute file, ExtensionTrashUnavailable when the scope has no trash (a window tab of an extension, a
+	// headless host), ExtensionDeactivated after the activation ended, and with the tags of the trash (TrashCrossDevice for a file on
+	// another file system than the trash: the caller may offer to delete it for good, TrashSourceMissing, TrashFailed); the files
+	// moved before a failure stay in the trash and the returned function is nil.
+	TrashFiles(ctx context.Context, uris []string) (undo func(ctx context.Context) error, err error)
 	// OpenWindowTab opens the window tab of a kind of window tab (the id of a kind in a manifest's WindowTabKinds, this
 	// extension's or another one's) and makes it the active one; when a tab of the kind is open already it is shown instead of a
 	// second one (SPEC §10.29: the open command of Remote Work). It fails with ExtensionOpenWindowTabUnavailable when the scope cannot, and

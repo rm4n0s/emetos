@@ -42,6 +42,8 @@ type API struct {
 	failUntitled      error
 	views             map[string]*View
 	openedURIs        []string
+	trashed           []*Trashed
+	trashErr, undoErr error
 	openedTabs        []string
 	fileViewRefreshes int
 	kinds             map[string]extension.EditorKind
@@ -1022,6 +1024,69 @@ func (a *API) RevealedFiles() []Revealed {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return append([]Revealed(nil), a.revealed...)
+}
+
+// Trashed is a call of Workspace().TrashFiles.
+type Trashed struct {
+	// URIs are the files that were moved to the trash.
+	URIs   []string
+	a      *API
+	undone bool
+}
+
+// Undone says that the function TrashFiles returned was called.
+func (t *Trashed) Undone() bool {
+	t.a.mu.Lock()
+	defer t.a.mu.Unlock()
+	return t.undone
+}
+
+// TrashFiles implements extension.Workspace: the files are not touched, the call is recorded (TrashedFiles) and the undo function marks
+// it undone. FailTrash makes the calls fail.
+func (w workspace) TrashFiles(_ context.Context, uris []string) (func(context.Context) error, error) {
+	for _, uri := range uris {
+		if !strings.HasPrefix(uri, "file://") {
+			return nil, errors.New("ExtensionFilePathInvalid", "only a file can be moved to the trash", "uri", uri)
+		}
+	}
+	w.a.mu.Lock()
+	defer w.a.mu.Unlock()
+	if w.a.trashErr != nil {
+		return nil, w.a.trashErr
+	}
+	rec := &Trashed{URIs: append([]string(nil), uris...), a: w.a}
+	w.a.trashed = append(w.a.trashed, rec)
+	return func(context.Context) error {
+		w.a.mu.Lock()
+		defer w.a.mu.Unlock()
+		if w.a.undoErr != nil {
+			return w.a.undoErr
+		}
+		rec.undone = true
+		return nil
+	}, nil
+}
+
+// FailTrash makes the next calls of Workspace().TrashFiles fail with err (nil makes them work again); FailUndoTrash does the same for
+// the functions they returned.
+func (a *API) FailTrash(err error) {
+	a.mu.Lock()
+	a.trashErr = err
+	a.mu.Unlock()
+}
+
+// FailUndoTrash makes the undo functions of TrashFiles fail with err.
+func (a *API) FailUndoTrash(err error) {
+	a.mu.Lock()
+	a.undoErr = err
+	a.mu.Unlock()
+}
+
+// TrashedFiles are the calls of Workspace().TrashFiles, in order.
+func (a *API) TrashedFiles() []*Trashed {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]*Trashed(nil), a.trashed...)
 }
 
 // OpenWindowTab implements extension.Workspace: the call is recorded (OpenedWindowTabs).

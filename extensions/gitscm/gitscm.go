@@ -2,8 +2,9 @@
 // Source Control view of the workbench. This is its first part (step 24.5): it asks whether to trust a repository (D37), finds the
 // repositories of the folder of the window tab by looking at the file system, shows their state in the Source Control view (the
 // groups of changes with their letters, the branch and sync items, the count), refreshes it when files change, when the window gets the
-// focus and on request, and publishes it to the other extensions. It changes nothing: staging, committing and the rest come in the
-// next steps; their commands are declared, and say they are not available yet until then.
+// focus and on request, and publishes it to the other extensions. Since step 24.8 it stages, unstages and discards changes (stage.go,
+// discard.go, pathcmds.go); committing and the rest come in the next steps, whose commands are declared and say they are not available yet
+// until then.
 //
 // The extension runs the user's git program with the client of extensions/gitscm/git, which refuses to start a process in a
 // repository before the user trusted it, and keeps the answers in extensions/gitscm/trust. Everything it keeps is used on the UI thread;
@@ -96,6 +97,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus := paletteMenuItems()
 	menus = append(menus, extraMenus...)
 	menus = append(menus, diffMenus()...)
+	menus = append(menus, stageMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",

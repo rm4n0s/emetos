@@ -586,33 +586,46 @@ func (r *repository) syncItem(args []any) (extension.StatusCommand, bool) {
 	return extension.StatusCommand{Text: strings.TrimSpace("$(sync) " + r.syncLabel()), Tooltip: r.syncTooltip(), Command: "git.sync", Args: args}, true
 }
 
-// optimisticStage moves the resources with these paths from Changes (and Merge Changes) to Staged Changes before the confirming
-// status arrives, and optimisticUnstage the other way (git.optimisticUpdate, SPEC §10.30): the hooks that the staging commands of
-// step 24.8 call. They change the groups at once and do nothing when the setting is off.
+// optimisticStage moves the resources with these paths from Changes, Untracked Changes and Merge Changes to Staged Changes before the
+// confirming status arrives, and optimisticUnstage the other way (git.optimisticUpdate, SPEC §10.30): the hooks that the staging
+// commands call. They change the groups at once and do nothing when the setting is off.
+//
+// Ported from VS Code: extensions/git/src/repository.ts (add, revert and clean: the function that gives the optimistic resource groups)
 func (r *repository) optimisticStage(paths []string) {
 	if !r.m.x.cfg.optimisticUpdate || r.groups.merge == nil {
 		return
 	}
 	want := pathSet(paths)
+	have := map[string]bool{}
+	for _, res := range r.res.index {
+		have[res.path] = true
+	}
 	var staged []resource
 	move := func(list []resource) []resource {
 		var keep []resource
 		for _, res := range list {
-			if want[res.path] && res.status != git.StatusUntracked {
-				res.status = indexStatusOf(res.status)
-				staged = append(staged, res)
+			if !want[res.path] {
+				keep = append(keep, res)
 				continue
 			}
-			if want[res.path] && res.status == git.StatusUntracked {
+			if have[res.path] {
+				continue // staged already: it only leaves this group
+			}
+			switch res.status {
+			case git.StatusUntracked:
 				res.status = git.StatusIndexAdded
-				staged = append(staged, res)
-				continue
+			case git.StatusBothDeleted, git.StatusAddedByUs, git.StatusDeletedByThem, git.StatusAddedByThem, git.StatusDeletedByUs, git.StatusBothAdded, git.StatusBothModified:
+				res.status = git.StatusIndexModified
+			default:
+				res.status = indexStatusOf(res.status)
 			}
-			keep = append(keep, res)
+			have[res.path] = true
+			staged = append(staged, res)
 		}
 		return keep
 	}
 	g := r.res
+	g.merge = move(g.merge)
 	g.working = move(g.working)
 	g.untracked = move(g.untracked)
 	g.index = append(append([]resource(nil), g.index...), staged...)
@@ -620,25 +633,53 @@ func (r *repository) optimisticStage(paths []string) {
 	r.updateStatusBar()
 }
 
-// optimisticUnstage is the hook of the unstage commands: Staged Changes go back to Changes.
+// optimisticUnstage is the hook of the unstage commands: Staged Changes go back to Changes; a file that was added goes back to the
+// untracked files, which are in Changes ("mixed"), in Untracked Changes ("separate") or not shown ("hidden").
 func (r *repository) optimisticUnstage(paths []string) {
 	if !r.m.x.cfg.optimisticUpdate || r.groups.merge == nil {
 		return
 	}
 	want := pathSet(paths)
-	var back []resource
-	var keep []resource
+	mode := r.m.x.cfg.untrackedChanges
+	g := r.res
+	g.index = nil
 	for _, res := range r.res.index {
-		if want[res.path] {
-			res.status = workStatusOf(res.status)
-			back = append(back, res)
+		if !want[res.path] {
+			g.index = append(g.index, res)
 			continue
 		}
-		keep = append(keep, res)
+		res.status = workStatusOf(res.status)
+		switch {
+		case res.status != git.StatusUntracked:
+			g.working = append(append([]resource(nil), g.working...), res)
+		case mode == "mixed":
+			g.working = append(append([]resource(nil), g.working...), res)
+		case mode == "separate":
+			g.untracked = append(append([]resource(nil), g.untracked...), res)
+		}
+	}
+	r.setGroups(g)
+	r.updateStatusBar()
+}
+
+// optimisticClean takes the resources with these paths out of Changes and Untracked Changes: they were discarded.
+func (r *repository) optimisticClean(paths []string) {
+	if !r.m.x.cfg.optimisticUpdate || r.groups.merge == nil {
+		return
+	}
+	want := pathSet(paths)
+	drop := func(list []resource) []resource {
+		var keep []resource
+		for _, res := range list {
+			if !want[res.path] {
+				keep = append(keep, res)
+			}
+		}
+		return keep
 	}
 	g := r.res
-	g.index = keep
-	g.working = append(append([]resource(nil), g.working...), back...)
+	g.working = drop(g.working)
+	g.untracked = drop(g.untracked)
 	r.setGroups(g)
 	r.updateStatusBar()
 }

@@ -634,13 +634,13 @@ func TestTrashErrors(t *testing.T) {
 		e.put("a.txt")
 		e.ops.opts.Trash = nil
 		_, err := e.ops.Trash(ctx(), []string{e.p("a.txt")})
-		wantTag(t, err, "FileOps.Trash.FileOpTrashUnavailable")
+		wantTag(t, err, "FileOps.Trash->FileOps.trash.FileOpTrashUnavailable")
 		e.wantTree("a.txt")
 	})
 	t.Run("relative path", func(t *testing.T) {
 		e := newOpsEnv(t)
 		_, err := e.ops.Trash(ctx(), []string{"a.txt"})
-		wantTag(t, err, "FileOps.Trash->checkPath.FileOpPathInvalid")
+		wantTag(t, err, "FileOps.Trash->FileOps.trash->checkPath.FileOpPathInvalid")
 	})
 	t.Run("missing item", func(t *testing.T) {
 		e := newOpsEnv(t)
@@ -657,6 +657,80 @@ func TestTrashErrors(t *testing.T) {
 		wantTag(t, err, "HomeTrash.Trash.TrashFailed")
 		if !exists(e.p("a.txt")) {
 			t.Error("the item was lost")
+		}
+	})
+}
+
+func TestTrashUndoable(t *testing.T) {
+	t.Run("the operation is taken back whatever came after it", func(t *testing.T) {
+		e := newOpsEnv(t)
+		e.put("a.txt=a", "b.txt=b", "keep")
+		res, undo, err := e.ops.TrashUndoable(ctx(), []string{e.p("a.txt"), e.p("b.txt")})
+		if err != nil || undo == nil || len(res.Removed) != 2 {
+			t.Fatalf("%+v %v undo=%v", res, err, undo != nil)
+		}
+		e.wantTree("keep")
+		// another operation comes after it
+		if _, err := e.ops.CreateFile(ctx(), e.root, "later.txt"); err != nil {
+			t.Fatal(err)
+		}
+		undone, err := undo(ctx())
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.wantTree("a.txt", "b.txt", "keep", "later.txt")
+		if len(undone.Created) != 2 {
+			t.Errorf("undone %+v", undone)
+		}
+		// the later operation is the one Undo takes back now
+		if label, _, ok := e.ops.NextUndo(); !ok || !strings.Contains(label, "later.txt") {
+			t.Errorf("next undo = %q, %v", label, ok)
+		}
+		_, err = undo(ctx())
+		wantTag(t, err, "FileOps.undoRecord.FileOpNothingToUndo")
+	})
+	t.Run("undone by Undo first", func(t *testing.T) {
+		e := newOpsEnv(t)
+		e.put("a.txt")
+		_, undo, err := e.ops.TrashUndoable(ctx(), []string{e.p("a.txt")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.ops.Undo(ctx()); err != nil {
+			t.Fatal(err)
+		}
+		_, err = undo(ctx())
+		wantTag(t, err, "FileOps.undoRecord.FileOpNothingToUndo")
+		e.wantTree("a.txt")
+	})
+	t.Run("something is at the old path", func(t *testing.T) {
+		e := newOpsEnv(t)
+		e.put("a.txt=old")
+		_, undo, err := e.ops.TrashUndoable(ctx(), []string{e.p("a.txt")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.put("a.txt=new")
+		if _, err := undo(ctx()); err == nil {
+			t.Error("the undo replaced a file")
+		}
+		e.wantTree("a.txt")
+	})
+	t.Run("nothing trashed gives no undo", func(t *testing.T) {
+		e := newOpsEnv(t)
+		_, undo, err := e.ops.TrashUndoable(ctx(), []string{e.p("nope")})
+		wantTag(t, err, "HomeTrash.Trash.TrashSourceMissing")
+		if undo != nil {
+			t.Error("an undo for nothing")
+		}
+	})
+	t.Run("no trash", func(t *testing.T) {
+		e := newOpsEnv(t)
+		e.ops.opts.Trash = nil
+		_, undo, err := e.ops.TrashUndoable(ctx(), []string{e.p("a.txt")})
+		wantTag(t, err, "FileOps.TrashUndoable->FileOps.trash.FileOpTrashUnavailable")
+		if undo != nil {
+			t.Error("an undo for nothing")
 		}
 	})
 }

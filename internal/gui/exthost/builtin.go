@@ -426,6 +426,30 @@ func (w workspaceAPI) RevealFile(uri string, inOS bool) error {
 	return r.RevealFile(filepath.Clean(path), inOS)
 }
 
+// TrashFiles implements extension.Workspace.
+func (w workspaceAPI) TrashFiles(ctx context.Context, uris []string) (func(context.Context) error, error) {
+	in := w.inst
+	if in.isDead() {
+		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	paths := make([]string, len(uris))
+	for i, uri := range uris {
+		path, ok := strings.CutPrefix(uri, "file://")
+		if !ok || !filepath.IsAbs(path) || filepath.Clean(path) != path || path == "/" {
+			return nil, errors.New("ExtensionFilePathInvalid", "only a clean absolute file can be moved to the trash", "extension", in.id, "uri", uri)
+		}
+		paths[i] = path
+	}
+	trash := in.scope.opts.TrashFiles
+	if trash == nil {
+		return nil, errors.New("ExtensionTrashUnavailable", "the scope has no trash", "extension", in.id)
+	}
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	return trash(ctx, paths)
+}
+
 // OpenWindowTab implements extension.Workspace.
 func (w workspaceAPI) OpenWindowTab(kindID string) error {
 	in := w.inst
