@@ -174,9 +174,28 @@ func settingFromSpec(spec extension.SettingSpec, category string) (settings.Sett
 	if spec.Category != "" {
 		category = spec.Category
 	}
+	types := []settings.Type{typ}
+	for _, name := range spec.AlsoTypes {
+		if name == "null" {
+			types = append(types, settings.Null)
+		} else if t, ok := settingTypes[name]; ok && t != typ {
+			types = append(types, t)
+		}
+	}
+	scope := settings.ScopeWindow
+	switch spec.Scope {
+	case "resource":
+		scope = settings.ScopeResource
+	case "language-overridable":
+		scope = settings.ScopeLanguageOverridable
+	case "machine":
+		scope = settings.ScopeMachine
+	case "application":
+		scope = settings.ScopeApplication
+	}
 	return settings.Setting{
-		Key: spec.Key, Types: []settings.Type{typ}, Default: spec.Default, Description: spec.Description, Enum: spec.Enum,
-		Minimum: spec.Minimum, Maximum: spec.Maximum, Scope: settings.ScopeWindow, Category: category,
+		Key: spec.Key, Types: types, Default: spec.Default, Description: spec.Description, Enum: spec.Enum, EnumDescriptions: spec.EnumDescriptions,
+		Minimum: spec.Minimum, Maximum: spec.Maximum, Scope: scope, Category: category,
 	}, true
 }
 

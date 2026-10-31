@@ -107,6 +107,9 @@ type Target struct {
 	// relative to Path (an absolute pattern against the whole path), and what they match is not
 	// watched and gives no events.
 	Exclude []string
+
+	// sink makes the target a subscription (Watcher.Subscribe).
+	sink func([]Event)
 }
 
 type excludePattern struct {
@@ -123,6 +126,10 @@ type root struct {
 
 	polling bool
 
+	// sink, when set, makes the root a subscription (Watcher.Subscribe): the events below the root go to it and to nobody
+	// else.
+	sink func([]Event)
+
 	mu      sync.Mutex // guards snap and removed
 	snap    map[string]polled
 	removed bool
@@ -134,6 +141,21 @@ func (r *root) accepts(path string) bool {
 		return r.files[path]
 	}
 	return !r.excluded(path)
+}
+
+// covers tells whether an event is below the root and not excluded: the test of a subscription, which receives the events of
+// the whole watcher and keeps its own.
+func (r *root) covers(e Event) bool {
+	one := func(p string) bool {
+		if p == "" {
+			return false
+		}
+		if r.files != nil {
+			return r.files[p]
+		}
+		return (p == r.path || isParentPath(p, r.path)) && !r.excluded(p)
+	}
+	return one(e.Path) || one(e.OldPath)
 }
 
 // excluded tells whether files.watcherExclude covers a path.
@@ -263,6 +285,19 @@ func (w *Watcher) sendNotice(n Notice) {
 	}
 }
 
+// Subscribe is Watch for a caller of its own: it watches the target and hands the events below it, after the debounce, to
+// onEvents (one batch at a time, from one goroutine of the watcher, so it must not block for long), and the events of the
+// target do not reach WatcherOptions.OnEvents. The events of the editor's own writes are not left out (Suppress is for the
+// window's tree). It is how an extension watches a folder (Workspace().Watch): the folder of a parent repository, a git
+// directory. The tags and the rules are those of Watch.
+func (w *Watcher) Subscribe(ctx context.Context, t Target, onEvents func([]Event)) (unwatch func(), err error) {
+	if onEvents == nil {
+		return nil, errors.New("WatcherSinkMissing", "a subscription needs a function that gets the events", "path", t.Path)
+	}
+	t.sink = onEvents
+	return w.Watch(ctx, t)
+}
+
 // Watch starts watching a target and returns the function that stops it. It reads the folder
 // (and, for a recursive target, everything below it) to place its watches before it returns,
 // so call it from a goroutine of the application, not from the UI thread. It fails with the
@@ -276,7 +311,7 @@ func (w *Watcher) Watch(ctx context.Context, t Target) (unwatch func(), err erro
 	if !filepath.IsAbs(t.Path) {
 		return nil, errors.New("WatcherPathInvalid", "the path to watch is not absolute", "path", t.Path)
 	}
-	r := &root{path: filepath.Clean(t.Path), recursive: t.Recursive && !t.File}
+	r := &root{path: filepath.Clean(t.Path), recursive: t.Recursive && !t.File, sink: t.sink}
 	if t.File {
 		r.path = filepath.Dir(r.path)
 		r.files = map[string]bool{filepath.Clean(t.Path): true}
@@ -377,11 +412,50 @@ func (w *Watcher) batchLoop() {
 			}
 		case <-flush:
 			timer = nil
-			events := w.dropOwn(co.flush())
-			if len(events) > 0 && w.opts.OnEvents != nil {
-				w.opts.OnEvents(events)
+			w.deliver(co.flush())
+		}
+	}
+}
+
+// deliver hands a batch to the subscriptions that cover some of it and to OnEvents. While subscriptions exist, OnEvents gets
+// only the events below a root that is not one (the window's own targets).
+func (w *Watcher) deliver(events []Event) {
+	w.mu.Lock()
+	var sinks, plain []*root
+	for r := range w.roots {
+		if r.sink != nil {
+			sinks = append(sinks, r)
+		} else {
+			plain = append(plain, r)
+		}
+	}
+	w.mu.Unlock()
+	if len(sinks) > 0 {
+		for _, r := range sinks {
+			var mine []Event
+			for _, e := range events {
+				if r.covers(e) {
+					mine = append(mine, e)
+				}
+			}
+			if len(mine) > 0 {
+				r.sink(mine)
 			}
 		}
+		kept := events[:0:0]
+		for _, e := range events {
+			for _, r := range plain {
+				if r.covers(e) {
+					kept = append(kept, e)
+					break
+				}
+			}
+		}
+		events = kept
+	}
+	events = w.dropOwn(events)
+	if len(events) > 0 && w.opts.OnEvents != nil {
+		w.opts.OnEvents(events)
 	}
 }
 

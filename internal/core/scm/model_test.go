@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 )
 
 // repo adds a source control with a root under /work and one group holding n resources.
@@ -579,3 +580,42 @@ type atomicInt struct {
 
 func (a *atomicInt) add(d int) { a.mu.Lock(); a.n += d; a.mu.Unlock() }
 func (a *atomicInt) get() int  { a.mu.Lock(); defer a.mu.Unlock(); return a.n }
+
+// TestStatusBarCommandsWithArgumentsThatAreNotComparable is the Git extension's status bar: the Args of an item hold a map, which a
+// comparison with == panics on, and a panic in a change must not leave the model locked.
+func TestStatusBarCommandsWithArgumentsThatAreNotComparable(t *testing.T) {
+	m := NewModel(DefaultConfig())
+	src := m.Add(SourceSpec{ProviderID: "git", Label: "Git", RootURI: "file:///r", Owner: "e"})
+	items := func() []StatusCommand {
+		return []StatusCommand{{Text: "$(git-branch) main", Command: "git.checkout", Args: []any{map[string]any{"sourceControl": "scm1"}}}}
+	}
+	changes := 0
+	m.Subscribe(func(e Event) {
+		if e.Kind == SourceChanged {
+			changes++
+		}
+	})
+	src.SetStatusBarCommands(items())
+	src.SetStatusBarCommands(items()) // equal: no change
+	if changes != 1 {
+		t.Errorf("%d changes for two equal sets", changes)
+	}
+	other := items()
+	other[0].Args = []any{map[string]any{"sourceControl": "scm2"}}
+	src.SetStatusBarCommands(other)
+	if changes != 2 {
+		t.Errorf("%d changes after the arguments changed", changes)
+	}
+	// the model is not locked by a panic in a change
+	func() {
+		defer func() { _ = recover() }()
+		src.mutate(func() bool { panic("boom") })
+	}()
+	done := make(chan struct{})
+	go func() { src.SetCount(1); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the model stayed locked after a panic")
+	}
+}

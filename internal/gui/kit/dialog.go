@@ -373,7 +373,9 @@ func (s *dialogState) Build(bc widgets.BuildContext) widgets.Widget {
 			widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(dialogRowPadLeft, 0, dialogRowPadRight, 0),
 				widgets.NewRow(messageRow, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart})))),
 		widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(dialogButtonsLeft, dialogButtonsTop, 0, 0),
-			widgets.NewRow(buttons, widgets.RowOpts{MainAxisAlignment: rendering.MainAxisAlignmentEnd})),
+			// the buttons wrap onto another line when they do not fit the dialog (VS Code's dialog-buttons has flex-wrap: wrap); the
+			// column stretches the wrap to the width of the dialog, so that the run ends at the right edge
+			widgets.NewWrap(buttons, widgets.WrapOpts{Alignment: rendering.WrapAlignmentEnd})),
 	}, widgets.ColumnOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 
 	box := widgets.NewContainer(widgets.NewPadding(painting.NewEdgeInsetsAll(dialogPadding), column), widgets.ContainerOpts{

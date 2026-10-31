@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/diff"
 	"github.com/rm4n0s/emetos/extensions/docker"
 	"github.com/rm4n0s/emetos/extensions/git"
+	"github.com/rm4n0s/emetos/extensions/gitscm"
 	"github.com/rm4n0s/emetos/extensions/golang"
 	"github.com/rm4n0s/emetos/extensions/gomod"
 	"github.com/rm4n0s/emetos/extensions/hosting"
@@ -61,6 +62,9 @@ import (
 // tab to the panel (the logs) and two kinds of editor tab, and starts nothing until a view of it is shown. The Podman extension
 // (extensions/podman, step 18.4) follows it and does the same for Podman.
 //
+// Git (extensions/gitscm, step 24.5) follows them: it provides the Source Control view with the repositories of the folder, and starts
+// at once, but runs git in a repository only after the user trusted it.
+//
 // The References view (extensions/references) is last: it adds a view to the side bar and asks the language servers the packs start.
 func All() []extension.Factory {
 	rw := remotework.NewHub(remotework.HubOptions{Camera: keyqr.NewV4L2()})
@@ -74,6 +78,6 @@ func All() []extension.Factory {
 		tasks.New, terminal.New, remotework.FactoryOf(rw),
 		hosting.NewFactory(rw.Hosting()),
 		dbconn.Factory(db), redis.Factory(db),
-		references.New,
+		gitscm.New, references.New,
 	}
 }

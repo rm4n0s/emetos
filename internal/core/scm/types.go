@@ -44,6 +44,9 @@ type Decorations struct {
 	Faded bool
 	// Color is the id of a theme color.
 	Color string
+	// Letter is the status letter the provider gave (ResourceDecorations.Letter), until the file decoration service has the
+	// Git provider (TODO(step 24.6)).
+	Letter string
 }
 
 // ActionButton is the button under the input (VS Code's ISCMActionButtonDescriptor).

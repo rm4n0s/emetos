@@ -219,7 +219,7 @@ func TestThePathspecFileForFiveThousandPaths(t *testing.T) {
 		for i, p := range paths {
 			repo.Write(p, strconv.Itoa(i)+"\n")
 		}
-		runner := NewRunner(Config{Path: e.GitPath, Env: e.Vars()})
+		runner := NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: e.Vars()})
 		if _, err := runner.Run(context.Background(), Command{Dir: repo.Dir, Args: []string{"add"}, Paths: paths}); err != nil {
 			t.Fatal(err)
 		}
@@ -523,7 +523,7 @@ func TestRunStream(t *testing.T) {
 // Git exiting before it read its input must not fail the command (VS Code's "Git process input" test: 8 MiB for --version).
 func TestGitThatExitsBeforeReadingItsInput(t *testing.T) {
 	e := gittest.NewEnv(t)
-	r := NewRunner(Config{Path: e.GitPath, Env: e.Vars()})
+	r := NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: e.Vars()})
 	res, err := r.Run(context.Background(), Command{Args: []string{"--version"}, Stdin: strings.NewReader(strings.Repeat("x", 8*1024*1024))})
 	if err != nil {
 		t.Fatal(err)
@@ -662,7 +662,7 @@ func TestBackgroundCommandsStartNoProgramOfTheRepositoryConfiguration(t *testing
 	// The harness keeps core.fsmonitor off with a setting of the command; the test needs the configuration to apply.
 	env := withVars(e.Vars(), "GIT_CONFIG_PARAMETERS=")
 	env = removeVars(env, "GIT_OPTIONAL_LOCKS")
-	runner := NewRunner(Config{Path: e.GitPath, Env: env})
+	runner := NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: env})
 
 	ran := func(name string) bool { _, err := os.Stat(marker(name)); return err == nil }
 	clear := func() {

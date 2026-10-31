@@ -175,6 +175,13 @@ type ScopeOptions struct {
 	// Clipboard puts a text on the clipboard of the desktop, on the UI thread, for Clipboard().WriteText; the window reports a
 	// clipboard that fails to the user. Nil leaves it unavailable.
 	Clipboard func(text string) error
+	// Dialog shows a modal dialog for Dialogs().Ask on the UI thread and calls DialogRequest.Answered with the answer; nil leaves it
+	// unavailable.
+	Dialog func(DialogRequest)
+	// Watch watches a folder for Workspace().Watch: it places the watches (it reads the folder, so it is called on a goroutine of the
+	// extension), calls sink, from any goroutine, with the changes below the folder (absolute paths), and returns the function that
+	// stops it. Nil leaves Watch unavailable.
+	Watch func(ctx context.Context, spec extension.WatchSpec, sink func([]extension.FileChange)) (stop func(), err error)
 	// SCM is the model of the Source Control view of the window tab, which SourceControl().Create adds to; nil leaves it
 	// unavailable (Create fails with ExtensionSCMUnavailable).
 	SCM *scm.Model

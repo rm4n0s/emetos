@@ -171,6 +171,9 @@ const (
 	// of the folder saw it, or the list of files that Workspace().Files gives changed. Payload FilesChanged. It is not
 	// published for a workspace with no folder.
 	TopicFilesChanged = "emetos.files.changed"
+	// TopicWindowFocusChanged: the window gained or lost the keyboard focus (as the desktop says it); the Git extension
+	// refreshes when it comes back. Published in the scope of the active window tab only. Payload WindowFocus.
+	TopicWindowFocusChanged = "emetos.window.focusChanged"
 	// TopicSharingRevoked: a link that let the events of another window tab reach this one was removed, or that tab
 	// became private. It is published in the receiving tab. Payload SharingRevoked.
 	TopicSharingRevoked = "emetos.sharing.revoked"
@@ -256,6 +259,12 @@ type EditorSelection struct {
 	URI string `json:"uri"`
 	// Selections are all the selections of the editor; the first is the primary one.
 	Selections []Selection `json:"selections"`
+}
+
+// WindowFocus is the payload of TopicWindowFocusChanged.
+type WindowFocus struct {
+	// Focused is true when the window has the focus now.
+	Focused bool `json:"focused"`
 }
 
 // The kinds of FileChange.

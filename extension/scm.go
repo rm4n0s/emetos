@@ -187,6 +187,10 @@ type ResourceDecorations struct {
 	Faded bool
 	// Color is the id of a theme color the letter or the icon of the row is drawn in ("gitDecoration.modifiedResourceForeground").
 	Color string
+	// Letter is the status letter of the row ("M", "A", "D", "U"; at most two characters), drawn in Color. VS Code has no such
+	// field: its rows get the letter from the file decoration service, which the Git extension feeds in step 24.6 and which then
+	// replaces this field (decision 459). Until then the answer of that service wins when there is one.
+	Letter string
 }
 
 // The ids of the menus of the Source Control view and of the places that Git adds to; the values are the MenuId names of VS

@@ -102,7 +102,8 @@ func TestFind(t *testing.T) {
 	})
 	t.Run("a git older than 2.30 is GitTooOld with the path and the version", func(t *testing.T) {
 		path, env := fake(t, "version 2.29.3")
-		t.Setenv("PATH", t.TempDir()) // no other git
+		t.Setenv("PATH", t.TempDir())          // no other git
+		env = append(env, "PATH="+t.TempDir()) // the PATH of the commands decides too
 		_, err := Find(ctx, []string{path}, FindOptions{Env: env, Log: nil})
 		appErr := routeOf(t, err, "Find.GitTooOld")
 		if appErr != nil && (appErr.Metadata["path"] != path || appErr.Metadata["version"] != "2.29.3" || appErr.Metadata["minimum"] != "2.30.0") {
@@ -130,6 +131,7 @@ func TestFind(t *testing.T) {
 	t.Run("a program that does not answer --version", func(t *testing.T) {
 		path, env := fake(t, "stderr \"boom\"\nexit 3")
 		t.Setenv("PATH", t.TempDir())
+		env = append(env, "PATH="+t.TempDir()) // the PATH of the commands decides too
 		_, err := Find(ctx, []string{path}, FindOptions{Env: env})
 		wantRoute(t, err, "Find.GitNotFound") // the failure of the probe is logged and the candidate skipped
 	})

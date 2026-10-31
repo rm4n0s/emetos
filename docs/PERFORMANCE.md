@@ -425,3 +425,23 @@ The rows built per frame (5 of 100,000) is also asserted by a test (`TestScrolli
 ## Pending
 
 `scripts/perf.sh --session` with the GPU was run for the table of step 10.1 on 2026-10-28 by the manager (see "Desktop pass (step 17b.6)"), except the 200 MB open and the Go benchmarks. What is left is in `docs/MANUAL-CHECKS.md` (3.11 and 10.1): those two, and the decision on the targets still missed.
+
+## Git: a repository with 100,000 changed files (step 24.5)
+
+`scripts/heavy.sh --alone -- scripts/perf-git.sh` builds the `many` fixture (`scripts/git-fixture.sh many`, 100,000 files, 7.1 s, the real `git` in an isolated environment), runs the Git extension on it against the fake API (`go test -tags emetos_perf ./extensions/gitscm -run TestPerfManyChangedFiles`, no window; `git.statusLimit` raised to 1,000,000, `git.untrackedChanges` separate) and the Changes view's budget test (`TestHugeChanges`, 100,000 resources, the processor time of the UI thread). Same machine as above, nothing else running (the script waits for both heavy slots).
+
+| Measurement | Value | Target (SPEC §14) |
+|---|---|---|
+| First status, activation to the groups handed to the host | 686 ms | |
+| First status: `git status` and the parse of its stream | 531 ms | recorded, not a target |
+| First status: grouping and sorting, off the UI thread | 46 ms | within 150 ms |
+| First status: hand-over to the host, on the UI thread | 10 ms | |
+| Second status (git's caches warm): `git status` and the parse | 529 ms | recorded |
+| Second status: grouping and sorting, off the UI thread | 48 ms | within 150 ms |
+| Second status: hand-over on the UI thread | 29 ms | |
+| Statuses for a burst of 5,000 file changes | 1 | 1 |
+| Changes view, first frame after the update (processor time of the UI thread) | 66 ms (the model's update took 214 ms off the UI thread) | within 100 ms |
+| Changes view, longest of 60 frames of a steady scroll | 9.5 ms (0 over 16 ms) | no frame over 16 ms |
+| Changes view, longest frame after a jump | 10.9 ms | |
+
+The grouping used to run on the UI thread (decision 490 of `docs/DECISIONS-TO-REVIEW.md`); it runs on the goroutine of the command now. Not measured here: the same run through the window of the app (the proof of the step runs the real extension and view on a repository with six changes; the 100,000-file budget of the view is `TestHugeChanges`). The idle check (no timers and no growth of goroutines in ten minutes of the fake clock with a repository open) is `TestIdleDoesNothing`.

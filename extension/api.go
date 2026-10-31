@@ -65,6 +65,8 @@ type API interface {
 	// SourceControl creates source controls: the repositories, groups of changes and commit input of the Source Control view
 	// (SPEC §10.30).
 	SourceControl() SourceControls
+	// Dialogs asks the user a question in a modal dialog.
+	Dialogs() Dialogs
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the
 	// editor. fn is not run when the extension was deactivated before its turn comes, and a panic in it deactivates the
 	// extension. Activate, command handlers, the callbacks of the API and the event handlers run on the UI thread already.
@@ -189,6 +191,14 @@ type SettingSpec struct {
 	Minimum, Maximum *float64
 	// Category is the group of the settings editor; the name of the extension when empty.
 	Category string
+	// AlsoTypes are the other JSON types the value may have besides Type, which stays the main one: "null", "string" and the others
+	// (VS Code's type: ["string", "null", "array"]). Each is a JSON type or "null".
+	AlsoTypes []string
+	// EnumDescriptions describe the values of Enum, in the same order.
+	EnumDescriptions []string
+	// Scope says where the setting may be set (VS Code's ConfigurationScope): "window" (the default, also for ""), "resource" and
+	// "language-overridable" (the user's and the workspace's settings), "machine" and "application" (the user's settings only).
+	Scope string
 }
 
 // Settings registers and reads settings. A setting is read for the workspace of the scope, like every setting.

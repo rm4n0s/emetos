@@ -554,3 +554,26 @@ func TestDialogTallDetailScrolls(t *testing.T) {
 	}
 	r.noErrors()
 }
+
+// TestDialogButtonsThatDoNotFitWrapOntoAnotherLine is the Git trust question: three buttons, one with a long label, which are wider than
+// the 480 px of the dialog. They wrap, the last line ends at the right edge, and none leaves the box.
+func TestDialogButtonsThatDoNotFitWrapOntoAnotherLine(t *testing.T) {
+	r := newDialogRig(t, DarkModern(), windowSize)
+	r.show(DialogSpec{Type: DialogWarning, Message: "Do you trust the authors of this repository?", Detail: "Git can run programs.",
+		Buttons: []string{"Trust Repository", "Trust All Repositories in a-folder-with-a-long-name", "Don't Trust"}, CancelButton: foundation.Some(2)})
+	box := gluttertest.First(gluttertest.Descendant(gluttertest.ByType[*Dialog](), gluttertest.ByType[*widgets.Container]()))
+	boxSize, boxAt := r.ts.Size(box), r.ts.TopLeft(box)
+	var lines = map[float64]bool{}
+	for _, label := range []string{"Trust Repository", "Trust All Repositories in a-folder-with-a-long-name", "Don't Trust"} {
+		b := dialogButton(label)
+		at, size := r.ts.TopLeft(b), r.ts.Size(b)
+		if at.Dx < boxAt.Dx || at.Dx+size.Width > boxAt.Dx+boxSize.Width {
+			t.Errorf("%q at x %v, width %v leaves the dialog (%v wide at %v)", label, at.Dx, size.Width, boxSize.Width, boxAt.Dx)
+		}
+		lines[at.Dy] = true
+	}
+	if len(lines) < 2 {
+		t.Errorf("the buttons are on %d line", len(lines))
+	}
+	r.noErrors()
+}

@@ -17,6 +17,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/language"
 	"github.com/rm4n0s/emetos/internal/core/language/languagetest"
 	"github.com/rm4n0s/emetos/internal/core/language/packfs"
+	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage/storagetest"
@@ -143,8 +144,9 @@ func TestDisablingMarkdownMakesPlainText(t *testing.T) {
 		Info:     extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "w"},
 		Disabled: func() []string { return disabled },
 		Commands: commands, Menus: command.DefaultMenus(commands), Settings: store, StatusBar: workbench.NewStatusBar(),
-		Notify: notify.NewService(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), nil),
-		Views:  workbench.NewViews(command.DefaultViews(), workbench.NewLayout(workbench.LayoutStateFromSettings(store))),
+		Notify:   notify.NewService(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)), nil),
+		Channels: logs.NewStore(0), // the Git extension opens its output channel when it starts
+		Views:    workbench.NewViews(command.DefaultViews(), workbench.NewLayout(workbench.LayoutStateFromSettings(store))),
 	})
 	t.Cleanup(scope.Close)
 	scope.Start()

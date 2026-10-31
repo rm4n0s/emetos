@@ -92,6 +92,9 @@ type API struct {
 	locationRequests  []LocationRequest
 	updates           []SettingUpdate
 	scm               scmState
+	watches           []*FakeWatch
+	watchErr          error
+	dialogs           []*FakeDialog
 }
 
 // Note is a notification the extension showed.

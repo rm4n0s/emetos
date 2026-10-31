@@ -200,6 +200,13 @@ type tab struct {
 	// scm is the model of the Source Control view of the tab (scm_test.go).
 	scm *scm.Model
 
+	// dialogs are the dialogs the tab was asked to show (Dialogs().Ask), the first first; watches are the folders it was asked to
+	// watch (Workspace().Watch) with the sinks that feed them, and watchErr is the error the next watch fails with
+	// (watch_test.go).
+	dialogs  []DialogRequest
+	watches  []*rigWatch
+	watchErr error
+
 	// coreDocs is the CoreDocuments of the tab over its documents (core_test.go).
 	coreDocs *fakeCoreDocs
 
@@ -234,6 +241,8 @@ type rig struct {
 	noClip map[string]bool
 	// noSCM names tabs that have no Source Control model (scm_test.go).
 	noSCM map[string]bool
+	// noDialog and noWatch name tabs that cannot show a dialog and tabs that cannot watch a folder.
+	noDialog, noWatch map[string]bool
 }
 
 // folderOf is the folder of the tab named name.
@@ -261,7 +270,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -332,8 +341,23 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 			return nil
 		}
 	}
+	var dialog func(DialogRequest)
+	if !r.noDialog[name] {
+		dialog = func(req DialogRequest) { tb.dialogs = append(tb.dialogs, req) }
+	}
+	var watch func(context.Context, extension.WatchSpec, func([]extension.FileChange)) (func(), error)
+	if !r.noWatch[name] {
+		watch = func(_ context.Context, spec extension.WatchSpec, sink func([]extension.FileChange)) (func(), error) {
+			if tb.watchErr != nil {
+				return nil, tb.watchErr
+			}
+			w := &rigWatch{spec: spec, sink: sink}
+			tb.watches = append(tb.watches, w)
+			return func() { w.stopped = true }, nil
+		}
+	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		SCM: model, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		Dialog: dialog, Watch: watch, SCM: model, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },
@@ -526,4 +550,11 @@ func (r *rig) askFunc(tb *tab, name string) func(SharingAsk, func(SharingAnswer)
 		tb.asked = append(tb.asked, q)
 		tb.answers = append(tb.answers, answer)
 	}
+}
+
+// rigWatch is a folder a tab was asked to watch: a test feeds its sink the changes the window's watcher would report.
+type rigWatch struct {
+	spec    extension.WatchSpec
+	sink    func([]extension.FileChange)
+	stopped bool
 }

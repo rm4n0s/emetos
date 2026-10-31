@@ -473,6 +473,9 @@ func (s *shellState) scmWelcome(win *Workspace) widgets.Widget {
 		}
 	}
 	if len(pieces) == 0 {
+		if !s.scm.view.Empty() {
+			return nil // a provider is there and no content applies: the (empty) list
+		}
 		pieces = []welcome.Piece{{Contents: scmWelcomeDefault}}
 	}
 	return welcome.New(welcome.Opts{Pieces: pieces, OnLink: s.welcomeLink})

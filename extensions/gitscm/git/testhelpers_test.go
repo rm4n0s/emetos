@@ -25,3 +25,6 @@ func routeOf(t *testing.T, err error, route string) *errors.Error {
 	}
 	return appErr
 }
+
+// trustAll is the Config.Trust of the tests that are not about trust: every repository they make is the test's own.
+func trustAll(Location) bool { return true }

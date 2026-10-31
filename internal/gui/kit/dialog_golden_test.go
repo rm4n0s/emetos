@@ -37,6 +37,13 @@ func TestGoldenDialog(t *testing.T) {
 			Buttons: []string{"&&Retry", "Save &&As..."}, CancelButton: foundation.Some(1),
 		}},
 		{"unsaved", saveSpec},
+		// the trust question of the Git extension: three buttons that do not fit one line of the dialog, and the programs the
+		// configuration names
+		{"trust", DialogSpec{
+			Type: DialogWarning, Message: "Do you trust the authors of the Git repository in /home/ada/projects/emetos?",
+			Detail:  "Git can run programs that a repository names in its configuration and hooks.\n\nThe configuration names: core.fsmonitor, core.sshCommand",
+			Buttons: []string{"Trust Repository", "Trust All Repositories in projects", "Don't Trust"}, CancelButton: foundation.Some(2),
+		}},
 	}
 	for _, th := range goldenThemes {
 		for _, tc := range cases {

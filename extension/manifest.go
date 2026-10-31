@@ -272,6 +272,25 @@ var settingTypeNames = map[string]bool{"string": true, "number": true, "integer"
 // ValidSettingType tells whether the type is one a SettingSpec may have: string, number, integer, boolean, array or object.
 func ValidSettingType(typ string) bool { return settingTypeNames[typ] }
 
+// ValidSettingScope tells whether the scope is one a SettingSpec may have.
+func ValidSettingScope(scope string) bool {
+	switch scope {
+	case "", "window", "resource", "machine", "application", "language-overridable":
+		return true
+	}
+	return false
+}
+
+// validAlsoTypes tells whether every name is a JSON type or "null".
+func validAlsoTypes(types []string) bool {
+	for _, t := range types {
+		if t != "null" && !ValidSettingType(t) {
+			return false
+		}
+	}
+	return true
+}
+
 // checkSettings checks the settings a manifest declares: every key is a dotted name and new, and every type is a JSON type.
 func checkSettings(m Manifest) error {
 	seen := map[string]bool{}
@@ -282,6 +301,10 @@ func checkSettings(m Manifest) error {
 			return errors.New("ExtensionSettingDeclInvalid", "the key of a setting is a dotted name", "id", m.ID, "key", key)
 		case !ValidSettingType(s.Type):
 			return errors.New("ExtensionSettingDeclInvalid", "the type of a setting is string, number, integer, boolean, array or object", "id", m.ID, "key", key, "type", s.Type)
+		case !ValidSettingScope(s.Scope):
+			return errors.New("ExtensionSettingDeclInvalid", "the scope of a setting is window, resource, language-overridable, machine or application", "id", m.ID, "key", key, "scope", s.Scope)
+		case !validAlsoTypes(s.AlsoTypes):
+			return errors.New("ExtensionSettingDeclInvalid", "the other types of a setting are JSON types or null", "id", m.ID, "key", key, "types", s.AlsoTypes)
 		case seen[key]:
 			return errors.New("ExtensionSettingDeclDuplicate", "two settings of the extension have the same key", "id", m.ID, "key", key)
 		}

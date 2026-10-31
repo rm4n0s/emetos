@@ -132,4 +132,25 @@ type Workspace interface {
 	// others are still done. It fails with ExtensionNoFolder, ExtensionDeactivated and ExtensionFilePathInvalid (a path that
 	// leaves the folder), and with the error of ctx. It may be called from any goroutine.
 	ReplaceInFiles(ctx context.Context, files []FileReplacement) (ReplaceReport, error)
+	// Watch watches a folder, any absolute folder the user may read (the git directory of a parent repository is outside the
+	// folder of the workspace), and calls fn with the changes below it. The changes are those of the watcher of the window
+	// (inotify, or a scan every few seconds where inotify cannot be used, SPEC §10.5), gathered by its debounce and then
+	// batched: fn gets at most one batch for each turn of the UI thread, on the UI thread, with the paths absolute. The
+	// events of WatchSpec.Excludes are not reported and their folders are not watched. cancel stops it; it also ends with the
+	// activation. It blocks while the watches are placed (it reads the folder), so call it from a goroutine of the extension,
+	// not from the UI thread. It fails with ExtensionWatchUnavailable in a scope with no watcher, ExtensionWatchPathInvalid for
+	// a path that is not absolute, ExtensionDeactivated after the activation ended, and with the tags of the watcher
+	// (WatcherPathNotFound, WatcherStatFailed, WatcherAddFailed) for a folder that cannot be watched.
+	Watch(ctx context.Context, spec WatchSpec, fn func([]FileChange)) (cancel func(), err error)
+}
+
+// WatchSpec says what Workspace().Watch watches.
+type WatchSpec struct {
+	// Path is the absolute path of the folder.
+	Path string
+	// Recursive watches everything below the folder, as it grows; a link to a folder is not followed.
+	Recursive bool
+	// Excludes are paths and globs that are matched against the path relative to Path (files.watcherExclude's syntax: "**/node_modules",
+	// "objects"); what they match is not watched and gives no changes.
+	Excludes []string
 }

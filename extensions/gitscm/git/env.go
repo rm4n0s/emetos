@@ -84,7 +84,8 @@ const MaxPathsOnTheCommandLine = 200
 // LC_MESSAGES=C, LANGUAGE=en and EMETOS_GIT_COMMAND; a background command also gets GIT_OPTIONAL_LOCKS=0. The Extra variables
 // of the Config (the askpass and editor programs) follow, and the variables of the command itself come last.
 func (r *Runner) environ(name string, c Command) []string {
-	env := removeVars(r.base(), "LC_ALL")
+	// GIT_DIR and GIT_WORK_TREE of the environment of Emetos would send the command to another repository, past the trust check
+	env := removeVars(r.base(), "LC_ALL", "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR")
 	env = withVars(env,
 		"GIT_TERMINAL_PROMPT=0",
 		"GIT_PAGER=cat",

@@ -296,7 +296,7 @@ func (g *scmGroup) SetResources(resources []extension.ResourceState) {
 		r := &resources[i]
 		list[i] = scm.Resource{
 			URI: r.URI, ContextValue: r.ContextValue,
-			Decorations:          scm.Decorations{Icon: r.Decorations.Icon, Tooltip: r.Decorations.Tooltip, StrikeThrough: r.Decorations.StrikeThrough, Faded: r.Decorations.Faded, Color: r.Decorations.Color},
+			Decorations:          scm.Decorations{Icon: r.Decorations.Icon, Tooltip: r.Decorations.Tooltip, StrikeThrough: r.Decorations.StrikeThrough, Faded: r.Decorations.Faded, Color: r.Decorations.Color, Letter: r.Decorations.Letter},
 			MultiDiffOriginalURI: r.MultiFileDiffEditorOriginalURI, MultiDiffModifiedURI: r.MultiFileDiffEditorModifiedURI,
 		}
 		if r.Command != nil {

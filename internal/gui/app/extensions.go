@@ -11,6 +11,7 @@ import (
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/desktop"
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -21,6 +22,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
@@ -136,6 +138,7 @@ func (w *Workspace) startExtensions() {
 		OpenURI: w.openURI, OpenWindowTab: w.openWindowTab, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
 		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
+		Dialog: w.extensionDialog, Watch: w.extensionWatch,
 	})
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
@@ -535,6 +538,68 @@ func (w *Workspace) extensionFileChooser(ctx context.Context, opts extension.Fil
 		return "", nil
 	}
 	return res.Paths[0], nil
+}
+
+// extensionDialog shows the modal dialog of Dialogs().Ask in the window, after the dialogs that wait before it (the controller
+// queues them), and gives the answer back. Escape and the close button answer with the cancel button of the dialog.
+func (w *Workspace) extensionDialog(req exthost.DialogRequest) {
+	spec := req.Spec
+	kitSpec := kit.DialogSpec{Type: dialogType(spec.Type), Message: spec.Message, Detail: spec.Detail}
+	for i, b := range spec.Buttons {
+		kitSpec.Buttons = append(kitSpec.Buttons, b.Label)
+		if b.Cancel {
+			kitSpec.CancelButton = foundation.Some(i)
+		}
+	}
+	kitSpec.OnAnswer = func(r kit.DialogResult) {
+		req.Answered(extension.DialogResult{Button: r.Button, Cancelled: r.Cancelled})
+	}
+	w.Dialogs.Show(kitSpec)
+}
+
+// dialogType maps the type of a dialog of an extension to the kit's.
+func dialogType(t extension.DialogType) kit.DialogType {
+	switch t {
+	case extension.DialogInfo:
+		return kit.DialogInfo
+	case extension.DialogWarning:
+		return kit.DialogWarning
+	case extension.DialogError:
+		return kit.DialogError
+	}
+	return kit.DialogQuestion
+}
+
+// extensionWatch is the Watch of the scope: a subscription of the window's watcher to the folder, whose events reach sink as the
+// changes of Workspace().Watch (absolute paths). It fails with ExtensionWatchUnavailable when the window has no watcher (a
+// process made without ProcessOptions.WatchFiles).
+func (w *Workspace) extensionWatch(ctx context.Context, spec extension.WatchSpec, sink func([]extension.FileChange)) (func(), error) {
+	watcher := w.Watcher()
+	if watcher == nil {
+		return nil, errors.New("ExtensionWatchUnavailable", "the window does not watch files", "path", spec.Path)
+	}
+	return watcher.Subscribe(ctx, workspace.Target{Path: spec.Path, Recursive: spec.Recursive, Exclude: spec.Excludes}, func(events []workspace.Event) {
+		changes := make([]extension.FileChange, 0, len(events))
+		for _, e := range events {
+			changes = append(changes, extension.FileChange{Kind: fileChangeKind(e.Kind), Path: e.Path, OldPath: e.OldPath})
+		}
+		sink(changes)
+	})
+}
+
+// fileChangeKind is the kind of a FileChange for a watcher event.
+func fileChangeKind(k workspace.EventKind) string {
+	switch k {
+	case workspace.EventCreated:
+		return extension.FileCreated
+	case workspace.EventDeleted:
+		return extension.FileDeleted
+	case workspace.EventRenamed:
+		return extension.FileRenamed
+	case workspace.EventRescan:
+		return extension.FileRescan
+	}
+	return extension.FileChanged
 }
 
 // extensionQuickPick shows the list of QuickPick().Show in the quick input of the window. The icon of an item is the codicon its

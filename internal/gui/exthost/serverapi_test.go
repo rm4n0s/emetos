@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/lsp"
 	"github.com/rm4n0s/emetos/internal/core/lsp/lsptest"
+	"github.com/rm4n0s/emetos/internal/core/settings"
 )
 
 // The part of the extension API that follows and controls the language servers, the settings a manifest declares and the list an
@@ -382,4 +383,34 @@ func TestQuickPickRefusals(t *testing.T) {
 	// after the activation
 	st.rig.host.Shutdown()
 	wantRoute(t, api.QuickPick().Show(extension.QuickPickOptions{Items: []extension.QuickPickItem{{Label: "A"}}}, nil), "quickPickAPI.Show.ExtensionDeactivated")
+}
+
+func TestASettingSpecKeepsItsOtherTypesItsScopeAndItsEnumDescriptions(t *testing.T) {
+	tests := []struct {
+		name  string
+		spec  extension.SettingSpec
+		types []settings.Type
+		scope settings.Scope
+	}{
+		{"the defaults", extension.SettingSpec{Key: "a.x", Type: "string"}, []settings.Type{settings.String}, settings.ScopeWindow},
+		{"a string, null or an array", extension.SettingSpec{Key: "a.x", Type: "string", AlsoTypes: []string{"null", "array"}, Scope: "machine"},
+			[]settings.Type{settings.String, settings.Null, settings.Array}, settings.ScopeMachine},
+		{"the same type twice and an unknown one are left out", extension.SettingSpec{Key: "a.x", Type: "boolean", AlsoTypes: []string{"boolean", "float"}, Scope: "resource"},
+			[]settings.Type{settings.Boolean}, settings.ScopeResource},
+		{"language overridable", extension.SettingSpec{Key: "a.x", Type: "number", Scope: "language-overridable"}, []settings.Type{settings.Number}, settings.ScopeLanguageOverridable},
+		{"application", extension.SettingSpec{Key: "a.x", Type: "number", Scope: "application"}, []settings.Type{settings.Number}, settings.ScopeApplication},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.spec.Enum = []any{"a", "b"}
+			tc.spec.EnumDescriptions = []string{"A.", "B."}
+			s, ok := settingFromSpec(tc.spec, "Cat")
+			if !ok {
+				t.Fatal("not accepted")
+			}
+			if !slices.Equal(s.Types, tc.types) || s.Scope != tc.scope || !slices.Equal(s.EnumDescriptions, []string{"A.", "B."}) || s.Category != "Cat" {
+				t.Errorf("setting = %+v", s)
+			}
+		})
+	}
 }

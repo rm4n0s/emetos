@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -44,7 +45,7 @@ func Find(ctx context.Context, hints []string, opts FindOptions) (Installation, 
 		if c == "" {
 			continue
 		}
-		path, err := exec.LookPath(c)
+		path, err := lookPath(c, opts.Env)
 		if err != nil {
 			tried = append(tried, c)
 			if opts.Log != nil {
@@ -105,4 +106,28 @@ func rootDir() string {
 // notExist says whether err means that a file or folder is missing.
 func notExist(err error) bool {
 	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, exec.ErrNotFound)
+}
+
+// lookPath finds a program like exec.LookPath, in the PATH of env when env has one (the last PATH wins) and in the PATH of this
+// process otherwise, so that the environment a caller gives the commands also decides which git is found.
+func lookPath(file string, env []string) (string, error) {
+	pathVar, ok := "", false
+	for _, kv := range env {
+		if v, found := strings.CutPrefix(kv, "PATH="); found {
+			pathVar, ok = v, true
+		}
+	}
+	if !ok || strings.Contains(file, "/") {
+		return exec.LookPath(file)
+	}
+	for _, dir := range filepath.SplitList(pathVar) {
+		if dir == "" {
+			dir = "."
+		}
+		p := filepath.Join(dir, file)
+		if info, err := os.Stat(p); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
+			return p, nil
+		}
+	}
+	return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
 }

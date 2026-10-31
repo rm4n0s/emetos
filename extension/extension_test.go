@@ -112,6 +112,8 @@ func TestCheckManifest(t *testing.T) {
 		{"settings with free keys", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{
 			{Key: "go.gopls", Type: "object"}, {Key: "go.toolsManagement.go", Type: "string"}, {Key: "a.on", Type: "boolean"}, {Key: "a.n", Type: "integer"}, {Key: "a.l", Type: "array"}, {Key: "a.f", Type: "number"}}}}, ""},
 		{"a setting with no key", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Type: "string"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
+		{"a setting with a scope that does not exist", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "a.x", Type: "string", Scope: "universe"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
+		{"a setting with another type that does not exist", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "a.x", Type: "string", AlsoTypes: []string{"float"}}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
 		{"a setting key with an empty segment", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go..x", Type: "string"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
 		{"a setting key that ends with a dot", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go.", Type: "string"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
 		{"a setting with no type", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go.x"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},

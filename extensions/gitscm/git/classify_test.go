@@ -281,7 +281,7 @@ func TestEveryFailureIsClassifiedUnderItsOwnTag(t *testing.T) {
 				p.env(e)
 			}
 			c := p.real(t, e)
-			runner := NewRunner(Config{Path: e.GitPath, Env: withVars(e.Vars(), p.runnerEnv...)})
+			runner := NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: withVars(e.Vars(), p.runnerEnv...)})
 			_, err := runner.Run(context.Background(), c)
 			appErr := routeOf(t, err, "Runner.Run->Runner.execute->classify."+p.tag)
 			if appErr == nil {

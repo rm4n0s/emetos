@@ -34,7 +34,8 @@ func ActionButtonKey(src *scmcore.Source) foundation.Key {
 
 // BodyOpts are the options of NewBody.
 type BodyOpts struct {
-	// Welcome builds the content of the view while there is no repository (the welcome content); nil shows an empty body.
+	// Welcome builds the content of the view while there is no repository or the list has no row (a repository that waits for the
+	// trust question has no group: the welcome content tells how to trust it); nil shows the list.
 	Welcome func(bc widgets.BuildContext) widgets.Widget
 }
 
@@ -89,7 +90,7 @@ func (s *bodyState) Dispose() { s.stop() }
 func (s *bodyState) Build(bc widgets.BuildContext) widgets.Widget {
 	w := s.Widget()
 	v := w.view
-	if v.Empty() && w.opts.Welcome != nil {
+	if (v.Empty() || v.RowCount() == 0) && w.opts.Welcome != nil {
 		if welcome := w.opts.Welcome(bc); welcome != nil {
 			return widgets.NewKeyedSubtree(welcome, widgets.WidgetOpts{Key: WelcomeKey})
 		}

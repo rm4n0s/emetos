@@ -56,6 +56,11 @@ type Config struct {
 	KillGrace time.Duration
 	// MaxOutput is the most standard output Run keeps; zero means DefaultMaxOutput.
 	MaxOutput int64
+	// Trust says whether git may be started in a repository (TrustedBy makes it from the store of the user's answers). A command
+	// whose working directory, -C folder, --git-dir, --work-tree, GIT_DIR or GIT_WORK_TREE is in a repository that it does not trust is
+	// refused with GitRepositoryNotTrusted before any process starts (SPEC §10.30 "Trusting a repository", D37). Nil trusts no
+	// repository: only commands outside every repository run.
+	Trust func(Location) bool
 	// Now is the clock the durations of the log are measured with; nil means time.Now (a test gives a fake clock).
 	Now func() time.Time
 }
@@ -151,6 +156,10 @@ func (r *Runner) RunStream(ctx context.Context, c Command, consume func(stdout i
 
 func (r *Runner) execute(ctx context.Context, c Command, consume func(io.Reader) error) (Result, error) {
 	name, idx := subcommand(c.Args)
+	if loc, bad := r.untrustedRepository(c); bad {
+		return Result{}, errors.New("GitRepositoryNotTrusted", "git is not started in a repository that the user did not trust",
+			"root", loc.Root, "args", maskArgs(c.Args))
+	}
 	argv, pathInput := arguments(name, idx, c)
 	if pathInput != nil && c.Stdin != nil {
 		return Result{}, errors.New("GitStdinConflict", "the paths of the command and its input both need the standard input",

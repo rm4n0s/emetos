@@ -1,6 +1,7 @@
 package scm
 
 import (
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -548,7 +549,10 @@ func (s *Source) SetCount(count int) {
 // SetStatusBarCommands sets the items of the header and the status bar.
 func (s *Source) SetStatusBarCommands(commands []StatusCommand) {
 	s.mutate(func() bool {
-		if slices.EqualFunc(s.status, commands, func(a, b StatusCommand) bool { return a == b }) {
+		if slices.EqualFunc(s.status, commands, func(a, b StatusCommand) bool {
+			// Args is any: it holds a map or a slice for the commands of Git, which == cannot compare (it panics)
+			return a.Text == b.Text && a.Tooltip == b.Tooltip && a.Command == b.Command && reflect.DeepEqual(a.Args, b.Args)
+		}) {
 			return false
 		}
 		s.status = slices.Clone(commands)
@@ -604,12 +608,15 @@ func (s *Source) SetActionButton(b *ActionButton) {
 // control is not changed.
 func (s *Source) mutate(fn func() bool) {
 	m := s.m
-	m.mu.Lock()
-	if s.removed || !fn() {
-		m.mu.Unlock()
+	// the lock is released by defer: a panic in fn (a comparison that panics, say) must not leave the model locked
+	changed := func() bool {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		return !s.removed && fn()
+	}()
+	if !changed {
 		return
 	}
-	m.mu.Unlock()
 	m.notify(Event{Kind: SourceChanged, Source: s})
 }
 

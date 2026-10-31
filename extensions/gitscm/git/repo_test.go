@@ -17,7 +17,7 @@ import (
 // open makes a Runner for the world and opens the repository at dir.
 func open(t *testing.T, e *gittest.Env, dir string) *Repo {
 	t.Helper()
-	repo, err := Open(context.Background(), NewRunner(Config{Path: e.GitPath, Env: e.Vars()}), nil, dir)
+	repo, err := Open(context.Background(), NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: e.Vars()}), nil, dir)
 	if err != nil {
 		t.Fatalf("Open(%s): %v", dir, err)
 	}
@@ -43,7 +43,7 @@ func TestOpen(t *testing.T) {
 	sub.Write("lib.go", "package lib\n")
 	sub.Commit("lib")
 	r.Submodule("vendor/lib", sub)
-	runner := NewRunner(Config{Path: e.GitPath, Env: e.Vars()})
+	runner := NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: e.Vars()})
 	ctx := context.Background()
 
 	t.Run("the top level of a repository", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestOpen(t *testing.T) {
 		}
 	})
 	t.Run("a repository the user does not own", func(t *testing.T) {
-		unsafe := NewRunner(Config{Path: e.GitPath, Env: withVars(e.Vars(), "GIT_TEST_ASSUME_DIFFERENT_OWNER=1")})
+		unsafe := NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: withVars(e.Vars(), "GIT_TEST_ASSUME_DIFFERENT_OWNER=1")})
 		_, err := Open(ctx, unsafe, nil, r.Dir)
 		wantRoute(t, err, "Open->revParse->Queue.Do->revParse.func1->Runner.Run->Runner.execute->classify.UnsafeRepository")
 	})
@@ -855,7 +855,7 @@ func TestCheckIgnore(t *testing.T) {
 
 func TestInitAndCloneForTheHarness(t *testing.T) {
 	e := gittest.NewEnv(t)
-	runner := NewRunner(Config{Path: e.GitPath, Env: e.Vars()})
+	runner := NewRunner(Config{Trust: trustAll, Path: e.GitPath, Env: e.Vars()})
 	ctx := context.Background()
 	dir := filepath.Join(e.Work, "fresh")
 	if err := runner.Init(ctx, dir, InitOptions{DefaultBranch: "trunk"}); err != nil {

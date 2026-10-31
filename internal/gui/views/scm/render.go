@@ -306,13 +306,25 @@ func (v *View) renderResource(bc widgets.BuildContext, r *row, st kit.RowState) 
 // decoration is the decoration the service gives a resource: its letter, tooltip and color.
 func (v *View) decoration(res *scmcore.Resource) (Decoration, bool) {
 	if v.opts.Decoration == nil {
-		return Decoration{}, false
+		return v.providerLetter(res)
 	}
 	d, ok := v.opts.Decoration(res.URI)
 	if !ok || d.Badge == "" {
-		return Decoration{}, false
+		return v.providerLetter(res)
 	}
 	return d, true
+}
+
+// providerLetter is the letter the provider gave the resource itself (ResourceDecorations.Letter), for a file the decoration
+// service says nothing about.
+//
+// TODO(step 24.6): the Git extension gives the letters through api.Decorations(); this goes with the field.
+func (v *View) providerLetter(res *scmcore.Resource) (Decoration, bool) {
+	d := res.Decorations
+	if d.Letter == "" {
+		return Decoration{}, false
+	}
+	return Decoration{Badge: d.Letter, Tooltip: d.Tooltip, Color: d.Color}, true
 }
 
 // relativeDir is the folder of a resource below the root of its repository, "" for a file at the root.

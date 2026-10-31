@@ -7,6 +7,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
@@ -104,10 +105,17 @@ type autoSaveObserver struct {
 // DidChangeViewFocus implements widgets.WidgetsBindingObserver. The window has the focus for its active tab only: a
 // tab that is not the active one lost it when it was left (Workspaces.leave).
 func (o *autoSaveObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
-	if e.State != ui.ViewFocusStateUnfocused || !o.s.Mounted() {
+	if !o.s.Mounted() {
 		return
 	}
 	if win := o.s.win; win != nil && !win.activeTab() {
+		return
+	}
+	// the extensions hear both changes (emetos.window.focusChanged: the Git extension refreshes when the window comes back)
+	if win := o.s.win; win != nil && win.coreEv != nil {
+		win.coreEv.publish(extension.TopicWindowFocusChanged, extension.WindowFocus{Focused: e.State == ui.ViewFocusStateFocused})
+	}
+	if e.State != ui.ViewFocusStateUnfocused {
 		return
 	}
 	o.s.autosave.ctl.WindowFocusLost()
