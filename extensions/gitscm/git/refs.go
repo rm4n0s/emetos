@@ -12,6 +12,10 @@ import (
 // date, the date of the commit a tag points at, and "*" for the checked out branch.
 const RefsFormat = "%(refname)%00%(objectname)%00%(*objectname)%00%(upstream)%00%(upstream:track)%00%(upstream:remotename)%00%(upstream:remoteref)%00%(committerdate:unix)%00%(*committerdate:unix)%00%(HEAD)"
 
+// RefsDetailsFormat is RefsFormat with four more fields for the details a picker shows: the author's name and the subject of the commit,
+// and the same two of the commit an annotated tag points at.
+const RefsDetailsFormat = RefsFormat + "%00%(authorname)%00%(*authorname)%00%(subject)%00%(*subject)"
+
 // RefType is the kind of a reference.
 type RefType int
 
@@ -59,6 +63,9 @@ type Ref struct {
 	CommitDate time.Time
 	// Head says that the branch is checked out.
 	Head bool
+	// AuthorName and Subject are the author and the first line of the message of the commit; set by RefsDetailsFormat only (empty
+	// otherwise). For an annotated tag they are those of the commit it points at.
+	AuthorName, Subject string
 }
 
 var trackPattern = regexp.MustCompile(`\[(?:ahead (\d+))?[,\s]*(?:behind (\d+))?\]`)
@@ -81,6 +88,12 @@ func ParseRefs(data []byte) []Ref {
 		if f[2] != "" { // an annotated tag: the commit is the peeled object
 			r.Commit = f[2]
 			date = f[8]
+		}
+		if len(f) >= 14 {
+			r.AuthorName, r.Subject = f[10], f[12]
+			if f[2] != "" {
+				r.AuthorName, r.Subject = f[11], f[13]
+			}
 		}
 		if date != "" {
 			if secs, err := strconv.ParseInt(date, 10, 64); err == nil {

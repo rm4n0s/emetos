@@ -89,6 +89,8 @@ func (q *QuickNavigate) heldBy(held Modifiers) bool {
 // PickOptions describe a pick from a list of items that the caller owns: the Insert Snippet
 // picker. The items filter by their label, and by their description and detail when asked.
 type PickOptions struct {
+	// Title is a line centered above the input (VS Code's title); none when empty.
+	Title string
 	// Placeholder is the hint of the input.
 	Placeholder string
 	// Items are the items; each item's Accept runs when it is chosen.
@@ -413,6 +415,7 @@ func (c *Controller) Pick(opts PickOptions) {
 	c.picker = NewPicker()
 	c.picker.MatchOnDescription, c.picker.MatchOnDetail = opts.MatchOnDescription, opts.MatchOnDetail
 	c.picker.IgnoreFocusOut = opts.IgnoreFocusOut
+	c.picker.SetTitle(opts.Title)
 	c.picker.SetPlaceholder(opts.Placeholder)
 	c.picker.SetItems(opts.Items)
 	if opts.ActiveID != "" {

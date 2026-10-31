@@ -574,7 +574,7 @@ func (r *repository) remoteNamed(name string) *git.Remote {
 	return nil
 }
 
-// updateStatusBar sets the items of the branch and of the sync (display only until steps 24.13 and 24.15 give them their commands).
+// updateStatusBar sets the items of the branch and of the sync (the sync item is display only until step 24.15).
 //
 // Ported from VS Code: extensions/git/src/statusbar.ts
 func (r *repository) updateStatusBar() {
@@ -585,32 +585,58 @@ func (r *repository) updateStatusBar() {
 	var items []extension.StatusCommand
 	h := r.head
 	if h.name != "" || h.commit != "" {
-		icon := "git-commit"
-		switch {
-		case h.name != "":
-			switch {
-			case r.ops.merge || r.ops.rebaseCommit != "":
-				icon = "git-branch-conflicts"
-			case len(r.res.index) > 0:
-				icon = "git-branch-staged-changes"
-			case len(r.res.working)+len(r.res.untracked) > 0:
-				icon = "git-branch-changes"
-			default:
-				icon = "git-branch"
-			}
-		case h.tag != "":
-			icon = "tag"
-		}
-		label := r.headLabel()
-		if r.ops.rebaseCommit != "" {
-			label += " (Rebasing)"
-		}
-		items = append(items, extension.StatusCommand{Text: "$(" + icon + ") " + label, Tooltip: label + ", Checkout Branch/Tag...", Command: "git.checkout", Args: args})
+		items = append(items, r.branchItem(args))
 	}
 	if sync, ok := r.syncItem(args); ok {
 		items = append(items, sync)
 	}
 	r.src.SetStatusBarCommands(items)
+}
+
+// branchItem is the branch item of the status bar: the icon of the state of HEAD (a lock for a protected branch, the conflicts, the
+// staged changes, the changes, a tag, a commit, a spinning wheel while a checkout runs), the branch with its marks or the ref a running
+// checkout switches to, and the click that opens the checkout picker, which is off while a checkout, a commit or a sync runs.
+//
+// Ported from VS Code: extensions/git/src/statusbar.ts (CheckoutStatusBar)
+func (r *repository) branchItem(args []any) extension.StatusCommand {
+	h := r.head
+	icon := "git-commit"
+	switch {
+	case r.checkingOut:
+		icon = "loading~spin"
+	case h.name != "":
+		switch {
+		case r.isBranchProtected():
+			icon = "lock"
+		case r.ops.merge || r.ops.rebaseCommit != "":
+			icon = "git-branch-conflicts"
+		case len(r.res.index) > 0:
+			icon = "git-branch-staged-changes"
+		case len(r.res.working)+len(r.res.untracked) > 0:
+			icon = "git-branch-changes"
+		default:
+			icon = "git-branch"
+		}
+	case h.tag != "":
+		icon = "tag"
+	}
+	label := r.headLabel()
+	if r.ops.rebaseCommit != "" {
+		label += " (Rebasing)"
+	}
+	if r.checkingOut && r.checkoutLabel != "" {
+		label = r.checkoutLabel
+	}
+	tooltip, command := "Checkout Branch/Tag...", "git.checkout"
+	switch {
+	case r.checkingOut:
+		tooltip, command = "Checking Out Branch/Tag...", ""
+	case r.committing:
+		tooltip, command = "Committing Changes...", ""
+	case r.syncing:
+		tooltip, command = "Synchronizing Changes...", ""
+	}
+	return extension.StatusCommand{Text: "$(" + icon + ") " + label, Tooltip: label + ", " + tooltip, Command: command, Args: args}
 }
 
 // syncItem is the sync item: the arrows of what is behind and ahead, "publish" when the branch has no upstream or the repository has no

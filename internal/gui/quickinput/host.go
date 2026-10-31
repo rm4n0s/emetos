@@ -31,6 +31,7 @@ const (
 	entryPadding  = 6.0
 	rowRadius     = 3.0
 	rowFontSize   = 13.0
+	titlePadding  = 3.0
 )
 
 // HostOptions are the options of NewHost.
@@ -597,6 +598,12 @@ func (s *hostState) widget(bc widgets.BuildContext, width float64) widgets.Widge
 		OnSubmit:         func(string) { s.ctl.Accept(s.mods()) },
 	})
 	var col []widgets.Widget
+	if title := pk.Title(); title != "" {
+		// the title bar: the text centered, 3 px above and below it (VS Code's .quick-input-title)
+		col = append(col, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(headerPadding, titlePadding+headerPadding/2, headerPadding, titlePadding),
+			widgets.NewText(title, widgets.TextOpts{Style: kit.TextStyleOf(bc, rowFontSize, colors.Foreground), MaxLines: foundation.Some(1),
+				TextAlign: ui.TextAlignCenter, Overflow: painting.TextOverflowEllipsis})))
+	}
 	if pk.HideInput {
 		// The switcher has no input to see, but the input keeps the keyboard focus.
 		col = append(col, widgets.NewSizedBox(widgets.NewClipRect(input), widgets.SizedBoxOpts{Height: foundation.Some(0.0)}),

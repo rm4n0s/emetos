@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -218,7 +219,17 @@ func TestACallbackThatPanicsFailsTheExtension(t *testing.T) {
 				}
 			},
 			route: "Scope.runQuickPickDone.func1.ExtensionQuickPickCallbackPanicked", tag: "ExtensionQuickPickCallbackPanicked",
-			fire: func(_ *serverTest, tb *tab) { tb.picks[0].Chosen(0) },
+			fire: func(_ *serverTest, tb *tab) { tb.picks[0].Chosen(0, "") },
+		},
+		{
+			name: "the text of a quick pick",
+			setup: func(st *serverTest) {
+				st.onActivate = func(_ context.Context, a extension.API) error {
+					return a.QuickPick().Show(extension.QuickPickOptions{Items: []extension.QuickPickItem{{Label: "A"}}, OnAccept: func(string) { panic("boom") }}, nil)
+				}
+			},
+			route: "Scope.runQuickPickAccept.func1.ExtensionQuickPickCallbackPanicked", tag: "ExtensionQuickPickCallbackPanicked",
+			fire: func(_ *serverTest, tb *tab) { tb.picks[0].Chosen(0, "x") },
 		},
 	}
 	for _, tt := range tests {
@@ -330,13 +341,13 @@ func TestQuickPickShowsAListAndReportsTheChoice(t *testing.T) {
 		t.Fatalf("request = %+v", req)
 	}
 	// the index is that of the extension's own list; the command runs before the extension hears of the choice
-	req.Chosen(1)
+	req.Chosen(1, "")
 	if !slices.Equal(chosen, []int{2}) || !slices.Equal(commandsRun, []string{"with-args"}) {
 		t.Errorf("chosen = %v, commands run = %v", chosen, commandsRun)
 	}
 	// a second answer is ignored
 	req.Hidden()
-	req.Chosen(0)
+	req.Chosen(0, "")
 	if !slices.Equal(chosen, []int{2}) {
 		t.Errorf("chosen = %v after more answers", chosen)
 	}
@@ -355,7 +366,7 @@ func TestQuickPickShowsAListAndReportsTheChoice(t *testing.T) {
 	if err := st.api.QuickPick().Show(opts, done); err != nil {
 		t.Fatal(err)
 	}
-	tb.picks[2].Chosen(7)
+	tb.picks[2].Chosen(7, "")
 	if !slices.Equal(chosen, []int{-1}) {
 		t.Errorf("chosen = %v, want -1", chosen)
 	}
@@ -363,7 +374,46 @@ func TestQuickPickShowsAListAndReportsTheChoice(t *testing.T) {
 	if err := st.api.QuickPick().Show(opts, nil); err != nil {
 		t.Fatal(err)
 	}
-	tb.picks[3].Chosen(0)
+	tb.picks[3].Chosen(0, "")
+}
+
+// TestQuickPickSeparatorsTitleAndTypedText: the request carries the title, the separators and the always-shown flag, the list needs one item
+// that is not a separator, a separator is never chosen, and OnAccept hears the typed text before done hears the index.
+func TestQuickPickSeparatorsTitleAndTypedText(t *testing.T) {
+	st := newServerTest(t, simple(), nil)
+	tb := st.startTab("one")
+	var order []string
+	opts := extension.QuickPickOptions{
+		Title: "Checkout",
+		Items: []extension.QuickPickItem{
+			{Label: "Create", AlwaysShow: true},
+			{Label: "branches", Separator: true},
+			{Label: "main"},
+		},
+		OnAccept: func(v string) { order = append(order, "typed:"+v) },
+	}
+	if err := st.api.QuickPick().Show(opts, func(i int) { order = append(order, "index:"+strconv.Itoa(i)) }); err != nil {
+		t.Fatal(err)
+	}
+	req := tb.picks[0]
+	if req.Title != "Checkout" || len(req.Items) != 3 || !req.Items[0].AlwaysShow || !req.Items[1].Separator || req.Items[2].Separator {
+		t.Fatalf("request = %+v", req)
+	}
+	req.Chosen(2, "ma")
+	if !slices.Equal(order, []string{"typed:ma", "index:2"}) {
+		t.Errorf("order = %v", order)
+	}
+	// a separator cannot be chosen
+	order = nil
+	if err := st.api.QuickPick().Show(opts, func(i int) { order = append(order, "index:"+strconv.Itoa(i)) }); err != nil {
+		t.Fatal(err)
+	}
+	tb.picks[1].Chosen(1, "x")
+	if !slices.Equal(order, []string{"index:-1"}) {
+		t.Errorf("order after a separator = %v", order)
+	}
+	// only separators is not a list
+	wantRoute(t, st.api.QuickPick().Show(extension.QuickPickOptions{Items: []extension.QuickPickItem{{Label: "head", Separator: true}}}, nil), "quickPickAPI.Show.ExtensionQuickPickInvalid")
 }
 
 func TestQuickPickRefusals(t *testing.T) {

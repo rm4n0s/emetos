@@ -39,6 +39,9 @@ type mutation struct {
 	// failed, when set, sees the failure of run on the UI thread before the generic notification is made, and returns true when it
 	// told the user itself.
 	failed func(err error) bool
+	// begin runs on the UI thread before run starts, and finally when it ended, whatever the result (the checkout shows its running
+	// state between the two).
+	begin, finally func()
 }
 
 // mutate runs a mutation on the repository.
@@ -50,6 +53,9 @@ func (r *repository) mutate(m mutation) {
 	if m.optimistic != nil {
 		m.optimistic()
 	}
+	if m.begin != nil {
+		m.begin()
+	}
 	r.beginOwn()
 	ctx, repo, gen := r.ctx, r.repo, r.gen
 	go func() {
@@ -57,6 +63,9 @@ func (r *repository) mutate(m mutation) {
 		x.api.Post(func() {
 			if r.disposed {
 				return
+			}
+			if m.finally != nil {
+				m.finally()
 			}
 			if err == nil && gen == r.gen && m.after != nil {
 				m.after()

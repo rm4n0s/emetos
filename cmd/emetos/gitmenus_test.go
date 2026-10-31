@@ -256,6 +256,57 @@ func TestTheStashMenusHoldInTheStatesOfVSCode(t *testing.T) {
 	})
 }
 
+// TestTheBranchAndTagMenusHoldInTheStatesOfVSCode checks Checkout to... in the header of the view and of a repository, the Branch and Tags
+// submenus and their entries, and the palette (step 24.13) against VS Code's package.json.
+func TestTheBranchAndTagMenusHoldInTheStatesOfVSCode(t *testing.T) {
+	m := gitManifest(t)
+	mine := func(it extension.MenuItem) bool {
+		switch it.Command {
+		case "git.checkout", "git.branch", "git.branchFrom", "git.renameBranch", "git.deleteBranch", "git.deleteRemoteBranch",
+			"git.createTag", "git.deleteTag", "git.deleteRemoteTag", "git.pushTags":
+			return true
+		}
+		return it.Submenu == "git.branch" || it.Submenu == "git.tags"
+	}
+	enabled := map[string]any{"config.git.enabled": true, "git.missing": false, "gitOpenRepositoryCount": 1, "scmProvider": "git"}
+	t.Run("the header and the submenus are in the menus of the view and of a repository", func(t *testing.T) {
+		for _, menu := range []string{extension.MenuSCMTitle, extension.MenuSCMRepository} {
+			want := []string{"1_header git.checkout", "2_main submenu git.branch", "2_main submenu git.tags"}
+			if got := holds(t, m, menu, enabled, mine); !slices.Equal(got, want) {
+				t.Errorf("%s: %v, want %v", menu, got, want)
+			}
+			other := map[string]any{"config.git.enabled": true, "scmProvider": "other"}
+			if got := holds(t, m, menu, other, mine); len(got) != 0 {
+				t.Errorf("%s of another provider: %v", menu, got)
+			}
+		}
+	})
+	t.Run("the entries of the submenus", func(t *testing.T) {
+		branch := []string{"2_branch git.branch", "2_branch git.branchFrom", "3_modify git.renameBranch", "3_modify git.deleteBranch", "3_modify git.deleteRemoteBranch"}
+		if got := holds(t, m, "git.branch", enabled, mine); !slices.Equal(got, branch) {
+			t.Errorf("Branch: %v", got)
+		}
+		tags := []string{"1_tags git.createTag", "1_tags git.deleteTag", "1_tags git.deleteRemoteTag", "2_tags git.pushTags"}
+		if got := holds(t, m, "git.tags", enabled, mine); !slices.Equal(got, tags) {
+			t.Errorf("Tags: %v", got)
+		}
+	})
+	t.Run("the palette needs a repository", func(t *testing.T) {
+		palette := map[string]string{}
+		for _, it := range m.Contributes.Menus {
+			if it.Menu == extension.MenuCommandPalette && mine(it) {
+				palette[it.Command] = it.When
+			}
+		}
+		for _, id := range []string{"git.checkout", "git.branch", "git.branchFrom", "git.renameBranch", "git.deleteBranch", "git.deleteRemoteBranch",
+			"git.createTag", "git.deleteTag", "git.deleteRemoteTag", "git.pushTags"} {
+			if want := "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"; palette[id] != want {
+				t.Errorf("%s: palette condition %q", id, palette[id])
+			}
+		}
+	})
+}
+
 // TestTheCommitMenusHoldInTheStatesOfVSCode checks the check mark in the title of the view, the Commit submenu of the "..." menus and its
 // entries (the no-verify ones only with git.allowNoVerifyCommit), and the palette (step 24.10).
 func TestTheCommitMenusHoldInTheStatesOfVSCode(t *testing.T) {

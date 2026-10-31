@@ -30,6 +30,7 @@ type Picker struct {
 	// top of the list.
 	KeepScrollPosition bool
 
+	title       string
 	placeholder string
 	message     string
 	info        string
@@ -77,6 +78,17 @@ func (p *Picker) SetItemActivation(a ItemActivation) { p.activation = a }
 // NewPicker makes an empty picker that filters by label and sorts by label.
 func NewPicker() *Picker {
 	return &Picker{MatchOnLabel: true, SortByLabel: true, active: -1}
+}
+
+// Title is the line centered above the input (PickOptions.Title), or "".
+func (p *Picker) Title() string { return p.title }
+
+// SetTitle sets the line above the input; "" takes it away.
+func (p *Picker) SetTitle(s string) {
+	if p.title != s {
+		p.title = s
+		p.fireChanged()
+	}
 }
 
 // Placeholder is the hint shown in the input while it is empty.

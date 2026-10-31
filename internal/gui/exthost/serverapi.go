@@ -224,19 +224,25 @@ func (s *Scope) installSettings(sl *slot) []func() {
 // QuickPickEntry is a row of a list the window shows for an extension.
 type QuickPickEntry struct {
 	Label, Description, Detail string
+	// Separator makes the entry a heading of the entries after it; it cannot be chosen. AlwaysShow keeps it in the list whatever the
+	// filter says.
+	Separator, AlwaysShow bool
 }
 
 // QuickPickRequest is what a window shows for QuickPick().Show: the list, and what it calls when it ends. Chosen is called
 // with the index in Items of the entry, after the list is hidden; Hidden is called once when the list ends without a choice
 // (closed, or replaced by another quick input).
 type QuickPickRequest struct {
+	// Title is the line centered above the input.
+	Title              string
 	Placeholder        string
 	Items              []QuickPickEntry
 	MatchOnDescription bool
 	// IgnoreFocusOut keeps the list open when the focus leaves it.
 	IgnoreFocusOut bool
-	Chosen         func(index int)
-	Hidden         func()
+	// Chosen is called with the index in Items and the text that was typed in the filter.
+	Chosen func(index int, value string)
+	Hidden func()
 }
 
 // quickPickAPI is the extension.QuickPick of one activation.
@@ -257,15 +263,19 @@ func (q quickPickAPI) Show(opts extension.QuickPickOptions, done func(index int)
 	}
 	var entries []QuickPickEntry
 	var index []int
+	choices := 0
 	for i, it := range opts.Items {
 		if it.Label == "" {
 			continue
 		}
-		entries = append(entries, QuickPickEntry{Label: it.Label, Description: it.Description, Detail: it.Detail})
+		entries = append(entries, QuickPickEntry{Label: it.Label, Description: it.Description, Detail: it.Detail, Separator: it.Separator, AlwaysShow: it.AlwaysShow})
 		index = append(index, i)
+		if !it.Separator {
+			choices++
+		}
 	}
-	if len(entries) == 0 {
-		return errors.New("ExtensionQuickPickInvalid", "a quick pick needs at least one item with a label", "extension", in.id)
+	if choices == 0 {
+		return errors.New("ExtensionQuickPickInvalid", "a quick pick needs at least one item with a label that is not a separator", "extension", in.id)
 	}
 	var once sync.Once
 	finish := func(i int) {
@@ -276,13 +286,16 @@ func (q quickPickAPI) Show(opts extension.QuickPickOptions, done func(index int)
 		})
 	}
 	show(QuickPickRequest{
-		Placeholder: opts.Placeholder, Items: entries, MatchOnDescription: opts.MatchOnDescription, IgnoreFocusOut: opts.IgnoreFocusOut,
-		Chosen: func(i int) {
-			if i < 0 || i >= len(index) || in.isDead() {
+		Title: opts.Title, Placeholder: opts.Placeholder, Items: entries, MatchOnDescription: opts.MatchOnDescription, IgnoreFocusOut: opts.IgnoreFocusOut,
+		Chosen: func(i int, value string) {
+			if i < 0 || i >= len(index) || in.isDead() || opts.Items[index[i]].Separator {
 				finish(-1)
 				return
 			}
 			chosen := opts.Items[index[i]]
+			if opts.OnAccept != nil {
+				in.scope.runQuickPickAccept(in, opts.OnAccept, value)
+			}
 			if chosen.Command != "" && in.scope.opts.Commands != nil {
 				ctx := command.Context{Ctx: in.ctx, Source: command.SourceAPI}
 				if err := in.scope.opts.Commands.Run(ctx, chosen.Command, chosen.Args); err != nil {
@@ -294,6 +307,21 @@ func (q quickPickAPI) Show(opts extension.QuickPickOptions, done func(index int)
 		Hidden: func() { finish(-1) },
 	})
 	return nil
+}
+
+// runQuickPickAccept calls the function an extension gave to hear the text of the filter of a quick pick when an item is chosen. A
+// panic fails the extension with ExtensionQuickPickCallbackPanicked.
+func (s *Scope) runQuickPickAccept(inst *instance, f func(string), value string) {
+	if inst.isDead() {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			failure := errors.NewErrf("ExtensionQuickPickCallbackPanicked", "it panicked in the function that hears the text of a quick pick: %v", r).SetMetadata("extension", inst.id, "scope", s.opts.Info.Name)
+			s.fail(inst.slot, failure, "quick pick")
+		}
+	}()
+	f(value)
 }
 
 // runQuickPickDone calls the function an extension gave to hear the end of a quick pick. A panic fails the extension with

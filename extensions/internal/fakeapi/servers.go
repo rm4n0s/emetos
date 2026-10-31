@@ -157,8 +157,21 @@ func (p *Pick) Labels() []string {
 	return out
 }
 
-// Choose chooses the item: its command is recorded (see RanCommands) and the extension is told the index.
+// Choose chooses the item: its command is recorded (see RanCommands) and the extension is told the index. The text typed in the filter
+// is empty; ChooseTyped gives one.
 func (p *Pick) Choose(index int) {
+	p.a.t.Helper()
+	p.ChooseTyped(index, "")
+}
+
+// ChooseTyped chooses the item with the text typed in the filter (the argument of QuickPickOptions.OnAccept). A separator cannot be
+// chosen: it fails the test.
+func (p *Pick) ChooseTyped(index int, typed string) {
+	p.a.t.Helper()
+	if p.opts.Items[index].Separator {
+		p.a.t.Fatalf("the item %d of the quick pick is a separator", index)
+		return
+	}
 	p.mu.Lock()
 	if p.over {
 		p.mu.Unlock()
@@ -168,6 +181,9 @@ func (p *Pick) Choose(index int) {
 	p.over = true
 	p.mu.Unlock()
 	it := p.opts.Items[index]
+	if p.opts.OnAccept != nil {
+		p.opts.OnAccept(typed)
+	}
 	if it.Command != "" {
 		p.a.mu.Lock()
 		p.a.ranCommands = append(p.a.ranCommands, RanCommand{ID: it.Command, Args: it.Args})
@@ -195,8 +211,8 @@ type quickPick struct{ a *API }
 func (a *API) QuickPick() extension.QuickPick { return quickPick{a} }
 
 func (q quickPick) Show(opts extension.QuickPickOptions, done func(int)) error {
-	if !slices.ContainsFunc(opts.Items, func(it extension.QuickPickItem) bool { return it.Label != "" }) {
-		return errors.New("FakeQuickPickInvalid", "a quick pick needs an item with a label")
+	if !slices.ContainsFunc(opts.Items, func(it extension.QuickPickItem) bool { return it.Label != "" && !it.Separator }) {
+		return errors.New("FakeQuickPickInvalid", "a quick pick needs an item with a label that is not a separator")
 	}
 	q.a.mu.Lock()
 	q.a.picks = append(q.a.picks, &Pick{a: q.a, opts: opts, done: done})

@@ -55,7 +55,7 @@ func TestAnExtensionListIsShownInTheQuickInput(t *testing.T) {
 			w.extensionQuickPick(exthost.QuickPickRequest{
 				Placeholder: "Go 1.26 - gopls",
 				Items:       []exthost.QuickPickEntry{{Label: "$(sync) Restart", Description: "gopls"}, {Label: "Output"}},
-				Chosen:      func(i int) { chosen = append(chosen, i) },
+				Chosen:      func(i int, _ string) { chosen = append(chosen, i) },
 				Hidden:      func() { hidden++; chosen = append(chosen, -1) },
 			})
 			if !w.QuickInput.Visible() {
@@ -73,6 +73,46 @@ func TestAnExtensionListIsShownInTheQuickInput(t *testing.T) {
 				t.Errorf("chosen = %v, want %v", chosen, tt.want)
 			}
 		})
+	}
+}
+
+// TestAnExtensionListWithSeparatorsAndATitle: a separator is the heading of the items after it and is never chosen, an item that is always
+// shown stays when the filter does not match it, the title is the picker's, and the choice carries the text typed in the filter.
+func TestAnExtensionListWithSeparatorsAndATitle(t *testing.T) {
+	w := settingsWindow(t, nil)
+	t.Cleanup(w.release)
+	var chosen []int
+	var typed []string
+	w.extensionQuickPick(exthost.QuickPickRequest{
+		Title:       "Checkout",
+		Placeholder: "Select a branch or tag to checkout",
+		Items: []exthost.QuickPickEntry{
+			{Label: "$(plus) Create new branch...", AlwaysShow: true},
+			{Label: "branches", Separator: true},
+			{Label: "main", Description: "abc1234"},
+			{Label: "tags", Separator: true},
+			{Label: "v1.0"},
+		},
+		Chosen: func(i int, v string) { chosen = append(chosen, i); typed = append(typed, v) },
+		Hidden: func() {},
+	})
+	p := w.QuickInput.Picker()
+	if p.Title() != "Checkout" {
+		t.Errorf("title = %q", p.Title())
+	}
+	rows := p.Rows()
+	if len(rows) != 3 || rows[1].Separator != "branches" || rows[2].Separator != "tags" || !rows[1].Border || rows[0].Separator != "" {
+		t.Fatalf("rows = %+v", rows)
+	}
+	// a filter keeps the item that is always shown, after the matches
+	w.QuickInput.SetValue("v1")
+	rows = p.Rows()
+	if len(rows) != 2 || rows[0].Item.Label != "v1.0" || rows[1].Item.Label != "Create new branch..." {
+		t.Fatalf("filtered rows = %+v", rows)
+	}
+	w.QuickInput.Accept(quickinput.KeyMods{})
+	if !slices.Equal(chosen, []int{4}) || !slices.Equal(typed, []string{"v1"}) {
+		t.Errorf("chosen = %v, typed = %q", chosen, typed)
 	}
 }
 
@@ -137,7 +177,7 @@ func TestAnExtensionQuestionThatIgnoresFocusOutStaysOpen(t *testing.T) {
 	if p := w.QuickInput.Picker(); p.Info() != "" || p.IgnoreFocusOut {
 		t.Errorf("the next input box: info %q, ignore focus out %v", p.Info(), p.IgnoreFocusOut)
 	}
-	w.extensionQuickPick(exthost.QuickPickRequest{Placeholder: "Sure?", IgnoreFocusOut: true, Items: []exthost.QuickPickEntry{{Label: "Yes"}}, Chosen: func(int) {}, Hidden: func() {}})
+	w.extensionQuickPick(exthost.QuickPickRequest{Placeholder: "Sure?", IgnoreFocusOut: true, Items: []exthost.QuickPickEntry{{Label: "Yes"}}, Chosen: func(int, string) {}, Hidden: func() {}})
 	if !w.QuickInput.Picker().IgnoreFocusOut {
 		t.Error("the list does not ignore the focus leaving it")
 	}

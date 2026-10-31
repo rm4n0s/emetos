@@ -10,10 +10,8 @@ import (
 )
 
 // The protected branch and the name of the branch a commit goes to instead (git.branchProtection, git.branchProtectionPrompt), and the
-// prompt for the name of a new branch.
-//
-// TODO(step 24.13): the branch commands share this prompt; the random names (git.branchRandomName.*) and the regenerate button come with
-// them.
+// prompt for the name of a new branch that the commit and the branch commands share. The random branch names of VS Code
+// (git.branchRandomName.* and the button that makes another) are not built: SPEC §10.30 "Not built".
 //
 // Ported from VS Code: extensions/git/src/commands.ts (smartCommit: the branch protection hook, promptForBranchName, sanitizeBranchName)
 
@@ -43,7 +41,7 @@ func (c *commitRun) branchProtection(next func()) {
 		return
 	}
 	toNewBranch := func() {
-		x.askBranchName(r, func(name string) {
+		x.promptBranchName(r, "", "", func(name string) {
 			r.mutate(mutation{
 				name: "branch",
 				run:  func(ctx context.Context, repo *git.Repo) error { return repo.CreateBranch(ctx, name) },
@@ -71,10 +69,17 @@ func (c *commitRun) branchProtection(next func()) {
 	})
 }
 
-// askBranchName asks for the name of a new branch in an input box that checks it as it is typed, and calls done with the name made safe.
-// Nothing is called when the box is closed without a name.
-func (x *gitscm) askBranchName(r *repository, done func(name string)) {
+// promptBranchName asks for the name of a new branch in an input box that checks it as it is typed, and calls done with the name made
+// safe. The box starts with initial, or with git.branchPrefix when that is empty. A defaultName makes the box unnecessary: it is the name
+// (the text typed beside "Create new branch..." in the checkout picker). Nothing is called when the box is closed without a name.
+func (x *gitscm) promptBranchName(r *repository, defaultName, initial string, done func(name string)) {
 	whitespace := read(x.api, "git.branchWhitespaceChar", "-")
+	if defaultName != "" {
+		if name := sanitizeBranchName(defaultName, whitespace); name != "" {
+			done(name)
+		}
+		return
+	}
 	validation := read(x.api, "git.branchValidationRegex", "")
 	existing := map[string]bool{}
 	for _, ref := range r.refs {
@@ -100,8 +105,11 @@ func (x *gitscm) askBranchName(r *repository, done func(name string)) {
 		}
 		return ""
 	}
+	if initial == "" {
+		initial = read(x.api, "git.branchPrefix", "")
+	}
 	err := x.api.InputBox().Show(extension.InputBoxOptions{
-		Prompt: "Branch name", Message: "Please provide a new branch name", Value: read(x.api, "git.branchPrefix", ""), IgnoreFocusOut: true, Validate: check,
+		Prompt: "Branch name", Message: "Please provide a new branch name", Value: initial, IgnoreFocusOut: true, Validate: check,
 	}, func(value string, ok bool) {
 		if !ok {
 			return

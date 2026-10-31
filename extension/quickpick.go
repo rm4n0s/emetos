@@ -10,10 +10,18 @@ type QuickPickItem struct {
 	// of Show still gets the index. Use it for a command of the editor, such as workbench.action.openSettings.
 	Command string
 	Args    any
+	// Separator makes the item a heading: only its Label is used, it is drawn at the right of the next item that is shown, with a line
+	// above that item, and it cannot be chosen (VS Code's QuickPickItemKind.Separator). Its index is never given to done.
+	Separator bool
+	// AlwaysShow keeps the item in the list when the text typed in the filter does not match it (VS Code's alwaysShow): the entries
+	// that make something new, such as "Create new branch...".
+	AlwaysShow bool
 }
 
 // QuickPickOptions describe a quick pick.
 type QuickPickOptions struct {
+	// Title is a line of text centered above the input (VS Code's title); none when empty.
+	Title string
 	// Placeholder is the hint of the input.
 	Placeholder string
 	// Items are the rows; an item with an empty Label is not shown.
@@ -23,14 +31,18 @@ type QuickPickOptions struct {
 	// IgnoreFocusOut keeps the list open when the user clicks elsewhere or the window loses the focus, as VS Code's ignoreFocusOut does:
 	// only a choice and Escape end it. A question that a running program waits for (ssh's host key) sets it.
 	IgnoreFocusOut bool
+	// OnAccept, when set, is called on the UI thread just before done, when an item was chosen, with the text that was typed in the
+	// filter at that moment (VS Code's quickPick.value). The checkout picker uses it: the text typed beside "Create new branch..." is
+	// the name of the branch.
+	OnAccept func(value string)
 }
 
 // QuickPick shows a list over the editor to choose one item from, as the command palette does (SPEC §10.3).
 type QuickPick interface {
 	// Show opens the quick pick. done is called once, on the UI thread, after the list is hidden: with the index in
 	// Options.Items of the chosen item, or -1 when it was closed without a choice or another quick input took its place. The
-	// command of the item, if it has one, runs before done. It fails with ExtensionQuickPickInvalid when no item has a
-	// label, with ExtensionQuickPickUnavailable when the scope cannot show a list (a window tab of an extension has none) and
+	// command of the item, if it has one, runs before done. It fails with ExtensionQuickPickInvalid when no item that is not a
+	// separator has a label, with ExtensionQuickPickUnavailable when the scope cannot show a list (a window tab of an extension has none) and
 	// with ExtensionDeactivated after the activation ended; done is not called then.
 	Show(opts QuickPickOptions, done func(index int)) error
 }

@@ -60,6 +60,29 @@ func TestTheFakeServersRefuseAnUnknownId(t *testing.T) {
 	}
 }
 
+func TestTheFakeQuickPickWithSeparatorsAndTypedText(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{})
+	var chosen []int
+	var typed []string
+	opts := extension.QuickPickOptions{
+		Title:    "Checkout",
+		Items:    []extension.QuickPickItem{{Label: "branches", Separator: true}, {Label: "main"}, {Label: "Create", AlwaysShow: true}},
+		OnAccept: func(v string) { typed = append(typed, v) },
+	}
+	if err := a.QuickPick().Show(opts, func(i int) { chosen = append(chosen, i) }); err != nil {
+		t.Fatal(err)
+	}
+	a.LastPick().ChooseTyped(2, "my-topic")
+	if !slices.Equal(chosen, []int{2}) || !slices.Equal(typed, []string{"my-topic"}) {
+		t.Errorf("chosen %v, typed %q", chosen, typed)
+	}
+	if a.LastPick().Options().Title != "Checkout" {
+		t.Errorf("title = %q", a.LastPick().Options().Title)
+	}
+	// a list of separators only is no list
+	route(t, a.QuickPick().Show(extension.QuickPickOptions{Items: []extension.QuickPickItem{{Label: "heading", Separator: true}}}, nil), "quickPick.Show.FakeQuickPickInvalid")
+}
+
 func TestTheFakeQuickPick(t *testing.T) {
 	a := New(t, manifest(), extension.ScopeInfo{})
 	var chosen []int

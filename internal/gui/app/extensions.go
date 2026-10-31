@@ -620,22 +620,34 @@ func fileChangeKind(k workspace.EventKind) string {
 // label starts with ($(name) Label).
 func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 	items := make([]quickinput.Item, len(req.Items))
+	var picker *quickinput.Picker
 	for i, e := range req.Items {
 		i := i
 		label, icon := splitLabelIcon(e.Label)
+		if e.Separator {
+			items[i] = quickinput.Item{ID: strconv.Itoa(i), Label: label, Separator: true}
+			continue
+		}
 		items[i] = quickinput.Item{
-			ID: strconv.Itoa(i), Label: label, Icon: icon, Description: e.Description, Detail: e.Detail,
-			Accept: func(quickinput.KeyMods) { req.Chosen(i) },
+			ID: strconv.Itoa(i), Label: label, Icon: icon, Description: e.Description, Detail: e.Detail, AlwaysShow: e.AlwaysShow,
+			Accept: func(quickinput.KeyMods) {
+				value := ""
+				if picker != nil {
+					value = picker.Value()
+				}
+				req.Chosen(i, value)
+			},
 		}
 	}
 	w.QuickInput.Pick(quickinput.PickOptions{
-		Placeholder: req.Placeholder, Items: items, MatchOnDescription: req.MatchOnDescription, IgnoreFocusOut: req.IgnoreFocusOut,
+		Title: req.Title, Placeholder: req.Placeholder, Items: items, MatchOnDescription: req.MatchOnDescription, IgnoreFocusOut: req.IgnoreFocusOut,
 		OnHide: func(accepted bool) {
 			if !accepted {
 				req.Hidden()
 			}
 		},
 	})
+	picker = w.QuickInput.Picker()
 }
 
 // extensionInputBox shows the input box of InputBox().Show in the quick input of the window. The prompt is the hint of the input;

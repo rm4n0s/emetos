@@ -276,18 +276,21 @@ func stashIndexArg(args any) (int, bool) {
 // cmdStashCommand makes the handler of git.stash, git.stashIncludeUntracked and git.stashStaged.
 func (x *gitscm) cmdStashCommand(includeUntracked, staged bool) extension.CommandHandler {
 	return func(_ context.Context, args any) error {
-		x.target(args, true, func(r *repository) { x.stashChanges(r, includeUntracked, staged, args) })
+		x.target(args, true, func(r *repository) { x.stashChanges(r, includeUntracked, staged, args, nil) })
 		return nil
 	}
 }
 
 // stashChanges is VS Code's _stash: the checks of what there is to stash, the question about unsaved files, the message, and the stash.
-func (x *gitscm) stashChanges(r *repository, includeUntracked, staged bool, args any) {
+// done, when it is not nil, is called once with whether the stash was made (the checkout that stashes first goes on only then).
+func (x *gitscm) stashChanges(r *repository, includeUntracked, staged bool, args any, done func(stashed bool)) {
 	if r.repo == nil {
+		finished(done, false)
 		return
 	}
 	if staged && !x.install.Version.AtLeast(2, 35) {
 		x.api.Notifications().Error("Needs git 2.35 or newer")
+		finished(done, false)
 		return
 	}
 	noUnstaged := len(r.res.working) == 0 && (!includeUntracked || len(r.res.untracked) == 0)
@@ -295,14 +298,16 @@ func (x *gitscm) stashChanges(r *repository, includeUntracked, staged bool, args
 	switch {
 	case staged && noStaged:
 		x.api.Notifications().Info("There are no staged changes to stash.")
+		finished(done, false)
 		return
 	case !staged && noUnstaged && noStaged:
 		x.api.Notifications().Info("There are no changes to stash.")
+		finished(done, false)
 		return
 	}
 	unsaved := x.unsavedBeforeStash(r)
 	if len(unsaved) == 0 {
-		x.askStashMessage(r, includeUntracked, staged, args)
+		x.askStashMessage(r, includeUntracked, staged, args, done)
 		return
 	}
 	message := "There are " + strconv.Itoa(len(unsaved)) + " unsaved files.\n\nWould you like to save them before stashing?"
@@ -317,6 +322,7 @@ func (x *gitscm) stashChanges(r *repository, includeUntracked, staged bool, args
 	}, func(res extension.DialogResult) {
 		switch {
 		case res.Cancelled || r.disposed:
+			finished(done, false)
 		case res.Button == 0:
 			uris := make([]string, len(unsaved))
 			for i, u := range unsaved {
@@ -332,13 +338,16 @@ func (x *gitscm) stashChanges(r *repository, includeUntracked, staged bool, args
 						// a stash that leaves out the unsaved work is not what the user chose: stop and say why
 						x.log.Warn("cannot save the files before the stash", "err", err)
 						x.api.Notifications().Error("Git: the files could not be saved, so nothing was stashed: " + describe(err))
+						finished(done, false)
 						return
 					}
-					x.askStashMessage(r, includeUntracked, staged, args)
+					x.askStashMessage(r, includeUntracked, staged, args, done)
 				})
 			}()
 		case res.Button == 1:
-			x.askStashMessage(r, includeUntracked, staged, args)
+			x.askStashMessage(r, includeUntracked, staged, args, done)
+		default:
+			finished(done, false)
 		}
 	})
 }
@@ -384,12 +393,13 @@ func isUnder(folder, path string) bool {
 
 // askStashMessage asks for the message of the stash (an input box, with the text of the commit box when
 // git.useCommitInputAsStashMessage is on) and makes the stash. A caller that gave {"message": ...} is not asked.
-func (x *gitscm) askStashMessage(r *repository, includeUntracked, staged bool, args any) {
+func (x *gitscm) askStashMessage(r *repository, includeUntracked, staged bool, args any, done func(stashed bool)) {
 	if r.disposed {
+		finished(done, false)
 		return
 	}
 	if msg, ok := stashMessageArg(args); ok {
-		x.createStash(r, includeUntracked, staged, msg)
+		x.createStash(r, includeUntracked, staged, msg, done)
 		return
 	}
 	value := ""
@@ -401,11 +411,14 @@ func (x *gitscm) askStashMessage(r *repository, includeUntracked, staged bool, a
 	}
 	err := x.api.InputBox().Show(extension.InputBoxOptions{Prompt: "Optionally provide a stash message", Value: value}, func(msg string, ok bool) {
 		if ok {
-			x.createStash(r, includeUntracked, staged, msg)
+			x.createStash(r, includeUntracked, staged, msg, done)
+			return
 		}
+		finished(done, false)
 	})
 	if err != nil {
 		x.logUnavailable("cannot ask for the stash message", err)
+		finished(done, false)
 	}
 }
 
@@ -417,10 +430,17 @@ func (x *gitscm) logUnavailable(what string, err error) {
 	x.log.Warn(what, "err", err)
 }
 
+// finished calls done, when there is one, with the outcome.
+func finished(done func(bool), ok bool) {
+	if done != nil {
+		done(ok)
+	}
+}
+
 // createStash runs git stash push and closes the diff editors of the files that were stashed.
 //
 // Ported from VS Code: extensions/git/src/repository.ts (createStash)
-func (x *gitscm) createStash(r *repository, includeUntracked, staged bool, message string) {
+func (x *gitscm) createStash(r *repository, includeUntracked, staged bool, message string, done func(stashed bool)) {
 	closeIndex := pathsOf(r.res.index, func(res resource) []string { return []string{res.path} })
 	closeWork := []string{}
 	if !staged {
@@ -437,8 +457,12 @@ func (x *gitscm) createStash(r *repository, includeUntracked, staged bool, messa
 			}
 			return repo.Stash(ctx, git.StashOptions{Message: message, IncludeUntracked: includeUntracked, Staged: staged})
 		},
-		after: func() { r.closeDiffEditors(closeIndex, closeWork, false) },
+		after: func() {
+			r.closeDiffEditors(closeIndex, closeWork, false)
+			finished(done, true)
+		},
 		failed: func(err error) bool {
+			finished(done, false)
 			if appErr, ok := errors.FromError(err); ok && appErr.Tag == "StashNoInitialCommit" {
 				x.api.Notifications().Info("The repository does not have any commits. Please make an initial commit before creating a stash.")
 				return true

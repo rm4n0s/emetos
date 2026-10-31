@@ -37,9 +37,11 @@ type commitUI struct {
 	// templateKey is what the template was read for: the commit it was read at and the state of the merge, so a status that changes
 	// none of them does not read it again.
 	templateKey string
-	// syncing and checkingOut say that a sync (or push or pull) and a checkout are running, which disables the Sync and Publish buttons.
-	// TODO(step 24.13, 24.15): the checkout and the remote commands set them.
+	// syncing and checkingOut say that a sync (or push or pull) and a checkout are running, which disables the Sync and Publish buttons
+	// and the branch item of the status bar. checkoutLabel is the ref the running checkout switches to, which the branch item shows.
+	// TODO(step 24.15): the remote commands set syncing.
 	syncing, checkingOut bool
+	checkoutLabel        string
 	// waiters run after the next status has been applied.
 	waiters []func()
 	// shown is the last placeholder and button given to the host, so that a status that changes neither does not send them again.
@@ -111,10 +113,12 @@ func (r *repository) headShortName() string {
 	return h.commit
 }
 
-// setCommitting marks a commit as running or ended and shows it in the box, the button and the context key git.commitInProgress.
+// setCommitting marks a commit as running or ended and shows it in the box, the button, the branch item and the context key
+// git.commitInProgress.
 func (r *repository) setCommitting(v bool) {
 	r.committing = v
 	r.updateCommitUI()
+	r.updateStatusBar()
 	r.m.updateContext()
 }
 
@@ -465,8 +469,10 @@ func (r *repository) primaryPostCommit() postCommitChoice {
 // isBranchProtected says whether the branch HEAD is on matches a pattern of git.branchProtection.
 //
 // Ported from VS Code: extensions/git/src/repository.ts (isBranchProtected) and branchProtection.ts
-func (r *repository) isBranchProtected() bool {
-	name := r.head.name
+func (r *repository) isBranchProtected() bool { return r.branchNameProtected(r.head.name) }
+
+// branchNameProtected says whether a branch name matches a pattern of git.branchProtection.
+func (r *repository) branchNameProtected(name string) bool {
 	if name == "" {
 		return false
 	}
