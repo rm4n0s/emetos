@@ -13,6 +13,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/theme"
@@ -47,6 +48,9 @@ type OpenEditorsOpts struct {
 	// DecorationColors gives workbench.editor.decorations.colors: a deleted editor is drawn in the error color;
 	// nil is yes.
 	DecorationColors func() bool
+	// FileDecorationColors and FileDecorationBadges are explorer.decorations.colors and .badges (VS Code's Open Editors reads the
+	// settings of the Explorer): the color of the name and the badge of the file decoration service. Nil is yes.
+	FileDecorationColors, FileDecorationBadges func() bool
 	// Icons and Language are those of ViewOpts.
 	Icons    func() *theme.FileIconTheme
 	Language func(path string) string
@@ -374,12 +378,30 @@ func (o *OpenEditors) renderEditor(bc widgets.BuildContext, d editorRow, st kit.
 			}
 		}
 	}
+	// the color and the badge of the file decoration (Git's status)
+	var look kit.FileLook
+	var decorated bool
+	if uri, ok := d.Input.Resource(); ok {
+		resource := uri.String()
+		if uri.Scheme == document.SchemeFile {
+			resource = decorations.FileURI(uri.Path)
+		}
+		look, decorated = kit.FileLookOf(bc, resource, false, kit.FileLookOpts{
+			Colors: o.opts.FileDecorationColors == nil || o.opts.FileDecorationColors(),
+			Badges: o.opts.FileDecorationBadges == nil || o.opts.FileDecorationBadges(),
+		})
+		look = look.ForRow(st)
+		fg = look.NameColor(fg)
+	}
 	if d.Deleted && (o.opts.DecorationColors == nil || o.opts.DecorationColors()) {
 		if c := colors.ListErrorForeground; c.Alpha() != 0 {
 			fg = c
 		}
 	}
 	labelStyle := kit.TextStyleOf(bc, labelFontSize, fg)
+	if decorated && look.Strikethrough {
+		labelStyle = look.NameStyle(labelStyle)
+	}
 	if d.Preview {
 		labelStyle = labelStyle.Merge(painting.NewTextStyle(painting.TextStyleOpts{FontStyle: ui.FontStyleItalic}))
 	}
@@ -399,6 +421,15 @@ func (o *OpenEditors) renderEditor(bc widgets.BuildContext, d editorRow, st kit.
 			widgets.NewFlexible(widgets.NewText(desc, widgets.TextOpts{Style: dim, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})))
 	}
 	label := widgets.NewExpanded(widgets.NewRow(cells, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter}))
+	if decorated {
+		parts := []widgets.Widget{label}
+		if b := look.BadgeWidget(bc, labelFontSize, st.Foreground); b != nil {
+			parts = append(parts, b)
+		}
+		content := look.WithTooltip(iconRow(icon, parts...))
+		return widgets.NewRow([]widgets.Widget{button, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(4.0)}), widgets.NewExpanded(content)},
+			widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+	}
 	return widgets.NewRow([]widgets.Widget{button, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(4.0)}), widgets.NewExpanded(iconRow(icon, label))},
 		widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 }

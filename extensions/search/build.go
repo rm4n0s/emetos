@@ -1,6 +1,7 @@
 package search
 
 import (
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -376,10 +377,10 @@ func (v *view) render(bc widgets.BuildContext, n ui.TreeNode, st ui.RowState) wi
 	var badge widgets.Widget
 	switch d := n.Data.(type) {
 	case folderNode:
-		content = widgets.NewRow([]widgets.Widget{label(bc, d.label, fontSize, st.Foreground)}, widgets.RowOpts{})
+		content = widgets.NewRow([]widgets.Widget{v.decorated(bc, d.label, st, v.folderURI(d.path), true)}, widgets.RowOpts{})
 		badge = v.badge(d.count)
 	case fileNode:
-		row := []widgets.Widget{label(bc, d.file.Name(), fontSize, st.Foreground)}
+		row := []widgets.Widget{v.decorated(bc, d.file.Name(), st, d.file.uri, false)}
 		if dir := d.file.Dir(); dir != "" && !d.inTree {
 			row = append(row, gap(6, 0), widgets.NewFlexible(label(bc, dir, fontSize-1, colors.DescriptionForeground)))
 		}
@@ -393,10 +394,30 @@ func (v *view) render(bc widgets.BuildContext, n ui.TreeNode, st ui.RowState) wi
 	return widgets.NewRow([]widgets.Widget{widgets.NewFlexible(content), gap(6, 0), badge, v.hotActions(hot, n)}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 }
 
-func (v *view) badge(count int) widgets.Widget {
-	if !v.bool(settingDecorationBadges) {
-		return gap(0, 0)
+// decorated is the name of a file or folder in the color of its file decoration with its badge after it (search.decorations.colors and
+// search.decorations.badges), as VS Code's search results label them; a file with none is the plain label.
+func (v *view) decorated(bc widgets.BuildContext, text string, st ui.RowState, uri string, folder bool) widgets.Widget {
+	look, ok := ui.FileLookOf(bc, uri, folder, v.bool(settingDecorationColors), v.bool(settingDecorationBadges))
+	if !ok {
+		return label(bc, text, fontSize, st.Foreground)
 	}
+	name := ui.NewDecoratedLabel(bc, text, st, look)
+	parts := []widgets.Widget{widgets.NewFlexible(name)}
+	if b := look.ForRow(st).BadgeWidget(bc, fontSize, st.Foreground); b != nil {
+		parts = append(parts, b)
+	}
+	return widgets.NewRow(parts, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+}
+
+// folderURI is the URI of a folder of the results, which is named relative to the folder of the workspace.
+func (v *view) folderURI(rel string) string {
+	if v.folder == "" {
+		return ""
+	}
+	return "file://" + path.Join(v.folder, rel)
+}
+
+func (v *view) badge(count int) widgets.Widget {
 	return ui.NewBadge(count)
 }
 

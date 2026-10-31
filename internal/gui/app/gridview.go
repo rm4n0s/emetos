@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -281,13 +282,19 @@ func (s *shellState) tabItems(colors kit.Colors, group *editorgroup.Group) []kit
 	items := make([]kit.TabItem, len(editors))
 	for i, e := range editors {
 		key := labels[i].Name
+		var resource string
 		if uri, ok := e.Resource(); ok {
 			key = uri.String()
+			// the file decorations are keyed by the URI the way the decorations package spells it
+			resource = key
+			if uri.Scheme == document.SchemeFile {
+				resource = decorations.FileURI(uri.Path)
+			}
 		} else if k, ok := e.(editorgroup.TabKeyed); ok {
 			key = k.TabKey()
 		}
 		items[i] = kit.TabItem{
-			Key: key, Name: labels[i].Name, Description: labels[i].Description, Title: editorgroup.DecoratedTitle(e, labels[i].Title),
+			Key: key, URI: resource, Name: labels[i].Name, Description: labels[i].Description, Title: editorgroup.DecoratedTitle(e, labels[i].Title),
 			Preview: !m.IsPinned(e), Sticky: m.IsSticky(e), Dirty: e.Dirty(), Deleted: editorgroup.IsDeleted(e),
 			Icon: s.tabIcon(colors, e, e == m.ActiveEditor()),
 		}
@@ -304,6 +311,7 @@ func (s *shellState) tabsOptions(win *Workspace, group *editorgroup.Group) kit.T
 		Unfocused:         s.group.grid.Active() != group,
 		HighlightModified: settings.Get[bool](win.Settings, "workbench.editor.highlightModifiedTabs", ""),
 		DecorationColors:  settings.Get[bool](win.Settings, "workbench.editor.decorations.colors", ""),
+		DecorationBadges:  settings.Get[bool](win.Settings, "workbench.editor.decorations.badges", ""),
 		OnActivate:        func(i int) { s.activateAt(group, i) },
 		OnClose:           func(i int) { s.closeAt(group, i) },
 		OnPin:             func(i int) { m.Pin(m.EditorAt(i)) },

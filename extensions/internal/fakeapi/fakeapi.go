@@ -92,6 +92,7 @@ type API struct {
 	locationRequests  []LocationRequest
 	updates           []SettingUpdate
 	scm               scmState
+	decorations       decorationsState
 	watches           []*FakeWatch
 	watchErr          error
 	dialogs           []*FakeDialog

@@ -207,18 +207,26 @@ func (r *rig) paths(root, group string) []string {
 	return out
 }
 
-// letters lists "path letter" of a group.
+// letters lists "path letter" of a group: the letter of the status of each resource, which the file decorations provider gives the
+// file (the host reads it from there, not from the resource).
 func (r *rig) letters(root, group string) []string {
 	r.t.Helper()
-	g := r.source(root).Group(group)
-	if g == nil {
-		return nil
+	repo := r.repo(root)
+	var list []resource
+	switch group {
+	case groupMerge:
+		list = repo.res.merge
+	case groupIndex:
+		list = repo.res.index
+	case groupWorking:
+		list = repo.res.working
+	case groupUntracked:
+		list = repo.res.untracked
 	}
 	var out []string
-	for _, res := range g.Resources() {
-		p, _ := uriPath(res.URI)
-		rel, _ := filepath.Rel(root, p)
-		out = append(out, filepath.ToSlash(rel)+" "+res.Decorations.Letter)
+	for _, res := range list {
+		rel, _ := filepath.Rel(root, res.path)
+		out = append(out, filepath.ToSlash(rel)+" "+statusLetter(res.status))
 	}
 	return out
 }

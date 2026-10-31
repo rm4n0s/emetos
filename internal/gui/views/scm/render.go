@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -233,6 +234,12 @@ func (v *View) renderFolder(bc widgets.BuildContext, r *row, st kit.RowState) wi
 	if a := v.inlineActions(bc, r, st); a != nil {
 		cells = append(cells, a)
 	}
+	// a folder takes on the marks of the files below it (VS Code's fileDecorations { colors: false, badges: true } of a folder)
+	if look, ok := kit.FileLookOf(bc, v.folderURI(r), true, kit.FileLookOpts{Badges: true}); ok {
+		if b := look.BadgeWidget(bc, fontSize, st.Foreground); b != nil {
+			cells = append(cells, look.WithTooltip(b))
+		}
+	}
 	cells = append(cells, gap(rightPadding))
 	return line(cells...)
 }
@@ -270,13 +277,9 @@ func (v *View) renderResource(bc widgets.BuildContext, r *row, st kit.RowState) 
 	if a := v.inlineActions(bc, r, st); a != nil {
 		cells = append(cells, a)
 	}
-	letter, color := "", fg
-	if d, ok := v.decoration(res); ok {
-		letter = d.Badge
-		if c, ok := colors.Named(d.Color); ok {
-			color = c
-		}
-	}
+	// the letter is the badge of the file decoration (VS Code's fileDecorations { colors: false, badges: !icon }): in its color, with
+	// its tooltip
+	look, _ := kit.FileLookOf(bc, res.URI, false, kit.FileLookOpts{Badges: dec.Icon == ""})
 	switch {
 	case dec.Icon != "":
 		if code, ok := fonts.CodiconByName(dec.Icon); ok {
@@ -286,13 +289,17 @@ func (v *View) renderResource(bc widgets.BuildContext, r *row, st kit.RowState) 
 			}
 			cells = append(cells, gap(5), widgets.NewIcon(fonts.CodiconIcon(code), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(ic)}), gap(3))
 		}
-	case letter != "":
+	case look.Badge != "":
+		color := fg
+		if look.HasBadgeColor {
+			color = look.BadgeColor
+		}
 		style := kit.TextStyleOf(bc, fontSize*0.9, color).Merge(painting.NewTextStyle(painting.TextStyleOpts{FontWeight: ui.FontWeightW600}))
-		badge := widgets.NewSizedBox(widgets.NewCenter(oneLine(letter, style)), widgets.SizedBoxOpts{Width: foundation.Some(letterWidth)})
-		if d, ok := v.decoration(res); ok && d.Tooltip != "" {
-			cells = append(cells, gap(5), kit.NewHover(badge, kit.HoverOpts{Text: d.Tooltip, Compact: true}), gap(3))
-		} else {
-			cells = append(cells, gap(5), badge, gap(3))
+		badge := widgets.NewSizedBox(widgets.NewCenter(oneLine(look.Badge, style)), widgets.SizedBoxOpts{Width: foundation.Some(letterWidth)})
+		cells = append(cells, gap(5), look.WithTooltip(badge), gap(3))
+	case look.HasBadge():
+		if b := look.BadgeWidget(bc, fontSize, fg); b != nil {
+			cells = append(cells, look.WithTooltip(b))
 		}
 	}
 	cells = append(cells, gap(rightPadding-3))
@@ -303,28 +310,16 @@ func (v *View) renderResource(bc widgets.BuildContext, r *row, st kit.RowState) 
 	return w
 }
 
-// decoration is the decoration the service gives a resource: its letter, tooltip and color.
-func (v *View) decoration(res *scmcore.Resource) (Decoration, bool) {
-	if v.opts.Decoration == nil {
-		return v.providerLetter(res)
+// folderURI is the URI of the folder of a row of the tree view mode.
+func (v *View) folderURI(r *row) string {
+	if r.entry.Node == nil || r.src == nil {
+		return ""
 	}
-	d, ok := v.opts.Decoration(res.URI)
-	if !ok || d.Badge == "" {
-		return v.providerLetter(res)
+	root := r.src.RootPath()
+	if root == "" {
+		return ""
 	}
-	return d, true
-}
-
-// providerLetter is the letter the provider gave the resource itself (ResourceDecorations.Letter), for a file the decoration
-// service says nothing about.
-//
-// TODO(step 24.6): the Git extension gives the letters through api.Decorations(); this goes with the field.
-func (v *View) providerLetter(res *scmcore.Resource) (Decoration, bool) {
-	d := res.Decorations
-	if d.Letter == "" {
-		return Decoration{}, false
-	}
-	return Decoration{Badge: d.Letter, Tooltip: d.Tooltip, Color: d.Color}, true
+	return decorations.FileURI(strings.TrimSuffix(root, "/") + "/" + r.entry.Node.Path())
 }
 
 // relativeDir is the folder of a resource below the root of its repository, "" for a file at the root.

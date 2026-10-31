@@ -32,6 +32,9 @@ type BreadcrumbsOptions struct {
 	// SymbolSortOrder is breadcrumbs.symbolSortOrder ("position", "name" or "type"): the order of the symbols in the picker of a
 	// symbol.
 	SymbolSortOrder string
+	// DecorationColors and DecorationBadges are explorer.decorations.colors and .badges: whether the files of a picker are drawn in the
+	// color of their file decoration and with its badge. The bar itself is not decorated (VS Code's showDecorationColors is false there).
+	DecorationColors, DecorationBadges bool
 	// HiddenKinds are the symbol kinds the settings breadcrumbs.showXxx turn off, indexed by the LSP's SymbolKind.
 	HiddenKinds [langfeatures.SymbolKindCount + 1]bool
 }
@@ -39,11 +42,13 @@ type BreadcrumbsOptions struct {
 // BreadcrumbsOptionsFromSettings reads the breadcrumbs settings.
 func BreadcrumbsOptionsFromSettings(store *settings.Store) BreadcrumbsOptions {
 	o := BreadcrumbsOptions{
-		Enabled:         settings.Get[bool](store, "breadcrumbs.enabled", ""),
-		FilePath:        settings.Get[string](store, "breadcrumbs.filePath", ""),
-		Icons:           settings.Get[bool](store, "breadcrumbs.icons", ""),
-		SymbolPath:      settings.Get[string](store, "breadcrumbs.symbolPath", ""),
-		SymbolSortOrder: settings.Get[string](store, "breadcrumbs.symbolSortOrder", ""),
+		Enabled:          settings.Get[bool](store, "breadcrumbs.enabled", ""),
+		FilePath:         settings.Get[string](store, "breadcrumbs.filePath", ""),
+		Icons:            settings.Get[bool](store, "breadcrumbs.icons", ""),
+		SymbolPath:       settings.Get[string](store, "breadcrumbs.symbolPath", ""),
+		SymbolSortOrder:  settings.Get[string](store, "breadcrumbs.symbolSortOrder", ""),
+		DecorationColors: settings.Get[bool](store, "explorer.decorations.colors", ""),
+		DecorationBadges: settings.Get[bool](store, "explorer.decorations.badges", ""),
 	}
 	for kind := 1; kind <= langfeatures.SymbolKindCount; kind++ {
 		o.HiddenKinds[kind] = !settings.Get[bool](store, "breadcrumbs.show"+langfeatures.SymbolKindSetting(kind), "")

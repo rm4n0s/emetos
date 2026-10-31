@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
@@ -166,8 +167,18 @@ func (v *View) render(bc widgets.BuildContext, n kit.TreeNode, st kit.TreeRowSta
 	if ic, ok := v.iconFor(nd, n.Expanded, colors.Type); ok {
 		icon = FileIconWidget(ic, st.Foreground)
 	}
-	label := widgets.NewExpanded(kit.NewHighlightedLabel(bc, nd.label(), st))
-	row := iconRow(icon, label)
+	var row widgets.Widget
+	if look, ok := v.fileLook(bc, nd); ok {
+		// the name in the color of the decoration and the badge at the end of the row (VS Code's file decorations of a label)
+		look = look.ForRow(st)
+		parts := []widgets.Widget{widgets.NewExpanded(kit.NewDecoratedLabel(bc, nd.label(), st, look))}
+		if b := look.BadgeWidget(bc, labelFontSize, st.Foreground); b != nil {
+			parts = append(parts, b)
+		}
+		row = look.WithTooltip(iconRow(icon, parts...))
+	} else {
+		row = iconRow(icon, widgets.NewExpanded(kit.NewHighlightedLabel(bc, nd.label(), st)))
+	}
 	if it := nd.last(); it != nil && v.cut[it.Path()] {
 		// a cut item is dimmed until it is pasted (`.explorer-item.cut { opacity: 0.5 }`)
 		return widgets.NewOpacity(0.5, row)
@@ -212,3 +223,14 @@ func afterFrameOf(binding *widgets.WidgetsBinding) func(func()) {
 
 // AfterFrame returns the AfterFrame function of the body for a binding.
 func AfterFrame(binding *widgets.WidgetsBinding) func(func()) { return afterFrameOf(binding) }
+
+// fileLook is the look of the file or folder of a row from the file decorations service, by explorer.decorations.colors and
+// explorer.decorations.badges. A folder takes on the marks of the files below it.
+func (v *View) fileLook(bc widgets.BuildContext, nd *nodeData) (kit.FileLook, bool) {
+	it := nd.last()
+	if it == nil || nd.Edit {
+		return kit.FileLook{}, false
+	}
+	opts := kit.FileLookOpts{Colors: v.opts.colors(), Badges: v.opts.badges()}
+	return kit.FileLookOf(bc, decorations.FileURI(it.Path()), nd.IsDir, opts)
+}

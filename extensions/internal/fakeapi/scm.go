@@ -126,6 +126,10 @@ func (a *API) Deactivate() {
 		s.disposed = true
 	}
 	a.scm.sources = nil
+	for _, f := range a.decorations.providers {
+		f.disposed = true
+	}
+	a.decorations.providers = nil
 }
 
 // Failed tells whether the fake took the extension off because of a panic in one of its callbacks, as the host does

@@ -17,6 +17,10 @@ type ListItem struct {
 	Icon int
 	// IconColor is the color of the icon; the color of the text when it has no alpha (a symbol icon has its own).
 	IconColor ui.Color
+	// URI is the file or folder the row stands for (file:///path), whose file decoration the row shows when the list was given
+	// ListOverlayOpts.FileDecorations; Folder says it is a folder, which takes on the marks of the files below it.
+	URI    string
+	Folder bool
 	// Disabled rows are shown dimmed, are skipped by the keyboard and cannot be chosen.
 	Disabled bool
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -51,18 +52,29 @@ type crumbsRig struct {
 	opened []string
 	file   string
 	mk     func(file string) widgets.Widget
+	// decos, when set, is the file decorations service the picker reads.
+	decos *decorations.Service
 }
 
 func newCrumbsRig(t *testing.T, file string, options BreadcrumbsOptions, opts BreadcrumbsOpts) *crumbsRig {
 	t.Helper()
-	r := &crumbsRig{ts: testutil.New(t, ui.Size{Width: 480, Height: 340}), file: file}
+	return newCrumbsRigWith(t, file, options, opts, nil)
+}
+
+// newCrumbsRigWith is newCrumbsRig with a file decorations service for the picker.
+func newCrumbsRigWith(t *testing.T, file string, options BreadcrumbsOptions, opts BreadcrumbsOpts, decos *decorations.Service) *crumbsRig {
+	t.Helper()
+	r := &crumbsRig{ts: testutil.New(t, ui.Size{Width: 480, Height: 340}), file: file, decos: decos}
 	opts.OnOpen = func(p string) { r.opened = append(r.opened, p) }
 	r.mk = func(file string) widgets.Widget { return NewBreadcrumbs(context.Background(), file, options, opts) }
 	r.ts.PumpWidget(widgets.NewWidgetsApp(kit.DarkModern().EditorBackground, widgets.WidgetsAppOpts{
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
-				return kit.NewTheme(kit.DarkModern(), widgets.NewAlign(r.mk(r.file), widgets.AlignOpts{Alignment: painting.AlignmentTopLeft}),
-					kit.ThemeOpts{UIFont: testutil.MonoFamily})
+				var page widgets.Widget = widgets.NewAlign(r.mk(r.file), widgets.AlignOpts{Alignment: painting.AlignmentTopLeft})
+				if r.decos != nil {
+					page = kit.NewFileDecorations(r.decos, page)
+				}
+				return kit.NewTheme(kit.DarkModern(), page, kit.ThemeOpts{UIFont: testutil.MonoFamily})
 			}, widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 		},
 	}))
@@ -461,5 +473,44 @@ func TestBreadcrumbsFollowTheCursorAndThePickerGoesToASymbol(t *testing.T) {
 	}
 	if errs := r.ts.TakeErrors(); len(errs) != 0 {
 		t.Errorf("errors: %v", errs)
+	}
+}
+
+// TestBreadcrumbsPickerFilesAreDecorated checks that the files and folders of a picker take the color and the badge of their file decoration
+// (VS Code's picker uses explorer.decorations.colors and .badges), and that the bar itself is not decorated.
+func TestBreadcrumbsPickerFilesAreDecorated(t *testing.T) {
+	svc := decorations.New(decorations.Options{})
+	files := map[string]decorations.Data{
+		decorations.FileURI("/home/me/proj/src/main.go"):      {Letter: "M", Color: "gitDecoration.modifiedResourceForeground", Weight: 12, Bubble: true},
+		decorations.FileURI("/home/me/proj/src/main_test.go"): {Letter: "U", Color: "gitDecoration.untrackedResourceForeground", Weight: 11},
+		decorations.FileURI("/home/me/proj/src/lib/lib.go"):   {Letter: "A", Color: "gitDecoration.addedResourceForeground", Weight: 11, Bubble: true},
+	}
+	reg, err := svc.Register("test", decorations.ProviderFunc(func(uri string) (decorations.Data, bool) { d, ok := files[uri]; return d, ok }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for uri := range files {
+		reg.Fire(uri)
+	}
+	for _, tc := range []struct {
+		name           string
+		colors, badges bool
+		wantBadges     bool
+	}{{"colors and badges", true, true, true}, {"colors only", true, false, false}} {
+		t.Run(tc.name, func(t *testing.T) {
+			options := onOptions
+			options.DecorationColors, options.DecorationBadges = tc.colors, tc.badges
+			r := newCrumbsRigWith(t, crumbsFile, options, crumbsOpts(), svc)
+			r.ts.Tap(gluttertest.ByText("main.go"))
+			r.waitFor(t, "main_test.go")
+			r.settle()
+			count := func(s string) int { return len(r.ts.Elements(gluttertest.ByText(s))) }
+			if got := count("M")+count("U") > 0; got != tc.wantBadges {
+				t.Errorf("badges on screen = %v, want %v (M %d, U %d)", got, tc.wantBadges, count("M"), count("U"))
+			}
+			if errs := r.ts.TakeErrors(); len(errs) != 0 {
+				t.Errorf("errors: %v", errs)
+			}
+		})
 	}
 }

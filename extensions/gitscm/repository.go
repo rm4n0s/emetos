@@ -62,6 +62,11 @@ type repository struct {
 	// refreshes when it ends (SPEC §10.30 "Refresh").
 	own int
 
+	// decos is the provider of the file decorations of the repository (decorations.go), nil while there is none, and submodules the
+	// paths of its submodules from the last status.
+	decos      *statusProvider
+	submodules []string
+
 	watchMu    sync.Mutex
 	watchStops []func()
 	debounce   func()
@@ -212,6 +217,8 @@ func (r *repository) untrust() {
 	r.res, r.head, r.refs, r.ops = groups{}, head{}, nil, operations{}
 	r.setBusy(false)
 	r.clearGroups()
+	r.dropDecorations()
+	r.m.x.ignoresChanged()
 	r.publish()
 }
 
@@ -223,6 +230,7 @@ func (r *repository) dispose() {
 	}
 	r.disposed = true
 	r.stopWatching()
+	r.dropDecorations()
 	r.cancel()
 	if r.busyStop != nil {
 		r.busyStop()
@@ -243,6 +251,11 @@ type snapshot struct {
 	// groups is the status split into the groups, and states their resources as the host takes them: made off the UI thread.
 	groups groups
 	states [4][]extension.ResourceState
+	// decos are the file decorations of the files and submodules the status found (nil when git.decorations.enabled was off).
+	decos      map[string]extension.FileDecoration
+	decoDiff   []string
+	decoGen    int
+	submodules []string
 	// timings are the times of the parts of the refresh, for the measurements.
 	timings Timings
 }
@@ -273,7 +286,8 @@ func (r *repository) refresh() {
 	repo, opts := r.repo, x.cfg.statusOptions()
 	gitDir, commonDir := repo.Info.GitDir, repo.Info.CommonDir
 	ctx, gen := r.ctx, r.gen
-	root, mode, kind := r.root, x.cfg.untrackedChanges, r.kind()
+	root, mode, kind, decorate := r.root, x.cfg.untrackedChanges, r.kind(), x.cfg.decorationsEnabled
+	prevDecos, prevGen := r.decorationState()
 	go func() {
 		snap := compute(ctx, repo, opts, gitDir, commonDir)
 		if snap.err == nil {
@@ -281,6 +295,11 @@ func (r *repository) refresh() {
 			snap.groups = splitStatus(root, snap.status.Entries, mode)
 			snap.states = statesOf(snap.groups, kind)
 			snap.timings.Group = time.Since(start)
+			if decorate {
+				snap.submodules = submodulePaths(root)
+				snap.decos = decorationData(snap.groups, root, snap.submodules)
+				snap.decoDiff, snap.decoGen = changedURIs(prevDecos, snap.decos), prevGen
+			}
 		}
 		snap.gen = gen
 		x.api.Post(func() { r.applySnapshot(snap) })
@@ -356,6 +375,12 @@ func (r *repository) applySnapshot(snap snapshot) {
 	}
 	r.putGroups(snap.groups, snap.states)
 	r.refreshed = true
+	r.submodules = snap.submodules
+	if snap.decos != nil {
+		r.applyDecorations(snap.decos, snap.decoDiff, snap.decoGen)
+	} else {
+		r.syncDecorations()
+	}
 	r.updateStatusBar()
 	r.m.updateContext()
 	r.publish()

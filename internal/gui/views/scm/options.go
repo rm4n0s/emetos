@@ -10,14 +10,6 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
-// Decoration is what the file decoration service says about a file (VS Code's IDecoration): the letter of the row, its tooltip
-// and the theme color of the letter.
-type Decoration struct {
-	// Badge is the letter (at most two characters), Tooltip the hover and Color the id of a theme color
-	// ("gitDecoration.modifiedResourceForeground").
-	Badge, Tooltip, Color string
-}
-
 // OpenOptions say how a resource is opened (VS Code's IOpenEvent: the editor options and sideBySide).
 type OpenOptions struct {
 	// Preserve keeps the keyboard focus in the view; a click does, Enter and a double click do not.
@@ -53,8 +45,6 @@ type Options struct {
 	ShowMenu func(menu string, extra map[string]any, args []any, at ui.Offset)
 	// OpenResource opens the file of a resource that has no command; a resource with a command runs the command.
 	OpenResource func(uri string, o OpenOptions)
-	// Decoration gives the decoration of a file (the file decoration service); nil for none.
-	Decoration func(uri string) (Decoration, bool)
 	// Icons gives the file icon theme, nil for none; Language the language id of a path.
 	Icons    func() *theme.FileIconTheme
 	Language func(path string) string

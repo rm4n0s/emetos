@@ -65,6 +65,8 @@ type API interface {
 	// SourceControl creates source controls: the repositories, groups of changes and commit input of the Source Control view
 	// (SPEC §10.30).
 	SourceControl() SourceControls
+	// Decorations registers the providers of the colors and badges of files (SPEC §10.30 "File decorations and the Explorer").
+	Decorations() Decorations
 	// Dialogs asks the user a question in a modal dialog.
 	Dialogs() Dialogs
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the

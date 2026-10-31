@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/core/glob"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
@@ -185,6 +186,9 @@ type ScopeOptions struct {
 	// SCM is the model of the Source Control view of the window tab, which SourceControl().Create adds to; nil leaves it
 	// unavailable (Create fails with ExtensionSCMUnavailable).
 	SCM *scm.Model
+	// Decorations is the file decorations service of the window tab, which Decorations().Register adds to; nil leaves it
+	// unavailable (Register fails with ExtensionDecorationsUnavailable).
+	Decorations *decorations.Service
 }
 
 // slot is an extension in a scope.

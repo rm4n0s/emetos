@@ -103,7 +103,14 @@ type ViewOpts struct {
 	// row is focused, and selected unless it is in the selection) or on the empty part of the tree (an empty
 	// path, the selection is cleared); at is the position in the window.
 	OnContextMenu func(path string, at ui.Offset)
+	// DecorationColors and DecorationBadges are explorer.decorations.colors and explorer.decorations.badges: whether the names are
+	// drawn in the color of their file decoration and whether the badge, the icon or the dot is drawn at the end of the row. Nil
+	// means yes.
+	DecorationColors, DecorationBadges func() bool
 }
+
+func (o ViewOpts) colors() bool { return o.DecorationColors == nil || o.DecorationColors() }
+func (o ViewOpts) badges() bool { return o.DecorationBadges == nil || o.DecorationBadges() }
 
 // View is the tree of the folder of a window without its widgets (SPEC §10.8): the model of the rows
 // (a kit.TreeModel keyed by path) over a workspace.Workspace, kept up to date as the workspace changes. It
@@ -203,6 +210,9 @@ func (v *View) notify() {
 		(*f)()
 	}
 }
+
+// Redraw builds the rows again with the same model: the settings that change how they look (explorer.decorations) call it.
+func (v *View) Redraw() { v.notify() }
 
 // Loaded tells whether the folder has been read, and RootError why it could not be (nil when it could).
 func (v *View) Loaded() bool { return v.loaded }

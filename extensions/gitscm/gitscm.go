@@ -158,6 +158,9 @@ type gitscm struct {
 
 	// handlers are the handlers of the commands, by id.
 	handlers map[string]extension.CommandHandler
+
+	// ignores is the provider of the file decorations of the files git ignores (decorations.go).
+	ignores *ignoreProvider
 }
 
 // homeDir is the home folder of the user, "" when it is not known.

@@ -6,12 +6,14 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/errors"
 
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
+	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
 // TestRows checks which rows the view makes for the repositories and their groups: no header for a single repository, a header
@@ -443,4 +445,28 @@ func names(ss []*scmcore.Source) []string {
 		out[i] = s.Name()
 	}
 	return out
+}
+
+// TestTreeFoldersTakeTheMarksOfTheirFiles checks that a folder row of the tree view mode shows the dot of the file decorations that bubbled
+// up from the files below it (VS Code's fileDecorations { colors: false, badges: true } of a folder), and a folder of plain files does not.
+func TestTreeFoldersTakeTheMarksOfTheirFiles(t *testing.T) {
+	r := newRig(t)
+	r.bubble = true
+	r.model.SetViewMode(scmcore.ViewTree)
+	r.addRepo("a", group{"workingTree", "Changes", []change{
+		{path: "d/e/z.go", letter: "M", tooltip: "Modified", color: colModified},
+		{path: "plain/y.go"},
+		{path: "w.go", letter: "A", tooltip: "Index Added", color: colAdded},
+	}})
+	r.show(goldenThemes[0].colors, ui.Size{Width: 300, Height: 200})
+	r.settle()
+	dots := len(r.ts.Elements(gluttertest.ByIcon(fonts.CodiconIcon(fonts.CodiconCircleSmallFilled))))
+	if dots != 1 {
+		t.Errorf("%d dots, want 1 (the compact folder d/e, not plain)", dots)
+	}
+	for _, letter := range []string{"M", "A"} {
+		if err := gluttertest.FindsOneWidget(r.ts, gluttertest.ByText(letter)); err != nil {
+			t.Error(err)
+		}
+	}
 }

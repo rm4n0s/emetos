@@ -6,7 +6,6 @@ import (
 	"path"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -37,32 +36,6 @@ import (
 // window and the decorations of the files. The model and its settings are in scm.go; the view is in internal/gui/views/scm.
 //
 // Ported from VS Code: src/vs/workbench/contrib/scm/browser/scm.contribution.ts, activity.ts and scmViewPane.ts
-
-// scmFileDecorations are the decorations of the files that the Source Control view draws as the letters of its rows. VS Code asks the
-// file decoration service for them (the Git extension's provider answers); until that service is built (step 24.6) the window
-// keeps what the host is told: the dev command dev.scm.fake sets them. It is safe for concurrent use.
-type scmFileDecorations struct {
-	mu sync.Mutex
-	m  map[string]scmview.Decoration
-}
-
-// Set remembers the decoration of a file (a URI).
-func (d *scmFileDecorations) Set(uri string, dec scmview.Decoration) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.m == nil {
-		d.m = map[string]scmview.Decoration{}
-	}
-	d.m[uri] = dec
-}
-
-// Lookup is the decoration of a file.
-func (d *scmFileDecorations) Lookup(uri string) (scmview.Decoration, bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	dec, ok := d.m[uri]
-	return dec, ok
-}
 
 // scmState is what the shell keeps of the Source Control view.
 type scmState struct {
@@ -168,7 +141,6 @@ func (s *shellState) initSCM(binding *widgets.WidgetsBinding) {
 		},
 		ShowMenu:     s.showSCMMenu,
 		OpenResource: func(uri string, o scmview.OpenOptions) { s.scmOpen(binding, uri, o) },
-		Decoration:   win.scmDecorations.Lookup,
 		Icons:        win.FileIcons, Language: win.languageOf,
 		AlwaysShowActions: scmFlag(win, "scm.alwaysShowActions"), AlwaysShowRepositories: scmFlag(win, "scm.alwaysShowRepositories"),
 		AutoReveal: scmFlag(win, "scm.autoReveal"),

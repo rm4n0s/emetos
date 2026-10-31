@@ -445,3 +445,18 @@ The rows built per frame (5 of 100,000) is also asserted by a test (`TestScrolli
 | Changes view, longest frame after a jump | 10.9 ms | |
 
 The grouping used to run on the UI thread (decision 490 of `docs/DECISIONS-TO-REVIEW.md`); it runs on the goroutine of the command now. Not measured here: the same run through the window of the app (the proof of the step runs the real extension and view on a repository with six changes; the 100,000-file budget of the view is `TestHugeChanges`). The idle check (no timers and no growth of goroutines in ten minutes of the fake clock with a repository open) is `TestIdleDoesNothing`.
+
+## File decorations: 100,000 files (step 24.6)
+
+`go test ./internal/core/decorations -run Huge -v` (the service alone) and `go test ./internal/gui/views/explorer -run 'Huge|CPU' -v` (the Explorer with 100,000 files and the service) through `scripts/heavy.sh --alone`. Times are the processor time of the thread that does the work (`CLOCK_THREAD_CPU`), as in step 24.3.
+
+| Measurement | Value | Target |
+|---|---|---|
+| `Fire` of 100,000 files (a Git status that changed all of them), on the UI thread, in 50 chunks of 2,000 URIs | 229 ms in all, about 8 ms a chunk | each chunk within one frame, the whole within 500 ms |
+| First `Get` of the root with the bubbled marks of 100,000 files | 45 ms | recorded |
+| One row lookup (`Get` of a cached file) | 2.8 us | recorded |
+| One file changes, then the root is asked again | 150 us | recorded |
+| Explorer, median frame of a steady scroll, decorated / plain | 59.3 ms / 56.9 ms | within 10% of the plain Explorer (the 100,000-file frame itself is the budget of 24.3) |
+| Explorer, first frame after the last chunk | 58 ms | recorded |
+
+The cache is bounded at 250,000 entries; a provider that answers in more than 1 ms is logged and suspended after 20 slow answers (decisions 502 and 503 of `docs/DECISIONS-TO-REVIEW.md`).

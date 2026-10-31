@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
-	scmview "github.com/rm4n0s/emetos/internal/gui/views/scm"
 )
 
 // The dev command dev.scm.fake (SPEC §15.2, step 24.3): it adds source controls to the Source Control view from a JSON fixture, with
@@ -34,6 +35,8 @@ type fakeResource struct {
 	Icon          string `json:"icon"`
 	StrikeThrough bool   `json:"strikeThrough"`
 	Faded         bool   `json:"faded"`
+	// Propagate shows the letter's decoration in the folders above the file (the file decorations service, step 24.6).
+	Propagate bool `json:"propagate"`
 }
 
 // fakeGroup is a group of a fixture.
@@ -257,6 +260,8 @@ func (s *shellState) addFakeSCM(f fakeFixture) error {
 		return errors.New("DevNoWindow", "the window has no Source Control model")
 	}
 	s.fakeProvider()
+	var decorated []string
+	defer func() { win.devDecorationsFire(decorated) }()
 	for _, fs := range f.SourceControls {
 		root := fs.Root
 		if root == "" {
@@ -295,7 +300,8 @@ func (s *shellState) addFakeSCM(f fakeFixture) error {
 				rs = append(rs, scmcore.Resource{URI: uri, Decorations: scmcore.Decorations{Icon: fr.Icon, Tooltip: fr.Tooltip,
 					StrikeThrough: fr.StrikeThrough, Faded: fr.Faded}})
 				if fr.Letter != "" {
-					win.scmDecorations.Set(uri, scmview.Decoration{Badge: fr.Letter, Tooltip: fr.Tooltip, Color: fr.Color})
+					decorated = append(decorated, uri)
+					win.devDecorate(uri, decorations.Data{Weight: 10, Letter: fr.Letter, Tooltip: fr.Tooltip, Color: fr.Color, Bubble: fr.Propagate})
 				}
 			}
 			g.SetResources(rs)
@@ -321,6 +327,47 @@ func (s *shellState) addFakeSCM(f fakeFixture) error {
 		s.scm.view.SetHover("file://" + filepath.ToSlash(filepath.Join(base, f.Hover)))
 	}
 	return nil
+}
+
+// devDecorations are the file decorations that dev.scm.fake gives, answered by one provider of the decorations service of the window.
+type devDecorations struct {
+	mu   sync.Mutex
+	data map[string]decorations.Data
+	reg  *decorations.Registration
+}
+
+// Decoration implements decorations.Provider.
+func (d *devDecorations) Decoration(uri string) (decorations.Data, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	data, ok := d.data[uri]
+	return data, ok
+}
+
+// devDecorate remembers the decoration of a file for the provider of dev.scm.fake, which it registers the first time.
+func (w *Workspace) devDecorate(uri string, data decorations.Data) {
+	if w.Decorations == nil {
+		return
+	}
+	if w.devDecos == nil {
+		w.devDecos = &devDecorations{data: map[string]decorations.Data{}}
+		reg, err := w.Decorations.Register("dev.scm.fake", w.devDecos)
+		if err != nil {
+			w.Process.Logger.Warn("dev.scm.fake: cannot register the decorations provider", "err", err)
+			return
+		}
+		w.devDecos.reg = reg
+	}
+	w.devDecos.mu.Lock()
+	w.devDecos.data[uri] = data
+	w.devDecos.mu.Unlock()
+}
+
+// devDecorationsFire tells the service that the decorations of the files changed.
+func (w *Workspace) devDecorationsFire(uris []string) {
+	if w.devDecos != nil && w.devDecos.reg != nil && len(uris) > 0 {
+		w.devDecos.reg.Fire(uris...)
+	}
 }
 
 // fakeInput gives a fake source control what a Git-like provider gives the box: the placeholder with the key of the accept command,

@@ -533,8 +533,12 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		PanelActions: s.panelActions(win), FocusPanelView: s.focusPanelView,
 		OnSelectPanel: func(id string) { win.Views.OpenPanel(id) },
 	})
-	// the drag of a tab shows above everything
-	return widgets.NewStack([]widgets.Widget{bench, s.dragLayer()}, widgets.StackOpts{Fit: rendering.StackFitExpand})
+	// the drag of a tab shows above everything; the views below ask the file decorations service for the look of their files
+	stack := widgets.NewStack([]widgets.Widget{bench, s.dragLayer()}, widgets.StackOpts{Fit: rendering.StackFitExpand})
+	if win.Decorations == nil {
+		return stack
+	}
+	return kit.NewFileDecorationsHost(win.Decorations, stack)
 }
 
 // bindController finds the controller of the platform window the shell is shown in, the first time it is built, and

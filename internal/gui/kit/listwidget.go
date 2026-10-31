@@ -75,7 +75,15 @@ func rowStateOf(colors Colors, nav *rowNav, key, hover string, active bool) RowS
 // in bold and in the highlight colors of the state (VS Code's `HighlightedLabel`). It is what the default
 // renderers of List and Tree use; a renderer with an icon puts it after the icon.
 func NewHighlightedLabel(bc widgets.BuildContext, text string, st RowState) widgets.Widget {
+	return newHighlightedLabel(bc, text, st, false)
+}
+
+// newHighlightedLabel is NewHighlightedLabel with the text struck through when strike is set (a deleted file).
+func newHighlightedLabel(bc widgets.BuildContext, text string, st RowState, strike bool) widgets.Widget {
 	base := TextStyleOf(bc, listFontSize, st.Foreground)
+	if strike {
+		base = base.CopyWith(painting.TextStyleOpts{Decoration: foundation.Some(ui.TextDecorationLineThrough)})
+	}
 	if len(st.Highlights) == 0 {
 		return widgets.NewText(text, widgets.TextOpts{Style: base, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})
 	}

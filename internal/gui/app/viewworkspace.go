@@ -72,6 +72,7 @@ func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        p.FileOps,
 		Markers:        p.Markers,
+		Decorations:    p.Decorations,
 		StatusBar:      workbench.NewStatusBar(),
 		ctx:            ctx,
 		viewOf:         p,

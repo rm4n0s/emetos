@@ -80,6 +80,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 		<-ctx.Done()
 		x.stopped.Store(true)
 	}()
+	x.startDecorations()
 	x.model.updateContext()
 	if x.cfg.enabled {
 		x.start()
@@ -177,6 +178,11 @@ func (x *gitscm) settingsChanged() {
 	if !x.cfg.enabled {
 		return
 	}
+	if old.decorationsEnabled != x.cfg.decorationsEnabled {
+		for _, r := range x.model.order {
+			r.syncDecorations()
+		}
+	}
 	statusChanged := old.untrackedChanges != x.cfg.untrackedChanges || old.statusLimit != x.cfg.statusLimit || old.similarityThreshold != x.cfg.similarityThreshold ||
 		old.ignoreSubmodules != x.cfg.ignoreSubmodules || old.countBadge != x.cfg.countBadge || old.enableStatusBarSync != x.cfg.enableStatusBarSync ||
 		old.commitShortHashLength != x.cfg.commitShortHashLength || old.alwaysShowStagedGroup != x.cfg.alwaysShowStagedGroup
@@ -221,6 +227,9 @@ func (x *gitscm) onSaved(ev extension.Event) {
 		return
 	}
 	if path, ok := uriPath(saved.URI); ok {
+		if isIgnoreFile(path) {
+			x.ignoresChanged()
+		}
 		if r := x.model.forPath(path); r != nil && r.repo != nil {
 			r.scheduleRefresh()
 		}
@@ -232,6 +241,12 @@ func (x *gitscm) onFiles(ev extension.Event) {
 	var files extension.FilesChanged
 	if err := jsonUnmarshal(ev.Data, &files); err != nil {
 		return
+	}
+	for _, c := range files.Changes {
+		if isIgnoreFile(c.Path) {
+			x.ignoresChanged()
+			break
+		}
 	}
 	x.model.onFilesChanged(files.Changes)
 }

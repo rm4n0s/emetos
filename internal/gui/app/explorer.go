@@ -116,8 +116,10 @@ func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
 		Visible: func() int {
 			return int(settings.Get[float64](win.Settings, "explorer.openEditors.visible", ""))
 		},
-		DecorationColors: func() bool { return settings.Get[bool](win.Settings, "workbench.editor.decorations.colors", "") },
-		Icons:            win.FileIcons, Language: win.languageOf, Keys: win.Keys,
+		DecorationColors:     func() bool { return settings.Get[bool](win.Settings, "workbench.editor.decorations.colors", "") },
+		FileDecorationColors: func() bool { return settings.Get[bool](win.Settings, "explorer.decorations.colors", "") },
+		FileDecorationBadges: func() bool { return settings.Get[bool](win.Settings, "explorer.decorations.badges", "") },
+		Icons:                win.FileIcons, Language: win.languageOf, Keys: win.Keys,
 		OnOpen: func(g *editorgroup.Group, input editorgroup.EditorInput, pinned bool) {
 			s.groupFocused(g)
 			g.Model.SetActive(input)
@@ -149,7 +151,14 @@ func (s *shellState) initExplorer(binding *widgets.WidgetsBinding) {
 					}
 				})
 			}
-			if e.Affects("explorer.openEditors", "") || e.Affects("workbench.editor.decorations", "") || e.Affects("workbench.iconTheme", "") || e.Affects("explorer.autoReveal", "") {
+			if e.Affects("explorer.decorations", "") {
+				binding.Post(func() {
+					if s.Mounted() && ex.view != nil {
+						ex.view.Redraw()
+					}
+				})
+			}
+			if e.Affects("explorer.openEditors", "") || e.Affects("explorer.decorations", "") || e.Affects("workbench.editor.decorations", "") || e.Affects("workbench.iconTheme", "") || e.Affects("explorer.autoReveal", "") {
 				binding.Post(func() {
 					if !s.Mounted() {
 						return
@@ -238,8 +247,11 @@ func (s *shellState) makeExplorerView(binding *widgets.WidgetsBinding) {
 		AfterFrame:   explorer.AfterFrame(binding),
 		TrashEnabled: func() bool { return settings.Get[bool](win.Settings, "files.enableTrash", "") },
 		DragEnabled:  func() bool { return settings.Get[bool](win.Settings, "explorer.enableDragAndDrop", "") },
-		Ctrl:         func() bool { return binding.Keyboard().IsControlPressed() },
-		OnCommitEdit: func(r explorer.EditResult) { s.editCommitted(binding, r) },
+		// the file decorations (Git's colors and letters) by explorer.decorations.colors and .badges
+		DecorationColors: func() bool { return settings.Get[bool](win.Settings, "explorer.decorations.colors", "") },
+		DecorationBadges: func() bool { return settings.Get[bool](win.Settings, "explorer.decorations.badges", "") },
+		Ctrl:             func() bool { return binding.Keyboard().IsControlPressed() },
+		OnCommitEdit:     func(r explorer.EditResult) { s.editCommitted(binding, r) },
 		OnDropItems: func(sources []string, folder string, copying bool) {
 			s.dropItems(binding, sources, folder, copying)
 		},

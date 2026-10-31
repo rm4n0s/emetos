@@ -144,6 +144,7 @@ func (m *model) openRepository(c candidate, force bool) *repository {
 // opened is called when a repository is open (git opened it), to look for its submodules.
 func (m *model) opened(r *repository) {
 	m.updateContext()
+	m.x.ignoresChanged()
 	if m.x.cfg.detectSubmodules {
 		m.openSubmodules(r)
 	}
@@ -213,6 +214,9 @@ func (m *model) addUnsafe(root, safeDir string) {
 // drop removes a repository without remembering it as closed.
 func (m *model) drop(r *repository) {
 	r.dispose()
+	if m.x.ignores != nil {
+		m.x.ignores.repositoryClosed(r)
+	}
 	delete(m.repos, r.root)
 	m.order = slices.DeleteFunc(m.order, func(o *repository) bool { return o == r })
 	m.queue = slices.DeleteFunc(m.queue, func(o *repository) bool { return o == r })

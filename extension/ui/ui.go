@@ -295,6 +295,32 @@ func NewHighlightedLabel(bc widgets.BuildContext, text string, st RowState) widg
 	return kit.NewHighlightedLabel(bc, text, st)
 }
 
+// FileLook is how the file decoration of a file is drawn (the color of the name, the badge at the end of the row, the tooltip; SPEC
+// §10.30 "File decorations and the Explorer"). The views of Emetos draw the files of the workspace this way, and a view of an extension
+// that lists files does the same with FileLookOf and the methods of the look.
+type FileLook = kit.FileLook
+
+// FileLookOf is the look of the file at a URI (file:///path) from the decorations of the window, and false when it has none. folder is
+// true for a folder, which takes on the marks of the files below it. colors and badges say what the view draws: the color of the name
+// and the badge. The view is built again when the decorations change.
+func FileLookOf(bc widgets.BuildContext, uri string, folder, colors, badges bool) (FileLook, bool) {
+	return kit.FileLookOf(bc, uri, folder, kit.FileLookOpts{Colors: colors, Badges: badges})
+}
+
+// FixedFileDecoration is a decoration that a test gives a file.
+type FixedFileDecoration = kit.FixedFileDecoration
+
+// NewFixedFileDecorations gives the child file decorations from a fixed table by URI (file:///path), for the tests and the goldens of a view that
+// draws them (the box of the window gives the real ones).
+func NewFixedFileDecorations(files map[string]FixedFileDecoration, child widgets.Widget) widgets.Widget {
+	return kit.NewFixedFileDecorations(files, child)
+}
+
+// NewDecoratedLabel is NewHighlightedLabel in the color of the look and struck through when the look says so.
+func NewDecoratedLabel(bc widgets.BuildContext, text string, st RowState, look FileLook) widgets.Widget {
+	return kit.NewDecoratedLabel(bc, text, st, look)
+}
+
 // Split views and context menus.
 type (
 	// SplitView lays out panes side by side or one above the other with a sash between each two that the user drags.

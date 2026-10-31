@@ -928,6 +928,16 @@ func registerExplorer(r *Registry) {
 			Scope:       ScopeWindow, Category: categoryExplorer,
 		},
 		Setting{
+			Key: "explorer.decorations.colors", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether file decorations should use colors.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
+			Key: "explorer.decorations.badges", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether file decorations should use badges.",
+			Scope:       ScopeWindow, Category: categoryExplorer,
+		},
+		Setting{
 			Key: "explorer.compactFolders", Types: []Type{Boolean}, Default: true,
 			Description: "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example.",
 			Scope:       ScopeWindow, Category: categoryExplorer,
@@ -1346,6 +1356,11 @@ func registerEditorGroups(r *Registry) {
 				"A pinned tab shrinks to a compact fixed size showing parts of the editor name.",
 			},
 			Description: "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `workbench.editor.showTabs` is not set to `multiple`.",
+			Scope:       ScopeWindow, Category: categoryWorkbench,
+		},
+		Setting{
+			Key: "workbench.editor.decorations.badges", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether editor file decorations should use badges.",
 			Scope:       ScopeWindow, Category: categoryWorkbench,
 		},
 		Setting{

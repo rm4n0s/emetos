@@ -55,6 +55,9 @@ type ListOverlayOpts struct {
 	// autofocus of a list gives way to the widget that has the focus), as the list of the choices
 	// of a snippet does, which opens over an editor that has it.
 	StealFocus bool
+	// FileDecorations, when set, draws the rows that have a URI in the color of their file decoration, with its badge at the end (the
+	// breadcrumbs picker uses explorer.decorations.colors and .badges).
+	FileDecorations foundation.Opt[FileLookOpts]
 	// OnSelect is called with the index of the item the user chose (Enter or a click).
 	OnSelect func(item int)
 	// OnDismiss is called when the user presses Escape, clicks outside the list or moves the focus
@@ -299,8 +302,21 @@ func (s *listOverlayState) row(bc widgets.BuildContext, colors Colors, it ListIt
 			widgets.NewIcon(fonts.CodiconIcon(it.Icon), widgets.IconOpts{Size: foundation.Some(iconSize), Color: foundation.Some(iconColor(it, fg))}),
 			widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(listIconGap)}))
 	}
-	label := widgets.NewText(it.Label, widgets.TextOpts{Style: TextStyleOf(bc, listFontSize, fg), MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})
-	if it.Description == "" {
+	labelStyle := TextStyleOf(bc, listFontSize, fg)
+	var look FileLook
+	var decorated bool
+	if opts, ok := s.Widget().opts.FileDecorations.Get(); ok && it.URI != "" && !it.Disabled {
+		look, decorated = FileLookOf(bc, it.URI, it.Folder, opts)
+		look = look.ForRow(RowState{Selected: focused, Active: focused})
+		labelStyle = look.NameStyle(labelStyle)
+	}
+	label := widgets.NewText(it.Label, widgets.TextOpts{Style: labelStyle, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis})
+	if decorated && look.HasBadge() {
+		parts = append(parts, widgets.NewFlexible(label))
+		if b := look.BadgeWidget(bc, listFontSize, fg); b != nil {
+			parts = append(parts, b)
+		}
+	} else if it.Description == "" {
 		parts = append(parts, widgets.NewFlexible(label))
 	} else {
 		parts = append(parts, widgets.NewFlexible(label),

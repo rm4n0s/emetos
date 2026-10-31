@@ -18,6 +18,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/core/theme"
@@ -51,6 +52,8 @@ func pump(t *testing.T, colors kit.Colors, size ui.Size, child widgets.Widget) *
 type wrig struct {
 	*rig
 	ts *gluttertest.Tester
+	// decos is the file decorations service the rows read through the widget tree.
+	decos *decorations.Service
 }
 
 func newWRig(t *testing.T, colors kit.Colors, size ui.Size, entries ...string) *wrig {
@@ -61,12 +64,12 @@ func newWRig(t *testing.T, colors kit.Colors, size ui.Size, entries ...string) *
 func newWRigFS(t *testing.T, colors kit.Colors, size ui.Size, fsys func(workspace.FS) workspace.FS, entries ...string) *wrig {
 	t.Helper()
 	r := newRigFS(t, fsys, entries...)
-	w := &wrig{rig: r}
-	w.ts = pump(t, colors, size, NewBody(r.view, BodyOpts{AfterFrame: func(f func()) {
+	w := &wrig{rig: r, decos: decorations.New(decorations.Options{})}
+	w.ts = pump(t, colors, size, kit.NewFileDecorationsHost(w.decos, NewBody(r.view, BodyOpts{AfterFrame: func(f func()) {
 		r.mu.Lock()
 		r.posted = append(r.posted, f)
 		r.mu.Unlock()
-	}}))
+	}})))
 	w.settle()
 	return w
 }

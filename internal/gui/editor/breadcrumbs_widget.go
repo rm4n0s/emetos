@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
@@ -513,7 +514,7 @@ func (s *breadcrumbsState) pickerList(colors kit.Colors) widgets.Widget {
 		case r.Dir:
 			code = fonts.CodiconFolder
 		}
-		items[i] = kit.ListItem{Label: r.Name, Icon: code, Disabled: r.Path == ""}
+		items[i] = kit.ListItem{Label: r.Name, Icon: code, Disabled: r.Path == "", URI: pickerURI(r), Folder: r.Dir}
 		if p.focus != "" && r.Name == p.focus && !focused.IsSome() {
 			focused = foundation.Some(i)
 		}
@@ -522,8 +523,10 @@ func (s *breadcrumbsState) pickerList(colors kit.Colors) widgets.Widget {
 		Key: foundation.NewValueKey(p.dir), TapGroup: s,
 		Filterable: true, Rows: pickerRows, Width: foundation.Some(pickerWidth), Focused: focused,
 		Background: foundation.Some(colors.BreadcrumbPickerBackground),
-		OnSelect:   s.choose,
-		OnDismiss:  s.close,
+		// the files and folders of the picker are decorated as the Explorer's are (VS Code's breadcrumbsPicker uses explorer.decorations)
+		FileDecorations: foundation.Some(kit.FileLookOpts{Colors: s.Widget().options.DecorationColors, Badges: s.Widget().options.DecorationBadges}),
+		OnSelect:        s.choose,
+		OnDismiss:       s.close,
 	})
 }
 
@@ -542,4 +545,12 @@ func (s *breadcrumbsState) symbolList(colors kit.Colors) widgets.Widget {
 		OnSelect:   s.chooseSymbol,
 		OnDismiss:  s.close,
 	})
+}
+
+// pickerURI is the URI of the file or folder of a row of the picker for its file decoration; the row to go up has none.
+func pickerURI(r BreadcrumbEntry) string {
+	if r.Path == "" || r.Name == ".." {
+		return ""
+	}
+	return decorations.FileURI(r.Path)
 }

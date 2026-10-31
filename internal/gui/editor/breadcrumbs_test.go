@@ -185,11 +185,12 @@ func TestBreadcrumbsOptionsFromSettings(t *testing.T) {
 		extra map[string]any
 		want  BreadcrumbsOptions
 	}{
-		{"the defaults", nil, BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true, SymbolPath: "on", SymbolSortOrder: "position"}},
-		{"off", map[string]any{"breadcrumbs.enabled": false}, BreadcrumbsOptions{FilePath: "on", Icons: true, SymbolPath: "on", SymbolSortOrder: "position"}},
-		{"last, no icons", map[string]any{"breadcrumbs.filePath": "last", "breadcrumbs.icons": false}, BreadcrumbsOptions{Enabled: true, FilePath: "last", SymbolPath: "on", SymbolSortOrder: "position"}},
+		{"the defaults", nil, BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true, SymbolPath: "on", SymbolSortOrder: "position", DecorationColors: true, DecorationBadges: true}},
+		{"off", map[string]any{"breadcrumbs.enabled": false}, BreadcrumbsOptions{FilePath: "on", Icons: true, SymbolPath: "on", SymbolSortOrder: "position", DecorationColors: true, DecorationBadges: true}},
+		{"last, no icons", map[string]any{"breadcrumbs.filePath": "last", "breadcrumbs.icons": false}, BreadcrumbsOptions{Enabled: true, FilePath: "last", SymbolPath: "on", SymbolSortOrder: "position", DecorationColors: true, DecorationBadges: true}},
+		{"the picker follows explorer.decorations", map[string]any{"explorer.decorations.colors": false, "explorer.decorations.badges": false}, BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true, SymbolPath: "on", SymbolSortOrder: "position"}},
 		{"symbols: last, by name, no functions", map[string]any{"breadcrumbs.symbolPath": "last", "breadcrumbs.symbolSortOrder": "name", "breadcrumbs.showFunctions": false},
-			BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true, SymbolPath: "last", SymbolSortOrder: "name", HiddenKinds: hidden(12)}},
+			BreadcrumbsOptions{Enabled: true, FilePath: "on", Icons: true, SymbolPath: "last", SymbolSortOrder: "name", DecorationColors: true, DecorationBadges: true, HiddenKinds: hidden(12)}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

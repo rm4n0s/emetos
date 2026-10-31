@@ -15,6 +15,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -80,10 +81,14 @@ type rig struct {
 	view  *View
 	ts    *gluttertest.Tester
 
-	runs   []run
-	opens  []opened
-	menus  []shown
-	decor  map[string]Decoration
+	runs  []run
+	opens []opened
+	menus []shown
+	// decor is the decoration of the files, which decos (the file decorations service the rows read through the widget tree) gives
+	decor map[string]decoration
+	decos *decorations.Service
+	// bubble makes the decorations of the files show in the folders above them.
+	bubble bool
 	always bool
 	side   bool
 	drags  []*fakeDrag
@@ -101,6 +106,9 @@ type rig struct {
 	keys               *contextkey.Scope
 	scopes             *kit.FocusScopes
 }
+
+// decoration is what the fixtures say about a file: its letter, tooltip and the id of the color of the letter.
+type decoration struct{ Badge, Tooltip, Color string }
 
 // shownItems is a dropdown the view asked for.
 type shownItems struct {
@@ -148,8 +156,15 @@ func iconTheme(t testing.TB) func() *theme.FileIconTheme {
 // newRig makes the view over an empty model; add repositories with addRepo.
 func newRig(t *testing.T) *rig {
 	t.Helper()
-	r := &rig{t: t, model: scmcore.NewModel(scmcore.DefaultConfig()), decor: map[string]Decoration{},
+	r := &rig{t: t, model: scmcore.NewModel(scmcore.DefaultConfig()), decor: map[string]decoration{},
 		minLines: 1, maxLines: 10, font: InputFont{Size: 13}, keys: contextkey.NewRoot(), scopes: kit.NewFocusScopes()}
+	r.decos = decorations.New(decorations.Options{})
+	if _, err := r.decos.Register("test", decorations.ProviderFunc(func(uri string) (decorations.Data, bool) {
+		d, ok := r.decor[uri]
+		return decorations.Data{Letter: d.Badge, Tooltip: d.Tooltip, Color: d.Color, Bubble: r.bubble}, ok
+	})); err != nil {
+		t.Fatal(err)
+	}
 	r.view = New(Options{
 		Scopes: r.scopes, Keys: r.keys,
 		InputLines:       func() (int, int) { return r.minLines, r.maxLines },
@@ -165,11 +180,7 @@ func newRig(t *testing.T) *rig {
 		ShowMenu: func(menu string, extra map[string]any, args []any, _ ui.Offset) {
 			r.menus = append(r.menus, shown{menu, extra, args})
 		},
-		OpenResource: func(uri string, o OpenOptions) { r.opens = append(r.opens, opened{uri, o}) },
-		Decoration: func(uri string) (Decoration, bool) {
-			d, ok := r.decor[uri]
-			return d, ok
-		},
+		OpenResource:      func(uri string, o OpenOptions) { r.opens = append(r.opens, opened{uri, o}) },
 		Icons:             iconTheme(t),
 		AlwaysShowActions: func() bool { return r.always },
 		Side:              func() bool { return r.side },
@@ -226,7 +237,7 @@ func (r *rig) addRepo(name string, groups ...group) *scmcore.Source {
 			uri := "file://" + root + "/" + c.path
 			rs = append(rs, scmcore.Resource{URI: uri, Decorations: scmcore.Decorations{Tooltip: c.tooltip, StrikeThrough: c.strike}})
 			if c.letter != "" {
-				r.decor[uri] = Decoration{Badge: c.letter, Tooltip: c.tooltip, Color: c.color}
+				r.decor[uri] = decoration{Badge: c.letter, Tooltip: c.tooltip, Color: c.color}
 			}
 		}
 		grp.SetResources(rs)
@@ -237,7 +248,7 @@ func (r *rig) addRepo(name string, groups ...group) *scmcore.Source {
 // show puts the body of the view in a window.
 func (r *rig) show(colors kit.Colors, size ui.Size) {
 	r.t.Helper()
-	r.ts = pump(r.t, colors, size, NewBody(r.view, BodyOpts{}))
+	r.ts = pump(r.t, colors, size, kit.NewFileDecorationsHost(r.decos, NewBody(r.view, BodyOpts{})))
 	r.settle()
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
 
@@ -112,6 +113,9 @@ type TabItem struct {
 	Sticky bool
 	// Dirty shows the dot of unsaved changes in place of the close button.
 	Dirty bool
+	// URI is the resource of the editor as file:///path, which the file decorations (the color of the label, the badge, the tooltip)
+	// are looked up by; empty for an editor that has none.
+	URI string
 	// Deleted marks an editor whose file another program deleted (VS Code's file decoration): the name and the
 	// description are struck through, and drawn in list.errorForeground when TabsOpts.DecorationColors is set.
 	Deleted bool
@@ -134,6 +138,9 @@ type TabsOpts struct {
 	HighlightModified bool
 	// DecorationColors draws the label of a deleted tab in the error color (`workbench.editor.decorations.colors`).
 	DecorationColors bool
+	// DecorationBadges draws the badge of the file decoration after the label (`workbench.editor.decorations.badges`); DecorationColors
+	// also draws the label in the color of the file decoration of the tab's URI.
+	DecorationBadges bool
 	// Mode chooses between the tabs and the title of the active editor alone.
 	Mode TabsMode
 	// OnActivate is called with the index of a tab that is pressed with the primary button.
@@ -416,7 +423,15 @@ func (t *Tabs) buildSingle(bc widgets.BuildContext, colors Colors) widgets.Widge
 			row = append(row, widgets.NewSizedBox(it.Icon, widgets.SizedBoxOpts{Width: foundation.Some(tabIconSize), Height: foundation.Some(tabIconSize)}),
 				widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(tabIconGap)}))
 		}
-		row = append(row, tabLabel(bc, it, decoratedForeground(bc, it, t.opts.DecorationColors, fg), tabFontSize, false)...)
+		look, decorated := tabLook(bc, it, t.opts, false)
+		labelItem := it
+		labelItem.Deleted = it.Deleted || look.Strikethrough
+		row = append(row, tabLabel(bc, labelItem, decoratedForeground(bc, it, t.opts.DecorationColors, look.NameColor(fg)), tabFontSize, false)...)
+		if decorated {
+			if b := look.BadgeWidget(bc, tabFontSize, fg); b != nil {
+				row = append(row, b)
+			}
+		}
 		if it.Dirty {
 			row = append(row, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(tabIconGap, 0, 0, 0),
 				widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconCircleFilled), widgets.IconOpts{Size: foundation.Some(tabIconSize), Color: foundation.Some(fg)})))
@@ -459,6 +474,25 @@ func decoratedForeground(bc widgets.BuildContext, it TabItem, colors bool, fg ui
 		}
 	}
 	return fg
+}
+
+// tabLook is the look of the file decoration of a tab; the badge is left out when the tab has no room for it.
+func tabLook(bc widgets.BuildContext, it TabItem, o TabsOpts, noBadge bool) (FileLook, bool) {
+	if it.URI == "" {
+		return FileLook{}, false
+	}
+	return FileLookOf(bc, it.URI, false, FileLookOpts{Colors: o.DecorationColors, Badges: o.DecorationBadges && !noBadge})
+}
+
+// tabTitle is the tooltip of a tab: the title, then the tooltip of the decoration after a bullet (VS Code's labels.ts).
+func tabTitle(title string, look FileLook, decorated bool) string {
+	if !decorated || look.Tooltip == "" {
+		return title
+	}
+	if title == "" {
+		return look.Tooltip
+	}
+	return title + decorations.TooltipSeparator + look.Tooltip
 }
 
 // titleBarLabel is the label of a workspace tab: the name and the dimmer description in one line of text, which an
@@ -862,17 +896,29 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 		rightColor, bottomColor = ui.Color{}, ui.Color{}
 	}
 
+	// the file decoration of the editor: the color of the label, the badge after it and the tooltip (VS Code does not draw the badge of
+	// a tab that is compact or in the title bar)
+	look, decorated := tabLook(bc, it, o, compact || spec.titleBar)
+	labelItem := it
+	labelItem.Deleted = it.Deleted || look.Strikethrough
+	nameColor := look.NameColor(foreground)
+
 	// the label
 	var content []widgets.Widget
 	switch {
 	case compact && it.Icon == nil:
-		content = tabLabel(bc, TabItem{Name: spec.compactLetter, Preview: it.Preview, Deleted: it.Deleted}, decoratedForeground(bc, it, o.DecorationColors, foreground), tabFontSize, true)
+		content = tabLabel(bc, TabItem{Name: spec.compactLetter, Preview: it.Preview, Deleted: labelItem.Deleted}, decoratedForeground(bc, it, o.DecorationColors, nameColor), tabFontSize, true)
 	case compact:
 		content = nil
 	case spec.titleBar:
 		content = titleBarLabel(bc, it, foreground)
 	default:
-		content = tabLabel(bc, it, decoratedForeground(bc, it, o.DecorationColors, foreground), tabFontSize, shrink)
+		content = tabLabel(bc, labelItem, decoratedForeground(bc, it, o.DecorationColors, nameColor), tabFontSize, shrink)
+		if decorated {
+			if b := look.BadgeWidget(bc, tabFontSize, foreground); b != nil {
+				content = append(content, b)
+			}
+		}
 	}
 	label := []widgets.Widget{}
 	if it.Icon != nil {
@@ -949,8 +995,8 @@ func (s *tabState) Build(bc widgets.BuildContext) widgets.Widget {
 	var tab widgets.Widget = widgets.NewContainer(
 		widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitPassthrough}),
 		widgets.ContainerOpts{Color: foundation.Some(background)})
-	if it.Title != "" {
-		tab = NewHover(tab, HoverOpts{Text: it.Title, Compact: true})
+	if title := tabTitle(it.Title, look, decorated); title != "" {
+		tab = NewHover(tab, HoverOpts{Text: title, Compact: true})
 	}
 	if spec.bounds != nil {
 		tab = NewBoundsProbe(tab, spec.bounds)

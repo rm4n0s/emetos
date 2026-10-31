@@ -15,6 +15,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/decorations"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/indent"
@@ -112,6 +113,9 @@ type Workspace struct {
 	// SCM is the model of the Source Control view of the window: the source controls the extensions create, which repositories are
 	// shown, the active one, and the view mode of the Changes view (SPEC §10.30). The headless view of a workspace has none.
 	SCM *scm.Model
+	// Decorations is the file decorations service of the window: the colors and badges that extensions give files (Git's status), which
+	// the Explorer, the tabs and the other views draw (SPEC §10.30). The headless view of a workspace shares its workspace's.
+	Decorations *decorations.Service
 	// Notifications is what the window shows of the notifications of the process: the toasts, the
 	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
 	// thread.
@@ -219,10 +223,10 @@ type Workspace struct {
 	restored        *restoredWindow
 	pendingExpanded []string
 	flushState      func()
-	// pendingSCMView is the saved state of the Source Control view (the folds), until the shell makes the view; scmDecorations are
-	// the decorations of the files that the view draws (scmview.go).
+	// pendingSCMView is the saved state of the Source Control view (the folds), until the shell makes the view.
 	pendingSCMView json.RawMessage
-	scmDecorations scmFileDecorations
+	// devDecos are the file decorations that dev.scm.fake gives (devscm.go).
+	devDecos *devDecorations
 	// extViewMu guards extViewStates, the state the views of the extensions saved before the scope closed (stopExtensions).
 	extViewMu     sync.Mutex
 	extViewStates map[string]json.RawMessage
@@ -420,6 +424,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		Views:          workbench.NewViews(p.Views.Fork(), layout), // the views its extensions add are its own
 		Banners:        workbench.NewBanners(),
 		SCM:            scm.NewModel(scmConfig(store)),
+		Decorations:    decorations.New(decorations.Options{Logger: p.Logger}),
 		Dialogs:        kit.NewDialogController(),
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),
