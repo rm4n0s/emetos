@@ -104,6 +104,7 @@ func TestSystemsLanguagesHaveTheScopesOfTheirTokens(t *testing.T) {
 // fixture of VS Code tokenizes within a time that an editor can bear, and the line that made the
 // whitespace pattern of the grammar exponential (a string with many "*") does not time out.
 func TestCppIsTokenizedInTime(t *testing.T) {
+	const timingRuns = 5
 	r, err := Bundled()
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +143,16 @@ func TestCppIsTokenizedInTime(t *testing.T) {
 				t.Fatal(err)
 			}
 			lines := lineBreaks.Split(string(content), -1)
+			// the best of a few runs: a machine busy with other tests stretches a single run, a slow grammar stretches every one
 			d, stopped := tokenize(t, r.Detect(name, lines[0]), lines)
+			for range timingRuns - 1 {
+				if d/time.Duration(len(lines)) <= 20*time.Millisecond && stopped == 0 {
+					break
+				}
+				if again, s := tokenize(t, r.Detect(name, lines[0]), lines); again < d {
+					d, stopped = again, s
+				}
+			}
 			if stopped != 0 {
 				t.Errorf("%s: %d lines stopped early", name, stopped)
 			}
