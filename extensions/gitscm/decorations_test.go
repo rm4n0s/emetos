@@ -1,7 +1,9 @@
 package gitscm
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -16,6 +18,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/gitscm/git"
 	"github.com/rm4n0s/emetos/extensions/gitscm/gittest"
+	"github.com/rm4n0s/emetos/extensions/internal/fakeapi"
 )
 
 // The decoration of every status, from the methods of VS Code's Resource (getStatusLetter, getStatusText, getStatusColor, priority and
@@ -545,4 +548,55 @@ func TestIgnoredFilesAreAskedForInBatchesAndFired(t *testing.T) {
 		d, ok := r.x.ignores.Decoration(fileURI(repo.Path("keep.txt")))
 		return ok && d.Color == "gitDecoration.ignoredResourceForeground"
 	})
+}
+
+// failingDecorationsAPI is the fake API with a decorations service that refuses every provider with an error of the tag, and a log
+// a test reads.
+type failingDecorationsAPI struct {
+	*fakeapi.API
+	tag    string
+	logged *bytes.Buffer
+}
+
+func (a failingDecorationsAPI) Decorations() extension.Decorations { return failingDecorations(a) }
+func (a failingDecorationsAPI) Log() *slog.Logger {
+	return slog.New(slog.NewTextHandler(a.logged, nil))
+}
+
+type failingDecorations failingDecorationsAPI
+
+func (d failingDecorations) Register(extension.FileDecorationProvider) (extension.FileDecorations, error) {
+	return nil, errors.New(d.tag, "the provider is refused")
+}
+
+// TestAScopeWithoutDecorationsIsNotWarnedAbout keeps a scope with no decorations service (a host without a workbench) out of the
+// log, and every other failure of Register in it.
+func TestAScopeWithoutDecorationsIsNotWarnedAbout(t *testing.T) {
+	tests := []struct {
+		tag      string
+		wantWarn bool
+	}{
+		{tag: "ExtensionDecorationsUnavailable", wantWarn: false},
+		{tag: "ExtensionDeactivated", wantWarn: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.tag, func(t *testing.T) {
+			e := gittest.NewEnv(t)
+			repo := e.Init("repo")
+			repo.Write("a.go", "one")
+			repo.Commit("initial commit")
+			r := newRig(t, e, rigOptions{folder: repo.Dir, noStart: true})
+			var logged bytes.Buffer
+			if err := r.x.Activate(t.Context(), failingDecorationsAPI{API: r.api, tag: tt.tag, logged: &logged}); err != nil {
+				t.Fatal(err)
+			}
+			r.settle()
+			repo.Write("a.go", "two")
+			r.refresh(r.repo(repo.Dir))
+			warned := strings.Contains(logged.String(), "cannot register the file decorations")
+			if warned != tt.wantWarn {
+				t.Errorf("warned %v, want %v; the log:\n%s", warned, tt.wantWarn, logged.String())
+			}
+		})
+	}
 }

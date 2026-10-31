@@ -189,7 +189,9 @@ func (r *repository) applyDecorations(next map[string]extension.FileDecoration, 
 		p := &statusProvider{}
 		reg, err := x.api.Decorations().Register(p)
 		if err != nil {
-			x.log.Warn("cannot register the file decorations of a repository", "root", r.root, "err", err)
+			if !noDecorationsService(err) {
+				x.log.Warn("cannot register the file decorations of a repository", "root", r.root, "err", err)
+			}
 			return
 		}
 		p.reg = reg
@@ -419,7 +421,9 @@ func (x *gitscm) startDecorations() {
 	p := newIgnoreProvider(x.ctx, ignoreHostOf{x}, x.log.Warn)
 	reg, err := x.api.Decorations().Register(p)
 	if err != nil {
-		x.log.Warn("cannot register the file decorations of ignored files", "err", err)
+		if !noDecorationsService(err) {
+			x.log.Warn("cannot register the file decorations of ignored files", "err", err)
+		}
 		return
 	}
 	p.reg = reg
@@ -437,4 +441,11 @@ func (x *gitscm) ignoresChanged() {
 func isIgnoreFile(path string) bool {
 	path = filepath.ToSlash(path)
 	return strings.HasSuffix(path, "/.gitignore") || strings.HasSuffix(path, ".git/info/exclude")
+}
+
+// noDecorationsService tells whether Register failed because the scope has no decorations service (a host without a workbench, as the
+// tests of the languages make): nothing shows decorations there, so it is not worth a warning.
+func noDecorationsService(err error) bool {
+	appErr, ok := errors.FromError(err)
+	return ok && appErr.Tag == "ExtensionDecorationsUnavailable"
 }
