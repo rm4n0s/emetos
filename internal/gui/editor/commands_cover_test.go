@@ -58,6 +58,9 @@ var appCommands = map[string]bool{
 	"outline.focus": true, "outline.collapse": true, "outline.followCursor": true,
 	// Select the Active Repository picks one of the source controls of the window (step 24.2, gui/app/scm.go)
 	"scm.setActiveProvider": true,
+	// the commands of the commit message box of the Source Control view (step 24.4, gui/app/scmview.go)
+	"scm.acceptInput": true, "scm.clearInput": true, "scm.clearValidation": true,
+	"scm.viewNextCommit": true, "scm.viewPreviousCommit": true, "scm.forceViewNextCommit": true, "scm.forceViewPreviousCommit": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

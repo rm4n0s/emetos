@@ -4,8 +4,10 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/theme"
+	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
 // Decoration is what the file decoration service says about a file (VS Code's IDecoration): the letter of the row, its tooltip
@@ -65,6 +67,24 @@ type Options struct {
 	OpenIn    func(uri string, group, index int) error
 	// Side tells whether Control or Alt is held (an open beside the active editor); nil is never.
 	Side func() bool
+	// Scopes and Keys give the input a scope of context keys while it has the keyboard focus (scmRepository, scmInputIsInFirstPosition,
+	// scmInputIsInLastPosition, scmInputHasValidationMessage, editorHasSelection): a child of Keys that the window's key dispatcher
+	// finds through Scopes. Both nil: the input has no keys of its own.
+	Scopes *kit.FocusScopes
+	Keys   *contextkey.Scope
+	// InputLines gives scm.inputMinLineCount and scm.inputMaxLineCount; nil is 1 and 10. InputFont gives scm.inputFontFamily and
+	// scm.inputFontSize; nil is the UI font at 13 px.
+	InputLines func() (minLines, maxLines int)
+	InputFont  func() InputFont
+	// ShowActionButton is scm.showActionButton; nil is true.
+	ShowActionButton func() bool
+	// AcceptKeyLabel is the label of the key that runs scm.acceptInput ("Ctrl+Enter"), which the placeholder of the box names.
+	AcceptKeyLabel func() string
+	// ShowItems opens a menu of items below a position of the window: the dropdown of the action button. The items run their
+	// commands (ID, with Data as the argument) when the host's menu runs them.
+	ShowItems func(items []kit.MenuItem, at ui.Offset)
+	// Reveal shows the view in the window; it is called before the input is asked to take the keyboard focus (SCMInput.Focus).
+	Reveal func()
 	// AfterFrame runs a function after the next frame; the list is scrolled to a revealed row then. Nil scrolls at once.
 	AfterFrame func(func())
 }

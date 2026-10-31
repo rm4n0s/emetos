@@ -92,6 +92,24 @@ type InputBoxOpts struct {
 	// MaxHeight is the height past which a multi-line box stops growing and scrolls; without it the
 	// box grows without limit.
 	MaxHeight foundation.Opt[float64]
+	// MinLines is the number of lines a multi-line box shows at least; the default is 1.
+	MinLines int
+	// MaxLines is the number of lines past which a multi-line box scrolls; when it is set it is used in place of what MaxHeight
+	// gives (and it is at least MinLines).
+	MaxLines int
+	// FontSize, LineHeight and FontFamily are the look of the text of a multi-line box; the defaults are 13 px, 17 px and the UI
+	// font (the monospace font with Monospace). PaddingV is the room above and below the lines (3 px by default).
+	FontSize, LineHeight, PaddingV foundation.Opt[float64]
+	FontFamily                     string
+	// Radius is the radius of the corners of the box (2 px by default).
+	Radius foundation.Opt[float64]
+	// OnHeightChange is called, after a frame, with the height the multi-line box wants (its border, padding and the lines of its
+	// text between MinLines and MaxLines) when that is not the height it last reported. A box in a place that is as high as the
+	// owner says (a row of a list) uses it to make the place as high as the box wants.
+	OnHeightChange func(height float64)
+	// CollapseSelectionOnEscape makes Escape, with some text selected, collapse the selection to its end and be used; without it
+	// Escape is left to the box's owner.
+	CollapseSelectionOnEscape bool
 	// Disabled makes the box not take the focus or the keyboard and shows its text dimmed.
 	Disabled bool
 	// Obscure shows a dot for each character, as a password box does: the text cannot be copied or read back from the screen. A
@@ -107,6 +125,15 @@ type InputBoxOpts struct {
 	// Controller reads and changes the box from outside (see InputBoxController); the text and
 	// focus node of the controller are used where NewInputBox is given none.
 	Controller *InputBoxController
+}
+
+func (o InputBoxOpts) fontSize() float64   { return o.FontSize.OrElse(inputBoxFontSize) }
+func (o InputBoxOpts) lineHeight() float64 { return o.LineHeight.OrElse(inputBoxLineHeight) }
+func (o InputBoxOpts) paddingV() float64   { return o.PaddingV.OrElse(inputBoxMultiPadV) }
+
+// minHeight is the height of a multi-line box of MinLines lines: its border, its padding and the lines.
+func (o InputBoxOpts) minHeight() float64 {
+	return 2 + 2*o.paddingV() + float64(max(o.MinLines, 1))*o.lineHeight()
 }
 
 // InputBox is VS Code's input box: a line of text on Glutter's EditableText with a background, a
@@ -175,6 +202,11 @@ type inputBoxState struct {
 	undo *widgets.UndoHistoryController
 	// scroll is the scroll controller of the text; the box owns it to bring the offset back after a change of the text.
 	scroll *widgets.ScrollControllerBase
+	// reportedHeight is the height OnHeightChange got last, measuring tells that a measure is waiting for the end of the frame,
+	// width is the width the box was laid out at last.
+	reportedHeight float64
+	measuring      bool
+	width          float64
 }
 
 // InitState follows the text, to show the placeholder only while it is empty, and takes the keys.
@@ -462,6 +494,13 @@ func (s *inputBoxState) ownKey(e services.KeyEvent) widgets.KeyEventResult {
 		return widgets.KeyEventResultHandled
 	}
 	switch e.LogicalKey() {
+	case services.LogicalKeyboardKeyEscape:
+		sel := s.text.Selection()
+		if !o.CollapseSelectionOnEscape || !sel.IsValid() || sel.IsCollapsed() || kb.IsShiftPressed() || kb.IsControlPressed() || kb.IsAltPressed() {
+			return widgets.KeyEventResultIgnored
+		}
+		s.text.SetSelection(services.NewTextSelectionCollapsed(sel.End()))
+		return widgets.KeyEventResultHandled
 	case services.LogicalKeyboardKeyEnter, services.LogicalKeyboardKeyNumpadEnter:
 		if kb.IsShiftPressed() || kb.IsAltPressed() || kb.IsMetaPressed() || (o.MultiLine && !kb.IsControlPressed()) || (!o.MultiLine && kb.IsControlPressed()) {
 			return widgets.KeyEventResultIgnored
@@ -548,25 +587,29 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	height := foundation.Some(inputBoxHeight)
 	var body widgets.Widget
 	if o.MultiLine {
+		family := UIFontOf(bc)
+		if o.FontFamily != "" {
+			family = o.FontFamily
+		}
 		style = painting.NewTextStyle(painting.TextStyleOpts{
-			FontFamily: UIFontOf(bc), FontFamilyFallback: []string{"sans-serif"}, FontSize: foundation.Some(inputBoxFontSize),
-			Height: foundation.Some(inputBoxLineHeight / inputBoxFontSize), Color: foundation.Some(fg),
+			FontFamily: family, FontFamilyFallback: []string{"sans-serif"}, FontSize: foundation.Some(o.fontSize()),
+			Height: foundation.Some(o.lineHeight() / o.fontSize()), Color: foundation.Some(fg),
 		})
-		opts.MinLines = foundation.Some(1)
+		opts.MinLines = foundation.Some(max(o.MinLines, 1))
 		opts.MaxLines = foundation.Some(multiLineMaxLines(o))
 		// no scrollbar of Glutter's: the textarea of VS Code hides its own too
 		opts.ScrollBehavior = widgets.ScrollConfigurationOf(bc).CopyWith(widgets.ScrollBehaviorCopy{Scrollbars: foundation.Some(false), Overscroll: foundation.Some(false)})
 		opts.KeyboardType = foundation.Some(services.TextInputTypeMultiline)
 		opts.TextInputAction = services.TextInputActionNewline
 		crossAxis, height = rendering.CrossAxisAlignmentStart, foundation.None[float64]()
-		constraints = foundation.Some(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MinHeight: foundation.Some(inputBoxHeight)}))
+		constraints = foundation.Some(rendering.NewBoxConstraints(rendering.BoxConstraintsOpts{MinHeight: foundation.Some(o.minHeight())}))
 	}
 	if o.Monospace {
 		style = style.CopyWith(painting.TextStyleOpts{FontFamily: MonoFontOf(bc)})
 	}
 	text := widgets.NewEditableText(s.text, s.node, style, fg, colors.InputForeground.WithAlpha(0x80), opts)
 	if o.MultiLine {
-		body = widgets.NewPadding(painting.NewEdgeInsetsSymmetric(inputBoxMultiPadV, 0), text)
+		body = widgets.NewPadding(painting.NewEdgeInsetsSymmetric(o.paddingV(), 0), text)
 	} else {
 		body = widgets.NewAlign(text, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})
 	}
@@ -576,10 +619,13 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 	// node, so a box that is mounted again keeps taking keys; see TestInputBoxMountedAgainWithTheFocusTakesKeys.)
 	var hint widgets.Widget = widgets.NewSizedBox(nil)
 	if s.text.Text() == "" && o.Placeholder != "" {
-		hintStyle := TextStyleOf(bc, inputBoxFontSize, colors.InputPlaceholderForeground)
+		hintStyle := TextStyleOf(bc, o.fontSize(), colors.InputPlaceholderForeground)
+		if o.MultiLine && o.FontFamily != "" {
+			hintStyle = hintStyle.CopyWith(painting.TextStyleOpts{FontFamily: o.FontFamily})
+		}
 		hint = widgets.NewText(o.Placeholder, widgets.TextOpts{Style: hintStyle, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowClip})
 		if o.MultiLine {
-			hint = widgets.NewPadding(painting.NewEdgeInsetsSymmetric(inputBoxMultiPadV+(inputBoxLineHeight-inputBoxFontSize)/2, 0), hint)
+			hint = widgets.NewPadding(painting.NewEdgeInsetsSymmetric(o.paddingV()+(o.lineHeight()-o.fontSize())/2, 0), hint)
 			hint = widgets.NewAlign(hint, widgets.AlignOpts{Alignment: painting.AlignmentTopLeft})
 		} else {
 			hint = widgets.NewAlign(hint, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})
@@ -606,12 +652,57 @@ func (s *inputBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 		Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
 			Color:        foundation.Some(colors.InputBackground),
 			Border:       painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(s.border(colors)), Width: foundation.Some(1.0)}),
-			BorderRadius: painting.NewBorderRadiusCircular(2),
+			BorderRadius: painting.NewBorderRadiusCircular(o.Radius.OrElse(2)),
 		}),
 	}
-	box := widgets.NewContainer(widgets.NewRow(row, widgets.RowOpts{CrossAxisAlignment: crossAxis}), cOpts)
+	var box widgets.Widget = widgets.NewContainer(widgets.NewRow(row, widgets.RowOpts{CrossAxisAlignment: crossAxis}), cOpts)
+	if o.MultiLine && o.OnHeightChange != nil {
+		// the height is measured after the frame, when the text is laid out at the width the box has now
+		inner := box
+		box = widgets.NewLayoutBuilder(func(_ widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+			if c.MaxWidth != s.width {
+				s.width = c.MaxWidth
+				s.scheduleMeasure()
+			}
+			return inner
+		})
+		s.scheduleMeasure()
+	}
 	focus := widgets.NewFocus(box, widgets.FocusOpts{OnFocusChange: s.focusChanged, CanRequestFocus: foundation.Some(false), SkipTraversal: foundation.Some(true)})
 	return widgets.NewOverlayPortalOverlayChildLayoutBuilder(s.portal, s.buildMessage, focus)
+}
+
+// scheduleMeasure measures the height of the box when the frame is done and reports it when it is not the one reported last.
+func (s *inputBoxState) scheduleMeasure() {
+	if s.measuring || !s.Mounted() {
+		return
+	}
+	s.measuring = true
+	binding := widgets.WidgetsBindingOf(s.Context())
+	binding.Scheduler().AddPostFrameCallback(func(time.Duration) {
+		s.measuring = false
+		if !s.Mounted() {
+			return
+		}
+		f := s.Widget().opts.OnHeightChange
+		if f == nil {
+			return
+		}
+		editable, ok := s.editable.CurrentState()
+		if !ok || editable == nil {
+			return
+		}
+		re := editable.RenderEditable()
+		if re == nil || !re.HasSize() {
+			return
+		}
+		o := s.Widget().opts
+		h := 2 + 2*o.paddingV() + re.ComputeMaxIntrinsicHeight(re.Size().Width)
+		if h != s.reportedHeight {
+			s.reportedHeight = h
+			f(h)
+		}
+	})
 }
 
 // editKey runs Ctrl+A (select all), Ctrl+Z (undo), Ctrl+Y and Ctrl+Shift+Z (redo) on the text of the box, and tells whether
@@ -640,11 +731,14 @@ func (s *inputBoxState) editKey(e services.KeyEvent, shift bool) bool {
 
 // multiLineMaxLines is the number of lines past which a multi-line box scrolls.
 func multiLineMaxLines(o InputBoxOpts) int {
+	if o.MaxLines > 0 {
+		return max(o.MaxLines, o.MinLines, 1)
+	}
 	h, ok := o.MaxHeight.Get()
 	if !ok {
 		return rendering.MaxLinesUnlimited
 	}
-	return max(1, int(math.Floor((h-2-2*inputBoxMultiPadV)/inputBoxLineHeight)))
+	return max(1, o.MinLines, int(math.Floor((h-2-2*o.paddingV())/o.lineHeight())))
 }
 
 // buildMessage is the validation message, below the box (above it where there is no room).

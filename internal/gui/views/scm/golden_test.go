@@ -1,6 +1,7 @@
 package scm
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/glutter/gluttertest"
@@ -138,6 +139,97 @@ func TestGoldenRepositoriesView(t *testing.T) {
 			r.ts = pump(t, th.colors, ui.Size{Width: 320, Height: 100}, NewRepositoriesBody(repos))
 			r.settle()
 			testutil.MatchesGolden(r.ts, "repositories_view_"+th.name)
+			r.noErrors()
+		})
+	}
+}
+
+// TestGoldenInput looks at the input under the header: empty with its placeholder, a message, a box of several lines, a box that
+// stops growing at its maximum, a long line wrapped, and the button below it in the states it has.
+func TestGoldenInput(t *testing.T) {
+	commit := scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(check) Commit"}, Enabled: true,
+		Secondary: [][]scmcore.Command{{{ID: "git.commitAmend", Title: "Commit (Amend)"}}}}
+	disabled := scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(check) Commit"}, Description: "No staged changes"}
+	sync := scmcore.ActionButton{Command: scmcore.Command{ID: "git.sync", Title: "$(sync) Sync Changes 1$(arrow-down) 2$(arrow-up)"}, Enabled: true}
+	tests := []struct {
+		name   string
+		text   string
+		button *scmcore.ActionButton
+		max    int
+	}{
+		{"empty", "", &commit, 10},
+		{"message", "Fix the cache key of the loader\n\nThe key ignored the scheme.", &commit, 10},
+		{"long", strings.Repeat("A long line of words that wraps. ", 3), nil, 10},
+		{"capped", "one\ntwo\nthree\nfour\nfive", nil, 3},
+		{"disabled", "", &disabled, 10},
+		{"sync", "", &sync, 10},
+	}
+	for _, th := range goldenThemes {
+		for _, tt := range tests {
+			t.Run(tt.name+" "+th.name, func(t *testing.T) {
+				r := newBoxRig(t)
+				src := r.repoWithBox("project", gitGroups()...)
+				r.maxLines = tt.max
+				if tt.button != nil {
+					src.SetActionButton(tt.button)
+				}
+				if tt.text != "" {
+					src.Input().SetValue(tt.text)
+				}
+				r.show(th.colors, ui.Size{Width: 320, Height: 400})
+				r.settle()
+				testutil.MatchesGolden(r.ts, "input_"+tt.name+"_"+th.name)
+				r.noErrors()
+			})
+		}
+	}
+}
+
+// TestGoldenInputValidation looks at the box with the keyboard and a validation message under it, for each level, and at the box
+// that kept the color of a level after Escape took the message away.
+func TestGoldenInputValidation(t *testing.T) {
+	levels := []struct {
+		name  string
+		level scmcore.ValidationLevel
+	}{{"info", scmcore.ValidationInfo}, {"warning", scmcore.ValidationWarning}, {"error", scmcore.ValidationError}}
+	for _, th := range goldenThemes {
+		for _, lv := range levels {
+			t.Run(lv.name+" "+th.name, func(t *testing.T) {
+				r := newBoxRig(t)
+				src := r.repoWithBox("project", gitGroups()...)
+				src.SetActionButton(&scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(check) Commit"}, Enabled: true})
+				src.Input().SetValidation(func(string) *scmcore.Validation {
+					return &scmcore.Validation{Message: "The subject has 31 characters; 30 or fewer are recommended.", Level: lv.level}
+				})
+				src.Input().SetValue("Fix the cache key of the loader")
+				r.show(th.colors, ui.Size{Width: 320, Height: 400})
+				r.view.inputs[src].ctl.Focus()
+				r.settle()
+				testutil.MatchesGolden(r.ts, "input_validation_"+lv.name+"_"+th.name)
+				if lv.name == "warning" {
+					r.view.ClearValidation(src)
+					r.settle()
+					testutil.MatchesGolden(r.ts, "input_validation_cleared_"+th.name)
+				}
+				r.noErrors()
+			})
+		}
+	}
+}
+
+// TestGoldenInputRepositories looks at several repositories: a box and a button under each header.
+func TestGoldenInputRepositories(t *testing.T) {
+	for _, th := range goldenThemes {
+		t.Run(th.name, func(t *testing.T) {
+			r := newBoxRig(t)
+			a := r.repoWithBox("emetos", group{"workingTree", "Changes", []change{{"main.go", "M", "Modified", colModified, false}}})
+			a.SetActionButton(&scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(check) Commit"}, Enabled: true})
+			a.Input().SetValue("Add the commit input")
+			b := r.repoWithBox("glutter", group{"workingTree", "Changes", nil})
+			b.SetActionButton(&scmcore.ActionButton{Command: scmcore.Command{ID: "git.sync", Title: "$(sync) Sync Changes"}, Enabled: true})
+			r.show(th.colors, ui.Size{Width: 320, Height: 330})
+			r.settle()
+			testutil.MatchesGolden(r.ts, "input_repositories_"+th.name)
 			r.noErrors()
 		})
 	}

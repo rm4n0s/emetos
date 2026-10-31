@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
@@ -33,7 +34,14 @@ var goldenThemes = []struct {
 func pump(t testing.TB, colors kit.Colors, size ui.Size, child widgets.Widget) *gluttertest.Tester {
 	t.Helper()
 	ts := testutil.New(t, size)
-	ts.PumpWidget(widgets.NewWidgetsApp(colors.SideBarBackground, widgets.WidgetsAppOpts{
+	ts.PumpWidget(appOf(colors, size, child))
+	ts.Pump(time.Millisecond)
+	return ts
+}
+
+// appOf is the app that pump shows: the child at the top left, in a box of a size.
+func appOf(colors kit.Colors, size ui.Size, child widgets.Widget) widgets.Widget {
+	return widgets.NewWidgetsApp(colors.SideBarBackground, widgets.WidgetsAppOpts{
 		DebugShowCheckedModeBanner: foundation.Some(false),
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
@@ -43,9 +51,7 @@ func pump(t testing.TB, colors kit.Colors, size ui.Size, child widgets.Widget) *
 				return kit.NewTheme(colors, page, kit.ThemeOpts{UIFont: testutil.MonoFamily})
 			}, widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: settings}}})
 		},
-	}))
-	ts.Pump(time.Millisecond)
-	return ts
+	})
 }
 
 // run is a command the view ran.
@@ -82,6 +88,24 @@ type rig struct {
 	side   bool
 	drags  []*fakeDrag
 	opened []dropped
+
+	// the boxes (input_test.go): boxes keeps the input of each repository, the rest are what the window gives
+	after              []func()
+	boxes              bool
+	minLines, maxLines int
+	font               InputFont
+	noButton           bool
+	acceptLabel        string
+	dropdowns          []shownItems
+	reveals            int
+	keys               *contextkey.Scope
+	scopes             *kit.FocusScopes
+}
+
+// shownItems is a dropdown the view asked for.
+type shownItems struct {
+	items []kit.MenuItem
+	at    ui.Offset
 }
 
 // fakeMenus is what the registry would give for the menus of the view: the inline buttons of a Git-like provider.
@@ -124,8 +148,17 @@ func iconTheme(t testing.TB) func() *theme.FileIconTheme {
 // newRig makes the view over an empty model; add repositories with addRepo.
 func newRig(t *testing.T) *rig {
 	t.Helper()
-	r := &rig{t: t, model: scmcore.NewModel(scmcore.DefaultConfig()), decor: map[string]Decoration{}}
+	r := &rig{t: t, model: scmcore.NewModel(scmcore.DefaultConfig()), decor: map[string]Decoration{},
+		minLines: 1, maxLines: 10, font: InputFont{Size: 13}, keys: contextkey.NewRoot(), scopes: kit.NewFocusScopes()}
 	r.view = New(Options{
+		Scopes: r.scopes, Keys: r.keys,
+		InputLines:       func() (int, int) { return r.minLines, r.maxLines },
+		InputFont:        func() InputFont { return r.font },
+		ShowActionButton: func() bool { return !r.noButton },
+		AcceptKeyLabel:   func() string { return r.acceptLabel },
+		ShowItems:        func(items []kit.MenuItem, at ui.Offset) { r.dropdowns = append(r.dropdowns, shownItems{items, at}) },
+		Reveal:           func() { r.reveals++ },
+
 		Model:   r.model,
 		Run:     func(id string, args any) { r.runs = append(r.runs, run{id, args}) },
 		Entries: fakeMenus,
@@ -154,6 +187,16 @@ func newRig(t *testing.T) *rig {
 	return r
 }
 
+// newBoxRig makes the view over an empty model that keeps the box of each repository, and runs what the view asks to be done after
+// a frame when the test settles.
+func newBoxRig(t *testing.T) *rig {
+	t.Helper()
+	r := newRig(t)
+	r.boxes = true
+	r.view.opts.AfterFrame = func(f func()) { r.after = append(r.after, f) }
+	return r
+}
+
 // change is a file of a fixture: its path below the root, its letter, tooltip and color.
 type change struct {
 	path, letter, tooltip, color string
@@ -171,6 +214,10 @@ func (r *rig) addRepo(name string, groups ...group) *scmcore.Source {
 	r.t.Helper()
 	root := "/work/" + name
 	src := r.model.Add(scmcore.SourceSpec{ProviderID: "git", Label: "Git", RootURI: "file://" + root, ContextValue: "repository", Owner: "e"})
+	// the rows of the changes are tested without the box (input_test.go has the boxes)
+	if !r.boxes {
+		src.Input().SetVisible(false)
+	}
 	src.SetStatusBarCommands([]scmcore.StatusCommand{{Text: "$(git-branch) main", Tooltip: "main, Checkout Branch/Tag...", Command: "git.checkout"}})
 	for _, g := range groups {
 		grp := src.AddGroup(g.id, g.label, g.id != "workingTree", "")
@@ -197,6 +244,12 @@ func (r *rig) show(colors kit.Colors, size ui.Size) {
 func (r *rig) settle() {
 	for range 3 {
 		r.ts.Pump(time.Millisecond)
+		// what the view asked to run after the frame
+		for len(r.after) > 0 {
+			f := r.after[0]
+			r.after = r.after[1:]
+			f()
+		}
 	}
 }
 

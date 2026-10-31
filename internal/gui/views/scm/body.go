@@ -22,6 +22,16 @@ var (
 	BusyKey = foundation.NewValueKey("scm:busy")
 )
 
+// InputKey is the key of the row of the input of a source control and ActionButtonKey that of its action button.
+func InputKey(src *scmcore.Source) foundation.Key {
+	return foundation.NewValueKey("scm:input:" + src.Key())
+}
+
+// ActionButtonKey is the key of the action button of a source control.
+func ActionButtonKey(src *scmcore.Source) foundation.Key {
+	return foundation.NewValueKey("scm:button:" + src.Key())
+}
+
 // BodyOpts are the options of NewBody.
 type BodyOpts struct {
 	// Welcome builds the content of the view while there is no repository (the welcome content); nil shows an empty body.
@@ -89,6 +99,7 @@ func (s *bodyState) Build(bc widgets.BuildContext) widgets.Widget {
 		Render: func(bc widgets.BuildContext, row kit.ListViewRow, st kit.RowState) widgets.Widget {
 			return v.render(bc, row, st)
 		},
+		Embedded:      func(row kit.ListViewRow) bool { return embedded(row) },
 		OnSelect:      v.selected,
 		OnOpen:        v.opened,
 		OnContextMenu: v.showContextMenu,
@@ -204,8 +215,23 @@ func (v *View) focusParent(r *row) bool {
 	return false
 }
 
-// Focus gives the list the keyboard focus.
-func (v *View) Focus() { v.ctl.Focus() }
+// Focus gives the keyboard focus to the view: to the box of the first repository when no row has the focus, else to the list
+// (the focused row stays).
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmViewPane.ts (SCMViewPane.focus)
+func (v *View) Focus() {
+	if _, ok := v.list.Focused(); !ok {
+		for _, src := range v.model.Visible() {
+			if _, has := v.list.Item("i:" + src.Key()); has && src.Input().Enabled() {
+				if u, ok := v.inputs[src]; ok {
+					u.ctl.Focus()
+					return
+				}
+			}
+		}
+	}
+	v.ctl.Focus()
+}
 
 // HasFocus tells whether the list has the keyboard focus.
 func (v *View) HasFocus() bool { return v.ctl.HasFocus() }

@@ -12,10 +12,13 @@ type Input struct {
 
 	// guarded by the lock of the model
 	value       string
+	history     *History
+	reason      InputChangeReason
 	placeholder string
 	enabled     bool
 	visible     bool
 	validate    func(value string) *Validation
+	validateGen uint64
 	focusAsks   uint64
 
 	lmu       sync.Mutex
@@ -32,15 +35,41 @@ func (in *Input) Value() string {
 	return in.value
 }
 
-// SetValue replaces the text, whether the provider or the user does, and calls the listeners when it changed.
-func (in *Input) SetValue(value string) {
+// InputChangeReason says why the text of an input changed last (VS Code's SCMInputChangeReason, which only tells the history
+// moves): the view puts the caret at the start of a message that Up brought back and at the end of any other.
+type InputChangeReason int
+
+// The reasons a text changed.
+const (
+	// ChangedByValue is any change that is not a move through the history: the provider set the text, or the user typed.
+	ChangedByValue InputChangeReason = iota
+	// ChangedByHistoryPrevious is a move to the previous message of the history.
+	ChangedByHistoryPrevious
+	// ChangedByHistoryNext is a move to the next message.
+	ChangedByHistoryNext
+)
+
+// SetValue replaces the text as the provider does, and calls the listeners when it changed. The message that was there goes into
+// the history of the repository, and the new one is added to it (VS Code's `setValue(value, false)`): after a commit the provider
+// empties the box and Up brings the message back.
+func (in *Input) SetValue(value string) { in.set(value, false, ChangedByValue) }
+
+// SetTransientValue replaces the text as the view does when the user types or the box is cleared: the history is not touched
+// (VS Code's `setValue(value, true)`).
+func (in *Input) SetTransientValue(value string) { in.set(value, true, ChangedByValue) }
+
+func (in *Input) set(value string, transient bool, reason InputChangeReason) {
 	m := in.src.m
 	m.mu.Lock()
 	if in.value == value || in.src.removed {
 		m.mu.Unlock()
 		return
 	}
-	in.value = value
+	if !transient {
+		in.history.ReplaceLast(in.value)
+		in.history.Add(value)
+	}
+	in.value, in.reason = value, reason
 	m.mu.Unlock()
 	in.lmu.Lock()
 	ls := slices.Clone(in.listeners)
@@ -49,6 +78,55 @@ func (in *Input) SetValue(value string) {
 		(*f)(value)
 	}
 	m.notify(Event{Kind: InputChanged, Source: in.src})
+}
+
+// ChangeReason is why the text changed last.
+func (in *Input) ChangeReason() InputChangeReason {
+	in.src.m.mu.Lock()
+	defer in.src.m.mu.Unlock()
+	return in.reason
+}
+
+// ShowPreviousHistoryValue replaces the text by the message before it in the history of the repository (VS Code's
+// showPreviousHistoryValue): the text being written is kept as the last message, so that Down brings it back.
+func (in *Input) ShowPreviousHistoryValue() {
+	in.src.m.mu.Lock()
+	h := in.history
+	switch {
+	case h.IsAtEnd():
+		h.ReplaceLast(in.value)
+	case !h.Has(in.value):
+		h.ReplaceLast(in.value)
+		h.ResetCursor()
+	}
+	value := h.Previous()
+	in.src.m.mu.Unlock()
+	in.set(value, true, ChangedByHistoryPrevious)
+}
+
+// ShowNextHistoryValue replaces the text by the message after it in the history; at the end of the history it does nothing.
+func (in *Input) ShowNextHistoryValue() {
+	in.src.m.mu.Lock()
+	h := in.history
+	if h.IsAtEnd() {
+		in.src.m.mu.Unlock()
+		return
+	}
+	if !h.Has(in.value) {
+		h.ReplaceLast(in.value)
+		h.ResetCursor()
+	}
+	value := h.Next()
+	in.src.m.mu.Unlock()
+	in.set(value, true, ChangedByHistoryNext)
+}
+
+// History is the messages of the repository in this session, the oldest first; the last one is the text being written when the
+// cursor is at the end.
+func (in *Input) History() []string {
+	in.src.m.mu.Lock()
+	defer in.src.m.mu.Unlock()
+	return in.history.Values()
 }
 
 // OnChange calls fn with the new text each time it changes, and returns the function that stops the calls.
@@ -102,7 +180,14 @@ func (in *Input) SetVisible(v bool) {
 
 // SetValidation sets the function that checks the text; nil removes it.
 func (in *Input) SetValidation(fn func(value string) *Validation) {
-	in.change(func() bool { in.validate = fn; return true })
+	in.change(func() bool { in.validate = fn; in.validateGen++; return true })
+}
+
+// ValidationGeneration counts the calls of SetValidation; the view validates the text again when the number it saw changed.
+func (in *Input) ValidationGeneration() uint64 {
+	in.src.m.mu.Lock()
+	defer in.src.m.mu.Unlock()
+	return in.validateGen
 }
 
 // HasValidation tells whether a check is set.

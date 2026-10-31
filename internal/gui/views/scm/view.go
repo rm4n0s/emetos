@@ -30,7 +30,17 @@ const (
 	kindFolder
 	// kindResource is a changed file.
 	kindResource
+	// kindInput is the box of the commit message of a repository.
+	kindInput
+	// kindActionButton is the button under the box.
+	kindActionButton
 )
+
+// embedded tells whether a row holds a widget of its own (the box, the button): the list leaves it alone.
+func embedded(lr kit.ListViewRow) bool {
+	r := rowOf(lr)
+	return r != nil && (r.kind == kindInput || r.kind == kindActionButton)
+}
 
 // row is the data of a row of the Changes view.
 type row struct {
@@ -61,6 +71,11 @@ type View struct {
 	version uint64
 	actions map[*row][]kit.Action
 
+	// inputs are the boxes of the repositories (input.go), shape what the rows were made from: whether each shown repository has an
+	// input and an action button.
+	inputs map[*scmcore.Source]*inputUI
+	shape  string
+
 	drag rowDrag
 	// forceHover is the key of a row drawn as hovered (SetHover).
 	forceHover string
@@ -79,9 +94,15 @@ type View struct {
 func New(opts Options) *View {
 	v := &View{
 		opts: opts, model: opts.Model, collapsed: map[string]bool{}, actions: map[*row][]kit.Action{},
-		ctl: kit.NewListController(), listeners: map[int]func(){},
-		list: kit.NewListViewModel(kit.ListViewModelOpts{MultiSelect: true}),
+		ctl: kit.NewListController(), listeners: map[int]func(){}, inputs: map[*scmcore.Source]*inputUI{},
 	}
+	v.list = kit.NewListViewModel(kit.ListViewModelOpts{
+		MultiSelect: true, HeightOf: v.heightOf,
+		Blocked: func(it kit.ListViewItem) bool {
+			r, _ := it.Data.(*row)
+			return r != nil && (r.kind == kindInput || r.kind == kindActionButton)
+		},
+	})
 	v.stop = v.model.Subscribe(v.onModelEvent)
 	v.rebuild()
 	return v
@@ -108,6 +129,47 @@ func (v *View) Dispose() {
 	if v.stop != nil {
 		v.stop()
 	}
+	for src := range v.inputs {
+		v.dropInput(src)
+	}
+}
+
+// heightOf is the height of the row at an index: 22 px, the height of the box and its margins for an input, 36 px for the button.
+func (v *View) heightOf(i int) float64 {
+	r := rowOf(v.list.Row(i))
+	if r == nil {
+		return rowHeight
+	}
+	switch r.kind {
+	case kindInput:
+		return v.inputRowHeight(r.src)
+	case kindActionButton:
+		return actionButtonRowHeight
+	}
+	return rowHeight
+}
+
+// shapeOf describes what the rows are made from besides the groups: the repositories that are shown, whether each has an input
+// and a button, and the settings that decide it. When it changes the rows are made again.
+func (v *View) shapeOf() string {
+	var b strings.Builder
+	showButton := v.showActionButton()
+	for _, src := range v.model.Visible() {
+		b.WriteString(src.Key())
+		if src.Input().Visible() {
+			b.WriteByte('i')
+		}
+		if showButton && src.HasActionButton() {
+			b.WriteByte('b')
+		}
+		b.WriteByte(' ')
+	}
+	return b.String()
+}
+
+// showActionButton is scm.showActionButton, which is on by default.
+func (v *View) showActionButton() bool {
+	return v.opts.ShowActionButton == nil || v.opts.ShowActionButton()
 }
 
 // Model is the model the view shows.
@@ -182,10 +244,11 @@ func (v *View) flush() {
 	if v.disposed {
 		return
 	}
-	if v.structure.Swap(false) {
+	if v.structure.Swap(false) || v.shapeOf() != v.shape {
 		v.rebuild()
 		return
 	}
+	v.syncInputs()
 	v.version++
 	clear(v.actions)
 	v.notify()
@@ -206,6 +269,9 @@ func (v *View) rebuild() {
 	vis := v.model.Visible()
 	mode, sortKey, compact := v.model.ViewMode(), v.model.SortKey(), v.model.CompactFolders()
 	showRepos := v.showRepositories(len(vis))
+	showActionButtons := v.showActionButton()
+	v.shape = v.shapeOf()
+	v.pruneInputs()
 	hint := 0
 	for _, src := range vis {
 		hint++
@@ -230,9 +296,17 @@ func (v *View) rebuild() {
 		}
 		groups := src.Groups()
 		some := slices.ContainsFunc(groups, func(g *scmcore.Group) bool { return g.Len() > 0 })
-		// TODO(step 24.4): the input and the action button rows come before the groups; the groups are listed when a repository
-		// has changes, or when it is the only one and shows no action button.
-		if !some && len(vis) != 1 {
+		// the state of the input exists before the rows are drawn (the button uses its focus node too)
+		v.inputOf(src)
+		if src.Input().Visible() {
+			add("i:"+src.Key(), "", &row{kind: kindInput, src: src, depth: depth})
+		}
+		showButton := showActionButtons && src.HasActionButton()
+		if showButton {
+			add("b:"+src.Key(), "", &row{kind: kindActionButton, src: src, depth: depth})
+		}
+		// the groups are listed when a repository has changes, or when it is the only one and shows no action button
+		if !some && (len(vis) != 1 || showButton) {
 			continue
 		}
 		for _, g := range groups {
@@ -266,6 +340,7 @@ func (v *View) rebuild() {
 	v.lastRepos = len(vis)
 	v.version++
 	clear(v.actions)
+	v.syncInputs()
 	v.notify()
 }
 

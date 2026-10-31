@@ -58,8 +58,8 @@ func TestHugeChanges(t *testing.T) {
 		queue = nil
 		r.ts.Pump(16 * time.Millisecond)
 		cpu, elapsed := threadCPU(t)-start, time.Since(wall)
-		if rows := r.view.RowCount(); rows != n+1 {
-			t.Fatalf("%d rows, want %d", rows, n+1)
+		if rows := r.view.RowCount(); rows != n+2 {
+			t.Fatalf("%d rows, want %d", rows, n+2)
 		}
 		t.Logf("attempt %d: the update of the model took %v off the UI thread; the first frame after it %v of processor time (%v of wall time)", attempt+1, update, cpu, elapsed)
 		if attempt == 0 || cpu < first {
@@ -99,7 +99,9 @@ func TestHugeChanges(t *testing.T) {
 	var jump time.Duration
 	for _, y := range []float64{float64(n) * rowHeight / 2, float64(n)*rowHeight - 600, 0} {
 		r.view.ctl.ScrollTo(y)
-		jump = max(jump, frame())
+		d := frame()
+		t.Logf("a jump to %.0f: %v", y, d)
+		jump = max(jump, d)
 	}
 	t.Logf("the longest frame after a jump: %v", jump)
 	if jump > 2*budget {

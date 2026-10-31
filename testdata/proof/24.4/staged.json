@@ -1,0 +1,29 @@
+{
+  "sourceControls": [
+    {
+      "id": "git", "label": "Git", "root": ".",
+      "status": [
+        {"text": "$(git-branch-staged-changes) main+", "tooltip": "main, Checkout Branch/Tag...", "command": "dev.scm.checkout"},
+        {"text": "$(sync) 0↓ 1↑", "tooltip": "Synchronize Changes", "command": "dev.scm.sync"}
+      ],
+      "placeholder": "Message ({0} to commit on \"main\")",
+      "validation": {"subjectLength": 30, "level": "warning"},
+      "actionButton": {
+        "command": "dev.scm.commit", "title": "$(check) Commit", "description": "Commit the staged changes",
+        "secondary": [
+          [{"id": "dev.scm.commit", "title": "Commit"}, {"id": "dev.scm.commitAmend", "title": "Commit (Amend)"}, {"id": "dev.scm.commitSigned", "title": "Commit (Signed Off)"}],
+          [{"id": "dev.scm.commitEmpty", "title": "Commit (Empty)"}]
+        ]
+      },
+      "groups": [
+        {"id": "index", "label": "Staged Changes", "resources": [
+          {"path": "src/loader.go", "letter": "M", "tooltip": "Index Modified", "color": "gitDecoration.stageModifiedResourceForeground"},
+          {"path": "src/loader_test.go", "letter": "M", "tooltip": "Index Modified", "color": "gitDecoration.stageModifiedResourceForeground"}
+        ]},
+        {"id": "workingTree", "label": "Changes", "resources": [
+          {"path": "README.md", "letter": "M", "tooltip": "Modified", "color": "gitDecoration.modifiedResourceForeground"}
+        ]}
+      ]
+    }
+  ]
+}

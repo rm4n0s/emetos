@@ -72,6 +72,7 @@ func DefaultRegistry() *Registry {
 	registerNotificationKeys(r)
 	registerPanelViewKeys(r)
 	registerExplorerKeys(r)
+	registerSourceControlInputKeys(r)
 	registerSaveKeys(r)
 	registerWindowKeys(r)
 	registerWorkspaceTabKeys(r)
@@ -512,6 +513,27 @@ func registerExplorerKeys(r *Registry) {
 		Rule{Command: "workbench.action.openRecent", Weight: WeightWorkbenchContrib, Primary: "ctrl+r"},
 	)
 	registerExplorerFileKeys(r)
+}
+
+// registerSourceControlInputKeys registers the keys of the commit message box of the Source Control view (step 24.4): Ctrl+Enter
+// accepts the input, Escape takes the validation message away and then clears the input, and Up and Down at the very start and
+// the very end of the text (Alt+Up and Alt+Down anywhere) go through the messages of the session. The keys the box sets
+// (scmRepository, scmInputIsInFirstPosition, scmInputIsInLastPosition, scmInputHasValidationMessage) are in force only while the
+// box has the keyboard focus.
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scm.contribution.ts (the registerCommandAndKeybindingRule calls)
+func registerSourceControlInputKeys(r *Registry) {
+	repo := "scmRepository"
+	r.MustRegister(
+		Rule{Command: "scm.acceptInput", Weight: WeightWorkbenchContrib, When: mustWhen(repo), Primary: "ctrl+enter"},
+		Rule{Command: "scm.clearValidation", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "scmInputHasValidationMessage"), Primary: "escape"},
+		Rule{Command: "scm.clearInput", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "!suggestWidgetVisible", "!inlineSuggestionVisible",
+			"!scmInputHasValidationMessage", "!editorHasSelection"), Primary: "escape"},
+		Rule{Command: "scm.viewNextCommit", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "scmInputIsInLastPosition", "!suggestWidgetVisible"), Primary: "down"},
+		Rule{Command: "scm.viewPreviousCommit", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "scmInputIsInFirstPosition", "!suggestWidgetVisible"), Primary: "up"},
+		Rule{Command: "scm.forceViewNextCommit", Weight: WeightWorkbenchContrib, When: mustWhen(repo), Primary: "alt+down"},
+		Rule{Command: "scm.forceViewPreviousCommit", Weight: WeightWorkbenchContrib, When: mustWhen(repo), Primary: "alt+up"},
+	)
 }
 
 // registerSaveKeys registers the keys of saving: Ctrl+S saves, Ctrl+Shift+S saves as, Ctrl+K S saves without

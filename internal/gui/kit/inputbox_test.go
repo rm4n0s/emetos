@@ -2,6 +2,7 @@ package kit
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -784,6 +785,103 @@ func TestInputBoxMonospace(t *testing.T) {
 				t.Errorf("monospace family %q, UI family %q", family, uiFamily)
 			}
 			r.noErrors()
+		})
+	}
+}
+
+// TestInputBoxLinesAndFont: MinLines, MaxLines, the font size, the line height and the padding decide the height of a multi-line
+// box (the Source Control input uses them for scm.inputMinLineCount, scm.inputMaxLineCount and scm.inputFontSize).
+func TestInputBoxLinesAndFont(t *testing.T) {
+	lines := func(n int) string { return strings.TrimSuffix(strings.Repeat("x\n", n), "\n") }
+	cases := []struct {
+		name string
+		text string
+		fill func(o *InputBoxOpts)
+		want float64
+	}{
+		{"the minimum holds an empty box", "", func(o *InputBoxOpts) { o.MinLines = 3 }, 2 + 6 + 3*17},
+		{"a text past the minimum grows", lines(5), func(o *InputBoxOpts) { o.MinLines = 3 }, 2 + 6 + 5*17},
+		{"the maximum stops it", lines(9), func(o *InputBoxOpts) { o.MaxLines = 4 }, 2 + 6 + 4*17},
+		{"MaxLines wins over MaxHeight", lines(9), func(o *InputBoxOpts) { o.MaxLines, o.MaxHeight = 4, foundation.Some(1000.0) }, 2 + 6 + 4*17},
+		{"a maximum under the minimum is the minimum", lines(9), func(o *InputBoxOpts) { o.MinLines, o.MaxLines = 5, 2 }, 2 + 6 + 5*17},
+		{"the line height and the padding", lines(2), func(o *InputBoxOpts) {
+			o.FontSize, o.LineHeight, o.PaddingV = foundation.Some(13.0), foundation.Some(20.0), foundation.Some(2.0)
+		}, 2 + 4 + 2*20},
+		{"a bigger font", "x", func(o *InputBoxOpts) { o.FontSize, o.LineHeight = foundation.Some(20.0), foundation.Some(30.0) }, 2 + 6 + 30},
+		{"a font family", "x", func(o *InputBoxOpts) { o.FontFamily = "monospace" }, 25},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newInputRig(t, DarkModern(), ui.Size{Width: 280, Height: 600}, func(_ *inputRig, o *InputBoxOpts) {
+				o.MultiLine = true
+				tc.fill(o)
+			})
+			if tc.text != "" {
+				r.ts.EnterText(gluttertest.ByType[*InputBox](), tc.text)
+			}
+			r.ts.Pump(time.Millisecond)
+			if got := r.ts.Size(gluttertest.ByType[*InputBox]()).Height; got != tc.want {
+				t.Errorf("height %v, want %v", got, tc.want)
+			}
+			r.noErrors()
+		})
+	}
+}
+
+// TestInputBoxReportsItsHeight: OnHeightChange gets the height the box wants once for each change, after the frame, also when the
+// box is laid out in a place that is too short for it.
+func TestInputBoxReportsItsHeight(t *testing.T) {
+	var heights []float64
+	r := newInputRig(t, DarkModern(), ui.Size{Width: 280, Height: 600}, func(_ *inputRig, o *InputBoxOpts) {
+		o.MultiLine, o.MaxLines = true, 3
+		o.OnHeightChange = func(h float64) { heights = append(heights, h) }
+	})
+	r.ts.Pump(time.Millisecond)
+	if !slices.Equal(heights, []float64{25}) {
+		t.Fatalf("reported %v at the start", heights)
+	}
+	r.ts.EnterText(gluttertest.ByType[*InputBox](), "a\nb")
+	r.ts.Pump(time.Millisecond)
+	r.ts.EnterText(gluttertest.ByType[*InputBox](), "a\nb\nc\nd\ne")
+	r.ts.Pump(time.Millisecond)
+	r.ts.EnterText(gluttertest.ByType[*InputBox](), "a")
+	r.ts.Pump(time.Millisecond)
+	if want := []float64{25, 42, 59, 25}; !slices.Equal(heights, want) {
+		t.Errorf("reported %v, want %v", heights, want)
+	}
+	r.noErrors()
+}
+
+// TestInputBoxEscapeCollapsesTheSelection: with CollapseSelectionOnEscape, Escape collapses a selection to its end; with none
+// selected, or without the option, it changes nothing.
+func TestInputBoxEscapeCollapsesTheSelection(t *testing.T) {
+	cases := []struct {
+		name         string
+		collapse     bool
+		selectFrom   int
+		selectTo     int
+		wantSelStart int
+		wantSelEnd   int
+	}{
+		{"a selection is collapsed", true, 1, 4, 4, 4},
+		{"a caret stays", true, 3, 3, 3, 3},
+		{"without the option the selection stays", false, 1, 4, 1, 4},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newInputRig(t, DarkModern(), inputSize, func(_ *inputRig, o *InputBoxOpts) {
+				o.MultiLine, o.CollapseSelectionOnEscape = true, tc.collapse
+			})
+			r.ctrl.SetValue("abcdef")
+			r.focusBox()
+			r.ctrl.Select(tc.selectFrom, tc.selectTo)
+			r.ts.Pump(time.Millisecond)
+			r.ts.SendKeyDownEvent(services.LogicalKeyboardKeyEscape)
+			r.ts.SendKeyUpEvent(services.LogicalKeyboardKeyEscape)
+			r.ts.Pump(time.Millisecond)
+			if s, e, _ := r.ctrl.Selection(); s != tc.wantSelStart || e != tc.wantSelEnd {
+				t.Errorf("selection %d..%d, want %d..%d", s, e, tc.wantSelStart, tc.wantSelEnd)
+			}
 		})
 	}
 }

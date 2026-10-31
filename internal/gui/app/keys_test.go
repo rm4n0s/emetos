@@ -530,6 +530,22 @@ func editorPickerState(a *keyApp) func() {
 	}
 }
 
+// scmInputKeys are the context keys the commit box of the Source Control view sets while it has the keyboard.
+var scmInputKeys = []string{"scmRepository", "scmInputIsInFirstPosition", "scmInputIsInLastPosition", "scmInputHasValidationMessage"}
+
+// scmInputState is the state of a window whose commit box has the keyboard, with the caret at the very start or the very end of
+// its text (or neither) and with a validation message or without one, for the keys of the box.
+func scmInputState(a *keyApp, first, last, validation bool) func() {
+	return func() {
+		a.win.Keys.Batch(func() {
+			a.win.Keys.Set("scmRepository", "git")
+			a.win.Keys.Set("scmInputIsInFirstPosition", first)
+			a.win.Keys.Set("scmInputIsInLastPosition", last)
+			a.win.Keys.Set("scmInputHasValidationMessage", validation)
+		})
+	}
+}
+
 // keybindingsKeys are the context keys the keys of the keybindings editor look at.
 var keybindingsKeys = []string{"inKeybindings", "inKeybindingsSearch", "keybindingsSearchHasValue", "keybindingFocus", "whenFocus"}
 
@@ -570,6 +586,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				codeActionsState(a, ""), codeActionsState(a, "list"), codeActionsState(a, "rename"), codeActionsState(a, "preview"),
 				hoverState(a, false, false), hoverState(a, true, false), hoverState(a, true, true), signatureState(a, 1), signatureState(a, 3), navigationState(a), peekState(a),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
+				scmInputState(a, true, true, false), scmInputState(a, true, true, true),
 				zenModeState(a), diffEditorState(a), mergeEditorState(a))
 			for _, state := range states {
 				notificationsState(a, false, false, false)()
@@ -577,6 +594,9 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 					a.win.Keys.Reset(key)
 				}
 				for _, key := range keybindingsKeys {
+					a.win.Keys.Reset(key)
+				}
+				for _, key := range scmInputKeys {
 					a.win.Keys.Reset(key)
 				}
 				a.vm.HideHover() // only the state of the hover of a problem shows one

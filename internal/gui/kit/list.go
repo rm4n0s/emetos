@@ -52,6 +52,10 @@ type ListOpts struct {
 	// OnContextMenu is called when the user presses the secondary button on a row (a context menu), with the row,
 	// which is the focused one now, and the position of the pointer in the coordinates of the window.
 	OnContextMenu func(row ListViewRow, position ui.Offset)
+	// Embedded says that a row holds a widget of its own, such as a text box or a button: the row is drawn as the renderer builds
+	// it, with no hover, no selection and no click of the list, and it takes no part in the keyboard of the list (the model
+	// blocks it, see ListViewModelOpts.Blocked). The renderer's widget fills the row.
+	Embedded func(row ListViewRow) bool
 	// RowPadding is the room before the contents of a row; the default is 8 px. A table whose rows paint a
 	// background across the whole row sets 0.
 	RowPadding foundation.Opt[float64]
@@ -301,6 +305,10 @@ func (s *listState) handleKey(_ *widgets.FocusNode, e services.KeyEvent) widgets
 	default:
 		return widgets.KeyEventResultIgnored
 	}
+	// the keys of a text box in an embedded row are the box's: the arrows, Home and End move its caret, which the list would take
+	if s.inTextField() {
+		return widgets.KeyEventResultIgnored
+	}
 	kb := widgets.WidgetsBindingOf(s.Context()).Keyboard()
 	m := keyMods{ctrl: kb.IsControlPressed(), shift: kb.IsShiftPressed(), alt: kb.IsAltPressed(), meta: kb.IsMetaPressed()}
 	if s.drag.active() {
@@ -337,13 +345,24 @@ func (s *listState) handleKey(_ *widgets.FocusNode, e services.KeyEvent) widgets
 	return widgets.KeyEventResultHandled
 }
 
+// inTextField tells whether the keyboard focus is on a text field inside the list (a text box in an embedded row), not on the list.
+func (s *listState) inTextField() bool {
+	focus := widgets.WidgetsBindingOf(s.Context()).FocusManager().PrimaryFocus()
+	if focus == nil || focus == s.node || focus.Context() == nil {
+		return false
+	}
+	_, ok := widgets.FindAncestorWidgetOfExactType[*widgets.EditableText](focus.Context())
+	return ok
+}
+
 // focusChanged follows the keyboard focus of the list; a list that takes it with no focused row focuses one.
 func (s *listState) focusChanged(has bool) {
 	if s.hasFocus == has {
 		return
 	}
 	s.hasFocus = has
-	if has {
+	// a widget in an embedded row (a text box) that takes the focus is not the list taking it: no row is focused for it
+	if has && s.node.HasPrimaryFocus() {
 		s.model.EnsureFocus()
 		s.syncViewport()
 		if i := s.model.FocusedIndex(); i >= 0 {
@@ -465,14 +484,13 @@ func (s *listState) Build(bc widgets.BuildContext) widgets.Widget {
 		}
 		return s.buildRow(c, i)
 	}
-	itemOpts := widgets.SliverBuilderOpts{ItemCount: foundation.Some(count), AddAutomaticKeepAlives: foundation.Some(false)}
 	var sliver widgets.Widget
 	if m.opts.HeightOf == nil {
-		sliver = widgets.NewSliverFixedExtentListBuilder(builder, m.RowHeight(), itemOpts)
+		sliver = widgets.NewSliverFixedExtentListBuilder(builder, m.RowHeight(),
+			widgets.SliverBuilderOpts{ItemCount: foundation.Some(count), AddAutomaticKeepAlives: foundation.Some(false)})
 	} else {
-		sliver = widgets.NewSliverVariedExtentListBuilder(builder, func(i int, _ rendering.SliverLayoutDimensions) foundation.Opt[float64] {
-			return foundation.Some(m.RowHeightAt(i))
-		}, itemOpts)
+		sliver = newSliverRows(exactExtentDelegate{widgets.NewSliverChildBuilderDelegate(builder, widgets.SliverChildBuilderDelegateOpts{
+			ChildCount: foundation.Some(count), AddAutomaticKeepAlives: foundation.Some(false)}), m.ContentHeight()}, m.tops)
 	}
 	view := widgets.NewCustomScrollView([]widgets.Widget{sliver}, widgets.ScrollViewOpts{Controller: s.scroll})
 	element := NewScrollableElement(view, ScrollableElementOpts{Controller: s.scroll})
@@ -512,6 +530,9 @@ func (s *listState) buildRow(bc widgets.BuildContext, i int) widgets.Widget {
 		contents = l.opts.Render(bc, row, st)
 	} else {
 		contents = defaultListRender(bc, row, st)
+	}
+	if l.opts.Embedded != nil && l.opts.Embedded(row) {
+		return widgets.NewSizedBox(contents, widgets.SizedBoxOpts{Height: foundation.Some(height)})
 	}
 	body := widgets.NewRow([]widgets.Widget{
 		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(l.opts.RowPadding.OrElse(listRowPadding))}),

@@ -41,6 +41,10 @@ type ListViewModelOpts struct {
 	// HeightOf gives the height of the row at an index among the rows that are shown (rows of different
 	// heights, `IListVirtualDelegate.getHeight`). It is called when the rows change, for every row.
 	HeightOf func(index int) float64
+	// Blocked says that an item is a row that can be neither focused nor selected, whatever the keyboard or the pointer
+	// does: a row that holds a widget of its own (a text box, a button), which the list leaves to that widget (see
+	// ListOpts.Embedded). It is called for each item when the rows are made.
+	Blocked func(item ListViewItem) bool
 	// MultiSelect lets Ctrl and Shift select several rows.
 	MultiSelect bool
 	// FindMode is what a pattern typed into the list does to the rows, and FindMatchType how it is matched;
@@ -176,15 +180,34 @@ func (m *ListViewModel) makeRows() {
 		}
 		m.rows = append(m.rows, ListViewRow{Key: it.Key, Data: it.Data, Label: it.Label, Index: len(m.rows)})
 	}
-	keys := make([]string, len(m.rows))
-	for i, r := range m.rows {
-		keys[i] = r.Key
-	}
-	m.setRows(keys, nil, m.opts.HeightOf)
+	m.layoutRows()
 	m.sel.Prune(m.has)
 	if _, ok := m.index[m.focus]; !ok {
 		m.focus = ""
 	}
+	m.NotifyListeners()
+}
+
+// layoutRows gives the navigation the keys, the blocked rows and the heights of the rows that are shown.
+func (m *ListViewModel) layoutRows() {
+	keys := make([]string, len(m.rows))
+	var blocked []bool
+	if m.opts.Blocked != nil {
+		blocked = make([]bool, len(m.rows))
+	}
+	for i, r := range m.rows {
+		keys[i] = r.Key
+		if blocked != nil {
+			blocked[i] = m.opts.Blocked(m.items[m.byKey[r.Key]])
+		}
+	}
+	m.setRows(keys, blocked, m.opts.HeightOf)
+}
+
+// RefreshHeights asks HeightOf for the height of every row again and tells the listeners: the owner calls it when a row is
+// taller or shorter than it was (a text box that grew) and the items are the same.
+func (m *ListViewModel) RefreshHeights() {
+	m.layoutRows()
 	m.NotifyListeners()
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/settings"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
@@ -80,10 +81,13 @@ type scmState struct {
 	revealedFor string
 	// focus tells which views of the container have the keyboard focus.
 	focus map[string]bool
+	// fakeRuns are the commands of the fake provider of dev.scm.fake that ran (dev.scm.input reports them).
+	fakeRuns []devSCMRun
 }
 
 // scmSettingsKeys are the settings the view reads while it draws.
-var scmSettingsKeys = []string{"scm.alwaysShowActions", "scm.alwaysShowRepositories", "scm.compactFolders", "scm.providerCountBadge"}
+var scmSettingsKeys = []string{"scm.alwaysShowActions", "scm.alwaysShowRepositories", "scm.compactFolders", "scm.providerCountBadge",
+	"scm.inputMinLineCount", "scm.inputMaxLineCount", "scm.inputFontFamily", "scm.inputFontSize", "scm.showActionButton", "editor.fontFamily"}
 
 // scmWindowState is the Source Control part of the saved state of a window.
 type scmWindowState struct {
@@ -168,6 +172,15 @@ func (s *shellState) initSCM(binding *widgets.WidgetsBinding) {
 		Icons:        win.FileIcons, Language: win.languageOf,
 		AlwaysShowActions: scmFlag(win, "scm.alwaysShowActions"), AlwaysShowRepositories: scmFlag(win, "scm.alwaysShowRepositories"),
 		AutoReveal: scmFlag(win, "scm.autoReveal"),
+		Scopes:     win.Scopes, Keys: win.Keys,
+		InputLines: func() (int, int) {
+			return int(settings.Get[float64](win.Settings, "scm.inputMinLineCount", "")), int(settings.Get[float64](win.Settings, "scm.inputMaxLineCount", ""))
+		},
+		InputFont:        func() scmview.InputFont { return scmInputFont(win) },
+		ShowActionButton: scmFlag(win, "scm.showActionButton"),
+		AcceptKeyLabel:   func() string { return win.keyLabelOf("scm.acceptInput") },
+		ShowItems:        func(items []kit.MenuItem, at ui.Offset) { s.scm.menu.Show(at, items) },
+		Reveal:           func() { s.showSCM(binding, command.ViewSCM, false) },
 		BeginDrag: func(label string) (scmview.DragSession, error) {
 			sess, err := extEditorHost{w: win}.BeginDrag(label)
 			if err != nil {
@@ -326,6 +339,25 @@ func (s *shellState) showSCMMenu(menu string, extra map[string]any, args []any, 
 	ctx := menuContext{base: win.Keys, settings: win.Settings, extra: extra}
 	items := s.menus.ItemsWithout(menu, ctx, func(e command.MenuEntry) bool { return e.Group == "inline" })
 	s.scm.menu.Show(at, withSCMArgs(items, args))
+}
+
+// scmInputFont is the font of the commit message box: scm.inputFontFamily is `default` (the font of the workbench), `editor` (the
+// first of editor.fontFamily, else the desktop's monospace font) or a family; scm.inputFontSize is its size.
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmInput.ts (SCMInputWidgetEditorOptions._getEditorFontFamily)
+func scmInputFont(win *Workspace) scmview.InputFont {
+	f := scmview.InputFont{Size: settings.Get[float64](win.Settings, "scm.inputFontSize", "")}
+	switch family := strings.TrimSpace(settings.Get[string](win.Settings, "scm.inputFontFamily", "")); {
+	case strings.EqualFold(family, "editor"):
+		if names := editor.FontFamilies(settings.Get[string](win.Settings, "editor.fontFamily", "")); len(names) > 0 {
+			f.Family = names[0]
+		} else {
+			f.Mono = true
+		}
+	case family != "" && !strings.EqualFold(family, "default"):
+		f.Family = family
+	}
+	return f
 }
 
 // withSCMArgs gives the items without arguments the arguments of the row.
@@ -602,7 +634,33 @@ func (s *shellState) bindSCMCommands(binding *widgets.WidgetsBinding) {
 		}
 		return nil
 	}
+	// the commands of the commit message box act on the repository of the box that has the keyboard: the context key scmRepository of
+	// its scope, which the keys of the box set (VS Code's handlers read the same key from the active element)
+	input := func(fn func(src *scmcore.Source)) command.Handler {
+		return func(ctx command.Context, _ any) error {
+			if ctx.Keys == nil {
+				return nil
+			}
+			if key, _ := ctx.Keys.Value("scmRepository").(string); key != "" {
+				if src := win.SCM.Source(key); src != nil {
+					fn(src)
+				}
+			}
+			return nil
+		}
+	}
 	handlers := map[string]command.Handler{
+		"scm.acceptInput": input(func(src *scmcore.Source) {
+			if c, ok := src.AcceptInputCommand(); ok {
+				s.scmRun(c.ID, c.Args)
+			}
+		}),
+		"scm.clearInput":                               input(func(src *scmcore.Source) { src.Input().SetTransientValue("") }),
+		"scm.clearValidation":                          input(func(src *scmcore.Source) { st.view.ClearValidation(src) }),
+		"scm.viewNextCommit":                           input(func(src *scmcore.Source) { src.Input().ShowNextHistoryValue() }),
+		"scm.forceViewNextCommit":                      input(func(src *scmcore.Source) { src.Input().ShowNextHistoryValue() }),
+		"scm.viewPreviousCommit":                       input(func(src *scmcore.Source) { src.Input().ShowPreviousHistoryValue() }),
+		"scm.forceViewPreviousCommit":                  input(func(src *scmcore.Source) { src.Input().ShowPreviousHistoryValue() }),
 		"workbench.view.scm":                           run(func() { s.showSCM(binding, command.ViewSCM, true) }),
 		"workbench.scm.focus":                          run(func() { s.showSCM(binding, command.ViewSCM, true) }),
 		"workbench.scm.repositories.focus":             run(func() { s.showSCM(binding, command.ViewSCMRepositories, true) }),

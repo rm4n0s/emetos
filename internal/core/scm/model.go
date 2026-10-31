@@ -147,7 +147,11 @@ type Model struct {
 	cfg     Config
 	sources []*Source // every source control, in the order of the repositories
 	handles int       // numbers the sources
-	disc    uint64    // numbers the discovery order
+	// histories are the commit messages of the repositories of this session, by StorageKey: a repository that is closed and found
+	// again has its messages back (VS Code's SCMInputHistory, which also saves them in the workspace state; Emetos keeps them for
+	// the session).
+	histories map[string]*History
+	disc      uint64 // numbers the discovery order
 
 	// the view (scmViewService.ts)
 	sortKey      RepositorySortKey
@@ -301,7 +305,8 @@ func (m *Model) Add(spec SourceSpec) *Source {
 	if spec.RootURI == "" {
 		s.rootPath = ""
 	}
-	s.input = &Input{src: s, enabled: true, visible: true}
+	h := m.historyLocked(s)
+	s.input = &Input{src: s, enabled: true, visible: true, history: h, value: h.Current()}
 	events := []Event{}
 	if m.restored != nil && m.restoreOpen {
 		if done := m.addRestoredLocked(s, &events); done {
@@ -361,6 +366,24 @@ func (m *Model) addRestoredLocked(s *Source, events *[]Event) (done bool) {
 	return false
 }
 
+// historyLocked is the history of the commit messages of a source control: the one its repository had in this session, else a new
+// one. A source control with no root folder keeps its messages in memory, with the source control.
+func (m *Model) historyLocked(s *Source) *History {
+	if s.rootURI == "" {
+		return NewHistory(historyCapacity)
+	}
+	key := s.StorageKey()
+	if h, ok := m.histories[key]; ok {
+		return h
+	}
+	if m.histories == nil {
+		m.histories = map[string]*History{}
+	}
+	h := NewHistory(historyCapacity)
+	m.histories[key] = h
+	return h
+}
+
 // Remove takes a source control away, with its groups. It does nothing for one that was removed.
 func (m *Model) Remove(s *Source) {
 	m.mu.Lock()
@@ -371,6 +394,10 @@ func (m *Model) Remove(s *Source) {
 	}
 	m.sources = slices.Delete(m.sources, i, i+1)
 	s.removed = true
+	// the message being written stays with the repository for the session (VS Code saves it when the state is saved)
+	if h := s.input.history; h.IsAtEnd() {
+		h.ReplaceLast(s.input.value)
+	}
 	events := []Event{{Kind: SourceRemoved, Source: s}}
 	// the first of the others is shown when none is
 	if len(m.sources) > 0 && len(m.visibleLocked()) == 0 {
@@ -622,6 +649,13 @@ func (s *Source) AcceptInputCommand() (Command, bool) {
 	s.m.mu.Lock()
 	defer s.m.mu.Unlock()
 	return s.accept, s.accept.ID != ""
+}
+
+// HasActionButton tells whether the provider gave a button under the input.
+func (s *Source) HasActionButton() bool {
+	s.m.mu.Lock()
+	defer s.m.mu.Unlock()
+	return s.button != nil
 }
 
 // ActionButton is the button under the input, or nil.

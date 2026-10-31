@@ -51,6 +51,10 @@ func (v *View) render(bc widgets.BuildContext, lr kit.ListViewRow, st kit.RowSta
 		return v.renderGroup(bc, r, st)
 	case kindFolder:
 		return v.renderFolder(bc, r, st)
+	case kindInput:
+		return v.renderInput(bc, r)
+	case kindActionButton:
+		return v.renderActionButton(bc, r)
 	}
 	return v.renderResource(bc, r, st)
 }
