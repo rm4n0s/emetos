@@ -22,6 +22,16 @@ const (
 
 // trustDialog builds the dialog that asks whether to trust a repository: the path, the programs its configuration names (read by
 // Emetos's own reader, which runs nothing) and the three answers. Escape is Don't Trust.
+// programText is a value of the configuration as the trust dialog lists it: on one line, and cut after maxProgramText
+// characters (not bytes, so that a letter is never cut in two) with "..." after it.
+func programText(value string) string {
+	v := []rune(strings.Join(strings.Fields(value), " "))
+	if len(v) > maxProgramText {
+		return string(v[:maxProgramText]) + "..."
+	}
+	return string(v)
+}
+
 func trustDialog(path string, programs []git.Program) extension.DialogSpec {
 	detail := trustDetail
 	if len(programs) > 0 {
@@ -32,11 +42,7 @@ func trustDialog(path string, programs []git.Program) extension.DialogSpec {
 				b.WriteString("\n    and " + strconv.Itoa(len(programs)-maxProgramLines) + " more")
 				break
 			}
-			v := strings.Join(strings.Fields(p.Value), " ")
-			if len(v) > maxProgramText {
-				v = v[:maxProgramText] + "..."
-			}
-			b.WriteString("\n    " + p.Key + " = " + v)
+			b.WriteString("\n    " + p.Key + " = " + programText(p.Value))
 		}
 		detail = b.String()
 	}

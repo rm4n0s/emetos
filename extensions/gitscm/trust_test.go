@@ -236,7 +236,7 @@ func TestTheDialogListsTheProgramsTheConfigurationNames(t *testing.T) {
 	r := newRig(t, e, rigOptions{folder: repo})
 	r.settle()
 	detail := r.api.OpenDialogs()[0].Spec().Detail
-	for _, want := range []string{"The configuration of this repository names these programs:", "core.hooksPath = " + e.HooksDir, "alias.sh = !echo hi", "core.sshCommand = ssh -i /tmp/key"} {
+	for _, want := range []string{"The configuration of this repository names these programs:", "core.hooksPath = " + programText(e.HooksDir), "alias.sh = !echo hi", "core.sshCommand = ssh -i /tmp/key"} {
 		if !strings.Contains(detail, want) {
 			t.Errorf("the detail lacks %q:\n%s", want, detail)
 		}
@@ -392,5 +392,24 @@ func TestSubmodulesAndWorktreesFollowTheirParent(t *testing.T) {
 	}
 	if src := r.source(wt); src.ContextValue() != "worktree" {
 		t.Errorf("context value %q", src.ContextValue())
+	}
+}
+
+func TestProgramTextIsOneLineAndCutByCharacters(t *testing.T) {
+	long := strings.Repeat("a", maxProgramText-1) + "éb"
+	tests := []struct {
+		name, value, want string
+	}{
+		{"short", "!echo hi", "!echo hi"},
+		{"spaces and lines are one space", "ssh  -i\n /tmp/key", "ssh -i /tmp/key"},
+		{"exactly the limit", strings.Repeat("x", maxProgramText), strings.Repeat("x", maxProgramText)},
+		{"a letter of two bytes at the cut is kept whole", long, strings.Repeat("a", maxProgramText-1) + "é..."},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := programText(tc.value); got != tc.want {
+				t.Errorf("programText(%q) = %q, want %q", tc.value, got, tc.want)
+			}
+		})
 	}
 }
