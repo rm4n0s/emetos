@@ -3929,6 +3929,21 @@ quick ✅ · realinput ✅ · race and nocgo: `TestEveryEditorCommandHasAHandler
 ### Glutter 1.9.7 (b40fca5)
 quick ✅ · race and nocgo: `TestTrustFollowsTheProcessStateHome` (fixed in 594d74d) and `TestTheGoLanguageDefaultsOrganizeImportsAndFormatOnSave` once (40/40 alone; the fake counted the light bulb's own request, fixed in 73bf915) · realinput: the two timing tests of the big preview under load, 2/2 alone ✅; `TestDesktopFastKeysHeld` passes at the full window size.
 
+
+### 24.3 (913a89b, 3a2fe1c)
+quick ✅ · race and nocgo: `TestViewsModeListsContainersViewsAndChannels` and the quick input's view goldens (Open View now lists Source Control and Changes): fixed in 3a2fe1c, goldens looked at · realinput: `TestDesktopFastKeysHeld/50_a_second/input_box` under load, 3/3 alone ✅. All 102 changed whole-window goldens were checked by a script: every difference is inside the activity bar (x < 48).
+
+### Glutter 1.9.8 (c43e067)
+quick ✅ · nocgo ✅ · realinput ✅ · race: `TestTheDevCommandsPutAFakeCameraInPlaceOfTheRealOnes` timed out once under load, 3/3 alone ✅. The premise of the change (Emetos did not end on SIGTERM) was wrong: `Workspaces.watchSignal` already quit cleanly; the change adds the bounded last resort, the second signal and the display test (decision 459).
+
+### The host's polling warning in proofs (672d6f3) and the suggest list of the dev query (5a92a0e)
+`EMETOS_DEV_QUIET_WATCH_WARNING`, set by `scripts/proof.sh`, keeps the warning of a host without inotify instances out of proof images (a proof of 24.3 made with it shows no toast). `TestRealInputSuggestGitCheOffersCheckout` failed 4 times in 5 on 24.4: the dev query reported a list whose place was not known yet (x and y 0); it now reports the list once placed, 5/5 ✅ on 24.4.
+
+### 24.4 (e01bb39)
+quick ✅ · race ✅ · nocgo ✅ · realinput: `TestRealInputSuggestGitCheOffersCheckout` (above). After the rebase on Glutter 1.9.8: nocgo of the whole repository ✅ and the display tests of the commit box, the signal and the suggest list 2/2 ✅.
+
+### 24.5 (0577be1, 129a2f4)
+quick ✅ · realinput ✅ · race and nocgo: `TestTheDialogListsTheProgramsTheConfigurationNames` (the dialog cuts a long value, and the path of GOTMPDIR is long): fixed in 129a2f4, which also cuts by characters instead of bytes. The trust proof was made again in `/tmp/emetos-proof` (the first one showed a path of this machine).
 ## 24.2 The Source Control API and its model
 
 - **Date:** 2026-10-30
