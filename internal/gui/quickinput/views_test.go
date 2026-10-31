@@ -39,11 +39,13 @@ func TestViewsModeListsContainersViewsAndChannels(t *testing.T) {
 	// follow the containers
 	want := []string{
 		"Side Bar|Explorer",
+		"|Source Control",
 		"Panel|Problems",
 		"|Output",
 		"Side Bar / Explorer|Open Editors",
 		"|Folders",
 		"|Outline",
+		"Side Bar / Source Control|Changes",
 		"Panel / Problems|Problems",
 		"Panel / Output|Output",
 		"|Emetos",
