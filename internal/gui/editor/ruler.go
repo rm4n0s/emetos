@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/find"
+	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 )
 
 // Ported from VS Code: src/vs/editor/browser/viewParts/overviewRuler/overviewRuler.ts and
@@ -21,6 +22,8 @@ type RulerColors struct {
 	FindMatch, RangeHighlight ui.Color
 	// Error, Warning and Info mark the diagnostics, in the right lane (hints have no mark).
 	Error, Warning, Info ui.Color
+	// Added, Modified and Deleted mark the changes of the quick diff, in the left lane.
+	Added, Modified, Deleted ui.Color
 }
 
 // rulerMinMarkHeight is the height of the smallest mark.
@@ -137,6 +140,8 @@ const (
 	laneCenter rulerLane = iota
 	laneFull
 	laneRight
+	// laneLeft is the lane of the quick diff marks.
+	laneLeft
 )
 
 // rulerMark is a mark on the ruler: from y to y+height in the lane. A mark of the right lane has the severity of the
@@ -145,6 +150,8 @@ type rulerMark struct {
 	y, height float64
 	lane      rulerLane
 	severity  DiagnosticSeverity
+	// change is the kind of change a mark of the left lane stands for.
+	change quickdiff.ChangeType
 }
 
 // rulerCache holds the marks of the diagnostics for what they were made for: the diagnostics (their generation), the height of
@@ -153,6 +160,7 @@ type rulerMark struct {
 type rulerCache struct {
 	valid         bool
 	generation    int
+	version       int
 	height, total float64
 	lines         int
 	marks         []rulerMark
@@ -256,10 +264,22 @@ func (c RulerColors) severity(s DiagnosticSeverity) ui.Color {
 	return c.Info
 }
 
+// change is the color of the marks of a kind of change.
+func (c RulerColors) change(t quickdiff.ChangeType) ui.Color {
+	switch t {
+	case quickdiff.Add:
+		return c.Added
+	case quickdiff.Modify:
+		return c.Modified
+	}
+	return c.Deleted
+}
+
 // Paint implements rendering.RenderObject.
 func (r *RenderEditorRuler) Paint(context *rendering.PaintingContext, offset ui.Offset) {
 	size := r.Size()
 	marks := append(r.vm.rulerMarks(size.Height), r.vm.diagnosticRulerMarks(size.Height)...)
+	marks = append(marks, r.vm.quickDiffRulerMarks(size.Height)...)
 	if len(marks) == 0 {
 		return
 	}
@@ -272,6 +292,8 @@ func (r *RenderEditorRuler) Paint(context *rendering.PaintingContext, offset ui.
 			left, width, color = offset.Dx, size.Width, r.colors.RangeHighlight
 		case laneRight:
 			left, width, color = offset.Dx+size.Width-third, third, r.colors.severity(m.severity)
+		case laneLeft:
+			left, width, color = offset.Dx, third, r.colors.change(m.change)
 		}
 		canvas.DrawRect(ui.NewRectFromLTWH(left, offset.Dy+m.y, width, m.height), fill(color))
 	}

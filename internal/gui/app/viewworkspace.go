@@ -74,6 +74,7 @@ func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
 		Markers:        p.Markers,
 		Decorations:    p.Decorations,
 		Annotations:    p.Annotations,
+		QuickDiff:      p.QuickDiff,
 		StatusBar:      workbench.NewStatusBar(),
 		ctx:            ctx,
 		viewOf:         p,

@@ -295,6 +295,11 @@ func (m *model) updateContext() {
 		return
 	}
 	open := m.openRepos()
+	roots := make([]string, len(open))
+	for i, r := range open {
+		roots[i] = r.root
+	}
+	x.owners.set(roots)
 	var merge, rebase, cherry, fresh, committing bool
 	for _, r := range open {
 		committing = committing || r.committing

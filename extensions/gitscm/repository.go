@@ -78,6 +78,9 @@ type repository struct {
 	// gen counts the times the repository was untrusted, so that the result of a command that was cancelled by it is dropped.
 	gen int
 
+	// qd is what the quick diff providers of the repository read (quickdiff.go).
+	qd quickDiffState
+
 	// commitUI is the commit box, the action button and the commit that runs (commitui.go, commit.go).
 	commitUI
 }
@@ -135,6 +138,7 @@ func (r *repository) clearGroups() {
 			*g = nil
 		}
 	}
+	r.dropQuickDiff()
 	r.src.SetCount(-1)
 	r.src.SetStatusBarCommands(nil)
 	r.src.SetBusy(false)
@@ -177,6 +181,7 @@ func (r *repository) opened(repo *git.Repo, err error) {
 		return
 	}
 	r.src.SetActiveRepositoryName("")
+	r.addQuickDiff()
 	r.initCommitUI()
 	r.readRemotes()
 	r.m.opened(r)
@@ -424,6 +429,7 @@ func (r *repository) applySnapshot(snap snapshot) {
 	r.updateCommitUI()
 	r.m.updateContext()
 	r.contentChanged(snap.head.commit != headBefore)
+	r.quickDiffChanged()
 	r.multiChanged()
 	if snap.head.commit != headBefore {
 		x.blame.headMoved(r)

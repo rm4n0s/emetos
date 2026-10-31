@@ -413,6 +413,13 @@ type Documents interface {
 	// when the window tab is not on screen, with ExtDocumentNotSaved for the first document that was not saved (the window tab shows
 	// why), with the error of ctx when it ends first, and with ExtensionDeactivated after the activation ended.
 	SaveAll(ctx context.Context, uris []string) error
+	// QuickDiffOriginal returns the text the primary quick diff provider of the file with the URI (file:///path) says it is compared with,
+	// the one the marks of the editor use (SPEC §10.30 "Quick diff"): the index version of a file of a Git repository. ok is false when no
+	// provider has an original for the file. The extension that makes the original needs no call to this; it is for an extension that
+	// works on the modified lines (the format on save of modifications of the window uses it). It may block (it asks the providers), so
+	// call it off the UI thread. It fails with ExtensionQuickDiffUnavailable in a scope that has no editors, with the error of ctx when
+	// it ends first, and with ExtensionDeactivated after the activation ended.
+	QuickDiffOriginal(ctx context.Context, uri string) (text string, ok bool, err error)
 }
 
 // ActiveDocument is the text editor in front, as Documents().Active describes it (SPEC §10.28).

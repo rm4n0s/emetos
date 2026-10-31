@@ -193,6 +193,8 @@ type Options struct {
 	Minimap MinimapOptions
 	// StickyScroll are the settings of sticky scroll (editor.stickyScroll.*).
 	StickyScroll StickyScrollOptions
+	// QuickDiff are the settings of the quick diff marks (scm.diffDecorations*, step 24.11).
+	QuickDiff QuickDiffOptions
 	// GotoLocation are the settings of go to definition and its kin (editor.gotoLocation.*).
 	GotoLocation GotoLocationOptions
 	// Lens are the settings of the code lenses, the inlay hints and the semantic highlighting (editor.codeLens*,
@@ -355,6 +357,8 @@ type ViewModel struct {
 	comments comment.Languages
 	// ownerBase is the first of the document owners of this view model (see owner).
 	ownerBase int
+	// qd is the quick diff marks of the editor (quickdiff.go).
+	qd quickDiffState
 	// autoClosed tracks the closing characters the editor typed.
 	autoClosed *edit.AutoClosedTracker
 	// indenter applies the indentation rules of the languages, or is nil (SetIndenter), and
@@ -406,7 +410,7 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 13
+	ownerSlots   = 14
 	snippetOwner = 6
 	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
 	suggestOwner = 9

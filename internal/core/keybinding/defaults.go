@@ -526,6 +526,12 @@ func registerExplorerKeys(r *Registry) {
 func registerSourceControlInputKeys(r *Registry) {
 	repo := "scmRepository"
 	r.MustRegister(
+		// Go to Next Change and Go to Previous Change (step 24.11): in a text editor that is not part of a diff editor, whose own
+		// Alt+F5 is workbench.action.compareEditor.nextChange
+		Rule{Command: "workbench.action.editor.nextChange", Weight: WeightEditorContrib,
+			When: mustWhen(whenEditorText, "!isInDiffEditor", "!textCompareEditorActive", "quickDiffDecorationCount != 0"), Primary: "alt+f5"},
+		Rule{Command: "workbench.action.editor.previousChange", Weight: WeightEditorContrib,
+			When: mustWhen(whenEditorText, "!isInDiffEditor", "!textCompareEditorActive", "quickDiffDecorationCount != 0"), Primary: "shift+alt+f5"},
 		Rule{Command: "scm.acceptInput", Weight: WeightWorkbenchContrib, When: mustWhen(repo), Primary: "ctrl+enter"},
 		Rule{Command: "scm.clearValidation", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "scmInputHasValidationMessage"), Primary: "escape"},
 		Rule{Command: "scm.clearInput", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "!suggestWidgetVisible", "!inlineSuggestionVisible",

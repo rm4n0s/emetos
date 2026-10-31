@@ -460,3 +460,16 @@ The grouping used to run on the UI thread (decision 490 of `docs/DECISIONS-TO-RE
 | Explorer, first frame after the last chunk | 58 ms | recorded |
 
 The cache is bounded at 250,000 entries; a provider that answers in more than 1 ms is logged and suspended after 20 slow answers (decisions 502 and 503 of `docs/DECISIONS-TO-REVIEW.md`).
+
+## Quick diff of a 10,000-line file (step 24.11)
+
+`scripts/heavy.sh --alone -- go test -tags glutter_release ./internal/gui/editor -run xxx -bench 'TypeCharacter10kLines$|TypeCharacter10kLinesWithQuickDiff|SetQuickDiffMarks' -benchmem` and `scripts/heavy.sh --alone -- go test ./internal/core/scm/quickdiff -run xxx -bench . -benchmem`. Same machine as above, nothing else running.
+
+| Measurement | Value | Target |
+|---|---|---|
+| Diff of a 10,000-line file with 200 scattered edits against its original (`core/diff.ComputeLines` and the changes), off the UI thread | 3.5 ms | within 20 ms |
+| The same through the model (snapshot, diff, changes), off the UI thread | 4.8 ms | marks within 50 ms of the end of the 250 ms pause |
+| `SetQuickDiffMarks` with 200 marks in a 10,000-line file, on the UI thread | 0.30 ms | within one frame |
+| One typed character in a 10,000-line file, without / with 200 marks | 0.24 ms / 0.37 ms | within one frame (16.6 ms) |
+
+The marks are decorations of the document, so a typed character shifts them with the other decorations; the extra 0.13 ms is that and the repaint of the stripe. The original of a file is read once and kept by the host until the provider says it changed.

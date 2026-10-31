@@ -365,7 +365,7 @@ func (vm *ViewModel) setGutterHover(over bool) {
 		return
 	}
 	vm.fold.hoverGutter = over
-	if vm.opts.ShowFoldingControls == "mouseover" {
+	if vm.opts.ShowFoldingControls == "mouseover" || (vm.opts.QuickDiff.Visibility == "hover" && len(vm.qd.ids) > 0) {
 		vm.sel.NotifyListeners()
 	}
 }

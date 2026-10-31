@@ -31,3 +31,38 @@ func registerSCMColors(r *ColorRegistry) {
 			Description: "Color for the blame editor decoration."},
 	)
 }
+
+// registerQuickDiffColors registers the colors of the marks of the quick diff in the gutter, the overview ruler and the minimap (step 24.11).
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/common/quickDiff.ts
+func registerQuickDiffColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editorGutter.modifiedBackground", Defaults: dflt(Hex("#1B81A8"), Hex("#2090D3"), Hex("#1B81A8"), Hex("#2090D3")),
+			Description: "Editor gutter background color for lines that are modified."},
+		ColorContribution{ID: "editorGutter.modifiedSecondaryBackground",
+			Defaults:    dflt(Darken(Ref("editorGutter.modifiedBackground"), 0.5), Lighten(Ref("editorGutter.modifiedBackground"), 0.7), Hex("#1B81A8"), Hex("#2090D3")),
+			Description: "Editor gutter secondary background color for lines that are modified."},
+		ColorContribution{ID: "editorGutter.addedBackground", Defaults: dflt(Hex("#487E02"), Hex("#48985D"), Hex("#487E02"), Hex("#48985D")),
+			Description: "Editor gutter background color for lines that are added."},
+		ColorContribution{ID: "editorGutter.addedSecondaryBackground",
+			Defaults:    dflt(Darken(Ref("editorGutter.addedBackground"), 0.5), Lighten(Ref("editorGutter.addedBackground"), 0.7), Hex("#487E02"), Hex("#48985D")),
+			Description: "Editor gutter secondary background color for lines that are added."},
+		ColorContribution{ID: "editorGutter.deletedBackground", Defaults: AllThemes(Ref("editorError.foreground")),
+			Description: "Editor gutter background color for lines that are deleted."},
+		ColorContribution{ID: "editorGutter.deletedSecondaryBackground",
+			Defaults:    dflt(Darken(Ref("editorGutter.deletedBackground"), 0.4), Lighten(Ref("editorGutter.deletedBackground"), 0.3), Hex("#F48771"), Hex("#B5200D")),
+			Description: "Editor gutter secondary background color for lines that are deleted."},
+		ColorContribution{ID: "minimapGutter.modifiedBackground", Defaults: AllThemes(Ref("editorGutter.modifiedBackground")),
+			Description: "Minimap gutter background color for lines that are modified."},
+		ColorContribution{ID: "minimapGutter.addedBackground", Defaults: AllThemes(Ref("editorGutter.addedBackground")),
+			Description: "Minimap gutter background color for lines that are added."},
+		ColorContribution{ID: "minimapGutter.deletedBackground", Defaults: AllThemes(Ref("editorGutter.deletedBackground")),
+			Description: "Minimap gutter background color for lines that are deleted."},
+		ColorContribution{ID: "editorOverviewRuler.modifiedForeground", Defaults: AllThemes(Transparent(Ref("editorGutter.modifiedBackground"), 0.6)),
+			Description: "Overview ruler marker color for modified content."},
+		ColorContribution{ID: "editorOverviewRuler.addedForeground", Defaults: AllThemes(Transparent(Ref("editorGutter.addedBackground"), 0.6)),
+			Description: "Overview ruler marker color for added content."},
+		ColorContribution{ID: "editorOverviewRuler.deletedForeground", Defaults: AllThemes(Transparent(Ref("editorGutter.deletedBackground"), 0.6)),
+			Description: "Overview ruler marker color for deleted content."},
+	)
+}

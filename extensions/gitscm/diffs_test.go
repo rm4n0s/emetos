@@ -709,6 +709,9 @@ func (d failingContentDocs) Dirty() []string               { return d.API.Docume
 func (d failingContentDocs) SaveAll(ctx context.Context, uris []string) error {
 	return d.API.Documents().SaveAll(ctx, uris)
 }
+func (d failingContentDocs) QuickDiffOriginal(ctx context.Context, uri string) (string, bool, error) {
+	return d.API.Documents().QuickDiffOriginal(ctx, uri)
+}
 func (d failingContentDocs) CloseTabs(t ...extension.DocumentTab) int {
 	return d.API.Documents().CloseTabs(t...)
 }

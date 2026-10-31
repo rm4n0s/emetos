@@ -106,6 +106,8 @@ type API struct {
 	annotations       map[string]*annotationSet
 	// annotationsUnavailable makes EditorDecorations().Set fail like a scope with no editors.
 	annotationsUnavailable bool
+	// quickDiffUnavailable makes AddQuickDiffProvider and QuickDiffOriginal fail like a scope with no editors.
+	quickDiffUnavailable bool
 }
 
 // Note is a notification the extension showed.

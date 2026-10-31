@@ -398,6 +398,9 @@ func (s *editorState) InitState() {
 // viewModelChanged rebuilds the editor, since the width of the gutter depends on the number of
 // lines, and tells the input method where its caret went.
 func (s *editorState) viewModelChanged() {
+	if s.scope != nil { // the number of quick diff marks is a context key, and the marks change with the text
+		s.scope.Set("quickDiffDecorationCount", s.Widget().vm.QuickDiffCount())
+	}
 	s.SetState(func() {})
 	s.scheduleInputGeometry()
 }
@@ -646,6 +649,7 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("suggestionCanResolve", sk.CanResolve)
 		s.scope.Set("editorHasCompletionItemProvider", vm.SuggestHasProvider())
 		s.scope.Set("config.emmet.triggerExpansionOnTab", vm.Options().Emmet.TriggerExpansionOnTab)
+		s.scope.Set("quickDiffDecorationCount", vm.QuickDiffCount())
 	})
 }
 
@@ -826,6 +830,10 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		LineNumber: colors.EditorLineNumberForeground, ActiveLineNumber: colors.EditorLineNumberActiveForeground,
 		LineHighlight: colors.EditorLineHighlightBackground, LineHighlightBorder: colors.EditorLineHighlightBorder,
 		FoldingControl: colors.EditorGutterFoldingControlForeground,
+		QuickDiff: QuickDiffColors{
+			Added: colors.EditorGutterAdded, Modified: colors.EditorGutterModified, Deleted: colors.EditorGutterDeleted,
+			AddedSecondary: colors.EditorGutterAddedSecondary, ModifiedSecondary: colors.EditorGutterModifiedSecondary, DeletedSecondary: colors.EditorGutterDeletedSecondary,
+		},
 	}
 	overlayColors := OverlayColors{
 		Background: colors.EditorBackground, Selection: colors.EditorSelectionBackground,
@@ -892,6 +900,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	ruler := widgets.NewPositioned(widgets.NewIgnorePointer(newRulerLayer(vm, RulerColors{
 		FindMatch: colors.EditorOverviewRulerFindMatch, RangeHighlight: colors.EditorOverviewRulerRangeHighlight,
 		Error: colors.EditorOverviewRulerError, Warning: colors.EditorOverviewRulerWarning, Info: colors.EditorOverviewRulerInfo,
+		Added: colors.EditorOverviewRulerAdded, Modified: colors.EditorOverviewRulerModified, Deleted: colors.EditorOverviewRulerDeleted,
 	})), widgets.PositionedOpts{Top: foundation.Some(0.0), Bottom: foundation.Some(0.0), Right: foundation.Some(0.0), Width: foundation.Some(kit.DefaultVerticalScrollbarSize)})
 	pixelRatio, _ := widgets.MediaQueryMaybeDevicePixelRatioOf(bc)
 	fontMetrics := newGeometry(vm, textFactory(bc))
@@ -901,6 +910,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		Selection:         colors.MinimapSelection, FindMatch: colors.MinimapFindMatch, SelectionOccurrence: colors.MinimapSelectionOccurrence,
 		Error: colors.MinimapError, Warning: colors.MinimapWarning, Info: colors.MinimapInfo,
 		Slider: colors.MinimapSliderBackground, SliderHover: colors.MinimapSliderHoverBackground, SliderActive: colors.MinimapSliderActive,
+		QuickDiff: quickDiffMinimapColors{Added: colors.MinimapGutterAdded, Modified: colors.MinimapGutterModified, Deleted: colors.MinimapGutterDeleted},
 	}
 	stickyColors := StickyColors{
 		Background: colors.EditorStickyScrollBackground, GutterBackground: colors.EditorStickyScrollGutterBackground,

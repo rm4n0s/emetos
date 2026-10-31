@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/errors"
+
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/annotations"
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -20,6 +22,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/scm"
+	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/emetos/internal/core/timeline"
@@ -213,6 +216,10 @@ type tab struct {
 	annotations *annotations.Store
 	// timeline is the timeline service of the tab (timeline_test.go).
 	timeline *timeline.Service
+	// quickDiff is the registry of the quick diff providers of the tab, whose originals are the entries of quickTexts
+	// (quickdiff_test.go).
+	quickDiff  *quickdiff.Service
+	quickTexts map[string]string
 
 	// dialogs are the dialogs the tab was asked to show (Dialogs().Ask), the first first; watches are the folders it was asked to
 	// watch (Workspace().Watch) with the sinks that feed them, and watchErr is the error the next watch fails with
@@ -269,6 +276,8 @@ type rig struct {
 	noAnnotations map[string]bool
 	// noTimeline names tabs that have no timeline service (timeline_test.go).
 	noTimeline map[string]bool
+	// noQuickDiff names tabs that have no editors to compare.
+	noQuickDiff map[string]bool
 	// noDialog and noWatch name tabs that cannot show a dialog and tabs that cannot watch a folder.
 	noDialog, noWatch map[string]bool
 	// noTrash names tabs that have no trash.
@@ -302,7 +311,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}, noProblemsPanel: map[string]bool{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noQuickDiff: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}, noProblemsPanel: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -369,6 +378,17 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		tl = timeline.New()
 		tb.timeline = tl
 	}
+	var quick *quickdiff.Service
+	if !r.noQuickDiff[name] {
+		tb.quickTexts = map[string]string{}
+		quick = quickdiff.NewService(quickdiff.Options{Texts: func(_ context.Context, uri string) (string, error) {
+			if text, ok := tb.quickTexts[uri]; ok {
+				return text, nil
+			}
+			return "", errors.New("TestNoSuchOriginal", "no such original", "uri", uri)
+		}})
+		tb.quickDiff = quick
+	}
 	tb.coreDocs = newFakeCoreDocs(tb.docs)
 	var docs DocumentSource = tb.coreDocs
 	if r.noCoreDocs[name] {
@@ -421,7 +441,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		showProblems = func() { tb.shownProblems++ }
 	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },

@@ -63,7 +63,18 @@ type SourceControl interface {
 	CreateGroup(spec ResourceGroupSpec) (ResourceGroup, error)
 	// Dispose removes the source control and its groups from the view. It happens by itself when the activation ends.
 	Dispose()
-	// TODO(step 24.11): AddQuickDiffProvider and RefreshQuickDiff.
+	// AddQuickDiffProvider says what the files below the root of the source control are compared with, for the marks of the changes
+	// in the editors and for the format on save of modifications (SPEC §10.30 "Quick diff"). A source control has one primary and one
+	// secondary provider at most. It fails with ExtensionQuickDiffInvalid for a provider with no label or no Original, a kind that
+	// is not known or a source control with no root, ExtensionQuickDiffDuplicate for a kind the source control has a provider of,
+	// ExtensionQuickDiffUnavailable in a scope that has no editors (a host without a workbench), ExtensionSCMDisposed for a
+	// source control that was disposed and ExtensionDeactivated after the activation ended. The provider goes with the source control and
+	// with the activation.
+	AddQuickDiffProvider(p QuickDiffProvider) (QuickDiffRegistration, error)
+	// RefreshQuickDiff tells the host that the originals of the files of this source control may have changed (a commit, a stage, a
+	// checkout): the open files are compared again, off the UI thread, and the providers are asked for their originals again. It
+	// does nothing when the source control has no provider.
+	RefreshQuickDiff()
 	// TODO(step 24.20): SetHistoryProvider.
 }
 

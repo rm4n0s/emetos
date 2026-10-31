@@ -101,6 +101,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		Lens: LensOptions{
 			CodeLens: true, InlayHints: "on", InlayMaxLength: 43, Semantic: SemanticByTheme,
 		},
+		QuickDiff:       QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true},
 		FoldingStrategy: "auto",
 	}
 	if !sameOptions(got, want) {
@@ -336,5 +337,45 @@ func TestRulers(t *testing.T) {
 				t.Errorf("rulers(%v) = %v, want %v", tc.raw, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestOptionsFromSettingsQuickDiff(t *testing.T) {
+	tests := []struct {
+		name   string
+		values map[string]any
+		want   QuickDiffOptions
+		places [3]bool // gutter, overview, minimap
+		width  int
+	}{
+		{"the defaults", nil, QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{true, true, true}, 3},
+		{"the gutter only", map[string]any{"scm.diffDecorations": "gutter"}, QuickDiffOptions{Decorations: "gutter", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{true, false, false}, 3},
+		{"the ruler only", map[string]any{"scm.diffDecorations": "overview"}, QuickDiffOptions{Decorations: "overview", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{false, true, false}, 3},
+		{"the minimap only", map[string]any{"scm.diffDecorations": "minimap"}, QuickDiffOptions{Decorations: "minimap", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{false, false, true}, 3},
+		{"none", map[string]any{"scm.diffDecorations": "none"}, QuickDiffOptions{Decorations: "none", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{}, 3},
+		{"a width, hover and both patterns", map[string]any{
+			"scm.diffDecorationsGutterWidth": 5.0, "scm.diffDecorationsGutterVisibility": "hover",
+			"scm.diffDecorationsGutterPattern": map[string]any{"added": true, "modified": false},
+		}, QuickDiffOptions{Decorations: "all", GutterWidth: 5, Visibility: "hover", PatternAdded: true}, [3]bool{true, true, true}, 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := OptionsFromSettings(newSettings(t, tt.values), "", "", 4).QuickDiff
+			if got != tt.want {
+				t.Errorf("options = %+v, want %+v", got, tt.want)
+			}
+			if places := [3]bool{got.gutter(), got.overview(), got.minimap()}; places != tt.places {
+				t.Errorf("places = %v, want %v", places, tt.places)
+			}
+			if got.width() != tt.width {
+				t.Errorf("width = %d, want %d", got.width(), tt.width)
+			}
+		})
+	}
+	// VS Code takes 3 for a width that is not 1 to 5
+	for _, w := range []int{0, -1, 6, 40} {
+		if got := (QuickDiffOptions{GutterWidth: w}).width(); got != 3 {
+			t.Errorf("width of %d = %d, want 3", w, got)
+		}
 	}
 }

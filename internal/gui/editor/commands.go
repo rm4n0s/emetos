@@ -512,6 +512,7 @@ func buildActions() map[string]action {
 	signatureActions(a)
 	navigationActions(a)
 	codeActionActions(a)
+	quickDiffActions(a)
 	formatActions(a)
 	renameActions(a)
 	previewActions(a)

@@ -847,6 +847,8 @@ var scmAppCommands = map[string]bool{
 	"workbench.view.scm": true, "workbench.scm.focus": true, "workbench.scm.repositories.focus": true,
 	"workbench.scm.action.collapseAllRepositories": true, "workbench.scm.action.expandAllRepositories": true,
 	"workbench.scm.action.collapseAll": true, "workbench.scm.action.toggleRepositoryVisibility": true,
+	// Go to Next Change and Go to Previous Change of the quick diff, which the editor runs (step 24.11, gui/editor/quickdiff.go)
+	"workbench.action.editor.nextChange": true, "workbench.action.editor.previousChange": true,
 }
 
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {

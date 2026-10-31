@@ -110,6 +110,14 @@ type Colors struct {
 	// minimap.
 	EditorOverviewRulerError, EditorOverviewRulerWarning, EditorOverviewRulerInfo ui.Color
 	MinimapError, MinimapWarning, MinimapInfo                                     ui.Color
+	// EditorGutterAdded, EditorGutterModified and EditorGutterDeleted are the stripes of the quick diff in the gutter (step 24.11),
+	// and the three Secondary ones those of its secondary provider; EditorOverviewRulerAdded, EditorOverviewRulerModified and
+	// EditorOverviewRulerDeleted are its marks on the vertical scrollbar and MinimapGutterAdded, MinimapGutterModified and
+	// MinimapGutterDeleted its marks in the gutter of the minimap.
+	EditorGutterAdded, EditorGutterModified, EditorGutterDeleted                            ui.Color
+	EditorGutterAddedSecondary, EditorGutterModifiedSecondary, EditorGutterDeletedSecondary ui.Color
+	EditorOverviewRulerAdded, EditorOverviewRulerModified, EditorOverviewRulerDeleted       ui.Color
+	MinimapGutterAdded, MinimapGutterModified, MinimapGutterDeleted                         ui.Color
 	// EditorError, EditorWarning, EditorInfo and EditorHint are the colors of the squiggles of the diagnostics
 	// (foreground) and of the double underlines a theme can ask for instead (border); EditorUnnecessaryCodeOpacity
 	// is the opacity of unused code (its alpha) and EditorUnnecessaryCodeBorder the line under it.
@@ -460,6 +468,12 @@ func ColorsOf(ct *theme.ColorTheme) Colors {
 		EditorOverviewRulerError: color("editorOverviewRuler.errorForeground"), EditorOverviewRulerWarning: color("editorOverviewRuler.warningForeground"),
 		EditorOverviewRulerInfo: color("editorOverviewRuler.infoForeground"),
 		MinimapError:            color("minimap.errorHighlight"), MinimapWarning: color("minimap.warningHighlight"), MinimapInfo: color("minimap.infoHighlight"),
+		EditorGutterAdded: color("editorGutter.addedBackground"), EditorGutterModified: color("editorGutter.modifiedBackground"), EditorGutterDeleted: color("editorGutter.deletedBackground"),
+		EditorGutterAddedSecondary: color("editorGutter.addedSecondaryBackground"), EditorGutterModifiedSecondary: color("editorGutter.modifiedSecondaryBackground"),
+		EditorGutterDeletedSecondary: color("editorGutter.deletedSecondaryBackground"),
+		EditorOverviewRulerAdded:     color("editorOverviewRuler.addedForeground"), EditorOverviewRulerModified: color("editorOverviewRuler.modifiedForeground"),
+		EditorOverviewRulerDeleted: color("editorOverviewRuler.deletedForeground"),
+		MinimapGutterAdded:         color("minimapGutter.addedBackground"), MinimapGutterModified: color("minimapGutter.modifiedBackground"), MinimapGutterDeleted: color("minimapGutter.deletedBackground"),
 		EditorErrorForeground: color("editorError.foreground"), EditorWarningForeground: color("editorWarning.foreground"),
 		EditorInfoForeground: color("editorInfo.foreground"), EditorHintForeground: color("editorHint.foreground"),
 		EditorErrorBorder: color("editorError.border"), EditorWarningBorder: color("editorWarning.border"),

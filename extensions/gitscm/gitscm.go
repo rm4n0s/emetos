@@ -180,6 +180,9 @@ type gitscm struct {
 	// content is what the provided documents of the versions of files need (content.go).
 	content contentState
 
+	// owners are the roots of the open repositories, for the quick diff providers (quickdiff.go).
+	owners ownerRoots
+
 	// multi is what the multi-file diff editor needs (multidiff.go).
 	multi multiState
 

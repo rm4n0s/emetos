@@ -36,6 +36,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerMergeEditorColors(r)
 	registerTerminalColors(r)
 	registerSCMColors(r)
+	registerQuickDiffColors(r)
 	return r
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
+	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -446,6 +447,16 @@ func multiDiffEditorState(a *keyApp) func() {
 	}
 }
 
+// quickDiffState is the state of a window whose editor has quick diff marks, for the keys that go to the next and the previous
+// change of the file (step 24.11).
+func quickDiffState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.focusEditor()
+		a.vm.SetQuickDiffMarks([]editor.QuickDiffMark{{Type: quickdiff.Modify, Start: 2, End: 2}})
+	}
+}
+
 // mergeEditorState is the state of a window that shows a merge editor, for the key that completes the merge (step 9.8).
 func mergeEditorState(a *keyApp) func() {
 	return func() {
@@ -597,8 +608,9 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				hoverState(a, false, false), hoverState(a, true, false), hoverState(a, true, true), signatureState(a, 1), signatureState(a, 3), navigationState(a), peekState(a),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
 				scmInputState(a, true, true, false), scmInputState(a, true, true, true),
-				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a))
+				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a), quickDiffState(a))
 			for _, state := range states {
+				a.vm.SetQuickDiffMarks(nil)
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
 					a.win.Keys.Reset(key)

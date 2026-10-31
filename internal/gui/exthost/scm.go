@@ -68,6 +68,9 @@ type scmSource struct {
 
 	mu       sync.Mutex // makes the check of a group's id and its creation one step
 	disposed bool
+	// quickDiffKinds are the kinds of quick diff provider the source control has, and quickDiffRegs the providers (quickdiff.go).
+	quickDiffKinds map[extension.QuickDiffKind]bool
+	quickDiffRegs  []*quickDiffHandle
 }
 
 var _ extension.SourceControl = (*scmSource)(nil)
@@ -151,7 +154,12 @@ func (h *scmSource) Dispose() {
 		return
 	}
 	h.disposed = true
+	regs := h.quickDiffRegs
+	h.quickDiffRegs = nil
 	h.mu.Unlock()
+	for _, r := range regs {
+		r.Dispose()
+	}
 	h.model.Remove(h.src)
 	in := h.inst
 	in.mu.Lock()

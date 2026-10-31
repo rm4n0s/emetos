@@ -10,7 +10,7 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
-	"github.com/rm4n0s/emetos/internal/core/buffer"
+	"github.com/rm4n0s/emetos/internal/core/diff"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
@@ -287,7 +287,8 @@ func (p *savePlan) codeActions(next func()) {
 
 // ---- format on save ----
 
-// formatDocument runs the formatter as editor.formatOnSaveMode says: the whole file, or the lines that differ from the file on disk.
+// formatDocument runs the formatter as editor.formatOnSaveMode says: the whole file, or the lines that differ from the original of the
+// primary quick diff provider, or from the file on disk when no provider has an original for it.
 //
 // Ported from VS Code: saveParticipants.ts (FormatOnSaveParticipant), formatModified.ts
 func (p *savePlan) formatDocument(next func()) {
@@ -311,7 +312,7 @@ func (p *savePlan) formatDocument(next func()) {
 	var edits []langfeatures.TextEdit
 	p.ask(deadline, func(ctx context.Context) {
 		var err error
-		edits, err = formatForSave(ctx, p.reg, ld, opts, def, mode, path, ranges)
+		edits, err = formatForSave(ctx, p.reg, ld, opts, def, mode, path, ranges, p.win.quickDiffBaseline)
 		p.logFailure("format on save", err)
 	}, func(timedOut bool) {
 		switch {
@@ -331,7 +332,7 @@ func (p *savePlan) formatDocument(next func()) {
 }
 
 // formatForSave asks for the edits of a format on save. It runs on a goroutine.
-func formatForSave(ctx context.Context, reg *langfeatures.Registry, ld langfeatures.Document, opts langfeatures.FormattingOptions, def, mode, path string, ranges bool) ([]langfeatures.TextEdit, error) {
+func formatForSave(ctx context.Context, reg *langfeatures.Registry, ld langfeatures.Document, opts langfeatures.FormattingOptions, def, mode, path string, ranges bool, quickDiff func(ctx context.Context, path string) (string, bool)) ([]langfeatures.TextEdit, error) {
 	whole := func() ([]langfeatures.TextEdit, error) {
 		edits, err := reg.FormatDocument(ctx, ld, opts, def)
 		return langfeatures.MinimalEdits(ld.Text, edits), err
@@ -339,16 +340,23 @@ func formatForSave(ctx context.Context, reg *langfeatures.Registry, ld langfeatu
 	if mode != "modifications" && mode != "modificationsIfAvailable" {
 		return whole()
 	}
-	// The lines that differ from the file on disk: Emetos has no source control to say which, so the file is the baseline.
+	// The lines that differ from the baseline: the original of the primary quick diff provider (the index version of a file of a Git
+	// repository, as VS Code's modified lines are) when the window has one for the file, else the file on disk.
 	var base []string
 	available := false
 	if path != "" && ranges {
-		res, err := fileio.Read(ctx, path, fileio.ReadOptions{})
-		if err == nil {
-			available = true
-			for _, line := range buffer.New(res.Text).Snapshot().Lines(0) {
-				base = append(base, line)
+		text, ok := "", false
+		if quickDiff != nil {
+			text, ok = quickDiff(ctx, path)
+		}
+		if !ok {
+			if res, err := fileio.Read(ctx, path, fileio.ReadOptions{}); err == nil {
+				text, ok = res.Text, true
 			}
+		}
+		if ok {
+			available = true
+			base, _ = diff.SplitLines(text) // an original with CRLF line breaks is compared with the document's "\n"
 		}
 	}
 	if !available {

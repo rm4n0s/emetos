@@ -22,6 +22,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/scm"
+	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/timeline"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
@@ -202,6 +203,9 @@ type ScopeOptions struct {
 	// Timeline is the timeline service of the window tab, which Timeline().RegisterProvider adds to; nil leaves it unavailable
 	// (RegisterProvider fails with ExtensionTimelineUnavailable).
 	Timeline *timeline.Service
+	// QuickDiff is the registry of the quick diff providers of the window tab, which SourceControl().AddQuickDiffProvider adds to and the
+	// editors compare their files with; nil leaves it unavailable (AddQuickDiffProvider fails with ExtensionQuickDiffUnavailable).
+	QuickDiff *quickdiff.Service
 }
 
 // slot is an extension in a scope.

@@ -25,6 +25,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/langfeatures"
 	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/scm"
+	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -124,6 +125,10 @@ type Workspace struct {
 	// Timeline is the timeline service of the window: the providers of the history of a file that extensions register, which the Timeline
 	// view of the Explorer lists (SPEC §10.30). The headless view of a workspace has none.
 	Timeline *timeline.Service
+	// QuickDiff is the registry of the providers that say what a file is compared with (Git's index version): the editors mark the
+	// changes of their file against it and the format on save of modifications takes its baseline from it (SPEC §10.30 "Quick diff").
+	// The headless view of a workspace shares its workspace's.
+	QuickDiff *quickdiff.Service
 	// Notifications is what the window shows of the notifications of the process: the toasts, the
 	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
 	// thread.
@@ -450,6 +455,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		ext:            o.ext,
 	}
 	w.Notifications = notify.NewPresenter(w.Notify)
+	w.QuickDiff = quickdiff.NewService(quickdiff.Options{Texts: w.quickDiffText, Log: func(msg string, args ...any) { p.Logger.Debug(msg, args...) }})
 	w.virtual = document.NewVirtualRegistryOver(p.Virtual)
 	w.Documents.SetVirtual(w.virtual)
 	if folder == "" {

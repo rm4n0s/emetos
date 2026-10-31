@@ -28,6 +28,8 @@ type MinimapColors struct {
 	// Slider, SliderHover and SliderActive color the slider when the pointer is away, over the
 	// minimap and pressing it.
 	Slider, SliderHover, SliderActive ui.Color
+	// QuickDiff are the colors of the marks of the quick diff in the gutter of the minimap.
+	QuickDiff quickDiffMinimapColors
 }
 
 // minimapLayer is the widget of RenderEditorMinimap.
@@ -324,6 +326,7 @@ func (r *RenderEditorMinimap) paintDecorations(canvas *ui.Canvas, offset ui.Offs
 	for _, m := range marks {
 		r.paintMark(canvas, offset, l, snap, m, pixel)
 	}
+	r.paintQuickDiff(canvas, offset, l, pixel, firstRow, lastRow)
 }
 
 // minimapMark is a range of the document to mark in a color.

@@ -1093,6 +1093,12 @@ func registerSourceControlCommands(r *Registry) {
 	list := contextkey.Equals("scmViewMode", "list")
 	r.MustRegister(
 		Meta{ID: "workbench.view.scm", Title: "Show Source Control", Category: "View"},
+		// Go to Next Change and Go to Previous Change move the cursor to the next and previous mark of the quick diff (step 24.11); the
+		// editor runs them (internal/gui/editor/quickdiff.go), when it has marks and is not part of a diff editor
+		Meta{ID: "workbench.action.editor.nextChange", Title: "Go to Next Change",
+			Precondition: contextkey.And(contextkey.Not("textCompareEditorActive"), contextkey.NotEquals("quickDiffDecorationCount", 0))},
+		Meta{ID: "workbench.action.editor.previousChange", Title: "Go to Previous Change",
+			Precondition: contextkey.And(contextkey.Not("textCompareEditorActive"), contextkey.NotEquals("quickDiffDecorationCount", 0))},
 		Meta{ID: "workbench.scm.focus", Title: "Focus on Changes View", Category: "View"},
 		Meta{ID: "workbench.scm.repositories.focus", Title: "Focus on Repositories View", Category: "View"},
 		Meta{ID: "scm.setActiveProvider"},

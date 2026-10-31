@@ -41,6 +41,9 @@ type FakeSource struct {
 	input      *FakeInput
 	groups     []*FakeGroup
 	disposed   bool
+	// quickDiff are the providers of the source control (quickdiff.go) and refreshes the number of RefreshQuickDiff calls.
+	quickDiff []*FakeQuickDiff
+	refreshes int
 }
 
 // FakeInput is the commit message box of a FakeSource.
@@ -124,6 +127,9 @@ func (a *API) Deactivate() {
 	a.scm.dead = true
 	for _, s := range a.scm.sources {
 		s.disposed = true
+		for _, q := range s.quickDiff {
+			q.disposed = true
+		}
 	}
 	a.scm.sources = nil
 	for _, f := range a.decorations.providers {
@@ -242,6 +248,9 @@ func (s *FakeSource) Dispose() {
 	s.a.mu.Lock()
 	defer s.a.mu.Unlock()
 	s.disposed = true
+	for _, q := range s.quickDiff {
+		q.disposed = true
+	}
 	s.a.scm.sources = slices.DeleteFunc(s.a.scm.sources, func(o *FakeSource) bool { return o == s })
 }
 

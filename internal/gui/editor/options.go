@@ -130,6 +130,7 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 			DefaultModel:     settings.Get[string](store, "editor.stickyScroll.defaultModel", languageID),
 		},
 		GotoLocation: gotoLocationOptions(store, languageID),
+		QuickDiff:    quickDiffOptions(store, languageID),
 		Lens:         lensOptions(store, languageID),
 
 		FoldingStrategy:         settings.Get[string](store, "editor.foldingStrategy", languageID),
@@ -354,6 +355,21 @@ func gotoLocationOptions(store *settings.Store, languageID string) GotoLocationO
 		}
 		o.Multiple[i] = settings.Get[string](store, "editor.gotoLocation.multiple"+multiple, languageID)
 		o.Alternative[i] = settings.Get[string](store, "editor.gotoLocation.alternative"+name+"Command", languageID)
+	}
+	return o
+}
+
+// quickDiffOptions reads scm.diffDecorations, scm.diffDecorationsGutterWidth, scm.diffDecorationsGutterVisibility and
+// scm.diffDecorationsGutterPattern.
+func quickDiffOptions(store *settings.Store, languageID string) QuickDiffOptions {
+	o := QuickDiffOptions{
+		Decorations: settings.Get[string](store, "scm.diffDecorations", languageID),
+		GutterWidth: int(settings.Get[float64](store, "scm.diffDecorationsGutterWidth", languageID)),
+		Visibility:  settings.Get[string](store, "scm.diffDecorationsGutterVisibility", languageID),
+	}
+	if pattern, ok := settings.Get[any](store, "scm.diffDecorationsGutterPattern", languageID).(map[string]any); ok {
+		o.PatternAdded, _ = pattern["added"].(bool)
+		o.PatternModified, _ = pattern["modified"].(bool)
 	}
 	return o
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
+	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
@@ -145,6 +146,66 @@ func BenchmarkTypeCharacter10kLines(b *testing.B) {
 			ts.Pump(time.Millisecond)
 			b.StartTimer()
 		}
+	}
+}
+
+// BenchmarkTypeCharacter10kLinesWithQuickDiff is BenchmarkTypeCharacter10kLines in a file with 200 quick diff marks, in the gutter, on
+// the overview ruler and in the minimap: the marks cost nothing per frame (SPEC §10.30 "Performance", step 24.11: the typing target above
+// still holds).
+func BenchmarkTypeCharacter10kLinesWithQuickDiff(b *testing.B) {
+	vm, ts := benchEditor(b, goLines(10_000))
+	opts := vm.Options()
+	opts.QuickDiff = QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true}
+	vm.SetOptions(opts)
+	marks := make([]QuickDiffMark, 0, 200)
+	for i := range 200 {
+		start := 20 + i*49
+		switch i % 3 {
+		case 0:
+			marks = append(marks, QuickDiffMark{Type: quickdiff.Add, Start: start, End: start + 1})
+		case 1:
+			marks = append(marks, QuickDiffMark{Type: quickdiff.Modify, Start: start, End: start + 2})
+		default:
+			marks = append(marks, QuickDiffMark{Type: quickdiff.Delete, Start: start})
+		}
+	}
+	vm.SetQuickDiffMarks(marks)
+	for range 51 {
+		_ = vm.RunCommand("cursorDown", nil)
+	}
+	ts.Pump(time.Millisecond)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := vm.RunCommand("type", "x"); err != nil {
+			b.Fatal(err)
+		}
+		ts.Pump(time.Millisecond)
+		if i%64 == 63 {
+			b.StopTimer()
+			for range 64 {
+				_ = vm.RunCommand("deleteLeft", nil)
+			}
+			ts.Pump(time.Millisecond)
+			b.StartTimer()
+		}
+	}
+}
+
+// BenchmarkSetQuickDiffMarks200Of10kLines is the hand-over of a result of the model to the editor: 200 marks in a file of 10,000
+// lines, as decorations (SPEC §14: the marks within 50 ms of the end of the pause).
+func BenchmarkSetQuickDiffMarks200Of10kLines(b *testing.B) {
+	vm, ts := benchEditor(b, goLines(10_000))
+	marks := make([]QuickDiffMark, 0, 200)
+	for i := range 200 {
+		start := 20 + i*49
+		marks = append(marks, QuickDiffMark{Type: quickdiff.Modify, Start: start, End: start + 2})
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vm.SetQuickDiffMarks(marks)
+		ts.Pump(time.Millisecond)
 	}
 }
 
