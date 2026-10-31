@@ -96,6 +96,19 @@ type Model struct {
 	unsubs    []func()
 }
 
+// OriginalText is the text the provider with the id was last compared with (the original of the file under that provider); false when
+// the provider has none for the file. The peek of a change shows it. Call it on the UI thread.
+func (m *Model) OriginalText(providerID string) (string, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, o := range m.originals {
+		if o.ProviderID == providerID {
+			return o.Text, true
+		}
+	}
+	return "", false
+}
+
 // URIOf is the URI of a document as the providers are asked about it: a file is file:///path with the characters of the path that a URI
 // does not allow escaped, as the extensions have them (the root of a source control, the files of a group); another document is
 // its own String.

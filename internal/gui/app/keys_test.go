@@ -457,6 +457,25 @@ func quickDiffState(a *keyApp) func() {
 	}
 }
 
+// openPeeker is a peek of a change that is open and does nothing, for the keys that close it and move the keyboard in it (step 24.12).
+type openPeeker struct{}
+
+func (openPeeker) Step(bool)     {}
+func (openPeeker) Click(int)     {}
+func (openPeeker) Close()        {}
+func (openPeeker) ToggleFocus()  {}
+func (openPeeker) Visible() bool { return true }
+
+// quickDiffPeekState is the state of a window whose editor has the peek of a change open, for the keys of the peek.
+func quickDiffPeekState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.focusEditor()
+		a.vm.SetQuickDiffPeeker(openPeeker{})
+		a.vm.QuickDiffPeekChanged()
+	}
+}
+
 // mergeEditorState is the state of a window that shows a merge editor, for the key that completes the merge (step 9.8).
 func mergeEditorState(a *keyApp) func() {
 	return func() {
@@ -608,9 +627,10 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				hoverState(a, false, false), hoverState(a, true, false), hoverState(a, true, true), signatureState(a, 1), signatureState(a, 3), navigationState(a), peekState(a),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
 				scmInputState(a, true, true, false), scmInputState(a, true, true, true),
-				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a), quickDiffState(a))
+				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a), quickDiffState(a), quickDiffPeekState(a))
 			for _, state := range states {
 				a.vm.SetQuickDiffMarks(nil)
+				a.vm.SetQuickDiffPeeker(nil)
 				notificationsState(a, false, false, false)()
 				for _, key := range explorerKeys {
 					a.win.Keys.Reset(key)

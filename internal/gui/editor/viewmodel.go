@@ -359,6 +359,9 @@ type ViewModel struct {
 	ownerBase int
 	// qd is the quick diff marks of the editor (quickdiff.go).
 	qd quickDiffState
+	// contextKeys are the context keys the window or the diff editor gives the editor besides its own, by the name of who set them
+	// (SetContextKeys).
+	contextKeys map[string]func() map[string]any
 	// autoClosed tracks the closing characters the editor typed.
 	autoClosed *edit.AutoClosedTracker
 	// indenter applies the indentation rules of the languages, or is nil (SetIndenter), and
@@ -874,4 +877,18 @@ type EmmetOptions struct {
 	TriggerExpansionOnTab bool
 	// IncludeLanguages, ExcludeLanguages, Variables and SyntaxProfiles are read by core/emmet.
 	IncludeLanguages, ExcludeLanguages, Variables, SyntaxProfiles any
+}
+
+// SetContextKeys gives the editor context keys of the thing that holds it, set in its scope each time the keys are worked out: the window
+// gives resourceScheme, the diff editor isInDiffRightEditor and the like. fn is asked on the UI thread; owner names the one that set it, so
+// that setting again replaces the keys and nil takes them away.
+func (vm *ViewModel) SetContextKeys(owner string, fn func() map[string]any) {
+	if fn == nil {
+		delete(vm.contextKeys, owner)
+		return
+	}
+	if vm.contextKeys == nil {
+		vm.contextKeys = map[string]func() map[string]any{}
+	}
+	vm.contextKeys[owner] = fn
 }

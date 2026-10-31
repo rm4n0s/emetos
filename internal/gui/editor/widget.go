@@ -400,6 +400,7 @@ func (s *editorState) InitState() {
 func (s *editorState) viewModelChanged() {
 	if s.scope != nil { // the number of quick diff marks is a context key, and the marks change with the text
 		s.scope.Set("quickDiffDecorationCount", s.Widget().vm.QuickDiffCount())
+		s.scope.Set("dirtyDiffVisible", s.Widget().vm.QuickDiffPeekVisible())
 	}
 	s.SetState(func() {})
 	s.scheduleInputGeometry()
@@ -650,6 +651,12 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("editorHasCompletionItemProvider", vm.SuggestHasProvider())
 		s.scope.Set("config.emmet.triggerExpansionOnTab", vm.Options().Emmet.TriggerExpansionOnTab)
 		s.scope.Set("quickDiffDecorationCount", vm.QuickDiffCount())
+		s.scope.Set("dirtyDiffVisible", vm.QuickDiffPeekVisible())
+		for _, keys := range vm.contextKeys {
+			for k, v := range keys() {
+				s.scope.Set(k, v)
+			}
+		}
 	})
 }
 

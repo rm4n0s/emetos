@@ -25,6 +25,10 @@ type WidgetOpts struct {
 	// handle when it has none, and puts both in a scope of context keys of its own below Original.Keys, which has
 	// isInDiffEditor, diffEditorOriginalWritable and diffEditorModifiedWritable set.
 	Original, Modified editor.EditorOpts
+	// HunkActions and SelectionActions give the buttons of the toolbar in the gutter of the modified editor: those over the lines of a
+	// change under the pointer, and those over a selection that touches changes (the items of MenuDiffEditorGutterHunk and
+	// MenuDiffEditorGutterSelection). Without them, or while the modified side is read-only, there is no toolbar.
+	HunkActions, SelectionActions func() []GutterAction
 }
 
 // Widget is the diff editor (SPEC §9.11): the original editor on the left and the modified editor on the right,
@@ -55,6 +59,8 @@ type widgetState struct {
 	widgets.StateOf[*Widget]
 	scope   *contextkey.Scope
 	pressed bool
+	// hover is where the pointer is over the modified editor, for the toolbar of the gutter.
+	hover *gutterHover
 }
 
 // InitState makes the scope of context keys of the diff editor.
@@ -65,6 +71,8 @@ func (s *widgetState) InitState() {
 		s.scope.Set("isInDiffEditor", true)
 		s.scope.Set("diffEditorOriginalWritable", false)
 		s.scope.Set("diffEditorModifiedWritable", !w.model.View(Modified).ReadOnly())
+		s.scope.Set("diffEditorOriginalUri", w.model.View(Original).Document().URI().String())
+		s.scope.Set("diffEditorModifiedUri", w.model.View(Modified).Document().URI().String())
 	}
 }
 
@@ -132,10 +140,13 @@ func (s *widgetState) layout(bc widgets.BuildContext, colors Colors, background 
 			OnPointerUp:     func(*gestures.PointerUpEvent) { s.pressed = false },
 			OnPointerCancel: func(*gestures.PointerCancelEvent) { s.pressed = false },
 		}), widgets.SizedBoxOpts{Key: foundation.NewValueKey(childKey("ruler")), Width: foundation.Some(RulerWidth)})
-	modified := widgets.NewExpanded(s.editorOf(Modified), widgets.ExpandedOpts{Key: foundation.NewValueKey(childKey("modified"))})
+	modified := widgets.NewExpanded(s.withGutter(s.editorOf(Modified)), widgets.ExpandedOpts{Key: foundation.NewValueKey(childKey("modified"))})
 	var children []widgets.Widget
 	if inline {
 		children = []widgets.Widget{modified, ruler}
+		if w.model.Embedded() {
+			children = children[:1]
+		}
 	} else {
 		divider := widgets.NewColoredBox(colors.Border, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(dividerWidth)}))
 		children = []widgets.Widget{

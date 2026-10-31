@@ -1,6 +1,7 @@
 package git
 
 import (
+	"bytes"
 	"context"
 	"path/filepath"
 	"regexp"
@@ -229,4 +230,37 @@ func (r *Repo) UpdateSubmodules(ctx context.Context, paths []string) error {
 		}
 	}
 	return nil
+}
+
+// StageContent makes data the index version of the file at path, without touching the work tree ("git hash-object -w --stdin --path",
+// then "git update-index --add --cacheinfo"): the way a part of a file is staged, so that staging a hunk cannot disturb the file the user
+// is editing. The file keeps the mode the index has for it (an executable file stays one), a file that is not in the index is added with
+// the mode 100644. hash-object applies the filters the attributes of the path name (the end of line conversion), as "git add" does.
+//
+// Ported from VS Code: extensions/git/src/git.ts (Repository.stage).
+func (r *Repo) StageContent(ctx context.Context, path string, data []byte) error {
+	rel, err := r.relPaths([]string{path}, false)
+	if err != nil {
+		return err
+	}
+	if len(rel) == 0 {
+		return errors.New("GitPathEmpty", "a path is empty", "root", r.Root)
+	}
+	mode := "100644"
+	listed, err := r.read(ctx, ScopeIndex, Command{Args: []string{"ls-files", "--stage", "-z"}, Paths: rel, Env: []string{literalPathspecs}})
+	if err != nil {
+		return err
+	}
+	for _, e := range ParseLsFiles(listed.Stdout) {
+		if e.Stage == "0" || mode == "100644" && e.Stage == "2" {
+			mode = e.Mode
+		}
+	}
+	hashed, err := r.write(ctx, ScopeIndex, Command{Args: []string{"hash-object", "-w", "--stdin", "--path", rel[0]}, Stdin: bytes.NewReader(data)})
+	if err != nil {
+		return err
+	}
+	object := strings.TrimSpace(string(hashed.Stdout))
+	_, err = r.write(ctx, ScopeIndex, Command{Args: []string{"update-index", "--add", "--cacheinfo", mode + "," + object + "," + rel[0]}})
+	return err
 }

@@ -49,6 +49,8 @@ type mouseState struct {
 	// fold is the press on a folding control or on the placeholder of a folded line, which
 	// folds or unfolds on release.
 	fold *foldPress
+	// stripe is the press on the stripe of a quick diff change, which opens the peek on release.
+	stripe *stripePress
 }
 
 // foldPress is a press that the folding gets: the line, whether it is on the control in the
@@ -155,6 +157,9 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 	vm.PeekClose() // a press in the editor outside the peek view closes it
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
 	if !middle && !ev.OnLineNumbers && e.Kind() != ui.PointerDeviceKindTouch && (s.hintPress(e, gutterWidth) || s.linkPress(e, ev, gutterWidth)) {
+		return
+	}
+	if !middle && s.startsStripePress(e, ev, gutterWidth) {
 		return
 	}
 	if s.startsFoldPress(e, ev, middle, gutterWidth) {
@@ -301,6 +306,7 @@ func (s *editorState) endPress() {
 func (s *editorState) pointerUp(e *gestures.PointerUpEvent, gutterWidth float64) {
 	m := &s.mouse
 	s.endFoldPress(e, gutterWidth)
+	s.endStripePress(e, gutterWidth)
 	if !m.pressed || m.pointer != e.Pointer() {
 		return
 	}

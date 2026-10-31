@@ -532,6 +532,12 @@ func registerSourceControlInputKeys(r *Registry) {
 			When: mustWhen(whenEditorText, "!isInDiffEditor", "!textCompareEditorActive", "quickDiffDecorationCount != 0"), Primary: "alt+f5"},
 		Rule{Command: "workbench.action.editor.previousChange", Weight: WeightEditorContrib,
 			When: mustWhen(whenEditorText, "!isInDiffEditor", "!textCompareEditorActive", "quickDiffDecorationCount != 0"), Primary: "shift+alt+f5"},
+		// Show Next Change and Show Previous Change open the peek of a change (step 24.12); Escape and Shift+Escape close it, and
+		// Ctrl+K F2 moves the focus into it and back
+		Rule{Command: "editor.action.dirtydiff.next", Weight: WeightEditorContrib, When: mustWhen(whenEditorText, "!textCompareEditorActive"), Primary: "alt+f3"},
+		Rule{Command: "editor.action.dirtydiff.previous", Weight: WeightEditorContrib, When: mustWhen(whenEditorText, "!textCompareEditorActive"), Primary: "shift+alt+f3"},
+		Rule{Command: "closeQuickDiff", Weight: WeightEditorContrib + 50, When: mustWhen("dirtyDiffVisible"), Primary: "escape", Secondary: []string{"shift+escape"}},
+		Rule{Command: "toggleQuickDiffWidgetFocus", Weight: WeightEditorContrib, When: mustWhen("dirtyDiffVisible"), Primary: "ctrl+k f2"},
 		Rule{Command: "scm.acceptInput", Weight: WeightWorkbenchContrib, When: mustWhen(repo), Primary: "ctrl+enter"},
 		Rule{Command: "scm.clearValidation", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "scmInputHasValidationMessage"), Primary: "escape"},
 		Rule{Command: "scm.clearInput", Weight: WeightWorkbenchContrib, When: mustWhen(repo, "!suggestWidgetVisible", "!inlineSuggestionVisible",

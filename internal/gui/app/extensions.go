@@ -21,6 +21,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
+	"github.com/rm4n0s/emetos/internal/gui/diffeditor"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
@@ -373,6 +374,16 @@ func (d extensionDocuments) Active() (extension.ActiveDocument, bool) {
 		return extension.ActiveDocument{}, false
 	}
 	e := s.activeEditor()
+	if e == nil {
+		// the editor of a diff in front: the side that has the keyboard, else the modified one, as VS Code's activeTextEditor is
+		if p, ok := s.group.panes[s.activeGroup().Model.ActiveEditor()].(*diffPane); ok {
+			side, focused := p.model.FocusedSide()
+			if !focused {
+				side = diffeditor.Modified
+			}
+			e = p.sides[side]
+		}
+	}
 	if e == nil || e.disposed {
 		return extension.ActiveDocument{}, false
 	}

@@ -106,6 +106,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, extraMenus...)
 	menus = append(menus, diffMenus()...)
 	menus = append(menus, stageMenus()...)
+	menus = append(menus, lineMenus()...)
 	menus = append(menus, multiDiffMenus()...)
 	menus = append(menus, editorMenus()...)
 	menus = append(menus, stashMenus()...)
@@ -124,6 +125,7 @@ func (*gitscm) Manifest() extension.Manifest {
 		Contributes: extension.Contributes{
 			Commands:    cmds,
 			Menus:       menus,
+			Keybindings: lineKeybindings(),
 			Submenus:    []extension.SubmenuSpec{{ID: stashSubmenu, Label: "Stash"}, {ID: commitSubmenu, Label: "Commit"}},
 			Settings:    settingSpecs,
 			ContextKeys: contextKeys,

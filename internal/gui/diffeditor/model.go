@@ -44,6 +44,10 @@ type ModelOpts struct {
 	// OriginalFocus and ModifiedFocus give the keyboard focus to the editors (the widget hands them to the
 	// editors it builds); without them the model has its own.
 	OriginalFocus, ModifiedFocus *editor.EditorFocus
+	// Embedded makes the diff editor the small one of the peek of a change (VS Code's EmbeddedDiffEditorWidget with the options of
+	// the quick diff: renderSideBySide, ignoreTrimWhitespace and renderOverviewRuler off): always the inline view, white space at the
+	// ends of lines counts, and the widget draws no overview ruler. The context key isEmbeddedDiffEditor is set in both editors.
+	Embedded bool
 }
 
 // zoneSet is the filler zones the model has put in one editor.
@@ -99,6 +103,9 @@ func NewModel(opts ModelOpts) *Model {
 		opts.Context = context.Background()
 	}
 	m := &Model{ChangeNotifier: *foundation.NewChangeNotifier(), opts: opts, leader: Modified}
+	if opts.Embedded {
+		m.mode = Inline
+	}
 	m.vms = [2]*editor.ViewModel{opts.Original, opts.Modified}
 	m.focus = [2]*editor.EditorFocus{opts.OriginalFocus, opts.ModifiedFocus}
 	for i := range m.focus {
@@ -109,6 +116,9 @@ func NewModel(opts ModelOpts) *Model {
 	for i := range m.vms {
 		side := Side(i)
 		vm := m.vms[i]
+		vm.SetContextKeys("diffEditor", func() map[string]any {
+			return map[string]any{"isInDiffRightEditor": side == Modified, "isInDiffLeftEditor": side == Original, "isEmbeddedDiffEditor": opts.Embedded}
+		})
 		m.stops = append(m.stops, vm.Document().Subscribe(func(document.ChangeEvent) { m.textChanged() }))
 		m.handles[i] = vm.AddListener(m.viewChanged)
 		m.scrolls[i] = vm.AddScrollListener(func() { m.scrolled(side) })
@@ -131,6 +141,9 @@ func NewModel(opts ModelOpts) *Model {
 	}
 	return m
 }
+
+// Embedded says that the model is the small diff editor of a peek (ModelOpts.Embedded).
+func (m *Model) Embedded() bool { return m.opts.Embedded }
 
 // View is the view model of a side.
 func (m *Model) View(s Side) *editor.ViewModel { return m.vms[s] }
@@ -246,6 +259,9 @@ func (m *Model) diffOptions() diff.Options {
 		lang := m.vms[Modified].Document().LanguageID()
 		o.IgnoreTrimWhitespace = settings.Get[bool](s, "diffEditor.ignoreTrimWhitespace", lang)
 		o.MaxComputationTime = timeLimit(settings.Get[float64](s, "diffEditor.maxComputationTime", lang))
+	}
+	if m.opts.Embedded {
+		o.IgnoreTrimWhitespace = false
 	}
 	return o
 }

@@ -101,7 +101,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		Lens: LensOptions{
 			CodeLens: true, InlayHints: "on", InlayMaxLength: 43, Semantic: SemanticByTheme,
 		},
-		QuickDiff:       QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true},
+		QuickDiff:       QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true, GutterAction: "diff"},
 		FoldingStrategy: "auto",
 	}
 	if !sameOptions(got, want) {
@@ -348,15 +348,16 @@ func TestOptionsFromSettingsQuickDiff(t *testing.T) {
 		places [3]bool // gutter, overview, minimap
 		width  int
 	}{
-		{"the defaults", nil, QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{true, true, true}, 3},
-		{"the gutter only", map[string]any{"scm.diffDecorations": "gutter"}, QuickDiffOptions{Decorations: "gutter", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{true, false, false}, 3},
-		{"the ruler only", map[string]any{"scm.diffDecorations": "overview"}, QuickDiffOptions{Decorations: "overview", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{false, true, false}, 3},
-		{"the minimap only", map[string]any{"scm.diffDecorations": "minimap"}, QuickDiffOptions{Decorations: "minimap", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{false, false, true}, 3},
-		{"none", map[string]any{"scm.diffDecorations": "none"}, QuickDiffOptions{Decorations: "none", GutterWidth: 3, Visibility: "always", PatternModified: true}, [3]bool{}, 3},
+		{"the defaults", nil, QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true, GutterAction: "diff"}, [3]bool{true, true, true}, 3},
+		{"the gutter only", map[string]any{"scm.diffDecorations": "gutter"}, QuickDiffOptions{Decorations: "gutter", GutterWidth: 3, Visibility: "always", PatternModified: true, GutterAction: "diff"}, [3]bool{true, false, false}, 3},
+		{"the ruler only", map[string]any{"scm.diffDecorations": "overview"}, QuickDiffOptions{Decorations: "overview", GutterWidth: 3, Visibility: "always", PatternModified: true, GutterAction: "diff"}, [3]bool{false, true, false}, 3},
+		{"the minimap only", map[string]any{"scm.diffDecorations": "minimap"}, QuickDiffOptions{Decorations: "minimap", GutterWidth: 3, Visibility: "always", PatternModified: true, GutterAction: "diff"}, [3]bool{false, false, true}, 3},
+		{"none", map[string]any{"scm.diffDecorations": "none"}, QuickDiffOptions{Decorations: "none", GutterWidth: 3, Visibility: "always", PatternModified: true, GutterAction: "diff"}, [3]bool{}, 3},
 		{"a width, hover and both patterns", map[string]any{
 			"scm.diffDecorationsGutterWidth": 5.0, "scm.diffDecorationsGutterVisibility": "hover",
 			"scm.diffDecorationsGutterPattern": map[string]any{"added": true, "modified": false},
-		}, QuickDiffOptions{Decorations: "all", GutterWidth: 5, Visibility: "hover", PatternAdded: true}, [3]bool{true, true, true}, 5},
+		}, QuickDiffOptions{Decorations: "all", GutterWidth: 5, Visibility: "hover", PatternAdded: true, GutterAction: "diff"}, [3]bool{true, true, true}, 5},
+		{"no peek from a click", map[string]any{"scm.diffDecorationsGutterAction": "none"}, QuickDiffOptions{Decorations: "all", GutterWidth: 3, Visibility: "always", PatternModified: true, GutterAction: "none"}, [3]bool{true, true, true}, 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

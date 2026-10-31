@@ -712,6 +712,9 @@ func (d failingContentDocs) SaveAll(ctx context.Context, uris []string) error {
 func (d failingContentDocs) QuickDiffOriginal(ctx context.Context, uri string) (string, bool, error) {
 	return d.API.Documents().QuickDiffOriginal(ctx, uri)
 }
+func (d failingContentDocs) LineChanges(ctx context.Context, original, modified string) ([]extension.LineChange, error) {
+	return d.API.Documents().LineChanges(ctx, original, modified)
+}
 func (d failingContentDocs) CloseTabs(t ...extension.DocumentTab) int {
 	return d.API.Documents().CloseTabs(t...)
 }

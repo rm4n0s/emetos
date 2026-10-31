@@ -1099,6 +1099,12 @@ func registerSourceControlCommands(r *Registry) {
 			Precondition: contextkey.And(contextkey.Not("textCompareEditorActive"), contextkey.NotEquals("quickDiffDecorationCount", 0))},
 		Meta{ID: "workbench.action.editor.previousChange", Title: "Go to Previous Change",
 			Precondition: contextkey.And(contextkey.Not("textCompareEditorActive"), contextkey.NotEquals("quickDiffDecorationCount", 0))},
+		// Show Next Change and Show Previous Change open the peek of a change under its lines (step 24.12; the peek is internal/gui/
+		// quickdiffpeek, the editor runs the commands); Escape closes it and Ctrl+K F2 moves the focus into it and out
+		Meta{ID: "editor.action.dirtydiff.next", Title: "Show Next Change", Precondition: contextkey.Not("textCompareEditorActive")},
+		Meta{ID: "editor.action.dirtydiff.previous", Title: "Show Previous Change", Precondition: contextkey.Not("textCompareEditorActive")},
+		Meta{ID: "closeQuickDiff", Precondition: contextkey.Has("dirtyDiffVisible")},
+		Meta{ID: "toggleQuickDiffWidgetFocus", Precondition: contextkey.Has("dirtyDiffVisible")},
 		Meta{ID: "workbench.scm.focus", Title: "Focus on Changes View", Category: "View"},
 		Meta{ID: "workbench.scm.repositories.focus", Title: "Focus on Repositories View", Category: "View"},
 		Meta{ID: "scm.setActiveProvider"},

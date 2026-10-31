@@ -7,6 +7,7 @@ import (
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/internal/core/diff"
 	"github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 )
@@ -126,4 +127,30 @@ func (d documentsAPI) QuickDiffOriginal(ctx context.Context, uri string) (string
 		return "", false, errors.New("ExtensionQuickDiffUnavailable", "the scope has no editors to compare", "extension", in.id)
 	}
 	return svc.PrimaryOriginal(ctx, uri)
+}
+
+// LineChanges implements extension.Documents: the diff of the marks (core/scm/quickdiff.Changes), without the white space setting, so
+// that what a command stages is exactly what differs.
+func (d documentsAPI) LineChanges(ctx context.Context, original, modified string) ([]extension.LineChange, error) {
+	in := d.inst
+	if in.isDead() {
+		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	if in.scope.opts.QuickDiff == nil {
+		return nil, errors.New("ExtensionQuickDiffUnavailable", "the scope has no editors to compare", "extension", in.id)
+	}
+	orig, _ := diff.SplitLines(original)
+	mod, _ := diff.SplitLines(modified)
+	changes, err := quickdiff.Changes(ctx, orig, mod, quickdiff.DiffOptions{TimeLimit: quickdiff.DefaultTimeLimit})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]extension.LineChange, len(changes))
+	for i, c := range changes {
+		out[i] = extension.LineChange{
+			OriginalStartLineNumber: c.OriginalStart, OriginalEndLineNumber: c.OriginalEnd,
+			ModifiedStartLineNumber: c.ModifiedStart, ModifiedEndLineNumber: c.ModifiedEnd,
+		}
+	}
+	return out, nil
 }

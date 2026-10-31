@@ -32,6 +32,8 @@ type QuickDiffOptions struct {
 	// PatternAdded and PatternModified draw the stripe of added and of modified lines as a hatch instead of a fill
 	// (scm.diffDecorationsGutterPattern).
 	PatternAdded, PatternModified bool
+	// GutterAction is "diff" to open the peek of a change with a click on its stripe, or "none" (scm.diffDecorationsGutterAction).
+	GutterAction string
 }
 
 func (o QuickDiffOptions) gutter() bool { return o.Decorations == "all" || o.Decorations == "gutter" }
@@ -67,6 +69,8 @@ type quickDiffState struct {
 	generation, cachedGen, cachedVersion int
 	cached                               []placedMark
 	ruler                                rulerCache
+	// peeker is the peek of a change the window made for the editor, nil for none (SetQuickDiffPeeker).
+	peeker QuickDiffPeeker
 }
 
 // placedMark is a mark on the lines it is on now (counted from 0).
@@ -186,9 +190,78 @@ func (vm *ViewModel) QuickDiffGoTo(next bool) bool {
 	return true
 }
 
+// QuickDiffPeeker is the peek of a change under its lines (SPEC §10.30 "The peek", step 24.12): the window makes it for an editor of a file
+// (internal/gui/quickdiffpeek) and the editor runs its commands and its clicks on the stripe, so the editor knows nothing of how it looks.
+// Its methods are called on the UI thread.
+type QuickDiffPeeker interface {
+	// Step opens the peek at the next (or previous) change after (before) the cursor, or moves an open peek to the next (previous) one.
+	Step(next bool)
+	// Click is a click on the stripe of the change at the line, counted from 1: it opens the peek on the change, or closes it when it
+	// shows that change already.
+	Click(line int)
+	// Close closes the peek.
+	Close()
+	// ToggleFocus moves the keyboard into the peek, or back to the editor.
+	ToggleFocus()
+	// Visible says that the peek is open (the context key dirtyDiffVisible).
+	Visible() bool
+}
+
+// SetQuickDiffPeeker gives the editor the peek of its changes; nil takes it away.
+func (vm *ViewModel) SetQuickDiffPeeker(p QuickDiffPeeker) { vm.qd.peeker = p }
+
+// QuickDiffPeekVisible tells whether the peek of a change is open (the context key dirtyDiffVisible).
+func (vm *ViewModel) QuickDiffPeekVisible() bool {
+	return vm.qd.peeker != nil && vm.qd.peeker.Visible()
+}
+
+// QuickDiffPeekChanged tells the editor that the peek opened or closed, so that the context keys follow.
+func (vm *ViewModel) QuickDiffPeekChanged() { vm.NotifyListeners() }
+
+// quickDiffStripeAt finds the change whose stripe is at the point of the gutter, in the coordinates of the gutter: the line of the change
+// (from 0) and true when the editor opens a peek from a click, the point is on a stripe, and a mark covers the line of the pointer. The
+// stripe is the width of the setting and VS Code lets a click 3 px to either side of it count.
+func (vm *ViewModel) quickDiffStripeAt(x float64, line int, widths GutterWidths) (int, bool) {
+	opts := vm.Options()
+	qd := opts.QuickDiff
+	if vm.qd.peeker == nil || qd.GutterAction != "diff" || !qd.gutter() || len(vm.qd.ids) == 0 {
+		return 0, false
+	}
+	left := widths.GlyphMargin + widths.LineNumbers
+	if opts.Folding {
+		left += foldingControlsWidth
+	}
+	start := left + quickDiffStripeLeft
+	if x < start-quickDiffStripeSlack || x > start+float64(qd.width())+quickDiffStripeSlack {
+		return 0, false
+	}
+	for _, p := range vm.shownMarks() {
+		if line >= p.first && line <= p.last {
+			return line, true
+		}
+	}
+	return 0, false
+}
+
+// quickDiffStripeSlack is how far from the stripe a click still counts as one on it (VS Code's 3 px).
+const quickDiffStripeSlack = 3.0
+
 // quickDiffActions adds the commands of the quick diff to the table of the editor's commands: Go to Next Change and Go to Previous Change
-// (VS Code's workbench.action.editor.nextChange and previousChange, Alt+F5 and Shift+Alt+F5).
+// (VS Code's workbench.action.editor.nextChange and previousChange, Alt+F5 and Shift+Alt+F5), and the commands of the peek of a change
+// (editor.action.dirtydiff.next and previous, closeQuickDiff and toggleQuickDiffWidgetFocus), which the peek of the window runs.
 func quickDiffActions(a map[string]action) {
+	peek := func(run func(p QuickDiffPeeker)) action {
+		return func(vm *ViewModel, _ any) error {
+			if vm.qd.peeker != nil {
+				run(vm.qd.peeker)
+			}
+			return nil
+		}
+	}
+	a["editor.action.dirtydiff.next"] = peek(func(p QuickDiffPeeker) { p.Step(true) })
+	a["editor.action.dirtydiff.previous"] = peek(func(p QuickDiffPeeker) { p.Step(false) })
+	a["closeQuickDiff"] = peek(func(p QuickDiffPeeker) { p.Close() })
+	a["toggleQuickDiffWidgetFocus"] = peek(func(p QuickDiffPeeker) { p.ToggleFocus() })
 	a["workbench.action.editor.nextChange"] = func(vm *ViewModel, _ any) error {
 		vm.QuickDiffGoTo(true)
 		return nil
@@ -197,4 +270,23 @@ func quickDiffActions(a map[string]action) {
 		vm.QuickDiffGoTo(false)
 		return nil
 	}
+}
+
+// PlaceCursor puts the only cursor at a position without scrolling, for a peek that scrolls itself.
+func (vm *ViewModel) PlaceCursor(p buffer.Position) {
+	p = vm.doc.Snapshot().ValidatePosition(p)
+	vm.cursors.SetSelections([]buffer.Selection{buffer.NewCursor(p)})
+	vm.SelectionsChanged()
+	vm.NotifyListeners()
+}
+
+// ContextKeysForTest gives the context keys the window and the diff editor gave the editor, as they would be set in its scope.
+func (vm *ViewModel) ContextKeysForTest() map[string]any {
+	out := map[string]any{}
+	for _, keys := range vm.contextKeys {
+		for k, v := range keys() {
+			out[k] = v
+		}
+	}
+	return out
 }

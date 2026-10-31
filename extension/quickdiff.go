@@ -42,3 +42,140 @@ type QuickDiffRegistration interface {
 	// ends.
 	Dispose()
 }
+
+// LineChange is a changed block of lines of a text against its original, VS Code's ILineChange (SPEC §10.30 "The peek"): lines are
+// counted from 1, and an end of 0 says that the side has no lines in the block. An added block has OriginalEndLineNumber 0 and
+// OriginalStartLineNumber the line it follows; a deleted block has ModifiedEndLineNumber 0 and ModifiedStartLineNumber the line the
+// lines were deleted after (0 for the start of the text).
+type LineChange struct {
+	OriginalStartLineNumber, OriginalEndLineNumber int
+	ModifiedStartLineNumber, ModifiedEndLineNumber int
+}
+
+// The members of a LineChange as the arguments of a command carry it (VS Code's names).
+const (
+	// LineChangeOriginalStart is OriginalStartLineNumber.
+	LineChangeOriginalStart = "originalStartLineNumber"
+	// LineChangeOriginalEnd is OriginalEndLineNumber.
+	LineChangeOriginalEnd = "originalEndLineNumber"
+	// LineChangeModifiedStart is ModifiedStartLineNumber.
+	LineChangeModifiedStart = "modifiedStartLineNumber"
+	// LineChangeModifiedEnd is ModifiedEndLineNumber.
+	LineChangeModifiedEnd = "modifiedEndLineNumber"
+)
+
+// Map is the change as the argument of a command carries it: an object with the members LineChangeOriginalStart and the others.
+func (c LineChange) Map() map[string]any {
+	return map[string]any{
+		LineChangeOriginalStart: c.OriginalStartLineNumber, LineChangeOriginalEnd: c.OriginalEndLineNumber,
+		LineChangeModifiedStart: c.ModifiedStartLineNumber, LineChangeModifiedEnd: c.ModifiedEndLineNumber,
+	}
+}
+
+// QuickDiffArgs makes the arguments the commands of the peek of a change (MenuSCMChangeTitle) are run with: the URI of the file, the
+// changes of the provider the shown change belongs to, and the index of the shown change among them (VS Code passes the three as
+// separate arguments; Emetos gives the command one list, as for SCMArgs).
+func QuickDiffArgs(uri string, changes []LineChange, index int) any {
+	list := make([]any, len(changes))
+	for i, c := range changes {
+		list[i] = c.Map()
+	}
+	return []any{uri, list, index}
+}
+
+// ReadQuickDiffArgs reads the arguments QuickDiffArgs made: ok is false for any other value (the command was run from the palette or by
+// a key) and for an index outside the changes.
+func ReadQuickDiffArgs(args any) (uri string, changes []LineChange, index int, ok bool) {
+	list, isList := args.([]any)
+	if !isList || len(list) != 3 {
+		return "", nil, 0, false
+	}
+	uri, ok = list[0].(string)
+	if !ok || uri == "" {
+		return "", nil, 0, false
+	}
+	index, ok = intOf(list[2])
+	if !ok {
+		return "", nil, 0, false
+	}
+	switch v := list[1].(type) {
+	case []LineChange:
+		changes = v
+	case []any:
+		for _, e := range v {
+			m, isMap := e.(map[string]any)
+			if !isMap {
+				return "", nil, 0, false
+			}
+			var c LineChange
+			var all [4]bool
+			c.OriginalStartLineNumber, all[0] = intOf(m[LineChangeOriginalStart])
+			c.OriginalEndLineNumber, all[1] = intOf(m[LineChangeOriginalEnd])
+			c.ModifiedStartLineNumber, all[2] = intOf(m[LineChangeModifiedStart])
+			c.ModifiedEndLineNumber, all[3] = intOf(m[LineChangeModifiedEnd])
+			if !all[0] || !all[1] || !all[2] || !all[3] {
+				return "", nil, 0, false
+			}
+			changes = append(changes, c)
+		}
+	default:
+		return "", nil, 0, false
+	}
+	if index < 0 || index >= len(changes) {
+		return "", nil, 0, false
+	}
+	return uri, changes, index, true
+}
+
+// intOf reads a number a command argument carries: an int, or a float64 as JSON has it.
+func intOf(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case float64:
+		return int(n), n == float64(int(n))
+	}
+	return 0, false
+}
+
+// The members of the arguments the toolbars of the diff editor's gutter give a command (DiffEditorContext).
+const (
+	// DiffArgOriginalURI is the URI of the original document of the diff editor.
+	DiffArgOriginalURI = "originalUri"
+	// DiffArgModifiedURI is the URI of the modified document of the diff editor.
+	DiffArgModifiedURI = "modifiedUri"
+	// DiffArgOriginalWithModifiedChanges is the original text with the changes of the hunk, or of the selection, applied.
+	DiffArgOriginalWithModifiedChanges = "originalWithModifiedChanges"
+)
+
+// DiffEditorContext is what a command of the toolbar in the gutter of the diff editor (MenuDiffEditorGutterHunk and
+// MenuDiffEditorGutterSelection) is run with (VS Code's DiffEditorSelectionHunkToolbarContext). The command gets one object with the
+// members DiffArgOriginalURI, DiffArgModifiedURI and DiffArgOriginalWithModifiedChanges, which ReadDiffEditorArgs reads.
+type DiffEditorContext struct {
+	// OriginalURI and ModifiedURI are the documents of the two sides.
+	OriginalURI, ModifiedURI string
+	// OriginalWithModifiedChanges is the text of the original with the changes of the hunk, or of the selected lines, applied.
+	OriginalWithModifiedChanges string
+}
+
+// Args is the value the command of the toolbar is run with.
+func (c DiffEditorContext) Args() any {
+	return map[string]any{
+		DiffArgOriginalURI: c.OriginalURI, DiffArgModifiedURI: c.ModifiedURI, DiffArgOriginalWithModifiedChanges: c.OriginalWithModifiedChanges,
+	}
+}
+
+// ReadDiffEditorArgs reads the arguments DiffEditorContext.Args made; ok is false for any other value (the command was run from the
+// palette or by a key).
+func ReadDiffEditorArgs(args any) (DiffEditorContext, bool) {
+	m, isMap := args.(map[string]any)
+	if !isMap {
+		return DiffEditorContext{}, false
+	}
+	var c DiffEditorContext
+	var okOriginal, okModified, okText bool
+	c.OriginalURI, okOriginal = m[DiffArgOriginalURI].(string)
+	c.ModifiedURI, okModified = m[DiffArgModifiedURI].(string)
+	c.OriginalWithModifiedChanges, okText = m[DiffArgOriginalWithModifiedChanges].(string)
+	return c, okOriginal && okModified && okText
+}

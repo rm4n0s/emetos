@@ -89,6 +89,9 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 		return o
 	}
 	e.view = editor.NewViewModel(doc, options(), nil)
+	// the context keys of the resource the editor shows, which the keys and menus of the extensions read (resourceScheme: "file", or "git" for
+	// a document the Git extension provides)
+	e.view.SetContextKeys("window", func() map[string]any { return map[string]any{"resourceScheme": win.resourceScheme(doc.URI())} })
 	if win.Documents.AnnounceLarge(doc) {
 		win.Notify.Warn("Emetos", LargeFileNotice)
 	}

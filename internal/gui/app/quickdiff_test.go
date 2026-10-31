@@ -139,7 +139,7 @@ func TestTheQuickDiffSettingsReachTheEditor(t *testing.T) {
 	a.setting("scm.diffDecorationsGutterWidth", 5)
 	a.setting("scm.diffDecorationsGutterVisibility", "hover")
 	a.setting("scm.diffDecorationsGutterPattern", map[string]any{"added": true, "modified": false})
-	want := editor.QuickDiffOptions{Decorations: "overview", GutterWidth: 5, Visibility: "hover", PatternAdded: true}
+	want := editor.QuickDiffOptions{Decorations: "overview", GutterWidth: 5, Visibility: "hover", PatternAdded: true, GutterAction: "diff"}
 	if got := a.vm().Options().QuickDiff; got != want {
 		t.Errorf("options = %+v, want %+v", got, want)
 	}

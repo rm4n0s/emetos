@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
@@ -109,7 +110,37 @@ func (p *diffPane) editorWidget(bc widgets.BuildContext, group *editorgroup.Grou
 	}
 	return diffeditor.NewWidget(p.model, diffeditor.WidgetOpts{
 		Original: opts(p.sides[0], false), Modified: opts(p.sides[1], active),
+		HunkActions: p.gutterActions(command.DiffEditorHunkToolbar), SelectionActions: p.gutterActions(command.DiffEditorSelectionToolbar),
 	})
+}
+
+// gutterActions are the buttons of a toolbar in the gutter of the diff editor: the items of the menu whose condition holds for the diff,
+// each running its command with the two documents and the text the toolbar made (SPEC §10.30 "Staging").
+//
+// Ported from VS Code: src/vs/editor/browser/widget/diffEditor/features/gutterFeature.ts (the menu of the gutter)
+func (p *diffPane) gutterActions(menu string) func() []diffeditor.GutterAction {
+	win := p.s.win
+	return func() []diffeditor.GutterAction {
+		original, modified := p.input.Original().URI(), p.input.Modified().URI()
+		ctx := menuContext{base: win.Keys, settings: win.Settings, extra: map[string]any{
+			"diffEditorOriginalUri": original.String(), "diffEditorModifiedUri": modified.String(),
+			"resourceScheme": win.resourceScheme(modified), "isInDiffEditor": true,
+		}}
+		var out []diffeditor.GutterAction
+		for _, item := range win.Menus.Items(menu, ctx) {
+			code, ok := fonts.CodiconByName(item.Icon)
+			if item.Separator || item.Command == "" || item.Disabled || !ok {
+				continue
+			}
+			id := item.Command
+			out = append(out, diffeditor.GutterAction{Icon: code, Tooltip: item.Title, Run: func(c diffeditor.GutterContext) {
+				p.s.runTitleAction(win, id, extension.DiffEditorContext{
+					OriginalURI: c.OriginalURI, ModifiedURI: c.ModifiedURI, OriginalWithModifiedChanges: c.OriginalWithModifiedChanges,
+				}.Args())
+			}})
+		}
+		return out
+	}
 }
 
 // focus implements pane: the modified editor takes the focus, as VS Code's compare editor does.

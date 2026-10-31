@@ -87,7 +87,7 @@ func (m *Model) BreakpointReached() bool {
 // WantedMode is the mode the settings and the width ask for: inline when the side by side view is turned off, or
 // when the space is limited and the setting that uses the inline view then is on (VS Code's `renderSideBySide`).
 func (m *Model) WantedMode() Mode {
-	if !m.RenderSideBySide() || (m.UseInlineViewWhenSpaceIsLimited() && m.BreakpointReached()) {
+	if m.opts.Embedded || !m.RenderSideBySide() || (m.UseInlineViewWhenSpaceIsLimited() && m.BreakpointReached()) {
 		return Inline
 	}
 	return SideBySide

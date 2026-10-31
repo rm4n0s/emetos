@@ -55,6 +55,9 @@ func (s *shellState) groupContext(win *Workspace, group *editorgroup.Group) cont
 			// the resource of a diff editor is its modified side, as VS Code's context keys read it (the primary side)
 			uri := d.Modified().URI()
 			extra["isInDiffEditor"] = true
+			// the title of a diff is for its modified side, the right one; the diff of a group is never the small one of a peek
+			extra["isInDiffRightEditor"] = true
+			extra["isEmbeddedDiffEditor"] = false
 			extra["resourceScheme"] = win.resourceScheme(uri)
 			extra["resourceLangId"] = d.Modified().LanguageID()
 			if uri.Scheme == "file" {

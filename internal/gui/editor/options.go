@@ -366,6 +366,8 @@ func quickDiffOptions(store *settings.Store, languageID string) QuickDiffOptions
 		Decorations: settings.Get[string](store, "scm.diffDecorations", languageID),
 		GutterWidth: int(settings.Get[float64](store, "scm.diffDecorationsGutterWidth", languageID)),
 		Visibility:  settings.Get[string](store, "scm.diffDecorationsGutterVisibility", languageID),
+
+		GutterAction: settings.Get[string](store, "scm.diffDecorationsGutterAction", languageID),
 	}
 	if pattern, ok := settings.Get[any](store, "scm.diffDecorationsGutterPattern", languageID).(map[string]any); ok {
 		o.PatternAdded, _ = pattern["added"].(bool)

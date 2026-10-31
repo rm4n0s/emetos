@@ -49,6 +49,7 @@ type rig struct {
 	errs  []error
 	// tokenTheme colors the text when the rig highlights.
 	tokenTheme *theme.TokenTheme
+	cfg        rigConfig
 }
 
 type rigConfig struct {
@@ -62,6 +63,9 @@ type rigConfig struct {
 	settings map[string]any
 	// highlight shows the text as Go, with the token theme of Dark Modern or Light Modern ("Dark Modern", "Light Modern").
 	highlight string
+	// hunkActions and selectionActions are the buttons of the toolbar in the gutter; embedded makes the small diff editor of a peek.
+	hunkActions, selectionActions func() []GutterAction
+	embedded                      bool
 }
 
 // newRig shows the diff of two texts and waits for the first diff.
@@ -78,7 +82,7 @@ func newRig(t *testing.T, original, modified string, cfg rigConfig) *rig {
 	for k, v := range cfg.settings {
 		extra[k] = v
 	}
-	r := &rig{t: t, store: testutil.Settings(t, paths, extra)}
+	r := &rig{t: t, store: testutil.Settings(t, paths, extra), cfg: cfg}
 	docOpts := document.NewOptions()
 	if cfg.highlight != "" {
 		docOpts.LanguageID = "go"
@@ -120,7 +124,7 @@ func newRig(t *testing.T, original, modified string, cfg rigConfig) *rig {
 	r.model = NewModel(ModelOpts{
 		Original: ovm, Modified: mvm, Settings: r.store, Post: b.Post, Now: cfg.now,
 		AfterTimer: func(d time.Duration, fn func()) func() { return b.Gestures().NewTimer(d, fn).Cancel },
-		OnError:    func(err error) { r.errs = append(r.errs, err) },
+		OnError:    func(err error) { r.errs = append(r.errs, err) }, Embedded: cfg.embedded,
 	})
 	t.Cleanup(func() {
 		r.ts.PumpWidget(widgets.NewSizedBoxShrink(nil))
@@ -146,8 +150,9 @@ func (r *rig) pump(colors kit.Colors) {
 			return widgets.NewPageRouteBuilder(
 				func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
 					return NewWidget(r.model, WidgetOpts{
-						Original: editor.EditorOpts{Context: context.Background()},
-						Modified: editor.EditorOpts{Autofocus: true, Context: context.Background()},
+						Original:    editor.EditorOpts{Context: context.Background()},
+						Modified:    editor.EditorOpts{Autofocus: true, Context: context.Background()},
+						HunkActions: r.cfg.hunkActions, SelectionActions: r.cfg.selectionActions,
 					})
 				},
 				widgets.PageRouteBuilderOpts{PageRouteOpts: widgets.PageRouteOpts{RouteOpts: widgets.RouteOpts{Settings: s}}})

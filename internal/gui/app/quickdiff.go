@@ -63,6 +63,7 @@ func (s *shellState) followQuickDiff(binding *widgets.WidgetsBinding, e *textEdi
 			e.view.SetQuickDiffMarks(quickDiffMarks(model.Result()))
 		}
 	})
+	stopPeek := s.startQuickDiffPeek(binding, e, model)
 	unsubscribe := win.Settings.OnChange(func(ev settings.ChangeEvent) {
 		if ev.Affects("scm.diffDecorationsIgnoreTrimWhitespace", "") || ev.Affects("diffEditor.ignoreTrimWhitespace", "") {
 			binding.Post(func() {
@@ -73,6 +74,7 @@ func (s *shellState) followQuickDiff(binding *widgets.WidgetsBinding, e *textEdi
 		}
 	})
 	return func() {
+		stopPeek()
 		unsubscribe()
 		stopModel()
 		model.Close()

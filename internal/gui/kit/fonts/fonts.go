@@ -51,9 +51,9 @@ func CodiconByName(name string) (int, bool) {
 
 // codiconAliases are the names of codicons that codicon.csv does not list because they share the code point of another name
 // (codicon.css has them as aliases). Only the ones that Emetos's own parts and the Git extension use are here: the branch of the
-// Source Control view and the status bar ($(git-branch), VS Code's most used). The rest of the aliases of the CSS are not
+// Source Control view and the status bar ($(git-branch), VS Code's most used) and plus (Stage Block of the diff editor). The rest of the aliases of the CSS are not
 // there yet.
-var codiconAliases = map[string]int{"git-branch": 0xEC6F, "git-branch-create": 0xEC6F, "git-branch-delete": 0xEC6F}
+var codiconAliases = map[string]int{"git-branch": 0xEC6F, "git-branch-create": 0xEC6F, "git-branch-delete": 0xEC6F, "plus": CodiconAdd}
 
 // CodiconNames lists the short names of the codicons, sorted: the icons a picker offers.
 func CodiconNames() []string {

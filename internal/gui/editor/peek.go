@@ -210,12 +210,15 @@ func absInt(n int) int {
 }
 
 // peekReveal scrolls so that the line of the cursor and the whole zone are in view, if they fit.
-func (vm *ViewModel) peekReveal(pos buffer.Position) {
+func (vm *ViewModel) peekReveal(pos buffer.Position) { vm.RevealZone(vm.peek.zone, pos) }
+
+// RevealZone scrolls so that the line of a position and the whole zone below it are in view, if they fit; nothing moves when they are.
+func (vm *ViewModel) RevealZone(id ZoneID, pos buffer.Position) {
 	if vm.scroller == nil || vm.viewport <= 0 {
 		return
 	}
 	proj := vm.Projection()
-	first, count := proj.ZoneRows(vm.peek.zone)
+	first, count := proj.ZoneRows(id)
 	if count == 0 {
 		return
 	}

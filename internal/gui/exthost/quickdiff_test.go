@@ -183,3 +183,60 @@ func TestQuickDiffProviderErrorTagOfAPanic(t *testing.T) {
 		t.Errorf("error = %v, route %s", err, appErr.Route())
 	}
 }
+
+func TestLineChangesAreTheChangesOfTheMarks(t *testing.T) {
+	_, api, _ := quickDiffTab(t, nil)
+	tests := []struct {
+		name               string
+		original, modified string
+		want               []extension.LineChange
+	}{
+		{"equal texts", "a\nb\n", "a\nb\n", nil},
+		{"a modification", "a\nb\nc\n", "a\nB\nc\n", []extension.LineChange{{OriginalStartLineNumber: 2, OriginalEndLineNumber: 2, ModifiedStartLineNumber: 2, ModifiedEndLineNumber: 2}}},
+		{"an insertion", "a\nc\n", "a\nb\nc\n", []extension.LineChange{{OriginalStartLineNumber: 1, OriginalEndLineNumber: 0, ModifiedStartLineNumber: 2, ModifiedEndLineNumber: 2}}},
+		{"a deletion", "a\nb\nc\n", "a\nc\n", []extension.LineChange{{OriginalStartLineNumber: 2, OriginalEndLineNumber: 2, ModifiedStartLineNumber: 1, ModifiedEndLineNumber: 0}}},
+		{"a deletion at the start", "a\nb\n", "b\n", []extension.LineChange{{OriginalStartLineNumber: 1, OriginalEndLineNumber: 1, ModifiedStartLineNumber: 0, ModifiedEndLineNumber: 0}}},
+		{"CRLF in the original", "a\r\nb\r\n", "a\nB\n", []extension.LineChange{{OriginalStartLineNumber: 2, OriginalEndLineNumber: 2, ModifiedStartLineNumber: 2, ModifiedEndLineNumber: 2}}},
+		{"white space at the end of a line counts", "a\nb\n", "a\nb  \n", []extension.LineChange{{OriginalStartLineNumber: 2, OriginalEndLineNumber: 2, ModifiedStartLineNumber: 2, ModifiedEndLineNumber: 2}}},
+		{"an empty original", "", "a\n", []extension.LineChange{{OriginalStartLineNumber: 1, OriginalEndLineNumber: 1, ModifiedStartLineNumber: 1, ModifiedEndLineNumber: 2}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := api.Documents().LineChanges(context.Background(), tt.original, tt.modified)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("changes = %+v, want %+v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("change %d = %+v, want %+v", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestLineChangesFailWithTheirOwnTags(t *testing.T) {
+	t.Run("a scope with no editors", func(t *testing.T) {
+		_, api, _ := quickDiffTab(t, func(r *rig) { r.noQuickDiff = map[string]bool{"one": true} })
+		_, err := api.Documents().LineChanges(context.Background(), "a\n", "b\n")
+		mustRoute(t, err, "documentsAPI.LineChanges.ExtensionQuickDiffUnavailable")
+	})
+	t.Run("after the activation", func(t *testing.T) {
+		tb, api, _ := quickDiffTab(t, nil)
+		tb.disabled = []string{"emetos.quickdiff"}
+		tb.scope.Refresh()
+		_, err := api.Documents().LineChanges(context.Background(), "a\n", "b\n")
+		mustRoute(t, err, "documentsAPI.LineChanges.ExtensionDeactivated")
+	})
+	t.Run("a context that is done", func(t *testing.T) {
+		_, api, _ := quickDiffTab(t, nil)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if _, err := api.Documents().LineChanges(ctx, "a\nb\nc\n", "a\nx\nc\n"); err == nil {
+			t.Error("a diff that was cancelled gave an answer")
+		}
+	})
+}

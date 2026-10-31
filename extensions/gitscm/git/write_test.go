@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"fmt"
+	"github.com/rm4n0s/errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -648,5 +649,98 @@ func TestAWriteWaitsForTheReadsBeforeIt(t *testing.T) {
 	res, err = repo.Status(ctx, StatusOptions{})
 	if err != nil || len(res.Entries) != 1 || res.Entries[0].X != 'M' {
 		t.Errorf("after the add: %+v %v", res, err)
+	}
+}
+
+func TestStageContent(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(r *gittest.Repo)
+		path     string
+		content  string
+		wantMode string
+		wantText string
+		want     []string // git status afterwards
+	}{
+		{"a tracked file", func(r *gittest.Repo) {}, "a.txt", "a.txt\nONE\ntwo\n", "100644", "a.txt\nONE\ntwo\n", []string{"MM a.txt"}},
+		{"the work tree is not touched", func(r *gittest.Repo) { r.Write("a.txt", "work\n") }, "a.txt", "staged\n", "100644", "staged\n", []string{"MM a.txt"}},
+		{"an executable file stays one", func(r *gittest.Repo) {
+			r.Write("run.sh", "#!/bin/sh\n")
+			if err := os.Chmod(r.Path("run.sh"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			r.Commit("Add a script")
+		}, "run.sh", "#!/bin/sh\necho hi\n", "100755", "#!/bin/sh\necho hi\n", []string{"MM run.sh"}},
+		{"a file that is not in the index is added", func(r *gittest.Repo) { r.Write("new.txt", "work\n") }, "new.txt", "part\n", "100644", "part\n", []string{"AM new.txt"}},
+		{"a path with spaces and non-ASCII characters", func(r *gittest.Repo) {}, "dir with space/ünï cödé.txt", "x\n", "100644", "x\n", []string{"MM dir with space/ünï cödé.txt"}},
+		{"a path with glob characters is that file only", func(r *gittest.Repo) {}, "a[1].txt", "y\n", "100644", "y\n", []string{"MM a[1].txt"}},
+		{"an empty content", func(r *gittest.Repo) {}, "b.txt", "", "100644", "", []string{"MM b.txt"}},
+		{"line breaks are kept as they are given", func(r *gittest.Repo) { r.Git("config", "core.autocrlf", "false") }, "b.txt", "a\r\nb\r\n", "100644", "a\r\nb\r\n", []string{"MM b.txt"}},
+		{"a file in conflict is resolved to the content", func(r *gittest.Repo) {
+			r.Branch("other", "HEAD")
+			r.Write("b.txt", "main\n")
+			r.Commit("main")
+			r.Checkout("other")
+			r.Write("b.txt", "other\n")
+			r.Commit("other")
+			r.Checkout("main")
+			if err := r.Merge("other"); err == nil {
+				t.Fatal("the merge did not conflict")
+			}
+		}, "b.txt", "resolved\n", "100644", "resolved\n", []string{"MM b.txt"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := gittest.NewEnv(t)
+			r := statesBase(t, e)
+			tc.setup(r)
+			repo := open(t, e, r.Dir)
+			if err := repo.StageContent(context.Background(), tc.path, []byte(tc.content)); err != nil {
+				t.Fatal(err)
+			}
+			entry := r.Git("ls-files", "--stage", "--", tc.path)
+			if mode, _, _ := strings.Cut(entry, " "); mode != tc.wantMode {
+				t.Errorf("the mode is %q (%q), want %q", mode, entry, tc.wantMode)
+			}
+			id, _, err := e.GitInput(r.Dir, tc.wantText, "hash-object", "--stdin")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := r.Git("rev-parse", ":"+tc.path); got != id {
+				t.Errorf("the index has the object %s, want the one of %q (%s)", got, tc.wantText, id)
+			}
+			var gotStatus []string
+			for _, l := range porcelain(r) {
+				if strings.HasSuffix(l, " "+tc.path) {
+					gotStatus = append(gotStatus, l)
+				}
+			}
+			if strings.Join(gotStatus, "|") != strings.Join(tc.want, "|") {
+				t.Errorf("status = %v, want %v", gotStatus, tc.want)
+			}
+		})
+	}
+}
+
+func TestStageContentRefusesPathsOutsideTheRepository(t *testing.T) {
+	e := gittest.NewEnv(t)
+	r := statesBase(t, e)
+	repo := open(t, e, r.Dir)
+	for _, tc := range []struct{ path, route string }{
+		{"", "Repo.StageContent->Repo.relPaths.GitPathEmpty"},
+		{"../outside.txt", "GitPathOutsideRepository"},
+		{"/definitely/not/here.txt", "GitPathOutsideRepository"},
+	} {
+		err := repo.StageContent(context.Background(), tc.path, []byte("x"))
+		appErr, ok := errors.FromError(err)
+		if !ok {
+			t.Fatalf("%q: expected *errors.Error, got %T (%v)", tc.path, err, err)
+		}
+		if !appErr.HasRoute(tc.route) {
+			t.Errorf("%q: unexpected failure path: %s", tc.path, appErr.Route())
+		}
+	}
+	if got := r.Git("diff", "--cached", "--stat"); got != "" {
+		t.Errorf("a refused path staged %q", got)
 	}
 }

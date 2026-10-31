@@ -420,6 +420,14 @@ type Documents interface {
 	// call it off the UI thread. It fails with ExtensionQuickDiffUnavailable in a scope that has no editors, with the error of ctx when
 	// it ends first, and with ExtensionDeactivated after the activation ended.
 	QuickDiffOriginal(ctx context.Context, uri string) (text string, ok bool, err error)
+	// LineChanges compares two texts by lines, with the diff of the quick diff marks and of the diff editor, and returns the changed
+	// blocks of the modified text against the original (VS Code's ILineChange; SPEC §10.30 "The peek"): the lines of a text that ends
+	// with a line break have an empty last line, "\r\n" and "\n" end a line alike, and white space at the ends of lines counts. It is
+	// how a command that stages or reverts the lines a selection touches finds them. It runs on the calling goroutine (the diff has a
+	// time limit of one second, after which the texts are one change) and stops with ctx. It fails with ExtensionQuickDiffUnavailable
+	// in a scope that has no editors, with the error of ctx when it ends first, and with ExtensionDeactivated after the activation
+	// ended.
+	LineChanges(ctx context.Context, original, modified string) ([]LineChange, error)
 }
 
 // ActiveDocument is the text editor in front, as Documents().Active describes it (SPEC §10.28).
