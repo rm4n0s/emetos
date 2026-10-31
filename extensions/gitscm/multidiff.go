@@ -112,16 +112,13 @@ func (x *gitscm) multiDiffResources(ctx context.Context, key string) ([]extensio
 	if !ok || id == "" || name == "" || (kind != "group" && kind != "commit") {
 		return nil, errors.New("GitMultiDiffKeyInvalid", "this is not the key of a set of changes", "key", key)
 	}
-	snap, open := x.multi.get(id)
+	// a saved editor asks when the extension starts, before the repositories are found: the answer waits for one that is on its way
+	snap, repo, open := x.awaitRepository(ctx, id)
 	if !open {
 		return nil, errors.New("MultiDiffGone", "the repository of these changes is not open", "key", key)
 	}
 	if kind == "group" {
 		return groupMultiDiff(id, snap, name), nil
-	}
-	repo := x.content.repos.get(id)
-	if repo == nil {
-		return nil, errors.New("MultiDiffGone", "the repository of this commit is not open", "key", key)
 	}
 	ch, err := repo.CommitChanges(ctx, name)
 	if err != nil {

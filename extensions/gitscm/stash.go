@@ -38,13 +38,14 @@ type stashState struct {
 	opened map[string]map[string]bool
 	// dropped are the keys of the stashes the user dropped from their own editor: the provider answers "gone" and the tab closes.
 	dropped map[string]bool
-	// known are the ids of the repositories that were opened, even while their first status is not there yet, and scanned says that
-	// the first search for repositories ended: together they tell a repository that is still coming from one that is not there.
+	// known are the ids of the repositories that started (trusted, git is opening them) and may have no status yet, and scanned says
+	// that the first search for repositories ended: together they tell a repository that is still coming from one that never will be
+	// (not a repository any more, not trusted, closed).
 	known   map[string]bool
 	scanned atomic.Bool
 }
 
-// know records that a repository with this id was opened.
+// know records that a repository with this id started.
 func (s *stashState) know(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -136,7 +137,7 @@ func (x *gitscm) stashResources(ctx context.Context, key string) ([]extension.Mu
 	return stashMultiDiff(id, snap.root, ch), nil
 }
 
-// awaitRepository gives the repository with the id and its snapshot. A saved stash editor asks for its files when the extension starts,
+// awaitRepository gives the repository with the id and its snapshot. A saved multi-file editor of Git (a stash, a group, a commit) asks for its files when the extension starts,
 // before the repositories are found and have their first status, so the answer waits (off the UI thread, until ctx ends) for a
 // repository that is on its way; it is false for one that is not there once the first search ended, and when ctx or the extension ends.
 func (x *gitscm) awaitRepository(ctx context.Context, id string) (repoSnapshot, *git.Repo, bool) {

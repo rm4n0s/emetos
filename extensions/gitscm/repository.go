@@ -94,7 +94,6 @@ func (m *model) newRepository(loc git.Location) (*repository, error) {
 	}
 	r.src, r.handle = src, src.Handle()
 	r.ctx, r.cancel = context.WithCancel(x.ctx)
-	x.stash.know(r.id)
 	r.queue = git.NewQueue(0)
 	r.ignore = newIgnoreMatcher(loc.Root, loc.GitDir)
 	return r, nil
@@ -149,6 +148,7 @@ func (r *repository) start() {
 	if runner == nil {
 		return // git is not there; the repository starts when it is
 	}
+	x.stash.know(r.id) // its first status is on its way: a saved multi-file editor waits for it (awaitRepository)
 	go func() {
 		repo, err := git.Open(r.ctx, runner, r.queue, r.loc.Root)
 		x.api.Post(func() { r.opened(repo, err) })

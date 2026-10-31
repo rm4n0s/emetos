@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -551,4 +552,98 @@ func TestTheExtensionRegistersTheMultiDiffProvider(t *testing.T) {
 	if r.api.MultiDiffProviderFor(MultiDiffKind) == nil {
 		t.Error("the provider is not registered")
 	}
+}
+
+// askBeforeDiscovery starts the extension without letting it find anything and asks the provider for a set in the background, as a saved
+// editor does when the window comes back after a restart. The answer must not come before the repository is found.
+func askBeforeDiscovery(t *testing.T, r *rig, key string) <-chan multiAnswer {
+	t.Helper()
+	if err := r.x.Activate(context.Background(), r.api); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan multiAnswer, 1)
+	go func() {
+		files, err := r.multiFiles(key)
+		done <- multiAnswer{files, err}
+	}()
+	// the goroutine had time to ask; nothing was found, because nothing was pumped
+	time.Sleep(150 * time.Millisecond)
+	select {
+	case a := <-done:
+		t.Fatalf("the provider answered before the repository was found: %d files, %v", len(a.files), a.err)
+	default:
+	}
+	return done
+}
+
+type multiAnswer struct {
+	files []extension.MultiDiffResource
+	err   error
+}
+
+func (r *rig) waitAnswer(done <-chan multiAnswer) multiAnswer {
+	r.t.Helper()
+	var a multiAnswer
+	r.api.WaitFor("the answer", func() bool {
+		select {
+		case a = <-done:
+			return true
+		default:
+			return false
+		}
+	})
+	return a
+}
+
+// TestASavedEditorWaitsForTheRepositoryAfterARestart is the restart: the saved editor of a group or of a commit asks for its files when
+// the extension starts, before discovery found the repository; it gets them when the repository is there, and is not closed.
+func TestASavedEditorWaitsForTheRepositoryAfterARestart(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		key  func(id string, repo *gittest.Repo) string
+		want int
+	}{
+		{"a group", func(id string, _ *gittest.Repo) string { return groupKey(id, groupWorking) }, 1},
+		{"a commit", func(id string, repo *gittest.Repo) string { return commitKey(id, repo.Head()) }, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := gittest.NewEnv(t)
+			repo := stashRepo(t, e)
+			r := newRig(t, e, rigOptions{folder: repo.Dir, noStart: true})
+			done := askBeforeDiscovery(t, r, tc.key(repoID(repo.Dir), repo))
+			r.settle()
+			a := r.waitAnswer(done)
+			if a.err != nil || len(a.files) < tc.want {
+				t.Errorf("files %v, error %v", a.files, a.err)
+			}
+		})
+	}
+}
+
+// A repository that discovery does not find, or finds and does not trust, ends the saved editor as before.
+func TestASavedEditorOfARepositoryThatDoesNotComeIsGone(t *testing.T) {
+	t.Run("the folder is not a repository any more", func(t *testing.T) {
+		e := gittest.NewEnv(t)
+		repo := stashRepo(t, e)
+		id := repoID(repo.Dir)
+		other := e.Init("other")
+		r := newRig(t, e, rigOptions{folder: other.Dir, noStart: true})
+		done := askBeforeDiscovery(t, r, groupKey(id, groupWorking))
+		r.settle()
+		appErr, ok := errors.FromError(r.waitAnswer(done).err)
+		if !ok || appErr.Tag != "MultiDiffGone" || !appErr.HasRoute("gitscm.multiDiffResources.MultiDiffGone") {
+			t.Errorf("error %v", appErr)
+		}
+	})
+	t.Run("the repository is not trusted", func(t *testing.T) {
+		e := gittest.NewEnv(t)
+		dir := untrustedRepo(t, e, filepath.Join(e.Work, "repo"))
+		r := newRig(t, e, rigOptions{folder: dir, noStart: true})
+		done := askBeforeDiscovery(t, r, groupKey(repoID(dir), groupWorking))
+		r.settle()
+		appErr, ok := errors.FromError(r.waitAnswer(done).err)
+		if !ok || appErr.Tag != "MultiDiffGone" {
+			t.Errorf("error %v", appErr)
+		}
+	})
 }
