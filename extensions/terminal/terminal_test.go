@@ -63,6 +63,8 @@ func newExtRigAt(t *testing.T, dir string, before func(*fakeapi.API), profile st
 			}
 			en.term.Wait()
 		}
+		// the history is written on goroutines, into the folders the test removes when it ends
+		e.histWrites.Wait()
 	})
 	return r
 }
@@ -425,4 +427,5 @@ func TestEndingTheScopeEndsTheShells(t *testing.T) {
 		t.Fatal("the shell outlived the context of the extension")
 	}
 	term.Wait()
+	e.histWrites.Wait()
 }

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -100,6 +101,8 @@ type terminals struct {
 	editor editorState
 	// hist is the history of commands and folders of the terminals of all the window tabs (terminal-history.json).
 	hist *historyStore
+	// histWrites are the writes of the history running on goroutines; the tests wait for them before their folders go.
+	histWrites sync.WaitGroup
 	// opening says that a terminal is being made for a view that is shown with none; suppressOpen that the last terminal just
 	// ended and the panel is on its way to hide, so the view must not make another.
 	opening      bool

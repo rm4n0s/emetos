@@ -125,18 +125,18 @@ func (t *terminals) hookShell(e *entry) {
 			fixes = quickFixesFor(builtinFixes(), v.text, v.exit, si.outputLines(v))
 		}
 		start := v.start
-		go func() {
+		t.histWrites.Go(func() {
 			if err := t.hist.AddCommand(v.text, shell); err != nil {
 				t.api.Log().Debug("the command cannot be added to the history", "err", err)
 			}
-		}()
+		})
 		t.api.Post(func() { t.commandFinished(e, start, fixes) })
 	}, func(dir string) {
-		go func() {
+		t.histWrites.Go(func() {
 			if err := t.hist.AddDir(dir); err != nil {
 				t.api.Log().Debug("the folder cannot be added to the history", "err", err)
 			}
-		}()
+		})
 	})
 }
 
