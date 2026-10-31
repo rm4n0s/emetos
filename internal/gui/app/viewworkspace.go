@@ -73,6 +73,7 @@ func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
 		FileOps:        p.FileOps,
 		Markers:        p.Markers,
 		Decorations:    p.Decorations,
+		Annotations:    p.Annotations,
 		StatusBar:      workbench.NewStatusBar(),
 		ctx:            ctx,
 		viewOf:         p,

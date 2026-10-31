@@ -13,6 +13,7 @@ import (
 
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/annotations"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/decorations"
@@ -116,6 +117,9 @@ type Workspace struct {
 	// Decorations is the file decorations service of the window: the colors and badges that extensions give files (Git's status), which
 	// the Explorer, the tabs and the other views draw (SPEC §10.30). The headless view of a workspace shares its workspace's.
 	Decorations *decorations.Service
+	// Annotations are the texts that extensions put after the end of lines (Git's blame): the editors read the annotations of their
+	// document from it (SPEC §10.30 "Blame"). The headless view of a workspace shares its workspace's.
+	Annotations *annotations.Store
 	// Notifications is what the window shows of the notifications of the process: the toasts, the
 	// notification center and the do not disturb mode (SPEC §10.7). The workbench binds it to the UI
 	// thread.
@@ -429,6 +433,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		Banners:        workbench.NewBanners(),
 		SCM:            scm.NewModel(scmConfig(store)),
 		Decorations:    decorations.New(decorations.Options{Logger: p.Logger}),
+		Annotations:    annotations.New(),
 		Dialogs:        kit.NewDialogController(),
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        workspace.NewFileOps(workspace.FileOpsOptions{Trash: fileio.NewHomeTrash(p.Paths.TrashDir())}),

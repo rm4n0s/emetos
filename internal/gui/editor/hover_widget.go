@@ -195,6 +195,26 @@ func (vm *ViewModel) markdownOptions() markdown.Options {
 	return o
 }
 
+// partMarkdownOptions are the options of the Markdown of a part: the links of a part that has Links run its commands, after the hover is
+// hidden, and the others open as the links of every hover do.
+func (vm *ViewModel) partMarkdownOptions(p HoverPart) markdown.Options {
+	o := vm.markdownOptions()
+	if !p.CommandLinks {
+		return o
+	}
+	o.OnLink = func(dest string) {
+		if strings.HasPrefix(dest, "command:") {
+			vm.HideHover()
+			if p.Links != nil {
+				p.Links(dest)
+			}
+			return
+		}
+		vm.openLink(dest)
+	}
+	return o
+}
+
 // openLink opens a link of a hover.
 func (vm *ViewModel) openLink(dest string) {
 	if vm.openURI != nil {
@@ -208,7 +228,7 @@ func hoverMarkdown(vm *ViewModel, p HoverPart) widgets.Widget {
 	for _, c := range p.Contents {
 		var body widgets.Widget
 		if c.Markdown {
-			body = markdown.NewView(c.Value, vm.markdownOptions())
+			body = markdown.NewView(c.Value, vm.partMarkdownOptions(p))
 		} else {
 			body = widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget {
 				return hoverText(bc, c.Value, hoverFontSize, kit.ThemeOf(bc).EditorHoverWidgetForeground)

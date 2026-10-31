@@ -393,6 +393,9 @@ func (r *repository) applySnapshot(snap snapshot) {
 	r.m.updateContext()
 	r.contentChanged(snap.head.commit != headBefore)
 	r.multiChanged()
+	if snap.head.commit != headBefore {
+		x.blame.headMoved(r)
+	}
 	x.updateActiveResource()
 	r.publish()
 }

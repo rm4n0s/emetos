@@ -86,6 +86,10 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	x.startDecorations()
 	x.provideContent()
 	x.provideMultiDiff()
+	x.blame = newBlame(x)
+	if err := x.blame.start(); err != nil {
+		return err
+	}
 	x.model.updateContext()
 	if x.cfg.enabled {
 		x.start()
@@ -171,6 +175,7 @@ func (x *gitscm) settingsChanged() {
 			x.model.drop(r)
 		}
 		x.model.updateContext()
+		x.blame.schedule() // there is no repository to blame in any more: the text goes
 		return
 	case !old.enabled && x.cfg.enabled:
 		if x.runner != nil {
@@ -188,6 +193,7 @@ func (x *gitscm) settingsChanged() {
 			r.syncDecorations()
 		}
 	}
+	x.blame.settingsChanged(old)
 	statusChanged := old.untrackedChanges != x.cfg.untrackedChanges || old.statusLimit != x.cfg.statusLimit || old.similarityThreshold != x.cfg.similarityThreshold ||
 		old.ignoreSubmodules != x.cfg.ignoreSubmodules || old.countBadge != x.cfg.countBadge || old.enableStatusBarSync != x.cfg.enableStatusBarSync ||
 		old.commitShortHashLength != x.cfg.commitShortHashLength || old.alwaysShowStagedGroup != x.cfg.alwaysShowStagedGroup

@@ -2,6 +2,7 @@ package gitscm
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -98,6 +99,8 @@ type rigOptions struct {
 	noStart bool
 	// extraEnv is added to the environment of git (the variable of a fake git).
 	extraEnv []string
+	// logger is the logger the extension is given; the default one of the fake when nil.
+	logger *slog.Logger
 }
 
 // newRig activates the extension in a world of gittest. The world's trust file is the extension's: the repositories the harness made
@@ -126,6 +129,9 @@ func newRig(t *testing.T, env *gittest.Env, o rigOptions) *rig {
 	}
 	for k, v := range o.settings {
 		api.SetSetting(k, v)
+	}
+	if o.logger != nil {
+		api.SetLogger(o.logger)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &rig{t: t, env: env, api: api, x: e, clock: clock, folder: o.folder, cancel: cancel}

@@ -28,6 +28,10 @@ type RenderEditorText struct {
 	styles     *styleTable
 	// bracketColors color the brackets by nesting level (editor.bracketPairColorization).
 	bracketColors BracketColors
+	// annotationColor is the color of the line annotations that name none the theme knows, and namedColor finds the color of a theme
+	// color id (annotations.go).
+	annotationColor ui.Color
+	namedColor      func(id string) (ui.Color, bool)
 
 	offsetHandle foundation.ListenerHandle
 	vmHandle     foundation.ListenerHandle
@@ -313,6 +317,11 @@ func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.O
 	canvas.ClipRect(ui.NewRectFromLTWH(offset.Dx, offset.Dy, size.Width, size.Height))
 	left := r.vm.ScrollLeft()
 	indenter, _ := proj.(rowIndenter)
+	var annots map[int][]annotationEntry
+	var geo geometry
+	if annots = r.vm.annotationsByLine(); len(annots) > 0 {
+		geo = newGeometry(r.vm, r.factory)
+	}
 	charWidth := 0.0
 	if indenter != nil {
 		charWidth = style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
@@ -326,6 +335,9 @@ func (r *RenderEditorText) Paint(context *rendering.PaintingContext, offset ui.O
 			y := offset.Dy + proj.RowTop(row) - top
 			r.paintHintBackgrounds(canvas, p, ir, x, y, proj.RowHeight(row))
 			canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: y})
+		}
+		if len(annots) > 0 {
+			r.paintAnnotations(canvas, geo, annots, row, offset.Dx-left, offset.Dy+proj.RowTop(row)-top)
 		}
 	}
 	canvas.Restore()

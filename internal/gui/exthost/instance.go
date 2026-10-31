@@ -41,6 +41,11 @@ type instance struct {
 	serverSubs []*serverSub
 	// scmKeys are the source controls of the activation by id and root (scm.go), to refuse a second one of the same.
 	scmKeys map[string]bool
+	// ownCommands are the commands the activation registered with Commands().Register; with those the manifest declares they are
+	// the commands of the extension itself (editordecorations.go).
+	ownCommands map[string]bool
+	// annotationKeys are the keys of the line annotation sets the activation made.
+	annotationKeys map[string]bool
 }
 
 // isDead tells whether the activation ended. It is safe for concurrent use.
@@ -104,7 +109,7 @@ func (s *Scope) activate(sl *slot) {
 	inst := &instance{
 		scope: s, slot: sl, id: m.ID, name: m.Name, ext: ext, ctx: ctx, cancel: cancel,
 		log:         s.log.With("extension", m.ID, "scope", s.opts.Info.Name),
-		settingKeys: map[string]bool{}, statusIDs: map[string]bool{},
+		settingKeys: map[string]bool{}, statusIDs: map[string]bool{}, ownCommands: map[string]bool{}, annotationKeys: map[string]bool{},
 		channels: map[string]bool{}, markerOwners: map[string]bool{}, contextKeys: map[string]bool{},
 	}
 	s.mu.Lock()

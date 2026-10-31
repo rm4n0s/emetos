@@ -82,6 +82,10 @@ type HoverPart struct {
 	// Status is the text after the links of a diagnostic: "Checking for quick fixes..." while the providers are asked, and "No
 	// quick fixes available" when they have none.
 	Status string
+	// Links is called with the destination of a link of a Markdown part that names a command (command:...) when it is clicked; with
+	// CommandLinks set a link of another kind opens as the links of a hover do. A part with no Links opens every link that way.
+	Links        func(dest string)
+	CommandLinks bool
 	// order sorts the parts in the box.
 	order [2]int
 }
@@ -106,6 +110,8 @@ type hoverAnchor struct {
 	pos buffer.Position
 	// hint, when it is set, says that the hover is that of a part of an inlay hint (inlay_interact.go), not of the text.
 	hint *hintAnchor
+	// ann, when it is set, says that the hover is that of a line annotation (annotations.go).
+	ann *annotationAnchor
 }
 
 // hoverOpState is the state of the computation of a hover (VS Code's HoverOperationState).
@@ -154,8 +160,9 @@ type hoverModel struct {
 	// cancelHide cancels the wait to hide, cancelReact the wait of a sticky hover to react to the pointer that went elsewhere.
 	cancelHide, cancelReact func()
 	lastPointer             buffer.Position
-	// shownHint is the inlay hint the shown hover is about, or nil.
+	// shownHint is the inlay hint the shown hover is about, or nil, and shownAnn the line annotation.
 	shownHint *hintAnchor
+	shownAnn  *annotationAnchor
 	// selections are the selections when the hover came, which a different selection hides; unsubDoc stops the follow of the
 	// document; scrollHandle is the listener of the scroll.
 	selections   []buffer.Selection
@@ -273,11 +280,11 @@ func (vm *ViewModel) HoverPointerMoved(p buffer.Position) {
 		return
 	}
 	h.lastPointer = p
-	if h.shown == nil && h.op != nil && !h.op.pinned && h.op.anchor.hint == nil && rangeHolds(h.op.anchor.rng, p) {
+	if h.shown == nil && h.op != nil && !h.op.pinned && h.op.anchor.hint == nil && h.op.anchor.ann == nil && rangeHolds(h.op.anchor.rng, p) {
 		vm.cancelHoverHide()
 		return // the pointer moves inside what it rested on: the wait goes on, or the answer is known
 	}
-	if h.shown != nil && h.shownHint == nil && rangeHolds(h.shown.Range, p) {
+	if h.shown != nil && h.shownHint == nil && h.shownAnn == nil && rangeHolds(h.shown.Range, p) {
 		vm.cancelHoverHide()
 		vm.cancelHoverReact()
 		return
@@ -305,7 +312,7 @@ func (vm *ViewModel) hoverReact(p buffer.Position) {
 		return
 	}
 	vm.cancelHoverHide()
-	if h.shown == nil && h.op != nil && !h.op.pinned && h.op.anchor.hint == nil && rangeHolds(h.op.anchor.rng, p) {
+	if h.shown == nil && h.op != nil && !h.op.pinned && h.op.anchor.hint == nil && h.op.anchor.ann == nil && rangeHolds(h.op.anchor.rng, p) {
 		return // the pointer moves inside what it rested on: the wait goes on, or the answer is known
 	}
 	vm.hoverHideShown()
@@ -430,6 +437,10 @@ func (vm *ViewModel) hoverTriggerAsync(op *hoverOp) {
 		vm.hoverHintAsync(op)
 		return
 	}
+	if op.anchor.ann != nil {
+		op.asyncDone = true // the hover of a line annotation is known: there is no provider to ask
+		return
+	}
 	f := vm.hoverFeatures()
 	doc := vm.langDocument()
 	if f == nil || !f.HasHover(doc) {
@@ -461,6 +472,12 @@ func (vm *ViewModel) hoverTriggerSync(op *hoverOp) {
 		if op.asyncDone {
 			op.state = hoverIdle
 		}
+		vm.hoverFire(op)
+		return
+	}
+	if op.anchor.ann != nil {
+		op.results = append(op.results, annotationHoverParts(op.anchor)...)
+		op.state = hoverIdle
 		vm.hoverFire(op)
 		return
 	}
@@ -563,7 +580,7 @@ func (vm *ViewModel) hoverSet(op *hoverOp, parts []HoverPart, complete bool) {
 		}
 	}
 	h.shown = &Hover{Range: rng, Parts: parts, Pinned: op.pinned, Complete: complete, Focused: h.focused}
-	h.shownHint = op.anchor.hint
+	h.shownHint, h.shownAnn = op.anchor.hint, op.anchor.ann
 	h.selections = op.selections
 	vm.hoverListen()
 	h.changed.NotifyListeners()
@@ -613,7 +630,7 @@ func (vm *ViewModel) hoverHideShown() {
 	if h.shown == nil {
 		return
 	}
-	h.shown, h.shownHint = nil, nil
+	h.shown, h.shownHint, h.shownAnn = nil, nil, nil
 	h.changed.NotifyListeners()
 }
 

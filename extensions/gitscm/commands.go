@@ -84,6 +84,8 @@ func (x *gitscm) registerCommands() error {
 		"git.ignore":                          x.cmdIgnore,
 		"git.rename":                          x.cmdRename,
 		"git.delete":                          x.cmdDelete,
+		"git.blame.toggleEditorDecoration":    x.cmdToggleBlameEditor,
+		"git.blame.toggleStatusBarItem":       x.cmdToggleBlameStatusBar,
 		CommandTrustRepository:                x.cmdTrustRepository,
 		CommandManageTrusted:                  x.cmdManageTrusted,
 	}
@@ -97,7 +99,9 @@ func (x *gitscm) registerCommands() error {
 			return err
 		}
 	}
-	return nil
+	// the command the Copy Hash link of the blame hover runs; VS Code has it too, and it is not in the command palette
+	x.handlers[commandCopyContent] = x.cmdCopyContent
+	return x.api.Commands().Register(extension.CommandSpec{ID: commandCopyContent}, x.cmdCopyContent)
 }
 
 // placeholder is the handler of a command a later step implements.

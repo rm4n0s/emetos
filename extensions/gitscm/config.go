@@ -38,6 +38,9 @@ type config struct {
 	closeDiffOnOperation    bool
 	discardToTrash          bool
 	confirmCommittedDelete  bool
+	// blame* are the settings of the blame text (blame.go).
+	blameEditor, blameStatusBar, blameDisableHover, blameIgnoreWhitespace bool
+	blameEditorTemplate, blameStatusBarTemplate                           string
 }
 
 // read gets a setting as a Go type, the default when it cannot be read (the manifest declares every key, so that is a bug of the
@@ -108,6 +111,12 @@ func (c *config) load(api extension.API) {
 	c.closeDiffOnOperation = read(api, "git.closeDiffOnOperation", false)
 	c.discardToTrash = read(api, "git.discardUntrackedChangesToTrash", true)
 	c.confirmCommittedDelete = read(api, "git.confirmCommittedDelete", true)
+	c.blameEditor = read(api, "git.blame.editorDecoration.enabled", false)
+	c.blameEditorTemplate = read(api, "git.blame.editorDecoration.template", "${subject}, ${authorName} (${authorDateAgo})")
+	c.blameDisableHover = read(api, "git.blame.editorDecoration.disableHover", false)
+	c.blameStatusBar = read(api, "git.blame.statusBarItem.enabled", true)
+	c.blameStatusBarTemplate = read(api, "git.blame.statusBarItem.template", "${authorName} (${authorDateAgo})")
+	c.blameIgnoreWhitespace = read(api, "git.blame.ignoreWhitespace", false)
 }
 
 // statusOptions are the options of git status for the settings (git.untrackedChanges, git.statusLimit, git.similarityThreshold,

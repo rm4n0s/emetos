@@ -104,9 +104,10 @@ func (*gitscm) Manifest() extension.Manifest {
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
 		ActivationEvents: []string{extension.OnStartup},
 		Events: extension.EventDecl{
-			Publishes:  []extension.EventSpec{{Topic: TopicRepositoryChanged}},
-			Handles:    nil,
-			Subscribes: []string{extension.TopicWindowFocusChanged, extension.TopicDocumentSaved, extension.TopicEditorActiveChanged},
+			Publishes: []extension.EventSpec{{Topic: TopicRepositoryChanged}},
+			Handles:   nil,
+			Subscribes: []string{extension.TopicWindowFocusChanged, extension.TopicDocumentSaved, extension.TopicEditorActiveChanged,
+				extension.TopicEditorSelectionChanged, extension.TopicDocumentChanged},
 		},
 		Contributes: extension.Contributes{
 			Commands:    cmds,
@@ -171,6 +172,9 @@ type gitscm struct {
 
 	// ignores is the provider of the file decorations of the files git ignores (decorations.go).
 	ignores *ignoreProvider
+
+	// blame is the blame text of the editor and the status bar (blame.go).
+	blame *blameController
 }
 
 // homeDir is the home folder of the user, "" when it is not known.

@@ -69,6 +69,8 @@ type API interface {
 	Decorations() Decorations
 	// Dialogs asks the user a question in a modal dialog.
 	Dialogs() Dialogs
+	// EditorDecorations draws texts after the end of lines in the editors (SPEC §10.30 "Blame").
+	EditorDecorations() EditorDecorations
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the
 	// editor. fn is not run when the extension was deactivated before its turn comes, and a panic in it deactivates the
 	// extension. Activate, command handlers, the callbacks of the API and the event handlers run on the UI thread already.

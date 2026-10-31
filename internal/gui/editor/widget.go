@@ -43,12 +43,15 @@ type textLayer struct {
 	tokens *theme.TokenTheme
 	// brackets are the colors of the brackets by level.
 	brackets BracketColors
+	// annotation is the color of the line annotations that name none the theme knows, and named finds the color of a theme color id.
+	annotation ui.Color
+	named      func(id string) (ui.Color, bool)
 	// created is told of the render object when it is made.
 	created func(*RenderEditorText)
 }
 
-func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color, tokens *theme.TokenTheme, brackets BracketColors, created func(*RenderEditorText)) *textLayer {
-	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color, tokens: tokens, brackets: brackets, created: created}
+func newTextLayer(vm *ViewModel, offset rendering.ViewportOffset, color ui.Color, tokens *theme.TokenTheme, brackets BracketColors, annotation ui.Color, named func(string) (ui.Color, bool), created func(*RenderEditorText)) *textLayer {
+	return &textLayer{LeafRenderObjectWidget: widgets.NewLeafRenderObjectWidgetBase(), vm: vm, offset: offset, color: color, tokens: tokens, brackets: brackets, annotation: annotation, named: named, created: created}
 }
 
 // CreateRenderObject implements widgets.RenderObjectWidget.
@@ -56,6 +59,7 @@ func (w *textLayer) CreateRenderObject(bc widgets.BuildContext) rendering.Render
 	r := NewRenderEditorText(w.vm, w.offset, textFactory(bc), w.color)
 	r.SetTokenTheme(w.tokens)
 	r.SetBracketColors(w.brackets)
+	r.SetAnnotationColors(w.annotation, w.named)
 	if w.created != nil {
 		w.created(r)
 	}
@@ -70,6 +74,7 @@ func (w *textLayer) UpdateRenderObject(bc widgets.BuildContext, ro rendering.Ren
 	r.SetColor(w.color)
 	r.SetTokenTheme(w.tokens)
 	r.SetBracketColors(w.brackets)
+	r.SetAnnotationColors(w.annotation, w.named)
 	r.SetFactory(textFactory(bc))
 }
 
@@ -867,7 +872,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 				}),
 			widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
 				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
-				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, bracketColors, func(r *RenderEditorText) { s.textRO = r }),
+				newTextLayer(vm, offset, colors.EditorForeground, tokenTheme, bracketColors, colors.EditorInlayHintForeground, colors.Named, func(r *RenderEditorText) { s.textRO = r }),
 				newOverlayLayer(overlayCursors, vm, offset, overlayColors),
 				newZoneLayer(vm, offset),
 			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{
@@ -1069,6 +1074,11 @@ func (s *editorState) hoverPointer(e *gestures.PointerHoverEvent) {
 	if _, inZone := s.textRO.ZoneAt(local); inZone {
 		vm.HoverPointerLeft()
 		vm.LinkPointerLeft()
+		return
+	}
+	if hit, ok := s.textRO.AnnotationAt(local); ok {
+		vm.LinkPointerLeft()
+		vm.HoverAnnotationMoved(hit)
 		return
 	}
 	if id, part, ok := s.textRO.HintAt(local); ok {

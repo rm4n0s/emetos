@@ -106,6 +106,9 @@ func (c commandsAPI) Register(spec extension.CommandSpec, handler extension.Comm
 		reg.Unregister(id)
 		return err
 	}
+	in.mu.Lock()
+	in.ownCommands[id] = true
+	in.mu.Unlock()
 	in.track(func() { remove(); reg.Unregister(id) })
 	return nil
 }

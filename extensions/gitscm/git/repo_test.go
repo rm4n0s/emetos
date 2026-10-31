@@ -977,3 +977,55 @@ func TestReadsThatCountRefuseUnexpectedOutput(t *testing.T) {
 	_, _, err = repo.AheadBehind(ctx, "a", "b")
 	wantRoute(t, err, "Repo.AheadBehind.GitOutputUnexpected")
 }
+
+func TestConfigValueReadsTheSettingAsGitSeesIt(t *testing.T) {
+	_, repo, _ := fixtureRepo(t, "small", gittest.FixtureOptions{})
+	ctx := context.Background()
+	tests := []struct {
+		key, want string
+		found     bool
+	}{
+		{"user.name", gittest.AuthorName, true},
+		{"user.email", gittest.AuthorEmail, true},
+		{"no.such.key", "", false},
+	}
+	for _, tc := range tests {
+		got, found, err := repo.ConfigValue(ctx, tc.key)
+		if err != nil || got != tc.want || found != tc.found {
+			t.Errorf("%s: %q, %v, %v; want %q, %v", tc.key, got, found, err, tc.want, tc.found)
+		}
+	}
+}
+
+// TestBlameOfAFileOfOneCommit is the assertion of VS Code's smoke test "blame2": a tracked file that one commit made has one blame entry,
+// and its subject is the message of the commit. The same file blamed at a revision names the lines of that revision, and a file with
+// uncommitted lines (the work tree, no revision) has the commit that does not exist for them.
+func TestBlameOfAFileOfOneCommit(t *testing.T) {
+	e := gittest.NewEnv(t)
+	r := e.Init("repo")
+	r.Write("a.txt", "one\ntwo\n")
+	r.Commit("Add a.txt")
+	repo := open(t, e, r.Dir)
+	ctx := context.Background()
+	got, err := repo.Blame(ctx, BlameOptions{Path: "a.txt", Rev: "HEAD"})
+	if err != nil || len(got) != 1 || got[0].Summary != "Add a.txt" || len(got[0].Ranges) != 1 || got[0].Ranges[0] != (LineRange{1, 2}) {
+		t.Fatalf("blame %+v, %v", got, err)
+	}
+	r.Write("a.txt", "one\nchanged\n")
+	got, err = repo.Blame(ctx, BlameOptions{Path: "a.txt"})
+	if err != nil || len(got) != 2 {
+		t.Fatalf("blame of the work tree %+v, %v", got, err)
+	}
+	var notCommitted bool
+	for _, c := range got {
+		notCommitted = notCommitted || c.Hash == "0000000000000000000000000000000000000000"
+	}
+	if !notCommitted {
+		t.Errorf("no entry for the uncommitted line: %+v", got)
+	}
+	// the revision wins over the work tree
+	got, err = repo.Blame(ctx, BlameOptions{Path: "a.txt", Rev: "HEAD"})
+	if err != nil || len(got) != 1 {
+		t.Errorf("blame at HEAD of a changed file: %+v, %v", got, err)
+	}
+}

@@ -100,6 +100,9 @@ type API struct {
 	watches           []*FakeWatch
 	watchErr          error
 	dialogs           []*FakeDialog
+	annotations       map[string]*annotationSet
+	// annotationsUnavailable makes EditorDecorations().Set fail like a scope with no editors.
+	annotationsUnavailable bool
 }
 
 // Note is a notification the extension showed.

@@ -2,7 +2,7 @@ package theme
 
 // registerSCMColors registers the colors of the status letters of the Source Control view and of the file decorations of Git
 // (step 24.3; the Git extension of VS Code contributes them in its package.json, here the host registers them because the view
-// reads them by id). The incoming colors and the blame color come with the steps that use them.
+// reads them by id). The blame color came with step 24.22; the incoming colors come with the step that uses them.
 //
 // Ported from VS Code: extensions/git/package.json (contributes.colors) and package.nls.json
 func registerSCMColors(r *ColorRegistry) {
@@ -27,5 +27,7 @@ func registerSCMColors(r *ColorRegistry) {
 			Description: "Color for resources with conflicts."},
 		ColorContribution{ID: "gitDecoration.submoduleResourceForeground", Defaults: dflt(Hex("#8db9e2"), Hex("#1258a7"), Hex("#8db9e2"), Hex("#1258a7")),
 			Description: "Color for submodule resources."},
+		ColorContribution{ID: "git.blame.editorDecorationForeground", Defaults: AllThemes(Ref("editorInlayHint.foreground")),
+			Description: "Color for the blame editor decoration."},
 	)
 }

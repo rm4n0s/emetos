@@ -313,6 +313,19 @@ func (r *Repo) Config(ctx context.Context, scope string) ([]ConfigEntry, error) 
 	return ParseConfigList(res.Stdout), nil
 }
 
+// ConfigValue reads one setting as git sees it, from every scope ("git config --get <key>"): the value without its final newline, and
+// false when no scope has the key.
+func (r *Repo) ConfigValue(ctx context.Context, key string) (string, bool, error) {
+	res, err := r.read(ctx, ScopeConfig, Command{Args: []string{"config", "--get", key}, AllowExit: []int{1}})
+	if err != nil {
+		return "", false, err
+	}
+	if res.ExitCode != 0 {
+		return "", false, nil
+	}
+	return strings.TrimSuffix(string(res.Stdout), "\n"), true, nil
+}
+
 // Remotes lists the remotes with "git remote -v".
 func (r *Repo) Remotes(ctx context.Context) ([]Remote, error) {
 	res, err := r.read(ctx, ScopeConfig, Command{Args: []string{"remote", "-v"}})

@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/internal/core/annotations"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/decorations"
@@ -192,6 +193,9 @@ type ScopeOptions struct {
 	// Decorations is the file decorations service of the window tab, which Decorations().Register adds to; nil leaves it
 	// unavailable (Register fails with ExtensionDecorationsUnavailable).
 	Decorations *decorations.Service
+	// EditorDecorations is the store of the line annotations of the window tab, which EditorDecorations().Set adds to and the editors
+	// read; nil leaves it unavailable (Set fails with ExtensionEditorDecorationsUnavailable).
+	EditorDecorations *annotations.Store
 }
 
 // slot is an extension in a scope.

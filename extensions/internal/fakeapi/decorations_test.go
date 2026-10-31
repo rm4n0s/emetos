@@ -1,11 +1,13 @@
 package fakeapi
 
 import (
+	"context"
 	"slices"
 	"testing"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/decorationstest"
+	"github.com/rm4n0s/emetos/extension/editordecorationstest"
 )
 
 // TestDecorationsConformance runs the suite that the host passes too (internal/gui/exthost/decorations_test.go).
@@ -45,4 +47,33 @@ func TestTheFakeDecorationsFailLikeTheHost(t *testing.T) {
 	a.Deactivate()
 	_, err = a.Decorations().Register(nil)
 	route(t, err, "decorationsAPI.Register.ExtensionDeactivated")
+}
+
+// TestEditorDecorationsConformance runs the suite that the host passes too (internal/gui/exthost/editordecorations_test.go).
+func TestEditorDecorationsConformance(t *testing.T) {
+	editordecorationstest.Run(t, func(t *testing.T) *editordecorationstest.Harness {
+		m := manifest()
+		m.Contributes.Commands = append(m.Contributes.Commands, extension.CommandSpec{ID: editordecorationstest.OwnCommand, Title: "Run"})
+		a := New(t, m, extension.ScopeInfo{Folder: t.TempDir()})
+		var ran []any
+		if err := a.Commands().Handle(editordecorationstest.OwnCommand, func(_ context.Context, args any) error { ran = append(ran, args); return nil }); err != nil {
+			t.Fatal(err)
+		}
+		return &editordecorationstest.Harness{
+			API:        a,
+			Seen:       a.Annotations,
+			Follow:     a.FollowAnnotationLink,
+			Ran:        func() []any { return ran },
+			Pump:       func() { a.Pump() },
+			Deactivate: a.Deactivate,
+		}
+	})
+}
+
+// TestTheFakeEditorDecorationsFailLikeTheHost checks the routes of the fake's errors, which have the tags of the host's.
+func TestTheFakeEditorDecorationsFailLikeTheHost(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Folder: t.TempDir()})
+	route(t, a.EditorDecorations().Set("", "file:///a", nil), "editorDecorationsAPI.Set.ExtensionEditorDecorationsInvalid")
+	a.Deactivate()
+	route(t, a.EditorDecorations().Set("k", "file:///a", nil), "editorDecorationsAPI.Set.ExtensionDeactivated")
 }

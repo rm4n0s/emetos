@@ -262,6 +262,8 @@ type ViewModel struct {
 	// diag is the state of the diagnostics (diagnostics.go) and hover the hover (hover.go).
 	diag  diagnosticState
 	hover hoverModel
+	// annot is the line annotations (annotations.go).
+	annot annotationState
 	// sg is the suggest widget (suggest.go) and sig the parameter hints (signature.go).
 	sg  suggestState
 	sig signatureModel
@@ -404,7 +406,7 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 12
+	ownerSlots   = 13
 	snippetOwner = 6
 	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
 	suggestOwner = 9
