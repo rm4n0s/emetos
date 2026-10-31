@@ -414,12 +414,12 @@ func TestHoverShowHoverCommandShowsFocusesAndHides(t *testing.T) {
 	}
 	// a hover with nothing to say does not stay: the pointer may have its own afterwards
 	cursorAt(r.vm, 1, 0)
-	if err := r.vm.RunCommand("editor.action.showHover", nil); err != nil {
-		t.Fatal(err)
-	}
 	f.mu.Lock()
 	f.hover = nil
 	f.mu.Unlock()
+	if err := r.vm.RunCommand("editor.action.showHover", nil); err != nil {
+		t.Fatal(err)
+	}
 	r.settle()
 	if r.vm.hoverMouseBlocked() {
 		t.Error("an empty hover of the command blocks the pointer")
