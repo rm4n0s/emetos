@@ -73,6 +73,9 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	if _, err := api.Events().Subscribe(extension.TopicFilesChanged, x.onFiles); err != nil {
 		return err
 	}
+	if _, err := api.Events().Subscribe(extension.TopicEditorActiveChanged, x.onActiveEditor); err != nil {
+		return err
+	}
 	if err := api.Events().Handle(TopicStatus, x.handleStatus); err != nil {
 		return err
 	}
@@ -81,6 +84,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 		x.stopped.Store(true)
 	}()
 	x.startDecorations()
+	x.provideContent()
 	x.model.updateContext()
 	if x.cfg.enabled {
 		x.start()

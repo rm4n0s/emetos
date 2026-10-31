@@ -19,6 +19,8 @@ type repository struct {
 	loc  git.Location
 	root string
 	name string
+	// id is the id of the repository in the URIs of the versions of its files (uri.go).
+	id string
 
 	src extension.SourceControl
 	// handle is the handle of the source control, which the menus' arguments carry.
@@ -83,7 +85,7 @@ func (r *repository) kind() git.Kind { return r.loc.Kind }
 // newRepository makes the repository of a location, with its source control.
 func (m *model) newRepository(loc git.Location) (*repository, error) {
 	x := m.x
-	r := &repository{m: m, loc: loc, root: loc.Root, name: baseName(loc.Root)}
+	r := &repository{m: m, loc: loc, root: loc.Root, name: baseName(loc.Root), id: repoID(loc.Root)}
 	src, err := x.api.SourceControl().Create(extension.SourceControlSpec{
 		ID: "git", Label: "Git", RootURI: fileURI(loc.Root), ContextValue: loc.Kind.String(),
 	})
@@ -162,6 +164,8 @@ func (r *repository) opened(repo *git.Repo, err error) {
 		return
 	}
 	r.repo = repo
+	x := r.m.x
+	x.content.repos.set(r.id, repo)
 	if err := r.createGroups(); err != nil {
 		r.m.x.log.Warn("cannot make the groups of a repository", "root", r.root, "err", err)
 		return
@@ -213,6 +217,7 @@ func (r *repository) untrust() {
 	r.cancel()
 	r.ctx, r.cancel = context.WithCancel(r.m.x.ctx)
 	r.gen++
+	r.m.x.content.repos.remove(r.id)
 	r.trusted, r.repo, r.refreshing, r.again, r.refreshed = false, nil, false, false, false
 	r.res, r.head, r.refs, r.ops = groups{}, head{}, nil, operations{}
 	r.setBusy(false)
@@ -229,6 +234,7 @@ func (r *repository) dispose() {
 		return
 	}
 	r.disposed = true
+	r.m.x.content.repos.remove(r.id)
 	r.stopWatching()
 	r.dropDecorations()
 	r.cancel()
@@ -365,6 +371,7 @@ func (r *repository) applySnapshot(snap snapshot) {
 		return
 	}
 	x := r.m.x
+	headBefore := r.head.commit
 	r.head, r.refs, r.stashes, r.ops, r.fresh = snap.head, snap.refs, snap.stashes, snap.ops, snap.fresh
 	r.lastStatus = snap.status.Entries
 	if snap.status.HitLimit {
@@ -383,6 +390,8 @@ func (r *repository) applySnapshot(snap snapshot) {
 	}
 	r.updateStatusBar()
 	r.m.updateContext()
+	r.contentChanged(snap.head.commit != headBefore)
+	x.updateActiveResource()
 	r.publish()
 }
 

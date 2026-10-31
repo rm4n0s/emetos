@@ -285,3 +285,37 @@ func TestADiffProposalIsSettledOnce(t *testing.T) {
 		})
 	}
 }
+
+func TestTheOpenerCanNameATabAndTheNameFollowsACopyButIsNotSaved(t *testing.T) {
+	virt := document.NewVirtual(document.VirtualURI("/git/id/HEAD/a.go"), document.VirtualContent{Text: "x", Label: "a.go", Language: "go"})
+	file := fileDoc("/w/a.go", "y")
+	diff := NewDiffInput(virt, file, TextInputOpts{Folder: "/w"})
+	if diff.Name() != "a.go ↔ a.go" {
+		t.Fatalf("name %q", diff.Name())
+	}
+	diff.SetName("a.go (Working Tree)")
+	if diff.Name() != "a.go (Working Tree)" || diff.Title() != "a.go (Working Tree)" {
+		t.Errorf("name %q title %q", diff.Name(), diff.Title())
+	}
+	if cp := diff.CopyInput().(*DiffInput); cp.Name() != "a.go (Working Tree)" {
+		t.Errorf("the copy is named %q", cp.Name())
+	}
+	value, ok := diff.Serialize()
+	if !ok || value != `{"original":"emetos-virtual:/git/id/HEAD/a.go","modified":"file:///w/a.go"}` {
+		t.Errorf("serialized %q %v", value, ok)
+	}
+	text := NewTextInput(virt, TextInputOpts{})
+	if text.Name() != "a.go" || text.Title() != "a.go" {
+		t.Fatalf("text name %q", text.Name())
+	}
+	text.SetName("a.go (HEAD)")
+	if text.Name() != "a.go (HEAD)" || text.Title() != "a.go (HEAD)" || text.CopyInput().(*TextInput).Name() != "a.go (HEAD)" {
+		t.Errorf("text name %q title %q", text.Name(), text.Title())
+	}
+	// a file keeps its path as its tooltip
+	f := NewTextInput(file, TextInputOpts{})
+	f.SetName("a.go (Untracked)")
+	if f.Name() != "a.go (Untracked)" || f.Title() != "/w/a.go" {
+		t.Errorf("file name %q title %q", f.Name(), f.Title())
+	}
+}

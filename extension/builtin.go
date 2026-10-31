@@ -95,6 +95,11 @@ type Workspace interface {
 	// OpenURI opens a URI with the desktop (the OpenURI portal): a web address in the browser, a mail address in the mail
 	// program. It fails with ExtensionOpenURIUnavailable when the scope cannot, and returns the portal's error otherwise.
 	OpenURI(ctx context.Context, uri string) error
+	// RevealFile shows the file with the URI (file:///path) in the Explorer view (VS Code's revealInExplorer), or with inOS the folder
+	// that holds it in the file manager of the desktop (revealFileInOS, "Open Containing Folder"). It fails with
+	// ExtensionFilePathInvalid for a URI that is not a file, ExtensionRevealUnavailable when the scope cannot, and ExtensionDeactivated
+	// after the activation ended. Call it on the UI thread.
+	RevealFile(uri string, inOS bool) error
 	// OpenWindowTab opens the window tab of a kind of window tab (the id of a kind in a manifest's WindowTabKinds, this
 	// extension's or another one's) and makes it the active one; when a tab of the kind is open already it is shown instead of a
 	// second one (SPEC §10.29: the open command of Remote Work). It fails with ExtensionOpenWindowTabUnavailable when the scope cannot, and

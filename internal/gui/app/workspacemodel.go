@@ -189,6 +189,8 @@ type Workspace struct {
 	keyNode *widgets.FocusNode
 	// shell is the state of the shell that shows the window; nil until it is made and after it is gone.
 	shell *shellState
+	// virtual is the registry of the virtual documents of this tab: the providers of extensions (extcontent.go), over the process's.
+	virtual *document.VirtualRegistry
 	// viewOf is the workspace this one is a headless view of (headless.go): it shares its documents, settings and folder and
 	// has everything that is the user's own at the screen of its own. Nil for a workspace of a tab.
 	viewOf *Workspace
@@ -434,7 +436,8 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 		ext:            o.ext,
 	}
 	w.Notifications = notify.NewPresenter(w.Notify)
-	w.Documents.SetVirtual(p.Virtual)
+	w.virtual = document.NewVirtualRegistryOver(p.Virtual)
+	w.Documents.SetVirtual(w.virtual)
 	if folder == "" {
 		w.emptyID = o.stateID
 	}
@@ -653,13 +656,28 @@ func (d *Documents) OpenVirtual(ctx context.Context, uri document.URI) (*documen
 	if err != nil {
 		return nil, err
 	}
+	return d.AdoptVirtual(uri, content), nil
+}
+
+// GenerateVirtual asks the provider of a virtual URI for its content, without opening a document. It may be called from any
+// goroutine (a provider that reads a repository does not run on the UI thread); the tags are those of OpenVirtual.
+func (d *Documents) GenerateVirtual(ctx context.Context, uri document.URI) (document.VirtualContent, error) {
+	d.mu.Lock()
+	registry := d.virtual
+	d.mu.Unlock()
+	return registry.Generate(ctx, uri)
+}
+
+// AdoptVirtual makes the document of a virtual URI from content that GenerateVirtual made, or gives the content to the document
+// that is open (when it differs). Call it on the thread that owns the documents.
+func (d *Documents) AdoptVirtual(uri document.URI, content document.VirtualContent) *document.Document {
 	d.mu.Lock()
 	if doc, ok := d.open[uri]; ok {
 		d.mu.Unlock()
 		if doc.Text() != content.Text {
 			doc.SetText(content.Text)
 		}
-		return doc, nil
+		return doc
 	}
 	doc := document.NewVirtual(uri, content)
 	d.open[uri] = doc
@@ -671,7 +689,7 @@ func (d *Documents) OpenVirtual(ctx context.Context, uri document.URI) (*documen
 		onOpen(doc)
 	}
 	d.notifyOpen(doc)
-	return doc, nil
+	return doc
 }
 
 // AcquireVirtual is OpenVirtual for a document that an editor is about to show: it counts the editor as a user of

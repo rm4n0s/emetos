@@ -49,7 +49,7 @@ var (
 	rePatchDoesntApply = regexp.MustCompile(`patch does not apply`)
 	reNoSuchPath       = regexp.MustCompile(`(?m)^fatal: no such path`)
 	reWrongCase        = regexp.MustCompile(`exists on disk, but not in`)
-	reCantOpen         = regexp.MustCompile(`does not exist in|Not a valid object name|invalid object name|bad object`)
+	reCantOpen         = regexp.MustCompile(`does not exist in|does not exist \(neither on disk nor in the index\)|is in the index, but not at stage|Not a valid object name|invalid object name|bad object`)
 	reInSubmodule      = regexp.MustCompile(` is in submodule `)
 	reNoLocalChanges   = regexp.MustCompile(`No local changes to save`)
 )

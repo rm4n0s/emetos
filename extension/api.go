@@ -360,6 +360,29 @@ type Documents interface {
 	// with ExtensionDocumentUnavailable when the scope cannot edit documents, with ExtensionDeactivated after the activation
 	// ended, and returns the window's error when a change fails (an earlier change stays). Call it on the UI thread.
 	Apply(ctx context.Context, edit WorkspaceEdit) error
+	// ProvideContent registers the provider of the read-only documents of a scheme (SPEC §10.30; VS Code's
+	// registerTextDocumentContentProvider). It fails with ExtensionContentSchemeInvalid for a scheme that is not a word or is one of
+	// the core's, ExtensionContentProviderInvalid for a provider with no Text, ExtContentSchemeTaken when the window tab has
+	// the scheme already, ExtensionDocumentUnavailable when the scope cannot show documents, and ExtensionDeactivated after the
+	// activation ended.
+	ProvideContent(p ContentProvider) (ContentRegistration, error)
+	// OpenDiff opens a diff editor (SPEC §9.11) of two documents in the active editor group. The provided documents are made off the
+	// UI thread; the diff opens when they are there, or the failure is reported to the user (a binary file with the notice of a
+	// file that looks binary). A diff of the same two documents that is open is shown again, in its tab. It fails with
+	// ExtensionDiffInvalid for a side that is empty, with the tags of document.ParseURI (URIInvalid) for a URI that does not parse,
+	// with ExtContentUnknown for a provided URI that no provider makes, ExtDocumentShowUnavailable when the window tab is not on
+	// screen, ExtensionDocumentUnavailable when the scope cannot open documents, and with ExtensionDeactivated. Call it on the UI
+	// thread.
+	OpenDiff(spec DiffSpec) error
+	// OpenDocument opens a document in the active editor group with the title and the preview of the spec, reading a provided one
+	// off the UI thread as OpenDiff does. It fails as OpenDiff does, with ExtensionDocumentInvalid for the URI. Call it on the UI
+	// thread.
+	OpenDocument(spec OpenSpec) error
+	// Tabs lists the tabs of the text editors and diff editors of the window tab, group by group, in the order of the groups.
+	Tabs() []DocumentTab
+	// CloseTabs closes the tabs, the way the close button does: a tab with unsaved changes asks first. It returns the number of
+	// tabs that were found (a tab that is gone is skipped). Call it on the UI thread.
+	CloseTabs(tabs ...DocumentTab) int
 }
 
 // ActiveDocument is the text editor in front, as Documents().Active describes it (SPEC §10.28).

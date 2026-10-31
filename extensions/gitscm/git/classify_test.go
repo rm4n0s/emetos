@@ -206,6 +206,12 @@ var provocations = []provocation{
 	{tag: "CantOpenResource", real: func(t *testing.T, e *gittest.Env) Command {
 		return in(base(e), "cat-file", "blob", "HEAD:no-such-file.txt")
 	}},
+	{tag: "CantOpenResource", real: func(t *testing.T, e *gittest.Env) Command {
+		return in(base(e), "cat-file", "blob", ":no-such-file.txt") // a path that is not in the index
+	}},
+	{tag: "CantOpenResource", real: func(t *testing.T, e *gittest.Env) Command {
+		return in(base(e), "cat-file", "blob", ":3:a.txt") // a stage the file does not have
+	}},
 	{tag: "IsInSubmodule", real: func(t *testing.T, e *gittest.Env) Command {
 		r := base(e)
 		sub := e.Init("lib")

@@ -197,3 +197,55 @@ func TestVirtualPrefixErrors(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) { routeIs(t, c.err(), c.route) })
 	}
 }
+
+func TestARegistryOverAnotherAddsAndTakesAwayItsOwnProviders(t *testing.T) {
+	ctx := context.Background()
+	parent := NewVirtualRegistry()
+	if err := parent.Register("/defaultSettings.json", VirtualProvider{Text: func(context.Context) (string, error) { return "parent", nil }}); err != nil {
+		t.Fatal(err)
+	}
+	if err := parent.RegisterPrefix("/saved/", VirtualPrefixProvider{Text: func(_ context.Context, rest string) (string, error) { return "saved " + rest, nil }}); err != nil {
+		t.Fatal(err)
+	}
+	child := NewVirtualRegistryOver(parent)
+	other := NewVirtualRegistryOver(parent)
+	prefix := VirtualPrefixProvider{
+		Label: func(rest string) string { return "label " + rest }, Language: func(string) string { return "go" },
+		Text: func(_ context.Context, rest string) (string, error) { return "git " + rest, nil },
+	}
+	if err := child.RegisterPrefix("/git/", prefix); err != nil {
+		t.Fatal(err)
+	}
+	// the same prefix twice in a child is refused; a sibling has its own
+	routeIs(t, child.RegisterPrefix("/git/", prefix), "VirtualRegistry.RegisterPrefix.VirtualPrefixDuplicate")
+	if err := other.RegisterPrefix("/git/", prefix); err != nil {
+		t.Fatal(err)
+	}
+	for uri, want := range map[string]string{"/git/id/HEAD/a.go": "git id/HEAD/a.go", "/saved/x": "saved x", "/defaultSettings.json": "parent"} {
+		c, err := child.Generate(ctx, VirtualURI(uri))
+		if err != nil || c.Text != want {
+			t.Errorf("%s: %q %v, want %q", uri, c.Text, err, want)
+		}
+		if !child.Has(VirtualURI(uri)) {
+			t.Errorf("Has %s", uri)
+		}
+	}
+	if c, _ := child.Generate(ctx, VirtualURI("/git/id/HEAD/a.go")); c.Label != "label id/HEAD/a.go" || c.Language != "go" {
+		t.Errorf("content %+v", c)
+	}
+	if parent.Has(VirtualURI("/git/id/HEAD/a.go")) || !child.HasPrefix("/git/") || child.HasPrefix("/saved/") {
+		t.Error("the parent must not see the provider of a child, and HasPrefix is the registry's own")
+	}
+	// Unregister takes the provider away from this registry only
+	if !child.UnregisterPrefix("/git/") || child.UnregisterPrefix("/git/") {
+		t.Error("UnregisterPrefix reports whether there was a provider")
+	}
+	_, err := child.Generate(ctx, VirtualURI("/git/id/HEAD/a.go"))
+	routeIs(t, err, "VirtualRegistry.Generate.VirtualURIUnknown")
+	if c, err := other.Generate(ctx, VirtualURI("/git/x")); err != nil || c.Text != "git x" {
+		t.Errorf("the sibling lost its provider: %q %v", c.Text, err)
+	}
+	if err := child.RegisterPrefix("/git/", prefix); err != nil {
+		t.Errorf("the prefix is not free after Unregister: %v", err)
+	}
+}

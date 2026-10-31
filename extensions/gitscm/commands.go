@@ -27,6 +27,7 @@ const (
 var trustCommands = []extension.CommandSpec{
 	{ID: CommandTrustRepository, Title: "Trust Repository...", Category: "Git"},
 	{ID: CommandManageTrusted, Title: "Manage Trusted Repositories...", Category: "Git"},
+	{ID: CommandOpenResource, Title: "Open", Category: "Git"},
 }
 
 // extraMenus are the menu items of the commands of this step: Refresh and Show Git Output in the title of the Source Control view,
@@ -53,6 +54,16 @@ func (x *gitscm) registerCommands() error {
 		"git.manageUnsafeRepositories":        x.cmdManageUnsafe,
 		"git.openRepositoriesInParentFolders": x.cmdOpenParents,
 		"git.showOutput":                      func(context.Context, any) error { x.channel.Show(false); return nil },
+		CommandOpenResource:                   x.cmdOpenResource,
+		"git.openChange":                      x.cmdOpenChange,
+		"git.openFile":                        x.cmdOpenFile,
+		"git.openFile2":                       x.cmdOpenFile,
+		"git.openHEADFile":                    x.cmdOpenHEADFile,
+		"git.openAllChanges":                  x.cmdOpenAllChanges,
+		"git.closeAllDiffEditors":             x.cmdCloseAllDiffEditors,
+		"git.closeAllUnmodifiedEditors":       x.cmdCloseAllUnmodifiedEditors,
+		"git.revealInExplorer":                x.cmdRevealInExplorer,
+		"git.revealFileInOS.linux":            x.cmdRevealFileInOS,
 		CommandTrustRepository:                x.cmdTrustRepository,
 		CommandManageTrusted:                  x.cmdManageTrusted,
 	}
@@ -71,7 +82,7 @@ func (x *gitscm) registerCommands() error {
 
 // placeholder is the handler of a command a later step implements.
 //
-// TODO(step 24.7 to 24.23): each step replaces the handlers of its commands.
+// TODO(step 24.8 to 24.23): each step replaces the handlers of its commands.
 func placeholder(x *gitscm, title string) extension.CommandHandler {
 	return func(context.Context, any) error {
 		x.api.Notifications().Info(title + " is not available yet.")

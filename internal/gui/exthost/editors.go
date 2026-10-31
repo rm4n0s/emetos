@@ -206,6 +206,9 @@ type EditorAction struct {
 	Command string
 	Icon    int
 	Tooltip string
+	// Args, when set, are the arguments of the command in place of the window's ({"groupId": n}); an item of the editor/title menu
+	// carries the resource of the editor too.
+	Args any
 }
 
 // EditorActions are the editor title actions whose `when` holds in keys, ordered by extension (the order of activation)

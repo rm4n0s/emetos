@@ -200,7 +200,7 @@ func toStates(list []resource, kind git.Kind) []extension.ResourceState {
 	states := make([]extension.ResourceState, len(list))
 	for i, r := range list {
 		states[i] = extension.ResourceState{
-			URI: fileURI(r.path), ContextValue: kind.String(),
+			URI: fileURI(r.path), ContextValue: kind.String(), Command: openCommand,
 			Decorations: extension.ResourceDecorations{
 				Tooltip: statusText(r.status), StrikeThrough: strikeThrough(r.status), Color: statusColor(r.status),
 			},

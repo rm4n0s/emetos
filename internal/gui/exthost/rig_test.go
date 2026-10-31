@@ -126,6 +126,8 @@ func (k *keySink) commands() []string {
 type docSource struct {
 	texts map[string]string
 	order []string
+	// contentHost answers the provided documents, the tabs and the reveal of files (content_test.go).
+	*contentHost
 }
 
 func (d *docSource) Read(_ context.Context, uri string) (string, error) {
@@ -240,6 +242,8 @@ type rig struct {
 	// noCommands and noCoreDocs name tabs that have no registry of commands and tabs whose documents cannot be edited (the
 	// core topics, core_test.go).
 	noCommands, noCoreDocs map[string]bool
+	// noContentHost names tabs whose documents cannot show provided content, tabs or reveal files (content_test.go).
+	noContentHost map[string]bool
 	// noClip names tabs that have no clipboard (references_test.go).
 	noClip map[string]bool
 	// noSCM names tabs that have no Source Control model (scm_test.go).
@@ -284,7 +288,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	commands := command.DefaultRegistry()
 	tb := &tab{
 		t: r.t, commands: commands, menus: command.DefaultMenus(commands), bar: workbench.NewStatusBar(),
-		keys: &keySink{}, docs: &docSource{texts: map[string]string{}}, disabled: disabled, log: &bytes.Buffer{},
+		keys: &keySink{}, docs: &docSource{texts: map[string]string{}, contentHost: &contentHost{}}, disabled: disabled, log: &bytes.Buffer{},
 	}
 	tb.clock = &fakeClock{t: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 	tb.store = settings.NewStore(r.registry, settings.StoreOptions{UserPath: filepath.Join(r.t.TempDir(), "settings.json")})
@@ -336,6 +340,9 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	var docs DocumentSource = tb.coreDocs
 	if r.noCoreDocs[name] {
 		docs = tb.docs
+	}
+	if r.noContentHost[name] {
+		docs = bareDocs{tb.docs}
 	}
 	registry := commands
 	if r.noCommands[name] {

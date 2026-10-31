@@ -93,6 +93,8 @@ type API struct {
 	updates           []SettingUpdate
 	scm               scmState
 	decorations       decorationsState
+	content           contentState
+	revealed          []Revealed
 	watches           []*FakeWatch
 	watchErr          error
 	dialogs           []*FakeDialog
@@ -996,6 +998,30 @@ func (w workspace) OpenURI(_ context.Context, uri string) error {
 	w.a.openedURIs = append(w.a.openedURIs, uri)
 	w.a.mu.Unlock()
 	return nil
+}
+
+// Revealed is a call of Workspace().RevealFile.
+type Revealed struct {
+	URI  string
+	InOS bool
+}
+
+// RevealFile implements extension.Workspace: the call is recorded (RevealedFiles).
+func (w workspace) RevealFile(uri string, inOS bool) error {
+	if !strings.HasPrefix(uri, "file://") {
+		return errors.New("ExtensionFilePathInvalid", "only a file can be revealed", "uri", uri)
+	}
+	w.a.mu.Lock()
+	w.a.revealed = append(w.a.revealed, Revealed{URI: uri, InOS: inOS})
+	w.a.mu.Unlock()
+	return nil
+}
+
+// RevealedFiles are the calls of Workspace().RevealFile, in order.
+func (a *API) RevealedFiles() []Revealed {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]Revealed(nil), a.revealed...)
 }
 
 // OpenWindowTab implements extension.Workspace: the call is recorded (OpenedWindowTabs).

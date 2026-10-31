@@ -42,11 +42,38 @@ type VirtualRegistry struct {
 	mu        sync.Mutex
 	providers map[string]VirtualProvider
 	prefixes  map[string]VirtualPrefixProvider
+	// parent answers for the paths this registry has no provider for (the registry of a window tab over the process's).
+	parent *VirtualRegistry
 }
 
 // NewVirtualRegistry makes an empty registry.
 func NewVirtualRegistry() *VirtualRegistry {
 	return &VirtualRegistry{providers: map[string]VirtualProvider{}, prefixes: map[string]VirtualPrefixProvider{}}
+}
+
+// NewVirtualRegistryOver makes an empty registry that asks parent for every path it has no provider of its own for. The
+// registry of a window tab is made so over the process's, and the providers an extension adds go to it and go away with it.
+func NewVirtualRegistryOver(parent *VirtualRegistry) *VirtualRegistry {
+	r := NewVirtualRegistry()
+	r.parent = parent
+	return r
+}
+
+// UnregisterPrefix takes the provider of a prefix away; it reports whether there was one.
+func (r *VirtualRegistry) UnregisterPrefix(prefix string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.prefixes[prefix]
+	delete(r.prefixes, prefix)
+	return ok
+}
+
+// HasPrefix tells whether this registry (not its parent) has a provider for the prefix.
+func (r *VirtualRegistry) HasPrefix(prefix string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.prefixes[prefix]
+	return ok
 }
 
 // RegisterPrefix adds the provider of the virtual documents whose path starts with prefix and has something after
@@ -92,18 +119,30 @@ func (r *VirtualRegistry) Register(path string, p VirtualProvider) error {
 	return nil
 }
 
+// find looks for the provider of a path in this registry and then in its parents, each one's own providers before its prefixes.
+func (r *VirtualRegistry) find(path string) (p VirtualProvider, pp VirtualPrefixProvider, rest string, found, byPrefix bool) {
+	for reg := r; reg != nil; reg = reg.parent {
+		reg.mu.Lock()
+		own, ok := reg.providers[path]
+		prefixed, tail, isPrefix := reg.byPrefix(path)
+		reg.mu.Unlock()
+		switch {
+		case ok:
+			return own, VirtualPrefixProvider{}, "", true, false
+		case isPrefix:
+			return VirtualProvider{}, prefixed, tail, true, true
+		}
+	}
+	return VirtualProvider{}, VirtualPrefixProvider{}, "", false, false
+}
+
 // Has tells whether a URI is a virtual one that a provider makes.
 func (r *VirtualRegistry) Has(uri URI) bool {
 	if uri.Scheme != SchemeVirtual {
 		return false
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, ok := r.providers[uri.Path]; ok {
-		return true
-	}
-	_, _, ok := r.byPrefix(uri.Path)
-	return ok
+	_, _, _, found, _ := r.find(uri.Path)
+	return found
 }
 
 // Paths are the paths of the registered providers of single documents, sorted (not the prefixes).
@@ -121,13 +160,11 @@ func (r *VirtualRegistry) Paths() []string {
 // Generate asks the provider of a URI for the content. It fails with the tags VirtualURIUnknown (not an
 // `emetos-virtual:` URI, or no provider has the path) and VirtualGenerateFailed (the provider failed).
 func (r *VirtualRegistry) Generate(ctx context.Context, uri URI) (VirtualContent, error) {
-	r.mu.Lock()
-	p, ok := r.providers[uri.Path]
-	pp, rest, byPrefix := r.byPrefix(uri.Path)
-	r.mu.Unlock()
-	if uri.Scheme != SchemeVirtual || (!ok && !byPrefix) {
+	p, pp, rest, found, byPrefix := r.find(uri.Path)
+	if uri.Scheme != SchemeVirtual || !found {
 		return VirtualContent{}, errors.New("VirtualURIUnknown", "no provider makes this virtual document", "uri", uri.String())
 	}
+	ok := !byPrefix
 	var text string
 	var err error
 	label, lang := p.Label, p.Language

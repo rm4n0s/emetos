@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
+	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/diffeditor"
 	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
@@ -189,11 +190,28 @@ func (s *shellState) diffCommands() map[string]command.Handler {
 	}
 }
 
+// diffOpen are the options of openDiffWith.
+type diffOpen struct {
+	// Title is the name of the tab; the names of the two sides when empty.
+	Title string
+	// Preview opens the diff as the preview editor (when workbench.editor.enablePreview is on) instead of a kept one.
+	Preview bool
+	// PreserveFocus keeps the keyboard where it is.
+	PreserveFocus bool
+	// Place, when set, runs with the pane of the diff once it exists (to select a range of the modified side).
+	Place func(*diffPane)
+}
+
 // openDiff shows a comparison of two documents in a group (the active one by default), as an editor that is kept,
 // and makes it the active editor. The caller has acquired each document once; the use is given back here, the pane
 // counts its own. A comparison that the group shows already is activated. It returns the input of the tab that
 // shows the comparison (the one that was there, when there was one).
 func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.Group) *editorgroup.DiffInput {
+	return s.openDiffWith(orig, mod, group, diffOpen{})
+}
+
+// openDiffWith is openDiff with a title for the tab and the way it opens: kept or as a preview, with or without the focus.
+func (s *shellState) openDiffWith(orig, mod *document.Document, group *editorgroup.Group, o diffOpen) *editorgroup.DiffInput {
 	win := PeekWorkspace(s.Context())
 	if group == nil {
 		group = s.activeGroup()
@@ -201,10 +219,15 @@ func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.G
 	defer win.Documents.Release(orig)
 	defer win.Documents.Release(mod)
 	input := editorgroup.NewDiffInput(orig, mod, s.inputOptions())
+	input.SetName(o.Title)
 	shown := input
+	preview := o.Preview && settings.Get[bool](win.Settings, "workbench.editor.enablePreview", "") && !mod.Dirty()
 	s.SetState(func() {
+		if o.PreserveFocus {
+			s.holdFocus(widgets.WidgetsBindingOf(s.Context()))
+		}
 		s.nav.hold++
-		opened, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: true, Active: true})
+		opened, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{Pinned: !preview, Active: true})
 		s.nav.hold--
 		if !isNew {
 			if d, ok := opened.(*editorgroup.DiffInput); ok {
@@ -215,6 +238,9 @@ func (s *shellState) openDiff(orig, mod *document.Document, group *editorgroup.G
 		s.syncNav()
 		if err := s.group.grid.Activate(group); err != nil {
 			win.Process.Logger.Error("cannot activate the group", "err", err)
+		}
+		if p, ok := s.group.panes[shown].(*diffPane); ok && o.Place != nil {
+			o.Place(p)
 		}
 	})
 	s.refreshKeys()

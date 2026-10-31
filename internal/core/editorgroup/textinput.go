@@ -31,6 +31,8 @@ type TextInput struct {
 	deleted bool
 	caps    Capabilities
 	stop    func()
+	// name, when set, is the name the tab shows in place of the document's (SetName).
+	name string
 	// stopURI stops following the document's URI, stopSaved its saves, stopExternal the deletion of its file.
 	stopURI, stopSaved, stopExternal func()
 }
@@ -83,8 +85,17 @@ func (t *TextInput) TypeID() string { return TextInputTypeID }
 func (t *TextInput) Resource() (document.URI, bool) { return t.doc.URI(), true }
 
 // Name implements EditorInput: the name of the file, Untitled-n, or the label of a virtual document ("Default
-// Settings").
-func (t *TextInput) Name() string { return DocumentName(t.doc) }
+// Settings"), or the name an opener gave the input (SetName).
+func (t *TextInput) Name() string {
+	if t.name != "" {
+		return t.name
+	}
+	return DocumentName(t.doc)
+}
+
+// SetName gives the tab a name of the opener's in place of the document's ("loader.go (HEAD)" for the HEAD version of a file, VS
+// Code's title argument of vscode.open). It is not saved with the window. Call it before the input is shown.
+func (t *TextInput) SetName(name string) { t.name = name }
 
 // DocumentName is the name a tab gives a document: its label, else the name of its file. The question that asks
 // whether to save a document names it so.
@@ -133,7 +144,12 @@ func tilde(path, home string) string {
 }
 
 // Title implements EditorInput: the full path, with the home folder written "~".
-func (t *TextInput) Title() string { return docTitle(t.doc, t.opts) }
+func (t *TextInput) Title() string {
+	if t.name != "" && t.doc.URI().Scheme != document.SchemeFile {
+		return t.name
+	}
+	return docTitle(t.doc, t.opts)
+}
 
 // docTitle is the tooltip of a document: its path with the home folder written "~", or its name.
 func docTitle(doc *document.Document, opts TextInputOpts) string {
@@ -184,7 +200,11 @@ func (t *TextInput) Serialize() (string, bool) {
 }
 
 // CopyInput implements Copier: another input for the same document, with the same options.
-func (t *TextInput) CopyInput() EditorInput { return NewTextInput(t.doc, t.opts) }
+func (t *TextInput) CopyInput() EditorInput {
+	c := NewTextInput(t.doc, t.opts)
+	c.name = t.name
+	return c
+}
 
 // Dispose implements EditorInput: it stops following the document.
 func (t *TextInput) Dispose() {

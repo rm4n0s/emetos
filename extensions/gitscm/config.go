@@ -35,6 +35,7 @@ type config struct {
 	supportCancellation     bool
 	useIntegratedAskPass    bool
 	openDiffOnClick         bool
+	closeDiffOnOperation    bool
 }
 
 // read gets a setting as a Go type, the default when it cannot be read (the manifest declares every key, so that is a bug of the
@@ -102,6 +103,7 @@ func (c *config) load(api extension.API) {
 	c.supportCancellation = read(api, "git.supportCancellation", false)
 	c.useIntegratedAskPass = read(api, "git.useIntegratedAskPass", true)
 	c.openDiffOnClick = read(api, "git.openDiffOnClick", true)
+	c.closeDiffOnOperation = read(api, "git.closeDiffOnOperation", false)
 }
 
 // statusOptions are the options of git status for the settings (git.untrackedChanges, git.statusLimit, git.similarityThreshold,

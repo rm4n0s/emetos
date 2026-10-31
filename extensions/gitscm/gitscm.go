@@ -95,6 +95,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	cmds := append(append([]extension.CommandSpec(nil), commandSpecs...), trustCommands...)
 	menus := paletteMenuItems()
 	menus = append(menus, extraMenus...)
+	menus = append(menus, diffMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -158,6 +159,9 @@ type gitscm struct {
 
 	// handlers are the handlers of the commands, by id.
 	handlers map[string]extension.CommandHandler
+
+	// content is what the provided documents of the versions of files need (content.go).
+	content contentState
 
 	// ignores is the provider of the file decorations of the files git ignores (decorations.go).
 	ignores *ignoreProvider

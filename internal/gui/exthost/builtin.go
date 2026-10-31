@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -400,6 +401,29 @@ func (w workspaceAPI) OpenURI(ctx context.Context, uri string) error {
 		return errors.New("ExtensionOpenURIUnavailable", "the scope cannot open a URI", "extension", w.inst.id, "uri", uri)
 	}
 	return open(ctx, uri)
+}
+
+// FileRevealer is the optional part of a DocumentSource that shows a file in the Explorer or in the file manager.
+type FileRevealer interface {
+	// RevealFile shows the file at the path in the Explorer, or with inOS its folder in the file manager.
+	RevealFile(path string, inOS bool) error
+}
+
+// RevealFile implements extension.Workspace.
+func (w workspaceAPI) RevealFile(uri string, inOS bool) error {
+	in := w.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	path, ok := strings.CutPrefix(uri, "file://")
+	if !ok || !filepath.IsAbs(path) {
+		return errors.New("ExtensionFilePathInvalid", "only a file can be revealed", "extension", in.id, "uri", uri)
+	}
+	r, ok := in.scope.opts.Documents.(FileRevealer)
+	if !ok {
+		return errors.New("ExtensionRevealUnavailable", "the scope cannot reveal files", "extension", in.id, "uri", uri)
+	}
+	return r.RevealFile(filepath.Clean(path), inOS)
 }
 
 // OpenWindowTab implements extension.Workspace.

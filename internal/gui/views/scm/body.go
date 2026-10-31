@@ -266,7 +266,12 @@ func (v *View) opened(lr kit.ListViewRow) {
 // Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmViewPane.ts (open)
 func (v *View) open(r *row, o OpenOptions) {
 	if c := r.res.Command; c != nil && c.ID != "" {
-		v.run(c.ID, withOpenOptions(c.Args, o))
+		args := c.Args
+		if args == nil {
+			// VS Code gives the command the resource it belongs to; a command with no arguments of its own is given it here
+			args = scmcore.ResourceArg(r.res)
+		}
+		v.run(c.ID, withOpenOptions(args, o))
 		return
 	}
 	if v.opts.OpenResource != nil {

@@ -176,6 +176,7 @@ var paletteWhens = map[string]string{
 	"git.openChange":                      "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0",
 	"git.openFile":                        "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceHasChanges",
 	"git.openFile2":                       "false",
+	"git.openResource":                    "false",
 	"git.openHEADFile":                    "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceHasChanges",
 	"git.stage":                           "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0",
 	"git.stageAll":                        "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0",

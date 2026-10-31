@@ -85,6 +85,8 @@ type openOptions struct {
 	// FileView, when set, is the id of the file view the editor shows (an editor that is open already is switched to it);
 	// otherwise a new editor gets the view workbench.editor.defaultFileViews names for its file.
 	FileView string
+	// Title, when set, is the name of the tab in place of the document's (SetName of the input).
+	Title string
 }
 
 // gridOptions are the settings the grid follows.
@@ -262,6 +264,7 @@ func (s *shellState) showAcquired(binding *widgets.WidgetsBinding, doc *document
 		win.AddRecentFile(path) // the quick open shows the files that were opened first
 	}
 	input := editorgroup.NewTextInput(doc, s.inputOptions())
+	input.SetName(opts.Title)
 	// The history hears of the editor once it has its cursor: a view that comes back or a place to show.
 	s.nav.hold++
 	shown, isNew := group.Model.OpenEditor(input, editorgroup.OpenOptions{

@@ -255,6 +255,34 @@ func TestClickOpens(t *testing.T) {
 	r.noErrors()
 }
 
+// TestAClickOnAResourceWhoseCommandHasNoArgumentsGivesTheCommandTheResource checks what VS Code does by giving the command its Resource
+// (the Git extension's rows all run the same command): the source control, the group and the file, with how the editor opens.
+func TestAClickOnAResourceWhoseCommandHasNoArgumentsGivesTheCommandTheResource(t *testing.T) {
+	r := newRig(t)
+	src := r.addRepo("a", group{"workingTree", "Changes", []change{{path: "x.go"}, {path: "y.go"}}})
+	shared := &scmcore.Command{ID: "git.openResource", Title: "Open"}
+	rs := slices.Clone(src.Group("workingTree").Resources())
+	rs[0].Command, rs[1].Command = shared, shared
+	src.Group("workingTree").SetResources(rs)
+	r.show(goldenThemes[0].colors, ui.Size{Width: 300, Height: 200})
+	r.tapRow(2) // y.go
+	if len(r.runs) != 1 {
+		t.Fatalf("runs %+v", r.runs)
+	}
+	got, _ := r.runs[0].args.(map[string]any)
+	want := map[string]any{
+		"sourceControl": src.Key(), "group": "workingTree", "uri": "file:///work/a/y.go",
+		"preserveFocus": true, "pinned": false, "sideBySide": false,
+	}
+	if r.runs[0].id != "git.openResource" || !reflect.DeepEqual(got, want) {
+		t.Errorf("a click runs %s %+v, want %+v", r.runs[0].id, got, want)
+	}
+	if shared.Args != nil {
+		t.Error("the shared command was given arguments")
+	}
+	r.noErrors()
+}
+
 func TestWithOpenOptions(t *testing.T) {
 	tests := []struct {
 		name string

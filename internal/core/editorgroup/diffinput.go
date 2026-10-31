@@ -30,6 +30,8 @@ type DiffInput struct {
 	caps               Capabilities
 	stops              []func()
 	proposal           *DiffProposal
+	// name, when set, is the name the tab shows in place of the names of the two sides (SetName).
+	name string
 }
 
 // DiffProposal makes a diff editor the review of a change that someone proposes to a file (SPEC §10.16 "As built (step
@@ -134,10 +136,17 @@ func (d *DiffInput) TypeID() string { return DiffInputTypeID }
 // one only when both sides are the same), so it is not found as the editor of a file.
 func (d *DiffInput) Resource() (document.URI, bool) { return document.URI{}, false }
 
-// Name implements EditorInput: the names of the two sides, "<original> ↔ <modified>".
+// SetName gives the tab a name of the opener's in place of "<original> ↔ <modified>" ("loader.go (Working Tree)", VS Code's title
+// argument of vscode.diff). It is not saved with the window. Call it before the input is shown.
+func (d *DiffInput) SetName(name string) { d.name = name }
+
+// Name implements EditorInput: the names of the two sides, "<original> ↔ <modified>", or the name an opener gave the input.
 func (d *DiffInput) Name() string {
 	if d.proposal != nil {
 		return d.proposal.Title
+	}
+	if d.name != "" {
+		return d.name
 	}
 	return DocumentName(d.original) + DiffSeparator + DocumentName(d.modified)
 }
@@ -161,6 +170,9 @@ func (d *DiffInput) Description() string {
 func (d *DiffInput) Title() string {
 	if d.proposal != nil {
 		return d.proposal.Title
+	}
+	if d.name != "" {
+		return d.name
 	}
 	return docTitle(d.original, d.opts) + DiffSeparator + docTitle(d.modified, d.opts)
 }
@@ -247,7 +259,11 @@ func ParseDiffInput(value string) (original, modified document.URI, err error) {
 }
 
 // CopyInput implements Copier: another comparison of the same documents.
-func (d *DiffInput) CopyInput() EditorInput { return NewDiffInput(d.original, d.modified, d.opts) }
+func (d *DiffInput) CopyInput() EditorInput {
+	c := NewDiffInput(d.original, d.modified, d.opts)
+	c.name = d.name
+	return c
+}
 
 // Dispose implements EditorInput: it stops following the documents.
 func (d *DiffInput) Dispose() {
