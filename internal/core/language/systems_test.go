@@ -3,9 +3,12 @@ package language
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/emetos/internal/core/textmate"
@@ -116,7 +119,11 @@ func TestCppIsTokenizedInTime(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		start := time.Now()
+		// the CPU time of the thread, not the time on the clock: the tests of other packages share the machine, and the time
+		// this one waits for a CPU says nothing about the grammar
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		start := threadCPU(t)
 		var state *textmate.State
 		stopped := 0
 		for _, line := range lines {
@@ -126,7 +133,7 @@ func TestCppIsTokenizedInTime(t *testing.T) {
 				stopped++
 			}
 		}
-		return time.Since(start), stopped
+		return threadCPU(t) - start, stopped
 	}
 	t.Run("a string of stars", func(t *testing.T) {
 		lines := []string{"int main() {", `  if (t > 0) puts("\n` + strings.Repeat("*", 200) + `");`, "}"}
@@ -143,7 +150,7 @@ func TestCppIsTokenizedInTime(t *testing.T) {
 				t.Fatal(err)
 			}
 			lines := lineBreaks.Split(string(content), -1)
-			// the best of a few runs: a machine busy with other tests stretches a single run, a slow grammar stretches every one
+			// the best of a few runs: a busy machine still slows a run down (caches, frequency), a slow grammar slows every one
 			d, stopped := tokenize(t, r.Detect(name, lines[0]), lines)
 			for range timingRuns - 1 {
 				if d/time.Duration(len(lines)) <= 20*time.Millisecond && stopped == 0 {
@@ -161,4 +168,14 @@ func TestCppIsTokenizedInTime(t *testing.T) {
 			}
 		}
 	})
+}
+
+// threadCPU is the CPU time the calling thread has used, in user and system mode; the caller locks its goroutine to the thread.
+func threadCPU(t *testing.T) time.Duration {
+	t.Helper()
+	var ru unix.Rusage
+	if err := unix.Getrusage(unix.RUSAGE_THREAD, &ru); err != nil {
+		t.Fatal(err)
+	}
+	return time.Duration(ru.Utime.Nano() + ru.Stime.Nano())
 }
