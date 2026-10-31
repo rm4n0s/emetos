@@ -35,6 +35,10 @@ type ContentHost interface {
 	// OpenMultiDiff opens the multi-file diff editor of a set, asking the provider for its files off the UI thread. It fails with
 	// the tag ExtMultiDiffKindUnknown for a kind no provider has.
 	OpenMultiDiff(spec extension.MultiDiffSpec) error
+	// Dirty lists the URIs of the open files with unsaved changes, on the UI thread.
+	Dirty() []string
+	// SaveAll saves the open documents with these URIs and returns when they are written. It blocks and is called off the UI thread.
+	SaveAll(ctx context.Context, uris []string) error
 }
 
 // contentHost is the ContentHost of the scope's documents, or nil with the error to return.
@@ -196,4 +200,25 @@ func (d documentsAPI) CloseTabsAs(how extension.TabClose, tabs ...extension.Docu
 		return 0
 	}
 	return host.CloseTabs(tabs, how)
+}
+
+// Dirty implements extension.Documents: none in a scope that cannot show documents.
+func (d documentsAPI) Dirty() []string {
+	host, err := d.contentHost("list the documents with unsaved changes")
+	if err != nil {
+		return nil
+	}
+	return host.Dirty()
+}
+
+// SaveAll implements extension.Documents.
+func (d documentsAPI) SaveAll(ctx context.Context, uris []string) error {
+	host, err := d.contentHost("save documents")
+	if err != nil {
+		return err
+	}
+	if len(uris) == 0 {
+		return nil
+	}
+	return host.SaveAll(ctx, uris)
 }

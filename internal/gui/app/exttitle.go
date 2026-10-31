@@ -47,6 +47,10 @@ func (s *shellState) groupContext(win *Workspace, group *editorgroup.Group) cont
 				extra["resourceExtname"] = filepath.Ext(uri.Path)
 				extra["resourceFilename"] = filepath.Base(uri.Path)
 			}
+		} else if m, ok := e.(*editorgroup.MultiDiffInput); ok && !m.Fixed() {
+			// the resource of a multi-file diff editor is its set, which VS Code names with a URI whose scheme says what the set is
+			// ("git-stash"): here the scheme is the kind of the provider that makes the set
+			extra["resourceScheme"] = m.Kind()
 		} else if d, ok := e.(*editorgroup.DiffInput); ok {
 			// the resource of a diff editor is its modified side, as VS Code's context keys read it (the primary side)
 			uri := d.Modified().URI()
@@ -94,6 +98,10 @@ func (s *shellState) titleActions(win *Workspace, group *editorgroup.Group) func
 	args := map[string]any{"groupId": float64(group.ID())}
 	if uri := s.resourceOfGroup(group); uri != "" {
 		args["uri"] = uri
+	}
+	if m, ok := group.Model.ActiveEditor().(*editorgroup.MultiDiffInput); ok && !m.Fixed() {
+		// a multi-file diff editor of a provider has no document: its commands get the set
+		args["kind"], args["key"] = m.Kind(), m.Key()
 	}
 	if scope := win.Extensions(); scope != nil {
 		actions = scope.EditorActions(ctx)

@@ -308,6 +308,7 @@ func (m *model) updateContext() {
 		}
 	}
 	set("git.state", m.state)
+	x.stash.scanned.Store(m.state == "initialized")
 	set("git.missing", x.missing)
 	set("git.untrustedRepositoryCount", len(m.untrusted()))
 	set("gitOpenRepositoryCount", len(open))

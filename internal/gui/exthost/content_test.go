@@ -24,6 +24,8 @@ type contentHost struct {
 	closed    []string
 	closedHow []extension.TabClose
 	revealed  []string
+	dirty     []string
+	saved     [][]string
 }
 
 type contentReg struct {
@@ -159,6 +161,19 @@ func (h *contentHost) CloseTabs(tabs []extension.DocumentTab, how extension.TabC
 	return n
 }
 
+func (h *contentHost) Dirty() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.dirty)
+}
+
+func (h *contentHost) SaveAll(_ context.Context, uris []string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.saved = append(h.saved, slices.Clone(uris))
+	return nil
+}
+
 func (h *contentHost) RevealFile(path string, inOS bool) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -285,6 +300,21 @@ func TestTheTabsAndTheRevealOfAFileReachTheWindow(t *testing.T) {
 	}
 }
 
+func TestDirtyAndSaveAllReachTheWindow(t *testing.T) {
+	h, host, _ := contentHarness(t)
+	docs := h.API.Documents()
+	host.dirty = []string{"file:///work/a.go", "file:///work/b.go"}
+	if got := docs.Dirty(); !slices.Equal(got, host.dirty) {
+		t.Errorf("dirty %v", got)
+	}
+	if err := docs.SaveAll(context.Background(), nil); err != nil || len(host.saved) != 0 {
+		t.Errorf("save of nothing: %v, %v", err, host.saved)
+	}
+	if err := docs.SaveAll(context.Background(), []string{"file:///work/a.go"}); err != nil || len(host.saved) != 1 || host.saved[0][0] != "file:///work/a.go" {
+		t.Errorf("save: %v, %v", err, host.saved)
+	}
+}
+
 // bareDocs are documents that can only be read and listed: the window of a scope that shows nothing.
 type bareDocs struct{ d *docSource }
 
@@ -301,6 +331,10 @@ func TestAScopeThatCannotShowDocumentsFailsWithTheirTags(t *testing.T) {
 	_, err = docs.ProvideMultiDiff(extension.MultiDiffProvider{Kind: "tst", Resources: func(context.Context, string) ([]extension.MultiDiffResource, error) { return nil, nil }})
 	mustRoute(t, err, "documentsAPI.contentHost.ExtensionDocumentUnavailable")
 	mustRoute(t, docs.OpenMultiDiff(extension.MultiDiffSpec{Kind: "tst", Key: "k"}), "documentsAPI.contentHost.ExtensionDocumentUnavailable")
+	mustRoute(t, docs.SaveAll(context.Background(), []string{"file:///a"}), "documentsAPI.SaveAll->documentsAPI.contentHost.ExtensionDocumentUnavailable")
+	if got := docs.Dirty(); got != nil {
+		t.Errorf("dirty %v", got)
+	}
 	if got := docs.Tabs(); len(got) != 0 {
 		t.Errorf("tabs %v", got)
 	}

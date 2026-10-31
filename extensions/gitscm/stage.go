@@ -36,6 +36,9 @@ type mutation struct {
 	after func()
 	// retry, when set, runs the command again: the notification of an authentication failure offers it as Retry.
 	retry func()
+	// failed, when set, sees the failure of run on the UI thread before the generic notification is made, and returns true when it
+	// told the user itself.
+	failed func(err error) bool
 }
 
 // mutate runs a mutation on the repository.
@@ -58,7 +61,7 @@ func (r *repository) mutate(m mutation) {
 			if err == nil && gen == r.gen && m.after != nil {
 				m.after()
 			}
-			if err != nil {
+			if err != nil && (m.failed == nil || !m.failed(err)) {
 				x.commandFailed(m.name, r, err, m.retry)
 			}
 			r.endOwn()

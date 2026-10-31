@@ -100,6 +100,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	if err := x.blame.start(); err != nil {
 		return err
 	}
+	x.provideStashMultiDiff()
 	x.model.updateContext()
 	if x.cfg.enabled {
 		x.start()

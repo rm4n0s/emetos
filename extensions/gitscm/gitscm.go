@@ -108,6 +108,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, stageMenus()...)
 	menus = append(menus, multiDiffMenus()...)
 	menus = append(menus, editorMenus()...)
+	menus = append(menus, stashMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -121,6 +122,7 @@ func (*gitscm) Manifest() extension.Manifest {
 		Contributes: extension.Contributes{
 			Commands:    cmds,
 			Menus:       menus,
+			Submenus:    []extension.SubmenuSpec{{ID: stashSubmenu, Label: "Stash"}},
 			Settings:    settingSpecs,
 			ContextKeys: contextKeys,
 			ViewWelcome: welcomePieces(),
@@ -178,6 +180,9 @@ type gitscm struct {
 
 	// multi is what the multi-file diff editor needs (multidiff.go).
 	multi multiState
+
+	// stash is what the stash editors need (stash.go).
+	stash stashState
 
 	// ignores is the provider of the file decorations of the files git ignores (decorations.go).
 	ignores *ignoreProvider

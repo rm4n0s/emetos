@@ -1,5 +1,5 @@
 // Package contenttest is the conformance suite of the provided documents of the extension contract (Documents().ProvideContent,
-// OpenDiff, OpenDocument, Tabs and CloseTabs, and ProvideMultiDiff and OpenMultiDiff of the multi-file diff editor): the host runs it over a window tab, and the fake of the tests of the extensions runs it
+// OpenDiff, OpenDocument, Tabs, CloseTabs, Dirty and SaveAll, and ProvideMultiDiff and OpenMultiDiff of the multi-file diff editor): the host runs it over a window tab, and the fake of the tests of the extensions runs it
 // too, so that an extension that passes its tests against the fake meets the same rules in the window.
 package contenttest
 
@@ -226,6 +226,10 @@ func testDeactivate(t *testing.T, h *Harness) {
 		if n := docs.CloseTabsAs(how, extension.DocumentTab{ID: "1:a"}); n != 0 {
 			t.Errorf("closed %d as %d", n, how)
 		}
+	}
+	wantTag(t, docs.SaveAll(context.Background(), []string{"file:///a"}), "ExtensionDeactivated")
+	if got := docs.Dirty(); len(got) != 0 {
+		t.Errorf("dirty %v", got)
 	}
 }
 

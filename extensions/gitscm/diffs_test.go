@@ -705,6 +705,10 @@ func (d failingContentDocs) OpenMultiDiff(s extension.MultiDiffSpec) error {
 	return d.API.Documents().OpenMultiDiff(s)
 }
 func (d failingContentDocs) Tabs() []extension.DocumentTab { return d.API.Documents().Tabs() }
+func (d failingContentDocs) Dirty() []string               { return d.API.Documents().Dirty() }
+func (d failingContentDocs) SaveAll(ctx context.Context, uris []string) error {
+	return d.API.Documents().SaveAll(ctx, uris)
+}
 func (d failingContentDocs) CloseTabs(t ...extension.DocumentTab) int {
 	return d.API.Documents().CloseTabs(t...)
 }

@@ -94,6 +94,7 @@ func (m *model) newRepository(loc git.Location) (*repository, error) {
 	}
 	r.src, r.handle = src, src.Handle()
 	r.ctx, r.cancel = context.WithCancel(x.ctx)
+	x.stash.know(r.id)
 	r.queue = git.NewQueue(0)
 	r.ignore = newIgnoreMatcher(loc.Root, loc.GitDir)
 	return r, nil
@@ -236,6 +237,7 @@ func (r *repository) dispose() {
 	r.disposed = true
 	r.m.x.content.repos.remove(r.id)
 	r.multiGone()
+	r.m.x.stashGone(r.id)
 	r.stopWatching()
 	r.dropDecorations()
 	r.cancel()

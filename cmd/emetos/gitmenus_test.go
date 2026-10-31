@@ -141,3 +141,117 @@ func TestTheStagingCommandsAreInTheCommandPaletteAsInVSCode(t *testing.T) {
 		}
 	}
 }
+
+// holds lists the items of a menu of the Git extension whose command or submenu passes keep and whose condition holds under the keys.
+func holds(t *testing.T, m extension.Manifest, menu string, keys map[string]any, keep func(extension.MenuItem) bool) []string {
+	t.Helper()
+	scope := contextkey.NewRoot()
+	for k, v := range keys {
+		scope.Set(k, v)
+	}
+	var out []string
+	for _, it := range m.Contributes.Menus {
+		if it.Menu != menu || !keep(it) {
+			continue
+		}
+		if it.When != "" {
+			expr, err := contextkey.Parse(it.When)
+			if err != nil {
+				t.Fatalf("the condition %q: %v", it.When, err)
+			}
+			if expr == nil || !scope.Matches(expr) {
+				continue
+			}
+		}
+		name := it.Command
+		if it.Submenu != "" {
+			name = "submenu " + it.Submenu
+		}
+		out = append(out, it.Group+" "+name)
+	}
+	return out
+}
+
+// TestTheStashMenusHoldInTheStatesOfVSCode checks the Stash submenu of the "..." menus, the actions in the title of the stash editor and the
+// command palette (step 24.18) against VS Code's package.json.
+func TestTheStashMenusHoldInTheStatesOfVSCode(t *testing.T) {
+	m := gitManifest(t)
+	stash := func(it extension.MenuItem) bool {
+		return strings.HasPrefix(it.Command, "git.stash") || it.Submenu == "git.stash"
+	}
+	enabled := map[string]any{"config.git.enabled": true, "git.missing": false, "gitOpenRepositoryCount": 1, "scmProvider": "git"}
+	with := func(extra map[string]any) map[string]any {
+		out := map[string]any{}
+		for k, v := range enabled {
+			out[k] = v
+		}
+		for k, v := range extra {
+			out[k] = v
+		}
+		return out
+	}
+	t.Run("the Stash submenu is in the menus of the view and of a repository", func(t *testing.T) {
+		for _, menu := range []string{extension.MenuSCMTitle, extension.MenuSCMRepository} {
+			if got := holds(t, m, menu, with(nil), stash); !slices.Equal(got, []string{"2_main submenu git.stash"}) {
+				t.Errorf("%s: %v", menu, got)
+			}
+			if got := holds(t, m, menu, with(map[string]any{"scmProvider": "other"}), stash); len(got) != 0 {
+				t.Errorf("%s of another provider: %v", menu, got)
+			}
+		}
+	})
+	t.Run("the entries of the submenu, with Stash Staged only from git 2.35", func(t *testing.T) {
+		all := []string{"1_stash git.stash", "1_stash git.stashIncludeUntracked", "2_apply git.stashApplyLatest", "2_apply git.stashApply", "3_pop git.stashPopLatest",
+			"3_pop git.stashPop", "4_drop git.stashDrop", "4_drop git.stashDropAll", "5_preview git.stashView"}
+		withStaged := slices.Insert(slices.Clone(all), 2, "1_stash git.stashStaged")
+		if got := holds(t, m, "git.stash", with(map[string]any{"gitVersion235": true}), stash); !slices.Equal(got, withStaged) {
+			t.Errorf("with git 2.35: %v", got)
+		}
+		if got := holds(t, m, "git.stash", with(map[string]any{"gitVersion235": false}), stash); !slices.Equal(got, all) {
+			t.Errorf("with an older git: %v", got)
+		}
+	})
+	t.Run("the actions of the stash editor", func(t *testing.T) {
+		title := []string{"navigation git.stashApplyEditor", "navigation git.stashPopEditor", "navigation git.stashDropEditor"}
+		tests := []struct {
+			name string
+			keys map[string]any
+			want []string
+		}{
+			{"the editor of a stash", with(map[string]any{"resourceScheme": "git-stash"}), title},
+			{"a file", with(map[string]any{"resourceScheme": "file"}), nil},
+			{"a stash while Git is off", with(map[string]any{"resourceScheme": "git-stash", "config.git.enabled": false}), nil},
+			{"a stash while git is missing", with(map[string]any{"resourceScheme": "git-stash", "git.missing": true}), nil},
+			{"no repository is needed", with(map[string]any{"resourceScheme": "git-stash", "gitOpenRepositoryCount": 0}), title},
+		}
+		for _, tc := range tests {
+			if got := holds(t, m, extension.MenuEditorTitle, tc.keys, stash); !slices.Equal(got, tc.want) {
+				t.Errorf("%s: %v, want %v", tc.name, got, tc.want)
+			}
+		}
+	})
+	t.Run("the palette hides the editor actions and needs a repository for the rest", func(t *testing.T) {
+		palette := map[string]string{}
+		for _, it := range m.Contributes.Menus {
+			if it.Menu == extension.MenuCommandPalette && strings.HasPrefix(it.Command, "git.stash") {
+				palette[it.Command] = it.When
+			}
+		}
+		for _, id := range []string{"git.stashPopEditor", "git.stashApplyEditor", "git.stashDropEditor"} {
+			if palette[id] != "false" {
+				t.Errorf("%s is in the palette: %q", id, palette[id])
+			}
+		}
+		for _, id := range []string{"git.stash", "git.stashIncludeUntracked", "git.stashPop", "git.stashPopLatest", "git.stashApply", "git.stashApplyLatest", "git.stashDrop", "git.stashDropAll"} {
+			if when := palette[id]; !strings.Contains(when, "gitOpenRepositoryCount != 0") {
+				t.Errorf("%s: palette condition %q", id, when)
+			}
+		}
+		if !strings.Contains(palette["git.stashStaged"], "gitVersion235") {
+			t.Errorf("git.stashStaged: %q", palette["git.stashStaged"])
+		}
+		if palette["git.stashView"] != "config.git.enabled && !git.missing" {
+			t.Errorf("git.stashView: %q", palette["git.stashView"])
+		}
+	})
+}

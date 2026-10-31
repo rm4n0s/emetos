@@ -25,6 +25,11 @@ type contentState struct {
 	tabs       []extension.DocumentTab
 	closed     []string
 	closedHow  []extension.TabClose
+	// dirty are the files with unsaved changes (SetDirty); saved are the calls of SaveAll that saved something, and failSave makes it
+	// fail.
+	dirty    []string
+	saved    [][]string
+	failSave error
 	// failOpen makes OpenDiff and OpenDocument return this error.
 	failOpen error
 }
@@ -273,4 +278,62 @@ func (a *API) ContentProviderFor(scheme string) *FakeContent {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.content.providers[scheme]
+}
+
+// Dirty implements extension.Documents: the files a test marked with SetDirty.
+func (d documents) Dirty() []string {
+	d.a.mu.Lock()
+	defer d.a.mu.Unlock()
+	if d.a.scm.dead {
+		return nil
+	}
+	return slices.Clone(d.a.content.dirty)
+}
+
+// SetDirty sets the files Documents().Dirty lists.
+func (a *API) SetDirty(uris ...string) {
+	a.mu.Lock()
+	a.content.dirty = slices.Clone(uris)
+	a.mu.Unlock()
+}
+
+// SaveAll implements extension.Documents: the listed files that are dirty are saved (they leave the list), and SavedAll records the call;
+// with FailSave it fails and saves nothing.
+func (d documents) SaveAll(ctx context.Context, uris []string) error {
+	a := d.a
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	switch {
+	case a.scm.dead:
+		return errors.New("ExtensionDeactivated", "the extension was deactivated")
+	case a.content.failSave != nil:
+		return a.content.failSave
+	case ctx.Err() != nil:
+		return errors.NewErr("ExtDocumentSaveCancelled", ctx.Err())
+	}
+	var saved []string
+	for _, u := range uris {
+		if at := slices.Index(a.content.dirty, u); at >= 0 {
+			a.content.dirty = slices.Delete(a.content.dirty, at, at+1)
+			saved = append(saved, u)
+		}
+	}
+	if len(saved) > 0 {
+		a.content.saved = append(a.content.saved, saved)
+	}
+	return nil
+}
+
+// SavedAll are the files each call of SaveAll saved, in order.
+func (a *API) SavedAll() [][]string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return slices.Clone(a.content.saved)
+}
+
+// FailSave makes SaveAll fail with err; nil makes it work again.
+func (a *API) FailSave(err error) {
+	a.mu.Lock()
+	a.content.failSave = err
+	a.mu.Unlock()
 }

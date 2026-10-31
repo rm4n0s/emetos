@@ -402,6 +402,15 @@ type Documents interface {
 	// not finished when it returns: the tabs close when their documents are written, and the count is that of the tabs that were found.
 	// Call it on the UI thread.
 	CloseTabsAs(how TabClose, tabs ...DocumentTab) int
+	// Dirty lists the URIs of the open files that have unsaved changes, in the order they were opened; an untitled document is not
+	// a file and is left out. It is empty in a scope that cannot show documents. Call it on the UI thread.
+	Dirty() []string
+	// SaveAll saves the open documents with these URIs, the way the Save command does, and returns when every one is written
+	// (VS Code's TextDocument.save of each). A document that is not open or has no unsaved changes is skipped. It blocks, so call it
+	// off the UI thread. It fails with ExtensionDocumentUnavailable when the scope cannot save documents, with ExtDocumentSaveUnavailable
+	// when the window tab is not on screen, with ExtDocumentNotSaved for the first document that was not saved (the window tab shows
+	// why), with the error of ctx when it ends first, and with ExtensionDeactivated after the activation ended.
+	SaveAll(ctx context.Context, uris []string) error
 }
 
 // ActiveDocument is the text editor in front, as Documents().Active describes it (SPEC §10.28).
