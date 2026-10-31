@@ -263,7 +263,7 @@ func TestTheBranchAndTagMenusHoldInTheStatesOfVSCode(t *testing.T) {
 	mine := func(it extension.MenuItem) bool {
 		switch it.Command {
 		case "git.checkout", "git.branch", "git.branchFrom", "git.renameBranch", "git.deleteBranch", "git.deleteRemoteBranch",
-			"git.createTag", "git.deleteTag", "git.deleteRemoteTag", "git.pushTags":
+			"git.createTag", "git.deleteTag", "git.deleteRemoteTag", "git.pushTags", "git.merge", "git.rebase", "git.rebaseInteractive":
 			return true
 		}
 		return it.Submenu == "git.branch" || it.Submenu == "git.tags"
@@ -282,7 +282,7 @@ func TestTheBranchAndTagMenusHoldInTheStatesOfVSCode(t *testing.T) {
 		}
 	})
 	t.Run("the entries of the submenus", func(t *testing.T) {
-		branch := []string{"2_branch git.branch", "2_branch git.branchFrom", "3_modify git.renameBranch", "3_modify git.deleteBranch", "3_modify git.deleteRemoteBranch"}
+		branch := []string{"1_merge git.merge", "1_merge git.rebase", "1_merge git.rebaseInteractive", "2_branch git.branch", "2_branch git.branchFrom", "3_modify git.renameBranch", "3_modify git.deleteBranch", "3_modify git.deleteRemoteBranch"}
 		if got := holds(t, m, "git.branch", enabled, mine); !slices.Equal(got, branch) {
 			t.Errorf("Branch: %v", got)
 		}
@@ -299,7 +299,7 @@ func TestTheBranchAndTagMenusHoldInTheStatesOfVSCode(t *testing.T) {
 			}
 		}
 		for _, id := range []string{"git.checkout", "git.branch", "git.branchFrom", "git.renameBranch", "git.deleteBranch", "git.deleteRemoteBranch",
-			"git.createTag", "git.deleteTag", "git.deleteRemoteTag", "git.pushTags"} {
+			"git.createTag", "git.deleteTag", "git.deleteRemoteTag", "git.pushTags", "git.merge", "git.rebase", "git.rebaseInteractive"} {
 			if want := "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"; palette[id] != want {
 				t.Errorf("%s: palette condition %q", id, palette[id])
 			}
@@ -374,4 +374,50 @@ func TestTheCommitMenusHoldInTheStatesOfVSCode(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestTheMergeAndRebaseStatesAreInTheMenusAndThePalette checks where the operations that stop on conflicts are offered (step 24.14): the
+// aborts in the Commit submenu, the palette conditions of the aborts, the skip and the merge editor's commands, and the buttons over an
+// editor.
+func TestTheMergeAndRebaseStatesAreInTheMenusAndThePalette(t *testing.T) {
+	m := gitManifest(t)
+	state := func(it extension.MenuItem) bool {
+		switch it.Command {
+		case "git.rebaseAbort", "git.mergeAbort", "git.cherryPickAbort":
+			return true
+		}
+		return false
+	}
+	enabled := map[string]any{"scmProvider": "git"}
+	want := []string{"1_commit git.rebaseAbort", "1_commit git.mergeAbort", "1_commit git.cherryPickAbort"}
+	if got := holds(t, m, "git.commit", enabled, state); !slices.Equal(got, want) {
+		t.Errorf("the Commit submenu: %v, want %v", got, want)
+	}
+	const open = "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+	palette := map[string]string{}
+	for _, it := range m.Contributes.Menus {
+		if it.Menu == extension.MenuCommandPalette {
+			palette[it.Command] = it.When
+		}
+	}
+	for id, when := range map[string]string{
+		"git.merge": open, "git.rebase": open, "git.rebaseInteractive": open, "git.cherryPick": open, "git.stageAllMerge": open,
+		"git.mergeAbort":       open + " && gitMergeInProgress",
+		"git.rebaseAbort":      open + " && gitRebaseInProgress",
+		"git.rebaseSkip":       open + " && gitRebaseInProgress",
+		"git.cherryPickAbort":  open + " && gitCherryPickInProgress",
+		"git.runGitMerge":      "isMergeEditor",
+		"git.runGitMergeDiff3": "isMergeEditor",
+		"git.acceptMerge":      "false",
+	} {
+		if palette[id] != when {
+			t.Errorf("%s: palette condition %q, want %q", id, palette[id], when)
+		}
+	}
+	content := holds(t, m, extension.MenuEditorContent, map[string]any{
+		"isMergeResultEditor": true, "mergeEditorResultUri": "file:///a", "git.mergeChanges": []any{"file:///a"},
+	}, func(it extension.MenuItem) bool { return true })
+	if !slices.Equal(content, []string{" git.acceptMerge"}) { // the item has no group, as in VS Code
+		t.Errorf("the buttons over a merge result: %v", content)
+	}
 }

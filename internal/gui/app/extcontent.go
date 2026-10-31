@@ -267,6 +267,12 @@ func (d extensionDocuments) OpenDocument(spec extension.OpenSpec) error {
 				return
 			}
 			w.finish(sd)
+			if spec.MergeEditor {
+				// the merge editor takes its own use of the document; the one this call acquired is let go
+				s.resolveInMergeEditor(sd.doc)
+				w.releaseSides(sd)
+				return
+			}
 			doc := sd.doc
 			sd.doc = nil // showAcquired lets go of the use
 			s.show(binding, doc, openOptions{
@@ -313,6 +319,19 @@ func tabID(group *editorgroup.Group, in editorgroup.EditorInput) (id, kind strin
 		return strconv.Itoa(group.ID()) + ":" + v.TabKey(), "diff", true
 	}
 	return "", "", false
+}
+
+// ActiveMergeEditor implements exthost.ContentHost: the merge editor that is the active tab of the active group.
+func (d extensionDocuments) ActiveMergeEditor() (extension.ActiveMerge, bool) {
+	s := d.w.shell
+	if s == nil || !s.Mounted() || s.group.grid == nil {
+		return extension.ActiveMerge{}, false
+	}
+	m, ok := s.activeGroup().Model.ActiveEditor().(*editorgroup.MergeInput)
+	if !ok {
+		return extension.ActiveMerge{}, false
+	}
+	return extension.ActiveMerge{Result: m.Result().URI().String(), Markers: m.Source().Kind == editorgroup.MergeMarkers}, true
 }
 
 // Tabs implements exthost.ContentHost.

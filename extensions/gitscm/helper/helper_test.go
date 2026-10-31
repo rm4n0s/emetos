@@ -641,6 +641,7 @@ func TestEnvironment(t *testing.T) {
 	for _, want := range []string{
 		EnvSocket + "=" + s.Socket(), EnvToken + "=" + s.Token(), "GIT_ASKPASS=" + s.Script(ScriptAskpass),
 		"SSH_ASKPASS=" + s.Script(ScriptSSHAskpass), "SSH_ASKPASS_REQUIRE=force", "GIT_EDITOR='" + s.Script(ScriptEditor) + "'",
+		"GIT_SEQUENCE_EDITOR='" + s.Script(ScriptEditor) + "'", // the list of commits of git rebase -i goes to the same editor
 	} {
 		if !has(both, want) {
 			t.Errorf("the environment lacks %s: %v", want, both)
@@ -648,7 +649,7 @@ func TestEnvironment(t *testing.T) {
 	}
 	askpassOnly := s.Environment(true, false)
 	for _, kv := range askpassOnly {
-		if strings.HasPrefix(kv, "GIT_EDITOR=") {
+		if strings.HasPrefix(kv, "GIT_EDITOR=") || strings.HasPrefix(kv, "GIT_SEQUENCE_EDITOR=") {
 			t.Errorf("the editor is set without being asked: %v", askpassOnly)
 		}
 	}

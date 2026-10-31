@@ -34,6 +34,9 @@ type commitUI struct {
 	postStored postCommitSpec
 	// template is the text the box starts with (the commit template, or the message of a merge), as the last status read it.
 	template string
+	// rebaseCommit is the commit a rebase stopped at, as the last status read it ("" when none), and rebaseMessage its message: the box
+	// shows it and warns when it is changed, since a rebase keeps the message of the commit it continues.
+	rebaseCommit, rebaseMessage string
 	// templateKey is what the template was read for: the commit it was read at and the state of the merge, so a status that changes
 	// none of them does not read it again.
 	templateKey string
@@ -89,8 +92,19 @@ func (r *repository) updateCommitUI() {
 	}
 }
 
-// placeholder is the text shown in the empty box; {0} is where the host puts the key of the accept command.
+// placeholder is the text shown in the empty box; {0} is where the host puts the key of the accept command. While an operation waits
+// for the user it says that the key continues it (VS Code has no such text; SPEC §10.30 "In-progress states").
 func (r *repository) placeholder() string {
+	switch {
+	case r.ops.rebaseCommit != "":
+		return "Message ({0} to continue the rebase)"
+	case r.ops.merge:
+		return "Message ({0} to continue the merge)"
+	case r.ops.cherryPick:
+		return "Message ({0} to continue the cherry-pick)"
+	case r.ops.revert:
+		return "Message ({0} to continue the revert)"
+	}
 	if name := r.headShortName(); name != "" {
 		return `Message ({0} to commit on "` + name + `")`
 	}
@@ -176,6 +190,12 @@ func (r *repository) validateInput(text string) *extension.Validation {
 			Level:   extension.ValidationWarning,
 		}
 	}
+	if r.rebaseCommit != "" && r.rebaseMessage != text {
+		return &extension.Validation{
+			Message: "It's not possible to change the commit message in the middle of a rebase. Please complete the rebase operation and use interactive rebase instead.",
+			Level:   extension.ValidationWarning,
+		}
+	}
 	if !cfg.inputValidation {
 		return nil
 	}
@@ -209,7 +229,7 @@ func (r *repository) revalidate() {
 // templateKeyOf is the key of the template a status reads: the template is read again when the commit,
 // the merge or the rebase changed.
 func templateKeyOf(headCommit string, ops operations) string {
-	return headCommit + "|" + strconv.FormatBool(ops.merge) + "|" + strconv.FormatBool(ops.rebase) + "|" + strconv.FormatBool(ops.cherryPick)
+	return headCommit + "|" + strconv.FormatBool(ops.merge) + "|" + strconv.FormatBool(ops.rebase) + "|" + strconv.FormatBool(ops.cherryPick) + "|" + strconv.FormatBool(ops.revert)
 }
 
 // applyTemplate puts a new template in the box when the box is empty or still holds the old template, as the Source Control view does
@@ -272,28 +292,27 @@ func (r *repository) actionButton() *extension.ActionButton {
 	return r.commitButton()
 }
 
-// commitButton is the Commit button, Continue while a merge or a rebase is in progress.
+// commitButton is the Commit button, Continue while an operation waits for the user.
+//
+// Ported from VS Code: extensions/git/src/actionButton.ts (getCommitActionButton; Continue for a cherry-pick and a revert is Emetos's)
 func (r *repository) commitButton() *extension.ActionButton {
 	cfg := &r.m.x.cfg
 	if !cfg.showActionButton.Commit {
 		return nil
 	}
 	unresolved := len(r.res.merge) > 0
-	rebasing, merging := r.ops.rebaseCommit != "", r.ops.merge
-	enabled := (r.hasChangesToCommit() || (rebasing && !unresolved) || (merging && !unresolved)) && !r.committing
+	op, stopped := r.ops.current()
+	enabled := (r.hasChangesToCommit() || (stopped && !unresolved)) && !r.committing
 	b := &extension.ActionButton{Enabled: enabled}
 	args := []any{r.sourceArg(), nil}
 	switch {
-	case rebasing:
-		tooltip := "Continue Rebase"
+	case stopped:
+		what := map[git.Operation]string{
+			git.OperationRebase: "Rebase", git.OperationMerge: "Merge", git.OperationCherryPick: "Cherry Pick", git.OperationRevert: "Revert",
+		}[op]
+		tooltip := "Continue " + what
 		if r.committing {
-			tooltip = "Continuing Rebase..."
-		}
-		b.Command = extension.Command{ID: "git.commit", Title: "$(check) Continue", Tooltip: tooltip, Args: args}
-	case merging:
-		tooltip := "Continue Merge"
-		if r.committing {
-			tooltip = "Continuing Merge..."
+			tooltip = "Continuing " + what + "..."
 		}
 		b.Command = extension.Command{ID: "git.commit", Title: "$(check) Continue", Tooltip: tooltip, Args: args}
 	case r.head.name == "": // a tag or a detached HEAD
@@ -312,7 +331,7 @@ func (r *repository) commitButton() *extension.ActionButton {
 // publishButton is the Publish Branch button of a branch that has no upstream.
 func (r *repository) publishButton() *extension.ActionButton {
 	h := r.head
-	if h.name == "" || h.upstream != nil || r.committing || r.ops.merge || r.ops.rebaseCommit != "" || !r.m.x.cfg.showActionButton.Publish {
+	if h.name == "" || h.upstream != nil || r.committing || r.ops.stopped() || !r.m.x.cfg.showActionButton.Publish {
 		return nil
 	}
 	icon, tooltip := "$(cloud-upload)", `Publish Branch "`+h.name+`"`
@@ -328,7 +347,7 @@ func (r *repository) publishButton() *extension.ActionButton {
 // syncButton is the Sync Changes button of a branch that is ahead of or behind its upstream.
 func (r *repository) syncButton() *extension.ActionButton {
 	h := r.head
-	if h.upstream == nil || (h.ahead == 0 && h.behind == 0) || r.committing || r.ops.merge || r.ops.rebaseCommit != "" || !r.m.x.cfg.showActionButton.Sync {
+	if h.upstream == nil || (h.ahead == 0 && h.behind == 0) || r.committing || r.ops.stopped() || !r.m.x.cfg.showActionButton.Sync {
 		return nil
 	}
 	ahead, behind := "", ""
@@ -483,4 +502,36 @@ func (r *repository) branchNameProtected(name string) bool {
 		}
 	}
 	return matchesAnyGlob(patterns, name)
+}
+
+// leaveRebase puts the box and the template right when the rebase that was stopped is over: the box is emptied (VS Code's setter of
+// rebaseCommit) and the template is read again, which applyTemplate puts in the empty box.
+//
+// Ported from VS Code: extensions/git/src/repository.ts (set rebaseCommit)
+func (r *repository) leaveRebase() {
+	if r.rebaseCommit == "" || r.ops.rebaseCommit != "" || r.disposed || r.src == nil {
+		return
+	}
+	r.rebaseCommit, r.rebaseMessage = "", ""
+	r.template = ""
+	r.src.Input().SetValue("")
+	r.revalidate()
+}
+
+// enterRebase shows the message of the commit a rebase stopped at in the box when it is another commit than the last status saw.
+//
+// Ported from VS Code: extensions/git/src/repository.ts (set rebaseCommit)
+func (r *repository) enterRebase(snap snapshot) {
+	if r.ops.rebaseCommit == "" || r.disposed || r.src == nil {
+		return
+	}
+	if r.ops.rebaseCommit == r.rebaseCommit {
+		return
+	}
+	if !snap.rebaseRead {
+		return
+	}
+	r.rebaseCommit, r.rebaseMessage = r.ops.rebaseCommit, snap.rebaseMessage
+	r.src.Input().SetValue(r.rebaseMessage)
+	r.revalidate()
 }

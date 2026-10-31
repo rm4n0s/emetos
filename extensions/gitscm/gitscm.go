@@ -113,6 +113,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, timelineMenus()...)
 	menus = append(menus, commitMenus()...)
 	menus = append(menus, branchMenus()...)
+	menus = append(menus, mergeMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -121,7 +122,7 @@ func (*gitscm) Manifest() extension.Manifest {
 			Publishes: []extension.EventSpec{{Topic: TopicRepositoryChanged}},
 			Handles:   nil,
 			Subscribes: []string{extension.TopicWindowFocusChanged, extension.TopicDocumentSaved, extension.TopicDocumentClosed, extension.TopicWorkspaceClosed,
-				extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentChanged},
+				extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentChanged, extension.TopicMergeEditorCompleted},
 		},
 		Contributes: extension.Contributes{
 			Commands:    cmds,

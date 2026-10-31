@@ -92,6 +92,18 @@ type OpenSpec struct {
 	Selection *Selection
 	// PreserveFocus keeps the keyboard where it is.
 	PreserveFocus bool
+	// MergeEditor opens the file in the merge editor (SPEC §9.11), as "Resolve in Merge Editor" does, instead of a text editor: the file
+	// must be a file with conflict markers, else the window says that it has none. The file is read like any other document first.
+	MergeEditor bool
+}
+
+// ActiveMerge is the merge editor that is in front, as Documents().ActiveMergeEditor describes it.
+type ActiveMerge struct {
+	// Result is the document the merge writes: the file with the conflict markers that is being resolved (file:///path), or the result
+	// file of "emetos --merge".
+	Result string
+	// Markers tells that the merge is of a file with conflict markers (it is the file itself), not of the four files of "emetos --merge".
+	Markers bool
 }
 
 // TabClose says what CloseTabsAs does with the unsaved changes of the tabs it closes.

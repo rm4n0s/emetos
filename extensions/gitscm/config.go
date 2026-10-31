@@ -36,6 +36,7 @@ type config struct {
 	useIntegratedAskPass    bool
 	useEditorAsCommitInput  bool
 	openDiffOnClick         bool
+	mergeEditor             bool
 	closeDiffOnOperation    bool
 	discardToTrash          bool
 	confirmCommittedDelete  bool
@@ -124,6 +125,7 @@ func (c *config) load(api extension.API) {
 	c.useIntegratedAskPass = read(api, "git.useIntegratedAskPass", true)
 	c.useEditorAsCommitInput = read(api, "git.useEditorAsCommitInput", true)
 	c.openDiffOnClick = read(api, "git.openDiffOnClick", true)
+	c.mergeEditor = read(api, "git.mergeEditor", false)
 	c.closeDiffOnOperation = read(api, "git.closeDiffOnOperation", false)
 	c.discardToTrash = read(api, "git.discardUntrackedChangesToTrash", true)
 	c.confirmCommittedDelete = read(api, "git.confirmCommittedDelete", true)

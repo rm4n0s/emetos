@@ -8,7 +8,8 @@ const commitSubmenu = "git.commit"
 // commitMenus are the menu items of the commit: the check mark in the title of the view, the Commit submenu in the "..." menu of the view
 // and of a repository, and the commands in it.
 //
-// Not here: Abort Rebase, which VS Code lists in the submenu with the commit commands and step 24.14 adds with the command.
+// Abort Rebase is in the submenu as VS Code lists it; Abort Merge and Abort Cherry Pick follow it (SPEC §10.30 "In-progress states":
+// every operation can be aborted from the menu).
 //
 // Ported from VS Code: extensions/git/package.json (contributes.menus: scm/title, scm/repository, git.commit)
 func commitMenus() []extension.MenuItem {
@@ -25,6 +26,9 @@ func commitMenus() []extension.MenuItem {
 		item(in, "git.commitStaged", "1_commit@2", ""),
 		item(in, "git.commitAll", "1_commit@3", ""),
 		item(in, "git.undoCommit", "1_commit@4", ""),
+		item(in, "git.rebaseAbort", "1_commit@5", ""),
+		item(in, "git.mergeAbort", "1_commit@6", ""),
+		item(in, "git.cherryPickAbort", "1_commit@7", ""),
 		item(in, "git.commitNoVerify", "2_commit_noverify@1", noVerify),
 		item(in, "git.commitStagedNoVerify", "2_commit_noverify@2", noVerify),
 		item(in, "git.commitAllNoVerify", "2_commit_noverify@3", noVerify),

@@ -95,12 +95,6 @@ func (r *Repo) Commit(ctx context.Context, o CommitOptions) error {
 	return err
 }
 
-// RebaseContinue continues the rebase that stopped ("git rebase --continue"), with an editor that accepts the message as it is.
-func (r *Repo) RebaseContinue(ctx context.Context) error {
-	_, err := r.write(ctx, ScopeIndex|ScopeWorkTree|ScopeRefs, Command{Args: []string{"rebase", "--continue"}, Env: []string{"GIT_EDITOR=true"}})
-	return err
-}
-
 // ResetSoft moves HEAD, and the branch it names, to the commit, and leaves the index and the work tree as they are ("git reset --soft
 // <commit>"): the changes of the commits it leaves behind stay staged.
 func (r *Repo) ResetSoft(ctx context.Context, commit string) error {

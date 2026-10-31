@@ -382,6 +382,10 @@ type Documents interface {
 	// off the UI thread as OpenDiff does. It fails as OpenDiff does, with ExtensionDocumentInvalid for the URI. Call it on the UI
 	// thread.
 	OpenDocument(spec OpenSpec) error
+	// ActiveMergeEditor describes the merge editor that is in front in the scope (SPEC §9.11): false when the active tab of the active
+	// editor group is not one. It is how a command that works on the merge in front (Git's "Compute Conflicts With Git") finds its file.
+	// It is false in a scope that has no editors. Call it on the UI thread.
+	ActiveMergeEditor() (ActiveMerge, bool)
 	// ProvideMultiDiff registers the provider of the sets of files of the multi-file diff editor of a kind (SPEC §10.30; VS Code's
 	// IMultiDiffSourceResolver). The window asks it for the files of a set when the set is opened, when the provider says it changed,
 	// and when a saved editor of the set comes back after a restart. It fails with ExtensionMultiDiffInvalid for a kind that is not a

@@ -131,6 +131,11 @@ var provocations = []provocation{
 		_, theirs := r.ConflictingBranches()
 		return in(r, "rebase", theirs)
 	}},
+	{tag: "CherryPickConflict", real: func(t *testing.T, e *gittest.Env) Command {
+		r := base(e)
+		_, theirs := r.ConflictingBranches()
+		return in(r, "cherry-pick", theirs)
+	}},
 	{tag: "StashConflict", real: func(t *testing.T, e *gittest.Env) Command {
 		r := base(e)
 		r.Write("a.txt", "stashed\n")
@@ -259,6 +264,10 @@ var provocations = []provocation{
 	fixed("InvalidBranchName", "branch", "", "fatal: 'a..b' is not a valid branch name\n", "branch", "a..b"),
 	fixed("BranchAlreadyExists", "checkout", "", "fatal: A branch named 'x' already exists.\n", "checkout", "-b", "x"),
 	fixed("NoRemoteReference", "pull", "", "fatal: Couldn't find remote ref refs/heads/x\n", "pull", "origin", "x"),
+	fixed("CherryPickEmpty", "cherry-pick", "", "The previous cherry-pick is now empty, possibly due to conflict resolution.\nIf you wish to commit it anyway, use:\n", "cherry-pick", "x"),
+	fixed("CherryPickConflict", "cherry-pick", "Auto-merging a.txt\nCONFLICT (content): Merge conflict in a.txt\n", "error: could not apply 5b1618f... topic\n", "cherry-pick", "x"),
+	fixed("UnmergedChanges", "rebase", "a.txt: needs merge\nYou must edit all merge conflicts and then\nmark them as resolved using git add\n", "", "rebase", "--continue"),
+	fixed("DirtyWorkTree", "rebase", "", "error: cannot rebase: You have unstaged changes.\nerror: Please commit or stash them.\n", "rebase", "x"),
 	fixed("NoLocalChanges", "stash", "", "No local changes to save\n", "stash", "push"), // not an exit status: see TestStashPushWithNothingToStash
 }
 
@@ -315,7 +324,7 @@ func TestEveryFailureIsClassifiedUnderItsOwnTag(t *testing.T) {
 		"PermissionDenied", "CantAccessRemote", "RepositoryNotFound", "RepositoryIsLocked", "BranchNotFullyMerged", "NoRemoteReference",
 		"InvalidBranchName", "BranchAlreadyExists", "NoLocalChanges", "NoStashFound", "LocalChangesOverwritten", "NoUpstreamBranch", "IsInSubmodule",
 		"WrongCase", "CantLockRef", "CantRebaseMultipleBranches", "PatchDoesNotApply", "NoPathFound", "EmptyCommitMessage", "BranchNotYetBorn",
-		"TagConflict", "UnsafeRepository",
+		"TagConflict", "UnsafeRepository", "CherryPickConflict", "CherryPickEmpty",
 	} {
 		if !seen[tag] {
 			t.Errorf("the tag %s has no case", tag)
@@ -351,6 +360,9 @@ func TestTheRulesOfACommandApplyToThatCommand(t *testing.T) {
 		{"CONFLICT in the output of stash apply is a stash conflict", "stash", "CONFLICT (content): x\n", "", "StashConflict"},
 		{"CONFLICT in the output of merge is a conflict", "merge", "CONFLICT (content): x\n", "", "Conflict"},
 		{"CONFLICT in the output of pull needs a kind in parentheses", "pull", "CONFLICT x\n", "", "GitCommandFailed"},
+		{"a pick that could not apply is a cherry-pick conflict", "cherry-pick", "CONFLICT (content): x\n", "", "CherryPickConflict"},
+		{"a pick of a commit that is not there is nothing known", "cherry-pick", "", "fatal: bad revision 'x'\n", "GitCommandFailed"},
+		{"the same output for rebase is a rebase conflict", "rebase", "CONFLICT (content): x\n", "", "Conflict"},
 		{"a rejected push is a push rejection", "push", "", "error: failed to push some refs to '/srv/x.git'\n", "PushRejected"},
 		{"the same text for fetch is nothing known", "fetch", "", "error: failed to push some refs to '/srv/x.git'\n", "GitCommandFailed"},
 		{"a connection error is the same for fetch, pull and push", "fetch", "", "fatal: Could not read from remote repository.\n", "RemoteConnectionError"},

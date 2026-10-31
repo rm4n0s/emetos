@@ -233,6 +233,64 @@ func TestGoldenCommitStates(t *testing.T) {
 	}
 }
 
+// TestGoldenInProgressStates looks at the view while an operation waits for the user (step 24.14): a merge with files in conflict (the
+// placeholder of the empty box, Continue off), a rebase stopped at a commit whose message the box shows with the warning that it cannot be
+// changed (Continue on), and a cherry-pick with its conflicts resolved.
+func TestGoldenInProgressStates(t *testing.T) {
+	staged := func(paths ...string) group {
+		g := group{"index", "Staged Changes", nil}
+		for _, p := range paths {
+			g.changes = append(g.changes, change{p, "M", "Index Modified", colStaged, false})
+		}
+		return g
+	}
+	cont := func(tooltip string, enabled bool) scmcore.ActionButton {
+		return scmcore.ActionButton{Command: scmcore.Command{ID: "git.commit", Title: "$(check) Continue", Tooltip: tooltip}, Enabled: enabled}
+	}
+	tests := []struct {
+		name        string
+		placeholder string
+		text        string
+		warn        string
+		groups      []group
+		button      scmcore.ActionButton
+	}{
+		{"merge", "Message ({0} to continue the merge)", "", "", []group{
+			{"merge", "Merge Changes", []change{{"src/loader.go", "!", "Conflict: Both Modified", colConflict, false}, {"src/config.go", "!", "Conflict: Both Added", colConflict, false},
+				{"old/legacy.go", "!", "Conflict: Deleted By Us", colConflict, true}}},
+			staged("README.md")}, cont("Continue Merge", false)},
+		{"rebase", "Message ({0} to continue the rebase)", "Retry five times",
+			"It's not possible to change the commit message in the middle of a rebase. Please complete the rebase operation and use interactive rebase instead.",
+			[]group{staged("src/loader.go")}, cont("Continue Rebase", true)},
+		{"cherrypick", "Message ({0} to continue the cherry-pick)", "", "", []group{staged("src/loader.go", "docs/notes.md")}, cont("Continue Cherry Pick", true)},
+	}
+	for _, th := range goldenThemes {
+		for _, tt := range tests {
+			t.Run(tt.name+" "+th.name, func(t *testing.T) {
+				r := newBoxRig(t)
+				src := r.repoWithBox("project", tt.groups...)
+				src.Input().SetPlaceholder(tt.placeholder)
+				src.SetActionButton(&tt.button)
+				if tt.warn != "" {
+					src.Input().SetValidation(func(string) *scmcore.Validation {
+						return &scmcore.Validation{Message: tt.warn, Level: scmcore.ValidationWarning}
+					})
+				}
+				if tt.text != "" {
+					src.Input().SetValue(tt.text)
+				}
+				r.show(th.colors, ui.Size{Width: 440, Height: 300})
+				if tt.warn != "" {
+					r.view.inputs[src].ctl.Focus()
+				}
+				r.settle()
+				testutil.MatchesGolden(r.ts, "inprogress_"+tt.name+"_"+th.name)
+				r.noErrors()
+			})
+		}
+	}
+}
+
 // TestGoldenInputValidation looks at the box with the keyboard and a validation message under it, for each level, and at the box
 // that kept the color of a level after Escape took the message away.
 func TestGoldenInputValidation(t *testing.T) {

@@ -278,8 +278,8 @@ func TestInProgressOperationsFromRealStops(t *testing.T) {
 		file  string
 	}{
 		{"merge", func(r *gittest.Repo, ours, theirs string) { _ = r.Merge(theirs) }, "gitMergeInProgress", "git-branch-conflicts", "ours!", "MERGE_HEAD"},
-		{"cherry-pick", func(r *gittest.Repo, ours, theirs string) { _, _, _ = r.GitErr("cherry-pick", theirs) }, "gitCherryPickInProgress", "git-branch", "", "CHERRY_PICK_HEAD"},
-		{"rebase", func(r *gittest.Repo, ours, theirs string) { _, _, _ = r.GitErr("rebase", theirs) }, "gitRebaseInProgress", "git-commit", "", "REBASE_HEAD"},
+		{"cherry-pick", func(r *gittest.Repo, ours, theirs string) { _, _, _ = r.GitErr("cherry-pick", theirs) }, "gitCherryPickInProgress", "git-branch-conflicts", "", "CHERRY_PICK_HEAD"},
+		{"rebase", func(r *gittest.Repo, ours, theirs string) { _, _, _ = r.GitErr("rebase", theirs) }, "gitRebaseInProgress", "git-branch-conflicts", "", "REBASE_HEAD"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

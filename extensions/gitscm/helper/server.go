@@ -163,8 +163,9 @@ func (s *Server) Token() string { return s.token }
 func (s *Server) Script(name string) string { return filepath.Join(s.dir, name) }
 
 // Environment is what a git command needs to reach the server. The variables of the askpass programs are included when askpass is
-// true (HTTPS: GIT_ASKPASS; ssh: SSH_ASKPASS with SSH_ASKPASS_REQUIRE=force) and GIT_EDITOR when editor is true; the socket and the
-// token come with either.
+// true (HTTPS: GIT_ASKPASS; ssh: SSH_ASKPASS with SSH_ASKPASS_REQUIRE=force) and GIT_EDITOR when editor is true, with GIT_SEQUENCE_EDITOR
+// (the editor of the list of commits of "git rebase -i", which would otherwise be the one of the user's configuration, a program that
+// needs a terminal); the socket and the token come with either.
 func (s *Server) Environment(askpass, editor bool) []string {
 	if !askpass && !editor {
 		return nil
@@ -176,7 +177,8 @@ func (s *Server) Environment(askpass, editor bool) []string {
 	}
 	if editor {
 		// git runs the editor through a shell
-		env = append(env, "GIT_EDITOR="+shellQuote(s.Script(ScriptEditor)))
+		script := shellQuote(s.Script(ScriptEditor))
+		env = append(env, "GIT_EDITOR="+script, "GIT_SEQUENCE_EDITOR="+script)
 	}
 	return env
 }

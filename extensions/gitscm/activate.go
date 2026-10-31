@@ -86,6 +86,9 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	if _, err := api.Events().Subscribe(extension.TopicEditorActiveChanged, x.onActiveEditor); err != nil {
 		return err
 	}
+	if _, err := api.Events().Subscribe(extension.TopicMergeEditorCompleted, x.onMergeCompleted); err != nil {
+		return err
+	}
 	if err := api.Events().Handle(TopicStatus, x.handleStatus); err != nil {
 		return err
 	}

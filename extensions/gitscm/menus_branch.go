@@ -9,7 +9,7 @@ const (
 )
 
 // branchMenus are the menu items of branches and tags: Checkout to... in the header of the view and of a repository, the Branch and Tags
-// submenus and their entries. Merge, Rebase and Publish Branch of VS Code's Branch submenu come with steps 24.14 and 24.15.
+// submenus and their entries. Publish Branch of VS Code's Branch submenu comes with step 24.15.
 //
 // Ported from VS Code: extensions/git/package.json (contributes.menus: scm/title, scm/repository, git.branch, git.tags)
 func branchMenus() []extension.MenuItem {
@@ -21,6 +21,9 @@ func branchMenus() []extension.MenuItem {
 		{Menu: extension.MenuSCMRepository, Submenu: branchSubmenu, Group: "2_main", Order: 4, When: git},
 		{Menu: extension.MenuSCMTitle, Submenu: tagsSubmenu, Group: "2_main", Order: 7, When: git},
 		{Menu: extension.MenuSCMRepository, Submenu: tagsSubmenu, Group: "2_main", Order: 7, When: git},
+		item(branchSubmenu, "git.merge", "1_merge@1", ""),
+		item(branchSubmenu, "git.rebase", "1_merge@2", ""),
+		item(branchSubmenu, "git.rebaseInteractive", "1_merge@3", ""),
 		item(branchSubmenu, "git.branch", "2_branch@1", ""),
 		item(branchSubmenu, "git.branchFrom", "2_branch@2", ""),
 		item(branchSubmenu, "git.renameBranch", "3_modify@1", ""),

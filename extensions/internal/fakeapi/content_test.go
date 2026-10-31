@@ -59,6 +59,22 @@ func TestTheFakeTabsAndRevealFollowTheHost(t *testing.T) {
 	a.FailOpen(nil)
 }
 
+func TestTheFakeMergeEditorInFrontIsWhatTheTestSays(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Folder: t.TempDir()})
+	if _, ok := a.Documents().ActiveMergeEditor(); ok {
+		t.Fatal("a merge editor is in front from the start")
+	}
+	want := extension.ActiveMerge{Result: "file:///work/a.go", Markers: true}
+	a.SetActiveMergeEditor(&want)
+	if got, ok := a.Documents().ActiveMergeEditor(); !ok || got != want {
+		t.Errorf("ActiveMergeEditor = %+v, %v", got, ok)
+	}
+	a.SetActiveMergeEditor(nil)
+	if _, ok := a.Documents().ActiveMergeEditor(); ok {
+		t.Error("the merge editor is still in front")
+	}
+}
+
 func TestAPanicInAFakeProviderIsAnErrorWithItsRoute(t *testing.T) {
 	a := New(t, manifest(), extension.ScopeInfo{Folder: t.TempDir()})
 	_, err := a.Documents().ProvideContent(extension.ContentProvider{Scheme: "tst", Text: func(context.Context, string) (string, error) { panic("text") }})

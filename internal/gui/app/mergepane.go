@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/diff"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -650,6 +651,10 @@ func (s *shellState) finishMerge(p *mergePane) {
 		s.merge.completed = map[*editorgroup.MergeInput]bool{}
 	}
 	s.merge.completed[input] = true
+	// the extensions hear it (the Git extension stages the file): the result is saved and the editor is closing
+	if win.coreEv != nil {
+		win.coreEv.publish(extension.TopicMergeEditorCompleted, extension.MergeEditorCompleted{URI: doc.URI().String()})
+	}
 	if input.Source().Kind == editorgroup.MergeMarkers {
 		win.Documents.Retain(doc)
 		s.show(s.binding, doc, openOptions{Group: group, NoMergeNotice: true})

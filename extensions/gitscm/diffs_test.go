@@ -680,6 +680,9 @@ func (d failingContentDocs) Read(ctx context.Context, uri string, o ...extension
 	return d.API.Documents().Read(ctx, uri, o...)
 }
 func (d failingContentDocs) Open() []string { return d.API.Documents().Open() }
+func (d failingContentDocs) ActiveMergeEditor() (extension.ActiveMerge, bool) {
+	return d.API.Documents().ActiveMergeEditor()
+}
 func (d failingContentDocs) Active() (extension.ActiveDocument, bool) {
 	return d.API.Documents().Active()
 }

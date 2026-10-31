@@ -34,27 +34,31 @@ var (
 	reNoUserEmail = regexp.MustCompile(`unable to auto-detect email address|no email was given`)
 	reWhoAreYou   = regexp.MustCompile(`Please tell me who you are|Author identity unknown`)
 
-	reUnmergedFiles    = regexp.MustCompile(`not possible because you have unmerged files`)
-	reEmptyMessage     = regexp.MustCompile(`Aborting commit due to empty commit message`)
-	reBranchUnborn     = regexp.MustCompile(`You are on a branch yet to be born`)
-	reMergeConflict    = regexp.MustCompile(`(?m)^CONFLICT `)
-	rePullConflict     = regexp.MustCompile(`(?m)^CONFLICT \([^)]+\): \b`)
-	rePullDirty        = regexp.MustCompile(`(?i)Pull(?:ing)? is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge`)
-	reCantLockRef      = regexp.MustCompile(`(?i)cannot lock ref|unable to update local ref`)
-	reRebaseMultiple   = regexp.MustCompile(`(?i)cannot rebase onto multiple branches`)
-	reTagClobber       = regexp.MustCompile(`(?m)! \[rejected\].*\(would clobber existing tag\)`)
-	rePushRejected     = regexp.MustCompile(`(?m)^error: failed to push some refs to\b`)
-	rePermissionDenied = regexp.MustCompile(`Permission.*denied`)
-	reNoUpstream       = regexp.MustCompile(`(?m)^fatal: The current branch .* has no upstream branch`)
-	reNoStash          = regexp.MustCompile(`No stash (?:found|entries found)|is not a valid reference`)
-	reLocalChanges     = regexp.MustCompile(`error: Your local changes to the following files would be overwritten`)
-	reStashConflict    = regexp.MustCompile(`(?m)^CONFLICT`)
-	rePatchDoesntApply = regexp.MustCompile(`patch does not apply`)
-	reNoSuchPath       = regexp.MustCompile(`(?m)^fatal: no such path`)
-	reWrongCase        = regexp.MustCompile(`exists on disk, but not in`)
-	reCantOpen         = regexp.MustCompile(`does not exist in|does not exist \(neither on disk nor in the index\)|is in the index, but not at stage|Not a valid object name|invalid object name|bad object`)
-	reInSubmodule      = regexp.MustCompile(` is in submodule `)
-	reNoLocalChanges   = regexp.MustCompile(`No local changes to save`)
+	reUnmergedFiles     = regexp.MustCompile(`not possible because you have unmerged files`)
+	reEmptyMessage      = regexp.MustCompile(`Aborting commit due to empty commit message`)
+	reBranchUnborn      = regexp.MustCompile(`You are on a branch yet to be born`)
+	reMergeConflict     = regexp.MustCompile(`(?m)^CONFLICT `)
+	rePullConflict      = regexp.MustCompile(`(?m)^CONFLICT \([^)]+\): \b`)
+	rePullDirty         = regexp.MustCompile(`(?i)Pull(?:ing)? is not possible because you have unmerged files|Cannot pull with rebase: You have unstaged changes|Your local changes to the following files would be overwritten|Please, commit your changes before you can merge`)
+	reCantLockRef       = regexp.MustCompile(`(?i)cannot lock ref|unable to update local ref`)
+	reRebaseMultiple    = regexp.MustCompile(`(?i)cannot rebase onto multiple branches`)
+	reTagClobber        = regexp.MustCompile(`(?m)! \[rejected\].*\(would clobber existing tag\)`)
+	rePushRejected      = regexp.MustCompile(`(?m)^error: failed to push some refs to\b`)
+	rePermissionDenied  = regexp.MustCompile(`Permission.*denied`)
+	reNoUpstream        = regexp.MustCompile(`(?m)^fatal: The current branch .* has no upstream branch`)
+	reNoStash           = regexp.MustCompile(`No stash (?:found|entries found)|is not a valid reference`)
+	reLocalChanges      = regexp.MustCompile(`error: Your local changes to the following files would be overwritten`)
+	reStashConflict     = regexp.MustCompile(`(?m)^CONFLICT`)
+	rePatchDoesntApply  = regexp.MustCompile(`patch does not apply`)
+	reNoSuchPath        = regexp.MustCompile(`(?m)^fatal: no such path`)
+	reWrongCase         = regexp.MustCompile(`exists on disk, but not in`)
+	reCantOpen          = regexp.MustCompile(`does not exist in|does not exist \(neither on disk nor in the index\)|is in the index, but not at stage|Not a valid object name|invalid object name|bad object`)
+	reInSubmodule       = regexp.MustCompile(` is in submodule `)
+	reNoLocalChanges    = regexp.MustCompile(`No local changes to save`)
+	reMustEditConflicts = regexp.MustCompile(`You must edit all merge conflicts`)
+	reRebaseDirty       = regexp.MustCompile(`(?i)cannot rebase: (?:You have unstaged changes|Your index contains uncommitted changes)`)
+	reCherryPickEmpty   = regexp.MustCompile(`The previous cherry-pick is now empty`)
+	reCouldNotApply     = regexp.MustCompile(`(?m)^error: (?:could not apply|could not revert)\b`)
 )
 
 // classify turns the failure of a git command into an error whose Tag is one of VS Code's GitErrorCodes (SPEC §10.30
@@ -124,7 +128,20 @@ func classify(name string, args []string, exit int, stdout, stderr string) error
 		if reRebaseMultiple.MatchString(stderr) {
 			return errors.New("CantRebaseMultipleBranches", msg, "args", a, "exitCode", exit, "stderr", tail)
 		}
-		if reUnmergedFiles.MatchString(stderr) {
+		if reUnmergedFiles.MatchString(stderr) || reMustEditConflicts.MatchString(stderr) || reMustEditConflicts.MatchString(stdout) {
+			return errors.New("UnmergedChanges", msg, "args", a, "exitCode", exit, "stderr", tail)
+		}
+		if reRebaseDirty.MatchString(stderr) {
+			return errors.New("DirtyWorkTree", msg, "args", a, "exitCode", exit, "stderr", tail)
+		}
+	case "cherry-pick":
+		// VS Code calls every failure of a cherry-pick a conflict; a bad hash is not one (no command of Emetos runs git revert)
+		switch {
+		case reCherryPickEmpty.MatchString(stderr):
+			return errors.New("CherryPickEmpty", msg, "args", a, "exitCode", exit, "stderr", tail)
+		case reMergeConflict.MatchString(stdout) || reCouldNotApply.MatchString(stderr):
+			return errors.New("CherryPickConflict", msg, "args", a, "exitCode", exit, "stderr", tail)
+		case reUnmergedFiles.MatchString(stderr):
 			return errors.New("UnmergedChanges", msg, "args", a, "exitCode", exit, "stderr", tail)
 		}
 	case "push":

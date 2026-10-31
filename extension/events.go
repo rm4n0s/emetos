@@ -174,6 +174,10 @@ const (
 	// TopicWindowFocusChanged: the window gained or lost the keyboard focus (as the desktop says it); the Git extension
 	// refreshes when it comes back. Published in the scope of the active window tab only. Payload WindowFocus.
 	TopicWindowFocusChanged = "emetos.window.focusChanged"
+	// TopicMergeEditorCompleted: the user completed a merge in the merge editor (Complete Merge): the result was saved and the editor is
+	// closing. The Git extension stages the file on it. Payload MergeEditorCompleted. Published in the scope of the window tab that has
+	// the merge editor.
+	TopicMergeEditorCompleted = "emetos.mergeEditor.completed"
 	// TopicSharingRevoked: a link that let the events of another window tab reach this one was removed, or that tab
 	// became private. It is published in the receiving tab. Payload SharingRevoked.
 	TopicSharingRevoked = "emetos.sharing.revoked"
@@ -233,6 +237,13 @@ type DocumentSaved struct {
 	As bool `json:"as"`
 	// PreviousURI is the URI the document had, for a Save As (or after a move); empty otherwise.
 	PreviousURI string `json:"previousUri,omitempty"`
+}
+
+// MergeEditorCompleted is the payload of TopicMergeEditorCompleted.
+type MergeEditorCompleted struct {
+	// URI is the result of the merge: the file with the conflict markers that was resolved (file:///path), or the result file of
+	// "emetos --merge".
+	URI string `json:"uri"`
 }
 
 // DocumentClosed is the payload of TopicDocumentClosed.

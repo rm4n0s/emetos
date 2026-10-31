@@ -32,6 +32,8 @@ type contentState struct {
 	failSave error
 	// failOpen makes OpenDiff and OpenDocument return this error.
 	failOpen error
+	// mergeEditor is the merge editor in front (SetActiveMergeEditor).
+	mergeEditor *extension.ActiveMerge
 }
 
 // FakeContent is a provider the extension registered: a test reads the text it makes, and what the extension said changed.
@@ -217,6 +219,23 @@ func (a *API) OpenedDocuments() []extension.OpenSpec {
 func (a *API) FailOpen(err error) {
 	a.mu.Lock()
 	a.content.failOpen = err
+	a.mu.Unlock()
+}
+
+// ActiveMergeEditor implements extension.Documents: the merge editor a test put in front with SetActiveMergeEditor.
+func (d documents) ActiveMergeEditor() (extension.ActiveMerge, bool) {
+	d.a.mu.Lock()
+	defer d.a.mu.Unlock()
+	if d.a.content.mergeEditor == nil {
+		return extension.ActiveMerge{}, false
+	}
+	return *d.a.content.mergeEditor, true
+}
+
+// SetActiveMergeEditor puts a merge editor in front, as Documents().ActiveMergeEditor reports it; nil takes it away.
+func (a *API) SetActiveMergeEditor(m *extension.ActiveMerge) {
+	a.mu.Lock()
+	a.content.mergeEditor = m
 	a.mu.Unlock()
 }
 

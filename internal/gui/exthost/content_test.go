@@ -26,6 +26,16 @@ type contentHost struct {
 	revealed  []string
 	dirty     []string
 	saved     [][]string
+	merge     *extension.ActiveMerge
+}
+
+func (h *contentHost) ActiveMergeEditor() (extension.ActiveMerge, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.merge == nil {
+		return extension.ActiveMerge{}, false
+	}
+	return *h.merge, true
 }
 
 type contentReg struct {
@@ -300,6 +310,24 @@ func TestTheTabsAndTheRevealOfAFileReachTheWindow(t *testing.T) {
 	}
 }
 
+func TestTheMergeEditorInFrontIsAskedFromTheWindow(t *testing.T) {
+	h, host, _ := contentHarness(t)
+	docs := h.API.Documents()
+	if _, ok := docs.ActiveMergeEditor(); ok {
+		t.Error("a merge editor is in front before the window has one")
+	}
+	host.merge = &extension.ActiveMerge{Result: "file:///work/a.go", Markers: true}
+	if got, ok := docs.ActiveMergeEditor(); !ok || got != *host.merge {
+		t.Errorf("ActiveMergeEditor = %+v, %v", got, ok)
+	}
+	if err := docs.OpenDocument(extension.OpenSpec{URI: "file:///work/a.go", MergeEditor: true}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(host.docs); n == 0 || !host.docs[n-1].MergeEditor {
+		t.Errorf("the window was asked %+v", host.docs)
+	}
+}
+
 func TestDirtyAndSaveAllReachTheWindow(t *testing.T) {
 	h, host, _ := contentHarness(t)
 	docs := h.API.Documents()
@@ -337,6 +365,9 @@ func TestAScopeThatCannotShowDocumentsFailsWithTheirTags(t *testing.T) {
 	}
 	if got := docs.Tabs(); len(got) != 0 {
 		t.Errorf("tabs %v", got)
+	}
+	if got, ok := docs.ActiveMergeEditor(); ok {
+		t.Errorf("a merge editor %+v in a scope that shows nothing", got)
 	}
 	if n := docs.CloseTabs(extension.DocumentTab{ID: "1:a"}); n != 0 {
 		t.Errorf("closed %d", n)

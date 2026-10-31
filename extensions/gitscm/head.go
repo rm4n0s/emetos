@@ -74,9 +74,31 @@ func headFrom(gitDir string, refs []git.Ref) head {
 
 // operations are the states of a repository that git keeps in files of its git directory.
 type operations struct {
-	merge, rebase, cherryPick bool
+	merge, rebase, cherryPick, revert bool
 	// rebaseCommit is the commit a rebase stopped at, empty when none or unknown.
 	rebaseCommit string
+}
+
+// stopped tells whether an operation waits for the user: a merge, a cherry-pick or a revert with its files in the git directory, or a
+// rebase that stopped at a commit. The box and the button of the commit say Continue then, and a commit finishes the operation.
+func (o operations) stopped() bool {
+	return o.merge || o.rebaseCommit != "" || o.cherryPick || o.revert
+}
+
+// current is the operation the commit finishes. A rebase comes first: while it is stopped git keeps the files of the commit it is
+// applying (CHERRY_PICK_HEAD) next to its own.
+func (o operations) current() (git.Operation, bool) {
+	switch {
+	case o.rebaseCommit != "":
+		return git.OperationRebase, true
+	case o.merge:
+		return git.OperationMerge, true
+	case o.cherryPick:
+		return git.OperationCherryPick, true
+	case o.revert:
+		return git.OperationRevert, true
+	}
+	return 0, false
 }
 
 // readOperations looks for the files that say a merge, a rebase or a cherry-pick is in progress (SPEC §10.30 "State": by their
@@ -88,6 +110,7 @@ func readOperations(gitDir string) operations {
 	exists := func(p string) bool { _, err := os.Stat(filepath.Join(gitDir, p)); return err == nil }
 	ops.merge = exists("MERGE_HEAD")
 	ops.cherryPick = exists("CHERRY_PICK_HEAD")
+	ops.revert = exists("REVERT_HEAD")
 	switch {
 	case exists("rebase-merge"):
 		ops.rebase = true

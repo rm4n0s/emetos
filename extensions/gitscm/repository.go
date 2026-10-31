@@ -234,6 +234,7 @@ func (r *repository) untrust() {
 	r.timelineGone()
 	r.trusted, r.repo, r.refreshing, r.again, r.refreshed = false, nil, false, false, false
 	r.committing, r.commitQueue, r.waiters, r.templateKey = false, nil, nil, ""
+	r.rebaseCommit, r.rebaseMessage = "", ""
 	r.res, r.head, r.refs, r.ops = groups{}, head{}, nil, operations{}
 	r.setBusy(false)
 	r.clearGroups()
@@ -285,6 +286,9 @@ type snapshot struct {
 	// template is the text the commit box starts with, read when templateKey is not the one the last status read it for.
 	template, templateKey string
 	templateRead          bool
+	// rebaseMessage is the message of the commit a rebase stopped at, read when that commit is not the one the last status read.
+	rebaseMessage string
+	rebaseRead    bool
 }
 
 // Timings are the times of the parts of the last refresh of a repository: git's status command with the parse of its output, the
@@ -315,9 +319,9 @@ func (r *repository) refresh() {
 	ctx, gen := r.ctx, r.gen
 	root, mode, kind, decorate := r.root, x.cfg.untrackedChanges, r.kind(), x.cfg.decorationsEnabled
 	prevDecos, prevGen := r.decorationState()
-	prevKey, home := r.templateKey, x.home
+	prevKey, home, prevRebase := r.templateKey, x.home, r.rebaseCommit
 	go func() {
-		snap := compute(ctx, repo, opts, gitDir, commonDir, prevKey, home)
+		snap := compute(ctx, repo, opts, gitDir, commonDir, prevKey, prevRebase, home)
 		if snap.err == nil {
 			start := time.Now()
 			snap.groups = splitStatus(root, snap.status.Entries, mode)
@@ -335,7 +339,7 @@ func (r *repository) refresh() {
 }
 
 // compute runs the commands of a refresh: git status and git for-each-ref in parallel, and the files of the git directory.
-func compute(ctx context.Context, repo *git.Repo, opts git.StatusOptions, gitDir, commonDir, prevTemplateKey, home string) snapshot {
+func compute(ctx context.Context, repo *git.Repo, opts git.StatusOptions, gitDir, commonDir, prevTemplateKey, prevRebase, home string) snapshot {
 	var snap snapshot
 	var wg sync.WaitGroup
 	var statusErr, refsErr error
@@ -365,6 +369,14 @@ func compute(ctx context.Context, repo *git.Repo, opts git.StatusOptions, gitDir
 	// the message git prepared for a merge, or the template)
 	if key := templateKeyOf(snap.head.commit, snap.ops); key != prevTemplateKey && ctx.Err() == nil {
 		snap.template, snap.templateKey, snap.templateRead = repo.InputTemplate(ctx, home), key, true
+	}
+	// the message of the commit a rebase stopped at (the box shows it, VS Code's rebaseCommit)
+	if c := snap.ops.rebaseCommit; c != prevRebase && c != "" && ctx.Err() == nil {
+		commit, err := repo.CommitAt(ctx, c)
+		if err == nil {
+			snap.rebaseMessage = commit.Message
+		}
+		snap.rebaseRead = true
 	}
 	return snap
 }
@@ -417,10 +429,12 @@ func (r *repository) applySnapshot(snap snapshot) {
 		r.syncDecorations()
 	}
 	r.updateStatusBar()
+	r.leaveRebase()
 	if snap.templateRead {
 		r.templateKey = snap.templateKey
 		r.applyTemplate(snap.template)
 	}
+	r.enterRebase(snap)
 	hugeBefore := r.shownHuge
 	r.shownHuge = r.hugeLimit
 	if hugeBefore != r.hugeLimit {
@@ -604,12 +618,14 @@ func (r *repository) branchItem(args []any) extension.StatusCommand {
 	switch {
 	case r.checkingOut:
 		icon = "loading~spin"
+	case h.name != "" && r.isBranchProtected():
+		icon = "lock"
+	case r.ops.stopped():
+		// a merge, a rebase, a cherry-pick or a revert that waits for the user (a rebase has HEAD detached: VS Code shows the commit icon
+		// there, the SPEC the conflicts)
+		icon = "git-branch-conflicts"
 	case h.name != "":
 		switch {
-		case r.isBranchProtected():
-			icon = "lock"
-		case r.ops.merge || r.ops.rebaseCommit != "":
-			icon = "git-branch-conflicts"
 		case len(r.res.index) > 0:
 			icon = "git-branch-staged-changes"
 		case len(r.res.working)+len(r.res.untracked) > 0:

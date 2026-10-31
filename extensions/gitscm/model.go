@@ -288,6 +288,18 @@ func (m *model) openParents() {
 	m.askNext()
 }
 
+// mergeChanges are the URIs of the files of the Merge Changes groups of the repositories, as a context key reads them (VS Code's
+// git.mergeChanges: "resource in git.mergeChanges").
+func mergeChanges(open []*repository) []any {
+	list := []any{}
+	for _, r := range open {
+		for _, res := range r.res.merge {
+			list = append(list, fileURI(res.path))
+		}
+	}
+	return list
+}
+
 // updateContext sets the context keys the menus, the welcome contents and the palette read.
 func (m *model) updateContext() {
 	x := m.x
@@ -322,6 +334,7 @@ func (m *model) updateContext() {
 	set("git.unsafeRepositoryCount", len(m.unsafe))
 	set("git.closedRepositoryCount", len(m.closedOrder))
 	set("gitMergeInProgress", merge)
+	set("git.mergeChanges", mergeChanges(open))
 	set("gitRebaseInProgress", rebase)
 	set("gitCherryPickInProgress", cherry)
 	set("gitFreshRepository", fresh)

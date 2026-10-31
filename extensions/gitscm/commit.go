@@ -365,7 +365,7 @@ func (c *commitRun) emptyCommit(next func()) {
 	}
 	nothing := (c.noStaged && c.noUnstaged) || (!c.o.all && c.noStaged) ||
 		(c.noStaged && x.cfg.smartCommitChanges == "tracked" && onlyUntracked)
-	if !nothing || c.o.amend || c.o.empty || r.ops.merge || r.ops.rebaseCommit != "" {
+	if !nothing || c.o.amend || c.o.empty || r.ops.stopped() {
 		next()
 		return
 	}
@@ -413,7 +413,7 @@ func (c *commitRun) noVerify(next func()) {
 func (c *commitRun) getMessage(next func()) {
 	x, r := c.x, c.r
 	c.message = c.input
-	if c.message != "" || x.cfg.useEditorAsCommitInput {
+	if c.message != "" || x.cfg.useEditorAsCommitInput || r.ops.stopped() {
 		next()
 		return
 	}
@@ -440,7 +440,7 @@ func (c *commitRun) getMessage(next func()) {
 
 // messageRequired stops a commit that has no message when nothing else can give it one.
 func (c *commitRun) messageRequired(next func()) {
-	if c.message == "" && !c.o.amend && !c.useEditor {
+	if c.message == "" && !c.o.amend && !c.useEditor && !c.r.ops.stopped() {
 		return
 	}
 	next()
@@ -484,7 +484,11 @@ func (c *commitRun) commit() {
 	if c.o.all && !c.o.tracked {
 		workPaths = pathsOf(r.res.working, func(res resource) []string { return []string{res.path} })
 	}
-	all, tracked, rebase, home := c.o.all, c.o.tracked, r.ops.rebaseCommit != "", x.home
+	// An operation that waits for the user is continued: a rebase with its own message (it cannot be changed), the others with the
+	// message of the box, or with the one the operation prepared when the box has none.
+	op, stopped := r.ops.current()
+	all, tracked, home := c.o.all, c.o.tracked, x.home
+	cont := stopped && (op == git.OperationRebase || (opts.Message == "" && !opts.UseEditor))
 	var template string
 	r.mutate(mutation{
 		name:       "commit",
@@ -495,8 +499,8 @@ func (c *commitRun) commit() {
 					return err
 				}
 			}
-			if rebase {
-				if err := repo.RebaseContinue(ctx); err != nil {
+			if cont {
+				if err := repo.Continue(ctx, op); err != nil {
 					return err
 				}
 			} else if err := repo.Commit(ctx, opts); err != nil {
@@ -543,6 +547,10 @@ func (c *commitRun) failed(err error) bool {
 		x.logLine("git commit failed in " + r.root + ": " + git.MaskURLs(describe(err)))
 		x.api.Notifications().Info("Commit operation was cancelled due to empty commit message.")
 		return true
+	case "Conflict", "CherryPickConflict", "CherryPickEmpty":
+		// the rebase that is continued stops at the next commit with conflicts
+		x.logLine("git " + describeCommand(err) + " stopped in " + r.root + ": " + git.MaskURLs(describe(err)))
+		return x.operationFailed(err)
 	}
 	// the tab of the message was closed without saving: the editor answered with failure, and git stopped (SPEC §10.30 "The editor")
 	if stderr, _ := appErr.Metadata["stderr"].(string); reEditorProblem.MatchString(stderr) {
@@ -676,4 +684,14 @@ func (x *gitscm) cmdRestoreCommitTemplate(_ context.Context, args any) error {
 		}()
 	})
 	return nil
+}
+
+// describeCommand is the git command a failure came from ("rebase"), for the lines of the Git output.
+func describeCommand(err error) string {
+	if appErr, ok := errors.FromError(err); ok {
+		if args, _ := appErr.Metadata["args"].([]string); len(args) > 0 {
+			return args[0]
+		}
+	}
+	return "commit"
 }

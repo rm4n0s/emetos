@@ -35,6 +35,8 @@ type ContentHost interface {
 	// OpenMultiDiff opens the multi-file diff editor of a set, asking the provider for its files off the UI thread. It fails with
 	// the tag ExtMultiDiffKindUnknown for a kind no provider has.
 	OpenMultiDiff(spec extension.MultiDiffSpec) error
+	// ActiveMergeEditor describes the merge editor in front, on the UI thread.
+	ActiveMergeEditor() (extension.ActiveMerge, bool)
 	// Dirty lists the URIs of the open files with unsaved changes, on the UI thread.
 	Dirty() []string
 	// SaveAll saves the open documents with these URIs and returns when they are written. It blocks and is called off the UI thread.
@@ -177,6 +179,15 @@ func (d documentsAPI) OpenDocument(spec extension.OpenSpec) error {
 		return errors.New("ExtensionDocumentInvalid", "a document to open needs a URI", "extension", d.inst.id)
 	}
 	return host.OpenDocument(spec)
+}
+
+// ActiveMergeEditor implements extension.Documents: false in a scope that cannot show documents.
+func (d documentsAPI) ActiveMergeEditor() (extension.ActiveMerge, bool) {
+	host, err := d.contentHost("show merge editors")
+	if err != nil {
+		return extension.ActiveMerge{}, false
+	}
+	return host.ActiveMergeEditor()
 }
 
 // Tabs implements extension.Documents: none in a scope that cannot show documents.

@@ -155,6 +155,7 @@ var coreTopics = []string{
 	extension.TopicDocumentOpened, extension.TopicDocumentChanged, extension.TopicDocumentSaved, extension.TopicDocumentClosed,
 	extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged,
 	extension.TopicWorkspaceOpened, extension.TopicWorkspaceClosed, extension.TopicWindowTabActivated, extension.TopicFilesChanged, extension.TopicSharingRevoked, extension.TopicWindowFocusChanged,
+	extension.TopicMergeEditorCompleted,
 }
 
 // PublishCore publishes one of the core events of Emetos (the Topic constants of package extension) in the scope; the

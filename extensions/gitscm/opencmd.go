@@ -171,8 +171,10 @@ func (x *gitscm) openChange(t target, o openOptions) {
 	case s.Left != "":
 		err = x.api.Documents().OpenDiff(extension.DiffSpec{Left: s.Left, Right: s.Right, Title: s.Title, Preview: o.preview, PreserveFocus: o.preserveFocus})
 	case s.Right != "":
-		// TODO(step 24.14): with git.mergeEditor on, a file with both modified or both added opens the merge editor
-		err = x.api.Documents().OpenDocument(extension.OpenSpec{URI: s.Right, Title: s.Title, Preview: o.preview, PreserveFocus: o.preserveFocus})
+		// with git.mergeEditor on, a file with both modified or both added opens the merge editor; else the file with its markers, which the
+		// window offers the merge editor for (VS Code's Open Merge)
+		merge := x.cfg.mergeEditor && (t.res.status == git.StatusBothModified || t.res.status == git.StatusBothAdded)
+		err = x.api.Documents().OpenDocument(extension.OpenSpec{URI: s.Right, Title: s.Title, Preview: o.preview, PreserveFocus: o.preserveFocus, MergeEditor: merge})
 	case t.res.status == git.StatusAddedByUs || t.res.status == git.StatusAddedByThem:
 		// VS Code asks to open nothing here; the file with its markers is what there is to see
 		err = x.api.Documents().OpenDocument(extension.OpenSpec{URI: fileURI(t.res.path), Preview: o.preview, PreserveFocus: o.preserveFocus})
@@ -449,16 +451,19 @@ func (x *gitscm) updateActiveResource() {
 	if x.stopped.Load() {
 		return
 	}
-	staged, unstaged := false, false
+	staged, unstaged, conflicts := false, false, false
 	if doc, ok := x.api.Documents().Active(); ok {
 		if p, ok := uriPath(doc.URI); ok {
 			if r := x.model.forPath(p); r != nil {
 				_, staged = r.findResource(groupIndex, p)
 				_, unstaged = r.findResource(groupWorking, p)
+				_, conflicts = r.findResource(groupMerge, p)
 			}
 		}
 	}
-	for key, v := range map[string]bool{"git.activeResourceHasStagedChanges": staged, "git.activeResourceHasUnstagedChanges": unstaged} {
+	for key, v := range map[string]bool{
+		"git.activeResourceHasStagedChanges": staged, "git.activeResourceHasUnstagedChanges": unstaged, "git.activeResourceHasMergeConflicts": conflicts,
+	} {
 		if err := x.api.Context().Set(key, v); err != nil {
 			x.log.Debug("cannot set a context key", "key", key, "err", err)
 		}
