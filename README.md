@@ -444,7 +444,7 @@ Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `sc
 ## Planned
 
 What comes next, in the order of [the plan](docs/IMPLEMENTATION.md#m24b-language-servers-of-more-languages). None of it is built, and none of it has a date.
-- **M24b, language servers of more languages**: what the Go extension has with `gopls`, for Rust, C and C++, Python, TypeScript and JavaScript, Java, C#, F# and Kotlin. Emetos will not install a server; it will look for the one you installed, say how to install it, and start it.
+- **M24b, language servers of more languages**: what the Go extension has with `gopls`, for Rust, C and C++, Python, TypeScript and JavaScript, Java and C#. Emetos will not install a server; it will look for the one you installed, say how to install it, and start it.
 - **M25, Run and Debug**: debugging through debug adapters (Go, Python, C, C++ and Rust, JavaScript and TypeScript), with breakpoints, the Debug Console and tasks before and after.
 - **M26, Testing**: a Test Explorer, test results and coverage, for Go, Python, Rust, JavaScript and TypeScript, and C and C++.
 - **M27, HTTP Client**: requests, environments, responses and a collection runner, in the spirit of Postman.

@@ -1981,9 +1981,9 @@ Requested by the user on 2026-10-29: "I want a git extension like vscode", the f
 
 ## M24b: Language servers of more languages
 
-Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for Rust, C/C++, Python, TypeScript/JavaScript, Java, C#, F# and Kotlin (SPEC §10.34, D47–D49). It runs **before M25**, because the debuggers and test providers of M25 and M26 build on these servers and on the Python interpreter and TypeScript version they choose. No new Go module; the LSP client and its UI are M12's. Emetos never installs a server (D47). **Tests of the milestone:** fake servers by default; the real servers under their own tags (SPEC §10.34 "Tests"), with the tools installed only into `/var/tmp/emetos-tools/` at versions pinned in `scripts/tool-versions.txt` (rust-analyzer's release binary, basedpyright and pylsp in a venv, typescript-language-server with `npm install --prefix`, jdtls's milestone archive, kotlin-lsp's release archive; clangd and Java are the system's); csharp-ls and fsautocomplete are installed with `dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools` on the system's .NET SDK (10.0, installed by the user on 2026-11-01).
+Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for Rust, C/C++, Python, TypeScript/JavaScript, Java and C# (SPEC §10.34, D47–D49). F# (step 24b.8) and Kotlin (step 24b.9) were planned and dropped by the user on 2026-11-01 (SPEC D47); their step numbers are not reused. It runs **before M25**, because the debuggers and test providers of M25 and M26 build on these servers and on the Python interpreter and TypeScript version they choose. No new Go module; the LSP client and its UI are M12's. Emetos never installs a server (D47). **Tests of the milestone:** fake servers by default; the real servers under their own tags (SPEC §10.34 "Tests"), with the tools installed only into `/var/tmp/emetos-tools/` at versions pinned in `scripts/tool-versions.txt` (rust-analyzer's release binary, basedpyright and pylsp in a venv, typescript-language-server with `npm install --prefix`, jdtls's milestone archive; clangd and Java are the system's); csharp-ls is installed with `dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools` on the system's .NET SDK (10.0, installed by the user on 2026-11-01).
 
-**Order.** 24b.1 first; 24b.2 to 24b.9 one after the other (they share `extensions/internal/langserver` and the asset script); 24b.10 last.
+**Order.** 24b.1 first; 24b.2 to 24b.7 one after the other (they share `extensions/internal/langserver` and the asset script); 24b.10 last.
 
 ### 24b.1 What every pack shares
 **Goal:** finding, starting and showing a language server the same way in every pack (SPEC §10.34 "What every pack gets").
@@ -2033,20 +2033,6 @@ Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for
 **Tasks:** the `csharp` language pack, the server contribution, the solution picker, metadata documents, the commands.
 **Tests:** fake server; under `emetos_csharpls` (csharp-ls from the milestone's tool path): a `testdata` solution.
 **Proof:** method B on a C# fixture: `scripts/proof.sh docs/implemented-proof-images/24b.7-csharp.png ...`; the image shows completion from csharp-ls.
-
-### 24b.8 F#: the pack and FsAutoComplete
-**Goal:** F# with FsAutoComplete (SPEC §10.34 F#).
-**Read:** SPEC §10.34; FsAutoComplete's README and Ionide's `package.json` (online); VS Code's `extensions/fsharp` (pinned reference).
-**Tasks:** the `fsharp` language pack, the server contribution with workspace peek and load, the commands.
-**Tests:** fake server (the `fsharp/workspacePeek` exchange); under `emetos_fsac` (fsautocomplete from the milestone's tool path): a `testdata` project.
-**Proof:** method B on an F# fixture: `scripts/proof.sh docs/implemented-proof-images/24b.8-fsharp.png ...`; the image shows a type hover from FsAutoComplete.
-
-### 24b.9 Kotlin: the pack and kotlin-lsp
-**Goal:** Kotlin with JetBrains' kotlin-lsp (SPEC §10.34 Kotlin).
-**Read:** SPEC §10.34, §17 (licenses), `scripts/reference-versions.txt`; Kotlin/kotlin-lsp's README and license, fwcd/vscode-kotlin's and fwcd/kotlin-language-server's READMEs and licenses (online).
-**Tasks:** the new pin of the Kotlin grammar's repository (the user's request of 2026-11-01 is the request §17 asks for), the `kotlin` language pack with its license in `third_party/` and `NOTICE`, the server contribution with the two kinds, the commands; a decision recording the state and license of both servers as found.
-**Tests:** fake server; under `emetos_kotlinlsp` (kotlin-lsp in `/var/tmp/emetos-tools/`, the system's Java): a Gradle `testdata` project.
-**Proof:** method B on a Kotlin fixture: `scripts/proof.sh docs/implemented-proof-images/24b.9-kotlin.png ...`.
 
 ### 24b.10 The desktop pass and the README
 **Goal:** the milestone's loose ends and the README (SPEC §10.34).
