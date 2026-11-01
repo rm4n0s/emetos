@@ -37,11 +37,13 @@ repository and its license text in third_party/.
    LICENSE is third_party/vscode-go/LICENSE); none was left out.
    Step 24b.6 added Java (redhat-developer/vscode-java, MIT, a grammar derived from the
    TextMate java.tmbundle, under the TextMate bundle license; the texts are in the same ThirdPartyNotices.txt).
+   Step 24b.7 added C# (dotnet/csharp-tmLanguage 0.1.0, MIT, the grammar that VS Code's csharp extension carries; its
+   text is in the same ThirdPartyNotices.txt).
    A grammar without a permissive license is left out and recorded here.
    Since step 11.4 these files are in the language packs, the extensions
    golang, json, yaml, markdown, python, javascript, typescript, html, css,
    scss, less, xml, sql, shellscript, makefile, docker, ini, cpp, rust, diff,
-   git and gomod under extensions/<pack>/assets/ (a pack's cgmanifest.json names
+   git, gomod, java and csharp under extensions/<pack>/assets/ (a pack's cgmanifest.json names
    the upstream of each of its grammars); the licenses did not change and stay
    in third_party/.
    License texts: third_party/vscode-extensions/ (VS Code's LICENSE.txt and
@@ -241,3 +243,13 @@ Linked Go modules:
     what the server does are in extensions/rust/ra-settings.json, written by scripts/update-rust-analyzer-settings.sh
     from the pinned package.json (scripts/tool-versions.txt). The commands and their titles follow the same file. The
     rust-analyzer program itself is not bundled or downloaded by Emetos.
+
+23. The settings of csharp-ls
+    Source:  csharp-ls 0.28.0 of 2026-09-13 (https://github.com/razzmatazz/csharp-language-server), its README as the NuGet package carries it
+    License: MIT (the license expression of the NuGet package, recorded in third_party/csharp-ls/csharp-ls.nuspec; the package holds no
+             LICENSE file, and the text with the author's copyright line is in the repository of the project, which Emetos does not
+             fetch). csharp-ls links Roslyn (MIT) and ICSharpCode.Decompiler (MIT).
+    Added by step 24b.7 (extensions/csharp). The names, types and defaults of the settings (csharp.logLevel, csharp.analyzersEnabled,
+    csharp.applyFormattingOptions, csharp.locale), the command line (--solution, --loglevel, --locale), and the request csharp/metadata with
+    the csharp:/ addresses are written from that README. The csharp-ls program itself is not bundled or downloaded by Emetos (only by
+    scripts/fetch-tools.sh, into /var/tmp/emetos-tools, for the tests).

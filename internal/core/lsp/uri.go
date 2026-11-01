@@ -11,18 +11,28 @@ import (
 )
 
 // providedSchemes are the URI schemes of documents that a server makes up and an extension provides the text of: jdt://contents/... are the
-// class files of Eclipse JDT LS (SPEC §10.34 "Java"). A location in one of them is the read-only document "emetos-virtual:/<scheme>/<rest>",
-// whose provider (extension.ContentProvider with that scheme) asks the server for the text, and the other way round. The list is read-only;
-// the C# step adds its scheme.
-var providedSchemes = []string{"jdt"}
+// class files of Eclipse JDT LS (SPEC §10.34 "Java") and csharp:/<project>/decompiled/<Symbol>.cs the decompiled and generated sources of
+// csharp-ls (SPEC §10.34 "C#"). A location in one of them is the read-only document "emetos-virtual:/<scheme>/<rest>", whose provider
+// (extension.ContentProvider with that scheme) asks the server for the text, and the other way round. The list is read-only.
+var providedSchemes = []providedScheme{{name: "jdt", prefix: "jdt://"}, {name: "csharp", prefix: "csharp:/", noSlash: true}}
+
+// providedScheme is a scheme of documents a server makes up: its name (the scheme of the provider) and the start of its URIs, which is
+// where the rest begins (jdt:// has two slashes, csharp:/ has one: the path of a project follows it).
+type providedScheme struct {
+	name, prefix string
+	// noSlash says that the rest does not start with a slash: csharp://x is no URI of csharp-ls (its URIs have one slash and then the path
+	// of the project, which has none at its start here), so it is left to the editor to refuse.
+	noSlash bool
+}
 
 // ProvidedPath is the path of the virtual document that stands for a document the server made up: for "jdt://contents/java.base/String.class?=x"
 // it is "/jdt/contents/java.base/String.class?=x" (the rest of the URI as it is, query and escapes included, so that it goes back to the server
-// unchanged). It reports false for a URI of any other scheme.
+// unchanged). It reports false for a URI of any other scheme and for one with nothing after the prefix; csharp://x is not one of csharp-ls's
+// URIs (its path is the absolute path of the project, "csharp:/home/me/app/App.csproj/decompiled/System.Console.cs").
 func ProvidedPath(s string) (string, bool) {
 	for _, scheme := range providedSchemes {
-		if rest, ok := strings.CutPrefix(s, scheme+"://"); ok && rest != "" {
-			return "/" + scheme + "/" + rest, true
+		if rest, ok := strings.CutPrefix(s, scheme.prefix); ok && rest != "" && (!scheme.noSlash || !strings.HasPrefix(rest, "/")) {
+			return "/" + scheme.name + "/" + rest, true
 		}
 	}
 	return "", false
@@ -31,8 +41,8 @@ func ProvidedPath(s string) (string, bool) {
 // providedURI is the URI the server knows a virtual document by, the reverse of ProvidedPath; false for any other virtual path.
 func providedURI(path string) (string, bool) {
 	for _, scheme := range providedSchemes {
-		if rest, ok := strings.CutPrefix(path, "/"+scheme+"/"); ok && rest != "" {
-			return scheme + "://" + rest, true
+		if rest, ok := strings.CutPrefix(path, "/"+scheme.name+"/"); ok && rest != "" {
+			return scheme.prefix + rest, true
 		}
 	}
 	return "", false

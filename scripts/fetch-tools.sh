@@ -8,6 +8,7 @@
 #   file  <name> <version> <sha256 of the download> <url>                           kept as /var/tmp/emetos-tools/download/<name>-<version>
 #   venv  <name> <version> <sha256 of the file> <requirements file in the repository>  pip install --require-hashes into /var/tmp/emetos-tools/venv (python3 -m venv)
 #   tgz   <name> <version> <sha256 of the download> <url> <folder>                  unpacked into /var/tmp/emetos-tools/<folder>
+#   dotnettool <name> <version> <sha256 of the .nupkg> <url of the .nupkg>         dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools, from the verified file
 #   npm   <name> <version> <integrity> <package> [<spec>]                           npm install --prefix /var/tmp/emetos-tools/node --ignore-scripts <package>@<version> (or <spec>)
 # A download whose sha256 differs from the pin is refused. A tool that is there already with the right sha256 is left alone; the
 # path of what was installed is printed. The tests of the packs skip when their program is not there (docs/IMPLEMENTATION.md "M24b").
@@ -88,6 +89,40 @@ for want in "$@"; do
         rm -rf "$dst"
         mv "$tmp/unpacked" "$dst"
         mv -f "$tmp/download.tar.gz" "$archive"
+        rm -rf "$tmp"
+        echo "$dst"
+        ;;
+      dotnettool)
+        # A .NET tool is installed from the .nupkg that was downloaded and compared with the pinned sha256, through a NuGet.config whose only
+        # source is the folder that holds it, so that nothing else is fetched (a tool package holds all its files). The SDK is the system's
+        # (dotnet on PATH); it runs with a home folder, a package folder and a CLI home of its own under $tools, so that it writes nothing to
+        # the user's home, and with its telemetry and first-run experience off.
+        dst="$tools/dotnet-tools"
+        if [[ -f "$dst/.emetos-$name" && "$(cat "$dst/.emetos-$name")" == "$sha" && -x "$dst/$name" ]]; then
+          echo "$dst"
+          continue
+        fi
+        command -v dotnet >/dev/null || { echo "error: $name: dotnet (the .NET SDK) is not installed" >&2; exit 1; }
+        tmp="$(mktemp -d "$tools/download/.fetch.XXXXXX")"
+        curl -fsSL --max-time 600 -o "$tmp/$name.$version.nupkg" "$url"
+        [[ "$(sha256sum "$tmp/$name.$version.nupkg" | cut -d' ' -f1)" == "$sha" ]] || { echo "error: $name: the download does not match the pinned sha256" >&2; rm -rf "$tmp"; exit 1; }
+        cat >"$tmp/NuGet.config" <<EOF_NUGET
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="pinned" value="$tmp" />
+  </packageSources>
+</configuration>
+EOF_NUGET
+        mkdir -p "$tools/dotnet-home" "$tools/nuget-packages" "$dst"
+        dotnet_env=(HOME="$tools/dotnet-home" DOTNET_CLI_HOME="$tools/dotnet-home" NUGET_PACKAGES="$tools/nuget-packages" NUGET_HTTP_CACHE_PATH="$tools/dotnet-home/http-cache"
+          DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1)
+        env "${dotnet_env[@]}" dotnet tool uninstall "$name" --tool-path "$dst" >/dev/null 2>&1 || true
+        env "${dotnet_env[@]}" dotnet tool install "$name" --version "$version" --tool-path "$dst" --configfile "$tmp/NuGet.config" </dev/null >/dev/null
+        [[ -x "$dst/$name" ]] || { echo "error: $name: the tool was not installed" >&2; rm -rf "$tmp"; exit 1; }
+        echo "$sha" >"$dst/.emetos-$name"
+        mv -f "$tmp/$name.$version.nupkg" "$tools/download/$name-$version.nupkg"
         rm -rf "$tmp"
         echo "$dst"
         ;;

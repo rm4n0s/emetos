@@ -30,3 +30,5 @@ into the program come with their sources (`go list -m -f '{{.Dir}}' <module>`) a
 `third_party/vscode-containers/LICENSE.md` is the license of Container Tools for Visual Studio Code (MIT), whose design, texts, templates and command ids the Docker and Podman extensions may port (`// Ported from vscode-containers: <path>` lines, step 18.1 and after); no file of it is bundled by step 18.1.
 
 `third_party/rust-analyzer/LICENSE-MIT` is the MIT license of rust-analyzer, copied from the release 2026-10-26 (rust-analyzer is MIT OR Apache-2.0). `extensions/rust/ra-settings.json` holds the settings of its VS Code extension (`editors/code/package.json`), written by `scripts/update-rust-analyzer-settings.sh` (step 24b.2); the program is not bundled.
+
+`third_party/csharp-ls/csharp-ls.nuspec` is the metadata of the NuGet package csharp-ls 0.28.0 (MIT, by its license expression). The package holds no license file; the program is not bundled, only installed into `/var/tmp/emetos-tools` by `scripts/fetch-tools.sh` for the tests of the C# pack (step 24b.7), and the pack's settings and protocol names are written from its README.

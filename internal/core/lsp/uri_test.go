@@ -23,6 +23,9 @@ func TestDocumentURI(t *testing.T) {
 		// the class files of Eclipse JDT LS: the whole URI after jdt:// is kept, query and escapes included
 		{"a class file of the server", document.VirtualURI("/jdt/contents/java.base/java.lang/String.class?=app/%5C/usr%5C/lib%5C/jvm%3Cjava.lang(String.class"),
 			"jdt://contents/java.base/java.lang/String.class?=app/%5C/usr%5C/lib%5C/jvm%3Cjava.lang(String.class"},
+		// the decompiled sources of csharp-ls: csharp: and one slash, then the absolute path of the project
+		{"decompiled source of the server", document.VirtualURI("/csharp/home/me/app/App.csproj/decompiled/System.Console.cs"),
+			"csharp:/home/me/app/App.csproj/decompiled/System.Console.cs"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,6 +71,11 @@ func TestProvidedPath(t *testing.T) {
 		{"jdt://contents/a/B.class?=x", "/jdt/contents/a/B.class?=x", true},
 		{"jdt://", "", false},
 		{"jdt:contents/a", "", false},
+		{"csharp:/home/me/App.csproj/decompiled/System.Console.cs", "/csharp/home/me/App.csproj/decompiled/System.Console.cs", true},
+		{"csharp:/p/App.csproj/generated/Hint.g.cs", "/csharp/p/App.csproj/generated/Hint.g.cs", true},
+		{"csharp:/", "", false},
+		{"csharp://home/me/App.csproj", "", false},
+		{"csharp:home/me", "", false},
 		{"jar:file:///a.jar!/B.class", "", false},
 		{"file:///a/b.go", "", false},
 	}

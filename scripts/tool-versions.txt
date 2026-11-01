@@ -10,6 +10,9 @@
 # npm     an npm package (the sha256 column is the package's integrity, sha512-...; the url column is the package name): npm install --prefix
 #         node --ignore-scripts, then the integrity in node/package-lock.json is compared; a sixth column, when there is one, is what npm is
 #         asked to install (typescript5@npm:typescript@5.9.3: a second copy of a package under another name)
+# dotnettool  a .NET global tool: the .nupkg is downloaded and compared with the sha256 (the url column is the file), then
+#         dotnet tool install --tool-path dotnet-tools from it alone (a NuGet.config with that folder as the only source), with a HOME,
+#         DOTNET_CLI_HOME and NUGET_PACKAGES of its own under /var/tmp/emetos-tools and the SDK's telemetry off
 # tgz     a gzipped tar of a whole tool: unpacked into the folder named in the sixth column below /var/tmp/emetos-tools/ (jdtls); the archive is
 #         kept in download/ and every member must be a relative path inside the folder
 gzbin     rust-analyzer               2026-10-26  4c83773525f93b636ed79761389568b4d2a89c05fa7ecc440245032d49ad80ce  https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-26/rust-analyzer-x86_64-unknown-linux-gnu.gz  01c2dc9d7653769915fe26fa4737bfab2b99ff3c756414d04d5239e0eab97365
@@ -28,6 +31,11 @@ tgz       jdtls                       1.63.0      b1f2abe0b3cccb462cf64fb4a5587c
 # or newer. Its tests (emetos_jdtls) run it with the system's Java (OpenJDK 25.0.4.1) and give it a temporary HOME, so that the Maven repository
 # and everything else it writes stay in the test's folders.
 
+# csharp-ls is the MIT-licensed Roslyn language server of razzmatazz/csharp-language-server, 0.28.0 of 2026-09-13 (the sha256 is that of the .nupkg
+# on nuget.org, which declares the license MIT and holds the tool's dlls; 0.28.0 needs the .NET 10 SDK). Its tests (emetos_csharpls) run it with
+# the system's .NET SDK (10.0.113) and give it a temporary HOME, DOTNET_CLI_HOME and NUGET_PACKAGES, so that nothing goes to the user's home.
+dotnettool csharp-ls                0.28.0      8f815e4f22674106a8244beba07e4b4b062e31528e404aa8489312effb8c0e0c  https://api.nuget.org/v3-flatcontainer/csharp-ls/0.28.0/csharp-ls.0.28.0.nupkg
+
 # System tools: not fetched, not pinned. The tests of a pack that uses the system's program carry the version they ran against.
 # clangd   emetos_clangd (step 24b.3)   clangd version 22.1.8 (Fedora 22.1.8-4.fc44), the system's (D47: Emetos installs no server)
 # python3   emetos_pyright, emetos_pylsp (step 24b.4)   Python 3.14.8, the system's: it makes the .venv of the tests (python3 -m venv --without-pip) and creates the venv of python-tools
@@ -36,3 +44,4 @@ tgz       jdtls                       1.63.0      b1f2abe0b3cccb462cf64fb4a5587c
 # release with a tsserver.js, TypeScript 7 is the native compiler and has none). typescript5 is TypeScript 5.9.3 under another name: the tests
 # copy it into the node_modules of a project as typescript, so that the version of the workspace differs from the one beside the server.
 # java      emetos_jdtls (step 24b.6)   OpenJDK 25.0.4.1 (Fedora), the system's: it runs jdtls; no JDK is installed by Emetos (D47)
+# dotnet    emetos_csharpls (step 24b.7)   the .NET SDK 10.0.113 (Fedora), the system's: it runs csharp-ls and restores/loads the testdata solution; no SDK is installed by Emetos (D47)

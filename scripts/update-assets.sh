@@ -100,7 +100,7 @@ copy_license seti vscode/extensions/theme-seti/ThirdPartyNotices.txt vscode/LICE
 
 # Step 11.4 moved the languages from internal/core/language/assets/<extension>/ to the language packs,
 # extensions/<pack>/assets/ (golang, json, yaml, markdown, python, javascript, typescript, html, css, scss, less,
-# xml, sql, shellscript, makefile, docker, ini, cpp, rust, diff, git, gomod, java); the blocks of the steps below say
+# xml, sql, shellscript, makefile, docker, ini, cpp, rust, diff, git, gomod, java, csharp); the blocks of the steps below say
 # which pack each extension goes to.
 
 # Step 4.6: the first languages. The grammars of these extensions come from the upstream
@@ -274,5 +274,9 @@ copy_license vscode-containers vscode-containers/LICENSE.md
 # Step 24b.6: Java (the java extension of VS Code: the grammar of redhat-developer/vscode-java, derived from the TextMate java bundle
 # and atom/language-java, both permissive; their texts are in VS Code's ThirdPartyNotices.txt, copied above). The snippets stay behind.
 copy_extension java java
+
+# Step 24b.7: C# (the csharp extension of VS Code: the grammar of dotnet/csharp-tmLanguage, MIT, whose text is in VS Code's
+# ThirdPartyNotices.txt, copied above). The snippets stay behind.
+copy_extension csharp csharp
 
 echo "update-assets: done"
