@@ -50,6 +50,7 @@ func TestAnExtensionSendsRequestsOfTheServersOwnProtocol(t *testing.T) {
 	// the server does not run yet
 	_, err := ls().Request(context.Background(), testServer, "custom/echo", nil)
 	wantRoute(t, err, "serversAPI.Request.ExtensionServerNotRunning")
+	wantRoute(t, ls().Notify(testServer, "custom/note", nil), "serversAPI.Notify.ExtensionServerNotRunning")
 	if enc, err := ls().PositionEncoding(testServer); err != nil || enc != "utf-16" {
 		t.Errorf("PositionEncoding before the server runs = %q, %v", enc, err)
 	}
@@ -94,6 +95,20 @@ func TestAnExtensionSendsRequestsOfTheServersOwnProtocol(t *testing.T) {
 			}
 		})
 	}
+	// a notification is queued at once and the server gets it with its params
+	if err := ls().Notify(testServer, "custom/note", map[string]any{"b": 2}); err != nil {
+		t.Errorf("Notify: %v", err)
+	}
+	wantRoute(t, ls().Notify(testServer, "custom/note", make(chan int)), "serversAPI.Notify.ExtensionArgumentsInvalid")
+	wantRoute(t, ls().Notify("nothing", "custom/note", nil), "serversAPI.Notify.ExtensionServerUnknown")
+	waitFor(t, tb, "the notification", func() bool {
+		for _, m := range traffic(t, st.controller(tb)) {
+			if m.FromClient && m.Method == "custom/note" && strings.Contains(string(m.Body), `"b":2`) {
+				return true
+			}
+		}
+		return false
+	})
 	// the server got the params as JSON
 	var seen bool
 	for _, m := range traffic(t, st.controller(tb)) {

@@ -10,6 +10,8 @@
 # npm     an npm package (the sha256 column is the package's integrity, sha512-...; the url column is the package name): npm install --prefix
 #         node --ignore-scripts, then the integrity in node/package-lock.json is compared; a sixth column, when there is one, is what npm is
 #         asked to install (typescript5@npm:typescript@5.9.3: a second copy of a package under another name)
+# tgz     a gzipped tar of a whole tool: unpacked into the folder named in the sixth column below /var/tmp/emetos-tools/ (jdtls); the archive is
+#         kept in download/ and every member must be a relative path inside the folder
 gzbin     rust-analyzer               2026-10-26  4c83773525f93b636ed79761389568b4d2a89c05fa7ecc440245032d49ad80ce  https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-26/rust-analyzer-x86_64-unknown-linux-gnu.gz  01c2dc9d7653769915fe26fa4737bfab2b99ff3c756414d04d5239e0eab97365
 file      rust-analyzer-package.json  2026-10-26  9701f04b1f484e27c427335943f512888ec930e547dada70b7c91d96fad7cce8  https://raw.githubusercontent.com/rust-lang/rust-analyzer/2026-10-26/editors/code/package.json
 venv      python-tools                2026-11-01  9c5d6f3f4d3549cc22f1fea068a7c97826619827d202d300352df700be719f3f  scripts/tools-python-requirements.txt
@@ -17,9 +19,14 @@ npm       pyright                     1.1.414     sha512-FPZZb51jepDX4eP7TEYDeNF
 npm       typescript-language-server  6.0.2      sha512-Ph7Ql+xkUJvMamnkh1h+aKP6HxLR7lrWIYkPn9/LZBkJdJZgtIj7OoVhkDYtQ7zFPTPmqZHOVXaUKGyz9M2q1Q==  typescript-language-server
 npm       typescript                  6.0.3      sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==  typescript
 npm       typescript5                 5.9.3      sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==  typescript5  typescript5@npm:typescript@5.9.3
+tgz       jdtls                       1.63.0      b1f2abe0b3cccb462cf64fb4a5587c7d09df60cf8be7748b152cbd89d018bdc4  https://download.eclipse.org/jdtls/milestones/1.63.0/jdt-language-server-1.63.0-202610191322.tar.gz  jdtls
 # python-tools holds basedpyright 1.40.2 (based on pyright 1.1.414, bundles node as nodejs-wheel-binaries) and python-lsp-server 1.15.0
 # with pyflakes 3.2.0 (diagnostics), jedi 0.20.1 and black; the pip wrappers of pyright would download node into the user's home folder,
 # so pyright is the npm package, run by the system's node.
+
+# jdtls is Eclipse JDT LS, the milestone 1.63.0 of 2026-10-19 (the sha256 is the one download.eclipse.org publishes beside the archive); it needs Java 21
+# or newer. Its tests (emetos_jdtls) run it with the system's Java (OpenJDK 25.0.4.1) and give it a temporary HOME, so that the Maven repository
+# and everything else it writes stay in the test's folders.
 
 # System tools: not fetched, not pinned. The tests of a pack that uses the system's program carry the version they ran against.
 # clangd   emetos_clangd (step 24b.3)   clangd version 22.1.8 (Fedora 22.1.8-4.fc44), the system's (D47: Emetos installs no server)
@@ -28,3 +35,4 @@ npm       typescript5                 5.9.3      sha512-jl1vZzPDinLr9eUt3J/t7V6F
 # typescript-language-server 6.0.2 needs node 22.22.2 or newer; it has no dependencies and finds the TypeScript beside it (typescript 6.0.3: the last
 # release with a tsserver.js, TypeScript 7 is the native compiler and has none). typescript5 is TypeScript 5.9.3 under another name: the tests
 # copy it into the node_modules of a project as typescript, so that the version of the workspace differs from the one beside the server.
+# java      emetos_jdtls (step 24b.6)   OpenJDK 25.0.4.1 (Fedora), the system's: it runs jdtls; no JDK is installed by Emetos (D47)

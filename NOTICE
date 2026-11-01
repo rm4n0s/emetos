@@ -35,6 +35,8 @@ repository and its license text in third_party/.
    Ignore files (git.tmbundle and git-commit-message-plus, MIT), and the Go
    module, workspace and checksum grammars of golang/vscode-go (MIT; its
    LICENSE is third_party/vscode-go/LICENSE); none was left out.
+   Step 24b.6 added Java (redhat-developer/vscode-java, MIT, a grammar derived from the
+   TextMate java.tmbundle, under the TextMate bundle license; the texts are in the same ThirdPartyNotices.txt).
    A grammar without a permissive license is left out and recorded here.
    Since step 11.4 these files are in the language packs, the extensions
    golang, json, yaml, markdown, python, javascript, typescript, html, css,

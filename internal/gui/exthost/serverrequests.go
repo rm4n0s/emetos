@@ -55,6 +55,28 @@ func (s serversAPI) Request(ctx context.Context, serverID, method string, params
 	return result, nil
 }
 
+// Notify implements extension.LanguageServers.
+func (s serversAPI) Notify(serverID, method string, params any) error {
+	in := s.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	if !in.declared(serverID) {
+		return errors.New("ExtensionServerUnknown", "the manifest of the extension declares no language server with this id", "extension", in.id, "server", serverID)
+	}
+	if _, err := json.Marshal(params); err != nil {
+		return errors.NewErr("ExtensionArgumentsInvalid", err).SetMetadata("extension", in.id, "server", serverID, "method", method)
+	}
+	var client *lsp.Client
+	if c := in.serverCtl(serverID); c != nil {
+		client = c.currentClient()
+	}
+	if client == nil {
+		return errors.New("ExtensionServerNotRunning", "the language server is not running", "extension", in.id, "server", serverID)
+	}
+	return client.Notify(method, params)
+}
+
 // OnNotification implements extension.LanguageServers.
 func (s serversAPI) OnNotification(serverID, method string, fn func(json.RawMessage)) (func(), error) {
 	in := s.inst

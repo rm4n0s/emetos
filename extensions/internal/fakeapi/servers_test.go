@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/rm4n0s/errors"
+
 	"github.com/rm4n0s/emetos/extension"
 )
 
@@ -176,6 +178,28 @@ func TestTheFakeRequestsOfTheServersOwnProtocol(t *testing.T) {
 	route(t, err, "FakeServerUnknown")
 	if a.ServerRequests("none") != nil {
 		t.Error("requests of a server that is not there")
+	}
+}
+
+func TestTheFakeNotifiesTheServerOfItsOwnProtocol(t *testing.T) {
+	a := New(t, serverManifest(), extension.ScopeInfo{})
+	ls := a.LanguageServers()
+	route(t, ls.Notify("ls", "custom/note", nil), "serversAPI.Notify.ExtensionServerNotRunning")
+	a.SetServerStatus("ls", extension.ServerStatus{State: extension.ServerRunning})
+	if err := ls.Notify("ls", "custom/note", map[string]any{"a": 1}); err != nil {
+		t.Fatal(err)
+	}
+	reqs := a.ServerRequests("ls")
+	if len(reqs) != 1 || !reqs[0].Notification || reqs[0].Method != "custom/note" || string(reqs[0].Params) != `{"a":1}` {
+		t.Errorf("requests = %+v", reqs)
+	}
+	route(t, ls.Notify("ls", "custom/note", make(chan int)), "serversAPI.Notify.FakeRequestParamsInvalid")
+	route(t, ls.Notify("none", "custom/note", nil), "FakeServerUnknown")
+	a.FailNotifications("ls", errors.New("TestBoom", "boom"))
+	route(t, ls.Notify("ls", "custom/note", nil), "TestBoom")
+	a.FailNotifications("ls", nil)
+	if err := ls.Notify("ls", "custom/note", nil); err != nil || len(a.ServerRequests("ls")) != 2 {
+		t.Errorf("Notify after the failures ended: %v", err)
 	}
 }
 

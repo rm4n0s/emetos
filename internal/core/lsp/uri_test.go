@@ -20,6 +20,9 @@ func TestDocumentURI(t *testing.T) {
 		{"non-ASCII is encoded", document.FileURI("/tmp/é€.go"), "file:///tmp/%C3%A9%E2%82%AC.go"},
 		{"an untitled document", document.UntitledURI(3), "untitled:Untitled-3"},
 		{"generated content", document.VirtualURI("/defaultSettings.json"), "emetos-virtual:/defaultSettings.json"},
+		// the class files of Eclipse JDT LS: the whole URI after jdt:// is kept, query and escapes included
+		{"a class file of the server", document.VirtualURI("/jdt/contents/java.base/java.lang/String.class?=app/%5C/usr%5C/lib%5C/jvm%3Cjava.lang(String.class"),
+			"jdt://contents/java.base/java.lang/String.class?=app/%5C/usr%5C/lib%5C/jvm%3Cjava.lang(String.class"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,6 +56,25 @@ func TestParseDocumentURI(t *testing.T) {
 		got, err := ParseDocumentURI(tt.in)
 		if err != nil || got != tt.want {
 			t.Errorf("ParseDocumentURI(%q) = %+v, %v, want %+v", tt.in, got, err, tt.want)
+		}
+	}
+}
+
+func TestProvidedPath(t *testing.T) {
+	tests := []struct {
+		in, want string
+		ok       bool
+	}{
+		{"jdt://contents/a/B.class?=x", "/jdt/contents/a/B.class?=x", true},
+		{"jdt://", "", false},
+		{"jdt:contents/a", "", false},
+		{"jar:file:///a.jar!/B.class", "", false},
+		{"file:///a/b.go", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := ProvidedPath(tt.in)
+		if got != tt.want || ok != tt.ok {
+			t.Errorf("ProvidedPath(%q) = %q, %v, want %q, %v", tt.in, got, ok, tt.want, tt.ok)
 		}
 	}
 }

@@ -244,8 +244,13 @@ func (c *Controller) setPath() {
 	env := c.env()
 	err := c.api.InputBox().Show(extension.InputBoxOptions{
 		Prompt: "Path of the " + p.Name + " program", Value: current,
-		Message:  "Saved as " + p.PathSetting + " in your settings. Leave it empty to look for " + p.Name + " in the usual places.",
-		Validate: func(v string) string { return CheckPath(env, v) },
+		Message: "Saved as " + p.PathSetting + " in your settings. Leave it empty to look for " + p.Name + " in the usual places.",
+		Validate: func(v string) string {
+			if p.CheckPath != nil {
+				return p.CheckPath(env, v)
+			}
+			return CheckPath(env, v)
+		},
 	}, func(value string, ok bool) {
 		if !ok {
 			return

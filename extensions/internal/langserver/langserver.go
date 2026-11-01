@@ -21,6 +21,7 @@
 package langserver
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 
@@ -57,6 +58,9 @@ type Config struct {
 	// The settings it reads are watched: a change restarts the server. An error leaves the server missing, with the error in
 	// the Output channel.
 	Customize func(l *Launch, env Env) error
+	// CustomizeContext is Customize for a pack that runs a program to decide (jdtls asks java for its version): it gets the context of
+	// the start, which ends with the tab and with a restart. Only one of the two is used, this one first.
+	CustomizeContext func(ctx context.Context, l *Launch, env Env) error
 	// TraceKey is the setting that traces the traffic with the server (rust-analyzer.trace.server): "<pack id>.<id>.trace.server"
 	// when empty (extension.LanguageServerSpec.TraceKey).
 	TraceKey string
@@ -94,6 +98,11 @@ type Program struct {
 	// Dirs gives more folders from the settings and the folder (the bin folder of the interpreter), searched before the Before
 	// folders and after the After folders respectively. It may be nil.
 	Dirs func(env Env) (before, after []string)
+	// PathDescription is the description of the path setting when the program is not "the path of the <Name> program" (jdtls is a
+	// folder). CheckPath, when it is not nil, replaces the check of what Set Path... is given (CheckPath of this package says a folder
+	// is wrong); it returns why the text is not valid, "" when it is.
+	PathDescription string
+	CheckPath       func(env Env, text string) string
 	// Find replaces the whole search when it is not nil (jdtls is a folder with a launcher jar, not a program on PATH). It may
 	// call FindExecutable. Its error is returned as it is.
 	Find func(env Env) (Found, error)
@@ -220,10 +229,11 @@ func (c Config) SettingSpecs() []extension.SettingSpec {
 			continue
 		}
 		seen[p.PathSetting] = true
-		out = append(out, extension.SettingSpec{
-			Key: p.PathSetting, Type: "string", Default: "", Scope: "machine",
-			Description: "The path of the " + p.Name + " program. When empty, " + p.Name + " is looked for in " + p.searchText() + ".",
-		})
+		desc := "The path of the " + p.Name + " program. When empty, " + p.Name + " is looked for in " + p.searchText() + "."
+		if p.PathDescription != "" {
+			desc = p.PathDescription
+		}
+		out = append(out, extension.SettingSpec{Key: p.PathSetting, Type: "string", Default: "", Scope: "machine", Description: desc})
 	}
 	return out
 }

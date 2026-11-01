@@ -49,8 +49,14 @@ func Resolve(ctx context.Context, cfg Config, env Env) (*Launch, error) {
 			}
 		}
 	}
-	if cfg.Customize != nil {
-		if err := cfg.Customize(l, env); err != nil {
+	if cfg.Customize != nil || cfg.CustomizeContext != nil {
+		var err error
+		if cfg.CustomizeContext != nil {
+			err = cfg.CustomizeContext(ctx, l, env)
+		} else {
+			err = cfg.Customize(l, env)
+		}
+		if err != nil {
 			if _, ours := errors.FromError(err); ours {
 				return nil, err
 			}

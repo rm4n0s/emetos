@@ -22,8 +22,10 @@ type serverState struct {
 	// notifications and encoding the position encoding the fake reports ("" is utf-16).
 	requests []ServerRequest
 	handler  func(ServerRequest) (json.RawMessage, error)
-	notifs   []*notifSub
-	encoding string
+	// notifyErr is what Notify fails with, when set (FailNotifications)
+	notifyErr error
+	notifs    []*notifSub
+	encoding  string
 }
 
 type notifSub struct {
@@ -36,6 +38,8 @@ type ServerRequest struct {
 	Server, Method string
 	// Params are the params of the request as JSON.
 	Params json.RawMessage
+	// Notification is true for what the extension sent with LanguageServers().Notify.
+	Notification bool
 }
 
 type serverSub struct{ fn func(extension.ServerStatus) }
@@ -350,6 +354,30 @@ func (s serversAPI) Request(_ context.Context, id, method string, params any) (j
 	return handler(req)
 }
 
+// Notify implements extension.LanguageServers: the notification is recorded with the requests (Requests lists both), and the handler
+// set with OnServerRequest is not asked.
+func (s serversAPI) Notify(id, method string, params any) error {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return errors.NewErr("FakeRequestParamsInvalid", err).SetMetadata("server", id, "method", method)
+	}
+	a := s.a
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	st, err := a.server(id)
+	if err != nil {
+		return err
+	}
+	if st.status.State != extension.ServerRunning {
+		return errors.New("ExtensionServerNotRunning", "the language server is not running", "server", id)
+	}
+	if st.notifyErr != nil {
+		return st.notifyErr
+	}
+	st.requests = append(st.requests, ServerRequest{Server: id, Method: method, Params: data, Notification: true})
+	return nil
+}
+
 // OnNotification implements extension.LanguageServers; ServerNotify delivers.
 func (s serversAPI) OnNotification(id, method string, fn func(json.RawMessage)) (func(), error) {
 	s.a.mu.Lock()
@@ -388,6 +416,16 @@ func (a *API) OnServerRequest(id string, fn func(ServerRequest) (json.RawMessage
 	defer a.mu.Unlock()
 	if st, err := a.server(id); err == nil {
 		st.handler = fn
+	}
+}
+
+// FailNotifications makes the notifications the extension sends to the server with LanguageServers().Notify fail with err (nil
+// stops failing).
+func (a *API) FailNotifications(id string, err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if st, e := a.server(id); e == nil {
+		st.notifyErr = err
 	}
 }
 

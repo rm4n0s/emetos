@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/errors"
@@ -298,5 +299,50 @@ func TestACommandReplacesTheProgramTheHostRunsAndTheSettingsAreForwarded(t *test
 	plain := (&Launch{Found: Found{Path: "/usr/bin/tool"}}).serverLaunch()
 	if plain.Program != "/usr/bin/tool" || plain.Settings != nil {
 		t.Errorf("plain = %+v", plain)
+	}
+}
+
+func TestResolveGivesCustomizeContextTheContextOfTheStartAndPrefersItToCustomize(t *testing.T) {
+	base := t.TempDir()
+	program(t, filepath.Join(base, "bin"), "ra", "ra 1.0.0")
+	type key struct{}
+	ctx := context.WithValue(context.Background(), key{}, "the start")
+	var seen string
+	cfg := Config{
+		ID: "ra", Name: "ra", Languages: []string{"x"}, Programs: []Program{{Name: "ra"}},
+		Customize: func(*Launch, Env) error { t.Error("Customize ran although CustomizeContext is set"); return nil },
+		CustomizeContext: func(ctx context.Context, l *Launch, env Env) error {
+			seen, _ = ctx.Value(key{}).(string)
+			l.Args = append(l.Args, "--from-context")
+			return nil
+		},
+	}
+	l, err := Resolve(ctx, cfg, Env{Folder: base, Path: filepath.Join(base, "bin")})
+	if err != nil || seen != "the start" || !slices.Equal(l.Args, []string{"--from-context"}) {
+		t.Fatalf("launch %+v, context %q, error %v", l, seen, err)
+	}
+	// its failures are those of Customize: ours as they are, others as ServerCustomizeFailed
+	cfg.CustomizeContext = func(context.Context, *Launch, Env) error { return errors.New("PackFailed", "the pack failed") }
+	_, err = Resolve(ctx, cfg, Env{Folder: base, Path: filepath.Join(base, "bin")})
+	wantRoute(t, err, "PackFailed")
+}
+
+func TestAbsExpandsAndJoinsTheFolder(t *testing.T) {
+	env := Env{Folder: "/w/app", Home: "/home/u"}
+	for in, want := range map[string]string{"~/jdtls": "/home/u/jdtls", "tools/../x": "/w/app/x", "/opt/jdtls/": "/opt/jdtls", "${workspaceFolder}/j": "/w/app/j"} {
+		if got := env.Abs(in); got != want {
+			t.Errorf("Abs(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestAPathSettingMayDescribeItselfAndCheckItsOwnValue(t *testing.T) {
+	cfg := Config{ID: "j", Name: "J", Languages: []string{"j"}, Programs: []Program{
+		{Name: "jdtls", PathSetting: "j.path", PathDescription: "The folder of jdtls."},
+		{Name: "other", PathSetting: "j.other"},
+	}}
+	specs := cfg.SettingSpecs()
+	if len(specs) != 2 || specs[0].Description != "The folder of jdtls." || !strings.Contains(specs[1].Description, "The path of the other program") {
+		t.Errorf("specs = %+v", specs)
 	}
 }

@@ -7,6 +7,7 @@
 #   gzbin <name> <version> <sha256 of the download> <url> <sha256 of the program>   gunzipped into /var/tmp/emetos-tools/bin/<name>
 #   file  <name> <version> <sha256 of the download> <url>                           kept as /var/tmp/emetos-tools/download/<name>-<version>
 #   venv  <name> <version> <sha256 of the file> <requirements file in the repository>  pip install --require-hashes into /var/tmp/emetos-tools/venv (python3 -m venv)
+#   tgz   <name> <version> <sha256 of the download> <url> <folder>                  unpacked into /var/tmp/emetos-tools/<folder>
 #   npm   <name> <version> <integrity> <package> [<spec>]                           npm install --prefix /var/tmp/emetos-tools/node --ignore-scripts <package>@<version> (or <spec>)
 # A download whose sha256 differs from the pin is refused. A tool that is there already with the right sha256 is left alone; the
 # path of what was installed is printed. The tests of the packs skip when their program is not there (docs/IMPLEMENTATION.md "M24b").
@@ -66,6 +67,29 @@ for want in "$@"; do
         "$tools/venv/bin/pip" install --disable-pip-version-check --require-hashes --no-deps -q -r "$req" </dev/null
         echo "$sha" >"$tools/venv/.emetos-$name"
         echo "$tools/venv/bin"
+        ;;
+      tgz)
+        dst="$tools/$extra"
+        archive="$tools/download/$name-$version.tar.gz"
+        if [[ -f "$dst/.emetos-$name" && "$(cat "$dst/.emetos-$name")" == "$sha" ]]; then
+          echo "$dst"
+          continue
+        fi
+        tmp="$(mktemp -d "$tools/download/.fetch.XXXXXX")"
+        curl -fsSL --max-time 900 -o "$tmp/download.tar.gz" "$url"
+        [[ "$(sha256sum "$tmp/download.tar.gz" | cut -d' ' -f1)" == "$sha" ]] || { echo "error: $name: the download does not match the pinned sha256" >&2; rm -rf "$tmp"; exit 1; }
+        # every member is a relative path with no .. in it
+        if tar -tzf "$tmp/download.tar.gz" | grep -qE '^/|(^|/)\.\.(/|$)'; then
+          echo "error: $name: the archive has a member outside its folder" >&2; rm -rf "$tmp"; exit 1
+        fi
+        mkdir -p "$tmp/unpacked"
+        tar -xzf "$tmp/download.tar.gz" -C "$tmp/unpacked"
+        echo "$sha" >"$tmp/unpacked/.emetos-$name"
+        rm -rf "$dst"
+        mv "$tmp/unpacked" "$dst"
+        mv -f "$tmp/download.tar.gz" "$archive"
+        rm -rf "$tmp"
+        echo "$dst"
         ;;
       npm)
         have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"].get("node_modules/"+sys.argv[2],{}).get("version","")+" "+d["packages"].get("node_modules/"+sys.argv[2],{}).get("integrity",""))' "$tools/node/package-lock.json" "$url" 2>/dev/null || true)"

@@ -222,6 +222,85 @@ func TestServerProviderFeaturesFromRegistrations(t *testing.T) {
 	}
 }
 
+func TestServerProviderCodeActionKindsFromTheCapabilitiesAndTheRegistrations(t *testing.T) {
+	// a server that announces its kinds when it registers the feature (Eclipse JDT LS) is as good as one that announces them at once
+	tests := []struct {
+		name string
+		caps string
+		send []lsptest.Outgoing
+		// registered is how many registrations the server sends
+		registered int
+		want       []string
+	}{
+		{"none", `{"codeActionProvider":true}`, nil, 0, nil},
+		{"in the capabilities", `{"codeActionProvider":{"codeActionKinds":["quickfix","source.organizeImports"]}}`, nil, 0, []string{"quickfix", "source.organizeImports"}},
+		{"in a registration", `{}`, []lsptest.Outgoing{{After: "initialized", Request: true, Method: lsp.MethodRegisterCapability,
+			Params: json.RawMessage(`{"registrations":[{"id":"1","method":"textDocument/codeAction","registerOptions":{"codeActionKinds":["quickfix","source","source.organizeImports"]}}]}`)}},
+			1, []string{"quickfix", "source", "source.organizeImports"}},
+		{"in both, without repeating", `{"codeActionProvider":{"codeActionKinds":["quickfix"]}}`, []lsptest.Outgoing{{After: "initialized", Request: true, Method: lsp.MethodRegisterCapability,
+			Params: json.RawMessage(`{"registrations":[{"id":"1","method":"textDocument/codeAction","registerOptions":{"codeActionKinds":["quickfix","refactor"]}},{"id":"2","method":"textDocument/codeAction","registerOptions":{"codeActionKinds":"not a list"}}]}`)}},
+			2, []string{"quickfix", "refactor"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := lsptest.Start(t, lsptest.Options{Script: lsptest.Script{Capabilities: json.RawMessage(tt.caps), Send: tt.send}})
+			sp := &ServerProvider{Client: func() Server { return h.Client }}
+			for i := 0; len(h.Client.Registered(lsp.MethodCodeAction)) < tt.registered; i++ {
+				if i > 2000 {
+					t.Fatal("the registration did not arrive")
+				}
+				sleepABit()
+			}
+			if got := sp.CodeActionKinds(); !slices.Equal(got, tt.want) {
+				t.Errorf("kinds = %v, want %v", got, tt.want)
+			}
+		})
+	}
+	if got := (&ServerProvider{Client: func() Server { return nil }}).CodeActionKinds(); got != nil {
+		t.Errorf("kinds with no server = %v", got)
+	}
+}
+
+func TestServerProviderResolvesActionsWhenTheRegistrationSaysSo(t *testing.T) {
+	// the action of a server that resolves (data, no edit) is resolved when it said so in its capabilities, with a registration of
+	// codeAction/resolve, or in the options of its registration of the feature (Eclipse JDT LS)
+	register := func(options string) []lsptest.Outgoing {
+		return []lsptest.Outgoing{{After: "initialized", Request: true, Method: lsp.MethodRegisterCapability,
+			Params: json.RawMessage(`{"registrations":[{"id":"1","method":"textDocument/codeAction","registerOptions":` + options + `}]}`)}}
+	}
+	tests := []struct {
+		name string
+		caps string
+		send []lsptest.Outgoing
+		want bool
+	}{
+		{"no", `{"codeActionProvider":true}`, nil, false},
+		{"in the capabilities", `{"codeActionProvider":{"resolveProvider":true}}`, nil, true},
+		{"in the options of a registration", `{}`, register(`{"resolveProvider":true}`), true},
+		{"a registration that says no", `{}`, register(`{"resolveProvider":false}`), false},
+		{"a registration with no options", `{}`, register(`null`), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := lsptest.Start(t, lsptest.Options{Script: lsptest.Script{Capabilities: json.RawMessage(tt.caps), Send: tt.send}})
+			sp := &ServerProvider{Client: func() Server { return h.Client }}
+			for i := 0; len(tt.send) > 0 && len(h.Client.Registered(lsp.MethodCodeAction)) == 0; i++ {
+				if i > 2000 {
+					t.Fatal("the registration did not arrive")
+				}
+				sleepABit()
+			}
+			actions := CodeActionsFromLSP(lsp.UTF16, docOf("java", "/work/A.java", "class A {}"), "srv", lsp.CodeActions{{Title: "Organize imports", Kind: "source.organizeImports", Data: json.RawMessage(`{"pid":"0"}`)}})
+			if len(actions) != 1 {
+				t.Fatalf("actions = %+v", actions)
+			}
+			if got := sp.CanResolveAction(actions[0]); got != tt.want {
+				t.Errorf("CanResolveAction = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestServerProviderErrors(t *testing.T) {
 	ctx := context.Background()
 	doc := docOf("go", "/work/a.go", emojiLine)

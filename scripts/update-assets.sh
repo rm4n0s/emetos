@@ -13,7 +13,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ref="$root/reference"
+# EMETOS_REFERENCE names another folder that holds the references: a git worktree of a step has none of its own
+ref="${EMETOS_REFERENCE:-$root/reference}"
 
 if [[ ! -d "$ref" ]]; then
   echo "error: reference/ is missing; run scripts/fetch-reference.sh" >&2
@@ -99,7 +100,7 @@ copy_license seti vscode/extensions/theme-seti/ThirdPartyNotices.txt vscode/LICE
 
 # Step 11.4 moved the languages from internal/core/language/assets/<extension>/ to the language packs,
 # extensions/<pack>/assets/ (golang, json, yaml, markdown, python, javascript, typescript, html, css, scss, less,
-# xml, sql, shellscript, makefile, docker, ini, cpp, rust, diff, git, gomod); the blocks of the steps below say
+# xml, sql, shellscript, makefile, docker, ini, cpp, rust, diff, git, gomod, java); the blocks of the steps below say
 # which pack each extension goes to.
 
 # Step 4.6: the first languages. The grammars of these extensions come from the upstream
@@ -269,5 +270,9 @@ copy_license vscode-terminal-suggest vscode/LICENSE.txt vscode/extensions/termin
 # texts, templates and command ids the Docker and Podman extensions may port (each ported file says so with a "Ported from
 # vscode-containers" line). No file of it is bundled by this step.
 copy_license vscode-containers vscode-containers/LICENSE.md
+
+# Step 24b.6: Java (the java extension of VS Code: the grammar of redhat-developer/vscode-java, derived from the TextMate java bundle
+# and atom/language-java, both permissive; their texts are in VS Code's ThirdPartyNotices.txt, copied above). The snippets stay behind.
+copy_extension java java
 
 echo "update-assets: done"

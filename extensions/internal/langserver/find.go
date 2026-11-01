@@ -84,6 +84,9 @@ func (e Env) absolute(tmpl string) string {
 	return filepath.Clean(p)
 }
 
+// Abs makes the absolute path of a template (Expand, and joined to the folder of the tab when it is relative), cleaned.
+func (e Env) Abs(tmpl string) string { return e.absolute(tmpl) }
+
 // IsExecutable tells whether the path is a file (a link to one counts) that someone may run.
 func IsExecutable(path string) bool {
 	info, err := os.Stat(path)

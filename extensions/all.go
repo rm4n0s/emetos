@@ -16,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/ini"
 	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
+	"github.com/rm4n0s/emetos/extensions/java"
 	"github.com/rm4n0s/emetos/extensions/javascript"
 	"github.com/rm4n0s/emetos/extensions/json"
 	"github.com/rm4n0s/emetos/extensions/less"
@@ -73,7 +74,7 @@ func All() []extension.Factory {
 	return []extension.Factory{
 		golang.New, json.New, yaml.New, markdown.New, python.New, javascript.New, typescript.New,
 		html.New, css.New, scss.New, less.New, xml.New, sql.FactoryOf(sqlHub), shellscript.New, makefile.New, docker.New, ini.New,
-		cpp.New, rust.New, diff.New, git.New, gomod.New, mongodb.FactoryOf(db),
+		cpp.New, rust.New, diff.New, git.New, gomod.New, java.New, mongodb.FactoryOf(db),
 		search.New, containers.New, podman.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw),
 		hosting.NewFactory(rw.Hosting()),

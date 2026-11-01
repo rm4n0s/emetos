@@ -677,3 +677,24 @@ func TestASwitchedOffServerShowsAsDisabledAndTellsNobody(t *testing.T) {
 		t.Errorf("restarts = %d", got)
 	}
 }
+
+func TestSetPathChecksTheValueWithTheCheckOfTheProgram(t *testing.T) {
+	r := newRig(t, false, func(c *Config) {
+		c.Programs[0].CheckPath = func(env Env, text string) string {
+			if strings.HasSuffix(text, "/jdtls") {
+				return ""
+			}
+			return "not a jdtls folder"
+		}
+	})
+	r.attach()
+	_, _ = r.start()
+	r.api.RunNoteAction(0, "Set Path...")
+	in := r.api.LastInput()
+	if msg := in.Validate("/opt/jdtls"); msg != "" {
+		t.Errorf("validation of what the program accepts = %q", msg)
+	}
+	if msg := in.Validate(r.bin); msg != "not a jdtls folder" {
+		t.Errorf("validation of a folder = %q: the check of the program was not used", msg)
+	}
+}

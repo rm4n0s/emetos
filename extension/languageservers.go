@@ -230,6 +230,12 @@ type LanguageServers interface {
 	// ExtensionServerUnknown, ExtensionDeactivated, ExtensionArgumentsInvalid for params that do not encode, ExtensionServerNotRunning
 	// while the server does not run, and with the error of the server (ServerError) when it answers with one.
 	Request(ctx context.Context, serverID, method string, params any) (json.RawMessage, error)
+	// Notify sends a notification of the language server's own protocol (Eclipse JDT LS's java/projectConfigurationUpdate, which it declares
+	// as a notification: asked as a request it answers "Internal error"). params must encode to JSON, with positions counted as
+	// PositionEncoding says. It does not wait for the server and returns once the message is queued, so it may be called on the UI thread.
+	// It fails with ExtensionServerUnknown, ExtensionDeactivated, ExtensionArgumentsInvalid for params that do not encode,
+	// ExtensionServerNotRunning while the server does not run, and with the error of the connection (NotifyClosed) when it has ended.
+	Notify(serverID, method string, params any) error
 	// OnNotification calls fn, on the UI thread, with the params of every notification the server sends with this method
 	// (experimental/serverStatus), and returns the function that stops the calls. The subscription outlives restarts of the server. The calls
 	// stop with the activation. It fails with ExtensionServerUnknown. A panic in fn deactivates the extension.

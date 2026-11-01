@@ -316,12 +316,29 @@ func (sp *ServerProvider) ProvideCodeActions(ctx context.Context, doc Document, 
 	return CodeActionsFromLSP(enc, doc, sp.Name, actions), nil
 }
 
-// CodeActionKinds implements CodeActionKinds: the kinds the server declared.
+// CodeActionKinds implements CodeActionKinds: the kinds the server declared in its capabilities, and those it declared when it
+// registered the feature (client/registerCapability): Eclipse JDT LS announces its kinds, source.organizeImports among them, only that
+// way, and without them Shift+Alt+O and the Source Action menu stay off for its files.
 func (sp *ServerProvider) CodeActionKinds() []string {
-	if c := sp.server(); c != nil {
-		return slices.Clone(c.Capabilities().CodeActionProvider.Strings("codeActionKinds"))
+	c := sp.server()
+	if c == nil {
+		return nil
 	}
-	return nil
+	kinds := slices.Clone(c.Capabilities().CodeActionProvider.Strings("codeActionKinds"))
+	for _, r := range c.Registered(lsp.MethodCodeAction) {
+		var options struct {
+			Kinds []string `json:"codeActionKinds"`
+		}
+		if json.Unmarshal(r.RegisterOptions, &options) != nil {
+			continue
+		}
+		for _, k := range options.Kinds {
+			if !slices.Contains(kinds, k) {
+				kinds = append(kinds, k)
+			}
+		}
+	}
+	return kinds
 }
 
 // CanResolveAction implements CodeActionResolver: the server offers codeAction/resolve and sent the action.
@@ -330,7 +347,19 @@ func (sp *ServerProvider) CanResolveAction(a CodeAction) bool {
 	if c == nil || a.server == nil {
 		return false
 	}
-	return c.Capabilities().CodeActionProvider.Bool("resolveProvider") || len(c.Registered(lsp.MethodCodeActionResolve)) > 0
+	if c.Capabilities().CodeActionProvider.Bool("resolveProvider") || len(c.Registered(lsp.MethodCodeActionResolve)) > 0 {
+		return true
+	}
+	// Eclipse JDT LS says so in the options of its registration of the feature
+	for _, r := range c.Registered(lsp.MethodCodeAction) {
+		var options struct {
+			Resolve bool `json:"resolveProvider"`
+		}
+		if json.Unmarshal(r.RegisterOptions, &options) == nil && options.Resolve {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolveCodeAction implements CodeActionResolver: the action goes back to the server, which fills in its edit.

@@ -163,12 +163,20 @@ func (s *shellState) navOpen(loc langfeatures.Location, o editor.OpenLocation) {
 		s.show(binding, doc, opts)
 		return
 	}
-	if loc.URI.Scheme != document.SchemeFile {
+	// a file, or a document an extension provides (a class file of Eclipse JDT LS: SPEC §10.34 "Java")
+	provided := loc.URI.Scheme == document.SchemeVirtual && win.virtual.Has(loc.URI)
+	if loc.URI.Scheme != document.SchemeFile && !provided {
 		win.Notify.Warn("Emetos", "Cannot open "+loc.URI.String())
 		return
 	}
 	s.Go(func(life context.Context) {
-		doc, err := win.Documents.Acquire(life, loc.URI.Path, document.NewOptions())
+		var doc *document.Document
+		var err error
+		if provided {
+			doc, err = win.Documents.AcquireVirtual(life, loc.URI)
+		} else {
+			doc, err = win.Documents.Acquire(life, loc.URI.Path, document.NewOptions())
+		}
 		binding.Post(func() {
 			if !s.Mounted() {
 				if err == nil {
@@ -209,12 +217,19 @@ func (s *shellState) openEmbedded(ctx context.Context, uri document.URI, done fu
 		build(doc)
 		return
 	}
-	if uri.Scheme != document.SchemeFile {
+	provided := uri.Scheme == document.SchemeVirtual && win.virtual.Has(uri)
+	if uri.Scheme != document.SchemeFile && !provided {
 		done(nil, nil, errors.New("PeekFileUnsupported", "only a file can be shown in the peek view", "uri", uri.String()))
 		return
 	}
 	s.Go(func(life context.Context) {
-		doc, err := win.Documents.Acquire(life, uri.Path, document.NewOptions())
+		var doc *document.Document
+		var err error
+		if provided {
+			doc, err = win.Documents.AcquireVirtual(life, uri)
+		} else {
+			doc, err = win.Documents.Acquire(life, uri.Path, document.NewOptions())
+		}
 		binding.Post(func() {
 			switch {
 			case !s.Mounted() || ctx.Err() != nil:
