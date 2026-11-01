@@ -26,9 +26,12 @@ type rig struct {
 
 const rigDelay = 5 * time.Millisecond
 
-func newRig(t *testing.T, text string, mutate func(*Config)) *rig {
+// newRig makes the rig with the text of the document and the text of its original ("orig:a"), which is set before the model starts:
+// the model asks for it after rigDelay, and a test that set it later could lose that race on a busy machine.
+func newRig(t *testing.T, text, original string, mutate func(*Config)) *rig {
 	t.Helper()
 	r := &rig{t: t, texts: newTexts(), posts: make(chan func(), 64)}
+	r.texts.set("orig:a", original)
 	r.svc = NewService(Options{Texts: r.texts.read})
 	r.doc = document.New(document.FileURI("/repo/a.txt"), text, document.NewOptions())
 	cfg := Config{Post: func(fn func()) { r.posts <- fn }, Delay: rigDelay}
@@ -101,8 +104,7 @@ func equalChanges(a, b []Change) bool {
 }
 
 func TestModelComparesWithTheOriginal(t *testing.T) {
-	r := newRig(t, "a\nB\nc\nd\n", nil)
-	r.texts.set("orig:a", "a\nb\nc\n")
+	r := newRig(t, "a\nB\nc\nd\n", "a\nb\nc\n", nil)
 	res := r.settle()
 	if got, want := changesOf(res), []Change{{2, 2, 2, 2}, {3, 0, 4, 4}}; !equalChanges(got, want) {
 		t.Fatalf("changes = %+v, want %+v", got, want)
@@ -118,8 +120,7 @@ func TestModelComparesWithTheOriginal(t *testing.T) {
 }
 
 func TestModelTellsOnlyAboutNewResults(t *testing.T) {
-	r := newRig(t, "a\nB\nc\n", nil)
-	r.texts.set("orig:a", "a\nb\nc\n")
+	r := newRig(t, "a\nB\nc\n", "a\nb\nc\n", nil)
 	var told int
 	r.model.OnChange(func() { told++ })
 	r.settle()
@@ -156,8 +157,7 @@ func TestModelTellsOnlyAboutNewResults(t *testing.T) {
 }
 
 func TestModelAsksTheProvidersOnlyWhenTheOriginalsMayHaveChanged(t *testing.T) {
-	r := newRig(t, "a\nb\n", nil)
-	r.texts.set("orig:a", "a\nb\n")
+	r := newRig(t, "a\nb\n", "a\nb\n", nil)
 	r.settle()
 	asked, reads := r.asked.Load(), r.texts.count()
 	if asked != 1 || reads != 1 {
@@ -235,8 +235,7 @@ func TestModelWithoutAProviderHasNoChanges(t *testing.T) {
 
 func TestModelIgnoresTrimWhitespaceWhenTold(t *testing.T) {
 	var ignore atomic.Bool
-	r := newRig(t, "a\nb  \n", func(c *Config) { c.IgnoreTrimWhitespace = ignore.Load })
-	r.texts.set("orig:a", "a\n  b\n")
+	r := newRig(t, "a\nb  \n", "a\n  b\n", func(c *Config) { c.IgnoreTrimWhitespace = ignore.Load })
 	if got := changesOf(r.settle()); len(got) != 1 {
 		t.Fatalf("changes = %+v, want the white space change", got)
 	}
@@ -261,8 +260,7 @@ func TestModelLimits(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := newRig(t, tt.text, func(c *Config) { c.MaxSize = 300 })
-			r.texts.set("orig:a", tt.original)
+			r := newRig(t, tt.text, tt.original, func(c *Config) { c.MaxSize = 300 })
 			res := r.settle()
 			if len(res.Changes) != tt.want {
 				t.Errorf("%d changes, want %d", len(res.Changes), tt.want)
@@ -272,8 +270,7 @@ func TestModelLimits(t *testing.T) {
 }
 
 func TestModelClose(t *testing.T) {
-	r := newRig(t, "a\nB\n", nil)
-	r.texts.set("orig:a", "a\nb\n")
+	r := newRig(t, "a\nB\n", "a\nb\n", nil)
 	r.settle()
 	r.model.Close()
 	r.model.Close() // the second does nothing
@@ -287,8 +284,7 @@ func TestModelClose(t *testing.T) {
 }
 
 func TestModelFollowsAFileThatIsSavedUnderAnotherName(t *testing.T) {
-	r := newRig(t, "a\nB\n", nil)
-	r.texts.set("orig:a", "a\nb\n")
+	r := newRig(t, "a\nB\n", "a\nb\n", nil)
 	r.settle()
 	r.doc.SetURI(document.FileURI("/other/a.txt"))
 	deadline := time.After(5 * time.Second)
@@ -421,8 +417,7 @@ func TestModelAfterRandomEditsEqualsAFreshDiff(t *testing.T) {
 	for seed := int64(1); seed <= 8; seed++ {
 		t.Run(fmt.Sprint("seed ", seed), func(t *testing.T) {
 			rng := rand.New(rand.NewSource(seed))
-			r := newRig(t, original, nil)
-			r.texts.set("orig:a", original)
+			r := newRig(t, original, original, nil)
 			for range 30 {
 				snap := r.doc.Snapshot()
 				line := rng.Intn(snap.LineCount())
