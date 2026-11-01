@@ -2,10 +2,13 @@ package sql
 
 import (
 	"context"
+	dbsql "database/sql"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
 	"github.com/rm4n0s/emetos/extensions/sql/dialect"
@@ -426,5 +429,38 @@ func TestOpeningTheSameConnectionAgainReplacesTheFirst(t *testing.T) {
 	}
 	if !reflect.DeepEqual(events, []bool{true, false}) {
 		t.Errorf("events = %v", events)
+	}
+}
+
+// TestClosingASessionWhileAStatementStartsOnItIsSafe closes sessions while statements start on them: the statement either runs or fails
+// with sql.ErrConnDone, and nothing crashes (database/sql hands a closing Conn's nil connection to a statement that starts at the same
+// moment; the session's lock keeps the two apart).
+func TestClosingASessionWhileAStatementStartsOnItIsSafe(t *testing.T) {
+	svc, c := openFixture(t, nil)
+	for range 300 {
+		sess, err := svc.Session(ctxFor(t), c.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		started := make(chan struct{})
+		result := make(chan error, 1)
+		go func() {
+			close(started)
+			rows, err := sess.QueryContext(ctxFor(t), "SELECT 1")
+			if err == nil {
+				err = rows.Close()
+			}
+			result <- err
+		}()
+		<-started
+		if err := sess.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-result; err != nil && !errors.Is(err, dbsql.ErrConnDone) {
+			t.Fatalf("the statement failed with %v, want nothing or sql.ErrConnDone", err)
+		}
+		if _, err := sess.ExecContext(ctxFor(t), "SELECT 1"); !errors.Is(err, dbsql.ErrConnDone) {
+			t.Fatalf("a statement after Close gave %v, want sql.ErrConnDone", err)
+		}
 	}
 }

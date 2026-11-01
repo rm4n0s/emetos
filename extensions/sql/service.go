@@ -272,6 +272,12 @@ type Session struct {
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
+
+	// use keeps Close from closing the connection while a statement is starting on it (ExecContext, QueryContext): database/sql's Conn
+	// can hand a connection that is being closed to a statement that starts at the same moment, which then crashes on a nil
+	// connection. closed is set by Close under use.
+	use    sync.RWMutex
+	closed bool
 }
 
 // Session takes a connection of the pool for the database. It is given back with Close. For an engine whose cancel needs the id of the
@@ -301,8 +307,30 @@ func (s *Service) Session(ctx context.Context, connID, database string) (*Sessio
 	return sess, nil
 }
 
-// Conn is the connection of the session.
+// Conn is the connection of the session. Statements go through ExecContext and QueryContext, which are safe against a Close that comes
+// at the same time; Conn is for what needs the connection itself.
 func (s *Session) Conn() *dbsql.Conn { return s.conn }
+
+// ExecContext runs a statement that returns no rows on the session's connection. After Close it fails with sql.ErrConnDone.
+func (s *Session) ExecContext(ctx context.Context, query string, args ...any) (dbsql.Result, error) {
+	s.use.RLock()
+	defer s.use.RUnlock()
+	if s.closed {
+		return nil, dbsql.ErrConnDone
+	}
+	return s.conn.ExecContext(ctx, query, args...)
+}
+
+// QueryContext runs a statement that returns rows on the session's connection. After Close it fails with sql.ErrConnDone. A Close that
+// comes while the rows are open waits for them to be closed (database/sql's rule).
+func (s *Session) QueryContext(ctx context.Context, query string, args ...any) (*dbsql.Rows, error) {
+	s.use.RLock()
+	defer s.use.RUnlock()
+	if s.closed {
+		return nil, dbsql.ErrConnDone
+	}
+	return s.conn.QueryContext(ctx, query, args...)
+}
 
 // Begin makes the context for one statement: Cancel ends it. The function it returns ends the statement's context and must be
 // called when the statement is done.
@@ -348,8 +376,14 @@ func (s *Session) Cancel() error {
 	return nil
 }
 
-// Close gives the connection back to the pool.
+// Close gives the connection back to the pool. It waits for a statement that is starting on the session; a second Close does nothing.
 func (s *Session) Close() error {
+	s.use.Lock()
+	defer s.use.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
 	if err := s.conn.Close(); err != nil {
 		return errors.NewErr("SQLSessionFailed", err).SetMetadata("connection", s.oc.conn.Name)
 	}

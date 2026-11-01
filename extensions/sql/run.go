@@ -222,7 +222,7 @@ func (r *Runner) session(ctx context.Context) (*Session, error) {
 		return nil, err
 	}
 	if use := r.d.UseDatabase(r.database); use != "" {
-		if _, err := sess.Conn().ExecContext(ctx, use); err != nil {
+		if _, err := sess.ExecContext(ctx, use); err != nil {
 			_ = sess.Close() // the session never worked; the error of the USE is the one to report
 			return nil, errors.NewErr("SQLUseDatabaseFailed", err).SetMetadata("connection", r.connID, "database", r.database)
 		}
@@ -345,9 +345,8 @@ func (r *Runner) runOne(ctx context.Context, sess *Session, idx int, st dialect.
 			done()
 		}
 	}()
-	conn := sess.Conn()
 	if !info.Rows {
-		out, err := conn.ExecContext(sctx, st.Text)
+		out, err := sess.ExecContext(sctx, st.Text)
 		res.Elapsed = time.Since(start)
 		if err != nil {
 			r.fail(res, err)
@@ -359,7 +358,7 @@ func (r *Runner) runOne(ctx context.Context, sess *Session, idx int, st dialect.
 		r.afterSuccess(info)
 		return res
 	}
-	rows, err := conn.QueryContext(sctx, st.Text)
+	rows, err := sess.QueryContext(sctx, st.Text)
 	res.Elapsed = time.Since(start)
 	if err != nil {
 		r.fail(res, err)
@@ -582,7 +581,7 @@ func (r *Runner) control(ctx context.Context, stmt string, inTx bool) error {
 	if err != nil {
 		return err
 	}
-	if _, err := sess.Conn().ExecContext(ctx, stmt); err != nil {
+	if _, err := sess.ExecContext(ctx, stmt); err != nil {
 		q := describeError(r.d.ID(), err, stmt)
 		return errors.NewErr("SQLTransactionFailed", scrubbed{err: err}).SetMetadata("connection", r.connID, "message", q.Text())
 	}
@@ -635,7 +634,7 @@ func (r *Runner) Close() (rolledBack bool, err error) {
 	if inTx {
 		ctx, cancel := context.WithTimeout(context.Background(), controlTimeout)
 		defer cancel()
-		if _, rerr := sess.Conn().ExecContext(ctx, r.d.Transaction().Rollback); rerr != nil {
+		if _, rerr := sess.ExecContext(ctx, r.d.Transaction().Rollback); rerr != nil {
 			err = errors.NewErr("SQLTransactionFailed", scrubbed{err: rerr}).SetMetadata("connection", r.connID)
 		} else {
 			rolledBack = true
