@@ -202,6 +202,11 @@ type Workspace struct {
 	keyNode *widgets.FocusNode
 	// shell is the state of the shell that shows the window; nil until it is made and after it is gone.
 	shell *shellState
+	// uiMu guards shellPost and mgr, which onUI reads on any goroutine: shellPost is the Post of the binding of the
+	// shell while it exists, and mgr the manager of the tabs while a tab holds the window.
+	uiMu      sync.Mutex
+	shellPost func(func())
+	mgr       *Workspaces
 	// virtual is the registry of the virtual documents of this tab: the providers of extensions (extcontent.go), over the process's.
 	virtual *document.VirtualRegistry
 	// multi are the providers of the multi-file diff editor of this tab (multidiffhost.go).

@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/rm4n0s/errors"
-	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
@@ -157,14 +156,43 @@ func (k *userKeys) rebuild() {
 	}
 }
 
-// onUI runs f on the UI thread: at once when the window has no shell on screen (its callers are on that thread
-// or there is none), else through the binding.
+// onUI runs f on the UI thread: through the binding of the shell that shows the window, or, while its tab is not on
+// screen, through the binding of the process's tabs; at once only when nothing shows the window or its tab (a
+// workspace of a test that nothing mounts, whose callers are on that thread). It is safe on any goroutine.
 func (w *Workspace) onUI(f func()) {
-	if s := w.shell; s != nil && s.Mounted() {
-		widgets.WidgetsBindingOf(s.Context()).Post(f)
+	if post := w.poster(); post != nil {
+		post(f)
 		return
 	}
 	f()
+}
+
+// poster is the function that hands work to the UI thread of the window, or nil when there is none (onUI).
+func (w *Workspace) poster() func(func()) {
+	w.uiMu.Lock()
+	shellPost, mgr := w.shellPost, w.mgr
+	w.uiMu.Unlock()
+	if shellPost != nil {
+		return shellPost
+	}
+	if mgr != nil {
+		return mgr.poster()
+	}
+	return nil
+}
+
+// setShellPost sets (or, with nil, clears) the Post of the binding of the shell that shows the window.
+func (w *Workspace) setShellPost(post func(func())) {
+	w.uiMu.Lock()
+	w.shellPost = post
+	w.uiMu.Unlock()
+}
+
+// setManager sets (or, with nil, clears) the manager of the tabs that holds the window.
+func (w *Workspace) setManager(m *Workspaces) {
+	w.uiMu.Lock()
+	w.mgr = m
+	w.uiMu.Unlock()
 }
 
 // KeybindingsModel is the model of the keybindings editor: the rows of the built-in keybindings, the user's and the

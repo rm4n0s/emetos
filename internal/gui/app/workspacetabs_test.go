@@ -612,3 +612,40 @@ func TestAnOldStateFileRestoresTheWindowsAsTabs(t *testing.T) {
 		t.Errorf("state.json: %s", raw)
 	}
 }
+
+// TestWorkOfAnotherGoroutineReachesATabThatIsNotOnScreenOnTheUIThread checks onUI for a tab whose shell is not made yet
+// (a tab just opened) and for one that is not the active tab: what a goroutine hands over runs on the UI thread, in a
+// frame, never on that goroutine (decision 809 of step 24.16).
+func TestWorkOfAnotherGoroutineReachesATabThatIsNotOnScreenOnTheUIThread(t *testing.T) {
+	env := newMultiEnv(t, nil)
+	one := env.folder("one", "a.go")
+	two := env.folder("two", "b.go")
+	a := env.run(Options{Folder: one})
+	if _, err := a.m.Open(WorkspaceSpec{Folder: two}); err != nil {
+		t.Fatal(err)
+	}
+	fresh := a.workspaceOf(two)
+	shown := a.workspaceOf(one)
+	for _, tt := range []struct {
+		name string
+		w    *Workspace
+	}{{"a tab just opened", fresh}, {"a tab that is not active", shown}} {
+		t.Run(tt.name, func(t *testing.T) {
+			var ran bool
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				tt.w.onUI(func() { ran = true }) // ran is written on the UI thread only: -race checks it
+			}()
+			<-done
+			if ran {
+				t.Fatal("onUI ran the function on the calling goroutine")
+			}
+			a.settle()
+			if !ran {
+				t.Fatal("onUI never ran the function")
+			}
+		})
+		a.settle()
+	}
+}

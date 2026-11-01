@@ -345,6 +345,7 @@ func (s *shellState) InitState() {
 	binding := widgets.WidgetsBindingOf(s.Context())
 	s.binding, s.win = binding, PeekWorkspace(s.Context())
 	s.win.shell = s
+	s.win.setShellPost(binding.Post)
 	if s.win.isView() {
 		s.initView(binding) // the shell of a headless view has the parts of a workbench and none of the window's own
 		return
@@ -461,6 +462,7 @@ func (s *shellState) startDevSteps(binding *widgets.WidgetsBinding) {
 func (s *shellState) Dispose() {
 	if s.win != nil && s.win.shell == s {
 		s.win.shell = nil
+		s.win.setShellPost(nil)
 	}
 	if s.win != nil && s.win.ext != nil {
 		s.disposeExtTab()

@@ -115,6 +115,10 @@ type Workspaces struct {
 	// is asked first.
 	Quit func()
 
+	// post is the binding's Post once the manager is bound (bind), read on any goroutine under postMu (poster).
+	postMu sync.Mutex
+	post   func(func())
+
 	// The rest is used on the UI thread only.
 	ctx     context.Context
 	binding *widgets.WidgetsBinding
@@ -264,8 +268,16 @@ func (m *Workspaces) insert(t *WindowTab, at int) {
 	m.mu.Unlock()
 	if t.ws != nil {
 		t.ws.tab = t
+		t.ws.setManager(m)
 		m.followUserSettings(t.ws)
 	}
+}
+
+// poster is the binding's Post, or nil before the manager is bound; safe on any goroutine.
+func (m *Workspaces) poster() func(func()) {
+	m.postMu.Lock()
+	defer m.postMu.Unlock()
+	return m.post
 }
 
 // register adopts a workspace that is shown on its own (the shell of a workspace that no tab holds), so that the lists,
@@ -320,6 +332,7 @@ func (m *Workspaces) unregister(w *Workspace) (last bool) {
 		return len(m.tabs) == 0
 	}
 	w.tab = nil
+	w.setManager(nil)
 	m.tabs = slices.DeleteFunc(m.tabs, func(x *WindowTab) bool { return x == t })
 	m.order = slices.DeleteFunc(m.order, func(x *WindowTab) bool { return x == t })
 	return len(m.tabs) == 0
@@ -482,6 +495,9 @@ func (m *Workspaces) bind(binding *widgets.WidgetsBinding) {
 		return
 	}
 	m.binding = binding
+	m.postMu.Lock()
+	m.post = binding.Post
+	m.postMu.Unlock()
 	m.startSavedNotes(binding.Post)
 	m.observer = &workspacesObserver{m: m}
 	binding.AddObserver(m.observer)
@@ -1078,6 +1094,7 @@ func (m *Workspaces) forget(t *WindowTab) {
 	t.gone = true
 	if t.ws != nil && t.ws.tab == t {
 		t.ws.tab = nil
+		t.ws.setManager(nil)
 	}
 	m.mu.Unlock()
 }
@@ -1135,7 +1152,9 @@ func (m *Workspaces) replaceWorkspace(old *Workspace, folder, profile string) (*
 	// the new workspace takes the place of the old one in the tab
 	m.mu.Lock()
 	old.tab = nil
+	old.setManager(nil)
 	next.tab = t
+	next.setManager(m)
 	t.ws = next
 	m.mu.Unlock()
 	t.page = m.pageOf(pw)
