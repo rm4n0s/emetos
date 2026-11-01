@@ -244,6 +244,8 @@ type Scope struct {
 	bus *bus
 	// fileSlots bound the file requests of the core topics that run at once (corefiles.go).
 	fileSlots chan struct{}
+	// termEnv are the sources of variables for the terminals the scope's extensions contribute (terminalenv.go).
+	termEnv *terminalSources
 
 	// denied are the questions the user answered with Deny since the extension was activated (sharing.go).
 	denyMu sync.Mutex
@@ -286,7 +288,7 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	h.scopeSeq++
 	opts.Info.Instance = h.scopeSeq
 	h.mu.Unlock()
-	s := &Scope{h: h, opts: opts, log: opts.Logger, fired: map[string]bool{}, features: langfeatures.NewRegistry(), fileSlots: make(chan struct{}, FileOpSlots)}
+	s := &Scope{h: h, opts: opts, log: opts.Logger, fired: map[string]bool{}, features: langfeatures.NewRegistry(), fileSlots: make(chan struct{}, FileOpSlots), termEnv: &terminalSources{}}
 	s.ctx, s.cancel = context.WithCancel(opts.Ctx)
 	s.bus = newBus(s)
 	disabled := s.disabledSet()

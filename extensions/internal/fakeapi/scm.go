@@ -154,6 +154,13 @@ func (a *API) Deactivate() {
 	}
 	a.content.multiDiffs = nil
 	a.annotations = nil
+	a.termMu.Lock()
+	disposers := a.termDisposers
+	a.termDisposers = nil
+	a.termMu.Unlock()
+	for _, d := range disposers {
+		d() // takes termMu and the registry's lock, never a.mu
+	}
 }
 
 // Failed tells whether the fake took the extension off because of a panic in one of its callbacks, as the host does

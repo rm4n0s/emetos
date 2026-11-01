@@ -36,6 +36,8 @@ type config struct {
 	decorationsEnabled      bool
 	supportCancellation     bool
 	useIntegratedAskPass    bool
+	terminalAuthentication  bool
+	terminalGitEditor       bool
 	useEditorAsCommitInput  bool
 	openDiffOnClick         bool
 	mergeEditor             bool
@@ -127,6 +129,8 @@ func (c *config) load(api extension.API) {
 	c.decorationsEnabled = read(api, "git.decorations.enabled", true)
 	c.supportCancellation = read(api, "git.supportCancellation", false)
 	c.useIntegratedAskPass = read(api, "git.useIntegratedAskPass", true)
+	c.terminalAuthentication = read(api, "git.terminalAuthentication", true)
+	c.terminalGitEditor = read(api, "git.terminalGitEditor", false)
 	c.useEditorAsCommitInput = read(api, "git.useEditorAsCommitInput", true)
 	c.openDiffOnClick = read(api, "git.openDiffOnClick", true)
 	c.mergeEditor = read(api, "git.mergeEditor", false)

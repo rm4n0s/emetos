@@ -592,6 +592,12 @@ func registerSourceControlMenus(r *MenuRegistry) {
 	inView := when("view == 'workbench.scm'")
 	r.MustAdd(
 		MenuItem{Menu: MenubarViewMenu, Command: "workbench.view.scm", Title: "Source Control", MnemonicTitle: "Source &&Control", Group: "3_views", Order: 3},
+		// Open in External Terminal and Open in Integrated Terminal of a repository (step 24.23); terminal.sourceControlRepositoriesKind
+		// (default integrated) chooses which of them is there. VS Code also asks for a local window for the first (RemoteNameContext).
+		MenuItem{Menu: SCMSourceControl, Command: "scm.openInTerminal", Title: "Open in External Terminal", Group: "99_terminal",
+			When: when("scmProviderHasRootUri == true && (config.terminal.sourceControlRepositoriesKind == 'external' || config.terminal.sourceControlRepositoriesKind == 'both')")},
+		MenuItem{Menu: SCMSourceControl, Command: "scm.openInIntegratedTerminal", Title: "Open in Integrated Terminal", Group: "99_terminal",
+			When: when("scmProviderHasRootUri == true && (config.terminal.sourceControlRepositoriesKind == 'integrated' || config.terminal.sourceControlRepositoriesKind == 'both')")},
 		MenuItem{Menu: SCMTitle, Command: "workbench.scm.action.collapseAllRepositories", Group: "navigation",
 			When: contextkey.And(inView, when("scmViewIsAnyRepositoryCollapsible == true"), when("scmViewAreAllRepositoriesCollapsed == false"))},
 		MenuItem{Menu: SCMTitle, Command: "workbench.scm.action.expandAllRepositories", Group: "navigation",

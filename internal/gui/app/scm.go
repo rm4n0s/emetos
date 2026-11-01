@@ -95,6 +95,7 @@ func (w *Workspace) registerSCMCommands(set func(string, command.Handler)) {
 		w.pickActiveRepository()
 		return nil
 	})
+	w.registerSCMTerminalCommands(set)
 }
 
 // pickActiveRepository shows the list of the repositories and pins the one that the user chooses as the active one; Auto goes

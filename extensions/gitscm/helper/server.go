@@ -183,6 +183,24 @@ func (s *Server) Environment(askpass, editor bool) []string {
 	return env
 }
 
+// TerminalEnvironment is what a shell in a terminal of the window needs so that the git typed there asks the window (VS Code's
+// getTerminalEnv of askpass.ts and gitEditor.ts): GIT_ASKPASS when askpass is true and GIT_EDITOR when editor is true, with the socket and
+// the token. It is not Environment: there is no SSH_ASKPASS (ssh in a terminal asks in the terminal, which is where the person is typing),
+// no GIT_SEQUENCE_EDITOR (the person's own configuration decides the editor of a todo list), and nothing at all when both are false.
+func (s *Server) TerminalEnvironment(askpass, editor bool) []string {
+	if !askpass && !editor {
+		return nil
+	}
+	env := []string{EnvSocket + "=" + s.socket, EnvToken + "=" + s.token}
+	if askpass {
+		env = append(env, "GIT_ASKPASS="+s.Script(ScriptAskpass))
+	}
+	if editor {
+		env = append(env, "GIT_EDITOR="+shellQuote(s.Script(ScriptEditor)))
+	}
+	return env
+}
+
 // Close stops serving, ends the requests that wait, and removes the socket (and the folder of the process when it was the last socket
 // in it).
 func (s *Server) Close() error {

@@ -70,6 +70,9 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	if err := x.registerCommands(); err != nil {
 		return err
 	}
+	if err := x.contributeTerminalEnvironment(); err != nil {
+		return err
+	}
 	if _, err := api.Events().Subscribe(extension.TopicWindowFocusChanged, x.onFocus); err != nil {
 		return err
 	}
@@ -164,6 +167,8 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 func (x *gitscm) syncHelperSettings() {
 	x.askpassOn.Store(x.cfg.useIntegratedAskPass)
 	x.editorOn.Store(x.cfg.useEditorAsCommitInput)
+	x.terminalAskpassOn.Store(x.cfg.enabled && x.cfg.useIntegratedAskPass && x.cfg.terminalAuthentication)
+	x.terminalEditorOn.Store(x.cfg.enabled && x.cfg.useEditorAsCommitInput && x.cfg.terminalGitEditor)
 }
 
 // logLine writes a line to the Git channel; it may be called from any goroutine.

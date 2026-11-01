@@ -90,7 +90,7 @@ func DefaultTOC() []TOCEntry {
 				{ID: "features/search", Label: "Search", Patterns: []string{"search.*"}},
 				{ID: "features/scm", Label: "Source Control", Patterns: []string{"scm.*"}},
 				{ID: "features/timeline", Label: "Timeline", Patterns: []string{"timeline.*"}},
-				{ID: "features/terminal", Label: "Terminal", Patterns: []string{"terminal.integrated.*"}},
+				{ID: "features/terminal", Label: "Terminal", Patterns: []string{"terminal.integrated.*", "terminal.external.*", "terminal.sourceControlRepositoriesKind"}},
 				{ID: "features/problems", Label: "Problems", Patterns: []string{"problems.*"}},
 				{ID: "features/output", Label: "Output", Patterns: []string{"output.*"}},
 				{ID: "features/mergeEditor", Label: "Merge Editor", Patterns: []string{"mergeEditor.*"}},

@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/decorationstest"
 	"github.com/rm4n0s/emetos/extension/editordecorationstest"
+	"github.com/rm4n0s/emetos/extension/terminalenvtest"
 )
 
 // TestDecorationsConformance runs the suite that the host passes too (internal/gui/exthost/decorations_test.go).
@@ -76,4 +77,41 @@ func TestTheFakeEditorDecorationsFailLikeTheHost(t *testing.T) {
 	route(t, a.EditorDecorations().Set("", "file:///a", nil), "editorDecorationsAPI.Set.ExtensionEditorDecorationsInvalid")
 	a.Deactivate()
 	route(t, a.EditorDecorations().Set("k", "file:///a", nil), "editorDecorationsAPI.Set.ExtensionDeactivated")
+}
+
+// TestTerminalEnvironmentConformance runs the suite that the host passes too (internal/gui/exthost/terminalenv_test.go).
+func TestTerminalEnvironmentConformance(t *testing.T) {
+	terminalenvtest.Run(t, func(t *testing.T) *terminalenvtest.Harness {
+		m, m2 := manifest(), manifest()
+		m.ID, m.Name, m2.ID, m2.Name = "emetos.envtest", "Ext one", "emetos.envother", "Ext two"
+		a, b := New(t, m, extension.ScopeInfo{}), New(t, m2, extension.ScopeInfo{})
+		shared := NewTerminalSources()
+		a.ShareTerminalEnvironment(shared)
+		b.ShareTerminalEnvironment(shared)
+		return &terminalenvtest.Harness{
+			API: a, ID: "emetos.envtest", Name: "Ext one", Second: b, SecondID: "emetos.envother", SecondName: "Ext two",
+			Deactivate: a.Deactivate,
+		}
+	})
+}
+
+// TestTheFakeTerminalEnvironmentFailsLikeTheHost checks the routes of the fake's errors, which have the tags of the host's.
+func TestTheFakeTerminalEnvironmentFailsLikeTheHost(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{})
+	_, err := a.TerminalEnvironment().Contribute(nil)
+	route(t, err, "terminalEnvironmentAPI.Contribute.ExtensionTerminalEnvironmentInvalid")
+	a.Deactivate()
+	_, err = a.TerminalEnvironment().Contribute(func() (map[string]string, string) { return nil, "" })
+	route(t, err, "terminalEnvironmentAPI.Contribute.ExtensionDeactivated")
+}
+
+// TestAFakeSourceThatPanicsTakesTheFakeOff mirrors the host: a panic in a source fails the extension.
+func TestAFakeSourceThatPanicsTakesTheFakeOff(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{})
+	if _, err := a.TerminalEnvironment().Contribute(func() (map[string]string, string) { panic("boom") }); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.TerminalEnvironment().Contributions(); len(got) != 0 || !a.Failed() {
+		t.Errorf("contributions %+v, failed %v", got, a.Failed())
+	}
 }

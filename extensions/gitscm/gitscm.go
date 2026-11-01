@@ -215,6 +215,9 @@ type gitscm struct {
 	stateDir string
 	// askpassOn and editorOn follow git.useIntegratedAskPass and git.useEditorAsCommitInput for the goroutines of the commands.
 	askpassOn, editorOn atomic.Bool
+	// terminalAskpassOn and terminalEditorOn say that a terminal of the window gets the askpass and the editor programs: the same
+	// settings and git.terminalAuthentication and git.terminalGitEditor, and git.enabled (terminal.go).
+	terminalAskpassOn, terminalEditorOn atomic.Bool
 	// helperMu guards the server of git's programs, which the first command that may ask starts (askpass.go).
 	helperMu     sync.Mutex
 	helperSrv    *helper.Server

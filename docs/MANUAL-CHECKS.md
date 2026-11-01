@@ -145,3 +145,25 @@ go test -tags emetos_keyring ./extensions/internal/dbconn -run TestRealKeyring -
 3. In the editor (`scripts/isolated.sh -- go run ./cmd/emetos`) run "Databases: New Connection", fill the form of any engine that is listed (the engines come with the next steps; until one is, the form only shows when the command is given an engine), type a password, keep "Save the password in the keyring" on and Save. Is an item "Emetos: <name>" in your keyring, and does `grep -r <the password> ~/.config/emetos ~/.local/state/emetos` (with the isolated folders of the script) find nothing?
 
 Say what you saw: the keyring and any error text.
+
+## 24.23 Git with your own keys, agent, credential helper and GPU
+
+The tests of Git use throw-away repositories with their own `HOME`, a local HTTP server and a fake `ssh`; they never read your `~/.ssh`, your agent, your credential helper or your `~/.gitconfig`. These checks do, on purpose, with a remote of your choice that you may push to (make an empty one for this, not a repository you care about). `scripts/isolated.sh` gives the editor a `HOME` of its own, which would hide exactly what these checks are about, so run the editor as it is, with your session and your Emetos configuration (the checks touch only Git):
+
+```
+git clone <your remote> /tmp/emetos-git-check
+go run ./cmd/emetos /tmp/emetos-git-check
+```
+
+1. **ssh with a passphrase-protected key and your agent.** Use an `ssh://` or `git@host:` remote whose key has a passphrase and is **not** loaded in the agent. Make a commit and run Git: Push (palette). Does a box open over the editor titled `Enter passphrase for key '...'` with "SSH Key: <file>" under it, with dots when you type, and does the push go through after Enter? Then load the key (`ssh-add`) and push again: is there no box, because the agent answers? Press Escape in a box once: does the push fail with git's "Permission denied (publickey)" and no crash?
+2. **A host you have not connected to.** Remove the host from `~/.ssh/known_hosts` (a copy first) and push: does a list open asking "Are you sure you want to continue connecting?" with the fingerprint, and do Yes and No do what they say?
+3. **HTTPS and your credential helper.** Use an `https://` remote that needs your login and has a credential helper (`git config credential.helper`: libsecret, cache, store, manager...). Run Git: Fetch. If the helper has the credential, does the fetch finish with no box? Clear the stored credential (`git credential reject`) and fetch again: does a "Username for" box and then a "Password for" box open, and does the helper store what you typed afterwards (as git does in a terminal)? Is the password never shown in the Git output channel or a notification?
+4. **The same in a terminal.** Open the integrated terminal (Ctrl+`) in that folder and type `git push` (HTTPS remote, helper cleared). Does the box open in the window, not in the terminal, and does the push finish after you answer? Turn `git.terminalAuthentication` off, open a new terminal and push again: does git ask in the terminal itself? Hover the tab of the first terminal: does it say "The following extensions have contributed to this terminal's environment: Git"?
+5. **Open in External Terminal.** Set `terminal.sourceControlRepositoriesKind` to `both` and `terminal.external.linuxExec` to your terminal program (or leave it empty), right-click the repository in the Source Control view (make it show with `scm.alwaysShowRepositories`): do "Open in Integrated Terminal" and "Open in External Terminal" both open a terminal in the repository's folder, the second as a window of your desktop?
+6. **The milestone on the real GPU.** Run the screens of the milestone with your GPU, in a nested window you can watch:
+   ```
+   scripts/realinput.sh --desktop --shots /tmp/emetos-git-shots -- ./cmd/emetos -run 'TestRealInputGit|TestRealInputTheWholeOfGit|TestRealInputSCM|TestRealInputMultiDiff|TestRealInputThePeek' -v
+   ```
+   Open the pictures in `/tmp/emetos-git-shots`: do the Source Control view, the Graph, the Timeline, the quick diff stripe and the peek, the blame text and the password box look as they do in the screenshots of `docs/implemented-proof-images/` (24.x), with the colors, the spacing and the fonts of your desktop?
+
+Say what you saw: the ssh agent and key type, the credential helper, the desktop and the GPU, and any error text.

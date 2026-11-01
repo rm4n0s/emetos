@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/pty"
 	"github.com/rm4n0s/emetos/extensions/terminal/emulator"
 )
@@ -83,6 +84,8 @@ type terminalOpts struct {
 	nonce string
 	// injected says that the shell integration scripts were injected into the shell (the tab's hover says so).
 	injected bool
+	// contributions are what the extensions added to the environment of the program (the tab's hover says so).
+	contributions []extension.TerminalContribution
 	// initial is written to the emulator before the program starts: the text of a session that was restored (SPEC §10.25
 	// "Persistent sessions"). It is not published as output.
 	initial []byte
@@ -140,6 +143,8 @@ type Terminal struct {
 	si        *shellState
 	injected  bool
 	shellName string
+	// contributions are the variables the extensions added to the environment of the shell (environment.go).
+	contributions []extension.TerminalContribution
 	// environ is the environment the shell was started with (PATH and CDPATH are what terminal IntelliSense reads from it).
 	environ []string
 
@@ -183,7 +188,7 @@ func newTerminal(ctx context.Context, o terminalOpts) (*Terminal, error) {
 	}
 	t := &Terminal{id: o.id, log: o.log.With("terminal", o.id), prof: o.profile, dir: o.dir, rows: o.rows, cols: o.cols,
 		inWake: make(chan struct{}, 1), exitedCh: make(chan struct{}), icon: o.profile.icon, obs: o.obs, snapMax: o.snapshotLimit,
-		injected: o.injected, shellName: shellNameOf(o.profile.path), environ: o.env}
+		injected: o.injected, shellName: shellNameOf(o.profile.path), environ: o.env, contributions: o.contributions}
 	t.flowCond = sync.NewCond(&t.flowMu)
 	t.em = emulator.New(o.rows, o.cols, emulator.Options{
 		Scrollback: o.scrollback, Name: "Emetos", Version: o.version, MarkCodes: shellOSCCodes,

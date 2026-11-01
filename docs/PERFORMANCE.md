@@ -473,3 +473,39 @@ The cache is bounded at 250,000 entries; a provider that answers in more than 1 
 | One typed character in a 10,000-line file, without / with 200 marks | 0.24 ms / 0.37 ms | within one frame (16.6 ms) |
 
 The marks are decorations of the document, so a typed character shifts them with the other decorations; the extra 0.13 ms is that and the repaint of the stripe. The original of a file is read once and kept by the host until the provider says it changed.
+
+## Git: the cross-checks of the milestone (step 24.23)
+
+The measurements of SPEC §14 for Git, repeated on the finished milestone, each through `scripts/heavy.sh --alone` with nothing else of this run going on. **Machine: AMD Ryzen 9 6900HX with Radeon Graphics (16 threads), 61 GB, Linux 7.2 (Fedora 44), Go 1.27.3, headless** (the machine of the other sections of this file is a Ryzen AI Max+ 395: the figures below are not comparable with theirs, and the GPU was not used; the numbers with the GPU are the user's, `docs/MANUAL-CHECKS.md` 24.23). The commit hash is the one of the step.
+
+**Source Control with 100,000 changed files** (`scripts/perf-git.sh`, the `many` fixture built in 12.8 s):
+
+| Measurement | Value | Target (SPEC §14) |
+|---|---|---|
+| First status, activation to the groups handed to the host | 726 ms | |
+| First status: `git status` and the parse of its stream | 516 ms | recorded, not a target |
+| First status: grouping and sorting, off the UI thread | 40 ms | within 150 ms: met |
+| First status: hand-over on the UI thread | 31 ms | |
+| Second status: `git status` and the parse / grouping / hand-over | 514 ms / 40 ms / 26 ms | within 150 ms: met |
+| Statuses for a burst of 5,000 file changes | 1 | 1: met |
+| Changes view, first frame after the update (processor time of the UI thread) | 76.9 ms (the update of the model took 199 ms off the UI thread) | within 100 ms: met |
+| Changes view, longest of 60 frames of a steady scroll | 9.5 ms (0 over 16 ms) | no frame over 16 ms: met |
+| Changes view, longest frame after a jump | 11.4 ms | |
+
+**The Graph on a generated repository of 100,000 commits** (`go test -tags emetos_perf ./extensions/gitscm -run TestPerfLongHistory`, the repository built in 8.7 s, and the view tests `TestAVeryLongHistoryIsReadPageByPageWithTheCostOfAPage` and `TestScrollingALongGraphIsSmooth`):
+
+| Measurement | Value | Target |
+|---|---|---|
+| First page of 50 commits, with git's commit-graph file | 5.3 ms | the first rows within 300 ms: met |
+| First page without a commit-graph file | 476 ms | the same target: **not met without the file** (git's own walk of 100,000 commits; Git writes the file by itself on `git gc` and with `fetch.writeCommitGraph`; known since step 24.20, decision 853) |
+| The page at commit 1,000 / 50,000 / 99,900 | 4.9 ms / 25.8 ms / 46.9 ms | |
+| Search by message over the 100,000 commits | 1.14 s | recorded, off the UI thread |
+| Refs, common ancestor of two references | 3.1 ms, 43 ms | |
+| The view, longest of 60 frames of a steady scroll over the rows | 12.5 ms (0 over 16 ms) | no frame over 16 ms: met |
+| The view, longest frame after a jump | 19.6 ms | recorded (a jump builds a whole screen of new rows; it is not a steady scroll) |
+
+**Quick diff of a 10,000-line file** (the commands of step 24.11 again): the diff of a file with 200 scattered edits against its original 3.5 ms (`BenchmarkRecompute10000Lines`), through the model 4.8 ms (`BenchmarkModelCompute10000Lines`), both within the 20 ms and 50 ms of §14; `SetQuickDiffMarks` with 200 marks 0.30 ms; a typed character in a 10,000-line file 0.23 ms without and 0.36 ms with 200 marks (the target of §14 for typing is 4 ms).
+
+**Idle**: `TestIdleDoesNothing` (a repository with a change open, ten minutes of the fake clock: no status run, no timer pending, no goroutine more) passes; autofetch is off until the user answers. The window of the app was not measured for CPU in this step: the idle rows of §14 (focused 1% with the GPU, the frames of an unfocused window) are `scripts/perf.sh --session` on the user's machine.
+
+Nothing here is over its target except the first page of a history that has no commit-graph file, which was known and is git's time, not Emetos's.

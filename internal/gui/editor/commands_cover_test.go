@@ -61,6 +61,8 @@ var appCommands = map[string]bool{
 	"outline.focus": true, "outline.collapse": true, "outline.followCursor": true,
 	// Select the Active Repository picks one of the source controls of the window (step 24.2, gui/app/scm.go)
 	"scm.setActiveProvider": true,
+	// Open in Integrated Terminal and Open in External Terminal of a repository (step 24.23, gui/app/scmterminal.go)
+	"scm.openInIntegratedTerminal": true, "scm.openInTerminal": true,
 	// the commands of the commit message box of the Source Control view (step 24.4, gui/app/scmview.go)
 	"scm.acceptInput": true, "scm.clearInput": true, "scm.clearValidation": true,
 	"scm.viewNextCommit": true, "scm.viewPreviousCommit": true, "scm.forceViewNextCommit": true, "scm.forceViewPreviousCommit": true,

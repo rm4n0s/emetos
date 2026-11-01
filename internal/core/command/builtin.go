@@ -1117,6 +1117,10 @@ func registerSourceControlCommands(r *Registry) {
 		Meta{ID: "workbench.scm.action.graph.refresh", Title: "Refresh", Icon: "refresh"},
 		Meta{ID: "workbench.scm.action.graph.viewChanges", Title: "Open Changes", Icon: "diff-multiple"},
 		Meta{ID: "scm.setActiveProvider"},
+		// Open in Integrated Terminal and Open in External Terminal of a repository (step 24.23): VS Code gives the commands no title, the
+		// menu rows of SCMSourceControl have theirs
+		Meta{ID: "scm.openInIntegratedTerminal"},
+		Meta{ID: "scm.openInTerminal"},
 		// the commit message box (step 24.4): VS Code gives them a description and no title, so the palette does not list them
 		Meta{ID: "scm.acceptInput", Description: "Source Control: Accept Input"},
 		Meta{ID: "scm.clearValidation"},

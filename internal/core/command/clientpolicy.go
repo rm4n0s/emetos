@@ -68,7 +68,9 @@ var clientRules = []refusedRule{
 	},
 	{
 		class: extension.RefusedTerminal, reason: "a terminal runs programs on the computer of the host: a client uses the terminal requests",
-		ids:      []string{"workbench.action.createTerminalEditor"},
+		// scm.openInIntegratedTerminal makes a terminal in a repository's folder, scm.openInTerminal starts the desktop's terminal program on the
+		// screen of the host (SPEC §10.30)
+		ids:      []string{"workbench.action.createTerminalEditor", "scm.openInIntegratedTerminal", "scm.openInTerminal"},
 		prefixes: []string{"workbench.action.terminal."},
 	},
 	{

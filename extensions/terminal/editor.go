@@ -330,6 +330,7 @@ func (t *terminals) hoverText(e *entry) string {
 	default:
 		b.WriteString("\nShell integration is not active")
 	}
+	b.WriteString(environmentHover(term.contributions))
 	if m := term.Meta(); m.exited {
 		b.WriteString("\nThe process exited with code " + strconv.Itoa(m.exitCode))
 	}

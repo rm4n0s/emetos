@@ -298,6 +298,10 @@ func (t *terminals) makeEntry(o openOpts) (*entry, error) {
 	}
 	t.nextID++
 	env := buildEnv(t.env.vars, settingEnvVars, prof.env, locale, termVersion)
+	// what the other extensions add (SPEC §10.30 "Passwords and editors"): after the settings, before the shell integration, as VS
+	// Code applies the collections of the extensions to the environment of the process
+	contributions := t.api.TerminalEnvironment().Contributions()
+	env = applyContributions(env, contributions)
 	prof, injected, nonce, ok := t.shellIntegration(prof)
 	if ok {
 		env = setEnv(env, injected)
@@ -305,7 +309,7 @@ func (t *terminals) makeEntry(o openOpts) (*entry, error) {
 	term, err := newTerminal(t.ctx, terminalOpts{
 		id: t.nextID, profile: prof, dir: dir, env: env,
 		rows: rows, cols: cols, scrollback: t.cfg.scrollback, version: termVersion, start: t.start, log: t.api.Log(),
-		obs: t.observerFor(t.nextID), interval: t.outputInterval, nonce: nonce, injected: ok, initial: initial,
+		obs: t.observerFor(t.nextID), interval: t.outputInterval, nonce: nonce, injected: ok, initial: initial, contributions: contributions,
 	})
 	if err != nil {
 		t.failure = "The terminal process " + prof.path + " failed to launch: " + err.Error()

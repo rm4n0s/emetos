@@ -43,7 +43,7 @@ var extraMenus = []extension.MenuItem{
 	{Menu: extension.MenuCommandPalette, Command: CommandManageTrusted, When: "config.git.enabled"},
 }
 
-// registerCommands gives every command the extension declares its handler: its own, or the one that says it is not available yet.
+// registerCommands gives every command the extension declares its handler.
 func (x *gitscm) registerCommands() error {
 	own := map[string]extension.CommandHandler{
 		"git.refresh":                         x.cmdRefresh,
@@ -176,7 +176,9 @@ func (x *gitscm) registerCommands() error {
 	for _, spec := range append(append([]extension.CommandSpec(nil), commandSpecs...), trustCommands...) {
 		h := own[spec.ID]
 		if h == nil {
-			h = placeholder(x, spec.Title)
+			// every command of the manifest has its handler since step 24.23; TestEveryCommandOfTheManifestHasAHandler keeps it so
+			x.log.Error("a command of the manifest has no handler", "command", spec.ID)
+			continue
 		}
 		x.handlers[spec.ID] = h
 		if err := x.api.Commands().Handle(spec.ID, h); err != nil {
@@ -191,16 +193,6 @@ func (x *gitscm) registerCommands() error {
 	// and the one of the merge editor of a migration of worktree changes, which no menu shows
 	x.handlers[commandOpenWorktreeMergeEditor] = x.cmdOpenWorktreeMergeEditor
 	return x.api.Commands().Register(extension.CommandSpec{ID: commandOpenWorktreeMergeEditor}, x.cmdOpenWorktreeMergeEditor)
-}
-
-// placeholder is the handler of a command a later step implements.
-//
-// TODO(step 24.9 to 24.23): each step replaces the handlers of its commands.
-func placeholder(x *gitscm, title string) extension.CommandHandler {
-	return func(context.Context, any) error {
-		x.api.Notifications().Info(title + " is not available yet.")
-		return nil
-	}
 }
 
 // target finds the repository a command is for: the one its arguments name (a source control of a menu, {"root": path}, a path), the

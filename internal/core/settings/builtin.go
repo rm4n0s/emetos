@@ -50,6 +50,7 @@ func DefaultRegistry() *Registry {
 	registerLens(r)
 	registerSourceControl(r)
 	registerTimeline(r)
+	registerExternalTerminal(r)
 	return r
 }
 

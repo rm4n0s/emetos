@@ -106,6 +106,11 @@ type API struct {
 	dialogs           []*FakeDialog
 	progresses        []*FakeProgress
 	annotations       map[string]*annotationSet
+	// termSources is the registry of the sources of terminal variables (terminalenv.go); termDisposers take this fake's away. termMu
+	// guards them, and not mu, because Deactivate runs the disposers under mu.
+	termMu        sync.Mutex
+	termSources   *TerminalSources
+	termDisposers []func()
 	// annotationsUnavailable makes EditorDecorations().Set fail like a scope with no editors.
 	annotationsUnavailable bool
 	// quickDiffUnavailable makes AddQuickDiffProvider and QuickDiffOriginal fail like a scope with no editors.
