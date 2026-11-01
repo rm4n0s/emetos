@@ -8,11 +8,14 @@
 #
 # Usage: scripts/screenshots.sh [name...]
 #   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work
-#          docker sql mongodb redis
+#          docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
 #   go-hover    gopls on PATH (it is skipped, with a message, when gopls is missing; this script never installs it)
 #   remote-work   two Emetos instances on 127.0.0.1, with keys made on the run (nothing secret is kept)
+#   git-*       nothing but git (2.30 or newer): testdata/screenshots/git/build.sh makes a repository of its own for each shot
+#               (a small Go project with three authors, two branches, a merge, a tag and a bare origin next to it), and the
+#               editor trusts it through EMETOS_DEV_GIT_TRUST (the answer of the trust question, only for a debug build)
 #   docker      nothing: a fake Docker engine (the fakeengine of extensions/internal/containerapi/containerapitest) on a Unix
 #               socket; the Docker of the computer is never asked
 #   sql         nothing: a SQLite database made on the run from testdata/screenshots/sql/library.sql
@@ -29,7 +32,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work docker sql mongodb redis)
+all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -255,6 +258,46 @@ JSON
       EMETOS_SHOTS_PASSWORD="$password" scripts/proof.sh docs/screenshots/redis.png --config "$s/redis" --state "$t/state" --after 9s \
         --commands '[["workbench.view.extension.emetos.databases.container"],["emetos.databases.connect","cache1"],["sleep","2s"],["emetos.redis.openKey",{"connection":"cache1","db":0,"key":"user:42:profile"}],["sleep","2s"]]' \
         -- "$p/api"
+      ;;
+    git-changes)
+      # the Source Control view with a change in every group and a message in the commit box, and the diff of a file
+      local g="$w/git-changes"
+      "$s/git/build.sh" "$g/shop" changes >/dev/null
+      EMETOS_DEV_GIT_TRUST="$g" scripts/proof.sh docs/screenshots/git-changes.png --after 8s \
+        --commands '[["workbench.view.scm"],["sleep","2s"],["dev.scm.input",{"text":"Save a negative price as zero\n\nAn order is never kept with less than zero cents."}],["git.openChange",{"path":"store/store.go"}],["sleep","2s"],["notifications.hideToasts"]]' \
+        -- "$g/shop"
+      ;;
+    git-diff)
+      # the marks of the quick diff in the gutter, and the peek of one of the changes
+      local g="$w/git-diff"
+      "$s/git/build.sh" "$g/shop" changes >/dev/null
+      EMETOS_DEV_GIT_TRUST="$g" scripts/proof.sh docs/screenshots/git-diff.png --after 8s \
+        --commands '[["dev.openFile",{"path":"'$g'/shop/store/store.go","line":40}],["sleep","3s"],["editor.action.dirtydiff.next"],["sleep","2s"]]' \
+        -- "$g/shop"
+      ;;
+    git-graph)
+      # the Graph under the Source Control view: lanes, a merge, the badges of a branch, a remote branch and a tag
+      local g="$w/git-graph"
+      "$s/git/build.sh" "$g/shop" clean >/dev/null
+      EMETOS_DEV_GIT_TRUST="$g" scripts/proof.sh docs/screenshots/git-graph.png --config "$s/git/config" --after 8s \
+        --commands '[["workbench.view.scm"],["sleep","3s"]]' \
+        -- "$g/shop"
+      ;;
+    git-timeline)
+      # the Timeline under the Explorer: the commits that touched the file of the editor
+      local g="$w/git-timeline"
+      "$s/git/build.sh" "$g/shop" clean >/dev/null
+      EMETOS_DEV_GIT_TRUST="$g" scripts/proof.sh docs/screenshots/git-timeline.png --after 14s \
+        --commands '[["workbench.view.explorer"],["dev.openFile",{"path":"'$g'/shop/store/store.go","line":30}],["sleep","2s"],["timeline.focus"],["sleep","10s"]]' \
+        -- "$g/shop"
+      ;;
+    git-blame)
+      # the commit of the line of the cursor after its text, and in the status bar
+      local g="$w/git-blame"
+      "$s/git/build.sh" "$g/shop" clean >/dev/null
+      EMETOS_DEV_GIT_TRUST="$g" scripts/proof.sh docs/screenshots/git-blame.png --config "$s/git/config-blame" --after 8s \
+        --commands '[["dev.openFile",{"path":"'$g'/shop/store/store.go","line":46}],["sleep","4s"]]' \
+        -- "$g/shop"
       ;;
   esac
 }

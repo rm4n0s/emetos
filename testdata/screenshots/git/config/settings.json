@@ -1,0 +1,4 @@
+{
+	// the branches, the remote branches and the tags show as badges in the Graph, not only those of the filter
+	"scm.graph.badges": "all"
+}

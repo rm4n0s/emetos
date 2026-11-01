@@ -1,0 +1,4 @@
+{
+	// the commit of the line of the cursor shows after its text
+	"git.blame.editorDecoration.enabled": true
+}
