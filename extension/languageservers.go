@@ -164,6 +164,10 @@ type ServerLaunch struct {
 	// LanguageServerSpec.ConfigurationSection). It may be called from any goroutine. A change of what it answers is told to the
 	// server by restarting it.
 	Configuration func(section string) (json.RawMessage, bool)
+	// ClientExperimental is what the client tells the server about itself in the "experimental" member of its capabilities (rust-analyzer
+	// asks for experimental.serverStatusNotification to send experimental/serverStatus, and lists the commands the client runs in
+	// experimental.commands). The rest of the capabilities Emetos advertises is not changed; nil adds nothing. It must encode to JSON.
+	ClientExperimental map[string]any
 }
 
 // ServerLauncher decides, each time the host starts a server (the first document, a crash, a restart, a change of the path
@@ -215,4 +219,19 @@ type LanguageServers interface {
 	// first document opens: a server that started already keeps what it runs until it is restarted. It fails with
 	// ExtensionServerUnknown and with ExtensionDeactivated after the activation ended.
 	SetLauncher(serverID string, launcher ServerLauncher) error
+	// Request sends a request of the language server's own protocol (rust-analyzer's rust-analyzer/expandMacro, experimental/parentModule)
+	// and returns the "result" of the answer as JSON ("null" when the server answers null). params must encode to JSON, and its positions
+	// are counted as PositionEncoding says. It blocks until the server answers, so call it off the UI thread (a command hands the work to
+	// a goroutine and comes back with Post; a provider already runs off the UI thread); ctx cancels the wait. It fails with
+	// ExtensionServerUnknown, ExtensionDeactivated, ExtensionArgumentsInvalid for params that do not encode, ExtensionServerNotRunning
+	// while the server does not run, and with the error of the server (ServerError) when it answers with one.
+	Request(ctx context.Context, serverID, method string, params any) (json.RawMessage, error)
+	// OnNotification calls fn, on the UI thread, with the params of every notification the server sends with this method
+	// (experimental/serverStatus), and returns the function that stops the calls. The subscription outlives restarts of the server. The calls
+	// stop with the activation. It fails with ExtensionServerUnknown. A panic in fn deactivates the extension.
+	OnNotification(serverID, method string, fn func(params json.RawMessage)) (cancel func(), err error)
+	// PositionEncoding is the encoding of the positions the running server uses in its messages: "utf-8" (columns count bytes of the
+	// line, as the positions of this API do), "utf-16" or "utf-32". It is "utf-16", the protocol's default, while the server does not run.
+	// It fails with ExtensionServerUnknown.
+	PositionEncoding(serverID string) (string, error)
 }

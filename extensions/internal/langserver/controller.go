@@ -25,6 +25,7 @@ type Controller struct {
 	server   extension.ServerStatus
 	label    string
 	detail   string
+	health   Health
 	activeIn bool
 	status   extension.StatusHandle
 	key      string
@@ -144,6 +145,31 @@ func (c *Controller) SetLabel(text string) {
 	c.updateStatus()
 }
 
+// The levels of a Health, as rust-analyzer's experimental/serverStatus names them.
+const (
+	HealthOK      = "ok"
+	HealthWarning = "warning"
+	HealthError   = "error"
+)
+
+// Health is how a running server says it is doing, beyond its process being up (rust-analyzer's experimental/serverStatus): whether it
+// is busy, and whether something is wrong with what it was asked to load.
+type Health struct {
+	// Level is HealthOK (or empty), HealthWarning or HealthError; the item shows the icon of the level while the server runs and has no
+	// progress to show.
+	Level string
+	// Busy says that the server is working (it is not quiescent); the item spins.
+	Busy bool
+	// Message is a line of the tooltip ("Failed to load workspace").
+	Message string
+}
+
+// SetHealth sets how the server is doing; a restart of the server forgets it.
+func (c *Controller) SetHealth(h Health) {
+	c.health = h
+	c.updateStatus()
+}
+
 // SetDetail sets a line the tooltip of the status item shows after the state of the server ("Interpreter: /usr/bin/python3").
 func (c *Controller) SetDetail(text string) {
 	c.detail = text
@@ -163,6 +189,9 @@ func (c *Controller) program() Program {
 
 // serverChanged follows the state the host tells.
 func (c *Controller) serverChanged(st extension.ServerStatus) {
+	if st.State != extension.ServerRunning {
+		c.health = Health{}
+	}
 	c.server = st
 	if st.State == extension.ServerMissing {
 		c.tellProblem()

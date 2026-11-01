@@ -1,0 +1,9 @@
+# Pinned tools of the real-server tests of milestone M24b (docs/IMPLEMENTATION.md "M24b"). scripts/fetch-tools.sh reads this file and
+# installs the tools only into /var/tmp/emetos-tools/ (never into the user's environment); Emetos itself installs nothing (SPEC D47).
+# Change a pin only in a step of its own.
+#
+# kind    name                        version     sha256 of the download                                              url
+# gzbin   a gzip of one program: gunzip it into bin/<name>; the sha256 of the program follows the url
+# file    a plain file: kept in download/<name>-<version>
+gzbin     rust-analyzer               2026-10-26  4c83773525f93b636ed79761389568b4d2a89c05fa7ecc440245032d49ad80ce  https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-26/rust-analyzer-x86_64-unknown-linux-gnu.gz  01c2dc9d7653769915fe26fa4737bfab2b99ff3c756414d04d5239e0eab97365
+file      rust-analyzer-package.json  2026-10-26  9701f04b1f484e27c427335943f512888ec930e547dada70b7c91d96fad7cce8  https://raw.githubusercontent.com/rust-lang/rust-analyzer/2026-10-26/editors/code/package.json

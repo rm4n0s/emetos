@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/rm4n0s/errors"
+
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/contenttest"
 )
@@ -117,5 +119,16 @@ func TestAPanicInAFakeMultiDiffProviderIsAnErrorWithItsRoute(t *testing.T) {
 	route(t, err, "API.MultiDiffFiles.func1.ExtensionMultiDiffPanicked")
 	if !a.Failed() {
 		t.Error("the fake is on after a panic")
+	}
+}
+
+func TestTheFakeCanRefuseProvidedContent(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{})
+	a.FailProvideContent(errors.New("ExtensionDocumentUnavailable", "the scope cannot show provided documents"))
+	_, err := a.Documents().ProvideContent(extension.ContentProvider{Scheme: "x", Text: func(context.Context, string) (string, error) { return "", nil }})
+	route(t, err, "ExtensionDocumentUnavailable")
+	a.FailProvideContent(nil)
+	if _, err := a.Documents().ProvideContent(extension.ContentProvider{Scheme: "x", Text: func(context.Context, string) (string, error) { return "", nil }}); err != nil {
+		t.Errorf("ProvideContent after the refusal was lifted: %v", err)
 	}
 }

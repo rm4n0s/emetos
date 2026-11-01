@@ -2,6 +2,7 @@ package fakeapi
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"testing"
 
@@ -144,4 +145,64 @@ func TestTheFakeQuickPick(t *testing.T) {
 	if New(t, manifest(), extension.ScopeInfo{}).LastPick() != nil {
 		t.Error("a fake that showed nothing has a pick")
 	}
+}
+
+func TestTheFakeRequestsOfTheServersOwnProtocol(t *testing.T) {
+	a := New(t, serverManifest(), extension.ScopeInfo{})
+	ls := a.LanguageServers()
+	// a server that does not run answers no request
+	_, err := ls.Request(context.Background(), "ls", "custom/echo", nil)
+	route(t, err, "serversAPI.Request.ExtensionServerNotRunning")
+	a.SetServerStatus("ls", extension.ServerStatus{State: extension.ServerRunning})
+	// no handler: null
+	got, err := ls.Request(context.Background(), "ls", "custom/echo", map[string]any{"a": 1})
+	if err != nil || string(got) != "null" {
+		t.Errorf("Request = %s, %v", got, err)
+	}
+	a.OnServerRequest("ls", func(req ServerRequest) (json.RawMessage, error) {
+		return json.RawMessage(`{"method":"` + req.Method + `"}`), nil
+	})
+	got, err = ls.Request(context.Background(), "ls", "custom/other", nil)
+	if err != nil || string(got) != `{"method":"custom/other"}` {
+		t.Errorf("Request = %s, %v", got, err)
+	}
+	reqs := a.ServerRequests("ls")
+	if len(reqs) != 2 || reqs[0].Method != "custom/echo" || string(reqs[0].Params) != `{"a":1}` || string(reqs[1].Params) != "null" {
+		t.Errorf("requests = %+v", reqs)
+	}
+	_, err = ls.Request(context.Background(), "ls", "custom/echo", make(chan int))
+	route(t, err, "serversAPI.Request.FakeRequestParamsInvalid")
+	_, err = ls.Request(context.Background(), "none", "custom/echo", nil)
+	route(t, err, "FakeServerUnknown")
+	if a.ServerRequests("none") != nil {
+		t.Error("requests of a server that is not there")
+	}
+}
+
+func TestTheFakeNotificationsAndTheEncodingOfTheServer(t *testing.T) {
+	a := New(t, serverManifest(), extension.ScopeInfo{})
+	ls := a.LanguageServers()
+	var got []string
+	cancel, err := ls.OnNotification("ls", "custom/status", func(p json.RawMessage) { got = append(got, string(p)) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.ServerNotify("ls", "custom/status", map[string]any{"n": 1})
+	a.ServerNotify("ls", "custom/other", 2)
+	cancel()
+	a.ServerNotify("ls", "custom/status", map[string]any{"n": 3})
+	if !slices.Equal(got, []string{`{"n":1}`}) {
+		t.Errorf("heard %v", got)
+	}
+	_, err = ls.OnNotification("none", "custom/status", func(json.RawMessage) {})
+	route(t, err, "FakeServerUnknown")
+	if enc, err := ls.PositionEncoding("ls"); err != nil || enc != "utf-16" {
+		t.Errorf("PositionEncoding = %q, %v", enc, err)
+	}
+	a.SetServerEncoding("ls", "utf-8")
+	if enc, _ := ls.PositionEncoding("ls"); enc != "utf-8" {
+		t.Errorf("PositionEncoding = %q", enc)
+	}
+	_, err = ls.PositionEncoding("none")
+	route(t, err, "FakeServerUnknown")
 }

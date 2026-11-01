@@ -277,6 +277,52 @@ func TestThePackCanSetTheLabelAndTheDetailOfTheItem(t *testing.T) {
 	r.ctl.Refresh()
 }
 
+func TestThePackCanTellHowTheServerIsDoing(t *testing.T) {
+	r := newRig(t, true, nil)
+	r.attach()
+	r.editor("rust")
+	if _, err := r.start(); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name     string
+		health   Health
+		icon     string
+		tooltips []string
+	}{
+		{"running and idle", Health{}, "$(check)", []string{"rust-analyzer is running"}},
+		{"ok and idle", Health{Level: HealthOK}, "$(check)", []string{"rust-analyzer is running"}},
+		{"busy", Health{Level: HealthOK, Busy: true}, "$(sync~spin)", []string{"rust-analyzer is working"}},
+		{"a warning", Health{Level: HealthWarning, Message: "No build scripts"}, "$(warning)", []string{"running, with warnings", "No build scripts"}},
+		{"an error beats busy", Health{Level: HealthError, Busy: true, Message: "No workspace"}, "$(error)", []string{"running, with errors", "No workspace"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r.ctl.SetHealth(tt.health)
+			it := r.item()
+			if !strings.HasPrefix(it.Text, tt.icon) {
+				t.Errorf("text = %q, want the icon %s", it.Text, tt.icon)
+			}
+			for _, want := range tt.tooltips {
+				if !strings.Contains(it.Tooltip, want) {
+					t.Errorf("tooltip = %q, want %q", it.Tooltip, want)
+				}
+			}
+		})
+	}
+	// the progress the server reports comes first; a server that is not running has no health
+	r.ctl.SetHealth(Health{Level: HealthWarning})
+	r.api.SetServerStatus(serverID, extension.ServerStatus{State: extension.ServerRunning, Progress: "Indexing 40%"})
+	if it := r.item(); !strings.HasPrefix(it.Text, "$(sync~spin)") || !strings.Contains(it.Text, "Indexing 40%") {
+		t.Errorf("text = %q", it.Text)
+	}
+	r.api.SetServerStatus(serverID, extension.ServerStatus{State: extension.ServerStarting})
+	r.api.SetServerStatus(serverID, extension.ServerStatus{State: extension.ServerRunning})
+	if it := r.item(); !strings.HasPrefix(it.Text, "$(check)") {
+		t.Errorf("text = %q after the server started again", it.Text)
+	}
+}
+
 func TestAMissingServerIsToldOncePerTab(t *testing.T) {
 	r := newRig(t, false, nil)
 	r.attach()

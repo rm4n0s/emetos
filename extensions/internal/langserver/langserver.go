@@ -125,11 +125,16 @@ type Launch struct {
 	// Configuration are the answers to workspace/configuration, by section ("python": {...}); a section below one of them
 	// ("python.analysis") is answered from inside it. A section that is not in it is answered from the settings of the tab.
 	Configuration map[string]any
+	// ClientExperimental is the "experimental" member of the client capabilities the server is initialized with (nil for none).
+	ClientExperimental map[string]any
 }
 
 // serverLaunch is the answer for the host.
 func (l *Launch) serverLaunch() extension.ServerLaunch {
-	out := extension.ServerLaunch{Program: l.Found.Path, Args: l.Args, Env: l.Env, Root: l.Root, InitializationOptions: l.InitializationOptions}
+	out := extension.ServerLaunch{
+		Program: l.Found.Path, Args: l.Args, Env: l.Env, Root: l.Root, InitializationOptions: l.InitializationOptions,
+		ClientExperimental: l.ClientExperimental,
+	}
 	if len(l.Configuration) > 0 {
 		cfg := l.Configuration
 		out.Configuration = func(section string) (json.RawMessage, bool) {

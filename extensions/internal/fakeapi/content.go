@@ -32,6 +32,8 @@ type contentState struct {
 	failSave error
 	// failOpen makes OpenDiff and OpenDocument return this error.
 	failOpen error
+	// failProvide makes ProvideContent return this error.
+	failProvide error
 	// mergeEditor is the merge editor in front (SetActiveMergeEditor).
 	mergeEditor *extension.ActiveMerge
 }
@@ -54,6 +56,8 @@ func (d documents) ProvideContent(p extension.ContentProvider) (extension.Conten
 	switch {
 	case a.scm.dead:
 		return nil, errors.New("ExtensionDeactivated", "the extension was deactivated")
+	case a.content.failProvide != nil:
+		return nil, a.content.failProvide
 	case !reScheme.MatchString(p.Scheme) || p.Scheme == "file" || p.Scheme == "untitled" || p.Scheme == "emetos-virtual":
 		return nil, errors.New("ExtensionContentSchemeInvalid", "the scheme of provided documents is a word that is not a scheme of the core", "scheme", p.Scheme)
 	case p.Text == nil:
@@ -199,6 +203,14 @@ func (d documents) OpenDocument(spec extension.OpenSpec) error {
 	}
 	a.content.opened = append(a.content.opened, spec)
 	return nil
+}
+
+// FailProvideContent makes Documents().ProvideContent fail with err (ExtensionDocumentUnavailable is what a scope that cannot show
+// provided documents answers); nil makes it work again.
+func (a *API) FailProvideContent(err error) {
+	a.mu.Lock()
+	a.content.failProvide = err
+	a.mu.Unlock()
 }
 
 // OpenedDiffs are the calls of OpenDiff, in order.

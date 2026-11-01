@@ -2,6 +2,7 @@ package fakeapi
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 	"sync"
 
@@ -17,6 +18,24 @@ type serverState struct {
 	subs     []*serverSub
 	restarts int
 	shown    int
+	// requests are the requests of the extension in their own protocol, handler answers them, notifs are the listeners of the
+	// notifications and encoding the position encoding the fake reports ("" is utf-16).
+	requests []ServerRequest
+	handler  func(ServerRequest) (json.RawMessage, error)
+	notifs   []*notifSub
+	encoding string
+}
+
+type notifSub struct {
+	method string
+	fn     func(json.RawMessage)
+}
+
+// ServerRequest is a request the extension sent to a server with LanguageServers().Request.
+type ServerRequest struct {
+	Server, Method string
+	// Params are the params of the request as JSON.
+	Params json.RawMessage
 }
 
 type serverSub struct{ fn func(extension.ServerStatus) }
@@ -301,4 +320,117 @@ func (a *API) RanCommands() []RanCommand {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return slices.Clone(a.ranCommands)
+}
+
+// Request implements extension.LanguageServers: the handler set with OnServerRequest answers on the calling goroutine; without one the
+// answer is null. A server that is not running (SetServerStatus) fails as the host does.
+func (s serversAPI) Request(_ context.Context, id, method string, params any) (json.RawMessage, error) {
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, errors.NewErr("FakeRequestParamsInvalid", err).SetMetadata("server", id, "method", method)
+	}
+	a := s.a
+	a.mu.Lock()
+	st, err := a.server(id)
+	if err != nil {
+		a.mu.Unlock()
+		return nil, err
+	}
+	if st.status.State != extension.ServerRunning {
+		a.mu.Unlock()
+		return nil, errors.New("ExtensionServerNotRunning", "the language server is not running", "server", id)
+	}
+	req := ServerRequest{Server: id, Method: method, Params: data}
+	st.requests = append(st.requests, req)
+	handler := st.handler
+	a.mu.Unlock()
+	if handler == nil {
+		return json.RawMessage("null"), nil
+	}
+	return handler(req)
+}
+
+// OnNotification implements extension.LanguageServers; ServerNotify delivers.
+func (s serversAPI) OnNotification(id, method string, fn func(json.RawMessage)) (func(), error) {
+	s.a.mu.Lock()
+	defer s.a.mu.Unlock()
+	st, err := s.a.server(id)
+	if err != nil {
+		return nil, err
+	}
+	sub := &notifSub{method: method, fn: fn}
+	st.notifs = append(st.notifs, sub)
+	return func() {
+		s.a.mu.Lock()
+		defer s.a.mu.Unlock()
+		st.notifs = slices.DeleteFunc(st.notifs, func(x *notifSub) bool { return x == sub })
+	}, nil
+}
+
+// PositionEncoding implements extension.LanguageServers: utf-16 unless SetServerEncoding says otherwise.
+func (s serversAPI) PositionEncoding(id string) (string, error) {
+	s.a.mu.Lock()
+	defer s.a.mu.Unlock()
+	st, err := s.a.server(id)
+	if err != nil {
+		return "", err
+	}
+	if st.encoding == "" {
+		return "utf-16", nil
+	}
+	return st.encoding, nil
+}
+
+// OnServerRequest sets what the server answers to the requests of the extension: the JSON of the result, or an error. The function runs
+// on the calling goroutine, which may be one of the extension (a request is made off the UI thread).
+func (a *API) OnServerRequest(id string, fn func(ServerRequest) (json.RawMessage, error)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if st, err := a.server(id); err == nil {
+		st.handler = fn
+	}
+}
+
+// ServerRequests are the requests the extension sent to the server, the first first.
+func (a *API) ServerRequests(id string) []ServerRequest {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if st, err := a.server(id); err == nil {
+		return slices.Clone(st.requests)
+	}
+	return nil
+}
+
+// SetServerEncoding sets the position encoding PositionEncoding reports ("utf-8", "utf-16" or "utf-32").
+func (a *API) SetServerEncoding(id, encoding string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if st, err := a.server(id); err == nil {
+		st.encoding = encoding
+	}
+}
+
+// ServerNotify delivers a notification of the server to the listeners of its method, on the calling goroutine, as the host does on the UI
+// thread. params must encode to JSON.
+func (a *API) ServerNotify(id, method string, params any) {
+	a.t.Helper()
+	data, err := json.Marshal(params)
+	if err != nil {
+		a.t.Fatal(err)
+		return
+	}
+	a.mu.Lock()
+	st, serr := a.server(id)
+	if serr != nil {
+		a.mu.Unlock()
+		a.t.Fatal(serr)
+		return
+	}
+	subs := slices.Clone(st.notifs)
+	a.mu.Unlock()
+	for _, sub := range subs {
+		if sub.method == method {
+			sub.fn(data)
+		}
+	}
 }

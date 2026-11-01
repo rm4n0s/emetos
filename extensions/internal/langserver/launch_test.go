@@ -49,7 +49,11 @@ func TestResolveFindsChecksAndCustomizes(t *testing.T) {
 		t.Errorf("the arguments of the config were changed: %v", cfg.Programs[0].Args)
 	}
 	// the host's view of it
+	l.ClientExperimental = map[string]any{"serverStatusNotification": true}
 	sl := l.serverLaunch()
+	if sl.ClientExperimental["serverStatusNotification"] != true {
+		t.Errorf("ClientExperimental = %v", sl.ClientExperimental)
+	}
 	if sl.Program != l.Found.Path || sl.Root != l.Root || !slices.Equal(sl.Args, l.Args) {
 		t.Errorf("serverLaunch = %+v", sl)
 	}

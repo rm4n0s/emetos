@@ -606,9 +606,15 @@ func (c *serverCtl) clientOptions(gen int) lsp.ClientOptions {
 	if launched.Root != "" {
 		folder = launched.Root
 	}
+	var caps lsp.ClientCapabilities
+	if len(launched.ClientExperimental) > 0 {
+		caps = lsp.DefaultClientCapabilities()
+		caps["experimental"] = launched.ClientExperimental
+	}
 	return lsp.ClientOptions{
-		Root: folder, InitializationOptions: init, Logger: c.log, Trace: c.trace,
+		Root: folder, InitializationOptions: init, Capabilities: caps, Logger: c.log, Trace: c.trace,
 		Handlers: lsp.Handlers{
+			Notification:       c.notification,
 			Configuration:      c.configuration,
 			ApplyEdit:          c.applyEdit,
 			ShowMessageRequest: c.showMessageRequest,

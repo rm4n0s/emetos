@@ -231,3 +231,11 @@ Linked Go modules:
              dependencies github.com/cespare/xxhash/v2 and go.uber.org/atomic are MIT.
     Added by step 21.1 (extensions/redis). The license texts come with the modules
     (`go list -m -f '{{.Dir}}' github.com/redis/go-redis/v9`).
+
+22. The settings of rust-analyzer (rust-analyzer's VS Code extension)
+    Source:  rust-analyzer, editors/code/package.json at the release 2026-10-26 (https://github.com/rust-lang/rust-analyzer)
+    License: MIT OR Apache-2.0 (the MIT text is third_party/rust-analyzer/LICENSE-MIT, copied from the release)
+    Added by step 24b.2 (extensions/rust). The name, type, default, enum and description of each setting that changes
+    what the server does are in extensions/rust/ra-settings.json, written by scripts/update-rust-analyzer-settings.sh
+    from the pinned package.json (scripts/tool-versions.txt). The commands and their titles follow the same file. The
+    rust-analyzer program itself is not bundled or downloaded by Emetos.

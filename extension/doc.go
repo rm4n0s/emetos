@@ -53,7 +53,7 @@
 // its Output channel; with LanguageServerSpec.OwnUI Emetos leaves the status item and the "program not found" notification to
 // the extension. LanguageServers().SetLauncher lets the extension decide what to run at each start (where the program is, its
 // version, the root of the project, the options from the current settings). The extension may also ask the server for its commands and code actions (LanguageServers().Commands,
-// ExecuteCommand and ApplyCodeAction), and edit documents (Documents().Apply). The settings of an extension may have keys of
+// ExecuteCommand and ApplyCodeAction), send it the requests of its own protocol and hear its notifications (Request, OnNotification), and edit documents (Documents().Apply). The settings of an extension may have keys of
 // their own (Contributes.Settings: go.gopls), API.QuickPick shows a list to choose from, such as the menu of a status bar item,
 // and API.InputBox asks for a line of text.
 //

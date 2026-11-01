@@ -1,0 +1,1561 @@
+[
+  {
+    "default": false,
+    "description": "Insert #[must_use] when generating `as_` methods for enum variants.",
+    "key": "rust-analyzer.assist.emitMustUse",
+    "type": "boolean"
+  },
+  {
+    "default": "todo",
+    "description": "Placeholder expression to use for missing expressions in assists.",
+    "enum": [
+      "todo",
+      "default"
+    ],
+    "enumDescriptions": [
+      "Fill missing expressions with the `todo` macro",
+      "Fill missing expressions with reasonable defaults, `new` or `default` constructors."
+    ],
+    "key": "rust-analyzer.assist.expressionFillDefault",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "Prefer to use `Self` over the type name when inserting a type (e.g. in \"fill match arms\" assist).",
+    "key": "rust-analyzer.assist.preferSelf",
+    "type": "boolean"
+  },
+  {
+    "default": 1800,
+    "description": "Term search fuel in \"units of work\" for assists (Defaults to 1800).",
+    "key": "rust-analyzer.assist.termSearch.fuel",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": true,
+    "description": "Warm up caches on project load.",
+    "key": "rust-analyzer.cachePriming.enable",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "string"
+    ],
+    "default": "physical",
+    "description": "How many worker threads to handle priming caches. The default `0` means to pick\nautomatically.",
+    "key": "rust-analyzer.cachePriming.numThreads",
+    "type": "number"
+  },
+  {
+    "default": true,
+    "description": "Pass `--all-targets` to cargo invocation.",
+    "key": "rust-analyzer.cargo.allTargets",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Automatically refresh project info via `cargo metadata` on\n`Cargo.toml` or `.cargo/config.toml` changes.",
+    "key": "rust-analyzer.cargo.autoreload",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Run build scripts (`build.rs`) for more precise code analysis.",
+    "key": "rust-analyzer.cargo.buildScripts.enable",
+    "type": "boolean"
+  },
+  {
+    "default": "per_workspace",
+    "description": "Specifies the invocation strategy to use when running the build scripts command.\nIf `per_workspace` is set, the command will be executed for each Rust workspace with the\nworkspace as the working directory.\nIf `once` is set, the command will be executed once with the opened project as the\nworking directory.\nThis config only has an effect when `#rust-analyzer.cargo.buildScripts.overrideCommand#`\nis set.",
+    "enum": [
+      "per_workspace",
+      "once"
+    ],
+    "enumDescriptions": [
+      "The command will be executed for each Rust workspace with the workspace as the working directory.",
+      "The command will be executed once with the opened project as the working directory.\n\n**Warning:** This can cause errors when the Cargo configuration of the opened workspaces is different or even only different than the default. Enabling this is not recommended."
+    ],
+    "key": "rust-analyzer.cargo.buildScripts.invocationStrategy",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Override the command rust-analyzer uses to run build scripts and\nbuild procedural macros. The command is required to output json\nand should therefore include `--message-format=json` or a similar\noption.\n\nIf there are multiple linked projects/workspaces, this command is invoked for\neach of them, with the working directory being the workspace root\n(i.e., the folder containing the `Cargo.toml`). This can be overwritten\nby changing `#rust-analyzer.cargo.buildScripts.invocationStrategy#`.\n\nBy default, a cargo invocation will be constructed for the configured\ntargets and features, with the following base command line:\n\n```bash\ncargo check --quiet --workspace --message-format=json --all-targets --keep-going\n```\n\nNote: The option must be specified as an array of command line arguments, with\nthe first argument being the name of the command to run.",
+    "key": "rust-analyzer.cargo.buildScripts.overrideCommand",
+    "type": "array"
+  },
+  {
+    "default": true,
+    "description": "Rerun proc-macros building/build-scripts running when proc-macro\nor build-script sources change and are saved.",
+    "key": "rust-analyzer.cargo.buildScripts.rebuildOnSave",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Use `RUSTC_WRAPPER=rust-analyzer` when running build scripts to\navoid checking unnecessary things.",
+    "key": "rust-analyzer.cargo.buildScripts.useRustcWrapper",
+    "type": "boolean"
+  },
+  {
+    "default": [
+      "debug_assertions",
+      "miri"
+    ],
+    "description": "List of cfg options to enable with the given values.\n\nTo enable a name without a value, use `\"key\"`.\nTo enable a name with a value, use `\"key=value\"`.\nTo disable, prefix the entry with a `!`.",
+    "key": "rust-analyzer.cargo.cfgs",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Path to a `.cargo/config.toml` style file to pass to cargo via `--config`\nfor every cargo invocation (metadata, build scripts, config discovery).\nUseful to give rust-analyzer a consistent view of the project configuration.",
+    "key": "rust-analyzer.cargo.configPath",
+    "type": "string"
+  },
+  {
+    "default": [],
+    "description": "Extra arguments that are passed to every cargo invocation.",
+    "key": "rust-analyzer.cargo.extraArgs",
+    "type": "array"
+  },
+  {
+    "default": {},
+    "description": "Extra environment variables that will be set when running cargo, rustc\nor other commands within the workspace. Useful for setting RUSTFLAGS.",
+    "key": "rust-analyzer.cargo.extraEnv",
+    "type": "object"
+  },
+  {
+    "alsoTypes": [
+      "array"
+    ],
+    "default": [],
+    "description": "List of features to activate.\n\nSet this to `\"all\"` to pass `--all-features` to cargo.",
+    "key": "rust-analyzer.cargo.features",
+    "type": "string"
+  },
+  {
+    "default": [],
+    "description": "Extra arguments passed only to `cargo metadata`, not to other cargo invocations.\nUseful for flags like `--config` that `cargo metadata` supports.",
+    "key": "rust-analyzer.cargo.metadataExtraArgs",
+    "type": "array"
+  },
+  {
+    "default": false,
+    "description": "Whether to pass `--no-default-features` to cargo.",
+    "key": "rust-analyzer.cargo.noDefaultFeatures",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Whether to skip fetching dependencies. If set to \"true\", the analysis is performed\nentirely offline, and Cargo metadata for dependencies is not fetched.",
+    "key": "rust-analyzer.cargo.noDeps",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": "discover",
+    "description": "Relative path to the sysroot, or \"discover\" to try to automatically find it via\n\"rustc --print sysroot\".\n\nUnsetting this disables sysroot loading.\n\nThis option does not take effect until rust-analyzer is restarted.",
+    "key": "rust-analyzer.cargo.sysroot",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Relative path to the sysroot library sources. If left unset, this will default to\n`{cargo.sysroot}/lib/rustlib/src/rust/library`.\n\nThis option does not take effect until rust-analyzer is restarted.",
+    "key": "rust-analyzer.cargo.sysrootSrc",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Compilation target override (target tuple).",
+    "key": "rust-analyzer.cargo.target",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "string",
+      "null"
+    ],
+    "default": null,
+    "description": "Optional path to a rust-analyzer specific target directory.\nThis prevents rust-analyzer's `cargo check` and initial build-script and proc-macro\nbuilding from locking the `Cargo.lock` at the expense of duplicating build artifacts.\n\nSet to `true` to use a subdirectory of the existing target directory or\nset to a path relative to the workspace to use that path.",
+    "key": "rust-analyzer.cargo.targetDir",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Set `cfg(test)` for local crates. Defaults to true.",
+    "key": "rust-analyzer.cfg.setTest",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Check all targets and tests (`--all-targets`). Defaults to\n`#rust-analyzer.cargo.allTargets#`.",
+    "key": "rust-analyzer.check.allTargets",
+    "type": "boolean"
+  },
+  {
+    "default": "check",
+    "description": "Cargo command to use for `cargo check`.",
+    "key": "rust-analyzer.check.command",
+    "type": "string"
+  },
+  {
+    "default": [],
+    "description": "Extra arguments for `cargo check`.",
+    "key": "rust-analyzer.check.extraArgs",
+    "type": "array"
+  },
+  {
+    "default": {},
+    "description": "Extra environment variables that will be set when running `cargo check`.\nExtends `#rust-analyzer.cargo.extraEnv#`.",
+    "key": "rust-analyzer.check.extraEnv",
+    "type": "object"
+  },
+  {
+    "alsoTypes": [
+      "array",
+      "null"
+    ],
+    "default": null,
+    "description": "List of features to activate. Defaults to\n`#rust-analyzer.cargo.features#`.\n\nSet to `\"all\"` to pass `--all-features` to Cargo.",
+    "key": "rust-analyzer.check.features",
+    "type": "string"
+  },
+  {
+    "default": [],
+    "description": "List of `cargo check` (or other command specified in `check.command`) diagnostics to ignore.\n\nFor example for `cargo check`: `dead_code`, `unused_imports`, `unused_variables`,...",
+    "key": "rust-analyzer.check.ignore",
+    "type": "array"
+  },
+  {
+    "default": "per_workspace",
+    "description": "Specifies the invocation strategy to use when running the check command.\nIf `per_workspace` is set, the command will be executed for each workspace.\nIf `once` is set, the command will be executed once.\nThis config only has an effect when `#rust-analyzer.check.overrideCommand#`\nis set.",
+    "enum": [
+      "per_workspace",
+      "once"
+    ],
+    "enumDescriptions": [
+      "The command will be executed for each Rust workspace with the workspace as the working directory.",
+      "The command will be executed once with the opened project as the working directory.\n\n**Warning:** This can cause errors when the Cargo configuration of the opened workspaces is different or even only different than the default. Enabling this is not recommended."
+    ],
+    "key": "rust-analyzer.check.invocationStrategy",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Whether to pass `--no-default-features` to Cargo. Defaults to\n`#rust-analyzer.cargo.noDefaultFeatures#`.",
+    "key": "rust-analyzer.check.noDefaultFeatures",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Override the command rust-analyzer uses instead of `cargo check` for\ndiagnostics on save. The command is required to output json and\nshould therefore include `--message-format=json` or a similar option\n(if your client supports the `colorDiagnosticOutput` experimental\ncapability, you can use `--message-format=json-diagnostic-rendered-ansi`).\n\nIf you're changing this because you're using some tool wrapping\nCargo, you might also want to change\n`#rust-analyzer.cargo.buildScripts.overrideCommand#`.\n\nIf there are multiple linked projects/workspaces, this command is invoked for\neach of them, with the working directory being the workspace root\n(i.e., the folder containing the `Cargo.toml`). This can be overwritten\nby changing `#rust-analyzer.check.invocationStrategy#`.\n\nIt supports two interpolation syntaxes, both mainly intended to be used with\n[non-Cargo build systems](./non_cargo_based_projects.md):\n\n- If `{saved_file}` is part of the command, rust-analyzer will pass\n    the absolute path of the saved file to the provided command.\n    (A previous version, `$saved_file`, also works.)\n- If `{label}` is part of the command, rust-analyzer will pass the\n    Cargo package ID, which can be used with `cargo check -p`, or a build label from\n    `rust-project.json`. If `{label}` is included, rust-analyzer behaves much like\n    [`\"rust-analyzer.check.workspace\": false`](#check.workspace).\n\n\n\nAn example command would be:\n\n```bash\ncargo check --workspace --message-format=json --all-targets\n```\n\nNote: The option must be specified as an array of command line arguments, with\nthe first argument being the name of the command to run.",
+    "key": "rust-analyzer.check.overrideCommand",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "array",
+      "null"
+    ],
+    "default": null,
+    "description": "Check for specific targets. Defaults to `#rust-analyzer.cargo.target#` if empty.\n\nCan be a single target, e.g. `\"x86_64-unknown-linux-gnu\"` or a list of targets, e.g.\n`[\"aarch64-apple-darwin\", \"x86_64-apple-darwin\"]`.\n\nAliased as `\"checkOnSave.targets\"`.",
+    "key": "rust-analyzer.check.targets",
+    "type": "string"
+  },
+  {
+    "default": true,
+    "description": "Whether `--workspace` should be passed to `cargo check`.\nIf false, `-p <package>` will be passed instead if applicable. In case it is not, no\ncheck will be performed.",
+    "key": "rust-analyzer.check.workspace",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Run the check command for diagnostics on save.",
+    "key": "rust-analyzer.checkOnSave",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Automatically add `::` when completing the module.\n\nWill not be completed in `use`.",
+    "key": "rust-analyzer.completion.addColonsToModule",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Automatically add a semicolon when completing unit-returning functions.\n\nIn `match` arms it completes a comma instead.",
+    "key": "rust-analyzer.completion.addSemicolonToUnit",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show method calls and field accesses completions with `await` prefixed to them when\ncompleting on a future.",
+    "key": "rust-analyzer.completion.autoAwait.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show method call completions with `iter()` or `into_iter()` prefixed to them when\ncompleting on a type that has them.",
+    "key": "rust-analyzer.completion.autoIter.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show completions that automatically add imports when completed.\n\nNote that your client must specify the `additionalTextEdits` LSP client capability to\ntruly have this feature enabled.",
+    "key": "rust-analyzer.completion.autoimport.enable",
+    "type": "boolean"
+  },
+  {
+    "default": [
+      {
+        "path": "core::borrow::Borrow",
+        "type": "methods"
+      },
+      {
+        "path": "core::borrow::BorrowMut",
+        "type": "methods"
+      }
+    ],
+    "description": "A list of full paths to items to exclude from auto-importing completions.\n\nTraits in this list won't have their methods suggested in completions unless the trait\nis in scope.\n\nYou can either specify a string path which defaults to type \"always\" or use the more\nverbose form `{ \"path\": \"path::to::item\", type: \"always\" }`.\n\nFor traits the type \"methods\" can be used to only exclude the methods but not the trait\nitself.\n\nFor modules the type \"sub_items\" can be used to only exclude the all items in it but not the module\nitself. This does not include items defined in nested modules.\n\nFor enums the type \"variants\" can be used to only exclude the all variants in it but not the enum\nitself.\n\nThis setting also inherits `#rust-analyzer.completion.excludeTraits#`.",
+    "key": "rust-analyzer.completion.autoimport.exclude",
+    "type": "array"
+  },
+  {
+    "default": true,
+    "description": "Show method calls and field access completions with `self` prefixed to them when\ninside a method.",
+    "key": "rust-analyzer.completion.autoself.enable",
+    "type": "boolean"
+  },
+  {
+    "default": "fill_arguments",
+    "description": "Add parenthesis and argument snippets when completing function.",
+    "enum": [
+      "fill_arguments",
+      "add_parentheses",
+      "none"
+    ],
+    "enumDescriptions": [
+      "Add call parentheses and pre-fill arguments.",
+      "Add call parentheses.",
+      "Do no snippet completions for callables."
+    ],
+    "key": "rust-analyzer.completion.callable.snippets",
+    "type": "string"
+  },
+  {
+    "default": [],
+    "description": "A list of full paths to traits whose methods to exclude from completion.\n\nMethods from these traits won't be completed, even if the trait is in scope. However,\nthey will still be suggested on expressions whose type is `dyn Trait`, `impl Trait` or\n`T where T: Trait`.\n\nNote that the trait themselves can still be completed.",
+    "key": "rust-analyzer.completion.excludeTraits",
+    "type": "array"
+  },
+  {
+    "default": false,
+    "description": "Show full function / method signatures in completion docs.",
+    "key": "rust-analyzer.completion.fullFunctionSignatures.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Omit deprecated items from completions. By default they are marked as deprecated but not\nhidden.",
+    "key": "rust-analyzer.completion.hideDeprecated",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Maximum number of completions to return. If `None`, the limit is infinite.",
+    "key": "rust-analyzer.completion.limit",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": true,
+    "description": "Show postfix snippets like `dbg`, `if`, `not`, etc.",
+    "key": "rust-analyzer.completion.postfix.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show completions of private items and fields that are defined in the current workspace\neven if they are not visible at the current position.",
+    "key": "rust-analyzer.completion.privateEditable.enable",
+    "type": "boolean"
+  },
+  {
+    "default": {
+      "Arc::new": {
+        "body": "Arc::new(${receiver})",
+        "description": "Put the expression into an `Arc`",
+        "postfix": "arc",
+        "requires": "std::sync::Arc",
+        "scope": "expr"
+      },
+      "Box::pin": {
+        "body": "Box::pin(${receiver})",
+        "description": "Put the expression into a pinned `Box`",
+        "postfix": "pinbox",
+        "requires": "std::boxed::Box",
+        "scope": "expr"
+      },
+      "Err": {
+        "body": "Err(${receiver})",
+        "description": "Wrap the expression in a `Result::Err`",
+        "postfix": "err",
+        "scope": "expr"
+      },
+      "Ok": {
+        "body": "Ok(${receiver})",
+        "description": "Wrap the expression in a `Result::Ok`",
+        "postfix": "ok",
+        "scope": "expr"
+      },
+      "Rc::new": {
+        "body": "Rc::new(${receiver})",
+        "description": "Put the expression into an `Rc`",
+        "postfix": "rc",
+        "requires": "std::rc::Rc",
+        "scope": "expr"
+      },
+      "Some": {
+        "body": "Some(${receiver})",
+        "description": "Wrap the expression in an `Option::Some`",
+        "postfix": "some",
+        "scope": "expr"
+      }
+    },
+    "description": "Custom completion snippets.",
+    "key": "rust-analyzer.completion.snippets.custom",
+    "type": "object"
+  },
+  {
+    "default": false,
+    "description": "Enable term search based snippets like `Some(foo.bar().baz())`.",
+    "key": "rust-analyzer.completion.termSearch.enable",
+    "type": "boolean"
+  },
+  {
+    "default": 1000,
+    "description": "Term search fuel in \"units of work\" for autocompletion (Defaults to 1000).",
+    "key": "rust-analyzer.completion.termSearch.fuel",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": true,
+    "description": "Complete turbofish (`::<>`) at the call site (if needed).",
+    "key": "rust-analyzer.completion.turbofish.enable",
+    "type": "boolean"
+  },
+  {
+    "default": [],
+    "description": "List of rust-analyzer diagnostics to disable.",
+    "key": "rust-analyzer.diagnostics.disabled",
+    "type": "array"
+  },
+  {
+    "default": true,
+    "description": "Show native rust-analyzer diagnostics.",
+    "key": "rust-analyzer.diagnostics.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show experimental rust-analyzer diagnostics that might have more false positives than\nusual.",
+    "key": "rust-analyzer.diagnostics.experimental.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Whether to show the main part of the rendered rustc output of a diagnostic message.",
+    "key": "rust-analyzer.diagnostics.previewRustcOutput",
+    "type": "boolean"
+  },
+  {
+    "default": {},
+    "description": "Map of prefixes to be substituted when parsing diagnostic file paths. This should be the\nreverse mapping of what is passed to `rustc` as `--remap-path-prefix`.",
+    "key": "rust-analyzer.diagnostics.remapPrefix",
+    "type": "object"
+  },
+  {
+    "default": false,
+    "description": "Run additional style lints.",
+    "key": "rust-analyzer.diagnostics.styleLints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Whether to show diagnostics using the original rustc error code. If this is false, all rustc diagnostics will have the code 'rustc(Click for full compiler diagnostics)'",
+    "key": "rust-analyzer.diagnostics.useRustcErrorCode",
+    "type": "boolean"
+  },
+  {
+    "default": [],
+    "description": "List of warnings that should be displayed with hint severity.\n\nThe warnings will be indicated by faded text or three dots in code and will not show up\nin the `Problems Panel`.",
+    "key": "rust-analyzer.diagnostics.warningsAsHint",
+    "type": "array"
+  },
+  {
+    "default": [],
+    "description": "List of warnings that should be displayed with info severity.\n\nThe warnings will be indicated by a blue squiggly underline in code and a blue icon in\nthe `Problems Panel`.",
+    "key": "rust-analyzer.diagnostics.warningsAsInfo",
+    "type": "array"
+  },
+  {
+    "default": false,
+    "description": "Disable support for `#[rust_analyzer::rust_fixture]` snippets.\n\nIf you are not working on rust-analyzer itself, you should ignore this config.",
+    "key": "rust-analyzer.disableFixtureSupport",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Exclude all locals from document symbol search.",
+    "key": "rust-analyzer.document.symbol.search.excludeLocals",
+    "type": "boolean"
+  },
+  {
+    "default": [],
+    "description": "List of files to ignore\n\nThese paths (file/directories) will be ignored by rust-analyzer. They are relative to\nthe workspace root, and globs are not supported. You may also need to add the folders to\nCode's `files.watcherExclude`.",
+    "key": "rust-analyzer.files.exclude",
+    "type": "array"
+  },
+  {
+    "default": "client",
+    "description": "Controls file watching implementation.",
+    "enum": [
+      "client",
+      "server"
+    ],
+    "enumDescriptions": [
+      "Use the client (editor) to watch files for changes",
+      "Use server-side file watching"
+    ],
+    "key": "rust-analyzer.files.watcher",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "If this is `true`, when \"Goto Implementations\" and in \"Implementations\" lens, are triggered on a `struct` or `enum` or `union`, we filter out trait implementations that originate from `derive`s above the type.",
+    "key": "rust-analyzer.gotoImplementations.filterAdjacentDerives",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Highlight related return values while the cursor is on any `match`, `if`, or match arm\narrow (`=>`).",
+    "key": "rust-analyzer.highlightRelated.branchExitPoints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Highlight related references while the cursor is on `break`, `loop`, `while`, or `for`\nkeywords.",
+    "key": "rust-analyzer.highlightRelated.breakPoints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Highlight all captures of a closure while the cursor is on the `|` or move keyword of a closure.",
+    "key": "rust-analyzer.highlightRelated.closureCaptures.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Highlight all exit points while the cursor is on any `return`, `?`, `fn`, or return type\narrow (`->`).",
+    "key": "rust-analyzer.highlightRelated.exitPoints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Highlight related references while the cursor is on any identifier.",
+    "key": "rust-analyzer.highlightRelated.references.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Highlight all break points for a loop or block context while the cursor is on any\n`async` or `await` keywords.",
+    "key": "rust-analyzer.highlightRelated.yieldPoints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Debug` action. Only applies when `#rust-analyzer.hover.actions.enable#` is set.",
+    "key": "rust-analyzer.hover.actions.debug.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show HoverActions in Rust files.",
+    "key": "rust-analyzer.hover.actions.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Go to Type Definition` action. Only applies when\n`#rust-analyzer.hover.actions.enable#` is set.",
+    "key": "rust-analyzer.hover.actions.gotoTypeDef.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Implementations` action. Only applies when `#rust-analyzer.hover.actions.enable#`\nis set.",
+    "key": "rust-analyzer.hover.actions.implementations.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show `References` action. Only applies when `#rust-analyzer.hover.actions.enable#` is\nset.",
+    "key": "rust-analyzer.hover.actions.references.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Run` action. Only applies when `#rust-analyzer.hover.actions.enable#` is set.",
+    "key": "rust-analyzer.hover.actions.run.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Update Test` action. Only applies when `#rust-analyzer.hover.actions.enable#` and\n`#rust-analyzer.hover.actions.run.enable#` are set.",
+    "key": "rust-analyzer.hover.actions.updateTest.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show documentation on hover.",
+    "key": "rust-analyzer.hover.documentation.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show keyword hover popups. Only applies when\n`#rust-analyzer.hover.documentation.enable#` is set.",
+    "key": "rust-analyzer.hover.documentation.keywords.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show drop glue information on hover.",
+    "key": "rust-analyzer.hover.dropGlue.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Use markdown syntax for links on hover.",
+    "key": "rust-analyzer.hover.links.enable",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "integer",
+      "null"
+    ],
+    "default": 20,
+    "description": "Show what types are used as generic arguments in calls etc. on hover, and limit the max\nlength to show such types, beyond which they will be shown with ellipsis.\n\nThis can take three values: `null` means \"unlimited\", the string `\"hide\"` means to not\nshow generic substitutions at all, and a number means to limit them to X characters.\n\nThe default is 20 characters.",
+    "key": "rust-analyzer.hover.maxSubstitutionLength",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": "hexadecimal",
+    "description": "How to render the align information in a memory layout hover.",
+    "key": "rust-analyzer.hover.memoryLayout.alignment",
+    "type": "string"
+  },
+  {
+    "default": true,
+    "description": "Show memory layout data on hover.",
+    "key": "rust-analyzer.hover.memoryLayout.enable",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": false,
+    "description": "How to render the niche information in a memory layout hover.",
+    "key": "rust-analyzer.hover.memoryLayout.niches",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": "hexadecimal",
+    "description": "How to render the offset information in a memory layout hover.",
+    "key": "rust-analyzer.hover.memoryLayout.offset",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "How to render the padding information in a memory layout hover.",
+    "key": "rust-analyzer.hover.memoryLayout.padding",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": "both",
+    "description": "How to render the size information in a memory layout hover.",
+    "key": "rust-analyzer.hover.memoryLayout.size",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": 5,
+    "description": "How many variants of an enum to display when hovering on. Show none if empty.",
+    "key": "rust-analyzer.hover.show.enumVariants",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": 5,
+    "description": "How many fields of a struct, variant or union to display when hovering on. Show none if\nempty.",
+    "key": "rust-analyzer.hover.show.fields",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "How many associated items of a trait to display when hovering a trait.",
+    "key": "rust-analyzer.hover.show.traitAssocItems",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": false,
+    "description": "Enforce the import granularity setting for all files. If set to false rust-analyzer will\ntry to keep import styles consistent per file.",
+    "key": "rust-analyzer.imports.granularity.enforce",
+    "type": "boolean"
+  },
+  {
+    "default": "crate",
+    "description": "How imports should be grouped into use statements.",
+    "enum": [
+      "crate",
+      "module",
+      "item",
+      "one",
+      "preserve"
+    ],
+    "enumDescriptions": [
+      "Merge imports from the same crate into a single use statement. Conversely, imports from different crates are split into separate statements.",
+      "Merge imports from the same module into a single use statement. Conversely, imports from different modules are split into separate statements.",
+      "Flatten imports so that each has its own use statement.",
+      "Merge all imports into a single use statement as long as they have the same visibility and attributes.",
+      "Deprecated - unless `enforceGranularity` is `true`, the style of the current file is preferred over this setting. Behaves like `item`."
+    ],
+    "key": "rust-analyzer.imports.granularity.group",
+    "type": "string"
+  },
+  {
+    "default": true,
+    "description": "Group inserted imports by the [following\norder](https://rust-analyzer.github.io/book/features.html#auto-import). Groups are\nseparated by newlines.",
+    "key": "rust-analyzer.imports.group.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Allow import insertion to merge new imports into single path glob imports like `use\nstd::fmt::*;`.",
+    "key": "rust-analyzer.imports.merge.glob",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Prefer to unconditionally use imports of the core and alloc crate, over the std crate.",
+    "key": "rust-analyzer.imports.preferNoStd",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Prefer import paths containing a `prelude` module.",
+    "key": "rust-analyzer.imports.preferPrelude",
+    "type": "boolean"
+  },
+  {
+    "default": "crate",
+    "description": "The path structure for newly inserted paths to use.",
+    "enum": [
+      "plain",
+      "self",
+      "crate"
+    ],
+    "enumDescriptions": [
+      "Insert import paths relative to the current module, using up to one `super` prefix if the parent module contains the requested item.",
+      "Insert import paths relative to the current module, using up to one `super` prefix if the parent module contains the requested item. Prefixes `self` in front of the path if it starts with a module.",
+      "Force import paths to be absolute by always starting them with `crate` or the extern crate name they come from."
+    ],
+    "key": "rust-analyzer.imports.prefix",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "Prefix external (including std, core) crate imports with `::`.\n\nE.g. `use ::std::io::Read;`.",
+    "key": "rust-analyzer.imports.prefixExternPrelude",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show inlay type hints for binding modes.",
+    "key": "rust-analyzer.inlayHints.bindingModeHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show inlay type hints for method chains.",
+    "key": "rust-analyzer.inlayHints.chainingHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show inlay hints after a closing `}` to indicate what item it belongs to.",
+    "key": "rust-analyzer.inlayHints.closingBraceHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": 25,
+    "description": "Minimum number of lines required before the `}` until the hint is shown (set to 0 or 1\nto always show them).",
+    "key": "rust-analyzer.inlayHints.closingBraceHints.minLines",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": false,
+    "description": "Show inlay hints for closure and coroutine captures.",
+    "key": "rust-analyzer.inlayHints.closureCaptureHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": "never",
+    "description": "Show inlay type hints for return types of closures.",
+    "enum": [
+      "always",
+      "never",
+      "with_block"
+    ],
+    "enumDescriptions": [
+      "Always show type hints for return types of closures.",
+      "Never show type hints for return types of closures.",
+      "Only show type hints for return types of closures with blocks."
+    ],
+    "key": "rust-analyzer.inlayHints.closureReturnTypeHints.enable",
+    "type": "string"
+  },
+  {
+    "default": "impl_fn",
+    "description": "Closure notation in type and chaining inlay hints.",
+    "enum": [
+      "impl_fn",
+      "rust_analyzer",
+      "with_id",
+      "hide"
+    ],
+    "enumDescriptions": [
+      "`impl_fn`: `impl FnMut(i32, u64) -> i8`",
+      "`rust_analyzer`: `|i32, u64| -> i8`",
+      "`with_id`: `{closure#14352}`, where that id is the unique number of the closure in r-a internals",
+      "`hide`: Shows `...` for every closure type"
+    ],
+    "key": "rust-analyzer.inlayHints.closureStyle",
+    "type": "string"
+  },
+  {
+    "default": "never",
+    "description": "Show enum variant discriminant hints.",
+    "enum": [
+      "always",
+      "never",
+      "fieldless"
+    ],
+    "enumDescriptions": [
+      "Always show all discriminant hints.",
+      "Never show discriminant hints.",
+      "Only show discriminant hints on fieldless enum variants."
+    ],
+    "key": "rust-analyzer.inlayHints.discriminantHints.enable",
+    "type": "string"
+  },
+  {
+    "default": true,
+    "description": "Disable reborrows in expression adjustments inlay hints.\n\nReborrows are a pair of a builtin deref then borrow, i.e. `&*`. They are inserted by the compiler but are mostly useless to the programmer.\n\nNote: if the deref is not builtin (an overloaded deref), or the borrow is `&raw const`/`&raw mut`, they are not removed.",
+    "key": "rust-analyzer.inlayHints.expressionAdjustmentHints.disableReborrows",
+    "type": "boolean"
+  },
+  {
+    "default": "never",
+    "description": "Show inlay hints for type adjustments.",
+    "enum": [
+      "always",
+      "never",
+      "reborrow"
+    ],
+    "enumDescriptions": [
+      "Always show all adjustment hints.",
+      "Never show adjustment hints.",
+      "Only show auto borrow and dereference adjustment hints."
+    ],
+    "key": "rust-analyzer.inlayHints.expressionAdjustmentHints.enable",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "Hide inlay hints for type adjustments outside of `unsafe` blocks.",
+    "key": "rust-analyzer.inlayHints.expressionAdjustmentHints.hideOutsideUnsafe",
+    "type": "boolean"
+  },
+  {
+    "default": "prefix",
+    "description": "Show inlay hints as postfix ops (`.*` instead of `*`, etc).",
+    "enum": [
+      "prefix",
+      "postfix",
+      "prefer_prefix",
+      "prefer_postfix"
+    ],
+    "enumDescriptions": [
+      "Always show adjustment hints as prefix (`*expr`).",
+      "Always show adjustment hints as postfix (`expr.*`).",
+      "Show prefix or postfix depending on which uses less parenthesis, preferring prefix.",
+      "Show prefix or postfix depending on which uses less parenthesis, preferring postfix."
+    ],
+    "key": "rust-analyzer.inlayHints.expressionAdjustmentHints.mode",
+    "type": "string"
+  },
+  {
+    "default": true,
+    "description": "Show const generic parameter name inlay hints.",
+    "key": "rust-analyzer.inlayHints.genericParameterHints.const.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show generic lifetime parameter name inlay hints.",
+    "key": "rust-analyzer.inlayHints.genericParameterHints.lifetime.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show generic type parameter name inlay hints.",
+    "key": "rust-analyzer.inlayHints.genericParameterHints.type.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show implicit drop hints.",
+    "key": "rust-analyzer.inlayHints.implicitDrops.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show inlay hints for the implied type parameter `Sized` bound.",
+    "key": "rust-analyzer.inlayHints.implicitSizedBoundHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show inlay hints for the implied `dyn` keyword in trait object types.",
+    "key": "rust-analyzer.inlayHints.impliedDynTraitHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": "never",
+    "description": "Show inlay type hints for elided lifetimes in function signatures.",
+    "enum": [
+      "always",
+      "never",
+      "skip_trivial"
+    ],
+    "enumDescriptions": [
+      "Always show lifetime elision hints.",
+      "Never show lifetime elision hints.",
+      "Only show lifetime elision hints if a return type is involved."
+    ],
+    "key": "rust-analyzer.inlayHints.lifetimeElisionHints.enable",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "Prefer using parameter names as the name for elided lifetime hints if possible.",
+    "key": "rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": 25,
+    "description": "Maximum length for inlay hints. Set to null to have an unlimited length.\n\n**Note:** This is mostly a hint, and we don't guarantee to strictly follow the limit.",
+    "key": "rust-analyzer.inlayHints.maxLength",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": true,
+    "description": "Show function parameter name inlay hints at the call site.",
+    "key": "rust-analyzer.inlayHints.parameterHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show parameter name inlay hints for missing arguments at the call site.",
+    "key": "rust-analyzer.inlayHints.parameterHints.missingArguments.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show exclusive range inlay hints.",
+    "key": "rust-analyzer.inlayHints.rangeExclusiveHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": "never",
+    "description": "Show inlay hints for compiler inserted reborrows.\n\nThis setting is deprecated in favor of\n#rust-analyzer.inlayHints.expressionAdjustmentHints.enable#.",
+    "enum": [
+      "always",
+      "never",
+      "mutable"
+    ],
+    "enumDescriptions": [
+      "Always show reborrow hints.",
+      "Never show reborrow hints.",
+      "Only show mutable reborrow hints."
+    ],
+    "key": "rust-analyzer.inlayHints.reborrowHints.enable",
+    "type": "string"
+  },
+  {
+    "default": true,
+    "description": "Whether to render leading colons for type hints, and trailing colons for parameter hints.",
+    "key": "rust-analyzer.inlayHints.renderColons",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show inlay type hints for variables.",
+    "key": "rust-analyzer.inlayHints.typeHints.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Hide inlay type hints for `let` statements that initialize to a closure.\n\nOnly applies to closures with blocks, same as\n`#rust-analyzer.inlayHints.closureReturnTypeHints.enable#`.",
+    "key": "rust-analyzer.inlayHints.typeHints.hideClosureInitialization",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Hide inlay parameter type hints for closures.",
+    "key": "rust-analyzer.inlayHints.typeHints.hideClosureParameter",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Hide inlay type hints for inferred types.",
+    "key": "rust-analyzer.inlayHints.typeHints.hideInferredTypes",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Hide inlay type hints for constructors.",
+    "key": "rust-analyzer.inlayHints.typeHints.hideNamedConstructor",
+    "type": "boolean"
+  },
+  {
+    "default": "inline",
+    "description": "Where to render type hints relative to their binding pattern.",
+    "enum": [
+      "inline",
+      "end_of_line"
+    ],
+    "enumDescriptions": [
+      "Render type hints directly after the binding identifier.",
+      "Render type hints after the end of the containing `let` statement when possible."
+    ],
+    "key": "rust-analyzer.inlayHints.typeHints.location",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "Enable the experimental support for interpreting tests.",
+    "key": "rust-analyzer.interpret.tests",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Join lines merges consecutive declaration and initialization of an assignment.",
+    "key": "rust-analyzer.joinLines.joinAssignments",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Join lines inserts else between consecutive ifs.",
+    "key": "rust-analyzer.joinLines.joinElseIf",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Join lines removes trailing commas.",
+    "key": "rust-analyzer.joinLines.removeTrailingComma",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Join lines unwraps trivial blocks.",
+    "key": "rust-analyzer.joinLines.unwrapTrivialBlock",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Debug` lens. Only applies when `#rust-analyzer.lens.enable#` is set.",
+    "key": "rust-analyzer.lens.debug.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show CodeLens in Rust files.",
+    "key": "rust-analyzer.lens.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Implementations` lens. Only applies when `#rust-analyzer.lens.enable#` is set.",
+    "key": "rust-analyzer.lens.implementations.enable",
+    "type": "boolean"
+  },
+  {
+    "default": "above_name",
+    "description": "Where to render annotations.",
+    "enum": [
+      "above_name",
+      "above_whole_item"
+    ],
+    "enumDescriptions": [
+      "Render annotations above the name of the item.",
+      "Render annotations above the whole item, including documentation comments and attributes."
+    ],
+    "key": "rust-analyzer.lens.location",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "Show `References` lens for Struct, Enum, and Union. Only applies when\n`#rust-analyzer.lens.enable#` is set.",
+    "key": "rust-analyzer.lens.references.adt.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show `References` lens for Enum Variants. Only applies when\n`#rust-analyzer.lens.enable#` is set.",
+    "key": "rust-analyzer.lens.references.enumVariant.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show `Method References` lens. Only applies when `#rust-analyzer.lens.enable#` is set.",
+    "key": "rust-analyzer.lens.references.method.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Show `References` lens for Trait. Only applies when `#rust-analyzer.lens.enable#` is\nset.",
+    "key": "rust-analyzer.lens.references.trait.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Run` lens. Only applies when `#rust-analyzer.lens.enable#` is set.",
+    "key": "rust-analyzer.lens.run.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Show `Update Test` lens. Only applies when `#rust-analyzer.lens.enable#` and\n`#rust-analyzer.lens.run.enable#` are set.",
+    "key": "rust-analyzer.lens.updateTest.enable",
+    "type": "boolean"
+  },
+  {
+    "default": [],
+    "description": "Disable project auto-discovery in favor of explicitly specified set of projects.\n\nElements must be paths pointing to `Cargo.toml`, `rust-project.json`, `.rs` files (which\nwill be treated as standalone files) or JSON objects in `rust-project.json` format.",
+    "key": "rust-analyzer.linkedProjects",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Number of syntax trees rust-analyzer keeps in memory. Defaults to 128.",
+    "key": "rust-analyzer.lru.capacity",
+    "maximum": 65535,
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": {},
+    "description": "The LRU capacity of the specified queries.",
+    "key": "rust-analyzer.lru.query.capacities",
+    "type": "object"
+  },
+  {
+    "default": true,
+    "description": "Show `can't find Cargo.toml` error message.",
+    "key": "rust-analyzer.notifications.cargoTomlNotFound",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "string",
+      "null"
+    ],
+    "default": null,
+    "description": "The number of worker threads in the main loop. The default `null` means to pick\nautomatically.",
+    "key": "rust-analyzer.numThreads",
+    "type": "number"
+  },
+  {
+    "default": true,
+    "description": "Expand attribute macros. Requires `#rust-analyzer.procMacro.enable#` to be set.",
+    "key": "rust-analyzer.procMacro.attributes.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Enable support for procedural macros, implies `#rust-analyzer.cargo.buildScripts.enable#`.",
+    "key": "rust-analyzer.procMacro.enable",
+    "type": "boolean"
+  },
+  {
+    "default": {},
+    "description": "These proc-macros will be ignored when trying to expand them.\n\nThis config takes a map of crate names with the exported proc-macro names to ignore as values.",
+    "key": "rust-analyzer.procMacro.ignored",
+    "type": "object"
+  },
+  {
+    "alsoTypes": [
+      "string"
+    ],
+    "default": 2,
+    "description": "Number of proc-macro server processes to spawn.\n\nControls how many independent `proc-macro-srv` processes rust-analyzer\nruns in parallel to handle macro expansion.",
+    "key": "rust-analyzer.procMacro.processes",
+    "type": "number"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Internal config, path to proc-macro server executable.",
+    "key": "rust-analyzer.procMacro.server",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "The path where to save memory profiling output.\n\n**Note:** Memory profiling is not enabled by default in rust-analyzer builds, you need to build\nfrom source for it.",
+    "key": "rust-analyzer.profiling.memoryProfile",
+    "type": "string"
+  },
+  {
+    "default": "ask",
+    "description": "Control what happens after `rust-analyzer: Create New Project...` finishes creating a Cargo project.",
+    "enum": [
+      "ask",
+      "open",
+      "openNewWindow",
+      "addToWorkspace"
+    ],
+    "enumDescriptions": [
+      "Prompt for how to open the new project.",
+      "Open the new project in the current window.",
+      "Open the new project in a new window.",
+      "Add the new project to the current workspace, or open it if no workspace is open."
+    ],
+    "key": "rust-analyzer.projectCreation.openAfterCreate",
+    "type": "string"
+  },
+  {
+    "default": false,
+    "description": "Exclude imports from find-all-references.",
+    "key": "rust-analyzer.references.excludeImports",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Exclude tests from find-all-references and call-hierarchy.",
+    "key": "rust-analyzer.references.excludeTests",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Whether to warn when a rename will cause conflicts (change the meaning of the code).",
+    "key": "rust-analyzer.rename.showConflicts",
+    "type": "boolean"
+  },
+  {
+    "default": "bench",
+    "description": "Subcommand used for bench runnables instead of `bench`.",
+    "key": "rust-analyzer.runnables.bench.command",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Override the command used for bench runnables.\nThe first element of the array should be the program to execute (for example, `cargo`).\n\nUse the placeholders:\n- `${package}`: package name.\n- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.\n- `${target}`: target name (empty for `--lib`).\n- `${test_name}`: the test path filter, e.g. `module::bench_func`.\n- `${exact}`: `--exact` for single benchmarks, empty for modules.\n- `${include_ignored}`: always empty for benchmarks.\n- `${executable_args}`: all of the above binary args bundled together\n    (includes `rust-analyzer.runnables.extraTestBinaryArgs`).",
+    "key": "rust-analyzer.runnables.bench.overrideCommand",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Command to be executed instead of 'cargo' for runnables.",
+    "key": "rust-analyzer.runnables.command",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Override the command used for doc-test runnables.\nThe first element of the array should be the program to execute (for example, `cargo`).\n\nUse the placeholders:\n- `${package}`: package name.\n- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.\n- `${target}`: target name (empty for `--lib`).\n- `${test_name}`: the test path filter, e.g. `module::func`.\n- `${exact}`: always empty for doc-tests.\n- `${include_ignored}`: always empty for doc-tests.\n- `${executable_args}`: all of the above binary args bundled together\n    (includes `rust-analyzer.runnables.extraTestBinaryArgs`).",
+    "key": "rust-analyzer.runnables.doctest.overrideCommand",
+    "type": "array"
+  },
+  {
+    "default": [],
+    "description": "Additional arguments to be passed to cargo for runnables such as\ntests or binaries. For example, it may be `--release`.",
+    "key": "rust-analyzer.runnables.extraArgs",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "object",
+      "null"
+    ],
+    "default": null,
+    "description": "Environment variables passed to the runnable launched using `Test` or `Debug` lens or `rust-analyzer.run` command.",
+    "key": "rust-analyzer.runnables.extraEnv",
+    "type": "array"
+  },
+  {
+    "default": [
+      "--nocapture"
+    ],
+    "description": "Additional arguments to be passed through Cargo to launched tests, benchmarks, or\ndoc-tests.\n\nUnless the launched target uses a\n[custom test harness](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#the-harness-field),\nthey will end up being interpreted as options to\n[`rustc`’s built-in test harness (“libtest”)](https://doc.rust-lang.org/rustc/tests/index.html#cli-arguments).",
+    "key": "rust-analyzer.runnables.extraTestBinaryArgs",
+    "type": "array"
+  },
+  {
+    "default": "test",
+    "description": "Subcommand used for test runnables instead of `test`.",
+    "key": "rust-analyzer.runnables.test.command",
+    "type": "string"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Override the command used for test runnables.\nThe first element of the array should be the program to execute (for example, `cargo`).\n\nAvailable placeholders:\n- `${package}`: package name.\n- `${target_arg}`: target option such as `--bin`, `--test`, `--lib`, etc.\n- `${target}`: target name (empty for `--lib`).\n- `${test_name}`: the test path filter, e.g. `module::test_func`.\n- `${exact}`: `--exact` for single tests, empty for modules.\n- `${include_ignored}`: `--include-ignored` for single tests, empty otherwise.\n- `${executable_args}`: all of the above binary args bundled together\n    (includes `rust-analyzer.runnables.extraTestBinaryArgs`).",
+    "key": "rust-analyzer.runnables.test.overrideCommand",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Path to the Cargo.toml of the rust compiler workspace, for usage in rustc_private\nprojects, or \"discover\" to try to automatically find it if the `rustc-dev` component\nis installed.\n\nAny project which uses rust-analyzer with the rustcPrivate\ncrates must set `[package.metadata.rust-analyzer] rustc_private=true` to use it.\n\nThis option does not take effect until rust-analyzer is restarted.",
+    "key": "rust-analyzer.rustc.source",
+    "type": "string"
+  },
+  {
+    "default": [],
+    "description": "Additional arguments to `rustfmt`.",
+    "key": "rust-analyzer.rustfmt.extraArgs",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Advanced option, fully override the command rust-analyzer uses for\nformatting. This should be the equivalent of `rustfmt` here, and\nnot that of `cargo fmt`. The file contents will be passed on the\nstandard input and the formatted result will be read from the\nstandard output.\n\nNote: The option must be specified as an array of command line arguments, with\nthe first argument being the name of the command to run.",
+    "key": "rust-analyzer.rustfmt.overrideCommand",
+    "type": "array"
+  },
+  {
+    "default": false,
+    "description": "Enables the use of rustfmt's unstable range formatting command for the\n`textDocument/rangeFormatting` request. The rustfmt option is unstable and only\navailable on a nightly build.",
+    "key": "rust-analyzer.rustfmt.rangeFormatting.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Use semantic tokens for comments.\n\nIn some editors (e.g. vscode) semantic tokens override other highlighting grammars.\nBy disabling semantic tokens for comments, other grammars can be used to highlight\ntheir contents.",
+    "key": "rust-analyzer.semanticHighlighting.comments.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Inject additional highlighting into doc comments.\n\nWhen enabled, rust-analyzer will highlight rust source in doc comments as well as intra\ndoc links.",
+    "key": "rust-analyzer.semanticHighlighting.doc.comment.inject.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Use semantic tokens for operators.\n\nWhen disabled, rust-analyzer will emit semantic tokens only for operator tokens when\nthey are tagged with modifiers.",
+    "key": "rust-analyzer.semanticHighlighting.operator.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Use specialized semantic tokens for operators.\n\nWhen enabled, rust-analyzer will emit special token types for operator tokens instead\nof the generic `operator` token type.",
+    "key": "rust-analyzer.semanticHighlighting.operator.specialization.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Use semantic tokens for punctuation.\n\nWhen disabled, rust-analyzer will emit semantic tokens only for punctuation tokens when\nthey are tagged with modifiers or have a special role.",
+    "key": "rust-analyzer.semanticHighlighting.punctuation.enable",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "When enabled, rust-analyzer will emit a punctuation semantic token for the `!` of macro\ncalls.",
+    "key": "rust-analyzer.semanticHighlighting.punctuation.separate.macro.bang",
+    "type": "boolean"
+  },
+  {
+    "default": false,
+    "description": "Use specialized semantic tokens for punctuation.\n\nWhen enabled, rust-analyzer will emit special token types for punctuation tokens instead\nof the generic `punctuation` token type.",
+    "key": "rust-analyzer.semanticHighlighting.punctuation.specialization.enable",
+    "type": "boolean"
+  },
+  {
+    "default": true,
+    "description": "Use semantic tokens for strings.\n\nIn some editors (e.g. vscode) semantic tokens override other highlighting grammars.\nBy disabling semantic tokens for strings, other grammars can be used to highlight\ntheir contents.",
+    "key": "rust-analyzer.semanticHighlighting.strings.enable",
+    "type": "boolean"
+  },
+  {
+    "default": "full",
+    "description": "Show full signature of the callable. Only shows parameters if disabled.",
+    "enum": [
+      "full",
+      "parameters"
+    ],
+    "enumDescriptions": [
+      "Show the entire signature.",
+      "Show only the parameters."
+    ],
+    "key": "rust-analyzer.signatureInfo.detail",
+    "type": "string"
+  },
+  {
+    "default": true,
+    "description": "Show documentation.",
+    "key": "rust-analyzer.signatureInfo.documentation.enable",
+    "type": "boolean"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": "=.",
+    "description": "Specify the characters allowed to invoke special on typing triggers.\n\n- typing `=` after `let` tries to smartly add `;` if `=` is followed by an existing\n    expression\n- typing `=` between two expressions adds `;` when in statement position\n- typing `=` to turn an assignment into an equality comparison removes `;` when in\n    expression position\n- typing `.` in a chain method call auto-indents\n- typing `{` or `(` in front of an expression inserts a closing `}` or `)` after the\n    expression\n- typing `{` in a use item adds a closing `}` in the right place\n- typing `>` to complete a return type `->` will insert a whitespace after it\n- typing `<` in a path or type position inserts a closing `>` after the path or type.",
+    "key": "rust-analyzer.typing.triggerChars",
+    "type": "string"
+  },
+  {
+    "default": [],
+    "description": "Additional paths to include in the VFS. Generally for code that is\ngenerated or otherwise managed by a build system outside of Cargo,\nthough Cargo might be the eventual consumer.",
+    "key": "rust-analyzer.vfs.extraIncludes",
+    "type": "array"
+  },
+  {
+    "alsoTypes": [
+      "null"
+    ],
+    "default": null,
+    "description": "Configure a command that rust-analyzer can invoke to\nobtain configuration.\n\nThis is an alternative to manually generating\n`rust-project.json`: it enables rust-analyzer to generate\nrust-project.json on the fly, and regenerate it when\nswitching or modifying projects.\n\nThis is an object with three fields:\n\n* `command`: the shell command to invoke\n\n* `filesToWatch`: which build system-specific files should\nbe watched to trigger regenerating the configuration\n\n* `progressLabel`: the name of the command, used in\nprogress indicators in the IDE\n\nHere's an example of a valid configuration:\n\n```json\n\"rust-analyzer.workspace.discoverConfig\": {\n        \"command\": [\n                \"rust-project\",\n                \"develop-json\",\n                \"{arg}\"\n        ],\n        \"progressLabel\": \"buck2/rust-project\",\n        \"filesToWatch\": [\n                \"BUCK\"\n        ]\n}\n```\n\n## Argument Substitutions\n\nIf `command` includes the argument `{arg}`, that argument will be substituted\nwith the JSON-serialized form of the following enum:\n\n```norun\n#[derive(PartialEq, Clone, Debug, Serialize)]\n#[serde(rename_all = \"camelCase\")]\npub enum DiscoverArgument {\n     Path(AbsPathBuf),\n     Buildfile(AbsPathBuf),\n}\n```\n\nrust-analyzer will use the path invocation to find and\ngenerate a `rust-project.json` and therefore a\nworkspace. Example:\n\n\n```norun\nrust-project develop-json '{ \"path\": \"myproject/src/main.rs\" }'\n```\n\nrust-analyzer will use build file invocations to update an\nexisting workspace. Example:\n\nOr with a build file and the configuration above:\n\n```norun\nrust-project develop-json '{ \"buildfile\": \"myproject/BUCK\" }'\n```\n\nAs a reference for implementors, buck2's `rust-project`\nwill likely be useful:\n<https://github.com/facebook/buck2/tree/main/integrations/rust-project>.\n\n## Discover Command Output\n\n**Warning**: This format is provisional and subject to change.\n\nThe discover command should output JSON objects to stdout,\none per line (JSONL format). These objects should correspond\nto this Rust data type:\n\n```norun\n#[derive(Debug, Clone, Deserialize, Serialize)]\n#[serde(tag = \"kind\")]\n#[serde(rename_all = \"snake_case\")]\nenum DiscoverProjectData {\n        Finished { buildfile: Utf8PathBuf, project: ProjectJsonData },\n        Error { error: String, source: Option<String> },\n        Progress { message: String },\n}\n```\n\nFor example, a progress event:\n\n```json\n{\"kind\":\"progress\",\"message\":\"generating rust-project.json\"}\n```\n\nA finished event can look like this (expanded and\ncommented for readability):\n\n```json\n{\n        // the internally-tagged representation of the enum.\n        \"kind\": \"finished\",\n        // the file used by a non-Cargo build system to define\n        // a package or target.\n        \"buildfile\": \"rust-analyzer/BUCK\",\n        // the contents of a rust-project.json, elided for brevity\n        \"project\": {\n                \"sysroot\": \"foo\",\n                \"crates\": []\n        }\n}\n```\n\nOnly the finished event is required, but the other\nvariants are encouraged to give users more feedback about\nprogress or errors.\n\nStderr is not parsed as JSONL. It is treated as command log\noutput and forwarded to rust-analyzer's own logs.",
+    "key": "rust-analyzer.workspace.discoverConfig",
+    "type": "object"
+  },
+  {
+    "default": false,
+    "description": "Exclude all imports from workspace symbol search.\n\nIn addition to regular imports (which are always excluded),\nthis option removes public imports (better known as re-exports)\nand removes imports that rename the imported symbol.",
+    "key": "rust-analyzer.workspace.symbol.search.excludeImports",
+    "type": "boolean"
+  },
+  {
+    "default": "only_types",
+    "description": "Workspace symbol search kind.",
+    "enum": [
+      "only_types",
+      "all_symbols"
+    ],
+    "enumDescriptions": [
+      "Search for types only.",
+      "Search for all symbols kinds."
+    ],
+    "key": "rust-analyzer.workspace.symbol.search.kind",
+    "type": "string"
+  },
+  {
+    "default": 128,
+    "description": "Limits the number of items returned from a workspace symbol search (Defaults to 128).\nSome clients like vs-code issue new searches on result filtering and don't require all results to be returned in the initial search.\nOther clients requires all results upfront and might require a higher limit.",
+    "key": "rust-analyzer.workspace.symbol.search.limit",
+    "minimum": 0,
+    "type": "integer"
+  },
+  {
+    "default": "workspace",
+    "description": "Workspace symbol search scope.",
+    "enum": [
+      "workspace",
+      "workspace_and_dependencies"
+    ],
+    "enumDescriptions": [
+      "Search in current workspace only.",
+      "Search in current workspace and dependencies."
+    ],
+    "key": "rust-analyzer.workspace.symbol.search.scope",
+    "type": "string"
+  }
+]

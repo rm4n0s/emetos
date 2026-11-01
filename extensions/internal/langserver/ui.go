@@ -22,8 +22,23 @@ func (c *Controller) statusItem() extension.StatusItem {
 			icon, suffix = "$(sync~spin) ", ": "+c.server.Progress
 			tip = append(tip, name+": "+c.server.Progress)
 		} else {
-			icon = "$(check) "
-			tip = append(tip, name+" is running")
+			switch {
+			case c.health.Level == HealthError:
+				icon = "$(error) "
+				tip = append(tip, name+" is running, with errors")
+			case c.health.Level == HealthWarning:
+				icon = "$(warning) "
+				tip = append(tip, name+" is running, with warnings")
+			case c.health.Busy:
+				icon = "$(sync~spin) "
+				tip = append(tip, name+" is working")
+			default:
+				icon = "$(check) "
+				tip = append(tip, name+" is running")
+			}
+			if c.health.Message != "" {
+				tip = append(tip, c.health.Message)
+			}
 		}
 	case extension.ServerFailed:
 		icon, suffix = "$(error) ", ": "+name+" stopped"

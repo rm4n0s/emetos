@@ -39,6 +39,8 @@ type instance struct {
 	// (serverapi.go).
 	servers    []*serverCtl
 	serverSubs []*serverSub
+	// notifSubs are the listeners of the notifications of the servers (LanguageServers().OnNotification).
+	notifSubs []*notifSub
 	// launchers are the ServerLaunchers the extension set, by server id (LanguageServers().SetLauncher).
 	launchers map[string]extension.ServerLauncher
 	// scmKeys are the source controls of the activation by id and root (scm.go), to refuse a second one of the same.
