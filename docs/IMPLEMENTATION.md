@@ -138,6 +138,9 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M22 Wrap-up of M18–M21 | 22.1–22.2 |
 | M23 Remove an extension the user no longer wanted | 23.1 |
 | M24 Git and Source Control | 24.1–24.24 |
+| M25 Run and Debug | 25.1–25.13 |
+| M26 Testing | 26.1–26.10 |
+| M27 HTTP Client | 27.1–27.10 |
 
 ---
 
@@ -1961,5 +1964,260 @@ Requested by the user on 2026-10-29: "I want a git extension like vscode", the f
 **Goal:** `README.md` describes Git and Source Control.
 **Read:** `README.md`, `docs/IMPLEMENTED.md` (the entries of M24), SPEC §10.30, §12, D33–D37.
 **Tasks:** the status (M24 built), the features (the Source Control view, diffs, the quick diff, branches and tags, remotes, stash, the Graph, the Timeline, blame, file decorations), a section "Git" with how to use it and the settings that matter (`git.autofetch`, `git.enableSmartCommit`, `git.blame.*`, `git.path`), the requirements (`git` 2.30 or newer; nothing is downloaded), the security notes (hooks and configuration of a repository run programs when you commit; Emetos stores no credential, git's credential helpers and the SSH agent do; the helper program; the clean filters of `git status`; the `safe.directory` rule), privacy (only the remotes git contacts; autofetch off until you answer), what is not built (GitHub features, worktrees if still open, `scm.repositories.explorer`), where things are (`extensions/gitscm`, the Git output channel), fresh screenshots with `scripts/screenshots.sh` from the fixtures (the Source Control view with changes and the commit input, the diff with the quick diff marks and the peek, the Graph, the Timeline and blame), the coverage table rows for area 5, a line in the Terminal section that git asks for passwords in terminals too; every link resolves (`TestREADMELinksResolve`).
+**Tests:** `TestREADMELinksResolve`.
+**Proof:** the README's screenshots, viewed.
+
+## M25: Run and Debug
+
+Requested by the user on 2026-11-01 (from a list of what VS Code users would miss: "I would like 1 and 2"), with debuggers for Go, Python, C/C++/Rust and JavaScript/TypeScript (SPEC §10.31, D39–D41, D43, D46). It is VS Code's debug workbench (MIT, `reference/vscode/src/vs/workbench/contrib/debug/`) over the Debug Adapter Protocol; code ported from it says so with a `// Ported from VS Code: <path>` line. No new Go module. Every step that needs a capability the extension contract lacks adds it to `extension/`, `internal/gui/exthost` and `extensions/internal/fakeapi` together and names it in its `IMPLEMENTED.md` entry.
+
+**Tests of the milestone.** By default everything is tested against `internal/core/dap/daptest`, a scripted fake adapter (step 25.1). The real debuggers are tested under build tags of their own (D43) and skipped when missing. **The tools are never installed into the user's environment:** a step that needs one for its tagged tests or its proof builds or installs it into `/var/tmp/emetos-tools/` with a pinned version (`GOBIN=/var/tmp/emetos-tools/bin go install github.com/go-delve/delve/cmd/dlv@<pinned>`; `python3 -m venv /var/tmp/emetos-tools/venv` and `pip install debugpy==<pinned> pytest==<pinned>` into it; js-debug's pinned release unpacked into `/var/tmp/emetos-tools/js-debug`), records the versions in `scripts/tool-versions.txt`, and points the fixture's settings at them (`go.alternateTools`, `python.defaultInterpreterPath`, `debug.javascript.adapterPath`). gdb 14 or newer is the system's. `lldb-dap` is not on this machine: its tagged tests are skipped and a manual check is recorded. Programs started by tests and proofs run under `timeout -k` in their own process group and are gone when the step ends (`pgrep -a`).
+
+**Order.** 25.1 to 25.6 in order (each builds on the one before); 25.7 to 25.10 (the four debuggers) after 25.6, one after the other because they share the contract; 25.11 after 25.7; 25.12 and 25.13 last.
+
+### 25.1 The DAP client and the fake adapter
+**Goal:** speak DAP to a debug adapter process or server, and have a scriptable fake adapter for every later test (SPEC §10.31 "The session", "Tests").
+**Read:** SPEC §10.31, D39, D43, §13, §15.1; the DAP specification (online, microsoft.github.io/debug-adapter-protocol); `reference/vscode/src/vs/workbench/contrib/debug/common/debugProtocol.d.ts`, `debugger.ts`, `abstractDebugAdapter.ts`, `node/debugAdapter.ts` (`StreamDebugAdapter`, `SocketDebugAdapter`, `ExecutableDebugAdapter`).
+**Tasks:** `internal/core/dap`: the protocol types ported from `debugProtocol.d.ts` (every request, response and event of DAP 1.65 that §10.31 uses; the rest as raw JSON); the framing (`Content-Length` headers, partial reads, a 64 MiB message limit with the tag `DapMessageTooLarge`); `Client` with `Request(ctx, command, args) (Response, error)` (sequence numbers, a cancelled ctx sends `cancel` when the adapter supports it and stops waiting), the event stream, reverse requests answered through a handler (`runInTerminal`, `startDebugging`), `Close`; the transports: a process (stdin/stdout, stderr to the log, its own process group, SIGTERM then SIGKILL after 3 s), TCP on 127.0.0.1, a Unix socket, and "start a program, read the port it prints, connect"; failures each with their own tag (`DapAdapterStartFailed`, `DapAdapterExited`, `DapResponseFailed` with the adapter's message, `DapTimeout`, `DapProtocolInvalid`). `internal/core/dap/daptest`: a Go program built by `TestMain` that reads a script (JSON lines: expect a request, answer it, send events, delay, crash, print garbage) so a test describes a whole session.
+**Tests:** framing (split headers, several messages in one read, a message across reads, garbage, the limit); the client with daptest over each transport (requests and responses in any order, events between them, reverse requests, cancel, the adapter exiting mid-request, a slow answer with a timeout); every tag's route; a 10,000-event burst is read without growing memory (bounded queue, back-pressure). No UI.
+**Proof:** none (no UI); the test output in the `IMPLEMENTED.md` entry.
+
+### 25.2 The debug model and launch configurations
+**Goal:** sessions, threads, frames, variables and breakpoints as data, and `launch.json` read and resolved (SPEC §10.31 "Launch configurations", "The session", "State").
+**Read:** SPEC §10.31, D41, §10.10, §11.1; `reference/vscode/src/vs/workbench/contrib/debug/common/debugModel.ts`, `debugSession.ts` (in `browser/`), `breakpoints`, `debugStorage.ts`, `browser/debugConfigurationManager.ts`, `common/debugSchemas.ts`, `services/configurationResolver/` (the variables).
+**Tasks:** `internal/core/debug`: the model (sessions and their states, threads, stack frames loaded on demand, scopes, variables loaded lazily and paged, watch expressions, the REPL history, breakpoints of the kinds line (condition, hit condition, log message, triggered by), inline (column), function and exception filters; their verification and the adapter's moves; breakpoints follow the edits of their document through `core/decorations`); the session driver (VS Code's sequence of §10.31 over `core/dap`, restart, stop, disconnect, several sessions, child sessions, compounds); `launch.json` (`<folder>/.emetos/launch.json` and the `launch` setting, JSONC, `version`, `configurations`, `compounds`, `inputs`), the variables of §10.31 (`${input:*}` and `${command:*}` through callbacks the window gives), dynamic configurations through callbacks; the state of §10.10 (breakpoints, watches, exception choices, the selected configuration, activation) saved and restored.
+**Tests:** a table of launch.json files (every field, comments, errors with their positions, compounds, inputs) and of every variable; the driver against daptest scripts (the sequence, breakpoints set before `configurationDone`, verification and moves, stop and continue, threads, a child session, restart, stop of an attach, an adapter that dies); breakpoints following edits (seeded random edits); state round trip.
+**Proof:** none (no UI).
+
+### 25.3 The debug API and the debuggers' contributions
+**Goal:** extensions contribute debuggers and drive sessions (SPEC §10.31 "The extension contract").
+**Read:** SPEC §10.31, §10.15; `reference/vscode/src/vscode-dts/vscode.d.ts` (the `debug` namespace, `DebugAdapterDescriptorFactory`, `DebugConfigurationProvider`, `DebugAdapterTracker`), `reference/vscode/src/vs/workbench/api/common/extHostDebugService.ts`, `contrib/debug/common/debugger.ts` (the `contributes.debuggers` schema).
+**Tasks:** `extension/debug.go` (`api.Debug()` and the types of §10.31, `Contributes.Debuggers`, `Contributes.Breakpoints`, checked by `CheckManifest`); the host (`internal/gui/exthost`): adapter descriptors started per session, configuration providers called in VS Code's order, trackers, custom requests and events, `StartDebugging`, sessions ended when the extension is turned off; `launch.json` checked against the debuggers' attribute schemas into Problems (owner `launch.json`), and completion of `type`, `request` and attributes in `launch.json` (the JSON language's completion from the schemas, as settings.json has); `fakeapi`; the refusal class `run` (`extension.RefusedRun`, `command.ClientRefusal`) for the `workbench.action.debug.` prefix and the other debug commands (D46).
+**Tests:** the manifest rules; each API call through the host with daptest as a contributed adapter (executable, server, executable-server); the provider order and substitution; trackers see every message; turning the extension off ends its sessions; the Problems of a bad launch.json; the refusal (and its test that every refused id exists).
+**Proof:** none (no UI).
+
+### 25.4 The Run and Debug view, the toolbar and the status bar
+**Goal:** start, watch and drive sessions from the workbench (SPEC §10.31 "The Run and Debug view", "The debug toolbar and the status bar", "Commands and keys", "Settings").
+**Read:** SPEC §10.31, §10.4, §10.1; `reference/vscode/src/vs/workbench/contrib/debug/browser/debugViewlet.ts`, `welcomeView.ts`, `variablesView.ts`, `watchExpressionsView.ts`, `callStackView.ts`, `breakpointsView.ts`, `loadedScriptsView.ts`, `debugToolBar.ts`, `debugStatus.ts`, `statusbarColorProvider.ts`, `debug.contribution.ts`, `debugCommands.ts`, `debugActionViewItems.ts`.
+**Tasks:** `internal/gui/views/debug`: the view container and its five views with their menus, the welcome, the configuration dropdown and start button, inline value editing (Set Value), Add to Watch, Copy Value, Copy as Expression, Copy Call Stack, Restart Frame, the Breakpoints view with exception filters and function breakpoints; the toolbar in its three locations; the status bar color and the launch item; the commands, keys, context keys and the Run menu; the settings of §10.31 that these parts read.
+**Tests:** goldens (dark, light) of the view before a session (welcome, with configurations), stopped with variables expanded and changed values, the call stack with several threads and a child session, the breakpoints view, the toolbar floating and docked, the status bar while debugging; widget tests of every command and key against daptest sessions; the view states follow the model.
+**Proof:** method B with daptest as the adapter of a fixture's `launch.json` (a dev debugger contributed only in debug builds, `dev.debug.fake`, SPEC §15.2): `scripts/proof.sh docs/implemented-proof-images/25.4-run-and-debug.png --commands '[["workbench.view.debug"], ["workbench.action.debug.start"], ["sleep", "2s"]]' -- <dir>`; the image shows the view stopped at a breakpoint with variables, the call stack, the toolbar and the orange status bar.
+
+### 25.5 Breakpoints and the debugger in the editor
+**Goal:** set breakpoints and see where the program stopped, in the editor (SPEC §10.31 "The editor").
+**Read:** SPEC §10.31, §9.1, §9.4; `reference/vscode/src/vs/workbench/contrib/debug/browser/breakpointEditorContribution.ts`, `breakpointWidget.ts`, `callStackEditorContribution.ts`, `debugEditorContribution.ts`, `debugHover.ts`, `exceptionWidget.ts`, `debugIcons.ts`, `common/debugUtils.ts`.
+**Tasks:** `internal/gui/editor`: the breakpoint glyphs and their hover hint, the context menu, the breakpoint widget (a view zone with its kinds), inline breakpoints and their candidates (`debug.showInlineBreakpointCandidates`), the stopped and focused frame lines, the debug hover (evaluate, tree), inline values (`debug.inlineValues`), the exception widget, Run to Cursor, Jump to Cursor, the overview ruler marks; the colors and icons of §10.31.
+**Tests:** goldens of each glyph kind (verified, unverified, disabled, conditional, log, function), the widget in each kind, the stopped and focused lines, the hover with a tree, inline values, the exception widget; widget tests of F9, Shift+F9, a click in the glyph margin, the widget's Enter and Escape, breakpoints moving with edits; a display test with real input (F9, F5 with daptest, the hover, F10).
+**Proof:** method B with the dev fake debugger: `scripts/proof.sh docs/implemented-proof-images/25.5-editor.png --commands '[["dev.openFile", {"path": "src/loader.go", "line": 14}], ["editor.debug.action.toggleBreakpoint"], ["workbench.action.debug.start"], ["sleep", "2s"]]' -- <dir>`; the image shows the breakpoint, the stopped line, inline values and the exception widget or hover.
+
+### 25.6 The Debug Console
+**Goal:** read the program's output and evaluate in the stopped program (SPEC §10.31 "The Debug Console").
+**Read:** SPEC §10.31, §10.13; `reference/vscode/src/vs/workbench/contrib/debug/browser/repl.ts`, `replViewer.ts`, `replFilter.ts`, `debugANSIHandling.ts`, `linkDetector.ts`, `common/replModel.ts`.
+**Tasks:** the panel view with the output tree (categories and their colors, groups, object values, links, collapsed identical lines), the ANSI renderer (`debugANSIHandling.ts` ported; a reusable read-only ANSI text widget in `gui/kit` that the Testing views use later), the filter, the input with history, completions and multi-line, the `debug.console.*` settings and `debug.internalConsoleOptions`.
+**Tests:** the ANSI parser (a table of SGR sequences, 256 and true colors, resets, links); goldens of the console with mixed output, groups, an object tree and the filter; widget tests of evaluate, history, completion (daptest answers `completions`), Clear Console; 100,000 lines of output stay within the frame budget (§14).
+**Proof:** method B with the dev fake debugger: `scripts/proof.sh docs/implemented-proof-images/25.6-debug-console.png --commands '[["workbench.action.debug.start"], ["workbench.debug.action.focusRepl"], ["sleep", "2s"]]' -- <dir>`; the image shows colored output, a group, an object tree and an evaluated expression.
+
+### 25.7 Go: dlv dap
+**Goal:** debug Go programs and tests (SPEC §10.31 "The debuggers" Go, §10.17).
+**Read:** SPEC §10.31, §10.17, D40; vscode-go's `package.json` (the `go` debugger's attributes), `src/goDebugConfiguration.ts`, `src/goDebugFactory.ts`, `docs/debugging.md` (online or `reference/` when `scripts/fetch-reference.sh` has it); Delve's `Documentation/api/dap/README.md` (online).
+**Tasks:** `extensions/golang`: the `go` debugger contribution (attributes, initial configurations, snippets), the adapter descriptor (`dlv dap` as an executable-server), the configuration provider (defaults, `program` from the active file, `${command:pickProcess}` with a process picker, `envFile`), the "debug test" lens and `emetos.golang.debugTestAtCursor` (mode `test`, `-test.run`), the missing-`dlv` notification with Install; `scripts/tool-versions.txt` and the tool install of the milestone's rule for the tagged tests.
+**Tests:** the provider and descriptor over the fake API (a table of configurations to the resolved ones and the dlv command lines); under `emetos_dlv`: a `testdata` program run to a breakpoint, variables, a goroutine list, step over, a test debugged from the lens, attach to a running process, the end.
+**Proof:** method B on a Go fixture with the pinned dlv: `scripts/proof.sh docs/implemented-proof-images/25.7-go.png --commands '[["dev.openFile", {"path": "main.go", "line": 12}], ["editor.debug.action.toggleBreakpoint"], ["workbench.action.debug.start"], ["sleep", "4s"]]' -- <dir>`; the image shows a real Go program stopped with its variables.
+
+### 25.8 Python: debugpy
+**Goal:** debug Python programs and modules (SPEC §10.31 "The debuggers" Python).
+**Read:** SPEC §10.31, D40; vscode-python-debugger's `package.json` and `src/extension/debugger/configuration/` (online); debugpy's documentation of its adapter (online).
+**Tasks:** `extensions/python`: the `debugpy` debugger (and `python` as its old name), the adapter (`<interpreter> -m debugpy.adapter`), the configuration provider ("Python Debugger: Current File", module, attach), the interpreter setting, the missing-`debugpy` notification whose Install runs `pip` in a terminal.
+**Tests:** the provider over the fake API; under `emetos_debugpy` (the milestone's venv): a `testdata` script to a breakpoint, variables, an exception stop with the exception widget's data, `justMyCode`, attach by port.
+**Proof:** method B on a Python fixture with the venv's interpreter: `scripts/proof.sh docs/implemented-proof-images/25.8-python.png ...`; the image shows a Python program stopped at a breakpoint.
+
+### 25.9 C, C++ and Rust: gdb and lldb-dap
+**Goal:** debug native programs (SPEC §10.31 "The debuggers" C, C++ and Rust).
+**Read:** SPEC §10.31, D40; gdb's manual chapter "Debugger Adapter Protocol" (online); LLVM's `lldb/tools/lldb-dap/README.md` and its `package.json` (online); rust-analyzer's debug configurations (online) for the Rust targets.
+**Tasks:** `extensions/cpp` and `extensions/rust`: the `gdb` and `lldb-dap` debuggers (the gdb version check, 14 or newer, `GdbTooOld`), their attributes and configurations; the Rust provider (targets from `cargo metadata`, `cargo build` or `cargo test --no-run --message-format=json` before the launch, the executable it names); a missing debugger's notification.
+**Tests:** providers over the fake API (a table of `cargo` outputs to configurations); under `emetos_gdb`: a C program and a Rust program built in the test (`cc`, `cargo`) run to a breakpoint, locals, step, the end; under `emetos_lldbdap` the same with lldb-dap (skipped here; a `docs/MANUAL-CHECKS.md` entry with the command for the user).
+**Proof:** method B on a Rust fixture with gdb: `scripts/proof.sh docs/implemented-proof-images/25.9-rust.png ...`; the image shows a Rust program stopped with its locals.
+
+### 25.10 JavaScript and TypeScript: js-debug
+**Goal:** debug Node.js programs (SPEC §10.31 "The debuggers" JavaScript and TypeScript).
+**Read:** SPEC §10.31, D40, D4; vscode-js-debug's `README.md`, `OPTIONS.md`, the `dapDebugServer` of its releases (online).
+**Tasks:** `extensions/javascript` and `extensions/typescript`: the `pwa-node` and `node` debuggers, js-debug started as an executable-server with the user's `node`, child sessions through `startDebugging` (25.3), the configuration provider (the `scripts` of `package.json`, the current file), `debug.javascript.adapterPath`, "JavaScript Debugger: Download" (the pinned release, its SHA-256, unpacked into Emetos's data folder; only on the user's click; the tag `JsDebugChecksumMismatch`), the missing-`node` and missing-js-debug notifications.
+**Tests:** the provider and the download (against a local `httptest` server serving a fake archive: checksum good and bad, a broken archive) over the fake API; under `emetos_jsdebug` (js-debug from `/var/tmp/emetos-tools/js-debug`): a Node script and a TypeScript file with a source map to a breakpoint, variables, a child process session.
+**Proof:** method B on a Node fixture: `scripts/proof.sh docs/implemented-proof-images/25.10-node.png ...`; the image shows a TypeScript file stopped with its variables and the child session in the call stack.
+
+### 25.11 Tasks before and after, and the rest of the settings
+**Goal:** `preLaunchTask` and `postDebugTask`, and every remaining setting of §10.31 (SPEC §10.31 "Launch configurations", "Settings").
+**Read:** SPEC §10.31, §10.15 (the Tasks extension), `extensions/tasks`; `reference/vscode/src/vs/workbench/contrib/debug/browser/debugTaskRunner.ts`.
+**Tasks:** running tasks of `extensions/tasks` before and after a session with `debug.onTaskErrors`'s answers (a task-run request between extensions, added to the contract if missing), `debug.saveBeforeStart`, `debug.openDebug`, `debug.openExplorerOnEnd`, `debug.focusEditorOnBreak`, `debug.focusWindowOnBreak`, `debug.confirmOnExit` (the quit question of §10.3 while sessions run), `debug.hideLauncherWhileDebugging`, `debug.terminal.clearBeforeReusing`.
+**Tests:** each setting (a table), a failing pre-launch task with each answer, the quit question.
+**Proof:** none beyond the tests (no new UI); recorded in `IMPLEMENTED.md`.
+
+### 25.12 Cross-checks, the desktop pass and performance
+**Goal:** the milestone's loose ends (SPEC §10.31, §14, §15).
+**Read:** SPEC §10.31, §14, §15, `docs/PERFORMANCE.md`, `docs/MANUAL-CHECKS.md`.
+**Tasks:** the coverage table of the SPEC for area 6; the refusal of D46 in a Remote Work test; measurements (stepping 100 times in the Go fixture with dlv: the time from F10 to the painted line; the Variables view with 10,000 children; the console with 100,000 lines) in `docs/PERFORMANCE.md`; an end-to-end display test with real input (open the Go fixture, set a breakpoint, F5, hover, watch, step, Debug Console, stop); `docs/MANUAL-CHECKS.md` entries for what only the user's machine shows (lldb-dap; debugging on the real GPU with `scripts/realinput.sh --desktop`); `scripts/error-tags.sh --untested` prints nothing.
+**Tests:** the end-to-end display test; the Remote Work refusal test.
+**Proof:** the end-to-end test's screenshot, `docs/implemented-proof-images/25.12-desktop-pass.png`.
+
+### 25.13 Update the README
+**Goal:** `README.md` describes Run and Debug.
+**Read:** `README.md`, the M25 entries of `docs/IMPLEMENTED.md`, SPEC §10.31, D39–D41.
+**Tasks:** the status, a "Run and Debug" section (how to start, `launch.json` in `.emetos/`, the four debuggers and how to get each: `dlv` through "Go: Install/Update Tools", `debugpy` with pip, gdb 14+ or lldb-dap, js-debug's Download), what is not built, fresh screenshots with `scripts/screenshots.sh`; every link resolves.
+**Tests:** `TestREADMELinksResolve`.
+**Proof:** the README's screenshots, viewed.
+
+## M26: Testing
+
+Requested by the user on 2026-11-01 with M25 (SPEC §10.32, D42, D43, D46). It is VS Code's Testing workbench (MIT, `reference/vscode/src/vs/workbench/contrib/testing/`) on an API like `vscode.tests`, with providers in the language extensions. No new Go module. The contract, the host and `fakeapi` change together, as in M25.
+
+**Tests of the milestone.** Fake controllers and fake runners by default; the Go provider also with the real `go` in the default run (as step 14.3); the other real runners under `emetos_pytest`, `emetos_cargo`, `emetos_node`, `emetos_ctest` (D43), with tools installed only into `/var/tmp/emetos-tools/` as in M25 (pytest and coverage into the M25 venv; Jest and Vitest with `npm install --prefix /var/tmp/emetos-tools/node` at pinned versions, never in a fixture's own folder that is committed). Debug profiles need M25.
+
+**Order.** 26.1 to 26.4 in order; 26.5 to 26.9 (the providers) after 26.4, one after the other; 26.10 last.
+
+### 26.1 The Testing API and model
+**Goal:** extensions describe tests and report runs; the core keeps the results (SPEC §10.32 "The contract", "The model").
+**Read:** SPEC §10.32, D42; `reference/vscode/src/vscode-dts/vscode.d.ts` (the `tests` namespace), `reference/vscode/src/vs/workbench/api/common/extHostTesting.ts`, `contrib/testing/common/testService.ts`, `testResult.ts`, `testResultService.ts`, `testingStates.ts`, `testProfileService.ts`, `testCoverage.ts`, `testingContinuousRunService.ts`, `testResultStorage.ts`.
+**Tasks:** `extension/testing.go`; `internal/core/testing` (the item tree by controller, profiles, run requests, results with VS Code's state precedence and durations, the last 16 runs saved with the state of §10.10 with output trimmed, continuous runs, coverage data and its sums); the host and `fakeapi`; the refusal of the `testing.` commands with the class `run` (D46).
+**Tests:** a table of item trees and results to states (precedence, parents, durations); run requests with include and exclude; continuous runs re-triggered; coverage sums; the stored results round trip; the API through the host with a fake controller.
+**Proof:** none (no UI).
+
+### 26.2 The Test Explorer
+**Goal:** see and run the tests (SPEC §10.32 "The Testing view container", "Commands and keys", "Settings").
+**Read:** SPEC §10.32; `reference/vscode/src/vs/workbench/contrib/testing/browser/testingExplorerView.ts`, `testingExplorerFilter.ts`, `testingViewPaneContainer.ts`, `testExplorerActions.ts`, `testing.contribution.ts`, `icons.ts`, `theme.ts`, `testingProgressUiService.ts`.
+**Tasks:** `internal/gui/views/testing`: the view container, the Test Explorer tree with icons, durations, the title bar, the filter and its terms, sort and view modes, item actions, the summary and the badge; the commands and keys (the Ctrl+; chords), context keys and settings of §10.32 that it reads.
+**Tests:** goldens (dark, light) of the explorer with mixed states, running, filtered, as a list; widget tests of every command and key against a fake controller; the filter terms (a table).
+**Proof:** method B with a dev fake controller (`dev.testing.fake`, debug builds only): `scripts/proof.sh docs/implemented-proof-images/26.2-test-explorer.png --commands '[["workbench.view.testing.focus"], ["testing.runAll"], ["sleep", "2s"]]' -- <dir>`; the image shows passed, failed and skipped tests with durations and the summary.
+
+### 26.3 The editor, the peek and Test Results
+**Goal:** run tests from the editor and read their failures (SPEC §10.32 "The editor", Test Results).
+**Read:** SPEC §10.32, §9.11; `reference/vscode/src/vs/workbench/contrib/testing/browser/testingDecorations.ts`, `testingOutputPeek.ts`, `testResultsView/`, `testingOutputTerminalService.ts`.
+**Tasks:** the gutter glyphs and their menu, the failure messages at their lines, the peek (message, expected/actual in a small diff editor, stack trace, output, next and previous), the Test Results panel view with the ANSI text widget of 25.6, `testing.automaticallyOpenPeekView`, `testing.openTesting`, `testing.followRunningTest`, `testing.alwaysRevealTestOnStateChange`, `testing.saveBeforeTest`.
+**Tests:** goldens of the glyphs in each state, an inline message, the peek with a diff and with a stack, Test Results; widget tests of a gutter click with each `defaultGutterClickAction`, Alt+F8 in the peek; a display test with real input (click a glyph, see the peek, rerun the failed).
+**Proof:** method B with the dev fake controller: `scripts/proof.sh docs/implemented-proof-images/26.3-peek.png ...`; the image shows the gutter glyphs and the peek of a failure with its expected/actual diff.
+
+### 26.4 Coverage
+**Goal:** see what the tests ran (SPEC §10.32 "Test Coverage", coverage in the editor and the Explorer).
+**Read:** SPEC §10.32; `reference/vscode/src/vs/workbench/contrib/testing/browser/testCoverageView.ts`, `codeCoverageDecorations.ts`, `testCoverageBars.ts`, `common/testCoverageService.ts`.
+**Tasks:** the Test Coverage view with bars and sorting, the editor's coverage (gutter and inline, branch counts, the toggle and its toolbar), the Explorer's percentages (a decoration provider, §10.30's decorations service), the coverage settings.
+**Tests:** goldens of the view, the editor with covered, uncovered and partial lines, the Explorer; the bar thresholds and the displayed percent (a table).
+**Proof:** method B with the dev fake controller's coverage profile: `scripts/proof.sh docs/implemented-proof-images/26.4-coverage.png ...`; the image shows the coverage view and an editor with green and red lines.
+
+### 26.5 Go tests in the Testing view
+**Goal:** Go's tests through the Testing API, the "Go Tests" panel replaced (SPEC §10.32 "The providers" Go, §10.17, D42).
+**Read:** SPEC §10.32, §10.17 (step 14.3's as-built text), `extensions/golang/testrun.go`, `testjson.go`, `testfuncs.go`, `testpanel.go`; vscode-go's `src/goTest/` (online) for the item ids and the subtest rules.
+**Tasks:** the `go` controller (items from `go/parser`, refreshed on changes; run through the `go test -json` runner; subtests added at run time; Debug through dlv mode `test`, M25; Coverage with `-coverprofile`), the lenses and the `emetos.golang.test*` commands through the controller, `testpanel.go` and its view removed (its goldens and tests replaced), SPEC §10.17 updated.
+**Tests:** discovery (a table of test files to items), runs against the fake `go` fixtures of 14.3 and the real `go` on `testdata` packages (pass, fail, skip, subtests, a build error, a panic, cancel), coverage from a real profile, debug under `emetos_dlv`.
+**Proof:** method B on the Go fixture: `scripts/proof.sh docs/implemented-proof-images/26.5-go-tests.png ...`; the image shows Go tests with a failure peeked and coverage in the editor.
+
+### 26.6 Python tests: pytest and unittest
+**Goal:** Python's tests (SPEC §10.32 "The providers" Python).
+**Read:** SPEC §10.32; vscode-python's `src/client/testing/` and `python_files/vscode_pytest/` (online) for what the helper reports.
+**Tasks:** the `python` controller, the helper script (a pytest plugin and a unittest runner printing JSON lines, shipped with the extension and written to Emetos's cache), discovery, runs, Debug through debugpy, Coverage through coverage.py when present, the `python.testing.*` settings.
+**Tests:** the helper's JSON over fake runners; under `emetos_pytest` with the venv: discovery and runs of a `testdata` project (parametrized tests, fixtures failing, unittest classes, coverage).
+**Proof:** method B on a Python fixture with the venv: `scripts/proof.sh docs/implemented-proof-images/26.6-python-tests.png ...`.
+
+### 26.7 Rust tests: cargo test
+**Goal:** Rust's tests (SPEC §10.32 "The providers" Rust).
+**Read:** SPEC §10.32; libtest's output format (online), `cargo test --help`.
+**Tasks:** the `cargo` controller (discovery per target with `--list --format terse`, runs with `--exact`, the libtest output parser, Debug through gdb/lldb-dap on the binary of `--no-run --message-format=json`).
+**Tests:** the parser (a table of libtest outputs: ok, FAILED with the failures section, ignored, should_panic, a panic in a thread, doc tests); under `emetos_cargo`: a `testdata` crate.
+**Proof:** method B on a Rust fixture: `scripts/proof.sh docs/implemented-proof-images/26.7-rust-tests.png ...`.
+
+### 26.8 JavaScript and TypeScript tests: Node, Jest, Vitest
+**Goal:** JavaScript's and TypeScript's tests (SPEC §10.32 "The providers" JavaScript and TypeScript).
+**Read:** SPEC §10.32; Node's `node:test` reporters, Jest's `--json` result format, Vitest's `json` reporter and `vitest list` (online).
+**Tasks:** the `node-test`, `jest` and `vitest` controllers (detection from `package.json` and config files, the files and the static scan of `describe`/`it`/`test`, runs through the JSON and TAP reporters, Debug through js-debug, Coverage from Istanbul's `coverage-final.json`).
+**Tests:** the static scan (a table of files), the reporters' parsers on fixtures; under `emetos_node`: a `testdata` project with each runner (installed into `/var/tmp/emetos-tools/node`).
+**Proof:** method B on a TypeScript fixture with Vitest: `scripts/proof.sh docs/implemented-proof-images/26.8-js-tests.png ...`.
+
+### 26.9 C and C++ tests: CTest
+**Goal:** CMake projects' tests (SPEC §10.32 "The providers" C and C++).
+**Read:** SPEC §10.32; `ctest --help`, CTest's `--show-only=json-v1` format and JUnit output (online).
+**Tasks:** the `ctest` controller (the build folder setting, discovery, runs, the JUnit reader, Debug through gdb/lldb-dap on the test's command).
+**Tests:** the JSON and JUnit readers on fixtures; under `emetos_ctest`: a `testdata` CMake project configured and built in the test.
+**Proof:** method B on a C++ fixture: `scripts/proof.sh docs/implemented-proof-images/26.9-ctest.png ...`.
+
+### 26.10 Cross-checks, the desktop pass and the README
+**Goal:** the milestone's loose ends and the README (SPEC §10.32, §14, §15).
+**Read:** SPEC §10.32, §14, `README.md`, the M26 entries of `docs/IMPLEMENTED.md`.
+**Tasks:** the coverage table of the SPEC for the testing UI; the refusal of D46 in a Remote Work test; measurements (a Go module with 5,000 tests: discovery, a full run's UI cost, the explorer's frame time) in `docs/PERFORMANCE.md`; an end-to-end display test with real input; `docs/MANUAL-CHECKS.md` entries for the real GPU pass; the README's "Testing" section with each provider and its requirements, and fresh screenshots; `scripts/error-tags.sh --untested` prints nothing.
+**Tests:** the end-to-end display test; `TestREADMELinksResolve`.
+**Proof:** the end-to-end test's screenshot and the README's screenshots, viewed.
+
+## M27: HTTP Client
+
+Requested by the user on 2026-11-01: "I would like also an extension like postman" (SPEC §10.33, D44–D46), with collections in readable files of the project, no scripts, and Emetos's own format only. The extension is `extensions/httpclient` (`emetos.httpclient`, "HTTP Client"). Go's standard library only; no new Go module.
+
+**Tests of the milestone.** Every request goes to an `httptest` server on 127.0.0.1 (plain or TLS) or a fake authorization server; **no test reaches the network**. Secrets use the fake keyring of the database extensions; the real keyring only under `emetos_keyring`.
+
+**Order.** 27.1 to 27.9 in order; 27.10 last.
+
+### 27.1 The format, the store and variables
+**Goal:** read and write collections, folders, requests, bodies and environments, and resolve variables (SPEC §10.33 "The format", "Variables").
+**Read:** SPEC §10.33, D44, D45, §11.1 (`core/jsonc` edits), §10.10.
+**Tasks:** `extensions/httpclient/format` (the types of version 1, reading with comments, writing through `core/jsonc` edits that keep comments and unknown keys, new files in the fixed key order, safe file names, `order`, newer versions read-only, errors with their tags and positions, paths outside the folder refused); `extensions/httpclient/store` (the tree of a workspace's collections, watched for changes on disk, create, rename, move, duplicate, delete to the trash with the body files); variables (the resolution order, current values in the state, globals, dynamic variables, `httpClient.allowedProcessEnv`, the keyring for secrets).
+**Tests:** round trips (a table of files with comments and unknown keys edited and saved), every key, safe names and clashes, newer and broken files, store operations and external changes, the resolution order (a table), dynamic variables, secrets never in a file.
+**Proof:** none (no UI).
+
+### 27.2 The engine
+**Goal:** send requests and capture everything about the response (SPEC §10.33 "The engine").
+**Read:** SPEC §10.33; RFC 9110, RFC 7616 (digest), Go's `net/http/httptrace`, `cookiejar`, `mime/multipart`.
+**Tasks:** `extensions/httpclient/engine` (building the request from the model and variables, every body kind, basic, bearer, API key and digest auth, the timeout, redirects with the chain kept, TLS options and client certificates, the proxy, a cookie jar per environment kept in the state, gzip and deflate, timings, the 50 MiB memory limit and the cache file beyond it, cancel), each failure with its own tag.
+**Tests:** against `httptest` servers: each body kind (the server checks what it got), each auth (digest's challenge), redirects followed and not, the limit, a timeout, cancel, TLS with a bad certificate and with verification off, client certificates, cookies across requests and environments, gzip, a 200 MiB body streamed to the cache with bounded memory, timings present.
+**Proof:** none (no UI).
+
+### 27.3 The side bar
+**Goal:** see and organize collections, environments and history (SPEC §10.33 "The side bar").
+**Read:** SPEC §10.33, §10.4, §10.15 (side bar views).
+**Tasks:** the view container and its three views with their menus and drag and drop, the environment status bar item and picker, the environment editor tab, history (state, limit, masking, Open, Save to Collection, Clear).
+**Tests:** goldens (dark, light) of each view; widget tests of every action, drag and drop, history masking (a table).
+**Proof:** method B on a fixture with a collection under `.emetos/http/`: `scripts/proof.sh docs/implemented-proof-images/27.3-side-bar.png --commands '[["emetos.httpclient.focus"], ["sleep", "1s"]]' -- <dir>`; the image shows collections with method badges, the environments and the history.
+
+### 27.4 The request tab
+**Goal:** build and send a request in a form (SPEC §10.33 "The request tab").
+**Read:** SPEC §10.33, §10.3, §10.15 (window tabs and file views).
+**Tasks:** the request editor tab (opened from the side bar and for `.request.jsonc` files, "Open as Text"), the method dropdown, the URL box with variable highlighting and hover, Params and URL in step, the Headers, Body (each kind, with Emetos editors for raw kinds), Auth, Settings tabs, Send and Cancel, Save, dirty state and the close question.
+**Tests:** goldens of the tab with each body kind and auth type; widget tests of Params/URL sync (a table), bulk edit, Send through the engine against `httptest`, save writing the files (checked on disk), the close question.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/27.4-request.png ...` with a local `httptest`-like dev server (`dev.httpclient.echo`, debug builds only); the image shows a POST with a JSON body ready to send.
+
+### 27.5 The response pane
+**Goal:** read the response every way (SPEC §10.33 "The response pane").
+**Read:** SPEC §10.33.
+**Tasks:** the status line and timing hover, Body (Pretty with the language from the content type, Raw, image Preview, paged large bodies), Headers, Cookies, Timeline (redirects, TLS, timings), Save Response to File, Copy Body, Open in New Editor Tab, the layout setting.
+**Tests:** goldens of each tab for JSON, XML, an image, an error status, a redirect chain; a large body paged within the frame budget.
+**Proof:** method B with the dev echo server: `scripts/proof.sh docs/implemented-proof-images/27.5-response.png ...`; the image shows a sent request with a pretty JSON response and its status, time and size.
+
+### 27.6 Extraction and checks
+**Goal:** carry values between requests and check responses without scripts (SPEC §10.33 "Extraction and checks").
+**Read:** SPEC §10.33, D44.
+**Tasks:** the JSONPath subset, extraction into current values, checks and their results, the Extract and Checks tabs, the Checks tab of the response.
+**Tests:** JSONPath (a table), each extraction source and scope, each check operator (a table), results shown.
+**Proof:** method B with the dev echo server: `scripts/proof.sh docs/implemented-proof-images/27.6-checks.png ...`; the image shows passed and failed checks.
+
+### 27.7 The collection runner
+**Goal:** run a collection or folder in order (SPEC §10.33 "The collection runner").
+**Read:** SPEC §10.33.
+**Tasks:** the runner tab (choices, iterations, delay, stop on failure, CSV and JSON data files), the results table, Cancel, Save Results.
+**Tests:** runs against `httptest` with values carried by extraction, iterations with data files (a table), stop on failure, cancel; goldens of the runner before, during and after.
+**Proof:** method B with the dev echo server: `scripts/proof.sh docs/implemented-proof-images/27.7-runner.png ...`.
+
+### 27.8 OAuth 2.0
+**Goal:** get and refresh tokens (SPEC §10.33 "OAuth 2.0").
+**Read:** SPEC §10.33, D45; RFC 6749, RFC 7636 (PKCE), RFC 8252 (loopback redirect).
+**Tasks:** the client credentials and authorization code with PKCE grants, the loopback redirect server living only while it waits, the browser through `Workspace().OpenURI`, tokens in the keyring with refresh, Get New Access Token and Clear Token.
+**Tests:** against a fake authorization server and a fake opener that follows the redirect: both grants, a refresh, an expired refresh token, a state mismatch, a denied consent, the loopback server closed afterwards.
+**Proof:** method B with the fake authorization server (dev only): `scripts/proof.sh docs/implemented-proof-images/27.8-oauth.png ...`; the image shows the Auth tab with a token.
+
+### 27.9 Remote Work, the desktop pass and performance
+**Goal:** the milestone's cross-checks (SPEC §10.33 "Privacy and safety", §14, §15).
+**Read:** SPEC §10.33, §10.18, §10.24, §14, `docs/PERFORMANCE.md`.
+**Tasks:** the refusal with the class `outside` (D46) and its test; measurements (a collection of 1,000 requests in the side bar, a 50 MiB JSON response's Pretty view, the runner over 500 requests) in `docs/PERFORMANCE.md`; an end-to-end display test with real input (make a collection, send, extract a token, run the collection); `docs/MANUAL-CHECKS.md` entries (the real keyring; an OAuth login with a provider of the user's choice; the real GPU pass); `scripts/error-tags.sh --untested` prints nothing.
+**Tests:** the end-to-end display test; the refusal test.
+**Proof:** the end-to-end test's screenshot, `docs/implemented-proof-images/27.9-desktop-pass.png`.
+
+### 27.10 Update the README
+**Goal:** `README.md` describes the HTTP Client.
+**Read:** `README.md`, the M27 entries of `docs/IMPLEMENTED.md`, SPEC §10.33, D44–D46.
+**Tasks:** the status, an "HTTP Client" section (collections in `.emetos/http/` shared through git, the format in short, environments and secrets in the keyring, extraction and checks, the runner, OAuth 2.0, what is not built and why: no scripts, no import or export), fresh screenshots; every link resolves.
 **Tests:** `TestREADMELinksResolve`.
 **Proof:** the README's screenshots, viewed.
