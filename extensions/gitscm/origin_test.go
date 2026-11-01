@@ -94,7 +94,8 @@ func TestTheCredentialPromptOfAClientsCommandIsShownInThatClientsView(t *testing
 		got = append(got, second.Options().Origin)
 		second.Accept(typed)
 		r.idle(rp)
-		if !(got[0] == viewA && got[1] == viewB) && !(got[0] == viewB && got[1] == viewA) {
+		eachOnce := got[0] == viewA && got[1] == viewB || got[0] == viewB && got[1] == viewA
+		if !eachOnce {
 			t.Errorf("the boxes are for %v, want one for the view %d and one for the view %d", got, viewA, viewB)
 		}
 	})
