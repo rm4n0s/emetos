@@ -107,6 +107,11 @@ type Contributes struct {
 	// Submenus are the submenus the extension adds (VS Code's contributes.submenus): menus that its menu items can be put in
 	// and that a menu item opens with MenuItem.Submenu.
 	Submenus []SubmenuSpec
+	// WritesSettings are keys of settings that are not the extension's own (the editor's, such as editor.inlayHints.enabled) which
+	// Settings().Update may write for it, to the user's settings file. The clangd command Toggle inlay hints flips a setting of the
+	// editor, as VS Code's does. CheckManifest refuses an empty key, a key listed twice and a key the extension declares itself (it
+	// may write that without being listed).
+	WritesSettings []string
 }
 
 // The activation events of a Manifest.

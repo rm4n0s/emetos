@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(shapes CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+add_executable(shapes src/main.cpp src/shapes.cpp)
+target_include_directories(shapes PRIVATE include)

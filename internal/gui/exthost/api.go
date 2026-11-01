@@ -3,6 +3,7 @@ package exthost
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
@@ -235,6 +236,7 @@ func (s settingsAPI) Update(key string, value any) error {
 	for _, spec := range in.slot.info.Manifest.Contributes.Settings {
 		owned = owned || spec.Key == key
 	}
+	owned = owned || slices.Contains(in.slot.info.Manifest.Contributes.WritesSettings, key)
 	if !owned {
 		return errors.New("ExtensionSettingNotOwned", "an extension writes only the settings it declares or registered", "extension", in.id, "key", key)
 	}

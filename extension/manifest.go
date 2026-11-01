@@ -310,6 +310,16 @@ func checkSettings(m Manifest) error {
 		}
 		seen[key] = true
 	}
+	written := map[string]bool{}
+	for _, key := range m.Contributes.WritesSettings {
+		switch {
+		case key == "" || strings.HasPrefix(key, ".") || strings.HasSuffix(key, ".") || strings.Contains(key, ".."):
+			return errors.New("ExtensionSettingWriteInvalid", "the key of a setting an extension writes is a dotted name", "id", m.ID, "key", key)
+		case seen[key] || written[key]:
+			return errors.New("ExtensionSettingWriteInvalid", "a setting the extension writes is listed twice, or is one it declares", "id", m.ID, "key", key)
+		}
+		written[key] = true
+	}
 	return nil
 }
 

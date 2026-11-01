@@ -149,6 +149,10 @@ func New(t testing.TB, m extension.Manifest, info extension.ScopeInfo) *API {
 	for _, spec := range m.Contributes.Settings {
 		a.specs[spec.Key] = spec
 	}
+	// a setting of the editor the manifest says the extension writes: readable and writable, with no default (tests set it)
+	for _, key := range m.Contributes.WritesSettings {
+		a.specs[key] = extension.SettingSpec{Key: key}
+	}
 	if info.Folder != "" {
 		a.RescanFiles()
 	}

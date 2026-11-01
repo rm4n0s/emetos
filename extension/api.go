@@ -225,9 +225,9 @@ type Settings interface {
 	OnChange(fn func()) (cancel func())
 	// Update writes the value of a setting of the extension to the user's settings file, keeping the comments and the layout
 	// of the file, as the Settings editor does; the settings are read again and OnChange is called. The setting is one the
-	// manifest declares in Contributes.Settings or the extension registered: it fails with ExtensionSettingNotOwned for any
-	// other (an extension does not write the settings of the editor or of other extensions), with ExtensionDeactivated after
-	// the activation ended, and returns the settings store's error when the value does not fit the setting or the file cannot
+	// manifest declares in Contributes.Settings or lists in Contributes.WritesSettings, or the extension registered: it fails with
+	// ExtensionSettingNotOwned for any other (an extension does not write the settings of the editor or of other extensions
+	// unless its manifest names them), with ExtensionDeactivated after the activation ended, and returns the settings store's error when the value does not fit the setting or the file cannot
 	// be written. Call it on the UI thread.
 	Update(key string, value any) error
 }

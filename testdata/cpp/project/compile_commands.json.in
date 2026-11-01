@@ -1,0 +1,4 @@
+[
+  {"directory": "@DIR@", "command": "c++ -std=c++17 -I@DIR@/include -c src/main.cpp", "file": "@DIR@/src/main.cpp"},
+  {"directory": "@DIR@", "command": "c++ -std=c++17 -I@DIR@/include -c src/shapes.cpp", "file": "@DIR@/src/shapes.cpp"}
+]

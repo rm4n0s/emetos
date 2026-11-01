@@ -193,6 +193,35 @@ func TestSettingsUpdateWritesTheUsersFileForTheSettingsOfTheExtensionOnly(t *tes
 	}
 }
 
+func TestSettingsUpdateWritesTheSettingsOfTheEditorThatTheManifestNames(t *testing.T) {
+	m := manifest("emetos.writes")
+	m.Contributes.WritesSettings = []string{"editor.inlayHints.enabled"}
+	var saved extension.API
+	f, _ := factory(m, func(f *fake) {
+		f.activate = func(_ context.Context, api extension.API) error { saved = api; return nil }
+	})
+	r := newRig(t, f)
+	tb := r.newTab("one")
+	tb.scope.Start()
+	if saved == nil {
+		t.Fatalf("the extension was not activated: %v", tb.scope.Failure("emetos.writes"))
+	}
+	if v, _ := extension.SettingValue[string](saved.Settings(), "editor.inlayHints.enabled"); v != "on" {
+		t.Errorf("the setting before Update = %q", v)
+	}
+	if err := saved.Settings().Update("editor.inlayHints.enabled", "off"); err != nil {
+		t.Fatal(err)
+	}
+	if got := settings.Get[string](tb.store, "editor.inlayHints.enabled", ""); got != "off" {
+		t.Errorf("the store has %v", got)
+	}
+	// only the key the manifest names: another setting of the editor is still refused
+	appErr, ok := errors.FromError(saved.Settings().Update("editor.tabSize", 2))
+	if !ok || !appErr.HasRoute("settingsAPI.Update.ExtensionSettingNotOwned") {
+		t.Errorf("Update of an editor setting the manifest does not name = %v", appErr)
+	}
+}
+
 func settingsFloat(v float64) *float64 { return &v }
 
 func TestMenusKeybindingsAndCommandsAreWorkingContributions(t *testing.T) {

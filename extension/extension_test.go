@@ -118,6 +118,9 @@ func TestCheckManifest(t *testing.T) {
 		{"a setting key that ends with a dot", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go.", Type: "string"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
 		{"a setting with no type", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go.x"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
 		{"a setting with a type that is not JSON's", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go.x", Type: "float"}}}}, "checkSettings.ExtensionSettingDeclInvalid"},
+		{"a written setting with an empty key", Manifest{ID: "a", Name: "N", Contributes: Contributes{WritesSettings: []string{""}}}, "checkSettings.ExtensionSettingWriteInvalid"},
+		{"a written setting listed twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{WritesSettings: []string{"editor.x", "editor.x"}}}, "checkSettings.ExtensionSettingWriteInvalid"},
+		{"a written setting that the extension declares", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "a.x", Type: "string"}}, WritesSettings: []string{"a.x"}}}, "checkSettings.ExtensionSettingWriteInvalid"},
 		{"two settings with the same key", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go.x", Type: "string"}, {Key: "go.x", Type: "number"}}}}, "checkSettings.ExtensionSettingDeclDuplicate"},
 		{"a cross-tab pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
 	}
