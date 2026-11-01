@@ -138,6 +138,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M22 Wrap-up of M18–M21 | 22.1–22.2 |
 | M23 Remove an extension the user no longer wanted | 23.1 |
 | M24 Git and Source Control | 24.1–24.24 |
+| M24b Language servers of more languages | 24b.1–24b.10 |
 | M25 Run and Debug | 25.1–25.13 |
 | M26 Testing | 26.1–26.10 |
 | M27 HTTP Client | 27.1–27.10 |
@@ -1964,6 +1965,82 @@ Requested by the user on 2026-10-29: "I want a git extension like vscode", the f
 **Goal:** `README.md` describes Git and Source Control.
 **Read:** `README.md`, `docs/IMPLEMENTED.md` (the entries of M24), SPEC §10.30, §12, D33–D37.
 **Tasks:** the status (M24 built), the features (the Source Control view, diffs, the quick diff, branches and tags, remotes, stash, the Graph, the Timeline, blame, file decorations), a section "Git" with how to use it and the settings that matter (`git.autofetch`, `git.enableSmartCommit`, `git.blame.*`, `git.path`), the requirements (`git` 2.30 or newer; nothing is downloaded), the security notes (hooks and configuration of a repository run programs when you commit; Emetos stores no credential, git's credential helpers and the SSH agent do; the helper program; the clean filters of `git status`; the `safe.directory` rule), privacy (only the remotes git contacts; autofetch off until you answer), what is not built (GitHub features, worktrees if still open, `scm.repositories.explorer`), where things are (`extensions/gitscm`, the Git output channel), fresh screenshots with `scripts/screenshots.sh` from the fixtures (the Source Control view with changes and the commit input, the diff with the quick diff marks and the peek, the Graph, the Timeline and blame), the coverage table rows for area 5, a line in the Terminal section that git asks for passwords in terminals too; every link resolves (`TestREADMELinksResolve`).
+**Tests:** `TestREADMELinksResolve`.
+**Proof:** the README's screenshots, viewed.
+
+## M24b: Language servers of more languages
+
+Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for Rust, C/C++, Python, TypeScript/JavaScript, Java, C#, F# and Kotlin (SPEC §10.34, D47–D49). It runs **before M25**, because the debuggers and test providers of M25 and M26 build on these servers and on the Python interpreter and TypeScript version they choose. No new Go module; the LSP client and its UI are M12's. Emetos never installs a server (D47). **Tests of the milestone:** fake servers by default; the real servers under their own tags (SPEC §10.34 "Tests"), with the tools installed only into `/var/tmp/emetos-tools/` at versions pinned in `scripts/tool-versions.txt` (rust-analyzer's release binary, basedpyright and pylsp in a venv, typescript-language-server with `npm install --prefix`, jdtls's milestone archive, kotlin-lsp's release archive; clangd and Java are the system's); csharp-ls and fsautocomplete need the user's .NET SDK and are skipped without it, with a `docs/MANUAL-CHECKS.md` entry.
+
+**Order.** 24b.1 first; 24b.2 to 24b.9 one after the other (they share `extensions/internal/langserver` and the asset script); 24b.10 last.
+
+### 24b.1 What every pack shares
+**Goal:** finding, starting and showing a language server the same way in every pack (SPEC §10.34 "What every pack gets").
+**Read:** SPEC §10.34, §9.12, §10.17 (Go's status item and tools), `extensions/golang/status.go`, `tools.go`, `extensions/internal/langpack`.
+**Tasks:** `extensions/internal/langserver` (the finder with the setting, `PATH` and the extra places, version checks, roots per project marker, settings as `initializationOptions` and `workspace/configuration` with restart on change, the status bar item and its menu, the missing-server notification with How to Install, Copy Install Command and Set Path..., the output channel and `trace.server`); `langpack` options to use it.
+**Tests:** the finder (a table of settings, `PATH` and folders), roots (a table of trees), the notification once per tab, restart on a settings change, the status item's states, with a fake server over the fake API.
+**Proof:** none beyond the tests (the packs show it); recorded in `IMPLEMENTED.md`.
+
+### 24b.2 Rust: rust-analyzer
+**Goal:** rust-analyzer in the Rust pack (SPEC §10.34 Rust).
+**Read:** SPEC §10.34; rust-analyzer's manual and its VS Code extension's `package.json` (online).
+**Tasks:** the server contribution, settings, the commands of §10.34 (Expand Macro and the syntax tree in read-only tabs), the run lenses through the Tasks extension, `experimental/serverStatus`.
+**Tests:** over the fake API with a fake server; under `emetos_rustanalyzer`: a `testdata` crate (diagnostics from `cargo check`, completion, hover, definition, rename, Expand Macro).
+**Proof:** method B on a Rust fixture: `scripts/proof.sh docs/implemented-proof-images/24b.2-rust.png --commands '[["dev.openFile", {"path": "src/main.rs", "line": 8}], ["editor.action.triggerSuggest"], ["sleep", "3s"]]' -- <dir>`; the image shows completion with types and the status item.
+
+### 24b.3 C and C++: clangd
+**Goal:** clangd in the C/C++ pack (SPEC §10.34 C and C++).
+**Read:** SPEC §10.34; clangd's documentation and vscode-clangd's `package.json` (online).
+**Tasks:** the server contribution, `compile_commands.json` detection and the `.clangd` stub offer, the commands (Switch Header/Source on Alt+O, the AST tab, inlay hints toggle), the file status.
+**Tests:** fake server; under `emetos_clangd` (the system's clangd): a `testdata` CMake project with `compile_commands.json` (diagnostics, completion, switch header/source, rename).
+**Proof:** method B on a C++ fixture: `scripts/proof.sh docs/implemented-proof-images/24b.3-cpp.png ...`; the image shows a diagnostic and inlay hints.
+
+### 24b.4 Python: basedpyright, pyright or pylsp, and the interpreter
+**Goal:** a Python server and the interpreter picker (SPEC §10.34 Python).
+**Read:** SPEC §10.34, D49; basedpyright's and pyright's settings, python-lsp-server's README, VS Code Python's interpreter picker (`src/client/interpreter/`, online).
+**Tasks:** `python.languageServer` and the three servers, the interpreter discovery and "Python: Select Interpreter" with the status item and the per-folder choice in the state, the settings, Organize Imports.
+**Tests:** interpreter discovery (a table of folders, environment variables and fake `pyenv`), each server kind with a fake server; under `emetos_pyright` and `emetos_pylsp` (the venv): a `testdata` project with a `.venv` (diagnostics, completion from an installed package, hover, rename).
+**Proof:** method B on a Python fixture: `scripts/proof.sh docs/implemented-proof-images/24b.4-python.png --commands '[["python.setInterpreter"], ["sleep", "2s"]]' -- <dir>`; the image shows the interpreter picker over an editor with diagnostics.
+
+### 24b.5 TypeScript and JavaScript: typescript-language-server
+**Goal:** a TypeScript server for both packs (SPEC §10.34 TypeScript and JavaScript).
+**Read:** SPEC §10.34; typescript-language-server's README (its settings and commands), VS Code's `extensions/typescript-language-features/package.json` (in the pinned reference) for the setting and command names.
+**Tasks:** the server contribution shared by the two packs, the TypeScript version (workspace and bundled) with its picker and status item, the preferences, the commands of §10.34, `tsconfig.json`/`jsconfig.json` projects.
+**Tests:** fake server; under `emetos_tsls` (with `npm install --prefix /var/tmp/emetos-tools/node`): a `testdata` project with its own `node_modules/typescript` (diagnostics, completion, Organize Imports, Go to Source Definition, rename across files).
+**Proof:** method B on a TypeScript fixture: `scripts/proof.sh docs/implemented-proof-images/24b.5-typescript.png ...`.
+
+### 24b.6 Java: the pack and jdtls
+**Goal:** Java with Eclipse JDT LS (SPEC §10.34 Java).
+**Read:** SPEC §10.34, §8.1; eclipse-jdtls's README (how to start it), vscode-java's `package.json` and `src/javaServerStarter.ts` (online); VS Code's `extensions/java` (pinned reference).
+**Tasks:** the `java` language pack (grammar, configuration, licenses, `scripts/update-assets.sh`, §8.1 updated), the jdtls start (launcher jar, `config_linux`, `-data` in the cache, the Java check), project import and its question, `jdt://` documents, the commands, the status from `language/status`.
+**Tests:** the start command line (a table of jdtls folders and Java homes), fake server; under `emetos_jdtls` (jdtls in `/var/tmp/emetos-tools/`, the system's Java): a Maven and a Gradle `testdata` project (diagnostics, completion, definition into a JDK class, Organize Imports).
+**Proof:** method B on a Java fixture: `scripts/proof.sh docs/implemented-proof-images/24b.6-java.png ...`.
+
+### 24b.7 C#: the pack and csharp-ls
+**Goal:** C# with csharp-ls (SPEC §10.34 C#).
+**Read:** SPEC §10.34, D49; csharp-ls's README (online); VS Code's `extensions/csharp` (pinned reference).
+**Tasks:** the `csharp` language pack, the server contribution, the solution picker, metadata documents, the commands.
+**Tests:** fake server; under `emetos_csharpls` (needs the .NET SDK; skipped without it and a manual check recorded): a `testdata` solution.
+**Proof:** method B on a C# fixture when the .NET SDK is present; otherwise the pack's highlighting and the missing-server notification, and the real proof as a manual check.
+
+### 24b.8 F#: the pack and FsAutoComplete
+**Goal:** F# with FsAutoComplete (SPEC §10.34 F#).
+**Read:** SPEC §10.34; FsAutoComplete's README and Ionide's `package.json` (online); VS Code's `extensions/fsharp` (pinned reference).
+**Tasks:** the `fsharp` language pack, the server contribution with workspace peek and load, the commands.
+**Tests:** fake server (the `fsharp/workspacePeek` exchange); under `emetos_fsac` (needs the .NET SDK, as 24b.7).
+**Proof:** as 24b.7.
+
+### 24b.9 Kotlin: the pack and kotlin-lsp
+**Goal:** Kotlin with JetBrains' kotlin-lsp (SPEC §10.34 Kotlin).
+**Read:** SPEC §10.34, §17 (licenses), `scripts/reference-versions.txt`; Kotlin/kotlin-lsp's README and license, fwcd/vscode-kotlin's and fwcd/kotlin-language-server's READMEs and licenses (online).
+**Tasks:** the new pin of the Kotlin grammar's repository (the user's request of 2026-11-01 is the request §17 asks for), the `kotlin` language pack with its license in `third_party/` and `NOTICE`, the server contribution with the two kinds, the commands; a decision recording the state and license of both servers as found.
+**Tests:** fake server; under `emetos_kotlinlsp` (kotlin-lsp in `/var/tmp/emetos-tools/`, the system's Java): a Gradle `testdata` project.
+**Proof:** method B on a Kotlin fixture: `scripts/proof.sh docs/implemented-proof-images/24b.9-kotlin.png ...`.
+
+### 24b.10 The desktop pass and the README
+**Goal:** the milestone's loose ends and the README (SPEC §10.34).
+**Read:** SPEC §10.34, §14, `README.md`, the M24b entries of `docs/IMPLEMENTED.md`.
+**Tasks:** the coverage table of the SPEC for area 3; measurements (each real server's time to the first diagnostics on its `testdata` project; typing latency with each server running) in `docs/PERFORMANCE.md`; `docs/MANUAL-CHECKS.md` entries (the .NET servers when skipped, the real GPU pass); the README's "Languages" section (a table of each language, its server and how to install it, the settings that matter); `scripts/error-tags.sh --untested` prints nothing.
 **Tests:** `TestREADMELinksResolve`.
 **Proof:** the README's screenshots, viewed.
 
