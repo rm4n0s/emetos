@@ -1970,7 +1970,7 @@ Requested by the user on 2026-10-29: "I want a git extension like vscode", the f
 
 ## M24b: Language servers of more languages
 
-Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for Rust, C/C++, Python, TypeScript/JavaScript, Java, C#, F#, Kotlin, Dart and OCaml (SPEC §10.34, D47–D49). It runs **before M25**, because the debuggers and test providers of M25 and M26 build on these servers and on the Python interpreter and TypeScript version they choose. No new Go module; the LSP client and its UI are M12's. Emetos never installs a server (D47). **Tests of the milestone:** fake servers by default; the real servers under their own tags (SPEC §10.34 "Tests"), with the tools installed only into `/var/tmp/emetos-tools/` at versions pinned in `scripts/tool-versions.txt` (rust-analyzer's release binary, basedpyright and pylsp in a venv, typescript-language-server with `npm install --prefix`, jdtls's milestone archive, kotlin-lsp's release archive, the Dart SDK's release archive, and an opam root `OPAMROOT=/var/tmp/emetos-tools/opam` with a pinned OCaml switch and `ocaml-lsp-server` built by opam's release binary; clangd and Java are the system's); csharp-ls and fsautocomplete need the user's .NET SDK and are skipped without it, with a `docs/MANUAL-CHECKS.md` entry.
+Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for Rust, C/C++, Python, TypeScript/JavaScript, Java, C#, F#, Kotlin, Dart and OCaml (SPEC §10.34, D47–D49). It runs **before M25**, because the debuggers and test providers of M25 and M26 build on these servers and on the Python interpreter and TypeScript version they choose. No new Go module; the LSP client and its UI are M12's. Emetos never installs a server (D47). **Tests of the milestone:** fake servers by default; the real servers under their own tags (SPEC §10.34 "Tests"), with the tools installed only into `/var/tmp/emetos-tools/` at versions pinned in `scripts/tool-versions.txt` (rust-analyzer's release binary, basedpyright and pylsp in a venv, typescript-language-server with `npm install --prefix`, jdtls's milestone archive, kotlin-lsp's release archive, the Dart SDK's release archive, and an opam root `OPAMROOT=/var/tmp/emetos-tools/opam` with a pinned OCaml switch and `ocaml-lsp-server` built by opam's release binary; clangd and Java are the system's); csharp-ls and fsautocomplete are installed with `dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools` on the system's .NET SDK (10.0, installed by the user on 2026-11-01).
 
 **Order.** 24b.1 first; 24b.2 to 24b.11 one after the other (they share `extensions/internal/langserver` and the asset script); 24b.12 last.
 
@@ -2020,15 +2020,15 @@ Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for
 **Goal:** C# with csharp-ls (SPEC §10.34 C#).
 **Read:** SPEC §10.34, D49; csharp-ls's README (online); VS Code's `extensions/csharp` (pinned reference).
 **Tasks:** the `csharp` language pack, the server contribution, the solution picker, metadata documents, the commands.
-**Tests:** fake server; under `emetos_csharpls` (needs the .NET SDK; skipped without it and a manual check recorded): a `testdata` solution.
-**Proof:** method B on a C# fixture when the .NET SDK is present; otherwise the pack's highlighting and the missing-server notification, and the real proof as a manual check.
+**Tests:** fake server; under `emetos_csharpls` (csharp-ls from the milestone's tool path): a `testdata` solution.
+**Proof:** method B on a C# fixture: `scripts/proof.sh docs/implemented-proof-images/24b.7-csharp.png ...`; the image shows completion from csharp-ls.
 
 ### 24b.8 F#: the pack and FsAutoComplete
 **Goal:** F# with FsAutoComplete (SPEC §10.34 F#).
 **Read:** SPEC §10.34; FsAutoComplete's README and Ionide's `package.json` (online); VS Code's `extensions/fsharp` (pinned reference).
 **Tasks:** the `fsharp` language pack, the server contribution with workspace peek and load, the commands.
-**Tests:** fake server (the `fsharp/workspacePeek` exchange); under `emetos_fsac` (needs the .NET SDK, as 24b.7).
-**Proof:** as 24b.7.
+**Tests:** fake server (the `fsharp/workspacePeek` exchange); under `emetos_fsac` (fsautocomplete from the milestone's tool path): a `testdata` project.
+**Proof:** method B on an F# fixture: `scripts/proof.sh docs/implemented-proof-images/24b.8-fsharp.png ...`; the image shows a type hover from FsAutoComplete.
 
 ### 24b.9 Kotlin: the pack and kotlin-lsp
 **Goal:** Kotlin with JetBrains' kotlin-lsp (SPEC §10.34 Kotlin).
@@ -2054,7 +2054,7 @@ Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for
 ### 24b.12 The desktop pass and the README
 **Goal:** the milestone's loose ends and the README (SPEC §10.34).
 **Read:** SPEC §10.34, §14, `README.md`, the M24b entries of `docs/IMPLEMENTED.md`.
-**Tasks:** the coverage table of the SPEC for area 3; measurements (each real server's time to the first diagnostics on its `testdata` project; typing latency with each server running) in `docs/PERFORMANCE.md`; `docs/MANUAL-CHECKS.md` entries (the .NET servers when skipped, the real GPU pass); the README's "Languages" section (a table of each language, its server and how to install it, the settings that matter); `scripts/error-tags.sh --untested` prints nothing.
+**Tasks:** the coverage table of the SPEC for area 3; measurements (each real server's time to the first diagnostics on its `testdata` project; typing latency with each server running) in `docs/PERFORMANCE.md`; `docs/MANUAL-CHECKS.md` entries (the real GPU pass); the README's "Languages" section (a table of each language, its server and how to install it, the settings that matter); `scripts/error-tags.sh --untested` prints nothing.
 **Tests:** `TestREADMELinksResolve`.
 **Proof:** the README's screenshots, viewed.
 
@@ -2062,7 +2062,7 @@ Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for
 
 Requested by the user on 2026-11-01 (from a list of what VS Code users would miss: "I would like 1 and 2"), with debuggers for Go, Python, C/C++/Rust and JavaScript/TypeScript (SPEC §10.31, D39–D41, D43, D46). It is VS Code's debug workbench (MIT, `reference/vscode/src/vs/workbench/contrib/debug/`) over the Debug Adapter Protocol; code ported from it says so with a `// Ported from VS Code: <path>` line. No new Go module. Every step that needs a capability the extension contract lacks adds it to `extension/`, `internal/gui/exthost` and `extensions/internal/fakeapi` together and names it in its `IMPLEMENTED.md` entry.
 
-**Tests of the milestone.** By default everything is tested against `internal/core/dap/daptest`, a scripted fake adapter (step 25.1). The real debuggers are tested under build tags of their own (D43) and skipped when missing. **The tools are never installed into the user's environment:** a step that needs one for its tagged tests or its proof builds or installs it into `/var/tmp/emetos-tools/` with a pinned version (`GOBIN=/var/tmp/emetos-tools/bin go install github.com/go-delve/delve/cmd/dlv@<pinned>`; `python3 -m venv /var/tmp/emetos-tools/venv` and `pip install debugpy==<pinned> pytest==<pinned>` into it; js-debug's pinned release unpacked into `/var/tmp/emetos-tools/js-debug`), records the versions in `scripts/tool-versions.txt`, and points the fixture's settings at them (`go.alternateTools`, `python.defaultInterpreterPath`, `debug.javascript.adapterPath`). gdb 14 or newer is the system's. `lldb-dap` is not on this machine: its tagged tests are skipped and a manual check is recorded. Programs started by tests and proofs run under `timeout -k` in their own process group and are gone when the step ends (`pgrep -a`).
+**Tests of the milestone.** By default everything is tested against `internal/core/dap/daptest`, a scripted fake adapter (step 25.1). The real debuggers are tested under build tags of their own (D43) and skipped when missing. **The tools are never installed into the user's environment:** a step that needs one for its tagged tests or its proof builds or installs it into `/var/tmp/emetos-tools/` with a pinned version (`GOBIN=/var/tmp/emetos-tools/bin go install github.com/go-delve/delve/cmd/dlv@<pinned>`; `python3 -m venv /var/tmp/emetos-tools/venv` and `pip install debugpy==<pinned> pytest==<pinned>` into it; js-debug's pinned release unpacked into `/var/tmp/emetos-tools/js-debug`), records the versions in `scripts/tool-versions.txt`, and points the fixture's settings at them (`go.alternateTools`, `python.defaultInterpreterPath`, `debug.javascript.adapterPath`). gdb 14 or newer and `lldb-dap` are the system's (the user installed `lldb` on 2026-11-01). Programs started by tests and proofs run under `timeout -k` in their own process group and are gone when the step ends (`pgrep -a`).
 
 **Order.** 25.1 to 25.6 in order (each builds on the one before); 25.7 to 25.10 (the four debuggers) after 25.6, one after the other because they share the contract; 25.11 after 25.7; 25.12 and 25.13 last.
 
@@ -2126,7 +2126,7 @@ Requested by the user on 2026-11-01 (from a list of what VS Code users would mis
 **Goal:** debug native programs (SPEC §10.31 "The debuggers" C, C++ and Rust).
 **Read:** SPEC §10.31, D40; gdb's manual chapter "Debugger Adapter Protocol" (online); LLVM's `lldb/tools/lldb-dap/README.md` and its `package.json` (online); rust-analyzer's debug configurations (online) for the Rust targets.
 **Tasks:** `extensions/cpp` and `extensions/rust`: the `gdb` and `lldb-dap` debuggers (the gdb version check, 14 or newer, `GdbTooOld`), their attributes and configurations; the Rust provider (targets from `cargo metadata`, `cargo build` or `cargo test --no-run --message-format=json` before the launch, the executable it names); a missing debugger's notification.
-**Tests:** providers over the fake API (a table of `cargo` outputs to configurations); under `emetos_gdb`: a C program and a Rust program built in the test (`cc`, `cargo`) run to a breakpoint, locals, step, the end; under `emetos_lldbdap` the same with lldb-dap (skipped here; a `docs/MANUAL-CHECKS.md` entry with the command for the user).
+**Tests:** providers over the fake API (a table of `cargo` outputs to configurations); under `emetos_gdb`: a C program and a Rust program built in the test (`cc`, `cargo`) run to a breakpoint, locals, step, the end; under `emetos_lldbdap` the same with the system's lldb-dap.
 **Proof:** method B on a Rust fixture with gdb: `scripts/proof.sh docs/implemented-proof-images/25.9-rust.png ...`; the image shows a Rust program stopped with its locals.
 
 ### 25.10 JavaScript and TypeScript: js-debug
@@ -2146,7 +2146,7 @@ Requested by the user on 2026-11-01 (from a list of what VS Code users would mis
 ### 25.12 Cross-checks, the desktop pass and performance
 **Goal:** the milestone's loose ends (SPEC §10.31, §14, §15).
 **Read:** SPEC §10.31, §14, §15, `docs/PERFORMANCE.md`, `docs/MANUAL-CHECKS.md`.
-**Tasks:** the coverage table of the SPEC for area 6; the refusal of D46 in a Remote Work test; measurements (stepping 100 times in the Go fixture with dlv: the time from F10 to the painted line; the Variables view with 10,000 children; the console with 100,000 lines) in `docs/PERFORMANCE.md`; an end-to-end display test with real input (open the Go fixture, set a breakpoint, F5, hover, watch, step, Debug Console, stop); `docs/MANUAL-CHECKS.md` entries for what only the user's machine shows (lldb-dap; debugging on the real GPU with `scripts/realinput.sh --desktop`); `scripts/error-tags.sh --untested` prints nothing.
+**Tasks:** the coverage table of the SPEC for area 6; the refusal of D46 in a Remote Work test; measurements (stepping 100 times in the Go fixture with dlv: the time from F10 to the painted line; the Variables view with 10,000 children; the console with 100,000 lines) in `docs/PERFORMANCE.md`; an end-to-end display test with real input (open the Go fixture, set a breakpoint, F5, hover, watch, step, Debug Console, stop); `docs/MANUAL-CHECKS.md` entries for what only the user's machine shows (debugging on the real GPU with `scripts/realinput.sh --desktop`); `scripts/error-tags.sh --untested` prints nothing.
 **Tests:** the end-to-end display test; the Remote Work refusal test.
 **Proof:** the end-to-end test's screenshot, `docs/implemented-proof-images/25.12-desktop-pass.png`.
 
