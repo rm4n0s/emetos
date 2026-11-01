@@ -2,10 +2,12 @@ package langserver
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -444,7 +446,7 @@ func TestHowToInstallShowsTheInstructions(t *testing.T) {
 			t.Errorf("the text lacks %q:\n%s", want, spec.Detail)
 		}
 	}
-	if len(spec.Buttons) != 2 || spec.Buttons[0].Label != "Copy Install Command" || !spec.Buttons[1].Cancel {
+	if len(spec.Buttons) != 3 || spec.Buttons[0].Label != "Copy Install Command" || spec.Buttons[1].Label != "Open Instructions on GitHub" || !spec.Buttons[2].Cancel {
 		t.Errorf("buttons = %+v", spec.Buttons)
 	}
 	dialogs[0].Press("Copy Install Command")
@@ -471,8 +473,63 @@ func TestHowToInstallWithNoCommandHasOnlyClose(t *testing.T) {
 	_, _ = r.start()
 	r.api.RunNoteAction(0, "How to Install")
 	spec := r.api.OpenDialogs()[0].Spec()
-	if len(spec.Buttons) != 1 || spec.Buttons[0].Label != "Close" || strings.Contains(spec.Detail, "For this system") {
+	if len(spec.Buttons) != 2 || spec.Buttons[0].Label != "Open Instructions on GitHub" || spec.Buttons[1].Label != "Close" || strings.Contains(spec.Detail, "For this system") {
 		t.Errorf("dialog = %+v", spec)
+	}
+}
+
+// waitPumped pumps the posted functions until check holds: the address is handed to the desktop on a goroutine.
+func waitPumped(t *testing.T, r *rig, what string, check func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		r.api.Pump()
+		if check() {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestHowToInstallOpensTheReadmeSection(t *testing.T) {
+	tests := []struct {
+		name     string
+		fail     error
+		wantNote string // the start of the message of the notification, "" for none
+		wantSev  string
+	}{
+		{"opened", nil, "", ""},
+		{"the desktop cannot open it", errors.New("ExtensionOpenURIUnavailable", "the scope cannot open a URI"), "The instructions are at " + InstructionsURL, "info"},
+		{"the portal refuses", errors.New("PortalRefused", "no browser"), "Cannot open " + InstructionsURL, "warn"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRig(t, false, nil)
+			r.attach()
+			_, _ = r.start()
+			r.api.FailOpenURI(tt.fail)
+			notes := len(r.api.Notes())
+			r.api.RunNoteAction(0, "How to Install")
+			r.api.OpenDialogs()[0].Press("Open Instructions on GitHub")
+			if tt.wantNote == "" {
+				waitPumped(t, r, "the address to be opened", func() bool { return len(r.api.OpenedURIs()) == 1 })
+				if got := r.api.OpenedURIs(); got[0] != "https://github.com/rm4n0s/emetos#languages" {
+					t.Errorf("opened %v", got)
+				}
+				if len(r.api.Notes()) != notes {
+					t.Errorf("notes = %+v", r.api.Notes())
+				}
+				return
+			}
+			waitPumped(t, r, "the notification", func() bool { return len(r.api.Notes()) > notes })
+			note := r.api.Notes()[notes]
+			if !strings.HasPrefix(note.Message, tt.wantNote) || !strings.EqualFold(note.Severity, tt.wantSev) || len(r.api.OpenedURIs()) != 0 {
+				t.Errorf("note = %+v, opened %v", note, r.api.OpenedURIs())
+			}
+		})
 	}
 }
 
@@ -697,4 +754,23 @@ func TestSetPathChecksTheValueWithTheCheckOfTheProgram(t *testing.T) {
 	if msg := in.Validate(r.bin); msg != "not a jdtls folder" {
 		t.Errorf("validation of a folder = %q: the check of the program was not used", msg)
 	}
+}
+
+func TestInstructionsURLNamesASectionOfTheReadme(t *testing.T) {
+	const prefix = "https://github.com/rm4n0s/emetos#"
+	if !strings.HasPrefix(InstructionsURL, prefix) {
+		t.Fatalf("InstructionsURL = %q", InstructionsURL)
+	}
+	anchor := strings.TrimPrefix(InstructionsURL, prefix)
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// GitHub's anchor of a heading is its text in lower case with spaces turned into hyphens
+	for _, line := range strings.Split(string(data), "\n") {
+		if text, ok := strings.CutPrefix(line, "## "); ok && strings.ReplaceAll(strings.ToLower(strings.TrimSpace(text)), " ", "-") == anchor {
+			return
+		}
+	}
+	t.Errorf("README.md has no section \"## ...\" whose anchor is #%s", anchor)
 }

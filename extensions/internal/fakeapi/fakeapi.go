@@ -43,6 +43,7 @@ type API struct {
 	failUntitled      error
 	views             map[string]*View
 	openedURIs        []string
+	openURIErr        error
 	trashed           []*Trashed
 	trashErr, undoErr error
 	openedTabs        []string
@@ -1166,12 +1167,22 @@ func (a *API) MarkerCount() int {
 
 type workspace struct{ a *API }
 
-// OpenURI implements extension.Workspace: the call is recorded (OpenedURIs).
+// OpenURI implements extension.Workspace: the call is recorded (OpenedURIs) unless FailOpenURI made it fail.
 func (w workspace) OpenURI(_ context.Context, uri string) error {
 	w.a.mu.Lock()
+	defer w.a.mu.Unlock()
+	if w.a.openURIErr != nil {
+		return w.a.openURIErr
+	}
 	w.a.openedURIs = append(w.a.openedURIs, uri)
-	w.a.mu.Unlock()
 	return nil
+}
+
+// FailOpenURI makes Workspace().OpenURI fail with err from now on; nil makes it work again.
+func (a *API) FailOpenURI(err error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.openURIErr = err
 }
 
 // Revealed is a call of Workspace().RevealFile.

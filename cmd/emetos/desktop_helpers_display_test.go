@@ -134,6 +134,10 @@ const goApp = "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"
 type goplsOptions struct {
 	// Diagnostics publishes one error for app.go when the file is opened.
 	Diagnostics bool
+	// HoverDelayMS makes the fake server answer a hover only after that many milliseconds.
+	HoverDelayMS int
+	// Settings are more user settings, written beside go.goplsPath.
+	Settings map[string]any
 }
 
 // withFakeGopls writes the user settings that run the fake language server (internal/core/lsp/lsptest) in place of gopls
@@ -161,6 +165,11 @@ func withFakeGopls(t *testing.T, opts goplsOptions) func(projectDir string) {
 					{"label":"Println(a ...any) (n int, err error)","parameters":[{"label":"a ...any"}]}],"activeSignature":0,"activeParameter":0}`)},
 			},
 		}
+		if opts.HoverDelayMS > 0 {
+			hover := script.Responses["textDocument/hover"]
+			hover.DelayMS = opts.HoverDelayMS
+			script.Responses["textDocument/hover"] = hover
+		}
 		if opts.Diagnostics {
 			params := `{"uri":"file://` + filepath.Join(projectDir, "app.go") + `","diagnostics":[{"range":{"start":{"line":5,"character":1},"end":{"line":5,"character":4}},
 				"severity":1,"source":"gopls","code":"UndeclaredName","message":"undefined: fmtt"}]}`
@@ -180,7 +189,11 @@ func withFakeGopls(t *testing.T, opts goplsOptions) func(projectDir string) {
 		if err := os.WriteFile(program, []byte(launcher), 0o700); err != nil { //nolint:gosec // a script the test runs
 			t.Fatal(err)
 		}
-		settings, err := json.Marshal(map[string]any{"go.goplsPath": program})
+		values := map[string]any{"go.goplsPath": program}
+		for name, value := range opts.Settings {
+			values[name] = value
+		}
+		settings, err := json.Marshal(values)
 		if err != nil {
 			t.Fatal(err)
 		}

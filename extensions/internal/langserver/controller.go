@@ -14,6 +14,8 @@ import (
 // item and its menu, tells the user when the server is missing, and restarts the server when a setting its start read changes.
 // Everything but the launcher runs on the UI thread.
 type Controller struct {
+	// ctx is the context of the activation, for what the controller hands to the desktop (the address of How to Install).
+	ctx       context.Context
 	api       extension.API
 	cfg       Config
 	osRelease func() string
@@ -66,7 +68,7 @@ func Attach(ctx context.Context, api extension.API, cfg Config, opts ...Option) 
 	if !cfg.valid() {
 		return nil, errors.New("ServerConfigInvalid", "a language server needs an id, a name, languages and a program", "server", cfg.ID)
 	}
-	c := &Controller{api: api, cfg: cfg, osRelease: ReadOSRelease, told: map[string]bool{}, label: cfg.Name}
+	c := &Controller{ctx: ctx, api: api, cfg: cfg, osRelease: ReadOSRelease, told: map[string]bool{}, label: cfg.Name}
 	for _, opt := range opts {
 		opt(c)
 	}

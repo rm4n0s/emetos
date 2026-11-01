@@ -205,18 +205,27 @@ func installLabel(family string) string {
 	return "Any system"
 }
 
-// howToInstall shows how to get the server in a dialog, with a button that copies the command.
+// InstructionsURL is the address of the section of the README that lists the language servers and how to install them; the dialog
+// How to Install opens it (step 24b.10).
+const InstructionsURL = "https://github.com/rm4n0s/emetos#languages"
+
+// howToInstall shows how to get the server in a dialog, with a button that copies the command and one that opens the README's
+// section on GitHub.
 func (c *Controller) howToInstall() {
 	text := c.installText()
 	p := c.program()
-	buttons := []extension.DialogButton{{Label: "Close", Cancel: true}}
 	_, haveCommand := p.Install.CommandFor(Family(c.osRelease()))
+	var buttons []extension.DialogButton
+	var actions []func()
 	if haveCommand {
-		buttons = []extension.DialogButton{{Label: "Copy Install Command"}, {Label: "Close", Cancel: true}}
+		buttons = append(buttons, extension.DialogButton{Label: "Copy Install Command"})
+		actions = append(actions, c.copyInstallCommand)
 	}
+	buttons = append(buttons, extension.DialogButton{Label: "Open Instructions on GitHub"}, extension.DialogButton{Label: "Close", Cancel: true})
+	actions = append(actions, c.openInstructions)
 	err := c.api.Dialogs().Ask(extension.DialogSpec{Type: extension.DialogInfo, Message: "How to install " + p.Name, Detail: text, Buttons: buttons}, func(r extension.DialogResult) {
-		if haveCommand && !r.Cancelled && r.Button == 0 {
-			c.copyInstallCommand()
+		if !r.Cancelled && r.Button >= 0 && r.Button < len(actions) {
+			actions[r.Button]()
 		}
 	})
 	switch {
@@ -227,6 +236,24 @@ func (c *Controller) howToInstall() {
 	default:
 		c.api.Log().Warn("the install instructions of a language server cannot be shown", "server", c.cfg.ID, "err", err)
 	}
+}
+
+// openInstructions opens the README's section of the language servers in the browser. The desktop's portal can take a while, so it
+// is asked off the UI thread; a refusal is told on it.
+func (c *Controller) openInstructions() {
+	go func() {
+		err := c.api.Workspace().OpenURI(c.ctx, InstructionsURL)
+		c.api.Post(func() {
+			switch {
+			case err == nil:
+			case benign(err):
+				c.api.Notifications().Info("The instructions are at " + InstructionsURL)
+			default:
+				c.api.Log().Warn("the instructions of the language servers cannot be opened", "server", c.cfg.ID, "err", err)
+				c.api.Notifications().Warn("Cannot open " + InstructionsURL + ": " + err.Error())
+			}
+		})
+	}()
 }
 
 // setPath asks for the path of the program and writes it to the user's settings. The path is a setting of the host: a client of a

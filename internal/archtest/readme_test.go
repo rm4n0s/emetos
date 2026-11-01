@@ -373,3 +373,69 @@ func TestREADMELinksResolve(t *testing.T) {
 		t.Errorf("README.md: %s", p)
 	}
 }
+
+// languageSection is the text of the section "## Languages" of the README (up to the next section of its level), or a test
+// failure when there is none.
+func languageSection(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(repoRoot, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	start := strings.Index(text, "\n## Languages\n")
+	if start < 0 {
+		t.Fatal("README.md has no section \"## Languages\" (the dialog How to Install opens its address, #languages)")
+	}
+	rest := text[start+1:]
+	if end := strings.Index(rest[len("## Languages\n"):], "\n## "); end >= 0 {
+		rest = rest[:len("## Languages\n")+end]
+	}
+	return rest
+}
+
+// TestREADMELanguagesSection (step 24b.10): the section the dialog How to Install of the language packs opens on GitHub
+// exists, names each server of milestone M24b with its install command and settings, shows the screenshots of the packs, and
+// holds every install command that the packs themselves give (extensions/<pack>/server.go): the README and the dialog never
+// disagree.
+func TestREADMELanguagesSection(t *testing.T) {
+	section := languageSection(t)
+	for _, server := range []string{"rust-analyzer", "clangd", "basedpyright", "pyright", "python-lsp-server", "typescript-language-server", "jdtls", "csharp-ls", "gopls"} {
+		if !strings.Contains(section, server) {
+			t.Errorf("the Languages section does not name %s", server)
+		}
+	}
+	for _, setting := range []string{"rust-analyzer.server.path", "clangd.path", "python.languageServer", "typescript.languageServer.path", "java.jdt.ls.path", "csharp.languageServer.path"} {
+		if !strings.Contains(section, "`"+setting+"`") {
+			t.Errorf("the Languages section does not list the setting %s", setting)
+		}
+	}
+	for _, shot := range []string{"24b.2-rust", "24b.3-cpp", "24b.4-python", "24b.5-typescript", "24b.6-java", "24b.7-csharp"} {
+		if !strings.Contains(section, "docs/implemented-proof-images/"+shot+".png") {
+			t.Errorf("the Languages section does not show the screenshot %s", shot)
+		}
+	}
+	command := regexp.MustCompile(`Command:\s+("(?:[^"\\]|\\.)*")`)
+	// a command in a table cell has its pipes escaped
+	cell := strings.ReplaceAll(section, `\|`, `|`)
+	for _, pack := range []string{"rust", "cpp", "python", "typescript", "java", "csharp"} {
+		data, err := os.ReadFile(filepath.Join(repoRoot, "extensions", pack, "server.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := 0
+		for _, m := range command.FindAllStringSubmatch(string(data), -1) {
+			cmd, err := strconv.Unquote(m[1])
+			if err != nil {
+				t.Fatalf("extensions/%s/server.go: %v", pack, err)
+			}
+			found++
+			if !strings.Contains(cell, cmd) {
+				t.Errorf("the Languages section lacks the install command of extensions/%s: %s", pack, cmd)
+			}
+		}
+		if found == 0 {
+			t.Errorf("extensions/%s/server.go has no install command: the test lost its source", pack)
+		}
+	}
+}

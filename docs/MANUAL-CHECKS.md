@@ -167,3 +167,33 @@ go run ./cmd/emetos /tmp/emetos-git-check
    Open the pictures in `/tmp/emetos-git-shots`: do the Source Control view, the Graph, the Timeline, the quick diff stripe and the peek, the blame text and the password box look as they do in the screenshots of `docs/implemented-proof-images/` (24.x), with the colors, the spacing and the fonts of your desktop?
 
 Say what you saw: the ssh agent and key type, the credential helper, the desktop and the GPU, and any error text.
+
+## 24b.10 The language servers on your desktop and the real GPU
+
+The tests of M24b run each server headless, with a temporary home folder, on a project of `testdata/`. What they cannot show is your desktop: the real GPU, your compositor, your fonts, and a hover that arrives after the window has sat idle. These checks run each server in an editor window on your desktop. `scripts/langservers-desktop.sh` copies the project of one language into a temporary folder, writes a `settings.json` that points the server's path setting at the tool, and starts Emetos through `scripts/isolated.sh` (a `HOME` of its own: your configuration, state and cache are not touched; the NVIDIA card is kept out by `scripts/gpu-env.sh`). The servers are the ones of `/var/tmp/emetos-tools` (`scripts/fetch-tools.sh`, pinned in `scripts/tool-versions.txt`; the script downloads only into that folder, and csharp-ls is installed with `dotnet tool` from a verified file) and your system's `clangd`, Java 21 or newer and .NET SDK.
+
+Get the tools once (skip the ones you do not want to check):
+
+```
+scripts/fetch-tools.sh rust-analyzer python-tools pyright typescript-language-server typescript typescript5 jdtls csharp-ls
+```
+
+Then, for each language, run its line, wait for the status bar item of the server to show the check mark (rust-analyzer, jdtls and csharp-ls take from a few seconds to about a minute on a first start), and do the four things below the list. Close the window before you start the next one.
+
+```
+scripts/langservers-desktop.sh rust
+scripts/langservers-desktop.sh cpp
+scripts/langservers-desktop.sh python
+scripts/langservers-desktop.sh typescript
+scripts/langservers-desktop.sh java
+scripts/langservers-desktop.sh csharp
+```
+
+1. **Problems.** Open the Problems panel (Ctrl+Shift+M). Does it list the error of the project (Rust: "expected i32, found &'static str", and "mismatched types" a moment later from `cargo check`; C++: "undeclared identifier 'missing'"; Python: `"missing_name" is not defined`; TypeScript: "not assignable"; Java: "Type mismatch"; C#: "Cannot implicitly convert"), and does a click on it go to the line, with a red squiggle under it?
+2. **Hover.** Rest the pointer on a name (a function, a type, a variable) and do not touch anything else. Does a box with the signature or type appear after about half a second, and go away when you move off?
+3. **Completion.** Put the cursor at the end of a line, type a name and a dot (`names.`, `r.`, `Point::`) or Ctrl+Space. Does the list open with the members of the type, with their icons, and does Enter insert one?
+4. **Go to definition.** F12 (or Ctrl+click) on a name that is defined in another file of the project (`Greeter`, `add`, `geometry`'s `Point`, `makeRectangle`). Does the other file open at the definition? Alt+Left goes back.
+
+**The hover after the window has been idle** (the finding of the dropped F# work that the display test `TestHoverAnsweredAfterTheWindowWentIdleIsDrawnWithoutInput` found fine in the headless compositor, and only your desktop can confirm). With one of the slower servers (`java` or `csharp`; the first hover after the load takes a second or two): put the pointer on a name, then take your hand off the mouse and keyboard and do not move or press anything. Is the hover box drawn when the server answers, without you moving the mouse or pressing a key? Do the same after leaving the window alone for a minute (put the pointer on a different name, then do nothing). If the box only appears when you move the mouse, say so: that is a frame that was never asked for, which Glutter's `Post` should have asked.
+
+Say what you saw: the desktop and compositor, the GPU, the languages you checked, which of the four things failed, and the hover idle result.
