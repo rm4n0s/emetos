@@ -255,6 +255,57 @@ func TestCodeActionsOfAGoProviderWithGoodEdits(t *testing.T) {
 	}
 }
 
+// kindActions is a provider that says which kinds it answers, and counts the times it was asked.
+type kindActions struct {
+	kinds []string
+	asked *int
+}
+
+func (k kindActions) CodeActionKinds() []string { return k.kinds }
+
+func (k kindActions) ProvideCodeActions(context.Context, extension.TextDocument, extension.CodeActionRequest) ([]extension.CodeAction, error) {
+	*k.asked++
+	return []extension.CodeAction{{Title: "Organize Imports", Kind: "source.organizeImports"}}, nil
+}
+
+func TestAProviderThatSaysWhichKindsItAnswersEnablesThemAndIsAskedForThemOnly(t *testing.T) {
+	asked := 0
+	_, tb := providerTab(t, "kinds", func(a extension.API) error {
+		_, err := a.Languages().RegisterCodeActionProvider(extension.DocumentSelector{}, kindActions{kinds: []string{"source.organizeImports"}, asked: &asked})
+		return err
+	})
+	reg := tb.scope.Features()
+	doc := goDocument("")
+	// Organize Imports is enabled by the kind, and the Source Action menu with it; a refactoring is not
+	if !reg.SupportsCodeActionKind(doc, langfeatures.KindSourceOrganize) || !reg.SupportsCodeActionKind(doc, "source") || reg.SupportsCodeActionKind(doc, "refactor") {
+		t.Errorf("kinds = %v", reg.CodeActionKinds(doc))
+	}
+	// asked for a quick fix, the provider is left alone; asked for the imports, it answers
+	quickfix := langfeatures.KindQuickFix
+	if _, errs := reg.GetCodeActions(context.Background(), doc, langfeatures.CodeActionRequest{}, langfeatures.CodeActionTrigger{
+		Type: langfeatures.TriggerInvokedAction, Filter: langfeatures.CodeActionFilter{Include: &quickfix},
+	}); len(errs) != 0 || asked != 0 {
+		t.Fatalf("asked %d times for a quick fix: %v", asked, errs)
+	}
+	organize := langfeatures.KindSourceOrganize
+	got, errs := reg.GetCodeActions(context.Background(), doc, langfeatures.CodeActionRequest{}, langfeatures.CodeActionTrigger{
+		Type: langfeatures.TriggerInvokedAction, Filter: langfeatures.CodeActionFilter{Include: &organize, IncludeSourceActions: true},
+	})
+	if len(errs) != 0 || len(got.Valid) != 1 || got.Valid[0].Title != "Organize Imports" || asked != 1 {
+		t.Errorf("actions = %+v %v, asked %d times", got, errs, asked)
+	}
+}
+
+func TestAProviderThatSaysNothingAboutKindsEnablesNone(t *testing.T) {
+	_, tb := providerTab(t, "nokinds", func(a extension.API) error {
+		_, err := a.Languages().RegisterCodeActionProvider(extension.DocumentSelector{}, goodActions{})
+		return err
+	})
+	if kinds := tb.scope.Features().CodeActionKinds(goDocument("")); len(kinds) != 0 {
+		t.Errorf("kinds = %v", kinds)
+	}
+}
+
 type goodActions struct{}
 
 func (goodActions) ProvideCodeActions(_ context.Context, _ extension.TextDocument, req extension.CodeActionRequest) ([]extension.CodeAction, error) {

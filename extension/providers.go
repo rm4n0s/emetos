@@ -282,6 +282,15 @@ type CodeActionProvider interface {
 	ProvideCodeActions(ctx context.Context, doc TextDocument, req CodeActionRequest) ([]CodeAction, error)
 }
 
+// CodeActionKinds is implemented by a CodeActionProvider that answers only some kinds of action (source.organizeImports): the editor then
+// asks it only when one of them is wanted, and knows from it that the kind exists for the document, which is what enables Organize Imports
+// (Shift+Alt+O) and the Source Action menu (SPEC §9.12 "Code actions"). A provider that does not implement it is asked for every kind and
+// declares none. Use a language server's own list when it has one; this is for a pack that supplies an action the server does not offer.
+type CodeActionKinds interface {
+	// CodeActionKinds lists the kinds the provider answers, such as "source.organizeImports". It may be called often, on any goroutine.
+	CodeActionKinds() []string
+}
+
 // FormattingOptions are the options of a formatting request.
 type FormattingOptions struct {
 	TabSize      int

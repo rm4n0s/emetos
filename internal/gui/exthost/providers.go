@@ -475,6 +475,14 @@ func (a codeActionAdapter) ProvideCodeActions(ctx context.Context, doc langfeatu
 	return res, err
 }
 
+// CodeActionKinds implements langfeatures.CodeActionKinds with the kinds the provider says it answers (none when it does not say).
+func (a codeActionAdapter) CodeActionKinds() []string {
+	if k, ok := a.p.(extension.CodeActionKinds); ok {
+		return k.CodeActionKinds()
+	}
+	return nil
+}
+
 type formattingAdapter struct {
 	adapter
 	p extension.FormattingProvider

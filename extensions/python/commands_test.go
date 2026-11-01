@@ -192,3 +192,52 @@ func TestATabWithoutAFolderHasAnInterpreterAndOffersNothing(t *testing.T) {
 	}
 	_ = context.Background()
 }
+
+func TestTheEditorsOrganizeImportsReachesThePacksCommandForPyright(t *testing.T) {
+	tests := []struct {
+		name   string
+		server string
+		only   []string
+		want   bool
+	}{
+		{"basedpyright asked for the kind", ServerBasedpyright, []string{"source.organizeImports"}, true},
+		{"pyright asked for the kind", ServerPyright, []string{"source.organizeImports"}, true},
+		{"pyright asked for the source actions", ServerPyright, []string{"source"}, true},
+		{"pyright asked for every kind", ServerPyright, nil, true},
+		{"pyright asked for a quick fix", ServerPyright, []string{"quickfix"}, false},
+		{"pyright asked for another source action", ServerPyright, []string{"source.fixAll"}, false},
+		{"python-lsp-server offers the action itself, when a plugin has one", ServerPylsp, []string{"source.organizeImports"}, false},
+		{"no server", ServerNone, []string{"source.organizeImports"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRig(t, rigOptions{servers: []string{"basedpyright", "pyright", "pylsp"}, settings: map[string]any{LanguageServerSetting: tt.server}})
+			var reg *fakeapi.ProviderRegistration
+			for _, p := range r.api.Providers() {
+				if p.Feature == "codeActions" {
+					reg = p
+				}
+			}
+			if reg == nil || !slices.Equal(reg.Selector.Languages, []string{"python"}) {
+				t.Fatalf("providers = %+v", r.api.Providers())
+			}
+			kinds, ok := reg.Provider.(extension.CodeActionKinds)
+			if !ok || !slices.Equal(kinds.CodeActionKinds(), []string{"source.organizeImports"}) {
+				t.Fatalf("the provider does not declare the kind: %T", reg.Provider)
+			}
+			acts, err := reg.Provider.(extension.CodeActionProvider).ProvideCodeActions(context.Background(), extension.TextDocument{}, extension.CodeActionRequest{Only: tt.only})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tt.want {
+				if len(acts) != 0 {
+					t.Errorf("actions = %+v", acts)
+				}
+				return
+			}
+			if len(acts) != 1 || acts[0].Title != "Organize Imports" || acts[0].Kind != "source.organizeImports" || acts[0].Command == nil || acts[0].Command.ID != OrganizeImportsCommand {
+				t.Errorf("actions = %+v", acts)
+			}
+		})
+	}
+}

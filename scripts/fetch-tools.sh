@@ -7,7 +7,7 @@
 #   gzbin <name> <version> <sha256 of the download> <url> <sha256 of the program>   gunzipped into /var/tmp/emetos-tools/bin/<name>
 #   file  <name> <version> <sha256 of the download> <url>                           kept as /var/tmp/emetos-tools/download/<name>-<version>
 #   venv  <name> <version> <sha256 of the file> <requirements file in the repository>  pip install --require-hashes into /var/tmp/emetos-tools/venv (python3 -m venv)
-#   npm   <name> <version> <integrity> <package>                                    npm install --prefix /var/tmp/emetos-tools/node --ignore-scripts
+#   npm   <name> <version> <integrity> <package> [<spec>]                           npm install --prefix /var/tmp/emetos-tools/node --ignore-scripts <package>@<version> (or <spec>)
 # A download whose sha256 differs from the pin is refused. A tool that is there already with the right sha256 is left alone; the
 # path of what was installed is printed. The tests of the packs skip when their program is not there (docs/IMPLEMENTATION.md "M24b").
 set -euo pipefail
@@ -74,7 +74,7 @@ for want in "$@"; do
           continue
         fi
         mkdir -p "$tools/node"
-        npm install --prefix "$tools/node" --ignore-scripts --no-audit --no-fund --save-exact -s "$url@$version" </dev/null
+        npm install --prefix "$tools/node" --ignore-scripts --no-audit --no-fund --save-exact -s "${extra:-$url@$version}" </dev/null
         have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"]["node_modules/"+sys.argv[2]]["version"]+" "+d["packages"]["node_modules/"+sys.argv[2]]["integrity"])' "$tools/node/package-lock.json" "$url")"
         [[ "$have" == "$version $sha" ]] || { echo "error: $name: the installed package does not match the pinned integrity" >&2; exit 1; }
         echo "$tools/node/node_modules/.bin"

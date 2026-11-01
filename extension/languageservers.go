@@ -164,6 +164,10 @@ type ServerLaunch struct {
 	// LanguageServerSpec.ConfigurationSection). It may be called from any goroutine. A change of what it answers is told to the
 	// server by restarting it.
 	Configuration func(section string) (json.RawMessage, bool)
+	// Settings, when not nil, are sent to the server with workspace/didChangeConfiguration right after the handshake, before the
+	// documents open (a server that takes its settings that way, such as typescript-language-server, finds them there). They must encode
+	// to JSON. A change of what they hold is told to the server by restarting it.
+	Settings any
 	// ClientExperimental is what the client tells the server about itself in the "experimental" member of its capabilities (rust-analyzer
 	// asks for experimental.serverStatusNotification to send experimental/serverStatus, and lists the commands the client runs in
 	// experimental.commands). The rest of the capabilities Emetos advertises is not changed; nil adds nothing. It must encode to JSON.

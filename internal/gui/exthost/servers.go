@@ -652,6 +652,7 @@ func (c *serverCtl) started(gen int, proc *lsp.Process, client *lsp.Client, err 
 	c.mu.Unlock()
 	c.hideStatus()
 	c.changed()
+	c.sendLaunchSettings(client)
 	for _, doc := range c.wanted {
 		c.attach(doc)
 	}
@@ -661,6 +662,25 @@ func (c *serverCtl) started(gen int, proc *lsp.Process, client *lsp.Client, err 
 		<-client.Done()
 		c.s.post(func() { c.exited(gen, client, proc) })
 	}()
+}
+
+// sendLaunchSettings tells the server the settings its launcher gave (ServerLaunch.Settings) with workspace/didChangeConfiguration, before
+// any document is opened on it.
+func (c *serverCtl) sendLaunchSettings(client *lsp.Client) {
+	c.mu.Lock()
+	settings := c.launched.Settings
+	c.mu.Unlock()
+	if settings == nil {
+		return
+	}
+	b, err := json.Marshal(settings)
+	if err != nil {
+		c.log.Warn("the settings of a language server cannot be encoded", "err", err)
+		return
+	}
+	if err := client.Notify(lsp.MethodDidChangeConfiguration, lsp.DidChangeConfigurationParams{Settings: b}); err != nil {
+		c.log.Debug("the settings were not sent", "err", err)
+	}
 }
 
 // exited is the end of the connection of a client: when the server did not ask for it, it crashed.

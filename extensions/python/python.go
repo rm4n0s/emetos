@@ -73,6 +73,9 @@ func (p *python) Activate(ctx context.Context, api extension.API) error {
 	if _, err := api.Events().Subscribe(extension.TopicEditorActiveChanged, p.editorEvent); err != nil {
 		return err
 	}
+	if _, err := api.Languages().RegisterCodeActionProvider(extension.DocumentSelector{Languages: []string{"python"}}, organizeImportsProvider{p}); err != nil {
+		return err
+	}
 	p.defaultPath, _ = extension.SettingValue[string](api.Settings(), DefaultInterpreterSetting)
 	api.Settings().OnChange(p.settingsChanged)
 	p.interps.Refresh()

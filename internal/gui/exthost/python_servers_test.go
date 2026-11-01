@@ -369,6 +369,19 @@ func checkTheFeatures(t *testing.T, s pyServer) {
 func checkOrganizeImports(t *testing.T, s pyServer) {
 	g := newPyRig(t, s, true)
 	doc := g.docs["unsorted.py"]
+	// the editor's Organize Imports (Shift+Alt+O) is enabled by the pack, because the server offers no action of the kind, and the action
+	// it gets runs the pack's command
+	reg := g.tb.scope.Features()
+	if !reg.SupportsCodeActionKind(g.langDoc("unsorted.py"), langfeatures.KindSourceOrganize) {
+		t.Errorf("Organize Imports is not enabled: kinds %v", reg.CodeActionKinds(g.langDoc("unsorted.py")))
+	}
+	kind := langfeatures.KindSourceOrganize
+	set, errs := reg.GetCodeActions(context.Background(), g.langDoc("unsorted.py"), langfeatures.CodeActionRequest{}, langfeatures.CodeActionTrigger{
+		Type: langfeatures.TriggerInvokedAction, Filter: langfeatures.CodeActionFilter{Include: &kind, IncludeSourceActions: true},
+	})
+	if len(errs) != 0 || len(set.Valid) != 1 || set.Valid[0].Command == nil || set.Valid[0].Command.ID != python.OrganizeImportsCommand {
+		t.Errorf("actions = %+v %v", set.Valid, errs)
+	}
 	var done bool
 	var told error
 	if err := g.api.LanguageServers().ExecuteCommand(context.Background(), python.ServerID, s.organize, []any{doc.URI().String()}, func(err error) { done, told = true, err }); err != nil {

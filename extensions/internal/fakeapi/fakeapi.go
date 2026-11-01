@@ -38,6 +38,7 @@ type API struct {
 	status            map[string]*StatusItem
 	notes             []Note
 	shown             []Shown
+	showErr           error
 	untitled          []Untitled
 	failUntitled      error
 	views             map[string]*View
@@ -721,9 +722,17 @@ func (a *API) FailUntitled(err error) {
 
 func (d documents) Show(uri string, line, column int, preview bool) error {
 	d.a.mu.Lock()
-	d.a.shown = append(d.a.shown, Shown{URI: uri, Line: line, Column: column, Preview: preview})
+	d.a.shown = append(d.a.shown, Shown{URI: uri, Line: line, Column: column, Preview: preview, ReturnedError: d.a.showErr})
+	err := d.a.showErr
 	d.a.mu.Unlock()
-	return nil
+	return err
+}
+
+// FailShow makes Documents().Show fail with err (nil makes it succeed again); the call is still recorded, with the error.
+func (a *API) FailShow(err error) {
+	a.mu.Lock()
+	a.showErr = err
+	a.mu.Unlock()
 }
 
 // ShownDocuments are the calls of Documents().Show.

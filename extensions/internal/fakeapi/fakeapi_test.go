@@ -197,6 +197,18 @@ func TestTheFakeDoesWhatTheHostDoes(t *testing.T) {
 	if s := a.ShownDocuments(); len(s) != 1 || s[0].Column != 2 {
 		t.Errorf("shown = %+v", s)
 	}
+	boom := errors.New("ShowFailed", "cannot open")
+	a.FailShow(boom)
+	if err := a.Documents().Show("file:///b", 1, 1, false); err != boom {
+		t.Errorf("Show = %v, want the error FailShow gave", err)
+	}
+	if s := a.ShownDocuments(); len(s) != 2 || s[1].ReturnedError != boom {
+		t.Errorf("shown = %+v", s)
+	}
+	a.FailShow(nil)
+	if err := a.Documents().Show("file:///c", 1, 1, false); err != nil {
+		t.Errorf("Show = %v", err)
+	}
 	uri, err := a.Documents().OpenUntitled("sql", "SELECT 1;")
 	if u := a.UntitledDocuments(); err != nil || len(u) != 1 || u[0].URI != uri || u[0].LanguageID != "sql" || u[0].Text != "SELECT 1;" {
 		t.Errorf("untitled = %+v, %v", u, err)

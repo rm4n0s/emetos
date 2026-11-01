@@ -281,3 +281,22 @@ func TestResolveAsksTheSiblingOfTheProgramForItsVersion(t *testing.T) {
 		t.Errorf("Resolve with no sibling = %+v, %v", l, err)
 	}
 }
+
+func TestACommandReplacesTheProgramTheHostRunsAndTheSettingsAreForwarded(t *testing.T) {
+	l := &Launch{
+		Found: Found{Path: "/opt/lib/node_modules/tsls/lib/cli.mjs"}, Command: "/usr/bin/node",
+		Args: []string{"/opt/lib/node_modules/tsls/lib/cli.mjs", "--stdio"}, Settings: map[string]any{"typescript": map[string]any{"format": map[string]any{"semicolons": "remove"}}},
+	}
+	sl := l.serverLaunch()
+	if sl.Program != "/usr/bin/node" || !slices.Equal(sl.Args, l.Args) {
+		t.Errorf("program %s %v", sl.Program, sl.Args)
+	}
+	if b, _ := json.Marshal(sl.Settings); string(b) != `{"typescript":{"format":{"semicolons":"remove"}}}` {
+		t.Errorf("settings = %s", b)
+	}
+	// without a Command the program that was found runs, and without Settings none are sent
+	plain := (&Launch{Found: Found{Path: "/usr/bin/tool"}}).serverLaunch()
+	if plain.Program != "/usr/bin/tool" || plain.Settings != nil {
+		t.Errorf("plain = %+v", plain)
+	}
+}

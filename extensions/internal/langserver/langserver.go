@@ -122,6 +122,9 @@ type Launch struct {
 	VersionErr error
 	// Root is the folder the server works on (ResolveRoot of the folder of the tab).
 	Root string
+	// Command, when it is not empty, is the program that is run instead of Found.Path, which then stays what the status item shows as the
+	// server (typescript-language-server is a script that node runs: Command is node and Args start with the script).
+	Command string
 	// Args and Env are the arguments and the extra environment variables of the program; Args start as Program.Args.
 	Args, Env []string
 	// InitializationOptions are sent in initialize (nil for none).
@@ -129,6 +132,9 @@ type Launch struct {
 	// Configuration are the answers to workspace/configuration, by section ("python": {...}); a section below one of them
 	// ("python.analysis") is answered from inside it. A section that is not in it is answered from the settings of the tab.
 	Configuration map[string]any
+	// Settings are sent to the server with workspace/didChangeConfiguration right after it initialized, before any document opens (nil
+	// sends nothing); typescript-language-server takes its per-language settings (format, inlay hints) only this way.
+	Settings any
 	// ClientExperimental is the "experimental" member of the client capabilities the server is initialized with (nil for none).
 	ClientExperimental map[string]any
 }
@@ -137,7 +143,10 @@ type Launch struct {
 func (l *Launch) serverLaunch() extension.ServerLaunch {
 	out := extension.ServerLaunch{
 		Program: l.Found.Path, Args: l.Args, Env: l.Env, Root: l.Root, InitializationOptions: l.InitializationOptions,
-		ClientExperimental: l.ClientExperimental,
+		ClientExperimental: l.ClientExperimental, Settings: l.Settings,
+	}
+	if l.Command != "" {
+		out.Program = l.Command
 	}
 	if len(l.Configuration) > 0 {
 		cfg := l.Configuration

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -283,6 +284,66 @@ func TestTheLauncherAnswersWorkspaceConfigurationBeforeTheSettings(t *testing.T)
 	}
 	if len(result) != 2 || string(result[0]) != `{"pythonPath":"/venv/bin/python"}` || string(result[1]) != `4` {
 		t.Errorf("result = %s", result)
+	}
+}
+
+func TestTheSettingsOfTheLauncherAreSentBeforeTheDocumentsOpen(t *testing.T) {
+	st := launcherTest(t, simple(), func(st *serverTest) extension.ServerLauncher {
+		return func(context.Context, extension.LaunchRequest) (extension.ServerLaunch, error) {
+			return extension.ServerLaunch{
+				Program: st.prog, Args: []string{"-script", st.script},
+				Settings: map[string]any{"typescript": map[string]any{"format": map[string]any{"semicolons": "remove"}}},
+			}, nil
+		}
+	})
+	tb := st.startTab("one")
+	st.goDoc(tb, "a.go", "package a\n")
+	st.waitRunning(tb)
+	var methods []string
+	var settings string
+	waitFor(t, tb, "the document to open", func() bool {
+		methods, settings = nil, ""
+		for _, m := range traffic(t, st.controller(tb)) {
+			if !m.FromClient {
+				continue
+			}
+			methods = append(methods, m.Method)
+			if m.Method == lsp.MethodDidChangeConfiguration {
+				settings = string(m.Body)
+			}
+		}
+		return slices.Contains(methods, lsp.MethodDidOpen)
+	})
+	changed, opened := slices.Index(methods, lsp.MethodDidChangeConfiguration), slices.Index(methods, lsp.MethodDidOpen)
+	if changed < 0 || changed > opened || slices.Index(methods, lsp.MethodInitialized) > changed {
+		t.Errorf("methods = %v: the settings come after initialized and before the first document", methods)
+	}
+	if !strings.Contains(settings, `"settings":{"typescript":{"format":{"semicolons":"remove"}}}`) {
+		t.Errorf("settings = %s", settings)
+	}
+}
+
+func TestALauncherWithoutSettingsSendsNone(t *testing.T) {
+	st := launcherTest(t, simple(), func(st *serverTest) extension.ServerLauncher {
+		return func(context.Context, extension.LaunchRequest) (extension.ServerLaunch, error) {
+			return extension.ServerLaunch{Program: st.prog, Args: []string{"-script", st.script}}, nil
+		}
+	})
+	tb := st.startTab("one")
+	st.goDoc(tb, "a.go", "package a\n")
+	st.waitRunning(tb)
+	waitFor(t, tb, "the document to open", func() bool {
+		for _, m := range traffic(t, st.controller(tb)) {
+			if m.FromClient && m.Method == lsp.MethodDidOpen {
+				return true
+			}
+		}
+		return false
+	})
+	for _, m := range traffic(t, st.controller(tb)) {
+		if m.FromClient && m.Method == lsp.MethodDidChangeConfiguration {
+			t.Errorf("the client sent settings nobody gave: %s", m.Body)
+		}
 	}
 }
 
