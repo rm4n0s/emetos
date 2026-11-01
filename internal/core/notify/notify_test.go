@@ -274,6 +274,36 @@ func TestUpdateProgress(t *testing.T) {
 	}
 }
 
+func TestUpdateMessage(t *testing.T) {
+	var buf bytes.Buffer
+	s, _ := newTestService(&buf)
+	id := s.Notify(Notification{Message: "Syncing", Progress: &Progress{Infinite: true}})
+	var events []Event
+	s.OnChange(func(e Event) { events = append(events, e) })
+	for _, tc := range []struct {
+		name, to, want string
+		events         int
+	}{
+		{"a new message", "Syncing: Receiving objects", "Syncing: Receiving objects", 1},
+		{"the same message", "Syncing: Receiving objects", "Syncing: Receiving objects", 0},
+		{"an empty message is ignored", "", "Syncing: Receiving objects", 0},
+	} {
+		before := len(events)
+		if !s.UpdateMessage(id, tc.to) {
+			t.Fatalf("%s: the item is gone", tc.name)
+		}
+		if item, _ := s.Get(id); item.Message != tc.want || len(events)-before != tc.events {
+			t.Errorf("%s: message %q, %d events", tc.name, item.Message, len(events)-before)
+		}
+	}
+	if len(events) > 0 && events[0].Kind != Updated {
+		t.Errorf("event %+v", events[0])
+	}
+	if s.UpdateMessage(99, "x") {
+		t.Error("no such item")
+	}
+}
+
 func TestClearAll(t *testing.T) {
 	var buf bytes.Buffer
 	s, _ := newTestService(&buf)

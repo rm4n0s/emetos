@@ -42,7 +42,6 @@ type commitUI struct {
 	templateKey string
 	// syncing and checkingOut say that a sync (or push or pull) and a checkout are running, which disables the Sync and Publish buttons
 	// and the branch item of the status bar. checkoutLabel is the ref the running checkout switches to, which the branch item shows.
-	// TODO(step 24.15): the remote commands set syncing.
 	syncing, checkingOut bool
 	checkoutLabel        string
 	// waiters run after the next status has been applied.
@@ -139,7 +138,13 @@ func (r *repository) setCommitting(v bool) {
 // endCommit ends the commit and starts the commands that waited for it, once the status shows what the commit did.
 func (r *repository) endCommit() {
 	r.setCommitting(false)
-	if len(r.commitQueue) == 0 {
+	r.releaseCommits()
+}
+
+// releaseCommits starts the commit commands that waited for the commit that ran, once the status shows what it did. The post-commit
+// command (a push or a sync, still running) holds them back until it ends, and setSyncing calls this again then.
+func (r *repository) releaseCommits() {
+	if len(r.commitQueue) == 0 || r.syncing {
 		return
 	}
 	r.whenFresh(func() {

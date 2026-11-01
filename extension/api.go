@@ -262,6 +262,30 @@ type Notifications interface {
 	Warn(message string, actions ...NotificationAction)
 	// Error shows an error.
 	Error(message string, actions ...NotificationAction)
+	// Progress shows a notification with a progress bar for work that takes a while (a clone, a sync that the user may cancel). It
+	// stays until the returned handle's Done is called; a host that cannot show notifications (or the end of the activation) gives a
+	// handle that does nothing, so the work goes on without a bar.
+	Progress(opts ProgressOptions) NotificationProgress
+}
+
+// ProgressOptions describe a notification with a progress bar.
+type ProgressOptions struct {
+	// Title is the text of the notification; Report adds its message after it ("Cloning: Receiving objects").
+	Title string
+	// Cancellable adds a Cancel button. Pressing it calls OnCancel, on the UI thread, and the notification goes away at once; the work
+	// stops when the extension acts on OnCancel.
+	Cancellable bool
+	// OnCancel is called when the Cancel button is pressed; it may be nil.
+	OnCancel func()
+}
+
+// NotificationProgress is the handle of a notification with a progress bar.
+type NotificationProgress interface {
+	// Report says what the work is doing now and how far it is: percent is 0 to 100 of the whole, or negative when the amount is not
+	// known (the bar then has no end). An empty message keeps the last one. It does nothing after Done.
+	Report(message string, percent float64)
+	// Done ends the work: the notification goes away. Calling it again does nothing.
+	Done()
 }
 
 // StatusAlignment is the side of the status bar an item is on.

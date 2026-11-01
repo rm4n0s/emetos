@@ -60,6 +60,10 @@ type repository struct {
 	busyStop func()
 	busy     bool
 
+	// opBusy counts the remote commands that show the progress bar of the repository (git.showProgress); af is its autofetch (autofetch.go).
+	opBusy int
+	af     *autofetcher
+
 	// own counts the commands of Emetos itself that are running: the changes they cause are not told by the watcher, the command
 	// refreshes when it ends (SPEC §10.30 "Refresh").
 	own int
@@ -184,6 +188,7 @@ func (r *repository) opened(repo *git.Repo, err error) {
 	r.addQuickDiff()
 	r.initCommitUI()
 	r.readRemotes()
+	r.startAutofetch()
 	r.m.opened(r)
 	x.ensureTimeline()
 	r.refresh()
@@ -197,8 +202,13 @@ func (r *repository) readRemotes() {
 		r.m.x.log.Debug("cannot read the configuration of a repository", "root", r.root, "err", err)
 		return
 	}
+	r.setRemotes(git.RemotesFromConfig(entries))
+}
+
+// setRemotes takes the remotes of the configuration, tells the repository cache what changed and shows it in the sync item.
+func (r *repository) setRemotes(remotes []git.Remote) {
 	old := r.remotes
-	r.remotes = git.RemotesFromConfig(entries)
+	r.remotes = remotes
 	if r.m.x.cache != nil {
 		r.m.x.cache.update(addedRemotes(old, r.remotes), addedRemotes(r.remotes, old), r.root)
 	}
@@ -227,6 +237,7 @@ func addedRemotes(prev, next []git.Remote) []git.Remote {
 // go. The repository stays in the view as an untrusted one.
 func (r *repository) untrust() {
 	r.stopWatching()
+	r.stopAutofetch()
 	r.cancel()
 	r.ctx, r.cancel = context.WithCancel(r.m.x.ctx)
 	r.gen++
@@ -234,6 +245,7 @@ func (r *repository) untrust() {
 	r.timelineGone()
 	r.trusted, r.repo, r.refreshing, r.again, r.refreshed = false, nil, false, false, false
 	r.committing, r.commitQueue, r.waiters, r.templateKey = false, nil, nil, ""
+	r.syncing, r.opBusy = false, 0
 	r.rebaseCommit, r.rebaseMessage = "", ""
 	r.res, r.head, r.refs, r.ops = groups{}, head{}, nil, operations{}
 	r.setBusy(false)
@@ -250,6 +262,7 @@ func (r *repository) dispose() {
 		return
 	}
 	r.disposed = true
+	r.stopAutofetch()
 	r.m.x.content.repos.remove(r.id)
 	r.timelineGone()
 	r.multiGone()
@@ -283,6 +296,10 @@ type snapshot struct {
 	submodules []string
 	// timings are the times of the parts of the refresh, for the measurements.
 	timings Timings
+	// remotes are the remotes of the configuration, read with the status (a remote added in a terminal changes the sync item); remotesRead
+	// says that they were read.
+	remotes     []git.Remote
+	remotesRead bool
 	// template is the text the commit box starts with, read when templateKey is not the one the last status read it for.
 	template, templateKey string
 	templateRead          bool
@@ -317,7 +334,7 @@ func (r *repository) refresh() {
 	repo, opts := r.repo, x.cfg.statusOptions()
 	gitDir, commonDir := repo.Info.GitDir, repo.Info.CommonDir
 	ctx, gen := r.ctx, r.gen
-	root, mode, kind, decorate := r.root, x.cfg.untrackedChanges, r.kind(), x.cfg.decorationsEnabled
+	root, mode, kind, decorate, loc := r.root, x.cfg.untrackedChanges, r.kind(), x.cfg.decorationsEnabled, r.loc
 	prevDecos, prevGen := r.decorationState()
 	prevKey, home, prevRebase := r.templateKey, x.home, r.rebaseCommit
 	go func() {
@@ -334,6 +351,9 @@ func (r *repository) refresh() {
 			}
 		}
 		snap.gen = gen
+		if entries, err := git.ReadLocalConfig(loc); err == nil {
+			snap.remotes, snap.remotesRead = git.RemotesFromConfig(entries), true
+		}
 		x.api.Post(func() { r.applySnapshot(snap) })
 	}()
 }
@@ -413,6 +433,9 @@ func (r *repository) applySnapshot(snap snapshot) {
 	x := r.m.x
 	headBefore := r.head.commit
 	r.head, r.refs, r.stashes, r.ops, r.fresh = snap.head, snap.refs, snap.stashes, snap.ops, snap.fresh
+	if snap.remotesRead {
+		r.setRemotes(snap.remotes)
+	}
 	r.lastStatus = snap.status.Entries
 	if snap.status.HitLimit {
 		r.hugeLimit = x.cfg.statusLimit
@@ -516,7 +539,9 @@ func (r *repository) setBusy(busy bool) {
 	}
 	if r.busy {
 		r.busy = false
-		r.src.SetBusy(false)
+		if r.opBusy == 0 {
+			r.src.SetBusy(false)
+		}
 	}
 }
 
@@ -588,7 +613,7 @@ func (r *repository) remoteNamed(name string) *git.Remote {
 	return nil
 }
 
-// updateStatusBar sets the items of the branch and of the sync (the sync item is display only until step 24.15).
+// updateStatusBar sets the items of the branch and of the sync.
 //
 // Ported from VS Code: extensions/git/src/statusbar.ts
 func (r *repository) updateStatusBar() {
@@ -666,15 +691,28 @@ func (r *repository) syncItem(args []any) (extension.StatusCommand, bool) {
 	}
 	h := r.head
 	onBranch := h.name != "" && h.commit != ""
+	var item extension.StatusCommand
 	switch {
 	case len(r.remotes) == 0 && !onBranch:
 		return extension.StatusCommand{}, false
 	case !onBranch:
-		return extension.StatusCommand{Text: "$(sync)", Args: args}, true
+		item = extension.StatusCommand{Text: "$(sync)", Args: args}
 	case len(r.remotes) == 0 || h.upstream == nil:
-		return extension.StatusCommand{Text: "$(cloud-upload)", Tooltip: "Publish Branch", Command: "git.publish", Args: args}, true
+		item = extension.StatusCommand{Text: "$(cloud-upload)", Tooltip: "Publish Branch", Command: "git.publish", Args: args}
+	default:
+		item = extension.StatusCommand{Text: strings.TrimSpace("$(sync) " + r.syncLabel()), Tooltip: r.syncTooltip(), Command: "git.sync", Args: args}
 	}
-	return extension.StatusCommand{Text: strings.TrimSpace("$(sync) " + r.syncLabel()), Tooltip: r.syncTooltip(), Command: "git.sync", Args: args}, true
+	// a checkout, a commit and a sync that run take the click away and say so; the sync also spins
+	switch {
+	case r.syncing:
+		label := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(item.Text, "$(sync)"), "$(cloud-upload)"))
+		item.Text, item.Command, item.Tooltip = strings.TrimSpace("$(sync~spin) "+label), "", "Synchronizing Changes..."
+	case r.committing:
+		item.Command, item.Tooltip = "", "Committing Changes..."
+	case r.checkingOut:
+		item.Command, item.Tooltip = "", "Checking Out Changes..."
+	}
+	return item, true
 }
 
 // optimisticStage moves the resources with these paths from Changes, Untracked Changes and Merge Changes to Staged Changes before the

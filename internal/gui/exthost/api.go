@@ -260,6 +260,70 @@ func (n notificationsAPI) Error(message string, actions ...extension.Notificatio
 	n.show(notify.Error, message, actions)
 }
 
+// Progress implements extension.Notifications: a notification whose bar has no end until Report says how far the work is. A scope with
+// no notifications, or an activation that ended, gets a handle that does nothing.
+func (n notificationsAPI) Progress(opts extension.ProgressOptions) extension.NotificationProgress {
+	in := n.inst
+	if in.isDead() || in.scope.opts.Notify == nil {
+		return noProgress{}
+	}
+	p := &progressHandle{in: in, svc: in.scope.opts.Notify, title: opts.Title}
+	note := notify.Notification{Severity: notify.Info, Source: in.name, Message: opts.Title, Progress: &notify.Progress{Infinite: true}}
+	if opts.Cancellable {
+		onCancel := opts.OnCancel
+		note.Actions = []notify.Action{{Label: "Cancel", Run: func() {
+			if onCancel != nil {
+				in.scope.runNotificationAction(in, "Cancel", onCancel)
+			}
+		}}}
+	}
+	p.id = p.svc.Notify(note)
+	return p
+}
+
+// noProgress is the handle of a progress that is not shown.
+type noProgress struct{}
+
+// Report implements extension.NotificationProgress.
+func (noProgress) Report(string, float64) {}
+
+// Done implements extension.NotificationProgress.
+func (noProgress) Done() {}
+
+// progressHandle is the handle of a notification with a progress bar.
+type progressHandle struct {
+	in    *instance
+	svc   *notify.Service
+	id    uint64
+	title string
+	done  bool
+}
+
+// Report implements extension.NotificationProgress.
+func (p *progressHandle) Report(message string, percent float64) {
+	if p.done || p.in.isDead() {
+		return
+	}
+	if message != "" {
+		p.svc.UpdateMessage(p.id, p.title+": "+message)
+	}
+	if percent < 0 {
+		p.svc.UpdateProgress(p.id, notify.Progress{Infinite: true})
+		return
+	}
+	p.svc.UpdateProgress(p.id, notify.Progress{Total: 100, Worked: min(percent, 100)})
+}
+
+// Done implements extension.NotificationProgress.
+func (p *progressHandle) Done() {
+	if p.done {
+		return
+	}
+	p.done = true
+	p.svc.UpdateProgress(p.id, notify.Progress{Done: true})
+	p.svc.Dismiss(p.id)
+}
+
 // show sends a notification with the name of the extension as its source; it does nothing after the activation ended.
 func (n notificationsAPI) show(severity notify.Severity, message string, actions []extension.NotificationAction) {
 	in := n.inst

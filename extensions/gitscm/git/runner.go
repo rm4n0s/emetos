@@ -124,6 +124,9 @@ type Command struct {
 	// AllowExit lists the exit statuses, besides 0, that are not failures for this command (1 for "git diff --quiet",
 	// "check-ignore", "merge-base").
 	AllowExit []int
+	// Progress, when set, receives the progress lines git prints on its error output (the command must be given --progress): they are
+	// taken out of the error output, which keeps git's messages. It is called from a goroutine of the Runner.
+	Progress func(Progress)
 }
 
 // Result is what a command left.
@@ -195,6 +198,11 @@ func (r *Runner) execute(ctx context.Context, c Command, consume func(io.Reader)
 	}
 	stderr := &tailBuffer{max: stderrClassified}
 	xc.Stderr = stderr
+	var progress *progressWriter
+	if c.Progress != nil {
+		progress = &progressWriter{next: stderr, progress: c.Progress}
+		xc.Stderr = progress
+	}
 	var out *limitBuffer
 	var pipe io.ReadCloser
 	if consume == nil {
@@ -233,6 +241,9 @@ func (r *Runner) execute(ctx context.Context, c Command, consume func(io.Reader)
 		_, _ = io.Copy(io.Discard, pipe)
 	}
 	waitErr := xc.Wait()
+	if progress != nil {
+		progress.flush()
+	}
 	if escalate != nil {
 		escalate.Stop()
 	}

@@ -211,5 +211,6 @@ func (r *repository) endOwn() {
 	}
 	if r.own == 0 {
 		r.refresh()
+		r.pokeAutofetch()
 	}
 }

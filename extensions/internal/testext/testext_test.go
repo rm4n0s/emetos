@@ -56,6 +56,14 @@ type recNotes struct{ r *recorder }
 func (n recNotes) Info(m string, _ ...extension.NotificationAction) { n.r.notes = append(n.r.notes, m) }
 func (n recNotes) Warn(string, ...extension.NotificationAction)     {}
 func (n recNotes) Error(string, ...extension.NotificationAction)    {}
+func (n recNotes) Progress(extension.ProgressOptions) extension.NotificationProgress {
+	return recProgress{}
+}
+
+type recProgress struct{}
+
+func (recProgress) Report(string, float64) {}
+func (recProgress) Done()                  {}
 
 type recBar struct{ r *recorder }
 

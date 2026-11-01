@@ -44,6 +44,8 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 		}
 	}
 	x.stateDir = stateDir
+	x.state = newStateStore(stateDir)
+	x.focused = true
 	store, err := trust.Open(trust.Path(stateDir))
 	if err != nil {
 		// the file is ignored and the question is asked: one warning (SPEC §10.30)
@@ -193,6 +195,7 @@ func (x *gitscm) settingsChanged() {
 	x.cfg.load(x.api)
 	x.syncHelperSettings()
 	x.loadTimelineSettings()
+	x.autofetchSettingChanged()
 	switch {
 	case old.enabled && !x.cfg.enabled:
 		for _, r := range append([]*repository(nil), x.model.order...) {
@@ -252,11 +255,18 @@ func (x *gitscm) settingsChanged() {
 // onFocus refreshes the repositories when the window gets the focus again (SPEC §10.30 "Refresh").
 func (x *gitscm) onFocus(ev extension.Event) {
 	var f extension.WindowFocus
-	if err := jsonUnmarshal(ev.Data, &f); err != nil || !f.Focused || !x.cfg.autorefresh {
+	if err := jsonUnmarshal(ev.Data, &f); err != nil {
+		return
+	}
+	x.focused = f.Focused
+	if !f.Focused {
 		return
 	}
 	for _, r := range x.model.order {
-		r.scheduleRefresh()
+		if x.cfg.autorefresh {
+			r.scheduleRefresh()
+		}
+		r.pokeAutofetch() // a fetch that was due waits for the window to have the focus
 	}
 }
 

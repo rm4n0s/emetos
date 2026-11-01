@@ -688,6 +688,21 @@ func TestGoldenNotifications(t *testing.T) {
 			testutil.MatchesGolden(n.ts, "notifications_center_"+th.name)
 			noErrors(t, n.harness)
 		})
+		t.Run(th.name+" progress with Cancel", func(t *testing.T) {
+			// a notification an extension shows for work the user may cancel (extension.Notifications.Progress): the title and what the
+			// work does now, the Cancel button, and the bar along the bottom at 40 percent
+			n := newNotifyHarness(t, th.colors(), nil)
+			id := n.svc.Notify(notify.Notification{
+				Message: "Syncing. Cancelling may cause serious damages to the repository", Source: "Git",
+				Actions:  []notify.Action{{Label: "Cancel"}},
+				Progress: &notify.Progress{Infinite: true},
+			})
+			n.svc.UpdateMessage(id, "Syncing. Cancelling may cause serious damages to the repository: Receiving objects")
+			n.svc.UpdateProgress(id, notify.Progress{Total: 100, Worked: 40})
+			n.settle()
+			testutil.MatchesGolden(n.ts, "notifications_progress_cancel_"+th.name)
+			noErrors(t, n.harness)
+		})
 		t.Run(th.name+" empty center", func(t *testing.T) {
 			n := newNotifyHarness(t, th.colors(), nil)
 			n.run("notifications.showList")

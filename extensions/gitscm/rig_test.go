@@ -102,6 +102,9 @@ type rigOptions struct {
 	extraEnv []string
 	// logger is the logger the extension is given; the default one of the fake when nil.
 	logger *slog.Logger
+	// autofetchQuestion leaves the question about autofetch unanswered; the rigs of the other tests start with it answered, so that the first
+	// remote command of a test does not add a notification the test did not expect.
+	autofetchQuestion bool
 	// dropEnv names variables of the world that git must not have (GIT_SEQUENCE_EDITOR, which the harness sets to true).
 	dropEnv []string
 }
@@ -117,6 +120,17 @@ func newRig(t *testing.T, env *gittest.Env, o rigOptions) *rig {
 		o.home = env.Home
 	}
 	clock := &fakeClock{}
+	if !o.autofetchQuestion {
+		stateDir := filepath.Join(env.StateHome, "emetos")
+		if err := os.MkdirAll(stateDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(stateDir, stateFile)); err != nil {
+			if err := os.WriteFile(filepath.Join(stateDir, stateFile), []byte(`{"autofetchInformed":true}`+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 	runtime, err := os.MkdirTemp("", "gr") // short: a Unix socket path is limited to about 100 bytes
 	if err != nil {
 		t.Fatal(err)

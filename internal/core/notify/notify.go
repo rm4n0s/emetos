@@ -354,6 +354,18 @@ func (s *Service) UpdateProgress(id uint64, p Progress) bool {
 	})
 }
 
+// UpdateMessage replaces the message of an item, as the line of a progress that says what it is doing does (VS Code's
+// INotificationHandle.updateMessage), and reports whether the item was there. An empty message is ignored.
+func (s *Service) UpdateMessage(id uint64, message string) bool {
+	return s.update(id, func(it *Item) bool {
+		if message == "" || it.Message == message {
+			return false
+		}
+		it.Message = message
+		return true
+	})
+}
+
 // SetExpanded expands or collapses an item, and reports whether it changed. An item with buttons
 // cannot be collapsed (see Item.CanCollapse), so it stays as it is.
 func (s *Service) SetExpanded(id uint64, expanded bool) bool {

@@ -57,6 +57,36 @@ func TestGoldenRepositories(t *testing.T) {
 	}
 }
 
+// TestGoldenSyncItem looks at the sync item of the repository header in the states the Git extension gives it (step 24.15): in step,
+// behind and ahead, a branch to publish, a sync that runs (the spinning icon, no click), and the progress bar of the repository.
+func TestGoldenSyncItem(t *testing.T) {
+	states := []struct {
+		name string
+		item scmcore.StatusCommand
+		busy bool
+	}{
+		{"in-step", scmcore.StatusCommand{Text: "$(sync)", Tooltip: "Synchronize Changes", Command: "git.sync"}, false},
+		{"behind-and-ahead", scmcore.StatusCommand{Text: "$(sync) 2↓ 1↑", Tooltip: "Pull 2 and push 1 commits between origin/main", Command: "git.sync"}, false},
+		{"publish", scmcore.StatusCommand{Text: "$(cloud-upload)", Tooltip: "Publish Branch", Command: "git.publish"}, false},
+		{"running", scmcore.StatusCommand{Text: "$(sync~spin) 2↓ 1↑", Tooltip: "Synchronizing Changes..."}, true},
+	}
+	for _, th := range goldenThemes {
+		t.Run(th.name, func(t *testing.T) {
+			r := newRig(t)
+			for _, st := range states {
+				src := r.addRepo(st.name, group{"workingTree", "Changes", []change{{"a.go", "M", "Modified", colModified, false}}})
+				src.SetStatusBarCommands([]scmcore.StatusCommand{
+					{Text: "$(git-branch) main", Tooltip: "main, Checkout Branch/Tag...", Command: "git.checkout"}, st.item,
+				})
+				src.SetBusy(st.busy)
+			}
+			r.show(th.colors, ui.Size{Width: 360, Height: 330})
+			testutil.MatchesGolden(r.ts, "sync_item_"+th.name)
+			r.noErrors()
+		})
+	}
+}
+
 // TestGoldenRowStates looks at a row under the pointer (its inline actions), a selected row, the group header with its buttons, and
 // the buttons of every row with scm.alwaysShowActions.
 func TestGoldenRowStates(t *testing.T) {

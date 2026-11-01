@@ -105,6 +105,14 @@ func (x *gitscm) commandFailed(what string, r *repository, err error, retry func
 		x.api.Notifications().Error(message, actions...)
 		return
 	}
+	if isApp {
+		switch appErr.Tag {
+		case "PermissionDenied", "RemoteConnectionError", "CantAccessRemote", "RepositoryNotFound", "NoRemoteRepositorySpecified":
+			// the first line git printed says why ("user@host: Permission denied (publickey)."), the last only that the remote could not be
+			// read: VS Code shows the first line of the error output of a command it has no message for
+			text = firstStderrLine(err, text)
+		}
+	}
 	x.api.Notifications().Error("Git: "+text, showOutput)
 }
 

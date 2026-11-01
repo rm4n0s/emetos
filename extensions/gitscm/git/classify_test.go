@@ -164,6 +164,14 @@ var provocations = []provocation{
 		r.Commit("diverged")
 		return in(r, "push")
 	}},
+	{tag: "RemoteRejected", real: func(t *testing.T, e *gittest.Env) Command {
+		r := base(e)
+		bare := r.AddRemote("origin")
+		bare.Hook("pre-receive", "#!/bin/sh\necho 'protected branch: main cannot be updated' >&2\nexit 1\n")
+		r.Write("y.txt", "y\n")
+		r.Commit("more")
+		return in(r, "push", "origin", "main")
+	}},
 	{tag: "NoUpstreamBranch", real: func(t *testing.T, e *gittest.Env) Command {
 		r := base(e)
 		r.AddRemote("origin")
@@ -268,6 +276,13 @@ var provocations = []provocation{
 	fixed("CherryPickConflict", "cherry-pick", "Auto-merging a.txt\nCONFLICT (content): Merge conflict in a.txt\n", "error: could not apply 5b1618f... topic\n", "cherry-pick", "x"),
 	fixed("UnmergedChanges", "rebase", "a.txt: needs merge\nYou must edit all merge conflicts and then\nmark them as resolved using git add\n", "", "rebase", "--continue"),
 	fixed("DirtyWorkTree", "rebase", "", "error: cannot rebase: You have unstaged changes.\nerror: Please commit or stash them.\n", "rebase", "x"),
+	fixed("ForcePushWithLeaseRejected", "push", "", "To /srv/x.git\n ! [rejected]        main -> main (stale info)\nerror: failed to push some refs to '/srv/x.git'\n", "push", "--force-with-lease", "--", "origin", "main:main"),
+	fixed("ForcePushWithLeaseRejected", "push", "", " ! [rejected]        main -> main (stale info)\nerror: failed to push some refs to '/srv/x.git'\n", "push", "--force-with-lease=refs/heads/main:abc", "origin"),
+	fixed("ForcePushWithLeaseIfIncludesRejected", "push", "", " ! [rejected]        main -> main (remote ref updated since checkout)\nerror: failed to push some refs to '/srv/x.git'\n", "push", "--force-with-lease", "--force-if-includes", "--", "origin", "main:main"),
+	fixed("PushRejected", "push", "", " ! [rejected]        main -> main (stale info)\nerror: failed to push some refs to '/srv/x.git'\n", "push", "--", "origin", "main:main"), // no lease asked: a plain rejection
+	fixed("PushRejected", "push", "", " ! [rejected]        main -> main (fetch first)\n ! [remote rejected] topic -> topic (pre-receive hook declined)\nerror: failed to push some refs to '/srv/x.git'\n", "push", "--all"),
+	fixed("RemoteRejected", "push", "", "remote: error: GH006: Protected branch update failed for refs/heads/main.\nTo https://example.com/a/b.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs to 'https://example.com/a/b.git'\n", "push"),
+	fixed("BranchFastForwardRejected", "fetch", "", "From /srv/x\n ! [rejected]        main       -> topic      (non-fast-forward)\n", "fetch", "--", "origin", "main:topic"),
 	fixed("NoLocalChanges", "stash", "", "No local changes to save\n", "stash", "push"), // not an exit status: see TestStashPushWithNothingToStash
 }
 
@@ -324,7 +339,8 @@ func TestEveryFailureIsClassifiedUnderItsOwnTag(t *testing.T) {
 		"PermissionDenied", "CantAccessRemote", "RepositoryNotFound", "RepositoryIsLocked", "BranchNotFullyMerged", "NoRemoteReference",
 		"InvalidBranchName", "BranchAlreadyExists", "NoLocalChanges", "NoStashFound", "LocalChangesOverwritten", "NoUpstreamBranch", "IsInSubmodule",
 		"WrongCase", "CantLockRef", "CantRebaseMultipleBranches", "PatchDoesNotApply", "NoPathFound", "EmptyCommitMessage", "BranchNotYetBorn",
-		"TagConflict", "UnsafeRepository", "CherryPickConflict", "CherryPickEmpty",
+		"TagConflict", "UnsafeRepository", "CherryPickConflict", "CherryPickEmpty", "ForcePushWithLeaseRejected", "ForcePushWithLeaseIfIncludesRejected",
+		"RemoteRejected", "BranchFastForwardRejected",
 	} {
 		if !seen[tag] {
 			t.Errorf("the tag %s has no case", tag)

@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
+	"github.com/rm4n0s/emetos/internal/core/notify"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
@@ -340,6 +341,61 @@ func TestNotificationsHaveTheNameOfTheExtensionAsSource(t *testing.T) {
 	items[0].Actions[0].Run()
 	if ran != 1 {
 		t.Errorf("the action ran %d times", ran)
+	}
+}
+
+func TestAProgressNotificationShowsTheWorkAndCanBeCancelled(t *testing.T) {
+	api, _, tb := withAPI(t, "emetos.pg")
+	cancelled := 0
+	p := api.Notifications().Progress(extension.ProgressOptions{Title: "Syncing", Cancellable: true, OnCancel: func() { cancelled++ }})
+	items := tb.notify.Items()
+	if len(items) != 1 || items[0].Message != "Syncing" || items[0].Source != "Ext emetos.pg" || items[0].Progress == nil || !items[0].Progress.Infinite {
+		t.Fatalf("items %+v", items)
+	}
+	if len(items[0].Actions) != 1 || items[0].Actions[0].Label != "Cancel" {
+		t.Fatalf("actions %+v", items[0].Actions)
+	}
+	id := items[0].ID
+	steps := []struct {
+		message string
+		percent float64
+		want    notify.Progress
+		text    string
+	}{
+		{"Receiving objects", 40, notify.Progress{Total: 100, Worked: 40}, "Syncing: Receiving objects"},
+		{"", 55, notify.Progress{Total: 100, Worked: 55}, "Syncing: Receiving objects"}, // an empty message keeps the last one
+		{"Resolving deltas", 250, notify.Progress{Total: 100, Worked: 100}, "Syncing: Resolving deltas"},
+		{"Waiting", -1, notify.Progress{Infinite: true}, "Syncing: Waiting"},
+	}
+	for _, st := range steps {
+		p.Report(st.message, st.percent)
+		it, ok := tb.notify.Get(id)
+		if !ok || *it.Progress != st.want || it.Message != st.text {
+			t.Errorf("after Report(%q, %v): %+v", st.message, st.percent, it)
+		}
+	}
+	// the Cancel button runs OnCancel and the notification goes away
+	tb.notify.RunAction(id, 0, nil)
+	if cancelled != 1 {
+		t.Errorf("OnCancel ran %d times", cancelled)
+	}
+	if _, ok := tb.notify.Get(id); ok {
+		t.Error("the notification stays after Cancel")
+	}
+	p.Report("late", 10) // after the notification went: nothing breaks
+	p.Done()
+	p.Done()
+
+	// Done ends the notification
+	q := api.Notifications().Progress(extension.ProgressOptions{Title: "Cloning"})
+	items = tb.notify.Items()
+	if len(items) != 1 || len(items[0].Actions) != 0 {
+		t.Fatalf("items %+v", items)
+	}
+	q.Done()
+	q.Report("late", 50)
+	if len(tb.notify.Items()) != 0 {
+		t.Errorf("items after Done: %+v", tb.notify.Items())
 	}
 }
 

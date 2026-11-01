@@ -184,18 +184,3 @@ func (x *gitscm) pickRemoteTag(r *repository, remote, name string) {
 		})
 	}()
 }
-
-func (x *gitscm) cmdPushTags(_ context.Context, args any) error {
-	x.target(args, true, func(r *repository) {
-		if len(r.pushRemotes()) == 0 {
-			x.api.Notifications().Warn("Your repository has no remotes configured to push to.")
-			return
-		}
-		remote := r.head.remote // the remote of the branch's upstream; git picks origin when there is none
-		r.mutate(mutation{
-			name: "push tags",
-			run:  func(ctx context.Context, repo *git.Repo) error { return repo.PushTags(ctx, remote) },
-		})
-	})
-	return nil
-}

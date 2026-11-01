@@ -45,6 +45,11 @@ var (
 	reTagClobber        = regexp.MustCompile(`(?m)! \[rejected\].*\(would clobber existing tag\)`)
 	rePushRejected      = regexp.MustCompile(`(?m)^error: failed to push some refs to\b`)
 	rePermissionDenied  = regexp.MustCompile(`Permission.*denied`)
+	reLocalRejected     = regexp.MustCompile(`(?m)^ ! \[rejected\]`)
+	reRemoteRejected    = regexp.MustCompile(`(?m)^ ! \[remote rejected\]`)
+	reStaleInfo         = regexp.MustCompile(`(?m)! \[rejected\].*\(stale info\)`)
+	reRemoteUpdated     = regexp.MustCompile(`(?m)! \[rejected\].*\(remote ref updated since checkout\)`)
+	reFetchNonFF        = regexp.MustCompile(`(?m)! \[rejected\].*\(non-fast-forward\)`)
 	reNoUpstream        = regexp.MustCompile(`(?m)^fatal: The current branch .* has no upstream branch`)
 	reNoStash           = regexp.MustCompile(`No stash (?:found|entries found)|is not a valid reference`)
 	reLocalChanges      = regexp.MustCompile(`error: Your local changes to the following files would be overwritten`)
@@ -102,6 +107,10 @@ func classify(name string, args []string, exit int, stdout, stderr string) error
 		if reRemoteConnection.MatchString(stderr) && !reRepoNotFound.MatchString(stderr) && !reCantAccessRemote.MatchString(stderr) && !reAuthFailed.MatchString(stderr) {
 			return errors.New("RemoteConnectionError", msg, "args", a, "exitCode", exit, "stderr", tail)
 		}
+		// the local branch has commits of its own and cannot be fast-forwarded to the remote's (fetch origin main:main)
+		if reFetchNonFF.MatchString(stderr) {
+			return errors.New("BranchFastForwardRejected", msg, "args", a, "exitCode", exit, "stderr", tail)
+		}
 	case "pull":
 		switch {
 		case rePullConflict.MatchString(stdout):
@@ -146,7 +155,18 @@ func classify(name string, args []string, exit int, stdout, stderr string) error
 		}
 	case "push":
 		switch {
+		case reRemoteRejected.MatchString(stderr) && !reLocalRejected.MatchString(stderr):
+			// the server refused the update (a protected branch, a hook, a permission): it says why in the lines that start with "remote:",
+			// and pulling does not help
+			return errors.New("RemoteRejected", msg, "args", a, "exitCode", exit, "stderr", tail)
 		case rePushRejected.MatchString(stderr):
+			// a push that was asked to take the remote's state into account says which of its two checks refused it
+			switch {
+			case hasArg(args, "--force-with-lease") && reStaleInfo.MatchString(stderr):
+				return errors.New("ForcePushWithLeaseRejected", msg, "args", a, "exitCode", exit, "stderr", tail)
+			case hasArg(args, "--force-if-includes") && reRemoteUpdated.MatchString(stderr):
+				return errors.New("ForcePushWithLeaseIfIncludesRejected", msg, "args", a, "exitCode", exit, "stderr", tail)
+			}
 			return errors.New("PushRejected", msg, "args", a, "exitCode", exit, "stderr", tail)
 		case rePermissionDenied.MatchString(stderr):
 			return errors.New("PermissionDenied", msg, "args", a, "exitCode", exit, "stderr", tail)
@@ -254,4 +274,14 @@ func failureMessage(name string, exit int, stderr string) string {
 		msg += ": " + MaskURLs(last)
 	}
 	return msg
+}
+
+// hasArg says that a command line has the option, also in the form "--force-with-lease=refs/heads/main:abc".
+func hasArg(args []string, option string) bool {
+	for _, a := range args {
+		if a == option || strings.HasPrefix(a, option+"=") {
+			return true
+		}
+	}
+	return false
 }

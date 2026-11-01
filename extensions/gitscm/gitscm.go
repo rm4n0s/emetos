@@ -113,6 +113,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, timelineMenus()...)
 	menus = append(menus, commitMenus()...)
 	menus = append(menus, branchMenus()...)
+	menus = append(menus, remoteMenus()...)
 	menus = append(menus, mergeMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
@@ -129,7 +130,7 @@ func (*gitscm) Manifest() extension.Manifest {
 			Menus:       menus,
 			Keybindings: lineKeybindings(),
 			Submenus: []extension.SubmenuSpec{{ID: stashSubmenu, Label: "Stash"}, {ID: commitSubmenu, Label: "Commit"}, {ID: branchSubmenu, Label: "Branch"},
-				{ID: tagsSubmenu, Label: "Tags"}},
+				{ID: tagsSubmenu, Label: "Tags"}, {ID: pullPushSubmenu, Label: "Pull, Push"}, {ID: remotesSubmenu, Label: "Remote"}},
 			Settings:    settingSpecs,
 			ContextKeys: contextKeys,
 			ViewWelcome: welcomePieces(),
@@ -178,6 +179,12 @@ type gitscm struct {
 	missing bool
 	started bool
 	stopped atomic.Bool
+
+	// state is what the profile remembers (git-state.json); focused says whether the window has the keyboard focus (the autofetch waits for
+	// it); autofetchAsked says that the question about autofetch was considered in this window.
+	state          *stateStore
+	focused        bool
+	autofetchAsked bool
 
 	// handlers are the handlers of the commands, by id.
 	handlers map[string]extension.CommandHandler

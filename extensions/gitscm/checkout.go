@@ -32,8 +32,8 @@ type checkoutJob struct {
 	// dirtyFlow asks what to do with local changes that stop the switch (the switches the user picked; one given by a caller's
 	// argument fails with the message of git, as VS Code's does).
 	dirtyFlow bool
-	// pullBefore is git.pullBeforeCheckout: fast-forward the branch before it is checked out.
-	// TODO(step 24.15): the pull commands give this a fast-forward ("git merge --ff-only" of the upstream) to run first.
+	// pullBefore is git.pullBeforeCheckout: fast-forward the branch before it is checked out (Repo.FastForwardBranch: the branch gets the
+	// commits of its upstream when it has none of its own; whatever goes wrong there is ignored, as VS Code does).
 	pullBefore bool
 }
 
@@ -248,7 +248,14 @@ func (x *gitscm) startCheckout(r *repository, job checkoutJob, force bool, then 
 			r.updateStatusBar()
 			r.updateCommitUI()
 		},
-		run:   func(ctx context.Context, repo *git.Repo) error { return job.run(ctx, repo, force) },
+		run: func(ctx context.Context, repo *git.Repo) error {
+			if job.pullBefore {
+				if err := repo.FastForwardBranch(ctx, job.label); err != nil {
+					r.m.x.logLine("git.pullBeforeCheckout: " + git.MaskURLs(describe(err)))
+				}
+			}
+			return job.run(ctx, repo, force)
+		},
 		after: then,
 		failed: func(err error) bool {
 			if job.dirtyFlow && errTag(err) == "DirtyWorkTree" {

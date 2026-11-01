@@ -9,7 +9,7 @@ const (
 )
 
 // branchMenus are the menu items of branches and tags: Checkout to... in the header of the view and of a repository, the Branch and Tags
-// submenus and their entries. Publish Branch of VS Code's Branch submenu comes with step 24.15.
+// submenus and their entries. Publish Branch of VS Code's Branch submenu is in menus_remote.go.
 //
 // Ported from VS Code: extensions/git/package.json (contributes.menus: scm/title, scm/repository, git.branch, git.tags)
 func branchMenus() []extension.MenuItem {

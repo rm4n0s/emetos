@@ -103,6 +103,7 @@ type API struct {
 	watches           []*FakeWatch
 	watchErr          error
 	dialogs           []*FakeDialog
+	progresses        []*FakeProgress
 	annotations       map[string]*annotationSet
 	// annotationsUnavailable makes EditorDecorations().Set fail like a scope with no editors.
 	annotationsUnavailable bool
@@ -469,6 +470,86 @@ func (n notifications) Info(m string, a ...extension.NotificationAction) { n.add
 func (n notifications) Warn(m string, a ...extension.NotificationAction) { n.add("warn", m, a) }
 func (n notifications) Error(m string, a ...extension.NotificationAction) {
 	n.add("error", m, a)
+}
+
+// FakeProgress is a notification with a progress bar that the extension showed with Notifications().Progress.
+type FakeProgress struct {
+	a    *API
+	opts extension.ProgressOptions
+	// reports are the calls of Report, in order.
+	reports []ProgressReport
+	done    bool
+}
+
+// ProgressReport is a call of Report.
+type ProgressReport struct {
+	Message string
+	Percent float64
+}
+
+// Progress implements extension.Notifications. A test reads what was reported with Progresses.
+func (n notifications) Progress(opts extension.ProgressOptions) extension.NotificationProgress {
+	p := &FakeProgress{a: n.a, opts: opts}
+	n.a.mu.Lock()
+	n.a.progresses = append(n.a.progresses, p)
+	n.a.mu.Unlock()
+	return p
+}
+
+// Report implements extension.NotificationProgress.
+func (p *FakeProgress) Report(message string, percent float64) {
+	p.a.mu.Lock()
+	defer p.a.mu.Unlock()
+	if !p.done {
+		p.reports = append(p.reports, ProgressReport{message, percent})
+	}
+}
+
+// Done implements extension.NotificationProgress.
+func (p *FakeProgress) Done() {
+	p.a.mu.Lock()
+	p.done = true
+	p.a.mu.Unlock()
+}
+
+// Title is the title the progress was shown with.
+func (p *FakeProgress) Title() string { return p.opts.Title }
+
+// Cancellable says that the progress has a Cancel button.
+func (p *FakeProgress) Cancellable() bool { return p.opts.Cancellable }
+
+// Reports are the calls of Report, in order.
+func (p *FakeProgress) Reports() []ProgressReport {
+	p.a.mu.Lock()
+	defer p.a.mu.Unlock()
+	return append([]ProgressReport(nil), p.reports...)
+}
+
+// Ended says that Done was called.
+func (p *FakeProgress) Ended() bool {
+	p.a.mu.Lock()
+	defer p.a.mu.Unlock()
+	return p.done
+}
+
+// Cancel presses the Cancel button, as the user does: OnCancel runs and the notification is gone (Ended is true afterwards). It fails the test
+// when the progress is not cancellable.
+func (p *FakeProgress) Cancel() {
+	p.a.t.Helper()
+	if !p.opts.Cancellable {
+		p.a.t.Fatalf("the progress %q has no Cancel button", p.opts.Title)
+	}
+	p.Done()
+	if p.opts.OnCancel != nil {
+		p.opts.OnCancel()
+	}
+}
+
+// Progresses are the notifications with a progress bar shown so far.
+func (a *API) Progresses() []*FakeProgress {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]*FakeProgress(nil), a.progresses...)
 }
 
 // RunNoteAction presses the button with the label on the notification with the index, as the user does; it fails the test

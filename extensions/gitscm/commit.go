@@ -586,7 +586,8 @@ func isUntrackedResource(res resource) bool { return res.status == git.StatusUnt
 
 // runPostCommit runs the command that follows a commit: the one the action button named, else the remembered one, else the setting.
 //
-// TODO(step 24.15): git.push and git.sync are real commands then; VS Code waits for them to end before the commit counts as finished.
+// git.push and git.sync start at once and run as commands of their own (the sync item spins); the commits that arrived while the commit ran
+// wait until they end (releaseCommits), which is the part of "VS Code waits for the command" that anything can observe.
 //
 // Ported from VS Code: extensions/git/src/postCommitCommands.ts (executePostCommitCommand)
 func (x *gitscm) runPostCommit(r *repository, post postCommitSpec) {
