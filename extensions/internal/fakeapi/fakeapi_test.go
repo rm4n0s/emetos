@@ -558,3 +558,28 @@ func TestTheFakeEmitsAnEventAsAnotherExtension(t *testing.T) {
 		t.Errorf("publishers = %q", publishers)
 	}
 }
+
+func TestTheFakeWorkspaceRecordsTheFoldersTheExtensionOpened(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{Folder: t.TempDir()})
+	for _, tc := range []struct {
+		path   string
+		newTab bool
+		tag    string
+	}{
+		{"/work/app", false, ""},
+		{"/work/lib", true, ""},
+		{"work/app", false, "workspace.OpenFolder.ExtensionFilePathInvalid"},
+		{"/work/../app", false, "workspace.OpenFolder.ExtensionFilePathInvalid"},
+	} {
+		err := a.Workspace().OpenFolder(tc.path, tc.newTab)
+		if tc.tag != "" {
+			route(t, err, tc.tag)
+		} else if err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := a.OpenedFolders()
+	if len(got) != 2 || got[0] != (OpenedFolder{Path: "/work/app"}) || got[1] != (OpenedFolder{Path: "/work/lib", NewTab: true}) {
+		t.Errorf("opened folders %v", got)
+	}
+}

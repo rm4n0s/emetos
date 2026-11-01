@@ -205,3 +205,27 @@ func TestRepoCacheFollowsTheRemotesOfARepository(t *testing.T) {
 		t.Error("the removed remote is still filed")
 	}
 }
+
+func TestTheKeyOfARepositoryURLHasNoPassword(t *testing.T) {
+	tests := []struct {
+		name, url, want string
+	}{
+		{"a plain address", "https://example.com/org/app", "https://example.com/org/app"},
+		{"a .git suffix and slashes", "  https://example.com/org/app.git//  ", "https://example.com/org/app"},
+		{"a user and a password", "https://ada:s3cret@example.com/org/app.git", "https://***@example.com/org/app"},
+		{"a token as the user", "https://ghp_token@example.com/org/app.git", "https://***@example.com/org/app"},
+		{"ssh", "ssh://git@example.com:2222/org/app.git", "ssh://***@example.com:2222/org/app"},
+		{"an scp-like address has no password to hide", "git@example.com:org/app.git", "git@example.com:org/app"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := normalizeRepoURL(tc.url); got != tc.want {
+				t.Errorf("normalizeRepoURL(%q) = %q, want %q", tc.url, got, tc.want)
+			}
+		})
+	}
+	// two addresses that differ in the user only are the same repository
+	if normalizeRepoURL("https://a:1@example.com/x.git") != normalizeRepoURL("https://b:2@example.com/x") {
+		t.Error("the user information makes two keys of one repository")
+	}
+}

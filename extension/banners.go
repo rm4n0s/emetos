@@ -48,6 +48,8 @@ type FileChooserOptions struct {
 	Filters []FileFilter
 	// Folder is the folder the dialog opens in; the desktop's own when empty.
 	Folder string
+	// Directory makes the dialog choose a folder instead of a file (a clone's destination); Filters do not apply. Save ignores it.
+	Directory bool
 	// Name is, for FileChooser().Save, the file name the dialog starts with ("result.csv"); Open ignores it.
 	Name string
 	// Save is set by FileChooser().Save for the host: the dialog asks for a file to write, not to read. An extension leaves it

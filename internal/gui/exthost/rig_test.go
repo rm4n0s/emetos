@@ -187,7 +187,9 @@ type tab struct {
 	languages *fakeLanguages
 	uris      []string
 	// tabs are the kinds of window tab it was asked to open (OpenWindowTab).
-	tabs    []string
+	tabs []string
+	// folders are the folders it was asked to open (OpenFolder), with newTab.
+	folders []openedFolder
 	changed int
 
 	// lsp is the window's side of the language servers (servers_rig_test.go).
@@ -445,8 +447,12 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },
-		Info:          extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
-		Ctx:           context.Background(), Commands: registry, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
+		OpenFolder: func(path string, newTab bool) error {
+			tb.folders = append(tb.folders, openedFolder{path, newTab})
+			return nil
+		},
+		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: name, Folder: r.folderOf(name), ID: r.scopeID(name)},
+		Ctx:  context.Background(), Commands: registry, Menus: tb.menus, Keybindings: tb.keys, Settings: tb.store,
 		Notify: tb.notify, StatusBar: tb.bar, Documents: docs,
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
 		Post: tb.post, AskSharing: r.askFunc(tb, name),
@@ -641,4 +647,10 @@ type rigWatch struct {
 	spec    extension.WatchSpec
 	sink    func([]extension.FileChange)
 	stopped bool
+}
+
+// openedFolder is a call of the OpenFolder of a scope.
+type openedFolder struct {
+	path   string
+	newTab bool
 }

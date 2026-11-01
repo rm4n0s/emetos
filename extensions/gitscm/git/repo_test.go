@@ -885,13 +885,13 @@ func TestInitAndCloneForTheHarness(t *testing.T) {
 		opts CloneOptions
 		path string
 	}{
-		{"a clone", CloneOptions{}, "a.txt"},
-		{"a recursive clone", CloneOptions{Recursive: true}, "vendor/lib/lib.go"},
-		{"a clone of a branch", CloneOptions{Branch: "main"}, "a.txt"},
+		{"a clone", CloneOptions{TargetName: "plain"}, "a.txt"},
+		{"a recursive clone", CloneOptions{Recursive: true, TargetName: "recursive"}, "vendor/lib/lib.go"},
+		{"a clone of a branch", CloneOptions{Ref: "main", TargetName: "branch"}, "a.txt"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			target := filepath.Join(e.Work, strings.ReplaceAll(tc.name, " ", "-"))
-			if err := runner.Clone(ctx, src.Dir, target, tc.opts); err != nil {
+			target, err := runner.Clone(ctx, src.Dir, filepath.Join(e.Work, "clones"), tc.opts)
+			if err != nil {
 				t.Fatal(err)
 			}
 			if _, err := os.Stat(filepath.Join(target, filepath.FromSlash(tc.path))); err != nil {
@@ -900,8 +900,8 @@ func TestInitAndCloneForTheHarness(t *testing.T) {
 		})
 	}
 	t.Run("a bare clone", func(t *testing.T) {
-		target := filepath.Join(e.Work, "bare-clone.git")
-		if err := runner.Clone(ctx, src.Dir, target, CloneOptions{Bare: true}); err != nil {
+		target, err := runner.Clone(ctx, src.Dir, filepath.Join(e.Work, "clones"), CloneOptions{Bare: true, TargetName: "bare-clone.git"})
+		if err != nil {
 			t.Fatal(err)
 		}
 		if got := e.Git(target, "rev-parse", "--is-bare-repository"); got != "true" {
@@ -909,7 +909,7 @@ func TestInitAndCloneForTheHarness(t *testing.T) {
 		}
 	})
 	t.Run("a clone of a repository that is not there", func(t *testing.T) {
-		err := runner.Clone(ctx, filepath.Join(e.Root, "nope"), filepath.Join(e.Work, "nope-clone"), CloneOptions{})
+		_, err := runner.Clone(ctx, filepath.Join(e.Root, "nope"), filepath.Join(e.Work, "clones"), CloneOptions{TargetName: "nope-clone"})
 		wantRoute(t, err, "Runner.Clone->Runner.Run->Runner.execute->classify.RepositoryNotFound")
 	})
 	t.Run("an init that fails", func(t *testing.T) {

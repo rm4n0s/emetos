@@ -2,9 +2,11 @@ package exthost
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/gitscm"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 )
@@ -234,4 +236,75 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// TestViewWelcomeOfTheGitExtensionItself is TestViewWelcomeOfGit for the pieces the Git extension of Emetos really declares (step 24.16): the
+// buttons of a window with no repository, of the empty Explorer and of the states in between, and the links they run.
+func TestViewWelcomeOfTheGitExtensionItself(t *testing.T) {
+	m := manifest("gx")
+	m.Contributes.ViewWelcome = gitscm.New().Manifest().Contributes.ViewWelcome
+	f, _ := factory(m, nil)
+	r := newRig(t, f)
+	tb := r.newTab("one")
+	tb.scope.Start()
+	ready := map[string]any{
+		"config.git.enabled": true, "git.missing": false, "git.state": "initialized", "workbenchState": "folder", "workspaceFolderCount": 1,
+		"git.parentRepositoryCount": 0, "git.unsafeRepositoryCount": 0, "git.closedRepositoryCount": 0, "git.untrustedRepositoryCount": 0,
+		"scm.providerCount": 0, "remoteName": "", "isLinux": true,
+	}
+	with := func(over map[string]any) map[string]any {
+		out := map[string]any{}
+		for k, v := range ready {
+			out[k] = v
+		}
+		for k, v := range over {
+			out[k] = v
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		name string
+		view string
+		keys map[string]any
+		want []string // the start of the text of each piece shown
+		link []string // a link each of the pieces has
+	}{
+		{"a folder with no repository has both buttons", command.ViewSCM, ready,
+			[]string{"The folder currently open doesn't have a Git repository."}, []string{"[Initialize Repository](command:git.init?%5Btrue%5D)", "[Clone Repository](command:git.clone)"}},
+		{"no folder at all", command.ViewSCM, with(map[string]any{"workbenchState": "empty", "workspaceFolderCount": 0}),
+			[]string{"In order to use Git features"}, []string{"[Open Folder](command:workbench.action.files.openFolder)", "[Clone Repository](command:git.cloneRecursive)"}},
+		{"a folder that is being scanned", command.ViewSCM, with(map[string]any{"git.state": "uninitialized"}), []string{"Scanning folder for Git repositories"}, nil},
+		{"a repository in a parent folder", command.ViewSCM, with(map[string]any{"git.parentRepositoryCount": 1}), []string{"A Git repository was found in the parent folders"}, nil},
+		{"a repository that is not trusted", command.ViewSCM, with(map[string]any{"git.untrustedRepositoryCount": 1, "scm.providerCount": 1}),
+			[]string{"The Git repository in the folder is not trusted."}, []string{"[Trust Repository](command:git.trustRepository)"}},
+		{"repositories that are not trusted", command.ViewSCM, with(map[string]any{"git.untrustedRepositoryCount": 2, "scm.providerCount": 2}),
+			[]string{"The Git repositories in the folder are not trusted."}, []string{"[Trust Repository](command:git.trustRepository)"}},
+		{"a repository is open and trusted", command.ViewSCM, with(map[string]any{"scm.providerCount": 1}), nil, nil},
+		{"git is off", command.ViewSCM, with(map[string]any{"config.git.enabled": false}), []string{"If you would like to use Git features"}, nil},
+		{"the Explorer with nothing in it", command.ViewExplorerEmpty, with(map[string]any{"workbenchState": "empty"}),
+			[]string{"You can clone a repository locally."}, []string{"[Clone Repository](command:git.clone)"}},
+		{"the Explorer while a repository exists", command.ViewExplorerEmpty, with(map[string]any{"scm.providerCount": 1}), nil, nil},
+		{"the Explorer before Git has looked", command.ViewExplorerEmpty, with(map[string]any{"git.state": "uninitialized"}), nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			keys := contextkey.NewRoot()
+			for k, v := range tc.keys {
+				keys.Set(k, v)
+			}
+			got := tb.scope.ViewWelcome(tc.view, keys)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %q, want pieces starting %q", welcomeTexts(got), tc.want)
+			}
+			for i, c := range got {
+				if !strings.HasPrefix(c.Contents, tc.want[i]) {
+					t.Errorf("piece %d is %q, want it to start with %q", i, c.Contents, tc.want[i])
+				}
+				for _, link := range tc.link {
+					if !strings.Contains(c.Contents, link) {
+						t.Errorf("piece %d lacks the link %q:\n%s", i, link, c.Contents)
+					}
+				}
+			}
+		})
+	}
 }

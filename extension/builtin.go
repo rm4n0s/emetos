@@ -126,6 +126,14 @@ type Workspace interface {
 	// second one (SPEC §10.29: the open command of Remote Work). It fails with ExtensionOpenWindowTabUnavailable when the scope cannot, and
 	// returns the window's error for a kind that is unknown or turned off. Call it on the UI thread.
 	OpenWindowTab(kindID string) error
+	// OpenFolder opens the folder (an absolute path) as the folder of the workspace: with newTab false it replaces the folder of the
+	// window tab of the scope, after the questions about unsaved changes of the editors it closes (VS Code's vscode.openFolder with
+	// forceReuseWindow); with newTab true it opens a new workspace tab (SPEC §10.14), or shows the tab that has the folder already
+	// (forceNewWindow). It returns before the folder is open, and the scope is made again when the tab's folder changes, so nothing is
+	// asked of the result: the Git extension opens a clone this way. It fails with ExtensionFilePathInvalid for a path that is not
+	// absolute, ExtensionOpenFolderUnavailable when the scope cannot (a window tab of an extension, a headless host) and
+	// ExtensionDeactivated after the activation ended. Call it on the UI thread.
+	OpenFolder(path string, newTab bool) error
 	// NewHeadlessView makes a second, off-screen view of the workspace, size pixels large (HeadlessView). The view starts
 	// with the editors the workspace has open in front of the user. It fails with ExtensionHeadlessSize for a size that is
 	// not allowed (positive, at most MaxHeadlessSide a side and MaxHeadlessPixels in all), ExtensionHeadlessUnavailable in

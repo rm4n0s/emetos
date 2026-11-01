@@ -518,6 +518,22 @@ func (w workspaceAPI) OpenWindowTab(kindID string) error {
 	return open(kindID)
 }
 
+// OpenFolder implements extension.Workspace.
+func (w workspaceAPI) OpenFolder(path string, newTab bool) error {
+	in := w.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return errors.New("ExtensionFilePathInvalid", "the folder to open is a clean absolute path", "extension", in.id, "path", path)
+	}
+	open := in.scope.opts.OpenFolder
+	if open == nil {
+		return errors.New("ExtensionOpenFolderUnavailable", "the scope cannot open a folder", "extension", in.id, "path", path)
+	}
+	return open(path, newTab)
+}
+
 // NewHeadlessView implements extension.Workspace. The view is closed when the activation ends.
 func (w workspaceAPI) NewHeadlessView(size extension.Size) (extension.HeadlessView, error) {
 	in := w.inst

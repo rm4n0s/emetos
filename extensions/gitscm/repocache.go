@@ -85,7 +85,7 @@ type repoCacheInfo struct {
 }
 
 // repoCache remembers, for each remote URL, the local folders that hold a clone of it, most recently used first out: 30 URLs and 10
-// folders each. The Clone command (step 24.16) asks it for an existing clone before it makes another. It is kept in a file of the
+// folders each. The Clone command asks it for an existing clone before it makes another. It is kept in a file of the
 // state folder; a file that cannot be read gives an empty cache.
 //
 // Ported from VS Code: extensions/git/src/repositoryCache.ts
@@ -132,9 +132,11 @@ func openCache(trustFile string, log *slog.Logger) *repoCache {
 
 var trailingGit = regexp.MustCompile(`(?i)(?:\.git)?/*$`)
 
-// normalizeRepoURL is the key of a URL: without spaces around it, a trailing ".git" and trailing slashes.
+// normalizeRepoURL is the key of a URL: without spaces around it, a trailing ".git" and trailing slashes, and without the user
+// information ("https://user:secret@host/x" is "https://***@host/x"), so that no password or token is written to the cache file or
+// shown anywhere (SPEC §10.30 "Clone, init, open").
 func normalizeRepoURL(url string) string {
-	return trailingGit.ReplaceAllString(strings.TrimSpace(url), "")
+	return git.MaskURLs(trailingGit.ReplaceAllString(strings.TrimSpace(url), ""))
 }
 
 // setFolders gives the cache the folders of the window tab.

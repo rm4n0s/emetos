@@ -587,32 +587,3 @@ func (r *Runner) Init(ctx context.Context, dir string, o InitOptions) error {
 	_, err := r.Run(ctx, Command{Args: args})
 	return err
 }
-
-// CloneOptions are the options of Runner.Clone.
-type CloneOptions struct {
-	// Recursive clones the submodules too ("--recursive").
-	Recursive bool
-	// Branch checks out that branch or tag ("-b").
-	Branch string
-	// Bare makes a bare clone.
-	Bare bool
-}
-
-// Clone clones the repository at url into dir with "git clone". It is a write command and not a background one.
-//
-// Ported from VS Code: extensions/git/src/git.ts (Git.clone).
-func (r *Runner) Clone(ctx context.Context, url, dir string, o CloneOptions) error {
-	args := []string{"clone", "-q"}
-	if o.Recursive {
-		args = append(args, "--recursive")
-	}
-	if o.Bare {
-		args = append(args, "--bare")
-	}
-	if o.Branch != "" {
-		args = append(args, "-b", o.Branch)
-	}
-	args = append(args, "--", url, dir)
-	_, err := r.Run(ctx, Command{Dir: filepath.Dir(dir), Args: args})
-	return err
-}

@@ -136,7 +136,7 @@ func (w *Workspace) startExtensions() {
 		Logger: p.Logger, AskSharing: w.askSharing,
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, ShowProblems: w.showProblems, FilesComplete: w.extensionFilesComplete,
-		OpenURI: w.openURI, OpenWindowTab: w.openWindowTab, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
+		OpenURI: w.openURI, OpenWindowTab: w.openWindowTab, OpenFolder: w.openFolderFor, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
 		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, Decorations: w.Decorations, Timeline: w.Timeline, QuickDiff: w.QuickDiff, EditorDecorations: w.Annotations, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
 		Dialog: w.extensionDialog, Watch: w.extensionWatch, TrashFiles: w.extensionTrash,
@@ -527,6 +527,14 @@ func (w *Workspace) openWindowTab(kindID string) error {
 	return err
 }
 
+// openFolderFor is the OpenFolder of the scope: a folder opens in the tab of the workspace (newTab false, VS Code's forceReuseWindow) or
+// in a new workspace tab (forceNewWindow), by the rules of SPEC §10.14 (a folder that is open in a tab is shown instead). It returns at
+// once: the questions about the unsaved changes of the editors that close are answered later, and a failure is a notification.
+func (w *Workspace) openFolderFor(path string, newTab bool) error {
+	w.Process.Workspaces.OpenFolder(w, path, newTab, !newTab, nil)
+	return nil
+}
+
 // extensionFileChooser shows the open dialog of the desktop (the file chooser portal), or the save dialog when opts.Save is set, for an
 // extension and waits for the user. It is called on a goroutine of the extension. A dialog that is closed without a choice gives "" and no error.
 func (w *Workspace) extensionFileChooser(ctx context.Context, opts extension.FileChooserOptions) (string, error) {
@@ -543,7 +551,7 @@ func (w *Workspace) extensionFileChooser(ctx context.Context, opts extension.Fil
 	if opts.Save {
 		res, err = desktop.SaveFile(ctx, s.Context(), desktop.SaveFileOpts{Title: opts.Title, AcceptLabel: opts.AcceptLabel, Filters: filters, CurrentName: opts.Name, CurrentFolder: opts.Folder})
 	} else {
-		res, err = desktop.OpenFiles(ctx, s.Context(), desktop.OpenFilesOpts{Title: opts.Title, AcceptLabel: opts.AcceptLabel, Filters: filters, CurrentFolder: opts.Folder})
+		res, err = desktop.OpenFiles(ctx, s.Context(), desktop.OpenFilesOpts{Title: opts.Title, AcceptLabel: opts.AcceptLabel, Filters: filters, Directory: opts.Directory, CurrentFolder: opts.Folder})
 	}
 	if err != nil {
 		return "", errors.NewErr("ExtensionFileChooserFailed", err)

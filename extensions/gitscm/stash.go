@@ -424,7 +424,7 @@ func (x *gitscm) askStashMessage(r *repository, includeUntracked, staged bool, a
 
 // logUnavailable logs the failure of a question, except for a scope that cannot show it.
 func (x *gitscm) logUnavailable(what string, err error) {
-	if appErr, ok := errors.FromError(err); ok && (appErr.Tag == "ExtensionInputBoxUnavailable" || appErr.Tag == "ExtensionQuickPickUnavailable" || appErr.Tag == "ExtensionDeactivated") {
+	if appErr, ok := errors.FromError(err); ok && (appErr.Tag == "ExtensionInputBoxUnavailable" || appErr.Tag == "ExtensionQuickPickUnavailable" || appErr.Tag == "ExtensionFileChooserUnavailable" || appErr.Tag == "ExtensionDialogsUnavailable" || appErr.Tag == "ExtensionDeactivated") {
 		return
 	}
 	x.log.Warn(what, "err", err)

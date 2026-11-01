@@ -86,12 +86,17 @@ func (r *repository) mutate(m mutation) {
 //
 // Ported from VS Code: extensions/git/src/commands.ts (createCommand: the catch of AuthenticationFailed).
 func (x *gitscm) commandFailed(what string, r *repository, err error, retry func()) {
+	x.reportFailure(what, r.root, err, retry)
+}
+
+// reportFailure is commandFailed for a command that has no repository (a clone): where is what the Git channel's line names.
+func (x *gitscm) reportFailure(what, where string, err error, retry func()) {
 	appErr, isApp := errors.FromError(err)
 	if isApp && (appErr.Tag == "GitCancelled" || appErr.Tag == "GitQueueCancelled") {
 		return
 	}
 	text := git.MaskURLs(describe(err))
-	x.logLine("git " + what + " failed in " + r.root + ": " + text)
+	x.logLine("git " + what + " failed in " + where + ": " + text)
 	showOutput := extension.NotificationAction{Label: "Show Git Output", Run: func() { x.channel.Show(false) }}
 	if isApp && appErr.Tag == "AuthenticationFailed" {
 		message := "Failed to authenticate to git remote."

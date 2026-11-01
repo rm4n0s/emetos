@@ -45,6 +45,7 @@ type API struct {
 	trashed           []*Trashed
 	trashErr, undoErr error
 	openedTabs        []string
+	openedFolders     []OpenedFolder
 	fileViewRefreshes int
 	kinds             map[string]extension.EditorKind
 	windowKind        *extension.WindowTabKind
@@ -1243,6 +1244,32 @@ func (w workspace) OpenWindowTab(kindID string) error {
 	w.a.openedTabs = append(w.a.openedTabs, kindID)
 	w.a.mu.Unlock()
 	return nil
+}
+
+// OpenedFolder is a call of Workspace().OpenFolder.
+type OpenedFolder struct {
+	// Path is the folder; NewTab says that it was to open in a new workspace tab and not in the tab of the scope.
+	Path   string
+	NewTab bool
+}
+
+// OpenFolder implements extension.Workspace: the folder is not opened, the call is recorded (OpenedFolders). A path that is not clean
+// and absolute fails as the host's does.
+func (w workspace) OpenFolder(path string, newTab bool) error {
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return errors.New("ExtensionFilePathInvalid", "the folder to open is a clean absolute path", "path", path)
+	}
+	w.a.mu.Lock()
+	w.a.openedFolders = append(w.a.openedFolders, OpenedFolder{Path: path, NewTab: newTab})
+	w.a.mu.Unlock()
+	return nil
+}
+
+// OpenedFolders are the calls of Workspace().OpenFolder, in order.
+func (a *API) OpenedFolders() []OpenedFolder {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]OpenedFolder(nil), a.openedFolders...)
 }
 
 // OpenedWindowTabs are the kinds the extension opened with Workspace().OpenWindowTab.

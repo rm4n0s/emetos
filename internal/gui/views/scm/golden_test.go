@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extensions/gitscm"
 	scmcore "github.com/rm4n0s/emetos/internal/core/scm"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 	"github.com/rm4n0s/emetos/internal/gui/views/welcome"
@@ -150,6 +151,38 @@ func TestGoldenWelcomeInView(t *testing.T) {
 				t.Error("the list does not replace the welcome content")
 			}
 		})
+	}
+}
+
+// TestGoldenWelcomeOfGit looks at the Changes view with the welcome content the Git extension really declares (step 24.16): a folder with
+// no repository has the Initialize Repository and Clone Repository buttons, a window with no folder has Open Folder and Clone Repository.
+func TestGoldenWelcomeOfGit(t *testing.T) {
+	specs := gitscm.New().Manifest().Contributes.ViewWelcome
+	piece := func(start string) welcome.Piece {
+		for _, s := range specs {
+			if s.View == "scm" && strings.HasPrefix(s.Contents, start) {
+				return welcome.Piece{Contents: s.Contents}
+			}
+		}
+		t.Fatalf("the Git extension has no welcome content that starts with %q", start)
+		return welcome.Piece{}
+	}
+	for _, th := range goldenThemes {
+		for _, tc := range []struct{ name, start string }{
+			{"folder", "The folder currently open doesn't have a Git repository."},
+			{"empty", "In order to use Git features"},
+		} {
+			t.Run(th.name+" "+tc.name, func(t *testing.T) {
+				r := newRig(t)
+				p := piece(tc.start)
+				r.ts = pump(t, th.colors, ui.Size{Width: 300, Height: 220}, NewBody(r.view, BodyOpts{Welcome: func(widgets.BuildContext) widgets.Widget {
+					return welcome.New(welcome.Opts{Pieces: []welcome.Piece{p}})
+				}}))
+				r.settle()
+				testutil.MatchesGolden(r.ts, "welcome_git_"+tc.name+"_"+th.name)
+				r.noErrors()
+			})
+		}
 	}
 }
 

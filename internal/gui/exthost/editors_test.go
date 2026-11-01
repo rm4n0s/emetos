@@ -748,6 +748,41 @@ func TestOpenWindowTabGoesToTheWindow(t *testing.T) {
 	route(t, a.Workspace().OpenWindowTab("emetos.remotework.tab"), "workspaceAPI.OpenWindowTab.ExtensionOpenWindowTabUnavailable")
 }
 
+func TestOpenFolderGoesToTheWindow(t *testing.T) {
+	tb := edTab(t, nil, nil)
+	tb.activate2()
+	a := apiOf(tb)
+	for _, tc := range []struct {
+		name   string
+		path   string
+		newTab bool
+		tag    string
+	}{
+		{"in the tab", "/work/app", false, ""},
+		{"in a new tab", "/work/app", true, ""},
+		{"a relative path", "work/app", false, "workspaceAPI.OpenFolder.ExtensionFilePathInvalid"},
+		{"a path that is not clean", "/work/../app", false, "workspaceAPI.OpenFolder.ExtensionFilePathInvalid"},
+		{"an empty path", "", true, "workspaceAPI.OpenFolder.ExtensionFilePathInvalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tb.folders = nil
+			err := a.Workspace().OpenFolder(tc.path, tc.newTab)
+			if tc.tag != "" {
+				route(t, err, tc.tag)
+				if len(tb.folders) != 0 {
+					t.Errorf("a folder was opened: %v", tb.folders)
+				}
+				return
+			}
+			if err != nil || !slices.Equal(tb.folders, []openedFolder{{tc.path, tc.newTab}}) {
+				t.Errorf("OpenFolder: %v, %v", err, tb.folders)
+			}
+		})
+	}
+	tb.scope.opts.OpenFolder = nil
+	route(t, a.Workspace().OpenFolder("/work/app", false), "workspaceAPI.OpenFolder.ExtensionOpenFolderUnavailable")
+}
+
 func TestTheScopeSaysWhichExtensionDeclaresAnEditorKind(t *testing.T) {
 	tb := edTab(t, &thingKind{}, nil)
 	for _, tt := range []struct {

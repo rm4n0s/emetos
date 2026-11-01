@@ -961,3 +961,48 @@ func TestAnExtensionOpensItsWindowTabOnceAndShowsTheOpenOne(t *testing.T) {
 		t.Errorf("error = %v, want the tag WindowTabKindUnknown", err)
 	}
 }
+
+// TestAnExtensionOpensAFolderInItsTabOrInANewOne is the OpenFolder of the API (step 24.16: the Git extension opens a clone): newTab false
+// replaces the folder of the tab (VS Code's forceReuseWindow, whatever window.openFoldersInNewWindow says), newTab true opens a workspace
+// tab, and a folder that is open in a tab is shown instead of being opened twice.
+func TestAnExtensionOpensAFolderInItsTabOrInANewOne(t *testing.T) {
+	p := &wtxProbe{}
+	env := newMultiEnv(t, nil)
+	one := env.folder("one", "a.go")
+	two := env.folder("two", "b.go")
+	three := env.folder("three", "c.go")
+	a := env.runExt(p, Options{Folder: one})
+	first := a.m.ActiveTab()
+	ws := first.Workspace()
+	if err := ws.openFolderFor(two, true); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	if a.m.Count() != 2 || a.m.ActiveTab().Workspace().Folder != two {
+		t.Fatalf("after the call with newTab: %d tabs, active folder %q", a.m.Count(), a.m.ActiveTab().Workspace().Folder)
+	}
+	// the same folder again shows its tab
+	a.m.Activate(first)
+	a.settle()
+	if err := ws.openFolderFor(two, true); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	if a.m.Count() != 2 || a.m.ActiveTab().Workspace().Folder != two {
+		t.Errorf("after the second call: %d tabs, active folder %q", a.m.Count(), a.m.ActiveTab().Workspace().Folder)
+	}
+	// without newTab the folder of the tab is replaced, whatever the setting says about new windows
+	a.m.Activate(first)
+	a.settle()
+	if err := ws.openFolderFor(three, false); err != nil {
+		t.Fatal(err)
+	}
+	a.settle()
+	folders := []string{}
+	for _, w := range a.m.All() {
+		folders = append(folders, w.Folder)
+	}
+	if !slices.Equal(folders, []string{three, two}) {
+		t.Errorf("the folders of the tabs are %v, want [%s %s]", folders, three, two)
+	}
+}

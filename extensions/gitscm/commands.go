@@ -50,6 +50,9 @@ func (x *gitscm) registerCommands() error {
 		"git.close":                           x.cmdClose,
 		"git.closeOtherRepositories":          x.cmdCloseOthers,
 		"git.reopenClosedRepositories":        x.cmdReopenClosed,
+		"git.clone":                           x.cmdClone,
+		"git.cloneRecursive":                  x.cmdCloneRecursive,
+		"git.init":                            x.cmdInit,
 		"git.openRepository":                  x.cmdOpenRepository,
 		"git.manageUnsafeRepositories":        x.cmdManageUnsafe,
 		"git.openRepositoriesInParentFolders": x.cmdOpenParents,
@@ -278,39 +281,6 @@ func (x *gitscm) cmdReopenClosed(context.Context, any) error {
 	return x.api.QuickPick().Show(extension.QuickPickOptions{Placeholder: "Choose a repository to reopen", Items: items, MatchOnDescription: true}, func(i int) {
 		if i >= 0 && i < len(closed) {
 			x.model.reopen(closed[i])
-		}
-	})
-}
-
-// cmdOpenRepository opens the repository in a folder: the path in the argument, or one typed in an input box.
-func (x *gitscm) cmdOpenRepository(_ context.Context, args any) error {
-	path := ""
-	switch v := args.(type) {
-	case string:
-		path = v
-	case map[string]any:
-		path, _ = v["path"].(string)
-	}
-	open := func(path string) {
-		if !filepath.IsAbs(path) {
-			x.api.Notifications().Error("The path of a repository is absolute: " + path)
-			return
-		}
-		loc, ok := git.FindRepository(resolve(path))
-		if !ok {
-			x.api.Notifications().Error("There is no Git repository in " + path)
-			return
-		}
-		x.model.openRepository(candidate{loc: loc, why: foundFolder}, true)
-		x.model.askNext()
-	}
-	if path != "" {
-		open(path)
-		return nil
-	}
-	return x.api.InputBox().Show(extension.InputBoxOptions{Prompt: "Path of the repository folder", Value: x.folder}, func(value string, ok bool) {
-		if ok && strings.TrimSpace(value) != "" {
-			open(strings.TrimSpace(value))
 		}
 	})
 }

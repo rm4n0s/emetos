@@ -115,6 +115,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, branchMenus()...)
 	menus = append(menus, remoteMenus()...)
 	menus = append(menus, mergeMenus()...)
+	menus = append(menus, cloneMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
