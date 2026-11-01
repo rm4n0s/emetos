@@ -4760,3 +4760,82 @@ The lines above were written from the entries of the steps and `git log`, and co
 - **Glutter issues:** none (the idle hover is drawn: decision 1088).
 - **Deviations and follow-ups:** DECISIONS-TO-REVIEW 1080 to 1092. In short: the coverage rows (1080), the README's shape and the test that keeps its install commands true (1081, 1082), the button of decision 904 (1083), the measurement through the real editor (1084 to 1086, 1091), the long-line cost of the highlighter that the measurement found and this step did not change (1087), the idle hover (1088, 1089), the desktop script (1090), and my three version commands with the real `HOME` (1092).
   **Measurements** (`docs/PERFORMANCE.md` "Language servers", headless, release build, median of three): the first diagnostics after the start of the process (the window's first frame is at 0.7 to 0.8 s of it): clangd 1.17 s, rust-analyzer 1.25 s, python-lsp-server 1.68 s, basedpyright 1.99 s, Pyright 2.11 s, typescript-language-server 2.97 s, jdtls 6.14 s, csharp-ls 9.82 s; the UI thread while typing 644 to 658 keys: 1.9 to 2.5 ms on average and 5 to 8 ms at worst with every server but clangd (3.8 ms, 7.2 ms), the same as the no-server run of each language (Python 1.8, TypeScript 2.3, C++ 3.7 ms).
+
+## 25.1 The DAP client and the fake adapter
+
+- **Date:** 2026-11-02
+- **Branch:** feat/step-25.1-dap (based on main at a00611b)
+- **Summary:** `internal/core/dap` speaks the Debug Adapter Protocol: the framing, the protocol types ported from VS Code's `debugProtocol.d.ts`, a `Client` (numbered requests matched to their responses, `cancel` when a context ends, the events through a bounded channel with back-pressure, the adapter's own requests answered by a handler, `Close`) and the transports that reach an adapter (a program on its standard input and output in its own process group, a TCP port, a Unix socket, and a program that prints its port). `internal/core/dap/daptest` is the scripted fake adapter that every later test of M25 uses: a script of steps, a server that records the traffic and the protocol violations, a program built by `TestMain`, and a harness that connects a client to it over each transport.
+- **Main files:**
+  - `internal/core/dap/{doc,frame,queue,client,process,transport}.go`, `types.go`, `types_requests.go`, `types_events.go`, `capabilities.go`;
+  - `internal/core/dap/daptest/{doc,script,server,harness}.go`, `daptest/fakeadapter/main.go`;
+  - tests: `frame_test.go`, `types_test.go`, `client_test.go`, `process_test.go`, `burst_test.go`, `main_test.go`, `daptest/daptest_test.go`;
+  - `docs/SPEC.md` (§5 layout, "As built (step 25.1)" under §10.31), `docs/DECISIONS-TO-REVIEW.md` (1100 to 1111), this entry.
+- **Tests:** 57 top-level tests with 184 subtests (the list is below). The framing: split headers byte by byte, several messages in one read, a body across reads, bare line feeds, other headers, an empty body, garbage, a header that is too long, too many headers, a missing or bad length, the 64 MiB limit refused before the body is read, truncation in the header and in the body, failing reads and writes. The client, over each of five transports (in process, stdio, TCP, Unix socket, a program that prints its port): the whole initialize-launch-breakpoints-stop-disconnect sequence with its events and capabilities; three requests answered in another order with events between; reverse requests (`runInTerminal` answered, `startDebugging` refused, an unknown one, no handler); `cancel` sent with the right request number only when supported, and a late answer dropped; a timeout of the client and of the context; the adapter dying in the middle of a request (with its exit status); three kinds of garbage on the stream; a message that is not JSON, one with an unknown type and an event with no name, logged and skipped; a message over the limit; failed responses with `{variables}` filled; a `Close` with a request pending; the capabilities event merged; the trace in the order of the wire; arguments that cannot be sent; a body that does not fit; a failing write and a failing close. The transports: not found, cannot start, stderr and stdout lines, a line over 64 KiB cut, the environment and folder, `Close` ending the whole group, a program that ignores SIGTERM killed after three seconds, the context ending the program, `Stop`, the port of a server program found in seven spellings (dlv's, js-debug's, a host name, a bare port, `0.0.0.0`, `[::]`, a pattern of the debugger), a server program that exits, prints no port in time, prints a port that is not one or one nobody listens on, and is stopped when its start fails. **The burst:** an adapter sends 10,000 events of 1 KB while nobody reads; exactly the buffer (64) is held, the adapter has written under a tenth of them (in process), the heap grew by less than 4 MiB, and then all 10,000 come in order. `daptest` itself: the script round trip and its errors, the arguments matching, every violation it notes, the requests it answers while stalled, crash and exit, stderr, burst, raw and bad frames, write failures. No VS Code test cases are ported (the step has none; `debugProtocol.d.ts` is the source of the types).
+- **Checks:** gofmt (cmd, internal, assets, extension, extensions) ✅ · go vet ./... ✅ · golangci-lint run ✅ (0 issues) · `scripts/error-tags.sh --untested` prints nothing · `GOMEMLIMIT=3GiB go test -race -p 2 -count=3 ./internal/core/dap/... ./internal/archtest/...` ✅ · `CGO_ENABLED=0 go build ./...` ✅ · `CGO_ENABLED=0 go test ./internal/core/dap/... ./internal/archtest/...` ✅ · the full `go test -race ./...` is run by the manager · display tests none.
+- **Proof:** none (no UI). The test output (`go test -count=1 -v ./internal/core/dap/...`, top-level lines):
+  ```text
+  --- PASS: TestReadFrameReads
+  --- PASS: TestReadFrameFailures
+  --- PASS: TestWriteFrame
+  --- PASS: TestFormatMessage
+  --- PASS: TestModuleID
+  --- PASS: TestParseEvent
+  --- PASS: TestParseEventBodyInvalid
+  --- PASS: TestRequestJSON
+  --- PASS: TestResponseJSON
+  --- PASS: TestDecodeMessage
+  --- PASS: TestEventBurstIsReadWithBoundedMemory
+  --- PASS: TestSessionSequence
+  --- PASS: TestResponsesInAnyOrderWithEventsBetween
+  --- PASS: TestReverseRequests
+  --- PASS: TestReverseRequestWithNoHandlerIsAnsweredWithAnError
+  --- PASS: TestCancelledContextSendsCancelWhenSupported
+  --- PASS: TestCancelledContextSendsNoCancelWhenNotSupported
+  --- PASS: TestRequestWithACancelledContextIsNotSent
+  --- PASS: TestSlowAnswerTimesOut
+  --- PASS: TestAdapterExitingInTheMiddleOfARequest
+  --- PASS: TestGarbageEndsTheConnection
+  --- PASS: TestInvalidMessagesAreLoggedAndSkipped
+  --- PASS: TestMessageOverTheLimitEndsTheConnection
+  --- PASS: TestFailedResponses
+  --- PASS: TestCloseFailsThePendingRequest
+  --- PASS: TestCapabilitiesEventMergesIntoCapabilities
+  --- PASS: TestTraceSeesEveryMessageInOrder
+  --- PASS: TestArgumentsThatCannotBeSent
+  --- PASS: TestCallBodyThatDoesNotFit
+  --- PASS: TestWriteFailureEndsTheConnection
+  --- PASS: TestCloseFailureIsReported
+  --- PASS: TestStartProcessFailures
+  --- PASS: TestProcessLinesAndEnvironment
+  --- PASS: TestProcessLongLinesAreCut
+  --- PASS: TestProcessCloseTerminatesTheWholeGroup
+  --- PASS: TestProcessThatIgnoresTerminateIsKilledAfterThreeSeconds
+  --- PASS: TestProcessEndsWhenItsContextEnds
+  --- PASS: TestProcessStopLetsAProgramEndOnItsOwn
+  --- PASS: TestProcessStopTerminatesAProgramThatKeepsRunning
+  --- PASS: TestStartServerFailures
+  --- PASS: TestStartServerStopsTheProgramThatFailed
+  --- PASS: TestStartServerStopsWhenTheContextEnds
+  --- PASS: TestStartServerReadsTheAddressTheProgramPrints
+  --- PASS: TestServerProcessIsTheClientsTransport
+  --- PASS: TestDialFailures
+  --- PASS: TestConnectNeedsAKnownKind
+  ok  	github.com/rm4n0s/emetos/internal/core/dap	7.582s
+  --- PASS: TestScriptRoundTrip
+  --- PASS: TestScriptFailures
+  --- PASS: TestSubset
+  --- PASS: TestServerNotesWhatIsWrong
+  --- PASS: TestServerAnswersTheTestRequestsEvenWhenStalled
+  --- PASS: TestServerCrashAndExit
+  --- PASS: TestServerStderrBurstAndRawSteps
+  --- PASS: TestServeFailsWhenItCannotWrite
+  --- PASS: TestHarnessProgramBuiltWithoutTestMain
+  --- PASS: TestHarnessInProcessHasNoProgram
+  --- PASS: TestHarnessProgramReportsItsStderrAndExit
+  ok  	github.com/rm4n0s/emetos/internal/core/dap/daptest	0.974s
+  ?   	github.com/rm4n0s/emetos/internal/core/dap/daptest/fakeadapter	[no test files]
+  ```
+- **Manual checks:** none.
+- **Glutter issues:** none.
+- **Deviations and follow-ups:** DECISIONS-TO-REVIEW 1100 to 1111. In short: every type of the pinned protocol file is typed, with a stated rule for optional numbers and booleans (1100, 1101); the events are a bounded channel, so responses are not ordered with them and the session driver of step 25.2 makes its requests on goroutines of its own (1102); a broken frame ends the connection and a message that is only not a protocol message is skipped (1103); the tags beyond the six of the step (1104); a failed response comes back with its error and `cancel` goes out only when supported (1105); a program's context is its life and closing the client ends it (1106); the port of a server program is found by one pattern (1107); a TCP server is not forced to 127.0.0.1 (1108); the fake adapter is strict (1109) and is built once by `daptest.Main` (1110). Two rule slips of mine: I started `python3` once with an empty script (the real `HOME`; it read nothing and wrote nothing), and ran `ls ~/..` once by mistake with its output discarded (it listed the folder above the home folder and showed nothing).
