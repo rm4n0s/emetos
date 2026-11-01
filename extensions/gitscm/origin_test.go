@@ -85,17 +85,18 @@ func TestTheCredentialPromptOfAClientsCommandIsShownInThatClientsView(t *testing
 				}
 			})
 		}
+		// the two fetches start their git at the same time, so either may ask first: what counts is that each box is on the screen of
+		// one of the two clients and that each client gets one
 		first := r.nextInput(3)
-		if o := first.Options().Origin; o != viewA {
-			t.Errorf("the first box is for %d, want the view %d that asked first", o, viewA)
-		}
+		got := []extension.Origin{first.Options().Origin}
 		first.Accept(typed)
 		second := r.nextInput(4)
-		if o := second.Options().Origin; o != viewB {
-			t.Errorf("the second box is for %d, want the view %d", o, viewB)
-		}
+		got = append(got, second.Options().Origin)
 		second.Accept(typed)
 		r.idle(rp)
+		if !(got[0] == viewA && got[1] == viewB) && !(got[0] == viewB && got[1] == viewA) {
+			t.Errorf("the boxes are for %v, want one for the view %d and one for the view %d", got, viewA, viewB)
+		}
 	})
 }
 
