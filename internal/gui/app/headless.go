@@ -95,7 +95,8 @@ func (w *Workspace) makeHeadlessView(size extension.Size, frameRate int) (*headl
 		parent: w, main: main, cancel: cancel, size: size, start: time.Now(), done: make(chan struct{}),
 		clip: newViewClipboard(main),
 	}
-	v.ws = w.newViewWorkspace(ctx)
+	w.lastOrigin++
+	v.ws = w.newViewWorkspace(ctx, w.lastOrigin)
 	docs := s.openDocuments()
 	root := newAppWithPage(v.ws, func() widgets.Widget { return newShell(ctx, docs, nil) })
 	ov, err := offscreen.NewView(main, ui.Size{Width: float64(size.Width), Height: float64(size.Height)}, root, v.frame,
@@ -325,7 +326,7 @@ func (v *headlessView) OnNotification(fn func(extension.ViewNotification)) {
 		}
 		v.stopNotify = v.ws.Notify.OnChange(func(e notify.Event) {
 			// a silent one goes to the center only, as in the window
-			if e.Kind != notify.Added || e.Item.Silent {
+			if e.Kind != notify.Added || e.Item.Silent || !e.Item.ShownOn(uint64(v.ws.origin)) {
 				return
 			}
 			n := extension.ViewNotification{ID: e.Item.ID, Source: e.Item.Source, Message: e.Item.Message}
@@ -484,6 +485,8 @@ func (s *shellState) initView(binding *widgets.WidgetsBinding) {
 	s.bindGroupCommands()
 	s.initPanels(binding)
 	s.initExplorer(binding)
+	s.initSCM(binding)
+	s.initTimeline(binding)
 	s.initQuickInput(binding)
 	s.initStatus(binding)
 	s.initSave(binding)
@@ -494,7 +497,10 @@ func (s *shellState) disposeView() {
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()
+	s.disposeTimeline()
+	s.disposeSCM()
 	s.disposeExplorer()
 	s.disposePanels()
+	s.resetSCMParts()
 	s.disposeGroup()
 }

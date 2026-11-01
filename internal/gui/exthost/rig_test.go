@@ -223,6 +223,8 @@ type tab struct {
 	quickDiff  *quickdiff.Service
 	quickTexts map[string]string
 
+	// originKeys are the context keys of the views of the clients of the tab, by origin (origins_test.go).
+	originKeys map[extension.Origin]*contextkey.Scope
 	// dialogs are the dialogs the tab was asked to show (Dialogs().Ask), the first first; watches are the folders it was asked to
 	// watch (Workspace().Watch) with the sinks that feed them, and watchErr is the error the next watch fails with
 	// (watch_test.go).
@@ -459,6 +461,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		Disabled: func() []string { return tb.disabled }, Files: func() []string { return tb.files },
 		Post: tb.post, AskSharing: r.askFunc(tb, name),
 		Views: tb.views, Keys: tb.ctxKeys, Markers: tb.markers, Channels: tb.channels,
+		OriginKeys:    func(o extension.Origin) *contextkey.Scope { return tb.originKeys[o] },
 		ShowChannel:   func(name string, _ bool) { tb.shownChannels = append(tb.shownChannels, name) },
 		FilesComplete: func() bool { return tb.complete },
 		Frame:         func(f func()) { tb.evMu.Lock(); tb.frames = append(tb.frames, f); tb.evMu.Unlock() },

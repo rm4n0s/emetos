@@ -223,8 +223,9 @@ type gitscm struct {
 	helperSrv    *helper.Server
 	helperFailed bool
 	// prompts, prompting and editors are the questions waiting for the user and the files git waits for; the UI thread only.
-	prompts   []promptJob
-	prompting bool
+	prompts []promptJob
+	// prompting are the screens that show a question now: each screen (the host's window, the view of each client) shows one at a time.
+	prompting map[extension.Origin]bool
 	editors   map[string]*editorWait
 }
 

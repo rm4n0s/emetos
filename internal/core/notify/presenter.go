@@ -54,6 +54,8 @@ type Presenter struct {
 	center bool
 	// muted makes no toast: someone else shows the notifications (a headless view whose client does).
 	muted bool
+	// screen is the origin of the screen the presenter is for (SetScreen).
+	screen uint64
 
 	spamStart time.Time
 	spamCount int
@@ -66,6 +68,9 @@ type Presenter struct {
 func NewPresenter(svc *Service) *Presenter {
 	return &Presenter{svc: svc, listeners: map[int]func(){}}
 }
+
+// SetScreen says which screen of a hosted workspace the presenter is for (Notification.Origin); the window of the host is 0.
+func (p *Presenter) SetScreen(origin uint64) { p.screen = origin }
 
 // Service is the service the presenter shows.
 func (p *Presenter) Service() *Service { return p.svc }
@@ -120,7 +125,7 @@ func (p *Presenter) Handle(e Event) {
 // addToast makes a toast for an item, unless the center is open, the item is silent or too many toasts
 // were made lately.
 func (p *Presenter) addToast(item Item) {
-	if p.center || p.muted || item.Silent || p.findToast(item.ID) >= 0 {
+	if p.center || p.muted || item.Silent || !item.ShownOn(p.screen) || p.findToast(item.ID) >= 0 {
 		return
 	}
 	if item.Time.Sub(p.spamStart) > SpamInterval || p.spamCount == 0 {

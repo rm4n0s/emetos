@@ -243,6 +243,8 @@ type QuickPickRequest struct {
 	// Chosen is called with the index in Items and the text that was typed in the filter.
 	Chosen func(index int, value string)
 	Hidden func()
+	// Origin is the screen that shows the list (SPEC §10.18 "As built (step 24.25)"): the window of the host or the view of a client.
+	Origin extension.Origin
 }
 
 // quickPickAPI is the extension.QuickPick of one activation.
@@ -277,31 +279,35 @@ func (q quickPickAPI) Show(opts extension.QuickPickOptions, done func(index int)
 	if choices == 0 {
 		return errors.New("ExtensionQuickPickInvalid", "a quick pick needs at least one item with a label that is not a separator", "extension", in.id)
 	}
+	origin := in.scope.resolveOrigin(opts.Origin)
 	var once sync.Once
 	finish := func(i int) {
 		once.Do(func() {
 			if done != nil {
-				in.scope.runQuickPickDone(in, done, i)
+				in.scope.inOrigin(origin, func() { in.scope.runQuickPickDone(in, done, i) })()
 			}
 		})
 	}
 	show(QuickPickRequest{
 		Title: opts.Title, Placeholder: opts.Placeholder, Items: entries, MatchOnDescription: opts.MatchOnDescription, IgnoreFocusOut: opts.IgnoreFocusOut,
+		Origin: origin,
 		Chosen: func(i int, value string) {
 			if i < 0 || i >= len(index) || in.isDead() || opts.Items[index[i]].Separator {
 				finish(-1)
 				return
 			}
 			chosen := opts.Items[index[i]]
-			if opts.OnAccept != nil {
-				in.scope.runQuickPickAccept(in, opts.OnAccept, value)
-			}
-			if chosen.Command != "" && in.scope.opts.Commands != nil {
-				ctx := command.Context{Ctx: in.ctx, Source: command.SourceAPI}
-				if err := in.scope.opts.Commands.Run(ctx, chosen.Command, chosen.Args); err != nil {
-					in.log.Warn("the command of a quick pick item failed", "command", chosen.Command, "err", err)
+			in.scope.inOrigin(origin, func() {
+				if opts.OnAccept != nil {
+					in.scope.runQuickPickAccept(in, opts.OnAccept, value)
 				}
-			}
+				if chosen.Command != "" && in.scope.opts.Commands != nil {
+					ctx := command.Context{Ctx: in.ctx, Source: command.SourceAPI, Origin: origin}
+					if err := in.scope.opts.Commands.Run(ctx, chosen.Command, chosen.Args); err != nil {
+						in.log.Warn("the command of a quick pick item failed", "command", chosen.Command, "err", err)
+					}
+				}
+			})()
 			finish(index[i])
 		},
 		Hidden: func() { finish(-1) },

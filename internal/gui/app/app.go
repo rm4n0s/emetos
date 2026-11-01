@@ -337,6 +337,8 @@ type shellState struct {
 	merge mergeState
 	// modesStops stop following the full screen mode, zen mode and the zoom of the window (centered.go).
 	modesStops []func()
+	// devViewRemove give the handlers of the dev view commands back (devview.go).
+	devViewRemove []func()
 	// newMenu opens the menu of the "+" button of the strip (titlebar.go, dev.openPlusMenu).
 	newMenu *workbench.NewMenuController
 }
@@ -348,6 +350,10 @@ func (s *shellState) InitState() {
 	s.binding, s.win = binding, PeekWorkspace(s.Context())
 	s.win.shell = s
 	s.win.setShellPost(binding.Post)
+	if !s.win.isView() {
+		check := binding.UIThread().IsCurrent
+		s.win.uiCheck.Store(&check)
+	}
 	if s.win.isView() {
 		s.initView(binding) // the shell of a headless view has the parts of a workbench and none of the window's own
 		return
@@ -382,6 +388,7 @@ func (s *shellState) InitState() {
 	s.bindDevOpenDiff()
 	s.bindDevMerge()
 	s.bindDevOpenMenu()
+	s.bindDevView()
 	s.unbindTitleBar = s.bindTitleBar(binding)
 	// the title of the window follows its template
 	s.unsubscribeTitle = PeekWorkspace(s.Context()).Settings.OnChange(func(e settings.ChangeEvent) {
@@ -487,6 +494,9 @@ func (s *shellState) Dispose() {
 	if s.removeOpenMenu != nil {
 		s.removeOpenMenu()
 	}
+	for _, remove := range s.devViewRemove {
+		remove()
+	}
 	if s.unsubscribeTitle != nil {
 		s.unsubscribeTitle()
 	}
@@ -542,11 +552,13 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		OnSelectPanel: func(id string) { win.Views.OpenPanel(id) },
 	})
 	// the drag of a tab shows above everything; the views below ask the file decorations service for the look of their files
-	stack := widgets.NewStack([]widgets.Widget{bench, s.dragLayer()}, widgets.StackOpts{Fit: rendering.StackFitExpand})
-	if win.Decorations == nil {
-		return stack
+	stack := widgets.NewStack([]widgets.Widget{bench, s.dragLayer(), s.devViewLayer()}, widgets.StackOpts{Fit: rendering.StackFitExpand})
+	// the widgets of the extensions learn which screen of a hosted workspace they are drawn on (ui.OriginOf)
+	var root widgets.Widget = stack
+	if win.Decorations != nil {
+		root = kit.NewFileDecorationsHost(win.Decorations, stack)
 	}
-	return kit.NewFileDecorationsHost(win.Decorations, stack)
+	return kit.NewOriginScope(uint64(win.origin), root)
 }
 
 // bindController finds the controller of the platform window the shell is shown in, the first time it is built, and

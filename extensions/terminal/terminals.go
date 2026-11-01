@@ -24,7 +24,9 @@ const termVersion = "0.1.0"
 // editor tab later, and other extensions read it through events).
 type entry struct {
 	term *Terminal
-	pv   *paneView
+	// pv is the pane of the window of the host; views are the panes of the views of the clients of a hosted workspace, by origin (step 24.25).
+	pv    *paneView
+	views map[extension.Origin]*paneView
 	// ended says that the user or the extension ended the terminal, so that its exit is not reported.
 	ended bool
 	// fixes are the quick fixes of the last command that ended (shell integration).
@@ -79,8 +81,10 @@ type terminals struct {
 	nextGr int
 	// created says that a terminal was made in this window tab (terminalHasBeenCreated).
 	created bool
-	// visible says that the view is on screen.
-	visible bool
+	// shown are the screens that show the view (the window of the host and the views of the clients); screens are what the extension keeps of
+	// each client's view (step 24.25).
+	shown   map[extension.Origin]bool
+	screens map[extension.Origin]*screenState
 	// activated says that Activate is done: a saved session that comes after it is restored when it comes.
 	activated bool
 
@@ -145,6 +149,7 @@ func (t *terminals) newEnv() *paneEnv {
 		altClick: t.altClick, openFile: t.openFile, openLink: t.openLink,
 		fixes: t.fixesOf, runFix: t.runFix, commandMenu: t.showCommandMenu, stickyMenu: t.showStickyMenu, info: t.infoOf,
 		suggester: t.sugg, suggestEnv: t.suggestEnvOf, suggestChanged: func(*paneView) { t.syncKeys() },
+		typed: t.typed,
 	}
 }
 
@@ -302,6 +307,8 @@ func (t *terminals) makeEntry(o openOpts) (*entry, error) {
 	// Code applies the collections of the extensions to the environment of the process
 	contributions := t.api.TerminalEnvironment().Contributions()
 	env = applyContributions(env, contributions)
+	// the programs that ask a question (git's askpass) say which terminal they run in, so that it is shown to the person who typed there
+	env = setEnv(env, []string{"EMETOS_TERMINAL=" + strconv.Itoa(t.nextID)})
 	prof, injected, nonce, ok := t.shellIntegration(prof)
 	if ok {
 		env = setEnv(env, injected)
@@ -334,7 +341,7 @@ func (t *terminals) makeEntry(o openOpts) (*entry, error) {
 		term.SetColor(r.Color)
 	}
 	e := &entry{term: term}
-	e.pv = newPaneView(t.newEnv(), term)
+	e.pv = newPaneView(t.newEnv(), term, extension.HostOrigin)
 	t.hookShell(e)
 	term.SetOnMeta(t.metaChanged)
 	go t.watch(e)
@@ -439,7 +446,7 @@ func (t *terminals) remove(e *entry) {
 		return
 	}
 	e.gone = true
-	e.pv.dispose()
+	e.disposePanes()
 	t.publish(TopicClosed, closedEvent{ID: e.term.ID()})
 	t.afterLeaving(hadFocus)
 }
@@ -508,18 +515,19 @@ func (t *terminals) focusEntry(e *entry, reveal bool) {
 	if reveal {
 		t.handle.Reveal(true)
 	}
-	t.wantFocus = e.pv
-	if e.pv.render != nil {
+	pv := t.pvOf(e) // the pane of the screen the command came from
+	t.wantFocus = pv
+	if pv.render != nil {
 		t.wantFocus = nil
-		e.pv.requestFocus()
+		pv.requestFocus()
 	} else {
 		// the pane is not on screen yet: it takes the focus when it is, and the next frame shows it
 		t.api.Post(t.handle.Refresh)
 	}
 	if reveal || changed {
 		t.api.Post(func() {
-			if e.pv.render != nil {
-				e.pv.requestFocus()
+			if pv.render != nil {
+				pv.requestFocus()
 			}
 		})
 	}
@@ -539,6 +547,10 @@ func (t *terminals) paneMounted(pv *paneView) {
 
 // paneFocusChanged follows the keyboard focus into and out of the panes.
 func (t *terminals) paneFocusChanged(pv *paneView, has bool) {
+	if pv.origin != extension.HostOrigin {
+		t.remoteFocusChanged(pv, has)
+		return
+	}
 	for _, e := range t.all() {
 		if e.pv != pv {
 			continue
@@ -565,21 +577,57 @@ func (t *terminals) paneFocusChanged(pv *paneView, has bool) {
 
 // ---- the context keys ----
 
-// syncKeys gives the context keys their values; only the ones that changed are set.
+// globalKeys are the context keys that describe the terminals of the workspace; every screen sees them (ContextKeys().Set). The others
+// describe what a person does on a screen, which terminal has the keyboard there, and are set for the screen (SetFor).
+var globalKeys = map[string]bool{
+	keyIsOpen: true, keyCount: true, keyGroupCount: true, keyProcessSupported: true, keySplitTerminal: true, keyHasBeenCreated: true,
+}
+
+// syncKeys gives the context keys their values on every screen; only the ones that changed are set.
 func (t *terminals) syncKeys() {
+	t.syncKeysOf(extension.HostOrigin)
+	for origin := range t.screens {
+		t.syncKeysOf(origin)
+	}
+}
+
+// syncKeysOf gives the context keys their values for one screen.
+func (t *terminals) syncKeysOf(origin extension.Origin) {
 	// the terminal the keys describe is the one with the keyboard, also when it is in an editor tab (the panel's active one
 	// is not the terminal the user types in then): the shell, the screen and the find widget are its.
+	focused, tabsFocus := t.paneFocus, t.tabsFocus
+	cache := &t.keys
+	if origin != extension.HostOrigin {
+		sc := t.screens[origin]
+		if sc == nil {
+			return
+		}
+		focused, tabsFocus, cache = sc.focus, sc.tabsFocus, &sc.keys
+	}
+	// paneIf is the pane of a terminal on the screen; none when the screen has not drawn it
+	paneIf := func(x *entry) *paneView {
+		if origin == extension.HostOrigin {
+			return x.pv
+		}
+		return x.views[origin]
+	}
 	e := t.activeEntry()
-	if t.paneFocus != nil {
-		e = t.paneFocus
+	if focused != nil {
+		e = focused
 	}
 	g := t.activeGroup()
-	focused := t.paneFocus
-	selectedHere := focused != nil && focused.pv.hasSelection()
+	selectedHere := false
+	if focused != nil {
+		if pv := paneIf(focused); pv != nil {
+			selectedHere = pv.hasSelection()
+		}
+	}
 	selectedAny := false
+	findInput := false
 	for _, x := range t.all() {
-		if x.pv.hasSelection() {
-			selectedAny = true
+		if pv := paneIf(x); pv != nil {
+			selectedAny = selectedAny || pv.hasSelection()
+			findInput = findInput || pv.find.inputFocused
 		}
 	}
 	alt, shellActive := false, false
@@ -589,12 +637,17 @@ func (t *terminals) syncKeys() {
 	}
 	split := g != nil && len(g.entries) > 1
 	// the find widget: shown in the pane of the active terminal; its input may have the keyboard
-	findVisible, findInput := false, false
+	findVisible := false
 	if e != nil {
-		findVisible = e.pv.find.visible
+		if pv := paneIf(e); pv != nil {
+			findVisible = pv.find.visible
+		}
 	}
-	for _, x := range t.all() {
-		findInput = findInput || x.pv.find.inputFocused
+	suggestVisible := false
+	if focused != nil {
+		if pv := paneIf(focused); pv != nil {
+			suggestVisible = pv.suggestVisible()
+		}
 	}
 	vals := map[string]any{
 		keyFocus: focused != nil, keyFocusInAny: focused != nil || findInput, keyIsOpen: t.count() > 0, keyCount: float64(t.count()),
@@ -602,24 +655,33 @@ func (t *terminals) syncKeys() {
 		keyTextSelectedInFocused: selectedHere, keyFindVisible: findVisible, keyFindFocus: findInput, keyFindInputFocus: findInput,
 		keySplitTerminal:   split,
 		keySplitPaneActive: split && focused != nil, keyHasBeenCreated: t.created, keyAltBuffer: alt,
-		keyTabsFocus: t.tabsFocus, keyEditorFocus: focused != nil && focused.inEditor(), keyShellIntegration: shellActive,
-		keySuggestVisible: focused != nil && focused.pv.suggestVisible(),
+		keyTabsFocus: tabsFocus, keyEditorFocus: focused != nil && focused.inEditor(), keyShellIntegration: shellActive,
+		keySuggestVisible: suggestVisible,
 		keySuggestEnabled: e != nil && !alt && shellActive && t.cfg.sugEnabled && t.cfg.shellInteg,
 	}
-	if t.keys == nil {
-		t.keys = map[string]any{}
+	if *cache == nil {
+		*cache = map[string]any{}
 	}
 	for k, v := range vals {
-		if old, ok := t.keys[k]; ok && old == v {
+		if globalKeys[k] && origin != extension.HostOrigin {
+			continue // the screens see the keys of the workspace; the host's sync sets them
+		}
+		if old, ok := (*cache)[k]; ok && old == v {
 			continue
 		}
-		t.keys[k] = v
-		if err := t.api.Context().Set(k, v); err != nil {
+		(*cache)[k] = v
+		var err error
+		if globalKeys[k] {
+			err = t.api.Context().Set(k, v)
+		} else {
+			err = t.api.Context().SetFor(origin, k, v)
+		}
+		if err != nil {
 			// The extension is active from the start of the window (SPEC §10.25: the terminals are events and requests), also in a
 			// scope that has no context keys; that is not a problem of the terminal.
 			if appErr, ok := errors.FromError(err); ok && appErr.Tag == "ExtensionContextUnavailable" {
 				t.api.Log().Debug("a context key cannot be set here", "key", k)
-				delete(t.keys, k) // tried again at the next change
+				delete(*cache, k) // tried again at the next change
 				continue
 			}
 			t.api.Log().Warn("a context key cannot be set", "key", k, "err", err)
@@ -695,6 +757,9 @@ func (t *terminals) settingsChanged() {
 	}
 	for _, e := range t.all() {
 		e.pv.configChanged()
+		for _, pv := range e.views {
+			pv.configChanged()
+		}
 	}
 	t.syncKeys() // (terminalSuggestEnabled follows terminal.integrated.suggest.enabled)
 	t.handle.Refresh()
@@ -702,14 +767,12 @@ func (t *terminals) settingsChanged() {
 
 // infoOf tells where the terminal of a pane is shown and what its tab looks like, for dev.terminals.
 func (t *terminals) infoOf(pv *paneView) (location, title, icon, iconColor string) {
-	for _, e := range t.all() {
-		if e.pv == pv {
-			location = locView
-			if e.inEditor() {
-				location = locEditor
-			}
-			return location, t.title(e), t.tabIconOf(e), e.term.Meta().color
+	if e := t.entryOf(pv); e != nil {
+		location = locView
+		if e.inEditor() {
+			location = locEditor
 		}
+		return location, t.title(e), t.tabIconOf(e), e.term.Meta().color
 	}
 	return locView, "", "", ""
 }

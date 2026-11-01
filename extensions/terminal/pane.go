@@ -12,6 +12,7 @@ import (
 	gui "github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/extensions/terminal/emulator"
 )
@@ -71,6 +72,8 @@ type paneEnv struct {
 	suggestChanged func(pv *paneView)
 	// info tells where the terminal of a pane is shown and what its tab looks like (dev.terminals).
 	info func(pv *paneView) (location, title, icon, iconColor string)
+	// typed tells that a person typed in the pane (the screen it is on becomes the typist of its terminal).
+	typed func(pv *paneView)
 }
 
 // paneView is the view of one terminal in a pane: what the widget draws, the keyboard, the pointer, the selection and the
@@ -79,6 +82,13 @@ type paneEnv struct {
 type paneView struct {
 	env  *paneEnv
 	term *Terminal
+	// origin is the screen the pane is on: the window of the host, or the view of a client of a hosted workspace (SPEC §10.25 "Clients of a
+	// shared workspace"). A terminal has a pane for each screen that shows it, over the one screen of its emulator.
+	origin extension.Origin
+	// seenRev is the revision of the terminal's screen that the pane of another screen last copied.
+	seenRev uint64
+	// frameOff takes the pane's function off the terminal's list of the ones told that the screen changed.
+	frameOff func()
 
 	node    *widgets.FocusNode
 	binding *widgets.WidgetsBinding
@@ -160,13 +170,13 @@ type paneView struct {
 	hscroll   float64
 }
 
-func newPaneView(env *paneEnv, term *Terminal) *paneView {
-	pv := &paneView{env: env, term: term, painter: newGridPainter(), blinkOn: true, linkCache: map[string]*lineLinks{}, nav: navState{line: -1}}
+func newPaneView(env *paneEnv, term *Terminal, origin extension.Origin) *paneView {
+	pv := &paneView{env: env, term: term, origin: origin, painter: newGridPainter(), blinkOn: true, linkCache: map[string]*lineLinks{}, nav: navState{line: -1}}
 	pv.initFind()
 	pv.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Terminal"})
 	pv.node.AddListener(pv.nodeChanged)
 	pv.ime = &imeClient{pv: pv}
-	term.SetOnFrame(func() { env.post(pv.frameChanged) })
+	pv.frameOff = term.AddOnFrame(func() { env.post(pv.frameChanged) })
 	return pv
 }
 
@@ -225,7 +235,10 @@ func (pv *paneView) applyTheme() {
 // mounted and unmounted are told when the render object comes into the tree and leaves it.
 func (pv *paneView) mounted(r *renderGrid) {
 	pv.render = r
-	pv.term.SetOnFrame(func() { pv.env.post(pv.frameChanged) })
+	if pv.frameOff != nil {
+		pv.frameOff()
+	}
+	pv.frameOff = pv.term.AddOnFrame(func() { pv.env.post(pv.frameChanged) })
 	pv.env.post(pv.syncFocus)
 	if pv.env.mounted != nil {
 		pv.env.mounted(pv)
@@ -296,7 +309,7 @@ func (pv *paneView) layout(size gui.Size) {
 	if cols != pv.cols || rows != pv.rows {
 		pv.cols, pv.rows = cols, rows
 		pv.suggestHide()
-		pv.term.Resize(cols, rows)
+		pv.term.ResizeFrom(pv.origin, cols, rows)
 	}
 }
 
@@ -374,8 +387,7 @@ func (pv *paneView) paint(cv *gui.Canvas, off gui.Offset, size gui.Size) {
 	pv.paints++
 	a, d := pv.atlases()
 	em := pv.term.Emulator()
-	pv.term.TakeChanged()
-	em.Snapshot(&pv.frame)
+	pv.snapshot(em)
 	if pv.haveTop && pv.scroll > 0 {
 		// output keeps the lines in view: the view follows them as the lines move up
 		pv.scroll += int(pv.frame.Top - pv.lastTop)
@@ -522,7 +534,8 @@ func (pv *paneView) focusChanged(has bool) {
 		pv.suggestHide()
 	}
 	if has {
-		if pv.binding != nil {
+		// the view of a client has no input method of its own: the client's committed text arrives as keys with their text
+		if pv.binding != nil && pv.origin == extension.HostOrigin {
 			pv.ime.attach(pv.binding)
 		}
 	} else {
@@ -567,6 +580,25 @@ func (pv *paneView) configChanged() {
 	}
 }
 
+// snapshot takes the screen of the terminal into the pane's frame. The pane of the window of the host reads what changed since its last
+// frame (Emulator.Snapshot keeps that for one reader); the pane of another screen copies the whole screen when the terminal changed since
+// its last copy, and leaves its frame as it was, with nothing marked changed, when it did not.
+func (pv *paneView) snapshot(em *emulator.Emulator) {
+	if pv.origin == extension.HostOrigin {
+		pv.term.TakeChanged()
+		em.Snapshot(&pv.frame)
+		return
+	}
+	rev := pv.term.Rev()
+	if pv.frame.Rows > 0 && pv.seenRev == rev {
+		pv.frame.Full, pv.frame.Changed = false, false
+		clear(pv.frame.Dirty)
+		return
+	}
+	pv.seenRev = rev
+	em.SnapshotCopy(&pv.frame)
+}
+
 // dispose lets go of the pane when its terminal is gone.
 func (pv *paneView) dispose() {
 	pv.suggestHide()
@@ -579,8 +611,13 @@ func (pv *paneView) dispose() {
 	}
 	pv.find.gen++
 	pv.ime.detach()
-	pv.term.SetOnFrame(nil)
-	pv.term.SetOnMeta(nil)
+	if pv.frameOff != nil {
+		pv.frameOff()
+		pv.frameOff = nil
+	}
+	if pv.origin == extension.HostOrigin {
+		pv.term.SetOnMeta(nil)
+	}
 }
 
 // clear is the command Clear: the scrollback goes, and so do the lines above the cursor, so that the line the cursor is on

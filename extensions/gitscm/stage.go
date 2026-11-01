@@ -57,23 +57,28 @@ func (r *repository) mutate(m mutation) {
 		m.begin()
 	}
 	r.beginOwn()
-	ctx, repo, gen := r.ctx, r.repo, r.gen
+	// the screen that asked (a client of a hosted workspace, SPEC §10.18 "As built (step 24.25)"): the questions of the command's git, and
+	// those that its end asks, are shown there
+	origin := x.api.Origins().Current()
+	ctx, repo, gen := withOrigin(r.ctx, origin), r.repo, r.gen
 	go func() {
 		err := m.run(ctx, repo)
 		x.api.Post(func() {
-			if r.disposed {
-				return
-			}
-			if m.finally != nil {
-				m.finally()
-			}
-			if err == nil && gen == r.gen && m.after != nil {
-				m.after()
-			}
-			if err != nil && (m.failed == nil || !m.failed(err)) {
-				x.commandFailed(m.name, r, err, m.retry)
-			}
-			r.endOwn()
+			x.api.Origins().Run(origin, func() {
+				if r.disposed {
+					return
+				}
+				if m.finally != nil {
+					m.finally()
+				}
+				if err == nil && gen == r.gen && m.after != nil {
+					m.after()
+				}
+				if err != nil && (m.failed == nil || !m.failed(err)) {
+					x.commandFailed(m.name, r, err, m.retry)
+				}
+				r.endOwn()
+			})
 		})
 	}()
 }

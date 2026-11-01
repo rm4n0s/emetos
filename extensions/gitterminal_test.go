@@ -99,6 +99,9 @@ func newTermGit(t *testing.T, gitSettings map[string]any) *termGit {
 	shared := fakeapi.NewTerminalSources()
 	gapi.ShareTerminalEnvironment(shared)
 	tapi.ShareTerminalEnvironment(shared)
+	memory := fakeapi.NewOriginMemory() // who typed in which terminal
+	gapi.ShareOrigins(memory)
+	tapi.ShareOrigins(memory)
 	ctx, cancel := context.WithCancel(context.Background())
 	for _, ext := range []struct {
 		x extension.Extension
@@ -315,4 +318,40 @@ func TestATerminalThatRanBeforeTheSettingWasOnKeepsItsEnvironment(t *testing.T) 
 	if got := g.shellValue("GIT_ASKPASS"); got != "" {
 		t.Errorf("a terminal started after the extension was turned off got GIT_ASKPASS = %q", got)
 	}
+}
+
+// A client types git push in the host's terminal from its own view (step 24.25, SPEC §10.25 "Clients of a shared workspace", D51): the
+// password box is shown in the view of the client who typed, not in the host's window, and the answer reaches the git in the host's shell.
+func TestAGitPushTypedByAClientAsksInTheClientsView(t *testing.T) {
+	const view extension.Origin = 3
+	g := newTermGit(t, nil)
+	g.open()
+	g.work.Write("d.txt", "four\n")
+	head := g.work.Commit("add d")
+	// the client's keys reach the terminal through a pane of its view; the command of the test types as that pane would
+	typeAs := func(o extension.Origin, line string) {
+		g.t.Helper()
+		g.term.RunAs(o, func() { g.send(line + "\r") })
+	}
+	typeAs(view, "git push -q origin main")
+	in := g.nextInput(0)
+	if o := in.Options(); o.Origin != view || !o.Password {
+		t.Fatalf("the box is %+v, want a password box in the view %d", o, view)
+	}
+	if got := g.env.Git(g.bare, "rev-parse", "main"); got == head {
+		t.Fatal("the push went through before the password was typed")
+	}
+	in.Accept(typedPW)
+	g.waitFor("the push to arrive", func() bool { return g.env.Git(g.bare, "rev-parse", "main") == head })
+
+	// the host types the next one: its own window asks
+	g.work.Write("e.txt", "five\n")
+	head = g.work.Commit("add e")
+	typeAs(extension.HostOrigin, "git push -q origin main")
+	in = g.nextInput(1)
+	if o := in.Options(); o.Origin != extension.HostOrigin {
+		t.Errorf("the box is %+v, want one of the host's window", o)
+	}
+	in.Accept(typedPW)
+	g.waitFor("the second push to arrive", func() bool { return g.env.Git(g.bare, "rev-parse", "main") == head })
 }

@@ -51,7 +51,7 @@ type Config struct {
 	// ("fetch") and whether it is a background command, and its entries follow Extra. The extension starts the server of the askpass
 	// and editor programs on the first command that can ask something, and gives it the socket and the token here (SPEC §10.30 "Passwords
 	// and editors"); a background command never prompts and gets nothing.
-	ExtraFor func(name string, background bool) []string
+	ExtraFor func(ctx context.Context, name string, background bool) []string
 	// Logger gets the Git channel's lines; may be nil.
 	Logger Logger
 	// CommandsToLog lists the commands (git.commandsToLog) whose standard output is logged too, besides the command line and
@@ -188,7 +188,7 @@ func (r *Runner) execute(ctx context.Context, c Command, consume func(io.Reader)
 
 	xc := exec.CommandContext(runCtx, r.cfg.Path, argv...)
 	xc.Dir = dir
-	xc.Env = r.environ(name, c)
+	xc.Env = r.environ(ctx, name, c)
 	xc.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	// git starts helpers (hooks, credential helpers, ssh); the process group is the unit that is stopped.
 	xc.Cancel = func() error { return signalGroup(xc, syscall.SIGTERM) }

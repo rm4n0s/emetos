@@ -565,7 +565,7 @@ func TestAskpassSettingsDecideWhatGitGets(t *testing.T) {
 			e := gittest.NewEnv(t)
 			r := newRig(t, e, rigOptions{settings: tc.settings})
 			r.settle()
-			env := r.x.helperEnv(tc.command, tc.background)
+			env := r.x.helperEnv(context.Background(), tc.command, tc.background)
 			has := func(prefix string) bool {
 				for _, kv := range env {
 					if strings.HasPrefix(kv, prefix) {
@@ -594,7 +594,7 @@ func TestTheServerLivesInTheRuntimeFolderAndEndsWithTheExtension(t *testing.T) {
 	e := gittest.NewEnv(t)
 	r := newRig(t, e, rigOptions{})
 	r.settle()
-	if r.x.helperEnv("fetch", false) == nil {
+	if r.x.helperEnv(context.Background(), "fetch", false) == nil {
 		t.Fatal("no variables for a fetch")
 	}
 	srv := r.x.helperSrv
@@ -616,7 +616,7 @@ func TestTheServerLivesInTheRuntimeFolderAndEndsWithTheExtension(t *testing.T) {
 		_, err := os.Stat(srv.Folder())
 		return os.IsNotExist(err)
 	})
-	if r.x.helperEnv("fetch", false) != nil {
+	if r.x.helperEnv(context.Background(), "fetch", false) != nil {
 		t.Error("variables are given after the extension ended")
 	}
 }
@@ -630,7 +630,7 @@ func TestAServerThatCannotStartIsLoggedOnceAndGitGoesOn(t *testing.T) {
 	writeFile(t, file, "x")
 	r.x.opts.RuntimeDir = file
 	for range 3 {
-		if env := r.x.helperEnv("fetch", false); env != nil {
+		if env := r.x.helperEnv(context.Background(), "fetch", false); env != nil {
 			t.Fatalf("variables %v although the server cannot start", env)
 		}
 	}

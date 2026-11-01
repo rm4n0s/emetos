@@ -142,12 +142,11 @@ func TestCommandsExecuteRefusesEveryClass(t *testing.T) {
 	examples := map[string][]string{
 		extension.RefusedWindowTab: {"emetos.workspaceTab.close", "emetos.workspaceTab.openFolder", "emetos.workspaceTab.next", "emetos.windowTab.open"},
 		extension.RefusedQuit:      {"workbench.action.quit", "workbench.action.closeWindow"},
-		extension.RefusedWindow:    {"workbench.action.newWindow", "workbench.action.switchWindow"},
+		extension.RefusedWindow:    {"workbench.action.newWindow", "workbench.action.switchWindow", "scm.openInTerminal"},
 		extension.RefusedFolder:    {"workbench.action.files.openFolder", "workbench.action.closeFolder", "workbench.action.openRecent", "openRecentFolder", "openRecentFile"},
 		extension.RefusedProfile:   {"workbench.profiles.actions.switchProfile", "workbench.profiles.actions.createProfile"},
 		extension.RefusedSettings:  {"workbench.action.openSettingsJson", "workbench.action.toggleAutoSave", "workbench.action.selectTheme", "emetos.extensions.manageEventSharing"},
 		extension.RefusedRemote:    {"emetos.remotework.manage", "emetos.remotework.host", "emetos.hosting.menu"},
-		extension.RefusedTerminal:  {"workbench.action.terminal.new", "workbench.action.terminal.sendSequence", "workbench.action.createTerminalEditor"},
 		extension.RefusedOutside: {
 			"emetos.databases.newConnection", "emetos.databases.connect", "emetos.sql.newQuery",
 			// the commands of the container and database extensions that reach outside the workspace (step 22.1)

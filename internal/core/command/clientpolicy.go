@@ -38,7 +38,7 @@ var clientRules = []refusedRule{
 	},
 	{
 		class: extension.RefusedWindow, reason: "a client may not open or switch windows",
-		ids: []string{"workbench.action.newWindow", "workbench.action.switchWindow"},
+		ids: []string{"workbench.action.newWindow", "workbench.action.switchWindow", "scm.openInTerminal"},
 	},
 	{
 		class: extension.RefusedFolder, reason: "a client may not open, replace or close the folder of the workspace, or open from the recent lists",
@@ -65,13 +65,6 @@ var clientRules = []refusedRule{
 	{
 		class: extension.RefusedRemote, reason: "a client may not drive the extensions that share a workspace or control another one",
 		prefixes: []string{"emetos.remotework.", "emetos.hosting."},
-	},
-	{
-		class: extension.RefusedTerminal, reason: "a terminal runs programs on the computer of the host: a client uses the terminal requests",
-		// scm.openInIntegratedTerminal makes a terminal in a repository's folder, scm.openInTerminal starts the desktop's terminal program on the
-		// screen of the host (SPEC §10.30)
-		ids:      []string{"workbench.action.createTerminalEditor", "scm.openInIntegratedTerminal", "scm.openInTerminal"},
-		prefixes: []string{"workbench.action.terminal."},
 	},
 	{
 		// the shared Databases extension and the SQL, MongoDB and Redis extensions (SPEC §10.24): their commands are emetos.databases.*,

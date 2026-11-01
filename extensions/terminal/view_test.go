@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/gluttertest"
 	gui "github.com/rm4n0s/glutter/ui"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui/uitest"
 	"github.com/rm4n0s/emetos/extensions/internal/pty"
 )
@@ -46,7 +47,7 @@ func newFakePaneT(t testing.TB, th uitest.Theme, size gui.Size, tune func(*confi
 	t.Cleanup(func() { term.Kill(); term.Wait() })
 	box := &postBox{}
 	env := &paneEnv{cfg: func() *config { return cfg }, fonts: &fontCache{}, post: box.Post, clipboardCtx: context.Background()}
-	pv := newPaneView(env, term)
+	pv := newPaneView(env, term, extension.HostOrigin)
 	ts := uitest.Pump(t, th, size, paneWidget(pv))
 	box.attach(ts.Binding.Post)
 	r := &paneRig{ts: ts, pv: pv, term: term, proc: proc, cfg: cfg, env: env}

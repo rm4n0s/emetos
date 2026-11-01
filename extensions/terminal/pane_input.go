@@ -11,6 +11,7 @@ import (
 	gui "github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/terminal/emulator"
 )
 
@@ -44,7 +45,7 @@ func (pv *paneView) onKey(_ *widgets.FocusNode, e services.KeyEvent) widgets.Key
 	default:
 		return widgets.KeyEventResultIgnored
 	}
-	ev, viaText, ok := keyEventOf(e, pv.modsOf(), pv.ime.attached())
+	ev, viaText, ok := keyEventOf(e, pv.modsOf(), pv.ime.attached() && pv.origin == extension.HostOrigin)
 	if !ok || viaText {
 		return widgets.KeyEventResultIgnored
 	}
@@ -58,6 +59,13 @@ func (pv *paneView) onKey(_ *widgets.FocusNode, e services.KeyEvent) widgets.Key
 
 // userInput sends what the user typed: the view goes to the bottom and the selection ends.
 func (pv *paneView) userInput(b []byte) {
+	// the pane of the screen that types decides how large the terminal is, as the client that typed last does in a shared tmux session
+	if pv.term.TypedFrom(pv.origin) && pv.cols > 0 && pv.rows > 0 {
+		pv.term.Resize(pv.cols, pv.rows)
+	}
+	if pv.env.typed != nil {
+		pv.env.typed(pv)
+	}
 	pv.suggestTyped(b)
 	pv.term.Type(b, ByUser)
 	pv.scrollTo(0)

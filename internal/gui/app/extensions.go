@@ -103,7 +103,12 @@ func (w *Workspace) defaultKeys() []keybinding.Item {
 
 // Extensions is the scope of the workspace in the extension host, or nil before the workspace is complete or after it was
 // released.
-func (w *Workspace) Extensions() *exthost.Scope { return w.extScope.Load() }
+func (w *Workspace) Extensions() *exthost.Scope {
+	if w.isView() {
+		return w.viewOf.Extensions() // the scope serves the screens of the workspace (viewscreen.go)
+	}
+	return w.extScope.Load()
+}
 
 // extensionName is the name the workspace goes by for the extensions and the Extensions page: the base name of the
 // folder.
@@ -128,7 +133,7 @@ func (w *Workspace) startExtensions() {
 		return
 	}
 	w.extKeys = &extensionKeys{w: w}
-	scope := p.Extensions.NewScope(exthost.ScopeOptions{
+	opts := exthost.ScopeOptions{
 		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: w.extensionName(), Folder: w.Folder, ID: w.sharingID()},
 		Ctx:  w.ctx, Commands: w.Commands, Menus: w.Menus, Keybindings: w.extKeys, Settings: w.Settings,
 		Notify: w.Notify, StatusBar: w.StatusBar, Documents: extensionDocuments{w: w},
@@ -140,7 +145,9 @@ func (w *Workspace) startExtensions() {
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
 		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, Decorations: w.Decorations, Timeline: w.Timeline, QuickDiff: w.QuickDiff, HistoryGraph: w.SCM != nil, EditorDecorations: w.Annotations, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
 		Dialog: w.extensionDialog, Watch: w.extensionWatch, TrashFiles: w.extensionTrash,
-	})
+	}
+	w.scopeScreenOptions(&opts)
+	scope := p.Extensions.NewScope(opts)
 	w.extScope.Store(scope)
 	// a change of extensions.disabled turns extensions off and on in this workspace
 	w.stops = append(w.stops, w.Settings.OnChange(func(e settings.ChangeEvent) {
@@ -565,6 +572,11 @@ func (w *Workspace) extensionFileChooser(ctx context.Context, opts extension.Fil
 // extensionDialog shows the modal dialog of Dialogs().Ask in the window, after the dialogs that wait before it (the controller
 // queues them), and gives the answer back. Escape and the close button answer with the cancel button of the dialog.
 func (w *Workspace) extensionDialog(req exthost.DialogRequest) {
+	target := w.screenOf(req.Origin)
+	if target == nil { // the client that asked is gone: nobody can answer
+		req.Answered(extension.DialogResult{Button: -1, Cancelled: true})
+		return
+	}
 	spec := req.Spec
 	kitSpec := kit.DialogSpec{Type: dialogType(spec.Type), Message: spec.Message, Detail: spec.Detail}
 	for i, b := range spec.Buttons {
@@ -576,7 +588,7 @@ func (w *Workspace) extensionDialog(req exthost.DialogRequest) {
 	kitSpec.OnAnswer = func(r kit.DialogResult) {
 		req.Answered(extension.DialogResult{Button: r.Button, Cancelled: r.Cancelled})
 	}
-	w.Dialogs.Show(kitSpec)
+	target.Dialogs.Show(kitSpec)
 }
 
 // dialogType maps the type of a dialog of an extension to the kit's.
@@ -627,6 +639,11 @@ func fileChangeKind(k workspace.EventKind) string {
 // extensionQuickPick shows the list of QuickPick().Show in the quick input of the window. The icon of an item is the codicon its
 // label starts with ($(name) Label).
 func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
+	target := w.screenOf(req.Origin) // the screen of the person who asked (SPEC §10.18 "As built (step 24.25)")
+	if target == nil {
+		req.Hidden()
+		return
+	}
 	items := make([]quickinput.Item, len(req.Items))
 	var picker *quickinput.Picker
 	for i, e := range req.Items {
@@ -647,7 +664,7 @@ func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 			},
 		}
 	}
-	w.QuickInput.Pick(quickinput.PickOptions{
+	target.QuickInput.Pick(quickinput.PickOptions{
 		Title: req.Title, Placeholder: req.Placeholder, Items: items, MatchOnDescription: req.MatchOnDescription, IgnoreFocusOut: req.IgnoreFocusOut,
 		OnHide: func(accepted bool) {
 			if !accepted {
@@ -655,12 +672,17 @@ func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 			}
 		},
 	})
-	picker = w.QuickInput.Picker()
+	picker = target.QuickInput.Picker()
 }
 
 // extensionInputBox shows the input box of InputBox().Show in the quick input of the window. The prompt is the hint of the input;
 // the quick input validates the text as the user types.
 func (w *Workspace) extensionInputBox(req exthost.InputBoxRequest) {
+	target := w.screenOf(req.Origin)
+	if target == nil {
+		req.Hidden()
+		return
+	}
 	var buttons []quickinput.PromptButton
 	for i, b := range req.Buttons {
 		code, ok := fonts.CodiconByName(b.Icon)
@@ -674,7 +696,7 @@ func (w *Workspace) extensionInputBox(req exthost.InputBoxRequest) {
 		}
 		buttons = append(buttons, button)
 	}
-	w.QuickInput.Prompt(quickinput.PromptOptions{
+	target.QuickInput.Prompt(quickinput.PromptOptions{
 		Placeholder: req.Prompt, Value: req.Value, Password: req.Password, Message: req.Message, IgnoreFocusOut: req.IgnoreFocusOut, Validate: req.Validate,
 		Buttons: buttons, OnAccept: req.Accepted, OnCancel: req.Hidden,
 	})

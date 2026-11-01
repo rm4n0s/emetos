@@ -7,6 +7,7 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/keybinding"
@@ -34,9 +35,16 @@ func (w *Workspace) isView() bool { return w.viewOf != nil }
 // Not in the view: the extensions' contributions (their views, commands, menu items and status items live in the scope the
 // parent holds), the state files, the backups, the watcher of the folder (the parent's keeps both views up to date), and
 // the commands that act on Emetos itself (quit, the window tabs, other workspaces): the shell of a view does not bind them.
-func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
+func (p *Workspace) newViewWorkspace(ctx context.Context, origin extension.Origin) *Workspace {
 	proc := p.Process
 	commands := proc.Commands.Fork()
+	commands.Inherit(p.Commands, origin)
+	menus := proc.Menus.Fork(commands)
+	menus.Inherit(p.Menus)
+	viewRegistry := proc.Views.Fork()
+	viewRegistry.Inherit(p.Views.Registry())
+	statusBar := workbench.NewStatusBar()
+	statusBar.Inherit(p.StatusBar, extensionStatusID)
 	layout := workbench.NewLayout(workbench.LayoutStateFromSettings(p.Settings))
 	access := quickinput.NewRegistry()
 	p.folderMu.RLock()
@@ -48,7 +56,7 @@ func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
 		CommandHistory: quickinput.NewCommandsHistory(0),
 		Process:        proc,
 		Commands:       commands,
-		Menus:          proc.Menus.Fork(commands),
+		Menus:          menus,
 		Notify:         p.Notify,
 		Folder:         folder,
 		Workspace:      ws,
@@ -67,7 +75,7 @@ func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
 		Zoom:           editor.NewZoom(),
 		InputMode:      p.InputMode,
 		Layout:         layout,
-		Views:          workbench.NewViews(proc.Views.Fork(), layout),
+		Views:          workbench.NewViews(viewRegistry, layout),
 		Dialogs:        kit.NewDialogController(),
 		Recent:         workspace.NewRecentFiles(0),
 		FileOps:        p.FileOps,
@@ -75,7 +83,10 @@ func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
 		Decorations:    p.Decorations,
 		Annotations:    p.Annotations,
 		QuickDiff:      p.QuickDiff,
-		StatusBar:      workbench.NewStatusBar(),
+		StatusBar:      statusBar,
+		SCM:            p.SCM,
+		Timeline:       p.Timeline,
+		origin:         origin,
 		ctx:            ctx,
 		viewOf:         p,
 		settingsDocs:   p.settingsDocs,
@@ -92,6 +103,9 @@ func (p *Workspace) newViewWorkspace(ctx context.Context) *Workspace {
 		OpenURI: noOpenURI,
 	}
 	w.Notifications = notify.NewPresenter(w.Notify)
+	w.Notifications.SetScreen(uint64(origin))
+	w.followExtensionKeys()
+	w.startViewSCM()
 	w.followZoom()
 	w.syncLayoutKeys()
 	w.Layout.OnChange(w.syncLayoutKeys)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/annotations"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
@@ -217,6 +218,15 @@ type Workspace struct {
 	viewOf *Workspace
 	// views are the headless views other workspaces' users hold of this one; UI thread only.
 	views []*headlessView
+	// origin is the screen this workspace is in a hosted workspace: the headless view of a client has the number the scope of its parent
+	// knows it by (extension.Origin); the window of the host and every workspace of a tab have 0. lastOrigin numbers the views of a
+	// workspace; UI thread only.
+	origin     extension.Origin
+	lastOrigin extension.Origin
+	// dev is the dev view the debug commands made (devview.go); UI thread only.
+	dev devViewState
+	// uiCheck tells whether the caller is on the UI thread of the shell that shows the workspace (Origins().Current needs it).
+	uiCheck atomic.Pointer[func() bool]
 	// settingsDocs lets the settings store read and edit the settings files that are open in an editor.
 	settingsDocs *settingsDocs
 	// uiModel is the model of the settings editor (SettingsModel).

@@ -13,6 +13,8 @@ import (
 type DialogRequest struct {
 	Spec     extension.DialogSpec
 	Answered func(extension.DialogResult)
+	// Origin is the screen that shows the dialog (SPEC §10.18 "As built (step 24.25)"): the window of the host or the view of a client.
+	Origin extension.Origin
 }
 
 // dialogsAPI is the extension.Dialogs of one activation.
@@ -42,11 +44,12 @@ func (d dialogsAPI) Ask(spec extension.DialogSpec, done func(extension.DialogRes
 	if show == nil {
 		return errors.New("ExtensionDialogsUnavailable", "the scope cannot show a dialog", "extension", in.id)
 	}
+	origin := in.scope.resolveOrigin(spec.Origin)
 	var once sync.Once
-	show(DialogRequest{Spec: spec, Answered: func(r extension.DialogResult) {
+	show(DialogRequest{Spec: spec, Origin: origin, Answered: func(r extension.DialogResult) {
 		once.Do(func() {
 			if done != nil {
-				in.scope.runDialogDone(in, done, r)
+				in.scope.inOrigin(origin, func() { in.scope.runDialogDone(in, done, r) })()
 			}
 		})
 	}})

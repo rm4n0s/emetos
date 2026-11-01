@@ -61,8 +61,12 @@ func TestClientRefusal(t *testing.T) {
 		{"emetos.containers.connectDatabase", extension.RefusedOutside},
 		{"emetos.podman.connectDatabase", extension.RefusedOutside},
 		{"emetos.databases.openForm", extension.RefusedOutside},
-		{"workbench.action.terminal.new", extension.RefusedTerminal},
-		{"workbench.action.terminal.sendSequence", extension.RefusedTerminal},
+		// the terminal is the client's too (D51, step 24.25): only the desktop's terminal program, which opens on the host's screen, is refused
+		{"scm.openInTerminal", extension.RefusedWindow},
+		{"workbench.action.terminal.new", ""},
+		{"workbench.action.terminal.sendSequence", ""},
+		{"workbench.action.createTerminalEditor", ""},
+		{"scm.openInIntegratedTerminal", ""},
 		// allowed: the workspace settings, editing, saving, extensions' commands
 		{"workbench.action.openWorkspaceSettingsFile", ""},
 		{"workbench.action.openWorkspaceSettings", ""},
@@ -96,8 +100,8 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 		have[m.ID] = true
 	}
 	// the extensions' commands are not in the registry of Emetos
-	extensionPrefixes := []string{"emetos.remotework.", "emetos.hosting.", "workbench.action.terminal.", "emetos.databases.", "emetos.sql.", "sql.", "emetos.mongodb.", "mongodb.", "emetos.redis.", "redis.", "containers.", "emetos.containers.", "podman.", "emetos.podman."}
-	extensionIDs := []string{"workbench.action.createTerminalEditor"} // the terminal extension's
+	extensionPrefixes := []string{"emetos.remotework.", "emetos.hosting.", "emetos.databases.", "emetos.sql.", "sql.", "emetos.mongodb.", "mongodb.", "emetos.redis.", "redis.", "containers.", "emetos.containers.", "podman.", "emetos.podman."}
+	extensionIDs := []string{}
 	for _, id := range RefusedExactIDs() {
 		if !have[id] && !slices.Contains(extensionIDs, id) {
 			t.Errorf("the rule names %q, which is not a command", id)
@@ -114,7 +118,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 	classes := RefusedClasses()
 	for _, want := range []string{
 		extension.RefusedWindowTab, extension.RefusedQuit, extension.RefusedWindow, extension.RefusedFolder,
-		extension.RefusedProfile, extension.RefusedSettings, extension.RefusedRemote, extension.RefusedTerminal, extension.RefusedOutside,
+		extension.RefusedProfile, extension.RefusedSettings, extension.RefusedRemote, extension.RefusedOutside,
 	} {
 		if !slices.Contains(classes, want) {
 			t.Errorf("class %q has no rule", want)

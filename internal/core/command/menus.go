@@ -143,6 +143,9 @@ type MenuItem struct {
 	Toggled contextkey.Expr
 	// Args are the arguments the command is run with (an item of a dynamic menu).
 	Args any
+	// Extension marks an item that an extension's manifest or API added: the registry of the view of a client of a hosted workspace
+	// shows these items of its parent (MenuRegistry.Inherit).
+	Extension bool
 
 	// token marks the items that AddRemovable added together, so that the function it returns takes them out.
 	token uint64
@@ -190,6 +193,8 @@ type MenuRegistry struct {
 	providers map[string][]MenuProvider
 	// tokens numbers the calls of AddRemovable.
 	tokens uint64
+	// parent, when set, gives the menus the items of its extensions (Inherit).
+	parent *MenuRegistry
 }
 
 // NewMenuRegistry makes an empty registry of menus over a registry of commands, which gives the
@@ -214,6 +219,29 @@ func (r *MenuRegistry) Add(items ...MenuItem) error {
 		r.items[it.Menu] = append(r.items[it.Menu], it)
 	}
 	return nil
+}
+
+// Inherit makes the menus show, besides their own items, the items that extensions added to parent (MenuItem.Extension) as they are at
+// the moment a menu is built. The view of a client of a hosted workspace has the menu items of the workspace's extensions this way (SPEC
+// §10.18 "As built (step 24.25)"); an item of a command the view's registry refuses is left out by the registry of commands. Call it once,
+// before the registry is used.
+func (r *MenuRegistry) Inherit(parent *MenuRegistry) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.parent = parent
+}
+
+// extensionItems are the items of the menu that extensions added.
+func (r *MenuRegistry) extensionItems(menu string) []MenuItem {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []MenuItem
+	for _, it := range r.items[menu] {
+		if it.Extension {
+			out = append(out, it)
+		}
+	}
+	return out
 }
 
 // ItemsOf are the items that were added to a menu, as they were added, in no order and whatever their conditions (the Graph reads the
@@ -313,7 +341,11 @@ func (r *MenuRegistry) items0(menu string, ctx contextkey.Context, path map[stri
 	r.mu.RLock()
 	items := slices.Clone(r.items[menu])
 	providers := slices.Clone(r.providers[menu])
+	parent := r.parent
 	r.mu.RUnlock()
+	if parent != nil {
+		items = append(items, parent.extensionItems(menu)...)
+	}
 	for _, p := range providers {
 		items = append(items, p(ctx)...)
 	}

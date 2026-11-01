@@ -74,14 +74,15 @@ func (t *terminals) editorNow() editorState {
 
 // onFind runs f on the pane whose find input has the keyboard, else on the terminal a command acts on.
 func (t *terminals) onFind(f func(pv *paneView)) {
+	o := t.api.Origins().Current()
 	for _, e := range t.all() {
-		if e.pv.find.inputFocused {
-			f(e.pv)
+		if pv := t.pvIf(e, o); pv != nil && pv.find.inputFocused {
+			f(pv)
 			return
 		}
 	}
 	if e := t.target(); e != nil {
-		f(e.pv)
+		f(t.pvOf(e))
 	}
 }
 
@@ -130,7 +131,7 @@ func (t *terminals) searchWorkspace(ctx context.Context) {
 	if e == nil {
 		return
 	}
-	query := e.pv.selectedText()
+	query := t.pvOf(e).selectedText()
 	if query == "" {
 		return
 	}
@@ -180,7 +181,7 @@ func (t *terminals) runSelectedText(ctx context.Context) {
 	if e == nil {
 		return
 	}
-	e.pv.sendText(out, true, true)
+	t.pvOf(e).sendText(out, true, true)
 	t.handle.Reveal(false)
 }
 
@@ -200,7 +201,7 @@ func (t *terminals) runActiveFile() {
 		t.api.Notifications().Warn("Only files on disk can be run in the terminal")
 		return
 	}
-	e.pv.sendText(preparePathForShell(u.Path, e.term.Profile().path, e.term.Meta().title), true, false)
+	t.pvOf(e).sendText(preparePathForShell(u.Path, e.term.Profile().path, e.term.Meta().title), true, false)
 	t.handle.Reveal(false)
 }
 
@@ -282,7 +283,7 @@ func (t *terminals) sendSequence(ctx context.Context, args any) {
 	}
 	if m, ok := args.(map[string]any); ok {
 		if text, _ := m["text"].(string); text != "" {
-			e.pv.sendText(t.resolveVariables(ctx, text), false, false)
+			t.pvOf(e).sendText(t.resolveVariables(ctx, text), false, false)
 			return
 		}
 	}
@@ -296,7 +297,7 @@ func (t *terminals) sendSequence(ctx context.Context, args any) {
 			return string(rune(n))
 		})
 		if t.alive(e) {
-			e.pv.sendText(t.resolveVariables(ctx, value), false, false)
+			t.pvOf(e).sendText(t.resolveVariables(ctx, value), false, false)
 		}
 	})
 	if err != nil {

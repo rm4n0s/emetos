@@ -264,6 +264,6 @@ func (t *terminals) onTarget(f func(e *entry)) extension.CommandHandler {
 
 // toggleSizeToContent is the command Toggle Size to Content Width.
 func (t *terminals) toggleSizeToContent(e *entry) {
-	e.pv.toggleSizeToContent()
+	t.pvOf(e).toggleSizeToContent()
 	t.focusEntry(e, false)
 }

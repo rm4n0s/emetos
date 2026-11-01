@@ -14,6 +14,7 @@ import (
 	gui "github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
@@ -66,3 +67,9 @@ func Pump(t testing.TB, th Theme, size gui.Size, child widgets.Widget) *gluttert
 // MatchesGolden compares the picture of the tester with the golden image of the name in the testdata/goldens folder of the
 // package under test.
 func MatchesGolden(ts *gluttertest.Tester, name string) { testutil.MatchesGolden(ts, name) }
+
+// OnScreen draws child as the view of a client of a hosted workspace would: ui.OriginOf says it is on the screen with the origin
+// (SPEC §10.18 "As built (step 24.25)").
+func OnScreen(origin extension.Origin, child widgets.Widget) widgets.Widget {
+	return kit.NewOriginScope(uint64(origin), child)
+}

@@ -31,6 +31,13 @@ const (
 	// EnvFetchSilent, with EMETOS_GIT_COMMAND=fetch, marks a fetch the user did not ask for (autofetch): it never prompts (VS Code's
 	// VSCODE_GIT_FETCH_SILENT).
 	EnvFetchSilent = "EMETOS_GIT_FETCH_SILENT"
+	// EnvOrigin is the screen of a hosted workspace that started the command (extension.Origin, a number); the extension gives it to a
+	// command that a client of Remote Work started, so that the question the command asks is shown in the view of that client (SPEC §10.18
+	// "As built (step 24.25)").
+	EnvOrigin = "EMETOS_ORIGIN"
+	// EnvTerminal is the number of the terminal a command is typed in; the Terminal extension gives it to the shell, and the question git asks
+	// there goes to the screen of the person who typed last in that terminal.
+	EnvTerminal = "EMETOS_TERMINAL"
 	// EnvSSHPrompt is the type of prompt that ssh (OpenSSH 8.4 and newer) puts in the environment of the askpass program: "confirm" for a
 	// yes or no question, "none" for a message, empty for an input.
 	EnvSSHPrompt = "SSH_ASKPASS_PROMPT"
@@ -79,6 +86,10 @@ type Request struct {
 	Silent bool `json:"silent,omitempty"`
 	// SSHPrompt is the type of prompt that ssh gave (EnvSSHPrompt).
 	SSHPrompt string `json:"sshPrompt,omitempty"`
+	// Origin is the screen that started the command (EnvOrigin), 0 for the window of the host or when nobody did.
+	Origin uint64 `json:"origin,omitempty"`
+	// Terminal is the terminal the command was typed in (EnvTerminal), empty for a command the extension started.
+	Terminal string `json:"terminal,omitempty"`
 }
 
 // Reply is the answer: one line of JSON.

@@ -35,6 +35,8 @@ type QuickPickOptions struct {
 	// filter at that moment (VS Code's quickPick.value). The checkout picker uses it: the text typed beside "Create new branch..." is
 	// the name of the branch.
 	OnAccept func(value string)
+	// Origin is the screen that shows the list; the zero value is the origin of the command being handled (see InputBoxOptions.Origin).
+	Origin Origin
 }
 
 // QuickPick shows a list over the editor to choose one item from, as the command palette does (SPEC §10.3).

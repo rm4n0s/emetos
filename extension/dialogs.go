@@ -34,6 +34,8 @@ type DialogSpec struct {
 	// Buttons are the buttons; there must be at least one. The first is the default button: it has the focus when the dialog opens
 	// and Enter presses it.
 	Buttons []DialogButton
+	// Origin is the screen that shows the dialog; the zero value is the origin of the command being handled (see InputBoxOptions.Origin).
+	Origin Origin
 }
 
 // DialogResult is the answer to a dialog.

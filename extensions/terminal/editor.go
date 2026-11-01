@@ -184,7 +184,7 @@ func (t *terminals) dropEditor(e *entry, closeTab bool) {
 	}
 	t.unlinkEditor(e)
 	e.gone = true
-	e.pv.dispose()
+	e.disposePanes()
 	t.publish(TopicClosed, closedEvent{ID: e.term.ID()})
 	if tab != nil && closeTab {
 		tab.Close()

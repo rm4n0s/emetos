@@ -216,7 +216,7 @@ func TestCommandsMakeFocusSplitAndKillTerminals(t *testing.T) {
 		t.Error("saving the state of a view that is on screen made it forget that the panel hides")
 	}
 	// the view goes off screen and comes back later: it may make a terminal again
-	r.ext.viewGone()
+	r.ext.viewGone(extension.HostOrigin)
 	if r.ext.suppressOpen {
 		t.Error("the panel was hidden and the view still refuses to make a terminal")
 	}

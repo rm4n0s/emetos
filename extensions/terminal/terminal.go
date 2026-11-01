@@ -226,7 +226,7 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 // terminal.integrated.commandsToSkipShell are; every other key goes to the shell (Ctrl+W, Ctrl+B, Ctrl+R...). With
 // terminal.integrated.sendKeybindingsToShell nothing but the terminal's own toggle is skipped.
 func (t *terminals) allowCommand(commandID string) bool {
-	if t.paneFocus == nil {
+	if !t.anyPaneFocus() {
 		return true // the focus is in the tabs list or the question about a paste
 	}
 	if t.cfg.sendKeys {
@@ -237,6 +237,14 @@ func (t *terminals) allowCommand(commandID string) bool {
 
 // target is the terminal a command acts on: the one with the keyboard focus, else the active one.
 func (t *terminals) target() *entry {
+	if o := t.api.Origins().Current(); o != extension.HostOrigin {
+		return t.targetFor(o)
+	}
+	return t.hostTarget()
+}
+
+// hostTarget is target for a command run in the window of the host.
+func (t *terminals) hostTarget() *entry {
 	if t.paneFocus != nil {
 		return t.paneFocus
 	}
@@ -251,7 +259,7 @@ func (t *terminals) handlers() map[string]extension.CommandHandler {
 	onPane := func(f func(pv *paneView)) extension.CommandHandler {
 		return func(context.Context, any) error {
 			if e := t.target(); e != nil {
-				f(e.pv)
+				f(t.pvOf(e))
 			}
 			return nil
 		}

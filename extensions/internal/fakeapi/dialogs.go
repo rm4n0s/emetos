@@ -40,6 +40,13 @@ func (d dialogs) Ask(spec extension.DialogSpec, done func(extension.DialogResult
 		return errors.New("ExtensionDialogInvalid", "a dialog needs a button, and at most one of them is the cancel button", "buttons", len(spec.Buttons), "cancel", cancels)
 	}
 	spec.Buttons = slices.Clone(spec.Buttons)
+	if spec.Origin == extension.HostOrigin {
+		spec.Origin = a.origins.cur
+	}
+	if done != nil {
+		inner, origin := done, spec.Origin
+		done = func(r extension.DialogResult) { a.RunAs(origin, func() { inner(r) }) }
+	}
 	a.dialogs = append(a.dialogs, &FakeDialog{a: a, spec: spec, done: done})
 	return nil
 }

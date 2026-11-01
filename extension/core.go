@@ -98,7 +98,8 @@ const (
 	RefusedWindowTab = "windowTab"
 	// RefusedQuit: quitting Emetos and closing the window.
 	RefusedQuit = "quit"
-	// RefusedWindow: new windows and switching windows.
+	// RefusedWindow: new windows and switching windows, and the terminal program of the desktop (scm.openInTerminal), which would open
+	// a window on the screen of the host that the client does not see (the integrated terminal is the client's own, D51).
 	RefusedWindow = "window"
 	// RefusedFolder: opening, replacing or closing the folder, and the lists of recent folders and files.
 	RefusedFolder = "folder"
@@ -109,9 +110,6 @@ const (
 	RefusedSettings = "settings"
 	// RefusedRemote: the commands of the extensions that share a workspace or control another one.
 	RefusedRemote = "remote"
-	// RefusedTerminal: the commands of the terminal (workbench.action.terminal.*): a terminal runs programs on the computer of
-	// the host, so a client uses the requests of the terminal and the host's permission for them instead (SPEC §10.25).
-	RefusedTerminal = "terminal"
 	// RefusedOutside: the commands of the extensions that reach outside the workspace: the databases a connection names, and (the
 	// container extensions, M18) the engine's socket. A client has no say in what the host connects to (SPEC §10.24).
 	RefusedOutside = "outside"

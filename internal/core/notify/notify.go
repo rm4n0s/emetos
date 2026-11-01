@@ -97,7 +97,15 @@ type Notification struct {
 	Silent bool
 	// Progress, when set, is the initial progress; UpdateProgress changes it.
 	Progress *Progress
+	// Origin is the screen of a hosted workspace that asked for the work this notification is about: 0 for the window of the host (and for
+	// work nobody asked for), or the number of the view of a client (SPEC §10.18 "As built (step 24.25)"). A screen shows the
+	// notifications of its own origin and the ones with none (ShownOn).
+	Origin uint64
 }
+
+// ShownOn tells whether the screen with this origin shows the notification as a toast: the ones that no screen asked for are on every screen,
+// the others only on the screen that asked.
+func (n Notification) ShownOn(screen uint64) bool { return n.Origin == 0 || n.Origin == screen }
 
 // Item is a notification the service holds.
 type Item struct {

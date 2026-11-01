@@ -160,7 +160,7 @@ func (s *Scope) installViews(sl *slot) (registry, others []func()) {
 			continue
 		}
 		others = append(others, remove)
-		removeMenu, err := s.opts.Menus.AddRemovable(command.MenuItem{Menu: command.MenubarViewMenu, Command: toggle, Title: spec.Title, Group: "5_panel", Order: 10})
+		removeMenu, err := s.opts.Menus.AddRemovable(command.MenuItem{Menu: command.MenubarViewMenu, Command: toggle, Title: spec.Title, Group: "5_panel", Order: 10, Extension: true})
 		if err != nil {
 			log.Warn("the View menu entry of a panel view is left out", "view", spec.ID, "err", err)
 			continue

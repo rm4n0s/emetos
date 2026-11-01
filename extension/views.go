@@ -143,6 +143,13 @@ type ContextKeys interface {
 	Set(key string, value any) error
 	// Reset takes the key away.
 	Reset(key string)
+	// SetFor gives the key a value on one screen only (SPEC §10.18, D50): the window of the host (HostOrigin) or the view of a client. A
+	// key that describes what a person is doing on a screen, such as which terminal has the keyboard, is set like this; Set is for the keys
+	// that describe the workspace, which every screen sees (the host's and the views' alike). A key set with SetFor is not seen by the
+	// other screens, and one that is set with both is the later call's on the screen of that call. A screen that is gone is ignored.
+	SetFor(origin Origin, key string, value any) error
+	// ResetFor takes the key away on one screen.
+	ResetFor(origin Origin, key string)
 }
 
 // ViewWelcomeSpec is a piece of welcome content of a view (VS Code's contributes.viewsWelcome entry, SPEC §10.30): what a view

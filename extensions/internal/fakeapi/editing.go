@@ -323,6 +323,13 @@ func (a *API) InputBox() extension.InputBox { return inputBox{a} }
 
 func (b inputBox) Show(opts extension.InputBoxOptions, done func(string, bool)) error {
 	b.a.mu.Lock()
+	if opts.Origin == extension.HostOrigin {
+		opts.Origin = b.a.origins.cur // the screen of the command being handled, as the host does
+	}
+	if done != nil {
+		inner, origin := done, opts.Origin
+		done = func(v string, ok bool) { b.a.RunAs(origin, func() { inner(v, ok) }) }
+	}
 	b.a.inputs = append(b.a.inputs, &Input{a: b.a, opts: opts, done: done})
 	b.a.mu.Unlock()
 	return nil

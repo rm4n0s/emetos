@@ -70,6 +70,7 @@ type API struct {
 	manifest          extension.Manifest
 	servers           map[string]*serverState
 	picks             []*Pick
+	origins           originState
 	ranCommands       []RanCommand
 	docs              map[string]string
 	applied           []extension.WorkspaceEdit

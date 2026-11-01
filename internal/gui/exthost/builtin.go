@@ -143,8 +143,9 @@ func (h *viewHandle) Reveal(focus bool) {
 	}
 	s := in.scope
 	d := h.decl
+	origin := s.currentOrigin() // a view revealed by a client's command opens in the client's screen
 	s.post(func() {
-		views := s.opts.Views
+		views := s.viewsOfOrigin(origin)
 		if views == nil {
 			return
 		}
@@ -155,7 +156,14 @@ func (h *viewHandle) Reveal(focus bool) {
 			views.SetHidden(d.id, false)
 			views.SetCollapsed(d.id, false)
 		}
-		if focus && s.opts.FocusView != nil {
+		if !focus {
+			return
+		}
+		if origin != extension.HostOrigin {
+			if s.opts.OriginFocusView != nil {
+				s.opts.OriginFocusView(origin, d.id)
+			}
+		} else if s.opts.FocusView != nil {
 			s.opts.FocusView(d.id)
 		}
 	})
@@ -169,12 +177,20 @@ func (h *viewHandle) Hide() {
 	}
 	s := in.scope
 	d := h.decl
+	origin := s.currentOrigin()
 	s.post(func() {
-		if !d.panel || s.opts.Views == nil || !s.opts.Views.ClosePanel(d.container) {
+		views := s.viewsOfOrigin(origin)
+		if !d.panel || views == nil || !views.ClosePanel(d.container) {
 			return
 		}
 		ctx := command.Context{Ctx: s.ctx, Source: command.SourceMenu}
-		if err := s.opts.Commands.Run(ctx, "workbench.action.focusActiveEditorGroup", nil); err != nil {
+		commands := s.opts.Commands
+		if origin != extension.HostOrigin && s.opts.OriginCommands != nil {
+			if c := s.opts.OriginCommands(origin); c != nil {
+				commands = c
+			}
+		}
+		if err := commands.Run(ctx, "workbench.action.focusActiveEditorGroup", nil); err != nil {
 			s.log.Debug("the editor cannot take the focus after a view hid the panel", "err", err)
 		}
 	})
@@ -641,10 +657,10 @@ func (c contextAPI) Set(key string, value any) error {
 	in.contextKeys[key] = true
 	in.mu.Unlock()
 	if first {
-		in.track(func() { s.opts.Keys.Reset(key) })
+		in.track(func() { s.setShared(key, nil, true) })
 	}
 	s.post(func() {
-		s.opts.Keys.Set(key, value)
+		s.setShared(key, value, false)
 		if s.opts.Views != nil {
 			s.opts.Views.Changed()
 		}
@@ -660,7 +676,7 @@ func (c contextAPI) Reset(key string) {
 		return
 	}
 	s.post(func() {
-		s.opts.Keys.Reset(key)
+		s.setShared(key, nil, true)
 		if s.opts.Views != nil {
 			s.opts.Views.Changed()
 		}

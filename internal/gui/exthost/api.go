@@ -268,12 +268,13 @@ func (n notificationsAPI) Progress(opts extension.ProgressOptions) extension.Not
 		return noProgress{}
 	}
 	p := &progressHandle{in: in, svc: in.scope.opts.Notify, title: opts.Title}
-	note := notify.Notification{Severity: notify.Info, Source: in.name, Message: opts.Title, Progress: &notify.Progress{Infinite: true}}
+	origin := in.scope.currentOrigin()
+	note := notify.Notification{Severity: notify.Info, Source: in.name, Message: opts.Title, Progress: &notify.Progress{Infinite: true}, Origin: uint64(origin)}
 	if opts.Cancellable {
 		onCancel := opts.OnCancel
 		note.Actions = []notify.Action{{Label: "Cancel", Run: func() {
 			if onCancel != nil {
-				in.scope.runNotificationAction(in, "Cancel", onCancel)
+				in.scope.inOrigin(origin, func() { in.scope.runNotificationAction(in, "Cancel", onCancel) })()
 			}
 		}}}
 	}
@@ -331,15 +332,16 @@ func (n notificationsAPI) show(severity notify.Severity, message string, actions
 		return
 	}
 	var list []notify.Action
+	origin := in.scope.currentOrigin()
 	for _, a := range actions {
 		a := a
 		act := notify.Action{Label: a.Label}
 		if a.Run != nil {
-			act.Run = func() { in.scope.runNotificationAction(in, a.Label, a.Run) }
+			act.Run = func() { in.scope.inOrigin(origin, func() { in.scope.runNotificationAction(in, a.Label, a.Run) })() }
 		}
 		list = append(list, act)
 	}
-	in.scope.opts.Notify.Notify(notify.Notification{Severity: severity, Source: in.name, Message: message, Actions: list})
+	in.scope.opts.Notify.Notify(notify.Notification{Severity: severity, Source: in.name, Message: message, Actions: list, Origin: uint64(origin)})
 }
 
 // ---- status bar ----

@@ -25,6 +25,8 @@ type InputBoxRequest struct {
 	ButtonPressed func(index int, value string, setValue func(string))
 	Accepted      func(value string)
 	Hidden        func()
+	// Origin is the screen that shows the box (SPEC §10.18 "As built (step 24.25)"): the window of the host or the view of a client.
+	Origin extension.Origin
 }
 
 // inputBoxAPI is the extension.InputBox of one activation.
@@ -45,16 +47,17 @@ func (b inputBoxAPI) Show(opts extension.InputBoxOptions, done func(value string
 	if show == nil {
 		return errors.New("ExtensionInputBoxUnavailable", "the scope cannot ask for a line of text", "extension", in.id)
 	}
+	origin := in.scope.resolveOrigin(opts.Origin)
 	var once sync.Once
 	finish := func(value string, ok bool) {
 		once.Do(func() {
 			if done != nil {
-				in.scope.runInputBoxDone(in, done, value, ok)
+				in.scope.inOrigin(origin, func() { in.scope.runInputBoxDone(in, done, value, ok) })()
 			}
 		})
 	}
 	req := InputBoxRequest{
-		Prompt: opts.Prompt, Value: opts.Value, Password: opts.Password, Message: opts.Message, IgnoreFocusOut: opts.IgnoreFocusOut,
+		Prompt: opts.Prompt, Value: opts.Value, Password: opts.Password, Message: opts.Message, IgnoreFocusOut: opts.IgnoreFocusOut, Origin: origin,
 		Accepted: func(value string) { finish(value, true) },
 		Hidden:   func() { finish("", false) },
 	}

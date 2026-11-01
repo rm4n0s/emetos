@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/annotations"
@@ -208,6 +209,18 @@ type ScopeOptions struct {
 	// QuickDiff is the registry of the quick diff providers of the window tab, which SourceControl().AddQuickDiffProvider adds to and the
 	// editors compare their files with; nil leaves it unavailable (AddQuickDiffProvider fails with ExtensionQuickDiffUnavailable).
 	QuickDiff *quickdiff.Service
+	// OnUI tells whether the caller is on the UI thread; Origins().Current is the host's on any other goroutine. Nil says yes.
+	OnUI func() bool
+	// OriginKeys gives the context keys of the view of a client by its origin (ContextKeys().SetFor); nil when the view is gone. Nil
+	// leaves the keys of the views out.
+	OriginKeys func(extension.Origin) *contextkey.Scope
+	// KeysOf gives the context keys of the screen a widget is on (the focus of a view of an extension is noted there); nil is Keys.
+	KeysOf func(bc widgets.BuildContext) *contextkey.Scope
+	// OriginViews, OriginFocusView and OriginCommands give the views model, the focus of a view and the commands of the view of a client by
+	// its origin (a view that reveals itself opens in the screen of the command's origin); nil, or a gone view, leaves the screen alone.
+	OriginViews     func(extension.Origin) *workbench.Views
+	OriginFocusView func(o extension.Origin, viewID string)
+	OriginCommands  func(extension.Origin) *command.Registry
 	// HistoryGraph says that the window tab has the Graph view, which SourceControl().SetHistoryProvider feeds (it is false for a host with
 	// no workbench: SetHistoryProvider fails with ExtensionHistoryUnavailable).
 	HistoryGraph bool
@@ -270,6 +283,8 @@ type Scope struct {
 	wtab *windowTab
 	// features is the registry of the language feature providers of the scope (servers.go, providers.go).
 	features *langfeatures.Registry
+	// orig is what the scope knows about the screens of its workspace (origins.go).
+	orig originState
 }
 
 // NewScope makes the scope of a window tab. The manifests of the extensions that are enabled are installed (their
@@ -708,7 +723,7 @@ func (s *Scope) addMenu(item extension.MenuItem, submenus []extension.SubmenuSpe
 		title = submenus[i].Label
 	}
 	return s.opts.Menus.AddRemovable(command.MenuItem{
-		Menu: item.Menu, Command: item.Command, Submenu: item.Submenu, Title: title, Group: item.Group, Order: item.Order, When: when, Args: item.Args,
+		Menu: item.Menu, Command: item.Command, Submenu: item.Submenu, Title: title, Group: item.Group, Order: item.Order, When: when, Args: item.Args, Extension: true,
 	})
 }
 

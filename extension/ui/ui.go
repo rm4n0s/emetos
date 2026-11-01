@@ -8,9 +8,15 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 )
+
+// OriginOf is the screen of the hosted workspace that the widget is drawn on: extension.HostOrigin for the window of the host, or the view
+// of a client of Remote Work (SPEC §10.18 "As built (step 24.25)"). The content of a view of an extension is built once for each screen
+// that shows it, so what belongs to a screen (which pane has the keyboard, how large the pane is) is kept by origin.
+func OriginOf(bc widgets.BuildContext) extension.Origin { return extension.Origin(kit.OriginOf(bc)) }
 
 // The theme.
 type (

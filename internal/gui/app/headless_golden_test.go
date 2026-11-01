@@ -159,3 +159,27 @@ func TestGoldenOfAHeadlessView(t *testing.T) {
 		t.Errorf("errors: %v", errs)
 	}
 }
+
+// The Source Control view in the view of a client (step 24.25, D50): the repositories the extension made in the window's model, with the
+// changes and the commit box, drawn by the shell of the view, and the status items of the extension beside the editor's.
+func TestGoldenOfTheSourceControlViewInAHeadlessView(t *testing.T) {
+	if !DevCommandsEnabled() {
+		t.Skip("dev commands are off in this build")
+	}
+	r := newProjectRig(t, extension.Size{Width: 1280, Height: 800}, "Dark Modern")
+	r.frame(t) // the shell of the view binds its commands when it is first built
+	if err := r.win.Commands.Run(commandContext(t, r.win), "dev.scm.fake", map[string]any{"fixture": scmFixture(t, t.TempDir())}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.view.ws.Commands.Run(commandContext(t, r.view.ws), "workbench.view.scm", nil); err != nil {
+		t.Fatal(err)
+	}
+	r.pump()
+	img := r.settledGolden(t, "headless_scm")
+	if img == nil {
+		t.Fatal("no picture")
+	}
+	if errs := r.ts.TakeErrors(); len(errs) != 0 {
+		t.Errorf("errors: %v", errs)
+	}
+}

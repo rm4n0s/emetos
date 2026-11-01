@@ -157,10 +157,8 @@ func (t *terminals) commandFinished(e *entry, start emulator.MarkerID, fixes []q
 
 // fixesOf is the quick fixes of the terminal of a pane.
 func (t *terminals) fixesOf(pv *paneView) *fixSet {
-	for _, e := range t.all() {
-		if e.pv == pv {
-			return e.fixes
-		}
+	if e := t.entryOf(pv); e != nil {
+		return e.fixes
 	}
 	return nil
 }
@@ -191,12 +189,12 @@ func (t *terminals) showCommandMenu(pv *paneView, items []ui.MenuItem, at gui.Of
 	if len(items) == 0 {
 		return
 	}
-	t.menu.Show(at, items)
+	t.menuFor(pv.origin).Show(at, items)
 }
 
 // showStickyMenu opens the menu of the sticky scroll overlay: it turns it off.
 func (t *terminals) showStickyMenu(pv *paneView, at gui.Offset) {
-	t.menu.Show(at, []ui.MenuItem{
+	t.menuFor(pv.origin).Show(at, []ui.MenuItem{
 		{ID: "toggleSticky", Label: "Toggle Sticky Scroll", Checked: t.cfg.stickyOn, OnRun: t.toggleStickyScroll},
 	})
 }
@@ -244,7 +242,7 @@ func (t *terminals) lastText(command, output bool) (*entry, string) {
 // copyLast copies the last command, its output, or both.
 func (t *terminals) copyLast(command, output bool) {
 	if e, text := t.lastText(command, output); text != "" {
-		e.pv.copyText(text)
+		t.pvOf(e).copyText(text)
 	}
 }
 
@@ -325,8 +323,8 @@ func (t *terminals) runRecentCommand() {
 		if i < 0 || i >= len(items) {
 			return
 		}
-		e.pv.scrollTo(0)
-		e.pv.sendText(items[i].text, true, strings.Contains(items[i].text, "\n") && e.term.Emulator().Modes().BracketedPaste)
+		t.pvOf(e).scrollTo(0)
+		t.pvOf(e).sendText(items[i].text, true, strings.Contains(items[i].text, "\n") && e.term.Emulator().Modes().BracketedPaste)
 		t.focusEntry(e, false)
 	})
 	if err != nil {
@@ -378,8 +376,8 @@ func (t *terminals) goToRecentDirectory() {
 		if i < 0 || i >= len(dirs) {
 			return
 		}
-		e.pv.scrollTo(0)
-		e.pv.sendText("cd "+preparePathForShell(dirs[i], e.term.Profile().path, e.term.Meta().title), true, false)
+		t.pvOf(e).scrollTo(0)
+		t.pvOf(e).sendText("cd "+preparePathForShell(dirs[i], e.term.Profile().path, e.term.Meta().title), true, false)
 		t.focusEntry(e, false)
 	})
 	if err != nil {

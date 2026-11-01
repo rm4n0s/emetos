@@ -100,11 +100,24 @@ type StatusBar struct {
 
 	listeners map[int]func()
 	next      int
+	// parent and keep: the items of parent that keep accepts are shown in this bar too (Inherit).
+	parent *StatusBar
+	keep   func(id string) bool
 }
 
 // NewStatusBar makes a status bar with no items.
 func NewStatusBar() *StatusBar {
 	return &StatusBar{listeners: map[int]func(){}}
+}
+
+// Inherit makes the bar show, besides its own items, the items of parent whose id keep accepts, as the parent has them: the status items the
+// extensions of a hosted workspace added to its window are in the bar of the view of a client too. The parent's items come after this bar's
+// among those of equal priority, and a change of the parent's items is a change of this bar. Call it once, before the bar is used.
+func (b *StatusBar) Inherit(parent *StatusBar, keep func(id string) bool) {
+	b.mu.Lock()
+	b.parent, b.keep = parent, keep
+	b.mu.Unlock()
+	parent.OnChange(b.changed)
 }
 
 // StatusAccessor changes or removes an item that was added to a StatusBar.
@@ -185,6 +198,7 @@ func (b *StatusBar) Items(alignment StatusAlignment) []StatusItem {
 			list = append(list, e)
 		}
 	}
+	parent, keep := b.parent, b.keep
 	b.mu.Unlock()
 	sort.SliceStable(list, func(i, j int) bool {
 		if list[i].Priority != list[j].Priority {
@@ -196,17 +210,31 @@ func (b *StatusBar) Items(alignment StatusAlignment) []StatusItem {
 	for i, e := range list {
 		out[i] = e.StatusItem
 	}
+	if parent != nil {
+		// the parent's items go in after this bar's own among equal priorities (the stable sort keeps the order they are appended in)
+		for _, it := range parent.Items(alignment) {
+			if keep != nil && keep(it.ID) {
+				out = append(out, it)
+			}
+		}
+		sort.SliceStable(out, func(i, j int) bool { return out[i].Priority > out[j].Priority })
+	}
 	return out
 }
 
 // Get finds an item by its id (the first, when several have it).
 func (b *StatusBar) Get(id string) (StatusItem, bool) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	for _, e := range b.entries {
 		if e.ID == id {
+			defer b.mu.Unlock()
 			return e.StatusItem, true
 		}
+	}
+	parent, keep := b.parent, b.keep
+	b.mu.Unlock()
+	if parent != nil && keep != nil && keep(id) {
+		return parent.Get(id)
 	}
 	return StatusItem{}, false
 }

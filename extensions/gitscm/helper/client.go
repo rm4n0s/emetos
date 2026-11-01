@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +45,10 @@ func Main(args, env []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	vars := environment(env)
 	req := Request{
 		Token: vars[EnvToken], Kind: kind, Argv: args[1:], Command: vars[EnvCommand],
-		Silent: vars[EnvFetchSilent] != "", SSHPrompt: vars[EnvSSHPrompt],
+		Silent: vars[EnvFetchSilent] != "", SSHPrompt: vars[EnvSSHPrompt], Terminal: vars[EnvTerminal],
+	}
+	if n, err := strconv.ParseUint(vars[EnvOrigin], 10, 64); err == nil {
+		req.Origin = n
 	}
 	if kind != KindEditor && req.Command == "fetch" && req.Silent {
 		// a fetch the user did not ask for never asks for a secret (VS Code: "Skip silent fetch commands")

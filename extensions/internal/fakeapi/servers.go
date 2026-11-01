@@ -215,6 +215,13 @@ func (q quickPick) Show(opts extension.QuickPickOptions, done func(int)) error {
 		return errors.New("FakeQuickPickInvalid", "a quick pick needs an item with a label that is not a separator")
 	}
 	q.a.mu.Lock()
+	if opts.Origin == extension.HostOrigin {
+		opts.Origin = q.a.origins.cur // the screen of the command being handled, as the host does
+	}
+	if done != nil {
+		inner, origin := done, opts.Origin
+		done = func(i int) { q.a.RunAs(origin, func() { inner(i) }) }
+	}
 	q.a.picks = append(q.a.picks, &Pick{a: q.a, opts: opts, done: done})
 	q.a.mu.Unlock()
 	return nil

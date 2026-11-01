@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/errors"
 )
@@ -38,6 +39,10 @@ type Context struct {
 	Keys contextkey.Context
 	// Source tells what asked for the command.
 	Source Source
+	// Origin is the screen the command was asked on: the window of the host (the zero value) or the view of a client of a hosted
+	// workspace. A registry that forwards a command to its parent sets it (Registry.Inherit), and the extension host keeps it for the
+	// questions the command's handler asks (SPEC §10.18 "As built (step 24.25)").
+	Origin extension.Origin
 }
 
 // Handler runs a command. args is a JSON-compatible value (nil, bool, float64, string, a
@@ -76,6 +81,9 @@ type entry struct {
 type Registry struct {
 	mu       sync.RWMutex
 	commands map[string]*entry
+	// parent, when set, is the registry whose commands this one does not have are forwarded to, with origin (Inherit).
+	parent *Registry
+	origin extension.Origin
 }
 
 // NewRegistry makes an empty registry.
@@ -161,12 +169,37 @@ func (r *Registry) Fork() *Registry {
 // Lookup returns the metadata of a command.
 func (r *Registry) Lookup(id string) (Meta, bool) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 	e, ok := r.commands[id]
+	r.mu.RUnlock()
 	if !ok {
+		if r.inherits(id) {
+			return r.parent.Lookup(id)
+		}
 		return Meta{}, false
 	}
 	return e.meta, true
+}
+
+// Inherit makes the commands of parent that this registry does not have its own, as forwards: Lookup, Enabled, HasHandler, All and Run see them,
+// and Run runs the parent's handler with origin in the context. It is how the view of a client of a hosted workspace has the commands of the
+// extensions that the scope of the workspace registered in the registry of the window (SPEC §10.18 "As built (step 24.25)", D50). A command
+// that ClientRefusal refuses is not inherited (Run fails with CommandRefused). Call it once, before the registry is used.
+func (r *Registry) Inherit(parent *Registry, origin extension.Origin) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.parent, r.origin = parent, origin
+}
+
+// inherits tells whether the command is one the parent gives: this registry has none of the id, the parent has one, and it is not refused.
+func (r *Registry) inherits(id string) bool {
+	if r.parent == nil {
+		return false
+	}
+	if _, refused := ClientRefusal(id); refused {
+		return false
+	}
+	_, ok := r.parent.Lookup(id)
+	return ok
 }
 
 // HasHandler tells whether a command is registered and has a handler.
@@ -174,16 +207,29 @@ func (r *Registry) HasHandler(id string) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	e, ok := r.commands[id]
-	return ok && len(e.handlers) > 0
+	if !ok {
+		return r.inherits(id) && r.parent.HasHandler(id)
+	}
+	return len(e.handlers) > 0
 }
 
 // All lists the registered commands ordered by id.
 func (r *Registry) All() []Meta {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 	out := make([]Meta, 0, len(r.commands))
 	for _, e := range r.commands {
 		out = append(out, e.meta)
+	}
+	r.mu.RUnlock()
+	if r.parent != nil {
+		for _, m := range r.parent.All() {
+			r.mu.RLock()
+			_, own := r.commands[m.ID]
+			r.mu.RUnlock()
+			if _, refused := ClientRefusal(m.ID); !own && !refused {
+				out = append(out, m)
+			}
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
@@ -211,6 +257,15 @@ func (r *Registry) Run(ctx Context, id string, args any) error {
 	}
 	r.mu.RUnlock()
 	if !ok {
+		if r.parent != nil {
+			if _, has := r.parent.Lookup(id); has {
+				if refusal, refused := ClientRefusal(id); refused {
+					return errors.New("CommandRefused", "a client may not run this command: "+refusal.Reason, "id", id, "class", refusal.Class)
+				}
+				ctx.Origin = r.origin
+				return r.parent.Run(ctx, id, args)
+			}
+		}
 		return errors.New("CommandNotFound", "no command has this id", "id", id)
 	}
 	if h == nil {

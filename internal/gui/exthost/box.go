@@ -7,6 +7,7 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 )
 
@@ -37,6 +38,8 @@ type viewBoxState struct {
 	widgets.StateOf[*viewBox]
 	// restored says that the content of the view was given its saved state for this box.
 	restored bool
+	// focusKeys are the context keys of the screen the box is on, where the focus is noted.
+	focusKeys *contextkey.Scope
 }
 
 // InitState registers the box with its view and has the extension activated.
@@ -54,7 +57,7 @@ func (s *viewBoxState) Dispose() {
 	b := s.Widget()
 	sc := b.scope
 	sc.saveView(b.decl)
-	sc.viewFocus(b.decl.id, false)
+	sc.viewFocus(s.focusKeys, b.decl.id, false)
 	sc.mu.Lock()
 	b.decl.boxes = slices.DeleteFunc(b.decl.boxes, func(o *viewBoxState) bool { return o == s })
 	sc.mu.Unlock()
@@ -100,9 +103,11 @@ func (s *viewBoxState) Build(bc widgets.BuildContext) widgets.Widget {
 				OnError: func(err error) { sc.failView(d, inst, "ExtensionViewWidgetPanicked", err) },
 			})
 	}
+	keys := sc.keysOf(bc)
+	s.focusKeys = keys
 	focused := widgets.NewFocus(body, widgets.FocusOpts{
 		CanRequestFocus: foundation.Some(false), SkipTraversal: foundation.Some(true), DebugLabel: "ExtensionView",
-		OnFocusChange: func(has bool) { sc.viewFocus(d.id, has) },
+		OnFocusChange: func(has bool) { sc.viewFocus(keys, d.id, has) },
 	})
 	return widgets.NewClipRect(widgets.NewDefaultTextStyle(kit.TextStyleOf(bc, 13, colors.Foreground), focused))
 }
@@ -141,8 +146,7 @@ func (s *Scope) failView(d *viewDecl, inst *instance, tag string, recovered any)
 }
 
 // viewFocus sets the context key that says which view has the keyboard focus.
-func (s *Scope) viewFocus(viewID string, has bool) {
-	keys := s.opts.Keys
+func (s *Scope) viewFocus(keys *contextkey.Scope, viewID string, has bool) {
 	if keys == nil {
 		return
 	}

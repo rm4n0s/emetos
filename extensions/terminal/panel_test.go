@@ -124,8 +124,8 @@ func TestTheLastTerminalEndingMakesNoNewOneWhenTheWorkspaceSavesItsState(t *test
 	r.gone = true
 	r.rebuild()
 	r.settle()
-	if r.ext.suppressOpen || r.ext.visible {
-		t.Errorf("the view is off screen: suppressOpen %v, visible %v", r.ext.suppressOpen, r.ext.visible)
+	if r.ext.suppressOpen || len(r.ext.shown) > 0 {
+		t.Errorf("the view is off screen: suppressOpen %v, shown %v", r.ext.suppressOpen, r.ext.shown)
 	}
 	r.gone = false
 	r.rebuild()

@@ -204,6 +204,39 @@ func (e *Emulator) Snapshot(f *Frame) bool {
 	return true
 }
 
+// SnapshotCopy is Snapshot for a second reader of the screen: it copies the whole screen into f and touches none of the emulator's
+// bookkeeping of what changed, so that the reader that uses Snapshot goes on getting exactly the rows that changed since its own last call
+// (a terminal shown on two screens, SPEC §10.25 "Clients of a shared workspace"). Every row of f is Dirty and f.Full is set; while a
+// synchronized update is open f is left as it is, as Snapshot leaves it.
+func (e *Emulator) SnapshotCopy(f *Frame) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.modes.SyncOutput {
+		f.Synchronized = true
+		f.Changed = false
+		return
+	}
+	f.Synchronized = false
+	s := e.scr
+	if f.Rows != s.rows || f.Cols != s.cols {
+		f.size(s.rows, s.cols)
+	}
+	e.copyTables(f)
+	for y := 0; y < s.rows; y++ {
+		f.copyRow(y, s.row(y))
+	}
+	f.Full = true
+	f.Changed = true
+	f.Cursor = Cursor{X: s.x, Y: s.y, Visible: e.modes.CursorVisible, Shape: e.modes.CursorShape, Blink: e.modes.CursorBlink, WrapPending: s.wrapNext}
+	f.Modes = e.modes
+	f.Palette = e.palette
+	f.Fg, f.Bg, f.CursorColor = e.fg, e.bg, e.cur
+	f.paletteGen = e.paletteGen
+	f.Scrollback = s.scrollbackLen()
+	f.Top = s.absLine(0)
+	f.valid = true
+}
+
 // EndSynchronizedUpdate ends a synchronized update (DECSET 2026) the program left open; the host calls it when the update
 // lasts too long (xterm and VS Code give up after a second).
 func (e *Emulator) EndSynchronizedUpdate() {

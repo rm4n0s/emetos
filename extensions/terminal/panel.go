@@ -3,6 +3,7 @@ package terminal
 import (
 	"strconv"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/painting"
@@ -23,7 +24,11 @@ const (
 // build makes the widget of the view: the terminals of the active tab side by side, the tabs list beside them when there are
 // several, and the context menu over all of it.
 func (t *terminals) build(bc widgets.BuildContext) widgets.Widget {
-	t.visible = true
+	origin := ui.OriginOf(bc) // the view is built once for each screen that shows it
+	if t.shown == nil {
+		t.shown = map[extension.Origin]bool{}
+	}
+	t.shown[origin] = true
 	colors := ui.Theme(bc)
 	bg := colors.TerminalBackground
 	if bg.Alpha() == 0 {
@@ -31,14 +36,14 @@ func (t *terminals) build(bc widgets.BuildContext) widgets.Widget {
 	}
 	var content widgets.Widget
 	if g := t.activeGroup(); g != nil {
-		content = t.groupWidget(g, colors)
+		content = t.groupWidget(g, colors, origin)
 	} else {
 		content = t.emptyWidget(bc, colors)
-		t.openIfNone()
+		t.openIfNone(origin)
 	}
 	cells := []widgets.Widget{widgets.NewExpanded(content)}
 	if t.showTabs() {
-		tabs := t.tabsWidget(bc, colors)
+		tabs := t.tabsWidget(bc, colors, origin)
 		if t.cfg.tabsLocation == "left" {
 			cells = append([]widgets.Widget{tabs}, cells...)
 		} else {
@@ -52,7 +57,7 @@ func (t *terminals) build(bc widgets.BuildContext) widgets.Widget {
 		}))
 	}
 	body := widgets.NewColoredBox(bg, widgets.NewStack(layers, widgets.StackOpts{Fit: rendering.StackFitExpand}))
-	return newViewLife(t, ui.NewContextMenu(body, ui.ContextMenuOpts{Controller: t.menu}))
+	return newViewLife(t, origin, ui.NewContextMenu(body, ui.ContextMenuOpts{Controller: t.menuFor(origin)}))
 }
 
 // viewLife is the widget at the root of the view. It tells the extension when the view goes off screen (its box is taken out of
@@ -60,13 +65,14 @@ func (t *terminals) build(bc widgets.BuildContext) widgets.Widget {
 // saves its state while the view stays on screen, so it cannot tell the two apart.
 type viewLife struct {
 	widgets.StatefulWidget
-	t     *terminals
-	child widgets.Widget
+	t      *terminals
+	origin extension.Origin
+	child  widgets.Widget
 }
 
 // newViewLife makes the root of the view around its content.
-func newViewLife(t *terminals, child widgets.Widget) widgets.Widget {
-	return &viewLife{StatefulWidget: widgets.NewStatefulWidgetBase(), t: t, child: child}
+func newViewLife(t *terminals, origin extension.Origin, child widgets.Widget) widgets.Widget {
+	return &viewLife{StatefulWidget: widgets.NewStatefulWidgetBase(), t: t, origin: origin, child: child}
 }
 
 // CreateState implements widgets.StatefulWidget.
@@ -80,27 +86,36 @@ type viewLifeState struct {
 func (s *viewLifeState) Build(widgets.BuildContext) widgets.Widget { return s.Widget().child }
 
 // Dispose tells the extension that the view is off screen.
-func (s *viewLifeState) Dispose() { s.Widget().t.viewGone() }
+func (s *viewLifeState) Dispose() { s.Widget().t.viewGone(s.Widget().origin) }
 
 // viewGone is the view going off screen: a view that comes back with no terminal makes one, also after the last terminal ended
 // and the panel hid (suppressOpen), and a terminal that was on its way to be made for it is not made.
-func (t *terminals) viewGone() {
-	t.visible, t.suppressOpen = false, false
+func (t *terminals) viewGone(origin extension.Origin) {
+	delete(t.shown, origin)
+	if len(t.shown) == 0 {
+		t.suppressOpen = false
+	}
+	if origin != extension.HostOrigin {
+		t.dropScreen(origin)
+	}
 }
 
 // openIfNone makes a terminal for a view that is shown with none (the first time the panel opens, or after the last terminal
 // ended), unless the last try failed: then the view says so and has a button to try again.
-func (t *terminals) openIfNone() {
+func (t *terminals) openIfNone(origin extension.Origin) {
 	if t.opening || t.suppressOpen || t.failure != "" {
 		return
 	}
 	t.opening = true
 	t.api.Post(func() {
 		t.opening = false
-		if len(t.groups) == 0 && t.visible {
-			if _, err := t.open(openOpts{}); err != nil {
-				t.api.Log().Warn("the terminal cannot be started", "err", err)
-			}
+		if len(t.groups) == 0 && len(t.shown) > 0 {
+			// the terminal is made for the screen that showed the empty view: it takes the keyboard there
+			t.api.Origins().Run(origin, func() {
+				if _, err := t.open(openOpts{}); err != nil {
+					t.api.Log().Warn("the terminal cannot be started", "err", err)
+				}
+			})
 		}
 	})
 }
@@ -124,10 +139,10 @@ func (t *terminals) emptyWidget(bc widgets.BuildContext, colors ui.Colors) widge
 }
 
 // groupWidget is the terminals of a tab side by side, with a sash between each two.
-func (t *terminals) groupWidget(g *group, colors ui.Colors) widgets.Widget {
+func (t *terminals) groupWidget(g *group, colors ui.Colors, origin extension.Origin) widgets.Widget {
 	key := widgets.WidgetOpts{Key: foundation.NewValueKey(g.id)}
 	if len(g.entries) == 1 {
-		return widgets.NewKeyedSubtree(paneWidget(g.entries[0].pv), key)
+		return widgets.NewKeyedSubtree(paneWidget(t.pvFor(g.entries[0], origin)), key)
 	}
 	panes := make([]ui.SplitPane, len(g.entries))
 	for i, e := range g.entries {
@@ -135,7 +150,7 @@ func (t *terminals) groupWidget(g *group, colors ui.Colors) widgets.Widget {
 		if i < len(g.sizes) {
 			size = g.sizes[i]
 		}
-		panes[i] = ui.SplitPane{Child: paneWidget(e.pv), Size: size, MinSize: minPaneW}
+		panes[i] = ui.SplitPane{Child: paneWidget(t.pvFor(e, origin)), Size: size, MinSize: minPaneW}
 	}
 	return widgets.NewKeyedSubtree(ui.NewSplitView(panes, ui.SplitViewOpts{
 		Orientation: ui.SplitHorizontal, ProportionalLayout: true, Controller: g.split, SeparatorBorder: colors.TerminalBorder,
@@ -151,7 +166,7 @@ func (t *terminals) groupWidget(g *group, colors ui.Colors) widgets.Widget {
 
 // tabsWidget is the list of the terminals at the side of the view: one row each; the terminals of a split are joined by the
 // box-drawing lines VS Code draws before their names.
-func (t *terminals) tabsWidget(bc widgets.BuildContext, colors ui.Colors) widgets.Widget {
+func (t *terminals) tabsWidget(bc widgets.BuildContext, colors ui.Colors, origin extension.Origin) widgets.Widget {
 	var rows []widgets.Widget
 	index := 0
 	for gi, g := range t.groups {
@@ -167,7 +182,7 @@ func (t *terminals) tabsWidget(bc widgets.BuildContext, colors ui.Colors) widget
 					prefix = "├ "
 				}
 			}
-			rows = append(rows, t.tabRow(colors, gi == t.cur && ei == g.active, prefix, e, index))
+			rows = append(rows, t.tabRow(colors, gi == t.cur && ei == g.active, prefix, e, index, origin))
 			index++
 		}
 	}
@@ -184,7 +199,7 @@ func (t *terminals) tabsWidget(bc widgets.BuildContext, colors ui.Colors) widget
 // tabRow is the row of a terminal in the tabs list: its icon, its title, and, while the pointer is over the row, the buttons
 // that split and kill it. A click selects the terminal, a click with the middle button kills it and the secondary button opens
 // the context menu.
-func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entry, index int) widgets.Widget {
+func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entry, index int, origin extension.Origin) widgets.Widget {
 	hovered := false
 	return widgets.NewStatefulBuilder(func(bc widgets.BuildContext, setState widgets.StateSetter) widgets.Widget {
 		fg := colors.Foreground
@@ -229,7 +244,7 @@ func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entr
 		}
 		tracked := widgets.NewListener(widgets.NewGestureDetector(row, widgets.GestureDetectorOpts{
 			OnTap:              func() { t.focusEntry(e, false) },
-			OnSecondaryTapDown: func(d gestures.TapDownDetails) { t.focusEntry(e, false); t.showMenuAt(e, d.GlobalPosition) },
+			OnSecondaryTapDown: func(d gestures.TapDownDetails) { t.focusEntry(e, false); t.showMenuAt(e, d.GlobalPosition, origin) },
 			OnTertiaryTapDown:  func(gestures.TapDownDetails) { t.kill(e) },
 		}), widgets.ListenerOpts{
 			OnPointerDown:   func(ev *gestures.PointerDownEvent) { t.tabPointerDown(ev, e, index) },
@@ -247,19 +262,16 @@ func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entr
 
 // showMenu is the context menu of a pane, opened by the secondary button (rightClickBehavior default).
 func (t *terminals) showMenu(pv *paneView, at gui.Offset) {
-	for _, e := range t.all() {
-		if e.pv == pv {
-			t.showMenuAt(e, at)
-			return
-		}
+	if e := t.entryOf(pv); e != nil {
+		t.showMenuAt(e, at, pv.origin)
 	}
 }
 
 // showMenuAt opens the context menu of a terminal at a place of the window: Copy, Paste, Select All, Clear, then what the tab
 // of the terminal offers (Split, Unsplit, Move into the editor area or back into the panel, Rename, Change Icon, Change Color)
 // and Kill (SPEC §10.25 "The UI", "The rest of the tabs list").
-func (t *terminals) showMenuAt(e *entry, at gui.Offset) {
-	pv := e.pv
+func (t *terminals) showMenuAt(e *entry, at gui.Offset, origin extension.Origin) {
+	pv := t.pvFor(e, origin)
 	items := []ui.MenuItem{
 		{ID: "copy", Label: "Copy", Keybinding: "Ctrl+Shift+C", Disabled: !pv.hasSelection(), OnRun: pv.copySelection},
 		{ID: "paste", Label: "Paste", Keybinding: "Ctrl+Shift+V", OnRun: pv.pasteClipboard},
@@ -284,7 +296,7 @@ func (t *terminals) showMenuAt(e *entry, at gui.Offset) {
 		ui.MenuItem{ID: "changeColor", Label: "Change Color...", OnRun: func() { t.changeColor(e) }},
 		ui.SeparatorItem(),
 		ui.MenuItem{ID: "kill", Label: "Kill Terminal", OnRun: func() { t.kill(e) }})
-	t.menu.Show(at, items)
+	t.menuFor(origin).Show(at, items)
 }
 
 // splitFrom puts a new terminal beside one, in its tab.

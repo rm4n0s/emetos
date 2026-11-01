@@ -29,9 +29,10 @@ func TestNoGitCommandIsRefusedToAClient(t *testing.T) {
 	for _, id := range ids {
 		ref, refused := command.ClientRefusal(id)
 		switch id {
-		case "scm.openInIntegratedTerminal", "scm.openInTerminal":
-			if !refused || ref.Class != "terminal" {
-				t.Errorf("%s is %+v, %v: want refused with the class terminal", id, ref, refused)
+		case "scm.openInTerminal":
+			// the terminal program of the desktop opens a window on the screen of the host (the integrated terminal is the client's, D51)
+			if !refused || ref.Class != "window" {
+				t.Errorf("%s is %+v, %v: want refused with the class window", id, ref, refused)
 			}
 		default:
 			if refused {

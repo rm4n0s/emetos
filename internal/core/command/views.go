@@ -69,6 +69,8 @@ type ViewRegistry struct {
 	containers []ViewContainer
 	views      []View
 	listeners  []*func()
+	// parent, when set, gives the registry the containers and views of the extensions it has not (Inherit).
+	parent *ViewRegistry
 }
 
 // NewViewRegistry makes an empty registry.
@@ -81,6 +83,15 @@ func (r *ViewRegistry) Fork() *ViewRegistry {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return &ViewRegistry{containers: slices.Clone(r.containers), views: slices.Clone(r.views)}
+}
+
+// Inherit makes the registry list, besides its own, the containers and the views that parent has and it has not: the ones the extensions
+// of a hosted workspace registered. A change of parent's is a change of this registry (OnChange). Call it once, before the registry is used.
+func (r *ViewRegistry) Inherit(parent *ViewRegistry) {
+	r.mu.Lock()
+	r.parent = parent
+	r.mu.Unlock()
+	parent.OnChange(r.changed)
 }
 
 // OnChange calls fn after a container or a view was added or removed, on the goroutine that changed the registry and
@@ -203,11 +214,19 @@ func (r *ViewRegistry) MustRegisterViews(views ...View) {
 // Containers lists the containers of a location in the order of the activity bar.
 func (r *ViewRegistry) Containers(loc ViewLocation) []ViewContainer {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 	var out []ViewContainer
 	for _, c := range r.containers {
 		if c.Location == loc {
 			out = append(out, c)
+		}
+	}
+	parent := r.parent
+	r.mu.RUnlock()
+	if parent != nil {
+		for _, c := range parent.Containers(loc) {
+			if _, own := r.ownContainer(c.ID); !own {
+				out = append(out, c)
+			}
 		}
 	}
 	slices.SortStableFunc(out, func(a, b ViewContainer) int { return a.Order - b.Order })
@@ -216,6 +235,17 @@ func (r *ViewRegistry) Containers(loc ViewLocation) []ViewContainer {
 
 // Container returns a container by id.
 func (r *ViewRegistry) Container(id string) (ViewContainer, bool) {
+	if c, ok := r.ownContainer(id); ok {
+		return c, true
+	}
+	if r.parent != nil {
+		return r.parent.Container(id)
+	}
+	return ViewContainer{}, false
+}
+
+// ownContainer returns a container this registry holds itself.
+func (r *ViewRegistry) ownContainer(id string) (ViewContainer, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, c := range r.containers {
@@ -230,11 +260,19 @@ func (r *ViewRegistry) Container(id string) (ViewContainer, bool) {
 // context), in order.
 func (r *ViewRegistry) Views(container string, ctx contextkey.Context) []View {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 	var out []View
 	for _, v := range r.views {
 		if v.Container == container && (v.When == nil || ctx == nil || v.When.Evaluate(ctx)) {
 			out = append(out, v)
+		}
+	}
+	parent := r.parent
+	r.mu.RUnlock()
+	if parent != nil {
+		for _, v := range parent.Views(container, ctx) {
+			if _, own := r.ownView(v.ID); !own {
+				out = append(out, v)
+			}
 		}
 	}
 	slices.SortStableFunc(out, func(a, b View) int { return a.Order - b.Order })
@@ -243,6 +281,17 @@ func (r *ViewRegistry) Views(container string, ctx contextkey.Context) []View {
 
 // View returns a view by id.
 func (r *ViewRegistry) View(id string) (View, bool) {
+	if v, ok := r.ownView(id); ok {
+		return v, true
+	}
+	if r.parent != nil {
+		return r.parent.View(id)
+	}
+	return View{}, false
+}
+
+// ownView returns a view this registry holds itself.
+func (r *ViewRegistry) ownView(id string) (View, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, v := range r.views {

@@ -46,6 +46,8 @@ type instance struct {
 	ownCommands map[string]bool
 	// annotationKeys are the keys of the line annotation sets the activation made.
 	annotationKeys map[string]bool
+	// originKeys are the context keys the activation set for one screen (ContextKeys().SetFor).
+	originKeys map[originKey]bool
 }
 
 // isDead tells whether the activation ended. It is safe for concurrent use.
@@ -170,7 +172,9 @@ func (s *Scope) runCommand(inst *instance, id string, h extension.CommandHandler
 	if ctx == nil {
 		ctx = inst.ctx
 	}
-	if e := h(ctx, args); e != nil {
+	var e error
+	s.withOrigin(cc.Origin, func() { e = h(ctx, args) })
+	if e != nil {
 		return errors.NewErr("ExtensionCommandFailed", e).SetMetadata("extension", inst.id, "command", id, "scope", s.opts.Info.Name)
 	}
 	return nil

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -131,9 +132,16 @@ type Terminal struct {
 	// changed says that the screen changed since the widget last took a snapshot; onFrame and onMeta are told (from any
 	// goroutine) that the screen, or what the tab shows, changed.
 	changed atomic.Bool
-	onFrame atomic.Pointer[func()]
 	onMeta  atomic.Pointer[func()]
-	closed  atomic.Bool
+	// frameMu guards frameSubs, the functions told that the screen changed: every pane that shows the terminal has one (the window of the
+	// host and the views of its clients, step 24.25), and sizeOwner, the screen whose pane decides the size of the terminal.
+	frameMu sync.Mutex
+	// rev counts the changes of the screen; a pane of a second screen copies the screen when it moved on (paneView.snapshot).
+	rev       atomic.Uint64
+	frameSubs []*func()
+	sizeOwner extension.Origin
+	sizeOwned bool
+	closed    atomic.Bool
 
 	// exitedCh is closed when the program is gone and its last output was parsed.
 	exitedCh chan struct{}
@@ -281,17 +289,48 @@ func (t *Terminal) Pid() int {
 	return t.proc.Pid()
 }
 
-// SetOnFrame sets the function that is told, from any goroutine, that the screen changed; nil takes it away. The function
-// must not block. It is told once, and again only after TakeChanged.
-func (t *Terminal) SetOnFrame(f func()) {
-	if f == nil {
-		t.onFrame.Store(nil)
-		return
-	}
-	t.onFrame.Store(&f)
+// AddOnFrame adds a function that is told, from any goroutine, that the screen changed, and returns the function that takes it away. The
+// function must not block. It is told once, and again only after TakeChanged; a function added while a change waits is told at once. Each pane
+// that shows the terminal has one.
+func (t *Terminal) AddOnFrame(f func()) (remove func()) {
+	p := &f
+	t.frameMu.Lock()
+	t.frameSubs = append(t.frameSubs, p)
+	t.frameMu.Unlock()
 	if t.changed.Load() {
 		f()
 	}
+	return func() {
+		t.frameMu.Lock()
+		defer t.frameMu.Unlock()
+		t.frameSubs = slices.DeleteFunc(t.frameSubs, func(x *func()) bool { return x == p })
+	}
+}
+
+// ResizeFrom sets the size of the terminal for the pane of a screen: the first pane to lay out decides it, and then only the pane of the screen
+// that typed last (TypedFrom), as the one client of a shared tmux session whose size counts. A pane of another screen draws the terminal at the
+// size it has. It reports whether the size was applied.
+func (t *Terminal) ResizeFrom(origin extension.Origin, cols, rows int) bool {
+	t.frameMu.Lock()
+	if !t.sizeOwned {
+		t.sizeOwned, t.sizeOwner = true, origin
+	}
+	owner := t.sizeOwner == origin
+	t.frameMu.Unlock()
+	if owner {
+		t.Resize(cols, rows)
+	}
+	return owner
+}
+
+// TypedFrom says that a person typed on a screen: the pane of that screen decides the size of the terminal from now on. It reports whether
+// the screen was not the one already, so that the caller gives the terminal its pane's size.
+func (t *Terminal) TypedFrom(origin extension.Origin) (changed bool) {
+	t.frameMu.Lock()
+	defer t.frameMu.Unlock()
+	changed = !t.sizeOwned || t.sizeOwner != origin
+	t.sizeOwned, t.sizeOwner = true, origin
+	return changed
 }
 
 // SetOnMeta sets the function that is told, from any goroutine, that the title, the folder, the bell or the state of the
@@ -313,12 +352,19 @@ func (t *Terminal) fireMeta() {
 // markChanged records that the screen changed and tells the widget the first time after the last snapshot: the widget is told
 // at most once a frame, however much output arrives.
 func (t *Terminal) markChanged() {
+	t.rev.Add(1)
 	if t.changed.CompareAndSwap(false, true) {
-		if f := t.onFrame.Load(); f != nil {
+		t.frameMu.Lock()
+		subs := slices.Clone(t.frameSubs)
+		t.frameMu.Unlock()
+		for _, f := range subs {
 			(*f)()
 		}
 	}
 }
+
+// Rev counts the changes of the screen so far.
+func (t *Terminal) Rev() uint64 { return t.rev.Load() }
 
 // TakeChanged clears the flag the parser sets, before the widget takes its snapshot, so that output that arrives after the
 // snapshot tells the widget again.

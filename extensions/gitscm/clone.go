@@ -219,6 +219,12 @@ func (x *gitscm) defaultCloneDirectory() string {
 // was closed or could not be shown.
 func (x *gitscm) chooseFolder(opts extension.FileChooserOptions, done func(folder string)) {
 	opts.Directory = true
+	if origin := x.api.Origins().Current(); origin != extension.HostOrigin {
+		// the file chooser of the desktop opens on the screen of the host, where a client of a hosted workspace cannot see it (SPEC §10.18
+		// "As built (step 24.25)"): the folder is typed in a box of the client's view
+		x.askFolder(opts, origin, done)
+		return
+	}
 	go func() {
 		path, err := x.api.FileChooser().Open(x.ctx, opts)
 		x.api.Post(func() {
@@ -233,6 +239,30 @@ func (x *gitscm) chooseFolder(opts extension.FileChooserOptions, done func(folde
 			done(path)
 		})
 	}()
+}
+
+// askFolder asks for a folder in an input box on the screen of a client, in place of the chooser of the desktop; done gets "" when the box
+// was closed or could not be shown.
+func (x *gitscm) askFolder(opts extension.FileChooserOptions, origin extension.Origin, done func(folder string)) {
+	err := x.api.InputBox().Show(extension.InputBoxOptions{
+		Prompt: opts.Title, Value: opts.Folder, Message: "Type the path of a folder on the computer of the host", IgnoreFocusOut: true, Origin: origin,
+		Validate: func(value string) string {
+			if strings.TrimSpace(value) == "" || !filepath.IsAbs(strings.TrimSpace(value)) {
+				return "The path of the folder is absolute"
+			}
+			return ""
+		},
+	}, func(value string, ok bool) {
+		if x.stopped.Load() || !ok {
+			done("")
+			return
+		}
+		done(filepath.Clean(strings.TrimSpace(value)))
+	})
+	if err != nil {
+		x.logUnavailable("cannot ask for a folder", err)
+		done("")
+	}
 }
 
 // cloneRepository asks for the parent folder when the request has none and runs the clone.
@@ -259,7 +289,8 @@ func (x *gitscm) runClone(req cloneRequest) {
 		return
 	}
 	title := safeNotification(`Cloning git repository "`+git.MaskURLs(req.url)+`"...`, "Cloning git repository...")
-	ctx, cancel := context.WithCancel(x.ctx)
+	origin := x.api.Origins().Current() // the screen that asked: git's questions and the end of the clone go there
+	ctx, cancel := context.WithCancel(withOrigin(x.ctx, origin))
 	prog := x.api.Notifications().Progress(extension.ProgressOptions{Title: title, Cancellable: true, OnCancel: cancel})
 	x.logLine("Cloning " + git.MaskURLs(req.url) + " into " + req.parent)
 	runner, last := x.runner, ""
@@ -276,16 +307,18 @@ func (x *gitscm) runClone(req cloneRequest) {
 			}
 		}})
 		x.api.Post(func() {
-			prog.Done()
-			if x.stopped.Load() {
-				return
-			}
-			if err != nil {
-				x.cloneFailed(req, err)
-				return
-			}
-			x.madeRepository(path)
-			x.postClone(path, req)
+			x.api.Origins().Run(origin, func() {
+				prog.Done()
+				if x.stopped.Load() {
+					return
+				}
+				if err != nil {
+					x.cloneFailed(req, err)
+					return
+				}
+				x.madeRepository(path)
+				x.postClone(path, req)
+			})
 		})
 	}()
 }

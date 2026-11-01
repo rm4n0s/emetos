@@ -23,6 +23,9 @@ type InputBoxOptions struct {
 	// a function that replaces the text; a button with no OnButton does nothing.
 	Buttons  []InputBoxButton
 	OnButton func(index int, value string, setValue func(value string))
+	// Origin is the screen that shows the box; the zero value is the origin of the command being handled (Origins().Current), which is
+	// the window of the host for a box that no command asked for. A job that asks later passes the origin it was started from.
+	Origin Origin
 }
 
 // InputBoxButton is a button inside an input box.
