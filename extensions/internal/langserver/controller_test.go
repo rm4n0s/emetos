@@ -647,3 +647,33 @@ func TestTheControllerIsQuietWhereThereIsNoWorkbench(t *testing.T) {
 		t.Error("another failure is benign")
 	}
 }
+
+func TestASwitchedOffServerShowsAsDisabledAndTellsNobody(t *testing.T) {
+	r := newRig(t, true, func(c *Config) {
+		c.Disabled = func(s *Settings) string {
+			if s.String(modeKey) == "none" {
+				return modeKey + " is none"
+			}
+			return ""
+		}
+	})
+	r.api.SetSetting(modeKey, "none")
+	r.attach()
+	r.editor("rust")
+	if _, err := r.start(); err == nil {
+		t.Fatal("the launch worked")
+	}
+	it := r.item()
+	if it.Text != "$(circle-slash) rust-analyzer: disabled" || !strings.Contains(it.Tooltip, "rust-analyzer is turned off: ra.mode is none") {
+		t.Errorf("item = %q / %q", it.Text, it.Tooltip)
+	}
+	if len(r.api.Notes()) != 0 {
+		t.Errorf("the user was told: %v", r.api.Notes())
+	}
+	// turning it on again restarts the server, because the launch read the setting
+	r.api.SetSetting(modeKey, "fast")
+	r.api.Pump()
+	if got := r.api.ServerRestarts(serverID); got != 1 {
+		t.Errorf("restarts = %d", got)
+	}
+}

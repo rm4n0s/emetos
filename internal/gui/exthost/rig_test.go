@@ -3,6 +3,7 @@ package exthost
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"path/filepath"
 	"sort"
@@ -199,6 +200,12 @@ type tab struct {
 	clips   []string
 	clipErr error
 
+	// kept are the values the extensions kept in the tab's state (extension.State), by extension id, folder and key, and keptErr is the
+	// error Set answers (state_test.go).
+	keptMu  sync.Mutex
+	kept    map[string]json.RawMessage
+	keptErr error
+
 	// picks are the lists the tab was asked to show (QuickPick().Show), the first first.
 	picks []QuickPickRequest
 	// inputs are the input boxes the tab was asked to show (InputBox().Show), the first first.
@@ -272,6 +279,8 @@ type rig struct {
 	noContentHost map[string]bool
 	// noClip names tabs that have no clipboard (references_test.go).
 	noClip map[string]bool
+	// noState names tabs that keep no state (state_test.go).
+	noState map[string]bool
 	// noSCM names tabs that have no Source Control model (scm_test.go).
 	noSCM map[string]bool
 	// noDecorations names tabs that have no file decorations service (decorations_test.go).
@@ -417,6 +426,32 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 			return nil
 		}
 	}
+	var stateGet func(string, string, string) (json.RawMessage, bool)
+	var stateSet func(string, string, string, json.RawMessage) error
+	if !r.noState[name] {
+		stateGet = func(ext, folder, key string) (json.RawMessage, bool) {
+			tb.keptMu.Lock()
+			defer tb.keptMu.Unlock()
+			v, ok := tb.kept[ext+"\x00"+folder+"\x00"+key]
+			return v, ok
+		}
+		stateSet = func(ext, folder, key string, value json.RawMessage) error {
+			tb.keptMu.Lock()
+			defer tb.keptMu.Unlock()
+			if tb.keptErr != nil {
+				return tb.keptErr
+			}
+			if tb.kept == nil {
+				tb.kept = map[string]json.RawMessage{}
+			}
+			if value == nil {
+				delete(tb.kept, ext+"\x00"+folder+"\x00"+key)
+			} else {
+				tb.kept[ext+"\x00"+folder+"\x00"+key] = value
+			}
+			return nil
+		}
+	}
 	var dialog func(DialogRequest)
 	if !r.noDialog[name] {
 		dialog = func(req DialogRequest) { tb.dialogs = append(tb.dialogs, req) }
@@ -447,7 +482,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		showProblems = func() { tb.shownProblems++ }
 	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, HistoryGraph: !r.noHistory[name], Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, HistoryGraph: !r.noHistory[name], Clipboard: clip, StateGet: stateGet, StateSet: stateSet, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },

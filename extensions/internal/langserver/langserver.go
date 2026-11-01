@@ -44,6 +44,10 @@ type Config struct {
 	// Select returns the index in Programs of the program to run now, from the settings (python.languageServer); the first when
 	// nil or when the index is out of range. The settings it reads are watched: a change restarts the server.
 	Select func(s *Settings) int
+	// Disabled returns the reason when the user turned the server off (python.languageServer is "none"), "" when it should run. A
+	// disabled server is not looked for: the start fails with ServerDisabled, the item shows "disabled" and nobody is told, because
+	// it is what the user asked. The settings it reads are watched like those of Select.
+	Disabled func(s *Settings) string
 	// RootMarkers are the names (globs allowed: *.sln) of the files that mark a project root: Cargo.toml, pom.xml. The server is
 	// started in the folder if it holds one, else in the nearest folder above it that does, as far as the repository or the
 	// user's home folder goes (ResolveRoot). Without markers it is started in the folder.

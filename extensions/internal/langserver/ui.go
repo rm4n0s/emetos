@@ -10,7 +10,8 @@ import (
 
 // statusItem is what the bar shows now.
 func (c *Controller) statusItem() extension.StatusItem {
-	name := c.cfg.Name
+	// the program that runs is named in the texts about the process (Python's three servers share one item)
+	name := c.program().Name
 	icon, suffix := "", ""
 	tip := []string{c.label}
 	switch c.server.State {
@@ -46,6 +47,9 @@ func (c *Controller) statusItem() extension.StatusItem {
 	case extension.ServerMissing:
 		icon = "$(warning) "
 		kind, msg := c.problem()
+		if kind == problemDisabled {
+			icon = "$(circle-slash) "
+		}
 		switch kind {
 		case problemNotFound:
 			suffix = ": " + name + " not found"
@@ -53,6 +57,8 @@ func (c *Controller) statusItem() extension.StatusItem {
 			suffix = ": wrong path"
 		case problemTooOld:
 			suffix = ": " + name + " too old"
+		case problemDisabled:
+			suffix = ": disabled"
 		default:
 			suffix = ": " + name + " cannot start"
 		}
@@ -74,7 +80,7 @@ func (c *Controller) statusItem() extension.StatusItem {
 	}
 	tip = append(tip, "Click for the menu.")
 	return extension.StatusItem{
-		ID: StatusID(c.cfg.ID), Name: name, Text: icon + c.label + suffix, Tooltip: strings.Join(tip, "\n"),
+		ID: StatusID(c.cfg.ID), Name: c.cfg.Name, Text: icon + c.label + suffix, Tooltip: strings.Join(tip, "\n"),
 		Alignment: extension.StatusRight, Priority: statusPriority, OnClick: c.showMenu,
 	}
 }
@@ -103,14 +109,14 @@ func (c *Controller) showMenu() {
 		item extension.QuickPickItem
 		run  func()
 	}
-	name := c.cfg.Name
+	name := c.program().Name
 	query := c.cfg.SettingsQuery
 	if query == "" {
-		query = name
+		query = c.cfg.Name
 	}
 	entries := []entry{
 		{extension.QuickPickItem{Label: "$(debug-restart) Restart Language Server", Description: name}, c.restart},
-		{extension.QuickPickItem{Label: "$(output) Show " + name + " Output"}, c.showOutput},
+		{extension.QuickPickItem{Label: "$(output) Show " + c.cfg.Name + " Output"}, c.showOutput},
 		{extension.QuickPickItem{Label: "$(settings-gear) Open Settings", Description: query, Command: "workbench.action.openSettings", Args: query}, nil},
 	}
 	for _, m := range c.cfg.Menu {

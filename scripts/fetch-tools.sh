@@ -6,6 +6,8 @@
 # Reads scripts/tool-versions.txt:
 #   gzbin <name> <version> <sha256 of the download> <url> <sha256 of the program>   gunzipped into /var/tmp/emetos-tools/bin/<name>
 #   file  <name> <version> <sha256 of the download> <url>                           kept as /var/tmp/emetos-tools/download/<name>-<version>
+#   venv  <name> <version> <sha256 of the file> <requirements file in the repository>  pip install --require-hashes into /var/tmp/emetos-tools/venv (python3 -m venv)
+#   npm   <name> <version> <integrity> <package>                                    npm install --prefix /var/tmp/emetos-tools/node --ignore-scripts
 # A download whose sha256 differs from the pin is refused. A tool that is there already with the right sha256 is left alone; the
 # path of what was installed is printed. The tests of the packs skip when their program is not there (docs/IMPLEMENTATION.md "M24b").
 set -euo pipefail
@@ -52,6 +54,30 @@ for want in "$@"; do
         mv -f "$tmp/file" "$dst"
         rm -rf "$tmp"
         echo "$dst"
+        ;;
+      venv)
+        req="$root/$url"
+        [[ "$(sha256sum "$req" | cut -d' ' -f1)" == "$sha" ]] || { echo "error: $name: $url does not match the pinned sha256" >&2; exit 1; }
+        if [[ -f "$tools/venv/.emetos-$name" && "$(cat "$tools/venv/.emetos-$name")" == "$sha" ]]; then
+          echo "$tools/venv/bin"
+          continue
+        fi
+        [[ -x "$tools/venv/bin/python3" ]] || python3 -m venv "$tools/venv" </dev/null
+        "$tools/venv/bin/pip" install --disable-pip-version-check --require-hashes --no-deps -q -r "$req" </dev/null
+        echo "$sha" >"$tools/venv/.emetos-$name"
+        echo "$tools/venv/bin"
+        ;;
+      npm)
+        have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"].get("node_modules/"+sys.argv[2],{}).get("version","")+" "+d["packages"].get("node_modules/"+sys.argv[2],{}).get("integrity",""))' "$tools/node/package-lock.json" "$url" 2>/dev/null || true)"
+        if [[ "$have" == "$version $sha" ]]; then
+          echo "$tools/node/node_modules/.bin"
+          continue
+        fi
+        mkdir -p "$tools/node"
+        npm install --prefix "$tools/node" --ignore-scripts --no-audit --no-fund --save-exact -s "$url@$version" </dev/null
+        have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"]["node_modules/"+sys.argv[2]]["version"]+" "+d["packages"]["node_modules/"+sys.argv[2]]["integrity"])' "$tools/node/package-lock.json" "$url")"
+        [[ "$have" == "$version $sha" ]] || { echo "error: $name: the installed package does not match the pinned integrity" >&2; exit 1; }
+        echo "$tools/node/node_modules/.bin"
         ;;
       *)
         echo "error: $versions: unknown kind $kind" >&2

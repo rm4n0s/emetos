@@ -94,6 +94,8 @@ type API struct {
 	active            *extension.ActiveDocument
 	clipboard         []string
 	clipboardErr      error
+	state             map[string]json.RawMessage
+	stateErr          error
 	locationAnswers   map[string]func(uri string, pos extension.Position) ([]extension.Location, error)
 	locationRequests  []LocationRequest
 	updates           []SettingUpdate

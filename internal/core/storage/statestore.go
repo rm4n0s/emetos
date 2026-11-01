@@ -119,6 +119,7 @@ func (s *StateStore) readGlobal(ctx context.Context) (GlobalState, error) {
 	read.WorkspaceTabs = cleanWorkspaceTabs(read.WorkspaceTabs)
 	migrateWindows(&read)
 	read.LastProfiles = cleanLastProfiles(read.LastProfiles)
+	read.Extensions = cleanExtensionState(read.Extensions)
 	return read, nil
 }
 
@@ -262,6 +263,7 @@ func cloneGlobal(g GlobalState) GlobalState {
 	g.WorkspaceTabs = slices.Clone(g.WorkspaceTabs)
 	g.OpenWindows = slices.Clone(g.OpenWindows)
 	g.LastProfiles = maps.Clone(g.LastProfiles)
+	g.Extensions = cloneExtensionState(g.Extensions)
 	return g
 }
 

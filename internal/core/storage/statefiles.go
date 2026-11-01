@@ -148,6 +148,10 @@ type GlobalState struct {
 	// LastProfiles is the profile last used with each folder, by the cleaned absolute path of the folder (SPEC
 	// §10.12). A folder with no entry uses the default profile. A state written before step 8.6 has none.
 	LastProfiles map[string]string `json:"lastProfiles,omitempty"`
+	// Extensions are the values extensions keep (extension.State, SPEC §10.15 "As built (step 24b.4)"): by extension id, by folder
+	// (the cleaned absolute path; empty for a tab without one) and by key, each value as the JSON the extension gave. The store does not
+	// look into the values.
+	Extensions map[string]map[string]map[string]json.RawMessage `json:"extensions,omitempty"`
 }
 
 // sanitize drops what a window state read from a file holds that cannot be used: a geometry that is not a

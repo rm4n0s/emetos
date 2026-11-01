@@ -5,8 +5,19 @@
 # kind    name                        version     sha256 of the download                                              url
 # gzbin   a gzip of one program: gunzip it into bin/<name>; the sha256 of the program follows the url
 # file    a plain file: kept in download/<name>-<version>
+# venv    the Python tools of a pip requirements file with hashes (the url column is the file, relative to the repository; the sha256 is
+#         the file's): a venv of the system's python3 in venv/, pip install --require-hashes --no-deps -r <file>
+# npm     an npm package (the sha256 column is the package's integrity, sha512-...; the url column is the package name): npm install --prefix
+#         node --ignore-scripts, then the integrity in node/package-lock.json is compared
 gzbin     rust-analyzer               2026-10-26  4c83773525f93b636ed79761389568b4d2a89c05fa7ecc440245032d49ad80ce  https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-26/rust-analyzer-x86_64-unknown-linux-gnu.gz  01c2dc9d7653769915fe26fa4737bfab2b99ff3c756414d04d5239e0eab97365
 file      rust-analyzer-package.json  2026-10-26  9701f04b1f484e27c427335943f512888ec930e547dada70b7c91d96fad7cce8  https://raw.githubusercontent.com/rust-lang/rust-analyzer/2026-10-26/editors/code/package.json
+venv      python-tools                2026-11-01  9c5d6f3f4d3549cc22f1fea068a7c97826619827d202d300352df700be719f3f  scripts/tools-python-requirements.txt
+npm       pyright                     1.1.414     sha512-FPZZb51jepDX4eP7TEYDeNFtmE3WgwkkEcJpvH3/QmUSsj0EAy3LXu+xB4T/FWDejtsXlCfFr/rbWFjwuwuXww==  pyright
+# python-tools holds basedpyright 1.40.2 (based on pyright 1.1.414, bundles node as nodejs-wheel-binaries) and python-lsp-server 1.15.0
+# with pyflakes 3.2.0 (diagnostics), jedi 0.20.1 and black; the pip wrappers of pyright would download node into the user's home folder,
+# so pyright is the npm package, run by the system's node.
 
 # System tools: not fetched, not pinned. The tests of a pack that uses the system's program carry the version they ran against.
 # clangd   emetos_clangd (step 24b.3)   clangd version 22.1.8 (Fedora 22.1.8-4.fc44), the system's (D47: Emetos installs no server)
+# python3   emetos_pyright, emetos_pylsp (step 24b.4)   Python 3.14.8, the system's: it makes the .venv of the tests (python3 -m venv --without-pip) and creates the venv of python-tools
+# node      emetos_pyright (step 24b.4)                 the system's node (v22.23.1), which runs the npm package of pyright

@@ -232,3 +232,52 @@ func TestConfigSpecAndSettings(t *testing.T) {
 		t.Errorf("description = %q", specs[0].Description)
 	}
 }
+
+func TestResolveASwitchedOffServerIsNotLookedFor(t *testing.T) {
+	// the program is not installed: a server that is turned off fails with ServerDisabled, not ServerNotFound
+	cfg := Config{
+		ID: "x", Name: "Pyxis", Languages: []string{"x"}, Programs: []Program{{Name: "pyxis"}},
+		Disabled: func(s *Settings) string {
+			if s.String("x.server") == "none" {
+				return "x.server is none"
+			}
+			return ""
+		},
+	}
+	s := settingsOf(map[string]any{"x.server": "none"})
+	_, err := Resolve(context.Background(), cfg, Env{Path: t.TempDir(), Settings: s})
+	wantRoute(t, err, "Resolve.ServerDisabled")
+	if metadata(t, err, "why") != "x.server is none" {
+		t.Errorf("why = %q", metadata(t, err, "why"))
+	}
+	if _, ok := s.Read()["x.server"]; !ok {
+		t.Error("the setting that turns the server off is not remembered, so that turning it on would not restart")
+	}
+	// on: the program is looked for as usual
+	_, err = Resolve(context.Background(), cfg, Env{Path: t.TempDir(), Settings: settingsOf(nil)})
+	wantRoute(t, err, "Resolve->Find.ServerNotFound")
+}
+
+func TestResolveAsksTheSiblingOfTheProgramForItsVersion(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "bin")
+	writeFile(t, bin, "tool-langserver", "#!/bin/sh\necho 'no version here'\n", 0o755)
+	program(t, bin, "tool", "tool 2.5.1")
+	cfg := Config{
+		ID: "x", Name: "tool", Languages: []string{"x"},
+		Programs: []Program{{Name: "tool", Exe: "tool-langserver", Version: VersionCheck{Args: []string{"--version"}, Exe: "tool", Min: "2.0"}}},
+	}
+	l, err := Resolve(context.Background(), cfg, Env{Path: bin})
+	if err != nil || l.Version != "2.5.1" || l.Found.Path != filepath.Join(bin, "tool-langserver") {
+		t.Fatalf("Resolve = %+v, %v", l, err)
+	}
+	// the minimum counts for the sibling's version
+	cfg.Programs[0].Version.Min = "3.0"
+	_, err = Resolve(context.Background(), cfg, Env{Path: bin})
+	wantRoute(t, err, "Resolve.ServerTooOld")
+	// a sibling that is not there is a version that cannot be read, not a failure
+	cfg.Programs[0].Version.Exe = "missing"
+	l, err = Resolve(context.Background(), cfg, Env{Path: bin})
+	if err != nil || l.Version != "" || l.VersionErr == nil {
+		t.Errorf("Resolve with no sibling = %+v, %v", l, err)
+	}
+}

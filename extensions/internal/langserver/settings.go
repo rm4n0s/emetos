@@ -104,3 +104,31 @@ func Fingerprint(v any, ok bool) string {
 	}
 	return string(b)
 }
+
+// SetNested puts v at the path of keys in the nested maps of m, making the maps on the way: ["cargo", "features"] sets m["cargo"]["features"].
+// A path that would replace a value, or go through one that is not a map, is left out (a setting whose name is the start of another's
+// cannot be both).
+func SetNested(m map[string]any, path []string, v any) {
+	if len(path) == 0 {
+		return
+	}
+	for _, key := range path[:len(path)-1] {
+		next, ok := m[key]
+		if !ok {
+			child := map[string]any{}
+			m[key] = child
+			m = child
+			continue
+		}
+		child, isMap := next.(map[string]any)
+		if !isMap {
+			return
+		}
+		m = child
+	}
+	last := path[len(path)-1]
+	if _, taken := m[last]; taken {
+		return
+	}
+	m[last] = v
+}

@@ -1,24 +1,120 @@
-// Package python is the Python language pack (SPEC §8.1, §10.15): Python. The grammars and language configurations
-// are in assets/, copied by scripts/update-assets.sh; the licenses are in third_party/ and NOTICE.
+// Package python is the Python language pack (SPEC §8.1, §10.15, §10.34): Python. The grammars and language configurations are in assets/,
+// copied by scripts/update-assets.sh; the licenses are in third_party/ and NOTICE. Since step 24b.4 the pack also runs a language server:
+// basedpyright by default, Pyright or python-lsp-server when python.languageServer says so, or none. The server is found, started and
+// shown by extensions/internal/langserver (the path settings basedpyright.path, pyright.path and pylsp.path, PATH, the folder of the
+// interpreter, the status item, the notification for a missing server).
+//
+// The pack also owns the choice of the Python interpreter (interpreter.go, interpreters.go): the discovery, "Python: Select Interpreter"
+// (python.setInterpreter) with the status item that shows the interpreter's version and environment, the choice per folder kept in
+// Emetos's state, and Interpreters.Current, which the debugger (M25) and the Testing provider (M26) of the pack read so that every
+// feature runs the same Python.
 package python
 
 import (
+	"context"
 	"embed"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
+	"github.com/rm4n0s/emetos/extensions/internal/langserver"
 )
-
-// ID is the id of the extension.
-const ID = "emetos.python"
 
 //go:embed all:assets
 var assets embed.FS
 
 // New is the Factory of the pack.
 func New() extension.Extension {
-	return langpack.New(langpack.Spec{
-		ID: ID, Name: "Python Language Basics", Description: "Syntax highlighting and language configuration for Python.",
-		Assets: assets,
+	p := &python{}
+	p.base = langpack.New(langpack.Spec{
+		ID: ID, Name: "Python", Description: "Python support: syntax, the language server (basedpyright, Pyright or python-lsp-server) and the interpreter.",
+		Assets: assets, Server: p.serverConfig(),
 	})
+	return p
+}
+
+// python is the extension of one scope. Everything in it runs on the UI thread unless a comment says otherwise.
+type python struct {
+	base extension.Extension
+	api  extension.API
+	// ctx is the context of the activation; it is set before the launcher is, and only read afterwards.
+	ctx context.Context
+	ctl *langserver.Controller
+
+	// interps is the interpreter of the scope; offer remembers that the folder's own environment was offered once.
+	interps *Interpreters
+	offer   offer
+	// defaultPath is python.defaultInterpreterPath as the pack last saw it.
+	defaultPath string
+}
+
+// Manifest implements extension.Extension: the manifest of the pack with the commands and the settings of the servers.
+func (p *python) Manifest() extension.Manifest {
+	m := p.base.Manifest()
+	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
+	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	return m
+}
+
+// Activate implements extension.Extension.
+func (p *python) Activate(ctx context.Context, api extension.API) error {
+	p.api, p.ctx = api, ctx
+	folder := api.Scope().Folder
+	p.interps = newInterpreters(ctx, api, func(s *langserver.Settings) langserver.Env { return langserver.DefaultEnv(folder, s) })
+	p.interps.updated = p.updateStatus
+	if err := p.base.Activate(ctx, api); err != nil {
+		return err
+	}
+	p.ctl = langpack.Controller(p.base)
+	for id, handler := range p.handlers() {
+		if err := api.Commands().Handle(id, handler); err != nil {
+			return err
+		}
+	}
+	if _, err := api.Events().Subscribe(extension.TopicEditorActiveChanged, p.editorEvent); err != nil {
+		return err
+	}
+	p.defaultPath, _ = extension.SettingValue[string](api.Settings(), DefaultInterpreterSetting)
+	api.Settings().OnChange(p.settingsChanged)
+	p.interps.Refresh()
+	return nil
+}
+
+// settingsChanged looks for the interpreter again when python.defaultInterpreterPath changed: it is the only setting that decides it, and
+// looking may run a program (--version), which a change of any other setting must not do.
+func (p *python) settingsChanged() {
+	now, _ := extension.SettingValue[string](p.api.Settings(), DefaultInterpreterSetting)
+	if now == p.defaultPath {
+		return
+	}
+	p.defaultPath = now
+	p.interps.Refresh()
+}
+
+// Interpreters is the interpreter choice of the scope: Current is the one in use, Choose changes it, OnChange follows it. The debugger and
+// the Testing provider of the pack read it. It is nil before Activate.
+func (p *python) Interpreters() *Interpreters { return p.interps }
+
+// editorEvent offers the folder's own environment the first time a Python file is in front.
+func (p *python) editorEvent(ev extension.Event) {
+	var ae extension.ActiveEditor
+	if ev.Decode(&ae) != nil || ae.LanguageID != "python" {
+		return
+	}
+	p.interps.maybeOffer(&p.offer)
+}
+
+// updateStatus shows the interpreter in the status item of the server: its version and environment as the text, its path and the rule
+// that chose it in the tooltip.
+func (p *python) updateStatus() {
+	if p.ctl == nil {
+		return
+	}
+	i, ok := p.interps.Current()
+	if !ok {
+		p.ctl.SetLabel("Select Interpreter")
+		p.ctl.SetDetail("No Python interpreter was found. Choose one with Select Interpreter... in the menu, or set python.defaultInterpreterPath.")
+		return
+	}
+	p.ctl.SetLabel(i.Label())
+	p.ctl.SetDetail("Interpreter: " + i.Path + " (" + p.interps.reason() + ")")
 }

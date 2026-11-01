@@ -21,6 +21,10 @@ type VersionCheck struct {
 	// Args are the arguments that make the program print its version and exit (--version); nil for a program that has no way, which
 	// is then never asked.
 	Args []string
+	// Exe is the name of another file in the folder of the program found that is run instead of it (basedpyright-langserver has no
+	// --version, its sibling basedpyright has); empty runs the program itself. A sibling that is not there is a version that cannot
+	// be read, no failure.
+	Exe string
 	// Parse finds the version in what the program printed; DefaultVersion when nil.
 	Parse func(output string) (string, bool)
 	// Min is the oldest version accepted ("1.2"); a program that is older fails the start with ServerTooOld. Empty accepts any. A

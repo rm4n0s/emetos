@@ -251,6 +251,7 @@ const (
 	problemNotFound
 	problemPathInvalid
 	problemTooOld
+	problemDisabled
 	problemOther
 )
 
@@ -262,7 +263,7 @@ func (c *Controller) problem() (problemKind, string) {
 	}
 	appErr, ok := errors.FromError(res.err)
 	if !ok {
-		return problemOther, c.cfg.Name + " cannot be started: " + res.err.Error()
+		return problemOther, c.program().Name + " cannot be started: " + res.err.Error()
 	}
 	switch appErr.Tag {
 	case "ServerNotFound":
@@ -271,14 +272,16 @@ func (c *Controller) problem() (problemKind, string) {
 		return problemPathInvalid, appErr.Message
 	case "ServerTooOld":
 		return problemTooOld, appErr.Message
+	case "ServerDisabled":
+		return problemDisabled, appErr.Message
 	}
-	return problemOther, c.cfg.Name + " cannot be started: " + appErr.Message
+	return problemOther, c.program().Name + " cannot be started: " + appErr.Message
 }
 
 // tellProblem tells the user once, in this tab, why the server is not running.
 func (c *Controller) tellProblem() {
 	kind, msg := c.problem()
-	if kind == problemNone || c.told[msg] {
+	if kind == problemNone || kind == problemDisabled || c.told[msg] {
 		return
 	}
 	c.told[msg] = true

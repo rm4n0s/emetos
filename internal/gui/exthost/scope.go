@@ -187,6 +187,10 @@ type ScopeOptions struct {
 	// Clipboard puts a text on the clipboard of the desktop, on the UI thread, for Clipboard().WriteText; the window reports a
 	// clipboard that fails to the user. Nil leaves it unavailable.
 	Clipboard func(text string) error
+	// StateGet and StateSet keep the values of extensions (extension.State) in the state of the profile, by extension id, folder and key.
+	// They may be called from any goroutine. Both nil leaves State().Set unavailable and State().Get empty.
+	StateGet func(extensionID, folder, key string) (json.RawMessage, bool)
+	StateSet func(extensionID, folder, key string, value json.RawMessage) error
 	// Dialog shows a modal dialog for Dialogs().Ask on the UI thread and calls DialogRequest.Answered with the answer; nil leaves it
 	// unavailable.
 	Dialog func(DialogRequest)

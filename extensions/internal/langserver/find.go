@@ -24,6 +24,10 @@ func DefaultEnv(folder string, s *Settings) Env {
 	return Env{Folder: folder, Home: home, Path: os.Getenv("PATH"), Settings: s}
 }
 
+// Getenv reads a variable of Emetos's environment (Environ when set, else os.Getenv): the environment variables a pack looks at
+// (VIRTUAL_ENV) go through it, so that a test gives them.
+func (e Env) Getenv(name string) string { return e.getenv(name) }
+
 // getenv reads a variable.
 func (e Env) getenv(name string) string {
 	if e.Environ != nil {
