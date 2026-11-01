@@ -280,6 +280,8 @@ type rig struct {
 	noTimeline map[string]bool
 	// noQuickDiff names tabs that have no editors to compare.
 	noQuickDiff map[string]bool
+	// noHistory names tabs that have no Graph view (history_test.go).
+	noHistory map[string]bool
 	// noDialog and noWatch name tabs that cannot show a dialog and tabs that cannot watch a folder.
 	noDialog, noWatch map[string]bool
 	// noTrash names tabs that have no trash.
@@ -313,7 +315,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noQuickDiff: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}, noProblemsPanel: map[string]bool{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noQuickDiff: map[string]bool{}, noHistory: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}, noProblemsPanel: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -443,7 +445,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		showProblems = func() { tb.shownProblems++ }
 	}
 	tb.scope = r.host.NewScope(ScopeOptions{
-		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, HistoryGraph: !r.noHistory[name], Clipboard: clip, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },

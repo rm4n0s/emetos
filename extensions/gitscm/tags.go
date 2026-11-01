@@ -25,6 +25,10 @@ func (x *gitscm) cmdCreateTag(_ context.Context, args any) error {
 
 // refArg is the commit a caller named for the tag ({"ref": "main~2"}); HEAD when none.
 func refArg(args any) string {
+	// the Graph runs it for a commit
+	if arg, ok := extension.HistoryArgs(args); ok && arg.Item != nil {
+		return arg.Item.ID
+	}
 	if m, ok := args.(map[string]any); ok {
 		if s, ok := m["ref"].(string); ok {
 			return s

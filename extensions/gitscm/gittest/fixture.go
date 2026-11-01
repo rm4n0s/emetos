@@ -348,3 +348,44 @@ func Manifest(t TB, dir string) string {
 	}
 	return hex.EncodeToString(h.Sum(nil))
 }
+
+// LongHistory builds a repository in dir with a branch main of n commits, as the Graph's tests need it: every 50th commit
+// merges a branch of two commits made 10 commits before, so lanes open and close all along the history. A commit changes one
+// small file, so building 100,000 of them takes a few seconds ("git fast-import"). The commits are at one minute from each other.
+func (e *Env) LongHistory(dir string, n int) *Repo {
+	r := e.InitAt(dir)
+	r.persistIdentity()
+	var im importer
+	at := func(i int) time.Time { return baseDate.Add(time.Duration(i) * time.Minute) }
+	side := n + 10 // the marks of the side branches come after those of main
+	for i := 1; i <= n; i++ {
+		from, merge := "", ""
+		if i > 1 {
+			from = ":" + strconv.Itoa(i-1)
+		}
+		file := fileChange{"data/f" + strconv.Itoa(i%97) + ".txt", "revision " + strconv.Itoa(i) + "\n"}
+		message := "Change the data, revision " + strconv.Itoa(i)
+		if i%50 == 0 && i > 20 {
+			// two side commits made on top of the commit 10 before, merged here
+			base := ":" + strconv.Itoa(i-10)
+			for j := 0; j < 2; j++ {
+				f := base
+				if j > 0 {
+					f = ":" + strconv.Itoa(side-1)
+				}
+				im.commit("refs/heads/side", side, fixtureAuthors[(j+1)%len(fixtureAuthors)], at(i-10+j), "Side work "+strconv.Itoa(j+1)+" of "+strconv.Itoa(i), f, "",
+					fileChange{"data/side" + strconv.Itoa(i) + ".txt", "side " + strconv.Itoa(j) + "\n"})
+				side++
+			}
+			merge, message = ":"+strconv.Itoa(side-1), "Merge side/"+strconv.Itoa(i)
+		}
+		im.commit("refs/heads/main", i, fixtureAuthors[i%len(fixtureAuthors)], at(i), message, from, merge, file)
+	}
+	im.run(r)
+	r.Git("symbolic-ref", "HEAD", "refs/heads/main")
+	if n > 20 {
+		r.Git("branch", "-q", "-D", "side")
+	}
+	r.Git("reset", "-q", "--hard")
+	return r
+}

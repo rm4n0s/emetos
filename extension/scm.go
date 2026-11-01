@@ -75,7 +75,12 @@ type SourceControl interface {
 	// checkout): the open files are compared again, off the UI thread, and the providers are asked for their originals again. It
 	// does nothing when the source control has no provider.
 	RefreshQuickDiff()
-	// TODO(step 24.20): SetHistoryProvider.
+	// SetHistoryProvider gives the source control a history for the Graph view (SPEC §10.30 "The Source Control Graph"). A source
+	// control has one. It fails with ExtensionHistoryInvalid for a provider without Items, Refs or CommonAncestor,
+	// ExtensionHistoryDuplicate for a source control that has a provider, ExtensionHistoryUnavailable in a scope that has no Graph (a
+	// host without a workbench), ExtensionSCMDisposed for a source control that was disposed and ExtensionDeactivated after the
+	// activation ended. The provider goes with the source control and with the activation.
+	SetHistoryProvider(p HistoryProvider) (HistoryRegistration, error)
 }
 
 // ValidationLevel is the severity of a Validation (VS Code's SourceControlInputBoxValidationType).

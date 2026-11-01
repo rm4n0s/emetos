@@ -40,7 +40,7 @@ func (m *Model) Context() map[string]any {
 	}
 	return map[string]any{
 		"scm.providerCount":             len(m.sources),
-		"scm.historyProviderCount":      0, // TODO(step 24.20): the sources that have a history provider
+		"scm.historyProviderCount":      m.historyCountLocked(),
 		"scmRepositoryCount":            len(m.sources),
 		"scmRepositoryVisibleCount":     len(m.visibleLocked()),
 		"scmRepositorySortKey":          string(m.sortKey),
@@ -48,7 +48,7 @@ func (m *Model) Context() map[string]any {
 		"scmViewMode":                   string(m.viewMode),
 		"scmViewSortKey":                string(m.viewSortKey),
 		"scmActiveRepositoryName":       name,
-		"scmActiveRepositoryBranchName": "", // TODO(step 24.20): the name of the current history item ref
+		"scmActiveRepositoryBranchName": m.activeBranchLocked(),
 		"scmActiveResourceHasChanges":   hasChanges,
 		"scmActiveResourceRepository":   repo,
 	}

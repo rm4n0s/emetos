@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"github.com/rm4n0s/emetos/internal/gui/views/scmgraph"
 	"math"
 	"path/filepath"
 	"slices"
@@ -247,6 +248,8 @@ type Workspace struct {
 	flushState      func()
 	// pendingSCMView is the saved state of the Source Control view (the folds), until the shell makes the view.
 	pendingSCMView json.RawMessage
+	// pendingSCMGraph are the saved filters of the Graph view, until the shell makes the view.
+	pendingSCMGraph map[string]scmgraph.Filter
 	// pendingTimeline is the saved state of the Timeline view (the filter of the sources), until the shell makes the view.
 	pendingTimeline json.RawMessage
 	// devDecos are the file decorations that dev.scm.fake gives (devscm.go).

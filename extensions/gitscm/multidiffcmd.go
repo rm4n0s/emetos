@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/gitscm/git"
 )
 
 // The commands that open the multi-file diff editor (SPEC §10.30 "Diffs of changes"): Open Changes, Open Staged Changes and Open
@@ -48,6 +49,16 @@ func commitArgs(args any) (id, reveal string) {
 // cmdViewCommit opens what a commit changed in the multi-file diff editor: against its first parent, and a root commit against the empty
 // tree. The commit is read in the background; the editor opens when it is known.
 func (x *gitscm) cmdViewCommit(_ context.Context, args any) error {
+	// the Graph names the range of the incoming and the outgoing changes
+	if arg, ok := extension.HistoryArgs(args); ok && arg.Range != nil {
+		if r := x.targetOf(args); r != nil {
+			x.openRange(r, arg.Range.Base, arg.Range.Head, arg.Range.Title)
+		}
+		return nil
+	}
+	if arg, ok := extension.HistoryArgs(args); ok && arg.Item != nil {
+		args = map[string]any{"id": arg.Item.ID, "root": rootOfArgs(x, args)}
+	}
 	id, reveal := commitArgs(args)
 	if id == "" {
 		return nil
@@ -108,5 +119,56 @@ func multiDiffMenus() []extension.MenuItem {
 		item(group, "git.viewStagedChanges", "inline@1", "scmProvider == git && scmResourceGroup == index"),
 		item(group, "git.viewChanges", "inline@1", "scmProvider == git && scmResourceGroup == workingTree"),
 		item(group, "git.viewUntrackedChanges", "inline@1", "scmProvider == git && scmResourceGroup == untracked"),
+	}
+}
+
+// rootOfArgs is the root of the repository the arguments name, for a command that builds its own arguments from them.
+func rootOfArgs(x *gitscm, args any) string {
+	if r := x.targetOf(args); r != nil {
+		return r.root
+	}
+	return ""
+}
+
+// openRefRange opens the changes from one commit to another, after finding that there are some: with none a notification says so. The
+// ends are shown by their names.
+//
+// Ported from VS Code: commands.ts (_openChangesBetweenRefs)
+func (x *gitscm) openRefRange(r *repository, from, to refEnd) {
+	if from.id == "" || to.id == "" || r.repo == nil {
+		return
+	}
+	repo, ctx := r.repo, r.ctx
+	go func() {
+		changes, err := repo.NameStatus(ctx, git.DiffSpec{Revs: []string{from.id, to.id}, SimilarityThreshold: 50})
+		x.api.Post(func() {
+			if x.stopped.Load() || r.disposed {
+				return
+			}
+			switch {
+			case err != nil:
+				if ctx.Err() == nil {
+					x.log.Warn("cannot compare", "from", from.id, "to", to.id, "err", err)
+					x.api.Notifications().Error(`Failed to open changes between "` + from.name + `" and "` + to.name + `": ` + describe(err))
+				}
+			case len(changes) == 0:
+				x.api.Notifications().Info(`There are no changes between "` + from.name + `" and "` + to.name + `".`)
+			default:
+				x.openRange(r, from.id, to.id, from.name+" \u2194 "+to.name)
+			}
+		})
+	}()
+}
+
+// openRange opens the multi-file diff editor of the changes between two commits.
+func (x *gitscm) openRange(r *repository, base, head, title string) {
+	if base == "" || head == "" {
+		return
+	}
+	spec := extension.MultiDiffSpec{Title: title, Kind: MultiDiffKind, Key: rangeKey(r.id, base, head)}
+	x.multi.opened(r.id, spec.Key)
+	if err := x.api.Documents().OpenMultiDiff(spec); err != nil {
+		x.log.Warn("cannot open a range of changes", "err", err)
+		x.api.Notifications().Error("Cannot open the changes: " + err.Error())
 	}
 }

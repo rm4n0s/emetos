@@ -30,6 +30,10 @@ const (
 	// ViewChanged: the view mode, the sort key, the repositories' order, which repositories are shown, the focused or the active
 	// repository, or the configuration changed.
 	ViewChanged
+	// HistoryChanged: the history provider of a source control was set or taken away, or its current references changed.
+	HistoryChanged
+	// HistoryRefsChanged: references were added, removed or moved (Event.Refs says which).
+	HistoryRefsChanged
 )
 
 // Event is a change of the Model.
@@ -40,6 +44,8 @@ type Event struct {
 	Source *Source
 	// Group is the group concerned, for GroupsChanged and ResourcesChanged.
 	Group *Group
+	// Refs is the change of references, for HistoryRefsChanged.
+	Refs *HistoryRefsChange
 }
 
 // ViewMode is how the resources of a group are shown (VS Code's ViewMode).
@@ -498,6 +504,7 @@ type Source struct {
 	groups     []*Group
 	selection  int // the place among the selected repositories; -1 for one that is not selected
 	focused    bool
+	hist       *historyState
 }
 
 // Key is the handle of the source control, unique in the model ("scm3"): the member "sourceControl" of the arguments of a menu

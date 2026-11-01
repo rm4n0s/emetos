@@ -277,6 +277,8 @@ type shellState struct {
 	explorer explorerState
 	// scm is the Source Control container: the Changes and Repositories views (scmview.go).
 	scm scmState
+	// graph is the Graph view of Source Control (scmgraph.go).
+	graph graphState
 	// timeline is what the shell keeps of the Timeline view (timelineview.go).
 	timeline timelineState
 	// blocked is the path of the file that looks binary and that a notice offers to open anyway,

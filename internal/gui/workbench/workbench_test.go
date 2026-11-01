@@ -849,6 +849,9 @@ var scmAppCommands = map[string]bool{
 	"workbench.scm.action.collapseAll": true, "workbench.scm.action.toggleRepositoryVisibility": true,
 	// Go to Next Change and Go to Previous Change of the quick diff, which the editor runs (step 24.11, gui/editor/quickdiff.go)
 	"workbench.action.editor.nextChange": true, "workbench.action.editor.previousChange": true,
+	// the Graph view of Source Control (step 24.20, gui/app/scmgraph.go)
+	"workbench.scm.history.focus": true, "workbench.scm.action.graph.pickRepository": true, "workbench.scm.action.graph.pickHistoryItemRefs": true,
+	"workbench.scm.action.graph.revealCurrentHistoryItem": true, "workbench.scm.action.graph.refresh": true, "workbench.scm.action.graph.viewChanges": true,
 }
 
 func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {

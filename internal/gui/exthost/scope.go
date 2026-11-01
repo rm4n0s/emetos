@@ -208,6 +208,9 @@ type ScopeOptions struct {
 	// QuickDiff is the registry of the quick diff providers of the window tab, which SourceControl().AddQuickDiffProvider adds to and the
 	// editors compare their files with; nil leaves it unavailable (AddQuickDiffProvider fails with ExtensionQuickDiffUnavailable).
 	QuickDiff *quickdiff.Service
+	// HistoryGraph says that the window tab has the Graph view, which SourceControl().SetHistoryProvider feeds (it is false for a host with
+	// no workbench: SetHistoryProvider fails with ExtensionHistoryUnavailable).
+	HistoryGraph bool
 }
 
 // slot is an extension in a scope.

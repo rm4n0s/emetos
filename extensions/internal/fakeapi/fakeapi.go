@@ -110,6 +110,8 @@ type API struct {
 	annotationsUnavailable bool
 	// quickDiffUnavailable makes AddQuickDiffProvider and QuickDiffOriginal fail like a scope with no editors.
 	quickDiffUnavailable bool
+	// historyUnavailable makes SetHistoryProvider fail like a scope with no Graph view.
+	historyUnavailable bool
 }
 
 // Note is a notification the extension showed.

@@ -110,6 +110,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, multiDiffMenus()...)
 	menus = append(menus, editorMenus()...)
 	menus = append(menus, stashMenus()...)
+	menus = append(menus, graphMenus()...)
 	menus = append(menus, timelineMenus()...)
 	menus = append(menus, commitMenus()...)
 	menus = append(menus, branchMenus()...)

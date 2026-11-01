@@ -27,6 +27,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/kit/fonts"
 	scmview "github.com/rm4n0s/emetos/internal/gui/views/scm"
+	"github.com/rm4n0s/emetos/internal/gui/views/scmgraph"
 	"github.com/rm4n0s/emetos/internal/gui/views/welcome"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
 )
@@ -66,6 +67,8 @@ var scmSettingsKeys = []string{"scm.alwaysShowActions", "scm.alwaysShowRepositor
 type scmWindowState struct {
 	Model scmcore.State   `json:"model"`
 	View  json.RawMessage `json:"view,omitempty"`
+	// Graph are the filters of the Graph view by source control (step 24.20).
+	Graph map[string]scmgraph.Filter `json:"graph,omitempty"`
 }
 
 // restoreSCM gives the model the saved state of the window, before the extensions create their source controls.
@@ -80,6 +83,7 @@ func (w *Workspace) restoreSCM(raw json.RawMessage) {
 	}
 	w.SCM.Restore(st.Model)
 	w.pendingSCMView = st.View
+	w.pendingSCMGraph = st.Graph
 }
 
 // decodeSCMState reads the saved state of the view. The tag is ScmStateInvalid.
@@ -109,6 +113,11 @@ func (s *shellState) scmWindowState() json.RawMessage {
 	st := scmWindowState{Model: win.SCM.State()}
 	if s.scm.view != nil {
 		st.View = s.scm.view.SaveState()
+	}
+	if s.graph.pane != nil {
+		st.Graph = s.graph.pane.Filters()
+	} else {
+		st.Graph = win.pendingSCMGraph
 	}
 	data, err := encodeSCMState(st)
 	if err != nil {
@@ -230,11 +239,13 @@ func (s *shellState) initSCM(binding *widgets.WidgetsBinding) {
 	}))
 	s.bindSCMCommands(binding)
 	s.bindDevSCM()
+	s.initGraph(binding)
 	s.syncSCMParts()
 }
 
 // disposeSCM ends the views and gives the commands back.
 func (s *shellState) disposeSCM() {
+	s.disposeGraph()
 	st := &s.scm
 	for _, stop := range st.stops {
 		stop()

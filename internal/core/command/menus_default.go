@@ -574,9 +574,21 @@ func registerSourceControlMenus(r *MenuRegistry) {
 		"workbench.scm.action.repositories.setSelectionMode.single", "workbench.scm.action.repositories.setSelectionMode.multiple",
 		"workbench.scm.action.collapseAllRepositories", "workbench.scm.action.expandAllRepositories", "workbench.scm.action.collapseAll",
 		"workbench.scm.action.toggleRepositoryVisibility", "workbench.scm.focus", "workbench.scm.repositories.focus",
+		"workbench.scm.action.graph.pickRepository", "workbench.scm.action.graph.pickHistoryItemRefs",
+		"workbench.scm.action.graph.revealCurrentHistoryItem", "workbench.scm.action.graph.refresh", "workbench.scm.action.graph.viewChanges",
 	} {
 		r.MustAdd(MenuItem{Menu: CommandPalette, Command: id, When: contextkey.False()})
 	}
+	// the Graph (step 24.20): the title, and Open Changes in the menu and on the row of a commit
+	r.MustAdd(
+		MenuItem{Menu: SCMHistoryTitle, Command: "workbench.scm.action.graph.pickRepository", Group: "navigation", Order: 0,
+			When: when("scm.providerCount && scm.providerCount > 1 && config.scm.repositories.selectionMode == 'multiple'")},
+		MenuItem{Menu: SCMHistoryTitle, Command: "workbench.scm.action.graph.pickHistoryItemRefs", Group: "navigation", Order: 1},
+		MenuItem{Menu: SCMHistoryTitle, Command: "workbench.scm.action.graph.revealCurrentHistoryItem", Group: "navigation", Order: 2},
+		MenuItem{Menu: SCMHistoryTitle, Command: "workbench.scm.action.graph.refresh", Group: "navigation", Order: 1000},
+		MenuItem{Menu: SCMHistoryItemContext, Command: "workbench.scm.action.graph.viewChanges", Group: "inline", Order: 1},
+		MenuItem{Menu: SCMHistoryItemContext, Command: "workbench.scm.action.graph.viewChanges", Group: "0_view", Order: 1},
+	)
 	inView := when("view == 'workbench.scm'")
 	r.MustAdd(
 		MenuItem{Menu: MenubarViewMenu, Command: "workbench.view.scm", Title: "Source Control", MnemonicTitle: "Source &&Control", Group: "3_views", Order: 3},

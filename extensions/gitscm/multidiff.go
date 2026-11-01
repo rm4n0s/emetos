@@ -109,7 +109,7 @@ func (x *gitscm) provideMultiDiff() {
 func (x *gitscm) multiDiffResources(ctx context.Context, key string) ([]extension.MultiDiffResource, error) {
 	kind, rest, _ := strings.Cut(key, "/")
 	id, name, ok := strings.Cut(rest, "/")
-	if !ok || id == "" || name == "" || (kind != "group" && kind != "commit") {
+	if !ok || id == "" || name == "" || (kind != "group" && kind != "commit" && kind != "range") {
 		return nil, errors.New("GitMultiDiffKeyInvalid", "this is not the key of a set of changes", "key", key)
 	}
 	// a saved editor asks when the extension starts, before the repositories are found: the answer waits for one that is on its way
@@ -119,6 +119,17 @@ func (x *gitscm) multiDiffResources(ctx context.Context, key string) ([]extensio
 	}
 	if kind == "group" {
 		return groupMultiDiff(id, snap, name), nil
+	}
+	if kind == "range" {
+		base, head, ok := strings.Cut(name, "..")
+		if !ok || base == "" || head == "" {
+			return nil, errors.New("GitMultiDiffKeyInvalid", "this is not the key of a set of changes", "key", key)
+		}
+		changes, err := repo.NameStatus(ctx, git.DiffSpec{Revs: []string{base, head}, SimilarityThreshold: 50})
+		if err != nil {
+			return nil, err
+		}
+		return commitMultiDiff(id, snap.root, git.CommitChanges{Commit: git.Commit{Hash: head}, Base: base, Changes: changes}), nil
 	}
 	ch, err := repo.CommitChanges(ctx, name)
 	if err != nil {

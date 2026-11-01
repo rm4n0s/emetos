@@ -30,6 +30,38 @@ func registerSCMColors(r *ColorRegistry) {
 		ColorContribution{ID: "git.blame.editorDecorationForeground", Defaults: AllThemes(Ref("editorInlayHint.foreground")),
 			Description: "Color for the blame editor decoration."},
 	)
+	registerSCMGraphColors(r)
+}
+
+// registerSCMGraphColors registers the colors of the Source Control Graph (step 24.20): the lanes of the current branch, of the branch it
+// tracks and of the one it was made from, the five of the other lanes, and the hover (and the two chart colors the first two are made
+// from).
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmHistory.ts and src/vs/platform/theme/common/colors/chartsColors.ts
+func registerSCMGraphColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "charts.blue", Defaults: AllThemes(Ref("editorInfo.foreground")), Description: "The blue color used in chart visualizations."},
+		ColorContribution{ID: "charts.purple", Defaults: dflt(Hex("#B180D7"), Hex("#652D90"), Hex("#B180D7"), Hex("#652D90")),
+			Description: "The purple color used in chart visualizations."},
+		ColorContribution{ID: "scmGraph.historyItemRefColor", Defaults: AllThemes(Ref("charts.blue")), Description: "History item reference color."},
+		ColorContribution{ID: "scmGraph.historyItemRemoteRefColor", Defaults: AllThemes(Ref("charts.purple")), Description: "History item remote reference color."},
+		ColorContribution{ID: "scmGraph.historyItemBaseRefColor", Defaults: AllThemes(Hex("#EA5C00")), Description: "History item base reference color."},
+		ColorContribution{ID: "scmGraph.historyItemHoverDefaultLabelForeground", Defaults: AllThemes(Ref("foreground")),
+			Description: "History item hover default label foreground color."},
+		ColorContribution{ID: "scmGraph.historyItemHoverDefaultLabelBackground", Defaults: AllThemes(Ref("badge.background")),
+			Description: "History item hover default label background color."},
+		ColorContribution{ID: "scmGraph.historyItemHoverLabelForeground", Defaults: AllThemes(Ref("panel.background")),
+			Description: "History item hover label foreground color."},
+		ColorContribution{ID: "scmGraph.historyItemHoverAdditionsForeground", Defaults: dflt(Hex("#81B88B"), Hex("#587C0C"), Hex("#A1E3AD"), Hex("#374E06")),
+			Description: "History item hover additions foreground color."},
+		ColorContribution{ID: "scmGraph.historyItemHoverDeletionsForeground", Defaults: dflt(Hex("#C74E39"), Hex("#AD0707"), Hex("#C74E39"), Hex("#AD0707")),
+			Description: "History item hover deletions foreground color."},
+		ColorContribution{ID: "scmGraph.foreground1", Defaults: AllThemes(Hex("#FFB000")), Description: "Source control graph foreground color (1)."},
+		ColorContribution{ID: "scmGraph.foreground2", Defaults: AllThemes(Hex("#DC267F")), Description: "Source control graph foreground color (2)."},
+		ColorContribution{ID: "scmGraph.foreground3", Defaults: AllThemes(Hex("#994F00")), Description: "Source control graph foreground color (3)."},
+		ColorContribution{ID: "scmGraph.foreground4", Defaults: AllThemes(Hex("#40B0A6")), Description: "Source control graph foreground color (4)."},
+		ColorContribution{ID: "scmGraph.foreground5", Defaults: AllThemes(Hex("#B66DFF")), Description: "Source control graph foreground color (5)."},
+	)
 }
 
 // registerQuickDiffColors registers the colors of the marks of the quick diff in the gutter, the overview ruler and the minimap (step 24.11).

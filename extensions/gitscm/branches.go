@@ -25,7 +25,12 @@ func nameArg(args any) string {
 }
 
 func (x *gitscm) cmdBranch(_ context.Context, args any) error {
-	x.target(args, true, func(r *repository) { x.createBranch(r, nameArg(args), false, "") })
+	// the Graph runs it for a commit: the branch starts there (VS Code's branch(repository, historyItem))
+	target := ""
+	if arg, ok := extension.HistoryArgs(args); ok && arg.Item != nil {
+		target = arg.Item.ID
+	}
+	x.target(args, true, func(r *repository) { x.createBranch(r, nameArg(args), false, target) })
 	return nil
 }
 

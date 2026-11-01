@@ -138,7 +138,7 @@ func (w *Workspace) startExtensions() {
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, ShowProblems: w.showProblems, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, OpenWindowTab: w.openWindowTab, OpenFolder: w.openFolderFor, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
-		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, Decorations: w.Decorations, Timeline: w.Timeline, QuickDiff: w.QuickDiff, EditorDecorations: w.Annotations, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
+		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, Decorations: w.Decorations, Timeline: w.Timeline, QuickDiff: w.QuickDiff, HistoryGraph: w.SCM != nil, EditorDecorations: w.Annotations, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard,
 		Dialog: w.extensionDialog, Watch: w.extensionWatch, TrashFiles: w.extensionTrash,
 	})
 	w.extScope.Store(scope)

@@ -1107,6 +1107,15 @@ func registerSourceControlCommands(r *Registry) {
 		Meta{ID: "toggleQuickDiffWidgetFocus", Precondition: contextkey.Has("dirtyDiffVisible")},
 		Meta{ID: "workbench.scm.focus", Title: "Focus on Changes View", Category: "View"},
 		Meta{ID: "workbench.scm.repositories.focus", Title: "Focus on Repositories View", Category: "View"},
+		Meta{ID: "workbench.scm.history.focus", Title: "Focus on Graph View", Category: "View"},
+		// the actions of the title and of the commits of the Graph (step 24.20); none is in the palette
+		Meta{ID: "workbench.scm.action.graph.pickRepository", Title: "Repository Picker"},
+		Meta{ID: "workbench.scm.action.graph.pickHistoryItemRefs", Title: "History Item Reference Picker", Icon: "git-branch",
+			Precondition: contextkey.NotEquals("scmHistoryItemCount", 0)},
+		Meta{ID: "workbench.scm.action.graph.revealCurrentHistoryItem", Title: "Go to Current History Item", Icon: "target",
+			Precondition: contextkey.And(contextkey.NotEquals("scmHistoryItemCount", 0), contextkey.Equals("scmCurrentHistoryItemRefInFilter", true))},
+		Meta{ID: "workbench.scm.action.graph.refresh", Title: "Refresh", Icon: "refresh"},
+		Meta{ID: "workbench.scm.action.graph.viewChanges", Title: "Open Changes", Icon: "diff-multiple"},
 		Meta{ID: "scm.setActiveProvider"},
 		// the commit message box (step 24.4): VS Code gives them a description and no title, so the palette does not list them
 		Meta{ID: "scm.acceptInput", Description: "Source Control: Accept Input"},

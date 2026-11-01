@@ -93,6 +93,9 @@ type repository struct {
 	// qd is what the quick diff providers of the repository read (quickdiff.go).
 	qd quickDiffState
 
+	// hist is what the history provider of the repository keeps (history.go).
+	hist historyState
+
 	// commitUI is the commit box, the action button and the commit that runs (commitui.go, commit.go).
 	commitUI
 }
@@ -151,6 +154,7 @@ func (r *repository) clearGroups() {
 		}
 	}
 	r.dropQuickDiff()
+	r.dropHistory()
 	r.src.SetCount(-1)
 	r.src.SetStatusBarCommands(nil)
 	r.src.SetBusy(false)
@@ -194,6 +198,7 @@ func (r *repository) opened(repo *git.Repo, err error) {
 	}
 	r.src.SetActiveRepositoryName(r.activeRepositoryName())
 	r.addQuickDiff()
+	r.addHistory()
 	r.initCommitUI()
 	r.readRemotes()
 	r.startAutofetch()
@@ -395,7 +400,7 @@ func compute(ctx context.Context, repo *git.Repo, opts git.StatusOptions, gitDir
 	}()
 	go func() {
 		defer wg.Done()
-		snap.refs, refsErr = repo.Refs(ctx, "refs/heads", "refs/tags")
+		snap.refs, refsErr = repo.Refs(ctx, "refs/heads", "refs/remotes", "refs/tags")
 	}()
 	wg.Wait()
 	switch {
@@ -499,6 +504,7 @@ func (r *repository) applySnapshot(snap snapshot) {
 		x.blame.headMoved(r)
 	}
 	r.timelineSync(snap.head.commit != headBefore)
+	r.historySync()
 	x.updateActiveResource()
 	r.publish()
 }

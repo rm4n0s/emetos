@@ -44,6 +44,8 @@ type FakeSource struct {
 	// quickDiff are the providers of the source control (quickdiff.go) and refreshes the number of RefreshQuickDiff calls.
 	quickDiff []*FakeQuickDiff
 	refreshes int
+	// history is the history provider of the source control (history.go).
+	history *FakeHistory
 }
 
 // FakeInput is the commit message box of a FakeSource.
@@ -129,6 +131,9 @@ func (a *API) Deactivate() {
 		s.disposed = true
 		for _, q := range s.quickDiff {
 			q.disposed = true
+		}
+		if s.history != nil {
+			s.history.disposed = true
 		}
 	}
 	a.scm.sources = nil

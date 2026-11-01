@@ -235,6 +235,20 @@ type LogOptions struct {
 	ShortStats bool
 	// Reverse lists the oldest first, along the ancestry path.
 	Reverse bool
+	// Revs are the revisions the log starts from (the Graph's references: hashes, or names), used instead of Range when set. A revision
+	// that starts with "-" is refused with the tag GitRevisionInvalid.
+	Revs []string
+	// Decorate names the references of each commit in full ("refs/heads/main", "tag: refs/tags/v1") in Commit.RefNames; without it
+	// they are short names.
+	Decorate bool
+	// TopoOrder lists the parents after all their children (--topo-order).
+	TopoOrder bool
+	// Fixed takes Author and Grep as plain text and not as regular expressions, and ignores case in both.
+	Fixed bool
+	// RootsOnly lists only the commits that have no parent.
+	RootsOnly bool
+	// NoWalk lists the commits of Revs themselves, in the order given, and not their ancestors.
+	NoWalk bool
 }
 
 // Log runs "git log -z" and parses it as a stream. A repository with no commit gives no commits.
@@ -261,13 +275,41 @@ func (r *Repo) Log(ctx context.Context, o LogOptions) ([]Commit, error) {
 	if o.Skip > 0 {
 		args = append(args, "--skip="+strconv.Itoa(o.Skip))
 	}
+	if o.Decorate {
+		args = append(args, "--decorate=full")
+	}
+	if o.TopoOrder {
+		args = append(args, "--topo-order")
+	}
+	if o.RootsOnly {
+		args = append(args, "--max-parents=0")
+	}
+	if o.NoWalk {
+		args = append(args, "--no-walk=unsorted")
+	}
 	if o.Author != "" {
 		args = append(args, "--author="+o.Author)
+		if o.Fixed {
+			args = append(args, "--fixed-strings", "--regexp-ignore-case")
+		}
 	}
 	if o.Grep != "" {
-		args = append(args, "--grep="+o.Grep, "--extended-regexp", "--regexp-ignore-case")
+		if o.Fixed {
+			args = append(args, "--grep="+o.Grep, "--fixed-strings", "--regexp-ignore-case")
+		} else {
+			args = append(args, "--grep="+o.Grep, "--extended-regexp", "--regexp-ignore-case")
+		}
 	}
-	if o.Range != "" {
+	switch {
+	case len(o.Revs) > 0:
+		for _, rev := range o.Revs {
+			if rev == "" || strings.HasPrefix(rev, "-") {
+				return nil, errors.New("GitRevisionInvalid", "this is not a revision git accepts here", "revision", rev)
+			}
+		}
+		args = append(args, "--end-of-options")
+		args = append(args, o.Revs...)
+	case o.Range != "":
 		args = append(args, o.Range)
 	}
 	c := Command{Args: args}

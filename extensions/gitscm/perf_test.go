@@ -3,9 +3,11 @@
 package gitscm
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -71,4 +73,78 @@ func TestPerfManyChangedFiles(t *testing.T) {
 	r.clock.Advance(DebounceDelay)
 	r.api.WaitFor("the status of the burst", func() bool { r.api.Pump(); return rep.refreshes > before && !rep.refreshing })
 	out("statuses-for-a-burst-of-5000-changes", rep.refreshes-before)
+}
+
+// TestPerfLongHistory measures the history provider of the Graph on a repository of 100,000 commits with merges all along (SPEC §14,
+// step 24.20): the first page must come in 300 ms, and the pages after it in about the same time, whatever the place (git walks
+// from the head and --skip is a counter). It prints "PERF <name> <value>". Run it alone (scripts/heavy.sh --alone): the numbers are times.
+func TestPerfLongHistory(t *testing.T) {
+	gittest.Require(t)
+	e := gittest.NewEnv(t)
+	buildStart := time.Now()
+	repo := e.LongHistory(filepath.Join(t.TempDir(), "long"), 100_000)
+	out := func(name string, v any) { fmt.Printf("PERF %s %v\n", name, v) }
+	out("history-build", time.Since(buildStart))
+	r := newRig(t, e, rigOptions{folder: repo.Dir})
+	r.settle()
+	rp := r.repo(repo.Dir)
+	r.api.WaitFor("the history provider", func() bool { r.api.Pump(); return r.source(rp.root).History() != nil })
+	h := r.source(rp.root).History()
+	ctx := context.Background()
+	head := repo.Head()
+	page := func(skip int, filter string) (time.Duration, int) {
+		start := time.Now()
+		items, err := h.Items(ctx, extension.HistoryOptions{Skip: skip, Limit: 50, RefIDs: []string{head}, FilterText: filter})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return time.Since(start), len(items)
+	}
+	// git cannot order 100,000 commits topologically without looking at all of them: with no commit-graph file a page costs
+	// about half a second, whatever its place. The budget is for a repository that git maintains ("git gc" and "git maintenance"
+	// write the file), so it is measured after the file is written; the time without it is measured and must stay under 1.5 s.
+	bare, _ := page(0, "")
+	out("history-first-page-without-commit-graph", bare)
+	if bare > 1500*time.Millisecond {
+		t.Errorf("the first page without a commit-graph file took %v, limit 1.5s", bare)
+	}
+	repo.Git("commit-graph", "write", "--reachable")
+	first, n := page(0, "")
+	out("history-first-page", first)
+	if n != 50 || first > 300*time.Millisecond {
+		t.Errorf("the first page has %d items and took %v, budget 300ms", n, first)
+	}
+	for _, skip := range []int{1000, 50_000, 99_900} {
+		d, n := page(skip, "")
+		out(fmt.Sprintf("history-page-at-%d", skip), d)
+		if n == 0 || d > 600*time.Millisecond {
+			t.Errorf("the page at %d has %d items and took %v", skip, n, d)
+		}
+	}
+	d, n := page(0, "revision 99999")
+	out("history-search-message", d)
+	if n != 1 {
+		t.Errorf("the search of one message found %d commits", n)
+	}
+	refs := time.Now()
+	if _, err := h.Refs(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	out("history-refs", time.Since(refs))
+	anc := time.Now()
+	if _, err := h.CommonAncestor(ctx, []string{"refs/heads/main"}); err != nil {
+		t.Fatal(err)
+	}
+	out("history-common-ancestor", time.Since(anc))
+	// the whole first read of the Graph: the page and the common ancestor at once (what the view waits for)
+	end := time.Now()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); page(0, "") }()
+	go func() { defer wg.Done(); _, _ = h.CommonAncestor(ctx, []string{"refs/heads/main", "refs/heads/main"}) }()
+	wg.Wait()
+	out("history-first-read", time.Since(end))
+	if d := time.Since(end); d > 300*time.Millisecond {
+		t.Errorf("the first read of the Graph took %v, budget 300ms", d)
+	}
 }

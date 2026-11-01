@@ -378,6 +378,8 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 		if s.scm.repos != nil {
 			return s.scmRepositoriesBody()
 		}
+	case command.ViewSCMHistory:
+		return s.graphBody()
 	}
 	// a view an extension declared is the box of its content
 	if scope := PeekWorkspace(s.Context()).Extensions(); scope != nil {
@@ -414,6 +416,8 @@ func (s *shellState) viewActions(_ widgets.BuildContext, viewID string) widgets.
 		if s.scm.view != nil {
 			return s.scmRepositoriesActions(win)
 		}
+	case command.ViewSCMHistory:
+		return s.graphViewActions()
 	}
 	if viewID != command.ViewExplorerFolders {
 		return s.extensionViewActions(win, viewID)
@@ -440,7 +444,7 @@ func (s *shellState) viewFocused(viewID string, has bool) {
 	if ex.focus == nil {
 		return
 	}
-	if viewID == command.ViewSCM || viewID == command.ViewSCMRepositories {
+	if viewID == command.ViewSCM || viewID == command.ViewSCMRepositories || viewID == command.ViewSCMHistory {
 		s.scmViewFocused(viewID, has)
 		return
 	}

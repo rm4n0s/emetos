@@ -167,6 +167,9 @@ func (x *gitscm) registerCommands() error {
 	for id, h := range x.timelineHandlers() {
 		own[id] = h
 	}
+	for id, h := range x.historyHandlers() {
+		own[id] = h
+	}
 	for id, h := range x.commitHandlers() {
 		own[id] = h
 	}

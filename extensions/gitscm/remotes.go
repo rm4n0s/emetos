@@ -272,13 +272,29 @@ func (r *repository) splitRemoteRef(ref string) (remote, branch string, ok bool)
 	return best, ref[len(best)+1:], true
 }
 
-// cmdFetchRef is git.fetchRef, the Graph's title action: it fetches the branch of the remote a ref names ({"ref": "origin/main"}). With no
-// ref (the Graph is step 24.20) it does nothing.
+// remoteRefArg is the remote-tracking branch a command of the Graph is for: the ref a caller named ({"ref": "origin/main"}), else the
+// branch the current one tracks (VS Code: currentHistoryItemRemoteRef); empty when there is none.
+func (r *repository) remoteRefArg(args any) string {
+	if m, ok := args.(map[string]any); ok {
+		if s, _ := m["ref"].(string); s != "" {
+			return s
+		}
+	}
+	r.hist.mu.Lock()
+	defer r.hist.mu.Unlock()
+	if r.hist.remote != nil {
+		return r.hist.remote.ID
+	}
+	return ""
+}
+
+// cmdFetchRef is git.fetchRef, the Graph's title action: it fetches the branch of the remote a ref names ({"ref": "origin/main"}), or the
+// branch the current one tracks. With neither it does nothing.
 //
 // Ported from VS Code: extensions/git/src/commands.ts (fetchRef)
 func (x *gitscm) cmdFetchRef(_ context.Context, args any) error {
 	x.target(args, true, func(r *repository) {
-		remote, branch, ok := r.splitRemoteRef(refArg(args))
+		remote, branch, ok := r.splitRemoteRef(r.remoteRefArg(args))
 		if !ok {
 			return
 		}
@@ -467,12 +483,13 @@ func (x *gitscm) pull(r *repository, rebase bool) {
 	x.runRemote(r, x.pullJob(r, x.pullCurrent(r, rebase)))
 }
 
-// cmdPullRef is git.pullRef, the Graph's title action: it pulls the branch of the remote a ref names ({"ref": "origin/main"}).
+// cmdPullRef is git.pullRef, the Graph's title action: it pulls the branch of the remote a ref names ({"ref": "origin/main"}), or the
+// branch the current one tracks.
 //
 // Ported from VS Code: extensions/git/src/commands.ts (pullRef)
 func (x *gitscm) cmdPullRef(_ context.Context, args any) error {
 	x.target(args, true, func(r *repository) {
-		remote, branch, ok := r.splitRemoteRef(refArg(args))
+		remote, branch, ok := r.splitRemoteRef(r.remoteRefArg(args))
 		if !ok {
 			return
 		}

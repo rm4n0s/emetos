@@ -216,6 +216,14 @@ func (r *MenuRegistry) Add(items ...MenuItem) error {
 	return nil
 }
 
+// ItemsOf are the items that were added to a menu, as they were added, in no order and whatever their conditions (the Graph reads the
+// group and the place of an action of the menu of the references to put its submenu there).
+func (r *MenuRegistry) ItemsOf(menu string) []MenuItem {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return slices.Clone(r.items[menu])
+}
+
 // AddRemovable is Add that gives back the function which takes the items out of their menus again (an extension's
 // menu items go with the extension, SPEC §10.15). The function may be called more than once.
 func (r *MenuRegistry) AddRemovable(items ...MenuItem) (remove func(), err error) {

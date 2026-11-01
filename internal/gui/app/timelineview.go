@@ -274,6 +274,9 @@ func (s *shellState) viewDescription(viewID string) string {
 	if viewID == command.ViewTimeline && s.timeline.pane != nil {
 		return s.timeline.pane.Description()
 	}
+	if viewID == command.ViewSCMHistory {
+		return s.graphDescription()
+	}
 	return ""
 }
 

@@ -66,6 +66,9 @@ var appCommands = map[string]bool{
 	"scm.viewNextCommit": true, "scm.viewPreviousCommit": true, "scm.forceViewNextCommit": true, "scm.forceViewPreviousCommit": true,
 	// the commands of the Timeline view (step 24.21, gui/app/timelineview.go)
 	"files.openTimeline": true, "timeline.focus": true, "timeline.refresh": true, "timeline.toggleFollowActiveEditor": true,
+	// the commands of the Graph view of Source Control (step 24.20, gui/app/scmgraph.go)
+	"workbench.scm.history.focus": true, "workbench.scm.action.graph.pickRepository": true, "workbench.scm.action.graph.pickHistoryItemRefs": true,
+	"workbench.scm.action.graph.revealCurrentHistoryItem": true, "workbench.scm.action.graph.refresh": true, "workbench.scm.action.graph.viewChanges": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

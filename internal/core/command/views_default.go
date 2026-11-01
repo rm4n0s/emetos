@@ -18,6 +18,9 @@ const (
 	ViewSCMRepositories = "workbench.scm.repositories"
 	// ViewSCM is the Changes view of Source Control (VS Code's VIEW_PANE_ID).
 	ViewSCM = "workbench.scm"
+	// ViewSCMHistory is the Graph view of Source Control (VS Code's HISTORY_VIEW_PANE_ID), shown while a source control has a history
+	// provider (step 24.20).
+	ViewSCMHistory = "workbench.scm.history"
 	// ViewContainerMarkers is the Problems tab of the panel.
 	ViewContainerMarkers = "workbench.panel.markers"
 	// ViewMarkers is the view of the Problems tab.
@@ -68,12 +71,13 @@ func DefaultViews() *ViewRegistry {
 		View{ID: ViewTimeline, Name: "Timeline", Container: ViewContainerExplorer, Order: 3, Collapsed: true},
 	)
 	// Source Control (order 2, after Search): the Repositories view is hidden until it is shown, and the Changes view is always
-	// there (its welcome content says why it is empty). The Graph (step 24.20) comes later.
+	// there (its welcome content says why it is empty). The Graph is shown while a source control has a history provider (step 24.20).
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerSCM, Title: "Source Control", Icon: codiconSourceControl, Order: 2})
 	r.MustRegisterViews(
 		View{ID: ViewSCMRepositories, Name: "Repositories", Container: ViewContainerSCM, Order: 0, HideByDefault: true,
 			When: when("scm.providerCount && scm.providerCount != 0")},
 		View{ID: ViewSCM, Name: "Changes", Container: ViewContainerSCM, Order: 1},
+		View{ID: ViewSCMHistory, Name: "Graph", Container: ViewContainerSCM, Order: 2, When: when("scm.historyProviderCount && scm.historyProviderCount != 0")},
 	)
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerMarkers, Title: "Problems", Icon: codiconWarning, Order: 0, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})

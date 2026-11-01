@@ -71,6 +71,8 @@ type scmSource struct {
 	// quickDiffKinds are the kinds of quick diff provider the source control has, and quickDiffRegs the providers (quickdiff.go).
 	quickDiffKinds map[extension.QuickDiffKind]bool
 	quickDiffRegs  []*quickDiffHandle
+	// history is the registration of the history provider (history.go).
+	history *historyHandle
 }
 
 var _ extension.SourceControl = (*scmSource)(nil)
@@ -156,7 +158,11 @@ func (h *scmSource) Dispose() {
 	h.disposed = true
 	regs := h.quickDiffRegs
 	h.quickDiffRegs = nil
+	history := h.history
 	h.mu.Unlock()
+	if history != nil {
+		history.Dispose()
+	}
 	for _, r := range regs {
 		r.Dispose()
 	}
