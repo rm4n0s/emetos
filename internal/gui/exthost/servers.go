@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rm4n0s/errors"
+
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -131,6 +133,11 @@ type serverCtl struct {
 	crashes  []time.Time
 	progress []progressItem
 	stopped  bool
+	// launched is what the ServerLauncher of the extension answered for the server that runs (or starts); the zero value when
+	// there is no launcher.
+	launched extension.ServerLaunch
+	// cancelLaunch ends the context of the launcher that runs, if one does.
+	cancelLaunch context.CancelFunc
 
 	// traceLevel is <id>.trace.server as it was last read on the UI thread; the connection reads it from its goroutines.
 	traceLevel atomic.Value
@@ -419,6 +426,10 @@ func (c *serverCtl) start() {
 	if c.isStopped() {
 		return
 	}
+	if launcher := c.inst.launcher(c.spec.ID); launcher != nil {
+		c.startLaunched(launcher)
+		return
+	}
 	program := c.programPath()
 	path, err := lsp.FindProgram(program)
 	if err != nil {
@@ -456,6 +467,108 @@ func (c *serverCtl) start() {
 	}()
 }
 
+// startLaunched starts the server the way its ServerLauncher says: the launcher runs on a goroutine of its own (it may run
+// programs), and so does the handshake after it. The server is ServerStarting meanwhile; a launcher that fails leaves it
+// ServerMissing, and nothing starts it again until the user restarts it or the extension does.
+func (c *serverCtl) startLaunched(launcher extension.ServerLauncher) {
+	ctx, cancel := context.WithTimeout(c.ctx, initializeTimeout)
+	c.mu.Lock()
+	c.gen++
+	gen := c.gen
+	c.state = ServerStarting
+	if c.cancelLaunch != nil {
+		c.cancelLaunch()
+	}
+	c.cancelLaunch = cancel
+	c.mu.Unlock()
+	c.missingShown = false
+	c.showStatus("starting")
+	c.changed()
+	req := extension.LaunchRequest{Folder: c.s.opts.Info.Folder, Setting: c.readSetting}
+	c.s.h.servers.Add(1)
+	go func() {
+		defer c.s.h.servers.Done()
+		launch, err := c.runLauncher(ctx, launcher, req)
+		cancel()
+		if err != nil {
+			c.s.post(func() { c.launchFailed(gen, err) })
+			return
+		}
+		c.mu.Lock()
+		stale := c.stopped || gen != c.gen
+		if !stale {
+			c.starts++
+			c.launched = launch
+		}
+		c.mu.Unlock()
+		if stale {
+			return
+		}
+		root := launch.Root
+		if root == "" {
+			root = req.Folder
+		}
+		c.logLine("Info", "Starting "+c.spec.Name+": "+launch.Program+" "+strings.Join(launch.Args, " "))
+		spec := lsp.ProcessSpec{Program: launch.Program, Args: launch.Args, Dir: root, Env: append(slices.Clone(c.spec.Env), launch.Env...), Stderr: c.stderrLine}
+		proc, client, err := c.launch(spec, c.clientOptions(gen))
+		c.s.post(func() { c.started(gen, proc, client, err) })
+	}()
+}
+
+// runLauncher calls the launcher; a panic in it is an error (and fails the extension, on the UI thread), since the call is made
+// on a goroutine of the host.
+func (c *serverCtl) runLauncher(ctx context.Context, launcher extension.ServerLauncher, req extension.LaunchRequest) (launch extension.ServerLaunch, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			failure := errors.NewErrf("ExtensionLauncherPanicked", "it panicked in the launcher of a language server: %v", r).SetMetadata("extension", c.inst.id, "server", c.spec.ID, "scope", c.s.opts.Info.Name)
+			c.s.post(func() { c.s.fail(c.inst.slot, failure, "language server launcher") })
+			launch, err = extension.ServerLaunch{}, failure
+		}
+	}()
+	launch, err = launcher(ctx, req)
+	if err == nil && strings.TrimSpace(launch.Program) == "" {
+		err = errors.New("ExtensionLauncherNoProgram", "the launcher of a language server answered with no program", "extension", c.inst.id, "server", c.spec.ID)
+	}
+	return launch, err
+}
+
+// readSetting is LaunchRequest.Setting: a setting of the tab, from any goroutine.
+func (c *serverCtl) readSetting(key string) (any, bool) {
+	st := c.s.opts.Settings
+	if st == nil {
+		return nil, false
+	}
+	if _, ok := st.Registry().Lookup(key); !ok {
+		return nil, false
+	}
+	return settings.Get[any](st, key, ""), true
+}
+
+// launchFailed is the end of a start whose launcher failed, on the UI thread: the program was not found or cannot be used.
+func (c *serverCtl) launchFailed(gen int, err error) {
+	c.mu.Lock()
+	if c.stopped || gen != c.gen {
+		c.mu.Unlock()
+		return
+	}
+	c.state = ServerMissing
+	c.launched = extension.ServerLaunch{}
+	c.mu.Unlock()
+	c.hideStatus()
+	c.logLine("Error", fmt.Sprintf("%s cannot be started: %s", c.spec.Name, describe(err)))
+	if !c.missingShown {
+		c.missingShown = true
+		if !c.spec.OwnUI {
+			actions := []notify.Action{}
+			if c.spec.PathSetting != "" {
+				actions = append(actions, c.openSettingsAction())
+			}
+			c.notify(notify.Error, fmt.Sprintf("%s cannot be started: %s", c.spec.Name, describe(err)), actions...)
+		}
+	}
+	c.changed()
+}
+
 // launch runs the program and the handshake. It owns the goroutine; on failure the program is stopped.
 func (c *serverCtl) launch(spec lsp.ProcessSpec, opts lsp.ClientOptions) (*lsp.Process, *lsp.Client, error) {
 	proc, err := lsp.StartProcess(context.Background(), spec)
@@ -474,15 +587,25 @@ func (c *serverCtl) launch(spec lsp.ProcessSpec, opts lsp.ClientOptions) (*lsp.P
 
 // clientOptions are the options of the client of generation gen.
 func (c *serverCtl) clientOptions(gen int) lsp.ClientOptions {
+	c.mu.Lock()
+	launched := c.launched
+	c.mu.Unlock()
+	opts := c.spec.InitializationOptions
+	if launched.InitializationOptions != nil {
+		opts = launched.InitializationOptions
+	}
 	var init json.RawMessage
-	if c.spec.InitializationOptions != nil {
-		if b, err := json.Marshal(c.spec.InitializationOptions); err == nil {
+	if opts != nil {
+		if b, err := json.Marshal(opts); err == nil {
 			init = b
 		} else {
 			c.log.Warn("the initialization options of a language server cannot be encoded", "err", err)
 		}
 	}
 	folder := c.s.opts.Info.Folder
+	if launched.Root != "" {
+		folder = launched.Root
+	}
 	return lsp.ClientOptions{
 		Root: folder, InitializationOptions: init, Logger: c.log, Trace: c.trace,
 		Handlers: lsp.Handlers{
@@ -629,6 +752,10 @@ func (c *serverCtl) detach() {
 	c.client, c.proc = nil, nil
 	c.gen++
 	c.progress = nil
+	if c.cancelLaunch != nil {
+		c.cancelLaunch()
+		c.cancelLaunch = nil
+	}
 	c.mu.Unlock()
 	c.s.features.Changed()
 	c.clearMarkers()
@@ -968,8 +1095,17 @@ func (c *serverCtl) configJSON() string { return string(c.section(c.spec.Configu
 func (c *serverCtl) configuration(_ context.Context, p lsp.ConfigurationParams) ([]json.RawMessage, error) {
 	out := make([]json.RawMessage, len(p.Items))
 	id, base := c.spec.ID, c.spec.ConfigurationSection
+	c.mu.Lock()
+	override := c.launched.Configuration
+	c.mu.Unlock()
 	for i, item := range p.Items {
 		sec := item.Section
+		if override != nil {
+			if v, ok := override(sec); ok {
+				out[i] = v
+				continue
+			}
+		}
 		switch {
 		case sec == "" || sec == id:
 			out[i] = c.section(base)

@@ -381,6 +381,9 @@ func TestLanguageServerNames(t *testing.T) {
 	if got := TraceSetting("emetos.golang", spec); got != "emetos.golang.gopls.trace.server" {
 		t.Errorf("TraceSetting = %s", got)
 	}
+	if got := TraceSetting("emetos.rust", LanguageServerSpec{ID: "rust-analyzer", TraceKey: "rust-analyzer.trace.server"}); got != "rust-analyzer.trace.server" {
+		t.Errorf("TraceSetting with a TraceKey = %s", got)
+	}
 	if got := RestartServerCommand("emetos.golang"); got != "emetos.golang.restartServer" {
 		t.Errorf("RestartServerCommand = %s", got)
 	}

@@ -1,6 +1,7 @@
 package fakeapi
 
 import (
+	"context"
 	"slices"
 	"sync"
 
@@ -12,6 +13,7 @@ import (
 // serverState is a language server of the manifest as the fake keeps it.
 type serverState struct {
 	status   extension.ServerStatus
+	launcher extension.ServerLauncher
 	subs     []*serverSub
 	restarts int
 	shown    int
@@ -88,6 +90,56 @@ func (s serversAPI) ShowOutput(id string, _ bool) error {
 	}
 	st.shown++
 	return nil
+}
+
+// SetLauncher implements extension.LanguageServers: the launcher is kept for the test (Launcher, Launch); the fake starts no
+// server.
+func (s serversAPI) SetLauncher(id string, launcher extension.ServerLauncher) error {
+	s.a.mu.Lock()
+	defer s.a.mu.Unlock()
+	st, err := s.a.server(id)
+	if err != nil {
+		return err
+	}
+	st.launcher = launcher
+	return nil
+}
+
+// Launcher is the launcher the extension gave the server, or nil.
+func (a *API) Launcher(id string) extension.ServerLauncher {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if st, err := a.server(id); err == nil {
+		return st.launcher
+	}
+	return nil
+}
+
+// Launch runs the launcher of the server as the host does at a start: with the folder of the scope and the settings of the fake
+// (the values a test set and the defaults of the settings the manifest declares), from the calling goroutine. It fails the test when
+// the extension set no launcher; the answer and the error are the launcher's.
+func (a *API) Launch(ctx context.Context, id string) (extension.ServerLaunch, error) {
+	a.t.Helper()
+	launcher := a.Launcher(id)
+	if launcher == nil {
+		a.t.Fatalf("the extension set no launcher for the server %s", id)
+		return extension.ServerLaunch{}, nil
+	}
+	return launcher(ctx, extension.LaunchRequest{Folder: a.info.Folder, Setting: a.launchSetting})
+}
+
+// launchSetting is LaunchRequest.Setting of the fake.
+func (a *API) launchSetting(key string) (any, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	spec, ok := a.specs[key]
+	if !ok {
+		return nil, false
+	}
+	if v, ok := a.values[key]; ok {
+		return v, true
+	}
+	return roundTrip(spec.Default), true
 }
 
 // SetServerStatus changes the status of a server of the manifest and calls its listeners, on the test's goroutine, as the host

@@ -2,6 +2,7 @@ package extension
 
 import (
 	"context"
+	"encoding/json"
 	"regexp"
 	"strings"
 
@@ -55,6 +56,11 @@ type LanguageServerSpec struct {
 	// Language Server"); the name of the extension when empty. With several servers the first Category that is not empty
 	// is used.
 	Category string
+	// TraceKey is the key of the setting that traces the communication with the server (see TraceSetting) when the server's
+	// own VS Code extension has a name for it (rust-analyzer.trace.server); the qualified name of the server plus
+	// ".trace.server" when empty. Emetos registers it, as it does for the qualified name. The key must be free: the editor and
+	// the other extensions do not have it.
+	TraceKey string
 }
 
 // QualifiedServerID is the id of a server in Emetos: the id of the extension, a dot and the ID of the spec.
@@ -70,6 +76,9 @@ func RestartServerCommand(extensionID string) string { return extensionID + ".re
 // channel: off, messages (the method and id of each message) or verbose (the messages with their bodies). Emetos
 // registers it for every server.
 func TraceSetting(extensionID string, spec LanguageServerSpec) string {
+	if spec.TraceKey != "" {
+		return spec.TraceKey
+	}
 	return QualifiedServerID(extensionID, spec) + ".trace.server"
 }
 
@@ -127,6 +136,46 @@ type ServerStatus struct {
 	Progress string
 }
 
+// LaunchRequest is what the host tells a ServerLauncher when it is about to start a server.
+type LaunchRequest struct {
+	// Folder is the folder of the window tab (empty for a tab with no folder).
+	Folder string
+	// Setting reads a setting of the tab: its value as Settings().Get gives it, and false for a key nobody registered. Unlike
+	// the rest of the settings API it may be called from any goroutine, so that a launcher can read what it needs while it
+	// runs a program.
+	Setting func(key string) (any, bool)
+}
+
+// ServerLaunch is how to start a server now: the answer of a ServerLauncher.
+type ServerLaunch struct {
+	// Program is the path of the program to run; it replaces Program and PathSetting of the spec.
+	Program string
+	// Args are its arguments, replacing the spec's Args, and Env extra environment variables ("NAME=value") added to those of
+	// the spec.
+	Args, Env []string
+	// Root is the folder the server works on: the working directory of the program and the root it is initialized with. The
+	// folder of the tab when empty. A project root above the folder (the folder opened is a subfolder of the crate) is allowed.
+	Root string
+	// InitializationOptions are sent in initialize as initializationOptions, replacing the spec's when not nil; they must
+	// encode to JSON.
+	InitializationOptions any
+	// Configuration answers the requests workspace/configuration of the server before the settings do: it is asked for each
+	// section requested and answers with the value and true, or false to leave the section to the settings (see
+	// LanguageServerSpec.ConfigurationSection). It may be called from any goroutine. A change of what it answers is told to the
+	// server by restarting it.
+	Configuration func(section string) (json.RawMessage, bool)
+}
+
+// ServerLauncher decides, each time the host starts a server (the first document, a crash, a restart, a change of the path
+// setting), what to run. It is how an extension finds its server in places the host does not know (the folder's node_modules,
+// the home folder of the installer), checks its version, chooses the root of the project and builds the options the server is
+// initialized with from the current settings. It runs on a goroutine of the host, not on the UI thread, and may run programs
+// and read files; ctx ends when the server is stopped or restarted. It reads settings through req.Setting. An error leaves the
+// server ServerMissing (the host writes it to the Output channel of the server, and shows no notification for a server with OwnUI):
+// the program was not found, or cannot be used. It is not called again until the user restarts the server or the extension asks
+// LanguageServers().Restart (a change of the settings the extension watches).
+type ServerLauncher func(ctx context.Context, req LaunchRequest) (ServerLaunch, error)
+
 // LanguageServers lets an extension follow and control the language servers its manifest declares. The id of a server is the
 // ID of its LanguageServerSpec. The host starts and stops the servers (the activation does not); this is how the extension
 // shows their state and offers their commands.
@@ -161,4 +210,9 @@ type LanguageServers interface {
 	// and nil, with an empty title and nil when the server offers none (or none of the kinds), or with the error. The document
 	// must be open in the scope. It fails with ExtensionServerUnknown and ExtensionDeactivated; done is not called then.
 	ApplyCodeAction(ctx context.Context, serverID, uri string, req CodeActionRequest, done func(title string, err error)) error
+	// SetLauncher gives the server a ServerLauncher, which replaces the fixed Program, Args, PathSetting and InitializationOptions
+	// of its spec with what the launcher answers at each start (a nil launcher takes it away). Call it in Activate, before the
+	// first document opens: a server that started already keeps what it runs until it is restarted. It fails with
+	// ExtensionServerUnknown and with ExtensionDeactivated after the activation ended.
+	SetLauncher(serverID string, launcher ServerLauncher) error
 }

@@ -112,6 +112,35 @@ func (s serversAPI) Restart(serverID string) error {
 	return nil
 }
 
+// SetLauncher implements extension.LanguageServers.
+func (s serversAPI) SetLauncher(serverID string, launcher extension.ServerLauncher) error {
+	in := s.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	if !in.declared(serverID) {
+		return errors.New("ExtensionServerUnknown", "the manifest of the extension declares no language server with this id", "extension", in.id, "server", serverID)
+	}
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if launcher == nil {
+		delete(in.launchers, serverID)
+		return nil
+	}
+	if in.launchers == nil {
+		in.launchers = map[string]extension.ServerLauncher{}
+	}
+	in.launchers[serverID] = launcher
+	return nil
+}
+
+// launcher is the ServerLauncher of the server with the id, or nil.
+func (in *instance) launcher(serverID string) extension.ServerLauncher {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	return in.launchers[serverID]
+}
+
 // ShowOutput implements extension.LanguageServers.
 func (s serversAPI) ShowOutput(serverID string, preserveFocus bool) error {
 	in := s.inst

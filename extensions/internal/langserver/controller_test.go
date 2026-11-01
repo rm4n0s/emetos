@@ -1,0 +1,603 @@
+package langserver
+
+import (
+	"context"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/rm4n0s/errors"
+
+	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/fakeapi"
+)
+
+// The controller over the fake API: the status item, the menu, the notification for a missing server, the answers to it, and the
+// restart on a change of the settings. The host is not here; the fake keeps the launcher and the test runs it (api.Launch).
+
+// rig is a controller in a tab with a folder, a bin folder with the server, and the fake API.
+type rig struct {
+	t      *testing.T
+	api    *fakeapi.API
+	ctl    *Controller
+	folder string
+	bin    string
+	cfg    Config
+	// reloads counts the runs of the entry of the pack in the menu.
+	reloads int
+}
+
+const (
+	serverID = "ra"
+	pathKey  = "ra.server.path"
+	modeKey  = "ra.mode"
+)
+
+// newRig makes the rig. The server is "ra" in the bin folder, which is in the PATH of the machine for the tests that need it
+// (t.Setenv), unless installed is false.
+func newRig(t *testing.T, installed bool, tweak func(*Config)) *rig {
+	t.Helper()
+	base := t.TempDir()
+	r := &rig{t: t, folder: filepath.Join(base, "work"), bin: filepath.Join(base, "bin")}
+	writeFile(t, r.folder, "Cargo.toml", "", 0o644)
+	if installed {
+		program(t, r.bin, "ra", "rust-analyzer 1.78.0")
+	}
+	t.Setenv("PATH", r.bin)
+	r.cfg = Config{
+		ID: serverID, Name: "rust-analyzer", Languages: []string{"rust"}, Category: "Rust", Purpose: "the language features of Rust",
+		Programs: []Program{{
+			Name: "rust-analyzer", Exe: "ra", PathSetting: pathKey, After: []string{"~/.cargo/bin"},
+			Version: VersionCheck{Args: []string{"--version"}, Min: "1.70"},
+			Install: Install{Docs: "https://example.test/ra", Commands: []InstallCommand{
+				{Family: FamilyAny, Command: "rustup component add rust-analyzer"},
+				{Family: FamilyFedora, Command: "sudo dnf install rust-analyzer"},
+			}},
+		}},
+		RootMarkers: []string{"Cargo.toml"},
+		Customize: func(l *Launch, env Env) error {
+			l.InitializationOptions = map[string]any{"mode": env.Settings.String(modeKey)}
+			return nil
+		},
+		Menu: []MenuEntry{{Label: "Reload Workspace", Run: func() { r.reloads++ }}},
+	}
+	if tweak != nil {
+		tweak(&r.cfg)
+	}
+	m := extension.Manifest{ID: "emetos.test", Name: "Test"}
+	m.Contributes.LanguageServers = []extension.LanguageServerSpec{r.cfg.Spec()}
+	m.Contributes.Settings = append(r.cfg.SettingSpecs(), extension.SettingSpec{Key: modeKey, Type: "string", Default: "fast"})
+	m.Events.Subscribes = r.cfg.Subscribes()
+	r.api = fakeapi.New(t, m, extension.ScopeInfo{Name: "tab", Folder: r.folder})
+	return r
+}
+
+// attach attaches the controller, with a Fedora system.
+func (r *rig) attach(opts ...Option) {
+	r.t.Helper()
+	ctl, err := Attach(context.Background(), r.api, r.cfg, append([]Option{WithOSRelease("ID=fedora\n")}, opts...)...)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	r.ctl = ctl
+}
+
+// editor puts an editor of the language in front.
+func (r *rig) editor(language string) {
+	r.t.Helper()
+	r.api.Emit(extension.TopicEditorActiveChanged, extension.ActiveEditor{URI: "file:///work/a." + language, LanguageID: language})
+	r.api.Pump()
+}
+
+// item is the status item.
+func (r *rig) item() *fakeapi.StatusItem {
+	r.t.Helper()
+	it := r.api.StatusItem(StatusID(serverID))
+	if it == nil {
+		r.t.Fatal("no status item")
+	}
+	return it
+}
+
+// start runs the launcher as the host does when it starts the server, and tells the controller the new state.
+func (r *rig) start() (extension.ServerLaunch, error) {
+	r.t.Helper()
+	r.api.SetServerStatus(serverID, extension.ServerStatus{State: extension.ServerStarting})
+	l, err := r.api.Launch(context.Background(), serverID)
+	r.api.Pump()
+	if err != nil {
+		r.api.SetServerStatus(serverID, extension.ServerStatus{State: extension.ServerMissing})
+	} else {
+		r.api.SetServerStatus(serverID, extension.ServerStatus{State: extension.ServerRunning, Starts: 1})
+	}
+	return l, err
+}
+
+func TestAttachNeedsAWholeConfig(t *testing.T) {
+	r := newRig(t, true, nil)
+	tests := []struct {
+		name string
+		edit func(*Config)
+	}{
+		{"no id", func(c *Config) { c.ID = "" }},
+		{"no name", func(c *Config) { c.Name = "" }},
+		{"no languages", func(c *Config) { c.Languages = nil }},
+		{"no program", func(c *Config) { c.Programs = nil }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := r.cfg
+			tt.edit(&cfg)
+			_, err := Attach(context.Background(), r.api, cfg)
+			wantRoute(t, err, "Attach.ServerConfigInvalid")
+		})
+	}
+}
+
+func TestAttachFailsForAServerTheManifestDoesNotDeclare(t *testing.T) {
+	r := newRig(t, true, nil)
+	cfg := r.cfg
+	cfg.ID = "other"
+	_, err := Attach(context.Background(), r.api, cfg)
+	wantRoute(t, err, "FakeServerUnknown")
+}
+
+func TestTheLauncherStartsTheServerTheConfigDescribes(t *testing.T) {
+	r := newRig(t, true, nil)
+	r.attach()
+	r.api.SetSetting(modeKey, "slow")
+	l, err := r.start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if l.Program != filepath.Join(r.bin, "ra") || l.Root != r.folder {
+		t.Errorf("launch = %+v", l)
+	}
+	opts, _ := l.InitializationOptions.(map[string]any)
+	if opts["mode"] != "slow" {
+		t.Errorf("initializationOptions = %v", l.InitializationOptions)
+	}
+	if r.ctl.Version() != "1.78.0" || r.ctl.Found().Path != l.Program || r.ctl.Found().Source != FromPath {
+		t.Errorf("version %q, found %+v", r.ctl.Version(), r.ctl.Found())
+	}
+	r.editor("rust")
+	tip := r.item().Tooltip
+	if !strings.Contains(tip, "rust-analyzer 1.78.0: "+l.Program) {
+		t.Errorf("tooltip = %q", tip)
+	}
+}
+
+func TestTheStatusItemFollowsTheStateOfTheServer(t *testing.T) {
+	r := newRig(t, true, nil)
+	r.attach()
+	r.editor("rust")
+	tests := []struct {
+		name    string
+		status  extension.ServerStatus
+		text    string
+		tooltip string
+		visible bool
+	}{
+		{"not started", extension.ServerStatus{State: extension.ServerIdle}, "rust-analyzer", "rust-analyzer has not started", true},
+		{"starting", extension.ServerStatus{State: extension.ServerStarting}, "$(sync~spin) rust-analyzer", "rust-analyzer is starting", true},
+		{"running", extension.ServerStatus{State: extension.ServerRunning}, "$(check) rust-analyzer", "rust-analyzer is running", true},
+		{"running and working", extension.ServerStatus{State: extension.ServerRunning, Progress: "Indexing 40%"}, "$(sync~spin) rust-analyzer: Indexing 40%", "rust-analyzer: Indexing 40%", true},
+		{"crashed too often", extension.ServerStatus{State: extension.ServerFailed, Crashes: 5}, "$(error) rust-analyzer: rust-analyzer stopped", "not started again", true},
+		{"the activation ended", extension.ServerStatus{State: extension.ServerStopped}, "rust-analyzer", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r.api.SetServerStatus(serverID, tt.status)
+			it := r.item()
+			if it.Text != tt.text || !strings.Contains(it.Tooltip, tt.tooltip) || it.Hidden == tt.visible || !strings.HasSuffix(it.Tooltip, "Click for the menu.") || it.OnClick == nil {
+				t.Errorf("item = %+v", it)
+			}
+		})
+	}
+}
+
+func TestTheStatusItemSaysWhyTheServerIsMissing(t *testing.T) {
+	tests := []struct {
+		name      string
+		installed bool
+		setup     func(r *rig)
+		text      string
+		tooltip   string
+	}{
+		{"not found", false, nil, "$(warning) rust-analyzer: rust-analyzer not found", "rust-analyzer was not found"},
+		{"a wrong path", true, func(r *rig) { r.api.SetSetting(pathKey, "/nowhere/ra") }, "$(warning) rust-analyzer: wrong path", "ra.server.path is set to /nowhere/ra, which does not exist"},
+		{"too old", true, func(r *rig) {
+			program(t, r.bin, "ra", "rust-analyzer 1.2.0")
+		}, "$(warning) rust-analyzer: rust-analyzer too old", "rust-analyzer 1.2.0 is too old: 1.70 or newer is needed"},
+		{"another failure", true, func(r *rig) {
+			r.cfg.Customize = func(*Launch, Env) error { return errors.New("OtherFailure", "no luck") }
+		}, "$(warning) rust-analyzer: rust-analyzer cannot start", "rust-analyzer cannot be started: no luck"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRig(t, tt.installed, nil)
+			if tt.setup != nil {
+				tt.setup(r)
+			}
+			r.attach()
+			r.editor("rust")
+			if _, err := r.start(); err == nil {
+				t.Fatal("the launch worked")
+			}
+			it := r.item()
+			if it.Text != tt.text || !strings.Contains(it.Tooltip, tt.tooltip) {
+				t.Errorf("item = %q / %q; want %q / %q", it.Text, it.Tooltip, tt.text, tt.tooltip)
+			}
+		})
+	}
+}
+
+func TestTheStatusItemShowsForTheLanguagesOfTheServerOnly(t *testing.T) {
+	r := newRig(t, true, nil)
+	r.attach()
+	r.api.SetServerStatus(serverID, extension.ServerStatus{State: extension.ServerRunning})
+	tests := []struct {
+		name  string
+		event extension.ActiveEditor
+		want  bool
+	}{
+		{"nothing in front yet", extension.ActiveEditor{}, false},
+		{"a Rust file", extension.ActiveEditor{URI: "file:///a.rs", LanguageID: "rust"}, true},
+		{"a Markdown file", extension.ActiveEditor{URI: "file:///a.md", LanguageID: "markdown"}, false},
+		{"no text editor in front: the last one stays", extension.ActiveEditor{}, false},
+		{"a Rust file again", extension.ActiveEditor{URI: "file:///b.rs", LanguageID: "rust"}, true},
+		{"no text editor in front after a Rust file", extension.ActiveEditor{}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r.api.Emit(extension.TopicEditorActiveChanged, tt.event)
+			r.api.Pump()
+			if got := !r.item().Hidden; got != tt.want {
+				t.Errorf("visible = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestThePackCanSetTheLabelAndTheDetailOfTheItem(t *testing.T) {
+	r := newRig(t, true, nil)
+	r.attach()
+	r.editor("rust")
+	r.ctl.SetLabel("Rust 1.80 (stable)")
+	r.ctl.SetDetail("Toolchain: /home/u/.rustup/toolchains/stable")
+	it := r.item()
+	if it.Text != "Rust 1.80 (stable)" || !strings.Contains(it.Tooltip, "Toolchain: /home/u/.rustup/toolchains/stable") || !strings.HasPrefix(it.Tooltip, "Rust 1.80 (stable)\n") {
+		t.Errorf("item = %q / %q", it.Text, it.Tooltip)
+	}
+	r.ctl.SetLabel("")
+	if got := r.item().Text; got != "rust-analyzer" {
+		t.Errorf("text after an empty label = %q", got)
+	}
+	r.ctl.Refresh()
+}
+
+func TestAMissingServerIsToldOncePerTab(t *testing.T) {
+	r := newRig(t, false, nil)
+	r.attach()
+	missing := extension.ServerStatus{State: extension.ServerMissing}
+	_, _ = r.start()
+	r.api.SetServerStatus(serverID, missing)
+	r.api.SetServerStatus(serverID, missing)
+	notes := r.api.Notes()
+	if len(notes) != 1 || notes[0].Severity != "warn" || notes[0].Message != "rust-analyzer was not found." {
+		t.Fatalf("notes = %+v", notes)
+	}
+	if want := []string{"How to Install", "Copy Install Command", "Set Path..."}; !slices.Equal(notes[0].Actions, want) {
+		t.Errorf("actions = %v, want %v", notes[0].Actions, want)
+	}
+	// the user installs an old one: another problem, told again; the same one again is not
+	program(t, r.bin, "ra", "rust-analyzer 1.2.0")
+	_, _ = r.start()
+	_, _ = r.start()
+	notes = r.api.Notes()
+	if len(notes) != 2 || notes[1].Message != "rust-analyzer 1.2.0 is too old: 1.70 or newer is needed." {
+		t.Fatalf("notes = %+v", notes)
+	}
+	// a wrong path offers Set Path first
+	r.api.SetSetting(pathKey, "/nowhere/ra")
+	_, _ = r.start()
+	notes = r.api.Notes()
+	if len(notes) != 3 || !slices.Equal(notes[2].Actions, []string{"Set Path...", "How to Install"}) {
+		t.Fatalf("notes = %+v", notes)
+	}
+}
+
+func TestAServerThatCannotStartForAnotherReasonOffersTheOutput(t *testing.T) {
+	r := newRig(t, true, func(c *Config) {
+		c.Customize = func(*Launch, Env) error { return errors.New("OtherFailure", "no luck") }
+	})
+	r.attach()
+	_, _ = r.start()
+	notes := r.api.Notes()
+	if len(notes) != 1 || notes[0].Message != "rust-analyzer cannot be started: no luck." || !slices.Equal(notes[0].Actions, []string{"Show Output"}) {
+		t.Fatalf("notes = %+v", notes)
+	}
+	r.api.RunNoteAction(0, "Show Output")
+	if r.api.ServerOutputShown(serverID) != 1 {
+		t.Error("the output was not shown")
+	}
+}
+
+func TestNoNotificationWhenThereIsNoCommandToCopy(t *testing.T) {
+	r := newRig(t, false, func(c *Config) { c.Programs[0].Install = Install{Docs: "https://example.test/ra"} })
+	r.attach()
+	_, _ = r.start()
+	notes := r.api.Notes()
+	if len(notes) != 1 || !slices.Equal(notes[0].Actions, []string{"How to Install", "Set Path..."}) {
+		t.Fatalf("notes = %+v", notes)
+	}
+}
+
+func TestCopyInstallCommand(t *testing.T) {
+	tests := []struct {
+		name      string
+		osRelease string
+		want      string
+	}{
+		{"Fedora", "ID=fedora\n", "sudo dnf install rust-analyzer"},
+		{"a system without its own command", "ID=debian\n", "rustup component add rust-analyzer"},
+		{"an unknown system", "", "rustup component add rust-analyzer"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRig(t, false, nil)
+			r.attach(WithOSRelease(tt.osRelease))
+			_, _ = r.start()
+			r.api.RunNoteAction(0, "Copy Install Command")
+			if got := r.api.ClipboardTexts(); !slices.Equal(got, []string{tt.want}) {
+				t.Errorf("clipboard = %v, want %q", got, tt.want)
+			}
+			// the command is copied, never run: the only program that ran is the server's own search
+			notes := r.api.Notes()
+			if last := notes[len(notes)-1]; last.Message != "Copied: "+tt.want {
+				t.Errorf("last notification = %q", last.Message)
+			}
+		})
+	}
+}
+
+func TestCopyInstallCommandWhereThereIsNoClipboard(t *testing.T) {
+	r := newRig(t, false, nil)
+	r.attach()
+	_, _ = r.start()
+	r.api.FailClipboard(errors.New("ExtensionClipboardUnavailable", "no clipboard"))
+	r.api.RunNoteAction(0, "Copy Install Command")
+	if len(r.api.ClipboardTexts()) != 0 || len(r.api.Notes()) != 1 {
+		t.Errorf("clipboard %v, notes %+v", r.api.ClipboardTexts(), r.api.Notes())
+	}
+}
+
+func TestHowToInstallShowsTheInstructions(t *testing.T) {
+	r := newRig(t, false, nil)
+	r.attach()
+	_, _ = r.start()
+	r.api.RunNoteAction(0, "How to Install")
+	dialogs := r.api.OpenDialogs()
+	if len(dialogs) != 1 {
+		t.Fatalf("%d dialogs", len(dialogs))
+	}
+	spec := dialogs[0].Spec()
+	if spec.Message != "How to install rust-analyzer" || spec.Type != extension.DialogInfo {
+		t.Errorf("dialog = %+v", spec)
+	}
+	for _, want := range []string{
+		"rust-analyzer provides the language features of Rust.",
+		"Emetos does not install language servers.",
+		"For this system:\n    sudo dnf install rust-analyzer",
+		"Also:\n    Any system: rustup component add rust-analyzer",
+		"Instructions: https://example.test/ra",
+		"set ra.server.path (Set Path... in the menu)",
+	} {
+		if !strings.Contains(spec.Detail, want) {
+			t.Errorf("the text lacks %q:\n%s", want, spec.Detail)
+		}
+	}
+	if len(spec.Buttons) != 2 || spec.Buttons[0].Label != "Copy Install Command" || !spec.Buttons[1].Cancel {
+		t.Errorf("buttons = %+v", spec.Buttons)
+	}
+	dialogs[0].Press("Copy Install Command")
+	r.api.Pump()
+	if got := r.api.ClipboardTexts(); !slices.Equal(got, []string{"sudo dnf install rust-analyzer"}) {
+		t.Errorf("clipboard = %v", got)
+	}
+	// closing it copies nothing
+	r.api.RunNoteAction(0, "How to Install")
+	r.api.OpenDialogs()[0].Cancel()
+	r.api.Pump()
+	if len(r.api.ClipboardTexts()) != 1 {
+		t.Errorf("clipboard = %v", r.api.ClipboardTexts())
+	}
+}
+
+func TestHowToInstallWithNoCommandHasOnlyClose(t *testing.T) {
+	r := newRig(t, false, func(c *Config) {
+		c.Purpose = ""
+		c.Programs[0].Install = Install{}
+		c.Programs[0].PathSetting = ""
+	})
+	r.attach()
+	_, _ = r.start()
+	r.api.RunNoteAction(0, "How to Install")
+	spec := r.api.OpenDialogs()[0].Spec()
+	if len(spec.Buttons) != 1 || spec.Buttons[0].Label != "Close" || strings.Contains(spec.Detail, "For this system") {
+		t.Errorf("dialog = %+v", spec)
+	}
+}
+
+func TestSetPathSavesAValidPath(t *testing.T) {
+	r := newRig(t, false, nil)
+	r.attach()
+	_, _ = r.start()
+	elsewhere := program(t, filepath.Join(filepath.Dir(r.bin), "elsewhere"), "ra", "rust-analyzer 1.80.0")
+	r.api.RunNoteAction(0, "Set Path...")
+	in := r.api.LastInput()
+	if in == nil {
+		t.Fatal("no input box")
+	}
+	opts := in.Options()
+	if !strings.Contains(opts.Prompt, "rust-analyzer") || !strings.Contains(opts.Message, pathKey) {
+		t.Errorf("input = %+v", opts)
+	}
+	if msg := in.Validate(filepath.Join(r.bin, "nowhere")); !strings.Contains(msg, "does not exist") {
+		t.Errorf("validation of a missing file = %q", msg)
+	}
+	if msg := in.Validate(elsewhere); msg != "" {
+		t.Errorf("validation of a program = %q", msg)
+	}
+	in.Accept("  " + elsewhere + "  ")
+	r.api.Pump()
+	if got := r.api.SettingUpdates(); len(got) != 1 || got[0].Key != pathKey || got[0].Value != elsewhere {
+		t.Errorf("updates = %+v", got)
+	}
+	// the server read the setting at its start: the change restarts it
+	if r.api.ServerRestarts(serverID) != 1 {
+		t.Errorf("restarts = %d", r.api.ServerRestarts(serverID))
+	}
+	// and the new start finds it
+	l, err := r.api.Launch(context.Background(), serverID)
+	if err != nil || l.Program != elsewhere {
+		t.Errorf("launch = %+v, %v", l, err)
+	}
+}
+
+func TestSetPathCancelledAndFromAClient(t *testing.T) {
+	r := newRig(t, false, nil)
+	r.attach()
+	_, _ = r.start()
+	r.api.RunNoteAction(0, "Set Path...")
+	r.api.LastInput().Cancel()
+	if len(r.api.SettingUpdates()) != 0 {
+		t.Error("a cancelled box saved the path")
+	}
+	// a client of a hosted workspace cannot change the setting of the host
+	r.api.RunAs(extension.Origin(3), func() { r.api.RunNoteAction(0, "Set Path...") })
+	if len(r.api.Inputs()) != 1 {
+		t.Errorf("%d input boxes: the client got one", len(r.api.Inputs()))
+	}
+	notes := r.api.Notes()
+	if last := notes[len(notes)-1]; !strings.Contains(last.Message, "setting of the host") {
+		t.Errorf("last notification = %q", last.Message)
+	}
+	if len(r.api.SettingUpdates()) != 0 {
+		t.Error("a client saved the path")
+	}
+}
+
+func TestSettingsTheStartReadRestartTheServerWhenTheyChange(t *testing.T) {
+	r := newRig(t, true, nil)
+	r.attach()
+	_, _ = r.start()
+	// a setting the start did not read, and one that did not change
+	r.api.SetSetting("editor.tabSize", 2)
+	r.api.SetSetting(modeKey, "fast")
+	if n := r.api.ServerRestarts(serverID); n != 0 {
+		t.Fatalf("restarts = %d after unrelated settings", n)
+	}
+	r.api.SetSetting(modeKey, "slow") // the initialization options come from it
+	if n := r.api.ServerRestarts(serverID); n != 1 {
+		t.Fatalf("restarts = %d after a setting of the options", n)
+	}
+	// until the new start has read them again, more changes do not restart it again
+	r.api.SetSetting(modeKey, "slower")
+	if n := r.api.ServerRestarts(serverID); n != 1 {
+		t.Fatalf("restarts = %d before the new start", n)
+	}
+	_, _ = r.start()
+	r.api.SetSetting(pathKey, "ra")
+	if n := r.api.ServerRestarts(serverID); n != 2 {
+		t.Fatalf("restarts = %d after the path", n)
+	}
+}
+
+func TestNothingRestartsBeforeTheFirstStart(t *testing.T) {
+	r := newRig(t, true, nil)
+	r.attach()
+	r.api.SetSetting(modeKey, "slow")
+	r.api.SetSetting(pathKey, "ra")
+	if n := r.api.ServerRestarts(serverID); n != 0 {
+		t.Errorf("restarts = %d", n)
+	}
+}
+
+func TestTheMenu(t *testing.T) {
+	r := newRig(t, false, nil)
+	r.attach()
+	r.editor("rust")
+	r.item().OnClick()
+	pick := r.api.LastPick()
+	if pick == nil {
+		t.Fatal("no menu")
+	}
+	want := []string{"$(debug-restart) Restart Language Server", "$(output) Show rust-analyzer Output", "$(settings-gear) Open Settings", "Reload Workspace", "$(folder-opened) Set Path..."}
+	if got := pick.Labels(); !slices.Equal(got, want) {
+		t.Fatalf("running server menu = %v", got)
+	}
+	pick.Choose(0)
+	pick.Close()
+	if r.api.ServerRestarts(serverID) != 1 {
+		t.Error("Restart did not restart")
+	}
+	// the menu of a missing server has the ways to get it
+	_, _ = r.start()
+	r.item().OnClick()
+	pick = r.api.LastPick()
+	want = []string{"$(debug-restart) Restart Language Server", "$(output) Show rust-analyzer Output", "$(settings-gear) Open Settings", "Reload Workspace", "$(book) How to Install", "$(copy) Copy Install Command", "$(folder-opened) Set Path..."}
+	if got := pick.Labels(); !slices.Equal(got, want) {
+		t.Fatalf("missing server menu = %v", got)
+	}
+	items := pick.Options().Items
+	if items[2].Command != "workbench.action.openSettings" || items[2].Args != "rust-analyzer" {
+		t.Errorf("Open Settings = %+v", items[2])
+	}
+	pick.Choose(1)
+	if r.api.ServerOutputShown(serverID) != 1 {
+		t.Error("Show Output did not show it")
+	}
+	r.item().OnClick()
+	r.api.LastPick().Choose(3)
+	if r.reloads != 1 {
+		t.Error("the entry of the pack did not run")
+	}
+	r.item().OnClick()
+	r.api.LastPick().Choose(4)
+	if len(r.api.OpenDialogs()) != 1 {
+		t.Error("How to Install showed no dialog")
+	}
+	r.item().OnClick()
+	r.api.LastPick().Choose(5)
+	if len(r.api.ClipboardTexts()) != 1 {
+		t.Error("Copy Install Command copied nothing")
+	}
+	r.item().OnClick()
+	r.api.LastPick().Choose(6)
+	if r.api.LastInput() == nil {
+		t.Error("Set Path... showed no box")
+	}
+}
+
+func TestSettingsQueryOfTheMenu(t *testing.T) {
+	r := newRig(t, true, func(c *Config) { c.SettingsQuery = "rust-analyzer.cargo"; c.Menu = nil })
+	r.attach()
+	r.item().OnClick()
+	if it := r.api.LastPick().Options().Items[2]; it.Args != "rust-analyzer.cargo" || it.Description != "rust-analyzer.cargo" {
+		t.Errorf("Open Settings = %+v", it)
+	}
+}
+
+func TestTheControllerIsQuietWhereThereIsNoWorkbench(t *testing.T) {
+	// the benign errors of a host with no dialogs, boxes or lists are not failures
+	for _, tag := range []string{"ExtensionDialogsUnavailable", "ExtensionInputBoxUnavailable", "ExtensionQuickPickUnavailable", "ExtensionClipboardUnavailable", "ExtensionDeactivated"} {
+		if !benign(errors.New(tag, "x")) {
+			t.Errorf("%s is not benign", tag)
+		}
+	}
+	if benign(errors.New("SomethingElse", "x")) || benign(context.Canceled) {
+		t.Error("another failure is benign")
+	}
+}

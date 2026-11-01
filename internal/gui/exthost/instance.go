@@ -39,6 +39,8 @@ type instance struct {
 	// (serverapi.go).
 	servers    []*serverCtl
 	serverSubs []*serverSub
+	// launchers are the ServerLaunchers the extension set, by server id (LanguageServers().SetLauncher).
+	launchers map[string]extension.ServerLauncher
 	// scmKeys are the source controls of the activation by id and root (scm.go), to refuse a second one of the same.
 	scmKeys map[string]bool
 	// ownCommands are the commands the activation registered with Commands().Register; with those the manifest declares they are

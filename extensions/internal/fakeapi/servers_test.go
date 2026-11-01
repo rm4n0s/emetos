@@ -1,6 +1,7 @@
 package fakeapi
 
 import (
+	"context"
 	"slices"
 	"testing"
 
@@ -50,12 +51,45 @@ func TestTheFakeServersFollowTheManifest(t *testing.T) {
 	}
 }
 
+func TestTheFakeKeepsTheLauncherAndRunsItWithItsSettings(t *testing.T) {
+	folder := t.TempDir()
+	m := serverManifest()
+	m.Contributes.Settings = append(m.Contributes.Settings, extension.SettingSpec{Key: "ls.path", Type: "string", Default: ""})
+	a := New(t, m, extension.ScopeInfo{Folder: folder})
+	if a.Launcher("ls") != nil || a.Launcher("none") != nil {
+		t.Fatal("a launcher before SetLauncher")
+	}
+	var got extension.LaunchRequest
+	err := a.LanguageServers().SetLauncher("ls", func(_ context.Context, req extension.LaunchRequest) (extension.ServerLaunch, error) {
+		got = req
+		return extension.ServerLaunch{Program: "/bin/ls-server"}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.SetSetting("ls.path", "/opt/ls")
+	launch, err := a.Launch(context.Background(), "ls")
+	if err != nil || launch.Program != "/bin/ls-server" || got.Folder != folder {
+		t.Fatalf("Launch = %+v, %v; request %+v", launch, err, got)
+	}
+	if v, ok := got.Setting("ls.path"); !ok || v != "/opt/ls" {
+		t.Errorf("Setting(ls.path) = %v, %v", v, ok)
+	}
+	if v, ok := got.Setting("free.key"); !ok || v != true {
+		t.Errorf("Setting(free.key) = %v, %v", v, ok)
+	}
+	if _, ok := got.Setting("none"); ok {
+		t.Error("an unknown setting was read")
+	}
+}
+
 func TestTheFakeServersRefuseAnUnknownId(t *testing.T) {
 	a := New(t, serverManifest(), extension.ScopeInfo{})
 	ls := a.LanguageServers()
 	_, statusErr := ls.Status("none")
 	_, changeErr := ls.OnChange("none", nil)
-	for name, err := range map[string]error{"Status": statusErr, "OnChange": changeErr, "Restart": ls.Restart("none"), "ShowOutput": ls.ShowOutput("none", false)} {
+	launchErr := ls.SetLauncher("none", nil)
+	for name, err := range map[string]error{"Status": statusErr, "OnChange": changeErr, "Restart": ls.Restart("none"), "ShowOutput": ls.ShowOutput("none", false), "SetLauncher": launchErr} {
 		t.Run(name, func(t *testing.T) { route(t, err, "API.server.FakeServerUnknown") })
 	}
 }

@@ -18,10 +18,12 @@ package langpack
 import (
 	"context"
 	"io/fs"
+	"slices"
 
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/langserver"
 )
 
 // AssetsDir is the folder, in the embedded file system of a pack, that holds the package.json of the pack and its files
@@ -40,8 +42,13 @@ type Spec struct {
 	Assets fs.FS
 	// Dir is the folder of Assets that holds the package.json; AssetsDir when empty. A test sets it.
 	Dir string
-	// LanguageServers are the servers of the pack (Contributes.LanguageServers): the pack of a language that has one.
+	// LanguageServers are the servers of the pack (Contributes.LanguageServers) that the pack runs itself, as Go's does.
 	LanguageServers []extension.LanguageServerSpec
+	// Server is the language server of the pack in the way the packs of step 24b share (extensions/internal/langserver): the pack
+	// declares the server, the settings of its programs and the topic of its status item, and its Activate attaches the finder, the
+	// status item and the notification for a missing server. A pack that needs more of the activation (commands, other settings)
+	// wraps the extension langpack.New makes, as extensions/golang does, and reaches the Controller with Controller.
+	Server *langserver.Config
 }
 
 // pack is the extension of a language pack.
@@ -50,6 +57,8 @@ type pack struct {
 	// root is Assets rooted at the folder, or nil when the folder is not a valid path (err says why).
 	root fs.FS
 	err  error
+	// server is the controller of Spec.Server in the tab, made by Activate.
+	server *langserver.Controller
 }
 
 // New makes the extension of a language pack. Every call makes an extension of its own, as the contract asks. A pack
@@ -69,12 +78,40 @@ func New(spec Spec) extension.Extension {
 
 // Manifest implements extension.Extension.
 func (p *pack) Manifest() extension.Manifest {
-	return extension.Manifest{
+	m := extension.Manifest{
 		ID: p.spec.ID, Name: p.spec.Name, Version: "0.1.0", Description: p.spec.Description,
 		ActivationEvents: []string{extension.OnStartup},
-		Contributes:      extension.Contributes{Languages: p.root, LanguageServers: p.spec.LanguageServers},
+		Contributes:      extension.Contributes{Languages: p.root, LanguageServers: slices.Clone(p.spec.LanguageServers)},
 	}
+	if sv := p.spec.Server; sv != nil {
+		m.Contributes.LanguageServers = append(m.Contributes.LanguageServers, sv.Spec())
+		m.Contributes.Settings = append(m.Contributes.Settings, sv.SettingSpecs()...)
+		m.Events.Subscribes = append(m.Events.Subscribes, sv.Subscribes()...)
+	}
+	return m
 }
 
-// Activate implements extension.Extension: there is nothing to start, the languages are the manifest's.
-func (p *pack) Activate(context.Context, extension.API) error { return p.err }
+// Activate implements extension.Extension: the languages are the manifest's; a pack with a Server attaches it.
+func (p *pack) Activate(ctx context.Context, api extension.API) error {
+	if p.err != nil {
+		return p.err
+	}
+	if p.spec.Server == nil {
+		return nil
+	}
+	ctl, err := langserver.Attach(ctx, api, *p.spec.Server)
+	if err != nil {
+		return err
+	}
+	p.server = ctl
+	return nil
+}
+
+// Controller is the controller of the server of a pack made by New, or nil before its Activate (or when the pack has no Server). A
+// pack that wraps the extension reaches its server's status item with it.
+func Controller(ext extension.Extension) *langserver.Controller {
+	if p, ok := ext.(*pack); ok {
+		return p.server
+	}
+	return nil
+}
