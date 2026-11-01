@@ -174,7 +174,11 @@ func (x *gitscm) openChange(t target, o openOptions) {
 		// with git.mergeEditor on, a file with both modified or both added opens the merge editor; else the file with its markers, which the
 		// window offers the merge editor for (VS Code's Open Merge)
 		merge := x.cfg.mergeEditor && (t.res.status == git.StatusBothModified || t.res.status == git.StatusBothAdded)
-		err = x.api.Documents().OpenDocument(extension.OpenSpec{URI: s.Right, Title: s.Title, Preview: o.preview, PreserveFocus: o.preserveFocus, MergeEditor: merge})
+		spec := extension.OpenSpec{URI: s.Right, Title: s.Title, Preview: o.preview, PreserveFocus: o.preserveFocus, MergeEditor: merge}
+		if merge && t.repo.worktreeMigrating {
+			spec.MergeLabels = worktreeMergeLabels // the conflicts of a migration of the changes of a worktree
+		}
+		err = x.api.Documents().OpenDocument(spec)
 	case t.res.status == git.StatusAddedByUs || t.res.status == git.StatusAddedByThem:
 		// VS Code asks to open nothing here; the file with its markers is what there is to see
 		err = x.api.Documents().OpenDocument(extension.OpenSpec{URI: fileURI(t.res.path), Preview: o.preview, PreserveFocus: o.preserveFocus})

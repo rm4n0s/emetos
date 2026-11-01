@@ -18,6 +18,8 @@ type config struct {
 	countBadge              string
 	detectSubmodules        bool
 	detectSubmodulesLimit   int
+	detectWorktrees         bool
+	detectWorktreesLimit    int
 	ignoredRepositories     []string
 	scanRepositories        []string
 	scanMaxDepth            int
@@ -107,6 +109,8 @@ func (c *config) load(api extension.API) {
 	c.countBadge = read(api, "git.countBadge", "all")
 	c.detectSubmodules = read(api, "git.detectSubmodules", true)
 	c.detectSubmodulesLimit = read(api, "git.detectSubmodulesLimit", 10)
+	c.detectWorktrees = read(api, "git.detectWorktrees", false)
+	c.detectWorktreesLimit = read(api, "git.detectWorktreesLimit", 50)
 	c.ignoredRepositories = read(api, "git.ignoredRepositories", []string(nil))
 	c.scanRepositories = read(api, "git.scanRepositories", []string(nil))
 	c.scanMaxDepth = read(api, "git.repositoryScanMaxDepth", 1)

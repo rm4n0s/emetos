@@ -246,6 +246,9 @@ type Input struct {
 	done func(string, bool)
 	mu   sync.Mutex
 	over bool
+	// typed is the text put in the box by Type or by a button; hasTyped says there is one.
+	typed    string
+	hasTyped bool
 }
 
 // Options are what the extension asked to show.
@@ -257,6 +260,33 @@ func (in *Input) Validate(text string) string {
 		return ""
 	}
 	return in.opts.Validate(text)
+}
+
+// PressButton presses a button inside the box, as the user clicking it does: the function of the extension gets the text now in the box
+// (set with Type, else the value the box started with) and may replace it, at once or later, on the UI thread. The test fails when the box
+// has no such button.
+func (in *Input) PressButton(index int) {
+	in.a.t.Helper()
+	if index < 0 || index >= len(in.opts.Buttons) {
+		in.a.t.Fatalf("fakeapi: the input box has no button %d (it has %d)", index, len(in.opts.Buttons))
+		return
+	}
+	if in.opts.OnButton != nil {
+		in.opts.OnButton(index, in.Value(), func(v string) { in.mu.Lock(); in.typed, in.hasTyped = v, true; in.mu.Unlock() })
+	}
+}
+
+// Type puts text in the box, as the user typing does (without the validation: Accept checks it).
+func (in *Input) Type(text string) { in.mu.Lock(); in.typed, in.hasTyped = text, true; in.mu.Unlock() }
+
+// Value is the text now in the box: what was typed, set by a button, else the value the box started with.
+func (in *Input) Value() string {
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.hasTyped {
+		return in.typed
+	}
+	return in.opts.Value
 }
 
 // Accept ends the box with the text, as the user pressing Enter does; a text the validation refuses fails the test.

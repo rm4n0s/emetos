@@ -18,6 +18,7 @@ const (
 	foundScan      = "scan"
 	foundEditor    = "editor"
 	foundSubmodule = "submodule"
+	foundWorktree  = "worktree"
 )
 
 // candidate is a repository the discovery found.

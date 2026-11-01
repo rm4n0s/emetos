@@ -52,6 +52,11 @@ type repository struct {
 	lastStatus []git.StatusEntry
 	// timings are the times of the last refresh.
 	timings Timings
+	// worktreeMigrating says that a migration of the changes of a worktree ended in conflicts that are still in the Merge Changes group:
+	// the merge editor of a file of it names the sides "Workspace" and "Worktree" (VS Code's isWorktreeMigrating).
+	worktreeMigrating bool
+	// afterOpen are the functions that wait for the repository to be opened by git and to have its first status.
+	afterOpen []func()
 
 	// refreshing and again coalesce the refreshes: one runs at a time, the asks that come while it runs are one more run.
 	refreshing bool
@@ -184,7 +189,7 @@ func (r *repository) opened(repo *git.Repo, err error) {
 		r.m.x.log.Warn("cannot make the groups of a repository", "root", r.root, "err", err)
 		return
 	}
-	r.src.SetActiveRepositoryName("")
+	r.src.SetActiveRepositoryName(r.activeRepositoryName())
 	r.addQuickDiff()
 	r.initCommitUI()
 	r.readRemotes()
@@ -193,6 +198,11 @@ func (r *repository) opened(repo *git.Repo, err error) {
 	x.ensureTimeline()
 	r.refresh()
 	r.startWatching()
+	waiting := r.afterOpen
+	r.afterOpen = nil
+	for _, fn := range waiting {
+		r.whenFresh(fn)
+	}
 }
 
 // readRemotes reads the remotes from the configuration file (no process) and tells the repository cache.
@@ -300,6 +310,9 @@ type snapshot struct {
 	// says that they were read.
 	remotes     []git.Remote
 	remotesRead bool
+	// worktrees are the work trees of the repository, read when git.detectWorktrees is on and the repository is not a worktree itself.
+	worktrees     []git.Worktree
+	worktreesRead bool
 	// template is the text the commit box starts with, read when templateKey is not the one the last status read it for.
 	template, templateKey string
 	templateRead          bool
@@ -332,6 +345,7 @@ func (r *repository) refresh() {
 	r.setBusy(true)
 	x := r.m.x
 	repo, opts := r.repo, x.cfg.statusOptions()
+	wantWorktrees := x.cfg.detectWorktrees && r.kind() != git.KindWorktree
 	gitDir, commonDir := repo.Info.GitDir, repo.Info.CommonDir
 	ctx, gen := r.ctx, r.gen
 	root, mode, kind, decorate, loc := r.root, x.cfg.untrackedChanges, r.kind(), x.cfg.decorationsEnabled, r.loc
@@ -339,6 +353,12 @@ func (r *repository) refresh() {
 	prevKey, home, prevRebase := r.templateKey, x.home, r.rebaseCommit
 	go func() {
 		snap := compute(ctx, repo, opts, gitDir, commonDir, prevKey, prevRebase, home)
+		if wantWorktrees && snap.err == nil && ctx.Err() == nil {
+			// a failure leaves the repositories as they are: the next status reads the list again
+			if list, err := repo.Worktrees(ctx); err == nil {
+				snap.worktrees, snap.worktreesRead = list, true
+			}
+		}
 		if snap.err == nil {
 			start := time.Now()
 			snap.groups = splitStatus(root, snap.status.Entries, mode)
@@ -468,6 +488,10 @@ func (r *repository) applySnapshot(snap snapshot) {
 	r.contentChanged(snap.head.commit != headBefore)
 	r.quickDiffChanged()
 	r.multiChanged()
+	if snap.worktreesRead {
+		r.m.detectWorktrees(r, snap.worktrees)
+	}
+	r.leaveWorktreeMigration()
 	if snap.head.commit != headBefore {
 		x.blame.headMoved(r)
 	}
@@ -849,4 +873,24 @@ func workStatusOf(s git.Status) git.Status {
 		return git.StatusIntentToRename
 	}
 	return s
+}
+
+// activeRepositoryName is the name the title bar and the context key scmActiveRepositoryName show for a worktree: the folder of the
+// repository it belongs to. A repository that is not a worktree has none.
+//
+// Ported from VS Code: extensions/git/src/repository.ts (the constructor: activeRepositoryName)
+func (r *repository) activeRepositoryName() string {
+	if r.kind() != git.KindWorktree || r.loc.Parent == "" {
+		return ""
+	}
+	return baseName(r.loc.Parent)
+}
+
+// leaveWorktreeMigration ends the migration state when the Merge Changes group is empty again.
+//
+// Ported from VS Code: extensions/git/src/repository.ts (updateModelState)
+func (r *repository) leaveWorktreeMigration() {
+	if r.worktreeMigrating && len(r.res.merge) == 0 {
+		r.worktreeMigrating = false
+	}
 }

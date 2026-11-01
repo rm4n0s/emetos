@@ -472,6 +472,82 @@ func TestControllerPrompt(t *testing.T) {
 	})
 }
 
+func TestPromptButtons(t *testing.T) {
+	var pressed []string
+	var set func(string)
+	buttons := []PromptButton{
+		{Icon: 1, Tooltip: "Select Worktree Destination", OnClick: func(v string, s func(string)) { pressed = append(pressed, v); set = s }},
+		{Icon: 2, Tooltip: "Mute"},
+	}
+	validate := func(v string) string {
+		if v == "bad" {
+			return "That name is not allowed."
+		}
+		return ""
+	}
+	start := func(c *Controller) {
+		pressed, set = nil, nil
+		c.Prompt(PromptOptions{Placeholder: "Path", Value: "/a/b", Buttons: buttons, Validate: validate})
+	}
+	t.Run("a press gives the function the text, and the function replaces it", func(t *testing.T) {
+		c := NewController(ControllerOptions{})
+		start(c)
+		if got := c.PromptButtons(); len(got) != 2 || got[0].Tooltip != "Select Worktree Destination" {
+			t.Fatalf("buttons %+v", got)
+		}
+		c.SetValue("/typed")
+		c.PressPromptButton(0)
+		if !reflect.DeepEqual(pressed, []string{"/typed"}) {
+			t.Fatalf("pressed %v", pressed)
+		}
+		set("/chosen")
+		if c.Picker().Value() != "/chosen" {
+			t.Errorf("value %q", c.Picker().Value())
+		}
+		if s, e, ok := c.Picker().ValueSelection(); !ok || s != 7 || e != 7 {
+			t.Errorf("selection %d-%d %v, want the caret at the end", s, e, ok)
+		}
+		set("bad") // the validation runs on the new text
+		if c.Picker().Message() != "That name is not allowed." {
+			t.Errorf("message %q", c.Picker().Message())
+		}
+	})
+	t.Run("a button with no function, and one that is not there, do nothing", func(t *testing.T) {
+		c := NewController(ControllerOptions{})
+		start(c)
+		c.PressPromptButton(1)
+		c.PressPromptButton(2)
+		c.PressPromptButton(-1)
+		if len(pressed) != 0 || c.Picker().Value() != "/a/b" {
+			t.Errorf("pressed %v value %q", pressed, c.Picker().Value())
+		}
+	})
+	t.Run("the function that answers after the input box is gone changes nothing", func(t *testing.T) {
+		c := NewController(ControllerOptions{})
+		start(c)
+		c.PressPromptButton(0)
+		old := set
+		c.Prompt(PromptOptions{Placeholder: "Another", Value: "/other"})
+		old("/late")
+		if c.Picker().Value() != "/other" {
+			t.Errorf("value %q", c.Picker().Value())
+		}
+		c.Hide()
+		old("/later")
+		if c.Visible() {
+			t.Error("the quick input came back")
+		}
+	})
+	t.Run("a picker has no buttons", func(t *testing.T) {
+		c := NewController(ControllerOptions{})
+		c.Pick(PickOptions{Items: []Item{{ID: "a", Label: "alpha", Accept: func(KeyMods) {}}}})
+		if c.PromptButtons() != nil {
+			t.Error("buttons in a picker")
+		}
+		c.PressPromptButton(0)
+	})
+}
+
 func TestControllerPickHooks(t *testing.T) {
 	items := func() []Item {
 		return []Item{

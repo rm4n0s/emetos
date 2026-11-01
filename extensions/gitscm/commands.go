@@ -154,6 +154,13 @@ func (x *gitscm) registerCommands() error {
 		"git.stashDropAll":                    x.cmdStashDropAll,
 		"git.stashDropEditor":                 x.cmdStashDropEditor,
 		"git.stashView":                       x.cmdStashView,
+		"git.createWorktree":                  x.cmdCreateWorktree,
+		"git.deleteWorktree":                  x.cmdDeleteWorktree,
+		"git.deleteWorktree2":                 x.cmdDeleteWorktree2,
+		"git.openWorktree":                    x.cmdOpenWorktree,
+		"git.openWorktreeInNewWindow":         x.cmdOpenWorktreeInNewWindow,
+		"git.migrateWorktreeChanges":          x.cmdMigrateWorktreeChanges,
+		"git.compareWithWorkspace":            x.cmdCompareWithWorkspace,
 		CommandTrustRepository:                x.cmdTrustRepository,
 		CommandManageTrusted:                  x.cmdManageTrusted,
 	}
@@ -175,7 +182,12 @@ func (x *gitscm) registerCommands() error {
 	}
 	// the command the Copy Hash link of the blame hover runs; VS Code has it too, and it is not in the command palette
 	x.handlers[commandCopyContent] = x.cmdCopyContent
-	return x.api.Commands().Register(extension.CommandSpec{ID: commandCopyContent}, x.cmdCopyContent)
+	if err := x.api.Commands().Register(extension.CommandSpec{ID: commandCopyContent}, x.cmdCopyContent); err != nil {
+		return err
+	}
+	// and the one of the merge editor of a migration of worktree changes, which no menu shows
+	x.handlers[commandOpenWorktreeMergeEditor] = x.cmdOpenWorktreeMergeEditor
+	return x.api.Commands().Register(extension.CommandSpec{ID: commandOpenWorktreeMergeEditor}, x.cmdOpenWorktreeMergeEditor)
 }
 
 // placeholder is the handler of a command a later step implements.

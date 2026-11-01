@@ -421,3 +421,100 @@ func TestTheMergeAndRebaseStatesAreInTheMenusAndThePalette(t *testing.T) {
 		t.Errorf("the buttons over a merge result: %v", content)
 	}
 }
+
+// TestTheWorktreeMenusHoldInTheStatesOfVSCode checks the Worktrees submenu of the "..." menus and its entries, the items of the menu of a
+// worktree repository, Compare with Workspace for the files of a worktree, and the palette (step 24.19) against VS Code's package.json.
+func TestTheWorktreeMenusHoldInTheStatesOfVSCode(t *testing.T) {
+	m := gitManifest(t)
+	mine := func(it extension.MenuItem) bool {
+		switch it.Command {
+		case "git.createWorktree", "git.deleteWorktree", "git.deleteWorktree2", "git.openWorktree", "git.openWorktreeInNewWindow",
+			"git.migrateWorktreeChanges", "git.compareWithWorkspace":
+			return true
+		}
+		return it.Submenu == "git.worktrees"
+	}
+	enabled := map[string]any{"config.git.enabled": true, "git.missing": false, "gitOpenRepositoryCount": 1, "scmProvider": "git"}
+	with := func(extra map[string]any) map[string]any {
+		out := map[string]any{}
+		for k, v := range enabled {
+			out[k] = v
+		}
+		for k, v := range extra {
+			out[k] = v
+		}
+		return out
+	}
+	t.Run("the Worktrees submenu is in the menus of the view and of a repository", func(t *testing.T) {
+		for _, menu := range []string{extension.MenuSCMTitle, extension.MenuSCMRepository} {
+			if got := holds(t, m, menu, enabled, mine); !slices.Equal(got, []string{"2_main submenu git.worktrees"}) {
+				t.Errorf("%s: %v", menu, got)
+			}
+			if got := holds(t, m, menu, map[string]any{"scmProvider": "other"}, mine); len(got) != 0 {
+				t.Errorf("%s of another provider: %v", menu, got)
+			}
+		}
+	})
+	t.Run("the entries of the submenu follow the kind of the repository", func(t *testing.T) {
+		for _, tc := range []struct {
+			kind string
+			want []string
+		}{
+			{"repository", []string{"worktrees git.createWorktree"}},
+			{"worktree", []string{"openWorktrees git.openWorktree", "openWorktrees git.openWorktreeInNewWindow", "worktrees git.deleteWorktree2"}},
+			{"submodule", nil},
+		} {
+			if got := holds(t, m, "git.worktrees", with(map[string]any{"scmProviderContext": tc.kind}), mine); !slices.Equal(got, tc.want) {
+				t.Errorf("%s: %v, want %v", tc.kind, got, tc.want)
+			}
+		}
+	})
+	t.Run("the menu of a worktree repository opens and deletes it", func(t *testing.T) {
+		want := []string{"1_worktree git.openWorktree", "1_worktree git.openWorktreeInNewWindow", "2_worktree git.deleteWorktree2"}
+		if got := holds(t, m, extension.MenuSCMSourceControl, with(map[string]any{"scmProviderContext": "worktree"}), mine); !slices.Equal(got, want) {
+			t.Errorf("worktree: %v", got)
+		}
+		for _, kind := range []string{"repository", "submodule"} {
+			if got := holds(t, m, extension.MenuSCMSourceControl, with(map[string]any{"scmProviderContext": kind}), mine); len(got) != 0 {
+				t.Errorf("%s: %v", kind, got)
+			}
+		}
+	})
+	t.Run("Compare with Workspace is for the changed files of a worktree", func(t *testing.T) {
+		for _, tc := range []struct {
+			group, state string
+			want         bool
+		}{
+			{"workingTree", "worktree", true}, {"index", "worktree", true}, {"untracked", "worktree", false}, {"merge", "worktree", false},
+			{"workingTree", "repository", false}, {"index", "submodule", false},
+		} {
+			got := holds(t, m, extension.MenuSCMResourceStateContext, with(map[string]any{"scmResourceGroup": tc.group, "scmResourceState": tc.state}), mine)
+			if want := []string{"worktree_diff git.compareWithWorkspace"}; tc.want != slices.Equal(got, want) {
+				t.Errorf("%s of a %s: %v", tc.group, tc.state, got)
+			}
+		}
+	})
+	t.Run("the palette", func(t *testing.T) {
+		palette := map[string]string{}
+		for _, it := range m.Contributes.Menus {
+			if it.Menu == extension.MenuCommandPalette && mine(it) {
+				palette[it.Command] = it.When
+			}
+		}
+		const some = "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+		const several = "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+		want := map[string]string{
+			"git.createWorktree": some, "git.deleteWorktree": some, "git.migrateWorktreeChanges": some, "git.deleteWorktree2": "false",
+			"git.openWorktree": several, "git.openWorktreeInNewWindow": several,
+		}
+		for id, w := range want {
+			if palette[id] != w {
+				t.Errorf("%s: palette condition %q, want %q", id, palette[id], w)
+			}
+		}
+		// VS Code lists no condition for Compare with Workspace, so it is in the palette whenever the extension is
+		if _, ok := palette["git.compareWithWorkspace"]; ok {
+			t.Errorf("git.compareWithWorkspace has a palette condition %q", palette["git.compareWithWorkspace"])
+		}
+	})
+}

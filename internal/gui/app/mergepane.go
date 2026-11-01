@@ -437,7 +437,7 @@ func (s *shellState) noticeMergeConflicts(doc *document.Document) {
 		Severity: notify.Info, Source: "Emetos", Message: MergeConflictsNotice + " (" + name + ")",
 		Actions: []notify.Action{{Label: MergeConflictsButton, Run: func() {
 			if s.Mounted() {
-				s.resolveInMergeEditor(doc)
+				s.resolveInMergeEditor(doc, nil)
 			}
 		}}},
 	})
@@ -446,8 +446,8 @@ func (s *shellState) noticeMergeConflicts(doc *document.Document) {
 // resolveInMergeEditor opens the merge editor for a file with conflict markers in the active group: the inputs and the base are
 // made from the markers on a goroutine (the diffs), and the result is the document of the file itself, whose text the
 // merge editor replaces with the merged text as one undoable edit when it opens. A document that has no conflict, is not a
-// file or is read-only is reported.
-func (s *shellState) resolveInMergeEditor(doc *document.Document) {
+// file or is read-only is reported. labels, when set, name the two sides in place of the names of the markers.
+func (s *shellState) resolveInMergeEditor(doc *document.Document, labels *extension.MergeLabels) {
 	win := PeekWorkspace(s.Context())
 	// a merge editor that shows the file already is the answer (its result has no markers any more)
 	if group, input := s.mergeEditorOf(doc); input != nil {
@@ -470,6 +470,15 @@ func (s *shellState) resolveInMergeEditor(doc *document.Document) {
 	win.Documents.Retain(doc)
 	s.Go(func(life context.Context) {
 		prep, err := markersMerge(life, text)
+		if err == nil && labels != nil {
+			// the names of an extension (a migration of worktree changes) replace the ones of the markers
+			if labels.Incoming != "" {
+				prep.inputs.Input1Label = labels.Incoming
+			}
+			if labels.Current != "" {
+				prep.inputs.Input2Label = labels.Current
+			}
+		}
 		s.binding.Post(func() {
 			if !s.Mounted() {
 				win.Documents.Release(doc)
@@ -672,7 +681,7 @@ func (s *shellState) openMergeEditorCommand(args any) error {
 		win.Notify.Info("Emetos", MergeNoConflictsNotice)
 		return nil
 	}
-	s.resolveInMergeEditor(doc)
+	s.resolveInMergeEditor(doc, nil)
 	return nil
 }
 

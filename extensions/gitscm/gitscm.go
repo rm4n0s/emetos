@@ -116,6 +116,7 @@ func (*gitscm) Manifest() extension.Manifest {
 	menus = append(menus, remoteMenus()...)
 	menus = append(menus, mergeMenus()...)
 	menus = append(menus, cloneMenus()...)
+	menus = append(menus, worktreeMenus()...)
 	return extension.Manifest{
 		ID: ID, Name: "Git", Version: "0.1.0",
 		Description:      "The Source Control view for Git repositories: trust, status, and the repositories of the folder.",
@@ -131,7 +132,7 @@ func (*gitscm) Manifest() extension.Manifest {
 			Menus:       menus,
 			Keybindings: lineKeybindings(),
 			Submenus: []extension.SubmenuSpec{{ID: stashSubmenu, Label: "Stash"}, {ID: commitSubmenu, Label: "Commit"}, {ID: branchSubmenu, Label: "Branch"},
-				{ID: tagsSubmenu, Label: "Tags"}, {ID: pullPushSubmenu, Label: "Pull, Push"}, {ID: remotesSubmenu, Label: "Remote"}},
+				{ID: tagsSubmenu, Label: "Tags"}, {ID: pullPushSubmenu, Label: "Pull, Push"}, {ID: remotesSubmenu, Label: "Remote"}, {ID: worktreesSubmenu, Label: "Worktrees"}},
 			Settings:    settingSpecs,
 			ContextKeys: contextKeys,
 			ViewWelcome: welcomePieces(),

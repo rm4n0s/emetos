@@ -129,10 +129,7 @@ func (r *Repositories) render(bc widgets.BuildContext, lr kit.ListViewRow, st ki
 		return kit.NewHighlightedLabel(bc, lr.Label, st)
 	}
 	v := r.view
-	icon := fonts.CodiconRepo
-	if len(v.model.Sources()) > 1 && v.model.IsVisible(d.src) {
-		icon = fonts.CodiconRepoSelected
-	}
+	icon := v.repositoryIcon(d.src)
 	var right []widgets.Widget
 	for _, c := range d.src.StatusBarCommands() {
 		right = append(right, v.statusItem(bc, d.src, c, st))

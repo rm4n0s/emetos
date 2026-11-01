@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/diff"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/gui/mergeeditor"
 )
 
 // What an extension sees of the merge editor (step 24.14): it opens a file in it (OpenSpec.MergeEditor), finds the one in front
@@ -109,6 +110,35 @@ func TestAnExtensionOpensAFileInTheMergeEditor(t *testing.T) {
 		}
 	})
 	m.noErrors()
+}
+
+func TestAnExtensionNamesTheSidesOfTheMergeEditor(t *testing.T) {
+	tests := []struct {
+		name              string
+		labels            *extension.MergeLabels
+		incoming, current string
+	}{
+		{"the names of the markers", nil, "feature", "HEAD"},
+		{"both sides named", &extension.MergeLabels{Current: "Workspace", Incoming: "Worktree"}, "Worktree", "Workspace"},
+		{"one side named", &extension.MergeLabels{Incoming: "Worktree"}, "Worktree", "HEAD"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newMergeExt(t, map[string]string{"c.go": markerFile})
+			uri := document.FileURI(m.files["c.go"]).String()
+			if err := m.api.Documents().OpenDocument(extension.OpenSpec{URI: uri, MergeEditor: true, MergeLabels: tc.labels}); err != nil {
+				t.Fatal(err)
+			}
+			m.waitMerge()
+			model := m.pane().Model()
+			if got, want := model.Label(mergeeditor.Incoming), tc.incoming; got != want {
+				t.Errorf("incoming = %q, want %q", got, want)
+			}
+			if got, want := model.Label(mergeeditor.Current), tc.current; got != want {
+				t.Errorf("current = %q, want %q", got, want)
+			}
+		})
+	}
 }
 
 func TestCompletingAMergeIsToldToTheExtensions(t *testing.T) {

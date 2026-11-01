@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -405,6 +406,46 @@ func TestInputBoxAsksForALineOfText(t *testing.T) {
 	}
 }
 
+func TestInputBoxButtonsReachTheWindowAndCallBack(t *testing.T) {
+	st := newServerTest(t, simple(), nil)
+	tb := st.startTab("one")
+	var pressed []string
+	opts := extension.InputBoxOptions{
+		Prompt: "Worktree path", Value: "/a/b",
+		Buttons: []extension.InputBoxButton{{Icon: "folder", Tooltip: "Select Worktree Destination"}},
+		OnButton: func(index int, value string, setValue func(string)) {
+			pressed = append(pressed, value)
+			setValue("/chosen/" + strconv.Itoa(index))
+		},
+	}
+	if err := st.api.InputBox().Show(opts, nil); err != nil {
+		t.Fatal(err)
+	}
+	req := tb.inputs[0]
+	if len(req.Buttons) != 1 || req.Buttons[0].Icon != "folder" || req.Buttons[0].Tooltip != "Select Worktree Destination" || req.ButtonPressed == nil {
+		t.Fatalf("request = %+v", req)
+	}
+	var set string
+	req.ButtonPressed(0, "/a/b", func(v string) { set = v })
+	tb.pump()
+	if !slices.Equal(pressed, []string{"/a/b"}) || set != "/chosen/0" {
+		t.Errorf("pressed %v, set %q", pressed, set)
+	}
+	// a box with no button has no function to call, and buttons with no function do nothing
+	if err := st.api.InputBox().Show(extension.InputBoxOptions{Prompt: "More"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if tb.inputs[1].Buttons != nil || tb.inputs[1].ButtonPressed != nil {
+		t.Errorf("request = %+v", tb.inputs[1])
+	}
+	if err := st.api.InputBox().Show(extension.InputBoxOptions{Prompt: "Mute", Buttons: []extension.InputBoxButton{{Icon: "folder"}}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(tb.inputs[2].Buttons) != 1 || tb.inputs[2].ButtonPressed != nil {
+		t.Errorf("request = %+v", tb.inputs[2])
+	}
+}
+
 func TestInputBoxRefusals(t *testing.T) {
 	st := newServerTest(t, simple(), nil)
 	st.rig.noInput["one"] = true
@@ -441,6 +482,19 @@ func TestACallbackOfTheNewAPIsThatPanicsFailsTheExtension(t *testing.T) {
 			},
 			route: "Scope.runInputBoxValidate.func1.ExtensionInputBoxCallbackPanicked", tag: "ExtensionInputBoxCallbackPanicked",
 			fire: func(_ *serverTest, tb *tab) { tb.inputs[0].Validate("x") },
+		},
+		{
+			name: "a button of an input box",
+			setup: func(st *serverTest) {
+				st.onActivate = func(_ context.Context, a extension.API) error {
+					return a.InputBox().Show(extension.InputBoxOptions{
+						Buttons:  []extension.InputBoxButton{{Icon: "folder"}},
+						OnButton: func(int, string, func(string)) { panic("boom") },
+					}, nil)
+				}
+			},
+			route: "Scope.runInputBoxButton.func1.ExtensionInputBoxCallbackPanicked", tag: "ExtensionInputBoxCallbackPanicked",
+			fire: func(_ *serverTest, tb *tab) { tb.inputs[0].ButtonPressed(0, "x", func(string) {}) },
 		},
 		{
 			name: "the end of a command of the server",

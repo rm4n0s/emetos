@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/rm4n0s/errors"
@@ -168,6 +169,36 @@ func (m *model) openSubmodules(r *repository) {
 		}
 		n++
 		m.openRepository(candidate{loc: loc, why: foundSubmodule}, false)
+	}
+}
+
+// detectWorktrees opens the worktrees of a repository as repositories of their own (git.detectWorktrees), up to
+// git.detectWorktreesLimit; more than that gives a warning, once for the repository. A worktree is never looked into for more worktrees.
+//
+// Ported from VS Code: extensions/git/src/model.ts (open: checkForWorktrees)
+func (m *model) detectWorktrees(r *repository, list []git.Worktree) {
+	x := m.x
+	if !x.cfg.detectWorktrees || r.kind() == git.KindWorktree || r.disposed {
+		return
+	}
+	limit := x.cfg.detectWorktreesLimit
+	if len(list) > limit {
+		if !m.notified["worktrees:"+r.root] {
+			m.notified["worktrees:"+r.root] = true
+			x.api.Notifications().Warn("The \"" + r.name + "\" repository has " + strconv.Itoa(len(list)) +
+				" worktrees which won't be opened automatically. You can still open each one individually by opening a folder.")
+		}
+		list = list[:max(limit, 0)]
+	}
+	for _, w := range list {
+		if w.Main || w.Prunable {
+			continue
+		}
+		loc, ok := git.RepositoryAt(w.Path)
+		if !ok || loc.Kind != git.KindWorktree {
+			continue
+		}
+		m.openRepository(candidate{loc: loc, why: foundWorktree}, false)
 	}
 }
 

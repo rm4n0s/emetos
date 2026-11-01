@@ -122,6 +122,49 @@ func TestTheFakeServerCommandsAndCodeActions(t *testing.T) {
 	route(t, e3, "API.server.FakeServerUnknown")
 }
 
+func TestTheFakeInputBoxButtons(t *testing.T) {
+	a := New(t, manifest(), extension.ScopeInfo{})
+	var seen []string
+	var later func(string)
+	opts := extension.InputBoxOptions{
+		Prompt: "Path", Value: "/a/b",
+		Buttons: []extension.InputBoxButton{{Icon: "folder", Tooltip: "Select"}},
+		OnButton: func(index int, value string, set func(string)) {
+			seen = append(seen, value)
+			later = set
+			if index == 0 && value == "/a/b" {
+				set("/now") // at once
+			}
+		},
+	}
+	if err := a.InputBox().Show(opts, nil); err != nil {
+		t.Fatal(err)
+	}
+	in := a.LastInput()
+	if in.Value() != "/a/b" {
+		t.Errorf("value %q", in.Value())
+	}
+	in.PressButton(0)
+	if in.Value() != "/now" || len(seen) != 1 || seen[0] != "/a/b" {
+		t.Errorf("value %q, seen %v", in.Value(), seen)
+	}
+	// the text the user typed is what the next press gets, and the function may answer later
+	in.Type("/typed")
+	in.PressButton(0)
+	later("/later")
+	if in.Value() != "/later" || seen[1] != "/typed" {
+		t.Errorf("value %q, seen %v", in.Value(), seen)
+	}
+	// a box with a button that has no function does nothing
+	if err := a.InputBox().Show(extension.InputBoxOptions{Prompt: "Mute", Value: "x", Buttons: []extension.InputBoxButton{{Icon: "folder"}}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	a.LastInput().PressButton(0)
+	if a.LastInput().Value() != "x" {
+		t.Errorf("value %q", a.LastInput().Value())
+	}
+}
+
 func TestTheFakeInputBox(t *testing.T) {
 	a := New(t, manifest(), extension.ScopeInfo{})
 	type answer struct {

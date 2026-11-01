@@ -588,9 +588,15 @@ func (s *hostState) widget(bc widgets.BuildContext, width float64) widgets.Widge
 	} else if m := pk.Info(); m != "" {
 		message = &kit.InputMessage{Content: m, Type: kit.ValidationInfo}
 	}
+	var trailing []widgets.Widget
+	for i, b := range s.ctl.PromptButtons() {
+		i := i
+		trailing = append(trailing, kit.NewIconButton(b.Icon, kit.IconButtonOpts{Tooltip: b.Tooltip, OnPressed: func() { s.ctl.PressPromptButton(i) }}))
+	}
 	input := kit.NewInputBox(nil, nil, kit.InputBoxOpts{
 		Controller:       s.input,
 		Placeholder:      pk.Placeholder(),
+		Trailing:         trailing,
 		Message:          message,
 		SelectAllOnFocus: foundation.Some(false),
 		Obscure:          pk.Obscure,

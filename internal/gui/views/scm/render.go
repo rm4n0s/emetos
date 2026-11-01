@@ -115,11 +115,26 @@ func (v *View) renderGroup(bc widgets.BuildContext, r *row, st kit.RowState) wid
 // the count.
 //
 // Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmRepositoryRenderer.ts (RepositoryRenderer)
-func (v *View) renderRepository(bc widgets.BuildContext, r *row, st kit.RowState) widgets.Widget {
-	icon := fonts.CodiconRepo
-	if len(v.model.Sources()) > 1 && v.model.IsVisible(r.src) {
-		icon = fonts.CodiconRepoSelected
+// repositoryIcon is the Codicon of a repository: the archive of a submodule and the worktree icon of a worktree (VS Code's icon of the
+// source control, which the Git extension gives by the kind of repository), else the repository, shown as selected while it is one of
+// the repositories on view and there are several.
+//
+// Ported from VS Code: src/vs/workbench/contrib/scm/browser/scmRepositoryRenderer.ts (renderTemplate: the icon)
+func (v *View) repositoryIcon(src *scmcore.Source) int {
+	switch src.ContextValue() {
+	case "worktree":
+		return fonts.CodiconWorktree
+	case "submodule":
+		return fonts.CodiconArchive
 	}
+	if len(v.model.Sources()) > 1 && v.model.IsVisible(src) {
+		return fonts.CodiconRepoSelected
+	}
+	return fonts.CodiconRepo
+}
+
+func (v *View) renderRepository(bc widgets.BuildContext, r *row, st kit.RowState) widgets.Widget {
+	icon := v.repositoryIcon(r.src)
 	var right []widgets.Widget
 	for _, c := range r.src.StatusBarCommands() {
 		right = append(right, v.statusItem(bc, r.src, c, st))

@@ -283,7 +283,31 @@ var provocations = []provocation{
 	fixed("PushRejected", "push", "", " ! [rejected]        main -> main (fetch first)\n ! [remote rejected] topic -> topic (pre-receive hook declined)\nerror: failed to push some refs to '/srv/x.git'\n", "push", "--all"),
 	fixed("RemoteRejected", "push", "", "remote: error: GH006: Protected branch update failed for refs/heads/main.\nTo https://example.com/a/b.git\n ! [remote rejected] main -> main (protected branch hook declined)\nerror: failed to push some refs to 'https://example.com/a/b.git'\n", "push"),
 	fixed("BranchFastForwardRejected", "fetch", "", "From /srv/x\n ! [rejected]        main       -> topic      (non-fast-forward)\n", "fetch", "--", "origin", "main:topic"),
-	fixed("NoLocalChanges", "stash", "", "No local changes to save\n", "stash", "push"), // not an exit status: see TestStashPushWithNothingToStash
+	{tag: "WorktreeContainsChanges", real: func(t *testing.T, e *gittest.Env) Command {
+		r := base(e)
+		wt := filepath.Join(e.Work, "wt")
+		r.Git("worktree", "add", "-q", "-b", "topic", wt)
+		r.Write("../wt/untracked.txt", "x\n")
+		return in(r, "worktree", "remove", wt)
+	}},
+	{tag: "WorktreeAlreadyExists", real: func(t *testing.T, e *gittest.Env) Command {
+		r := base(e)
+		taken := filepath.Join(e.Work, "taken")
+		r.Write("../taken/file.txt", "x\n")
+		return in(r, "worktree", "add", taken, "-b", "topic")
+	}},
+	{tag: "WorktreeBranchAlreadyUsed", real: func(t *testing.T, e *gittest.Env) Command {
+		r := base(e)
+		r.Git("worktree", "add", "-q", "-b", "topic", filepath.Join(e.Work, "wt"))
+		return in(r, "checkout", "topic")
+	}},
+	{tag: "WorktreeBranchAlreadyUsed", real: func(t *testing.T, e *gittest.Env) Command {
+		r := base(e)
+		r.Git("worktree", "add", "-q", "-b", "topic", filepath.Join(e.Work, "wt"))
+		return in(r, "worktree", "add", filepath.Join(e.Work, "other"), "topic")
+	}},
+	fixed("WorktreeBranchAlreadyUsed", "checkout", "", "fatal: 'topic' is already checked out at '/srv/app.worktrees/topic'\n", "checkout", "topic"), // git before 2.42
+	fixed("NoLocalChanges", "stash", "", "No local changes to save\n", "stash", "push"),                                                              // not an exit status: see TestStashPushWithNothingToStash
 }
 
 func TestEveryFailureIsClassifiedUnderItsOwnTag(t *testing.T) {
@@ -340,7 +364,7 @@ func TestEveryFailureIsClassifiedUnderItsOwnTag(t *testing.T) {
 		"InvalidBranchName", "BranchAlreadyExists", "NoLocalChanges", "NoStashFound", "LocalChangesOverwritten", "NoUpstreamBranch", "IsInSubmodule",
 		"WrongCase", "CantLockRef", "CantRebaseMultipleBranches", "PatchDoesNotApply", "NoPathFound", "EmptyCommitMessage", "BranchNotYetBorn",
 		"TagConflict", "UnsafeRepository", "CherryPickConflict", "CherryPickEmpty", "ForcePushWithLeaseRejected", "ForcePushWithLeaseIfIncludesRejected",
-		"RemoteRejected", "BranchFastForwardRejected",
+		"RemoteRejected", "BranchFastForwardRejected", "WorktreeContainsChanges", "WorktreeAlreadyExists", "WorktreeBranchAlreadyUsed",
 	} {
 		if !seen[tag] {
 			t.Errorf("the tag %s has no case", tag)

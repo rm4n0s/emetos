@@ -49,6 +49,13 @@ func TestGoldenQuickInput(t *testing.T) {
 			r.ctl.SetValue("/home/me/missing/Untitled-1.go")
 			r.settle()
 		}},
+		{"prompt_worktree_path", 0, func(r *rig) {
+			// the path of a new worktree: the folder button after the text
+			folder, _ := fonts.CodiconByName("folder")
+			r.ctl.Prompt(PromptOptions{Placeholder: "Worktree path", Message: "Please provide a worktree path", Value: "/home/me/code/app.worktrees/feature-login",
+				IgnoreFocusOut: true, Buttons: []PromptButton{{Icon: folder, Tooltip: "Select Worktree Destination", OnClick: func(string, func(string)) {}}}})
+			r.settle()
+		}},
 		{"prompt_password", 0, func(r *rig) {
 			r.ctl.Prompt(PromptOptions{Placeholder: "Password for \"prod\" (Enter for none)", Password: true})
 			r.ctl.SetValue("hunter2-secret")

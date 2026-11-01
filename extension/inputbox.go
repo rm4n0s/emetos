@@ -18,6 +18,19 @@ type InputBoxOptions struct {
 	// Validate, when set, checks the text on every change and when it is accepted: a message that is not empty is shown under
 	// the input as an error and the text is not accepted (VS Code's validateInput). It is called on the UI thread.
 	Validate func(value string) string
+	// Buttons are buttons inside the box, after the text (VS Code's buttons with the inline location): the one that opens a folder
+	// chooser beside a path. OnButton is called, on the UI thread, with the index of the button that was pressed, the text in the box and
+	// a function that replaces the text; a button with no OnButton does nothing.
+	Buttons  []InputBoxButton
+	OnButton func(index int, value string, setValue func(value string))
+}
+
+// InputBoxButton is a button inside an input box.
+type InputBoxButton struct {
+	// Icon is the name of a Codicon ("folder").
+	Icon string
+	// Tooltip is the text of the hover of the button.
+	Tooltip string
 }
 
 // InputBox asks the user for a line of text in the quick input of the window (SPEC §10.3), the way VS Code's showInputBox does.

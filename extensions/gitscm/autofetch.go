@@ -33,6 +33,9 @@ type profileState struct {
 	// ConfirmBranchPublishOff says that the user chose "OK, Don't Ask Again" when asked to publish a branch (VS Code's
 	// confirmBranchPublish, false).
 	ConfirmBranchPublishOff bool `json:"confirmBranchPublishOff,omitempty"`
+	// WorktreeRoots is, per repository (its root), the folder the worktrees made for it were last put in (VS Code's worktreeRoot:<root> in
+	// the global state): the next one starts there.
+	WorktreeRoots map[string]string `json:"worktreeRoots,omitempty"`
 }
 
 // stateStore keeps the profileState in a file, read when first needed and written atomically with mode 0600 when it changes. It is used

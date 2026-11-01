@@ -661,9 +661,22 @@ func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 // extensionInputBox shows the input box of InputBox().Show in the quick input of the window. The prompt is the hint of the input;
 // the quick input validates the text as the user types.
 func (w *Workspace) extensionInputBox(req exthost.InputBoxRequest) {
+	var buttons []quickinput.PromptButton
+	for i, b := range req.Buttons {
+		code, ok := fonts.CodiconByName(b.Icon)
+		if !ok {
+			code = fonts.CodiconCircleSmallFilled
+		}
+		button := quickinput.PromptButton{Icon: code, Tooltip: b.Tooltip}
+		if req.ButtonPressed != nil {
+			i := i
+			button.OnClick = func(value string, set func(string)) { req.ButtonPressed(i, value, set) }
+		}
+		buttons = append(buttons, button)
+	}
 	w.QuickInput.Prompt(quickinput.PromptOptions{
 		Placeholder: req.Prompt, Value: req.Value, Password: req.Password, Message: req.Message, IgnoreFocusOut: req.IgnoreFocusOut, Validate: req.Validate,
-		OnAccept: req.Accepted, OnCancel: req.Hidden,
+		Buttons: buttons, OnAccept: req.Accepted, OnCancel: req.Hidden,
 	})
 }
 

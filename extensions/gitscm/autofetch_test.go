@@ -3,6 +3,7 @@ package gitscm
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -391,7 +392,7 @@ func TestTheStateFileOfTheProfile(t *testing.T) {
 		if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		if got := newStateStore(dir).get(); got != (profileState{}) {
+		if got := newStateStore(dir).get(); !reflect.DeepEqual(got, profileState{}) {
 			t.Errorf("state %+v", got)
 		}
 	})
@@ -403,7 +404,7 @@ func TestTheStateFileOfTheProfile(t *testing.T) {
 		if err := os.Chmod(path, 0o666); err != nil {
 			t.Fatal(err)
 		}
-		if got := newStateStore(dir).get(); got != (profileState{}) {
+		if got := newStateStore(dir).get(); !reflect.DeepEqual(got, profileState{}) {
 			t.Errorf("state %+v", got)
 		}
 		if err := os.Chmod(path, 0o600); err != nil {
@@ -414,7 +415,7 @@ func TestTheStateFileOfTheProfile(t *testing.T) {
 		}
 	})
 	t.Run("a missing file is an empty state", func(t *testing.T) {
-		if got := newStateStore(t.TempDir()).get(); got != (profileState{}) {
+		if got := newStateStore(t.TempDir()).get(); !reflect.DeepEqual(got, profileState{}) {
 			t.Errorf("state %+v", got)
 		}
 	})

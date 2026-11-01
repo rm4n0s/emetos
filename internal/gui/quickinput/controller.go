@@ -133,11 +133,24 @@ type PromptOptions struct {
 	// Validate, when set, checks the text on every change and when it is accepted: a message that is not empty is
 	// shown under the input (as an error) and the text is not accepted (VS Code's validateInput).
 	Validate func(value string) string
+	// Buttons are buttons inside the input, after the text (VS Code's inline buttons of an input box): a folder icon that opens the chooser.
+	Buttons []PromptButton
 	// OnAccept is called with the text, after the input hides and the focus is back, when the user accepted a
 	// text that is valid.
 	OnAccept func(value string)
 	// OnCancel is called when the input closes without an accepted text.
 	OnCancel func()
+}
+
+// PromptButton is a button inside an input box.
+type PromptButton struct {
+	// Icon is the code point of a Codicon.
+	Icon int
+	// Tooltip is the text of the hover.
+	Tooltip string
+	// OnClick is called when the button is pressed, with the text of the input and a function that replaces it. A button with none does
+	// nothing.
+	OnClick func(value string, set func(value string))
 }
 
 // Controller shows the quick input: one picker at a time, with the provider that the value selects
@@ -478,6 +491,32 @@ func (c *Controller) Prompt(opts PromptOptions) {
 	}
 	c.prompt = p
 	c.fire()
+}
+
+// PromptButtons are the buttons inside the input box that is shown, none when it is not an input box.
+func (c *Controller) PromptButtons() []PromptButton {
+	if !c.Prompting() {
+		return nil
+	}
+	return c.prompt.opts.Buttons
+}
+
+// PressPromptButton presses a button of the input box: its function gets the text and may replace it.
+func (c *Controller) PressPromptButton(i int) {
+	buttons := c.PromptButtons()
+	if i < 0 || i >= len(buttons) || buttons[i].OnClick == nil {
+		return
+	}
+	shown := c.prompt
+	buttons[i].OnClick(c.picker.Value(), func(v string) {
+		// the function may be called after the dialog it opened, when another input box has taken the place of this one
+		if !c.Prompting() || c.prompt != shown {
+			return
+		}
+		c.picker.SetValue(v)
+		c.picker.SetValueSelection(len(v), len(v))
+		c.fire()
+	})
 }
 
 // Prompting tells whether the quick input shows an input box.

@@ -19,8 +19,12 @@ type InputBoxRequest struct {
 	// Password shows a dot for each character typed.
 	Password bool
 	Validate func(value string) string
-	Accepted func(value string)
-	Hidden   func()
+	// Buttons are the buttons inside the box; ButtonPressed is called with the index of the one pressed, the text of the box and the
+	// function that replaces the text.
+	Buttons       []extension.InputBoxButton
+	ButtonPressed func(index int, value string, setValue func(string))
+	Accepted      func(value string)
+	Hidden        func()
 }
 
 // inputBoxAPI is the extension.InputBox of one activation.
@@ -57,6 +61,14 @@ func (b inputBoxAPI) Show(opts extension.InputBoxOptions, done func(value string
 	if opts.Validate != nil {
 		req.Validate = func(value string) string { return in.scope.runInputBoxValidate(in, opts.Validate, value) }
 	}
+	if len(opts.Buttons) > 0 {
+		req.Buttons = append([]extension.InputBoxButton(nil), opts.Buttons...)
+		if opts.OnButton != nil {
+			req.ButtonPressed = func(index int, value string, setValue func(string)) {
+				in.scope.runInputBoxButton(in, opts.OnButton, index, value, setValue)
+			}
+		}
+	}
 	show(req)
 	return nil
 }
@@ -90,4 +102,19 @@ func (s *Scope) runInputBoxValidate(inst *instance, f func(string) string, value
 		}
 	}()
 	return f(value)
+}
+
+// runInputBoxButton calls the function an extension gave to hear the buttons of an input box. A panic fails the extension with
+// ExtensionInputBoxCallbackPanicked.
+func (s *Scope) runInputBoxButton(inst *instance, f func(int, string, func(string)), index int, value string, setValue func(string)) {
+	if inst.isDead() {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			failure := errors.NewErrf("ExtensionInputBoxCallbackPanicked", "it panicked in the function that hears a button of an input box: %v", r).SetMetadata("extension", inst.id, "scope", s.opts.Info.Name)
+			s.fail(inst.slot, failure, "input box")
+		}
+	}()
+	f(index, value, setValue)
 }

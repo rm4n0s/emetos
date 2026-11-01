@@ -27,8 +27,14 @@ var (
 	reInvalidBranch    = regexp.MustCompile(`'.+' is not a valid branch name`)
 	reDirtyWorkTree    = regexp.MustCompile(`Please,? commit your changes or stash them`)
 	reUnsafe           = regexp.MustCompile(`detected dubious ownership in repository at`)
-	reNoRemoteSpecific = regexp.MustCompile(`No remote repository specified\.`)
-	reRemoteConnection = regexp.MustCompile(`Could not read from remote repository`)
+	// reWorktreeChanges, reWorktreeExists and reWorktreeBranchUsed are the failures of "git worktree remove" and "git worktree add" (and of a
+	// checkout of a branch another worktree has): the work tree has changes, the folder is taken, the branch is checked out elsewhere. Git
+	// 2.42 and later say "used by worktree at", older ones "checked out at".
+	reWorktreeChanges    = regexp.MustCompile(`contains modified or untracked files|use --force to delete it`)
+	reWorktreeExists     = regexp.MustCompile(`fatal: '[^']+' already exists`)
+	reWorktreeBranchUsed = regexp.MustCompile(`is already (?:used by worktree|checked out) at`)
+	reNoRemoteSpecific   = regexp.MustCompile(`No remote repository specified\.`)
+	reRemoteConnection   = regexp.MustCompile(`Could not read from remote repository`)
 
 	reNoUserName  = regexp.MustCompile(`unable to auto-detect name|no name was given|empty ident name`)
 	reNoUserEmail = regexp.MustCompile(`unable to auto-detect email address|no email was given`)
@@ -80,11 +86,23 @@ func classify(name string, args []string, exit int, stdout, stderr string) error
 
 	switch name {
 	case "checkout", "switch":
+		if reWorktreeBranchUsed.MatchString(stderr) {
+			return errors.New("WorktreeBranchAlreadyUsed", msg, "args", a, "exitCode", exit, "stderr", tail)
+		}
 		if reDirtyWorkTree.MatchString(stderr) {
 			return errors.New("DirtyWorkTree", msg, "args", a, "exitCode", exit, "stderr", tail)
 		}
 		if reBranchUnborn.MatchString(stderr) {
 			return errors.New("BranchNotYetBorn", msg, "args", a, "exitCode", exit, "stderr", tail)
+		}
+	case "worktree":
+		switch {
+		case reWorktreeChanges.MatchString(stderr):
+			return errors.New("WorktreeContainsChanges", msg, "args", a, "exitCode", exit, "stderr", tail)
+		case reWorktreeExists.MatchString(stderr):
+			return errors.New("WorktreeAlreadyExists", msg, "args", a, "exitCode", exit, "stderr", tail)
+		case reWorktreeBranchUsed.MatchString(stderr):
+			return errors.New("WorktreeBranchAlreadyUsed", msg, "args", a, "exitCode", exit, "stderr", tail)
 		}
 	case "commit":
 		if reUnmergedFiles.MatchString(stderr) {

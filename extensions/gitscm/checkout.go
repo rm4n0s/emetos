@@ -258,9 +258,13 @@ func (x *gitscm) startCheckout(r *repository, job checkoutJob, force bool, then 
 		},
 		after: then,
 		failed: func(err error) bool {
-			if job.dirtyFlow && errTag(err) == "DirtyWorkTree" {
+			switch {
+			case job.dirtyFlow && errTag(err) == "DirtyWorkTree":
 				x.dirtyCheckout(r, job)
 				return true
+			case job.dirtyFlow && errTag(err) == "WorktreeBranchAlreadyUsed":
+				// the branch another worktree has: offer to open that one
+				return x.worktreeBranchUsed(r, err)
 			}
 			return false
 		},

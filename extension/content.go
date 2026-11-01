@@ -95,6 +95,17 @@ type OpenSpec struct {
 	// MergeEditor opens the file in the merge editor (SPEC §9.11), as "Resolve in Merge Editor" does, instead of a text editor: the file
 	// must be a file with conflict markers, else the window says that it has none. The file is read like any other document first.
 	MergeEditor bool
+	// MergeLabels, with MergeEditor, replaces the names the merge editor gives the two sides, which it reads from the conflict markers
+	// ("Updated upstream", "Stashed changes"): VS Code's git.openWorktreeMergeEditor titles them "Workspace" and "Worktree". Nil keeps
+	// the names of the markers.
+	MergeLabels *MergeLabels
+}
+
+// MergeLabels name the two sides of a merge editor.
+type MergeLabels struct {
+	// Current is the side of the file as the work tree has it (the part after "<<<<<<<"), Incoming the other one (the part before
+	// ">>>>>>>"). An empty name keeps the one of the markers.
+	Current, Incoming string
 }
 
 // ActiveMerge is the merge editor that is in front, as Documents().ActiveMergeEditor describes it.

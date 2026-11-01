@@ -269,7 +269,7 @@ func (d extensionDocuments) OpenDocument(spec extension.OpenSpec) error {
 			w.finish(sd)
 			if spec.MergeEditor {
 				// the merge editor takes its own use of the document; the one this call acquired is let go
-				s.resolveInMergeEditor(sd.doc)
+				s.resolveInMergeEditor(sd.doc, spec.MergeLabels)
 				w.releaseSides(sd)
 				return
 			}

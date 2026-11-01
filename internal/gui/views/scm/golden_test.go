@@ -207,6 +207,29 @@ func TestGoldenRepositoriesView(t *testing.T) {
 	}
 }
 
+// TestGoldenRepositoriesViewKinds looks at the Repositories view with a repository, a worktree of it and a submodule (step 24.19): the
+// icon says which is which, and the repositories on view are the ones with the selected repository icon only.
+func TestGoldenRepositoriesViewKinds(t *testing.T) {
+	for _, th := range goldenThemes {
+		t.Run(th.name, func(t *testing.T) {
+			r := newRig(t)
+			a := r.addRepoOfKind("app", "repository", group{"workingTree", "Changes", []change{{path: "x.go"}, {path: "y.go"}}})
+			a.SetStatusBarCommands([]scmcore.StatusCommand{{Text: "$(git-branch) main", Command: "git.checkout"}, {Text: "$(sync) 1↓", Command: "git.sync"}})
+			b := r.addRepoOfKind("app.worktrees/feature-login", "worktree", group{"workingTree", "Changes", []change{{path: "z.go"}}})
+			b.SetStatusBarCommands([]scmcore.StatusCommand{{Text: "$(git-branch) feature/login", Command: "git.checkout"}})
+			c := r.addRepoOfKind("app/third_party/lib", "submodule", group{"workingTree", "Changes", nil})
+			c.SetStatusBarCommands([]scmcore.StatusCommand{{Text: "$(git-branch) v1.9", Command: "git.checkout"}})
+			r.model.ToggleVisibility(r.model.Sources()[2], nil)
+			repos := NewRepositories(r.view)
+			t.Cleanup(repos.Dispose)
+			r.ts = pump(t, th.colors, ui.Size{Width: 320, Height: 100}, NewRepositoriesBody(repos))
+			r.settle()
+			testutil.MatchesGolden(r.ts, "repositories_view_kinds_"+th.name)
+			r.noErrors()
+		})
+	}
+}
+
 // TestGoldenInput looks at the input under the header: empty with its placeholder, a message, a box of several lines, a box that
 // stops growing at its maximum, a long line wrapped, and the button below it in the states it has.
 func TestGoldenInput(t *testing.T) {

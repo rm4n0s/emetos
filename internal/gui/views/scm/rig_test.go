@@ -223,8 +223,14 @@ type group struct {
 // addRepo adds a source control with the groups and the decorations of its files.
 func (r *rig) addRepo(name string, groups ...group) *scmcore.Source {
 	r.t.Helper()
+	return r.addRepoOfKind(name, "repository", groups...)
+}
+
+// addRepoOfKind is addRepo for a repository of a kind the Git extension gives its source control: repository, submodule or worktree.
+func (r *rig) addRepoOfKind(name, kind string, groups ...group) *scmcore.Source {
+	r.t.Helper()
 	root := "/work/" + name
-	src := r.model.Add(scmcore.SourceSpec{ProviderID: "git", Label: "Git", RootURI: "file://" + root, ContextValue: "repository", Owner: "e"})
+	src := r.model.Add(scmcore.SourceSpec{ProviderID: "git", Label: "Git", RootURI: "file://" + root, ContextValue: kind, Owner: "e"})
 	// the rows of the changes are tested without the box (input_test.go has the boxes)
 	if !r.boxes {
 		src.Input().SetVisible(false)
