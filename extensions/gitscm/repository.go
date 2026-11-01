@@ -78,8 +78,11 @@ type repository struct {
 	decos      *statusProvider
 	submodules []string
 
+	// watchMu guards watchStops and watchGen; watchGen counts the stops, so that a watch placed by startWatching after a later
+	// stopWatching (its goroutine was still placing it) is ended at once instead of being kept.
 	watchMu    sync.Mutex
 	watchStops []func()
+	watchGen   int
 	debounce   func()
 	ignore     *ignoreMatcher
 	refreshes  int // the number of status runs, for the tests and the Output channel

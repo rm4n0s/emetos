@@ -204,12 +204,29 @@ func TestAutorefreshOffWatchesNothing(t *testing.T) {
 	// turning it on starts the watch
 	r.api.SetSetting("git.autorefresh", true)
 	r.api.WaitFor("the watch", func() bool { r.api.Pump(); return len(r.api.Watches()) == 1 })
+	// turning it off stops it, also a watch that was still being placed when the setting changed (it is ended when it arrives)
 	r.api.SetSetting("git.autorefresh", false)
-	r.api.Pump()
-	if len(r.api.Watches()) != 0 {
-		t.Error("the watch was not stopped")
-	}
+	r.api.WaitFor("the watch to stop", func() bool { r.api.Pump(); return len(r.api.Watches()) == 0 })
 	_ = rep
+}
+
+// TestAWatchPlacedAfterTheStopIsEnded stops the watches while their goroutines are still placing them: the watches they place
+// afterwards are ended when they arrive, not kept with nothing to stop them.
+func TestAWatchPlacedAfterTheStopIsEnded(t *testing.T) {
+	r, _, rep := repoWithChange(t, rigOptions{})
+	r.api.WaitFor("the watches", func() bool { return len(r.api.Watches()) > 0 })
+	rep.stopWatching()
+	r.api.WaitFor("no watch", func() bool { return len(r.api.Watches()) == 0 })
+	rep.startWatching()
+	rep.stopWatching() // the goroutines of startWatching have not reported their watches yet: the test is on the UI thread
+	deadline := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		r.api.Pump()
+		time.Sleep(5 * time.Millisecond)
+	}
+	if n := len(r.api.Watches()); n != 0 {
+		t.Errorf("%d watches are left after the stop", n)
+	}
 }
 
 func TestIdleDoesNothing(t *testing.T) {

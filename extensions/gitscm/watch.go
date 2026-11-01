@@ -58,21 +58,27 @@ func (r *repository) startWatching() {
 		return
 	}
 	r.stopWatching()
+	r.watchMu.Lock()
+	gen := r.watchGen
+	r.watchMu.Unlock()
 	specs := r.watchSpecs(x.watcherExcludes())
 	for _, spec := range specs {
 		go func() {
 			cancel, err := x.api.Workspace().Watch(r.ctx, spec, r.onChanges)
 			x.api.Post(func() {
-				switch {
-				case err != nil:
+				if err != nil {
 					x.log.Warn("cannot watch a folder of a repository", "path", spec.Path, "err", err)
 					x.logLine("cannot watch " + spec.Path + ": " + err.Error())
-				case r.disposed:
-					cancel()
-				default:
-					r.watchMu.Lock()
+					return
+				}
+				r.watchMu.Lock()
+				stale := r.disposed || r.watchGen != gen // stopped (or started again) while this one was being placed
+				if !stale {
 					r.watchStops = append(r.watchStops, cancel)
-					r.watchMu.Unlock()
+				}
+				r.watchMu.Unlock()
+				if stale {
+					cancel()
 				}
 			})
 		}()
@@ -84,6 +90,7 @@ func (r *repository) stopWatching() {
 	r.watchMu.Lock()
 	stops := r.watchStops
 	r.watchStops = nil
+	r.watchGen++
 	r.watchMu.Unlock()
 	for _, stop := range stops {
 		stop()
