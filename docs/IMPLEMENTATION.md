@@ -138,7 +138,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M22 Wrap-up of M18–M21 | 22.1–22.2 |
 | M23 Remove an extension the user no longer wanted | 23.1 |
 | M24 Git and Source Control | 24.1–24.24 |
-| M24b Language servers of more languages | 24b.1–24b.12 |
+| M24b Language servers of more languages | 24b.1–24b.10 |
 | M25 Run and Debug | 25.1–25.13 |
 | M26 Testing | 26.1–26.10 |
 | M27 HTTP Client | 27.1–27.10 |
@@ -1970,9 +1970,9 @@ Requested by the user on 2026-10-29: "I want a git extension like vscode", the f
 
 ## M24b: Language servers of more languages
 
-Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for Rust, C/C++, Python, TypeScript/JavaScript, Java, C#, F#, Kotlin, Dart and OCaml (SPEC §10.34, D47–D49). It runs **before M25**, because the debuggers and test providers of M25 and M26 build on these servers and on the Python interpreter and TypeScript version they choose. No new Go module; the LSP client and its UI are M12's. Emetos never installs a server (D47). **Tests of the milestone:** fake servers by default; the real servers under their own tags (SPEC §10.34 "Tests"), with the tools installed only into `/var/tmp/emetos-tools/` at versions pinned in `scripts/tool-versions.txt` (rust-analyzer's release binary, basedpyright and pylsp in a venv, typescript-language-server with `npm install --prefix`, jdtls's milestone archive, kotlin-lsp's release archive, the Dart SDK's release archive, and an opam root `OPAMROOT=/var/tmp/emetos-tools/opam` with a pinned OCaml switch and `ocaml-lsp-server` built by opam's release binary; clangd and Java are the system's); csharp-ls and fsautocomplete are installed with `dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools` on the system's .NET SDK (10.0, installed by the user on 2026-11-01).
+Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for Rust, C/C++, Python, TypeScript/JavaScript, Java, C#, F# and Kotlin (SPEC §10.34, D47–D49). It runs **before M25**, because the debuggers and test providers of M25 and M26 build on these servers and on the Python interpreter and TypeScript version they choose. No new Go module; the LSP client and its UI are M12's. Emetos never installs a server (D47). **Tests of the milestone:** fake servers by default; the real servers under their own tags (SPEC §10.34 "Tests"), with the tools installed only into `/var/tmp/emetos-tools/` at versions pinned in `scripts/tool-versions.txt` (rust-analyzer's release binary, basedpyright and pylsp in a venv, typescript-language-server with `npm install --prefix`, jdtls's milestone archive, kotlin-lsp's release archive; clangd and Java are the system's); csharp-ls and fsautocomplete are installed with `dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools` on the system's .NET SDK (10.0, installed by the user on 2026-11-01).
 
-**Order.** 24b.1 first; 24b.2 to 24b.11 one after the other (they share `extensions/internal/langserver` and the asset script); 24b.12 last.
+**Order.** 24b.1 first; 24b.2 to 24b.9 one after the other (they share `extensions/internal/langserver` and the asset script); 24b.10 last.
 
 ### 24b.1 What every pack shares
 **Goal:** finding, starting and showing a language server the same way in every pack (SPEC §10.34 "What every pack gets").
@@ -2037,21 +2037,7 @@ Requested by the user on 2026-11-01: what the Go extension has with `gopls`, for
 **Tests:** fake server; under `emetos_kotlinlsp` (kotlin-lsp in `/var/tmp/emetos-tools/`, the system's Java): a Gradle `testdata` project.
 **Proof:** method B on a Kotlin fixture: `scripts/proof.sh docs/implemented-proof-images/24b.9-kotlin.png ...`.
 
-### 24b.10 Dart: the pack and the analysis server
-**Goal:** Dart with the Dart SDK's language server (SPEC §10.34 Dart).
-**Read:** SPEC §10.34, §8.1; the Dart analysis server's LSP documentation (`pkg/analysis_server/tool/lsp_spec/README.md` of the Dart SDK, online), Dart-Code's `package.json` (online); VS Code's `extensions/dart` (pinned reference).
-**Tasks:** the `dart` language pack (or the dart-lang grammar pin if VS Code's folder is gone), the server contribution with the SDK finder (Dart and Flutter SDKs), the commands (Get Packages in a terminal), closing labels as end-of-line hints.
-**Tests:** the SDK finder (a table of settings and folders), fake server (closing labels); under `emetos_dart` (the Dart SDK's pinned archive in `/var/tmp/emetos-tools/`): a `testdata` package (diagnostics, completion, rename, Organize Imports).
-**Proof:** method B on a Dart fixture: `scripts/proof.sh docs/implemented-proof-images/24b.10-dart.png ...`; the image shows completion and closing labels.
-
-### 24b.11 OCaml: the pack, the sandbox and ocamllsp
-**Goal:** OCaml with ocamllsp and the sandbox picker (SPEC §10.34 OCaml).
-**Read:** SPEC §10.34, §17 (licenses), `scripts/reference-versions.txt`; ocaml-lsp-server's README and its custom requests (`ocaml-lsp-server/docs/ocamllsp/`, online), `ocamllabs/vscode-ocaml-platform`'s `package.json` and sandbox code (online).
-**Tasks:** the pin of the OCaml Platform's repository, the `ocaml` pack (OCaml, interface, dune, opam grammars; license), the sandbox discovery and "OCaml: Select a Sandbox for this Workspace", the server started through `opam exec` or directly, the commands (Switch Implementation/Interface, Infer Interface), the sandbox in the status item.
-**Tests:** the sandbox discovery with a fake `opam` (a table of switches and folders), fake server; under `emetos_ocamllsp` (the milestone's opam root): a `testdata` dune project (diagnostics, hover with types, switch implementation/interface, Infer Interface).
-**Proof:** method B on an OCaml fixture: `scripts/proof.sh docs/implemented-proof-images/24b.11-ocaml.png ...`; the image shows a type hover and the sandbox in the status bar.
-
-### 24b.12 The desktop pass and the README
+### 24b.10 The desktop pass and the README
 **Goal:** the milestone's loose ends and the README (SPEC §10.34).
 **Read:** SPEC §10.34, §14, `README.md`, the M24b entries of `docs/IMPLEMENTED.md`.
 **Tasks:** the coverage table of the SPEC for area 3; measurements (each real server's time to the first diagnostics on its `testdata` project; typing latency with each server running) in `docs/PERFORMANCE.md`; `docs/MANUAL-CHECKS.md` entries (the real GPU pass); the README's "Languages" section (a table of each language, its server and how to install it, the settings that matter); `scripts/error-tags.sh --untested` prints nothing.
