@@ -123,6 +123,38 @@ func TestCheckManifest(t *testing.T) {
 		{"a written setting that the extension declares", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "a.x", Type: "string"}}, WritesSettings: []string{"a.x"}}}, "checkSettings.ExtensionSettingWriteInvalid"},
 		{"two settings with the same key", Manifest{ID: "a", Name: "N", Contributes: Contributes{Settings: []SettingSpec{{Key: "go.x", Type: "string"}, {Key: "go.x", Type: "number"}}}}, "checkSettings.ExtensionSettingDeclDuplicate"},
 		{"a cross-tab pattern that is malformed", Manifest{ID: "a", Name: "N", Events: EventDecl{CrossTab: []string{"a.**.b"}}}, "checkEventDecl->CheckPattern.EventPatternInvalid"},
+		{"a debugger with attributes, configurations, snippets and variables", Manifest{ID: "a", Name: "N", ActivationEvents: []string{OnDebug("go")}, Contributes: Contributes{
+			Debuggers: []DebuggerSpec{{Type: "go", Label: "Go", Languages: []string{"go"}, Program: "dlv", Args: []string{"dap"}, DynamicConfigurations: true,
+				ConfigurationAttributes: map[string]json.RawMessage{"launch": json.RawMessage(`{"properties": {"program": {"type": "string"}}}`), "attach": json.RawMessage(`{}`)},
+				InitialConfigurations:   []DebugConfiguration{{"name": "Launch", "type": "go", "request": "launch"}, {"name": "Attach", "request": "attach"}},
+				ConfigurationSnippets:   []DebugSnippet{{Label: "Go: Launch", Body: DebugConfiguration{"name": "L", "type": "go", "request": "launch"}}},
+				Variables:               map[string]string{"pickProcess": "go.pickProcess"}}, {Type: "js-debug_2.x", Runtime: "node", Program: "dapDebugServer.js"}},
+			Breakpoints: []BreakpointSpec{{Language: "go"}, {Language: "gomod"}}}}, ""},
+		{"onDebug needs a debug type", Manifest{ID: "a", Name: "N", ActivationEvents: []string{"onDebug"}}, "ExtensionEventInvalid"},
+		{"a debugger with an empty type", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"a debugger type with a space", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "my go"}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"the star is not a debug type to contribute", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "*"}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"two debuggers of one type", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go"}, {Type: "go"}}}}, "checkDebuggers.ExtensionDebuggerDuplicate"},
+		{"a runtime without a program", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go", Runtime: "node"}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"attributes of a request that does not exist", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			ConfigurationAttributes: map[string]json.RawMessage{"run": json.RawMessage(`{}`)}}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"attributes that are not JSON", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			ConfigurationAttributes: map[string]json.RawMessage{"launch": json.RawMessage(`{`)}}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"attributes that are not an object", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			ConfigurationAttributes: map[string]json.RawMessage{"launch": json.RawMessage(`[1]`)}}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"an initial configuration with no name", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			InitialConfigurations: []DebugConfiguration{{"request": "launch"}}}}}}, "checkDebugConfiguration.ExtensionDebuggerInvalid"},
+		{"an initial configuration with a request that is neither", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			InitialConfigurations: []DebugConfiguration{{"name": "x", "request": "run"}}}}}}, "checkDebugConfiguration.ExtensionDebuggerInvalid"},
+		{"an initial configuration of another type", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			InitialConfigurations: []DebugConfiguration{{"name": "x", "type": "python", "request": "launch"}}}}}}, "checkDebugConfiguration.ExtensionDebuggerInvalid"},
+		{"a snippet with no label", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			ConfigurationSnippets: []DebugSnippet{{Body: DebugConfiguration{"name": "x", "request": "launch"}}}}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"a snippet with no body", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go",
+			ConfigurationSnippets: []DebugSnippet{{Label: "L"}}}}}}, "checkDebugConfiguration.ExtensionDebuggerInvalid"},
+		{"a variable with no command", Manifest{ID: "a", Name: "N", Contributes: Contributes{Debuggers: []DebuggerSpec{{Type: "go", Variables: map[string]string{"pickProcess": ""}}}}}, "checkDebuggers.ExtensionDebuggerInvalid"},
+		{"a breakpoints entry with no language", Manifest{ID: "a", Name: "N", Contributes: Contributes{Breakpoints: []BreakpointSpec{{}}}}, "checkDebuggers.ExtensionBreakpointInvalid"},
+		{"a breakpoint language twice", Manifest{ID: "a", Name: "N", Contributes: Contributes{Breakpoints: []BreakpointSpec{{Language: "go"}, {Language: "go"}}}}, "checkDebuggers.ExtensionBreakpointInvalid"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -163,6 +195,7 @@ func TestEventHelpers(t *testing.T) {
 		{OnCommand("x.y"), "onCommand", "x.y"},
 		{OnView("v"), "onView", "v"},
 		{OnWindowTab("scratch"), "onWindowTab", "scratch"},
+		{OnDebug("go"), "onDebug", "go"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.event, func(t *testing.T) {

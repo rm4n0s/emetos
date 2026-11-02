@@ -43,6 +43,8 @@ type API interface {
 	Editors() Editors
 	// FileViews gives the file views the manifest declares their content.
 	FileViews() FileViews
+	// Debug starts and follows debug sessions and registers the code of the debuggers the manifest declares (SPEC §10.31).
+	Debug() Debug
 	// Languages gives the grammars of the languages, for highlighting.
 	Languages() Languages
 	// LanguageServers follows and controls the language servers the manifest declares.

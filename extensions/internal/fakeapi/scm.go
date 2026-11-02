@@ -145,6 +145,8 @@ func (a *API) Deactivate() {
 		f.disposed = true
 	}
 	a.timeline.providers = nil
+	a.debug.factories, a.debug.providers, a.debug.trackers = nil, nil, nil
+	a.debug.startFns, a.debug.endFns, a.debug.activeFns, a.debug.customFns, a.debug.bpFns = nil, nil, nil, nil, nil
 	for _, f := range a.content.providers {
 		f.disposed = true
 	}

@@ -155,3 +155,39 @@ func TestNoRiskyCommandIsForgotten(t *testing.T) {
 		}
 	}
 }
+
+// A client of a hosted workspace debugs as at the host's keyboard (D46, SPEC §10.31 "Remote Work"): no command of Run and Debug is
+// refused to it, and there is no refusal class for running programs. The ids are VS Code's, with the prefixes the extensions' debug
+// commands could have.
+func TestNoDebugCommandIsRefusedToAClient(t *testing.T) {
+	ids := []string{
+		"workbench.action.debug.start", "workbench.action.debug.run", "workbench.action.debug.selectandstart", "workbench.action.debug.restart",
+		"workbench.action.debug.stop", "workbench.action.debug.disconnect", "workbench.action.debug.continue", "workbench.action.debug.pause",
+		"workbench.action.debug.stepOver", "workbench.action.debug.stepInto", "workbench.action.debug.stepOut", "workbench.action.debug.configure",
+		"workbench.action.debug.callStackTop", "workbench.action.debug.copyStack", "workbench.view.debug", "workbench.debug.action.focusRepl",
+		"workbench.debug.viewlet.action.addFunctionBreakpointAction", "workbench.debug.viewlet.action.toggleBreakpointsActivatedAction",
+		"workbench.debug.viewlet.action.removeAllBreakpoints", "editor.debug.action.toggleBreakpoint", "editor.debug.action.conditionalBreakpoint",
+		"editor.debug.action.runToCursor", "editor.debug.action.showDebugHover", "debug.addToWatchExpressions", "debug.setVariable",
+		"workbench.debug.panel.action.clearReplAction", "workbench.action.debug.nextConsole", "emetos.golang.debugTestAtCursor",
+		"workbench.view.testing", "testing.runAll", "testing.debugAll",
+	}
+	for _, id := range ids {
+		t.Run(id, func(t *testing.T) {
+			if r, refused := ClientRefusal(id); refused {
+				t.Errorf("%s is refused to clients as %q: %s", id, r.Class, r.Reason)
+			}
+		})
+	}
+	for _, class := range RefusedClasses() {
+		if class == "run" {
+			t.Error("the refusal class run exists: clients debug as at the host's keyboard (D46)")
+		}
+	}
+	for _, prefix := range RefusedPrefixes() {
+		for _, id := range ids {
+			if strings.HasPrefix(id, prefix) {
+				t.Errorf("the refused prefix %q covers the debug command %s", prefix, id)
+			}
+		}
+	}
+}

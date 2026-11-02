@@ -16,7 +16,7 @@ var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$`)
 // event that takes an argument without one), and EventTopicInvalid or EventPatternInvalid for a topic or pattern the
 // manifest declares that is malformed, and ExtensionWindowTabIDForeign, ExtensionWindowTabDuplicate and
 // ExtensionWindowTabInvalid for the window tab kinds, and ExtensionServerInvalid and ExtensionServerDuplicate for the language servers, and ExtensionSettingDeclInvalid and
-// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not a word or words joined by dots or is declared twice, and ExtensionContextKeyDeclForeign for one under emetos. that is not under its own id, and ExtensionSubmenuInvalid, ExtensionSubmenuDuplicate and ExtensionMenuItemInvalid for the submenus and the menu items that open one, and ExtensionViewWelcomeInvalid for welcome content that names no view or has no contents.
+// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not a word or words joined by dots or is declared twice, and ExtensionContextKeyDeclForeign for one under emetos. that is not under its own id, and ExtensionSubmenuInvalid, ExtensionSubmenuDuplicate and ExtensionMenuItemInvalid for the submenus and the menu items that open one, and ExtensionViewWelcomeInvalid for welcome content that names no view or has no contents, and ExtensionDebuggerInvalid and ExtensionDebuggerDuplicate for the debuggers and ExtensionBreakpointInvalid for the breakpoint languages.
 func CheckManifest(m Manifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return errors.New("ExtensionIDInvalid", "the id of an extension is lowercase, dotted and not empty (emetos.markdown)", "id", m.ID)
@@ -34,12 +34,12 @@ func CheckManifest(m Manifest) error {
 			if arg != "" || e != OnStartup {
 				return errors.New("ExtensionEventInvalid", "onStartup takes no argument", "id", m.ID, "event", e)
 			}
-		case "onLanguage", "onFile", "onCommand", "onView", "onEditor", "onWindowTab":
+		case "onLanguage", "onFile", "onCommand", "onView", "onEditor", "onWindowTab", "onDebug":
 			if arg == "" {
 				return errors.New("ExtensionEventInvalid", "the activation event needs an argument", "id", m.ID, "event", e)
 			}
 		default:
-			return errors.New("ExtensionEventInvalid", "unknown activation event (onStartup, onLanguage:, onFile:, onCommand:, onView:, onEditor: and onWindowTab:)", "id", m.ID, "event", e)
+			return errors.New("ExtensionEventInvalid", "unknown activation event (onStartup, onLanguage:, onFile:, onCommand:, onView:, onEditor:, onWindowTab: and onDebug:)", "id", m.ID, "event", e)
 		}
 	}
 	if err := checkViews(m); err != nil {
@@ -61,6 +61,9 @@ func CheckManifest(m Manifest) error {
 		return err
 	}
 	if err := checkSubmenus(m); err != nil {
+		return err
+	}
+	if err := checkDebuggers(m); err != nil {
 		return err
 	}
 	if err := checkViewWelcome(m); err != nil {

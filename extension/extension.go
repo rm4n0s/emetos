@@ -112,6 +112,13 @@ type Contributes struct {
 	// editor, as VS Code's does. CheckManifest refuses an empty key, a key listed twice and a key the extension declares itself (it
 	// may write that without being listed).
 	WritesSettings []string
+	// Debuggers are the debuggers the extension contributes (VS Code's contributes.debuggers, SPEC §10.31): the debug types, the
+	// attributes of their configurations and what a new launch.json starts with. The code that finds the adapter is registered with
+	// Debug().RegisterAdapterDescriptorFactory; showing a configuration of the type activates the extension (the activation event
+	// OnDebug).
+	Debuggers []DebuggerSpec
+	// Breakpoints are the languages where breakpoints can be set (VS Code's contributes.breakpoints).
+	Breakpoints []BreakpointSpec
 }
 
 // The activation events of a Manifest.
@@ -125,6 +132,7 @@ const (
 	onViewPrefix      = "onView:"
 	onEditorPrefix    = "onEditor:"
 	onWindowTabPrefix = "onWindowTab:"
+	onDebugPrefix     = "onDebug:"
 )
 
 // OnLanguage is the event of a document of the language with the id (go, markdown) being open in the scope.
@@ -148,6 +156,12 @@ func OnEditor(kindID string) string { return onEditorPrefix + kindID }
 // OnWindowTab is the event of a window tab of the kind with the id being opened or restored; an extension that declares the
 // kind is activated by it without listing it.
 func OnWindowTab(kind string) string { return onWindowTabPrefix + kind }
+
+// OnDebug is the event of a debugger of the debug type being needed: a configuration of the type is resolved or started, its initial or
+// dynamic configurations are asked for, or a tracker of its sessions is wanted (VS Code's onDebugResolve, onDebugInitialConfigurations,
+// onDebugDynamicConfigurations and onDebugAdapterProtocolTracker in one). An extension that declares the debugger is activated by it
+// without listing it.
+func OnDebug(debugType string) string { return onDebugPrefix + debugType }
 
 // SplitEvent splits an activation event into its name and argument: "onLanguage:go" is ("onLanguage", "go"), and
 // "onStartup" is ("onStartup", "").

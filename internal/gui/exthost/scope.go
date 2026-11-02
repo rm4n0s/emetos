@@ -225,6 +225,10 @@ type ScopeOptions struct {
 	OriginViews     func(extension.Origin) *workbench.Views
 	OriginFocusView func(o extension.Origin, viewID string)
 	OriginCommands  func(extension.Origin) *command.Registry
+	// Debug is the debug host of the window tab: the debuggers the extensions contribute, their adapters, providers and trackers, and the
+	// debug service made over them (debug.go). Nil leaves Debug() unavailable (its registrations fail with ExtensionDebugUnavailable). A
+	// host serves one scope.
+	Debug *DebugHost
 	// HistoryGraph says that the window tab has the Graph view, which SourceControl().SetHistoryProvider feeds (it is false for a host with
 	// no workbench: SetHistoryProvider fails with ExtensionHistoryUnavailable).
 	HistoryGraph bool
@@ -327,6 +331,9 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	if opts.Info.Kind == extension.ScopeWindowTab {
 		s.initWindowTab()
 	}
+	if opts.Debug != nil {
+		opts.Debug.bind(s)
+	}
 	h.addScope(s)
 	return s
 }
@@ -385,6 +392,14 @@ func declaresView(m extension.Manifest, event string) bool {
 	if name == "onWindowTab" {
 		for _, k := range m.Contributes.WindowTabKinds {
 			if k.ID == id {
+				return true
+			}
+		}
+		return false
+	}
+	if name == "onDebug" {
+		for _, d := range m.Contributes.Debuggers {
+			if d.Type == id {
 				return true
 			}
 		}
@@ -662,6 +677,7 @@ func (s *Scope) install(sl *slot) {
 	}
 	removers = append(removers, s.installSettings(sl)...)
 	removers = append(removers, s.installServers(sl)...)
+	removers = append(removers, s.installDebuggers(sl)...)
 	registry, others := s.installViews(sl)
 	removers = append(removers, others...)
 	removers = append(removers, s.installViewWelcome(sl)...)

@@ -396,7 +396,7 @@ func (s *Session) initialize(ctx context.Context) error {
 		s.shutdown(nil)
 	}
 	cfg := s.Configuration()
-	client, err := s.dbg.connect(s.life, cfg, dap.ClientOptions{
+	client, err := s.dbg.connect(WithSession(s.life, s), cfg, dap.ClientOptions{
 		HandleRequest: s.handleReverse,
 		Logger:        s.svc.logger(),
 		Trace: func(tm dap.TraceMessage) {
