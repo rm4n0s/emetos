@@ -291,11 +291,11 @@ func TestConnectDatabasePublishesTheEvent(t *testing.T) {
 		t.Errorf("target = %+v, want %+v", got, want)
 	}
 
-	// a database whose port is not published says so and publishes nothing
-	before := len(r.api.PublishedEvents())
+	// a database whose port is not published says so and publishes nothing (the changed event of its start may still come)
+	before := countTopic(r, r.cfg.ConnectDatabaseTopic())
 	r.run("containers.connectDatabase", key(keyOfContainer(redisID)))
 	r.wait("the note", func() bool { return r.hasNote("does not publish port 6379") })
-	if len(r.api.PublishedEvents()) != before {
+	if countTopic(r, r.cfg.ConnectDatabaseTopic()) != before {
 		t.Errorf("an event was published for a container with no published port")
 	}
 
@@ -332,6 +332,17 @@ func hasTopic(r *rig, topic string) bool {
 		}
 	}
 	return false
+}
+
+// countTopic counts the events the extension published on the topic.
+func countTopic(r *rig, topic string) int {
+	n := 0
+	for _, p := range r.api.PublishedEvents() {
+		if p.Topic == topic {
+			n++
+		}
+	}
+	return n
 }
 
 // Podman publishes its own topic, with the same target, from its own answer to inspect.
