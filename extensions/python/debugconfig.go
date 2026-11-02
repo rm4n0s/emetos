@@ -199,6 +199,7 @@ func (p *python) provideDynamicConfigurations(_ context.Context, folder string) 
 // stops waiting when ctx ends. It fails with PythonDebugPickFailed when the host has no quick pick.
 func (p *python) pickItem(ctx context.Context, opts extension.QuickPickOptions) (int, error) {
 	ch := make(chan int, 1)
+	opts.Origin = extension.OriginFromContext(ctx) // the screen of whoever started the session (decision 1500)
 	if err := p.api.QuickPick().Show(opts, func(i int) { ch <- i }); err != nil {
 		return -1, errors.NewErr("PythonDebugPickFailed", err)
 	}
@@ -219,6 +220,7 @@ func (p *python) askText(ctx context.Context, prompt, value string, validate fun
 	}
 	ch := make(chan answer, 1)
 	opts := extension.InputBoxOptions{Prompt: prompt, Value: value, Validate: validate}
+	opts.Origin = extension.OriginFromContext(ctx)
 	if err := p.api.InputBox().Show(opts, func(s string, accepted bool) { ch <- answer{s, accepted} }); err != nil {
 		return "", false, errors.NewErr("PythonDebugPickFailed", err)
 	}

@@ -202,6 +202,7 @@ func TestTheQuestionsOfAnExtensionAreShownOnTheScreenThatAsked(t *testing.T) {
 			Placeholder: "Pick", Items: []exthost.QuickPickEntry{{Label: "one"}}, Origin: origin,
 			Chosen: func(int, string) {}, Hidden: func() { *hidden++ },
 		})
+		r.pump() // the list is handed to the UI thread of its screen
 		return hidden
 	}
 	t.Run("a list of a client is in its view", func(t *testing.T) {
@@ -221,6 +222,7 @@ func TestTheQuestionsOfAnExtensionAreShownOnTheScreenThatAsked(t *testing.T) {
 	t.Run("a box of a client is in its view and its answer comes back", func(t *testing.T) {
 		var answered string
 		r.win.extensionInputBox(exthost.InputBoxRequest{Prompt: "Name for the remote", Origin: view.origin, Accepted: func(v string) { answered = v }, Hidden: func() {}})
+		r.pump()
 		if !view.QuickInput.Visible() || r.win.QuickInput.Visible() {
 			t.Fatalf("shown in the view %v, in the window %v", view.QuickInput.Visible(), r.win.QuickInput.Visible())
 		}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/rm4n0s/glutter/foundation"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/dap"
 	"github.com/rm4n0s/emetos/internal/core/debug"
@@ -35,9 +36,10 @@ import (
 // debugScreenKey is the key of the screen in the context of a start.
 type debugScreenKey struct{}
 
-// withDebugScreen puts the screen that asked for something in the context of a start, so that its prompts show there.
+// withDebugScreen puts the screen that asked for something in the context of a start, so that its prompts show there. The screen's
+// origin goes with it (extension.WithOrigin): the configuration providers of the extensions read it to show their pickers there too.
 func withDebugScreen(ctx context.Context, screen *Workspace) context.Context {
-	return context.WithValue(ctx, debugScreenKey{}, screen)
+	return extension.WithOrigin(context.WithValue(ctx, debugScreenKey{}, screen), screen.origin)
 }
 
 // debugScreen is the screen the questions of a start are asked on: the one in the context, else the window of the host.

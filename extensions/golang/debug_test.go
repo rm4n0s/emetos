@@ -572,3 +572,56 @@ func TestAListThatCannotBeShownFailsTheProvider(t *testing.T) {
 		})
 	}
 }
+
+// The pickers of the configuration provider are shown on the screen that started the session (decision 1500): the quick pick of the
+// initial configurations and the input boxes after it carry the origin of the context the host gives the provider.
+func TestTheProvidersPickersCarryTheOriginOfTheStart(t *testing.T) {
+	const view extension.Origin = 4
+	tests := []struct {
+		name string
+		ctx  func(context.Context) context.Context
+		want extension.Origin
+	}{
+		{"a client's start", func(ctx context.Context) context.Context { return extension.WithOrigin(ctx, view) }, view},
+		{"the host's start", func(ctx context.Context) context.Context { return ctx }, extension.HostOrigin},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := New().(*golang)
+			fake := fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "project", Folder: t.TempDir()})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer func() { cancel(); e.wait() }()
+			if err := e.Activate(ctx, fake); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() {
+				_, err := e.provideDebugConfigurations(tt.ctx(ctx), "")
+				done <- err
+			}()
+			fake.WaitFor("the list", func() bool { return fake.LastPick() != nil })
+			if got := fake.LastPick().Options().Origin; got != tt.want {
+				t.Errorf("the list of configurations is shown for the origin %d, want %d", got, tt.want)
+			}
+			fake.LastPick().Choose(2) // Connect to server: asks for the host and the port
+			for i := 1; i <= 2; i++ {
+				fake.WaitFor("the input box", func() bool { return len(fake.Inputs()) == i })
+				if got := fake.LastInput().Options().Origin; got != tt.want {
+					t.Errorf("input box %d is shown for the origin %d, want %d", i, got, tt.want)
+				}
+				fake.LastInput().Accept([]string{"", "2345"}[i-1])
+			}
+			fake.WaitFor("the provider to finish", func() bool {
+				select {
+				case err := <-done:
+					if err != nil {
+						t.Error(err)
+					}
+					return true
+				default:
+					return false
+				}
+			})
+		})
+	}
+}

@@ -544,3 +544,58 @@ EMETOS_DISPLAY_BINARY=/var/tmp/emetos-perf/emetos EMETOS_REALINPUT_RACE=0 script
 - **A long line costs more than the server.** A first version of the measurement typed the same 620 characters as **one** line, and the UI thread took 11.0, 10.7 and 11.3 ms on average (59.7, 42.3 and 83.6 ms at worst) with typescript-language-server, and 5.2 to 5.3 ms with clangd, against 2.6 to 3.1 ms for the others. A CPU profile of the typing (`EMETOS_LANGPERF_PROFILE`, `SIGUSR2`, `go tool pprof`) put 62% of the samples of the TypeScript run in `textmate.(*Grammar).TokenizeLine` over `regexp2` and under 3% in the language server's code; the same typing with the server turned off was as slow. The tokenizer reads the whole line again for each character typed, so a line of several hundred characters costs a few milliseconds a key for the TypeScript and C++ grammars, whatever server runs; lines of 44 characters, which is what a person types, do not. This belongs to the highlighter and not to the language servers; it is a decision to review (DECISIONS-TO-REVIEW 1087), not changed in this step.
 
 The figures of one run each of the long-line version, from `/var/tmp/emetos-perf/run1.log`, are kept here because they found the cost: clangd 5.35 / 5.16 / 5.28 ms (9.7 / 10.8 / 9.9 ms worst), basedpyright 3.05 / 3.07 / 3.06, Pyright 2.95 / 2.95 / 2.92, python-lsp-server 2.84 / 2.86 / 2.86, jdtls 2.90 / 2.88 / 2.95, csharp-ls 2.77 / 2.77 / 2.81, no server (Python) 2.64 / 2.71 / 2.66.
+
+## Run and Debug (step 25.12)
+
+The measurements of SPEC §14 for Run and Debug, taken on the finished milestone, each through `scripts/heavy.sh --alone` with nothing else of this run going on. **Machine: the one of the sections above (Linux 7.2.13, Fedora 44, Go 1.27.3, sway 1.11 headless with pixman, Mesa llvmpipe as the GLES renderer), the GPU not used and the NVIDIA card kept out** (the numbers with the GPU are the user's pass, `docs/MANUAL-CHECKS.md` 25.12). The debugger is the pinned dlv v1.27.2 of `/var/tmp/emetos-tools`. The two views are measured as the UI thread's processor time of build, layout and paint with the fake platform (no renderer), as the Git views are (`threadCPU`: the work of the thread, which a busy machine does not stretch); stepping is measured in the real editor.
+
+**Stepping 100 times with dlv** (`TestPerfDebugStepping`, `cmd/emetos/debug_perf_display_test.go`, tag `emetos_display`, run with a release build with the dev commands; not in the default run of `scripts/realinput.sh`). A Go program with a loop of 1,000 iterations (`total += i * 2` and `total %= 7919`) is debugged with F5; F10 is pressed 100 times through the virtual keyboard; the time of a step is taken from before the key is sent to the first poll in which the line of the top frame in the Call Stack differs from the one before (the badge of the frame, which the model sets in the same pass as the stopped line of the editor), polled every 2 ms. The harness costs inside each figure: **a question to the window (the texts it draws) takes 40.6 ms**, so the figures have a resolution of about 40 ms and are upper bounds; a key press takes 0.09 ms. Pressed again 60 ms after the line has changed, F10 did nothing 12 times out of 100: see "What the figures say". Those presses were repeated and the step counted from the press that worked.
+
+```sh
+go build -tags glutter_release,emetos_dev -o steprelease.out ./cmd/emetos
+EMETOS_DISPLAY_BINARY=$PWD/steprelease.out EMETOS_REALINPUT_RACE=0 scripts/heavy.sh --alone -- \
+  scripts/realinput.sh -- -tags emetos_display ./cmd/emetos -run TestPerfDebugStepping -v -count=1
+go test -tags emetos_dlv ./extensions/golang -run TestDlvStepTime -v -count=1   # dlv alone, over its DAP connection
+```
+
+| Measurement | min | median | average | p90 | max |
+|---|---|---|---|---|---|
+| F10 to the new line in the Call Stack, 100 steps, the editor with dlv, headless | 68 ms | **161 ms** | 220 ms | 494 ms | 620 ms |
+| dlv alone: `next` to `stopped` (the same loop, 100 steps, no editor) | 2.3 ms | 2.6 ms | 2.8 ms | 3.1 ms | 17.9 ms |
+| dlv alone: `next` to the variables of the new line (adds `stackTrace`, `scopes`, `variables`) | 3.0 ms | 3.4 ms | 3.6 ms | 4.0 ms | 18.9 ms |
+
+By move (median, count): line 5 to 6: 140 ms (24), 6 to 5: 128 ms (21), 6 to 7: 354 ms (28), 7 to 5: 254 ms (3), 7 to 6: 186 ms (24). The frame statistics of the run (`GLUTTER_FRAME_STATS=1`) while stepping: the UI thread's build 2.4 ms on average and 10 ms at most in the last window, the renderer (llvmpipe) 27 ms on average and 72 ms at most, 17 of 25 frames over 16 ms: every frame of a headless run is late, which says nothing about the GPU.
+
+**The Variables view with a variable of 10,000 children** (`TestPerfVariablesTenThousandChildren`, `internal/gui/app/debugperf_test.go`, tag `emetos_perf`; the adapter answers the expansion of `order` with 10,000 variables in one reply, which is the worst case for the view: with paging the view asks for chunks of 100):
+
+```sh
+scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./internal/gui/app -run TestPerfVariables -v -count=1
+```
+
+| Measurement | Value |
+|---|---|
+| The expansion to the model with the 10,000 rows (the request, the reply, the wrapping), wall time | 50 ms |
+| The first frame after the rows (UI thread) | 2.8 ms |
+| 60 frames of a steady scroll: average / longest | 2.6 ms / 4.7 ms (0 over 16 ms) |
+| A frame with nothing changed | 1.7 ms |
+| Collapsing it again | 2.3 ms |
+
+**The Debug Console with 100,000 lines** (`TestPerfConsoleHundredThousandLines`, `internal/gui/views/debug/perf_test.go`, tag `emetos_perf`; lines of 78 characters with an ANSI color; `TestConsoleHundredThousandLinesStayInTheFrameBudget` is the budget in the normal run):
+
+```sh
+scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./internal/gui/views/debug -run TestPerfConsole -v -count=1
+```
+
+| Measurement | Value |
+|---|---|
+| The 100,000 lines into the model (`AppendToRepl`, wall time with the hand-over to the UI thread) | 184 ms, 27 MB of heap |
+| The first frame after them (UI thread) | 6.7 ms |
+| 60 frames of a steady scroll up / down: average, longest | 3.6 ms, 9.8 ms / 3.0 ms, 5.8 ms (0 over 16 ms) |
+| 20 frames while 1,000 lines arrive in each: the longest | 7.8 ms |
+| The filter `line 5` over the 100,000 lines (40,951 match), on the UI thread | **561 ms** (the frame after it 0.1 ms) |
+
+**What the figures say.**
+- **dlv is not the cost of a step.** dlv answers `next` in 2.6 ms and the stack, scopes and variables of the new line 0.8 ms later. The 161 ms median of the editor is the editor's own work plus the harness's 40 ms of polling plus a software renderer that needs 27 ms for a frame (and 354 ms for the move from line 6 to 7, the one in which the value of `total` changes and the Variables view and the inline values change with it); on the GPU the renderer's part is a few milliseconds. The number to hold is the user's, with the GPU (`docs/MANUAL-CHECKS.md` 25.12, "does each key move the line at once"), and the target of §14 is set on it, not on this one (decision 1505).
+- **A key pressed 60 ms after the line moved was ignored 12 times in 100.** The new line is on screen before the window's context key `debugState` says `stopped` again (it is set from the model's focus, which passes on after the stop with VS Code's delays), and the key bindings of the steps need `debugState == stopped`; the cause was not traced further. A person's finger is not that quick after a step, and VS Code has the same delays, so nothing was changed; it is recorded in decision 1505.
+- **The views are far inside their budget.** 10,000 children cost the UI thread 2.8 ms for the first frame and 2.6 ms on average while scrolling, the console with 100,000 lines 3 to 3.6 ms, 0 frames over 16 ms in either.
+- **The console's filter is the one thing over a budget:** each change of the filter text runs the fuzzy match of VS Code's `matchesFuzzy` over every line on the UI thread: 561 ms for 100,000 lines, so typing a filter into a console that large freezes the window for half a second a character. It is VS Code's algorithm (a `ReplFilter` over the tree), and the console of a real session holds thousands of lines, not a hundred thousand (`debug.console.maximumLines` is 10,000 by default, as in VS Code, and older lines are dropped), so it is not changed in this step; decision 1506 proposes to debounce it and to run it off the UI thread.

@@ -941,3 +941,23 @@ func TestAFileThatCannotBeReadIsToldWithItsTag(t *testing.T) {
 		})
 	}
 }
+
+// The process picker is shown on the screen that started the session (decision 1500).
+func TestTheProcessPickerCarriesTheOriginOfTheStart(t *testing.T) {
+	const view extension.Origin = 6
+	r := newRig(t, rigOptions{})
+	r.fakeProc(30, "node", "a.js")
+	ch := make(chan result, 1)
+	go func() {
+		out, err := r.api.ResolveDebugConfiguration(extension.WithOrigin(context.Background(), view), DebugType, r.folder, cfg{"name": "A", "type": "node", "request": "attach", "processId": "${command:PickProcess}"})
+		ch <- result{out, err}
+	}()
+	r.api.WaitFor("the picker", func() bool { return r.api.LastPick() != nil })
+	if got := r.api.LastPick().Options().Origin; got != view {
+		t.Errorf("the picker is shown for the origin %d, want %d", got, view)
+	}
+	r.api.LastPick().Choose(0)
+	if got := r.wait(ch); got.err != nil {
+		t.Fatal(got.err)
+	}
+}

@@ -1,5 +1,7 @@
 package extension
 
+import "context"
+
 // The origin of a command (SPEC §10.18 "As built (step 24.25)", D50): a workspace that is hosted may have clients that see its
 // window through a view of their own (Remote Work). A command that a client runs in its view is run by the one scope of the hosted
 // workspace, so the quick picks, input boxes, dialogs, progress and notifications that the extension raises while it handles the command
@@ -29,4 +31,21 @@ type Origins interface {
 	Remember(key string, o Origin)
 	// Recall returns the origin kept under the key, or HostOrigin when there is none.
 	Recall(key string) Origin
+}
+
+// originContextKey is the key of an origin in a context.
+type originContextKey struct{}
+
+// WithOrigin returns a context that carries the origin of the screen that asked for the work the context belongs to. The host puts the
+// screen that pressed F5 in the context of the functions it calls for a debug session's start (the configuration providers), because they
+// run on a goroutine of their own, where Origins().Current is HostOrigin; a provider that asks a question passes OriginFromContext(ctx)
+// as the Origin of the quick pick or input box, so that it shows where the person who started the session is looking (SPEC §10.31).
+func WithOrigin(ctx context.Context, o Origin) context.Context {
+	return context.WithValue(ctx, originContextKey{}, o)
+}
+
+// OriginFromContext is the origin WithOrigin put in the context, or HostOrigin when it has none.
+func OriginFromContext(ctx context.Context) Origin {
+	o, _ := ctx.Value(originContextKey{}).(Origin)
+	return o
 }

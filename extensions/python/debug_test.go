@@ -1140,3 +1140,37 @@ func TestPipInstallArgs(t *testing.T) {
 		t.Errorf("quote = %s", got)
 	}
 }
+
+// The pickers of the provider are shown on the screen that started the session (decision 1500).
+func TestTheProvidersPickersCarryTheOriginOfTheStart(t *testing.T) {
+	const view extension.Origin = 5
+	r := newRig(t, rigOptions{})
+	ch := make(chan error, 1)
+	go func() {
+		_, err := r.api.ProvideDebugConfigurations(extension.WithOrigin(context.Background(), view), DebugType, r.folder, extension.DebugTriggerInitial)
+		ch <- err
+	}()
+	r.api.WaitFor("the list", func() bool { return r.api.LastPick() != nil })
+	if got := r.api.LastPick().Options().Origin; got != view {
+		t.Errorf("the list is shown for the origin %d, want %d", got, view)
+	}
+	r.api.LastPick().Choose(3) // Remote Attach: the host, then the port
+	for i, answer := range []string{"10.1.2.3", "6000"} {
+		r.api.WaitFor("a box", func() bool { return len(r.api.Inputs()) > i })
+		if got := r.api.Inputs()[i].Options().Origin; got != view {
+			t.Errorf("box %d is shown for the origin %d, want %d", i, got, view)
+		}
+		r.api.Inputs()[i].Accept(answer)
+	}
+	r.api.WaitFor("the provider to finish", func() bool {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Error(err)
+			}
+			return true
+		default:
+			return false
+		}
+	})
+}

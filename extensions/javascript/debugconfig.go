@@ -607,7 +607,7 @@ func (j *javascript) pickProcess(ctx context.Context) (picked string, ok bool, e
 		items[i] = extension.QuickPickItem{Label: p.exe, Description: p.args, Detail: detail}
 	}
 	ch := make(chan int, 1)
-	opts := extension.QuickPickOptions{Placeholder: "Pick the node.js process to attach to", Items: items, MatchOnDescription: true}
+	opts := extension.QuickPickOptions{Placeholder: "Pick the node.js process to attach to", Items: items, MatchOnDescription: true, Origin: extension.OriginFromContext(ctx)}
 	if err := j.api.QuickPick().Show(opts, func(i int) { ch <- i }); err != nil {
 		return "", false, errors.NewErr("JsDebugPickFailed", err)
 	}

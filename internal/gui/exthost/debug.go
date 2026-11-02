@@ -607,7 +607,7 @@ func (h *DebugHost) resolveConfiguration(ctx context.Context, folder, typ string
 		if cfg == nil {
 			break
 		}
-		next, err := h.callResolve(p, folder, cfg, p.p.Resolve)
+		next, err := h.callResolve(ctx, p, folder, cfg, p.p.Resolve)
 		if err != nil {
 			return nil, err
 		}
@@ -629,7 +629,7 @@ func (h *DebugHost) resolveSubstituted(ctx context.Context, folder, typ string, 
 		if cfg == nil {
 			break
 		}
-		next, err := h.callResolve(p, folder, cfg, p.p.ResolveSubstituted)
+		next, err := h.callResolve(ctx, p, folder, cfg, p.p.ResolveSubstituted)
 		if err != nil {
 			return nil, err
 		}
@@ -638,11 +638,21 @@ func (h *DebugHost) resolveSubstituted(ctx context.Context, folder, typ string, 
 	return cfg, nil
 }
 
-func (h *DebugHost) callResolve(p *providerEntry, folder string, cfg debug.Config, fn func(context.Context, string, extension.DebugConfiguration) (extension.DebugConfiguration, error)) (debug.Config, error) {
+// providerContext is the context a configuration provider's function gets: the life of its extension, with the origin of the start it
+// serves (extension.OriginFromContext), because the function runs on a goroutine where Origins().Current is the host's; a picker the
+// provider shows names that origin and so appears on the screen of whoever pressed F5 (decision 1500).
+func providerContext(inst *instance, start context.Context) context.Context {
+	if o := extension.OriginFromContext(start); o != extension.HostOrigin {
+		return extension.WithOrigin(inst.ctx, o)
+	}
+	return inst.ctx
+}
+
+func (h *DebugHost) callResolve(start context.Context, p *providerEntry, folder string, cfg debug.Config, fn func(context.Context, string, extension.DebugConfiguration) (extension.DebugConfiguration, error)) (debug.Config, error) {
 	var out extension.DebugConfiguration
 	err := h.guard(p.inst, "the configuration provider of "+p.typ, func() error {
 		var e error
-		out, e = fn(p.inst.ctx, folder, extension.DebugConfiguration(cfg.Clone()))
+		out, e = fn(providerContext(p.inst, start), folder, extension.DebugConfiguration(cfg.Clone()))
 		return e
 	})
 	if err != nil {
@@ -685,13 +695,13 @@ func (h *DebugHost) dynamicConfigurations(ctx context.Context, folder, typ strin
 	return h.provided(ctx, folder, typ, extension.DebugTriggerDynamic)
 }
 
-func (h *DebugHost) provided(_ context.Context, folder, typ string, trigger extension.DebugProviderTrigger) ([]debug.Config, error) {
+func (h *DebugHost) provided(start context.Context, folder, typ string, trigger extension.DebugProviderTrigger) ([]debug.Config, error) {
 	var out []debug.Config
 	for _, p := range h.providersFor(typ, &trigger, func(p extension.DebugConfigurationProvider) bool { return p.Provide != nil }) {
 		var list []extension.DebugConfiguration
 		err := h.guard(p.inst, "the configuration provider of "+typ, func() error {
 			var e error
-			list, e = p.p.Provide(p.inst.ctx, folder)
+			list, e = p.p.Provide(providerContext(p.inst, start), folder)
 			return e
 		})
 		if err != nil {

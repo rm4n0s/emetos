@@ -164,15 +164,22 @@ func TestNoDebugCommandIsRefusedToAClient(t *testing.T) {
 		"workbench.action.debug.start", "workbench.action.debug.run", "workbench.action.debug.selectandstart", "workbench.action.debug.restart",
 		"workbench.action.debug.stop", "workbench.action.debug.disconnect", "workbench.action.debug.continue", "workbench.action.debug.pause",
 		"workbench.action.debug.stepOver", "workbench.action.debug.stepInto", "workbench.action.debug.stepOut", "workbench.action.debug.configure",
-		"workbench.action.debug.callStackTop", "workbench.action.debug.copyStack", "workbench.view.debug", "workbench.debug.action.focusRepl",
+		"workbench.action.debug.callStackTop", "debug.copyStackTrace", "workbench.view.debug", "workbench.debug.action.focusRepl",
 		"workbench.debug.viewlet.action.addFunctionBreakpointAction", "workbench.debug.viewlet.action.toggleBreakpointsActivatedAction",
 		"workbench.debug.viewlet.action.removeAllBreakpoints", "editor.debug.action.toggleBreakpoint", "editor.debug.action.conditionalBreakpoint",
 		"editor.debug.action.runToCursor", "editor.debug.action.showDebugHover", "debug.addToWatchExpressions", "debug.setVariable",
-		"workbench.debug.panel.action.clearReplAction", "workbench.action.debug.nextConsole", "emetos.golang.debugTestAtCursor",
+		"workbench.debug.panel.action.clearReplAction", "emetos.golang.debugTestAtCursor",
 		"workbench.view.testing", "testing.runAll", "testing.debugAll",
 	}
 	for _, id := range ids {
 		t.Run(id, func(t *testing.T) {
+			// a command that was renamed or never built would pass the check above for the wrong reason; the extensions' own commands
+			// (emetos.*) and the Testing view's (M26, testing.*) are not in the registry of the core
+			if !strings.HasPrefix(id, "emetos.") && !strings.HasPrefix(id, "testing.") && id != "workbench.view.testing" {
+				if _, ok := DefaultRegistry().Lookup(id); !ok {
+					t.Errorf("%s is not a command of Emetos: the list of this test is out of date", id)
+				}
+			}
 			if r, refused := ClientRefusal(id); refused {
 				t.Errorf("%s is refused to clients as %q: %s", id, r.Class, r.Reason)
 			}

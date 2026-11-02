@@ -70,6 +70,7 @@ func (g *golang) provideDebugConfigurations(ctx context.Context, _ string) ([]ex
 // stops waiting when ctx ends.
 func (g *golang) pickItem(ctx context.Context, opts extension.QuickPickOptions) (int, error) {
 	ch := make(chan int, 1)
+	opts.Origin = extension.OriginFromContext(ctx) // the screen of whoever started the session (decision 1500)
 	if err := g.api.QuickPick().Show(opts, func(i int) { ch <- i }); err != nil {
 		return -1, errors.NewErr("GoDebugPickFailed", err)
 	}
@@ -97,6 +98,7 @@ func (g *golang) askText(ctx context.Context, prompt, value, kind string) (text 
 			return ""
 		}
 	}
+	opts.Origin = extension.OriginFromContext(ctx)
 	if err := g.api.InputBox().Show(opts, func(s string, accepted bool) { ch <- answer{s, accepted} }); err != nil {
 		return "", false, errors.NewErr("GoDebugPickFailed", err)
 	}

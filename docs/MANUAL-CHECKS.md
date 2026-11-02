@@ -197,3 +197,32 @@ scripts/langservers-desktop.sh csharp
 **The hover after the window has been idle** (the finding of the dropped F# work that the display test `TestHoverAnsweredAfterTheWindowWentIdleIsDrawnWithoutInput` found fine in the headless compositor, and only your desktop can confirm). With one of the slower servers (`java` or `csharp`; the first hover after the load takes a second or two): put the pointer on a name, then take your hand off the mouse and keyboard and do not move or press anything. Is the hover box drawn when the server answers, without you moving the mouse or pressing a key? Do the same after leaving the window alone for a minute (put the pointer on a different name, then do nothing). If the box only appears when you move the mouse, say so: that is a frame that was never asked for, which Glutter's `Post` should have asked.
 
 Say what you saw: the desktop and compositor, the GPU, the languages you checked, which of the four things failed, and the hover idle result.
+
+## 25.12 Debugging on your desktop and the real GPU
+
+The tests of M25 debug with the fake adapter and, under `emetos_dlv`, `emetos_debugpy`, `emetos_gdb`, `emetos_lldbdap` and `emetos_jsdebug`, with the real tools, headless (software rendering, a compositor of its own). What they cannot show is your desktop: the real GPU, your compositor, your fonts, the window coming to the front on a stop, and how stepping feels. Both checks use the pinned `dlv` of `/var/tmp/emetos-tools/bin` (`scripts/fetch-tools.sh dlv` if it is not there) and keep your configuration, state and cache out of it; the NVIDIA card is kept out by `scripts/gpu-env.sh`.
+
+**1. The whole pass, watched.** The end-to-end display test of this step (open the Go fixture, F9, F5, the hover, a watch, F10, the Debug Console, Shift+F5) runs in a nested sway window on your desktop, with the real GPU. Keep the window visible while it runs (a hidden one gets no frames):
+
+```
+EMETOS_REALINPUT_RACE=0 scripts/realinput.sh --desktop --shots /tmp/emetos-25.12 -- -tags emetos_display ./cmd/emetos -run TestRealInputTheWholeOfDebugging -v -count=1
+```
+
+Does it pass, and do the pictures in `/tmp/emetos-25.12/` (`debug-desktop-*.png`) show what the names say: the red dot in the margin, the highlighted stopped line, the hover with a value, the watch with its value, the Debug Console with the result, and the status bar orange while the session runs and normal after Shift+F5?
+
+**2. By hand, with your own keys.** Copy the Go fixture into a folder of your own and open it in an editor that uses the settings of the proofs (they point the Go extension at the pinned dlv):
+
+```
+rm -rf /tmp/orders && cp -r testdata/proof/25.7/project /tmp/orders
+scripts/isolated.sh --config testdata/proof/25.7/config -- go run ./cmd/emetos /tmp/orders /tmp/orders/main.go
+```
+
+1. Click line 12 and press F9: does a red dot appear in the margin? Press F5: does the program build and stop on line 12 (the line highlighted, the window brought to the front if it was behind, the status bar orange)?
+2. Rest the pointer on `rate` and on `order`: does the hover show the value after about half a second, and a tree for `order` that you can open?
+3. Press F10 three times, F11 into a call, Shift+F11 out: does each key move the highlighted line at once (it should feel instant, well under a tenth of a second)? Does the Variables view mark the values that changed in the last step?
+4. In the Variables view, right-click `order` and choose Add to Watch, then press F10: does the Watch view show the expression with its value, and update?
+5. Press Ctrl+Shift+Y, type `order.Total * 2` and Enter: does the Debug Console show the result? Does Up bring the line back?
+6. Press Shift+F5: does the session end, the status bar go back to its normal color, and the stopped line disappear?
+7. Try it with the editor maximized on a high-DPI screen or at a zoom of 150% (Ctrl+=): are the glyph dots, the stopped line, the inline values and the toolbar sharp and aligned?
+
+Say what you saw: the desktop and compositor, the GPU, and which of the steps failed or felt slow.

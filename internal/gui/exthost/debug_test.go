@@ -644,3 +644,63 @@ func TestTheOutputOfAnAdapterThatRunsTheProgramGoesToTheDebugConsole(t *testing.
 		})
 	}
 }
+
+// The origin of a start reaches the configuration providers in their context (decision 1500): the pickers they show appear on the
+// screen of whoever pressed F5, not on the host's. A start with no origin (the host's own F5, a command of an extension) gives the host's.
+func TestTheOriginOfAStartReachesTheProvidersContext(t *testing.T) {
+	const view extension.Origin = 3
+	tests := []struct {
+		name string
+		ctx  func(context.Context) context.Context
+		want extension.Origin
+	}{
+		{"a client's start", func(ctx context.Context) context.Context { return extension.WithOrigin(ctx, view) }, view},
+		{"the host's start", func(ctx context.Context) context.Context { return ctx }, extension.HostOrigin},
+		{"a start that names the host", func(ctx context.Context) context.Context { return extension.WithOrigin(ctx, extension.HostOrigin) }, extension.HostOrigin},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			seen := map[string]extension.Origin{}
+			note := func(where string, ctx context.Context) {
+				mu.Lock()
+				seen[where] = extension.OriginFromContext(ctx)
+				mu.Unlock()
+			}
+			d := newDebugRig(t, dbgOpts{activate: func(_ *debugRig, api extension.API) error {
+				_, err := api.Debug().RegisterConfigurationProvider("fake", extension.DebugConfigurationProvider{
+					Provide: func(ctx context.Context, _ string) ([]extension.DebugConfiguration, error) {
+						note("provide", ctx)
+						return nil, nil
+					},
+					Resolve: func(ctx context.Context, _ string, cfg extension.DebugConfiguration) (extension.DebugConfiguration, error) {
+						note("resolve", ctx)
+						return cfg, nil
+					},
+					ResolveSubstituted: func(ctx context.Context, _ string, cfg extension.DebugConfiguration) (extension.DebugConfiguration, error) {
+						note("substituted", ctx)
+						return cfg, nil
+					},
+				}, extension.DebugTriggerInitial)
+				return err
+			}})
+			d.script("s", sessionScript())
+			ctx, cancel := context.WithTimeout(tc.ctx(context.Background()), debugWait*2)
+			defer cancel()
+			if ok, err := d.starter.Debug().StartDebugging(ctx, "", extension.DebugTarget{Config: fakeConfig("s", "exec")}, extension.DebugStartOptions{}); err != nil || !ok {
+				t.Fatalf("StartDebugging = %v, %v", ok, err)
+			}
+			if _, err := d.debug.InitialConfigurations(ctx, "", "fake"); err != nil {
+				t.Fatal(err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			for _, where := range []string{"resolve", "substituted", "provide"} {
+				if got, ok := seen[where]; !ok || got != tc.want {
+					t.Errorf("the %s function saw the origin %d (called: %v), want %d", where, got, ok, tc.want)
+				}
+			}
+			d.stop()
+		})
+	}
+}

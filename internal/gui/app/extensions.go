@@ -637,13 +637,24 @@ func fileChangeKind(k workspace.EventKind) string {
 }
 
 // extensionQuickPick shows the list of QuickPick().Show in the quick input of the window. The icon of an item is the codicon its
-// label starts with ($(name) Label).
+// label starts with ($(name) Label). It is safe on any goroutine: a configuration provider asks from the goroutine of a session
+// start, so the list is handed to the UI thread of the screen that shows it.
 func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 	target := w.screenOf(req.Origin) // the screen of the person who asked (SPEC §10.18 "As built (step 24.25)")
 	if target == nil {
 		req.Hidden()
 		return
 	}
+	if !target.onUIThread() {
+		target.onUI(func() { target.showQuickPick(req) })
+		return
+	}
+	target.showQuickPick(req)
+}
+
+// showQuickPick shows the list of extensionQuickPick in the quick input of w, on its UI thread.
+func (w *Workspace) showQuickPick(req exthost.QuickPickRequest) {
+	target := w
 	items := make([]quickinput.Item, len(req.Items))
 	var picker *quickinput.Picker
 	for i, e := range req.Items {
@@ -676,13 +687,23 @@ func (w *Workspace) extensionQuickPick(req exthost.QuickPickRequest) {
 }
 
 // extensionInputBox shows the input box of InputBox().Show in the quick input of the window. The prompt is the hint of the input;
-// the quick input validates the text as the user types.
+// the quick input validates the text as the user types. It is safe on any goroutine, as extensionQuickPick is.
 func (w *Workspace) extensionInputBox(req exthost.InputBoxRequest) {
 	target := w.screenOf(req.Origin)
 	if target == nil {
 		req.Hidden()
 		return
 	}
+	if !target.onUIThread() {
+		target.onUI(func() { target.showInputBox(req) })
+		return
+	}
+	target.showInputBox(req)
+}
+
+// showInputBox shows the input box of extensionInputBox in the quick input of w, on its UI thread.
+func (w *Workspace) showInputBox(req exthost.InputBoxRequest) {
+	target := w
 	var buttons []quickinput.PromptButton
 	for i, b := range req.Buttons {
 		code, ok := fonts.CodiconByName(b.Icon)
