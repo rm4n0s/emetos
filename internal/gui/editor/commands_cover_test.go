@@ -96,8 +96,8 @@ func TestEveryEditorCommandHasAHandler(t *testing.T) {
 	var missing []string
 	for _, meta := range reg.All() {
 		if strings.HasPrefix(meta.ID, "workbench.") || strings.HasPrefix(meta.ID, "notifications.") ||
-			strings.HasPrefix(meta.ID, "problems.") || strings.HasPrefix(meta.ID, keybindingsEditorPrefix) {
-			// the commands of the workbench, of the notifications and of the filter of the Problems panel are the workbench's and the window's (gui/workbench and gui/app bind them, and their tests check that they do)
+			strings.HasPrefix(meta.ID, "problems.") || strings.HasPrefix(meta.ID, "testing.") || strings.HasPrefix(meta.ID, keybindingsEditorPrefix) {
+			// the commands of the workbench, of the notifications, of the filter of the Problems panel and of Testing (testing.*, step 26.2) are the workbench's and the window's (gui/workbench and gui/app bind them, and their tests check that they do)
 			continue
 		}
 		if appCommands[meta.ID] {
