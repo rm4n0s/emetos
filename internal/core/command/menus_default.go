@@ -36,6 +36,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerWorkspaceTabMenus(r)
 	registerExtensionsMenus(r)
 	registerSourceControlMenus(r)
+	registerDebugMenus(r)
 	return r
 }
 

@@ -910,3 +910,9 @@ func (s *Scope) installDebuggers(sl *slot) []func() {
 	h.addTypes(m)
 	return []func(){func() { h.removeTypes(m) }}
 }
+
+// InitialConfigurations lists the configurations a debug type gives a new launch.json: the ones its manifest names, then those of the
+// providers that offer them for a new file (the window's Add Configuration and Open 'launch.json' use them).
+func (h *DebugHost) InitialConfigurations(ctx context.Context, folder, typ string) ([]debug.Config, error) {
+	return h.initialConfigurations(ctx, folder, typ)
+}

@@ -43,6 +43,10 @@ type Context struct {
 	// workspace. A registry that forwards a command to its parent sets it (Registry.Inherit), and the extension host keeps it for the
 	// questions the command's handler asks (SPEC §10.18 "As built (step 24.25)").
 	Origin extension.Origin
+	// Result, when the caller set it, receives the value the command gives back (VS Code's commands return one): the interactive variables
+	// of a launch configuration, ${command:pickProcess}, read it (step 25.4, decision 1187). A handler that has a value calls Result once; most
+	// commands give none, and the caller then sees no value.
+	Result func(value any)
 }
 
 // Handler runs a command. args is a JSON-compatible value (nil, bool, float64, string, a

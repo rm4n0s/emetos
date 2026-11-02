@@ -841,3 +841,13 @@ func (c Colors) Named(id string) (ui.Color, bool) {
 	}
 	return ui.NewColor(col.ARGB()), true
 }
+
+// NewThemeOver makes a Theme for the child that is the Theme above bc (its token theme and font) with other colors: a part of the window
+// that draws in colors of its own, such as the status bar while a session is debugged.
+func NewThemeOver(bc widgets.BuildContext, colors Colors, child widgets.Widget) *Theme {
+	t := &Theme{InheritedWidget: widgets.NewInheritedWidgetBase(child), colors: colors}
+	if above, ok := widgets.DependOn[*Theme](bc); ok {
+		t.tokens, t.uiFont = above.tokens, above.uiFont
+	}
+	return t
+}

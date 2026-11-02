@@ -124,6 +124,8 @@ trap 'exit 143' TERM
 
 echo "proof: building"
 go build -o "$tmp/emetos" ./cmd/emetos
+# the fake debug adapter of the debug builds (the dev debugger dev.debug.fake of Run and Debug runs it; SPEC §15.2)
+go build -o "$tmp/fakeadapter" ./internal/core/dap/daptest/fakeadapter
 
 rm -f "$out"
 if [[ (-n "$commands" || ${#launches[@]} -gt 0) && -z "$after" ]]; then
@@ -137,6 +139,7 @@ run=(env -u WAYLAND_DISPLAY -u DISPLAY)
 # environment of the caller wins (GLUTTER_RENDERER=auto, or vulkan, for a proof of the renderer itself).
 run+=(GLUTTER_RENDERER="${GLUTTER_RENDERER:-gles}")
 [[ -n "$commands" ]] && run+=(EMETOS_DEV_COMMANDS="$commands")
+run+=(EMETOS_DEV_FAKE_ADAPTER="$tmp/fakeadapter")
 # A proof shows the feature, not the host: when other programs have used up the user's inotify instances, the editor
 # polls for file changes and would show a warning about it in every image (SPEC §15.2).
 run+=(EMETOS_DEV_QUIET_WATCH_WARNING=1)

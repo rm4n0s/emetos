@@ -93,8 +93,9 @@ type Options struct {
 	DynamicTypes func() []DynamicType
 	// Guess chooses the debugger for the active editor when a configuration has no type.
 	Guess func(ctx context.Context) (GuessResult, bool)
-	// Variables returns the values the variables read (the active editor, the folders, the settings); nil resolves with none.
-	Variables func() *VariableContext
+	// Variables returns the values the variables read (the active editor, the folders, the settings); nil resolves with none. ctx
+	// is the context the start was asked with, so that the window can answer for the screen that asked (decision 1180).
+	Variables func(ctx context.Context) *VariableContext
 	// InputMemory remembers the last value of each input.
 	InputMemory InputMemory
 	// RunTask runs a task of the Tasks extension before or after a session and tells how it ended; the question about a failed
@@ -425,7 +426,7 @@ func (s *Service) substitute(ctx context.Context, launch *Launch, folder string,
 	}
 	var vc *VariableContext
 	if s.opts.Variables != nil {
-		vc = s.opts.Variables()
+		vc = s.opts.Variables(ctx)
 	}
 	return ResolveConfig(ctx, vc, cfg, ResolveOptions{
 		Folder: folder, Interactive: true, Inputs: s.inputsFor(launch), Commands: dbg.Variables, Section: "launch", Memory: s.inputMemory(),

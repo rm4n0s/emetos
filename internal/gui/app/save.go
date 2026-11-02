@@ -659,11 +659,24 @@ func (s *shellState) dirtyDocuments() []*document.Document {
 // saveAll saves the documents with unsaved changes one after the other. An untitled one asks for its file with
 // Save As; cancelling that stops the rest, as VS Code's Save All does. A file that cannot be saved is reported and
 // the others go on.
-func (s *shellState) saveAll() {
+func (s *shellState) saveAll() { s.saveAllThen(nil) }
+
+// saveAllThen is saveAll that tells how it ended: true after the last document was saved (or at once when none has changes), false when
+// the save of an untitled document was cancelled or failed (the start of a debug session waits for it, step 25.4).
+func (s *shellState) saveAllThen(done func(ok bool)) {
 	docs := s.dirtyDocuments()
 	var next func(i int)
 	next = func(i int) {
-		if i >= len(docs) || !s.Mounted() {
+		if i >= len(docs) {
+			if done != nil {
+				done(s.Mounted())
+			}
+			return
+		}
+		if !s.Mounted() {
+			if done != nil {
+				done(false)
+			}
 			return
 		}
 		doc := docs[i]
@@ -674,6 +687,9 @@ func (s *shellState) saveAll() {
 		untitled := doc.URI().Scheme != document.SchemeFile
 		s.saveDocument(doc, saveRequest{}, func(saved bool) {
 			if !saved && untitled {
+				if done != nil {
+					done(false)
+				}
 				return // the dialog of an untitled document was cancelled, or its save failed: stop
 			}
 			next(i + 1)

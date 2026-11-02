@@ -40,6 +40,7 @@ func TestViewsModeListsContainersViewsAndChannels(t *testing.T) {
 	want := []string{
 		"Side Bar|Explorer",
 		"|Source Control",
+		"|Run and Debug",
 		"Panel|Problems",
 		"|Output",
 		"Side Bar / Explorer|Open Editors",

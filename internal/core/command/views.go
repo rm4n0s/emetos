@@ -58,6 +58,9 @@ type View struct {
 	// HideByDefault tells that the view is not shown until the user (or a command) shows it, such as
 	// Open Editors in the Explorer.
 	HideByDefault bool
+	// Weight is the share of the room that is left that the view gets next to the other open views (VS Code's `weight`, which
+	// sizes the views of Run and Debug 40, 10, 30 and 20); 0 is 1, an equal share.
+	Weight int
 }
 
 // ViewRegistry holds the view containers and the views in them (SPEC §10.4). It is safe for

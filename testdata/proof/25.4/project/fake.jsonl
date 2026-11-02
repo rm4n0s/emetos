@@ -1,0 +1,18 @@
+# The script of the fake adapter for the proof of the Run and Debug view (step 25.4): a session of two threads that stops at a breakpoint
+# in main.go with variables to look at.
+{"op":"reply","command":"initialize","body":{"supportsConfigurationDoneRequest":true,"supportsFunctionBreakpoints":true,"supportsConditionalBreakpoints":true,"supportsSetVariable":true,"supportsRestartFrame":true,"exceptionBreakpointFilters":[{"filter":"panic","label":"Panic","default":true},{"filter":"all","label":"All Exceptions","default":false}]}}
+{"op":"expect","command":"launch"}
+{"op":"event","event":"initialized"}
+{"op":"reply","command":"setBreakpoints","body":{"breakpoints":[{"id":1,"verified":true,"line":21}]}}
+{"op":"reply","command":"setFunctionBreakpoints","body":{"breakpoints":[]}}
+{"op":"reply","command":"setExceptionBreakpoints","body":{}}
+{"op":"reply","command":"configurationDone"}
+{"op":"respond","to":"launch"}
+{"op":"reply","command":"threads","body":{"threads":[{"id":1,"name":"main"},{"id":2,"name":"worker"}]}}
+{"op":"event","event":"stopped","body":{"reason":"breakpoint","threadId":1,"allThreadsStopped":true,"hitBreakpointIds":[1]}}
+{"op":"reply","command":"threads","body":{"threads":[{"id":1,"name":"main"},{"id":2,"name":"worker"}]}}
+{"op":"reply","command":"stackTrace","body":{"stackFrames":[{"id":101,"name":"main.main","line":21,"column":2,"source":{"name":"main.go","path":"${workspaceFolder}/main.go"}},{"id":102,"name":"runtime.main","line":267,"column":3,"source":{"name":"proc.go","path":"/usr/lib/go/src/runtime/proc.go"},"presentationHint":"subtle"}],"totalFrames":2}}
+{"op":"reply","command":"scopes","body":{"scopes":[{"name":"Locals","variablesReference":1000,"expensive":false}]}}
+{"op":"reply","command":"variables","body":{"variables":[{"name":"prices","value":"[]float64 len:3","type":"[]float64","variablesReference":1001,"evaluateName":"prices"},{"name":"order","value":"main.Order","type":"main.Order","variablesReference":1002,"evaluateName":"order"},{"name":"sum","value":"23.75","type":"float64","evaluateName":"sum"}]}}
+{"op":"reply","command":"disconnect"}
+{"op":"waitClose"}

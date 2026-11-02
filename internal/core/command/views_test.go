@@ -128,7 +128,7 @@ func TestViewRegistryErrors(t *testing.T) {
 func TestDefaultViews(t *testing.T) {
 	r := DefaultViews()
 	containers := r.Containers(ViewLocationSideBar)
-	if len(containers) != 2 || containers[0].ID != ViewContainerExplorer || containers[0].Title != "Explorer" || containers[0].Icon != 0xEAF0 {
+	if len(containers) != 3 || containers[0].ID != ViewContainerExplorer || containers[0].Title != "Explorer" || containers[0].Icon != 0xEAF0 {
 		t.Fatalf("containers: %+v", containers)
 	}
 	if c := containers[1]; c.ID != ViewContainerSCM || c.Title != "Source Control" || c.Icon != 0xEA68 || c.Order != 2 {

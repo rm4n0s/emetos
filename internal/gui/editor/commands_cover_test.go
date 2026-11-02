@@ -23,6 +23,12 @@ var appCommands = map[string]bool{
 	"changeEditorIndentation": true,
 	// Save All, whose id has no "workbench." (gui/app/save.go)
 	"saveAll": true,
+	// the commands of Run and Debug that have no "workbench." id (step 25.4, gui/app/debugcommands.go; the two with no handler are the exception filters'
+	// own and the Debug Console's, step 25.6)
+	"debug.addConfiguration": true, "debug.copyStackTrace": true, "debug.copyEvaluatePath": true, "debug.addToWatchExpressions": true,
+	"debug.setVariable": true, "debug.setWatchExpression": true, "debug.renameWatchExpression": true, "debug.removeWatchExpression": true,
+	"debug.toggleBreakpoint": true, "debug.removeBreakpoint": true, "debug.editBreakpoint": true, "debug.toggleExceptionBreakpoints": true,
+	"debug.toggleReplIgnoreFocus": true,
 	// the rows of File > Open Recent (gui/app/recent.go)
 	"openRecentFolder": true, "openRecentFile": true,
 	// Switch Side of the diff editor (gui/app/diffpane.go)

@@ -31,7 +31,7 @@ func TestStartDebuggingFromTheSelectedConfigurationSubstitutesVariables(t *testi
 	var mu sync.Mutex
 	var commands []string
 	e := newEnv(t, func(o *debug.Options) {
-		o.Variables = func() *debug.VariableContext {
+		o.Variables = func(context.Context) *debug.VariableContext {
 			return &debug.VariableContext{
 				ActiveFile: "/w/app/main.go", Line: 7,
 				Command: func(_ context.Context, id string, _ any) (any, error) {
@@ -98,7 +98,7 @@ func TestStartDebuggingErrorsAndCancellations(t *testing.T) {
 	var opened []string
 	prompt := func(ok bool) func(*debug.Options) {
 		return func(o *debug.Options) {
-			o.Variables = func() *debug.VariableContext {
+			o.Variables = func(context.Context) *debug.VariableContext {
 				return &debug.VariableContext{PromptString: func(context.Context, debug.PromptRequest) (string, bool, error) { return "", ok, nil }}
 			}
 		}

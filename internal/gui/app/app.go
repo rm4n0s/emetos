@@ -281,6 +281,8 @@ type shellState struct {
 	graph graphState
 	// timeline is what the shell keeps of the Timeline view (timelineview.go).
 	timeline timelineState
+	// debug is what the shell keeps of the Run and Debug view (debugview.go).
+	debug debugShell
 	// blocked is the path of the file that looks binary and that a notice offers to open anyway,
 	// while there is no editor.
 	blocked string
@@ -374,6 +376,7 @@ func (s *shellState) InitState() {
 	s.initExplorer(binding)
 	s.initSCM(binding)
 	s.initTimeline(binding)
+	s.initDebug(binding)
 	// the watcher of the folder, of the configuration and of the open files outside the folder
 	PeekWorkspace(s.Context()).StartWatching(s.Lifetime())
 	s.initQuickInput(binding)
@@ -512,11 +515,13 @@ func (s *shellState) Dispose() {
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()
+	s.disposeDebug()
 	s.disposeTimeline()
 	s.disposeSCM()
 	s.disposeExplorer()
 	s.disposePanels()
 	s.resetSCMParts()
+	s.resetDebugParts()
 	s.disposeGroup()
 }
 
@@ -539,11 +544,12 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		Layout: win.Layout, Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes,
 		Settings: win.Settings, Dialogs: win.Dialogs, Notifications: win.Notifications, QuickInput: win.QuickInput, Context: win.ctx,
 		Banners:    win.Banners,
-		Editor:     s.editorArea(bc),
+		Editor:     s.withDebugToolbar(s.editorArea(bc)),
 		FullScreen: win.IsFullScreen(),
 		StatusBar:  s.statusBarOptions(win),
 		NoFolder:   win.Folder == "",
-		Menus:      s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar, TitleBar: titleBar,
+		Debugging:  s.debug.debugging, SideBarActions: s.debugSideBarActions,
+		Menus: s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar, TitleBar: titleBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 		ViewBody: s.viewBody, ViewName: s.viewName, ViewDescription: s.viewDescription, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,
 		OnViewFocus: s.viewFocused,

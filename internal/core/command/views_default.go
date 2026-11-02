@@ -37,6 +37,9 @@ const codiconFiles = 0xEAF0
 // codiconSourceControl is the code point of the Codicon "source-control".
 const codiconSourceControl = 0xEA68
 
+// codiconDebugAlt is the code point of the Codicon "debug-alt" (the icon of Run and Debug).
+const codiconDebugAlt = 0xEB91
+
 // codiconWarning and codiconOutput are the code points of the Codicons "warning" and "output".
 const (
 	codiconWarning = 0xEA6C
@@ -78,6 +81,19 @@ func DefaultViews() *ViewRegistry {
 			When: when("scm.providerCount && scm.providerCount != 0")},
 		View{ID: ViewSCM, Name: "Changes", Container: ViewContainerSCM, Order: 1},
 		View{ID: ViewSCMHistory, Name: "Graph", Container: ViewContainerSCM, Order: 2, When: when("scm.historyProviderCount && scm.historyProviderCount != 0")},
+	)
+	// Run and Debug (order 3, after Source Control; step 25.4, SPEC §10.31): the welcome while debugUx is simple (no configuration
+	// and no session), the views of a session otherwise. The Breakpoints show when one exists or a session ran. The weights are VS Code's.
+	r.MustRegisterContainer(ViewContainer{ID: ViewContainerDebug, Title: "Run and Debug", Icon: codiconDebugAlt, Order: 3})
+	r.MustRegisterViews(
+		View{ID: ViewDebugWelcome, Name: "Run", Container: ViewContainerDebug, Order: 1, Weight: 40, When: contextkey.Equals("debugUx", "simple")},
+		View{ID: ViewDebugVariables, Name: "Variables", Container: ViewContainerDebug, Order: 10, Weight: 40, When: contextkey.Equals("debugUx", "default")},
+		View{ID: ViewDebugWatch, Name: "Watch", Container: ViewContainerDebug, Order: 20, Weight: 10, When: contextkey.Equals("debugUx", "default")},
+		View{ID: ViewDebugCallStack, Name: "Call Stack", Container: ViewContainerDebug, Order: 30, Weight: 30, When: contextkey.Equals("debugUx", "default")},
+		View{ID: ViewDebugLoadedScripts, Name: "Loaded Scripts", Container: ViewContainerDebug, Order: 35, Weight: 5, Collapsed: true,
+			When: contextkey.And(contextkey.Has("loadedScriptsSupported"), contextkey.Equals("debugUx", "default"))},
+		View{ID: ViewDebugBreakpoints, Name: "Breakpoints", Container: ViewContainerDebug, Order: 40, Weight: 20,
+			When: contextkey.Or(contextkey.Has("breakpointsExist"), contextkey.Equals("debugUx", "default"), contextkey.Has("hasDebugged"))},
 	)
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerMarkers, Title: "Problems", Icon: codiconWarning, Order: 0, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})

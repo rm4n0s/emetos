@@ -54,6 +54,7 @@ func DefaultRegistry() *Registry {
 	registerMergeEditorCommands(r)
 	registerExtensionsCommands(r)
 	registerSourceControlCommands(r)
+	registerDebugCommands(r)
 	return r
 }
 

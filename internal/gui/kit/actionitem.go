@@ -34,8 +34,10 @@ type actionItem struct {
 
 type actionItemProps struct {
 	// icon is the Codicon of the action; with none the action shows label.
-	icon  int
-	label string
+	icon int
+	// iconColor, when set, is the color of the icon.
+	iconColor foundation.Opt[ui.Color]
+	label     string
 	// tooltip is the text of the hover, if any.
 	tooltip string
 	checked bool
@@ -150,7 +152,7 @@ func (s *actionItemState) Build(bc widgets.BuildContext) widgets.Widget {
 
 	var box widgets.Widget
 	if p.icon != 0 {
-		color := colors.IconForeground
+		color := p.iconColor.OrElse(colors.IconForeground)
 		if !enabled {
 			color = color.WithAlpha(p.disabledAlpha)
 		}

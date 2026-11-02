@@ -127,6 +127,12 @@ type Workspace struct {
 	// Timeline is the timeline service of the window: the providers of the history of a file that extensions register, which the Timeline
 	// view of the Explorer lists (SPEC §10.30). The headless view of a workspace has none.
 	Timeline *timeline.Service
+	// Debug is the debug host of the workspace: the debug service (the sessions, the breakpoints, the launches) over the debuggers the
+	// extensions contribute (SPEC §10.31). The headless view of a workspace shares its workspace's, so every client and the host see the
+	// same sessions (D46); the tab of an extension has none.
+	Debug *exthost.DebugHost
+	// taskRunner runs the tasks before and after a debug session; nil until step 25.11 provides it.
+	taskRunner TaskRunner
 	// QuickDiff is the registry of the providers that say what a file is compared with (Git's index version): the editors mark the
 	// changes of their file against it and the format on save of modifications takes its baseline from it (SPEC §10.30 "Quick diff").
 	// The headless view of a workspace shares its workspace's.
@@ -474,6 +480,9 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	}
 	w.Notifications = notify.NewPresenter(w.Notify)
 	w.QuickDiff = quickdiff.NewService(quickdiff.Options{Texts: w.quickDiffText, Log: func(msg string, args ...any) { p.Logger.Debug(msg, args...) }})
+	if o.ext == nil { // the tab of an extension has no debugger of its own
+		w.initDebug()
+	}
 	w.virtual = document.NewVirtualRegistryOver(p.Virtual)
 	w.Documents.SetVirtual(w.virtual)
 	if folder == "" {
@@ -506,6 +515,9 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	}
 	if o.ext == nil { // the tab of an extension keeps no state file of its own: its state is in the list of the tabs
 		w.initState(ctx)
+	}
+	if o.ext == nil {
+		w.startDebug()
 	}
 	w.syncWorkbenchState()
 	w.settingsDocs.install()

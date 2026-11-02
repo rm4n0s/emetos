@@ -860,7 +860,7 @@ func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] || extensionsAppCommands[meta.ID] || scmAppCommands[meta.ID] {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] || extensionsAppCommands[meta.ID] || scmAppCommands[meta.ID] || debugAppCommand(meta.ID) {
 			continue
 		}
 		n++
@@ -981,4 +981,10 @@ func TestPanelViewCommandsNeedViews(t *testing.T) {
 		t.Errorf("toggleProblems left the panel visible=%v, problemsVisibility %v", h.layout.State().PanelVisible, h.key("problemsVisibility"))
 	}
 	noErrors(t, h)
+}
+
+// debugAppCommand tells whether a command is one of Run and Debug, which the window binds (step 25.4, gui/app/debugcommands.go): the
+// container, its views, the commands of the session and of the views.
+func debugAppCommand(id string) bool {
+	return id == "workbench.view.debug" || strings.HasPrefix(id, "workbench.action.debug.") || strings.HasPrefix(id, "workbench.debug.")
 }

@@ -127,6 +127,10 @@ type Options struct {
 	// NoFolder gives the bar the colors of a window with no folder.
 	StatusLeft, StatusRight []widgets.Widget
 	NoFolder                bool
+	// Debugging gives the bar the colors of a debug session (statusBar.debuggingBackground, the foreground and the border), which win over NoFolder's.
+	Debugging bool
+	// SideBarActions are the buttons in the title of the side bar, after its text: the start button and the configuration of Run and Debug.
+	SideBarActions func(bc widgets.BuildContext) widgets.Widget
 	// FullScreen says that the window is in full screen mode, where the window has no title bar and the menu of the
 	// visibility classic and compact is hidden until the Alt key shows it, in a row of its own (SPEC §10.9). While
 	// zen mode is on (Layout) the menu is hidden.
@@ -652,11 +656,19 @@ func (s *workbenchState) sideBar(colors kit.Colors) widgets.Widget {
 		body = widgets.NewSizedBox(nil)
 	}
 	title := widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget {
+		text := widgets.NewAlign(widgets.NewText(strings.ToUpper(name), widgets.TextOpts{
+			Style: kit.TextStyleOf(bc, 11, fg), Overflow: painting.TextOverflowEllipsis, MaxLines: foundation.Some(1)}),
+			widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})
+		var inner widgets.Widget = text
+		if o.SideBarActions != nil {
+			// the buttons of the container (Run and Debug has its start button and its toolbar here); the text gets the room that is left
+			if actions := o.SideBarActions(bc); actions != nil {
+				inner = widgets.NewRow([]widgets.Widget{widgets.NewFlexible(text), actions},
+					widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
+			}
+		}
 		return bordered(colors.SideBarTitleBackground, colors.SideBarTitleBorder, sideBottom,
-			widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(20, 0, 8, 0),
-				widgets.NewAlign(widgets.NewText(strings.ToUpper(name), widgets.TextOpts{
-					Style: kit.TextStyleOf(bc, 11, fg), Overflow: painting.TextOverflowEllipsis, MaxLines: foundation.Some(1)}),
-					widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})))
+			widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(20, 0, 8, 0), inner))
 	})
 	col := widgets.NewColumn([]widgets.Widget{titleStrip(title), widgets.NewExpanded(body)},
 		widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
@@ -827,6 +839,10 @@ func (s *workbenchState) statusBar(bc widgets.BuildContext, colors kit.Colors) w
 	if o.NoFolder {
 		bg, fg, line = colors.StatusBarNoFolderBackground, colors.StatusBarNoFolderForeground, colors.StatusBarNoFolderBorder
 	}
+	if o.Debugging {
+		colors = debuggingStatusColors(colors)
+		bg, fg, line = colors.StatusBarBackground, colors.StatusBarForeground, colors.StatusBarBorder
+	}
 	// a theme that sets no background (the high contrast ones) leaves the status bar the workbench's
 	if bg.Alpha() == 0 {
 		bg = colors.EditorBackground
@@ -844,6 +860,30 @@ func (s *workbenchState) statusBar(bc widgets.BuildContext, colors kit.Colors) w
 		items = append(items, o.StatusRight...)
 		row = widgets.NewRow(items, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 	}
+	if o.Debugging {
+		// the items read the status bar colors of the theme, so they get the debugging ones
+		row = kit.NewThemeOver(bc, colors, row)
+	}
 	content := widgets.NewDefaultTextStyle(kit.TextStyleOf(bc, 12, fg), row)
 	return widgets.NewSizedBox(s.frame(PartStatusBar, bg, line, sideTop, content), widgets.SizedBoxOpts{Height: foundation.Some(StatusBarHeight)})
+}
+
+// debuggingStatusColors are the colors with the status bar's ones replaced by those of a debug session (statusBar.debugging*); a color the
+// theme leaves out keeps the normal one.
+//
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/statusbarColorProvider.ts (StatusBarColorProvider)
+func debuggingStatusColors(colors kit.Colors) kit.Colors {
+	for _, c := range []struct {
+		id string
+		to *ui.Color
+	}{
+		{"statusBar.debuggingBackground", &colors.StatusBarBackground},
+		{"statusBar.debuggingForeground", &colors.StatusBarForeground},
+		{"statusBar.debuggingBorder", &colors.StatusBarBorder},
+	} {
+		if v, ok := colors.Named(c.id); ok && v.Alpha() != 0 {
+			*c.to = v
+		}
+	}
+	return colors
 }

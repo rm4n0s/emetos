@@ -7,6 +7,7 @@ import (
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/services"
+	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 )
 
@@ -44,6 +45,9 @@ type Action struct {
 	Checked bool
 	// Disabled dims the action and stops it from running.
 	Disabled bool
+	// Color is the color of the icon of an icon action; the default is the icon foreground of the theme. The debug toolbar uses it
+	// for the debugIcon.* colors, which VS Code sets with CSS rules on the icons.
+	Color foundation.Opt[ui.Color]
 	// Separator makes this a separator: a line between the actions, which never takes the focus.
 	Separator bool
 }
@@ -445,7 +449,7 @@ func (s *actionBarState) Build(bc widgets.BuildContext) widgets.Widget {
 		}
 		index := i
 		children[i] = newActionItem(actionItemProps{
-			icon: a.Icon, label: a.Label, tooltip: tooltip, checked: a.Checked,
+			icon: a.Icon, iconColor: a.Color, label: a.Label, tooltip: tooltip, checked: a.Checked,
 			disabled: a.Disabled, focusable: s.canFocus(i), disabledAlpha: 0x99, alignLeft: vertical,
 			run: func() { s.runIndex(index) },
 			// the bar handles the keys so that it can run the item on release

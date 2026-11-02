@@ -188,7 +188,7 @@ func (s *sideBarViewsState) Build(bc widgets.BuildContext) widgets.Widget {
 		if _, fixed := s.bodyHeight(v.ID); fixed || collapsed {
 			rows = append(rows, sec)
 		} else {
-			rows = append(rows, widgets.NewExpanded(sec))
+			rows = append(rows, widgets.NewExpanded(sec, widgets.ExpandedOpts{Flex: foundation.Some(max(v.Weight, 1))}))
 		}
 	}
 	return widgets.NewColumn(rows, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})

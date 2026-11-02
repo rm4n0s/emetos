@@ -26,7 +26,9 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions"
+	"github.com/rm4n0s/emetos/extensions/devdebug"
 	"github.com/rm4n0s/emetos/extensions/gitscm/helper"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/logs"
@@ -290,7 +292,7 @@ func start(ctx context.Context, paths storage.Paths, srv *ipc.Server, l launch) 
 			}
 		}()
 	}
-	process := app.NewProcess(app.ProcessOptions{Paths: paths, Logs: lg, WatchFiles: true, Launcher: launcher, Extensions: extensions.All()})
+	process := app.NewProcess(app.ProcessOptions{Paths: paths, Logs: lg, WatchFiles: true, Launcher: launcher, Extensions: compiledExtensions()})
 	if err := app.Run(ctx, app.Options{Process: process, Logger: lg.Logger(), Open: &l.open}); err != nil {
 		logError(lg.Logger(), err)
 		return err
@@ -346,4 +348,14 @@ func formatVersion(mainVersion, revision, goVersion, goos, goarch string) string
 		line += " (" + revision + ")"
 	}
 	return line + " " + goVersion + " " + goos + "/" + goarch
+}
+
+// compiledExtensions are the extensions compiled into this build: the bundled ones, and, in a build that runs dev commands, the fake
+// debugger the proofs of Run and Debug use (SPEC §15.2). A release build never has it.
+func compiledExtensions() []extension.Factory {
+	list := extensions.All()
+	if app.DevCommandsEnabled() {
+		list = append(list, devdebug.New)
+	}
+	return list
 }
