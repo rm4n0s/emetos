@@ -69,6 +69,9 @@ type WindowState struct {
 	// Timeline is the state of the Timeline view (SPEC §10.30): the sources the user filtered out, as the host encoded it; the store
 	// does not look into it.
 	Timeline json.RawMessage `json:"timeline,omitempty"`
+	// Debug is the state of the debug model (SPEC §10.31 "As built (step 25.2)"): the breakpoints, the watch expressions and the
+	// selected launch configuration, as Service.SaveState of internal/core/debug encoded them; the store does not look into it.
+	Debug json.RawMessage `json:"debug,omitempty"`
 }
 
 // LastWindow is the window the user last had open, which an empty command line opens again.
