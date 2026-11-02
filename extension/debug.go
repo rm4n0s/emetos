@@ -210,6 +210,11 @@ type DebugAdapter struct {
 	// adapter that runs the debuggee as its child and leaves the output of the debuggee to its own streams (Delve); the lines go to the log
 	// of Emetos as well.
 	ConsoleOutput bool
+	// ServesChildren (DebugAdapterExecutableServer) says that the server program serves the sessions its adapter starts with
+	// startDebugging as well: a child session connects to the address of the parent's server, and the factory is not asked for it
+	// (js-debug's children are targets of the parent's process, which finds them by the __pendingTargetId of their configuration; VS
+	// Code's extension gives them the parent's server the same way). The server ends with the session that started it.
+	ServesChildren bool
 }
 
 // DebugAdapterFactory finds the adapter of a session (VS Code's DebugAdapterDescriptorFactory.createDebugAdapterDescriptor). executable

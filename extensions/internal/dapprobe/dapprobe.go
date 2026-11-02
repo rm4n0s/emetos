@@ -1,5 +1,5 @@
-// Package dapprobe is a small DAP client for the tests that run a real debug adapter (gdb, lldb-dap; the tags emetos_gdb and
-// emetos_lldbdap, D43). An extension may not import the debug core (internal/archtest), so the tests of an extension speak the protocol
+// Package dapprobe is a small DAP client for the tests that run a real debug adapter (gdb, lldb-dap, js-debug; the tags emetos_gdb,
+// emetos_lldbdap and emetos_jsdebug, D43). An extension may not import the debug core (internal/archtest), so the tests of an extension speak the protocol
 // with this client. It starts the adapter a descriptor describes, under `timeout -k` and in a process group of its own, with a home
 // folder and XDG folders of the test (the init files of the user, ~/.gdbinit and ~/.lldbinit, are never read), and ends the adapter and
 // the program it debugs when the test ends.
@@ -59,6 +59,11 @@ type Client struct {
 	adapterID string
 	// Capabilities are the capabilities of the adapter, from the response to initialize.
 	Capabilities map[string]any
+	// Addr is the address (host:port) of the server a client is connected to; empty for an adapter on standard input and output.
+	Addr string
+	// OnRequest, when set, answers the requests the adapter sends (startDebugging, runInTerminal): it returns the body of the response, or
+	// an error text to refuse the request. Without it every request of the adapter is refused.
+	OnRequest func(command string, args map[string]any) (body map[string]any, refusal string)
 }
 
 // Start starts the adapter as the host does (a process group of its own, the working folder and environment of the descriptor) under
@@ -199,6 +204,17 @@ func (c *Client) note(m map[string]any) {
 		return
 	case "request":
 		seq, _ := m["seq"].(float64)
+		if c.OnRequest != nil {
+			command, _ := m["command"].(string)
+			args, _ := m["arguments"].(map[string]any)
+			body, refusal := c.OnRequest(command, args)
+			if refusal == "" {
+				c.write(map[string]any{"seq": 0, "type": "response", "request_seq": int(seq), "command": command, "success": true, "body": body})
+				return
+			}
+			c.write(map[string]any{"seq": 0, "type": "response", "request_seq": int(seq), "command": command, "success": false, "message": refusal})
+			return
+		}
 		c.write(map[string]any{"seq": 0, "type": "response", "request_seq": int(seq), "command": m["command"], "success": false, "message": "unsupported"})
 		return
 	}

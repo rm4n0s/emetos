@@ -6,7 +6,8 @@
 // javascript.* settings are sent to it, and the pack owns the choice of the TypeScript it uses: the one beside the server or the folder's
 // own, offered once and never taken (version.go), with "TypeScript: Select TypeScript Version..." and the version in the status item. The
 // commands are VS Code's: Restart TS Server, Go to Project Configuration, Go to Source Definition, Find All File References, Organize
-// Imports, Sort Imports and Remove Unused Imports.
+// Imports, Sort Imports and Remove Unused Imports. Since step 25.10 the pack also adds to the debugger of the JavaScript pack what a TypeScript
+// program needs (debug.go).
 package typescript
 
 import (
@@ -79,6 +80,7 @@ func (t *typescript) Activate(ctx context.Context, api extension.API) error {
 	if _, err := api.Events().Subscribe(extension.TopicEditorActiveChanged, t.editorEvent); err != nil {
 		return err
 	}
+	t.registerDebug()
 	return nil
 }
 

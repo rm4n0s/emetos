@@ -268,3 +268,25 @@ func TestCompleteLaunchOutOfRange(t *testing.T) {
 		t.Errorf("empty text gave %v", got)
 	}
 }
+
+func TestCompleteLaunchSnippetKeepsTheTextOfCaretStrings(t *testing.T) {
+	// VS Code's convention: a string written ^"text" is the snippet's own text between quotes, so that \${workspaceFolder} inserts the
+	// characters ${workspaceFolder} and the quotes are the JSON string's
+	schemas := []debug.DebuggerSchema{{
+		Type: "node", Label: "Node.js",
+		Snippets: []debug.Snippet{{Label: "Node.js: Launch Program", Body: debug.Config{
+			"name": "${2:Launch Program}", "type": "node", "request": "launch",
+			"program": "^\"\\${workspaceFolder}/${1:app.js}\"",
+			"args":    []any{"-u", "^\"\\${workspaceFolder}/${1:test}\"", "a\"b"},
+		}}},
+	}}
+	text := `{"configurations": [  ]}`
+	items := debug.CompleteLaunch(text, strings.Index(text, "  ]")+1, schemas)
+	if len(items) != 1 {
+		t.Fatalf("items = %+v", items)
+	}
+	want := "{\n\t\"name\": \"${2:Launch Program}\",\n\t\"type\": \"node\",\n\t\"request\": \"launch\",\n\t\"args\": [\n\t\t\"-u\",\n\t\t\"\\${workspaceFolder}/${1:test}\",\n\t\t\"a\\\"b\"\n\t],\n\t\"program\": \"\\${workspaceFolder}/${1:app.js}\"\n}"
+	if items[0].InsertText != want {
+		t.Errorf("snippet = %q, want %q", items[0].InsertText, want)
+	}
+}

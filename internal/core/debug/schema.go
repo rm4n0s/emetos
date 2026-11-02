@@ -584,11 +584,16 @@ func snippetJSON(body Config) string {
 		enc := json.NewEncoder(&v)
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("\t", "\t")
-		if err := enc.Encode(body[k]); err != nil {
+		var raws []string
+		if err := enc.Encode(rawStrings(body[k], &raws)); err != nil {
 			continue
 		}
+		text := strings.TrimRight(v.String(), "\n")
+		for n, inner := range raws {
+			text = strings.Replace(text, `"`+rawToken(n)+`"`, `"`+inner+`"`, 1)
+		}
 		name, _ := json.Marshal(k)
-		buf.WriteString("\t" + string(name) + ": " + strings.TrimRight(v.String(), "\n"))
+		buf.WriteString("\t" + string(name) + ": " + text)
 		if i < len(keys)-1 {
 			buf.WriteString(",")
 		}
@@ -596,6 +601,37 @@ func snippetJSON(body Config) string {
 	}
 	buf.WriteString("}")
 	return buf.String()
+}
+
+// rawToken is the text that stands for the n-th raw string of a snippet while the value is encoded.
+func rawToken(n int) string { return fmt.Sprintf("@@raw%d@@", n) }
+
+// rawStrings replaces the strings of v that are written `^"text"` by tokens and appends their text (the part between the quotes) to
+// raws: VS Code's convention for the snippets of debuggers, which writes the text in the snippet's own syntax and not as a JSON string,
+// so that `\${workspaceFolder}` inserts the characters ${workspaceFolder} and not the variable of the snippet.
+//
+// (The snippets of js-debug's package.json use it, and VS Code's own debuggers read them so.)
+func rawStrings(v any, raws *[]string) any {
+	switch x := v.(type) {
+	case string:
+		if len(x) >= 3 && strings.HasPrefix(x, `^"`) && strings.HasSuffix(x, `"`) {
+			*raws = append(*raws, x[2:len(x)-1])
+			return rawToken(len(*raws) - 1)
+		}
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = rawStrings(e, raws)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = rawStrings(e, raws)
+		}
+		return out
+	}
+	return v
 }
 
 func rank(k string) int {

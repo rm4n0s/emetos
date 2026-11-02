@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Orders",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/out/orders.js",
+            "outFiles": ["${workspaceFolder}/out/**/*.js"],
+            "skipFiles": ["<node_internals>/**"]
+        }
+    ]
+}

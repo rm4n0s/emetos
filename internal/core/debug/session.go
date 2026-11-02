@@ -620,7 +620,7 @@ func (s *Session) rawUpdate(threads []dap.Thread, stopped *StoppedDetails) {
 	if stopped != nil {
 		if stopped.AllThreadsStopped {
 			for _, t := range s.threads {
-				if t.ID == stopped.ThreadID {
+				if stopped.HasThread() && t.ID == stopped.ThreadID {
 					d := *stopped
 					t.details = &d
 				} else {
@@ -629,7 +629,7 @@ func (s *Session) rawUpdate(threads []dap.Thread, stopped *StoppedDetails) {
 				t.stopped = true
 				t.clearCallStackLocked()
 			}
-		} else if t := s.threads[stopped.ThreadID]; stopped.ThreadID != 0 && t != nil {
+		} else if t := s.threads[stopped.ThreadID]; stopped.HasThread() && t != nil {
 			d := *stopped
 			t.details = &d
 			t.clearCallStackLocked()
@@ -665,13 +665,13 @@ func (s *Session) handleStop(d StoppedDetails) {
 		}
 		var affected []*Thread
 		s.m.mu.Lock()
-		if d.ThreadID == 0 {
+		if !d.HasThread() {
 			affected = s.threadsLocked()
 		} else if t := s.threads[d.ThreadID]; t != nil {
 			affected = []*Thread{t}
 		}
 		s.m.mu.Unlock()
-		lots := d.ThreadID == 0 && len(affected) > 10
+		lots := !d.HasThread() && len(affected) > 10
 		for _, t := range affected {
 			s.loadStack(ctx, t, d, len(hit) > 0, !lots)
 		}

@@ -285,3 +285,47 @@ func TestSessionStopInspectAndContinue(t *testing.T) {
 	}
 	e.wait(debug.EventSessionEnded, nil)
 }
+
+// A thread may have the id 0 (the first thread of js-debug has): a stop of that thread is a stop of that thread, not one with no thread.
+func TestSessionAStopOfTheThreadWithTheIdZero(t *testing.T) {
+	tests := []struct {
+		name string
+		body map[string]any
+	}{
+		{"a thread 0 that is named", map[string]any{"reason": "breakpoint", "threadId": 0}},
+		{"no thread at all, all threads stopped", map[string]any{"reason": "pause", "allThreadsStopped": true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEnv(t, nil)
+			e.script("run", join(
+				handshake(fullCaps, noBreakpoints(fullCaps)),
+				[]daptest.Step{
+					daptest.Event("stopped", tt.body),
+					daptest.Reply("threads", map[string]any{"threads": []map[string]any{{"id": 0, "name": "main"}}}),
+					daptest.ReplyArgs("stackTrace", map[string]any{"threadId": 0, "levels": 20}, frames(2, 2)),
+				},
+				ending(),
+			))
+			sess, ok, err := e.start(fakeConfig("run"))
+			if err != nil || !ok {
+				t.Fatalf("start: %v %v", ok, err)
+			}
+			ev := e.wait(debug.EventStopped, nil)
+			th := ev.Thread
+			if th == nil || th.ID != 0 || !th.Stopped() {
+				t.Fatalf("stopped thread = %+v", th)
+			}
+			if stack := th.CallStack(); len(stack) != 2 {
+				t.Errorf("call stack = %v", stack)
+			}
+			if f := e.svc.Model().Focus(); f.Session != sess || f.Thread != th {
+				t.Errorf("focus = %+v", f)
+			}
+			if err := e.svc.Stop(ctxT(t), sess, true, false); err != nil {
+				t.Fatal(err)
+			}
+			e.wait(debug.EventSessionEnded, nil)
+		})
+	}
+}

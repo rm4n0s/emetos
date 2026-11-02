@@ -1,14 +1,23 @@
 // Package javascript is the JavaScript language pack (SPEC §8.1, §10.15): JavaScript and JavaScript React. The grammars and language configurations
 // are in assets/, copied by scripts/update-assets.sh; the licenses are in third_party/ and NOTICE. The language server of these languages is
 // typescript-language-server, which the TypeScript pack (extensions/typescript) runs for both packs, with the javascript.* settings and the
-// commands of JavaScript (SPEC §10.34 "As built (step 24b.5)"); this pack has nothing to run.
+// commands of JavaScript (SPEC §10.34 "As built (step 24b.5)").
+//
+// Since step 25.10 the pack also owns the debugger of JavaScript and TypeScript (SPEC §10.31 "The debuggers"): the debug types node and
+// pwa-node, served by js-debug, VS Code's own debugger, run as a server program by the user's node (debug.go); its configuration
+// providers (debugconfig.go); the setting debug.javascript.adapterPath; and "JavaScript Debugger: Download" (jsdebug.go), which fetches
+// the release pinned in this package, on the user's click only.
 package javascript
 
 import (
+	"context"
 	"embed"
+	"net/http"
+	"sync/atomic"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
+	"github.com/rm4n0s/emetos/extensions/internal/langserver"
 )
 
 // ID is the id of the extension.
@@ -19,8 +28,75 @@ var assets embed.FS
 
 // New is the Factory of the pack.
 func New() extension.Extension {
-	return langpack.New(langpack.Spec{
-		ID: ID, Name: "JavaScript", Description: "Syntax highlighting and language configuration for JavaScript and JavaScript React; the TypeScript pack serves them with typescript-language-server.",
-		Assets: assets,
-	})
+	return &javascript{
+		base: langpack.New(langpack.Spec{
+			ID: ID, Name: "JavaScript", Description: "Syntax highlighting and language configuration for JavaScript and JavaScript React; the TypeScript pack serves them with typescript-language-server.",
+			Assets: assets,
+		}),
+		release:   pinned(),
+		client:    http.DefaultClient,
+		dataDir:   dataDirFromEnv,
+		osRelease: langserver.ReadOSRelease,
+		procRoot:  "/proc",
+	}
+}
+
+// javascript is the extension of one scope. Everything in it runs on the UI thread unless a comment says otherwise. The members after
+// the activation context are what the tests replace.
+type javascript struct {
+	base extension.Extension
+	api  extension.API
+	ctx  context.Context
+
+	// editorSnap is the editor in front for the goroutines of the providers of the debugger (debugconfig.go).
+	editorSnap atomic.Pointer[editorSnapshot]
+	// downloading is set while "JavaScript Debugger: Download" runs, so that a second click does not start a second download.
+	downloading atomic.Bool
+
+	// release is what the download fetches, client how, and dataDir where it goes (it returns the folder js-debug is unpacked below).
+	release release
+	client  *http.Client
+	dataDir func() (string, error)
+	// osRelease reads the text that names the system, for the install command of node.
+	osRelease func() string
+	// procRoot is the folder that lists the processes (/proc), for the process picker.
+	procRoot string
+}
+
+// Manifest implements extension.Extension: the manifest of the pack with the debugger, its setting and its command.
+func (j *javascript) Manifest() extension.Manifest {
+	m := j.base.Manifest()
+	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
+	m.Contributes.Settings = append(m.Contributes.Settings, debugSettingSpecs()...)
+	m.Events.Subscribes = append(m.Events.Subscribes, extension.TopicEditorActiveChanged)
+	m.Contributes.Debuggers = append(m.Contributes.Debuggers, debuggerSpecs()...)
+	for _, lang := range breakpointLanguages {
+		m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: lang})
+	}
+	return m
+}
+
+// Activate implements extension.Extension.
+func (j *javascript) Activate(ctx context.Context, api extension.API) error {
+	j.api, j.ctx = api, ctx
+	if err := j.base.Activate(ctx, api); err != nil {
+		return err
+	}
+	if err := api.Commands().Handle(DownloadCommand, j.downloadCommand); err != nil {
+		return err
+	}
+	if _, err := api.Events().Subscribe(extension.TopicEditorActiveChanged, j.editorEvent); err != nil {
+		return err
+	}
+	j.registerDebug()
+	return nil
+}
+
+// editorEvent keeps the editor in front for the goroutines of the providers.
+func (j *javascript) editorEvent(ev extension.Event) {
+	var ae extension.ActiveEditor
+	if ev.Decode(&ae) != nil {
+		return
+	}
+	j.editorSnap.Store(&editorSnapshot{uri: ae.URI, language: ae.LanguageID})
 }

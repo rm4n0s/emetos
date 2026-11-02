@@ -1,0 +1,7 @@
+{
+    "workbench.colorTheme": "Dark+",
+    "git.openRepositoryInParentFolders": "never",
+    "editor.minimap.enabled": false,
+    "debug.javascript.adapterPath": "/var/tmp/emetos-tools/js-debug",
+    "typescript.languageServer.path": "/var/tmp/emetos-tools/node/node_modules/.bin/typescript-language-server"
+}

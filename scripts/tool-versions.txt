@@ -57,3 +57,11 @@ dotnettool csharp-ls                0.28.0      8f815e4f22674106a8244beba07e4b4b
 # (emetos_dlv) and of its proof; it is built by `go install github.com/go-delve/delve/cmd/dlv@v1.27.2` into /var/tmp/emetos-tools/bin with a
 # module cache, build cache and GOPATH of their own below /var/tmp/emetos-tools, and the tests reach it through go.alternateTools.
 gobin     dlv                         v1.27.2     h1:dhcjFjiVoQI53uwsG7EqYiMhdvFuywsBZx4KDOK+sYE=                    github.com/go-delve/delve/cmd/dlv  github.com/go-delve/delve
+
+# js-debug is VS Code's JavaScript debugger (microsoft/vscode-js-debug, MIT), the release v1.140.0 of 2026-09-23: its DAP-only bundle
+# js-debug-dap-v1.140.0.tar.gz (1,249,709 bytes; the sha256 is the one GitHub publishes as the asset's digest, and that the download was compared
+# with), which holds js-debug/src/dapDebugServer.js. It is the debugger of the tests emetos_jsdebug (step 25.10) and of the proof; the tests
+# reach it through debug.javascript.adapterPath = /var/tmp/emetos-tools/js-debug, run by the system's node (v22.23.1) with a temporary HOME.
+# Emetos downloads the same archive on the user's click ("JavaScript Debugger: Download", extensions/javascript/jsdebug.go pins the same
+# version and sha256); a test never does.
+tgz       js-debug                    1.140.0     27dab92937ec1ab35821ae955aac867544fe06a1b6307229049f2d789af10968  https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.0/js-debug-dap-v1.140.0.tar.gz  js-debug

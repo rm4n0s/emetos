@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -64,6 +66,10 @@ type DebugHost struct {
 
 	// launch.json files the window told the host about (launch.go), by path.
 	launchTexts map[string]string
+
+	// servers are the addresses (host:port) of the server programs that serve the children of their session (DebugAdapter.ServesChildren),
+	// by session. A child gets its parent's; the entry goes when the session ends.
+	servers map[*debug.Session]string
 }
 
 // debugType is a debug type an enabled extension declares.
@@ -98,7 +104,7 @@ type trackerFactoryEntry struct {
 func NewDebugHost(ctx context.Context, opts DebugHostOptions) *DebugHost {
 	h := &DebugHost{
 		log: opts.Logger, types: map[string]*debugType{}, bpLangs: map[string]int{}, sessions: map[*debug.Session]*debugSession{},
-		live: map[string]*trackerSet{}, launchTexts: map[string]string{},
+		live: map[string]*trackerSet{}, launchTexts: map[string]string{}, servers: map[*debug.Session]string{},
 	}
 	if h.log == nil {
 		h.log = slog.Default()
@@ -392,10 +398,16 @@ func (h *DebugHost) reach(ctx context.Context, typ string, cfg debug.Config, opt
 	h.activate(ctx, typ)
 	es := h.wrap(sess)
 	set := h.startTrackers(ctx, es, typ)
-	adapter, err := h.descriptor(ctx, es, typ)
-	if err != nil {
-		set.failed(err)
-		return nil, err
+	var adapter extension.DebugAdapter
+	if host, port, ok := h.parentServer(sess); ok {
+		// the server of the parent serves this session too (DebugAdapter.ServesChildren); the factory is not asked
+		adapter = extension.DebugAdapter{Kind: extension.DebugAdapterServer, Host: host, Port: port, ServesChildren: true}
+	} else {
+		var err error
+		if adapter, err = h.descriptor(ctx, es, typ); err != nil {
+			set.failed(err)
+			return nil, err
+		}
 	}
 	spec, err := h.adapterSpec(typ, adapter, func(category, text string) { sess.AddOutput(category, text) })
 	if err != nil {
@@ -407,7 +419,47 @@ func (h *DebugHost) reach(ctx context.Context, typ string, cfg debug.Config, opt
 		set.failed(err)
 		return nil, err
 	}
+	if adapter.ServesChildren {
+		h.keepServer(sess, adapter, client)
+	}
 	return client, nil
+}
+
+// parentServer is the address of the server of the session's parent when that server serves the children of its session.
+func (h *DebugHost) parentServer(sess *debug.Session) (host string, port int, ok bool) {
+	parent := sess.Parent()
+	if parent == nil {
+		return "", 0, false
+	}
+	h.mu.Lock()
+	addr := h.servers[parent]
+	h.mu.Unlock()
+	host, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", 0, false
+	}
+	port, err = strconv.Atoi(p)
+	return host, port, err == nil
+}
+
+// keepServer remembers the address a session's server was reached at, so that its children connect to it: the server program the host
+// started, or the server a child was given.
+func (h *DebugHost) keepServer(sess *debug.Session, adapter extension.DebugAdapter, client *dap.Client) {
+	addr := ""
+	switch sp := client.Transport().(type) {
+	case *dap.ServerProcess:
+		addr = sp.Addr()
+	default:
+		if adapter.Kind == extension.DebugAdapterServer {
+			addr = net.JoinHostPort(adapter.Host, strconv.Itoa(adapter.Port))
+		}
+	}
+	if addr == "" {
+		return
+	}
+	h.mu.Lock()
+	h.servers[sess] = addr
+	h.mu.Unlock()
 }
 
 // descriptor asks the factory of the debug type for the adapter of the session; without an answer it is the adapter the manifest names.
@@ -801,6 +853,9 @@ func (h *DebugHost) onEvent(ev debug.Event) {
 		if ev.Restart {
 			return
 		}
+		h.mu.Lock()
+		delete(h.servers, ev.Session)
+		h.mu.Unlock()
 		es := h.wrap(ev.Session)
 		h.fire(func() {
 			for _, e := range h.endFns.entries() {

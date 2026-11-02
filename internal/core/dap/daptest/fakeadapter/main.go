@@ -11,6 +11,8 @@
 //	-announce               print a line with the port before accepting (tcp)
 //	-announce-format fmt    the line, with %d for the port (default "DAP server listening at: 127.0.0.1:%d")
 //	-exit-before-listen N   exit with status N before listening (N >= 0)
+//	-child-script file      keep listening after the first connection and serve every later one with this script, as a server
+//	                        that has the children of a session as clients does (js-debug); the program ends with the first connection
 //
 // The exit status is that of the script's exit or crash step, 0 otherwise, and 2 when the program cannot start.
 package main
@@ -43,6 +45,7 @@ func run() int {
 	announce := flag.Bool("announce", false, "print the port before accepting")
 	format := flag.String("announce-format", "DAP server listening at: 127.0.0.1:%d", "the line to print, with %d for the port")
 	exitBefore := flag.Int("exit-before-listen", -1, "exit with this status before listening")
+	childScript := flag.String("child-script", "", "the script of the connections that come after the first; the listener stays open for them")
 	flag.Parse()
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	if *exitBefore >= 0 {
@@ -78,12 +81,39 @@ func run() int {
 			fmt.Printf(*format+"\n", port)
 		}
 		conn, err := l.Accept()
-		if cerr := l.Close(); cerr != nil {
-			log.Error("cannot close the listener", "err", cerr)
-		}
 		if err != nil {
 			log.Error("cannot accept", "err", err)
 			return 2
+		}
+		if *childScript == "" {
+			if cerr := l.Close(); cerr != nil {
+				log.Error("cannot close the listener", "err", cerr)
+			}
+		} else {
+			later, lerr := daptest.LoadScript(*childScript)
+			if lerr != nil {
+				log.Error("cannot load the script of the later connections", "err", lerr)
+				return 2
+			}
+			defer func() {
+				if cerr := l.Close(); cerr != nil {
+					log.Error("cannot close the listener", "err", cerr)
+				}
+			}()
+			go func() {
+				for {
+					c, aerr := l.Accept()
+					if aerr != nil {
+						return
+					}
+					go func() {
+						child := daptest.NewServer(later, daptest.ServerOptions{Crash: func(code int) { os.Exit(code) }, Stderr: os.Stderr})
+						if serr := child.Serve(c); serr != nil {
+							log.Error("the fake adapter stopped a later connection", "err", serr)
+						}
+					}()
+				}
+			}()
 		}
 		stream = conn
 	default:

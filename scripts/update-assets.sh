@@ -308,3 +308,22 @@ lldbdap_pkg="$ref/lldb-dap/package.json"
 jq -S '.contributes.debuggers[] | select(.type == "lldb-dap") | {launch: .configurationAttributes.launch, attach: .configurationAttributes.attach}' \
   "$lldbdap_pkg" >"$root/extensions/internal/nativedebug/lldb-dap-attributes.json"
 copy_license llvm-lldb-dap lldb-dap/LICENSE.TXT
+
+# Step 25.10: the `node` debugger of the JavaScript extension (SPEC §10.31 "The debuggers", JavaScript and TypeScript). js-debug's
+# contributions are generated when it is built (src/build/generate-contributions.ts), so they are taken from the package.json of its
+# release package, whose strings (`%node.launch.args.description%`) are looked up in package.nls.json. The attributes of the launch and
+# attach requests are written to extensions/javascript/debug-attributes.json and the configuration snippets (with their `^"..."`
+# strings) to debug-snippets.json, which the extension embeds. `pwa-node`, the old name of the type, has the same attributes. The
+# license is third_party/vscode-js-debug/LICENSE.txt.
+jsdebug_pkg="$ref/vscode-js-debug/package.json"
+jsdebug_nls="$ref/vscode-js-debug/package.nls.json"
+[[ -f "$jsdebug_pkg" && -f "$jsdebug_nls" ]] || { echo "error: reference/vscode-js-debug/package.json and package.nls.json are not files" >&2; exit 1; }
+jsdebug_nls_def='def nls: walk(if type == "string" and test("^%.+%$") then ($nls[0][.[1:-1]] // .) else . end);'
+jq -S --slurpfile nls "$jsdebug_nls" "$jsdebug_nls_def"'
+  .contributes.debuggers[] | select(.type == "node") | {launch: .configurationAttributes.launch, attach: .configurationAttributes.attach} | nls' \
+  "$jsdebug_pkg" >"$root/extensions/javascript/debug-attributes.json"
+jq -S --slurpfile nls "$jsdebug_nls" "$jsdebug_nls_def"'
+  [.contributes.debuggers[] | select(.type == "node") | .configurationSnippets[] | {label, description: (.description // .markdownDescription), body} | nls]' \
+  "$jsdebug_pkg" >"$root/extensions/javascript/debug-snippets.json"
+chmod 0644 "$root/extensions/javascript/debug-attributes.json" "$root/extensions/javascript/debug-snippets.json"
+copy_license vscode-js-debug vscode-js-debug/LICENSE.txt

@@ -51,7 +51,8 @@ const (
 	OutputTelemetry = "telemetry"
 )
 
-// StoppedEventBody is the body of the stopped event: the debuggee stopped. ThreadID zero means the event has none.
+// StoppedEventBody is the body of the stopped event: the debuggee stopped. The event may name no thread: HasThread tells (a thread
+// may have the id 0, as js-debug's first one has).
 type StoppedEventBody struct {
 	Reason            string `json:"reason"`
 	Description       string `json:"description,omitempty"`
@@ -60,6 +61,30 @@ type StoppedEventBody struct {
 	Text              string `json:"text,omitempty"`
 	AllThreadsStopped bool   `json:"allThreadsStopped,omitempty"`
 	HitBreakpointIDs  []int  `json:"hitBreakpointIds,omitempty"`
+
+	// threadSet is true when the event had a threadId, whatever its value.
+	threadSet bool
+}
+
+// HasThread tells whether the event names a thread: it had a threadId (0 included), or ThreadID was set by the code that made the body.
+func (b StoppedEventBody) HasThread() bool { return b.threadSet || b.ThreadID != 0 }
+
+// UnmarshalJSON reads the body and remembers whether it had a threadId.
+func (b *StoppedEventBody) UnmarshalJSON(data []byte) error {
+	type plain StoppedEventBody
+	var p plain
+	if err := json.Unmarshal(data, &p); err != nil {
+		return err
+	}
+	var probe struct {
+		ThreadID *int `json:"threadId"`
+	}
+	if err := json.Unmarshal(data, &probe); err != nil {
+		return err
+	}
+	*b = StoppedEventBody(p)
+	b.threadSet = probe.ThreadID != nil
+	return nil
 }
 
 // ContinuedEventBody is the body of the continued event.

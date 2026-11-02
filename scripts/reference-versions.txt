@@ -10,3 +10,4 @@ npm     @vscode/codicons              0.0.46-24   https://registry.npmjs.org/@vs
 git     microsoft/vscode-containers   v2.5.3      abf87096e3bd3dfa2961787a062850028012bb2b
 git     microsoft/vscode-python-debugger v2026.6.0 1fe4d85ebd5259657f02237fbda10828f616417d
 files   llvm/lldb-dap                 llvmorg-21.1.8  https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-21.1.8
+vsix    microsoft/vscode-js-debug     v1.140.0    d535f02a47031671f8c988bb7e79d6fec1a881883d9c9fa15ff81f28eae98500 https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.0/ms-vscode.js-debug.1.140.0.vsix

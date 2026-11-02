@@ -72,7 +72,7 @@ func TestParseEvent(t *testing.T) {
 	}{
 		{"initialized has no body", EventInitialized, ``, &struct{}{}},
 		{"stopped", EventStopped, `{"reason":"breakpoint","threadId":3,"allThreadsStopped":true,"hitBreakpointIds":[1,2],"text":"t","description":"d","preserveFocusHint":true}`,
-			&StoppedEventBody{Reason: "breakpoint", ThreadID: 3, AllThreadsStopped: true, HitBreakpointIDs: []int{1, 2}, Text: "t", Description: "d", PreserveFocusHint: true}},
+			&StoppedEventBody{Reason: "breakpoint", ThreadID: 3, AllThreadsStopped: true, HitBreakpointIDs: []int{1, 2}, Text: "t", Description: "d", PreserveFocusHint: true, threadSet: true}},
 		{"continued", EventContinued, `{"threadId":4,"allThreadsContinued":true}`, &ContinuedEventBody{ThreadID: 4, AllThreadsContinued: true}},
 		{"exited", EventExited, `{"exitCode":2}`, &ExitedEventBody{ExitCode: 2}},
 		{"terminated without a body", EventTerminated, `null`, &TerminatedEventBody{}},
@@ -234,5 +234,35 @@ func TestDecodeMessage(t *testing.T) {
 				t.Errorf("reason = %v, want %q", appErr.Metadata["reason"], tt.reason)
 			}
 		})
+	}
+}
+
+func TestAStoppedEventSaysWhetherItNamesAThread(t *testing.T) {
+	tests := []struct {
+		name   string
+		body   string
+		thread int
+		has    bool
+	}{
+		{"a thread", `{"reason":"breakpoint","threadId":7}`, 7, true},
+		{"the thread 0", `{"reason":"breakpoint","threadId":0}`, 0, true},
+		{"no thread", `{"reason":"pause","allThreadsStopped":true}`, 0, false},
+		{"a null thread", `{"reason":"pause","threadId":null}`, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseEvent(Event{Event: EventStopped, Body: json.RawMessage(tt.body)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			b := got.(*StoppedEventBody)
+			if b.ThreadID != tt.thread || b.HasThread() != tt.has {
+				t.Errorf("thread = %d, has = %v, want %d, %v", b.ThreadID, b.HasThread(), tt.thread, tt.has)
+			}
+		})
+	}
+	// a body made by code names its thread when it set one
+	if !(StoppedEventBody{ThreadID: 3}).HasThread() || (StoppedEventBody{}).HasThread() {
+		t.Error("HasThread of a body made by code")
 	}
 }

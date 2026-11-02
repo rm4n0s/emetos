@@ -273,3 +273,14 @@ Linked Go modules:
     .environment) follow it. The attributes of the debugger `gdb` are written from the chapter "Debugger Adapter Protocol" of the
     GDB manual (GNU Free Documentation License; the descriptions are in our words). Neither gdb nor lldb-dap is bundled or downloaded
     by Emetos.
+
+26. The attributes and snippets of the JavaScript debugger (JavaScript Debugger, vscode-js-debug)
+    Source:  microsoft/vscode-js-debug at v1.140.0 (https://github.com/microsoft/vscode-js-debug), the package.json and package.nls.json
+             of its release package ms-vscode.js-debug.1.140.0.vsix
+    License: MIT (Microsoft Corporation; the text is third_party/vscode-js-debug/LICENSE.txt)
+    Added by step 25.10 (extensions/javascript). The attributes of the launch and attach requests of the debug type `node` are in
+    extensions/javascript/debug-attributes.json and its configuration snippets in debug-snippets.json, written by
+    scripts/update-assets.sh. Code ported from it (the configuration resolver, the process list) says "Ported from vscode-js-debug:
+    <path>" in a comment. js-debug itself is not bundled: on the user's click "JavaScript Debugger: Download" fetches the release
+    pinned in extensions/javascript/jsdebug.go (js-debug-dap-v1.140.0.tar.gz, with its SHA-256) into Emetos's data folder, and
+    scripts/fetch-tools.sh fetches the same archive, into /var/tmp/emetos-tools, for the tests and the proof.

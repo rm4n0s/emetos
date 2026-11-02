@@ -976,7 +976,7 @@ func (s *Service) passFocus(sess *Session) {
 	if has {
 		if f.Thread != nil && f.Thread.ID == last && f.Thread.sess == sess && !f.Thread.Stopped() {
 			var target *Thread
-			if d := sess.StoppedDetails(); d != nil && d.ThreadID != 0 {
+			if d := sess.StoppedDetails(); d != nil && d.HasThread() {
 				target = sess.Thread(d.ThreadID)
 			}
 			s.FocusStackFrame(nil, target, nil)

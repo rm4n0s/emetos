@@ -7,6 +7,8 @@
 #   git <owner/repo> <version> <commit>   a sparse, shallow checkout of that commit
 #   npm <package>   <version> <tarball>   an npm package unpacked into reference/<name>/
 #   files <owner/name> <version> <base url>   three files of a release tag, fetched one by one into reference/<name>/ (lldb-dap)
+#   vsix <owner/name> <version> "<sha256> <url>"   the package.json, package.nls.json and license of an extension package of a release (a
+#                                             .vsix, a zip), unpacked into reference/<name>/ after its sha256 was compared (vscode-js-debug)
 #
 # reference/ is git-ignored and is a Go module of its own (reference/go.mod), so
 # VS Code's Go test files stay out of ./... . Running the script again is cheap: a
@@ -91,6 +93,30 @@ fetch_files() {
   echo "$version" >"$dir/.version"
 }
 
+# fetch_vsix <name> <version> "<sha256> <url>": the contributions of vscode-js-debug are generated when it is built
+# (src/build/generate-contributions.ts) and exist only in the package.json of its release package; that file, its translations and the
+# license are taken from the .vsix of the release (step 25.10).
+fetch_vsix() {
+  local name=$1 version=$2 source=$3
+  local sha="${source%% *}" url="${source#* }"
+  local short="${name##*/}"
+  local dir="$ref/$short"
+  if [[ -f "$dir/.version" && "$(cat "$dir/.version")" == "$version" ]]; then
+    echo "reference/$short: $version, already there"
+    return
+  fi
+  echo "reference/$short: fetching $version"
+  local tmp
+  tmp="$(mktemp -d)"
+  curl -fsSL --max-time 600 -o "$tmp/package.vsix" "$url"
+  [[ "$(sha256sum "$tmp/package.vsix" | cut -d' ' -f1)" == "$sha" ]] || { echo "error: reference/$short: the download does not match the pinned sha256" >&2; rm -rf "$tmp"; exit 1; }
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  unzip -q -j "$tmp/package.vsix" extension/package.json extension/package.nls.json extension/LICENSE.txt -d "$dir"
+  rm -rf "$tmp"
+  echo "$version" >"$dir/.version"
+}
+
 mkdir -p "$ref"
 printf 'module reference\n\ngo 1.27\n' >"$ref/go.mod"
 
@@ -100,6 +126,7 @@ while read -r kind name version source; do
     git) fetch_git "$name" "$version" "$source" ;;
     npm) fetch_npm "$name" "$version" "$source" ;;
     files) fetch_files "$name" "$version" "$source" ;;
+    vsix) fetch_vsix "$name" "$version" "$source" ;;
     *)
       echo "error: unknown kind '$kind' in $versions" >&2
       exit 1
