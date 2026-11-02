@@ -7,11 +7,14 @@
 # not exist; it is removed at the end), and every run opens the copies there.
 #
 # Usage: scripts/screenshots.sh [name...]
-#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work
+#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover debug terminal remote-work
 #          docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
 #   go-hover    gopls on PATH (it is skipped, with a message, when gopls is missing; this script never installs it)
+#   debug       the Delve of the pinned tools (/var/tmp/emetos-tools/bin/dlv, which scripts/fetch-tools.sh installs; testdata/screenshots/debug/config
+#               reaches it through go.alternateTools) and a Go that can build without the network; it is skipped, with a message,
+#               when dlv is missing (this script never installs it)
 #   remote-work   two Emetos instances on 127.0.0.1, with keys made on the run (nothing secret is kept)
 #   git-*       nothing but git (2.30 or newer): testdata/screenshots/git/build.sh makes a repository of its own for each shot
 #               (a small Go project with three authors, two branches, a merge, a tag and a bare origin next to it), and the
@@ -32,7 +35,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover terminal remote-work docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame)
+all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover debug terminal remote-work docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -149,6 +152,17 @@ shoot() {
       scripts/proof.sh docs/screenshots/go-hover.png --after 9s \
         --commands '[["dev.openFile",{"path":"'$p'/api/main.go","line":15,"column":20}],["sleep","6s"],["dev.showHover",{"line":15,"column":20}],["sleep","2s"]]' \
         -- "$p/api"
+      ;;
+    debug)
+      # a Go program stopped at a breakpoint under dlv: the Run and Debug view (Variables, Call Stack), the inline values, the
+      # toolbar and the Debug Console. The program is in .emetos/launch.json, so F5 starts the configuration "Debug orders"
+      if [[ ! -x /var/tmp/emetos-tools/bin/dlv ]]; then
+        echo "skipped debug: /var/tmp/emetos-tools/bin/dlv is not installed (scripts/fetch-tools.sh installs it there); docs/screenshots/debug.png was not made" >&2
+        return 0
+      fi
+      PROOF_TIMEOUT=240 scripts/proof.sh docs/screenshots/debug.png --config "$s/debug/config" --after 3s \
+        --commands '[["dev.openFile",{"path":"'$s'/debug/project/main.go","line":12}],["editor.debug.action.toggleBreakpoint"],["workbench.action.debug.start"],["sleep","8s"]]' \
+        -- "$s/debug/project"
       ;;
     terminal)
       # two terminals side by side in the panel: the shell of the profile lists the folder in color and stays open
