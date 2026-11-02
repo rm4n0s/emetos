@@ -31,7 +31,8 @@ func (c *stepClock) now() time.Time {
 // goldenTesting makes a rig of the theme with the Test Explorer open.
 func goldenTesting(t *testing.T, theme string, script string, clock *stepClock) *testingRig {
 	t.Helper()
-	r := newTestingRig(t, testingOpts{theme: theme, size: testingGoldenSize, script: script, now: clock.now})
+	r := newTestingRig(t, testingOpts{theme: theme, size: testingGoldenSize, script: script, now: clock.now,
+		settings: map[string]any{"testing.openTesting": "neverOpen"}}) // the goldens of the Explorer have no panel under the editor
 	r.run(command.ViewContainerTesting, nil)
 	return r
 }

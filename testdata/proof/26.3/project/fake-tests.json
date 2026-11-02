@@ -1,0 +1,24 @@
+{
+  "label": "Fake Tests (dev)",
+  "delayMs": 80,
+  "tests": [
+    {"id": "TestAdd", "label": "TestAdd", "file": "calculator_test.go", "line": 5, "endLine": 9, "result": "passed", "ms": 2.4},
+    {"id": "TestSubtract", "label": "TestSubtract", "file": "calculator_test.go", "line": 11, "endLine": 15, "result": "passed", "ms": 1.9},
+    {"id": "TestDivide", "label": "TestDivide", "file": "calculator_test.go", "line": 17, "endLine": 25, "result": "failed", "ms": 12,
+      "message": "Divide(5, 2) = 2, want 2.5", "failLine": 23,
+      "stack": [
+        {"label": "calc.TestDivide", "file": "calculator_test.go", "line": 23},
+        {"label": "testing.tRunner"}
+      ],
+      "output": "=== RUN   TestDivide\n    calculator_test.go:23: \u001b[31mDivide(5, 2) = 2, want 2.5\u001b[0m\n--- FAIL: TestDivide (0.01s)\n"},
+    {"id": "TestFormatReport", "label": "TestFormatReport", "file": "calculator_test.go", "line": 27, "endLine": 33, "result": "failed", "ms": 3.1,
+      "message": "FormatReport(12, 0.2) is not what the report should say", "failLine": 31,
+      "expected": "Total: 12\nTax: 2.40\nDue: 14.40", "actual": "Total: 12\nTax: 2.04\nDue: 14.04",
+      "stack": [
+        {"label": "calc.TestFormatReport", "file": "calculator_test.go", "line": 31},
+        {"label": "testing.tRunner"}
+      ],
+      "output": "=== RUN   TestFormatReport\n--- FAIL: TestFormatReport (0.00s)\n"},
+    {"id": "TestSquareRoot", "label": "TestSquareRoot", "file": "calculator_test.go", "line": 35, "endLine": 37, "result": "skipped"}
+  ]
+}

@@ -4,13 +4,11 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/rm4n0s/glutter/widgets"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	coretesting "github.com/rm4n0s/emetos/internal/core/testing"
-	"github.com/rm4n0s/emetos/internal/gui/kit"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	testview "github.com/rm4n0s/emetos/internal/gui/views/testing"
 )
@@ -45,9 +43,11 @@ func (s *shellState) runTestRequest(group coretesting.Group, ids, exclude []stri
 		s.win.Notify.Info("Emetos", "There is no way to "+groupVerb(group)+" these tests.")
 		return
 	}
-	s.goTesting("runTests", func(ctx context.Context) error {
-		_, err := svc.RunTests(ctx, req)
-		return err
+	s.beforeTestRun(func() {
+		s.goTesting("runTests", func(ctx context.Context) error {
+			_, err := svc.RunTests(ctx, req)
+			return err
+		})
 	})
 }
 
@@ -260,9 +260,11 @@ func (s *shellState) rerun(r *coretesting.Result, group coretesting.Group) {
 		ids = append(ids, t.TestIDs...)
 	}
 	if group == req.Group && len(req.Targets) > 0 {
-		s.goTesting("rerun", func(ctx context.Context) error {
-			_, err := s.win.TestingService().RunTests(ctx, req)
-			return err
+		s.beforeTestRun(func() {
+			s.goTesting("rerun", func(ctx context.Context) error {
+				_, err := s.win.TestingService().RunTests(ctx, req)
+				return err
+			})
 		})
 		return
 	}
@@ -309,9 +311,27 @@ func (s *shellState) bindTestingCommands(binding *widgets.WidgetsBinding) {
 		command.TestingReRunFailedLastRun: run(func() { s.runFailed(coretesting.GroupRun, true) }),
 		command.TestingDebugFailedLastRun: run(func() { s.runFailed(coretesting.GroupDebug, true) }),
 
-		command.TestingShowMostRecentOutput: run(s.showTestOutput),
-		command.TestingCancelRun:            run(svc.CancelAll),
-		command.TestingRefreshTests:         run(s.refreshTests),
+		command.TestingShowMostRecentOutput: run(func() { s.showTestResults(true, true) }),
+		command.TestingFocusResults:         run(func() { s.showTestResults(false, true) }),
+		command.TestingOpenOutputPeek:       run(s.openOutputPeek),
+		command.TestingGoToNextMessage:      run(func() { s.stepPeek(true) }),
+		command.TestingGoToPrevMessage:      run(func() { s.stepPeek(false) }),
+		command.TestingClosePeek:            run(s.closeTestPeek),
+		command.TestingPeekError: withArgs(func(a any) {
+			for _, id := range s.testIDsOf(a) {
+				if s.peekTest(id) {
+					return
+				}
+			}
+		}),
+		command.TestingRevealTest: withArgs(func(a any) {
+			for _, id := range s.testIDsOf(a) {
+				s.revealTest(id)
+				return
+			}
+		}),
+		command.TestingCancelRun:    run(svc.CancelAll),
+		command.TestingRefreshTests: run(s.refreshTests),
 		command.TestingCancelRefresh: run(func() {
 			if st.cancelRefresh != nil {
 				st.cancelRefresh()
@@ -420,34 +440,6 @@ func (s *shellState) refreshTests() {
 			}
 		})
 	}()
-}
-
-// testResultsChannel is the Output channel that shows the output of the last run until the Test Results panel of step 26.3 is built
-// (decision 1550).
-const testResultsChannel = "Test Results"
-
-// showTestOutput shows the output of the newest result.
-func (s *shellState) showTestOutput() {
-	r := s.lastRun()
-	if r == nil {
-		return
-	}
-	var out strings.Builder
-	for _, t := range r.Tasks() {
-		data, _ := r.Output(t.ID)
-		out.Write(data)
-	}
-	text := strings.TrimSpace(kit.RemoveANSI(out.String()))
-	if text == "" {
-		s.win.Notify.Info("Emetos", "The last run printed no output.")
-		return
-	}
-	ch := s.win.Process.Channels
-	ch.Clear(testResultsChannel)
-	for _, line := range strings.Split(text, "\n") {
-		ch.Append(testResultsChannel, strings.TrimRight(line, "\r"))
-	}
-	s.win.showChannel(testResultsChannel, false)
 }
 
 // toggleContinuous turns the continuous run of the tests on or off.

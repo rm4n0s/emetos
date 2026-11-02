@@ -42,12 +42,25 @@ type Test struct {
 	// Expected and Actual are shown as a diff with a failure.
 	Expected string `json:"expected,omitempty"`
 	Actual   string `json:"actual,omitempty"`
+	// FailLine is the line (counted from 1) of the file of the test that the message of a failure is at; 0 gives the message no place of its
+	// own. Stack are the frames of the failure and Output is the text the test prints, with ANSI sequences.
+	FailLine int     `json:"failLine,omitempty"`
+	Stack    []Frame `json:"stack,omitempty"`
+	Output   string  `json:"output,omitempty"`
 	// File is the file of the test, by its path relative to the folder; Line and EndLine are the lines it covers (counted from 1) when it has a
 	// file. A test with no file has no place in an editor.
 	File     string `json:"file,omitempty"`
 	Line     int    `json:"line,omitempty"`
 	EndLine  int    `json:"endLine,omitempty"`
 	Children []Test `json:"children,omitempty"`
+}
+
+// Frame is a line of the stack trace of a failure: a function, and the file (by its path relative to the folder) and line (counted from 1) it
+// was at.
+type Frame struct {
+	Label string `json:"label"`
+	File  string `json:"file,omitempty"`
+	Line  int    `json:"line,omitempty"`
 }
 
 // New makes the extension. It is a factory of extension.Factory.
@@ -91,7 +104,7 @@ func (*devTesting) Activate(ctx context.Context, api extension.API) error {
 		for _, t := range ts {
 			item := ctl.CreateTestItem(t.ID, t.Label, "")
 			if t.File != "" && folder != "" {
-				uri := "file://" + filepath.ToSlash(filepath.Join(folder, t.File))
+				uri := fileURI(folder, t.File)
 				t := t
 				item.Update(func(d *extension.TestItemData) {
 					d.URI = uri
@@ -116,7 +129,7 @@ func (*devTesting) Activate(ctx context.Context, api extension.API) error {
 	if err := add(ctl.Items(), script.Tests, ""); err != nil {
 		return err
 	}
-	run := runner(ctl, script, byID)
+	run := runner(ctl, script, byID, folder)
 	for _, p := range []struct {
 		label string
 		kind  extension.TestRunKind
@@ -141,7 +154,7 @@ func pathOf(it *extension.TestItem) string {
 
 // runner is the handler of the profiles: every leaf of the included items is queued, then started and reported in order, each after the
 // delay of the script. The run ends early when the context ends.
-func runner(ctl extension.TestController, script Script, byID map[string]Test) extension.TestRunHandler {
+func runner(ctl extension.TestController, script Script, byID map[string]Test, folder string) extension.TestRunHandler {
 	delay := time.Duration(script.DelayMs) * time.Millisecond
 	if delay <= 0 {
 		delay = 150 * time.Millisecond
@@ -189,9 +202,26 @@ func runner(ctl extension.TestController, script Script, byID map[string]Test) e
 				return nil
 			}
 			d := time.Duration(t.Ms * float64(time.Millisecond))
+			if t.Output != "" {
+				tr.AppendOutput(t.Output, nil, l)
+			}
 			switch t.Result {
 			case "failed", "errored":
 				msg := extension.TestMessage{Message: t.Message, ExpectedOutput: t.Expected, ActualOutput: t.Actual}
+				if t.FailLine > 0 && t.File != "" && folder != "" {
+					at := extension.Position{Line: t.FailLine - 1}
+					msg.Location = &extension.Location{URI: fileURI(folder, t.File), Range: extension.Range{Start: at, End: extension.Position{Line: at.Line, Col: 1}}}
+				}
+				for _, fr := range t.Stack {
+					frame := extension.TestStackFrame{Label: fr.Label}
+					if fr.File != "" && folder != "" {
+						frame.URI = fileURI(folder, fr.File)
+						if fr.Line > 0 {
+							frame.Position = &extension.Position{Line: fr.Line - 1}
+						}
+					}
+					msg.StackTrace = append(msg.StackTrace, frame)
+				}
 				if t.Result == "errored" {
 					tr.Errored(l, []extension.TestMessage{msg}, d)
 				} else {
@@ -205,4 +235,9 @@ func runner(ctl extension.TestController, script Script, byID map[string]Test) e
 		}
 		return nil
 	}
+}
+
+// fileURI is the file:// URI of a file of the folder.
+func fileURI(folder, file string) string {
+	return "file://" + filepath.ToSlash(filepath.Join(folder, file))
 }

@@ -18,6 +18,9 @@ const (
 	ViewContainerTesting = "workbench.view.extension.test"
 	// ViewTestExplorer is the Test Explorer view (VS Code's Testing.ExplorerViewId).
 	ViewTestExplorer = "workbench.view.testing"
+	// ViewContainerTestResults is the panel tab of Test Results and ViewTestResults its view (VS Code's Testing.ResultsPanelId and ResultsViewId).
+	ViewContainerTestResults = "workbench.panel.testResults"
+	ViewTestResults          = "workbench.panel.testResults.view"
 )
 
 // The ids of the menus of Testing. TestingViewTitle is the title bar of the Test Explorer (VS Code's ViewTitle of the view) and
@@ -73,8 +76,17 @@ const (
 	TestingStopContinuous        = "testing.stopContinuousRun"
 	TestingSelectDefaultProfiles = "testing.selectDefaultTestProfiles"
 	TestingConfigureProfile      = "testing.configureProfile"
+	// The commands of the editor and the peek (step 26.3).
+	TestingOpenOutputPeek  = "testing.openOutputPeek"
+	TestingGoToNextMessage = "testing.goToNextMessage"
+	TestingGoToPrevMessage = "testing.goToPreviousMessage"
+	TestingClosePeek       = "editor.closeTestPeek"
+	TestingPeekError       = "testing.peekTestError"
+	TestingRevealTest      = "testing.revealTest"
 	// TestingFocusExplorer shows the Test Explorer and gives its tree the keyboard (VS Code's focus command of a view).
 	TestingFocusExplorer = ViewTestExplorer + ".focus"
+	// TestingFocusResults shows the Test Results panel and gives it the keyboard.
+	TestingFocusResults = ViewTestResults + ".focus"
 	// TestingFilter focuses the filter box of the Test Explorer (VS Code's TestCommandId.FilterAction).
 	TestingFilter = "workbench.actions.treeView.testExplorer.filter"
 )
@@ -134,6 +146,13 @@ func registerTestingCommands(r *Registry) {
 		Meta{ID: TestingStopContinuous, Title: "Stop Continuous Run", Category: cat, Icon: "eye-closed"},
 		Meta{ID: TestingSelectDefaultProfiles, Title: "Select Default Profile", Category: cat, Icon: "gear"},
 		Meta{ID: TestingConfigureProfile, Title: "Configure Test Profiles", Category: cat, Icon: "gear"},
+		Meta{ID: TestingOpenOutputPeek, Title: "Peek Output", Category: cat},
+		Meta{ID: TestingGoToNextMessage, Title: "Go to Next Test Failure", Category: cat, Icon: "arrow-down"},
+		Meta{ID: TestingGoToPrevMessage, Title: "Go to Previous Test Failure", Category: cat, Icon: "arrow-up"},
+		Meta{ID: TestingClosePeek, Title: "Close", Icon: "close", Precondition: contextkey.Has("testing.isPeekVisible")},
+		Meta{ID: TestingPeekError, Title: "Peek Error"},
+		Meta{ID: TestingRevealTest, Title: "Reveal in Test Explorer"},
+		Meta{ID: TestingFocusResults, Title: "Focus on Test Results View", Category: "View"},
 	)
 }
 
@@ -169,6 +188,9 @@ func registerTestingMenus(r *MenuRegistry) {
 		{TestingSortByStatus, contextkey.False()}, {TestingSortByLocation, contextkey.False()}, {TestingSortByDuration, contextkey.False()},
 		{TestingGoToTest, contextkey.False()}, {TestingHideTest, contextkey.False()}, {TestingUnhideTest, contextkey.False()},
 		{TestingUnhideAll, contextkey.False()}, {TestingToggleContinuous, contextkey.False()},
+		{TestingOpenOutputPeek, has("testing.hasAnyResults")},
+		{TestingGoToNextMessage, has("testing.isPeekVisible")}, {TestingGoToPrevMessage, has("testing.isPeekVisible")},
+		{TestingClosePeek, contextkey.False()}, {TestingPeekError, contextkey.False()}, {TestingRevealTest, contextkey.False()},
 	} {
 		r.MustAdd(MenuItem{Menu: CommandPalette, Command: c.id, When: c.when})
 	}

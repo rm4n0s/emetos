@@ -479,7 +479,7 @@ func (vm *ViewModel) glyphWidth() float64 {
 	if !vm.opts.GlyphMargin {
 		return 0
 	}
-	return vm.opts.LineHeight
+	return vm.opts.LineHeight * float64(vm.glyphLanes())
 }
 
 // NoteDebugMenuTarget remembers where the secondary button was pressed (x and y as in glyphLineAt).

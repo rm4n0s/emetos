@@ -156,6 +156,9 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 		return
 	}
 	vm.PeekClose() // a press in the editor outside the peek view closes it
+	if local := e.LocalPosition(); local.Dx < gutterWidth && !middle && vm.testGlyphPress(local.Dx, local.Dy, e.Position(), s.modifiers()) {
+		return // a press on the glyph of a test runs it (or opens its menu), and moves nothing
+	}
 	if local := e.LocalPosition(); local.Dx < gutterWidth && vm.glyphPress(local.Dx, local.Dy, s.modifiers(), middle) {
 		return // a press in the glyph margin sets or removes a breakpoint, and moves nothing
 	}

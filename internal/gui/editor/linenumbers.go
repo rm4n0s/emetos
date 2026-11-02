@@ -80,8 +80,9 @@ type GutterOptions struct {
 	// DigitWidth is the width of the widest digit of the editor font.
 	DigitWidth float64
 	LineHeight float64
-	// GlyphMargin says whether there is a glyph margin; it is as wide as a line is high.
+	// GlyphMargin says whether there is a glyph margin; it is as wide as a line is high for each of its lanes (GlyphLanes, 1 when 0).
 	GlyphMargin bool
+	GlyphLanes  int
 	// LineDecorationsWidth is the width of the line decorations (10 in VS Code).
 	LineDecorationsWidth float64
 	// Folding says whether the folding controls take room (16 pixels more).
@@ -99,7 +100,7 @@ const foldingControlsWidth = 16
 func ComputeGutterWidths(o GutterOptions, lineCount int) GutterWidths {
 	var w GutterWidths
 	if o.GlyphMargin {
-		w.GlyphMargin = o.LineHeight
+		w.GlyphMargin = o.LineHeight * float64(max(o.GlyphLanes, 1))
 	}
 	if o.LineNumbers != LineNumbersOff {
 		digits := max(len(strconv.Itoa(max(lineCount, 1))), o.LineNumbersMinChars)

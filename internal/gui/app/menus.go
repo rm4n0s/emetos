@@ -88,6 +88,14 @@ func (s *shellState) editorMenuContext() contextkey.Context { return s.editorMen
 
 // editorMenuItems are the items of the context menu of an editor, asked for when it opens.
 func (s *shellState) editorMenuItems(ed *textEditor) []kit.MenuItem {
+	if ed != nil && ed.tst != nil {
+		// a press of the secondary button on the glyph of a test opens the menu of its tests
+		if t := ed.view.TakeTestMenuTarget(); t.InGlyph {
+			if items := ed.tst.glyphMenu(t.IDs); len(items) > 0 {
+				return items
+			}
+		}
+	}
 	if ed != nil && ed.dbg != nil {
 		// a press of the secondary button in the glyph margin, or on an inline breakpoint, opens the menu of the breakpoints
 		if t := ed.view.TakeDebugMenuTarget(); t.InGlyph {

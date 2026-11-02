@@ -5184,3 +5184,26 @@ The lines above were written from the entries of the steps and `git log`, and co
 - **Glutter issues:** none
 - **Deviations and follow-ups:** DECISIONS-TO-REVIEW 1540 to 1560.
 
+
+## 26.3 The editor, the peek and Test Results
+
+- **Date:** 2026-11-02
+- **Branch:** feat/step-26.3-editor-peek-results (based on step 26.2, 3ecf0b5)
+- **Summary:** tests can be run from the editor and their failures read there. Every text editor of a file shows a glyph on the lines where tests start (the run icon, or the state of the last result), a click runs them as `testing.defaultGutterClickAction` says (Alt for the alternate action), the secondary button opens the menu of the test (Run, Debug, Run with Coverage, Peek Error, Cancel, Reveal in Test Explorer), and the failure messages are written after their lines. Peek Output, Peek Error and a failure (with `testing.automaticallyOpenPeekView`) open the peek under the failing line: the message, the stack trace as links, the expected and actual text in a small diff editor, the output, and Alt+F8 and Shift+Alt+F8 between the failures. Test Results is a panel tab with the runs, their tests and messages and the output of the selection in the ANSI text widget; Show Output opens it. The settings `testing.openTesting`, `followRunningTest`, `alwaysRevealTestOnStateChange`, `saveBeforeTest`, `defaultGutterClickAction`, `automaticallyOpenPeekView`, `gutterEnabled` and `showAllMessages` work. The editors of a client's view have all of it over the host's service.
+- **Main files:**
+  - `internal/gui/editor/testing.go` (new), `gutter.go`, `linenumbers.go`, `debug.go`, `debug_paint.go`, `debug_pointer.go`, `pointer.go`, `annotations.go`, `viewmodel.go`, `widget.go` (the two-lane margin, the marks, the presses);
+  - `internal/gui/testpeek/` (new: the controller and the widget of the peek), `internal/gui/views/testing/results.go` (new) and `explorer.go` (`Reveal`);
+  - `internal/gui/app/{testingeditor,testingresults}.go` (new), `testingcommands.go`, `testingview.go`, `panels.go`, `menus.go`, `editors.go`, `devopen.go`, `autosave.go`;
+  - `internal/core/{command,keybinding,settings,theme}/testing.go`, `command/views_default.go`, `theme/colors_builtin.go`;
+  - `extensions/devtesting/devtesting.go` (`failLine`, `stack`, `output`), `testdata/proof/26.3/`;
+  - tests: `internal/gui/editor/testing_widget_test.go`, `internal/gui/testpeek/peek_test.go`, `internal/gui/views/testing/results_test.go`, `internal/gui/app/{testingeditor,testingeditor_golden}_test.go`, `cmd/emetos/testing_editor_display_test.go`, and the updated tests of `core/{command,keybinding,settings,theme}`, `app/{keys,testingcommands}_test.go`;
+  - `docs/SPEC.md` ("As built (step 26.3)" under §10.32), `docs/DECISIONS-TO-REVIEW.md` (1580 to 1590), this entry.
+- **Ported from VS Code:** `testingDecorations.ts` (the glyphs, their click and menu, the messages), `testingOutputPeek.ts` (the peek, next and previous, opening on a failure, Peek Output), `testResultsView/` (the tree and the content), `testingProgressUiService.ts` (`testing.openTesting`), `testingExplorerView.ts` (following the running test), `testExplorerActions.ts` (`saveBeforeTest`, Show Output), `common/configuration.ts` and `theme.ts`.
+- **Not built:** see decisions 1580, 1583, 1585, 1586 (the peek's history and tree, Open in Editor, the alternate icon, markdown messages, a diff editor in Test Results, `testing.resultsView.layout`, the continuous-run peek setting, the overview ruler mark).
+- **Tests:** see the SPEC. New error tag with its route test: `TestPeekNoBody`.
+- **Checks:** `gofmt` (cmd, internal, assets, extension, extensions) prints nothing; `go vet ./...` and with `-tags emetos_display`; `golangci-lint run` 0 issues; `CGO_ENABLED=0 go build ./...`; `scripts/error-tags.sh --untested` prints nothing; the race tests of the touched packages (gui/editor, gui/testpeek, gui/views/testing, gui/app, gui/settingsui, gui/quickinput, gui/exthost, archtest, core/command, core/keybinding, core/settings, core/theme, extensions/devtesting) pass; display test `scripts/heavy.sh --alone -- scripts/realinput.sh -- ./cmd/emetos -run TestRealInputTestingInTheEditor -count=2` passes.
+- **Proof:** [26.3-peek.png](implemented-proof-images/26.3-peek.png): the gutter glyphs (passed, failed) and the peek of TestFormatReport under its failure line, with its expected/actual diff and its stack.
+- **Goldens:** new, all looked at: `internal/gui/editor/testdata/goldens/testing_{glyphs,messages}_{dark,light}.png`, `internal/gui/app/testdata/goldens/testing_{editor_glyphs,peek_diff,peek_stack,results}_{dark,light}.png`. No existing golden changed.
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** DECISIONS-TO-REVIEW 1580 to 1590.

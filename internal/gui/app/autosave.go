@@ -226,6 +226,7 @@ func (s *shellState) editorBlurred(binding *widgets.WidgetsBinding, ed *textEdit
 // the focus (VS Code's onDidActiveEditorChange). An editor that closed has not lost anything: it asked, or
 // saved, on the way out.
 func (s *shellState) activeEditorChanged() {
+	s.syncPeekKey()
 	st := &s.autosave
 	if st.ctl == nil {
 		return

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"github.com/rm4n0s/emetos/internal/gui/testpeek"
 	"os"
 	"path/filepath"
 	"slices"
@@ -636,7 +637,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				debugViewState(a, command.ViewDebugVariables, "variablesFocused"), debugViewState(a, command.ViewDebugWatch, "watchExpressionsFocused"),
 				debugViewState(a, command.ViewDebugBreakpoints, "breakpointsFocused"),
 				breakpointWidgetState(a, true), breakpointWidgetState(a, false), exceptionWidgetState(a),
-				testingRefreshState(a), testingViewState(a))
+				testingRefreshState(a), testingViewState(a), testingPeekState(a))
 			for _, state := range states {
 				a.vm.SetQuickDiffMarks(nil)
 				a.vm.SetQuickDiffPeeker(nil)
@@ -679,6 +680,10 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				a.win.Keys.Set("editorPartMultipleEditorGroups", false)
 				a.win.Keys.Reset("focusedView")
 				a.win.Keys.Reset("testing.canRefresh")
+				if e := a.win.shell.activeEditor(); e != nil && e.tst != nil && e.tst.peek != nil {
+					e.tst.peek.Close()
+				}
+				a.win.Keys.Reset("testing.isPeekVisible")
 				a.win.Keys.Reset("inQuickOpen")
 				a.win.Keys.Reset("inEditorsPicker")
 				a.win.Keys.Set("canNavigateBack", false)
@@ -1175,5 +1180,19 @@ func testingViewState(a *keyApp) func() {
 	return func() {
 		unfocusedState(a)()
 		a.win.Keys.Set("focusedView", command.ViewTestExplorer)
+	}
+}
+
+// testingPeekState is the state of a window that shows the peek of a failed test with the editor focused (step 26.3), for Alt+F8, Shift+Alt+F8
+// and Escape.
+func testingPeekState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		if e := a.win.shell.activeEditor(); e != nil && e.tst != nil {
+			// a real peek: the window sets the key from the active editor's peek
+			e.tst.peekController().ShowSubject(testpeek.Subject{Key: "k", Title: "T", Text: "x", Failure: true})
+			a.focusEditor()
+		}
+		a.win.Keys.Set("testing.isPeekVisible", true)
 	}
 }

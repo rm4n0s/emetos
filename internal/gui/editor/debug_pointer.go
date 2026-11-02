@@ -59,6 +59,7 @@ func (s *editorState) noteDebugMenu(e *gestures.PointerDownEvent, gutterWidth fl
 	local := e.LocalPosition()
 	if local.Dx < gutterWidth {
 		vm.noteDebugMenuTarget(local.Dx, local.Dy)
+		vm.noteTestMenuTarget(local.Dx, local.Dy)
 		return
 	}
 	vm.dbg.menu = DebugMenuTarget{Col: -1}

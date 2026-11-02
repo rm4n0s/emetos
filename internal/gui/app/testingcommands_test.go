@@ -294,15 +294,19 @@ func TestRefreshingTheTestsAndTheOtherCommandsOfTheViewWorkWithoutAHandler(t *te
 	}
 }
 
-func TestShowOutputOpensTheOutputOfTheLastRunInTheOutputPanel(t *testing.T) {
+func TestShowOutputOpensTestResultsWithTheLastRun(t *testing.T) {
 	r := newTestingRig(t, testingOpts{})
-	// the fake controller prints nothing: the command says so and writes no channel
 	r.runCommand(command.TestingRunAll, nil)
 	r.run(command.TestingShowMostRecentOutput, nil)
-	if lines := r.win.Process.Channels.Lines(testResultsChannel); len(lines) != 0 {
-		t.Errorf("the channel has %q for a run with no output", lines)
+	if r.win.Views.ActivePanel() != command.ViewContainerTestResults || !r.win.Layout.State().PanelVisible {
+		t.Fatalf("the panel shows %q (visible %v), want Test Results", r.win.Views.ActivePanel(), r.win.Layout.State().PanelVisible)
 	}
-	// a run with output: the lines show in the channel with their colors taken away
+	res := r.win.shell.testing.results
+	n, ok := res.Selected()
+	if !ok || n.Kind != testview.NodeResult || n.Result != r.svc().Results()[0] {
+		t.Fatalf("the selected node is %+v, want the newest run", n)
+	}
+	// a run with output: the text beside the tree is the output, with its colors
 	live := r.svc().StartExternalRun(coretesting.ExternalRun{Request: coretesting.RunRequest{Group: coretesting.GroupRun}})
 	task, err := live.AddTask(coretesting.TaskSpec{Name: "x", ControllerID: devtesting_ctrl})
 	if err != nil {
@@ -310,13 +314,11 @@ func TestShowOutputOpensTheOutputOfTheLastRunInTheOutputPanel(t *testing.T) {
 	}
 	task.AppendOutput([]byte("\x1b[31mFAIL\x1b[0m TestDiv\r\nline two\r\n"), nil, "")
 	task.End()
+	r.waitFor("the new run in Test Results", func() bool { return len(res.Model().Rows()) > 0 && r.svc().Results()[0] == live })
 	r.run(command.TestingShowMostRecentOutput, nil)
-	lines := r.win.Process.Channels.Lines(testResultsChannel)
-	if len(lines) != 2 || lines[0] != "FAIL TestDiv" || lines[1] != "line two" {
-		t.Errorf("the channel has %q", lines)
-	}
-	if r.win.Views.ActivePanel() != command.ViewContainerOutput {
-		t.Errorf("the panel shows %q, want the Output", r.win.Views.ActivePanel())
+	n, _ = res.Selected()
+	if got := testview.NodeText(n, nil); got != "\x1b[31mFAIL\x1b[0m TestDiv\r\nline two\r\n" {
+		t.Errorf("the text of the run is %q", got)
 	}
 }
 

@@ -1,8 +1,8 @@
 package keybinding
 
 // registerTestingKeys registers the keys of Testing (Linux): the Ctrl+; chords that run, debug and cover tests, rerun the last run or its
-// failures, show the output, cancel a run and refresh the tests, and Alt+Enter on a test of the Test Explorer. The keys of the peek (step
-// 26.3) are registered by that step.
+// failures, show the output, cancel a run and refresh the tests, and Alt+Enter on a test of the Test Explorer, and (step 26.3) the keys of the
+// peek: Peek Output, Alt+F8 and Shift+Alt+F8 between the failures, and Escape.
 //
 // Ported from VS Code: src/vs/workbench/contrib/testing/browser/testExplorerActions.ts (the keybinding of each action)
 func registerTestingKeys(r *Registry) {
@@ -26,5 +26,9 @@ func registerTestingKeys(r *Registry) {
 		Rule{Command: "testing.cancelRun", Weight: WeightWorkbenchContrib, Primary: "ctrl+; ctrl+x"},
 		Rule{Command: "testing.refreshTests", Weight: WeightWorkbenchContrib, When: mustWhen("testing.canRefresh"), Primary: "ctrl+; ctrl+r"},
 		Rule{Command: "testing.editFocusedTest", Weight: WeightEditorContrib - 10, When: mustWhen(explorer), Primary: "alt+enter"},
+		Rule{Command: "testing.openOutputPeek", Weight: WeightWorkbenchContrib, Primary: "ctrl+; ctrl+m"},
+		Rule{Command: "testing.goToNextMessage", Weight: WeightEditorContrib + 1, When: mustWhen("editorFocus && testing.isPeekVisible"), Primary: "alt+f8"},
+		Rule{Command: "testing.goToPreviousMessage", Weight: WeightEditorContrib + 1, When: mustWhen("editorFocus && testing.isPeekVisible"), Primary: "shift+alt+f8"},
+		Rule{Command: "editor.closeTestPeek", Weight: WeightEditorContrib - 101, When: mustWhen("testing.isPeekVisible && !config.editor.stablePeek"), Primary: "escape"},
 	)
 }

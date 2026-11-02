@@ -44,6 +44,9 @@ type textEditor struct {
 	// dbg is the debugger of the editor (debugeditor.go), nil for the editors of a diff, a merge and a peek; stopDebug takes it away.
 	dbg       *editorDebug
 	stopDebug func()
+	// tst is the tests in the editor (testingeditor.go), nil for the editors of a diff, a merge and a peek; stopTesting takes it away.
+	tst         *editorTesting
+	stopTesting func()
 	// stopFeatures stops listening to the language servers that start and stop (navhost.go).
 	stopFeatures func()
 	// done is closed when the editor is disposed; it ends the background loop of the tokenizer.
@@ -143,6 +146,7 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 	if adjust == nil { // the editors of a diff, a merge and a peek compare their text in their own way
 		e.stopQuickDiff = s.followQuickDiff(binding, e)
 		e.stopDebug = s.followDebug(binding, e)
+		e.stopTesting = s.followTesting(binding, e)
 	}
 	s.followEditorState(e)
 	s.autoSaveTrack(doc)
@@ -298,6 +302,10 @@ func (e *textEditor) dispose() {
 	if e.stopAnnotations != nil {
 		e.stopAnnotations()
 		e.stopAnnotations = nil
+	}
+	if e.stopTesting != nil {
+		e.stopTesting()
+		e.stopTesting = nil
 	}
 	if e.stopDebug != nil {
 		e.stopDebug()

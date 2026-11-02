@@ -13,7 +13,8 @@ func TestTestingKeysAreVSCodesChords(t *testing.T) {
 		"testing.reRunFailTests": "ctrl+; e", "testing.debugFailTests": "ctrl+; ctrl+e",
 		"testing.reRunLastRun": "ctrl+; l", "testing.debugLastRun": "ctrl+; ctrl+l", "testing.coverageLastRun": "ctrl+; ctrl+shift+l",
 		"testing.showMostRecentOutput": "ctrl+; ctrl+o", "testing.cancelRun": "ctrl+; ctrl+x", "testing.refreshTests": "ctrl+; ctrl+r",
-		"testing.editFocusedTest": "alt+enter",
+		"testing.editFocusedTest": "alt+enter", "testing.openOutputPeek": "ctrl+; ctrl+m",
+		"testing.goToNextMessage": "alt+f8", "testing.goToPreviousMessage": "shift+alt+f8",
 	}
 	got := map[string]string{}
 	for _, it := range DefaultRegistry().Defaults() {
@@ -52,6 +53,11 @@ func TestTestingChordsResolveWhereTheirConditionHolds(t *testing.T) {
 		{"refresh without", nil, "ctrl+; ctrl+r", ""},
 		{"alt+enter in the explorer", map[string]any{"focusedView": "workbench.view.testing"}, "alt+enter", "testing.editFocusedTest"},
 		{"alt+enter elsewhere", nil, "alt+enter", ""},
+		{"alt+f8 in the peek", map[string]any{"editorFocus": true, "testing.isPeekVisible": true}, "alt+f8", "testing.goToNextMessage"},
+		{"shift+alt+f8 in the peek", map[string]any{"editorFocus": true, "testing.isPeekVisible": true}, "shift+alt+f8", "testing.goToPreviousMessage"},
+		{"alt+f8 with no peek is the problems'", map[string]any{"editorFocus": true}, "alt+f8", "editor.action.marker.next"},
+		{"escape in the peek", map[string]any{"testing.isPeekVisible": true}, "escape", "editor.closeTestPeek"},
+		{"escape with no peek", nil, "escape", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

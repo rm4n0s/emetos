@@ -112,5 +112,8 @@ func DefaultViews() *ViewRegistry {
 	// the Debug Console (order 2, after the Output): its tab shows while a debugger is available
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerRepl, Title: "Debug Console", Icon: codiconDebugConsole, Order: 2, Location: ViewLocationPanel, HideIfEmpty: true})
 	r.MustRegisterViews(View{ID: ViewRepl, Name: "Debug Console", Container: ViewContainerRepl, When: contextkey.Has("debuggersAvailable")})
+	// Test Results (order 3, after the Debug Console; step 26.3, SPEC §10.32): its tab shows once a run has results (decision 1582)
+	r.MustRegisterContainer(ViewContainer{ID: ViewContainerTestResults, Title: "Test Results", Icon: codiconBeaker, Order: 3, Location: ViewLocationPanel, HideIfEmpty: true})
+	r.MustRegisterViews(View{ID: ViewTestResults, Name: "Test Results", Container: ViewContainerTestResults, When: contextkey.Has("testing.hasAnyResults")})
 	return r
 }

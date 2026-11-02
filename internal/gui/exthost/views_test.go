@@ -143,13 +143,13 @@ func TestTheManifestsViewsAreThereBeforeTheExtensionRuns(t *testing.T) {
 	if !ok || tab.Title != "Vx Tab" || tab.Location != command.ViewLocationPanel || tab.Order != extensionOrder {
 		t.Errorf("the panel container = %+v, %v", tab, ok)
 	}
-	// the tab comes after Problems, Output and the Debug Console (which the window hides while no debugger is there), and the icon after
+	// the tab comes after Problems, Output, the Debug Console and Test Results (which the window hides while no debugger or results are there), and the icon after
 	// the Explorer
 	var panel []string
 	for _, p := range reg.Containers(command.ViewLocationPanel) {
 		panel = append(panel, p.ID)
 	}
-	if !slices.Equal(panel, []string{command.ViewContainerMarkers, command.ViewContainerOutput, command.ViewContainerRepl, "vx.tab"}) {
+	if !slices.Equal(panel, []string{command.ViewContainerMarkers, command.ViewContainerOutput, command.ViewContainerRepl, command.ViewContainerTestResults, "vx.tab"}) {
 		t.Errorf("the tabs of the panel are %v", panel)
 	}
 	var side []string

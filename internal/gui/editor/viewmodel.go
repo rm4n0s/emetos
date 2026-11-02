@@ -227,7 +227,7 @@ type FontFeature struct {
 func (o Options) gutterOptions(digitWidth float64) GutterOptions {
 	return GutterOptions{
 		LineNumbers: o.LineNumbers, LineNumbersMinChars: o.LineNumbersMinChars, DigitWidth: digitWidth,
-		LineHeight: o.LineHeight, GlyphMargin: o.GlyphMargin, LineDecorationsWidth: o.LineDecorationsWidth,
+		LineHeight: o.LineHeight, GlyphMargin: o.GlyphMargin, GlyphLanes: 1, LineDecorationsWidth: o.LineDecorationsWidth,
 		Folding: o.Folding && o.ShowFoldingControls != "never",
 	}
 }
@@ -271,7 +271,10 @@ type ViewModel struct {
 	// inval are the inline values of the debugger, a group of annotations of their own (annotations.go); dbg is the debugger in the editor
 	// (debug.go).
 	inval annotationState
-	dbg   debugState
+	// tmsg are the messages of the tests, a third group of annotations (testing.go); tst is the tests in the editor.
+	tmsg annotationState
+	tst  testingState
+	dbg  debugState
 	// sg is the suggest widget (suggest.go) and sig the parameter hints (signature.go).
 	sg  suggestState
 	sig signatureModel
@@ -419,7 +422,7 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 14
+	ownerSlots   = 16
 	snippetOwner = 6
 	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
 	suggestOwner = 9

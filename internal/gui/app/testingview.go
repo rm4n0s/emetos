@@ -33,6 +33,9 @@ import (
 // testingShell is what the shell keeps of the Testing view.
 type testingShell struct {
 	explorer *testview.Explorer
+	// results is Test Results; opening holds the results that open the Test Results panel at their first failure (testing.openTesting).
+	results *testview.Results
+	opening map[string]bool
 	// menu opens the context menus of the tests, the menu behind "..." and the menu of the filter.
 	menu *kit.ContextMenuController
 	// stops end what the view follows, and removeCommands give its commands back.
@@ -89,6 +92,7 @@ func (s *shellState) initTesting(binding *widgets.WidgetsBinding) {
 			}
 		}
 	}))
+	s.initTestResults(binding)
 	s.bindTestingCommands(binding)
 	s.syncTestingParts()
 }
@@ -184,9 +188,10 @@ func (s *shellState) syncTestingParts() {
 		k.Set("testing.explorerViewMode", string(st.explorer.Mode()))
 		k.Set("testing.explorerViewSorting", string(st.explorer.Sorting()))
 		k.Set("testing.isRunning", svc.IsRunning())
-		k.Set("testing.isPeekVisible", false)
+
 		k.Set("testing.hasCoverageResults", coverage)
 	})
+	s.syncPeekKey()
 	s.syncTestingBadge(svc)
 	if svc.IsRunning() {
 		s.testingTick(s.binding)

@@ -437,3 +437,29 @@ func (x *Explorer) IncludeExclude(selectedOnly bool, can func(id string) bool) (
 
 // Touch tells the view to draw again, for what the rows do not show: the time a live run has taken.
 func (x *Explorer) Touch() { x.notify() }
+
+// Reveal selects the row of a test and brings it into view, expanding the rows above it when expand is true. Without expand a test whose
+// rows are folded (or filtered out) is left as it is. It says whether the row was revealed; a selection of more than one row is left alone
+// (VS Code does not change a multi-selection).
+//
+// Ported from VS Code: src/vs/workbench/contrib/testing/browser/testingExplorerView.ts (TestingExplorerView.revealById)
+func (x *Explorer) Reveal(id string, expand bool) bool {
+	e := x.Element(id)
+	if e == nil || !x.visible[e] {
+		return false
+	}
+	if x.model.SelectionCount() > 1 {
+		return false
+	}
+	if expand {
+		if _, ok := x.model.Reveal(e.Key); !ok {
+			return false
+		}
+	} else if x.model.IndexOf(e.Key) < 0 {
+		return false
+	}
+	x.ctl.Reveal(e.Key) // scrolls, once the tree is on screen
+	x.model.SetSelected(e.Key)
+	x.model.SetFocus(e.Key)
+	return true
+}

@@ -197,6 +197,11 @@ func (s *shellState) panelBody(win *Workspace) widgets.Widget {
 			return nil
 		}
 		viewID = command.ViewRepl
+	case command.ViewContainerTestResults:
+		if body = s.testResultsBody(); body == nil {
+			return nil
+		}
+		viewID = command.ViewTestResults
 	default:
 		// a tab an extension declared is the box of its content, which sets focusedView itself
 		if scope := win.Extensions(); scope != nil {
@@ -252,6 +257,10 @@ func (s *shellState) focusPanelView(container string) {
 		s.panels.output.Focus().Request()
 	case command.ViewContainerRepl:
 		s.focusDebugConsole()
+	case command.ViewContainerTestResults:
+		if r := s.testing.results; r != nil {
+			r.Controller().Focus()
+		}
 	}
 }
 

@@ -1,6 +1,9 @@
 package theme
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // The colors of the Test Explorer (step 26.2): the icons of the states and their outdated variants, as VS Code's theme.ts has them.
 func TestTestingIconColors(t *testing.T) {
@@ -38,5 +41,48 @@ func TestTestingIconColors(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// The colors of the editor and the peek of Testing (step 26.3): VS Code's ids and defaults (theme.ts and miscColors.ts).
+func TestTestingEditorColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"activityErrorBadge.background", "#f14c4c", "#e51400", "#f14c4c", "#e51400"},
+		{"activityErrorBadge.foreground", "#ffffff", "#ffffff", "#ffffff", "#ffffff"},
+		{"testing.peekBorder", "#f14c4c", "#e51400", "#6fc3df", "#0f4a85"},
+		{"testing.messagePeekBorder", "#59a4f9", "#0063d3", "#6fc3df", "#0f4a85"},
+		{"testing.peekHeaderBackground", "rgba(241, 76, 76, 0.1)", "rgba(229, 20, 0, 0.1)", none, none},
+		{"testing.messagePeekHeaderBackground", "rgba(89, 164, 249, 0.1)", "rgba(0, 99, 211, 0.1)", none, none},
+		{"testing.message.error.badgeBackground", "#f14c4c", "#e51400", "#f14c4c", "#e51400"},
+		{"testing.message.error.badgeBorder", "#f14c4c", "#e51400", "#f14c4c", "#e51400"},
+		{"testing.message.error.badgeForeground", "#ffffff", "#ffffff", "#ffffff", "#ffffff"},
+		{"testing.message.error.lineBackground", none, none, none, none},
+		{"testing.message.info.lineBackground", none, none, none, none},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+	// the info decoration is the foreground of the editor at half its opacity
+	if c, ok := colorTheme(TypeDark, nil, registry).Color("testing.message.info.decorationForeground"); !ok || !strings.Contains(c.String(), "0.5)") {
+		t.Errorf("the info decoration color is %v", c)
 	}
 }

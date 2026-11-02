@@ -98,7 +98,8 @@ func (r *RenderEditorGutter) paintDebugGlyphs(canvas *ui.Canvas, offset ui.Offse
 	icons.FontFamilies, icons.FontSize, icons.FontWeight, icons.LetterSpacing, icons.FontFeatures = []string{fonts.Codicon}, vm.glyphSize(), 0, 0, nil
 	draw := func(row, code int, color ui.Color) {
 		p := newTextStyle(r.factory, icons, color).paragraph(vm.Paragraphs(), string(rune(code)))
-		x := offset.Dx + (widths.GlyphMargin-p.LongestLine())/2
+		lane := float64(vm.glyphLanes() - 1) // the breakpoints and the frames have the right lane of the margin
+		x := offset.Dx + lane*vm.opts.LineHeight + (vm.opts.LineHeight-p.LongestLine())/2
 		canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: offset.Dy + proj.RowTop(row) - top})
 	}
 	for row := first; row <= last; row++ {

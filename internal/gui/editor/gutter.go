@@ -21,6 +21,8 @@ type GutterColors struct {
 	FoldingControl ui.Color
 	// QuickDiff are the colors of the stripes of the quick diff.
 	QuickDiff QuickDiffColors
+	// Test are the colors of the glyphs of the tests in the glyph margin.
+	Test TestColors
 	// Debug are the colors of the debug marks in the glyph margin.
 	Debug DebugColors
 }
@@ -32,7 +34,9 @@ func (vm *ViewModel) GutterWidths(factory ui.ParagraphFactory) GutterWidths {
 	if vm.Options().LineNumbers != LineNumbersOff {
 		digit = newTextStyle(factory, vm.Options(), ui.NewColor(0)).digitWidth(vm.Paragraphs())
 	}
-	return ComputeGutterWidths(vm.Options().gutterOptions(digit), vm.Document().Snapshot().LineCount())
+	opts := vm.Options().gutterOptions(digit)
+	opts.GlyphLanes = vm.glyphLanes()
+	return ComputeGutterWidths(opts, vm.Document().Snapshot().LineCount())
 }
 
 // RenderEditorGutter is the gutter of the editor: the line numbers of the visible rows, in
@@ -144,6 +148,7 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 	r.paintQuickDiff(canvas, offset, top, first, last, widths)
 	r.paintZoneGlyphs(canvas, offset, top, first, last, widths)
 	r.paintDebugGlyphs(canvas, offset, top, first, last, widths)
+	r.paintTestGlyphs(canvas, offset, top, first, last, widths)
 }
 
 // paintNumbers draws the line numbers of the visible rows.

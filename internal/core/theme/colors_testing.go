@@ -37,3 +37,36 @@ func registerTestingColors(r *ColorRegistry) {
 			Description: "Retired color for the 'Skipped' icon in the test explorer."},
 	)
 }
+
+// registerTestingEditorColors registers the colors of the editor and the peek of Testing (step 26.3): the frame and header of the peek, the
+// inline messages, and the error badge colors they refer to. The colors of the coverage in the editor come with step 26.4.
+//
+// Ported from VS Code: src/vs/workbench/contrib/testing/browser/theme.ts and src/vs/platform/theme/common/colors/miscColors.ts
+func registerTestingEditorColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "activityErrorBadge.background", Defaults: dflt(Hex("#F14C4C"), Hex("#E51400"), Hex("#F14C4C"), Hex("#E51400")),
+			Description: "Background color of the error activity badge."},
+		ColorContribution{ID: "activityErrorBadge.foreground", Defaults: dflt(Hex("#FFFFFF"), Hex("#FFFFFF"), Hex("#FFFFFF"), Hex("#FFFFFF")),
+			Description: "Foreground color of the error activity badge."},
+		ColorContribution{ID: "testing.peekBorder", Defaults: dflt(Ref("editorError.foreground"), Ref("editorError.foreground"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Color of the peek view borders and arrow."},
+		ColorContribution{ID: "testing.messagePeekBorder", Defaults: dflt(Ref("editorInfo.foreground"), Ref("editorInfo.foreground"), Ref("contrastBorder"), Ref("contrastBorder")),
+			Description: "Color of the peek view borders and arrow when peeking a logged message."},
+		ColorContribution{ID: "testing.peekHeaderBackground", Defaults: dflt(Transparent(Ref("editorError.foreground"), 0.1), Transparent(Ref("editorError.foreground"), 0.1), nil, nil),
+			Description: "Color of the peek view borders and arrow."},
+		ColorContribution{ID: "testing.messagePeekHeaderBackground", Defaults: dflt(Transparent(Ref("editorInfo.foreground"), 0.1), Transparent(Ref("editorInfo.foreground"), 0.1), nil, nil),
+			Description: "Color of the peek view borders and arrow when peeking a logged message."},
+		ColorContribution{ID: "testing.message.error.badgeBackground", Defaults: AllThemes(Ref("activityErrorBadge.background")),
+			Description: "Background color of test error messages shown inline in the editor."},
+		ColorContribution{ID: "testing.message.error.badgeBorder", Defaults: AllThemes(Ref("testing.message.error.badgeBackground")),
+			Description: "Border color of test error messages shown inline in the editor."},
+		ColorContribution{ID: "testing.message.error.badgeForeground", Defaults: AllThemes(Ref("activityErrorBadge.foreground")),
+			Description: "Text color of test error messages shown inline in the editor."},
+		ColorContribution{ID: "testing.message.error.lineBackground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "Margin color beside error messages shown inline in the editor."},
+		ColorContribution{ID: "testing.message.info.decorationForeground", Defaults: AllThemes(Transparent(Ref("editor.foreground"), 0.5)),
+			Description: "Text color of test info messages shown inline in the editor."},
+		ColorContribution{ID: "testing.message.info.lineBackground", Defaults: dflt(nil, nil, nil, nil),
+			Description: "Margin color beside info messages shown inline in the editor."},
+	)
+}

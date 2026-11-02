@@ -858,6 +858,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 		LineHighlight: colors.EditorLineHighlightBackground, LineHighlightBorder: colors.EditorLineHighlightBorder,
 		FoldingControl: colors.EditorGutterFoldingControlForeground,
 		Debug:          debugColorsOf(colors),
+		Test:           TestColors{Fallback: colors.EditorForeground, Lookup: colors.Named},
 		QuickDiff: QuickDiffColors{
 			Added: colors.EditorGutterAdded, Modified: colors.EditorGutterModified, Deleted: colors.EditorGutterDeleted,
 			AddedSecondary: colors.EditorGutterAddedSecondary, ModifiedSecondary: colors.EditorGutterModifiedSecondary, DeletedSecondary: colors.EditorGutterDeletedSecondary,
@@ -906,9 +907,9 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 					OnEnter: func(*gestures.PointerEnterEvent) { vm.setGutterHover(true) },
 					OnHover: func(e *gestures.PointerHoverEvent) {
 						p := e.LocalPosition()
-						vm.SetDebugGutterPointer(p.Dy, p.Dx < vm.glyphWidth())
+						vm.SetGlyphPointer(p.Dx, p.Dy)
 					},
-					OnExit: func(*gestures.PointerExitEvent) { vm.setGutterHover(false); vm.SetDebugGutterPointer(-1, false) },
+					OnExit: func(*gestures.PointerExitEvent) { vm.setGutterHover(false); vm.SetGlyphPointer(0, -1) },
 				}),
 			widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
 				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
