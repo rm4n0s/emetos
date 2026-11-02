@@ -55,6 +55,7 @@ func DefaultRegistry() *Registry {
 	registerExtensionsCommands(r)
 	registerSourceControlCommands(r)
 	registerDebugCommands(r)
+	registerTestingCommands(r)
 	return r
 }
 

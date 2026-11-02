@@ -143,7 +143,7 @@ func (w *Workspace) startExtensions() {
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, ShowProblems: w.showProblems, FilesComplete: w.extensionFilesComplete,
 		OpenURI: w.openURI, OpenWindowTab: w.openWindowTab, OpenFolder: w.openFolderFor, Editors: extEditorHost{w: w}, Languages: extLanguages{w: w}, EditorsChanged: w.editorsChanged,
 		LSP: workspaceLSP{w: w}, QuickPick: w.extensionQuickPick, InputBox: w.extensionInputBox,
-		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, Decorations: w.Decorations, Timeline: w.Timeline, QuickDiff: w.QuickDiff, Debug: w.Debug, HistoryGraph: w.SCM != nil, EditorDecorations: w.Annotations, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard, StateGet: w.extensionStateGet, StateSet: w.extensionStateSet,
+		NewHeadlessView: w.newHeadlessView, Banners: w.Banners, SCM: w.SCM, Decorations: w.Decorations, Timeline: w.Timeline, QuickDiff: w.QuickDiff, Debug: w.Debug, Testing: w.Testing, HistoryGraph: w.SCM != nil, EditorDecorations: w.Annotations, FileChooser: w.extensionFileChooser, Clipboard: w.extensionClipboard, StateGet: w.extensionStateGet, StateSet: w.extensionStateSet,
 		Dialog: w.extensionDialog, Watch: w.extensionWatch, TrashFiles: w.extensionTrash,
 	}
 	w.scopeScreenOptions(&opts)

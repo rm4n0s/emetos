@@ -73,6 +73,7 @@ func DefaultRegistry() *Registry {
 	registerPanelViewKeys(r)
 	registerExplorerKeys(r)
 	registerDebugKeys(r)
+	registerTestingKeys(r)
 	registerSourceControlInputKeys(r)
 	registerSaveKeys(r)
 	registerWindowKeys(r)

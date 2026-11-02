@@ -37,6 +37,7 @@ func DefaultMenus(commands *Registry) *MenuRegistry {
 	registerExtensionsMenus(r)
 	registerSourceControlMenus(r)
 	registerDebugMenus(r)
+	registerTestingMenus(r)
 	return r
 }
 

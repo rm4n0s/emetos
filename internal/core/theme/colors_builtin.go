@@ -37,6 +37,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerTerminalColors(r)
 	registerSCMColors(r)
 	registerDebugColors(r)
+	registerTestingColors(r)
 	registerQuickDiffColors(r)
 	return r
 }

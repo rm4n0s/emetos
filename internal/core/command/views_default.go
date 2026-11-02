@@ -43,6 +43,9 @@ const codiconDebugAlt = 0xEB91
 // codiconDebugConsole is the code point of the Codicon "debug-console".
 const codiconDebugConsole = 0xEB9B
 
+// codiconBeaker is the code point of the Codicon "beaker" (the icon of Testing).
+const codiconBeaker = 0xEA79
+
 // codiconWarning and codiconOutput are the code points of the Codicons "warning" and "output".
 const (
 	codiconWarning = 0xEA6C
@@ -98,6 +101,10 @@ func DefaultViews() *ViewRegistry {
 		View{ID: ViewDebugBreakpoints, Name: "Breakpoints", Container: ViewContainerDebug, Order: 40, Weight: 20,
 			When: contextkey.Or(contextkey.Has("breakpointsExist"), contextkey.Equals("debugUx", "default"), contextkey.Has("hasDebugged"))},
 	)
+	// Testing (order 4, after Run and Debug; step 26.2, SPEC §10.32): the Test Explorer. The container id is VS Code's (Testing.ViewletId) and
+	// the view's its ExplorerViewId (decision 1540).
+	r.MustRegisterContainer(ViewContainer{ID: ViewContainerTesting, Title: "Testing", Icon: codiconBeaker, Order: 4})
+	r.MustRegisterViews(View{ID: ViewTestExplorer, Name: "Test Explorer", Container: ViewContainerTesting, Order: 1})
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerMarkers, Title: "Problems", Icon: codiconWarning, Order: 0, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerOutput, Title: "Output", Icon: codiconOutput, Order: 1, Location: ViewLocationPanel})

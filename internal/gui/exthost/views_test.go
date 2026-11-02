@@ -156,7 +156,7 @@ func TestTheManifestsViewsAreThereBeforeTheExtensionRuns(t *testing.T) {
 	for _, p := range reg.Containers(command.ViewLocationSideBar) {
 		side = append(side, p.ID)
 	}
-	if !slices.Equal(side, []string{command.ViewContainerExplorer, command.ViewContainerSCM, command.ViewContainerDebug, "vx.box"}) {
+	if !slices.Equal(side, []string{command.ViewContainerExplorer, command.ViewContainerSCM, command.ViewContainerDebug, command.ViewContainerTesting, "vx.box"}) {
 		t.Errorf("the icons of the activity bar are %v", side)
 	}
 	if vt.scope.State("vx") != StateInactive {

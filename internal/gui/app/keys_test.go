@@ -635,7 +635,8 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				debugState(a, "inactive", false), debugState(a, "running", false), debugState(a, "stopped", false), debugState(a, "stopped", true),
 				debugViewState(a, command.ViewDebugVariables, "variablesFocused"), debugViewState(a, command.ViewDebugWatch, "watchExpressionsFocused"),
 				debugViewState(a, command.ViewDebugBreakpoints, "breakpointsFocused"),
-				breakpointWidgetState(a, true), breakpointWidgetState(a, false), exceptionWidgetState(a))
+				breakpointWidgetState(a, true), breakpointWidgetState(a, false), exceptionWidgetState(a),
+				testingRefreshState(a), testingViewState(a))
 			for _, state := range states {
 				a.vm.SetQuickDiffMarks(nil)
 				a.vm.SetQuickDiffPeeker(nil)
@@ -677,6 +678,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				a.win.Keys.Set("multipleEditorGroups", false)
 				a.win.Keys.Set("editorPartMultipleEditorGroups", false)
 				a.win.Keys.Reset("focusedView")
+				a.win.Keys.Reset("testing.canRefresh")
 				a.win.Keys.Reset("inQuickOpen")
 				a.win.Keys.Reset("inEditorsPicker")
 				a.win.Keys.Set("canNavigateBack", false)
@@ -1157,5 +1159,21 @@ func exceptionWidgetState(a *keyApp) func() {
 			panic(err)
 		}
 		a.ts.Pump(time.Millisecond)
+	}
+}
+
+// testingRefreshState is the state of a window with a test controller that can be refreshed (step 26.2), for the key of Refresh Tests.
+func testingRefreshState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Set("testing.canRefresh", true)
+	}
+}
+
+// testingViewState is the state of a window in which the Test Explorer has the focus (step 26.2), for the key of Go to Test.
+func testingViewState(a *keyApp) func() {
+	return func() {
+		unfocusedState(a)()
+		a.win.Keys.Set("focusedView", command.ViewTestExplorer)
 	}
 }

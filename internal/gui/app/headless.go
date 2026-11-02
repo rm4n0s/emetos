@@ -488,6 +488,7 @@ func (s *shellState) initView(binding *widgets.WidgetsBinding) {
 	s.initSCM(binding)
 	s.initTimeline(binding)
 	s.initDebug(binding)
+	s.initTesting(binding)
 	s.initQuickInput(binding)
 	s.initStatus(binding)
 	s.initSave(binding)
@@ -498,6 +499,7 @@ func (s *shellState) disposeView() {
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()
+	s.disposeTesting()
 	s.disposeDebug()
 	s.disposeTimeline()
 	s.disposeSCM()
@@ -505,5 +507,6 @@ func (s *shellState) disposeView() {
 	s.disposePanels()
 	s.resetSCMParts()
 	s.resetDebugParts()
+	s.resetTestingParts()
 	s.disposeGroup()
 }

@@ -51,6 +51,7 @@ func DefaultRegistry() *Registry {
 	registerSourceControl(r)
 	registerTimeline(r)
 	registerDebug(r)
+	registerTesting(r)
 	registerExternalTerminal(r)
 	return r
 }

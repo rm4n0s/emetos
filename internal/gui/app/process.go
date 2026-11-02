@@ -96,6 +96,7 @@ type Process struct {
 	stateOpts storage.StateStoreOptions
 
 	scanTimeout time.Duration
+	testingNow  func() time.Time
 	// backupAfter, backupWrite and backupMax are ProcessOptions.BackupAfter, BackupWriteFile and BackupMaxSize.
 	backupAfter storage.AfterFunc
 	backupWrite storage.WriteFileFunc
@@ -152,6 +153,9 @@ type ProcessOptions struct {
 	// of SPEC §8.2 (100 ms). Tests that run slowly (the race detector on a loaded machine) lengthen
 	// it, because a search that times out leaves its line of text without colors.
 	ScanTimeout time.Duration
+	// TestingNow gives the time the test model stamps the runs with (SPEC §10.32); time.Now when nil. The goldens of the Test Explorer fix it,
+	// so that the duration of a run in the summary line does not change.
+	TestingNow func() time.Time
 	// StateDelay is how long after a change a state file is written (SPEC §10.10); one second when zero.
 	StateDelay time.Duration
 	// StateAfter sets the timers of that delay, and StateWriteFile replaces the function that writes the
@@ -227,6 +231,7 @@ func NewProcess(opts ProcessOptions) *Process {
 		WatchFiles:  opts.WatchFiles,
 		Launcher:    opts.Launcher,
 		scanTimeout: opts.ScanTimeout,
+		testingNow:  opts.TestingNow,
 		backupAfter: opts.BackupAfter,
 		backupWrite: opts.BackupWriteFile,
 		backupMax:   opts.BackupMaxSize,

@@ -286,6 +286,8 @@ type shellState struct {
 	timeline timelineState
 	// debug is what the shell keeps of the Run and Debug view (debugview.go).
 	debug debugShell
+	// testing is what the shell keeps of the Testing view (testingview.go).
+	testing testingShell
 	// blocked is the path of the file that looks binary and that a notice offers to open anyway,
 	// while there is no editor.
 	blocked string
@@ -380,6 +382,7 @@ func (s *shellState) InitState() {
 	s.initSCM(binding)
 	s.initTimeline(binding)
 	s.initDebug(binding)
+	s.initTesting(binding)
 	// the watcher of the folder, of the configuration and of the open files outside the folder
 	PeekWorkspace(s.Context()).StartWatching(s.Lifetime())
 	s.initQuickInput(binding)
@@ -518,6 +521,7 @@ func (s *shellState) Dispose() {
 	s.disposeSave()
 	s.disposeStatus()
 	s.disposeQuickInput()
+	s.disposeTesting()
 	s.disposeDebug()
 	s.disposeTimeline()
 	s.disposeSCM()
@@ -525,6 +529,7 @@ func (s *shellState) Dispose() {
 	s.disposePanels()
 	s.resetSCMParts()
 	s.resetDebugParts()
+	s.resetTestingParts()
 	s.disposeGroup()
 }
 
@@ -551,7 +556,7 @@ func (s *shellState) Build(bc widgets.BuildContext) widgets.Widget {
 		FullScreen: win.IsFullScreen(),
 		StatusBar:  s.statusBarOptions(win),
 		NoFolder:   win.Folder == "",
-		Debugging:  s.debug.debugging, SideBarActions: s.debugSideBarActions,
+		Debugging:  s.debug.debugging, SideBarActions: s.sideBarActions,
 		Menus: s.menus.BarMenus(), OnRunMenu: s.menus.Run, MenuBar: s.menuBar, TitleBar: titleBar,
 		Views: win.Views, ViewContext: win.Keys, ManageItems: s.menus.ManageItems, Manage: s.manage,
 		ViewBody: s.viewBody, ViewName: s.viewName, ViewDescription: s.viewDescription, ViewActions: s.viewActions, ViewBodyHeight: s.viewBodyHeight,

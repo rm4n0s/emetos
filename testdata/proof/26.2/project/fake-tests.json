@@ -1,0 +1,24 @@
+{
+  "label": "Fake Tests (dev)",
+  "delayMs": 80,
+  "tests": [
+    {"id": "calculator_test.go", "label": "calculator_test.go", "children": [
+      {"id": "TestAdd", "label": "TestAdd", "result": "passed", "ms": 3.2},
+      {"id": "TestSubtract", "label": "TestSubtract", "result": "passed", "ms": 2.1},
+      {"id": "TestMultiply", "label": "TestMultiply", "result": "passed", "ms": 1.4},
+      {"id": "TestDivide", "label": "TestDivide", "result": "failed", "ms": 12, "message": "expected 2.5, got 2", "expected": "2.5", "actual": "2"},
+      {"id": "TestSquareRoot", "label": "TestSquareRoot", "result": "skipped"}
+    ]},
+    {"id": "parser_test.go", "label": "parser_test.go", "children": [
+      {"id": "TestParseNumber", "label": "TestParseNumber", "result": "passed", "ms": 4},
+      {"id": "TestParseExpression", "label": "TestParseExpression", "result": "passed", "ms": 18},
+      {"id": "TestParseNested", "label": "TestParseNested", "result": "failed", "ms": 7.5, "message": "unexpected token ')'"},
+      {"id": "TestParseUnicode", "label": "TestParseUnicode", "result": "passed", "ms": 9}
+    ]},
+    {"id": "formatter_test.go", "label": "formatter_test.go", "children": [
+      {"id": "TestFormatInt", "label": "TestFormatInt", "result": "passed", "ms": 2},
+      {"id": "TestFormatFloat", "label": "TestFormatFloat", "result": "passed", "ms": 1250},
+      {"id": "TestFormatLocale", "label": "TestFormatLocale", "result": "skipped"}
+    ]}
+  ]
+}

@@ -29,6 +29,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions"
 	"github.com/rm4n0s/emetos/extensions/devdebug"
+	"github.com/rm4n0s/emetos/extensions/devtesting"
 	"github.com/rm4n0s/emetos/extensions/gitscm/helper"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/logs"
@@ -350,12 +351,12 @@ func formatVersion(mainVersion, revision, goVersion, goos, goarch string) string
 	return line + " " + goVersion + " " + goos + "/" + goarch
 }
 
-// compiledExtensions are the extensions compiled into this build: the bundled ones, and, in a build that runs dev commands, the fake
-// debugger the proofs of Run and Debug use (SPEC §15.2). A release build never has it.
+// compiledExtensions are the extensions compiled into this build: the bundled ones, and, in a build that runs dev commands, the fake test
+// controller of the Test Explorer (step 26.2) and the fake debugger of Run and Debug (SPEC §15.2). A release build never has them.
 func compiledExtensions() []extension.Factory {
 	list := extensions.All()
 	if app.DevCommandsEnabled() {
-		list = append(list, devdebug.New)
+		list = append(list, devdebug.New, devtesting.New)
 	}
 	return list
 }

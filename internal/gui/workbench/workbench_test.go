@@ -860,7 +860,7 @@ func TestEveryWorkbenchCommandHasAHandler(t *testing.T) {
 	var n int
 	for _, meta := range h.commands.All() {
 		// the commands of the editor group are bound by the app, which owns the group (step 6.8)
-		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] || extensionsAppCommands[meta.ID] || scmAppCommands[meta.ID] || debugAppCommand(meta.ID) {
+		if !strings.HasPrefix(meta.ID, "workbench.") || groupCommands[meta.ID] || gridCommand(meta.ID) || panelAppCommands[meta.ID] || explorerAppCommands[meta.ID] || quickInputCommands[meta.ID] || historyCommands[meta.ID] || statusBarAppCommands[meta.ID] || saveAppCommands[meta.ID] || windowAppCommands[meta.ID] || recentAppCommands[meta.ID] || settingsAppCommands[meta.ID] || themeAppCommands[meta.ID] || profileAppCommands[meta.ID] || modeAppCommands[meta.ID] || diffAppCommands[meta.ID] || extensionsAppCommands[meta.ID] || scmAppCommands[meta.ID] || debugAppCommand(meta.ID) || testingAppCommand(meta.ID) {
 			continue
 		}
 		n++
@@ -987,4 +987,10 @@ func TestPanelViewCommandsNeedViews(t *testing.T) {
 // container, its views, the commands of the session and of the views.
 func debugAppCommand(id string) bool {
 	return id == "workbench.view.debug" || strings.HasPrefix(id, "workbench.action.debug.") || strings.HasPrefix(id, "workbench.debug.")
+}
+
+// testingAppCommand tells whether a command is one of the Test Explorer's that the window binds (step 26.2, gui/app/testingcommands.go): the
+// container, the focus of the view and the filter box.
+func testingAppCommand(id string) bool {
+	return id == "workbench.view.extension.test" || id == "workbench.view.testing.focus" || id == "workbench.actions.treeView.testExplorer.filter"
 }

@@ -87,6 +87,7 @@ func (p *Workspace) newViewWorkspace(ctx context.Context, origin extension.Origi
 		SCM:            p.SCM,
 		Timeline:       p.Timeline,
 		Debug:          p.Debug,
+		Testing:        p.Testing,
 		origin:         origin,
 		ctx:            ctx,
 		viewOf:         p,

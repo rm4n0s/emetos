@@ -143,6 +143,8 @@ func TestNoRiskyCommandIsForgotten(t *testing.T) {
 		"workbench.action.openPreviousEditorFromHistory": true,
 		// Find in Folder... opens the Search view, which searches only the folder of the workspace (SPEC §10.27)
 		"filesExplorer.findInFolder": true,
+		// Testing (SPEC §10.32): run profiles of the test controllers, and the output of the last run, are not the user's profiles or recent files
+		"testing.configureProfile": true, "testing.selectDefaultTestProfiles": true, "testing.showMostRecentOutput": true,
 	}
 	for _, m := range DefaultRegistry().All() {
 		lower := strings.ToLower(m.ID)
@@ -209,7 +211,13 @@ func TestNoTestingCommandIsRefusedToAClient(t *testing.T) {
 		"testing.reRunFailTests", "testing.debugFailTests", "testing.showMostRecentOutput", "testing.cancelRun", "testing.refreshTests",
 		"testing.clearTestResults", "testing.openOutputPeek", "testing.goToNextMessage", "testing.goToPreviousMessage",
 		"testing.toggleContinuousRunForTest", "testing.startContinuousRun", "testing.stopContinuousRun", "testing.toggleInlineCoverage",
-		"testing.coverage.close", "workbench.view.testing", "workbench.view.testing.focus", "emetos.golang.testCursor",
+		"testing.coverage.close", "workbench.view.testing", "workbench.view.testing.focus", "workbench.view.extension.test", "emetos.golang.testCursor",
+		// the commands of the Test Explorer (step 26.2)
+		"testing.runSelected", "testing.debugSelected", "testing.coverageSelected", "testing.run", "testing.debug", "testing.coverage", "testing.coverageLastRun",
+		"testing.reRunFailedFromLastRun", "testing.debugFailedFromLastRun", "testing.cancelTestRefresh", "testing.collapseAll", "testing.viewAsList",
+		"testing.viewAsTree", "testing.sortByStatus", "testing.sortByLocation", "testing.sortByDuration", "testing.editFocusedTest", "testing.hideTest",
+		"testing.unhideTest", "testing.unhideAllTests", "testing.selectDefaultTestProfiles", "testing.configureProfile",
+		"workbench.actions.treeView.testExplorer.filter",
 	}
 	for _, id := range ids {
 		t.Run(id, func(t *testing.T) {

@@ -134,6 +134,10 @@ type Workspace struct {
 	// taskRunner, when set, runs the tasks before and after a debug session in place of the Tasks extension (the tests' fake); nil runs them
 	// through the extension (debugtasks.go).
 	taskRunner TaskRunner
+	// Testing is the testing host of the workspace: the test model (controllers, tests, results, continuous runs) over the test controllers
+	// the extensions make (SPEC §10.32). The headless view of a workspace shares its workspace's, so every client and the host see the same
+	// results (D46); the tab of an extension has none.
+	Testing *exthost.TestingHost
 	// debugExitAsking is true while the question of debug.confirmOnExit is open (debuglifecycle.go).
 	debugExitAsking bool
 	// debugTerms are the terminals the sessions of the workspace ran their programs in (debugterminal.go).
@@ -489,6 +493,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	w.QuickDiff = quickdiff.NewService(quickdiff.Options{Texts: w.quickDiffText, Log: func(msg string, args ...any) { p.Logger.Debug(msg, args...) }})
 	if o.ext == nil { // the tab of an extension has no debugger of its own
 		w.initDebug()
+		w.initTesting()
 	}
 	w.virtual = document.NewVirtualRegistryOver(p.Virtual)
 	w.Documents.SetVirtual(w.virtual)
@@ -525,6 +530,7 @@ func newWorkspace(ctx context.Context, p *Process, o workspaceOptions) (*Workspa
 	}
 	if o.ext == nil {
 		w.startDebug()
+		w.startTesting()
 	}
 	w.syncWorkbenchState()
 	w.settingsDocs.install()
