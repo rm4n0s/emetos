@@ -608,6 +608,10 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 	defer func() { restore() }()
 	var tried int
 	activeEditor := a.win.Keys.Get("activeEditor")
+	debugKeys := map[string]any{}
+	for _, key := range debugContextKeys {
+		debugKeys[key] = a.win.Keys.Get(key)
+	}
 	for _, item := range a.win.Process.Keymap.Defaults() {
 		if item.Command == "" || strings.HasPrefix(item.Command, "-") || len(item.Keybinding) == 0 {
 			continue
@@ -627,7 +631,10 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				hoverState(a, false, false), hoverState(a, true, false), hoverState(a, true, true), signatureState(a, 1), signatureState(a, 3), navigationState(a), peekState(a),
 				keybindingsEditorState(a, true, true), keybindingsEditorState(a, true, false), keybindingsEditorState(a, false, false),
 				scmInputState(a, true, true, false), scmInputState(a, true, true, true),
-				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a), quickDiffState(a), quickDiffPeekState(a))
+				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a), quickDiffState(a), quickDiffPeekState(a),
+				debugState(a, "inactive", false), debugState(a, "running", false), debugState(a, "stopped", false), debugState(a, "stopped", true),
+				debugViewState(a, command.ViewDebugVariables, "variablesFocused"), debugViewState(a, command.ViewDebugWatch, "watchExpressionsFocused"),
+				debugViewState(a, command.ViewDebugBreakpoints, "breakpointsFocused"))
 			for _, state := range states {
 				a.vm.SetQuickDiffMarks(nil)
 				a.vm.SetQuickDiffPeeker(nil)
@@ -640,6 +647,13 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				}
 				for _, key := range scmInputKeys {
 					a.win.Keys.Reset(key)
+				}
+				for key, value := range debugKeys {
+					if value == nil {
+						a.win.Keys.Reset(key)
+					} else {
+						a.win.Keys.Set(key, value)
+					}
 				}
 				a.vm.HideHover() // only the state of the hover of a problem shows one
 				a.vm.SignatureCancel()
@@ -1084,5 +1098,35 @@ func TestTabExpandsAnEmmetAbbreviationAndReportsAFailure(t *testing.T) {
 	}
 	if !reported {
 		t.Error("the failure was not shown as a notification")
+	}
+}
+
+// debugState is the state of a window whose debugger is in the state given ("inactive", "running" or "stopped"), with a debugger
+// contributed, the session attached or launched, for the keys of Run and Debug (step 25.4). The keys of the debugger go back to what the
+// window had when the state before it runs (see the loop of the test).
+func debugState(a *keyApp, state string, attach bool) func() {
+	return func() {
+		a.leaveFind()
+		a.win.Keys.Batch(func() {
+			a.win.Keys.Set("debuggersAvailable", true)
+			a.win.Keys.Set("debugState", state)
+			a.win.Keys.Set("inDebugMode", state != "inactive")
+			a.win.Keys.Set("focusedSessionIsAttach", attach)
+			a.win.Keys.Set("threadHasMultipleStackFrames", true)
+			a.win.Keys.Set("stepIntoTargetsSupported", true)
+		})
+	}
+}
+
+// debugViewState is the state of a window in which the view of Run and Debug the id names has the focus, for the keys of the views
+// (Copy Value, F2, Delete and Space).
+func debugViewState(a *keyApp, view, focusKey string) func() {
+	return func() {
+		unfocusedState(a)()
+		a.win.Keys.Batch(func() {
+			a.win.Keys.Set("focusedView", view)
+			a.win.Keys.Set("debugViewletFocus", true)
+			a.win.Keys.Set(focusKey, true)
+		})
 	}
 }
