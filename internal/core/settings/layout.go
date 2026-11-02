@@ -88,6 +88,7 @@ func DefaultTOC() []TOCEntry {
 			Children: []TOCEntry{
 				{ID: "features/explorer", Label: "Explorer", Patterns: []string{"explorer.*", "outline.*"}},
 				{ID: "features/search", Label: "Search", Patterns: []string{"search.*"}},
+				{ID: "features/debug", Label: "Debug", Patterns: []string{"debug.*", "launch"}},
 				{ID: "features/scm", Label: "Source Control", Patterns: []string{"scm.*"}},
 				{ID: "features/timeline", Label: "Timeline", Patterns: []string{"timeline.*"}},
 				{ID: "features/terminal", Label: "Terminal", Patterns: []string{"terminal.integrated.*", "terminal.external.*", "terminal.sourceControlRepositoriesKind"}},

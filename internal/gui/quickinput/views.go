@@ -67,6 +67,12 @@ func viewPicks(o ViewsOptions, filter string) []Item {
 	}{{command.ViewLocationSideBar, "Side Bar"}, {command.ViewLocationPanel, "Panel"}}
 	for _, l := range locations {
 		for _, c := range o.Views.Containers(l.loc) {
+			// a container hidden while it has no view shown (the Debug Console without a debugger) is not offered either
+			//
+			// Ported from VS Code: src/vs/workbench/contrib/quickaccess/browser/viewQuickAccess.ts (includeViewContainer)
+			if c.HideIfEmpty && len(o.Views.Views(c.ID, ctx)) == 0 {
+				continue
+			}
 			id := c.ID
 			all = append(all, viewPick{label: c.Title, container: l.title, accept: func() { o.OpenContainer(id) }})
 		}

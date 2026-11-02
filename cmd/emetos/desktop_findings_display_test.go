@@ -93,10 +93,16 @@ func TestDesktopPanelTabsAreWholeAndOverflow(t *testing.T) {
 		}
 		return tabs, overflow, cut
 	}
+	// the tabs of the widest window, which the narrow one is compared with: at 1024 px the wide DEBUG CONSOLE may already have gone into
+	// the menu, and the tabs after it with it
+	var all []string
 	for _, width := range []int{1280, 1024} {
 		a.ResizeWindow(width, 800)
 		shot(t, a, "panel-tabs-"+itoa(width))
 		tabs, overflow, cut := strip()
+		if all == nil {
+			all = tabs
+		}
 		if len(cut) != 0 {
 			t.Errorf("at %d px these texts of the panel's title are cut: %+v", width, cut)
 		}
@@ -129,7 +135,6 @@ func TestDesktopPanelTabsAreWholeAndOverflow(t *testing.T) {
 		}
 	}
 	// a narrow window: some tabs go into the menu, those that show are whole
-	all, _, _ := strip()
 	a.ResizeWindow(760, 800)
 	shot(t, a, "panel-tabs-narrow")
 	tabs, overflow, cut := strip()

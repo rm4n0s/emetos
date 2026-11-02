@@ -2,6 +2,7 @@ package quickinput
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -59,6 +60,29 @@ func TestViewsModeListsContainersViewsAndChannels(t *testing.T) {
 	}
 	if c.Picker().Placeholder() != "Type the name of a view, output channel or terminal to open." {
 		t.Errorf("placeholder %q", c.Picker().Placeholder())
+	}
+}
+
+// The Debug Console is hidden while it has no view shown (no debugger is there), as its tab is; with a debugger it is offered with its
+// view.
+func TestViewsModeOffersTheDebugConsoleOnlyWithADebugger(t *testing.T) {
+	cases := []struct {
+		name string
+		ctx  contextkey.MapContext
+		want bool
+	}{
+		{"no debugger", contextkey.MapContext{"workbenchState": "folder"}, false},
+		{"a debugger", contextkey.MapContext{"workbenchState": "folder", "debuggersAvailable": true}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := viewsRig(t, tc.ctx)
+			c.Show("view ", ShowOptions{})
+			rows := viewRows(c)
+			if got := slices.Contains(rows, "|Debug Console") && slices.Contains(rows, "Panel / Debug Console|Debug Console"); got != tc.want {
+				t.Errorf("the Debug Console offered = %v, want %v; rows %v", got, tc.want, rows)
+			}
+		})
 	}
 }
 

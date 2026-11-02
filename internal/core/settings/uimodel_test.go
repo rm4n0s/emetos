@@ -406,3 +406,30 @@ func TestRenderDescription(t *testing.T) {
 		}
 	}
 }
+
+// The settings of Run and Debug and launch are in Features › Debug, as VS Code's layout has them, not among the extensions.
+func TestTheDebugSettingsAreAFeature(t *testing.T) {
+	cases := []struct{ key, want string }{
+		{"debug.console.fontSize", "features/debug"},
+		{"debug.showVariableTypes", "features/debug"},
+		{"launch", "features/debug"},
+	}
+	for _, c := range cases {
+		t.Run(c.key, func(t *testing.T) {
+			var found string
+			var walk func([]*Category)
+			walk = func(cats []*Category) {
+				for _, cat := range cats {
+					if slices.Contains(cat.Keys, c.key) {
+						found = cat.ID
+					}
+					walk(cat.Children)
+				}
+			}
+			walk(BuildCategories(DefaultTOC(), []Setting{{Key: c.key}}))
+			if found != c.want {
+				t.Errorf("%s is in %q, want %q", c.key, found, c.want)
+			}
+		})
+	}
+}
