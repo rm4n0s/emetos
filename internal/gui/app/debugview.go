@@ -46,13 +46,17 @@ type debugShell struct {
 	toolbarX float64
 	// debugging is what the status bar shows now, to tell a change.
 	debugging bool
+	// console is the Debug Console of the screen (step 25.6) and menuRow the row its context menu was opened on.
+	console *dbgview.Console
+	menuRow *dbgview.ConsoleRow
 	// stopped is the thread whose stop the window has shown, so that a stop is shown once.
 	stopped *debug.Thread
 }
 
 // debugSettingsKeys are the settings the view reads while it draws or acts.
 var debugSettingsKeys = []string{"debug.showVariableTypes", "debug.toolBarLocation", "debug.showInStatusBar", "debug.enableStatusBarColor",
-	"debug.breakpointsView.presentation", "debug.hideLauncherWhileDebugging", "debug.showSubSessionsInToolBar"}
+	"debug.breakpointsView.presentation", "debug.hideLauncherWhileDebugging", "debug.showSubSessionsInToolBar", "debug.console.fontSize",
+	"debug.console.fontFamily", "debug.console.lineHeight", "debug.console.wordWrap", "debug.console.historySuggestions", "debug.console.acceptSuggestionOnEnter"}
 
 // debugContainerVisible tells whether the container of Run and Debug is the one shown in the side bar.
 func (s *shellState) debugContainerVisible() bool {
@@ -85,6 +89,7 @@ func (s *shellState) initDebug(binding *widgets.WidgetsBinding) {
 	})
 	st.panes.Breakpoints.SetFolder(win.Folder)
 	st.stops = append(st.stops, st.panes.Dispose)
+	s.initDebugConsole(binding)
 	// pending is set while a burst of events waits to be applied. It is not a field of s.debug: the model may still be telling an event
 	// on its goroutine while disposeDebug clears s.debug on the UI thread.
 	pending := new(atomic.Bool)
@@ -93,6 +98,9 @@ func (s *shellState) initDebug(binding *widgets.WidgetsBinding) {
 		binding.Post(func() {
 			if s.Mounted() && s.debug.panes != nil {
 				s.debug.panes.VisibilityChanged()
+			}
+			if s.Mounted() && s.debug.console != nil {
+				s.syncDebugConsoleKeys()
 			}
 		})
 	}))
@@ -110,7 +118,9 @@ func (s *shellState) initDebug(binding *widgets.WidgetsBinding) {
 		}
 	}))
 	s.bindDebugCommands(binding)
+	s.bindDebugConsoleCommands(binding)
 	s.bindDevDebug()
+	s.bindDevDebugEvaluate()
 	s.syncDebugParts()
 	if !win.isView() {
 		// the launches are read after the saved state was put back (restoreDebug), so that the saved choice of configuration applies
@@ -162,6 +172,22 @@ func (s *shellState) onDebugEvent(binding *widgets.WidgetsBinding, pending *atom
 				s.debugSessionStarted(ev)
 			}
 		})
+	case debug.EventSessionEnded:
+		if !ev.Restart {
+			binding.Post(func() {
+				if s.Mounted() && s.debug.panes != nil {
+					s.debugConsoleOnSessionEnd()
+				}
+			})
+		}
+	case debug.EventOutput:
+		if ev.Output != nil && ev.Output.Category == "important" {
+			binding.Post(func() {
+				if s.Mounted() && s.debug.panes != nil {
+					s.debugOutputNotice(ev)
+				}
+			})
+		}
 	}
 	if pending.Swap(true) {
 		return
@@ -182,6 +208,7 @@ func (s *shellState) onDebugEvent(binding *widgets.WidgetsBinding, pending *atom
 // Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugService.ts (the openDebug setting in onDidNewSession)
 func (s *shellState) debugSessionStarted(ev debug.Event) {
 	win := s.win
+	s.debugConsoleOnSessionStart(ev)
 	if ev.Session != nil && ev.Session.Options().SuppressDebugView {
 		return
 	}
@@ -240,7 +267,7 @@ var debugContextKeys = []string{"debugState", "inDebugMode", "debugType", "debug
 	"suspendDebuggeeSupported", "terminateThreadsSupported", "debugSetVariableSupported", "debugSetExpressionSupported", "stepBackSupported",
 	"breakpointsDeactivated", "callStackItemType", "watchItemType", "breakpointItemType", "variableEvaluateNamePresent", "variableIsReadonly",
 	"expressionSelected", "breakpointInputFocused", "variablesFocused", "watchExpressionsFocused", "callStackFocused", "breakpointsFocused",
-	"loadedScriptsFocused", "debugViewletFocus"}
+	"loadedScriptsFocused", "debugViewletFocus", "inDebugRepl", "multiSessionRepl", "view." + command.ViewRepl + ".visible"}
 
 // syncDebugParts applies the state of the debugger to the parts of the window that show it: the context keys, the badge of the activity
 // bar icon, the status bar (its color and the launch item) and the buttons of the container.
@@ -318,6 +345,7 @@ func (s *shellState) syncDebugParts() {
 		k.Set("breakpointsDeactivated", !m.BreakpointsActivated())
 	})
 	s.syncDebugRowKeys()
+	s.syncDebugConsoleKeys()
 	// the status bar takes the colors of a session
 	debugging := settings.Get[bool](win.Settings, "debug.enableStatusBarColor", "") && dbgview.InDebugMode(state, sessions)
 	s.debug.debugging = debugging

@@ -51,7 +51,7 @@ func TestRequestsTheAdapterCannotAnswerFail(t *testing.T) {
 		{"gotoTargets", func() error { _, err := s.GotoTargets(ctx, "/p/a.go", 1, 1); return err }, "Session.GotoTargets.DebugNotSupported"},
 		{"goto", func() error { return s.Goto(ctx, 1, 1) }, "Session.Goto.DebugNotSupported"},
 		{"stepInTargets", func() error { _, err := s.StepInTargets(ctx, 1); return err }, "Session.StepInTargets.DebugNotSupported"},
-		{"completions", func() error { _, err := s.Completions(ctx, 1, "a", 1); return err }, "Session.Completions.DebugNotSupported"},
+		{"completions", func() error { _, err := s.Completions(ctx, 1, "a", 1); return err }, "Session.CompletionsAt.DebugNotSupported"},
 		{"restart", func() error { return s.Restart(ctx) }, "Session.Restart.DebugNotSupported"},
 	}
 	for _, tt := range tests {

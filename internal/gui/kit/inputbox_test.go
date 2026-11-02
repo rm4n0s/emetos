@@ -885,3 +885,52 @@ func TestInputBoxEscapeCollapsesTheSelection(t *testing.T) {
 		})
 	}
 }
+
+// TestInputBoxSubmitOnEnterAndKeyHook: with SubmitOnEnter a multi-line box submits on Enter and leaves Shift+Enter to the box; the
+// KeyHook sees every key first and a key it handles does not reach the box.
+func TestInputBoxSubmitOnEnterAndKeyHook(t *testing.T) {
+	tests := []struct {
+		name       string
+		submitOn   bool
+		hookEnter  bool
+		shift      bool
+		wantSubmit int
+	}{
+		{"multi-line without SubmitOnEnter does not submit", false, false, false, 0},
+		{"SubmitOnEnter submits on Enter", true, false, false, 1},
+		{"SubmitOnEnter leaves Shift+Enter to the box", true, false, true, 0},
+		{"a hook that handles Enter keeps it from the box", true, true, false, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var seen []services.LogicalKeyboardKey
+			r := newInputRig(t, DarkModern(), inputSize, func(_ *inputRig, o *InputBoxOpts) {
+				o.MultiLine, o.SubmitOnEnter = true, tt.submitOn
+				o.KeyHook = func(e services.KeyEvent) widgets.KeyEventResult {
+					if _, ok := e.(*services.KeyDownEvent); ok {
+						seen = append(seen, e.LogicalKey())
+					}
+					if tt.hookEnter && e.LogicalKey() == services.LogicalKeyboardKeyEnter {
+						return widgets.KeyEventResultHandled
+					}
+					return widgets.KeyEventResultIgnored
+				}
+			})
+			r.focusBox()
+			r.typeKeys("ab")
+			if tt.shift {
+				r.ts.SendKeyDownEvent(services.LogicalKeyboardKeyShift)
+			}
+			r.press(services.LogicalKeyboardKeyEnter)
+			if tt.shift {
+				r.ts.SendKeyUpEvent(services.LogicalKeyboardKeyShift)
+			}
+			if len(r.submit) != tt.wantSubmit {
+				t.Errorf("submitted %q, want %d submissions", r.submit, tt.wantSubmit)
+			}
+			if !slices.Contains(seen, services.LogicalKeyboardKeyEnter) {
+				t.Errorf("the hook did not see Enter: %v", seen)
+			}
+		})
+	}
+}

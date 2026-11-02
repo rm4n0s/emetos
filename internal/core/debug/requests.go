@@ -289,10 +289,15 @@ func (s *Session) StepInTargets(ctx context.Context, frameID int) ([]dap.StepInT
 
 // Completions asks the adapter for the completions of the Debug Console's input at a column (counted from 1).
 func (s *Session) Completions(ctx context.Context, frameID int, text string, column int) ([]dap.CompletionItem, error) {
+	return s.CompletionsAt(ctx, frameID, text, 0, column)
+}
+
+// CompletionsAt is Completions for the line of a text of several lines (counted from 1; 0 is the first) and a column in that line.
+func (s *Session) CompletionsAt(ctx context.Context, frameID int, text string, line, column int) ([]dap.CompletionItem, error) {
 	if !s.Capabilities().SupportsCompletionsRequest {
 		return nil, errors.New("DebugNotSupported", dap.CmdCompletions+" not supported", "session", s.id, "request", dap.CmdCompletions)
 	}
-	body, err := callBody[dap.CompletionsResponseBody](ctx, s, dap.CmdCompletions, dap.CompletionsArguments{FrameID: frameID, Text: text, Column: column})
+	body, err := callBody[dap.CompletionsResponseBody](ctx, s, dap.CmdCompletions, dap.CompletionsArguments{FrameID: frameID, Text: text, Column: column, Line: line})
 	return body.Targets, err
 }
 

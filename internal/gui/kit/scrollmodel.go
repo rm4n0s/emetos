@@ -16,6 +16,9 @@ type ScrollControllerModel struct {
 	foundation.ChangeNotifier
 	vertical, horizontal widgets.ScrollController
 	handles              [2]foundation.ListenerHandle
+	// reverse is set when the vertical view scrolls against the reading direction (a list whose end is at offset 0): the position
+	// of the scrollbars counts from the other end.
+	reverse bool
 }
 
 // NewScrollControllerModel makes a model of the controllers of a vertical and of a horizontal
@@ -59,8 +62,20 @@ func axisMetrics(c widgets.ScrollController) (viewport, content, position float6
 func (m *ScrollControllerModel) Metrics() ScrollMetrics {
 	var out ScrollMetrics
 	out.ViewportHeight, out.ContentHeight, out.Top, _ = axisMetrics(m.vertical)
+	if m.reverse {
+		out.Top = max(out.ContentHeight-out.ViewportHeight-out.Top, 0)
+	}
 	out.ViewportWidth, out.ContentWidth, out.Left, _ = axisMetrics(m.horizontal)
 	return out
+}
+
+// SetReverse tells the model that the vertical view scrolls against the reading direction (ListViewOpts.Reverse): its position is
+// the distance from the end of the content, so the model turns it round for the scrollbar.
+func (m *ScrollControllerModel) SetReverse(reverse bool) {
+	if m.reverse != reverse {
+		m.reverse = reverse
+		m.NotifyListeners()
+	}
 }
 
 // jump moves a controller to a position within its content.
@@ -81,6 +96,11 @@ func jump(c widgets.ScrollController, position float64) {
 
 // ScrollTo implements ScrollModel.
 func (m *ScrollControllerModel) ScrollTo(left, top float64) {
+	if m.reverse {
+		if viewport, content, _, ok := axisMetrics(m.vertical); ok {
+			top = max(content-viewport-top, 0)
+		}
+	}
 	jump(m.vertical, top)
 	jump(m.horizontal, left)
 }

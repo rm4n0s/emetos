@@ -78,6 +78,8 @@ const (
 	// EventStopped is a thread that stopped and has its top frame (Event.Thread), after the stack is loaded; the window opens
 	// the source then.
 	EventStopped
+	// EventRepl is a change of the Debug Console of a session (Event.Session is the session that owns the console; see Session.Repl).
+	EventRepl
 )
 
 // AffectsState tells whether an event changes what is saved with the workspace (SaveState).
@@ -108,6 +110,8 @@ type Event struct {
 	DAP         *dap.Event
 	ExitCode    int
 	Restart     bool
+	// First is true for the EventSessionStarted of the first session started in the window (debug.internalConsoleOptions has a case for it).
+	First bool
 	// Err is why an adapter ended when it was not asked to: a crash (EventSessionEnded).
 	Err error
 }

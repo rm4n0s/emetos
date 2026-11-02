@@ -36,6 +36,8 @@ type ViewContainer struct {
 	Order int
 	// Location is where the container is shown; the side bar when empty.
 	Location ViewLocation
+	// HideIfEmpty hides the container (its tab) while none of its views is shown, as VS Code's `hideIfEmpty` does.
+	HideIfEmpty bool
 }
 
 // View is a section of a view container: a header with a title that collapses the body below it.

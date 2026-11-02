@@ -198,12 +198,24 @@ func (s *workbenchState) panelViewHandlers(views *Views) map[string]command.Hand
 	focus := func(container string) command.Handler {
 		return func(command.Context, any) error { open(container, true); return nil }
 	}
+	// ifAvailable runs a handler only while a view of the container shows (its tab is there); the Debug Console's has a `when` of its own
+	ifAvailable := func(container string, h command.Handler) command.Handler {
+		return func(c command.Context, args any) error {
+			if len(views.Registry().Views(container, s.Widget().opts.ViewContext)) == 0 {
+				return nil
+			}
+			return h(c, args)
+		}
+	}
 	return map[string]command.Handler{
 		"workbench.actions.view.problems":      toggle(command.ViewContainerMarkers),
 		"workbench.action.output.toggleOutput": toggle(command.ViewContainerOutput),
 		"workbench.panel.markers.view.focus":   focus(command.ViewContainerMarkers),
-		"workbench.panel.output.focus":         focus(command.ViewContainerOutput),
-		"workbench.action.problems.focus":      focus(command.ViewContainerMarkers),
+		// the Debug Console (step 25.6): it opens while a debugger is available, as its tab shows then
+		command.DebugToggleRepl:           ifAvailable(command.ViewContainerRepl, toggle(command.ViewContainerRepl)),
+		command.DebugFocusRepl:            ifAvailable(command.ViewContainerRepl, focus(command.ViewContainerRepl)),
+		"workbench.panel.output.focus":    focus(command.ViewContainerOutput),
+		"workbench.action.problems.focus": focus(command.ViewContainerMarkers),
 		"workbench.action.showErrorsWarnings": func(command.Context, any) error {
 			open(command.ViewContainerMarkers, false)
 			return nil

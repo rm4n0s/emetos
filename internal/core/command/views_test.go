@@ -185,7 +185,7 @@ func TestDefaultSourceControlViews(t *testing.T) {
 func TestDefaultPanelViews(t *testing.T) {
 	r := DefaultViews()
 	containers := r.Containers(ViewLocationPanel)
-	if len(containers) != 2 {
+	if len(containers) != 3 {
 		t.Fatalf("containers: %+v", containers)
 	}
 	for i, want := range []struct {
@@ -195,13 +195,23 @@ func TestDefaultPanelViews(t *testing.T) {
 	}{
 		{"workbench.panel.markers", "Problems", 0xEA6C, "workbench.panel.markers.view"},
 		{"workbench.panel.output", "Output", 0xEB9D, "workbench.panel.output"},
+		// shown while a debugger is available
+		{"workbench.panel.repl", "Debug Console", 0xEB9B, ""},
 	} {
 		c := containers[i]
 		if c.ID != want.id || c.Title != want.title || c.Icon != want.icon {
 			t.Errorf("container %d: %+v, want %+v", i, c, want)
 		}
-		if got := viewIDs(r.Views(c.ID, contextkey.MapContext{})); !reflect.DeepEqual(got, []string{want.view}) {
-			t.Errorf("views of %s: %v, want %v", c.ID, got, want.view)
+		withDebugger := contextkey.MapContext{"debuggersAvailable": true}
+		wantViews := []string{want.view}
+		if want.view == "" {
+			wantViews = nil // the Debug Console has no view until a debugger is available
+			if got := viewIDs(r.Views(c.ID, withDebugger)); !reflect.DeepEqual(got, []string{"workbench.panel.repl.view"}) || !c.HideIfEmpty {
+				t.Errorf("views of %s with a debugger: %v (hide if empty: %v)", c.ID, got, c.HideIfEmpty)
+			}
+		}
+		if got := viewIDs(r.Views(c.ID, contextkey.MapContext{})); len(got) != len(wantViews) || (len(got) > 0 && !reflect.DeepEqual(got, wantViews)) {
+			t.Errorf("views of %s: %v, want %v", c.ID, got, wantViews)
 		}
 	}
 	// the panel containers are not in the activity bar

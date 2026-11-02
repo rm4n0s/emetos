@@ -6,7 +6,7 @@ const categoryDebug = "Debug"
 // registerDebug registers the debug.* settings that the views, the toolbar, the status bar and the start of a session read (step 25.4,
 // SPEC §10.31), with VS Code's keys, descriptions, scopes and defaults, and the `launch` setting. The settings of the editor
 // (debug.inlineValues, debug.showBreakpointsInOverviewRuler, debug.showInlineBreakpointCandidates, debug.gutterMiddleClickAction) came
-// with step 25.5 and those of the Debug Console (debug.console.*, debug.internalConsoleOptions) come with 25.6. The names, values and defaults were checked against the pinned reference; `debug.toolBarLocation` has VS Code's fourth
+// with step 25.5 and those of the Debug Console (debug.console.*, debug.internalConsoleOptions) with 25.6. The names, values and defaults were checked against the pinned reference; `debug.toolBarLocation` has VS Code's fourth
 // value `commandCenter`, which Emetos has no command center for, so it is not offered (decision 1186).
 //
 // Ported from VS Code: src/vs/workbench/contrib/debug/browser/debug.contribution.ts (the "debug" configuration)
@@ -136,6 +136,51 @@ func registerDebug(r *Registry) {
 			Enum:             []any{"logpoint", "conditionalBreakpoint", "triggeredBreakpoint", "none"},
 			EnumDescriptions: []string{"Add Logpoint.", "Add Conditional Breakpoint.", "Add Triggered Breakpoint.", "Don't perform any action."},
 			Description:      "Controls the action to perform when clicking the editor gutter with the middle mouse button.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		// the settings of the Debug Console (step 25.6)
+		Setting{
+			Key: "debug.internalConsoleOptions", Types: []Type{String}, Default: "openOnFirstSessionStart",
+			Enum:        []any{"neverOpen", "openOnSessionStart", "openOnFirstSessionStart"},
+			Description: "Controls when the internal Debug Console should open.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.closeOnEnd", Types: []Type{Boolean}, Default: false,
+			Description: "Controls if the Debug Console should be automatically closed when the debug session ends.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.fontSize", Types: []Type{Number}, Default: 14,
+			Description: "Controls the font size in pixels in the Debug Console.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.fontFamily", Types: []Type{String}, Default: "default",
+			Description: "Controls the font family in the Debug Console.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.lineHeight", Types: []Type{Number}, Default: 0,
+			Description: "Controls the line height in pixels in the Debug Console. Use 0 to compute the line height from the font size.",
+			Scope:       ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.wordWrap", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if the lines should wrap in the Debug Console.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.historySuggestions", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if the Debug Console should suggest previously typed input.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.collapseIdenticalLines", Types: []Type{Boolean}, Default: true,
+			Description: "Controls if the Debug Console should collapse identical lines and show a number of occurrences with a badge.",
+			Scope:       ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.acceptSuggestionOnEnter", Types: []Type{String}, Default: "off", Enum: []any{"off", "on"},
+			Description: "Controls whether suggestions should be accepted on Enter in the Debug Console. Enter is also used to evaluate whatever is typed in the Debug Console.",
+			Scope:       ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.console.maximumLines", Types: []Type{Number}, Default: 10000,
+			Description: "Controls the maximum number of lines in the Debug Console.", Scope: ScopeWindow, Category: categoryDebug,
 		},
 	)
 }

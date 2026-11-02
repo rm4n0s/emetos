@@ -1,0 +1,23 @@
+# The script of the fake adapter for the proof of the Debug Console (step 25.6): a session that prints lines of every category (with ANSI
+# colors, a group, repeated lines, an object and a line with a source), keeps running, and answers one evaluation.
+{"op":"reply","command":"initialize","body":{"supportsConfigurationDoneRequest":true,"supportsCompletionsRequest":true,"completionTriggerCharacters":["."]}}
+{"op":"expect","command":"launch"}
+{"op":"event","event":"initialized"}
+{"op":"reply","command":"configurationDone"}
+{"op":"respond","to":"launch"}
+{"op":"reply","command":"threads","body":{"threads":[{"id":1,"name":"main"}]}}
+{"op":"event","event":"output","body":{"category":"console","output":"Launching: bin/pricelist\n"}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"\u001b[1;32mOK\u001b[0m loaded \u001b[36m3 rows\u001b[0m from \u001b[4mprices.txt\u001b[0m\n"}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"Prices","group":"start"}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"bread  \u001b[33m2.50\u001b[0m\n"}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"tea    \u001b[33m4.00\u001b[0m\n"}}
+{"op":"event","event":"output","body":{"category":"stdout","group":"end"}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"retrying\n"}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"retrying\n"}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"retrying\n"}}
+{"op":"event","event":"output","body":{"category":"stderr","output":"warning: row 4 is empty\n","source":{"name":"loader.go","path":"${workspaceFolder}/src/loader.go"},"line":18}}
+{"op":"event","event":"output","body":{"category":"stdout","output":"order","variablesReference":700}}
+{"op":"reply","command":"variables","args":{"variablesReference":700},"body":{"variables":[{"name":"ID","value":"42","type":"int"},{"name":"Total","value":"6.5","type":"float64"},{"name":"Items","value":"[]string len:2","type":"[]string","variablesReference":701}]}}
+{"op":"reply","command":"evaluate","args":{"expression":"order.Total * 2","context":"repl"},"body":{"result":"13","type":"float64"}}
+{"op":"reply","command":"disconnect"}
+{"op":"waitClose"}

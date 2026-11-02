@@ -98,6 +98,7 @@ func (w *Workspace) debugOptions() debug.Options {
 		Guess:                   w.debugGuess,
 		RunTask:                 w.debugRunTask,
 		SaveBeforeStart:         w.debugSaveBeforeStart,
+		Console:                 w.debugReplConfig,
 		AutoExpandLazyVariables: func() bool { return settings.Get[string](w.Settings, "debug.autoExpandLazyVariables", "") == "on" },
 		StackDelay:              debugStackDelay, FocusDelay: debugFocusDelay, RunningDelay: debugRunningDelay, RestartDelay: debugRestartDelay,
 	}

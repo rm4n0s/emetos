@@ -142,8 +142,12 @@ func LineOfNode(n debug.Node, name string, showTypes bool) ExpressionLine {
 
 // Spans make the text of the line in the style of a row: the name in debugTokenExpression.name, then "=" or ":" and the value.
 func (l ExpressionLine) Spans(bc widgets.BuildContext, st kit.RowState) []painting.InlineSpan {
+	return l.spansOn(bc, st, kit.TextStyleOf(bc, 13, st.Foreground))
+}
+
+// spansOn is Spans on a text style of the caller's (the Debug Console's font).
+func (l ExpressionLine) spansOn(bc widgets.BuildContext, st kit.RowState, base *painting.TextStyle) []painting.InlineSpan {
 	colors := kit.ThemeOf(bc)
-	base := kit.TextStyleOf(bc, 13, st.Foreground)
 	var spans []painting.InlineSpan
 	nameColor := named(colors, "debugTokenExpression.name", st.Foreground)
 	if st.Selected && st.Active {

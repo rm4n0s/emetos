@@ -164,6 +164,9 @@ func (s *shellState) bindPanelCommands() {
 func (s *shellState) panelTabs(win *Workspace) []workbench.PanelTab {
 	var tabs []workbench.PanelTab
 	for _, c := range win.Views.Registry().Containers(command.ViewLocationPanel) {
+		if c.HideIfEmpty && len(win.Views.Registry().Views(c.ID, win.Keys)) == 0 {
+			continue
+		}
 		tab := workbench.PanelTab{ID: c.ID, Title: c.Title}
 		if c.ID == command.ViewContainerMarkers {
 			if total := win.Markers.Stats().Total(); total > 0 {
@@ -189,6 +192,11 @@ func (s *shellState) panelBody(win *Workspace) widgets.Widget {
 			Commands: win.Commands, Keys: win.Keys, Scopes: win.Scopes, Context: win.ctx,
 			Clipboard: win.Clipboard, Find: win.Find, Zoom: win.Zoom,
 		}), command.ViewOutput
+	case command.ViewContainerRepl:
+		if body = s.debugConsoleBody(); body == nil {
+			return nil
+		}
+		viewID = command.ViewRepl
 	default:
 		// a tab an extension declared is the box of its content, which sets focusedView itself
 		if scope := win.Extensions(); scope != nil {
@@ -216,6 +224,8 @@ func (s *shellState) panelActions(win *Workspace) kit.TitleActions {
 		return problems.NewActions(s.panels.problems)
 	case command.ViewContainerOutput:
 		return output.NewActions(s.panels.output)
+	case command.ViewContainerRepl:
+		return s.debugConsoleActions()
 	}
 	return s.extensionViewActions(win, win.Views.ActivePanel())
 }
@@ -240,6 +250,8 @@ func (s *shellState) focusPanelView(container string) {
 		}
 	case command.ViewContainerOutput:
 		s.panels.output.Focus().Request()
+	case command.ViewContainerRepl:
+		s.focusDebugConsole()
 	}
 }
 

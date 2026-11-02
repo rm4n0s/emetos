@@ -40,6 +40,9 @@ const codiconSourceControl = 0xEA68
 // codiconDebugAlt is the code point of the Codicon "debug-alt" (the icon of Run and Debug).
 const codiconDebugAlt = 0xEB91
 
+// codiconDebugConsole is the code point of the Codicon "debug-console".
+const codiconDebugConsole = 0xEB9B
+
 // codiconWarning and codiconOutput are the code points of the Codicons "warning" and "output".
 const (
 	codiconWarning = 0xEA6C
@@ -51,8 +54,8 @@ const (
 // Debug) register their containers and views here, with the id, title and icon VS Code gives them;
 // until then a view is a header with an empty body.
 //
-// The panel has the containers of the Problems and the Output (steps for the Debug Console and the
-// Terminal add theirs), each with the one view that VS Code registers in it.
+// The panel has the containers of the Problems, the Output and the Debug Console (the step for the
+// Terminal adds its own), each with the one view that VS Code registers in it.
 //
 // Ported from VS Code: src/vs/workbench/contrib/files/browser/explorerViewlet.ts,
 // src/vs/workbench/contrib/scm/browser/scm.contribution.ts, src/vs/workbench/contrib/markers/browser/markers.contribution.ts and
@@ -99,5 +102,8 @@ func DefaultViews() *ViewRegistry {
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerOutput, Title: "Output", Icon: codiconOutput, Order: 1, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewOutput, Name: "Output", Container: ViewContainerOutput})
+	// the Debug Console (order 2, after the Output): its tab shows while a debugger is available
+	r.MustRegisterContainer(ViewContainer{ID: ViewContainerRepl, Title: "Debug Console", Icon: codiconDebugConsole, Order: 2, Location: ViewLocationPanel, HideIfEmpty: true})
+	r.MustRegisterViews(View{ID: ViewRepl, Name: "Debug Console", Container: ViewContainerRepl, When: contextkey.Has("debuggersAvailable")})
 	return r
 }

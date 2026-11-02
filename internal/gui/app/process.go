@@ -260,6 +260,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	registerDevMarkers(p.Commands)
 	registerDevSCM(p.Commands)
 	registerDevDebug(p.Commands)
+	registerDevDebugEvaluate(p.Commands)
 	registerDevView(p.Commands)
 	registerDevQuickInput(p)
 	registerDevQueries(p)

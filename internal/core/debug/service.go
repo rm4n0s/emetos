@@ -113,6 +113,9 @@ type Options struct {
 	Trace func(s *Session, m dap.TraceMessage)
 	// AutoExpandLazyVariables says whether lazy variables are evaluated when they are listed.
 	AutoExpandLazyVariables func() bool
+	// Console gives the settings of the Debug Console that the model reads when a line comes (debug.console.collapseIdenticalLines and
+	// debug.console.maximumLines); DefaultReplConfig when nil.
+	Console func() ReplConfig
 	// StackDelay is how long after the first frame of a stop the rest of the stack is loaded (VS Code: 420 ms).
 	StackDelay time.Duration
 	// RestartDelay is how long a restart without a restart request waits between the end and the new start (VS Code: 300 ms).
@@ -582,9 +585,10 @@ func (s *Service) doCreateSession(ctx context.Context, id, root string, dbg Debu
 		return false, err
 	}
 	s.mu.Lock()
+	first := s.firstSessionStart
 	s.firstSessionStart = false
 	s.mu.Unlock()
-	s.model.emit(Event{Kind: EventSessionStarted, Session: sess})
+	s.model.emit(Event{Kind: EventSessionStarted, Session: sess, First: first})
 	return true, nil
 }
 

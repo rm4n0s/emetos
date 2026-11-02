@@ -72,7 +72,9 @@ func newDebugRigWith(t *testing.T, folder string, o rigOpts) *debugRig {
 	t.Helper()
 	t.Setenv(devdebug.AdapterEnv, daptest.Program(t))
 	paths := testutil.Isolate(t)
-	values := map[string]any{"files.hotExit": "off", "editor.minimap.enabled": false, "breadcrumbs.enabled": false, "editor.fontSize": 14,
+	// the Debug Console opens with the first session (step 25.6); the goldens of the other views are made without it, the tests of the
+	// console ask for it
+	values := map[string]any{"debug.internalConsoleOptions": "neverOpen", "files.hotExit": "off", "editor.minimap.enabled": false, "breadcrumbs.enabled": false, "editor.fontSize": 14,
 		"window.menuBarVisibility": "classic"}
 	if o.theme != "" {
 		values["workbench.colorTheme"] = o.theme

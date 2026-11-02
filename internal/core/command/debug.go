@@ -173,6 +173,7 @@ func registerDebugCommands(r *Registry) {
 		Meta{ID: "workbench.debug.action.focusLoadedScriptsView", Title: "Focus on Loaded Scripts View", Category: "View"},
 	)
 	registerDebugEditorCommands(r)
+	registerDebugConsoleCommands(r)
 }
 
 // registerDebugMenus adds the Run menu, the toolbar, the context menus and the title bars of Run and Debug.
@@ -288,8 +289,9 @@ func registerDebugMenus(r *MenuRegistry) {
 			When: contextkey.And(contextkey.NotEquals("debugUx", "simple"), contextkey.NotEquals("workbenchState", "empty"), notDocked)},
 		MenuItem{Menu: DebugContainerTitle, Command: DebugConfigure, Order: 20,
 			When: contextkey.And(contextkey.NotEquals("debugState", "inactive"), contextkey.Equals("config.debug.toolBarLocation", "docked"))},
-		// the Debug Console comes with step 25.6, which turns the item on
-		MenuItem{Menu: DebugContainerTitle, Command: DebugToggleReplIgnore, Title: "Debug Console", Group: "3_toggleRepl", Order: 30, When: contextkey.False()},
+		// the Debug Console entry shows a check while the console is shown (step 25.6)
+		MenuItem{Menu: DebugContainerTitle, Command: DebugToggleReplIgnore, Title: "Debug Console", Group: "3_toggleRepl", Order: 30,
+			Toggled: contextkey.Has("view." + ViewRepl + ".visible")},
 		MenuItem{Menu: DebugContainerTitle, Command: DebugSelectAndStart, Title: "Start Additional Session", Order: 10,
 			When: contextkey.And(contextkey.NotEquals("debugState", "inactive"),
 				contextkey.Or(contextkey.Equals("config.debug.toolBarLocation", "docked"), contextkey.Has("config.debug.hideLauncherWhileDebugging")))},
@@ -394,4 +396,5 @@ func registerDebugMenus(r *MenuRegistry) {
 		MenuItem{Menu: DebugBreakpointsContext, Command: DebugRemoveAllBreakpoints, Group: "z_commands", Order: 30},
 	)
 	registerDebugEditorMenus(r)
+	registerDebugConsoleMenus(r)
 }

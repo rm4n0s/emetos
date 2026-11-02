@@ -134,6 +134,13 @@ type Session struct {
 	evMu              sync.Mutex
 	evDone            bool
 	evCond            *sync.Cond
+
+	// repl is the Debug Console of the session: its own, or the one of its parent. The outputs of the adapter are put into it in order
+	// by a goroutine of their own (oq), so that an output with an object waits for the object without holding up a stop (decision 1102).
+	repl      *ReplModel
+	oqMu      sync.Mutex
+	oq        []func()
+	oqRunning bool
 }
 
 // reqEpoch cancels the requests of a thread when it continues.
@@ -152,6 +159,12 @@ func newSession(svc *Service, id string, cfg, unresolved Config, root string, db
 	s.life, s.cancelLife = context.WithCancel(svc.base)
 	s.widle = sync.NewCond(&s.wmu)
 	s.evCond = sync.NewCond(&s.evMu)
+	if opts.Parent != nil && opts.Repl == "mergeWithParent" {
+		s.repl = opts.Parent.repl
+	} else {
+		s.repl = NewReplModel(svc.replConfig)
+		s.repl.Subscribe(func() { s.m.emit(Event{Kind: EventRepl, Session: s}) })
+	}
 	return s
 }
 
@@ -916,9 +929,117 @@ func (s *Session) handleOutput(b *dap.OutputEventBody) {
 		ref.sess = s
 		ref.reference = b.VariablesReference
 		s.m.emit(Event{Kind: EventOutput, Session: s, Output: b, Node: ref})
+		s.enqueueOutput(func() { s.outputToRepl(b, ref) })
 		return
 	}
 	s.m.emit(Event{Kind: EventOutput, Session: s, Output: b})
+	s.enqueueOutput(func() { s.outputToRepl(b, nil) })
+}
+
+// enqueueOutput runs fn after the outputs queued before it, on a goroutine of its own.
+func (s *Session) enqueueOutput(fn func()) {
+	s.oqMu.Lock()
+	s.oq = append(s.oq, fn)
+	if s.oqRunning {
+		s.oqMu.Unlock()
+		return
+	}
+	s.oqRunning = true
+	s.oqMu.Unlock()
+	go func() {
+		for {
+			s.oqMu.Lock()
+			if len(s.oq) == 0 {
+				s.oqRunning = false
+				s.oqMu.Unlock()
+				return
+			}
+			next := s.oq[0]
+			s.oq[0] = nil
+			s.oq = s.oq[1:]
+			s.oqMu.Unlock()
+			next()
+		}
+	}()
+}
+
+// outputToRepl puts an output event into the Debug Console: groups open and close it, an object is loaded and shown (a single value
+// together with the text of the output, several one after the other), the rest is text with the severity of its category.
+//
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugSession.ts (the onDidOutput listener)
+func (s *Session) outputToRepl(b *dap.OutputEventBody, ref *Reference) {
+	sev := ReplSeverityOfCategory(b.Category)
+	var src *ReplSource
+	if b.Source != nil && b.Line != 0 {
+		col := b.Column
+		if col == 0 {
+			col = 1
+		}
+		src = &ReplSource{Source: s.source(b.Source), Line: b.Line, Column: col}
+	}
+	if ref != nil {
+		children, err := ref.Children(s.life)
+		if err != nil {
+			return // the session is over
+		}
+		if len(children) == 0 && b.Output != "" {
+			s.repl.Append(s, ReplData{Output: b.Output, Severity: sev, Source: src})
+			return
+		}
+		if len(children) == 1 {
+			s.repl.Append(s, ReplData{Output: b.Output, Expression: children[0], Severity: sev, Source: src})
+			return
+		}
+		// several containers cannot be shown as one tree: the variables stand one after the other, with no names
+		for _, c := range children {
+			c.Name = ""
+			s.repl.Append(s, ReplData{Expression: c, Severity: sev, Source: src})
+		}
+		return
+	}
+	if b.Category == "telemetry" || b.Category == "important" { // an important output is a notification of the window, not a line
+		return
+	}
+	switch b.Group {
+	case "start", "startCollapsed":
+		s.repl.StartGroup(s, b.Output, b.Group == "start", src)
+		return
+	case "end":
+		s.repl.EndGroup()
+		if b.Output == "" {
+			return // only an end with more output goes on
+		}
+	}
+	if b.Output != "" {
+		s.repl.Append(s, ReplData{Output: b.Output, Severity: sev, Source: src})
+	}
+}
+
+// Repl is the Debug Console of the session: its own, or its parent's when the session was made to merge with it.
+func (s *Session) Repl() *ReplModel { return s.repl }
+
+// HasSeparateRepl tells whether the session has a Debug Console of its own.
+func (s *Session) HasSeparateRepl() bool { return s.parent == nil || s.opts.Repl != "mergeWithParent" }
+
+// ConsoleRoot is the session whose Debug Console the session writes to: itself, or the nearest parent with a console of its own.
+func (s *Session) ConsoleRoot() *Session {
+	for !s.HasSeparateRepl() {
+		s = s.parent
+	}
+	return s
+}
+
+// AddReplExpression evaluates a line of the Debug Console in the frame (in the session alone with no frame) and puts the line and
+// its result into the console. It returns when the adapter has answered. The history is the caller's (Model.AddReplHistory).
+func (s *Session) AddReplExpression(ctx context.Context, frame *StackFrame, expression string) {
+	s.repl.AddExpression(ctx, s, frame, expression)
+	// the evaluation may have changed the variables: the views read them again
+	s.m.emit(Event{Kind: EventVariables, Session: s})
+}
+
+// AppendToRepl puts a text into the Debug Console of the session.
+func (s *Session) AppendToRepl(output string, sev ReplSeverity) {
+	s.repl.Append(s, ReplData{Output: output, Severity: sev})
 }
 
 // Reference is a node for a variablesReference with no variable of its own: what an output event with a reference stands for.

@@ -77,6 +77,10 @@ func (p *Panes) all() []pane {
 
 // onEvent hands the events of the service to the UI thread, one burst at a time.
 func (p *Panes) onEvent(ev debug.Event) {
+	// what a session prints is the Debug Console's (console.go): a flood of output does not make these views read the model again
+	if ev.Kind == debug.EventRepl || ev.Kind == debug.EventOutput {
+		return
+	}
 	if p.dirty.Swap(true) {
 		// a burst already waits: the views read the whole model when it runs
 		if ev.Kind != debug.EventStopped && ev.Kind != debug.EventSessionEnded {

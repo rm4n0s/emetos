@@ -3,7 +3,7 @@ package keybinding
 // registerDebugKeys registers the keys of Run and Debug (Linux): the start, the steps, the stop and restart, the keys of the Variables,
 // Watch and Breakpoints views, and Ctrl+Shift+D for the container. A rule's when is written out in full: the key's own condition and the
 // precondition of its command, as VS Code writes them. The keys of the editor (F9, Shift+F9, the hover, the widgets) are registerDebugEditorKeys (step 25.5) and the
-// Debug Console's with 25.6.
+// Debug Console's (Ctrl+Shift+Y) with 25.6.
 //
 // Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugCommands.ts, debug.contribution.ts and debugViewlet.ts
 func registerDebugKeys(r *Registry) {
@@ -15,6 +15,7 @@ func registerDebugKeys(r *Registry) {
 	)
 	r.MustRegister(
 		Rule{Command: "workbench.view.debug", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+d"},
+		Rule{Command: "workbench.debug.action.toggleRepl", Weight: WeightWorkbenchContrib, Primary: "ctrl+shift+y"},
 		Rule{Command: "workbench.action.debug.start", Weight: WeightWorkbenchContrib, When: mustWhen("debuggersAvailable", "debugState == 'inactive'"), Primary: "f5"},
 		Rule{Command: "workbench.action.debug.run", Weight: WeightWorkbenchContrib, When: mustWhen("debuggersAvailable", "debugState != 'initializing'"), Primary: "ctrl+f5"},
 		// Continue has a stronger weight than Start Debugging, which has F5 as well

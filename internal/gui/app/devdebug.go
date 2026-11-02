@@ -63,3 +63,43 @@ func devBreakpointArgs(args any) (path string, line int, err error) {
 	}
 	return path, int(n), nil
 }
+
+// registerDevDebugEvaluate registers dev.debug.evaluate (step 25.6); the window binds its handler while it is shown.
+func registerDevDebugEvaluate(r *command.Registry) {
+	meta := command.Meta{ID: "dev.debug.evaluate", Description: `Evaluate an expression in the Debug Console as if it was typed there. Arguments: {"expression": "<text>"}.`}
+	if err := RegisterDev(r, meta, func(command.Context, any) error { return errors.New("DevNoWindow", "no window is shown") }); err != nil {
+		// the id is fixed, new and starts with dev., so a failure is a mistake here
+		panic(err)
+	}
+}
+
+// bindDevDebugEvaluate takes over dev.debug.evaluate in the registry while the shell is shown.
+func (s *shellState) bindDevDebugEvaluate() {
+	if !DevCommandsEnabled() || s.debug.console == nil {
+		return
+	}
+	win := s.win
+	remove, err := win.Commands.SetHandler("dev.debug.evaluate", func(_ command.Context, args any) error {
+		text, err := devEvaluateArgs(args)
+		if err != nil {
+			return err
+		}
+		s.debug.console.Evaluate(text)
+		return nil
+	})
+	if err != nil {
+		win.Process.Logger.Error("cannot bind dev.debug.evaluate", "err", err)
+		return
+	}
+	s.debug.removeCommands = append(s.debug.removeCommands, remove)
+}
+
+// devEvaluateArgs reads the arguments of dev.debug.evaluate. The tag is DevDebugEvaluateInvalid.
+func devEvaluateArgs(args any) (string, error) {
+	m, ok := args.(map[string]any)
+	text, _ := m["expression"].(string)
+	if !ok || text == "" {
+		return "", errors.New("DevDebugEvaluateInvalid", "the arguments are an object with an expression")
+	}
+	return text, nil
+}

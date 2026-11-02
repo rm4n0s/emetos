@@ -23,12 +23,14 @@ var appCommands = map[string]bool{
 	"changeEditorIndentation": true,
 	// Save All, whose id has no "workbench." (gui/app/save.go)
 	"saveAll": true,
-	// the commands of Run and Debug that have no "workbench." id (step 25.4, gui/app/debugcommands.go; the two with no handler are the exception filters'
-	// own and the Debug Console's, step 25.6)
+	// the commands of Run and Debug that have no "workbench." id (step 25.4, gui/app/debugcommands.go; the Debug Console's come with step 25.6, below)
 	"debug.addConfiguration": true, "debug.copyStackTrace": true, "debug.copyEvaluatePath": true, "debug.addToWatchExpressions": true,
 	"debug.setVariable": true, "debug.setWatchExpression": true, "debug.renameWatchExpression": true, "debug.removeWatchExpression": true,
 	"debug.toggleBreakpoint": true, "debug.removeBreakpoint": true, "debug.editBreakpoint": true, "debug.toggleExceptionBreakpoints": true,
 	"debug.toggleReplIgnoreFocus": true,
+	// the commands of the Debug Console (step 25.6, gui/app/debugconsole.go; the ones with a "workbench." id are not listed)
+	"repl.action.acceptInput": true, "repl.action.filter": true, "repl.action.copyAll": true, "debug.replCopy": true, "debug.replPaste": true,
+	"debug.collapseRepl": true, "editor.debug.action.selectionToRepl": true,
 	// the commands of the editor while debugging (step 25.5, gui/app/debugeditor.go)
 	"editor.debug.action.toggleBreakpoint": true, "editor.debug.action.toggleInlineBreakpoint": true, "editor.debug.action.conditionalBreakpoint": true,
 	"editor.debug.action.addLogPoint": true, "editor.debug.action.triggerByBreakpoint": true, "editor.debug.action.editBreakpoint": true,

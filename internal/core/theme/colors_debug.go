@@ -59,6 +59,7 @@ func registerDebugColors(r *ColorRegistry) {
 			Description: "Color used to highlight value changes in the debug views (ie. in the Variables view)."},
 	)
 	registerDebugEditorColors(r)
+	registerDebugConsoleColors(r)
 }
 
 // registerDebugEditorColors registers the colors of the editor while debugging (step 25.5): the lines of the stack frames, the icons of
@@ -83,5 +84,24 @@ func registerDebugEditorColors(r *ColorRegistry) {
 		ColorContribution{ID: "debugExceptionWidget.border", Defaults: AllThemes(Hex("#a31515")), Description: "Exception widget border color."},
 		ColorContribution{ID: "debugExceptionWidget.background", Defaults: dflt(Hex("#420b0d"), Hex("#f1dfde"), Hex("#420b0d"), Hex("#f1dfde")),
 			Description: "Exception widget background color."},
+	)
+}
+
+// registerDebugConsoleColors registers the colors of the Debug Console (step 25.6): the foregrounds of its info, warning and error
+// lines, of the name of the source at the end of a line and of the prompt of its input.
+//
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugColors.ts (the registerColor calls of debugConsole.*)
+func registerDebugConsoleColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "debugConsole.infoForeground", Defaults: dflt(Ref("editorInfo.foreground"), Ref("editorInfo.foreground"), Ref("foreground"), Ref("foreground")),
+			Description: "Foreground color for info messages in debug REPL console."},
+		ColorContribution{ID: "debugConsole.warningForeground", Defaults: dflt(Ref("editorWarning.foreground"), Ref("editorWarning.foreground"), Hex("#008000"), Ref("editorWarning.foreground")),
+			Description: "Foreground color for warning messages in debug REPL console."},
+		ColorContribution{ID: "debugConsole.errorForeground", Defaults: AllThemes(Ref("errorForeground")),
+			Description: "Foreground color for error messages in debug REPL console."},
+		ColorContribution{ID: "debugConsole.sourceForeground", Defaults: AllThemes(Ref("foreground")),
+			Description: "Foreground color for source filenames in debug REPL console."},
+		ColorContribution{ID: "debugConsoleInputIcon.foreground", Defaults: AllThemes(Ref("foreground")),
+			Description: "Foreground color for debug console input marker icon."},
 	)
 }

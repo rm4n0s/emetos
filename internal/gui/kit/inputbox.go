@@ -89,6 +89,12 @@ type InputBoxOpts struct {
 	// MultiLine makes the box a text area: Enter makes a new line, long lines wrap and the box grows
 	// in height with the text, up to MaxHeight (VS Code's flexibleHeight).
 	MultiLine bool
+	// SubmitOnEnter makes Enter submit a multi-line box, and Shift+Enter make the new line (the Debug Console's input: Enter evaluates, Shift+Enter
+	// goes on in the next line).
+	SubmitOnEnter bool
+	// KeyHook sees every key press before the box does; a key it handles (KeyEventResultHandled) is not seen by the box. The suggestions of
+	// the Debug Console's input take Up, Down, Tab and Escape through it.
+	KeyHook func(e services.KeyEvent) widgets.KeyEventResult
 	// MaxHeight is the height past which a multi-line box stops growing and scrolls; without it the
 	// box grows without limit.
 	MaxHeight foundation.Opt[float64]
@@ -489,6 +495,11 @@ func (s *inputBoxState) ownKey(e services.KeyEvent) widgets.KeyEventResult {
 	default:
 		return widgets.KeyEventResultIgnored
 	}
+	if o.KeyHook != nil {
+		if r := o.KeyHook(e); r != widgets.KeyEventResultIgnored {
+			return r
+		}
+	}
 	kb := widgets.WidgetsBindingOf(s.Context()).Keyboard()
 	if kb.IsControlPressed() && !kb.IsAltPressed() && !kb.IsMetaPressed() && s.editKey(e, kb.IsShiftPressed()) {
 		return widgets.KeyEventResultHandled
@@ -502,7 +513,7 @@ func (s *inputBoxState) ownKey(e services.KeyEvent) widgets.KeyEventResult {
 		s.text.SetSelection(services.NewTextSelectionCollapsed(sel.End()))
 		return widgets.KeyEventResultHandled
 	case services.LogicalKeyboardKeyEnter, services.LogicalKeyboardKeyNumpadEnter:
-		if kb.IsShiftPressed() || kb.IsAltPressed() || kb.IsMetaPressed() || (o.MultiLine && !kb.IsControlPressed()) || (!o.MultiLine && kb.IsControlPressed()) {
+		if kb.IsShiftPressed() || kb.IsAltPressed() || kb.IsMetaPressed() || (o.MultiLine && !o.SubmitOnEnter && !kb.IsControlPressed()) || ((!o.MultiLine || o.SubmitOnEnter) && kb.IsControlPressed()) {
 			return widgets.KeyEventResultIgnored
 		}
 		if _, ok := e.(*services.KeyRepeatEvent); ok {

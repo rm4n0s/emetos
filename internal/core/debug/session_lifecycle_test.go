@@ -523,3 +523,21 @@ func TestServiceStopCancelsAStartInProgress(t *testing.T) {
 		t.Errorf("a stopped start = %v, %v", ok, err)
 	}
 }
+
+// The first session of the window is marked in its started event (debug.internalConsoleOptions opens the Debug Console for it), the next
+// ones are not.
+func TestOnlyTheFirstSessionStartedIsMarked(t *testing.T) {
+	e := newEnv(t, nil)
+	for i, name := range []string{"first", "second"} {
+		e.script(name, join(handshake(fullCaps, noBreakpoints(fullCaps)), ending()))
+		sess, ok, err := e.start(fakeConfig(name))
+		if err != nil || !ok {
+			t.Fatalf("start %d: %v %v", i, ok, err)
+		}
+		idle(t, sess)
+		ev := e.wait(debug.EventSessionStarted, func(ev debug.Event) bool { return ev.Session == sess })
+		if ev.First != (i == 0) {
+			t.Errorf("session %d: First = %v", i, ev.First)
+		}
+	}
+}
