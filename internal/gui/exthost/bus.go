@@ -54,7 +54,7 @@ type handlerEntry struct {
 
 // request is a Request that has not been answered.
 type request struct {
-	requester *instance
+	requester *instance // nil for a request of the window (Scope.Ask)
 	handler   *instance // set once the request reached its handler
 	reply     func(extension.Event, error)
 	ev        extension.Event
@@ -396,16 +396,20 @@ func (b *bus) request(inst *instance, ctx context.Context, topic string, data js
 
 // start finds the handler of a request and calls it (UI thread).
 func (b *bus) start(r *request, ctx context.Context, topic string, data json.RawMessage) {
-	if r.settled || r.requester.isDead() {
+	if r.settled || (r.requester != nil && r.requester.isDead()) {
 		b.settle(r)
 		return
 	}
-	r.ev = extension.Event{Topic: topic, Publisher: r.requester.id, Scope: b.s.opts.Info, Seq: b.nextSeq(), Data: data}
+	publisher := extension.CorePublisher // the window asks with no extension behind it (Scope.Ask)
+	if r.requester != nil {
+		publisher = r.requester.id
+	}
+	r.ev = extension.Event{Topic: topic, Publisher: publisher, Scope: b.s.opts.Info, Seq: b.nextSeq(), Data: data}
 	if r.to != nil {
 		b.startCross(r, ctx, topic)
 		return
 	}
-	if fn := coreHandlerFor(topic); fn != nil && b.s.opts.Info.Kind == extension.ScopeWorkspace {
+	if fn := coreHandlerFor(topic); fn != nil && r.requester != nil && b.s.opts.Info.Kind == extension.ScopeWorkspace {
 		b.startCore(r, ctx, topic, fn)
 		return
 	}

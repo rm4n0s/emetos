@@ -265,6 +265,9 @@ type shellState struct {
 	// inactive by then).
 	win     *Workspace
 	binding *widgets.WidgetsBinding
+	// windowFocused tells whether the window has the keyboard focus, as the platform last said (autoSaveObserver); a stop brings the window
+	// to the front only when it has not (debug.focusWindowOnBreak).
+	windowFocused bool
 	// group is the editor group of the window: the tabs and their editors.
 	group groupState
 	// nav is the history of locations and the closed editors.

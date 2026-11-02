@@ -177,6 +177,7 @@ func (s *shellState) onDebugEvent(binding *widgets.WidgetsBinding, pending *atom
 			binding.Post(func() {
 				if s.Mounted() && s.debug.panes != nil {
 					s.debugConsoleOnSessionEnd()
+					s.debugSessionEnded()
 				}
 			})
 		}
@@ -203,44 +204,64 @@ func (s *shellState) onDebugEvent(binding *widgets.WidgetsBinding, pending *atom
 	})
 }
 
-// debugSessionStarted opens Run and Debug when a session starts, as debug.openDebug says.
+// debugSessionStarted opens Run and Debug when a session starts, as debug.openDebug says: on every session (openOnSessionStart) or on the
+// first one of the window (openOnFirstSessionStart), never for a run without debugging, and not for a session that asks to keep the view
+// closed. openOnDebugBreak waits for a stop (debugStopped).
 //
-// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugService.ts (the openDebug setting in onDidNewSession)
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugService.ts (the openDebug setting in createSession)
 func (s *shellState) debugSessionStarted(ev debug.Event) {
 	win := s.win
 	s.debugConsoleOnSessionStart(ev)
-	if ev.Session != nil && ev.Session.Options().SuppressDebugView {
+	if ev.Session == nil || ev.Session.Options().SuppressDebugView || ev.Session.Configuration().NoDebug() {
 		return
 	}
-	if settings.Get[string](win.Settings, "debug.openDebug", "") == "openOnSessionStart" {
+	switch settings.Get[string](win.Settings, "debug.openDebug", "") {
+	case "openOnSessionStart":
 		win.Views.Open(command.ViewContainerDebug)
+	case "openOnFirstSessionStart":
+		if ev.First {
+			win.Views.Open(command.ViewContainerDebug)
+		}
 	}
 }
 
-// debugStopped shows a stop: Run and Debug opens (debug.openDebug openOnDebugBreak), and the source of the top frame opens in the
-// editor when debug.focusEditorOnBreak says so. The window is not brought to the front (debug.focusWindowOnBreak): Glutter gives a
-// window no way to ask for the focus of the desktop (decision 1196).
+// debugSessionEnded opens the Explorer when the last session ended and the side bar shows, as debug.openExplorerOnEnd says.
 //
-// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugSession.ts and debugService.ts (the handling of a stopped thread)
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugService.ts (onDidEndSession)
+func (s *shellState) debugSessionEnded() {
+	win := s.win
+	svc := win.DebugService()
+	if svc == nil || !settings.Get[bool](win.Settings, "debug.openExplorerOnEnd", "") || len(svc.Model().Sessions(false)) > 0 {
+		return
+	}
+	if win.Layout.State().SideBarVisible {
+		win.Views.Open(command.ViewContainerExplorer)
+	}
+}
+
+// debugStopped shows a stop. Run and Debug opens when a breakpoint was hit (debug.openDebug openOnDebugBreak), the window is brought to the
+// front when it has not the focus (debug.focusWindowOnBreak), and the source of the top frame opens in the editor, which takes the keyboard
+// when debug.focusEditorOnBreak says so (VS Code's preserveFocus is its opposite).
+//
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugSession.ts (the handling of a stopped event)
 func (s *shellState) debugStopped(binding *widgets.WidgetsBinding, ev debug.Event) {
 	win := s.win
 	if ev.Thread == nil || ev.Thread == s.debug.stopped && ev.Session == nil {
 		return
 	}
 	sess := ev.Thread.Session()
-	if !sess.Options().SuppressDebugView {
-		switch settings.Get[string](win.Settings, "debug.openDebug", "") {
-		case "openOnDebugBreak", "openOnSessionStart":
-			win.Views.Open(command.ViewContainerDebug)
-		}
+	if d := ev.Thread.StoppedDetails(); d != nil && d.Reason == "breakpoint" && !sess.Options().SuppressDebugView &&
+		settings.Get[string](win.Settings, "debug.openDebug", "") == "openOnDebugBreak" {
+		win.Views.Open(command.ViewContainerDebug)
 	}
-	if !settings.Get[bool](win.Settings, "debug.focusEditorOnBreak", "") {
-		return
+	if settings.Get[bool](win.Settings, "debug.focusWindowOnBreak", "") && !win.isView() && !s.windowFocused {
+		win.Raise()
 	}
+	focus := settings.Get[bool](win.Settings, "debug.focusEditorOnBreak", "")
 	if f := win.DebugService().Model().Focus(); f.Frame != nil && f.Frame.Thread == ev.Thread {
-		s.debugShowFrame(binding, f.Frame, true)
+		s.debugShowFrame(binding, f.Frame, !focus)
 	} else if top := ev.Thread.TopStackFrame(); top != nil {
-		s.debugShowFrame(binding, top, true)
+		s.debugShowFrame(binding, top, !focus)
 	}
 }
 

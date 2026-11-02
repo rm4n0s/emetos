@@ -120,6 +120,29 @@ func (e eventsAPI) Request(ctx context.Context, topic string, value any, reply f
 	return nil
 }
 
+// Ask is Request for the window: it sends the value to the handler of the topic, which belongs to an extension of the scope, and calls
+// reply once, on the UI thread, with the reply or an error (the tags of Events.Request: EventNoHandler, EventTimeout, EventCanceled,
+// EventHandlerFailed, EventHandlerPanicked, EventHandlerGone). The publisher the handler sees is extension.CorePublisher. It never
+// blocks, and may be called from any goroutine. It fails at once, without calling reply, with EventTopicInvalid or EventValueInvalid.
+// A request without a deadline in ctx is answered with EventTimeout after DefaultRequestTimeout, as for an extension.
+func (s *Scope) Ask(ctx context.Context, topic string, value any, reply func(extension.Event, error)) error {
+	if err := extension.CheckTopic(topic); err != nil {
+		return err
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return errors.NewErr("EventValueInvalid", err).SetMetadata("topic", topic)
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if reply == nil {
+		reply = func(extension.Event, error) {}
+	}
+	s.bus.request(nil, ctx, topic, data, reply, nil)
+	return nil
+}
+
 // Handle implements extension.Events: a handler that answers at once is an asynchronous handler that replies before it
 // returns.
 func (e eventsAPI) Handle(topic string, fn extension.EventHandler) error {
@@ -235,7 +258,10 @@ func (s *Scope) runSubscriber(inst *instance, pattern string, f func(extension.E
 // the handler returns is the requester's EventHandlerFailed and no failure of the extension.
 func (s *Scope) runHandler(h *handlerEntry, r *request, hctx context.Context) {
 	inst := h.inst
-	rb := r.requester.scope.bus
+	rb := s.bus // the requester's scope is this one, or another when the request crossed; a request of the window has none
+	if r.requester != nil {
+		rb = r.requester.scope.bus
+	}
 	var once sync.Once
 	// answer settles the request on the requester's UI thread; only the first answer counts.
 	answer := func(ev extension.Event, err error) {
@@ -281,6 +307,10 @@ func (s *Scope) runHandler(h *handlerEntry, r *request, hctx context.Context) {
 // ExtensionRequestReplyPanicked. Nothing is called when the requester was deactivated.
 func (s *Scope) callReply(r *request, ev extension.Event, err error) {
 	inst := r.requester
+	if inst == nil {
+		s.callWindowReply(r, ev, err)
+		return
+	}
 	if inst.isDead() {
 		return
 	}
@@ -291,4 +321,15 @@ func (s *Scope) callReply(r *request, ev extension.Event, err error) {
 		}
 	}()
 	s.timed(inst, "reply callback", r.ev.Topic, func() { r.reply(ev, err) })
+}
+
+// callWindowReply calls the reply of a request of the window (Scope.Ask): its own code, which no extension answers for, so a panic in it
+// is logged and nothing fails.
+func (s *Scope) callWindowReply(r *request, ev extension.Event, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			s.log.Error("the reply of a request of the window panicked", "topic", r.ev.Topic, "panic", rec)
+		}
+	}()
+	r.reply(ev, err)
 }

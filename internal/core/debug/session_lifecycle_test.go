@@ -125,10 +125,12 @@ func TestSessionRestart(t *testing.T) {
 	t.Run("by ending and starting again", func(t *testing.T) {
 		var mu sync.Mutex
 		var order []string
+		checks := map[string]bool{}
 		e := newEnv(t, func(o *debug.Options) {
-			o.RunTask = func(_ context.Context, _ string, task debug.TaskRef) (debug.TaskResult, error) {
+			o.RunTask = func(_ context.Context, _ string, task debug.TaskRef, check bool) (debug.TaskResult, error) {
 				mu.Lock()
 				order = append(order, task.String())
+				checks[task.String()] = check
 				mu.Unlock()
 				return debug.TaskSuccess, nil
 			}
@@ -168,7 +170,17 @@ func TestSessionRestart(t *testing.T) {
 		}
 		mu.Lock()
 		got := append([]string(nil), order...)
+		gotChecks := map[string]bool{}
+		for k, v := range checks {
+			gotChecks[k] = v
+		}
 		mu.Unlock()
+		// Only the tasks whose errors stop the launch are checked (VS Code's runTaskAndCheckErrors).
+		for task, want := range map[string]bool{"stop-services": false, "clean": false, "build": true, "start-services": true} {
+			if gotChecks[task] != want {
+				t.Errorf("the task %q is checked: %v, want %v", task, gotChecks[task], want)
+			}
+		}
 		// The tasks of a restart, in VS Code's order; the task after the session does not run for a restart.
 		want := []string{"stop-services", "clean", "build", "start-services"}
 		if len(got) != len(want) {
@@ -194,7 +206,7 @@ func TestSessionRestart(t *testing.T) {
 		var mu sync.Mutex
 		tasks := 0
 		e := newEnv(t, func(o *debug.Options) {
-			o.RunTask = func(context.Context, string, debug.TaskRef) (debug.TaskResult, error) {
+			o.RunTask = func(context.Context, string, debug.TaskRef, bool) (debug.TaskResult, error) {
 				mu.Lock()
 				tasks++
 				mu.Unlock()

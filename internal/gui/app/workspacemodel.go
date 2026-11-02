@@ -131,8 +131,13 @@ type Workspace struct {
 	// extensions contribute (SPEC §10.31). The headless view of a workspace shares its workspace's, so every client and the host see the
 	// same sessions (D46); the tab of an extension has none.
 	Debug *exthost.DebugHost
-	// taskRunner runs the tasks before and after a debug session; nil until step 25.11 provides it.
+	// taskRunner, when set, runs the tasks before and after a debug session in place of the Tasks extension (the tests' fake); nil runs them
+	// through the extension (debugtasks.go).
 	taskRunner TaskRunner
+	// debugExitAsking is true while the question of debug.confirmOnExit is open (debuglifecycle.go).
+	debugExitAsking bool
+	// debugTerms are the terminals the sessions of the workspace ran their programs in (debugterminal.go).
+	debugTerms debugTerminals
 	// QuickDiff is the registry of the providers that say what a file is compared with (Git's index version): the editors mark the
 	// changes of their file against it and the format on save of modifications takes its baseline from it (SPEC §10.30 "Quick diff").
 	// The headless view of a workspace shares its workspace's.

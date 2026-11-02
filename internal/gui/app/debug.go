@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
@@ -84,7 +83,7 @@ const (
 func (w *Workspace) initDebug() {
 	host := exthost.NewDebugHost(w.ctx, exthost.DebugHostOptions{Base: w.debugOptions(), Logger: w.Process.Logger})
 	w.Debug = host
-	w.stops = append(w.stops, host.Close)
+	w.stops = append(w.stops, host.Close, w.followDebugTerminals(host.Service()))
 }
 
 // debugOptions are the options of the debug service that are the window's.
@@ -331,95 +330,6 @@ func (w *Workspace) debugConfirmConcurrent(ctx context.Context, label string) bo
 	case <-ctx.Done():
 		return false
 	}
-}
-
-// debugTaskErrors asks, on the screen that asked, what to do about a preLaunchTask that reported errors (debug.onTaskErrors): prompt asks;
-// debugAnyway goes on; showErrors opens the Problems and stops; abort stops. It reports whether to go on.
-//
-// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugTaskRunner.ts (DebugTaskRunner.runTask)
-func (w *Workspace) debugTaskErrors(ctx context.Context, label string) bool {
-	screen := w.debugScreen(ctx)
-	switch settings.Get[string](w.Settings, "debug.onTaskErrors", "") {
-	case "debugAnyway":
-		return true
-	case "showErrors":
-		screen.onUI(screen.showProblems)
-		return false
-	case "abort":
-		return false
-	}
-	ch := make(chan int, 1)
-	screen.onUI(func() {
-		screen.Dialogs.Show(kit.DialogSpec{
-			Type:    kit.DialogWarning,
-			Message: "Errors exist after running preLaunchTask '" + label + "'.",
-			Detail:  "Do you want to continue with the last successful build, or show the problems?",
-			Buttons: []string{"Debug Anyway", "Show Errors", "Cancel"}, CancelButton: foundation.Some(2),
-			OnAnswer: func(r kit.DialogResult) {
-				if r.Cancelled {
-					ch <- 2
-					return
-				}
-				ch <- r.Button
-			},
-		})
-	})
-	var choice int
-	select {
-	case choice = <-ch:
-	case <-ctx.Done():
-		return false
-	}
-	switch choice {
-	case 0:
-		return true
-	case 1:
-		screen.onUI(screen.showProblems)
-	}
-	return false
-}
-
-// TaskRunner runs the task of a configuration (preLaunchTask, postDebugTask) and tells whether it reported errors. The Tasks of step 25.11
-// provide it; until then a workspace has none (decision 1190).
-type TaskRunner func(ctx context.Context, folder string, task debug.TaskRef) (failed bool, err error)
-
-// debugRunTask runs the task of a configuration through the task runner, and asks what to do when it failed. Without a runner a
-// configuration with a task cannot start: the error says so.
-func (w *Workspace) debugRunTask(ctx context.Context, folder string, task debug.TaskRef) (debug.TaskResult, error) {
-	run := w.taskRunner
-	if run == nil {
-		return debug.TaskFailure, errors.New("DebugTaskUnavailable", "the task '"+task.String()+"' cannot run: tasks before and after a debug session are not available yet", "task", task.String())
-	}
-	failed, err := run(ctx, folder, task)
-	if err != nil {
-		return debug.TaskFailure, err
-	}
-	if failed && !w.debugTaskErrors(ctx, task.String()) {
-		return debug.TaskFailure, nil
-	}
-	return debug.TaskSuccess, nil
-}
-
-// debugRunInTerminal runs the program of a runInTerminal request in a terminal of the Terminal extension: a terminal in the folder, and the
-// command line typed into it. The host's terminal is the one that opens (D51), whatever screen asked. The process id of its shell is not
-// known here: 0 (decision 1191).
-func (w *Workspace) debugRunInTerminal(ctx context.Context, args dap.RunInTerminalRequestArguments, sessionID string) (int, error) {
-	host := w
-	if w.isView() {
-		host = w.viewOf
-	}
-	_, err := uiValue(ctx, host, func() error {
-		cc := command.Context{Ctx: ctx, Keys: host.Keys, Source: command.SourceAPI}
-		name := args.Title
-		if name == "" {
-			name = "Debug"
-		}
-		if err := host.Commands.Run(cc, "workbench.action.terminal.new", map[string]any{"cwd": args.Cwd, "name": name}); err != nil {
-			return err
-		}
-		return host.Commands.Run(cc, "workbench.action.terminal.sendSequence", map[string]any{"text": commandLine(args) + "\n"})
-	})
-	return 0, err
 }
 
 // commandLine is the line a shell runs for a runInTerminal request: the environment as VAR=value words, then the program and its arguments,

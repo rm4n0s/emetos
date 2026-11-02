@@ -98,7 +98,7 @@ func TestWaitsThatAreCancelledFail(t *testing.T) {
 }
 
 func TestReverseRequestsThatFail(t *testing.T) {
-	failTask := func(context.Context, string, TaskRef) (TaskResult, error) { return TaskFailure, nil }
+	failTask := func(context.Context, string, TaskRef, bool) (TaskResult, error) { return TaskFailure, nil }
 	_, s := bareSession(t, Options{
 		Debugger: func(typ string) (Debugger, bool) { return Debugger{Type: typ, Label: typ}, true },
 		RunTask:  failTask,

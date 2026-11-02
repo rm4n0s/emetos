@@ -663,8 +663,10 @@ func (s *shellState) saveAll() { s.saveAllThen(nil) }
 
 // saveAllThen is saveAll that tells how it ended: true after the last document was saved (or at once when none has changes), false when
 // the save of an untitled document was cancelled or failed (the start of a debug session waits for it, step 25.4).
-func (s *shellState) saveAllThen(done func(ok bool)) {
-	docs := s.dirtyDocuments()
+func (s *shellState) saveAllThen(done func(ok bool)) { s.saveDocsThen(s.dirtyDocuments(), done) }
+
+// saveDocsThen is saveAllThen for the documents given: they are saved one after the other, as Save All does.
+func (s *shellState) saveDocsThen(docs []*document.Document, done func(ok bool)) {
 	var next func(i int)
 	next = func(i int) {
 		if i >= len(docs) {

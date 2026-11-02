@@ -574,6 +574,23 @@ func (s *Scope) Close() {
 	s.h.removeScope(s)
 }
 
+// Activate activates an extension of the scope that is not active yet, as running one of its declared commands does, so that the window
+// can ask it for something (Ask) before the user ever used it. An extension that is active, turned off or not in the scope is left as it
+// is. UI thread.
+func (s *Scope) Activate(id string) {
+	s.mu.Lock()
+	var found *slot
+	for _, sl := range s.slots {
+		if sl.info.Manifest.ID == id {
+			found = sl
+		}
+	}
+	s.mu.Unlock()
+	if found != nil && s.State(id) == StateInactive {
+		s.activate(found)
+	}
+}
+
 // State is the state of an extension in the scope; an unknown id is inactive.
 func (s *Scope) State(id string) State {
 	st, _, _ := s.status(id)

@@ -893,11 +893,27 @@ type closeResult struct {
 // closeAsk asks a workspace the questions of closing it, and tells done the answer; it closes nothing. A workspace
 // with no shell on screen has nothing to lose.
 func (w *Workspace) closeAsk(reason CloseReason, done func(closeResult)) {
+	// the question about the debug sessions comes last: what the user cancelled before it stopped nothing
+	debugAsk := func(r closeResult) {
+		w.confirmDebugOnClose(func(proceed bool) {
+			if !proceed {
+				done(closeResult{})
+				return
+			}
+			done(r)
+		})
+	}
 	if w.closer == nil {
-		done(closeResult{proceed: true})
+		debugAsk(closeResult{proceed: true})
 		return
 	}
-	w.closer(reason, done)
+	w.closer(reason, func(r closeResult) {
+		if !r.proceed {
+			done(r)
+			return
+		}
+		debugAsk(r)
+	})
 }
 
 // commitClose does what ends a workspace once its questions are answered: the backups are removed or kept, the state

@@ -390,17 +390,6 @@ func assertRoute(t *testing.T, err error, route string) {
 	}
 }
 
-func TestAConfigurationWithATaskFailsWhileThereIsNoTaskRunner(t *testing.T) {
-	r := newDebugRig(t, debugFolder(t, nil))
-	_, err := r.win.debugRunTask(context.Background(), r.folder, debug.TaskRef{Label: "build"})
-	assertRoute(t, err, "Workspace.debugRunTask.DebugTaskUnavailable")
-	// with a runner, a task that failed asks what to do (debug.onTaskErrors) and the answer decides
-	r.win.taskRunner = func(context.Context, string, debug.TaskRef) (bool, error) { return false, nil }
-	if res, err := r.win.debugRunTask(context.Background(), r.folder, debug.TaskRef{Label: "build"}); err != nil || res != debug.TaskSuccess {
-		t.Errorf("a task that passed: %v %v", res, err)
-	}
-}
-
 func TestAStartThatSavesUntitledFilesEndsWhenTheDialogIsCancelled(t *testing.T) {
 	r := newDebugRig(t, debugFolder(t, nil))
 	r.win.SaveDialog = func(context.Context, widgets.BuildContext, SaveDialogOptions) (string, error) { return "", nil }

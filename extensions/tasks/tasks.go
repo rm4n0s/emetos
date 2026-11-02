@@ -9,11 +9,13 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/painting"
 	"github.com/rm4n0s/glutter/rendering"
@@ -114,6 +116,10 @@ type tasks struct {
 	started time.Time
 	// stopping says that the user asked the task to end.
 	stopping bool
+	// onEnd is called, on the UI thread, when the run that started with it ended (a task another extension or the window asked for).
+	onEnd func(exit int, err error)
+	// runs numbers the runs, so that a request that is cancelled stops its own run and no later one.
+	runs int
 }
 
 // Activate implements extension.Extension.
@@ -124,7 +130,7 @@ func (t *tasks) Activate(ctx context.Context, api extension.API) error {
 	t.ctl = ui.NewListController()
 	if err := api.Settings().Register(extension.SettingSpec{
 		Key: CommandsSetting, Type: "array", Default: []string{"go test ./..."},
-		Description: "The command lines the Tasks view offers. Each runs in the folder of the workspace, in a shell.",
+		Description: "The command lines the Tasks view offers. Each runs in the folder of the workspace, in a shell. An entry is a command line, or an object {\"label\": \"build\", \"command\": \"go build ./...\"}; the label is what preLaunchTask and postDebugTask of a launch configuration name.",
 	}); err != nil {
 		return err
 	}
@@ -151,23 +157,113 @@ func (t *tasks) Activate(ctx context.Context, api extension.API) error {
 			return err
 		}
 	}
-	return nil
+	return api.Events().HandleAsync(extension.TopicTasksRun, t.handleRunTask)
 }
 
-// commands reads the setting.
-func (t *tasks) commands() []string {
-	list, err := extension.SettingValue[[]string](t.api.Settings(), CommandsSetting)
+// task is an entry of the setting: the command line, and the label other extensions and launch configurations name it by (the
+// command line itself for an entry that is a string).
+type task struct {
+	label, cmdline string
+}
+
+// taskList reads the setting: an entry is a command line, or an object {"label": "build", "command": "go build ./..."}. An entry with
+// no command is left out.
+func (t *tasks) taskList() []task {
+	list, err := extension.SettingValue[[]any](t.api.Settings(), CommandsSetting)
 	if err != nil {
 		t.api.Log().Warn("the setting of the tasks cannot be read", "err", err)
 		return nil
 	}
-	var out []string
-	for _, c := range list {
-		if strings.TrimSpace(c) != "" {
-			out = append(out, c)
+	var out []task
+	for _, entry := range list {
+		switch e := entry.(type) {
+		case string:
+			if strings.TrimSpace(e) != "" {
+				out = append(out, task{label: e, cmdline: e})
+			}
+		case map[string]any:
+			cmdline, _ := e["command"].(string)
+			label, _ := e["label"].(string)
+			if strings.TrimSpace(cmdline) == "" {
+				continue
+			}
+			if strings.TrimSpace(label) == "" {
+				label = cmdline
+			}
+			out = append(out, task{label: label, cmdline: cmdline})
 		}
 	}
 	return out
+}
+
+// commands are the command lines of the setting.
+func (t *tasks) commands() []string {
+	var out []string
+	for _, tk := range t.taskList() {
+		out = append(out, tk.cmdline)
+	}
+	return out
+}
+
+// handleRunTask answers emetos.tasks.runTask (extension.TopicTasksRun): the task named by the request runs, and the reply is how it
+// ended. Cancelling the request stops the task.
+func (t *tasks) handleRunTask(ctx context.Context, ev extension.Event, reply extension.EventReply) {
+	var req extension.TasksRunRequest
+	if len(ev.Data) > 0 && string(ev.Data) != "null" {
+		if err := json.Unmarshal(ev.Data, &req); err != nil {
+			reply(nil, errors.NewErr("TaskRequestInvalid", err))
+			return
+		}
+	}
+	label := req.Label
+	if label == "" {
+		label, _ = req.Identifier["label"].(string)
+	}
+	if label == "" {
+		label, _ = req.Identifier["task"].(string)
+	}
+	list := t.taskList()
+	idx := slices.IndexFunc(list, func(tk task) bool { return tk.label == label })
+	if label == "" || idx < 0 {
+		reply(nil, errors.New("TaskNotFound", "Could not find the task '"+label+"'.", "label", label))
+		return
+	}
+	var stop func() bool
+	err := t.run(list[idx].cmdline, func(exit int, runErr error) {
+		if stop != nil {
+			stop()
+		}
+		out := extension.TasksRunReply{ExitCode: exit, Cancelled: t.stopping || ctx.Err() != nil, Errors: t.errorCount()}
+		if runErr != nil && exit == 0 {
+			out.ExitCode = -1
+		}
+		reply(out, nil)
+	})
+	if err != nil {
+		reply(nil, err)
+		return
+	}
+	id := t.runs
+	stop = context.AfterFunc(ctx, func() {
+		t.api.Post(func() {
+			if t.runs == id && t.cancel != nil {
+				t.stop()
+			}
+		})
+	})
+}
+
+// errorCount is how many problems of the error severity the last run put in the Problems panel.
+func (t *tasks) errorCount() int {
+	n := 0
+	for _, list := range t.problems {
+		for _, m := range list {
+			if m.Severity == extension.SeverityError {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // runCommand is the command Run Task: with no argument the first command of the setting runs, a string runs that command
@@ -192,22 +288,32 @@ func (t *tasks) runCommand(args any) error {
 		}
 		cmdline = list[0]
 	}
-	t.run(cmdline)
+	if err := t.run(cmdline, nil); err != nil {
+		t.api.Log().Debug("the task did not run", "err", err) // the user was told
+	}
 	return nil
 }
 
-// run starts a command line, after the one that runs now, if any, was stopped by the user: a second task is refused.
-func (t *tasks) run(cmdline string) {
+// run starts a command line, after the one that runs now, if any, was stopped by the user: a second task is refused. onEnd, when it is
+// not nil, is called on the UI thread when the run has ended; a run that cannot start is the error (TaskBusy, TaskNoFolder or
+// TaskStartFailed), and the user is told by a notification when nobody asked for the run with onEnd.
+func (t *tasks) run(cmdline string, onEnd func(exit int, err error)) error {
 	if t.cancel != nil {
-		t.api.Notifications().Warn("A task is running already. Stop it first.")
-		return
+		if onEnd == nil {
+			t.api.Notifications().Warn("A task is running already. Stop it first.")
+		}
+		return errors.New("TaskBusy", "A task is running already. Stop it first.", "task", cmdline)
 	}
 	if t.folder == "" {
-		t.api.Notifications().Warn("Open a folder to run tasks.")
-		return
+		if onEnd == nil {
+			t.api.Notifications().Warn("Open a folder to run tasks.")
+		}
+		return errors.New("TaskNoFolder", "Open a folder to run tasks.", "task", cmdline)
 	}
 	t.clearProblems()
 	t.clear()
+	t.runs++
+	t.onEnd = onEnd
 	t.last, t.result, t.stopping = cmdline, "running", false
 	t.started = time.Now()
 	t.channel.AppendLine("> " + cmdline)
@@ -217,19 +323,22 @@ func (t *tasks) run(cmdline string) {
 		t.api.Post(func() { t.finished(exit, err) })
 	})
 	if err != nil {
-		t.cancel = nil
+		t.cancel, t.onEnd = nil, nil
 		cancel()
 		t.result = "could not start: " + err.Error()
 		t.channel.AppendLine(t.result)
-		t.api.Notifications().Error("Cannot run " + cmdline + ": " + err.Error())
+		if onEnd == nil {
+			t.api.Notifications().Error("Cannot run " + cmdline + ": " + err.Error())
+		}
 		t.state()
-		return
+		return errors.NewErr("TaskStartFailed", err).SetMetadata("task", cmdline)
 	}
 	t.proc = p
 	_ = t.api.Context().Set(RunningKey, true)
 	t.channel.Show(true)
 	t.handle.Reveal(false)
 	t.state()
+	return nil
 }
 
 // read is called by the reader goroutine for each line of output. The lines wait for the UI thread, which takes all that
@@ -309,6 +418,10 @@ func (t *tasks) finished(exit int, err error) {
 	}
 	t.channel.AppendLine("> " + t.result + " (" + t.seconds + ")")
 	t.state()
+	if end := t.onEnd; end != nil {
+		t.onEnd = nil
+		end(exit, err)
+	}
 }
 
 // elapsedText is how long a task took, as the view says it: under a second is "under 1s", so that a fast task reads the same
@@ -430,11 +543,15 @@ func (t *tasks) build(bc widgets.BuildContext) widgets.Widget {
 	}
 	var buttons []widgets.Widget
 	running := t.cancel != nil
-	for _, c := range t.commands() {
-		cmdline := c
-		buttons = append(buttons, ui.NewButton(shorten(c), ui.ButtonOpts{
-			Small: true, Secondary: cmdline != t.last, Disabled: running, Tooltip: c,
-			OnPressed: func() { t.run(cmdline) },
+	for _, tk := range t.taskList() {
+		cmdline := tk.cmdline
+		buttons = append(buttons, ui.NewButton(shorten(tk.label), ui.ButtonOpts{
+			Small: true, Secondary: cmdline != t.last, Disabled: running, Tooltip: cmdline,
+			OnPressed: func() {
+				if err := t.run(cmdline, nil); err != nil {
+					t.api.Log().Debug("the task did not run", "err", err) // the user was told
+				}
+			},
 		}))
 	}
 	status := ""

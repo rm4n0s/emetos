@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	apperrors "github.com/rm4n0s/errors"
+
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/fakeapi"
 )
@@ -409,5 +411,122 @@ func TestTheManifestDeclaresWhatItNeeds(t *testing.T) {
 	}
 	if len(m.Contributes.PanelViews) != 1 || m.Contributes.PanelViews[0].ID != ViewID {
 		t.Errorf("panel views = %+v", m.Contributes.PanelViews)
+	}
+}
+
+// ask asks the extension to run a task, as the window or another extension does, and decodes the reply.
+func (r *rig) ask(ctx context.Context, req extension.TasksRunRequest) (extension.TasksRunReply, error) {
+	r.t.Helper()
+	ev, err := r.api.Ask(ctx, extension.TopicTasksRun, req)
+	if err != nil {
+		return extension.TasksRunReply{}, err
+	}
+	reply, derr := extension.EventValue[extension.TasksRunReply](ev)
+	if derr != nil {
+		r.t.Fatal(derr)
+	}
+	return reply, nil
+}
+
+func TestATaskIsRunByLabelAndTheReplySaysHowItEnded(t *testing.T) {
+	tests := []struct {
+		name    string
+		setting []any
+		req     extension.TasksRunRequest
+		want    extension.TasksRunReply
+	}{
+		{"the command line is the label of a string", []any{"echo built"}, extension.TasksRunRequest{Label: "echo built"}, extension.TasksRunReply{}},
+		{"an object has its own label", []any{map[string]any{"label": "build", "command": "echo built"}}, extension.TasksRunRequest{Label: "build"}, extension.TasksRunReply{}},
+		{"an identifier names it by its label", []any{map[string]any{"label": "build", "command": "echo built"}}, extension.TasksRunRequest{Identifier: map[string]any{"type": "shell", "label": "build"}}, extension.TasksRunReply{}},
+		{"an identifier names it by its task", []any{map[string]any{"label": "build", "command": "echo built"}}, extension.TasksRunRequest{Identifier: map[string]any{"type": "shell", "task": "build"}}, extension.TasksRunReply{}},
+		{"an exit code", []any{map[string]any{"label": "fail", "command": "exit 3"}}, extension.TasksRunRequest{Label: "fail"}, extension.TasksRunReply{ExitCode: 3}},
+		{"the errors the run put in Problems", []any{map[string]any{"label": "vet", "command": "echo ./main.go:1:1: bad; echo ./main.go:2:1: warning: meh; exit 1"}}, extension.TasksRunRequest{Label: "vet"}, extension.TasksRunReply{ExitCode: 1, Errors: 1}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRig(t)
+			r.api.SetSetting(CommandsSetting, tc.setting)
+			got, err := r.ask(context.Background(), tc.req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Errorf("reply = %+v, want %+v", got, tc.want)
+			}
+			r.done()
+			if r.ext.onEnd != nil {
+				t.Error("the run still waits for its caller")
+			}
+		})
+	}
+}
+
+func TestACancelledRequestStopsItsTask(t *testing.T) {
+	r := newRig(t, "sleep 30")
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	got, err := r.ask(ctx, extension.TasksRunRequest{Label: "sleep 30"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Cancelled {
+		t.Errorf("reply = %+v, want a cancelled task", got)
+	}
+	r.done()
+	if r.ext.result != "stopped" {
+		t.Errorf("result = %q", r.ext.result)
+	}
+}
+
+func TestARequestThatCannotRunIsRefusedWithItsOwnTag(t *testing.T) {
+	tests := []struct {
+		name  string
+		rig   func(t *testing.T) *rig
+		req   extension.TasksRunRequest
+		route string
+	}{
+		{"a label that is no task", func(t *testing.T) *rig { return newRig(t, "echo x") }, extension.TasksRunRequest{Label: "build"}, "handleRunTask.TaskNotFound"},
+		{"no label at all", func(t *testing.T) *rig { return newRig(t, "echo x") }, extension.TasksRunRequest{}, "handleRunTask.TaskNotFound"},
+		{"a task is running", func(t *testing.T) *rig {
+			r := newRig(t, startChild, "echo second")
+			_ = r.api.Run(RunCommand, nil)
+			r.childPID()
+			t.Cleanup(func() { _ = r.api.Run(StopCommand, nil); r.done() })
+			return r
+		}, extension.TasksRunRequest{Label: "echo second"}, "handleRunTask->tasks.run.TaskBusy"},
+		{"no folder", func(t *testing.T) *rig {
+			r := activate(t, "")
+			r.api.SetSetting(CommandsSetting, []string{"echo x"})
+			return r
+		}, extension.TasksRunRequest{Label: "echo x"}, "handleRunTask->tasks.run.TaskNoFolder"},
+		{"a folder that is gone", func(t *testing.T) *rig {
+			r := newRig(t, "echo x")
+			if err := os.RemoveAll(r.folder); err != nil {
+				t.Fatal(err)
+			}
+			return r
+		}, extension.TasksRunRequest{Label: "echo x"}, "handleRunTask->tasks.run.TaskStartFailed"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.rig(t)
+			_, err := r.ask(context.Background(), tc.req)
+			appErr, ok := apperrors.FromError(err)
+			if !ok {
+				t.Fatalf("expected *errors.Error, got %T (%v)", err, err)
+			}
+			if !appErr.HasRoute(tc.route) {
+				t.Errorf("unexpected failure path: %s", appErr.Route())
+			}
+		})
+	}
+}
+
+func TestARequestWithAPayloadOfTheWrongShapeIsRefused(t *testing.T) {
+	r := newRig(t, "echo x")
+	_, err := r.api.Ask(context.Background(), extension.TopicTasksRun, map[string]any{"label": 5})
+	appErr, ok := apperrors.FromError(err)
+	if !ok || !appErr.HasRoute("handleRunTask.TaskRequestInvalid") {
+		t.Errorf("err = %v", err)
 	}
 }

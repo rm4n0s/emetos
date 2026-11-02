@@ -962,3 +962,111 @@ func TestDeclaredTopicsAreCheckedAgainstTheOtherExtensions(t *testing.T) {
 		})
 	}
 }
+
+// ---- the window asks (Scope.Ask, step 25.11)
+
+func TestTheWindowAsksAnExtensionAndGetsItsReply(t *testing.T) {
+	h := newHarness(t, evExt{id: "b"})
+	var seen extension.Event
+	if err := h.events("b").Handle("b.double", func(_ context.Context, ev extension.Event) (any, error) {
+		seen = ev
+		n, err := extension.EventValue[int](ev)
+		return n * 2, err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	o := newOutcome()
+	if err := h.tb.scope.Ask(context.Background(), "b.double", 21, o.fn); err != nil {
+		t.Fatal(err)
+	}
+	if calls, _, _ := o.get(); calls != 0 {
+		t.Fatal("the reply came inside Ask")
+	}
+	h.tb.pump()
+	calls, ev, err := o.get()
+	if calls != 1 || err != nil {
+		t.Fatalf("calls %d, err %v", calls, err)
+	}
+	if n, _ := extension.EventValue[int](ev); n != 42 || ev.Publisher != "b" {
+		t.Errorf("reply %+v, want 42 from b", ev)
+	}
+	if seen.Publisher != extension.CorePublisher {
+		t.Errorf("the handler saw the publisher %q", seen.Publisher)
+	}
+}
+
+func TestAnAskThatCannotBeAnsweredEndsWithTheTagOfTheFailure(t *testing.T) {
+	tests := []struct {
+		name  string
+		topic string
+		setup func(h *harness)
+		route string
+	}{
+		{"no handler", "nobody.home", func(*harness) {}, "start.EventNoHandler"},
+		{"a handler that fails", "b.fail", func(h *harness) {
+			_ = h.events("b").Handle("b.fail", func(context.Context, extension.Event) (any, error) { return nil, errors.New("Boom", "no") })
+		}, "EventHandlerFailed"},
+		{"a handler that panics", "b.boom", func(h *harness) {
+			_ = h.events("b").Handle("b.boom", func(context.Context, extension.Event) (any, error) { panic("oops") })
+		}, "EventHandlerPanicked"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, evExt{id: "b"})
+			tt.setup(h)
+			o := newOutcome()
+			if err := h.tb.scope.Ask(context.Background(), tt.topic, nil, o.fn); err != nil {
+				t.Fatal(err)
+			}
+			h.tb.pump()
+			calls, _, err := o.get()
+			if calls != 1 {
+				t.Fatalf("calls %d", calls)
+			}
+			wantRoute(t, err, tt.route)
+		})
+	}
+}
+
+func TestAnAskEndsWithItsContext(t *testing.T) {
+	h := newHarness(t, evExt{id: "b"})
+	if err := h.events("b").HandleAsync("b.slow", func(context.Context, extension.Event, extension.EventReply) {}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	o := newOutcome()
+	if err := h.tb.scope.Ask(ctx, "b.slow", nil, o.fn); err != nil {
+		t.Fatal(err)
+	}
+	h.tb.pump()
+	cancel()
+	h.await(o)
+	_, _, err := o.get()
+	wantRoute(t, err, "EventCanceled")
+}
+
+func TestAnAskWithABadTopicOrValueFailsAtOnce(t *testing.T) {
+	h := newHarness(t, evExt{id: "b"})
+	called := false
+	fn := func(extension.Event, error) { called = true }
+	wantRoute(t, h.tb.scope.Ask(context.Background(), "not a topic", nil, fn), "EventTopicInvalid")
+	wantRoute(t, h.tb.scope.Ask(context.Background(), "b.x", make(chan int), fn), "Ask.EventValueInvalid")
+	h.tb.pump()
+	if called {
+		t.Error("the reply was called for a request that failed")
+	}
+}
+
+func TestAReplyOfTheWindowThatPanicsIsLoggedAndNothingElse(t *testing.T) {
+	h := newHarness(t, evExt{id: "b"})
+	if err := h.events("b").Handle("b.ok", func(context.Context, extension.Event) (any, error) { return 1, nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tb.scope.Ask(context.Background(), "b.ok", nil, func(extension.Event, error) { panic("in the window") }); err != nil {
+		t.Fatal(err)
+	}
+	h.tb.pump() // must not panic
+	if f := h.tb.scope.Failure("b"); f != nil {
+		t.Errorf("the extension failed for the window's panic: %v", f)
+	}
+}

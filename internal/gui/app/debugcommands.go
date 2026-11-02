@@ -12,6 +12,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/debug"
+	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
@@ -352,15 +353,12 @@ func (s *shellState) debugStart(target debug.Target, launch *debug.Launch, noDeb
 	})
 }
 
-// debugSaveBeforeStart saves the files as debug.saveBeforeStart says before a session starts: all the editors of the active group, the
-// ones that are not untitled, or none. It waits for the save on the screen that asked.
+// debugSaveBeforeStart saves the files as debug.saveBeforeStart says before a session starts (debugFilesToSave). It waits for the save on
+// the screen that asked; the setting is read for the language of that screen's active editor.
 //
-// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugService.ts (the saving in startDebugging)
+// Ported from VS Code: src/vs/workbench/contrib/debug/common/debugUtils.ts (saveAllBeforeDebugStart)
 func (w *Workspace) debugSaveBeforeStart(ctx context.Context) error {
 	screen := w.debugScreen(ctx)
-	if settings.Get[string](w.Settings, "debug.saveBeforeStart", "") == "none" {
-		return nil
-	}
 	ch := make(chan bool, 1)
 	screen.onUI(func() {
 		s := screen.shell
@@ -368,7 +366,13 @@ func (w *Workspace) debugSaveBeforeStart(ctx context.Context) error {
 			ch <- true
 			return
 		}
-		s.saveAllThen(func(ok bool) { ch <- ok })
+		var active *document.Document
+		lang := ""
+		if e := s.activeEditor(); e != nil && e.doc != nil {
+			active, lang = e.doc, e.doc.LanguageID()
+		}
+		mode := settings.Get[string](w.Settings, "debug.saveBeforeStart", lang)
+		s.saveDocsThen(debugFilesToSave(mode, s.dirtyDocuments(), active), func(ok bool) { ch <- ok })
 	})
 	select {
 	case ok := <-ch:
@@ -379,6 +383,27 @@ func (w *Workspace) debugSaveBeforeStart(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// debugFilesToSave are the documents to save before a session starts. "none" saves nothing. Any other value saves the documents with
+// changes that are files (Save All), and "allEditorsInActiveGroup" also the active editor's document when it is untitled (it asks for
+// its file); "nonUntitledEditorsInActiveGroup" leaves untitled documents alone.
+//
+// Ported from VS Code: src/vs/workbench/contrib/debug/common/debugUtils.ts (saveAllBeforeDebugStart)
+func debugFilesToSave(mode string, dirty []*document.Document, active *document.Document) []*document.Document {
+	if mode == "none" {
+		return nil
+	}
+	var out []*document.Document
+	for _, d := range dirty {
+		if d.URI().Scheme != document.SchemeUntitled {
+			out = append(out, d)
+		}
+	}
+	if mode == "allEditorsInActiveGroup" && active != nil && active.Dirty() && active.URI().Scheme == document.SchemeUntitled {
+		out = append(out, active)
+	}
+	return out
 }
 
 // debugSelectAndStart lists the configurations in the quick input and starts the one that is chosen; the choice becomes the selected

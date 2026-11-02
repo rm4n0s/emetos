@@ -60,6 +60,8 @@ type rigOpts struct {
 	size  ui.Size
 	// open are the files of the folder that start open in the editor.
 	open []string
+	// extensions are more extensions than the dev debugger (the Tasks extension, a fake terminal).
+	extensions []extension.Factory
 	// settings are more settings.
 	settings map[string]any
 }
@@ -83,7 +85,7 @@ func newDebugRigWith(t *testing.T, folder string, o rigOpts) *debugRig {
 		values[k] = v
 	}
 	testutil.Settings(t, paths, values)
-	p := newTestProcess(ProcessOptions{Paths: paths, Extensions: []extension.Factory{devdebug.New}})
+	p := newTestProcess(ProcessOptions{Paths: paths, Extensions: append([]extension.Factory{devdebug.New}, o.extensions...)})
 	win, err := NewWorkspace(context.Background(), p, folder)
 	if err != nil {
 		t.Fatal(err)

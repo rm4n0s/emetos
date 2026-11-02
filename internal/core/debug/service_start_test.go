@@ -146,11 +146,13 @@ func TestStartDebuggingErrorsAndCancellations(t *testing.T) {
 			}, tag: "ProviderBroke"},
 		{name: "the task before fails", file: `{"configurations": [{"name": "a", "type": "fake", "request": "launch", "preLaunchTask": "build"}]}`, target: debug.Target{Name: "a"},
 			tune: func(o *debug.Options) {
-				o.RunTask = func(context.Context, string, debug.TaskRef) (debug.TaskResult, error) { return debug.TaskFailure, nil }
+				o.RunTask = func(context.Context, string, debug.TaskRef, bool) (debug.TaskResult, error) {
+					return debug.TaskFailure, nil
+				}
 			}},
 		{name: "the task before cannot run", file: `{"configurations": [{"name": "a", "type": "fake", "request": "launch", "preLaunchTask": "build"}]}`, target: debug.Target{Name: "a"},
 			tune: func(o *debug.Options) {
-				o.RunTask = func(context.Context, string, debug.TaskRef) (debug.TaskResult, error) {
+				o.RunTask = func(context.Context, string, debug.TaskRef, bool) (debug.TaskResult, error) {
 					return debug.TaskSuccess, errors.New("TaskGone", "no such task")
 				}
 			}, tag: "TaskGone"},
@@ -267,7 +269,7 @@ func TestCompounds(t *testing.T) {
 		var mu sync.Mutex
 		var tasks []string
 		e := newEnv(t, func(o *debug.Options) {
-			o.RunTask = func(_ context.Context, _ string, task debug.TaskRef) (debug.TaskResult, error) {
+			o.RunTask = func(_ context.Context, _ string, task debug.TaskRef, _ bool) (debug.TaskResult, error) {
 				mu.Lock()
 				tasks = append(tasks, task.String())
 				mu.Unlock()

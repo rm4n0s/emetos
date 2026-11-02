@@ -108,6 +108,7 @@ func (o *autoSaveObserver) DidChangeViewFocus(e ui.ViewFocusEvent) {
 	if !o.s.Mounted() {
 		return
 	}
+	o.s.windowFocused = e.State == ui.ViewFocusStateFocused
 	if win := o.s.win; win != nil && !win.activeTab() {
 		return
 	}

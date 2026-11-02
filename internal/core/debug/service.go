@@ -98,9 +98,10 @@ type Options struct {
 	Variables func(ctx context.Context) *VariableContext
 	// InputMemory remembers the last value of each input.
 	InputMemory InputMemory
-	// RunTask runs a task of the Tasks extension before or after a session and tells how it ended; the question about a failed
-	// task (debug.onTaskErrors) is the callback's.
-	RunTask func(ctx context.Context, folder string, task TaskRef) (TaskResult, error)
+	// RunTask runs a task of the Tasks extension before or after a session and tells how it ended. checkErrors is true for the tasks whose
+	// errors stop the launch (preLaunchTask, postRestartTask: VS Code's runTaskAndCheckErrors) and false for the others (postDebugTask,
+	// preRestartTask: runTask); the question about a failed task (debug.onTaskErrors) is the callback's.
+	RunTask func(ctx context.Context, folder string, task TaskRef, checkErrors bool) (TaskResult, error)
 	// SaveBeforeStart saves the files as debug.saveBeforeStart says.
 	SaveBeforeStart func(ctx context.Context) error
 	// ConfirmConcurrent asks whether to start a second instance of a configuration that runs; nil means yes.
@@ -297,7 +298,7 @@ func (s *Service) startCompound(ctx context.Context, launch *Launch, comp Compou
 		return false, errors.New("DebugCompoundEmpty", "Compound must have \"configurations\" attribute set in order to start multiple configurations.", "compound", comp.Name)
 	}
 	if !comp.PreLaunchTask.IsZero() {
-		res, err := s.runTask(ctx, launch, comp.PreLaunchTask)
+		res, err := s.runTask(ctx, launch, comp.PreLaunchTask, true)
 		if err != nil {
 			return false, err
 		}
@@ -388,7 +389,7 @@ func containsLaunch(list []*Launch, l *Launch) bool {
 	return false
 }
 
-func (s *Service) runTask(ctx context.Context, launch *Launch, task TaskRef) (TaskResult, error) {
+func (s *Service) runTask(ctx context.Context, launch *Launch, task TaskRef, checkErrors bool) (TaskResult, error) {
 	if task.IsZero() || s.opts.RunTask == nil {
 		return TaskSuccess, nil
 	}
@@ -396,7 +397,7 @@ func (s *Service) runTask(ctx context.Context, launch *Launch, task TaskRef) (Ta
 	if launch != nil {
 		folder = launch.Folder
 	}
-	return s.opts.RunTask(ctx, folder, task)
+	return s.opts.RunTask(ctx, folder, task, checkErrors)
 }
 
 func (s *Service) debuggerFor(typ string) (Debugger, bool) {
@@ -524,7 +525,7 @@ func (s *Service) createSession(ctx context.Context, launch *Launch, cfg Config,
 	}
 
 	if task := resolved.Task("preLaunchTask"); !task.IsZero() {
-		res, err := s.runTask(cctx, launch, task)
+		res, err := s.runTask(cctx, launch, task, true)
 		if err != nil {
 			return false, err
 		}
@@ -632,7 +633,7 @@ func (s *Service) sessionEnded(sess *Session, cause error) {
 		if sess.root != "" {
 			launch = s.launches.Launch(sess.root)
 		}
-		if _, err := s.runTask(s.base, launch, task); err != nil {
+		if _, err := s.runTask(s.base, launch, task, false); err != nil {
 			s.logger().Warn("the task after the session failed", "session", sess.id, "err", err)
 		}
 	}
@@ -730,15 +731,15 @@ func (s *Service) RestartSession(ctx context.Context, sess *Session, restartData
 		}
 		cfg := sess.Configuration()
 		for _, key := range []string{"preRestartTask", "postDebugTask"} {
-			if _, err := s.runTask(ctx, launch, cfg.Task(key)); err != nil {
+			if _, err := s.runTask(ctx, launch, cfg.Task(key), false); err != nil {
 				return TaskFailure, err
 			}
 		}
-		res, err := s.runTask(ctx, launch, cfg.Task("preLaunchTask"))
+		res, err := s.runTask(ctx, launch, cfg.Task("preLaunchTask"), true)
 		if err != nil || res != TaskSuccess {
 			return res, err
 		}
-		return s.runTask(ctx, launch, cfg.Task("postRestartTask"))
+		return s.runTask(ctx, launch, cfg.Task("postRestartTask"), true)
 	}
 
 	// Read the configuration again when launch.json changed; else use the one in memory.
