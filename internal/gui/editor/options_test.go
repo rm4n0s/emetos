@@ -82,6 +82,7 @@ func TestOptionsFromSettingsDefaults(t *testing.T) {
 		RenderWhitespace: "selection", RenderControlCharacters: true,
 		OccurrencesHighlight: "singleFile", OccurrencesHighlightDelay: 250, SelectionHighlight: true, SelectionHighlightMaxLength: 200,
 		ShowUnused: true, ShowDeprecated: true,
+		Debug:          DebugOptions{InlineValues: "auto", InlineCandidates: true, MiddleClickAction: "logpoint"},
 		Hover:          HoverOptions{Enabled: "on", Delay: 300, Sticky: true, HidingDelay: 300, Above: true},
 		ParameterHints: ParameterHintsOptions{Enabled: true, Cycle: true},
 		CodeActions:    CodeActionOptions{Lightbulb: "onCode", ShowHeaders: true, IncludeNearbyQuickFixes: true},

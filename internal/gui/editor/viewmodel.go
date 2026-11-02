@@ -174,6 +174,8 @@ type Options struct {
 	// ShowUnused is editor.showUnused (fade the text of unused code) and ShowDeprecated editor.showDeprecated (strike through
 	// the text of deprecated code).
 	ShowUnused, ShowDeprecated bool
+	// Debug are the settings debug.* the editor reads (debug.go).
+	Debug DebugOptions
 	// Hover are the settings of the hover (editor.hover.*).
 	Hover HoverOptions
 	// ParameterHints are the settings of the parameter hints (editor.parameterHints.*).
@@ -266,6 +268,10 @@ type ViewModel struct {
 	hover hoverModel
 	// annot is the line annotations (annotations.go).
 	annot annotationState
+	// inval are the inline values of the debugger, a group of annotations of their own (annotations.go); dbg is the debugger in the editor
+	// (debug.go).
+	inval annotationState
+	dbg   debugState
 	// sg is the suggest widget (suggest.go) and sig the parameter hints (signature.go).
 	sg  suggestState
 	sig signatureModel

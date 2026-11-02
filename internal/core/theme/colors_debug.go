@@ -58,4 +58,30 @@ func registerDebugColors(r *ColorRegistry) {
 		ColorContribution{ID: "debugView.valueChangedHighlight", Defaults: AllThemes(Hex("#569CD6")),
 			Description: "Color used to highlight value changes in the debug views (ie. in the Variables view)."},
 	)
+	registerDebugEditorColors(r)
+}
+
+// registerDebugEditorColors registers the colors of the editor while debugging (step 25.5): the lines of the stack frames, the icons of
+// the current frames in the glyph margin, the inline values and the exception widget.
+//
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/callStackEditorContribution.ts, breakpointEditorContribution.ts,
+// debugEditorContribution.ts and exceptionWidget.ts (the registerColor calls)
+func registerDebugEditorColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "editor.stackFrameHighlightBackground", Defaults: dflt(Hex("#ffff0033"), Hex("#ffff6673"), Hex("#ffff0033"), Hex("#ffff6673")),
+			Description: "Background color for the highlight of line at the top stack frame position."},
+		ColorContribution{ID: "editor.focusedStackFrameHighlightBackground", Defaults: dflt(Hex("#7abd7a4d"), Hex("#cee7ce73"), Hex("#7abd7a4d"), Hex("#cee7ce73")),
+			Description: "Background color for the highlight of line at focused stack frame position."},
+		ColorContribution{ID: "debugIcon.breakpointCurrentStackframeForeground", Defaults: dflt(Hex("#FFCC00"), Hex("#BE8700"), Hex("#FFCC00"), Hex("#BE8700")),
+			Description: "Icon color for the current breakpoint stack frame."},
+		ColorContribution{ID: "debugIcon.breakpointStackframeForeground", Defaults: AllThemes(Hex("#89D185")),
+			Description: "Icon color for all breakpoint stack frames."},
+		ColorContribution{ID: "editor.inlineValuesForeground", Defaults: dflt(Hex("#ffffff80"), Hex("#00000080"), Hex("#ffffff80"), Hex("#00000080")),
+			Description: "Color for the debug inline value text."},
+		ColorContribution{ID: "editor.inlineValuesBackground", Defaults: AllThemes(Hex("#ffc80033")),
+			Description: "Color for the debug inline value background."},
+		ColorContribution{ID: "debugExceptionWidget.border", Defaults: AllThemes(Hex("#a31515")), Description: "Exception widget border color."},
+		ColorContribution{ID: "debugExceptionWidget.background", Defaults: dflt(Hex("#420b0d"), Hex("#f1dfde"), Hex("#420b0d"), Hex("#f1dfde")),
+			Description: "Exception widget background color."},
+	)
 }

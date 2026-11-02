@@ -152,6 +152,9 @@ type rulerMark struct {
 	severity  DiagnosticSeverity
 	// change is the kind of change a mark of the left lane stands for.
 	change quickdiff.ChangeType
+	// custom is the color of a mark of the debugger (hasColor), which brings its own.
+	custom   ui.Color
+	hasColor bool
 }
 
 // rulerCache holds the marks of the diagnostics for what they were made for: the diagnostics (their generation), the height of
@@ -280,6 +283,7 @@ func (r *RenderEditorRuler) Paint(context *rendering.PaintingContext, offset ui.
 	size := r.Size()
 	marks := append(r.vm.rulerMarks(size.Height), r.vm.diagnosticRulerMarks(size.Height)...)
 	marks = append(marks, r.vm.quickDiffRulerMarks(size.Height)...)
+	marks = append(marks, r.vm.debugRulerMarks(size.Height)...)
 	if len(marks) == 0 {
 		return
 	}
@@ -294,6 +298,9 @@ func (r *RenderEditorRuler) Paint(context *rendering.PaintingContext, offset ui.
 			left, width, color = offset.Dx+size.Width-third, third, r.colors.severity(m.severity)
 		case laneLeft:
 			left, width, color = offset.Dx, third, r.colors.change(m.change)
+		}
+		if m.hasColor {
+			color = m.custom
 		}
 		canvas.DrawRect(ui.NewRectFromLTWH(left, offset.Dy+m.y, width, m.height), fill(color))
 	}

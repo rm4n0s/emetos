@@ -5,9 +5,8 @@ const categoryDebug = "Debug"
 
 // registerDebug registers the debug.* settings that the views, the toolbar, the status bar and the start of a session read (step 25.4,
 // SPEC §10.31), with VS Code's keys, descriptions, scopes and defaults, and the `launch` setting. The settings of the editor
-// (debug.inlineValues, debug.allowBreakpointsEverywhere, debug.showBreakpointsInOverviewRuler, debug.showInlineBreakpointCandidates,
-// debug.gutterMiddleClickAction) come with step 25.5 and those of the Debug Console (debug.console.*, debug.internalConsoleOptions)
-// with 25.6. The names, values and defaults were checked against the pinned reference; `debug.toolBarLocation` has VS Code's fourth
+// (debug.inlineValues, debug.showBreakpointsInOverviewRuler, debug.showInlineBreakpointCandidates, debug.gutterMiddleClickAction) came
+// with step 25.5 and those of the Debug Console (debug.console.*, debug.internalConsoleOptions) come with 25.6. The names, values and defaults were checked against the pinned reference; `debug.toolBarLocation` has VS Code's fourth
 // value `commandCenter`, which Emetos has no command center for, so it is not offered (decision 1186).
 //
 // Ported from VS Code: src/vs/workbench/contrib/debug/browser/debug.contribution.ts (the "debug" configuration)
@@ -115,6 +114,28 @@ func registerDebug(r *Registry) {
 		Setting{
 			Key: "debug.hideSlowPreLaunchWarning", Types: []Type{Boolean}, Default: false,
 			Description: "Hide the warning shown when a `preLaunchTask` has been running for a while.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		// the settings of the editor (step 25.5)
+		Setting{
+			Key: "debug.inlineValues", Types: []Type{String}, Default: "auto", Enum: []any{"on", "off", "auto"},
+			EnumDescriptions: []string{"Always show variable values inline in editor while debugging.", "Never show variable values inline in editor while debugging.",
+				"Show variable values inline in editor while debugging when the language supports inline value locations."},
+			Description: "Show variable values inline in editor while debugging.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.showBreakpointsInOverviewRuler", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether breakpoints should be shown in the overview ruler.", Scope: ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.showInlineBreakpointCandidates", Types: []Type{Boolean}, Default: true,
+			Description: "Controls whether inline breakpoints candidate decorations should be shown in the editor while debugging.",
+			Scope:       ScopeWindow, Category: categoryDebug,
+		},
+		Setting{
+			Key: "debug.gutterMiddleClickAction", Types: []Type{String}, Default: "logpoint",
+			Enum:             []any{"logpoint", "conditionalBreakpoint", "triggeredBreakpoint", "none"},
+			EnumDescriptions: []string{"Add Logpoint.", "Add Conditional Breakpoint.", "Add Triggered Breakpoint.", "Don't perform any action."},
+			Description:      "Controls the action to perform when clicking the editor gutter with the middle mouse button.", Scope: ScopeWindow, Category: categoryDebug,
 		},
 	)
 }

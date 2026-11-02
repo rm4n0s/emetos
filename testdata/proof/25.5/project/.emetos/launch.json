@@ -1,0 +1,18 @@
+{
+	// The fake debugger of the debug builds runs the script next to this folder (SPEC §15.2).
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "dev.debug.fake",
+			"request": "launch",
+			"name": "Debug the price list",
+			"script": "${workspaceFolder}/fake.jsonl"
+		},
+		{
+			"type": "dev.debug.fake",
+			"request": "attach",
+			"name": "Attach to the loader",
+			"script": "${workspaceFolder}/fake.jsonl"
+		}
+	]
+}

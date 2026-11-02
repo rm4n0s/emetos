@@ -109,7 +109,7 @@ const (
 const debugCategory = "Debug"
 
 // registerDebugCommands registers the commands of Run and Debug that the views, the toolbar, the status bar and the Run menu run.
-// The commands of the editor (breakpoints at the cursor, Run to Cursor, the hover) come with step 25.5 and the Debug Console's with 25.6.
+// The commands of the editor (debugeditor.go, step 25.5) and the Debug Console's (25.6) are elsewhere.
 //
 // Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugCommands.ts, debugViewlet.ts, callStackView.ts,
 // variablesView.ts, watchExpressionsView.ts, breakpointsView.ts and loadedScriptsView.ts
@@ -172,6 +172,7 @@ func registerDebugCommands(r *Registry) {
 		Meta{ID: "workbench.debug.action.focusBreakpointsView", Title: "Focus on Breakpoints View", Category: "View"},
 		Meta{ID: "workbench.debug.action.focusLoadedScriptsView", Title: "Focus on Loaded Scripts View", Category: "View"},
 	)
+	registerDebugEditorCommands(r)
 }
 
 // registerDebugMenus adds the Run menu, the toolbar, the context menus and the title bars of Run and Debug.
@@ -392,4 +393,5 @@ func registerDebugMenus(r *MenuRegistry) {
 		MenuItem{Menu: DebugBreakpointsContext, Command: DebugDisableAllBreakpoint, Group: "z_commands", Order: 20},
 		MenuItem{Menu: DebugBreakpointsContext, Command: DebugRemoveAllBreakpoints, Group: "z_commands", Order: 30},
 	)
+	registerDebugEditorMenus(r)
 }

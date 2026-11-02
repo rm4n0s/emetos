@@ -103,6 +103,12 @@ func OptionsFromSettings(store *settings.Store, languageID, desktopMonospace str
 		SelectionHighlightMultiline:   settings.Get[bool](store, "editor.selectionHighlightMultiline", languageID),
 		ShowUnused:                    settings.Get[bool](store, "editor.showUnused", languageID),
 		ShowDeprecated:                settings.Get[bool](store, "editor.showDeprecated", languageID),
+		Debug: DebugOptions{
+			InlineValues:      settings.Get[string](store, "debug.inlineValues", languageID),
+			OverviewRuler:     settings.Get[bool](store, "debug.showBreakpointsInOverviewRuler", languageID),
+			InlineCandidates:  settings.Get[bool](store, "debug.showInlineBreakpointCandidates", languageID),
+			MiddleClickAction: settings.Get[string](store, "debug.gutterMiddleClickAction", languageID),
+		},
 		Hover: HoverOptions{
 			Enabled: settings.Get[string](store, "editor.hover.enabled", languageID), Delay: int(settings.Get[float64](store, "editor.hover.delay", languageID)),
 			Sticky: settings.Get[bool](store, "editor.hover.sticky", languageID), HidingDelay: int(settings.Get[float64](store, "editor.hover.hidingDelay", languageID)),

@@ -40,6 +40,10 @@ type LineAnnotation struct {
 	Color string
 	// Hover is the markdown of the hover; empty for none.
 	Hover string
+	// Background is the id of the theme color behind the text, empty for none; Tight puts the text one space after the end of the line
+	// instead of the margin of a blame text (the debug inline values).
+	Background string
+	Tight      bool
 	// Link is called with the destination of a link of the hover that names a command (command:<id>?<arguments>); other links open
 	// as the links of every hover do. Nil lets such a link do nothing.
 	Link func(dest string)
@@ -62,8 +66,14 @@ type annotationState struct {
 
 // SetLineAnnotations replaces the line annotations of the editor with the list. A line the document does not have is not kept. The
 // annotations are decorations that this editor owns, so another editor of the same document is given its own list.
-func (vm *ViewModel) SetLineAnnotations(list []LineAnnotation) {
-	st := &vm.annot
+func (vm *ViewModel) SetLineAnnotations(list []LineAnnotation) { vm.setAnnotations(&vm.annot, list) }
+
+// SetInlineValues replaces the debug inline values of the editor with the list: line annotations of a group of their own, drawn before
+// the others on their line, so that Git blame and the values show together.
+func (vm *ViewModel) SetInlineValues(list []LineAnnotation) { vm.setAnnotations(&vm.inval, list) }
+
+// setAnnotations replaces the annotations of a group.
+func (vm *ViewModel) setAnnotations(st *annotationState, list []LineAnnotation) {
 	snap := vm.doc.Snapshot()
 	count := snap.LineCount()
 	add := make([]document.NewDecoration, 0, len(list))
@@ -111,21 +121,27 @@ func (vm *ViewModel) DisposeLineAnnotations() {
 // it is worked out again when the text or the list changed.
 func (vm *ViewModel) annotationsByLine() map[int][]annotationEntry {
 	st := &vm.annot
-	if len(st.ids) == 0 {
+	if len(st.ids)+len(vm.inval.ids) == 0 {
 		return nil
 	}
-	version := vm.doc.Version()
-	if st.cached != nil && st.cachedGen == st.generation && st.cachedVersion == version {
+	version, gen := vm.doc.Version(), st.generation+vm.inval.generation
+	if st.cached != nil && st.cachedGen == gen && st.cachedVersion == version {
 		return st.cached
 	}
-	byLine := map[int][]annotationEntry{}
+	byLine, values := map[int][]annotationEntry{}, map[int][]annotationEntry{}
 	for _, d := range vm.doc.DecorationsOf(vm.owner(annotationsOwner)) {
-		if e, ok := st.entries[d.ID]; ok {
-			line := d.Range.Start.Line
+		line := d.Range.Start.Line
+		if e, ok := vm.inval.entries[d.ID]; ok {
+			values[line] = append(values[line], e)
+		} else if e, ok := st.entries[d.ID]; ok {
 			byLine[line] = append(byLine[line], e)
 		}
 	}
-	st.cached, st.cachedGen, st.cachedVersion = byLine, st.generation, version
+	// the inline values come first on their line
+	for line, list := range values {
+		byLine[line] = append(list, byLine[line]...)
+	}
+	st.cached, st.cachedGen, st.cachedVersion = byLine, gen, version
 	return byLine
 }
 
@@ -159,13 +175,16 @@ func (r *RenderEditorText) paintAnnotations(canvas *ui.Canvas, g geometry, by ma
 	if len(list) == 0 || g.isZoneRow(row) || !g.lastRowOfLine(row) {
 		return
 	}
-	x := left + g.rowEnd(row) + annotationMargin
+	x := left + g.rowEnd(row) + annotationLead(g, list[0])
 	for _, e := range list {
 		p := r.annotationParagraph(g, e)
 		if p == nil {
 			continue
 		}
 		// the paragraph has the line height of a row of text, so the text sits on the baseline of the text of the line
+		if bg := r.annotationBackgroundOf(e.Background); bg.Alpha() != 0 {
+			canvas.DrawRect(ui.NewRectFromLTWH(x, top, p.LongestLine(), g.proj.RowHeight(row)), fill(bg))
+		}
 		canvas.DrawParagraph(p, ui.Offset{Dx: x, Dy: top})
 		x += p.LongestLine() + annotationGap
 	}
@@ -228,7 +247,7 @@ func (r *RenderEditorText) AnnotationAt(local ui.Offset) (annotationHit, bool) {
 	if top := g.proj.RowTop(row) - r.top(); local.Dy < top || local.Dy >= top+g.proj.RowHeight(row) {
 		return annotationHit{}, false
 	}
-	x := g.rowEnd(row) + annotationMargin - r.vm.ScrollLeft()
+	x := g.rowEnd(row) + annotationLead(g, list[0]) - r.vm.ScrollLeft()
 	for i, e := range list {
 		p := r.annotationParagraph(g, e)
 		if p == nil {
@@ -246,7 +265,9 @@ func (r *RenderEditorText) AnnotationAt(local ui.Offset) (annotationHit, bool) {
 // annotationAnchor is the annotation a hover is about.
 type annotationAnchor struct {
 	line, index int
-	entry       annotationEntry
+	// key names a hover that is not an annotation's (the glyph margin's, debug.go): index is -1 then.
+	key   string
+	entry annotationEntry
 }
 
 // HoverAnnotationMoved tells the hover that the pointer rests on an annotation: after editor.hover.delay the markdown of its hover shows.
@@ -288,4 +309,46 @@ func annotationHoverParts(a hoverAnchor) []HoverPart {
 		Kind: HoverPartMarkdown, Contents: []langfeatures.Markup{{Value: e.Hover, Markdown: true}}, Range: a.rng,
 		order: [2]int{hoverOrdinalMarkdown, 0}, Links: e.Link, CommandLinks: true,
 	}}
+}
+
+// DisposeInlineValues takes the debug inline values off the document.
+func (vm *ViewModel) DisposeInlineValues() {
+	if len(vm.inval.ids) == 0 {
+		return
+	}
+	vm.doc.DeltaDecorations(vm.owner(annotationsOwner), vm.inval.ids, nil)
+	vm.inval = annotationState{generation: vm.inval.generation + 1}
+	vm.NotifyListeners()
+}
+
+// annotationLead is the space between the end of the text of a line and its first annotation: the margin of a blame text, or one space
+// for the inline values of the debugger.
+func annotationLead(g geometry, first annotationEntry) float64 {
+	if first.Tight {
+		return g.charWidth
+	}
+	return annotationMargin
+}
+
+// annotationBackgroundOf is the background of an annotation: the theme color it names, else none.
+func (r *RenderEditorText) annotationBackgroundOf(id string) ui.Color {
+	if id != "" && r.namedColor != nil {
+		if c, ok := r.namedColor(id); ok {
+			return c
+		}
+	}
+	return ui.Color{}
+}
+
+// InlineValues are the debug inline values of the editor as they are now, by line (counted from 0); the lines moved with the edits.
+func (vm *ViewModel) InlineValues() map[int]string {
+	out := map[int]string{}
+	for id, e := range vm.inval.entries {
+		d, ok := vm.doc.Decoration(id)
+		if !ok {
+			continue
+		}
+		out[d.Range.Start.Line] = e.Text
+	}
+	return out
 }

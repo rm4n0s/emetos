@@ -200,3 +200,9 @@ func byteToUTF16Column(line string, off int) int {
 	}
 	return units + 1
 }
+
+// ByteOfColumn is the byte offset in a line of a column counted from 1 in UTF-16 code units (how the protocol counts), clamped to the line.
+func ByteOfColumn(line string, column int) int { return utf16ColumnToByte(line, column) }
+
+// ColumnOfByte is the column, counted from 1 in UTF-16 code units, of a byte offset in a line.
+func ColumnOfByte(line string, off int) int { return byteToUTF16Column(line, off) }

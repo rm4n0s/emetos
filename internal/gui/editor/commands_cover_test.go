@@ -29,6 +29,12 @@ var appCommands = map[string]bool{
 	"debug.setVariable": true, "debug.setWatchExpression": true, "debug.renameWatchExpression": true, "debug.removeWatchExpression": true,
 	"debug.toggleBreakpoint": true, "debug.removeBreakpoint": true, "debug.editBreakpoint": true, "debug.toggleExceptionBreakpoints": true,
 	"debug.toggleReplIgnoreFocus": true,
+	// the commands of the editor while debugging (step 25.5, gui/app/debugeditor.go)
+	"editor.debug.action.toggleBreakpoint": true, "editor.debug.action.toggleInlineBreakpoint": true, "editor.debug.action.conditionalBreakpoint": true,
+	"editor.debug.action.addLogPoint": true, "editor.debug.action.triggerByBreakpoint": true, "editor.debug.action.editBreakpoint": true,
+	"editor.debug.action.runToCursor": true, "debug.jumpToCursor": true, "editor.debug.action.selectionToWatch": true,
+	"editor.debug.action.showDebugHover": true, "editor.debug.action.goToNextBreakpoint": true, "editor.debug.action.goToPreviousBreakpoint": true,
+	"editor.debug.action.closeExceptionWidget": true, "breakpointWidget.action.acceptInput": true, "closeBreakpointWidget": true,
 	// the rows of File > Open Recent (gui/app/recent.go)
 	"openRecentFolder": true, "openRecentFile": true,
 	// Switch Side of the diff editor (gui/app/diffpane.go)

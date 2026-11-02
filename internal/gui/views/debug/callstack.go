@@ -359,8 +359,10 @@ func lineBadge(bc widgets.BuildContext, text string, st kit.RowState) widgets.Wi
 	return pill(bg, widgets.NewText(text, widgets.TextOpts{Style: kit.TextStyleOf(bc, 11, fg), MaxLines: foundation.Some(1)}))
 }
 
-// pill is a label on a rounded background: the state of a thread and the line of a frame.
+// pill is a label on a rounded background: the state of a thread and the line of a frame. It is 1 pixel taller than its text on each side
+// and 6 wider (the first argument of NewEdgeInsetsSymmetric is the vertical one: the pills of step 25.4 had 6 above and below, which made
+// them taller than the row, and its bottom was cut off).
 func pill(bg ui.Color, label widgets.Widget) widgets.Widget {
 	return widgets.NewDecoratedBox(painting.NewBoxDecoration(painting.BoxDecorationOpts{Color: foundation.Some(bg), BorderRadius: painting.NewBorderRadiusCircular(10)}),
-		widgets.NewPadding(painting.NewEdgeInsetsSymmetric(6, 2), label))
+		widgets.NewPadding(painting.NewEdgeInsetsSymmetric(1, 6), label))
 }

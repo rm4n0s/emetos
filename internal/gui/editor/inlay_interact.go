@@ -36,7 +36,7 @@ func (r *RenderEditorText) HintAt(local ui.Offset) (entryID, part int, ok bool) 
 		return 0, 0, false
 	}
 	inj, part, ok := g.hintAt(row, local.Dx+r.vm.ScrollLeft())
-	if !ok {
+	if !ok || inj.entry == nil {
 		return 0, 0, false
 	}
 	return inj.entry.id, part, true

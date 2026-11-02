@@ -311,7 +311,9 @@ type editorState struct {
 	// suggestHandle follows the suggest widget of the view model, peekHandle the peek view and linkKey the keys that make a link.
 	suggestHandle foundation.ListenerHandle
 	peekHandle    foundation.ListenerHandle
-	linkKey       services.KeyHandlerHandle
+	// debugHandle follows the debug hover of the view model.
+	debugHandle foundation.ListenerHandle
+	linkKey     services.KeyHandlerHandle
 	// signatureHandle follows the parameter hints of the view model; hoverScroll scrolls the box of the hover.
 	signatureHandle foundation.ListenerHandle
 	hoverScroll     *widgets.ScrollControllerBase
@@ -357,6 +359,9 @@ func (s *editorState) InitState() {
 	vm.SetHoverScroller(s.scrollHoverBox)
 	s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 	s.peekHandle = vm.AddPeekListener(s.hoverChanged)
+	s.debugHandle = vm.AddDebugHoverListener(s.hoverChanged)
+	vm.SetDebugFocus(func() { s.node.RequestFocus() })
+	vm.SetDebugInputFocus(s.focusDebugInput)
 	s.scroll = newEditorScroll(vm, s.controller)
 	vm.SetScroller(s.scrollTo)
 
@@ -652,6 +657,9 @@ func (s *editorState) updateKeys() {
 		s.scope.Set("config.emmet.triggerExpansionOnTab", vm.Options().Emmet.TriggerExpansionOnTab)
 		s.scope.Set("quickDiffDecorationCount", vm.QuickDiffCount())
 		s.scope.Set("dirtyDiffVisible", vm.QuickDiffPeekVisible())
+		s.scope.Set("exceptionWidgetVisible", vm.DebugExceptionOpen())
+		s.scope.Set("breakpointWidgetVisible", vm.BreakpointWidgetOpen())
+		s.scope.Set("inBreakpointWidget", vm.BreakpointWidgetFocused())
 		for _, keys := range vm.contextKeys {
 			for k, v := range keys() {
 				s.scope.Set(k, v)
@@ -680,6 +688,8 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		old.vm.RemoveSuggestListener(s.suggestHandle)
 		old.vm.RemoveSignatureListener(s.signatureHandle)
 		old.vm.RemovePeekListener(s.peekHandle)
+		old.vm.RemoveDebugHoverListener(s.debugHandle)
+		old.vm.SetDebugFocus(nil)
 		old.vm.PeekClose()
 		old.vm.LinkClear()
 		old.vm.SetHoverScroller(nil)
@@ -703,6 +713,9 @@ func (s *editorState) DidUpdateWidget(old *Editor) {
 		s.suggestHandle = vm.AddSuggestListener(s.hoverChanged)
 		s.signatureHandle = vm.AddSignatureListener(s.hoverChanged)
 		s.peekHandle = vm.AddPeekListener(s.hoverChanged)
+		s.debugHandle = vm.AddDebugHoverListener(s.hoverChanged)
+		vm.SetDebugFocus(func() { s.node.RequestFocus() })
+		vm.SetDebugInputFocus(s.focusDebugInput)
 		vm.SetHoverScroller(s.scrollHoverBox)
 		s.hoverScrollHandle = vm.AddScrollListener(s.hoverScrolled)
 		s.selHandle = vm.AddSelectionListener(s.selectionChanged)
@@ -764,6 +777,9 @@ func (s *editorState) Dispose() {
 	vm.RemoveSuggestListener(s.suggestHandle)
 	vm.RemoveSignatureListener(s.signatureHandle)
 	vm.RemovePeekListener(s.peekHandle)
+	vm.RemoveDebugHoverListener(s.debugHandle)
+	vm.SetDebugFocus(nil)
+	vm.SetDebugInputFocus(nil)
 	vm.PeekClose()
 	vm.LinkClear()
 	s.binding.Keyboard().RemoveHandler(s.linkKey)
@@ -812,6 +828,9 @@ func (s *editorState) Build(bc widgets.BuildContext) widgets.Widget {
 	if bulb := s.lightBulbLayer(vm, colors); bulb != nil {
 		keyed("lightbulb", bulb)
 	}
+	if dh := s.debugHoverLayer(bc, vm, colors); dh != nil {
+		keyed("debughover", dh)
+	}
 	if hover := s.hoverLayer(bc, vm, colors); hover != nil {
 		keyed("hover", hover)
 	}
@@ -833,10 +852,12 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	gutterWidth := vm.GutterWidths(textFactory(bc)).Total()
 	s.gutterWidth = gutterWidth
 	tokenTheme := kit.TokenThemeOf(bc)
+	vm.SetDebugColors(debugColorsOf(colors))
 	gutterColors := GutterColors{
 		LineNumber: colors.EditorLineNumberForeground, ActiveLineNumber: colors.EditorLineNumberActiveForeground,
 		LineHighlight: colors.EditorLineHighlightBackground, LineHighlightBorder: colors.EditorLineHighlightBorder,
 		FoldingControl: colors.EditorGutterFoldingControlForeground,
+		Debug:          debugColorsOf(colors),
 		QuickDiff: QuickDiffColors{
 			Added: colors.EditorGutterAdded, Modified: colors.EditorGutterModified, Deleted: colors.EditorGutterDeleted,
 			AddedSecondary: colors.EditorGutterAddedSecondary, ModifiedSecondary: colors.EditorGutterModifiedSecondary, DeletedSecondary: colors.EditorGutterDeletedSecondary,
@@ -883,7 +904,11 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 				widgets.NewSizedBox(newGutterLayer(vm, offset, gutterColors), widgets.SizedBoxOpts{Width: foundation.Some(gutterWidth)})),
 				widgets.MouseRegionOpts{
 					OnEnter: func(*gestures.PointerEnterEvent) { vm.setGutterHover(true) },
-					OnExit:  func(*gestures.PointerExitEvent) { vm.setGutterHover(false) },
+					OnHover: func(e *gestures.PointerHoverEvent) {
+						p := e.LocalPosition()
+						vm.SetDebugGutterPointer(p.Dy, p.Dx < vm.glyphWidth())
+					},
+					OnExit: func(*gestures.PointerExitEvent) { vm.setGutterHover(false); vm.SetDebugGutterPointer(-1, false) },
 				}),
 			widgets.NewExpanded(widgets.NewMouseRegion(widgets.NewStack([]widgets.Widget{
 				newOverlayLayer(overlayUnder, vm, offset, overlayColors),
@@ -892,7 +917,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 				newZoneLayer(vm, offset),
 			}, widgets.StackOpts{Fit: rendering.StackFitExpand}), widgets.MouseRegionOpts{
 				Cursor: mouseCursor(s.mouseStyle(vm)), OnHover: s.hoverPointer,
-				OnExit: func(*gestures.PointerExitEvent) { vm.HoverPointerLeft(); vm.LinkPointerLeft() },
+				OnExit: func(*gestures.PointerExitEvent) { vm.HoverPointerLeft(); vm.LinkPointerLeft(); vm.DebugPointerLeft() },
 			})),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), gutterWidth)
 	}, widgets.ScrollableOpts{
@@ -1106,6 +1131,13 @@ func (s *editorState) hoverPointer(e *gestures.PointerHoverEvent) {
 	pos := s.textRO.PositionAt(local)
 	if local.Dx > s.textRO.RectOf(vm.lineEndOf(pos)).Left {
 		vm.HoverPointerLeft()
+		vm.LinkPointerLeft()
+		vm.DebugPointerLeft()
+		return
+	}
+	// a program stopped in this document shows the value under the pointer; Alt gives the hover of the language
+	if vm.DebugHoverPointer(pos, s.modifiers().Alt) {
+		vm.HideHover()
 		vm.LinkPointerLeft()
 		return
 	}

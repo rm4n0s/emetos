@@ -2,11 +2,12 @@ package keybinding
 
 // registerDebugKeys registers the keys of Run and Debug (Linux): the start, the steps, the stop and restart, the keys of the Variables,
 // Watch and Breakpoints views, and Ctrl+Shift+D for the container. A rule's when is written out in full: the key's own condition and the
-// precondition of its command, as VS Code writes them. The keys of the editor (F9, Shift+F9, Run to Cursor) come with step 25.5 and the
+// precondition of its command, as VS Code writes them. The keys of the editor (F9, Shift+F9, the hover, the widgets) are registerDebugEditorKeys (step 25.5) and the
 // Debug Console's with 25.6.
 //
 // Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugCommands.ts, debug.contribution.ts and debugViewlet.ts
 func registerDebugKeys(r *Registry) {
+	registerDebugEditorKeys(r)
 	const (
 		stopped = "debugState == 'stopped'"
 		watch   = "focusedView == 'workbench.debug.watchExpressionsView'"
@@ -38,5 +39,21 @@ func registerDebugKeys(r *Registry) {
 		Rule{Command: "debug.removeWatchExpression", Weight: WeightWorkbenchContrib, When: mustWhen("watchExpressionsFocused", "!expressionSelected"), Primary: "delete"},
 		Rule{Command: "debug.toggleBreakpoint", Weight: WeightWorkbenchContrib + 5, When: mustWhen("breakpointsFocused", "!breakpointInputFocused"), Primary: "space"},
 		Rule{Command: "debug.removeBreakpoint", Weight: WeightWorkbenchContrib, When: mustWhen("breakpointsFocused", "!breakpointInputFocused"), Primary: "delete"},
+	)
+}
+
+// registerDebugEditorKeys registers the keys of the editor while debugging (step 25.5): F9 and Shift+F9, the debug hover, Escape for the
+// exception widget, and Enter and Escape in the breakpoint widget.
+//
+// Ported from VS Code: src/vs/workbench/contrib/debug/browser/debugEditorActions.ts, debugCommands.ts and breakpointWidget.ts
+func registerDebugEditorKeys(r *Registry) {
+	r.MustRegister(
+		Rule{Command: "editor.debug.action.toggleBreakpoint", Weight: WeightEditorContrib, When: mustWhen("editorTextFocus", "debuggersAvailable"), Primary: "f9"},
+		Rule{Command: "editor.debug.action.toggleInlineBreakpoint", Weight: WeightWorkbenchContrib, When: mustWhen("editorTextFocus"), Primary: "shift+f9"},
+		Rule{Command: "editor.debug.action.showDebugHover", Weight: WeightEditorContrib, When: mustWhen("editorTextFocus", "inDebugMode"), Primary: "ctrl+k ctrl+i"},
+		Rule{Command: "editor.debug.action.closeExceptionWidget", Weight: WeightEditorContrib, When: mustWhen("exceptionWidgetVisible"), Primary: "escape"},
+		Rule{Command: "breakpointWidget.action.acceptInput", Weight: WeightEditorContrib, When: mustWhen("breakpointWidgetVisible", "inBreakpointWidget"), Primary: "enter"},
+		Rule{Command: "closeBreakpointWidget", Weight: WeightEditorContrib, When: mustWhen("breakpointWidgetVisible", "textInputFocus"),
+			Primary: "escape", Secondary: []string{"shift+escape"}},
 	)
 }

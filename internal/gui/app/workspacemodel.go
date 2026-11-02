@@ -229,6 +229,8 @@ type Workspace struct {
 	// workspace; UI thread only.
 	origin     extension.Origin
 	lastOrigin extension.Origin
+	// debugTracks keeps the breakpoints of the open documents on the places they were set at (debugeditor.go); UI thread only.
+	debugTracks *debugHub
 	// dev is the dev view the debug commands made (devview.go); UI thread only.
 	dev devViewState
 	// uiCheck tells whether the caller is on the UI thread of the shell that shows the workspace (Origins().Current needs it).

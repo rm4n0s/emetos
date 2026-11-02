@@ -117,6 +117,7 @@ func (s *editorState) eventAt(local ui.Offset, gutterWidth float64) MouseEvent {
 func (s *editorState) secondaryDown(e *gestures.PointerDownEvent, gutterWidth float64) {
 	s.node.RequestFocus()
 	s.Widget().vm.HideHover()
+	s.noteDebugMenu(e, gutterWidth)
 	if s.pressOnZone(e, false) {
 		return
 	}
@@ -155,6 +156,12 @@ func (s *editorState) pointerDown(e *gestures.PointerDownEvent, gutterWidth floa
 		return
 	}
 	vm.PeekClose() // a press in the editor outside the peek view closes it
+	if local := e.LocalPosition(); local.Dx < gutterWidth && vm.glyphPress(local.Dx, local.Dy, s.modifiers(), middle) {
+		return // a press in the glyph margin sets or removes a breakpoint, and moves nothing
+	}
+	if !middle && s.debugInlinePress(e, gutterWidth) {
+		return
+	}
 	ev := s.eventAt(e.LocalPosition(), gutterWidth)
 	if !middle && !ev.OnLineNumbers && e.Kind() != ui.PointerDeviceKindTouch && (s.hintPress(e, gutterWidth) || s.linkPress(e, ev, gutterWidth)) {
 		return

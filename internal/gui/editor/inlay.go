@@ -68,6 +68,9 @@ type injection struct {
 	family string
 	// lineHeight is the height of the row the text is in.
 	lineHeight float64
+	// dbg, when it is set, says that the injection is a mark of the debugger (an inline breakpoint, a candidate, the arrow of a stopped
+	// column), not an inlay hint: entry is nil then (debug_paint.go).
+	dbg *debugInject
 }
 
 // injectionPart is one label part of an injection.
@@ -407,7 +410,8 @@ func (vm *ViewModel) InlayColorsSet(c InlayColors) {
 // result is kept for the epoch of the hints and the version of the document.
 func (vm *ViewModel) lineInjections(line int) []*injection {
 	s := &vm.inlay
-	if len(s.ids) == 0 || !vm.InlayHintsShown() {
+	hints := len(s.ids) > 0 && vm.InlayHintsShown()
+	if !hints && !vm.hasDebugInjections() {
 		return nil
 	}
 	if s.cacheEpoch != s.epoch || s.cacheVer != vm.doc.Version() || s.cache == nil {
@@ -416,7 +420,14 @@ func (vm *ViewModel) lineInjections(line int) []*injection {
 	if inj, ok := s.cache[line]; ok {
 		return inj
 	}
-	inj := vm.makeInjections(line)
+	var inj []*injection
+	if hints {
+		inj = vm.makeInjections(line)
+	}
+	if dbg := vm.debugInjections(line); len(dbg) > 0 {
+		inj = append(inj, dbg...)
+		slices.SortStableFunc(inj, func(a, b *injection) int { return a.col - b.col })
+	}
 	s.cache[line] = inj
 	return inj
 }

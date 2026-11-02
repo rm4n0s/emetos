@@ -400,6 +400,16 @@ func TestDefaultInputKitColors(t *testing.T) {
 		{"debugIcon.pauseForeground", "#75beff", "#007acc", "#75beff", "#007acc"},
 		{"debugIcon.stopForeground", "#f48771", "#a1260d", "#f48771", "#a1260d"},
 		{"debugIcon.restartForeground", "#89d185", "#388a34", "#89d185", "#388a34"},
+		// the colors of the editor while debugging (step 25.5), VS Code's callStackEditorContribution.ts, breakpointEditorContribution.ts,
+		// debugEditorContribution.ts and exceptionWidget.ts
+		{"editor.stackFrameHighlightBackground", "rgba(255, 255, 0, 0.2)", "rgba(255, 255, 102, 0.45)", "rgba(255, 255, 0, 0.2)", "rgba(255, 255, 102, 0.45)"},
+		{"editor.focusedStackFrameHighlightBackground", "rgba(122, 189, 122, 0.3)", "rgba(206, 231, 206, 0.45)", "rgba(122, 189, 122, 0.3)", "rgba(206, 231, 206, 0.45)"},
+		{"debugIcon.breakpointCurrentStackframeForeground", "#ffcc00", "#be8700", "#ffcc00", "#be8700"},
+		{"debugIcon.breakpointStackframeForeground", "#89d185", "#89d185", "#89d185", "#89d185"},
+		{"editor.inlineValuesForeground", "rgba(255, 255, 255, 0.5)", "rgba(0, 0, 0, 0.5)", "rgba(255, 255, 255, 0.5)", "rgba(0, 0, 0, 0.5)"},
+		{"editor.inlineValuesBackground", "rgba(255, 200, 0, 0.2)", "rgba(255, 200, 0, 0.2)", "rgba(255, 200, 0, 0.2)", "rgba(255, 200, 0, 0.2)"},
+		{"debugExceptionWidget.border", "#a31515", "#a31515", "#a31515", "#a31515"},
+		{"debugExceptionWidget.background", "#420b0d", "#f1dfde", "#420b0d", "#f1dfde"},
 	}
 	registry := DefaultColorRegistry()
 	for _, tc := range cases {

@@ -21,6 +21,8 @@ type GutterColors struct {
 	FoldingControl ui.Color
 	// QuickDiff are the colors of the stripes of the quick diff.
 	QuickDiff QuickDiffColors
+	// Debug are the colors of the debug marks in the glyph margin.
+	Debug DebugColors
 }
 
 // GutterWidths gives the widths of the gutter for the document of the view model, in the
@@ -141,6 +143,7 @@ func (r *RenderEditorGutter) Paint(context *rendering.PaintingContext, offset ui
 	r.paintFoldingControls(canvas, offset, top, first, last, widths)
 	r.paintQuickDiff(canvas, offset, top, first, last, widths)
 	r.paintZoneGlyphs(canvas, offset, top, first, last, widths)
+	r.paintDebugGlyphs(canvas, offset, top, first, last, widths)
 }
 
 // paintNumbers draws the line numbers of the visible rows.

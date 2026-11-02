@@ -634,7 +634,8 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				zenModeState(a), diffEditorState(a), mergeEditorState(a), multiDiffEditorState(a), quickDiffState(a), quickDiffPeekState(a),
 				debugState(a, "inactive", false), debugState(a, "running", false), debugState(a, "stopped", false), debugState(a, "stopped", true),
 				debugViewState(a, command.ViewDebugVariables, "variablesFocused"), debugViewState(a, command.ViewDebugWatch, "watchExpressionsFocused"),
-				debugViewState(a, command.ViewDebugBreakpoints, "breakpointsFocused"))
+				debugViewState(a, command.ViewDebugBreakpoints, "breakpointsFocused"),
+				breakpointWidgetState(a, true), breakpointWidgetState(a, false), exceptionWidgetState(a))
 			for _, state := range states {
 				a.vm.SetQuickDiffMarks(nil)
 				a.vm.SetQuickDiffPeeker(nil)
@@ -661,6 +662,8 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				a.vm.CodeActionHide()
 				a.vm.RenameCancel()
 				a.vm.PreviewDiscard()
+				a.vm.DebugCloseBreakpointWidget()
+				a.vm.DebugCloseException()
 				a.win.Keys.Set("inZenMode", false)
 				if activeEditor == nil {
 					a.win.Keys.Reset("activeEditor")
@@ -1128,5 +1131,31 @@ func debugViewState(a *keyApp, view, focusKey string) func() {
 			a.win.Keys.Set("debugViewletFocus", true)
 			a.win.Keys.Set(focusKey, true)
 		})
+	}
+}
+
+// breakpointWidgetState is the state of a window whose editor shows the breakpoint widget (step 25.5), with the keyboard in its input or
+// back in the text, for the keys that accept and close it.
+func breakpointWidgetState(a *keyApp, inWidget bool) func() {
+	return func() {
+		a.leaveFind()
+		if err := a.vm.OpenBreakpointWidget(editor.BreakpointWidgetSpec{Line: 1}); err != nil {
+			panic(err)
+		}
+		a.ts.Pump(time.Millisecond)
+		if !inWidget {
+			a.focusEditor()
+		}
+	}
+}
+
+// exceptionWidgetState is the state of a window whose editor shows the exception widget (step 25.5), for the key that closes it.
+func exceptionWidgetState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		if err := a.vm.DebugShowException(1, editor.DebugException{ID: "panic", Description: "index out of range"}, nil, nil); err != nil {
+			panic(err)
+		}
+		a.ts.Pump(time.Millisecond)
 	}
 }

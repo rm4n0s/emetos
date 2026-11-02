@@ -185,6 +185,9 @@ func (s *shellState) bindDebugCommands(binding *widgets.WidgetsBinding) {
 			}
 		}),
 	}
+	for id, h := range s.debugEditorHandlers(binding) {
+		handlers[id] = h
+	}
 	for id, h := range handlers {
 		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {

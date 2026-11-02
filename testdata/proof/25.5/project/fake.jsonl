@@ -1,0 +1,19 @@
+# The script of the fake adapter for the proof of the debugger in the editor (step 25.5): a session that stops on a panic in src/loader.go, with
+# the variables of the function and the details of the exception.
+{"op":"reply","command":"initialize","body":{"supportsConfigurationDoneRequest":true,"supportsConditionalBreakpoints":true,"supportsLogPoints":true,"supportsExceptionInfoRequest":true,"supportsSetVariable":true,"exceptionBreakpointFilters":[{"filter":"panic","label":"Panic","default":true}]}}
+{"op":"expect","command":"launch"}
+{"op":"event","event":"initialized"}
+{"op":"reply","command":"setBreakpoints","body":{"breakpoints":[{"id":1,"verified":true,"line":14},{"id":2,"verified":true,"line":16}]}}
+{"op":"reply","command":"setExceptionBreakpoints","body":{}}
+{"op":"reply","command":"configurationDone"}
+{"op":"respond","to":"launch"}
+{"op":"reply","command":"threads","body":{"threads":[{"id":1,"name":"main"}]}}
+{"op":"event","event":"stopped","body":{"reason":"exception","description":"Paused on exception","text":"index out of range","threadId":1,"allThreadsStopped":true}}
+{"op":"reply","command":"threads","body":{"threads":[{"id":1,"name":"main"}]}}
+{"op":"reply","command":"stackTrace","body":{"stackFrames":[{"id":101,"name":"src.Load","line":18,"column":3,"source":{"name":"loader.go","path":"${workspaceFolder}/src/loader.go"}},{"id":102,"name":"main.main","line":9,"column":13,"source":{"name":"main.go","path":"${workspaceFolder}/main.go"}}],"totalFrames":2}}
+{"op":"collect","commands":["scopes","exceptionInfo"]}
+{"op":"respond","to":"scopes","body":{"scopes":[{"name":"Locals","variablesReference":1000,"expensive":false}]}}
+{"op":"respond","to":"exceptionInfo","body":{"exceptionId":"runtime error","description":"index out of range [3] with length 3","breakMode":"always","details":{"message":"index out of range [3] with length 3","typeName":"runtime.boundsError","stackTrace":"goroutine 1 [running]:\npricelist/src.Load(...)\n\tsrc/loader.go:18 +0x1c5\nmain.main()\n\tmain.go:9 +0x4b"}}}
+{"op":"reply","command":"variables","body":{"variables":[{"name":"text","value":"\"bread 2.5\\ntea 4\\njam 7.25\"","type":"string","evaluateName":"text"},{"name":"lines","value":"[]string len:3","type":"[]string","variablesReference":1001,"evaluateName":"lines"},{"name":"rows","value":"[]src.Row len:0, cap:3","type":"[]src.Row","variablesReference":1002,"evaluateName":"rows"},{"name":"i","value":"3","type":"int","evaluateName":"i"}]}}
+{"op":"reply","command":"disconnect"}
+{"op":"waitClose"}

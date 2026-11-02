@@ -41,6 +41,9 @@ type textEditor struct {
 	stopAnnotations func()
 	// stopQuickDiff stops following the changes against the original and takes the marks away (quickdiff.go).
 	stopQuickDiff func()
+	// dbg is the debugger of the editor (debugeditor.go), nil for the editors of a diff, a merge and a peek; stopDebug takes it away.
+	dbg       *editorDebug
+	stopDebug func()
 	// stopFeatures stops listening to the language servers that start and stop (navhost.go).
 	stopFeatures func()
 	// done is closed when the editor is disposed; it ends the background loop of the tokenizer.
@@ -114,7 +117,7 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 	e.view.SetSnippetWorkspace(win.SnippetWorkspace())
 	e.view.SetAutoClosing(win.Process.AutoClosing().Language(win.Process.Languages.Code(doc.LanguageID())))
 	e.unsubscribe = win.Settings.OnChange(func(ev settings.ChangeEvent) {
-		if ev.Affects("editor", "") || ev.Affects("emmet", "") || ev.Affects("zenMode", "") || ev.Affects("scm", "") {
+		if ev.Affects("editor", "") || ev.Affects("emmet", "") || ev.Affects("zenMode", "") || ev.Affects("scm", "") || ev.Affects("debug", "") {
 			binding.Post(func() {
 				if !e.disposed {
 					e.view.SetOptions(options())
@@ -139,6 +142,7 @@ func (s *shellState) newTextEditorWith(binding *widgets.WidgetsBinding, input *e
 	e.stopAnnotations = s.followAnnotations(binding, e)
 	if adjust == nil { // the editors of a diff, a merge and a peek compare their text in their own way
 		e.stopQuickDiff = s.followQuickDiff(binding, e)
+		e.stopDebug = s.followDebug(binding, e)
 	}
 	s.followEditorState(e)
 	s.autoSaveTrack(doc)
@@ -294,6 +298,10 @@ func (e *textEditor) dispose() {
 	if e.stopAnnotations != nil {
 		e.stopAnnotations()
 		e.stopAnnotations = nil
+	}
+	if e.stopDebug != nil {
+		e.stopDebug()
+		e.stopDebug = nil
 	}
 	if e.stopQuickDiff != nil {
 		e.stopQuickDiff()
