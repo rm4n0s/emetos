@@ -1,0 +1,100 @@
+{
+  "attach": {
+    "properties": {
+      "adaSourceCharset": {
+        "description": "The character set of Ada source files (gdb's `set ada source-charset`).",
+        "type": "string"
+      },
+      "coreFile": {
+        "description": "A core file to load, as gdb's `core-file` command does. Use it when neither `pid` nor `target` is given.",
+        "type": "string"
+      },
+      "debuggerArgs": {
+        "default": [],
+        "description": "More arguments for the gdb program, after `-i dap` (for example `-nx` to skip the gdbinit files).",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "debuggerPath": {
+        "description": "The gdb program to run (14 or newer). It replaces the setting `gdb.path` for this configuration.",
+        "type": "string"
+      },
+      "pid": {
+        "description": "The id of the process to attach to. `${command:pickProcess}` lists the processes and asks for one. `pid` is used before `target`, and `target` before `coreFile`.",
+        "type": [
+          "number",
+          "string"
+        ]
+      },
+      "program": {
+        "description": "The program that runs in the process. gdb finds it by itself for many local processes, but not for most remote targets.",
+        "type": "string"
+      },
+      "target": {
+        "description": "The target to connect to, as gdb's `target remote` command takes it (for example `localhost:2345` for a gdbserver).",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "launch": {
+    "properties": {
+      "adaSourceCharset": {
+        "description": "The character set of Ada source files (gdb's `set ada source-charset`).",
+        "type": "string"
+      },
+      "args": {
+        "default": [],
+        "description": "The arguments of the program. A text is split into words as a shell does.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "string"
+        ]
+      },
+      "cwd": {
+        "description": "The folder gdb changes to before it loads the program; the program inherits it. The default is the folder of the workspace.",
+        "type": "string"
+      },
+      "debuggerArgs": {
+        "default": [],
+        "description": "More arguments for the gdb program, after `-i dap` (for example `-nx` to skip the gdbinit files).",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "debuggerPath": {
+        "description": "The gdb program to run (14 or newer). It replaces the setting `gdb.path` for this configuration.",
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "default": {},
+        "description": "Environment variables for the program, added to the environment of Emetos (gdb itself takes the environment exactly as it is given).",
+        "type": "object"
+      },
+      "program": {
+        "description": "The program to debug, built with debug information (`-g`).",
+        "type": "string"
+      },
+      "stopAtBeginningOfMainSubprogram": {
+        "default": false,
+        "description": "Stop at the beginning of the main function, as gdb's `start` command does.",
+        "type": "boolean"
+      },
+      "stopOnEntry": {
+        "default": false,
+        "description": "Stop at the first instruction of the program, as gdb's `starti` command does.",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  }
+}

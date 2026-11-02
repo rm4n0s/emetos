@@ -9,3 +9,4 @@ git     golang/vscode-go              v0.59.0     ae78b8a0103719522867cf8a2582bc
 npm     @vscode/codicons              0.0.46-24   https://registry.npmjs.org/@vscode/codicons/-/codicons-0.0.46-24.tgz
 git     microsoft/vscode-containers   v2.5.3      abf87096e3bd3dfa2961787a062850028012bb2b
 git     microsoft/vscode-python-debugger v2026.6.0 1fe4d85ebd5259657f02237fbda10828f616417d
+files   llvm/lldb-dap                 llvmorg-21.1.8  https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-21.1.8

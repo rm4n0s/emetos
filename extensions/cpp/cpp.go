@@ -4,7 +4,8 @@
 // the notification for a missing server), clangd.arguments and clangd.fallbackFlags are sent to it, the status item says when the
 // project has no compile_commands.json and offers a .clangd with a CompileFlags stub, clangd's own file status (the state of the file in
 // front) is shown in the item, and the pack adds the commands Switch Between Source/Header (Alt+O), Show AST (a read-only tab), Toggle
-// inlay hints, Open project configuration file and Restart language server with vscode-clangd's ids.
+// inlay hints, Open project configuration file and Restart language server with vscode-clangd's ids. Since step 25.9 the pack also owns the
+// debuggers of native programs, gdb and lldb-dap, for C, C++ and Rust (extensions/internal/nativedebug; the Rust pack adds its cargo targets).
 package cpp
 
 import (
@@ -15,6 +16,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
 	"github.com/rm4n0s/emetos/extensions/internal/langserver"
+	"github.com/rm4n0s/emetos/extensions/internal/nativedebug"
 )
 
 // The ids of the extension.
@@ -76,6 +78,8 @@ type cpp struct {
 	api  extension.API
 	ctx  context.Context
 	ctl  *langserver.Controller
+	// debugger is the debugger of native programs (gdb and lldb-dap).
+	debugger *nativedebug.Debugger
 
 	// reg is the provider of the read-only documents; nil when the scope cannot show them (the text opens in an untitled document).
 	reg extension.ContentRegistration
@@ -96,6 +100,11 @@ func (c *cpp) Manifest() extension.Manifest {
 	m.Contributes.Keybindings = append(m.Contributes.Keybindings, keybindings()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
 	m.Contributes.WritesSettings = append(m.Contributes.WritesSettings, InlayHintsSetting)
+	m.Contributes.Debuggers = append(m.Contributes.Debuggers, nativedebug.Specs()...)
+	m.Contributes.Settings = append(m.Contributes.Settings, nativedebug.SettingSpecs()...)
+	for _, lang := range nativedebug.BreakpointLanguages {
+		m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: lang})
+	}
 	return m
 }
 
@@ -123,6 +132,8 @@ func (c *cpp) Activate(ctx context.Context, api extension.API) error {
 	if _, err := api.Events().Subscribe(extension.TopicEditorActiveChanged, func(extension.Event) { c.refreshStatus() }); err != nil {
 		return err
 	}
+	c.debugger = nativedebug.New(api)
+	c.debugger.Register()
 	api.Settings().OnChange(c.refreshStatus)
 	c.refreshStatus()
 	return nil

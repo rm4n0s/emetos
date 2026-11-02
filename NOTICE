@@ -262,3 +262,14 @@ Linked Go modules:
     from it (the configuration provider, the environment file and the process list) says "Ported from vscode-python-debugger:
     <path>" in a comment. debugpy itself (MIT, Microsoft) is not bundled or downloaded by Emetos (only by
     scripts/fetch-tools.sh, into /var/tmp/emetos-tools, for the tests and the proof).
+
+25. The attributes of the LLDB debugger (lldb-dap, LLVM)
+    Source:  llvm/llvm-project at llvmorg-21.1.8, lldb/tools/lldb-dap/package.json (https://github.com/llvm/llvm-project); the
+             VS Code extension of lldb-dap is no longer in the tree from LLVM 22, so the last release that has it is used
+    License: Apache-2.0 with LLVM Exceptions (the text is third_party/llvm-lldb-dap/LICENSE.TXT)
+    Added by step 25.9 (extensions/internal/nativedebug, used by extensions/cpp and extensions/rust). The attributes of the launch and
+    attach requests of the debugger `lldb-dap` are in extensions/internal/nativedebug/lldb-dap-attributes.json, written by
+    scripts/update-assets.sh from its package.json; the names and meanings of its settings (lldb-dap.executable-path, .arguments,
+    .environment) follow it. The attributes of the debugger `gdb` are written from the chapter "Debugger Adapter Protocol" of the
+    GDB manual (GNU Free Documentation License; the descriptions are in our words). Neither gdb nor lldb-dap is bundled or downloaded
+    by Emetos.

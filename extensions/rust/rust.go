@@ -5,7 +5,8 @@
 // the server are registered (ra-settings.json, written by scripts/update-rust-analyzer-settings.sh) and sent to it, and the pack adds
 // the commands Expand macro recursively at caret and View Syntax Tree (the result in a read-only tab), Locate parent module, Open
 // Cargo.toml, Join lines, Find matching brace, Reload workspace and Restart server, the Run lenses (which run through the Tasks
-// extension) and rust-analyzer's own status (experimental/serverStatus) in the status item.
+// extension) and rust-analyzer's own status (experimental/serverStatus) in the status item. Since step 25.9 the pack also adds the Rust targets
+// of cargo to the debuggers gdb and lldb-dap, which the C and C++ pack owns, and builds a program before it is debugged (debug.go).
 package rust
 
 import (
@@ -97,6 +98,7 @@ func (r *rust) Manifest() extension.Manifest {
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Keybindings = append(m.Contributes.Keybindings, keybindings()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: "rust"})
 	return m
 }
 
@@ -125,6 +127,7 @@ func (r *rust) Activate(ctx context.Context, api extension.API) error {
 	if _, err := api.LanguageServers().OnChange(ServerID, r.serverChanged); err != nil {
 		return err
 	}
+	r.registerDebug()
 	api.Settings().OnChange(r.lensSettingsChanged)
 	return nil
 }

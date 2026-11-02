@@ -298,3 +298,13 @@ jq -S '.contributes.debuggers[] | select(.type == "debugpy") | {launch: .configu
   "$pydebugger_pkg" >"$root/extensions/python/debug-attributes.json"
 chmod 0644 "$root/extensions/python/debug-attributes.json"
 copy_license vscode-python-debugger vscode-python-debugger/LICENSE
+
+# Step 25.9: the `lldb-dap` debugger of the C and C++ extension (SPEC §10.31 "The debuggers"). The attributes of its launch and attach
+# requests are those of LLDB's DAP server (llvm-project, lldb/tools/lldb-dap/package.json, contributes.debuggers) and are written to
+# extensions/internal/nativedebug/lldb-dap-attributes.json, which the extension embeds as the ConfigurationAttributes of its manifest;
+# its configurations and snippets are written in Go. The license is third_party/llvm-lldb-dap/LICENSE.TXT.
+lldbdap_pkg="$ref/lldb-dap/package.json"
+[[ -f "$lldbdap_pkg" ]] || { echo "error: reference/lldb-dap/package.json is not a file" >&2; exit 1; }
+jq -S '.contributes.debuggers[] | select(.type == "lldb-dap") | {launch: .configurationAttributes.launch, attach: .configurationAttributes.attach}' \
+  "$lldbdap_pkg" >"$root/extensions/internal/nativedebug/lldb-dap-attributes.json"
+copy_license llvm-lldb-dap lldb-dap/LICENSE.TXT

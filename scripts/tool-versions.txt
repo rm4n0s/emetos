@@ -49,6 +49,9 @@ dotnettool csharp-ls                0.28.0      8f815e4f22674106a8244beba07e4b4b
 # copy it into the node_modules of a project as typescript, so that the version of the workspace differs from the one beside the server.
 # java      emetos_jdtls (step 24b.6)   OpenJDK 25.0.4.1 (Fedora), the system's: it runs jdtls; no JDK is installed by Emetos (D47)
 # dotnet    emetos_csharpls (step 24b.7)   the .NET SDK 10.0.113 (Fedora), the system's: it runs csharp-ls and restores/loads the testdata solution; no SDK is installed by Emetos (D47)
+# gdb       emetos_gdb (step 25.9)   GNU gdb (Fedora Linux) 18.1-1.fc44, the system's (the debugger needs 14 or newer: GdbTooOld); started as `gdb -i dap -nx` by the tests
+# lldb-dap  emetos_lldbdap (step 25.9)   the system's, /usr/bin/lldb-dap of the LLDB package the user installed on 2026-11-01 (the tests never ask its version)
+# cc, rustc, cargo   emetos_gdb, emetos_lldbdap (step 25.9)   the system's /usr/bin programs; they only build the programs of the tests (cc -g -O0; cargo with a CARGO_HOME and a CARGO_TARGET_DIR of the test, and no dependencies)
 
 # dlv is Delve, v1.27.2 of 2026-09-09 (the h1: hash is the one of go.sum and of sum.golang.org). It is the debugger of the tests of step 25.7
 # (emetos_dlv) and of its proof; it is built by `go install github.com/go-delve/delve/cmd/dlv@v1.27.2` into /var/tmp/emetos-tools/bin with a

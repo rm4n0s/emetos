@@ -6,6 +6,7 @@
 # Reads scripts/reference-versions.txt:
 #   git <owner/repo> <version> <commit>   a sparse, shallow checkout of that commit
 #   npm <package>   <version> <tarball>   an npm package unpacked into reference/<name>/
+#   files <owner/name> <version> <base url>   three files of a release tag, fetched one by one into reference/<name>/ (lldb-dap)
 #
 # reference/ is git-ignored and is a Go module of its own (reference/go.mod), so
 # VS Code's Go test files stay out of ./... . Running the script again is cheap: a
@@ -71,6 +72,25 @@ fetch_npm() {
   echo "$version" >"$dir/.version"
 }
 
+# fetch_files <name> <version> <base url>: LLDB's DAP server is not a repository of its own; its package.json (the attributes of the
+# debugger), its README and the license of LLVM are fetched from the tag of llvm-project (step 25.9).
+fetch_files() {
+  local name=$1 version=$2 base=$3
+  local short="${name##*/}"
+  local dir="$ref/$short"
+  if [[ -f "$dir/.version" && "$(cat "$dir/.version")" == "$version" ]]; then
+    echo "reference/$short: $version, already there"
+    return
+  fi
+  echo "reference/$short: fetching $version"
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  curl -fsSL "$base/lldb/tools/lldb-dap/package.json" -o "$dir/package.json"
+  curl -fsSL "$base/lldb/tools/lldb-dap/README.md" -o "$dir/README.md"
+  curl -fsSL "$base/llvm/LICENSE.TXT" -o "$dir/LICENSE.TXT"
+  echo "$version" >"$dir/.version"
+}
+
 mkdir -p "$ref"
 printf 'module reference\n\ngo 1.27\n' >"$ref/go.mod"
 
@@ -79,6 +99,7 @@ while read -r kind name version source; do
     "" | "#"*) continue ;;
     git) fetch_git "$name" "$version" "$source" ;;
     npm) fetch_npm "$name" "$version" "$source" ;;
+    files) fetch_files "$name" "$version" "$source" ;;
     *)
       echo "error: unknown kind '$kind' in $versions" >&2
       exit 1

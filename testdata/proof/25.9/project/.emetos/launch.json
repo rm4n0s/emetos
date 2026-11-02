@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug executable 'orders'",
+            "type": "gdb",
+            "request": "launch",
+            "cargo": {
+                "args": ["build", "--bin=orders"],
+                "env": {
+                    "CARGO_HOME": "/tmp/emetos-proof-25.9/cargo-home",
+                    "CARGO_TARGET_DIR": "/tmp/emetos-proof-25.9/target",
+                    "CARGO_NET_OFFLINE": "true"
+                },
+                "filter": {"name": "orders", "kind": "bin"}
+            },
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

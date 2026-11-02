@@ -1,0 +1,7 @@
+{
+    "workbench.colorTheme": "Dark+",
+    "git.openRepositoryInParentFolders": "never",
+    "editor.minimap.enabled": false,
+    "debug.internalConsoleOptions": "neverOpen",
+    "gdb.arguments": ["-nx", "-iex", "set debuginfod enabled off"]
+}
