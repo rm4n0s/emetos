@@ -253,3 +253,12 @@ Linked Go modules:
     csharp.applyFormattingOptions, csharp.locale), the command line (--solution, --loglevel, --locale), and the request csharp/metadata with
     the csharp:/ addresses are written from that README. The csharp-ls program itself is not bundled or downloaded by Emetos (only by
     scripts/fetch-tools.sh, into /var/tmp/emetos-tools, for the tests).
+
+24. The attributes of the Python debugger (Python Debugger, vscode-python-debugger)
+    Source:  microsoft/vscode-python-debugger at v2026.6.0 (https://github.com/microsoft/vscode-python-debugger)
+    License: MIT (Microsoft Corporation; the text is third_party/vscode-python-debugger/LICENSE)
+    Added by step 25.8 (extensions/python). The attributes of the launch and attach requests of the debugger `debugpy`
+    are in extensions/python/debug-attributes.json, written by scripts/update-assets.sh from its package.json. Code ported
+    from it (the configuration provider, the environment file and the process list) says "Ported from vscode-python-debugger:
+    <path>" in a comment. debugpy itself (MIT, Microsoft) is not bundled or downloaded by Emetos (only by
+    scripts/fetch-tools.sh, into /var/tmp/emetos-tools, for the tests and the proof).

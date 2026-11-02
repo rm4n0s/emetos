@@ -1,9 +1,10 @@
-# The Python tools of the real-server tests of step 24b.4 (basedpyright, python-lsp-server with pyflakes): every package of the venv
+# The Python tools of the real-server tests of steps 24b.4 and 25.8 (basedpyright, python-lsp-server with pyflakes, debugpy): every package of the venv
 # /var/tmp/emetos-tools/venv with the sha256 of its wheel for CPython 3.14 on x86_64 Linux. scripts/fetch-tools.sh python-tools installs it
-# with pip --require-hashes into that venv only. Change a pin only in a step of its own.
+# with pip --require-hashes into that venv only. debugpy 1.8.22 (2026-09-15) has no dependencies. Change a pin only in a step of its own.
 basedpyright==1.40.2 --hash=sha256:3a53aeb93a86675ded0e12bc27bd8476c1742356de07ad8cab67bff18110c690
 black==26.10.1 --hash=sha256:289282aa2e09d3162312a3be1788ff21b08e9ea9cc4a81e656024728b32428fb
 click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
+debugpy==1.8.22 --hash=sha256:0c1104233340196e5cbf5514e7dfdbb98968e730cfd7fdd6f3d72a082be838a9
 docstring-to-markdown==0.17 --hash=sha256:fd7d5094aa83943bf5f9e1a13701866b7c452eac19765380dead666e36d3711c
 importlib-metadata==10.1.0 --hash=sha256:cf45ce66a929c64e994185a809c04840d0501db17e663810d993d0f4829265c7
 jedi==0.20.1 --hash=sha256:0fb16d86c4a4c73c37ba518c77419975e30fcc620658a8d14fbb5720cdd34142

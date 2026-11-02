@@ -20,13 +20,14 @@
 #         kept in download/ and every member must be a relative path inside the folder
 gzbin     rust-analyzer               2026-10-26  4c83773525f93b636ed79761389568b4d2a89c05fa7ecc440245032d49ad80ce  https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-26/rust-analyzer-x86_64-unknown-linux-gnu.gz  01c2dc9d7653769915fe26fa4737bfab2b99ff3c756414d04d5239e0eab97365
 file      rust-analyzer-package.json  2026-10-26  9701f04b1f484e27c427335943f512888ec930e547dada70b7c91d96fad7cce8  https://raw.githubusercontent.com/rust-lang/rust-analyzer/2026-10-26/editors/code/package.json
-venv      python-tools                2026-11-01  9c5d6f3f4d3549cc22f1fea068a7c97826619827d202d300352df700be719f3f  scripts/tools-python-requirements.txt
+venv      python-tools                2026-11-02  eff2ab1188be824b3296324ffb0989b81523f91b060eb9b851ea49e51497c3b6  scripts/tools-python-requirements.txt
 npm       pyright                     1.1.414     sha512-FPZZb51jepDX4eP7TEYDeNFtmE3WgwkkEcJpvH3/QmUSsj0EAy3LXu+xB4T/FWDejtsXlCfFr/rbWFjwuwuXww==  pyright
 npm       typescript-language-server  6.0.2      sha512-Ph7Ql+xkUJvMamnkh1h+aKP6HxLR7lrWIYkPn9/LZBkJdJZgtIj7OoVhkDYtQ7zFPTPmqZHOVXaUKGyz9M2q1Q==  typescript-language-server
 npm       typescript                  6.0.3      sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==  typescript
 npm       typescript5                 5.9.3      sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==  typescript5  typescript5@npm:typescript@5.9.3
 tgz       jdtls                       1.63.0      b1f2abe0b3cccb462cf64fb4a5587c7d09df60cf8be7748b152cbd89d018bdc4  https://download.eclipse.org/jdtls/milestones/1.63.0/jdt-language-server-1.63.0-202610191322.tar.gz  jdtls
-# python-tools holds basedpyright 1.40.2 (based on pyright 1.1.414, bundles node as nodejs-wheel-binaries) and python-lsp-server 1.15.0
+# python-tools holds basedpyright 1.40.2 (based on pyright 1.1.414, bundles node as nodejs-wheel-binaries), debugpy 1.8.22 (step 25.8, the
+# debugger of the tests emetos_debugpy and of the proof; no dependencies) and python-lsp-server 1.15.0
 # with pyflakes 3.2.0 (diagnostics), jedi 0.20.1 and black; the pip wrappers of pyright would download node into the user's home folder,
 # so pyright is the npm package, run by the system's node.
 

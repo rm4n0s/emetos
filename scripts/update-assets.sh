@@ -287,3 +287,14 @@ echo "update-assets: done"
 jq -S '.contributes.debuggers[] | select(.type == "go") | {launch: .configurationAttributes.launch, attach: .configurationAttributes.attach}' \
   "$vscodego_pkg" >"$root/extensions/golang/debug-attributes.json"
 chmod 0644 "$root/extensions/golang/debug-attributes.json"
+
+# Step 25.8: the `debugpy` debugger of the Python extension (SPEC §10.31 "The debuggers"). The attributes of its launch and attach
+# requests are those of microsoft/vscode-python-debugger (package.json, contributes.debuggers) and are written to
+# extensions/python/debug-attributes.json, which the extension embeds as the ConfigurationAttributes of its manifest. The snippets and
+# the configuration provider are written in Go. The license is third_party/vscode-python-debugger/LICENSE.
+pydebugger_pkg="$ref/vscode-python-debugger/package.json"
+[[ -f "$pydebugger_pkg" ]] || { echo "error: reference/vscode-python-debugger/package.json is not a file" >&2; exit 1; }
+jq -S '.contributes.debuggers[] | select(.type == "debugpy") | {launch: .configurationAttributes.launch, attach: .configurationAttributes.attach}' \
+  "$pydebugger_pkg" >"$root/extensions/python/debug-attributes.json"
+chmod 0644 "$root/extensions/python/debug-attributes.json"
+copy_license vscode-python-debugger vscode-python-debugger/LICENSE

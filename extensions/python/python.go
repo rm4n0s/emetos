@@ -13,6 +13,7 @@ package python
 import (
 	"context"
 	"embed"
+	"sync/atomic"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
@@ -45,6 +46,8 @@ type python struct {
 	offer   offer
 	// defaultPath is python.defaultInterpreterPath as the pack last saw it.
 	defaultPath string
+	// editorSnap is the editor in front for the goroutines of the providers of the debugger (debug.go).
+	editorSnap atomic.Pointer[editorSnapshot]
 }
 
 // Manifest implements extension.Extension: the manifest of the pack with the commands and the settings of the servers.
@@ -52,6 +55,9 @@ func (p *python) Manifest() extension.Manifest {
 	m := p.base.Manifest()
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	m.Contributes.Settings = append(m.Contributes.Settings, debugSettingSpecs()...)
+	m.Contributes.Debuggers = append(m.Contributes.Debuggers, debuggerSpecs()...)
+	m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: "python"})
 	return m
 }
 
@@ -76,6 +82,7 @@ func (p *python) Activate(ctx context.Context, api extension.API) error {
 	if _, err := api.Languages().RegisterCodeActionProvider(extension.DocumentSelector{Languages: []string{"python"}}, organizeImportsProvider{p}); err != nil {
 		return err
 	}
+	p.registerDebug()
 	p.defaultPath, _ = extension.SettingValue[string](api.Settings(), DefaultInterpreterSetting)
 	api.Settings().OnChange(p.settingsChanged)
 	p.interps.Refresh()
@@ -100,7 +107,11 @@ func (p *python) Interpreters() *Interpreters { return p.interps }
 // editorEvent offers the folder's own environment the first time a Python file is in front.
 func (p *python) editorEvent(ev extension.Event) {
 	var ae extension.ActiveEditor
-	if ev.Decode(&ae) != nil || ae.LanguageID != "python" {
+	if ev.Decode(&ae) != nil {
+		return
+	}
+	p.editorSnap.Store(&editorSnapshot{uri: ae.URI, language: ae.LanguageID})
+	if ae.LanguageID != "python" {
 		return
 	}
 	p.interps.maybeOffer(&p.offer)

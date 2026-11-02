@@ -22,6 +22,7 @@ sparse_dirs() {
   case "$1" in
     microsoft/vscode) echo "src/vs extensions" ;;
     golang/vscode-go) echo "extension/syntaxes extension/languages" ;;
+    microsoft/vscode-python-debugger) echo "src/extension/debugger" ;;
     *) echo "" ;;
   esac
 }
