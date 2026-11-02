@@ -198,3 +198,31 @@ func TestNoDebugCommandIsRefusedToAClient(t *testing.T) {
 		}
 	}
 }
+
+// A client of a hosted workspace runs and debugs tests as at the host's keyboard (D46, SPEC §10.32 "Remote Work"): no command of the
+// Testing view is refused to it, and no prefix or class that is refused covers one. The ids are those of SPEC §10.32 "Commands and keys"
+// (VS Code's); the commands themselves are built by step 26.2 and later, so they are not looked up in the registry yet.
+func TestNoTestingCommandIsRefusedToAClient(t *testing.T) {
+	ids := []string{
+		"testing.runAll", "testing.debugAll", "testing.coverageAll", "testing.runAtCursor", "testing.debugAtCursor", "testing.coverageAtCursor",
+		"testing.runCurrentFile", "testing.debugCurrentFile", "testing.coverageCurrentFile", "testing.reRunLastRun", "testing.debugLastRun",
+		"testing.reRunFailTests", "testing.debugFailTests", "testing.showMostRecentOutput", "testing.cancelRun", "testing.refreshTests",
+		"testing.clearTestResults", "testing.openOutputPeek", "testing.goToNextMessage", "testing.goToPreviousMessage",
+		"testing.toggleContinuousRunForTest", "testing.startContinuousRun", "testing.stopContinuousRun", "testing.toggleInlineCoverage",
+		"testing.coverage.close", "workbench.view.testing", "workbench.view.testing.focus", "emetos.golang.testCursor",
+	}
+	for _, id := range ids {
+		t.Run(id, func(t *testing.T) {
+			if r, refused := ClientRefusal(id); refused {
+				t.Errorf("%s is refused to clients as %q: %s", id, r.Class, r.Reason)
+			}
+		})
+	}
+	for _, prefix := range RefusedPrefixes() {
+		for _, id := range ids {
+			if strings.HasPrefix(id, prefix) {
+				t.Errorf("the refused prefix %q covers the testing command %s", prefix, id)
+			}
+		}
+	}
+}

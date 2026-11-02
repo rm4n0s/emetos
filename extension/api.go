@@ -45,6 +45,8 @@ type API interface {
 	FileViews() FileViews
 	// Debug starts and follows debug sessions and registers the code of the debuggers the manifest declares (SPEC §10.31).
 	Debug() Debug
+	// Tests makes test controllers: the tests an extension finds, how to run them, and what a run reports (SPEC §10.32).
+	Tests() Tests
 	// Languages gives the grammars of the languages, for highlighting.
 	Languages() Languages
 	// LanguageServers follows and controls the language servers the manifest declares.

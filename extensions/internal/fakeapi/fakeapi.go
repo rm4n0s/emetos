@@ -105,6 +105,7 @@ type API struct {
 	decorations       decorationsState
 	timeline          timelineState
 	debug             debugState
+	testing           testingState
 	content           contentState
 	revealed          []Revealed
 	watches           []*FakeWatch

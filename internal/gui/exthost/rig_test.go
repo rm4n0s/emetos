@@ -27,6 +27,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/scm/quickdiff"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	coretesting "github.com/rm4n0s/emetos/internal/core/testing"
 	"github.com/rm4n0s/emetos/internal/core/timeline"
 	"github.com/rm4n0s/emetos/internal/gui/views/problems"
 	"github.com/rm4n0s/emetos/internal/gui/workbench"
@@ -226,6 +227,8 @@ type tab struct {
 	annotations *annotations.Store
 	// debug is the debug host of the tab, whose service the tests drive (debug_test.go).
 	debug *DebugHost
+	// testing is the testing host of the tab, nil when the rig left it out.
+	testing *TestingHost
 	// timeline is the timeline service of the tab (timeline_test.go).
 	timeline *timeline.Service
 	// quickDiff is the registry of the quick diff providers of the tab, whose originals are the entries of quickTexts
@@ -291,7 +294,9 @@ type rig struct {
 	// noAnnotations names tabs that have no editors to decorate.
 	noAnnotations map[string]bool
 	// noDebug names tabs that have no debug host (debug_test.go); debugTune changes the options of the debug service of the others.
-	noDebug   map[string]bool
+	noDebug map[string]bool
+	// noTesting names tabs that have no testing host (testing_test.go).
+	noTesting map[string]bool
 	debugTune func(*debug.Options)
 	// noTimeline names tabs that have no timeline service (timeline_test.go).
 	noTimeline map[string]bool
@@ -332,7 +337,7 @@ func newRigLanguages(t *testing.T, store *storage.SharingStore, languages *langu
 	t.Helper()
 	reg := settings.DefaultRegistry()
 	host := NewHost(HostOptions{Factories: factories, Settings: reg, Sharing: store, Languages: languages, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))})
-	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noDebug: map[string]bool{}, noQuickDiff: map[string]bool{}, noHistory: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}, noProblemsPanel: map[string]bool{}}
+	return &rig{t: t, registry: reg, host: host, sharing: host.sharing, noID: map[string]bool{}, noAsk: map[string]bool{}, noPick: map[string]bool{}, noInput: map[string]bool{}, noLSP: map[string]bool{}, noBanners: map[string]bool{}, noChooser: map[string]bool{}, folders: map[string]string{}, noCommands: map[string]bool{}, noCoreDocs: map[string]bool{}, noSCM: map[string]bool{}, noDecorations: map[string]bool{}, noAnnotations: map[string]bool{}, noTimeline: map[string]bool{}, noDebug: map[string]bool{}, noTesting: map[string]bool{}, noQuickDiff: map[string]bool{}, noHistory: map[string]bool{}, noDialog: map[string]bool{}, noWatch: map[string]bool{}, noTrash: map[string]bool{}, noProblemsPanel: map[string]bool{}}
 }
 
 // newTab makes a scope named name over its own registries, as a workspace has them; it does not start it.
@@ -498,7 +503,14 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		dbg = NewDebugHost(dctx, DebugHostOptions{Base: base, Logger: slog.New(slog.NewTextHandler(tb.log, &slog.HandlerOptions{Level: slog.LevelDebug}))})
 		tb.debug = dbg
 	}
+	var testingHost *TestingHost
+	if !r.noTesting[name] {
+		testingHost = NewTestingHost(TestingHostOptions{Logger: slog.New(slog.NewTextHandler(tb.log, &slog.HandlerOptions{Level: slog.LevelDebug})), Model: coretesting.Options{CancelDeadline: 300 * time.Millisecond}})
+		r.t.Cleanup(testingHost.Close)
+		tb.testing = testingHost
+	}
 	tb.scope = r.host.NewScope(ScopeOptions{
+		Testing:      testingHost,
 		Debug:        dbg,
 		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, HistoryGraph: !r.noHistory[name], Clipboard: clip, StateGet: stateGet, StateSet: stateSet, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },

@@ -72,6 +72,10 @@ type WindowState struct {
 	// Debug is the state of the debug model (SPEC §10.31 "As built (step 25.2)"): the breakpoints, the watch expressions and the
 	// selected launch configuration, as Service.SaveState of internal/core/debug encoded them; the store does not look into it.
 	Debug json.RawMessage `json:"debug,omitempty"`
+	// Testing is the state of the test model (SPEC §10.32 "As built (step 26.1)"): the last results that ended, with their tests,
+	// messages and trimmed output, and the choice of the default run profiles, as Service.SaveState of internal/core/testing encoded
+	// them; the store does not look into it.
+	Testing json.RawMessage `json:"testing,omitempty"`
 }
 
 // LastWindow is the window the user last had open, which an empty command line opens again.

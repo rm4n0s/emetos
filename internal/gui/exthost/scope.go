@@ -229,6 +229,9 @@ type ScopeOptions struct {
 	// debug service made over them (debug.go). Nil leaves Debug() unavailable (its registrations fail with ExtensionDebugUnavailable). A
 	// host serves one scope.
 	Debug *DebugHost
+	// Testing is the testing host of the window tab: the controllers the extensions make, and the test model made over them (testing.go).
+	// Nil leaves Tests() unavailable (CreateTestController fails with ExtensionTestingUnavailable). A host serves one scope.
+	Testing *TestingHost
 	// HistoryGraph says that the window tab has the Graph view, which SourceControl().SetHistoryProvider feeds (it is false for a host with
 	// no workbench: SetHistoryProvider fails with ExtensionHistoryUnavailable).
 	HistoryGraph bool
@@ -333,6 +336,9 @@ func (h *Host) NewScope(opts ScopeOptions) *Scope {
 	}
 	if opts.Debug != nil {
 		opts.Debug.bind(s)
+	}
+	if opts.Testing != nil {
+		opts.Testing.bind(s)
 	}
 	h.addScope(s)
 	return s

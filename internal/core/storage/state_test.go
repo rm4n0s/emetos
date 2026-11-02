@@ -266,6 +266,7 @@ func TestWindowStateRoundTrip(t *testing.T) {
 		Explorer: &storage.ExplorerState{Expanded: []string{"internal", "internal/core", "docs"}},
 		Recent:   []string{"/work/project/main.go", "/work/project/go.mod"},
 		Debug:    json.RawMessage(`{"version":1,"breakpoints":[{"id":"b1","path":"/work/project/main.go","line":12}]}`),
+		Testing:  json.RawMessage(`{"version":1,"results":[{"id":"r1","name":"Test run","completedAt":1,"request":{}}]}`),
 		Views:    map[string]json.RawMessage{"emetos.remotework.hosts": json.RawMessage(`{"expanded":["main.go"]}`), "emetos.tasks.panel": json.RawMessage(`{"command":"go test ./..."}`)},
 	}
 	if err := s.SaveWindow(id, want); err != nil {
