@@ -38,8 +38,6 @@ type debugShell struct {
 	// stops end what the view follows, and removeCommands give its commands back.
 	stops          []func()
 	removeCommands []func()
-	// pending is set while a burst of events waits to be applied.
-	pending atomic.Bool
 	// focus tells which views of the container have the keyboard focus.
 	focus map[string]bool
 	// status is the launch item of the status bar.
@@ -87,7 +85,10 @@ func (s *shellState) initDebug(binding *widgets.WidgetsBinding) {
 	})
 	st.panes.Breakpoints.SetFolder(win.Folder)
 	st.stops = append(st.stops, st.panes.Dispose)
-	st.stops = append(st.stops, svc.Subscribe(func(ev debug.Event) { s.onDebugEvent(binding, ev) }))
+	// pending is set while a burst of events waits to be applied. It is not a field of s.debug: the model may still be telling an event
+	// on its goroutine while disposeDebug clears s.debug on the UI thread.
+	pending := new(atomic.Bool)
+	st.stops = append(st.stops, svc.Subscribe(func(ev debug.Event) { s.onDebugEvent(binding, pending, ev) }))
 	st.stops = append(st.stops, win.Views.OnChange(func() {
 		binding.Post(func() {
 			if s.Mounted() && s.debug.panes != nil {
@@ -147,8 +148,7 @@ func (s *shellState) resetDebugParts() {
 }
 
 // onDebugEvent follows the service: a burst of events is applied once on the UI thread, and a stop is shown (the source opens) at once.
-func (s *shellState) onDebugEvent(binding *widgets.WidgetsBinding, ev debug.Event) {
-	st := &s.debug
+func (s *shellState) onDebugEvent(binding *widgets.WidgetsBinding, pending *atomic.Bool, ev debug.Event) {
 	switch ev.Kind {
 	case debug.EventStopped:
 		binding.Post(func() {
@@ -163,11 +163,11 @@ func (s *shellState) onDebugEvent(binding *widgets.WidgetsBinding, ev debug.Even
 			}
 		})
 	}
-	if st.pending.Swap(true) {
+	if pending.Swap(true) {
 		return
 	}
 	binding.Post(func() {
-		st.pending.Store(false)
+		pending.Store(false)
 		if s.Mounted() && s.debug.panes != nil {
 			s.syncDebugParts()
 			if ev.Kind.AffectsState() {
