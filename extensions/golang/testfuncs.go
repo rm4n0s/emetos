@@ -231,11 +231,11 @@ func (l goLenses) ProvideCodeLenses(_ context.Context, doc extension.TextDocumen
 		if fn.kind == kindBenchmark {
 			run, debug = "run benchmark", "debug benchmark"
 		}
-		// "debug" is shown and cannot be run: debugging comes with area 6
+		// step 25.7: "debug" starts the Go debugger on the function (mode test)
 		if err := add(fn.startLine, fn.col, fn.nameEnd, run, TestFunctionCommand, a, false); err != nil {
 			return nil, err
 		}
-		if err := add(fn.startLine, fn.col, fn.nameEnd, debug, "", a, true); err != nil {
+		if err := add(fn.startLine, fn.col, fn.nameEnd, debug, DebugTestFunctionCommand, a, false); err != nil {
 			return nil, err
 		}
 	}

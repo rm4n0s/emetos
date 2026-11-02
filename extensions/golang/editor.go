@@ -27,6 +27,7 @@ type lastEditor struct {
 
 // editorEvent follows the editor in front (the status item shows for a Go file) and its selection.
 func (g *golang) editorEvent(ev extension.Event) {
+	defer g.snapshotEditor()
 	switch ev.Topic {
 	case extension.TopicEditorSelectionChanged:
 		var es extension.EditorSelection

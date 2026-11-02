@@ -182,7 +182,7 @@ func settingSpecs() []extension.SettingSpec {
 		},
 		{
 			Key: EnableCodeLensSetting, Type: "object", Category: category, Default: map[string]any{"runtest": defaultCodeLensTest},
-			Description: "Feature level setting to enable/disable code lens for running and debugging tests. `runtest` shows \"run test\" and \"debug test\" above the tests of a `_test.go` file (debugging comes later, so \"debug test\" is shown disabled).",
+			Description: "Feature level setting to enable/disable code lens for running and debugging tests. `runtest` shows \"run test\" and \"debug test\" above the tests of a `_test.go` file.",
 		},
 		{
 			Key: TestFlagsSetting, Type: "array", Category: category, Default: []string{},
@@ -200,6 +200,7 @@ func settingSpecs() []extension.SettingSpec {
 			Key: TestEnvFileSetting, Type: "string", Category: category, Default: "",
 			Description: "Path of a file containing environment variable definitions (`NAME=value` lines, `#` comments), absolute or relative to the folder of the workspace. The file must be inside the workspace.",
 		},
+		delveSettingSpec(),
 		{
 			Key: VetOnSaveSetting, Type: "string", Category: category, Default: "package", Enum: []any{"package", "workspace", "off"},
 			Description: "Vets code on file save using `go vet`. `package` vets the package of the saved file, `workspace` all the packages of the folder, `off` does not run vet automatically. The findings are in the Problems panel.",

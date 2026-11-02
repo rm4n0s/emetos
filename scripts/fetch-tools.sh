@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetches a pinned tool of the real-server tests of milestone M24b into /var/tmp/emetos-tools/ (never into the user's own folders).
+# Fetches a pinned tool of the real-server tests of milestones M24b and M25 into /var/tmp/emetos-tools/ (never into the user's own folders).
 #
 # Usage: scripts/fetch-tools.sh <name>...
 #
@@ -8,6 +8,7 @@
 #   file  <name> <version> <sha256 of the download> <url>                           kept as /var/tmp/emetos-tools/download/<name>-<version>
 #   venv  <name> <version> <sha256 of the file> <requirements file in the repository>  pip install --require-hashes into /var/tmp/emetos-tools/venv (python3 -m venv)
 #   tgz   <name> <version> <sha256 of the download> <url> <folder>                  unpacked into /var/tmp/emetos-tools/<folder>
+#   gobin <name> <version> <h1: hash of the module> <package> <module>              go install <package>@<version> into /var/tmp/emetos-tools/bin (caches below /var/tmp/emetos-tools)
 #   dotnettool <name> <version> <sha256 of the .nupkg> <url of the .nupkg>         dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools, from the verified file
 #   npm   <name> <version> <integrity> <package> [<spec>]                           npm install --prefix /var/tmp/emetos-tools/node --ignore-scripts <package>@<version> (or <spec>)
 # A download whose sha256 differs from the pin is refused. A tool that is there already with the right sha256 is left alone; the
@@ -137,6 +138,26 @@ EOF_NUGET
         have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"]["node_modules/"+sys.argv[2]]["version"]+" "+d["packages"]["node_modules/"+sys.argv[2]]["integrity"])' "$tools/node/package-lock.json" "$url")"
         [[ "$have" == "$version $sha" ]] || { echo "error: $name: the installed package does not match the pinned integrity" >&2; exit 1; }
         echo "$tools/node/node_modules/.bin"
+        ;;
+      gobin)
+        # A Go program is built from the module version `go install <package>@<version>` names, with the module cache, build cache and
+        # GOPATH below $tools (so that nothing goes to the user's folders), GOBIN=$tools/bin, the toolchain of the go on PATH (no download
+        # of another) and the environment of the user's Go settings out of the way (GOFLAGS, GOENV). The module in the binary must have the
+        # h1: hash that is pinned.
+        dst="$tools/bin/$name"
+        mod="${extra:?error: $name: the module path is missing in the pin}"
+        have_mod() { go version -m "$dst" 2>/dev/null | awk -v m="$mod" -v v="$version" '$1 == "mod" && $2 == m && $3 == v { print $4 }'; }
+        if [[ -x "$dst" && "$(have_mod)" == "$sha" ]]; then
+          echo "$dst"
+          continue
+        fi
+        command -v go >/dev/null || { echo "error: $name: go is not installed" >&2; exit 1; }
+        mkdir -p "$tools/gopath" "$tools/gomodcache" "$tools/gocache"
+        env GOBIN="$tools/bin" GOPATH="$tools/gopath" GOMODCACHE="$tools/gomodcache" GOCACHE="$tools/gocache" \
+          GOFLAGS= GOENV=off GOTOOLCHAIN=local GO111MODULE=on CGO_ENABLED=0 GOWORK=off \
+          go install "$url@$version" </dev/null
+        [[ "$(have_mod)" == "$sha" ]] || { echo "error: $name: the installed module does not match the pinned hash" >&2; rm -f "$dst"; exit 1; }
+        echo "$dst"
         ;;
       *)
         echo "error: $versions: unknown kind $kind" >&2

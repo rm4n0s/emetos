@@ -28,3 +28,14 @@ func (s *Service) replConfig() ReplConfig {
 	}
 	return s.opts.Console()
 }
+
+// AddOutput writes text to the Debug Console of the session as an output event of the category would: "stdout" and "stderr" for what a
+// program prints, "console" for the debugger's own words. It is what the lines of the standard output and error of an adapter that runs
+// the program (Delve) become (step 25.7); it may be called from any goroutine, also before the adapter has answered. The text is a
+// whole line when it ends in a line feed.
+func (s *Session) AddOutput(category, text string) {
+	if text == "" {
+		return
+	}
+	s.handleOutput(&dap.OutputEventBody{Category: category, Output: text})
+}

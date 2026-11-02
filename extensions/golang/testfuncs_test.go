@@ -149,17 +149,17 @@ func TestTheLensesOfATestFile(t *testing.T) {
 		{"run package tests", TestPackageCommand, args + `}`, 0, false},
 		{"run file tests", TestFileCommand, args + `}`, 0, false},
 		{"run test", TestFunctionCommand, args + `,"name":"TestAdd"}`, 6, false},
-		{"debug test", "", "", 6, true},
+		{"debug test", DebugTestFunctionCommand, args + `,"name":"TestAdd"}`, 6, false},
 		{"run benchmark", TestFunctionCommand, args + `,"name":"BenchmarkAdd"}`, 10, false},
-		{"debug benchmark", "", "", 10, true},
+		{"debug benchmark", DebugTestFunctionCommand, args + `,"name":"BenchmarkAdd"}`, 10, false},
 		{"run test", TestFunctionCommand, args + `,"name":"ExampleAdd"}`, 13, false},
-		{"debug test", "", "", 13, true},
+		{"debug test", DebugTestFunctionCommand, args + `,"name":"ExampleAdd"}`, 13, false},
 		{"run test", TestFunctionCommand, args + `,"name":"FuzzAdd"}`, 16, false},
-		{"debug test", "", "", 16, true},
+		{"debug test", DebugTestFunctionCommand, args + `,"name":"FuzzAdd"}`, 16, false},
 		{"run test", TestFunctionCommand, args + `,"name":"Test_underscore"}`, 30, false},
-		{"debug test", "", "", 30, true},
+		{"debug test", DebugTestFunctionCommand, args + `,"name":"Test_underscore"}`, 30, false},
 		{"run test", TestFunctionCommand, args + `,"name":"Test"}`, 32, false},
-		{"debug test", "", "", 32, true},
+		{"debug test", DebugTestFunctionCommand, args + `,"name":"Test"}`, 32, false},
 	}
 	if got := lensViews(t, lenses); !reflect.DeepEqual(got, want) {
 		t.Errorf("lenses =\n%+v\nwant\n%+v", got, want)

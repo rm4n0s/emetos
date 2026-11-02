@@ -600,3 +600,47 @@ func TestTrackersHearThatTheAdapterDied(t *testing.T) {
 		t.Errorf("tracker log = %s", got)
 	}
 }
+
+func TestTheOutputOfAnAdapterThatRunsTheProgramGoesToTheDebugConsole(t *testing.T) {
+	tests := []struct {
+		name          string
+		consoleOutput bool
+		kind          extension.DebugAdapterKind
+		want          []string
+	}{
+		{"a server program that asks for it: its standard error, not the line with the port", true, extension.DebugAdapterExecutableServer, []string{"from the program\n"}},
+		{"a server program that does not ask", false, extension.DebugAdapterExecutableServer, nil},
+		{"a program on the standard streams that asks: only its standard error", true, extension.DebugAdapterExecutable, []string{"from the program\n"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := newDebugRig(t, dbgOpts{})
+			script := sessionScript()
+			script = append(daptest.Script{daptest.Stderr("from the program")}, script...)
+			d.override = func(extension.DebugSession) (*extension.DebugAdapter, error) {
+				a := &extension.DebugAdapter{Kind: tt.kind, Command: daptest.Program(d.t), ConsoleOutput: tt.consoleOutput}
+				if tt.kind == extension.DebugAdapterExecutableServer {
+					a.Args = []string{"-listen", "tcp", "-announce", "-script", d.scriptFile(script)}
+				} else {
+					a.Args = []string{"-script", d.scriptFile(script)}
+				}
+				return a, nil
+			}
+			s := d.start(fakeConfig("s", "exec"))
+			d.idle(s)
+			waitDebug(t, "the console to have the output", func() bool {
+				return len(d.coreSession(s).Repl().Elements()) >= len(tt.want)
+			})
+			var got []string
+			for _, e := range d.coreSession(s).Repl().Elements() {
+				if o, ok := e.(*debug.ReplOutput); ok {
+					got = append(got, o.Value)
+				}
+			}
+			if strings.Join(got, "|") != strings.Join(tt.want, "|") {
+				t.Errorf("console = %q, want %q", got, tt.want)
+			}
+			d.stop()
+		})
+	}
+}

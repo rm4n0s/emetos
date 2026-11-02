@@ -8,7 +8,8 @@
 // Function (a table-driven skeleton in the style of gotests), Toggle Test File and Run (go run . in the panel view "Go Run"). The
 // server itself is declared in the manifest and run by the host (SPEC §9.12). Step 14.3 adds the tests (code lenses from the
 // extension's own provider, the commands Test Function At Cursor, Test File, Test Package and Test Previous, `go test -json` read into
-// the panel view "Go Tests", the failures in Problems) and go vet and the lint tool on save into Problems.
+// the panel view "Go Tests", the failures in Problems) and go vet and the lint tool on save into Problems. Step 25.7 adds the debugger of
+// type "go" (Delve's `dlv dap`: its configuration provider, adapter, process picker, and the "debug test" lenses and command; debug*.go).
 //
 // Every program the extension starts (go env, go install, go run, go test, go vet, the lint tool) runs in a process group of its own,
 // under a timeout, a Cancel or a Stop, and ends with the activation.
@@ -79,6 +80,8 @@ func (g *golang) Manifest() extension.Manifest {
 		extension.PanelViewSpec{ID: RunViewID, Title: "Go Run", Icon: "play", Order: 51},
 		extension.PanelViewSpec{ID: TestsViewID, Title: "Go Tests", Icon: "beaker", Order: 52})
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	m.Contributes.Debuggers = append(m.Contributes.Debuggers, debuggerSpec())
+	m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: "go"})
 	m.Events.Subscribes = append(m.Events.Subscribes, extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentSaved)
 	return m
 }
@@ -86,25 +89,27 @@ func (g *golang) Manifest() extension.Manifest {
 // handlers are the commands of the extension and what runs them.
 func (g *golang) handlers() map[string]extension.CommandHandler {
 	return map[string]extension.CommandHandler{
-		InstallToolsCommand:    g.installToolsCommand,
-		ShowEnvironmentCommand: g.showEnvironmentCommand,
-		AddTagsCommand:         g.addTagsCommand,
-		RemoveTagsCommand:      g.removeTagsCommand,
-		FillStructCommand:      g.fillStructCommand,
-		GenerateTestsCommand:   g.generateTestsCommand,
-		ToggleTestFileCommand:  g.toggleTestFileCommand,
-		RunCommand:             g.runCommand,
-		TestCursorCommand:      g.testCursorCommand,
-		BenchmarkCursorCommand: g.benchmarkCursorCommand,
-		TestFileCommand:        g.testFileCommand,
-		TestPackageCommand:     g.testPackageCommand,
-		TestPreviousCommand:    g.testPreviousCommand,
-		TestCancelCommand:      g.testCancelCommand,
-		TestFunctionCommand:    g.testFunctionCommand,
-		VetPackageCommand:      g.diagCommandHandler(false, scopePackage),
-		VetWorkspaceCommand:    g.diagCommandHandler(false, scopeWorkspace),
-		LintPackageCommand:     g.diagCommandHandler(true, scopePackage),
-		LintWorkspaceCommand:   g.diagCommandHandler(true, scopeWorkspace),
+		InstallToolsCommand:      g.installToolsCommand,
+		ShowEnvironmentCommand:   g.showEnvironmentCommand,
+		AddTagsCommand:           g.addTagsCommand,
+		RemoveTagsCommand:        g.removeTagsCommand,
+		FillStructCommand:        g.fillStructCommand,
+		GenerateTestsCommand:     g.generateTestsCommand,
+		ToggleTestFileCommand:    g.toggleTestFileCommand,
+		RunCommand:               g.runCommand,
+		TestCursorCommand:        g.testCursorCommand,
+		BenchmarkCursorCommand:   g.benchmarkCursorCommand,
+		TestFileCommand:          g.testFileCommand,
+		TestPackageCommand:       g.testPackageCommand,
+		TestPreviousCommand:      g.testPreviousCommand,
+		TestCancelCommand:        g.testCancelCommand,
+		TestFunctionCommand:      g.testFunctionCommand,
+		DebugTestAtCursorCommand: g.debugTestAtCursorCommand,
+		DebugTestFunctionCommand: g.debugTestFunctionCommand,
+		VetPackageCommand:        g.diagCommandHandler(false, scopePackage),
+		VetWorkspaceCommand:      g.diagCommandHandler(false, scopeWorkspace),
+		LintPackageCommand:       g.diagCommandHandler(true, scopePackage),
+		LintWorkspaceCommand:     g.diagCommandHandler(true, scopeWorkspace),
 	}
 }
 
@@ -127,6 +132,9 @@ func commandSpecs() []extension.CommandSpec {
 		{ID: TestCancelCommand, Title: "Cancel Running Tests", Category: "Go", Description: "Stops the test run that goes on."},
 		// the lenses run this one; it has no title, so it is not in the palette
 		{ID: TestFunctionCommand, Category: "Go", Description: "Runs one test or benchmark by its name: {\"uri\": ..., \"name\": ...}."},
+		// step 25.7; the titles are those of VS Code Go (go.debug.cursor is "Go: Debug Test At Cursor")
+		{ID: DebugTestAtCursorCommand, Title: "Debug Test At Cursor", Category: "Go", Description: "Starts the Go debugger on the test, benchmark, example or fuzz function at the cursor."},
+		{ID: DebugTestFunctionCommand, Category: "Go", Description: "Debugs one test or benchmark by its name: {\"uri\": ..., \"name\": ...}."},
 		{ID: VetPackageCommand, Title: "Vet Current Package", Category: "Go", Description: "Runs go vet in the package of the Go file in front and puts the findings into the Problems panel."},
 		{ID: VetWorkspaceCommand, Title: "Vet Workspace", Category: "Go", Description: "Runs go vet ./... in the folder of the workspace."},
 		{ID: LintPackageCommand, Title: "Lint Current Package", Category: "Go", Description: "Runs the lint tool of go.lintTool in the package of the Go file in front."},
@@ -183,6 +191,11 @@ type golang struct {
 	diagRuns map[string]*diagRun
 	vetSet   *markerSet
 	lintSet  *markerSet
+	// editorSnap is the editor in front for the goroutines of the providers of the debugger (debug.go).
+	editorSnap atomic.Pointer[editorSnapshot]
+	// warned are the warnings of the debugger that were shown, once each, and warnMu guards them.
+	warned map[string]bool
+	warnMu sync.Mutex
 	// missing are the tools the user was told are missing, once each.
 	missing map[string]bool
 	// closers waits for the programs that were started, so that a test can see that none is left.
@@ -195,7 +208,7 @@ func (g *golang) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	g.api, g.ctx = api, ctx
-	g.missing = map[string]bool{}
+	g.missing, g.warned = map[string]bool{}, map[string]bool{}
 	g.debounce, g.timers, g.diagRuns = saveDebounce, map[string]*time.Timer{}, map[string]*diagRun{}
 	g.vetSet, g.lintSet = newMarkerSet(VetMarkerOwner), newMarkerSet(LintMarkerOwner)
 	var err error
@@ -219,6 +232,7 @@ func (g *golang) Activate(ctx context.Context, api extension.API) error {
 	if _, err = api.Languages().RegisterCodeLensProvider(extension.DocumentSelector{Languages: []string{"go"}}, goLenses{g}); err != nil {
 		return err
 	}
+	g.registerDebug()
 	for id, handler := range g.handlers() {
 		if err := api.Commands().Handle(id, handler); err != nil {
 			return err

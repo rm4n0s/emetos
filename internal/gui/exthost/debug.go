@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"regexp"
 	"slices"
 	"sort"
 	"sync"
+	"sync/atomic"
 
 	"github.com/rm4n0s/errors"
 
@@ -395,7 +397,7 @@ func (h *DebugHost) reach(ctx context.Context, typ string, cfg debug.Config, opt
 		set.failed(err)
 		return nil, err
 	}
-	spec, err := h.adapterSpec(typ, adapter)
+	spec, err := h.adapterSpec(typ, adapter, func(category, text string) { sess.AddOutput(category, text) })
 	if err != nil {
 		set.failed(err)
 		return nil, err
@@ -472,17 +474,40 @@ func cloneAdapter(a *extension.DebugAdapter) *extension.DebugAdapter {
 
 // adapterSpec turns the descriptor of an extension into the core's. It fails with ExtensionDebugAdapterInvalid for a kind that is none
 // of the four and for a descriptor that lacks what its kind needs.
-func (h *DebugHost) adapterSpec(typ string, a extension.DebugAdapter) (dap.Adapter, error) {
+func (h *DebugHost) adapterSpec(typ string, a extension.DebugAdapter, console func(category, text string)) (dap.Adapter, error) {
 	process := func() dap.ProcessSpec {
 		env := make([]string, 0, len(a.Env))
 		for k, v := range a.Env {
 			env = append(env, k+"="+v)
 		}
 		sort.Strings(env)
-		return dap.ProcessSpec{
+		spec := dap.ProcessSpec{
 			Program: a.Command, Args: slices.Clone(a.Args), Dir: a.Cwd, Env: env,
-			Stderr: func(line string) { h.log.Debug("debug adapter", "type", typ, "stderr", line) },
+			Stderr: func(line string) {
+				h.log.Debug("debug adapter", "type", typ, "stderr", line)
+				if a.ConsoleOutput && console != nil {
+					console("stderr", line+"\n")
+				}
+			},
 		}
+		// the standard output of a program that is only a server is free: the program it runs writes there. The line with the port is
+		// not output of the program.
+		if a.ConsoleOutput && console != nil && a.Kind == extension.DebugAdapterExecutableServer {
+			pattern := a.PortPattern
+			if pattern == "" {
+				pattern = dap.DefaultPortPattern
+			}
+			portLine, perr := regexp.Compile(pattern)
+			var skipped atomic.Bool
+			spec.Stdout = func(line string) {
+				h.log.Debug("debug adapter", "type", typ, "stdout", line)
+				if perr == nil && portLine.MatchString(line) && skipped.CompareAndSwap(false, true) {
+					return
+				}
+				console("stdout", line+"\n")
+			}
+		}
+		return spec
 	}
 	switch {
 	case (a.Kind == extension.DebugAdapterExecutable || a.Kind == extension.DebugAdapterExecutableServer) && a.Command == "":

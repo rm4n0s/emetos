@@ -41,3 +41,6 @@ reference/
 # Failed golden comparisons written by gluttertest
 *.actual.png
 *.diff.png
+
+# the program dlv builds next to the one it debugs (a debug session that is killed leaves it behind)
+__debug_bin*

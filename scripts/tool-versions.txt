@@ -1,4 +1,4 @@
-# Pinned tools of the real-server tests of milestone M24b (docs/IMPLEMENTATION.md "M24b"). scripts/fetch-tools.sh reads this file and
+# Pinned tools of the real-server tests of milestones M24b and M25 (docs/IMPLEMENTATION.md "M24b", "M25"). scripts/fetch-tools.sh reads this file and
 # installs the tools only into /var/tmp/emetos-tools/ (never into the user's environment); Emetos itself installs nothing (SPEC D47).
 # Change a pin only in a step of its own.
 #
@@ -13,6 +13,9 @@
 # dotnettool  a .NET global tool: the .nupkg is downloaded and compared with the sha256 (the url column is the file), then
 #         dotnet tool install --tool-path dotnet-tools from it alone (a NuGet.config with that folder as the only source), with a HOME,
 #         DOTNET_CLI_HOME and NUGET_PACKAGES of its own under /var/tmp/emetos-tools and the SDK's telemetry off
+# gobin   a Go program built by `go install <package>@<version>` into bin/<name> (the sha256 column is the h1: hash of the module in go.sum, the
+#         url column is the package; a sixth column, when there is one, is the module path); the install uses a GOMODCACHE, GOCACHE and GOPATH
+#         under /var/tmp/emetos-tools and GOBIN=/var/tmp/emetos-tools/bin, and the module in the binary (go version -m) must have the pinned hash
 # tgz     a gzipped tar of a whole tool: unpacked into the folder named in the sixth column below /var/tmp/emetos-tools/ (jdtls); the archive is
 #         kept in download/ and every member must be a relative path inside the folder
 gzbin     rust-analyzer               2026-10-26  4c83773525f93b636ed79761389568b4d2a89c05fa7ecc440245032d49ad80ce  https://github.com/rust-lang/rust-analyzer/releases/download/2026-10-26/rust-analyzer-x86_64-unknown-linux-gnu.gz  01c2dc9d7653769915fe26fa4737bfab2b99ff3c756414d04d5239e0eab97365
@@ -45,3 +48,8 @@ dotnettool csharp-ls                0.28.0      8f815e4f22674106a8244beba07e4b4b
 # copy it into the node_modules of a project as typescript, so that the version of the workspace differs from the one beside the server.
 # java      emetos_jdtls (step 24b.6)   OpenJDK 25.0.4.1 (Fedora), the system's: it runs jdtls; no JDK is installed by Emetos (D47)
 # dotnet    emetos_csharpls (step 24b.7)   the .NET SDK 10.0.113 (Fedora), the system's: it runs csharp-ls and restores/loads the testdata solution; no SDK is installed by Emetos (D47)
+
+# dlv is Delve, v1.27.2 of 2026-09-09 (the h1: hash is the one of go.sum and of sum.golang.org). It is the debugger of the tests of step 25.7
+# (emetos_dlv) and of its proof; it is built by `go install github.com/go-delve/delve/cmd/dlv@v1.27.2` into /var/tmp/emetos-tools/bin with a
+# module cache, build cache and GOPATH of their own below /var/tmp/emetos-tools, and the tests reach it through go.alternateTools.
+gobin     dlv                         v1.27.2     h1:dhcjFjiVoQI53uwsG7EqYiMhdvFuywsBZx4KDOK+sYE=                    github.com/go-delve/delve/cmd/dlv  github.com/go-delve/delve

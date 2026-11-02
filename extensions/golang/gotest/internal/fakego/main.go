@@ -14,7 +14,9 @@
 // one by one (the lines of `go test -json`, with {{DIR}} replaced by the working folder); a line "#gate" waits for the file FAKEGO_RUN_GATE, "#hang" hangs as a hanging install
 // does, and "#stderr text" prints text to the standard error. The status is FAKEGO_TEST_EXIT, else 1 when a line has a failed
 // action and 0 when none has. For `go vet`, FAKEGO_VET_OUT is printed to the standard error (where go vet prints) and the status is
-// FAKEGO_VET_EXIT, else 1 when there is output. A hard limit of 60 seconds ends the program whatever happens.
+// FAKEGO_VET_EXIT, else 1 when there is output. For `go version file...` (step 25.7, the process picker), FAKEGO_VERSION_FILES is a comma
+// separated list of the files that are Go programs: the answer for one is "file: go1.99.1", the others get a message on the standard
+// error, and the status is 1 when there is such a file. A hard limit of 60 seconds ends the program whatever happens.
 package main
 
 import (
@@ -46,6 +48,8 @@ func main() {
 		goRun()
 	case len(args) >= 1 && args[0] == "test":
 		goTest()
+	case len(args) >= 1 && args[0] == "version":
+		goVersionFiles(args[1:])
 	case len(args) >= 1 && args[0] == "vet":
 		goVet()
 	default:
@@ -241,4 +245,22 @@ func hang() {
 		}
 	}
 	select {}
+}
+
+// goVersionFiles is `go version file...`: the files FAKEGO_VERSION_FILES lists are Go programs, the others are not.
+func goVersionFiles(files []string) {
+	goFiles := map[string]bool{}
+	for _, f := range strings.Split(os.Getenv("FAKEGO_VERSION_FILES"), ",") {
+		goFiles[f] = true
+	}
+	status := 0
+	for _, f := range files {
+		if goFiles[f] {
+			fmt.Printf("%s: go1.99.1\n", f)
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "%s: could not read Go build info\n", f)
+		status = 1
+	}
+	os.Exit(status)
 }

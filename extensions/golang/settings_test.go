@@ -38,6 +38,8 @@ func TestTheSettingsOfTheExtension(t *testing.T) {
 		{LintOnSaveSetting, "string", `"package"`, "Lints code on file save"},
 		{LintToolSetting, "string", `"staticcheck"`, "client-side lint tool"},
 		{LintFlagsSetting, "array", `[]`, "Flags to pass to the lint tool"},
+		// step 25.7
+		{DelveConfigSetting, "object", `{"debugAdapter":"dlv-dap","dlvFlags":[],"hideSystemGoroutines":false,"logOutput":"debugger","showGlobalVariables":false,"showLog":false,"showRegisters":false,"substitutePath":[]}`, "Delve configuration"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {

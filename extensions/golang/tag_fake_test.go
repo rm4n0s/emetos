@@ -1,4 +1,4 @@
-//go:build !emetos_gopls
+//go:build !emetos_gopls && !emetos_dlv
 
 package golang
 

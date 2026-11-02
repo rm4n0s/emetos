@@ -280,3 +280,10 @@ copy_extension java java
 copy_extension csharp csharp
 
 echo "update-assets: done"
+
+# Step 25.7: the `go` debugger of the Go extension (SPEC §10.31 "The debuggers"). The attributes of its launch and attach requests
+# are VS Code Go's (package.json, contributes.debuggers) and are written to extensions/golang/debug-attributes.json, which the
+# extension embeds as the ConfigurationAttributes of its manifest. The snippets and the configuration provider are written in Go.
+jq -S '.contributes.debuggers[] | select(.type == "go") | {launch: .configurationAttributes.launch, attach: .configurationAttributes.attach}' \
+  "$vscodego_pkg" >"$root/extensions/golang/debug-attributes.json"
+chmod 0644 "$root/extensions/golang/debug-attributes.json"

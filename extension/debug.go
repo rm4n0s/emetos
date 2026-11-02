@@ -205,6 +205,11 @@ type DebugAdapter struct {
 	Port int
 	// Path is the Unix socket of DebugAdapterPipeServer.
 	Path string
+	// ConsoleOutput makes the lines the program writes to its standard error, and for DebugAdapterExecutableServer to its standard output
+	// too, lines of the Debug Console of the session (categories stderr and stdout; the line that gives the port is left out). It is for an
+	// adapter that runs the debuggee as its child and leaves the output of the debuggee to its own streams (Delve); the lines go to the log
+	// of Emetos as well.
+	ConsoleOutput bool
 }
 
 // DebugAdapterFactory finds the adapter of a session (VS Code's DebugAdapterDescriptorFactory.createDebugAdapterDescriptor). executable

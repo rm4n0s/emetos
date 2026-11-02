@@ -1,0 +1,15 @@
+{
+    "workbench.colorTheme": "Dark+",
+    "git.openRepositoryInParentFolders": "never",
+    "editor.minimap.enabled": false,
+    "go.alternateTools": {"dlv": "/var/tmp/emetos-tools/bin/dlv"},
+    "go.toolsEnvVars": {
+        "GOCACHE": "/var/tmp/emetos-tools/gocache",
+        "GOPATH": "/var/tmp/emetos-tools/gopath",
+        "GOMODCACHE": "/var/tmp/emetos-tools/gomodcache",
+        "GOFLAGS": "",
+        "GOTOOLCHAIN": "local",
+        "GOPROXY": "off",
+        "CGO_ENABLED": "0"
+    }
+}
