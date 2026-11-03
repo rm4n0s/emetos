@@ -27,7 +27,9 @@ npm       typescript                  6.0.3      sha512-y2TvuxSZPDyQakkFRPZHKFm+
 npm       typescript5                 5.9.3      sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==  typescript5  typescript5@npm:typescript@5.9.3
 tgz       jdtls                       1.63.0      b1f2abe0b3cccb462cf64fb4a5587c7d09df60cf8be7748b152cbd89d018bdc4  https://download.eclipse.org/jdtls/milestones/1.63.0/jdt-language-server-1.63.0-202610191322.tar.gz  jdtls
 # python-tools holds basedpyright 1.40.2 (based on pyright 1.1.414, bundles node as nodejs-wheel-binaries), debugpy 1.8.22 (step 25.8, the
-# debugger of the tests emetos_debugpy and of the proof; no dependencies) and python-lsp-server 1.15.0
+# debugger of the tests emetos_debugpy and of the proof; no dependencies), pytest 9.2.0 and coverage 7.17.0 (step 26.6, the tests emetos_pytest and the proof:
+# installed into the venv next to debugpy; their wheels are not in scripts/tools-python-requirements.txt yet because their hashes were not at hand) and
+# python-lsp-server 1.15.0
 # with pyflakes 3.2.0 (diagnostics), jedi 0.20.1 and black; the pip wrappers of pyright would download node into the user's home folder,
 # so pyright is the npm package, run by the system's node.
 

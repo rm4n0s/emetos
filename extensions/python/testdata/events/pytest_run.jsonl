@@ -1,0 +1,19 @@
+============================= test session starts ==============================
+@@EMETOS@@ {"type":"start","id":"tests/test_calc.py::test_double"}
+.@@EMETOS@@ {"type":"result","id":"tests/test_calc.py::test_double","outcome":"passed","duration":0.0012,"messages":[],"output":""}
+@@EMETOS@@ {"type":"start","id":"tests/test_calc.py::test_double_wrong"}
+@@EMETOS@@ {"type":"result","id":"tests/test_calc.py::test_double_wrong","outcome":"failed","duration":0.002,"messages":[{"message":"assert 4 == 5\n +  where 4 = double(2)","text":"def test_double_wrong():\n>       assert double(2) == 5\nE       assert 4 == 5","file":"{{dir}}/tests/test_calc.py","line":10,"frames":[{"file":"{{dir}}/tests/test_calc.py","line":10,"name":"test_double_wrong"}],"expected":"5","actual":"4"}],"output":""}
+@@EMETOS@@ {"type":"start","id":"tests/test_calc.py::test_sign[3-1]"}
+@@EMETOS@@ {"type":"result","id":"tests/test_calc.py::test_sign[3-1]","outcome":"passed","duration":0.0003,"messages":[],"output":""}
+@@EMETOS@@ {"type":"start","id":"tests/test_calc.py::test_sign[-3--1]"}
+@@EMETOS@@ {"type":"result","id":"tests/test_calc.py::test_sign[-3--1]","outcome":"failed","duration":0.0004,"messages":[{"message":"assert 1 == -1","text":"E assert 1 == -1","file":"{{dir}}/tests/test_calc.py","line":16,"frames":[],"expected":"-1","actual":"1"}],"output":""}
+@@EMETOS@@ {"type":"result","id":"tests/test_calc.py::TestSign::test_positive","outcome":"skipped","duration":0.0,"messages":[{"message":"not today","file":"{{dir}}/tests/test_calc.py","line":30}],"output":""}
+@@EMETOS@@ {"type":"start","id":"tests/test_fixtures.py::test_uses_broken"}
+@@EMETOS@@ {"type":"result","id":"tests/test_fixtures.py::test_uses_broken","outcome":"errored","duration":0.001,"messages":[{"message":"RuntimeError: the fixture failed","text":"E   RuntimeError: the fixture failed","file":"{{dir}}/tests/test_fixtures.py","line":6,"frames":[{"file":"{{dir}}/tests/test_fixtures.py","line":6,"name":"broken"}]}],"output":""}
+@@EMETOS@@ {"type":"start","id":"tests/test_fixtures.py::test_prints"}
+@@EMETOS@@ {"type":"result","id":"tests/test_fixtures.py::test_prints","outcome":"passed","duration":0.0001,"messages":[],"output":"----- Captured stdout call -----\nhello from the test\n"}
+@@EMETOS@@ this is not json
+@@EMETOS@@ {"type":"result","id":"tests/test_calc.py::TestSign::test_new[x y]","outcome":"passed","duration":0.0001,"messages":[],"output":""}
+@@EMETOS@@ {"type":"collect_error","file":"{{dir}}/tests/test_syntax.py","line":1,"message":"SyntaxError: invalid syntax","text":"E   SyntaxError: invalid syntax"}
+@@EMETOS@@ {"type":"done","exitstatus":1}
+=========================== short test summary info ============================

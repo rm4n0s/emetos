@@ -1,0 +1,13 @@
+{
+    "workbench.colorTheme": "Dark+",
+    "git.openRepositoryInParentFolders": "never",
+    "editor.minimap.enabled": false,
+    "testing.openTesting": "neverOpen",
+    "testing.coverageToolbarEnabled": true,
+    "testing.followRunningTest": true,
+    "testing.alwaysRevealTestOnStateChange": true,
+    "python.languageServer": "none",
+    "python.testing.pytestEnabled": true,
+    "python.envFile": "${workspaceFolder}/python-env.txt",
+    "python.defaultInterpreterPath": "/var/tmp/emetos-tools/venv/bin/python"
+}

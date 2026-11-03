@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -46,6 +47,8 @@ type rigOptions struct {
 	environ map[string]string
 	// noFolder makes the tab a tab without a folder.
 	noFolder bool
+	// runner replaces the program runner of the Testing provider (a fake that prints recorded lines).
+	runner testRunner
 }
 
 // serverScripts are the fake programs of the three servers: the language server ones print nothing useful, the siblings and pylsp print
@@ -92,6 +95,10 @@ func newRigWith(t *testing.T, o rigOptions, before func(*fakeapi.API)) *rig {
 		t.Setenv(k, o.environ[k])
 	}
 	ext := New()
+	if o.runner != nil {
+		ext.(*python).runner = o.runner
+		ext.(*python).testDebounce = 5 * time.Millisecond
+	}
 	if err := extension.CheckManifest(ext.Manifest()); err != nil {
 		t.Fatal(err)
 	}

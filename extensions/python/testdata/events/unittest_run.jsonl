@@ -1,0 +1,7 @@
+test_ok (tests.test_calc.TestDouble.test_ok) ... 
+@@EMETOS@@ {"type":"start","id":"tests.test_calc.TestDouble.test_ok"}
+@@EMETOS@@ {"type":"result","id":"tests.test_calc.TestDouble.test_ok","outcome":"passed","duration":0.0002,"messages":[],"output":""}
+@@EMETOS@@ {"type":"start","id":"tests.test_calc.TestDouble.test_wrong"}
+@@EMETOS@@ {"type":"result","id":"tests.test_calc.TestDouble.test_wrong","outcome":"failed","duration":0.0004,"messages":[{"message":"AssertionError: 4 != 5","text":"Traceback (most recent call last):\n  File \"tests/test_calc.py\", line 10, in test_wrong\n    self.assertEqual(double(2), 5)\nAssertionError: 4 != 5\n","file":"{{dir}}/tests/test_calc.py","line":10,"frames":[{"file":"{{dir}}/tests/test_calc.py","line":10,"name":"test_wrong"}]}],"output":""}
+@@EMETOS@@ {"type":"result","id":"setUpClass (tests.test_calc.TestSetup)","holder":true,"outcome":"errored","duration":0,"messages":[{"message":"RuntimeError: no database","text":"Traceback ...\nRuntimeError: no database\n","file":"{{dir}}/tests/test_calc.py","line":27,"frames":[]}],"output":""}
+@@EMETOS@@ {"type":"done","exitstatus":1}

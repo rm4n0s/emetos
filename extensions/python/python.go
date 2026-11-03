@@ -8,12 +8,17 @@
 // (python.setInterpreter) with the status item that shows the interpreter's version and environment, the choice per folder kept in
 // Emetos's state, and Interpreters.Current, which the debugger (M25) and the Testing provider (M26) of the pack read so that every
 // feature runs the same Python.
+//
+// Since step 26.6 the pack is also the Testing provider of Python (testctl.go, testexec.go, testcover.go; SPEC §10.32): the controller
+// "python" runs pytest or unittest through the helper scripts in helpers/, with coverage.py for coverage and debugpy for Debug.
 package python
 
 import (
 	"context"
 	"embed"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
@@ -25,7 +30,7 @@ var assets embed.FS
 
 // New is the Factory of the pack.
 func New() extension.Extension {
-	p := &python{}
+	p := &python{runner: runProcess, testDebounce: saveDebounce}
 	p.base = langpack.New(langpack.Spec{
 		ID: ID, Name: "Python", Description: "Python support: syntax, the language server (basedpyright, Pyright or python-lsp-server) and the interpreter.",
 		Assets: assets, Server: p.serverConfig(),
@@ -48,6 +53,15 @@ type python struct {
 	defaultPath string
 	// editorSnap is the editor in front for the goroutines of the providers of the debugger (debug.go).
 	editorSnap atomic.Pointer[editorSnapshot]
+	// tests is the controller of the tests in the Testing view (step 26.6); nil in a window that has none. runner runs the programs of the
+	// provider (the tests replace it) and closers waits for the goroutines it started.
+	tests   *testCtl
+	runner  testRunner
+	closers sync.WaitGroup
+	// testKey is the settings that decide the tests, as the pack last saw them.
+	testKey string
+	// testDebounce is how long the tests wait for more saves before they are found again.
+	testDebounce time.Duration
 }
 
 // Manifest implements extension.Extension: the manifest of the pack with the commands and the settings of the servers.
@@ -56,6 +70,7 @@ func (p *python) Manifest() extension.Manifest {
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, debugSettingSpecs()...)
+	m.Contributes.Settings = append(m.Contributes.Settings, testSettingSpecs()...)
 	m.Contributes.Debuggers = append(m.Contributes.Debuggers, debuggerSpecs()...)
 	m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: "python"})
 	return m
@@ -83,8 +98,12 @@ func (p *python) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	p.registerDebug()
+	if err := p.registerTests(); err != nil {
+		return err
+	}
 	p.defaultPath, _ = extension.SettingValue[string](api.Settings(), DefaultInterpreterSetting)
 	api.Settings().OnChange(p.settingsChanged)
+	api.Settings().OnChange(p.testSettingsChanged)
 	p.interps.Refresh()
 	return nil
 }
