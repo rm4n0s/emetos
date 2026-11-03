@@ -12,6 +12,7 @@ import (
 	"context"
 	"embed"
 	"sync"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
@@ -64,7 +65,7 @@ var cppLanguages = []string{"c", "cpp", "cuda-cpp"}
 
 // New is the Factory of the pack.
 func New() extension.Extension {
-	c := &cpp{content: map[string]string{}, states: map[string]string{}}
+	c := &cpp{content: map[string]string{}, states: map[string]string{}, runner: runProcess, testDebounce: saveDebounce}
 	c.base = langpack.New(langpack.Spec{
 		ID: ID, Name: "C and C++", Description: "C, C++ and CUDA C++ support: syntax, clangd and its commands.",
 		Assets: assets, Server: c.serverConfig(),
@@ -91,6 +92,14 @@ type cpp struct {
 	running bool
 	// work waits for the requests in flight, so that a test can see that none is left.
 	work sync.WaitGroup
+
+	// tests is the controller of the tests in the Testing view (step 26.9); nil in a window that has none. runner runs the programs of
+	// the provider (the tests replace it) and testDebounce is how long the tests wait for more saves before they are found again.
+	// lastBuild and lastDelimiter are the settings the tree was last made with.
+	tests                    *testCtl
+	runner                   testRunner
+	testDebounce             time.Duration
+	lastBuild, lastDelimiter string
 }
 
 // Manifest implements extension.Extension: the manifest of the pack with the commands, keybindings and settings of clangd.
@@ -99,6 +108,7 @@ func (c *cpp) Manifest() extension.Manifest {
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Keybindings = append(m.Contributes.Keybindings, keybindings()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	m.Contributes.Settings = append(m.Contributes.Settings, testSettingSpecs()...)
 	m.Contributes.WritesSettings = append(m.Contributes.WritesSettings, InlayHintsSetting)
 	m.Contributes.Debuggers = append(m.Contributes.Debuggers, nativedebug.Specs()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, nativedebug.SettingSpecs()...)
@@ -134,10 +144,18 @@ func (c *cpp) Activate(ctx context.Context, api extension.API) error {
 	}
 	c.debugger = nativedebug.New(api)
 	c.debugger.Register()
+	if err := c.registerTests(); err != nil {
+		return err
+	}
 	api.Settings().OnChange(c.refreshStatus)
 	c.refreshStatus()
 	return nil
 }
 
 // wait waits for the requests the pack sent to end (the tests use it).
-func (c *cpp) wait() { c.work.Wait() }
+func (c *cpp) wait() {
+	if c.tests != nil {
+		c.tests.stop()
+	}
+	c.work.Wait()
+}

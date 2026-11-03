@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="(empty)"
+	tests="2"
+	failures="1"
+	disabled="0"
+	skipped="0"
+	hostname=""
+	time="0"
+	timestamp="2026-11-03T09:35:28"
+	>
+	<testcase name="adds" classname="adds" time="0.00133533" status="run">
+		<properties/>
+		<system-out>adding 40 and 2
+</system-out>
+	</testcase>
+	<testcase name="divides" classname="divides" time="0.00215451" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>divide(5, 2) = 2
+expected 3 but got 2
+</system-out>
+	</testcase>
+</testsuite>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="(empty)"
+	tests="6"
+	failures="1"
+	disabled="1"
+	skipped="1"
+	hostname=""
+	time="0"
+	timestamp="2026-11-03T09:32:24"
+	>
+	<testcase name="adds" classname="adds" time="0.00139529" status="run">
+		<properties/>
+		<system-out>adding 40 and 2
+</system-out>
+	</testcase>
+	<testcase name="divides" classname="divides" time="0.00243408" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>divide(5, 2) = 2
+expected 3 but got 2
+</system-out>
+	</testcase>
+	<testcase name="skipped" classname="skipped" time="0.00130305" status="notrun">
+		<skipped message="SKIP_RETURN_CODE=77"/>
+		<properties/>
+		<system-out>no display here, skipping
+</system-out>
+	</testcase>
+	<testcase name="disabled" classname="disabled" time="0" status="disabled">
+		<properties/>
+		<system-out>Disabled</system-out>
+	</testcase>
+	<testcase name="math.lists" classname="math.lists" time="0.00126324" status="run">
+		<properties>
+			<property name="cmake_labels" value="fast;math"/>
+		</properties>
+		<system-out>adding 40 and 2
+</system-out>
+	</testcase>
+	<testcase name="odd[1]+x(2)" classname="odd[1]+x(2)" time="0.00134717" status="run">
+		<properties/>
+		<system-out>adding 40 and 2
+</system-out>
+	</testcase>
+</testsuite>

@@ -47,3 +47,6 @@ __debug_bin*
 
 # node_modules of a project (never committed; the tests link the tools in)
 node_modules/
+
+# the build folder the proof of step 26.9 makes (never committed)
+/testdata/proof/26.9/project/build/

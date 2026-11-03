@@ -1,0 +1,31 @@
+Test project {{dir}}/build
+    Start 1: adds
+1/6 Test #1: adds .............................   Passed    0.00 sec
+    Start 2: divides
+2/6 Test #2: divides ..........................***Failed    0.00 sec
+    Start 3: skipped
+3/6 Test #3: skipped ..........................***Skipped   0.00 sec
+    Start 4: disabled
+4/6 Test #4: disabled .........................***Not Run (Disabled)   0.00 sec
+    Start 5: math.lists
+5/6 Test #5: math.lists .......................   Passed    0.00 sec
+    Start 6: odd[1]+x(2)
+6/6 Test #6: odd[1]+x(2) ......................   Passed    0.00 sec
+
+80% tests passed, 1 tests failed out of 5
+
+Label Time Summary:
+fast    =   0.00 sec*proc (1 test)
+math    =   0.00 sec*proc (1 test)
+
+Total Test time (real) =   0.01 sec
+
+The following tests did not run:
+	  3 - skipped (Skipped)
+	  4 - disabled (Disabled)
+
+The following tests FAILED:
+	  2 - divides (Failed)
+Errors while running CTest
+Output from these tests are in: {{dir}}/build/Testing/Temporary/LastTest.log
+Use "--rerun-failed --output-on-failure" to re-run the failed cases verbosely.

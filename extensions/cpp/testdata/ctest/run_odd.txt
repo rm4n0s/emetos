@@ -1,0 +1,7 @@
+Test project {{dir}}/build
+    Start 6: odd[1]+x(2)
+1/1 Test #6: odd[1]+x(2) ......................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.00 sec
