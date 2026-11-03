@@ -179,9 +179,9 @@ func (t *reqTab) countOf(section string) int {
 	case secHeaders:
 		return on(t.d.headers)
 	case secExtract:
-		return len(t.d.req.Extract)
+		return len(t.d.extract)
 	case secChecks:
-		return len(t.d.req.Checks)
+		return len(t.d.checks)
 	}
 	return 0
 }
@@ -197,21 +197,12 @@ func (t *reqTab) panel(bc widgets.BuildContext) widgets.Widget {
 		return t.authPanel(bc)
 	case secSettings:
 		return t.settingsPanel(bc)
-	case secExtract, secChecks:
-		return t.laterPanel(bc)
+	case secExtract:
+		return t.extractPanel(bc)
+	case secChecks:
+		return t.checksPanel(bc)
 	}
 	return t.paramsPanel(bc)
-}
-
-// laterPanel is the Extract and Checks tabs, which step 27.6 builds; what the file has is kept as it is.
-func (t *reqTab) laterPanel(bc widgets.BuildContext) widgets.Widget {
-	dim := ui.TextStyle(bc, 13, ui.Theme(bc).DescriptionForeground)
-	what, n := "extraction rules", len(t.d.req.Extract)
-	if t.section == secChecks {
-		what, n = "checks", len(t.d.req.Checks)
-	}
-	text := fmt.Sprintf("The form for the %s comes in a later step. The request has %s; they are kept as they are when it is saved.", what, plural(n, strings.TrimSuffix(what, "s"), what))
-	return pageui.Paragraph(text, dim)
 }
 
 // ---- tables ----

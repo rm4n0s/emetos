@@ -1,0 +1,6 @@
+{
+  "emetosHttp": 1,
+  "name": "Shop API",
+  "description": "The requests of the shop's backend.",
+  "order": ["health.request.jsonc", "users"]
+}

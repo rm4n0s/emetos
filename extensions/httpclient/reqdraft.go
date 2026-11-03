@@ -85,7 +85,7 @@ const (
 // draft is the request tab's copy of a request.
 type draft struct {
 	// req is the request as loaded: what the form has no box for (the name, the description, the extraction rules and the checks) is
-	// written back as it was.
+	// written back as it was (the extraction rules and the checks are the boxes of d.extract and d.checks once the draft is made).
 	req format.Request
 
 	method string
@@ -102,6 +102,10 @@ type draft struct {
 	binary  *ui.InputBoxController
 
 	auth authBox
+
+	// extract and checks are the Extract and Checks tabs.
+	extract []*extractBox
+	checks  []*checkBox
 
 	timeout, maxRedirects *ui.InputBoxController
 	follow, verify        tri
@@ -143,6 +147,7 @@ func newDraft(files store.RequestFiles) *draft {
 	d.loadBody(files)
 	d.loadAuth(req.Auth)
 	d.loadSettings(req.Settings)
+	d.loadRules()
 	return d
 }
 
@@ -262,6 +267,7 @@ func (d *draft) dispose() {
 	}
 	d.timeout.Dispose()
 	d.maxRedirects.Dispose()
+	d.disposeRules()
 }
 
 // ---- params and URL ----
@@ -346,6 +352,7 @@ func (d *draft) files() store.RequestFiles {
 	req.Params, req.Headers = pairs(d.params), pairs(d.headers)
 	req.Auth = d.authValue()
 	req.Settings = d.settingsValue()
+	req.Extract, req.Checks = d.extractRules(), d.checkList()
 	out := store.RequestFiles{}
 	out.Request.Body, out.Body, out.Variables = d.bodyValue(req.Body)
 	req.Body = out.Request.Body

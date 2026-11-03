@@ -145,6 +145,14 @@ func scopeLayers(ctx context.Context, vals *Values, s Scope, curSrc, initSrc Sou
 		f.value = v.Value
 		initial[v.Name] = f
 	}
+	// a current value that an extraction rule made for a name the scope does not declare is a variable of the scope too (Postman's
+	// pm.environment.set does the same); a name that is declared but turned off stays off
+	names := declaredNames(s.Variables)
+	for name, c := range currentValues {
+		if _, declared := names[name]; !declared {
+			cur[name] = found{value: c, source: curSrc, scope: s.Name}
+		}
+	}
 	return cur, initial, err
 }
 
@@ -243,4 +251,13 @@ func addOnce(list *[]string, s string) {
 	if !containsString(*list, s) {
 		*list = append(*list, s)
 	}
+}
+
+// declaredNames are the names a scope declares, the ones that are turned off included.
+func declaredNames(vars []format.Variable) map[string]struct{} {
+	out := make(map[string]struct{}, len(vars))
+	for _, v := range vars {
+		out[v.Name] = struct{}{}
+	}
+	return out
 }

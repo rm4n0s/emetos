@@ -26,6 +26,7 @@ const (
 	respHeaders  = "headers"
 	respCookies  = "cookies"
 	respTimeline = "timeline"
+	respChecks   = "checks"
 )
 
 // The ways the Body tab shows the body.
@@ -245,6 +246,8 @@ func (t *reqTab) responsePane(bc widgets.BuildContext) widgets.Widget {
 		content = t.cookiesView(bc)
 	case respTimeline:
 		content = t.timelineView(bc)
+	case respChecks:
+		content = t.checksView(bc)
 	default:
 		content = t.bodyView(bc)
 	}
@@ -316,6 +319,11 @@ func (t *reqTab) respNotes() string {
 		parts = append(parts, "the certificate of the server was not checked")
 	}
 	parts = append(parts, r.Warnings...)
+	for _, o := range t.send.extracted {
+		if !o.OK() {
+			parts = append(parts, "not extracted into "+o.Rule.To+": "+o.Problem)
+		}
+	}
 	if t.send.err != "" {
 		parts = append(parts, t.send.err)
 	}
@@ -334,12 +342,15 @@ func (t *reqTab) respTabs(bc widgets.BuildContext) widgets.Widget {
 	tabs := []struct {
 		id, label string
 		n         int
-	}{{respBody, "Body", 0}, {respHeaders, "Headers", headers}, {respCookies, "Cookies", cookies}, {respTimeline, "Timeline", len(r.Chain)}}
+	}{{respBody, "Body", 0}, {respHeaders, "Headers", headers}, {respCookies, "Cookies", cookies}, {respTimeline, "Timeline", len(r.Chain)}, {respChecks, "Checks", 0}}
 	var items []widgets.Widget
 	for _, s := range tabs {
 		label := s.label
 		if s.n > 0 {
 			label = fmt.Sprintf("%s (%d)", label, s.n)
+		}
+		if s.id == respChecks {
+			label = t.checksLabel()
 		}
 		items = append(items, ui.NewButton(label, ui.ButtonOpts{Secondary: t.pane.tab != s.id, Small: true, OnPressed: func() {
 			t.pane.tab = s.id

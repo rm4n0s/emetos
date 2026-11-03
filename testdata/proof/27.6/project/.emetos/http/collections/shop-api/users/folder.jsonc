@@ -1,0 +1,5 @@
+{
+  "emetosHttp": 1,
+  "name": "Users",
+  "order": ["list-users.request.jsonc", "create-user.request.jsonc", "update-user.request.jsonc", "delete-user.request.jsonc"]
+}

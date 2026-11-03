@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/httpclient/checks"
 	"github.com/rm4n0s/emetos/extensions/httpclient/engine"
 	"github.com/rm4n0s/emetos/extensions/httpclient/format"
 	"github.com/rm4n0s/emetos/extensions/httpclient/history"
@@ -120,9 +121,12 @@ type sendJob struct {
 type sendOutcome struct {
 	resp *engine.Response
 	// disp is what the response pane shows of it, made off the UI thread.
-	disp     *respDisplay
-	err      error
-	duration time.Duration
+	disp *respDisplay
+	// extracted and checkResults are what the rules and the checks of the request made of the response.
+	extracted    []extractOutcome
+	checkResults []checks.Result
+	err          error
+	duration     time.Duration
 }
 
 // runSend builds the request from the form (the text of its body as it is in the boxes, not as it is on disk) and sends it with the engine.
@@ -160,6 +164,8 @@ func (e *Extension) runSend(ctx context.Context, job sendJob) sendOutcome {
 	out := sendOutcome{resp: resp, err: err, duration: time.Since(start)}
 	if resp != nil {
 		out.disp = buildDisplay(resp)
+		out.extracted = e.extractAndStore(ctx, job.place, resp, req.Extract)
+		out.checkResults = checks.Run(resp, req.Checks)
 	}
 	return out
 }

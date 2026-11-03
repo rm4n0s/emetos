@@ -513,3 +513,44 @@ func TestOwnersAndKeysKeepPlacesApart(t *testing.T) {
 		keys[k] = true
 	}
 }
+
+func TestACurrentValueOfANameTheScopeDoesNotDeclare(t *testing.T) {
+	vals := NewValues("/w", newState(), &dbconn.MemoryKeyring{})
+	for _, set := range []struct{ owner, name, value string }{
+		{EnvironmentOwner("dev"), "token", "from-extraction"}, {EnvironmentOwner("dev"), "off", "must-stay-off"},
+		{CollectionOwner("api"), "userId", "17"}, {CollectionOwner("api"), "x", "coll-current"},
+	} {
+		if err := vals.Set(bg, set.owner, set.name, set.value, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	off := vars("off", "initial")
+	off[0].Enabled = false
+	in := Input{
+		Environment: &Scope{Owner: EnvironmentOwner("dev"), Name: "Dev", Variables: off},
+		Collection:  &Scope{Owner: CollectionOwner("api"), Name: "API", Variables: vars("x", "coll-initial")},
+		Values:      vals,
+	}
+	r, err := Build(bg, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, value string
+		src         Source
+		ok          bool
+	}{
+		{"token", "from-extraction", SourceEnvironmentCurrent, true},
+		{"userId", "17", SourceCollectionCurrent, true},
+		{"x", "coll-current", SourceCollectionCurrent, true},
+		{"off", "", "", false},
+	} {
+		v, src, ok := r.Lookup(tc.name)
+		if v != tc.value || src != tc.src || ok != tc.ok {
+			t.Errorf("%s = %q from %q (%v), want %q from %q (%v)", tc.name, v, src, ok, tc.value, tc.src, tc.ok)
+		}
+	}
+	if got := r.Resolve("{{token}}/{{userId}}").Text; got != "from-extraction/17" {
+		t.Errorf("Resolve = %q", got)
+	}
+}

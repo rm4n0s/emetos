@@ -191,7 +191,7 @@ func TestGoldenTheOtherTabsOfTheRequest(t *testing.T) {
 	t.Run("extract", func(t *testing.T) {
 		goldenReq(t, "request_extract", func(_ *rig, tab *reqTab) {
 			tab.section = secExtract
-			tab.d.req.Extract = []format.ExtractRule{{From: "body", Path: "$.id", To: "userId"}}
+			tab.setRules([]format.ExtractRule{{From: "body", Path: "$.id", To: "userId"}}, nil)
 			tab.baseline = tab.d.snapshot()
 		}, reqW, 220)
 	})

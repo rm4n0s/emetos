@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/url"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -100,6 +101,8 @@ type Extension struct {
 	jars *engine.Jars
 	// preview reads the current values for the colors of the URL box; it has no keyring, so a secret is never read for a form.
 	preview *variables.Values
+	// extractMu keeps two sends from writing the values they extracted at the same time (the globals are a read-modify-write of a file).
+	extractMu sync.Mutex
 }
 
 // Manifest implements extension.Extension.

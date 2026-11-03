@@ -11,6 +11,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui"
+	"github.com/rm4n0s/emetos/extensions/httpclient/checks"
 	"github.com/rm4n0s/emetos/extensions/httpclient/engine"
 	"github.com/rm4n0s/emetos/extensions/httpclient/format"
 	"github.com/rm4n0s/emetos/extensions/httpclient/store"
@@ -97,6 +98,9 @@ type sendState struct {
 	bad    bool
 	// resp is the last response; the body of an earlier one is removed when the next arrives.
 	resp *engine.Response
+	// extracted and checkResults are what the request's extraction rules and checks made of the response.
+	extracted    []extractOutcome
+	checkResults []checks.Result
 	// duration is how long the whole send took and err what came with the response besides its status.
 	duration time.Duration
 	err      string
@@ -183,7 +187,7 @@ func (t *reqTab) dropResponse() {
 			t.e.api.Log().Warn("the body of a response was not removed", "err", err)
 		}
 	}
-	t.send.resp, t.pane = nil, nil
+	t.send.resp, t.pane, t.send.extracted, t.send.checkResults = nil, nil, nil, nil
 }
 
 // saveState is the state the window keeps for the tab.
@@ -261,6 +265,7 @@ func (t *reqTab) watchDraft() {
 	t.watchRows(d.headers, secHeaders)
 	t.watchRows(d.form, "")
 	t.watchRows(d.multi, "")
+	t.watchRules()
 }
 
 // watchRows makes the boxes of the rows tell the tab; section is the table they are in when it is kept in step with something.
@@ -563,6 +568,10 @@ func (t *reqTab) cancelSend() {
 func (t *reqTab) finishSend(job sendJob, out sendOutcome) {
 	t.dropResponse()
 	t.send.resp, t.send.duration, t.send.err = out.resp, out.duration, ""
+	t.send.extracted, t.send.checkResults = out.extracted, out.checkResults
+	if len(out.extracted) > 0 {
+		t.e.valuesChanged()
+	}
 	if out.resp != nil {
 		if out.err != nil {
 			t.send.err = out.err.Error()
