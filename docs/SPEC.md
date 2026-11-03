@@ -3007,7 +3007,7 @@ Measured on release builds (`-tags glutter_release,emetos_dev`, so dev commands 
 | Run and Debug: a step (F10) with dlv in a Go loop | recorded, not a target: dlv answers in 2.6 ms, the editor moves the line in a median of 161 ms headless with a 40 ms poll and a software renderer (`docs/PERFORMANCE.md`); the target is set on the user's GPU numbers (decision 1505) | 25.12 |
 | Testing: discovery of a Go module with 5,000 tests (5 packages, 50 files) when the Go extension starts | the whole tree within 200 ms, off the UI thread (measured: 49 ms; Refresh Tests 17 to 21 ms, 24 µs a frame on the UI thread) | 26.10 |
 | Testing: the Test Explorer with 5,000 rows (a list, or a tree with everything expanded) | the first frame after the rows and every frame of a scroll within 16 ms of the UI thread (measured: 0.3 to 0.9 ms, a scroll 3.9 to 4.0 ms on average and 7.7 ms at most) | 26.10 |
-| Testing: a full run of 5,000 Go tests while the results stream in | no UI-thread frame over 16 ms. Met on average (0.67 ms a frame, 178 ms in all) with Test Results closed, with 2 frames over (119 ms at most). **Not met with Test Results open:** laying out the 250 KB output as one paragraph takes one frame of 3.9 s at the end of the run (decision 1725) | 26.10 |
+| Testing: a full run of 5,000 Go tests while the results stream in | no UI-thread frame over 16 ms. Met on average (0.67 ms a frame, 178 ms in all) with Test Results closed, with 2 frames over (119 ms at most). With Test Results open (the output is a list of lines built when in view) it is the same: 0.79 ms a frame, 210 ms in all, the longest frame 140 ms (decision 1725) | 26.10 |
 
 **As built (step 17b.4).**
 

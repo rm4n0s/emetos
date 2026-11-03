@@ -398,6 +398,17 @@ func (b *ResultsBody) CreateState() widgets.State { return &resultsBodyState{} }
 type resultsBodyState struct {
 	widgets.StateOf[*ResultsBody]
 	stop func()
+	// outText and lines are the text beside the tree and its lines (parsed once, with the style carried from line to line).
+	outText string
+	lines   [][]kit.AnsiSpan
+}
+
+// linesOf is the lines of a text, kept while the text is the same.
+func (s *resultsBodyState) linesOf(out string) [][]kit.AnsiSpan {
+	if s.lines == nil || s.outText != out {
+		s.outText, s.lines = out, kit.AnsiLines(kit.ParseANSI(out))
+	}
+	return s.lines
 }
 
 func (s *resultsBodyState) InitState() { s.follow() }
@@ -451,8 +462,15 @@ func (s *resultsBodyState) Build(bc widgets.BuildContext) widgets.Widget {
 		if strings.TrimSpace(out) == "" {
 			out = "\x1b[2mThe test printed no output.\x1b[0m"
 		}
-		text = widgets.NewKeyedSubtree(widgets.NewClipRect(widgets.NewSingleChildScrollView(widgets.NewPadding(painting.NewEdgeInsetsSymmetric(6, 12),
-			kit.NewAnsiText(out, kit.AnsiTextOpts{TrimEndNewline: true, Links: r.opts.Links})))), widgets.WidgetOpts{Key: ResultsTextKey})
+		// a list of the lines, built when they are in view: a run prints hundreds of kilobytes, and one paragraph of them takes seconds to lay out
+		lines := s.linesOf(out)
+		list := widgets.NewListViewBuilder(func(bc widgets.BuildContext, i int) widgets.Widget {
+			if i < 0 || i >= len(lines) {
+				return nil
+			}
+			return kit.NewAnsiSpansText(lines[i], kit.AnsiTextOpts{TrimEndNewline: true, Links: r.opts.Links})
+		}, widgets.ListViewOpts{ItemCount: foundation.Some(len(lines)), Padding: painting.NewEdgeInsetsSymmetric(6, 12)})
+		text = widgets.NewKeyedSubtree(widgets.NewClipRect(list), widgets.WidgetOpts{Key: ResultsTextKey})
 	}
 	divider := widgets.NewSizedBox(widgets.NewColoredBox(colors.PanelBorder, widgets.NewSizedBox(nil)), widgets.SizedBoxOpts{Width: foundation.Some(1.0)})
 	return widgets.NewRow([]widgets.Widget{

@@ -19,7 +19,48 @@ import (
 type AnsiText struct {
 	widgets.StatefulWidget
 	text string
-	opts AnsiTextOpts
+	// spans, when not nil, are the parsed spans of the text (NewAnsiSpansText): the widget does not parse.
+	spans []AnsiSpan
+	opts  AnsiTextOpts
+}
+
+// NewAnsiSpansText makes the widget for spans that were parsed already (one line of AnsiLines, say), so that a list of lines of a
+// long text parses it once and not at each build of a line.
+func NewAnsiSpansText(spans []AnsiSpan, opts ...AnsiTextOpts) *AnsiText {
+	if spans == nil {
+		spans = []AnsiSpan{}
+	}
+	a := NewAnsiText("", opts...)
+	a.spans = spans
+	return a
+}
+
+// AnsiLines splits the spans of a text into lines: each line keeps its line feed at the end (TrimEndNewline of AnsiTextOpts leaves it
+// out) and the style that the sequences before it set, which is carried over from one line to the next.
+func AnsiLines(spans []AnsiSpan) [][]AnsiSpan {
+	var lines [][]AnsiSpan
+	var cur []AnsiSpan
+	for _, sp := range spans {
+		rest := sp
+		for rest.Text != "" {
+			i := strings.IndexByte(rest.Text, '\n')
+			if i < 0 {
+				cur = append(cur, rest)
+				break
+			}
+			head := rest
+			head.Text = rest.Text[:i+1]
+			cur = append(cur, head)
+			lines = append(lines, cur)
+			cur = nil
+			rest.Start += i + 1
+			rest.Text = rest.Text[i+1:]
+		}
+	}
+	if len(cur) > 0 {
+		lines = append(lines, cur)
+	}
+	return lines
 }
 
 // AnsiLinks make the paths and addresses in the text links. Without them the text has none.
@@ -203,7 +244,9 @@ func (s *ansiTextState) Build(bc widgets.BuildContext) widgets.Widget {
 	}
 	bg := w.opts.Background.OrElse(colors.PanelBackground)
 	palette := AnsiPalette(colors, bg)
-	if s.parsedText != w.text || s.parsed == nil {
+	if w.spans != nil {
+		s.parsedText, s.parsed = w.text, w.spans
+	} else if s.parsedText != w.text || s.parsed == nil {
 		s.parsedText, s.parsed = w.text, ParseANSI(w.text)
 	}
 	s.links = s.links[:0]
