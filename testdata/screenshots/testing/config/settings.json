@@ -1,0 +1,15 @@
+{
+    "workbench.colorTheme": "Dark+",
+    "git.openRepositoryInParentFolders": "never",
+    "editor.minimap.enabled": false,
+    "testing.openTesting": "neverOpen",
+    "testing.coverageToolbarEnabled": true,
+    "testing.followRunningTest": true,
+    "testing.alwaysRevealTestOnStateChange": true,
+    "go.toolsEnvVars": {
+        "GOFLAGS": "",
+        "GOTOOLCHAIN": "local",
+        "GOPROXY": "off",
+        "CGO_ENABLED": "0"
+    }
+}

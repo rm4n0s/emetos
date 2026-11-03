@@ -226,3 +226,32 @@ scripts/isolated.sh --config testdata/proof/25.7/config -- go run ./cmd/emetos /
 7. Try it with the editor maximized on a high-DPI screen or at a zoom of 150% (Ctrl+=): are the glyph dots, the stopped line, the inline values and the toolbar sharp and aligned?
 
 Say what you saw: the desktop and compositor, the GPU, and which of the steps failed or felt slow.
+
+## 26.10 Testing on your desktop and the real GPU
+
+The tests of M26 run the five providers with fake runners and, one at a time, with the real tools (`go` in the normal run; `emetos_pytest`, `emetos_cargo`, `emetos_node`, `emetos_ctest`), headless (software rendering, a compositor of its own). What they cannot show is your desktop: the real GPU, your compositor, your fonts, the glyphs and the peek at your scale, and how a run streaming 5,000 results feels. Both checks keep your configuration, state and cache out of the editor (`scripts/isolated.sh`, the test harness) and the NVIDIA card out of it (`scripts/gpu-env.sh`).
+
+**1. The whole pass, watched.** The end-to-end display test of this step (open the Go fixture, the Test Explorer, Run All Tests, the glyph of the failed test, the peek, Rerun Failed Tests, Run with Coverage, the coverage of `cart.go`, Escape) runs in a nested sway window on your desktop, with the real GPU. Keep the window visible while it runs (a hidden one gets no frames):
+
+```
+EMETOS_REALINPUT_RACE=0 scripts/realinput.sh --desktop --shots /tmp/emetos-26.10 -- -tags emetos_display ./cmd/emetos -run TestRealInputTheWholeOfTesting -v -count=1
+```
+
+Does it pass, and do the pictures in `/tmp/emetos-26.10/` (`testing-desktop-*.png`) show what the names say: the green run icons in the margin before the run, the red icon and the message after the line of the failure after it, the peek with `175` and `170` side by side, the Test Coverage view with `86.67%` and `cart.go` with green and red lines beside the test file?
+
+**2. By hand, with your own keys.** Copy the Go fixture into a folder of your own and open it with the settings of the proofs:
+
+```
+rm -rf /tmp/shop && cp -r testdata/proof/26.5/project /tmp/shop
+scripts/isolated.sh --config testdata/proof/26.5/config -- go run ./cmd/emetos /tmp/shop /tmp/shop/cart_test.go
+```
+
+1. Open Testing (the flask in the activity bar): does the Test Explorer list `TestTotal`, `TestDiscount` and `TestLabel` within a second or two? Are the green run icons in the margin on the lines of the three tests?
+2. Press Ctrl+; then A: do the icons turn to a green check or a red cross as the tests finish, and does the summary read `5/6 tests passed (83.3%)`? Does the failed line show its message after the text?
+3. Click the red icon of `TestDiscount` (line 24): does it run only that test? Press Ctrl+; then Ctrl+M with the cursor on line 29: does the peek show the message, and `175` against `170`? Press Alt+F8, then Escape: does it close?
+4. Press Ctrl+; then E (rerun the failed tests), then Ctrl+; Ctrl+Shift+A (run with coverage): does the Test Coverage view list `cart.go` at 86.67%, and do the lines of `cart.go` show green, red and the counts (open it from the view)? Are the bars sharp, and the colors of the lines readable on your screen?
+5. Press Ctrl+; Ctrl+O (show the output): does Test Results show the output of the last run with its colors?
+6. Zoom to 150% (Ctrl+=): are the icons, the peek and the summary sharp and aligned?
+7. A project of your own, if you have one: does Testing find its tests (Python with pytest or unittest, Rust with `cargo test`, Jest, Vitest or Node's runner, a CMake project that is built), and does Run, and Coverage where the README says it exists, work on it? Say which you tried.
+
+Say what you saw: the desktop and compositor, the GPU, which of the steps failed or felt slow.

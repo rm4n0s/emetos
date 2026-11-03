@@ -7,7 +7,7 @@
 # not exist; it is removed at the end), and every run opens the copies there.
 #
 # Usage: scripts/screenshots.sh [name...]
-#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover debug terminal remote-work
+#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover debug testing terminal remote-work
 #          docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
@@ -15,6 +15,8 @@
 #   debug       the Delve of the pinned tools (/var/tmp/emetos-tools/bin/dlv, which scripts/fetch-tools.sh installs; testdata/screenshots/debug/config
 #               reaches it through go.alternateTools) and a Go that can build without the network; it is skipped, with a message,
 #               when dlv is missing (this script never installs it)
+#   testing     the go of the computer (it runs the tests of testdata/screenshots/testing/project, with a build cache of its own
+#               in the isolated home and no network); it is skipped, with a message, when go is missing
 #   remote-work   two Emetos instances on 127.0.0.1, with keys made on the run (nothing secret is kept)
 #   git-*       nothing but git (2.30 or newer): testdata/screenshots/git/build.sh makes a repository of its own for each shot
 #               (a small Go project with three authors, two branches, a merge, a tag and a bare origin next to it), and the
@@ -35,7 +37,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover debug terminal remote-work docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame)
+all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover debug testing terminal remote-work docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -163,6 +165,18 @@ shoot() {
       PROOF_TIMEOUT=240 scripts/proof.sh docs/screenshots/debug.png --config "$s/debug/config" --after 3s \
         --commands '[["dev.openFile",{"path":"'$s'/debug/project/main.go","line":12}],["editor.debug.action.toggleBreakpoint"],["workbench.action.debug.start"],["sleep","8s"]]' \
         -- "$s/debug/project"
+      ;;
+    testing)
+      # Go's tests in the Testing view: the Test Explorer after a run with coverage (a failed test, subtests added by the run), the
+      # Test Coverage view, cart.go with its covered and uncovered lines on the left, and on the right the failure of TestDiscount
+      # peeked in cart_test.go with its expected and actual values
+      if ! command -v go >/dev/null 2>&1; then
+        echo "skipped testing: go is not installed; docs/screenshots/testing.png was not made" >&2
+        return 0
+      fi
+      PROOF_TIMEOUT=300 scripts/proof.sh docs/screenshots/testing.png --config "$s/testing/config" --after 50s \
+        --commands '[["workbench.view.testing.focus"],["sleep","1s"],["dev.openFile",{"path":"'$s'/testing/project/cart.go","line":6}],["testing.coverageAll"],["sleep","40s"],["testing.toggleInlineCoverage"],["workbench.action.splitEditor"],["dev.openFile",{"path":"'$s'/testing/project/cart_test.go","line":26}],["testing.openOutputPeek"],["sleep","2s"]]' \
+        -- "$s/testing/project"
       ;;
     terminal)
       # two terminals side by side in the panel: the shell of the profile lists the folder in color and stays open

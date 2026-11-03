@@ -599,3 +599,32 @@ scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./intern
 - **A key pressed 60 ms after the line moved was ignored 12 times in 100.** The new line is on screen before the window's context key `debugState` says `stopped` again (it is set from the model's focus, which passes on after the stop with VS Code's delays), and the key bindings of the steps need `debugState == stopped`; the cause was not traced further. A person's finger is not that quick after a step, and VS Code has the same delays, so nothing was changed; it is recorded in decision 1505.
 - **The views are far inside their budget.** 10,000 children cost the UI thread 2.8 ms for the first frame and 2.6 ms on average while scrolling, the console with 100,000 lines 3 to 3.6 ms, 0 frames over 16 ms in either.
 - **The console's filter is the one thing over a budget:** each change of the filter text runs the fuzzy match of VS Code's `matchesFuzzy` over every line on the UI thread: 561 ms for 100,000 lines, so typing a filter into a console that large freezes the window for half a second a character. It is VS Code's algorithm (a `ReplFilter` over the tree), and the console of a real session holds thousands of lines, not a hundred thousand (`debug.console.maximumLines` is 10,000 by default, as in VS Code, and older lines are dropped), so it is not changed in this step; decision 1506 proposes to debounce it and to run it off the UI thread.
+
+## Testing (step 26.10)
+
+The measurements of SPEC §14 for Testing, taken on the finished milestone, each through `scripts/heavy.sh --alone` with nothing else of this run going on. **Machine: the one of the sections above (Linux 7.2.13, Fedora 44, Go 1.27.3, the GPU not used and the NVIDIA card kept out; nothing here draws through a renderer), and the user's pass with the real GPU is `docs/MANUAL-CHECKS.md` 26.10.** The test is `TestPerfTestingFiveThousandGoTests` (and `TestPerfTestingFullRunWithTestResultsClosed`), `internal/gui/app/testingperf_test.go`, tag `emetos_perf`: a Go module that the test writes into a temporary folder, with **5 packages of 10 files of 100 tests (5,000 tests, 5,055 items with the files and packages)**, each a four-line test, one in 250 failing (`t.Errorf`, 20 failures), in a window with the Go extension and **the real `go`** (a build cache of the test's own, no network; `GOFLAGS=` and `GOTOOLCHAIN=local`). The views are measured as the UI thread's processor time of build, layout and paint with the fake platform (`threadCPU`, as the Debug and Git views are), a frame at a time from `FlushPosted` and `Pump`, 60 frames a second while a run goes on.
+
+```sh
+scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./internal/gui/app -run TestPerfTesting -v -count=1
+```
+
+| Measurement | Value |
+|---|---|
+| Discovery when the Go extension starts: from the activation to the tree of 5,055 items (the window's file list read, 50 files parsed with `go/parser`) | 49 ms (58 ms in the first run) |
+| Refresh Tests (every `_test.go` read again, unchanged files keep their items): wall time, and the UI thread meanwhile | 17 to 21 ms; 5 frames of 24 µs on average |
+| The Test Explorer as a **list of 5,000 rows**: the first frame after the change | 0.9 ms |
+| 60 frames of a steady scroll: average / longest | 4.0 ms / 6.8 ms (0 over 16 ms) |
+| A frame with nothing changed | 0.3 ms on average |
+| The Test Explorer as a **tree with everything expanded (5,055 rows)**: the first frame after the change | 0.3 ms |
+| 60 frames of a steady scroll: average / longest | 3.9 ms / 7.7 ms (0 over 16 ms) |
+| **A full run of the 5,000 tests, Test Results closed** (`testing.openTesting` `neverOpen`; the tree collapsed to the packages): wall time (build cache warm) | 4.6 s |
+| The UI thread, 267 frames while the results stream in: in all / average / longest / frames over 16 ms | 178 ms / 0.67 ms / 119 ms / 2 |
+| **The same run with Test Results open** (the default: it opens at the first failure and shows the run's output, 250,039 bytes): wall time (the first one builds the packages) | 8.5 s |
+| The UI thread, 271 frames: in all / average / longest / over 16 ms | 3.98 s / 14.7 ms / **3.91 s (one frame)** / 2 |
+| A second full run, the Explorer as a list of 5,000 rows, Test Results open | 4.6 s; the UI thread 4.4 s in all, the longest frame **4.2 s** |
+
+The result of each run is 5,010 passed and 45 failed nodes (the 20 failing tests and the files and packages above them).
+
+**What the figures say.**
+- **The tree and the Explorer are far inside their budgets.** Finding 5,000 tests takes 50 ms, and 5,000 rows scroll at 4 ms a frame (0 frames over 16 ms) as a list or a tree: the rows are virtual. During a run (Test Results closed) the window costs the UI thread 0.67 ms a frame on average (the summary line, the badge, the rows that change), with 2 frames over 16 ms and the longest 119 ms; which work that frame holds was not traced (the 5,000 queued states arrive at the start of a run, and the model of the 5,055 items is made again for them).
+- **Test Results is the one thing over a budget:** when the run ends, the pane lays out the whole 250 KB output of the run as one paragraph (`kit.AnsiText` inside a scroll view), and Glutter's text layout (`paragraph.cut`, which was 65% of the processor time of the whole test) takes **3.9 to 4.2 s on the UI thread for it, in one frame**: a window that freezes for four seconds at the end of a large run. With the pane closed the same run costs 178 ms in all. The output of a real run is far smaller than this one (a `go test -json` of 5,000 passing tests prints two lines for each test), and the output is kept to the last 1 MiB, so the freeze is bounded, but a run of a few thousand tests shows it. It is not changed in this step; decision 1725 proposes to lay out only the last lines of a long output (or to make the output a virtual list of lines, as the Debug Console is) and says where the cost is.
