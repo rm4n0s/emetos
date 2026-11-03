@@ -1,0 +1,11 @@
+{
+  "emetosHttp": 1,
+  "name": "Send receipt",
+  "method": "POST",
+  "url": "{{baseUrl}}/status/{{status}}",
+  "body": { "type": "json", "file": "send-receipt.body.json" },
+  "checks": [
+    { "subject": "status", "op": "equals", "value": 200 },
+    { "subject": "json", "path": "$.json.user", "op": "exists" }
+  ]
+}

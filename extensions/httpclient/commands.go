@@ -32,6 +32,7 @@ const (
 	CmdCancel            = ID + ".cancel"
 	CmdSave              = ID + ".save"
 	CmdOpenAsText        = ID + ".openAsText"
+	CmdRunCollection     = ID + ".runCollection"
 )
 
 const category = "HTTP Client"
@@ -60,6 +61,7 @@ func commandSpecs() []extension.CommandSpec {
 		{ID: CmdCancel, Title: "Cancel Request", Category: category, Icon: "debug-stop", When: requestTabActive},
 		{ID: CmdSave, Title: "Save Request", Category: category, Icon: "save", When: requestTabActive},
 		{ID: CmdOpenAsText, Title: "Open Request as Text", Category: category, Icon: "go-to-file"},
+		{ID: CmdRunCollection, Title: "Run Collection...", Category: category, Icon: "run-all"},
 	}
 }
 
@@ -156,6 +158,10 @@ func (e *Extension) handleCommands() error {
 		CmdCancel:       func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).cancelSend); return nil },
 		CmdSave:         func(_ context.Context, a any) error { e.withRequestTab(a, func(t *reqTab) { t.save(nil) }); return nil },
 		CmdOpenAsText:   func(_ context.Context, a any) error { e.openAsText(a); return nil },
+		CmdRunCollection: func(_ context.Context, a any) error {
+			e.withNode(a, "Run which collection or folder?", func(n *store.Node) { e.runGroup(n, a) }, store.KindCollection, store.KindFolder)
+			return nil
+		},
 	}
 	for id, fn := range h {
 		if err := e.api.Commands().Handle(id, fn); err != nil {

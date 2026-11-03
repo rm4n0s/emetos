@@ -1,0 +1,11 @@
+{
+  "emetosHttp": 1,
+  "name": "Read profile",
+  "method": "GET",
+  "url": "{{baseUrl}}/echo/profile/{{sessionUser}}",
+  "headers": [{ "name": "Accept", "value": "application/json" }],
+  "checks": [
+    { "subject": "status", "op": "equals", "value": 200 },
+    { "subject": "json", "path": "$.path", "op": "exists" }
+  ]
+}

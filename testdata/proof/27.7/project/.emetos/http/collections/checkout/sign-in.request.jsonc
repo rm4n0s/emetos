@@ -1,0 +1,13 @@
+{
+  "emetosHttp": 1,
+  "name": "Sign in",
+  "method": "POST",
+  "url": "{{baseUrl}}/echo/session",
+  "headers": [{ "name": "Accept", "value": "application/json" }],
+  "body": { "type": "json", "file": "sign-in.body.json" },
+  "extract": [{ "from": "body", "path": "$.json.user", "to": "sessionUser" }],
+  "checks": [
+    { "subject": "status", "op": "equals", "value": 200 },
+    { "subject": "json", "path": "$.method", "op": "equals", "value": "POST" }
+  ]
+}

@@ -31,9 +31,12 @@ type place struct {
 }
 
 // placeOf collects the scopes of the request file at path (empty: a request that is not saved, which has only the environment).
-func (e *Extension) placeOf(path string) place {
+func (e *Extension) placeOf(path string) place { return e.placeIn(path, e.activeEnvironment()) }
+
+// placeIn is placeOf with the environment env (nil: none) in place of the active one: the runner has an environment of its own.
+func (e *Extension) placeIn(path string, env *store.Node) place {
 	var p place
-	if env := e.activeEnvironment(); env != nil && env.Environment != nil {
+	if env != nil && env.Environment != nil {
 		p.envKey = env.Key
 		p.env = &variables.Scope{Owner: variables.EnvironmentOwner(env.Key), Name: env.Environment.Name, Variables: env.Environment.Variables}
 	}
@@ -115,6 +118,8 @@ func (e *Extension) allowedProcessEnv() []string {
 type sendJob struct {
 	files store.RequestFiles
 	place place
+	// locals are variables of this send that win over all others (the columns of a row of the runner's data file); nil for none.
+	locals map[string]string
 }
 
 // sendOutcome is how a send ended.
@@ -135,7 +140,7 @@ func (e *Extension) runSend(ctx context.Context, job sendJob) sendOutcome {
 	start := time.Now()
 	req, texts := bodyTexts(job.files)
 	in := variables.Input{
-		Environment: job.place.env, Folders: job.place.folders, Collection: job.place.collection, Values: e.values,
+		Locals: job.locals, Environment: job.place.env, Folders: job.place.folders, Collection: job.place.collection, Values: e.values,
 		Dynamic: variables.Dynamic{AllowedProcessEnv: e.allowedProcessEnv()},
 	}
 	if path, perr := variables.GlobalsPath(); perr == nil {

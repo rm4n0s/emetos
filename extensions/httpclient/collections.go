@@ -223,7 +223,13 @@ func (v *collectionsView) onContextMenu(key string, at gui.Offset) {
 	var items []ui.MenuItem
 	switch n.Kind {
 	case store.KindCollection, store.KindFolder:
+		runLabel := "Run Folder..."
+		if n.Kind == store.KindCollection {
+			runLabel = "Run Collection..."
+		}
 		items = append(items,
+			ui.MenuItem{Label: runLabel, OnRun: func() { e.runGroup(n, nil) }},
+			ui.SeparatorItem(),
 			ui.MenuItem{Label: "New Request...", Disabled: n.ReadOnly, OnRun: func() { e.newRequest(n.Path) }},
 			ui.MenuItem{Label: "New Folder...", Disabled: n.ReadOnly, OnRun: func() { e.newFolder(n.Path) }},
 			ui.SeparatorItem())

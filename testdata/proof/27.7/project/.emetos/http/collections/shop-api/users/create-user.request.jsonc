@@ -1,0 +1,25 @@
+{
+  "emetosHttp": 1,
+  "name": "Create user",
+  "method": "POST",
+  "url": "{{baseUrl}}/echo/users",
+  "params": [{ "name": "notify", "value": "true" }],
+  "headers": [
+    { "name": "Accept", "value": "application/json" },
+    { "name": "X-Request-Source", "value": "emetos" }
+  ],
+  "auth": { "type": "bearer", "token": "{{apiKey}}" },
+  "body": { "type": "json", "file": "create-user.body.json" },
+  "extract": [
+    { "from": "body", "path": "$.json.name", "to": "userName" },
+    { "from": "header", "header": "Content-Type", "regex": "^(\\w+/\\w+)", "to": "contentType", "scope": "collection" },
+    { "from": "body", "path": "$.json.id", "to": "userId" }
+  ],
+  "checks": [
+    { "subject": "status", "op": "equals", "value": 200 },
+    { "subject": "json", "path": "$.method", "op": "equals", "value": "POST" },
+    { "subject": "json", "path": "$.json.roles", "op": "contains", "value": "admin" },
+    { "subject": "json", "path": "$.json.active", "op": "equals", "value": false },
+    { "subject": "json", "path": "$.json.roles[1]", "op": "equals", "value": "support" }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "emetosHttp": 1,
+  "name": "Checkout",
+  "description": "Sign in, read the profile and send a receipt; the runner repeats it for each user of data/users.csv.",
+  "order": ["sign-in.request.jsonc", "read-profile.request.jsonc", "send-receipt.request.jsonc"]
+}

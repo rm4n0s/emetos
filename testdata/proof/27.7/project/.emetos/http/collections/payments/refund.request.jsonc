@@ -1,0 +1,6 @@
+{
+  "emetosHttp": 1,
+  "name": "Refund",
+  "method": "OPTIONS",
+  "url": "{{baseUrl}}/v1/refunds"
+}

@@ -94,6 +94,9 @@ type Extension struct {
 	// envTabs are the environment editor tabs, which the tests look at.
 	envTabs []*envTab
 
+	// runTabs are the runner tabs.
+	runTabs []*runTab
+
 	// reqTabs are the request tabs, lastReq the one that was shown or had the focus last (the commands without an argument act on it).
 	reqTabs []*reqTab
 	lastReq *reqTab
@@ -125,6 +128,7 @@ func (*Extension) Manifest() extension.Manifest {
 			EditorKinds: []extension.EditorKindSpec{
 				{ID: EnvironmentKindID, Name: "Environment", Icon: "symbol-variable"},
 				{ID: RequestKindID, Name: "Request", Icon: "globe"},
+				{ID: RunnerKindID, Name: "Runner", Icon: "run-all"},
 			},
 			EditorActions: []extension.EditorActionSpec{{Command: CmdOpenAsText, Icon: "go-to-file", Tooltip: "Open as Text", When: "activeEditorKind == '" + RequestKindID + "'", Order: 1}},
 			Keybindings:   keybindingSpecs(),
@@ -154,6 +158,9 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 		}
 	}
 	if err := api.Editors().Provide(RequestKindID, extension.EditorKind{Create: e.createRequestTab}); err != nil {
+		return err
+	}
+	if err := api.Editors().Provide(RunnerKindID, extension.EditorKind{Create: e.createRunnerTab}); err != nil {
 		return err
 	}
 	if err := api.Editors().Provide(EnvironmentKindID, extension.EditorKind{Create: e.createEnvTab}); err != nil {
@@ -221,6 +228,9 @@ func (e *Extension) refreshAll() {
 	e.historyView.rebuild()
 	e.updateStatus()
 	for _, t := range e.envTabs {
+		t.storeChanged()
+	}
+	for _, t := range append([]*runTab(nil), e.runTabs...) {
 		t.storeChanged()
 	}
 	for _, t := range append([]*reqTab(nil), e.reqTabs...) {
