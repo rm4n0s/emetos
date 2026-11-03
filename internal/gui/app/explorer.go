@@ -384,6 +384,10 @@ func (s *shellState) viewBody(_ widgets.BuildContext, viewID string) widgets.Wid
 		if w := s.testingBody(); w != nil {
 			return w
 		}
+	case command.ViewTestCoverage:
+		if w := s.testCoverageBody(); w != nil {
+			return w
+		}
 	case command.ViewDebugWelcome, command.ViewDebugVariables, command.ViewDebugWatch, command.ViewDebugCallStack, command.ViewDebugBreakpoints, command.ViewDebugLoadedScripts:
 		if w := s.debugBody(viewID); w != nil {
 			return w
@@ -426,6 +430,8 @@ func (s *shellState) viewActions(_ widgets.BuildContext, viewID string) widgets.
 		}
 	case command.ViewSCMHistory:
 		return s.graphViewActions()
+	case command.ViewTestCoverage:
+		return s.coverageViewActions()
 	case command.ViewTestExplorer:
 		return nil // the buttons of the Test Explorer are in the title of its container, as VS Code merges a container's only view with it
 	case command.ViewDebugVariables, command.ViewDebugWatch, command.ViewDebugCallStack, command.ViewDebugBreakpoints, command.ViewDebugLoadedScripts:
@@ -458,6 +464,10 @@ func (s *shellState) viewFocused(viewID string, has bool) {
 	}
 	if isTestingView(viewID) {
 		s.testingViewFocused(has)
+		return
+	}
+	if isCoverageView(viewID) {
+		s.coverageViewFocused(has)
 		return
 	}
 	if isDebugView(viewID) {

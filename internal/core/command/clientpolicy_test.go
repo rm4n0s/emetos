@@ -33,6 +33,11 @@ func TestClientRefusal(t *testing.T) {
 		{"workbench.action.selectTheme", extension.RefusedSettings},
 		{"keybindings.editor.removeKeybinding", extension.RefusedSettings},
 		{"emetos.extensions.manageEventSharing", extension.RefusedSettings},
+		// the commands of the coverage that write the user's settings are refused, the others are the client's like every testing command (D46)
+		{"testing.coverageToggleToolbar", extension.RefusedSettings},
+		{"testing.toggleCoverageInExplorer", extension.RefusedSettings},
+		{"testing.toggleInlineCoverage", ""},
+		{"testing.coverage.close", ""},
 		{"emetos.remotework.manage", extension.RefusedRemote},
 		// the commands that host a workspace (step 17e.4): a client may not start or stop hosting, or open the menu that does
 		{"emetos.remotework.host", extension.RefusedRemote},

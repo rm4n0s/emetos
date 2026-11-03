@@ -31,6 +31,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/snippet"
 	"github.com/rm4n0s/emetos/internal/core/storage"
+	coretesting "github.com/rm4n0s/emetos/internal/core/testing"
 	"github.com/rm4n0s/emetos/internal/core/theme"
 	"github.com/rm4n0s/emetos/internal/core/timeline"
 	"github.com/rm4n0s/emetos/internal/core/workspace"
@@ -138,6 +139,8 @@ type Workspace struct {
 	// the extensions make (SPEC §10.32). The headless view of a workspace shares its workspace's, so every client and the host see the same
 	// results (D46); the tab of an extension has none.
 	Testing *exthost.TestingHost
+	// Coverage holds which coverage the tests reported is open, for every screen of the workspace (SPEC §10.32, step 26.4).
+	Coverage *coretesting.CoverageService
 	// debugExitAsking is true while the question of debug.confirmOnExit is open (debuglifecycle.go).
 	debugExitAsking bool
 	// debugTerms are the terminals the sessions of the workspace ran their programs in (debugterminal.go).

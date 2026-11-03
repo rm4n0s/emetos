@@ -23,6 +23,7 @@ func (w *Workspace) initTesting() {
 	host := exthost.NewTestingHost(exthost.TestingHostOptions{Logger: w.Process.Logger, Model: coretesting.Options{Now: w.Process.testingNow}})
 	w.Testing = host
 	w.stops = append(w.stops, host.Close)
+	w.initCoverage(host.Service())
 }
 
 // TestingService is the test service of the workspace, nil where there is none.

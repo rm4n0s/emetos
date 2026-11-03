@@ -5207,3 +5207,25 @@ The lines above were written from the entries of the steps and `git log`, and co
 - **Manual checks:** none
 - **Glutter issues:** none
 - **Deviations and follow-ups:** DECISIONS-TO-REVIEW 1580 to 1590.
+
+## 26.4 Coverage
+
+- **Date:** 2026-11-03
+- **Branch:** feat/step-26.4-coverage (based on step 26.3, 7eed9b7)
+- **Summary:** what the tests ran can be seen. A result that ends with coverage opens it (`CoverageService`, shared by the screens of a workspace); the Test Coverage view (`workbench.view.testCoverage`) lists the files and folders with their percentages and the bars of statements, functions and branches in the colors of `testing.coverageBarThresholds`, sorted by location, coverage or name, and expands a file to its functions; the editor colors the covered and uncovered lines in the gutter and, with the inline coverage on (Ctrl+; Ctrl+Shift+I), the ranges of text, the counts (`4x`) and the branches (`1/2 branches`), with a toolbar (`testing.coverageToolbarEnabled`) and Alt+F9 / Shift+Alt+F9 between uncovered lines; the Explorer shows the percentage of every file and folder as a decoration (`testing.showCoverageInExplorer`). The dev controller reports a `coverage` list of its script for a run with coverage.
+- **Main files:**
+  - `internal/core/testing/coverage{display,details,service}.go` (new), `internal/core/{command,keybinding,settings,theme}/testing*.go`, `command/{views_default,menus_default,clientpolicy}.go`;
+  - `internal/gui/views/testing/coverage.go`, `coveragebody.go` (new: the model, the tree, the bars);
+  - `internal/gui/editor/coverage.go` (new), `marks.go`, `annotations.go`, `viewmodel.go`, `widget.go` (the coverage marks and counts);
+  - `internal/gui/app/testingcoverage.go`, `testingcoveragelayer.go` (new), `testingview.go`, `testingcommands.go`, `editors.go`, `gridview.go`, `explorer.go`, `workspacemodel.go`, `viewworkspace.go`;
+  - `extensions/devtesting/{devtesting,coverage}.go`, `testdata/proof/26.4/`;
+  - `docs/SPEC.md` ("As built (step 26.4)" under §10.32), `docs/DECISIONS-TO-REVIEW.md` (1600 to 1612), this entry.
+- **Ported from VS Code:** `testCoverageView.ts`, `testCoverageBars.ts`, `codeCoverageDisplayUtils.ts`, `codeCoverageDecorations.ts` (the details model, the decorations, the toolbar, the commands), `testCoverageService.ts`, `theme.ts`, `common/configuration.ts`, `testExplorerActions.ts` (Clear and Open Coverage).
+- **Not built:** see SPEC §10.32 "As built (step 26.4)" and decisions 1601, 1604, 1606: the per-test filter, the minimap marks, the hover of inline ranges, saving the sort order.
+- **Tests:** see the SPEC. No new error tag (`TestingCoverage*` tags are 26.1's).
+- **Checks:** `gofmt` (cmd, internal, assets, extension, extensions) prints nothing; `go vet ./...`; `golangci-lint run` 0 issues; `CGO_ENABLED=0 go build ./...`; `scripts/error-tags.sh --untested` prints nothing; race tests of the touched packages and of core/command, core/keybinding, core/settings, gui/settingsui, gui/quickinput, gui/exthost, gui/editor, gui/views/..., archtest, cmd/emetos pass; the full race run of `internal/gui/app` passed but for `TestEveryDefaultKeybindingRunsItsCommand` (the two new keys needed their context state in `keys_test.go`, fixed; that test and the coverage tests passed after; the rest of the package was not run again).
+- **Proof:** [26.4-coverage.png](implemented-proof-images/26.4-coverage.png) (`scripts/proof.sh docs/implemented-proof-images/26.4-coverage.png --config testdata/proof/26.4/config --after 3500ms --commands '[["workbench.view.testing.focus"], ["testing.coverageAll"], ["sleep", "2s"], ["dev.openFile", {"path": "testdata/proof/26.4/project/calc/clamp.go", "line": 5}], ["testing.toggleInlineCoverage"], ["sleep", "1s"]]' -- testdata/proof/26.4/project`): the Test Explorer and the Test Coverage view (folders `calc` and `report` with their bars, files with percentages), and `clamp.go` with covered lines (green), the uncovered `return hi` (red), the counts, `1/2 branches` and the toolbar; no machine path shows.
+- **Goldens:** new, all looked at: `internal/gui/editor/testdata/goldens/coverage_{dark,light}.png`, `internal/gui/app/testdata/goldens/coverage_{view,editor,explorer}_{dark,light}.png`. No existing golden changed.
+- **Manual checks:** none
+- **Glutter issues:** none
+- **Deviations and follow-ups:** DECISIONS-TO-REVIEW 1600 to 1612.

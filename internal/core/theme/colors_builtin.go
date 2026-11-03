@@ -39,6 +39,7 @@ func DefaultColorRegistry() *ColorRegistry {
 	registerDebugColors(r)
 	registerTestingColors(r)
 	registerTestingEditorColors(r)
+	registerTestingCoverageColors(r)
 	registerQuickDiffColors(r)
 	return r
 }

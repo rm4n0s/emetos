@@ -105,6 +105,8 @@ func DefaultViews() *ViewRegistry {
 	// the view's its ExplorerViewId (decision 1540).
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerTesting, Title: "Testing", Icon: codiconBeaker, Order: 4})
 	r.MustRegisterViews(View{ID: ViewTestExplorer, Name: "Test Explorer", Container: ViewContainerTesting, Order: 1})
+	// the Test Coverage view (step 26.4) shows while a coverage report is open; its weight is that of the Test Explorer
+	r.MustRegisterViews(View{ID: ViewTestCoverage, Name: "Test Coverage", Container: ViewContainerTesting, Order: 2, When: contextkey.Has("testing.isTestCoverageOpen")})
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerMarkers, Title: "Problems", Icon: codiconWarning, Order: 0, Location: ViewLocationPanel})
 	r.MustRegisterViews(View{ID: ViewMarkers, Name: "Problems", Container: ViewContainerMarkers})
 	r.MustRegisterContainer(ViewContainer{ID: ViewContainerOutput, Title: "Output", Icon: codiconOutput, Order: 1, Location: ViewLocationPanel})

@@ -59,6 +59,8 @@ var clientRules = []refusedRule{
 			"workbench.action.toggleAutoSave", "workbench.action.zoomIn", "workbench.action.zoomOut", "workbench.action.zoomReset",
 			"workbench.action.selectTheme", "workbench.action.selectIconTheme", "workbench.action.editor.changeLanguageMode",
 			"emetos.extensions.manageEventSharing",
+			// the two commands of the coverage that write a setting of the user's (SPEC §10.32, step 26.4)
+			"testing.coverageToggleToolbar", "testing.toggleCoverageInExplorer",
 		},
 		prefixes: []string{"keybindings.editor."},
 	},

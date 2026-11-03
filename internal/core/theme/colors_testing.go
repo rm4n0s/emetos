@@ -70,3 +70,39 @@ func registerTestingEditorColors(r *ColorRegistry) {
 			Description: "Margin color beside info messages shown inline in the editor."},
 	)
 }
+
+// registerTestingCoverageColors registers the colors of the coverage of the tests (step 26.4): the chart colors the coverage bars use, the
+// backgrounds and the gutter colors of the covered and uncovered code, and the badge of the execution count.
+//
+// Ported from VS Code: src/vs/workbench/contrib/testing/browser/theme.ts and src/vs/platform/theme/common/colors/chartsColors.ts
+func registerTestingCoverageColors(r *ColorRegistry) {
+	r.MustRegister(
+		ColorContribution{ID: "charts.red", Defaults: AllThemes(Ref("editorError.foreground")),
+			Description: "The red color used in chart visualizations."},
+		ColorContribution{ID: "charts.yellow", Defaults: AllThemes(Ref("editorWarning.foreground")),
+			Description: "The yellow color used in chart visualizations."},
+		ColorContribution{ID: "charts.green", Defaults: dflt(Hex("#89D185"), Hex("#388A34"), Hex("#89D185"), Hex("#374e06")),
+			Description: "The green color used in chart visualizations."},
+		ColorContribution{ID: "testing.coveredBackground", Defaults: dflt(Ref("diffEditor.insertedTextBackground"), Ref("diffEditor.insertedTextBackground"), nil, nil),
+			NeedsTransparency: true, Description: "Background color of text that was covered."},
+		ColorContribution{ID: "testing.coveredBorder", Defaults: dflt(Transparent(Ref("testing.coveredBackground"), 0.75), Transparent(Ref("testing.coveredBackground"), 0.75),
+			Ref("contrastBorder"), Ref("contrastBorder")), Description: "Border color of text that was covered."},
+		ColorContribution{ID: "testing.coveredGutterBackground", Defaults: dflt(Transparent(Ref("diffEditor.insertedTextBackground"), 0.6),
+			Transparent(Ref("diffEditor.insertedTextBackground"), 0.6), Ref("charts.green"), Ref("charts.green")),
+			Description: "Gutter color of regions where code was covered."},
+		ColorContribution{ID: "testing.uncoveredBranchBackground", Defaults: dflt(Opaque(Transparent(Ref("diffEditor.removedTextBackground"), 2), Ref("editor.background")),
+			Opaque(Transparent(Ref("diffEditor.removedTextBackground"), 2), Ref("editor.background")), nil, nil),
+			Description: "Background of the widget shown for an uncovered branch."},
+		ColorContribution{ID: "testing.uncoveredBackground", Defaults: dflt(Ref("diffEditor.removedTextBackground"), Ref("diffEditor.removedTextBackground"), nil, nil),
+			NeedsTransparency: true, Description: "Background color of text that was not covered."},
+		ColorContribution{ID: "testing.uncoveredBorder", Defaults: dflt(Transparent(Ref("testing.uncoveredBackground"), 0.75), Transparent(Ref("testing.uncoveredBackground"), 0.75),
+			Ref("contrastBorder"), Ref("contrastBorder")), Description: "Border color of text that was not covered."},
+		ColorContribution{ID: "testing.uncoveredGutterBackground", Defaults: dflt(Transparent(Ref("diffEditor.removedTextBackground"), 1.5),
+			Transparent(Ref("diffEditor.removedTextBackground"), 1.5), Ref("charts.red"), Ref("charts.red")),
+			Description: "Gutter color of regions where code not covered."},
+		ColorContribution{ID: "testing.coverCountBadgeBackground", Defaults: AllThemes(Ref("badge.background")),
+			Description: "Background for the badge indicating execution count"},
+		ColorContribution{ID: "testing.coverCountBadgeForeground", Defaults: AllThemes(Ref("badge.foreground")),
+			Description: "Foreground for the badge indicating execution count"},
+	)
+}

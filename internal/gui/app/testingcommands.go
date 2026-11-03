@@ -367,6 +367,7 @@ func (s *shellState) bindTestingCommands(binding *widgets.WidgetsBinding) {
 		command.TestingSelectDefaultProfiles: withArgs(s.selectDefaultProfiles),
 		command.TestingConfigureProfile:      withArgs(s.configureProfile),
 	}
+	s.bindCoverageCommands(handlers)
 	for id, h := range handlers {
 		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {

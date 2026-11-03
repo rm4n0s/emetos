@@ -193,3 +193,102 @@ func TestTestingIsInTheViewMenuAndThePalette(t *testing.T) {
 		t.Error("the commands of a row are in the palette")
 	}
 }
+
+// The commands of the coverage (step 26.4): VS Code's ids and titles.
+func TestTestingCoverageCommandsAreRegisteredWithVSCodesTitles(t *testing.T) {
+	r := DefaultRegistry()
+	want := map[string]string{
+		"testing.toggleInlineCoverage": "Toggle Inline Coverage", "testing.coverageToggleToolbar": "Show Test Coverage Toolbar",
+		"testing.toggleCoverageInExplorer": "Toggle Coverage in Explorer", "testing.coverage.goToNextMissedLine": "Go to Next Uncovered Line",
+		"testing.coverage.goToPreviousMissedLine": "Go to Previous Uncovered Line", "testing.coverage.close": "Clear Coverage",
+		"testing.coverageViewChangeSorting": "Change Sort Order", "testing.coverageViewCollapseAll": "Collapse All Coverage",
+		"testing.openCoverage": "Open Coverage", "workbench.view.testCoverage.focus": "Focus on Test Coverage View",
+	}
+	for id, title := range want {
+		m, ok := r.Lookup(id)
+		if !ok {
+			t.Errorf("%s is not a command", id)
+			continue
+		}
+		if m.Title != title {
+			t.Errorf("%s has the title %q, want %q", id, m.Title, title)
+		}
+	}
+}
+
+// The Test Coverage view shows in the Testing container while a coverage report is open, after the Test Explorer.
+func TestTheTestCoverageViewShowsWhileCoverageIsOpen(t *testing.T) {
+	r := DefaultViews()
+	v, ok := r.View(ViewTestCoverage)
+	if !ok || v.Name != "Test Coverage" || v.Container != ViewContainerTesting || v.ID != "workbench.view.testCoverage" {
+		t.Fatalf("the view: %+v", v)
+	}
+	ids := func(ctx contextkey.Context) (out []string) {
+		for _, x := range r.Views(ViewContainerTesting, ctx) {
+			out = append(out, x.ID)
+		}
+		return out
+	}
+	if got := ids(keys()); !slices.Equal(got, []string{ViewTestExplorer}) {
+		t.Errorf("with no coverage the views are %v", got)
+	}
+	if got := ids(keys("testing.isTestCoverageOpen", true)); !slices.Equal(got, []string{ViewTestExplorer, ViewTestCoverage}) {
+		t.Errorf("with coverage the views are %v", got)
+	}
+}
+
+// The title bar of the Test Coverage view has the sort order, Collapse All and Clear Coverage, in VS Code's order; the editor's title has the
+// inline toggle while the toolbar of the editor is off, and the coverage group while the file has coverage.
+func TestTheMenusOfTheCoverage(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	var title []string
+	for _, e := range menus.Items(TestingCoverageTitle, keys("view", ViewTestCoverage)) {
+		if e.Command != "" && e.Group == "navigation" {
+			title = append(title, e.Command)
+		}
+	}
+	if want := []string{TestingCoverageChangeSorting, TestingCoverageCollapseAll, TestingCoverageClose}; !slices.Equal(title, want) {
+		t.Errorf("the title bar has %v, want %v", title, want)
+	}
+	editorTitle := func(ctx contextkey.MapContext) (out []string) {
+		for _, e := range menus.Items(EditorTitle, ctx) {
+			out = append(out, e.Command)
+		}
+		return out
+	}
+	if got := editorTitle(keys()); slices.Contains(got, TestingToggleInlineCoverage) || slices.Contains(got, TestingCoverageNextMissed) {
+		t.Errorf("a file with no coverage has %v", got)
+	}
+	details := keys("testing.hasInlineCoverageDetails", true, "testing.hasCoverageInFile", true)
+	got := editorTitle(details)
+	for _, id := range []string{TestingToggleInlineCoverage, TestingToggleCoverageToolbar, TestingCoverageNextMissed, TestingCoveragePreviousMissed} {
+		if !slices.Contains(got, id) {
+			t.Errorf("a file with coverage has %v, want %s", got, id)
+		}
+	}
+	details["testing.coverageToolbarEnabled"] = true
+	if got := editorTitle(details); slices.Contains(got, TestingToggleInlineCoverage) {
+		t.Errorf("with the toolbar of the editor on the title still has the inline toggle: %v", got)
+	}
+}
+
+// The commands of the coverage are in the palette only while a report is open.
+func TestTheCoverageCommandsAreInThePaletteWhileCoverageIsOpen(t *testing.T) {
+	menus := DefaultMenus(DefaultRegistry())
+	in := func(ctx contextkey.MapContext, id string) bool {
+		for _, e := range menus.Items(CommandPalette, ctx) {
+			if e.Command == id {
+				return true
+			}
+		}
+		return false
+	}
+	for _, id := range []string{TestingToggleInlineCoverage, TestingCoverageClose, TestingToggleCoverageInExplorer, TestingCoverageNextMissed} {
+		if in(keys(), id) || !in(keys("testing.isTestCoverageOpen", true), id) {
+			t.Errorf("%s is in the palette without coverage, or not with it", id)
+		}
+	}
+	if in(keys(), TestingOpenCoverage) || !in(keys("testing.hasAnyResults", true), TestingOpenCoverage) {
+		t.Error("Open Coverage is in the palette without results, or not with them")
+	}
+}

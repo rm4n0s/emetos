@@ -28,6 +28,45 @@ type Script struct {
 	DelayMs int `json:"delayMs"`
 	// Tests are the top items.
 	Tests []Test `json:"tests"`
+	// Coverage is what a run with coverage reports: the files with their statements, branches and declarations (step 26.4).
+	Coverage []FileCoverage `json:"coverage,omitempty"`
+}
+
+// FileCoverage is the coverage a run with coverage reports for a file of the folder (by its path relative to the folder). The counts of the
+// file are worked out from the details.
+type FileCoverage struct {
+	File         string        `json:"file"`
+	Statements   []Statement   `json:"statements,omitempty"`
+	Declarations []Declaration `json:"declarations,omitempty"`
+}
+
+// Statement is a statement of a file: the lines it covers (counted from 1; EndLine 0 is Line) and how many times it ran. Col and EndCol are
+// the columns (counted from 1) it starts and ends at; both 0 give the whole line.
+type Statement struct {
+	Line     int      `json:"line"`
+	EndLine  int      `json:"endLine,omitempty"`
+	Col      int      `json:"col,omitempty"`
+	EndCol   int      `json:"endCol,omitempty"`
+	Hits     int      `json:"hits"`
+	Branches []Branch `json:"branches,omitempty"`
+}
+
+// Branch is a branch of a statement and how many times it ran; Line and its columns, when given, are where it is (otherwise it has no place
+// of its own, which the editor shows at the end of its statement).
+type Branch struct {
+	Hits   int    `json:"hits"`
+	Label  string `json:"label,omitempty"`
+	Line   int    `json:"line,omitempty"`
+	Col    int    `json:"col,omitempty"`
+	EndCol int    `json:"endCol,omitempty"`
+}
+
+// Declaration is a function of a file: its name, the lines it covers (counted from 1) and how many times it ran.
+type Declaration struct {
+	Name    string `json:"name"`
+	Line    int    `json:"line"`
+	EndLine int    `json:"endLine,omitempty"`
+	Hits    int    `json:"hits"`
 }
 
 // Test is an item and the result a run gives it: Result is "passed", "failed", "errored" or "skipped" (a test with children has none).
@@ -134,7 +173,7 @@ func (*devTesting) Activate(ctx context.Context, api extension.API) error {
 		label string
 		kind  extension.TestRunKind
 	}{{"Run Tests", extension.TestKindRun}, {"Debug Tests", extension.TestKindDebug}, {"Run Tests with Coverage", extension.TestKindCoverage}} {
-		if _, err := ctl.CreateRunProfile(p.label, p.kind, run, extension.TestRunProfileOptions{IsDefault: true, SupportsContinuousRun: p.kind == extension.TestKindRun}); err != nil {
+		if _, err := ctl.CreateRunProfile(p.label, p.kind, run, extension.TestRunProfileOptions{IsDefault: true, SupportsContinuousRun: p.kind == extension.TestKindRun, LoadDetailedCoverage: loadDetails(script)}); err != nil {
 			return err
 		}
 	}
@@ -231,6 +270,11 @@ func runner(ctl extension.TestController, script Script, byID map[string]Test, f
 				tr.Skipped(l)
 			default:
 				tr.Passed(l, d)
+			}
+		}
+		if req.Profile != nil && req.Profile.Kind() == extension.TestKindCoverage && folder != "" {
+			for _, f := range script.Coverage {
+				tr.AddCoverage(fileCoverageOf(folder, f))
 			}
 		}
 		return nil

@@ -21,6 +21,9 @@ const (
 	// ViewContainerTestResults is the panel tab of Test Results and ViewTestResults its view (VS Code's Testing.ResultsPanelId and ResultsViewId).
 	ViewContainerTestResults = "workbench.panel.testResults"
 	ViewTestResults          = "workbench.panel.testResults.view"
+	// ViewTestCoverage is the Test Coverage view of the Testing container, shown while a coverage report is open (VS Code's
+	// Testing.CoverageViewId).
+	ViewTestCoverage = "workbench.view.testCoverage"
 )
 
 // The ids of the menus of Testing. TestingViewTitle is the title bar of the Test Explorer (VS Code's ViewTitle of the view) and
@@ -30,6 +33,8 @@ const (
 	TestingViewTitle = "TestingViewTitle"
 	// TestingItem is the inline buttons (group inline) and the context menu of a test of the Test Explorer.
 	TestingItem = "TestingItem"
+	// TestingCoverageTitle is the title bar of the Test Coverage view (VS Code's ViewTitle of the view).
+	TestingCoverageTitle = "TestingCoverageTitle"
 )
 
 // The ids of the commands of Testing (VS Code's TestCommandId).
@@ -83,6 +88,18 @@ const (
 	TestingClosePeek       = "editor.closeTestPeek"
 	TestingPeekError       = "testing.peekTestError"
 	TestingRevealTest      = "testing.revealTest"
+	// The commands of coverage (step 26.4).
+	TestingToggleInlineCoverage     = "testing.toggleInlineCoverage"
+	TestingToggleCoverageToolbar    = "testing.coverageToggleToolbar"
+	TestingToggleCoverageInExplorer = "testing.toggleCoverageInExplorer"
+	TestingCoverageNextMissed       = "testing.coverage.goToNextMissedLine"
+	TestingCoveragePreviousMissed   = "testing.coverage.goToPreviousMissedLine"
+	TestingCoverageClose            = "testing.coverage.close"
+	TestingCoverageChangeSorting    = "testing.coverageViewChangeSorting"
+	TestingCoverageCollapseAll      = "testing.coverageViewCollapseAll"
+	TestingOpenCoverage             = "testing.openCoverage"
+	// TestingFocusCoverage shows the Test Coverage view and gives its tree the keyboard.
+	TestingFocusCoverage = ViewTestCoverage + ".focus"
 	// TestingFocusExplorer shows the Test Explorer and gives its tree the keyboard (VS Code's focus command of a view).
 	TestingFocusExplorer = ViewTestExplorer + ".focus"
 	// TestingFocusResults shows the Test Results panel and gives it the keyboard.
@@ -153,6 +170,16 @@ func registerTestingCommands(r *Registry) {
 		Meta{ID: TestingPeekError, Title: "Peek Error"},
 		Meta{ID: TestingRevealTest, Title: "Reveal in Test Explorer"},
 		Meta{ID: TestingFocusResults, Title: "Focus on Test Results View", Category: "View"},
+		Meta{ID: TestingFocusCoverage, Title: "Focus on Test Coverage View", Category: "View"},
+		Meta{ID: TestingToggleInlineCoverage, Title: "Toggle Inline Coverage", Category: cat, Icon: "coverage"},
+		Meta{ID: TestingToggleCoverageToolbar, Title: "Show Test Coverage Toolbar", Category: cat},
+		Meta{ID: TestingToggleCoverageInExplorer, Title: "Toggle Coverage in Explorer", Category: cat},
+		Meta{ID: TestingCoverageNextMissed, Title: "Go to Next Uncovered Line", Category: cat, Icon: "arrow-down", Precondition: contextkey.Has("testing.hasCoverageInFile")},
+		Meta{ID: TestingCoveragePreviousMissed, Title: "Go to Previous Uncovered Line", Category: cat, Icon: "arrow-up", Precondition: contextkey.Has("testing.hasCoverageInFile")},
+		Meta{ID: TestingCoverageClose, Title: "Clear Coverage", Category: cat, Icon: "close"},
+		Meta{ID: TestingCoverageChangeSorting, Title: "Change Sort Order", Icon: "sort-precedence"},
+		Meta{ID: TestingCoverageCollapseAll, Title: "Collapse All Coverage", Icon: "collapse-all"},
+		Meta{ID: TestingOpenCoverage, Title: "Open Coverage", Category: cat},
 	)
 }
 
@@ -191,6 +218,11 @@ func registerTestingMenus(r *MenuRegistry) {
 		{TestingOpenOutputPeek, has("testing.hasAnyResults")},
 		{TestingGoToNextMessage, has("testing.isPeekVisible")}, {TestingGoToPrevMessage, has("testing.isPeekVisible")},
 		{TestingClosePeek, contextkey.False()}, {TestingPeekError, contextkey.False()}, {TestingRevealTest, contextkey.False()},
+		{TestingToggleInlineCoverage, has("testing.isTestCoverageOpen")}, {TestingToggleCoverageToolbar, has("testing.isTestCoverageOpen")},
+		{TestingToggleCoverageInExplorer, has("testing.isTestCoverageOpen")}, {TestingCoverageNextMissed, has("testing.isTestCoverageOpen")},
+		{TestingCoveragePreviousMissed, has("testing.isTestCoverageOpen")}, {TestingCoverageClose, has("testing.isTestCoverageOpen")},
+		{TestingCoverageChangeSorting, contextkey.False()}, {TestingCoverageCollapseAll, contextkey.False()},
+		{TestingOpenCoverage, has("testing.hasAnyResults")}, {TestingFocusCoverage, has("testing.isTestCoverageOpen")},
 	} {
 		r.MustAdd(MenuItem{Menu: CommandPalette, Command: c.id, When: c.when})
 	}
@@ -243,5 +275,25 @@ func registerTestingMenus(r *MenuRegistry) {
 		MenuItem{Menu: TestingItem, Command: TestingToggleContinuous, Group: "inline", Order: 1 << 30, When: has("testing.supportsContinuousRun")},
 		MenuItem{Menu: TestingItem, Command: TestingToggleContinuous, Group: "builtin@1", Order: 1 << 30, When: has("testing.supportsContinuousRun"),
 			ToggledTitle: "Turn off Continuous Run", Toggled: has("testing.isContinuousModeOn")},
+	)
+}
+
+// registerTestingCoverageMenus adds the title bar of the Test Coverage view, and the buttons of the editor's title that toggle the inline
+// coverage when the coverage toolbar of the editor is off.
+//
+// Ported from VS Code: src/vs/workbench/contrib/testing/browser/testCoverageView.ts, codeCoverageDecorations.ts and testExplorerActions.ts
+// (CleareCoverage)
+func registerTestingCoverageMenus(r *MenuRegistry) {
+	r.MustAdd(
+		MenuItem{Menu: TestingCoverageTitle, Command: TestingCoverageChangeSorting, Group: "navigation", Order: 1},
+		MenuItem{Menu: TestingCoverageTitle, Command: TestingCoverageCollapseAll, Group: "navigation", Order: 2},
+		MenuItem{Menu: TestingCoverageTitle, Command: TestingCoverageClose, Group: "navigation", Order: 10},
+		MenuItem{Menu: EditorTitle, Command: TestingToggleInlineCoverage, Group: "navigation", Order: 100,
+			When:    contextkey.And(contextkey.Has("testing.hasInlineCoverageDetails"), contextkey.Not("testing.coverageToolbarEnabled")),
+			Toggled: contextkey.Has("testing.inlineCoverageEnabled"), ToggledTitle: "Hide Inline Coverage"},
+		MenuItem{Menu: EditorTitle, Command: TestingToggleCoverageToolbar, Group: "coverage", Order: 1, When: contextkey.Has("testing.hasCoverageInFile"),
+			Toggled: contextkey.Has("testing.coverageToolbarEnabled")},
+		MenuItem{Menu: EditorTitle, Command: TestingCoverageNextMissed, Group: "coverage", Order: 2, When: contextkey.Has("testing.hasCoverageInFile")},
+		MenuItem{Menu: EditorTitle, Command: TestingCoveragePreviousMissed, Group: "coverage", Order: 3, When: contextkey.Has("testing.hasCoverageInFile")},
 	)
 }

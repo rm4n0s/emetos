@@ -1,0 +1,53 @@
+{
+  "label": "Fake Tests (dev)",
+  "delayMs": 60,
+  "tests": [
+    {"id": "TestAdd", "label": "TestAdd", "file": "calc/calculator_test.go", "line": 5, "endLine": 9, "result": "passed", "ms": 1.2},
+    {"id": "TestSubtract", "label": "TestSubtract", "file": "calc/calculator_test.go", "line": 11, "endLine": 15, "result": "passed", "ms": 0.9},
+    {"id": "TestDivide", "label": "TestDivide", "file": "calc/calculator_test.go", "line": 17, "endLine": 21, "result": "passed", "ms": 1.4},
+    {"id": "TestClamp", "label": "TestClamp", "file": "calc/calculator_test.go", "line": 23, "endLine": 27, "result": "passed", "ms": 0.7},
+    {"id": "TestFormatReport", "label": "TestFormatReport", "file": "report/report_test.go", "line": 5, "endLine": 10, "result": "passed", "ms": 2.1}
+  ],
+  "coverage": [
+    {"file": "calc/calculator.go",
+      "statements": [
+        {"line": 7, "hits": 4},
+        {"line": 12, "hits": 3},
+        {"line": 17, "hits": 5, "branches": [{"hits": 1, "label": "b == 0"}, {"hits": 4, "label": "else"}]},
+        {"line": 18, "hits": 1},
+        {"line": 20, "hits": 4}
+      ],
+      "declarations": [
+        {"name": "Add", "line": 6, "endLine": 8, "hits": 4},
+        {"name": "Subtract", "line": 11, "endLine": 13, "hits": 3},
+        {"name": "Divide", "line": 16, "endLine": 21, "hits": 5}
+      ]},
+    {"file": "calc/clamp.go",
+      "statements": [
+        {"line": 5, "hits": 6, "branches": [{"hits": 2, "label": "v < lo"}, {"hits": 4, "label": "else"}]},
+        {"line": 6, "hits": 2},
+        {"line": 8, "hits": 4, "branches": [{"hits": 0, "label": "v > hi"}, {"hits": 4, "label": "else"}]},
+        {"line": 9, "hits": 0},
+        {"line": 11, "hits": 4}
+      ],
+      "declarations": [
+        {"name": "Clamp", "line": 4, "endLine": 12, "hits": 6}
+      ]},
+    {"file": "report/report.go",
+      "statements": [
+        {"line": 10, "hits": 2},
+        {"line": 11, "hits": 2},
+        {"line": 16, "hits": 0},
+        {"line": 17, "hits": 0},
+        {"line": 19, "hits": 0},
+        {"line": 24, "hits": 0},
+        {"line": 25, "hits": 0},
+        {"line": 27, "hits": 0}
+      ],
+      "declarations": [
+        {"name": "FormatReport", "line": 9, "endLine": 12, "hits": 2},
+        {"name": "Percent", "line": 15, "endLine": 20, "hits": 0},
+        {"name": "Summary", "line": 23, "endLine": 28, "hits": 0}
+      ]}
+  ]
+}

@@ -86,3 +86,44 @@ func TestTestingEditorColors(t *testing.T) {
 		t.Errorf("the info decoration color is %v", c)
 	}
 }
+
+// The colors of the coverage (step 26.4): VS Code's ids and defaults (theme.ts and chartsColors.ts); the gutter colors are the diff colors
+// at a fraction of their opacity, and the high contrast themes use the chart colors.
+func TestTestingCoverageColors(t *testing.T) {
+	const none = "-"
+	cases := []struct {
+		id                           string
+		dark, light, hcDark, hcLight string
+	}{
+		{"charts.red", "#f14c4c", "#e51400", "#f48771", "#b5200d"},
+		{"charts.yellow", "#cca700", "#bf8803", "#ffd370", "#895503"},
+		{"charts.green", "#89d185", "#388a34", "#89d185", "#374e06"},
+		{"testing.coveredBackground", "rgba(156, 204, 44, 0.2)", "rgba(156, 204, 44, 0.25)", none, none},
+		{"testing.coveredBorder", "rgba(156, 204, 44, 0.15)", "rgba(156, 204, 44, 0.19)", "#6fc3df", "#0f4a85"},
+		{"testing.coveredGutterBackground", "rgba(156, 204, 44, 0.12)", "rgba(156, 204, 44, 0.15)", "#89d185", "#374e06"},
+		{"testing.uncoveredBranchBackground", "#781212", "#ff9999", none, none},
+		{"testing.uncoveredBackground", "rgba(255, 0, 0, 0.2)", "rgba(255, 0, 0, 0.2)", none, none},
+		{"testing.uncoveredBorder", "rgba(255, 0, 0, 0.15)", "rgba(255, 0, 0, 0.15)", "#6fc3df", "#0f4a85"},
+		{"testing.uncoveredGutterBackground", "rgba(255, 0, 0, 0.3)", "rgba(255, 0, 0, 0.3)", "#f48771", "#b5200d"},
+		{"testing.coverCountBadgeBackground", "#4d4d4d", "#c4c4c4", "#000000", "#0f4a85"},
+		{"testing.coverCountBadgeForeground", "#ffffff", "#333333", "#ffffff", "#ffffff"},
+	}
+	registry := DefaultColorRegistry()
+	for _, tc := range cases {
+		for _, typ := range []struct {
+			t    Type
+			want string
+		}{{TypeDark, tc.dark}, {TypeLight, tc.light}, {TypeHCDark, tc.hcDark}, {TypeHCLight, tc.hcLight}} {
+			t.Run(tc.id+" "+string(typ.t), func(t *testing.T) {
+				c, ok := colorTheme(typ.t, nil, registry).Color(tc.id)
+				got := none
+				if ok {
+					got = c.String()
+				}
+				if got != typ.want {
+					t.Errorf("got %s, want %s", got, typ.want)
+				}
+			})
+		}
+	}
+}

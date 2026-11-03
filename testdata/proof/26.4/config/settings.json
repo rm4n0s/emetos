@@ -1,0 +1,7 @@
+{
+    "workbench.colorTheme": "Dark+",
+    "git.openRepositoryInParentFolders": "never",
+    "editor.minimap.enabled": false,
+    "testing.openTesting": "neverOpen",
+    "testing.coverageToolbarEnabled": true
+}

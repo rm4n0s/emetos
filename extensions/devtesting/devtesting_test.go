@@ -185,3 +185,77 @@ func TestABrokenScriptFailsTheActivation(t *testing.T) {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }
+
+const coverageScript = `{
+  "delayMs": 1,
+  "tests": [{"id": "A", "label": "A", "result": "passed", "ms": 1}],
+  "coverage": [
+    {"file": "a.go",
+      "statements": [
+        {"line": 4, "hits": 3},
+        {"line": 6, "hits": 2, "branches": [{"hits": 2, "label": "yes"}, {"hits": 0, "label": "no"}]},
+        {"line": 8, "endLine": 9, "col": 2, "endCol": 10, "hits": 0}
+      ],
+      "declarations": [{"name": "F", "line": 3, "endLine": 10, "hits": 3}]}
+  ]
+}`
+
+// Only a run with coverage reports the coverage of the script: the numbers are worked out from the details, which the loader gives back.
+func TestARunWithCoverageReportsTheScriptsCoverage(t *testing.T) {
+	a, err := activate(t, coverageScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctl := a.TestController(ControllerID)
+	covered := func(i int) []fakeapi.TestRunEvent {
+		if _, err := ctl.Profiles()[i].Run(context.Background(), nil, nil, false); err != nil {
+			t.Fatal(err)
+		}
+		var out []fakeapi.TestRunEvent
+		runs := ctl.Runs()
+		for _, e := range runs[len(runs)-1].Events() {
+			if e.Kind == fakeapi.RunCoverage {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
+	if got := covered(0); len(got) != 0 {
+		t.Fatalf("a plain run reported coverage: %+v", got)
+	}
+	got := covered(2)
+	if len(got) != 1 {
+		t.Fatalf("a run with coverage reported %d files", len(got))
+	}
+	f := got[0].Coverage
+	if want := "file://" + filepath.ToSlash(filepath.Join(a.Scope().Folder, "a.go")); f.URI != want {
+		t.Errorf("uri %q, want %q", f.URI, want)
+	}
+	if f.Statement != (extension.CoverageCount{Covered: 2, Total: 3}) || f.Branch == nil || *f.Branch != (extension.CoverageCount{Covered: 1, Total: 2}) ||
+		f.Declaration == nil || *f.Declaration != (extension.CoverageCount{Covered: 1, Total: 1}) {
+		t.Errorf("counts %+v %v %v", f.Statement, f.Branch, f.Declaration)
+	}
+	d, err := ctl.Profiles()[2].LoadCoverage(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Statements) != 3 || len(d.Declarations) != 1 || len(d.Statements[1].Branches) != 2 {
+		t.Fatalf("details %+v", d)
+	}
+	// whole lines run to the start of the next line; columns count from 1
+	if r := d.Statements[0].Location; r.Start != (extension.Position{Line: 3}) || r.End != (extension.Position{Line: 4}) {
+		t.Errorf("a statement of one line is %+v", r)
+	}
+	if r := d.Statements[2].Location; r.Start != (extension.Position{Line: 7, Col: 1}) || r.End != (extension.Position{Line: 8, Col: 9}) {
+		t.Errorf("a statement with columns is %+v", r)
+	}
+	if d.Declarations[0].Name != "F" || d.Declarations[0].Executed != 3 {
+		t.Errorf("declaration %+v", d.Declarations[0])
+	}
+	// a file the script does not have
+	_, err = ctl.Profiles()[2].LoadCoverage(context.Background(), extension.FileCoverage{URI: "file:///x", Data: "x.go"})
+	appErr, ok := errors.FromError(err)
+	if !ok || !appErr.HasRoute("loadDetails.func1.DevTestingNoCoverage") {
+		t.Errorf("unexpected failure: %v", err)
+	}
+}

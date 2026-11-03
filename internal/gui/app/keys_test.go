@@ -637,7 +637,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 				debugViewState(a, command.ViewDebugVariables, "variablesFocused"), debugViewState(a, command.ViewDebugWatch, "watchExpressionsFocused"),
 				debugViewState(a, command.ViewDebugBreakpoints, "breakpointsFocused"),
 				breakpointWidgetState(a, true), breakpointWidgetState(a, false), exceptionWidgetState(a),
-				testingRefreshState(a), testingViewState(a), testingPeekState(a))
+				testingRefreshState(a), testingViewState(a), testingPeekState(a), testingCoverageState(a))
 			for _, state := range states {
 				a.vm.SetQuickDiffMarks(nil)
 				a.vm.SetQuickDiffPeeker(nil)
@@ -684,6 +684,7 @@ func TestEveryDefaultKeybindingRunsItsCommand(t *testing.T) {
 					e.tst.peek.Close()
 				}
 				a.win.Keys.Reset("testing.isPeekVisible")
+				a.win.Keys.Reset("testing.hasCoverageInFile")
 				a.win.Keys.Reset("inQuickOpen")
 				a.win.Keys.Reset("inEditorsPicker")
 				a.win.Keys.Set("canNavigateBack", false)
@@ -1180,6 +1181,15 @@ func testingViewState(a *keyApp) func() {
 	return func() {
 		unfocusedState(a)()
 		a.win.Keys.Set("focusedView", command.ViewTestExplorer)
+	}
+}
+
+// testingCoverageState is the state of a window whose active editor has coverage and the keyboard (step 26.4), for Alt+F9 and Shift+Alt+F9.
+func testingCoverageState(a *keyApp) func() {
+	return func() {
+		a.leaveFind()
+		a.focusEditor()
+		a.win.Keys.Set("testing.hasCoverageInFile", true)
 	}
 }
 

@@ -4,8 +4,8 @@ package settings
 const categoryTesting = "Testing"
 
 // registerTesting registers the testing.* settings that the Testing views and the editor read: the count badge of the activity bar icon
-// (step 26.2) and the settings of the editor, the peek, the Test Results and the runs (step 26.3). The coverage settings come with step
-// 26.4. The names, the values and the defaults were checked against the pinned reference (decisions 1580 and 1581 list the differences from
+// (step 26.2), the settings of the editor, the peek, the Test Results and the runs (step 26.3) and the settings of the coverage (step
+// 26.4). The names, the values and the defaults were checked against the pinned reference (decisions 1580 and 1581 list the differences from
 // the SPEC).
 //
 // Ported from VS Code: src/vs/workbench/contrib/testing/common/configuration.ts
@@ -56,6 +56,25 @@ func registerTesting(r *Registry) {
 			Key: "testing.alwaysRevealTestOnStateChange", Types: []Type{Boolean}, Default: false,
 			Description: "Always reveal the executed test when `#testing.followRunningTest#` is on. If this setting is turned off, only failed tests will be revealed.",
 			Scope:       ScopeWindow, Category: categoryTesting,
+		},
+		Setting{
+			Key: "testing.showCoverageInExplorer", Types: []Type{Boolean}, Default: true,
+			Description: "Whether test coverage should be down in the File Explorer view.", Scope: ScopeWindow, Category: categoryTesting,
+		},
+		Setting{
+			Key: "testing.displayedCoveragePercent", Types: []Type{String}, Default: "totalCoverage", Enum: []any{"totalCoverage", "statement", "minimum"},
+			EnumDescriptions: []string{"A calculation of the combined statement, function, and branch coverage.", "The statement coverage.",
+				"The minimum of statement, function, and branch coverage."},
+			Description: "Configures what percentage is displayed by default for test coverage.", Scope: ScopeWindow, Category: categoryTesting,
+		},
+		Setting{
+			Key: "testing.coverageBarThresholds", Types: []Type{Object}, Default: map[string]any{"red": 0.0, "yellow": 60.0, "green": 90.0},
+			Description: "Configures the colors used for percentages in test coverage bars. Each of `red`, `yellow` and `green` is the lowest percentage that has the color.",
+			Scope:       ScopeWindow, Category: categoryTesting,
+		},
+		Setting{
+			Key: "testing.coverageToolbarEnabled", Types: []Type{Boolean}, Default: false,
+			Description: "Controls whether the coverage toolbar is shown in the editor.", Scope: ScopeWindow, Category: categoryTesting,
 		},
 	)
 }

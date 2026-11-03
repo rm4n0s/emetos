@@ -2,7 +2,8 @@ package keybinding
 
 // registerTestingKeys registers the keys of Testing (Linux): the Ctrl+; chords that run, debug and cover tests, rerun the last run or its
 // failures, show the output, cancel a run and refresh the tests, and Alt+Enter on a test of the Test Explorer, and (step 26.3) the keys of the
-// peek: Peek Output, Alt+F8 and Shift+Alt+F8 between the failures, and Escape.
+// peek: Peek Output, Alt+F8 and Shift+Alt+F8 between the failures, and Escape; and (step 26.4)
+// the keys of the coverage: Toggle Inline Coverage and Alt+F9 and Shift+Alt+F9 between the uncovered lines.
 //
 // Ported from VS Code: src/vs/workbench/contrib/testing/browser/testExplorerActions.ts (the keybinding of each action)
 func registerTestingKeys(r *Registry) {
@@ -29,6 +30,9 @@ func registerTestingKeys(r *Registry) {
 		Rule{Command: "testing.openOutputPeek", Weight: WeightWorkbenchContrib, Primary: "ctrl+; ctrl+m"},
 		Rule{Command: "testing.goToNextMessage", Weight: WeightEditorContrib + 1, When: mustWhen("editorFocus && testing.isPeekVisible"), Primary: "alt+f8"},
 		Rule{Command: "testing.goToPreviousMessage", Weight: WeightEditorContrib + 1, When: mustWhen("editorFocus && testing.isPeekVisible"), Primary: "shift+alt+f8"},
+		Rule{Command: "testing.toggleInlineCoverage", Weight: WeightWorkbenchContrib, Primary: "ctrl+; ctrl+shift+i"},
+		Rule{Command: "testing.coverage.goToNextMissedLine", Weight: WeightWorkbenchContrib, When: mustWhen("editorFocus && testing.hasCoverageInFile"), Primary: "alt+f9"},
+		Rule{Command: "testing.coverage.goToPreviousMissedLine", Weight: WeightWorkbenchContrib, When: mustWhen("editorFocus && testing.hasCoverageInFile"), Primary: "shift+alt+f9"},
 		Rule{Command: "editor.closeTestPeek", Weight: WeightEditorContrib - 101, When: mustWhen("testing.isPeekVisible && !config.editor.stablePeek"), Primary: "escape"},
 	)
 }

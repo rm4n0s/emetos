@@ -510,6 +510,7 @@ func (s *shellState) syncPeekKey() {
 		visible = e.tst.peek.Visible()
 	}
 	win.Keys.Set("testing.isPeekVisible", visible)
+	s.syncCoverageKeys()
 }
 
 // editorsShowing are the editors that are the active tab of a group.

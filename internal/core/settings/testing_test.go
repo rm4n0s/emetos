@@ -59,3 +59,35 @@ func TestTestingEditorSettings(t *testing.T) {
 		})
 	}
 }
+
+// The settings of the coverage (step 26.4): the names, the values and the defaults of VS Code's configuration.ts (the toolbar is off by
+// default there too).
+func TestTestingCoverageSettings(t *testing.T) {
+	r := DefaultRegistry()
+	for key, def := range map[string]any{"testing.showCoverageInExplorer": true, "testing.coverageToolbarEnabled": false, "testing.displayedCoveragePercent": "totalCoverage"} {
+		s, ok := r.Lookup(key)
+		if !ok {
+			t.Errorf("%s is not registered", key)
+			continue
+		}
+		if s.Default != def || s.Category != "Testing" || s.Scope != ScopeWindow || s.Description == "" {
+			t.Errorf("%s: default %v, category %q, scope %v", key, s.Default, s.Category, s.Scope)
+		}
+	}
+	s, _ := r.Lookup("testing.displayedCoveragePercent")
+	var values []string
+	for _, v := range s.Enum {
+		values = append(values, v.(string))
+	}
+	if !slices.Equal(values, []string{"totalCoverage", "statement", "minimum"}) || len(s.EnumDescriptions) != 3 {
+		t.Errorf("displayedCoveragePercent has %v with %d descriptions", values, len(s.EnumDescriptions))
+	}
+	b, ok := r.Lookup("testing.coverageBarThresholds")
+	if !ok {
+		t.Fatal("testing.coverageBarThresholds is not registered")
+	}
+	def, _ := b.Default.(map[string]any)
+	if def["red"] != 0.0 || def["yellow"] != 60.0 || def["green"] != 90.0 || b.Category != "Testing" {
+		t.Errorf("coverageBarThresholds default %v", b.Default)
+	}
+}

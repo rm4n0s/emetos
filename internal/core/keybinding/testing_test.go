@@ -15,6 +15,8 @@ func TestTestingKeysAreVSCodesChords(t *testing.T) {
 		"testing.showMostRecentOutput": "ctrl+; ctrl+o", "testing.cancelRun": "ctrl+; ctrl+x", "testing.refreshTests": "ctrl+; ctrl+r",
 		"testing.editFocusedTest": "alt+enter", "testing.openOutputPeek": "ctrl+; ctrl+m",
 		"testing.goToNextMessage": "alt+f8", "testing.goToPreviousMessage": "shift+alt+f8",
+		"testing.toggleInlineCoverage": "ctrl+; ctrl+shift+i", "testing.coverage.goToNextMissedLine": "alt+f9",
+		"testing.coverage.goToPreviousMissedLine": "shift+alt+f9",
 	}
 	got := map[string]string{}
 	for _, it := range DefaultRegistry().Defaults() {
@@ -58,6 +60,10 @@ func TestTestingChordsResolveWhereTheirConditionHolds(t *testing.T) {
 		{"alt+f8 with no peek is the problems'", map[string]any{"editorFocus": true}, "alt+f8", "editor.action.marker.next"},
 		{"escape in the peek", map[string]any{"testing.isPeekVisible": true}, "escape", "editor.closeTestPeek"},
 		{"escape with no peek", nil, "escape", ""},
+		{"toggle inline coverage anywhere", nil, "ctrl+; ctrl+shift+i", "testing.toggleInlineCoverage"},
+		{"next uncovered line in a file with coverage", map[string]any{"editorFocus": true, "testing.hasCoverageInFile": true}, "alt+f9", "testing.coverage.goToNextMissedLine"},
+		{"previous uncovered line in a file with coverage", map[string]any{"editorFocus": true, "testing.hasCoverageInFile": true}, "shift+alt+f9", "testing.coverage.goToPreviousMissedLine"},
+		{"alt+f9 in a file with none", map[string]any{"editorFocus": true}, "alt+f9", ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

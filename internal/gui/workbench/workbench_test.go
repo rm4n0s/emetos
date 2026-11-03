@@ -993,5 +993,5 @@ func debugAppCommand(id string) bool {
 // container, the focus of the view and the filter box; and (step 26.3) the focus of the Test Results panel view.
 func testingAppCommand(id string) bool {
 	return id == "workbench.view.extension.test" || id == "workbench.view.testing.focus" || id == "workbench.actions.treeView.testExplorer.filter" ||
-		id == "workbench.panel.testResults.view.focus"
+		id == "workbench.panel.testResults.view.focus" || id == "workbench.view.testCoverage.focus"
 }

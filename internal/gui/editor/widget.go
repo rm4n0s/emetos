@@ -853,6 +853,7 @@ func (s *editorState) body(bc widgets.BuildContext, vm *ViewModel, colors kit.Co
 	s.gutterWidth = gutterWidth
 	tokenTheme := kit.TokenThemeOf(bc)
 	vm.SetDebugColors(debugColorsOf(colors))
+	vm.SetNamedColors(colors.Named)
 	gutterColors := GutterColors{
 		LineNumber: colors.EditorLineNumberForeground, ActiveLineNumber: colors.EditorLineNumberActiveForeground,
 		LineHighlight: colors.EditorLineHighlightBackground, LineHighlightBorder: colors.EditorLineHighlightBorder,

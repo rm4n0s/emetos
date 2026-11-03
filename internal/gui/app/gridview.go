@@ -177,6 +177,7 @@ func (s *shellState) editorColumn(bc widgets.BuildContext, win *Workspace, group
 		// a right click opens the context menu of the editor
 		kit.NewContextMenuRegion(text, func() []kit.MenuItem { return s.editorMenuItems(ed) }, kit.ContextMenuOpts{Controller: s.editorMenu, OnRun: s.menus.Run}),
 		widgets.WidgetOpts{Key: widgets.NewGlobalObjectKey[widgets.State](ed)})
+	area = s.withCoverageToolbar(area, ed)
 	// a file view of an extension takes the place of the text; one that is not available (its extension went, failed or
 	// failed to open the view) leaves the text
 	views := s.fileViewsFor(ed)

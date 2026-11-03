@@ -33,12 +33,16 @@ type BackgroundMark struct {
 	Background, Border ui.Color
 	// Gutter, when it is not transparent, fills the gutter along the rows of the lines of a WholeLine mark.
 	Gutter ui.Color
+	// BackgroundID and GutterID name theme colors that stand in for Background and Gutter, looked up when the mark is drawn so that the
+	// mark follows the theme (the coverage marks use them); a color the theme does not know leaves the plain one.
+	BackgroundID, GutterID string
 }
 
 // markData is what a mark's decoration carries.
 type markData struct {
 	whole                      bool
 	background, border, gutter ui.Color
+	backgroundID, gutterID     string
 }
 
 // SetBackgroundMarks replaces the background marks of the editor. The marks are decorations of the document
@@ -52,7 +56,7 @@ func (vm *ViewModel) SetBackgroundMarks(marks []BackgroundMark) {
 	for i, m := range marks {
 		add[i] = document.NewDecoration{Range: m.Range, Options: document.DecorationOptions{
 			Stickiness: document.NeverGrowsWhenTypingAtEdges, ClassName: "backgroundMark",
-			Data: markData{whole: m.WholeLine, background: m.Background, border: m.Border, gutter: m.Gutter},
+			Data: markData{whole: m.WholeLine, background: m.Background, border: m.Border, gutter: m.Gutter, backgroundID: m.BackgroundID, gutterID: m.GutterID},
 		}}
 	}
 	vm.doc.DeltaDecorations(vm.owner(marksOwner), old, add)
@@ -83,12 +87,13 @@ func markOf(d document.Decoration) (BackgroundMark, bool) {
 	if !ok {
 		return BackgroundMark{}, false
 	}
-	return BackgroundMark{Range: d.Range, WholeLine: data.whole, Background: data.background, Border: data.border, Gutter: data.gutter}, true
+	return BackgroundMark{Range: d.Range, WholeLine: data.whole, Background: data.background, Border: data.border, Gutter: data.gutter,
+		BackgroundID: data.backgroundID, GutterID: data.gutterID}, true
 }
 
 // marksIn are the marks that touch the lines of the rows first to last.
 func (vm *ViewModel) marksIn(firstRow, lastRow int) []BackgroundMark {
-	if vm.markCount == 0 {
+	if vm.markCount+vm.covCount == 0 {
 		return nil
 	}
 	proj := vm.Projection()
@@ -96,9 +101,11 @@ func (vm *ViewModel) marksIn(firstRow, lastRow int) []BackgroundMark {
 	lastLine, _, _ := proj.RowSpan(lastRow)
 	span := buffer.Range{Start: buffer.Position{Line: firstLine}, End: buffer.Position{Line: lastLine + 1}}
 	var out []BackgroundMark
-	for _, d := range vm.doc.DecorationsIn(span, vm.owner(marksOwner)) {
-		if m, ok := markOf(d); ok {
-			out = append(out, m)
+	for _, owner := range []int{vm.owner(marksOwner), vm.owner(coverageOwner)} {
+		for _, d := range vm.doc.DecorationsIn(span, owner) {
+			if m, ok := markOf(d); ok {
+				out = append(out, vm.themedMark(m))
+			}
 		}
 	}
 	return out

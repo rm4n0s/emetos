@@ -121,25 +121,31 @@ func (vm *ViewModel) DisposeLineAnnotations() {
 // it is worked out again when the text or the list changed.
 func (vm *ViewModel) annotationsByLine() map[int][]annotationEntry {
 	st := &vm.annot
-	if len(st.ids)+len(vm.inval.ids)+len(vm.tmsg.ids) == 0 {
+	if len(st.ids)+len(vm.inval.ids)+len(vm.tmsg.ids)+len(vm.ccov.ids) == 0 {
 		return nil
 	}
-	version, gen := vm.doc.Version(), st.generation+vm.inval.generation+vm.tmsg.generation
+	version, gen := vm.doc.Version(), st.generation+vm.inval.generation+vm.tmsg.generation+vm.ccov.generation
 	if st.cached != nil && st.cachedGen == gen && st.cachedVersion == version {
 		return st.cached
 	}
-	byLine, values, messages := map[int][]annotationEntry{}, map[int][]annotationEntry{}, map[int][]annotationEntry{}
+	byLine, values, messages, counts := map[int][]annotationEntry{}, map[int][]annotationEntry{}, map[int][]annotationEntry{}, map[int][]annotationEntry{}
 	for _, d := range vm.doc.DecorationsOf(vm.owner(annotationsOwner)) {
 		line := d.Range.Start.Line
 		if e, ok := vm.inval.entries[d.ID]; ok {
 			values[line] = append(values[line], e)
 		} else if e, ok := vm.tmsg.entries[d.ID]; ok {
 			messages[line] = append(messages[line], e)
+		} else if e, ok := vm.ccov.entries[d.ID]; ok {
+			counts[line] = append(counts[line], e)
 		} else if e, ok := st.entries[d.ID]; ok {
 			byLine[line] = append(byLine[line], e)
 		}
 	}
-	// the messages of the tests come before the other annotations of their line, and the inline values of the debugger before them
+	// the counts of the coverage come before the other annotations of their line, the messages of the tests before them and the inline
+	// values of the debugger before those
+	for line, list := range counts {
+		byLine[line] = append(list, byLine[line]...)
+	}
 	for line, list := range messages {
 		byLine[line] = append(list, byLine[line]...)
 	}

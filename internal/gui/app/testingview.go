@@ -33,6 +33,8 @@ import (
 // testingShell is what the shell keeps of the Testing view.
 type testingShell struct {
 	explorer *testview.Explorer
+	// coverage is the Test Coverage view.
+	coverage *testview.Coverage
 	// results is Test Results; opening holds the results that open the Test Results panel at their first failure (testing.openTesting).
 	results *testview.Results
 	opening map[string]bool
@@ -53,13 +55,14 @@ type testingShell struct {
 }
 
 // testingSettingsKeys are the settings the view reads while it draws.
-var testingSettingsKeys = []string{"testing.countBadge"}
+var testingSettingsKeys = []string{"testing.countBadge", "testing.coverageToolbarEnabled"}
 
 // testingContextKeys are the context keys the view sets.
 var testingContextKeys = []string{"testing.providerCount", "testing.canRefresh", "testing.isRefreshing", "testing.isContinuousModeOn",
 	"testing.hasDebuggableTests", "testing.hasRunnableTests", "testing.hasCoverableTests", "testing.hasNonDefaultProfile",
 	"testing.hasConfigurableProfile", "testing.supportsContinuousRun", "testing.hasAnyResults", "testing.explorerViewMode",
-	"testing.explorerViewSorting", "testing.isRunning", "testing.isPeekVisible", "testing.hasCoverageResults"}
+	"testing.explorerViewSorting", "testing.isRunning", "testing.isPeekVisible", "testing.hasCoverageResults", "testing.isTestCoverageOpen",
+	"testing.inlineCoverageEnabled", "testing.coverageToolbarEnabled", "testing.hasCoverageInFile", "testing.hasInlineCoverageDetails"}
 
 // initTesting makes the Test Explorer over the test service and follows it.
 func (s *shellState) initTesting(binding *widgets.WidgetsBinding) {
@@ -93,6 +96,7 @@ func (s *shellState) initTesting(binding *widgets.WidgetsBinding) {
 		}
 	}))
 	s.initTestResults(binding)
+	s.initTestCoverage(binding)
 	s.bindTestingCommands(binding)
 	s.syncTestingParts()
 }
@@ -192,6 +196,7 @@ func (s *shellState) syncTestingParts() {
 		k.Set("testing.hasCoverageResults", coverage)
 	})
 	s.syncPeekKey()
+	s.syncCoverageKeys()
 	s.syncTestingBadge(svc)
 	if svc.IsRunning() {
 		s.testingTick(s.binding)

@@ -261,8 +261,10 @@ type ViewModel struct {
 	syncedAt   int // the version of the document the projection was made for
 	scrollTop  float64
 	scrollLeft float64
-	// markCount is the number of background marks (marks.go).
-	markCount int
+	// markCount is the number of background marks and covCount that of the marks of the coverage (marks.go, coverage.go).
+	markCount, covCount int
+	// namedColors finds a theme color by its id (coverage.go).
+	namedColors func(id string) (ui.Color, bool)
 	// diag is the state of the diagnostics (diagnostics.go) and hover the hover (hover.go).
 	diag  diagnosticState
 	hover hoverModel
@@ -273,6 +275,8 @@ type ViewModel struct {
 	inval annotationState
 	// tmsg are the messages of the tests, a third group of annotations (testing.go); tst is the tests in the editor.
 	tmsg annotationState
+	// ccov are the hit counts and branch counts of the coverage, a fourth group of annotations (coverage.go).
+	ccov annotationState
 	tst  testingState
 	dbg  debugState
 	// sg is the suggest widget (suggest.go) and sig the parameter hints (signature.go).
@@ -422,7 +426,7 @@ type ViewModel struct {
 // Document.AllocOwners; the constants named ...Owner are the slots (1 to ownerSlots) of the
 // features in that range, and ViewModel.owner turns a slot into the owner.
 const (
-	ownerSlots   = 16
+	ownerSlots   = 17
 	snippetOwner = 6
 	// suggestOwner is the slot of the marker that follows the text right of the cursor while the suggest widget shows.
 	suggestOwner = 9
