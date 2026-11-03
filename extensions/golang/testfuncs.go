@@ -33,6 +33,10 @@ type goTestFunc struct {
 	// startLine is the line of the func keyword and endLine the last line of the function (from 0); col and nameEnd are the
 	// byte columns of the keyword and of the end of the name in startLine.
 	startLine, endLine, col, nameEnd int
+	// endCol is the byte column after the closing brace in endLine, and subs are the subtests called by a literal name (tests and
+	// benchmarks only).
+	endCol int
+	subs   []goSubtest
 }
 
 // goTestFile is what is known of the source of a Go file for the tests.
@@ -116,7 +120,11 @@ func scanTestFile(src string) goTestFile {
 			continue
 		}
 		start, end, nameEnd := fset.Position(fn.Pos()), fset.Position(fn.End()), fset.Position(fn.Name.End())
-		out.funcs = append(out.funcs, goTestFunc{name: name, kind: kind, startLine: start.Line - 1, endLine: end.Line - 1, col: start.Column - 1, nameEnd: nameEnd.Column - 1})
+		tf := goTestFunc{name: name, kind: kind, startLine: start.Line - 1, endLine: end.Line - 1, col: start.Column - 1, nameEnd: nameEnd.Column - 1, endCol: end.Column - 1}
+		if kind == kindTest || kind == kindBenchmark {
+			tf.subs = scanSubtests(fset, fn.Body, funcParam(fn), pkg)
+		}
+		out.funcs = append(out.funcs, tf)
 	}
 	return out
 }

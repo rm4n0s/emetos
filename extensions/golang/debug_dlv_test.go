@@ -625,3 +625,49 @@ func (l *lockedBuilder) String() string {
 // programOutput is the output of the program under the debugger: the output events of the adapter, and the lines dlv wrote to its own
 // streams, which the host turns into the same (DebugAdapter.ConsoleOutput).
 func (d *dap) programOutput() string { return d.output.String() + d.stdio.String() }
+
+// TestDlvDebugsATestFromTheDebugProfileOfTheTestingView debugs a test the way the Testing view does (step 26.5): the Debug profile of the
+// controller gets a request for one test of a folder with the program of testdata/dlv/hello, builds the configuration of the session
+// (mode test, the folder of the package, -test.run for the test) and Delve stops at a breakpoint in it.
+func TestDlvDebugsATestFromTheDebugProfileOfTheTestingView(t *testing.T) {
+	dlvEnv(t)
+	r := newRig(t, rigOptions{realGo: true, copyFrom: filepath.Join("testdata", "dlv", "hello"), settings: map[string]any{AlternateToolsSetting: map[string]any{"dlv": pinnedDlv}}})
+	r.openGo("extra.go", "package main\n")
+	r.discovered()
+	item := find(t, r.ctl().Items().All()[0].Children(), "hello_test.go/TestCompute")
+	if _, err := profileOf(r, extension.TestKindDebug).Run(context.Background(), []*extension.TestItem{item}, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	starts := r.debugStarts(1)
+	d, c := r.session(starts[0].Target.Config)
+	prog := r.folder
+	if c["mode"] != "test" || c["__buildDir"] != prog {
+		t.Fatalf("configuration = %v", c)
+	}
+	if args, _ := starts[0].Target.Config["args"].([]any); len(args) != 2 || args[0] != "-test.run" || args[1] != "^TestCompute$" {
+		t.Errorf("args = %v", starts[0].Target.Config["args"])
+	}
+	if len(r.ctl().Runs()) != 0 {
+		t.Error("the debug request made a run")
+	}
+	// breakpoints in both tests: only the one the item selected runs
+	if msg := d.start("launch", c, filepath.Join(prog, "hello_test.go"), 10, 18); msg != "" {
+		t.Fatalf("launch failed: %s", msg)
+	}
+	reason, thread := d.stopped()
+	name, line, frame := d.top(thread)
+	if reason != "breakpoint" || !strings.HasSuffix(name, ".TestCompute") || line != 10 {
+		t.Errorf("stopped for %q at %s:%d", reason, name, line)
+	}
+	if vars := d.locals(frame); vars["want"] != "14" {
+		t.Errorf("locals = %v", vars)
+	}
+	d.call("continue", map[string]any{"threadId": thread})
+	d.event("terminated")
+	d.drain(time.Second)
+	out := d.programOutput()
+	if !strings.Contains(out, "TestCompute ran") || strings.Contains(out, "TestOther ran") {
+		t.Errorf("the test output = %q", out)
+	}
+	d.finish(true)
+}

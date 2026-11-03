@@ -51,20 +51,34 @@ func (g *golang) debugTestFunctionCommand(_ context.Context, args any) error {
 	return nil
 }
 
-// debugTestArgs are the arguments of the test binary that select the function: -test.run, or -test.bench with no test for a
-// benchmark.
-func debugTestArgs(name string) []any {
-	if strings.HasPrefix(name, "Benchmark") {
-		return []any{"-test.bench", "^" + name + "$", "-test.run", "a^"}
+// debugTestArgs are the arguments of the test binary that select the tests: -test.run for a pattern, or -test.bench with no test for
+// a pattern of benchmarks; none runs everything.
+func debugTestArgs(run, bench string) []any {
+	switch {
+	case bench != "":
+		return []any{"-test.bench", bench, "-test.run", "a^"}
+	case run != "":
+		return []any{"-test.run", run}
 	}
-	return []any{"-test.run", "^" + name + "$"}
+	return nil
 }
 
 // debugTestConfig is the configuration of a session that debugs the function of the package in dir: mode test, the environment of
 // the tests (go.testEnvVars, go.testEnvFile), and go.testFlags, whose flags before -args go to the build and the ones after it to the
 // test binary.
 func (g *golang) debugTestConfig(dir, name string) extension.DebugConfiguration {
-	args := debugTestArgs(name)
+	if strings.HasPrefix(name, "Benchmark") {
+		return g.debugTestConfigFor(dir, "", "^"+name+"$")
+	}
+	return g.debugTestConfigFor(dir, "^"+name+"$", "")
+}
+
+// debugTestConfigFor is the configuration of a session on the tests of the package in dir that the patterns select (see debugTestArgs).
+func (g *golang) debugTestConfigFor(dir, run, bench string) extension.DebugConfiguration {
+	args := debugTestArgs(run, bench)
+	if args == nil {
+		args = []any{}
+	}
 	var buildFlags []string
 	afterArgs := false
 	for _, f := range g.testFlags() {
@@ -101,7 +115,11 @@ func (g *golang) debugTestConfig(dir, name string) extension.DebugConfiguration 
 // user and for dlv. A session that could not start is reported to the user, on the screen the command came from (the window of the host,
 // or the view of a client of Remote Work: the session is the host's whoever started it).
 func (g *golang) startDebugTest(dir, name string) {
-	cfg := g.debugTestConfig(dir, name)
+	g.startDebugConfig(g.debugTestConfig(dir, name), name)
+}
+
+// startDebugConfig starts the session of the configuration; what names it for the message of a failure.
+func (g *golang) startDebugConfig(cfg extension.DebugConfiguration, what string) {
 	folder := g.api.Scope().Folder
 	origin := g.api.Origins().Current()
 	g.closers.Add(1)
@@ -111,9 +129,9 @@ func (g *golang) startDebugTest(dir, name string) {
 		if err == nil {
 			return
 		}
-		g.api.Log().Warn("the test cannot be debugged", "test", name, "err", err)
+		g.api.Log().Warn("the test cannot be debugged", "test", what, "err", err)
 		g.api.Post(func() {
-			g.api.Origins().Run(origin, func() { g.api.Notifications().Error("Debug " + name + ": " + describe(err)) })
+			g.api.Origins().Run(origin, func() { g.api.Notifications().Error("Debug " + what + ": " + describe(err)) })
 		})
 	}()
 }

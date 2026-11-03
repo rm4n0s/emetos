@@ -14,6 +14,7 @@ import (
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/golang/gotest"
+	"github.com/rm4n0s/emetos/extensions/internal/fakeapi"
 )
 
 // Running the tests from the commands and the lenses (step 14.3) with the fake go: `go test -json` prints the lines of a fixture.
@@ -46,11 +47,36 @@ func (r *rig) goTests() []goRun {
 	return out
 }
 
-// testsEnded waits for the newest run of the tests to end and returns it.
-func (r *rig) testsEnded() *testJob {
+// ctl is the controller of the Go tests as the fake host has it.
+func (r *rig) ctl() *fakeapi.FakeTestController {
 	r.t.Helper()
-	r.api.WaitFor("the tests to end", func() bool { return r.ext.tests.job != nil && r.ext.tests.job.state != runRunning })
-	return r.ext.tests.job
+	c := r.api.TestController(TestControllerID)
+	if c == nil {
+		r.t.Fatal("the extension made no test controller")
+	}
+	return c
+}
+
+// testsEnded waits for the next run of the controller that has not been returned yet to end and returns it.
+func (r *rig) testsEnded() *fakeapi.FakeTestRun {
+	r.t.Helper()
+	var run *fakeapi.FakeTestRun
+	r.api.WaitFor("the tests to end", func() bool {
+		runs := r.ctl().Runs()
+		if len(runs) <= r.consumed {
+			return false
+		}
+		run = runs[r.consumed]
+		return run.Ended()
+	})
+	r.consumed++
+	return run
+}
+
+// discovered waits until the worker has read the test files of the folder.
+func (r *rig) discovered() {
+	r.t.Helper()
+	r.api.WaitFor("the discovery of the tests", func() bool { return r.ext.tests.idle() })
 }
 
 // lensCommandOf finds the lens with the title in the lenses of the source and returns its command id and its first argument as the
@@ -127,16 +153,16 @@ func TestTheLensesRunTheRightPattern(t *testing.T) {
 			if err := r.api.Run(id, arg); err != nil {
 				t.Fatal(err)
 			}
-			job := r.testsEnded()
+			run := r.testsEnded()
 			runs := r.goTests()
 			if len(runs) != 1 || !slices.Equal(runs[0].Args, tt.want) || runs[0].Dir != sub {
 				t.Errorf("runs = %+v, want %v in %s", runs, tt.want, sub)
 			}
-			if job.state != runExited || job.results.counts().Pass != 2 {
-				t.Errorf("state %d, counts %+v", job.state, job.results.counts())
+			if run.Name() != "go test" || !run.Persist() {
+				t.Errorf("run %q persist %v", run.Name(), run.Persist())
 			}
-			if view := r.api.View(TestsViewID); len(view.Reveals) == 0 || !view.Reveals[0] {
-				t.Errorf("the panel was revealed %v", view.Reveals)
+			if run.Request().Profile == nil || run.Request().Profile.Kind() != extension.TestKindRun {
+				t.Errorf("the run was not made for the Run profile: %+v", run.Request())
 			}
 		})
 	}
@@ -162,7 +188,6 @@ func TestTheCommandsAtTheCursor(t *testing.T) {
 		{"the whole file", TestFileCommand, "§" + sampleTests, "sample_test.go", []string{"test", "-json", "-timeout", "30s", "-run", "^(TestAdd|TestSub|ExampleAdd|FuzzAdd)$"}, ""},
 		{"a file with no tests", TestFileCommand, "§package sample\n\nfunc helper() {}\n", "x_test.go", nil, "No tests found in x_test.go."},
 		{"the file command on a source file", TestFileCommand, "§package sample\n", "sample.go", nil, "Test File: sample.go is not a test file (its name does not end in _test.go)."},
-		{"the package", TestPackageCommand, "§package sample\n", "sample.go", []string{"test", "-json", "-timeout", "30s"}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -172,7 +197,7 @@ func TestTheCommandsAtTheCursor(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tt.want == nil {
-				if _, msg := r.lastNote(); msg != tt.note || len(r.goTests()) != 0 || r.ext.tests.job != nil {
+				if _, msg := r.lastNote(); msg != tt.note || len(r.goTests()) != 0 || len(r.ctl().Runs()) != 0 {
 					t.Errorf("note %q, runs %v", msg, r.goTests())
 				}
 				return
@@ -196,20 +221,27 @@ func TestTheCommandsWithNoGoFileInFront(t *testing.T) {
 			t.Errorf("%s: note %q", id, msg)
 		}
 	}
-	// the package command falls back to the folder of the workspace
+	// the package command falls back to the folder of the workspace, which has no tests here
+	if err := r.api.Run(TestPackageCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, msg := r.lastNote(); msg != "No tests found in the workspace folder." || len(r.ctl().Runs()) != 0 {
+		t.Errorf("note %q, runs %d", msg, len(r.ctl().Runs()))
+	}
+	// and with a test file in it, runs its package
+	if err := os.WriteFile(filepath.Join(r.folder, "root_test.go"), []byte(sampleTests), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	if err := r.api.Run(TestPackageCommand, nil); err != nil {
 		t.Fatal(err)
 	}
 	r.testsEnded()
-	if runs := r.goTests(); len(runs) != 1 || runs[0].Dir != realPath(t, r.folder) && runs[0].Dir != r.folder {
+	if runs := r.goTests(); len(runs) != 1 || runs[0].Dir != realPath(t, r.folder) && runs[0].Dir != r.folder || !slices.Equal(runs[0].Args, []string{"test", "-json", "-timeout", "30s"}) {
 		t.Errorf("runs = %+v", runs)
-	}
-	if r.ext.tests.job.req.label != "." {
-		t.Errorf("label = %q", r.ext.tests.job.req.label)
 	}
 }
 
-func TestTestPreviousRunsTheLastRequestAgain(t *testing.T) {
+func TestTestPreviousRunsTheLastCommandAgain(t *testing.T) {
 	r := testRig(t, "passing.jsonl")
 	if err := r.api.Run(TestPreviousCommand, nil); err != nil {
 		t.Fatal(err)
@@ -221,22 +253,28 @@ func TestTestPreviousRunsTheLastRequestAgain(t *testing.T) {
 	if err := r.api.Run(TestCursorCommand, nil); err != nil {
 		t.Fatal(err)
 	}
-	first := r.testsEnded()
+	r.testsEnded()
 	// the cursor moves elsewhere: Test Previous still runs TestAdd
 	r.focus("other_test.go", "package sample\n\n§func TestOther(t *testing.T) {}\n")
 	if err := r.api.Run(TestPreviousCommand, nil); err != nil {
 		t.Fatal(err)
 	}
-	r.api.WaitFor("the second run", func() bool { return r.ext.tests.job != first && r.ext.tests.job.state != runRunning })
+	r.testsEnded()
 	runs := r.goTests()
 	if len(runs) != 2 || !slices.Equal(runs[0].Args, runs[1].Args) || runs[1].Args[len(runs[1].Args)-1] != "^TestAdd$" {
 		t.Errorf("runs = %+v", runs)
 	}
-	// Run Again in the panel is the same request
-	r.ext.startTests(r.ext.tests.job.req)
-	r.api.WaitFor("the third run", func() bool { return len(r.goTests()) == 3 && r.ext.tests.job.state != runRunning })
-	if r.ext.tests.job == first {
-		t.Error("the job was not replaced")
+	// the file is gone: the tests of the last run are too
+	if err := os.Remove(filepath.Join(r.folder, "sample_test.go")); err != nil {
+		t.Fatal(err)
+	}
+	r.api.Emit(extension.TopicFilesChanged, extension.FilesChanged{Changes: []extension.FileChange{{Kind: extension.FileDeleted, Path: "sample_test.go"}}})
+	r.discovered()
+	if err := r.api.Run(TestPreviousCommand, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, msg := r.lastNote(); msg != "The tests of the last run are gone." || len(r.goTests()) != 2 {
+		t.Errorf("note %q, runs %d", msg, len(r.goTests()))
 	}
 }
 
@@ -400,209 +438,8 @@ func TestTheTestsNeedAGoProgram(t *testing.T) {
 	if err := r.api.Run(TestCursorCommand, nil); err != nil {
 		t.Fatal(err)
 	}
-	if sev, msg := r.lastNote(); sev != "error" || !strings.Contains(msg, "The go command was not found") || r.ext.tests.job != nil {
-		t.Errorf("note %s %q, job %v", sev, msg, r.ext.tests.job)
-	}
-}
-
-func TestTheResultsArriveWhileTheTestsRunAndTheGroupEndsWithTheRun(t *testing.T) {
-	// the program prints the first results and waits for the gate before the rest
-	lines := fixture(t, "mixed.jsonl", "{{DIR}}")
-	cut := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, `"Test":"TestSkipped"`) })
-	withGate := append(append(slices.Clone(lines[:cut]), "#gate"), lines[cut:]...)
-	file := filepath.Join(t.TempDir(), "gated.jsonl")
-	if err := os.WriteFile(file, []byte(strings.Join(withGate, "\n")+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	gate := filepath.Join(t.TempDir(), "gate")
-	r := newRig(t, rigOptions{withGo: true, env: []string{gotest.EnvTestFile + "=" + file, gotest.EnvRunGate + "=" + gate}})
-	r.focus("sample_test.go", "§"+sampleTests)
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	job := r.ext.tests.job
-	r.api.WaitFor("the first results", func() bool {
-		p := job.results.byPath["example.com/mixed"]
-		return p != nil && p.byName["TestAddFails"] != nil && p.byName["TestAddFails"].status == statusFail
-	})
-	if job.state != runRunning || r.ext.tests.model.Len() == 0 {
-		t.Errorf("state %d, %d rows while the program waits", job.state, r.ext.tests.model.Len())
-	}
-	if c := job.results.counts(); c.Pass != 1 || c.Fail != 1 || job.results.byPath["example.com/mixed"].byName["TestSkipped"] != nil {
-		t.Errorf("counts = %+v", c)
-	}
-	if !strings.HasPrefix(job.summary(), "Running the package in ") {
-		t.Errorf("summary = %q", job.summary())
-	}
-	if err := os.WriteFile(gate, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	r.testsEnded()
-	if job.state != runFailed || job.status != "exit status 1" || job.results.counts().Skip != 1 {
-		t.Errorf("state %d, status %q, counts %+v", job.state, job.status, job.results.counts())
-	}
-	// the panel selected the first failure
-	if r.ext.tests.selected != "t:example.com/mixed:TestAddFails" {
-		t.Errorf("selected = %q", r.ext.tests.selected)
-	}
-	if out := strings.Join(r.ext.tests.outputOf(), "\n"); !strings.Contains(out, "Add(2, 2) = 4, want 5") {
-		t.Errorf("output = %q", out)
-	}
-}
-
-func TestStopEndsTheProgramAndItsGroupAndANewRunTakesThePlaceOfTheOld(t *testing.T) {
-	hang := filepath.Join(t.TempDir(), "hang.jsonl")
-	text := `{"Action":"run","Package":"p","Test":"TestSlow"}` + "\n#hang\n"
-	if err := os.WriteFile(hang, []byte(text), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	pidfile := filepath.Join(t.TempDir(), "pids")
-	r := newRig(t, rigOptions{withGo: true, env: []string{gotest.EnvTestFile + "=" + hang, gotest.EnvPidfile + "=" + pidfile}})
-	r.focus("sample_test.go", "§"+sampleTests)
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	pid, child := pidsOf(t, pidfile)
-	first := r.ext.tests.job
-	if err := os.Remove(pidfile); err != nil {
-		t.Fatal(err)
-	}
-	// a new run stops the old one
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	if first.state != runRunning || !first.stopping {
-		t.Errorf("the first run: state %d stopping %v", first.state, first.stopping)
-	}
-	pid2, child2 := pidsOf(t, pidfile)
-	requireGone(t, "the first run", pid)
-	if !gone(pid) && !gone(child) {
-		t.Error("the first run is not gone")
-	}
-	r.api.WaitFor("the old run to end", func() bool { return first.state == runStopped })
-	for _, p := range []int{pid, child} {
-		requireGone(t, "the process of the first run", p)
-	}
-	// Stop ends the second
-	second := r.ext.tests.job
-	if second == first || second.state != runRunning {
-		t.Fatalf("the second run: state %d", second.state)
-	}
-	if err := r.api.Run(TestCancelCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	r.testsEnded()
-	if second.state != runStopped || second.status != "stopped" {
-		t.Errorf("state %d, status %q", second.state, second.status)
-	}
-	for _, p := range []int{pid2, child2} {
-		requireGone(t, "the process of the second run", p)
-	}
-	// the test that had no result is not shown as running, and a stopped run puts nothing into Problems
-	if c := second.results.counts(); c.Running != 0 || c.Skip != 1 || r.api.MarkerCount() != 0 {
-		t.Errorf("counts %+v, markers %d", c, r.api.MarkerCount())
-	}
-	if !strings.HasPrefix(second.summary(), "Stopped the package in ") {
-		t.Errorf("summary = %q", second.summary())
-	}
-}
-
-func TestTheRunEndsWithTheActivation(t *testing.T) {
-	hang := filepath.Join(t.TempDir(), "hang.jsonl")
-	if err := os.WriteFile(hang, []byte("#hang\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	pidfile := filepath.Join(t.TempDir(), "pids")
-	r := newRig(t, rigOptions{withGo: true, env: []string{gotest.EnvTestFile + "=" + hang, gotest.EnvPidfile + "=" + pidfile}})
-	r.focus("sample_test.go", "§"+sampleTests)
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	pid, child := pidsOf(t, pidfile)
-	r.cancel()
-	r.ext.wait()
-	requireGone(t, "go test", pid)
-	requireGone(t, "its child", child)
-}
-
-func TestFailuresGoIntoProblems(t *testing.T) {
-	tests := []struct {
-		fixture string
-		want    map[string][]string // file -> "line:col message (test)"
-	}{
-		{"mixed.jsonl", map[string][]string{"mixed_test.go": {"14:1 Add(2, 2) = 4, want 5 [TestAddFails]", "29:1 Add(2, 3) = 5, want 6 [TestTable/wrong]"}}},
-		{"panic.jsonl", map[string][]string{"p.go": {"3:1 panic: assignment to entry in nil map [recovered, repanicked] [TestBoom]"}}},
-		{"build.jsonl", map[string][]string{"b_test.go": {"6:12 undefined: undefinedName []"}}},
-		{"build_legacy.jsonl", map[string][]string{"b_test.go": {"6:12 undefined: undefinedName []"}}},
-		{"passing.jsonl", nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.fixture, func(t *testing.T) {
-			r := testRig(t, tt.fixture)
-			r.focus("sample_test.go", "§"+sampleTests)
-			if err := r.api.Run(TestPackageCommand, nil); err != nil {
-				t.Fatal(err)
-			}
-			r.testsEnded()
-			got := map[string][]string{}
-			for uri, ms := range r.api.Markers(TestsMarkerOwner) {
-				name := filepath.Base(strings.TrimPrefix(uri, "file://"))
-				for _, m := range ms {
-					if m.Source != "go test" || m.Severity != extension.SeverityError {
-						t.Errorf("marker %+v", m)
-					}
-					got[name] = append(got[name], itoa(m.StartLine)+":"+itoa(m.StartColumn)+" "+m.Message+" ["+m.Code+"]")
-				}
-			}
-			if len(got) == 0 {
-				got = nil
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("markers = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestTheFailuresOfATableTestAreBothInProblems(t *testing.T) {
-	r := testRig(t, "mixed.jsonl")
-	r.focus("sample_test.go", "§"+sampleTests)
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	r.testsEnded()
-	var lines []string
-	for _, ms := range r.api.Markers(TestsMarkerOwner) {
-		for _, m := range ms {
-			lines = append(lines, itoa(m.StartLine)+" "+m.Code)
-		}
-	}
-	slices.Sort(lines)
-	if !slices.Equal(lines, []string{"14 TestAddFails", "29 TestTable/wrong"}) {
-		t.Errorf("markers = %v", lines)
-	}
-}
-
-func TestTheMarkersOfTheLastRunGoWhenTheNextOneStarts(t *testing.T) {
-	r := testRig(t, "mixed.jsonl")
-	r.focus("sample_test.go", "§"+sampleTests)
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	r.testsEnded()
-	if r.api.MarkerCount() != 2 {
-		t.Fatalf("%d markers", r.api.MarkerCount())
-	}
-	// the next run starts: the old markers go at once, before the new results
-	t.Setenv(gotest.EnvTestFile, fixturePath(t, "passing.jsonl"))
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	if r.api.MarkerCount() != 0 {
-		t.Errorf("%d markers when the run starts", r.api.MarkerCount())
-	}
-	r.api.WaitFor("the second run", func() bool { return r.ext.tests.job.state != runRunning })
-	if r.api.MarkerCount() != 0 {
-		t.Errorf("%d markers after a run that passed", r.api.MarkerCount())
+	r.api.WaitFor("the note", func() bool { sev, _ := r.lastNote(); return sev == "error" })
+	if _, msg := r.lastNote(); !strings.Contains(msg, "The go command was not found") || len(r.ctl().Runs()) != 0 {
+		t.Errorf("note %q, runs %d", msg, len(r.ctl().Runs()))
 	}
 }

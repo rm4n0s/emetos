@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -26,6 +27,10 @@ var fakeLintDir string
 
 // emptyPath is an empty folder: the PATH of every test that has no go program, whatever the environment of the run is.
 var emptyPath string
+
+// realGoPath is the go program the run had in PATH before the tests isolated it ("" when there is none), and sharedGoCache a build cache
+// in the temporary folder of the run that the tests of the real go share (nothing is written to the user's).
+var realGoPath, sharedGoCache string
 
 // TestMain builds the fake go program, then shuts every way the tests could reach the user's own Go: PATH is an empty folder
 // (a test that wants the fake puts its folder there), HOME and the XDG folders are temporary, and no variable of the Go
@@ -59,6 +64,8 @@ func run(m *testing.M) int {
 			return 1
 		}
 	}
+	realGoPath, _ = exec.LookPath("go")
+	sharedGoCache = filepath.Join(dir, "gocache")
 	emptyPath = filepath.Join(dir, "empty-path")
 	if err := os.Mkdir(emptyPath, 0o755); err != nil {
 		fmt.Fprintln(os.Stderr, "empty PATH folder:", err)
@@ -99,6 +106,8 @@ type rig struct {
 	// lintLog is the file the fake lint tools write a record of each run to.
 	lintLog string
 	cancel  context.CancelFunc
+	// consumed counts the runs of the Go controller that testsEnded has returned.
+	consumed int
 }
 
 // rigOptions are what a test changes before the activation.
@@ -113,6 +122,11 @@ type rigOptions struct {
 	settings map[string]any
 	// noFolder makes a scope without a folder.
 	noFolder bool
+	// files are written into the folder before the activation (paths relative to the folder), and copyFrom is a folder of testdata that
+	// is copied into it first: the tests of the Go tests tree need their files to be there when the extension discovers them.
+	files     map[string]string
+	noTesting bool
+	copyFrom  string
 }
 
 // newRig activates the extension. The fake go is in PATH when asked, and writes a record of each run to the log of the rig.
@@ -121,6 +135,18 @@ func newRig(t *testing.T, opts rigOptions) *rig {
 	r := &rig{t: t, folder: t.TempDir(), log: filepath.Join(t.TempDir(), "fakego.log")}
 	for name, text := range map[string]string{"go.mod": "module example.com/p\n\ngo 1.21\n", "main.go": "package main\n\nfunc main() {}\n"} {
 		if err := os.WriteFile(filepath.Join(r.folder, name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if opts.copyFrom != "" {
+		copyTree(t, opts.copyFrom, r.folder)
+	}
+	for name, text := range opts.files {
+		path := filepath.Join(r.folder, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -146,6 +172,7 @@ func newRig(t *testing.T, opts rigOptions) *rig {
 		info.Folder = ""
 	}
 	r.api = fakeapi.New(t, e.Manifest(), info)
+	r.api.SetTestingUnavailable(opts.noTesting)
 	for k, v := range opts.settings {
 		r.api.SetSetting(k, v)
 	}
@@ -244,3 +271,28 @@ func gone(pid int) bool { return syscall.Kill(pid, 0) == syscall.ESRCH }
 
 // sleepMS waits some milliseconds.
 func sleepMS(n int) { time.Sleep(time.Duration(n) * time.Millisecond) }
+
+// copyTree copies the files of the folder src into dst (existing files are replaced).
+func copyTree(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dst, rel), data, 0o600)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

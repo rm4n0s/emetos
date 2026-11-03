@@ -180,7 +180,7 @@ Emetos's extensions are **Go packages compiled into the program** ([SPEC §10.15
 An extension contributes any mix of **seven kinds of contribution**, each drawn inside the box Emetos gives it:
 - **Window tab**: a tab in the strip beside the workspaces (Remote Work).
 - **Side bar view**: an activity bar icon with views (Search, References, Containers, Podman, Databases).
-- **Panel view**: a tab of the bottom panel beside Problems and Output (Tasks, Go Tests, the container logs, the SQL and MongoDB results, the Redis console).
+- **Panel view**: a tab of the bottom panel beside Problems and Output (Tasks, the container logs, the SQL and MongoDB results, the Redis console).
 - **Editor tab**: a tab in the editor area that is not a file (the Remote Work page, a database connection form, a Redis key).
 - **Editor title action**: a small icon at the right end of a tab strip (Open Preview to the Side).
 - **File view**: micro-tabs inside a file's tab for the files an extension declares (the Markdown preview next to Text).
@@ -225,7 +225,7 @@ The **Terminal** tab of the panel (Ctrl+` shows it, and hides the panel again wh
 
 ### Go
 
-The **Go** extension ([SPEC §10.17](docs/SPEC.md#1017-the-go-extension-extensionsgolang)) starts `gopls` for each Go workspace (settings under `go.gopls`, **Go: Restart Language Server**) and adds: Go commands (add or remove struct tags, fill a struct, generate unit tests, toggle the test file, run), tests with run test lenses above test functions and a Go Tests panel, `go vet` and `staticcheck` or `golangci-lint` on save into Problems, and a status bar item with the Go version and the state of `gopls`. **Debugging** is in [Run and Debug](#run-and-debug).
+The **Go** extension ([SPEC §10.17](docs/SPEC.md#1017-the-go-extension-extensionsgolang)) starts `gopls` for each Go workspace (settings under `go.gopls`, **Go: Restart Language Server**) and adds: Go commands (add or remove struct tags, fill a struct, generate unit tests, toggle the test file, run), tests with run test lenses above test functions and Go's tests in the Testing view (a Test Explorer with packages, files, tests and subtests, failures with their messages in the editor, and coverage), `go vet` and `staticcheck` or `golangci-lint` on save into Problems, and a status bar item with the Go version and the state of `gopls`. **Debugging** is in [Run and Debug](#run-and-debug).
 
 ## Languages
 

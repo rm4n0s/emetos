@@ -2,6 +2,7 @@ package golang
 
 import (
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -89,10 +90,7 @@ func TestFailureFindingsOfTheFixtures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.file, func(t *testing.T) {
-			r := newTestResults()
-			for _, l := range fixture(t, tt.file, "/w/p") {
-				r.addLine(l)
-			}
+			outs := outputsOf(fixture(t, tt.file, "/w/p"))
 			var got []string
 			add := func(fs []finding) {
 				for _, f := range fs {
@@ -103,13 +101,16 @@ func TestFailureFindingsOfTheFixtures(t *testing.T) {
 					got = append(got, text+": "+f.Message)
 				}
 			}
-			for _, p := range r.packages {
-				add(failureFindings(p.output, "/w/p", "/w/p", ""))
-				for _, name := range []string{"TestAddFails", "TestTable/wrong", "TestBoom"} {
-					if n := p.byName[name]; n != nil {
-						add(failureFindings(n.output, "/w/p", "/w/p", name))
-					}
+			for _, key := range outs.keys {
+				_, name, test := strings.Cut(key, ":")
+				code := ""
+				if test {
+					code = name
 				}
+				if test && !slices.Contains([]string{"TestAddFails", "TestTable/wrong", "TestBoom"}, name) {
+					continue
+				}
+				add(failureFindings(outs.lines[key], "/w/p", "/w/p", code))
 			}
 			if strings.Join(got, "\n") != tt.want {
 				t.Errorf("findings =\n%s\nwant\n%s", strings.Join(got, "\n"), tt.want)
