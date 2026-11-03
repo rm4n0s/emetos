@@ -1,0 +1,45 @@
+FAIL src/other.test.js
+  ● other crashes
+
+    boom
+
+      4 |
+      5 | test('other crashes', () => {
+    > 6 |   throw new Error('boom');
+        |         ^
+      7 | });
+      8 |
+
+      at Object.<anonymous> (src/other.test.js:6:9)
+
+FAIL src/math.test.js
+  ● Console
+
+    console.log
+      hello from a passing test
+
+      at Object.log (src/math.test.js:29:11)
+
+  ● math › divides
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 4
+    Received: 5
+
+       7 |
+       8 |   test('divides', () => {
+    >  9 |     expect(divide(10, 2)).toBe(4);
+         |                           ^
+      10 |   });
+      11 |
+      12 |   test.skip('later', () => {});
+
+      at Object.toBe (src/math.test.js:9:27)
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 1 skipped, 6 passed, 9 total
+Snapshots:   0 total
+Time:        0.97 s
+Ran all test suites.
+Test results written to: ../../010/r.json

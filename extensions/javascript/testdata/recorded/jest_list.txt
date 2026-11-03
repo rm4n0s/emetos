@@ -1,0 +1,2 @@
+{{dir}}/src/math.test.js
+{{dir}}/src/other.test.js

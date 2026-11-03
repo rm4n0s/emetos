@@ -11,6 +11,7 @@
 #   gobin <name> <version> <h1: hash of the module> <package> <module>              go install <package>@<version> into /var/tmp/emetos-tools/bin (caches below /var/tmp/emetos-tools)
 #   dotnettool <name> <version> <sha256 of the .nupkg> <url of the .nupkg>         dotnet tool install --tool-path /var/tmp/emetos-tools/dotnet-tools, from the verified file
 #   npm   <name> <version> <integrity> <package> [<spec>]                           npm install --prefix /var/tmp/emetos-tools/node --ignore-scripts <package>@<version> (or <spec>)
+#   npmtest <name> <version> <integrity> <package>                                    the same into /var/tmp/emetos-tools/node-tests with --legacy-peer-deps (Jest, Vitest: step 26.8)
 # A download whose sha256 differs from the pin is refused. A tool that is there already with the right sha256 is left alone; the
 # path of what was installed is printed. The tests of the packs skip when their program is not there (docs/IMPLEMENTATION.md "M24b").
 set -euo pipefail
@@ -127,17 +128,21 @@ EOF_NUGET
         rm -rf "$tmp"
         echo "$dst"
         ;;
-      npm)
-        have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"].get("node_modules/"+sys.argv[2],{}).get("version","")+" "+d["packages"].get("node_modules/"+sys.argv[2],{}).get("integrity",""))' "$tools/node/package-lock.json" "$url" 2>/dev/null || true)"
+      npm|npmtest)
+        # npmtest packages go to $tools/node-tests with --legacy-peer-deps: npm 10.9 crashes (edgesOut null) resolving the peers of vitest when
+        # it is added to the prefix of the language servers
+        prefix="$tools/node"; npmflags=()
+        if [[ "$kind" == npmtest ]]; then prefix="$tools/node-tests"; npmflags=(--legacy-peer-deps); fi
+        have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"].get("node_modules/"+sys.argv[2],{}).get("version","")+" "+d["packages"].get("node_modules/"+sys.argv[2],{}).get("integrity",""))' "$prefix/package-lock.json" "$url" 2>/dev/null || true)"
         if [[ "$have" == "$version $sha" ]]; then
-          echo "$tools/node/node_modules/.bin"
+          echo "$prefix/node_modules/.bin"
           continue
         fi
-        mkdir -p "$tools/node"
-        npm install --prefix "$tools/node" --ignore-scripts --no-audit --no-fund --save-exact -s "${extra:-$url@$version}" </dev/null
-        have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"]["node_modules/"+sys.argv[2]]["version"]+" "+d["packages"]["node_modules/"+sys.argv[2]]["integrity"])' "$tools/node/package-lock.json" "$url")"
+        mkdir -p "$prefix"
+        npm install --prefix "$prefix" "${npmflags[@]}" --ignore-scripts --no-audit --no-fund --save-exact -s "${extra:-$url@$version}" </dev/null
+        have="$(python3 -I -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["packages"]["node_modules/"+sys.argv[2]]["version"]+" "+d["packages"]["node_modules/"+sys.argv[2]]["integrity"])' "$prefix/package-lock.json" "$url")"
         [[ "$have" == "$version $sha" ]] || { echo "error: $name: the installed package does not match the pinned integrity" >&2; exit 1; }
-        echo "$tools/node/node_modules/.bin"
+        echo "$prefix/node_modules/.bin"
         ;;
       gobin)
         # A Go program is built from the module version `go install <package>@<version>` names, with the module cache, build cache and

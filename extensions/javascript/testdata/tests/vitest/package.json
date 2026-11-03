@@ -1,0 +1,7 @@
+{
+  "name": "vitest-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "vitest run" },
+  "devDependencies": { "@vitest/coverage-v8": "5.0.5", "vitest": "5.0.5" }
+}

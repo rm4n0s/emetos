@@ -1,0 +1,6 @@
+{
+  "name": "jest-tests",
+  "private": true,
+  "scripts": { "test": "jest" },
+  "devDependencies": { "jest": "30.5.2" }
+}

@@ -1,0 +1,8 @@
+[
+  {
+    "file": "{{dir}}/src/math.test.ts"
+  },
+  {
+    "file": "{{dir}}/src/other.test.ts"
+  }
+]

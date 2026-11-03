@@ -1,0 +1,29 @@
+TAP version 13
+# Subtest: math
+    # Subtest: adds
+    ok 1 - adds
+      ---
+      duration_ms: 1.1
+      type: 'test'
+      ...
+    # Subtest: divides
+    not ok 2 - divides
+      ---
+      duration_ms: 0.4
+      type: 'test'
+      failureType: 'cancelledByParent'
+      error: 'test did not finish before its parent and was cancelled'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    1..2
+not ok 1 - math
+  ---
+  duration_ms: 3.2
+  type: 'suite'
+  failureType: 'hookFailed'
+  error: 'the after hook failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 2
+# fail 2

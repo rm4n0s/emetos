@@ -13,7 +13,9 @@ import (
 	"context"
 	"embed"
 	"net/http"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
@@ -33,11 +35,13 @@ func New() extension.Extension {
 			ID: ID, Name: "JavaScript", Description: "Syntax highlighting and language configuration for JavaScript and JavaScript React; the TypeScript pack serves them with typescript-language-server.",
 			Assets: assets,
 		}),
-		release:   pinned(),
-		client:    http.DefaultClient,
-		dataDir:   dataDirFromEnv,
-		osRelease: langserver.ReadOSRelease,
-		procRoot:  "/proc",
+		release:      pinned(),
+		client:       http.DefaultClient,
+		dataDir:      dataDirFromEnv,
+		osRelease:    langserver.ReadOSRelease,
+		procRoot:     "/proc",
+		runner:       runProcess,
+		testDebounce: saveDebounce,
 	}
 }
 
@@ -61,6 +65,15 @@ type javascript struct {
 	osRelease func() string
 	// procRoot is the folder that lists the processes (/proc), for the process picker.
 	procRoot string
+
+	// tests are the controllers of the tests in the Testing view (step 26.8), one for each runner a project of the folder uses; testingOn is
+	// false in a window that has no Testing view. runner runs the programs of the provider (the tests replace it), testDebounce is how long
+	// the tests wait for more saves before they are found again and work waits for the goroutines of the provider.
+	tests        map[string]*testCtl
+	testingOn    bool
+	runner       testRunner
+	testDebounce time.Duration
+	work         sync.WaitGroup
 }
 
 // Manifest implements extension.Extension: the manifest of the pack with the debugger, its setting and its command.
@@ -68,7 +81,7 @@ func (j *javascript) Manifest() extension.Manifest {
 	m := j.base.Manifest()
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, debugSettingSpecs()...)
-	m.Events.Subscribes = append(m.Events.Subscribes, extension.TopicEditorActiveChanged)
+	m.Events.Subscribes = append(m.Events.Subscribes, extension.TopicEditorActiveChanged, extension.TopicDocumentSaved, extension.TopicFilesChanged)
 	m.Contributes.Debuggers = append(m.Contributes.Debuggers, debuggerSpecs()...)
 	for _, lang := range breakpointLanguages {
 		m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: lang})
@@ -89,6 +102,9 @@ func (j *javascript) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	j.registerDebug()
+	if err := j.registerTests(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -99,4 +115,12 @@ func (j *javascript) editorEvent(ev extension.Event) {
 		return
 	}
 	j.editorSnap.Store(&editorSnapshot{uri: ae.URI, language: ae.LanguageID})
+}
+
+// wait waits for the requests the pack sent to end (the tests use it).
+func (j *javascript) wait() {
+	for _, tc := range j.tests {
+		tc.stop()
+	}
+	j.work.Wait()
 }

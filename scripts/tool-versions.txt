@@ -7,6 +7,7 @@
 # file    a plain file: kept in download/<name>-<version>
 # venv    the Python tools of a pip requirements file with hashes (the url column is the file, relative to the repository; the sha256 is
 #         the file's): a venv of the system's python3 in venv/, pip install --require-hashes --no-deps -r <file>
+# npmtest  an npm package like npm, installed with --legacy-peer-deps into node-tests/ (step 26.8)
 # npm     an npm package (the sha256 column is the package's integrity, sha512-...; the url column is the package name): npm install --prefix
 #         node --ignore-scripts, then the integrity in node/package-lock.json is compared; a sixth column, when there is one, is what npm is
 #         asked to install (typescript5@npm:typescript@5.9.3: a second copy of a package under another name)
@@ -67,3 +68,15 @@ gobin     dlv                         v1.27.2     h1:dhcjFjiVoQI53uwsG7EqYiMhdvF
 # Emetos downloads the same archive on the user's click ("JavaScript Debugger: Download", extensions/javascript/jsdebug.go pins the same
 # version and sha256); a test never does.
 tgz       js-debug                    1.140.0     27dab92937ec1ab35821ae955aac867544fe06a1b6307229049f2d789af10968  https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.0/js-debug-dap-v1.140.0.tar.gz  js-debug
+
+# Jest, Vitest and Vitest's coverage package are the runners of the tests emetos_node (step 26.8) and of the proof of its Vitest project. They are
+# npm packages of the kind npmtest: installed with --ignore-scripts and --legacy-peer-deps into /var/tmp/emetos-tools/node-tests, a prefix of their own
+# (npm 10.9.8 crashed with "edgesOut null" resolving the peers of vitest when they were added to the prefix `node` of the language servers); the
+# integrity in node-tests/package-lock.json is compared. The tests link the packages into the node_modules of a copy of a project under
+# extensions/javascript/testdata/tests (never into the committed folders). vite 8.3.4 is the peer package of Vitest 5.0.5 (^6.4.0 || ^7.0.0 || ^8.0.0), which
+# --legacy-peer-deps does not pull in, so it is pinned and installed on its own; without it Vitest cannot start. Node's
+# own test runner (the TAP and lcov reporters) is the system's node, v22.23.1.
+npmtest   jest                        30.5.2      sha512-3gnpdBIza8ijCl3iMV9ChE3hSt1+46865qqod863gQtJr1DixOkAU5DoGbi3u+XlRcw++BhZQMu/y4xBdHBvSQ==  jest
+npmtest   vitest                      5.0.5       sha512-cPODOMF8YnkiiYtDdHo6n4wWmBrOBBbOIYH2d33M4l3CdNn72h+qMmO6uXffUN6A5AZFXNND/d+krS9mgkXRfg==  vitest
+npmtest   vite                        8.3.4       sha512-IftLE8phJhdNRIGNEV4JCCvfNScoZQVfcXaN8TQropWGJtOHcu+iAB9pHcuGvmEb/kddw0LBe/jS8ztdC6xdiQ==  vite
+npmtest   @vitest/coverage-v8         5.0.5       sha512-4KpkGdIrSqBihx/JyP/e+S+IKB98etg1XDQiLAxksLfcShnwi1VReGeOT9NI43hLHbknosKp/1CCLn9Zgcs8mg==  @vitest/coverage-v8
