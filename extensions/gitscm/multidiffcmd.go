@@ -88,7 +88,7 @@ func (x *gitscm) openCommit(r *repository, id, reveal string) {
 			}
 			hash := ch.Commit.Hash
 			short := hash
-			if n := x.cfg.commitShortHashLength; n > 0 && len(short) > n {
+			if n := x.cfg().commitShortHashLength; n > 0 && len(short) > n {
 				short = short[:n]
 			}
 			subject, _, _ := strings.Cut(ch.Commit.Message, "\n")

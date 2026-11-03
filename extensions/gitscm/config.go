@@ -188,3 +188,19 @@ func (c *config) statusOptions() git.StatusOptions {
 	}
 	return o
 }
+
+// cfg is the settings as they were when loadConfig last ran. A snapshot is never changed once it is published, so it may be read from
+// any goroutine (the history and the watchers read settings off the UI thread while a change of a setting loads the next one).
+func (x *gitscm) cfg() *config {
+	if c := x.cfgv.Load(); c != nil {
+		return c
+	}
+	return &config{}
+}
+
+// loadConfig reads the settings into a new snapshot and publishes it, so that readers never see a config that is being written.
+func (x *gitscm) loadConfig(api extension.API) {
+	c := &config{}
+	c.load(api)
+	x.cfgv.Store(c)
+}

@@ -111,7 +111,7 @@ func (x *gitscm) cmdCommitEmpty(noVerify bool) extension.CommandHandler {
 	return func(_ context.Context, args any) error {
 		x.target(args, true, func(r *repository) {
 			start := func() { x.startCommit(r, commitOpts{empty: true, noVerify: noVerify}) }
-			if !x.cfg.confirmEmptyCommits {
+			if !x.cfg().confirmEmptyCommits {
 				start()
 				return
 			}
@@ -190,7 +190,7 @@ func (c *commitRun) steps(steps ...func(next func())) {
 // Ported from VS Code: extensions/git/src/commands.ts (smartCommit: promptToSaveFilesBeforeCommit)
 func (c *commitRun) promptToSave(next func()) {
 	x, r := c.x, c.r
-	mode := x.cfg.promptToSaveFilesBeforeCommit
+	mode := x.cfg().promptToSaveFilesBeforeCommit
 	if c.o.empty || mode == "never" {
 		next()
 		return
@@ -297,7 +297,7 @@ func (c *commitRun) saveThenRefresh(unsaved []unsavedDoc, next func()) {
 // Ported from VS Code: extensions/git/src/commands.ts (smartCommit)
 func (c *commitRun) smartCommit(next func()) {
 	x := c.x
-	c.smart = x.cfg.enableSmartCommit
+	c.smart = x.cfg().enableSmartCommit
 	if c.o.empty {
 		next()
 		return
@@ -312,7 +312,7 @@ func (c *commitRun) smartCommit(next func()) {
 		finish()
 		return
 	}
-	if !x.cfg.suggestSmartCommit {
+	if !x.cfg().suggestSmartCommit {
 		return
 	}
 	x.ask(extension.DialogSpec{
@@ -337,7 +337,7 @@ func (c *commitRun) smartCommit(next func()) {
 
 // flags reads the settings that decide how git commits: signing, sign-off, the editor and the verbose diff.
 func (c *commitRun) flags(next func()) {
-	cfg := &c.x.cfg
+	cfg := c.x.cfg()
 	if cfg.enableCommitSigning {
 		t := true
 		c.sign = &t
@@ -364,7 +364,7 @@ func (c *commitRun) emptyCommit(next func()) {
 		}
 	}
 	nothing := (c.noStaged && c.noUnstaged) || (!c.o.all && c.noStaged) ||
-		(c.noStaged && x.cfg.smartCommitChanges == "tracked" && onlyUntracked)
+		(c.noStaged && x.cfg().smartCommitChanges == "tracked" && onlyUntracked)
 	if !nothing || c.o.amend || c.o.empty || r.ops.stopped() {
 		next()
 		return
@@ -382,11 +382,11 @@ func (c *commitRun) noVerify(next func()) {
 		next()
 		return
 	}
-	if !x.cfg.allowNoVerifyCommit {
+	if !x.cfg().allowNoVerifyCommit {
 		x.api.Notifications().Error(`Commits without verification are not allowed, please enable them with the "git.allowNoVerifyCommit" setting.`)
 		return
 	}
-	if !x.cfg.confirmNoVerifyCommit {
+	if !x.cfg().confirmNoVerifyCommit {
 		next()
 		return
 	}
@@ -413,7 +413,7 @@ func (c *commitRun) noVerify(next func()) {
 func (c *commitRun) getMessage(next func()) {
 	x, r := c.x, c.r
 	c.message = c.input
-	if c.message != "" || x.cfg.useEditorAsCommitInput || r.ops.stopped() {
+	if c.message != "" || x.cfg().useEditorAsCommitInput || r.ops.stopped() {
 		next()
 		return
 	}
@@ -448,7 +448,7 @@ func (c *commitRun) messageRequired(next func()) {
 
 // trackedOnly narrows "stage everything" to the files git tracks when smart commit or git.untrackedChanges says so.
 func (c *commitRun) trackedOnly(next func()) {
-	cfg := &c.x.cfg
+	cfg := c.x.cfg()
 	if c.o.all && cfg.smartCommitChanges == "tracked" {
 		c.o.tracked = true
 	}
@@ -474,7 +474,7 @@ func (c *commitRun) commit() {
 	r.setCommitting(true)
 	opts := git.CommitOptions{
 		Message: c.message, UseEditor: c.useEditor, Verbose: c.verbose, Amend: c.o.amend, Signoff: c.o.signoff, Sign: c.sign,
-		Empty: c.o.empty, NoVerify: c.o.noVerify, RequireUserConfig: x.cfg.requireGitUserConfig,
+		Empty: c.o.empty, NoVerify: c.o.noVerify, RequireUserConfig: x.cfg().requireGitUserConfig,
 	}
 	indexPaths := pathsOf(r.res.index, func(res resource) []string { return []string{res.path} })
 	if indexPaths == nil {
@@ -566,7 +566,7 @@ func (c *commitRun) failed(err error) bool {
 //
 // Ported from VS Code: extensions/git/src/repository.ts (commitOperationGetOptimisticResourceGroups)
 func (r *repository) optimisticCommit(all, tracked bool) {
-	if !r.m.x.cfg.optimisticUpdate || r.groups.merge == nil {
+	if !r.m.x.cfg().optimisticUpdate || r.groups.merge == nil {
 		return
 	}
 	g := r.res
@@ -602,7 +602,7 @@ func (x *gitscm) runPostCommit(r *repository, post postCommitSpec) {
 			}
 		}
 	}
-	if !x.cfg.rememberPostCommitCommand {
+	if !x.cfg().rememberPostCommitCommand {
 		r.postStored = postCommitSpec{}
 		r.updateCommitUI()
 	}

@@ -98,7 +98,7 @@ func (b *blameController) start() error {
 }
 
 // enabled says whether either of the two shows blame.
-func (b *blameController) enabled() bool { return b.x.cfg.blameEditor || b.x.cfg.blameStatusBar }
+func (b *blameController) enabled() bool { return b.x.cfg().blameEditor || b.x.cfg().blameStatusBar }
 
 // schedule asks for the blame of the cursor to be shown after blameDelay: the run that was waiting or working is cancelled, so that a fast
 // sequence of changes starts one.
@@ -131,7 +131,7 @@ func (b *blameController) cancelRun() {
 
 // settingsChanged follows a change of the settings of the blame text.
 func (b *blameController) settingsChanged(old config) {
-	c := b.x.cfg
+	c := b.x.cfg()
 	if old.blameEditor == c.blameEditor && old.blameStatusBar == c.blameStatusBar && old.blameEditorTemplate == c.blameEditorTemplate &&
 		old.blameStatusBarTemplate == c.blameStatusBarTemplate && old.blameDisableHover == c.blameDisableHover &&
 		old.blameIgnoreWhitespace == c.blameIgnoreWhitespace && old.commitShortHashLength == c.commitShortHashLength {
@@ -254,7 +254,7 @@ func (b *blameController) jobFor(gen int) (blameJob, bool) {
 	}
 	job := blameJob{
 		gen: gen, repo: r.repo, root: r.root, rel: filepath.ToSlash(rel), head: r.head.commit, uri: doc.URI, text: text,
-		ignoreWhitespace: x.cfg.blameIgnoreWhitespace, wantHover: x.cfg.blameEditor && !x.cfg.blameDisableHover,
+		ignoreWhitespace: x.cfg().blameIgnoreWhitespace, wantHover: x.cfg().blameEditor && !x.cfg().blameDisableHover,
 	}
 	seen := map[int]bool{}
 	for _, s := range doc.Selections {
@@ -416,12 +416,12 @@ func (b *blameController) apply(job blameJob, res blameResult) {
 		b.clear()
 		return
 	}
-	hashLen := x.cfg.commitShortHashLength
-	if x.cfg.blameEditor {
+	hashLen := x.cfg().commitShortHashLength
+	if x.cfg().blameEditor {
 		list := make([]extension.LineAnnotation, 0, len(res.lines))
 		for _, lb := range res.lines {
-			an := extension.LineAnnotation{Line: lb.line, Text: b.format(x.cfg.blameEditorTemplate, lb.info, hashLen), Color: "git.blame.editorDecorationForeground"}
-			if !x.cfg.blameDisableHover && !lb.info.uncommitted {
+			an := extension.LineAnnotation{Line: lb.line, Text: b.format(x.cfg().blameEditorTemplate, lb.info, hashLen), Color: "git.blame.editorDecorationForeground"}
+			if !x.cfg().blameDisableHover && !lb.info.uncommitted {
 				an.Hover = b.hover(job.uri, job.root, lb, hashLen)
 			}
 			list = append(list, an)
@@ -443,7 +443,7 @@ func (b *blameController) apply(job blameJob, res blameResult) {
 // updateStatus shows the blame of the first cursor in the status bar, or hides the item when the setting is off.
 func (b *blameController) updateStatus(job blameJob, lb lineBlame, hashLen int) {
 	x := b.x
-	if !x.cfg.blameStatusBar {
+	if !x.cfg().blameStatusBar {
 		if b.status != nil {
 			b.status.SetVisible(false)
 		}
@@ -451,7 +451,7 @@ func (b *blameController) updateStatus(job blameJob, lb lineBlame, hashLen int) 
 	}
 	item := extension.StatusItem{
 		ID: blameKey, Name: "Git Blame Information", Alignment: extension.StatusRight, Priority: 200,
-		Text: "$(git-commit) " + b.format(x.cfg.blameStatusBarTemplate, lb.info, hashLen), Tooltip: b.tooltip(lb, hashLen),
+		Text: "$(git-commit) " + b.format(x.cfg().blameStatusBarTemplate, lb.info, hashLen), Tooltip: b.tooltip(lb, hashLen),
 	}
 	if !lb.info.uncommitted {
 		item.Command, item.Args = "git.viewCommit", blameCommitArgs(lb.info.hash, job.uri, job.root)
@@ -602,13 +602,13 @@ func (x *gitscm) cmdCopyContent(_ context.Context, args any) error {
 
 // cmdToggleBlameEditor is git.blame.toggleEditorDecoration.
 func (x *gitscm) cmdToggleBlameEditor(context.Context, any) error {
-	x.saveSetting("git.blame.editorDecoration.enabled", !x.cfg.blameEditor)
+	x.saveSetting("git.blame.editorDecoration.enabled", !x.cfg().blameEditor)
 	return nil
 }
 
 // cmdToggleBlameStatusBar is git.blame.toggleStatusBarItem.
 func (x *gitscm) cmdToggleBlameStatusBar(context.Context, any) error {
-	x.saveSetting("git.blame.statusBarItem.enabled", !x.cfg.blameStatusBar)
+	x.saveSetting("git.blame.statusBarItem.enabled", !x.cfg().blameStatusBar)
 	return nil
 }
 

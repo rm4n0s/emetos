@@ -51,7 +51,7 @@ func refSeparator(t git.RefType) string {
 
 // shortHash is the first characters of a hash, as many as git.commitShortHashLength says.
 func (x *gitscm) shortHash(hash string) string {
-	if n := x.cfg.commitShortHashLength; n > 0 && len(hash) > n {
+	if n := x.cfg().commitShortHashLength; n > 0 && len(hash) > n {
 		return hash[:n]
 	}
 	return hash

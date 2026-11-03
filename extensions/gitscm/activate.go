@@ -62,7 +62,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 		x.cache.setFolders(func() []string { return []string{x.folder} })
 	}
 
-	x.cfg.load(api)
+	x.loadConfig(api)
 	x.syncHelperSettings()
 	x.loadTimelineSettings()
 	api.Settings().OnChange(x.settingsChanged)
@@ -111,7 +111,7 @@ func (x *gitscm) Activate(ctx context.Context, api extension.API) error {
 	}
 	x.provideStashMultiDiff()
 	x.model.updateContext()
-	if x.cfg.enabled {
+	if x.cfg().enabled {
 		x.start()
 	}
 	return nil
@@ -123,7 +123,7 @@ func (x *gitscm) start() {
 		return
 	}
 	x.started = true
-	hints := append([]string(nil), x.cfg.paths...)
+	hints := append([]string(nil), x.cfg().paths...)
 	go func() {
 		inst, err := git.Find(x.ctx, hints, git.FindOptions{Log: x.logLine, Env: x.opts.Env})
 		x.api.Post(func() { x.gitFound(inst, err) })
@@ -140,7 +140,7 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 		x.logLine("git is not available: " + err.Error())
 		x.model.state = "initialized"
 		x.model.updateContext()
-		if !x.cfg.ignoreMissingGitWarning {
+		if !x.cfg().ignoreMissingGitWarning {
 			x.api.Notifications().Warn("Git is not installed, or is older than 2.30. Install it with your package manager and reload the window.",
 				extension.NotificationAction{Label: "Don't Show Again", Run: func() { x.saveSetting("git.ignoreMissingGitWarning", true) }},
 				extension.NotificationAction{Label: "Show Git Output", Run: func() { x.channel.Show(false) }})
@@ -151,7 +151,7 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 	x.install = inst
 	x.logLine("Using git " + inst.Version.String() + " from " + inst.Path)
 	x.runner = git.NewRunner(git.Config{
-		Path: inst.Path, Version: inst.Version, Env: x.opts.Env, Logger: x.logLine, CommandsToLog: x.cfg.commandsToLog, Trust: git.TrustedBy(x.trust),
+		Path: inst.Path, Version: inst.Version, Env: x.opts.Env, Logger: x.logLine, CommandsToLog: x.cfg().commandsToLog, Trust: git.TrustedBy(x.trust),
 		ExtraFor: x.helperEnv,
 	})
 	x.model.scan()
@@ -165,10 +165,10 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 
 // syncHelperSettings gives the goroutines of the commands the two settings that decide the variables of git's programs.
 func (x *gitscm) syncHelperSettings() {
-	x.askpassOn.Store(x.cfg.useIntegratedAskPass)
-	x.editorOn.Store(x.cfg.useEditorAsCommitInput)
-	x.terminalAskpassOn.Store(x.cfg.enabled && x.cfg.useIntegratedAskPass && x.cfg.terminalAuthentication)
-	x.terminalEditorOn.Store(x.cfg.enabled && x.cfg.useEditorAsCommitInput && x.cfg.terminalGitEditor)
+	x.askpassOn.Store(x.cfg().useIntegratedAskPass)
+	x.editorOn.Store(x.cfg().useEditorAsCommitInput)
+	x.terminalAskpassOn.Store(x.cfg().enabled && x.cfg().useIntegratedAskPass && x.cfg().terminalAuthentication)
+	x.terminalEditorOn.Store(x.cfg().enabled && x.cfg().useEditorAsCommitInput && x.cfg().terminalGitEditor)
 }
 
 // logLine writes a line to the Git channel; it may be called from any goroutine.
@@ -196,20 +196,20 @@ func (x *gitscm) saveSetting(key string, value any) {
 // settingsChanged follows a change of the settings: git.enabled starts and stops everything, the settings that change what the status
 // shows refresh the repositories, and git.autorefresh starts and stops the watchers.
 func (x *gitscm) settingsChanged() {
-	old := x.cfg
-	x.cfg.load(x.api)
+	old := *x.cfg()
+	x.loadConfig(x.api)
 	x.syncHelperSettings()
 	x.loadTimelineSettings()
 	x.autofetchSettingChanged()
 	switch {
-	case old.enabled && !x.cfg.enabled:
+	case old.enabled && !x.cfg().enabled:
 		for _, r := range append([]*repository(nil), x.model.order...) {
 			x.model.drop(r)
 		}
 		x.model.updateContext()
 		x.blame.schedule() // there is no repository to blame in any more: the text goes
 		return
-	case !old.enabled && x.cfg.enabled:
+	case !old.enabled && x.cfg().enabled:
 		if x.runner != nil {
 			x.model.scan()
 		} else {
@@ -217,40 +217,40 @@ func (x *gitscm) settingsChanged() {
 		}
 		return
 	}
-	if !x.cfg.enabled {
+	if !x.cfg().enabled {
 		return
 	}
-	if old.decorationsEnabled != x.cfg.decorationsEnabled {
+	if old.decorationsEnabled != x.cfg().decorationsEnabled {
 		for _, r := range x.model.order {
 			r.syncDecorations()
 		}
 	}
 	x.blame.settingsChanged(old)
-	statusChanged := old.untrackedChanges != x.cfg.untrackedChanges || old.statusLimit != x.cfg.statusLimit || old.similarityThreshold != x.cfg.similarityThreshold ||
-		old.ignoreSubmodules != x.cfg.ignoreSubmodules || old.countBadge != x.cfg.countBadge || old.enableStatusBarSync != x.cfg.enableStatusBarSync ||
-		old.commitShortHashLength != x.cfg.commitShortHashLength || old.alwaysShowStagedGroup != x.cfg.alwaysShowStagedGroup
+	statusChanged := old.untrackedChanges != x.cfg().untrackedChanges || old.statusLimit != x.cfg().statusLimit || old.similarityThreshold != x.cfg().similarityThreshold ||
+		old.ignoreSubmodules != x.cfg().ignoreSubmodules || old.countBadge != x.cfg().countBadge || old.enableStatusBarSync != x.cfg().enableStatusBarSync ||
+		old.commitShortHashLength != x.cfg().commitShortHashLength || old.alwaysShowStagedGroup != x.cfg().alwaysShowStagedGroup
 	for _, r := range x.model.order {
-		if old.autorefresh != x.cfg.autorefresh && r.repo != nil {
-			if x.cfg.autorefresh {
+		if old.autorefresh != x.cfg().autorefresh && r.repo != nil {
+			if x.cfg().autorefresh {
 				r.startWatching()
 			} else {
 				r.stopWatching()
 			}
 		}
-		if old.alwaysShowStagedGroup != x.cfg.alwaysShowStagedGroup && r.groups.index != nil {
-			r.groups.index.SetHideWhenEmpty(!x.cfg.alwaysShowStagedGroup)
+		if old.alwaysShowStagedGroup != x.cfg().alwaysShowStagedGroup && r.groups.index != nil {
+			r.groups.index.SetHideWhenEmpty(!x.cfg().alwaysShowStagedGroup)
 		}
 		r.updateCommitUI()
-		if old.inputValidation != x.cfg.inputValidation || old.inputValidationLength != x.cfg.inputValidationLength ||
-			old.inputValidationSubjectLength != x.cfg.inputValidationSubjectLength {
+		if old.inputValidation != x.cfg().inputValidation || old.inputValidationLength != x.cfg().inputValidationLength ||
+			old.inputValidationSubjectLength != x.cfg().inputValidationSubjectLength {
 			r.revalidate()
 		}
 		if statusChanged {
 			r.refresh()
 		}
 	}
-	if old.autoDetection != x.cfg.autoDetection || old.openInParentFolders != x.cfg.openInParentFolders || old.scanMaxDepth != x.cfg.scanMaxDepth ||
-		old.detectSubmodules != x.cfg.detectSubmodules {
+	if old.autoDetection != x.cfg().autoDetection || old.openInParentFolders != x.cfg().openInParentFolders || old.scanMaxDepth != x.cfg().scanMaxDepth ||
+		old.detectSubmodules != x.cfg().detectSubmodules {
 		if x.runner != nil {
 			x.model.scan()
 		}
@@ -268,7 +268,7 @@ func (x *gitscm) onFocus(ev extension.Event) {
 		return
 	}
 	for _, r := range x.model.order {
-		if x.cfg.autorefresh {
+		if x.cfg().autorefresh {
 			r.scheduleRefresh()
 		}
 		r.pokeAutofetch() // a fetch that was due waits for the window to have the focus
@@ -278,7 +278,7 @@ func (x *gitscm) onFocus(ev extension.Event) {
 // onSaved refreshes the repository of a file that was saved.
 func (x *gitscm) onSaved(ev extension.Event) {
 	var saved extension.DocumentSaved
-	if err := jsonUnmarshal(ev.Data, &saved); err != nil || !x.cfg.autorefresh {
+	if err := jsonUnmarshal(ev.Data, &saved); err != nil || !x.cfg().autorefresh {
 		return
 	}
 	if path, ok := uriPath(saved.URI); ok {
@@ -339,7 +339,7 @@ func (x *gitscm) excludeSetting() map[string]bool {
 
 // ignoredRepository says whether git.ignoredRepositories lists the repository: an absolute path, or a path relative to the folder.
 func (x *gitscm) ignoredRepository(root string) bool {
-	for _, p := range x.cfg.ignoredRepositories {
+	for _, p := range x.cfg().ignoredRepositories {
 		if p == "" {
 			continue
 		}

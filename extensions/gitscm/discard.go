@@ -256,9 +256,9 @@ func (x *gitscm) askDiscard(r *repository, tracked, untracked []resource) {
 	case len(untracked) == 0:
 		q = trackedQuestion(tracked)
 	case len(tracked) == 0:
-		q = untrackedQuestion(untracked, x.cfg.discardToTrash)
+		q = untrackedQuestion(untracked, x.cfg().discardToTrash)
 	default:
-		q = mixedQuestion(tracked, untracked, x.cfg.discardToTrash)
+		q = mixedQuestion(tracked, untracked, x.cfg().discardToTrash)
 	}
 	x.ask(q.spec, func(res extension.DialogResult) {
 		if res.Cancelled || res.Button < 0 || res.Button >= len(q.choices) {
@@ -297,7 +297,7 @@ func (r *repository) discardNow(tracked, untracked []resource) {
 	r.optimisticClean(paths)
 	r.beginOwn()
 	ctx, repo, gen := r.ctx, r.repo, r.gen
-	toTrash := x.cfg.discardToTrash
+	toTrash := x.cfg().discardToTrash
 	submodules := map[string]bool{}
 	for _, p := range r.submodules {
 		submodules[filepath.Join(r.root, filepath.FromSlash(p))] = true

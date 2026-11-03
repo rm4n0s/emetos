@@ -480,7 +480,7 @@ func TestTheLimitWarningIsShownOnce(t *testing.T) {
 		t.Errorf("updates = %+v", ups)
 	}
 	// with the warning ignored a second repository does not warn either
-	if !reflect.DeepEqual(r.x.cfg.ignoreLimitWarning, true) {
+	if !reflect.DeepEqual(r.x.cfg().ignoreLimitWarning, true) {
 		t.Error("the setting is not read")
 	}
 }

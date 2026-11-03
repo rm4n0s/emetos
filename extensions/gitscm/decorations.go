@@ -160,7 +160,7 @@ func (p *statusProvider) set(next map[string]extension.FileDecoration, changed [
 // that is told its status, with it off the provider goes.
 func (r *repository) syncDecorations() {
 	x := r.m.x
-	if r.disposed || !x.cfg.decorationsEnabled || !r.trusted || r.repo == nil || !r.refreshed {
+	if r.disposed || !x.cfg().decorationsEnabled || !r.trusted || r.repo == nil || !r.refreshed {
 		r.dropDecorations()
 		return
 	}
@@ -182,7 +182,7 @@ func (r *repository) decorationState() (map[string]extension.FileDecoration, int
 // setting was switched meanwhile) the diff is made here.
 func (r *repository) applyDecorations(next map[string]extension.FileDecoration, changed []string, prevGen int) {
 	x := r.m.x
-	if r.disposed || !x.cfg.decorationsEnabled {
+	if r.disposed || !x.cfg().decorationsEnabled {
 		return
 	}
 	if r.decos == nil {

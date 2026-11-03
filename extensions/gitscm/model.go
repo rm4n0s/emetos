@@ -65,7 +65,7 @@ func (m *model) scan() {
 		return
 	}
 	m.scanning = true
-	in := discoveryInput{folder: x.folder, home: x.home, cfg: &x.cfg, editorDirs: x.editorDirs()}
+	in := discoveryInput{folder: x.folder, home: x.home, cfg: x.cfg(), editorDirs: x.editorDirs()}
 	in.excluded = excludedBy(x.excludeSetting())
 	in.ignored = func(root string) bool { return x.ignoredRepository(root) }
 	go func() {
@@ -93,7 +93,7 @@ func (m *model) applyDiscovery(found discovered) {
 	first := m.state != "initialized"
 	m.state = "initialized"
 	m.updateContext()
-	if len(m.parents) > 0 && m.x.cfg.openInParentFolders == "prompt" && (first || len(m.parents) > parentsBefore) {
+	if len(m.parents) > 0 && m.x.cfg().openInParentFolders == "prompt" && (first || len(m.parents) > parentsBefore) {
 		m.parentNotification()
 	}
 	m.askNext()
@@ -109,7 +109,7 @@ func (m *model) applyDiscovery(found discovered) {
 // Ported from VS Code: extensions/git/src/model.ts (openRepository)
 func (m *model) openRepository(c candidate, force bool) *repository {
 	x := m.x
-	if !x.cfg.enabled || x.stopped.Load() {
+	if !x.cfg().enabled || x.stopped.Load() {
 		return nil
 	}
 	root := c.loc.Root
@@ -146,7 +146,7 @@ func (m *model) openRepository(c candidate, force bool) *repository {
 func (m *model) opened(r *repository) {
 	m.updateContext()
 	m.x.ignoresChanged()
-	if m.x.cfg.detectSubmodules {
+	if m.x.cfg().detectSubmodules {
 		m.openSubmodules(r)
 	}
 }
@@ -160,7 +160,7 @@ func (m *model) openSubmodules(r *repository) {
 	}
 	n := 0
 	for _, sm := range git.ParseGitmodules(string(data)) {
-		if n >= m.x.cfg.detectSubmodulesLimit {
+		if n >= m.x.cfg().detectSubmodulesLimit {
 			break
 		}
 		loc, ok := git.RepositoryAt(filepath.Join(r.root, filepath.FromSlash(sm.Path)))
@@ -178,10 +178,10 @@ func (m *model) openSubmodules(r *repository) {
 // Ported from VS Code: extensions/git/src/model.ts (open: checkForWorktrees)
 func (m *model) detectWorktrees(r *repository, list []git.Worktree) {
 	x := m.x
-	if !x.cfg.detectWorktrees || r.kind() == git.KindWorktree || r.disposed {
+	if !x.cfg().detectWorktrees || r.kind() == git.KindWorktree || r.disposed {
 		return
 	}
-	limit := x.cfg.detectWorktreesLimit
+	limit := x.cfg().detectWorktreesLimit
 	if len(list) > limit {
 		if !m.notified["worktrees:"+r.root] {
 			m.notified["worktrees:"+r.root] = true
@@ -377,7 +377,7 @@ func (m *model) updateContext() {
 // onPossibleGitRepositoryChange), after the debounce.
 func (m *model) onFilesChanged(changes []extension.FileChange) {
 	x := m.x
-	if !x.cfg.enabled || x.cfg.autoDetection == "false" || x.stopped.Load() {
+	if !x.cfg().enabled || x.cfg().autoDetection == "false" || x.stopped.Load() {
 		return
 	}
 	for _, c := range changes {

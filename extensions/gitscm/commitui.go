@@ -77,7 +77,7 @@ func (r *repository) updateCommitUI() {
 		r.shownPlaceholder = p
 		in.SetPlaceholder(p)
 	}
-	if visible := r.m.x.cfg.showCommitInput; r.shownVisible == nil || *r.shownVisible != visible {
+	if visible := r.m.x.cfg().showCommitInput; r.shownVisible == nil || *r.shownVisible != visible {
 		r.shownVisible = &visible
 		in.SetVisible(visible)
 	}
@@ -188,7 +188,7 @@ func (r *repository) flushWaiters() {
 // more changes than git.statusLimit says so, and with git.inputValidation a message that is only white space or has a line past the
 // limits is reported as a warning.
 func (r *repository) validateInput(text string) *extension.Validation {
-	cfg := &r.m.x.cfg
+	cfg := r.m.x.cfg()
 	if r.hugeLimit > 0 {
 		return &extension.Validation{
 			Message: "Too many changes were detected. Only the first " + strconv.Itoa(r.hugeLimit) + " changes will be shown below.",
@@ -260,7 +260,7 @@ func (r *repository) applyTemplate(template string) {
 //
 // Ported from VS Code: extensions/git/src/actionButton.ts (repositoryHasChangesToCommit)
 func (r *repository) hasChangesToCommit() bool {
-	cfg := &r.m.x.cfg
+	cfg := r.m.x.cfg()
 	n := len(r.res.index)
 	if (cfg.enableSmartCommit && cfg.smartCommitChanges == "all") || (!cfg.enableSmartCommit && cfg.suggestSmartCommit) {
 		n += len(r.res.working)
@@ -301,7 +301,7 @@ func (r *repository) actionButton() *extension.ActionButton {
 //
 // Ported from VS Code: extensions/git/src/actionButton.ts (getCommitActionButton; Continue for a cherry-pick and a revert is Emetos's)
 func (r *repository) commitButton() *extension.ActionButton {
-	cfg := &r.m.x.cfg
+	cfg := r.m.x.cfg()
 	if !cfg.showActionButton.Commit {
 		return nil
 	}
@@ -336,7 +336,7 @@ func (r *repository) commitButton() *extension.ActionButton {
 // publishButton is the Publish Branch button of a branch that has no upstream.
 func (r *repository) publishButton() *extension.ActionButton {
 	h := r.head
-	if h.name == "" || h.upstream != nil || r.committing || r.ops.stopped() || !r.m.x.cfg.showActionButton.Publish {
+	if h.name == "" || h.upstream != nil || r.committing || r.ops.stopped() || !r.m.x.cfg().showActionButton.Publish {
 		return nil
 	}
 	icon, tooltip := "$(cloud-upload)", `Publish Branch "`+h.name+`"`
@@ -352,7 +352,7 @@ func (r *repository) publishButton() *extension.ActionButton {
 // syncButton is the Sync Changes button of a branch that is ahead of or behind its upstream.
 func (r *repository) syncButton() *extension.ActionButton {
 	h := r.head
-	if h.upstream == nil || (h.ahead == 0 && h.behind == 0) || r.committing || r.ops.stopped() || !r.m.x.cfg.showActionButton.Sync {
+	if h.upstream == nil || (h.ahead == 0 && h.behind == 0) || r.committing || r.ops.stopped() || !r.m.x.cfg().showActionButton.Sync {
 		return nil
 	}
 	ahead, behind := "", ""
@@ -391,7 +391,7 @@ func commandsOf(list []postCommitChoice) []extension.Command {
 // to a new branch.
 func (r *repository) protection() (alwaysPrompt, newBranch bool) {
 	protected := r.isBranchProtected()
-	prompt := r.m.x.cfg.branchProtectionPrompt
+	prompt := r.m.x.cfg().branchProtectionPrompt
 	return protected && prompt == "alwaysPrompt", protected && prompt == "alwaysCommitToNewBranch"
 }
 
@@ -478,7 +478,7 @@ func (r *repository) primaryPostCommit() postCommitChoice {
 			}
 		}
 	}
-	if setting := r.m.x.cfg.postCommitCommand; setting == "push" || setting == "sync" {
+	if setting := r.m.x.cfg().postCommitCommand; setting == "push" || setting == "sync" {
 		for _, c := range all {
 			if c.spec.command == "git."+setting {
 				return c
@@ -501,7 +501,7 @@ func (r *repository) branchNameProtected(name string) bool {
 		return false
 	}
 	var patterns []string
-	for _, p := range r.m.x.cfg.branchProtection {
+	for _, p := range r.m.x.cfg().branchProtection {
 		if p = strings.TrimSpace(p); p != "" {
 			patterns = append(patterns, p)
 		}

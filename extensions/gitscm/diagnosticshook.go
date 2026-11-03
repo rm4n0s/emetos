@@ -66,7 +66,7 @@ func unresolved(markers []extension.Marker, sources map[string]string) int {
 // diagnostics is the step of the commit that asks about the problems of the files it takes.
 func (c *commitRun) diagnostics(next func()) {
 	x, r := c.x, c.r
-	if !x.cfg.diagnosticsHook {
+	if !x.cfg().diagnosticsHook {
 		next()
 		return
 	}
@@ -88,7 +88,7 @@ func (c *commitRun) diagnostics(next func()) {
 			}
 			continue
 		}
-		if unresolved(markers, x.cfg.diagnosticsSources) > 0 {
+		if unresolved(markers, x.cfg().diagnosticsSources) > 0 {
 			files = append(files, res.path)
 		}
 	}

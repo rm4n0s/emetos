@@ -172,7 +172,7 @@ type gitscm struct {
 	channel extension.OutputChannel
 	trust   *trust.Store
 	cache   *repoCache
-	cfg     config
+	cfgv    atomic.Pointer[config]
 	model   *model
 
 	// runner starts git; it is nil until git is found, and install says which git it is.

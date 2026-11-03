@@ -132,7 +132,7 @@ func (x *gitscm) handleHelper(ctx context.Context, req helper.Request) helper.Re
 		}
 	}
 	x.api.Post(func() {
-		if !x.cfg.enabled {
+		if !x.cfg().enabled {
 			reply(helper.Reply{Error: "Git is turned off in the settings of Emetos"})
 			return
 		}

@@ -54,7 +54,7 @@ func (x *gitscm) watcherExcludes() []string {
 // git.autorefresh off.
 func (r *repository) startWatching() {
 	x := r.m.x
-	if !x.cfg.autorefresh || r.disposed {
+	if !x.cfg().autorefresh || r.disposed {
 		return
 	}
 	r.stopWatching()
@@ -104,7 +104,7 @@ func (r *repository) stopWatching() {
 // onChanges gets the changes of the watches, on the UI thread.
 func (r *repository) onChanges(changes []extension.FileChange) {
 	x := r.m.x
-	if r.disposed || !x.cfg.autorefresh || r.own > 0 {
+	if r.disposed || !x.cfg().autorefresh || r.own > 0 {
 		return
 	}
 	for _, c := range changes {

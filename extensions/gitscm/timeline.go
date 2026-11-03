@@ -118,10 +118,10 @@ func (t *timelineState) config() timelineSettings {
 // loadTimelineSettings copies the settings the provider reads.
 func (x *gitscm) loadTimelineSettings() {
 	s := timelineSettings{
-		authored:        x.cfg.timelineDate == "authored",
-		showAuthor:      x.cfg.timelineShowAuthor,
-		showUncommitted: x.cfg.timelineShowUncommitted,
-		shortHash:       x.cfg.commitShortHashLength,
+		authored:        x.cfg().timelineDate == "authored",
+		showAuthor:      x.cfg().timelineShowAuthor,
+		showUncommitted: x.cfg().timelineShowUncommitted,
+		shortHash:       x.cfg().commitShortHashLength,
 	}
 	x.tl.mu.Lock()
 	changed := x.tl.settings != s

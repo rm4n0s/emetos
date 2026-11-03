@@ -61,7 +61,7 @@ func (r *repository) state() RepositoryState {
 	}
 	s.Ahead, s.Behind = h.ahead, h.behind
 	s.Changes = ChangeCounts{Merge: len(r.res.merge), Index: len(r.res.index), Working: len(r.res.working), Untracked: len(r.res.untracked)}
-	s.Count = countFor(r.res, r.m.x.cfg.countBadge)
+	s.Count = countFor(r.res, r.m.x.cfg().countBadge)
 	s.Merging, s.Rebasing, s.CherryPicking = r.ops.merge, r.ops.rebase, r.ops.cherryPick
 	s.Stashes = r.stashes
 	s.Limited = r.hugeLimit > 0

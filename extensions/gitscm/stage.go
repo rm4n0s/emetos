@@ -457,7 +457,7 @@ func isUntracked(res resource) bool {
 // files are staged ("git add -u").
 func (x *gitscm) cmdStageAll(_ context.Context, args any) error {
 	x.target(args, true, func(r *repository) {
-		if x.cfg.untrackedChanges == "mixed" {
+		if x.cfg().untrackedChanges == "mixed" {
 			r.stagePaths(pathsOf(r.workAndUntracked(), stagePathsOf), false)
 			return
 		}

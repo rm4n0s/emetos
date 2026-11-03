@@ -128,7 +128,7 @@ func (r *repository) createGroups() error {
 		hideWhenEmpty bool
 	}{
 		{&r.groups.merge, groupMerge, "Merge Changes", true},
-		{&r.groups.index, groupIndex, "Staged Changes", !r.m.x.cfg.alwaysShowStagedGroup},
+		{&r.groups.index, groupIndex, "Staged Changes", !r.m.x.cfg().alwaysShowStagedGroup},
 		{&r.groups.working, groupWorking, "Changes", false},
 		{&r.groups.untracked, groupUntracked, "Untracked Changes", true},
 	}
@@ -352,11 +352,11 @@ func (r *repository) refresh() {
 	r.refreshing = true
 	r.setBusy(true)
 	x := r.m.x
-	repo, opts := r.repo, x.cfg.statusOptions()
-	wantWorktrees := x.cfg.detectWorktrees && r.kind() != git.KindWorktree
+	repo, opts := r.repo, x.cfg().statusOptions()
+	wantWorktrees := x.cfg().detectWorktrees && r.kind() != git.KindWorktree
 	gitDir, commonDir := repo.Info.GitDir, repo.Info.CommonDir
 	ctx, gen := r.ctx, r.gen
-	root, mode, kind, decorate, loc := r.root, x.cfg.untrackedChanges, r.kind(), x.cfg.decorationsEnabled, r.loc
+	root, mode, kind, decorate, loc := r.root, x.cfg().untrackedChanges, r.kind(), x.cfg().decorationsEnabled, r.loc
 	prevDecos, prevGen := r.decorationState()
 	prevKey, home, prevRebase := r.templateKey, x.home, r.rebaseCommit
 	go func() {
@@ -466,7 +466,7 @@ func (r *repository) applySnapshot(snap snapshot) {
 	}
 	r.lastStatus = snap.status.Entries
 	if snap.status.HitLimit {
-		r.hugeLimit = x.cfg.statusLimit
+		r.hugeLimit = x.cfg().statusLimit
 		r.warnLimit()
 	} else {
 		r.hugeLimit = 0
@@ -527,7 +527,7 @@ func (r *repository) putGroups(g groups, states [4][]extension.ResourceState) {
 	r.groups.index.SetResources(states[1])
 	r.groups.working.SetResources(states[2])
 	r.groups.untracked.SetResources(states[3])
-	r.src.SetCount(countFor(g, r.m.x.cfg.countBadge))
+	r.src.SetCount(countFor(g, r.m.x.cfg().countBadge))
 }
 
 // warnLimit shows the warning of a repository with more changes than git.statusLimit, once (VS Code's didWarnAboutLimit).
@@ -535,7 +535,7 @@ func (r *repository) putGroups(g groups, states [4][]extension.ResourceState) {
 // Ported from VS Code: extensions/git/src/repository.ts (updateModelState)
 func (r *repository) warnLimit() {
 	x := r.m.x
-	if x.cfg.ignoreLimitWarning || r.didWarn {
+	if x.cfg().ignoreLimitWarning || r.didWarn {
 		return
 	}
 	r.didWarn = true
@@ -552,7 +552,7 @@ func (r *repository) warnLimit() {
 func (r *repository) setBusy(busy bool) {
 	x := r.m.x
 	if busy {
-		if r.busy || r.busyStop != nil || !x.cfg.showProgress {
+		if r.busy || r.busyStop != nil || !x.cfg().showProgress {
 			return
 		}
 		r.busyStop = x.clock.AfterFunc(300*time.Millisecond, func() {
@@ -590,7 +590,7 @@ func (r *repository) headLabel() string {
 	}
 	if label == "" {
 		label = h.commit
-		if n := r.m.x.cfg.commitShortHashLength; n > 0 && len(label) > n {
+		if n := r.m.x.cfg().commitShortHashLength; n > 0 && len(label) > n {
 			label = label[:n]
 		}
 	}
@@ -719,7 +719,7 @@ func (r *repository) branchItem(args []any) extension.StatusCommand {
 //
 // Ported from VS Code: extensions/git/src/statusbar.ts (SyncStatusBar.command)
 func (r *repository) syncItem(args []any) (extension.StatusCommand, bool) {
-	if !r.m.x.cfg.enableStatusBarSync {
+	if !r.m.x.cfg().enableStatusBarSync {
 		return extension.StatusCommand{}, false
 	}
 	h := r.head
@@ -754,7 +754,7 @@ func (r *repository) syncItem(args []any) (extension.StatusCommand, bool) {
 //
 // Ported from VS Code: extensions/git/src/repository.ts (add, revert and clean: the function that gives the optimistic resource groups)
 func (r *repository) optimisticStage(paths []string) {
-	if !r.m.x.cfg.optimisticUpdate || r.groups.merge == nil {
+	if !r.m.x.cfg().optimisticUpdate || r.groups.merge == nil {
 		return
 	}
 	want := pathSet(paths)
@@ -798,11 +798,11 @@ func (r *repository) optimisticStage(paths []string) {
 // optimisticUnstage is the hook of the unstage commands: Staged Changes go back to Changes; a file that was added goes back to the
 // untracked files, which are in Changes ("mixed"), in Untracked Changes ("separate") or not shown ("hidden").
 func (r *repository) optimisticUnstage(paths []string) {
-	if !r.m.x.cfg.optimisticUpdate || r.groups.merge == nil {
+	if !r.m.x.cfg().optimisticUpdate || r.groups.merge == nil {
 		return
 	}
 	want := pathSet(paths)
-	mode := r.m.x.cfg.untrackedChanges
+	mode := r.m.x.cfg().untrackedChanges
 	g := r.res
 	g.index = nil
 	for _, res := range r.res.index {
@@ -826,7 +826,7 @@ func (r *repository) optimisticUnstage(paths []string) {
 
 // optimisticClean takes the resources with these paths out of Changes and Untracked Changes: they were discarded.
 func (r *repository) optimisticClean(paths []string) {
-	if !r.m.x.cfg.optimisticUpdate || r.groups.merge == nil {
+	if !r.m.x.cfg().optimisticUpdate || r.groups.merge == nil {
 		return
 	}
 	want := pathSet(paths)

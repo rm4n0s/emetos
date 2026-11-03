@@ -210,7 +210,7 @@ func (x *gitscm) cmdDelete(_ context.Context, args any) error {
 			after: func() { x.closeTabsOf(path) },
 		})
 	}
-	if !x.cfg.confirmCommittedDelete {
+	if !x.cfg().confirmCommittedDelete {
 		run()
 		return nil
 	}

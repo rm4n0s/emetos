@@ -173,7 +173,7 @@ func (x *gitscm) openChange(t target, o openOptions) {
 	case s.Right != "":
 		// with git.mergeEditor on, a file with both modified or both added opens the merge editor; else the file with its markers, which the
 		// window offers the merge editor for (VS Code's Open Merge)
-		merge := x.cfg.mergeEditor && (t.res.status == git.StatusBothModified || t.res.status == git.StatusBothAdded)
+		merge := x.cfg().mergeEditor && (t.res.status == git.StatusBothModified || t.res.status == git.StatusBothAdded)
 		spec := extension.OpenSpec{URI: s.Right, Title: s.Title, Preview: o.preview, PreserveFocus: o.preserveFocus, MergeEditor: merge}
 		if merge && t.repo.worktreeMigrating {
 			spec.MergeLabels = worktreeMergeLabels // the conflicts of a migration of the changes of a worktree
@@ -217,7 +217,7 @@ func (x *gitscm) cmdOpenResource(_ context.Context, args any) error {
 	pinned, _ := m["pinned"].(bool)
 	preserve, _ := m["preserveFocus"].(bool)
 	o := openOptions{preview: !pinned, preserveFocus: preserve}
-	if x.cfg.openDiffOnClick {
+	if x.cfg().openDiffOnClick {
 		x.openChange(t, o)
 	} else {
 		x.openFile(t.res.path, o, nil)
@@ -379,7 +379,7 @@ func (x *gitscm) reveal(args any, inOS bool) error {
 // Ported from VS Code: extensions/git/src/repository.ts (closeDiffEditors)
 func (r *repository) closeDiffEditors(indexPaths, workPaths []string, force bool) {
 	x := r.m.x
-	if !x.cfg.closeDiffOnOperation && !force {
+	if !x.cfg().closeDiffOnOperation && !force {
 		return
 	}
 	var tabs []extension.DocumentTab

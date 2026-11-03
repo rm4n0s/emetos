@@ -136,7 +136,7 @@ func (r *repository) setSyncing(v bool) {
 
 // beginProgress and endProgress show the progress bar of the repository while a remote command runs (git.showProgress).
 func (r *repository) beginProgress() {
-	if !r.m.x.cfg.showProgress {
+	if !r.m.x.cfg().showProgress {
 		return
 	}
 	r.opBusy++
@@ -144,7 +144,7 @@ func (r *repository) beginProgress() {
 }
 
 func (r *repository) endProgress() {
-	if !r.m.x.cfg.showProgress || r.opBusy == 0 {
+	if !r.m.x.cfg().showProgress || r.opBusy == 0 {
 		return
 	}
 	r.opBusy--

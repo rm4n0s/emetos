@@ -35,7 +35,7 @@ func sanitizeBranchName(name, whitespace string) string {
 // branchProtection is the step of the commit that asks what to do when the branch is protected.
 func (c *commitRun) branchProtection(next func()) {
 	x, r := c.x, c.r
-	prompt := x.cfg.branchProtectionPrompt
+	prompt := x.cfg().branchProtectionPrompt
 	if !r.isBranchProtected() || (prompt != "alwaysPrompt" && prompt != "alwaysCommitToNewBranch") {
 		next()
 		return

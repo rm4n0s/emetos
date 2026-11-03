@@ -694,7 +694,7 @@ func TestADisabledExtensionAnswersNothing(t *testing.T) {
 	r := newRig(t, e, rigOptions{})
 	r.settle()
 	srv := r.x.helperServer()
-	r.x.cfg.enabled = false
+	r.x.cfg().enabled = false
 	ch := r.fakeSSH(t, "", "Enter passphrase for key '/k': ")
 	if got := r.waitScript(ch); got.stdout != "" || got.code != 1 || !strings.Contains(got.stderr, "turned off") {
 		t.Errorf("the script printed %+v", got)
