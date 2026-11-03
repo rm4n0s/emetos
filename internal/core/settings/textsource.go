@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/extension/jsonc"
 )
 
 // TextSource lets a Store use a document that an editor has open in place of a settings file

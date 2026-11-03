@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/regex"
 	"github.com/rm4n0s/errors"
 )

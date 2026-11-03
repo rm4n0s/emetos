@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/extension/jsonc"
 )
 
 func TestDefaultSettingsJSON(t *testing.T) {

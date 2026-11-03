@@ -3,7 +3,7 @@ package settings
 import (
 	"testing"
 
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/extension/jsonc"
 )
 
 const parserTestKey = "ConfigurationModelParserTest.windowSetting"

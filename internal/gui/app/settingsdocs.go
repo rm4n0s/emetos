@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
 )
 
 // Settings in an open editor (SPEC §11.1, §11.3): a settings.json (and the keybindings.json of the user, which the

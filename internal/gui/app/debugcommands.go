@@ -10,10 +10,10 @@ import (
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/debug"
 	"github.com/rm4n0s/emetos/internal/core/document"
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 	dbgview "github.com/rm4n0s/emetos/internal/gui/views/debug"

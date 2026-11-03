@@ -7,7 +7,7 @@ import (
 
 	"github.com/rm4n0s/errors"
 
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/plist"
 )
 

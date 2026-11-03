@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/errors"
 )

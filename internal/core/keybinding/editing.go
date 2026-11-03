@@ -7,8 +7,8 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
 )
 
 // The edits of the keybindings editor to keybindings.json (SPEC §11.3, step 8.3), as functions from the text of

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/extension/jsonc"
 )
 
 // DebuggerSchema is what the checks and the completion of launch.json need to know of a debug type: the JSON schemas of its attributes

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 	"github.com/rm4n0s/errors"
 )

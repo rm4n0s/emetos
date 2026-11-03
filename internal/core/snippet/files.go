@@ -10,9 +10,9 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/extension/jsonc"
 	"github.com/rm4n0s/emetos/internal/core/fileio"
 	"github.com/rm4n0s/emetos/internal/core/glob"
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
 )
 
 // bodyInsights is what Emetos finds out about the body of a snippet the first time it is asked.

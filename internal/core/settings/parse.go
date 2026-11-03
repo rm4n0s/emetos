@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rm4n0s/emetos/internal/core/jsonc"
+	"github.com/rm4n0s/emetos/extension/jsonc"
 )
 
 // rawInput is the top-level object of a settings file with its keys in the order they
