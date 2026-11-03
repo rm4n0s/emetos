@@ -183,3 +183,7 @@ func (b *Body) Remove() error {
 }
 
 func tlsVersionName(v uint16) string { return tls.VersionName(v) }
+
+// NewMemoryBody makes the body of a response from bytes that are in memory, for a caller that builds a Response itself (a test of
+// the response pane, a stored example).
+func NewMemoryBody(data []byte) *Body { return &Body{mem: data, size: int64(len(data))} }

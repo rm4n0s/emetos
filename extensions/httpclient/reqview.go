@@ -60,12 +60,17 @@ func (t *reqTab) build(bc widgets.BuildContext) widgets.Widget {
 	t.d.url.TextController().SetBuildTextSpan(func(bc widgets.BuildContext, style *painting.TextStyle, _ bool) *painting.TextSpan {
 		return urlSpan(bc, t.d.url.Value(), style, t.look())
 	})
-	body := stretch(
+	form := stretch(
 		tabPad(t.topRow(bc)),
 		t.sectionTabs(bc),
 		flex(ui.NewScrollView(tabPad(t.panel(bc)), &t.scroll), 1),
-		t.statusBar(bc),
 	)
+	var body widgets.Widget
+	if t.pane != nil && t.send.resp != nil {
+		body = t.withResponse(bc, form, t.responsePane(bc))
+	} else {
+		body = stretch(flex(form, 1), t.statusBar(bc))
+	}
 	return widgets.NewColoredBox(colors.EditorBackground, body)
 }
 
@@ -538,25 +543,16 @@ func (t *reqTab) settingsPanel(bc widgets.BuildContext) widgets.Widget {
 
 // ---- the status line ----
 
-// statusBar is the line under the form: what the last send gave. (The response pane of step 27.5 shows the response itself.)
+// statusBar is the line under the form while there is no response to show: the hint, "Sending...", a failure or a cancel. A response
+// has the pane instead (respview.go).
 func (t *reqTab) statusBar(bc widgets.BuildContext) widgets.Widget {
 	colors := ui.Theme(bc)
 	s := t.send
 	text, color := s.status, colors.DescriptionForeground
-	switch {
-	case text == "":
+	if text == "" {
 		text = "Press Send (Ctrl+Enter) to send the request."
-	case s.bad:
-		color = colors.ErrorForeground
-	case s.code >= 200 && s.code < 300:
-		color = colGood
-	case s.code >= 300 && s.code < 400:
-		color = colors.TextLinkForeground
-	case s.code >= 400:
-		color = colors.EditorWarningForeground
-	}
-	if s.code >= 500 {
-		color = colors.ErrorForeground
+	} else {
+		color = respStatusColor(colors, s.code, s.bad)
 	}
 	line := widgets.NewText(text, widgets.TextOpts{Style: ui.TextStyle(bc, 12, color), MaxLines: foundation.Some(2), Overflow: painting.TextOverflowEllipsis})
 	return widgets.NewColoredBox(colors.PanelBackground, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(16, 6, 16, 6), stretch(line)))

@@ -1,0 +1,13 @@
+{
+  "emetosHttp": 1,
+  "name": "Create user",
+  "method": "POST",
+  "url": "{{baseUrl}}/echo/users",
+  "params": [{ "name": "notify", "value": "true" }],
+  "headers": [
+    { "name": "Accept", "value": "application/json" },
+    { "name": "X-Request-Source", "value": "emetos" }
+  ],
+  "auth": { "type": "bearer", "token": "{{apiKey}}" },
+  "body": { "type": "json", "file": "create-user.body.json" }
+}

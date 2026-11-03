@@ -97,3 +97,14 @@ func TestLargeBodyIsStreamedToTheCache(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAMemoryBodyIsReadLikeAnyOther(t *testing.T) {
+	b := NewMemoryBody([]byte("hello world"))
+	got := make([]byte, 5)
+	if n, err := b.ReadAt(got, 6); n != 5 || string(got) != "world" || err != nil {
+		t.Errorf("ReadAt = %d %q %v", n, got, err)
+	}
+	if !b.InMemory() || b.Size() != 11 || b.Path() != "" {
+		t.Errorf("in memory %v size %d path %q", b.InMemory(), b.Size(), b.Path())
+	}
+}

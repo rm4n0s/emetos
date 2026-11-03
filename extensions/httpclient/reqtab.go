@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/rm4n0s/errors"
 
@@ -82,6 +83,8 @@ type reqTab struct {
 	saving bool
 
 	send sendState
+	// pane is the response pane of the last response, nil while there is none.
+	pane *respPane
 }
 
 // sendState is the request being sent and what the last one gave.
@@ -94,6 +97,9 @@ type sendState struct {
 	bad    bool
 	// resp is the last response; the body of an earlier one is removed when the next arrives.
 	resp *engine.Response
+	// duration is how long the whole send took and err what came with the response besides its status.
+	duration time.Duration
+	err      string
 }
 
 // createRequestTab makes the content of a request tab, for a new one and for one that comes back after a restart.
@@ -177,7 +183,7 @@ func (t *reqTab) dropResponse() {
 			t.e.api.Log().Warn("the body of a response was not removed", "err", err)
 		}
 	}
-	t.send.resp = nil
+	t.send.resp, t.pane = nil, nil
 }
 
 // saveState is the state the window keeps for the tab.
@@ -530,6 +536,7 @@ func (t *reqTab) sendRequest() {
 	job := sendJob{files: t.d.files(), place: e.placeOf(t.path)}
 	ctx, cancel := context.WithCancel(e.ctx)
 	t.send.sending, t.send.cancel = true, cancel
+	t.dropResponse()
 	t.send.status, t.send.bad, t.send.code = "Sending...", false, 0
 	t.tab.SetBusy(true)
 	t.tab.Refresh()
@@ -555,7 +562,20 @@ func (t *reqTab) cancelSend() {
 // finishSend shows how a send ended and records it in the history.
 func (t *reqTab) finishSend(job sendJob, out sendOutcome) {
 	t.dropResponse()
-	t.send.resp = out.resp
+	t.send.resp, t.send.duration, t.send.err = out.resp, out.duration, ""
+	if out.resp != nil {
+		if out.err != nil {
+			t.send.err = out.err.Error()
+		}
+		disp := out.disp
+		if disp == nil {
+			disp = buildDisplay(out.resp)
+		}
+		t.pane = t.newRespPane(disp)
+		if t.pane.mode == modeRaw {
+			t.showPage(0)
+		}
+	}
 	switch {
 	case out.err != nil && out.resp == nil:
 		t.send.status, t.send.bad, t.send.code = out.err.Error(), true, 0

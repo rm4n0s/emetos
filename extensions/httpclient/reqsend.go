@@ -118,7 +118,9 @@ type sendJob struct {
 
 // sendOutcome is how a send ended.
 type sendOutcome struct {
-	resp     *engine.Response
+	resp *engine.Response
+	// disp is what the response pane shows of it, made off the UI thread.
+	disp     *respDisplay
 	err      error
 	duration time.Duration
 }
@@ -155,7 +157,11 @@ func (e *Extension) runSend(ctx context.Context, job sendJob) sendOutcome {
 		}
 	}
 	resp, err := eng.Send(ctx, input)
-	return sendOutcome{resp: resp, err: err, duration: time.Since(start)}
+	out := sendOutcome{resp: resp, err: err, duration: time.Since(start)}
+	if resp != nil {
+		out.disp = buildDisplay(resp)
+	}
+	return out
 }
 
 // sentOf is what the history keeps of a request that was sent.
