@@ -100,3 +100,44 @@ func TestExtensionTabInputCopy(t *testing.T) {
 	}
 	var _ Copier = a
 }
+
+func TestClosingADirtyExtensionTabWithASaverAsks(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		saver bool
+		dirty bool
+		asks  bool
+	}{
+		{"a dirty tab with a saver", true, true, true},
+		{"a clean tab with a saver", true, false, false},
+		{"a dirty tab without a saver", false, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewGrid(GridOptions{})
+			in := NewExtensionTabInput("e", "e.k", "1", "A", "")
+			if tc.saver {
+				in.SetSaver(func(done func(bool)) { done(true) })
+			}
+			g.Active().Model.OpenEditor(in, OpenOptions{Pinned: true, Active: true})
+			in.SetDirty(tc.dirty)
+			got := PlanClose(g, []CloseTarget{{Group: g.Active(), Editors: []EditorInput{in}}})
+			if asks := len(got) == 1 && got[0].Input == EditorInput(in); asks != tc.asks {
+				t.Errorf("PlanClose = %v, want asks %v", got, tc.asks)
+			}
+		})
+	}
+}
+
+func TestExtensionTabInputSave(t *testing.T) {
+	in := NewExtensionTabInput("e", "e.k", "1", "A", "")
+	saved := true
+	in.Save(func(ok bool) { saved = ok })
+	if saved || in.CanSave() {
+		t.Errorf("a tab without a saver saved: %v", saved)
+	}
+	in.SetSaver(func(done func(bool)) { done(true) })
+	in.Save(func(ok bool) { saved = ok })
+	if !saved || !in.CanSave() {
+		t.Errorf("a tab with a saver did not save")
+	}
+}

@@ -267,3 +267,33 @@ func TestRequestAuthUsedWithoutInput(t *testing.T) {
 		t.Fatalf("Authorization %q", got)
 	}
 }
+
+func TestTextsAreUsedInPlaceOfBodyFiles(t *testing.T) {
+	dir := project(t, map[string]string{"a.body.json": `{"from": "the file"}`})
+	vars := resolverOf(t, map[string]string{"who": "ada"})
+	for _, tc := range []struct {
+		name  string
+		body  format.Body
+		texts map[string]string
+		want  string
+	}{
+		{"a text beats the file", format.Body{Type: format.BodyJSON, File: "a.body.json"}, map[string]string{"a.body.json": `{"user": "{{who}}"}`}, `{"user": "ada"}`},
+		{"a name that is not there is read from the folder", format.Body{Type: format.BodyJSON, File: "a.body.json"}, map[string]string{"other": "x"}, `{"from": "the file"}`},
+		{"a name with no file at all", format.Body{Type: format.BodyJSON, File: "unsaved.body.json"}, map[string]string{"unsaved.body.json": "{}"}, "{}"},
+		{"graphql query and variables", format.Body{Type: format.BodyGraphQL, File: "q.graphql", Variables: "v.json"}, map[string]string{"q.graphql": "{ me }", "v.json": `{"id": 1}`}, `{"query":"{ me }","variables":{"id":1}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got string
+			srv := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+				data, _ := io.ReadAll(r.Body)
+				got = string(data)
+			})
+			e := newEngine(t, Config{})
+			in := Input{Request: format.Request{Method: "POST", URL: srv.URL, Body: &tc.body}, Folder: dir, Dir: dir, Resolver: vars, Texts: tc.texts}
+			send(t, e, in)
+			if got != tc.want {
+				t.Errorf("body = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

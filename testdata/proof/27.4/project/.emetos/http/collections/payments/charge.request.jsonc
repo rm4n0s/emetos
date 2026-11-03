@@ -1,0 +1,6 @@
+{
+  "emetosHttp": 1,
+  "name": "Charge",
+  "method": "PUT",
+  "url": "{{baseUrl}}/v1/charges/42"
+}

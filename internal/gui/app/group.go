@@ -528,11 +528,17 @@ func (s *shellState) refreshKeys() {
 		}
 		if active == nil {
 			win.Keys.Reset("activeEditor")
+			win.Keys.Reset("activeEditorKind")
 			win.Keys.Set("activeEditorIsPinned", false)
 			win.Keys.Set("activeEditorIsNotPreview", false)
 			return
 		}
 		win.Keys.Set("activeEditor", active.TypeID())
+		if x, ok := active.(*editorgroup.ExtensionTabInput); ok {
+			win.Keys.Set("activeEditorKind", x.Kind()) // the kind of an editor tab of an extension, for its keys
+		} else {
+			win.Keys.Reset("activeEditorKind")
+		}
 		win.Keys.Set("activeEditorIsPinned", m.IsSticky(active))
 		win.Keys.Set("activeEditorIsNotPreview", m.IsPinned(active))
 	})
@@ -574,7 +580,7 @@ func (s *shellState) disposeGroup() {
 	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
 		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically",
 		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies", "textCompareEditorVisible", "textCompareEditorActive",
-		"multiDiffEditorAllCollapsed", "isMergeEditor", "mergeEditorResultUri", "mergeEditorLayout", "resourceSelectedForCompare"}, navKeys...) {
+		"multiDiffEditorAllCollapsed", "isMergeEditor", "mergeEditorResultUri", "mergeEditorLayout", "resourceSelectedForCompare", "activeEditorKind"}, navKeys...) {
 		win.Keys.Reset(key)
 	}
 }

@@ -36,6 +36,9 @@ func readBodyFile(in Input, name string) (string, error) {
 	if name == "" {
 		return "", nil
 	}
+	if text, ok := in.Texts[name]; ok {
+		return text, nil
+	}
 	dir := in.Dir
 	if dir == "" {
 		dir = in.Folder

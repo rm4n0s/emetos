@@ -14,8 +14,9 @@ const ExtensionTabInputTypeID = "emetos.extensionTab"
 // ExtensionTabInput is the input of an editor tab that an extension contributes (SPEC §10.15 "Editor tab", step 11.6): a
 // tab with no file, of a kind the extension declares, with an instance id of its own so that several can be open. Its
 // title, icon and marks (dirty, busy) are set by the extension through the host; what the tab shows and the state it
-// saves are the extension's, and live in the host (the input only names the tab). A dirty mark is a mark only: closing a
-// dirty tab asks nothing, because the data of the tab is the extension's own and is kept in the state it saves.
+// saves are the extension's, and live in the host (the input only names the tab). A dirty mark is a mark only unless the tab has a
+// saver (SetSaver): then closing it while dirty asks, as for a document. Without a saver closing a dirty tab asks nothing, because
+// the data of the tab is the extension's own and is kept in the state it saves.
 type ExtensionTabInput struct {
 	BaseInput
 	ext, kind, id string
@@ -23,7 +24,9 @@ type ExtensionTabInput struct {
 	icon          string
 	iconColor     string
 	dirty, busy   bool
-	copier        func() *ExtensionTabInput
+	// saver is set by a tab that can save its changes (extension.EditorTabContent.Save): closing it while it is dirty asks.
+	saver  func(done func(saved bool))
+	copier func() *ExtensionTabInput
 }
 
 // NewExtensionTabInput makes the input of the tab with the instance id of a kind of an extension. icon is the name of a
@@ -150,8 +153,9 @@ func (e *ExtensionTabInput) Matches(other EditorInput) bool {
 	return ok && o != nil && o.id == e.id
 }
 
-// CloseUnasked implements CloseUnasked: the dirty mark of an extension tab is only a mark.
-func (e *ExtensionTabInput) CloseUnasked() bool { return true }
+// CloseUnasked implements CloseUnasked: the dirty mark of an extension tab without a saver is only a mark; one with a saver is asked
+// about like a document.
+func (e *ExtensionTabInput) CloseUnasked() bool { return e.saver == nil }
 
 // Capabilities implements EditorInput: the tab can be split.
 func (e *ExtensionTabInput) Capabilities() Capabilities { return CapCanSplit }
@@ -175,4 +179,21 @@ func (e *ExtensionTabInput) CopyInput() EditorInput {
 		return c
 	}
 	return NewExtensionTabInput(e.ext, e.kind, e.id+"-copy", e.title, e.icon)
+}
+
+// SetSaver sets the function that saves the changes of the tab (the host sets it from extension.EditorTabContent.Save). A tab
+// with a saver is asked about when it is closed while dirty, like a document; without one the dirty mark is only a mark.
+func (e *ExtensionTabInput) SetSaver(save func(done func(saved bool))) { e.saver = save }
+
+// CanSave tells whether the tab has a saver, that is whether closing it while dirty asks.
+func (e *ExtensionTabInput) CanSave() bool { return e.saver != nil }
+
+// Save asks the tab to save its changes and calls done, on the UI thread, with whether they are saved. A tab without a saver
+// calls done(false) at once.
+func (e *ExtensionTabInput) Save(done func(saved bool)) {
+	if e.saver == nil {
+		done(false)
+		return
+	}
+	e.saver(done)
 }

@@ -46,9 +46,8 @@ func TestNewCollectionFolderRequestAndEnvironment(t *testing.T) {
 			if !strings.Contains(r.read(r.col("shop-api/users/folder.jsonc")), "get-user.request.jsonc") {
 				t.Error("the order of the folder does not list it")
 			}
-			shown := r.api.ShownDocuments()
-			if len(shown) != 1 || !strings.HasSuffix(shown[0].URI, "get-user.request.jsonc") {
-				t.Errorf("shown = %+v", shown)
+			if got := r.reqTabPaths(); len(got) != 1 || !strings.HasSuffix(got[0], "get-user.request.jsonc") {
+				t.Errorf("request tabs = %v", got)
 			}
 		}},
 		{"an environment opens its editor", func(r *rig) { r.run(CmdNewEnvironment, nil); r.answer("QA") }, func(t *testing.T, r *rig) {
@@ -132,8 +131,8 @@ func TestRenameDuplicateCopyAndOpen(t *testing.T) {
 			}
 		}},
 		{"open a request", func(r *rig) { r.run(CmdOpenRequest, r.col("payments/refund.request.jsonc")) }, func(t *testing.T, r *rig) {
-			if shown := r.api.ShownDocuments(); len(shown) != 1 || !strings.HasSuffix(shown[0].URI, "payments/refund.request.jsonc") {
-				t.Errorf("shown = %+v", shown)
+			if got := r.reqTabPaths(); len(got) != 1 || !strings.HasSuffix(got[0], "payments/refund.request.jsonc") {
+				t.Errorf("request tabs = %v", got)
 			}
 		}},
 	} {
@@ -192,8 +191,8 @@ func TestCommandsWithoutAnArgumentUseTheSelectionOrAskWhichOne(t *testing.T) {
 		t.Fatalf("the list = %v", p)
 	}
 	r.choose("Health")
-	if shown := r.api.ShownDocuments(); len(shown) != 1 || !strings.HasSuffix(shown[0].URI, "health.request.jsonc") {
-		t.Errorf("shown = %+v", shown)
+	if got := r.reqTabPaths(); len(got) != 1 || !strings.HasSuffix(got[0], "health.request.jsonc") {
+		t.Errorf("request tabs = %v", got)
 	}
 	// a selected row is used without asking
 	r.ext.collections.tree.SetSelected(r.col("payments/charge.request.jsonc"))

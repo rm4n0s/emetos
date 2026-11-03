@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/httpclient/engine"
 	"github.com/rm4n0s/emetos/extensions/httpclient/history"
 	"github.com/rm4n0s/emetos/extensions/httpclient/store"
 	"github.com/rm4n0s/emetos/extensions/httpclient/variables"
@@ -91,6 +92,14 @@ type Extension struct {
 
 	// envTabs are the environment editor tabs, which the tests look at.
 	envTabs []*envTab
+
+	// reqTabs are the request tabs, lastReq the one that was shown or had the focus last (the commands without an argument act on it).
+	reqTabs []*reqTab
+	lastReq *reqTab
+	// jars are the cookies of the engine, one jar for each environment, kept in the state.
+	jars *engine.Jars
+	// preview reads the current values for the colors of the URL box; it has no keyring, so a secret is never read for a form.
+	preview *variables.Values
 }
 
 // Manifest implements extension.Extension.
@@ -110,8 +119,13 @@ func (*Extension) Manifest() extension.Manifest {
 				{ID: HistoryViewID, Name: "History", Container: ContainerID, Order: 3},
 			},
 			ViewActions: viewActions(),
-			EditorKinds: []extension.EditorKindSpec{{ID: EnvironmentKindID, Name: "Environment", Icon: "symbol-variable"}},
-			Settings:    settingSpecs(),
+			EditorKinds: []extension.EditorKindSpec{
+				{ID: EnvironmentKindID, Name: "Environment", Icon: "symbol-variable"},
+				{ID: RequestKindID, Name: "Request", Icon: "globe"},
+			},
+			EditorActions: []extension.EditorActionSpec{{Command: CmdOpenAsText, Icon: "go-to-file", Tooltip: "Open as Text", When: "activeEditorKind == '" + RequestKindID + "'", Order: 1}},
+			Keybindings:   keybindingSpecs(),
+			Settings:      settingSpecs(),
 		},
 	}
 }
@@ -127,12 +141,17 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 		e.opts.Keyring = dbconn.NewSecretService()
 	}
 	e.values = variables.NewValues(e.folder, api.State(), e.opts.Keyring)
+	e.preview = variables.NewValues(e.folder, api.State(), nil)
+	e.jars = engine.NewJars(api.State())
 	e.hist = history.Open(api.State(), history.Options{Limit: e.historyLimit, Now: e.opts.Now})
 	e.collections, e.environments, e.historyView = newCollectionsView(e), newEnvironmentsView(e), newHistoryView(e)
 	for _, v := range []interface{ provide() error }{e.collections, e.environments, e.historyView} {
 		if err := v.provide(); err != nil {
 			return err
 		}
+	}
+	if err := api.Editors().Provide(RequestKindID, extension.EditorKind{Create: e.createRequestTab}); err != nil {
+		return err
 	}
 	if err := api.Editors().Provide(EnvironmentKindID, extension.EditorKind{Create: e.createEnvTab}); err != nil {
 		return err
@@ -141,6 +160,9 @@ func (e *Extension) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	e.registerDev()
+	if err := e.watchRequestFiles(); err != nil {
+		return err
+	}
 	item := e.statusItem()
 	h, err := api.StatusBar().Add(item)
 	if err != nil {
@@ -196,6 +218,9 @@ func (e *Extension) refreshAll() {
 	e.historyView.rebuild()
 	e.updateStatus()
 	for _, t := range e.envTabs {
+		t.storeChanged()
+	}
+	for _, t := range append([]*reqTab(nil), e.reqTabs...) {
 		t.storeChanged()
 	}
 }
@@ -286,14 +311,6 @@ func (e *Extension) copyText(text string) {
 	if err := e.api.Clipboard().WriteText(text); err != nil {
 		e.api.Log().Warn("the clipboard did not take the text", "err", err)
 		e.api.Notifications().Warn("Cannot copy to the clipboard: " + err.Error())
-	}
-}
-
-// openFile shows a file of the project in the editor. (Step 27.4 opens requests in the request tab; until then a request is opened as
-// the text of its file.)
-func (e *Extension) openFile(path string) {
-	if err := e.api.Documents().Show(fileURI(path), 0, 0, false); err != nil {
-		e.fail("open the file", err)
 	}
 }
 

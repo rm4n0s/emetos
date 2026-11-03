@@ -36,6 +36,8 @@ type rig struct {
 	ext    *Extension
 	folder string
 	kr     *dbconn.MemoryKeyring
+	// cancel ends the context of the extension, as closing the window does.
+	cancel context.CancelFunc
 }
 
 // isolate points every XDG folder of the test at a folder of its own.
@@ -90,6 +92,7 @@ func activate(t *testing.T, folder string) *rig {
 	e := FactoryOf(Options{Keyring: r.kr, Now: func() time.Time { return testNow }})().(*Extension)
 	r.api = fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "project", Folder: folder, ID: folder})
 	ctx, cancel := context.WithCancel(context.Background())
+	r.cancel = cancel
 	t.Cleanup(func() {
 		cancel()
 		time.Sleep(5 * time.Millisecond)

@@ -454,6 +454,9 @@ func (s *Scope) makeContent(t *editorTab, kd *kindDecl, raw json.RawMessage) (er
 	s.mu.Lock()
 	t.inst = inst
 	t.onClose = content.OnClose
+	if content.Save != nil {
+		t.input.SetSaver(s.tabSaver(inst, t, content.Save))
+	}
 	t.decl.content = &extension.ViewContent{Build: content.Build, SaveState: content.SaveState, AllowCommand: content.AllowCommand}
 	t.decl.inst = inst
 	t.decl.provided = true
@@ -1237,4 +1240,31 @@ func (g guardedDoc) OnScroll(fn func(topLine int)) (cancel func()) {
 		}()
 		fn(line)
 	})
+}
+
+// tabSaver is the function the input of a tab calls to save its changes: the Save of the content, run like the other callbacks of
+// a tab. done is called once: with false when the extension is gone or panics.
+func (s *Scope) tabSaver(inst *instance, t *editorTab, save func(done func(saved bool))) func(done func(saved bool)) {
+	return func(done func(saved bool)) {
+		called := false
+		once := func(saved bool) {
+			if !called {
+				called = true
+				done(saved)
+			}
+		}
+		if inst.isDead() {
+			once(false)
+			return
+		}
+		s.runTabCallback(inst, t, "Save", func() {
+			defer func() {
+				if r := recover(); r != nil {
+					once(false)
+					panic(r) // runTabCallback fails the extension
+				}
+			}()
+			save(once)
+		})
+	}
 }

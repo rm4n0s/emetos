@@ -36,6 +36,8 @@ type exState struct {
 	views                map[string]*exView
 	opens                int
 	failOpen, panicBuild bool
+	// save, when set, is the Save of the cards: the content asks about unsaved changes when it closes.
+	save func(c *exCard, done func(saved bool))
 }
 
 // exCard is the content of an editor tab of the kind ex.card.
@@ -58,7 +60,8 @@ type exExt struct{ st *exState }
 
 func (e *exExt) Manifest() extension.Manifest {
 	m := extension.Manifest{ID: "ex", Name: "Ex", Version: "1.0.0"}
-	m.Contributes.Commands = []extension.CommandSpec{{ID: "ex.newCard", Title: "New Card"}, {ID: "ex.markdown", Title: "Markdown Only"}}
+	m.Contributes.Commands = []extension.CommandSpec{{ID: "ex.newCard", Title: "New Card"}, {ID: "ex.markdown", Title: "Markdown Only"}, {ID: "ex.cardSave", Title: "Save Card"}}
+	m.Contributes.Keybindings = []extension.Keybinding{{Command: "ex.cardSave", Key: "ctrl+s", When: "activeEditorKind == 'ex.card'"}}
 	m.Contributes.EditorKinds = []extension.EditorKindSpec{{ID: "ex.card", Name: "Card", Icon: "note"}}
 	m.Contributes.EditorActions = []extension.EditorActionSpec{
 		{Command: "ex.newCard", Icon: "new-file", Tooltip: "New Card", Order: 1},
@@ -98,12 +101,20 @@ func (e *exExt) Activate(_ context.Context, api extension.API) error {
 				return widgets.NewText("card:"+c.state, widgets.TextOpts{Style: extui.TextStyle(bc, 13, extui.Theme(bc).Foreground)})
 			},
 			SaveState: func() (any, error) { return c.state, nil },
+			Save: func() func(done func(saved bool)) {
+				st.mu.Lock()
+				defer st.mu.Unlock()
+				if st.save == nil {
+					return nil
+				}
+				return func(done func(saved bool)) { st.save(c, done) }
+			}(),
 		}, nil
 	}})
 	if err != nil {
 		return err
 	}
-	for _, id := range []string{"ex.markdown"} {
+	for _, id := range []string{"ex.markdown", "ex.cardSave"} {
 		if err := api.Commands().Handle(id, func(_ context.Context, args any) error {
 			st.mu.Lock()
 			st.runs = append(st.runs, args)
@@ -752,5 +763,104 @@ func TestTabsOfAnExtensionThatEmetosNoLongerHasAreDropped(t *testing.T) {
 				t.Errorf("the saved state of agents.sessions = %s, want it kept as %s", got, agentsView)
 			}
 		})
+	}
+}
+
+func TestClosingADirtyExtensionTabWithASaveAsksAsForADocument(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		button    string
+		saveWorks bool
+		wantTabs  []string
+		wantSaves int
+	}{
+		{"Save saves, then the tab closes", "Save", true, []string{"1!: "}, 1},
+		{"Save that fails keeps the tab", "Save", false, []string{"1!: Card c1*"}, 1},
+		{"Don't Save closes the tab without saving", "Don't Save", true, []string{"1!: "}, 0},
+		{"Cancel keeps the tab", "Cancel", true, []string{"1!: Card c1*"}, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env, st := exEnv(t, nil)
+			saves := 0
+			st.save = func(c *exCard, done func(bool)) {
+				saves++
+				if tc.saveWorks {
+					c.tab.SetDirty(false)
+				}
+				done(tc.saveWorks)
+			}
+			r := env.startEx(st)
+			r.command("ex.newCard", nil)
+			st.cards[0].tab.SetDirty(true)
+			r.pump()
+			r.command("workbench.action.closeActiveEditor", nil)
+			if !r.win.Dialogs.IsShowing() {
+				t.Fatalf("closing a dirty tab that can save asked nothing")
+			}
+			r.pump()
+			if !r.has("Do you want to save the changes you made to Card c1?") {
+				t.Errorf("the question is not the one for a document")
+			}
+			r.tapDialog(tc.button)
+			r.pump()
+			if saves != tc.wantSaves {
+				t.Errorf("Save was called %d times, want %d", saves, tc.wantSaves)
+			}
+			if got := r.layout(); !slices.Equal(got, tc.wantTabs) {
+				t.Errorf("tabs = %v, want %v", got, tc.wantTabs)
+			}
+			if r.win.Dialogs.IsShowing() {
+				t.Errorf("the dialog is still open")
+			}
+		})
+	}
+}
+
+func TestACleanExtensionTabWithASaveClosesWithoutAsking(t *testing.T) {
+	env, st := exEnv(t, nil)
+	st.save = func(_ *exCard, done func(bool)) { done(true) }
+	r := env.startEx(st)
+	r.command("ex.newCard", nil)
+	r.command("workbench.action.closeActiveEditor", nil)
+	if r.win.Dialogs.IsShowing() {
+		t.Errorf("a clean tab asked")
+	}
+}
+
+func TestTheContextOfAGroupHasTheKindOfAnExtensionTab(t *testing.T) {
+	env, st := exEnv(t, nil)
+	r := env.startEx(st)
+	r.command("ex.newCard", nil)
+	ctx := r.shell().groupContext(r.win, r.shell().group.grid.Active())
+	if got := ctx.Value("activeEditorKind"); got != "ex.card" {
+		t.Errorf("activeEditorKind = %v, want ex.card", got)
+	}
+	r.open(env.path("main.go"), 1)
+	ctx = r.shell().groupContext(r.win, r.shell().group.grid.Active())
+	if got := ctx.Value("activeEditorKind"); got != nil {
+		t.Errorf("a text editor has the kind %v", got)
+	}
+}
+
+func TestAKeyOfAnExtensionForOneKindOfTabBeatsTheCoreSaveKey(t *testing.T) {
+	env, st := exEnv(t, nil)
+	r := env.startEx(st)
+	r.command("ex.newCard", nil)
+	r.press("ctrl+s")
+	st.mu.Lock()
+	saved := len(st.runs)
+	st.mu.Unlock()
+	// runs has the New Card call and the one of the key
+	if saved != 2 {
+		t.Fatalf("the command of the extension ran %d times in all, want the key to run it once", saved-1)
+	}
+	// in a text editor the key is still the core Save
+	r.open(env.path("main.go"), 1)
+	r.press("ctrl+s")
+	st.mu.Lock()
+	again := len(st.runs)
+	st.mu.Unlock()
+	if again != saved {
+		t.Errorf("the key of the extension ran in a text editor")
 	}
 }

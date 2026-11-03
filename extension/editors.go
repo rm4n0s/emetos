@@ -110,6 +110,14 @@ type EditorTabContent struct {
 	// none). It is called when the tab goes off screen, when the extension is deactivated and when the window state is
 	// written. The state is given to the kind's Create when the tab comes back, and is copied when the tab is split.
 	SaveState func() (any, error)
+	// Save, when set, makes closing the tab while it is dirty (SetDirty) ask, as for a document: "Do you want to save the changes you
+	// made to <title>?" with Save, Don't Save and Cancel. The host calls it on the UI thread when the user answers Save; it writes
+	// the changes of the tab and calls done(true) when they are written and the tab has cleared its dirty mark (SetDirty(false)),
+	// or done(false) when they could not be, which keeps the tab open. done may be called later, from the UI thread (after Post).
+	// Don't Save closes the tab and drops its changes (OnClose is called). When the window closes and files.hotExit keeps the
+	// unsaved work for the next start, nothing is asked: the tab is restored with the state SaveState returned, so a tab with a
+	// Save puts its unsaved changes in that state. Without Save a dirty mark is only a mark and closing asks nothing.
+	Save func(done func(saved bool))
 	// OnClose is called when the tab is closed for good (not when it moves to another group, nor when the extension is
 	// deactivated); the state of the tab is dropped after it.
 	OnClose func()

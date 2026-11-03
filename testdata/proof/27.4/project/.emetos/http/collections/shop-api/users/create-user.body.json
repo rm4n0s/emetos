@@ -1,0 +1,6 @@
+{
+  "name": "Ada Example",
+  "email": "ada@example.com",
+  "roles": ["admin", "billing"],
+  "active": true
+}

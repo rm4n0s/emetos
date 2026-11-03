@@ -27,6 +27,9 @@ type Input struct {
 	// files are (empty: Folder).
 	Folder string
 	Dir    string
+	// Texts are the texts of body files by name, used in place of reading the files: the request tab sends what is in its boxes, which
+	// may not be saved. A name that is not in Texts is read from Dir as before.
+	Texts map[string]string
 	// Environment names the cookie jar (empty: the jar of requests without an environment).
 	Environment string
 }

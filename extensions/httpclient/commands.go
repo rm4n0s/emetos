@@ -28,6 +28,10 @@ const (
 	CmdOpenHistory       = ID + ".openHistory"
 	CmdSaveHistory       = ID + ".saveHistoryToCollection"
 	CmdClearHistory      = ID + ".clearHistory"
+	CmdSend              = ID + ".send"
+	CmdCancel            = ID + ".cancel"
+	CmdSave              = ID + ".save"
+	CmdOpenAsText        = ID + ".openAsText"
 )
 
 const category = "HTTP Client"
@@ -52,6 +56,10 @@ func commandSpecs() []extension.CommandSpec {
 		{ID: CmdOpenHistory, Title: "Open History Entry...", Category: category},
 		{ID: CmdSaveHistory, Title: "Save History Entry to Collection...", Category: category},
 		{ID: CmdClearHistory, Title: "Clear History", Category: category, Icon: "clear-all"},
+		{ID: CmdSend, Title: "Send Request", Category: category, Icon: "play", When: requestTabActive},
+		{ID: CmdCancel, Title: "Cancel Request", Category: category, Icon: "debug-stop", When: requestTabActive},
+		{ID: CmdSave, Title: "Save Request", Category: category, Icon: "save", When: requestTabActive},
+		{ID: CmdOpenAsText, Title: "Open Request as Text", Category: category, Icon: "go-to-file"},
 	}
 }
 
@@ -106,7 +114,7 @@ func (e *Extension) handleCommands() error {
 		CmdNewRequest:     func(_ context.Context, a any) error { e.newRequest(a); return nil },
 		CmdNewEnvironment: func(context.Context, any) error { e.newEnvironment(); return nil },
 		CmdOpenRequest: func(_ context.Context, a any) error {
-			e.withNode(a, "Open which request?", func(n *store.Node) { e.openNode(n) }, store.KindRequest)
+			e.withNode(a, "Open which request?", func(n *store.Node) { e.openRequest(n.File, argString(a, "section")) }, store.KindRequest)
 			return nil
 		},
 		CmdRename: func(_ context.Context, a any) error {
@@ -144,6 +152,10 @@ func (e *Extension) handleCommands() error {
 			return nil
 		},
 		CmdClearHistory: func(context.Context, any) error { e.clearHistory(); return nil },
+		CmdSend:         func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).sendRequest); return nil },
+		CmdCancel:       func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).cancelSend); return nil },
+		CmdSave:         func(_ context.Context, a any) error { e.withRequestTab(a, func(t *reqTab) { t.save(nil) }); return nil },
+		CmdOpenAsText:   func(_ context.Context, a any) error { e.openAsText(a); return nil },
 	}
 	for id, fn := range h {
 		if err := e.api.Commands().Handle(id, fn); err != nil {
@@ -176,7 +188,7 @@ func (e *Extension) withNode(args any, placeholder string, fn func(*store.Node),
 		return false
 	}
 	if path := nodeArg(args); path != "" {
-		if n := e.tree.Find(path); n != nil && fits(n) {
+		if n := e.tree.Find(e.nodePath(path)); n != nil && fits(n) {
 			fn(n)
 		} else {
 			e.api.Notifications().Warn("This does not exist any more.")
@@ -244,7 +256,7 @@ func nodeIcon(n *store.Node) string {
 func (e *Extension) openNode(n *store.Node) {
 	switch n.Kind {
 	case store.KindRequest:
-		e.openFile(n.File)
+		e.openRequest(n.File)
 	case store.KindEnvironment:
 		e.editEnvironment(n)
 	}
@@ -325,7 +337,7 @@ func (e *Extension) newRequest(args any) {
 					return
 				}
 				e.collections.reveal(path)
-				e.openFile(path)
+				e.openRequest(path)
 			})
 		})
 	}, store.KindCollection, store.KindFolder)
@@ -443,4 +455,15 @@ func (e *Extension) refresh() {
 			e.fail("read the files", err)
 		}
 	})
+}
+
+// requestTabActive is the when-clause of the commands of the request tab: the editor in front is one.
+const requestTabActive = "activeEditorKind == '" + RequestKindID + "'"
+
+// keybindingSpecs are the default keys of the request tab.
+func keybindingSpecs() []extension.Keybinding {
+	return []extension.Keybinding{
+		{Command: CmdSend, Key: "ctrl+enter", When: requestTabActive},
+		{Command: CmdSave, Key: "ctrl+s", When: requestTabActive},
+	}
 }

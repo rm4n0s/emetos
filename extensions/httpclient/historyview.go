@@ -293,23 +293,6 @@ func requestOf(en history.Entry) format.Request {
 	return format.Request{Method: en.Method, URL: en.URL}
 }
 
-// openEntry opens the request of an entry as a new request that is not saved anywhere. (Step 27.4 opens it in the request tab; until
-// then it is an untitled document with the text of the request file.)
-func (e *Extension) openEntry(en history.Entry) {
-	req := requestOf(en)
-	text, err := format.Marshal(req)
-	if err != nil {
-		e.fail("show the request", err)
-		return
-	}
-	if en.Body != "" {
-		text += "\n// The text of the body:\n// " + strings.ReplaceAll(strings.TrimRight(en.Body, "\n"), "\n", "\n// ") + "\n"
-	}
-	if _, err := e.api.Documents().OpenUntitled("jsonc", text); err != nil {
-		e.fail("open the request", err)
-	}
-}
-
 // saveEntry asks for a collection or folder and saves the request of an entry there. What the history masked stays masked.
 func (e *Extension) saveEntry(en history.Entry) {
 	if !e.ready() {
@@ -369,7 +352,7 @@ func (e *Extension) saveEntryIn(en history.Entry, parent *store.Node) {
 		if masked {
 			msg += " The history had masked its secrets (" + history.Masked + "): fill them in, or use {{variables}}."
 		}
-		e.api.Notifications().Info(msg, extension.NotificationAction{Label: "Open", Run: func() { e.openFile(path) }})
+		e.api.Notifications().Info(msg, extension.NotificationAction{Label: "Open", Run: func() { e.openRequest(path) }})
 		e.collections.reveal(path)
 	})
 }

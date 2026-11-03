@@ -39,6 +39,10 @@ func (s *shellState) groupContext(win *Workspace, group *editorgroup.Group) cont
 	if e := group.Model.ActiveEditor(); e != nil {
 		extra["activeEditor"] = e.TypeID()
 		extra["activeEditorIsDirty"] = e.Dirty()
+		if x, ok := e.(*editorgroup.ExtensionTabInput); ok {
+			// the kind of an editor tab of an extension, so that a title action can be for one kind only
+			extra["activeEditorKind"] = x.Kind()
+		}
 		if ed := s.group.editors[e]; ed != nil {
 			uri := ed.doc.URI()
 			extra["resourceScheme"] = win.resourceScheme(uri)

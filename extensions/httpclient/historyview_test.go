@@ -135,18 +135,26 @@ func TestOpeningAnEntryMakesAnUnsavedRequest(t *testing.T) {
 		t.Fatalf("labels = %v", r.api.LastPick().Labels())
 	}
 	r.choose("POST")
-	docs := r.api.UntitledDocuments()
-	if len(docs) != 1 || docs[0].LanguageID != "jsonc" {
-		t.Fatalf("untitled = %+v", docs)
+	if got := r.reqTabPaths(); len(got) != 1 || got[0] != "" {
+		t.Fatalf("request tabs = %q", got)
 	}
-	for _, want := range []string{`"method": "POST"`, "token=********", "Bearer ********", `{"name":"Ada"}`} {
-		if !strings.Contains(docs[0].Text, want) {
-			t.Errorf("the request lacks %q:\n%s", want, docs[0].Text)
-		}
+	tab := r.ext.reqTabs[0]
+	files := tab.d.files()
+	if files.Request.Method != "POST" || !strings.Contains(files.Request.URL, "https://h/users") || files.Body != `{"name":"Ada"}` {
+		t.Errorf("the request = %+v body %q", files.Request, files.Body)
+	}
+	if got := tab.d.url.Value(); !strings.Contains(got, "token=********") {
+		t.Errorf("the URL box = %q", got)
+	}
+	if h := files.Request.Headers; len(h) != 1 || h[0].Value != "Bearer ********" {
+		t.Errorf("the headers = %+v", h)
+	}
+	if tab.dirty() || r.api.EditorTabs()[0].Dirty() {
+		t.Error("a request opened from the history is dirty before anyone touched it")
 	}
 	// by the number of the entry
 	r.run(CmdOpenHistory, map[string]any{"seq": 0})
-	if len(r.api.UntitledDocuments()) != 2 {
+	if len(r.reqTabPaths()) != 2 {
 		t.Error("an entry named by its number was not opened")
 	}
 	r.run(CmdOpenHistory, map[string]any{"seq": 99})

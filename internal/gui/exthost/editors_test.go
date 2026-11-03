@@ -995,3 +995,53 @@ func TestBeginDragErrorsHaveRoutes(t *testing.T) {
 		t.Errorf("the window refused with %v, the extension got %v", refusal, err)
 	}
 }
+
+func TestASaveOfATabAsksClosingAndAPanicInItFailsTheExtension(t *testing.T) {
+	var saves int
+	var answer func(saved bool)
+	kind := extension.EditorKind{Create: func(extension.EditorTab, json.RawMessage) (extension.EditorTabContent, error) {
+		return extension.EditorTabContent{
+			Build: func(widgets.BuildContext) widgets.Widget { return widgets.NewSizedBox(nil) },
+			Save: func(done func(bool)) {
+				saves++
+				answer = done
+				if saves == 3 {
+					panic("save")
+				}
+			},
+		}, nil
+	}}
+	tb := edTab(t, nil, func(api extension.API) error { return api.Editors().Provide("ed.thing", kind) })
+	tb.activate()
+	if _, err := apiOf(tb).Editors().Open("ed.thing", nil, extension.EditorOpenOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	in := tb.editors.opened[0]
+	if !in.CanSave() || in.CloseUnasked() {
+		t.Fatal("a tab with a Save is not asked about")
+	}
+	var results []bool
+	in.Save(func(ok bool) { results = append(results, ok) })
+	answer(true)
+	answer(false) // a second answer is ignored
+	in.Save(func(ok bool) { results = append(results, ok) })
+	answer(false)
+	if len(results) != 2 || !results[0] || results[1] || saves != 2 {
+		t.Fatalf("results %v after %d saves", results, saves)
+	}
+	// a panic fails the extension and answers false
+	in.Save(func(ok bool) { results = append(results, ok) })
+	tb.pump()
+	if len(results) != 3 || results[2] {
+		t.Errorf("results = %v", results)
+	}
+	if tb.scope.State("ed") != StateFailed {
+		t.Errorf("ed is %v after the panic in Save", tb.scope.State("ed"))
+	}
+	route(t, tb.scope.Failure("ed").Err, "Scope.runTabCallback.func1.ExtensionEditorCallbackPanicked")
+	// the extension is gone: Save answers false at once
+	in.Save(func(ok bool) { results = append(results, ok) })
+	if len(results) != 4 || results[3] {
+		t.Errorf("results after the failure = %v", results)
+	}
+}

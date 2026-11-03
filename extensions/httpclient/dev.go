@@ -21,6 +21,10 @@ func (e *Extension) registerDev() {
 		return
 	}
 	spec := extension.CommandSpec{ID: CommandDevSeedHistory, Description: "Fill the history of the HTTP client with sample requests of today and yesterday."}
+	echo := extension.CommandSpec{ID: CommandDevEcho, Description: "Start a local echo server for the HTTP client and point the variable baseUrl of the active environment at it."}
+	if err := e.api.Commands().Register(echo, e.cmdDevEcho); err != nil {
+		e.api.Log().Debug("the dev command of the HTTP client is not registered", "err", err)
+	}
 	if err := e.api.Commands().Register(spec, e.cmdDevSeedHistory); err != nil {
 		e.api.Log().Debug("the dev command of the HTTP client is not registered", "err", err)
 	}
@@ -61,3 +65,9 @@ func (e *Extension) cmdDevSeedHistory(context.Context, any) error {
 	e.historyView.rebuild()
 	return nil
 }
+
+// CommandDevEcho is the dev command that starts a small HTTP server on 127.0.0.1 that answers every request with a description of it
+// (its method, path, query, headers and body as JSON), for the proofs of the request tab and the response pane (SPEC §15.2). It
+// sets the current value of the variable baseUrl of the active environment to the address of the server, so that a request with
+// {{baseUrl}} reaches it. The server stops with the window. It exists in debug builds only.
+const CommandDevEcho = "dev.httpclient.echo"

@@ -359,9 +359,13 @@ func (s *shellState) askUnsaved(losses []editorgroup.Unsaved, done func(proceed 
 	}
 	var names []string
 	var docs []*document.Document
+	var tabs []*editorgroup.ExtensionTabInput
 	for _, u := range losses {
 		name := u.Input.Name()
-		if doc := editorgroup.EditedDocument(u.Input); doc != nil {
+		if t, ok := u.Input.(*editorgroup.ExtensionTabInput); ok && t.CanSave() {
+			// a tab of an extension that can save its changes (extension.EditorTabContent.Save)
+			tabs = append(tabs, t)
+		} else if doc := editorgroup.EditedDocument(u.Input); doc != nil {
 			// the question is about the document that has the changes: the modified side of a diff editor
 			name = editorgroup.DocumentName(doc)
 			if !slices.Contains(docs, doc) {
@@ -381,7 +385,13 @@ func (s *shellState) askUnsaved(losses []editorgroup.Unsaved, done func(proceed 
 			case r.Button == buttonDontSave:
 				end(true)
 			default:
-				s.saveInOrder(docs, end)
+				s.saveInOrder(docs, func(saved bool) {
+					if !saved {
+						end(false)
+						return
+					}
+					s.saveTabs(tabs, end)
+				})
 			}
 		},
 	})
@@ -406,6 +416,33 @@ func (s *shellState) saveInOrder(docs []*document.Document, done func(saved bool
 		}
 		s.saveDocument(docs[i], saveRequest{}, func(saved bool) {
 			if !saved || docs[i].Dirty() {
+				done(false)
+				return
+			}
+			next(i + 1)
+		})
+	}
+	next(0)
+}
+
+// saveTabs asks the tabs of extensions to save their changes, one after the other. The first that does not save (or is dirty again)
+// ends it with false, which keeps everything open.
+func (s *shellState) saveTabs(tabs []*editorgroup.ExtensionTabInput, done func(saved bool)) {
+	var next func(i int)
+	next = func(i int) {
+		if !s.Mounted() {
+			done(false)
+			return
+		}
+		for i < len(tabs) && !tabs[i].Dirty() {
+			i++
+		}
+		if i >= len(tabs) {
+			done(true)
+			return
+		}
+		tabs[i].Save(func(saved bool) {
+			if !saved || tabs[i].Dirty() {
 				done(false)
 				return
 			}
