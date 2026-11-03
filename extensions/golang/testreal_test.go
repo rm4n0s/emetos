@@ -19,8 +19,8 @@ import (
 // a temporary folder shared by the tests of the run, the module cache is not used (the modules need none) and nothing is downloaded.
 // The tests are skipped when go is not installed.
 
-// realRig activates the extension over a copy of the folder of testdata/gotests with the real go.
-func realRig(t *testing.T, fixture string, settings map[string]any) *rig {
+// realGoTestRig activates the extension over a copy of the folder of testdata/gotests with the real go.
+func realGoTestRig(t *testing.T, fixture string, settings map[string]any) *rig {
 	t.Helper()
 	if realGoPath == "" {
 		t.Skip("go is not installed")
@@ -54,7 +54,7 @@ func runIt(t *testing.T, r *rig, kind extension.TestRunKind, include, exclude []
 }
 
 func TestTheRealGoRunsEveryKindOfPackageAsOneModule(t *testing.T) {
-	r := realRig(t, "mod", nil)
+	r := realGoTestRig(t, "mod", nil)
 	run := runIt(t, r, extension.TestKindRun, nil, nil)
 	// the five packages are run at once
 	if runs := r.goRealRuns(); runs != 1 {
@@ -142,7 +142,7 @@ func (r *rig) goRealRuns() int {
 }
 
 func TestTheRealGoRunsASubtestAndABenchmarkAndWhatIsNotExcluded(t *testing.T) {
-	r := realRig(t, "mod", nil)
+	r := realGoTestRig(t, "mod", nil)
 	pass := find(t, r.ctl().Items(), "pass/pass_test.go")
 	// one subtest: only it runs
 	run := runIt(t, r, extension.TestKindRun, []*extension.TestItem{find(t, find(t, pass.Children(), "TestTable").Children(), "small")}, nil)
@@ -173,7 +173,7 @@ func TestTheRealGoRunsASubtestAndABenchmarkAndWhatIsNotExcluded(t *testing.T) {
 }
 
 func TestTheRealGoCoverageProfileIsReadIntoTheCoverageOfTheFiles(t *testing.T) {
-	r := realRig(t, "mod", nil)
+	r := realGoTestRig(t, "mod", nil)
 	run := runIt(t, r, extension.TestKindCoverage, []*extension.TestItem{find(t, r.ctl().Items(), "cover"), find(t, r.ctl().Items(), "pass")}, nil)
 	got := outcomes(run)
 	if got["TestSign"] != "passed" || got["TestAdd"] != "passed" {
@@ -221,7 +221,7 @@ func TestTheRealGoCoverageProfileIsReadIntoTheCoverageOfTheFiles(t *testing.T) {
 
 func TestACancelEndsTheRealGoTestAndTheTestItStarted(t *testing.T) {
 	pidfile := filepath.Join(t.TempDir(), "pid")
-	r := realRig(t, "slow", map[string]any{TestEnvVarsSetting: map[string]any{"EMETOS_PIDFILE": pidfile}})
+	r := realGoTestRig(t, "slow", map[string]any{TestEnvVarsSetting: map[string]any{"EMETOS_PIDFILE": pidfile}})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)

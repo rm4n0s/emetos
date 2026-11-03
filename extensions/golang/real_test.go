@@ -6,12 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/rm4n0s/emetos/extension"
 )
 
 // The tests against the real Go and gopls (SPEC §10.17, step 14.1): they only read (go env GOVERSION, go env, the path of gopls)
@@ -155,71 +152,6 @@ func realRig(t *testing.T, extra map[string]any) *rig {
 		t.Fatal(err)
 	}
 	return r
-}
-
-func TestRealGoTestRunsThePackageAndFillsTheTreeAndProblems(t *testing.T) {
-	r := realRig(t, nil)
-	path := filepath.Join(r.folder, "real_test.go")
-	r.api.Emit(extension.TopicEditorActiveChanged, extension.ActiveEditor{URI: fileURI(path), LanguageID: "go"})
-	r.api.Pump()
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	job := r.testsEnded()
-	if job.state != runFailed || job.status != "exit status 1" {
-		t.Errorf("state %d, status %q:\n%s", job.state, job.status, strings.Join(r.ext.tests.outputOf(), "\n"))
-	}
-	got := show(job.results)
-	for _, want := range []string{"example.com/real fail", "TestPasses pass", "TestFails fail", "TestTable pass", "ok pass", "skipped skip"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("the tree has no %q:\n%s", want, got)
-		}
-	}
-	// the failure is in Problems at the line of t.Errorf
-	var lines []string
-	for uri, ms := range r.api.Markers(TestsMarkerOwner) {
-		for _, m := range ms {
-			lines = append(lines, filepath.Base(strings.TrimPrefix(uri, "file://"))+":"+itoa(m.StartLine)+" "+m.Message)
-		}
-	}
-	if !slices.Equal(lines, []string{"real_test.go:13 Add(2, 2) = 4, want 5"}) {
-		t.Errorf("markers = %q", lines)
-	}
-	// a single test, by a lens
-	id, arg := lensCommandOf(t, r, fileURI(path), realTests, "run test", "TestPasses")
-	if err := r.api.Run(id, arg); err != nil {
-		t.Fatal(err)
-	}
-	r.api.WaitFor("the second run", func() bool { return r.ext.tests.job != job && r.ext.tests.job.state != runRunning })
-	if j := r.ext.tests.job; j.state != runExited || j.results.counts().Pass != 1 || r.api.MarkerCount() != 0 {
-		t.Errorf("state %d, counts %+v, markers %d", j.state, j.results.counts(), r.api.MarkerCount())
-	}
-}
-
-func TestRealGoTestShowsABuildFailure(t *testing.T) {
-	r := realRig(t, nil)
-	if err := os.WriteFile(filepath.Join(r.folder, "real_test.go"), []byte("package real\n\nimport \"testing\"\n\nfunc TestB(t *testing.T) { _ = undefinedName }\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	r.api.Emit(extension.TopicEditorActiveChanged, extension.ActiveEditor{URI: fileURI(filepath.Join(r.folder, "real_test.go")), LanguageID: "go"})
-	r.api.Pump()
-	if err := r.api.Run(TestPackageCommand, nil); err != nil {
-		t.Fatal(err)
-	}
-	job := r.testsEnded()
-	p := job.results.byPath["example.com/real"]
-	if p == nil || !p.buildFailed || p.status != statusFail || !strings.Contains(strings.Join(p.output, "\n"), "undefined: undefinedName") {
-		t.Errorf("package = %+v", p)
-	}
-	var found bool
-	for uri, ms := range r.api.Markers(TestsMarkerOwner) {
-		for _, m := range ms {
-			found = found || (strings.HasSuffix(uri, "/real_test.go") && m.StartLine == 5 && strings.Contains(m.Message, "undefined: undefinedName"))
-		}
-	}
-	if !found {
-		t.Errorf("markers = %v", r.api.Markers(TestsMarkerOwner))
-	}
 }
 
 func TestRealGoVetOnSaveFindsTheUnusedResult(t *testing.T) {

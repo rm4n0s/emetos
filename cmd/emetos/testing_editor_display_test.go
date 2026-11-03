@@ -13,7 +13,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/testenv/display"
 )
 
-// Testing in the editor, with real input (step 26.3, SPEC §10.32): the glyphs of the tests in the margin, a click on one runs its test,
+// Testing in the editor, with real input (step 26.3, SPEC §10.32; the file is not a Go file, so that the Go controller of step 26.5 finds no tests in this folder): the glyphs of the tests in the margin, a click on one runs its test,
 // the failure shows after its line, Peek Output and Alt+F8 show the peek, and Rerun Failed Tests runs the failures again. The controller is
 // the fake one of extensions/devtesting. What the glyphs and the message look like is read from the pictures the compositor gives (grim),
 // because they are painted, not widgets; the summary of the Test Explorer and the text of the peek are widgets.
@@ -47,11 +47,11 @@ const testingEditorScript = `{
   "label": "Fake Tests (dev)",
   "delayMs": 5,
   "tests": [
-    {"id": "TestAdd", "label": "TestAdd", "file": "calc_test.go", "line": 5, "endLine": 9, "result": "passed", "ms": 2},
-    {"id": "TestDivide", "label": "TestDivide", "file": "calc_test.go", "line": 11, "endLine": 16, "result": "failed", "ms": 12,
+    {"id": "TestAdd", "label": "TestAdd", "file": "calc_spec.txt", "line": 5, "endLine": 9, "result": "passed", "ms": 2},
+    {"id": "TestDivide", "label": "TestDivide", "file": "calc_spec.txt", "line": 11, "endLine": 16, "result": "failed", "ms": 12,
       "message": "Divide(5, 2) = 2, want 2.5", "failLine": 14,
-      "stack": [{"label": "calc.TestDivide", "file": "calc_test.go", "line": 14}, {"label": "testing.tRunner"}]},
-    {"id": "TestReport", "label": "TestReport", "file": "calc_test.go", "line": 18, "endLine": 23, "result": "failed", "ms": 3,
+      "stack": [{"label": "calc.TestDivide", "file": "calc_spec.txt", "line": 14}, {"label": "testing.tRunner"}]},
+    {"id": "TestReport", "label": "TestReport", "file": "calc_spec.txt", "line": 18, "endLine": 23, "result": "failed", "ms": 3,
       "message": "Report(12) is wrong", "failLine": 21, "expected": "Total: 12\nTax: 2.40", "actual": "Total: 12\nTax: 2.04"}
   ]
 }`
@@ -72,9 +72,9 @@ func textsContaining(a *display.App, words string) bool {
 
 func TestRealInputTestingInTheEditorRunsFromTheGlyphShowsThePeekAndRerunsTheFailed(t *testing.T) {
 	a := display.Start(t, display.Options{
-		Args:    []string{".", "calc_test.go"},
+		Args:    []string{".", "calc_spec.txt"},
 		Config:  map[string]string{"settings.json": `{"testing.openTesting": "neverOpen", "editor.minimap.enabled": false, "editor.codeLens": false}`},
-		Project: map[string]string{"calc_test.go": testingEditorSource, "fake-tests.json": testingEditorScript},
+		Project: map[string]string{"calc_spec.txt": testingEditorSource, "fake-tests.json": testingEditorScript},
 	})
 	a.Settle()
 	dir := proofDir(t)
