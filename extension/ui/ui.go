@@ -412,3 +412,30 @@ type SuggestMatcher = kit.SuggestMatcher
 func NewSuggestBox(bc widgets.BuildContext, child widgets.Widget, width, height float64) widgets.Widget {
 	return kit.SuggestBox(kit.ThemeOf(bc), child, width, height)
 }
+
+// Drag and drop in a tree (step 27.3): the rows of a Tree are dragged and dropped on with TreeOpts.DragAndDrop.
+type (
+	// DragAndDrop makes the rows of a tree draggable and the rows a drop target: CanDrag, CanDrop and OnDrop get the keys of the
+	// rows (the TreeItem keys), and a drop is before a row, on it, or after it.
+	DragAndDrop = kit.DragAndDrop
+	// DropPosition says where, in relation to a row, something is dropped.
+	DropPosition = kit.DropPosition
+	// DropEffect is what a drop would do, as far as the tree shows it.
+	DropEffect = kit.DropEffect
+)
+
+// The positions of a drop and its effects.
+const (
+	// DropBefore drops between the row and the one above it, DropInside on the row, DropAfter between the row and the one below it.
+	DropBefore = kit.DropBefore
+	// DropInside drops on the row.
+	DropInside = kit.DropInside
+	// DropAfter drops between the row and the one below it.
+	DropAfter = kit.DropAfter
+	// DropEffectNone refuses the drop; DropEffectMove accepts it as a move, DropEffectCopy as a copy.
+	DropEffectNone = kit.DropEffectNone
+	// DropEffectMove accepts the drop: the dragged rows move.
+	DropEffectMove = kit.DropEffectMove
+	// DropEffectCopy accepts the drop: the dragged rows are copied.
+	DropEffectCopy = kit.DropEffectCopy
+)

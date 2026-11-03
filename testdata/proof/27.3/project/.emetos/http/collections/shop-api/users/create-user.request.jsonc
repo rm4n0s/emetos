@@ -1,0 +1,7 @@
+{
+  "emetosHttp": 1,
+  "name": "Create user",
+  "method": "POST",
+  "url": "{{baseUrl}}/v1/users",
+  "body": { "type": "json", "file": "create-user.body.json" }
+}

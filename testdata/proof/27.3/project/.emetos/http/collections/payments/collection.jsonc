@@ -1,0 +1,5 @@
+{
+  "emetosHttp": 1,
+  "name": "Payments",
+  "order": ["charge.request.jsonc", "refund.request.jsonc"]
+}

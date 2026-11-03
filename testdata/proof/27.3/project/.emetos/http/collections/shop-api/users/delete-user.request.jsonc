@@ -1,0 +1,6 @@
+{
+  "emetosHttp": 1,
+  "name": "Delete user",
+  "method": "DELETE",
+  "url": "{{baseUrl}}/v1/users/17"
+}

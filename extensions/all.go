@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/gomod"
 	"github.com/rm4n0s/emetos/extensions/hosting"
 	"github.com/rm4n0s/emetos/extensions/html"
+	"github.com/rm4n0s/emetos/extensions/httpclient"
 	"github.com/rm4n0s/emetos/extensions/ini"
 	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
 	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
@@ -59,6 +60,9 @@ import (
 // (extensions/mongodb, step 20.1) is listed with the language packs, after them, because it contributes a language, the
 // playgrounds (.mongodb), and the order of the languages is the order of registration; it registers its engine in the same hub.
 // Redis (extensions/redis, step 21.1) follows the hub, and adds its engine to it when the view is shown.
+// The HTTP Client (extensions/httpclient, step 27.3) follows Redis: it adds a view container with its Collections, Environments and History
+// views, the item of the status bar that names the active environment, and the environment editor tab; it reads the files of
+// .emetos/http in the background and asks the keyring for nothing until a secret is read or written.
 //
 // The Containers view of Docker (extensions/containers, step 18.2) follows the Search view: it adds a view container to the side bar, a
 // tab to the panel (the logs) and two kinds of editor tab, and starts nothing until a view of it is shown. The Podman extension
@@ -79,7 +83,7 @@ func All() []extension.Factory {
 		search.New, containers.New, podman.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw),
 		hosting.NewFactory(rw.Hosting()),
-		dbconn.Factory(db), redis.Factory(db),
+		dbconn.Factory(db), redis.Factory(db), httpclient.New,
 		gitscm.New, references.New,
 	}
 }
