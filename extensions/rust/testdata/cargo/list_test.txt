@@ -1,0 +1,4 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running tests/integration.rs ({{target}}/debug/deps/integration-adc54589b1811f5f)
+adds_across_the_crate: test
+checked_divides: test

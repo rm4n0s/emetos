@@ -90,12 +90,16 @@ func findCargo() (string, error) {
 // cargoMetadata is the part of the output of `cargo metadata --no-deps` the targets are made from.
 type cargoMetadata struct {
 	Packages []cargoPackage `json:"packages"`
+	// WorkspaceRoot is the folder the paths of the compiler's messages are relative to.
+	WorkspaceRoot string `json:"workspace_root"`
 }
 
 // cargoPackage is a package of the workspace.
 type cargoPackage struct {
 	Name    string        `json:"name"`
 	Targets []cargoTarget `json:"targets"`
+	// ManifestPath is the absolute path of the package's Cargo.toml.
+	ManifestPath string `json:"manifest_path"`
 }
 
 // cargoTarget is a target of a package: a library, a binary, an example, a test.
@@ -103,8 +107,11 @@ type cargoTarget struct {
 	Name       string   `json:"name"`
 	Kind       []string `json:"kind"`
 	CrateTypes []string `json:"crate_types"`
-	// Test says that `cargo test` builds the unit tests of the target.
-	Test bool `json:"test"`
+	// Test says that `cargo test` builds the unit tests of the target, and Doctest that it runs the documentation tests of a library.
+	Test    bool `json:"test"`
+	Doctest bool `json:"doctest"`
+	// SrcPath is the absolute path of the root file of the target.
+	SrcPath string `json:"src_path"`
 }
 
 // hasKind tells whether the target is of the kind.

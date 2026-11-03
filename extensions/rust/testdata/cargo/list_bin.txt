@@ -1,0 +1,3 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/main.rs ({{target}}/debug/deps/calc-6b9dd20cba530f47)
+tests::main_runs: test

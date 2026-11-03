@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s
+     Running unittests src/lib.rs ({{target}}/debug/deps/calc-896550c26a696955)
+tests::adds: test
+tests::divides: test
+tests::later: test
+tests::nested::deep: test
+tests::prints_and_passes: test
+tests::thread_panics: test
+tests::zero_panics: test

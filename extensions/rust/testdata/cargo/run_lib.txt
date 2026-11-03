@@ -1,0 +1,57 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs ({{target}}/debug/deps/calc-896550c26a696955)
+
+running 7 tests
+test tests::later ... ignored, slow
+test tests::adds ... ok
+test tests::divides ... FAILED
+test tests::prints_and_passes ... ok
+test tests::nested::deep ... ok
+test tests::zero_panics - should panic ... ok
+test tests::thread_panics ... FAILED
+
+successes:
+
+---- tests::prints_and_passes stdout ----
+hello from a passing test
+
+---- tests::zero_panics stdout ----
+
+thread 'tests::zero_panics' (2559500) panicked at src/lib.rs:27:9:
+division by zero
+
+
+successes:
+    tests::adds
+    tests::nested::deep
+    tests::prints_and_passes
+    tests::zero_panics
+
+failures:
+
+---- tests::divides stdout ----
+
+thread 'tests::divides' (2559496) panicked at src/lib.rs:43:9:
+assertion `left == right` failed
+  left: 5
+ right: 4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- tests::thread_panics stdout ----
+
+thread '<unnamed>' (2559501) panicked at src/lib.rs:61:13:
+worker failed
+
+thread 'tests::thread_panics' (2559499) panicked at src/lib.rs:63:9:
+the worker thread panicked
+
+
+failures:
+    tests::divides
+    tests::thread_panics
+
+test result: FAILED. 4 passed; 2 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p calc --lib`
+error: 1 target failed:
+    `-p calc --lib`

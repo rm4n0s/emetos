@@ -1,0 +1,9 @@
+   Compiling calc v0.1.0 ({{dir}})
+error[E0425]: cannot find value `missing` in this scope
+  --> src/lib.rs:44:20
+   |
+44 |         assert_eq!(missing, 4);
+   |                    ^^^^^^^ not found in this scope
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `calc` (lib test) due to 1 previous error

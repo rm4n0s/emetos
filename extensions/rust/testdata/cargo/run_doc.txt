@@ -1,0 +1,35 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+   Doc-tests calc
+
+running 2 tests
+test src/lib.rs - add (line 5) ... ok
+test src/lib.rs - divide (line 14) ... FAILED
+
+successes:
+
+successes:
+    src/lib.rs - add (line 5)
+
+failures:
+
+---- src/lib.rs - divide (line 14) stdout ----
+Test executable failed (exit status: 101).
+
+stderr:
+
+thread 'main' (2559551) panicked at src/lib.rs:5:1:
+assertion `left == right` failed
+  left: 5
+ right: 4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+
+failures:
+    src/lib.rs - divide (line 14)
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+error: doctest failed, to rerun pass `-p calc --doc`
+error: 1 target failed:
+    `-p calc --doc`

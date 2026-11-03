@@ -6,7 +6,9 @@
 // the commands Expand macro recursively at caret and View Syntax Tree (the result in a read-only tab), Locate parent module, Open
 // Cargo.toml, Join lines, Find matching brace, Reload workspace and Restart server, the Run lenses (which run through the Tasks
 // extension) and rust-analyzer's own status (experimental/serverStatus) in the status item. Since step 25.9 the pack also adds the Rust targets
-// of cargo to the debuggers gdb and lldb-dap, which the C and C++ pack owns, and builds a program before it is debugged (debug.go).
+// of cargo to the debuggers gdb and lldb-dap, which the C and C++ pack owns, and builds a program before it is debugged (debug.go). Since
+// step 26.7 the pack is also the Testing provider of Rust (testctl.go, testexec.go, testlibtest.go, testsrc.go; SPEC §10.32): the controller
+// "cargo" finds the tests with `cargo test -- --list`, runs them with `cargo test` and reads libtest's output, and debugs them with gdb or lldb-dap.
 package rust
 
 import (
@@ -14,6 +16,7 @@ import (
 	"embed"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/internal/langpack"
@@ -64,7 +67,7 @@ var rustLanguages = []string{"rust"}
 
 // New is the Factory of the pack.
 func New() extension.Extension {
-	r := &rust{content: map[string]string{}}
+	r := &rust{content: map[string]string{}, runner: runProcess, testDebounce: saveDebounce}
 	r.base = langpack.New(langpack.Spec{
 		ID: ID, Name: "Rust", Description: "Rust language support: syntax, rust-analyzer and its commands.",
 		Assets: assets, Server: r.serverConfig(),
@@ -90,6 +93,12 @@ type rust struct {
 	lensesOn atomic.Bool
 	// work waits for the requests in flight, so that a test can see that none is left.
 	work sync.WaitGroup
+
+	// tests is the controller of the tests in the Testing view (step 26.7); nil in a window that has none. runner runs the programs of
+	// the provider (the tests replace it) and testDebounce is how long the tests wait for more saves before they are found again.
+	tests        *testCtl
+	runner       testRunner
+	testDebounce time.Duration
 }
 
 // Manifest implements extension.Extension: the manifest of the pack with the commands, keybindings and settings of rust-analyzer.
@@ -128,9 +137,17 @@ func (r *rust) Activate(ctx context.Context, api extension.API) error {
 		return err
 	}
 	r.registerDebug()
+	if err := r.registerTests(); err != nil {
+		return err
+	}
 	api.Settings().OnChange(r.lensSettingsChanged)
 	return nil
 }
 
 // wait waits for the requests the pack sent to end (the tests use it).
-func (r *rust) wait() { r.work.Wait() }
+func (r *rust) wait() {
+	if r.tests != nil {
+		r.tests.stop()
+	}
+	r.work.Wait()
+}

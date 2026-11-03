@@ -1,0 +1,4 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.00s
+   Doc-tests calc
+src/lib.rs - add (line 5): test
+src/lib.rs - divide (line 14): test

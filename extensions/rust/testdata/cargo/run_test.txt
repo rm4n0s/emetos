@@ -1,0 +1,31 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running tests/integration.rs ({{target}}/debug/deps/integration-adc54589b1811f5f)
+
+running 2 tests
+test adds_across_the_crate ... ok
+test checked_divides ... FAILED
+
+successes:
+
+successes:
+    adds_across_the_crate
+
+failures:
+
+---- checked_divides stdout ----
+
+thread 'checked_divides' (2559519) panicked at tests/integration.rs:8:5:
+assertion `left == right` failed
+  left: 4
+ right: 5
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    checked_divides
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p calc --test integration`
+error: 1 target failed:
+    `-p calc --test integration`
