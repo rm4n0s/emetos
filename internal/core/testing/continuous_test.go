@@ -196,8 +196,16 @@ func TestStoppingContinuousRuns(t *testing.T) {
 	if r.svc.FilesChanged([]string{"file:///w/other_test.go"}) != 0 {
 		t.Error("a stopped run started again")
 	}
-	if n := len(r.events(ct.EventContinuous)); n < 4 {
-		t.Errorf("%d continuous events", n)
+	// three starts and three stops each emit an event; an event is delivered by the goroutine that is delivering when it is queued (a run
+	// that ends meanwhile), so it may arrive after the call returned: wait for it
+	deadline := time.Now().Add(5 * time.Second)
+	n := len(r.events(ct.EventContinuous))
+	for n < 6 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		n = len(r.events(ct.EventContinuous))
+	}
+	if n != 6 {
+		t.Errorf("%d continuous events, want 6", n)
 	}
 }
 
