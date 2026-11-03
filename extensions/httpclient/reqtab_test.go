@@ -553,3 +553,94 @@ func TestAnUnsavedRequestAsksForItsPlace(t *testing.T) {
 		t.Errorf("a cancelled pick said %v", result)
 	}
 }
+
+func TestTypedSecretsAreNotKeptInTheSavedState(t *testing.T) {
+	const secret = "hunter2-do-not-keep"
+	cases := []struct {
+		name string
+		set  func(d *draft)
+		kept string // text that must survive in the state ("" for none)
+	}{
+		{"basic password", func(d *draft) {
+			d.auth.typ = format.AuthBasic
+			d.auth.box[fUsername].SetValue("ada")
+			d.auth.box[fPassword].SetValue(secret)
+		}, "ada"},
+		{"bearer token", func(d *draft) { d.auth.typ = format.AuthBearer; d.auth.box[fToken].SetValue(secret) }, ""},
+		{"api key value", func(d *draft) {
+			d.auth.typ = format.AuthAPIKey
+			d.auth.box[fKey].SetValue("X-Key")
+			d.auth.box[fValue].SetValue(secret)
+		}, "X-Key"},
+		{"client secret", func(d *draft) {
+			d.auth.typ = format.AuthOAuth2
+			d.auth.box[fClientID].SetValue("the-client-id")
+			d.auth.box[fClientSecret].SetValue(secret)
+		}, "the-client-id"},
+		{"authorization header", func(d *draft) {
+			d.headers = append(d.headers, newPairBox(format.Pair{Name: "Authorization", Value: "Bearer " + secret, Enabled: true}))
+		}, "Authorization"},
+		{"secret-named header", func(d *draft) {
+			d.headers = append(d.headers, newPairBox(format.Pair{Name: "X-Api-Key", Value: secret, Enabled: true}))
+		}, "X-Api-Key"},
+		{"secret-named parameter", func(d *draft) {
+			d.params = append(d.params, newPairBox(format.Pair{Name: "access_token", Value: secret, Enabled: true}))
+		}, "access_token"},
+		{"password field of a form", func(d *draft) {
+			d.bodyType = format.BodyForm
+			d.form = append(d.form, newPairBox(format.Pair{Name: "password", Value: secret, Enabled: true}))
+		}, "password"},
+		{"password key of a JSON body", func(d *draft) {
+			d.bodyType = format.BodyJSON
+			d.texts[format.BodyJSON].SetValue(`{"user": "ada", "password": "` + secret + `"}`)
+		}, `"user`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newRig(t)
+			tab := r.openReq(pCreate)
+			tc.set(tab.d)
+			tab.edited()
+			raw := r.api.EditorTabs()[0].State()
+			if strings.Contains(string(raw), secret) {
+				t.Fatalf("the state holds the typed secret: %s", raw)
+			}
+			if tc.kept != "" && !strings.Contains(string(raw), tc.kept) {
+				t.Errorf("the state lost %q: %s", tc.kept, raw)
+			}
+			// restored: the tab is dirty, the secret is empty and a note says so
+			tab.onClose()
+			r.api.RestoreTab(RequestKindID, "again", raw)
+			r.api.WaitFor("the tab to come back", func() bool {
+				r.api.Pump()
+				n := len(r.ext.reqTabs)
+				return n > 0 && r.ext.reqTabs[n-1].d != nil && r.ext.reqTabs[n-1].pending == nil
+			})
+			again := r.ext.reqTabs[len(r.ext.reqTabs)-1]
+			if !again.dirty() || again.retype == "" {
+				t.Errorf("dirty %v, note %q", again.dirty(), again.retype)
+			}
+			if got, _ := json.Marshal(again.d.files()); strings.Contains(string(got), secret) {
+				t.Errorf("the restored tab holds the secret: %s", got)
+			}
+		})
+	}
+}
+
+func TestVariablesInSecretFieldsAreKeptInTheSavedState(t *testing.T) {
+	r := newRig(t)
+	tab := r.openReq(pCreate)
+	tab.d.auth.typ = format.AuthBearer
+	tab.d.auth.box[fToken].SetValue("{{token}}")
+	tab.d.headers = append(tab.d.headers, newPairBox(format.Pair{Name: "X-Secret", Value: "{{secretValue}}", Enabled: true}))
+	tab.edited()
+	raw := string(r.api.EditorTabs()[0].State())
+	for _, want := range []string{"{{token}}", "{{secretValue}}"} {
+		if !strings.Contains(raw, want) {
+			t.Errorf("the state lost %s: %s", want, raw)
+		}
+	}
+	if strings.Contains(raw, `"gone"`) {
+		t.Errorf("nothing was left out but the state says so: %s", raw)
+	}
+}

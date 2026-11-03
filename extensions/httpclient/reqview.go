@@ -131,6 +131,8 @@ func (t *reqTab) noteLine(bc widgets.BuildContext) widgets.Widget {
 		return pageui.NoteLine(bc, colors, pageui.Note{Text: "The file changed on disk. Saving replaces its changes with yours.", Bad: true})
 	case t.note.Text != "":
 		return pageui.NoteLine(bc, colors, t.note)
+	case t.retype != "":
+		return pageui.NoteLine(bc, colors, pageui.Note{Text: t.retype, Bad: true})
 	}
 	return nil
 }

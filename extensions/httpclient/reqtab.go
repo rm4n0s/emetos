@@ -43,6 +43,8 @@ type reqTabState struct {
 	Draft   *store.RequestFiles `json:"draft,omitempty"`
 	Base    string              `json:"base,omitempty"`
 	Section string              `json:"section,omitempty"`
+	// Gone names the typed secrets that were left out of Draft (see stateSafe); the restored tab says they must be typed again.
+	Gone []string `json:"gone,omitempty"`
 }
 
 // reqTab is the request tab: a form over a draft of one request. It is used on the UI thread.
@@ -64,6 +66,8 @@ type reqTab struct {
 	problem       string
 	// diskChanged says the file changed on disk while the tab has edits.
 	diskChanged bool
+	// retype is the note of a restored tab whose typed secrets were not kept in the state; saving removes it.
+	retype string
 
 	syncing bool
 	// bulk are the bulk editors ("name: value" lines) of the tables; open says which are shown.
@@ -113,8 +117,10 @@ func (e *Extension) createRequestTab(tab extension.EditorTab, raw json.RawMessag
 	tab.SetHint(st.Path)
 	switch {
 	case st.Draft != nil && st.Path == "":
+		t.retype = retypeNote(st.Gone)
 		t.adopt(*st.Draft, st.Base)
 	case st.Draft != nil:
+		t.retype = retypeNote(st.Gone)
 		t.pending = st.Draft
 		t.adopt(*st.Draft, "")
 		t.baseline = st.Base
@@ -178,8 +184,8 @@ func (t *reqTab) dropResponse() {
 func (t *reqTab) saveState() (any, error) {
 	st := reqTabState{Path: t.path, Section: t.section}
 	if t.d != nil && (t.path == "" || t.dirty()) {
-		f := t.d.files()
-		st.Draft, st.Base = &f, t.baseline
+		f, gone := stateSafe(t.d.files())
+		st.Draft, st.Base, st.Gone = &f, t.baseline, gone
 	}
 	return st, nil
 }
@@ -421,7 +427,7 @@ func (t *reqTab) save(done func(saved bool)) {
 			finish(false)
 			return
 		}
-		t.baseline, t.diskChanged = snap, false
+		t.baseline, t.diskChanged, t.retype = snap, false, ""
 		t.note = pageui.Fine("Saved.")
 		t.tab.SetDirty(t.dirty())
 		t.tab.Refresh()
