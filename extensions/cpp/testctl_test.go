@@ -76,7 +76,7 @@ func fakeCTestScript(cases []fakeCase) string {
 	for _, c := range cases {
 		sb.WriteString("'" + c.args + "') ")
 		if c.sleep > 0 {
-			sb.WriteString("echo $$ > \"$FOLDER/../pid\"; sleep " + strconv.Itoa(c.sleep) + "; ")
+			sb.WriteString("echo $$ > \"$FOLDER/../pid.tmp\"; mv \"$FOLDER/../pid.tmp\" \"$FOLDER/../pid\"; sleep " + strconv.Itoa(c.sleep) + "; ")
 		}
 		if c.stdout != "" {
 			sb.WriteString("sub " + c.stdout + "; ")
@@ -143,7 +143,7 @@ func newCTestRig(t *testing.T, o ctestOptions) *ctestRig {
 	}
 	// the PATH is the folder of the fake ctest alone, with links to the programs its script uses, so that no program of the machine (gdb,
 	// lldb-dap, a real ctest) is found
-	for _, tool := range []string{"sed", "cat", "sleep"} {
+	for _, tool := range []string{"sed", "cat", "sleep", "mv"} {
 		if err := os.Symlink(filepath.Join("/usr/bin", tool), filepath.Join(r.bin, tool)); err != nil {
 			t.Fatal(err)
 		}

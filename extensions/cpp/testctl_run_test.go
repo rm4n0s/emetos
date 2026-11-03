@@ -385,15 +385,17 @@ func TestACancelStopsCTestAndItsChildren(t *testing.T) {
 		done <- r.ctl().Runs()[before]
 	}()
 	pidFile := filepath.Join(filepath.Dir(r.folder), "pid")
-	r.api.WaitFor("ctest to start", func() bool { _, err := os.Stat(pidFile); return err == nil })
-	data, err := os.ReadFile(pidFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	// the fake writes the pid file atomically; wait for a whole pid anyway
+	pid := 0
+	r.api.WaitFor("ctest to start", func() bool {
+		data, err := os.ReadFile(pidFile)
+		if err != nil || !strings.HasSuffix(string(data), "\n") {
+			return false
+		}
+		n, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		pid = n
+		return err == nil && n > 0
+	})
 	cancel()
 	select {
 	case run := <-done:
