@@ -17,6 +17,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/golang"
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
@@ -626,5 +627,67 @@ func TestAClientsEditorShowsTheGlyphsAndTheMessagesOfTheHostsResults(t *testing.
 	clientEditor.tst.peekController().Step(true)
 	if !clientEditor.tst.peek.Visible() || hostEditor.tst.peek != nil {
 		t.Errorf("the peek is on the client (%v) and not on the host (%v)", clientEditor.tst.peek.Visible(), hostEditor.tst.peek != nil)
+	}
+}
+
+// TestEscapeClosesThePeekOfTwoControllersThatBothFailInTheFile mirrors the case a real-input test saw once in step 26.6: the Go
+// controller and the fake one report failures in the same file, the peek shows "1 of N" and Escape must close it.
+func TestEscapeClosesThePeekOfTwoControllersThatBothFailInTheFile(t *testing.T) {
+	files := map[string]string{
+		"go.mod": "module calc\n\ngo 1.21\n",
+		"calc.go": `package calc
+
+import "fmt"
+
+func Add(a, b int) int { return a + b }
+
+func Divide(a, b int) (float64, error) { return float64(a / b), nil }
+
+func Report(n int) string { return fmt.Sprintf("Total: %d\nTax: %.2f", n, float64(n)*0.17) }
+`,
+	}
+	r, e := peekRig(t, testingOpts{files: files, extensions: []extension.Factory{golang.New}})
+	r.win.Extensions().Activate(golang.ID)
+	// the go commands of the controller may still write to the build cache (inside the temporary folders) when the test ends
+	t.Cleanup(func() { time.Sleep(500 * time.Millisecond) })
+	r.waitFor("the Go controller's tests", func() bool { return r.svc().ItemCount("go") > 0 })
+	r.runCommand(command.TestingRunAll, nil)
+	r.waitFor("the messages of both controllers", func() bool { return len(e.view.TestMessages()) >= 2 })
+	r.waitFor("the glyph of TestDivide", func() bool { _, ok := glyphLines(e)[10]; return ok })
+
+	// the glyph of a failed test is clicked (Alt: nothing runs, the click only asks for the peek the way the setting says)
+	e.view.Cursors().SetSelections([]buffer.Selection{buffer.NewCursor(buffer.Position{Line: 13, Col: 0})})
+	r.run(command.TestingOpenOutputPeek, nil)
+	peek := e.tst.peek
+	if peek == nil || !peek.Visible() {
+		t.Fatal("Peek Output did not open the peek")
+	}
+	if _, n := peek.Position(); n < 2 {
+		t.Fatalf("the peek has %d messages, want the failures of both controllers", n)
+	}
+	r.run(command.TestingGoToNextMessage, nil)
+	if i, n := peek.Position(); i < 2 || n < 2 {
+		t.Errorf("the place of the message is %d of %d", i, n)
+	}
+	if r.win.Keys.Get("testing.isPeekVisible") != true {
+		t.Fatal("testing.isPeekVisible is not set while the peek shows")
+	}
+	// Escape with the focus in the editor, then again after the peek's content changed with the focus in the peek
+	for _, focusPeek := range []bool{false, true} {
+		if !peek.Visible() {
+			r.run(command.TestingGoToNextMessage, nil)
+		}
+		if focusPeek {
+			if b := peek.Body(); b != nil && b.Focus != nil {
+				b.Focus()
+			}
+		} else {
+			e.focus.Request()
+		}
+		r.pump()
+		r.press("escape")
+		if peek.Visible() || r.win.Keys.Get("testing.isPeekVisible") != false {
+			t.Errorf("Escape did not close the peek (focus in the peek: %v, %d of %d)", focusPeek, func() int { i, _ := peek.Position(); return i }(), func() int { _, n := peek.Position(); return n }())
+		}
 	}
 }

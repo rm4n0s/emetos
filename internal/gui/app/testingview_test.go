@@ -61,6 +61,8 @@ type testingOpts struct {
 	// now is the clock of the model (the goldens fix it, so that the duration in the summary does not change).
 	now      func() time.Time
 	settings map[string]any
+	// extensions are started besides the fake controller (devtesting).
+	extensions []extension.Factory
 }
 
 // newTestingRig makes the window and waits until the controller has its tree.
@@ -90,7 +92,7 @@ func newTestingRig(t *testing.T, o testingOpts) *testingRig {
 		values[k] = v
 	}
 	testutil.Settings(t, paths, values)
-	p := newTestProcess(ProcessOptions{Paths: paths, Extensions: []extension.Factory{devtesting.New}, TestingNow: o.now})
+	p := newTestProcess(ProcessOptions{Paths: paths, Extensions: append([]extension.Factory{devtesting.New}, o.extensions...), TestingNow: o.now})
 	win, err := NewWorkspace(context.Background(), p, folder)
 	if err != nil {
 		t.Fatal(err)
