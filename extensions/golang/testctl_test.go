@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 )
@@ -303,5 +304,67 @@ func TestDiscoveryKeepsAFileThatACommandLoadedWhileItWasListing(t *testing.T) {
 	tc.discoverAll(t.Context())
 	if tc.itemFor(r.folder, "TestLate") != nil {
 		t.Error("a file that is not in the list of a discovery that began after it was loaded stayed")
+	}
+}
+
+// The discovery reads a test file while it is being written (it is empty at that moment), and a command loads the whole file before the
+// discovery applies what it read: the empty read must not take out what the command loaded after it.
+func TestAnEmptyReadOfAFileBeingWrittenDoesNotTakeOutWhatACommandLoadedAfterIt(t *testing.T) {
+	r := treeRig(t, nil)
+	tc := r.ext.tests
+	path := filepath.Join(r.folder, "writing_test.go")
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	read, release := make(chan struct{}), make(chan struct{})
+	tc.fileRead = func() {
+		tc.fileRead = nil
+		close(read)
+		<-release
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		tc.loadFile(path) // the discovery: it has read the empty file
+	}()
+	<-read
+	if err := os.WriteFile(path, []byte("package p\n\nimport \"testing\"\n\nfunc TestWritten(t *testing.T) {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := make(chan struct{})
+	go func() {
+		defer close(command)
+		tc.loadFile(path) // the command: it reads the whole file
+	}()
+	time.Sleep(100 * time.Millisecond) // without the lock the command is done by now
+	close(release)
+	<-done
+	<-command
+	if tc.itemFor(r.folder, "TestWritten") == nil {
+		t.Error("the empty read took out the test that a command loaded from the whole file")
+	}
+}
+
+// A command loads a test file from the disk, and the next discovery has a list of the workspace from before the file was written: the
+// file is still there, so it is not gone.
+func TestDiscoveryKeepsAFileThatIsOnTheDiskWhenItsListIsOlder(t *testing.T) {
+	r := treeRig(t, nil)
+	tc := r.ext.tests
+	path := filepath.Join(r.folder, "fresh_test.go")
+	if err := os.WriteFile(path, []byte("package p\n\nimport \"testing\"\n\nfunc TestFresh(t *testing.T) {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	tc.loadFile(path) // the command; the file index of the rig has not been rescanned
+	tc.discoverAll(t.Context())
+	if tc.itemFor(r.folder, "TestFresh") == nil {
+		t.Fatal("a discovery with a list from before the file took it out while it is on the disk")
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	r.api.RescanFiles()
+	tc.discoverAll(t.Context())
+	if tc.itemFor(r.folder, "TestFresh") != nil {
+		t.Error("a file that is gone from the disk stayed")
 	}
 }

@@ -95,6 +95,11 @@ type testCtl struct {
 	mods     map[string]modInfo
 	// listed, when set (by a test), is called by discoverAll when it has the list of the files and before it takes out the ones that are not in it.
 	listed func()
+	// fileRead, when set (by a test), is called by loadFile after it read the file and before it changes the tree.
+	fileRead func()
+	// loadMu makes a load (the read of a file and the change of the tree) one step: a read of the file from a moment when it was being
+	// written (empty) must not take out what a command loaded after it, from the whole file.
+	loadMu sync.Mutex
 	// seq counts the loads of files, for testFile.seq.
 	seq uint64
 	// runs are the cancel functions of the runs the commands started, and last the request of the newest one.
@@ -325,12 +330,19 @@ func (tc *testCtl) discoverAll(ctx context.Context) {
 	}
 	tc.mu.Unlock()
 	for _, path := range gone {
+		// the list can be older than a file a command loaded from the disk a moment ago (the index of the files lags behind the disk): a
+		// file that is still there is not gone, its own change event loads it
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 		tc.removeFile(path)
 	}
 }
 
 // loadFile reads the file from disk and puts its tests in the tree; a file that is gone is taken out.
 func (tc *testCtl) loadFile(path string) {
+	tc.loadMu.Lock()
+	defer tc.loadMu.Unlock()
 	st, err := os.Stat(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -348,12 +360,22 @@ func (tc *testCtl) loadFile(path string) {
 		tc.g.api.Log().Warn("the test file cannot be read", "path", path, "err", err)
 		return
 	}
-	tc.loadText(path, string(data))
+	if tc.fileRead != nil {
+		tc.fileRead()
+	}
+	tc.loadTextLocked(path, string(data))
 }
 
 // loadText puts the tests of the text of a file in the tree (the editor's text for a command at the cursor). A file whose text is what
 // the tree has already is left alone, so that its items and results stay; a file with no tests is taken out.
 func (tc *testCtl) loadText(path, text string) {
+	tc.loadMu.Lock()
+	defer tc.loadMu.Unlock()
+	tc.loadTextLocked(path, text)
+}
+
+// loadTextLocked is loadText with tc.loadMu held.
+func (tc *testCtl) loadTextLocked(path, text string) {
 	scan := scanTestFile(text)
 	if len(scan.funcs) == 0 {
 		tc.removeFile(path)
