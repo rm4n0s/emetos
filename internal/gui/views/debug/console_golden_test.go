@@ -1,8 +1,10 @@
 package debug
 
 import (
+	"strconv"
 	"testing"
 
+	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/dap/daptest"
@@ -108,4 +110,50 @@ func TestGoldenConsoleFilter(t *testing.T) {
 	r.con.SetFilter("warning, retrying, !prices")
 	r.pump()
 	testutil.MatchesGolden(r.ts, "console_filter")
+}
+
+func TestGoldenConsoleTallerThanTheView(t *testing.T) {
+	// the rows are one line taller than the view: the end shows, and the first row is cut by the top of the view
+	r := newConsoleRig(t, consoleRigOpts{size: ui.Size{Width: 720, Height: 290}, script: mixedOutput()})
+	r.kick()
+	r.waitForRow("https://example.com/docs")
+	r.con.Evaluate("order.Total * 2")
+	r.waitForRow("13")
+	testutil.MatchesGolden(r.ts, "console_taller")
+}
+
+// TestConsoleClipsNothingWhenTheRowsFit is the layout of the rows in a view that changes its height: a console that fits starts at the
+// top of the view and shows every row whole; one that does not shows its end, with the last row whole against the input, and only the
+// first row cut by the top of the view (VS Code scrolls its list to the end the same way).
+func TestConsoleClipsNothingWhenTheRowsFit(t *testing.T) {
+	r := newConsoleRig(t, consoleRigOpts{size: ui.Size{Width: 720, Height: 380}, script: mixedOutput()})
+	r.kick()
+	r.waitForRow("https://example.com/docs")
+	r.con.Evaluate("order.Total * 2")
+	r.waitForRow("13")
+	rows := r.con.Rows()
+	first, last := gluttertest.ByKey(ConsoleRowKey(rows[0].Key)), gluttertest.ByKey(ConsoleRowKey(rows[len(rows)-1].Key))
+	list := gluttertest.ByKey(ConsoleListKey)
+	near := func(what string, got, want float64) {
+		t.Helper()
+		if got < want-1 || got > want+1 {
+			t.Errorf("%s is at %.1f, want %.1f", what, got, want)
+		}
+	}
+	for _, h := range []float64{380, 250, 200, 380, 330, 270, 380} {
+		r.ts.SetViewSize(ui.Size{Width: 720, Height: h})
+		r.pump()
+		listRect := r.ts.TopLeft(list)
+		top, bottom := listRect.Dy, listRect.Dy+r.ts.Size(list).Height
+		name := " (the view is " + strconv.Itoa(int(h)) + " high)"
+		// a list builds the rows in view only: a first row that is not built is out of view, so the rows do not fit
+		if r.ts.Exists(first) && r.ts.TopLeft(first).Dy >= top-0.5 {
+			near("the top of the first row"+name, r.ts.TopLeft(first).Dy, top)
+			continue
+		}
+		if h == 380 {
+			t.Fatalf("the rows are not in view from the top in a view of %v", h)
+		}
+		near("the bottom of the last row"+name, r.ts.TopLeft(last).Dy+r.ts.Size(last).Height, bottom)
+	}
 }
