@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
@@ -19,14 +20,18 @@ import (
 	"github.com/rm4n0s/emetos/internal/gui/quickinput"
 )
 
-// waitFor pumps the frames until a condition holds; the files are read on goroutines.
+// waitFor pumps the frames until a condition holds; the files are read on goroutines. The wait ends by the wall clock, not
+// by a count of frames (the pumps run on a fake clock and cost microseconds, so a count ends before a loaded machine ran the
+// goroutines), and it lets the goroutines run between the frames.
 func (a *groupApp) waitFor(what string, cond func() bool) {
 	a.t.Helper()
-	for range 200 {
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
 		if cond() {
 			return
 		}
 		a.pump()
+		time.Sleep(time.Millisecond)
 	}
 	a.t.Fatalf("timed out waiting for %s; tabs %v", what, a.tabNames())
 }
