@@ -479,7 +479,11 @@ func (r *goTestRun) line(l string) {
 		return
 	}
 	item := r.tc.testItem(pkg, ev.Test)
-	d := time.Duration(ev.Elapsed * float64(time.Second))
+	// go test -json rounds Elapsed to 0.01 s, so a fast test reports 0, which is "not measured" and not a duration of 0.0 ms
+	d := extension.TestNoDuration
+	if ev.Elapsed > 0 {
+		d = time.Duration(ev.Elapsed * float64(time.Second))
+	}
 	switch ev.Action {
 	case "run":
 		r.tr.Started(item)

@@ -174,8 +174,8 @@ func TestARunOfTheMixedFixtureReportsEveryTestWithItsMessages(t *testing.T) {
 		if e.Kind == fakeapi.RunOutput && e.Item == nil && strings.HasPrefix(e.Text, "$ go test -json -timeout 30s") {
 			sawCommand = true
 		}
-		if e.Kind == fakeapi.RunPassed && e.Duration != 0 {
-			t.Errorf("duration of %s = %v", keyOf(e.Item), e.Duration)
+		if (e.Kind == fakeapi.RunPassed || e.Kind == fakeapi.RunFailed) && e.Duration != extension.TestNoDuration {
+			t.Errorf("duration of %s = %v, want none (go test -json reported Elapsed 0)", keyOf(e.Item), e.Duration)
 		}
 	}
 	if !sawOutput || !sawCommand {
