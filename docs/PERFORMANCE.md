@@ -654,14 +654,15 @@ scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./extens
 
 | Measurement | Value |
 |---|---|
-| Sent and read (loopback, the body held in memory: it is within the limit) | 219 ms of wall time, off the UI thread; the UI thread's callbacks meanwhile: 165, the longest 0.1 ms |
-| What the pane builds when the response arrives (`buildDisplay`: the first 512 bytes and the page count) | 4 µs |
-| Heap in use before / after the response (the test server's chunks and the transport's buffers included; a body is held once) | 82 MiB / 320 MiB |
-| The first page shown (first frames in a new window, includes making the test window) | 42 ms |
-| Page 1 with nothing changed: average / longest of 20 frames | 25 µs / 0.26 ms |
-| 100 page turns (Next page: the tap, the read of one page and its frame): average / longest (frames over 16 ms) | 2.4 ms / 5.8 ms (0) |
-| 60 frames of a scroll inside a page: average / longest | 85 µs / 0.74 ms |
-| Last page | 1.7 ms |
+| Sent and read (loopback, the body held in memory: it is within the limit) | 222 ms of wall time, off the UI thread; the UI thread's callbacks meanwhile: 186, the longest 0.22 ms |
+| What the pane builds when the response arrives (`buildDisplay`: the first 512 bytes and the page count) | 6 µs |
+| Heap in use before / after the response (the garbage not yet collected and the test server's work included) | 80 MiB / 211 MiB (before the fix of decision 1910: 82 MiB / 320 MiB) |
+| Heap after a collection with the response held (the test server holds one chunk of 64 KiB) | 128 MiB: 0.96 bodies above the 80 MiB before (before the fix: about 2 bodies, the buffer having doubled) |
+| The first page shown (first frames in a new window, includes making the test window) | 23 ms |
+| Page 1 with nothing changed: average / longest of 20 frames | 28 µs / 0.21 ms |
+| 100 page turns (Next page: the tap, the read of one page and its frame): average / longest (frames over 16 ms) | 2.4 ms / 4.9 ms (0) |
+| 60 frames of a scroll inside a page: average / longest | 90 µs / 0.88 ms |
+| Last page | 2.7 ms |
 | For comparison, **a 2 MiB JSON response, the largest that has Pretty**: sent, read and displayed (255,332 lines of indented text) | 237 ms of wall time, off the UI thread |
 | Its first frames (includes the test window); 60 frames of a steady scroll: average / longest | 29 ms; 79 µs / 0.4 ms |
 
@@ -669,14 +670,14 @@ scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./extens
 
 | Measurement | Value |
 |---|---|
-| The run: wall time, requests served, results | 215 ms, 500, 500 |
-| The UI thread while the results stream in, 9 frames (the whole run fits in them): in all / average / longest / frames over 16 ms / over 100 ms | 211 ms / 23.5 ms / 28.3 ms / 9 / **0** |
-| The same frames by wall time (whatever the thread was doing) | average 23.9 ms, longest 28.9 ms |
-| After the run, a frame with nothing changed: average / longest of 10 | 1.3 ms / 12.3 ms (median 8 µs) |
-| After the run, 60 frames of a steady scroll through the 500 results: average / longest (over 16 ms) | 3.8 ms / 8.7 ms (0) |
+| The run: wall time, requests served, results | 200 ms, 500, 500 |
+| The UI thread while the results stream in, 13 frames: in all / average / longest / frames over 16 ms / over 100 ms | 68 ms / 5.2 ms / 11.1 ms / **0** / 0 (before the fix of decision 1911: 9 frames, 211 ms / 23.5 ms / 28.3 ms / 9 / 0) |
+| The same frames by wall time (whatever the thread was doing) | average 5.9 ms, longest 12.4 ms |
+| After the run, a frame with nothing changed: average / longest of 10 | 0.21 ms / 0.98 ms (median 11 µs) |
+| After the run, 60 frames of a steady scroll through the 500 results: average / longest (over 16 ms) | 2.8 ms / 5.9 ms (0) |
 
 **What the figures say.**
 - **No frame of any of the three is over 100 ms, and no UI-thread freeze was found.** The side bar's 1,000 rows are virtual: a scroll costs 3.3 ms a frame, and a change on disk makes the rows again in under a millisecond.
-- **The runner's frames are over the 16 ms budget (9 frames of 23 to 28 ms)**, though the whole run is 215 ms: the runner sends the 500 requests faster than the window draws, so each frame takes in about 55 results at once (the model of results and the table are made again for them). It is 211 ms of the UI thread in all and no frame over 29 ms; a slower server, as in real use, spreads the same work over more frames. Not changed here.
-- **A 50 MiB body is not a freeze, and it is not formatted:** the user gets the Raw pages at once, a page turn costs 2.4 ms. Formatting stops at 2 MiB on purpose (a JSON of 2 MiB is 255,332 lines of Pretty text, made off the UI thread in 237 ms in all). The heap after the response (320 MiB for a 50 MiB body) is the sum of the test server's work and the Go runtime's garbage before the next collection, not measured as the body's own cost.
+- **The runner's frames are within the 16 ms budget (13 frames, the longest 11.1 ms; they were 9 frames of 23 to 28 ms).** The cost was not the results: each one refreshed the tab, and the left column built and laid out a row for each of the 500 requests every time (about 26 ms a frame whether one result or 55 came in). That list is now built lazily, only the rows in view (decision 1911); the default-run test `TestFiveHundredStreamedResultsStayInTheFrameBudget` keeps it so.
+- **A 50 MiB body is not a freeze, and it is not formatted:** the user gets the Raw pages at once, a page turn costs 2.4 ms. Formatting stops at 2 MiB on purpose (a JSON of 2 MiB is 255,332 lines of Pretty text, made off the UI thread in 237 ms in all). The body is held once (decision 1910): after a collection the heap is 0.96 bodies above its start (it was about 2: the engine's buffer doubled); the 211 MiB right after the response (320 MiB before) still has the garbage of the read and of the test server, which the next collection takes.
 - **Not measured:** the whole window with its shell (the side bar's container, the tab strip): these are the extension's views and tabs in a test window; and the real GPU (`docs/MANUAL-CHECKS.md` 27.9).

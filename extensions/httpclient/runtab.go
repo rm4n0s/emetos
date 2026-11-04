@@ -84,7 +84,7 @@ type runTab struct {
 	gone, closed bool
 	note         pageui.Note
 	listCtl      widgets.ScrollController
-	leftScroll   ui.ScrollHandle
+	leftCtl      widgets.ScrollController
 }
 
 // createRunnerTab makes the content of a runner tab, for a new one and for one that comes back after a restart.
@@ -104,7 +104,7 @@ func (e *Extension) createRunnerTab(tab extension.EditorTab, raw json.RawMessage
 		iter = 1
 	}
 	t := &runTab{
-		e: e, tab: tab, path: st.Path, stop: st.Stop, skip: map[string]bool{}, open: map[int]bool{}, listCtl: widgets.NewScrollController(),
+		e: e, tab: tab, path: st.Path, stop: st.Stop, skip: map[string]bool{}, open: map[int]bool{}, listCtl: widgets.NewScrollController(), leftCtl: widgets.NewScrollController(),
 		iterations: ui.NewInputBoxController(strconv.Itoa(iter)), delay: ui.NewInputBoxController(strconv.Itoa(st.DelayMs)),
 		data: ui.NewInputBoxController(st.Data), iterShown: ui.NewInputBoxController(""),
 	}

@@ -32,7 +32,7 @@ func (t *runTab) build(bc widgets.BuildContext) widgets.Widget {
 	}
 	vline := widgets.NewColoredBox(colors.PanelBorder, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(1.0)}))
 	return widgets.NewRow([]widgets.Widget{
-		wide(ui.NewScrollView(tabPad(t.config(bc, colors)), &t.leftScroll), runConfigWidth), vline, widgets.NewExpanded(t.resultsPane(bc, colors)),
+		wide(t.configPane(bc, colors), runConfigWidth), vline, widgets.NewExpanded(t.resultsPane(bc, colors)),
 	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 }
 
@@ -41,8 +41,8 @@ func label(bc widgets.BuildContext, colors ui.Colors, text string) widgets.Widge
 	return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(0, 10, 0, 3), widgets.NewText(text, widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.DescriptionForeground)}))
 }
 
-// config is the column of the choices of a run.
-func (t *runTab) config(bc widgets.BuildContext, colors ui.Colors) widgets.Widget {
+// config is the choices of a run (head) and the list of its requests (rows, a sliver).
+func (t *runTab) config(bc widgets.BuildContext, colors ui.Colors) (head widgets.Widget, rows widgets.Widget) {
 	e := t.e
 	n := t.node()
 	dim := ui.TextStyle(bc, 12, colors.DescriptionForeground)
@@ -108,19 +108,7 @@ func (t *runTab) config(bc widgets.BuildContext, colors ui.Colors) widgets.Widge
 	if len(reqs) == 0 {
 		list = append(list, pageui.Paragraph("This has no requests yet.", dim))
 	}
-	for _, r := range reqs {
-		r := r
-		ok := runnable(r.node)
-		row := center(
-			ui.NewCheckbox("", ui.CheckboxOpts{Checked: ok && !t.skip[r.node.Path], Disabled: locked || !ok, OnChanged: func(on bool) { t.toggle(r.node.Path, on) }}),
-			pageui.HGap(2), methodBadge(bc, methodOf(r.node)),
-			flex(rowText(bc, r.rel, colors.Foreground), 1))
-		if !ok {
-			row = ui.NewHover(row, ui.HoverOpts{Text: "This request cannot be run: " + problemOf(r.node), Compact: true})
-		}
-		list = append(list, row)
-	}
-	return stretch(
+	top := stretch(
 		title,
 		label(bc, colors, "Environment"), envBox,
 		label(bc, colors, "Iterations"), iterBox,
@@ -131,6 +119,37 @@ func (t *runTab) config(bc widgets.BuildContext, colors ui.Colors) widgets.Widge
 		pageui.Gap(14),
 		stretch(list...),
 	)
+	// the rows of the requests are built only when they come into view: a tab of hundreds of requests is rebuilt for every result
+	// of a run, and building them all each time took more than a frame
+	rowAt := func(_ widgets.BuildContext, i int) widgets.Widget {
+		if i < 0 || i >= len(reqs) {
+			return nil
+		}
+		r := reqs[i]
+		ok := runnable(r.node)
+		row := center(
+			ui.NewCheckbox("", ui.CheckboxOpts{Checked: ok && !t.skip[r.node.Path], Disabled: locked || !ok, OnChanged: func(on bool) { t.toggle(r.node.Path, on) }}),
+			pageui.HGap(2), methodBadge(bc, methodOf(r.node)),
+			flex(rowText(bc, r.rel, colors.Foreground), 1))
+		if !ok {
+			row = ui.NewHover(row, ui.HoverOpts{Text: "This request cannot be run: " + problemOf(r.node), Compact: true})
+		}
+		return row
+	}
+	return top, widgets.NewSliverListBuilder(rowAt, widgets.SliverBuilderOpts{
+		ItemCount: foundation.Some(len(reqs)), AddAutomaticKeepAlives: foundation.Some(false), AddRepaintBoundaries: foundation.Some(false),
+		AddSemanticIndexes: foundation.Some(false),
+	})
+}
+
+// configPane is the column of the choices of a run, scrolling: its head, then the requests as a lazily built list.
+func (t *runTab) configPane(bc widgets.BuildContext, colors ui.Colors) widgets.Widget {
+	head, rows := t.config(bc, colors)
+	pad := widgets.NewSliverPadding(painting.NewEdgeInsetsFromLTRB(16, 0, 16, 8), rows)
+	view := widgets.NewCustomScrollView([]widgets.Widget{
+		widgets.NewSliverToBoxAdapter(widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(16, 12, 16, 0), head)), pad,
+	}, widgets.ScrollViewOpts{Controller: t.leftCtl})
+	return ui.NewScrollable(view, ui.ScrollableOpts{Controller: t.leftCtl})
 }
 
 // problemOf is why a request of the list cannot be run.
