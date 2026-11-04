@@ -60,6 +60,8 @@ type testPkg struct {
 type testFile struct {
 	sum  [sha256.Size]byte
 	item *extension.TestItem
+	// seq is the number of the load that made the item: discoverAll leaves alone what was loaded after it began.
+	seq uint64
 }
 
 // testItemInfo says what an item of the tree is.
@@ -91,6 +93,10 @@ type testCtl struct {
 	info     map[*extension.TestItem]testItemInfo
 	byID     map[string]*extension.TestItem
 	mods     map[string]modInfo
+	// listed, when set (by a test), is called by discoverAll when it has the list of the files and before it takes out the ones that are not in it.
+	listed func()
+	// seq counts the loads of files, for testFile.seq.
+	seq uint64
 	// runs are the cancel functions of the runs the commands started, and last the request of the newest one.
 	runs map[int]context.CancelFunc
 	nrun int
@@ -290,8 +296,12 @@ func (tc *testCtl) testFilesOf() (files []string, complete bool) {
 func (tc *testCtl) discoverAll(ctx context.Context) {
 	tc.mu.Lock()
 	tc.mods = map[string]modInfo{}
+	began := tc.seq // what is loaded after this is newer than the list below
 	tc.mu.Unlock()
 	files, complete := tc.testFilesOf()
+	if tc.listed != nil {
+		tc.listed()
+	}
 	seen := make(map[string]bool, len(files))
 	for _, path := range files {
 		if ctx.Err() != nil {
@@ -306,8 +316,9 @@ func (tc *testCtl) discoverAll(ctx context.Context) {
 	var gone []string
 	tc.mu.Lock()
 	for _, p := range tc.pkgs {
-		for path := range p.files {
-			if !seen[path] && within(tc.g.api.Scope().Folder, path) {
+		for path, f := range p.files {
+			// a file that a command loaded from the editor while the list was made may be missing from the list, and is not gone
+			if !seen[path] && f.seq <= began && within(tc.g.api.Scope().Folder, path) {
 				gone = append(gone, path)
 			}
 		}
@@ -375,7 +386,8 @@ func (tc *testCtl) loadText(path, text string) {
 	if old := pkg.files[path]; old != nil {
 		tc.unindexLocked(pkg, old.item)
 	}
-	file := &testFile{sum: sum, item: tc.fileItem(pkg, path, scan)}
+	tc.seq++
+	file := &testFile{sum: sum, item: tc.fileItem(pkg, path, scan), seq: tc.seq}
 	pkg.files[path] = file
 	if err := pkg.item.Children().Add(file.item); err != nil {
 		tc.g.api.Log().Warn("the tests of the file cannot be added", "path", path, "err", err)

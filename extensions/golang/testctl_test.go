@@ -286,3 +286,22 @@ func TestAFileMissingFromAnUnfinishedListIsNotGoneYet(t *testing.T) {
 		t.Errorf("the file stayed after the walk ended:\n%s", got)
 	}
 }
+
+// A command at the cursor loads the file from the editor while the discovery of the workspace is walking: the list the walk made
+// does not have the file, and the discovery must not take out what is newer than its list.
+func TestDiscoveryKeepsAFileThatACommandLoadedWhileItWasListing(t *testing.T) {
+	r := treeRig(t, nil)
+	tc := r.ext.tests
+	path := filepath.Join(r.folder, "late_test.go")
+	tc.listed = func() { tc.loadText(path, "package p\n\nimport \"testing\"\n\nfunc TestLate(t *testing.T) {}\n") }
+	tc.discoverAll(t.Context())
+	tc.listed = nil
+	if tc.itemFor(r.folder, "TestLate") == nil {
+		t.Fatal("the test of a file that was loaded during the discovery was taken out")
+	}
+	// the next discovery has the file after its start: it is not in the list, so it is gone
+	tc.discoverAll(t.Context())
+	if tc.itemFor(r.folder, "TestLate") != nil {
+		t.Error("a file that is not in the list of a discovery that began after it was loaded stayed")
+	}
+}
