@@ -378,6 +378,9 @@ func TestHostKeyPinning(t *testing.T) {
 	if err := r.hosts.Pin(r.addr, other.signer.PublicKey()); err != nil {
 		t.Fatal(err)
 	}
+	// the host reports a login after the client has its connection: the two logins above are in the channel before it is counted
+	r.nextLogin()
+	r.nextLogin()
 	before := len(r.logins)
 	_, err = Dial(ctx, opts(func(context.Context, FirstUse) (bool, error) { t.Error("asked about a changed key"); return true, nil }))
 	wantRoute(t, err, "dial.func1.SSHLoginHostKeyChanged")

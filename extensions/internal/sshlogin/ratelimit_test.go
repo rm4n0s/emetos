@@ -136,10 +136,19 @@ drain:
 	for i := 0; i < 2; i++ {
 		_, _ = r.dial(SignerAuth(listed.signer))
 	}
-	select {
-	case f := <-r.refusals:
-		t.Errorf("reported again: %+v", f)
-	case <-time.After(200 * time.Millisecond):
+	// the refusals of the failed attempts of the strangers are reported when the server gets to them, after the client saw its
+	// connection close, so some may still come: only a second report of the block counts
+	quiet := time.After(200 * time.Millisecond)
+wait:
+	for {
+		select {
+		case f := <-r.refusals:
+			if f.Reason == ReasonRateLimited {
+				t.Errorf("reported again: %+v", f)
+			}
+		case <-quiet:
+			break wait
+		}
 	}
 	r.clock.Advance(time.Minute)
 	c, err := r.dial(SignerAuth(listed.signer))
