@@ -215,12 +215,12 @@ func TestShowMyPublicKeySaysWhatIsInTheWay(t *testing.T) {
 	r := newTabRig(t, true)
 	r.open(uitest.Themes()[0], tabState{Host: "h", Port: DefaultPort, Key: keyFile})
 	r.settle()
-	// no key file chosen
-	r.ts.Tap(gluttertest.ByText(showButton))
+	// no key file chosen (tap clears the note first, so the wait is for the note of this press and not for the one before)
+	r.tap(showButton)
 	r.until("the note", func() bool { return r.has("Choose the private key file first") })
 	// a key file that is not there, and no .pub beside it
 	r.tr.form.keys.KeyFile.SetValue(filepath.Join(t.TempDir(), "missing"))
-	r.ts.Tap(gluttertest.ByText(showButton))
+	r.tap(showButton)
 	r.until("the note", func() bool { return r.has("no such file") })
 	if r.tr.qr != nil {
 		t.Error("a dialog opened for a key file that is not there")
@@ -235,7 +235,7 @@ func TestShowMyPublicKeySaysWhatIsInTheWay(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.tr.form.keys.KeyFile.SetValue(path)
-	r.ts.Tap(gluttertest.ByText(showButton))
+	r.tap(showButton)
 	r.until("the note", func() bool { return r.has("not a public key") })
 	if r.tr.qr != nil {
 		t.Error("a dialog opened for text that is not a public key")
@@ -248,8 +248,8 @@ func TestShowMyPublicKeySaysWhatIsInTheWay(t *testing.T) {
 	if err := os.WriteFile(path+".pub", priv, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r.ts.Tap(gluttertest.ByText(showButton))
-	r.until("the note", func() bool { return r.has("not a public key") })
+	r.tap(showButton)
+	r.until("the note", func() bool { return r.has("one key at a time") }) // a private key is several lines, not one public key
 	if r.tr.qr != nil {
 		t.Error("the private key was drawn")
 	}
@@ -285,4 +285,14 @@ func TestGoldensOfShowMyPublicKey(t *testing.T) {
 			uitest.MatchesGolden(r.ts, "tab_show_key_"+th.Name)
 		})
 	}
+}
+
+// tap presses the button after clearing the note of the earlier press: the notes of the steps of a test stay on the page, and
+// a wait for the text of one would end at once on the text of the one before, before the press had its effect.
+func (r *tabRig) tap(label string) {
+	r.t.Helper()
+	r.tr.note = note{}
+	r.wt.Refresh()
+	r.settle()
+	r.ts.Tap(gluttertest.ByText(label))
 }
