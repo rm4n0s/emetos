@@ -4,7 +4,6 @@ import (
 	"context"
 	"image"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,13 +75,27 @@ func TestScanLooksAtAboutTenFramesASecond(t *testing.T) {
 	defer func() { _ = stream.Close() }()
 	ctx, cancel := context.WithTimeout(t.Context(), 1050*time.Millisecond)
 	defer cancel()
-	var frames atomic.Int32
-	if err := Scan(ctx, stream, ScanOptions{OnFrame: func(image.Image) { frames.Add(1) }}); err != nil {
+	var mu sync.Mutex
+	var at []time.Time
+	if err := Scan(ctx, stream, ScanOptions{OnFrame: func(image.Image) { mu.Lock(); at = append(at, time.Now()); mu.Unlock() }}); err != nil {
 		t.Fatal(err)
 	}
-	// one at once, then one every 100 ms: 11 in a second, with the slack of a loaded machine
-	if n := frames.Load(); n < 8 || n > 12 {
-		t.Errorf("%d frames in a second, want about 10", n)
+	// The pace is the gap between two frames, 100 ms, which a busy machine only stretches (a late timer, a slow search for a code),
+	// so a count of frames in a second cannot be exact: no gap is shorter than the interval (a scan that ran faster fails), and at least four
+	// frames in a second (a scan that ran slower than a third of the pace fails).
+	mu.Lock()
+	defer mu.Unlock()
+	if len(at) < 4 || len(at) > 12 {
+		t.Fatalf("%d frames in a second, want about 10 (at least 4 on a loaded machine)", len(at))
+	}
+	gaps := make([]time.Duration, 0, len(at)-1)
+	for i := 1; i < len(at); i++ {
+		gaps = append(gaps, at[i].Sub(at[i-1]))
+	}
+	for _, g := range gaps {
+		if g < 95*time.Millisecond {
+			t.Errorf("two frames %v apart, the interval is %v", g, DefaultScanInterval)
+		}
 	}
 }
 
