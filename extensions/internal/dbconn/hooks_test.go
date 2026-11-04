@@ -94,7 +94,7 @@ func TestOpeningANodeAsksTheDriverThatListedIt(t *testing.T) {
 func TestEnterOnARowOfTheViewOpensTheNode(t *testing.T) {
 	r, d, c := newHookRig(t)
 	r.connectAndWait(c)
-	r.ext.view.tree.Expand(connKey(c.ID))
+	r.expand(connKey(c.ID))
 	r.api.WaitFor("the databases", func() bool { return len(r.rows()) == 3 })
 	nodes := r.ext.view.children[connKey(c.ID)]
 	r.ext.view.onOpen(ui.TreeNode{Key: "x", Data: nodeRow{connID: c.ID, node: nodes[0]}})
@@ -128,9 +128,9 @@ func TestRefreshCallsTheDriversOfTheOpenConnectionsOnly(t *testing.T) {
 func TestReloadListsTheOpenRowsAgainWithoutRefreshing(t *testing.T) {
 	r, d, c := newHookRig(t)
 	r.connectAndWait(c)
-	r.ext.view.tree.Expand(connKey(c.ID))
+	r.expand(connKey(c.ID))
 	r.api.WaitFor("the databases", func() bool { return len(r.rows()) == 3 })
-	r.ext.view.tree.Expand(childKey(connKey(c.ID), "db:app"))
+	r.expand(childKey(connKey(c.ID), "db:app"))
 	r.api.WaitFor("the tables", func() bool { return len(r.rows()) == 5 })
 	before := len(d.listedCalls())
 	r.hub.Reload(c.ID)
@@ -169,7 +169,7 @@ func TestANodeWithATooltipHasAHover(t *testing.T) {
 	r.api.WaitFor("the password to be asked", func() bool { return r.api.LastInput() != nil })
 	r.api.LastInput().Accept("pw")
 	r.api.WaitFor("the connection", func() bool { return r.hub.State(c.ID).Status == Connected })
-	r.ext.view.tree.Expand(connKey(c.ID))
+	r.expand(connKey(c.ID))
 	r.api.WaitFor("the databases", func() bool { return len(r.rows()) == 3 })
 	ts := uitest.Pump(t, uitest.Themes()[0], gui.Size{Width: 320, Height: 120}, viewWidget(r))
 	if n := ts.Count(gluttertest.ByType[*ui.Hover]()); n != 1 {
