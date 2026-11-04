@@ -2,7 +2,6 @@ package engine
 
 import (
 	"bufio"
-	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"compress/zlib"
@@ -398,7 +397,12 @@ func (e *Engine) readBody(ctx, parent context.Context, resp *http.Response) (*Bo
 		r = next
 		decoded = append([]string{enc}, decoded...)
 	}
-	bd, err := e.spool(r)
+	// the announced length is of the bytes that came, so it is the length of the body only when nothing was decoded
+	var hint int64
+	if len(decoded) == 0 && resp.ContentLength > 0 {
+		hint = resp.ContentLength
+	}
+	bd, err := e.spool(r, hint)
 	if err != nil {
 		if _, ok := errors.FromError(err); ok {
 			return nil, 0, nil, err
@@ -439,18 +443,79 @@ func (w *errWriter) Write(p []byte) (int, error) {
 	return n, err //nolint:wrapcheck // the writer's error is read from err
 }
 
+// memBody is a body being read into memory: the chunks are exact-size slices that are never copied while the body grows, so no old
+// copy of a bigger body is left behind for the garbage collector (a bytes.Buffer doubles and keeps up to twice the body).
+type memBody struct {
+	chunks [][]byte
+	n      int64
+}
+
+// maxChunk is the size of the biggest chunk of a body being read.
+const maxChunk = 1 << 20
+
+// fill reads up to limit bytes from r (stopping at its end) into chunks. first is the size of the first chunk (a body of known length
+// is read into one chunk of its size), the next chunks double up to maxChunk.
+func (m *memBody) fill(r io.Reader, first, limit int64) error {
+	size := min(first, limit)
+	for m.n < limit {
+		size = max(min(size, limit-m.n), 1)
+		chunk := make([]byte, size)
+		got := 0
+		var err error
+		for got < len(chunk) && err == nil {
+			var k int
+			k, err = r.Read(chunk[got:])
+			got += k
+		}
+		if got > 0 {
+			m.chunks = append(m.chunks, chunk[:got])
+			m.n += int64(got)
+		}
+		if err != nil {
+			if err == io.EOF { //nolint:errorlint // a reader's end is io.EOF itself
+				return nil
+			}
+			return err //nolint:wrapcheck // readBody tells a read error from a decoding error
+		}
+		size = min(size*2, maxChunk)
+	}
+	return nil
+}
+
+// bytes joins the chunks: a body that came in one chunk is returned as it is, otherwise it is copied once into a slice of its
+// exact size and the chunks go back.
+func (m *memBody) bytes() []byte {
+	if len(m.chunks) == 1 {
+		return m.chunks[0]
+	}
+	out := make([]byte, 0, m.n)
+	for i, c := range m.chunks {
+		out = append(out, c...)
+		m.chunks[i] = nil
+	}
+	m.chunks = nil
+	return out
+}
+
 // spool keeps up to the memory limit in memory; a longer body goes to a file of the cache, written as it is read, so that the
-// memory never holds more than the limit.
-func (e *Engine) spool(r io.Reader) (*Body, error) {
+// memory never holds more than the limit. hint is the length the server announced for a body that is not decoded, 0 when unknown.
+func (e *Engine) spool(r io.Reader, hint int64) (*Body, error) {
 	limit := e.cfg.memoryLimit()
-	var buf bytes.Buffer
-	n, err := io.Copy(&buf, io.LimitReader(r, limit+1))
-	if err != nil {
-		return nil, err //nolint:wrapcheck // readBody tells a read error from a decoding error
+	var mem memBody
+	first := int64(4 << 10)
+	if hint > 0 && hint <= limit {
+		first = hint + 1 // one byte more than announced: a body of the announced length ends in the first chunk
 	}
-	if n <= limit {
-		return &Body{mem: buf.Bytes(), size: n}, nil
+	// a body that is announced as longer than the limit goes to the file from its first byte: nothing of it is held in memory
+	if hint <= limit {
+		if err := mem.fill(r, first, limit+1); err != nil {
+			return nil, err
+		}
+		if mem.n <= limit {
+			return &Body{mem: mem.bytes(), size: mem.n}, nil
+		}
 	}
+	n := mem.n
 	dir := e.cfg.CacheDir
 	if dir == "" {
 		return nil, errors.New("EngineCacheDirMissing", "the body does not fit the memory limit and there is no cache folder", "limit", limit)
@@ -468,10 +533,13 @@ func (e *Engine) spool(r io.Reader) (*Body, error) {
 		return nil, cause
 	}
 	w := &errWriter{w: f}
-	if _, err := w.Write(buf.Bytes()); err != nil {
-		return fail(errors.NewErr("EngineCacheWriteFailed", err).SetMetadata("path", f.Name()))
+	for i, c := range mem.chunks {
+		if _, err := w.Write(c); err != nil {
+			return fail(errors.NewErr("EngineCacheWriteFailed", err).SetMetadata("path", f.Name()))
+		}
+		mem.chunks[i] = nil // the memory goes back before the rest is read
 	}
-	buf = bytes.Buffer{} // the memory goes back before the rest is read
+	mem.chunks = nil
 	rest, err := io.Copy(w, r)
 	if w.err != nil {
 		return fail(errors.NewErr("EngineCacheWriteFailed", w.err).SetMetadata("path", f.Name()))

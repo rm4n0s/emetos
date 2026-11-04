@@ -233,6 +233,11 @@ func TestPerfFiftyMiBJSONResponse(t *testing.T) {
 		wall.Round(time.Millisecond), body.Size(), body.InMemory(), tab2.pane.disp.pages, len(posted), slices.Max(posted).Round(time.Microsecond))
 	t.Logf("  the user gets: mode %q, a Pretty view: %v, the note %q; heap in use %d MiB before, %d MiB after", tab2.pane.mode, tab2.pane.disp.hasPretty(), tab2.pane.disp.why,
 		before.HeapAlloc>>20, after.HeapAlloc>>20)
+	runtime.GC()
+	var kept runtime.MemStats
+	runtime.ReadMemStats(&kept)
+	t.Logf("  the heap after a collection with the response held: %d MiB (%.2f bodies above the %d MiB before; the test server holds one chunk of 64 KiB)",
+		kept.HeapAlloc>>20, (float64(kept.HeapAlloc)-float64(before.HeapAlloc))/float64(body.Size()), before.HeapAlloc>>20)
 
 	bd := time.Now()
 	buildDisplay(tab2.send.resp)

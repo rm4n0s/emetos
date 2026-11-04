@@ -460,3 +460,43 @@ func iconButton(tip string) gluttertest.Finder {
 		return ok && b.Tooltip() == tip
 	})
 }
+
+// TestALargeBodyInMemoryIsHeldAboutOnce sends a body of 8 MiB that is within the limit (so it is held in memory), shows the response
+// pane and checks that the heap holds about one copy of it: the engine's buffer, the pane's pages and the tab's state keep no other.
+func TestALargeBodyInMemoryIsHeldAboutOnce(t *testing.T) {
+	const size = 8 << 20
+	srv := bodyServer(t, map[string]func(http.ResponseWriter){
+		"/mem": func(w http.ResponseWriter) {
+			w.Header().Set("Content-Type", "text/plain")
+			block := []byte(strings.Repeat("a line of the body that is held in memory\n", 1600))
+			for written := 0; written < size; written += len(block) {
+				_, _ = w.Write(block[:min(len(block), size-written)])
+			}
+		},
+	})
+	r, tab := reqRig(t, pCreate)
+	r.api.SetSetting(SettingMaxResponseMiB, 16)
+	ts := r.showReq(uitest.Themes()[0], tab, respW, respH)
+	ts.Pump(16 * time.Millisecond)
+	heap := func() float64 {
+		runtime.GC()
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		return float64(m.HeapAlloc)
+	}
+	before := heap()
+	r.sendTo(tab, srv, "/mem")
+	ts.Pump(16 * time.Millisecond)
+	ts.Pump(16 * time.Millisecond)
+	body := tab.send.resp.Body
+	if !body.InMemory() || body.Size() != size {
+		t.Fatalf("in memory %v, size %d", body.InMemory(), body.Size())
+	}
+	held := (heap() - before) / size
+	t.Logf("the heap holds %.2f bodies after the response is shown", held)
+	if held > 1.5 {
+		t.Errorf("the heap holds %.2f bodies after the response is shown", held)
+	}
+	runtime.KeepAlive(body)
+	tab.dropResponse()
+}
