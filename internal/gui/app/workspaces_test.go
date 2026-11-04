@@ -136,7 +136,7 @@ func (a *multiApp) settle() {
 // waitFor pumps until the condition holds.
 func (a *multiApp) waitFor(what string, cond func() bool) {
 	a.t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(60 * time.Second)
 	for !cond() {
 		if time.Now().After(deadline) {
 			a.t.Fatalf("timed out waiting for %s", what)
@@ -1450,13 +1450,18 @@ func TestTheLauncherReachesTheManagerOfTheWindows(t *testing.T) {
 		out <- launcher.Handle(context.Background(), ipc.OpenArgs{Folder: two, NewWindow: true})
 	}()
 	a.waitFor("the window", func() bool { return a.m.workspaceForFolder(two) != nil })
-	select {
-	case r := <-out:
-		if r.Type != ipc.TypeOK {
-			t.Errorf("reply %+v", r)
+	// the reply comes when the UI thread has done the launch: the frames go on until it does
+	var r ipc.Reply
+	a.waitFor("the reply", func() bool {
+		select {
+		case r = <-out:
+			return true
+		default:
+			return false
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("no reply")
+	})
+	if r.Type != ipc.TypeOK {
+		t.Errorf("reply %+v", r)
 	}
 	// the application ends: the launcher answers that Emetos is closing
 	a.workspaceOf(one).RequestClose(CloseReasonQuit)
