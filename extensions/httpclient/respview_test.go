@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -221,28 +222,36 @@ func TestABodyBeyondTheMemoryLimitIsReadInPages(t *testing.T) {
 }
 
 func TestPagesOfALargeBodyStayInTheFrameBudget(t *testing.T) {
+	// the budgets are the UI thread's processor time (the test goroutine is locked to its thread), not wall time, so that a loaded
+	// machine is not a slow frame; the race detector makes the code about ten times slower, as in the search tests
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	factor := time.Duration(1)
+	if raceEnabled {
+		factor = 10
+	}
 	srv := bigServer(t, 3<<20)
 	r, tab := reqRig(t, pCreate)
 	r.api.SetSetting(SettingMaxResponseMiB, 1)
 	r.sendTo(tab, srv, "/big")
 	ts := r.showReq(uitest.Themes()[0], tab, respW, respH)
 	ts.Pump(time.Millisecond)
-	start := time.Now()
+	start := threadCPU(t)
 	const frames = 20
 	for range frames {
 		ts.Pump(16 * time.Millisecond)
 	}
-	if per := time.Since(start) / frames; per > 16*time.Millisecond {
-		t.Errorf("a frame of a paged body takes %v", per)
+	if per := (threadCPU(t) - start) / frames; per > 16*time.Millisecond*factor {
+		t.Errorf("a frame of a paged body takes %v of the UI thread", per)
 	}
 	// moving through the pages costs a read of one page, not of the body
-	start = time.Now()
+	start = threadCPU(t)
 	for range 10 {
 		ts.Tap(iconButton("Next page"))
 		ts.Pump(16 * time.Millisecond)
 	}
-	if per := time.Since(start) / 10; per > 50*time.Millisecond {
-		t.Errorf("a page turn takes %v", per)
+	if per := (threadCPU(t) - start) / 10; per > 50*time.Millisecond*factor {
+		t.Errorf("a page turn takes %v of the UI thread", per)
 	}
 	tab.dropResponse()
 }
