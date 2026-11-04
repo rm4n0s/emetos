@@ -254,8 +254,12 @@ func TestTheTimelinePageSizeAndPagingComeFromTheSettings(t *testing.T) {
 	a.waitFor("a request with the page size", func() bool { mu.Lock(); defer mu.Unlock(); return len(asked) > 0 })
 	mu.Lock()
 	defer mu.Unlock()
-	if asked[0].Limit != 7 {
-		t.Errorf("limit = %d, want the setting 7", asked[0].Limit)
+	// a request that is asked while an older one for the same source is still pending adds the limits up (the older one may be
+	// cancelled before the provider ran, so the first one the provider sees is 7 or 14): every limit is a whole number of pages
+	for _, o := range asked {
+		if o.Limit <= 0 || o.Limit%7 != 0 {
+			t.Errorf("limit = %d, want a multiple of the setting 7", o.Limit)
+		}
 	}
 }
 
