@@ -799,7 +799,8 @@ func TestExportingTheResult(t *testing.T) {
 			})
 			e.api.WaitFor("the note", func() bool {
 				notes := e.api.Notes()
-				return len(notes) > 0 && strings.HasPrefix(notes[len(notes)-1].Message, "Exported 2 rows to ")
+				// the note of this export: the notes of the earlier formats stay in the list, and the file is complete only once the note says so
+				return len(notes) > 0 && notes[len(notes)-1].Message == "Exported 2 rows to "+path+"."
 			})
 			data, err := os.ReadFile(path)
 			if err != nil {
