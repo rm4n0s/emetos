@@ -381,10 +381,12 @@ func TestTypedInputIsPublishedWithWhoTypedItAndNotEchoedSecrets(t *testing.T) {
 		t.Errorf("inputs = %+v", inputs)
 	}
 	deadline := time.Now().Add(5 * time.Second)
-	for !bytes.Contains([]byte(proc.input()), []byte("a reply of the emulator")) && time.Now().Before(deadline) {
+	// all three writes: the program gets them one after the other, and the last one ends the string
+	want := "echo hi\ra reply of the emulator\xff caf\xc3"
+	for proc.input() != want && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
-	if got := proc.input(); got != "echo hi\ra reply of the emulator\xff caf\xc3" {
+	if got := proc.input(); got != want {
 		t.Errorf("the program got %q", got)
 	}
 }
