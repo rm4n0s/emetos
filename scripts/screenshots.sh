@@ -7,7 +7,7 @@
 # not exist; it is removed at the end), and every run opens the copies there.
 #
 # Usage: scripts/screenshots.sh [name...]
-#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover debug testing terminal remote-work
+#   names: editor workspace-tabs switch-picker diff merge settings tasks go-hover debug testing httpclient terminal remote-work
 #          docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame
 #
 # What the shots need besides what scripts/proof.sh needs (sway):
@@ -17,6 +17,7 @@
 #               when dlv is missing (this script never installs it)
 #   testing     the go of the computer (it runs the tests of testdata/screenshots/testing/project, with a build cache of its own
 #               in the isolated home and no network); it is skipped, with a message, when go is missing
+#   httpclient  nothing: the dev echo server of the debug build on 127.0.0.1 answers the request (nothing leaves the computer)
 #   remote-work   two Emetos instances on 127.0.0.1, with keys made on the run (nothing secret is kept)
 #   git-*       nothing but git (2.30 or newer): testdata/screenshots/git/build.sh makes a repository of its own for each shot
 #               (a small Go project with three authors, two branches, a merge, a tag and a bare origin next to it), and the
@@ -37,7 +38,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 mkdir -p docs/screenshots
 
-all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover debug testing terminal remote-work docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame)
+all=(editor workspace-tabs switch-picker diff merge settings tasks go-hover debug testing httpclient terminal remote-work docker sql mongodb redis git-changes git-diff git-graph git-timeline git-blame)
 names=("$@")
 [[ ${#names[@]} -gt 0 ]] || names=("${all[@]}")
 for n in "${names[@]}"; do
@@ -177,6 +178,13 @@ shoot() {
       PROOF_TIMEOUT=300 scripts/proof.sh docs/screenshots/testing.png --config "$s/testing/config" --after 50s \
         --commands '[["workbench.view.testing.focus"],["sleep","1s"],["dev.openFile",{"path":"'$s'/testing/project/cart.go","line":6}],["testing.coverageAll"],["sleep","40s"],["testing.toggleInlineCoverage"],["workbench.action.splitEditor"],["dev.openFile",{"path":"'$s'/testing/project/cart_test.go","line":26}],["testing.openOutputPeek"],["sleep","2s"]]' \
         -- "$s/testing/project"
+      ;;
+    httpclient)
+      # the HTTP Client: its side bar (collections, environments, history) beside a request sent to the dev echo server (a
+      # debug build starts it on 127.0.0.1), with the response pane in Pretty
+      scripts/proof.sh docs/screenshots/httpclient.png --config "$s/httpclient/config" --after 5s \
+        --commands '[["emetos.httpclient.selectEnvironment","dev"],["dev.httpclient.echo"],["emetos.httpclient.focus"],["emetos.httpclient.openRequest",{"path":"shop-api/users/create-user.request.jsonc","section":"body"}],["sleep","1s"],["emetos.httpclient.send"],["sleep","2s"],["notifications.clearAll"],["sleep","1s"]]' \
+        -- "$s/httpclient/project"
       ;;
     terminal)
       # two terminals side by side in the panel: the shell of the profile lists the folder in color and stays open

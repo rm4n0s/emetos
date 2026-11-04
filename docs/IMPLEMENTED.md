@@ -232,7 +232,7 @@ Added by step 26.10. The testing UI is one part of area 10 of SPEC §3 (notebook
 
 ## Coverage of area 12: the HTTP client (SPEC §3, §10.33)
 
-Added by step 27.9. Area 12 of SPEC §3 is the HTTP client, one extension (`extensions/httpclient`, `emetos.httpclient`); the rows below follow the parts of §10.33, with the steps that built each, the main tests (packages, test files in them, `golden` for golden images, `display` for the real-input tests of `cmd/emetos`, and the build tag of the tests that need something of the user's) and the status. **Totals: 20 rows, 19 done, 0 partial, 1 not done** (the README's section, which is step 27.10), with these things that only the user's setup shows, in `docs/MANUAL-CHECKS.md` 27.9: the real keyring (a secret variable and an OAuth token), an OAuth 2.0 login with a provider of the user's choice, and the whole pass on the real GPU of the desktop. Every request of every test goes to an `httptest` server or a fake authorization server on 127.0.0.1: no test reaches the network.
+Added by step 27.9. Area 12 of SPEC §3 is the HTTP client, one extension (`extensions/httpclient`, `emetos.httpclient`); the rows below follow the parts of §10.33, with the steps that built each, the main tests (packages, test files in them, `golden` for golden images, `display` for the real-input tests of `cmd/emetos`, and the build tag of the tests that need something of the user's) and the status. **Totals: 20 rows, 20 done, 0 partial, 0 not done**, with these things that only the user's setup shows, in `docs/MANUAL-CHECKS.md` 27.9: the real keyring (a secret variable and an OAuth token), an OAuth 2.0 login with a provider of the user's choice, and the whole pass on the real GPU of the desktop. Every request of every test goes to an `httptest` server or a fake authorization server on 127.0.0.1: no test reaches the network.
 
 | Row (SPEC §10.33) | Steps | Main tests | Status |
 |---|---|---|---|
@@ -255,7 +255,7 @@ Added by step 27.9. Area 12 of SPEC §3 is the HTTP client, one extension (`exte
 | Real keyring: a secret variable and an OAuth token stored, read back, replaced and deleted | 27.9 | `extensions/httpclient`: `keyring_real_test` (`emetos_keyring`, by hand: `docs/MANUAL-CHECKS.md` 27.9) | done |
 | The whole path with real input: a collection and a request made, sent, a token extracted, used by a second request, the collection run | 27.9 | display: `httpclient_desktop_display_test` (`emetos_display`) | done |
 | Performance: 1,000 requests in the side bar, a 50 MiB JSON response, the runner over 500 requests | 27.9 | `extensions/httpclient`: `perf_test` (`emetos_perf`); the numbers: `docs/PERFORMANCE.md` "HTTP Client (step 27.9)" | done |
-| The README's section and screenshots | 27.10 | `archtest`: `readme_test` | not done (step 27.10) |
+| The README's section and screenshots | 27.10 | `archtest`: `readme_test` | done |
 
 ## 0.1 Module and package layout
 
@@ -5542,3 +5542,16 @@ The lines above were written from the entries of the steps and `git log`, and co
 - **Manual checks:** pending, see docs/MANUAL-CHECKS.md (27.9: the real keyring, an OAuth login with a provider of your choice, the whole pass on the real GPU).
 - **Glutter issues:** none.
 - **Deviations and follow-ups:** DECISIONS-TO-REVIEW 1900 to 1908. In short: the side bar views of a client show a note (1900); `dev.httpclient.` is refused too (1901); the status item is hidden from clients (1902); the measurements are of the extension in a test window (1904); **the runner's frames while 500 results stream in are over 16 ms (9 of 23 to 28 ms), none over 100 ms (1905, a follow-up: batch the results once a frame)**; the "1 checks passed" wording of the runner's summary was left as it is.
+
+## Step 27.10: Update the README
+
+- **Date:** 2026-11-04
+- **Branch:** feat/step-27.10-readme (based on step 27.9, 7de91af3)
+- **Summary:** `README.md` describes the HTTP Client (M27, the last milestone of the plan). The Status section now says M0 to M27, with a bullet and an "Also new" paragraph (what was tested and what was not). A new section "HTTP Client" sits before Remote Work: how to use it, the format of `.emetos/http/` in short, environments and variables (initial and current values, secrets in the keyring, D45), extraction and checks (the JSONPath subset), the collection runner with data files, OAuth 2.0 (client credentials, authorization code with PKCE, tokens in the keyring), settings, privacy and Remote Work (refused to clients with the class `outside`, D46), and "What is not built in the HTTP Client" (no scripts and no import or export on purpose, D44; Brotli, PKCS#8-encrypted keys, the password and implicit grants, WebSocket, gRPC and more, from the 27.x decisions). Privacy and "Where things are" got the HTTP Client rows, and Planned says nothing is planned after M27.
+- **Main files:** `README.md`, `scripts/screenshots.sh` (the shot `httpclient`), `testdata/screenshots/httpclient/{config,project}` (the fixture of step 27.5), `docs/screenshots/*.png` (all 22), `docs/IMPLEMENTED.md` (the last row of the area 12 table is done), `docs/SPEC.md` (§3 row 12: built, all 20 rows done).
+- **Tests:** `TestREADMELinksResolve` (every link and image of the README resolves). No Go code changed.
+- **Checks:** `go vet ./...` clean; `scripts/heavy.sh -- golangci-lint run` 0 issues; `scripts/error-tags.sh --untested` prints nothing; `go test ./internal/archtest` ok (with `TestREADMELinksResolve`). No Go code changed, so no other tests were run.
+- **Proof:** the README's screenshots, viewed. The new one is `docs/screenshots/httpclient.png` (made by `scripts/screenshots.sh httpclient`): the HTTP Client side bar with its collections, environments (Dev) and history, a POST request with its JSON body sent to the dev echo server, and the response pane with the status, time, size and the formatted JSON. All 22 images were made again with `scripts/heavy.sh --alone -- timeout -k 30 7200 scripts/screenshots.sh`.
+- **Manual checks:** none new (27.9's are in `docs/MANUAL-CHECKS.md`).
+- **Glutter issues:** none.
+- **Deviations and follow-ups:** none.

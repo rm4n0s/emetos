@@ -10,7 +10,7 @@ It follows VS Code where VS Code has the behavior: the same settings, command id
 
 **The last release is v0.1.0**, which holds areas 1 and 2 of [the specification](docs/SPEC.md) (the editor and the workbench). **`main` is ahead of it** and has no release of its own yet: this README describes `main`. A build of `main` calls itself by Go's version stamp (a pseudo-version), or `v0.1.0-dev` when it has none (`emetos --version`).
 
-What is built (milestones M0 to M26 of [SPEC §18](docs/SPEC.md#18-milestones); M23 only removed an extension):
+What is built (milestones M0 to M27 of [SPEC §18](docs/SPEC.md#18-milestones); M23 only removed an extension):
 - **The editor and the workbench** (areas 1 and 2, M0 to M10). [The coverage table](docs/IMPLEMENTED.md#coverage-of-areas-1-2-3-and-11) lists every row of areas 1, 2, 3 and 11 with its tests and what is partial.
 - **Extensions** compiled into Emetos, events between them, and event sharing between window tabs (M11, [SPEC §10.15](docs/SPEC.md#1015-extensions-extension-extensions)).
 - **Language intelligence through LSP** (area 3, M12, [SPEC §9.12](docs/SPEC.md#912-language-intelligence-area-3-corelsp-corelangfeatures-guieditor-guiviews-extension)).
@@ -20,6 +20,7 @@ What is built (milestones M0 to M26 of [SPEC §18](docs/SPEC.md#18-milestones); 
 - **Git and Source Control** (area 5, M24, [SPEC §10.30](docs/SPEC.md#1030-git-and-source-control-extensionsgitscm)): VS Code's Git, with the Source Control view, diffs, the quick diff in the gutter, commit, branches, merge and rebase, remotes, stash, worktrees, the Graph, the Timeline and blame. See [Git](#git); [the coverage table of area 5](docs/IMPLEMENTED.md#coverage-of-area-5-source-control-spec-3-1030) lists every row with its tests.
 - **Run and Debug** (area 6, M25, [SPEC §10.31](docs/SPEC.md#1031-run-and-debug-internalcoredap-internalcoredebug-internalguiviewsdebug-the-language-extensions)): VS Code's debug workbench over the Debug Adapter Protocol, with debuggers for Go (Delve), Python (debugpy), C, C++ and Rust (gdb 14 or newer, lldb-dap), and JavaScript and TypeScript (js-debug), found or fetched on your click and never installed by Emetos. See [Run and Debug](#run-and-debug); [the coverage table of area 6](docs/IMPLEMENTED.md#coverage-of-area-6-run-and-debug-spec-3-1031) lists every row with its tests.
 - **Testing** (the testing UI of area 10, M26, [SPEC §10.32](docs/SPEC.md#1032-testing-internalcoretesting-internalguiviewstesting-the-language-extensions)): VS Code's Testing workbench (the Test Explorer, the glyphs and failures in the editor, the peek, Test Results and Test Coverage) with test providers for Go (`go test`), Python (pytest and unittest), Rust (`cargo test`), JavaScript and TypeScript (Node's test runner, Jest and Vitest) and C and C++ (CTest), run from the tools you installed and never installed by Emetos. See [Testing](#testing); [the coverage table of the testing UI](docs/IMPLEMENTED.md#coverage-of-area-10-the-testing-ui-spec-3-1032) lists every row with its tests.
+- **HTTP Client** (area 12, M27, [SPEC §10.33](docs/SPEC.md#1033-http-client-extensionshttpclient)): collections of requests in readable files of the project (`.emetos/http/`, shared through git), a request tab, a response pane, environments and variables with secrets in the desktop keyring, extraction and checks without scripts, a collection runner with data files, and OAuth 2.0 (client credentials, and authorization code with PKCE). See [HTTP Client](#http-client); [the coverage table of area 12](docs/IMPLEMENTED.md#coverage-of-area-12-the-http-client-spec-3-1033) lists every row with its tests.
 
 Experimental: **Remote Work is new** and has been tested on one machine (instances on loopback, and a simulated lossy link), not yet on real networks. Remote Work's picture is not sharp on a HiDPI screen. Read [its security notes](#remote-work) before you turn it on.
 
@@ -30,6 +31,8 @@ Also new: **Git** has been tested against the real `git` (2.56) in temporary rep
 Also new: **Run and Debug** has been tested against a scripted fake adapter and, one debugger at a time, against Delve v1.27.2, debugpy 1.8.22, gdb 18.1, lldb-dap and js-debug v1.140.0 on small programs, headless; not against every version of each debugger, and not yet by hand on a real GPU (`docs/MANUAL-CHECKS.md` lists it for the author). A debugger runs your program with your permissions, so debug only code you would run. Read [what is not built](#what-is-not-built-in-run-and-debug) before you rely on it.
 
 Also new: **Testing** has been tested against fake runners, the real `go` and, one tool at a time, pytest, cargo, Node with Jest and Vitest, and CMake's ctest on small projects, headless; not against every version of each tool, and not yet by hand on a real GPU (`docs/MANUAL-CHECKS.md` lists it for the author). A test run executes your code with your permissions, so run only tests you would run. Read [what is not built](#what-is-not-built-in-testing) before you rely on it.
+
+Also new: **the HTTP Client** has been tested against `httptest` servers and a fake authorization server on `127.0.0.1`, with the keyring through a fake, headless; not against real services, not against the real keyring or an OAuth provider, and not yet by hand on a real GPU (`docs/MANUAL-CHECKS.md` lists them for the author). A request goes where you point it, with the credentials you give it, so send only requests you would send. Read [what is not built](#what-is-not-built-in-the-http-client) before you rely on it.
 
 Planned, not built: VS Code's `tasks.json` tasks (the Tasks extension runs command lines you list), remote development (SSH remotes and containers), notebooks, multi-root workspaces and settings sync. Emetos installs no language server (see [Languages](#languages)). The `opencode` agent is not built. The [Planned](#planned) section lists what comes next.
 
@@ -440,6 +443,77 @@ Chrome and Edge debugging, the `node-terminal` type, auto attach and profiling o
 
 The per-test coverage filter and the minimap marks of coverage; test tags beyond the filter; the run profile submenus of VS Code's run buttons ("Execute Using Profile", "Start Continuous Run Using Profile"); a setting for the number of results kept (16); the "no tests for this document" widget and the mark of a failure in the overview ruler; test-message menus and attachments; test generation and "Go to Related Code". **Go:** branch coverage, and tests in files that build constraints exclude, until a run reports them. **Python:** `pytestPath`, a command to configure the tests, pytest-xdist and nose, and the values of `assertEqual`. **Rust:** coverage, benchmarks, tests that a macro makes or a `#[path]` module holds, and custom harnesses. **JavaScript and TypeScript:** Jest's `projects` and Vitest's workspaces, the `t.test()` subtests of Node's runner before a run, live results of Jest and Vitest, and a setting for the tool's path. **C and C++:** coverage, continuous runs, building before a run, `-C <config>` for multi-configuration generators, CMake presets and `ctest -j`. For every provider, a debug session makes no test result.
 
+## HTTP Client
+
+The **HTTP Client** ([SPEC §10.33](docs/SPEC.md#1033-http-client-extensionshttpclient)) builds, sends and keeps HTTP requests the way Postman does: collections and folders in a side bar, a form for each request, a response pane, environments with variables, a history and a collection runner. It is an Emetos extension (`emetos.httpclient`) written with Go's standard library only. Its collections are **readable files in your project**, so a team shares them through git, and it has **no scripts**: values are taken from responses and tested by declarative rules. [The coverage table of area 12](docs/IMPLEMENTED.md#coverage-of-area-12-the-http-client-spec-3-1033) lists its 20 rows with their tests.
+
+![The HTTP Client: the Collections, Environments and History views, a POST request with its JSON body, and the response pane with the status, time and size and the formatted JSON](docs/screenshots/httpclient.png)
+
+### How to use it
+
+1. **Open it.** Click the globe icon of the activity bar (or "HTTP Client: Focus on Collections View" in the Command Palette). **New Collection**, **New Folder** and **New Request** are in the view's menus; a request opens in a tab of its own, and a new one is untitled until you save it into a collection. The context menu has Rename (F2), Duplicate, Delete (to the trash, with the body files), Run Collection and Run Folder; drag and drop moves and reorders; the filter box finds a request.
+2. **Send.** The request tab has the method (a dropdown, or type your own), the URL, and the tabs **Params**, **Headers**, **Body** (none, JSON, XML, text, HTML, JavaScript, GraphQL, form, multipart with files, binary), **Auth** (inherit, none, basic, bearer, API key, digest and OAuth 2.0), **Settings** (timeout, redirects, TLS verification), **Extract** and **Checks**. **Send** is Ctrl+Enter, Cancel stops it, Ctrl+S saves. Params and the URL stay in step; `name: value` lines can be edited in bulk.
+3. **Read the response.** Below the request (or beside it: `httpClient.responseLayout`) are the status, the time and the size (hover for DNS, connect, TLS, first byte and download), and the tabs **Body** (Pretty, the body formatted by its `Content-Type` (JSON, XML, HTML), Raw, and a Preview of images), **Headers**, **Cookies**, **Timeline** (the redirects, each request and response with its headers, the TLS version and certificates) and **Checks**. Save Response to File, Copy Body and Open in New Editor Tab are in the pane. A body over 50 MiB (`httpClient.maxResponseMiB`) is streamed to a cache file and read in pages. HTML is shown as text; there is no web view.
+4. **History.** The last 200 requests you sent (`httpClient.historyLimit`) are grouped by day, with the secrets and `Authorization` values masked; **Open** makes a new request of one, **Save to Collection...** keeps it.
+5. **Remote Work.** The commands of the HTTP Client are refused to a client of a hosted workspace: a request leaves from the host's network, as a database connection does (see below).
+
+### The format
+
+Everything is under `<folder>/.emetos/http/`, in JSON with comments (`.jsonc`), version 1 (`"emetosHttp": 1`). Emetos reads only this folder, not Postman files or `.http` files.
+
+```
+.emetos/http/
+  environments/dev.jsonc            { "emetosHttp": 1, "name": "Dev", "variables": [ { "name": "baseUrl", "value": "https://api.example.test" }, { "name": "apiKey", "secret": true } ] }
+  collections/shop-api/
+    collection.jsonc                name, description, order, variables, auth, headers of the collection
+    users/folder.jsonc              the same keys for a folder
+    users/create-user.request.jsonc method, url, params, headers, auth, body, settings, extract, checks
+    users/create-user.body.json     the body of that request, a file of its own
+```
+
+A body of text is a file of its own (`.body.json`, `.xml`, `.txt`, `.html`, `.js`, `.graphql`), so it has its own highlighting and clean diffs in a review. File names are the names made safe, and the `order` list keeps the order of the tree. Files are read with comments and trailing commas, and Emetos edits them so that **your comments and the keys it does not know are kept**. A file with a newer version number opens read-only with a notice, and a file it cannot read is shown with its error. A path outside the folder (a body file, a client certificate) is refused. Changes made on disk (an editor, `git pull`) show at once. Opening a `.request.jsonc` from the Explorer opens the request tab, with **Open as Text** in its title bar.
+
+### Environments and variables
+
+`{{name}}` works in the URL, params, headers, authorization fields, form fields and body files (a body file is changed only in what is sent). The order is Postman's: values extracted by the request, then the active environment, then the folders (the innermost first), then the collection, then the globals; a name that is not found is left as it is, underlined, with a warning. Dynamic variables: `{{$guid}}`, `{{$timestamp}}`, `{{$isoTimestamp}}`, `{{$randomInt}}`, `{{$randomUUID}}` and `{{$processEnv NAME}}`, which reads only the names you list in `httpClient.allowedProcessEnv` (empty by default, so a collection cannot read your environment unasked).
+
+- **Environments** are listed in the Environments view; the active one is checked and shows in the status bar ("HTTP: Dev", with a picker). The environment editor is a table of name, initial value, current value, secret and enabled.
+- **Initial value and current value.** The value in the file is the initial one and is shared through git. The **current value** is yours only: extraction rules and the table write it to Emetos's state, never to a file of the project, so running requests changes no file. **Reset** puts the initial value back and **Persist** writes the current value into the file (not for secrets).
+- **Secrets.** A variable marked secret has **no value in any file**: the file says `"secret": true`, and the value is in the **desktop keyring** (Secret Service), asked for when it is missing. The passphrase of a client key and OAuth tokens are in the keyring too. History, cookies (one jar per environment, with a Cookies tab to see and clear them) and current values are in Emetos's state.
+- **Globals** are variables of your user, shared by all projects, and are not in a project.
+
+### Extraction and checks
+
+Without scripts, a request has two lists of rules, each with a form in its tab:
+- **Extract** rules take a value after the response (from the body, a header, the status or a cookie) into a variable of the environment, the collection or the globals. A body is read with a **JSONPath subset**: `$`, `.name`, `['name']`, `[n]`, `[-n]`, `[*]` and `.*` (the first match is taken) and `..name` (the first match at any depth); filters, slices, unions and script expressions are refused with a clear message. A Go regular expression can take a part (its first group). A rule that finds nothing leaves the variable as it was, and the line under it says why. The next request uses the value.
+- **Checks** compare a part of the response: the status, the time, a header, the body or a JSON path, with `equals`, `notEquals`, `contains`, `matches` (a regular expression), `lessThan`, `greaterThan`, `exists`, `notExists` and `isType`. The **Checks** tab of the pane lists each one as passed or failed with the actual value (the tab says `Checks (3/5)`), and the runner counts them.
+
+### The collection runner
+
+**Run Collection...** or **Run Folder...** (or the command `emetos.httpclient.runCollection`) opens a tab with the choices: the environment, the number of iterations, a delay between requests, stop on the first failure, the requests to run and, if you want, a **data file**: a CSV with a header row, or a JSON array of objects. Each row is one iteration and its columns are variables that win over every other. The runner sends the requests one at a time, with extraction carrying values from one to the next, and shows a table of each request of each iteration (result, status, time, size and checks, expandable to the URL, the notes, the checks and the extractions), an iteration picker and a summary. **Cancel** stops it, and **Save Results** writes a JSON report where you choose (it holds no data value). Results are not kept when the tab closes, and runs are not recorded in the History.
+
+### OAuth 2.0
+
+The Auth tab sets up OAuth 2.0 with the **client credentials** grant or the **authorization code** grant with PKCE (S256). **Get New Access Token** opens your browser (through Emetos's "open link", on your click) and receives the code on a loopback redirect (`http://127.0.0.1:<random port>/callback`, RFC 8252) that lives only while it waits and closes after a success, a failure, a Cancel or five minutes. The token is kept in the **keyring**, per collection and grant, masked in the form, sent the way `addTo` says and refreshed with its refresh token when it has expired; **Clear Token** deletes it. A send from the request tab or the runner never opens a browser by itself: when no token can be had, it tells you to get a new one.
+
+### Settings
+
+`httpClient.timeoutMs` (30000), `httpClient.verifyTls`, `httpClient.proxy` (the proxy of the environment, `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, is used otherwise), `httpClient.clientCertificates` (certificate and key files by host pattern), `httpClient.historyLimit` (200), `httpClient.responseLayout` (`vertical` or `horizontal`), `httpClient.allowedProcessEnv` and `httpClient.maxResponseMiB` (50). The settings that decide where requests go (the proxy and the certificates) are read from your user settings only. A redirect is followed up to 10 times, a request turns TLS verification off with a warning badge, and `User-Agent` is `Emetos/<version>` unless you set one.
+
+### Privacy and Remote Work
+
+Emetos sends **only the requests you send** and nothing else: nothing is synced to a server, and the project gets only what you save. A client of a hosted workspace cannot run the commands of the HTTP Client: they are on the list of commands refused with the class `outside` ([SPEC §10.24](docs/SPEC.md#1024-what-the-database-and-container-extensions-share-and-the-clients-of-a-hosted-workspace)), they are not in its Command Palette, and its side bar views say so instead of showing the host's collections, environments and history. The collections are still files of the workspace that a client can read and edit as files.
+
+**Tested** against `httptest` servers and a fake authorization server on `127.0.0.1` (no test reaches the network), with the keyring tested through a fake and, by hand, not yet against a real one (`docs/MANUAL-CHECKS.md` lists it for the author, with an OAuth login at a provider of your choice and the pass on a real GPU). The whole path (make a collection, send, extract a token, use it in a second request, run the collection) runs with real input. A collection of 1,000 requests, a 50 MiB JSON response and a run of 500 requests are measured in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+
+### What is not built in the HTTP Client
+
+- **Scripts**, on purpose ([D44](docs/SPEC.md#4-decisions-log)): there are no pre-request or test scripts, no `pm.*` API and no JavaScript engine. Extraction and checks are rules, and the runner and data files cover most loops.
+- **Import and export of other formats**, on purpose (D44): no Postman, Insomnia or OpenAPI files, no `.http` files and no cURL import, and no code generation. The format is Emetos's own.
+- **Protocols and bodies:** WebSocket, gRPC, HTTP/3, Server-Sent Events as a stream (the body is read to its end), GraphQL schema introspection and completion, and rendering of HTML responses. **Brotli** is not decoded: the response is shown as it came, with its `Content-Encoding` header (gzip and deflate are decoded).
+- **Authorization:** the **password** and **implicit** OAuth grants (OAuth 2.1 drops them), the device flow, a token endpoint with a client certificate, `private_key_jwt`, a custom redirect URI, a refresh in the background before a send you did not start, and the AWS, Hawk, NTLM and Akamai authorizations. A client key's passphrase works for the legacy PEM encryption; **PKCS#8-encrypted keys** are not read.
+- **Around the client:** mock servers, monitors and sharing through a server. The runner's table does not scroll to the newest row by itself while a run goes on.
+
 ## Remote Work
 
 An extension that lets one Emetos be used from another computer. **It is new and experimental**, and **off until you turn it on**. It logs in over **SSH with public keys only** (no passwords): the computer that is used lists the keys that may log in.
@@ -520,6 +594,9 @@ Emetos follows the XDG base directories. `$XDG_CONFIG_HOME` is `~/.config` and `
 | Git: the socket and the three scripts of the password helper, one folder for each window tab, removed when Emetos ends | `$XDG_RUNTIME_DIR/emetos/git-<pid>/` (mode 0700; `$XDG_STATE_HOME/emetos/git-<pid>/` when there is no runtime folder) |
 | Database connections (SQL, MongoDB, Redis), of every workspace or of one folder: name, engine, host, port, user, options, never a password | `$XDG_STATE_HOME/emetos/db-connections.json` (mode 0600) |
 | Database passwords you chose to keep | the desktop keyring (Secret Service), labelled "Emetos: <connection>"; never a file |
+| HTTP Client: collections, folders, requests and environments, which you share through git | `<folder>/.emetos/http/` |
+| HTTP Client: the history, the cookies of each environment and the current values | Emetos's state (`$XDG_STATE_HOME/emetos/`), never the project |
+| HTTP Client: secret variables, client-key passphrases and OAuth tokens | the desktop keyring (Secret Service); never a file |
 | The socket of the Podman service Emetos starts when none answers | `$XDG_RUNTIME_DIR/emetos/` (Emetos stops that service when it ends) |
 
 The files of the Event sharing, Remote Work, Git trust and database connection rows are in the state folder of Emetos and are the same for every profile; the folder has mode 0700. Only their own pages write them, and **Emetos refuses a file that other users can write** (a private key also one they can read): it does not use it and does not replace it. The host and key file of a Remote Work tab are part of the window state. Deleting `remote-work-host-key` makes a new identity, and every client must trust it again.
@@ -533,6 +610,7 @@ Emetos sends nothing about you anywhere: **no telemetry, no crash reports and no
 - **Git**: only the remotes that `git` contacts for what you asked (fetch, pull, push, clone, publish), with your credential helpers and your SSH keys. **`git fetch` on a schedule (`git.autofetch`) is off until you answer**: after the first successful remote command Emetos asks once, "Would you like Emetos to periodically run "git fetch"?", and runs nothing on a schedule unless you say Yes (No and Ask Me Later keep it off). There is no GitHub account, no sign-in and no service of ours. Emetos stores no password, token or key, and writes none to a log.
 - **Containers and Podman**: only the container engine you configured or that your Docker context, `DOCKER_HOST` or `CONTAINER_HOST` names (a Unix socket on this computer unless you named a `tcp://` address), and the registries your own `docker` or `podman` program contacts when you pull or push.
 - **Databases** (SQL, MongoDB and Redis): only the servers of the connections you added, when you connect to them (and, for a keyring, the Secret Service on your own session bus). Result values and query text are never logged and no event carries them.
+- **HTTP Client**: only the requests you send, to the URLs you wrote, and the authorization and token servers of an OAuth 2.0 login you started (your browser opens only when you click Get New Access Token). Nothing is synced to a server. Secret variables and OAuth tokens are in the desktop keyring (Secret Service, on your own session bus), never in a file; the history masks secrets and `Authorization` values. A client of a hosted workspace cannot run its commands.
 - **Language servers and tools you install**: `gopls` and the `go` command may download modules as your Go settings say; "Go: Install/Update Tools" runs `go install` when you click it. The servers of [Languages](#languages) are programs you installed, run by Emetos on your machine with your user's rights: what they read and fetch is theirs (jdtls and csharp-ls restore Maven and NuGet packages, rust-analyzer runs `cargo check` and your build scripts, typescript-language-server may fetch type packages). Emetos itself sends nothing and installs no server.
 - **Links**: a link in a notification opens in your browser only when you click it.
 
@@ -540,7 +618,7 @@ Logs stay on your disk (`$XDG_STATE_HOME/emetos/logs`) and are shown in the Outp
 
 ## Screenshots
 
-Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `scripts/proof.sh` in a headless compositor, with isolated settings and state, from the fixtures in `testdata/screenshots/`; the Remote Work shot runs two instances on `127.0.0.1`; the Git shots build a small repository of their own with the real `git`, in a neutral folder with its own configuration (`testdata/screenshots/git/build.sh`); the Run and Debug shot debugs a small Go program under Delve; the Containers shot runs over a fake Docker engine, and the MongoDB and Redis shots over throwaway servers in labelled containers on `127.0.0.1` that are removed afterwards). The rest:
+Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `scripts/proof.sh` in a headless compositor, with isolated settings and state, from the fixtures in `testdata/screenshots/`; the Remote Work shot runs two instances on `127.0.0.1`; the Git shots build a small repository of their own with the real `git`, in a neutral folder with its own configuration (`testdata/screenshots/git/build.sh`); the Run and Debug shot debugs a small Go program under Delve; the Testing shot runs the tests of a small Go project; the HTTP Client shot sends a request to the echo server that a debug build starts on `127.0.0.1`; the Containers shot runs over a fake Docker engine, and the MongoDB and Redis shots over throwaway servers in labelled containers on `127.0.0.1` that are removed afterwards). The rest:
 
 ![The side by side diff editor](docs/screenshots/diff.png)
 
@@ -550,8 +628,7 @@ Every screenshot of this README is made by `scripts/screenshots.sh` (it uses `sc
 
 ## Planned
 
-What comes next, in the order of [the plan](docs/IMPLEMENTATION.md#m27-http-client). None of it is built, and none of it has a date.
-- **M27, HTTP Client**: requests, environments, responses and a collection runner, in the spirit of Postman.
+Nothing is planned after M27: [the plan](docs/IMPLEMENTATION.md#m27-http-client) ends with it, so every milestone in it is built. What the sections above list as not built (and the `Planned, not built` line of [Status](#status)) is not scheduled, and none of it has a date.
 
 ## Development
 

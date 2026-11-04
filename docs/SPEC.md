@@ -45,7 +45,7 @@ The work is split into the eleven areas of VS Code listed in §3. **This version
 | 9 | Remote development | later |
 | 10 | Notebooks, testing UI, multi-root workspaces, settings sync | **the testing UI is this spec**: the Testing view of VS Code with providers in the language extensions (§10.32, D42, D43, D46), milestone M26, built; [the coverage table](IMPLEMENTED.md#coverage-of-area-10-the-testing-ui-spec-3-1032) lists the 26 rows, all done, with their tests; notebooks, multi-root workspaces and settings sync later |
 | 11 | Extensions | **this spec**: compiled-in extensions (D18, §10.15), milestone M11; Go (§10.17, M14) and Remote Work (§10.18, D19, M15) extensions |
-| 12 | An HTTP client in the spirit of Postman | **this spec**: an extension with collections in readable files of the project (§10.33, D44–D46), milestone M27, built through step 27.9 (the README is step 27.10); [the coverage table](IMPLEMENTED.md#coverage-of-area-12-the-http-client-spec-3-1033) lists the 20 rows, 19 done |
+| 12 | An HTTP client in the spirit of Postman | **this spec**: an extension with collections in readable files of the project (§10.33, D44–D46), milestone M27, built; [the coverage table](IMPLEMENTED.md#coverage-of-area-12-the-http-client-spec-3-1033) lists the 20 rows, all done |
 
 ### 3.1 Area 1 in detail
 
