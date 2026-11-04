@@ -112,6 +112,9 @@ func (v *collectionsView) collapseAll() { v.tree.Perform(ui.TreeActionCollapseAl
 
 // build makes the widget of the view: what is wrong or missing, then the tree.
 func (v *collectionsView) build(bc widgets.BuildContext) widgets.Widget {
+	if w := forClient(bc); w != nil {
+		return w
+	}
 	colors := ui.Theme(bc)
 	e := v.e
 	var children []widgets.Widget

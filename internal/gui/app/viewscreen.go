@@ -114,5 +114,8 @@ func (w *Workspace) startViewSCM() {
 	w.syncSCMKeys()
 }
 
-// extensionStatusID tells whether the id of a status item is one an extension added (exthost's statusIDPrefix).
-func extensionStatusID(id string) bool { return strings.HasPrefix(id, "extension.") }
+// extensionStatusID tells whether the id of a status item is one an extension added (exthost's statusIDPrefix) and a client's view shows.
+func extensionStatusID(id string) bool {
+	// the HTTP client's environment item is the host's own: its click is refused to a client (step 27.9, D46), so the view does not show it
+	return strings.HasPrefix(id, "extension.") && !strings.HasPrefix(id, "extension.emetos.httpclient.")
+}

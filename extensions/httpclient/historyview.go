@@ -120,6 +120,9 @@ func (v *historyView) rebuild() {
 
 // build makes the widget of the view.
 func (v *historyView) build(bc widgets.BuildContext) widgets.Widget {
+	if w := forClient(bc); w != nil {
+		return w
+	}
 	colors := ui.Theme(bc)
 	var children []widgets.Widget
 	if len(v.entries) == 0 {

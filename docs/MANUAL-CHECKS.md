@@ -255,3 +255,42 @@ scripts/isolated.sh --config testdata/proof/26.5/config -- go run ./cmd/emetos /
 7. A project of your own, if you have one: does Testing find its tests (Python with pytest or unittest, Rust with `cargo test`, Jest, Vitest or Node's runner, a CMake project that is built), and does Run, and Coverage where the README says it exists, work on it? Say which you tried.
 
 Say what you saw: the desktop and compositor, the GPU, which of the steps failed or felt slow.
+
+## 27.9 The HTTP client: the real keyring, an OAuth 2.0 login and your desktop
+
+The tests of M27 send every request to a server of the test on 127.0.0.1 (plain or TLS) or to a fake authorization server, keep secrets and tokens in a fake keyring, and run headless with a software renderer. What they cannot show is your keyring, a real identity provider, your browser, and your desktop with the real GPU. All three checks keep your own configuration, state and cache out of the editor (`scripts/isolated.sh`, the test harness) and the NVIDIA card out of it (`scripts/gpu-env.sh`). The first and the third need nothing from outside; the second sends requests to the provider you choose, which is the point of it.
+
+**1. The real keyring: a secret variable and an OAuth token.** You need a desktop session with a Secret Service on the session bus (GNOME Keyring, KWallet's Secret Service, KeePassXC). The test stores a secret variable and an OAuth 2.0 token with the keys and labels the HTTP client uses ("Emetos HTTP Client: ...") under a folder name of its own (`/emetos-manual-check-...`), reads them back, replaces and deletes them, and checks that they are gone. It touches no other item. If your keyring is locked it asks you to unlock it.
+
+```
+go test -tags emetos_keyring ./extensions/httpclient -run TestRealKeyring -v -count=1
+```
+
+1. Does it pass (`--- PASS: TestRealKeyringHoldsASecretVariableAndAnOAuthToken`), and does a prompt of the keyring appear first when it is locked? Which keyring is it?
+2. Afterwards open your keyring manager (Seahorse or KWalletManager): is no item "Emetos HTTP Client: ..." left from the check?
+3. In the editor (`scripts/isolated.sh -- go run ./cmd/emetos /tmp/http-check`, a new empty folder), make an environment with a variable of the kind Secret (the lock in the environment editor), type a value, Save. Is an item "Emetos HTTP Client: ..." in your keyring now, and does `grep -r <the value> /tmp/http-check` and the isolated state and config folders find nothing? Does Delete Environment take the item away?
+
+**2. An OAuth 2.0 login with a provider of your choice.** The grant is the authorization code with PKCE and a loopback redirect (`http://127.0.0.1:<random port>/callback`, RFC 8252), so the provider must let a client of the kind "desktop" or "native" use a loopback address with any port. GitHub (an OAuth App), Google (a "Desktop app" client), Microsoft Entra ID (a "Mobile and desktop" platform with `http://127.0.0.1`), Auth0 (a Native application), Keycloak and Okta (a native app with `http://127.0.0.1:*/callback`) all do. Register an application there, note its client ID (and its secret when it has one), and pick a URL of the provider that answers "who am I" with a bearer token (GitHub: `https://api.github.com/user`; Google: `https://openidconnect.googleapis.com/v1/userinfo`).
+
+```
+mkdir -p /tmp/http-oauth && scripts/isolated.sh -- go run ./cmd/emetos /tmp/http-oauth
+```
+
+1. Make a collection and a request to the "who am I" URL. In its Auth tab choose OAuth 2.0 and the grant Authorization Code; fill in the authorization URL, the token URL, the client ID, the scope the provider documents for it, and keep "Use PKCE" on. Put the client secret, if there is one, in a secret variable of an environment and write `{{clientSecret}}` in its box.
+2. Press Get New Access Token: does your browser open the provider's consent page, and after you accept does the page that Emetos serves say you can close the tab, and does the Auth tab show the token (masked) with its type and expiry? While it waits, is a `127.0.0.1` port listening (`ss -ltnp | grep emetos`), and is it gone when the login ends? Cancel in the middle once: does the button go back to Get New Access Token and the port close?
+3. Send: does the response carry your name or login? Does the history entry show the token as `********`?
+4. Is an item "Emetos HTTP Client: OAuth 2.0 token of ..." in your keyring, and does `grep -r <the access token> /tmp/http-oauth` and the isolated config and state folders find nothing (the request file keeps no token; the client secret is only `{{clientSecret}}`)?
+5. If the provider gives refresh tokens (Google needs `access_type=offline` in the authorization URL), wait until the token expires or lower its lifetime and Send again: does it refresh without the browser? Press Clear Token: is the item gone from the keyring, and does Send now say to get a new token?
+6. Use the collection in the runner (Run Collection) with the token stored: does it run without opening the browser?
+
+Say which provider, what worked, and any error text (the message names the part that failed: the redirect, the state, the code exchange, the refresh).
+
+**3. The whole pass on your desktop and the real GPU.** The end-to-end display test of this step (make a collection and a request, send it to the dev echo server, extract a token into a variable, use it in a second request, run the collection) runs in a nested sway window on your desktop with the real GPU. Keep the window visible while it runs (a hidden one gets no frames):
+
+```
+EMETOS_REALINPUT_RACE=0 scripts/realinput.sh --desktop --shots /tmp/emetos-27.9 -- -tags emetos_display ./cmd/emetos -run TestRealInputTheWholeOfTheHTTPClient -v -count=1
+```
+
+Does it pass, and do the pictures in `/tmp/emetos-27.9/` (`httpclient-desktop-*.png`) show what the names say: the Collections view with the new collection and its two requests, the request tab with the response of the echo server, the second request's response with the extracted token in its header, and the runner with both results passed? Then by hand in the editor with the settings of the proofs (`scripts/isolated.sh --config testdata/proof/27.3/config -- go run ./cmd/emetos testdata/proof/27.3/project`, a copy of it in `/tmp` so that nothing is written into the repository): are the method badges, the response pane with a large JSON, the runner's table and the dialogs sharp at 100% and at a zoom of 150% (Ctrl+=)?
+
+Say what you saw: the desktop and compositor, the GPU, which of the steps failed or felt slow.

@@ -10,9 +10,9 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 )
 
-// outsideExtensions are the extensions whose commands reach outside the workspace: the container engines and the databases (SPEC
+// outsideExtensions are the extensions whose commands reach outside the workspace: the container engines, the databases and the HTTP client (SPEC
 // §10.24, D25). A client of a shared workspace may run none of their commands.
-var outsideExtensions = []string{"emetos.containers", "emetos.podman", "emetos.databases", "emetos.sql", "emetos.mongodb", "emetos.redis"}
+var outsideExtensions = []string{"emetos.containers", "emetos.podman", "emetos.databases", "emetos.sql", "emetos.mongodb", "emetos.redis", "emetos.httpclient"}
 
 // Every command the container and database extensions declare is refused to a client with the class outside, so a command added to
 // one of them without a thought for the clients of a shared workspace fails here. (None of them adds a command at run time with Commands().Register.)
@@ -41,7 +41,7 @@ func TestEveryCommandOfTheContainerAndDatabaseExtensionsIsRefusedToClients(t *te
 // The scan of the commands that look risky, over every extension: a command whose id names a database, a container engine or one of
 // the things that run on them is refused, or listed here with the reason it may stay open.
 func TestNoCommandOfAnExtensionThatLooksOutsideIsForgotten(t *testing.T) {
-	risky := []string{"database", "container", "docker", "podman", "sql", "mongo", "redis", "kube", "quadlet", "pod."}
+	risky := []string{"database", "container", "docker", "podman", "sql", "mongo", "redis", "kube", "quadlet", "pod.", "httpclient"}
 	// allowed on purpose: they act inside the workspace
 	allowed := map[string]string{}
 	for _, f := range extensions.All() {

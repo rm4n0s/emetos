@@ -66,6 +66,13 @@ func TestClientRefusal(t *testing.T) {
 		{"emetos.containers.connectDatabase", extension.RefusedOutside},
 		{"emetos.podman.connectDatabase", extension.RefusedOutside},
 		{"emetos.databases.openForm", extension.RefusedOutside},
+		// the HTTP client (step 27.9, D46): every command, the dev ones too; a prefix needs its dot
+		{"emetos.httpclient.send", extension.RefusedOutside},
+		{"emetos.httpclient.runCollection", extension.RefusedOutside},
+		{"emetos.httpclient.getNewAccessToken", extension.RefusedOutside},
+		{"emetos.httpclient.focus", extension.RefusedOutside},
+		{"dev.httpclient.echo", extension.RefusedOutside},
+		{"emetos.httpclientfoo.send", ""},
 		// the terminal is the client's too (D51, step 24.25): only the desktop's terminal program, which opens on the host's screen, is refused
 		{"scm.openInTerminal", extension.RefusedWindow},
 		{"workbench.action.terminal.new", ""},
@@ -105,7 +112,7 @@ func TestClientRefusalNamesRealCommands(t *testing.T) {
 		have[m.ID] = true
 	}
 	// the extensions' commands are not in the registry of Emetos
-	extensionPrefixes := []string{"emetos.remotework.", "emetos.hosting.", "emetos.databases.", "emetos.sql.", "sql.", "emetos.mongodb.", "mongodb.", "emetos.redis.", "redis.", "containers.", "emetos.containers.", "podman.", "emetos.podman."}
+	extensionPrefixes := []string{"emetos.remotework.", "emetos.hosting.", "emetos.databases.", "emetos.sql.", "sql.", "emetos.mongodb.", "mongodb.", "emetos.redis.", "redis.", "containers.", "emetos.containers.", "podman.", "emetos.podman.", "emetos.httpclient.", "dev.httpclient."}
 	extensionIDs := []string{}
 	for _, id := range RefusedExactIDs() {
 		if !have[id] && !slices.Contains(extensionIDs, id) {

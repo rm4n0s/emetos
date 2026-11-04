@@ -65,6 +65,9 @@ func (v *environmentsView) rebuild() {
 
 // build makes the widget of the view.
 func (v *environmentsView) build(bc widgets.BuildContext) widgets.Widget {
+	if w := forClient(bc); w != nil {
+		return w
+	}
 	colors := ui.Theme(bc)
 	e := v.e
 	var children []widgets.Widget

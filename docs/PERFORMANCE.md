@@ -628,3 +628,55 @@ The result of each run is 5,010 passed and 45 failed nodes (the 20 failing tests
 **What the figures say.**
 - **The tree and the Explorer are far inside their budgets.** Finding 5,000 tests takes 50 ms, and 5,000 rows scroll at 4 ms a frame (0 frames over 16 ms) as a list or a tree: the rows are virtual. During a run (Test Results closed) the window costs the UI thread 0.67 ms a frame on average (the summary line, the badge, the rows that change), with 2 frames over 16 ms and the longest 119 ms; which work that frame holds was not traced (the 5,000 queued states arrive at the start of a run, and the model of the 5,055 items is made again for them).
 - **Test Results was the one thing over a budget, and is fixed (decision 1725):** it laid out the whole 250 KB output of the run as one paragraph (`kit.AnsiText` inside a scroll view), and Glutter's text layout (`paragraph.cut`, 65% of the processor time of the whole test) took 3.9 to 4.2 s on the UI thread in one frame at the end of the run. The output is now a `ListView` of lines (`kit.AnsiLines` splits the parsed text, the style is carried from line to line, one `kit.AnsiText` per line is built when it is in view), so the run costs the UI thread 210 ms in all with the pane open against 181 ms with it closed; the longest frame (140 ms and 125 ms) is the same with the pane closed, so it is not the pane. A widget test keeps 100,000 lines of output inside the frame budget (`TestResultsOutputOfHundredThousandLinesStaysInTheFrameBudget`).
+
+## HTTP Client (step 27.9)
+
+The measurements of SPEC §14 for the HTTP client, each through `scripts/heavy.sh --alone` with nothing else of this run going on. **Machine: the one of the sections above (Linux 7.2.13, Fedora 44, Go 1.27.3, the GPU not used and the NVIDIA card kept out; nothing here draws through a renderer), and the user's pass with the real GPU is `docs/MANUAL-CHECKS.md` 27.9.** The tests are `TestPerfCollectionOfAThousandRequests`, `TestPerfFiftyMiBJSONResponse` and `TestPerfRunnerOverFiveHundredRequests`, `extensions/httpclient/perf_test.go`, tag `emetos_perf`. They run the extension over the fake extension API with the widgets in a `gluttertest` window (the extension's own build, layout and paint with the fake platform, not the whole window with its shell), the test goroutine being the UI thread locked to its OS thread; the figures are that thread's processor time for each frame, as in the other view measurements. Every request goes to a server of the test on 127.0.0.1; the 50 MiB body is written by the server in 64 KiB chunks and is never held whole by the test.
+
+```sh
+scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./extensions/httpclient -run TestPerf -v -count=1
+```
+
+**A collection of 1,000 requests in the side bar** (one collection of 10 folders of 100 requests, 1,002 files with their folders' files):
+
+| Measurement | Value |
+|---|---|
+| From the start of the extension to the whole tree (the files read and parsed in the background, polled every 2 ms) | 33 ms |
+| Making the rows again from the tree of the store (`SetItems` of 1,000 requests; what a change of a file costs the UI thread): average / longest of 5 | 0.34 ms / 0.97 ms |
+| Open: the view in a new window, its first frames (includes making the test window) | 39 ms |
+| Expand: one folder of 100 requests after the other (10 frames): average / longest | 1.7 ms / 4.9 ms |
+| All folders open (1,000 request rows): the first frame | 0.96 ms |
+| 60 frames of a steady scroll: average / longest (frames over 16 ms) | 3.3 ms / 5.6 ms (0) |
+| A frame with nothing changed | 0.29 ms on average (median 50 µs) |
+| A rebuild of the rows and the frame that draws it, everything open: average / longest of 5 | 2.7 ms / 4.8 ms |
+
+**A 50 MiB JSON response** (an array of objects, 52,428,736 bytes, `httpClient.maxResponseMiB` 50 as shipped). Pretty is limited to 2 MiB (`maxPretty`, decision 1821), so what the user gets is the Raw view in pages of 64 KiB (800 pages) with the note "The body is 50.0 MB: too large to format here, shown as it is in pages.":
+
+| Measurement | Value |
+|---|---|
+| Sent and read (loopback, the body held in memory: it is within the limit) | 219 ms of wall time, off the UI thread; the UI thread's callbacks meanwhile: 165, the longest 0.1 ms |
+| What the pane builds when the response arrives (`buildDisplay`: the first 512 bytes and the page count) | 4 µs |
+| Heap in use before / after the response (the test server's chunks and the transport's buffers included; a body is held once) | 82 MiB / 320 MiB |
+| The first page shown (first frames in a new window, includes making the test window) | 42 ms |
+| Page 1 with nothing changed: average / longest of 20 frames | 25 µs / 0.26 ms |
+| 100 page turns (Next page: the tap, the read of one page and its frame): average / longest (frames over 16 ms) | 2.4 ms / 5.8 ms (0) |
+| 60 frames of a scroll inside a page: average / longest | 85 µs / 0.74 ms |
+| Last page | 1.7 ms |
+| For comparison, **a 2 MiB JSON response, the largest that has Pretty**: sent, read and displayed (255,332 lines of indented text) | 237 ms of wall time, off the UI thread |
+| Its first frames (includes the test window); 60 frames of a steady scroll: average / longest | 29 ms; 79 µs / 0.4 ms |
+
+**The runner over 500 requests** (a collection of 500 requests, each with an extraction and two checks, against a local server that answers each with a small JSON; the runner tab open on its table; frames at 60 a second):
+
+| Measurement | Value |
+|---|---|
+| The run: wall time, requests served, results | 215 ms, 500, 500 |
+| The UI thread while the results stream in, 9 frames (the whole run fits in them): in all / average / longest / frames over 16 ms / over 100 ms | 211 ms / 23.5 ms / 28.3 ms / 9 / **0** |
+| The same frames by wall time (whatever the thread was doing) | average 23.9 ms, longest 28.9 ms |
+| After the run, a frame with nothing changed: average / longest of 10 | 1.3 ms / 12.3 ms (median 8 µs) |
+| After the run, 60 frames of a steady scroll through the 500 results: average / longest (over 16 ms) | 3.8 ms / 8.7 ms (0) |
+
+**What the figures say.**
+- **No frame of any of the three is over 100 ms, and no UI-thread freeze was found.** The side bar's 1,000 rows are virtual: a scroll costs 3.3 ms a frame, and a change on disk makes the rows again in under a millisecond.
+- **The runner's frames are over the 16 ms budget (9 frames of 23 to 28 ms)**, though the whole run is 215 ms: the runner sends the 500 requests faster than the window draws, so each frame takes in about 55 results at once (the model of results and the table are made again for them). It is 211 ms of the UI thread in all and no frame over 29 ms; a slower server, as in real use, spreads the same work over more frames. Not changed here.
+- **A 50 MiB body is not a freeze, and it is not formatted:** the user gets the Raw pages at once, a page turn costs 2.4 ms. Formatting stops at 2 MiB on purpose (a JSON of 2 MiB is 255,332 lines of Pretty text, made off the UI thread in 237 ms in all). The heap after the response (320 MiB for a 50 MiB body) is the sum of the test server's work and the Go runtime's garbage before the next collection, not measured as the body's own cost.
+- **Not measured:** the whole window with its shell (the side bar's container, the tab strip): these are the extension's views and tabs in a test window; and the real GPU (`docs/MANUAL-CHECKS.md` 27.9).

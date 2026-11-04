@@ -79,6 +79,12 @@ var clientRules = []refusedRule{
 		class: extension.RefusedOutside, reason: "the socket of a container engine is power over the computer: a client may not drive the host's Docker or Podman (SPEC §10.20 \"Safety\", §10.24)",
 		prefixes: []string{"containers.", "emetos.containers.", "podman.", "emetos.podman."},
 	},
+	{
+		// the HTTP client (SPEC §10.33 "Privacy and safety", D46): a request leaves from the host's network, as a database connection does;
+		// the dev. commands (debug builds) start a server of the host's and change its environment
+		class: extension.RefusedOutside, reason: "a request of the HTTP client would leave from the host's network: a client may not send, run or change what the host's HTTP client holds (SPEC §10.33)",
+		prefixes: []string{"emetos.httpclient.", "dev.httpclient."},
+	},
 }
 
 // ClientRefusal tells whether a client may not run the command, and why. The id is the command's, case as it is.
