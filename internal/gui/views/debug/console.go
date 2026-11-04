@@ -79,6 +79,9 @@ type ConsoleOpts struct {
 	// CompletionDelay is how long the input waits after a key before it asks the adapter for completions (150 ms by default; tests
 	// use less).
 	CompletionDelay time.Duration
+	// FilterDelay is how long the filter waits after a key before it matches the lines of a large console (300 ms, as VS Code's filter
+	// boxes wait; tests use less). A console of up to FilterAsyncLines elements is filtered at once.
+	FilterDelay time.Duration
 }
 
 // ConsoleRowKind says what a row of the console shows.
@@ -129,10 +132,15 @@ type Console struct {
 	shown   *debug.Session
 	ignored map[*debug.Session]bool
 
-	filter     *debug.ReplFilter
-	filterText string
-	total      int
-	filtered   int
+	// filter is the filter whose answers are in vis: the one the rows show. filterText is the text typed, which the rows catch up
+	// with after the debounce and the match on a goroutine (filterGen counts the changes of the text).
+	filter      *debug.ReplFilter
+	vis         map[debug.ReplElement]bool
+	filterGen   atomic.Uint64
+	filterTimer *time.Timer
+	filterText  string
+	total       int
+	filtered    int
 
 	rows     []ConsoleRow
 	version  uint64
@@ -184,11 +192,14 @@ func NewConsole(opts ConsoleOpts) *Console {
 			return err == nil && !st.IsDir()
 		}
 	}
+	if opts.FilterDelay == 0 {
+		opts.FilterDelay = 300 * time.Millisecond
+	}
 	if opts.CompletionDelay == 0 {
 		opts.CompletionDelay = 150 * time.Millisecond
 	}
 	c := &Console{
-		opts: opts, ignored: map[*debug.Session]bool{}, filter: debug.NewReplFilter(""),
+		opts: opts, ignored: map[*debug.Session]bool{}, filter: debug.NewReplFilter(""), vis: map[debug.ReplElement]bool{},
 		expanded: map[string]bool{}, autoDone: map[string]bool{}, kids: map[string]*kids{}, paths: map[string]pathState{},
 		history: kit.NewHistory(opts.Service.Model().ReplHistory()),
 		input:   kit.NewInputBoxController(""), filterC: kit.NewInputBoxController(""),
@@ -207,6 +218,9 @@ func (c *Console) Dispose() {
 	c.off()
 	c.stop()
 	c.sugg.close()
+	if c.filterTimer != nil {
+		c.filterTimer.Stop()
+	}
 	c.input.Dispose()
 	c.filterC.Dispose()
 }
@@ -343,6 +357,7 @@ func (c *Console) rebuild(forceEnd bool) {
 	if forceEnd || c.atEnd == nil || c.atEnd() {
 		c.wantEnd = true
 	}
+	c.pruneAnswers(els)
 	c.rows = c.rows[:0]
 	filtered := 0
 	for _, e := range els {
@@ -358,7 +373,7 @@ func (c *Console) rebuild(forceEnd bool) {
 
 // walk adds the row of an element and the rows below it that are open; it reports whether the element shows.
 func (c *Console) walk(e debug.ReplElement, depth int) bool {
-	if !c.filter.Visible(e, true) {
+	if !c.visible(e) {
 		return false
 	}
 	row := ConsoleRow{Key: e.ID(), Depth: depth, Element: e}
@@ -491,14 +506,117 @@ func (c *Console) FilterText() string { return c.filterText }
 func (c *Console) FilterController() *kit.InputBoxController { return c.filterC }
 
 // SetFilter changes the filter and shows the end of the console, as VS Code does.
+//
+// A small console is filtered at once. A large one (FilterAsyncLines elements or more) waits FilterDelay for the next key, then
+// matches its lines on a goroutine and swaps the result in on the UI thread: the match of 100,000 lines takes half a second, which
+// the UI thread must not spend. Every change of the text counts a generation, and a result of an older one is dropped, so a fast
+// sequence of edits shows the last one only. Lines that arrive meanwhile are matched when the result is swapped in, and until then
+// by the filter the rows show.
 func (c *Console) SetFilter(text string) {
 	if text == c.filterText {
 		return
 	}
 	c.filterText = text
-	c.filter.Set(text)
+	gen := c.filterGen.Add(1)
+	if c.filterTimer != nil {
+		c.filterTimer.Stop()
+		c.filterTimer = nil
+	}
+	f := debug.NewReplFilter(text)
+	if f.Empty() || len(c.elements()) < FilterAsyncLines {
+		c.applyFilter(f, nil)
+		return
+	}
+	c.filterTimer = time.AfterFunc(c.opts.FilterDelay, func() {
+		c.opts.Post(func() { c.startMatch(gen, f) })
+	})
+}
+
+// FilterAsyncLines is the number of elements from which the filter matches on a goroutine, after a delay.
+const FilterAsyncLines = 1000
+
+// applyFilter makes the rows show a filter. answers are its answers for the elements (nil: they are asked for when the rows need them).
+func (c *Console) applyFilter(f *debug.ReplFilter, answers map[debug.ReplElement]bool) {
+	c.filter = f
+	if answers == nil {
+		answers = map[debug.ReplElement]bool{}
+	}
+	c.vis = answers
 	c.rebuild(true)
 	c.notify()
+}
+
+// startMatch matches the elements of the console against a filter on a goroutine (UI thread).
+func (c *Console) startMatch(gen uint64, f *debug.ReplFilter) {
+	if c.filterGen.Load() != gen || c.ctx.Err() != nil {
+		return
+	}
+	els := c.elements()
+	go func() {
+		answers := make(map[debug.ReplElement]bool, len(els))
+		var match func(e debug.ReplElement) bool
+		match = func(e debug.ReplElement) bool {
+			if len(answers)&1023 == 0 && (c.filterGen.Load() != gen || c.ctx.Err() != nil) {
+				return false
+			}
+			answers[e] = f.Visible(e, true)
+			if g, ok := e.(*debug.ReplGroup); ok {
+				for _, child := range g.Children() {
+					if !match(child) {
+						return false
+					}
+				}
+			}
+			return true
+		}
+		for _, e := range els {
+			if !match(e) {
+				return // a newer text came
+			}
+		}
+		c.opts.Post(func() {
+			if c.filterGen.Load() == gen && c.ctx.Err() == nil {
+				c.applyFilter(f, answers)
+			}
+		})
+	}()
+}
+
+// visible tells whether an element shows. The answers of the filter are kept, so that the rows are made again without matching
+// every line again; an element that has no answer yet (it arrived after the match) is matched now.
+func (c *Console) visible(e debug.ReplElement) bool {
+	if c.filter.Empty() {
+		return true
+	}
+	if v, ok := c.vis[e]; ok {
+		return v
+	}
+	v := c.filter.Visible(e, true)
+	c.vis[e] = v
+	return v
+}
+
+// pruneAnswers drops the answers of elements that are gone (cleared, or pushed out by debug.console.maximumLines).
+func (c *Console) pruneAnswers(els []debug.ReplElement) {
+	if len(c.vis) <= 2*len(els)+1024 {
+		return
+	}
+	keep := make(map[debug.ReplElement]bool, len(els))
+	var add func(e debug.ReplElement)
+	add = func(e debug.ReplElement) {
+		if v, ok := c.vis[e]; ok {
+			keep[e] = v
+		}
+		if g, ok := e.(*debug.ReplGroup); ok {
+			for _, child := range g.Children() {
+				add(child)
+			}
+		}
+	}
+	for _, e := range els {
+		add(e)
+	}
+	c.vis = keep
 }
 
 // ---- the end

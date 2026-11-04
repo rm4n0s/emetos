@@ -10,7 +10,6 @@ import (
 
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
-	"golang.org/x/sys/unix"
 
 	coredebug "github.com/rm4n0s/emetos/internal/core/debug"
 )
@@ -21,15 +20,6 @@ import (
 // platform: no renderer), which a busy machine does not stretch.
 //
 //	scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./internal/gui/views/debug -run TestPerfConsole -v -count=1
-
-func threadCPU(t testing.TB) time.Duration {
-	t.Helper()
-	var ru unix.Rusage
-	if err := unix.Getrusage(unix.RUSAGE_THREAD, &ru); err != nil {
-		t.Fatalf("Getrusage: %v", err)
-	}
-	return time.Duration(ru.Utime.Nano() + ru.Stime.Nano())
-}
 
 func TestPerfConsoleHundredThousandLines(t *testing.T) {
 	const n = 100_000
@@ -82,11 +72,20 @@ func TestPerfConsoleHundredThousandLines(t *testing.T) {
 		t.Log("the end of the console is not in view after the scroll down (the lines scrolled are 60 x 240 px)")
 	}
 
-	// the filter: all the lines are tested again
+	// the filter: the lines are matched on a goroutine after the delay; the UI thread's frames meanwhile and the one that swaps the rows
+	// in are measured
 	s := time.Now()
+	cpu0 := threadCPU(t)
 	r.con.SetFilter("line 5")
-	r.pump()
-	t.Logf("a filter over %d lines: %v to the rows (%d match), the frame after it %v", n, time.Since(s), r.con.Len(), frame())
+	var worstFrame time.Duration
+	for r.con.Len() == n {
+		r.drain()
+		worstFrame = max(worstFrame, frame())
+		time.Sleep(2 * time.Millisecond)
+	}
+	r.drain()
+	worstFrame = max(worstFrame, frame())
+	t.Logf("a filter over %d lines: %v to the rows (%d match); the longest UI-thread frame meanwhile %v; UI-thread time of the whole: %v", n, time.Since(s), r.con.Len(), worstFrame, threadCPU(t)-cpu0)
 	r.con.SetFilter("")
 	r.pump()
 

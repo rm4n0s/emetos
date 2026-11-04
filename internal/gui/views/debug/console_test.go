@@ -1,6 +1,7 @@
 package debug
 
 import (
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -340,4 +341,99 @@ func TestConsoleFollowsTheEndAndGoesBackToTheTop(t *testing.T) {
 	if y := r.ts.TopLeft(gluttertest.ByText("again", rich)).Dy; y > 20 {
 		t.Errorf("a console that fits again starts at the top of the view, not at y=%v", y)
 	}
+}
+
+// uiFrame runs what was posted and a frame, and tells the processor time of the UI thread they took.
+func (r *consoleRig) uiFrame() time.Duration {
+	start := threadCPU(r.t)
+	r.drain()
+	r.ts.Pump(16 * time.Millisecond)
+	return threadCPU(r.t) - start
+}
+
+func TestConsoleFilterOfHundredThousandLinesStaysInTheFrameBudget(t *testing.T) {
+	// the budget is the UI thread's processor time (this goroutine is locked to its thread), not wall time; the race detector makes the
+	// code about ten times slower
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	budget := 16 * time.Millisecond
+	if raceEnabled {
+		budget *= 10
+	}
+	const n = 100_000
+	r := newConsoleRig(t, consoleRigOpts{script: scriptOf(fullCaps), tune: func(o *ConsoleOpts) { o.FilterDelay = 200 * time.Millisecond }})
+	sess := r.con.Session()
+	for i := range n {
+		sess.AppendToRepl("line "+strconv.Itoa(i)+"\n", coredebug.ReplInfo)
+	}
+	r.waitFor("the lines", func() bool { return r.con.Len() >= n })
+
+	// frames until the rows are the ones of a filter, each within the budget
+	var worst time.Duration
+	settle := func(want int) {
+		t.Helper()
+		deadline := time.Now().Add(30 * time.Second)
+		for r.con.Len() != want {
+			if time.Now().After(deadline) {
+				t.Fatalf("the rows are %d, want %d", r.con.Len(), want)
+			}
+			worst = max(worst, r.uiFrame())
+			time.Sleep(2 * time.Millisecond)
+		}
+		worst = max(worst, r.uiFrame())
+	}
+	expect := func(text string) int {
+		f := coredebug.NewReplFilter(text)
+		count := 0
+		for _, e := range sess.Repl().Elements() {
+			if f.Visible(e, true) {
+				count++
+			}
+		}
+		return count
+	}
+
+	// typing "line 5", a key every 5 ms: nothing is matched on the UI thread, and the last text is the one that shows
+	for _, text := range []string{"l", "li", "lin", "line", "line ", "line 5"} {
+		r.con.SetFilter(text)
+		for range 3 {
+			worst = max(worst, r.uiFrame())
+			time.Sleep(2 * time.Millisecond)
+		}
+		if r.con.Len() != n {
+			t.Fatalf("typing %q: the rows changed to %d before the delay is over", text, r.con.Len())
+		}
+	}
+	want := expect("line 5")
+	settle(want)
+	for _, row := range r.con.Rows() {
+		if !strings.Contains(RowText(row), "5") {
+			t.Fatalf("the row %q does not match the filter", RowText(row))
+		}
+	}
+	// lines that arrive while the next filter is matched are filtered too
+	r.con.SetFilter("line 7")
+	r.drain()
+	time.Sleep(220 * time.Millisecond) // the delay is over: the match is on its goroutine or done
+	sess.AppendToRepl("line 7 late\n", coredebug.ReplInfo)
+	sess.AppendToRepl("other late\n", coredebug.ReplInfo)
+	want = expect("line 7") // the lines are all in the model now (AppendToRepl is synchronous)
+	settle(want)
+	if rows := r.rowTexts(); len(rows) == 0 || !slices.Contains(rows, "line 7 late") || slices.Contains(rows, "other late") {
+		t.Errorf("the late lines are not filtered: %d rows", len(rows))
+	}
+	// a fast sequence of edits: only the last shows
+	r.con.SetFilter("line 3")
+	r.con.SetFilter("line 4")
+	r.con.SetFilter("line 99999")
+	settle(expect("line 99999"))
+	if got := r.rowTexts(); len(got) != 1 || got[0] != "line 99999" {
+		t.Errorf("rows of the last edit: %v", got)
+	}
+	r.con.SetFilter("")
+	settle(n + 2)
+	if worst > budget {
+		t.Errorf("a frame while filtering 100000 lines takes %v of the UI thread, over %v", worst, budget)
+	}
+	t.Logf("the longest frame while filtering %d lines: %v", n, worst)
 }
