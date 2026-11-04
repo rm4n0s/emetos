@@ -57,7 +57,7 @@ func TestGoldenTestingInTheEditor(t *testing.T) {
 		})
 		t.Run(th.name+" peek with a diff", func(t *testing.T) {
 			r, e := goldenPeek(t, th.theme, false, 19)
-			r.run(command.TestingOpenOutputPeek, nil)
+			r.openPeek(e)
 			if cur, _ := e.tst.peek.Current(); !cur.HasDiff {
 				t.Fatalf("the peek shows %+v, want the message with a diff", cur)
 			}
@@ -69,7 +69,7 @@ func TestGoldenTestingInTheEditor(t *testing.T) {
 		})
 		t.Run(th.name+" peek with a stack", func(t *testing.T) {
 			r, e := goldenPeek(t, th.theme, false, 12)
-			r.run(command.TestingOpenOutputPeek, nil)
+			r.openPeek(e)
 			if cur, _ := e.tst.peek.Current(); len(cur.Stack) == 0 || cur.HasDiff {
 				t.Fatalf("the peek shows %+v, want the message with a stack", cur)
 			}
@@ -89,4 +89,11 @@ func TestGoldenTestingInTheEditor(t *testing.T) {
 			testutil.MatchesGolden(r.ts, "testing_results_"+th.name)
 		})
 	}
+}
+
+// openPeek runs Peek Output and waits until the peek of the editor is open (a loaded machine can take a few frames to show it).
+func (r *testingRig) openPeek(e *textEditor) {
+	r.t.Helper()
+	r.run(command.TestingOpenOutputPeek, nil)
+	r.waitFor("the peek to open", func() bool { return e.tst.peek.Visible() })
 }

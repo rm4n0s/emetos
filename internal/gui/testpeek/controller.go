@@ -120,15 +120,20 @@ func (c *Controller) Dispose() {
 	c.Close()
 }
 
-// Visible tells whether the peek is open (the context key testing.isPeekVisible).
-func (c *Controller) Visible() bool { return c.open }
+// Visible tells whether the peek is open (the context key testing.isPeekVisible); a nil controller (an editor that never made one) is closed.
+func (c *Controller) Visible() bool { return c != nil && c.open }
 
-// Current is the message the peek shows; false while it is closed.
-func (c *Controller) Current() (Subject, bool) { return c.cur, c.open }
+// Current is the message the peek shows; false while it is closed (or for a nil controller).
+func (c *Controller) Current() (Subject, bool) {
+	if c == nil {
+		return Subject{}, false
+	}
+	return c.cur, c.open
+}
 
 // Body is the small diff editor of the peek; nil while it is closed or when the message has no diff.
 func (c *Controller) Body() *Body {
-	if !c.open {
+	if c == nil || !c.open {
 		return nil
 	}
 	return c.body

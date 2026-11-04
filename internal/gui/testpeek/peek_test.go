@@ -334,3 +334,10 @@ func pumpPeek(ts *gluttertest.Tester, r *rig, colors kit.Colors) {
 		},
 	}), kit.ThemeOpts{UIFont: testutil.MonoFamily}))
 }
+
+func TestANilControllerIsClosed(t *testing.T) {
+	var c *Controller
+	if cur, ok := c.Current(); ok || cur.TestID != "" || c.Visible() || c.Body() != nil {
+		t.Errorf("a nil controller shows %+v, %v", cur, ok)
+	}
+}
