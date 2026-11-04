@@ -1,0 +1,6 @@
+{
+  "emetosHttp": 1,
+  "name": "Update user",
+  "method": "PATCH",
+  "url": "{{baseUrl}}/v1/users/17"
+}

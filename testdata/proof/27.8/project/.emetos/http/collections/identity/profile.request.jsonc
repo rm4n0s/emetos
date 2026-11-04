@@ -1,0 +1,17 @@
+{
+  "emetosHttp": 1,
+  "name": "Read profile",
+  "method": "GET",
+  "url": "{{baseUrl}}/v1/me",
+  "auth": {
+    "type": "oauth2",
+    "grant": "authorization_code",
+    "tokenUrl": "{{authBase}}/token",
+    "authUrl": "{{authBase}}/authorize",
+    "clientId": "emetos-dev",
+    "clientSecret": "dev-secret",
+    "scope": "profile email",
+    "pkce": true,
+    "addTo": "header"
+  }
+}

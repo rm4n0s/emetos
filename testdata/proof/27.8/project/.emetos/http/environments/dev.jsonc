@@ -1,0 +1,9 @@
+{
+  "emetosHttp": 1,
+  "name": "Dev",
+  "variables": [
+    { "name": "baseUrl", "value": "http://localhost:8080" },
+    { "name": "apiKey", "secret": true },
+    { "name": "debug", "value": "true", "enabled": false }
+  ]
+}

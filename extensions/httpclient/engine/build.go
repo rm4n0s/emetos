@@ -32,6 +32,9 @@ type Input struct {
 	Texts map[string]string
 	// Environment names the cookie jar (empty: the jar of requests without an environment).
 	Environment string
+	// OAuth is the access token an authorization of type oauth2 sends; the caller got it (and refreshed it) before sending. Without it
+	// such a request fails with EngineOAuthTokenMissing.
+	OAuth *OAuthToken
 }
 
 // Prepared is a request that is ready to send.
@@ -151,7 +154,7 @@ func (e *Engine) Prepare(in Input) (*Prepared, error) {
 	if auth == nil {
 		auth = req.Auth
 	}
-	if err := p.applyAuth(auth, resolve); err != nil {
+	if err := p.applyAuth(auth, resolve, in.OAuth); err != nil {
 		return nil, err
 	}
 
@@ -174,7 +177,7 @@ func (e *Engine) Prepare(in Input) (*Prepared, error) {
 }
 
 // applyAuth puts the authorization in the headers or the query, or arranges the Digest answer.
-func (p *Prepared) applyAuth(a *format.Auth, resolve func(string) string) error {
+func (p *Prepared) applyAuth(a *format.Auth, resolve func(string) string, tok *OAuthToken) error {
 	if a == nil {
 		return nil
 	}
@@ -207,7 +210,7 @@ func (p *Prepared) applyAuth(a *format.Auth, resolve func(string) string) error 
 	case format.AuthDigest:
 		p.digest = &digestCreds{user: resolve(a.Username), pass: resolve(a.Password)}
 	case format.AuthOAuth2:
-		return errors.New("EngineAuthUnsupported", "OAuth 2.0 is not built into the engine yet", "type", a.Type)
+		return p.applyOAuth(a.AddTo, tok)
 	default:
 		return errors.New("EngineAuthUnsupported", "the authorization type is not known", "type", a.Type)
 	}

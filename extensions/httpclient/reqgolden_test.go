@@ -9,6 +9,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extension/ui/uitest"
 	"github.com/rm4n0s/emetos/extensions/httpclient/format"
+	"github.com/rm4n0s/emetos/extensions/httpclient/oauth"
 )
 
 // The goldens of the request tab: the dark and the light theme of each body kind and each type of authorization, and of the other tabs.
@@ -151,7 +152,7 @@ func TestGoldenTheRequestTabWithEachAuth(t *testing.T) {
 				tab.d.auth.typ = tc.typ
 				tc.prepare(tab)
 				tab.baseline = tab.d.snapshot()
-			}, reqW, map[bool]float64{true: 520, false: 380}[tc.typ == format.AuthOAuth2])
+			}, reqW, map[bool]float64{true: 640, false: 380}[tc.typ == format.AuthOAuth2])
 		})
 	}
 }
@@ -219,4 +220,30 @@ func TestGoldenTheOtherTabsOfTheRequest(t *testing.T) {
 	t.Run("read only", func(t *testing.T) {
 		goldenReq(t, "request_readonly", func(_ *rig, tab *reqTab) { tab.readOnly = true }, reqW, 260)
 	})
+}
+
+// TestGoldenTheOAuthTokenInTheAuthTab: the Auth tab of OAuth 2.0 with a token (masked, as every secret of the tab), and with the token shown.
+func TestGoldenTheOAuthTokenInTheAuthTab(t *testing.T) {
+	for _, shown := range []bool{false, true} {
+		name := "request_auth_oauth2_token"
+		if shown {
+			name += "_shown"
+		}
+		goldenReq(t, name, func(_ *rig, tab *reqTab) {
+			tab.section = secAuth
+			tab.d.auth.typ = format.AuthOAuth2
+			tab.d.auth.grant = "authorization_code"
+			tab.d.auth.box[fTokenURL].SetValue("https://auth.example.com/oauth/token")
+			tab.d.auth.box[fAuthURL].SetValue("https://auth.example.com/oauth/authorize")
+			tab.d.auth.box[fClientID].SetValue("emetos")
+			tab.d.auth.box[fClientSecret].SetValue("{{clientSecret}}")
+			tab.d.auth.box[fScope].SetValue("read write")
+			tab.baseline = tab.d.snapshot()
+			tab.showSecrets = shown
+			o := &tab.oauth
+			o.loaded, o.found = true, true
+			o.tok = oauth.Token{AccessToken: "eyJhbGciOiJSUzI1NiJ9.sample-access-token", TokenType: "Bearer", RefreshToken: "r", ExpiresAt: testNow.Add(59 * time.Minute)}
+			o.setBox(o.tok.AccessToken)
+		}, reqW, 640)
+	}
 }

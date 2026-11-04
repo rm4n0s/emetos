@@ -33,6 +33,8 @@ const (
 	CmdSave              = ID + ".save"
 	CmdOpenAsText        = ID + ".openAsText"
 	CmdRunCollection     = ID + ".runCollection"
+	CmdGetNewAccessToken = ID + ".getNewAccessToken"
+	CmdClearAccessToken  = ID + ".clearAccessToken"
 )
 
 const category = "HTTP Client"
@@ -62,6 +64,8 @@ func commandSpecs() []extension.CommandSpec {
 		{ID: CmdSave, Title: "Save Request", Category: category, Icon: "save", When: requestTabActive},
 		{ID: CmdOpenAsText, Title: "Open Request as Text", Category: category, Icon: "go-to-file"},
 		{ID: CmdRunCollection, Title: "Run Collection...", Category: category, Icon: "run-all"},
+		{ID: CmdGetNewAccessToken, Title: "Get New Access Token", Category: category, Icon: "key", When: requestTabActive},
+		{ID: CmdClearAccessToken, Title: "Clear Access Token", Category: category, When: requestTabActive},
 	}
 }
 
@@ -153,11 +157,13 @@ func (e *Extension) handleCommands() error {
 			e.withEntry(a, "Save which request?", e.saveEntry)
 			return nil
 		},
-		CmdClearHistory: func(context.Context, any) error { e.clearHistory(); return nil },
-		CmdSend:         func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).sendRequest); return nil },
-		CmdCancel:       func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).cancelSend); return nil },
-		CmdSave:         func(_ context.Context, a any) error { e.withRequestTab(a, func(t *reqTab) { t.save(nil) }); return nil },
-		CmdOpenAsText:   func(_ context.Context, a any) error { e.openAsText(a); return nil },
+		CmdClearHistory:      func(context.Context, any) error { e.clearHistory(); return nil },
+		CmdSend:              func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).sendRequest); return nil },
+		CmdCancel:            func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).cancelSend); return nil },
+		CmdSave:              func(_ context.Context, a any) error { e.withRequestTab(a, func(t *reqTab) { t.save(nil) }); return nil },
+		CmdOpenAsText:        func(_ context.Context, a any) error { e.openAsText(a); return nil },
+		CmdGetNewAccessToken: func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).getNewToken); return nil },
+		CmdClearAccessToken:  func(_ context.Context, a any) error { e.withRequestTab(a, (*reqTab).clearToken); return nil },
 		CmdRunCollection: func(_ context.Context, a any) error {
 			e.withNode(a, "Run which collection or folder?", func(n *store.Node) { e.runGroup(n, a) }, store.KindCollection, store.KindFolder)
 			return nil

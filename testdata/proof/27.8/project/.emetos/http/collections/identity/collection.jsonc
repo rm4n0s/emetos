@@ -1,0 +1,17 @@
+{
+  "emetosHttp": 1,
+  "name": "Identity",
+  "description": "Requests that sign in with OAuth 2.0 (authorization code with PKCE).",
+  "order": ["profile.request.jsonc"],
+  "auth": {
+    "type": "oauth2",
+    "grant": "authorization_code",
+    "tokenUrl": "{{authBase}}/token",
+    "authUrl": "{{authBase}}/authorize",
+    "clientId": "emetos-dev",
+    "clientSecret": "dev-secret",
+    "scope": "profile email",
+    "pkce": true,
+    "addTo": "header"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "emetosHttp": 1,
+  "name": "Health",
+  "method": "GET",
+  "url": "{{baseUrl}}/health"
+}

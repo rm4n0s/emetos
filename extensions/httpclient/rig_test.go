@@ -74,7 +74,10 @@ func copyDir(t *testing.T, from, to string) {
 }
 
 // newRig activates the extension in a copy of the fixture; before changes the folder before the extension reads it.
-func newRig(t *testing.T, before ...func(folder string)) *rig {
+func newRig(t *testing.T, before ...func(folder string)) *rig { return newRigWith(t, nil, before...) }
+
+// newRigWith is newRig with the options of the extension changed by mod before it is activated.
+func newRigWith(t *testing.T, mod func(*Options), before ...func(folder string)) *rig {
 	t.Helper()
 	isolate(t)
 	folder := t.TempDir()
@@ -82,14 +85,21 @@ func newRig(t *testing.T, before ...func(folder string)) *rig {
 	for _, b := range before {
 		b(folder)
 	}
-	return activate(t, folder)
+	return activateWith(t, folder, mod)
 }
 
 // activate activates the extension in a folder and waits until it has read the files.
-func activate(t *testing.T, folder string) *rig {
+func activate(t *testing.T, folder string) *rig { return activateWith(t, folder, nil) }
+
+// activateWith is activate with the options of the extension changed by mod (nil: as they are).
+func activateWith(t *testing.T, folder string, mod func(*Options)) *rig {
 	t.Helper()
 	r := &rig{t: t, folder: folder, kr: &dbconn.MemoryKeyring{}}
-	e := FactoryOf(Options{Keyring: r.kr, Now: func() time.Time { return testNow }})().(*Extension)
+	opts := Options{Keyring: r.kr, Now: func() time.Time { return testNow }}
+	if mod != nil {
+		mod(&opts)
+	}
+	e := FactoryOf(opts)().(*Extension)
 	r.api = fakeapi.New(t, e.Manifest(), extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: "project", Folder: folder, ID: folder})
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel

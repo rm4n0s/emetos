@@ -187,6 +187,7 @@ func TestPrepareErrors(t *testing.T) {
 		name  string
 		req   format.Request
 		auth  *format.Auth
+		oauth *OAuthToken
 		route string
 	}{
 		{name: "method", req: format.Request{Method: "GE T", URL: "http://127.0.0.1"}, route: "Engine.Prepare.EngineMethodInvalid"},
@@ -205,7 +206,8 @@ func TestPrepareErrors(t *testing.T) {
 		{name: "multipart missing", req: format.Request{URL: "http://127.0.0.1", Body: &format.Body{Type: format.BodyMultipart, Fields: []format.Pair{filePair("f", "nope")}}}, route: "multipartSource.EngineMultipartFileFailed"},
 		{name: "multipart folder", req: format.Request{URL: "http://127.0.0.1", Body: &format.Body{Type: format.BodyMultipart, Fields: []format.Pair{filePair("f", "d")}}}, route: "multipartSource.EngineMultipartFileFailed"},
 		{name: "multipart outside", req: format.Request{URL: "http://127.0.0.1", Body: &format.Body{Type: format.BodyMultipart, Fields: []format.Pair{filePair("f", "../x")}}}, route: "multipartSource->ResolvePath.HttpPathOutsideWorkspace"},
-		{name: "oauth2", req: format.Request{URL: "http://127.0.0.1"}, auth: &format.Auth{Type: format.AuthOAuth2}, route: "applyAuth.EngineAuthUnsupported"},
+		{name: "oauth2 no token", req: format.Request{URL: "http://127.0.0.1"}, auth: &format.Auth{Type: format.AuthOAuth2}, route: "applyAuth->Prepared.applyOAuth.EngineOAuthTokenMissing"},
+		{name: "oauth2 place", req: format.Request{URL: "http://127.0.0.1"}, auth: &format.Auth{Type: format.AuthOAuth2, AddTo: "cookie"}, oauth: &OAuthToken{Value: "t"}, route: "applyAuth->Prepared.applyOAuth.EngineAuthInvalid"},
 		{name: "auth type", req: format.Request{URL: "http://127.0.0.1"}, auth: &format.Auth{Type: "ntlm"}, route: "applyAuth.EngineAuthUnsupported"},
 		{name: "api key no name", req: format.Request{URL: "http://127.0.0.1"}, auth: &format.Auth{Type: format.AuthAPIKey}, route: "applyAuth.EngineAuthInvalid"},
 		{name: "api key place", req: format.Request{URL: "http://127.0.0.1"}, auth: &format.Auth{Type: format.AuthAPIKey, Key: "k", In: "cookie"}, route: "applyAuth.EngineAuthInvalid"},
@@ -214,7 +216,7 @@ func TestPrepareErrors(t *testing.T) {
 	e := newEngine(t, Config{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := e.Send(t.Context(), Input{Request: tt.req, Auth: tt.auth, Folder: dir, Dir: dir})
+			_, err := e.Send(t.Context(), Input{Request: tt.req, Auth: tt.auth, OAuth: tt.oauth, Folder: dir, Dir: dir})
 			wantRoute(t, err, tt.route)
 		})
 	}
@@ -224,6 +226,7 @@ func TestAuth(t *testing.T) {
 	tests := []struct {
 		name       string
 		auth       format.Auth
+		oauth      *OAuthToken
 		wantHeader string
 		wantQuery  string
 	}{
@@ -231,6 +234,9 @@ func TestAuth(t *testing.T) {
 		{name: "bearer", auth: format.Auth{Type: format.AuthBearer, Token: "{{tok}}"}, wantHeader: "Authorization: Bearer secret-token"},
 		{name: "api key in a header", auth: format.Auth{Type: format.AuthAPIKey, Key: "X-API-Key", Value: "k1"}, wantHeader: "X-Api-Key: k1"},
 		{name: "api key in the query", auth: format.Auth{Type: format.AuthAPIKey, Key: "api key", Value: "k&1", In: "query"}, wantQuery: "api+key=k%261"},
+		{name: "oauth2 in the header", auth: format.Auth{Type: format.AuthOAuth2}, oauth: &OAuthToken{Value: "at-1"}, wantHeader: "Authorization: Bearer at-1"},
+		{name: "oauth2 other scheme", auth: format.Auth{Type: format.AuthOAuth2, AddTo: "header"}, oauth: &OAuthToken{Value: "at-1", Scheme: "MAC"}, wantHeader: "Authorization: MAC at-1"},
+		{name: "oauth2 in the query", auth: format.Auth{Type: format.AuthOAuth2, AddTo: "query"}, oauth: &OAuthToken{Value: "a&1"}, wantQuery: "access_token=a%261"},
 		{name: "none", auth: format.Auth{Type: format.AuthNone}},
 		{name: "inherit that was not resolved", auth: format.Auth{Type: format.AuthInherit}},
 	}
@@ -241,7 +247,7 @@ func TestAuth(t *testing.T) {
 				gotAuth, gotKey, query = r.Header.Get("Authorization"), r.Header.Get("X-Api-Key"), r.URL.RawQuery
 			})
 			auth := tt.auth
-			in := Input{Request: format.Request{Method: "GET", URL: srv.URL}, Auth: &auth, Resolver: resolverOf(t, map[string]string{"tok": "secret-token"})}
+			in := Input{Request: format.Request{Method: "GET", URL: srv.URL}, Auth: &auth, OAuth: tt.oauth, Resolver: resolverOf(t, map[string]string{"tok": "secret-token"})}
 			send(t, newEngine(t, Config{}), in)
 			got := ""
 			switch {

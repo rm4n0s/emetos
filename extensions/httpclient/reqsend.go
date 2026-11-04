@@ -139,21 +139,7 @@ type sendOutcome struct {
 func (e *Extension) runSend(ctx context.Context, job sendJob) sendOutcome {
 	start := time.Now()
 	req, texts := bodyTexts(job.files)
-	in := variables.Input{
-		Locals: job.locals, Environment: job.place.env, Folders: job.place.folders, Collection: job.place.collection, Values: e.values,
-		Dynamic: variables.Dynamic{AllowedProcessEnv: e.allowedProcessEnv()},
-	}
-	if path, perr := variables.GlobalsPath(); perr == nil {
-		entries, _, lerr := variables.NewGlobals(path, e.opts.Keyring).Load(ctx)
-		if lerr != nil {
-			e.api.Log().Warn("the global variables cannot be read", "err", lerr)
-		}
-		in.Globals = entries
-	}
-	resolver, rerr := variables.Build(ctx, in)
-	if rerr != nil {
-		e.api.Log().Warn("some secret variables cannot be read from the keyring", "err", rerr)
-	}
+	resolver := e.resolverFor(ctx, job.place, job.locals)
 	eng := engine.New(e.engineConfig())
 	defer eng.Close()
 	input := engine.Input{
@@ -164,6 +150,13 @@ func (e *Extension) runSend(ctx context.Context, job sendJob) sendOutcome {
 		if input.Auth == nil {
 			input.Auth = &format.Auth{Type: format.AuthNone}
 		}
+	}
+	if auth := firstAuth(input.Auth, req.Auth); auth != nil && auth.Type == format.AuthOAuth2 {
+		tok, terr := e.oauthTokenFor(ctx, auth, job.place, resolver)
+		if terr != nil {
+			return sendOutcome{err: terr, duration: time.Since(start)}
+		}
+		input.OAuth = &engine.OAuthToken{Value: tok.AccessToken, Scheme: tok.Scheme()}
 	}
 	resp, err := eng.Send(ctx, input)
 	out := sendOutcome{resp: resp, err: err, duration: time.Since(start)}
@@ -220,4 +213,26 @@ func bodyTexts(files store.RequestFiles) (format.Request, map[string]string) {
 	}
 	req.Body = &b
 	return req, texts
+}
+
+// resolverFor reads the global variables and the secrets of the keyring and makes the resolver for a request at place, with locals winning
+// over every other variable. A part that cannot be read is logged and left out: the request then says which variables have no value.
+// It does I/O and runs off the UI thread.
+func (e *Extension) resolverFor(ctx context.Context, p place, locals map[string]string) *variables.Resolver {
+	in := variables.Input{
+		Locals: locals, Environment: p.env, Folders: p.folders, Collection: p.collection, Values: e.values,
+		Dynamic: variables.Dynamic{AllowedProcessEnv: e.allowedProcessEnv()},
+	}
+	if path, perr := variables.GlobalsPath(); perr == nil {
+		entries, _, lerr := variables.NewGlobals(path, e.opts.Keyring).Load(ctx)
+		if lerr != nil {
+			e.api.Log().Warn("the global variables cannot be read", "err", lerr)
+		}
+		in.Globals = entries
+	}
+	resolver, rerr := variables.Build(ctx, in)
+	if rerr != nil {
+		e.api.Log().Warn("some secret variables cannot be read from the keyring", "err", rerr)
+	}
+	return resolver
 }

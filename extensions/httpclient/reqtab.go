@@ -84,6 +84,8 @@ type reqTab struct {
 	saving bool
 
 	send sendState
+	// oauth is the token of the Auth tab when the request uses OAuth 2.0.
+	oauth oauthState
 	// pane is the response pane of the last response, nil while there is none.
 	pane *respPane
 }
@@ -568,6 +570,7 @@ func (t *reqTab) cancelSend() {
 func (t *reqTab) finishSend(job sendJob, out sendOutcome) {
 	t.dropResponse()
 	t.send.resp, t.send.duration, t.send.err = out.resp, out.duration, ""
+	t.oauth.loaded = false // a send may have refreshed or fetched the token
 	t.send.extracted, t.send.checkResults = out.extracted, out.checkResults
 	if len(out.extracted) > 0 {
 		t.e.valuesChanged()
@@ -821,6 +824,9 @@ func (t *reqTab) askRequestName(suggest string, cancelled func(bool), fn func(na
 func (t *reqTab) showSection(id string) {
 	for _, s := range sections {
 		if s.id == id && t.section != id {
+			if id == secAuth {
+				t.oauth.loaded = false
+			}
 			t.section = id
 			t.tab.Refresh()
 		}

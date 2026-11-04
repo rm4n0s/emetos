@@ -4,11 +4,15 @@ import (
 	"context"
 	"time"
 
+	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/httpclient/format"
 	"github.com/rm4n0s/emetos/extensions/httpclient/history"
+	"github.com/rm4n0s/emetos/extensions/httpclient/oauth/fakeas"
+	"github.com/rm4n0s/emetos/extensions/httpclient/variables"
+	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
 )
 
 // CommandDevSeedHistory is the dev command that fills the history with a few requests of today and yesterday, for the proof of the side
@@ -23,6 +27,10 @@ func (e *Extension) registerDev() {
 	spec := extension.CommandSpec{ID: CommandDevSeedHistory, Description: "Fill the history of the HTTP client with sample requests of today and yesterday."}
 	echo := extension.CommandSpec{ID: CommandDevEcho, Description: "Start a local echo server for the HTTP client and point the variable baseUrl of the active environment at it."}
 	if err := e.api.Commands().Register(echo, e.cmdDevEcho); err != nil {
+		e.api.Log().Debug("the dev command of the HTTP client is not registered", "err", err)
+	}
+	oauthSpec := extension.CommandSpec{ID: CommandDevFakeOAuth, Description: "Start a fake OAuth 2.0 authorization server for the HTTP client and point the variable authBase of the active environment at it."}
+	if err := e.api.Commands().Register(oauthSpec, e.cmdDevFakeOAuth); err != nil {
 		e.api.Log().Debug("the dev command of the HTTP client is not registered", "err", err)
 	}
 	if err := e.api.Commands().Register(spec, e.cmdDevSeedHistory); err != nil {
@@ -71,3 +79,36 @@ func (e *Extension) cmdDevSeedHistory(context.Context, any) error {
 // sets the current value of the variable baseUrl of the active environment to the address of the server, so that a request with
 // {{baseUrl}} reaches it. The server stops with the window. It exists in debug builds only.
 const CommandDevEcho = "dev.httpclient.echo"
+
+// CommandDevFakeOAuth is the dev command that starts a fake OAuth 2.0 authorization server on 127.0.0.1 (client "emetos-dev", secret
+// "dev-secret"; the endpoints /authorize and /token), sets the variable authBase of the active environment to its address, makes
+// "Get New Access Token" follow the authorization page itself instead of opening a browser, and keeps tokens in memory instead of the
+// keyring, for the proof of step 27.8 (SPEC §15.2). It exists in debug builds only.
+const CommandDevFakeOAuth = "dev.httpclient.fakeOAuth"
+
+// cmdDevFakeOAuth starts the server.
+func (e *Extension) cmdDevFakeOAuth(context.Context, any) error {
+	if err := e.ctx.Err(); err != nil {
+		return errors.NewErr("HttpDevFakeOAuthFailed", err)
+	}
+	srv, err := fakeas.Start(fakeas.Options{ClientID: "emetos-dev", ClientSecret: "dev-secret", ExpiresIn: 3600})
+	if err != nil {
+		return err
+	}
+	go func() {
+		<-e.ctx.Done()
+		srv.Close()
+	}()
+	e.browser = fakeas.Browser
+	e.oauthKeyring = &dbconn.MemoryKeyring{}
+	env := e.activeEnvironment()
+	if env == nil {
+		e.api.Notifications().Info("Fake authorization server on " + srv.URL + ". Choose an environment to have {{authBase}} point at it.")
+		return nil
+	}
+	if err := e.values.Set(e.ctx, variables.EnvironmentOwner(env.Key), "authBase", srv.URL, false); err != nil {
+		return err
+	}
+	e.api.Notifications().Info("Fake authorization server on " + srv.URL + ": {{authBase}} of the environment " + env.Name + " points at it.")
+	return nil
+}

@@ -155,6 +155,9 @@ func (t *reqTab) sectionTabs(bc widgets.BuildContext) widgets.Widget {
 		active := t.section == s.id
 		items = append(items, ui.NewButton(label, ui.ButtonOpts{Secondary: !active, Small: true, OnPressed: func() {
 			t.section = s.id
+			if s.id == secAuth {
+				t.oauth.loaded = false
+			}
 			t.scroll.ScrollTo(0, 0)
 			t.tab.Refresh()
 		}}), pageui.HGap(4))
@@ -451,6 +454,10 @@ func (t *reqTab) authPanel(bc widgets.BuildContext) widgets.Widget {
 	switch d.auth.typ {
 	case format.AuthInherit, "":
 		rows = append(rows, pageui.Paragraph("This request uses the authorization of its folder or collection: "+t.inheritedAuth()+".", dim))
+		if t.oauthAuth() != nil {
+			rows = append(rows, pageui.Gap(8))
+			rows = append(rows, t.tokenSection(bc, colors, dim, locked, field)...)
+		}
 	case format.AuthNone:
 		rows = append(rows, pageui.Paragraph("This request is sent without authorization, whatever its folder or collection says.", dim))
 	default:
@@ -484,7 +491,7 @@ func (t *reqTab) authPanel(bc widgets.BuildContext) widgets.Widget {
 				t.edited()
 			})
 			field("", ui.NewCheckbox("Use PKCE", ui.CheckboxOpts{Checked: d.auth.pkce, Disabled: locked, OnChanged: func(on bool) { d.auth.pkce = on; t.edited() }}))
-			rows = append(rows, pageui.Paragraph("Getting a token comes in a later step; the settings are saved with the request.", dim), pageui.Gap(8))
+			rows = append(rows, t.tokenSection(bc, colors, dim, locked, field)...)
 		}
 		show := ui.NewCheckbox("Show passwords and tokens", ui.CheckboxOpts{Checked: t.showSecrets, OnChanged: func(on bool) { t.showSecrets = on; t.tab.Refresh() }})
 		rows = append(rows, pageui.Gap(4), show, pageui.Gap(6), pageui.Paragraph("Use {{variables}} for secrets so that they stay out of the file; a secret variable's value is kept in the keyring.", dim))

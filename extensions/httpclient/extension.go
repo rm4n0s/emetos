@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/httpclient/engine"
 	"github.com/rm4n0s/emetos/extensions/httpclient/history"
+	"github.com/rm4n0s/emetos/extensions/httpclient/oauth"
 	"github.com/rm4n0s/emetos/extensions/httpclient/store"
 	"github.com/rm4n0s/emetos/extensions/httpclient/variables"
 	"github.com/rm4n0s/emetos/extensions/internal/dbconn"
@@ -59,6 +60,11 @@ type Options struct {
 	Keyring variables.Secrets
 	// Now is the clock; time.Now when nil.
 	Now func() time.Time
+	// Browser shows the authorization page of OAuth 2.0 to the user; the desktop's browser (Workspace().OpenURI) when nil. The tests give
+	// a fake that follows the redirect.
+	Browser oauth.Opener
+	// OAuthTimeout is how long "Get New Access Token" waits for the user; oauth.DefaultTimeout when 0.
+	OAuthTimeout time.Duration
 }
 
 // New is the Factory of the extension with the desktop keyring.
@@ -106,6 +112,10 @@ type Extension struct {
 	preview *variables.Values
 	// extractMu keeps two sends from writing the values they extracted at the same time (the globals are a read-modify-write of a file).
 	extractMu sync.Mutex
+	// browser replaces the browser of OAuth 2.0 while the dev fake authorization server runs (debug builds only); nil: Options.Browser or the desktop's.
+	browser oauth.Opener
+	// oauthKeyring keeps the tokens in memory instead of the keyring while the dev fake authorization server runs; nil: the keyring.
+	oauthKeyring variables.Secrets
 }
 
 // Manifest implements extension.Extension.
