@@ -75,7 +75,7 @@ const (
 	EventConfiguration
 	// EventSessionStarted is a session whose launch or attach request was answered (VS Code's onDidNewSession).
 	EventSessionStarted
-	// EventStopped is a thread that stopped and has its top frame (Event.Thread), after the stack is loaded; the window opens
+	// EventStopped is a thread that stopped and has its top frame (Event.Thread), before the rest of its stack is loaded; the window opens
 	// the source then.
 	EventStopped
 	// EventRepl is a change of the Debug Console of a session (Event.Session is the session that owns the console; see Session.Repl).

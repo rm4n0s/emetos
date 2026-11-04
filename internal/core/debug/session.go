@@ -694,22 +694,38 @@ func (s *Session) loadStack(ctx context.Context, t *Thread, d StoppedDetails, hi
 		s.enableDependentBreakpoints(ctx, nil, t)
 	}
 	s.svc.focusAfterStop(s, t, d)
+	// The stop is shown now; the rest of the stack follows after the delay, off the queue of the session. While it waited on the
+	// queue the stop of the next step waited with it (a step pressed within StackDelay of the last stop took up to that long more to
+	// show), and the editor opened the source of the stop that late.
+	s.m.emit(Event{Kind: EventStopped, Session: s, Thread: t})
 	if delayed && fetchAll {
-		if delay := s.svc.opts.StackDelay; delay > 0 {
-			select {
-			case <-time.After(delay):
-			case <-ctx.Done():
-				return
-			}
-		}
-		if !t.ReachedEndOfCallStack() {
-			if err := t.FetchCallStack(ctx, 19); err != nil {
-				s.svc.logger().Warn("loading the call stack failed", "session", s.id, "err", err)
-			}
-			s.m.emit(Event{Kind: EventCallStack, Session: s, Thread: t})
+		s.m.mu.Lock()
+		gen := t.gen
+		s.m.mu.Unlock()
+		go s.loadRestOfStack(ctx, t, gen)
+	}
+}
+
+// loadRestOfStack loads the frames of a stop after the first one, StackDelay after the stop, unless the thread ran again meanwhile
+// (gen is the generation of its stack at the stop; a thread that stopped anew has a load of its own).
+func (s *Session) loadRestOfStack(ctx context.Context, t *Thread, gen int) {
+	if delay := s.svc.opts.StackDelay; delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return
 		}
 	}
-	s.m.emit(Event{Kind: EventStopped, Session: s, Thread: t})
+	s.m.mu.Lock()
+	current := t.gen == gen && t.stopped
+	s.m.mu.Unlock()
+	if !current || t.ReachedEndOfCallStack() {
+		return
+	}
+	if err := t.FetchCallStack(ctx, 19); err != nil {
+		s.svc.logger().Warn("loading the call stack failed", "session", s.id, "err", err)
+	}
+	s.m.emit(Event{Kind: EventCallStack, Session: s, Thread: t})
 }
 
 // LoadMoreFrames loads more frames of the call stack of a stopped thread ("Show N More Stack Frames"): levels of them, but not more

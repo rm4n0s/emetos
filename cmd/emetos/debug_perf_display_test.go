@@ -41,8 +41,17 @@ var frameBadge = regexp.MustCompile(`^\d+(:\d+)?$`)
 // topFrame is the position the Call Stack shows for the first frame of the stopped thread, or "".
 func topFrame(a *display.App) string {
 	best, bestY := "", 1e9
-	for _, tx := range a.Texts() {
-		if frameBadge.MatchString(tx.Text) && tx.X > 150 && tx.X < 420 && tx.Y > 430 && tx.Y < bestY {
+	texts := a.Texts()
+	// the Breakpoints view is under the Call Stack and has the line of its breakpoint in the same kind of badge: while the thread runs
+	// the stack is empty, and that badge would be taken for the top frame (it made presses look ignored, step 25.12's finding)
+	limit := 1e9
+	for _, tx := range texts {
+		if strings.EqualFold(tx.Text, "Breakpoints") && tx.X < 420 {
+			limit = tx.Y
+		}
+	}
+	for _, tx := range texts {
+		if frameBadge.MatchString(tx.Text) && tx.X > 150 && tx.X < 420 && tx.Y > 430 && tx.Y < limit && tx.Y < bestY {
 			best, bestY = tx.Text, tx.Y
 		}
 	}

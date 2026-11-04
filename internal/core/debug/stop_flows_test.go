@@ -29,7 +29,7 @@ func itoa(i int) string {
 }
 
 func TestDelayedStackLoadingAndShowMoreFrames(t *testing.T) {
-	e := newEnv(t, func(o *debug.Options) { o.StackDelay = 30 * time.Millisecond })
+	e := newEnv(t, func(o *debug.Options) { o.StackDelay = 300 * time.Millisecond })
 	ctx := ctxT(t)
 	caps := with(fullCaps, "supportsDelayedStackTraceLoading", true)
 	e.script("delayed", join(
@@ -50,6 +50,11 @@ func TestDelayedStackLoadingAndShowMoreFrames(t *testing.T) {
 	}
 	ev := e.wait(debug.EventStopped, nil)
 	th := ev.Thread
+	// the stop shows with its first frame; the rest of the stack follows after StackDelay
+	if n := len(th.CallStack()); n != 1 {
+		t.Fatalf("at the stop the call stack has %d frames, want 1", n)
+	}
+	e.wait(debug.EventCallStack, func(ev debug.Event) bool { return ev.Thread == th && len(th.CallStack()) == 20 })
 	if n := len(th.CallStack()); n != 20 || th.ReachedEndOfCallStack() {
 		t.Fatalf("call stack %d frames, reached the end %v", n, th.ReachedEndOfCallStack())
 	}
@@ -181,4 +186,45 @@ func bpsReplyFor(path string, bps []map[string]any, ids ...int) daptest.Step {
 		out = []map[string]any{}
 	}
 	return daptest.ReplyArgs("setBreakpoints", map[string]any{"source": map[string]any{"path": path}, "breakpoints": bps}, map[string]any{"breakpoints": out})
+}
+
+// A step pressed while the rest of the previous stop's stack waits for StackDelay shows its stop at once: the wait is not on the queue
+// of the session, and the stack of the thread that ran again is not loaded when the wait is over.
+func TestAStepDoesNotWaitForTheRestOfThePreviousStack(t *testing.T) {
+	e := newEnv(t, func(o *debug.Options) { o.StackDelay = 2 * time.Second })
+	ctx := ctxT(t)
+	caps := with(fullCaps, "supportsDelayedStackTraceLoading", true)
+	stop := func() []daptest.Step {
+		return []daptest.Step{
+			daptest.Event("stopped", map[string]any{"reason": "step", "threadId": 1, "allThreadsStopped": true}),
+			daptest.Reply("threads", map[string]any{"threads": []map[string]any{{"id": 1, "name": "main"}}}),
+			daptest.ReplyArgs("stackTrace", map[string]any{"threadId": 1, "levels": 1}, frameRange(0, 1, 25)),
+		}
+	}
+	e.script("steps", join(
+		handshake(caps, noBreakpoints(caps)),
+		steps(stop()...),
+		steps(append([]daptest.Step{daptest.Reply("next", nil)}, stop()...)...),
+		ending(),
+	))
+	sess, ok, err := e.start(fakeConfig("steps"))
+	if err != nil || !ok {
+		t.Fatalf("start: %v %v", ok, err)
+	}
+	first := e.wait(debug.EventStopped, nil)
+	start := time.Now()
+	if err := sess.Next(ctx, first.Thread.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	second := e.wait(debug.EventStopped, nil)
+	if took := time.Since(start); took > time.Second {
+		t.Errorf("the second stop showed after %v, with StackDelay at 2s", took)
+	}
+	if n := len(second.Thread.CallStack()); n != 1 || !second.Thread.Stopped() {
+		t.Errorf("at the second stop: %d frames, stopped %v", n, second.Thread.Stopped())
+	}
+	if err := e.svc.Stop(ctx, sess, true, false); err != nil {
+		t.Fatal(err)
+	}
+	e.wait(debug.EventSessionEnded, nil)
 }
