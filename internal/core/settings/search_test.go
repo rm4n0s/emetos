@@ -32,8 +32,8 @@ func TestParseQuery(t *testing.T) {
 		{"lang with nothing", "@lang:", Query{}},
 		{"all together", "@modified @lang:go @id:editor.tabSize tab", Query{Modified: true, Language: "go", IDs: []string{"editor.tabSize"}, Text: "tab", Words: []string{"tab"}}},
 		{"tag", "@tag:accessibility", Query{Unsupported: []string{"@tag:accessibility"}}},
-		{"feature and ext", "@feature:scm @ext:foo.bar font", Query{Unsupported: []string{"@feature:scm", "@ext:foo.bar"}, Text: "font", Words: []string{"font"}}},
-		{"policy and stable", "@hasPolicy @stable", Query{Unsupported: []string{"@hasPolicy", "@stable"}}},
+		{"feature and ext", "@feature:scm @ext:foo.bar font", Query{Unsupported: []string{"@feature:scm"}, Extensions: []string{"foo.bar"}, Text: "font", Words: []string{"font"}}},
+		{"ext with several ids", "@ext:a.b,c.d", Query{Extensions: []string{"a.b", "c.d"}}}, {"policy and stable", "@hasPolicy @stable", Query{Unsupported: []string{"@hasPolicy", "@stable"}}},
 		{"quotes and colons are cleaned", `"editor.fontSize":`, Query{Text: "editor.fontSize", Words: []string{"editor.fontsize"}}},
 	} {
 		t.Run(c.name, func(t *testing.T) {

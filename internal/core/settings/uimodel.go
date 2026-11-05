@@ -99,6 +99,8 @@ type UIModel struct {
 	version int
 	built   bool
 	tree    []*Category
+	// exts are the extensions the group Extensions > Installed lists (SetExtensions).
+	exts []ExtensionInfo
 }
 
 // NewUIModel makes the UI model of the settings editor over a store, with the table of contents of VS Code
@@ -356,8 +358,17 @@ func (m *UIModel) SetValue(ctx context.Context, key string, target Target, value
 	return m.SetValueFor(ctx, key, target, "", value)
 }
 
-// SetValueFor is SetValue inside the block of a language ("[go]": {...}) when language is not empty.
+// SetValueFor is SetValue inside the block of a language ("[go]": {...}) when language is not empty. The key of the
+// row of an extension (ExtensionSettingRow) turns the extension on (true) or off (false) through
+// SetExtensionEnabled, whatever the target: the choice is the user's.
 func (m *UIModel) SetValueFor(ctx context.Context, key string, target Target, language string, value any) error {
+	if id, ok := ExtensionOfRowKey(key); ok {
+		enable, ok := value.(bool)
+		if !ok {
+			return errors.New("SettingExtensionValueInvalid", "an extension is turned on or off with true or false", "extension", id, "value", value)
+		}
+		return SetExtensionEnabled(ctx, m.store, id, enable)
+	}
 	if language == "" {
 		return m.store.Update(ctx, key, value, target)
 	}
@@ -389,8 +400,11 @@ func (m *UIModel) Reset(ctx context.Context, key string, target Target) error {
 }
 
 // ResetFor is Reset inside the block of a language when language is not empty: the key leaves the block, and the
-// block goes when it has no other setting.
+// block goes when it has no other setting. The row of an extension is reset by turning the extension on.
 func (m *UIModel) ResetFor(ctx context.Context, key string, target Target, language string) error {
+	if id, ok := ExtensionOfRowKey(key); ok {
+		return SetExtensionEnabled(ctx, m.store, id, true)
+	}
 	if language == "" {
 		return m.store.Remove(ctx, key, target)
 	}

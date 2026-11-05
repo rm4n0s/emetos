@@ -122,11 +122,14 @@ type Category struct {
 	Keys []string
 	// Children are the groups below.
 	Children []*Category
+	// Extensions are the ids of the extensions whose rows the group shows before its settings (only the group
+	// Extensions > Installed has them, step 31.1).
+	Extensions []string
 }
 
-// Count is the number of settings in the group and below it.
+// Count is the number of settings and extension rows in the group and below it.
 func (c *Category) Count() int {
-	n := len(c.Keys)
+	n := len(c.Keys) + len(c.Extensions)
 	for _, ch := range c.Children {
 		n += ch.Count()
 	}

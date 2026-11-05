@@ -468,32 +468,10 @@ func (d extensionDocuments) OpenUntitled(languageID, text string) (string, error
 }
 
 // setExtensionEnabled turns an extension on or off by writing extensions.disabled in the settings.json of the user. Every
-// workspace follows the file, so the extension goes (or comes) in all the tabs of the profile.
+// workspace follows the file, so the extension goes (or comes) in all the tabs of the profile. The rows of the settings
+// editor write through the same function (settings.SetExtensionEnabled).
 func (w *Workspace) setExtensionEnabled(id string, enable bool) error {
-	list := slices.Clone(w.disabledExtensions())
-	has := slices.Contains(list, id)
-	switch {
-	case enable && has:
-		list = slices.DeleteFunc(list, func(s string) bool { return s == id })
-	case !enable && !has:
-		list = append(list, id)
-	default:
-		return nil
-	}
-	slices.Sort(list)
-	if len(list) == 0 {
-		return w.Settings.Remove(w.ctx, disabledExtensionsSetting, settings.TargetUser)
-	}
-	return w.Settings.Update(w.ctx, disabledExtensionsSetting, toAnyList(list), settings.TargetUser)
-}
-
-// toAnyList is a list of strings as the settings store takes an array.
-func toAnyList(list []string) []any {
-	out := make([]any, len(list))
-	for i, s := range list {
-		out[i] = s
-	}
-	return out
+	return settings.SetExtensionEnabled(w.ctx, w.Settings, id, enable)
 }
 
 // editorsChanged makes the editor area build again: the title actions, the file views or the tabs of the extensions changed.

@@ -1,6 +1,7 @@
 package settingsui
 
 import (
+	"github.com/rm4n0s/emetos/internal/core/settings"
 	"testing"
 	"time"
 
@@ -88,6 +89,25 @@ func TestGoldenSettingsSearch(t *testing.T) {
 			r.show("@tag:accessibility zzzzqqq")
 			r.ts.Pump(pump)
 			testutil.MatchesGolden(r.ts, "settings_empty_"+th.name)
+		})
+	}
+}
+
+// TestGoldenSettingsExtensions looks at the group Extensions > Installed (step 31.1): a check box per extension, the one
+// that is turned off unchecked with the modified mark.
+func TestGoldenSettingsExtensions(t *testing.T) {
+	exts := []settings.ExtensionInfo{
+		{ID: "emetos.git", Name: "Git", Description: "Source control with git."},
+		{ID: "emetos.terminal", Name: "Terminal", Description: "Your shell in the panel."},
+		{ID: "emetos.redis", Name: "Redis", Description: "Browse the keys of a Redis server."},
+	}
+	for _, th := range goldenThemes {
+		t.Run(th.name, func(t *testing.T) {
+			r := newRig(t, rigOpts{colors: th.colors(), size: goldenSize, extensions: exts,
+				userText: "{\n  \"extensions.disabled\": [\"emetos.terminal\"]\n}\n"})
+			r.show("@ext:emetos.git,emetos.terminal,emetos.redis")
+			r.ts.Pump(pump)
+			testutil.MatchesGolden(r.ts, "settings_extensions_"+th.name)
 		})
 	}
 }

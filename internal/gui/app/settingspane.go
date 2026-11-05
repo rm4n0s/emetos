@@ -84,8 +84,23 @@ func (p *settingsPane) dispose() {}
 func (w *Workspace) SettingsModel() *settings.UIModel {
 	if w.uiModel == nil {
 		w.uiModel = settings.NewUIModel(w.Settings)
+		w.uiModel.SetExtensions(w.settingsExtensions())
 	}
 	return w.uiModel
+}
+
+// settingsExtensions are the extensions the settings editor turns on and off (Extensions > Installed, step 31.1), in the
+// order of the Extensions page.
+func (w *Workspace) settingsExtensions() []settings.ExtensionInfo {
+	if w.Process == nil || w.Process.Extensions == nil {
+		return nil
+	}
+	rows := w.Process.Extensions.Rows(nil)
+	out := make([]settings.ExtensionInfo, len(rows))
+	for i, r := range rows {
+		out[i] = settings.ExtensionInfo{ID: r.Manifest.ID, Name: r.Manifest.Name, Description: r.Manifest.Description}
+	}
+	return out
 }
 
 // settingsWriteFailed reports a change of a setting that could not be written.

@@ -2,6 +2,7 @@ package settings
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,8 +14,8 @@ import (
 // src/vs/workbench/contrib/preferences/browser/preferencesSearch.ts (cleanFilter, SettingMatches: the key as words,
 // the description and the values of an enum). The ranking is simpler than VS Code's: see Search.
 
-// The search filters VS Code's settings editor knows. Emetos has @modified, @id: and @lang:; the others are read
-// and reported as not supported.
+// The search filters VS Code's settings editor knows. Emetos has @modified, @id:, @lang: and @ext:; the others are
+// read and reported as not supported.
 const (
 	// ModifiedFilter is the filter of the settings the file of the tab sets.
 	ModifiedFilter = "@modified"
@@ -22,6 +23,8 @@ const (
 	IDFilter = "@id:"
 	// LanguageFilter is the prefix of the filter of the settings of a language.
 	LanguageFilter = "@lang:"
+	// ExtensionFilter is the prefix of the filter of the row of an extension (step 31.1).
+	ExtensionFilter = "@ext:"
 )
 
 // Query is a search text taken apart (VS Code's parseQuery): the filters and the free words.
@@ -36,14 +39,17 @@ type Query struct {
 	IDs []string
 	// Language is the value of the first @lang:, as it was written ("go", "Go"), or empty.
 	Language string
-	// Unsupported are the filters that VS Code has and Emetos has not (@tag:, @feature:, @ext:, @hasPolicy,
-	// @stable), as they were written; they are ignored.
+	// Extensions are the ids of @ext:, a comma separated list: only the rows of those extensions are shown (the
+	// settings do not record the extension that registered them, so none is shown with it).
+	Extensions []string
+	// Unsupported are the filters that VS Code has and Emetos has not (@tag:, @feature:, @hasPolicy, @stable), as
+	// they were written; they are ignored.
 	Unsupported []string
 }
 
 // Empty tells that the query has no filter and no word: the editor then shows all the settings.
 func (q Query) Empty() bool {
-	return !q.Modified && len(q.IDs) == 0 && q.Language == "" && len(q.Words) == 0
+	return !q.Modified && len(q.IDs) == 0 && q.Language == "" && len(q.Extensions) == 0 && len(q.Words) == 0
 }
 
 var (
@@ -89,7 +95,14 @@ func ParseQuery(text string) Query {
 	strip(tagRegex, func(match string, _ []string) { q.Unsupported = append(q.Unsupported, match) })
 	strip(modifiedRegex, func(string, []string) { q.Modified = true })
 	strip(bareTagRegex, func(match string, _ []string) { q.Unsupported = append(q.Unsupported, match) })
-	strip(extensionRegex, func(match string, _ []string) { q.Unsupported = append(q.Unsupported, match) })
+	strip(extensionRegex, func(match string, g []string) {
+		if ids := split(value(g)); len(ids) > 0 {
+			q.Extensions = append(q.Extensions, ids...)
+			return
+		}
+		// "@ext:" with nothing after it lists nothing in particular
+		q.Unsupported = append(q.Unsupported, match)
+	})
 	strip(featureRegex, func(match string, _ []string) { q.Unsupported = append(q.Unsupported, match) })
 	strip(idRegex, func(_ string, g []string) { q.IDs = append(q.IDs, split(value(g))...) })
 	strip(languageRegex, func(_ string, g []string) {
@@ -186,6 +199,9 @@ func (m *UIModel) Search(target Target, text string, resolve LanguageResolver) S
 	scores := map[string]int{}
 	exact := strings.ToLower(strings.Join(q.Words, " "))
 	keep := func(s Setting, groupID string) bool {
+		if len(q.Extensions) > 0 {
+			return false
+		}
 		if res.Language != "" && s.Scope != ScopeLanguageOverridable {
 			return false
 		}
@@ -212,6 +228,19 @@ func (m *UIModel) Search(target Target, text string, resolve LanguageResolver) S
 		return true
 	}
 	cats := m.filterTree(target, keep)
+	// the rows of the extensions (step 31.1): on the User tab only, as extensions.disabled is an application setting,
+	// and not for a search of settings by id or language
+	if target == TargetUser && len(q.IDs) == 0 && res.Language == "" {
+		cats = withExtensions(cats, m.extensionRows(func(r ExtensionRow) bool {
+			if len(q.Extensions) > 0 && !slices.ContainsFunc(q.Extensions, func(id string) bool { return strings.EqualFold(id, r.ID) }) {
+				return false
+			}
+			if q.Modified && r.Enabled {
+				return false
+			}
+			return matchesExtension(r.ExtensionInfo, q.Words)
+		}))
+	}
 	if res.Active {
 		out := cats[:0:0]
 		for _, c := range cats {

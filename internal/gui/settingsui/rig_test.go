@@ -53,6 +53,8 @@ type rigOpts struct {
 	state     editorgroup.SettingsViewState
 	// registry adds settings to the registry of Emetos.
 	registry []settings.Setting
+	// extensions are the extensions of the group Extensions > Installed.
+	extensions []settings.ExtensionInfo
 }
 
 func newRig(t *testing.T, o rigOpts) *rig {
@@ -85,6 +87,7 @@ func newRig(t *testing.T, o rigOpts) *rig {
 		t.Fatal(err)
 	}
 	r.model = settings.NewUIModel(r.store)
+	r.model.SetExtensions(o.extensions)
 
 	ts := testutil.New(t, o.size)
 	r.ts = ts

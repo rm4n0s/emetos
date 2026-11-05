@@ -473,6 +473,14 @@ func (s *editorState) copyText(text string) {
 }
 
 func (s *editorState) settingJSON(row settings.Row) string {
+	if _, ok := settings.ExtensionOfRowKey(row.Key); ok {
+		// the row of an extension is a part of extensions.disabled: the setting as it is
+		disabled := settings.Get[[]string](s.Widget().opts.Model.Store(), settings.DisabledExtensionsKey, "")
+		row = settings.Row{Key: settings.DisabledExtensionsKey, Value: disabled}
+		if disabled == nil {
+			row.Value = []string{}
+		}
+	}
 	data, err := json.Marshal(row.Value)
 	if err != nil {
 		data = []byte("null")
@@ -602,6 +610,12 @@ func (s *editorState) listPane(bc widgets.BuildContext, colors kit.Colors) widge
 	}
 	s.eachCategory(func(c *settings.Category) {
 		children = append(children, s.groupHeader(bc, colors, c))
+		// the rows of the extensions come first (Extensions > Installed, step 31.1)
+		for _, id := range c.Extensions {
+			if row, ok := s.Widget().opts.Model.ExtensionSettingRow(id); ok {
+				children = append(children, newSettingRow(RowKey(c.ID, row.Key), row, s))
+			}
+		}
 		for _, key := range c.Keys {
 			row, ok := s.Widget().opts.Model.RowFor(key, s.target, s.result.Language, c.ID)
 			if !ok {
