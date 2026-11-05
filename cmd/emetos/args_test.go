@@ -56,6 +56,10 @@ func TestParseArgs(t *testing.T) {
 		{"profile", []string{"--profile", "Work 1"}, options{level: info, profile: "Work 1"}},
 		{"profile with =", []string{"--profile=my-prof_2"}, options{level: info, profile: "my-prof_2"}},
 
+		{"install launcher", []string{"--install-launcher"}, options{level: info, installLauncher: true}},
+		{"install launcher repeated", []string{"--install-launcher", "--install-launcher"}, options{level: info, installLauncher: true}},
+		{"uninstall launcher", []string{"--uninstall-launcher"}, options{level: info, uninstallLauncher: true}},
+
 		{"end of options", []string{"--", "-x", "--wait"}, options{level: info, paths: []string{"-x", "--wait"}}},
 		{"options before the end", []string{"-w", "--", "-n"}, options{level: info, wait: true, paths: []string{"-n"}}},
 		{"empty end of options", []string{"--"}, options{level: info}},
@@ -100,6 +104,7 @@ func TestParseArgsErrors(t *testing.T) {
 		{"log twice", []string{"--log", "info", "--log=debug"}, "ArgsRepeated", nil},
 		{"new window and reuse window", []string{"-n", "-r"}, "ArgsConflict", nil},
 		{"diff and merge", []string{"-d", "a", "b", "-m", "1", "2", "3", "4"}, "ArgsConflict", nil},
+		{"install and uninstall launcher", []string{"--install-launcher", "--uninstall-launcher"}, "ArgsConflict", nil},
 		{"standard input", []string{"-"}, "ArgsStdinUnsupported", nil},
 		{"empty profile", []string{"--profile", ""}, "ArgsProfileInvalid", nil},
 		{"profile with a leading space", []string{"--profile", " a"}, "ArgsProfileInvalid", nil},

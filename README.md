@@ -105,6 +105,8 @@ scripts/install-desktop.sh --uninstall # remove
 
 It writes only two things under `${XDG_DATA_HOME:-~/.local/share}`: `applications/dev.emetos.Emetos.desktop` ([the entry](assets/dev.emetos.Emetos.desktop): `Exec=emetos %F`, text files and folders as its types) and the icon in every size of [`assets/icons`](assets/icons) as `icons/hicolor/<N>x<N>/apps/dev.emetos.Emetos.png`. It puts the absolute path of `emetos` in the entry, because a launcher often does not have `~/go/bin` in its `PATH` (`--exec <path>` says which program). It runs `update-desktop-database` and `gtk-update-icon-cache` when they are installed.
 
+Without a shell, `emetos --install-launcher` writes the same entry and icons itself (its own absolute path, found with `os.Executable`) and exits; `emetos --uninstall-launcher` removes them. Neither runs a command, so a desktop picks up the new or removed files under `$XDG_DATA_HOME` on its own, a little later.
+
 ## Features
 
 The feature list of [SPEC §3](docs/SPEC.md#3-areas), in short. The first two groups are v0.1.0's; the others came after it.
@@ -566,6 +568,8 @@ A folder opens as a workspace tab and files open in the active tab. When Emetos 
 | `-r`, `--reuse-window` | open in the existing tab |
 | `--profile name` | use the profile (made empty when it does not exist) |
 | `--log level` | log level: `debug`, `info`, `warn` or `error` (default `info`) |
+| `--install-launcher` | add Emetos to the application menu and launcher (a desktop entry and icon under `$XDG_DATA_HOME`) and exit |
+| `--uninstall-launcher` | remove them and exit |
 | `-v`, `--version` | print the version and exit |
 | `-h`, `--help` | print the help and exit |
 

@@ -26,11 +26,14 @@ import (
 
 	"github.com/rm4n0s/errors"
 
+	"github.com/rm4n0s/emetos/assets"
+	"github.com/rm4n0s/emetos/assets/icons"
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions"
 	"github.com/rm4n0s/emetos/extensions/devdebug"
 	"github.com/rm4n0s/emetos/extensions/devtesting"
 	"github.com/rm4n0s/emetos/extensions/gitscm/helper"
+	"github.com/rm4n0s/emetos/internal/core/desktopsetup"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -51,6 +54,9 @@ Options:
   -r, --reuse-window              open in the existing window
       --profile name              use the profile (made empty when it does not exist)
       --log level                 log level: debug, info, warn or error (default info)
+      --install-launcher          add Emetos to the application menu and launcher (a desktop
+                                  entry and icon under $XDG_DATA_HOME) and exit
+      --uninstall-launcher        remove them and exit
   -v, --version                   print the version and exit
   -h, --help                      print this help and exit
 
@@ -99,11 +105,16 @@ type env struct {
 	stat           func(string) (fs.FileInfo, error)
 	// launch hands the command line to the running Emetos or becomes it; it returns the exit status.
 	launch func(l launch, e env) int
+	// installLauncher and uninstallLauncher run --install-launcher and --uninstall-launcher; tests replace them.
+	installLauncher, uninstallLauncher func(ctx context.Context, e env) int
 }
 
 // defaultEnv is the environment of the real process.
 func defaultEnv() env {
-	return env{stdout: os.Stdout, stderr: os.Stderr, getwd: os.Getwd, stat: os.Stat, launch: runLaunch}
+	return env{
+		stdout: os.Stdout, stderr: os.Stderr, getwd: os.Getwd, stat: os.Stat, launch: runLaunch,
+		installLauncher: runInstallLauncher, uninstallLauncher: runUninstallLauncher,
+	}
 }
 
 // run is main without the process: it returns the exit status. Help, version and a wrong command line never
@@ -119,6 +130,14 @@ func run(args []string, e env) int {
 		return say(e.stdout, usage)
 	case o.version:
 		return say(e.stdout, versionString()+"\n")
+	case o.installLauncher:
+		ctx, stop := signalContext(context.Background())
+		defer stop()
+		return e.installLauncher(ctx, e)
+	case o.uninstallLauncher:
+		ctx, stop := signalContext(context.Background())
+		defer stop()
+		return e.uninstallLauncher(ctx, e)
 	}
 	cwd, err := e.getwd()
 	if err != nil {
@@ -227,6 +246,64 @@ func runLaunch(l launch, e env) int {
 	if err := start(ctx, paths, srv, l); err != nil {
 		complain(e.stderr, "emetos: "+describe(err)+"\n")
 		return exitFailure
+	}
+	return exitOK
+}
+
+// runInstallLauncher is --install-launcher (SPEC §16 "Desktop entry and icon", §10.11): it writes
+// Emetos's own desktop entry and icons for the application menu and launcher, the same files
+// scripts/install-desktop.sh writes, and prints where. It opens no window, no socket and no log, so
+// a user without a shell, or on a launcher whose PATH lacks go install's folder, can still add
+// Emetos to their menu with the program itself.
+func runInstallLauncher(ctx context.Context, e env) int {
+	exe, err := os.Executable()
+	if err == nil {
+		exe, err = filepath.EvalSymlinks(exe)
+	}
+	if err != nil {
+		complain(e.stderr, "emetos: cannot find the running program: "+err.Error()+"\n")
+		return exitFailure
+	}
+	paths, err := storage.ResolvePaths()
+	if err != nil {
+		complain(e.stderr, "emetos: "+describe(err)+"\n")
+		return exitFailure
+	}
+	res, err := desktopsetup.Install(ctx, paths, app.AppID, assets.DesktopEntry(), icons.PNG, exe)
+	if err != nil {
+		complain(e.stderr, "emetos: cannot add Emetos to the application menu: "+describe(err)+"\n")
+		return exitFailure
+	}
+	_, _ = fmt.Fprintf(e.stdout, "Wrote %s\n", res.DesktopFile)
+	for _, p := range res.IconFiles {
+		_, _ = fmt.Fprintf(e.stdout, "Wrote %s\n", p)
+	}
+	return exitOK
+}
+
+// runUninstallLauncher is --uninstall-launcher: it removes the files runInstallLauncher (or
+// scripts/install-desktop.sh) wrote and prints which of them were there. It opens no window, no
+// socket and no log.
+func runUninstallLauncher(ctx context.Context, e env) int {
+	paths, err := storage.ResolvePaths()
+	if err != nil {
+		complain(e.stderr, "emetos: "+describe(err)+"\n")
+		return exitFailure
+	}
+	res, err := desktopsetup.Uninstall(ctx, paths, app.AppID)
+	if err != nil {
+		complain(e.stderr, "emetos: cannot remove Emetos from the application menu: "+describe(err)+"\n")
+		return exitFailure
+	}
+	if res.DesktopFile == "" && len(res.IconFiles) == 0 {
+		_, _ = io.WriteString(e.stdout, "Nothing to remove.\n")
+		return exitOK
+	}
+	if res.DesktopFile != "" {
+		_, _ = fmt.Fprintf(e.stdout, "Removed %s\n", res.DesktopFile)
+	}
+	for _, p := range res.IconFiles {
+		_, _ = fmt.Fprintf(e.stdout, "Removed %s\n", p)
 	}
 	return exitOK
 }

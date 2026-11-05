@@ -19,12 +19,14 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/storage/storagetest"
 )
 
-// testEnv is an environment that starts nothing: launch records the command line it was given and gives status.
+// testEnv is an environment that starts nothing: launch records the command line it was given and gives status,
+// and installLauncher/uninstallLauncher record that they were asked for.
 type testEnv struct {
 	env
-	stdout, stderr bytes.Buffer
-	launched       []launch
-	status         int
+	stdout, stderr                               bytes.Buffer
+	launched                                     []launch
+	installLauncherCalls, uninstallLauncherCalls int
+	status                                       int
 }
 
 func newTestEnv(t *testing.T, cwd string) *testEnv {
@@ -36,6 +38,14 @@ func newTestEnv(t *testing.T, cwd string) *testEnv {
 		stat:  os.Stat,
 		launch: func(l launch, _ env) int {
 			te.launched = append(te.launched, l)
+			return te.status
+		},
+		installLauncher: func(context.Context, env) int {
+			te.installLauncherCalls++
+			return te.status
+		},
+		uninstallLauncher: func(context.Context, env) int {
+			te.uninstallLauncherCalls++
 			return te.status
 		},
 	}
@@ -134,6 +144,89 @@ func TestRunWithARelativeWorkingDirectory(t *testing.T) {
 	te := newTestEnv(t, "relative/dir")
 	if got := run([]string{"a.go"}, te.env); got != 2 || !strings.Contains(te.stderr.String(), "PathInvalid") {
 		t.Errorf("status %d, stderr %q", got, te.stderr.String())
+	}
+}
+
+// TestRunInstallAndUninstallLauncherWiring checks that --install-launcher and --uninstall-launcher
+// reach e.installLauncher and e.uninstallLauncher, with the status they give, and need no working
+// directory and start nothing else: the actual writing and removal is internal/core/desktopsetup's
+// job (its own tests) and runInstallLauncher's/runUninstallLauncher's (the end-to-end tests below).
+func TestRunInstallAndUninstallLauncherWiring(t *testing.T) {
+	tests := []struct {
+		name string
+		arg  string
+		want func(*testEnv) int
+	}{
+		{"install", "--install-launcher", func(te *testEnv) int { return te.installLauncherCalls }},
+		{"uninstall", "--uninstall-launcher", func(te *testEnv) int { return te.uninstallLauncherCalls }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			te := newTestEnv(t, "relative/dir") // a working directory that would fail buildOpen, to show it is never reached
+			te.status = 7
+			if got := run([]string{tt.arg}, te.env); got != 7 {
+				t.Errorf("status = %d, want 7", got)
+			}
+			if tt.want(te) != 1 {
+				t.Errorf("called %d times, want 1", tt.want(te))
+			}
+			if len(te.launched) != 0 {
+				t.Errorf("launch was called with %+v, want it never called", te.launched)
+			}
+		})
+	}
+}
+
+func TestHelpListsTheLauncherFlags(t *testing.T) {
+	te := newTestEnv(t, t.TempDir())
+	run([]string{"--help"}, te.env)
+	for _, want := range []string{"--install-launcher", "--uninstall-launcher"} {
+		if !strings.Contains(te.stdout.String(), want) {
+			t.Errorf("--help = %q, want it to list %s", te.stdout.String(), want)
+		}
+	}
+}
+
+// TestRunInstallAndUninstallLauncher is the end-to-end test of runInstallLauncher and
+// runUninstallLauncher themselves (the real implementations, not fakes): install writes Emetos's own
+// desktop entry and icons under an isolated $XDG_DATA_HOME, naming the test binary (os.Executable) as
+// the program, and uninstall removes exactly what it wrote.
+func TestRunInstallAndUninstallLauncher(t *testing.T) {
+	paths := storagetest.Isolate(t)
+	te := newTestEnv(t, t.TempDir())
+	te.installLauncher, te.uninstallLauncher = runInstallLauncher, runUninstallLauncher
+
+	if got := run([]string{"--install-launcher"}, te.env); got != 0 {
+		t.Fatalf("install: status = %d, stderr %q", got, te.stderr.String())
+	}
+	desktopFile := filepath.Join(paths.DataHome, "applications", "dev.emetos.Emetos.desktop")
+	if !strings.Contains(te.stdout.String(), "Wrote "+desktopFile) {
+		t.Errorf("stdout = %q, want it to say it wrote %s", te.stdout.String(), desktopFile)
+	}
+	data, err := os.ReadFile(desktopFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "Exec=emetos ") {
+		t.Errorf("the entry still names the plain program: %q", data)
+	}
+	iconFile := filepath.Join(paths.DataHome, "icons", "hicolor", "16x16", "apps", "dev.emetos.Emetos.png")
+	if _, err := os.Stat(iconFile); err != nil {
+		t.Errorf("the 16px icon was not written: %v", err)
+	}
+
+	te.stdout.Reset()
+	if got := run([]string{"--uninstall-launcher"}, te.env); got != 0 {
+		t.Fatalf("uninstall: status = %d, stderr %q", got, te.stderr.String())
+	}
+	if !strings.Contains(te.stdout.String(), "Removed "+desktopFile) {
+		t.Errorf("stdout = %q, want it to say it removed %s", te.stdout.String(), desktopFile)
+	}
+	if _, err := os.Stat(desktopFile); !os.IsNotExist(err) {
+		t.Errorf("%s still exists (stat err %v)", desktopFile, err)
+	}
+	if _, err := os.Stat(iconFile); !os.IsNotExist(err) {
+		t.Errorf("%s still exists (stat err %v)", iconFile, err)
 	}
 }
 

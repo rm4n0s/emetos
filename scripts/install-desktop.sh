@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Installs (or removes) the desktop entry and the icons of Emetos for the current user, so that
-# launchers and application menus show it (SPEC §10.14, §17).
+# launchers and application menus show it (SPEC §10.14, §17). `emetos --install-launcher` and
+# `emetos --uninstall-launcher` do the same, with no shell.
 #
 # Usage: scripts/install-desktop.sh [--exec <path to emetos>] [--uninstall]
 #
