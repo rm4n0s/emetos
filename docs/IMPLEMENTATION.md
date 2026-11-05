@@ -142,6 +142,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M25 Run and Debug | 25.1–25.13 |
 | M26 Testing | 26.1–26.10 |
 | M27 HTTP Client | 27.1–27.10 |
+| M28 A terminal as a window tab | 28.1 |
 
 ---
 
@@ -2295,3 +2296,23 @@ Requested by the user on 2026-11-01: "I would like also an extension like postma
 **Tasks:** the status, an "HTTP Client" section (collections in `.emetos/http/` shared through git, the format in short, environments and secrets in the keyring, extraction and checks, the runner, OAuth 2.0, what is not built and why: no scripts, no import or export), fresh screenshots; every link resolves.
 **Tests:** `TestREADMELinksResolve`.
 **Proof:** the README's screenshots, viewed.
+
+---
+
+## M28: A terminal as a window tab
+
+Requested by the user on 2026-11-05 ("being able to create terminal as panel and tab", clarified to mean a tab in the window's own tab strip beside the workspaces, SPEC §10.14, not an editor tab: step 17d.7 already built that one). The terminal already has a panel (step 17d.2) and an editor tab (17d.7); this milestone adds the third place VS Code does not have: a window tab of its own, using the window tab extension mechanism of step 11.7 (`Contributes.WindowTabKinds`, `api.WindowTabs().Provide`), the way `extensions/remotework` already uses it for its own tab.
+
+### 28.1 The terminal's window tab
+**Goal:** the "+" menu of the window tab strip has a **Terminal** entry that opens a single terminal, with the extension's usual pane (selection, find, shell integration, IntelliSense, persistence), as a tab beside the workspaces (SPEC §10.25 "A terminal as a window tab").
+**Read:** SPEC §10.25 (the new bullet, and "As built (step 17d.2)" for the pane and "As built (step 17d.7)" for persistence), §10.14, §10.15 "Window tab extensions" and "As built (step 11.7)"; `extensions/remotework/remotework.go` (the two-scope `Activate`, `Contributes.WindowTabKinds`) as the precedent; `extensions/terminal/pane.go`, `session.go`, `persist.go` (what to reuse); `extension/windowtabs.go`.
+**Tasks:**
+- The manifest declares `Contributes.WindowTabKinds: []extension.WindowTabKindSpec{{ID: "emetos.terminal.tab", Title: "Terminal", Icon: "terminal"}}` (default `PlusMenuLabel`, no `...`: choosing it opens a terminal at once, nothing more to ask, as Scratchpad's entry did before it was removed).
+- `Activate` runs in two scopes, as Remote Work's does: the existing one, per workspace (unchanged), and `extension.ScopeWindowTab` for a tab of the kind, where it calls `api.WindowTabs().Provide("emetos.terminal.tab", extension.WindowTabKind{Create: ...})`.
+- `Create` makes one `Terminal` (`session.go`) with no workspace: the shell and profile from `terminal.integrated.defaultProfile.linux`/`profiles.linux` read through the window tab's own `Settings` API (which resolves as in a workspace, with no folder layer); the working folder `terminal.integrated.cwd` when it is absolute, else the home folder; the environment as the panel's terminals get it, without `api.TerminalEnvironment()` contributions tied to a folder (Git's `GIT_ASKPASS`, for instance, still applies: it does not need a folder). `WindowTabContent.Build` wraps `pane.go`'s `paneView` (reused as it is: no `terminals`/`entry` structures around it, a small new type owns the one `*Terminal` and the `paneEnv` instead), with no tabs list and no split view around it (one terminal; opening the kind again from the "+" menu makes another window tab).
+- Links: the file-link detector finds nothing (no workspace folder, as for a No Folder workspace tab's terminal); web and OSC 8 links still work.
+- Persistence: `terminal.integrated.enablePersistentSessions` (true by default) serializes the terminal (`emulator.Serialize`) into `WindowTabContent.SaveState`, the same bytes the panel and editor-tab terminals save; `Create`'s `state` argument revives it (a new shell in the same folder, the saved lines, the restored-session line), reusing `persist.go`'s functions. The process ends when the window tab closes or Emetos quits, like the other kinds of terminal.
+- Closing: `WindowTab.Close()` kills the process at once (`SIGHUP`, then `SIGKILL` after 5 seconds, as every terminal); no confirmation (window tabs have no close veto, like an editor tab's terminal, D226 — nothing new here, just the same limitation in a third place).
+- Context keys, the key dispatcher (`terminalFocus`, encoding keys to the pty, `commandsToSkipShell`) and the pointer behave as in the panel's pane; `CaptureKeys` is not used (a terminal window tab is local, not another computer's screen).
+**Tests:** the manifest (the kind declared, `ExtensionWindowTabIDForeign`/`Duplicate`/`Invalid` not triggered); the "+" menu lists **Terminal** and opening it makes a tab with a running shell (`dev.openPlusMenu`, `dev.openWindowTab {"kind": "emetos.terminal.tab"}`); typing and output work in it (the fake API, as the panel's tests do); it has no file link under a fixture folder's absolute path (the home folder is used instead); it is dropped from `emetos.terminal.list`; it survives a restart with its scrollback (`persistentSessionScrollback`) when the setting is on, and does not when it is off; closing it ends the process with no question; a second **Terminal** entry opens a second, independent window tab; `TestEverythingTheStepAddsIsDeclared`-style check (as 17d.7's own) that nothing of the manifest is missed.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/28.1-terminal-window-tab.png --commands '[["dev.openWindowTab",{"kind":"emetos.terminal.tab"}],["dev.openPlusMenu"]]' -- testdata/proof/28.1/project`; the image shows a workspace tab and a Terminal window tab beside it, with the "+" menu open showing the **Terminal** entry.
