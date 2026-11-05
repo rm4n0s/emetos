@@ -87,6 +87,8 @@ var appCommands = map[string]bool{
 	// the commands of Testing (step 26.2, 26.3) and the Escape of its peek are bound by the window (gui/app/testing*.go)
 	"editor.closeTestPeek":                                true,
 	"workbench.scm.action.graph.revealCurrentHistoryItem": true, "workbench.scm.action.graph.refresh": true, "workbench.scm.action.graph.viewChanges": true,
+	// the Emetos Tutor (step 30.1) opens a workspace tab: the window binds it (gui/app/tutor.go)
+	"emetos.tutor.open": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

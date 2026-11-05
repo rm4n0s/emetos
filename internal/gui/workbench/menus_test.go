@@ -101,8 +101,8 @@ func TestBarMenusAreTheSubmenusOfTheMainMenu(t *testing.T) {
 			t.Errorf("%s: items %d, source %v", menu.Label, len(menu.Items), menu.Source != nil)
 		}
 	}
-	// Terminal and Help have no command yet and are not in the bar
-	if want := []string{"&File", "&Edit", "&Selection", "&View", "&Go"}; !reflect.DeepEqual(got, want) {
+	// Terminal has no command of the core and is not in the bar; Help has the Emetos Tutor
+	if want := []string{"&File", "&Edit", "&Selection", "&View", "&Go", "&Help"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("menus %v, want %v", got, want)
 	}
 }
@@ -374,12 +374,12 @@ func TestMenuBarShowsTheMenusAndRunsAnItem(t *testing.T) {
 	m := &menuServices{}
 	h := newMenuHarness(t, m, nil)
 	m.handle(t, "undo", "editor.action.clipboardCopyAction")
-	for _, title := range []string{"File", "Edit", "Selection", "View", "Go"} {
+	for _, title := range []string{"File", "Edit", "Selection", "View", "Go", "Help"} {
 		if !h.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("no %s in the menu bar", title)
 		}
 	}
-	for _, title := range []string{"Help", "Terminal"} {
+	for _, title := range []string{"Terminal"} {
 		if h.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("%s is in the menu bar with nothing in it", title)
 		}

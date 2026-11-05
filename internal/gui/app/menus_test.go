@@ -59,12 +59,13 @@ func (a *keyApp) devCommand(t *testing.T, id string, args any) error {
 
 func TestTheWindowHasTheMenuBarOfTheRegistry(t *testing.T) {
 	a := newKeyApp(t, "alpha\nbeta\n")
-	for _, title := range []string{"File", "Edit", "Selection", "View", "Go"} {
+	// Help has the Emetos Tutor (step 30.1)
+	for _, title := range []string{"File", "Edit", "Selection", "View", "Go", "Help"} {
 		if !a.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("no %s in the menu bar", title)
 		}
 	}
-	for _, title := range []string{"Terminal", "Help"} {
+	for _, title := range []string{"Terminal"} {
 		if a.ts.Exists(gluttertest.ByText(title)) {
 			t.Errorf("%s is in the menu bar before it has a command", title)
 		}
