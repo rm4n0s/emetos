@@ -91,7 +91,7 @@ func (w *Workspace) initState(ctx context.Context) {
 	err = w.Process.State.UpdateGlobal(ctx, func(g *storage.GlobalState) bool {
 		changed := g.LastWindow == nil || g.LastWindow.Folder != folder
 		g.LastWindow = &storage.LastWindow{Folder: folder}
-		if folder != "" {
+		if folder != "" && !w.Process.isTutorPractice(folder) {
 			changed = g.Recent.AddFolder(folder) || changed
 		}
 		return changed
@@ -114,6 +114,10 @@ func (w *Workspace) StateID() string { return w.stateID }
 // AddRecentFile notes that a file was opened: the quick open lists it first, and File > Open Recent lists it.
 func (w *Workspace) AddRecentFile(path string) {
 	w.Recent.Add(path)
+	if w.Process.isTutorPractice(path) {
+		// the practice copies of the tutor are not kept in Open Recent (SPEC §10.35)
+		return
+	}
 	w.updateRecent(func(r *storage.RecentlyOpened) bool { return r.AddFile(path) })
 }
 

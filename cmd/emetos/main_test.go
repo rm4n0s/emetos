@@ -180,7 +180,7 @@ func TestRunInstallAndUninstallLauncherWiring(t *testing.T) {
 func TestHelpListsTheLauncherFlags(t *testing.T) {
 	te := newTestEnv(t, t.TempDir())
 	run([]string{"--help"}, te.env)
-	for _, want := range []string{"--install-launcher", "--uninstall-launcher"} {
+	for _, want := range []string{"--install-launcher", "--uninstall-launcher", "--tutor"} {
 		if !strings.Contains(te.stdout.String(), want) {
 			t.Errorf("--help = %q, want it to list %s", te.stdout.String(), want)
 		}
@@ -311,6 +311,7 @@ func TestBuildOpen(t *testing.T) {
 			want: ipc.OpenArgs{Files: []ipc.FileTarget{{Path: file, Line: 2}}}},
 		{name: "diff and merge", cwd: dir, o: options{diff: []string{"a", "/b"}},
 			want: ipc.OpenArgs{Diff: []string{filepath.Join(dir, "a"), "/b"}}},
+		{name: "tutor", cwd: dir, o: options{tutor: true, profile: "work"}, want: ipc.OpenArgs{Tutor: true, Profile: "work"}},
 		{name: "merge", cwd: dir, o: options{merge: []string{"1", "2", "3", "4"}},
 			want: ipc.OpenArgs{Merge: []string{filepath.Join(dir, "1"), filepath.Join(dir, "2"), filepath.Join(dir, "3"), filepath.Join(dir, "4")}}},
 		{name: "flags", cwd: dir, o: options{wait: true, newWindow: true, profile: "p"},

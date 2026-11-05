@@ -1462,6 +1462,9 @@ func (m *Workspaces) HandleLaunch(args ipc.OpenArgs, done func(LaunchOutcome)) (
 		return w
 	}
 	switch {
+	case args.Tutor:
+		// --tutor (SPEC §10.35): a fresh practice copy in a new tab, with the keys of the active tab
+		m.openTutor(active, profile, finish)
 	case args.Folder != "":
 		forceNew := args.NewWindow || (needsProfile(active) && !active.emptyWorkspace())
 		m.openFolderWith(active, args.Folder, forceNew, args.ReuseWindow, profile, func(w *Workspace) {

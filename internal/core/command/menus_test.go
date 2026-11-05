@@ -439,8 +439,8 @@ func TestDefaultMenuBar(t *testing.T) {
 	for _, e := range menus.Items(MenubarMainMenu, ctx) {
 		bar = append(bar, e.MnemonicTitle)
 	}
-	// the menus with items so far; Terminal and Help come with their first command
-	if want := []string{"&&File", "&&Edit", "&&Selection", "&&View", "&&Go"}; !reflect.DeepEqual(bar, want) {
+	// the menus with items so far; Terminal comes with the first command of an extension, Help has the Emetos Tutor
+	if want := []string{"&&File", "&&Edit", "&&Selection", "&&View", "&&Go", "&&Help"}; !reflect.DeepEqual(bar, want) {
 		t.Errorf("menu bar %v, want %v", bar, want)
 	}
 

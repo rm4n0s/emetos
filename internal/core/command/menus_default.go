@@ -69,6 +69,8 @@ func registerMainMenu(r *MenuRegistry) {
 	} {
 		r.MustAdd(MenuItem{Menu: MenubarMainMenu, Submenu: m.submenu, Title: m.title, MnemonicTitle: m.mnemonic, Order: m.order})
 	}
+	// the first row of the Help menu: the Emetos Tutor (SPEC §10.35)
+	r.MustAdd(MenuItem{Menu: MenubarHelpMenu, Command: "emetos.tutor.open", Title: "Emetos Tutor", MnemonicTitle: "Emetos &&Tutor", Group: "1_welcome", Order: 1})
 }
 
 // registerFileMenu adds the File menu. VS Code's other rows belong to the steps that add their

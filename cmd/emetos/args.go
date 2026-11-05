@@ -22,6 +22,8 @@ type options struct {
 	profile                      string
 	// installLauncher and uninstallLauncher are --install-launcher and --uninstall-launcher.
 	installLauncher, uninstallLauncher bool
+	// tutor is --tutor (SPEC §10.35).
+	tutor bool
 	// gotos are the values of --goto (file:line[:col]), in order.
 	gotos []string
 	// diff holds the two values of --diff and merge the four of --merge.
@@ -62,6 +64,7 @@ var optionSpecs = []spec{
 	}},
 	{long: "install-launcher", apply: func(o *options, _ []string) error { o.installLauncher = true; return nil }, repeatable: true},
 	{long: "uninstall-launcher", apply: func(o *options, _ []string) error { o.uninstallLauncher = true; return nil }, repeatable: true},
+	{long: "tutor", apply: func(o *options, _ []string) error { o.tutor = true; return nil }, repeatable: true},
 	{long: "log", values: 1, apply: func(o *options, v []string) error {
 		if err := o.level.UnmarshalText([]byte(strings.ToUpper(v[0]))); err != nil {
 			return errors.New("LogLevelInvalid", "the log level is not debug, info, warn or error", "level", v[0])
@@ -152,6 +155,9 @@ func parseArgs(args []string) (options, error) {
 	}
 	if o.installLauncher && o.uninstallLauncher {
 		return options{}, errors.New("ArgsConflict", "--install-launcher and --uninstall-launcher cannot be used together")
+	}
+	if o.tutor && (len(o.paths) > 0 || len(o.gotos) > 0 || len(o.diff) > 0 || len(o.merge) > 0 || o.wait) {
+		return options{}, errors.New("ArgsConflict", "--tutor takes no files or folders")
 	}
 	return o, nil
 }

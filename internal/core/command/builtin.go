@@ -703,6 +703,8 @@ func registerSaveCommands(r *Registry) {
 		Meta{ID: "workbench.action.files.revert", Title: "Revert File", Category: "File"},
 		Meta{ID: "workbench.action.files.newUntitledFile", Title: "New Untitled Text File", Category: "File",
 			Description: "New Untitled Text File"},
+		Meta{ID: "emetos.tutor.open", Title: "Emetos Tutor", Category: "Help",
+			Description: "Learn Emetos with a practice copy of its lessons, in a new workspace tab"},
 		Meta{ID: "workbench.action.toggleAutoSave", Title: "Toggle Auto Save", Category: "File",
 			Description: "Toggle the ability to save files automatically after typing"},
 	)

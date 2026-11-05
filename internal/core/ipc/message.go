@@ -60,6 +60,9 @@ type OpenArgs struct {
 	ReuseWindow bool `json:"reuseWindow,omitempty"`
 	// Profile is the name given to --profile, or empty.
 	Profile string `json:"profile,omitempty"`
+	// Tutor is --tutor: open a fresh practice copy of the Emetos Tutor in a new tab (SPEC §10.35). It comes with no
+	// folder and no files.
+	Tutor bool `json:"tutor,omitempty"`
 }
 
 // FileTarget is a file to open and the position to show in it.

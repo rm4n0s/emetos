@@ -150,6 +150,9 @@ func (s *shellState) initSave(binding *widgets.WidgetsBinding) {
 	for id, h := range s.autoSaveCommands() {
 		handlers[id] = h
 	}
+	for id, h := range s.tutorCommands() {
+		handlers[id] = h
+	}
 	for id, h := range handlers {
 		remove, err := win.Commands.SetHandler(id, h)
 		if err != nil {

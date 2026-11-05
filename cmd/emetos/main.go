@@ -53,6 +53,7 @@ Options:
   -n, --new-window                open in a new tab
   -r, --reuse-window              open in the existing window
       --profile name              use the profile (made empty when it does not exist)
+      --tutor                     learn Emetos: open a fresh practice copy of the Emetos Tutor
       --log level                 log level: debug, info, warn or error (default info)
       --install-launcher          add Emetos to the application menu and launcher (a desktop
                                   entry and icon under $XDG_DATA_HOME) and exit
@@ -181,7 +182,7 @@ func buildOpen(o options, cwd string, stat func(string) (fs.FileInfo, error)) (i
 		}
 		return filepath.Join(cwd, p), nil
 	}
-	open := ipc.OpenArgs{Wait: o.wait, NewWindow: o.newWindow, ReuseWindow: o.reuseWindow, Profile: o.profile}
+	open := ipc.OpenArgs{Wait: o.wait, NewWindow: o.newWindow, ReuseWindow: o.reuseWindow, Profile: o.profile, Tutor: o.tutor}
 	for _, p := range o.paths {
 		full, err := abs(p)
 		if err != nil {

@@ -223,6 +223,9 @@ func (s *shellState) initLaunch(binding *widgets.WidgetsBinding) {
 		s.launchExtras(*st)
 		w := newLaunchWait(func(LaunchOutcome) {})
 		s.openLaunchDiff(st.Diff, w, func() { s.openLaunchMerge(st.Merge, w, func() {}) })
+		if st.Tutor {
+			win.Process.Workspaces.openTutor(win, st.Profile, nil)
+		}
 	}
 	win.markReady()
 }
