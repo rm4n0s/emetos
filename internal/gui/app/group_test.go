@@ -386,8 +386,8 @@ func TestClosingTheActiveEditorActivatesTheMostRecentlyUsed(t *testing.T) {
 func TestTheLastClosingEditorShowsTheEmptyState(t *testing.T) {
 	a := newGroupApp(t, []string{"a.go"}, "a.go")
 	a.press("ctrl+w")
-	if a.ts.Exists(gluttertest.ByType[*editor.Editor]()) || a.ts.Exists(editorTabs()) {
-		t.Error("the editor or the tabs are still there")
+	if a.ts.Exists(gluttertest.ByType[*editor.Editor]()) || len(a.tabs()) != 0 {
+		t.Error("the editor or a tab is still there (the strip stays, with the + button alone)")
 	}
 	if err := gluttertest.FindsOneWidget(a.ts, gluttertest.ByText("Emetos")); err != nil {
 		t.Error("the logo and the name are shown:", err)

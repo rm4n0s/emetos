@@ -161,7 +161,7 @@ func registerDevCommands(r *command.Registry) {
 		{ID: "dev.openDiff", Description: `Open a comparison of two files in the active group. Arguments: {"original": ..., "modified": ...}.`},
 		{ID: "dev.openMergeEditor", Description: `Open a file with conflict markers in the merge editor. Arguments: {"path": ...}.`},
 		{ID: "dev.acceptMerge", Description: `Resolve a conflict of the merge editor. Arguments: {"conflict": ..., "side": "incoming"|"current"|"both"|"base"}.`},
-		{ID: "dev.openMenu", Description: "Open a menu of the window: one of the menu bar, the Manage menu or the context menu of the editor."},
+		{ID: "dev.openMenu", Description: "Open a menu of the window: one of the menu bar, the Manage menu, the context menu of the editor, or the menu of the \"+\" of a group (EditorTabsNew, with {\"groupId\": n})."},
 		{ID: "dev.openFolderInNewTab", Description: `Open a folder in a new workspace tab. Arguments: {"path": ...}.`},
 		{ID: "dev.activateWindowTab", Description: `Make the tab at a place of the strip, counted from 0, the active one. Arguments: {"index": ...}.`},
 		{ID: "dev.openWindowTab", Description: `Open a window tab of an extension. Arguments: {"kind": ...}.`},

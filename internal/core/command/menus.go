@@ -51,6 +51,9 @@ const (
 	EditorContextPeek = "EditorContextPeek"
 	// EditorTitleContext is the context menu of a tab of the editor.
 	EditorTitleContext = "EditorTitleContext"
+	// EditorTabsNew is the menu of the "+" button after the last tab of an editor group (step 29.1, SPEC §10.3): one row for
+	// each kind of editor that can be made. Emetos's own; VS Code has no such menu.
+	EditorTabsNew = "EditorTabsNew"
 	// EditorSplitMoveSubmenu is the Split & Move submenu of the context menu of a tab.
 	EditorSplitMoveSubmenu = "EditorSplitMoveSubmenu"
 	// WorkspaceTabContext is the context menu of a workspace tab in the title bar (step 9b.2, SPEC §10.14).

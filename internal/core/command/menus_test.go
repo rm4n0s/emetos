@@ -1261,3 +1261,52 @@ func TestMenuForkIsIndependent(t *testing.T) {
 		t.Errorf("fork after remove = %v", got)
 	}
 }
+
+// TestEditorTabsNewMenu checks the menu of the "+" button of an editor group (step 29.1): the core has New Text File, an extension's
+// row comes after it behind a separator, and a row whose when-clause does not hold is hidden.
+func TestEditorTabsNewMenu(t *testing.T) {
+	commands := DefaultRegistry()
+	menus := DefaultMenus(commands)
+	if EditorTabsNew != "EditorTabsNew" {
+		t.Errorf("the id is %q", EditorTabsNew)
+	}
+	for _, id := range []string{"ext.newThing", "ext.hidden"} {
+		if err := commands.Register(Meta{ID: id, Title: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	menus.MustAdd(
+		MenuItem{Menu: EditorTabsNew, Command: "ext.newThing", Title: "New Thing", Group: "2_thing"},
+		MenuItem{Menu: EditorTabsNew, Command: "ext.hidden", Title: "Hidden", Group: "2_thing", Order: 2, When: contextkey.Has("ext.shown")},
+	)
+	rows := func(ctx contextkey.Context) []string {
+		var out []string
+		for _, e := range menus.Items(EditorTabsNew, ctx) {
+			if e.Separator {
+				out = append(out, "-")
+			} else {
+				out = append(out, e.Title)
+			}
+		}
+		return out
+	}
+	tests := []struct {
+		name string
+		ctx  contextkey.MapContext
+		want []string
+	}{
+		{"the core row first, the extension's after a separator", contextkey.MapContext{}, []string{"New Text File", "-", "New Thing"}},
+		{"a when-clause shows a row", contextkey.MapContext{"ext.shown": true}, []string{"New Text File", "-", "New Thing", "Hidden"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := rows(tt.ctx); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+	first := menus.Items(EditorTabsNew, contextkey.MapContext{})[0]
+	if first.Command != "workbench.action.files.newUntitledFile" {
+		t.Errorf("the first row runs %q", first.Command)
+	}
+}

@@ -45,6 +45,20 @@ func inActiveTab(e widgets.Element) bool {
 	return active
 }
 
+// inEditorTabs tells whether an element is in the tab strip of an editor group (not in the strip of workspace tabs), where the new-editor
+// button has the same icon (step 29.1).
+func inEditorTabs(e widgets.Element) bool {
+	found := false
+	e.VisitAncestorElements(func(a widgets.Element) bool {
+		if t, ok := a.Widget().(*kit.Tabs); ok && t.TitleBar() == nil {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
 // stripFinder finds the strip of workspace tabs that is shown.
 func stripFinder() gluttertest.Finder {
 	return gluttertest.ByElementPredicate("the strip of workspace tabs that is shown", func(e widgets.Element) bool {
@@ -83,7 +97,7 @@ func plusIcon() gluttertest.Finder {
 	icon := fonts.CodiconIcon(fonts.CodiconAdd)
 	return gluttertest.ByElementPredicate("the + button that is shown", func(e widgets.Element) bool {
 		w, ok := e.Widget().(gluttertest.IconWidget)
-		return ok && w.IconValue() == icon && inActiveTab(e)
+		return ok && w.IconValue() == icon && inActiveTab(e) && !inEditorTabs(e)
 	})
 }
 

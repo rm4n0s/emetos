@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/glutter/desktop"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/edit"
@@ -804,20 +805,27 @@ func (w *Workspace) NewUntitled(languageID, activeLanguage string) *document.Doc
 }
 
 // newUntitled opens a new untitled file in the active group, kept (not a preview) and with the keyboard focus.
-// Its argument may be {"languageId": "go"}.
+// Its argument may be {"languageId": "go"} and {"groupId": n}: the file opens in that group (the "+" button of a tab
+// strip passes it, SPEC §10.3), else in the active group.
 func (s *shellState) newUntitled(binding *widgets.WidgetsBinding, args any) {
 	win := PeekWorkspace(s.Context())
 	languageID := ""
 	if m, ok := args.(map[string]any); ok {
 		languageID, _ = m["languageId"].(string)
 	}
+	group := s.activeGroup()
+	if id := extension.GroupOfArgs(args); id != 0 {
+		if g := s.group.grid.Group(id); g != nil {
+			group = g
+		}
+	}
 	active := ""
-	if e := s.activeEditor(); e != nil {
+	if e := s.group.editors[group.Model.ActiveEditor()]; e != nil {
 		active = e.doc.LanguageID()
 	}
 	doc := win.NewUntitled(languageID, active)
 	win.Documents.Retain(doc)
-	s.show(binding, doc, openOptions{})
+	s.show(binding, doc, openOptions{Group: group})
 	s.askFocus(binding)
 }
 

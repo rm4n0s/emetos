@@ -42,6 +42,8 @@ type groupView struct {
 	feedback *kit.TabDropFeedback
 	area     kit.Bounds
 	tabMenu  *kit.ContextMenuController
+	// plus is where the "+" button of the strip is (tabsnew.go).
+	plus kit.Bounds
 	// overflow is where the "..." button of the title actions is (exttitle.go).
 	overflow kit.Bounds
 }
@@ -271,7 +273,13 @@ func (s *shellState) emptyGroup(bc widgets.BuildContext, group *editorgroup.Grou
 		side := painting.NewBorderSide(painting.BorderSideOpts{Color: foundation.Some(colors.EditorGroupFocusedEmptyBorder), Width: foundation.Some(1.0)})
 		deco = painting.NewBoxDecoration(painting.BoxDecorationOpts{Color: foundation.Some(background), Border: painting.Border{Top: side, Right: side, Bottom: side, Left: side}})
 	}
-	return widgets.NewContainer(focused, widgets.ContainerOpts{Decoration: deco})
+	body := widgets.NewContainer(focused, widgets.ContainerOpts{Decoration: deco})
+	// the strip of an empty group has no tab, only the "+" (step 29.1)
+	strip := s.tabStrip(bc, PeekWorkspace(bc), group)
+	if strip == nil {
+		return body
+	}
+	return widgets.NewColumn([]widgets.Widget{strip, widgets.NewExpanded(body)}, widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
 }
 
 // tabItems are the tabs of a group, in order: the label and the state of each editor. Editors that
@@ -325,6 +333,7 @@ func (s *shellState) tabsOptions(win *Workspace, group *editorgroup.Group) kit.T
 		Controller:        s.view(group).tabs,
 	}
 	opts.Actions = s.titleActions(win, group)
+	opts.Trailing = s.newEditorButton(group)
 	// the close button: the old setting tabCloseButton is honored with the two that replace it
 	button := settings.Get[string](win.Settings, "workbench.editor.tabCloseButton", "")
 	switch {

@@ -528,6 +528,9 @@ func registerWorkspaceTabMenus(r *MenuRegistry) {
 
 		MenuItem{Menu: WorkspaceTabNew, Command: "emetos.workspaceTab.openFolder", Title: "Workspace...", Group: "1_new", Order: 10},
 
+		// the "+" of an editor group's tab strip (step 29.1, SPEC §10.3); the extensions add their kinds of editor in later groups
+		MenuItem{Menu: EditorTabsNew, Command: "workbench.action.files.newUntitledFile", Title: "New Text File", Group: "1_new", Order: 1},
+
 		// the View menu's Workspace Tabs submenu (step 9b.5). The keys workspaceTabCount, workspaceTabIsFirst and
 		// workspaceTabIsLast are the window's own, for the active tab.
 		MenuItem{Menu: MenubarViewMenu, Submenu: MenubarWorkspaceTabsMenu, Title: "Workspace Tabs", MnemonicTitle: "Workspace &&Tabs", Group: "2_appearance", Order: 3},

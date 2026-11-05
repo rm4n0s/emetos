@@ -173,6 +173,10 @@ type TabsOpts struct {
 	// title actions of the extensions (SPEC §10.15). It is given the width of the whole strip, so that it can decide how
 	// many icons fit, and is centered in the height of the strip; it may return nil for none.
 	Actions func(width float64) widgets.Widget
+	// Trailing, when set, is a widget after the last tab (the new-editor "+" button of an editor group, SPEC §10.3): it
+	// follows the last tab, and when the tabs overflow it stays visible at the right end of the scrolling area, left of
+	// Actions. With TabsSingle it follows the title; a strip with no tabs shows it alone.
+	Trailing widgets.Widget
 	// TitleBar, when set, makes the strip the workspace tabs of the title bar (SPEC §10.14): tabs between MinWidth and
 	// MaxWidth that shrink to MinWidth before the strip scrolls, an inactive tab on the background of the row (it has no
 	// background of its own and no lines), the active tab with its top line only, the close button on the active tab
@@ -278,6 +282,14 @@ func (t *Tabs) Build(bc widgets.BuildContext) widgets.Widget {
 	var strip widgets.Widget = NewScrollableElement(
 		widgets.NewRow(children, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}),
 		scrollOpts)
+	if t.opts.Trailing != nil {
+		// The scrolling area is as wide as its tabs (at most the room left by the button), so the button follows the last tab
+		// and stays in view when the tabs overflow.
+		strip = widgets.NewRow([]widgets.Widget{
+			widgets.NewFlexible(widgets.NewIntrinsicWidth(strip)),
+			widgets.NewCenter(t.opts.Trailing),
+		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})
+	}
 	layers := []widgets.Widget{}
 	if colors.EditorGroupHeaderTabsBorder.Alpha() != 0 {
 		// along the bottom, where there are no tabs; every tab draws its own part of it
@@ -436,6 +448,9 @@ func (t *Tabs) buildSingle(bc widgets.BuildContext, colors Colors) widgets.Widge
 			row = append(row, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(tabIconGap, 0, 0, 0),
 				widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconCircleFilled), widgets.IconOpts{Size: foundation.Some(tabIconSize), Color: foundation.Some(fg)})))
 		}
+		if t.opts.Trailing != nil {
+			row = append(row, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(singleTabPadding, 0, 0, 0), t.opts.Trailing))
+		}
 		body = widgets.NewAlign(
 			widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(singleTabPadding, 0, singleTabPadding, 0),
 				widgets.NewRow(row, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})),
@@ -443,6 +458,10 @@ func (t *Tabs) buildSingle(bc widgets.BuildContext, colors Colors) widgets.Widge
 		if it.Title != "" {
 			body = NewHover(body, HoverOpts{Text: it.Title, Compact: true})
 		}
+	} else if t.opts.Trailing != nil {
+		// no tab to show: the button alone
+		body = widgets.NewAlign(widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(singleTabPadding, 0, 0, 0), t.opts.Trailing),
+			widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})
 	}
 	if t.opts.Actions != nil {
 		title := body

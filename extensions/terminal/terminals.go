@@ -242,6 +242,8 @@ type openOpts struct {
 	// quiet makes the terminal without showing the panel, giving it the keyboard or making it the active tab: a terminal an
 	// extension asked for without `show` does not take the screen of the person at the computer.
 	quiet bool
+	// group is the editor group an editor tab opens in; 0 is the active group (step 29.1).
+	group int
 	// location is where the terminal goes: "view" the panel, "editor" an editor tab, empty the setting
 	// terminal.integrated.defaultLocation (the panel for a quiet terminal).
 	location string
@@ -258,7 +260,7 @@ func (t *terminals) open(o openOpts) (*entry, error) {
 	}
 	loc := t.locationFor(o)
 	if loc == locEditor {
-		if err := t.placeInEditor(e, extension.EditorOpenOptions{}); err != nil {
+		if err := t.placeInEditor(e, extension.EditorOpenOptions{Group: o.group}); err != nil {
 			t.api.Log().Warn("the terminal cannot be shown in an editor tab, it goes to the panel", "err", err)
 			loc = locView
 		}

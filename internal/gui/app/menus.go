@@ -8,6 +8,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/contextkey"
 	"github.com/rm4n0s/emetos/internal/core/settings"
@@ -192,6 +193,15 @@ func (s *shellState) devOpenMenu(args any) error {
 		s.menuBar.Open(s.menus.BarIndex(id))
 	case id == command.GlobalActivity:
 		s.manage.Open()
+	case id == command.EditorTabsNew:
+		// the menu of the "+" of a group: {"id": "EditorTabsNew", "groupId": n}, the active group without it
+		group := s.activeGroup()
+		if g := s.group.grid.Group(extension.GroupOfArgs(args)); g != nil {
+			group = g
+		}
+		if !s.openTabsNewMenu(group) {
+			return errors.New("DevOpenTabsNewMenuUnavailable", "the strip of the group is not on screen, or the menu has no row", "group", group.ID())
+		}
 	case id == command.EditorContext:
 		s.editorMenu.Show(at, s.editorMenuItems(s.activeEditor()))
 	default:

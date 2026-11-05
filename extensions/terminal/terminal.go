@@ -163,7 +163,10 @@ func (*terminals) Manifest() extension.Manifest {
 			},
 			Menus: []extension.MenuItem{
 				{Menu: extension.MenuTerminal, Command: CmdNew, Title: "New Terminal", Group: "1_create", Order: 1},
-				{Menu: extension.MenuTerminal, Command: CmdSplit, Title: "Split Terminal", Group: "1_create", Order: 2},
+				{Menu: extension.MenuTerminal, Command: CmdCreateEditor, Title: "New Terminal in Editor Area", Group: "1_create", Order: 2},
+				{Menu: extension.MenuTerminal, Command: CmdSplit, Title: "Split Terminal", Group: "1_create", Order: 3},
+				// the "+" of the tab strip of an editor group (step 29.1): the terminal opens as a tab of that group
+				{Menu: extension.MenuEditorTabsNew, Command: CmdCreateEditor, Title: "New Terminal", Group: "2_terminal"},
 			},
 		},
 	}
@@ -434,7 +437,7 @@ func (t *terminals) pickProfile() {
 		return
 	}
 	def := t.defaultProfile()
-	items := make([]extension.QuickPickItem, len(profiles))
+	items := make([]extension.QuickPickItem, len(profiles), len(profiles)+2)
 	for i, p := range profiles {
 		icon := p.icon
 		if _, ok := ui.CodiconCode(icon); !ok {
@@ -445,7 +448,13 @@ func (t *terminals) pickProfile() {
 			items[i].Detail = "default"
 		}
 	}
+	// after the profiles, a separator and the row that opens the default profile in an editor tab (step 29.1)
+	items = append(items, extension.QuickPickItem{Label: " ", Separator: true}, extension.QuickPickItem{Label: "$(terminal) New Terminal in Editor Area"})
 	err := t.api.QuickPick().Show(extension.QuickPickOptions{Placeholder: "Select the terminal profile to create", Items: items, MatchOnDescription: true}, func(i int) {
+		if i == len(profiles)+1 {
+			t.createEditor(nil)
+			return
+		}
 		if i < 0 || i >= len(profiles) {
 			return
 		}

@@ -63,6 +63,11 @@ func (e *exExt) Manifest() extension.Manifest {
 	m.Contributes.Commands = []extension.CommandSpec{{ID: "ex.newCard", Title: "New Card"}, {ID: "ex.markdown", Title: "Markdown Only"}, {ID: "ex.cardSave", Title: "Save Card"}}
 	m.Contributes.Keybindings = []extension.Keybinding{{Command: "ex.cardSave", Key: "ctrl+s", When: "activeEditorKind == 'ex.card'"}}
 	m.Contributes.EditorKinds = []extension.EditorKindSpec{{ID: "ex.card", Name: "Card", Icon: "note"}}
+	// the "+" of a tab strip (step 29.1): one row always, one whose when-clause does not hold
+	m.Contributes.Menus = []extension.MenuItem{
+		{Menu: extension.MenuEditorTabsNew, Command: "ex.newCard", Title: "New Card", Group: "2_ex"},
+		{Menu: extension.MenuEditorTabsNew, Command: "ex.markdown", Title: "Never Shown", Group: "2_ex", Order: 2, When: "ex.neverTrue"},
+	}
 	m.Contributes.EditorActions = []extension.EditorActionSpec{
 		{Command: "ex.newCard", Icon: "new-file", Tooltip: "New Card", Order: 1},
 		{Command: "ex.markdown", Icon: "open-preview", Tooltip: "Markdown Only", When: "resourceLangId == markdown", Order: 2},
@@ -198,7 +203,7 @@ func (r *stateRun) stripButtons(index int) []string {
 	var out []string
 	tabs := gluttertest.At(editorTabs(), index)
 	for _, e := range r.ts.Elements(gluttertest.Descendant(tabs, gluttertest.ByType[*kit.IconButton]())) {
-		if b, ok := e.Widget().(*kit.IconButton); ok && b.Tooltip() != "" {
+		if b, ok := e.Widget().(*kit.IconButton); ok && b.Tooltip() != "" && b.Tooltip() != newEditorTooltip { // the "+" is not a title action
 			out = append(out, b.Tooltip())
 		}
 	}

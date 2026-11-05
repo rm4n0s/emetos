@@ -235,8 +235,9 @@ func (t *terminals) openIn(dir string) {
 }
 
 // createEditor is the command Create New Terminal in Editor Area; its argument may be a profile name or {profileName, cwd, name}.
+// {"groupId": n} (alone or beside those keys) opens the tab in that group, as the "+" of a tab strip asks (step 29.1).
 func (t *terminals) createEditor(args any) {
-	o := openOpts{location: locEditor}
+	o := openOpts{location: locEditor, group: extension.GroupOfArgs(args)}
 	switch a := args.(type) {
 	case string:
 		o.profile = t.profileNamed(a)

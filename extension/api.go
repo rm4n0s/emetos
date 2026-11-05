@@ -152,6 +152,11 @@ const (
 	MenuHelp      = "MenubarHelpMenu"
 	// MenuTerminal is the Terminal menu of the menu bar, which has an item only when an extension adds one.
 	MenuTerminal = "MenubarTerminalMenu"
+	// MenuEditorTabsNew is the menu of the "+" button after the last tab of an editor group, with a row for each kind of
+	// editor that can be made; the core has New Text File, and the groups of the others are ordered after it ("2_terminal").
+	// An item of an extension in it runs its command with {"groupId": n}, the group whose button was pressed
+	// (GroupOfArgs reads it), so that the editor opens in that group. The value is Emetos's own name.
+	MenuEditorTabsNew = "EditorTabsNew"
 	// MenuManage is the Manage menu: the gear at the bottom of the activity bar.
 	MenuManage = "GlobalActivity"
 	// MenuEditorContext is the context menu of the text editor.

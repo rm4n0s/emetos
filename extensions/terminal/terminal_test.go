@@ -238,7 +238,7 @@ func TestNewWithArgumentsAndProfiles(t *testing.T) {
 	if pick == nil {
 		t.Fatal("no quick pick of profiles")
 	}
-	if labels := pick.Labels(); len(labels) != 1 || !strings.Contains(labels[0], "test") {
+	if labels := pick.Labels(); len(labels) != 3 || !strings.Contains(labels[0], "test") || !strings.Contains(labels[2], "New Terminal in Editor Area") {
 		t.Errorf("the profiles are %q", labels)
 	}
 	pick.Choose(0)
