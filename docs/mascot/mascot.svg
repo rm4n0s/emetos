@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1000" height="560" viewBox="70 200 1000 560">
+  <defs>
+    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7FD6C8"/>
+      <stop offset="1" stop-color="#2F9A93"/>
+    </linearGradient>
+    <linearGradient id="furHead" gradientUnits="userSpaceOnUse" x1="0" y1="290" x2="0" y2="600">
+      <stop offset="0" stop-color="#8BDCCF"/>
+      <stop offset="1" stop-color="#3FA79F"/>
+    </linearGradient>
+  </defs>
+
+  <ellipse cx="470" cy="684" rx="300" ry="20" fill="#000" opacity="0.12"/>
+  <ellipse cx="900" cy="712" rx="95" ry="12" fill="#000" opacity="0.10"/>
+
+  <g stroke="#1F6F69" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M 290 655 C 150 665 105 570 150 500 C 178 458 222 470 208 512" fill="none" stroke="#1F6F69" stroke-width="54"/>
+    <path d="M 290 655 C 150 665 105 570 150 500 C 178 458 222 470 208 512" fill="none" stroke="#3FA79F" stroke-width="38"/>
+
+    <path d="M 255 672 C 195 600 225 430 370 372 C 505 322 615 360 660 452 C 690 520 680 610 650 672 Z" fill="url(#fur)"/>
+    <path d="M 245 640 C 245 560 320 520 390 545 C 445 565 450 640 420 672" fill="none"/>
+    <ellipse cx="400" cy="672" rx="62" ry="22" fill="#5FC0B4"/>
+
+    <rect x="565" y="520" width="52" height="160" rx="26" fill="#4FB2A8"/>
+    <rect x="625" y="510" width="54" height="170" rx="27" fill="#5FC0B4"/>
+    <ellipse cx="594" cy="680" rx="40" ry="17" fill="#6FCABE"/>
+    <ellipse cx="655" cy="680" rx="42" ry="17" fill="#7FD3C6"/>
+
+    <g transform="rotate(16 750 450)">
+      <path d="M 655 395 L 668 278 L 742 343 Z" fill="url(#furHead)"/>
+      <path d="M 770 340 L 852 272 L 862 392 Z" fill="url(#furHead)"/>
+      <path d="M 672 372 L 680 308 L 722 346 Z" fill="#2A8A83" stroke="none"/>
+      <path d="M 792 345 L 842 307 L 848 372 Z" fill="#2A8A83" stroke="none"/>
+      <ellipse cx="760" cy="455" rx="132" ry="120" fill="url(#furHead)"/>
+
+      <path d="M 710 420 L 742 437 L 710 454" fill="none" stroke="#174E4A" stroke-width="9"/>
+      <path d="M 848 420 L 816 437 L 848 454" fill="none" stroke="#174E4A" stroke-width="9"/>
+      <ellipse cx="702" cy="488" rx="20" ry="11" fill="#F58F8F" opacity="0.8" stroke="none"/>
+      <path d="M 770 462 L 794 462 L 782 475 Z" fill="#E98A97" stroke="#B35C69" stroke-width="4"/>
+      <g stroke="#1F6F69" stroke-width="4" fill="none">
+        <path d="M 690 482 L 615 468"/>
+        <path d="M 690 496 L 617 500"/>
+      </g>
+      <!-- the mouth, wide open, retching -->
+      <ellipse cx="800" cy="522" rx="44" ry="38" fill="#174E4A"/>
+      <path d="M 772 545 C 780 572 812 578 822 552" fill="#E98A97" stroke="#B35C69" stroke-width="4"/>
+    </g>
+  </g>
+
+  <!-- the hairball coming out -->
+  <image xlink:href="hairball.png" href="hairball.png" x="770" y="482" width="200" height="188"/>
+
+  <!-- droplets flying off -->
+  <g fill="#D7F1F7" stroke="#5A9FB5" stroke-width="3">
+    <circle cx="985" cy="520" r="9"/>
+    <circle cx="1010" cy="560" r="6"/>
+    <circle cx="975" cy="610" r="7"/>
+  </g>
+
+  <g stroke="#2F9A93" stroke-width="7" stroke-linecap="round" fill="none">
+    <path d="M 875 290 L 905 255"/>
+    <path d="M 915 325 L 955 305"/>
+    <path d="M 828 268 L 832 226"/>
+  </g>
+  <path d="M 640 330 C 628 352 624 368 640 372 C 656 368 652 352 640 330 Z" fill="#BFE9F5" stroke="#5A9FB5" stroke-width="4"/>
+</svg>
