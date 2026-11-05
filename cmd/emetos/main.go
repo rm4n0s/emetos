@@ -395,9 +395,9 @@ func describe(err error) string {
 
 // devVersion is the version printed by a build that carries no module version: `go build` or `go run` in
 // a checkout that Go cannot stamp (Go reports "(devel)" or nothing). A build made by `go install
-// ...@v0.1.0` or from a tagged checkout carries its tag, which is printed instead, so this changes only
+// ...@v1.0.0` or from a tagged checkout carries its tag, which is printed instead, so this changes only
 // when the next development cycle starts.
-const devVersion = "v0.1.0-dev"
+const devVersion = "v1.0.1-dev"
 
 // versionString is the version line of --version: the module version and VCS
 // revision from the build, and the Go version and platform.

@@ -8,7 +8,7 @@ It follows VS Code where VS Code has the behavior: the same settings, command id
 
 ## Status
 
-**The last release is v0.1.0**, which holds areas 1 and 2 of [the specification](docs/SPEC.md) (the editor and the workbench). **`main` is ahead of it** and has no release of its own yet: this README describes `main`. A build of `main` calls itself by Go's version stamp (a pseudo-version), or `v0.1.0-dev` when it has none (`emetos --version`).
+**The last release is v1.0.0**, which holds everything below (milestones M0 to M27). `v0.1.0` was the first release, areas 1 and 2 only (the editor and the workbench). This README describes `main`, which may be a little ahead of v1.0.0 with small fixes. A build of `main` calls itself by Go's version stamp (a pseudo-version), or `v1.0.1-dev` when it has none (`emetos --version`).
 
 What is built (milestones M0 to M27 of [SPEC §18](docs/SPEC.md#18-milestones); M23 only removed an extension):
 - **The editor and the workbench** (areas 1 and 2, M0 to M10). [The coverage table](docs/IMPLEMENTED.md#coverage-of-areas-1-2-3-and-11) lists every row of areas 1, 2, 3 and 11 with its tests and what is partial.
@@ -67,7 +67,7 @@ go run ./cmd/emetos .                    # build and run a debug build in one go
 go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@main
 ```
 
-This builds `main`, which is what this README describes; `@latest` gives the release **v0.1.0**, which has only areas 1 and 2 (no language servers, no extensions, no Remote Work). From a checkout, `go install -tags glutter_release ./cmd/emetos` does the same. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
+This builds `main`, which is what this README describes; `@latest` gives the release **v1.0.0**, which holds everything below (`@v0.1.0` gives the first release, areas 1 and 2 only: no language servers, no extensions, no Remote Work). From a checkout, `go install -tags glutter_release ./cmd/emetos` does the same. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
 
 ### Update
 
