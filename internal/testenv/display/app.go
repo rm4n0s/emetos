@@ -705,23 +705,43 @@ func (a *App) Text(text string) (app.DevText, bool) {
 	return best, found
 }
 
-// ClickText clicks the middle of the run of text on screen that is exactly text; the test fails when there is none.
+// SteadyText finds the text that find returns and waits until it stays where it is for two reads 80 ms apart, for at most five
+// seconds: a view that is still being built or laid out (a list that fills, a button that moves when its neighbours appear) has the
+// text on one frame and somewhere else on the next, and a click at the place of the first lands on the wrong thing or on nothing.
+// The test fails with the texts on screen when there is none.
+func (a *App) SteadyText(what string, find func() (app.DevText, bool)) app.DevText {
+	a.t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	var last app.DevText
+	seen := false
+	for {
+		tx, ok := find()
+		if ok && seen && tx.X == last.X && tx.Y == last.Y && tx.Width == last.Width {
+			return tx
+		}
+		last, seen = tx, ok
+		if time.Now().After(deadline) {
+			if ok {
+				return tx // it keeps moving (an animation): click where it is
+			}
+			a.t.Fatalf("no text %q on screen; on screen: %s", what, a.shown())
+		}
+		time.Sleep(80 * time.Millisecond)
+	}
+}
+
+// ClickText clicks the middle of the run of text on screen that is exactly text, once it is on screen and has stopped moving; the
+// test fails when it does not show up.
 func (a *App) ClickText(text string) {
 	a.t.Helper()
-	tx, ok := a.Text(text)
-	if !ok {
-		a.t.Fatalf("no text %q on screen; on screen: %s", text, a.shown())
-	}
+	tx := a.SteadyText(text, func() (app.DevText, bool) { return a.Text(text) })
 	a.Click(tx.X+tx.Width/2, tx.Y+tx.Height/2)
 }
 
-// RightClickText right-clicks the middle of the run of text that is exactly text.
+// RightClickText right-clicks the middle of the run of text that is exactly text, as ClickText does.
 func (a *App) RightClickText(text string) {
 	a.t.Helper()
-	tx, ok := a.Text(text)
-	if !ok {
-		a.t.Fatalf("no text %q on screen; on screen: %s", text, a.shown())
-	}
+	tx := a.SteadyText(text, func() (app.DevText, bool) { return a.Text(text) })
 	a.RightClick(tx.X+tx.Width/2, tx.Y+tx.Height/2)
 }
 

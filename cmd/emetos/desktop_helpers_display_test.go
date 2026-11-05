@@ -43,10 +43,7 @@ func textWhere(a *display.App, text string, keep func(app.DevText) bool) (app.De
 // clickTextWhere clicks the text that passes keep; the test fails when there is none.
 func clickTextWhere(t *testing.T, a *display.App, text string, keep func(app.DevText) bool) {
 	t.Helper()
-	tx, ok := textWhere(a, text, keep)
-	if !ok {
-		t.Fatalf("no text %q on screen (that passes the filter)", text)
-	}
+	tx := a.SteadyText(text+" (that passes the filter)", func() (app.DevText, bool) { return textWhere(a, text, keep) })
 	a.Click(tx.X+tx.Width/2, tx.Y+tx.Height/2)
 }
 

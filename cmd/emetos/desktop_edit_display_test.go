@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/rm4n0s/emetos/internal/gui/app"
 	"github.com/rm4n0s/emetos/internal/testenv/display"
 )
 
@@ -21,6 +23,21 @@ func startGoApp(t *testing.T, opts goplsOptions) *display.App {
 		Args: []string{".", "app.go"}, Project: map[string]string{"app.go": goApp}, Prepare: withFakeGopls(t, opts),
 	})
 	a.Settle()
+	// The clicks of the tests are at places computed from the layout (editorLine, editorColumnX): wait until the first line of the
+	// file has stopped moving (the gutter, the breadcrumbs and the tabs settle as the views and the language server answer).
+	// A test that is not fooled by the layout does not fail here: the wait ends after two seconds.
+	deadline := time.Now().Add(2 * time.Second)
+	var last app.DevText
+	for stable := 0; stable < 3 && time.Now().Before(deadline); {
+		tx, ok := a.Text("package")
+		if ok && tx == last {
+			stable++
+		} else {
+			stable = 0
+		}
+		last = tx
+		time.Sleep(80 * time.Millisecond)
+	}
 	return a
 }
 

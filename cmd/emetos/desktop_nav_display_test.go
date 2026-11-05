@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rm4n0s/emetos/internal/gui/app"
 	"github.com/rm4n0s/emetos/internal/testenv/display"
 )
 
@@ -106,10 +107,11 @@ func TestDesktopFindAndReplace(t *testing.T) {
 	// replace
 	a.Press("ctrl+h")
 	a.Settle()
-	inputs := sortedInputs(a)
-	if len(inputs) < 2 {
-		t.Fatalf("no replace box: %+v", inputs)
-	}
+	var inputs []app.DevInput
+	a.Eventually("the find and the replace box", func() (bool, string) {
+		inputs = sortedInputs(a)
+		return len(inputs) >= 2, a.Dump()
+	})
 	a.ClickInput(inputs[1])
 	a.Type("1")
 	a.WaitFocusedText("1")
