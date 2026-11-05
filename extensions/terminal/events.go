@@ -135,8 +135,12 @@ type killRequest struct {
 	ID int `json:"id"`
 }
 
-// publish publishes an event of the extension; an extension that is gone publishes nothing.
+// publish publishes an event of the extension; an extension that is gone publishes nothing, and neither does the window tab
+// kind (step 28.1: its terminal is not one "of the workspace").
 func (t *terminals) publish(topic string, v any) {
+	if t.noEvents {
+		return
+	}
 	if err := t.api.Events().Publish(topic, v); err != nil {
 		t.api.Log().Debug("a terminal event was not published", "topic", topic, "err", err)
 	}

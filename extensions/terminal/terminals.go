@@ -129,6 +129,9 @@ type terminals struct {
 	// histLimit is terminal.integrated.shellIntegration.history for the goroutines that write the history, which must not read
 	// t.cfg (the UI thread replaces it when a setting changes).
 	histLimit atomic.Int64
+	// noEvents is set by the window tab kind (windowtab.go, step 28.1): its one terminal takes no part in the
+	// emetos.terminal.* events and requests, which are of a terminal "of the workspace" and it is not one.
+	noEvents bool
 }
 
 // pasteAsk is the question about pasting several lines (enableMultiLinePasteWarning), shown over the terminal.
@@ -313,10 +316,14 @@ func (t *terminals) makeEntry(o openOpts) (*entry, error) {
 	if ok {
 		env = setEnv(env, injected)
 	}
+	var obs *observer
+	if !t.noEvents {
+		obs = t.observerFor(t.nextID)
+	}
 	term, err := newTerminal(t.ctx, terminalOpts{
 		id: t.nextID, profile: prof, dir: dir, env: env,
 		rows: rows, cols: cols, scrollback: t.cfg.scrollback, version: termVersion, start: t.start, log: t.api.Log(),
-		obs: t.observerFor(t.nextID), interval: t.outputInterval, nonce: nonce, injected: ok, initial: initial, contributions: contributions,
+		obs: obs, interval: t.outputInterval, nonce: nonce, injected: ok, initial: initial, contributions: contributions,
 	})
 	if err != nil {
 		t.failure = "The terminal process " + prof.path + " failed to launch: " + err.Error()

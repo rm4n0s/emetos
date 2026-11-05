@@ -6,6 +6,9 @@ const (
 	ID = "emetos.terminal"
 	// ViewID is the panel view, the "Terminal" tab of the panel (VS Code's container id is terminal).
 	ViewID = "emetos.terminal.panel"
+	// WindowTabKindID is the kind of a window tab that is a single terminal with no workspace of its own (SPEC §10.25 "A
+	// terminal as a window tab", step 28.1).
+	WindowTabKindID = "emetos.terminal.tab"
 )
 
 // The commands of the extension: VS Code's ids (TerminalCommandId).

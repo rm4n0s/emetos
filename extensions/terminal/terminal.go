@@ -152,6 +152,8 @@ func (*terminals) Manifest() extension.Manifest {
 			ContextKeys: contextKeys,
 			PanelViews:  []extension.PanelViewSpec{{ID: ViewID, Title: "Terminal", Icon: "terminal", Order: 3}},
 			EditorKinds: []extension.EditorKindSpec{editorKind()},
+			// the window tab "Terminal" of the "+" menu: one terminal with no workspace of its own (step 28.1)
+			WindowTabKinds: []extension.WindowTabKindSpec{{ID: WindowTabKindID, Title: "Terminal", Icon: "terminal"}},
 			// (the events below are what the extension follows to know the editor in front)
 			ViewActions: []extension.ViewActionSpec{
 				{View: ViewID, Command: CmdNew, Icon: "add", Tooltip: "New Terminal", Order: 1},
@@ -168,7 +170,8 @@ func (*terminals) Manifest() extension.Manifest {
 }
 
 // Activate implements extension.Extension. The terminals end with the context: the window tab closing or the extension being
-// turned off ends every shell.
+// turned off ends every shell. In the scope of its own window tab kind (SPEC §10.25 "A terminal as a window tab", step 28.1)
+// it provides a single terminal with no workspace instead of the panel and the editor kind.
 func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	t.api, t.ctx, t.folder = api, ctx, api.Scope().Folder
 	if t.folder != "" {
@@ -185,6 +188,10 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	t.hist = newHistoryStore(t.stateDir, func() int { return int(t.histLimit.Load()) })
 	t.sugg = newSuggester(api.Log())
 	t.menu = ui.NewContextMenuController()
+	api.Settings().OnChange(t.settingsChanged)
+	if api.Scope().Kind == extension.ScopeWindowTab {
+		return t.activateWindowTab()
+	}
 	var err error
 	t.handle, err = api.Views().Provide(ViewID, extension.ViewContent{
 		Build:        t.build,
@@ -198,7 +205,6 @@ func (t *terminals) Activate(ctx context.Context, api extension.API) error {
 	if err := api.Editors().Provide(EditorKindID, extension.EditorKind{Create: t.createTab}); err != nil {
 		return err
 	}
-	api.Settings().OnChange(t.settingsChanged)
 	for _, pattern := range []string{"emetos.editor.*", extension.TopicDocumentClosed} {
 		if _, err := api.Events().Subscribe(pattern, t.editorEvent); err != nil {
 			return err
