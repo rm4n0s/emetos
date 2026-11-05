@@ -5640,3 +5640,16 @@ The lines above were written from the entries of the steps and `git log`, and co
 - **Manual checks:** none.
 - **Glutter issues:** none.
 - **Deviations and follow-ups:** the plan first put the rows in a new top-level group after Features with a dimmed Workspace tab and the array's order kept; the editor already had a top-level Extensions group, so the rows are its first child, the Workspace tab lists none (as for every application setting), and the list is kept sorted as the Extensions page always kept it (SPEC corrected). `@ext:` lists no settings with the row, because the settings registry does not record which extension registered a setting. The count under the search box says "Settings Found" also for the rows.
+
+## Step 32.1: The mascot in the README
+
+- **Date:** 2026-11-06
+- **Branch:** feat/step-32.1-mascot (based on feat/step-31.1-extensions-settings)
+- **Summary:** the README opens with the mascot (SPEC §16 "The mascot"): a teal cat in the colors of the icon's head, hunched, eyes squeezed shut, coughing up the orange hairball of the Emetos icon, with a drop of sweat, effort lines and a few droplets. The hairball is the icon's own drawing, rendered alone at 1024 px with `paintAppIconBall` by a throwaway test that was not committed, and trimmed.
+- **Main files:** `docs/mascot/mascot.svg` (the source, hand-written SVG, transparent background), `docs/mascot/hairball.png` (the icon's hairball), `docs/mascot/mascot.png` (`rsvg-convert -w 1200 mascot.svg`, what the README shows), `README.md` (the picture centered under the title, with an alt text).
+- **Tests:** none (a picture for the documents). The picture was looked at on a white and on a GitHub-dark background; the effort lines were lightened to `#2F9A93` so that they show on both.
+- **Checks:** no Go file changed; the checks of step 31.1, on which this branch is based, cover the tree.
+- **Proof:** `docs/mascot/mascot.png`.
+- **Manual checks:** none.
+- **Glutter issues:** none.
+- **Deviations and follow-ups:** the step was done before it was planned (the user asked for it on 2026-11-05 and the plan entry came after); the first drawing showed the hairball on the floor and the cat laughing, the second turned the face three quarters and put the hairball half out of a retching mouth.
