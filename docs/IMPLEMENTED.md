@@ -5607,3 +5607,19 @@ The lines above were written from the entries of the steps and `git log`, and co
 - **Manual checks:** none.
 - **Glutter issues:** none.
 - **Deviations and follow-ups:** the tab is titled with the folder's name ("tutor"), not "Tutor", and `TUTOR.md` opens at its top: the SPEC was corrected. The check that every placeholder has a default key is in `internal/core/tutor`, which sees only the core's keybindings; 30.2 moves it to `cmd/emetos` because the lessons of Search and the terminal name commands of extensions.
+
+## Step 30.2: The lessons
+
+- **Date:** 2026-11-06
+- **Branch:** feat/step-30.2-tutor-lessons (based on feat/step-30.1-tutor)
+- **Summary:** the Emetos Tutor has its eleven lessons (SPEC §10.35 "The lessons"): moving around, editing lines, undo and redo, multiple cursors, find and replace, Quick Open and the Command Palette, search in all files, editor groups and the **+** of the tabs, the terminal, settings and keys, and what next; nine exercises in the lessons that edit text, every key through `{{key:...}}`. The practice files are `practice/animals.yaml` (YAML rather than Go: it has `#` comments and starts no language server), `practice/fruits.txt` and `practice/hidden/needle.txt`. The README has a "Learn Emetos: the tutor" section.
+- **Main files:**
+  - lessons: `assets/tutor/TUTOR.md`, `assets/tutor/practice/{animals.yaml,fruits.txt,hidden/needle.txt}`;
+  - tests: `internal/core/tutor/lessons_test.go` (the structure), `cmd/emetos/tutor_test.go` (every placeholder against the whole program), `cmd/emetos/tutor_display_test.go` (real input, `emetos_display`);
+  - `README.md`, `docs/SPEC.md` (the practice files), `docs/IMPLEMENTATION.md` (the proof), `docs/implemented-proof-images/30.2-tutor-lesson.png`.
+- **Tests:** `TestTheLessonsAreElevenInOrder`, `TestEveryExerciseHasItsAnswer` (each block of `--->` lines has its `ok>` lines; at least nine exercises), `TestThePracticeFilesTheLessonsNameExist`, `TestTheLessonsHaveTheMainFile`; `TestTheTutorTeachesOnlyKeysEmetosHas` (every placeholder is a command of the core or of a compiled-in extension with a default key of either: `workbench.action.findInFiles` is Search's and `workbench.action.terminal.toggleTerminal` the Terminal's, which the core's check of 30.1 could not see, so that check moved here); `TestRealInputTheTutorsExercises` (starts `emetos --tutor`, goes to the lines with Ctrl+G, deletes the line of lesson 2 with Ctrl+Shift+K, turns the three "dog" of lesson 4 into "cat" with Ctrl+D three times and typing, and opens `fruits.txt` with Ctrl+P "fru" Enter).
+- **Checks:** CHECKS-PENDING
+- **Proof:** `scripts/proof.sh docs/implemented-proof-images/30.2-tutor-lesson.png --after 3s -- --tutor` (the introduction and lessons 1 and 2 with the user's keys: Ctrl+RightArrow, Home, End, Ctrl+Shift+K, Alt+UpArrow, Ctrl+Shift+Alt+DownArrow).
+- **Manual checks:** none.
+- **Glutter issues:** none.
+- **Deviations and follow-ups:** the proof shows the start of the lessons, not lesson 4 as planned: the dev commands of `scripts/proof.sh --commands` run in the first tab, and the tutor opens in a tab of its own, so they cannot scroll it (the plan was corrected; the real-input test does the exercises of lessons 2, 4 and 6 instead). Lessons 8 to 11 have no `--->` exercise: they open views and change settings, which a line of text cannot show.
