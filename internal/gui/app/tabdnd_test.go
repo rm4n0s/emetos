@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"testing"
 	"time"
@@ -449,9 +450,11 @@ func TestTheStripScrollsWhileADragRestsAtItsEnd(t *testing.T) {
 	for range 200 {
 		a.ts.Pump(tabDragScrollInterval)
 	}
+	// the scrolling tabs end where the "+" of the strip starts (step 29.1)
 	last, _ = tabs.TabRect(len(names) - 1)
-	if last.Right != strip.Right {
-		t.Errorf("the last tab ends at %v, the strip at %v", last.Right, strip.Right)
+	plus := a.plusRect(1)
+	if math.Abs(last.Right-plus.Left) > 0.5 || plus.Right > strip.Right+0.5 {
+		t.Errorf("the last tab ends at %v, the + is at %v, the strip ends at %v", last.Right, plus, strip.Right)
 	}
 	// and back to the start near the other end, and the line follows what is under the pointer
 	g.MoveTo(ui.Offset{Dx: strip.Left + 2, Dy: strip.Top + 15})
