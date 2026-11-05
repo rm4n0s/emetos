@@ -144,6 +144,9 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M27 HTTP Client | 27.1–27.10 |
 | M28 A terminal as a window tab | 28.1 |
 | M29 A "+" button in the editor tab strip | 29.1 |
+| M30 The Emetos Tutor | 30.1–30.2 |
+| M31 Extensions on and off in the Settings editor | 31.1 |
+| M32 The mascot | 32.1 |
 
 ---
 
@@ -2334,3 +2337,56 @@ Requested by the user on 2026-11-05: a terminal in the editor area (step 17d.7) 
 - The window tab terminal is unaffected (`CmdCreateEditor` is already in `windowTabExcluded`).
 **Tests:** the menu id and its rows (core row first, the terminal's after a separator; when-clauses hide a row); a click on **+** in each of two groups opens the menu, New Text File makes `Untitled-1` in the clicked group with the keyboard, New Terminal opens a terminal tab in the clicked group (`dev.*` commands and the widget tests over the fake platform); the button is there with `showTabs` `multiple`, `single` and in an empty group, not with `none`; it stays visible when 30 tabs overflow; Escape closes the menu; `createEditor` with `{"groupId": 2}` and with `{"groupId": 2, "profileName": "sh"}`; the Terminal menu row and the quick pick's last item; goldens of the strip with the button (dark and light) and with the menu open.
 **Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/29.1-new-editor-button.png --after 3s --commands '[["dev.openFile",{"path":"testdata/proof/29.1/project/main.go"}],["dev.openMenu",{"id":"EditorTabsNew"}]]' -- testdata/proof/29.1/project`; the image shows a text tab, the **+** after it and its menu open with New Text File and New Terminal. A second image, `scripts/proof.sh docs/implemented-proof-images/29.1-terminal-in-editor.png --after 4s --commands '[["dev.openFile",{"path":"testdata/proof/29.1/project/main.go"}],["workbench.action.splitEditorRight"],["workbench.action.createTerminalEditor",{"groupId":2}]]' -- testdata/proof/29.1/project`, shows a text file and a terminal tab side by side in two groups.
+
+## M30: The Emetos Tutor
+
+Requested by the user on 2026-11-05 ("What if we can have a tutorial mode like in vim?"): a `vimtutor` for Emetos, SPEC §10.35.
+
+### 30.1 Opening the tutor
+**Goal:** `emetos --tutor` and "Help: Emetos Tutor" make a fresh practice copy of the embedded lesson folder and open it as a new workspace tab with `TUTOR.md`, with `{{key:<command>}}` placeholders replaced by the user's own keys (SPEC §10.35 "Opening it", "The practice copy", "Your own keys", "Errors").
+**Read:** SPEC §10.35, §10.10 (recently opened), §10.11 (the command line and a running instance), §10.14 (workspace tabs); `cmd/emetos/args.go` and `main.go` (how `--install-launcher` was added); `internal/gui/app/workspaces.go` (`HandleLaunch`, `openFrom`), `launch.go` (the command line of the first instance), `state.go` (the recent list), `statusbar.go` (`statusKeyLabel`).
+**Tasks:**
+- `assets/tutor/` with a first `TUTOR.md` (lesson 1 only; 30.2 writes the rest) and `assets.Tutor() fs.FS` with `assets.TutorRoot` (`go:embed`).
+- `internal/core/tutor`: `Placeholders` (the commands the lessons name), `Expansions` (the label of each command's key, or how to run it from the Command Palette), `Folder` (the folder of the copy: `tutor`, or `tutor-2`... while a tab has the earlier ones open), `Copy` (empties the folder and writes the lessons with the placeholders replaced, off the UI thread), `IsPractice`. Error tags `TutorCopyFailed`, `TutorNoFreeFolder`, `TutorLessonsUnreadable`, each with a route test.
+- `ipc.OpenArgs.Tutor`; `cmd/emetos`: `--tutor` (usage line; `ArgsConflict` with files, folders, `--goto`, `--diff`, `--merge` or `--wait`).
+- `gui/app`: the command `emetos.tutor.open` ("Emetos Tutor", category Help) and the first row of the Help menu (group `1_welcome`), which makes the Help menu show in the menu bar; a `--tutor` launch, to a running Emetos or to the first instance, does the same; the practice folder and its files stay out of Open Recent.
+**Tests:** the core package (a fresh copy, a second copy starts clean, a tab in use gets `tutor-2`, bound and unbound commands, a folder that cannot be written, every route); every placeholder of the embedded lessons names a command; the arguments (`--tutor`, with `--profile`, with a folder: `ArgsConflict`); the command opens a tab of the practice folder with `TUTOR.md`, keeps it out of Open Recent, and a second one goes to `tutor-2`; a `--tutor` launch, and one whose copy fails (status 1); the menu bar now has Help (the goldens that show the menu bar are regenerated and looked at).
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/30.1-tutor.png --after 4s -- --tutor`; the image shows the tutor workspace tab with `TUTOR.md` open at its first lesson and the user's keys in its text.
+
+### 30.2 The lessons
+**Goal:** the eleven lessons of SPEC §10.35 "The lessons", with their practice files.
+**Read:** SPEC §10.35; the default keybindings (`internal/core/keybinding/defaults.go`) and the keybindings of the Search and Terminal extensions.
+**Tasks:**
+- Write `TUTOR.md` (lessons 1 to 11, each a `##` heading, a short explanation and `--->` / `ok>` exercise pairs, keys only through `{{key:...}}`) and the practice files `practice/animals.yaml` (YAML: comments with `#` and no language server), `practice/fruits.txt` and `practice/hidden/needle.txt`.
+- The check that every placeholder is a command with a default key moves to `cmd/emetos`, which sees the core's keybindings and those of the compiled-in extensions (Search's Ctrl+Shift+F and the Terminal's Ctrl+\` are the extensions').
+- The README gets a "Learn Emetos: the tutor" section (how to open it, what it covers), and its Status lists M30 to M32.
+**Tests:** the lessons' structure (eleven `##` lessons in order, every `--->` line followed by an `ok>` line or a block of them, every placeholder a command with a default key, the practice files the lessons name exist); a real-input test (`emetos_display`) that opens the tutor and does three exercises with real keys (delete a line in lesson 2, Ctrl+D twice in lesson 4, Ctrl+P to `fruits.txt` in lesson 6) and checks the text.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/30.2-tutor-lesson.png --after 4s --commands '[["workbench.action.gotoLine",null]]' -- --tutor` or a dev command that reveals lesson 4; the image shows lesson 4 with its exercise lines.
+
+## M31: Extensions on and off in the Settings editor
+
+Requested by the user on 2026-11-05 ("the option to disable/enable extensions from settings"). `extensions.disabled` already exists, but the Settings editor shows it only as "Edit in settings.json".
+
+### 31.1 The Installed group of the Settings editor
+**Goal:** the Settings editor's Extensions group starts with a group **Installed** holding an "Enabled" check box per extension that reads and writes `extensions.disabled` (SPEC §10.15 "Turning extensions on and off in the Settings editor").
+**Read:** SPEC §10.15 (`extensions.disabled`, the Extensions page), §11 "The settings editor as built" (groups, rows, committing, modified, search filters); `internal/core/settings/{layout,uimodel,search}.go`, `internal/gui/settingsui/editor.go`, `internal/gui/app/settingspane.go` and `extensions.go` (`setExtensionEnabled`).
+**Tasks:**
+- `core/settings`: `ExtensionInfo`, `UIModel.SetExtensions`, `ExtensionRow`, `ExtensionSettingRow` (a check box `Row` "<Name>: Enabled" whose key is `@ext:<id>`), `Category.Extensions`, the group `extensions/installed` first under Extensions (User tab only), and `SetExtensionEnabled`, the one write of `extensions.disabled` (sorted; an empty list removes it) that the Extensions page now calls too; `SetValueFor` and `ResetFor` send the rows' keys to it.
+- Search: the rows match by name, id and description; `@ext:<ids>` is supported (it lists those rows; the settings do not record their extension, so none is shown with them); `@modified` lists the disabled ones; `@id:` and `@lang:` list none.
+- `settingsui`: the rows of `Category.Extensions` before the settings of the group; Copy Setting as JSON of a row gives `extensions.disabled`. The app gives the model the extensions of the Extensions page.
+**Tests:** the model (rows follow `extensions.disabled`, the group first under Extensions, search by name, description, id, `@ext:`, `@modified`, none on the Workspace tab, writes keep other ids and stay sorted, Reset Setting, the error `SettingExtensionValueInvalid`); the editor (a click turns an extension off and on, the modified mark, Reset Setting, Copy Setting ID gives `@ext:<id>`, a change of the file shows at once, the Workspace tab has none); goldens of the group (dark and light, one extension off); the Extensions page still writes the same list.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/31.1-extensions-settings.png --commands '[["workbench.action.openSettings",{"query":"@ext:"}]]' -- testdata/proof/31.1/project` (or a dev command that types the search); the image shows the Installed group with its check boxes.
+
+## M32: The mascot
+
+Requested by the user on 2026-11-05 ("for mascot create a cat that throws up the hairball that used as icon, and put it on readme").
+
+### 32.1 The mascot in the README
+**Goal:** a mascot picture, a teal cat coughing up the hairball of the icon, centered at the top of the README (SPEC §16 "The mascot").
+**Read:** SPEC §16 "Desktop entry and icon" and "The mascot"; `internal/gui/kit/appicon.go` (the icon's colors and `paintAppIconBall`).
+**Tasks:**
+- Render the icon's hairball alone at 1024 px with `paintAppIconBall` (a throwaway test, not committed) and trim it into `docs/mascot/hairball.png`.
+- Draw the cat in `docs/mascot/mascot.svg` in the icon's colors, the hairball coming out of its open mouth, transparent background; render `docs/mascot/mascot.png` with `rsvg-convert -w 1200`.
+- The README shows `mascot.png` centered under the title, with an alt text.
+**Tests:** none (a picture for the documents); the picture is looked at on a white and on a dark background.
+**Proof:** `docs/mascot/mascot.png` itself, linked from the step's `IMPLEMENTED.md` entry.
