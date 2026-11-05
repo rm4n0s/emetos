@@ -82,11 +82,9 @@ type consoleBodyState struct {
 	// model is what the scrollbars of the list follow.
 	model *kit.ScrollControllerModel
 	// reverse says that the list is a reversed one: row 0 of the list is the last row of the console and the end of the console is
-	// the scroll offset 0. A list whose rows have no fixed height has to build every row between the top and the offset it is moved
-	// to, so moving the list to its end would take time in proportion to the number of rows (100,000 of them is more than a minute);
-	// at offset 0 it builds the rows in view only. A console that fits in its view is not reversed, as a reversed list puts its rows
-	// at the bottom.
-	// Glutter: a list of rows of unknown height builds every row between the top and the offset it is moved to; see docs/GLUTTER-ISSUES.md.
+	// the scroll offset 0, which EstimateItemOffsets (list, below) always reaches exactly, however many rows there are (Glutter
+	// corrects the estimate to 0 once index 0 is the one shown). A console that fits in its view is not reversed, as a reversed list
+	// puts its rows at the bottom. The cost: while the user is scrolled up the text moves with each new line (decision 1263).
 	reverse bool
 	// inputHeight is the height of the input box as it last said, for the place of the list of completions.
 	inputHeight float64
@@ -207,7 +205,8 @@ func rowStyle(bc widgets.BuildContext, cfg ConsoleConfig, color ui.Color) *paint
 	})
 }
 
-// list is the rows, in a list that builds the rows in view only.
+// list is the rows, in a list that builds the rows in view only: a jump far into it (JumpTo, the scrollbar) builds one window of
+// rows, not every row passed over, however many there are (Glutter's EstimateItemOffsets, SPEC §11.4 of its own spec).
 func (s *consoleBodyState) list(bc widgets.BuildContext) widgets.Widget {
 	w := s.Widget()
 	c := w.console
@@ -222,7 +221,9 @@ func (s *consoleBodyState) list(bc widgets.BuildContext) widgets.Widget {
 			i = len(rows) - 1 - i
 		}
 		return s.row(bc, rows[i])
-	}, widgets.ListViewOpts{Key: ConsoleListKey, Controller: s.scroll, Reverse: s.reverse, ItemCount: foundation.Some(n)})
+	}, widgets.ListViewOpts{
+		Key: ConsoleListKey, Controller: s.scroll, Reverse: s.reverse, ItemCount: foundation.Some(n), EstimateItemOffsets: true,
+	})
 	view := kit.NewScrollableElement(body, kit.ScrollableElementOpts{Model: s.model})
 	// the part below the rows is the console's own: a click there gives the input the keyboard, the right button opens the menu
 	return widgets.NewGestureDetector(widgets.NewColoredBox(colors.PanelBackground, view), widgets.GestureDetectorOpts{

@@ -10,6 +10,7 @@ import (
 
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
+	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/internal/core/dap/daptest"
 	coredebug "github.com/rm4n0s/emetos/internal/core/debug"
@@ -310,6 +311,33 @@ func TestConsoleHundredThousandLinesStayInTheFrameBudget(t *testing.T) {
 	r.pump()
 	if r.con.Len() == 0 {
 		t.Error("the filter shows nothing")
+	}
+}
+
+// TestConsoleJumpToTheTopOfHundredThousandLinesStaysInTheFrameBudget guards the fix that removed
+// docs/GLUTTER-ISSUES.md's one entry: with Glutter's EstimateItemOffsets (list, consolebody.go), a
+// big jump within a huge, reversed console builds one window of rows, not every row passed over
+// (which used to cost over a minute for 100,000 lines).
+func TestConsoleJumpToTheTopOfHundredThousandLinesStaysInTheFrameBudget(t *testing.T) {
+	r := newConsoleRig(t, consoleRigOpts{script: scriptOf(fullCaps)})
+	sess := r.con.Session()
+	for i := range 100_000 {
+		sess.AppendToRepl("line "+strconv.Itoa(i)+"\n", coredebug.ReplInfo)
+	}
+	rich := gluttertest.FindOpts{FindRichText: true}
+	r.waitFor("the lines", func() bool { return r.con.Len() >= 100_000 })
+	if !r.ts.Exists(gluttertest.ByText("line 99999", rich)) {
+		t.Fatal("the console does not start at its end")
+	}
+	start := time.Now()
+	// One big wheel tick, far past the top: a walk of every one of the 100,000 rows passed over would take well over a second.
+	r.ts.ScrollAt(ui.Offset{Dx: 300, Dy: 200}, ui.Offset{Dy: -100_000_000})
+	r.ts.Pump(16 * time.Millisecond)
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("the jump to the top took %v, want it bounded by one window of rows, not every row passed over", d)
+	}
+	if !r.ts.Exists(gluttertest.ByText("line 0", rich)) {
+		t.Error("the jump did not reach the top of the console")
 	}
 }
 
