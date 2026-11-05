@@ -108,6 +108,10 @@ It writes only two things under `${XDG_DATA_HOME:-~/.local/share}`: `application
 
 Without a shell, `emetos --install-launcher` writes the same entry and icons itself (its own absolute path, found with `os.Executable`) and exits; `emetos --uninstall-launcher` removes them. Neither runs a command, so a desktop picks up the new or removed files under `$XDG_DATA_HOME` on its own, a little later.
 
+## Learn Emetos: the tutor
+
+Like `vimtutor`, the **Emetos Tutor** teaches the editor inside the editor. Run `emetos --tutor`, or choose **Help > Emetos Tutor**: a fresh practice copy of the lessons opens in a new workspace tab, and you do each exercise right in the text (a line marked `--->` is changed until it matches the `ok>` line under it). Eleven short lessons cover moving around, editing lines, undo, multiple cursors, find and replace, Quick Open and the Command Palette, searching all files, editor groups and the **+** of the tabs, the terminal, settings and keys. The keys in the lessons are your own: if you rebind a command, the next copy shows your key. Each opening starts from a clean copy in `$XDG_CACHE_HOME/emetos/tutor/`, so break it freely; it never touches your files, and it is not added to File > Open Recent.
+
 ## Features
 
 The feature list of [SPEC §3](docs/SPEC.md#3-areas), in short. The first two groups are v0.1.0's; the others came after it.

@@ -1,0 +1,6 @@
+# Lesson 2 of the Emetos Tutor: put the cursor on the line marked "comment me out" and press the key that
+# toggles a comment. Press it again to bring the line back.
+animals:
+  - cat
+  - dog # comment me out
+  - owl

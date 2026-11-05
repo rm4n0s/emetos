@@ -2361,7 +2361,7 @@ Requested by the user on 2026-11-05 ("What if we can have a tutorial mode like i
 - The check that every placeholder is a command with a default key moves to `cmd/emetos`, which sees the core's keybindings and those of the compiled-in extensions (Search's Ctrl+Shift+F and the Terminal's Ctrl+\` are the extensions').
 - The README gets a "Learn Emetos: the tutor" section (how to open it, what it covers), and its Status lists M30 to M32.
 **Tests:** the lessons' structure (eleven `##` lessons in order, every `--->` line followed by an `ok>` line or a block of them, every placeholder a command with a default key, the practice files the lessons name exist); a real-input test (`emetos_display`) that opens the tutor and does three exercises with real keys (delete a line in lesson 2, Ctrl+D twice in lesson 4, Ctrl+P to `fruits.txt` in lesson 6) and checks the text.
-**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/30.2-tutor-lesson.png --after 4s --commands '[["workbench.action.gotoLine",null]]' -- --tutor` or a dev command that reveals lesson 4; the image shows lesson 4 with its exercise lines.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/30.2-tutor-lesson.png --after 3s -- --tutor`; the image shows the start of the lessons (the introduction, lessons 1 and 2 with their exercise lines) with the user's keys in the text. (The dev commands of `--commands` run in the first tab, not in the tutor's, so the proof cannot scroll the tutor to a later lesson; the real-input test does the exercises of lessons 2, 4 and 6.)
 
 ## M31: Extensions on and off in the Settings editor
 
