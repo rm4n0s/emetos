@@ -3,33 +3,38 @@
 package main
 
 import (
-	"io/fs"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/rm4n0s/emetos/assets"
 	"github.com/rm4n0s/emetos/internal/core/tutor"
 	"github.com/rm4n0s/emetos/internal/testenv/display"
 )
 
 // The Emetos Tutor with real keys (step 30.2, SPEC §10.35): three exercises done the way a person does them.
 
-// tutorLine is the line, counted from 1, of the first line of the lessons that starts with prefix.
-func tutorLine(t *testing.T, prefix string) int {
+// tutorLine is the line, counted from 1, of the first line of the lessons in the editor that starts with prefix. It reads
+// the text as it is now: an exercise done before moves the lines below it.
+func tutorLine(t *testing.T, a *display.App, prefix string) int {
 	t.Helper()
-	b, err := fs.ReadFile(assets.Tutor(), assets.TutorRoot+"/"+tutor.MainFile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, line := range strings.Split(string(b), "\n") {
+	for i, line := range strings.Split(editorText(a), "\n") {
 		if strings.HasPrefix(line, prefix) {
 			return i + 1
 		}
 	}
 	t.Fatalf("no line of the lessons starts with %q", prefix)
 	return 0
+}
+
+// lineOf is the line of the editor's text that starts with prefix, for the message of a failure.
+func lineOf(a *display.App, prefix string) string {
+	for _, line := range strings.Split(editorText(a), "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+	return "(no line starts with " + prefix + ")"
 }
 
 // goToLine goes to a line with Go to Line (Ctrl+G), as lesson 1 teaches.
@@ -53,7 +58,7 @@ func TestRealInputTheTutorsExercises(t *testing.T) {
 	a.Settle()
 
 	// lesson 2: delete the line that does not belong
-	goToLine(a, tutorLine(t, "---> this line does not belong"))
+	goToLine(a, tutorLine(t, a, "---> this line does not belong"))
 	a.Press("ctrl+shift+k")
 	a.Eventually("the line to be deleted", func() (bool, string) {
 		text := editorText(a)
@@ -61,7 +66,7 @@ func TestRealInputTheTutorsExercises(t *testing.T) {
 	})
 
 	// lesson 4: every "dog" becomes "cat" with Ctrl+D
-	goToLine(a, tutorLine(t, "---> dog, dog and one more dog"))
+	goToLine(a, tutorLine(t, a, "---> dog, dog and one more dog"))
 	a.Press("Home")
 	for range len("---> ") {
 		a.Press("Right")
@@ -69,8 +74,7 @@ func TestRealInputTheTutorsExercises(t *testing.T) {
 	a.Press("ctrl+d", "ctrl+d", "ctrl+d")
 	a.Type("cat")
 	a.Eventually("the three words to change", func() (bool, string) {
-		text := editorText(a)
-		return strings.Contains(text, "---> cat, cat and one more cat\n"), ""
+		return strings.Contains(editorText(a), "---> cat, cat and one more cat\n"), lineOf(a, "---> ")
 	})
 
 	// lesson 6: Quick Open finds the fruits
