@@ -170,6 +170,9 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 		}
 	}
 	s.refreshKeys()
+	// the editors of a restored grid were made before anything listened to it, so no event of the grid says which editor is in
+	// front (a file of the command line that is in front already changes nothing either): the extensions are told here
+	s.coreActiveChanged()
 }
 
 // showRestoredBackups opens the documents that came back from backups and that no saved editor shows in the active

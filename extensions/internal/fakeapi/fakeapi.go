@@ -97,6 +97,7 @@ type API struct {
 	clipboard         []string
 	clipboardErr      error
 	state             map[string]json.RawMessage
+	globalState       map[string]json.RawMessage
 	stateErr          error
 	locationAnswers   map[string]func(uri string, pos extension.Position) ([]extension.Location, error)
 	locationRequests  []LocationRequest

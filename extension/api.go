@@ -82,6 +82,9 @@ type API interface {
 	TerminalEnvironment() TerminalEnvironment
 	// State keeps small values of the extension across restarts, for the folder of the scope (SPEC §10.15 "As built (step 24b.4)").
 	State() State
+	// GlobalState keeps small values of the extension for every folder and tab of the profile (VS Code's globalState; State is its
+	// workspaceState): what the extension learned about the machine, or told the user once (FirstTime). The rules of State hold.
+	GlobalState() State
 	// Origins tells where the command being handled came from, when it was run in the view of a client (SPEC §10.18, D50).
 	Origins() Origins
 	// Post runs fn on the UI thread, later; it is how a goroutine that the extension started hands its result to the

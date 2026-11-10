@@ -276,12 +276,12 @@ func (g *golang) scopeLabel(r diagRequest) string {
 }
 
 // diagFailed tells that the tool did not run or failed without naming a place: in the Output channel "Go", and for a run the user
-// asked for in a notification. A lint tool that is not installed is told once, with a button for the tools the extension installs.
+// asked for in a notification. A program that is not installed (go, the lint tool) is told once when nobody asked for the run, in this
+// session and across the starts of Emetos (tellMissing), with a button for the tools the extension installs.
 func (g *golang) diagFailed(r diagRequest, name string, output []string, err error) {
 	g.api.Log().Warn("the tool failed", "tool", name, "err", err)
 	if appErr, ok := errors.FromError(err); ok && appErr.HasRoute("ProgramNotFound") && !r.lint {
-		if !g.missing["go"] || r.manual {
-			g.missing["go"] = true
+		if g.tellMissing("go", r.manual) {
 			g.api.Notifications().Error("The go command was not found. Install Go, or set go.alternateTools in the settings.")
 		}
 		return
@@ -289,9 +289,8 @@ func (g *golang) diagFailed(r diagRequest, name string, output []string, err err
 	if appErr, ok := errors.FromError(err); ok && appErr.HasRoute("ProgramNotFound") && r.lint {
 		tool := g.lintTool()
 		if tl, known := toolByName(tool); known {
-			g.promptMissingTool(tl)
-		} else if !g.missing[tool] {
-			g.missing[tool] = true
+			g.promptMissingTool(tl, r.manual)
+		} else if g.tellMissing(tool, r.manual) {
 			g.api.Notifications().Warn(tool + " was not found. Install it, or choose another tool with go.lintTool.")
 		}
 		return

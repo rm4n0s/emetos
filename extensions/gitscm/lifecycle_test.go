@@ -2,6 +2,7 @@ package gitscm
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -41,6 +42,29 @@ func TestGitThatIsMissingOrTooOld(t *testing.T) {
 		r.api.RunNoteAction(n[0], "Don't Show Again")
 		if ups := r.api.SettingUpdates(); len(ups) != 1 || ups[0].Key != "git.ignoreMissingGitWarning" || ups[0].Value != true {
 			t.Errorf("updates = %+v", ups)
+		}
+	})
+	t.Run("missing is remembered and not told at the next start", func(t *testing.T) {
+		e := gittest.NewEnv(t)
+		repo := e.Init("repo")
+		first := newRig(t, e, rigOptions{folder: repo.Dir, noGit: true})
+		first.settle()
+		if keys := first.api.GlobalStateKeys(); len(notesWith(first, "Git is not installed")) != 1 || !slices.Equal(keys, []string{"told:missing:git"}) {
+			t.Fatalf("the first start: notes = %+v, global state = %v", first.api.Notes(), keys)
+		}
+		later := newRig(t, e, rigOptions{folder: repo.Dir, noGit: true, told: []string{"missing:git"}})
+		later.settle()
+		if len(later.api.Notes()) != 0 || later.api.ContextKey("git.missing") != true {
+			t.Errorf("a later start: notes = %+v, git.missing = %v", later.api.Notes(), later.api.ContextKey("git.missing"))
+		}
+	})
+	t.Run("found again, it is told once more when it goes away", func(t *testing.T) {
+		e := gittest.NewEnv(t)
+		repo := e.Init("repo")
+		found := newRig(t, e, rigOptions{folder: repo.Dir, told: []string{"missing:git"}})
+		found.settle()
+		if keys := found.api.GlobalStateKeys(); len(keys) != 0 || found.api.ContextKey("git.missing") == true {
+			t.Fatalf("git was found: global state = %v, git.missing = %v", keys, found.api.ContextKey("git.missing"))
 		}
 	})
 	t.Run("missing and the warning ignored", func(t *testing.T) {

@@ -2390,3 +2390,18 @@ Requested by the user on 2026-11-05 ("for mascot create a cat that throws up the
 - The README shows `mascot.png` centered under the title, with an alt text.
 **Tests:** none (a picture for the documents); the picture is looked at on a white and on a dark background.
 **Proof:** `docs/mascot/mascot.png` itself, linked from the step's `IMPLEMENTED.md` entry.
+
+## M33: A missing tool is told once
+
+Requested by the user on 2026-11-11 ("if something that is used by extension is missing, make a notification but don't annoy the user every time he opens the application").
+
+### 33.1 Notices of missing tools are shown once, not at every start
+**Goal:** a notification that a program an extension needs is not installed (gopls, a language server, the lint tool, git) is shown once and not again at the next start of Emetos, until the program was found and went away; a notice that answers a command of the user is shown every time (SPEC §10.34 "A missing tool is told once", decision 1912).
+**Read:** SPEC §10.34 (`api.State()`, decision 960), §9.12 (the host's notification of a missing program), §10.17 "The missing tool", §10.19 "Finding it"; `extension/state.go`, `internal/core/storage/extensionstate.go`, `internal/gui/exthost/{state,servers}.go`, `extensions/internal/langserver/controller.go`, `extensions/golang/{tools,status,diagnostics}.go`, `extensions/gitscm/activate.go`.
+**Tasks:**
+- `storage`: `GlobalExtensionFolder` (`*`), accepted by `SetExtensionValue`, `ExtensionValue` and the cleaning of a state file.
+- `extension`: `API.GlobalState()`, `FirstTime`, `FirstTimeSaying`, `Forget`; `exthost` implements the global state over the scope's `StateGet`/`StateSet`; `fakeapi` has `GlobalState`, `SetGlobalState`, `GlobalStateKeys`.
+- The Go extension, the controller of the language packs, the Git extension and the host's own notification follow the rule of the spec; Restart Server from a status item's menu and a lint run started by hand count as asked for.
+- `app`: the editor a restore put in front is published as `emetos.editor.activeChanged` (`initGroup`), so that the status item of the language shows what the quiet notification no longer says.
+**Tests:** `app` (the event after a restore, with and without a file of the command line); `extension` (first time, another message, forgetting, a state that keeps nothing); `storage` (the global folder apart from the folders, kept across a start, cleaned); `exthost` (the global state apart from the folder's; the missing program is not told in a second tab, and is forgotten when it runs); `golang`, `langserver`, `gitscm` (a later session is quiet, what the user asked for is answered, found and gone is told once more).
+**Proof:** the tests, and a run of the editor on this Mac with its own state folder and gopls hidden from `PATH`: the first start shows the notification, the second does not and the status bar says "gopls not found"; with gopls in `PATH` the remembered notice is gone from `state.json`, and without it again it is told once more. The step's `IMPLEMENTED.md` entry gives the result.

@@ -3,6 +3,7 @@ package exthost
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -53,6 +54,57 @@ func TestTheStateOfAnExtensionIsKeptByExtensionAndFolder(t *testing.T) {
 	}
 	if _, ok := st.Get("k"); ok {
 		t.Error("the value is still there after Set(nil)")
+	}
+}
+
+// GlobalState(): the values of the extension for every folder, kept under the folder "*" (what an extension told the user once).
+func TestTheGlobalStateOfAnExtensionIsNotTheStateOfTheFolder(t *testing.T) {
+	var api extension.API
+	f, _ := factory(manifest("emetos.keeper"), func(f *fake) {
+		f.activate = func(_ context.Context, a extension.API) error { api = a; return nil }
+	})
+	r := newRig(t, f)
+	tb := r.newTab("one")
+	tb.scope.Start()
+	if err := api.State().Set("k", "of the folder"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := api.GlobalState().Get("k"); ok {
+		t.Fatal("the global state has the value of the folder")
+	}
+	if !extension.FirstTime(api.GlobalState(), "missing:tool") || extension.FirstTime(api.GlobalState(), "missing:tool") {
+		t.Error("FirstTime did not say true once and false after")
+	}
+	if err := api.GlobalState().Set("k", "of every folder"); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name  string
+		state extension.State
+		key   string
+		want  string
+		found bool
+	}{
+		{"the folder keeps its value", api.State(), "k", "of the folder", true},
+		{"the global state has its own", api.GlobalState(), "k", "of every folder", true},
+		{"what was told is global", api.GlobalState(), "told:missing:tool", "", true},
+		{"and not of the folder", api.State(), "told:missing:tool", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got, ok := extension.StateValue[string](tt.state, tt.key); ok != tt.found || got != tt.want {
+				t.Errorf("value = %q, %v; want %q, %v", got, ok, tt.want, tt.found)
+			}
+		})
+	}
+	var keys []string
+	for k := range tb.kept {
+		keys = append(keys, strings.ReplaceAll(k, "\x00", "|"))
+	}
+	slices.Sort(keys)
+	want := []string{"emetos.keeper|*|k", "emetos.keeper|*|told:missing:tool", "emetos.keeper|" + r.folderOf("one") + "|k"}
+	if !slices.Equal(keys, want) {
+		t.Errorf("kept under %q, want %q", keys, want)
 	}
 }
 

@@ -197,8 +197,11 @@ type golang struct {
 	// warned are the warnings of the debugger that were shown, once each, and warnMu guards them.
 	warned map[string]bool
 	warnMu sync.Mutex
-	// missing are the tools the user was told are missing, once each.
+	// missing are the tools the user was told are missing in this session, once each (tellMissing; across the starts of Emetos the
+	// global state of the extension remembers them).
 	missing map[string]bool
+	// restartAsked says that the user restarted gopls from the menu: if it is still missing, they are told again.
+	restartAsked bool
 	// closers waits for the programs that were started, so that a test can see that none is left.
 	closers sync.WaitGroup
 }

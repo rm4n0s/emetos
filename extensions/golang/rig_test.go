@@ -122,6 +122,8 @@ type rigOptions struct {
 	settings map[string]any
 	// noFolder makes a scope without a folder.
 	noFolder bool
+	// told are the notices an earlier session told the user (extension.FirstTime in the global state), set before the activation.
+	told []string
 	// files are written into the folder before the activation (paths relative to the folder), and copyFrom is a folder of testdata that
 	// is copied into it first: the tests of the Go tests tree need their files to be there when the extension discovers them.
 	files     map[string]string
@@ -175,6 +177,9 @@ func newRig(t *testing.T, opts rigOptions) *rig {
 	r.api.SetTestingUnavailable(opts.noTesting)
 	for k, v := range opts.settings {
 		r.api.SetSetting(k, v)
+	}
+	for _, what := range opts.told {
+		r.api.SetGlobalState("told:"+what, "")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel

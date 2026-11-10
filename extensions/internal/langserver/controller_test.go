@@ -356,6 +356,91 @@ func TestAMissingServerIsToldOncePerTab(t *testing.T) {
 	}
 }
 
+// A server that is missing is the user's to install and nobody asked for the notice: it is told once, and not again at the next start
+// of Emetos (the global state of the pack remembers the message), until the problem is another one or the server ran.
+func TestAMissingServerIsNotToldAgainInALaterSession(t *testing.T) {
+	const notFound, tooOld = "rust-analyzer was not found", "rust-analyzer 1.2.0 is too old: 1.70 or newer is needed"
+	type step struct {
+		name string
+		do   func(r *rig)
+		// notes is the number of notifications after the step, and told what the global state remembers ("" for nothing).
+		notes int
+		told  string
+	}
+	start := func(r *rig) { _, _ = r.start() }
+	install := func(version string) func(r *rig) {
+		return func(r *rig) {
+			program(r.t, r.bin, "ra", "rust-analyzer "+version)
+			_, _ = r.start()
+		}
+	}
+	tests := []struct {
+		name string
+		// told is what an earlier session told the user.
+		told  string
+		steps []step
+	}{
+		{"the first session tells it and remembers", "", []step{
+			{"the server is missing", start, 1, notFound},
+			{"and again", start, 1, notFound},
+		}},
+		{"a later session is quiet", notFound, []step{
+			{"the server is missing", start, 0, notFound},
+			{"and again", start, 0, notFound},
+		}},
+		{"another problem is told", notFound, []step{
+			{"an old server was installed", install("1.2.0"), 1, tooOld},
+			{"and again", start, 1, tooOld},
+		}},
+		{"a restart the user asked for is answered", notFound, []step{
+			{"the server is missing", start, 0, notFound},
+			{"the user restarts it", func(r *rig) { r.ctl.restart(); _, _ = r.start() }, 1, notFound},
+			{"the start after it is not asked for", start, 1, notFound},
+		}},
+		{"a server that ran is told once more when it goes away", notFound, []step{
+			{"the server was installed", install("1.78.0"), 0, ""},
+			{"it is gone", func(r *rig) {
+				if err := os.Remove(filepath.Join(r.bin, "ra")); err != nil {
+					r.t.Fatal(err)
+				}
+				_, _ = r.start()
+			}, 1, notFound},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRig(t, false, nil)
+			if tt.told != "" {
+				r.api.SetGlobalState("told:server:"+serverID, tt.told)
+			}
+			r.attach()
+			for _, st := range tt.steps {
+				st.do(r)
+				if n := len(r.api.Notes()); n != st.notes {
+					t.Fatalf("%s: %d notifications, want %d: %+v", st.name, n, st.notes, r.api.Notes())
+				}
+				told, _ := extension.StateValue[string](r.api.GlobalState(), "told:server:"+serverID)
+				if told != st.told {
+					t.Fatalf("%s: the global state remembers %q, want %q", st.name, told, st.told)
+				}
+			}
+		})
+	}
+}
+
+// A server that is there and cannot start is not the kind of problem that is told once for good: every session tells it.
+func TestAServerThatFailsIsToldInEverySession(t *testing.T) {
+	r := newRig(t, true, func(c *Config) {
+		c.Customize = func(*Launch, Env) error { return errors.New("TestBroken", "the workspace cannot be read") }
+	})
+	r.api.SetGlobalState("told:server:"+serverID, "rust-analyzer cannot be started: the workspace cannot be read")
+	r.attach()
+	_, _ = r.start()
+	if notes := r.api.Notes(); len(notes) != 1 || !strings.Contains(notes[0].Message, "cannot be started") {
+		t.Fatalf("notes = %+v", notes)
+	}
+}
+
 func TestAServerThatCannotStartForAnotherReasonOffersTheOutput(t *testing.T) {
 	r := newRig(t, true, func(c *Config) {
 		c.Customize = func(*Launch, Env) error { return errors.New("OtherFailure", "no luck") }

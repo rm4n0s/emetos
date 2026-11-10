@@ -130,6 +130,9 @@ func (x *gitscm) start() {
 	}()
 }
 
+// missingGitNotice is the name under which the extension remembers that it told the user that git is missing (extension.FirstTime).
+const missingGitNotice = "missing:git"
+
 // gitFound is the end of the search for git.
 func (x *gitscm) gitFound(inst git.Installation, err error) {
 	if x.stopped.Load() {
@@ -140,7 +143,8 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 		x.logLine("git is not available: " + err.Error())
 		x.model.state = "initialized"
 		x.model.updateContext()
-		if !x.cfg().ignoreMissingGitWarning {
+		// Nobody asked for this notice: it is shown once, and not again at the next start of Emetos, until git was found and went away.
+		if !x.cfg().ignoreMissingGitWarning && extension.FirstTime(x.api.GlobalState(), missingGitNotice) {
 			x.api.Notifications().Warn("Git is not installed, or is older than 2.30. Install it with your package manager and reload the window.",
 				extension.NotificationAction{Label: "Don't Show Again", Run: func() { x.saveSetting("git.ignoreMissingGitWarning", true) }},
 				extension.NotificationAction{Label: "Show Git Output", Run: func() { x.channel.Show(false) }})
@@ -148,6 +152,7 @@ func (x *gitscm) gitFound(inst git.Installation, err error) {
 		return
 	}
 	x.missing = false
+	extension.Forget(x.api.GlobalState(), missingGitNotice)
 	x.install = inst
 	x.logLine("Using git " + inst.Version.String() + " from " + inst.Path)
 	x.runner = git.NewRunner(git.Config{

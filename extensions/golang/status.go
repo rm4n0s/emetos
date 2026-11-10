@@ -107,8 +107,14 @@ func versionLabel(version string) string {
 // serverChanged follows the state of gopls.
 func (g *golang) serverChanged(st extension.ServerStatus) {
 	g.server = st
-	if tl, ok := toolByName(gopls); ok && st.State == extension.ServerMissing {
-		g.promptMissingTool(tl)
+	switch tl, ok := toolByName(gopls); {
+	case ok && st.State == extension.ServerMissing:
+		// told once, and again only for a restart the user asked for from the menu
+		g.promptMissingTool(tl, g.restartAsked)
+		g.restartAsked = false
+	case ok && st.State == extension.ServerRunning:
+		g.restartAsked = false
+		g.toolFound(tl.Name)
 	}
 	g.updateStatus()
 }
@@ -186,6 +192,7 @@ func (g *golang) menuChosen(index int) {
 	var err error
 	switch index {
 	case menuRestart:
+		g.restartAsked = true
 		err = g.api.LanguageServers().Restart(ServerID)
 	case menuOutput:
 		err = g.api.LanguageServers().ShowOutput(ServerID, false)

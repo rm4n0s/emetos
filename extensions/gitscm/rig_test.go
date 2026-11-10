@@ -98,6 +98,8 @@ type rigOptions struct {
 	devTrust string
 	// noStart leaves the extension unactivated.
 	noStart bool
+	// told are the notices an earlier session told the user (extension.FirstTime in the global state), set before the extension starts.
+	told []string
 	// extraEnv is added to the environment of git (the variable of a fake git).
 	extraEnv []string
 	// logger is the logger the extension is given; the default one of the fake when nil.
@@ -164,6 +166,9 @@ func newRig(t *testing.T, env *gittest.Env, o rigOptions) *rig {
 	}
 	for k, v := range o.settings {
 		api.SetSetting(k, v)
+	}
+	for _, what := range o.told {
+		api.SetGlobalState("told:"+what, "")
 	}
 	if o.logger != nil {
 		api.SetLogger(o.logger)

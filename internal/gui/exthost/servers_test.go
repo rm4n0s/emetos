@@ -325,11 +325,62 @@ func TestAMissingProgramIsToldOnceAndNotRestarted(t *testing.T) {
 	if n := len(tb.notify.Items()); n != 1 {
 		t.Errorf("%d notifications after more documents: %v", n, tb.notifications())
 	}
-	// the user sets the path: the server starts
+	// it is remembered for every folder, so that another tab, and the next start of Emetos, do not tell it again
+	told := testExt + "\x00*\x00told:missing-server:" + st.spec.ID + ":emetos-no-such-language-server"
+	tb.keptMu.Lock()
+	value, ok := tb.kept[told]
+	tb.keptMu.Unlock()
+	if !ok {
+		t.Fatalf("kept = %v", tb.kept)
+	}
+	two := st.rig.newTab("two")
+	two.deferred = true
+	two.kept = map[string]json.RawMessage{told: value} // the state of the profile, which the tabs share
+	two.scope.Start()
+	two.pump()
+	st.goDoc(two, "a.go", "package a\n")
+	if s := st.status(two); s.State != ServerMissing {
+		t.Fatalf("status of the second tab = %+v", s)
+	}
+	if n := len(two.notify.Items()); n != 0 {
+		t.Errorf("the second tab told it again: %v", two.notifications())
+	}
+	// the user sets the path: the server starts, and what was told is forgotten (it is told once more if the program goes away)
 	tb.changeSetting(testExt+".path", st.prog)
 	s := st.waitRunning(tb)
 	if s.Starts != 1 {
 		t.Errorf("status = %+v", s)
+	}
+	// the path of the setting is another program: nothing was told about it, and it runs
+	tb.keptMu.Lock()
+	defer tb.keptMu.Unlock()
+	for k := range tb.kept {
+		if strings.Contains(k, st.prog) {
+			t.Errorf("kept %q for a program that runs", k)
+		}
+	}
+}
+
+func TestAProgramThatIsFoundIsNoLongerRememberedAsMissing(t *testing.T) {
+	st := newServerTest(t, simple(), nil)
+	// an earlier session told the user that the program was not found; it is installed now
+	told := testExt + "\x00*\x00told:missing-server:" + st.spec.ID + ":" + st.prog
+	other := testExt + "\x00*\x00told:missing-server:" + st.spec.ID + ":/somewhere/else"
+	tb := st.rig.newTab("one")
+	tb.deferred = true
+	tb.kept = map[string]json.RawMessage{told: json.RawMessage(`""`), other: json.RawMessage(`""`)}
+	tb.scope.Start()
+	tb.pump()
+	st.tab = tb
+	st.goDoc(tb, "a.go", "package a\n")
+	st.waitRunning(tb)
+	tb.keptMu.Lock()
+	defer tb.keptMu.Unlock()
+	if _, ok := tb.kept[told]; ok {
+		t.Errorf("the program runs and is still remembered as missing: %v", tb.kept)
+	}
+	if _, ok := tb.kept[other]; !ok {
+		t.Errorf("what was told about another program was forgotten: %v", tb.kept)
 	}
 }
 

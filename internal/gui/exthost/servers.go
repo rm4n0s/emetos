@@ -438,7 +438,9 @@ func (c *serverCtl) start() {
 		c.logLine("Error", fmt.Sprintf("%s was not found: %s", program, describe(err)))
 		if !c.missingShown {
 			c.missingShown = true
-			if !c.spec.OwnUI {
+			// Nobody asked for this notice: it is shown once for the program, and not again at the next start of Emetos, until the
+			// program was found and went away (another path in the settings is another program).
+			if !c.spec.OwnUI && extension.FirstTime(c.globalState(), c.missingNotice(program)) {
 				c.notify(notify.Error, fmt.Sprintf("%s was not found. Install it, or set the path in the settings.", c.spec.Program), c.openSettingsAction())
 			}
 		}
@@ -446,6 +448,7 @@ func (c *serverCtl) start() {
 		return
 	}
 	c.missingShown = false
+	extension.Forget(c.globalState(), c.missingNotice(program))
 	c.mu.Lock()
 	c.gen++
 	gen := c.gen
@@ -752,6 +755,14 @@ func (c *serverCtl) now() time.Time {
 		return c.s.opts.Now()
 	}
 	return time.Now()
+}
+
+// globalState is the state of the extension for every folder, where the host remembers what it told the user about the server.
+func (c *serverCtl) globalState() extension.State { return stateAPI{inst: c.inst, global: true} }
+
+// missingNotice is the name under which the host remembers that it told the user that the program of the server was not found.
+func (c *serverCtl) missingNotice(program string) string {
+	return "missing-server:" + c.spec.ID + ":" + program
 }
 
 // restart stops the running server (if any) and starts it again, forgetting the crashes. It runs on the UI thread.

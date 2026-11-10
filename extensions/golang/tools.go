@@ -305,6 +305,9 @@ func (t *toolsPanel) finish(r *installRun) {
 		r.summary = "Cancelled."
 		g.api.Notifications().Info("Installing the Go tools was cancelled.")
 	default:
+		for _, name := range done {
+			g.toolFound(name)
+		}
 		r.summary = "Installed: " + strings.Join(done, ", ") + ". They are in the bin folder of GOBIN, or of GOPATH when GOBIN is not set; it must be in PATH."
 		g.api.Notifications().Info("Installed the Go tools: " + strings.Join(done, ", ") + ".")
 	}
@@ -316,18 +319,43 @@ func (t *toolsPanel) finish(r *installRun) {
 	}
 }
 
-// promptMissingTool tells the user once that the tool is missing, with a button that installs it.
-func (g *golang) promptMissingTool(tl tool) {
-	if g.missing[tl.Name] {
+// promptMissingTool tells the user that the tool is missing, with a button that installs it. A notice that nobody asked for (gopls
+// that is not there when a folder is opened, the lint tool of a save) is shown once: not again in this session, and not at the next
+// start of Emetos either (extension.FirstTime in the global state), until the tool was found and is missing again (toolFound). The
+// status bar and the Go Tools panel keep saying that it is missing. asked says the user ran a command that needs the tool: that is
+// answered every time.
+func (g *golang) promptMissingTool(tl tool, asked bool) {
+	if !g.tellMissing(tl.Name, asked) {
 		return
 	}
-	g.missing[tl.Name] = true
 	msg := tl.Name + " was not found. It " + tl.Purpose + "."
 	if tl.Hint != "" {
 		msg += " " + tl.Hint
 	}
 	g.api.Notifications().Warn(msg, extension.NotificationAction{Label: "Install", Run: func() { g.startInstall([]string{tl.Name}) }})
 }
+
+// tellMissing says whether the user is told now that the program is missing: always when they asked for something that needs it, and
+// else the first time only (in this session and across the starts of Emetos).
+func (g *golang) tellMissing(name string, asked bool) bool {
+	if asked {
+		return true
+	}
+	if g.missing[name] {
+		return false
+	}
+	g.missing[name] = true
+	return extension.FirstTime(g.api.GlobalState(), missingToolNotice(name))
+}
+
+// toolFound forgets that the user was told the tool is missing: it is there now, and if it goes away the user hears of it once more.
+func (g *golang) toolFound(name string) {
+	delete(g.missing, name)
+	extension.Forget(g.api.GlobalState(), missingToolNotice(name))
+}
+
+// missingToolNotice is the name under which the notice of a missing tool is remembered.
+func missingToolNotice(name string) string { return "missing:" + name }
 
 // ---- the widgets ----
 

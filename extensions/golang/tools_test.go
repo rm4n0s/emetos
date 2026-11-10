@@ -309,8 +309,8 @@ func TestAMissingToolIsToldOnceWithAnInstallButton(t *testing.T) {
 	// the other tools say what they are for
 	for _, name := range []string{"dlv", "staticcheck"} {
 		tl, _ := toolByName(name)
-		r.ext.promptMissingTool(tl)
-		r.ext.promptMissingTool(tl)
+		r.ext.promptMissingTool(tl, false)
+		r.ext.promptMissingTool(tl, false)
 	}
 	notes = r.api.Notes()
 	var messages []string
@@ -319,6 +319,72 @@ func TestAMissingToolIsToldOnceWithAnInstallButton(t *testing.T) {
 	}
 	if len(notes) != 4 || messages[0] != "dlv was not found. It debugs Go programs." || messages[1] != "staticcheck was not found. It checks Go code for mistakes." {
 		t.Errorf("notes = %+v", notes)
+	}
+}
+
+// A missing tool that nobody asked for is told once, and not again at the next start of Emetos: the global state of the extension
+// remembers it, until the tool was found.
+func TestAMissingToolIsNotToldAgainInALaterSession(t *testing.T) {
+	missing := extension.ServerStatus{State: extension.ServerMissing}
+	running := extension.ServerStatus{State: extension.ServerRunning, Starts: 1}
+	type step struct {
+		name string
+		do   func(r *rig)
+		// notes is the number of notifications after the step, and told the notices the global state remembers.
+		notes int
+		told  []string
+	}
+	gopls, _ := toolByName("gopls")
+	staticcheck, _ := toolByName("staticcheck")
+	tests := []struct {
+		name  string
+		told  []string
+		steps []step
+	}{
+		{"the first session tells it and remembers", nil, []step{
+			{"gopls is missing", func(r *rig) { r.api.SetServerStatus(ServerID, missing) }, 1, []string{"told:missing:gopls"}},
+		}},
+		{"a later session is quiet", []string{"missing:gopls"}, []step{
+			{"gopls is missing", func(r *rig) { r.api.SetServerStatus(ServerID, missing) }, 0, []string{"told:missing:gopls"}},
+			{"and again", func(r *rig) { r.api.SetServerStatus(ServerID, missing) }, 0, []string{"told:missing:gopls"}},
+		}},
+		{"a tool that was not told before is told", []string{"missing:gopls"}, []step{
+			{"gopls is missing", func(r *rig) { r.api.SetServerStatus(ServerID, missing) }, 0, []string{"told:missing:gopls"}},
+			{"the lint tool of a save is missing", func(r *rig) { r.ext.promptMissingTool(staticcheck, false) }, 1, []string{"told:missing:gopls", "told:missing:staticcheck"}},
+		}},
+		{"what the user asked for is answered every time", []string{"missing:gopls", "missing:staticcheck"}, []step{
+			{"a lint run the user started", func(r *rig) { r.ext.promptMissingTool(staticcheck, true) }, 1, []string{"told:missing:gopls", "told:missing:staticcheck"}},
+			{"and another", func(r *rig) { r.ext.promptMissingTool(staticcheck, true) }, 2, []string{"told:missing:gopls", "told:missing:staticcheck"}},
+			{"a restart from the menu that finds gopls missing", func(r *rig) {
+				r.ext.menuChosen(menuRestart)
+				r.api.SetServerStatus(ServerID, missing)
+			}, 3, []string{"told:missing:gopls", "told:missing:staticcheck"}},
+			{"the state after it is not asked for", func(r *rig) { r.api.SetServerStatus(ServerID, missing) }, 3, []string{"told:missing:gopls", "told:missing:staticcheck"}},
+		}},
+		{"a tool that was found is told once more when it goes away", []string{"missing:gopls"}, []step{
+			{"gopls runs", func(r *rig) { r.api.SetServerStatus(ServerID, running) }, 0, nil},
+			{"gopls is gone", func(r *rig) { r.api.SetServerStatus(ServerID, missing) }, 1, []string{"told:missing:gopls"}},
+			{"still gone", func(r *rig) { r.api.SetServerStatus(ServerID, missing) }, 1, []string{"told:missing:gopls"}},
+		}},
+		{"the same tool told by hand", nil, []step{
+			{"first", func(r *rig) { r.ext.promptMissingTool(gopls, false) }, 1, []string{"told:missing:gopls"}},
+			{"found", func(r *rig) { r.ext.toolFound("gopls") }, 1, nil},
+			{"missing again", func(r *rig) { r.ext.promptMissingTool(gopls, false) }, 2, []string{"told:missing:gopls"}},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRig(t, rigOptions{withGo: true, told: tt.told})
+			for _, st := range tt.steps {
+				st.do(r)
+				if n := len(r.api.Notes()); n != st.notes {
+					t.Fatalf("%s: %d notifications, want %d: %+v", st.name, n, st.notes, r.api.Notes())
+				}
+				if got := r.api.GlobalStateKeys(); !slices.Equal(got, st.told) {
+					t.Fatalf("%s: the global state has %v, want %v", st.name, got, st.told)
+				}
+			}
+		})
 	}
 }
 

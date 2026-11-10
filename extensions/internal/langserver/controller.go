@@ -34,6 +34,8 @@ type Controller struct {
 	visible  bool
 	// told are the problems the user was told about in this tab, by message.
 	told map[string]bool
+	// asked says that the user asked for the start that is under way (Restart Server): its problem is told even if it was told before.
+	asked bool
 }
 
 // launchResult is what the last start learned.
@@ -195,8 +197,13 @@ func (c *Controller) serverChanged(st extension.ServerStatus) {
 		c.health = Health{}
 	}
 	c.server = st
-	if st.State == extension.ServerMissing {
+	switch st.State {
+	case extension.ServerMissing:
 		c.tellProblem()
+	case extension.ServerRunning:
+		// The server runs: what was told about it is forgotten, so that the user hears of it once more if it goes away.
+		c.asked = false
+		extension.Forget(c.api.GlobalState(), c.problemNotice())
 	}
 	c.updateStatus()
 }
@@ -280,13 +287,27 @@ func (c *Controller) problem() (problemKind, string) {
 	return problemOther, c.program().Name + " cannot be started: " + appErr.Message
 }
 
-// tellProblem tells the user once, in this tab, why the server is not running.
+// tellProblem tells the user once, in this tab, why the server is not running. A server that is not installed, is too old or has a
+// path that is no program is the user's to install, and nobody asked for the notice: it is shown once, and not again at the next start
+// of Emetos (extension.FirstTimeSaying in the global state), until the message changes or the server ran (serverChanged forgets it
+// then). The status bar item keeps saying it. A restart the user asked for tells it again, and a server that is there and fails is
+// told in every session.
 func (c *Controller) tellProblem() {
+	asked := c.asked
+	c.asked = false
 	kind, msg := c.problem()
-	if kind == problemNone || kind == problemDisabled || c.told[msg] {
+	if kind == problemNone || kind == problemDisabled {
 		return
 	}
-	c.told[msg] = true
+	if !asked {
+		if c.told[msg] {
+			return
+		}
+		c.told[msg] = true
+		if kind != problemOther && !extension.FirstTimeSaying(c.api.GlobalState(), c.problemNotice(), msg) {
+			return
+		}
+	}
 	var actions []extension.NotificationAction
 	howTo := extension.NotificationAction{Label: "How to Install", Run: c.howToInstall}
 	setPath := extension.NotificationAction{Label: "Set Path...", Run: c.setPath}
@@ -307,6 +328,9 @@ func (c *Controller) tellProblem() {
 	c.api.Notifications().Warn(msg+".", actions...)
 }
 
+// problemNotice is the name under which the problem of the server's program that the user was told is remembered.
+func (c *Controller) problemNotice() string { return "server:" + c.cfg.ID }
+
 // showOutput shows the Output channel of the server.
 func (c *Controller) showOutput() {
 	if err := c.api.LanguageServers().ShowOutput(c.cfg.ID, false); err != nil && !benign(err) {
@@ -316,6 +340,7 @@ func (c *Controller) showOutput() {
 
 // restart restarts the server.
 func (c *Controller) restart() {
+	c.asked = true // the user asked: a server that is still missing is told again
 	if err := c.api.LanguageServers().Restart(c.cfg.ID); err != nil && !benign(err) {
 		c.api.Log().Warn("a language server cannot be restarted", "server", c.cfg.ID, "err", err)
 	}

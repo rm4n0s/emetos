@@ -13,6 +13,10 @@ import (
 // read at every start, so it is for small values, not for data.
 const MaxExtensionValue = 64 * 1024
 
+// GlobalExtensionFolder is the folder key of the values an extension keeps for every folder (extension.API.GlobalState): no folder has
+// this name, since the folders of the state are absolute paths or empty.
+const GlobalExtensionFolder = "*"
+
 // ExtensionValue returns the value the extension kept for the folder under the key, as the JSON it gave, and whether there is one. The
 // folder is cleaned (an empty one is the tab without a folder). The error has the tags of LoadGlobal, which are not fatal (the value is
 // not there then).
@@ -70,21 +74,21 @@ func (s *StateStore) SetExtensionValue(ctx context.Context, extension, folder, k
 	})
 }
 
-// cleanFolderKey is the folder as the state keeps it: cleaned, or empty.
+// cleanFolderKey is the folder as the state keeps it: cleaned, or empty, or GlobalExtensionFolder.
 func cleanFolderKey(folder string) string {
-	if folder == "" {
-		return ""
+	if folder == "" || folder == GlobalExtensionFolder {
+		return folder
 	}
 	return filepath.Clean(folder)
 }
 
 // cleanExtensionState drops what a state file holds that cannot be used: an empty id or key, a folder that is not absolute (and not
-// empty) and a value that is not JSON.
+// empty or GlobalExtensionFolder) and a value that is not JSON.
 func cleanExtensionState(in map[string]map[string]map[string]json.RawMessage) map[string]map[string]map[string]json.RawMessage {
 	var out map[string]map[string]map[string]json.RawMessage
 	for ext, folders := range in {
 		for folder, keys := range folders {
-			if ext == "" || (folder != "" && !filepath.IsAbs(folder)) {
+			if ext == "" || (folder != "" && folder != GlobalExtensionFolder && !filepath.IsAbs(folder)) {
 				continue
 			}
 			for key, v := range keys {

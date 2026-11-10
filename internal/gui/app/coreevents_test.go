@@ -321,3 +321,46 @@ func TestTheCoreEventsOfOneWorkspaceReachItsExtensionsOnly(t *testing.T) {
 		t.Errorf("errors: %v", errs)
 	}
 }
+
+// The editors of a restored window are made before anything listens to the grid, and a file of the command line that is in front
+// already changes nothing: the extensions are told which editor is in front all the same. (Without it the status items that show
+// for a language, such as the one of Go with "gopls not found", stay hidden until the user changes the editor.)
+func TestTheEditorInFrontOfARestoredWindowIsTold(t *testing.T) {
+	tests := []struct {
+		name string
+		// files are the files of the command line of the second start, relative to the folder.
+		files []string
+		want  string
+	}{
+		{"the restored editors only", nil, "main.go"},
+		{"the file in front is on the command line again", []string{"main.go"}, "main.go"},
+		{"another file on the command line comes to the front", []string{"e.txt"}, "e.txt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newStateEnv(t, nil)
+			first := env.start(env.root)
+			first.open(env.path("main.go"), 0)
+			first.close()
+
+			rec := &eventRecorder{}
+			var files []string
+			for _, f := range tt.files {
+				files = append(files, env.path(f))
+			}
+			second := env.startWith(env.root, ProcessOptions{Extensions: []extension.Factory{rec.factory()}}, files...)
+			defer second.close()
+			heard := rec.of("", extension.TopicEditorActiveChanged)
+			if len(heard) == 0 {
+				t.Fatalf("no %s after the restore; heard %v", extension.TopicEditorActiveChanged, rec.topics(""))
+			}
+			last := payload[extension.ActiveEditor](t, heard[len(heard)-1])
+			if filepath.Base(last.URI) != tt.want {
+				t.Errorf("the editor in front is told as %+v, want %s", last, tt.want)
+			}
+			if tt.want == "main.go" && last.LanguageID != "go" {
+				t.Errorf("language = %q", last.LanguageID)
+			}
+		})
+	}
+}

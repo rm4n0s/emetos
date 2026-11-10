@@ -20,6 +20,7 @@ func TestExtensionValuesAreKeptPerExtensionFolderAndKeyAndSurviveAStart(t *testi
 		{"emetos.python", "", "python.interpreter", `"/usr/bin/python3.12"`},
 		{"emetos.python", "/work/a", "python.other", `{"n":1}`},
 		{"emetos.rust", "/work/a", "python.interpreter", `"not python's"`},
+		{"emetos.golang", storage.GlobalExtensionFolder, "told:missing:gopls", `""`},
 	}
 	for _, st := range steps {
 		if err := s.SetExtensionValue(ctx, st.ext, st.folder, st.key, json.RawMessage(st.value)); err != nil {
@@ -45,6 +46,10 @@ func TestExtensionValuesAreKeptPerExtensionFolderAndKeyAndSurviveAStart(t *testi
 		{"a folder with nothing", "emetos.python", "/work/c", "python.interpreter", "", false},
 		{"a key with nothing", "emetos.python", "/work/a", "nothing", "", false},
 		{"an extension with nothing", "emetos.cpp", "/work/a", "python.interpreter", "", false},
+		{"the values of every folder", "emetos.golang", storage.GlobalExtensionFolder, "told:missing:gopls", `""`, true},
+		{"they are not those of a folder", "emetos.golang", "/work/a", "told:missing:gopls", "", false},
+		{"nor of a tab without a folder", "emetos.golang", "", "told:missing:gopls", "", false},
+		{"nor of another extension", "emetos.python", storage.GlobalExtensionFolder, "told:missing:gopls", "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,7 +123,7 @@ func TestExtensionValuesOfAFileAreCleanedWhenRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := `{"version":1,"extensions":{
-		"emetos.python":{"/work/a":{"good":"yes","":1,"broken":{}},"relative/folder":{"k":1},"":{"nofolder":true}},
+		"emetos.python":{"/work/a":{"good":"yes","":1,"broken":{}},"relative/folder":{"k":1},"":{"nofolder":true},"*":{"told:missing:x":""}},
 		"":{"/work/a":{"k":1}}}}`
 	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
 		t.Fatal(err)
@@ -137,8 +142,9 @@ func TestExtensionValuesOfAFileAreCleanedWhenRead(t *testing.T) {
 			}
 		}
 	}
-	if len(got) != 1 || len(got["emetos.python"]) != 2 || len(got["emetos.python"]["/work/a"]) != 2 ||
-		got["emetos.python"]["/work/a"]["good"] != `"yes"` || got["emetos.python"]["/work/a"]["broken"] != `{}` || got["emetos.python"][""]["nofolder"] != `true` {
+	if len(got) != 1 || len(got["emetos.python"]) != 3 || len(got["emetos.python"]["/work/a"]) != 2 ||
+		got["emetos.python"]["/work/a"]["good"] != `"yes"` || got["emetos.python"]["/work/a"]["broken"] != `{}` || got["emetos.python"][""]["nofolder"] != `true` ||
+		got["emetos.python"][storage.GlobalExtensionFolder]["told:missing:x"] != `""` {
 		t.Errorf("after cleaning: %v", got)
 	}
 }
