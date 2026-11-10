@@ -221,7 +221,7 @@ func TestAgentErrors(t *testing.T) {
 	}{
 		{"no socket", func() error { _, err := AgentAuth(ctx, "", ""); return err }, "AgentAuth.SSHLoginAgentUnavailable"},
 		{"no socket for the list", func() error { _, err := AgentKeys(ctx, ""); return err }, "AgentKeys.SSHLoginAgentUnavailable"},
-		{"nothing behind the socket", func() error { _, err := AgentAuth(ctx, t.TempDir()+"/none.sock", ""); return err }, "agentSigners.SSHLoginAgentUnavailable"},
+		{"nothing behind the socket", func() error { _, err := AgentAuth(ctx, shortTempDir(t)+"/none.sock", ""); return err }, "agentSigners.SSHLoginAgentUnavailable"},
 		{"no key", func() error { _, err := AgentAuth(ctx, empty, ""); return err }, "AgentAuth.SSHLoginAgentNoKey"},
 		{"not the chosen key", func() error { _, err := AgentAuth(ctx, empty, "SHA256:nope"); return err }, "AgentAuth.SSHLoginAgentNoKey"},
 	}
@@ -234,7 +234,7 @@ func TestAgentErrors(t *testing.T) {
 }
 
 func TestAgentThatDoesNotAnswer(t *testing.T) {
-	sock := t.TempDir() + "/bad.sock"
+	sock := shortTempDir(t) + "/bad.sock"
 	ln := listenUnix(t, sock)
 	go func() {
 		c, err := ln.Accept()

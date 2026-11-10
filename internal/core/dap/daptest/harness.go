@@ -205,7 +205,7 @@ func (h *Harness) connectListening(ctx context.Context, spec dap.ProcessSpec, o 
 			}
 		}
 	} else {
-		sock = filepath.Join(t.TempDir(), "dap.sock")
+		sock = filepath.Join(shortDir(t), "dap.sock")
 		spec.Args = append(spec.Args, "-listen", "unix", "-unix", sock)
 		spec.Stdout = func(string) {}
 	}
@@ -420,4 +420,20 @@ func Program(t testing.TB) string {
 		t.Fatalf("building the fake adapter: %s", problem)
 	}
 	return out
+}
+
+// shortDir is a private folder for a Unix socket, whose address holds 104 bytes on macOS: t.TempDir is named after the test and lies under
+// /var/folders/..., which is too long there. It is a folder of /tmp when the temporary folder's own path is long.
+func shortDir(t testing.TB) string {
+	t.Helper()
+	base := ""
+	if len(os.TempDir()) > 30 {
+		base = "/tmp"
+	}
+	dir, err := os.MkdirTemp(base, "dap")
+	if err != nil {
+		t.Fatalf("daptest: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
 }

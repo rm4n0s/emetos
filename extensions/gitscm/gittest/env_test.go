@@ -223,7 +223,7 @@ func TestTrustRefusesAStateHomeThatIsNotIsolated(t *testing.T) {
 		state string
 	}{
 		{"not set", ""},
-		{"outside the temporary folder", filepath.Join(filepath.Dir(os.TempDir()), "not-temp", "state")},
+		{"outside the temporary folder", filepath.Join(filepath.Dir(filepath.Clean(os.TempDir())), "not-temp", "state")},
 		{"the temporary folder itself", os.TempDir()},
 	}
 	for _, tc := range tests {
@@ -249,7 +249,7 @@ func TestTrustRefusesAStateHomeThatIsNotIsolated(t *testing.T) {
 }
 
 func TestInsideTempAcceptsTheTemporaryFolderAndGOTMPDIR(t *testing.T) {
-	gotmp := filepath.Join(filepath.Dir(os.TempDir()), "a-gotmpdir")
+	gotmp := filepath.Join(filepath.Dir(filepath.Clean(os.TempDir())), "a-gotmpdir")
 	t.Setenv("GOTMPDIR", gotmp)
 	tests := []struct {
 		name string
@@ -260,7 +260,7 @@ func TestInsideTempAcceptsTheTemporaryFolderAndGOTMPDIR(t *testing.T) {
 		{"inside GOTMPDIR", filepath.Join(gotmp, "x", "state"), true},
 		{"the temporary folder itself", os.TempDir(), false},
 		{"GOTMPDIR itself", gotmp, false},
-		{"elsewhere", filepath.Join(filepath.Dir(os.TempDir()), "home", "state"), false},
+		{"elsewhere", filepath.Join(filepath.Dir(filepath.Clean(os.TempDir())), "home", "state"), false},
 		{"a way out of the temporary folder", filepath.Join(os.TempDir(), "..", "state"), false},
 	}
 	for _, tc := range tests {

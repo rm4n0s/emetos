@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -146,7 +147,7 @@ func TestIsolatedCopiesTheStateWithPrivateModes(t *testing.T) {
 		}
 	}
 	stdout, stderr, status := runScript(t, nil, "isolated.sh", "--state", fixture, "--", "sh", "-c",
-		`cd "$XDG_STATE_HOME/emetos" && cat remote-work.json && stat -c '%a %n' . remote-work.json sub sub/other.json`)
+		`cd "$XDG_STATE_HOME/emetos" && cat remote-work.json && { stat -c '%a %n' . remote-work.json sub sub/other.json 2>/dev/null || stat -f '%Lp %N' . remote-work.json sub sub/other.json; }`)
 	if status != 0 {
 		t.Fatalf("status %d: %s", status, stderr)
 	}
@@ -249,6 +250,9 @@ func TestProofUsage(t *testing.T) {
 
 // scripts/realinput.sh finds a usage mistake before it starts a compositor, and --desktop without a Wayland session is refused.
 func TestRealInputScriptUsage(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("scripts/realinput.sh drives sway, which runs on Linux only; it stops for a missing sway before it looks at its options")
+	}
 	tests := []struct {
 		name string
 		env  []string

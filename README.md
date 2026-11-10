@@ -4,7 +4,7 @@
   <img src="docs/mascot/mascot.png" alt="Emetos's mascot: a teal cat coughing up the orange hairball of the Emetos icon" width="520">
 </p>
 
-Emetos is a code editor in the spirit of Visual Studio Code, written in Go for the Linux desktop. Its interface is built on [Glutter](https://github.com/rm4n0s/glutter), a GUI toolkit for Go with Flutter's framework API. It is one Go binary: no Electron, no Node.js and no cgo.
+Emetos is a code editor in the spirit of Visual Studio Code, written in Go for the Linux desktop and macOS. Its interface is built on [Glutter](https://github.com/rm4n0s/glutter), a GUI toolkit for Go with Flutter's framework API. It is one Go binary: no Electron, no Node.js and no cgo.
 
 It follows VS Code where VS Code has the behavior: the same settings, command ids, color themes, TextMate grammars, snippet files, `settings.json` and `keybindings.json` formats, and VS Code's Linux keyboard shortcuts, so a VS Code user finds their way. Language features (completion, hover, diagnostics, go to definition, rename and more) come from language servers, so the editor itself stays language-agnostic. Emetos has **its own extensions**: Go packages compiled into the program, not VS Code extensions (see [Extensions](#extensions)).
 
@@ -88,7 +88,7 @@ go build -tags glutter_release -o emetos ./cmd/emetos
 
 ### Requirements
 
-- Linux with a **Wayland** or **X11** session.
+- Linux with a **Wayland** or **X11** session, **or macOS 12 or newer** (Apple silicon or Intel; Glutter 1.16 draws with AppKit and Metal, and the program needs no C compiler or other install; see [macOS](#macos)).
 - **Vulkan** or **OpenGL ES 3.0** (Glutter uses Vulkan and falls back to OpenGL ES).
 - **fontconfig**, and a **monospace font**: the editor uses the desktop's monospace font and the workbench its UI font. Emetos bundles only its icon fonts.
 - Optional: **xdg-desktop-portal** (with a backend for your desktop) for the Open Folder, Open File and Save As dialogs and for opening links. Without it, Emetos asks for the path in its own input box.
@@ -100,6 +100,23 @@ go build -tags glutter_release -o emetos ./cmd/emetos
 - For the **databases** there is **nothing to install**: the drivers for PostgreSQL, MySQL, MariaDB, SQLite and SQL Server, and the MongoDB and Redis clients, are part of the program (pure Go, no C library). You need a server to connect to (SQLite only a file). Optional: a **Secret Service** keyring (GNOME Keyring, KWallet or another that implements `org.freedesktop.secrets`) to keep a database password between sessions; without one the password is asked when you connect.
 - Optional, for **Remote Work**: when you turn it on, it listens on a port, so a firewall must let the other computer reach it: **47123 over TCP and UDP** (it can be changed on its page). Nothing listens until you turn it on. It needs SSH public keys; see [the security notes](#remote-work).
 - Optional, for **Scan QR Code** (adding a public key with a camera): a camera that Linux shows as a V4L2 device (`/dev/video*`) that your user may open. Without one the button is disabled.
+
+### macOS
+
+Emetos runs on macOS 12 or newer, on Apple silicon and Intel, with the same one binary (`go install github.com/rm4n0s/emetos/cmd/emetos@latest`, or `go build ./cmd/emetos`; no C compiler is needed). It uses AppKit and Metal through Glutter, the system's file dialogs, and the system's light or dark appearance.
+
+![Emetos on macOS](docs/screenshots/macos-glutter-1.16.png)
+
+What is the same: the editor, the settings and key bindings files (in `~/.config/emetos`, `~/.local/state/emetos` and `~/.cache/emetos`: the XDG folders, as on Linux, with `XDG_*` honored), language servers, the debugger, Git, the terminal (in a pseudo-terminal), the containers (Docker, and Podman on a socket you give), the databases and Remote Work. What differs, and what is not done:
+
+- **Application menu.** `emetos --install-launcher` makes `~/Applications/Emetos.app`, a small application bundle (the icon as an `.icns` file and a launcher script that runs the program you ran); `emetos --uninstall-launcher` removes it. `scripts/install-desktop.sh` is for Linux.
+- **Shortcuts** are VS Code's Linux and Windows ones, with **Ctrl** where a Mac user expects Cmd (Ctrl+S saves, Ctrl+P opens Quick Open). A set of Mac shortcuts with Cmd is not made yet; rebind in `keybindings.json`.
+- **Changes on disk** are found by checking the watched folders every few seconds (there is no kqueue or FSEvents watcher yet), without the warning that Linux shows when it has to poll. A big folder costs more than inotify does.
+- **Passwords of the databases** are not kept in the Keychain (that is not done: the Secret Service of Linux is the only keyring), so they are asked when you connect.
+- **Trash.** Delete moves a file to Emetos's own trash folder (`~/.local/share/Trash`, in the freedesktop layout), not to the Trash of the Finder.
+- **Podman** starts its service itself only where `podman` runs without a virtual machine; on a Mac give the socket of `podman machine` (`containers.host`). The service Emetos starts is not stopped if Emetos is killed (macOS has no way to ask for it).
+- **Scan QR Code** needs a V4L2 camera, which a Mac has not: the button stays disabled.
+- Not checked on a Mac: the debugger against each language, the container and database extensions against real servers, Remote Work between two Macs.
 
 ### Launcher entry and icon
 

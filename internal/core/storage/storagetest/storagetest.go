@@ -27,7 +27,7 @@ func Isolate(t testing.TB) storage.Paths {
 		}
 		return d
 	}
-	runtime, err := os.MkdirTemp("", "emr")
+	runtime, err := os.MkdirTemp(socketTempBase(), "emr")
 	if err != nil {
 		t.Fatalf("storagetest.Isolate: %v", err)
 	}
@@ -47,4 +47,18 @@ func Isolate(t testing.TB) storage.Paths {
 		t.Fatalf("storagetest.Isolate: %v", err)
 	}
 	return paths
+}
+
+// socketTempBase is the folder for the runtime folder, whose Unix socket must fit in a sockaddr_un: 104 bytes on macOS, whose
+// temporary folder (/var/folders/xx/yyyy/T) alone is half of that. It is the temporary folder when that is short, and /tmp when it
+// is not and /tmp is a folder.
+func socketTempBase() string {
+	const short = 30
+	if tmp := os.TempDir(); len(tmp) <= short {
+		return tmp
+	}
+	if st, err := os.Stat("/tmp"); err == nil && st.IsDir() {
+		return "/tmp"
+	}
+	return os.TempDir()
 }

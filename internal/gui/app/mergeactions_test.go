@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -562,11 +563,14 @@ func TestDevOpenMergeEditorErrors(t *testing.T) {
 	if err := a.runWith("dev.openMergeEditor", map[string]any{"path": filepath.Join(filepath.Dir(a.files["c.go"]), "missing.go")}); err == nil {
 		t.Error("a missing file was opened")
 	}
-	// a working folder that is gone makes a relative path impossible
+	// a working folder that is gone makes a relative path impossible (not on macOS, which still answers getcwd for it)
 	gone := t.TempDir()
 	t.Chdir(gone)
 	if err := os.Remove(gone); err != nil {
 		t.Fatal(err)
+	}
+	if runtime.GOOS == "darwin" {
+		return
 	}
 	for name, args := range map[string]any{"path": "c.go", "files": map[string]any{"input1": "a", "input2": "b", "base": "c", "result": "d"}} {
 		err := a.runWith("dev.openMergeEditor", args)

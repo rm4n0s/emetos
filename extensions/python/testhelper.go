@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"github.com/rm4n0s/emetos/extensions/internal/cachehome"
 	"os"
 	"path/filepath"
 
@@ -29,9 +30,9 @@ const (
 // Emetos never share a file and a script is never replaced while a run reads it), and returns the folder. A cache folder that cannot be
 // found or written fails with PythonTestHelperWriteFailed.
 func helperDir() (string, error) {
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return "", errors.NewErr("PythonTestHelperWriteFailed", err)
+	cache, ok := cachehome.Dir()
+	if !ok {
+		return "", errors.New("PythonTestHelperWriteFailed", "the cache folder cannot be found: neither XDG_CACHE_HOME nor HOME is usable")
 	}
 	names := []string{pytestPlugin + ".py", unittestScript}
 	data := make([][]byte, len(names))

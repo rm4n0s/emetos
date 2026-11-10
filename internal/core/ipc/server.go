@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
-	"golang.org/x/sys/unix"
 )
 
 // Handler carries out the request of a client and gives the reply. ctx ends when the server stops or when the
@@ -217,25 +216,6 @@ func (s *Server) replyBestEffort(conn *net.UnixConn, reply Reply) {
 		return
 	}
 	_ = writeMessage(conn, reply)
-}
-
-// peerUID is the user id of the process at the other end of a Unix connection (SO_PEERCRED).
-func peerUID(conn *net.UnixConn) (int, error) {
-	raw, err := conn.SyscallConn()
-	if err != nil {
-		return 0, err
-	}
-	var cred *unix.Ucred
-	var serr error
-	if err := raw.Control(func(fd uintptr) {
-		cred, serr = unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
-	}); err != nil {
-		return 0, err
-	}
-	if serr != nil {
-		return 0, serr
-	}
-	return int(cred.Uid), nil
 }
 
 // Close stops listening, ends the connections that are open and removes the socket file, but only if the file is

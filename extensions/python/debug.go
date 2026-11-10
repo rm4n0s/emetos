@@ -12,6 +12,7 @@ import (
 	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/cachehome"
 	"github.com/rm4n0s/emetos/extensions/internal/langserver"
 )
 
@@ -186,8 +187,8 @@ func portOf(v any) (int, bool) {
 // debugpyLogDir is the folder the adapter writes its log to when a configuration says logToFile: below the cache folder of Emetos. It
 // is "" when the folder cannot be made.
 func debugpyLogDir() string {
-	cache, err := os.UserCacheDir()
-	if err != nil {
+	cache, ok := cachehome.Dir()
+	if !ok {
 		return ""
 	}
 	dir := filepath.Join(cache, "emetos", "debugpy")

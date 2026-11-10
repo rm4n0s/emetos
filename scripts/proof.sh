@@ -117,7 +117,11 @@ if [[ "$output" == 1 ]]; then
   done
 fi
 
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/emetos-proof.XXXXXX")"
+# A Unix socket path holds 104 bytes on macOS, where TMPDIR is /var/folders/xx/yyyy/T/ (with a slash at its end): use /tmp then.
+base="${TMPDIR:-/tmp}"
+base="${base%/}"
+if [[ ${#base} -gt 30 && -d /tmp ]]; then base=/tmp; fi
+tmp="$(mktemp -d "$base/emetos-proof.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM

@@ -21,10 +21,10 @@ func main() {
 	ttyEcho := len(os.Args) > 1 && os.Args[1] == "--tty-echo"
 	password := len(os.Args) > 1 && os.Args[1] == "--password"
 	fd := int(os.Stdin.Fd())
-	if old, err := unix.IoctlGetTermios(fd, unix.TCGETS); err == nil && password {
+	if old, err := unix.IoctlGetTermios(fd, termiosGet); err == nil && password {
 		quiet := *old
 		quiet.Lflag &^= unix.ECHO
-		_ = unix.IoctlSetTermios(fd, unix.TCSETS, &quiet)
+		_ = unix.IoctlSetTermios(fd, termiosSet, &quiet)
 	} else if err == nil {
 		raw := *old
 		raw.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
@@ -34,7 +34,7 @@ func main() {
 			raw.Lflag &^= unix.ECHO
 		}
 		raw.Cc[unix.VMIN], raw.Cc[unix.VTIME] = 1, 0
-		_ = unix.IoctlSetTermios(fd, unix.TCSETS, &raw)
+		_ = unix.IoctlSetTermios(fd, termiosSet, &raw)
 	}
 	out := os.Stdout
 	say := func(format string, args ...any) { fmt.Fprintf(out, format, args...) }

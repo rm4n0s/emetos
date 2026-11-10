@@ -144,7 +144,11 @@ func newCTestRig(t *testing.T, o ctestOptions) *ctestRig {
 	// the PATH is the folder of the fake ctest alone, with links to the programs its script uses, so that no program of the machine (gdb,
 	// lldb-dap, a real ctest) is found
 	for _, tool := range []string{"sed", "cat", "sleep", "mv"} {
-		if err := os.Symlink(filepath.Join("/usr/bin", tool), filepath.Join(r.bin, tool)); err != nil {
+		src, err := exec.LookPath(tool) // /usr/bin on Linux, /bin for some of them on macOS
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(src, filepath.Join(r.bin, tool)); err != nil {
 			t.Fatal(err)
 		}
 	}

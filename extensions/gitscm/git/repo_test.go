@@ -6,10 +6,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/rm4n0s/emetos/extensions/gitscm/gittest"
 )
@@ -746,6 +749,9 @@ func TestOddFileNamesRoundTripThroughEveryParser(t *testing.T) {
 	e := gittest.NewEnv(t)
 	r := e.Init("repo")
 	names := []string{"my file.txt", "quote\"d.txt", "back\\slash.txt", "tab\there.txt", "new\nline.txt", "ünï ☃.txt", "bad\xff\xfe.txt", "-dash.txt", "[brackets].txt", "dir with space/x y.txt"}
+	if runtime.GOOS == "darwin" { // APFS refuses a file name that is not UTF-8
+		names = slices.DeleteFunc(names, func(n string) bool { return !utf8.ValidString(n) })
+	}
 	for _, n := range names {
 		r.Write(n, "content of "+n+"\n")
 	}
@@ -817,13 +823,17 @@ func TestOddFileNamesRoundTripThroughEveryParser(t *testing.T) {
 	r.Write(".gitignore", "tab*\nbad*\n!-dash.txt\n*.log\n")
 	r.Write("x\ny.log", "log\n")
 	r.Write("tab\tnew.txt", "untracked\n")
-	r.Write("bad\xffnew.txt", "untracked\n")
-	ignored, err := repo.CheckIgnore(ctx, []string{"tab\tnew.txt", "bad\xffnew.txt", "-dash.txt", "my file.txt", "x\ny.log"})
+	badNew := "bad\xffnew.txt"
+	if runtime.GOOS == "darwin" { // APFS refuses a file name that is not UTF-8
+		badNew = "bad-new.txt"
+	}
+	r.Write(badNew, "untracked\n")
+	ignored, err := repo.CheckIgnore(ctx, []string{"tab\tnew.txt", badNew, "-dash.txt", "my file.txt", "x\ny.log"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	sort.Strings(ignored)
-	if !reflect.DeepEqual(ignored, []string{"bad\xffnew.txt", "tab\tnew.txt", "x\ny.log"}) {
+	if !reflect.DeepEqual(ignored, []string{badNew, "tab\tnew.txt", "x\ny.log"}) {
 		t.Errorf("ignored = %q", ignored)
 	}
 }

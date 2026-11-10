@@ -202,7 +202,7 @@ func TestMainRequests(t *testing.T) {
 
 func TestMainCannotReachTheServer(t *testing.T) {
 	// a stale socket: the file is there and nothing listens
-	dir := t.TempDir()
+	dir := shortTempDir(t)
 	stale := filepath.Join(dir, "s.sock")
 	ln, err := net.ListenUnix("unix", &net.UnixAddr{Name: stale, Net: "unix"})
 	if err != nil {
@@ -347,7 +347,7 @@ func TestPeerOfAClosedConnectionIsUnknown(t *testing.T) {
 // unixPair makes two connected Unix sockets.
 func unixPair(t *testing.T) (*net.UnixConn, *net.UnixConn) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "p.sock")
+	path := filepath.Join(shortTempDir(t), "p.sock")
 	ln, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
@@ -386,7 +386,7 @@ type failingReader struct{}
 func (failingReader) Read([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
 func TestAnInvalidReplyIsAnError(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "bad.sock")
+	path := filepath.Join(shortTempDir(t), "bad.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

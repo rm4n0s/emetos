@@ -432,7 +432,7 @@ func (o *FileOps) moveItem(ctx context.Context, src, dst string, overwrite bool)
 		return nil, errors.New("FileOpMoveIntoItself", "a folder cannot be moved into itself", "path", src, "target", dst)
 	}
 	var replaced *fileio.TrashedItem
-	if exists(dst) {
+	if exists(dst) && !sameItem(src, dst) {
 		if !overwrite {
 			return nil, errors.New("FileOpDestinationExists", "an item of this name exists in the destination", "path", dst)
 		}
@@ -989,4 +989,19 @@ func recreate(path string, isDir bool) error {
 		return errors.NewErr("FileOpCreateFailed", err).SetMetadata("path", path)
 	}
 	return nil
+}
+
+// sameItem tells whether the two paths name one file or folder. A rename that only changes the case of the name (readme.md to
+// README.md) does so on a file system that ignores case (the default of macOS and Windows): the destination "exists" because it is
+// the source, and the rename must not take it for another item that is in the way, or replace it.
+func sameItem(a, b string) bool {
+	ai, err := os.Lstat(a)
+	if err != nil {
+		return false
+	}
+	bi, err := os.Lstat(b)
+	if err != nil {
+		return false
+	}
+	return os.SameFile(ai, bi)
 }

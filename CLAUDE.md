@@ -3,7 +3,7 @@
 Guidance for Claude Code when working in this repository (Go, hosted on GitHub).
 
 ## Project
-Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its user interface is built on [Glutter](https://github.com/rm4n0s/glutter), a cgo-free GUI toolkit for Go with Flutter's framework API (Wayland/X11, Vulkan with an OpenGL ES 3.0 fallback). Emetos targets the Linux desktop only. Language features come from language servers (LSP) and debugging from debug adapters (DAP), so the editor itself stays language-agnostic.
+Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its user interface is built on [Glutter](https://github.com/rm4n0s/glutter), a cgo-free GUI toolkit for Go with Flutter's framework API (Wayland/X11, Vulkan with an OpenGL ES 3.0 fallback). Emetos targets the Linux desktop and macOS 12+ (Apple silicon and Intel; the system's parts have `_linux.go` and `_darwin.go` files with the same function names, and tests that cannot run on both say why in `t.Skip`). Language features come from language servers (LSP) and debugging from debug adapters (DAP), so the editor itself stays language-agnostic.
 
 **`docs/SPEC.md` is the source of truth.** Read the sections that cover a task before starting it. If the code and the spec disagree, or a task needs a decision the spec doesn't make, ask instead of guessing. When a decision changes, update the spec on the same branch.
 
@@ -20,6 +20,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 - Format: `gofmt -w cmd internal assets extension extensions` (not `.`: `reference/` holds VS Code's Go test files)
 - Generate: `go generate ./...`
 - Run the editor: `go run ./cmd/emetos` (debug build; it uses your real configuration)
+- On macOS run the tests with `TMPDIR=$(cd "$TMPDIR" && pwd -P)/ go test ...` (the temporary folder is under `/var`, a link to `/private/var`, and tests compare paths that the program resolves); the golden images were made on amd64, and a few differ by a pixel on arm64. **Known on macOS (2026-11-10):** about ten golden tests of `internal/gui/app` (the Run and Debug views, the testing glyphs, the coverage editor) fail, a different few each run, because the editor's own caret (`internal/gui/editor/blink.go`) is caught half faded: its blink is not on the fake clock of the tester. `TestEscapeClosesThePeekOfTwoControllersThatBothFailInTheFile` fails too. The rest of the suite passes. Not investigated further
 - Run the editor isolated from your configuration: `scripts/isolated.sh [--config <fixture dir>] -- go run ./cmd/emetos <args>`
 - Make a proof screenshot: `scripts/proof.sh <out.png> [--config <dir>] [--after <duration>] [--commands '<json>'] -- <emetos args>` (docs/IMPLEMENTATION.md "Proof methods")
 - Release build: `go build -tags glutter_release ./cmd/emetos`

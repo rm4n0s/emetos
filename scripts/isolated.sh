@@ -74,7 +74,11 @@ if command -v go >/dev/null 2>&1; then
 fi
 
 # A short path: a Unix socket's path is limited to about 100 bytes.
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/emetos-iso.XXXXXX")"
+# A Unix socket path holds 104 bytes on macOS, where TMPDIR is /var/folders/xx/yyyy/T/ (with a slash at its end): use /tmp then.
+base="${TMPDIR:-/tmp}"
+base="${base%/}"
+if [[ ${#base} -gt 30 && -d /tmp ]]; then base=/tmp; fi
+tmp="$(mktemp -d "$base/emetos-iso.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM

@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/rm4n0s/glutter/ui"
@@ -140,12 +141,27 @@ func samePixels(a, b image.Image) bool {
 	if a.Bounds() != b.Bounds() {
 		return false
 	}
+	// The golden pictures were made on amd64. arm64 fuses a multiplication and an addition into one rounding (Go allows it), so the
+	// anti-aliased edges of a drawing differ there by a step or two in a few pixels: allow that much on arm64 and nothing on amd64.
+	tolerance := 0
+	if runtime.GOARCH == "arm64" {
+		tolerance = 3
+	}
 	for y := a.Bounds().Min.Y; y < a.Bounds().Max.Y; y++ {
 		for x := a.Bounds().Min.X; x < a.Bounds().Max.X; x++ {
-			if color.NRGBAModel.Convert(a.At(x, y)) != color.NRGBAModel.Convert(b.At(x, y)) {
+			ca := color.NRGBAModel.Convert(a.At(x, y)).(color.NRGBA)
+			cb := color.NRGBAModel.Convert(b.At(x, y)).(color.NRGBA)
+			if absDiff(ca.R, cb.R) > tolerance || absDiff(ca.G, cb.G) > tolerance || absDiff(ca.B, cb.B) > tolerance || absDiff(ca.A, cb.A) > tolerance {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func absDiff(a, b uint8) int {
+	if a > b {
+		return int(a - b)
+	}
+	return int(b - a)
 }

@@ -17,6 +17,9 @@ import (
 const watchMask = unix.IN_CREATE | unix.IN_DELETE | unix.IN_MODIFY | unix.IN_CLOSE_WRITE | unix.IN_ATTRIB |
 	unix.IN_MOVED_FROM | unix.IN_MOVED_TO | unix.IN_DELETE_SELF | unix.IN_MOVE_SELF | unix.IN_ONLYDIR
 
+// nativeWatching tells whether the system tells the watcher about changes: inotify does on Linux.
+const nativeWatching = true
+
 // inotify is the inotify instance of a watcher. Its maps are guarded by Watcher.mu.
 type inotify struct {
 	f  *os.File // the descriptor, in non-blocking mode so that closing it ends a Read

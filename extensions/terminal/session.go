@@ -4,10 +4,8 @@ import (
 	"context"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -508,17 +506,16 @@ func (t *Terminal) watchProcessName() {
 	}
 }
 
-// refreshProcessName reads the name of the foreground process from /proc once.
+// refreshProcessName reads the name of the foreground process once (processName).
 func (t *Terminal) refreshProcessName(fg foregrounder) {
 	pgid, err := fg.ForegroundPid()
 	if err != nil || pgid <= 0 {
 		return
 	}
-	data, err := os.ReadFile("/proc/" + strconv.Itoa(pgid) + "/comm")
-	if err != nil {
+	name, ok := processName(pgid)
+	if !ok {
 		return
 	}
-	name := strings.TrimSpace(string(data))
 	t.mu.Lock()
 	changed := name != "" && name != t.process
 	if changed {
@@ -646,7 +643,7 @@ func (t *Terminal) Cwd() string {
 func (t *Terminal) InitialDir() string { return t.dir }
 
 // SpeculativeCwd is the folder the shell is in as well as can be known: the one it reported (OSC 7, shell integration), else
-// the one the system says its process is in (/proc/<pid>/cwd), else the one it started in (VS Code's getSpeculativeCwd).
+// the one the system says its process is in (processCwd), else the one it started in (VS Code's getSpeculativeCwd).
 func (t *Terminal) SpeculativeCwd() string {
 	t.mu.Lock()
 	reported := t.cwd
@@ -655,7 +652,7 @@ func (t *Terminal) SpeculativeCwd() string {
 		return reported
 	}
 	if pid := t.Pid(); pid > 0 {
-		if dir, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd"); err == nil && filepath.IsAbs(dir) {
+		if dir, ok := processCwd(pid); ok && filepath.IsAbs(dir) {
 			return dir
 		}
 	}

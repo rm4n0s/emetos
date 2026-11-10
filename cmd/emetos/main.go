@@ -26,14 +26,11 @@ import (
 
 	"github.com/rm4n0s/errors"
 
-	"github.com/rm4n0s/emetos/assets"
-	"github.com/rm4n0s/emetos/assets/icons"
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions"
 	"github.com/rm4n0s/emetos/extensions/devdebug"
 	"github.com/rm4n0s/emetos/extensions/devtesting"
 	"github.com/rm4n0s/emetos/extensions/gitscm/helper"
-	"github.com/rm4n0s/emetos/internal/core/desktopsetup"
 	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/logs"
 	"github.com/rm4n0s/emetos/internal/core/storage"
@@ -56,7 +53,8 @@ Options:
       --tutor                     learn Emetos: open a fresh practice copy of the Emetos Tutor
       --log level                 log level: debug, info, warn or error (default info)
       --install-launcher          add Emetos to the application menu and launcher (a desktop
-                                  entry and icon under $XDG_DATA_HOME) and exit
+                                  entry and icon under $XDG_DATA_HOME; an app in ~/Applications
+                                  on macOS) and exit
       --uninstall-launcher        remove them and exit
   -v, --version                   print the version and exit
   -h, --help                      print this help and exit
@@ -270,13 +268,12 @@ func runInstallLauncher(ctx context.Context, e env) int {
 		complain(e.stderr, "emetos: "+describe(err)+"\n")
 		return exitFailure
 	}
-	res, err := desktopsetup.Install(ctx, paths, app.AppID, assets.DesktopEntry(), icons.PNG, exe)
+	wrote, err := installLauncherFiles(ctx, paths, exe)
 	if err != nil {
 		complain(e.stderr, "emetos: cannot add Emetos to the application menu: "+describe(err)+"\n")
 		return exitFailure
 	}
-	_, _ = fmt.Fprintf(e.stdout, "Wrote %s\n", res.DesktopFile)
-	for _, p := range res.IconFiles {
+	for _, p := range wrote {
 		_, _ = fmt.Fprintf(e.stdout, "Wrote %s\n", p)
 	}
 	return exitOK
@@ -291,19 +288,16 @@ func runUninstallLauncher(ctx context.Context, e env) int {
 		complain(e.stderr, "emetos: "+describe(err)+"\n")
 		return exitFailure
 	}
-	res, err := desktopsetup.Uninstall(ctx, paths, app.AppID)
+	removed, err := uninstallLauncherFiles(ctx, paths)
 	if err != nil {
 		complain(e.stderr, "emetos: cannot remove Emetos from the application menu: "+describe(err)+"\n")
 		return exitFailure
 	}
-	if res.DesktopFile == "" && len(res.IconFiles) == 0 {
+	if len(removed) == 0 {
 		_, _ = io.WriteString(e.stdout, "Nothing to remove.\n")
 		return exitOK
 	}
-	if res.DesktopFile != "" {
-		_, _ = fmt.Fprintf(e.stdout, "Removed %s\n", res.DesktopFile)
-	}
-	for _, p := range res.IconFiles {
+	for _, p := range removed {
 		_, _ = fmt.Fprintf(e.stdout, "Removed %s\n", p)
 	}
 	return exitOK
@@ -398,7 +392,7 @@ func describe(err error) string {
 // a checkout that Go cannot stamp (Go reports "(devel)" or nothing). A build made by `go install
 // ...@v1.0.0` or from a tagged checkout carries its tag, which is printed instead, so this changes only
 // when the next development cycle starts.
-const devVersion = "v1.3.2-dev"
+const devVersion = "v1.4.1-dev"
 
 // versionString is the version line of --version: the module version and VCS
 // revision from the build, and the Go version and platform.

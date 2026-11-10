@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -295,6 +296,9 @@ func TestRecordedPrograms(t *testing.T) {
 		t.Skip("real programs are run in the full run")
 	}
 	t.Run("vim", func(t *testing.T) {
+		if runtime.GOOS == "darwin" {
+			t.Skip("the golden is the screen of the vim of Linux (a newer version with other tildes and messages); macOS's vim draws it differently")
+		}
 		home := t.TempDir()
 		numberedFile(t, home, "text.txt", 60)
 		s := recordProgram(t, 24, 80, home, cleanEnv(home), "vim", "-u", "NONE", "-U", "NONE", "-N", "-n", "-i", "NONE", "--noplugin", "-c", "set ttimeout ttimeoutlen=20", "text.txt")

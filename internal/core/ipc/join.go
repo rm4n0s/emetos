@@ -99,7 +99,8 @@ func Join(ctx context.Context, opts Options) (*Server, *Client, error) {
 		return nil, newClient(conn, opts), nil
 	case errors.Is(err, syscall.ENOENT):
 		// nobody has made the socket
-	case errors.Is(err, syscall.ECONNREFUSED):
+	case errors.Is(err, syscall.ECONNREFUSED), errors.Is(err, syscall.ENOTSOCK):
+		// a socket nobody listens on (Linux says ECONNREFUSED to a file that is not a socket too, macOS says ENOTSOCK)
 		if err := removeStale(opts.Location.Socket, opts.uid()); err != nil {
 			return nil, nil, err
 		}

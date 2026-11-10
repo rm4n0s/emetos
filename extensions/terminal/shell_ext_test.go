@@ -199,10 +199,15 @@ func TestASplitOfAShellWithNoIntegrationFollowsItsProcess(t *testing.T) {
 	r.run(CmdNew, nil)
 	e := r.ext.activeEntry()
 	e.term.Send([]byte("cd /tmp\r"))
-	r.waitFor("the folder of the process", func() bool { return e.term.SpeculativeCwd() == "/tmp" })
+	// the system tells the real folder of the process: /private/tmp on macOS, where /tmp is a link
+	tmp, err := filepath.EvalSymlinks("/tmp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.waitFor("the folder of the process", func() bool { return e.term.SpeculativeCwd() == tmp })
 	r.run(CmdSplit, nil)
-	if got := r.ext.activeEntry().term.InitialDir(); got != "/tmp" {
-		t.Errorf("the split started in %q, want /tmp (read from the process)", got)
+	if got := r.ext.activeEntry().term.InitialDir(); got != tmp {
+		t.Errorf("the split started in %q, want %s (read from the process)", got, tmp)
 	}
 }
 

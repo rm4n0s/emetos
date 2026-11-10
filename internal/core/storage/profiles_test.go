@@ -143,7 +143,8 @@ func TestListHasTheDefaultFirstAndTheRestSortedWithoutRegardToCase(t *testing.T)
 		t.Fatal(err)
 	}
 	for _, name := range []string{"bad.name", ".new-123", "Default", "default"} {
-		if err := os.Mkdir(filepath.Join(root, name), 0o755); err != nil {
+		// "Default" and "default" are one folder on a file system that ignores case (macOS, Windows)
+		if err := os.Mkdir(filepath.Join(root, name), 0o755); err != nil && !os.IsExist(err) {
 			t.Fatal(err)
 		}
 	}
@@ -265,7 +266,11 @@ func TestCreateFromACopiesTheFilesOfAProfileAndNothingElse(t *testing.T) {
 	f.put(t, src, "unrelated.txt", `x`)
 	f.put(t, src, "state.json", `{}`)
 	dir, _ := f.paths.ConfigDir(src)
-	if err := os.Symlink("/etc/hostname", filepath.Join(dir, "snippets", "link.json")); err != nil {
+	target := filepath.Join(t.TempDir(), "target.json") // a link to a file that is there, whatever the system
+	if err := os.WriteFile(target, []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "snippets", "link.json")); err != nil {
 		t.Fatal(err)
 	}
 	// the state of the source and its backups are not copied either

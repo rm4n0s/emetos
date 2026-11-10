@@ -146,7 +146,7 @@ func StartService(ctx context.Context, opts ServiceOptions) (*Service, error) {
 	svc.cmd = exec.Command(path, "system", "service", "--time=0", "unix://"+socket) //nolint:gosec // the program is the user's podman
 	svc.cmd.Env = opts.Env
 	svc.cmd.Stderr = svc.stderr
-	svc.cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
+	svc.cmd.SysProcAttr = podmanProcAttr()
 
 	// Pdeathsig fires when the thread that started the child ends, so a goroutine that holds its thread starts it and
 	// lives until Stop: the thread ends with the goroutine (it is never unlocked), and so does the child if this process

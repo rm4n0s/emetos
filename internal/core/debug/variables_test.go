@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/rm4n0s/emetos/internal/core/debug"
@@ -380,6 +381,9 @@ func TestVariablesList(t *testing.T) {
 }
 
 func TestVariableCwdFailsWhenTheWorkingFolderIsGone(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS still answers getcwd for a folder that was removed, so there is no failure to see")
+	}
 	gone := t.TempDir()
 	t.Chdir(gone)
 	if err := os.RemoveAll(gone); err != nil {

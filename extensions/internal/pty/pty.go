@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -107,43 +106,40 @@ func Start(ctx context.Context, opts Options) (*Process, error) {
 }
 
 // openSlave unlocks the master, finds its slave and opens it, with the window size and, when noEcho is set, with the echo
-// turned off.
+// turned off. The settings are made on the slave's descriptor: macOS answers them on the master only while a slave is open.
 func openSlave(master *os.File, rows, cols int, noEcho bool) (*os.File, error) {
 	sc, err := master.SyscallConn()
 	if err != nil {
 		return nil, errors.NewErr("PtyOpenFailed", err).SetMetadata("step", "syscall conn")
 	}
-	var number int
+	var slavePath string
 	var ioErr error
-	if err := sc.Control(func(fd uintptr) {
-		f := int(fd)
-		if ioErr = unix.IoctlSetPointerInt(f, unix.TIOCSPTLCK, 0); ioErr != nil {
-			return
-		}
-		if number, ioErr = unix.IoctlGetInt(f, unix.TIOCGPTN); ioErr != nil {
-			return
-		}
-		if ioErr = unix.IoctlSetWinsize(f, unix.TIOCSWINSZ, &unix.Winsize{Row: uint16(rows), Col: uint16(cols)}); ioErr != nil {
-			return
-		}
-		if !noEcho {
-			return
-		}
-		var tio *unix.Termios
-		if tio, ioErr = unix.IoctlGetTermios(f, unix.TCGETS); ioErr != nil {
-			return
-		}
-		tio.Lflag &^= unix.ECHO
-		ioErr = unix.IoctlSetTermios(f, unix.TCSETS, tio)
-	}); err != nil {
+	if err := sc.Control(func(fd uintptr) { slavePath, ioErr = unlockSlave(int(fd)) }); err != nil {
 		return nil, errors.NewErr("PtyOpenFailed", err).SetMetadata("step", "control")
 	}
 	if ioErr != nil {
-		return nil, errors.NewErr("PtyOpenFailed", ioErr).SetMetadata("step", "ioctl")
+		return nil, errors.NewErr("PtyOpenFailed", ioErr).SetMetadata("step", "unlock")
 	}
-	slave, err := os.OpenFile("/dev/pts/"+strconv.Itoa(number), os.O_RDWR|unix.O_NOCTTY, 0)
+	slave, err := os.OpenFile(slavePath, os.O_RDWR|unix.O_NOCTTY, 0)
 	if err != nil {
-		return nil, errors.NewErr("PtyOpenFailed", err).SetMetadata("step", "open the slave", "number", number)
+		return nil, errors.NewErr("PtyOpenFailed", err).SetMetadata("step", "open the slave", "path", slavePath)
+	}
+	f := int(slave.Fd())
+	if err := unix.IoctlSetWinsize(f, unix.TIOCSWINSZ, &unix.Winsize{Row: uint16(rows), Col: uint16(cols)}); err != nil {
+		_ = slave.Close() // already failing
+		return nil, errors.NewErr("PtyOpenFailed", err).SetMetadata("step", "window size")
+	}
+	if noEcho {
+		tio, err := unix.IoctlGetTermios(f, termiosGet)
+		if err != nil {
+			_ = slave.Close() // already failing
+			return nil, errors.NewErr("PtyOpenFailed", err).SetMetadata("step", "read the settings")
+		}
+		tio.Lflag &^= unix.ECHO
+		if err := unix.IoctlSetTermios(f, termiosSet, tio); err != nil {
+			_ = slave.Close() // already failing
+			return nil, errors.NewErr("PtyOpenFailed", err).SetMetadata("step", "set the settings")
+		}
 	}
 	return slave, nil
 }
@@ -275,7 +271,7 @@ func (p *Process) LineMode() (echo, canonical bool, err error) {
 	var ioErr error
 	if err := sc.Control(func(fd uintptr) {
 		var t *unix.Termios
-		t, ioErr = unix.IoctlGetTermios(int(fd), unix.TCGETS)
+		t, ioErr = unix.IoctlGetTermios(int(fd), termiosGet)
 		if ioErr == nil {
 			echo, canonical = t.Lflag&unix.ECHO != 0, t.Lflag&unix.ICANON != 0
 		}

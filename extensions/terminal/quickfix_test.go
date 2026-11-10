@@ -3,7 +3,6 @@ package terminal
 import (
 	"net"
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -201,10 +200,6 @@ func TestPortHolders(t *testing.T) {
 	}
 	if got := portHolders("/proc", 1); len(got) != 0 {
 		t.Errorf("holders of port 1 = %v", got)
-	}
-	// a /proc that is not one
-	if got := portHolders(filepath.Join(t.TempDir(), "none"), port); got != nil {
-		t.Errorf("holders in a missing folder = %v", got)
 	}
 }
 

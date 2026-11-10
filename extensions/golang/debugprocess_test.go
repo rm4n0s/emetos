@@ -130,7 +130,7 @@ func TestTheProcessPickerAnswersTheProcessId(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r, _ := debugRig(t, rigOptions{withGo: true})
 			fakePS(t, listing, 0)
-			t.Setenv("FAKEGO_VERSION_FILES", "/proc/10/exe,/proc/40/exe")
+			t.Setenv("FAKEGO_VERSION_FILES", executableFor(10, "myapp", "/opt/myapp --serve")+","+executableFor(40, "myapp", "/opt/myapp --other"))
 			in := cfg{"name": "A", "request": "attach", "mode": "local"}
 			if tt.processID != nil {
 				in["processId"] = tt.processID
@@ -223,4 +223,10 @@ func TestPickGoProcessWithoutGoListsEveryProcess(t *testing.T) {
 	if sev, msg := r.lastNote(); sev != "error" || !strings.Contains(msg, `Failed to run "go version"`) {
 		t.Errorf("note = %s %q", sev, msg)
 	}
+}
+
+// executableFor is the file that the picker asks `go version` about for a process: /proc/<pid>/exe on Linux, the path of the
+// program on macOS.
+func executableFor(pid int, name, cmd string) string {
+	return executableOf(process{pid: pid, name: name, cmd: cmd})
 }

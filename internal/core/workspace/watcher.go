@@ -207,7 +207,7 @@ type Watcher struct {
 }
 
 // NewWatcher starts a watcher that runs until ctx ends. If inotify cannot be initialised, it
-// polls instead and sends a NoticePollingFallback notice.
+// polls instead and sends a NoticePollingFallback notice. Outside Linux it always polls and sends no notice.
 func NewWatcher(ctx context.Context, opts WatcherOptions) *Watcher {
 	w := &Watcher{
 		opts: opts, log: opts.Logger, clock: opts.Clock, ctx: ctx,
@@ -228,7 +228,10 @@ func NewWatcher(ctx context.Context, opts WatcherOptions) *Watcher {
 	}
 	if !opts.ForcePolling {
 		ino, err := newInotify(opts.inotifyInit, opts.inotifyAdd)
-		if err != nil {
+		if err != nil && !nativeWatching {
+			// Outside Linux there is no inotify to lose: polling is how the watcher works, and not a thing to warn about.
+			w.log.Info("the watcher polls: this system has no native file watching yet")
+		} else if err != nil {
 			w.log.Warn("inotify is not available, the watcher polls", "err", err)
 			w.sendNotice(Notice{Kind: NoticePollingFallback, Err: err,
 				Message: "Emetos cannot watch files for changes, so it checks for them every few seconds instead."})

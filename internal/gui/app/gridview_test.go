@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -934,6 +935,9 @@ func TestDevOpenFileInAGroup(t *testing.T) {
 // A relative path is made absolute from the working folder; when that folder is gone the command fails
 // with DevOpenFileFailed, and nothing is opened.
 func TestDevOpenFileWithTheWorkingFolderGone(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("macOS still answers getcwd for a folder that was removed, so a relative path can still be made")
+	}
 	a := newGroupApp(t, []string{"a.go"}, "a.go")
 	gone := t.TempDir()
 	t.Chdir(gone)

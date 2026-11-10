@@ -94,8 +94,9 @@ func (g *golang) listProcesses(ctx context.Context) ([]process, error) {
 	return list, nil
 }
 
-// goProcesses are the processes whose executable is a Go program, found by `go version` on /proc/<pid>/exe of each (the files that
-// cannot be read are reported on its standard error and are not Go programs). Without a go program the list is all the processes.
+// goProcesses are the processes whose executable is a Go program, found by `go version` on the executable of each (/proc/<pid>/exe on
+// Linux, the path that ps gives as the name on macOS; the files that cannot be read are reported on its standard error and are not Go
+// programs). Without a go program the list is all the processes.
 func (g *golang) goProcesses(ctx context.Context, all []process) []process {
 	program, err := g.goProgram()
 	if err != nil {
@@ -103,11 +104,19 @@ func (g *golang) goProcesses(ctx context.Context, all []process) []process {
 		return all
 	}
 	args := []string{"version"}
-	exe := map[string]process{}
+	exe := map[string][]process{}
 	for _, p := range all {
-		path := "/proc/" + strconv.Itoa(p.pid) + "/exe"
-		args = append(args, path)
-		exe[path] = p
+		path := executableOf(p)
+		if path == "" {
+			continue
+		}
+		if _, seen := exe[path]; !seen {
+			args = append(args, path)
+		}
+		exe[path] = append(exe[path], p)
+	}
+	if len(args) == 1 {
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, processListTimeout)
 	defer cancel()
@@ -116,9 +125,7 @@ func (g *golang) goProcesses(ctx context.Context, all []process) []process {
 	_ = runProgram(ctx, cmdSpec{Program: program, Args: args, Dir: g.api.Scope().Folder, Env: g.programEnv()}, func(l string) { out = append(out, l) })
 	var list []process
 	for _, file := range parseGoVersionOutput(strings.Join(out, "\n")) {
-		if p, ok := exe[file]; ok {
-			list = append(list, p)
-		}
+		list = append(list, exe[file]...)
 	}
 	return list
 }

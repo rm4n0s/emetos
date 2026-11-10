@@ -407,15 +407,7 @@ func alive(pid int) bool {
 	if err := syscall.Kill(pid, 0); err != nil {
 		return false
 	}
-	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
-	if err != nil {
-		return false
-	}
-	s := string(data)
-	if i := strings.LastIndex(s, ")"); i >= 0 && len(s) > i+2 {
-		return s[i+2] != 'Z'
-	}
-	return true
+	return !isZombie(pid)
 }
 
 func TestTheOutputIsBounded(t *testing.T) {

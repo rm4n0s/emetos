@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
@@ -65,8 +66,18 @@ var WindowInfo = ui.WindowInfo{
 // unmounts the widget tree when the test ends, so the states are disposed and the goroutines they
 // started (State.Go, the tokenizers of the app) end with the test. Its window is WindowInfo, so
 // that the title bar row shows as it does in the application.
+//
+// It also pins the target platform to Linux, which the key bindings, the golden pictures and the behavior of the text fields were made
+// for (Flutter's text field fades its caret on macOS and does not blink it, for one thing): without it a test on a Mac runs as a Mac
+// and differs by a caret. The pin needs a debug build, which `go test` is.
 func New(t testing.TB, size ui.Size) *gluttertest.Tester {
 	t.Helper()
+	if foundation.DebugMode {
+		foundation.SetDebugDefaultTargetPlatformOverride(foundation.Some(foundation.TargetPlatformLinux))
+		t.Cleanup(func() {
+			foundation.SetDebugDefaultTargetPlatformOverride(foundation.None[foundation.TargetPlatform]())
+		})
+	}
 	ts := gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
 	ts.SetViewConfiguration(func(c *ui.ViewConfiguration) { c.Window = WindowInfo })
 	return ts

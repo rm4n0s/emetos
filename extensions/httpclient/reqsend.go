@@ -2,7 +2,6 @@ package httpclient
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/httpclient/history"
 	"github.com/rm4n0s/emetos/extensions/httpclient/store"
 	"github.com/rm4n0s/emetos/extensions/httpclient/variables"
+	"github.com/rm4n0s/emetos/extensions/internal/cachehome"
 )
 
 // place is what a request gets from where it lives in the tree: the variables of its environment, folders and collection, the headers
@@ -99,7 +99,7 @@ func (e *Extension) engineConfig() engine.Config {
 			}
 		}
 	}
-	if dir, err := os.UserCacheDir(); err == nil {
+	if dir, ok := cachehome.Dir(); ok {
 		cfg.CacheDir = filepath.Join(dir, "emetos", "httpclient")
 	}
 	return cfg
