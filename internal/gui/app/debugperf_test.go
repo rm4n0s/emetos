@@ -19,7 +19,7 @@ import (
 // adapter answers the expansion of `order` with 10,000 variables in one reply (no paging, the worst case for the view; with paging the
 // view asks for chunks of 100). The times are the UI thread's processor time of build, layout and paint with the fake platform.
 //
-//	scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./internal/gui/app -run TestPerfVariables -v -count=1
+//	scripts/heavy.sh --alone -- go test -tags emetos_perf ./internal/gui/app -run TestPerfVariables -v -count=1
 
 func threadCPU(t testing.TB) time.Duration {
 	t.Helper()

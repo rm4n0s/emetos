@@ -1,4 +1,4 @@
-//go:build !glutter_release
+//go:build debug_mode
 
 package settings
 

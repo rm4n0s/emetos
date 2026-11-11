@@ -15,7 +15,7 @@ import (
 // The benchmarks of the preview of a big document (SPEC §14 "Markdown preview", step 17b.2): the document of extension/ui/uitest/
 // mdfixture, 700 KB with 150 images. They measure the UI thread alone, with the fake platform (no rasterization):
 //
-//	go test -tags glutter_release ./extension/ui/markdown -run xxx -bench Preview -benchmem
+//	go test ./extension/ui/markdown -run xxx -bench Preview -benchmem
 
 // bigPreview is the fixture document and what a preview of it needs.
 type bigPreview struct {

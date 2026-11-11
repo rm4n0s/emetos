@@ -20,7 +20,7 @@ import (
 // which the line of the top stack frame (the badge with the line of the Call Stack, which the model sets in the same pass as the stopped line of the
 // editor) is not the one of before; the poll asks the window every few milliseconds what texts it draws. dlv's own time is part of it.
 //
-//	go build -tags glutter_release,emetos_dev -o steprelease.out ./cmd/emetos
+//	go build -tags emetos_dev -o steprelease.out ./cmd/emetos
 //	EMETOS_DISPLAY_BINARY=$PWD/steprelease.out EMETOS_REALINPUT_RACE=0 scripts/heavy.sh --alone -- scripts/realinput.sh -- -tags emetos_display ./cmd/emetos -run TestPerfDebugStepping -v -count=1
 
 const steppingProgram = `package main

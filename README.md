@@ -52,36 +52,36 @@ You need **Go 1.27** or newer (`go version`) and `git`. Nothing else: there is n
 ```sh
 git clone https://github.com/rm4n0s/emetos.git
 cd emetos
-go build -tags glutter_release -o emetos ./cmd/emetos
+go build -o emetos ./cmd/emetos
 ./emetos --version
 ./emetos .                      # open the current folder
 ```
 
 `go build` downloads the Go modules Emetos uses the first time. The result is one binary, `./emetos` (about 90 MB), that you can copy anywhere, for example to `~/.local/bin/emetos`.
 
-**Always build with `-tags glutter_release`** for daily use. `glutter_release` is a Go build tag: it compiles [Glutter](https://github.com/rm4n0s/glutter) in release mode, like Flutter's `--release` (`foundation.DebugMode` is `false`, so the framework's debug checks, Flutter's asserts, and its diagnostics are left out of the binary). Without the tag you get a **debug build**: the same program, but those checks make the interface several times slower, and the developer commands of the proofs (`dev.*`) are switched on. A debug build is for working on Emetos itself:
+A plain `go build` is a **release build**: [Glutter](https://github.com/rm4n0s/glutter) (1.17 and later) compiles in release mode unless told otherwise, like Flutter's `--release` (`foundation.DebugMode` is `false`, so the framework's debug checks, Flutter's asserts, and its diagnostics are left out of the binary). With `-tags debug_mode` you get a **debug build**: the same program, but those checks make the interface several times slower, and the developer commands of the proofs (`dev.*`) are switched on. A debug build is for working on Emetos itself:
 
 ```sh
-go build -o emetos ./cmd/emetos          # debug build
-go run ./cmd/emetos .                    # build and run a debug build in one go
+go build -tags debug_mode -o emetos ./cmd/emetos     # debug build
+go run -tags debug_mode ./cmd/emetos .               # build and run a debug build in one go
 ```
 
-`CGO_ENABLED=0 go build -tags glutter_release -o emetos ./cmd/emetos` gives the same binary without cgo, which also works on a machine with no C compiler at all.
+`CGO_ENABLED=0 go build -o emetos ./cmd/emetos` gives the same binary without cgo, which also works on a machine with no C compiler at all.
 
 ### Install with `go install`
 
 ```sh
-go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@main
+go install github.com/rm4n0s/emetos/cmd/emetos@main
 ```
 
-This builds `main`, which is what this README describes; `@latest` gives the release **v1.3.1**, which holds everything below (`@v0.1.0` gives the first release, areas 1 and 2 only: no language servers, no extensions, no Remote Work). From a checkout, `go install -tags glutter_release ./cmd/emetos` does the same. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
+This builds `main`, which is what this README describes; `@latest` gives the release **v1.3.1**, which holds everything below (`@v0.1.0` gives the first release, areas 1 and 2 only: no language servers, no extensions, no Remote Work). Releases up to v1.4.3 use an older Glutter, whose release mode needs a tag: install one with `go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@v1.4.3`. From a checkout, `go install ./cmd/emetos` does the same as the first command. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
 
 ### Update
 
 ```sh
 cd emetos
 git pull
-go build -tags glutter_release -o emetos ./cmd/emetos
+go build -o emetos ./cmd/emetos
 ```
 
 `emetos --version` prints the version (a release tag, or a pseudo-version with the commit for a build of `main`), the Go version and the platform.

@@ -22,7 +22,7 @@ import (
 // of the UI thread while text is typed with the server running (the same frame statistics as the typing of scripts/perf.sh). They
 // print what they measured and are not part of the default run of scripts/realinput.sh; they run alone, on a release build:
 //
-//	go build -tags glutter_release,emetos_dev -o <binary> ./cmd/emetos
+//	go build -tags emetos_dev -o <binary> ./cmd/emetos
 //	EMETOS_DISPLAY_BINARY=<binary> scripts/heavy.sh --alone -- scripts/headless-wayland.sh -- go test -tags emetos_display ./cmd/emetos -run TestPerfLangServers -v
 //
 // The servers are the ones of /var/tmp/emetos-tools (scripts/fetch-tools.sh) and the system's clangd, Java and dotnet; a case is

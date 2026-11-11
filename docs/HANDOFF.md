@@ -16,7 +16,7 @@ Where the work on `docs/IMPLEMENTATION.md` stands, for continuing on another mac
 - **The panel's title strip** (`internal/gui/workbench/workbench.go`, `panel`): the tabs get the room first and the view's actions what is left, so with many extension panel tabs the Problems filter disappears at 1280 px. VS Code does the opposite (the actions keep their room, the tabs go into "..."). Change it, log the decision, and remove the test workarounds of 18.4 and 21.2 (`overflow && width > 1024`, closing the side bar in `TestRealInputProblemsFilter`).
 - **A flaky test:** `extensions/remotework` `TestShowMyPublicKeyOfTheAgent/several_keys_and_none_chosen` fails under load now and then.
 - **Decisions to show the user:** 153, 174, 210, 219, 301, 303, 347 (in `docs/DECISIONS-TO-REVIEW.md`).
-- **Rebuild the user's binary** after the desktop pass: `scripts/heavy.sh -- go build -tags glutter_release -o emetos ./cmd/emetos`.
+- **Rebuild the user's binary** after the desktop pass: `scripts/heavy.sh -- go build -o emetos ./cmd/emetos`.
 
 ## Rules learned on the way (also follow CLAUDE.md)
 

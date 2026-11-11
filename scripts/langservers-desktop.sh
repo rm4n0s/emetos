@@ -98,5 +98,5 @@ esac
 
 cd "$root"
 set +e
-scripts/isolated.sh --config "$config" -- env "${env_vars[@]}" go run ./cmd/emetos "$project" "$project/$file"
+scripts/isolated.sh --config "$config" -- env "${env_vars[@]}" go run -tags debug_mode ./cmd/emetos "$project" "$project/$file"
 exit $?

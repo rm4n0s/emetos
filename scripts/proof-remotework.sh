@@ -52,7 +52,7 @@ project="${PROOF_RW_PROJECT:-$root/testdata/proof/15.4/project}"
 local_folder="${PROOF_RW_LOCAL:-$root/testdata/proof/15.4/local}"
 
 echo "proof: building"
-go build -o "$tmp/emetos" ./cmd/emetos
+go build -tags debug_mode -o "$tmp/emetos" ./cmd/emetos   # a debug build: the dev commands
 port="$(go run ./scripts/proof-remotework-setup "$tmp/setup" "$project")"
 
 echo "proof: starting the host instance (A) on port $port"

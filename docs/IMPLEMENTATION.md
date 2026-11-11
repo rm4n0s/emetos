@@ -58,11 +58,11 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
     test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...))"
     go vet ./...
     golangci-lint run
-    go test -race ./...
+    go test -race -tags debug_mode ./...   # a debug build of Glutter, which a build without tags is not since Glutter 1.17
     CGO_ENABLED=0 go build ./...
     CGO_ENABLED=0 go test ./...
     ```
-    If the step lists **Display tests**, run them too: `scripts/headless-wayland.sh -- go test -race -tags emetos_display <packages>`. Golden tests have `Golden` in their name, so `go test ./... -run Golden -update-goldens` finds them all.
+    If the step lists **Display tests**, run them too: `scripts/headless-wayland.sh -- go test -race -tags 'emetos_display debug_mode' <packages>`. Golden tests have `Golden` in their name, so `go test ./... -run Golden -update-goldens` finds them all.
 11. **Proof images.** Only when the step has a **Proof** item:
     - Produce exactly the images it lists, in `docs/implemented-proof-images/`, named `<id>-<name>.png` (e.g. `3.3-cursors.png`), with the command the step gives.
     - **Open every image with your image-viewing tool** (the Read tool shows images) and check that it shows what **Proof** describes. If it doesn't, fix the code. The step isn't done.

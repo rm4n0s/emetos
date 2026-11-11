@@ -19,7 +19,7 @@ import (
 // the heap the lines cost, and the filter. A frame's time is the processor time of the UI thread (build, layout and paint, with the fake
 // platform: no renderer), which a busy machine does not stretch.
 //
-//	scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./internal/gui/views/debug -run TestPerfConsole -v -count=1
+//	scripts/heavy.sh --alone -- go test -tags emetos_perf ./internal/gui/views/debug -run TestPerfConsole -v -count=1
 
 func TestPerfConsoleHundredThousandLines(t *testing.T) {
 	const n = 100_000

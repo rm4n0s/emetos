@@ -3,7 +3,7 @@
 #
 # Usage: scripts/realinput.sh [--desktop] [--size WxH] [--shots <dir>] [-- <go test arguments>]
 #
-# Without --desktop it is `scripts/headless-wayland.sh -- go test -tags emetos_display ...`: a headless sway of its own.
+# Without --desktop it is `scripts/headless-wayland.sh -- go test -tags 'emetos_display debug_mode' ...`: a headless sway of its own.
 # With --desktop the tests run in a nested sway, which shows as a window on the desktop you are in, so that you can watch
 # them and the GPU is the real one. The virtual keyboard and pointer of the tests are made on the nested sway only: the
 # environment the tests get names its socket (WAYLAND_DISPLAY, SWAYSOCK, a private XDG_RUNTIME_DIR), never the desktop's,
@@ -14,7 +14,7 @@
 #   --size WxH      the size of the output of the compositor, 1280x800 by default
 #   --shots <dir>   EMETOS_PROOF_DIR for the tests: where the proof images go (cmd/emetos TestRealInputProofs)
 #   -- args         go test arguments; ./cmd/emetos -run 'TestRealInput|TestDesktop' -v when none are given (step 17b.5 added the
-#                   TestDesktop tests; the real gopls test of that step is under the tag emetos_gopls: `-- -tags 'emetos_display
+#                   TestDesktop tests; the real gopls test of that step is under the tag emetos_gopls: `-- -tags 'emetos_display debug_mode
 #                   emetos_gopls' ./cmd/emetos -run Gopls -v`)
 #
 # The go test runs with the race detector unless EMETOS_REALINPUT_RACE=0. A GPU renderer can be asked for with
@@ -74,7 +74,8 @@ race=(-race)
 [[ "${EMETOS_REALINPUT_RACE:-1}" == 0 ]] && race=()
 # a deadline for the whole run: the tests start processes of their own, and a hung one must not stay
 deadline="${EMETOS_REALINPUT_TIMEOUT:-1500}"
-run=(timeout -k 15 "$deadline" go test "${race[@]}" -tags emetos_display "${args[@]}")
+# debug_mode: the tests drive the app with dev commands, which a release build of Glutter (the default since 1.17) does not have
+run=(timeout -k 15 "$deadline" go test "${race[@]}" -tags 'emetos_display debug_mode' "${args[@]}")
 
 if [[ "$desktop" == 0 ]]; then
   exec "$root/scripts/headless-wayland.sh" -- "${run[@]}"

@@ -33,7 +33,7 @@ done
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-CGO_ENABLED=0 go build -tags glutter_release,emetos_dev -o "$work/emetos" ./cmd/emetos
+CGO_ENABLED=0 go build -tags emetos_dev -o "$work/emetos" ./cmd/emetos
 export EMETOS_DISPLAY_BINARY="$work/emetos"
 export EMETOS_REALINPUT_RACE=0
 scripts/realinput.sh "${desktop[@]}" --size "$size" -- -tags emetos_display ./cmd/emetos -run "${PERF_RUN:-TestPerfTerminal}" -v -count=1 -timeout 20m

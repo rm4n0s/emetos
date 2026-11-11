@@ -23,7 +23,7 @@ import (
 // 5,000 rows scroll. The module is made in a temporary folder: 5 packages of 10 files of 100 tests, one test in 250 fails. The times
 // are the UI thread's processor time of build, layout and paint with the fake platform, as in the other view measurements.
 //
-//	scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./internal/gui/app -run TestPerfTesting -v -count=1
+//	scripts/heavy.sh --alone -- go test -tags emetos_perf ./internal/gui/app -run TestPerfTesting -v -count=1
 
 const (
 	perfPackages = 5

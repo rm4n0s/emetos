@@ -22,8 +22,8 @@
 #                d/scrolling-1/cpu-1.pprof` reads them
 #   PERF_KEEP=dir  in the environment, copies the logs of every run (<run>.log, .during, .sample) to dir
 #
-# It builds the editor with -tags glutter_release,emetos_dev (a release build whose dev commands
-# can drive it), generates the files to open in a temporary folder, and runs each measurement in
+# It builds the editor with -tags emetos_dev (a release build, Glutter's default since 1.17, whose
+# dev commands can drive it), generates the files to open in a temporary folder, and runs each measurement in
 # an isolated app (scripts/isolated.sh: nothing of the user's configuration is read), with
 # GLUTTER_FRAME_STATS=1, which makes the app log its frame times once a second. The editor
 # is driven with dev commands (dev.type, dev.scroll). Glutter's counter example is built and
@@ -164,9 +164,9 @@ if [[ $mode == main ]]; then
   work="$(mktemp -d "${TMPDIR:-/tmp}/emetos-perf.XXXXXX")"
   trap 'rm -rf "$work"' EXIT
   mkdir -p "$work/bin" "$work/data" "$work/out" "$work/mesa"
-  echo "building (-tags glutter_release,emetos_dev)..." >&2
-  go build -tags glutter_release,emetos_dev -o "$work/bin/emetos" ./cmd/emetos
-  go build -tags glutter_release -o "$work/bin/counter" github.com/rm4n0s/glutter/examples/counter
+  echo "building (-tags emetos_dev)..." >&2
+  go build -tags emetos_dev -o "$work/bin/emetos" ./cmd/emetos
+  go build -o "$work/bin/counter" github.com/rm4n0s/glutter/examples/counter
 
   # Go-looking code: indented statements of about 50 columns.
   gen() { # gen <lines> <file>
@@ -203,11 +203,11 @@ if [[ $mode == main ]]; then
   if [[ $go_bench -eq 1 ]]; then
     echo "running the Go benchmarks..." >&2
     gobench() { GOMEMLIMIT=3GiB go test "$@" -run '^$' -benchmem 2>&1 | grep '^Benchmark' >>"$work/gobench.txt" || true; }
-    gobench -tags glutter_release ./internal/gui/editor -bench 'TypeCharacter10kLines$|ScrollPage100kLines$|Open10MB$' -benchtime 30x
+    gobench ./internal/gui/editor -bench 'TypeCharacter10kLines$|ScrollPage100kLines$|Open10MB$' -benchtime 30x
     # every operation tokenizes lines nobody has: a long -benchtime grows the tokens kept
-    gobench -tags glutter_release ./internal/gui/editor -bench 'TypeCharacter10kLinesHighlighted$|ScrollPage100kLinesHighlighted$' -benchtime 50x
+    gobench ./internal/gui/editor -bench 'TypeCharacter10kLinesHighlighted$|ScrollPage100kLinesHighlighted$' -benchtime 50x
     # the Markdown preview of the 700 KB document with 150 images (step 17b.2)
-    gobench -tags glutter_release ./extension/ui/markdown -bench 'Preview' -benchtime 50x
+    gobench ./extension/ui/markdown -bench 'Preview' -benchtime 50x
     gobench ./internal/core/fuzzy -bench 'Search100k$' -benchtime 20x
     gobench ./internal/core/workspace -bench 'QuickOpen100k$' -benchtime 3x
     gobench ./internal/core/language -bench 'Bundled$|FirstLine' -benchtime 10x

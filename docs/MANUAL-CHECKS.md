@@ -82,7 +82,7 @@ The tests use a fake desktop; only your desktop has a real tray. Run a release b
 
 ```
 mkdir -p /tmp/emetos-tray-a /tmp/emetos-tray-b && printf 'hello\n' > /tmp/emetos-tray-a/a.txt
-scripts/isolated.sh -- go run -tags glutter_release ./cmd/emetos /tmp/emetos-tray-a
+scripts/isolated.sh -- go run ./cmd/emetos /tmp/emetos-tray-a
 ```
 
 1. Is there an Emetos icon in the tray (a cat's hairball, a round ball of orange and white hair, on a teal cat head)? Is it readable at the size of your panel? Does the tooltip say "Emetos" and "1 workspace"?

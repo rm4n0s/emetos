@@ -9,26 +9,26 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 
 ## Commands
 - Build: `go build ./...`. Emetos is cgo-free; `CGO_ENABLED=0 go build ./...` must always work
-- Test all: `go test -race ./...` (the race detector needs cgo, so this one needs a C compiler)
+- Test all: `go test -race -tags debug_mode ./...` (the race detector needs cgo, so this one needs a C compiler). `-tags debug_mode` makes a debug build of Glutter (and of the settings' misuse checks); since Glutter 1.17 a build without tags is a release build, which the cgo-free run below tests
 - Test the cgo-free path: `CGO_ENABLED=0 go test ./...`
 - Test one package: `go test ./internal/core/buffer -run TestName -v`
-- Tests that need a real display/GPU: `go test -race -tags emetos_display ./...`
+- Tests that need a real display/GPU: `go test -race -tags 'emetos_display debug_mode' ./...` (they drive the app with dev commands, which need a debug build)
 - Update golden images: `go test ./... -run Golden -update-goldens`, then review every changed PNG
 - Heavy commands (full test runs, lint, release builds, display tests, measurements): through `scripts/heavy.sh` (`--alone` for display tests and measurements), see "Memory (OOM)"
 - Vet: `go vet ./...`
 - Lint: `golangci-lint run`
 - Format: `gofmt -w cmd internal assets extension extensions` (not `.`: `reference/` holds VS Code's Go test files)
 - Generate: `go generate ./...`
-- Run the editor: `go run ./cmd/emetos` (debug build; it uses your real configuration)
+- Run the editor: `go run -tags debug_mode ./cmd/emetos` (debug build; it uses your real configuration)
 - On macOS run the tests with `TMPDIR=$(cd "$TMPDIR" && pwd -P)/ go test ...` (the temporary folder is under `/var`, a link to `/private/var`, and tests compare paths that the program resolves); the golden images were made on amd64, and a few differ by a pixel on arm64. **Known on macOS (2026-11-10):** about ten golden tests of `internal/gui/app` (the Run and Debug views, the testing glyphs, the coverage editor) fail, a different few each run, because the editor's own caret (`internal/gui/editor/blink.go`) is caught half faded: its blink is not on the fake clock of the tester. `TestEscapeClosesThePeekOfTwoControllersThatBothFailInTheFile` fails too. The rest of the suite passes. Not investigated further
-- Run the editor isolated from your configuration: `scripts/isolated.sh [--config <fixture dir>] -- go run ./cmd/emetos <args>`
+- Run the editor isolated from your configuration: `scripts/isolated.sh [--config <fixture dir>] -- go run -tags debug_mode ./cmd/emetos <args>`
 - Make a proof screenshot: `scripts/proof.sh <out.png> [--config <dir>] [--after <duration>] [--commands '<json>'] -- <emetos args>` (docs/IMPLEMENTATION.md "Proof methods")
-- Release build: `go build -tags glutter_release ./cmd/emetos`
+- Release build: `go build ./cmd/emetos` (a build without tags is a release build of Glutter since 1.17; `-tags debug_mode` makes a debug build)
 - Fetch the pinned VS Code references into `reference/`: `scripts/fetch-reference.sh`
 - After changing dependencies: `go mod tidy`
 
 ## Definition of done
-Before reporting a task as finished, run `gofmt` (on `cmd`, `internal`, `assets`, `extension` and `extensions`), `go vet ./...`, `golangci-lint run` and `go test -race ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
+Before reporting a task as finished, run `gofmt` (on `cmd`, `internal`, `assets`, `extension` and `extensions`), `go vet ./...`, `golangci-lint run` and `go test -race -tags debug_mode ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
 - `CGO_ENABLED=0 go build ./...` and `CGO_ENABLED=0 go test ./...` pass (proves the editor stays cgo-free)
 - `scripts/error-tags.sh --untested` prints nothing (every error Tag has a test that asserts its route; `docs/ERROR-TAGS-UNTESTED.md` is the only exception list)
 - Every new exported identifier has a doc comment
@@ -127,7 +127,7 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
 
 ## Memory (OOM)
 A run that uses too much memory is killed by the OS (exit 137) and takes the session with it. Be careful:
-- Run the race tests with `GOMEMLIMIT=3GiB go test -race -p 2 ./...`. At most two heavy test or build commands run at the same time on this machine (30 GB, 32 CPUs), counting those of every agent; real-input display tests, `scripts/realinput.sh`, `scripts/perf.sh` and other timing measurements run alone. `scripts/heavy.sh -- <command>` enforces it: it waits for one of two machine-wide slots, and `scripts/heavy.sh --alone -- <command>` takes both. Run every full test run (`./...`), `golangci-lint run`, release build and display or timing run through it
+- Run the race tests with `GOMEMLIMIT=3GiB go test -race -p 2 -tags debug_mode ./...`. At most two heavy test or build commands run at the same time on this machine (30 GB, 32 CPUs), counting those of every agent; real-input display tests, `scripts/realinput.sh`, `scripts/perf.sh` and other timing measurements run alone. `scripts/heavy.sh -- <command>` enforces it: it waits for one of two machine-wide slots, and `scripts/heavy.sh --alone -- <command>` takes both. Run every full test run (`./...`), `golangci-lint run`, release build and display or timing run through it
 - Never run Go fuzzing (`-fuzz`) without `-parallel=1`, a short `-fuzztime` (30s at most) and a memory limit (`GOMEMLIMIT=2GiB`, `ulimit -v`); each fuzz worker grows its own memory. Prefer the seed corpus and seeded random tests
 - Run the tests of one package (`go test ./internal/core/snippet`) while working; run `./...` only for the final checks
 - Tests, proofs and scripts that start compositors, editors or language servers run under `timeout -k`, and a test that builds big inputs (large files, millions of lines) keeps them bounded

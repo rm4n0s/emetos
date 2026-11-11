@@ -127,7 +127,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 echo "proof: building"
-go build -o "$tmp/emetos" ./cmd/emetos
+go build -tags debug_mode -o "$tmp/emetos" ./cmd/emetos   # a debug build: the dev commands of --commands
 # the fake debug adapter of the debug builds (the dev debugger dev.debug.fake of Run and Debug runs it; SPEC §15.2)
 go build -o "$tmp/fakeadapter" ./internal/core/dap/daptest/fakeadapter
 

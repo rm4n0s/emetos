@@ -25,7 +25,7 @@ import (
 // time of build, layout and paint with the fake platform (the test goroutine is the UI thread, locked to its OS thread), as in the other
 // view measurements. Run them alone:
 //
-//	scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./extensions/httpclient -run TestPerf -v -count=1
+//	scripts/heavy.sh --alone -- go test -tags emetos_perf ./extensions/httpclient -run TestPerf -v -count=1
 
 // frameStats describes the processor times of frames.
 func frameStats(d []time.Duration) string {

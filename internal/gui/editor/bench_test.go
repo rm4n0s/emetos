@@ -21,7 +21,7 @@ import (
 
 // The benchmarks of SPEC §14. They are run on a release build,
 //
-//	go test -tags glutter_release ./internal/gui/editor -run xxx -bench . -benchmem
+//	go test ./internal/gui/editor -run xxx -bench . -benchmem
 //
 // since the debug build of Glutter checks the thread of every call and is many times slower
 // (docs/PERFORMANCE.md). Each measures the UI thread: the frame that shows the change, with the
@@ -266,7 +266,7 @@ func BenchmarkOpen10MB(b *testing.B) {
 // document and the view model, and the first frame with its text laid out (SPEC §14: under 3 s).
 // It needs about 1 GB of memory, so run it alone, once:
 //
-//	GOMEMLIMIT=3GiB go test -tags glutter_release ./internal/gui/editor -run xxx -bench Open200MB -benchtime 1x -benchmem
+//	GOMEMLIMIT=3GiB go test ./internal/gui/editor -run xxx -bench Open200MB -benchtime 1x -benchmem
 func BenchmarkOpen200MB(b *testing.B) {
 	chunk := goLines(100_000)
 	path := filepath.Join(b.TempDir(), "huge.go")

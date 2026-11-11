@@ -109,7 +109,7 @@ if [[ -n "$exec_path" ]]; then
   fi
 else
   echo "warning: emetos was not found in PATH nor in the folder of 'go install'; the entry starts plain 'emetos'." >&2
-  echo "         Install it (go install -tags glutter_release ./cmd/emetos) and run this script again, or use --exec." >&2
+  echo "         Install it (go install ./cmd/emetos) and run this script again, or use --exec." >&2
 fi
 
 mkdir -p "$apps"
