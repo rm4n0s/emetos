@@ -392,7 +392,7 @@ func describe(err error) string {
 // a checkout that Go cannot stamp (Go reports "(devel)" or nothing). A build made by `go install
 // ...@v1.0.0` or from a tagged checkout carries its tag, which is printed instead, so this changes only
 // when the next development cycle starts.
-const devVersion = "v1.4.5-dev"
+const devVersion = "v1.4.6-dev"
 
 // versionString is the version line of --version: the module version and VCS
 // revision from the build, and the Go version and platform.
