@@ -227,7 +227,11 @@ func (s *shellState) initLaunch(binding *widgets.WidgetsBinding) {
 			win.Process.Workspaces.openTutor(win, st.Profile, nil)
 		}
 	}
-	win.markReady()
+	// the launches that waited for this shell run after the frame that builds it, not in InitState: a launch shows the
+	// window and opens files, which sets the state of widgets that are not below this one (the tray's, the tabs'), and the
+	// framework refuses that during a build (MarkNeedsBuildDuringBuild), which lost the launch and left its client
+	// waiting. markReady runs even when the shell went away meanwhile: the launches then hear that the window is not ready.
+	binding.Post(win.markReady)
 }
 
 // disposeLaunch ends the waits (a window that closes counts as its files being closed) and lets go of the launcher.

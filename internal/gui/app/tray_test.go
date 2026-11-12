@@ -16,6 +16,7 @@ import (
 
 	"github.com/rm4n0s/emetos/internal/core/buffer"
 	"github.com/rm4n0s/emetos/internal/core/document"
+	"github.com/rm4n0s/emetos/internal/core/ipc"
 	"github.com/rm4n0s/emetos/internal/core/settings"
 	"github.com/rm4n0s/emetos/internal/core/storage"
 )
@@ -568,5 +569,42 @@ func TestTheCloseButtonDuringTheQuestionsOfAQuitDoesNothing(t *testing.T) {
 	r.answer(w, "Cancel")
 	if r.quits != 0 {
 		t.Errorf("%d quits", r.quits)
+	}
+}
+
+// TestLaunchOfANewFolderWithTheTray is the second `emetos .` in another folder with the tabs inside the tray, as Run
+// shows them: the launch opens a new tab, and the launch waits for the new tab's shell, which runs it from its
+// InitState. Running it there showed the window during the build (Workspaces.showWindow refreshes the tray, a
+// SetState), which the framework refused with MarkNeedsBuildDuringBuild, so the launch never got its answer and the
+// second emetos hung.
+func TestLaunchOfANewFolderWithTheTray(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		files bool
+	}{{"folder only", false}, {"folder and a file", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := runTray(t, nil, "one")
+			if errs := r.ts.TakeErrors(); len(errs) != 0 {
+				t.Fatalf("errors before the launch: %v", errs)
+			}
+			two := r.env.folder("two", "b.go")
+			args := ipc.OpenArgs{Folder: two}
+			if tc.files {
+				args.Files = []ipc.FileTarget{{Path: filepath.Join(two, "b.go")}}
+			}
+			res := r.launched(args)
+			r.waitFor("the answer to the launch", func() bool { return len(res.outcomes) == 1 })
+			wantOutcomes(t, res, LaunchOutcome{})
+			w := r.m.workspaceForFolder(two)
+			if w == nil || r.m.Active() != w || r.m.Count() != 2 {
+				t.Fatalf("windows %q, want a new active tab for %s", r.folders(), two)
+			}
+			if tc.files {
+				r.waitFor("the file", func() bool { return len(w.Documents.All()) == 1 })
+			}
+			if errs := r.ts.TakeErrors(); len(errs) != 0 {
+				t.Errorf("the framework reported errors: %v", errs)
+			}
+		})
 	}
 }

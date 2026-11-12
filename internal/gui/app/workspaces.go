@@ -1559,9 +1559,10 @@ func (m *Workspaces) showWindow(c widgets.WindowController) {
 	m.refreshTray()
 }
 
-// whenReady runs f once the shell of the workspace is on screen (at once when it is).
+// whenReady runs f once the shell of the workspace is on screen (at once when it is and nothing else waits, so the
+// launches keep their order while markReady is still to run).
 func (w *Workspace) whenReady(f func()) {
-	if w.launcher != nil {
+	if w.launcher != nil && len(w.onReady) == 0 {
 		f()
 		return
 	}
