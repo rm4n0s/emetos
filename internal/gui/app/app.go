@@ -118,6 +118,9 @@ func Run(ctx context.Context, opts Options) error {
 		Window: startupWindowConfig(first.ws, first.geometry),
 		Fonts:  fonts.Sources(),
 		Logger: opts.Logger,
+		// an editor has no use for gamepads: with Glutter's default ("auto") every Emetos watches /dev/input, opens the
+		// pads it may read and logs on the terminal those it may not (SPEC §16 "Gamepads"); GLUTTER_GAMEPADS still overrides it
+		Gamepads: "off",
 		// the errors that say the tray is not shown are noted (the close button quits), logged once and not reported
 		ErrorReporter: m.errorReporter(widgets.DefaultErrorReporter(opts.Logger)),
 	})
