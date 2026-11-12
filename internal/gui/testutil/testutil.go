@@ -84,19 +84,6 @@ func New(t testing.TB, size ui.Size) *gluttertest.Tester {
 	return ts
 }
 
-// RequireDebugSemantics skips a test that finds widgets by their semantics label (gluttertest.BySemanticsLabel) when the
-// tests run as a release build (SPEC §15.1), where that finder finds nothing: a test that looks for a label would fail, and
-// one that checks a label is gone would pass without looking.
-//
-// Glutter: gluttertest.BySemanticsLabel reads RenderObject.DebugSemantics, which only a debug build keeps. Glutter should
-// find by the semantics tree that the owner sends to the platform, which a release build has too (docs/GLUTTER-ISSUES.md).
-func RequireDebugSemantics(t testing.TB) {
-	t.Helper()
-	if !foundation.DebugMode {
-		t.Skip("the semantics finders of gluttertest find nothing in a release build")
-	}
-}
-
 // Isolate points every user folder at temporary ones (see storagetest.Isolate) and returns
 // their paths.
 func Isolate(t testing.TB) storage.Paths {

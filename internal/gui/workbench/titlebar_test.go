@@ -279,7 +279,6 @@ func lastKind(a []ui.WindowAction) ui.WindowActionKind {
 }
 
 func TestTheWindowButtonsFollowTheCapabilities(t *testing.T) {
-	testutil.RequireDebugSemantics(t)
 	r := newStripRig(t, threeTabs(), 0, nil, nil)
 	r.ts.EnsureSemantics() // the buttons of the window are found by their labels
 	r.settle()
@@ -348,7 +347,6 @@ func TestStripKeepsTheActiveTabInView(t *testing.T) {
 }
 
 func TestTitleBarInZenModeKeepsOnlyTheWindowButtons(t *testing.T) {
-	testutil.RequireDebugSemantics(t)
 	r := newStripRig(t, threeTabs(), 0, nil, nil)
 	r.ts.EnsureSemantics()
 	r.layout.EnterZen(false, false)
@@ -366,7 +364,6 @@ func TestTitleBarInZenModeKeepsOnlyTheWindowButtons(t *testing.T) {
 }
 
 func TestFullScreenHasNoTitleBarAndTheMenuWaitsForAlt(t *testing.T) {
-	testutil.RequireDebugSemantics(t)
 	r := newStripRig(t, threeTabs(), 0, map[string]any{"window.menuBarVisibility": "classic"}, func(o *Options) { o.FullScreen = true })
 	info := testutil.WindowInfo
 	info.Fullscreen = true
