@@ -329,6 +329,10 @@ func (s *bodyState) Build(bc widgets.BuildContext) widgets.Widget {
 func (s *bodyState) message(bc widgets.BuildContext, colors kit.Colors) widgets.Widget {
 	v := s.Widget().view
 	style := kit.TextStyleOf(bc, 13, colors.Foreground)
+	// line is a message on the one line of the row: it ends in an ellipsis in a panel narrower than it
+	line := func(text string) widgets.Widget {
+		return widgets.NewFlexible(widgets.NewText(text, widgets.TextOpts{Style: style, MaxLines: foundation.Some(1), Overflow: painting.TextOverflowEllipsis}))
+	}
 	var children []widgets.Widget
 	switch o := v.model.Options(); {
 	case o.ActiveFileOnly:
@@ -338,14 +342,14 @@ func (s *bodyState) message(bc widgets.BuildContext, colors kit.Colors) widgets.
 				text = MessageNoResults
 			}
 		}
-		children = append(children, widgets.NewText(text, widgets.TextOpts{Style: style}))
+		children = append(children, line(text))
 		if text == MessageNoResults {
 			children = append(children, s.clearLink(bc, colors))
 		}
 	case v.model.Total() > 0:
-		children = append(children, widgets.NewText(MessageNoResults, widgets.TextOpts{Style: style}), s.clearLink(bc, colors))
+		children = append(children, line(MessageNoResults), s.clearLink(bc, colors))
 	default:
-		children = append(children, widgets.NewText(MessageNoProblems, widgets.TextOpts{Style: style}))
+		children = append(children, line(MessageNoProblems))
 	}
 	row := widgets.NewRow(children, widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin, CrossAxisAlignment: rendering.CrossAxisAlignmentCenter})
 	return widgets.NewKeyedSubtree(

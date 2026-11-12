@@ -5,7 +5,7 @@
 //
 // Run the tests that use it inside a headless compositor, which gives them WAYLAND_DISPLAY, XDG_RUNTIME_DIR and SWAYSOCK:
 //
-//	scripts/headless-wayland.sh -- go test -race -tags emetos_display ./cmd/emetos
+//	scripts/headless-wayland.sh -- go test -race -tags 'emetos_display debug_mode' ./cmd/emetos
 //
 // scripts/realinput.sh --desktop runs them in a nested sway window on the desktop. Without a sway compositor in the
 // environment the tests are skipped.

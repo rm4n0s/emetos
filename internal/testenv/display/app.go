@@ -119,7 +119,7 @@ func binary(t *testing.T) string {
 			return
 		}
 		buildPath = filepath.Join(buildDir, "emetos")
-		build := exec.Command("go", "build", "-o", buildPath, "./cmd/emetos")
+		build := exec.Command("go", "build", "-tags", "debug_mode", "-o", buildPath, "./cmd/emetos")
 		build.Dir = root
 		build.Env = append(os.Environ(), "CGO_ENABLED=0")
 		if out, err := build.CombinedOutput(); err != nil {

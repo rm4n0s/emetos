@@ -1036,7 +1036,7 @@ func TestImportProfileDialogCancelledDoesNothing(t *testing.T) {
 
 func TestTheDialogsOfExportAndImportHaveTheirOwnTags(t *testing.T) {
 	win := newTestWorkspace(t, "")
-	ts := testutil.New(t, ui.Size{Width: 400, Height: 300})
+	ts := testutil.New(t, ui.Size{Width: 500, Height: 300})
 	ts.PumpWidget(newAppDocs(context.Background(), win, nil, nil, ""))
 	ts.Pump(20 * time.Millisecond)
 	bc := ts.Element(gluttertest.ByType[*shell]())

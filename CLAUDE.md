@@ -9,8 +9,8 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 
 ## Commands
 - Build: `go build ./...`. Emetos is cgo-free; `CGO_ENABLED=0 go build ./...` must always work
-- Test all: `go test -race -tags debug_mode ./...` (the race detector needs cgo, so this one needs a C compiler). `-tags debug_mode` makes a debug build of Glutter (and of the settings' misuse checks); since Glutter 1.17 a build without tags is a release build, which the cgo-free run below tests
-- Test the cgo-free path: `CGO_ENABLED=0 go test ./...`
+- Test all: `go test -race -tags debug_mode ./...` (the race detector needs cgo, so this one needs a C compiler). `-tags debug_mode` makes a debug build of Glutter (and of the settings' misuse checks); since Glutter 1.17 a build without tags is a release build, which only `CGO_ENABLED=0 go build ./...` checks: the tests need the dev commands and the debug banner of a debug build
+- Test the cgo-free path: `CGO_ENABLED=0 go test -tags debug_mode ./...`
 - Test one package: `go test ./internal/core/buffer -run TestName -v`
 - Tests that need a real display/GPU: `go test -race -tags 'emetos_display debug_mode' ./...` (they drive the app with dev commands, which need a debug build)
 - Update golden images: `go test ./... -run Golden -update-goldens`, then review every changed PNG
@@ -29,7 +29,7 @@ Emetos is a code editor in the spirit of Visual Studio Code, written in Go. Its 
 
 ## Definition of done
 Before reporting a task as finished, run `gofmt` (on `cmd`, `internal`, `assets`, `extension` and `extensions`), `go vet ./...`, `golangci-lint run` and `go test -race -tags debug_mode ./...`, and fix anything they report. Say so explicitly if any step was skipped or failed. Also:
-- `CGO_ENABLED=0 go build ./...` and `CGO_ENABLED=0 go test ./...` pass (proves the editor stays cgo-free)
+- `CGO_ENABLED=0 go build ./...` and `CGO_ENABLED=0 go test -tags debug_mode ./...` pass (proves the editor stays cgo-free)
 - `scripts/error-tags.sh --untested` prints nothing (every error Tag has a test that asserts its route; `docs/ERROR-TAGS-UNTESTED.md` is the only exception list)
 - Every new exported identifier has a doc comment
 - Every changed golden image has been looked at, not just regenerated
