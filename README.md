@@ -12,7 +12,7 @@ It follows VS Code where VS Code has the behavior: the same settings, command id
 
 ## Status
 
-**The last release is v1.3.1**, which holds everything below (milestones M0 to M32, plus Glutter upgraded to v1.12.0). `v0.1.0` was the first release, areas 1 and 2 only (the editor and the workbench); `v1.0.0` held M0 to M27, `v1.1.0` added M28 and `v1.2.0` M29. This README describes `main`, which may be a little ahead of v1.3.1. A build of `main` calls itself by Go's version stamp (a pseudo-version), or `v1.3.2-dev` when it has none (`emetos --version`).
+**The last release is v1.4.4**, which holds everything below (milestones M0 to M32 and the steps after them, macOS since v1.4.0, on Glutter v1.17.0). `v0.1.0` was the first release, areas 1 and 2 only (the editor and the workbench); `v1.0.0` held M0 to M27, `v1.1.0` added M28 and `v1.2.0` M29. This README describes `main`, which may be a little ahead of v1.4.4. A build of `main` calls itself by Go's version stamp (a pseudo-version), or `v1.4.5-dev` when it has none (`emetos --version`).
 
 What is built (milestones M0 to M32 of [SPEC §18](docs/SPEC.md#18-milestones); M23 only removed an extension):
 - **The Emetos Tutor** (M30): `emetos --tutor` or Help > Emetos Tutor, eleven lessons you do inside the editor, like `vimtutor`. See [Learn Emetos: the tutor](#learn-emetos-the-tutor).
@@ -74,7 +74,7 @@ go run -tags debug_mode ./cmd/emetos .               # build and run a debug bui
 go install github.com/rm4n0s/emetos/cmd/emetos@main
 ```
 
-This builds `main`, which is what this README describes; `@latest` gives the release **v1.3.1**, which holds everything below (`@v0.1.0` gives the first release, areas 1 and 2 only: no language servers, no extensions, no Remote Work). Releases up to v1.4.3 use an older Glutter, whose release mode needs a tag: install one with `go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@v1.4.3`. From a checkout, `go install ./cmd/emetos` does the same as the first command. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
+This builds `main`, which is what this README describes; `@latest` gives the release **v1.4.4**, which holds everything below (`@v0.1.0` gives the first release, areas 1 and 2 only: no language servers, no extensions, no Remote Work). Releases up to v1.4.3 use an older Glutter, whose release mode needs a tag: install one with `go install -tags glutter_release github.com/rm4n0s/emetos/cmd/emetos@v1.4.3`. From a checkout, `go install ./cmd/emetos` does the same as the first command. The program is put in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is not set (`~/go/bin` by default); put that folder in your `PATH`.
 
 ### Update
 
