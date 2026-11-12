@@ -205,7 +205,7 @@ var fakeCommands = []struct{ id, title, icon string }{
 
 // bindDevSCM gives dev.scm.fake its handler.
 func (s *shellState) bindDevSCM() {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := s.win

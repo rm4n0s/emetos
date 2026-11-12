@@ -8,6 +8,7 @@ import (
 	"time"
 
 	rerrors "github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
 	gui "github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
@@ -285,6 +286,9 @@ func TestGoldensOfScanQRCodeOnThePage(t *testing.T) {
 // ---- the dev commands ----
 
 func TestTheDevCommandsPutAFakeCameraInPlaceOfTheRealOnes(t *testing.T) {
+	if !foundation.DebugMode && !devBuild {
+		t.Skip("the dev commands exist only in builds that run them")
+	}
 	noLeaks(t)
 	cases := []struct {
 		name  string
@@ -348,6 +352,9 @@ type failingReader struct{}
 func (failingReader) Read([]byte) (int, error) { return 0, io.ErrNoProgress }
 
 func TestTheDevCommandsRefuseWhatTheyCannotDo(t *testing.T) {
+	if !foundation.DebugMode && !devBuild {
+		t.Skip("the dev commands exist only in builds that run them")
+	}
 	noLeaks(t)
 	p := newPageRigWith(t, false, nil, func(h *HubOptions) { h.Random = failingReader{} })
 	s := p.show(t, uitest.Themes()[0], scanSize)

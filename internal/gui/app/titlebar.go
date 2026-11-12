@@ -194,7 +194,7 @@ func (s *shellState) bindTitleBar(binding *widgets.WidgetsBinding) func() {
 			return nil
 		},
 	}
-	if DevCommandsEnabled() {
+	if s.win.Process.DevCommandsEnabled() {
 		handlers["dev.openPlusMenu"] = func(command.Context, any) error {
 			if !s.newMenu.Open() {
 				return errors.New("DevOpenPlusMenuUnavailable", "the strip of the window tabs is not on screen")

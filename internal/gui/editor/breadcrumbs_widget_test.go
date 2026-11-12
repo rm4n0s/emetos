@@ -68,6 +68,7 @@ func newCrumbsRigWith(t *testing.T, file string, options BreadcrumbsOptions, opt
 	opts.OnOpen = func(p string) { r.opened = append(r.opened, p) }
 	r.mk = func(file string) widgets.Widget { return NewBreadcrumbs(context.Background(), file, options, opts) }
 	r.ts.PumpWidget(widgets.NewWidgetsApp(kit.DarkModern().EditorBackground, widgets.WidgetsAppOpts{
+		DebugShowCheckedModeBanner: foundation.Some(false),
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
 				var page widgets.Widget = widgets.NewAlign(r.mk(r.file), widgets.AlignOpts{Alignment: painting.AlignmentTopLeft})
@@ -291,6 +292,7 @@ func TestBreadcrumbsPicker(t *testing.T) {
 		r.waitFor(t, "README.md")
 		r.file = "/home/me/proj/lib/lib.go"
 		r.ts.PumpWidget(widgets.NewWidgetsApp(kit.DarkModern().EditorBackground, widgets.WidgetsAppOpts{
+			DebugShowCheckedModeBanner: foundation.Some(false),
 			OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 				return widgets.NewPageRouteBuilder(func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
 					return kit.NewTheme(kit.DarkModern(), widgets.NewAlign(r.mk(r.file), widgets.AlignOpts{Alignment: painting.AlignmentTopLeft}),

@@ -475,6 +475,7 @@ func TestThePlusButtonWithoutAFileChooserReportsIt(t *testing.T) {
 }
 
 func TestTheRowSendsTheActionsOfTheWindowAndShowsTheButtons(t *testing.T) {
+	testutil.RequireDebugSemantics(t)
 	a, _ := tabs3(t, nil)
 	info := ui.WindowInfo{Decoration: ui.DecorationApp, Capabilities: ui.AllWindowCapabilities, Title: "Emetos", Activated: true}
 	a.ts.SetViewConfiguration(func(c *ui.ViewConfiguration) { c.Window = info })

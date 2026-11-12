@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/glutter/animation"
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
@@ -20,6 +21,7 @@ func pumpControl(t *testing.T, child widgets.Widget) *gluttertest.Tester {
 	t.Helper()
 	ts := testutil.New(t, ui.Size{Width: 240, Height: 60})
 	ts.PumpWidget(widgets.NewWidgetsApp(DarkModern().EditorBackground, widgets.WidgetsAppOpts{
+		DebugShowCheckedModeBanner: foundation.Some(false),
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
 				return NewTheme(DarkModern(), widgets.NewAlign(child), ThemeOpts{UIFont: testutil.MonoFamily})

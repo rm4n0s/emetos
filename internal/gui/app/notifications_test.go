@@ -98,9 +98,6 @@ type notifyApp struct {
 
 func newNotifyApp(t *testing.T) *notifyApp {
 	t.Helper()
-	if !DevCommandsEnabled() {
-		t.Skip("this build does not run dev commands")
-	}
 	paths := testutil.Isolate(t)
 	testutil.Settings(t, paths, nil)
 	var buf bytes.Buffer
@@ -203,13 +200,6 @@ func TestDevNotifyFailsOnBadArguments(t *testing.T) {
 	}
 	if len(a.win.Notify.Items()) != 0 {
 		t.Error("a notification was sent")
-	}
-}
-
-func TestDevNotifyIsRegisteredOnlyInDevBuilds(t *testing.T) {
-	p := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
-	if _, ok := p.Commands.Lookup("dev.notify"); ok != DevCommandsEnabled() {
-		t.Errorf("dev.notify is registered = %v, want %v", ok, DevCommandsEnabled())
 	}
 }
 

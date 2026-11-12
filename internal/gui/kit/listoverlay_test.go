@@ -22,6 +22,7 @@ func pumpSized(t *testing.T, size ui.Size, child widgets.Widget) *gluttertest.Te
 	t.Helper()
 	ts := testutil.New(t, size)
 	ts.PumpWidget(widgets.NewWidgetsApp(DarkModern().EditorBackground, widgets.WidgetsAppOpts{
+		DebugShowCheckedModeBanner: foundation.Some(false),
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
 				return NewTheme(DarkModern(), widgets.NewAlign(child, widgets.AlignOpts{Alignment: painting.AlignmentTopLeft}), ThemeOpts{UIFont: testutil.MonoFamily})

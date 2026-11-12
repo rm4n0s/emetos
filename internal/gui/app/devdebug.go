@@ -24,7 +24,7 @@ func registerDevDebug(r *command.Registry) {
 
 // bindDevDebug takes over dev.debug.breakpoint in the registry while the shell is shown.
 func (s *shellState) bindDevDebug() {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := s.win
@@ -75,7 +75,7 @@ func registerDevDebugEvaluate(r *command.Registry) {
 
 // bindDevDebugEvaluate takes over dev.debug.evaluate in the registry while the shell is shown.
 func (s *shellState) bindDevDebugEvaluate() {
-	if !DevCommandsEnabled() || s.debug.console == nil {
+	if !s.win.Process.DevCommandsEnabled() || s.debug.console == nil {
 		return
 	}
 	win := s.win

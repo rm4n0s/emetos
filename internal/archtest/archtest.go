@@ -99,7 +99,15 @@ const (
 	// tested without one (SPEC §10.25 "The emulator"); its tests may also import the pseudo-terminal package
 	// extensions/internal/pty, to record real programs, and golang.org/x/sys/unix, to time the emulator by the CPU clock.
 	RuleEmulatorImportsUI Rule = "EmulatorImportsUI"
+	// RuleTestDevCommandsOutsideTests: a file that is not a test sets app.ProcessOptions.TestDevCommands, a key of a
+	// composite literal or the target of an assignment. The option gives a release build the dev commands so that the
+	// tests can run as one (SPEC §15.1); the editor itself never sets it, so a release build of Emetos has no dev command
+	// (SPEC D15).
+	RuleTestDevCommandsOutsideTests Rule = "TestDevCommandsOutsideTests"
 )
+
+// testDevCommandsField is the option that RuleTestDevCommandsOutsideTests keeps out of the editor's code.
+const testDevCommandsField = "TestDevCommands"
 
 // Violation is one broken rule at one place.
 type Violation struct {
@@ -267,6 +275,23 @@ func checkFile(fset *token.FileSet, rel string, file *ast.File) []Violation {
 	}
 	if errorsName != "" && errorsName != "_" && errorsName != "." {
 		found = append(found, checkErrorRules(fset, rel, file, errorsName)...)
+	}
+	if !strings.HasSuffix(rel, "_test.go") {
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.KeyValueExpr:
+				if id, ok := n.Key.(*ast.Ident); ok && id.Name == testDevCommandsField {
+					add(n.Pos(), RuleTestDevCommandsOutsideTests, testDevCommandsField)
+				}
+			case *ast.AssignStmt:
+				for _, lhs := range n.Lhs {
+					if sel, ok := lhs.(*ast.SelectorExpr); ok && sel.Sel.Name == testDevCommandsField {
+						add(lhs.Pos(), RuleTestDevCommandsOutsideTests, testDevCommandsField)
+					}
+				}
+			}
+			return true
+		})
 	}
 	return found
 }

@@ -84,9 +84,6 @@ func TestDevDismissNotificationErrorRoutes(t *testing.T) {
 }
 
 func TestDevToastsAndDismissWithoutAWorkspace(t *testing.T) {
-	if !DevCommandsEnabled() {
-		t.Skip("this build does not run dev commands")
-	}
 	p := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
 	for _, tt := range []struct {
 		id    string

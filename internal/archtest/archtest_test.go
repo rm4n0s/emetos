@@ -101,6 +101,10 @@ func TestCheck(t *testing.T) {
 			{"internal/gui/app/bad.go", 4, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions"},
 			{"internal/gui/app/bad.go", 5, RuleExtensionsImportedByInternal, "github.com/rm4n0s/emetos/extensions/golang"},
 		}},
+		{"TestDevCommands set outside the tests", "test_dev_commands", []want{
+			{"cmd/emetos/bad.go", 6, RuleTestDevCommandsOutsideTests, "TestDevCommands"},
+			{"cmd/emetos/bad.go", 8, RuleTestDevCommandsOutsideTests, "TestDevCommands"},
+		}},
 		{"reference and testdata folders are skipped", "skipped_dirs", nil},
 	}
 	for _, tt := range tests {

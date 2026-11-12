@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gluttertest"
 	gui "github.com/rm4n0s/glutter/ui"
 	"golang.org/x/crypto/ssh/agent"
@@ -141,6 +142,9 @@ func TestTheAgentCanBeChosenAndItsKeysAreListed(t *testing.T) {
 }
 
 func TestADevCommandFillsTheDialogAndConnects(t *testing.T) {
+	if !foundation.DebugMode && !devBuild {
+		t.Skip("the dev commands exist only in builds that run them")
+	}
 	noLeaks(t)
 	r := newTabRig(t, true)
 	r.open(uitest.Themes()[0], nil)

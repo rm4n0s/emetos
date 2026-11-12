@@ -29,9 +29,11 @@ var testWindowSize = ui.Size{Width: windowWidth, Height: windowHeight}
 
 // newTestWindow makes a window over a process with isolated folders and the editor font of
 // the tests.
-// newTestProcess is NewProcess with the pattern search limit of the tests (testutil.ScanTimeout), so
-// that a slow run does not leave lines of text without colors.
+// newTestProcess is NewProcess with the dev commands (ProcessOptions.TestDevCommands) and the pattern search limit of the
+// tests (testutil.ScanTimeout), so that a slow run does not leave lines of text without colors.
 func newTestProcess(opts ProcessOptions) *Process {
+	// the tests drive the windows with dev commands, also when they run as a release build (SPEC §15.1)
+	opts.TestDevCommands = true
 	if opts.ScanTimeout == 0 {
 		opts.ScanTimeout = testutil.ScanTimeout
 	}

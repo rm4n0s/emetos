@@ -315,7 +315,7 @@ func (w *Workspace) registerExtensionTabCommands(set func(id string, h command.H
 		w.pickWindowTabKind()
 		return nil
 	})
-	if DevCommandsEnabled() {
+	if w.Process.DevCommandsEnabled() {
 		set("dev.openWindowTab", func(_ command.Context, args any) error {
 			kind := kindOfArgs(args)
 			if kind == "" {

@@ -207,7 +207,7 @@ func registerDevMarkers(r *command.Registry) {
 
 // bindDevMarkers gives dev.setMarkers its handler: the markers go to the service of the window.
 func (s *shellState) bindDevMarkers() {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := PeekWorkspace(s.Context())

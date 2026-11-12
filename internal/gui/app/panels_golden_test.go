@@ -13,9 +13,6 @@ import (
 // opened) whose panel is open on a tab, with the sidebar closed, in the theme.
 func goldenPanels(t *testing.T, theme string, size ui.Size) *panelApp {
 	t.Helper()
-	if !DevCommandsEnabled() {
-		t.Skip("this build does not run dev commands")
-	}
 	win, _ := themedWindow(t, map[string]any{"workbench.colorTheme": theme, "editor.minimap.enabled": false, "breadcrumbs.enabled": false})
 	win.Folder = "/work/project"
 	a := newGroupAppWith(t, win, size, []string{"main.go"}, map[string]string{"main.go": goldenSource}, "main.go")

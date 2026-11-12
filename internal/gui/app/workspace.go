@@ -180,7 +180,7 @@ func (w *Workspace) followWorkspaceSettings() {
 // watchNotice tells the user what the watcher says: a warning, unless it is the fallback to polling and the dev knob
 // DevQuietWatchWarningEnv keeps that one out of the notifications (it is logged by the watcher either way).
 func (w *Workspace) watchNotice(n workspace.Notice) {
-	if n.Kind == workspace.NoticePollingFallback && DevCommandsEnabled() && os.Getenv(DevQuietWatchWarningEnv) == "1" {
+	if n.Kind == workspace.NoticePollingFallback && w.Process.DevCommandsEnabled() && os.Getenv(DevQuietWatchWarningEnv) == "1" {
 		return
 	}
 	w.Notify.Warn("Emetos", n.Message)

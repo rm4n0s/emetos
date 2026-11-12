@@ -61,7 +61,7 @@ func setDevAnswer(ctx context.Context, v any) {
 // made is logged and leaves the process without a dev server (the test that wanted one fails on its own).
 func (m *Workspaces) startDevServer() {
 	path := os.Getenv(DevSocketEnv)
-	if path == "" || !DevCommandsEnabled() || m.ctx == nil {
+	if path == "" || !m.p.DevCommandsEnabled() || m.ctx == nil {
 		return
 	}
 	// a stale file of a process that was killed would make the bind fail

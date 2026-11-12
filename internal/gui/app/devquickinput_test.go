@@ -43,7 +43,7 @@ func TestDevQuickInputTypesIntoTheBoxThatIsShown(t *testing.T) {
 	for _, m := range w.Process.Commands.All() {
 		found = found || m.ID == "dev.quickInput.type"
 	}
-	if DevCommandsEnabled() && !found {
+	if !found {
 		t.Error("dev.quickInput.type is not registered")
 	}
 	if len(accepted) != 0 {

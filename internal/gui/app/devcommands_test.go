@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/internal/core/command"
+	"github.com/rm4n0s/emetos/internal/core/storage/storagetest"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
@@ -70,26 +71,44 @@ func TestParseDevCommandsErrors(t *testing.T) {
 	}
 }
 
-// TestDevCommandsAreGated checks the gate of SPEC D15: debug builds and builds with the
-// emetos_dev tag run dev commands, and a release build registers none.
+// TestDevCommandsAreGated checks the gate of SPEC D15: debug builds and builds with the emetos_dev tag run dev
+// commands, a release build registers none, and ProcessOptions.TestDevCommands (the tests' own) gives them to a process
+// of any build.
 func TestDevCommandsAreGated(t *testing.T) {
 	if got, want := DevCommandsEnabled(), foundation.DebugMode || devBuild; got != want {
 		t.Errorf("DevCommandsEnabled = %v, want %v", got, want)
 	}
-	r := command.NewRegistry()
-	err := RegisterDev(r, command.Meta{ID: "dev.thing"}, func(command.Context, any) error { return nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := r.Lookup("dev.thing"); ok != DevCommandsEnabled() {
-		t.Errorf("a dev command is registered = %v, want %v", ok, DevCommandsEnabled())
-	}
-	if r.HasHandler("dev.thing") != DevCommandsEnabled() {
-		t.Error("the handler follows the registration")
+	paths := testutil.Isolate(t)
+	for _, tc := range []struct {
+		name string
+		opt  bool
+		want bool
+	}{
+		{"as the editor makes it", false, DevCommandsEnabled()},
+		{"with TestDevCommands", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := NewProcess(ProcessOptions{Paths: paths, StateAfter: storagetest.NewClock().AfterFunc, TestDevCommands: tc.opt})
+			if got := p.DevCommandsEnabled(); got != tc.want {
+				t.Errorf("Process.DevCommandsEnabled = %v, want %v", got, tc.want)
+			}
+			for _, id := range []string{"dev.type", "dev.openFile", "dev.notify", "dev.quickInput.type"} {
+				if _, ok := p.Commands.Lookup(id); ok != tc.want {
+					t.Errorf("%s is registered = %v, want %v", id, ok, tc.want)
+				}
+			}
+		})
 	}
 
+	r := command.NewRegistry()
+	if err := RegisterDev(r, command.Meta{ID: "dev.thing"}, func(command.Context, any) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := r.Lookup("dev.thing"); !ok || !r.HasHandler("dev.thing") {
+		t.Error("RegisterDev registers the command and its handler")
+	}
 	// An id without the dev. prefix is a mistake whatever the build.
-	err = RegisterDev(r, command.Meta{ID: "thing"}, func(command.Context, any) error { return nil })
+	err := RegisterDev(r, command.Meta{ID: "thing"}, func(command.Context, any) error { return nil })
 	appErr, ok := errors.FromError(err)
 	if !ok || !appErr.HasRoute("RegisterDev.DevCommandIDInvalid") {
 		t.Errorf("err = %v", err)
@@ -174,9 +193,6 @@ func TestDevRunnerStopsWhenCanceled(t *testing.T) {
 
 func TestDevStepsFromTextAndEnvironment(t *testing.T) {
 	p := newTestProcess(ProcessOptions{Paths: newTestWorkspace(t, "").Process.Paths})
-	if !DevCommandsEnabled() {
-		t.Skip("this build does not run dev commands")
-	}
 	if got := devSteps(p, `[["a"]]`); len(got) != 1 {
 		t.Errorf("from the text: %v", got)
 	}
@@ -196,11 +212,8 @@ func TestDevStepsFromTextAndEnvironment(t *testing.T) {
 func TestTheEditorDevCommandsAreInTheProcess(t *testing.T) {
 	p := newTestProcess(ProcessOptions{Paths: testutil.Isolate(t)})
 	for _, id := range []string{"dev.type", "dev.scroll"} {
-		if _, ok := p.Commands.Lookup(id); ok != DevCommandsEnabled() {
-			t.Errorf("%s is registered = %v, want %v", id, ok, DevCommandsEnabled())
-		}
-		if !DevCommandsEnabled() {
-			continue
+		if _, ok := p.Commands.Lookup(id); !ok {
+			t.Errorf("%s is not registered", id)
 		}
 		// With no editor in front, the command says so.
 		err := p.Commands.Run(command.Context{}, id, "x")

@@ -273,9 +273,6 @@ func TestAToastOfAClientsCommandIsInItsViewOnly(t *testing.T) {
 
 // The dev commands that make the view of a client in one window (devview.go, SPEC §15.2): the view is made once, and the other two need it.
 func TestTheDevCommandsOfTheViewNeedAViewAndMakeOneOnce(t *testing.T) {
-	if !DevCommandsEnabled() {
-		t.Skip("dev commands are off in this build")
-	}
 	r := newViewRig(t, "one\n", extension.Size{Width: 400, Height: 300})
 	r.frame(t)
 	cc := commandContext(t, r.win)

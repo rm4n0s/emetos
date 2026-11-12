@@ -18,9 +18,6 @@ import (
 // goldenModes makes a window with two files, the first shown, in the theme, with the side bar open.
 func goldenModes(t *testing.T, theme string, size ui.Size) (*groupApp, *fullScreenFake) {
 	t.Helper()
-	if !DevCommandsEnabled() {
-		t.Skip("this build does not run dev commands")
-	}
 	win, _ := themedWindow(t, map[string]any{"workbench.colorTheme": theme, "editor.minimap.enabled": false, "breadcrumbs.enabled": false, "files.hotExit": "off"})
 	texts := map[string]string{"main.go": goldenSource, "util.go": "package main\n\n// helper\nfunc helper() {}\n"}
 	a := newGroupAppWith(t, win, size, []string{"main.go", "util.go"}, texts, "main.go", "util.go")

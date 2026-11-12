@@ -60,7 +60,7 @@ This file breaks the milestones in `docs/SPEC.md` §18 into small steps. Each st
     golangci-lint run
     go test -race -tags debug_mode ./...   # a debug build of Glutter, which a build without tags is not since Glutter 1.17
     CGO_ENABLED=0 go build ./...
-    CGO_ENABLED=0 go test -tags debug_mode ./...
+    CGO_ENABLED=0 go test ./...            # the tests again, as a release build (SPEC §15.1)
     ```
     If the step lists **Display tests**, run them too: `scripts/headless-wayland.sh -- go test -race -tags 'emetos_display debug_mode' <packages>`. Golden tests have `Golden` in their name, so `go test ./... -run Golden -update-goldens` finds them all.
 11. **Proof images.** Only when the step has a **Proof** item:

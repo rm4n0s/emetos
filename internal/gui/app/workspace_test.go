@@ -327,9 +327,6 @@ func TestBreadcrumbsAndSnippetsUseTheFolder(t *testing.T) {
 }
 
 func TestTheDevKnobKeepsOnlyThePollingWarningOutOfTheNotifications(t *testing.T) {
-	if !DevCommandsEnabled() {
-		t.Skip("the dev knob is read only in builds that run dev commands")
-	}
 	tests := []struct {
 		name  string
 		knob  string

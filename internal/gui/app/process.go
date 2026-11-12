@@ -94,6 +94,8 @@ type Process struct {
 	states  map[string]*storage.StateStore
 	// stateOpts are the options the stores of the profiles are made with.
 	stateOpts storage.StateStoreOptions
+	// devCommands tells whether the process has the dev commands: DevCommandsEnabled, or ProcessOptions.TestDevCommands.
+	devCommands bool
 
 	scanTimeout time.Duration
 	testingNow  func() time.Time
@@ -176,6 +178,11 @@ type ProcessOptions struct {
 	BackupAfter     storage.AfterFunc
 	BackupWriteFile storage.WriteFileFunc
 	BackupMaxSize   int
+	// TestDevCommands gives the process the dev commands (SPEC §15.2) in a release build too, where DevCommandsEnabled is
+	// false. It is for the tests only: they drive the windows with dev commands, and the release run of the tests (SPEC
+	// §15.1) runs them as a release build. The editor never sets it (internal/archtest checks cmd/emetos), so a release
+	// build of Emetos has no dev command (SPEC D15).
+	TestDevCommands bool
 }
 
 // NewProcess makes the services of the process: the registries with every setting, command
@@ -215,18 +222,19 @@ func NewProcess(opts ProcessOptions) *Process {
 		panic(err)
 	}
 	p := &Process{
-		State:     state,
-		Profiles:  storage.NewProfiles(opts.Paths, storage.ProfilesOptions{State: state, Logger: logger}),
-		stateOpts: storage.StateStoreOptions{Delay: opts.StateDelay, After: opts.StateAfter, WriteFile: opts.StateWriteFile, Logger: logger},
-		Paths:     opts.Paths,
-		Logger:    logger,
-		Logs:      opts.Logs,
-		Channels:  channels,
-		Settings:  defaults,
-		Commands:  command.DefaultRegistry(),
-		Keymap:    keybinding.DefaultRegistry(),
-		Notify:    notify.NewService(logger, nil),
-		InputMode: editor.NewInputMode(),
+		devCommands: DevCommandsEnabled() || opts.TestDevCommands,
+		State:       state,
+		Profiles:    storage.NewProfiles(opts.Paths, storage.ProfilesOptions{State: state, Logger: logger}),
+		stateOpts:   storage.StateStoreOptions{Delay: opts.StateDelay, After: opts.StateAfter, WriteFile: opts.StateWriteFile, Logger: logger},
+		Paths:       opts.Paths,
+		Logger:      logger,
+		Logs:        opts.Logs,
+		Channels:    channels,
+		Settings:    defaults,
+		Commands:    command.DefaultRegistry(),
+		Keymap:      keybinding.DefaultRegistry(),
+		Notify:      notify.NewService(logger, nil),
+		InputMode:   editor.NewInputMode(),
 
 		WatchFiles:  opts.WatchFiles,
 		Launcher:    opts.Launcher,
@@ -259,21 +267,28 @@ func NewProcess(opts ProcessOptions) *Process {
 	p.Menus = command.DefaultMenus(p.Commands)
 	p.Menus.SetProvider(command.MenubarRecentMenu, p.recentMenuItems)
 	p.Views = command.DefaultViews()
-	registerDevCommands(p.Commands)
-	registerDevNotify(p.Commands, p.Notify, logger)
-	registerDevLog(p.Commands, p.Channels)
-	registerDevMarkers(p.Commands)
-	registerDevSCM(p.Commands)
-	registerDevDebug(p.Commands)
-	registerDevDebugEvaluate(p.Commands)
-	registerDevView(p.Commands)
-	registerDevQuickInput(p)
-	registerDevQueries(p)
-	registerDevWorkbench(p)
-	registerDevToasts(p)
+	if p.devCommands {
+		registerDevCommands(p.Commands)
+		registerDevNotify(p.Commands, p.Notify, logger)
+		registerDevLog(p.Commands, p.Channels)
+		registerDevMarkers(p.Commands)
+		registerDevSCM(p.Commands)
+		registerDevDebug(p.Commands)
+		registerDevDebugEvaluate(p.Commands)
+		registerDevView(p.Commands)
+		registerDevQuickInput(p)
+		registerDevQueries(p)
+		registerDevWorkbench(p)
+		registerDevToasts(p)
+	}
 	p.loadUserThemes()
 	return p
 }
+
+// DevCommandsEnabled tells whether this process runs dev commands (SPEC §15.2): always in a build that runs them
+// (the package function DevCommandsEnabled), and in a release build only when the tests asked for them
+// (ProcessOptions.TestDevCommands).
+func (p *Process) DevCommandsEnabled() bool { return p.devCommands }
 
 // StateFor is the state store of a profile: the store of the default profile is State, the others are made when
 // they are first asked for and kept. The error has the tag ProfilePathUnsafe.

@@ -81,14 +81,12 @@ func ParseDevCommands(text string) ([]DevStep, error) {
 }
 
 // RegisterDev registers a command that exists for dev commands only: its id must start with
-// "dev.". Nothing is registered, and nil is returned, in a build that does not run dev
-// commands (SPEC D15), so such a command is not found there.
+// "dev.". It is called only for a process that runs dev commands (Process.DevCommandsEnabled;
+// NewProcess registers them only then), so such a command is not found in a release build of
+// Emetos (SPEC D15).
 func RegisterDev(r *command.Registry, meta command.Meta, h command.Handler) error {
 	if !strings.HasPrefix(meta.ID, "dev.") {
 		return errors.New("DevCommandIDInvalid", "the id of a dev command starts with dev.", "id", meta.ID)
-	}
-	if !DevCommandsEnabled() {
-		return nil
 	}
 	if err := r.Register(meta); err != nil {
 		return err

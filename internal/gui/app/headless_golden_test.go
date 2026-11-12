@@ -163,9 +163,6 @@ func TestGoldenOfAHeadlessView(t *testing.T) {
 // The Source Control view in the view of a client (step 24.25, D50): the repositories the extension made in the window's model, with the
 // changes and the commit box, drawn by the shell of the view, and the status items of the extension beside the editor's.
 func TestGoldenOfTheSourceControlViewInAHeadlessView(t *testing.T) {
-	if !DevCommandsEnabled() {
-		t.Skip("dev commands are off in this build")
-	}
 	r := newProjectRig(t, extension.Size{Width: 1280, Height: 800}, "Dark Modern")
 	r.frame(t) // the shell of the view binds its commands when it is first built
 	if err := r.win.Commands.Run(commandContext(t, r.win), "dev.scm.fake", map[string]any{"fixture": scmFixture(t, t.TempDir())}); err != nil {

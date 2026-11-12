@@ -54,9 +54,6 @@ func scmFixture(t *testing.T, dir string) string {
 func scmApp(t *testing.T) *saveApp {
 	t.Helper()
 	a := newSaveApp(t, map[string]string{"a.go": "package a\n"})
-	if !DevCommandsEnabled() {
-		t.Skip("dev commands are off in this build")
-	}
 	if err := a.win.Commands.Run(command.Context{Ctx: context.Background(), Source: command.SourceAPI}, "dev.scm.fake",
 		map[string]any{"fixture": scmFixture(t, t.TempDir())}); err != nil {
 		t.Fatal(err)
@@ -176,9 +173,6 @@ func TestSCMStateOutlivesTheWindow(t *testing.T) {
 		a.pump()
 	}
 	first := newSaveApp(t, map[string]string{"a.go": "x\n"})
-	if !DevCommandsEnabled() {
-		t.Skip("dev commands are off in this build")
-	}
 	run(first)
 	first.run("workbench.view.scm")
 	view := first.shell().scm.view
@@ -306,9 +300,6 @@ func TestGoldenSourceControlInTheWorkbench(t *testing.T) {
 	for _, th := range goldenThemesOfTheGrid {
 		t.Run(th.name, func(t *testing.T) {
 			a := goldenExplorer(t, th.theme, false)
-			if !DevCommandsEnabled() {
-				t.Skip("dev commands are off in this build")
-			}
 			ctx := command.Context{Ctx: context.Background(), Source: command.SourceAPI}
 			if err := a.win.Commands.Run(ctx, "dev.scm.fake", map[string]any{"fixture": scmFixture(t, t.TempDir())}); err != nil {
 				t.Fatal(err)

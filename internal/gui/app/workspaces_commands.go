@@ -79,7 +79,7 @@ func (w *Workspace) registerWindowCommands() {
 	w.registerModeCommands(set)
 	w.registerSCMCommands(set)
 	w.registerExtensionTabCommands(set)
-	if DevCommandsEnabled() {
+	if w.Process.DevCommandsEnabled() {
 		set("dev.openFolderInNewTab", func(_ command.Context, args any) error {
 			path, err := parseOpenFolderInNewTab(args, os.Getwd)
 			if err != nil {

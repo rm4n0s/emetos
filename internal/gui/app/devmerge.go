@@ -90,7 +90,7 @@ func parseAcceptMerge(args any) (acceptMergeArguments, error) {
 
 // bindDevMerge gives dev.openMergeEditor and dev.acceptMerge (SPEC §15.2) their handlers.
 func (s *shellState) bindDevMerge() {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := PeekWorkspace(s.Context())

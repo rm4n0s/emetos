@@ -41,7 +41,7 @@ func registerDevView(r *command.Registry) {
 
 // bindDevView gives the dev commands of the view their handlers.
 func (s *shellState) bindDevView() {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := s.win

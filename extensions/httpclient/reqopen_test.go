@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/foundation"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/httpclient/format"
@@ -184,6 +185,9 @@ func TestFindVars(t *testing.T) {
 }
 
 func TestTheDevEchoServerAnswersOnLoopbackAndStopsWithTheWindow(t *testing.T) {
+	if !foundation.DebugMode {
+		t.Skip("the dev echo server exists in debug builds")
+	}
 	r := newRig(t)
 	r.run(CmdSelectEnvironment, "dev")
 	r.run(CommandDevEcho, nil)
@@ -224,6 +228,9 @@ func TestTheDevEchoServerAnswersOnLoopbackAndStopsWithTheWindow(t *testing.T) {
 }
 
 func TestTheDevEchoServerStopsWithTheExtension(t *testing.T) {
+	if !foundation.DebugMode {
+		t.Skip("the dev echo server exists in debug builds")
+	}
 	isolate(t)
 	folder := t.TempDir()
 	copyDir(t, fixtureDir, folder)
@@ -244,6 +251,9 @@ func TestTheDevEchoServerStopsWithTheExtension(t *testing.T) {
 }
 
 func TestTheDevEchoServerCannotListenAfterTheEnd(t *testing.T) {
+	if !foundation.DebugMode {
+		t.Skip("the dev echo server exists in debug builds")
+	}
 	r := newRig(t)
 	r.cancel()
 	err := r.api.Run(CommandDevEcho, nil)

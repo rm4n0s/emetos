@@ -181,7 +181,7 @@ func describe(err error) string {
 // devSteps reads the dev commands from text or, when it is empty, from the environment. It
 // gives none in a build that does not run them, and reports a text that does not parse.
 func devSteps(p *Process, text string) []DevStep {
-	if !DevCommandsEnabled() {
+	if !p.DevCommandsEnabled() {
 		return nil
 	}
 	if text == "" {

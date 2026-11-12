@@ -31,6 +31,7 @@ func newCrumbScrollRig(t *testing.T, width float64, file string) *crumbScrollRig
 		return []BreadcrumbEntry{{Name: "sibling-one", Path: dir + "/sibling-one"}, {Name: "sibling-two", Path: dir + "/sibling-two"}}, nil
 	}
 	r.ts.PumpWidget(widgets.NewWidgetsApp(kit.DarkModern().EditorBackground, widgets.WidgetsAppOpts{
+		DebugShowCheckedModeBanner: foundation.Some(false),
 		OnGenerateRoute: func(settings widgets.RouteSettings) widgets.Route {
 			return widgets.NewPageRouteBuilder(func(widgets.BuildContext, animation.Animation[float64], animation.Animation[float64]) widgets.Widget {
 				return kit.NewTheme(kit.DarkModern(), widgets.NewValueListenableBuilder(r.file, func(_ widgets.BuildContext, file string, _ widgets.Widget) widgets.Widget {

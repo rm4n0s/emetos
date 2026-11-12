@@ -4,11 +4,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rm4n0s/glutter/foundation"
+
 	"github.com/rm4n0s/emetos/extensions/gitscm/gittest"
 )
 
 // The dev command that makes the proof of the password prompt (step 24.9, SPEC §15.2).
 func TestTheDevTestServerMakesOriginAskForAPassword(t *testing.T) {
+	if !foundation.DebugMode && !devBuild {
+		t.Skip("the dev test server exists only in builds that run dev commands")
+	}
 	e := gittest.NewEnv(t)
 	repo := e.Init("small")
 	repo.Write("a.txt", "one\n")
@@ -51,6 +56,9 @@ func TestTheDevTestServerMakesOriginAskForAPassword(t *testing.T) {
 }
 
 func TestTheDevTestServerFailures(t *testing.T) {
+	if !foundation.DebugMode && !devBuild {
+		t.Skip("the dev test server exists only in builds that run dev commands")
+	}
 	t.Run("no repository", func(t *testing.T) {
 		e := gittest.NewEnv(t)
 		r := newRig(t, e, rigOptions{})

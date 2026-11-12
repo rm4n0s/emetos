@@ -330,7 +330,7 @@ func parseOpenDiff(args any) (diffArguments, error) {
 
 // bindDevOpenDiff gives dev.openDiff (SPEC §15.2) its handler.
 func (s *shellState) bindDevOpenDiff() {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := PeekWorkspace(s.Context())

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/errors"
+	"github.com/rm4n0s/glutter/foundation"
 )
 
 func ipnet(ip string, bits int) net.Addr {
@@ -147,6 +148,9 @@ func TestTheDefaultRouteIsReadFromTheKernelsTables(t *testing.T) {
 }
 
 func TestTheDevKnobGivesTheInterfacesOfTheDocumentationRanges(t *testing.T) {
+	if !foundation.DebugMode && !devBuild {
+		t.Skip("the dev knob is read only in builds that run dev commands")
+	}
 	good := `[{"name":"lo","up":true,"loopback":true,"addrs":["127.0.0.1/8"]},` +
 		`{"name":"enp3s0","up":true,"defaultRoute":true,"addrs":["192.0.2.10/24","2001:db8::10/64"]},` +
 		`{"name":"docker0","up":true,"addrs":["172.17.0.5/16"]}]`

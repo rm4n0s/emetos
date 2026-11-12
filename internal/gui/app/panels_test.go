@@ -33,9 +33,6 @@ type panelApp struct {
 
 func newPanelApp(t *testing.T, theme string) *panelApp {
 	t.Helper()
-	if !DevCommandsEnabled() {
-		t.Skip("this build does not run dev commands")
-	}
 	extra := map[string]any{"editor.minimap.enabled": false, "breadcrumbs.enabled": false}
 	if theme != "" {
 		extra["workbench.colorTheme"] = theme

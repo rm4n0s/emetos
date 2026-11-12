@@ -51,9 +51,6 @@ func scmBoxFixture(t *testing.T, dir string) string {
 func scmBoxApp(t *testing.T) (*saveApp, *scmcore.Source) {
 	t.Helper()
 	a := newSaveApp(t, map[string]string{"a.go": "package a\n"})
-	if !DevCommandsEnabled() {
-		t.Skip("dev commands are off in this build")
-	}
 	ctx := command.Context{Ctx: context.Background(), Source: command.SourceAPI}
 	if err := a.win.Commands.Run(ctx, "dev.scm.fake", map[string]any{"fixture": scmBoxFixture(t, t.TempDir())}); err != nil {
 		t.Fatal(err)
@@ -397,9 +394,6 @@ func TestSCMErrorRoutesOfTheBox(t *testing.T) {
 func TestSCMPlaceholderFollowsTheKeyOfTheAcceptCommand(t *testing.T) {
 	a := newKeybindingsApp(t, "", `[{ "key": "ctrl+shift+enter", "command": "scm.acceptInput", "when": "scmRepository" },
 		{ "key": "ctrl+enter", "command": "-scm.acceptInput" }]`)
-	if !DevCommandsEnabled() {
-		t.Skip("dev commands are off in this build")
-	}
 	ctx := command.Context{Ctx: context.Background(), Source: command.SourceAPI}
 	if err := a.win.Commands.Run(ctx, "dev.scm.fake", map[string]any{"fixture": scmBoxFixture(t, t.TempDir())}); err != nil {
 		t.Fatal(err)

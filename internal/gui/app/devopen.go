@@ -72,7 +72,7 @@ func parseOpenFile(args any) (openFileArguments, error) {
 // bindDevOpenFile gives dev.openFile (SPEC §15.2) its handler: the window shows the file in its
 // editor, with the cursor at the position.
 func (s *shellState) bindDevOpenFile(binding *widgets.WidgetsBinding) {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := PeekWorkspace(s.Context())

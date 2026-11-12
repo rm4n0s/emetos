@@ -144,7 +144,7 @@ func (s *shellState) initMenus(binding *widgets.WidgetsBinding) {
 
 // bindDevOpenMenu gives dev.openMenu (SPEC §15.2) its handler.
 func (s *shellState) bindDevOpenMenu() {
-	if !DevCommandsEnabled() {
+	if !s.win.Process.DevCommandsEnabled() {
 		return
 	}
 	win := PeekWorkspace(s.Context())

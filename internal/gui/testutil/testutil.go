@@ -69,7 +69,8 @@ var WindowInfo = ui.WindowInfo{
 //
 // It also pins the target platform to Linux, which the key bindings, the golden pictures and the behavior of the text fields were made
 // for (Flutter's text field fades its caret on macOS and does not blink it, for one thing): without it a test on a Mac runs as a Mac
-// and differs by a caret. The pin needs a debug build, which `go test` is.
+// and differs by a caret. The pin needs a debug build (the race run, -tags debug_mode); the release run of the tests (SPEC §15.1) runs
+// as the host, which on the Linux machines that run it is the same.
 func New(t testing.TB, size ui.Size) *gluttertest.Tester {
 	t.Helper()
 	if foundation.DebugMode {
@@ -81,6 +82,19 @@ func New(t testing.TB, size ui.Size) *gluttertest.Tester {
 	ts := gluttertest.New(t, gluttertest.Opts{Size: size, Fonts: Fonts()})
 	ts.SetViewConfiguration(func(c *ui.ViewConfiguration) { c.Window = WindowInfo })
 	return ts
+}
+
+// RequireDebugSemantics skips a test that finds widgets by their semantics label (gluttertest.BySemanticsLabel) when the
+// tests run as a release build (SPEC §15.1), where that finder finds nothing: a test that looks for a label would fail, and
+// one that checks a label is gone would pass without looking.
+//
+// Glutter: gluttertest.BySemanticsLabel reads RenderObject.DebugSemantics, which only a debug build keeps. Glutter should
+// find by the semantics tree that the owner sends to the platform, which a release build has too (docs/GLUTTER-ISSUES.md).
+func RequireDebugSemantics(t testing.TB) {
+	t.Helper()
+	if !foundation.DebugMode {
+		t.Skip("the semantics finders of gluttertest find nothing in a release build")
+	}
 }
 
 // Isolate points every user folder at temporary ones (see storagetest.Isolate) and returns
