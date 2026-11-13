@@ -147,3 +147,42 @@ func TestGoldenExtensionsPageRequirements(t *testing.T) {
 		})
 	}
 }
+
+// TestGoldenSystemCheckPage shows the page "System Check" (step 34.5): the system line, the summary, the three groups with a required
+// and an optional requirement missing, one that cannot be used, one the check could not tell and one found, and the line of the
+// turned-off extensions, in both themes.
+func TestGoldenSystemCheckPage(t *testing.T) {
+	for _, th := range goldenThemesOfThePanels {
+		t.Run(th.name, func(t *testing.T) {
+			installs := 0
+			tools := requirementTools(reqAnswer(extension.RequirementResult{State: extension.RequirementMissing, Detail: "gopls was not found in PATH"}), &installs)
+			paths := testutil.Isolate(t)
+			testutil.Settings(t, paths, map[string]any{
+				"window.menuBarVisibility": "classic", "workbench.colorTheme": th.theme, "editor.minimap.enabled": false,
+				"breadcrumbs.enabled": false, "files.hotExit": "off", "extensions.disabled": []any{"emetos.redisx"},
+			})
+			folder := filepath.Join(t.TempDir(), "project")
+			if err := os.MkdirAll(folder, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			p := newTestProcess(ProcessOptions{Paths: paths, Extensions: []extension.Factory{tools, redisLike}, SystemFamily: extension.FamilyFedora,
+				SystemName: "Fedora Linux 45 (Workstation Edition), fedora, linux/amd64"})
+			win, err := NewWorkspace(context.Background(), p, folder)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(win.release)
+			a := newGroupAppWith(t, win, ui.Size{Width: 960, Height: 720}, nil, nil)
+			a.ts.SetPlatformConfiguration(func(c *ui.PlatformConfiguration) { c.UIFontFamily, c.UIFontSize = testutil.MonoFamily, 12 })
+			a.run("workbench.action.toggleSidebarVisibility")
+			a.run("emetos.checkSystem")
+			waitForRequirements(t, a, func() bool {
+				return a.ts.Exists(gluttertest.ByText("2 missing, 1 cannot be used, 1 not checked, 1 found"))
+			})
+			win.Notify.ClearAll()
+			a.shell().SetState(func() {})
+			a.pump()
+			testutil.MatchesGolden(a.ts, "system_check_page_"+th.name)
+		})
+	}
+}

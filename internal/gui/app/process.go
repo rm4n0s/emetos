@@ -99,6 +99,9 @@ type Process struct {
 	// family is the family of the system for the install commands of the requirements (systemFamily), read once.
 	familyOnce sync.Once
 	family     string
+	// system is the line that names the system on the System Check page (systemName), read once.
+	systemOnce sync.Once
+	system     string
 
 	scanTimeout time.Duration
 	testingNow  func() time.Time
@@ -189,6 +192,8 @@ type ProcessOptions struct {
 	// SystemFamily is the family of the system whose install commands the pages of the requirements copy (SPEC §10.36); empty
 	// reads it from the system (extension.SystemFamily). Tests set it so that they do not depend on the computer.
 	SystemFamily string
+	// SystemName is the line that names the system on the System Check page; empty reads it from the system. Tests set it.
+	SystemName string
 }
 
 // NewProcess makes the services of the process: the registries with every setting, command
@@ -230,6 +235,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	p := &Process{
 		devCommands: DevCommandsEnabled() || opts.TestDevCommands,
 		family:      opts.SystemFamily,
+		system:      opts.SystemName,
 		State:       state,
 		Profiles:    storage.NewProfiles(opts.Paths, storage.ProfilesOptions{State: state, Logger: logger}),
 		stateOpts:   storage.StateStoreOptions{Delay: opts.StateDelay, After: opts.StateAfter, WriteFile: opts.StateWriteFile, Logger: logger},

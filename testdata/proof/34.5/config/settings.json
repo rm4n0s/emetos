@@ -1,0 +1,6 @@
+{
+  "go.goplsPath": "/nonexistent/emetos-proof/gopls",
+  "git.path": "/nonexistent/emetos-proof/git",
+  "containers.host": "unix:///nonexistent/emetos-proof/docker.sock",
+  "podman.host": "unix:///nonexistent/emetos-proof/podman.sock"
+}

@@ -107,7 +107,7 @@ func requirementsApp(t *testing.T, values map[string]any, factories ...extension
 		all[k] = v
 	}
 	testutil.Settings(t, paths, all)
-	p := newTestProcess(ProcessOptions{Paths: paths, Extensions: factories, SystemFamily: extension.FamilyFedora})
+	p := newTestProcess(ProcessOptions{Paths: paths, Extensions: factories, SystemFamily: extension.FamilyFedora, SystemName: "Test OS 1, fedora, linux/amd64"})
 	folder := filepath.Join(t.TempDir(), "proj")
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		t.Fatal(err)

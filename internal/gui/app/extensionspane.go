@@ -42,6 +42,7 @@ type extensionsPane struct {
 func (p *extensionsPane) build(bc widgets.BuildContext, group *editorgroup.Group, _ bool) widgets.Widget {
 	win := PeekWorkspace(bc)
 	reqs := win.Process.Workspaces.requirements(widgets.WidgetsBindingOf(bc).Post)
+	actions := p.s.requirementActions()
 	return p.wrap(p.s, group, extensionsui.NewPage(extensionsui.Options{
 		Rows:            func() []exthost.Row { return win.Process.Extensions.Rows(win.disabledExtensions()) },
 		Problems:        win.Process.Extensions.Problems,
@@ -58,22 +59,12 @@ func (p *extensionsPane) build(bc widgets.BuildContext, group *editorgroup.Group
 		SubscribeRequirements: reqs.OnChange,
 		OnShown:               reqs.Start,
 		OnCheckAgain:          reqs.CheckAgain,
-		// TODO(step 34.5): OnCheckSystem opens the Check System page.
-		Family:    win.Process.systemFamily(),
-		OnCopy:    p.s.copyText,
-		OnSetPath: p.s.setRequirementPath,
-		OnInstall: func(id string) {
-			if err := win.runCommand(id, nil); err != nil {
-				win.Process.Logger.Warn("cannot run the install command of a requirement", "command", id, "err", err)
-				win.Notify.Warn("Emetos", "Cannot install: "+describe(err))
-			}
-		},
-		OnOpenURI: func(uri string) {
-			if err := win.openURI(win.ctx, uri); err != nil {
-				win.Process.Logger.Warn("cannot open the instructions of a requirement", "uri", uri, "err", err)
-				win.Notify.Warn("Emetos", "Cannot open "+uri+": "+describe(err))
-			}
-		},
+		OnCheckSystem:         p.s.openSystemCheckPage,
+		Family:                actions.Family,
+		OnCopy:                actions.OnCopy,
+		OnSetPath:             actions.OnSetPath,
+		OnInstall:             actions.OnInstall,
+		OnOpenURI:             actions.OnOpenURI,
 	}))
 }
 
@@ -135,6 +126,10 @@ func (s *shellState) extensionsCommands() map[string]command.Handler {
 		},
 		"emetos.extensions.manageEventSharing": func(command.Context, any) error {
 			s.openEventSharingPage()
+			return nil
+		},
+		"emetos.checkSystem": func(command.Context, any) error {
+			s.openSystemCheckPage()
 			return nil
 		},
 	}

@@ -1015,6 +1015,8 @@ func registerExtensionsCommands(r *Registry) {
 		Meta{ID: "workbench.extensions.action.showInstalledExtensions", Title: "Show Installed Extensions", Category: "Extensions"},
 		// Emetos's own: the page of the links between window tabs (step 11.3, SPEC §10.15 "Event sharing")
 		Meta{ID: "emetos.extensions.manageEventSharing", Title: "Manage Event Sharing", Category: "Extensions"},
+		// Emetos's own: the page of what the enabled extensions need from the system (step 34.5, SPEC §10.36 "The Check System page")
+		Meta{ID: "emetos.checkSystem", Title: "Check System", Category: "Help"},
 	)
 }
 

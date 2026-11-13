@@ -246,6 +246,16 @@ Beside these, an extension can add commands, keys, menu items, settings, languag
 
 The Notes, TODOs and Scratchpad extensions of earlier versions are gone. What you wrote in a note or in the Scratchpad is saved once, at the first start, as Markdown files in `$XDG_DATA_HOME/emetos/saved-notes/` (`~/.local/share/emetos/saved-notes/` by default), and a notification offers **Open Folder** ([SPEC §10.26](docs/SPEC.md#1026-removed-notes-todos-and-scratchpad)).
 
+### What your system needs, and turning extensions off
+
+Many extensions use programs and services of your computer: gopls and the other language servers, `go`, `dlv`, git 2.30 or newer, the Docker and Podman engines, the desktop's keyring, a camera, the ssh-agent, the shell of the terminal. Emetos installs none of them; it tells you what it finds ([SPEC §10.36](docs/SPEC.md#1036-what-the-extensions-need-from-the-system-extension-internalguiexthost-internalguiextensionsui-guiapp-the-extensions)). Nothing is looked for until you ask: the checks run when one of these two pages is first shown, and change nothing (no install, no keyring unlocked, no camera turned on).
+- **The Extensions page** (Ctrl+Shift+X) shows each extension's requirements under it: found (with the path and version), missing or unusable (red when the extension needs it, yellow when only one feature does), or not known. A missing one has buttons: **Copy Install Command** (the command for your system: Fedora, Debian and Ubuntu, Arch, openSUSE or macOS), **Install** (where Emetos can do it, as for the Go tools), **Set Path...** (the setting that names the program) and **Instructions**. **Check Again** looks again, for example after you installed something.
+- **Help › Check System** (`emetos.checkSystem`, also the page's **Check System** button) lists every requirement of the enabled extensions in one place, the missing ones first, with the same buttons, and **Copy Report**, which copies the page as Markdown to paste into an issue (the system, and the paths and versions found; no settings and no environment).
+
+To **turn an extension off**, press its **Disable** button on the Extensions page, or clear its check box in the Settings editor (search `@ext:` and the extension's id, under Extensions › Installed); both write `extensions.disabled` in your user settings. A turned-off extension still shows its requirements on the Extensions page, so you can meet them before you turn it on.
+
+![The System Check page with a missing gopls and git, the requirements that were found, and Copy Report](docs/implemented-proof-images/34.5-check-system.png)
+
 ### Terminal
 
 The **Terminal** tab of the panel (Ctrl+` shows it, and hides the panel again while the terminal has the keyboard) runs your shell in a pseudo-terminal, with VS Code's commands, keys, settings (`terminal.integrated.*`) and colors (`terminal.*`). It is Emetos's own: an emulator written in Go and a grid drawn from a glyph atlas with two draw calls (no web view, and nothing of xterm.js), so that `cat` of a 100 MB file takes about as long as in a fast native terminal (`docs/PERFORMANCE.md`).

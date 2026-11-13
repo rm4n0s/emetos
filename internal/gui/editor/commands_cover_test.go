@@ -89,6 +89,8 @@ var appCommands = map[string]bool{
 	"workbench.scm.action.graph.revealCurrentHistoryItem": true, "workbench.scm.action.graph.refresh": true, "workbench.scm.action.graph.viewChanges": true,
 	// the Emetos Tutor (step 30.1) opens a workspace tab: the window binds it (gui/app/tutor.go)
 	"emetos.tutor.open": true,
+	// the page of what the extensions need from the system (step 34.5, gui/app/extensionspane.go)
+	"emetos.checkSystem": true,
 }
 
 // keybindingsEditorPrefix starts the ids of the commands of the keybindings editor (gui/app/keybindingspane.go).

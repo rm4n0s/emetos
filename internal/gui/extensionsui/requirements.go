@@ -187,6 +187,21 @@ func lookIcon(look RequirementLook, colors kit.Colors) (int, ui.Color) {
 	return fonts.CodiconLoading, colors.DescriptionForeground
 }
 
+// RequirementActions are what the buttons of the requirements do; a nil function hides its button.
+type RequirementActions struct {
+	// Family is the family of this system (extension.SystemFamily()): Copy Install Command copies the command for it.
+	Family string
+	// OnCopy puts a text on the clipboard (Copy Install Command), OnInstall runs the command of an extension that installs a
+	// requirement (Install), OnSetPath opens the Settings editor on a key (Set Path...) and OnOpenURI opens an address
+	// (Instructions).
+	OnCopy, OnInstall, OnSetPath, OnOpenURI func(string)
+}
+
+// actions are the actions of the requirements of the Extensions page.
+func (o Options) actions() RequirementActions {
+	return RequirementActions{Family: o.Family, OnCopy: o.OnCopy, OnInstall: o.OnInstall, OnSetPath: o.OnSetPath, OnOpenURI: o.OnOpenURI}
+}
+
 // buildRequirements are the lines of the requirements of one extension; nil when it has none.
 func buildRequirements(extensionID string, o Options, colors kit.Colors, style func(float64, ui.FontWeight, ui.Color) *painting.TextStyle) []widgets.Widget {
 	if o.Requirements == nil {
@@ -197,13 +212,13 @@ func buildRequirements(extensionID string, o Options, colors kit.Colors, style f
 		if row.ExtensionID != extensionID {
 			continue
 		}
-		out = append(out, buildRequirement(row, o, colors, style))
+		out = append(out, buildRequirement(row, nil, o.actions(), colors, style))
 	}
 	return out
 }
 
-// buildRequirement is the line of one requirement, with its buttons under it when it has any.
-func buildRequirement(row exthost.RequirementRow, o Options, colors kit.Colors, style func(float64, ui.FontWeight, ui.Color) *painting.TextStyle) widgets.Widget {
+// buildRequirement is the line of one requirement, with the lines of under (if any) below it and then its buttons when it has any.
+func buildRequirement(row exthost.RequirementRow, under []widgets.Widget, a RequirementActions, colors kit.Colors, style func(float64, ui.FontWeight, ui.Color) *painting.TextStyle) widgets.Widget {
 	look := LookOf(row)
 	code, color := lookIcon(look, colors)
 	textColor := colors.Foreground
@@ -216,7 +231,10 @@ func buildRequirement(row exthost.RequirementRow, o Options, colors kit.Colors, 
 		widgets.NewFlexible(widgets.NewText(RequirementText(row), widgets.TextOpts{Style: style(detailSize, ui.FontWeightW400, textColor)})),
 	}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart, MainAxisSize: rendering.MainAxisSizeMin})
 	children := []widgets.Widget{line}
-	if buttons := requirementButtons(row, o); len(buttons) > 0 {
+	for _, u := range under {
+		children = append(children, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(requirementIcon+requirementGap, rowLineGap, 0, 0), u))
+	}
+	if buttons := requirementButtons(row, a); len(buttons) > 0 {
 		children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(rowLineGap)}),
 			widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(requirementIcon+requirementGap, 0, 0, 0), widgets.NewWrap(buttons, widgets.WrapOpts{Spacing: requirementGap, RunSpacing: requirementGap})))
 	}
@@ -228,7 +246,7 @@ func buildRequirement(row exthost.RequirementRow, o Options, colors kit.Colors, 
 
 // requirementButtons are the buttons of a missing or unusable requirement: Copy Install Command, Install, Set Path... and
 // Instructions, each when there is something for it to do.
-func requirementButtons(row exthost.RequirementRow, o Options) []widgets.Widget {
+func requirementButtons(row exthost.RequirementRow, o RequirementActions) []widgets.Widget {
 	h := HelpOf(row, o.Family)
 	ext, id := row.ExtensionID, row.Requirement.ID
 	var out []widgets.Widget

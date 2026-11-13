@@ -71,6 +71,8 @@ func registerMainMenu(r *MenuRegistry) {
 	}
 	// the first row of the Help menu: the Emetos Tutor (SPEC §10.35)
 	r.MustAdd(MenuItem{Menu: MenubarHelpMenu, Command: "emetos.tutor.open", Title: "Emetos Tutor", MnemonicTitle: "Emetos &&Tutor", Group: "1_welcome", Order: 1})
+	// what the extensions need from the system (SPEC §10.36), in the group where VS Code has Process Explorer
+	r.MustAdd(MenuItem{Menu: MenubarHelpMenu, Command: "emetos.checkSystem", Title: "Check System", MnemonicTitle: "Check &&System", Group: "5_tools", Order: 1})
 }
 
 // registerFileMenu adds the File menu. VS Code's other rows belong to the steps that add their
