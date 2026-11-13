@@ -70,6 +70,12 @@ func registerExtensions(r *Registry) {
 			Description: "Maps file name patterns to the id of the file view a file opens in, such as `{\"*.md\": \"emetos.markdown.preview\"}` (the views are listed in the Extensions page and in the micro-tabs of an editor). A file whose pattern matches opens in that view when the view is available for it, and in Text otherwise. The first pattern that matches in the order of the keys wins.",
 			Scope:       ScopeApplication, Category: categoryExtensions,
 		},
+		// Ported from VS Code: src/vs/workbench/services/editor/common/editorResolverService.ts (editorAssociationsConfigurationNode)
+		Setting{
+			Key: "workbench.editorAssociations", Types: []Type{Object}, Default: map[string]any{},
+			Description: "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior.",
+			Category:    categoryExtensions,
+		},
 	)
 }
 

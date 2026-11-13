@@ -625,6 +625,11 @@ func (m *Workspaces) prepare(ctx context.Context, spec WorkspaceSpec, from *Work
 // opened is reported, a file that looks binary is offered with a button in place of the editor.
 func (w *Workspace) openStartupFiles(ctx context.Context, files []string) (shown []*document.Document, blocked string) {
 	for _, path := range files {
+		// a file that a file editor of an extension is the editor of opens in it when the shell is made (SPEC §10.37)
+		if id := w.fileEditorFor(path); id != "" {
+			w.startupFileEditors = append(w.startupFileEditors, startupFileEditor{path: path, editor: id})
+			continue
+		}
 		doc, err := w.Documents.OpenFile(ctx, path, document.NewOptions())
 		if err != nil {
 			if isBinaryError(err) {

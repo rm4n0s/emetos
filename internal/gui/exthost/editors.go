@@ -47,6 +47,8 @@ type EditorHost interface {
 	GroupOf(in *editorgroup.ExtensionTabInput) int
 	// OpenFileView shows the document with the URI in the file view, in the active group or the group on its side.
 	OpenFileView(uri, viewID string, side bool, group int) error
+	// FileEditorGroup is the id of the group that shows the file editor tab of the key (FileEditorRequest.Key), 0 for none.
+	FileEditorGroup(key any) int
 	// OpenProposed shows the diff editor of a proposed change (SPEC §10.16 "As built (step 13.3)") in the group beside the
 	// active one:
 	// the original text on the left, read-only, and the proposed text on the right, which can be edited, with Accept and
@@ -100,9 +102,10 @@ type fileViewDecl struct {
 
 // editorDecls are the editor contributions of one extension in one scope; the slot owns them.
 type editorDecls struct {
-	kinds     []*kindDecl
-	actions   []actionDecl
-	fileViews []*fileViewDecl
+	kinds       []*kindDecl
+	actions     []actionDecl
+	fileViews   []*fileViewDecl
+	fileEditors []*fileEditorDecl
 }
 
 // editorTab is a tab of an extension in a scope; it is the extension.EditorTab of the extension that provides its kind.
@@ -135,7 +138,7 @@ func newTabID() string {
 func (s *Scope) installEditors(sl *slot) (remove func()) {
 	c := sl.info.Manifest.Contributes
 	m := sl.info.Manifest
-	if len(c.EditorKinds) == 0 && len(c.EditorActions) == 0 && len(c.FileViews) == 0 {
+	if len(c.EditorKinds) == 0 && len(c.EditorActions) == 0 && len(c.FileViews) == 0 && len(c.FileEditors) == 0 {
 		return func() {}
 	}
 	log := s.log.With("extension", m.ID)
@@ -159,6 +162,7 @@ func (s *Scope) installEditors(sl *slot) (remove func()) {
 		}
 		d.fileViews = append(d.fileViews, fv)
 	}
+	installFileEditors(d, sl)
 	s.mu.Lock()
 	sl.editors = d
 	if s.kindDecls == nil {

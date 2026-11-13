@@ -43,6 +43,8 @@ type API interface {
 	Editors() Editors
 	// FileViews gives the file views the manifest declares their content.
 	FileViews() FileViews
+	// FileEditors gives the file editors the manifest declares their content (SPEC §10.37).
+	FileEditors() FileEditors
 	// Debug starts and follows debug sessions and registers the code of the debuggers the manifest declares (SPEC §10.31).
 	Debug() Debug
 	// Tests makes test controllers: the tests an extension finds, how to run them, and what a run reports (SPEC §10.32).

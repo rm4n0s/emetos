@@ -290,6 +290,8 @@ type Scope struct {
 	kindDecls         map[string]*kindDecl
 	tabs              map[string]*editorTab
 	fileViewInstances []*fileViewInstance
+	// fileEditorInstances are the file editors that are open in editor tabs (fileeditors.go).
+	fileEditorInstances []*fileEditorInstance
 	// wtab is the window tab of a scope whose Info.Kind is ScopeWindowTab (windowtabs.go).
 	wtab *windowTab
 	// features is the registry of the language feature providers of the scope (servers.go, providers.go).
@@ -406,6 +408,14 @@ func declaresView(m extension.Manifest, event string) bool {
 	if name == "onDebug" {
 		for _, d := range m.Contributes.Debuggers {
 			if d.Type == id {
+				return true
+			}
+		}
+		return false
+	}
+	if name == "onFileEditor" {
+		for _, e := range m.Contributes.FileEditors {
+			if e.ID == id {
 				return true
 			}
 		}

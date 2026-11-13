@@ -124,6 +124,9 @@ func (f *fakeEditors) RevealTab(in *editorgroup.ExtensionTabInput, _ bool) {
 
 func (f *fakeEditors) GroupOf(in *editorgroup.ExtensionTabInput) int { return f.groups[in] }
 
+// FileEditorGroup gives group 7 for every file editor tab.
+func (f *fakeEditors) FileEditorGroup(any) int { return 7 }
+
 func (f *fakeEditors) OpenFileView(uri, view string, side bool, group int) error {
 	f.fileOpen = append(f.fileOpen, fileOpen{uri, view, side, group})
 	return nil

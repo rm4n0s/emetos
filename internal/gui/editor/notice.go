@@ -15,6 +15,8 @@ const (
 	noticeMaxWidth = 480.0
 	noticeFontSize = 13.0
 	noticeGap      = 16.0
+	// noticeButtonGap is the space between the two buttons of a notice.
+	noticeButtonGap = 8.0
 )
 
 // NoticeOpts configure a Notice.
@@ -25,6 +27,10 @@ type NoticeOpts struct {
 	// OnAction is called when the button is pressed (a click, or Enter or Space while the notice has
 	// the focus).
 	OnAction func()
+	// SecondAction is the label of a second button after the first, a secondary one ("Open With..."), and
+	// OnSecondAction what it does; without it there is no second button.
+	SecondAction   string
+	OnSecondAction func()
 }
 
 // Notice is what the editor area shows in place of an editor when a file is not shown, with the
@@ -96,7 +102,16 @@ func (s *noticeState) Build(bc widgets.BuildContext) widgets.Widget {
 		}),
 	}
 	if n.opts.Action != "" {
-		button := kit.NewButton(n.opts.Action, kit.ButtonOpts{OnPressed: s.act})
+		var button widgets.Widget = kit.NewButton(n.opts.Action, kit.ButtonOpts{OnPressed: s.act})
+		if n.opts.SecondAction != "" {
+			second := kit.NewButton(n.opts.SecondAction, kit.ButtonOpts{Secondary: true, OnPressed: func() {
+				if f := s.Widget().opts.OnSecondAction; f != nil {
+					f()
+				}
+			}})
+			button = widgets.NewRow([]widgets.Widget{button, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Width: foundation.Some(noticeButtonGap)}), second},
+				widgets.RowOpts{MainAxisSize: rendering.MainAxisSizeMin})
+		}
 		children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(noticeGap)}), button)
 	}
 	body := widgets.NewConstrainedBox(

@@ -59,6 +59,7 @@ type API struct {
 	viewStates        map[string]json.RawMessage
 	proposals         []*Proposal
 	fileViews         map[string]extension.FileViewProvider
+	fileEditors       map[string]extension.FileEditorProvider
 	fileViewOpens     []FileViewOpen
 	tokenizer         func(languageID, text string) ([][]extension.Token, error)
 	providers         []*ProviderRegistration

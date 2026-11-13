@@ -79,6 +79,9 @@ type Contributes struct {
 	EditorActions []EditorActionSpec
 	// FileViews are the micro-tabs of the editor tab of the files they select. Showing one activates the extension.
 	FileViews []FileViewSpec
+	// FileEditors are the editors of the files they select (SPEC §10.37): a file that matches a default one opens in it. Showing
+	// one activates the extension (the activation event OnFileEditor).
+	FileEditors []FileEditorSpec
 	// WindowTabKinds are the kinds of window tab the extension adds: an entry of the "+" menu of the strip each. Opening or
 	// restoring a tab of a kind activates the extension, in the scope of that tab (the activation event OnWindowTab).
 	WindowTabKinds []WindowTabKindSpec

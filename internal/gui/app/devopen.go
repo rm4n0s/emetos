@@ -144,6 +144,14 @@ func (s *shellState) openPathAt(binding *widgets.WidgetsBinding, path string, li
 // openPathAtThen is openPathAt that calls after with the editor once the cursor is placed in it.
 func (s *shellState) openPathAtThen(binding *widgets.WidgetsBinding, path string, line, column int, opts openOptions, after func(*textEditor)) {
 	win := PeekWorkspace(s.Context())
+	// a file that a file editor of an extension is the editor of opens in it (SPEC §10.37), unless the text editor was asked for or
+	// the opening needs a text editor (a file view, a place, a callback)
+	if !opts.Text && opts.FileView == "" && line == 0 && after == nil {
+		if id := win.fileEditorFor(path); id != "" {
+			s.showFileEditor(binding, path, id, opts)
+			return
+		}
+	}
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, path, document.NewOptions())
 		binding.Post(func() {

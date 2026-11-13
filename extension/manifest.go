@@ -34,18 +34,21 @@ func CheckManifest(m Manifest) error {
 			if arg != "" || e != OnStartup {
 				return errors.New("ExtensionEventInvalid", "onStartup takes no argument", "id", m.ID, "event", e)
 			}
-		case "onLanguage", "onFile", "onCommand", "onView", "onEditor", "onWindowTab", "onDebug":
+		case "onLanguage", "onFile", "onCommand", "onView", "onEditor", "onFileEditor", "onWindowTab", "onDebug":
 			if arg == "" {
 				return errors.New("ExtensionEventInvalid", "the activation event needs an argument", "id", m.ID, "event", e)
 			}
 		default:
-			return errors.New("ExtensionEventInvalid", "unknown activation event (onStartup, onLanguage:, onFile:, onCommand:, onView:, onEditor:, onWindowTab: and onDebug:)", "id", m.ID, "event", e)
+			return errors.New("ExtensionEventInvalid", "unknown activation event (onStartup, onLanguage:, onFile:, onCommand:, onView:, onEditor:, onFileEditor:, onWindowTab: and onDebug:)", "id", m.ID, "event", e)
 		}
 	}
 	if err := checkViews(m); err != nil {
 		return err
 	}
 	if err := checkEditors(m); err != nil {
+		return err
+	}
+	if err := checkFileEditors(m); err != nil {
 		return err
 	}
 	if err := checkWindowTabs(m); err != nil {

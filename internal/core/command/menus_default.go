@@ -324,6 +324,9 @@ func registerEditorTitleContext(r *MenuRegistry) {
 		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.files.saveAs", Title: "Save As...", Group: "1_close_save", Order: 20,
 			When: contextkey.Has("activeEditorIsDirty")},
 
+		// Ported from VS Code: src/vs/workbench/browser/parts/editor/editor.contribution.ts (REOPEN_WITH_COMMAND_ID in the context
+		// menu of a tab, group 1_open)
+		MenuItem{Menu: EditorTitleContext, Command: "workbench.action.reopenWithEditor", Title: "Reopen Editor With...", Group: "1_open", Order: 10, When: contextkey.Has("isFileSystemResource")},
 		MenuItem{Menu: EditorTitleContext, Command: "copyFilePath", Title: "Copy Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},
 		MenuItem{Menu: EditorTitleContext, Command: "copyRelativeFilePath", Title: "Copy Relative Path", Group: "1_cutcopypaste", When: contextkey.Has("isFileSystemResource")},
 

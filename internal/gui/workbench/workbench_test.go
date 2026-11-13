@@ -667,6 +667,8 @@ func TestTheCommandsAreGivenBack(t *testing.T) {
 
 // groupCommands are the commands of the editor group, whose handlers the app binds.
 var groupCommands = map[string]bool{
+	// Reopen Editor With (step 36.1, gui/app/fileeditors.go)
+	"workbench.action.reopenWithEditor":  true,
 	"workbench.action.closeActiveEditor": true, "workbench.action.closeEditorsInGroup": true,
 	"workbench.action.closeUnmodifiedEditors": true, "workbench.action.closeOtherEditors": true,
 	"workbench.action.closeEditorsToTheRight": true, "workbench.action.closeAllEditors": true,

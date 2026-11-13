@@ -129,6 +129,8 @@ func registerEditorGroupCommands(r *Registry) {
 		Meta{ID: "workbench.action.closeAllEditors", Title: "Close All Editors", Category: "View"},
 		Meta{ID: "workbench.action.keepEditor", Title: "Keep Editor", Category: "View"},
 		Meta{ID: "workbench.action.cycleFileView", Title: "Cycle File View", Category: "View", Description: "Shows the next view of the file in the active editor: Text, then the views of the extensions, then Text again."},
+		// the editors of a file: the text editor and the file editors of the extensions (step 36.1, SPEC §10.37)
+		Meta{ID: "workbench.action.reopenWithEditor", Title: "Reopen Editor With...", Category: "View"},
 		Meta{ID: "workbench.action.pinEditor", Title: "Pin Editor", Category: "View"},
 		Meta{ID: "workbench.action.unpinEditor", Title: "Unpin Editor", Category: "View"},
 		Meta{ID: "workbench.action.nextEditor", Title: "Open Next Editor", Category: "View"},

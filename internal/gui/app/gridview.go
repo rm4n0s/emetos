@@ -375,7 +375,13 @@ func (s *shellState) closeAt(group *editorgroup.Group, index int) {
 // open it anyway, or the home page.
 func (s *shellState) emptyArea(bc widgets.BuildContext) widgets.Widget {
 	if s.blocked != "" {
-		return editor.NewNotice(BinaryFileNotice, editor.NoticeOpts{Action: "Open Anyway", OnAction: func() { s.openAnyway(widgets.WidgetsBindingOf(bc), s.blocked) }})
+		opts := editor.NoticeOpts{Action: "Open Anyway", OnAction: func() { s.openAnyway(widgets.WidgetsBindingOf(bc), s.blocked) }}
+		// a file editor of an extension can show it (SPEC §10.37): Open With... offers it
+		if scope := PeekWorkspace(bc).Extensions(); scope != nil && len(scope.FileEditorsFor(s.blocked)) > 0 {
+			path := s.blocked
+			opts.SecondAction, opts.OnSecondAction = "Open With...", func() { s.openBlockedWith(path) }
+		}
+		return editor.NewNotice(BinaryFileNotice, opts)
 	}
 	return s.homePage(bc)
 }
@@ -385,6 +391,17 @@ func (s *shellState) emptyArea(bc widgets.BuildContext) widgets.Widget {
 func (s *shellState) tabIcon(colors kit.Colors, e editorgroup.EditorInput, active bool) widgets.Widget {
 	if in, ok := e.(*editorgroup.ExtensionTabInput); ok {
 		return extTabIcon(colors, in, active)
+	}
+	if in, ok := e.(*editorgroup.FileEditorInput); ok {
+		// a file editor's tab shows no icon, as a text editor's does, but the mark of work that goes on (SetBusy)
+		if scope := PeekWorkspace(s.Context()).Extensions(); scope == nil || !scope.FileEditorBusy(in) {
+			return nil
+		}
+		color := colors.TabInactiveForeground
+		if active {
+			color = colors.TabActiveForeground
+		}
+		return widgets.NewIcon(fonts.CodiconIcon(fonts.CodiconLoading), widgets.IconOpts{Size: foundation.Some(16.0), Color: foundation.Some(color)})
 	}
 	k, ok := kindOf(e.TypeID())
 	if !ok || k.icon == 0 {

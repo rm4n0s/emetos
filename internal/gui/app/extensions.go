@@ -163,6 +163,7 @@ func (w *Workspace) startExtensions() {
 	w.startCoreEvents(scope)
 	w.startCompletion(scope)
 	w.watchExtensionFileEvents()
+	w.watchFileEditorEvents()
 	scope.Start()
 }
 

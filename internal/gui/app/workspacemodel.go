@@ -297,6 +297,8 @@ type Workspace struct {
 	// is the command line of the first instance until the shell takes it.
 	launcher func(args ipc.OpenArgs, done func(LaunchOutcome)) (cancel func())
 	startup  *ipc.OpenArgs
+	// startupFileEditors are the files of the command line that open in file editors of extensions when the shell is made.
+	startupFileEditors []startupFileEditor
 	// icons is the file icon theme in use.
 	icons fileIcons
 	// files is the list of the files of the folder for the quick open; nil without a folder. It is made when

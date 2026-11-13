@@ -87,6 +87,9 @@ type openOptions struct {
 	FileView string
 	// Title, when set, is the name of the tab in place of the document's (SetName of the input).
 	Title string
+	// Text opens the file in the text editor even when a file editor of an extension is the editor of its files (SPEC §10.37):
+	// Reopen Editor With chose the text editor.
+	Text bool
 }
 
 // gridOptions are the settings the grid follows.
@@ -163,6 +166,10 @@ func (s *shellState) initGroup(binding *widgets.WidgetsBinding, docs []*document
 		}
 		s.showAcquired(binding, doc, opts)
 	}
+	for _, fe := range win.startupFileEditors {
+		s.placeFileEditor(binding, fe.path, fe.editor, openOptions{})
+	}
+	win.startupFileEditors = nil
 	// the first document is the one that is shown
 	if len(docs) > 1 {
 		if first := s.inputFor(s.activeGroup(), docs[0]); first != nil {
@@ -506,6 +513,14 @@ func (s *shellState) refreshKeys() {
 	group := grid.Active()
 	m := group.Model
 	active := m.ActiveEditor()
+	// the status bar items of a file editor show while it is the active editor (SPEC §10.37)
+	if scope := win.Extensions(); scope != nil {
+		if fe, ok := active.(*editorgroup.FileEditorInput); ok {
+			scope.SetActiveFileEditor(fe)
+		} else {
+			scope.SetActiveFileEditor(nil)
+		}
+	}
 	win.Keys.Batch(func() {
 		win.Keys.Set("multipleEditorGroups", grid.Count() > 1)
 		win.Keys.Set("editorPartMultipleEditorGroups", grid.Count() > 1)
