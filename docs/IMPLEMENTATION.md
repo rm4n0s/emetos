@@ -149,6 +149,7 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M32 The mascot | 32.1 |
 | M33 A missing tool is told once | 33.1 |
 | M34 What the extensions need from the system | 34.1–34.5 |
+| M35 An untrusted Git repository in the status bar | 35.1 |
 
 ---
 
@@ -2464,3 +2465,16 @@ Requested by the user on 2026-11-13 ("I want emetos to have a way to tell me wha
 - README: in "Extensions", how to see what the system lacks (the two pages, Copy Report) and how to turn an extension off (the Extensions page, the Settings editor), with the proof image.
 **Tests:** the page (the groups and their order, the summary, the turned-off line, Copy Report's Markdown exactly, Check Again, the command and the menu item, restore with the window); `TestREADMELinksResolve`; goldens dark and light.
 **Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/34.5-check-system.png --config testdata/proof/34.5/config --after 4s --commands '[["emetos.checkSystem"]]' -- testdata/proof/34.5/project`; the image shows the System Check page with its groups, a missing requirement first.
+
+## M35: An untrusted Git repository in the status bar
+
+Requested by the user on 2026-11-13 ("if a project was not trusted before, then I want on emetos to say under the editor that the project was not trusted (or something like that) and the user press on it to show the dialog if he wants the project to be trusted").
+
+### 35.1 The Not Trusted item of the status bar
+**Goal:** while the window tab has a Git repository that is not trusted, the status bar says so, and a click asks the trust question (SPEC §10.30 "Trusting a repository", "The status bar says it").
+**Read:** SPEC §10.30 ("Trusting a repository", "Status bar", the welcome content), §10.15 (`api.StatusBar()`); `extensions/gitscm/{trustflow,commands,statusbar,model,repository,welcome}.go`, `extension/api.go` (`StatusBar`, `StatusItemSpec`).
+**Tasks:**
+- `extensions/gitscm`: the item `git.untrusted` (left, the priority of the branch item; `$(workspace-untrusted) Not Trusted`, the count with several; the warning colors; the tooltip with the paths; the command `git.trustRepository`), updated wherever `git.untrustedRepositoryCount` is (a repository opened, trusted, declined, closed, untrusted from Manage Trusted Repositories, `git.enabled` changed, git missing).
+- `git.trustRepository` from the item asks the question even after Don't Trust in this session (it is what the user asked for), as the welcome content's button does.
+**Tests:** `gitscm` over `fakeapi` with `gittest` repositories: no item for a trusted repository, the item for an unanswered one and after Don't Trust, the count and the tooltip with two, a click shows the dialog and Trust removes the item and starts git, Manage Trusted Repositories bringing it back, none with `git.enabled` false or git missing; the item's spec (text, icon, colors, command).
+**Proof:** method B. A repository cannot be committed under `testdata`, so `testdata/proof/35.1/make-repo.sh <dir>` makes one (with a test identity and its own `HOME` and `GIT_CONFIG_GLOBAL`), and the step adds the dev command `dev.git.answerTrust {"button"}`, which answers the open trust question: `scripts/proof.sh docs/implemented-proof-images/35.1-untrusted-status.png --after 3s --commands '[["dev.git.answerTrust",{"button":"Don't Trust"}]]' -- <dir>`; the image shows the item "Not Trusted" in the status bar.
