@@ -293,6 +293,7 @@ func NewProcess(opts ProcessOptions) *Process {
 		registerDevQueries(p)
 		registerDevWorkbench(p)
 		registerDevToasts(p)
+		registerDevDialogs(p)
 	}
 	p.loadUserThemes()
 	return p

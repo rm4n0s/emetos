@@ -180,8 +180,10 @@ type gitscm struct {
 	install git.Installation
 	// missing says that no usable git was found (the context key git.missing).
 	missing bool
-	started bool
-	stopped atomic.Bool
+	// untrustedStatus is the Not Trusted item of the status bar (untrusted.go); nil until it is first shown.
+	untrustedStatus extension.StatusHandle
+	started         bool
+	stopped         atomic.Bool
 
 	// state is what the profile remembers (git-state.json); focused says whether the window has the keyboard focus (the autofetch waits for
 	// it); autofetchAsked says that the question about autofetch was considered in this window.

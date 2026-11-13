@@ -408,8 +408,11 @@ func (h *statusHandle) entry(item extension.StatusItem) workbench.StatusEntry {
 		name = h.inst.name
 	}
 	e := workbench.StatusEntry{Name: name, Text: item.Text, AriaLabel: item.Text, Tooltip: item.Tooltip, Command: item.Command, Args: item.Args}
-	if item.Kind == extension.StatusRemote {
+	switch item.Kind {
+	case extension.StatusRemote:
 		e.Kind = workbench.StatusRemote
+	case extension.StatusWarning:
+		e.Kind = workbench.StatusWarning
 	}
 	e.Color = item.Color
 	if item.OnClick != nil {

@@ -328,6 +328,9 @@ const (
 	// StatusRemote is an item on statusBarItem.remoteBackground, the color VS Code gives its remote indicator: an item that says
 	// the workspace is shared with, or driven from, another computer (the Sharing item, SPEC §10.29).
 	StatusRemote
+	// StatusWarning is an item on statusBarItem.warningBackground in statusBarItem.warningForeground: an item that asks for the user's
+	// attention (Git's Not Trusted, SPEC §10.30).
+	StatusWarning
 )
 
 // StatusItem is an item of the status bar.

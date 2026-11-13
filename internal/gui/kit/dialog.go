@@ -1,6 +1,8 @@
 package kit
 
 import (
+	"strings"
+
 	"regexp"
 	"slices"
 	"time"
@@ -457,6 +459,23 @@ func (c *DialogController) Dismiss() {
 	if p := c.current; p != nil {
 		c.answer(p, DialogResult{Button: p.spec.cancelIndex(), Checked: p.spec.CheckboxChecked, Cancelled: true})
 	}
+}
+
+// Answer closes the dialog that is showing as if its button with this label was pressed, and the next one shows. The label is
+// matched as written or without its mnemonic marks ("Save" presses "&&Save"). It reports false when no dialog shows or it has no
+// such button.
+func (c *DialogController) Answer(label string) bool {
+	p := c.current
+	if p == nil {
+		return false
+	}
+	for i, l := range p.spec.buttonLabels() {
+		if l == label || strings.ReplaceAll(l, "&&", "") == label {
+			c.answer(p, DialogResult{Button: i, Checked: p.spec.CheckboxChecked, Cancelled: i == p.spec.cancelIndex()})
+			return true
+		}
+	}
+	return false
 }
 
 // Clear drops the dialogs that wait, without answering them.

@@ -577,3 +577,47 @@ func TestDialogButtonsThatDoNotFitWrapOntoAnotherLine(t *testing.T) {
 	}
 	r.noErrors()
 }
+
+// TestDialogControllerAnswer presses a button of the dialog that shows by its label (the dev command dev.dialog.answer, step 35.1).
+func TestDialogControllerAnswer(t *testing.T) {
+	tests := []struct {
+		name      string
+		label     string
+		ok        bool
+		button    int
+		cancelled bool
+	}{
+		{"the default button", "Save", true, 0, false},
+		{"as written, with its mnemonic", "Do&&n't Save", true, 1, false},
+		{"the cancel button", "Cancel", true, 2, true},
+		{"no such button", "Maybe", false, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewDialogController()
+			var got *DialogResult
+			spec := saveSpec
+			spec.OnAnswer = func(r DialogResult) { got = &r }
+			c.Show(spec)
+			c.Show(DialogSpec{Message: "next"})
+			if ok := c.Answer(tt.label); ok != tt.ok {
+				t.Fatalf("Answer = %v", ok)
+			}
+			if !tt.ok {
+				if got != nil || !c.IsShowing() {
+					t.Error("a wrong label answered the dialog")
+				}
+				return
+			}
+			if got == nil || got.Button != tt.button || got.Cancelled != tt.cancelled {
+				t.Errorf("answer %+v", got)
+			}
+			if cur, _ := c.Current(); cur.Message != "next" {
+				t.Errorf("the next dialog does not show: %+v", cur)
+			}
+		})
+	}
+	if NewDialogController().Answer("OK") {
+		t.Error("Answer with no dialog reported true")
+	}
+}
