@@ -147,6 +147,8 @@ Every **Proof** item gives its exact command. A state no existing command reache
 | M30 The Emetos Tutor | 30.1–30.2 |
 | M31 Extensions on and off in the Settings editor | 31.1 |
 | M32 The mascot | 32.1 |
+| M33 A missing tool is told once | 33.1 |
+| M34 What the extensions need from the system | 34.1–34.5 |
 
 ---
 
@@ -2405,3 +2407,60 @@ Requested by the user on 2026-11-11 ("if something that is used by extension is 
 - `app`: the editor a restore put in front is published as `emetos.editor.activeChanged` (`initGroup`), so that the status item of the language shows what the quiet notification no longer says.
 **Tests:** `app` (the event after a restore, with and without a file of the command line); `extension` (first time, another message, forgetting, a state that keeps nothing); `storage` (the global folder apart from the folders, kept across a start, cleaned); `exthost` (the global state apart from the folder's; the missing program is not told in a second tab, and is forgotten when it runs); `golang`, `langserver`, `gitscm` (a later session is quiet, what the user asked for is answered, found and gone is told once more).
 **Proof:** the tests, and a run of the editor on this Mac with its own state folder and gopls hidden from `PATH`: the first start shows the notification, the second does not and the status bar says "gopls not found"; with gopls in `PATH` the remembered notice is gone from `state.json`, and without it again it is told once more. The step's `IMPLEMENTED.md` entry gives the result.
+
+## M34: What the extensions need from the system
+
+Requested by the user on 2026-11-13 ("I want emetos to have a way to tell me what my system has or missing for the extensions to work"); they chose the Extensions page and a Check System page, covering programs and services (SPEC §10.36). Turning extensions off already exists (step 31.1 and the Extensions page).
+
+### 34.1 Requirements in the manifest, and their checks
+**Goal:** an extension declares what it needs from the system with a check of each, the host runs the checks off the UI thread and keeps the results, and the language packs' servers are declared by themselves (SPEC §10.36 "Requirements are declared", "Alternatives are one requirement", "Checking").
+**Read:** SPEC §10.36, §10.15 (the manifest, `CheckManifest`), §10.34 "What every pack gets"; `extension/{extension,manifest}.go`, `extensions/internal/langserver/{langserver,find,install,version,controller}.go`, `internal/gui/exthost/host.go`, `extensions/internal/fakeapi`.
+**Tasks:**
+- `extension`: `Requirement`, `RequirementKind`, `RequirementEnv`, `RequirementResult`, `RequirementState`, `Install`, `InstallCommand`, the family constants (with `FamilyMacOS`), `OSFamily(osRelease)` and `SystemFamily()`; `Manifest.Requirements`; `CheckManifest` checks them (`ExtensionRequirementInvalid`, `ExtensionRequirementDuplicate`). `langserver` keeps `Install`, `InstallCommand`, `Family` and the constants as aliases of these.
+- `langserver`: `Config.Requirements()` gives one requirement for the server (one per `Program` when there is no `Select`; one that follows `Select` when there is), whose `Check` is `Find` and the version check the launcher runs, with the `Purpose`, install commands and path setting of the program; `langpack.Spec` puts them in the manifest.
+- `exthost.Requirements`: made per window with the host's infos and a reader of the settings of the active tab (also for keys nobody registered), checks on demand, four at a time, 10 s each, a panic caught (`ExtensionRequirementPanicked`), results kept per folder, `Rows()`, `CheckAgain()`, `SetFolder`, re-checking one requirement when its `PathSetting` changes, `OnChange`.
+**Tests:** `extension` (the manifest checks, each tag's route; `OSFamily` on the os-release of Fedora, Ubuntu, Arch, openSUSE, an unknown system; `SystemFamily` on the running system); `langserver` (the requirement of rust-analyzer found in `PATH`, through its path setting, through a folder after `PATH`, missing, too old, the Python server following `python.languageServer`); `exthost` (on demand only, the limit of four, the timeout, a panic, the cache per folder, Check Again, a path setting that changes re-checks that requirement only, the results of a turned-off extension, the processes of a cancelled check end). Fake programs in a temporary `PATH`; nothing real is looked for.
+**Proof:** the tests; the step's `IMPLEMENTED.md` entry lists the requirement of every pack as `Config.Requirements()` gives it.
+
+### 34.2 The requirements of the language extensions beyond their servers
+**Goal:** the Go, Python, JavaScript, TypeScript, Rust, C/C++, Java and C# extensions declare their interpreters, runtimes, tools and debuggers, each checked by the code the extension uses when it runs them (SPEC §10.36 "What is declared").
+**Read:** SPEC §10.36, §10.17, §10.31 "The debuggers", §10.32, §10.34; `extensions/golang/{tools,env,run,diagnostics}.go`, `extensions/python/{interpreter,interpreters,debug}.go`, `extensions/javascript/jsdebug.go`, `extensions/typescript/version.go`, `extensions/internal/nativedebug/adapter.go`, `extensions/rust/debug.go`, `extensions/cpp/testctl.go`, `extensions/java/server.go`, `extensions/csharp/dotnet.go`.
+**Tasks:**
+- Go: `go` (required), gopls (required, the extension's own finder: `go.goplsPath`, `go.alternateTools`, `GOBIN`, `GOPATH/bin`), `dlv` (optional, debugging), the program of `go.lintTool` (optional, linting); `InstallAction` `emetos.golang.installTools` for the three tools.
+- Python: the interpreter the extension selects (required), `debugpy` in it (optional, debugging), `pytest` in it (optional, testing; unittest needs nothing).
+- JavaScript and TypeScript: `node` (required: typescript-language-server, the debugger and the tests run on it), js-debug (optional, debugging; `InstallAction` "JavaScript Debugger: Download"), the `typescript` package the extension's version finder finds.
+- Rust: `cargo` (required: tests and runs), the native debugger (optional: gdb 14 or newer, else lldb-dap). C and C++: the native debugger (optional), `cmake` and `ctest` (optional: tests).
+- Java: `java` 21 or newer, which jdtls runs on (required). C#: the .NET SDK, `dotnet` (required).
+- Where the extension's finder is not reachable from the requirement's `Check` without a running activation, move it into a function of the package that both call; behavior when the feature is used does not change.
+**Tests:** each requirement found, missing and unusable (too old, a path setting that names nothing) with fake programs in a temporary `PATH` and fake interpreters (`python -c "import debugpy"` answered by a script); the manifests pass `CheckManifest`.
+
+### 34.3 The requirements of git, the containers, the keyring, the camera, the ssh-agent and the terminal
+**Goal:** the extensions that need services and devices declare them (SPEC §10.36 "What is declared").
+**Read:** SPEC §10.36, §10.18, §10.20, §10.21–§10.24, §10.25, §10.30, §10.33; `extensions/gitscm/git/find.go`, `extensions/internal/containerapi` (`Find`, `Negotiate`), `extensions/internal/containerui/cli.go`, `extensions/internal/dbconn/{keyring,secretservice}.go`, `extensions/internal/keyqr/v4l2*.go`, `extensions/internal/sshlogin/agent.go`, `extensions/terminal/profile.go`.
+**Tasks:**
+- Git: git 2.30 or newer through `git.path` (required; `git.Find`).
+- Containers (Docker) and Podman: the engine (required, a service: `Find` and `/_ping` of the endpoint, the version in the result) and the CLI (required for logs, exec, compose).
+- The databases hub (SQL, MongoDB, Redis share it) and the HTTP Client: the Secret Service keyring (optional, service: the name `org.freedesktop.secrets` is owned or activatable on the session bus; on macOS the login keychain), with the purpose "keeps passwords out of the files".
+- Remote Work: a camera (optional, device: a V4L2 capture device among `/dev/video*`; none on macOS yet, `RequirementUnknown` with that said) and the ssh-agent (optional, service: `SSH_AUTH_SOCK` answers).
+- The terminal: the shell of the default profile (required).
+- A check never changes anything: it pulls no image, unlocks no keyring (no prompt), opens no camera stream beyond the capability query, and lists none of the user's containers.
+**Tests:** each found, missing and unusable: a fake engine API server on a Unix socket under `t.TempDir()` (answers, does not answer, too old), a private session bus from `dbconn/secrettest` (owned, not owned), the fake camera driver of `keyqr`, a fake agent socket, a git older than 2.30 (a fake program); nothing touches the user's Docker, Podman, keyring or camera.
+
+### 34.4 The requirements on the Extensions page
+**Goal:** the Extensions page shows each extension's requirements with their state and the buttons that help meet them (SPEC §10.36 "On the Extensions page").
+**Read:** SPEC §10.36, §10.15 "The page Extensions"; `internal/gui/extensionsui/page.go`, `internal/gui/app/extensionspane.go`, `extensions.go`; the Settings editor's command `workbench.action.openSettings` with a query.
+**Tasks:**
+- `extensionsui`: `Options.Requirements` (the rows of `exthost.Requirements`), a line per requirement under the state line with its icon, name, "optional", path and version or detail; the buttons Copy Install Command, Install, Set Path..., Instructions; the header's Check System and Check Again; "Checking..." while the results come.
+- `app`: the window's `exthost.Requirements` (made when a page first needs it, its folder following the active workspace tab), the clipboard, `OpenURI`, the Settings editor on a key, the commands of `InstallAction`.
+**Tests:** the page (a found, a missing required, a missing optional, an unusable and an unknown requirement; each button does what it says; a turned-off extension shows its requirements; the results arrive while the page is open); goldens of the page in dark and light with each state.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/34.4-extensions-requirements.png --config testdata/proof/34.4/config --after 4s --commands '[["workbench.extensions.action.showInstalledExtensions"]]' -- testdata/proof/34.4/project` (the fixture's `settings.json` points `go.goplsPath` and `git.path` at files that do not exist); the image shows the Go extension's requirements with gopls "cannot be used" and its buttons.
+
+### 34.5 The Check System page and the README
+**Goal:** "Help: Check System" opens a page with every requirement of the enabled extensions, grouped by state, with Check Again and Copy Report; the README tells about both places (SPEC §10.36 "The Check System page").
+**Read:** SPEC §10.36, §10.15; `internal/core/editorgroup` (the inputs of the Extensions and Event Sharing pages), `internal/gui/app/extensionspane.go` (`openSingletonPage`), `internal/core/command/{builtin,menus_default}.go`, `README.md` ("Extensions").
+**Tasks:**
+- `editorgroup.SystemCheckInput` (`emetos.systemCheck`, restored; `SystemCheckInputInvalid`), the command `emetos.checkSystem` ("Help: Check System") in the palette and in the Help menu (`5_tools`), and the Extensions page's Check System button.
+- `extensionsui.SystemCheckPage`: the system line, the folder, the summary, the three groups, the line of turned-off extensions, Check Again, Copy Report (the Markdown of the spec).
+- README: in "Extensions", how to see what the system lacks (the two pages, Copy Report) and how to turn an extension off (the Extensions page, the Settings editor), with the proof image.
+**Tests:** the page (the groups and their order, the summary, the turned-off line, Copy Report's Markdown exactly, Check Again, the command and the menu item, restore with the window); `TestREADMELinksResolve`; goldens dark and light.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/34.5-check-system.png --config testdata/proof/34.5/config --after 4s --commands '[["emetos.checkSystem"]]' -- testdata/proof/34.5/project`; the image shows the System Check page with its groups, a missing requirement first.
