@@ -586,8 +586,11 @@ func dialogType(t extension.DialogType) kit.DialogType {
 // changes of Workspace().Watch (absolute paths). It fails with ExtensionWatchUnavailable when the window has no watcher (a
 // process made without ProcessOptions.WatchFiles).
 func (w *Workspace) extensionWatch(ctx context.Context, spec extension.WatchSpec, sink func([]extension.FileChange)) (func(), error) {
-	watcher := w.Watcher()
+	watcher := w.waitWatcher(ctx)
 	if watcher == nil {
+		if ctx.Err() != nil {
+			return nil, errors.New("ExtensionWatchCancelled", "the watch was cancelled before the window started watching files", "path", spec.Path)
+		}
 		return nil, errors.New("ExtensionWatchUnavailable", "the window does not watch files", "path", spec.Path)
 	}
 	return watcher.Subscribe(ctx, workspace.Target{Path: spec.Path, Recursive: spec.Recursive, Exclude: spec.Excludes}, func(events []workspace.Event) {

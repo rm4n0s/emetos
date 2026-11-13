@@ -18,6 +18,8 @@ type watchState struct {
 	mu sync.Mutex
 	// watcher is nil until StartWatching.
 	watcher *workspace.Watcher
+	// made is closed when StartWatching makes the watcher; it is made by the first who waits (waitWatcher) or by StartWatching.
+	made chan struct{}
 	// ctx is the context of the watcher.
 	ctx context.Context
 	// folder are the stops of the targets of the folder, restarted when the watcher settings change.
@@ -208,6 +210,10 @@ func (w *Workspace) StartWatching(ctx context.Context) (ready <-chan struct{}) {
 		OnNotice: w.watchNotice,
 		Logger:   w.Process.Logger,
 	})
+	if st.made == nil {
+		st.made = make(chan struct{})
+	}
+	close(st.made) // the watches asked for before (extensionWatch) go on
 	st.mu.Unlock()
 	done := make(chan struct{})
 	go func() {
@@ -228,6 +234,34 @@ func (w *Workspace) Watcher() *workspace.Watcher {
 	w.watch.mu.Lock()
 	defer w.watch.mu.Unlock()
 	return w.watch.watcher
+}
+
+// willWatch tells whether the window starts a watcher (StartWatching): a window of a process that watches files, not a headless view
+// of Remote Work and not the tab of an extension, whose shells never start one.
+func (w *Workspace) willWatch() bool { return w.Process.WatchFiles && !w.isView() && w.ext == nil }
+
+// waitWatcher returns the watcher of the window, waiting for StartWatching when the window will start one and has not yet: the
+// extensions are activated before the shell starts the watcher, and a watch they ask for in between must not fail (SPEC §10.15:
+// a repository of the Git extension asked before it and was left with no watch, so files changed outside Emetos were never shown).
+// It returns nil at once for a window that never watches, and when ctx ends first. Call it from a goroutine, not the UI thread.
+func (w *Workspace) waitWatcher(ctx context.Context) *workspace.Watcher {
+	st := &w.watch
+	st.mu.Lock()
+	if st.watcher != nil || !w.willWatch() {
+		defer st.mu.Unlock()
+		return st.watcher
+	}
+	if st.made == nil {
+		st.made = make(chan struct{})
+	}
+	made := st.made
+	st.mu.Unlock()
+	select {
+	case <-made:
+		return w.Watcher()
+	case <-ctx.Done():
+		return nil
+	}
 }
 
 // watchFolder (re)starts the targets of the folder: the folder itself and the paths of

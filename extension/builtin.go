@@ -172,7 +172,8 @@ type Workspace interface {
 	// batched: fn gets at most one batch for each turn of the UI thread, on the UI thread, with the paths absolute. The
 	// events of WatchSpec.Excludes are not reported and their folders are not watched. cancel stops it; it also ends with the
 	// activation. It blocks while the watches are placed (it reads the folder), so call it from a goroutine of the extension,
-	// not from the UI thread. It fails with ExtensionWatchUnavailable in a scope with no watcher, ExtensionWatchPathInvalid for
+	// not from the UI thread; a watch asked for before the window started its watcher (the extensions are activated first) waits for it. It
+	// fails with ExtensionWatchUnavailable in a scope with no watcher, ExtensionWatchCancelled when ctx ends while it waits for the watcher, ExtensionWatchPathInvalid for
 	// a path that is not absolute, ExtensionDeactivated after the activation ended, and with the tags of the watcher
 	// (WatcherPathNotFound, WatcherStatFailed, WatcherAddFailed) for a folder that cannot be watched.
 	Watch(ctx context.Context, spec WatchSpec, fn func([]FileChange)) (cancel func(), err error)
