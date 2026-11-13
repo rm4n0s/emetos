@@ -59,6 +59,7 @@ func (t *typescript) Manifest() extension.Manifest {
 	m := t.base.Manifest()
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	m.Requirements = append(m.Requirements, t.requirements()...)
 	return m
 }
 

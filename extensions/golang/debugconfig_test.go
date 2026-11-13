@@ -359,7 +359,7 @@ func TestTheAdapterOfASessionWithoutDlvFailsAndTellsTheUser(t *testing.T) {
 	s := r.api.NewDebugSession("s1", DebugType, "name", cfg{"request": "launch"})
 	_, err := r.api.DebugAdapter(context.Background(), DebugType, s, nil)
 	appErr, ok := errors.FromError(err)
-	if !ok || !appErr.HasRoute("dlvProgram.GoDlvNotFound") {
+	if !ok || !appErr.HasRoute("dlvProgram->findDlv.GoDlvNotFound") {
 		t.Fatalf("err = %v", err)
 	}
 	if notes := r.api.Notes(); len(notes) != 1 || notes[0].Severity != "warn" || !reflect.DeepEqual(notes[0].Actions, []string{"Install"}) {

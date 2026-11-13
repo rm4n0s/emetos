@@ -138,3 +138,22 @@ func TestTheRequirementOfAServerUsesThisMachine(t *testing.T) {
 		t.Error("an invalid Config has requirements")
 	}
 }
+
+// Customize belongs to an activation (it posts to the UI, keeps what it decided); a check never calls it.
+func TestTheRequirementOfAServerDoesNotCustomize(t *testing.T) {
+	dir := t.TempDir()
+	program(t, dir, "bin/ra", "no version here")
+	called := false
+	cfg := Config{ID: "ra", Name: "ra", Languages: []string{"rust"},
+		Programs:         []Program{{Name: "ra", Version: VersionCheck{Args: []string{"--version"}}}},
+		Customize:        func(*Launch, Env) error { called = true; panic("an activation's hook") },
+		CustomizeContext: func(context.Context, *Launch, Env) error { called = true; panic("an activation's hook") },
+	}
+	got := cfg.checkRequirement(context.Background(), extension.RequirementEnv{Folder: dir}, Env{Home: dir, Path: filepath.Join(dir, "bin")})
+	if called {
+		t.Fatal("Customize was called")
+	}
+	if got.State != extension.RequirementFound || got.Detail != "found in PATH; its version could not be read" {
+		t.Errorf("got %+v", got)
+	}
+}

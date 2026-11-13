@@ -228,14 +228,7 @@ func (g *golang) diagCommand(r diagRequest) (program string, args []string, err 
 		return program, append(append([]string{"vet"}, g.stringList(VetFlagsSetting)...), target), err
 	}
 	tool := g.lintTool()
-	name := g.alternateTool(tool)
-	if name == "" {
-		name = g.alternateTool(lintProgram(tool))
-	}
-	if name == "" {
-		name = lintProgram(tool)
-	}
-	program, err = lookProgram(name, g.api.Scope().Folder)
+	program, err = lookProgram(lintToolName(settingsOf(g.api.Settings()), tool), g.api.Scope().Folder)
 	return program, lintArgs(tool, g.stringList(LintFlagsSetting), target), err
 }
 

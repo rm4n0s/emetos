@@ -68,6 +68,7 @@ func (c *csharp) Manifest() extension.Manifest {
 	m := c.base.Manifest()
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	m.Requirements = append(m.Requirements, c.requirements()...)
 	return m
 }
 

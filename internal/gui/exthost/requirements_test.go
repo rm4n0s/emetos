@@ -340,3 +340,33 @@ func TestSettingReaderKeepsAFolderFromChoosingAProgram(t *testing.T) {
 		t.Error("nil settings gave something")
 	}
 }
+
+func TestRequirementsGiveTheChecksTheStateOfTheirExtensionAndFolder(t *testing.T) {
+	type asked struct{ ext, folder, key string }
+	var mu sync.Mutex
+	var calls []asked
+	state := func(ext, folder, key string) (json.RawMessage, bool) {
+		mu.Lock()
+		calls = append(calls, asked{ext, folder, key})
+		mu.Unlock()
+		return json.RawMessage(`"` + ext + folder + `"`), true
+	}
+	c := &checker{fn: func(_ context.Context, env extension.RequirementEnv) extension.RequirementResult {
+		var v string
+		env.StateValue("chosen", &v)
+		return extension.RequirementResult{State: extension.RequirementFound, Detail: v}
+	}}
+	r := NewRequirements(RequirementsOptions{State: state, Extensions: []extension.Manifest{{ID: "emetos.python", Name: "P", Requirements: []extension.Requirement{req("a", c, "")}}}})
+	defer r.Close()
+	r.SetSource("/work", nil)
+	r.Start()
+	rows := settled(t, r)
+	if rows[0].Result.Detail != "emetos.python/work" {
+		t.Errorf("detail %q", rows[0].Result.Detail)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(calls) != 1 || calls[0] != (asked{"emetos.python", "/work", "chosen"}) {
+		t.Errorf("calls %+v", calls)
+	}
+}

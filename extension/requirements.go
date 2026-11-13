@@ -2,6 +2,7 @@ package extension
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"regexp"
 	"runtime"
@@ -78,6 +79,18 @@ type RequirementEnv struct {
 	// For a key nobody registered (the path settings of an extension that is turned off) it gives the value of the user's settings
 	// file, never a folder's: a folder must not decide which program a check runs.
 	Setting func(key string) (any, bool)
+	// State reads a value the extension keeps for the folder (State().Get of an activation in that tab: the interpreter the user
+	// chose); false when there is none. It may be called from any goroutine. It is read only: a check changes nothing.
+	State func(key string) (json.RawMessage, bool)
+}
+
+// StateValue decodes a value of the env's State into out and reports whether there was one that decodes.
+func (e RequirementEnv) StateValue(key string, out any) bool {
+	if e.State == nil {
+		return false
+	}
+	raw, ok := e.State(key)
+	return ok && json.Unmarshal(raw, out) == nil
 }
 
 // StringSetting is the value of a string setting of the env, trimmed, "" when there is none or it is not a string.

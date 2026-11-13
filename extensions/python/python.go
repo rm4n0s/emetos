@@ -73,6 +73,7 @@ func (p *python) Manifest() extension.Manifest {
 	m.Contributes.Settings = append(m.Contributes.Settings, testSettingSpecs()...)
 	m.Contributes.Debuggers = append(m.Contributes.Debuggers, debuggerSpecs()...)
 	m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: "python"})
+	m.Requirements = append(m.Requirements, requirements()...)
 	return m
 }
 

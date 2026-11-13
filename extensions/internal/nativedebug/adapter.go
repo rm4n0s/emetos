@@ -35,6 +35,7 @@ var (
 			{Family: langserver.FamilyDebian, Command: "sudo apt install lldb"},
 			{Family: langserver.FamilyArch, Command: "sudo pacman -S lldb"},
 			{Family: langserver.FamilySuse, Command: "sudo zypper install lldb"},
+			{Family: langserver.FamilyMacOS, Command: "xcode-select --install"},
 		},
 	}
 )
@@ -49,7 +50,7 @@ func (d *Debugger) adapter(ctx context.Context, session extension.DebugSession, 
 
 // findProgram finds a program: explicit (a path, or a name looked for in PATH) when it is not empty, else the first of the names in
 // PATH. problem says why an explicit program cannot be used; a program that is nowhere gives "" and "".
-func (d *Debugger) findProgram(explicit, folder string, names ...string) (path, problem string) {
+func findProgram(explicit, folder string, names ...string) (path, problem string) {
 	env := langserver.Env{Folder: folder}
 	env.Home, _ = os.UserHomeDir()
 	pathDirs := filepath.SplitList(os.Getenv("PATH"))
@@ -114,7 +115,7 @@ func (d *Debugger) gdbAdapter(ctx context.Context, session extension.DebugSessio
 	if strings.TrimSpace(explicit) == "" {
 		explicit = setting[string](d, GDBPathSetting)
 	}
-	path, problem := d.findProgram(explicit, folder, "gdb")
+	path, problem := findProgram(explicit, folder, "gdb")
 	if problem != "" {
 		d.tell("gdb cannot be used: "+problem+". Check gdb.path or the debuggerPath of the configuration.", gdbInstall)
 		return nil, errors.New("GdbPathInvalid", "gdb cannot be used: "+problem, "program", explicit)
@@ -161,7 +162,7 @@ func (d *Debugger) lldbAdapter(session extension.DebugSession) (*extension.Debug
 	if strings.TrimSpace(explicit) == "" {
 		explicit = setting[string](d, LLDBPathSetting)
 	}
-	path, problem := d.findProgram(explicit, folder, "lldb-dap", "lldb-vscode")
+	path, problem := findProgram(explicit, folder, "lldb-dap", "lldb-vscode")
 	if problem != "" {
 		d.tell("lldb-dap cannot be used: "+problem+". Check lldb-dap.executable-path or the debugAdapterExecutable of the configuration.", lldbInstall)
 		return nil, errors.New("LldbDapPathInvalid", "lldb-dap cannot be used: "+problem, "program", explicit)

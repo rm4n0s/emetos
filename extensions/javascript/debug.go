@@ -171,16 +171,37 @@ var nodeInstall = langserver.Install{
 		{Family: langserver.FamilyDebian, Command: "sudo apt install nodejs"},
 		{Family: langserver.FamilyArch, Command: "sudo pacman -S nodejs"},
 		{Family: langserver.FamilySuse, Command: "sudo zypper install nodejs"},
+		{Family: langserver.FamilyMacOS, Command: "brew install node"},
 	},
 }
 
-// findNode finds the node program that runs js-debug: typescript.nodePath, else the first node on PATH. It fails with JsDebugNodeInvalid
-// for a setting that is wrong and JsDebugNodeNotFound when there is none; the user is told either way.
+// findNode finds the node program that runs js-debug (nodeFind, with typescript.nodePath) and tells the user when there is none or the
+// setting is wrong.
 func (j *javascript) findNode(env langserver.Env) (string, error) {
-	if setting := j.settingString(NodePathSetting); setting != "" {
+	setting := j.settingString(NodePathSetting)
+	path, err := nodeFind(env, setting)
+	if err == nil {
+		return path, nil
+	}
+	appErr, _ := errors.FromError(err)
+	switch why, _ := appErr.Metadata["why"].(string); {
+	case appErr.Tag == "JsDebugNodeNotFound":
+		j.tellNode("node was not found. The debugger of JavaScript runs js-debug with it: install Node.js " + minNode + " or newer, or set " + NodePathSetting + ".")
+	case why != "":
+		j.tellNode(NodePathSetting + " is " + setting + ": " + why + ". The debugger of JavaScript runs js-debug with node.")
+	default:
+		j.tellNode(NodePathSetting + " is " + setting + ", which is not a program in PATH. The debugger of JavaScript runs js-debug with node.")
+	}
+	return "", err
+}
+
+// nodeFind finds node: the setting (typescript.nodePath) when it is set, else the first node on PATH. It fails with JsDebugNodeInvalid
+// for a setting that is wrong (the reason in the metadata "why" when the path is wrong, none when a name is not in PATH) and
+// JsDebugNodeNotFound when there is none. It tells nobody: findNode and the check of the requirement call it.
+func nodeFind(env langserver.Env, setting string) (string, error) {
+	if setting != "" {
 		if why := langserver.CheckPath(env, setting); why != "" {
-			j.tellNode(NodePathSetting + " is " + setting + ": " + why + ". The debugger of JavaScript runs js-debug with node.")
-			return "", errors.New("JsDebugNodeInvalid", NodePathSetting+" is set to "+setting+": "+why, "setting", NodePathSetting, "value", setting)
+			return "", errors.New("JsDebugNodeInvalid", NodePathSetting+" is set to "+setting+": "+why, "setting", NodePathSetting, "value", setting, "why", why)
 		}
 		expanded := env.Expand(setting)
 		if strings.Contains(expanded, "/") {
@@ -189,13 +210,11 @@ func (j *javascript) findNode(env langserver.Env) (string, error) {
 		if p, ok := langserver.FindExecutable(expanded, filepath.SplitList(env.Path)); ok {
 			return p, nil
 		}
-		j.tellNode(NodePathSetting + " is " + setting + ", which is not a program in PATH. The debugger of JavaScript runs js-debug with node.")
 		return "", errors.New("JsDebugNodeInvalid", NodePathSetting+" is set to "+setting+", which is not a program in PATH", "setting", NodePathSetting, "value", setting)
 	}
 	if p, ok := langserver.FindExecutable("node", filepath.SplitList(env.Path)); ok {
 		return p, nil
 	}
-	j.tellNode("node was not found. The debugger of JavaScript runs js-debug with it: install Node.js " + minNode + " or newer, or set " + NodePathSetting + ".")
 	return "", errors.New("JsDebugNodeNotFound", "node was not found in PATH: js-debug is a Node.js program", "path", env.Path)
 }
 

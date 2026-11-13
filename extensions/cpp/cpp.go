@@ -115,6 +115,7 @@ func (c *cpp) Manifest() extension.Manifest {
 	for _, lang := range nativedebug.BreakpointLanguages {
 		m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: lang})
 	}
+	m.Requirements = append(m.Requirements, requirements()...)
 	return m
 }
 

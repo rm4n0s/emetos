@@ -409,7 +409,7 @@ func TestAnAlternateDlvThatCannotBeRunIsAnError(t *testing.T) {
 	r := newRig(t, rigOptions{settings: map[string]any{AlternateToolsSetting: map[string]any{"dlv": "/no/such/dlv"}}})
 	_, err := r.ext.dlvProgram()
 	appErr, ok := errors.FromError(err)
-	if !ok || !appErr.HasRoute("dlvProgram.GoDlvNotFound") {
+	if !ok || !appErr.HasRoute("dlvProgram->findDlv.GoDlvNotFound") {
 		t.Fatalf("err = %v", err)
 	}
 	if !strings.Contains(appErr.Message, "go.alternateTools names a dlv that cannot be run") {

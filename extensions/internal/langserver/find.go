@@ -1,6 +1,7 @@
 package langserver
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,10 @@ type Env struct {
 	Environ func(name string) string
 	// Settings reads the settings of the tab.
 	Settings *Settings
+	// State, when not nil, reads a value the extension keeps for the folder; the check of a requirement (SPEC §10.36) gives it, so that
+	// a hook of a Program that reads what the user chose (the Python interpreter) can do so without an activation. A running activation
+	// leaves it nil and reads its own state.
+	State func(key string) (json.RawMessage, bool)
 }
 
 // DefaultEnv is the Env of this machine for a tab: the folder, the home folder, PATH, and the settings.

@@ -2,6 +2,7 @@ package exthost
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -35,6 +36,9 @@ type RequirementsOptions struct {
 	// Post runs a function on the UI thread; the listeners of OnChange are called through it. Nil calls them on the goroutine of the
 	// check (tests).
 	Post func(func())
+	// State reads the values the extensions keep (the scopes' StateGet: by extension id, folder and key); the checks get it as
+	// RequirementEnv.State, bound to their extension and the current folder. Nil reads nothing.
+	State func(extensionID, folder, key string) (json.RawMessage, bool)
 	// Limit is how many checks run at once (DefaultRequirementChecks when 0), Timeout how long one may take
 	// (DefaultRequirementTimeout when 0).
 	Limit   int
@@ -71,6 +75,7 @@ type reqEntry struct {
 type Requirements struct {
 	log     *slog.Logger
 	post    func(func())
+	state   func(extensionID, folder, key string) (json.RawMessage, bool)
 	timeout time.Duration
 	entries []reqEntry
 	sem     chan struct{}
@@ -104,7 +109,7 @@ func NewRequirements(opts RequirementsOptions) *Requirements {
 	}
 	ctx, stop := context.WithCancel(context.Background())
 	r := &Requirements{
-		log: log, post: opts.Post, timeout: timeout, sem: make(chan struct{}, limit), ctx: ctx, stop: stop,
+		log: log, post: opts.Post, state: opts.State, timeout: timeout, sem: make(chan struct{}, limit), ctx: ctx, stop: stop,
 		results: map[string]map[reqKey]extension.RequirementResult{}, gen: map[reqKey]int{}, pending: map[reqKey]context.CancelFunc{},
 	}
 	for _, m := range opts.Extensions {
@@ -272,6 +277,10 @@ func (r *Requirements) launch(e reqEntry) {
 	r.gen[e.key]++
 	gen, folder := r.gen[e.key], r.folder
 	env := extension.RequirementEnv{Folder: folder, Setting: r.setting}
+	if r.state != nil {
+		state, ext := r.state, e.key.ext
+		env.State = func(key string) (json.RawMessage, bool) { return state(ext, folder, key) }
+	}
 	ctx, cancel := context.WithCancel(r.ctx)
 	r.pending[e.key] = cancel
 	r.wg.Add(1)

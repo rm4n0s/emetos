@@ -4,12 +4,8 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/rm4n0s/errors"
 
 	"github.com/rm4n0s/emetos/extension"
 )
@@ -144,61 +140,9 @@ func (g *golang) registerDebug() {
 
 // ---- dlv ----
 
-// dlvProgram finds dlv: go.alternateTools.dlv (it must exist), else dlv in PATH, else the bin folder of go.toolsGopath, GOBIN or
-// the GOPATH (go.toolsEnvVars first), the places "Go: Install/Update Tools" installs it to.
+// dlvProgram finds dlv (findDlv).
 func (g *golang) dlvProgram() (string, error) {
-	folder := g.api.Scope().Folder
-	if name := g.alternateTool("dlv"); name != "" {
-		path, err := lookProgram(name, folder)
-		if err != nil {
-			return "", errors.New("GoDlvNotFound", "go.alternateTools names a dlv that cannot be run: "+describe(err), "program", name)
-		}
-		return path, nil
-	}
-	if path, err := lookProgram("dlv", folder); err == nil {
-		return path, nil
-	}
-	for _, dir := range g.toolBinDirs() {
-		path := filepath.Join(dir, "dlv")
-		if st, err := os.Stat(path); err == nil && !st.IsDir() && st.Mode()&0o111 != 0 {
-			return path, nil
-		}
-	}
-	return "", errors.New("GoDlvNotFound", "dlv was not found in go.alternateTools, in PATH or in the bin folder of GOBIN or GOPATH")
-}
-
-// toolBinDirs are the folders the Go tools are installed to: the bin folder of go.toolsGopath, GOBIN, and the bin folder of each
-// GOPATH (the home folder's go when none is set). The variables are those of go.toolsEnvVars, else of Emetos.
-func (g *golang) toolBinDirs() []string {
-	vars := map[string]string{}
-	if m, err := extension.SettingValue[map[string]any](g.api.Settings(), ToolsEnvVarsSetting); err == nil {
-		for k, v := range m {
-			if s, ok := v.(string); ok {
-				vars[k] = s
-			}
-		}
-	}
-	get := func(name string) string {
-		if v, ok := vars[name]; ok {
-			return v
-		}
-		return os.Getenv(name)
-	}
-	var dirs []string
-	if gp, _ := extension.SettingValue[string](g.api.Settings(), ToolsGopathSetting); strings.TrimSpace(gp) != "" {
-		dirs = append(dirs, filepath.Join(strings.TrimSpace(gp), "bin"))
-	}
-	if bin := get("GOBIN"); bin != "" {
-		dirs = append(dirs, bin)
-	}
-	if gopath := get("GOPATH"); gopath != "" {
-		for _, p := range filepath.SplitList(gopath) {
-			dirs = append(dirs, filepath.Join(p, "bin"))
-		}
-	} else if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, "go", "bin"))
-	}
-	return dirs
+	return findDlv(settingsOf(g.api.Settings()), g.api.Scope().Folder)
 }
 
 // promptMissingDlv tells the user that dlv is missing, with a button that installs it. It tells again each time a session is started

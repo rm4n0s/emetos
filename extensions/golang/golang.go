@@ -84,6 +84,7 @@ func (g *golang) Manifest() extension.Manifest {
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
 	m.Contributes.Debuggers = append(m.Contributes.Debuggers, debuggerSpec())
 	m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: "go"})
+	m.Requirements = append(m.Requirements, requirements()...)
 	m.Events.Subscribes = append(m.Events.Subscribes, extension.TopicEditorActiveChanged, extension.TopicEditorSelectionChanged, extension.TopicDocumentSaved, extension.TopicFilesChanged)
 	return m
 }

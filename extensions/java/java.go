@@ -62,6 +62,7 @@ func (j *java) Manifest() extension.Manifest {
 	m.Contributes.Commands = append(m.Contributes.Commands, commandSpecs()...)
 	m.Contributes.Keybindings = append(m.Contributes.Keybindings, keybindings()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
+	m.Requirements = append(m.Requirements, requirements()...)
 	return m
 }
 

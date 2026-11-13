@@ -53,23 +53,9 @@ func toolByName(name string) (tool, bool) {
 
 // ---- the programs ----
 
-// alternateTool is the program go.alternateTools names for the tool, or "".
-func (g *golang) alternateTool(name string) string {
-	m, err := extension.SettingValue[map[string]any](g.api.Settings(), AlternateToolsSetting)
-	if err != nil {
-		return ""
-	}
-	s, _ := m[name].(string)
-	return strings.TrimSpace(s)
-}
-
 // goProgram finds the go program: go.alternateTools.go, else go in PATH.
 func (g *golang) goProgram() (string, error) {
-	name := g.alternateTool("go")
-	if name == "" {
-		name = "go"
-	}
-	return lookProgram(name, g.api.Scope().Folder)
+	return findGo(settingsOf(g.api.Settings()), g.api.Scope().Folder)
 }
 
 // installProgram finds the go program that installs the tools: go.toolsManagement.go, else the go program of the project.

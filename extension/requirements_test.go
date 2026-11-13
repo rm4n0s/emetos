@@ -2,6 +2,7 @@ package extension
 
 import (
 	"context"
+	"encoding/json"
 	"runtime"
 	"testing"
 
@@ -130,5 +131,24 @@ func TestRequirementEnvStringSetting(t *testing.T) {
 	}
 	if got := (RequirementEnv{}).StringSetting("s"); got != "" {
 		t.Errorf("no reader = %q", got)
+	}
+}
+
+func TestRequirementEnvStateValue(t *testing.T) {
+	env := RequirementEnv{State: func(key string) (json.RawMessage, bool) {
+		switch key {
+		case "python":
+			return json.RawMessage(`"/usr/bin/python3"`), true
+		case "broken":
+			return json.RawMessage(`{`), true
+		}
+		return nil, false
+	}}
+	var s string
+	if !env.StateValue("python", &s) || s != "/usr/bin/python3" {
+		t.Errorf("python = %q", s)
+	}
+	if env.StateValue("broken", &s) || env.StateValue("none", &s) || (RequirementEnv{}).StateValue("python", &s) {
+		t.Error("a value that is not there or does not decode was given")
 	}
 }

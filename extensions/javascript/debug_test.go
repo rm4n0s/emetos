@@ -700,16 +700,16 @@ func TestTheNodeThatRunsJsDebug(t *testing.T) {
 		}, "@base/other/node", "", "", ""},
 		{"typescript.nodePath as a name in PATH", rigOptions{}, "node", nil, "@bin/node", "", "", ""},
 		{"typescript.nodePath that is not there", rigOptions{os: "ID=fedora\n"}, "@base/missing/node", nil, "",
-			"findNode.JsDebugNodeInvalid", "does not exist", "sudo dnf install nodejs"},
+			"findNode->nodeFind.JsDebugNodeInvalid", "does not exist", "sudo dnf install nodejs"},
 		{"typescript.nodePath that is not executable", rigOptions{}, "@base/plain", func(t *testing.T, r *rig) string {
 			return writeFile(t, r.base, "plain", "x", 0o644)
-		}, "", "findNode.JsDebugNodeInvalid", "is not executable", ""},
-		{"typescript.nodePath that is a name not in PATH", rigOptions{os: "ID=ubuntu\n"}, "nodejs", nil, "", "findNode.JsDebugNodeInvalid", "not a program in PATH", "sudo apt install nodejs"},
-		{"no node", rigOptions{noNode: true, os: "ID=arch\n"}, "", nil, "", "findNode.JsDebugNodeNotFound", "node was not found", "sudo pacman -S nodejs"},
+		}, "", "findNode->nodeFind.JsDebugNodeInvalid", "is not executable", ""},
+		{"typescript.nodePath that is a name not in PATH", rigOptions{os: "ID=ubuntu\n"}, "nodejs", nil, "", "findNode->nodeFind.JsDebugNodeInvalid", "not a program in PATH", "sudo apt install nodejs"},
+		{"no node", rigOptions{noNode: true, os: "ID=arch\n"}, "", nil, "", "findNode->nodeFind.JsDebugNodeNotFound", "node was not found", "sudo pacman -S nodejs"},
 		{"a node that is too old", rigOptions{node: "v16.20.2", os: "ID=opensuse-leap\nID_LIKE=\"suse opensuse\"\n"}, "", nil, "", "checkNode.JsDebugNodeTooOld", "too old", "sudo zypper install nodejs"},
 		{"node 18 is enough", rigOptions{node: "v18.0.0"}, "", nil, "@bin/node", "", "", ""},
 		{"a node that prints no version", rigOptions{node: "oops"}, "", nil, "", "checkNode.JsDebugNodeFailed", "cannot be run", ""},
-		{"a system we have no command for", rigOptions{noNode: true, os: "ID=plan9\n"}, "", nil, "", "findNode.JsDebugNodeNotFound", "node was not found", ""},
+		{"a system we have no command for", rigOptions{noNode: true, os: "ID=plan9\n"}, "", nil, "", "findNode->nodeFind.JsDebugNodeNotFound", "node was not found", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

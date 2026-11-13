@@ -86,6 +86,7 @@ func (j *javascript) Manifest() extension.Manifest {
 	for _, lang := range breakpointLanguages {
 		m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: lang})
 	}
+	m.Requirements = append(m.Requirements, requirements()...)
 	return m
 }
 

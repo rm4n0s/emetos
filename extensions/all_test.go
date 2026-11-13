@@ -1,11 +1,13 @@
 package extensions
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/containers"
@@ -155,5 +157,40 @@ func TestPodmanAndDockerShareNothingTheyMustNotShare(t *testing.T) {
 		if (it.Menu == extension.MenuExplorerContext || it.Menu == extension.MenuEditorContext) && !strings.HasPrefix(it.Title, "Podman: ") {
 			t.Errorf("the item %s of the menu %s is titled %q", it.Command, it.Menu, it.Title)
 		}
+	}
+}
+
+// Every requirement of every extension can be checked on a machine with nothing on it (no PATH, an empty home folder, no settings and no
+// state): the check needs no activation, panics nowhere and gives a state (SPEC §10.36).
+func TestEveryRequirementCanBeCheckedWithoutAnActivation(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("JAVA_HOME", "")
+	t.Setenv("DOTNET_ROOT", "")
+	t.Setenv("VIRTUAL_ENV", "")
+	t.Setenv("CONDA_PREFIX", "")
+	seen := 0
+	for _, f := range All() {
+		m := f().Manifest()
+		for _, r := range m.Requirements {
+			seen++
+			t.Run(m.ID+"/"+r.ID, func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				got := r.Check(ctx, extension.RequirementEnv{Folder: t.TempDir()})
+				switch got.State {
+				case extension.RequirementFound, extension.RequirementMissing, extension.RequirementUnusable, extension.RequirementUnknown:
+				default:
+					t.Errorf("state %q", got.State)
+				}
+				if got.State != extension.RequirementFound && got.Detail == "" {
+					t.Errorf("a result that is not found says nothing: %+v", got)
+				}
+			})
+		}
+	}
+	if seen < 20 {
+		t.Errorf("only %d requirements are declared", seen)
 	}
 }

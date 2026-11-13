@@ -1,6 +1,10 @@
 package python
 
-import "github.com/rm4n0s/emetos/extensions/internal/langserver"
+import (
+	"encoding/json"
+
+	"github.com/rm4n0s/emetos/extensions/internal/langserver"
+)
 
 // The language servers of the Python pack (SPEC §10.34 "Python"): basedpyright by default, Pyright or python-lsp-server on the user's
 // choice (python.languageServer), or none. The pack finds the program and never installs one (D47); Pylance is not offered (D49).
@@ -115,8 +119,22 @@ func (p *python) serverConfig() *langserver.Config {
 
 // interpreterDirs is Program.Dirs: the folder of the interpreter's programs is searched after PATH, so that a server installed in the
 // environment the project uses is found (SPEC §10.34 "Python"). It runs on the launcher's goroutine.
+// A check of a requirement has no activation: it resolves the interpreter itself, with the choice it reads from env.State.
 func (p *python) interpreterDirs(env langserver.Env) (before, after []string) {
-	if i, _, ok := p.interps.Resolve(env); ok {
+	var i Interpreter
+	var ok bool
+	if p.interps != nil {
+		i, _, ok = p.interps.Resolve(env)
+	} else {
+		var chosen string
+		if env.State != nil {
+			if raw, found := env.State(StateKey); found {
+				_ = json.Unmarshal(raw, &chosen) // a value that is not a path is no choice
+			}
+		}
+		i, _, ok = ResolveInterpreter(env, chosen)
+	}
+	if ok {
 		after = append(after, i.BinDir())
 	}
 	return nil, after

@@ -108,6 +108,7 @@ func (r *rust) Manifest() extension.Manifest {
 	m.Contributes.Keybindings = append(m.Contributes.Keybindings, keybindings()...)
 	m.Contributes.Settings = append(m.Contributes.Settings, settingSpecs()...)
 	m.Contributes.Breakpoints = append(m.Contributes.Breakpoints, extension.BreakpointSpec{Language: "rust"})
+	m.Requirements = append(m.Requirements, requirements()...)
 	return m
 }
 
