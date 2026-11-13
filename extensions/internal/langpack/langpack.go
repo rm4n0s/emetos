@@ -87,6 +87,7 @@ func (p *pack) Manifest() extension.Manifest {
 		m.Contributes.LanguageServers = append(m.Contributes.LanguageServers, sv.Spec())
 		m.Contributes.Settings = append(m.Contributes.Settings, sv.SettingSpecs()...)
 		m.Events.Subscribes = append(m.Events.Subscribes, sv.Subscribes()...)
+		m.Requirements = append(m.Requirements, sv.Requirements()...)
 	}
 	return m
 }

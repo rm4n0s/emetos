@@ -46,6 +46,11 @@ type Manifest struct {
 	// is not on it is refused with a problem on the Extensions page (ExtensionPrivilegeRefused) and is not installed.
 	// CheckManifest refuses a name that is not a privilege (ExtensionPrivilegeUnknown).
 	Privileges []string
+	// Requirements are what the extension needs from the system (SPEC §10.36): the programs, services and devices it uses, each
+	// with a check. They are shown on the Extensions page and the Check System page, also while the extension is turned off.
+	// CheckManifest refuses an invalid or repeated id, a requirement without a name, a purpose or a check, an unknown kind and an
+	// install command for an unknown family (ExtensionRequirementInvalid, ExtensionRequirementDuplicate).
+	Requirements []Requirement
 }
 
 // Contributes are the contributions a Manifest declares. Emetos installs them in a scope when the extension is enabled

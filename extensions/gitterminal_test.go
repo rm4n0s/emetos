@@ -36,8 +36,8 @@ type termGit struct {
 }
 
 // isolateProcess gives the process the environment of the world of gittest for the length of the test (the Terminal extension starts its
-// shells with the environment of the process), and takes out what would answer for the window: the askpass program of the world, and the
-// session's ssh agent and display.
+// shells with the environment of the process), and takes out what would answer for the window: the askpass program of the world, the
+// session's ssh agent and display, and the Git helper of an Emetos whose terminal the test runs in.
 func isolateProcess(t *testing.T, e *gittest.Env) {
 	t.Helper()
 	for _, kv := range e.Vars() {
@@ -48,7 +48,9 @@ func isolateProcess(t *testing.T, e *gittest.Env) {
 		}
 	}
 	for _, k := range []string{"GIT_ASKPASS", "SSH_ASKPASS", "SSH_ASKPASS_REQUIRE", "SSH_AUTH_SOCK", "DISPLAY", "WAYLAND_DISPLAY", "GIT_TERMINAL_PROMPT",
-		"GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "ENV", "BASH_ENV"} {
+		"GIT_EDITOR", "GIT_SEQUENCE_EDITOR", "ENV", "BASH_ENV",
+		// a test run in a terminal of an Emetos has that window's helper in its environment
+		"EMETOS_GIT_SOCKET", "EMETOS_GIT_TOKEN", "EMETOS_TERMINAL"} {
 		t.Setenv(k, "")
 		if err := os.Unsetenv(k); err != nil {
 			t.Fatal(err)

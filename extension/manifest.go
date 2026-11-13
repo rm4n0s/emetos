@@ -16,7 +16,7 @@ var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$`)
 // event that takes an argument without one), and EventTopicInvalid or EventPatternInvalid for a topic or pattern the
 // manifest declares that is malformed, and ExtensionWindowTabIDForeign, ExtensionWindowTabDuplicate and
 // ExtensionWindowTabInvalid for the window tab kinds, and ExtensionServerInvalid and ExtensionServerDuplicate for the language servers, and ExtensionSettingDeclInvalid and
-// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not a word or words joined by dots or is declared twice, and ExtensionContextKeyDeclForeign for one under emetos. that is not under its own id, and ExtensionSubmenuInvalid, ExtensionSubmenuDuplicate and ExtensionMenuItemInvalid for the submenus and the menu items that open one, and ExtensionViewWelcomeInvalid for welcome content that names no view or has no contents, and ExtensionDebuggerInvalid and ExtensionDebuggerDuplicate for the debuggers and ExtensionBreakpointInvalid for the breakpoint languages.
+// ExtensionSettingDeclDuplicate for the settings it declares, and ExtensionPrivilegeUnknown for a privilege that is none of the two, and ExtensionContextKeyDeclInvalid for a context key it declares that is not a word or words joined by dots or is declared twice, and ExtensionContextKeyDeclForeign for one under emetos. that is not under its own id, and ExtensionSubmenuInvalid, ExtensionSubmenuDuplicate and ExtensionMenuItemInvalid for the submenus and the menu items that open one, and ExtensionViewWelcomeInvalid for welcome content that names no view or has no contents, and ExtensionDebuggerInvalid and ExtensionDebuggerDuplicate for the debuggers and ExtensionBreakpointInvalid for the breakpoint languages, and ExtensionRequirementInvalid and ExtensionRequirementDuplicate for the requirements.
 func CheckManifest(m Manifest) error {
 	if !idPattern.MatchString(m.ID) {
 		return errors.New("ExtensionIDInvalid", "the id of an extension is lowercase, dotted and not empty (emetos.markdown)", "id", m.ID)
@@ -70,6 +70,9 @@ func CheckManifest(m Manifest) error {
 		return err
 	}
 	if err := checkPrivileges(m); err != nil {
+		return err
+	}
+	if err := checkRequirements(m); err != nil {
 		return err
 	}
 	return checkEventDecl(m)
