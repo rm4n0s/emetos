@@ -2478,3 +2478,87 @@ Requested by the user on 2026-11-13 ("if a project was not trusted before, then 
 - `git.trustRepository` from the item asks the question even after Don't Trust in this session (it is what the user asked for), as the welcome content's button does.
 **Tests:** `gitscm` over `fakeapi` with `gittest` repositories: no item for a trusted repository, the item for an unanswered one and after Don't Trust, the count and the tooltip with two, a click shows the dialog and Trust removes the item and starts git, Manage Trusted Repositories bringing it back, none with `git.enabled` false or git missing; the item's spec (text, icon, colors, command).
 **Proof:** method B. A repository cannot be committed under `testdata`, so `testdata/proof/35.1/make-repo.sh <dir>` makes one (with a test identity and its own `HOME` and `GIT_CONFIG_GLOBAL`), and the step adds the dev command `dev.git.answerTrust {"button"}`, which answers the open trust question: `scripts/proof.sh docs/implemented-proof-images/35.1-untrusted-status.png --after 3s --commands '[["dev.git.answerTrust",{"button":"Don't Trust"}]]' -- <dir>`; the image shows the item "Not Trusted" in the status bar.
+
+## M36: Images, videos, PDFs and EPUBs
+
+Requested by the user on 2026-11-13 ("I want it to be able to open images, videos, pdfs and epubs"); for video and PDF they asked for what also works on macOS and Windows and left the choice to Emetos, and chose a reflowed EPUB reader (SPEC §10.37, D52–D55).
+
+### 36.1 File editors
+**Goal:** an extension can be the editor of a file: files that match its globs open in it, "Reopen Editor With..." switches between it and the text editor, and `workbench.editorAssociations` chooses (SPEC §10.37 "File editors", D52).
+**Read:** SPEC §10.37, §10.15 ("As built (step 11.6)": editor tabs and file views), §6.3 (the binary notice), §10.3 (preview tabs, the tab context menu), §10.10 (restore); `extension/{editors,manifest}.go`, `internal/core/editorgroup/{exttabinput,textinput}.go`, `internal/gui/exthost/editors.go`, `internal/gui/app/{exttabs,fileviews,gridview,workspacemodel}.go`, `internal/core/command/menus_default.go`.
+**Reference:** `reference/vscode/src/vs/workbench/services/editor/common/editorResolverService.ts` (priorities, `editorAssociations`), `reference/vscode/src/vs/workbench/contrib/customEditor/common/contributedCustomEditors.ts`, `reference/vscode/src/vs/workbench/browser/parts/editor/editorCommands.ts` (`reopenWithEditor`).
+**Tasks:**
+- `extension`: `FileEditorSpec`, `FileEditorPriority` (`FileEditorDefault`, `FileEditorOption`), `Contributes.FileEditors`, the manifest checks, `FileEditors`, `FileEditorProvider`, `FileEditorFile`, `FileChange`, `FileEditorTab`, `FileEditorContent`, `API.FileEditors()`; `fakeapi` implements them; the activation event `onFileEditor:`.
+- `exthost`: the file editors of the active extensions, `Scope.FileEditorsFor(path)` (with `workbench.editorAssociations`), `Open` contained like the other callbacks (`ExtensionFileEditorPanicked`), the status items of the active tab.
+- `editorgroup.FileEditorInput` (`emetos.fileEditor`, serialized, a resource, never dirty, a `Copier`); the window opens matching files in it (from the Explorer, Quick Open, the command line, links, restore), `workbench.action.reopenWithEditor` with its pick and "Configure default editor for '*.ext'...", the tab menu item, Open With... on the binary notice, the fallback to text.
+- Register `workbench.editorAssociations` with VS Code's description.
+**Tests:** `extension` (each manifest check and its route); `exthost` (matching, associations, priorities, a disabled extension, a panic); `app` with a test extension (a matching file opens in the file editor, preview replacement, Reopen With to text and back, Configure default editor writes the setting, a binary file's Open With..., restore, split, the extension turned off falls back to text, a change on disk reaches `OnChange`, status items follow the active tab); goldens of the pick and the notice with Open With... in dark and light.
+
+### 36.2 Image Preview
+**Goal:** images open in a preview like VS Code's, with zoom and the size, file size and zoom in the status bar (SPEC §10.37 "Image Preview").
+**Read:** SPEC §10.37, §10.15; Glutter's `ui/codec.go`, `widgets/image.go`, `svg`; `extension/ui`.
+**Reference:** `reference/vscode/extensions/media-preview/` (`package.json`, `src/imagePreview/*.ts`, `media/imagePreview.js`, `media/imagePreview.css`).
+**Tasks:**
+- `extensions/mediapreview`: the extension (`emetos.mediapreview`, "Media Preview"), the file editor `emetos.mediapreview.image` for every format of the spec but AVIF and HEIC (they come in 36.4), decoding off the UI thread with the limits, the TIFF and ICO readers, SVG through Glutter's `svg`, animated GIF.
+- The view: fit, zoom levels, click and Alt+click, Ctrl+wheel and pinch, scroll and drag, pixelated at 3x and more, the checkerboard, reload and deleted file; the commands `imagePreview.zoomIn`, `zoomOut`, `copyImage` with VS Code's titles, keys and when-clauses; the three status bar entries and the zoom pick.
+**Tests:** decoding each format from small files the test writes (PNG, JPEG, GIF with three frames, BMP, WebP from a fixture, TIFF, ICO with PNG and BMP entries, SVG), the limits, zoom steps and the anchor of a click, fit, the status texts, reload keeping the zoom, a deleted file, Copy; goldens (a transparent PNG fitted, zoomed to 5x pixelated, an SVG, the status bar) in dark and light.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/36.2-image-preview.png --config testdata/proof/36.2/config --after 3s -- testdata/proof/36.2/project testdata/proof/36.2/project/emetos.png` (the project holds a copy of the app icon); the image shows the icon in the preview on the checkerboard and the three status bar entries.
+
+### 36.3 FFmpeg
+**Goal:** Emetos finds FFmpeg, probes a video, and decodes its frames and sound through pipes, with processes that end with their context; Media Preview declares it as a requirement (SPEC §10.37 "Video", D53).
+**Read:** SPEC §10.37, §10.36; `extensions/internal/langserver/{find,version}.go` (`CheckProgram`), `extension/requirements.go`; Glutter's `audio` package (`System`, `Device`, `Stream`).
+**Tasks:**
+- `extensions/internal/ffmpeg`: `Find` (the setting, `PATH`, the Homebrew folders; `ffprobe` beside `ffmpeg`), the version check (4.4+), `Probe` (the JSON of ffprobe into `Info`: duration, streams, size, rate, codecs), `Frames` (a reader of RGBA frames at a size and rate from a time) and `Sound` (f32le, 48 kHz, stereo, from a time), each process in its own process group, ended with the `ctx`, its stderr kept (the last 4 KiB) for the errors, with the codec named when FFmpeg cannot decode it.
+- The requirement FFmpeg of `emetos.mediapreview` with the spec's install commands and `mediaPreview.ffmpegPath` (registered).
+**Tests:** a fake `ffmpeg` and `ffprobe` (the test binary run again under another name by `TestMain`, writing frames and samples it computes) in a temporary `PATH`: found, through the setting, in a Homebrew folder of the test, too old, missing; probe of a video with and without sound, a damaged one; frames and sound with the right sizes and counts; a cancelled `ctx` ends the processes (no child left, checked by PID); an unknown codec. With the build tag `emetos_ffmpeg` the same against the real FFmpeg on a video the test makes with `-f lavfi -i testsrc`.
+
+### 36.4 The video player
+**Goal:** videos play in their tab with sound, seeking and the controls of the spec; AVIF and HEIC images open through FFmpeg (SPEC §10.37 "Video", "Image Preview").
+**Read:** SPEC §10.37, §10.18 (the view of a client); `extensions/mediapreview`, `extensions/internal/ffmpeg`; Glutter's `audio`.
+**Reference:** `reference/vscode/extensions/media-preview/src/videoPreview.ts` and `media/videoPreview.js` (the settings).
+**Tasks:**
+- The file editor `emetos.mediapreview.video`: the first frame on open, Play/Pause, the clock (the sound's played position, else the monotonic clock), frame dropping, the bounded queues, seeking, Mute, volume, Loop, the keys, `mediaPreview.video.autoPlay` and `mediaPreview.video.loop` (registered with VS Code's descriptions), pause when hidden, the state saved with the tab, muted in a client's view, the messages of a missing FFmpeg and of a codec it cannot decode.
+- AVIF, HEIC and HEIF in the image preview through one frame of FFmpeg.
+**Tests:** with the fake FFmpeg and a fake audio sink (a `Stream` read by the test at a set pace): the frames shown follow the sound's position, late frames dropped, pause holds the frame and the processes, a seek restarts both at the time, loop, autoplay, the end, mute and volume reach the stream, a hidden tab pauses, closing ends the processes, no FFmpeg, an undecodable codec; AVIF through the fake; goldens of the player (first frame, playing with the bar, the codec message) in dark and light. `docs/MANUAL-CHECKS.md`: playing a real video with sound on this machine (`scripts/isolated.sh -- go run -tags debug_mode ./cmd/emetos <a video>`), listened to by the user.
+**Proof:** method B: `testdata/proof/36.4/make-video.sh <dir>` makes a 10 s test video with FFmpeg's `testsrc` and a sine; `scripts/proof.sh docs/implemented-proof-images/36.4-video.png --after 4s --commands '[["emetos.mediapreview.video.play"]]' -- <dir>/test.mp4`; the image shows the test pattern playing with the bar.
+
+### 36.5 The PDF viewer
+**Goal:** PDFs open with their pages drawn by Poppler, scrolled continuously, with zoom, page navigation and passwords (SPEC §10.37 "PDF", D54).
+**Read:** SPEC §10.37, §10.36; `extensions/internal/langserver/{find,version}.go`.
+**Tasks:**
+- `extensions/pdf/poppler`: finding the programs (`pdf.popplerPath`, `PATH`, the Homebrew folders; version 22.02+), `Info` (pages and sizes), `Render` (one page at a dpi to an image), the password, processes in their own groups ended with the `ctx`, the errors of a damaged or locked file.
+- The extension `emetos.pdf` with the requirement Poppler, the file editor `emetos.pdf.viewer`: the layout of the pages, drawing what is in view (two at once), the 128 MiB cache, scaled pictures while a zoom is drawn, the toolbar's page box, Previous/Next, zoom (Fit Width, Fit Page, the levels), the keys, the password box, reload, the state saved with the tab. `pdf.popplerPath` registered.
+**Tests:** fake Poppler programs (as 36.3's fakes) for found/missing/too old, info, render, a password asked and given to every program, a wrong one, a damaged file, cancellation ending the processes; the view: only the pages in view are drawn, the cache bound, zoom keeps the page in view, the page box, reload keeping the page; goldens (Fit Width with a page drawn, the password box) in dark and light. With the build tag `emetos_poppler` the client against the real Poppler on a PDF the test writes (a one-page PDF written by hand in the test).
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/36.5-pdf.png --after 4s -- testdata/proof/36.5/project/sample.pdf` (a small PDF of several pages made for the proof with text and a drawing, committed with its source); the image shows the first pages with the toolbar.
+
+### 36.6 Outline, Find and Copy Page Text in the PDF viewer
+**Goal:** the PDF viewer has its outline, finding text with highlights, and copying a page's text (SPEC §10.37 "PDF").
+**Read:** SPEC §10.37; `extensions/pdf`; the editor's find widget (`internal/gui/editor/find*.go`) for its look.
+**Tasks:**
+- `poppler.Outline` (`pdftohtml -xml -i -q -stdout`), `poppler.Words` (`pdftotext -bbox-layout`, page by page, in the background), `poppler.PageText` (`pdftotext -layout`).
+- The Outline panel and its tree, the find widget (Ctrl+F, Enter, Shift+Enter, the count, match case, Escape), the highlights in the theme's find colors, matches across words of a line, Copy Page Text.
+**Tests:** parsing the outline XML (nested, none, odd entities) and the bbox XHTML from fixtures; matching across words and lines, case; the view: the outline goes to a page, find moves between matches across pages and scrolls to them, highlights drawn on the right boxes at two zooms; goldens (the outline panel, a page with highlights) in dark and light.
+**Proof:** method B over the sample of 36.5: `scripts/proof.sh docs/implemented-proof-images/36.6-pdf-find.png --after 4s --commands '[["emetos.pdf.toggleOutline"],["emetos.pdf.find","drawing"]]' -- testdata/proof/36.5/project/sample.pdf`; the image shows the outline and a highlighted match.
+
+### 36.7 The EPUB book model
+**Goal:** a book is read into its metadata, table of contents and the blocks of its chapters, safely (SPEC §10.37 "EPUB", D55).
+**Read:** SPEC §10.37; the EPUB 3.3 specification (https://www.w3.org/TR/epub-33/: the container, the package document, the navigation document) and EPUB 2's NCX.
+**Tasks:**
+- `extensions/epub/book`: `Open(ctx, path)` (the limits, path cleaning, the DRM check), `Book` (title, authors, language, `Spine`, `TOC`), `Chapter(i)` parsing XHTML into `Block`s and `Inline` runs as the spec lists, anchors (`id`s) for links, images as zip paths; no UI.
+**Tests:** books written by the test with `archive/zip`: EPUB 3 with a nav, EPUB 2 with an NCX, both, nested TOC, each block and inline kind, `hidden` and `display:none`, centered text, footnotes, entities and unclosed HTML tags, an image inside `svg`, a link to another chapter's anchor, a remote image left out; refused: too many entries, an entry too large, a zip bomb ratio, a path with `..`, DRM, no container, a broken package document (each with its Tag and route).
+
+### 36.8 The EPUB reader
+**Goal:** books open in a reflowed reader with their contents, font size, chapters and the reading position remembered (SPEC §10.37 "EPUB").
+**Read:** SPEC §10.37, §10.34 "A missing tool is told once" (`api.GlobalState()`, for the position); `extensions/epub/book`, `extension/ui/markdown` (how it renders blocks and images).
+**Tasks:**
+- The extension `emetos.epub` and the file editor `emetos.epub.reader`: the column, `epub.fontFamily` and `epub.fontSize` (registered), the bar (Contents, the titles, A− and A+, Previous and Next), the Contents panel, links inside the book and to the web, images, the keys, the position saved with the tab and in the global state by path.
+**Tests:** over `fakeapi` and `uitest`: a chapter rendered with each block kind, Next/Previous and the keys, the contents go to an anchor, A+ writes the setting and reflows, a link to another chapter, a web link through `OpenURI`, the position restored in a new tab of the same book, a refused book's message; goldens (a chapter with a heading, text and an image; the contents panel) in dark and light.
+**Proof:** method B: `scripts/proof.sh docs/implemented-proof-images/36.8-epub.png --after 3s --commands '[["emetos.epub.toggleContents"]]' -- testdata/proof/36.8/project/sample.epub` (a small book of public-domain text made by `testdata/proof/36.8/make-epub.go` and committed); the image shows a chapter with the contents panel.
+
+### 36.9 The README and the desktop pass
+**Goal:** the README tells what Emetos opens and what it needs for it; the viewers are checked together on this machine (SPEC §10.37).
+**Read:** SPEC §10.37, §10.36; `README.md`.
+**Tasks:**
+- README: a section "Images, videos, PDFs and EPUBs" (the formats, FFmpeg and Poppler and how to install them on Linux and macOS, Reopen Editor With and `workbench.editorAssociations`), with the proof images of 36.2, 36.4, 36.5 and 36.8.
+- A real-input display test that opens an image, a video, the PDF and the book from the Explorer in one window and closes them (no process left).
+**Tests:** `TestREADMELinksResolve`; the display test (`emetos_display`, with the real FFmpeg and Poppler; skipped when they are missing).
