@@ -122,7 +122,8 @@ type Extension struct {
 func (*Extension) Manifest() extension.Manifest {
 	return extension.Manifest{
 		ID: ID, Name: "HTTP Client", Version: "0.1.0",
-		Description: "Collections of HTTP requests in the files of the project, environments, variables and a history of what was sent.",
+		Requirements: []extension.Requirement{dbconn.KeyringRequirement("keeps secret variables, client certificate passphrases and OAuth tokens out of the files", dbconn.NewSecretService())},
+		Description:  "Collections of HTTP requests in the files of the project, environments, variables and a history of what was sent.",
 		// onStartup: the status bar item names the active environment from the start. Activating reads nothing on the UI thread; the
 		// files of .emetos/http are read in the background.
 		ActivationEvents: []string{extension.OnStartup},

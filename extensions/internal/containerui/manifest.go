@@ -101,7 +101,7 @@ func Manifest(cfg Config) extension.Manifest {
 
 	return extension.Manifest{
 		ID: cfg.ID, Name: cfg.Name, Version: "0.1.0", Description: cfg.Description,
-		ActivationEvents: activationEvents(cfg),
+		ActivationEvents: activationEvents(cfg), Requirements: Requirements(cfg),
 		Contributes: extension.Contributes{
 			Commands: cmds,
 			Menus:    menus,

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/keyqr"
 )
 
 // The ids of the extension.
@@ -40,9 +41,13 @@ type remoteWork struct {
 }
 
 // Manifest implements extension.Extension.
-func (*remoteWork) Manifest() extension.Manifest {
+func (r *remoteWork) Manifest() extension.Manifest {
+	var camera keyqr.Source
+	if r != nil && r.hub != nil {
+		camera = r.hub.camera
+	}
 	return extension.Manifest{
-		ID: ID, Name: "Remote Work", Version: "0.1.0",
+		ID: ID, Name: "Remote Work", Version: "0.1.0", Requirements: requirements(camera),
 		Description: "Lets another computer use a workspace of this Emetos, after it logs in over SSH with a key you listed.",
 		// The listener must be open as soon as a workspace that has Remote Work on is open, so the extension is active from the start.
 		ActivationEvents: []string{extension.OnStartup},

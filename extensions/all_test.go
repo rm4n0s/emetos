@@ -170,11 +170,21 @@ func TestEveryRequirementCanBeCheckedWithoutAnActivation(t *testing.T) {
 	t.Setenv("DOTNET_ROOT", "")
 	t.Setenv("VIRTUAL_ENV", "")
 	t.Setenv("CONDA_PREFIX", "")
+	// nothing of this computer is asked: the engines are named by sockets nobody listens on (only a socket the user named is tried),
+	// there is no agent, and the runtime folder is the test's
+	dead := t.TempDir()
+	t.Setenv("DOCKER_HOST", "unix://"+dead+"/docker.sock")
+	t.Setenv("CONTAINER_HOST", "unix://"+dead+"/podman.sock")
+	t.Setenv("SSH_AUTH_SOCK", "")
+	t.Setenv("XDG_RUNTIME_DIR", dead)
 	seen := 0
 	for _, f := range All() {
 		m := f().Manifest()
 		for _, r := range m.Requirements {
 			seen++
+			if r.Kind == extension.RequirementDevice {
+				continue // a device of this computer (the camera) is not opened by a test; its own test uses a fake one
+			}
 			t.Run(m.ID+"/"+r.ID, func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()

@@ -54,7 +54,8 @@ type Extension struct {
 func (*Extension) Manifest() extension.Manifest {
 	return extension.Manifest{
 		ID: ID, Name: "Databases", Version: "0.1.0",
-		Description: "The connections to databases, and the view of them in the side bar, shared by the SQL, MongoDB and Redis extensions.",
+		Requirements: []extension.Requirement{KeyringRequirement("keeps the passwords of the connections out of the connection file", NewSecretService())},
+		Description:  "The connections to databases, and the view of them in the side bar, shared by the SQL, MongoDB and Redis extensions.",
 		// onStartup: the form is also opened by a request of the database extensions (Connect to Database, TopicOpenForm), which no view
 		// or command of this extension starts. Activating reads nothing: the connection file is read when a view is first shown.
 		ActivationEvents: []string{extension.OnStartup},

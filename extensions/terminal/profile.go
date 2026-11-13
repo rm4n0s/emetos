@@ -1,14 +1,13 @@
 package terminal
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
-
-	"github.com/rm4n0s/emetos/extension"
 )
 
 // profile is a way to start a terminal: a program, its arguments and environment (SPEC §10.25 "The process").
@@ -48,9 +47,32 @@ func (e environ) get(name string) string {
 	return ""
 }
 
+// settingGetter reads settings: an activation's extension.Settings, or the settings a check of a requirement is given.
+type settingGetter interface {
+	Get(key string) (any, error)
+}
+
+// readSetting reads a setting as a Go type, as extension.SettingValue does for an extension.Settings.
+func readSetting[T any](s settingGetter, key string) (T, error) {
+	var out T
+	v, err := s.Get(key)
+	if err != nil {
+		return out, err
+	}
+	if t, ok := v.(T); ok {
+		return t, nil
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(data, &out)
+	return out, err
+}
+
 // profilesOf reads terminal.integrated.profiles.linux: the profiles whose program is found, in the order of their names.
-func profilesOf(s extension.Settings, env environ) []profile {
-	raw, err := extension.SettingValue[map[string]profileSetting](s, settingProfiles)
+func profilesOf(s settingGetter, env environ) []profile {
+	raw, err := readSetting[map[string]profileSetting](s, settingProfiles)
 	if err != nil {
 		return nil
 	}
@@ -155,8 +177,8 @@ func expandHome(p, home string) string {
 
 // defaultProfileOf is the profile a new terminal uses: the one terminal.integrated.defaultProfile.linux names when it is among
 // the found profiles; else the user's shell ($SHELL), else /bin/sh (SPEC §10.25 "The process").
-func defaultProfileOf(s extension.Settings, env environ, profiles []profile) profile {
-	if name, err := extension.SettingValue[string](s, settingDefaultProfile); err == nil && name != "" {
+func defaultProfileOf(s settingGetter, env environ, profiles []profile) profile {
+	if name, err := readSetting[string](s, settingDefaultProfile); err == nil && name != "" {
 		for _, p := range profiles {
 			if p.name == name {
 				return p

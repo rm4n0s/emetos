@@ -135,7 +135,7 @@ func keybindings() []extension.Keybinding {
 // Manifest implements extension.Extension.
 func (*terminals) Manifest() extension.Manifest {
 	return extension.Manifest{
-		ID: ID, Name: "Terminal", Version: termVersion,
+		ID: ID, Name: "Terminal", Version: termVersion, Requirements: requirements(osEnviron),
 		Description: "Shells in the panel: VS Code's integrated terminal, with Emetos's own emulator.",
 		// commands.execute: Search Workspace runs the Search extension's Find in Files (SPEC §10.19 "Privileges")
 		Privileges: []string{extension.PrivilegeCommandsExecute},
