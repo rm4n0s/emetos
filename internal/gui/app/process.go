@@ -96,6 +96,9 @@ type Process struct {
 	stateOpts storage.StateStoreOptions
 	// devCommands tells whether the process has the dev commands: DevCommandsEnabled, or ProcessOptions.TestDevCommands.
 	devCommands bool
+	// family is the family of the system for the install commands of the requirements (systemFamily), read once.
+	familyOnce sync.Once
+	family     string
 
 	scanTimeout time.Duration
 	testingNow  func() time.Time
@@ -183,6 +186,9 @@ type ProcessOptions struct {
 	// §15.1) runs them as a release build. The editor never sets it (internal/archtest checks cmd/emetos), so a release
 	// build of Emetos has no dev command (SPEC D15).
 	TestDevCommands bool
+	// SystemFamily is the family of the system whose install commands the pages of the requirements copy (SPEC §10.36); empty
+	// reads it from the system (extension.SystemFamily). Tests set it so that they do not depend on the computer.
+	SystemFamily string
 }
 
 // NewProcess makes the services of the process: the registries with every setting, command
@@ -223,6 +229,7 @@ func NewProcess(opts ProcessOptions) *Process {
 	}
 	p := &Process{
 		devCommands: DevCommandsEnabled() || opts.TestDevCommands,
+		family:      opts.SystemFamily,
 		State:       state,
 		Profiles:    storage.NewProfiles(opts.Paths, storage.ProfilesOptions{State: state, Logger: logger}),
 		stateOpts:   storage.StateStoreOptions{Delay: opts.StateDelay, After: opts.StateAfter, WriteFile: opts.StateWriteFile, Logger: logger},
@@ -430,4 +437,14 @@ func (p *Process) Grammar(languageID string, maxLineBytes int) (*textmate.Gramma
 	}
 	p.grammars[key] = g
 	return g, nil
+}
+
+// systemFamily is the family of this system (extension.SystemFamily, read once), or ProcessOptions.SystemFamily.
+func (p *Process) systemFamily() string {
+	p.familyOnce.Do(func() {
+		if p.family == "" {
+			p.family = extension.SystemFamily()
+		}
+	})
+	return p.family
 }

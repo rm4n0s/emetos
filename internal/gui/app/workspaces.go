@@ -139,6 +139,9 @@ type Workspaces struct {
 	// when it first reached one (Workspace.usesKey).
 	keyEvent services.KeyEvent
 	keyOwner *WindowTab
+	// reqs checks what the extensions need from the system, for the pages that show it; nil until a page first needs it
+	// (requirements.go).
+	reqs *windowRequirements
 }
 
 func newWorkspaces(p *Process) *Workspaces { return &Workspaces{p: p} }
@@ -1052,12 +1055,14 @@ func (m *Workspaces) exitApplication(from *Workspace) {
 	for _, w := range m.All() {
 		if w.exit != nil {
 			// the extensions end with the application on this way out too: the Git extension removes its socket and its folder (SPEC §10.30)
+			m.closeRequirements()
 			m.p.Extensions.Shutdown()
 			w.exit()
 			return
 		}
 	}
-	// the extensions end with the application: their contexts are cancelled (SPEC §10.15)
+	// the extensions end with the application: their contexts are cancelled (SPEC §10.15), and so do the checks of their requirements
+	m.closeRequirements()
 	m.p.Extensions.Shutdown()
 	if m.binding != nil {
 		m.binding.ExitApplication(ui.AppExitTypeRequired)
@@ -1127,6 +1132,11 @@ func (m *Workspaces) afterUnmount(f func()) {
 // release lets go of what a workspace that is gone holds: the tracker of its backups and its settings listeners.
 func (w *Workspace) release() {
 	w.stopExtensions()
+	// the checks of the requirements end with the last workspace of the window (a test's workspace is often the only one, and
+	// not a tab); a page shown later makes a new checker
+	if m := w.Process.Workspaces; m != nil && m.reqs != nil && m.Count() <= 1 {
+		m.closeRequirements()
+	}
 	b := &w.backups
 	b.mu.Lock()
 	tracker, stop := b.tracker, b.stopSettings

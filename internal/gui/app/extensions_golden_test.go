@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/ui"
 
 	"github.com/rm4n0s/emetos/extension"
@@ -98,6 +99,51 @@ func TestGoldenExtensionsPageProblem(t *testing.T) {
 			a.shell().SetState(func() {})
 			a.pump()
 			testutil.MatchesGolden(a.ts, "extensions_page_problem_"+th.name)
+		})
+	}
+}
+
+// TestGoldenExtensionsPageRequirements shows the requirements on the page "Extensions" (step 34.4): found, a required one missing
+// with its buttons, an optional one missing, one that cannot be used, one the check could not tell, and one still being checked, in
+// both themes.
+func TestGoldenExtensionsPageRequirements(t *testing.T) {
+	for _, th := range goldenThemesOfThePanels {
+		t.Run(th.name, func(t *testing.T) {
+			installs := 0
+			tools := requirementTools(reqAnswer(extension.RequirementResult{State: extension.RequirementMissing, Detail: "gopls was not found in PATH"}), &installs)
+			slow := newGate(extension.RequirementResult{State: extension.RequirementFound})
+			slowFactory := func() extension.Extension {
+				return &testExtension{manifest: extension.Manifest{
+					ID: "emetos.slow", Name: "Slow Engine", Version: "0.2.0", Description: "Its engine takes a while to answer.", ActivationEvents: []string{extension.OnStartup},
+					Requirements: []extension.Requirement{{ID: "engine", Name: "Engine", Kind: extension.RequirementService, Purpose: "everything", Check: slow.check}},
+				}}
+			}
+			paths := testutil.Isolate(t)
+			testutil.Settings(t, paths, map[string]any{
+				"window.menuBarVisibility": "classic", "workbench.colorTheme": th.theme, "editor.minimap.enabled": false,
+				"breadcrumbs.enabled": false, "files.hotExit": "off",
+			})
+			folder := filepath.Join(t.TempDir(), "project")
+			if err := os.MkdirAll(folder, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			p := newTestProcess(ProcessOptions{Paths: paths, Extensions: []extension.Factory{tools, slowFactory}, SystemFamily: extension.FamilyFedora})
+			win, err := NewWorkspace(context.Background(), p, folder)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(win.release)
+			a := newGroupAppWith(t, win, ui.Size{Width: 960, Height: 560}, nil, nil)
+			a.ts.SetPlatformConfiguration(func(c *ui.PlatformConfiguration) { c.UIFontFamily, c.UIFontSize = testutil.MonoFamily, 12 })
+			a.run("workbench.action.toggleSidebarVisibility")
+			a.run("workbench.extensions.action.showInstalledExtensions")
+			waitForRequirements(t, a, func() bool {
+				return a.ts.Exists(gluttertest.ByText("gopls  •  gopls was not found in PATH")) && a.ts.Exists(gluttertest.ByText("Camera (optional)  •  the check took longer than 10s"))
+			})
+			win.Notify.ClearAll()
+			a.shell().SetState(func() {})
+			a.pump()
+			testutil.MatchesGolden(a.ts, "extensions_page_requirements_"+th.name)
 		})
 	}
 }

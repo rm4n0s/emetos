@@ -95,6 +95,22 @@ type Options struct {
 	// OnManageSharing is called when the user presses Event Sharing..., which opens the page of the links between window
 	// tabs; without it the button is not shown.
 	OnManageSharing func()
+
+	// Requirements gives what the extensions need from the system with what their checks found (exthost.Requirements.Rows), in
+	// the order of the extensions; each extension's are shown under its state line (SPEC §10.36). Nil shows none.
+	Requirements func() []exthost.RequirementRow
+	// SubscribeRequirements calls fn when the results of the checks may have changed and returns the function that stops it.
+	SubscribeRequirements func(fn func()) (unsubscribe func())
+	// OnShown is called when the page is first shown: it starts the checks that have not run (exthost.Requirements.Start).
+	OnShown func()
+	// OnCheckAgain is called by the header's Check Again, OnCheckSystem by its Check System; a nil one hides its button.
+	OnCheckAgain, OnCheckSystem func()
+	// Family is the family of this system (extension.SystemFamily()): Copy Install Command copies the command for it.
+	Family string
+	// OnCopy puts a text on the clipboard (Copy Install Command), OnInstall runs the command of an extension that installs a
+	// requirement (Install), OnSetPath opens the Settings editor on a key (Set Path...) and OnOpenURI opens an address
+	// (Instructions). A nil one hides its button.
+	OnCopy, OnInstall, OnSetPath, OnOpenURI func(string)
 }
 
 // Page is the Extensions page.
@@ -113,38 +129,49 @@ func (p *Page) CreateState() widgets.State { return &pageState{} }
 
 type pageState struct {
 	widgets.StateOf[*Page]
-	stop func()
+	stops []func()
 }
 
-// InitState follows the host.
-func (s *pageState) InitState() { s.follow() }
+// InitState follows the host and the checks, and starts the checks.
+func (s *pageState) InitState() {
+	s.follow()
+	if f := s.Widget().opts.OnShown; f != nil {
+		f()
+	}
+}
 
 func (s *pageState) follow() {
-	if sub := s.Widget().opts.Subscribe; sub != nil {
-		s.stop = sub(func() {
-			if s.Mounted() {
-				s.SetState(func() {})
-			}
-		})
+	rebuild := func() {
+		if s.Mounted() {
+			s.SetState(func() {})
+		}
 	}
+	o := s.Widget().opts
+	for _, sub := range []func(func()) func(){o.Subscribe, o.SubscribeRequirements} {
+		if sub != nil {
+			s.stops = append(s.stops, sub(rebuild))
+		}
+	}
+}
+
+// unfollow stops following.
+func (s *pageState) unfollow() {
+	for _, stop := range s.stops {
+		if stop != nil {
+			stop()
+		}
+	}
+	s.stops = nil
 }
 
 // DidUpdateWidget follows the host of the new widget.
 func (s *pageState) DidUpdateWidget(old *Page) {
-	if s.stop != nil {
-		s.stop()
-		s.stop = nil
-	}
+	s.unfollow()
 	s.follow()
 }
 
 // Dispose stops following the host.
-func (s *pageState) Dispose() {
-	if s.stop != nil {
-		s.stop()
-		s.stop = nil
-	}
-}
+func (s *pageState) Dispose() { s.unfollow() }
 
 // Build implements widgets.State.
 func (s *pageState) Build(bc widgets.BuildContext) widgets.Widget {
@@ -171,10 +198,18 @@ func (s *pageState) Build(bc widgets.BuildContext) widgets.Widget {
 		text(introText, style(detailSize, ui.FontWeightW400, colors.DescriptionForeground)),
 		widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(10.0)}),
 	}
+	var header []widgets.Widget
 	if o.OnManageSharing != nil {
-		children = append(children,
-			widgets.NewAlign(kit.NewButton(manageSharingBtn, kit.ButtonOpts{Key: ManageSharingKey(), Secondary: true, Small: true, Tooltip: "Choose which window tabs may send events to which", OnPressed: o.OnManageSharing}),
-				widgets.AlignOpts{Alignment: painting.AlignmentTopLeft}))
+		header = append(header, kit.NewButton(manageSharingBtn, kit.ButtonOpts{Key: ManageSharingKey(), Secondary: true, Small: true, Tooltip: "Choose which window tabs may send events to which", OnPressed: o.OnManageSharing}))
+	}
+	if o.OnCheckSystem != nil {
+		header = append(header, kit.NewButton(checkSystemLabel, kit.ButtonOpts{Key: CheckSystemKey(), Secondary: true, Small: true, Tooltip: "Show what every enabled extension needs from this system", OnPressed: o.OnCheckSystem}))
+	}
+	if o.OnCheckAgain != nil {
+		header = append(header, kit.NewButton(checkAgainLabel, kit.ButtonOpts{Key: CheckAgainKey(), Secondary: true, Small: true, Tooltip: "Look again for what the extensions need", OnPressed: o.OnCheckAgain}))
+	}
+	if len(header) > 0 {
+		children = append(children, widgets.NewWrap(header, widgets.WrapOpts{Spacing: buttonGap, RunSpacing: requirementGap}))
 	}
 	children = append(children, widgets.NewSizedBox(nil, widgets.SizedBoxOpts{Height: foundation.Some(14.0)}))
 	if o.Problems != nil {
@@ -224,6 +259,7 @@ func buildRow(row exthost.Row, o Options, colors kit.Colors, style func(float64,
 		statusStyle = style(detailSize, ui.FontWeightW400, colors.ErrorForeground)
 	}
 	lines = append(lines, text(status, statusStyle))
+	lines = append(lines, buildRequirements(m.ID, o, colors, style)...)
 	spaced := make([]widgets.Widget, 0, 2*len(lines))
 	for i, l := range lines {
 		if i > 0 {
