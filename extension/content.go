@@ -82,7 +82,9 @@ type DiffSpec struct {
 // OpenSpec describes a document to open with a title of the caller's (Documents().OpenDocument; VS Code's vscode.open with a
 // title).
 type OpenSpec struct {
-	// URI is the document: a file, an open untitled document, or a provided one (ContentURI).
+	// URI is the document: a file, an open untitled document, or a provided one (ContentURI). A file that a file editor of an
+	// extension is the editor of (an image, a PDF: SPEC §10.37) opens in that editor, as it does from the Explorer, unless the open
+	// has a Title, a Selection or MergeEditor, which need the text editor.
 	URI string
 	// Title is the name of the tab; the name of the document when empty.
 	Title string

@@ -256,6 +256,15 @@ func (d extensionDocuments) OpenDocument(spec extension.OpenSpec) error {
 	}
 	w := d.w
 	binding := widgets.WidgetsBindingOf(s.Context())
+	// a file that a file editor of an extension is the editor of opens in it, as it does from the Explorer (SPEC §10.37): Open File
+	// of Source Control on a changed image shows the image. Not when the open needs a text editor: a selection to place, a title of
+	// its own, or the merge editor
+	if sd.uri.Scheme == document.SchemeFile && !spec.MergeEditor && spec.Selection == nil && spec.Title == "" {
+		if id := w.fileEditorFor(sd.uri.Path); id != "" {
+			s.showFileEditor(binding, sd.uri.Path, id, openOptions{Preview: spec.Preview, PreserveFocus: spec.PreserveFocus})
+			return nil
+		}
+	}
 	s.Go(func(life context.Context) {
 		w.prepare(life, sd)
 		binding.Post(func() {
