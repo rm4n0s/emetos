@@ -51,7 +51,11 @@ func (r *testingRig) settleDiff(e *textEditor) {
 func TestGoldenTestingInTheEditor(t *testing.T) {
 	for _, th := range goldenThemesOfTheGrid {
 		t.Run(th.name+" glyphs and messages", func(t *testing.T) {
-			r, _ := goldenPeek(t, th.theme, false, 0)
+			r, e := goldenPeek(t, th.theme, false, 0)
+			// the blink of the caret starts again, as when the editor gets the focus: the waits of the rig move the fake clock by as
+			// many steps as the machine needs, so without this the caret is caught shown in one run and hidden in the next
+			e.view.SetFocused(false)
+			e.view.SetFocused(true)
 			r.pump()
 			testutil.MatchesGolden(r.ts, "testing_editor_glyphs_"+th.name)
 		})
