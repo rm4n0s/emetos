@@ -45,6 +45,9 @@ type groupState struct {
 	// apart, so that the end of an earlier one does not end a later one.
 	holding bool
 	holdGen int
+	// opening counts the opens that read a file in the background for a group that was made for them
+	// (openOptions.MadeGroup), so that the group goes only when the last of them fails (endOpen).
+	opening map[*editorgroup.Group]int
 	// drag is the drag of a tab that goes on, or nil; dragFeed tells the layer that shows it to build
 	// again (tabdrag.go).
 	drag     *tabDrag
@@ -90,6 +93,10 @@ type openOptions struct {
 	// Text opens the file in the text editor even when a file editor of an extension is the editor of its files (SPEC §10.37):
 	// Reopen Editor With chose the text editor.
 	Text bool
+	// MadeGroup tells that Group was made for this open (Open to the Side made the group on the side): when the file
+	// cannot be opened, the group is taken away again if it is still empty and no other open into it is under way, so a
+	// file that looks binary does not leave an empty split behind.
+	MadeGroup bool
 }
 
 // gridOptions are the settings the grid follows.

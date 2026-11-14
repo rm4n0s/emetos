@@ -1389,6 +1389,67 @@ func TestOpenToTheSide(t *testing.T) {
 	}
 }
 
+// TestOpenToTheSideOfABinaryFileLeavesNoEmptyGroup checks that the group Open to the Side makes goes again when the
+// files cannot be opened: a file that looks binary used to leave an empty split behind.
+func TestOpenToTheSideOfABinaryFileLeavesNoEmptyGroup(t *testing.T) {
+	tests := []struct {
+		name string
+		// files are opened to the side together; side is the tab the group on the side has after, "" for no group
+		files []string
+		side  string
+	}{
+		{name: "a binary file", files: []string{"data.bin"}},
+		{name: "two binary files", files: []string{"data.bin", "more.bin"}},
+		{name: "a binary file and a text file", files: []string{"data.bin", "go.mod"}, side: "go.mod"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := newFileApp(t, append(slices.Clone(projectFiles), "data.bin", "more.bin"), "main.go")
+			for _, name := range []string{"data.bin", "more.bin"} {
+				if err := os.WriteFile(a.path(name), []byte("ab\x00\x01\x02\x00cd\x00\x00\x00"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			a.focusTree(tt.files[0])
+			for _, f := range tt.files[1:] {
+				a.view().Tree().ClickWith(a.path(f), kit.ClickModifiers{Ctrl: true}, false, false)
+				a.view().Tree().SetFocus(a.path(f))
+			}
+			a.mustRun("explorer.openToSide", nil)
+			binaries := 0
+			for _, f := range tt.files {
+				if strings.HasSuffix(f, ".bin") {
+					binaries++
+				}
+			}
+			a.waitFor("the notifications", func() bool {
+				n := 0
+				for _, it := range a.win.Notify.Items() {
+					if strings.Contains(it.Message, BinaryFileNotice) {
+						n++
+					}
+				}
+				return n == binaries
+			})
+			a.pump()
+			groups := a.shell().group.grid.Groups(editorgroup.GridAppearance)
+			if tt.side == "" {
+				if len(groups) != 1 {
+					t.Fatalf("groups %d, want the first one only", len(groups))
+				}
+			} else if len(groups) != 2 || groups[1].Model.Count() != 1 || groups[1].Model.ActiveEditor().Name() != tt.side {
+				t.Fatalf("groups %d, want the side group with %s", len(groups), tt.side)
+			}
+			if groups[0].Model.ActiveEditor() == nil || groups[0].Model.ActiveEditor().Name() != "main.go" {
+				t.Error("the first group changed")
+			}
+			if a.shell().group.opening[groups[len(groups)-1]] != 0 || len(a.shell().group.opening) != 0 {
+				t.Errorf("opens left counted: %v", a.shell().group.opening)
+			}
+		})
+	}
+}
+
 func TestRevealInTheFileManager(t *testing.T) {
 	a := newFileApp(t, projectFiles, "main.go")
 	var mu sync.Mutex

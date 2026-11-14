@@ -300,11 +300,12 @@ func (h extEditorHost) OpenFileView(uri, viewID string, side bool, group int) er
 		return errors.New("ExtEditorsFileOnly", "only a file can be opened in a file view", "uri", uri)
 	}
 	target := s.groupFor(group)
+	made := false
 	if side {
 		if err := s.group.grid.Activate(target); err != nil {
 			h.w.Process.Logger.Error("cannot activate the group", "err", err)
 		}
-		if target = s.sideGroup(); target == nil {
+		if target, made = s.sideGroupMade(); target == nil {
 			target = s.groupFor(group) // the group for the side cannot be made: the file opens where it is asked from
 		}
 	}
@@ -314,6 +315,6 @@ func (h extEditorHost) OpenFileView(uri, viewID string, side bool, group int) er
 		s.show(widgets.WidgetsBindingOf(s.Context()), doc, openOptions{Group: target, FileView: viewID})
 		return nil
 	}
-	s.openPathAt(widgets.WidgetsBindingOf(s.Context()), u.Path, 0, 0, openOptions{Group: target, FileView: viewID})
+	s.openPathAt(widgets.WidgetsBindingOf(s.Context()), u.Path, 0, 0, openOptions{Group: target, FileView: viewID, MadeGroup: made})
 	return nil
 }

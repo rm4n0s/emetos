@@ -152,6 +152,7 @@ func (s *shellState) openPathAtThen(binding *widgets.WidgetsBinding, path string
 			return
 		}
 	}
+	s.beginOpen(opts)
 	s.Go(func(life context.Context) {
 		doc, err := win.Documents.Acquire(life, path, document.NewOptions())
 		binding.Post(func() {
@@ -161,6 +162,7 @@ func (s *shellState) openPathAtThen(binding *widgets.WidgetsBinding, path string
 				}
 				return
 			}
+			s.endOpen(opts, err != nil)
 			if err != nil {
 				if isBinaryError(err) {
 					s.blockFile(path)
@@ -187,6 +189,39 @@ func (s *shellState) openPathAtThen(binding *widgets.WidgetsBinding, path string
 			s.show(binding, doc, opts)
 		})
 	})
+}
+
+// beginOpen counts an open that reads a file for a group that was made for it (openOptions.MadeGroup); endOpen is
+// called once the file is read.
+func (s *shellState) beginOpen(opts openOptions) {
+	if !opts.MadeGroup || opts.Group == nil {
+		return
+	}
+	if s.group.opening == nil {
+		s.group.opening = map[*editorgroup.Group]int{}
+	}
+	s.group.opening[opts.Group]++
+}
+
+// endOpen ends an open that beginOpen counted. When the last open into a group that was made for it has failed and the
+// group is still empty, the group is taken away: Open to the Side of a file that looks binary leaves no empty split.
+func (s *shellState) endOpen(opts openOptions, failed bool) {
+	g := opts.Group
+	if !opts.MadeGroup || g == nil || s.group.opening[g] == 0 {
+		return
+	}
+	s.group.opening[g]--
+	if s.group.opening[g] > 0 {
+		return
+	}
+	delete(s.group.opening, g)
+	grid := s.group.grid
+	if !failed || grid.Group(g.ID()) != g || !g.Empty() || grid.Count() < 2 {
+		return
+	}
+	if _, err := grid.RemoveGroup(g); err != nil {
+		PeekWorkspace(s.Context()).Process.Logger.Warn("cannot take away the group of a file that did not open", "err", err)
+	}
 }
 
 // blockFile tells that a file looks binary: with no editor open the window shows the notice, which has a

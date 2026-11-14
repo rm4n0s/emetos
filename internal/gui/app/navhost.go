@@ -142,10 +142,10 @@ func (s *shellState) navOpen(loc langfeatures.Location, o editor.OpenLocation) {
 		src.view.RevealPositionInCenterIfOutsideViewport(src.view.Cursors().Primary().Position())
 		return
 	}
-	group := s.activeGroup()
+	group, made := s.activeGroup(), false
 	if o.Side {
-		if g := s.sideGroup(); g != nil {
-			group = g
+		if g, m := s.sideGroupMade(); g != nil {
+			group, made = g, m
 		}
 	}
 	place := func(e *textEditor) {
@@ -157,7 +157,7 @@ func (s *shellState) navOpen(loc langfeatures.Location, o editor.OpenLocation) {
 			}
 		})
 	}
-	opts := openOptions{Preview: !o.Pinned, Group: group, Place: place}
+	opts := openOptions{Preview: !o.Pinned, Group: group, Place: place, MadeGroup: made}
 	if doc, ok := win.Documents.Get(loc.URI); ok {
 		win.Documents.Retain(doc)
 		s.show(binding, doc, opts)
@@ -167,8 +167,11 @@ func (s *shellState) navOpen(loc langfeatures.Location, o editor.OpenLocation) {
 	provided := loc.URI.Scheme == document.SchemeVirtual && win.virtual.Has(loc.URI)
 	if loc.URI.Scheme != document.SchemeFile && !provided {
 		win.Notify.Warn("Emetos", "Cannot open "+loc.URI.String())
+		s.beginOpen(opts)
+		s.endOpen(opts, true) // a group made for it goes again
 		return
 	}
+	s.beginOpen(opts)
 	s.Go(func(life context.Context) {
 		var doc *document.Document
 		var err error
@@ -184,6 +187,7 @@ func (s *shellState) navOpen(loc langfeatures.Location, o editor.OpenLocation) {
 				}
 				return
 			}
+			s.endOpen(opts, err != nil)
 			if err != nil {
 				win.Notify.Error("Emetos", "Cannot open "+loc.URI.Path+": "+describe(err))
 				return

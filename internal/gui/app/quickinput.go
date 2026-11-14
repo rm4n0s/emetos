@@ -168,7 +168,7 @@ func (s *shellState) filesOptions(binding *widgets.WidgetsBinding) quickinput.Fi
 			}
 			opts := openOptions{Preview: !req.Pinned}
 			if req.Side {
-				opts.Group = s.sideGroup()
+				opts.Group, opts.MadeGroup = s.sideGroupMade()
 			}
 			s.openPathAt(binding, req.Path, req.Line, req.Column, opts)
 		},

@@ -1188,29 +1188,36 @@ func (s *shellState) openToSide(binding *widgets.WidgetsBinding, args any) {
 	if len(paths) == 0 {
 		return
 	}
-	side := s.sideGroup()
+	side, made := s.sideGroupMade()
 	if side == nil {
 		return
 	}
 	for _, p := range paths {
-		s.openPath(binding, side, p, false)
+		s.openPathAt(binding, p, 0, 0, openOptions{Group: side, MadeGroup: made})
 	}
 }
 
 // sideGroup is the group on the side of the active group (the side workbench.editor.openSideBySideDirection
 // says), made when there is none; nil when it cannot be made.
 func (s *shellState) sideGroup() *editorgroup.Group {
+	side, _ := s.sideGroupMade()
+	return side
+}
+
+// sideGroupMade is sideGroup that also tells whether the group was made for the call: an open that made it takes
+// it away again when the file cannot be opened (openOptions.MadeGroup).
+func (s *shellState) sideGroupMade() (*editorgroup.Group, bool) {
 	dir := s.sideBySideDirection()
 	grid := s.group.grid
-	side := grid.FindByDirection(s.activeGroup(), dir, false)
-	if side == nil {
-		var err error
-		if side, err = grid.AddGroup(s.activeGroup(), dir); err != nil {
-			PeekWorkspace(s.Context()).Process.Logger.Warn("cannot make the group for open to the side", "err", err)
-			return nil
-		}
+	if side := grid.FindByDirection(s.activeGroup(), dir, false); side != nil {
+		return side, false
 	}
-	return side
+	side, err := grid.AddGroup(s.activeGroup(), dir)
+	if err != nil {
+		PeekWorkspace(s.Context()).Process.Logger.Warn("cannot make the group for open to the side", "err", err)
+		return nil, false
+	}
+	return side, true
 }
 
 // revealInOS shows the folder of a file in the file manager of the desktop (an OpenURI portal or xdg-open, on a
