@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/rm4n0s/emetos/extension"
+	"github.com/rm4n0s/emetos/extensions/internal/ffmpeg"
 )
 
 // ID is the id of the extension, and ImageEditorID the id of its image preview.
@@ -42,10 +43,13 @@ func New() extension.Extension { return &Extension{} }
 func (x *Extension) Manifest() extension.Manifest {
 	return extension.Manifest{
 		ID: ID, Name: "Media Preview", Version: "1.0.0",
-		Description: "Previews of images, as VS Code's built-in Media Preview.",
+		Description:  "Previews of images, as VS Code's built-in Media Preview.",
+		Requirements: requirements(),
 		Contributes: extension.Contributes{
 			FileEditors: []extension.FileEditorSpec{{ID: ImageEditorID, Name: "Image Preview", Icon: "file-media", Globs: ImageGlobs,
 				Priority: extension.FileEditorDefault}},
+			Settings: []extension.SettingSpec{{Key: ffmpeg.PathSetting, Type: "string", Default: "", Scope: "machine",
+				Description: "The path of the `ffmpeg` program that plays videos and opens AVIF and HEIC images; `ffprobe` is looked for beside it. When empty, `ffmpeg` is looked for in `PATH`, then in `/opt/homebrew/bin` and `/usr/local/bin`."}},
 			Commands: []extension.CommandSpec{
 				{ID: CommandZoomIn, Title: "Zoom in", Category: "Image Preview", When: whenImagePreview},
 				{ID: CommandZoomOut, Title: "Zoom out", Category: "Image Preview", When: whenImagePreview},
