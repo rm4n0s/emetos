@@ -451,3 +451,43 @@ func TestManifest(t *testing.T) {
 		t.Error("the instances must be two and share one hub")
 	}
 }
+
+// TestThePageSaysTheNameAClientChoosesTheWorkspaceBy: with several workspaces hosted, the page of each says the name the other
+// computer chooses it by, and the page of a workspace that is off says that it can be hosted too.
+func TestThePageSaysTheNameAClientChoosesTheWorkspaceBy(t *testing.T) {
+	p := newPageRig(t, true)
+	s := p.show(t, uitest.Themes()[0], pageSize)
+	s.settle()
+	_, notes := p.workspace("notes")
+	tests := []struct {
+		name string
+		// project and notes are whether each of the two workspaces is hosted
+		project, notes bool
+		// line is what the page of project says under its switch; hosted and chosenBy are what the hub tells of it
+		line     string
+		hosted   int
+		chosenBy string
+	}{
+		{name: "the other one is hosted", notes: true, hosted: 1, line: "Off for this workspace. Another workspace is hosted, so the port is open for that one. Host this one too, and the other computer chooses between them by the names of their folders."},
+		{name: "both are hosted", project: true, notes: true, hosted: 2, chosenBy: "project", line: " and choose this workspace by its name, project."},
+		{name: "only this one is hosted", project: true, hosted: 1, chosenBy: "project", line: "On. Computers with an allowed key can connect to 192.168.1.5:"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := p.hub.SetWorkspace(notes, tt.notes); err != nil {
+				t.Fatal(err)
+			}
+			if err := p.hub.SetWorkspace(p.folder, tt.project); err != nil {
+				t.Fatal(err)
+			}
+			s.until("the line of the page", func() bool { return s.has(tt.line) })
+			snap := p.hub.Snapshot(p.folder)
+			if snap.Hosted != tt.hosted || snap.Name != tt.chosenBy {
+				t.Errorf("the hub says %d hosted and the name %q, want %d and %q", snap.Hosted, snap.Name, tt.hosted, tt.chosenBy)
+			}
+			if tt.hosted == 1 && tt.project && s.has("choose this workspace by its name") {
+				t.Error("the page names the workspace though it is the only one hosted")
+			}
+		})
+	}
+}

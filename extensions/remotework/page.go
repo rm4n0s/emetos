@@ -379,12 +379,15 @@ func (p *page) hostLine(snap Snapshot) (string, bool) {
 	switch {
 	case snap.On && snap.ListenErr != "":
 		return "On, but it cannot listen: " + snap.ListenErr, true
+	case snap.On && snap.Listening && snap.Hosted > 1 && snap.Name != "":
+		// several workspaces are hosted: the other computer is asked which one, by these names
+		return "On. Computers with an allowed key can connect to " + p.firstAddress(snap) + " and choose this workspace by its name, " + snap.Name + ".", false
 	case snap.On && snap.Listening:
 		return "On. Computers with an allowed key can connect to " + p.firstAddress(snap) + ".", false
 	case snap.On:
 		return "On. Starting to listen.", false
 	case snap.Listening:
-		return "Off for this workspace. Another workspace is hosted, so the port is open for that one.", false
+		return "Off for this workspace. Another workspace is hosted, so the port is open for that one. Host this one too, and the other computer chooses between them by the names of their folders.", false
 	}
 	return "Off. No other computer can connect.", false
 }

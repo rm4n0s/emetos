@@ -62,7 +62,7 @@ func TestTheConnectDialogTakesTheHostThePortAndTheKeyFileAndConnects(t *testing.
 	st := r.connectState()
 	r.open(uitest.Themes()[0], tabState{Port: DefaultPort, Key: keyFile})
 	r.settle()
-	if !r.has("Remote Work") || !r.has("Host") || !r.has("Port") || !r.has("Private key file") {
+	if !r.has("Remote Work") || !r.has("Host") || !r.has("Port") || !r.has("Workspace") || !r.has("Private key file") {
 		t.Fatal("the dialog lacks its fields")
 	}
 	// Connect with nothing typed says what is missing
@@ -74,7 +74,7 @@ func TestTheConnectDialogTakesTheHostThePortAndTheKeyFileAndConnects(t *testing.
 	// a key file that is not there is told by the login
 	r.ts.EnterText(gluttertest.At(gluttertest.ByType[*ui.InputBox](), 0), st.Host)
 	r.ts.EnterText(gluttertest.At(gluttertest.ByType[*ui.InputBox](), 1), strconv.Itoa(st.Port))
-	r.ts.EnterText(gluttertest.At(gluttertest.ByType[*ui.InputBox](), 2), filepath.Join(t.TempDir(), "missing"))
+	r.ts.EnterText(gluttertest.At(gluttertest.ByType[*ui.InputBox](), 3), filepath.Join(t.TempDir(), "missing")) // 2 is the Workspace box
 	r.ts.Tap(gluttertest.ByText("Connect"))
 	r.until("the failure", func() bool { return r.tr.phase == phaseEnded })
 	if r.tr.ended.title != "The key file cannot be used" {
@@ -83,11 +83,19 @@ func TestTheConnectDialogTakesTheHostThePortAndTheKeyFileAndConnects(t *testing.
 	// back to the form with what was typed, and the real file
 	r.ts.Tap(gluttertest.ByText("Edit Connection"))
 	r.settle()
-	r.ts.EnterText(gluttertest.At(gluttertest.ByType[*ui.InputBox](), 2), r.file)
+	r.ts.EnterText(gluttertest.At(gluttertest.ByType[*ui.InputBox](), 3), r.file)
 	r.ts.Tap(gluttertest.ByText("Connect"))
 	r.until("the connection", func() bool { return r.tr.phase == phaseConnected })
 	if got := r.wt.Title(); got != "127.0.0.1: project" {
 		t.Errorf("the title = %q", got)
+	}
+	// the Workspace box, left empty, now names the workspace the host opened, and the tab keeps it
+	if got := r.tr.form.workspace.Value(); got != "project" {
+		t.Errorf("the Workspace box holds %q", got)
+	}
+	var kept tabState
+	if err := json.Unmarshal(r.wt.State(), &kept); err != nil || kept.Workspace != "project" {
+		t.Errorf("the state = %s (%v)", r.wt.State(), err)
 	}
 	if r.wt.Changes == 0 {
 		t.Error("the window was not told that the state of the tab changed")

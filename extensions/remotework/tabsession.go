@@ -51,7 +51,6 @@ func (t *remoteTab) connect() {
 		t.failForm(err)
 		return
 	}
-	p.Workspace = t.workspac
 	t.stateChanged()
 	t.begin(p)
 }
@@ -354,7 +353,9 @@ func (t *remoteTab) serve(ctx context.Context, gen int, conn *transport.ClientCo
 func (t *remoteTab) connected(live *liveSession) {
 	t.live = live
 	t.phase, t.attempt, t.retryIn = phaseConnected, 0, 0
-	t.workspac = live.workspace
+	// the box of the form names the workspace in use: the next connection of the tab goes to it without asking, and the user
+	// who wants another one changes or empties the box (Edit Connection)
+	t.form.workspace.SetValue(live.workspace)
 	address := t.form.address()
 	t.tab.SetTitle(t.form.state().Host + ": " + live.workspace)
 	t.tab.SetHint("Remote Work: " + live.workspace + " on " + address)

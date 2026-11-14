@@ -78,7 +78,6 @@ type remoteTab struct {
 	size     tabSize
 	scroll   ui.ScrollHandle
 	binding  *widgets.WidgetsBinding
-	workspac string
 	disposed bool
 	// failure is the error that ended the last attempt, for the log and the tests.
 	failure error
@@ -118,7 +117,7 @@ func (r *remoteWork) createTab(tab extension.WindowTab, raw json.RawMessage) (ex
 		return extension.WindowTabContent{}, err
 	}
 	t := &remoteTab{hub: r.hub, api: r.api, tab: tab, opts: r.hub.opts.Tab, log: r.api.Log(), ctx: r.ctx, phase: phaseForm,
-		picture: foundation.NewValueNotifier[*gui.Image](nil), workspac: st.Workspace}
+		picture: foundation.NewValueNotifier[*gui.Image](nil)}
 	t.prompter = loginui.NewPrompter(r.api.Post, tab.Refresh)
 	t.form = newTabForm(t, st)
 	t.in = newInputSurface(t)
@@ -132,12 +131,9 @@ func (r *remoteWork) createTab(tab extension.WindowTab, raw json.RawMessage) (ex
 	return extension.WindowTabContent{Build: t.build, SaveState: t.saveState, OnClose: t.close}, nil
 }
 
-// saveState is the state kept across restarts: the form as it is, and the workspace used last.
-func (t *remoteTab) saveState() (any, error) {
-	st := t.form.state()
-	st.Workspace = t.workspac
-	return st, nil
-}
+// saveState is the state kept across restarts: the form as it is, the workspace it names included (the one used last, unless
+// the user changed the box).
+func (t *remoteTab) saveState() (any, error) { return t.form.state(), nil }
 
 // stateChanged tells the window the state to save changed.
 func (t *remoteTab) stateChanged() { t.tab.StateChanged() }

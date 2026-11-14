@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -503,3 +504,48 @@ func newRWKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
 }
 
 func pemEncode(b *pem.Block) []byte { return pem.EncodeToMemory(b) }
+
+// TestBUsesTwoWorkspacesOfAInTwoTabs: A hosts two workspaces, and B has a tab for each, chosen by the name of the folder.
+func TestBUsesTwoWorkspacesOfAInTwoTabs(t *testing.T) {
+	p := newRWPair(t)
+	second := p.a.env.folder("second", "other.go")
+	wsSecond, err := p.a.m.Open(WorkspaceSpec{Folder: second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.a.settle()
+	if err := p.hubA.SetWorkspace(second, true); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		p.hubA.Close()
+		for deadline := time.Now().Add(10 * time.Second); len(wsSecond.views) > 0 && time.Now().Before(deadline); {
+			p.a.settle()
+		}
+	})
+	names := func() []string { return p.b.tabNames() }
+	// the first tab: the host asks which workspace
+	p.openTab()
+	p.b.ts.Tap(gluttertest.ByText("Connect"))
+	p.both("the first-use question", func() bool { return p.b.text("Trust") })
+	p.b.ts.Tap(gluttertest.ByText("Trust"))
+	p.both("the question which workspace", func() bool { return p.b.text("Which workspace?") })
+	p.b.ts.Tap(gluttertest.ByText("second"))
+	p.both("the tab of second", func() bool { return slices.Contains(names(), "127.0.0.1: second") && p.picture() != nil })
+	// the second tab: the other workspace
+	p.openTab()
+	p.b.ts.Tap(gluttertest.ByText("Connect"))
+	p.both("the question which workspace, again", func() bool { return p.b.text("Which workspace?") })
+	p.b.ts.Tap(gluttertest.ByText("project"))
+	p.both("the tab of project", func() bool { return slices.Contains(names(), "127.0.0.1: project") && p.picture() != nil })
+	p.settle()
+	if got := names(); !slices.Contains(got, "127.0.0.1: second") || !slices.Contains(got, "127.0.0.1: project") {
+		t.Fatalf("the strip of B = %q", got)
+	}
+	if len(p.wsA.views) != 1 || len(wsSecond.views) != 1 {
+		t.Fatalf("views of A: project %d, second %d", len(p.wsA.views), len(wsSecond.views))
+	}
+	if n := len(p.hubA.Sessions()); n != 2 {
+		t.Fatalf("A has %d sessions", n)
+	}
+}

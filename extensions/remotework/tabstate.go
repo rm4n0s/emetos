@@ -36,7 +36,8 @@ type tabState struct {
 	Key         string `json:"key"`
 	KeyFile     string `json:"keyFile,omitempty"`
 	Fingerprint string `json:"fingerprint,omitempty"`
-	// Workspace is the workspace of the host that was used last, so that a host with several asks only once.
+	// Workspace is the workspace of the host to use, by the name of its folder: what the Workspace box of the form holds,
+	// which a connection fills with the workspace it got, so that a host with several asks only once. Empty asks the host.
 	Workspace string `json:"workspace,omitempty"`
 }
 

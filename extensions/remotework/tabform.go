@@ -18,18 +18,22 @@ import (
 	"github.com/rm4n0s/emetos/extensions/internal/pageui"
 )
 
-// tabForm is the connect dialog: the host, the port, and the key (a file, or one of the keys of the ssh-agent). Its boxes keep
-// what the user typed when the tab is shown again, and the state of the tab is what they hold.
+// tabForm is the connect dialog: the host, the port, the workspace and the key (a file, or one of the keys of the ssh-agent). Its
+// boxes keep what the user typed when the tab is shown again, and the state of the tab is what they hold.
 type tabForm struct {
 	t *remoteTab
 
 	host, port *ui.InputBoxController
+	// workspace names the workspace of the host to use, by the name of its folder; empty asks the host, which answers with
+	// the only one it hosts or with the names to choose from. A connection puts the name it got here.
+	workspace *ui.InputBoxController
 	// keys is the choice of the key (extensions/internal/keyform).
 	keys *keyform.Form
 }
 
 func newTabForm(t *remoteTab, st tabState) *tabForm {
-	f := &tabForm{t: t, host: ui.NewInputBoxController(st.Host), port: ui.NewInputBoxController(strconv.Itoa(st.Port))}
+	f := &tabForm{t: t, host: ui.NewInputBoxController(st.Host), port: ui.NewInputBoxController(strconv.Itoa(st.Port)),
+		workspace: ui.NewInputBoxController(st.Workspace)}
 	f.keys = keyform.New(keyform.Env{
 		Spawn: t.spawn, Post: t.api.Post, Refresh: func() { t.tab.Refresh() }, AgentSocket: t.opts.agentSocket, Changed: t.stateChanged,
 	}, st.Key, st.KeyFile, st.Fingerprint)
@@ -41,6 +45,7 @@ func (f *tabForm) dispose() {
 	f.keys.Dispose()
 	f.host.Dispose()
 	f.port.Dispose()
+	f.workspace.Dispose()
 }
 
 // state is the form as the user filled it.
@@ -49,7 +54,8 @@ func (f *tabForm) state() tabState {
 	if err != nil {
 		port = 0 // checked when the user presses Connect; a state with a port of 0 comes back as the default
 	}
-	return tabState{Host: strings.TrimSpace(f.host.Value()), Port: port, Key: f.keys.Source, KeyFile: f.keys.Path(), Fingerprint: f.keys.Fingerprint}
+	return tabState{Host: strings.TrimSpace(f.host.Value()), Port: port, Key: f.keys.Source, KeyFile: f.keys.Path(), Fingerprint: f.keys.Fingerprint,
+		Workspace: strings.TrimSpace(f.workspace.Value())}
 }
 
 // address is host:port as typed, for the messages.
@@ -65,6 +71,7 @@ func (f *tabForm) address() string {
 func (f *tabForm) set(st tabState) {
 	f.host.SetValue(st.Host)
 	f.port.SetValue(strconv.Itoa(st.Port))
+	f.workspace.SetValue(st.Workspace)
 	f.keys.Set(st.Key, st.KeyFile, st.Fingerprint)
 }
 
@@ -91,6 +98,10 @@ func (t *remoteTab) formView(bc widgets.BuildContext, colors ui.Colors) widgets.
 			widgets.NewExpanded(field("Host", f.host, 1000, "laptop.local or 192.168.1.20")), hgap(12),
 			field("Port", f.port, 110, strconv.Itoa(DefaultPort)),
 		}, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStart}),
+		gap(12),
+		field("Workspace", f.workspace, 1000, "the name of its folder; empty to be asked"),
+		gap(6),
+		widgets.NewText("A computer can host several workspaces. Name the one to use by the name of its folder, or leave this empty: the host then opens the only one it hosts, or lists their names to choose from.", widgets.TextOpts{Style: dim}),
 		gap(16),
 	}
 	items = append(items, f.keys.Rows(bc, colors, keyform.RowOptions{Disabled: connecting, Submit: submit, Choose: t.chooseKeyFile})...)

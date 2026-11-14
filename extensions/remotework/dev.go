@@ -156,7 +156,6 @@ func (r *remoteWork) devConnect(_ context.Context, args any) error {
 	}
 	t := r.tabs[len(r.tabs)-1]
 	t.form.set(st)
-	t.workspac = st.Workspace
 	t.connect()
 	return nil
 }

@@ -39,6 +39,10 @@ type Snapshot struct {
 	HostFingerprint string
 	// Sessions are the live sessions of the workspace.
 	Sessions []SessionInfo
+	// Name is the name a client chooses the workspace by (the name of its folder, or the whole folder when two hosted
+	// workspaces share the name); empty while it is not hosted. Hosted is the number of workspaces that are hosted.
+	Name   string
+	Hosted int
 }
 
 // Snapshot reads the state for the workspace with the folder. It makes nothing: the host key is made by EnsureHostKey.
@@ -57,6 +61,13 @@ func (h *Hub) Snapshot(folder string) Snapshot {
 		snap.LoadErr = h.loadErr.Error()
 	}
 	signer, dir := h.hostKey, h.dir
+	on := h.onWorkspaces()
+	snap.Hosted = len(on)
+	for w, name := range displayNames(on) {
+		if w.folder == folder {
+			snap.Name = name
+		}
+	}
 	for s := range h.sessions {
 		if s.folder == folder {
 			snap.Sessions = append(snap.Sessions, SessionInfo{Key: s.Key.Name(), Fingerprint: s.Key.Fingerprint(), Remote: s.Remote, Started: s.Started, session: s})

@@ -322,7 +322,12 @@ func TestAHostWithSeveralWorkspacesAsksWhichOne(t *testing.T) {
 	// and cancelling the choice ends the attempt
 	r.tr.stopSession()
 	r.tr.gen++
-	r.tr.phase, r.tr.workspac = phaseForm, ""
+	// the box of the form names the workspace now; emptied, the host asks again
+	if got := r.tr.form.workspace.Value(); got != "second" {
+		t.Errorf("the Workspace box holds %q", got)
+	}
+	r.tr.phase = phaseForm
+	r.tr.form.workspace.SetValue("")
 	r.until("the end", func() bool { return len(r.hub.Sessions()) == 0 })
 	r.tr.connect()
 	r.until("the question", func() bool { return r.tr.phase == phasePicker })
