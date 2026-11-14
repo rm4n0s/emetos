@@ -681,3 +681,20 @@ scripts/heavy.sh --alone -- go test -tags 'emetos_perf glutter_release' ./extens
 - **The runner's frames are within the 16 ms budget (13 frames, the longest 11.1 ms; they were 9 frames of 23 to 28 ms).** The cost was not the results: each one refreshed the tab, and the left column built and laid out a row for each of the 500 requests every time (about 26 ms a frame whether one result or 55 came in). That list is now built lazily, only the rows in view (decision 1911); the default-run test `TestFiveHundredStreamedResultsStayInTheFrameBudget` keeps it so.
 - **A 50 MiB body is not a freeze, and it is not formatted:** the user gets the Raw pages at once, a page turn costs 2.4 ms. Formatting stops at 2 MiB on purpose (a JSON of 2 MiB is 255,332 lines of Pretty text, made off the UI thread in 237 ms in all). The body is held once (decision 1910): after a collection the heap is 0.96 bodies above its start (it was about 2: the engine's buffer doubled); the 211 MiB right after the response (320 MiB before) still has the garbage of the read and of the test server, which the next collection takes.
 - **Not measured:** the whole window with its shell (the side bar's container, the tab strip): these are the extension's views and tabs in a test window; and the real GPU (`docs/MANUAL-CHECKS.md` 27.9).
+
+## Remote Work: a frame of a view (after v1.6.1)
+
+The view of a client is drawn on the host by Glutter's software renderer and sent as tiles (SPEC §10.18 "Speed"). Measured on the machine above with `go test ./internal/gui/app -run '^$' -bench BenchmarkHeadlessFrame` (`EMETOS_BENCH_VIEW=1920x1080` sets the size of the view; a release build, Glutter v1.17.2), from the input to the picture; and `go test ./extensions/remotework/tiles -bench .` for the tiles.
+
+| Measurement | Before | After |
+|---|---|---|
+| A frame at 1280x800 / 1920x1080 / 2560x1440, whatever changed | 42 ms / 83 ms / 152 ms | see the rows below |
+| Share of the picture a frame redraws (1280x800): the pointer over the Explorer / a typed character | 100% / 100% | 4% / 75% |
+| The pointer moving over the Explorer, 1920x1080 | 80 ms | 5 ms |
+| A typed character, 1920x1080 | 83 ms | 81 ms (42 ms with the clip fast path in a copy of Glutter) |
+| A scroll of the editor, 1920x1080 | 83 ms | 80 ms (42 ms with the same) |
+| Tiles of a scroll at 1280x800 (every tile changes), deflated | 25.7 ms | 2.9 ms |
+| Tiles of a whole picture at 1280x800 | 31 ms | 3.3 ms |
+| Memory a frame allocates at 1920x1080 | 158 MB, 150 MB of it the renderer's clip masks | the same (Glutter's) |
+
+**What the figures say.** Before, every frame redrew the whole picture, so a hover cost what a scroll did. The parts of the workbench now paint into layers of their own and the tiles are deflated by up to eight compressors: what moves only one part (the pointer over a list, a tree, the status bar) is 16 times cheaper, and the tiles no longer count. A typed character and a scroll still cost about 80 ms at 1920x1080 (12 frames a second), and that is Glutter's software renderer: `docs/GLUTTER-ISSUES.md` 1 (a mask for every rectangular clip, half the time) and 2 (a change redraws the layer, not the row). **Not measured:** the network between two computers, and the client's side (inflating and drawing the tiles).

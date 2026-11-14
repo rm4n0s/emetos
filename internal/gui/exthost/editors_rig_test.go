@@ -15,6 +15,8 @@ type fakeEditors struct {
 	groups   map[*editorgroup.ExtensionTabInput]int
 	closed   []*editorgroup.ExtensionTabInput
 	revealed []*editorgroup.ExtensionTabInput
+	// origins are the screens OpenTab and RevealTab were asked for, in the order of the calls.
+	origins  []extension.Origin
 	fileOpen []fileOpen
 	// reopened are the keys of the file editor tabs reopened as text.
 	reopened []any
@@ -66,10 +68,11 @@ type fileOpen struct {
 	group     int
 }
 
-func (f *fakeEditors) OpenTab(in *editorgroup.ExtensionTabInput, group int, _ bool) error {
+func (f *fakeEditors) OpenTab(in *editorgroup.ExtensionTabInput, group int, _ bool, origin extension.Origin) error {
 	if f.failOpen != nil {
 		return f.failOpen
 	}
+	f.origins = append(f.origins, origin)
 	if f.groups == nil {
 		f.groups = map[*editorgroup.ExtensionTabInput]int{}
 	}
@@ -83,7 +86,7 @@ func (f *fakeEditors) OpenTab(in *editorgroup.ExtensionTabInput, group int, _ bo
 
 func (f *fakeEditors) OpenTabAt(in *editorgroup.ExtensionTabInput, group, index int) error {
 	f.indexes = append(f.indexes, index)
-	return f.OpenTab(in, group, false)
+	return f.OpenTab(in, group, false, extension.HostOrigin)
 }
 
 // fakeDrag is a drag the window shows: it records the pointer, and a drop opens a tab in the group and at the index the test
@@ -120,11 +123,14 @@ func (f *fakeEditors) BeginDrag(label string) (DragSession, error) {
 
 func (f *fakeEditors) CloseTab(in *editorgroup.ExtensionTabInput) { f.closed = append(f.closed, in) }
 
-func (f *fakeEditors) RevealTab(in *editorgroup.ExtensionTabInput, _ bool) {
+func (f *fakeEditors) RevealTab(in *editorgroup.ExtensionTabInput, _ bool, origin extension.Origin) {
 	f.revealed = append(f.revealed, in)
+	f.origins = append(f.origins, origin)
 }
 
-func (f *fakeEditors) GroupOf(in *editorgroup.ExtensionTabInput) int { return f.groups[in] }
+func (f *fakeEditors) GroupOf(in *editorgroup.ExtensionTabInput, _ extension.Origin) int {
+	return f.groups[in]
+}
 
 // ReopenFileEditorAsText records the key.
 func (f *fakeEditors) ReopenFileEditorAsText(key any) { f.reopened = append(f.reopened, key) }

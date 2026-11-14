@@ -2,6 +2,7 @@ package editorgroup
 
 import (
 	"encoding/json"
+	"slices"
 
 	"github.com/rm4n0s/errors"
 
@@ -27,6 +28,10 @@ type ExtensionTabInput struct {
 	// saver is set by a tab that can save its changes (extension.EditorTabContent.Save): closing it while it is dirty asks.
 	saver  func(done func(saved bool))
 	copier func() *ExtensionTabInput
+	// mirrors are the inputs of the same tab on the other screens of the workspace (Mirror), and mirrorOf, in a mirror, the
+	// input they were made from.
+	mirrors  []*ExtensionTabInput
+	mirrorOf *ExtensionTabInput
 }
 
 // NewExtensionTabInput makes the input of the tab with the instance id of a kind of an extension. icon is the name of a
@@ -78,11 +83,54 @@ func (e *ExtensionTabInput) IconColor() string { return e.iconColor }
 // Busy tells whether the extension marked the tab as busy.
 func (e *ExtensionTabInput) Busy() bool { return e.busy }
 
+// Mirror makes the input of the same tab for another screen of the workspace: the view of a client of a hosted workspace
+// shows the tabs of the kinds that are shared between screens (SPEC §10.18 "Tabs of extensions in the view"), each with an
+// input of its own in the groups of that view. A mirror has the id of the tab, so the host knows it for the same one
+// (Matches), and follows the title, the hint, the icon and the marks the extension sets on this input for as long as it
+// is not disposed. It is not saved with the window and cannot be split: the tab is the host's.
+func (e *ExtensionTabInput) Mirror() *ExtensionTabInput {
+	src := e.source()
+	m := &ExtensionTabInput{
+		ext: src.ext, kind: src.kind, id: src.id, title: src.title, hint: src.hint, icon: src.icon, iconColor: src.iconColor,
+		dirty: src.dirty, busy: src.busy, mirrorOf: src,
+	}
+	src.mirrors = append(src.mirrors, m)
+	return m
+}
+
+// IsMirror tells whether the input is the mirror of a tab on another screen (Mirror).
+func (e *ExtensionTabInput) IsMirror() bool { return e.mirrorOf != nil }
+
+// source is the input the extension sets the title and the marks on: the input itself, or the one a mirror was made from.
+func (e *ExtensionTabInput) source() *ExtensionTabInput {
+	if e.mirrorOf != nil {
+		return e.mirrorOf
+	}
+	return e
+}
+
+// Dispose implements EditorInput: a mirror stops following the input it was made from, and an input lets go of its mirrors
+// (they keep what they show).
+func (e *ExtensionTabInput) Dispose() {
+	if src := e.mirrorOf; src != nil {
+		src.mirrors = slices.DeleteFunc(src.mirrors, func(m *ExtensionTabInput) bool { return m == e })
+		e.mirrorOf = nil
+	}
+	for _, m := range e.mirrors {
+		m.mirrorOf = nil
+	}
+	e.mirrors = nil
+	e.BaseInput.Dispose()
+}
+
 // SetTitle sets the name of the tab.
 func (e *ExtensionTabInput) SetTitle(title string) {
 	if e.title != title {
 		e.title = title
 		e.Emit(InputLabel)
+	}
+	for _, m := range e.mirrors {
+		m.SetTitle(title)
 	}
 }
 
@@ -92,6 +140,9 @@ func (e *ExtensionTabInput) SetHint(hint string) {
 		e.hint = hint
 		e.Emit(InputLabel)
 	}
+	for _, m := range e.mirrors {
+		m.SetHint(hint)
+	}
 }
 
 // SetDirty sets the dirty mark.
@@ -99,6 +150,9 @@ func (e *ExtensionTabInput) SetDirty(dirty bool) {
 	if e.dirty != dirty {
 		e.dirty = dirty
 		e.Emit(InputDirty)
+	}
+	for _, m := range e.mirrors {
+		m.SetDirty(dirty)
 	}
 }
 
@@ -108,6 +162,9 @@ func (e *ExtensionTabInput) SetIcon(icon, color string) {
 		e.icon, e.iconColor = icon, color
 		e.Emit(InputLabel)
 	}
+	for _, m := range e.mirrors {
+		m.SetIcon(icon, color)
+	}
 }
 
 // SetBusy sets the busy mark.
@@ -115,6 +172,9 @@ func (e *ExtensionTabInput) SetBusy(busy bool) {
 	if e.busy != busy {
 		e.busy = busy
 		e.Emit(InputLabel)
+	}
+	for _, m := range e.mirrors {
+		m.SetBusy(busy)
 	}
 }
 
@@ -157,11 +217,20 @@ func (e *ExtensionTabInput) Matches(other EditorInput) bool {
 // about like a document.
 func (e *ExtensionTabInput) CloseUnasked() bool { return e.saver == nil }
 
-// Capabilities implements EditorInput: the tab can be split.
-func (e *ExtensionTabInput) Capabilities() Capabilities { return CapCanSplit }
+// Capabilities implements EditorInput: the tab can be split; its mirror on another screen cannot (the copy would be a tab of
+// that screen alone).
+func (e *ExtensionTabInput) Capabilities() Capabilities {
+	if e.mirrorOf != nil {
+		return 0
+	}
+	return CapCanSplit
+}
 
-// Serialize implements EditorInput.
+// Serialize implements EditorInput. A mirror is not saved: the tab is saved with the window of the host.
 func (e *ExtensionTabInput) Serialize() (string, bool) {
+	if e.mirrorOf != nil {
+		return "", false
+	}
 	data, err := json.Marshal(extensionTabValue{Ext: e.ext, Kind: e.kind, ID: e.id, Title: e.title, Icon: e.icon, Color: e.iconColor})
 	if err != nil {
 		return "", false

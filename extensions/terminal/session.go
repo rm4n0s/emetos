@@ -289,7 +289,7 @@ func (t *Terminal) Pid() int {
 
 // AddOnFrame adds a function that is told, from any goroutine, that the screen changed, and returns the function that takes it away. The
 // function must not block. It is told once, and again only after TakeChanged; a function added while a change waits is told at once. Each pane
-// that shows the terminal has one.
+// that shows the terminal has one, and each calls TakeChanged when it takes the screen, so the panes of the other screens are told again too.
 func (t *Terminal) AddOnFrame(f func()) (remove func()) {
 	p := &f
 	t.frameMu.Lock()

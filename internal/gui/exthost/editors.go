@@ -30,8 +30,10 @@ import (
 // EditorHost is what the window offers the extensions to show tabs and file views.
 type EditorHost interface {
 	// OpenTab shows the input in the group with the id (the active group when 0 or gone), making it the active tab
-	// unless inactive.
-	OpenTab(in *editorgroup.ExtensionTabInput, group int, inactive bool) error
+	// unless inactive. origin is the screen the extension was asked from (Origins().Current): a tab of a kind that is shared
+	// between screens (Scope.SharedTab) opens there, in a group of that screen, and on the other screens without taking
+	// their focus; a tab of any other kind opens in the window of the host.
+	OpenTab(in *editorgroup.ExtensionTabInput, group int, inactive bool, origin extension.Origin) error
 	// OpenTabAt shows the input in the group with the id at an index of its tab strip (the end when index is negative),
 	// making it the active tab and the group the active group.
 	OpenTabAt(in *editorgroup.ExtensionTabInput, group, index int) error
@@ -41,10 +43,11 @@ type EditorHost interface {
 	// CloseTab closes the tab without asking.
 	CloseTab(in *editorgroup.ExtensionTabInput)
 	// RevealTab makes the tab the active tab of its group, and the group the active group; with focus the keyboard focus
-	// goes into it.
-	RevealTab(in *editorgroup.ExtensionTabInput, focus bool)
-	// GroupOf is the id of the group that shows the tab, 0 for none.
-	GroupOf(in *editorgroup.ExtensionTabInput) int
+	// goes into it. It acts on the screen of the origin when the tab is shown there, else on the window of the host.
+	RevealTab(in *editorgroup.ExtensionTabInput, focus bool, origin extension.Origin)
+	// GroupOf is the id of the group that shows the tab on the screen of the origin (the window of the host when the screen
+	// does not show it), 0 for none.
+	GroupOf(in *editorgroup.ExtensionTabInput, origin extension.Origin) int
 	// OpenFileView shows the document with the URI in the file view, in the active group or the group on its side.
 	OpenFileView(uri, viewID string, side bool, group int) error
 	// FileEditorGroup is the id of the group that shows the file editor tab of the key (FileEditorRequest.Key), 0 for none.
@@ -319,6 +322,15 @@ func (s *Scope) DeclaresEditorKind(extensionID, kindID string) bool {
 	return false
 }
 
+// SharedTab tells whether the tab of an input is of a kind that is shared between the screens of the workspace
+// (extension.EditorKindSpec.Shared): the window shows such a tab in the views of its clients too.
+func (s *Scope) SharedTab(in *editorgroup.ExtensionTabInput) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kd := s.kindDecls[in.Kind()]
+	return kd != nil && kd.spec.Shared && kd.slot != nil && kd.slot.info.Manifest.ID == in.Extension()
+}
+
 // RegisterTab makes the scope know the tab of an input (the window calls it when it makes the editor of a restored or a
 // copied tab, before the tab is on screen), so that the extension can be told of it when it is activated.
 func (s *Scope) RegisterTab(in *editorgroup.ExtensionTabInput) { s.ensureContent(s.registerTab(in)) }
@@ -531,17 +543,18 @@ func (t *editorTab) Refresh() {
 	}
 }
 
-// Reveal implements extension.EditorTab.
+// Reveal implements extension.EditorTab: on the screen the extension was asked from.
 func (t *editorTab) Reveal(focus bool) {
 	if h := t.scope.opts.Editors; h != nil && t.live() {
-		t.scope.post(func() { h.RevealTab(t.input, focus) })
+		origin := t.scope.currentOrigin()
+		t.scope.post(func() { h.RevealTab(t.input, focus, origin) })
 	}
 }
 
-// Group implements extension.EditorTab.
+// Group implements extension.EditorTab: the group on the screen the extension was asked from.
 func (t *editorTab) Group() int {
 	if h := t.scope.opts.Editors; h != nil {
-		return h.GroupOf(t.input)
+		return h.GroupOf(t.input, t.scope.currentOrigin())
 	}
 	return 0
 }
@@ -685,7 +698,7 @@ func (e editorsAPI) Open(kindID string, state any, opts extension.EditorOpenOpti
 		s.dropTab(t)
 		return nil, err
 	}
-	if err := host.OpenTab(input, opts.Group, opts.Inactive); err != nil {
+	if err := host.OpenTab(input, opts.Group, opts.Inactive, s.currentOrigin()); err != nil {
 		s.dropTab(t)
 		return nil, err
 	}

@@ -27,9 +27,11 @@ const (
 	locEditor = "editor"
 )
 
-// editorKind is the declaration of the kind in the manifest.
+// editorKind is the declaration of the kind in the manifest. The kind is shared between the screens of a hosted workspace
+// (SPEC §10.25 "Clients of a shared workspace"): a terminal of the editor area is in the view of a Remote Work client too,
+// with a pane of that screen over the one process (pvFor), as a terminal of the panel is.
 func editorKind() extension.EditorKindSpec {
-	return extension.EditorKindSpec{ID: EditorKindID, Name: "Terminal", Icon: "terminal"}
+	return extension.EditorKindSpec{ID: EditorKindID, Name: "Terminal", Icon: "terminal", Shared: true}
 }
 
 // tabBinding joins a terminal to its tab. The callbacks of the tab (closing it, saving its state) go through it, so that a
@@ -90,7 +92,8 @@ func (t *terminals) createTab(tab extension.EditorTab, raw json.RawMessage) (ext
 			if bg.Alpha() == 0 {
 				bg = colors.EditorBackground
 			}
-			return widgets.NewColoredBox(bg, paneWidget(e.pv))
+			// the tab is built once for each screen that shows it: each has a pane of its own
+			return widgets.NewColoredBox(bg, paneWidget(t.pvFor(e, ui.OriginOf(bc))))
 		},
 		SaveState: func() (any, error) {
 			if b.detached || !t.persisting() {
@@ -150,6 +153,11 @@ func (t *terminals) unlinkEditor(e *entry) {
 	if t.lastEditor == e {
 		t.lastEditor = nil
 	}
+	for _, sc := range t.screens {
+		if sc.lastEditor == e {
+			sc.lastEditor = nil
+		}
+	}
 	if t.paneFocus == e {
 		t.paneFocus = nil
 	}
@@ -194,20 +202,21 @@ func (t *terminals) dropEditor(e *entry, closeTab bool) {
 }
 
 // focusEditor gives the keyboard to a terminal of an editor tab, showing the tab first when reveal is set or the tab is behind
-// another.
+// another. It acts on the screen the command was run on: the tab of that screen and its pane (pvOf).
 func (t *terminals) focusEditor(e *entry, reveal bool) {
-	t.lastEditor = e
-	t.wantFocus = e.pv
-	if reveal || e.pv.render == nil {
+	t.setLastEditor(e)
+	pv := t.pvOf(e)
+	t.wantFocus = pv
+	if reveal || pv.render == nil {
 		e.tab.Reveal(true)
 	}
-	if e.pv.render != nil {
+	if pv.render != nil {
 		t.wantFocus = nil
-		e.pv.requestFocus()
+		pv.requestFocus()
 	}
 	t.api.Post(func() {
-		if e.pv.render != nil && t.alive(e) {
-			e.pv.requestFocus()
+		if pv.render != nil && t.alive(e) {
+			pv.requestFocus()
 		}
 	})
 	t.syncKeys()

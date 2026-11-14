@@ -520,7 +520,7 @@ func (t *terminals) focusEntry(e *entry, reveal bool) {
 	}
 	changed := t.cur != gi || g.active != ei
 	t.cur, g.active = gi, ei
-	t.lastEditor = nil
+	t.setLastEditor(nil)
 	if reveal {
 		t.handle.Reveal(true)
 	}

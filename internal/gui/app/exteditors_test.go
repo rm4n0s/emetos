@@ -529,13 +529,13 @@ func TestTheWindowRefusesWhatItCannotShow(t *testing.T) {
 	win := newTestWorkspace(t, "")
 	host := extEditorHost{w: win}
 	in := editorgroup.NewExtensionTabInput("ex", "ex.card", "t1", "Card", "")
-	appRoute(t, host.OpenTab(in, 0, false), "extEditorHost.OpenTab->extEditorHost.open->extEditorHost.shellOrErr.ExtEditorsUnavailable")
+	appRoute(t, host.OpenTab(in, 0, false, extension.HostOrigin), "extEditorHost.OpenTab->extEditorHost.shellOrErr.ExtEditorsUnavailable")
 	appRoute(t, win.openURI(context.Background(), "https://example.com"), "Workspace.openURI.ExtOpenURIUnavailable")
-	if host.GroupOf(in) != 0 {
+	if host.GroupOf(in, extension.HostOrigin) != 0 {
 		t.Error("a window that is not on screen holds a tab")
 	}
 	host.CloseTab(in)
-	host.RevealTab(in, true)
+	host.RevealTab(in, true, extension.HostOrigin)
 }
 
 func TestOpeningAFileViewNeedsAFile(t *testing.T) {

@@ -497,6 +497,7 @@ func (s *shellState) initView(binding *widgets.WidgetsBinding) {
 	s.initQuickInput(binding)
 	s.initStatus(binding)
 	s.initSave(binding)
+	s.mirrorHostTabs()
 }
 
 // disposeView is the Dispose of the shell of a headless view.

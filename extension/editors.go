@@ -18,6 +18,13 @@ type EditorKindSpec struct {
 	Name string
 	// Icon is the name of the Codicon in the tab ("note", "comment-discussion"); may be empty.
 	Icon string
+	// Shared says that the tabs of the kind are on every screen of a hosted workspace (SPEC §10.18 "Tabs of extensions in the
+	// view"): the window of the host and the view of each client of Remote Work show the tab, each in its own groups, and a
+	// tab opened or closed on one screen is opened or closed on all. EditorTabContent.Build is then called once for each
+	// screen that shows the tab, at the same time, with ui.OriginOf(bc) telling which (as the Build of a view is), so the
+	// content keeps what belongs to a screen (the focus, the scroll, the selection) for each of them. A kind that is not
+	// shared has its tabs in the window of the host only, also when a client opens one.
+	Shared bool
 }
 
 // EditorActionSpec declares an editor title action: a micro icon at the right end of the tab strip of every editor group

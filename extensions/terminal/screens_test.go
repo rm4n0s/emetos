@@ -151,3 +151,37 @@ func TestGoldenTheTerminalOnTheScreenOfAClient(t *testing.T) {
 		})
 	}
 }
+
+// TestThePaneOfAClientFollowsTheOutputWhenTheHostDoesNotShowTheTerminal: the terminal tells its panes of a change once, and
+// again after a pane took the screen. The pane of a client takes it too, so a terminal the window of the host does not show
+// (its panel is closed, or the client opened it in its own view) goes on on the screen of the client after the first output.
+func TestThePaneOfAClientFollowsTheOutputWhenTheHostDoesNotShowTheTerminal(t *testing.T) {
+	r := &panelRig{extRig: newExtRigAt(t, t.TempDir(), nil, "")}
+	// only the view of the client shows the terminals
+	root := uitest.OnScreen(3, widgets.NewStatefulBuilder(func(bc widgets.BuildContext, set widgets.StateSetter) widgets.Widget {
+		r.rebuild = func() { set(func() {}) }
+		return r.ext.build(bc)
+	}))
+	r.ts = uitest.Pump(t, uitest.Themes()[0], gui.Size{Width: 400, Height: 300}, root)
+	r.settle()
+	e := r.ext.activeEntry()
+	if e == nil {
+		t.Fatal("no terminal")
+	}
+	client := e.views[3]
+	if client == nil || client.render == nil || e.pv.render != nil {
+		t.Fatalf("the client's pane on screen %v, the host's %v: want the client's alone", client != nil && client.render != nil, e.pv.render != nil)
+	}
+	for _, word := range []string{"first-output", "second-output", "third-output"} {
+		before := client.paints
+		e.term.Send([]byte("echo " + word + "\r"))
+		waitText(t, e.term, word)
+		deadline := time.Now().Add(10 * time.Second)
+		for client.paints == before && time.Now().Before(deadline) {
+			r.settle()
+		}
+		if client.paints == before {
+			t.Fatalf("the pane of the client was not painted again after %q", word)
+		}
+	}
+}

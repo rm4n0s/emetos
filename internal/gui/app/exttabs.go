@@ -6,6 +6,7 @@ import (
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
+	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/internal/core/document"
 	"github.com/rm4n0s/emetos/internal/core/editorgroup"
 	"github.com/rm4n0s/emetos/internal/gui/exthost"
@@ -59,10 +60,95 @@ func (p *extTabPane) focus() {}
 // dispose implements pane.
 func (p *extTabPane) dispose() {}
 
-// closed is called when the tab closes for good: the extension is told and its state is dropped.
+// closed is called when the tab closes for good: the extension is told and its state is dropped. A tab that the other
+// screens of the workspace show too (a kind that is shared, SPEC §10.18 "Tabs of extensions in the view") closes on them
+// as well: the tab is one, whoever closes it.
 func (p *extTabPane) closed() {
-	if scope := PeekWorkspace(p.s.Context()).Extensions(); scope != nil {
-		scope.TabClosed(p.input)
+	win := PeekWorkspace(p.s.Context())
+	scope := win.Extensions()
+	if scope == nil {
+		return
+	}
+	shared := scope.SharedTab(p.input)
+	scope.TabClosed(p.input)
+	if shared {
+		win.hostWorkspace().closeTabOnScreens(p.input, p.s)
+	}
+}
+
+// hostWorkspace is the workspace of the window tab: the workspace itself, or the one a headless view is a view of.
+func (w *Workspace) hostWorkspace() *Workspace {
+	if w.isView() {
+		return w.viewOf
+	}
+	return w
+}
+
+// screenShells are the shells of the screens of the workspace that are on screen now: the window tab of the host first, then
+// the views of its clients. UI thread only.
+func (w *Workspace) screenShells() []*shellState {
+	var out []*shellState
+	if s := w.shell; s != nil && s.Mounted() {
+		out = append(out, s)
+	}
+	for _, v := range w.views {
+		if v.ws != nil && !v.ended {
+			if s := v.ws.shell; s != nil && s.Mounted() {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
+// closeTabOnScreens closes the tab of an input, or of its mirror, on every screen of the workspace but the one of except,
+// without asking.
+func (w *Workspace) closeTabOnScreens(in *editorgroup.ExtensionTabInput, except *shellState) {
+	for _, s := range w.screenShells() {
+		if s == except {
+			continue
+		}
+		if g, own := s.extTab(in); g != nil {
+			s.closeEditors(g, []editorgroup.EditorInput{own})
+		}
+	}
+}
+
+// extTab finds the tab of an input in the groups of the shell: the group that shows it and the shell's own input of it,
+// which is the input itself in the window it was opened in and its mirror on another screen (the same id).
+func (s *shellState) extTab(in *editorgroup.ExtensionTabInput) (*editorgroup.Group, *editorgroup.ExtensionTabInput) {
+	if s.group.grid == nil {
+		return nil, nil
+	}
+	for _, g := range s.group.grid.Groups(editorgroup.GridAppearance) {
+		for _, e := range g.Model.Editors(editorgroup.Sequential, false) {
+			if own, ok := e.(*editorgroup.ExtensionTabInput); ok && own.ID() == in.ID() {
+				return g, own
+			}
+		}
+	}
+	return nil, nil
+}
+
+// mirrorHostTabs gives the shell of a headless view the tabs of the window of the host that are shared between screens
+// (the terminals of the editor area): a mirror of each, after the editors the view starts with, in the order of the
+// groups of the host. The one the host has in front in its active group is in front in the view too.
+func (s *shellState) mirrorHostTabs() {
+	host := s.win.hostWorkspace()
+	scope, hs := host.Extensions(), host.shell
+	if scope == nil || hs == nil || hs == s || hs.group.grid == nil || s.group.grid == nil {
+		return
+	}
+	front := hs.activeGroup().Model.ActiveEditor()
+	g := s.activeGroup()
+	for _, hg := range hs.group.grid.Groups(editorgroup.GridAppearance) {
+		for _, e := range hg.Model.Editors(editorgroup.Sequential, false) {
+			in, ok := e.(*editorgroup.ExtensionTabInput)
+			if !ok || in.IsMirror() || !scope.SharedTab(in) {
+				continue
+			}
+			g.Model.OpenEditor(in.Mirror(), editorgroup.OpenOptions{Pinned: true, Active: e == front, Index: g.Model.Count(), HasIndex: true})
+		}
 	}
 }
 
@@ -130,23 +216,89 @@ func (s *shellState) groupFor(id int) *editorgroup.Group {
 	return s.activeGroup()
 }
 
-// OpenTab implements exthost.EditorHost.
-func (h extEditorHost) OpenTab(in *editorgroup.ExtensionTabInput, group int, inactive bool) error {
-	return h.open(in, group, inactive, -1)
-}
-
-// OpenTabAt implements exthost.EditorHost.
-func (h extEditorHost) OpenTabAt(in *editorgroup.ExtensionTabInput, group, index int) error {
-	return h.open(in, group, false, index)
-}
-
-// open shows an input in a group, at an index of its strip when the index is not negative.
-func (h extEditorHost) open(in *editorgroup.ExtensionTabInput, group int, inactive bool, index int) error {
+// OpenTab implements exthost.EditorHost. A tab of a kind that is shared between the screens of the workspace opens on all
+// of them: where it was asked from (the group is a group of that screen) as the caller says, and on the others in their
+// active group without taking the focus or the place in front. The window of the host has the input itself, which is the
+// one that is saved, and each view a mirror of it.
+func (h extEditorHost) OpenTab(in *editorgroup.ExtensionTabInput, group int, inactive bool, origin extension.Origin) error {
 	s, err := h.shellOrErr("open a tab")
 	if err != nil {
 		return err
 	}
-	win := h.w
+	scope := h.w.Extensions()
+	if scope == nil || !scope.SharedTab(in) {
+		return h.open(s, in, group, inactive, -1)
+	}
+	asker := h.screenShell(origin)
+	if asker == nil {
+		asker = s // the view of the client is gone: the tab opens in the window of the host
+	}
+	for _, screen := range h.w.screenShells() {
+		own := in
+		if screen != s {
+			own = in.Mirror()
+		}
+		g, quiet := group, inactive
+		if screen != asker {
+			g, quiet = 0, true
+		}
+		if err := h.open(screen, own, g, quiet, -1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// screenShell is the shell of the screen with the origin when it is on screen, nil otherwise.
+func (h extEditorHost) screenShell(origin extension.Origin) *shellState {
+	screen := h.w.screenOf(origin)
+	if screen == nil || screen.shell == nil || !screen.shell.Mounted() {
+		return nil
+	}
+	return screen.shell
+}
+
+// tabOn finds the tab of an input on the screen of the origin, or in the window of the host when that screen does not show
+// it: the shell, the group and the shell's own input (extTab). The shell is nil when no screen shows it.
+func (h extEditorHost) tabOn(in *editorgroup.ExtensionTabInput, origin extension.Origin) (*shellState, *editorgroup.Group, *editorgroup.ExtensionTabInput) {
+	if s := h.screenShell(origin); s != nil {
+		if g, own := s.extTab(in); g != nil {
+			return s, g, own
+		}
+	}
+	if s := h.w.shell; s != nil && s.Mounted() {
+		if g, own := s.extTab(in); g != nil {
+			return s, g, own
+		}
+	}
+	return nil, nil, nil
+}
+
+// OpenTabAt implements exthost.EditorHost: the drop of a drag, which is in the window of the host. A tab of a kind that is
+// shared between screens is given to the views of the clients as well, behind what they show.
+func (h extEditorHost) OpenTabAt(in *editorgroup.ExtensionTabInput, group, index int) error {
+	s, err := h.shellOrErr("open a tab")
+	if err != nil {
+		return err
+	}
+	if err := h.open(s, in, group, false, index); err != nil {
+		return err
+	}
+	if scope := h.w.Extensions(); scope != nil && scope.SharedTab(in) {
+		for _, screen := range h.w.screenShells() {
+			if screen != s {
+				if err := h.open(screen, in.Mirror(), 0, true, -1); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// open shows an input in a group of a shell, at an index of its strip when the index is not negative.
+func (h extEditorHost) open(s *shellState, in *editorgroup.ExtensionTabInput, group int, inactive bool, index int) error {
+	win := PeekWorkspace(s.Context())
 	g := s.groupFor(group)
 	s.SetState(func() {
 		s.nav.hold++
@@ -232,29 +384,19 @@ func (s *shellState) groupHolding(input editorgroup.EditorInput) *editorgroup.Gr
 	return nil
 }
 
-// CloseTab implements exthost.EditorHost.
+// CloseTab implements exthost.EditorHost: the tab closes on every screen that shows it.
 func (h extEditorHost) CloseTab(in *editorgroup.ExtensionTabInput) {
-	s, err := h.shellOrErr("close a tab")
-	if err != nil {
-		return
-	}
-	if g := s.groupHolding(in); g != nil {
-		s.closeEditors(g, []editorgroup.EditorInput{in})
-	}
+	h.w.closeTabOnScreens(in, nil)
 }
 
 // RevealTab implements exthost.EditorHost.
-func (h extEditorHost) RevealTab(in *editorgroup.ExtensionTabInput, focus bool) {
-	s, err := h.shellOrErr("reveal a tab")
-	if err != nil {
-		return
-	}
-	g := s.groupHolding(in)
-	if g == nil {
+func (h extEditorHost) RevealTab(in *editorgroup.ExtensionTabInput, focus bool, origin extension.Origin) {
+	s, g, own := h.tabOn(in, origin)
+	if s == nil {
 		return
 	}
 	s.SetState(func() {
-		g.Model.SetActive(in)
+		g.Model.SetActive(own)
 		if err := s.group.grid.Activate(g); err != nil {
 			h.w.Process.Logger.Error("cannot activate the group", "err", err)
 		}
@@ -266,12 +408,8 @@ func (h extEditorHost) RevealTab(in *editorgroup.ExtensionTabInput, focus bool) 
 }
 
 // GroupOf implements exthost.EditorHost.
-func (h extEditorHost) GroupOf(in *editorgroup.ExtensionTabInput) int {
-	s, err := h.shellOrErr("find a tab")
-	if err != nil {
-		return 0
-	}
-	if g := s.groupHolding(in); g != nil {
+func (h extEditorHost) GroupOf(in *editorgroup.ExtensionTabInput, origin extension.Origin) int {
+	if _, g, _ := h.tabOn(in, origin); g != nil {
 		return g.ID()
 	}
 	return 0

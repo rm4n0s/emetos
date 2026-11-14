@@ -584,8 +584,11 @@ func (pv *paneView) configChanged() {
 // frame (Emulator.Snapshot keeps that for one reader); the pane of another screen copies the whole screen when the terminal changed since
 // its last copy, and leaves its frame as it was, with nothing marked changed, when it did not.
 func (pv *paneView) snapshot(em *emulator.Emulator) {
+	// every pane that takes the screen lets the terminal tell of the next change: the window of the host may not show the
+	// terminal at all (its tab is behind another, its panel is closed, or a client opened the terminal in its own view), and a
+	// terminal that only the pane of the host could wake would stop on the screens of the clients after its first output
+	pv.term.TakeChanged()
 	if pv.origin == extension.HostOrigin {
-		pv.term.TakeChanged()
 		em.Snapshot(&pv.frame)
 		return
 	}

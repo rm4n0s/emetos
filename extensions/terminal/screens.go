@@ -20,6 +20,9 @@ type screenState struct {
 	// focus is the terminal whose pane has the keyboard on the screen; tabsFocus is whether the tabs list has it.
 	focus     *entry
 	tabsFocus bool
+	// lastEditor is the terminal of an editor tab that had the keyboard last on the screen: the commands the client runs with the
+	// keyboard elsewhere act on it, as terminals.lastEditor is for the window of the host.
+	lastEditor *entry
 	// keys are the context keys last set for the screen.
 	keys map[string]any
 	// menu is the context menu controller of the screen's widgets.
@@ -142,6 +145,10 @@ func (t *terminals) remoteFocusChanged(pv *paneView, has bool) {
 		if g, gi, ei, ok := t.find(e); ok {
 			t.cur, g.active = gi, ei
 		}
+		sc.lastEditor = nil
+		if e.inEditor() {
+			sc.lastEditor = e
+		}
 	case sc.focus == e:
 		sc.focus = nil
 	}
@@ -169,10 +176,25 @@ func (t *terminals) targetFor(o extension.Origin) *entry {
 	if o == extension.HostOrigin {
 		return t.hostTarget()
 	}
-	if sc := t.screens[o]; sc != nil && sc.focus != nil && t.alive(sc.focus) {
-		return sc.focus
+	if sc := t.screens[o]; sc != nil {
+		if sc.focus != nil && t.alive(sc.focus) {
+			return sc.focus
+		}
+		if sc.lastEditor != nil && t.alive(sc.lastEditor) && sc.lastEditor.inEditor() {
+			return sc.lastEditor
+		}
 	}
 	return t.activeEntry()
+}
+
+// setLastEditor notes the terminal of an editor tab that the screen of the command in hand used last; nil forgets it (a terminal
+// of the panel was used).
+func (t *terminals) setLastEditor(e *entry) {
+	if o := t.api.Origins().Current(); o != extension.HostOrigin {
+		t.screen(o).lastEditor = e
+		return
+	}
+	t.lastEditor = e
 }
 
 // typed is told that a person typed in a pane: the terminal remembers the screen, so that the questions of a program that runs in it, such as

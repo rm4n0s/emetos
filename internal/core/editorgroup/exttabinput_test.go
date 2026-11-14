@@ -141,3 +141,63 @@ func TestExtensionTabInputSave(t *testing.T) {
 		t.Errorf("a tab with a saver did not save")
 	}
 }
+
+// TestAMirrorOfAnExtensionTabFollowsItUntilItIsDisposed: the mirror of a tab on another screen is the same tab by its id, shows
+// what the extension sets on the tab, tells its own listeners, and is neither split nor saved.
+func TestAMirrorOfAnExtensionTabFollowsItUntilItIsDisposed(t *testing.T) {
+	in := NewExtensionTabInput("emetos.terminal", "emetos.terminal.editor", "t1", "Terminal", "terminal")
+	in.SetHint("bash")
+	m := in.Mirror()
+	if !m.IsMirror() || in.IsMirror() || !m.Matches(in) || !in.Matches(m) || m.TabKey() != in.TabKey() {
+		t.Fatalf("the mirror is not the tab: mirror %v, matches %v, key %q", m.IsMirror(), m.Matches(in), m.TabKey())
+	}
+	if m.Name() != "Terminal" || m.Title() != "bash" || m.Icon() != "terminal" {
+		t.Errorf("the mirror starts as %q, %q, %q", m.Name(), m.Title(), m.Icon())
+	}
+	if _, ok := m.Serialize(); ok || m.Capabilities()&CapCanSplit != 0 {
+		t.Error("a mirror is saved or can be split")
+	}
+	var events []InputEventKind
+	m.Subscribe(func(e InputEvent) { events = append(events, e.Kind) })
+	tests := []struct {
+		name string
+		set  func()
+		got  func(*ExtensionTabInput) any
+		want any
+		kind InputEventKind
+	}{
+		{"the title", func() { in.SetTitle("zsh") }, func(x *ExtensionTabInput) any { return x.Name() }, "zsh", InputLabel},
+		{"the hint", func() { in.SetHint("zsh in /tmp") }, func(x *ExtensionTabInput) any { return x.Title() }, "zsh in /tmp", InputLabel},
+		{"the icon", func() { in.SetIcon("debug", "terminal.ansiRed") }, func(x *ExtensionTabInput) any { return x.Icon() + " " + x.IconColor() }, "debug terminal.ansiRed", InputLabel},
+		{"the busy mark", func() { in.SetBusy(true) }, func(x *ExtensionTabInput) any { return x.Busy() }, true, InputLabel},
+		{"the dirty mark", func() { in.SetDirty(true) }, func(x *ExtensionTabInput) any { return x.Dirty() }, true, InputDirty},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events = nil
+			tt.set()
+			if got := tt.got(m); got != tt.want || tt.got(in) != tt.want {
+				t.Errorf("the mirror has %v and the tab %v, want %v", got, tt.got(in), tt.want)
+			}
+			if len(events) != 1 || events[0] != tt.kind {
+				t.Errorf("the listeners of the mirror got %v", events)
+			}
+		})
+	}
+	// a mirror of a mirror is a mirror of the tab
+	second := m.Mirror()
+	in.SetTitle("fish")
+	if second.Name() != "fish" {
+		t.Errorf("the second mirror has %q", second.Name())
+	}
+	// a disposed mirror follows no more, and a disposed tab lets go of its mirrors
+	m.Dispose()
+	in.SetTitle("sh")
+	if m.Name() != "fish" || second.Name() != "sh" {
+		t.Errorf("after the dispose: %q and %q", m.Name(), second.Name())
+	}
+	in.Dispose()
+	if second.IsMirror() {
+		t.Error("the mirror of a disposed tab still follows it")
+	}
+}
