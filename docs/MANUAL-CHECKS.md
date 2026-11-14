@@ -294,3 +294,13 @@ EMETOS_REALINPUT_RACE=0 scripts/realinput.sh --desktop --shots /tmp/emetos-27.9 
 Does it pass, and do the pictures in `/tmp/emetos-27.9/` (`httpclient-desktop-*.png`) show what the names say: the Collections view with the new collection and its two requests, the request tab with the response of the echo server, the second request's response with the extracted token in its header, and the runner with both results passed? Then by hand in the editor with the settings of the proofs (`scripts/isolated.sh --config testdata/proof/27.3/config -- go run ./cmd/emetos testdata/proof/27.3/project`, a copy of it in `/tmp` so that nothing is written into the repository): are the method badges, the response pane with a large JSON, the runner's table and the dialogs sharp at 100% and at a zoom of 150% (Ctrl+=)?
 
 Say what you saw: the desktop and compositor, the GPU, which of the steps failed or felt slow.
+
+## 36.4 Playing a video with sound
+
+Play a real video of yours, with sound, isolated from your configuration (FFmpeg must be installed; on Fedora `ffmpeg-free` plays VP9, AV1 and others, the full FFmpeg of RPM Fusion also H.264 and HEVC):
+
+```
+scripts/isolated.sh -- go run -tags debug_mode ./cmd/emetos <a video>
+```
+
+Press Space (or the Play button). Do the picture and the sound play together, without stutter? Do seeking (the slider, Left and Right), Mute, the volume slider and Loop work? Does switching to another tab pause it? Say what you saw, and what video (container and codecs) you played.

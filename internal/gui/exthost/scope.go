@@ -293,8 +293,10 @@ type Scope struct {
 	kindDecls         map[string]*kindDecl
 	tabs              map[string]*editorTab
 	fileViewInstances []*fileViewInstance
-	// fileEditorInstances are the file editors that are open in editor tabs (fileeditors.go).
+	// fileEditorInstances are the file editors that are open in editor tabs (fileeditors.go), and activeFileEditor the key of the tab
+	// the window said is the active editor (an instance made later for it starts active).
 	fileEditorInstances []*fileEditorInstance
+	activeFileEditor    any
 	// wtab is the window tab of a scope whose Info.Kind is ScopeWindowTab (windowtabs.go).
 	wtab *windowTab
 	// features is the registry of the language feature providers of the scope (servers.go, providers.go).

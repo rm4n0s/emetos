@@ -195,7 +195,8 @@ func (s *Scope) FileEditorBody(req FileEditorRequest) (widgets.Widget, bool, err
 	}
 	if inst == nil {
 		d := &viewDecl{id: "fileeditor:" + req.EditorID + "@" + newTabID(), slot: fe.slot, event: extension.OnFileEditor(req.EditorID)}
-		inst = &fileEditorInstance{key: req.Key, editorID: req.EditorID, path: req.Path, folder: req.Folder, state: req.State, decl: d, fe: fe}
+		inst = &fileEditorInstance{key: req.Key, editorID: req.EditorID, path: req.Path, folder: req.Folder, state: req.State, decl: d, fe: fe,
+			active: s.activeFileEditor != nil && s.activeFileEditor == req.Key}
 		s.fileEditorInstances = append(s.fileEditorInstances, inst)
 		if s.viewDecls == nil {
 			s.viewDecls = map[string]*viewDecl{}
@@ -249,7 +250,11 @@ func (s *Scope) openFileEditor(inst *fileEditorInstance) {
 	inst.content = &content
 	inst.decl.content = &extension.ViewContent{Build: content.Build}
 	inst.decl.inst = ext
+	set := len(inst.items) > 0
 	s.mu.Unlock()
+	if set { // the status items set during Open could not be added before the extension was bound
+		s.syncFileEditorStatus(inst)
+	}
 }
 
 // FileEditorState is the state the file editor of a tab saves (its SaveState), or nil.
@@ -395,6 +400,7 @@ func (s *Scope) FileEditorChanged(path string, deleted bool) {
 // items show, the others' hide.
 func (s *Scope) SetActiveFileEditor(key any) {
 	s.mu.Lock()
+	s.activeFileEditor = key
 	var update []*fileEditorInstance
 	for _, x := range s.fileEditorInstances {
 		active := key != nil && x.key == key

@@ -317,3 +317,59 @@ func TestAPanicInACallbackOfAFileEditorFailsTheExtension(t *testing.T) {
 		})
 	}
 }
+
+// The window marks the tab active before the editor made it (the tab of a file opened from the command line): the tab starts active,
+// with its status items shown.
+func TestATabThatIsActiveBeforeItsEditorIsMade(t *testing.T) {
+	tb, made := feTab(t, nil)
+	key := new(int)
+	tb.scope.SetActiveFileEditor(key)
+	tb.scope.Fire(extension.OnFileEditor("fe.image"))
+	tb.pump()
+	if _, ok, err := tb.scope.FileEditorBody(FileEditorRequest{Key: key, EditorID: "fe.image", Path: "/w/cat.png"}); !ok || err != nil {
+		t.Fatalf("ok %v err %v", ok, err)
+	}
+	tb.pump()
+	if len(*made) != 1 || !(*made)[0].tab.Active() {
+		t.Fatalf("made %d, active %v", len(*made), len(*made) == 1 && (*made)[0].tab.Active())
+	}
+	(*made)[0].tab.SetStatus([]extension.StatusItem{{ID: "size", Text: "1x1"}})
+	shown := false
+	for _, id := range tb.statusIDs() {
+		shown = shown || strings.HasSuffix(id, ":size")
+	}
+	if !shown {
+		t.Error("its status item is hidden")
+	}
+}
+
+func TestStatusItemsSetDuringOpenShowWhenTheTabIsActive(t *testing.T) {
+	for _, activeFirst := range []bool{true, false} {
+		t.Run(map[bool]string{true: "active before the editor is made", false: "active after"}[activeFirst], func(t *testing.T) {
+			tb, _ := feTab(t, func(_ extension.FileEditorFile, tab extension.FileEditorTab) (extension.FileEditorContent, error) {
+				tab.SetStatus([]extension.StatusItem{{ID: "size", Text: "1920x1080"}})
+				return extension.FileEditorContent{Build: func(widgets.BuildContext) widgets.Widget { return widgets.NewSizedBox(nil) }}, nil
+			})
+			key := new(int)
+			if activeFirst {
+				tb.scope.SetActiveFileEditor(key)
+			}
+			tb.scope.Fire(extension.OnFileEditor("fe.image"))
+			tb.pump()
+			if _, ok, err := tb.scope.FileEditorBody(FileEditorRequest{Key: key, EditorID: "fe.image", Path: "/w/cat.png"}); !ok || err != nil {
+				t.Fatalf("ok %v err %v", ok, err)
+			}
+			tb.pump()
+			if !activeFirst {
+				tb.scope.SetActiveFileEditor(key)
+			}
+			shown := false
+			for _, id := range tb.statusIDs() {
+				shown = shown || strings.HasSuffix(id, ":size")
+			}
+			if !shown {
+				t.Error("the status item set during Open is not shown")
+			}
+		})
+	}
+}

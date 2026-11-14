@@ -2,7 +2,9 @@ package mediapreview
 
 import (
 	"math"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -109,6 +111,11 @@ func (s *viewState) Build(bc widgets.BuildContext) widgets.Widget {
 	case p.deleted:
 		s.stopAnimation()
 		body = message(bc, "The file was deleted.", "", nil)
+	case p.err != nil && ffmpegFormats[strings.ToLower(filepath.Ext(p.file.Path()))] != "":
+		// AVIF, HEIC and HEIF: what FFmpeg says, with the buttons of the requirement when it is missing
+		s.stopAnimation()
+		format := strings.ToUpper(ffmpegFormats[strings.ToLower(filepath.Ext(p.file.Path()))])
+		body = p.x.problemView(bc, p.err, "Opening "+format+" images", p.load)
 	case p.err != nil:
 		s.stopAnimation()
 		text := "An error occurred while loading the image."

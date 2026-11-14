@@ -44,6 +44,8 @@ type preview struct {
 	viewW, viewH float64
 	// frame is the frame of an animated image shown now, and plays how many times its animation ended.
 	frame, plays int
+	// stamp is the stamp of the file when it was last read.
+	stamp fileStamp
 	// view is the state of the widget on screen, told when something changes; nil while it is not built.
 	view   *viewState
 	closed bool
@@ -67,10 +69,12 @@ func (x *Extension) open(file extension.FileEditorFile, tab extension.FileEditor
 func (p *preview) load() {
 	p.gen++
 	gen, path, ctx := p.gen, p.file.Path(), p.ctx
+	p.stamp, _ = stampOf(path)
+	opts := DecodeOptions{Video: p.x.videoOf(path)}
 	p.loading = true
 	p.tab.SetBusy(true)
 	go func() {
-		img, err := Decode(ctx, path)
+		img, err := Decode(ctx, path, opts)
 		size := int64(-1)
 		if info, statErr := os.Stat(path); statErr == nil {
 			size = info.Size()
@@ -103,6 +107,9 @@ func (p *preview) changed(c extension.FileEditorChange) {
 		p.tab.SetBusy(false)
 		p.update()
 		return
+	}
+	if s, ok := stampOf(p.file.Path()); ok && s == p.stamp && !p.deleted {
+		return // the watcher's first event, or a write of the same bytes at the same time
 	}
 	p.load()
 }

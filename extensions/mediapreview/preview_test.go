@@ -399,3 +399,14 @@ func TestPixelsAreSquaresFromThreeTimes(t *testing.T) {
 		}
 	}
 }
+
+func TestAChangeThatChangesNothingReadsNothing(t *testing.T) {
+	r := newRig(t)
+	fe, p := r.open(r.write("a.png", pngData(t)), nil)
+	img := p.img
+	fe.Change(false)
+	r.api.Pump()
+	if p.loading || p.img != img {
+		t.Error("the same file was read again")
+	}
+}
