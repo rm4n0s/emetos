@@ -381,6 +381,41 @@ func TestPlayBeforeThePlayerIsReady(t *testing.T) {
 	}
 }
 
+// Space pressed before the player is made (the desktop test, step 36.9: a click on the picture and Space right after the tab opens)
+// plays the video when it is, as the command does; a second Space before then takes it back.
+func TestSpaceBeforeThePlayerIsReady(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		spaces int
+		play   bool
+	}{
+		{"one Space plays", 1, true},
+		{"two Spaces leave it paused", 2, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newVideoRig(t)
+			fe, err := r.api.OpenFileEditor(VideoEditorID, r.write("clip.mp4", []byte("a video")), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fe.SetActive(true)
+			v := r.x.videos[0]
+			ts := uitest.Pump(t, uitest.Themes()[0], gui.Size{Width: 480, Height: 320}, widgets.NewBuilder(fe.Content.Build))
+			if v.player != nil {
+				t.Fatal("the player was made before FFmpeg was found")
+			}
+			for range tc.spaces {
+				ts.SendKeyEvent(services.LogicalKeyboardKeySpace)
+				ts.Pump(time.Millisecond)
+			}
+			r.settle(ts, "the player", func() bool { return v.player != nil })
+			if v.player.playing != tc.play {
+				t.Errorf("playing %v, want %v", v.player.playing, tc.play)
+			}
+		})
+	}
+}
+
 func TestAFileWithNoStreams(t *testing.T) {
 	r := newVideoRig(t)
 	r.info = ffmpeg.Info{Duration: time.Second}

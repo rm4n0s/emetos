@@ -189,6 +189,9 @@ The feature list of [SPEC §3](docs/SPEC.md#3-areas), in short. The first two gr
 - **Databases**: one **Databases** view (the cylinder in the activity bar) for SQL, MongoDB and Redis connections. A **SQL** editor with the results in a panel, MongoDB **playgrounds** (`.mongodb`), and a Redis **key editor** and console.
 - **Connect to Database** on a container of `postgres`, `mysql`, `mariadb`, `mongo`, `redis` or `valkey` opens the connection form filled from its published port and environment (never a password).
 
+**Images, videos, PDFs and EPUBs** (extensions; [Images, videos, PDFs and EPUBs](#images-videos-pdfs-and-epubs) below)
+- Images with VS Code's zoom (AVIF and HEIC through FFmpeg), videos played with their sound through FFmpeg, PDF files drawn by Poppler with the outline and find, and EPUB books reflowed with their contents and the reading position remembered. **Reopen Editor With...** and `workbench.editorAssociations` choose the editor of a file.
+
 **Language intelligence** ([SPEC §9.12](docs/SPEC.md#912-language-intelligence-area-3-corelsp-corelangfeatures-guieditor-guiviews-extension)), from language servers over LSP 3.17 and from providers that an extension writes in Go. VS Code's commands, keys and settings:
 - Diagnostics as squiggles and in the Problems panel, with F8 and Shift+F8 to step through them.
 - Completion (the suggest widget with its details pane and snippets), hover, and signature help.
@@ -555,6 +558,54 @@ Emetos sends **only the requests you send** and nothing else: nothing is synced 
 - **Protocols and bodies:** WebSocket, gRPC, HTTP/3, Server-Sent Events as a stream (the body is read to its end), GraphQL schema introspection and completion, and rendering of HTML responses. **Brotli** is not decoded: the response is shown as it came, with its `Content-Encoding` header (gzip and deflate are decoded).
 - **Authorization:** the **password** and **implicit** OAuth grants (OAuth 2.1 drops them), the device flow, a token endpoint with a client certificate, `private_key_jwt`, a custom redirect URI, a refresh in the background before a send you did not start, and the AWS, Hawk, NTLM and Akamai authorizations. A client key's passphrase works for the legacy PEM encryption; **PKCS#8-encrypted keys** are not read.
 - **Around the client:** mock servers, monitors and sharing through a server. The runner's table does not scroll to the newest row by itself while a run goes on.
+
+## Images, videos, PDFs and EPUBs
+
+Emetos opens pictures, videos, PDF files and EPUB books in tabs of their own, read-only, as VS Code's built-in image preview does ([SPEC §10.37](docs/SPEC.md#1037-images-videos-pdfs-and-epubs-extension-internalguiexthost-guiapp-extensionsmediapreview-extensionspdf-extensionsepub)). Each is an extension that you can turn off; a file of one of these kinds opens in its viewer instead of the text editor.
+
+| Kind | Files | Needs |
+| --- | --- | --- |
+| **Images** (Media Preview) | PNG, JPEG, GIF (animated), BMP, ICO, WebP, TIFF, SVG; AVIF, HEIC and HEIF | nothing; FFmpeg for AVIF, HEIC and HEIF |
+| **Videos** (Media Preview) | MP4, M4V, WebM, MKV, MOV, AVI, OGV, MPG, MPEG, WMV, FLV, 3GP | **FFmpeg** 4.4 or newer, with `ffprobe` |
+| **PDF** (PDF Viewer) | PDF | **Poppler** 22.02 or newer (`pdfinfo`, `pdftoppm`, `pdftotext`, `pdftohtml`) |
+| **EPUB** (EPUB Reader) | EPUB 2 and 3 | nothing |
+
+![An image in Media Preview at its own size on the checkerboard, with the zoom, the size and the file size in the status bar](docs/implemented-proof-images/36.2-image-preview.png)
+
+- **Images** start fitted to the tab; a click zooms in at the pointer and a click with Ctrl (Alt on macOS) zooms out, Ctrl and the wheel or a pinch zoom, and the status bar shows the zoom (click it to pick one), the size and the file size. **Image Preview: Copy** puts the picture on the clipboard.
+- **Videos** show their first frame; Space plays and pauses, Left and Right go 5 seconds, Up and Down change the volume, M mutes, and the bar under the picture has the seek slider, Mute, the volume and Loop. Emetos draws the frames and plays the sound itself; FFmpeg only decodes them. `mediaPreview.video.autoPlay` (it starts muted) and `mediaPreview.video.loop` are VS Code's settings.
+
+  ![A test video playing, with the bar: Pause, the time 0:04 / 0:10, the seek slider, the volume and Loop](docs/implemented-proof-images/36.4-video.png)
+
+- **PDF** pages are drawn by Poppler and scrolled continuously; the toolbar has Previous and Next, the page box (type a number and Enter), Zoom Out, Zoom In and the zoom pick (Fit Width, Fit Page, 50% to 400%), the Outline, Find (Ctrl+F, with the matches highlighted on the pages) and Copy Page Text. A document with a password asks for it, and keeps it only in its tab.
+
+  ![A PDF at Fit Width, drawn sharp, with the toolbar above it](docs/implemented-proof-images/36.5-pdf.png)
+
+- **EPUB** books are read by Emetos and **reflowed**: one chapter at a time, in a column with the editor's colors, in `epub.fontFamily` and `epub.fontSize` (A− and A+ in the bar), with the Contents panel, links between chapters, notes and pictures. The book's own CSS and fonts are not applied. Emetos remembers where you were in each book. A book protected by DRM cannot be opened.
+
+  ![A chapter of a book in the EPUB Reader with the Contents panel on the left](docs/implemented-proof-images/36.8-epub.png)
+
+### Installing FFmpeg and Poppler
+
+Emetos installs nothing: when FFmpeg or Poppler is missing, the tab says so, with **Copy Install Command**, **Set Path...** and **Instructions** (the Extensions page shows the same under "What your system needs").
+
+| System | FFmpeg | Poppler |
+| --- | --- | --- |
+| Fedora | `sudo dnf install ffmpeg-free` | `sudo dnf install poppler-utils` |
+| Debian, Ubuntu | `sudo apt install ffmpeg` | `sudo apt install poppler-utils` |
+| Arch | `sudo pacman -S ffmpeg` | `sudo pacman -S poppler` |
+| openSUSE | `sudo zypper install ffmpeg` | `sudo zypper install poppler-tools` |
+| macOS (Homebrew) | `brew install ffmpeg` | `brew install poppler` |
+
+Fedora's own `ffmpeg-free` leaves out H.264 and HEVC; a video in one of them says so, and the full FFmpeg is in [RPM Fusion](https://rpmfusion.org/Howto/Multimedia). Emetos looks for the programs in `PATH`, then in `/opt/homebrew/bin` and `/usr/local/bin` (an app started from the macOS Finder has a short `PATH`); `mediaPreview.ffmpegPath` (the `ffmpeg` program) and `pdf.popplerPath` (the folder of Poppler's programs) name them elsewhere.
+
+### Opening a file with another editor
+
+**Reopen Editor With...** (in the tab's context menu and the Command Palette) opens the file of a tab in another editor: the text editor, the hex viewer or a viewer of an extension, and its last row sets the default for the file's extension. The defaults are VS Code's setting `workbench.editorAssociations`, an object from a glob to an editor id (`"*.svg": "default"` opens SVG files as text; `"*.png": "emetos.mediapreview.image"`).
+
+### What is not built
+
+Editing or annotating any of these files; audio files on their own; PDF forms, links and selecting text with the pointer; the book's own CSS and fonts, and fixed-layout books (they are reflowed); comics archives.
 
 ## Remote Work
 

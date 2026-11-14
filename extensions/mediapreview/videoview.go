@@ -201,13 +201,16 @@ func (s *videoViewState) key(_ *widgets.FocusNode, e services.KeyEvent) widgets.
 		return widgets.KeyEventResultIgnored
 	}
 	v := s.Widget().v
+	// Space before the player is made (FFmpeg still found, the file still probed) plays when it is, as the button does
+	if e.LogicalKey() == services.LogicalKeyboardKeySpace {
+		v.togglePlay()
+		return widgets.KeyEventResultHandled
+	}
 	p := v.player
 	if p == nil {
 		return widgets.KeyEventResultIgnored
 	}
 	switch e.LogicalKey() {
-	case services.LogicalKeyboardKeySpace:
-		v.togglePlay()
 	case services.LogicalKeyboardKeyArrowLeft:
 		p.Seek(p.Position() - seekStep)
 	case services.LogicalKeyboardKeyArrowRight:
