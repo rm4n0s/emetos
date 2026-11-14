@@ -191,6 +191,11 @@ type (
 	DropdownOption = kit.DropdownOption
 	// ScrollHandle moves and measures the content of a ScrollView from outside.
 	ScrollHandle = kit.ScrollHandle
+	// ScrollModel is what NewScrollable's scrollbars follow and move when the extension scrolls its content itself
+	// (ScrollableOpts.Model): its metrics, a listener for their changes, and ScrollTo.
+	ScrollModel = kit.ScrollModel
+	// ScrollMetrics are the sizes of the viewport and of the content, and the scroll position, that a ScrollModel gives.
+	ScrollMetrics = kit.ScrollMetrics
 )
 
 // NewDropdown makes a select box of options.

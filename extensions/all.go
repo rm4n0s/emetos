@@ -26,6 +26,7 @@ import (
 	"github.com/rm4n0s/emetos/extensions/markdown"
 	"github.com/rm4n0s/emetos/extensions/mediapreview"
 	"github.com/rm4n0s/emetos/extensions/mongodb"
+	"github.com/rm4n0s/emetos/extensions/pdf"
 	"github.com/rm4n0s/emetos/extensions/podman"
 	"github.com/rm4n0s/emetos/extensions/python"
 	"github.com/rm4n0s/emetos/extensions/redis"
@@ -70,7 +71,7 @@ import (
 // (extensions/podman, step 18.4) follows it and does the same for Podman.
 //
 // Media Preview (extensions/mediapreview, step 36.2) follows the HTTP Client: the file editor of images (SPEC §10.37); it reads nothing until an
-// image is opened.
+// image is opened. The PDF Viewer (extensions/pdf, step 36.5) follows it, and runs Poppler only when a PDF is opened.
 //
 // Git (extensions/gitscm, step 24.5) follows them: it provides the Source Control view with the repositories of the folder, and starts
 // at once, but runs git in a repository only after the user trusted it.
@@ -87,7 +88,7 @@ func All() []extension.Factory {
 		search.New, containers.New, podman.New,
 		tasks.New, terminal.New, remotework.FactoryOf(rw),
 		hosting.NewFactory(rw.Hosting()),
-		dbconn.Factory(db), redis.Factory(db), httpclient.New, mediapreview.New,
+		dbconn.Factory(db), redis.Factory(db), httpclient.New, mediapreview.New, pdf.New,
 		gitscm.New, references.New,
 	}
 }
