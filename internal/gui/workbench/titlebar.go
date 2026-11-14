@@ -172,8 +172,10 @@ func (s *titleBarState) Build(bc widgets.BuildContext) widgets.Widget {
 		if menuRowShown(visibility, false, c.shown) {
 			height = MenuBarHeight
 		}
+		// the row paints into a layer of its own (as the parts do, workbenchState.frame): it is not recorded again with every
+		// frame that lays the workbench out
 		top = widgets.NewSizedBox(
-			bordered(colors.TitleBarActiveBackground, colors.TitleBarBorder, sideBottom, widgets.NewAlign(menu, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft})),
+			widgets.NewRepaintBoundary(bordered(colors.TitleBarActiveBackground, colors.TitleBarBorder, sideBottom, widgets.NewAlign(menu, widgets.AlignOpts{Alignment: painting.AlignmentCenterLeft}))),
 			widgets.SizedBoxOpts{Height: foundation.Some(height)})
 	}
 	content := widgets.NewColumn([]widgets.Widget{top, widgets.NewExpanded(s.Widget().child)},

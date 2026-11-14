@@ -515,3 +515,51 @@ func TestTilesSurviveTheProtocol(t *testing.T) {
 		t.Error("the picture changed on the way")
 	}
 }
+
+// TestALargePictureIsDeflatedBySeveralCompressorsWithTheSameBytes: a picture with many tiles is shared out between the
+// compressors of the Differ, and its tiles are those one compressor makes, in the same order.
+func TestALargePictureIsDeflatedBySeveralCompressorsWithTheSameBytes(t *testing.T) {
+	tests := []struct {
+		name string
+		w, h int
+		// several is whether the picture has enough tiles for more than one compressor
+		several bool
+	}{
+		{name: "a picture of 1920x1080", w: 1920, h: 1080, several: true},
+		{name: "a picture with an edge tile", w: 1000, h: 300, several: true},
+		{name: "a small picture", w: 200, h: 150},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			img := picture(tt.w, tt.h, 7)
+			d := newDiffer(t)
+			frame, tiles, err := d.Next(img)
+			if err != nil || frame != 1 {
+				t.Fatalf("Next: frame %d, %v", frame, err)
+			}
+			if got := len(d.deflaters) > 1; got != tt.several {
+				t.Errorf("%d compressors for %d tiles", len(d.deflaters), len(tiles))
+			}
+			// one compressor makes the same bytes for each tile
+			one := newDiffer(t)
+			across := protocol.TilesAcross(tt.w)
+			for n, tile := range tiles {
+				if int(tile.Y)*across+int(tile.X) != n {
+					t.Fatalf("tile %d is at %d,%d", n, tile.X, tile.Y)
+				}
+				want, err := one.compress(one.deflaters[0], img, int(tile.X), int(tile.Y))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(tile.Data, want) {
+					t.Fatalf("tile %d differs from the one a single compressor makes", n)
+				}
+			}
+			// and the client puts the picture together from them
+			c := NewCanvas()
+			if res := deliver(t, c, tiles); res != Complete || !equalImages(c.Image(), img) {
+				t.Errorf("the canvas: %v", res)
+			}
+		})
+	}
+}

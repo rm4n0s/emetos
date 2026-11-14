@@ -67,6 +67,8 @@ type headlessView struct {
 	last    *image.RGBA
 	waiting bool
 	closed  bool
+	// redrawn counts the pixels the frames redrew (the damage of each frame): what the tests of the repaint boundaries read.
+	redrawn atomic.Int64
 }
 
 // newHeadlessView makes a headless view of the workspace: the workspace of the view, its shell with the editors the parent
@@ -176,6 +178,9 @@ func (v *headlessView) frame(f offscreen.Frame) {
 	}
 	img := &image.RGBA{Pix: slices.Clone(f.Image.Pix), Stride: f.Image.Stride, Rect: f.Image.Rect}
 	v.frames.Add(1)
+	for _, d := range f.Damage {
+		v.redrawn.Add(int64(d.Dx() * d.Dy()))
+	}
 	v.callMu.Lock()
 	defer v.callMu.Unlock()
 	v.mu.Lock()

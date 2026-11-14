@@ -248,13 +248,13 @@ func (s *sashState) Build(bc widgets.BuildContext) widgets.Widget {
 	opts := s.Widget().opts
 	colors := ThemeOf(bc)
 	size := opts.Size.OrElse(DefaultSashSize)
-	line := ui.NewColor(0)
-	if s.hover || s.active {
-		line = colors.SashHoverBorder
-	}
 	// The line is as long as the sash (an infinite size is cut down to the space there is) and
-	// `size` thick, in the middle.
-	var bar widgets.Widget = widgets.NewColoredBox(line, widgets.NewSizedBox(nil))
+	// `size` thick, in the middle. A sash that is neither hovered nor dragged paints nothing: a rectangle
+	// of a see-through color is still a drawing, and what draws is redrawn (SPEC §10.18 "Speed").
+	var bar widgets.Widget = widgets.NewSizedBox(nil)
+	if s.hover || s.active {
+		bar = widgets.NewColoredBox(colors.SashHoverBorder, bar)
+	}
 	if opts.Orientation == SashHorizontal {
 		bar = widgets.NewCenter(widgets.NewSizedBox(bar, widgets.SizedBoxOpts{Width: foundation.Some(math.Inf(1)), Height: foundation.Some(size)}))
 	} else {
@@ -275,5 +275,6 @@ func (s *sashState) Build(bc widgets.BuildContext) widgets.Widget {
 		OnEnter:                func(*gestures.PointerEnterEvent) { s.enter() },
 		OnExit:                 func(*gestures.PointerExitEvent) { s.leave() },
 	})
-	return widgets.NewIgnorePointer(region, widgets.IgnorePointerOpts{Ignoring: foundation.Some(s.disabled())})
+	// a layer of its own: the line of a hovered sash is repainted alone, not with what the sash lies over
+	return widgets.NewRepaintBoundary(widgets.NewIgnorePointer(region, widgets.IgnorePointerOpts{Ignoring: foundation.Some(s.disabled())}))
 }

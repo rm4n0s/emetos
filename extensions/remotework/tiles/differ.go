@@ -6,7 +6,10 @@ import (
 	"hash/maphash"
 	"image"
 	"io"
+	"runtime"
 	"slices"
+	"sync"
+	"sync/atomic"
 
 	"github.com/rm4n0s/errors"
 
@@ -24,7 +27,8 @@ const Level = flate.DefaultCompression
 const MaxPending = 16
 
 // Differ makes the tiles of each new picture of a view that the client does not have yet. It is not safe for concurrent
-// use: the one goroutine that encodes calls it.
+// use: the one goroutine that encodes calls it (Next itself shares the tiles of a large picture out between goroutines of
+// its own and waits for them).
 type Differ struct {
 	seed maphash.Seed
 
@@ -40,13 +44,29 @@ type Differ struct {
 	// refresh says that the next picture is sent whole.
 	refresh bool
 
-	// scratch is the pixels of the tile being deflated, out the deflated bytes, zw the compressor.
+	// level is the level of the compressors; deflaters are the compressors, the first made with the Differ and the others
+	// when a picture has enough tiles for them (Next).
+	level     int
+	deflaters []*deflater
+	// sink, when a test sets it, is where the first compressor writes instead of its own buffer (a writer that fails).
+	sink io.Writer
+}
+
+// deflater is one compressor with its buffers: scratch is the pixels of the tile being deflated, out the deflated bytes.
+type deflater struct {
 	scratch []byte
 	out     bytes.Buffer
 	zw      *flate.Writer
-	// sink is where the compressor writes: out, except in a test of a writer that fails.
-	sink io.Writer
 }
+
+const (
+	// tilesPerDeflater is the number of tiles of a picture that are worth one more compressor: a typed character is a
+	// handful of tiles and is deflated by the goroutine that calls Next, a scroll or a whole picture (hundreds of tiles,
+	// 13 to 20 ms on one goroutine at 1920x1080) is shared out.
+	tilesPerDeflater = 16
+	// maxDeflaters is the most compressors a Differ makes (each holds about a megabyte).
+	maxDeflaters = 8
+)
 
 type pendingFrame struct {
 	frame  uint64
@@ -61,9 +81,7 @@ func NewDiffer(level int) (*Differ, error) {
 	if err != nil {
 		return nil, errors.NewErr("TilesLevelInvalid", err).SetMetadata("level", level)
 	}
-	d := &Differ{seed: maphash.MakeSeed(), zw: zw, refresh: true}
-	d.sink = &d.out
-	return d, nil
+	return &Differ{seed: maphash.MakeSeed(), level: level, deflaters: []*deflater{{zw: zw}}, refresh: true}, nil
 }
 
 // Refresh makes the next picture a whole one, as the periodic refresh of the session does (SPEC §10.18): the client keeps
@@ -139,16 +157,16 @@ func (d *Differ) Next(img *image.RGBA) (frame uint64, tiles []*protocol.Tile, er
 	}
 	d.last++
 	frame = d.last
+	datas, err := d.compressAll(img, changed, across)
+	if err != nil {
+		return 0, nil, err
+	}
 	tiles = make([]*protocol.Tile, 0, len(changed))
-	for _, i := range changed {
+	for n, i := range changed {
 		x, y := i%across, i/across
-		data, err := d.compress(img, x, y)
-		if err != nil {
-			return 0, nil, err
-		}
 		tiles = append(tiles, &protocol.Tile{
 			Frame: frame, Base: base, Width: uint16(w), Height: uint16(h), X: uint16(x), Y: uint16(y),
-			Total: uint32(len(changed)), Data: data,
+			Total: uint32(len(changed)), Data: datas[n],
 		})
 	}
 	d.refresh = false
@@ -174,24 +192,79 @@ func (d *Differ) hashTiles(img *image.RGBA, hashes []uint64, across int) {
 	}
 }
 
-// compress deflates the pixels of one tile.
-func (d *Differ) compress(img *image.RGBA, tx, ty int) ([]byte, error) {
+// compressAll deflates the tiles of a picture with the indexes given, in their order. A picture with many tiles is shared
+// out between several compressors, each on a goroutine of its own, so that a scroll at 1920x1080 does not wait 13 ms and more
+// for one goroutine (SPEC §10.18 "Speed"); the tiles are deflated each on its own, so the bytes are the same either way.
+func (d *Differ) compressAll(img *image.RGBA, changed []int, across int) ([][]byte, error) {
+	datas := make([][]byte, len(changed))
+	workers := min(len(changed)/tilesPerDeflater, runtime.GOMAXPROCS(0), maxDeflaters)
+	if workers < 2 || d.sink != nil {
+		for n, i := range changed {
+			data, err := d.compress(d.deflaters[0], img, i%across, i/across)
+			if err != nil {
+				return nil, err
+			}
+			datas[n] = data
+		}
+		return datas, nil
+	}
+	for len(d.deflaters) < workers {
+		zw, err := flate.NewWriter(nil, d.level)
+		if err != nil { // the level was accepted when the Differ was made
+			workers = len(d.deflaters)
+			break
+		}
+		d.deflaters = append(d.deflaters, &deflater{zw: zw})
+	}
+	var next atomic.Int64
+	errs := make([]error, workers)
+	var wg sync.WaitGroup
+	for k := range workers {
+		wg.Go(func() {
+			z := d.deflaters[k]
+			for {
+				n := int(next.Add(1)) - 1
+				if n >= len(changed) {
+					return
+				}
+				i := changed[n]
+				if datas[n], errs[k] = d.compress(z, img, i%across, i/across); errs[k] != nil {
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+	return datas, nil
+}
+
+// compress deflates the pixels of one tile with a compressor.
+func (d *Differ) compress(z *deflater, img *image.RGBA, tx, ty int) ([]byte, error) {
 	w, h := img.Rect.Dx(), img.Rect.Dy()
 	x0, y0 := tx*protocol.TileSize, ty*protocol.TileSize
 	x1, y1 := min(x0+protocol.TileSize, w), min(y0+protocol.TileSize, h)
 	rowBytes := (x1 - x0) * protocol.BytesPerPixel
-	d.scratch = slices.Grow(d.scratch[:0], rowBytes*(y1-y0))
+	z.scratch = slices.Grow(z.scratch[:0], rowBytes*(y1-y0))
 	for y := y0; y < y1; y++ {
 		off := img.PixOffset(img.Rect.Min.X+x0, img.Rect.Min.Y+y)
-		d.scratch = append(d.scratch, img.Pix[off:off+rowBytes]...)
+		z.scratch = append(z.scratch, img.Pix[off:off+rowBytes]...)
 	}
-	d.out.Reset()
-	d.zw.Reset(d.sink)
-	if _, err := d.zw.Write(d.scratch); err != nil {
+	z.out.Reset()
+	var sink io.Writer = &z.out
+	if d.sink != nil {
+		sink = d.sink
+	}
+	z.zw.Reset(sink)
+	if _, err := z.zw.Write(z.scratch); err != nil {
 		return nil, errors.NewErr("TilesCompressFailed", err).SetMetadata("x", tx, "y", ty)
 	}
-	if err := d.zw.Close(); err != nil {
+	if err := z.zw.Close(); err != nil {
 		return nil, errors.NewErr("TilesCompressFailed", err).SetMetadata("x", tx, "y", ty)
 	}
-	return bytes.Clone(d.out.Bytes()), nil
+	return bytes.Clone(z.out.Bytes()), nil
 }

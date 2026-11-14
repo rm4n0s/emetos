@@ -474,9 +474,11 @@ func bordered(bg, line ui.Color, at side, child widgets.Widget) widgets.Widget {
 }
 
 // frame is a part: its focus scope around a background with a border. A part that is hidden takes no
-// focus.
+// focus. A part paints into a layer of its own (a repaint boundary), so that a change in one part does not record the
+// picture of the others again: a frame then redraws the part that changed, not the window, which is what a headless view
+// of Remote Work pays for with its software renderer (SPEC §10.18 "Speed").
 func (s *workbenchState) frame(p Part, bg, line ui.Color, at side, child widgets.Widget) widgets.Widget {
-	scope := widgets.NewFocusScope(bordered(bg, line, at, child), widgets.FocusScopeOpts{
+	scope := widgets.NewFocusScope(widgets.NewRepaintBoundary(bordered(bg, line, at, child)), widgets.FocusScopeOpts{
 		Node: s.nodes[p], DebugLabel: p.String(),
 		OnFocusChange: func(has bool) { s.focusChanged(p, has) },
 	})

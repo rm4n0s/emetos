@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -17,9 +19,9 @@ import (
 // measures with no view: the difference is the view's), and picture-ns/frame, the time from the key to the picture in the
 // hand of the function of OnFrame (the rest, picture minus ui, is the drawing on the goroutine of the view).
 func BenchmarkHeadlessFrame(b *testing.B) {
-	for _, name := range []string{"typed", "scroll", "window only"} {
+	for _, name := range []string{"typed", "scroll", "hover", "window only"} {
 		b.Run(name, func(b *testing.B) {
-			r := newProjectRig(b, extension.Size{Width: 1280, Height: 800}, "Dark Modern")
+			r := newProjectRig(b, benchViewSize(b), "Dark Modern")
 			r.frame(b)
 			if name == "window only" {
 				r.view.Close()
@@ -27,8 +29,12 @@ func BenchmarkHeadlessFrame(b *testing.B) {
 			}
 			x := services.PhysicalKeyboardKeyKeyX.USBHidUsage()
 			dy := -120.0
+			hoverY := 150.0
 			step := func() {
 				switch name {
+				case "hover":
+					hoverY = 325 - hoverY // between two rows of the Explorer, so that every step changes the picture
+					r.view.SendPointer(extension.PointerEvent{Kind: extension.PointerMove, X: 100, Y: hoverY})
 				case "typed":
 					r.view.SendKey(extension.KeyEvent{Kind: extension.KeyDown, Physical: x, Logical: 'x', Text: "x"})
 					r.view.SendKey(extension.KeyEvent{Kind: extension.KeyUp, Physical: x, Logical: 'x'})
@@ -64,4 +70,16 @@ func BenchmarkHeadlessFrame(b *testing.B) {
 			b.ReportMetric(float64(picture.Nanoseconds())/float64(b.N), "picture-ns/frame")
 		})
 	}
+}
+
+// benchViewSize is the size of the view of the benchmark: 1280x800, or what EMETOS_BENCH_VIEW says ("1920x1080"), for the
+// numbers of SPEC §10.18 "Speed" at the sizes of real screens.
+func benchViewSize(b *testing.B) extension.Size {
+	size := extension.Size{Width: 1280, Height: 800}
+	if v := os.Getenv("EMETOS_BENCH_VIEW"); v != "" {
+		if _, err := fmt.Sscanf(v, "%dx%d", &size.Width, &size.Height); err != nil {
+			b.Fatalf("EMETOS_BENCH_VIEW %q is not <width>x<height>: %v", v, err)
+		}
+	}
+	return size
 }
