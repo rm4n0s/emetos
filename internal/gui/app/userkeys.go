@@ -167,6 +167,21 @@ func (w *Workspace) onUI(f func()) {
 	f()
 }
 
+// postFromExtension is the Post of the extensions of the window: onUI, except that while the program starts and has no binding yet
+// the function waits for the binding (Workspaces.holdForUI). An extension posts from goroutines of its own, which must never run
+// the function themselves; a workspace of a test that nothing mounts and that did not start as the program does still runs it at
+// once.
+func (w *Workspace) postFromExtension(f func()) {
+	if post := w.poster(); post != nil {
+		post(f)
+		return
+	}
+	if w.Process.Workspaces.holdForUI(f) {
+		return
+	}
+	f()
+}
+
 // poster is the function that hands work to the UI thread of the window, or nil when there is none (onUI).
 func (w *Workspace) poster() func(func()) {
 	w.uiMu.Lock()

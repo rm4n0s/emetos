@@ -137,7 +137,7 @@ func (w *Workspace) startExtensions() {
 		Info: extension.ScopeInfo{Kind: extension.ScopeWorkspace, Name: w.extensionName(), Folder: w.Folder, ID: w.sharingID()},
 		Ctx:  w.ctx, Commands: w.Commands, Menus: w.Menus, Keybindings: w.extKeys, Settings: w.Settings,
 		Notify: w.Notify, StatusBar: w.StatusBar, Documents: extensionDocuments{w: w},
-		Disabled: w.disabledExtensions, Files: w.extensionFiles, Post: w.onUI, Frame: w.extensionFrame, After: w.extensionAfter,
+		Disabled: w.disabledExtensions, Files: w.extensionFiles, Post: w.postFromExtension, Frame: w.extensionFrame, After: w.extensionAfter,
 		Logger: p.Logger, AskSharing: w.askSharing,
 		Views: w.Views, Keys: w.Keys, Markers: w.Markers, Channels: p.Channels,
 		ShowChannel: w.showChannel, FocusView: w.focusExtensionView, ShowProblems: w.showProblems, FilesComplete: w.extensionFilesComplete,

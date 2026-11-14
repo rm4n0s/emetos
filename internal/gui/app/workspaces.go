@@ -118,6 +118,10 @@ type Workspaces struct {
 	// post is the binding's Post once the manager is bound (bind), read on any goroutine under postMu (poster).
 	postMu sync.Mutex
 	post   func(func())
+	// holding tells that the program has started (start) and is not bound yet, and held is what the extensions handed to the UI
+	// thread meanwhile (holdForUI), in order; bind hands it to the binding. Both are read and written under postMu.
+	holding bool
+	held    []func()
 
 	// The rest is used on the UI thread only.
 	ctx     context.Context
@@ -281,6 +285,19 @@ func (m *Workspaces) poster() func(func()) {
 	m.postMu.Lock()
 	defer m.postMu.Unlock()
 	return m.post
+}
+
+// holdForUI keeps f for the UI thread while the program has started and has no binding yet, and tells whether it did. Before this,
+// a function that an extension posted from a goroutine of its own during the start (Git, once it has found its program) ran on that
+// goroutine, beside the others and beside the start itself. It is safe on any goroutine.
+func (m *Workspaces) holdForUI(f func()) bool {
+	m.postMu.Lock()
+	defer m.postMu.Unlock()
+	if !m.holding {
+		return false
+	}
+	m.held = append(m.held, f)
+	return true
 }
 
 // register adopts a workspace that is shown on its own (the shell of a workspace that no tab holds), so that the lists,
@@ -500,6 +517,12 @@ func (m *Workspaces) bind(binding *widgets.WidgetsBinding) {
 	m.binding = binding
 	m.postMu.Lock()
 	m.post = binding.Post
+	// what the extensions handed over before there was a UI thread to run it runs there now, in the order it came (under the lock,
+	// so that nothing handed over from now on gets ahead of it)
+	for _, f := range m.held {
+		binding.Post(f)
+	}
+	m.held, m.holding = nil, false
 	m.postMu.Unlock()
 	m.startSavedNotes(binding.Post)
 	m.observer = &workspacesObserver{m: m}
@@ -678,6 +701,11 @@ func (m *Workspaces) addTab(pw *preparedWorkspace, at int) *WindowTab {
 // returns the one that is shown first; the caller shows the window (hostWidget). The error is that of NewWorkspace,
 // when no tab could be made; a tab that cannot be made when others can is reported in the notifications of the first.
 func (m *Workspaces) start(ctx context.Context, opts Options) (*preparedWorkspace, error) {
+	// the extensions of the workspaces start now, and the binding exists only with the first frame: what they hand to the UI thread
+	// until then waits for it
+	m.postMu.Lock()
+	m.holding = m.post == nil
+	m.postMu.Unlock()
 	plan, active := m.p.startupPlan(ctx, opts)
 	var shown *preparedWorkspace
 	var firstErr error

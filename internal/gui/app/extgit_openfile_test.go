@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -35,43 +36,53 @@ func TestOpenFileOfAChangeInSourceControlOpensTheFileInItsEditor(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := newStateEnv(t, nil)
+			env := newMultiEnv(t, nil)
 			// the git of the extension reads no configuration of the user or of the system
 			t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 			t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-			repo := gittest.NewEnv(t).InitAt(env.root)
+			root := env.folder("project", "main.go", "e.txt")
+			repo := gittest.NewEnv(t).InitAt(root)
 			repo.Write("pic.png", png)
 			repo.Commit("Add the files", ".")
 			repo.Write("e.txt", "changed\n")
 			repo.Write("pic.png", png+"changed")
-			gittest.Trust(t, env.root)
-			run := env.startWith(env.root, ProcessOptions{Extensions: []extension.Factory{gitscm.New, mediapreview.New}}, env.path("main.go"))
-			run.pump()
-			run.command("workbench.view.scm", nil)
-			run.waitFor("the change in the view", func() bool { return run.has(tc.file) })
-			row := run.ts.Center(gluttertest.ByText(tc.file))
-			if tc.changes {
-				run.ts.TapAt(row)
-				run.waitFor("the changes of the file", func() bool { return strings.HasSuffix(tabsOf(run.shell()), "(Working Tree)*") })
+			gittest.Trust(t, root)
+			// the program starts as Run starts it, with the real extensions: Git looks for its program and for the repository on
+			// goroutines of its own while the window is made
+			a := env.runWith(Options{Folder: root, Files: []string{filepath.Join(root, "main.go")}},
+				ProcessOptions{Extensions: []extension.Factory{gitscm.New, mediapreview.New}})
+			w := a.workspaceOf(root)
+			if err := a.command(w, "workbench.view.scm", nil); err != nil {
+				t.Fatal(err)
 			}
-			run.ts.TapAt(row, secondaryDown)
-			run.pump()
-			if !run.has("Open File") {
+			a.waitFor("the change in the view", func() bool { return a.text(tc.file) })
+			tabs := func() string { return tabsOf(a.shellOf(w)) }
+			row := a.ts.Center(gluttertest.ByText(tc.file))
+			if tc.changes {
+				a.ts.TapAt(row)
+				a.waitFor("the changes of the file", func() bool { return strings.HasSuffix(tabs(), "(Working Tree)*") })
+			}
+			a.ts.TapAt(row, secondaryDown)
+			a.settle()
+			if !a.text("Open File") {
 				t.Fatalf("the menu of the change has no Open File")
 			}
-			run.ts.Tap(gluttertest.ByText("Open File"))
+			a.ts.Tap(gluttertest.ByText("Open File"))
 			deadline := time.Now().Add(10 * time.Second)
-			for tabsOf(run.shell()) != tc.tabs && time.Now().Before(deadline) {
-				run.pump()
-				time.Sleep(20 * time.Millisecond)
+			for tabs() != tc.tabs && time.Now().Before(deadline) {
+				a.settle()
 			}
-			if got := tabsOf(run.shell()); got != tc.tabs {
-				t.Fatalf("the tabs are %q after Open File, want %q; notifications %v", got, tc.tabs, run.notes())
+			var notes []string
+			for _, it := range w.Notify.Items() {
+				notes = append(notes, it.Message)
 			}
-			if got := fmt.Sprintf("%T", run.shell().activeGroup().Model.ActiveEditor()); got != tc.want {
+			if got := tabs(); got != tc.tabs {
+				t.Fatalf("the tabs are %q after Open File, want %q; notifications %v", got, tc.tabs, notes)
+			}
+			if got := fmt.Sprintf("%T", a.shellOf(w).activeGroup().Model.ActiveEditor()); got != tc.want {
 				t.Errorf("the file is shown by %s, want %s", got, tc.want)
 			}
-			if notes := run.notes(); len(notes) != 0 {
+			if len(notes) != 0 {
 				t.Errorf("notifications: %v", notes)
 			}
 		})
