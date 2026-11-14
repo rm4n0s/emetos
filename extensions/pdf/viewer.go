@@ -100,13 +100,14 @@ type viewer struct {
 	scroll     *pagesScroll
 	view       *viewerViewState
 	pageBox    *ui.InputBoxController
+	text       textState
 	closed     bool
 }
 
 // open is the Open of the viewer.
 func (x *Extension) open(file extension.FileEditorFile, tab extension.FileEditorTab) (extension.FileEditorContent, error) {
 	v := &viewer{x: x, file: file, tab: tab, dpr: 1, cache: newPageCache(cacheLimit), jobs: map[int]*renderJob{}, failed: map[int]string{},
-		pageBox: ui.NewInputBoxController("")}
+		pageBox: ui.NewInputBoxController(""), text: newTextState()}
 	v.scroll = newPagesScroll(v)
 	if s := file.State(); len(s) > 0 {
 		var st viewerState
@@ -172,6 +173,7 @@ func (v *viewer) loaded(gen int, progs poppler.Programs, doc poppler.Document, e
 	}
 	v.pages = doc.Pages
 	v.relayout()
+	v.resetText()
 	v.refresh()
 }
 
@@ -226,6 +228,8 @@ func (v *viewer) close() {
 	if v.stopSettle != nil {
 		v.stopSettle()
 	}
+	v.pageBox.Dispose()
+	v.text.findBox.Dispose()
 	for i, o := range v.x.viewers {
 		if o == v {
 			v.x.viewers = append(v.x.viewers[:i], v.x.viewers[i+1:]...)
@@ -483,14 +487,8 @@ func (v *viewer) rendered(gen, page int, job *renderJob, pic *gui.Image, err err
 	}
 	delete(v.jobs, page)
 	if err != nil {
-		msg := err.Error()
-		if e, ok := errors.FromError(err); ok {
-			if m, ok := e.Metadata["message"].(string); ok && m != "" {
-				msg = m
-			}
-		}
 		v.x.api.Log().Warn("a page of a PDF cannot be drawn", "path", v.file.Path(), "page", page+1, "err", err)
-		v.failed[page] = msg
+		v.failed[page] = messageOf(err)
 	} else {
 		v.cache.put(page, job.dpi, pic)
 	}

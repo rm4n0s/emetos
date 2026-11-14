@@ -12,6 +12,7 @@ import (
 	"image"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -125,6 +126,23 @@ func TestTheRealPoppler(t *testing.T) {
 			// the rectangle: x 72..272, y 400..500 from the bottom, so 36..136 and 146..196 from the top at half size
 			if !red(img, 80, 170) || red(img, 20, 20) {
 				t.Error("the red rectangle is not where it was drawn")
+			}
+			// the text: no outline, the words of the line and their boxes, the page's text
+			items, err := Outline(t.Context(), p, file, password)
+			if err != nil || len(items) != 0 {
+				t.Errorf("outline %+v, %v", items, err)
+			}
+			words, err := Words(t.Context(), p, file, password, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(words.Lines) != 1 || len(words.Lines[0].Words) != 2 || words.Lines[0].Words[0].Text != "Hello" ||
+				words.Lines[0].Words[0].XMin < 71 || words.Lines[0].Words[0].XMin > 73 || words.Width != 612 {
+				t.Errorf("words %+v", words)
+			}
+			text, err := PageText(t.Context(), p, file, password, 1)
+			if err != nil || !strings.Contains(text, "Hello PDF") {
+				t.Errorf("text %q, %v", text, err)
 			}
 			if password == "" {
 				return

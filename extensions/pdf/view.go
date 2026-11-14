@@ -20,10 +20,14 @@ import (
 // The widget of the viewer (SPEC §10.37 "PDF"): the toolbar at the top (Previous and Next page, the page box, Zoom Out, Zoom In and the
 // zoom pick) and the pages under it, on the editor's background, with the editor's overlay scrollbars.
 
-// toolbarHeight is the height of the toolbar, and pageBoxWidth the width of the page box.
+// The sizes of the view: the height of the toolbar, the width of the page box, of the Outline panel, of the find widget and of its
+// count.
 const (
-	toolbarHeight = 32
-	pageBoxWidth  = 52
+	toolbarHeight  = 32
+	pageBoxWidth   = 52
+	outlineWidth   = 220
+	findWidth      = 360
+	findCountWidth = 69
 )
 
 // pageColor is the color of a page before it is drawn.
@@ -126,9 +130,27 @@ func (s *viewerViewState) Build(bc widgets.BuildContext) widgets.Widget {
 	case len(v.pages) == 0:
 		body = widgets.NewSizedBox(nil)
 	default:
+		main := s.pagesArea()
+		if v.text.findShown {
+			pages := main
+			main = widgets.NewLayoutBuilder(func(lbc widgets.BuildContext, c rendering.BoxConstraints) widgets.Widget {
+				// the find widget is findWidth wide, less in a narrow view: its box takes what is left
+				width := max(min(float64(findWidth), c.MaxWidth-32), 120)
+				return widgets.NewStack([]widgets.Widget{
+					widgets.NewPositionedFill(pages),
+					widgets.NewPositioned(s.findBar(lbc), widgets.PositionedOpts{Top: foundation.Some(0.0), Right: foundation.Some(16.0),
+						Width: foundation.Some(width)}),
+				})
+			})
+		}
+		row := []widgets.Widget{widgets.NewExpanded(main)}
+		if v.text.outlineShown {
+			row = append([]widgets.Widget{s.outlinePanel(bc), widgets.NewContainer(nil, widgets.ContainerOpts{
+				Width: foundation.Some(1.0), Color: foundation.Some(colors.WidgetBorder)})}, row...)
+		}
 		return widgets.NewFocus(widgets.NewColumn([]widgets.Widget{
 			s.toolbar(bc),
-			widgets.NewExpanded(s.pagesArea()),
+			widgets.NewExpanded(widgets.NewRow(row, widgets.RowOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch})),
 		}), widgets.FocusOpts{FocusNode: s.focus, Autofocus: true, OnKeyEvent: s.key})
 	}
 	return widgets.NewColoredBox(colors.EditorBackground, body)
@@ -203,6 +225,16 @@ func (s *viewerViewState) toolbar(bc widgets.BuildContext) widgets.Widget {
 			v.setZoom(options[i])
 			s.focus.RequestFocus()
 		}}),
+		gap,
+		ui.NewIconButton("list-tree", ui.IconButtonOpts{Tooltip: "Outline", Checked: v.text.outlineShown, OnPressed: v.toggleOutline}),
+		ui.NewIconButton("search", ui.IconButtonOpts{Tooltip: "Find (Ctrl+F)", Checked: v.text.findShown, OnPressed: func() {
+			if v.text.findShown {
+				v.closeFind()
+			} else {
+				v.openFind("")
+			}
+		}}),
+		ui.NewIconButton("copy", ui.IconButtonOpts{Tooltip: "Copy Page Text", OnPressed: v.copyPageText}),
 	})
 	return widgets.NewContainer(row, widgets.ContainerOpts{
 		Height: foundation.Some(float64(toolbarHeight)), Color: foundation.Some(colors.EditorBackground),
@@ -255,6 +287,9 @@ func (s *viewerViewState) page(bc widgets.BuildContext, i int) widgets.Widget {
 	var child widgets.Widget = widgets.NewSizedBox(nil)
 	if d != nil {
 		child = widgets.NewRawImage(d.img, widgets.RawImageOpts{Scale: 1, Fit: painting.BoxFitFill, FilterQuality: gui.FilterQualityMedium})
+		if marks := s.highlights(bc, i); len(marks) > 0 {
+			child = widgets.NewStack(append([]widgets.Widget{widgets.NewPositionedFill(child)}, marks...))
+		}
 	} else if msg, failed := v.failed[i]; failed {
 		child = widgets.NewCenter(widgets.NewPadding(painting.NewEdgeInsetsAll(8), widgets.NewText("This page cannot be drawn: "+msg,
 			widgets.TextOpts{Style: ui.TextStyle(bc, 12, gui.NewColorFromARGB(0xff, 0x61, 0x61, 0x61)), TextAlign: gui.TextAlignCenter})))
@@ -399,4 +434,132 @@ func (x *Extension) setPopplerPath(reload func()) {
 	if err != nil {
 		x.api.Log().Warn("the folder of Poppler cannot be asked", "err", err)
 	}
+}
+
+// highlightOpacity is the most opaque a highlight is drawn over a page.
+const highlightOpacity = 0.4
+
+// highlights are the boxes of the matches on a page, in the theme's find colors (the current match in its own).
+func (s *viewerViewState) highlights(bc widgets.BuildContext, page int) []widgets.Widget {
+	v := s.Widget().v
+	if !v.text.findShown || len(v.text.matches) == 0 {
+		return nil
+	}
+	colors := ui.Theme(bc)
+	k := v.lay.rects[page].w / v.pages[page].Width
+	var out []widgets.Widget
+	for mi, m := range v.text.matches {
+		if m.page != page {
+			continue
+		}
+		color, border := colors.EditorFindMatchHighlightBackground, colors.EditorFindMatchHighlightBorder
+		if mi == v.text.current {
+			color, border = colors.EditorFindMatchBackground, colors.EditorFindMatchBorder
+		}
+		// the editor draws these behind the text; over the picture of a page, the word must show through
+		color = color.WithOpacity(min(color.Opacity(), highlightOpacity))
+		for _, b := range m.boxes {
+			deco := &painting.BoxDecoration{Color: foundation.Some(color)}
+			if border.Alpha() > 0 {
+				deco.Border = painting.NewBorderAll(painting.BorderSideOpts{Color: foundation.Some(border), Width: foundation.Some(1.0)})
+			}
+			out = append(out, widgets.NewPositioned(widgets.NewDecoratedBox(deco, nil), widgets.PositionedOpts{
+				Left: foundation.Some(b.x0 * k), Top: foundation.Some(b.y0 * k),
+				Width: foundation.Some((b.x1 - b.x0) * k), Height: foundation.Some((b.y1 - b.y0) * k),
+			}))
+		}
+	}
+	return out
+}
+
+// outlinePanel is the Outline panel on the left of the pages.
+func (s *viewerViewState) outlinePanel(bc widgets.BuildContext) widgets.Widget {
+	v := s.Widget().v
+	colors := ui.Theme(bc)
+	note := func(text string) widgets.Widget {
+		return widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(12, 4, 12, 4), widgets.NewText(text,
+			widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.DescriptionForeground)}))
+	}
+	var body widgets.Widget
+	switch {
+	case v.text.outline == outlineReading || v.text.outline == outlineUnread:
+		body = note("Reading the outline...")
+	case v.text.outline == outlineFailed:
+		body = note("The outline cannot be read: " + v.text.outlineErr)
+	case len(v.text.outlineItems) == 0:
+		body = note("This document has no outline.")
+	default:
+		body = ui.NewTree(v.text.tree, ui.TreeOpts{Render: s.outlineRow, OnOpen: v.openOutlineEntry, OnSelect: v.openOutlineEntry})
+	}
+	header := widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(12, 6, 12, 6), widgets.NewText("OUTLINE",
+		widgets.TextOpts{Style: ui.TextStyle(bc, 11, colors.Foreground)}))
+	return widgets.NewContainer(widgets.NewColumn([]widgets.Widget{header, widgets.NewExpanded(body)},
+		widgets.ColumnOpts{CrossAxisAlignment: rendering.CrossAxisAlignmentStretch}), widgets.ContainerOpts{
+		Width: foundation.Some(float64(outlineWidth)), Color: foundation.Some(colors.SideBarBackground)})
+}
+
+// outlineRow is a row of the outline: the title, and the page dimmed on the right.
+func (s *viewerViewState) outlineRow(bc widgets.BuildContext, node ui.TreeNode, st ui.RowState) widgets.Widget {
+	colors := ui.Theme(bc)
+	row, _ := node.Data.(outlineRow)
+	title := widgets.NewExpanded(ui.NewHighlightedLabel(bc, node.Label, st))
+	if row.page <= 0 {
+		return widgets.NewRow([]widgets.Widget{title})
+	}
+	return widgets.NewRow([]widgets.Widget{title, widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(6, 0, 8, 0),
+		widgets.NewText(strconv.Itoa(row.page), widgets.TextOpts{Style: ui.TextStyle(bc, 12, colors.DescriptionForeground)}))})
+}
+
+// findBar is the find widget over the top right of the pages: the box, Match Case, the count, Previous and Next Match, and Close.
+// Enter goes to the next match, Shift+Enter to the previous, Escape closes it.
+func (s *viewerViewState) findBar(bc widgets.BuildContext) widgets.Widget {
+	v := s.Widget().v
+	colors := ui.Theme(bc)
+	box := ui.NewInputBox(nil, nil, ui.InputBoxOpts{Controller: v.text.findBox, Placeholder: "Find",
+		OnChanged: v.setFindText,
+		Trailing: []widgets.Widget{ui.NewToggle("case-sensitive", ui.ToggleOpts{Tooltip: "Match Case", Checked: v.text.matchCase,
+			OnChanged: v.setMatchCase})},
+		KeyHook: func(e services.KeyEvent) widgets.KeyEventResult {
+			if _, down := e.(*services.KeyDownEvent); !down {
+				if _, repeat := e.(*services.KeyRepeatEvent); !repeat {
+					return widgets.KeyEventResultIgnored
+				}
+			}
+			switch e.LogicalKey() {
+			case services.LogicalKeyboardKeyEnter, services.LogicalKeyboardKeyNumpadEnter:
+				if widgets.WidgetsBindingOf(s.Context()).Keyboard().IsShiftPressed() {
+					v.moveMatch(-1)
+				} else {
+					v.moveMatch(1)
+				}
+				return widgets.KeyEventResultHandled
+			case services.LogicalKeyboardKeyEscape:
+				v.closeFind()
+				return widgets.KeyEventResultHandled
+			}
+			return widgets.KeyEventResultIgnored
+		}})
+	count := v.matchesLabel()
+	countColor := colors.Foreground
+	if count == "No results" {
+		countColor = colors.ErrorForeground
+	}
+	none := len(v.text.matches) == 0
+	row := widgets.NewRow([]widgets.Widget{
+		widgets.NewExpanded(box),
+		widgets.NewSizedBox(widgets.NewPadding(painting.NewEdgeInsetsFromLTRB(6, 0, 0, 0), widgets.NewText(count,
+			widgets.TextOpts{Style: ui.TextStyle(bc, 12, countColor), MaxLines: foundation.Some(1)})),
+			widgets.SizedBoxOpts{Width: foundation.Some(float64(findCountWidth))}),
+		ui.NewIconButton("arrow-up", ui.IconButtonOpts{Tooltip: "Previous Match (Shift+Enter)", Disabled: none, OnPressed: func() { v.moveMatch(-1) }}),
+		ui.NewIconButton("arrow-down", ui.IconButtonOpts{Tooltip: "Next Match (Enter)", Disabled: none, OnPressed: func() { v.moveMatch(1) }}),
+		ui.NewIconButton("close", ui.IconButtonOpts{Tooltip: "Close (Escape)", OnPressed: v.closeFind}),
+	})
+	return widgets.NewContainer(row, widgets.ContainerOpts{
+		Padding: painting.NewEdgeInsetsAll(4),
+		Decoration: &painting.BoxDecoration{
+			Color:        foundation.Some(colors.EditorWidgetBackground),
+			BorderRadius: painting.NewBorderRadiusVertical(gui.Radius{}, gui.NewRadiusCircular(4)),
+			BoxShadow:    []painting.BoxShadow{{Shadow: gui.Shadow{Color: colors.WidgetShadow, BlurRadius: 8, Offset: gui.Offset{Dy: 2}}}},
+		},
+	})
 }

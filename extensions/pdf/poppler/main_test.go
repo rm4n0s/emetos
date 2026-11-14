@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,6 +25,7 @@ import (
 //	FAKE_PDF_DAMAGED      the document is damaged: both fail with this message as a syntax error
 //	FAKE_POPPLER_HANG     a file: the program starts a child, writes both ids there and waits a minute
 //	FAKE_POPPLER_ARGS     a file the arguments are written to, one a line
+//	FAKE_TEXT             how pdftohtml and pdftotext go wrong: "garbage" writes XML that cannot be read, "flood" more than they may
 //	FAKE_PPM              how pdftoppm goes wrong: "none" writes no picture, "garbage" writes one that is not a PNG, "stuck" writes
 //	                      the picture and then makes its folder read-only, so it cannot be removed
 //
@@ -34,6 +36,8 @@ func TestMain(m *testing.M) {
 		os.Exit(fakeInfo(os.Args[1:]))
 	case ProgramDraw:
 		os.Exit(fakeDraw(os.Args[1:]))
+	case ProgramHTML, ProgramText:
+		os.Exit(fakeText(filepath.Base(os.Args[0]), os.Args[1:]))
 	case "poppler-child":
 		time.Sleep(time.Minute)
 		os.Exit(0)
@@ -208,4 +212,33 @@ func fakeDir(t *testing.T, names ...string) string {
 		}
 	}
 	return dir
+}
+
+// fakeText is pdftohtml (the outline of outlineXML) and pdftotext (wordsXHTML with -bbox-layout, else the laid-out text of a page).
+func fakeText(program string, args []string) int {
+	if code, done := fakeCommon(args); done {
+		return code
+	}
+	switch os.Getenv("FAKE_TEXT") {
+	case "garbage": // "<<" is never XML
+		fmt.Print(`<pdf2xml><outline><item page="1">A</item><<</outline><page><line><word>A</word><<`)
+		return 0
+	case "flood":
+		chunk := strings.Repeat("x", 1<<20)
+		for range maxOutput>>20 + 2 {
+			if _, err := os.Stdout.WriteString(chunk); err != nil {
+				return 0 // the reader stopped
+			}
+		}
+		return 0
+	}
+	switch {
+	case program == ProgramHTML:
+		fmt.Print(outlineXML)
+	case slices.Contains(args, "-bbox-layout"):
+		fmt.Print(wordsXHTML)
+	default:
+		fmt.Printf("The text of page %s\n    laid out\n\f", argValue(args, "-f"))
+	}
+	return 0
 }

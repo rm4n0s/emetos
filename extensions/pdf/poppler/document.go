@@ -45,6 +45,35 @@ func (t *tailBuffer) String() string {
 	return string(t.buf)
 }
 
+// maxOutput is the most a program may write on stdout: the information of a document, its outline or the text of a page are far
+// less.
+const maxOutput = 64 << 20
+
+// errOutputTooLarge ends a program that writes more than maxOutput; it is never returned.
+var errOutputTooLarge = &errors.Error{Tag: "PopplerOutputTooLarge"}
+
+// limitedBuffer is a buffer that takes at most maxOutput bytes: a write past it fails, which ends the program writing (its pipe is
+// closed). The buffer is a field, not embedded: io.Copy would use its ReadFrom and pass by Write.
+type limitedBuffer struct {
+	buf  bytes.Buffer
+	over bool
+}
+
+// Write implements io.Writer.
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	if b.buf.Len()+len(p) > maxOutput {
+		b.over = true
+		return 0, errOutputTooLarge
+	}
+	return b.buf.Write(p)
+}
+
+// Bytes are what was written.
+func (b *limitedBuffer) Bytes() []byte { return b.buf.Bytes() }
+
+// String is what was written.
+func (b *limitedBuffer) String() string { return b.buf.String() }
+
 // result is how a program ended: startErr when it could not be started, stopped when ctx ended it, exitErr when it failed.
 type result struct {
 	stderr   string
@@ -54,7 +83,7 @@ type result struct {
 }
 
 // run runs a program in a process group of its own, with stdout written to out, and kills the group when ctx ends.
-func run(ctx context.Context, program string, args []string, out *bytes.Buffer) result {
+func run(ctx context.Context, program string, args []string, out *limitedBuffer) result {
 	cmd := exec.Command(program, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	tail := &tailBuffer{}
@@ -124,7 +153,7 @@ var (
 // PDFPasswordNeeded when the document has a password and none was given, PDFPasswordWrong, PDFDamaged with what pdfinfo said, and
 // PDFInfoInvalid when its output names no pages.
 func Info(ctx context.Context, p Programs, file, password string) (Document, error) {
-	var out bytes.Buffer
+	var out limitedBuffer
 	args := append(append([]string{"-f", "1", "-l", strconv.Itoa(maxPages)}, passwordArgs(password)...), file)
 	res := run(ctx, p.Path(ProgramInfo), args, &out)
 	switch {

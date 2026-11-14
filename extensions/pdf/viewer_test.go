@@ -48,6 +48,11 @@ type rig struct {
 	gate chan struct{}
 	// failPage is a page (from 1) that cannot be drawn.
 	failPage int
+	// The text (withText): the outline or its failure, the reads of words and a page (from 1) whose words cannot be read.
+	outlineItems []poppler.OutlineItem
+	outlineErr   error
+	wordCalls    int
+	wordsFail    int
 }
 
 // renderCall is a page asked of the fake pdftoppm.
