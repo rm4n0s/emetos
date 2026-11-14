@@ -501,4 +501,7 @@ type Clipboard interface {
 	// fails with ExtensionDeactivated after the activation ended and with ExtensionClipboardUnavailable in a scope that has
 	// no clipboard (a window tab that is not on screen). Call it on the UI thread.
 	WriteText(text string) error
+	// WriteImage puts an image in the PNG format on the clipboard (an image preview's Copy). It returns at once and fails as
+	// WriteText does, and with ExtensionClipboardImageInvalid for data that is not a PNG file. Call it on the UI thread.
+	WriteImage(png []byte) error
 }

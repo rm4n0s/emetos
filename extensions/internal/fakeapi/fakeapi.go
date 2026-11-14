@@ -96,6 +96,7 @@ type API struct {
 	handlers2         map[string]RequestDouble
 	active            *extension.ActiveDocument
 	clipboard         []string
+	clipboardImages   [][]byte
 	clipboardErr      error
 	state             map[string]json.RawMessage
 	globalState       map[string]json.RawMessage
@@ -285,6 +286,23 @@ func (c clipboard) WriteText(text string) error {
 	}
 	c.a.clipboard = append(c.a.clipboard, text)
 	return nil
+}
+
+func (c clipboard) WriteImage(png []byte) error {
+	c.a.mu.Lock()
+	defer c.a.mu.Unlock()
+	if c.a.clipboardErr != nil {
+		return c.a.clipboardErr
+	}
+	c.a.clipboardImages = append(c.a.clipboardImages, append([]byte(nil), png...))
+	return nil
+}
+
+// ClipboardImages are the PNG images the extension wrote to the clipboard, the first first.
+func (a *API) ClipboardImages() [][]byte {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([][]byte(nil), a.clipboardImages...)
 }
 
 // ClipboardTexts are the texts the extension wrote to the clipboard, the first first.

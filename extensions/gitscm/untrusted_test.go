@@ -3,6 +3,7 @@ package gitscm
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/rm4n0s/emetos/extension"
 	"github.com/rm4n0s/emetos/extensions/gitscm/gittest"
@@ -98,10 +99,8 @@ func TestTheNotTrustedItemFollowsTheAnswers(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.api.Picks()[0].Choose(0)
-	r.api.Pump()
-	if shownItem(r.api) == nil {
-		t.Error("the item did not come back after the trust was taken away")
-	}
+	// the repository is closed on a goroutine of its own before the item comes back
+	r.api.WaitFor("the item to come back after the trust was taken away", func() bool { return shownItem(r.api) != nil })
 }
 
 func TestTheNotTrustedItemCountsTheRepositories(t *testing.T) {
@@ -155,5 +154,28 @@ func TestNoNotTrustedItemWithoutGit(t *testing.T) {
 	r.api.Pump()
 	if it := shownItem(r.api); it != nil {
 		t.Errorf("the item stayed after git.enabled was turned off: %+v", it)
+	}
+}
+
+// The trust taken away while the repository still opens: its cancelled open is dropped, and the repository stays, waiting for trust.
+// It used to be taken as an open that failed, and the repository was dropped with its item.
+func TestTakingTheTrustAwayWhileTheRepositoryOpensKeepsIt(t *testing.T) {
+	e := gittest.NewEnv(t)
+	repo := untrustedRepo(t, e, filepath.Join(e.Work, "repo"))
+	r := newRig(t, e, rigOptions{folder: repo})
+	r.settle()
+	r.api.OpenDialogs()[0].Press("Trust Repository")
+	// the source control is made when the open starts, before git answers
+	r.api.WaitFor("the repository to start", func() bool { return len(r.api.SourceControls()) == 1 })
+	if err := r.api.Run(CommandManageTrusted, nil); err != nil {
+		t.Fatal(err)
+	}
+	r.api.Picks()[0].Choose(0)
+	for range 25 { // the open ends meanwhile
+		r.api.Pump()
+		time.Sleep(10 * time.Millisecond)
+	}
+	if shownItem(r.api) == nil || len(r.x.model.untrusted()) != 1 {
+		t.Errorf("item %+v, %d repositories wait for trust", shownItem(r.api), len(r.x.model.untrusted()))
 	}
 }

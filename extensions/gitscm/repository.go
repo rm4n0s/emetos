@@ -174,15 +174,17 @@ func (r *repository) start() {
 		return // git is not there; the repository starts when it is
 	}
 	x.stash.know(r.id) // its first status is on its way: a saved multi-file editor waits for it (awaitRepository)
+	ctx, gen := r.ctx, r.gen
 	go func() {
-		repo, err := git.Open(r.ctx, runner, r.queue, r.loc.Root)
-		x.api.Post(func() { r.opened(repo, err) })
+		repo, err := git.Open(ctx, runner, r.queue, r.loc.Root)
+		x.api.Post(func() { r.opened(gen, repo, err) })
 	}()
 }
 
-// opened is the end of start, on the UI thread.
-func (r *repository) opened(repo *git.Repo, err error) {
-	if r.disposed || r.ctx.Err() != nil {
+// opened is the end of start, on the UI thread. An open of an older generation is dropped: the trust was taken away while it ran
+// (untrust cancelled it and made a new context, so its cancelled open is not a failure of the repository).
+func (r *repository) opened(gen int, repo *git.Repo, err error) {
+	if r.disposed || gen != r.gen || r.ctx.Err() != nil {
 		return
 	}
 	if err != nil {

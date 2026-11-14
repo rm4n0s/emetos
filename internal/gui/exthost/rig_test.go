@@ -201,6 +201,8 @@ type tab struct {
 	// clips are the texts put on the clipboard of the tab, the first first, and clipErr is the error the clipboard answers.
 	clips   []string
 	clipErr error
+	// images are the PNG images put on the clipboard of the tab.
+	images [][]byte
 
 	// kept are the values the extensions kept in the tab's state (extension.State), by extension id, folder and key, and keptErr is the
 	// error Set answers (state_test.go).
@@ -428,7 +430,15 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 		registry = nil
 	}
 	var clip func(string) error
+	var clipImage func([]byte) error
 	if !r.noClip[name] {
+		clipImage = func(png []byte) error {
+			if tb.clipErr != nil {
+				return tb.clipErr
+			}
+			tb.images = append(tb.images, png)
+			return nil
+		}
 		clip = func(text string) error {
 			if tb.clipErr != nil {
 				return tb.clipErr
@@ -512,7 +522,7 @@ func (r *rig) newTab(name string, disabled ...string) *tab {
 	tb.scope = r.host.NewScope(ScopeOptions{
 		Testing:      testingHost,
 		Debug:        dbg,
-		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, HistoryGraph: !r.noHistory[name], Clipboard: clip, StateGet: stateGet, StateSet: stateSet, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
+		ShowProblems: showProblems, TrashFiles: trash, Dialog: dialog, Watch: watch, SCM: model, Decorations: decos, EditorDecorations: annots, Timeline: tl, QuickDiff: quick, HistoryGraph: !r.noHistory[name], Clipboard: clip, ClipboardImage: clipImage, StateGet: stateGet, StateSet: stateSet, LSP: lspw, QuickPick: pick, InputBox: input, Banners: banners, FileChooser: chooser,
 		Editors: tb.editors, Languages: tb.languages, EditorsChanged: func() { tb.changed++ },
 		OpenURI:       func(_ context.Context, uri string) error { tb.uris = append(tb.uris, uri); return nil },
 		OpenWindowTab: func(kind string) error { tb.tabs = append(tb.tabs, kind); return nil },

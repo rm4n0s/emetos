@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
 
@@ -122,6 +123,18 @@ func (s *shellState) pathCommands() map[string]command.Handler {
 		"copyRelativeFilePath": copyOf(true, false),
 		"workbench.action.files.copyPathOfActiveFile": copyOf(false, true),
 	}
+}
+
+// copyPNG puts an image in the PNG format on the clipboard; a clipboard that fails is reported.
+func (s *shellState) copyPNG(png []byte) {
+	win := PeekWorkspace(s.Context())
+	binding := widgets.WidgetsBindingOf(s.Context())
+	binding.Clipboard().SetData(win.ctx, services.ClipboardData{PNG: png}, func(err error) {
+		if err != nil {
+			win.Process.Logger.Warn("cannot copy the image to the clipboard", "err", err)
+			win.Notify.Warn("Emetos", "Cannot copy the image to the clipboard: "+describe(err))
+		}
+	})
 }
 
 // copyText puts a text on the clipboard; a clipboard that fails is reported.

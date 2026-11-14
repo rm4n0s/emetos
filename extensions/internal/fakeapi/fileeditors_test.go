@@ -34,7 +34,9 @@ func TestTheFakeFileEditors(t *testing.T) {
 	}
 	var changes []extension.FileEditorChange
 	closed := 0
+	var tabOf extension.FileEditorTab
 	if err := a.FileEditors().Provide("v.image", extension.FileEditorProvider{Open: func(file extension.FileEditorFile, tab extension.FileEditorTab) (extension.FileEditorContent, error) {
+		tabOf = tab
 		file.OnChange(func(c extension.FileEditorChange) { changes = append(changes, c) })
 		tab.SetStatus([]extension.StatusItem{{ID: "size", Text: "1x1"}})
 		tab.SetBusy(true)
@@ -57,6 +59,19 @@ func TestTheFakeFileEditors(t *testing.T) {
 	}
 	if state, err := fe.SaveState(); err != nil || string(state) != `{"path":"/w/cat.png","state":"1"}` {
 		t.Errorf("state %s %v", state, err)
+	}
+	// the tab: active as the window says, and the asks to show the file as text
+	if tabOf == nil || tabOf.Active() {
+		t.Fatal("the tab is active before SetActive")
+	}
+	fe.SetActive(true)
+	tabOf.ReopenAsText()
+	if !tabOf.Active() || fe.ReopenedAsText() != 1 {
+		t.Errorf("active %v, reopened %d", tabOf.Active(), fe.ReopenedAsText())
+	}
+	// the clipboard keeps the images
+	if err := a.Clipboard().WriteImage([]byte("png")); err != nil || len(a.ClipboardImages()) != 1 {
+		t.Errorf("images %d, %v", len(a.ClipboardImages()), err)
 	}
 	fe.Close()
 	fe.Change(false)

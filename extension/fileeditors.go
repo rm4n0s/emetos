@@ -74,6 +74,12 @@ type FileEditorTab interface {
 	SetStatus(items []StatusItem)
 	// Group is the id of the group that shows the tab, or 0.
 	Group() int
+	// ReopenAsText shows the file of the tab in the text editor in place of the tab (VS Code's "Reopen as source text"): the link of
+	// a file the editor cannot show. It returns at once; the tab closes later.
+	ReopenAsText()
+	// Active tells whether the tab is the active editor of the window, the one the commands of the editor act on (VS Code's
+	// WebviewPanel.active).
+	Active() bool
 }
 
 // FileEditorContent is what a file editor puts in its tab. All the functions run on the UI thread, and a panic in any of them

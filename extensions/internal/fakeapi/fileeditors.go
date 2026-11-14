@@ -53,6 +53,9 @@ type FakeFileEditor struct {
 	Content extension.FileEditorContent
 	refresh int
 	group   int
+	// reopened counts ReopenAsText; active is what Active tells.
+	reopened int
+	active   bool
 }
 
 // OpenFileEditor opens the file at path in the file editor with the id, with the state of a tab that comes back (nil for a new one),
@@ -157,3 +160,28 @@ func (x fakeEditorTab) SetStatus(items []extension.StatusItem) {
 	x.f.a.mu.Unlock()
 }
 func (x fakeEditorTab) Group() int { return x.f.group }
+func (x fakeEditorTab) Active() bool {
+	x.f.a.mu.Lock()
+	defer x.f.a.mu.Unlock()
+	return x.f.active
+}
+
+// SetActive makes the tab the active editor of the window, or not, as the window does when the tabs change.
+func (f *FakeFileEditor) SetActive(active bool) {
+	f.a.mu.Lock()
+	f.active = active
+	f.a.mu.Unlock()
+}
+
+func (x fakeEditorTab) ReopenAsText() {
+	x.f.a.mu.Lock()
+	x.f.reopened++
+	x.f.a.mu.Unlock()
+}
+
+// ReopenedAsText is how many times the editor asked to show its file in the text editor.
+func (f *FakeFileEditor) ReopenedAsText() int {
+	f.a.mu.Lock()
+	defer f.a.mu.Unlock()
+	return f.reopened
+}

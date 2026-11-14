@@ -530,6 +530,23 @@ func (t fileEditorTab) Group() int {
 	return host.FileEditorGroup(t.inst.key)
 }
 
+// Active implements extension.FileEditorTab.
+func (t fileEditorTab) Active() bool {
+	t.s.mu.Lock()
+	defer t.s.mu.Unlock()
+	return t.inst.active
+}
+
+// ReopenAsText implements extension.FileEditorTab.
+func (t fileEditorTab) ReopenAsText() {
+	host := t.s.opts.Editors
+	if host == nil {
+		return
+	}
+	key := t.inst.key
+	t.s.post(func() { host.ReopenFileEditorAsText(key) })
+}
+
 // fileEditorsAPI is the extension.FileEditors of an activation.
 type fileEditorsAPI struct{ inst *instance }
 

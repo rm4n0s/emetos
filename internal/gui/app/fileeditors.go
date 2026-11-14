@@ -324,6 +324,22 @@ func (h extEditorHost) FileEditorGroup(key any) int {
 	return 0
 }
 
+// ReopenFileEditorAsText implements exthost.EditorHost: the file of the file editor tab of the key (its input) in the text editor, in
+// place of the tab (VS Code's reopenAsText).
+func (h extEditorHost) ReopenFileEditorAsText(key any) {
+	s, err := h.shellOrErr("reopen a file editor as text")
+	if err != nil {
+		return
+	}
+	in, ok := key.(*editorgroup.FileEditorInput)
+	if !ok {
+		return
+	}
+	if g := s.groupHolding(in); g != nil {
+		s.reopenWith(g, in, "")
+	}
+}
+
 // startupFileEditor is a file of the command line that opens in a file editor.
 type startupFileEditor struct{ path, editor string }
 

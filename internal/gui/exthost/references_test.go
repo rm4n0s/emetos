@@ -260,14 +260,25 @@ func TestTheClipboardOfAnExtension(t *testing.T) {
 	if err := api.Clipboard().WriteText("copied"); err != nil || !slices.Equal(tb.clips, []string{"copied"}) {
 		t.Errorf("clips = %v, %v", tb.clips, err)
 	}
+	// an image: a PNG file, or nothing
+	png := []byte("\x89PNG\r\n\x1a\nrest")
+	if err := api.Clipboard().WriteImage(png); err != nil || len(tb.images) != 1 {
+		t.Errorf("images = %d, %v", len(tb.images), err)
+	}
+	route(t, api.Clipboard().WriteImage([]byte("GIF89a")), "clipboardAPI.WriteImage.ExtensionClipboardImageInvalid")
+	route(t, api.Clipboard().WriteImage(nil), "clipboardAPI.WriteImage.ExtensionClipboardImageInvalid")
 	tb.clipErr = errors.New("ClipboardBroken", "the desktop refused")
 	route(t, api.Clipboard().WriteText("again"), "ClipboardBroken")
+	route(t, api.Clipboard().WriteImage(png), "ClipboardBroken")
 
 	r2 := newRig(t, f)
 	r2.noClip = map[string]bool{"two": true}
 	tb2 := r2.newTab("two")
 	tb2.scope.Start()
 	route(t, api.Clipboard().WriteText("x"), "ExtensionClipboardUnavailable")
+	route(t, api.Clipboard().WriteImage(png), "clipboardAPI.WriteImage.ExtensionClipboardUnavailable")
+	tb2.scope.Close()
+	route(t, api.Clipboard().WriteImage(png), "clipboardAPI.WriteImage.ExtensionDeactivated")
 }
 
 func TestAViewTakesATitleFromItsExtension(t *testing.T) {

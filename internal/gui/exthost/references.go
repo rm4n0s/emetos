@@ -1,6 +1,7 @@
 package exthost
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/rm4n0s/errors"
@@ -129,4 +130,22 @@ func (c clipboardAPI) WriteText(text string) error {
 		return errors.New("ExtensionClipboardUnavailable", "the scope has no clipboard", "extension", in.id)
 	}
 	return in.scope.opts.Clipboard(text)
+}
+
+// pngSignature is how every PNG file starts.
+const pngSignature = "\x89PNG\r\n\x1a\n"
+
+// WriteImage implements extension.Clipboard.
+func (c clipboardAPI) WriteImage(png []byte) error {
+	in := c.inst
+	if in.isDead() {
+		return errors.New("ExtensionDeactivated", "the extension was deactivated", "extension", in.id)
+	}
+	if !bytes.HasPrefix(png, []byte(pngSignature)) {
+		return errors.New("ExtensionClipboardImageInvalid", "the image is not a PNG file", "extension", in.id, "bytes", len(png))
+	}
+	if in.scope.opts.ClipboardImage == nil {
+		return errors.New("ExtensionClipboardUnavailable", "the scope has no clipboard for images", "extension", in.id)
+	}
+	return in.scope.opts.ClipboardImage(png)
 }

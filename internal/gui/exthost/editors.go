@@ -49,6 +49,8 @@ type EditorHost interface {
 	OpenFileView(uri, viewID string, side bool, group int) error
 	// FileEditorGroup is the id of the group that shows the file editor tab of the key (FileEditorRequest.Key), 0 for none.
 	FileEditorGroup(key any) int
+	// ReopenFileEditorAsText shows the file of the file editor tab of the key in the text editor in place of the tab.
+	ReopenFileEditorAsText(key any)
 	// OpenProposed shows the diff editor of a proposed change (SPEC §10.16 "As built (step 13.3)") in the group beside the
 	// active one:
 	// the original text on the left, read-only, and the proposed text on the right, which can be edited, with Accept and

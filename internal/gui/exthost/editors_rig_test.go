@@ -16,6 +16,8 @@ type fakeEditors struct {
 	closed   []*editorgroup.ExtensionTabInput
 	revealed []*editorgroup.ExtensionTabInput
 	fileOpen []fileOpen
+	// reopened are the keys of the file editor tabs reopened as text.
+	reopened []any
 	failOpen error
 	// indexes are the places OpenTabAt was asked for, drags the drags begun and failDrag makes BeginDrag fail.
 	indexes  []int
@@ -123,6 +125,9 @@ func (f *fakeEditors) RevealTab(in *editorgroup.ExtensionTabInput, _ bool) {
 }
 
 func (f *fakeEditors) GroupOf(in *editorgroup.ExtensionTabInput) int { return f.groups[in] }
+
+// ReopenFileEditorAsText records the key.
+func (f *fakeEditors) ReopenFileEditorAsText(key any) { f.reopened = append(f.reopened, key) }
 
 // FileEditorGroup gives group 7 for every file editor tab.
 func (f *fakeEditors) FileEditorGroup(any) int { return 7 }

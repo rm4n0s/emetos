@@ -130,7 +130,9 @@ func (s *shownPage) settle() {
 // until settles until the condition holds.
 func (s *shownPage) until(what string, cond func() bool) {
 	s.t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	// a generous bound: under the race detector decoding the QR code of a fake camera's frame takes ten times as long, and the dev
+	// commands' cases took more than 10 s on this machine
+	deadline := time.Now().Add(60 * time.Second)
 	for {
 		s.settle()
 		if cond() {

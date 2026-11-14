@@ -109,6 +109,11 @@ func TestTheClipboardOfAnExtensionNeedsAWindowOnScreen(t *testing.T) {
 	if !appErr.HasRoute("Workspace.extensionClipboard.ExtClipboardUnavailable") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
+	// an image too (step 36.2)
+	appErr, ok = apperrors.FromError(w.extensionClipboardImage([]byte("\x89PNG\r\n\x1a\n")))
+	if !ok || !appErr.HasRoute("Workspace.extensionClipboardImage.ExtClipboardUnavailable") {
+		t.Errorf("unexpected failure: %v", appErr)
+	}
 }
 
 func TestTheActiveDocumentNeedsAnEditorOnScreen(t *testing.T) {

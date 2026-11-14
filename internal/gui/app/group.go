@@ -547,6 +547,7 @@ func (s *shellState) refreshKeys() {
 		if active == nil {
 			win.Keys.Reset("activeEditor")
 			win.Keys.Reset("activeEditorKind")
+			win.Keys.Reset("activeCustomEditorId")
 			win.Keys.Set("activeEditorIsPinned", false)
 			win.Keys.Set("activeEditorIsNotPreview", false)
 			return
@@ -556,6 +557,12 @@ func (s *shellState) refreshKeys() {
 			win.Keys.Set("activeEditorKind", x.Kind()) // the kind of an editor tab of an extension, for its keys
 		} else {
 			win.Keys.Reset("activeEditorKind")
+		}
+		// VS Code's key of the custom editor in front: the file editor of an extension (SPEC §10.37), for the when-clauses of its commands
+		if fe, ok := active.(*editorgroup.FileEditorInput); ok {
+			win.Keys.Set("activeCustomEditorId", fe.Editor())
+		} else {
+			win.Keys.Reset("activeCustomEditorId")
 		}
 		win.Keys.Set("activeEditorIsPinned", m.IsSticky(active))
 		win.Keys.Set("activeEditorIsNotPreview", m.IsPinned(active))
@@ -598,7 +605,7 @@ func (s *shellState) disposeGroup() {
 	for _, key := range append([]string{"activeEditor", "activeEditorIsPinned", "activeEditorIsNotPreview", "activeEditorGroupEmpty",
 		"multipleEditorGroups", "editorPartMultipleEditorGroups", "editorPartMaximizedEditorGroup", "splitEditorsVertically",
 		"activeEditorIsDirty", "activeEditorCanRevert", "dirtyWorkingCopies", "textCompareEditorVisible", "textCompareEditorActive",
-		"multiDiffEditorAllCollapsed", "isMergeEditor", "mergeEditorResultUri", "mergeEditorLayout", "resourceSelectedForCompare", "activeEditorKind"}, navKeys...) {
+		"multiDiffEditorAllCollapsed", "isMergeEditor", "mergeEditorResultUri", "mergeEditorLayout", "resourceSelectedForCompare", "activeEditorKind", "activeCustomEditorId"}, navKeys...) {
 		win.Keys.Reset(key)
 	}
 }

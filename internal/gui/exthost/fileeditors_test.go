@@ -183,9 +183,18 @@ func TestAFileEditorTab(t *testing.T) {
 	if shown() != 0 {
 		t.Error("the items show while the tab is not active")
 	}
+	if e.tab.Active() {
+		t.Error("the tab is active before the window says so")
+	}
 	tb.scope.SetActiveFileEditor(key)
-	if shown() != 2 {
-		t.Errorf("%d items show while the tab is active", shown())
+	if shown() != 2 || !e.tab.Active() {
+		t.Errorf("%d items show while the tab is active; active %v", shown(), e.tab.Active())
+	}
+	// the editor asks for its file in the text editor: the window is told, on the UI thread
+	e.tab.ReopenAsText()
+	tb.pump()
+	if len(tb.editors.reopened) != 1 || tb.editors.reopened[0] != key {
+		t.Errorf("reopened %v", tb.editors.reopened)
 	}
 	e.tab.SetStatus([]extension.StatusItem{{ID: "size", Text: "800x600", Alignment: extension.StatusRight}})
 	if shown() != 1 {
