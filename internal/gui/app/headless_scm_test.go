@@ -34,7 +34,8 @@ func (r *viewRig) waitView(t *testing.T, what string, cond func(vm *editor.ViewM
 
 func TestTheQuickDiffMarksOfTheWindowTabAreInTheEditorOfAView(t *testing.T) {
 	r := newViewRig(t, "one\nTWO\nthree\n", extension.Size{Width: 800, Height: 500})
-	r.frame(t)
+	// the settled picture: a view makes a frame only when a pixel changes, so there is no next one to wait for
+	before := r.settle(t)
 	e := r.view.ws.shell.activeEditor()
 	if e == nil {
 		t.Fatal("the view has no editor")
@@ -43,7 +44,6 @@ func TestTheQuickDiffMarksOfTheWindowTabAreInTheEditorOfAView(t *testing.T) {
 	if err := os.WriteFile(path+".orig", []byte("one\ntwo\nthree\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	before := r.frame(t)
 	r.win.QuickDiff.Add(quickdiff.Provider{Label: "Test", Kind: quickdiff.KindPrimary, RootURI: document.FileURI(filepath.Dir(path)).String(),
 		Original: func(_ context.Context, uri string) (string, error) { return uri + ".orig", nil }})
 	r.waitView(t, "the marks in the view", func(vm *editor.ViewModel) bool { return vm.QuickDiffCount() == 1 })
@@ -59,9 +59,8 @@ func TestTheQuickDiffMarksOfTheWindowTabAreInTheEditorOfAView(t *testing.T) {
 
 func TestTheBlameAnnotationsOfTheWindowTabAreInTheEditorOfAView(t *testing.T) {
 	r := newViewRig(t, "one\ntwo\nthree\n", extension.Size{Width: 800, Height: 500})
-	r.frame(t)
+	before := r.settle(t)
 	uri := r.view.ws.shell.activeEditor().doc.URI().String()
-	before := r.frame(t)
 	r.win.Annotations.Set("emetos.gitscm", "blame", uri, []annotations.Annotation{{Line: 1, Text: "Ada Example, 3 days ago"}})
 	r.waitView(t, "the annotation in the view", func(vm *editor.ViewModel) bool {
 		got := vm.LineAnnotations()

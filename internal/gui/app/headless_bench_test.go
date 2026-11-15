@@ -29,11 +29,11 @@ func BenchmarkHeadlessFrame(b *testing.B) {
 			}
 			x := services.PhysicalKeyboardKeyKeyX.USBHidUsage()
 			dy := -120.0
-			hoverY := 150.0
+			hoverY := 120.0
 			step := func() {
 				switch name {
 				case "hover":
-					hoverY = 325 - hoverY // between two rows of the Explorer, so that every step changes the picture
+					hoverY = 284 - hoverY // between go.mod and README.md in the Explorer, so that every step changes the picture
 					r.view.SendPointer(extension.PointerEvent{Kind: extension.PointerMove, X: 100, Y: hoverY})
 				case "typed":
 					r.view.SendKey(extension.KeyEvent{Kind: extension.KeyDown, Physical: x, Logical: 'x', Text: "x"})

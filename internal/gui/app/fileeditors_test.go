@@ -269,9 +269,8 @@ func TestABinaryFileOffersOpenWith(t *testing.T) {
 	a, _, folder := viewersApp(t, map[string]any{editorAssociationsSetting: map[string]any{"*.png": "default"}})
 	cat := filepath.Join(folder, "cat.png")
 	a.openFile(cat, false)
-	if a.shell().blocked != cat {
-		t.Fatalf("the binary notice is not shown (blocked %q)", a.shell().blocked)
-	}
+	// the file is read on a goroutine: on a loaded machine the notice comes after the pumps of openFile
+	waitForRequirements(t, a, func() bool { return a.shell().blocked == cat })
 	a.ts.Tap(gluttertest.ByText("Open With..."))
 	a.pump()
 	if got := a.pickerLabels(); !slices.Equal(got, []string{"Text Editor", "Image Preview", "Hex"}) {

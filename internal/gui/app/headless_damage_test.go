@@ -24,9 +24,10 @@ func (r *viewRig) redrawnBy(t *testing.T, do func()) int {
 	return int(100 * (r.view.redrawn.Load() - pixels) / (n * int64(size.Width*size.Height)))
 }
 
-// TestAChangeInOnePartOfTheViewRedrawsThatPartOnly guards the repaint boundaries of the workbench (SPEC §10.18 "Speed"): the
-// software renderer of a headless view redraws what a frame damages, and before the parts, the menu row and the sashes had
-// layers of their own every frame damaged the whole picture, a pointer that moved over the Explorer included.
+// TestAChangeInOnePartOfTheViewRedrawsThatPartOnly guards what a frame of a view redraws (SPEC §10.18 "Speed"): the software
+// renderer of a headless view redraws what a frame damages. Before the parts, the menu row and the sashes had layers of their
+// own every frame damaged the whole picture; with them, and Glutter before 1.17.3, a frame damaged the whole part that changed
+// (a typed character 75% of the picture). Glutter's damage is now by what a picture draws, so a frame redraws what changed.
 func TestAChangeInOnePartOfTheViewRedrawsThatPartOnly(t *testing.T) {
 	r := newProjectRig(t, extension.Size{Width: 1280, Height: 800}, "Dark Modern")
 	r.settle(t)
@@ -36,15 +37,16 @@ func TestAChangeInOnePartOfTheViewRedrawsThatPartOnly(t *testing.T) {
 		// most is the largest part of the picture a frame may redraw, in percent
 		most int
 	}{
-		// a row of the Explorer under the pointer: the side bar's rows, not the editor, the panel or the status bar
-		{name: "the pointer moves over the Explorer", most: 15, do: func() {
-			r.view.SendPointer(extension.PointerEvent{Kind: extension.PointerMove, X: 100, Y: 150})
+		// the pointer goes from one row of the Explorer to another (go.mod and README.md; the row between them is the selected
+		// one, whose hover shows nothing): the tiles of the two rows, not the side bar
+		{name: "the pointer moves over the Explorer", most: 6, do: func() {
+			r.view.SendPointer(extension.PointerEvent{Kind: extension.PointerMove, X: 100, Y: 120})
 			r.pump()
-			r.view.SendPointer(extension.PointerEvent{Kind: extension.PointerMove, X: 100, Y: 175})
+			r.view.SendPointer(extension.PointerEvent{Kind: extension.PointerMove, X: 100, Y: 164})
 			r.pump()
 		}},
-		// a typed character: the editor part and the status bar, not the side bar and the activity bar
-		{name: "a character is typed", most: 85, do: func() {
+		// a typed character: the row of the text, the minimap, the dirty mark of the tab and the status bar, not the editor
+		{name: "a character is typed", most: 20, do: func() {
 			r.key(services.LogicalKeyboardKeyKeyX, services.PhysicalKeyboardKeyKeyX, "x")
 		}},
 	}

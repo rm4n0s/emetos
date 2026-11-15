@@ -698,3 +698,19 @@ The view of a client is drawn on the host by Glutter's software renderer and sen
 | Memory a frame allocates at 1920x1080 | 158 MB, 150 MB of it the renderer's clip masks | the same (Glutter's) |
 
 **What the figures say.** Before, every frame redrew the whole picture, so a hover cost what a scroll did. The parts of the workbench now paint into layers of their own and the tiles are deflated by up to eight compressors: what moves only one part (the pointer over a list, a tree, the status bar) is 16 times cheaper, and the tiles no longer count. A typed character and a scroll still cost about 80 ms at 1920x1080 (12 frames a second), and that is Glutter's software renderer: `docs/GLUTTER-ISSUES.md` 1 (a mask for every rectangular clip, half the time) and 2 (a change redraws the layer, not the row). **Not measured:** the network between two computers, and the client's side (inflating and drawing the tiles).
+
+### With Glutter 1.17.4 (2026-11-15)
+
+Glutter 1.17.3 fixed both things (its steps 45.1 and 45.2: no mask for a clip or a fill of a rectangle on whole pixels; the damage by what a picture draws; decorations compared by value), and Emetos moved to 1.17.4. Measured with both versions one after the other on **another machine than the table above: an AMD Ryzen 9 6900HX (16 threads)**, the same benchmark (`-benchtime 40x`, a release build, through `scripts/heavy.sh --alone`), the hover case moving between two rows that show a hover (go.mod and README.md; before, it moved between the selected row and the space under the rows, which changes no pixel and now makes no frame).
+
+| Measurement, 1920x1080 | Glutter 1.17.2 | Glutter 1.17.4 |
+|---|---|---|
+| A typed character | 85.8 ms | 18.0 ms (17.3 to 19.5 in four runs) |
+| A scroll of the editor | 85.0 ms | 30 ms (24.3 to 32.3 in four runs) |
+| The pointer from one row of the Explorer to another | 5.4 ms | 4.5 ms (3.4 to 8.7 in ten runs) |
+| Memory a frame allocates: a typed character / a scroll / the hover | 151 MB / 149 MB / 14 MB | 14.5 MB / 14.0 MB / 9.1 MB |
+| Share of the picture a frame redraws (1280x800): the pointer between two rows / a typed character | 4% / 75% | 4% / 11% |
+
+With 1.17.4 at other sizes (one run each): 1280x800 a typed character 7.9 ms, a scroll 14.4 ms, the hover 2.6 ms; 2560x1440 18.5 ms, 35.3 ms and 4.7 ms.
+
+**What the figures say.** A typed character is 4.8 times cheaper and a scroll 2.8 times: a view that is typed in can have 50 frames a second at 1920x1080 instead of 12, and one that scrolls 30. A scroll still redraws the editor (every row moves). Of the 14 MB a frame allocates, 8 MB is Emetos's copy of the picture for the function of `OnFrame`. **Not measured:** the same as above (the network, the client's side), and the Ryzen AI Max+ 395 of the first table.
