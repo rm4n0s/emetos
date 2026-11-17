@@ -44,6 +44,10 @@ var windowTabExcluded = []string{
 	CmdChangeIcon, CmdChangeColor, CmdJoin, CmdUnsplit, CmdKillAll, CmdNewWithCwd,
 }
 
+// inWindowTab tells that the extension is the instance of a window tab, with its one terminal (SPEC §10.25 "A terminal as a
+// window tab").
+func (t *terminals) inWindowTab() bool { return t.api.Scope().Kind == extension.ScopeWindowTab }
+
 // windowTabHandlers is the handlers of the commands that apply to a window tab's one terminal: every command of the panel
 // and the editor tab except windowTabExcluded.
 func (t *terminals) windowTabHandlers() map[string]extension.CommandHandler {

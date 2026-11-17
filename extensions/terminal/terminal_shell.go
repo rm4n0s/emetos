@@ -189,12 +189,12 @@ func (t *terminals) showCommandMenu(pv *paneView, items []ui.MenuItem, at gui.Of
 	if len(items) == 0 {
 		return
 	}
-	t.menuFor(pv.origin).Show(at, items)
+	pv.menu.Show(at, items)
 }
 
 // showStickyMenu opens the menu of the sticky scroll overlay: it turns it off.
 func (t *terminals) showStickyMenu(pv *paneView, at gui.Offset) {
-	t.menuFor(pv.origin).Show(at, []ui.MenuItem{
+	pv.menu.Show(at, []ui.MenuItem{
 		{ID: "toggleSticky", Label: "Toggle Sticky Scroll", Checked: t.cfg.stickyOn, OnRun: t.toggleStickyScroll},
 	})
 }

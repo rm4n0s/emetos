@@ -85,6 +85,9 @@ type paneView struct {
 	// origin is the screen the pane is on: the window of the host, or the view of a client of a hosted workspace (SPEC §10.25 "Clients of a
 	// shared workspace"). A terminal has a pane for each screen that shows it, over the one screen of its emulator.
 	origin extension.Origin
+	// menu opens the context menu of the pane (its own menu, the menus of the command decorations and of sticky scroll) in the
+	// widget of the pane, wherever the pane is shown: the panel, an editor tab or a window tab.
+	menu *ui.ContextMenuController
 	// seenRev is the revision of the terminal's screen that the pane of another screen last copied.
 	seenRev uint64
 	// frameOff takes the pane's function off the terminal's list of the ones told that the screen changed.
@@ -176,6 +179,7 @@ type paneView struct {
 func newPaneView(env *paneEnv, term *Terminal, origin extension.Origin) *paneView {
 	pv := &paneView{env: env, term: term, origin: origin, painter: newGridPainter(), blinkOn: true, linkCache: map[string]*lineLinks{}, nav: navState{line: -1}}
 	pv.initFind()
+	pv.menu = ui.NewContextMenuController()
 	pv.node = widgets.NewFocusNode(widgets.FocusNodeOpts{DebugLabel: "Terminal"})
 	pv.node.AddListener(pv.nodeChanged)
 	pv.ime = &imeClient{pv: pv}

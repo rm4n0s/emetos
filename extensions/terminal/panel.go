@@ -263,24 +263,37 @@ func (t *terminals) tabRow(colors ui.Colors, active bool, prefix string, e *entr
 // showMenu is the context menu of a pane, opened by the secondary button (rightClickBehavior default).
 func (t *terminals) showMenu(pv *paneView, at gui.Offset) {
 	if e := t.entryOf(pv); e != nil {
-		t.showMenuAt(e, at, pv.origin)
+		t.showMenuIn(pv.menu, e, at, pv.origin)
 	}
 }
 
-// showMenuAt opens the context menu of a terminal at a place of the window: Copy, Paste, Select All, Clear, then what the tab
-// of the terminal offers (Split, Unsplit, Move into the editor area or back into the panel, Rename, Change Icon, Change Color)
-// and Kill (SPEC §10.25 "The UI", "The rest of the tabs list").
+// showMenuAt opens the context menu of a terminal at a place of the window, from the tabs list of the panel.
 func (t *terminals) showMenuAt(e *entry, at gui.Offset, origin extension.Origin) {
+	t.showMenuIn(t.menuFor(origin), e, at, origin)
+}
+
+// showMenuIn opens the context menu of a terminal in the host of menu: Cut, Copy, Paste, Select All, Clear, then what the tab
+// of the terminal offers (Split, Unsplit, Move into the editor area or back into the panel, Rename, Change Icon, Change Color)
+// and Kill (SPEC §10.25 "The UI", "The rest of the tabs list"). A window tab's one terminal has no split, no place to move to
+// and no tab icon or color of its own (windowTabExcluded), and its tab keeps the title "Terminal", so its menu leaves them and
+// Rename out.
+func (t *terminals) showMenuIn(menu *ui.ContextMenuController, e *entry, at gui.Offset, origin extension.Origin) {
 	pv := t.pvFor(e, origin)
 	items := []ui.MenuItem{
+		{ID: "cut", Label: "Cut", Disabled: !pv.canCut(), OnRun: pv.cutSelection},
 		{ID: "copy", Label: "Copy", Keybinding: "Ctrl+Shift+C", Disabled: !pv.hasSelection(), OnRun: pv.copySelection},
 		{ID: "paste", Label: "Paste", Keybinding: "Ctrl+Shift+V", OnRun: pv.pasteClipboard},
 		{ID: "selectAll", Label: "Select All", OnRun: pv.selectAll},
 		ui.SeparatorItem(),
 		{ID: "clear", Label: "Clear", OnRun: pv.clear},
 		ui.SeparatorItem(),
-		{ID: "split", Label: "Split Terminal", Keybinding: "Ctrl+Shift+5", OnRun: func() { t.splitFrom(e) }},
 	}
+	if t.inWindowTab() {
+		items = append(items, ui.MenuItem{ID: "kill", Label: "Kill Terminal", OnRun: func() { t.kill(e) }})
+		menu.Show(at, items)
+		return
+	}
+	items = append(items, ui.MenuItem{ID: "split", Label: "Split Terminal", Keybinding: "Ctrl+Shift+5", OnRun: func() { t.splitFrom(e) }})
 	if g := groupOf(t, e); g != nil && len(g.entries) > 1 {
 		items = append(items, ui.MenuItem{ID: "unsplit", Label: "Unsplit Terminal", OnRun: func() { t.unsplit(e) }})
 	}
@@ -296,7 +309,7 @@ func (t *terminals) showMenuAt(e *entry, at gui.Offset, origin extension.Origin)
 		ui.MenuItem{ID: "changeColor", Label: "Change Color...", OnRun: func() { t.changeColor(e) }},
 		ui.SeparatorItem(),
 		ui.MenuItem{ID: "kill", Label: "Kill Terminal", OnRun: func() { t.kill(e) }})
-	t.menuFor(origin).Show(at, items)
+	menu.Show(at, items)
 }
 
 // splitFrom puts a new terminal beside one, in its tab.

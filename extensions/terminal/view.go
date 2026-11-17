@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"github.com/rm4n0s/emetos/extension/ui"
 	"github.com/rm4n0s/glutter/foundation"
 	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/rendering"
@@ -10,8 +11,14 @@ import (
 
 // paneWidget is the widget of a terminal in a pane: the grid, with the keyboard, the pointer and the input method going to the
 // terminal, and over it the find widget and the tooltip of a link when they are shown. The focus node and the state of the pane
-// live in the paneView, so the widget can be built again without losing the focus or the selection.
+// live in the paneView, so the widget can be built again without losing the focus or the selection. The pane hosts its own
+// context menu, so the menu opens in the panel, in an editor tab and in a window tab alike.
 func paneWidget(pv *paneView) widgets.Widget {
+	return ui.NewContextMenu(paneContent(pv), ui.ContextMenuOpts{Controller: pv.menu})
+}
+
+// paneContent is what paneWidget hosts the context menu of the pane around.
+func paneContent(pv *paneView) widgets.Widget {
 	return widgets.NewStatefulBuilder(func(bc widgets.BuildContext, setState widgets.StateSetter) widgets.Widget {
 		pv.setState = setState
 		pv.setContext(bc)
