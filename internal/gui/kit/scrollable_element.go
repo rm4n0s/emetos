@@ -439,8 +439,13 @@ func (s *scrollableElementState) drawnFor(m ScrollMetrics) scrollDrawn {
 	return scrollDrawn{vertical: of(v), horizontal: of(h), shadowTop: m.Top > 0, shadowLeft: m.Left > 0}
 }
 
-// reveal shows the scrollbars and schedules their hiding.
+// reveal shows the scrollbars and schedules their hiding. A scrollbar that was hidden is built again, so that it takes the
+// pointer: a hidden one ignores it (see scrollbar), and nothing else may rebuild the element before the next press (a change of
+// the model that draws the same scrollbars does not, see modelChanged).
 func (s *scrollableElementState) reveal() {
+	if !s.shown && s.Mounted() {
+		s.SetState(func() { s.shown = true })
+	}
 	s.shown = true
 	s.fade.Forward()
 	s.scheduleHide()

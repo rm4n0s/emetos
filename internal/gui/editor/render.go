@@ -36,12 +36,15 @@ type RenderEditorText struct {
 	offsetHandle foundation.ListenerHandle
 	vmHandle     foundation.ListenerHandle
 	attached     bool
+	// measuredFirst and measuredLast are the rows whose width the last layout measured (the visible ones and rowMargin around
+	// them); measuredLast is -1 before the first layout.
+	measuredFirst, measuredLast int
 }
 
 // NewRenderEditorText makes the render object for a view model. The paragraphs are made by
 // factory (the platform's text engine) in color.
 func NewRenderEditorText(vm *ViewModel, offset rendering.ViewportOffset, factory ui.ParagraphFactory, color ui.Color) *RenderEditorText {
-	r := &RenderEditorText{vm: vm, offset: offset, factory: factory, color: color}
+	r := &RenderEditorText{vm: vm, offset: offset, factory: factory, color: color, measuredLast: -1}
 	rendering.InitRenderBox(&r.RenderBox, r)
 	return r
 }
@@ -66,7 +69,7 @@ func (r *RenderEditorText) SetOffset(offset rendering.ViewportOffset) {
 	}
 	if r.attached {
 		r.offset.RemoveListener(r.offsetHandle)
-		r.offsetHandle = offset.AddListener(r.MarkNeedsPaint)
+		r.offsetHandle = offset.AddListener(r.onOffset)
 	}
 	r.offset = offset
 	r.MarkNeedsLayout()
@@ -141,10 +144,29 @@ func (r *RenderEditorText) onViewModel() {
 	r.MarkNeedsPaint()
 }
 
+// onOffset reacts to a vertical scroll: the rows are painted where they now are, and laid out again when some of those on
+// screen were not measured by the last layout, so that the width of the content (the widest row seen so far) grows as soon as
+// a wider row comes into view, as VS Code measures the lines it renders. Otherwise it would grow at the next layout, which is
+// often the horizontal scroll itself: a click on the horizontal scrollbar would put the slider under the pointer for the old
+// width, and the new one would move it away.
+func (r *RenderEditorText) onOffset() {
+	r.MarkNeedsPaint()
+	if r.measuredLast < 0 || !r.HasSize() {
+		r.MarkNeedsLayout()
+		return
+	}
+	proj := r.vm.Projection()
+	top := r.top()
+	first, last := proj.RowAt(top), min(proj.RowAt(top+r.Size().Height), proj.RowCount()-1)
+	if first < r.measuredFirst || last > r.measuredLast {
+		r.MarkNeedsLayout()
+	}
+}
+
 // Attach implements rendering.RenderObject.
 func (r *RenderEditorText) Attach(owner *rendering.PipelineOwner) {
 	r.RenderBox.Attach(owner)
-	r.offsetHandle = r.offset.AddListener(r.MarkNeedsPaint)
+	r.offsetHandle = r.offset.AddListener(r.onOffset)
 	r.vmHandle = r.vm.AddListener(r.onViewModel)
 	r.attached = true
 }
@@ -217,7 +239,8 @@ func (r *RenderEditorText) PerformLayout() {
 	snap := r.vm.Document().Snapshot()
 	r.prepareTokens(proj, first, last)
 	widest := 0.0
-	for row := max(first-rowMargin, 0); row <= min(last+rowMargin, proj.RowCount()-1); row++ {
+	r.measuredFirst, r.measuredLast = max(first-rowMargin, 0), min(last+rowMargin, proj.RowCount()-1)
+	for row := r.measuredFirst; row <= r.measuredLast; row++ {
 		if p, hidden := r.rowParagraph(style, proj, snap.LineContent, row); p != nil {
 			w := p.LongestLine() + float64(hidden)*style.paragraph(r.vm.Paragraphs(), "0").LongestLine()
 			if ri, ok := proj.(rowIndenter); ok {

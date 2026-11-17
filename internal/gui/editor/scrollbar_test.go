@@ -2,6 +2,7 @@ package editor
 
 import (
 	"image/color"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -185,6 +186,58 @@ func TestContentWidthFollowsTheDocument(t *testing.T) {
 		t.Errorf("left %v beyond the maximum %v", vm.ScrollLeft(), vm.MaxScrollLeft())
 	}
 	noErrors(t, ts)
+}
+
+// A wider row that a vertical scroll brings into view widens the content in that frame, not at the next layout: a click on the
+// horizontal track then puts the slider's center under the pointer. Before, the width grew with the horizontal scroll that the
+// click made, and the slider moved away from the pointer.
+func TestContentWidthGrowsWhenAWiderRowScrollsIntoView(t *testing.T) {
+	// 400 short lines, then lines of 300 characters
+	var b strings.Builder
+	for i := range 800 {
+		if i < 400 {
+			b.WriteString("short line\n")
+		} else {
+			b.WriteString(strings.Repeat("0123456789", 30) + "\n")
+		}
+	}
+	tests := []struct {
+		name string
+		// at is where the click on the horizontal track is, as a share of the track
+		at float64
+	}{
+		{"a click in the first third", 0.3},
+		{"a click in the middle", 0.5},
+		{"a click in the last third", 0.7},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vm := NewViewModel(newTestDoc(b.String()), goOptions(), nil)
+			ts := pumpEditor(t, vm, ui.Size{Width: 640, Height: 400})
+			gutter := vm.GutterWidths(ts.Dispatcher().TextEngine()).Total()
+			charWidth := newGeometry(vm, ts.Dispatcher().TextEngine()).charWidth
+			narrow := vm.ContentWidth()
+			vm.ScrollTo(500 * 19)
+			ts.Pump(time.Millisecond)
+			want := 300*charWidth + 4*charWidth
+			if !near(vm.ContentWidth(), want) {
+				t.Fatalf("after the scroll the content is %v wide, want the long lines and four characters: %v (was %v)", vm.ContentWidth(), want, narrow)
+			}
+			width, _ := vm.ViewportSize()
+			track := width - kit.DefaultVerticalScrollbarSize
+			at := ui.Offset{Dx: gutter + track*tt.at, Dy: 394}
+			revealScrollbars(ts, at)
+			g := ts.StartGesture(at)
+			ts.Pump(time.Millisecond)
+			g.Up()
+			ts.Pump(time.Millisecond)
+			st := kit.NewScrollbarState(0, kit.DefaultHorizontalScrollbarSize, kit.DefaultVerticalScrollbarSize, width, vm.ContentWidth(), vm.ScrollLeft())
+			if center := st.SliderPosition() + st.SliderSize()/2; math.Abs(center-track*tt.at) > 1 {
+				t.Errorf("the slider's center is at %v, the click at %v (left %v of %v)", center, track*tt.at, vm.ScrollLeft(), vm.ContentWidth())
+			}
+			noErrors(t, ts)
+		})
+	}
 }
 
 func TestScrollbarsAppearWhenTheEditorScrolls(t *testing.T) {

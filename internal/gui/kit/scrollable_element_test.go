@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/gluttertest"
+	"github.com/rm4n0s/glutter/rendering"
 	"github.com/rm4n0s/glutter/services"
 	"github.com/rm4n0s/glutter/ui"
 	"github.com/rm4n0s/glutter/widgets"
@@ -835,6 +837,52 @@ func TestElementRebuildsOnlyWhenTheScrollbarsChange(t *testing.T) {
 			ts.Pump(time.Millisecond)
 			if rebuilt := state.builds > before; rebuilt != tt.rebuilt {
 				t.Errorf("rebuilt = %v, want %v", rebuilt, tt.rebuilt)
+			}
+		})
+	}
+}
+
+// A scrollbar revealed by the pointer takes the press that follows, without anything else rebuilding the element first: before,
+// the hidden scrollbar's IgnorePointer stayed on until some rebuild, and the press went through to the child (in an editor it
+// started a selection instead of moving the slider).
+func TestRevealedScrollbarTakesTheFirstPress(t *testing.T) {
+	tests := []struct {
+		name    string
+		metrics ScrollMetrics
+		press   ui.Offset
+		moved   func(m ScrollMetrics) bool
+	}{
+		{"vertical", tall(), ui.Offset{Dx: 393, Dy: 200}, func(m ScrollMetrics) bool { return m.Top > 0 }},
+		{"horizontal", wide(), ui.Offset{Dx: 300, Dy: 294}, func(m ScrollMetrics) bool { return m.Left > 0 }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			model := newFakeModel(tt.metrics)
+			childPresses := 0
+			ts := gluttertest.New(t, gluttertest.Opts{Size: viewSize})
+			colors := DarkModern()
+			child := widgets.NewListener(widgets.NewColoredBox(colors.EditorBackground, widgets.NewSizedBox(nil)), widgets.ListenerOpts{
+				Behavior:      rendering.HitTestBehaviorOpaque,
+				OnPointerDown: func(*gestures.PointerDownEvent) { childPresses++ },
+			})
+			ts.PumpWidget(widgets.NewDirectionality(ui.TextDirectionLTR, NewTheme(colors,
+				NewScrollableElement(child, editorScrollbars(model, ScrollableElementOpts{})))))
+			ts.Pump(time.Millisecond)
+			ts.Hover(tt.press)
+			ts.Pump(time.Millisecond)
+			ts.Pump(scrollbarRevealDuration + 20*time.Millisecond)
+			g := ts.StartGesture(tt.press)
+			ts.Pump(time.Millisecond)
+			g.Up()
+			ts.Pump(time.Millisecond)
+			if childPresses != 0 {
+				t.Errorf("the press went through the scrollbar to the child (%d presses)", childPresses)
+			}
+			if !tt.moved(model.m) {
+				t.Errorf("the press on the track did not scroll: %+v", model.m)
+			}
+			if errs := ts.TakeErrors(); len(errs) != 0 {
+				t.Errorf("errors: %v", errs)
 			}
 		})
 	}

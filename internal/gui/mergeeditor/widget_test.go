@@ -272,6 +272,9 @@ func TestScrollSync(t *testing.T) {
 		{"the result back to the top", Result, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// A subtest runs on a goroutine of its own: a call of the tester makes it the UI thread before it scrolls an editor (which
+			// lays out the text again when other rows come into view).
+			r.ts.FlushPosted()
 			m.View(tc.from).ScrollTo(tc.to)
 			r.settle()
 			src := m.View(tc.from)
