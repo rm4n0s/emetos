@@ -2,7 +2,6 @@ package app
 
 import (
 	"strings"
-	"time"
 
 	"github.com/rm4n0s/errors"
 	"github.com/rm4n0s/glutter/ui"
@@ -121,21 +120,8 @@ func (s *shellState) initMenus(binding *widgets.WidgetsBinding) {
 		Menus: win.Menus, Commands: win.Commands, Keybindings: resolver,
 		Context: s.menuContext, Ctx: win.ctx,
 		// the menu has the focus until it closes, and the editor binds its commands while it has the
-		// focus itself: the command runs two frames after the item was chosen, when the menu is gone
-		// (a context menu gives the focus back when its widgets are disposed, in the frame after it
-		// closed) and the focus is back in the editor
-		Schedule: func(f func()) {
-			scheduler := binding.Scheduler()
-			scheduler.AddPostFrameCallback(func(time.Duration) {
-				scheduler.ScheduleFrame()
-				scheduler.AddPostFrameCallback(func(time.Duration) {
-					if s.Mounted() {
-						f()
-					}
-				})
-			})
-			scheduler.ScheduleFrame()
-		},
+		// focus itself: the command runs when the menu is gone and the focus is back in the editor
+		Schedule: func(f func()) { runWhenFocusReturns(binding, s.Mounted, f) },
 		OnError: func(id string, err error) {
 			win.Process.Logger.Warn("command run by a menu failed", "command", id, "error", describe(err))
 		},

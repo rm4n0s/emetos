@@ -34,20 +34,9 @@ func (s *shellState) initQuickInput(binding *widgets.WidgetsBinding) {
 	ctl := win.QuickInput
 	ctl.Configure(quickinput.ControllerOptions{
 		Post: binding.Post,
-		// the command of an accepted item runs two frames after the picker hid, when the focus is back in the
-		// widget that had it (an editor binds its commands while it has the focus)
-		After: func(f func()) {
-			scheduler := binding.Scheduler()
-			scheduler.AddPostFrameCallback(func(time.Duration) {
-				scheduler.ScheduleFrame()
-				scheduler.AddPostFrameCallback(func(time.Duration) {
-					if s.Mounted() {
-						f()
-					}
-				})
-			})
-			scheduler.ScheduleFrame()
-		},
+		// the command of an accepted item runs when the picker is gone and the focus is back in the widget
+		// that had it (an editor binds its commands while it has the focus)
+		After:               func(f func()) { runWhenFocusReturns(binding, s.Mounted, f) },
 		Invoker:             func() contextkey.Context { return s.editorMenuContext() },
 		FallbackPlaceholder: quickInputPlaceholder,
 	})

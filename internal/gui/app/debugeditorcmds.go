@@ -480,10 +480,9 @@ func (d *editorDebug) glyphMenu(t editor.DebugMenuTarget) []kit.MenuItem {
 	bps := d.bpsAt(t.Line, col)
 	var items []kit.MenuItem
 	item := func(label string, run func()) {
-		// the menu gives the focus back to the editor when it is gone, two frames after the choice: what takes the focus (the breakpoint
-		// widget) waits for that
+		// the menu gives the focus back to the editor when it is gone: what takes the focus (the breakpoint widget) waits for that
 		items = append(items, kit.MenuItem{Label: label, OnRun: func() {
-			d.s.afterFrame(d.binding, func() { d.s.afterFrame(d.binding, run) })
+			runWhenFocusReturns(d.binding, d.s.Mounted, run)
 		}})
 	}
 	if len(bps) > 0 {
