@@ -388,8 +388,8 @@ func TestTheMenuOffersWhatVSCodeOffers(t *testing.T) {
 }
 
 // A program that tracks the mouse (a full-screen program such as an AI assistant's CLI) gets the press and the release of every
-// button, the release with the button that was pressed although the event of a release has none down any more (as on a desktop:
-// gluttertest's release keeps the buttons of the press), and the secondary button opens the menu all the same, as in VS Code.
+// button, the release with the button that was pressed although the event of a release has none down any more (as on a desktop,
+// and as gluttertest's release sends it since Glutter 1.17.5), and the secondary button opens the menu all the same, as in VS Code.
 func TestTheMenuOpensOverAProgramThatTracksTheMouse(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -408,14 +408,8 @@ func TestTheMenuOpensOverAProgramThatTracksTheMouse(t *testing.T) {
 			menu := false
 			r.env.menu = func(*paneView, gui.Offset) { menu = true }
 			at := r.cell(1, 1)
-			const pointer = 41
-			r.ts.StartGesture(at, gluttertest.GestureOpts{Kind: gui.PointerDeviceKindMouse, Buttons: foundation.Some(tt.buttons), Pointer: pointer})
-			// Glutter: TestGesture.Up releases with the buttons of the press, which no desktop does; the release is sent by hand
-			// with none down (docs/GLUTTER-ISSUES.md, entry 3). Up should send no buttons.
-			r.ts.Binding.Gestures().HandlePointerEvent(gestures.NewPointerUpEvent(gestures.PointerEventOpts{
-				Pointer: pointer, Kind: gui.PointerDeviceKindMouse, Position: at, Buttons: foundation.Some(0),
-			}))
-			r.ts.FlushPosted()
+			g := r.ts.StartGesture(at, gluttertest.GestureOpts{Kind: gui.PointerDeviceKindMouse, Buttons: foundation.Some(tt.buttons)})
+			g.Up()
 			r.settle()
 			r.waitInput(t, tt.press)
 			r.waitInput(t, tt.release)
