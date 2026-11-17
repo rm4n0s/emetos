@@ -300,12 +300,18 @@ func (pv *paneView) onPointerDown(e *gestures.PointerDownEvent) {
 	if !pv.reportsMouse() && pv.shellPointerDown(e, btn, local) {
 		return
 	}
+	cfg := pv.env.cfg()
 	if pv.reportsMouse() {
-		pv.reporting = true
+		pv.reporting, pv.reported = true, btn
 		pv.report(emulator.MouseEvent{Button: btn, Action: emulator.MousePress, Mods: pv.modsOf(), X: col, Y: row})
+		// The secondary button still does what rightClickBehavior says, as in VS Code, whose context menu comes from the
+		// browser's contextmenu event whether a program tracks the mouse or not. The release still reaches the program: it
+		// goes to the pane that got the press.
+		if btn == emulator.MouseRight {
+			pv.rightClick(e, cfg, col, row)
+		}
 		return
 	}
-	cfg := pv.env.cfg()
 	switch btn {
 	case emulator.MouseRight:
 		pv.rightClick(e, cfg, col, row)
@@ -464,11 +470,7 @@ func (pv *paneView) onPointerUp(e *gestures.PointerUpEvent) {
 	if pv.reporting {
 		pv.reporting = false
 		col, row := pv.cellAt(e.LocalPosition())
-		btn, ok := buttonOf(e.Buttons())
-		if !ok {
-			btn = emulator.MouseLeft
-		}
-		pv.report(emulator.MouseEvent{Button: btn, Action: emulator.MouseRelease, Mods: pv.modsOf(), X: col, Y: row})
+		pv.report(emulator.MouseEvent{Button: pv.reported, Action: emulator.MouseRelease, Mods: pv.modsOf(), X: col, Y: row})
 		return
 	}
 	if !pv.pressed {

@@ -124,6 +124,9 @@ type paneView struct {
 	clicks    int
 	pressed   bool
 	reporting bool // the press is reported to the program
+	// reported is the button of that press: the release says which button it was, and the event of a release has no button
+	// down any more
+	reported  emulator.MouseButton
 	dragBar   bool
 	barGrab   float64
 	wheelRest float64

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
+	"github.com/rm4n0s/glutter/gestures"
 	"github.com/rm4n0s/glutter/gluttertest"
 	"github.com/rm4n0s/glutter/services"
 	gui "github.com/rm4n0s/glutter/ui"
@@ -383,6 +384,48 @@ func TestTheMenuOffersWhatVSCodeOffers(t *testing.T) {
 	r.settle()
 	if at == (gui.Offset{}) {
 		t.Error("the secondary button did not ask for the menu")
+	}
+}
+
+// A program that tracks the mouse (a full-screen program such as an AI assistant's CLI) gets the press and the release of every
+// button, the release with the button that was pressed although the event of a release has none down any more (as on a desktop:
+// gluttertest's release keeps the buttons of the press), and the secondary button opens the menu all the same, as in VS Code.
+func TestTheMenuOpensOverAProgramThatTracksTheMouse(t *testing.T) {
+	tests := []struct {
+		name           string
+		buttons        int
+		menu           bool
+		press, release string
+	}{
+		{"the secondary button", gestures.SecondaryButton, true, "\x1b[<2;2;2M", "\x1b[<2;2;2m"},
+		{"the middle button", gestures.TertiaryButton, false, "\x1b[<1;2;2M", "\x1b[<1;2;2m"},
+		{"the primary button", gestures.PrimaryButton, false, "\x1b[<0;2;2M", "\x1b[<0;2;2m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newFakePane(t, uitest.Themes()[0], paneSize, nil)
+			r.write(t, "\x1b[?1000h\x1b[?1006h")
+			menu := false
+			r.env.menu = func(*paneView, gui.Offset) { menu = true }
+			at := r.cell(1, 1)
+			const pointer = 41
+			r.ts.StartGesture(at, gluttertest.GestureOpts{Kind: gui.PointerDeviceKindMouse, Buttons: foundation.Some(tt.buttons), Pointer: pointer})
+			// Glutter: TestGesture.Up releases with the buttons of the press, which no desktop does; the release is sent by hand
+			// with none down (docs/GLUTTER-ISSUES.md, entry 3). Up should send no buttons.
+			r.ts.Binding.Gestures().HandlePointerEvent(gestures.NewPointerUpEvent(gestures.PointerEventOpts{
+				Pointer: pointer, Kind: gui.PointerDeviceKindMouse, Position: at, Buttons: foundation.Some(0),
+			}))
+			r.ts.FlushPosted()
+			r.settle()
+			r.waitInput(t, tt.press)
+			r.waitInput(t, tt.release)
+			if menu != tt.menu {
+				t.Errorf("the menu opened = %v, want %v", menu, tt.menu)
+			}
+			if r.pv.hasSelection() {
+				t.Error("a click selected text although the program tracks the mouse")
+			}
+		})
 	}
 }
 
