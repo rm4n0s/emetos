@@ -213,6 +213,10 @@ func (w *Workspace) DispatchKey(chord keybinding.Chord, focus *widgets.FocusNode
 	if isTextEditChord(chord) && textFieldHasFocus(focus) {
 		return false
 	}
+	// Select All in selectable text (the page of the Markdown preview) selects that text, not the editor's
+	if isSelectAllChord(chord) && selectableTextHasFocus(focus) {
+		return false
+	}
 	// the settings are keys too, "config.<setting>" as in VS Code (menuContext)
 	var keys contextkey.Context = menuContext{base: w.Scopes.ScopeOf(focus, w.Keys), settings: w.Settings}
 	out := w.Dispatcher.Dispatch(keys, chord)
@@ -261,6 +265,21 @@ func isTextEditChord(c keybinding.Chord) bool {
 		return !c.Shift
 	}
 	return false
+}
+
+// isSelectAllChord tells whether a chord is Ctrl+A.
+func isSelectAllChord(c keybinding.Chord) bool {
+	return c.Ctrl && !c.Alt && !c.Meta && !c.Shift && c.Key == keybinding.KeyA
+}
+
+// selectableTextHasFocus tells whether the focus is in selectable text of the UI (a widgets.SelectableRegion, whose own focus
+// node takes the keyboard while the user selects).
+func selectableTextHasFocus(focus *widgets.FocusNode) bool {
+	if focus == nil || focus.Context() == nil {
+		return false
+	}
+	_, ok := widgets.FindAncestorWidgetOfExactType[*widgets.SelectableRegion](focus.Context())
+	return ok
 }
 
 // textFieldHasFocus tells whether the focus is on a text field of the UI (a widgets.EditableText), not on the editor, whose

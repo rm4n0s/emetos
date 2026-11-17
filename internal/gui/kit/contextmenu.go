@@ -170,8 +170,10 @@ func (s *contextMenuState) overlay(_ widgets.BuildContext, info widgets.RawMenuO
 	layout := &anchoredLayout{SingleChildLayoutDelegateBase: rendering.NewSingleChildLayoutDelegateBase(nil), place: func(overlay, child ui.Size) ui.Offset {
 		return PlaceContextMenu(at, child, overlay)
 	}, key: ui.NewRectFromLTWH(at.Dx, at.Dy, 0, 0)}
+	// the menu is built in the context of its host: a selectable region around the host (the Markdown preview) must not take
+	// the labels of the items as text of its selection
 	return widgets.NewPositionedFill(widgets.NewTapRegion(
-		widgets.NewCustomSingleChildLayout(layout, menu),
+		widgets.NewCustomSingleChildLayout(layout, widgets.NewSelectionContainerDisabled(menu)),
 		widgets.TapRegionOpts{GroupID: info.TapRegionGroupID, OnTapOutside: func(*gestures.PointerDownEvent) { s.hide() }, Behavior: rendering.HitTestBehaviorDeferToChild}))
 }
 

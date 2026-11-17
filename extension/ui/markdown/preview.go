@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/rm4n0s/glutter/foundation"
@@ -120,6 +121,10 @@ type previewState struct {
 	notCovered    bool
 	layoutVersion int
 	builds        int
+
+	// the selection of the text (selectable): the region's state through its key, and whether some text is selected
+	selKey   *widgets.GlobalKey[*widgets.SelectableRegionState]
+	selected bool
 }
 
 // previewModel is the ScrollModel of the preview: the scrollbars and the wheel move the list through it.
@@ -147,6 +152,7 @@ func (s *previewState) InitState() {
 	s.built = map[blockKey]*builtBlock{}
 	s.measured = map[blockKey]float64{}
 	s.model = &previewModel{ChangeNotifier: *foundation.NewChangeNotifier(), s: s}
+	s.selKey = widgets.NewGlobalKey[*widgets.SelectableRegionState](widgets.GlobalKeyOpts{DebugLabel: "MarkdownSelection"})
 	s.dirty = true
 	s.attachController(v.opts.Controller)
 	s.latest = v.src
@@ -405,7 +411,73 @@ func (s *previewState) Build(bc widgets.BuildContext) widgets.Widget {
 	scroll := kit.NewScrollableElement(body, kit.ScrollableElementOpts{
 		Model: s.model, HandleMouseWheel: foundation.Some(true), Handle: &s.ctl.scroll,
 	})
-	return widgets.NewColoredBox(s.r.colors.EditorBackground, scroll)
+	return s.selectable(widgets.NewColoredBox(s.r.colors.EditorBackground, scroll))
+}
+
+// selectable makes the text of the page selectable as in VS Code's Markdown preview (the user, 2026-11-17): a drag selects, a
+// double click a word, a triple click a paragraph; Ctrl+C or the context menu's Copy copies it, Ctrl+A or Select All selects
+// all of it. Only the blocks that are built (the viewport and the margin around it, see window) take part in the selection, as
+// in a virtual list of Flutter's; a link still opens with a click.
+func (s *previewState) selectable(page widgets.Widget) widgets.Widget {
+	// the menu is inside the region, so that its right click comes before the region's (which would select a word); its items
+	// are kept out of the selection by kit's menu itself
+	menu := kit.NewContextMenuRegion(page, s.menuItems)
+	texts := widgets.NewSelectionContainer(newLinesDelegate(), menu)
+	region := widgets.NewSelectableRegion(widgets.NewEmptyTextSelectionControls(), texts, widgets.SelectableRegionOpts{
+		Key:                s.selKey,
+		OnSelectionChanged: func(c *rendering.SelectedContent) { s.selected = c != nil && c.PlainText != "" },
+	})
+	return widgets.NewDefaultSelectionStyle(region, widgets.DefaultSelectionStyleOpts{
+		SelectionColor: foundation.Some(s.r.colors.EditorSelectionBackground),
+	})
+}
+
+// linesDelegate is the selection delegate of the texts of the page: it copies each text on a line of its own. Flutter's (and
+// Glutter's) delegates join the texts with nothing between them, which runs a heading into the paragraph under it.
+type linesDelegate struct {
+	widgets.StaticSelectionContainerDelegate
+}
+
+func newLinesDelegate() *linesDelegate {
+	d := &linesDelegate{}
+	widgets.InitStaticSelectionContainerDelegate(&d.StaticSelectionContainerDelegate, d)
+	return d
+}
+
+// GetSelectedContent joins the selected parts of the texts, in their order on the page, with line feeds.
+func (d *linesDelegate) GetSelectedContent() *rendering.SelectedContent {
+	var parts []string
+	for _, sel := range d.Selectables {
+		if c := sel.GetSelectedContent(); c != nil && c.PlainText != "" {
+			parts = append(parts, c.PlainText)
+		}
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	return &rendering.SelectedContent{PlainText: strings.Join(parts, "\n")}
+}
+
+// menuItems are the items of the context menu of the page: Copy (while text is selected) and Select All.
+func (s *previewState) menuItems() []kit.MenuItem {
+	return []kit.MenuItem{
+		{ID: "copy", Label: "Copy", Keybinding: "Ctrl+C", Disabled: !s.selected, OnRun: s.copySelection},
+		{ID: "selectAll", Label: "Select All", Keybinding: "Ctrl+A", OnRun: s.selectAll},
+	}
+}
+
+// copySelection puts the selected text on the clipboard.
+func (s *previewState) copySelection() {
+	if st, ok := s.selKey.CurrentState(); ok {
+		st.CopySelection()
+	}
+}
+
+// selectAll selects the text of the blocks that are built.
+func (s *previewState) selectAll() {
+	if st, ok := s.selKey.CurrentState(); ok {
+		st.SelectAll()
+	}
 }
 
 // makeRenderer makes the renderer for the theme now; the widgets built with the old one are dropped.

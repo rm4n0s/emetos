@@ -125,6 +125,23 @@ func (r *renderer) monoStyle(color ui.Color) *painting.TextStyle {
 	})
 }
 
+// richText is a RichText that takes part in the selection of a SelectableRegion around it (the page of a document has one, see
+// previewState.selectable), in the region's selection color; where there is none it is a plain RichText. A Text joins a
+// selection by itself; a RichText has to be given the registrar.
+func (r *renderer) richText(span painting.InlineSpan, opts ...widgets.RichTextOpts) widgets.Widget {
+	var o widgets.RichTextOpts
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	return widgets.NewBuilder(func(bc widgets.BuildContext) widgets.Widget {
+		if registrar := widgets.SelectionContainerMaybeOf(bc); registrar != nil {
+			o.SelectionRegistrar = registrar
+			o.SelectionColor = foundation.Some(r.colors.EditorSelectionBackground)
+		}
+		return widgets.NewRichText(span, o)
+	})
+}
+
 // codeBlock is a block of code on its own background, highlighted when the language has a grammar.
 func (r *renderer) codeBlock(b CodeBlock) widgets.Widget {
 	b.Text = expandTabs(b.Text, 4)
@@ -135,9 +152,9 @@ func (r *renderer) codeBlock(b CodeBlock) widgets.Widget {
 		span = r.highlighted(b.Text, lines, style, fg)
 	}
 	if r.opts.Hover {
-		return widgets.NewRichText(span)
+		return r.richText(span)
 	}
-	return widgets.NewContainer(widgets.NewPadding(painting.NewEdgeInsetsAll(12), widgets.NewRichText(span)), widgets.ContainerOpts{
+	return widgets.NewContainer(widgets.NewPadding(painting.NewEdgeInsetsAll(12), r.richText(span)), widgets.ContainerOpts{
 		Decoration: painting.NewBoxDecoration(painting.BoxDecorationOpts{
 			Color: foundation.Some(r.colors.TextCodeBlockBackground), BorderRadius: painting.NewBorderRadiusCircular(3),
 		}),
@@ -235,6 +252,8 @@ func (r *renderer) list(l List) widgets.Widget {
 		default:
 			marker = widgets.NewText("•", widgets.TextOpts{Style: r.base})
 		}
+		// the marker is not copied with the text, as a browser copies a list
+		marker = widgets.NewSelectionContainerDisabled(marker)
 		content := r.blocks(it.Blocks)
 		if l.Tight && len(it.Blocks) > 0 {
 			content = r.tightBlocks(it.Blocks)
@@ -320,7 +339,7 @@ func (r *renderer) inlinesAligned(in []Inline, style *painting.TextStyle, align 
 		if len(spans) == 0 {
 			return
 		}
-		parts = append(parts, widgets.NewRichText(painting.NewTextSpan(painting.TextSpanOpts{Style: style, Children: spans}), widgets.RichTextOpts{TextAlign: align}))
+		parts = append(parts, r.richText(painting.NewTextSpan(painting.TextSpanOpts{Style: style, Children: spans}), widgets.RichTextOpts{TextAlign: align}))
 	}
 	for _, n := range in {
 		if img, ok := n.(Image); ok {
