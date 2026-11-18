@@ -141,7 +141,13 @@ func TestGoldenRunAndDebugCallStackWithThreadsAndAChildSession(t *testing.T) {
 			r.foldViews(command.ViewDebugVariables, command.ViewDebugWatch, command.ViewDebugBreakpoints)
 			r.stopped()
 			r.waitFor("the child session", func() bool { return len(r.svc().Model().Sessions(false)) == 2 })
-			r.win.shell.debug.panes.CallStack.Model().ExpandAll()
+			// the threads and the stack of the child session come after the session: the rows are expanded until the tree has them all
+			// (the two sessions, their three threads, and the frames main.main, runtime.main and main.work)
+			stack := r.win.shell.debug.panes.CallStack.Model()
+			r.waitFor("the threads and the stack of the child session", func() bool {
+				stack.ExpandAll()
+				return stack.Len() >= 9
+			})
 			r.settle()
 			r.caret(true)
 			testutil.MatchesGolden(r.ts, "run_debug_callstack_"+th.name)

@@ -45,6 +45,11 @@ func TestGoldenCoverage(t *testing.T) {
 			r, e := goldenCoverage(t, th.theme, map[string]any{"testing.coverageToolbarEnabled": true})
 			r.run(command.TestingToggleInlineCoverage, nil)
 			r.waitFor("the inline coverage", func() bool { return len(e.view.CoverageAnnotations()) > 0 })
+			// the blink of the caret starts again, as in TestGoldenTestingInTheEditor: the waits move the fake clock by as many steps
+			// as the machine needs, so without this the caret is caught shown in one run and hidden in the next
+			e.view.SetFocused(false)
+			e.view.SetFocused(true)
+			r.pump()
 			testutil.MatchesGolden(r.ts, "coverage_editor_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
