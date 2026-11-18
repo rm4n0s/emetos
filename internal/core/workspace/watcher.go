@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -133,14 +132,6 @@ type root struct {
 	mu      sync.Mutex // guards snap and removed
 	snap    map[string]polled
 	removed bool
-}
-
-// accepts tells whether the root reports the events of a path.
-func (r *root) accepts(path string) bool {
-	if r.files != nil {
-		return r.files[path]
-	}
-	return !r.excluded(path)
 }
 
 // covers tells whether an event is below the root and not excluded: the test of a subscription, which receives the events of
@@ -621,6 +612,3 @@ func diffSnapshots(prev, next map[string]polled) []rawEvent {
 	}
 	return out
 }
-
-// isNoSpace tells whether an error is the limit of inotify watches.
-func isNoSpace(err error) bool { return errors.Is(err, syscall.ENOSPC) }

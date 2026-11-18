@@ -133,6 +133,7 @@ func TestTheSubcommandsOfASpecAreOffered(t *testing.T) {
 func TestTheFilesOfTheFolderAreOfferedForAnArgument(t *testing.T) {
 	r, e := suggestRigWith(t, quickOn)
 	r.keys(e, "cat ")
+	r.waitLine(e, "cat ") // the shell echoes the space later than the keys go; a trigger before it completes the command
 	r.run(CmdTriggerSuggest, nil)
 	s := r.waitList(e, "the files", func(s *sugSession) bool { return s.explicit && len(s.items) > 0 })
 	got := labelsIn(s)
@@ -447,6 +448,7 @@ func TestIntelliSenseWorksInATerminalOfAnEditorTab(t *testing.T) {
 	r.waitNoList(e)
 	// and the list goes when the terminal moves back to the panel
 	r.keys(e, " ")
+	r.waitLine(e, "git ") // as above: the arguments' list needs the echoed space
 	r.run(CmdTriggerSuggest, nil)
 	r.waitList(e, "the list for the arguments", func(s *sugSession) bool { return len(s.items) > 0 })
 	r.run(CmdMoveToPanel, nil)

@@ -17,6 +17,7 @@ func TestGoldenDebugStoppedOnAnException(t *testing.T) {
 			r, e := stoppedOnException(t, rigOpts{theme: th.theme, size: debugGoldenSize})
 			r.waitFor("the exception widget and the values", func() bool { return e.view.DebugExceptionOpen() && len(e.view.InlineValues()) > 0 })
 			r.settle()
+			r.caret(true)
 			testutil.MatchesGolden(r.ts, "editor_debug_exception_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
@@ -47,6 +48,7 @@ func TestGoldenDebugHoverWithATree(t *testing.T) {
 			if h := e.view.DebugHover(); h == nil || !h.Complex {
 				t.Fatalf("hover = %+v, want a tree", h)
 			}
+			r.caret(true)
 			testutil.MatchesGolden(r.ts, "editor_debug_hover_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/rm4n0s/errors"
 	"golang.org/x/sys/unix"
@@ -369,3 +370,14 @@ func (w *Watcher) watchNewDir(path string, rs []*root, emit bool, out *[]rawEven
 		w.walkLocked(path, added, emit, out)
 	}
 }
+
+// accepts tells whether the root reports the events of a path.
+func (r *root) accepts(path string) bool {
+	if r.files != nil {
+		return r.files[path]
+	}
+	return !r.excluded(path)
+}
+
+// isNoSpace tells whether an error is the limit of inotify watches.
+func isNoSpace(err error) bool { return errors.Is(err, syscall.ENOSPC) }

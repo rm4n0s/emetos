@@ -11,6 +11,7 @@ import (
 	"github.com/rm4n0s/emetos/internal/core/command"
 	"github.com/rm4n0s/emetos/internal/core/dap/daptest"
 	"github.com/rm4n0s/emetos/internal/core/debug"
+	"github.com/rm4n0s/emetos/internal/gui/editor"
 	"github.com/rm4n0s/emetos/internal/gui/testutil"
 )
 
@@ -35,6 +36,24 @@ func (r *debugRig) settle() {
 	r.pump()
 }
 
+// caret puts the caret of the focused editor in the half of its blink that a golden shows: its blink starts again, as when the
+// editor gets the focus, and the caret is left shown or one BlinkInterval later hidden. The waits of the rig move the fake clock by as
+// many steps as the machine needs (the adapter is a real program), so without this the caret is caught shown in one run and hidden in
+// the next (TestGoldenTestingInTheEditor does the same).
+func (r *debugRig) caret(shown bool) {
+	r.t.Helper()
+	e := r.win.shell.activeEditor()
+	if e == nil || !e.view.Focused() {
+		r.t.Fatal("no editor has the focus")
+	}
+	e.view.SetFocused(false)
+	e.view.SetFocused(true)
+	if !shown {
+		r.ts.Pump(editor.BlinkInterval)
+	}
+	r.pump()
+}
+
 // foldViews folds the views of the container.
 func (r *debugRig) foldViews(ids ...string) {
 	for _, id := range ids {
@@ -49,6 +68,7 @@ func TestGoldenRunAndDebugBeforeASession(t *testing.T) {
 			r := goldenDebug(t, th.theme, debugFolder(t, nil), nil)
 			r.run(command.ViewContainerDebug, nil)
 			r.settle()
+			r.caret(false)
 			testutil.MatchesGolden(r.ts, "run_debug_idle_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
@@ -62,6 +82,7 @@ func TestGoldenRunAndDebugBeforeASession(t *testing.T) {
 			r := goldenDebug(t, th.theme, folder, nil)
 			r.run(command.ViewContainerDebug, nil)
 			r.settle()
+			r.caret(false)
 			testutil.MatchesGolden(r.ts, "run_debug_welcome_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
@@ -91,6 +112,7 @@ func TestGoldenRunAndDebugStopped(t *testing.T) {
 			r.run(command.DebugStepOverCommand, nil)
 			r.waitFor("the second stop", func() bool { return r.sum() == "47.5" && panes.Variables.Model().Len() >= 7 })
 			r.settle()
+			r.caret(true)
 			testutil.MatchesGolden(r.ts, "run_debug_stopped_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
@@ -121,6 +143,7 @@ func TestGoldenRunAndDebugCallStackWithThreadsAndAChildSession(t *testing.T) {
 			r.waitFor("the child session", func() bool { return len(r.svc().Model().Sessions(false)) == 2 })
 			r.win.shell.debug.panes.CallStack.Model().ExpandAll()
 			r.settle()
+			r.caret(true)
 			testutil.MatchesGolden(r.ts, "run_debug_callstack_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
@@ -144,6 +167,7 @@ func TestGoldenRunAndDebugBreakpoints(t *testing.T) {
 			r.run(command.ViewContainerDebug, nil)
 			r.foldViews(command.ViewDebugVariables, command.ViewDebugWatch, command.ViewDebugCallStack)
 			r.settle()
+			r.caret(false)
 			testutil.MatchesGolden(r.ts, "run_debug_breakpoints_"+th.name)
 			if errs := r.ts.TakeErrors(); len(errs) != 0 {
 				t.Errorf("errors: %v", errs)
@@ -160,6 +184,7 @@ func TestGoldenRunAndDebugToolbarAndStatusBar(t *testing.T) {
 				r.run(command.ViewContainerDebug, nil)
 				r.stopped()
 				r.settle()
+				r.caret(true)
 				testutil.MatchesGolden(r.ts, "run_debug_toolbar_"+place+"_"+th.name)
 				if errs := r.ts.TakeErrors(); len(errs) != 0 {
 					t.Errorf("errors: %v", errs)
@@ -173,10 +198,12 @@ func TestGoldenRunAndDebugToolbarAndStatusBar(t *testing.T) {
 			if !r.win.shell.debug.debugging {
 				t.Fatal("the status bar is not in the colors of a session")
 			}
+			r.caret(false)
 			testutil.MatchesGolden(r.ts, "run_debug_statusbar_"+th.name)
 			r.run(command.DebugStopCommand, nil)
 			r.waitState("inactive")
 			r.settle()
+			r.caret(false)
 			testutil.MatchesGolden(r.ts, "run_debug_statusbar_ended_"+th.name)
 		})
 	}

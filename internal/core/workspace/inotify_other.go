@@ -20,9 +20,8 @@ func newInotify(func(int) (int, error), func(int, string, uint32) (int, error)) 
 	return nil, errors.New("WatcherInitFailed", "inotify is only available on Linux")
 }
 
-func (n *inotify) close()                        {}
-func (n *inotify) dropRoot(r *root)              {}
-func (n *inotify) add(string, *root, bool) error { return nil }
+func (n *inotify) close()           {}
+func (n *inotify) dropRoot(r *root) {}
 
 func (w *Watcher) addRootLocked(r *root, out *[]rawEvent) error { return nil }
 func (w *Watcher) readLoop()                                    { w.wg.Done() }
