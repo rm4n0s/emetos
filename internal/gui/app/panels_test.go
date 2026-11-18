@@ -312,8 +312,9 @@ func TestProblemsClickOpensTheFileAtTheMarker(t *testing.T) {
 	a.fillProblems()
 	a.mustDo("workbench.actions.view.problems", nil)
 
-	// a marker of the open file: the cursor goes to the start of its range
+	// a marker of the open file: the cursor goes to the start of its range (the file is acquired in the background: openMarker)
 	a.tap("undefined: foo")
+	a.waitFor("the cursor at the marker", func() bool { return a.editorView().Cursors().Primary().Position().Line == 12 })
 	if got := a.active(); got != "main.go" {
 		t.Fatalf("the active tab is %s", got)
 	}
@@ -324,6 +325,7 @@ func TestProblemsClickOpensTheFileAtTheMarker(t *testing.T) {
 
 	// a marker of a file that is not open: it opens as a preview, and its column counts UTF-16 units
 	a.tap("bad accent")
+	a.waitFor("util.go", func() bool { return a.active() == "util.go" })
 	if a.active() != "util.go" {
 		t.Fatalf("the active tab is %s, tabs %v", a.active(), a.tabNames())
 	}
@@ -357,7 +359,8 @@ func TestProblemsEnterOpensTheFocusedMarker(t *testing.T) {
 	a.ts.SendKeyEvent(services.LogicalKeyboardKeyArrowDown, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyArrowDown})
 	a.ts.SendKeyEvent(services.LogicalKeyboardKeyArrowDown, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyArrowDown})
 	a.ts.SendKeyEvent(services.LogicalKeyboardKeyEnter, gluttertest.KeyOpts{Physical: services.PhysicalKeyboardKeyEnter})
-	a.pump()
+	// the file is acquired in the background (openMarker)
+	a.waitFor("util.go", func() bool { return a.active() == "util.go" })
 	if a.active() != "util.go" {
 		t.Fatalf("the active tab is %s", a.active())
 	}

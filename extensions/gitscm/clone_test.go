@@ -991,7 +991,19 @@ func TestOpenRepositoryPicksAFolderAndOpensItsRepositoryInTheView(t *testing.T) 
 					t.Errorf("the chooser was asked %+v", o)
 				}
 			}
-			r.api.WaitFor("the end", func() bool { r.api.Pump(); return tc.note != "" && len(r.api.Notes()) > notes || tc.note == "" })
+			// the end is the notification, or the repository in the view: it opens after git answered, which may be after the
+			// command returned
+			r.api.WaitFor("the end", func() bool {
+				r.api.Pump()
+				switch {
+				case tc.note != "":
+					return len(r.api.Notes()) > notes
+				case tc.root != "":
+					return r.x.model.byRoot(tc.root) != nil
+				default:
+					return true
+				}
+			})
 			r.api.Pump()
 			if tc.note != "" {
 				if got := r.api.Notes()[notes]; got.Message != tc.note || got.Severity != "error" {

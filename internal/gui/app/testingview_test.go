@@ -93,6 +93,7 @@ func newTestingRig(t *testing.T, o testingOpts) *testingRig {
 	}
 	testutil.Settings(t, paths, values)
 	p := newTestProcess(ProcessOptions{Paths: paths, Extensions: append([]extension.Factory{devtesting.New}, o.extensions...), TestingNow: o.now})
+	release := holdExtensionPosts(p)
 	win, err := NewWorkspace(context.Background(), p, folder)
 	if err != nil {
 		t.Fatal(err)
@@ -113,12 +114,34 @@ func newTestingRig(t *testing.T, o testingOpts) *testingRig {
 	ts := testutil.New(t, size)
 	ts.SetPlatformConfiguration(func(c *ui.PlatformConfiguration) { c.UIFontFamily, c.UIFontSize = testutil.MonoFamily, 12 })
 	ts.PumpWidget(newAppDocs(context.Background(), win, docs, nil, ""))
+	release(win)
 	r := &testingRig{t: t, win: win, ts: ts, folder: folder}
 	r.waitFor("the controller's tests", func() bool {
 		svc := win.TestingService()
 		return svc != nil && svc.ItemCount(devtesting.ControllerID) > 0
 	})
 	return r
+}
+
+// holdExtensionPosts makes what the extensions hand to the UI thread before the window is mounted wait for it, as the start of the
+// program does (Workspaces.start): the rig opens its files first, and a language server that starts then (gopls, where it is
+// installed) answers on a goroutine of its own, which would otherwise run the function itself, beside the mounting. release posts what
+// was held to the mounted window, in order, and ends the hold.
+func holdExtensionPosts(p *Process) (release func(*Workspace)) {
+	m := p.Workspaces
+	m.postMu.Lock()
+	m.holding = m.post == nil
+	m.postMu.Unlock()
+	return func(w *Workspace) {
+		post := w.poster()
+		m.postMu.Lock()
+		defer m.postMu.Unlock()
+		// under the lock, as bind does, so that nothing handed over from now on gets ahead of it
+		for _, f := range m.held {
+			post(f)
+		}
+		m.held, m.holding = nil, false
+	}
 }
 
 // pump runs the window for a few frames.
